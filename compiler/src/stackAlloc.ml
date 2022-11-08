@@ -265,22 +265,27 @@ let memory_analysis pp_err ~debug tbl up =
           let max_stk = if Z.lt max_stk fn_max then fn_max else max_stk in
           align, max_stk
         ) sao.sao_calls (align, Z.zero) in
-    (* FIXME: should be architecture-dependent *)
-    let max_ws = Wsize.U256 in
+    (* if we clear the stack, we may have to increase the alignment *)
+    let align =
+      match fd.f_cc, fd.f_annot.clear_stack with
+      | Export, Some (_, Some ws) ->
+          let ws = Pretyping.tt_ws ws in
+          if wsize_lt align ws then ws else align
+      | _, _ -> align
+    in
     (* stack size + extra_size + padding *)
     let frame_size =
       let stk_size = 
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
                    (Z.of_int extra_size) in
-      match fd.f_cc with
-      | Export ->
-          if fd.f_annot.clear_stack <> None then
-            Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z stk_size))
-          else
-            stk_size
-      | Subroutine _ -> 
+      (* if we clear the stack, we ensure that the stack size of the export
+         function is a multiple of the alignment (this is what we systematically
+         do for subroutines *)
+      match fd.f_cc, fd.f_annot.clear_stack with
+      | Export, Some _ | Subroutine _, _ ->
         Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
-      | Internal -> assert false
+      | Export, None -> stk_size
+      | Internal, _ -> assert false
     in
     let max_frame_size =
       (* the max size includes the padding introduced by the alignment of export functions *)
@@ -289,12 +294,20 @@ let memory_analysis pp_err ~debug tbl up =
       | Subroutine _ -> frame_size
       | Internal -> assert false
     in
+    (* if we clear the stack, we ensure that the max size is a multiple of the
+       size of the clear step. We use [fd.f_annot.clear_stack] and not [align],
+       this is on purpose! We know that the first one divides the second one. *)
     let max_size_used =
       let max_size = Z.add max_stk frame_size in
-      if fd.f_cc = Export && fd.f_annot.clear_stack <> None then
-        Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z max_size))
-      else
-        max_size
+      match fd.f_cc, fd.f_annot.clear_stack with
+      | Export, Some (_, ows) ->
+          let ws =
+            match ows with
+            | Some ws -> Pretyping.tt_ws ws
+            | None -> align
+          in
+          Conv.z_of_cz (Memory_model.round_ws ws (Conv.cz_of_z max_size))
+      | _, _ -> max_size
     in
     let max_size = Z.add max_stk max_frame_size in
     let saved_stack = 
