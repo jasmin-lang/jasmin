@@ -222,8 +222,7 @@ Definition arm_agparams : asm_gen_params :=
 (* FIXME: put real values here *)
 Definition arm_csparams : clear_stack_params :=
   {|
-    cs_max_ws := U32;
-    cs_clear_stack_cmd := fun _ _ _ => None
+    cs_clear_stack_cmd := fun _ _ _ _ _ => None
   |}.
 
 (* ------------------------------------------------------------------------ *)

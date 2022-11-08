@@ -28,7 +28,7 @@ type f_annot = {
     stack_allocation_size : Z.t option;
     stack_size    : Z.t option;
     stack_align   : wsize option;
-    clear_stack : Clear_stack_strategy.cs_strategy option;
+    clear_stack : (Clear_stack_strategy.cs_strategy * wsize option) option;
 }
 
 let f_annot_empty = {

@@ -1919,7 +1919,7 @@ let process_f_annot loc funname f_cc annot =
        "unrolled", Clear_stack_strategy.CSSunrolled]
   in
 
-  let clear_stack =
+  let clear_stack_strategy =
     let strategy = Annot.ensure_uniq1 "clearstack" mk_css annot in
     if strategy <> None && f_cc <> Export then
       hierror
@@ -1928,6 +1928,20 @@ let process_f_annot loc funname f_cc annot =
         ~kind:"unexpected annotation"
         "clearstack only applies to export functions";
     strategy
+  in
+  let clear_size =
+    Annot.ensure_uniq1 "clearsize" (Annot.wsize None) annot
+  in
+  let clear_stack =
+    match clear_stack_strategy, clear_size with
+    | None, None -> None
+    | None, _ ->
+        hierror
+          ~loc:(Lone loc)
+          ~funname
+          ~kind:"unexpected annotation"
+          "\"clearsize\" cannot be used alone, you need to specify a strategy with attribute \"clearstack\""
+    | Some css, _ -> Some (css, clear_size)
   in
 
   { retaddr_kind;

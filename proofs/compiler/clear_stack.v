@@ -1,10 +1,9 @@
-(* Clear (ovewrite) the stack before returning from export functions. *)
+(* Clear (overwrite) the stack before returning from export functions. *)
 
-(* This pass is parameterized by two architecture-specific definitions:
-   - The maximum amount of bits we can write to the stack in one instruction:
-     [max_sz : wsize].
-   - A piece of linear code that ovewrites a number of bytes in the stack:
-     [clear_stack_cmd : cs_strategy -> label -> Z -> lcmd].
+(* This pass is parameterized by one architecture-specific definition:
+   - A piece of linear code that overwrites a number of bytes in the stack by
+     iteratively clearing a fixed amount of bytes:
+     [clear_stack_cmd : cs_strategy -> label -> wsize -> Z -> lcmd].
 
 The linear command must implement the stack clearing depending on the chosen
 strategy.
@@ -12,8 +11,9 @@ The strategies are:
 - Loop: Overwrite with a simple one-instruction loop.
 - Unrolled: Overwrite with a sequence of instructions (no loop).
 
-In export functions we set the [total_stack] field to a multiple of [max_sz]
-so that the overwriting is done in an integer number of writes. *)
+In export functions we set the [total_stack] field to a multiple of the size
+of a clearing step, so that the overwriting is done in an integer number of
+writes. *)
 
 From mathcomp Require Import
   all_ssreflect
@@ -57,8 +57,7 @@ End E.
 (* Architecture-specific parameters. *)
 Record clear_stack_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
-    cs_max_ws : wsize;
-    cs_clear_stack_cmd : cs_strategy -> label -> Z -> option lcmd;
+    cs_clear_stack_cmd : cs_strategy -> label -> wsize -> wsize -> Z -> option lcmd;
   }.
 
 
@@ -67,15 +66,14 @@ Section CLEAR_STACK.
 Context
   (asm_op : Type)
   (asmop : asmOp asm_op)
-  (css_of_fn : funname -> option cs_strategy)
+  (css_of_fn : funname -> option (cs_strategy * wsize))
   (csparams : clear_stack_params).
 
-Notation max_ws := (cs_max_ws csparams).
 Notation clear_stack_cmd := (cs_clear_stack_cmd csparams).
 
 Definition lfd_clear_stack
-  (s : cs_strategy) (lbl : label) (lfd : lfundef) : option (lfundef * label) :=
-  if clear_stack_cmd s lbl (lfd_used_stack lfd) is Some tail
+  (s : cs_strategy) (lbl : label) ws (lfd : lfundef) : option (lfundef * label) :=
+  if clear_stack_cmd s lbl (lfd_align lfd) ws (lfd_used_stack lfd) is Some tail
   then
     let lfd' := map_lfundef (fun c => c ++ tail) lfd in
     Some (lfd', next_lbl lbl)
@@ -84,10 +82,10 @@ Definition lfd_clear_stack
 
 Definition prog_clear_stack_aux
   (lbl : label) (fn : funname) (fd : lfundef) : cexec (lfundef * label) :=
-  if css_of_fn fn is Some css
+  if css_of_fn fn is Some (css, ws)
   then
     if lfd_export fd && (0 <? lfd_used_stack fd)%Z
-    then o2r (E.css_error fn) (lfd_clear_stack css lbl fd)
+    then o2r (E.css_error fn) (lfd_clear_stack css lbl ws fd)
     else ok (fd, lbl)
   else
     ok (fd, lbl).

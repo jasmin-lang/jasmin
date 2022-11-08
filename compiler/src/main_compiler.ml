@@ -440,10 +440,19 @@ let main () =
         List.iter (warn_extra_fd Arch.asmOp) fds in
 
     (* TODO_SA: This seems overly complicated. *)
-    let css_of_fn =
+    let clear_stack_info =
       let h = Hf.create 17 in
       List.iter
-        (fun f -> Hf.add h f.f_name f.f_annot.clear_stack)
+        (fun f ->
+          let clear_stack =
+            match f.f_annot.clear_stack with
+            | Some (css, Some ws) ->
+                let ws = Pretyping.tt_ws ws in
+                Some (css, Some ws)
+            | Some (css, None) -> Some (css, None)
+            | None -> None
+          in
+          Hf.add h f.f_name clear_stack)
         (snd source_prog);
       fun fn ->
         let fn' = Conv.fun_of_cfun tbl fn in
@@ -482,7 +491,7 @@ let main () =
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;
-      Compiler.css_of_fn = css_of_fn;
+      Compiler.clear_stack_info = clear_stack_info;
       Compiler.is_regx      = is_regx tbl;
     } in
 

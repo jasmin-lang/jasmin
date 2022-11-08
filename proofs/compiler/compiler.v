@@ -181,7 +181,7 @@ Record compiler_params
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
   is_regx          : var -> bool;
-  css_of_fn        : funname -> option cs_strategy;
+  clear_stack_info : funname -> option (cs_strategy * option wsize);
 }.
 
 
@@ -349,7 +349,16 @@ Definition compiler_back_end entries (pd: sprog) :=
   let pl := cparams.(print_linear) Linearization pl in
 
   (* clear stack *)
-  Let pl := prog_clear_stack (css_of_fn cparams) (ap_csp aparams) pl in
+  let css_of_fn fn :=
+    match clear_stack_info cparams fn with
+    | Some (css, None) =>
+      if get_fundef (p_funcs pd) fn is Some fd then Some (css, fd.(f_extra).(sf_align))
+      else None (* impossible *)
+    | Some (css, Some ws) => Some (css, ws)
+    | None => None
+    end
+  in
+  Let pl := prog_clear_stack css_of_fn (ap_csp aparams) pl in
   let pl := cparams.(print_linear) ClearStack pl in
 
   (* tunneling                         *)
