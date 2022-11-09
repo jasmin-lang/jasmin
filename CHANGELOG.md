@@ -11,6 +11,12 @@
   `n`
   ([PR #282](https://github.com/jasmin-lang/jasmin/pull/282)).
 
+- More x86 instructions are available:
+  `VPMUL`
+  ([PR #276](https://github.com/jasmin-lang/jasmin/pull/276)),
+  `VPAVG`
+  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
