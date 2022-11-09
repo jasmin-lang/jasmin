@@ -96,6 +96,7 @@ Variant x86_op : Type :=
 | VPXOR    `(wsize)
 | VPADD    `(velem) `(wsize)
 | VPSUB    `(velem) `(wsize)
+| VPAVG of velem & wsize
 | VPMULL   `(velem) `(wsize)
 | VPMULH   `(velem) `(wsize)   (* signed multiplication of 16-bits*)
 | VPMULHU  `(velem) `(wsize)
@@ -678,6 +679,12 @@ Definition x86_VPMULL (ve: velem) sz v1 v2 :=
 Definition x86_VPMUL sz := x86_u128_binop (@wpmul sz).
 
 Definition x86_VPMULU sz := x86_u128_binop (@wpmulu sz).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VPAVG (ve: velem) (sz: wsize) v1 v2 :=
+  Let _ := assert (wsize_of_velem ve ≤ U16)%CMP ErrType in
+  let avg x y := wrepr ve ((wunsigned x + wunsigned y + 1) / 2) in
+  x86_u128_binop (lift2_vec ve avg sz) v1 v2.
 
 (* ---------------------------------------------------------------- *)
 
@@ -1389,6 +1396,8 @@ Definition Ox86_VPXOR_instr  := mk_instr_w2_w_120    "VPXOR"   x86_VPXOR  check_
 Definition Ox86_VPADD_instr  := mk_ve_instr_w2_w_120 "VPADD"   x86_VPADD  check_xmm_xmm_xmmm (PrimV VPADD) (pp_viname "vpadd").
 Definition Ox86_VPSUB_instr  := mk_ve_instr_w2_w_120 "VPSUB"   x86_VPSUB  check_xmm_xmm_xmmm (PrimV VPSUB) (pp_viname "vpsub").
 
+Definition Ox86_VPAVG_instr := mk_ve_instr_w2_w_120 "VPAVG" x86_VPAVG check_xmm_xmm_xmmm (PrimV VPAVG) (pp_viname "vpavg").
+
 Definition Ox86_VPMULL_instr := mk_ve_instr_w2_w_120 "VPMULL" x86_VPMULL check_xmm_xmm_xmmm (PrimV VPMULL) (pp_viname "vpmull").
 Definition Ox86_VPMUL_instr  := ((fun sz => mk_instr (pp_sz "VPMUL" sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMUL sz) (check_xmm_xmm_xmmm sz) 3 sz [::] (pp_name "vpmuldq" sz)), ("VPMUL"%string, (PrimP U128 VPMUL))).
 Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_sz "VPMULU" sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMULU sz) (check_xmm_xmm_xmmm sz) 3 sz [::] (pp_name "vpmuludq" sz)), ("VPMULU"%string, (PrimP U128 VPMULU))).
@@ -1807,6 +1816,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPXOR sz           => Ox86_VPXOR_instr.1 sz
   | VPADD sz sz'       => Ox86_VPADD_instr.1 sz sz'
   | VPSUB sz sz'       => Ox86_VPSUB_instr.1 sz sz'
+  | VPAVG sz sz'       => Ox86_VPAVG_instr.1 sz sz'
   | VPMULL sz sz'      => Ox86_VPMULL_instr.1 sz sz'
   | VPMUL sz           => Ox86_VPMUL_instr.1 sz
   | VPMULU sz          => Ox86_VPMULU_instr.1 sz
@@ -1935,6 +1945,7 @@ Definition x86_prim_string :=
    Ox86_VPXOR_instr.2;
    Ox86_VPADD_instr.2;
    Ox86_VPSUB_instr.2;
+   Ox86_VPAVG_instr.2;
    Ox86_VPMULL_instr.2;
    Ox86_VPMUL_instr.2;
    Ox86_VPMULU_instr.2;

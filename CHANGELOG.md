@@ -1,6 +1,14 @@
 
 # [unreleased]
 
+## New features
+
+- More x86 instructions are available:
+  `VPMUL`
+  ([PR #276](https://github.com/jasmin-lang/jasmin/pull/276)),
+  `VPAVG`
+  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
