@@ -1,0 +1,37 @@
+export
+fn test_vpavgb(reg u64 out in) {
+  reg u128 a b c;
+  reg u256 d e f;
+
+  a = (u128)[in];
+
+  b = #VPAVG_16u8(a, (u128)[in + 16]);
+  c = #VPAVG_16u8(a, b);
+  d = (256u) #VPAVG_16u8(a, c);
+
+  (u128)[out] = c;
+
+  e = #VPAVG_32u8(d, (u256)[in + 32]);
+  f = #VPAVG_32u8(d, e);
+
+  (u256)[out + 32] = f;
+}
+
+export
+fn test_vpavgw(reg u64 out in) {
+  reg u128 a b c;
+  reg u256 d e f;
+
+  a = (u128)[in];
+
+  b = #VPAVG_8u16(a, (u128)[in + 16]);
+  c = #VPAVG_8u16(a, b);
+  d = (256u) #VPAVG_8u16(a, c);
+
+  (u128)[out] = c;
+
+  e = #VPAVG_16u16(d, (u256)[in + 32]);
+  f = #VPAVG_16u16(d, e);
+
+  (u256)[out + 32] = f;
+}
