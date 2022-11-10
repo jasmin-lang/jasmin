@@ -7,6 +7,7 @@
 , devTools ? !inCI
 , ecRef ? ""
 , opamDeps ? false
+, armTestDeps ? false
 , enableFramePointers ? false
 }:
 
@@ -53,5 +54,6 @@ stdenv.mkDerivation {
     ++ optionals devTools (with oP; [ merlin ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
+    ++ optionals armTestDeps [ libllvm ]
     ;
 }
