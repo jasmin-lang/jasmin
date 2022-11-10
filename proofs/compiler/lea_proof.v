@@ -1,6 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
+Require Import oseq.
 Require Import psem compiler_util.
+Require Import fexpr fexpr_sem fexpr_facts.
 Require Export lea.
 Import Utf8.
 Import ssrring.
@@ -111,16 +113,16 @@ Section PROOF.
     by rewrite /sem_lea /= hb1 ho1 /=; f_equal; rewrite wrepr_sub; ssring.
   Qed.
 
-  Lemma mk_lea_recP s e l sz sz' (w: word sz') :
-    (sz <= Uptr)%CMP -> 
+  Lemma mk_lea_recP vm e l sz sz' (w: word sz') :
+    (sz <= Uptr)%CMP ->
     (sz ≤ sz')%CMP →
     mk_lea_rec sz e = Some l ->
-    sem_pexpr gd s e = ok (Vword w) ->
-    sem_lea sz (evm s) l = ok (zero_extend sz w).
+    sem_fexpr vm e = ok (Vword w) ->
+    sem_lea sz vm l = ok (zero_extend sz w).
   Proof.
     move=> hsz.
     elim: e l sz' w => //=.
-    + move=> x l sz' w hsz'; rewrite /get_gvar; case: ifP => // hlv [<-].
+    + move=> x l sz' w hsz' [<-].
       by rewrite lea_varP => -> /=; f_equal; rewrite /truncate_word hsz'.
     + move=> [] //= sz1 [] //= e1 he1 l sz' w hsz' [<-]; rewrite /sem_sop1 /= => h.
       have /Vword_inj[? ? /=] := ok_inj h; subst.
@@ -156,7 +158,7 @@ Section PROOF.
     sem_pexpr gd s e = ok (Vword w) ->
     sem_lea sz (evm s) l = ok (zero_extend sz w).
   Proof.
-    rewrite /mk_lea => h1 h2 hrec.
+    rewrite /mk_lea => h1 h2 /obindI[] f [] /fexpr_of_pexprP h hrec /h.
     exact: mk_lea_recP.
   Qed.
 
@@ -218,32 +220,36 @@ Section PROOF.
 
   Lemma mk_lea_rec_read sz e m :
     mk_lea_rec sz e = Some m →
-    Sv.Subset (read_lea m) (read_e e).
+    Sv.Subset (read_lea m) (free_vars e).
   Proof.
   elim: e m => //=.
-  + by move => [x []] //= _ [<-]; rewrite read_e_var; apply: SvD.F.Subset_refl.
+  + move => > /Some_inj <-.
+    rewrite /read_lea /= read_e_var; exact: SvD.F.Subset_refl.
   + by case => // sz' [] // z _ _ [<-].
   case => //.
   + case => // sz' e1.
     case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
     case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_add_read.
-    rewrite /read_e /= !read_eE.
+    rewrite /free_vars /= !free_varsE.
     by SvD.fsetdec.
   + case => // sz' e1.
     case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
     case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_mul_read.
-    rewrite /read_e /= !read_eE.
+    rewrite /free_vars /= !free_varsE.
     by SvD.fsetdec.
   case => // sz' e1.
   case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
   case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_sub_read.
-  rewrite /read_e /= !read_eE.
+  rewrite /free_vars /= !free_varsE.
   by SvD.fsetdec.
   Qed.
 
   Lemma mk_lea_read sz e m :
     mk_lea sz e = Some m →
     Sv.Subset (read_lea m) (read_e e).
-  Proof. exact: mk_lea_rec_read. Qed.
+  Proof.
+    case/obindI => f [] /free_vars_rec_of_pexpr h /mk_lea_rec_read.
+    by rewrite /free_vars h.
+  Qed.
 
 End PROOF.

@@ -2,6 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import Utf8.
 Require Import expr.
+Require Import fexpr.
 
 (* -------------------------------------------------------------------- *)
 
@@ -60,24 +61,22 @@ Definition lea_sub l1 l2 :=
   | _   , _    => None
   end.
 
-Fixpoint mk_lea_rec (sz:wsize) e :=
+Fixpoint mk_lea_rec (sz: wsize) e :=
   match e with
-  | Papp1 (Oword_of_int sz') (Pconst z) =>
+  | Fapp1 (Oword_of_int sz') (Fconst z) =>
       Some (lea_const (wunsigned (wrepr sz' z)))
-  | Pvar  x          =>
-    if is_lvar x then Some (lea_var x.(gv))
-    else None
-  | Papp2 (Omul (Op_w sz')) e1 e2 =>
+  | Fvar  x          => Some (lea_var x)
+  | Fapp2 (Omul (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
     | Some l1, Some l2 => lea_mul l1 l2
     | _      , _       => None
     end
-  | Papp2 (Oadd (Op_w sz')) e1 e2 =>
+  | Fapp2 (Oadd (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
     | Some l1, Some l2 => lea_add l1 l2
     | _      , _       => None
     end
-  | Papp2 (Osub (Op_w sz')) e1 e2 =>
+  | Fapp2 (Osub (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
     | Some l1, Some l2 => lea_sub l1 l2
     | _      , _       => None
@@ -85,4 +84,5 @@ Fixpoint mk_lea_rec (sz:wsize) e :=
   | _ => None
   end.
 
-Definition mk_lea sz e := mk_lea_rec sz e.
+Definition mk_lea sz e :=
+  obind (mk_lea_rec sz) (fexpr_of_pexpr e).
