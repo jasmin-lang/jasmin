@@ -184,7 +184,14 @@ check:
   - ocaml
   script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc.native -version'
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci $EXTRA_MAKE_ARGUMENTS'
+
+check-arm-target:
+  extends: check
+  allow_failure: true
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true --arg armTestDeps true
+    EXTRA_MAKE_ARGUMENTS: CHECKCATS=arm
 
 libjade-compile-to-asm:
   stage: test

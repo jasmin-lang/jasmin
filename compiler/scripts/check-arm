@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e
+
+DIR=$(mktemp -d jasminXXXXXX)
+ASM=${DIR}/jasmin.s
+OBJ=${DIR}/jasmin.o
+
+trap "rm -r ${DIR}" EXIT
+
+set -x
+
+$(dirname $0)/../jasminc.native -arch arm-m4 -o ${ASM} "$@"
+
+llvm-mc --triple=armv7m --mcpu=cortex-m4 --filetype=obj -o ${OBJ} ${ASM}
