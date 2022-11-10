@@ -44,7 +44,7 @@ stdenv.mkDerivation {
   name = "jasmin-0";
   src = null;
   buildInputs = []
-    ++ optionals coqDeps [ coqPackages.coq coqword coqPackages.coq.ocamlPackages.ocaml ]
+    ++ optionals coqDeps [ coqPackages.coq coqword ]
     ++ optionals testDeps ([ curl.bin oP.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib ocamlbuild
