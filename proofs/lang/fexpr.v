@@ -1,4 +1,5 @@
 From mathcomp Require Import all_ssreflect.
+From Coq Require Import Utf8.
 Require Import expr.
 
 Set Implicit Arguments.
@@ -30,3 +31,46 @@ Variant lexpr :=
 
 Notation rexprs := (seq rexpr).
 Notation lexprs := (seq lexpr).
+
+(* -------------------------------------------------------------------------- *)
+Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
+  match e with
+  | Pconst z => Some (Fconst z)
+  | Pvar {| gs := Slocal ; gv := x |} => Some (Fvar x)
+  | Papp1 op a => omap (Fapp1 op) (fexpr_of_pexpr a)
+  | Papp2 op a b =>
+      obind (λ a,
+          omap (Fapp2 op a) (fexpr_of_pexpr b)
+        ) (fexpr_of_pexpr a)
+  | Pif sbool a b c =>
+      obind (λ a,
+      obind (λ b,
+        omap (Fif a b) (fexpr_of_pexpr c))
+        (fexpr_of_pexpr b))
+        (fexpr_of_pexpr a)
+  | _ => None
+  end.
+
+Definition rexpr_of_pexpr (e: pexpr) : option rexpr :=
+  if e is Pload ws p e then omap (Load ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
+
+Definition lexpr_of_lval (e: lval) : option lexpr :=
+  match e with
+  | Lvar x => Some (LLvar x)
+  | Lmem ws p e =>
+      omap (Store ws p) (fexpr_of_pexpr e)
+  | _ => None
+  end.
+
+(* -------------------------------------------------------------------------- *)
+Fixpoint free_vars_rec (s: Sv.t) (e: fexpr) : Sv.t :=
+  match e with
+  | Fconst _ => s
+  | Fvar x => Sv.add x s
+  | Fapp1 _ f => free_vars_rec s f
+  | Fapp2 _ f1 f2 => free_vars_rec (free_vars_rec s f1) f2
+  | Fif f1 f2 f3 => free_vars_rec (free_vars_rec (free_vars_rec s f1) f2) f3
+  end.
+
+Definition free_vars (e: fexpr) : Sv.t :=
+  free_vars_rec Sv.empty e.

@@ -91,6 +91,7 @@ lang/expr.v
 lang/expr_facts.v
 lang/extraction.v
 lang/fexpr.v
+lang/fexpr_facts.v
 lang/fexpr_sem.v
 lang/flag_combination.v
 lang/gen_map.v
