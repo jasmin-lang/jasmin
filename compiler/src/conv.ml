@@ -26,14 +26,8 @@ let z_of_int32 z  = z_of_cz (Word0.wsigned W.U32 z)
 let z_of_int16 z  = z_of_cz (Word0.wsigned W.U16 z)
 let z_of_int8 z  = z_of_cz (Word0.wsigned W.U8 z)
 
-let z_of_word sz z = 
-  match sz with
-  | W.U8 -> z_of_int8 z 
-  | W.U16 -> z_of_int16 z
-  | W.U32 -> z_of_int32 z
-  | W.U64 -> z_of_int64 z
-  | W.U128 -> z_of_int128 z
-  | W.U256 -> z_of_int256 z
+let z_of_word sz z = z_of_cz (Word0.wsigned sz z)
+let z_unsigned_of_word sz z = z_of_cz (Word0.wunsigned sz z)
 (* ------------------------------------------------------------------------ *)
 
 let string0_of_string s =

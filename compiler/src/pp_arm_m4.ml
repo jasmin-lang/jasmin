@@ -96,7 +96,7 @@ let pp_address addr =
 let pp_asm_arg arg =
   match arg with
   | Condt _ -> None
-  | Imm (ws, w) -> Some (pp_imm (Conv.z_of_word ws w))
+  | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx r -> Some (pp_register_ext r)
   | Addr addr -> Some (pp_address addr)
