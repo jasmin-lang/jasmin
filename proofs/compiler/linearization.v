@@ -65,7 +65,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
        The linear instruction [lip_allocate_stack_frame rspi sz] increases the
        stack pointer [sz] bytes.
        In symbols, it corresponds to:
-               R[rsp] := R[rsp] + sz
+               R[rsp] := R[rsp] − sz
      *)
     lip_allocate_stack_frame :
       var_i    (* Variable with stack pointer register. *)
@@ -391,8 +391,8 @@ Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   if sz == 0%Z
   then [::]
   else let args := if free
-                   then (lip_allocate_stack_frame liparams) rspi sz
-                   else (lip_free_stack_frame liparams) rspi sz
+                   then (lip_free_stack_frame liparams) rspi sz
+                   else (lip_allocate_stack_frame liparams) rspi sz
        in [:: MkLI ii (Lopn args.1.1 args.1.2 args.2) ].
 
 Definition ensure_rsp_alignment ii (al: wsize) : linstr :=

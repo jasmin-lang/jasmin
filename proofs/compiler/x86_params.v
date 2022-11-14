@@ -68,12 +68,12 @@ Definition x86_saparams is_regx : stack_alloc_params :=
 
 Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
   let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Oadd (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
+  let p := Papp2 (Osub (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
   ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
 
 Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
   let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Osub (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
+  let p := Papp2 (Oadd (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
   ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
 
 Definition x86_ensure_rsp_alignment (rspi: var_i) (al: wsize) :=
