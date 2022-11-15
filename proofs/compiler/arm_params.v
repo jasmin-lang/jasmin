@@ -47,11 +47,11 @@ Definition arm_saparams : stack_alloc_params :=
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
   let rspg := Gvar rspi Slocal in
   let esz := Papp1 (Oword_of_int reg_size) (Pconst sz) in
-  ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
+  ([:: Lvar rspi ], Oarm (ARM_op SUB default_opts), [:: Pvar rspg; esz ]).
 
 Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
   let rspg := Gvar rspi Slocal in
-  let esz := Papp1 (Oword_of_int reg_size) (Pconst (-sz)) in
+  let esz := Papp1 (Oword_of_int reg_size) (Pconst sz) in
   ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
 
 Definition arm_ensure_rsp_alignment (rspi : var_i) (al : wsize) :=

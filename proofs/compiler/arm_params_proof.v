@@ -141,24 +141,6 @@ Let vm := evm s.
 Lemma arm_spec_lip_allocate_stack_frame ts sz :
   let args := lip_allocate_stack_frame arm_liparams vrspi sz in
   let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let ts' := pword_of_word (ts + wrepr Uptr sz) in
-  let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
-  (vm.[vrsp])%vmap = ok (pword_of_word ts)
-  -> eval_instr lp i (of_estate s fn pc)
-     = ok (of_estate s' fn pc.+1).
-Proof.
-  move=> /= hvm.
-  rewrite /eval_instr /=.
-  rewrite /sem_sopn /=.
-  rewrite /get_gvar /get_var /on_vu /=.
-  rewrite hvm /=.
-  rewrite pword_of_wordE.
-  by rewrite zero_extend_u zero_extend_wrepr.
-Qed.
-
-Lemma arm_spec_lip_free_stack_frame ts sz :
-  let args := lip_free_stack_frame arm_liparams vrspi sz in
-  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
   let ts' := pword_of_word (ts - wrepr Uptr sz) in
   let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
   (vm.[vrsp])%vmap = ok (pword_of_word ts)
@@ -171,7 +153,25 @@ Proof.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite hvm /=.
   rewrite pword_of_wordE.
-  rewrite wrepr_opp.
+  rewrite wsub_wnot1.
+  by rewrite zero_extend_u zero_extend_wrepr.
+Qed.
+
+Lemma arm_spec_lip_free_stack_frame ts sz :
+  let args := lip_free_stack_frame arm_liparams vrspi sz in
+  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
+  let ts' := pword_of_word (ts + wrepr Uptr sz) in
+  let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
+  (vm.[vrsp])%vmap = ok (pword_of_word ts)
+  -> eval_instr lp i (of_estate s fn pc)
+     = ok (of_estate s' fn pc.+1).
+Proof.
+  move=> /= hvm.
+  rewrite /eval_instr /=.
+  rewrite /sem_sopn /=.
+  rewrite /get_gvar /get_var /on_vu /=.
+  rewrite hvm /=.
+  rewrite pword_of_wordE.
   by rewrite zero_extend_u zero_extend_wrepr.
 Qed.
 

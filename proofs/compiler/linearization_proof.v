@@ -350,7 +350,7 @@ Record h_linearization_params :=
         let vm := evm s in
         let args := lip_allocate_stack_frame liparams (VarI rsp dummy_var_info) sz in
         let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-        let ts' := pword_of_word (ts + wrepr Uptr sz) in
+        let ts' := pword_of_word (ts - wrepr Uptr sz) in
         let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
         (vm.[rsp])%vmap = ok (pword_of_word ts)
         -> eval_instr lp i (of_estate s fn pc)
@@ -362,7 +362,7 @@ Record h_linearization_params :=
         let vm := evm s in
         let args := lip_free_stack_frame liparams (VarI rsp dummy_var_info) sz in
         let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-        let ts' := pword_of_word (ts - wrepr Uptr sz) in
+        let ts' := pword_of_word (ts + wrepr Uptr sz) in
         let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
         (vm.[rsp])%vmap = ok (pword_of_word ts)
         -> eval_instr lp i (of_estate s fn pc)
@@ -2158,7 +2158,7 @@ Section PROOF.
       + apply: lsem_step; last apply: lsem_step; last apply: lsem_step; last apply: lsem_step_end.
         * rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) addn0 /=.
           apply
-            (spec_lip_free_stack_frame
+            (spec_lip_allocate_stack_frame
                hliparams
                p'
                (s := {| emem := _; evm := _; |})).
@@ -2180,7 +2180,7 @@ Section PROOF.
         rewrite pword_of_wordE in Hvm'.
 
         rewrite
-          (@spec_lip_allocate_stack_frame
+          (@spec_lip_free_stack_frame
              _
              hliparams
              _
@@ -2305,7 +2305,7 @@ Section PROOF.
           ({| escs:= escs s1; emem := m1; evm := vm2; |}.[vrsp])%vmap
           = ok (pword_of_word (@top_stack _ mem _ _ s1)).
         - by rewrite vm2_rsp pword_of_wordE.
-        rewrite (spec_lip_free_stack_frame hliparams _ _ _ _ _ Hvm2).
+        rewrite (spec_lip_allocate_stack_frame hliparams _ _ _ _ _ Hvm2).
         rewrite /of_estate -addn1 -addnA add0n.
         reflexivity.
       + rewrite /lsem1 /step (find_instr_skip C) /=.
@@ -2371,7 +2371,7 @@ Section PROOF.
           subst.
         by rewrite pword_of_wordE.
 
-      rewrite (spec_lip_allocate_stack_frame hliparams _ _ _ _ _ Hvm2) /=.
+      rewrite (spec_lip_free_stack_frame hliparams _ _ _ _ _ Hvm2) /=.
       rewrite /= /of_estate /with_vm /=.
       by rewrite -addn1 -addnA.
     - move => x x_out.
@@ -2832,7 +2832,7 @@ Section PROOF.
               subst.
               by rewrite pword_of_wordE.
 
-            rewrite (@spec_lip_free_stack_frame
+            rewrite (@spec_lip_allocate_stack_frame
                        _
                        hliparams
                        _
@@ -3381,7 +3381,7 @@ Section PROOF.
           * rewrite /lsem1 /step.
             move: ok_body.
             rewrite /P -cat1s -catA -(addn0 1) => /find_instr_skip -> /=.
-            apply: (spec_lip_free_stack_frame hliparams p').
+            apply: (spec_lip_allocate_stack_frame hliparams p').
             rewrite Fv.setP_neq; last by move /negbT: (not_magic_neq_rsp var_tmp_not_magic).
             move: ok_rsp; rewrite /get_var.
             apply: on_vuP => //= -[???] ->.
