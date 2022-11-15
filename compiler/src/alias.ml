@@ -143,14 +143,14 @@ let merge params a1 a2 =
       merge_slices params a s1 s2
     ) a1 a2
 
-let range_of_asub aa ws len { gv } i =
+let range_of_asub aa ws len gv i =
   match get_ofs aa ws i with
   | None -> hierror ~loc:(Lone (L.loc gv)) "cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
   | Some start -> start, start + arr_size ws len
 
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in
-  range_in_slice (range_of_asub aa ws len x i) s
+  range_in_slice (range_of_asub aa ws len x.gv i) s
 
 let slice_of_pexpr a =
   function
