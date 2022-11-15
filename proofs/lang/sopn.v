@@ -56,27 +56,13 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimARM of (bool -> bool -> option shift_kind -> asm_op)
   .
 
- Class asmOp (asm_op : Type) := {
+Class asmOp (asm_op : Type) := {
   _eqT           :> eqTypeC asm_op
   ; asm_op_instr : asm_op -> instruction_desc
   ; prim_string   : list (string * prim_constructor asm_op)
 }.
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
-
-(*Section T.
-Context {asm_op} {asmop:asmOp asm_op}.
-
-Definition get_instr_desc o := asm_op_instr o.
-
-Definition string_of_sopn o : string := str (get_instr_desc o) tt.
-
-Definition sopn_tin o : list stype := tin (get_instr_desc o).
-Definition sopn_tout o : list stype := tout (get_instr_desc o).
-Definition sopn_sem  o := semi (get_instr_desc o).
-Definition wsize_of_sopn o : wsize := wsizei (get_instr_desc o).
-
-End T.*)
 
 Section ASM_OP.
 
@@ -90,12 +76,6 @@ Variant sopn :=
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 | Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-  (* protection for shl *)
-| Oprotect  of wsize 
-| Oprotect_ptr of positive 
-| Oset_msf    
-| Oinit_msf
-| Omov_msf
 | Oasm      of asm_op_t.
 
 Definition sopn_beq (o1 o2:sopn) :=
@@ -105,38 +85,19 @@ Definition sopn_beq (o1 o2:sopn) :=
   | Omulu ws1, Omulu ws2 => ws1 == ws2
   | Oaddcarry ws1, Oaddcarry ws2 => ws1 == ws2
   | Osubcarry ws1, Osubcarry ws2 => ws1 == ws2
-  | Oprotect ws1, Oprotect ws2 => ws1 == ws2 
-  | Oprotect_ptr p1, Oprotect_ptr p2 => p1 == p2
-  | Oset_msf, Oset_msf => true    
-  | Oinit_msf, Oinit_msf => true
-  | Omov_msf, Omov_msf => true 
   | Oasm o1, Oasm o2 => o1 == o2 ::>
   | _, _ => false
   end.
 
 Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
 Proof.
-  move=> [ws1 p1||ws1|ws1|ws1|ws1|p1||||o1] [ws2 p2||ws2|ws2|ws2|ws2|p2||||o2] /=;
+  move=> [ws1 p1||ws1|ws1|ws1|o1] [ws2 p2||ws2|ws2|ws2|o2] /=;
    first (by apply (iffP andP) => [[/eqP -> /eqP ->] | [-> ->]]);
    try by (constructor || apply: reflect_inj eqP => ?? []).
 Qed.
 
 Definition sopn_eqMixin := Equality.Mixin sopn_eq_axiom.
 Canonical  sopn_eqType  := EqType sopn sopn_eqMixin.
-
-End ASM_OP.
-
-Module Type WhichSem.
-  Parameter sem_is_source: bool.
-End WhichSem.
-
-Module MkSemOp (W:WhichSem).
-
-Section ASM_OP.
-
-Context {pd: PointerData}.
-Context `{asmop : asmOp}.
-
 
 (* The fields [i_in] and [i_out] are used in the regalloc pass only. The
    following instructions should be replaced before that pass (in lowering),
@@ -190,6 +151,7 @@ Definition Osubcarry_instr sz:=
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
            [::].
+<<<<<<< HEAD
 
 Definition init_msf : exec (pointer) := 
   ok (wrepr Uptr 0).
@@ -287,20 +249,17 @@ Definition Oset_msf_instr :=
                 set_msf
                 U8 (* ? *)
                 [::].
+=======
+>>>>>>> f0f64b72 (wip for compiler pass from spec1 to spec2)
 
 Definition get_instr_desc o :=
   match o with
-  | Ocopy ws p     => Ocopy_instr ws p
-  | Onop           => Onop_instr
-  | Omulu     sz   => Omulu_instr sz
-  | Oaddcarry sz   => Oaddcarry_instr sz
-  | Osubcarry sz   => Osubcarry_instr sz
-  | Oprotect  sz   => Oprotect_instr sz
-  | Oprotect_ptr p => Oprotect_ptr_instr p
-  | Oset_msf       => Oset_msf_instr
-  | Omov_msf       => Omov_msf_instr
-  | Oinit_msf      => Oinit_msf_instr
-  | Oasm o         => asm_op_instr o
+  | Ocopy ws p   => Ocopy_instr ws p
+  | Onop         => Onop_instr
+  | Omulu     sz => Omulu_instr sz
+  | Oaddcarry sz => Oaddcarry_instr sz
+  | Osubcarry sz => Osubcarry_instr sz
+  | Oasm o       => asm_op_instr o
   end.
 
 Definition string_of_sopn o : string := str (get_instr_desc o) tt.
@@ -338,14 +297,3 @@ Instance asmOp_sopn : asmOp sopn :=
     prim_string := sopn_prim_string }.
 
 End ASM_OP.
-
-End MkSemOp.
-
-Module SourceSem. Definition sem_is_source := true. End SourceSem.
-Module NotSourceSem. Definition sem_is_source := false. End NotSourceSem.
-
-
-Module SemOp1 := MkSemOp(SourceSem).
-Module SemOp2 := MkSemOp(NotSourceSem).
-
-

@@ -57,7 +57,6 @@ Definition Oinit_msf_instr :=
                 [:: sword Uptr]
                 [:: E 0]
                 init_msf
-                U8 (* ? *)
                 [::].
 
 Definition mov_msf (w:pointer) : exec (pointer) :=
@@ -70,7 +69,6 @@ Definition Omov_msf_instr :=
                 [:: sword Uptr]
                 [:: E 0]
                 mov_msf 
-                U8 (* ? *)
                 [::].
 
 Definition protect (ws:wsize) (w:word ws) (msf:pointer) : exec (word ws) := 
@@ -87,7 +85,6 @@ Definition Oprotect_instr (ws:wsize) :=
                 [:: sword ws]
                 [:: E 0]      (* irrelevant *) 
                 (@protect ws)
-                U8 (* ? *)
                 [::].
 
 Definition set_msf (b:bool) (w: pointer) : exec (pointer) := 
@@ -102,7 +99,6 @@ Definition Oset_msf_instr :=
                 [:: sword Uptr]
                 [:: E 2]
                 set_msf
-                U8 (* ? *)
                 [::].
 
 
@@ -121,7 +117,6 @@ Definition string_of_sopn o : string := str (get_instr_desc o) tt.
 Definition sopn_tin o : list stype := tin (get_instr_desc o).
 Definition sopn_tout o : list stype := tout (get_instr_desc o).
 Definition sopn_sem  o := semi (get_instr_desc o).
-Definition wsize_of_sopn o : wsize := wsizei (get_instr_desc o).
 
 Instance eqC_sopn : eqTypeC asm_op_spec2 :=
   { ceqP := asm_op_spec2_eq_axiom }.
