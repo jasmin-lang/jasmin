@@ -5,7 +5,8 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
 
     // Immediates.
     x = #ROR(x, 1);
-    x = #ROR(x, 3);
+    x = #ROR(x, 4);
+    x = #ROR(x, 31);
 
     // Set flags.
     reg bool n, z, c, v;

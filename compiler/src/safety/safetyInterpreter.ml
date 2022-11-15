@@ -234,6 +234,7 @@ let safe_op2 e2 = function
   | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
   | E.Oland _ | E.Olor _ | E.Olxor _
   | E.Olsr _ | E.Olsl _ | E.Oasr _
+  | E.Oror _ | E.Orol _
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> []
 
   | E.Odiv E.Cmp_int -> []

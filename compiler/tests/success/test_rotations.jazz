@@ -1,15 +1,31 @@
+/* Register rotations. */
+
 export
 fn f(reg u64 x) -> reg u64 {
-reg u64 a, b, c;
-reg u8 d;
-reg bool cf, of;
+    reg u64 a, b, c;
+    reg u8 d;
+    reg bool cf, of;
 
-a = x;
-d = 4;
-_, _, a = #ROL(a, d);
-of, cf, b = #ROL(a, 2);
-cf, b += x + cf;
-_, _, c = #ROR(b, d);
-_, _, c = #ROR(c, 3);
-return c;
+    a = x;
+    d = 4;
+
+    // Left rotations (flags are discarded).
+    a = a <<r d;
+    a = a <<r 2;
+
+    // Intrinsic syntax.
+    _, _, a = #ROL(a, d);
+    of, cf, b = #ROL(a, 2);
+
+    cf, b += x + cf;
+
+    // Right rotations (flags are discarded).
+    c = b >>r d;
+    c = b >>r 3;
+
+    // Intrinsic syntax.
+    _, _, c = #ROR(b, d);
+    _, _, c = #ROR(c, 3);
+
+    return c;
 }
