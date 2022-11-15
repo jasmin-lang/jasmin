@@ -78,7 +78,6 @@ type prio =
   | Pmul
   | Punary
   | Pbang
-  | Pmax
 
 let prio_of_op1 =
   function

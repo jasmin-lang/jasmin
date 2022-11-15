@@ -382,9 +382,8 @@ let iloc_of_loc e =
   | Some loc ->
     begin match e.pel_ii with
     | None -> Lone loc
-    | Some ii ->
+    | Some ({ L.stack_loc = locs; _ }, _) ->
       (* if there are some locations coming from inlining, we print them *)
-      let {L.stack_loc = locs}, _ = ii in
       Lmore (L.i_loc loc locs)
     end
   | None ->
