@@ -15,16 +15,16 @@ Context {pd: PointerData}.
 Context `{asmop : asmOp}.
 
 Variant asm_op_spec1 := 
-| Oprotect of wsize
+| Oprotect of wsize 
 | Oset_msf 
 | Oinit_msf 
 | Omov_msf
 | Oasm of asm_op_t.
 
+
 Definition asm_op_spec1_beq (o1 o2:asm_op_spec1) :=
   match o1, o2 with
   | Oprotect ws1, Oprotect ws2 => ws1 == ws2 
-  (*| Oprotect_ptr p1, Oprotect_ptr p2 => p1 == p2*)
   | Oset_msf, Oset_msf => true    
   | Oinit_msf, Oinit_msf => true
   | Omov_msf, Omov_msf => true 
@@ -57,7 +57,6 @@ Definition Oinit_msf_instr :=
                 [:: sword Uptr]
                 [:: E 0]
                 init_msf
-                U8 (* ? *)
                 [::].
 
 Definition mov_msf (w:pointer) : exec (pointer) :=
@@ -70,7 +69,6 @@ Definition Omov_msf_instr :=
                 [:: sword Uptr]
                 [:: E 0]
                 mov_msf 
-                U8 (* ? *)
                 [::].
 
 Definition protect (ws:wsize) (w:word ws) (msf:pointer) : exec (word ws) := 
@@ -83,7 +81,6 @@ Definition Oprotect_instr (ws:wsize) :=
                 [:: sword ws]
                 [:: E 0]      (* irrelevant *) 
                 (@protect ws)
-                U8 (* ? *)
                 [::].
 
 Definition set_msf (b:bool) (w: pointer) : exec (pointer) := 
@@ -98,7 +95,6 @@ Definition Oset_msf_instr :=
                 [:: sword Uptr]
                 [:: E 2]
                 set_msf
-                U8 (* ? *)
                 [::].
 
 
@@ -117,7 +113,6 @@ Definition string_of_sopn o : string := str (get_instr_desc o) tt.
 Definition sopn_tin o : list stype := tin (get_instr_desc o).
 Definition sopn_tout o : list stype := tout (get_instr_desc o).
 Definition sopn_sem  o := semi (get_instr_desc o).
-Definition wsize_of_sopn o : wsize := wsizei (get_instr_desc o).
 
 Instance eqC_sopn : eqTypeC asm_op_spec1 :=
   { ceqP := asm_op_spec1_eq_axiom }.

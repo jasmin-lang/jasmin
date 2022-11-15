@@ -109,13 +109,6 @@ Proof.
   by rewrite zero_extend_u.
 Qed.
 
-Definition wextend_type t1 t2 := 
-  (t1 == t2) ||
-    match t1, t2 with
-    | sword s1, sword s2 => (s1 <= s2)%CMP
-    | _, _ => false
-    end.
-
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
@@ -845,7 +838,7 @@ Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
   rewrite /exec_sopn /sopn_tin /sopn_sem.
-  case (get_instr_desc o) => /= _ tin _ tout _ semi _ _ _.
+  case (get_instr_desc o) => /= _ tin _ tout _ semi _ _.
   t_xrbindP => p hp _.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
   by t_xrbindP => sv /= /of_val_subtype -> /hrec.
