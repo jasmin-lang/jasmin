@@ -17,6 +17,10 @@
   `VPAVG`
   ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)).
 
+- Add bit rotation operators for expressions: `<<r` and `>>r`
+  ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
+  These get extracted to `|<<|` and `|>>|` in EasyCrypt.
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
