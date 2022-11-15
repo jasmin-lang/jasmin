@@ -463,6 +463,8 @@ let pp_op2 fmt = function
   | E.Olsr  _ -> Format.fprintf fmt "`>>`"
   | E.Olsl  _ -> Format.fprintf fmt "`<<`"
   | E.Oasr  _ -> Format.fprintf fmt "`|>>`"
+  | E.Orol _ -> Format.fprintf fmt "`|<<|`"
+  | E.Oror _ -> Format.fprintf fmt "`|>>|`"
 
   | E.Oeq   _ -> Format.fprintf fmt "="
   | E.Oneq  _ -> Format.fprintf fmt "<>"
@@ -951,6 +953,7 @@ module Leak = struct
     | E.Oadd _  | E.Omul _  | E.Osub _ 
     | E.Oland _ | E.Olor _  | E.Olxor _ 
     | E.Olsr _  | E.Olsl _  | E.Oasr _
+    | E.Orol _ | E.Oror _
     | E.Oeq _   | E.Oneq _  | E.Olt _  | E.Ole _ | E.Ogt _ | E.Oge _ 
     | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
     | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> safe

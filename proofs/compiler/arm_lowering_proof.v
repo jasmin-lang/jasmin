@@ -475,7 +475,7 @@ Proof.
   move=> hfve.
 
   case: ws w hsemop => // w hsemop.
-  case: op hsemop hfve => // [[] | [|[]] | [|[]]] //= hsemop hfve.
+  case: op hsemop hfve => // [[] | [|[]] | [|[]] | []] //= hsemop hfve.
   all: case: ifP => // /andP [] /ZleP hlo /ZleP hhi.
   all: move=> [? ? ?]; subst e' sh n.
 
@@ -506,7 +506,7 @@ Proof.
          move=> //.
   all: clear hws1 hfve.
 
-  all: rewrite /sem_shr /sem_shl /sem_sar /=.
+  all: rewrite /sem_shr /sem_shl /sem_sar /sem_ror /=.
   all: rewrite /sem_shift /=.
   all: rewrite !zero_extend_u.
   all: rewrite get_arg_shiftP_aux; first reflexivity.
@@ -789,12 +789,14 @@ Proof.
           | [ |- context[Olsr] ] => case: ws'' => //
           | [ |- context[Olsl] ] => case: ws'' => //
           | [ |- context[Oasr] ] => case: ws'' => //
+          | [ |- context[Oror] ] => case: ws'' => //
           end.
       all:
         try
           match goal with
           | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
           | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
+          | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
         end.
 
       all: move=> [? ? ?] hsemop; subst mn e0' e1'.
@@ -855,16 +857,20 @@ Proof.
       | [ |- context[Olsr] ] => case: ws'' => //
       | [ |- context[Olsl] ] => case: ws'' => //
       | [ |- context[Oasr] ] => case: ws'' => //
+      | [ |- context[Oror] ] => case: ws'' => //
       end.
+
   Local Ltac on_is_zero h :=
     rewrite /=; case: is_zeroP;
       [ move => ?; subst; case: h => ?; subst
       | move => hzero ].
-    all:
-      try
-        match goal with
-        | [ |- context[ Olsr ] ] => on_is_zero hseme1
-        | [ |- context[ Oasr ] ] => on_is_zero hseme1
+
+  all:
+    try
+      match goal with
+      | [ |- context[ Olsr ] ] => on_is_zero hseme1
+      | [ |- context[ Oasr ] ] => on_is_zero hseme1
+      | [ |- context[ Oror ] ] => on_is_zero hseme1
       end.
 
   all: move=> [? ? ?] hsemop; subst mn e0' e1'.
@@ -903,11 +909,16 @@ Proof.
 
   (* Shift instructions take a byte as second argument. *)
   all:
-    match goal with
-    | [ |- context[LSL] ] => rewrite hws1
-    | [ |- context[LSR] ] => rewrite hws1
-    | [ |- context[ASR] ] => rewrite hws1
-    end || rewrite (cmp_le_trans hws hws1) || idtac.
+    try
+      match goal with
+      | [ |- context[LSL] ] => rewrite hws1
+      | [ |- context[LSR] ] => rewrite hws1
+      | [ |- context[ASR] ] => rewrite hws1
+      | [ |- context[ROR] ] => rewrite hws1
+      end.
+
+  (* The rest need [e32 <= ws1]. *)
+  all: try rewrite (cmp_le_trans hws hws1).
 
   all: rewrite /=.
 
@@ -918,8 +929,10 @@ Proof.
   5: rewrite -(wxor_zero_extend _ _ hws).
   6: rewrite (wmul_zero_extend _ _ hws).
   1-6: by rewrite !(zero_extend_idem _ hws).
+
   3: rewrite /sem_shr /sem_shift wshr0.
   6: rewrite /sem_sar /sem_shift wsar0.
+  8: rewrite /sem_ror /sem_shift wror0.
 
   all: by rewrite !zero_extend_u.
 Qed.

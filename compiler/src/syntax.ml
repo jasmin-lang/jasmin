@@ -89,6 +89,8 @@ type peop2 = [
   | `BOr  of castop
   | `BXOr of castop
   | `ShR  of castop
+  | `ROR  of castop
+  | `ROL  of castop
   | `ShL  of castop
 
   | `Eq   of castop
@@ -137,6 +139,8 @@ let string_of_peop2 : peop2 -> string =
   | `BXOr s -> f s "^"
   | `ShR s -> f s ">>"
   | `ShL s -> f s "<<"
+  | `ROR s -> f s ">>r"
+  | `ROL s -> f s "<<r"
   | `Eq s -> f s "=="
   | `Neq s -> f s "!="
   | `Lt s -> f s "<"
@@ -194,6 +198,8 @@ type peqop = [
   | `Sub  of castop
   | `Mul  of castop
   | `ShR  of castop
+  | `ROR  of castop
+  | `ROL  of castop
   | `ShL  of castop
   | `BAnd of castop
   | `BXOr of castop

@@ -857,7 +857,20 @@ let shr_info =
     opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   }
-   
+
+let rot_info exn op =
+  let mk opk =
+    match opk with
+    | OpKE Cmp_int -> raise exn
+    | OpKE (Cmp_w (_, ws)) -> op ws
+    | OpKV _ -> raise exn
+  in
+  {
+    opi_op = mk;
+    opi_wcmp = true, cmp_8_64;
+    opi_vcmp = None;
+  }
+
 let shl_info = 
   let mk = function
     | OpKE (Cmp_int)      -> E.Olsl E.Op_int
@@ -903,6 +916,8 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `BXOr c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lxor_info
   | `ShR  c -> op2_of_ty exn op c ty shr_info
   | `ShL  c -> op2_of_ty exn op c ty shl_info
+  | `ROR  c -> op2_of_ty exn op c ty (rot_info exn (fun x -> E.Oror x))
+  | `ROL  c -> op2_of_ty exn op c ty (rot_info exn (fun x -> E.Orol x))
 
   | `Eq   c -> op2_of_ty exn op c ty eq_info 
   | `Neq  c -> op2_of_ty exn op c ty neq_info
@@ -931,6 +946,8 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `Sub  s -> Some (`Sub s)
   | `Mul  s -> Some (`Mul s)
   | `ShR  s -> Some (`ShR s)
+  | `ROR  s -> Some (`ROR s)
+  | `ROL  s -> Some (`ROL s)
   | `ShL  s -> Some (`ShL s)
   | `BAnd s -> Some (`BAnd s)
   | `BXOr s -> Some (`BXOr s)
@@ -979,7 +996,7 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
     let ty = 
       match pop with
       | `And   | `Or    -> P.tbool 
-      | `ShR _ | `ShL _ -> ety1 
+      | `ShR _ | `ShL _ | `ROR _ | `ROL _ -> ety1
       | `Add _ | `Sub _ | `Mul _ | `Div _ | `Mod _
         | `BAnd _ | `BOr _ | `BXOr _
         | `Eq _ | `Neq _ | `Lt _ | `Le _ | `Gt _ | `Ge _ ->

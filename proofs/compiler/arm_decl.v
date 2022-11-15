@@ -502,6 +502,7 @@ Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
   | U32, Olsl (Op_w U32) => Some SLSL
   | U32, Olsr U32 => Some SLSR
   | U32, Oasr (Op_w U32) => Some SASR
+  | U32, Oror U32 => Some SROR
   | _, _ => None
   end.
 

@@ -152,6 +152,8 @@ rule main = parse
   | "?"     { QUESTIONMARK  }
   | ":"     { COLON  }
 
+  | ">>r"                   { ROR              }
+  | "<<r"                   { ROL              }
   | "<<"                    { LTLT            }
   | "<=" (signletter as s)? { LE   (mk_sign s) }
   | "<"  (signletter as s)? { LT   (mk_sign s) }

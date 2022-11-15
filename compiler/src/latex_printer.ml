@@ -55,6 +55,8 @@ let pp_op2 fmt =
   | `BXOr s -> f s "\\textasciicircum{}"
   | `ShR s -> f s ">{}>"
   | `ShL s -> f s "<{}<"
+  | `ROR s -> f s ">{}>r"
+  | `ROL s -> f s "<{}<r"
   | `Eq s -> f s "=="
   | `Neq s -> f s "!="
   | `Lt s -> f s "<"
@@ -94,7 +96,7 @@ let prio_of_op2 =
   | `BAnd _ -> Pbwand
   | `BOr _ -> Pbwor
   | `BXOr _ -> Pbwxor
-  | `ShR _ | `ShL _ -> Pshift
+  | `ShR _  | `ShL _ | `ROR _ | `ROL _ -> Pshift
   | `Eq _ | `Neq _ -> Pcmpeq
   | `Lt _ | `Le _ | `Gt _ | `Ge _
     -> Pcmp

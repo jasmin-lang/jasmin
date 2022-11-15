@@ -254,6 +254,9 @@ Definition lower_Papp2_op
     | Oasr (Op_w U32) =>
         if is_zero U8 e1 then Some (MOV, e0, [::])
         else Some (ASR, e0, [:: e1 ])
+    | Oror U32 =>
+        if is_zero U8 e1 then Some (MOV, e0, [::])
+        else Some (ROR, e0, [:: e1 ])
     | _ =>
         None
     end

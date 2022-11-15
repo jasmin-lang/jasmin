@@ -1,0 +1,36 @@
+export
+fn ror(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = arg0 >>r arg1;
+
+    // Immediates.
+    x = x >>r 1;
+    x = x >>r 4;
+    x = x >>r 31;
+
+    // Set flags.
+    reg bool n, z, c, v;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = x >>r arg0 if z;            // EQ
+    x = x >>r arg0 if !z;           // NE
+    x = x >>r arg0 if c;            // CS
+    x = x >>r arg0 if !c;           // CC
+    x = x >>r arg0 if n;            // MI
+    x = x >>r arg0 if !n;           // PL
+    x = x >>r arg0 if v;            // VS
+    x = x >>r arg0 if !v;           // VC
+    x = x >>r arg0 if c && !z;      // HI
+    x = x >>r arg0 if !c || z;      // LS
+    x = x >>r arg0 if n == v;       // GE
+    x = x >>r arg0 if n != v;       // LT
+    x = x >>r arg0 if !z && n == v; // GT
+    x = x >>r arg0 if z || n != v;  // LE
+
+    x = x >>r 1 if !!!!z;
+
+    reg u32 res;
+    res = x;
+    return res;
+}

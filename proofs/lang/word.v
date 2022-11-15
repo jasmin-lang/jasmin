@@ -609,8 +609,33 @@ Proof. by case: sz. Qed.
 Lemma wshr0 sz (w: word sz) : wshr w 0 = w.
 Proof. by rewrite /wshr /lsr Z.shiftr_0_r ureprK. Qed.
 
+Lemma wshr_full sz (w : word sz) : wshr w (wsize_bits sz) = 0%R.
+Proof.
+  apply/eqP/eq_from_wbit_n.
+  move=> i.
+  rewrite w0E.
+  rewrite wshrE.
+  rewrite /wsize_bits /=.
+  rewrite SuccNat2Pos.id_succ.
+  rewrite /wbit_n.
+  rewrite wbit_word_ovf; first done.
+  apply: ltn_addr.
+  exact: ltnSn.
+Qed.
+
 Lemma wshl0 sz (w: word sz) : wshl w 0 = w.
 Proof. by rewrite /wshl /lsl Z.shiftl_0_r ureprK. Qed.
+
+Lemma wshl_full sz (w : word sz) : wshl w (wsize_bits sz) = 0%R.
+Proof.
+  apply/eqP/eq_from_wbit_n.
+  move=> i.
+  rewrite wshlE.
+  rewrite /wsize_bits /=.
+  rewrite SuccNat2Pos.id_succ.
+  case hi: (_ <= _ <= _)%N; last by rewrite w0E.
+  by move: hi => /andP [] /ltn_geF ->.
+Qed.
 
 Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
 Proof. by rewrite /wsar /asr Z.shiftr_0_r sreprK. Qed.
@@ -855,6 +880,24 @@ Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lxor_nilpotent. Qed.
 
 Lemma wmulE sz (x y: word sz) : (x * y)%R = wrepr sz (wunsigned x * wunsigned y).
 Proof. by rewrite /wunsigned /wrepr; apply: word_ext. Qed.
+
+Lemma wror0 sz (w : word sz) : wror w 0 = w.
+Proof.
+  rewrite /wror.
+  rewrite wshr0.
+  rewrite Zmod_0_l Z.sub_0_r.
+  rewrite wshl_full.
+  by rewrite worC wor0.
+Qed.
+
+Lemma wrol0 sz (w : word sz) : wrol w 0 = w.
+Proof.
+  rewrite /wrol.
+  rewrite wshl0.
+  rewrite Zmod_0_l Z.sub_0_r.
+  rewrite wshr_full.
+  by rewrite worC wor0.
+Qed.
 
 Lemma wadd_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →

@@ -83,6 +83,8 @@ let string_of_op2 = function
   | E.Olsr _ -> ">>"
   | E.Olsl _ -> "<<"
   | E.Oasr _ -> ">>s"
+  | E.Oror _ -> ">>r"
+  | E.Orol _ -> "<<r"
 
   | E.Oeq  k -> "==" ^ string_of_op_kind k
   | E.Oneq k -> "!=" ^ string_of_op_kind k

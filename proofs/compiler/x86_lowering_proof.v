@@ -479,6 +479,12 @@ Section PROOF.
       Sv.Subset (read_es e') (read_e e) ∧
       sem_pexprs gd s e' >>= exec_sopn o >>=
       write_lvals gd s [:: f; f; f; f; f; l] = ok s'
+    | LowerDiscardFlags n op e' =>
+      let f := Lnone (var_info_of_lval l) sbool in
+      Sv.Subset (read_es e') (read_e e)
+      /\ sem_pexprs gd s e'
+         >>= exec_sopn op
+         >>= write_lvals gd s (nseq n f ++ [:: l ]) = ok s'
     | LowerDivMod p u sz o a b =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
@@ -600,7 +606,7 @@ Section PROOF.
         rewrite /truncate_val /= /truncate_word /= cmp_le_refl /= zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hv /exec_sopn /= /truncate_word Hsz /sopn_sem /= /x86_NEG /check_size_8_64 hsz /= Hw.
-    + case: o => // [[] sz |[] sz|[] sz|[]// u sz| []// u sz|sz|sz|sz|sz|sz|sz| ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.
+    + case: o => // [[] sz |[] sz|[] sz|[]// u sz| []// u sz|sz|sz|sz|sz|sz|sz|sz|sz| ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.
       case: andP => // - [hsz64] /eqP ?; subst ty.
       (* Oadd Op_w *)
        + rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
@@ -876,6 +882,36 @@ Section PROOF.
          case: eqP.
          * by move => ->; rewrite /= wsar0 => ->.
          move => _ /=.
+         by case: ifP => /= _ ->.
+      (* Oror *)
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
+         rewrite /=; t_xrbindP => v1 -> v2 ->.
+         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+         t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+         split. by rewrite read_es_swap.
+         move: Hw; rewrite /sem_shr /sem_shift /x86_ROR /check_size_8_64 hsz64 /=.
+         case: eqP.
+         * rewrite /sem_ror /sem_shift.
+           move=> -> /=.
+           rewrite wunsigned0 wror0.
+           by move=> ->.
+         move=> _ /=.
+         by case: ifP => /= _ ->.
+      (* Orol *)
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
+         rewrite /=; t_xrbindP => v1 -> v2 ->.
+         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+         t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+         split. by rewrite read_es_swap.
+         move: Hw; rewrite /sem_shr /sem_shift /x86_ROL /check_size_8_64 hsz64 /=.
+         case: eqP.
+         * rewrite /sem_rol /sem_shift.
+           move=> -> /=.
+           rewrite wunsigned0 wrol0.
+           by move=> ->.
+         move=> _ /=.
          by case: ifP => /= _ ->.
 
       (* Ovadd ve sz *)
@@ -1228,6 +1264,17 @@ Section PROOF.
       move: LE Hdisje. apply disjoint_w.
       exact Hdisjl.
       exact: (aux_eq_exc_trans Hs2').
+
+    (* LowerDiscardFlags *)
+    + set vi := var_info_of_lval _.
+      move=> n o es [] hreades.
+      t_xrbindP=> ys xs hxs hys hs2.
+      exists s2'.
+      split; last exact: Hs2'.
+      apply: sem_seq1. constructor. constructor.
+      rewrite /sem_sopn hxs {hxs} /=.
+      rewrite hys {hys} /=.
+      exact: hs2.
 
     (* LowerCond *)
     + move=> _.
