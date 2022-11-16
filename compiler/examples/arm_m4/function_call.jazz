@@ -1,0 +1,23 @@
+fn f0(reg u32 x y) -> reg u32 {
+    reg u32 a;
+    a = x + (y << 4);
+    return a;
+}
+
+fn f1() -> reg u32 {
+    reg u32 x y;
+    x = 0;
+    y = 1;
+    x = f0(x, y);
+    x = [x + 0];
+    return x;
+}
+
+export
+fn main() {
+    reg u32 a b;
+    a = f1();
+    b = 0;
+    b = f0(a, b);
+    [a] = b;
+}

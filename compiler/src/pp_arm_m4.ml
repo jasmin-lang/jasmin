@@ -168,29 +168,28 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       [ LInstr ("b", [ pp_remote_label tbl lbl ]) ]
 
   | JMPI arg ->
-      (* TODO_ARM: Review. *)
-      let lbl =
+      let r =
         match arg with
         | Reg r -> pp_register r
-        | _ -> failwith "TODO_ARM: pp_instr jmpi"
+        | _ -> failwith "Internal error: jump to a non-register argument"
       in
-      [ LInstr ("b", [ lbl ]) ]
+      [ LInstr ("bx", [ r ]) ]
 
   | Jcc (lbl, ct) ->
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
       [ LInstr (iname, [ pp_label fn lbl ]) ]
 
   | JAL _ ->
-      failwith "TODO_ARM: pp_instr jal"
+      failwith "Internal error: JAL"
 
   | CALL lbl ->
       [ LInstr ("bl", [ pp_remote_label tbl lbl ]) ]
 
   | POPPC ->
-      [ LInstr ("b", [ pp_register LR ]) ]
+      [ LInstr ("bx", [ "lr" ]) ]
 
   | SysCall op ->
-      [LInstr ("call", [pp_syscall op])]
+      [LInstr ("bl", [ pp_syscall op ])]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in

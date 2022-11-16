@@ -29,7 +29,6 @@ Variant register : Type :=
 | R00 | R01 | R02 | R03         (* Lower general-purpose registers. *)
 | R04 | R05 | R06 | R07         (* Lower general-purpose registers. *)
 | R08 | R09 | R10 | R11 | R12   (* Higher general-purpose registers. *)
-| LR                            (* Subroutine link register. *)
 | SP.                           (* Stack pointer. *)
 
 Definition register_dec_eq (r0 r1: register) : {r0 = r1} + {r0 <> r1}.
@@ -57,7 +56,7 @@ Instance eqTC_register : eqTypeC register :=
 Canonical arm_register_eqType := @ceqT_eqType _ eqTC_register.
 
 Definition registers :=
-  [:: R00; R01; R02; R03; R04; R05; R06; R07; R08; R09; R10; R11; R12; LR; SP ].
+  [:: R00; R01; R02; R03; R04; R05; R06; R07; R08; R09; R10; R11; R12; SP ].
 
 Lemma registers_fin_axiom : Finite.axiom registers.
 Proof. by case. Qed.
@@ -89,7 +88,6 @@ Definition string_of_register (r : register) : string :=
   | R10 => "r10"
   | R11 => "r11"
   | R12 => "r12"
-  | LR  => "lr"
   | SP  => "sp"
   end.
 
