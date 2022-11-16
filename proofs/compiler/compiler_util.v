@@ -25,6 +25,7 @@ Variant box :=
 
 Inductive pp_error :=
   | PPEstring  `(string)
+  | PPEz       `(Z)
   | PPEvar     `(var)
   | PPEvarinfo    `(var_info)
 (*   | PPEop1     `(sop1) *)
@@ -60,6 +61,7 @@ Definition pp_vbox := PPEbox Vbox.
 Definition pp_nobox := PPEbox Nobox.
 
 Notation pp_s    := PPEstring.
+Notation pp_z    := PPEz.
 Notation pp_var  := PPEvar.
 Notation pp_e    := PPEexpr.
 Notation pp_fn   := PPEfunname.

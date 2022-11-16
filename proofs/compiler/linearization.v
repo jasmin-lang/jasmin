@@ -8,7 +8,7 @@ Require Import Utf8.
 Import Relations.
 
 Require Import expr compiler_util label constant_prop.
-Require Export linear.
+Require Export linear linear_util.
 Import ssrZ.
 
 Set Implicit Arguments.

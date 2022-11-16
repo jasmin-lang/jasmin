@@ -22,7 +22,6 @@ Require Import ZArith.
 
 Require Export clear_stack_strategy.
 Require Import
-  compiler_util
   expr
   label
   linear
@@ -30,6 +29,7 @@ Require Import
   utils
   word
   wsize.
+Require Import compiler_util linear_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -39,15 +39,15 @@ Module E.
 
   Definition pass : string := "stack clearing".
 
-  Definition css_error (fn : funname) : pp_error_loc :=
+  Definition error msg : pp_error_loc :=
     {|
-      pel_msg := PPEstring "Invalid strategy";
-      pel_fn := Some fn;
+      pel_msg := msg;
+      pel_fn := None;
       pel_fi := None;
       pel_ii := None;
       pel_vi := None;
       pel_pass := Some pass;
-      pel_internal := false;
+      pel_internal := true;
     |}.
 
 End E.
@@ -57,7 +57,7 @@ End E.
 (* Architecture-specific parameters. *)
 Record clear_stack_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
-    cs_clear_stack_cmd : cs_strategy -> label -> wsize -> wsize -> Z -> option lcmd;
+    cs_clear_stack_cmd : cs_strategy -> label -> wsize -> wsize -> Z -> cexec lcmd;
   }.
 
 
@@ -71,37 +71,46 @@ Context
 
 Notation clear_stack_cmd := (cs_clear_stack_cmd csparams).
 
-Definition lfd_clear_stack
-  (s : cs_strategy) (lbl : label) ws (lfd : lfundef) : option (lfundef * label) :=
-  if clear_stack_cmd s lbl (lfd_align lfd) ws (lfd_used_stack lfd) is Some tail
-  then
-    let lfd' := map_lfundef (fun c => c ++ tail) lfd in
-    Some (lfd', next_lbl lbl)
-  else
-    None.
+Definition clear_stack_lfd_body lfd css ws : cexec lfundef :=
+  let lbl := next_lfd_lbl lfd in
+  let ws_align := lfd_align lfd in
+  let max_stk_size := lfd_used_stack lfd in
+  Let _ :=
+    assert (is_align max_stk_size ws_align)
+           (E.error
+             (pp_box
+               [:: pp_s "The max stack size ("; pp_z max_stk_size;
+                   pp_s ") must be a multiple of the alignment of the stack (";
+                   pp_s (string_of_wsize ws_align); pp_s ")"]))
+  in
+  Let _ :=
+    assert (ws <= ws_align)%CMP
+           (E.error
+             (pp_box
+               [:: pp_s "The clear step ("; pp_s (string_of_wsize ws);
+                   pp_s ") should divide the alignment of the stack (";
+                   pp_s (string_of_wsize ws_align); pp_s ")"]))
+  in
+  Let cmd := clear_stack_cmd css lbl ws_align ws max_stk_size in
+  ok (map_lfundef (fun c => c ++ cmd) lfd).
 
-Definition prog_clear_stack_aux
-  (lbl : label) (fn : funname) (fd : lfundef) : cexec (lfundef * label) :=
+Definition clear_stack_lfd fn (lfd : lfundef) : cexec lfundef :=
   if css_of_fn fn is Some (css, ws)
   then
-    if lfd_export fd && (0 <? lfd_used_stack fd)%Z
-    then o2r (E.css_error fn) (lfd_clear_stack css lbl ws fd)
-    else ok (fd, lbl)
+    if lfd_export lfd && (0 <? lfd_used_stack lfd)%Z
+    then clear_stack_lfd_body lfd css ws
+    else ok lfd
   else
-    ok (fd, lbl).
+    ok lfd.
 
-Definition accf '(fn, lfd) '(lfds, lbl) :=
-  Let: (lfd', lbl') := prog_clear_stack_aux lbl fn lfd in
-  ok (lfds ++ [:: (fn, lfd') ], lbl').
-
-Definition prog_clear_stack (lp : lprog) : cexec lprog :=
-  Let: (fs', _) := foldM accf ([::], next_lprog_lbl lp) (lp_funcs lp) in
+Definition clear_stack_lprog (lp : lprog) : cexec lprog :=
+  Let lp_funs := map_lprog_name clear_stack_lfd lp.(lp_funcs) in
   ok
     {|
       lp_rip := lp_rip lp;
       lp_rsp := lp_rsp lp;
       lp_globs := lp_globs lp;
-      lp_funcs := fs';
+      lp_funcs := lp_funs;
     |}.
 
 End CLEAR_STACK.

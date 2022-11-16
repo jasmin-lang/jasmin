@@ -82,7 +82,7 @@ Definition x86_ensure_rsp_alignment (rspi: var_i) (al: wsize) :=
   let to_lvar x := Lvar (VarI (to_var x) dummy_var_info) in
   let eflags := List.map to_lvar [:: OF ; CF ; SF ; PF ; ZF ] in
   let p0 := Pvar (Gvar rspi Slocal) in
-  let p1 := Papp1 (Oword_of_int Uptr) (Pconst (- wsize_size al)) in
+  let p1 := cast_const (- wsize_size al) in
   (eflags ++ [:: Lvar rspi ], Ox86 (AND Uptr), [:: p0; p1 ]).
 
 Definition x86_lassign (x: lval) (ws: wsize) (e: pexpr) :=

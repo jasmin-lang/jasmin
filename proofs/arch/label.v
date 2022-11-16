@@ -20,6 +20,7 @@ Definition remote_label := (funname * label)%type.
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
 
+(* FIXME: we can certainly prove false with such a spec!!! *)
 Parameter encode_label : seq remote_label → remote_label → option pointer.
 Parameter decode_label : seq remote_label → pointer → option remote_label.
 Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.

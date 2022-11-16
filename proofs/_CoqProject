@@ -60,6 +60,7 @@ compiler/inline.v
 compiler/inline_proof.v
 compiler/lea.v
 compiler/lea_proof.v
+compiler/linear_util.v
 compiler/linearization.v
 compiler/linearization_proof.v
 compiler/lowering.v
