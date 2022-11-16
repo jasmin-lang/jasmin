@@ -655,7 +655,7 @@ Proof.
   (* TODO_ARM: The following two cases are the same. *)
 
   (* Case: [Osignext]. *)
-  - case: e hfve hseme => // ? ? ? hfve hseme.
+  - case: is_load; last by [].
     move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.
@@ -673,7 +673,7 @@ Proof.
     }
 
   (* Case: [Ozeroext]. *)
-  - case: e hfve hseme => // ? ? ? hfve hseme.
+  - case: is_load; last by [].
     move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.

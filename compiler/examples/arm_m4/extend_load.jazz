@@ -1,0 +1,57 @@
+export
+fn main() -> reg u32 {
+    stack u8 stk8;
+    stack u16 stk16;
+    stack u8[2] arr8;
+    stack u16[2] arr16;
+    reg u32 x y r;
+
+    x = 0;
+    r = 0;
+    stk8 = x;
+    stk16 = x;
+    arr8[0] = x;
+    arr8[1] = x;
+    arr16[0] = x;
+    arr16[1] = x;
+
+    /* Stack variables. */
+
+    x = (32u)stk8;
+    y = (32s)stk8;
+    r += x;
+    r += y;
+
+    x = (32u)stk16;
+    y = (32s)stk16;
+    r += x;
+    r += y;
+
+    /* Arrays. */
+
+    x = (32u)arr8[0];
+    y = (32s)arr8[1];
+    r += x;
+    r += y;
+
+    x = (32u)arr16[0];
+    y = (32s)arr16[1];
+    r += x;
+    r += y;
+
+    /* Memory. */
+
+    x = (32u)(u8)[r];
+    y = (32s)(u8)[r];
+    r += x;
+    r += y;
+
+    x = (32u)(u16)[r];
+    y = (32s)(u16)[r];
+    r += x;
+    r += y;
+
+    /* TODO_ARM: Global variables. */
+
+    return r;
+}

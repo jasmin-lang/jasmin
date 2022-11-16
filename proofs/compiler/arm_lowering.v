@@ -194,6 +194,20 @@ Definition lower_Pload
   then Some (ARM_op LDR default_opts, [:: Pload ws' v e ])
   else None.
 
+Definition is_load (e: pexpr) : bool :=
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _
+  | Psub _ _ _ _ _
+  | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
+    => false
+  | Pvar {| gs := Sglob |}
+  | Pget _ _ _ _
+  | Pload _ _ _
+    => true
+  | Pvar {| gs := Slocal ; gv := x |}
+    => is_var_in_memory x
+  end.
+
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
   if ws is U32
   then
@@ -201,7 +215,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
     | Oword_of_int U32 =>
         Some (ARM_op MOV default_opts, [:: Papp1 op e ])
     | Osignext U32 ws' =>
-        if e is Pload _ _ _
+        if is_load e
         then
           if sload_mn_of_wsize ws' is Some mn
           then Some (ARM_op mn default_opts, [:: e ])
@@ -209,7 +223,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
         else
           None
     | Ozeroext U32 ws' =>
-        if e is Pload _ _ _
+        if is_load e
         then
           if uload_mn_of_wsize ws' is Some mn
           then Some (ARM_op mn default_opts, [:: e ])
