@@ -410,20 +410,12 @@ Context `{asmop:asmOp}.
 Definition mul := Papp2 (Omul (Op_w Uptr)).
 Definition add := Papp2 (Oadd (Op_w Uptr)).
 
-Definition cast_word e := 
-  match e with
-  | Papp1 (Oint_of_word sz) e1 => if (sz == Uptr)%CMP
-                                  then e1
-                                  else cast_ptr e
-  | _  => cast_ptr e
-  end.
-
 Definition mk_ofs aa ws e1 ofs := 
   let sz := mk_scale aa ws in
   if is_const e1 is Some i then 
     cast_const (i * sz + ofs)%Z
   else 
-    add (mul (cast_const sz) (cast_word e1)) (cast_const ofs).
+    add (mul (cast_const sz) (cast_ptr e1)) (cast_const ofs).
 
 Definition mk_ofsi aa ws e1 := 
   if is_const e1 is Some i then Some (i * (mk_scale aa ws))%Z

@@ -794,30 +794,16 @@ Proof.
   by rewrite /= he /sem_sop1 /= hi.
 Qed.
 
-Lemma cast_wordP gd s e i : 
-  sem_pexpr gd s e >>= to_int = ok i ->
-  exists sz (w:word sz), sem_pexpr gd s (cast_word e) = ok (Vword w) /\
-                         truncate_word Uptr w = ok (wrepr Uptr i).
-Proof.
-  case/cast_ptrP => v he /value_uinclE[] sz [] w [] ? /andP[] uptr_le_sz /eqP h; subst.
-  have: exists sz (w:word sz),
-    sem_pexpr gd s (cast_ptr e) = ok (Vword w)
-    /\ truncate_word Uptr w = ok (wrepr Uptr i).
-  - exists sz, w; split; first exact: he.
-    by rewrite /truncate_word uptr_le_sz h.
-  case: e he => // -[] // ws //=.
-  case: eqP => [->|//].
-  by rewrite /cast_ptr /= cmp_le_refl => ? ->.
-Qed.
-
 Lemma mk_ofsP aa sz gd s2 ofs e i :
   sem_pexpr gd s2 e >>= to_int = ok i ->
   sem_pexpr gd s2 (mk_ofs aa sz e ofs) = ok (Vword (wrepr Uptr (i * mk_scale aa sz + ofs)%Z)).
 Proof.
   rewrite /mk_ofs; case is_constP => /= [? [->] //| {e} e he] /=.
   rewrite /sem_sop2 /=.
-  have [sz' [w [-> /= -> /=]]]:= cast_wordP he.
-  by rewrite !truncate_word_u /= truncate_word_u wrepr_add wrepr_mul GRing.mulrC.
+  have [_ -> /value_uinclE [ws [w [-> huincl]]]] /= := cast_ptrP he.
+  rewrite !truncate_word_u /=.
+  rewrite (word_uincl_truncate huincl (truncate_word_u _)) /=.
+  by rewrite truncate_word_u /= wrepr_add wrepr_mul GRing.mulrC.
 Qed.
 
 Lemma mk_ofsiP gd s e i aa sz :
