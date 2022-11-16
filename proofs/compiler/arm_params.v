@@ -72,14 +72,6 @@ Definition arm_lassign
               Some (MOV, e)
           | Pload _ _ _ =>
               Some (LDR, e)
-          | Papp1 (Ozeroext U32 ws') e' =>
-              if e' is Pload _ _ _
-              then
-                if uload_mn_of_wsize ws' is Some mn
-                then Some (mn, e')
-                else None
-              else
-                None
           | _ =>
               None
           end

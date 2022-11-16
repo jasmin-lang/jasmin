@@ -264,33 +264,13 @@ Proof.
     rewrite htrunc {htrunc} /=.
     by rewrite hwrite {hwrite} /=.
 
-  - move=> [?]; subst li.
-    rewrite /eval_instr /= /sem_sopn /=.
-    rewrite to_estate_of_estate.
-    rewrite hseme {hseme} /=.
-    rewrite /exec_sopn /=.
-    rewrite htrunc {htrunc} /=.
-    rewrite zero_extend_u.
-    by rewrite hwrite {hwrite} /=.
-
-  case: op1 hseme => [||| [] wsin |||] // hseme.
-  case: e hseme => //= ??? hseme.
-  case hmn: uload_mn_of_wsize => [mn|] // [?]; subst li.
+  move=> [?]; subst li.
   rewrite /eval_instr /= /sem_sopn /=.
   rewrite to_estate_of_estate.
-
-  move: hseme.
-  t_xrbindP=> v w0 v0 hv0 hw0 w1 v1 hv1 hw1 w2 hw2 ? hw'; subst v.
-  rewrite hv0 /= hw0 {hv0 hw0} /=.
-  rewrite hv1 /= hw1 {hv1 hw1} /=.
-  rewrite hw2 {hw2} /=.
-  move: hw' => /sem_sop1I /= [w2' hw2' hw'].
-  move: hw' => /Vword_inj [?]; subst ws'.
-  move=> /= ?; subst w'.
-  rewrite (uload_mn_of_wsizeP hmn hw2') {hmn hw2'} /=.
-  move: htrunc.
-  rewrite truncate_word_u.
-  move=> [?]; subst w.
+  rewrite hseme {hseme} /=.
+  rewrite /exec_sopn /=.
+  rewrite htrunc {htrunc} /=.
+  rewrite zero_extend_u.
   by rewrite hwrite {hwrite} /=.
 Qed.
 
