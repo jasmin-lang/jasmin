@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
 Require Export array expr gen_map leakage low_memory warray_ sem_type.
 Import Utf8.
@@ -693,7 +693,7 @@ with sem_i : estate -> instr_r -> leak_i -> estate -> Prop :=
     sem_pexprs gd s1 args = ok vargs ->
     sem_call s1.(emem) f (unzip1 vargs) lf m2 vs ->
     write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
-    sem_i s1 (Ccall ii xs f args) (Lcall (LSub (unzip2 vargs)) lf (LSub l2)) s2
+    sem_i s1 (Ccall ii xs f args) (Lcall (unzip2 vargs) lf l2) s2
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> leak_for -> estate -> Prop :=
 | EForDone s i c :
@@ -827,7 +827,7 @@ Section SEM_IND.
       sem_pexprs gd s1 args = Ok error vargs ->
       sem_call (emem s1) fn (unzip1 vargs) lf m2 vs -> Pfun (emem s1) fn (unzip1 vargs) lf m2 vs ->
       write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error (s2, lw) ->
-      Pi_r s1 (Ccall ii xs fn args) (Lcall (LSub (unzip2 vargs)) lf (LSub lw)) s2.
+      Pi_r s1 (Ccall ii xs fn args) (Lcall (unzip2 vargs) lf lw) s2.
 
   Definition sem_Ind_proc : Prop :=
     forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs vargs': seq value)

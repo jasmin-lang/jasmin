@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
 Require Export strings warray_.
 Import Utf8.

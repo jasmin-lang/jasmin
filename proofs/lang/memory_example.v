@@ -28,7 +28,7 @@ Lemma zip_nil S T (m: seq T) : zip [::] m = @ nil (S * T).
 Proof. by case: m. Qed.
 
 Lemma cut_wbase_Uptr sz :
-  wbase Uptr = (wsize_size sz * CoqWord.word.modulus (nat63.+3 - (Nat.log2 (wsize_size_minus_1 sz))))%Z.
+  wbase Uptr = (wsize_size sz * word.word.modulus (nat63.+3 - (Nat.log2 (wsize_size_minus_1 sz))))%Z.
 Proof. by case: sz; vm_compute. Qed.
 
 Local Open Scope Z_scope.
@@ -69,9 +69,9 @@ Proof.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
   move => /eqP /Zmod_divides [] // p hptr.
-  rewrite /wunsigned CoqWord.word.addwE -!/(wunsigned _) Zplus_mod hptr -Zplus_mod.
+  rewrite /wunsigned word.word.addwE -!/(wunsigned _) Zplus_mod hptr -Zplus_mod.
   rewrite wunsigned_repr -/(wbase Uptr) (cut_wbase_Uptr sz).
-  rewrite (Z.mul_comm _ (CoqWord.word.modulus _)) mod_pq_mod_q // (Z.mul_comm _ p) Z_mod_plus.
+  rewrite (Z.mul_comm _ (word.word.modulus _)) mod_pq_mod_q // (Z.mul_comm _ p) Z_mod_plus.
   2: Psatz.lia.
   by rewrite mod_pq_mod_q //; apply/eqP/Zmod_divides; eauto.
 Qed.
@@ -83,7 +83,7 @@ Proof.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
   move: (wunsigned ptr) (wunsigned_range ptr) ha => {ptr} ptr.
-  rewrite (cut_wbase_Uptr sz); set a := CoqWord.word.modulus _.
+  rewrite (cut_wbase_Uptr sz); set a := word.word.modulus _.
   move: (wsize_size sz) hn hnz => n hn hnz hr /Zmod_divides [] // q ?; subst ptr.
   cut (q + 1 <= a)%Z; Psatz.nia.
 Qed.

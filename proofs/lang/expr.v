@@ -2,7 +2,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Export strings word utils type var global sem_type x86_decl x86_instr_decl.
 Require Export leakage.
 Require Import xseq.
@@ -1240,6 +1240,15 @@ Proof. rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
 
 Lemma read_Ii ii i: read_I (MkI ii i) = read_i i.
 Proof. by done. Qed.
+
+(* ------------------------------------------------------------------------ *)
+(** Identity leakage transformer for function calls *)
+Definition lt_icall_id (f: funname) (xs: lvals) (es: pexprs) :=
+  LT_icall f (nseq (size es) LT_id) (nseq (size xs) LT_id).
+
+Lemma leak_map_id {LO: LeakOp} (stk: pointer) le :
+  map2 (leak_E stk) (nseq (size le) LT_id) le = le.
+Proof. by elim: le => // a le ih /=; congr (_ :: _). Qed.
 
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)

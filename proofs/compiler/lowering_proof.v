@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import ZArith psem compiler_util.
 Require Export lowering.
 Import Utf8.
@@ -354,17 +354,17 @@ Qed.
     case: (add_inc_dec_classify sz a b)=> a' lte'. case: a'=> //. case: lte'=> //.
     + move=> n a''. case: n=> //. move=> [] -> -> /=. t_xrbindP.
       move=> -[ve le] -> /= [] -> -> -> [] <- hle2.
-      exists w1, z1, le1; split.  by left. split=> //. by rewrite zero_extend_u /wrepr CoqWord.word.mkword1E.
+      exists w1, z1, le1; split.  by left. split=> //. by rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E.
     + move=> n. case: n=> //. move=> [] -> -> /=. t_xrbindP.
       move=> vs -[ve le] -> <- -> [] <- hle1 [] -> ->.
-      exists w2, z2, le2; split.  by right. split=> //. by rewrite zero_extend_u /wrepr CoqWord.word.mkword1E GRing.addrC.
+      exists w2, z2, le2; split.  by right. split=> //. by rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E GRing.addrC.
     + move=> a''. case: lte'=> //. move=> n. case: n=> //.
       + move=> [] -> -> /=. t_xrbindP.
         move=> -[ve le] -> /= [] -> -> -> [] <- hle2.
-        exists w1, z1, le1; split.  by left. split=> //. by rewrite zero_extend_u /wrepr CoqWord.word.mkwordN1E.
+        exists w1, z1, le1; split.  by left. split=> //. by rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E.
       + move=> n. case: n=> //. move=> [] -> -> /=. t_xrbindP. 
         move=> vs -[ve le] -> <- -> [] <- hle1 [] -> ->.
-        exists w2, z2, le2; split.  by right. split=> //. by rewrite zero_extend_u /wrepr CoqWord.word.mkwordN1E GRing.addrC.
+        exists w2, z2, le2; split.  by right. split=> //. by rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E GRing.addrC.
     case: lte'=> //. 
   Qed.
 
@@ -410,7 +410,7 @@ Qed.
   rewrite orbF /wunsigned /=.
   case: α β => α hα [] β hβ ne'.
   Transparent word.
-  repeat rewrite /CoqWord.word.urepr /=.
+  repeat rewrite /mathcomp.word.word.urepr /=.
   Opaque word.
   have ne : α ≠ β.
   - move => ?; subst; apply: ne'.
@@ -419,7 +419,7 @@ Qed.
   elim_div => z a [] //.
   elim_div => z1 b [] //.
   set m := (wsize_size_minus_1 sz).+1.
-  have /ssrZ.ltzP := CoqWord.word.modulus_gt0 m.
+  have /ssrZ.ltzP := mathcomp.word.word.modulus_gt0 m.
   match goal with |- (?x < _)%Z → _ => have hz : x = 0%Z by [] end.
   rewrite hz in hα, hβ |- * => {hz}.
   move => hm /Z.eq_opp_r ?; subst α => - []; last Psatz.lia.
@@ -512,7 +512,7 @@ Qed.
       + move=> Hsz. rewrite /x86_CMP /check_size_8_64 Hsz.
         eexists _, _; split; first by reflexivity.
         do 2 split => //.
-        by rewrite -CoqWord.word.wltuE.
+        by rewrite -word.word.wltuE.
       rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
       by move=> w /= Ht wsz Ht' [] <-.
 
@@ -1489,7 +1489,7 @@ Qed.
           rewrite /= /truncate_word /=. rewrite hw2 /= in hle1. rewrite hle1 /=.
           rewrite /x86_INC /check_size_8_64. rewrite hw2 /= in hsz64. 
           rewrite hsz64 /rflags_of_aluop_nocf_w /flags_w /=.
-          rewrite zero_extend_u /wrepr CoqWord.word.mkwordN1E /=. repeat f_equal.
+          rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E /=. repeat f_equal.
           ssring. 
           by rewrite -hl /=. 
         (* SubDec *)
@@ -1499,7 +1499,7 @@ Qed.
           rewrite /= /truncate_word /=. rewrite hw2 /= in hle1. rewrite hle1 /=.
           rewrite /x86_DEC /check_size_8_64. rewrite hw2 /= in hsz64.
           rewrite hsz64 /rflags_of_aluop_nocf_w /flags_w /=.
-          by rewrite zero_extend_u /wrepr CoqWord.word.mkword1E /=.
+          by rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E /=.
           by rewrite -hl /=.
         (* SubNone *)
         + split. by rewrite read_es_swap.
@@ -1808,7 +1808,7 @@ Qed.
         eexists. eexists. eexists. eexists. exists [:: (Vword w1, l1); (Vword w2, l2)]. split=>//. 
         rewrite /x86_CMP /rflags_of_aluop /leak_sopn /= /truncate_word hw1 hw2 /=;repeat f_equal.
         rewrite /check_size_8_64 hsz64 /=.
-        by rewrite CoqWord.word.wltuE.
+        by rewrite word.word.wltuE.
         by rewrite -hle.
 
       (* Ovadd ve sz *) (* done *)
@@ -2967,8 +2967,10 @@ Qed.
     rewrite Hcall. constructor. rewrite /Pfun in Hfun. move: Hfun.
     move=> [] Hwf Hfun. rewrite hlf Hcall in Hwf. apply Hwf.
     exists s2'; split=> //.
-    apply: sem_seq1; apply: EmkI; apply: Ecall; eauto.
-    rewrite (sem_pexprs_same Hargs Hs1' Harg) //.
+    apply: sem_seq1; apply: EmkI.
+    rewrite (size_write_lvals Hs2'1) (mapM_size Harg) -(size_map snd) !leak_map_id.
+    apply: Ecall; last by eauto.
+    - by rewrite (sem_pexprs_same Hargs Hs1' Harg).
     move: Hs1'=> [-> _]. rewrite /Pfun in Hfun. rewrite /= in Hfun. rewrite hlf in Hfun.
     rewrite /=.  apply Hfun.
   Qed.

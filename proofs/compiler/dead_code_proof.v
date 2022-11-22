@@ -476,6 +476,7 @@ Section PROOF.
     apply: eq_onI Hvm2.
     rewrite read_esE read_rvsE.
     SvD.fsetdec. case heq: lf=> [fn' lt].
+    rewrite (mapM_size Hexpr) -(size_map snd) (size_write_lvals Hvm2') !leak_map_id.
     econstructor; constructor.
     econstructor; rewrite -?eq_globs.
     rewrite (read_es_eq_on _ (emem s1) (eq_onS Hvm)).

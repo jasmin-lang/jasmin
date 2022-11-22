@@ -148,7 +148,9 @@ Section PROOF.
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
     move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hexpr Hcall Hfun Hw ii' /=.
-    case hlf: (lf) => [fn' fd']. apply: sem_seq1; apply: EmkI; apply: Ecall.
+    case hlf: (lf) => [fn' fd']. apply: sem_seq1; apply: EmkI.
+    rewrite (mapM_size Hexpr) -(size_map snd) (size_write_lvals Hw) !leak_map_id.
+    apply: Ecall.
     replace (p_globs p') with gd. auto. by rewrite p'_def. auto.
     rewrite /Pfun in Hfun. rewrite /= in Hfun. rewrite hlf in Hfun. apply Hfun.
     replace (p_globs p') with gd. apply Hw. by rewrite p'_def.

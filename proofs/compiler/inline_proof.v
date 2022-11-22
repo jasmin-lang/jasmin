@@ -727,7 +727,8 @@ Section PROOF.
       move: (Hrec p' {| emem := sm1; evm := vm1 |} m2 {| emem := emem s2; evm := vm2 |} DoNotInline
              xs fn args vargs' vres' (fn',
              leak_Is (leak_I (leak_Fun Fs)) stk
-               (leak_Fun Fs fn') ltc') lw Hvargs' Hscall Hxs). move=> /= Hcall. by rewrite Huargs'.
+               (leak_Fun Fs fn') ltc') lw Hvargs' Hscall Hxs). move=> /= Hcall.
+      by rewrite (mapM_size Hvargs') Huargs' -(size_map snd) (size_write_lvals Hxs) !leak_map_id.
     (* inlining *)
     apply: rbindP=> fd' /get_funP Hfd'.
     have [fd [] ltc'' [] Hfd [] Hinline Hle] := inline_progP uniq_funname Hp Hfd'.
@@ -1068,7 +1069,8 @@ Section REMOVE_INIT.
     move: (Hws gd  {| emem := m2; evm := evm s1 |} s2 vm1 xs vs vs' lw Hvm1 Hvres Hxs).
     move=> [] vm2 /= Hw Hvm2.
     exists vm2;split=>//=; last by apply: wf_write_lvals Hw.
-    move: Hsa Hc Hw; rewrite -eq_glob hlf => Hsa Hc Hw; rewrite Hv'. 
+    move: Hsa Hc Hw; rewrite -eq_glob hlf => Hsa Hc Hw.
+    rewrite (mapM_size Hargs) -(size_map snd) (size_write_lvals Hw) !leak_map_id -/(unzip2 _) Hv'.
     apply/sem_seq1/EmkI/(Ecall ii Hsa Hc Hw).
   Qed.
 

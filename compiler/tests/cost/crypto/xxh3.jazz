@@ -189,7 +189,7 @@ fn xxh3_len_17to128_64b(reg u64 input len secret) -> reg u64 {
         m = mix16b(p, q);
         acc += m;
       }
-      p = #LEA(input + 3);
+      p = #LEA(input + 32);
       q = #LEA(secret + 64);
       m = mix16b(p, q);
       acc += m;

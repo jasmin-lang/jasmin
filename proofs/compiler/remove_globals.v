@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import xseq.
 Require Import compiler_util ZArith expr leakage.
 
@@ -266,7 +266,7 @@ Section REMOVE.
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Ccall i (unzip1 lvs) fn (unzip1 es))],
-                   (LT_icall fn (LT_map (unzip2 es)) (LT_map (unzip2 lvs))))
+                   (LT_icall fn (unzip2 es) (unzip2 lvs)))
         end
       end.
 

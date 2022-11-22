@@ -318,7 +318,7 @@ with sem_i : estate -> instr_r -> leak_i -> estate -> Prop :=
     sem_pexprs gd s1 args = ok vargs ->
     sem_call s1.(emem) f (unzip1 vargs) lf m2 vs ->
     write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
-    sem_i s1 (Ccall ii xs f args) (Lcall (LSub (unzip2 vargs)) lf (LSub l2)) s2
+    sem_i s1 (Ccall ii xs f args) (Lcall (unzip2 vargs) lf l2) s2
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> leak_for -> estate -> Prop :=
 | EForDone s i c :
@@ -424,7 +424,7 @@ Lemma sem_iE' s i s' li:
     ∃ vs m2 rs lf l2,
     [/\ sem_pexprs gd s es = ok vs, sem_call s.(emem) f (unzip1 vs) lf m2 rs, 
        write_lvals gd {|emem:= m2; evm := s.(evm) |} xs rs = ok (s', l2) 
-     & li = (Lcall (LSub (unzip2 vs)) lf (LSub l2))]
+     & li = (Lcall (unzip2 vs) lf l2)]
   end.
 Proof.
   case => {s i li s'} //.
@@ -587,7 +587,7 @@ Section SEM_IND.
       sem_pexprs gd s1 args = Ok error vargs ->
       sem_call (emem s1) fn (unzip1 vargs) lf m2 vs -> Pfun (emem s1) fn (unzip1 vargs) lf m2 vs ->
       write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error (s2, lw) ->
-      Pi_r s1 (Ccall ii xs fn args) (Lcall (LSub (unzip2 vargs)) lf (LSub lw)) s2.
+      Pi_r s1 (Ccall ii xs fn args) (Lcall (unzip2 vargs) lf lw) s2.
 
   Definition sem_Ind_proc : Prop :=
     forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs vargs': seq value)

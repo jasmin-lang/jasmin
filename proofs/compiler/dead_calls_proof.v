@@ -274,7 +274,7 @@ Section PROOF.
     sem_call p (emem s1) fn (unzip1 vargs) lf m2 vs ->
     Pfun (emem s1) fn (unzip1 vargs) lf m2 vs ->
     write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error (s2, l2) ->
-    Pi_r s1 (Ccall ii xs fn args) (Lcall (LSub (unzip2 vargs)) lf (LSub l2)) s2.
+    Pi_r s1 (Ccall ii xs fn args) (Lcall (unzip2 vargs) lf l2) s2.
   Proof.
     move=> Hargs Hcall Hfun Hres Hincl Hsi.
     apply: (Ecall (P:=p') _ Hargs _ Hres).

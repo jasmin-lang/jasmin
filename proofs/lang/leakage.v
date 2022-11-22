@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
 Require Export array gen_map low_memory warray_ sem_type var.
 Import Utf8.
@@ -45,20 +45,13 @@ Inductive leak_i : Type :=
   | Lwhile_true : seq leak_i -> leak_e -> seq leak_i -> leak_i -> leak_i     
   | Lwhile_false : seq leak_i -> leak_e -> leak_i
   | Lfor : leak_e -> seq (seq leak_i) -> leak_i                              
-  | Lcall : leak_e -> (funname * seq leak_i) -> leak_e -> leak_i.            
+  | Lcall : leak_es -> (funname * seq leak_i) -> leak_es -> leak_i.
 
 Notation leak_c := (seq leak_i).
 
 Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
-
-(* ------------------------------------------------------------------------ *)
-Definition get_seq_leak_e (l : leak_e) : seq leak_e := 
-  match l with 
-  | LSub le => le
-  | _ => [::]
-  end.
 
 (* ------------------------------------------------------------------------ *)
 (* Leakage trees and leakage transformations. *)
@@ -170,7 +163,7 @@ Inductive leak_i_tr :=
 | LT_icond  : leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr (* if *)       
 | LT_iwhile : seq leak_i_tr -> leak_e_tr -> seq leak_i_tr -> leak_i_tr (* while *)      
 | LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr                  
-| LT_icall : funname -> leak_e_tr -> leak_e_tr -> leak_i_tr      
+| LT_icall : funname -> seq leak_e_tr -> seq leak_e_tr -> leak_i_tr
 
 (* modify the control flow *)
 | LT_iremove : leak_i_tr                                         
@@ -242,9 +235,9 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
 
   | LT_icall _f lte lte', Lcall le (f, lts) le' => 
     (* _f should be equal to f *)
-    [:: Lcall (leak_E stk lte le)
+    [:: Lcall (map2 (leak_E stk) lte le)
               (f, (leak_Is leak_I stk (leak_Fun f) lts))
-              (leak_E stk lte' le') ]
+              (map2 (leak_E stk) lte' le') ]
 
 
   (** Modification of the control flow *)
@@ -264,10 +257,10 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
 
   | LT_icall_inline nargs _fn ninit nres, Lcall le (f, lts) le' => 
     (* nargs = size le, _fn = fn, nres = size le') *)
-    map (fun x => (Lopn (LSub [:: x; LEmpty]))) (get_seq_leak_e le) ++ 
+    map (fun x => (Lopn (LSub [:: x; LEmpty]))) le ++
     nseq ninit (Lopn (LSub [:: LEmpty; LEmpty])) ++ 
     leak_Is leak_I stk (leak_Fun f) lts ++
-    map (fun y => (Lopn (LSub [:: LEmpty; y]))) (get_seq_leak_e le')
+    map (fun y => (Lopn (LSub [:: LEmpty; y]))) le'
 
   (* lowering *)
     (* lti'-> b = [e] (* makes boolean expression as b = [e] *) (* trasforms expression leakage to instruction Copn leakage *)
@@ -333,7 +326,7 @@ Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
                       leak_WF (LT_ifor_unroll (size ltss) ltiss) (Lfor le ltss)
  | LT_icall_inlineWF : forall ninit les f lts les',
                        leak_WFs (leak_Fun f) lts ->
-                       leak_WF (LT_icall_inline (size les) f ninit (size les')) (Lcall (LSub les) (f, lts) (LSub les'))
+                       leak_WF (LT_icall_inline (size les) f ninit (size les')) (Lcall les (f, lts) les')
  (* Lowering *)
  | LT_icondltWF : forall lti' lte ltt ltf le lti,
                   leak_WFs ltt lti ->

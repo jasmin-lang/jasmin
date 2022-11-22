@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word utils type var expr low_memory sem.
 Require Import constant_prop.
