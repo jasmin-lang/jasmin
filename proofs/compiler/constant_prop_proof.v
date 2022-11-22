@@ -1881,7 +1881,7 @@ Section PROPER.
     split. rewrite /=. auto. rewrite /=. rewrite -Hce.
     do 4 f_equal. apply eq_in_map. intro. by rewrite Heq.
     rewrite /RelationPairs.RelProd /RelationPairs.RelCompFun /=.
-    rewrite Hle. do 3 f_equal.
+    rewrite Hle.
     have <- // : [seq const_prop_e m1 i | i <- es] = [seq const_prop_e m2 i | i <- es].
     apply eq_in_map=> ?. by rewrite Heq.
   Qed.

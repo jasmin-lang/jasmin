@@ -334,7 +334,7 @@ Section PROOF.
     forall vs,  sem_pexprs gd s e1 = ok vs ->
     exists vs', sem_pexprs (p_globs p2) (Estate s.(emem) vm) e2 = ok vs' /\
                List.Forall2 value_uincl (unzip1 vs) (unzip1 vs') /\
-               LSub (unzip2 vs') = LSub (map2 (leak_E stk) lte (unzip2 vs)).
+               unzip2 vs' = map2 (leak_E stk) lte (unzip2 vs).
   Proof.
     rewrite -eq_globs;case: s => sm svm.
     rewrite /check_es; elim: e1 e2 r re [::] lte => [ | e1 es1 Hrec] [ | e2 es2] r re lte1 lte2 //=.
@@ -346,7 +346,7 @@ Section PROOF.
     move: (Hrec es2 re' rh lte1 lth Hce Hvm2). move=> [] Hvm3 Hrec'.
     t_xrbindP. move=> vs [ve le] He' vs' Hes <- /=. move: (He sm ve le He'). move=> [] ve' [] -> Hv /=.
     move: (Hrec' vs' Hes). move=> [] vs'' [] -> [] Hvs1 Hvs2 /=. exists ((ve', leak_E stk lte' le) :: vs''). split=> //.
-    split. rewrite /=. apply List.Forall2_cons; auto. rewrite /=. by case: Hvs2 => -> /=.
+    split. rewrite /=. apply List.Forall2_cons; auto. by rewrite /= Hvs2.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
@@ -621,7 +621,7 @@ Section PROOF.
    move: (H (zip vres [seq LEmpty | _ <- vres]) H1).
    move=> [] vres1'' [] Hes' [] /= Hv Hv'. 
    rewrite unzip1_zip in Hv; last first.
-   + case: Hv' => Hv1'. apply mapM_size in Hres. rewrite /sem_pexprs in H1.
+   + apply mapM_size in Hres. rewrite /sem_pexprs in H1.
      apply mapM_size in H1. rewrite !size_map in H1. rewrite H1 in Hres.
      rewrite size_zip in Hres. by apply /minn_idPl.
    move=> Hm.
@@ -685,7 +685,7 @@ Section PROOF.
    move: (H (zip vres [seq LEmpty | _ <- vres]) H1).
    move=> [] vres1'' [] Hes' [] /= Hv Hv'. 
    rewrite unzip1_zip in Hv; last first.
-   + case: Hv' => Hv1'. apply mapM_size in Hres. rewrite /sem_pexprs in H1.
+   + apply mapM_size in Hres. rewrite /sem_pexprs in H1.
      apply mapM_size in H1. rewrite !size_map in H1. rewrite H1 in Hres.
      rewrite size_zip in Hres. by apply /minn_idPl.
    move: (mapM2_truncate_val Hcr Hv)=> [] vres2 Hm'' Hv''.

@@ -705,13 +705,6 @@ Section PROOF.
     by t_xrbindP => ? _ ? /hrec [-> ->] <-.
   Qed.
 
-  Lemma size_write_lvals s xs vs r : write_lvals gd s xs vs = ok r -> size xs = size r.2.
-  Proof.
-    elim: xs vs s r => [ | x xs hrec] [ | v vs] //= s r.
-    + by move=> [<-].
-    by t_xrbindP => ? _ ? /hrec h <- /=; rewrite h.
-  Qed.
-
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
     move => s1 m2 s2 ii xs fn args vargs vs lf lw.
