@@ -625,11 +625,11 @@ Notation LT_imul3 := ([:: LT_seq [:: LT_subi 0 ; LT_seq [:: LT_remove ; LT_remov
 Notation LT_iemptysl := ([::]).
 
 #[local]
-Notation LT_ilmul lest ltes := (LT_icopn (map (LT_compose (LT_map [:: lt_compose (LT_seq [:: LT_remove ; LT_remove ]) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest)).
+Notation LT_ilmul lest ltes := (LT_iopn (map (LT_compose (LT_map [:: lt_compose (LT_seq [:: LT_remove ; LT_remove ]) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest)).
 #[local]
-Notation LT_ilfopn lest lte := (LT_icopn (map (LT_compose (LT_map [:: lte ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest)).
+Notation LT_ilfopn lest lte := (LT_iopn (map (LT_compose (LT_map [:: lte ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest)).
 #[local]
-Notation LT_ilif lti le' := (LT_icopn ((map (LT_compose (LT_compose (LT_subi 0) (LT_subi 0))) lti) ++ [:: LT_seq [:: LT_seq [:: lt_compose (LT_compose (LT_subi 0) (LT_subi 0)) le'; LT_compose (LT_subi 0) (LT_subi 1) ; LT_compose (LT_subi 0) (LT_subi 2)] ; LT_seq [:: LT_subi 1 ] ] ])).
+Notation LT_ilif lti le' := (LT_iopn ((map (LT_compose (LT_compose (LT_subi 0) (LT_subi 0))) lti) ++ [:: LT_seq [:: LT_seq [:: lt_compose (LT_compose (LT_subi 0) (LT_subi 0)) le'; LT_compose (LT_subi 0) (LT_subi 1) ; LT_compose (LT_subi 0) (LT_subi 2)] ; LT_seq [:: LT_subi 1 ] ] ])).
 
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
@@ -832,7 +832,7 @@ Fixpoint lower_i (i:instr) : cmd * leak_i_tr :=
   let (ii, ir) := i in
   match ir with
   | Cassgn l tg ty e => lower_cassgn ii l tg ty e 
-  | Copn l t o e =>   (map (MkI ii) (lower_copn l t o e).1, LT_icopn (lower_copn l t o e).2) (* need to fix this *)
+  | Copn l t o e =>   (map (MkI ii) (lower_copn l t o e).1, LT_iopn (lower_copn l t o e).2) (* need to fix this *)
   | Cif e c1 c2  =>
      let '(pre, e) := lower_condition xH e in
      let rc1 := lower_cmd lower_i c1 in 

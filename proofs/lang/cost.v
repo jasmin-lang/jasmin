@@ -1052,7 +1052,6 @@ Context (P: leak_i_tr → Prop)
         (Hicall_inline : ∀ nargs f ninit nres, P (LT_icall_inline nargs f ninit nres))
         (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
         (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
-        (Hicopn        : ∀ lei, P (LT_icopn lei))
 .
 
   Section C.
@@ -1088,8 +1087,6 @@ Context (P: leak_i_tr → Prop)
 
     | LT_iwhilel lei le lt1 lt2 => 
       Hiwhilel lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
-
-    | LT_icopn lei      => Hicopn lei
     end.
 
   Definition leak_c_tr_ind := leak_c_tr_ind_aux leak_i_tr_ind.
@@ -1198,11 +1195,6 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     let mn2 := enter_transform_cost_C transform_cost_I lt2 in
     (Sm.merge (Sm.prefix pre_f0 (Sm.sprefix pre_f0 mn1.1)) 
               (Sm.prefix pre_t0 (Sm.sprefix pre_t0 mn2.1)), 1)
-
-    (*sl : copn l t o e ---> copn (addc, add, mul) t o e *) 
-  | LT_icopn lesi => 
-    let n := size lesi in
-    (Sm.empty, n)
 
   end.
 
@@ -1544,7 +1536,6 @@ Proof.
     by rewrite !size_cat !size_map size_nseq hrec !addnA hrec_fun.
   + by move=> lei lte lt _ le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move=> ltei lte _ lt le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
-  + by move => ??; rewrite leak_EI_sizeE.
   + by move=> li lc lti ltc _ hreci _ hrec; rewrite /leak_Is /= size_cat hreci hrec.
   by move=> lc lcs lt _ hrec _ hrecn; rewrite size_cat hrec hrecn.
 Qed.
@@ -1684,7 +1675,6 @@ Proof.
     rewrite /enter_cost_c cost_C_cat (@cost_C_Lopn _ (leak_EI _ _ _)); last exact: is_lopns_leak_EI.
     rewrite mergec0 -/(enter_cost_c cost_i (bpath_f path0) (leak_Is (leak_I ftr) w lt1 lc)).
     by apply (leqc_trans (enter_ok _ hrec)); rewrite  interp_prefix2_sprefix mergec0.
-  + by move=> ltes le; rewrite cost_C_Lopn //= is_lopns_leak_EI.
   + move=> li lc lt1 lt2 hWF hrec1 _ hrec2 /=.
     rewrite /leak_Is /= cost_C_cat /= add0n transform_cost_size_i //.
     setoid_rewrite hrec1; rewrite cost_prefix_incr /= prefix0_cost Sm.interp_merge;

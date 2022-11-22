@@ -2025,7 +2025,7 @@ Qed.
          move: H; rewrite hl.
          have /= := (sem_pexpr_var_empty Hvo) => ->.
          move: (sem _ _ _) => P.
-         by rewrite {2}/leak_EI -map_comp /comp /= lt_composeE.
+         by rewrite -map_comp /comp /= lt_composeE.
         split. constructor.
         exists s2'. rewrite /= in hes.
         move: hes. rewrite Hvb /= Hvo /= /sem_sop2 /= Hwo /= Hwb /= /truncate_word /= hsz2 /= /truncate_word /= cmp_le_refl /=.
