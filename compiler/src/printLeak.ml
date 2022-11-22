@@ -73,7 +73,6 @@ let pp_i tbl fmt =
   | LT_icall_inline (a, n, i, r) -> fprintf fmt "icall_inline(%a, %s, %a, %a)" pp_nat a (Conv.fun_of_cfun tbl n).Prog.fn_name pp_nat i pp_nat r
   | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_iremove -> p "iremove"
-  | LT_icopn e -> fprintf fmt "icopn(%a)" (pp_list ";" pp_e_tr) e
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   in pp_i fmt
 

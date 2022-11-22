@@ -2188,7 +2188,7 @@ Qed.
           move: H; rewrite hl.
           have /= hvo' := sem_pexpr_var_empty Hvo.
           move: (sem _ _ _) => P.
-          rewrite {2}/leak_EI -map_comp /comp /= lt_composeE.
+          rewrite -map_comp /comp /= lt_composeE.
           by case: (o) hvo' => [ ? | ] ?; subst vol.
         split. constructor.
         exists s2'. rewrite /= in hes.

@@ -172,7 +172,6 @@ Inductive leak_i_tr :=
 (* lowering leak transformers *)
 | LT_icondl : seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_iwhilel :  seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
-| LT_icopn : seq leak_e_tr -> leak_i_tr
 .
 
 Notation LT_ile lt := (LT_iopn [:: lt ]).
@@ -283,8 +282,6 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     [::Lwhile_false ((leak_Is leak_I stk ltis lts) ++ (leak_EI stk lti le)) (leak_E stk lte le)]
 
 
-  | LT_icopn ltes, Lopn le => leak_EI stk ltes le
-
   | _, _ => [:: l]
   end.
 
@@ -340,8 +337,6 @@ Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
  | LT_iwhilelWF' : forall lti lte ltis ltis' lts le,
                    leak_WFs ltis lts ->
                    leak_WF (LT_iwhilel lti lte ltis ltis') (Lwhile_false lts le)
- | LT_icopnWF : forall ltes le,
-                leak_WF (LT_icopn ltes) (Lopn le)
 
 with leak_WFs : seq leak_i_tr -> leak_c -> Prop :=
  | WF_empty : leak_WFs [::] [::]
