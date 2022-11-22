@@ -10,6 +10,7 @@ let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let ec_array_path = ref Filename.current_dir_name
+let cl_list = ref []
 let check_safety = ref false
 let safety_param = ref None
 let safety_config = ref None
@@ -62,6 +63,9 @@ let set_all_print () =
 
 let set_ec f =
   ec_list := f :: !ec_list
+
+let set_cl f =
+  cl_list := f :: !cl_list
 
 let set_ec_array_path p =
   ec_array_path := p
@@ -162,6 +166,7 @@ let options = [
     "-ec"       , Arg.String  set_ec    , "[f]: extract function [f] and its dependencies to an easycrypt file";
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-oecarray" , Arg.String set_ec_array_path, "[dir]: output easycrypt array theories to the given path";
+    "-cl"       , Arg.String set_cl     , "[f]: extract function [f] and its dependencies to cryptoline";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
     "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
     "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";

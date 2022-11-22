@@ -38,6 +38,7 @@ src/Syntax
 src/Syscall_ocaml
 src/Syscall_t
 src/ToEC
+src/ToCL
 src/safety/safetyAbsExpr
 src/safety/safetyConfig
 src/safety/safetyConstr
