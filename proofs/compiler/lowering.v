@@ -393,13 +393,13 @@ Definition is_lnot a :=
 Definition is_andn  a b :=
   match is_lnot a, is_lnot b with
   | Some a, _      => (Some (a, b), LT_id)
-  | None  , Some b => (Some (b, a), LT_seq [:: LT_compose (LT_subi 0) LT_rev; (LT_subi 1)])
+  | None  , Some b => (Some (b, a), LT_seq [:: LT_compose (LT_subi 0) (LT_seq [:: LT_subi 1; LT_subi 0 ]); (LT_subi 1)])
   | None  , None   => (None, LT_id)
   end.
 
 Definition mulr sz a b :=
   match is_wconst sz a with
-  | Some _ => ((IMULri sz, [:: b ; a ]), LT_rev)
+  | Some _ => ((IMULri sz, [:: b ; a ]), LT_seq [:: LT_subi 1; LT_subi 0 ])
   | _      =>
     match is_wconst sz b with
     | Some _ => ((IMULri sz, [:: a ; b ]), LT_id)

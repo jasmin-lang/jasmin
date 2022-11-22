@@ -42,7 +42,6 @@ let rec pp_e_tr fmt =
   | LT_map m -> fprintf fmt "(%a)" (pp_list ", " pp_e_tr) m
   | LT_seq m -> fprintf fmt "[%a]" (pp_list "; " pp_e_tr) m
   | LT_compose (e, f) -> fprintf fmt "%a ∘ %a" pp_e_tr e pp_e_tr f
-  | LT_rev -> p "rev"
 
 let rec pp_il fmt =
   let aux fmt ils = pp_list ";@." pp_il fmt ils in

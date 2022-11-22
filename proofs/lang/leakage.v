@@ -94,8 +94,7 @@ Inductive leak_e_tr :=
   | LT_map : seq leak_e_tr -> leak_e_tr (* parallel transformations *)
   | LT_seq : seq leak_e_tr -> leak_e_tr
   | LT_compose: leak_e_tr -> leak_e_tr -> leak_e_tr (* compositon of transformations *)
-  (* lowering *)
-  | LT_rev : leak_e_tr. (* reverse transformation *)
+  .
 
 (* Smart constructor for LT_compose *)
 Definition lt_compose (a b: leak_e_tr) : leak_e_tr :=
@@ -123,7 +122,6 @@ Fixpoint leak_E (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
   | LT_remove, _ => LEmpty
   | LT_subi i, LSub xs => nth LEmpty xs i
   | LT_compose lt1 lt2, _ => leak_E stk lt2 (leak_E stk lt1 l)
-  | LT_rev, LSub xs => LSub (rev xs)
   | _, _ => LEmpty
   end.
 
