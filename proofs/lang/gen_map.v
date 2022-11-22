@@ -483,7 +483,7 @@ Module Mp := Mmake CmpPos.
 (* --------------------------------------------------------------------------
  ** Map of Z
  * -------------------------------------------------------------------------- *)
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Module CmpZ.
 
   Definition t := [eqType of Z].

@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import expr ZArith psem compiler_util.
 Require Import dead_code.
 Require Export low_memory.

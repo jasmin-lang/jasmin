@@ -2,7 +2,7 @@
 
 set -e
 
-opam init --no-setup --compiler=4.12.1
+opam init --disable-sandboxing --no-setup --compiler=4.12.1
 if [ $1 ]
 then
   opam repo add coq-released https://coq.inria.fr/opam/released
