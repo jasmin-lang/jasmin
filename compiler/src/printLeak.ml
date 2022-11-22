@@ -16,6 +16,8 @@ let pp_leak_i fmt =
   function
   | Lopn (LSub [ rhs ; lhs ]) ->
      fprintf fmt "%a := %a" pp_leak_e lhs pp_leak_e rhs
+  | Lcond(le, b, []) ->
+    fprintf fmt "%a ? %a" pp_leak_e le pp_bool b
   | _ -> fprintf fmt "TODO"
 
 (* ---------------------------------------------------------------- *)

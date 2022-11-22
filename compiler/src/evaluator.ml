@@ -106,10 +106,10 @@ let small_step1 s =
       { s with s_cmd = c; s_estate = s2; s_leak = Leakage.Lopn lk :: s.s_leak }
 
     | Cif(e,c1,c2) ->
-       let v, _lk = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 e) in
+       let v, lk = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 e) in
       let b = of_val_b ii v in
       let c = (if b then c1 else c2) @ c in
-      { s with s_cmd = c }
+      { s with s_cmd = c ; s_leak = Leakage.Lcond(lk, b, []) :: s.s_leak }
 
     | Cfor (i,((d,lo),hi), body) ->
        let zlo, _lklo = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 lo) in
