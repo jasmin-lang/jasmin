@@ -490,7 +490,7 @@ let main () =
     if !cl_list <> [] then
       begin
         let fmt, close = Format.std_formatter, fun () -> () in
-        let _fnames = !cl_list in
+
         match
           BatPervasives.finally
             (fun () -> close ())
@@ -504,7 +504,9 @@ let main () =
                  export_functions
                  subroutines
                  tbl
-                 Arch.call_conv)
+                 Arch.call_conv
+                 !cl_list
+            )
             ()
         with
         | Utils0.Error e ->

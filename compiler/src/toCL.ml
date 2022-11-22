@@ -210,11 +210,43 @@ let compiler_back_end asm_e call_conv aparams cparams entries pd =
      | Error s -> Error s)
   | Error s -> Error s
 
-let extract asmOp fmt asm_e p aparams cparams entries subroutines tbl call_conv =
+
+module Scmp = struct
+  type t = string
+  let compare = compare
+end
+
+module Ss = Set.Make(Scmp)
+
+let filter prog tbl cl_list =
+  let rec used_func f =
+    let (_,fundef) = f in
+    used_func_c Ss.empty Linear.(fundef.lfd_body)
+
+  and used_func_c used c =
+    List.fold_left used_func_i used c
+
+  and used_func_i used i =
+    match i.li_i with
+    | Lcall (f,_)   -> Ss.add (Conv.string_of_funname tbl f) used
+    | _ -> used
+  in
+
+  let tokeep = ref (Ss.of_list cl_list) in
+  let dofun f =
+    let (name,_) = f in
+    if Ss.mem (Conv.string_of_funname tbl name) !tokeep then
+      (tokeep := Ss.union (used_func f) !tokeep; true)
+    else false in
+  let lp_funcs = List.rev (List.filter dofun Linear.(prog.lp_funcs)) in
+  Linear.({prog with lp_funcs})
+
+
+let extract asmOp fmt asm_e p aparams cparams entries subroutines tbl call_conv tokeep =
   match compiler_first_part asm_e aparams cparams (Seq.cat entries subroutines) p with
   | Ok x ->
-    let up = Conv.prog_of_cuprog tbl x in
-    Printer.pp_prog ~debug:false asmOp fmt up;
+    (* let up = Conv.prog_of_cuprog tbl x in *)
+    (* Printer.pp_prog ~debug:false asmOp fmt up; *)
     let ao = cparams.stackalloc (Obj.magic x) in
     (match check_no_ptr (Obj.magic entries) ao.ao_stack_alloc with
      | Ok _ ->
@@ -230,6 +262,7 @@ let extract asmOp fmt asm_e p aparams cparams entries subroutines tbl call_conv 
          | Ok x1 ->
            (match compiler_back_end asm_e call_conv aparams cparams (Obj.magic entries) x1 with
             | Ok x ->
+              let x = filter x tbl tokeep in
               PrintLinear.pp_prog asmOp tbl fmt x;
               Ok x
             | Error s -> Error s)
