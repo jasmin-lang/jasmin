@@ -2360,7 +2360,7 @@ Proof.
   case: r => //=.
   + move=> _ [-> <-] [<- <-].
     rewrite /write_var; t_xrbindP=> vm1'; apply: set_varP; last first.
-    + by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
+    + by move=> /is_sboolP h1 h2; exfalso; move: h2; rewrite h1.
     case: x => -[xty xn] xii; case: xty => //=.
     move=> nx ax hax <- <-.
     set x := {| vname := xn |} => hlx hget hread.
@@ -2474,7 +2474,7 @@ Proof.
   case: r hgetr hw => //.
   + move=> _ [-> <-].
     rewrite /write_lval /write_var; t_xrbindP=> vm1'; apply: set_varP; last first.
-    + by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
+    + by move=> /is_sboolP h1 h2; exfalso; move: h2; rewrite h1.
     case: x => -[xty xn] xii; case: xty => //=.
     move=> nx ax hax <- <-.
     set x := {| vname := xn |}.
