@@ -716,7 +716,7 @@ Section LEMMA.
     + split => //=.
       + move=> z hz; rewrite /vm_after_syscall kill_varsE.
         case: Sv_memP.
-        + by move=> ?; elimtype False; apply hz; SvD.fsetdec.
+        + by move=> ?; exfalso; apply hz; SvD.fsetdec.
         by move=> hz'; apply: (mvm_vmap sim); SvD.fsetdec.
       by rewrite /vm_after_syscall; apply: wf_kill_vars; apply: (mvm_wf sim).
     have [t2 hw' sim2]: exists2 t2,
