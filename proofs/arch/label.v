@@ -22,7 +22,12 @@ Context {pd: PointerData}.
 
 Parameter encode_label : seq remote_label → remote_label → option pointer.
 Parameter decode_label : seq remote_label → pointer → option remote_label.
-Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.
-Axiom encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
+Axiom decode_encode_label : ∀ dom lbl, lbl \in dom → obind (decode_label dom) (encode_label dom lbl) = Some lbl.
+
+Lemma encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
+Proof.
+  move=> dom lbl /decode_encode_label.
+  by case: encode_label.
+Qed.
 
 End WITH_POINTER_DATA.

@@ -256,6 +256,26 @@ Proof.
   by rewrite ltn_add2l;case:ifP.
 Qed.
 
+Lemma is_labelP lbl i : reflect (li_i i = Llabel lbl) (is_label lbl i).
+Proof.
+  rewrite /is_label.
+  apply: (iffP idP); last by move=> ->.
+  case: li_i => //.
+  by move=> _ /eqP <-.
+Qed.
+
+Lemma find_label_in_label_in_lcmd lbl c pc :
+  find_label lbl c = ok pc ->
+  lbl \in label_in_lcmd c.
+Proof.
+  elim: c pc => [|i c ih] pc; rewrite find_labelE //=.
+  case: is_labelP.
+  + by move=> -> /= _; apply mem_head.
+  t_xrbindP=> _ _ /ih{}ih _.
+  case: match _ with | Llabel _ => _ | _ => _ end => //=.
+  by move=> ?; rewrite in_cons; apply /orP; right.
+Qed.
+
 (** Disjoint labels: all labels in “c” are below “lo” or above “hi”. *)
 Definition disjoint_labels (lo hi: label) (c: lcmd) : Prop :=
   ∀ lbl, (lo <= lbl < hi)%positive → ~~ has (is_label lbl) c.
@@ -3532,8 +3552,9 @@ Section PROOF.
           have /andP [_ ?] := ra_notin_k.
           by apply/Sv_memP.
         rewrite ra_not_written ok_ra /= zero_extend_u truncate_word_u.
-        assert (h := decode_encode_label (label_in_lprog p') (caller, lret)).
-        move: h.
+        move: (ok_cbody) =>
+          /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
+          /decode_encode_label.
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
@@ -3635,8 +3656,9 @@ Section PROOF.
           change (wsize_size U8) with 1%Z.
           move: (sf_stk_sz _) rastack_lo => n; lia.
         rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp ok_ra /= truncate_word_u.
-        assert (h := decode_encode_label (label_in_lprog p') (caller, lret)).
-        move: h.
+        move: (ok_cbody) =>
+          /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
+          /decode_encode_label.
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
