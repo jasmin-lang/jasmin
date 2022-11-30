@@ -670,21 +670,21 @@ op VSHUFPS_256 (w1 : W256.t) (w2 : W256.t) (m : W8.t) : W256.t =
 
 (* ------------------------------------------------------------------- *)
 (*
-| VMOVSHDUP of velem & wsize (* Replicate 32-bit (“single”) high values *)
-| VMOVSLDUP of velem & wsize (* Replicate 32-bit (“single”) low values *)
+| VMOVSHDUP of wsize (* Replicate 32-bit (“single”) high values *)
+| VMOVSLDUP of wsize (* Replicate 32-bit (“single”) low values *)
 *)
 
-op VMOVSLDUP_4u32 (v: W128.t): W128.t =
+op VMOVSLDUP_128 (v: W128.t): W128.t =
   pack4 [v \bits32 0; v \bits32 0; v \bits32  2; v \bits32 2].
 
-op VMOVSLDUP_8u32 (v: W256.t): W256.t =
-  map VMOVSLDUP_4u32 v.
+op VMOVSLDUP_256 (v: W256.t): W256.t =
+  map VMOVSLDUP_128 v.
 
-op VMOVSHDUP_4u32 (v: W128.t): W128.t =
+op VMOVSHDUP_128 (v: W128.t): W128.t =
   pack4 [v \bits32 1; v \bits32 1; v \bits32  3; v \bits32 3].
 
-op VMOVSHDUP_8u32 (v: W256.t): W256.t =
-  map VMOVSHDUP_4u32 v.
+op VMOVSHDUP_256 (v: W256.t): W256.t =
+  map VMOVSHDUP_128 v.
 
 (* ------------------------------------------------------------------- *)
 (*
