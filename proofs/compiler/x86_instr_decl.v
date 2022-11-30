@@ -121,8 +121,8 @@ Variant x86_op : Type :=
 | VPACKSS  `(velem) `(wsize)
 | VSHUFPS  `(wsize)
 | VPBROADCAST of velem & wsize
-| VMOVSHDUP of velem & wsize (* Replicate 32-bit (“single”) high values *)
-| VMOVSLDUP of velem & wsize (* Replicate 32-bit (“single”) low values *)
+| VMOVSHDUP of wsize (* Replicate 32-bit (“single”) high values *)
+| VMOVSLDUP of wsize (* Replicate 32-bit (“single”) low values *)
 | VPALIGNR  `(wsize)
 | VBROADCASTI128
 | VPUNPCKH `(velem) `(wsize)
@@ -829,15 +829,13 @@ Definition x86_VPBROADCAST ve sz (v: word ve) : ex_tpl (w_ty sz) :=
   ok (wpbroadcast sz v).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_VMOVSHDUP ve sz (v: word sz) : ex_tpl (w_ty sz) :=
+Definition x86_VMOVSHDUP sz (v: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
-  Let _ := assert (ve == VE32) ErrType in
-  ok (wdup_hi ve v).
+  ok (wdup_hi VE32 v).
 
-Definition x86_VMOVSLDUP ve sz (v: word sz) : ex_tpl (w_ty sz) :=
+Definition x86_VMOVSLDUP sz (v: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
-  Let _ := assert (ve == VE32) ErrType in
-  ok (wdup_lo ve v).
+  ok (wdup_lo VE32 v).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VEXTRACTI128 (v: u256) (i: u8) : ex_tpl (w_ty U128) :=
@@ -1508,10 +1506,10 @@ Definition Ox86_VPBROADCAST_instr       :=
   mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_xmmm (PrimV VPBROADCAST) pp_vpbroadcast.
 
 Definition Ox86_VMOVSHDUP_instr :=
-  mk_ve_instr_w_w_10 "VMOVSHDUP" x86_VMOVSHDUP check_xmm_xmmm (PrimV VMOVSHDUP) (λ _, pp_name "vmovshdup").
+  mk_instr_w_w "VMOVSHDUP" x86_VMOVSHDUP [:: E 1 ] [:: E 0 ] 2 check_xmm_xmmm (PrimP U256 VMOVSHDUP) (pp_name "vmovshdup").
 
 Definition Ox86_VMOVSLDUP_instr :=
-  mk_ve_instr_w_w_10 "VMOVSLDUP" x86_VMOVSLDUP check_xmm_xmmm (PrimV VMOVSLDUP) (λ _, pp_name "vmovsldup").
+  mk_instr_w_w "VMOVSLDUP" x86_VMOVSLDUP [:: E 1 ] [:: E 0 ] 2 check_xmm_xmmm (PrimP U256 VMOVSLDUP) (pp_name "vmovsldup").
 
 Definition Ox86_VPALIGNR_instr := 
   ((fun sz =>
@@ -1834,8 +1832,8 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPACKUS ve sz      => Ox86_VPACKUS_instr.1 ve sz
   | VPACKSS ve sz      => Ox86_VPACKSS_instr.1 ve sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
-  | VMOVSHDUP sz sz'   => Ox86_VMOVSHDUP_instr.1 sz sz'
-  | VMOVSLDUP sz sz'   => Ox86_VMOVSLDUP_instr.1 sz sz'
+  | VMOVSHDUP sz       => Ox86_VMOVSHDUP_instr.1 sz
+  | VMOVSLDUP sz       => Ox86_VMOVSLDUP_instr.1 sz
   | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
