@@ -6,6 +6,11 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Variant label_kind :=
+  | InternalLabel
+  | ExternalLabel
+.
+
 (* ==================================================================== *)
 Definition label := positive.
 Bind Scope positive_scope with label.

@@ -1,4 +1,5 @@
 open Utils
+open Label
 open Linear
 open PrintCommon
 
@@ -56,6 +57,10 @@ let pp_label fmt lbl =
 let pp_remote_label tbl fmt (fn, lbl) =
   F.fprintf fmt "%s.%a" (Conv.string_of_funname tbl fn) pp_label lbl
 
+let pp_label_kind fmt = function
+  | InternalLabel -> ()
+  | ExternalLabel -> F.fprintf fmt "#returnaddress "
+
 let pp_instr asmOp tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
@@ -72,7 +77,7 @@ let pp_instr asmOp tbl fmt i =
   | Lcall lbl  -> F.fprintf fmt "Call %a" (pp_remote_label tbl) lbl
   | Lret       -> F.fprintf fmt "Return"
   | Lalign     -> F.fprintf fmt "Align"
-  | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
+  | Llabel (k, lbl) -> F.fprintf fmt "Label %a%a" pp_label_kind k pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl
   | Ligoto e -> F.fprintf fmt "IGoto %a" (pp_expr tbl) e
   | LstoreLabel (x, lbl) -> F.fprintf fmt "%a = Label %a" (pp_var tbl) x pp_label lbl

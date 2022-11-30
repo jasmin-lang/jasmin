@@ -444,6 +444,9 @@ Definition pop_to_save
   in
   map mkli to_save.
 
+Let ReturnTarget := Llabel ExternalLabel.
+Let Llabel := linear.Llabel InternalLabel.
+
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
@@ -535,7 +538,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
           (lbl, before
                   ++ MkLI ii (LstoreLabel ra lret)
                   :: MkLI ii (Lgoto lcall)
-                  :: MkLI ii (Llabel lret)
+                  :: MkLI ii (ReturnTarget lret)
                   :: after
                   ++ lc
           )
@@ -556,7 +559,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
                        ++ MkLI ii (LstoreLabel ra lret)
                        :: of_olinstr_r ii (lstore rspi z Uptr glob_ra)
                        :: MkLI ii (Lgoto lcall)
-                       :: MkLI ii (Llabel lret)
+                       :: MkLI ii (ReturnTarget lret)
                        :: after
                        ++ lc
                )
