@@ -193,7 +193,7 @@ Definition valid_labels (fn: funname) (lo hi: label) (i: linstr) : bool :=
   | Ligoto _
   | Lret
     => true
-  | Llabel lbl
+  | Llabel _ lbl
   | LstoreLabel _ lbl
   | Lcond _ lbl
     => (lo <=? lbl) && (lbl <? hi)
@@ -217,7 +217,7 @@ Lemma valid_le_min min2 fn min1 max lc :
   valid fn min2 max lc ->
   valid fn min1 max lc.
 Proof.
-  move => /Pos_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ [fn' lbl] | lbl | [ fn' lbl ] | _ lbl | _ lbl ].
+  move => /Pos_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ [fn' lbl] | k lbl | [ fn' lbl ] | _ lbl | _ lbl ].
   1,3: case: ifP => // _.
   all: by case/andP => /h ->.
 Qed.
@@ -227,7 +227,7 @@ Lemma valid_le_max max1 fn max2 min lc :
   valid fn min max1 lc ->
   valid fn min max2 lc.
 Proof.
-  move => /Pos_lt_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ [fn' lbl] | lbl | [ fn' lbl ] | _ lbl | _ lbl ].
+  move => /Pos_lt_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ [fn' lbl] | k lbl | [ fn' lbl ] | _ lbl | _ lbl ].
   1,3: case: ifP => // _.
   all: by case/andP => -> /h.
 Qed.
@@ -254,26 +254,6 @@ Lemma find_label_cat_hd lbl c1 c2:
 Proof.
   rewrite /find_label find_cat size_cat => /negbTE ->.
   by rewrite ltn_add2l;case:ifP.
-Qed.
-
-Lemma is_labelP lbl i : reflect (li_i i = Llabel lbl) (is_label lbl i).
-Proof.
-  rewrite /is_label.
-  apply: (iffP idP); last by move=> ->.
-  case: li_i => //.
-  by move=> _ /eqP <-.
-Qed.
-
-Lemma find_label_in_label_in_lcmd lbl c pc :
-  find_label lbl c = ok pc ->
-  lbl \in label_in_lcmd c.
-Proof.
-  elim: c pc => [|i c ih] pc; rewrite find_labelE //=.
-  case: is_labelP.
-  + by rewrite /get_label => -> /= _; apply mem_head.
-  t_xrbindP=> _ _ /ih{}ih _.
-  case: get_label => //= lbl'.
-  by rewrite in_cons; apply /orP; right.
 Qed.
 
 (** Disjoint labels: all labels in “c” are below “lo” or above “hi”. *)
@@ -316,7 +296,7 @@ Lemma valid_disjoint_labels fn A B C D P :
 Proof.
   move => V U lbl [L H]; apply/negP => K.
   have {V K} [i _ /andP[] ] := all_has V K.
-  case: i => ii [] // lbl' /andP[] /Pos.leb_le a /Pos.ltb_lt b /eqP ?; subst lbl'.
+  case: i => ii [] // k lbl' /andP[] /Pos.leb_le a /Pos.ltb_lt b /eqP ?; subst lbl'.
   lia.
 Qed.
 
@@ -686,20 +666,19 @@ Section NUMBER_OF_LABELS.
     case: c1 hc1 => [ | i1 c1 ] hc1.
     - rewrite linear_c_nil.
       case: linear_c (hc2 fn (next_lbl lbl)); rewrite /next_lbl => lblc2 lc2 L2.
-      rewrite /= label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+      rewrite /= label_in_lcmd_cat /= cats0.
       lia.
     case: c2 hc2 => [ | i2 c2 ] hc2.
     - rewrite linear_c_nil.
       case: linear_c (hc1 fn (next_lbl lbl)); rewrite /next_lbl => lblc1 lc1 L1.
-      rewrite /= label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+      rewrite /= label_in_lcmd_cat /= cats0.
       lia.
     rewrite linear_c_nil.
     case: linear_c (hc1 fn (next_lbl (next_lbl lbl))); rewrite /next_lbl => lblc1 lc1 l1.
     rewrite linear_c_nil.
     case: linear_c (hc2 fn lblc1) => lblc2 lc2 L2.
-    rewrite /= label_in_lcmd_cat size_cat /=.
-    rewrite label_in_lcmd_cat size_cat /=.
-    rewrite Nat2Z.inj_add Nat2Z.inj_succ Nat2Z.inj_add.
+    rewrite /= label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+    rewrite label_in_lcmd_cat /= cats0.
     lia.
   Qed.
 
@@ -718,24 +697,24 @@ Section NUMBER_OF_LABELS.
       case: linear_c (hc' fn (next_lbl lbl)); rewrite /next_lbl => lblc' lc' Lc'.
       rewrite linear_c_nil.
       case: linear_c (hc fn lblc') => lblc lc Lc /=.
-      rewrite label_in_lcmd_add_align [size _]/= Nat2Z.inj_succ.
-      rewrite !label_in_lcmd_cat !size_cat !Nat2Z.inj_add /=.
+      rewrite label_in_lcmd_add_align /=.
+      rewrite label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+      rewrite label_in_lcmd_cat /= cats0.
       lia.
     - by case: linear_c (hc fn lbl).
     case: c' hc' => [ | i' c' ] hc'.
     - rewrite linear_c_nil.
       case: linear_c (hc fn (next_lbl lbl)); rewrite /next_lbl => lblc lc Lc /=.
-      rewrite label_in_lcmd_add_align [size _]/= Nat2Z.inj_succ.
-      rewrite label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+      rewrite label_in_lcmd_add_align /=.
+      rewrite label_in_lcmd_cat /= cats0.
       lia.
     rewrite linear_c_nil.
     case: linear_c (hc fn (next_lbl (next_lbl lbl))); rewrite /next_lbl => lblc lc Lc.
     rewrite linear_c_nil.
     case: linear_c (hc' fn lblc) => lblc' lc' Lc'.
-    rewrite /= label_in_lcmd_add_align [size _]/= Nat2Z.inj_succ.
-    rewrite label_in_lcmd_cat size_cat Nat2Z.inj_add.
-    rewrite [size (label_in_lcmd (_::_))]/= Nat2Z.inj_succ.
-    rewrite label_in_lcmd_cat size_cat /= Nat2Z.inj_add.
+    rewrite /= label_in_lcmd_add_align /=.
+    rewrite label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+    rewrite label_in_lcmd_cat /= cats0.
     lia.
   Qed.
 
@@ -1190,7 +1169,8 @@ Section PROOF.
     | RAreg (Var (sword ws) _ as ra), Some ((caller, lbl), cbody, pc) =>
       if (ws == Uptr)%CMP
       then [/\ is_linear_of caller cbody,
-            find_label lbl cbody = ok pc &
+            find_label lbl cbody = ok pc,
+            (caller, lbl) \in label_in_lprog p' &
             exists2 ptr,
               encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
               vm.[ra] = ok (pword_of_word (zero_extend ws ptr))
@@ -1198,7 +1178,8 @@ Section PROOF.
       else False
     | RAstack ofs, Some ((caller, lbl), cbody, pc) =>
       [/\ is_linear_of caller cbody,
-          find_label lbl cbody = ok pc &
+          find_label lbl cbody = ok pc,
+          (caller, lbl) \in label_in_lprog p' &
           exists2 ptr, encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
           exists2 sp, vm.[ vrsp ] = ok (pword_of_word sp) & read m (sp + wrepr Uptr ofs)%R Uptr = ok ptr
       ]
@@ -1705,6 +1686,8 @@ Section PROOF.
     ∀ lbl s,
     eval_jump p' (fn, lbl) s = Let pc := find_label lbl body in ok (setcpc s fn pc.+1).
   Proof. by case => ? /= -> ->. Qed.
+
+  Let Llabel := linear.Llabel InternalLabel.
 
   Local Lemma Hif_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
   Proof.
@@ -2327,8 +2310,7 @@ Section PROOF.
         move => C.
         have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', (size P).+2)).
         + rewrite /vm.
-          case: (ra) ok_ret_addr => /= ? vra /eqP ->; rewrite eq_refl; split.
-          * exact: C.
+          case: (ra) ok_ret_addr => /= ? vra /eqP ->; rewrite eq_refl; split=> //.
           * rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
             by rewrite /find_label /is_label /= eqxx /= addn2.
           exists ptr; first exact: ok_ptr.
@@ -2391,13 +2373,12 @@ Section PROOF.
       move => C.
       have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', size P + 3)).
       + rewrite /vm.
-        case: (ra) ok_ret_addr => /= ? vra /eqP ->; rewrite eq_refl; split.
-        * exact: C.
+        case: (ra) ok_ret_addr => /= ? vra /eqP ->; rewrite eq_refl; split=> //.
         * rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
           by rewrite /find_label /is_label /= eqxx /=.
-         exists ptr; first exact: ok_ptr.
-         rewrite /pof_val to_pword_u zero_extend_u.
-         by rewrite Fv.setP_eq /=.
+        exists ptr; first exact: ok_ptr.
+        rewrite /pof_val to_pword_u zero_extend_u.
+        by rewrite Fv.setP_eq /=.
       move: ih => /(_ _ vm _ _ W M _ RA) ih.
       have XX : vm_uincl (kill_var ra s1).[vrsp <- ok (pword_of_word top)]%vmap vm.
       + move => x; rewrite /vm Fv.setP; case: eqP => x_rsp.
@@ -2540,8 +2521,7 @@ Section PROOF.
       by rewrite Fv.setP_neq //; apply/eqP.
     move: ih => /(_ vm1' _ _ W XX).
     have RA : value_of_ra m1' vm1' (RAstack z) (Some ((fn, lbl), body, size P + 4)).
-    + split.
-      * exact: C.
+    + split=> //.
       * rewrite /body find_label_cat_hd; last by apply: D; rewrite /next_lbl; lia.
         by do 5 rewrite find_labelE; rewrite /= is_label_lstore /is_label /= eqxx.
       exists ptr; first by [].
@@ -3748,7 +3728,7 @@ Section PROOF.
       case: lret => // - [] [] [] caller lret cbody pc.
       case: (ws =P Uptr) => // E.
       subst ws.
-      move=> [] ok_cbody ok_pc [] retptr ok_retptr ok_ra exec_body ih.
+      move=> [] ok_cbody ok_pc mem_lret [] retptr ok_retptr ok_ra exec_body ih.
       have {ih} := ih fn 2%positive.
       rewrite /checked_c ok_fd chk_body => /(_ erefl).
       rewrite (linear_c_nil _ _ _ _ _ _ [:: _ ]).
@@ -3789,9 +3769,7 @@ Section PROOF.
           have /andP [_ ?] := ra_notin_k.
           by apply/Sv_memP.
         rewrite ra_not_written ok_ra /= zero_extend_u truncate_word_u.
-        move: (ok_cbody) =>
-          /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
-          /(decode_encode_label small_dom_p').
+        have := decode_encode_label small_dom_p' mem_lret.
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
@@ -3807,7 +3785,7 @@ Section PROOF.
       by rewrite wrepr_opp.
     }
     (* Internal function, return address in stack at offset “rastack” *)
-    { case: lret ok_lret => // - [] [] [] caller lret cbody pc [] ok_cbody ok_pc [] retptr ok_retptr [] rsp ok_rsp ok_ra.
+    { case: lret ok_lret => // - [] [] [] caller lret cbody pc [] ok_cbody ok_pc mem_lret [] retptr ok_retptr [] rsp ok_rsp ok_ra.
       have := X vrsp.
       rewrite Fv.setP_eq ok_rsp => /andP[] _ /eqP /=.
       rewrite zero_extend_u => ?; subst rsp.
@@ -3893,9 +3871,7 @@ Section PROOF.
           change (wsize_size U8) with 1%Z.
           move: (sf_stk_sz _) rastack_lo => n; lia.
         rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp ok_ra /= truncate_word_u.
-        move: (ok_cbody) =>
-          /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
-          /(decode_encode_label small_dom_p').
+        have := decode_encode_label small_dom_p' mem_lret.
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.

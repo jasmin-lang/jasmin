@@ -158,7 +158,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
 
-  | LABEL lbl ->
+  | LABEL (_, lbl) ->
       [ LLabel (pp_label fn lbl) ]
 
   | STORELABEL (dst, lbl) ->

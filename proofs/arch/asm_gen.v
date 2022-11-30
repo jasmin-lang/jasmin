@@ -504,8 +504,8 @@ Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
   | Lalign =>
       ok ALIGN
 
-  | Llabel lbl =>
-      ok (LABEL lbl)
+  | Llabel k lbl =>
+      ok (LABEL k lbl)
 
   | Lgoto lbl =>
       ok (JMP lbl)
