@@ -57,11 +57,19 @@ End CONSISTENCY.
 
 Parameter encode_label : seq remote_label → remote_label → option pointer.
 Parameter decode_label : seq remote_label → pointer → option remote_label.
-Axiom decode_encode_label : ∀ dom lbl, lbl \in dom → obind (decode_label dom) (encode_label dom lbl) = Some lbl.
+(* The domain should be small enough, otherwise it is not possible to associate
+   a distinct word to each label. *)
+Definition valid_dom (dom:seq remote_label) :=
+  (Z.of_nat (size dom) <=? wbase Uptr)%Z.
+Axiom decode_encode_label :
+  ∀ dom lbl, valid_dom dom → lbl \in dom →
+    obind (decode_label dom) (encode_label dom lbl) = Some lbl.
 
-Lemma encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
+Lemma encode_label_dom :
+  ∀ dom lbl, valid_dom dom → lbl \in dom → encode_label dom lbl ≠ None.
 Proof.
-  move=> dom lbl /decode_encode_label.
+  move=> dom lbl hvalid hmem.
+  have := decode_encode_label hvalid hmem.
   by case: encode_label.
 Qed.
 
