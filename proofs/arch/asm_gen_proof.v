@@ -1211,7 +1211,7 @@ Lemma assemble_i_is_label (li : linstr) (ai : asm_i) lbl :
   -> linear.is_label lbl li = arch_sem.is_label lbl ai.
 Proof.
   by (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
-    => /= [ > _ <- | > <- | > <- | <- | <- | ? <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
+    => /= [ > _ <- | > <- | > <- | <- | <- | > <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
 Qed.
 
 Lemma assemble_c_find_is_label (lc : lcmd) (ac : asm_code) lbl :
@@ -1488,13 +1488,13 @@ Lemma assemble_get_label_after_pc lc xs ls l:
   → lfn ls = asm_f xs
     → lpc ls = asm_ip xs
       → ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
-        → get_label_after_pc p ls = ok l → onth (asm_c xs) (asm_ip xs).+1 = Some (LABEL l).
+        → get_label_after_pc p ls = ok l → onth (asm_c xs) (asm_ip xs).+1 = Some (LABEL ExternalLabel l).
 Proof.
   move=> eqc eqfn eqpc omap_lc; rewrite /get_label_after_pc /find_instr /= eqpc.
   case: get_fundef omap_lc => // _ [->].
   case onth_eq : onth => [ [ii_ i] | //].
   have [i' [-> /= ]]:= mapM_onth eqc onth_eq.
-  by case: (i) => // ? [<-] [->].
+  by case: (i) => // - [] // ? [<-] [->].
 Qed.
 
 Lemma assemble_iP i j ls ls' lc xs :
@@ -1655,7 +1655,7 @@ Proof.
     eexists; first reflexivity.
     eexists; first eassumption.
     by constructor => //; rewrite /setpc eqpc.
-  - move=> lbl [<-] [?]; subst ls'.
+  - move=> k lbl [<-] [?]; subst ls'.
     eexists; first reflexivity.
     eexists; first eassumption.
     constructor => //.

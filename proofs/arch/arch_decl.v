@@ -551,7 +551,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
 (* Assembly language. *)
 Variant asm_i : Type :=
   | ALIGN
-  | LABEL of label
+  | LABEL of label_kind & label
   | STORELABEL of reg_t & label (* Store the address of a local label *)
   (* Jumps *)
   | JMP    of remote_label (* Direct jump *)

@@ -414,7 +414,7 @@ module Printer (BP:BPrinter) = struct
     | ALIGN ->
       `Instr (".p2align", ["5"])
   
-    | LABEL lbl ->
+    | LABEL (_, lbl) ->
       `Label (pp_label name lbl)
   
     | STORELABEL (dst, lbl) ->
