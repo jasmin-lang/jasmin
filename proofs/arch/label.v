@@ -25,9 +25,14 @@ Section  SPEC.
     (enc: seq remote_label → remote_label → option pointer)
     (dec: seq remote_label → pointer → option remote_label).
 
+  (* The domain should be small enough, otherwise it is not possible to associate
+     a distinct word to each label. *)
+  Definition small_dom (dom : seq remote_label) :=
+    (Z.of_nat (size dom) <=? wbase Uptr)%Z.
+
   Definition decode_encode_label_t : Prop :=
     ∀ dom lbl,
-      (Z.of_nat (size dom) < wbase Uptr)%Z →
+      small_dom dom →
       lbl \in dom →
       obind (dec dom) (enc dom lbl) = Some lbl.
 
@@ -43,7 +48,7 @@ Section CONSISTENCY.
              then Some (wrepr Uptr (Z.of_nat r))
              else None).
     exists (λ dom p, oseq.onth dom (Z.to_nat (wunsigned p))).
-    move => dom lbl small_dom.
+    move => dom lbl /ZleP small_dom.
     rewrite -has_pred1 => /dup[] => lbl_in_dom.
     rewrite has_find => /= /dup[] /ltP found -> /=.
     rewrite wunsigned_repr_small; last first.
@@ -57,19 +62,14 @@ End CONSISTENCY.
 
 Parameter encode_label : seq remote_label → remote_label → option pointer.
 Parameter decode_label : seq remote_label → pointer → option remote_label.
-(* The domain should be small enough, otherwise it is not possible to associate
-   a distinct word to each label. *)
-Definition valid_dom (dom:seq remote_label) :=
-  (Z.of_nat (size dom) <=? wbase Uptr)%Z.
-Axiom decode_encode_label :
-  ∀ dom lbl, valid_dom dom → lbl \in dom →
-    obind (decode_label dom) (encode_label dom lbl) = Some lbl.
+
+Axiom decode_encode_label : decode_encode_label_t encode_label decode_label.
 
 Lemma encode_label_dom :
-  ∀ dom lbl, valid_dom dom → lbl \in dom → encode_label dom lbl ≠ None.
+  ∀ dom lbl, small_dom dom → lbl \in dom → encode_label dom lbl ≠ None.
 Proof.
-  move=> dom lbl hvalid hmem.
-  have := decode_encode_label hvalid hmem.
+  move=> dom lbl small_dom hmem.
+  have := decode_encode_label small_dom hmem.
   by case: encode_label.
 Qed.
 

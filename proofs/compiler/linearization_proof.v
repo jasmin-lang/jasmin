@@ -942,11 +942,11 @@ Section PROOF.
     by rewrite (Pos.add_comm lbl) Pos.add_assoc.
   Qed.
 
-  Lemma valid_dom_p' : valid_dom (label_in_lprog p').
+  Lemma small_dom_p' : small_dom (label_in_lprog p').
   Proof.
     move: linear_ok; rewrite /linear_prog.
     t_xrbindP=> _ _ /ZleP hle <-.
-    rewrite /valid_dom /label_in_lprog; apply /ZleP.
+    rewrite /small_dom /label_in_lprog; apply /ZleP.
     apply: Z.le_trans hle.
 
     elim: (p_funcs p) => [|[fn f'] funcs ih] //=.
@@ -2302,7 +2302,7 @@ Section PROOF.
       2: rewrite /lstore /lassign; case: lip_lassign => [[[? ?] ?]|] /=.
       1-3: by rewrite !pmap_cat !mem_cat inE eqxx !orbT.
 
-    assert (h := encode_label_dom valid_dom_p' lbl_valid).
+    assert (h := encode_label_dom small_dom_p' lbl_valid).
     case ok_ptr: encode_label h => [ ptr | // ] _.
     case/sem_callE: (exec_call) => ? m s' k' args' res'; rewrite ok_fd' => /Some_inj <- ra_sem ok_ss sp_aligned T ok_m ok_args' wt_args' exec_cbody ok_res' wt_res' T' s2_eq.
     rewrite /ra_valid in ra_sem.
@@ -3791,7 +3791,7 @@ Section PROOF.
         rewrite ra_not_written ok_ra /= zero_extend_u truncate_word_u.
         move: (ok_cbody) =>
           /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
-          /(decode_encode_label valid_dom_p').
+          /(decode_encode_label small_dom_p').
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
@@ -3895,7 +3895,7 @@ Section PROOF.
         rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp ok_ra /= truncate_word_u.
         move: (ok_cbody) =>
           /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
-          /(decode_encode_label valid_dom_p').
+          /(decode_encode_label small_dom_p').
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
