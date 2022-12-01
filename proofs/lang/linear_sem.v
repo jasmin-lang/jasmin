@@ -24,8 +24,11 @@ Context
   {ovm_i : one_varmap_info}
   (P : lprog).
 
+Definition get_label (i : linstr) : option label :=
+  if li_i i is Llabel lbl then Some lbl else None.
+
 Definition label_in_lcmd (body: lcmd) : seq label :=
-  pmap (λ i, if li_i i is Llabel lbl then Some lbl else None) body.
+  pmap get_label body.
 
 Definition label_in_lprog : seq remote_label :=
   [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].

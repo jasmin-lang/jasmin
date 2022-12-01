@@ -256,6 +256,26 @@ Proof.
   by rewrite ltn_add2l;case:ifP.
 Qed.
 
+Lemma is_labelP lbl i : reflect (li_i i = Llabel lbl) (is_label lbl i).
+Proof.
+  rewrite /is_label.
+  apply: (iffP idP); last by move=> ->.
+  case: li_i => //.
+  by move=> _ /eqP <-.
+Qed.
+
+Lemma find_label_in_label_in_lcmd lbl c pc :
+  find_label lbl c = ok pc ->
+  lbl \in label_in_lcmd c.
+Proof.
+  elim: c pc => [|i c ih] pc; rewrite find_labelE //=.
+  case: is_labelP.
+  + by rewrite /get_label => -> /= _; apply mem_head.
+  t_xrbindP=> _ _ /ih{}ih _.
+  case: get_label => //= lbl'.
+  by rewrite in_cons; apply /orP; right.
+Qed.
+
 (** Disjoint labels: all labels in “c” are below “lo” or above “hi”. *)
 Definition disjoint_labels (lo hi: label) (c: lcmd) : Prop :=
   ∀ lbl, (lo <= lbl < hi)%positive → ~~ has (is_label lbl) c.
@@ -594,6 +614,203 @@ Section VALIDITY.
 
 End VALIDITY.
 
+Section NUMBER_OF_LABELS.
+  Context
+    (p : sprog)
+    (extra_free_registers : instr_info -> option var)
+    (lp : lprog)
+    (liparams : linearization_params)
+    (hliparams : h_linearization_params liparams).
+
+  Let Pr (i: instr_r) : Prop :=
+    ∀ ii fn lbl,
+      let: (lbli, li) :=
+         linear_i liparams p extra_free_registers fn (MkI ii i) lbl [::] in
+      (Z.of_nat (size (label_in_lcmd li)) + lbl <= lbli)%Z.
+
+  Let Pi (i: instr) : Prop :=
+    ∀ fn lbl,
+      let: (lbli, li) :=
+         linear_i liparams p extra_free_registers fn i lbl [::] in
+      (Z.of_nat (size (label_in_lcmd li)) + lbl <= lbli)%Z.
+
+  Let Pc (c: cmd) : Prop :=
+    ∀ fn lbl,
+      let: (lblc, lc) :=
+         linear_c (linear_i liparams p extra_free_registers fn) c lbl [::] in
+      (Z.of_nat (size (label_in_lcmd lc)) + lbl <= lblc)%Z.
+
+  Lemma label_in_lcmd_cat lc1 lc2 :
+    label_in_lcmd (lc1 ++ lc2) = label_in_lcmd lc1 ++ label_in_lcmd lc2.
+  Proof. by rewrite /label_in_lcmd pmap_cat. Qed.
+
+  Let HMkI i ii : Pr i → Pi (MkI ii i).
+  Proof. exact. Qed.
+
+  Let Hnil : Pc [::].
+  Proof. by move => fn lbl; apply Z.le_refl. Qed.
+
+  Let Hcons (i : instr) (c : cmd) : Pi i → Pc c → Pc (i :: c).
+  Proof.
+    move => hi hc fn lbl /=.
+    case: linear_c (hc fn lbl) => lblc lc Lc; rewrite linear_i_nil.
+    case: linear_i (hi fn lblc) => lbli li Li.
+    rewrite label_in_lcmd_cat size_cat Nat2Z.inj_add.
+    lia.
+  Qed.
+
+  Lemma get_label_lassign ii x ws e :
+    get_label (of_olinstr_r ii (lassign liparams x ws e)) = None.
+  Proof.
+    rewrite /of_olinstr_r /lassign.
+    by case: lip_lassign => [[[??]?]|].
+  Qed.
+
+  Let Hassign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
+  Proof.
+    move => ii fn lbl /=.
+    case: ty => /=; try lia.
+    move=> ws.
+    by rewrite get_label_lassign /=; apply Z.le_refl.
+  Qed.
+
+  Let Hopn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
+  Proof. by move=> ii fn lbl /=; apply Z.le_refl. Qed.
+
+  Let Hsyscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
+  Proof. by move=> ii fn lbl /=; apply Z.le_refl. Qed.
+
+  Let Hif (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
+  Proof.
+    move=> hc1 hc2 ii fn lbl /=.
+    case: c1 hc1 => [ | i1 c1 ] hc1.
+    - rewrite linear_c_nil.
+      case: linear_c (hc2 fn (next_lbl lbl)); rewrite /next_lbl => lblc2 lc2 L2.
+      rewrite /= label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+      lia.
+    case: c2 hc2 => [ | i2 c2 ] hc2.
+    - rewrite linear_c_nil.
+      case: linear_c (hc1 fn (next_lbl lbl)); rewrite /next_lbl => lblc1 lc1 L1.
+      rewrite /= label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+      lia.
+    rewrite linear_c_nil.
+    case: linear_c (hc1 fn (next_lbl (next_lbl lbl))); rewrite /next_lbl => lblc1 lc1 l1.
+    rewrite linear_c_nil.
+    case: linear_c (hc2 fn lblc1) => lblc2 lc2 L2.
+    rewrite /= label_in_lcmd_cat size_cat /=.
+    rewrite label_in_lcmd_cat size_cat /=.
+    rewrite Nat2Z.inj_add Nat2Z.inj_succ Nat2Z.inj_add.
+    lia.
+  Qed.
+
+  Let Hfor (v : var_i) (d: dir) (lo hi : pexpr) (c : cmd) : Pc c → Pr (Cfor v (d, lo, hi) c).
+  Proof. by move=> hc ii fn lbl /=; apply Z.le_refl. Qed.
+
+  Lemma label_in_lcmd_add_align ii al lc :
+    label_in_lcmd (add_align ii al lc) = label_in_lcmd lc.
+  Proof. by case: al. Qed.
+
+  Let Hwhile (a : expr.align) (c : cmd) (e : pexpr) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e c').
+  Proof.
+    move => hc hc' ii fn lbl /=.
+    case: is_boolP => [ [] | {e} e ].
+    - rewrite linear_c_nil.
+      case: linear_c (hc' fn (next_lbl lbl)); rewrite /next_lbl => lblc' lc' Lc'.
+      rewrite linear_c_nil.
+      case: linear_c (hc fn lblc') => lblc lc Lc /=.
+      rewrite label_in_lcmd_add_align [size _]/= Nat2Z.inj_succ.
+      rewrite !label_in_lcmd_cat !size_cat !Nat2Z.inj_add /=.
+      lia.
+    - by case: linear_c (hc fn lbl).
+    case: c' hc' => [ | i' c' ] hc'.
+    - rewrite linear_c_nil.
+      case: linear_c (hc fn (next_lbl lbl)); rewrite /next_lbl => lblc lc Lc /=.
+      rewrite label_in_lcmd_add_align [size _]/= Nat2Z.inj_succ.
+      rewrite label_in_lcmd_cat size_cat Nat2Z.inj_add /=.
+      lia.
+    rewrite linear_c_nil.
+    case: linear_c (hc fn (next_lbl (next_lbl lbl))); rewrite /next_lbl => lblc lc Lc.
+    rewrite linear_c_nil.
+    case: linear_c (hc' fn lblc) => lblc' lc' Lc'.
+    rewrite /= label_in_lcmd_add_align [size _]/= Nat2Z.inj_succ.
+    rewrite label_in_lcmd_cat size_cat Nat2Z.inj_add.
+    rewrite [size (label_in_lcmd (_::_))]/= Nat2Z.inj_succ.
+    rewrite label_in_lcmd_cat size_cat /= Nat2Z.inj_add.
+    lia.
+  Qed.
+
+  Remark label_in_lcmd_allocate_stack_frame b ii z :
+    label_in_lcmd (allocate_stack_frame liparams p b ii z) = [::].
+  Proof. by rewrite /allocate_stack_frame; case: eqP. Qed.
+
+  Remark label_in_lcmd_push_to_save ii to_save :
+    label_in_lcmd (push_to_save liparams p ii to_save) = [::].
+  Proof.
+    elim: to_save => [|[x ofs] to_save ih] //=.
+    case: is_word_type => [ws|] //=.
+    by rewrite /lstore get_label_lassign /=.
+  Qed.
+
+  Remark label_in_lcmd_pop_to_save ii to_save :
+    label_in_lcmd (pop_to_save liparams p ii to_save) = [::].
+  Proof.
+    elim: to_save => [|[x ofs] to_save ih] //=.
+    case: is_word_type => [ws|] //=.
+    by rewrite /lload get_label_lassign /=.
+  Qed.
+
+  Let Hcall (i : inline_info) (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall i xs f es).
+  Proof.
+    move => ii fn lbl /=.
+    case: get_fundef => [ fd | ]; last by apply Z.le_refl.
+    case: eqP => /=; first by lia.
+    case: sf_return_address => // ra _.
+    - rewrite /next_lbl.
+      rewrite label_in_lcmd_cat label_in_lcmd_allocate_stack_frame.
+      rewrite [size _]/= Nat2Z.inj_succ.
+      rewrite label_in_lcmd_cat label_in_lcmd_allocate_stack_frame.
+      rewrite [Z.of_nat _]/=.
+      lia.
+    rewrite /next_lbl; case: extra_free_registers => [ ra' | ] /=; last by lia.
+    rewrite label_in_lcmd_cat label_in_lcmd_allocate_stack_frame /=.
+    rewrite label_in_lcmd_cat label_in_lcmd_allocate_stack_frame /=.
+    rewrite /lstore get_label_lassign [size _]/=.
+    lia.
+  Qed.
+
+  Definition linear_c_nb_labels : ∀ c, Pc c :=
+    @cmd_rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+
+  Definition linear_i_nb_labels : ∀ i, Pi i :=
+    @instr_Rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+
+  Lemma linear_body_nb_labels fn e body :
+    let: (lbl, lc) := linear_body liparams p extra_free_registers fn e body in
+    (Z.of_nat (size (label_in_lcmd lc)) <= lbl)%Z.
+  Proof.
+    rewrite /linear_body.
+    case h: match _ with | RAnone => _ | _ => _ end => [[tail head] lbl0].
+    rewrite linear_c_nil.
+    have := linear_c_nb_labels body fn lbl0.
+    case: linear_c => [lbl lc] /=.
+    rewrite !label_in_lcmd_cat !size_cat !Nat2Z.inj_add.
+    suff: (Z.of_nat (size (label_in_lcmd head)) + Z.of_nat (size (label_in_lcmd tail)) <= lbl0)%Z
+      by lia.
+    move: h.
+    case: sf_return_address => [|x|z].
+    + case: sf_save_stack => [|x|z] [<- <- <-] //=.
+      + rewrite /lmove !get_label_lassign /=.
+        by rewrite label_in_lcmd_cat label_in_lcmd_allocate_stack_frame /=.
+      rewrite /lmove get_label_lassign /=.
+      rewrite !label_in_lcmd_cat label_in_lcmd_allocate_stack_frame /=.
+      rewrite /lstore /lload !get_label_lassign /=.
+      by rewrite label_in_lcmd_push_to_save label_in_lcmd_pop_to_save /=.
+    + by move=> [<- <- <-] /=.
+    by move=> [<- <- <-] /=.
+  Qed.
+
+End NUMBER_OF_LABELS.
+
 Section PROOF.
 
   Context
@@ -678,7 +895,7 @@ Section PROOF.
     get_fundef (p_funcs p) fn = Some fd →
     check_fd fn fd = ok tt.
   Proof.
-    move: linear_ok; rewrite /linear_prog; t_xrbindP => ok_p /eqP _ hp'.
+    move: linear_ok; rewrite /linear_prog; t_xrbindP => ok_p _ _ _.
     move: ok_p; rewrite /check_prog; t_xrbindP => r C _ M.
     by have [[]]:= get_map_cfprog_name_gen C M.
   Qed.
@@ -686,20 +903,60 @@ Section PROOF.
   Lemma get_fundef_p' f fd :
     get_fundef (p_funcs p) f = Some fd →
     get_fundef (lp_funcs p') f
-    = Some (linear_fd f fd).
+    = Some (linear_fd f fd).2.
   Proof.
-    move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <- /=.
-    by rewrite /get_fundef assoc_map2 => ->.
+    move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <- /=.
+    elim: (p_funcs p) 1%positive => [|[f' fd'] funcs ih] nb_lbl //=.
+    set nb_lbl' := (nb_lbl + _)%positive.
+    move: (ih nb_lbl').
+    case hfmap: fmap => [nb_lbl'' funcs''] /= {}ih.
+    case: eqP => [|_ //].
+    by move=> <- [->].
   Qed.
 
   Lemma lp_ripE : lp_rip p' = sp_rip p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <-. Qed.
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
 
   Lemma lp_rspE : lp_rsp p' = sp_rsp p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <-. Qed.
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
 
   Lemma lp_globsE : lp_globs p' = sp_globs p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <-. Qed.
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ <-. Qed.
+
+  Lemma fmap_linear_fd_acc lbl funcs :
+    let (nb_lbl, funcs') :=
+      fmap (fun nb_lbl '(f,fd) =>
+        let fd := linear_fd f fd in
+        ((nb_lbl + fd.1)%positive, (f, fd.2))) 1%positive funcs
+    in
+    fmap (fun nb_lbl '(f,fd) =>
+      let fd := linear_fd f fd in
+      ((nb_lbl + fd.1)%positive, (f, fd.2))) (1+lbl)%positive funcs = ((nb_lbl + lbl)%positive, funcs').
+  Proof.
+    elim: funcs lbl => [|[f fd] funcs ih] lbl //=.
+    set linear_f := (fun _ => _).
+    have := ih ((linear_body liparams p extra_free_registers f (f_extra fd) (f_body fd)).1)%positive.
+    have := ih (lbl + (linear_body liparams p extra_free_registers f (f_extra fd) (f_body fd)).1)%positive.
+    case: fmap => [nb_lbl' funcs'].
+    rewrite Pos.add_assoc => -> ->.
+    by rewrite (Pos.add_comm lbl) Pos.add_assoc.
+  Qed.
+
+  Lemma small_dom_p' : small_dom (label_in_lprog p').
+  Proof.
+    move: linear_ok; rewrite /linear_prog.
+    t_xrbindP=> _ _ /ZleP hle <-.
+    rewrite /small_dom /label_in_lprog; apply /ZleP.
+    apply: Z.le_trans hle.
+
+    elim: (p_funcs p) => [|[fn f'] funcs ih] //=.
+    have := fmap_linear_fd_acc ((linear_fd fn f').1)%positive funcs.
+    case: fmap ih => [nb_lbl funcs'] /= ih -> /=.
+    rewrite size_cat size_map Nat2Z.inj_add.
+    have := linear_body_nb_labels p extra_free_registers liparams fn (f_extra f') (f_body f').
+    case: linear_body => [nb_lbl' lc] /=.
+    lia.
+  Qed.
 
   Local Coercion emem : estate >-> mem.
   Local Coercion evm : estate >-> vmap.
@@ -2001,7 +2258,7 @@ Section PROOF.
 
   Lemma find_entry_label fn fd :
     sf_return_address (f_extra fd) ≠ RAnone →
-    find_label xH (lfd_body (linear_fd fn fd)) = ok 0.
+    find_label xH (lfd_body (linear_fd fn fd).2) = ok 0.
   Proof. by rewrite /linear_fd /linear_body; case: sf_return_address. Qed.
 
   Lemma is_label_lmove lbl ii x ws y :
@@ -2032,7 +2289,7 @@ Section PROOF.
     move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
     move: (checked_prog ok_fd') => /=; rewrite /check_fd.
     t_xrbindP => chk_body ok_to_save ok_stk_sz ok_ret_addr ok_save_stack _.
-    have ok_body' : is_linear_of fn' (lfd_body lfd').
+    have ok_body' : is_linear_of fn' (lfd_body lfd'.2).
     - by rewrite /is_linear_of; eauto.
     move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ _ ok_body') ih A.
     have lbl_valid : (fn, lbl) \in (label_in_lprog p').
@@ -2045,7 +2302,7 @@ Section PROOF.
       2: rewrite /lstore /lassign; case: lip_lassign => [[[? ?] ?]|] /=.
       1-3: by rewrite !pmap_cat !mem_cat inE eqxx !orbT.
 
-    assert (h := encode_label_dom lbl_valid).
+    assert (h := encode_label_dom small_dom_p' lbl_valid).
     case ok_ptr: encode_label h => [ ptr | // ] _.
     case/sem_callE: (exec_call) => ? m s' k' args' res'; rewrite ok_fd' => /Some_inj <- ra_sem ok_ss sp_aligned T ok_m ok_args' wt_args' exec_cbody ok_res' wt_res' T' s2_eq.
     rewrite /ra_valid in ra_sem.
@@ -2686,7 +2943,7 @@ Section PROOF.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_callee_saved.
     move: (checked_prog ok_fd); rewrite /check_fd /=.
     t_xrbindP => chk_body ok_to_save ok_stk_sz ok_ret_addr ok_save_stack _.
-    have ? : fd' = linear_fd fn fd.
+    have ? : fd' = (linear_fd fn fd).2.
     - have := get_fundef_p' ok_fd.
       by rewrite ok_fd' => /Some_inj.
     subst fd'.
@@ -3532,8 +3789,9 @@ Section PROOF.
           have /andP [_ ?] := ra_notin_k.
           by apply/Sv_memP.
         rewrite ra_not_written ok_ra /= zero_extend_u truncate_word_u.
-        assert (h := decode_encode_label (label_in_lprog p') (caller, lret)).
-        move: h.
+        move: (ok_cbody) =>
+          /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
+          /(decode_encode_label small_dom_p').
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
@@ -3635,8 +3893,9 @@ Section PROOF.
           change (wsize_size U8) with 1%Z.
           move: (sf_stk_sz _) rastack_lo => n; lia.
         rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp ok_ra /= truncate_word_u.
-        assert (h := decode_encode_label (label_in_lprog p') (caller, lret)).
-        move: h.
+        move: (ok_cbody) =>
+          /(label_in_lfundef (find_label_in_label_in_lcmd ok_pc))
+          /(decode_encode_label small_dom_p').
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
@@ -3687,7 +3946,7 @@ Section PROOF.
       ].
   Proof.
     case => fd ok_fd Export to_save_not_result RSP_not_result H.
-    exists (linear_fd fn fd); split.
+    exists (linear_fd fn fd).2; split.
     - exact: get_fundef_p' ok_fd.
     - exact: Export.
     rewrite lp_rspE => lm vm args' ok_vm vm_rsp M ok_args' args_args' vm_rip safe_registers.
@@ -3716,7 +3975,7 @@ Section PROOF.
       + exact: wt_res'.
       + exact: vm2_rsp.
       reflexivity.
-    case/(_ lm vm (linear_body liparams p extra_free_registers fn fd.(f_extra) fd.(f_body)) RAnone None (top_stack m) (map fst fd.(f_extra).(sf_to_save)) ok_vm M).
+    case/(_ lm vm (linear_body liparams p extra_free_registers fn fd.(f_extra) fd.(f_body)).2 RAnone None (top_stack m) (map fst fd.(f_extra).(sf_to_save)) ok_vm M).
     - move => x; rewrite !Fv.setP.
       case: eqP => ?; first by subst; rewrite vm_rsp.
       case: eqP => ?; first subst.
