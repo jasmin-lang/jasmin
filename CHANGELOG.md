@@ -141,7 +141,7 @@
   fixes [#136](https://github.com/jasmin-lang/jasmin/issues/136),
   fixes [#104](https://github.com/jasmin-lang/jasmin/issues/104)).
 
-# Jasmin 22.0
+# Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus
 contains a lot of new functionalities compared to Jasmin 21.0, the main ones
