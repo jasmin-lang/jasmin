@@ -21,6 +21,10 @@
   ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
   These get extracted to `|<<|` and `|>>|` in EasyCrypt.
 
+  - x86 intrinsics that accept a size suffix (e.g., `_128`) also accept, with a
+    warning, a vector suffix (e.g., `_4u32`)
+    ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303)).
+
 ## Bug fixes
 
  - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`

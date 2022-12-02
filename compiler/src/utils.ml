@@ -401,6 +401,7 @@ type warning =
   | UseLea
   | IntroduceNone 
   | IntroduceArrayCopy
+  | SimplifyVectorSuffix
   | Always
 
 let warns = ref None
