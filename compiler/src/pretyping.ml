@@ -1385,7 +1385,11 @@ let tt_prim asmOp ws id args =
     pr ws (match sz with
         | SAw sz -> sz 
         | SA -> d 
-        | SAv _ | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
+        | SAv (s, ve, sz) ->
+           warning SimplifyVectorSuffix (L.i_loc0 loc) "vector suffix simplified from %s to %a"
+             (PrintCommon.string_of_velem s sz ve) PrintCommon.pp_wsize sz;
+           sz
+        | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
         | SAx _ -> rs_tyerror ~loc (PrimNotX s))
   | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
   | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
