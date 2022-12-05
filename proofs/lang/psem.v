@@ -434,12 +434,6 @@ Variable ev: extra_val_t.
 
 Notation gd := (p_globs P).
 
-Definition sem_range (s : estate) (r : range) :=
-  let: (d,pe1,pe2) := r in
-  Let i1 := sem_pexpr gd s pe1 >>= to_int in
-  Let i2 := sem_pexpr gd s pe2 >>= to_int in
-  ok (wrange d i1 i2).
-
 Definition sem_sopn gd o m lvs args :=
   sem_pexprs gd m args >>= exec_sopn o >>= write_lvals gd m lvs.
 
