@@ -26,6 +26,9 @@ Record h_clear_stack_params {asm_op syscall_state : Type} {spp : SemPexprParams 
 { ovmi : one_varmap.one_varmap_info }
 (csp : clear_stack_params) :=
   {
+    hcs_no_ext_lbl : forall cs lbl ws_align ws max_stk_size cmd,
+      csp.(cs_clear_stack_cmd) cs lbl ws_align ws max_stk_size = ok cmd ->
+      label_in_lcmd cmd = [::];
     hcs_clear_stack_cmd : forall cs lbl ws_align ws max_stk_size cmd,
       csp.(cs_clear_stack_cmd) cs lbl ws_align ws max_stk_size = ok cmd ->
       is_align max_stk_size ws_align ->
@@ -91,7 +94,7 @@ Context {asm_op syscall_state} {spp: SemPexprParams asm_op syscall_state}.
 Context {ovmi : one_varmap.one_varmap_info}.
 
 Context (css_of_fn : funname -> option (cs_strategy * wsize))
-        (csparams : clear_stack_params).
+        (csparams : clear_stack_params) (hcsparams : h_clear_stack_params csparams).
 
 (* oseq.onthP: why eqType ?? *)
 Lemma onth_cat' T (s1 s2 : seq T) n x :
@@ -132,58 +135,56 @@ Qed.
 
 Lemma label_in_lcmdP fn lfd lfd' :
   clear_stack_lfd css_of_fn csparams fn lfd = ok lfd' ->
-  subseq (label_in_lcmd lfd.(lfd_body)) (label_in_lcmd lfd'.(lfd_body)).
+  label_in_lcmd lfd'.(lfd_body) = label_in_lcmd lfd.(lfd_body).
 Proof.
   rewrite /clear_stack_lfd.
   case: css_of_fn => [[??]|]; last by move=> [<-].
   case: andb; last by move=> [<-].
   rewrite /clear_stack_lfd_body.
-  t_xrbindP=> _ _ cmd _ <- /=.
-  rewrite /label_in_lcmd pmap_cat.
-  by apply prefix_subseq.
+  t_xrbindP=> _ _ cmd /hcsparams.(hcs_no_ext_lbl) hnoext <- /=.
+  by rewrite label_in_lcmd_cat hnoext cats0.
 Qed.
 
-Lemma flatten_subseq (T:eqType) (s1 s2 : seq (seq T)) :
-  all2 (@subseq T) s1 s2 -> subseq (flatten s1) (flatten s2).
-Proof.
-  elim: s1 s2 => [|x1 s1 ih] [|x2 s2] //= /andP [hsub1 /ih hsub2].
-  by apply cat_subseq.
-Qed.
-
-(* TODO: cleaner proof *)
 Lemma label_in_lprogP lp lp' :
   clear_stack_lprog css_of_fn csparams lp = ok lp' ->
-  subseq (label_in_lprog lp) (label_in_lprog lp').
+  label_in_lprog lp' = label_in_lprog lp.
 Proof.
   rewrite /clear_stack_lprog /label_in_lprog.
-  t_xrbindP=> lp_funs hmap <- /=.
-  elim: lp.(lp_funcs) lp_funs hmap => /=.
-  + move=> _ [<-] /=. done.
-  move=> [fn fd] lp_funs ih.
-  t_xrbindP.
-  move=> lp_funs' [fn1 lfd1] lfd2.
-  move=> /add_finfoP /add_funnameP /= hclear [??]; subst fn1 lfd2.
-  move=> lp_funs'' /ih hsubseq <-. simpl.
-  apply cat_subseq.
-  apply map_subseq.
-  apply (label_in_lcmdP hclear).
-  auto.
+  t_xrbindP=> lp_funcs' hmap <- /=.
+  elim: lp.(lp_funcs) lp_funcs' hmap => [|[fn fd] lp_funcs ih] /=.
+  + by move=> _ [<-] /=.
+  by t_xrbindP=>
+    _ _ fd' /add_finfoP /add_funnameP /label_in_lcmdP <- <- lp_funcs'
+    /ih <- <- /=.
+Qed.
+
+(* MOVE *)
+Lemma onth_In T (s : seq T) n x :
+  oseq.onth s n = Some x ->
+  List.In x s.
+Proof.
+  elim: s n x => [|a s ih] n x //=.
+  case: n => [|n].
+  + by move=> [<-]; left.
+  by move=> /ih{}ih; right.
 Qed.
 
 Lemma get_label_after_pc_in_label_in_lprog lp s lbl :
   get_label_after_pc lp s = ok lbl ->
   (s.(lfn), lbl) \in label_in_lprog lp.
 Proof.
-  rewrite /get_label_after_pc /label_in_lprog.
-  rewrite /find_instr /=.
+  rewrite /get_label_after_pc /find_instr /=.
   case hget: get_fundef => [lfd|//].
   case hnth: oseq.onth => [i|//].
   case: i hnth => ii []//= []// lbl' hnth [?]; subst lbl'.
-  Search (_ \in _) flatten.
-  apply /flattenP => /=.
-Admitted.
+  have hlinear: is_linear_of lp s.(lfn) lfd.(lfd_body).
+  + by exists lfd.
+  apply: label_in_lfundef hlinear.
+  have [cmd1 [cmd2 ->]] := List.in_split _ _ (onth_In hnth).
+  rewrite label_in_lcmd_cat /= mem_cat.
+  by apply /orP; right; apply mem_head.
+Qed.
 
-(* TODO: clear *)
 Lemma find_labelP fn lfd lfd' lbl pc :
   clear_stack_lfd css_of_fn csparams fn lfd = ok lfd' ->
   find_label lbl lfd.(lfd_body) = ok pc ->
@@ -194,61 +195,79 @@ Proof.
   case: andb; last by move=> [<-].
   rewrite /clear_stack_lfd_body.
   t_xrbindP=> _ _ cmd _ <- /=.
-  rewrite /find_label.
-  rewrite -!has_find.
-  case h: has => //.
-  rewrite has_cat h /=.
-  rewrite find_cat h. done.
+  rewrite /find_label -!has_find has_cat find_cat.
+  by case: has.
 Qed.
 
-(* The functions we do not touch have the same semantics as before. *)
-Lemma aux lp lp' fn lfd s1 pc s2 :
+Lemma eval_jumpP lp lp' r s1 s2 :
   clear_stack_lprog css_of_fn csparams lp = ok lp' ->
-  get_fundef lp.(lp_funcs) fn = Some lfd ->
-  css_of_fn fn = None \/ lfd_export lfd && (0 <? lfd_used_stack lfd)%Z = false ->
+  eval_jump lp r s1 = ok s2 ->
+  eval_jump lp' r s1 = ok s2.
+Proof.
+  move=> hclearlp.
+  rewrite /eval_jump.
+  case: r => [fn lbl].
+  case hlfd: get_fundef => [lfd|] //=.
+  have [lfd' hclear ->] /= := clear_stack_lprog_get_fundef hclearlp hlfd.
+  by t_xrbindP=> pc /(find_labelP hclear) -> /= ->.
+Qed.
+
+Lemma eval_instrP lp lp' i s1 s2 :
+  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  eval_instr lp i s1 = ok s2 ->
+  eval_instr lp' i s1 = ok s2.
+Proof.
+  move=> hclearlp.
+  rewrite /eval_instr.
+  case: i => [ii []] //=.
+  + t_xrbindP=> r w v.
+    have [_ <- _] := clear_stack_lprog_invariants hclearlp.
+    move=> -> /= -> /= lbl /(get_label_after_pcP hclearlp) -> /=.
+    rewrite (label_in_lprogP hclearlp).
+    case: encode_label => [w'|//].
+    t_xrbindP=> m -> /=.
+    by apply eval_jumpP.
+  + t_xrbindP=> w v.
+    have [_ <- _] := clear_stack_lprog_invariants hclearlp.
+    move=> -> /= -> /= w' -> /=.
+    rewrite (label_in_lprogP hclearlp).
+    case: decode_label => [r|//].
+    by apply eval_jumpP.
+  + by move=> r; apply eval_jumpP.
+  + t_xrbindP=> e w v -> /= -> /=.
+    rewrite (label_in_lprogP hclearlp).
+    case: decode_label => [r|//].
+    by apply eval_jumpP.
+  + move=> v lbl.
+    by rewrite (label_in_lprogP hclearlp).
+  t_xrbindP=> e lbl b v -> /= -> /=.
+  case: b => //.
+  case hlfd: get_fundef => [lfd|//] /=.
+  have [lfd' hclear ->] /= := clear_stack_lprog_get_fundef hclearlp hlfd.
+  by t_xrbindP=> pc /(find_labelP hclear) -> /= ->.
+Qed.
+
+(* better name *)
+Lemma clear_stack_lsem1 lp lp' fn s1 pc s2 :
+  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
   lsem1 lp (of_estate s1 fn pc) s2 ->
   lsem1 lp' (of_estate s1 fn pc) s2.
 Proof.
-  move=> hclearlp hlfd htest.
-  rewrite /lsem1 /step /find_instr /=.
-  have [lfd' hclear hlfd'] := clear_stack_lprog_get_fundef hclearlp hlfd.
-  rewrite hlfd hlfd'.
-  have: lfd = lfd'.
+  move=> hclearlp.
+  rewrite /lsem1 /step /find_instr.
+  case hlfd: get_fundef => [lfd|//] /=.
+  have [lfd' hclear ->] /= := clear_stack_lprog_get_fundef hclearlp hlfd.
+  case hpc: oseq.onth => [i|//].
+  have hpc': oseq.onth lfd'.(lfd_body) pc = Some i.
   + move: hclear; rewrite /clear_stack_lfd.
-    case: css_of_fn htest => [[??]|].
-    + by move=> [//|->] [].
-    by move=> _ [].
-  move=> ?; subst lfd'.
-  case: oseq.onth => [i|//].
-  rewrite /eval_instr.
-  case: i => ii [] //=.
-  + have [_ <- _] := clear_stack_lprog_invariants hclearlp.
-    t_xrbindP.
-    move=> r w v -> /= -> /= lbl.
-    move=> /dup[] /get_label_after_pc_in_label_in_lprog hin.
-    move=> /(get_label_after_pcP hclearlp) -> /=.
-    case hlbl: encode_label => [w'|//].
-    have hin': (fn, lbl) \in label_in_lprog lp'.
-    + apply (mem_subseq (label_in_lprogP hclearlp)). assumption.
-    assert (h := encode_label_dom hin').
-    case hlbl': encode_label h => [w''|//] _.
-    t_xrbindP=> m' hm' hjmp.
-    have /write_validw -/(writeV w'') [m'' hm''] := hm'.
-    rewrite hm'' /=.
-    move: hjmp; rewrite /eval_jump.
-    case: r => fn' lbl'.
-    case hget': get_fundef => [lfd'|//] /=.
-    have [lfd'' hclear' hlfd''] := clear_stack_lprog_get_fundef hclearlp hget'.
-    rewrite hlfd'' /=.
-    t_xrbindP=> pc' hfind.
-    have -> := find_labelP hclear' hfind.
-    move=> /=.
-    rewrite /setcpc /= => <-. f_equal. f_equal. (* w' = w'' ??? *)
-    (* ou alors il faut prouver m' = m'' sauf lbl où encode = encode *)
-    find_labelE
-    encode_label
-  
-  rewrite sumbool_of_boolET. t_xrbindP. rewrite psem_facts.pword_of_wordE.
+    case: css_of_fn => [[css ws]|]; last by move=> [<-].
+    case: andb; last by move=> [<-].
+    rewrite /clear_stack_lfd_body.
+    t_xrbindP=> _ _ cmd _ <- /=.
+    by apply onth_cat'.
+  rewrite hpc'.
+  by apply eval_instrP.
+Qed.
 
 (* doit-on se comparer à la mémoire source ou la mémoire avant sem ?? *)
 (* utiliser pointer_range ? *)
