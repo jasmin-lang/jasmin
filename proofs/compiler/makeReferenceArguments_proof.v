@@ -31,19 +31,6 @@ Lemma sem_consI s1 i c s2 (P : estate -> instr -> cmd -> estate -> Prop) :
   sem p ev s1 (i::c) s2 -> P s1 i c s2.
 Proof. by move=> h /semE [s3 [] /h]. Qed.
 
-Lemma set_var_rename (vm vm' vm'' : vmap) (x y : var) (v : value) :
-     vtype x = vtype y
-  -> set_var vm x v = ok vm'
-  -> exists vm''', set_var vm'' y v = ok vm'''.
-Proof.
-case: x y => [ty nx] [? ny] /= <-.
-set x := {| vname := nx |}; set y := {| vname := ny |}.
-apply: set_varP => /=.
-+ by move=> t okt /esym vm'E ; exists vm''.[y <- ok t] ; rewrite /set_var okt.
-+ move=> tybool tyvE /esym vm'E; exists vm''.[y <- pundef_addr ty].
-  by rewrite /set_var tybool tyvE.
-Qed.
-
 Section SemInversionSeq1.
   Context (s1 : estate) (i : instr) (s2 : estate).
   Context
@@ -702,26 +689,6 @@ Context
     rewrite - eq_globs -cpl_hi.
     rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
-  Qed.
-
-  Lemma get_set_var vm vm' x v v':
-    ~is_sbool (vtype x) ->
-    truncate_val (vtype x) v = ok v' ->
-    set_var vm x v' = ok vm' ->
-    get_var vm' x = ok v'.
-  Proof.
-    rewrite /get_var /set_var => hty htr; apply on_vuP; last by case: is_sbool hty.
-    move=> vt hvt <-.
-    rewrite /on_vu Fv.setP_eq.
-    case: (vtype x) vt htr hvt => /=.
-    + by move=> b _ /to_boolI ->.
-    + by move=> i _ /to_intI ->.
-    + move=> n t; case: v => //= n' t'.
-      by rewrite /truncate_val /=; t_xrbindP => t1 hc <-; rewrite /to_arr WArray.castK => -[->].
-    move => w vt; rewrite /truncate_val /=; t_xrbindP => w' h <-.
-    rewrite /to_pword.
-    assert (h1 := cmp_le_refl w); case: Sumbool.sumbool_of_bool; last by rewrite h1.
-    by move=> h2 [<-] /=.
   Qed.
 
   Lemma is_reg_ptr_expr_ty b x ty lv y:
