@@ -226,15 +226,6 @@ Proof.
   by case: negP => // hg; rewrite get_var_neq //; apply h.
 Qed.
 
-Lemma get_gvar_set_eq gd vm1 vm2 x y v: 
-  get_gvar gd vm1 y = get_gvar gd vm2 y ->
-  get_gvar gd vm1.[x <- v] y = get_gvar gd vm2.[x <- v] y.
-Proof.
-  case : (@idP (is_glob y)) => hg; first by rewrite !get_gvar_neq.
-  case:( x =P (gv y)) => heq; last by rewrite !get_gvar_neq.
-  by move: v; rewrite heq => v; rewrite !get_gvar_eq.
-Qed.
-
 Definition vm_initialized_on (vm: vmap) : seq var → Prop :=
   all (λ x, is_ok (get_var vm x >>= of_val (vtype x))).
 
@@ -1721,24 +1712,6 @@ Corollary sem_pexprs_uincl gd s1 vm2 es vs1 :
               List.Forall2 value_uincl vs1 vs2.
 Proof. move => /(@vm_uincl_vmap_uincl_on (read_es es)); exact: sem_pexprs_uincl_on. Qed.
 
-Lemma disjoint_uincl_on gd s r s1 s2 v:
-  disjoint s (vrv r) ->
-  write_lval gd r v s1 = ok s2 ->
-  s1.(evm) <=[s] s2.(evm).
-Proof.
-  move=> Hd /vrvP H z Hnin. rewrite (H z). done.
-  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.
-Qed.
-
-Lemma disjoint_uincl_ons gd s r s1 s2 v:
-  disjoint s (vrvs r) ->
-  write_lvals gd s1 r v = ok s2 ->
-  s1.(evm) <=[s] s2.(evm).
-Proof.
-  move=> Hd /vrvsP H z Hnin. rewrite (H z). done.
-  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.
-Qed.
-
 Lemma vuincl_exec_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
@@ -2549,14 +2522,6 @@ Qed.
 
 Lemma apply_undef_pundef_addr t : apply_undef (pundef_addr t) = pundef_addr t.
 Proof. by case: t. Qed.
-
-Lemma eval_uincl_apply_undef t (v1 v2 : exec (psem_t t)):
-  eval_uincl v1 v2 ->
-  eval_uincl (apply_undef v1) (apply_undef v2).
-Proof.
-  case:v1 v2=> [v1 | []] [v2 | e2] //=; try by move=> <-.
-  by move=> _; apply eval_uincl_undef.
-Qed.
 
 (* ------------------------------------------------------------------------------ *)
 
