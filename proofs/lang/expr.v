@@ -895,19 +895,6 @@ Fixpoint eq_expr e e' :=
   | _             , _                 => false
   end.
 
-Definition eq_lval (x x': lval) : bool :=
-  match x, x' with
-  | Lnone _ ty,  Lnone _ ty' => ty == ty'
-  | Lvar v, Lvar v' => v_var v == v_var v'
-  | Lmem w v e, Lmem w' v' e' => (w == w') && (v_var v == v_var v') && (eq_expr e e')
-  | Laset aa w v e, Laset aa' w' v' e'
-    => (aa == aa') && (w == w') && (v_var v == v_var v') && (eq_expr e e')
-  | Lasub aa w len v e, Lasub aa' w' len' v' e'
-    => (aa == aa') && (w == w') && (len == len') && (v_var v == v_var v') && (eq_expr e e')
-
-  | _, _ => false
-  end.
-
 (* ------------------------------------------------------------------- *)
 Definition to_lvals (l:seq var) : seq lval := 
   map (fun x => Lvar {|v_var := x; v_info := dummy_var_info |}) l.

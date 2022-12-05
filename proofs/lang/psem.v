@@ -2483,27 +2483,6 @@ Proof.
   apply: eq_expr_recP => e _ e'; exact: eq_exprP.
 Qed.
 
-Lemma eq_lvalP gd m lv lv' v :
-  eq_lval lv lv' ->
-  write_lval gd lv v m = write_lval gd lv' v m.
-Proof.
-  case: lv lv'=> [ ?? | [??] | sz [??] e | aa sz [??] e | aa sz len [??] e] 
-                 [ ?? | [??] | sz' [??] e' | aa' sz' [??] e' | aa' sz' len' [??] e'] //=.
-  + by move=> /eqP ->.
-  + by move=> /eqP ->.
-  + by case/andP => /andP [] /eqP -> /eqP -> /eq_exprP ->.
-  + by move=> /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eq_exprP ->.
-  by move=> /andP [] /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eqP -> /eq_exprP ->.
-Qed.
-
-Lemma eq_lvalsP gd m ls1 ls2 vs:
-  all2 eq_lval ls1 ls2 → write_lvals gd m ls1 vs =  write_lvals gd m ls2 vs.
-Proof.
- rewrite /write_lvals.
- elim: ls1 ls2 vs m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m.
- by move=> /andP [] /eq_lvalP -> /Hrec; case: write_lval => /=.
-Qed.
-
 Lemma pto_val_inj t (v1 v2:psem_t t) : pto_val v1 = pto_val v2 -> v1 = v2.
 Proof.
   case: t v1 v2 => //= [ | | p | sz ] v1 v2 => [ []|[] | /Varr_inj1 | ] //.
