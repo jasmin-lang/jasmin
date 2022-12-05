@@ -220,10 +220,6 @@ Notation vid ident :=
     v_info := dummy_var_info;
   |}.
 
-Record var_attr := VarA {
-  va_pub : bool
-}.
-
 Variant v_scope := 
   | Slocal 
   | Sglob.
