@@ -85,10 +85,6 @@ Qed.
 Lemma of_var_eI {ii v r} : of_var_e ii v = ok r -> to_var r = v.
 Proof. by move => /of_var_eP; apply/of_varI. Qed.
 
-Lemma inj_of_var_e {ii v1 v2 r}:
-  of_var_e ii v1 = ok r -> of_var_e ii v2 = ok r -> v1 = v2 :> var.
-Proof. by move => /of_var_eP h1 /of_var_eP; apply: inj_of_var. Qed.
-
 End TOSTRING.
 
 (* -------------------------------------------------------------------- *)
@@ -339,9 +335,6 @@ Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_
     | None => false
     end
   end.
-
-Definition error_imm ii :=
- E.error ii (pp_s "Invalid asm: cannot truncate the immediate to a 32 bits immediate, move it to a register first").
 
 Definition assemble_asm_op_aux rip ii op (outx : lvals) (inx : pexprs) :=
   let id := instr_desc op in
