@@ -125,12 +125,7 @@ Proof.
   by move=> [v] [->] /value_uinclE ->.
 Qed.
 
-Lemma sbeqE e1 e2 b : 
-  sem_pexpr gd s (Papp2 Obeq e1 e2) = ok (Vbool b) ->
-  sem_pexpr gd s (sbeq e1 e2) = ok (Vbool b).
-Proof. by move=> /sbeqP [v] [-> /value_uinclE ->]. Qed.
-
-Lemma sbeqE' e0 e1 b0 b1 :
+Lemma sbeqE e0 e1 b0 b1 :
   sem_pexpr gd s e0 = ok (Vbool b0) ->
   sem_pexpr gd s e1 = ok (Vbool b1) ->
   sem_pexpr gd s (sbeq e0 e1) = ok (Vbool (b0 == b1)).
@@ -189,7 +184,7 @@ Proof.
   all: have h1 := ih1 b1 hv1.
   all:
     solve
-      [ exact: (sandE h0 h1) | exact: (sorE h0 h1) | exact: (sbeqE' h0 h1) ].
+      [ exact: (sandE h0 h1) | exact: (sorE h0 h1) | exact: (sbeqE h0 h1) ].
 Qed.
 
 Lemma cf_esem_ssem e0 e1 e2 e3 cf b :
