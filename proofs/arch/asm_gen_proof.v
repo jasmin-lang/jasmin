@@ -184,13 +184,6 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma eq_get_gvar m x y vx vy:
-  v_var (gv x) = v_var (gv y) -> get_gvar [::] m x = ok vx -> get_gvar [::] m y = ok vy -> vx = vy.
-Proof.
-  by rewrite /get_gvar; case:ifP => //; case: ifP => // ?? -> -> [->].
-Qed.
-
-(* -------------------------------------------------------------------- *)
 
 Context
   (agparams : asm_gen_params).
@@ -1755,32 +1748,6 @@ Proof.
   apply: asmsem_trans; last by eauto.
   exact: rt_step.
 Qed.
-
-Lemma get_xreg_of_vars_uincl ii xs rs vm vs (rm : regmap) (rxm : regxmap) (xrm : xregmap) :
-  (forall r v, get_var vm (to_var r) = ok v -> value_uincl v (Vword (rm r)))
-  -> (forall r v, get_var vm (to_var r) = ok v -> value_uincl v (Vword (rxm r)))
-  -> (forall r v, get_var vm (to_var r) = ok v -> value_uincl v (Vword (xrm r)))
-  -> mapM (xreg_of_var ii) xs = ok rs
-  -> mapM (λ x : var_i, get_var vm x) xs = ok vs
-  -> let word_of_arg a := match a with
-                          | Reg r => Vword (rm r)
-                          | Regx r => Vword (rxm r) 
-                          | XReg r => Vword (xrm r)
-                          | _ => undef_w U64
-                          end in
-     List.Forall2 value_uincl vs (map word_of_arg rs).
-Proof.
-  move=> hr hrx hxr; elim: xs rs vs.
-  - by move => _ _ [<-] [<-]; constructor.
-  move=> x xs ih rs' vs' /=;
-  t_xrbindP=> r /xreg_of_varI ok_r rs ok_rs <- {rs'} v ok_v vs ok_vs <- {vs'}.
-  constructor; last exact: ih.
-  case: r ok_r => // r => /of_varI rx.
-  - by apply: hr; rewrite rx.
-  - by apply: hrx; rewrite rx.
-  by apply: hxr; rewrite rx.
-Qed.
-
 
 Lemma asm_gen_exportcall fn scs m vm scs' m' vm' :
   lsem_exportcall p scs m fn vm scs' m' vm'
