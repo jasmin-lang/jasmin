@@ -515,28 +515,6 @@ Proof.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
 Qed.
 
-Lemma eq_expr_constL z e :
-  eq_expr (Pconst z) e -> e = z :> pexpr.
-Proof. by case: e => // z' /eqP ->. Qed.
-
-Lemma eq_expr_const z1 z2 :
-  eq_expr (Pconst z1) (Pconst z2) -> z1 = z2.
-Proof. by move/eqP. Qed.
-
-Lemma eq_expr_var x1 x2 :
-  eq_expr (Pvar x1) (Pvar x2) -> x1.(gs) = x2.(gs) /\ x1.(gv) = x2.(gv) :> var.
-Proof. by move => /andP[]/eqP -> /eqP ->. Qed.
-
-Lemma eq_expr_load w1 w2 v1 v2 e1 e2 :
-     eq_expr (Pload w1 v1 e1) (Pload w2 v2 e2)
-  -> [/\ w1 = w2, v1 = v2 :> var & eq_expr e1 e2].
-Proof. by move=> /= /andP [/andP[]] /eqP-> /eqP-> ->. Qed.
-
-Lemma eq_expr_app1 o1 o2 e1 e2 :
-     eq_expr (Papp1 o1 e1) (Papp1 o2 e2)
-  -> [/\ o1 = o2 & eq_expr e1 e2].
-Proof. by move=> /= /andP[/eqP-> ->]. Qed.
-
 (* ------------------------------------------------------------------- *)
 Lemma is_falseP e : reflect (e = Pbool false) (is_false e).
 Proof.
