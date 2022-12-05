@@ -82,9 +82,6 @@ Context
   {asmop:asmOp asm_op}
   {fcp : FlagCombinationParams}.
 
-Definition sbneq e1 e2 := 
-  snot (sbeq e1 e2).
-
 Definition scfc (cf : combine_flags) (es : seq pexpr) : pexpr :=
   if es is [:: eof; ecf; esf; ezf ]
   then cf_xsem snot sand sor sbeq eof ecf esf ezf cf
