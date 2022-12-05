@@ -48,11 +48,11 @@ Definition arm_saparams : stack_alloc_params :=
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
   let rspg := Gvar rspi Slocal in
   let esz := Papp1 (Oword_of_int reg_size) (Pconst sz) in
-  ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
+  ([:: Lvar rspi ], Oarm (ARM_op SUB default_opts), [:: Pvar rspg; esz ]).
 
 Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
   let rspg := Gvar rspi Slocal in
-  let esz := Papp1 (Oword_of_int reg_size) (Pconst (-sz)) in
+  let esz := Papp1 (Oword_of_int reg_size) (Pconst sz) in
   ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
 
 Definition arm_ensure_rsp_alignment (rspi : var_i) (al : wsize) :=
@@ -73,14 +73,6 @@ Definition arm_lassign
               Some (MOV, e)
           | Pload _ _ _ =>
               Some (LDR, e)
-          | Papp1 (Ozeroext U32 ws') e' =>
-              if e' is Pload _ _ _
-              then
-                if uload_mn_of_wsize ws' is Some mn
-                then Some (mn, e')
-                else None
-              else
-                None
           | _ =>
               None
           end
@@ -222,7 +214,8 @@ Definition arm_agparams : asm_gen_params :=
 (* FIXME: put real values here *)
 Definition arm_csparams : clear_stack_params :=
   {|
-    cs_clear_stack_cmd := fun _ _ _ _ _ => None
+    cs_clear_stack_cmd := fun _ _ _ _ _ =>
+      Error (clear_stack.E.error (compiler_util.pp_s "arm not supported"))
   |}.
 
 (* ------------------------------------------------------------------------ *)

@@ -450,7 +450,7 @@ Qed.
 (* Note that the interpretation of the expression is [zero_extend reg_size w]
    due to the implicit castings in [sem]. *)
 Lemma get_arg_shiftP s e ws ws0 (w : word ws0) e' sh n :
-  get_arg_shift ws e = Some (e', sh, n)
+  get_arg_shift ws [:: e ] = Some (e', sh, n)
   -> disj_fvars (read_e e)
   -> sem_pexpr (p_globs p) s e = ok (Vword w)
   -> exists ws1 (wbase : word ws1) (wsham : word U8),
@@ -475,7 +475,7 @@ Proof.
   move=> hfve.
 
   case: ws w hsemop => // w hsemop.
-  case: op hsemop hfve => // [[] | [|[]] | [|[]]] //= hsemop hfve.
+  case: op hsemop hfve => // [[] | [|[]] | [|[]] | []] //= hsemop hfve.
   all: case: ifP => // /andP [] /ZleP hlo /ZleP hhi.
   all: move=> [? ? ?]; subst e' sh n.
 
@@ -506,7 +506,7 @@ Proof.
          move=> //.
   all: clear hws1 hfve.
 
-  all: rewrite /sem_shr /sem_shl /sem_sar /=.
+  all: rewrite /sem_shr /sem_shl /sem_sar /sem_ror /=.
   all: rewrite /sem_shift /=.
   all: rewrite !zero_extend_u.
   all: rewrite get_arg_shiftP_aux; first reflexivity.
@@ -655,7 +655,7 @@ Proof.
   (* TODO_ARM: The following two cases are the same. *)
 
   (* Case: [Osignext]. *)
-  - case: e hfve hseme => // ? ? ? hfve hseme.
+  - case: is_load; last by [].
     move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.
@@ -673,7 +673,7 @@ Proof.
     }
 
   (* Case: [Ozeroext]. *)
-  - case: e hfve hseme => // ? ? ? hfve hseme.
+  - case: is_load; last by [].
     move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.
@@ -696,7 +696,7 @@ Proof.
   move=> /= ?; subst w.
 
   move: hw' => /to_wordI [ws0 [w0' [? /truncate_wordP [hws0 ?]]]]; subst v w'.
-  rewrite /arg_shift /=.
+  rewrite /arg_shift.
   case hshift: get_arg_shift => [[[e' sh] sham]|] /=.
 
   - have [ws1 [wbase [wsham [hws1 hbase hsham -> [hfvbase hfvsham]]]]] :=
@@ -789,7 +789,15 @@ Proof.
           | [ |- context[Olsr] ] => case: ws'' => //
           | [ |- context[Olsl] ] => case: ws'' => //
           | [ |- context[Oasr] ] => case: ws'' => //
+          | [ |- context[Oror] ] => case: ws'' => //
           end.
+      all:
+        try
+          match goal with
+          | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
+          | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
+          | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
+        end.
 
       all: move=> [? ? ?] hsemop; subst mn e0' e1'.
       all: discriminate hhas_shift || clear hhas_shift.
@@ -849,6 +857,20 @@ Proof.
       | [ |- context[Olsr] ] => case: ws'' => //
       | [ |- context[Olsl] ] => case: ws'' => //
       | [ |- context[Oasr] ] => case: ws'' => //
+      | [ |- context[Oror] ] => case: ws'' => //
+      end.
+
+  Local Ltac on_is_zero h :=
+    rewrite /=; case: is_zeroP;
+      [ move => ?; subst; case: h => ?; subst
+      | move => hzero ].
+
+  all:
+    try
+      match goal with
+      | [ |- context[ Olsr ] ] => on_is_zero hseme1
+      | [ |- context[ Oasr ] ] => on_is_zero hseme1
+      | [ |- context[ Oror ] ] => on_is_zero hseme1
       end.
 
   all: move=> [? ? ?] hsemop; subst mn e0' e1'.
@@ -857,8 +879,10 @@ Proof.
   all: move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]].
   all: move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]];
          subst v0 w0'.
-  all: move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]];
-         subst v1 w1'.
+  all: move: hw1.
+  all: try case/to_wordI => ws1 [w1] [?].
+  all: case/truncate_wordP => hws1 ?.
+  all: subst.
 
   all: rewrite /=.
   all: match goal with
@@ -874,7 +898,8 @@ Proof.
   all: clear hfve0 hfve1 hfves.
 
   all: rewrite /=.
-  all: rewrite hseme0 hseme1 {hseme0 hseme1} /=.
+  all: rewrite hseme0 {hseme0} /=.
+  all: try rewrite hseme1 {hseme1} /=.
   all: eexists; first reflexivity.
 
   all: rewrite /exec_sopn /=.
@@ -884,11 +909,16 @@ Proof.
 
   (* Shift instructions take a byte as second argument. *)
   all:
-    match goal with
-    | [ |- context[LSL] ] => rewrite hws1
-    | [ |- context[LSR] ] => rewrite hws1
-    | [ |- context[ASR] ] => rewrite hws1
-    end || rewrite (cmp_le_trans hws hws1).
+    try
+      match goal with
+      | [ |- context[LSL] ] => rewrite hws1
+      | [ |- context[LSR] ] => rewrite hws1
+      | [ |- context[ASR] ] => rewrite hws1
+      | [ |- context[ROR] ] => rewrite hws1
+      end.
+
+  (* The rest need [e32 <= ws1]. *)
+  all: try rewrite (cmp_le_trans hws hws1).
 
   all: rewrite /=.
 
@@ -899,6 +929,10 @@ Proof.
   5: rewrite -(wxor_zero_extend _ _ hws).
   6: rewrite (wmul_zero_extend _ _ hws).
   1-6: by rewrite !(zero_extend_idem _ hws).
+
+  3: rewrite /sem_shr /sem_shift wshr0.
+  6: rewrite /sem_sar /sem_shift wsar0.
+  8: rewrite /sem_ror /sem_shift wror0.
 
   all: by rewrite !zero_extend_u.
 Qed.
@@ -1166,18 +1200,121 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Lowering of ARM-specific instructions. *)
 
-Lemma lower_copnP s0' s1' lvs tag op es lvs' op' es' :
-  sem_i p' ev s0' (Copn lvs tag op es) s1'
-  -> lower_copn lvs op es = Some (lvs', op', es')
-  -> sem_i p' ev s0' (Copn lvs' tag op' es') s1'.
+(* TODO_ARM: This lemma is similar to the one in x86_lowering, but not quite:
+   in x86 [res] is [wunsigned (wrepr (wunsigned w + wunsigned w' + Z.b2z b))].
+*)
+Lemma wunsigned_carry ws w w' b :
+  let: res := wunsigned (w + w' + wrepr ws (Z.b2z b))%R in
+  let: res' := (wunsigned w + wunsigned w' + Z.b2z b)%Z in
+  (wbase ws <=? res')%Z = (res != res')%Z.
 Proof.
-  move=> hcopn.
-  rewrite /lower_copn.
-  case: op hcopn => // [[[[] aop]|]] //.
-  move: aop => [mn opts] hcopn.
-  case: ifP => // hmn.
+  case: b => /=; first last.
+  - rewrite Z.add_0_r wrepr0 GRing.addr0. exact: add_overflow.
+
+  rewrite wunsigned_add_if.
+  rewrite wrepr1 wunsigned1.
+  case: ZltP.
+  - rewrite wunsigned_add_if.
+    case: ZltP.
+    + move=> _.
+      move=> /Z.lt_nge /ZleP /negPf ->.
+      by symmetry; apply/negPn.
+
+    move=> h _.
+    have -> : (wbase ws <=? wunsigned w + wunsigned w' + 1)%Z.
+    + apply/ZleP. lia.
+    symmetry; apply/eqP.
+    have := wbase_pos ws.
+    lia.
+
+  rewrite wunsigned_add_if.
+  case: ZltP.
+  - move=> /Z.le_succ_l h0 /Z.le_ngt h1.
+    rewrite -(Z.le_antisymm _ _ h0 h1).
+    rewrite Z.leb_refl.
+    symmetry; apply/eqP.
+    have := wunsigned_range w.
+    lia.
+
+  move=> /Z.le_ngt h0 /Z.le_ngt h1.
+  have -> : (wbase ws <=? wunsigned w + wunsigned w' + 1)%Z.
+  - apply/ZleP. lia.
+  symmetry; apply/eqP.
+  have := wunsigned_range w.
+  lia.
+Qed.
+
+Lemma lower_add_carryP s0 s1 lvs tag es lvs' op' es' :
+  sem_i p' ev s0 (Copn lvs tag (Oaddcarry U32) es) s1
+  -> lower_add_carry lvs es = Some (lvs', op', es')
+  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+Proof.
+  case: lvs => [] // lv0 [] // lv1 [] //.
+  case: es => [] // e0 [] // e1 [] // e2 [] //.
+  move=> hsemi h.
+
+  move: hsemi => /sem_iE.
+  rewrite /sem_sopn /=.
+  t_xrbindP=> res _ v0 hseme0 _ v1 hseme1 _ v2 hseme2 <- <- <- hexec hwrite.
+
+  move: hexec.
+  rewrite /exec_sopn /=.
+  t_xrbindP=> /= res' w0 hw0 w1 hw1 b hb hsopn ?; subst res.
+  move: hw0 => /to_wordI [ws [w [? hw0]]]; subst v0.
+  move: hw0 => /truncate_wordP [hws ?]; subst w0.
+  move: hw1 => /to_wordI [ws' [w' [? hw1]]]; subst v1.
+  move: hw1 => /truncate_wordP [hws' ?]; subst w1.
+  move: hb => /to_boolI ?; subst v2.
+  move: hsopn => [?]; subst res'.
+  move: hwrite => /=.
+  t_xrbindP=> s00 hwrite00 s01 hwrite1 ?; subst s01.
+
+  apply: Eopn.
+  rewrite /sem_sopn /=.
+
+  move: hwrite1.
+  rewrite !wrepr_add !wrepr_unsigned.
+  move=> hwrite1.
+
+  move: h.
+  case: e2 hseme2 => [| [] || gx |||||||] //= hseme2 [???];
+    subst lvs' op' es'.
+  all: rewrite /= hseme0 hseme1 /= {hseme0 hseme1}.
+
+  2: rewrite hseme2 /= {hseme2}.
+
+  all: rewrite /exec_sopn /=.
+  all: rewrite /truncate_word hws hws' /=.
+  all: move: hwrite00 hwrite1.
+  all: rewrite wunsigned_carry.
+
+  1: move: hseme2 => [?]; subst b.
+  1: rewrite /= Z.add_0_r wrepr0 GRing.addr0.
+
+  all: by move=> -> /= ->.
+Qed.
+
+Lemma lower_base_op s0 s1 lvs tag aop es lvs' op' es' :
+  sem_i p' ev s0 (Copn lvs tag (Oasm (BaseOp (None, aop))) es) s1
+  -> lower_base_op lvs aop es = Some (lvs', op', es')
+  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+Proof.
+  move: aop => [mn opts].
+  move=> hsemi.
+  rewrite /lower_base_op.
+  case: (_ \in _) => //.
   move=> [? ? ?]; subst lvs' op' es'.
-  exact: hcopn.
+  exact: hsemi.
+Qed.
+
+Lemma lower_copnP s0 s1 lvs tag op es lvs' op' es' :
+  sem_i p' ev s0 (Copn lvs tag op es) s1
+  -> lower_copn lvs op es = Some (lvs', op', es')
+  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+Proof.
+  case: op => // [[] | [[[] aop]|]] //.
+  - exact: lower_add_carryP.
+  exact: lower_base_op.
 Qed.
 
 

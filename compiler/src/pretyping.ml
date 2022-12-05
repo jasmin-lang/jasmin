@@ -204,7 +204,7 @@ let pp_tyerror fmt (code : tyerror) =
 
   | BadVariableKind kind ->
     F.fprintf fmt "the variable should have kind %a"
-       Printer.pp_kind kind
+       PrintCommon.pp_kind kind
 
   | WriteToConstantPointer v ->
     F.fprintf fmt "Cannot write to the constant pointer %s" v
@@ -857,7 +857,20 @@ let shr_info =
     opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   }
-   
+
+let rot_info exn op =
+  let mk opk =
+    match opk with
+    | OpKE Cmp_int -> raise exn
+    | OpKE (Cmp_w (_, ws)) -> op ws
+    | OpKV _ -> raise exn
+  in
+  {
+    opi_op = mk;
+    opi_wcmp = true, cmp_8_64;
+    opi_vcmp = None;
+  }
+
 let shl_info = 
   let mk = function
     | OpKE (Cmp_int)      -> E.Olsl E.Op_int
@@ -903,6 +916,8 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `BXOr c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lxor_info
   | `ShR  c -> op2_of_ty exn op c ty shr_info
   | `ShL  c -> op2_of_ty exn op c ty shl_info
+  | `ROR  c -> op2_of_ty exn op c ty (rot_info exn (fun x -> E.Oror x))
+  | `ROL  c -> op2_of_ty exn op c ty (rot_info exn (fun x -> E.Orol x))
 
   | `Eq   c -> op2_of_ty exn op c ty eq_info 
   | `Neq  c -> op2_of_ty exn op c ty neq_info
@@ -931,6 +946,8 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `Sub  s -> Some (`Sub s)
   | `Mul  s -> Some (`Mul s)
   | `ShR  s -> Some (`ShR s)
+  | `ROR  s -> Some (`ROR s)
+  | `ROL  s -> Some (`ROL s)
   | `ShL  s -> Some (`ShL s)
   | `BAnd s -> Some (`BAnd s)
   | `BXOr s -> Some (`BXOr s)
@@ -979,7 +996,7 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
     let ty = 
       match pop with
       | `And   | `Or    -> P.tbool 
-      | `ShR _ | `ShL _ -> ety1 
+      | `ShR _ | `ShL _ | `ROR _ | `ROL _ -> ety1
       | `Add _ | `Sub _ | `Mul _ | `Div _ | `Mod _
         | `BAnd _ | `BOr _ | `BXOr _
         | `Eq _ | `Neq _ | `Lt _ | `Le _ | `Gt _ | `Ge _ ->
@@ -1847,7 +1864,7 @@ let tt_call_conv loc params returns cc =
         rs_tyerror ~loc:(L.loc x) 
           (string_error "%a has kind %a, only reg are allowed in %s of export function"
             Printer.pp_pvar (L.unloc x)
-            Printer.pp_kind (L.unloc x).P.v_kind s) in
+            PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
     if 2 < List.length returns then
@@ -1860,7 +1877,7 @@ let tt_call_conv loc params returns cc =
         rs_tyerror ~loc:(L.loc x) 
           (string_error "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
-            Printer.pp_kind (L.unloc x).P.v_kind s) in
+            PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
     let returned_params =
@@ -1945,9 +1962,10 @@ let process_f_annot loc funname f_cc annot =
   in
 
   { retaddr_kind;
-    stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot; 
-    stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot; 
+    stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot;
+    stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot;
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
+    max_call_depth        = Annot.ensure_uniq1 "calldepth"      (Annot.pos_int None) annot;
     clear_stack;
   }
 

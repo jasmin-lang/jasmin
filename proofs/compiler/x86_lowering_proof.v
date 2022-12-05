@@ -473,12 +473,18 @@ Section PROOF.
       sem_pexprs gd s a >>= exec_sopn o = ok [:: v' ]
     | LowerInc o a =>
       ∃ b1 b2 b3 b4, sem_pexprs gd s [:: a] >>= exec_sopn o = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
-    | LowerFopn o e' _ =>
+    | LowerFopn _ o e' _ =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
       Sv.Subset (read_es e') (read_e e) ∧
       sem_pexprs gd s e' >>= exec_sopn o >>=
       write_lvals gd s [:: f; f; f; f; f; l] = ok s'
+    | LowerDiscardFlags n op e' =>
+      let f := Lnone (var_info_of_lval l) sbool in
+      Sv.Subset (read_es e') (read_e e)
+      /\ sem_pexprs gd s e'
+         >>= exec_sopn op
+         >>= write_lvals gd s (nseq n f ++ [:: l ]) = ok s'
     | LowerDivMod p u sz o a b =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
@@ -600,7 +606,7 @@ Section PROOF.
         rewrite /truncate_val /= /truncate_word /= cmp_le_refl /= zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hv /exec_sopn /= /truncate_word Hsz /sopn_sem /= /x86_NEG /check_size_8_64 hsz /= Hw.
-    + case: o => // [[] sz |[] sz|[] sz|[]// u sz| []// u sz|sz|sz|sz|sz|sz|sz| ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.
+    + case: o => // [[] sz |[] sz|[] sz|[]// u sz| []// u sz|sz|sz|sz|sz|sz|sz|sz|sz| ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.
       case: andP => // - [hsz64] /eqP ?; subst ty.
       (* Oadd Op_w *)
        + rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
@@ -877,6 +883,36 @@ Section PROOF.
          * by move => ->; rewrite /= wsar0 => ->.
          move => _ /=.
          by case: ifP => /= _ ->.
+      (* Oror *)
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
+         rewrite /=; t_xrbindP => v1 -> v2 ->.
+         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+         t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+         split. by rewrite read_es_swap.
+         move: Hw; rewrite /sem_shr /sem_shift /x86_ROR /check_size_8_64 hsz64 /=.
+         case: eqP.
+         * rewrite /sem_ror /sem_shift.
+           move=> -> /=.
+           rewrite wunsigned0 wror0.
+           by move=> ->.
+         move=> _ /=.
+         by case: ifP => /= _ ->.
+      (* Orol *)
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
+         rewrite /=; t_xrbindP => v1 -> v2 ->.
+         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+         t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+         split. by rewrite read_es_swap.
+         move: Hw; rewrite /sem_shr /sem_shift /x86_ROL /check_size_8_64 hsz64 /=.
+         case: eqP.
+         * rewrite /sem_rol /sem_shift.
+           move=> -> /=.
+           rewrite wunsigned0 wrol0.
+           by move=> ->.
+         move=> _ /=.
+         by case: ifP => /= _ ->.
 
       (* Ovadd ve sz *)
       + case: ifP => // /andP [hle /eqP ?]; subst ty.
@@ -991,14 +1027,14 @@ Section PROOF.
     by eexists.
   Qed.
 
-  Lemma opn_5flags_correct vi ii s a t o cf r xs ys m s' :
+  Lemma opn_5flags_correct vi ii s a t o cf r xs ys m sz s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
     sem_pexprs gd s a = ok xs →
     exec_sopn o xs = ok ys →
     write_lvals gd s [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r] ys = ok s' →
     ∃ s'',
-    sem p' ev s [seq MkI ii i | i <- opn_5flags fv m vi cf r t o a] s''
+    sem p' ev s [seq MkI ii i | i <- opn_5flags fv m sz vi cf r t o a] s''
     ∧ eq_exc_fresh s'' s'.
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags.
@@ -1029,8 +1065,8 @@ Section PROOF.
       move: hr.
       apply opn_no_immP.
       - rewrite /exec_sopn /sopn_sem; case.
-        + by move => ws sz /=; case: eqP => /= ? ->.
-        by move => sz /= ->.
+        + by move => ws ? /=; case: eqP => /= ? ->.
+        by move => _ /= ->.
       by rewrite /exec_sopn => op _ ->.
 
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
@@ -1174,7 +1210,7 @@ Section PROOF.
         rewrite -(zero_extend_wrepr sc hsz2) in Hw'.
         have [] := mulr_ok Hvo Hsc1 hle1 hsz2 _ Hw' Heq; first by rewrite hsz1.
         move=> hsub; t_xrbindP => vo vs hvs hvo hw.
-        case: (opn_5flags_correct ii tag (Some U32) _ _ hvs hvo hw).
+        case: (opn_5flags_correct ii tag (Some U32) sz _ _ hvs hvo hw).
         + apply: disjoint_w Hdisje .
           apply: SvP.MP.subset_trans hrl.
           apply: (SvP.MP.subset_trans hsub).
@@ -1223,11 +1259,22 @@ Section PROOF.
 
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
-      move=> o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
-      case: (opn_5flags_correct ii tag m _ _ hxs hys hs2).
+      move=> sz o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
+      case: (opn_5flags_correct ii tag m sz _ _ hxs hys hs2).
       move: LE Hdisje. apply disjoint_w.
       exact Hdisjl.
       exact: (aux_eq_exc_trans Hs2').
+
+    (* LowerDiscardFlags *)
+    + set vi := var_info_of_lval _.
+      move=> n o es [] hreades.
+      t_xrbindP=> ys xs hxs hys hs2.
+      exists s2'.
+      split; last exact: Hs2'.
+      apply: sem_seq1. constructor. constructor.
+      rewrite /sem_sopn hxs {hxs} /=.
+      rewrite hys {hys} /=.
+      exact: hs2.
 
     (* LowerCond *)
     + move=> _.
@@ -1344,27 +1391,6 @@ Section PROOF.
     t_xrbindP => wx /to_wordI' [sz'] [wx'] [hle' -> ->] {x wx}.
     case: y => // h.
     by eexists _, w1, _, wx'.
-  Qed.
-
-  Lemma unsigned_overflow sz (z: Z):
-    (0 <= z)%Z ->
-    (wunsigned (wrepr sz z) != z) = (wbase sz <=? z)%Z.
-  Proof.
-    move => hz.
-    rewrite wunsigned_repr; apply/idP/idP.
-    * apply: contraR => /negbTE /Z.leb_gt lt; apply/eqP.
-        by rewrite Z.mod_small //; lia.
-    * apply: contraL => /eqP <-; apply/negbT/Z.leb_gt.
-      by case: (Z_mod_lt z (wbase sz)).
-  Qed.
-
-  Lemma add_overflow sz (w1 w2: word sz) :
-    (wbase sz <=? wunsigned w1 + wunsigned w2)%Z =
-    (wunsigned (w1 + w2) != (wunsigned w1 + wunsigned w2)%Z).
-  Proof.
-    rewrite unsigned_overflow //; rewrite -!/(wunsigned _).
-    have := wunsigned_range w1; have := wunsigned_range w2.
-    lia.
   Qed.
 
   Lemma add_carry_overflow sz (w1 w2: word sz) (b: bool) :
@@ -1524,7 +1550,7 @@ Section PROOF.
       }
       clear C.
       case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
-      case: (opn_5flags_correct ii t (Some U32) des' dxs hxs' hv' ho') => {hv' ho'} so'.
+      case: (opn_5flags_correct ii t (Some U32) sz des' dxs hxs' hv' ho') => {hv' ho'} so'.
       intuition eauto using eeq_excT.
     Qed.
     Opaque lower_addcarry.

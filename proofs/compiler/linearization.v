@@ -65,7 +65,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
        The linear instruction [lip_allocate_stack_frame rspi sz] increases the
        stack pointer [sz] bytes.
        In symbols, it corresponds to:
-               R[rsp] := R[rsp] + sz
+               R[rsp] := R[rsp] − sz
      *)
     lip_allocate_stack_frame :
       var_i    (* Variable with stack pointer register. *)
@@ -389,8 +389,8 @@ Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   if sz == 0%Z
   then [::]
   else let args := if free
-                   then (lip_allocate_stack_frame liparams) rspi sz
-                   else (lip_free_stack_frame liparams) rspi sz
+                   then (lip_free_stack_frame liparams) rspi sz
+                   else (lip_allocate_stack_frame liparams) rspi sz
        in [:: MkLI ii (Lopn args.1.1 args.1.2 args.2) ].
 
 Definition ensure_rsp_alignment ii (al: wsize) : linstr :=
@@ -441,6 +441,9 @@ Definition pop_to_save
       dummy_linstr (* Never happens. *)
   in
   map mkli to_save.
+
+Let ReturnTarget := Llabel ExternalLabel.
+Let Llabel := linear.Llabel InternalLabel.
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
@@ -533,7 +536,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
           (lbl, before
                   ++ MkLI ii (LstoreLabel ra lret)
                   :: MkLI ii (Lgoto lcall)
-                  :: MkLI ii (Llabel lret)
+                  :: MkLI ii (ReturnTarget lret)
                   :: after
                   ++ lc
           )
@@ -554,7 +557,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
                        ++ MkLI ii (LstoreLabel ra lret)
                        :: of_olinstr_r ii (lstore rspi z Uptr glob_ra)
                        :: MkLI ii (Lgoto lcall)
-                       :: MkLI ii (Llabel lret)
+                       :: MkLI ii (ReturnTarget lret)
                        :: after
                        ++ lc
                )
@@ -565,7 +568,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
+Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r =>
@@ -614,24 +617,26 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
      end
   in
   let fd' := linear_c linear_i body lbl tail in
-  head ++ fd'.2.
+  (fd'.1, head ++ fd'.2).
 
 Definition linear_fd (fd: sfundef) :=
   let e := fd.(f_extra) in
   let is_export := sf_return_address e == RAnone in
   let res := if is_export then f_res fd else [::] in
-  {| lfd_info := f_info fd
-  ; lfd_align := sf_align e
-  ; lfd_tyin := f_tyin fd
-  ; lfd_arg := f_params fd
-  ; lfd_tyout := f_tyout fd
-  ; lfd_total_stack := sf_stk_max e
-  ; lfd_used_stack := sf_stk_max_used e
-  ; lfd_res := res
-  ; lfd_export := is_export
-  ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
-  ; lfd_body := linear_body e fd.(f_body)
-  |}.
+  let body := linear_body e fd.(f_body) in
+  (body.1,
+    {| lfd_info := f_info fd
+    ; lfd_align := sf_align e
+    ; lfd_tyin := f_tyin fd
+    ; lfd_arg := f_params fd
+    ; lfd_tyout := f_tyout fd
+    ; lfd_total_stack := sf_stk_max e
+    ; lfd_used_stack := sf_stk_max_used e
+    ; lfd_res := res
+    ; lfd_export := is_export
+    ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
+    ; lfd_body := body.2
+    |}).
 
 End FUN.
 
@@ -639,11 +644,17 @@ Definition linear_prog : cexec lprog :=
   Let _ := check_prog in
   Let _ := assert (size p.(p_globs) == 0)
              (E.internal_error "invalid p_globs") in
-  let funcs := map (fun '(f,fd) => (f, linear_fd f fd)) p.(p_funcs) in
+  let funcs := fmap (fun nb_lbl '(f,fd) =>
+    let fd := linear_fd f fd in
+    ((nb_lbl + fd.1)%positive, (f, fd.2))) 1%positive p.(p_funcs)
+  in
+  Let _ := assert (funcs.1 <=? wbase Uptr)%Z
+                  (E.internal_error "too many labels")
+  in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_rsp   := p.(p_extra).(sp_rsp);
         lp_globs := p.(p_extra).(sp_globs);
-        lp_funcs := funcs |}.
+        lp_funcs := funcs.2 |}.
 
 End PROG.
 End WITH_PARAMS.

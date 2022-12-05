@@ -358,7 +358,7 @@ Definition compiler_back_end entries (pd: sprog) :=
     | None => None
     end
   in
-  Let pl := prog_clear_stack css_of_fn (ap_csp aparams) pl in
+  Let pl := clear_stack_lprog css_of_fn (ap_csp aparams) pl in
   let pl := cparams.(print_linear) ClearStack pl in
 
   (* tunneling                         *)

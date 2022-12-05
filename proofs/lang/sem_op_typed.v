@@ -39,6 +39,8 @@ Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u
 Definition sem_shr {s} := @sem_shift (@wshr) s.
 Definition sem_sar {s} := @sem_shift (@wsar) s.
 Definition sem_shl {s} := @sem_shift (@wshl) s.
+Definition sem_ror {s} := @sem_shift (@wror) s.
+Definition sem_rol {s} := @sem_shift (@wrol) s.
 
 Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%R ws).
 Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%R ws).
@@ -93,6 +95,8 @@ Definition sem_sop2_typed (o: sop2) :
   | Olsl (Op_w s) => mk_sem_sop2 sem_shl
   | Oasr Op_int   => mk_sem_sop2 zasr 
   | Oasr (Op_w s) => mk_sem_sop2 sem_sar
+  | Oror s        => mk_sem_sop2 sem_ror
+  | Orol s        => mk_sem_sop2 sem_rol
  
   | Oeq Op_int    => mk_sem_sop2 Z.eqb
   | Oeq (Op_w s)  => mk_sem_sop2 eq_op

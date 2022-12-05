@@ -59,6 +59,8 @@ Variant sop2 :=
 | Olsr  of wsize 
 | Olsl  of op_kind
 | Oasr  of op_kind
+| Oror  of wsize
+| Orol  of wsize
 
 | Oeq   of op_kind
 | Oneq  of op_kind
@@ -162,7 +164,7 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Odiv (Cmp_w _ s) | Omod (Cmp_w _ s)
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
-  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s)
+  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s) | Oror s | Orol s
   | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
     => let t := sword s in (t, sword8, t)
   | Oeq Op_int | Oneq Op_int
@@ -599,12 +601,13 @@ Qed.
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
 Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_location return_address_location_eqMixin.
 
-Record stk_fun_extra := MkSFun { 
+Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
   sf_stk_sz         : Z;
   sf_stk_extra_sz   : Z;
   sf_stk_max_used   : Z;
   sf_stk_max        : Z;
+  sf_max_call_depth : Z;
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
@@ -614,7 +617,8 @@ Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
   (e1.(sf_align) == e2.(sf_align)) &&
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
   (e1.(sf_stk_max_used) == e2.(sf_stk_max_used)) &&
-  (e1.(sf_stk_max) == e2.(sf_stk_max)) && 
+  (e1.(sf_stk_max) == e2.(sf_stk_max)) &&
+  (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)) &&
   (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
   (e1.(sf_to_save) == e2.(sf_to_save)) &&
   (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
@@ -622,9 +626,9 @@ Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
 Proof.
-  case => a b c d e f g h [] a' b' c' d' e' f' g' h'; apply: (equivP andP) => /=; split.
-  + by case => /andP[] /andP[] /andP[] /andP[] /andP [] /andP [] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
-  by case => <- <- <- <- <- <- <- <-; rewrite !eqxx.
+  case => a b c d e f g h i [] a' b' c' d' e' f' g' h' i'; apply: (equivP andP) => /=; split.
+  + by case => /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
+  by case => <- <- <- <- <- <- <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
@@ -696,12 +700,28 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
-Definition is_app1 (e : pexpr) :=
-  if e is Papp1 op e
-  then Some (op, e)
-  else None.
-
-Definition cast_w ws := Papp1 (Oword_of_int ws).
+Fixpoint cast_w ws (e: pexpr) : pexpr :=
+  match e with
+  | Papp2 (Oadd Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Oadd (Op_w ws)) e1 e2
+  | Papp2 (Osub Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Osub (Op_w ws)) e1 e2
+  | Papp2 (Omul Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Omul (Op_w ws)) e1 e2
+  | Papp1 (Oneg Op_int) e' =>
+      let: e' := cast_w ws e' in
+      Papp1 (Oneg (Op_w ws)) e'
+  | Papp1 (Oint_of_word ws') e' =>
+      if (ws ≤ ws')%CMP then e'
+      else Papp1 (Oword_of_int ws) e
+  | _ => Papp1 (Oword_of_int ws) e
+  end.
 
 Definition pword_of_int ws z := cast_w ws (Pconst z).
 

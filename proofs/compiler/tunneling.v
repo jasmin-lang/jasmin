@@ -2,7 +2,7 @@ From mathcomp Require Import all_ssreflect.
 Require Import ZArith.
 
 Require Import Utf8.
-Require Import expr compiler_util linear.
+Require Import expr compiler_util linear label.
 Require Import seq_extra unionfind.
 
 Set Implicit Arguments.
@@ -28,7 +28,7 @@ Context `{asmop : asmOp}.
 Section LprogSem.
 
   Definition labels_of_body fb :=
-    pmap (λ li, if li_i li is Llabel lbl then Some lbl else None) fb.
+    pmap (λ li, if li_i li is Llabel _ lbl then Some lbl else None) fb.
 
   Definition goto_targets fb :=
     pmap (λ li, if li_i li is Lgoto lbl then Some lbl else None) fb.
@@ -63,9 +63,9 @@ Section Tunneling.
 
   Definition tunnel_chart fn uf c c' :=
     match c, c' with
-    | {| li_i := Llabel l |}, {| li_i := Llabel l' |} =>
+    | {| li_i := Llabel InternalLabel l |}, {| li_i := Llabel InternalLabel l' |} =>
         LUF.union uf l l'
-    | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
+    | {| li_i := Llabel InternalLabel l |}, {| li_i := Lgoto (fn',l') |} =>
         if fn == fn' then LUF.union uf l l' else uf
     | _, _ => uf
     end.

@@ -141,24 +141,6 @@ Let vm := evm s.
 Lemma arm_spec_lip_allocate_stack_frame ts sz :
   let args := lip_allocate_stack_frame arm_liparams vrspi sz in
   let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let ts' := pword_of_word (ts + wrepr Uptr sz) in
-  let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
-  (vm.[vrsp])%vmap = ok (pword_of_word ts)
-  -> eval_instr lp i (of_estate s fn pc)
-     = ok (of_estate s' fn pc.+1).
-Proof.
-  move=> /= hvm.
-  rewrite /eval_instr /=.
-  rewrite /sem_sopn /=.
-  rewrite /get_gvar /get_var /on_vu /=.
-  rewrite hvm /=.
-  rewrite pword_of_wordE.
-  by rewrite zero_extend_u zero_extend_wrepr.
-Qed.
-
-Lemma arm_spec_lip_free_stack_frame ts sz :
-  let args := lip_free_stack_frame arm_liparams vrspi sz in
-  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
   let ts' := pword_of_word (ts - wrepr Uptr sz) in
   let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
   (vm.[vrsp])%vmap = ok (pword_of_word ts)
@@ -171,7 +153,25 @@ Proof.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite hvm /=.
   rewrite pword_of_wordE.
-  rewrite wrepr_opp.
+  rewrite wsub_wnot1.
+  by rewrite zero_extend_u zero_extend_wrepr.
+Qed.
+
+Lemma arm_spec_lip_free_stack_frame ts sz :
+  let args := lip_free_stack_frame arm_liparams vrspi sz in
+  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
+  let ts' := pword_of_word (ts + wrepr Uptr sz) in
+  let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
+  (vm.[vrsp])%vmap = ok (pword_of_word ts)
+  -> eval_instr lp i (of_estate s fn pc)
+     = ok (of_estate s' fn pc.+1).
+Proof.
+  move=> /= hvm.
+  rewrite /eval_instr /=.
+  rewrite /sem_sopn /=.
+  rewrite /get_gvar /get_var /on_vu /=.
+  rewrite hvm /=.
+  rewrite pword_of_wordE.
   by rewrite zero_extend_u zero_extend_wrepr.
 Qed.
 
@@ -264,33 +264,13 @@ Proof.
     rewrite htrunc {htrunc} /=.
     by rewrite hwrite {hwrite} /=.
 
-  - move=> [?]; subst li.
-    rewrite /eval_instr /= /sem_sopn /=.
-    rewrite to_estate_of_estate.
-    rewrite hseme {hseme} /=.
-    rewrite /exec_sopn /=.
-    rewrite htrunc {htrunc} /=.
-    rewrite zero_extend_u.
-    by rewrite hwrite {hwrite} /=.
-
-  case: op1 hseme => [||| [] wsin |||] // hseme.
-  case: e hseme => //= ??? hseme.
-  case hmn: uload_mn_of_wsize => [mn|] // [?]; subst li.
+  move=> [?]; subst li.
   rewrite /eval_instr /= /sem_sopn /=.
   rewrite to_estate_of_estate.
-
-  move: hseme.
-  t_xrbindP=> v w0 v0 hv0 hw0 w1 v1 hv1 hw1 w2 hw2 ? hw'; subst v.
-  rewrite hv0 /= hw0 {hv0 hw0} /=.
-  rewrite hv1 /= hw1 {hv1 hw1} /=.
-  rewrite hw2 {hw2} /=.
-  move: hw' => /sem_sop1I /= [w2' hw2' hw'].
-  move: hw' => /Vword_inj [?]; subst ws'.
-  move=> /= ?; subst w'.
-  rewrite (uload_mn_of_wsizeP hmn hw2') {hmn hw2'} /=.
-  move: htrunc.
-  rewrite truncate_word_u.
-  move=> [?]; subst w.
+  rewrite hseme {hseme} /=.
+  rewrite /exec_sopn /=.
+  rewrite htrunc {htrunc} /=.
+  rewrite zero_extend_u.
   by rewrite hwrite {hwrite} /=.
 Qed.
 

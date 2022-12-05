@@ -155,7 +155,7 @@ let exec spp scs0 p ii fn args m =
 
 (* ----------------------------------------------------------- *)
 let pp_undef fmt ty = 
-  Format.fprintf fmt "undef<%a>" Printer.pp_ty (Conv.ty_of_cty ty)
+  Format.fprintf fmt "undef<%a>" PrintCommon.pp_ty (Conv.ty_of_cty ty)
  
 let pp_word fmt ws w = 
   let z = Word0.wunsigned ws w in

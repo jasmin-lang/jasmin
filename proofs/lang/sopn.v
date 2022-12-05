@@ -31,13 +31,12 @@ Record instruction_desc := mkInstruction {
                 List.Forall2 value_uincl vs vs' ->
                 app_sopn_v semi vs = ok v ->
                 exists2 v', app_sopn_v semi vs' = ok v' & List.Forall2 value_uincl v v';
-  wsizei   : wsize;
   i_safe   : seq safe_cond;
 }.
 
 Arguments semu _ [vs vs' v] _ _.
 
-Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
+Notation mk_instr_desc str tin i_in tout i_out semi safe :=
   {| str      := str;
      tin      := tin;
      i_in     := i_in;
@@ -45,7 +44,6 @@ Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
      i_out    := i_out;
      semi     := semi;
      semu     := @vuincl_app_sopn_v tin tout semi refl_equal;
-     wsizei   := wsizei;
      i_safe   := safe;
   |}.
 
@@ -118,7 +116,6 @@ Definition Ocopy_instr ws p :=
      i_out    := [:: E 0];
      semi     := @WArray.copy ws p;
      semu     := @vuincl_copy ws p;
-     wsizei   := U8; (* ??? *)
      i_safe   := [:: AllInit ws p 0];
   |}.
 
@@ -127,7 +124,7 @@ Definition Onop_instr :=
            [::] [::]
            [::] [::]
            (ok tt)
-           U64 [::].
+           [::].
 
 Definition Omulu_instr sz :=
   mk_instr_desc (pp_sz "mulu" sz)
@@ -135,7 +132,7 @@ Definition Omulu_instr sz :=
            [:: E 0; E 1] (* this info is irrelevant *)
            [:: sword sz; sword sz]
            [:: E 2; E 3] (* this info is irrelevant *)
-           (fun x y => ok (@wumul sz x y)) sz [::].
+           (fun x y => ok (@wumul sz x y)) [::].
  
 Definition Oaddcarry_instr sz :=
   mk_instr_desc (pp_sz "adc" sz)
@@ -144,7 +141,7 @@ Definition Oaddcarry_instr sz :=
            [:: sbool; sword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @waddcarry sz x y c in ok (Some p.1, p.2))
-           sz [::].
+           [::].
 
 Definition Osubcarry_instr sz:= 
   mk_instr_desc (pp_sz "sbb" sz)
@@ -153,7 +150,7 @@ Definition Osubcarry_instr sz:=
            [:: sbool; sword sz]
            [:: E 3; E 4]      (* this info is irrelevant *)
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
-           sz [::].
+           [::].
 
 Definition get_instr_desc o :=
   match o with
@@ -170,7 +167,6 @@ Definition string_of_sopn o : string := str (get_instr_desc o) tt.
 Definition sopn_tin o : list stype := tin (get_instr_desc o).
 Definition sopn_tout o : list stype := tout (get_instr_desc o).
 Definition sopn_sem  o := semi (get_instr_desc o).
-Definition wsize_of_sopn o : wsize := wsizei (get_instr_desc o).
 
 Instance eqC_sopn : eqTypeC sopn :=
   { ceqP := sopn_eq_axiom }.

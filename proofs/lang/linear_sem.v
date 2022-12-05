@@ -24,8 +24,11 @@ Context
   {ovm_i : one_varmap_info}
   (P : lprog).
 
+Definition get_label (i : linstr) : option label :=
+  if li_i i is Llabel ExternalLabel lbl then Some lbl else None.
+
 Definition label_in_lcmd (body: lcmd) : seq label :=
-  pmap (λ i, if li_i i is Llabel lbl then Some lbl else None) body.
+  pmap get_label body.
 
 Definition label_in_lprog : seq remote_label :=
   [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].
@@ -78,7 +81,7 @@ Definition find_instr (s:lstate) :=
 
 Definition get_label_after_pc (s:lstate) :=
   if find_instr (setpc s s.(lpc).+1) is Some i then
-    if li_i i is Llabel l then ok l
+    if li_i i is Llabel ExternalLabel l then ok l
     else type_error
   else type_error.
 
@@ -125,7 +128,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       eval_jump d s1'
     else type_error
   | Lalign   => ok (setpc s1 s1.(lpc).+1)
-  | Llabel _ => ok (setpc s1 s1.(lpc).+1)
+  | Llabel _ _ => ok (setpc s1 s1.(lpc).+1)
   | Lgoto d => eval_jump d s1
   | Ligoto e =>
     Let p := sem_pexpr [::] (to_estate s1) e >>= to_pointer in

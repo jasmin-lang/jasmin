@@ -141,9 +141,9 @@ Definition lower_condition (e : pexpr) : seq instr_r * pexpr :=
 (* Lowering of assignments. *)
 
 Definition get_arg_shift
-  (ws : wsize) (e : pexpr) : option (pexpr * shift_kind * pexpr) :=
+  (ws : wsize) (e : pexprs) : option (pexpr * shift_kind * pexpr) :=
   if e is
-    Papp2 op ((Pvar _) as v) ((Papp1 (Oword_of_int U8) (Pconst z)) as n)
+    [:: Papp2 op ((Pvar _) as v) ((Papp1 (Oword_of_int U8) (Pconst z)) as n) ]
   then
     if shift_of_sop2 ws op is Some sh
     then
@@ -154,15 +154,15 @@ Definition get_arg_shift
     None.
 
 Definition arg_shift
-  (mn : arm_mnemonic) (ws : wsize) (e : pexpr) : arm_op * seq pexpr :=
+  (mn : arm_mnemonic) (ws : wsize) (e : pexprs) : arm_op * seq pexpr :=
   let '(osh, es) :=
     if mn \in has_shift_mnemonics
     then
       if get_arg_shift ws e is Some (ebase, sh, esham)
       then (Some sh, [:: ebase; esham ])
-      else (None, [:: e ])
+      else (None, e)
     else
-      (None, [:: e ])
+      (None, e)
   in
   let opts :=
     {| set_flags := false; is_conditional := false; has_shift := osh; |}
@@ -194,6 +194,20 @@ Definition lower_Pload
   then Some (ARM_op LDR default_opts, [:: Pload ws' v e ])
   else None.
 
+Definition is_load (e: pexpr) : bool :=
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _
+  | Psub _ _ _ _ _
+  | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
+    => false
+  | Pvar {| gs := Sglob |}
+  | Pget _ _ _ _
+  | Pload _ _ _
+    => true
+  | Pvar {| gs := Slocal ; gv := x |}
+    => is_var_in_memory x
+  end.
+
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
   if ws is U32
   then
@@ -201,7 +215,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
     | Oword_of_int U32 =>
         Some (ARM_op MOV default_opts, [:: Papp1 op e ])
     | Osignext U32 ws' =>
-        if e is Pload _ _ _
+        if is_load e
         then
           if sload_mn_of_wsize ws' is Some mn
           then Some (ARM_op mn default_opts, [:: e ])
@@ -209,7 +223,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
         else
           None
     | Ozeroext U32 ws' =>
-        if e is Pload _ _ _
+        if is_load e
         then
           if uload_mn_of_wsize ws' is Some mn
           then Some (ARM_op mn default_opts, [:: e ])
@@ -217,7 +231,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
         else
           None
     | Olnot U32 =>
-        Some (arg_shift MVN U32 e)
+        Some (arg_shift MVN U32 [:: e ])
     | _ =>
         None
     end
@@ -226,32 +240,37 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
 
 Definition lower_Papp2_op
   (ws : wsize) (op : sop2) (e0 e1 : pexpr) :
-  option (arm_mnemonic * pexpr * pexpr) :=
+  option (arm_mnemonic * pexpr * pexprs) :=
   if ws is U32
   then
     match op with
     | Oadd (Op_w _) =>
-        Some (ADD, e0, e1)
+        Some (ADD, e0, [:: e1 ])
     | Omul (Op_w _) =>
-        Some (MUL, e0, e1)
+        Some (MUL, e0, [:: e1 ])
     | Osub (Op_w _) =>
-        Some (SUB, e0, e1)
+        Some (SUB, e0, [:: e1 ])
     | Odiv (Cmp_w Signed U32) =>
-        Some (SDIV, e0, e1)
+        Some (SDIV, e0, [:: e1 ])
     | Odiv (Cmp_w Unigned U32) =>
-        Some (UDIV, e0, e1)
+        Some (UDIV, e0, [:: e1 ])
     | Oland _ =>
-        Some (AND, e0, e1)
+        Some (AND, e0, [:: e1 ])
     | Olor _ =>
-        Some (ORR, e0, e1)
+        Some (ORR, e0, [:: e1 ])
     | Olxor _ =>
-        Some (EOR, e0, e1)
+        Some (EOR, e0, [:: e1 ])
     | Olsr U32 =>
-        Some (LSR, e0, e1)
+        if is_zero U8 e1 then Some (MOV, e0, [::])
+        else Some (LSR, e0, [:: e1 ])
     | Olsl (Op_w U32) =>
-        Some (LSL, e0, e1)
+        Some (LSL, e0, [:: e1 ])
     | Oasr (Op_w U32) =>
-        Some (ASR, e0, e1)
+        if is_zero U8 e1 then Some (MOV, e0, [::])
+        else Some (ASR, e0, [:: e1 ])
+    | Oror U32 =>
+        if is_zero U8 e1 then Some (MOV, e0, [::])
+        else Some (ROR, e0, [:: e1 ])
     | _ =>
         None
     end
@@ -346,13 +365,44 @@ Definition lower_cassgn
 (* -------------------------------------------------------------------- *)
 (* Lowering of architecture-specific operations. *)
 
+Definition lower_add_carry
+  (lvs : seq lval) (es : seq pexpr) : option copn_args :=
+  match lvs, es with
+  | [:: cf; r ], [:: x; y; b ] =>
+      let args :=
+        match b with
+        | Pbool false => Some (ADD, [:: x; y ])
+        | Pvar _ => Some (ADC, es)
+        | _ => None
+        end
+      in
+      if args is Some (mn, es')
+      then
+        let opts :=
+          {| set_flags := true; is_conditional := false; has_shift := None; |}
+        in
+        let lnoneb := Lnone dummy_var_info sbool in
+        let lvs' := [:: lnoneb; lnoneb; cf; lnoneb; r ] in
+        Some (lvs', Oasm (BaseOp (None, ARM_op mn opts)), es')
+      else
+        None
+  | _, _ =>
+      None
+  end.
+
+(* TODO_ARM: Lower shifts. *)
+Definition lower_base_op
+  (lvs : seq lval) (aop : arm_op) (es : seq pexpr) : option copn_args :=
+  let '(ARM_op mn opts) := aop in
+  if mn \in has_shift_mnemonics
+  then Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+  else None.
+
 Definition lower_copn
   (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
   match op with
-  | Oasm (BaseOp (None, ARM_op mn opts)) =>
-      if mn \in has_shift_mnemonics
-      then Some (lvs, op, es) (* TODO_ARM: Complete. *)
-      else None
+  | Oaddcarry U32 => lower_add_carry lvs es
+  | Oasm (BaseOp (None, aop)) => lower_base_op lvs aop es
   | _ => None
   end.
 

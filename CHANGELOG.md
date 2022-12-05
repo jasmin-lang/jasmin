@@ -6,6 +6,21 @@
 - Support ARMv7 (Cortex-M4) as target architecture
   ([PR #242](https://github.com/jasmin-lang/jasmin/pull/242)).
 
+- Compute the maximal call depth for each function; a function annotation
+  `#[calldepth=n]` can be used to check that the maximal call depth is exactly
+  `n`
+  ([PR #282](https://github.com/jasmin-lang/jasmin/pull/282)).
+
+- More x86 instructions are available:
+  `VPMUL`
+  ([PR #276](https://github.com/jasmin-lang/jasmin/pull/276)),
+  `VPAVG`
+  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)).
+
+- Add bit rotation operators for expressions: `<<r` and `>>r`
+  ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
+  These get extracted to `|<<|` and `|>>|` in EasyCrypt.
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
@@ -126,7 +141,7 @@
   fixes [#136](https://github.com/jasmin-lang/jasmin/issues/136),
   fixes [#104](https://github.com/jasmin-lang/jasmin/issues/104)).
 
-# Jasmin 22.0
+# Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus
 contains a lot of new functionalities compared to Jasmin 21.0, the main ones

@@ -635,6 +635,21 @@ Section MAP2.
 
 End MAP2.
 
+Section FMAP.
+
+  Context (A B C:Type) (f : A -> B -> A * C).
+
+  Fixpoint fmap (a:A) (bs:seq B) : A * seq C :=
+    match bs with
+    | [::] => (a, [::])
+    | b::bs =>
+      let (a, c) := f a b in
+      let (a, cs) := fmap a bs in
+      (a, c :: cs)
+    end.
+
+End FMAP.
+
 Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> seq bT -> result eT (aT * seq cT) :=
   fix mapM a xs :=
     match xs with

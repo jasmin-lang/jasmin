@@ -5,7 +5,7 @@ open Regalloc
 let pp_var = Printer.pp_var ~debug:true
 
 let pp_var_ty fmt x =
- Format.fprintf fmt "%a %a" Printer.pp_ty x.v_ty pp_var x
+ Format.fprintf fmt "%a %a" PrintCommon.pp_ty x.v_ty pp_var x
 
 let pp_param_info tbl fmt pi =
   let open Stack_alloc in
@@ -88,7 +88,7 @@ let pp_sao tbl fmt (sao, sao_info) =
       Z.pp_print sao_max_size Z.pp_print max_frame_size
       Z.pp_print (Z.sub sao_max_size max_frame_size)
   in
-  Format.fprintf fmt "alignment = %s@;size = %a@;extra size = %t@;frame size = %t@;max frame size = %t@;max used size = %a@;max size = %t@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
+  Format.fprintf fmt "alignment = %s@;size = %a@;extra size = %t@;frame size = %t@;max frame size = %t@;max used size = %a@;max size = %t@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
    (string_of_ws sao.sao_align)
     Z.pp_print sao_size
     pp_extra
@@ -96,6 +96,7 @@ let pp_sao tbl fmt (sao, sao_info) =
     pp_max_frame
     Z.pp_print (Conv.z_of_cz sao.sao_max_size_used)
     pp_max
+    Z.pp_print (Conv.z_of_cz sao.sao_max_call_depth)
     (pp_list "@;" (pp_param_info tbl)) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
     (pp_list "@;" (pp_slot tbl)) sao.sao_slots
@@ -166,6 +167,7 @@ let memory_analysis pp_err ~debug tbl up =
         sao_extra_size = Z0;
         sao_max_size_used = Z0;
         sao_max_size = Z0;
+        sao_max_call_depth = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
         sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
         sao_slots  = do_slots sao.sao_slots;
@@ -256,15 +258,17 @@ let memory_analysis pp_err ~debug tbl up =
       else extra in
     (* extra_size includes extra_padding *)
     let extra_size, extra_padding, align, extrapos = Varalloc.extend_sao sao extra in
-    let align, max_stk = 
-      Sf.fold (fun fn (align, max_stk) ->
+    let align, max_stk, max_call_depth =
+      Sf.fold (fun fn (align, max_stk, max_call_depth) ->
           let sao = get_sao fn in
-          let fn_algin = sao.Stack_alloc.sao_align in
-          let align = if wsize_lt align fn_algin then fn_algin else align in
+          let fn_align = sao.Stack_alloc.sao_align in
+          let align = if wsize_lt align fn_align then fn_align else align in
           let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size) in
-          let max_stk = if Z.lt max_stk fn_max then fn_max else max_stk in
-          align, max_stk
-        ) sao.sao_calls (align, Z.zero) in
+          let max_stk = Z.max max_stk fn_max in
+          let fn_max_call_depth = Conv.z_of_cz (sao.Stack_alloc.sao_max_call_depth) in
+          let max_call_depth = Z.max max_call_depth fn_max_call_depth in
+          align, max_stk, max_call_depth
+        ) sao.sao_calls (align, Z.zero, Z.zero) in
     (* if we clear the stack, we may have to increase the alignment *)
     let align =
       match fd.f_cc, fd.f_annot.clear_stack with
@@ -310,6 +314,7 @@ let memory_analysis pp_err ~debug tbl up =
       | _, _ -> max_size
     in
     let max_size = Z.add max_stk max_frame_size in
+    let max_call_depth = Z.succ max_call_depth in
     let saved_stack = 
       if has_stack then
         match ro.ro_rsp with
@@ -335,6 +340,7 @@ let memory_analysis pp_err ~debug tbl up =
         sao_extra_size = Conv.cz_of_int extra_size;
         sao_max_size_used = Conv.cz_of_z max_size_used;
         sao_max_size = Conv.cz_of_z max_size;
+        sao_max_call_depth = Conv.cz_of_z max_call_depth;
         sao_to_save = convert_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;
         sao_return_address =

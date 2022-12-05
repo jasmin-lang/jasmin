@@ -6,7 +6,7 @@ param int ROUND_CONSTANT_LOW = 0x7900;
 
 inline
 fn rotate (reg u32 x, inline int bits) -> reg u32 {
-    x = #ror(x, bits);
+    x = #ROR(x, bits);
     return x;
 }
 
@@ -28,7 +28,7 @@ fn gimli (reg u32 state) {
     reg u32 rc;
 
     rc = ROUND_CONSTANT_LOW;
-    rc = #movt(rc, ROUND_CONSTANT_HIGH);
+    rc = #MOVT(rc, ROUND_CONSTANT_HIGH);
 
     for round = N_ROUND downto 0 {
     for column = 0 to N_COLUMN {

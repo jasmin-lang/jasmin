@@ -278,7 +278,7 @@ Qed.
 
 Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
-       (eq_expr e (Plvar {| v_var := var_of_implicit i; v_info := dummy_var_info |}))
+       is_implicit i e
     -> check_sopn_argI rip ii args e (ADImplicit i) ty
 
 | CSA_Explicit k n o a a' ty :
@@ -332,6 +332,11 @@ Proof.
   by rewrite truncate_word_u => -[].
 Qed.
 
+Lemma is_implicitP i e :
+  is_implicit i e →
+  ∃ vi, e = Pvar {| gs := Slocal ; gv := {| v_var := var_of_implicit i ; v_info := vi |} |}.
+Proof. by case: e => // - [] [] x vi [] //= /eqP ->; exists vi. Qed.
+
 Section EVAL_ASSEMBLE_COND.
 
 Definition get_rf (rf : rflagmap) (x : rflag) : exec bool :=
@@ -363,7 +368,7 @@ Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
 Proof.
   move=> eqm /check_sopn_argP /= h.
   case: h vt.
-  + move=> i {ty} ty /eq_exprP -> vt /=.
+  + move=> i {ty} ty /is_implicitP[] vi -> vt /=.
     case: i => /= [f | r]; first by apply: var_of_flagP eqm.
     by apply: var_of_regP eqm.
   move=> k n o a a' [ | | | ws] //= ->.
@@ -717,7 +722,7 @@ Proof.
   case: id Hargs Hdest =>
     /= msb_flag id_tin id_in id_tout id_out id_semi id_args_kinds id_nargs
     /andP[] /eqP hsin /eqP hsout
-    _ _ id_str_jas id_check_dest id_safe id_wsize id_pp
+    _ _ id_str_jas id_check_dest id_safe id_pp
     Hargs Hdest vt happ ?;
     subst x.
   elim: id_in id_tin hsin id_semi args vs Hargs happ Hvs; rewrite /sem_prod.
@@ -1206,7 +1211,7 @@ Lemma assemble_i_is_label (li : linstr) (ai : asm_i) lbl :
   -> linear.is_label lbl li = arch_sem.is_label lbl ai.
 Proof.
   by (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
-    => /= [ > _ <- | > <- | > <- | <- | <- | ? <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
+    => /= [ > _ <- | > <- | > <- | <- | <- | > <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
 Qed.
 
 Lemma assemble_c_find_is_label (lc : lcmd) (ac : asm_code) lbl :
@@ -1233,7 +1238,7 @@ Qed.
 
 Lemma eval_assemble_word ii sz e a s xs v :
   lom_eqv rip s xs
-  -> is_app1 e = None
+  -> is_not_app1 e
   -> assemble_word_load rip ii sz e = ok a
   -> sem_pexpr [::] s e = ok v
   -> exists2 v',
@@ -1483,13 +1488,13 @@ Lemma assemble_get_label_after_pc lc xs ls l:
   → lfn ls = asm_f xs
     → lpc ls = asm_ip xs
       → ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
-        → get_label_after_pc p ls = ok l → onth (asm_c xs) (asm_ip xs).+1 = Some (LABEL l).
+        → get_label_after_pc p ls = ok l → onth (asm_c xs) (asm_ip xs).+1 = Some (LABEL ExternalLabel l).
 Proof.
   move=> eqc eqfn eqpc omap_lc; rewrite /get_label_after_pc /find_instr /= eqpc.
   case: get_fundef omap_lc => // _ [->].
   case onth_eq : onth => [ [ii_ i] | //].
   have [i' [-> /= ]]:= mapM_onth eqc onth_eq.
-  by case: (i) => // ? [<-] [->].
+  by case: (i) => // - [] // ? [<-] [->].
 Qed.
 
 Lemma assemble_iP i j ls ls' lc xs :
@@ -1650,14 +1655,13 @@ Proof.
     eexists; first reflexivity.
     eexists; first eassumption.
     by constructor => //; rewrite /setpc eqpc.
-  - move=> lbl [<-] [?]; subst ls'.
+  - move=> k lbl [<-] [?]; subst ls'.
     eexists; first reflexivity.
     eexists; first eassumption.
     constructor => //.
     by rewrite /setpc /= eqpc.
   - by move=> r [<-]; apply: eval_jumpP.
-  - t_xrbindP=> e.
-    case ok_e: is_app1 => [ // | ] _.
+  - t_xrbindP=> e ok_e.
     move => d ok_d <- ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
     change reg_size with Uptr in ptr.
     have [v' -> /value_uinclE /= [? [? [-> /hptr /= ->]]]] := eval_assemble_word eqm ok_e ok_d ok_v.

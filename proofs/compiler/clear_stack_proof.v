@@ -178,7 +178,7 @@ Proof.
   rewrite /find_instr /=.
   case hget: get_fundef => [lfd|//].
   case hnth: oseq.onth => [i|//].
-  case: i hnth => ii []//= lbl' hnth [?]; subst lbl'.
+  case: i hnth => ii []//= []// lbl' hnth [?]; subst lbl'.
   Search (_ \in _) flatten.
   apply /flattenP => /=.
 Admitted.

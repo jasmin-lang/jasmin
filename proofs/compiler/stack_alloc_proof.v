@@ -785,29 +785,13 @@ Proof.
   by case: Mvar.get => [_|//] [-> ?].
 Qed.
 
-Lemma cast_ptrP gd s e i : sem_pexpr gd s e >>= to_int = ok i ->
-  sem_pexpr gd s (cast_ptr e) = ok (Vword (wrepr Uptr i)).
-Proof.
-  by t_xrbindP => v he hi;
-    rewrite /cast_ptr /cast_w /= he /sem_sop1 /= hi.
-Qed.
-
-Lemma cast_wordP gd s e i : 
+Lemma cast_ptrP gd s e i :
   sem_pexpr gd s e >>= to_int = ok i ->
-  exists sz (w:word sz), sem_pexpr gd s (cast_word e) = ok (Vword w) /\
-                         truncate_word Uptr w = ok (wrepr Uptr i).
+  exists2 v, sem_pexpr gd s (cast_ptr e) = ok v & value_uincl (Vword (wrepr Uptr i)) v.
 Proof.
-  move=> he.
-  have: exists sz (w:word sz),
-    sem_pexpr gd s (cast_ptr e) = ok (Vword w)
-    /\ truncate_word Uptr w = ok (wrepr Uptr i).
-  - exists Uptr, (wrepr Uptr i); split; first by apply cast_ptrP.
-    by rewrite truncate_word_u.
-  case: e he => // -[] // ws //=.
-  rewrite /sem_sop1 /=.
-  case: eqP => [->|//].
-  move=> e + _; t_xrbindP => v v' -> w /to_wordI [ws' [w' [-> htw]]] <- /= [<-].
-  by exists ws', w'; split => //; rewrite htw wrepr_unsigned.
+  t_xrbindP => v he hi.
+  apply: cast_wP.
+  by rewrite /= he /sem_sop1 /= hi.
 Qed.
 
 Lemma mk_ofsP aa sz gd s2 ofs e i :
@@ -816,8 +800,10 @@ Lemma mk_ofsP aa sz gd s2 ofs e i :
 Proof.
   rewrite /mk_ofs; case is_constP => /= [? [->] //| {e} e he] /=.
   rewrite /sem_sop2 /=.
-  have [sz' [w [-> /= -> /=]]]:= cast_wordP he.
-  by rewrite !truncate_word_u /= truncate_word_u wrepr_add wrepr_mul GRing.mulrC.
+  have [_ -> /value_uinclE [ws [w [-> huincl]]]] /= := cast_ptrP he.
+  rewrite !truncate_word_u /=.
+  rewrite (word_uincl_truncate huincl (truncate_word_u _)) /=.
+  by rewrite truncate_word_u /= wrepr_add wrepr_mul GRing.mulrC.
 Qed.
 
 Lemma mk_ofsiP gd s e i aa sz :
@@ -2374,7 +2360,7 @@ Proof.
   case: r => //=.
   + move=> _ [-> <-] [<- <-].
     rewrite /write_var; t_xrbindP=> vm1'; apply: set_varP; last first.
-    + by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
+    + by move=> /is_sboolP h1 h2; exfalso; move: h2; rewrite h1.
     case: x => -[xty xn] xii; case: xty => //=.
     move=> nx ax hax <- <-.
     set x := {| vname := xn |} => hlx hget hread.
@@ -2488,7 +2474,7 @@ Proof.
   case: r hgetr hw => //.
   + move=> _ [-> <-].
     rewrite /write_lval /write_var; t_xrbindP=> vm1'; apply: set_varP; last first.
-    + by move=> /is_sboolP h1 h2; elimtype False; move: h2; rewrite h1.
+    + by move=> /is_sboolP h1 h2; exfalso; move: h2; rewrite h1.
     case: x => -[xty xn] xii; case: xty => //=.
     move=> nx ax hax <- <-.
     set x := {| vname := xn |}.

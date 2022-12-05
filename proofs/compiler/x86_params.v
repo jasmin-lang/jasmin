@@ -70,12 +70,12 @@ Definition x86_saparams is_regx : stack_alloc_params :=
 
 Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
   let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Oadd (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
+  let p := Papp2 (Osub (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
   ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
 
 Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
   let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Osub (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
+  let p := Papp2 (Oadd (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
   ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
 
 Definition x86_ensure_rsp_alignment (rspi: var_i) (al: wsize) :=
@@ -254,7 +254,7 @@ Definition x86_clear_stack_loop_small (lbl : label) ws_align ws (max_stk_size : 
   in
 
   (* l1: *)
-  let i3 := Llabel lbl in
+  let i3 := Llabel InternalLabel lbl in
 
   (* (ws)[tmp + off] = 0; *)
   let i4 :=
@@ -298,7 +298,7 @@ Definition x86_clear_stack_loop_large (lbl : label) ws_align ws (max_stk_size : 
   in
 
   (* l1: *)
-  let i4 := Llabel lbl in
+  let i4 := Llabel InternalLabel lbl in
 
   (* (ws)[tmp + off] = ymm; *)
   let i5 :=
@@ -378,10 +378,10 @@ Definition x86_clear_stack_unrolled ws_align ws max_stk_size :=
   else x86_clear_stack_unrolled_large ws_align ws max_stk_size.
 
 Definition x86_clear_stack_cmd
-  (css : cs_strategy) (lbl : label) ws_align ws (max_stk_size : Z) : option lcmd :=
+  (css : cs_strategy) (lbl : label) ws_align ws (max_stk_size : Z) : cexec lcmd :=
   match css with
-  | CSSloop => Some (x86_clear_stack_loop lbl ws_align ws max_stk_size)
-  | CSSunrolled => Some (x86_clear_stack_unrolled ws_align ws max_stk_size)
+  | CSSloop => ok (x86_clear_stack_loop lbl ws_align ws max_stk_size)
+  | CSSunrolled => ok (x86_clear_stack_unrolled ws_align ws max_stk_size)
   end.
 
 End CLEAR_STACK.

@@ -44,7 +44,7 @@ Fixpoint max_map
 
 Definition max_lcmd_lbl (c : lcmd) : option label :=
   let f '(MkLI _ i) :=
-    if i is Llabel lbl
+    if i is Llabel ExternalLabel lbl
     then Some lbl
     else None
   in

@@ -156,7 +156,7 @@ Definition st_update_next (m:asmmem) (s : asm_state) :=
 (* -------------------------------------------------------------------- *)
 Definition is_label (lbl: label) (i: asm_i) : bool :=
   match i with
-  | LABEL lbl' => lbl == lbl'
+  | LABEL _ lbl' => lbl == lbl'
   | _ => false
   end.
 
@@ -408,7 +408,7 @@ Section PROG.
 Context  (p: asm_prog).
 
 Definition label_in_asm (body: asm_code) : seq label :=
-  pmap (λ i, if i is LABEL lbl then Some lbl else None) body.
+  pmap (λ i, if i is LABEL ExternalLabel lbl then Some lbl else None) body.
 
 Definition label_in_asm_prog : seq remote_label :=
   [seq (f.1, lbl) | f <- asm_funcs p, lbl <- label_in_asm (asm_fd_body f.2) ].
@@ -417,14 +417,14 @@ Definition label_in_asm_prog : seq remote_label :=
 Notation labels := label_in_asm_prog.
 
 Definition return_address_from (s: asm_state) : option (word Uptr) :=
-  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some (LABEL lbl) then
+  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some (LABEL ExternalLabel lbl) then
     encode_label labels (asm_f s, lbl)
   else None.
 
 Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
   match i with
   | ALIGN
-  | LABEL _      => ok (st_write_ip (asm_ip s).+1 s)
+  | LABEL _ _    => ok (st_write_ip (asm_ip s).+1 s)
   | STORELABEL dst lbl =>
     if encode_label labels (asm_f s, lbl) is Some p then
       let m := mem_write_reg MSB_MERGE dst p s.(asm_m)in
@@ -537,7 +537,7 @@ Lemma eval_instr_invariant (i: asm_i) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.
-  case: i => [ | ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ?] /=.
+  case: i => [ | ? ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ?] /=.
   1, 2: by move => /ok_inj <-.
   - by case: encode_label => // ? /ok_inj <-.
   - exact: eval_JMP_invariant.

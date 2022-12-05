@@ -1,9 +1,3 @@
-inline
-fn rotate (reg u32 x, inline int bits) -> reg u32 {
-_, _, x = #ROL_32(x, bits);
-return x;
-}
-
 export
 fn gimli(reg u64 state) {
 inline int round, column;
@@ -13,9 +7,9 @@ reg u32 a, b, c;
 for round = 24 downto 0 {
   for column = 0 to 4 {
     x = (u32)[state + 4 * column];
-    x = rotate(x, 24);
+    x <<r= 24;
     y = (u32)[state + 4 * (4 + column)];
-    y = rotate(y, 9);
+    y <<r= 9;
     z = (u32)[state + 4 * (8 + column)];
 
     a = x;

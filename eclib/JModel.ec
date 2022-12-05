@@ -383,6 +383,19 @@ abbrev [-printing] VPXOR_256 = W256.(`^`).
 (* Defined in WRuS *)
 
 (* ------------------------------------------------------------------- *)
+op VPAVG_16u8 (x y: W128.t) : W128.t =
+  map2 (fun (x y : W8.t) => (W8.of_int ((to_uint x + to_uint y + 1) %/ 2))) x y.
+
+op VPAVG_32u8 (x y: W256.t) : W256.t =
+  map2 (fun (x y : W8.t) => (W8.of_int ((to_uint x + to_uint y + 1) %/ 2))) x y.
+
+op VPAVG_8u16 (x y: W128.t) : W128.t =
+  map2 (fun (x y : W16.t) => (W16.of_int ((to_uint x + to_uint y + 1) %/ 2))) x y.
+
+op VPAVG_16u16 (x y: W256.t) : W256.t =
+  map2 (fun (x y : W16.t) => (W16.of_int ((to_uint x + to_uint y + 1) %/ 2))) x y.
+
+(* ------------------------------------------------------------------- *)
 (*
 | VPMULL   `(velem) `(wsize)
 | VPMULH   `(velem) `(wsize)   (* signed multiplication of 16-bits*)

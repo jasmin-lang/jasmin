@@ -78,12 +78,19 @@ let op1_to_abs_unop op1 = match op1 with
   | E.Oword_of_int _ | E.Oint_of_word _ | E.Ozeroext _ -> assert false
   | _ -> None
 
+type shift_kind =
+  | Unsigned_left
+  | Unsigned_right
+  | Signed_right
+  | Rotation_right
+  | Rotation_left
+
 type word_op =
   | Wand                        (* supported only for padding with 2^n - 1 *)
   | Wor                         (* currently not-supported *)
   | Wxor                        (* currently not-supported *)
     
-  | Wshift of [`Unsigned_left | `Unsigned_right | `Signed_right ]
+  | Wshift of shift_kind
   (* Remarks: 
      - signed left is a synonymous for unsigned left.
      - currently, shift-right is not supported. *)
@@ -106,9 +113,11 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Odiv (Cmp_w (Signed, _)) -> AB_Unknown
   | E.Odiv _ -> AB_Arith Texpr1.Div
 
-  | E.Olsr _ -> AB_Wop (Wshift `Unsigned_right)
-  | E.Olsl _ -> AB_Wop (Wshift `Unsigned_left)
-  | E.Oasr _ -> AB_Wop (Wshift `Signed_right)
+  | E.Olsr _ -> AB_Wop (Wshift Unsigned_right)
+  | E.Olsl _ -> AB_Wop (Wshift Unsigned_left)
+  | E.Oasr _ -> AB_Wop (Wshift Signed_right)
+  | E.Oror _ -> AB_Wop (Wshift Rotation_right)
+  | E.Orol _ -> AB_Wop (Wshift Rotation_left)
       
   | E.Obeq | E.Oand | E.Oor                   (* boolean connectives *)
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> AB_Unknown
@@ -165,7 +174,7 @@ let print_not_word_expr e =
   Format.eprintf "@[<v>Should be a word expression:@;\
                   @[%a@]@;Type:@;@[%a@]@]@."
     (Printer.pp_expr ~debug:(!Glob_options.debug)) e
-    (Printer.pp_ty) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
+    (PrintCommon.pp_ty) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
 
 let check_is_int v =
   let gv = L.unloc v.gv in
@@ -173,7 +182,7 @@ let check_is_int v =
   | Bty Int -> ()
   | _ ->
     Format.eprintf "%s should be an int but is a %a@."
-      gv.v_name Printer.pp_ty gv.v_ty;
+      gv.v_name PrintCommon.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 let check_is_word v =
@@ -182,7 +191,7 @@ let check_is_word v =
   | Bty (U _) -> ()
   | _ ->
     Format.eprintf "%s should be a word but is a %a@."
-      gv.v_name Printer.pp_ty gv.v_ty;
+      gv.v_name PrintCommon.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 
@@ -526,7 +535,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
             else wrap_lin_expr Unsigned ws_out lin
           else lin
 
-        | AB_Wop (Wshift `Signed_right)
+        | AB_Wop (Wshift Signed_right)
+        | AB_Wop (Wshift Rotation_left)
+        | AB_Wop (Wshift Rotation_right)
         | AB_Arith Texpr1.Div
         | AB_Arith Texpr1.Pow
         | AB_Unknown ->
@@ -537,8 +548,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
             match aeval_cst_w_i abs e2 with
             | Some i when i <= int_of_ws ws_e ->
               let absop = match stype with
-                | `Unsigned_right -> Texpr1.Div
-                | `Unsigned_left -> Texpr1.Mul
+                | Unsigned_right -> Texpr1.Div
+                | Unsigned_left -> Texpr1.Mul
                 | _ -> assert false in
               let lin = Mtexpr.(binop absop
                                   (linearize_wexpr abs e1)
@@ -668,6 +679,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     match op2 with
     | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
     | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
+    | E.Oror _ | E.Orol _
     | E.Olxor _ | E.Olsr _ | E.Olsl _ | E.Oasr _ -> assert false
 
     | E.Oeq k -> (Tcons1.EQ, to_cmp_kind k)
@@ -719,6 +731,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Papp2 (op2, e1, e2) -> begin match op2 with
         | E.Oadd _ | E.Omul _ | E.Osub _
         | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
+        | E.Oror _ | E.Orol _
         | E.Olxor _ | E.Olsr _ | E.Olsl _ | E.Oasr _ -> assert false
 
         | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)

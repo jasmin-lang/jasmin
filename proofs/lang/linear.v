@@ -20,7 +20,7 @@ Variant linstr_r :=
   | Lcall    : remote_label -> linstr_r
   | Lret     : linstr_r
   | Lalign : linstr_r
-  | Llabel : label -> linstr_r
+  | Llabel : label_kind -> label -> linstr_r
   | Lgoto  : remote_label -> linstr_r
   | Ligoto : pexpr -> linstr_r (* Absolute indirect jump *)
   | LstoreLabel : var -> label -> linstr_r
@@ -31,9 +31,9 @@ Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.
 
 Definition lcmd := seq linstr.
 
-Definition is_label (lbl: label) (i:linstr) : bool :=
+Definition is_label (lbl: label) (i: linstr) : bool :=
   match i.(li_i) with
-  | Llabel lbl' => lbl == lbl'
+  | Llabel _ lbl' => lbl == lbl'
   | _ => false
   end.
 

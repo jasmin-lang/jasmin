@@ -1,3 +1,9 @@
+(* Assembly printer for ARM Cortex M4 (ARMv7-M).
+
+We always use the Unified Assembly Language (UAL).
+Immediate values (denoted <imm>) are always nonnegative integers.
+*)
+
 open Arch_decl
 open Utils
 open Arm_decl
@@ -7,11 +13,12 @@ let arch = arm_decl
 
 let imm_pre = "#"
 
-(* Possible memory accesses in ARMv7-M are:
+(* We support the following ARMv7-M memory accesses.
    Offset addressing:
-     - A base register and an immediate offset (displacement): [<reg>, #<imm>]
-     - A base register and a register offset: [<reg>, <reg>]
-     - A base register and a scaled register offset: [<reg>, <reg>, LSL #<imm>]
+     - A base register and an immediate offset (displacement):
+       [<reg>, #+/-<imm>] (where + can be omitted).
+     - A base register and a register offset: [<reg>, <reg>].
+     - A base register and a scaled register offset: [<reg>, <reg>, LSL #<imm>].
 *)
 let pp_reg_address_aux base disp off scal =
   match (disp, off, scal) with
@@ -96,7 +103,7 @@ let pp_address addr =
 let pp_asm_arg arg =
   match arg with
   | Condt _ -> None
-  | Imm (ws, w) -> Some (pp_imm (Conv.z_of_word ws w))
+  | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx r -> Some (pp_register_ext r)
   | Addr addr -> Some (pp_address addr)
@@ -128,6 +135,7 @@ let pp_shift (ARM_op (_, opts)) args =
 
 let pp_mnemonic_ext (ARM_op (mn, opts)) args =
   let mn = Conv.string_of_string0 (string_of_arm_mnemonic mn) in
+  let mn = String.lowercase_ascii mn in
   Printf.sprintf "%s%s%s" mn (pp_set_flags opts) (pp_conditional args)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =
@@ -150,7 +158,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
 
-  | LABEL lbl ->
+  | LABEL (_, lbl) ->
       [ LLabel (pp_label fn lbl) ]
 
   | STORELABEL (dst, lbl) ->

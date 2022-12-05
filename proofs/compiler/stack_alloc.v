@@ -410,20 +410,12 @@ Context `{asmop:asmOp}.
 Definition mul := Papp2 (Omul (Op_w Uptr)).
 Definition add := Papp2 (Oadd (Op_w Uptr)).
 
-Definition cast_word e := 
-  match e with
-  | Papp1 (Oint_of_word sz) e1 => if (sz == Uptr)%CMP
-                                  then e1
-                                  else cast_ptr e
-  | _  => cast_ptr e
-  end.
-
 Definition mk_ofs aa ws e1 ofs := 
   let sz := mk_scale aa ws in
   if is_const e1 is Some i then 
     cast_const (i * sz + ofs)%Z
   else 
-    add (mul (cast_const sz) (cast_word e1)) (cast_const ofs).
+    add (mul (cast_const sz) (cast_ptr e1)) (cast_const ofs).
 
 Definition mk_ofsi aa ws e1 := 
   if is_const e1 is Some i then Some (i * (mk_scale aa ws))%Z
@@ -903,8 +895,9 @@ Record stk_alloc_oracle_t :=
   { sao_align : wsize 
   ; sao_size: Z
   ; sao_extra_size: Z
-  ; sao_max_size : Z
   ; sao_max_size_used : Z
+  ; sao_max_size : Z
+  ; sao_max_call_depth : Z
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
   ; sao_return : seq (option nat)         (* Where to find the param input region *)
   ; sao_slots : seq (var * wsize * Z)  
@@ -1399,9 +1392,10 @@ Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string) (local
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
+        sf_stk_extra_sz := sao.(sao_extra_size);
         sf_stk_max_used := sao_max_size_used sao;
         sf_stk_max := sao.(sao_max_size);
-        sf_stk_extra_sz := sao.(sao_extra_size);
+        sf_max_call_depth := sao.(sao_max_call_depth);
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);

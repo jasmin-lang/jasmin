@@ -1059,18 +1059,21 @@ op rol (x : t) (i : int) =
   init (fun j => x.[(j - i) %% size])
 axiomatized by rolE.
 
+abbrev (`|>>>|`) = ror.
+abbrev (`|<<<|`) = rol.
+
 lemma rorwE w k i :
-  (ror w k).[i] = if (0 <= i < size) then w.[(i+k) %% size] else false.
+  (w `|>>>|` k).[i] = if (0 <= i < size) then w.[(i+k) %% size] else false.
 proof. by rewrite rorE initE. qed.
 
 lemma rolwE w k i :
-  (rol w k).[i] = if (0 <= i < size) then w.[(i-k) %% size] else false.
+  (w `|<<<|` k).[i] = if (0 <= i < size) then w.[(i-k) %% size] else false.
 proof. by rewrite rolE initE. qed.
 
 hint simplify (rorwE, rolwE).
 
 lemma rol_xor w i : 0 <= i < size =>
-  rol w i = (w `<<<` i) `^` (w `>>>` (size - i)).
+  w `|<<<|` i = (w `<<<` i) `^` (w `>>>` (size - i)).
 proof.
   move=> hi; apply wordP => k hk /=.
   rewrite hk /=.
@@ -1083,7 +1086,7 @@ qed.
 
 lemma rol_xor_simplify w1 w2 i si:
    w1 = w2 => si = size - i => 0 <= i < size =>
-   (w1 `<<<` i) `^` (w2 `>>>` si) = rol w1 i.
+   (w1 `<<<` i) `^` (w2 `>>>` si) = w1 `|<<<|` i.
 proof. by move=> 2!-> hi;rewrite rol_xor. qed.
 
 (* --------------------------------------------------------------------- *)
@@ -1695,8 +1698,11 @@ theory W8.
     by rewrite modz_small.
   qed.
 
+  op (`|>>|`) (w1 w2 : W8.t) = w1 `|>>>|` (to_uint w2 %% size).
+  op (`|<<|`) (w1 w2 : W8.t) = w1 `|<<<|` (to_uint w2 %% size).
+
   lemma rol_xor_shft w i : 0 < i < size =>
-    rol w i = (w `<<` of_int i) +^ (w `>>` of_int (size - i)).
+    w `|<<<|` i = (w `<<` of_int i) +^ (w `>>` of_int (size - i)).
   proof.
     move=> hi; rewrite /(`<<`) /(`>>`) !of_uintK /=.
     by rewrite !(modz_small _ 256) 1,2:/# !modz_small 1,2:/# rol_xor 1:/#.
@@ -1714,7 +1720,7 @@ theory W8.
     let i = shift_mask i in
     if i = 0 then (undefined_flag, undefined_flag, v) 
     else
-      let r = ror v i in
+      let r = v `|>>>|` i in
       let CF = ALU.SF_of r in
       let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
       (OF , CF,  r)
@@ -1724,7 +1730,7 @@ theory W8.
     let i = shift_mask i in
     if i = 0 then(undefined_flag, undefined_flag, v)
     else
-      let r = rol v i in
+      let r = v `|<<<|` i in
       let CF = ALU.PF_of r in
       let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
       (OF, CF, r)
@@ -1841,6 +1847,8 @@ abstract theory WT.
 
   op bits : t -> int -> int -> bool list.
 
+  abbrev (`|<<<|`) = rol.
+
   axiom initiE (f : int -> bool) (i : int) : 0 <= i < size => (init f).[i] = f i.
 
   axiom andwE (w1 w2 : t) (i : int) : (andw w1 w2).[i] = (w1.[i] /\ w2.[i]).
@@ -1880,7 +1888,7 @@ abstract theory WT.
       andw w (of_int (2^k - 1)) = of_int (to_uint w %% 2^k).
 
   axiom rol_xor_shft w i : 0 < i < size =>
-    rol w i = (w `<<` W8.of_int i) +^ (w `>>` W8.of_int (size - i)).
+    w `|<<<|` i = (w `<<` W8.of_int i) +^ (w `>>` W8.of_int (size - i)).
 
 end WT.
 
@@ -1897,6 +1905,7 @@ abstract theory W_WS.
 
   clone export MonoArray as Pack with
     type elem <- WS.t,
+
     op dfl <- WS.of_int 0,
     op size <- r
     proof ge0_size by smt (gt0_r)
@@ -2310,6 +2319,8 @@ abstract theory BitWordSH.
   op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
   op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
   op (`|>>`) (w1 : t) (w2 : W8.t) = sar w1 (to_uint w2 %% size).
+  op (`|>>|`) (w1 : t) (w2 : W8.t) = w1 `|>>>|` (to_uint w2 %% size).
+  op (`|<<|`) (w1 : t) (w2 : W8.t) = w1 `|<<<|` (to_uint w2 %% size).
 
   lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
   proof.
@@ -2328,7 +2339,7 @@ abstract theory BitWordSH.
   qed.
 
   lemma rol_xor_shft w i : 0 < i < size =>
-    rol w i = (w `<<` W8.of_int i) +^ (w `>>` W8.of_int (size - i)).
+    w `|<<<|` i = (w `<<` W8.of_int i) +^ (w `>>` W8.of_int (size - i)).
   proof.
     move=> hi; rewrite /(`<<`) /(`>>`) !W8.of_uintK.
     have h : 0 <= i < `|W8.modulus|.
@@ -2361,7 +2372,7 @@ abstract theory BitWordSH.
     let i = shift_mask i in
     if i = 0 then (undefined_flag, undefined_flag, v) 
     else
-      let r = ror v i in
+      let r = v `|>>>|` i in
       let CF = ALU.SF_of r in
       let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
       (OF , CF,  r)
@@ -2371,7 +2382,7 @@ abstract theory BitWordSH.
     let i = shift_mask i in
     if i = 0 then(undefined_flag, undefined_flag, v)
     else
-      let r = rol v i in
+      let r = v `|<<<|` i in
       let CF = ALU.PF_of r in
       let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
       (OF, CF, r)

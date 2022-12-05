@@ -27,6 +27,7 @@ src/Pp_arm_m4
 src/Pretyping
 src/Printer
 src/PrintLinear
+src/PrintCommon
 src/Prog
 src/Puf
 src/Regalloc
