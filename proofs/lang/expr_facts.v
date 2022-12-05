@@ -515,11 +515,6 @@ Proof.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
 Qed.
 
-Lemma eq_lval_refl x : eq_lval x x.
-Proof.
-  by case: x => // [ i ty | x | w x e | aa w x e | aa w len x e] /=; rewrite !eqxx // eq_expr_refl.
-Qed.
-
 Lemma eq_expr_constL z e :
   eq_expr (Pconst z) e -> e = z :> pexpr.
 Proof. by case: e => // z' /eqP ->. Qed.
