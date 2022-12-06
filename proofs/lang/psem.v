@@ -242,8 +242,7 @@ Definition vm_initialized_on (vm: vmap) : seq var → Prop :=
  * -------------------------------------------------------------------- *)
 
 Record estate
-  {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state} :=
+  {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state} :=
   Estate
     {
       escs : syscall_state;
@@ -252,6 +251,22 @@ Record estate
     }.
 
 Arguments Estate {_ _ _} _ _ _.
+
+Section UPDATE_FUNCTIONS.
+
+Context
+  {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state}.
+
+Definition with_vm (s:estate) vm :=
+  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
+
+Definition with_mem (s:estate) m :=
+  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
+
+Definition with_scs (s:estate) scs :=
+  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
+
+End UPDATE_FUNCTIONS.
 
 Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
@@ -308,15 +323,6 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
-
-Definition with_vm (s:estate) vm := 
-  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
-
-Definition with_mem (s:estate) m := 
-  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
-
-Definition with_scs (s:estate) scs := 
-  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var s.(evm) x v in

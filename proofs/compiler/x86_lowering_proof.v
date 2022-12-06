@@ -292,7 +292,7 @@ Section PROOF.
         rewrite evm_with_vm => z hz.
         by rewrite !Fv.setP_neq //; apply/eqP => heq; subst z; elim hz;
          auto using of_in_fv, cf_in_fv, sf_in_fv, pf_in_fv.
-      split; rewrite !evm_with_vm /=.
+      split=> /=.
       + rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_zf; rewrite h eqxx.
         rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_sf; rewrite h eqxx.
         rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_cf; rewrite h eqxx.

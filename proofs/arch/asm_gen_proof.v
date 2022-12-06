@@ -270,7 +270,7 @@ Lemma addr_of_xpexprP rip m s ii x p r vx wx vp wp:
   decode_addr s r = (wx + wp)%R.
 Proof.
   rewrite /addr_of_xpexpr => eqm ha hx hvx hp hvp.
-  have he: sem_pexpr [::] m (Papp2 (Oadd (Op_w Uptr)) (Plvar x) p) = ok (Vword (wx + wp)).
+  have he: sem_pexpr (spp:=mk_spp) [::] m (Papp2 (Oadd (Op_w Uptr)) (Plvar x) p) = ok (Vword (wx + wp)).
   + by rewrite /= /get_gvar /= hx /= hp /= /sem_sop2 /= hvx hvp.
   have := addr_of_pexprP _ eqm he ha.
   by rewrite !zero_extend_u => h;apply h.
@@ -1550,16 +1550,16 @@ Proof.
          {| evm := (vm_after_syscall (lvm ls)) |} h => //= r rs ih s1 /andP [hnin huniq].
       rewrite (sumbool_of_boolET (cmp_le_refl reg_size)) => hw r0 v.
       rewrite (in_cons (T:= @ceqT_eqType _ _)) => /orP []; last by apply: (ih _ huniq hw).
-      move=> /eqP ?; subst r0; rewrite -(get_var_eq_except _ (vrvsP hw));last first.
+      move=> /eqP ?; subst r0; rewrite -(get_var_eq_except _ (vrvsP (spp:=mk_spp) hw));last first.
       + rewrite vrvs_to_lvals => /sv_of_listP /(mapP (T1:= @ceqT_eqType _ _)) [r'] hr' /inj_to_var ?; subst r'.
         by rewrite hr' in hnin.
       rewrite /get_var /= Fv.setP_eq => -[] <-; apply value_uincl_refl.
     have hkill : forall x, Sv.In x syscall_kill -> ~Sv.In x R -> ~~is_sarr (vtype x) ->
       ~is_ok (get_var (evm s) x).
-    + move=> x /Sv_memP hin hnin; rewrite -(get_var_eq_except _ (vrvsP hw)) //=.
+    + move=> x /Sv_memP hin hnin; rewrite -(get_var_eq_except _ (vrvsP (spp:=mk_spp) hw)) //=.
       rewrite /get_var kill_varsE hin /on_vu; case: (vtype x) => //.
     constructor => //=.
-    + by rewrite (write_lvals_escs hw).
+    + by rewrite (write_lvals_escs (spp:=mk_spp) hw).
     + by apply: write_lvals_emem hw; apply: get_lvar_to_lvals.
     + rewrite (get_var_eq_except _ heqx) // /X; first by rewrite hgetrip hrip.
       case: assemble_progP => -[] hripr hriprx hripxr hripf _ _ _.
