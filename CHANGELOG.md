@@ -1,3 +1,11 @@
+# [unreleased]
+
+## Bug fixes
+
+- Safety checker handles the `#copy` operator
+  ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312);
+  fixes [#308](https://github.com/jasmin-lang/jasmin/issues/308)).
+
 # Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus

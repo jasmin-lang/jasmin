@@ -1,0 +1,8 @@
+export fn test(reg u64 x) -> reg u64 {
+  reg u64[1] r;
+  stack u64[1] s;
+  r[0] = x;
+  s = #copy(r);
+  x = s[0];
+  return x;
+}
