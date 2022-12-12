@@ -1,0 +1,15 @@
+export
+fn test(reg u64 x y) -> reg u64 {
+  reg u64 r;
+  r = y;
+  reg bool valid;
+  if x > 56 {
+    valid = true;
+  } else {
+    valid = false;
+  }
+  if valid {
+    r = x;
+  }
+  return r;
+}
