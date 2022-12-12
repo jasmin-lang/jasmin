@@ -15,6 +15,10 @@
   ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312);
   fixes [#308](https://github.com/jasmin-lang/jasmin/issues/308)).
 
+- Register allocation takes into account conflicts between flag registers
+  ([PR #311](https://github.com/jasmin-lang/jasmin/pull/311);
+  fixes [#309](https://github.com/jasmin-lang/jasmin/issues/309)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes

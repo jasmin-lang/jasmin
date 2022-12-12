@@ -42,18 +42,19 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
   let f_body = fill_stmt f.f_body in
   { f with f_body }
 
-type kind = Word | Vector | Unknown of ty
+type kind = Word | Vector | Flag | Unknown of ty
 
 let kind_of_type =
   function
   | Bty (U (U8 | U16 | U32 | U64)) -> Word
   | Bty (U (U128 | U256)) -> Vector
+  | Bty Bool -> Flag
   | ty -> Unknown ty
 
 (* Only variables that will be allocated to the same “bank” may conflict. *)
 let types_cannot_conflict x y : bool =
   match kind_of_type x, kind_of_type y with
-  | Word, Word | Vector, Vector -> false
+  | Word, Word | Vector, Vector | Flag, Flag -> false
   | _, _ -> true
 
 type arg_position = APout of int | APin of int
@@ -585,6 +586,8 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
             match kind_of_type p.v_ty with
             | Word -> let d, rs = split ~ctxt rs in d, rs, xs
             | Vector -> let d, xs = split ~ctxt xs in d, rs, xs
+            | Flag ->
+               hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" (Printer.pp_var ~debug:true) p
             | Unknown ty ->
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
                 Printer.pp_ty ty (Printer.pp_var ~debug:true) p
@@ -728,6 +731,7 @@ let greedy_allocation
           if reg_kind v.v_kind = Normal then push_var scalars i v
           else push_var extra_scalars i v
       | Vector -> push_var vectors i v
+      | Flag
       | Unknown _ -> ()
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
