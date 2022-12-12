@@ -9,6 +9,12 @@
   `VPAVG`
   ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)).
 
+## Bug fixes
+
+- Safety checker handles the `#copy` operator
+  ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312);
+  fixes [#308](https://github.com/jasmin-lang/jasmin/issues/308)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
