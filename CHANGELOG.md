@@ -32,6 +32,10 @@
   ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303);
   fixes [#301](https://github.com/jasmin-lang/jasmin/issues/301)).
 
+- Safety checker handles the `#copy` operator
+  ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312);
+  fixes [#308](https://github.com/jasmin-lang/jasmin/issues/308)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
