@@ -712,6 +712,15 @@ let two_phase_coloring
         A.set i y a
     ) schedule
 
+let check_allocated
+      (vars: (int, var list) Hashtbl.t)
+      (a: A.allocation) : unit =
+  match Hashtbl.fold (fun i x m -> if A.mem i a then m else x @ m) vars [] with
+  | [] -> ()
+  | m ->
+     hierror_reg ~loc:Lnone "variables { %a } remain unallocated"
+       (pp_list "; " (Printer.pp_var ~debug:true)) m
+
 let greedy_allocation
     (vars: int Hv.t)
     (nv: int) (cnf: conflicts)
@@ -720,6 +729,7 @@ let greedy_allocation
   let scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
   let extra_scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
   let vectors : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let flags : (int, var list) Hashtbl.t = Hashtbl.create nv in
   let push_var tbl i v =
     match Hashtbl.find tbl i with
     | old -> Hashtbl.replace tbl i (v :: old)
@@ -731,12 +741,13 @@ let greedy_allocation
           if reg_kind v.v_kind = Normal then push_var scalars i v
           else push_var extra_scalars i v
       | Vector -> push_var vectors i v
-      | Flag
+      | Flag -> push_var flags i v
       | Unknown _ -> ()
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
   two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;
   two_phase_coloring Arch.xmm_allocatable_vars vectors cnf fr a;
+  check_allocated flags a;
   ()
 
 let var_subst_of_allocation (vars: int Hv.t)
