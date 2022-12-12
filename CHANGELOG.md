@@ -19,6 +19,10 @@
   ([PR #311](https://github.com/jasmin-lang/jasmin/pull/311);
   fixes [#309](https://github.com/jasmin-lang/jasmin/issues/309)).
 
+- Register allocation fails when some `reg bool` variables remain unallocated
+  ([PR #313](https://github.com/jasmin-lang/jasmin/pull/313);
+  fixes [#310](https://github.com/jasmin-lang/jasmin/issues/310)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
