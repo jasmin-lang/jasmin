@@ -50,6 +50,11 @@ val get_scope : mvar -> Expr.v_scope
 val get_at    : mvar -> atype
 
 (*---------------------------------------------------------------*)
+(** Resets the conversion table between [mvar] and [avar]. To
+  be called between two analyses. *)
+val reset : unit -> unit
+
+(*---------------------------------------------------------------*)
 val avar_of_mvar : mvar -> Apron.Var.t
                              
 val mvar_of_svar : string         -> mvar
