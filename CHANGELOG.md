@@ -14,6 +14,10 @@
   ([PR #313](https://github.com/jasmin-lang/jasmin/pull/313);
   fixes [#310](https://github.com/jasmin-lang/jasmin/issues/310)).
 
+- Fix to the safety checker
+  ([PR #315](https://github.com/jasmin-lang/jasmin/pull/315);
+  fixes [#314](https://github.com/jasmin-lang/jasmin/issues/314)).
+
 # Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus

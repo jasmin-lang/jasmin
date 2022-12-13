@@ -143,6 +143,7 @@ let get_at = function
 (*---------------------------------------------------------------*)
 (* We log the result to be able to inverse it. *)
 let log_var = Hashtbl.create 16
+let reset () = Hashtbl.reset log_var
     
 let avar_of_mvar a =
   let s = string_of_mvar a in
