@@ -268,6 +268,8 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
   type t = Manager.t Abstract1.t
   let man = Manager.man
 
+  let () = SafetyVar.reset ()
+
   let is_relational () = Ppl.manager_is_ppl man
     
   let make l =
