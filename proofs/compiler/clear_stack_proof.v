@@ -20,7 +20,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Require Import linearization_proof linear_sem.
-Require Import psem arch_decl arch_extra.
+Require Import psem. (* arch_decl arch_extra. *)
 
 Record h_clear_stack_params {asm_op syscall_state : Type} {spp : SemPexprParams asm_op syscall_state}
 { ovmi : one_varmap.one_varmap_info }
@@ -40,11 +40,11 @@ Record h_clear_stack_params {asm_op syscall_state : Type} {spp : SemPexprParams 
       forall scs m vm,
       get_var vm (vid lp.(lp_rsp)) = ok (Vword (top_stack m)) ->
 (*       Sv.subset (sv_of_list v_var lfd.(lfd_res)) (Sv.union (sv_of_list to_var call_reg_ret) (sv_of_list to_var call_xreg_ret)) -> *)
-      exists vm' m',
+      exists m' vm',
         lsem lp (Lstate scs m vm fn (size lc))
                 (Lstate scs m' vm' fn (size lc+size cmd)) /\
-        vm' =[sv_of_list v_var lfd.(lfd_res)] vm /\
         mem_equiv m m' /\
+        vm' =[Sv.union (sv_of_list v_var lfd.(lfd_res)) one_varmap.callee_saved] vm /\
         let top := (align_word ws_align (top_stack m) + wrepr Uptr (- max_stk_size))%R in
         (forall p, disjoint_zrange top max_stk_size p (wsize_size U8) ->
           read m p U8 = read m' p U8) /\
@@ -54,6 +54,7 @@ Record h_clear_stack_params {asm_op syscall_state : Type} {spp : SemPexprParams 
 Section WITH_PARAMS.
 
 Context
+  {pd:PointerData} {ovm_i : one_varmap.one_varmap_info}
   (asm_op : Type)
   (asmop : asmOp asm_op)
   (css_of_fn : funname -> option (cs_strategy * wsize))
@@ -70,7 +71,7 @@ Lemma clear_stack_lprog_invariants lp lp' :
        & lp_globs lp = lp_globs lp'].
 Proof.
   rewrite /clear_stack_lprog.
-  by t_xrbindP=> lp_funs _ <-.
+  by t_xrbindP=> _ lp_funs _ <-.
 Qed.
 
 Lemma clear_stack_lprog_get_fundef lp lp' :
@@ -82,13 +83,33 @@ Lemma clear_stack_lprog_get_fundef lp lp' :
     get_fundef lp'.(lp_funcs) fn = Some lfd'.
 Proof.
   rewrite /clear_stack_lprog.
-  t_xrbindP=> lp_funs hmap <- /= fn lfd' hget.
+  t_xrbindP=> _ lp_funs hmap <- /= fn lfd' hget.
   by apply (get_map_cfprog_name_gen hmap hget).
+Qed.
+
+Lemma clear_stack_lfd_invariants fn lfd lfd' :
+  clear_stack_lfd fn lfd = ok lfd' ->
+  [/\ lfd_info lfd = lfd_info lfd'
+    , lfd_align lfd = lfd_align lfd'
+    , lfd_tyin lfd = lfd_tyin lfd'
+    , lfd_arg lfd = lfd_arg lfd'
+    , lfd_tyout lfd = lfd_tyout lfd'
+    , lfd_res lfd = lfd_res lfd'
+    , lfd_export lfd = lfd_export lfd'
+    , lfd_callee_saved lfd = lfd_callee_saved lfd'
+    , lfd_total_stack lfd = lfd_total_stack lfd'
+    & lfd_used_stack lfd = lfd_used_stack lfd'].
+Proof.
+  rewrite /clear_stack_lfd.
+  case: css_of_fn => [[css ws]|]; last by move=> [<-].
+  case: andb; last by move=> [<-].
+  rewrite /clear_stack_lfd_body.
+  by t_xrbindP=> _ _ _ _ <- /=.
 Qed.
 
 End WITH_PARAMS.
 
-Section TOTO.
+Section PROOF.
 
 Context {asm_op syscall_state} {spp: SemPexprParams asm_op syscall_state}.
 Context {ovmi : one_varmap.one_varmap_info}.
@@ -150,7 +171,7 @@ Lemma label_in_lprogP lp lp' :
   label_in_lprog lp' = label_in_lprog lp.
 Proof.
   rewrite /clear_stack_lprog /label_in_lprog.
-  t_xrbindP=> lp_funcs' hmap <- /=.
+  t_xrbindP=> _ lp_funcs' hmap <- /=.
   elim: lp.(lp_funcs) lp_funcs' hmap => [|[fn fd] lp_funcs ih] /=.
   + by move=> _ [<-] /=.
   by t_xrbindP=>
@@ -247,18 +268,18 @@ Proof.
   by t_xrbindP=> pc /(find_labelP hclear) -> /= ->.
 Qed.
 
-(* better name *)
-Lemma clear_stack_lsem1 lp lp' fn s1 pc s2 :
+(* TODO: better name *)
+Lemma clear_stack_lprog_lsem1 lp lp' s1 s2 :
   clear_stack_lprog css_of_fn csparams lp = ok lp' ->
-  lsem1 lp (of_estate s1 fn pc) s2 ->
-  lsem1 lp' (of_estate s1 fn pc) s2.
+  lsem1 lp s1 s2 ->
+  lsem1 lp' s1 s2.
 Proof.
   move=> hclearlp.
   rewrite /lsem1 /step /find_instr.
   case hlfd: get_fundef => [lfd|//] /=.
   have [lfd' hclear ->] /= := clear_stack_lprog_get_fundef hclearlp hlfd.
   case hpc: oseq.onth => [i|//].
-  have hpc': oseq.onth lfd'.(lfd_body) pc = Some i.
+  have hpc': oseq.onth lfd'.(lfd_body) s1.(lpc) = Some i.
   + move: hclear; rewrite /clear_stack_lfd.
     case: css_of_fn => [[css ws]|]; last by move=> [<-].
     case: andb; last by move=> [<-].
@@ -269,34 +290,148 @@ Proof.
   by apply eval_instrP.
 Qed.
 
+(* TODO: better name *)
+Lemma clear_stack_lprog_lsem lp lp' s1 s2 :
+  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  lsem lp s1 s2 ->
+  lsem lp' s1 s2.
+Proof.
+  move=> hclearlp.
+  move: s1 s2; apply lsem_ind.
+  + by move=> s; apply Relation_Operators.rt_refl.
+  move=> s1 s2 s3 hsem1 ih hsem'.
+  apply: lsem_step hsem'.
+  by apply (clear_stack_lprog_lsem1 hclearlp).
+Qed.
+
+(* TODO: move *)
+Lemma max_map_monotonic {A B} `{Cmp B} (f : A -> option B) s acc :
+  exists2 acc', max_map f s (Some acc) = Some acc' & (acc <= acc')%CMP.
+Proof.
+  elim: s acc => [|a s ih] acc /=.
+  + by exists acc.
+  case: (f a) => [b|//].
+  case: (ih (cmp_max b acc)) => acc' hmax hle.
+  exists acc' => //.
+  apply: cmp_le_trans hle.
+  by apply cmp_max_geR.
+Qed.
+
+(* TODO: move *)
+Lemma max_map_None {A B} `{Cmp B} (f : A -> option B) s acc :
+  max_map f s acc = None ->
+  all (fun x => match f x with | None => true | Some y => false end) s.
+Proof.
+  elim: s acc => //= x s ih acc.
+  case: (f x) => [b|] /=; last by apply ih.
+  by case:
+    (max_map_monotonic f s (match acc with
+                            | Some z => cmp_max b z
+                            | None => b
+                            end)) => _ -> _ //.
+Qed.
+
+(* TODO: move *)
+Lemma max_map_Some {A B} `{Cmp B} (f : A -> option B) s m :
+  max_map f s None = Some m ->
+  all (fun x => match f x with | None => true | Some y => (y <= m)%CMP end) s.
+Proof.
+  elim: s None m => //= x s ih acc max.
+  case: (f x) => [b|] /=.
+  + move=> hmax.
+    apply /andP; split.
+    + move: hmax.
+      case:
+        (max_map_monotonic f s (match acc with
+                                | Some z => cmp_max b z
+                                | None => b
+                                end)) => {max}max -> hle [<-].
+      case: acc hle => [acc|//].
+      move=> hle.
+      apply: cmp_le_trans hle.
+      by apply cmp_max_geL.
+    by apply (ih _ _ hmax).
+  by apply ih.
+Qed.
+
+(* TODO: move *)
+Lemma max_lfd_lbl_None lfd lbl :
+  max_lfd_lbl lfd = None ->
+  ~ has (is_label lbl) (lfd_body lfd).
+Proof.
+  rewrite /max_lfd_lbl /max_lcmd_lbl.
+  move=> /max_map_None hall hhas.
+  have [i _ /andP [h1 h2]] := all_has hall hhas.
+  move: h1 h2; rewrite /is_label.
+  by case: (li_i i).
+Qed.
+
+(* TODO: move *)
+Lemma max_lfd_lbl_Some lfd max_lbl lbl :
+  max_lfd_lbl lfd = Some max_lbl ->
+  has (is_label lbl) (lfd_body lfd) ->
+  (lbl <= max_lbl)%CMP.
+Proof.
+  rewrite /max_lfd_lbl /max_lcmd_lbl => hmax hhas.
+  have hall := max_map_Some hmax.
+  have [i _ /andP [h1 h2]] := all_has hall hhas.
+  move: h1 h2; rewrite /is_label.
+  by case: (li_i i) => // lk l ? /eqP ->.
+Qed.
+
+Lemma next_lfd_lblP lfd : ~ has (is_label (next_lfd_lbl lfd)) (lfd_body lfd).
+Proof.
+  rewrite /next_lfd_lbl.
+  case hmax: max_lfd_lbl => [max|].
+  + move=> /(max_lfd_lbl_Some hmax).
+    rewrite /cmp_le /gcmp /next_lbl.
+    case: Pos.compare_spec => //; Lia.lia.
+  by apply max_lfd_lbl_None.
+Qed.
+
 (* doit-on se comparer à la mémoire source ou la mémoire avant sem ?? *)
 (* utiliser pointer_range ? *)
 Lemma clear_stack_lprogP lp lp' scs m fn vm scs' m' vm' :
   clear_stack_lprog css_of_fn csparams lp = ok lp' ->
   lsem_exportcall lp scs m fn vm scs' m' vm' ->
-  exists scs'' m'' vm'',
-  lsem_exportcall lp' scs m fn vm scs'' m'' vm'' /\
+  get_var vm' (vid (lp_rsp lp')) = ok (Vword (top_stack m')) ->
+  exists m'' vm'',
+  lsem_exportcall lp' scs m fn vm scs' m'' vm''. (* /\
   (css_of_fn fn <> None ->
   forall p w, (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z ->
-  read m'' p U8 = ok w -> w = 0%R \/ read m p U8 = ok w).
+  read m'' p U8 = ok w -> w = 0%R \/ read m p U8 = ok w). *)
 Proof.
-  move=> hclear [] lfd hlfd hexport hsem heqvm.
-  have [lfd' hclear' hlfd'] := clear_stack_lprog_get_fundef hclear hlfd.
-  move: hclear'; rewrite /clear_stack_lfd.
+  move=> hclearlp [] lfd hlfd hexport hsem heqvm hrsp.
+  have [lfd' hclear hlfd'] := clear_stack_lprog_get_fundef hclearlp hlfd.
+  move: hclear; rewrite /clear_stack_lfd.
   case: css_of_fn => [[css ws]|]; last first.
   + move=> [?]; subst lfd'.
-    exists scs', m', vm'.
-    split=> //.
+    exists m', vm'.
+(*     split=> //. *)
     econstructor; eauto.
-    elim: hsem.
-    move=> ??. rewrite /lsem1 /step.
-    case: find_instr => // i.
-    case: i => /= ii [] /=.
-    all: rewrite /eval_instr /=.
-    lsem_final
-    lsem_skip_goto
-    
-    split=> //.
-Admitted.
+    by apply (clear_stack_lprog_lsem hclearlp).
+  rewrite hexport /=.
+  case: ZltP => [hlt|hnlt]; last first.
+  + move=> [?]; subst lfd'.
+    exists m', vm'.
+(*     split=> //. *)
+    econstructor; eauto.
+    by apply (clear_stack_lprog_lsem hclearlp).
+  rewrite /clear_stack_lfd_body.
+  t_xrbindP=> halign hle cmd hcmd hmap.
+  have hbody: lfd_body lfd' = lfd_body lfd ++ cmd by rewrite -hmap.
+  have [m'' [vm'' [hsem' [hequiv' [heqvm' _]]]]] :=
+    hcsparams.(hcs_clear_stack_cmd) hcmd halign hle (@next_lfd_lblP _) hlfd' hbody scs' hrsp.
+  exists m'', vm''.
+  econstructor; eauto.
+  + by rewrite -hmap.
+  + apply (lsem_trans (clear_stack_lprog_lsem hclearlp hsem)).
+    by rewrite hbody size_cat.
+  (* why eq_onI needs spp ?? *)
+  apply (eq_onT heqvm).
+  apply eq_onS.
+  apply: eq_onI heqvm'.
+  by apply SvP.MP.union_subset_2.
+Qed.
 
-End TOTO.
+End PROOF.

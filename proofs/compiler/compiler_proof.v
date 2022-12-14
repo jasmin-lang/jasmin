@@ -363,7 +363,7 @@ Proof.
   rewrite print_linearP => tp' ok_tp.
   rewrite print_linearP => ?; subst tp'.
   have [ <- [] <- [] <- _ ] := tunnel_program_invariants (spp := mk_spp) ok_tp.
-  have [<- <- <- _] := prog_clear_stack_lprog_invariants ok_lp0.
+  have [<- <- <-] := clear_stack_lprog_invariants ok_lp0.
   split.
   - exact: lp_ripE ok_lp.
   - exact: lp_rspE ok_lp.
@@ -406,14 +406,14 @@ Proof.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
   split; last by rewrite export.
   move: ok_fd => /(get_fundef_p' (spp := mk_spp) ok_lp).
-  move=> /(get_fundef_prog_clear_stack ok_lp0) -[lfd' [? [? [h ok_lfd']]]].
+  move=> /(clear_stack_lprog_get_fundef ok_lp0) [lfd' ok_lfd' h].
   move: h =>
     /(get_fundef_tunnel_program (spp := mk_spp) ok_tp)
     /(ok_get_fundef ok_xp)
     [fd' ok_fd'].
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
   move: ok_fd' => /S /=.
-  move: ok_lfd' => /prog_clear_stack_aux_invariants [_ _ _ _ _ _ _ _ <- _].
+  move: ok_lfd' => /clear_stack_lfd_invariants [_ _ _ _ _ _ _ _ <- _].
   rewrite /allocatable_stack /=.
   move:
     (wunsigned (stack_limit (pd := arch_pd) m))
@@ -474,7 +474,7 @@ Proof.
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
   have p_call :
     sem_export_call p (extra_free_registers cparams) vtmp rip scs m fn args scs' m' res.
-  - apply: (merge_varmaps_export_callP checked_p _ exec_p).
+  - apply: (merge_varmaps_export_callP (spp := mk_spp) checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
     case: get_fundef => // fd /assertP /eqP Export.
@@ -486,13 +486,17 @@ Proof.
       ok_lp
       p_call.
   case => fd [] ok_fd Export lp_call.
-  exists (tunneling.tunnel_lfundef fn fd); split.
-  - have [lfd' [? [? [ok_fd' ok_lfd']]]] :=
-      get_fundef_prog_clear_stack ok_lp' ok_fd.
-  rewrite (get_fundef_tunnel_program (spp := mk_spp) ok_tp ok_fd').
-  - exact: Export.
-  move=> lm vm args' H H0 H1 H2 H3 H4 H5.
+  have [fd' hclearfd' ok_fd'] := clear_stack_lprog_get_fundef ok_lp' ok_fd.
+  exists (tunneling.tunnel_lfundef fn fd'); split.
+  - by apply (get_fundef_tunnel_program (spp := mk_spp) ok_tp ok_fd').
+  - move=> /=.
+    have [_ _ _ _ _ _ <- _ _ _] := clear_stack_lfd_invariants hclearfd'.
+    exact: Export.
+  move=> lm vm args' /=.
+  have [_ _ <- <- <- <- _ <- _ _] := clear_stack_lfd_invariants hclearfd'. 
+  move=> H H0 H1 H2 H3 H4 H5.
   have {lp_call} := lp_call lm vm args' H _ H1 H2 H3 _ H5.
+  have [-> -> _] := clear_stack_lprog_invariants ok_lp'.
   have [-> [-> _]] := tunnel_program_invariants (spp := mk_spp) ok_tp.
   move => /(_ H0 H4)[] wt_args' [] vm' [] lm' [] res' [] lp_call M' ok_res' res_res' wt_res'.
   split; first exact: wt_args'.
@@ -501,6 +505,34 @@ Proof.
   - exact: ok_res'.
   - exact: res_res'.
   - exact: wt_res'.
+  have := clear_stack_lprogP (hap_hcsp haparams) ok_lp' lp_call.
+  have: get_var vm' (vid (lp_rsp lp')) = ok (Vword (top_stack lm')).
+  + move: (ok_lp'); rewrite /clear_stack_lprog; t_xrbindP=> /Sv_memP hin _ _ _.
+    case: lp_call=> _ _ _ _.
+    move=> /(_ (vid (lp_rsp lp)) hin).
+    rewrite /get_var.
+    have [_ <- _] := clear_stack_lprog_invariants ok_lp'.
+    move=> <- /=.
+    move: H0.
+    have [_ [<- _]] := tunnel_program_invariants (spp:=mk_spp) ok_tp.
+    have [_ <- _] := clear_stack_lprog_invariants ok_lp'.
+    move=> -> /=.
+    m
+    
+  case: p_call. 
+  move=> ? hh ??? /(_ vm _ H _ H3). rewrite /valid_RSP.
+  rewrite -(lp_rspE (spp:=mk_spp) ok_lp).
+  rewrite -(lp_ripE (spp:=mk_spp) ok_lp).
+  have [-> -> _] := clear_stack_lprog_invariants ok_lp'.
+  have [-> [-> _]] := tunnel_program_invariants (spp := mk_spp) ok_tp.
+  move=> /(_ _ H0 H4).
+  have := get_fundef_p' (spp := mk_spp) ok_lp hh.
+  rewrite ok_fd. move=> [?]; subst fd.
+  move=> /= in H2. move=> /(_ H2).
+  case. vm' => ????? _ _ _ _ _ _ _ _ HH _.
+  rewrite /valid_RSP in HH.
+  
+  have := 
   clear -lp_call ok_tp.
   case: lp_call => fd ok_fd Export lp_exec ok_callee_saved.
   exists (tunneling.tunnel_lfundef fn fd).

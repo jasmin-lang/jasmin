@@ -36,15 +36,15 @@ Fixpoint max_map
   | x :: xs' =>
       let acc' :=
         if f x is Some y
-        then Some (if acc is Some z then max y z else y)
+        then Some (if acc is Some z then cmp_max y z else y)
         else acc
       in
       max_map f xs' acc'
   end.
 
 Definition max_lcmd_lbl (c : lcmd) : option label :=
-  let f '(MkLI _ i) :=
-    if i is Llabel ExternalLabel lbl
+  let f i :=
+    if li_i i is Llabel _ lbl
     then Some lbl
     else None
   in

@@ -30,6 +30,7 @@ Require Import
   word
   wsize.
 Require Import compiler_util linear_util.
+Require Import one_varmap.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -103,7 +104,16 @@ Definition clear_stack_lfd fn (lfd : lfundef) : cexec lfundef :=
   else
     ok lfd.
 
+Context {ovm_i : one_varmap_info} {pd:PointerData}.
+
 Definition clear_stack_lprog (lp : lprog) : cexec lprog :=
+  (* This ensures that sp is callee saved and thus has same value at the end
+     of the body as at the start. Could probably be derived from the proof
+     of the previous passes.
+  *)
+  Let _ := assert (Sv.mem (vid lp.(lp_rsp)) callee_saved)
+                  (E.error (pp_s "rsp is not callee saved"))
+  in
   Let lp_funs := map_lprog_name clear_stack_lfd lp.(lp_funcs) in
   ok
     {|

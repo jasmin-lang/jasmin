@@ -792,12 +792,12 @@ Definition x86_VPBLENDVB sz (x y m: word sz) : ex_tpl (w_ty sz) :=
 
 Definition SaturatedSignedToUnsigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
   let i1 := wsigned w in
-  let i2 := max 0%Z (min i1 (wmax_unsigned sz2)) in
+  let i2 := cmp_max 0%Z (cmp_min i1 (wmax_unsigned sz2)) in
   wrepr sz2 i2.
 
 Definition SaturatedSignedToSigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
   let i1 := wsigned w in
-  let i2 := max (wmin_signed sz2) (min i1 (wmax_signed sz2)) in
+  let i2 := cmp_max (wmin_signed sz2) (cmp_min i1 (wmax_signed sz2)) in
   wrepr sz2 i2.
 
 Definition vpack2 (sz1 sz2 sz:wsize) (op:word sz1 -> word sz2) (w1 w2:word sz) : word sz := 
