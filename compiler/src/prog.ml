@@ -512,14 +512,14 @@ let is_var = function
   | Pvar _ -> true
   | _ -> false
 
+let access_offset aa ws i =
+  match aa with
+  | Warray_.AAscale -> size_of_ws ws * i
+  | Warray_.AAdirect -> i
+
 let get_ofs aa ws e =
   match e with
-  | Pconst i ->
-     Some
-       (match aa with
-        | Warray_.AAdirect -> Z.to_int i
-        | Warray_.AAscale -> size_of_ws ws * Z.to_int i
-       )
+  | Pconst i -> Some (access_offset aa ws (Z.to_int i))
   | _ -> None
 
 (* -------------------------------------------------------------------- *)
