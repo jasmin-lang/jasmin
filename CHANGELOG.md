@@ -32,8 +32,9 @@
   ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303);
   fixes [#301](https://github.com/jasmin-lang/jasmin/issues/301)).
 
-- Safety checker handles the `#copy` operator
-  ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312);
+- Safety checker handles the `#copy` and `#randombytes` operators
+  ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312),
+  [PR #317](https://github.com/jasmin-lang/jasmin/pull/317);
   fixes [#308](https://github.com/jasmin-lang/jasmin/issues/308)).
 
 ## Other changes

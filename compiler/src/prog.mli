@@ -300,6 +300,8 @@ val array_kind : ty -> wsize * int
 val ws_of_ty   : 'e gty -> wsize
 val arr_size : wsize -> int -> int
 val size_of  : ty -> int
+val access_offset : Warray_.arr_access -> wsize -> int -> int
+
 (* -------------------------------------------------------------------- *)
 (* Functions on variables                                               *)
 
