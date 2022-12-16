@@ -1543,6 +1543,29 @@ end = struct
       fname
       L.pp_iloc ginstr.i_loc
 
+  let cells_of_array x ofs n =
+    let x = L.unloc x in
+    List.init (Conv.int_of_pos n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
+
+  let aeval_syscall state sc lvs _es =
+    match sc with
+    | Syscall_t.RandomBytes n ->
+       let cells = match lvs with
+         | [ Lnone _ ] -> []
+         | [ Lvar x ] -> cells_of_array x 0 n
+         | [ Lasub(aa, ws, _len, x, ofs) ] ->
+            begin match AbsExpr.aeval_cst_int state.abs ofs with
+            | Some j -> cells_of_array x (access_offset aa ws j) n
+            | None ->
+               debug (fun () ->
+                   Format.eprintf "Warning: cannot compute the offset of the destination of #randombytes@.");
+               []
+            end
+         | _ -> assert false
+       in
+       let abs = List.fold_left AbsDom.is_init state.abs cells in
+       { state with abs }
+
   let rec aeval_ginstr asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
@@ -1592,10 +1615,8 @@ end = struct
 
         { state with abs = abs; }
 
-      | Csyscall(lvs, _o, _es) ->
-        let assgns = opn_dflt (List.length lvs) in
-        let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
-        { state with abs = abs; }
+      | Csyscall(lvs, sc, es) ->
+         aeval_syscall state sc lvs es
 
       | Cif(e,c1,c2) ->
         aeval_if asmOp ginstr e c1 c2 state

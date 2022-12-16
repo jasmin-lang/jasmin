@@ -351,10 +351,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       (arr_range x * size_of_ws (arr_size x))
       (fun i -> AarraySlice (x, U8, i))
 
-  let access_offset acc ws i = match acc with
-    | Warray_.AAscale  -> size_of_ws ws * i
-    | Warray_.AAdirect -> i 
-        
   (* let abs_arr_range_at abs x acc ws ei = match aeval_cst_int abs ei with
    *   | Some i ->
    *     [AarraySlice (x, ws, access_offset acc ws i)]
