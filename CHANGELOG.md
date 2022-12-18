@@ -24,6 +24,10 @@
   ([PR #315](https://github.com/jasmin-lang/jasmin/pull/315);
   fixes [#314](https://github.com/jasmin-lang/jasmin/issues/314)).
 
+- Safety checker better handles integer shift operators
+  ([PR #322](https://github.com/jasmin-lang/jasmin/pull/322);
+  fixes [#319](https://github.com/jasmin-lang/jasmin/issues/319)).
+
 # Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus
