@@ -114,8 +114,10 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Odiv _ -> AB_Arith Texpr1.Div
 
   | E.Olsr _ -> AB_Wop (Wshift Unsigned_right)
-  | E.Olsl _ -> AB_Wop (Wshift Unsigned_left)
-  | E.Oasr _ -> AB_Wop (Wshift Signed_right)
+  | E.Olsl (Op_w _) -> AB_Wop (Wshift Unsigned_left)
+  | E.Olsl Op_int -> AB_Unknown
+  | E.Oasr (Op_w _) -> AB_Wop (Wshift Signed_right)
+  | E.Oasr Op_int -> AB_Unknown
   | E.Oror _ -> AB_Wop (Wshift Rotation_right)
   | E.Orol _ -> AB_Wop (Wshift Rotation_left)
       
@@ -297,7 +299,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       if linexpr_overflow abs line Unsigned (int_of_ws ws) then None
       else cst_var ()
     | _ -> raise (Aint_error "type error in aeval_cst_var") 
-    
+
+  let zlsl (x: Z.t) (i: Z.t) : Z.t option =
+    match Z.to_int i with
+    | exception Z.Overflow -> None
+    | 0 -> Some x
+    | i -> Some (if 0 < i then Z.shift_left x i else Z.shift_right x (-i))
+
   (* Try to evaluate e to a constant expression in abs *)
   let rec aeval_cst_zint abs e = match e with
     | Pvar x -> aeval_cst_var abs x
@@ -324,7 +332,15 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
     | Papp2 (Odiv Cmp_int, e1, e2) ->
-      obind2 (fun x y -> Some (Z.div x y))
+        obind2 (fun x y -> Some (Z.div x y))
+          (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
+
+    | Papp2 (Olsl Op_int, e1, e2) ->
+        obind2 zlsl
+          (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
+
+    | Papp2 (Oasr Op_int, e1, e2) ->
+      obind2 (fun x y -> zlsl x (Z.neg y))
         (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
     | Papp1 _ | Papp2 _ | Pbool _
