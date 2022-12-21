@@ -39,16 +39,6 @@ match env with
 | None => Sv.empty
 end.
 
-Inductive wf_env (envi : env) : Prop :=
-| wf_cond_env : forall e fv msf,
-                envi = (Some (e, fv), msf)  ->
-                fv = read_e e ->
-                use_mem e = false ->
-                wf_env envi
-| wf_none_env : forall msf,
-                envi = (None, msf) ->
-                wf_env envi.
- 
 Definition update_cond_env (X: Sv.t) (E : cond_env) : cond_env :=
 match E with 
 | Some (e, fv) => if Sv.subset X fv then None else E
@@ -133,9 +123,9 @@ match ir with
     | [:: e ; y] => let cenv := update_cond_env envi.2 envi.1 in
                     let rs := read_e_rec Sv.empty y in
                     let r2 := disjoint rs envi.2 in
-                    if negb r2
-                    then ok ((cenv, vrvs_rec envi.2 xs), cr)
-                    else ok ((cenv, envi.2), cr)
+                    if r2
+                    then ok ((cenv, envi.2), cr)
+                    else ok ((cenv, vrvs_rec envi.2 xs), cr)
     | _ =>  Error (spec_transform_error "Too many arguments")
    end 
    (* xs := protect (e, y)
@@ -185,207 +175,6 @@ let (ii,ir) := i in
 
 End INST.
 
-Section Section.
-
-Context `{asmop : asmOp}.
-Context {pd : PointerData}.
-Context {T} {pT:progT T}.
-
-Definition fun_spec1_to_spec2 (f:@fundef asm_op_spec1 asmOp_spec1 _ _)
-: cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _) :=
-  let 'MkFun ii si p c so r ev := f in
-  Let c := c_spec1_to_spec2 i_spec1_to_spec2 empty_env c in
-  ok (c.1, MkFun ii si p c.2 so r ev).
-
-Variable map_spec1_to_spec2 : 
-(@fundef asm_op_spec1 asmOp_spec1 _ _ -> 
-cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) -> 
-@prog asm_op_spec1 asmOp_spec1 _ _ -> 
-(@prog asm_op_spec2 asmOp_spec2 _ _).
-
-Definition prog_spec1_to_spec2 (p:@prog asm_op_spec1 asmOp_spec1 _ _) : 
-(@prog asm_op_spec2 asmOp_spec2 _ _) := 
-map_spec1_to_spec2 fun_spec1_to_spec2 p.
-
-End Section.
-
-Section PROOF.
-
-Context
-  {syscall_state asm_op : Type}
-  `{asmop : asmOp}
-  {fcp : FlagCombinationParams}
-  {pd : PointerData}
-  {sc_sem : syscall_sem syscall_state}.
-
-Existing Instance progUnit.
-
-Variable (ev:extra_val_t).
-(*Variable (p: @prog asm_op_spec1 asmOp_spec1 _ _).*)
-
-Variable (p: @prog asm_op_spec1  (@asmOp_of_spp (@asm_op_spec1 asm_op0 asmop) _ _) _ _).
-
-(*Context {T:eqType} {pT:progT T} `{sCP: semCallParams}.
-Variable (ev:extra_val_t).
-Variable (p: @prog asm_op_spec1 asmOp_spec1 _ _).
-Variable (sppe: SemPexprParams asm_op syscall_state).*)
-
-Variable map_spec1_to_spec2 : 
-(@fundef asm_op_spec1 asmOp_spec1 _ _ -> 
-cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) -> 
-@prog asm_op_spec1 asmOp_spec1 _ _ -> 
-@prog asm_op_spec2 asmOp_spec2 _ _.
-
-Definition estate_spec1_spec2 (s1 : @estate (@asm_op_spec1 asm_op0 asmop) syscall_state
-                  (@spp_of_asm_op_spec1 asm_op0 asmop pd syscall_state fcp sc_sem)) :
-@estate (@asm_op_spec2 asm_op0 asmop) syscall_state
-                  (@spp_of_asm_op_spec2 asm_op0 asmop pd syscall_state fcp sc_sem) :=
-match s1 with 
-| Estate ss m f => @Estate (@asm_op_spec2 asm_op0 asmop) syscall_state
-                   (@spp_of_asm_op_spec2 asm_op0 asmop pd syscall_state fcp sc_sem) ss m f
-end. 
-
-Let p' := prog_spec1_to_spec2 map_spec1_to_spec2 p.
-
-Let Pi_r s1 (i: @instr_r asm_op_spec1 asmOp_spec1) s2 :=
-forall ii (envi : env), 
-wf_env envi ->
-match (ir_spec1_to_spec2 envi ii i) with
- | Ok (envi', c') => sem p' ev (estate_spec1_spec2 s1) c' (estate_spec1_spec2 s2) /\ wf_env envi'
- | _ => True
-end.
-
-Let Pi s1 i s2 :=
-forall (envi : env),
-wf_env envi ->
-match (i_spec1_to_spec2 envi i) with
- | Ok (envi', c') => sem p' ev (estate_spec1_spec2 s1) c' (estate_spec1_spec2 s2) /\ wf_env envi'
- | _ => True
-end.
-
-Let Pc s1 c s2 :=
-forall (envi : env),
-wf_env envi ->
-match (c_spec1_to_spec2 (i_spec1_to_spec2) envi c) with
- | Ok (envi', c') => sem p' ev (estate_spec1_spec2 s1) c' (estate_spec1_spec2 s2) /\ wf_env envi'
- | _ => True
-end.
-
-Let Pfor i vs s1 c s2 :=
-forall (envi : env),
-wf_env envi ->
-match (c_spec1_to_spec2 (i_spec1_to_spec2) envi c) with
- | Ok (envi', c') => sem_for p' ev i vs (estate_spec1_spec2 s1) c' (estate_spec1_spec2 s2) /\ wf_env envi'
- | _ => True
-end.
-
-(*Set Printing Implicit.
-Set Printing All.
-About sem_Ind_nil. About estate. Print estate. Print sem_Ind_nil.
-Print Instances SemPexprParams. 
-Print Pc.
-Print Estate.*)
-
-Lemma eq_globs : p_globs p = p_globs p'.
-Proof.
-rewrite /p' /=. case: p=> /=. 
-move=> pf pg pe /=. rewrite /prog_spec1_to_spec2 /= /fun_spec1_to_spec2 /=. 
-Admitted.
-
-Lemma Hskip : sem_Ind_nil Pc.
-Proof.
-move=> s1 envi hwf /=. split=> //=.
-rewrite /estate_spec1_spec2. case: s1=> //=. 
-by constructor.
-Qed.
-
-Lemma Hcons : sem_Ind_cons p ev Pc Pi.
-Admitted.
-
-Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
-Admitted.
-
-Lemma Hassgn : sem_Ind_assgn p Pi_r.
-Proof.
-move=> s1 s2 x tag ty e v v' he ht hw. rewrite /Pi_r /=.
-move=> ii envi hwf /=.
-have heg := eq_globs. split=> //=.
-+ rewrite /estate_spec1_spec2 /=. case: s1 he ht hw=> //= ss m f he ht hw. 
-  case: s2 hw=> //= ss' m' f' hw. econstructor. 
-  + econstructor. econstructor.
-    + rewrite -heg /=.  admit.
-    + by apply ht.
-    rewrite -heg /=. admit.
-  by constructor.
-Admitted.
-
-Lemma Hopn : sem_Ind_opn p Pi_r.
-Proof.
-move=> s1 s2 t [].
-(* Ocopy *)
-+ move=> w pos xs es /= hop. rewrite /Pi_r /=. have heg := eq_globs.
-  move=> ii envi hwf /=. split=> //=.
-  rewrite /estate_spec1_spec2 /=. case: s1 hop=> //= ss m vm hop.
-  case: s2 hop=>//= ss' m' vm' hop'. econstructor.
-  econstructor. + econstructor. rewrite -heg /=. admit.
-  by constructor.
-(* Onop *)
-+ move=> xs es hop. rewrite /Pi_r /=. have heg := eq_globs.
-  move=> ii envi hwf /=. split=> //=. econstructor. 
-  + econstructor. econstructor. rewrite -heg. admit.
-  by constructor.
-(* Omul *)
-+ admit.
-(* Oaddcarry *)
-+ admit.
-(* Osubcarry *)
-+ admit.
-move=> [].
-(* protect *)
-+ admit.
-(* set_msf *)
-+ admit.
-(* init_msf *)
-+ move=> xs [] //= hop. rewrite /Pi_r /= /estate_spec1_spec2 /=. have heg := eq_globs.
-  case: s1 hop=> //=. case: s2=> //=.
-  move=> ss' m' vm' ss m vm /= hop ii envi hwf /=.
-  split=> //=.
-  + econstructor.
-    + econstructor. econstructor. rewrite -heg. Set Printing Implicit.  admit.
-    by constructor.
-  case: hwf=> //=.
-  (* some *)
-  + move=> e fv msf -> -> hmem /=. case: ifP=> //=.
-    + move=> hsub. by apply wf_none_env with (vrvs_rec msf xs).
-    move=> hsub. by apply wf_cond_env with e (read_e e) (vrvs_rec msf xs).
-  (* none *)
-  move=> msf -> /=. by apply wf_none_env with (vrvs_rec msf xs).
-(* mov_msf *)
-+ move=> xs es hop. rewrite /Pi_r /ir_spec1_to_spec2 /estate_spec1_spec2 /=. have heg := eq_globs.
-  case: s1 hop=> //=. case: s2=> //=. move=> ss' m' vm' ss m vm /= hop.
-  case: es hop=> //= e es. case: es=> //= hop ii envi hwf.
-  case: ifP=> //=.
-  (* e not present in X ==> X = X*)
-  + move=> hdisj. split=> //=.
-    + econstructor.
-      + econstructor. econstructor.
-  
-Admitted.
-
-Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
-Admitted.
-
-Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
-Admitted.
-
-Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
-Admitted.
-
-Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
-Admitted.
-
-Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
-Admitted.
 
 
 

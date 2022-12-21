@@ -61,6 +61,7 @@ compiler/lea_proof.v
 compiler/linearization.v
 compiler/linearization_proof.v
 compiler/spec1_spec2.v
+compiler/spec1_spec2_proof.v
 compiler/lowering.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
