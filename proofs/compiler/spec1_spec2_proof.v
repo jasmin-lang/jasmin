@@ -172,6 +172,11 @@ have heg := eq_globs. split=> //=.
   by constructor.
 Admitted.
 
+Lemma not_disjoint s s':
+disjoint s s' = false ->
+exists (x : Sv.elt),
+Sv.In x s /\ Sv.In x s'.
+Admitted.
 
 Lemma Hopn : sem_Ind_opn (spp := spp_of_asm_op_spec1) p Pi_r.
 Proof.
@@ -241,8 +246,12 @@ move=> [].
     move=> e0 fv s gd. rewrite /update_cond_env /=. case: envi.1 hwf=> //=.
     move=> -[e1 fv1] hwf. case: ifP=> //=.
     move=> hsub [] h1 h2; subst. move: (hwf e0 fv s gd erefl)=> [] hfv [] hmem [] he hmsf; 
-    split=> //=; auto. split=> //=. split=> //=. move=> m hsub'. 
-    have /= heqe := read_eE e' Sv.empty. rewrite /disjoint /= in hdisj. Search Sv.inter.
+    split=> //=; auto. split=> //=. split=> //=. 
+    have /= heqe := read_eE e' Sv.empty. have [elm [hd hd']]:= not_disjoint hdisj.
+    move: (hmsf elm hd')=> hg'. move=> m hin. have heq := vrvs_recE envi.2 xs.
+    rewrite /Sv.Equal in heq. move: (heq m)=> [] heq' heq''. move: (heq' hin)=> {heq'} heq'.
+    move: (hmsf m)=> ->. + reflexivity.
+    have := SvD.F.union_1 heq'. move=> hdes. case: hdes=> //= hdes.
     admit.
 (* init_msf *)
 + move=> xs [] //= hop. rewrite /Pi_r /=. have heg := eq_globs.
@@ -292,6 +301,62 @@ move=> ii envi hwf. econstructor.
 by apply hwf.
 Admitted.
 
+Lemma env_sem_instr env env' env1 env2 i c c':
+i_spec1_to_spec2 env i = ok (env1, c) ->
+i_spec1_to_spec2 env' i = ok (env2, c') ->
+c = c'.
+Proof.
+case: i=> //= ii ir. case: ir=> //=.
+(* assgn *)
++ move=> l a s e. rewrite /i_spec1_to_spec2 /=.
+  by move=> [] henv <- [] _ <-.
+(* opn *)
++ move=> l a sop es. rewrite /i_spec1_to_spec2 /=.
+  case: sop=> //=.
+  + by move=> w pos [] _ <- [] _ <-.
+  + by move=> [] _ <- [] _ <-.
+  + by move=> w [] _ <- [] _ <-.
+  + by move=> w [] _ <- [] _ <-.
+  + by move=> w [] _ <- [] _ <-.
+  move=> [].
+  + move=> w. case: es=> //= e es. case: es=> //= e' es'. case: es'=> //=.
+    case: ifP=> //= hdisj [] _ <-. by case: ifP=> //= hdisj' [] _ <-.
+  + case: es=> //= e es'. case: es'=> //= e' es'. case: es'=> //=.
+    case: ifP=> //= hdisj. move=> [] _ <-. by case: ifP=> //= hdisj' [] _ <-.
+  + move=> [] _ <-. by case: ifP=> //= hdisj' [] _ <-.
+  + by case: es=> //= [] [] _ <- [] _ <-.
+  + case: es=> //= e es. case: es=> //=. case: ifP=> _ [] _ <-. 
+    + case: ifP=> //= _. + by move=> [] _ <-. + by move=> [] _ <-.
+    by case: ifP=> //= _ [] _ <-.
+  + by move=> a0 [] _ <- [] _ <-.
+(* syscall *)
++ move=> l s es. rewrite /i_spec1_to_spec2. by move=> [] _ <- [] _ <-.
+(* if *)
++ move=> e c1 c2. rewrite /i_spec1_to_spec2 /=. 
+  t_xrbindP=> -[env1' c1'] /= hc1 -[env2' c2'] hc2 /= h h1 -[env3 c3'] hc3 -[envc4 c4'] hc4 /= h' h1' /=; subst.
+  admit.
+(* for *)
++ move=> x [] []. rewrite /i_spec1_to_spec2 /=. 
+  t_xrbindP=> d e e' c1 -[env1' c1'] hc /= h h1 -[env1'' c1''] hc' /= h' h1'; subst. admit.
+(* while *)
++ move=> a l e es. rewrite /i_spec1_to_spec2. admit.
+(* call *)
+admit.
+Admitted. 
+
+Lemma env_sem_cmd env env' env1 env2 c c1 c1':
+c_spec1_to_spec2 i_spec1_to_spec2 env c = ok (env1, c1) ->
+c_spec1_to_spec2 i_spec1_to_spec2 env' c = ok (env2, c1') ->
+c1 = c1'.
+Proof.
+move: env env' env1 env2 c1 c1'. elim: c=> //=.
++ by move=> env env' env1 env2 c1' c2' [] _ <- [] _ <-.
+move=> i c hrec env env' env1 env2 c1 c1'. 
+t_xrbindP=> -[envi ci] hi -[envc cc] /= hc /= h hceq -[envi' ci'] hi' -[envc' cc'] /= hc' h' hceq' /=; subst.
+move: (hrec envi envi' env1 env2 cc cc' hc hc')=> ->.
+by have -> := env_sem_instr hi hi'.
+Qed.
+
 Lemma Hif_true : sem_Ind_if_true (spp := spp_of_asm_op_spec1) p ev Pc Pi_r.
 Proof.
 move=> s1 s2 e c1 c2 he hc2 hpc. move=> ii envi hwf. have heg := eq_globs.
@@ -314,10 +379,25 @@ Admitted.
 
 Lemma Hif_false : sem_Ind_if_false (spp := spp_of_asm_op_spec1) p ev Pc Pi_r.
 Proof.
-move=> s1 s2 e c1 c2 he hc2 hpc. move=> ii envi hwf.
+move=> s1 s2 e c1 c2 he hc2 hpc. move=> ii envi hwf. have heg := eq_globs.
 rewrite /ir_spec1_to_spec2 -/i_spec1_to_spec2 /=.
-move: (hpc envi hwf). 
-case heq : c_spec1_to_spec2=> //=. case heq' : c_spec1_to_spec2=>//=.
+move: (hpc envi hwf). case: envi hwf=> //= [env1 env2] hwf.
+case heq : c_spec1_to_spec2=> //= [[envc1 c2'] /=|//]. move=> [hc1' hwf1].
+case heq' : c_spec1_to_spec2=> //= [[envc2 c2''] /=|//].
+case heq'' : c_spec1_to_spec2=> //= [[envc1' c1']].
+split=> //=.
++ apply (Eseq (spp := spp_of_asm_op_spec2) (s2 := s2)).
+  + apply (EmkI (spp := spp_of_asm_op_spec2)). 
+    apply (Eif_false (spp := spp_of_asm_op_spec2)).
+    + by rewrite -heg.
+    admit.
+  by constructor.
+rewrite /wf_env /update_cond_env /=. rewrite /wf_env in hwf hwf1.
+case: env1 heq heq' heq'' hwf hwf1 => //= -[b fv] heq heq' heq'' hwf hwf1.
+move=> e0 fv0 s gd. case: ifP=> //=.
+move=> hsub [] h1 h2; subst. move: (hwf e0 fv0 s gd erefl)=> [] hfv0 [] hmem [] he0 hmsf.
+split=> //=. split=> //=. split=> //=. rewrite /= in heq''.
+move=> m hsub'. move: (hwf1 e0 fv0 s gd)=> {hwf1} hwf1. apply hwf1.
 Admitted.
 
 Lemma Hwhile_true : sem_Ind_while_true (spp := spp_of_asm_op_spec1) p ev Pc Pi_r.
