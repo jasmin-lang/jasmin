@@ -40,6 +40,7 @@ with {
 
 let runtest = python3Packages.buildPythonApplication rec {
   pname = "easycrypt-runtest";
+  format = "other";
   inherit src version;
 
   dontConfigure = true;
