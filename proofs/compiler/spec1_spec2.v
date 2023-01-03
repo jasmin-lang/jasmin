@@ -154,17 +154,17 @@ match ir with
   | sopn.Oasm o => ok (envi, cr) 
   end
  (* FIX ME *)                   
-| Csyscall xs o es => ok (envi, [:: MkI ii (@Csyscall asm_op_spec2 asmOp_spec2 xs o es)])
+| Csyscall xs o es => ok ((None, Sv.empty), [:: MkI ii (@Csyscall asm_op_spec2 asmOp_spec2 xs o es)])
 (* FIX ME *)
 | Cif b c1 c2 => 
-  Let rc1 := (c_spec1_to_spec2 i_spec1_to_spec2 (Some (b, get_fv envi.1), envi.2) c1) in 
-  Let rc2 := (c_spec1_to_spec2 i_spec1_to_spec2 (Some ((enot b), get_fv envi.1), envi.2) c2) in 
-  ok ((update_cond_env envi.2 envi.1, Sv.inter rc1.1.2 rc2.1.2), [:: MkI ii (@Cif asm_op_spec2 asmOp_spec2 b rc1.2 rc2.2)])
+  Let rc1 := (c_spec1_to_spec2 i_spec1_to_spec2 (Some (b, read_e b), envi.2) c1) in 
+  Let rc2 := (c_spec1_to_spec2 i_spec1_to_spec2 (Some ((enot b), read_e (enot b)), envi.2) c2) in 
+  ok ((None, Sv.inter rc1.1.2 rc2.1.2), [:: MkI ii (@Cif asm_op_spec2 asmOp_spec2 b rc1.2 rc2.2)])
 | Cfor x (dir, e1, e2) c => Let cr := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
                             ok (cr.1, [:: MkI ii (@Cfor asm_op_spec2 asmOp_spec2 x (dir, e1, e2) cr.2)])
-| Cwhile a c e c' => (*let c := (c_spec1_to_spec2 i_spec1_to_spec2 c) in 
-                     let c' := (c_spec1_to_spec2 i_spec1_to_spec2 c') in 
-                     [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a c e c')]*) ok (envi, [::])
+| Cwhile a c e c' => Let rc := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
+                     Let rc' := c_spec1_to_spec2 i_spec1_to_spec2 (Some (e, read_e e), rc.1.2) c' in 
+                     ok ((None, Sv.inter rc'.1.2 rc'.1.2), [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a rc.2 e rc'.2)])
 | Ccall ini xs fn es => ok (envi, [:: MkI ii (@Ccall asm_op_spec2 asmOp_spec2 ini xs fn es)])
 end 
 
