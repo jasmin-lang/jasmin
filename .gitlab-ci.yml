@@ -5,7 +5,7 @@ stages:
 - test
 - deploy
 
-image: nixos/nix:2.3.12
+image: nixos/nix:2.12.0
 
 variables:
   NIX_PATH: nixpkgs=channel:nixpkgs-unstable
