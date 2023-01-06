@@ -39,9 +39,15 @@ match env with
 | None => Sv.empty
 end.
 
+Definition get_guard (env : cond_env) : cexec pexpr :=
+match env with 
+| Some e => ok e.1
+| None => Error (spec_transform_error "Boolean not set") 
+end.
+
 Definition update_cond_env (X: Sv.t) (E : cond_env) : cond_env :=
 match E with 
-| Some (e, fv) => if Sv.subset X fv then None else E
+| Some (e, fv) => if disjoint X fv then E else None
 | None => None
 end.
 
@@ -99,59 +105,57 @@ Context {pd : PointerData}.
 Fixpoint ir_spec1_to_spec2 envi ii (ir: @instr_r asm_op_spec1 asmOp_spec1) {struct ir}
 : cexec (env * seq (@instr asm_op_spec2 asmOp_spec2)) := 
 match ir with 
-| Cassgn x tag ty e => ok (envi, [:: MkI ii (@Cassgn asm_op_spec2 asmOp_spec2 x tag ty e)])
+| Cassgn x tag ty e => ok ((update_cond_env (vrv x) envi.1, Sv.diff envi.2 (vrv x)), [:: MkI ii (@Cassgn asm_op_spec2 asmOp_spec2 x tag ty e)])
 | Copn xs tag o es => 
   let cr := [:: MkI ii (@Copn asm_op_spec2 asmOp_spec2 xs tag ((sopn_spec1_to_spec2 o)) es)] in
   match o with 
-  | Ocopy _ _ | Onop | Omulu _ | Oaddcarry _ | Osubcarry _ => ok (envi, cr)
+    (* these operators should not write to the msf variables *)
+  | Ocopy _ _ | Omulu _ | Oaddcarry _ | Osubcarry _ | Onop => ok ((update_cond_env (vrvs xs) envi.1, Sv.diff envi.2 (vrvs xs)), cr) 
     (* xs := init_msf 
-       X = xs U X 
-       E = update E based on whether X is present in E or not *)
+       None, xs *)
   | sopn.Oasm asm_op_spec1.Oinit_msf =>
     match es with 
-    | [::] => let cenv := update_cond_env envi.2 envi.1 in 
-              let venv := vrvs_rec envi.2 xs in  
-              ok ((cenv, venv), cr)
+    | [::] => ok ((None, (vrvs xs)), cr)
     | _ => Error (spec_transform_error "Too many arguments")
     end 
     (* xs := set_msf (e, y) 
        here y represents the msf flag and e is the boolean 
        X = xs U X (E is Some e and y in X) 
-       X = X (y not in X) *)
+       Error (y not in X) *) (* envi = (Some (e, fv e), msf) *)
   | sopn.Oasm asm_op_spec1.Oset_msf =>
     match es with 
-    | [:: e ; y] => let cenv := update_cond_env envi.2 envi.1 in
-                    let rs := read_e_rec Sv.empty y in
-                    let r2 := disjoint rs envi.2 in
-                    if r2
-                    then ok ((cenv, envi.2), cr)
-                    else ok ((cenv, vrvs_rec envi.2 xs), cr)
+    | [:: e' ; y] => Let re := get_guard envi.1 in 
+                     let rs := read_e_rec Sv.empty y in
+                     let r2 := disjoint rs envi.2 in
+                     if negb r2 && (eq_expr re e')
+                     then ok ((None, Sv.union (Sv.diff envi.2 (read_e y)) (vrvs xs)), cr)
+                     else Error (spec_transform_error "Msf variable not present in the set")
     | _ =>  Error (spec_transform_error "Too many arguments")
    end 
    (* xs := protect (e, y)
       should fail if y is not in X *)
   | sopn.Oasm (asm_op_spec1.Oprotect w) => 
     match es with 
-    | [:: e; y] => let cenv := update_cond_env envi.2 envi.1 in 
+    | [:: e; y] => let cenv := update_cond_env (vrvs xs) envi.1 in 
                    let rs := read_e_rec Sv.empty y in 
-                   let r := disjoint rs envi.2 in 
+                   let r := disjoint rs envi.2 in
                    if r 
                    then Error (spec_transform_error "Msf variable not present")
-                   else ok ((cenv, envi.2), cr)
+                   else ok ((cenv, Sv.diff envi.2 (vrvs xs)), cr)
     | _ => Error (spec_transform_error "Too many arguments")
     end
    (* xs := mov_msf(y) 
-      if y is present in msf set then xs U X else X *)
+      if y is present in msf set then xs U X else return error *)
   | sopn.Oasm asm_op_spec1.Omov_msf => 
     match es with
     | [:: y] => let rs := read_e_rec Sv.empty y in 
                 let r := disjoint rs envi.2 in
                 if r 
-                then ok ((update_cond_env envi.2 envi.1, envi.2), cr)
-                else ok ((update_cond_env envi.2 envi.1, vrvs_rec envi.2 xs), cr)
+                then Error (spec_transform_error "Msf variable not present")
+                else ok ((update_cond_env (vrvs xs) envi.1, Sv.union envi.2 (vrvs xs)), cr)
     | _ => Error (spec_transform_error "Too many arguments")
     end
-  | sopn.Oasm o => ok (envi, cr) 
+  | sopn.Oasm o => ok ((update_cond_env (vrvs xs) envi.1, Sv.diff envi.2 (vrvs xs)), cr) 
   end
  (* FIX ME *)                   
 | Csyscall xs o es => ok ((None, Sv.empty), [:: MkI ii (@Csyscall asm_op_spec2 asmOp_spec2 xs o es)])
@@ -174,6 +178,7 @@ let (ii,ir) := i in
 (ir_spec1_to_spec2 envi ii ir).
 
 End INST.
+
 
 
 

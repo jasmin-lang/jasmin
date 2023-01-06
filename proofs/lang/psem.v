@@ -1103,6 +1103,20 @@ Proof.
   by apply on_arr_varP => n t Ht Hval; t_xrbindP => ????????; apply: write_var_scsP.
 Qed.
 
+Lemma lv_writes_scsP gd (xs:lvals) vs s1 s2:
+  write_lvals gd s1 xs vs = ok s2 ->
+  escs s1 = escs s2.
+Proof.
+move: gd vs s1 s2. elim: xs.
+(* empty *)
++ move=> gd vs s1 s2 /=. case: vs=> //=. by move=> [] <-.
+(* non-empty *)
+move=> x xs hrec gd vs s1 s2. rewrite /write_lvals /=.
+case: vs=> //= v vs'. t_xrbindP=> s hw hws. rewrite /write_lvals /= in hrec.
+move: (hrec gd vs' s s2 hws)=> <-. 
+by have heq' := lv_write_scsP hw.
+Qed.
+
 Section Write.
 
 Context {T} {pT:progT T} {sCP : semCallParams}.
