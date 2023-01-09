@@ -23,6 +23,13 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* Used to set up stack. *)
+Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) :=
+  let f_to_lvar x := Lvar (VarI (to_var x) dummy_var_info) in
+  let eflags := map f_to_lvar [:: OF; CF; SF; PF; ZF ] in
+  let ex := Pvar (mk_lvar x) in
+  let emask := eword_of_int ws (- wsize_size al) in
+  (eflags ++ [:: Lvar x ], Ox86 (AND ws), [:: ex; emask ]).
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
@@ -66,6 +73,10 @@ Definition x86_saparams is_regx : stack_alloc_params :=
 (* ------------------------------------------------------------------------ *)
 (* Linearization parameters. *)
 
+Section LINEARIZATION.
+
+Notation vtmpi := {| v_var := to_var RAX; v_info := dummy_var_info; |}.
+
 Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
   let rspg := Gvar rspi Slocal in
   let p := Papp2 (Osub (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
@@ -76,27 +87,40 @@ Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
   let p := Papp2 (Oadd (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
   ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
 
-Definition x86_ensure_rsp_alignment (rspi: var_i) (al: wsize) :=
-  let to_lvar x := Lvar (VarI (to_var x) dummy_var_info) in
-  let eflags := List.map to_lvar [:: OF ; CF ; SF ; PF ; ZF ] in
-  let p0 := Pvar (Gvar rspi Slocal) in
-  let p1 := Papp1 (Oword_of_int Uptr) (Pconst (- wsize_size al)) in
-  (eflags ++ [:: Lvar rspi ], Ox86 (AND Uptr), [:: p0; p1 ]).
-
 Definition x86_lassign (x: lval) (ws: wsize) (e: pexpr) :=
   let op := if (ws <= U64)%CMP
             then MOV ws
             else VMOVDQU ws
-  in Some ([:: x ], Ox86 op, [:: e ]).
+  in ([:: x ], Ox86 op, [:: e ]).
+
+Definition x86_set_up_sp_register
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : seq copn_args :=
+  let rspg := mk_lvar rspi in
+  let i0 := x86_lassign (Lvar r) Uptr (Pvar rspg) in
+  let i1 := x86_allocate_stack_frame rspi sf_sz in
+  let i2 := x86_op_align rspi Uptr al in
+  [:: i0; i1; i2 ].
+
+Definition x86_set_up_sp_stack
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq copn_args :=
+  let vtmpg := mk_lvar vtmpi in
+  let i := x86_lassign (Lmem Uptr rspi (cast_const off)) Uptr (Pvar vtmpg) in
+  x86_set_up_sp_register rspi sf_sz al vtmpi ++ [:: i ].
 
 Definition x86_liparams : linearization_params :=
   {|
-    lip_tmp := "RAX"%string;
+    lip_tmp := vname (v_var vtmpi);
+    lip_not_saved_stack := [::];
     lip_allocate_stack_frame := x86_allocate_stack_frame;
     lip_free_stack_frame := x86_free_stack_frame;
-    lip_ensure_rsp_alignment := x86_ensure_rsp_alignment;
-    lip_lassign := x86_lassign;
+    lip_set_up_sp_register :=
+      fun rspi sf_sz al r => Some (x86_set_up_sp_register rspi sf_sz al r);
+    lip_set_up_sp_stack :=
+      fun rspi sf_sz al off => Some (x86_set_up_sp_stack rspi sf_sz al off);
+    lip_lassign := fun x ws e => Some (x86_lassign x ws e);
   |}.
+
+End LINEARIZATION.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
