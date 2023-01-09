@@ -101,6 +101,10 @@ Lemma wsize8 : wsize_size U8 = 1%Z. done. Qed.
 Definition wbase (s: wsize) : Z :=
   modulus (wsize_size_minus_1 s).+1.
 
+Lemma wbaseE ws :
+  wbase ws = (2 ^ (wsize_size_minus_1 ws).+1)%Z.
+Proof. rewrite /wbase /word.modulus. by rewrite two_power_nat_equiv. Qed.
+
 Lemma wbase_pos ws :
   (wbase ws > 0)%Z.
 Proof. by case: ws. Qed.
@@ -427,9 +431,66 @@ Definition x86_shift_mask (s:wsize) : u8 :=
 Definition wbit_n sz (w:word sz) (n:nat) : bool :=
    wbit (wunsigned w) n.
 
+Lemma wbit_nE ws (w : word ws) i :
+  wbit_n w i = Z.odd (wunsigned w / 2 ^ i)%Z.
+Proof.
+  have [hlo _] := wunsigned_range w.
+  rewrite /wbit_n.
+  rewrite word.wbitE; last by rewrite !zify.
+
+  rewrite -(Nat2Z.id (_ %/ _)).
+
+  rewrite -oddZE; last first.
+  - rewrite !zify. exact: Zle_0_nat.
+
+  rewrite divnZE; first last.
+  - apply: lt0n_neq0. by rewrite expn_gt0.
+
+  rewrite Z2Nat.id; last done.
+  by rewrite Nat2Z.n2zX expZE.
+Qed.
+
 Lemma eq_from_wbit_n s (w1 w2: word s) :
   reflect (∀ i : 'I_(wsize_size_minus_1 s).+1, wbit_n w1 i = wbit_n w2 i) (w1 == w2).
 Proof. apply/eq_from_wbit. Qed.
+
+Lemma wbit_higher_bits_0 x n ws (i : nat) :
+  (0 <= n)%Z
+  -> (0 <= x < 2 ^ n)%Z
+  -> (n <= i < (wsize_size_minus_1 ws).+1)%Z
+  -> wbit_n (wrepr ws x) i = false.
+Proof.
+  set m : Z := (wsize_size_minus_1 ws).+1.
+  move=> h0n [h0x hxn] [hni him].
+
+  rewrite wbit_nE.
+  rewrite Zdiv_small; first done.
+
+  have hxi : (x < 2 ^ i)%Z.
+  - apply: (Z.lt_le_trans _ _ _ hxn). apply: Z.pow_le_mono_r; lia.
+
+  have hnm : (x < 2 ^ m)%Z.
+  - apply: (Z.lt_le_trans _ _ _ hxn). apply: Z.pow_le_mono_r; lia.
+
+  rewrite wunsigned_repr_small; first done.
+  by rewrite wbaseE.
+Qed.
+
+Lemma wbit_lower_bits_0 x n ws (i : nat) :
+  (0 <= i < n)%Z
+  -> (0 <= 2 ^ n * x < wbase ws)%Z
+  -> wbit_n (wrepr ws (2 ^ n * x)) i = false.
+Proof.
+  move=> [h0i hin] hw.
+  rewrite wbit_nE.
+  rewrite (wunsigned_repr_small hw).
+  rewrite -(Zplus_minus i n).
+  rewrite Z.pow_add_r; last lia; last lia.
+  rewrite -Z.mul_assoc Z.mul_comm.
+  rewrite Z_div_mult; last lia.
+  rewrite Z_odd_pow_2; first done.
+  lia.
+Qed.
 
 Lemma wandE s (w1 w2: word s) i :
   wbit_n (wand w1 w2) i = wbit_n w1 i && wbit_n w2 i.
@@ -520,6 +581,25 @@ Proof.
   move => l_lt_c.
   rewrite wbit_lsl_lo; last by apply/ltP.
   rewrite Z.mul_pow2_bits_low //; lia.
+Qed.
+
+Lemma wshl_sem ws w n :
+  (0 <= n)%Z
+  -> wshl w n = (wrepr ws (2 ^ n) * w)%R.
+Proof.
+  move=> hlo.
+  apply: wunsigned_inj.
+
+  rewrite -(Z2Nat.id _ hlo).
+  rewrite wunsigned_wshl.
+  rewrite (Z2Nat.id _ hlo).
+
+  rewrite -(wrepr_unsigned w).
+  rewrite -wrepr_mul.
+  rewrite !wunsigned_repr.
+
+  rewrite Zmult_mod_idemp_l.
+  by rewrite Z.mul_comm.
 Qed.
 
 Lemma wshl_ovf sz (w: word sz) c :
@@ -858,6 +938,41 @@ Lemma wandN1 sz (x: word sz) : wand (-1) x = x.
 Proof.
   apply/eqP/eq_from_wbit_n => i.
   by rewrite wandE wN1E ltn_ord.
+Qed.
+
+Lemma wand_small n :
+  (0 <= n < wbase U16)
+  -> wand (wrepr U32 n) (zero_extend U32 (wrepr U16 (-1))) = wrepr U32 n.
+Proof.
+  move=> [hlo hhi].
+  apply/eqP/eq_from_wbit_n.
+  move=> [i hrangei] /=.
+
+  case hi: (i < 16)%nat.
+
+  - rewrite wandE.
+    rewrite wrepr_m1 wbit_zero_extend.
+    rewrite wN1E.
+
+    have -> : (i <= wsize_size_minus_1 U32)%nat.
+    - by apply: (ltnSE hrangei).
+    rewrite andTb.
+
+    rewrite hi.
+    by rewrite andbT.
+
+  have -> : wbit_n (wrepr U32 n) i = false.
+  - rewrite -(Nat2Z.id i).
+    apply: (wbit_higher_bits_0 (n := 16) _ _) => //=.
+    move: hi => /ZNltP hi.
+    move: hrangei => /ZNleP /= h.
+    lia.
+
+  rewrite wandE.
+  rewrite wrepr_m1 wbit_zero_extend.
+  rewrite wN1E.
+  rewrite hi /=.
+  by rewrite !andbF.
 Qed.
 
 Lemma worC sz : commutative (@wor sz).
@@ -1819,4 +1934,16 @@ Proof.
   rewrite unsigned_overflow //; rewrite -!/(wunsigned _).
   have := wunsigned_range w1; have := wunsigned_range w2.
   lia.
+Qed.
+
+Lemma wbit_pow_2 ws n x (i : nat) :
+  0 <= n
+  -> (Z.to_nat n <= i <= wsize_size_minus_1 ws)%nat
+  -> wbit_n (wrepr ws (2 ^ n * x)) i = wbit_n (wrepr ws x) (i - Z.to_nat n).
+Proof.
+  move=> h0n hrange.
+  rewrite wrepr_mul.
+  rewrite -(wshl_sem _ h0n).
+  rewrite wshlE.
+  by rewrite hrange.
 Qed.

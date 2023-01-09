@@ -229,6 +229,15 @@ Qed.
 Definition vm_initialized_on (vm: vmap) : seq var → Prop :=
   all (λ x, is_ok (get_var vm x >>= of_val (vtype x))).
 
+(* Attempt to simplify goals of the form
+   [get_var vm.[y0 <- z0]...[yn <- zn] x]. *)
+Ltac t_get_var :=
+  repeat (
+    rewrite get_var_eq
+    || (rewrite get_var_neq; last by [|apply/nesym])
+  ).
+
+
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 

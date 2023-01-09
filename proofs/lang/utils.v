@@ -1458,6 +1458,24 @@ Qed.
 Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
 Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
+Lemma Z_odd_pow_2 n x :
+  (0 < n)%Z
+  -> Z.odd (2 ^ n * x) = false.
+Proof.
+  move=> hn.
+  rewrite Z.odd_mul.
+  by rewrite (Z.odd_pow _ _ hn).
+Qed.
+
+Lemma Zle_n_nn n :
+  n <= n * n.
+Proof.
+  case: (Z.lt_ge_cases n 0); first Psatz.lia.
+  move: n.
+  apply: natlike_ind; Psatz.lia.
+Qed.
+
+
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
@@ -1471,6 +1489,50 @@ Proof. by move=> ?; split. Qed.
 (* -------------------------------------------------------------------- *)
 Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
 Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
+
+(* -------------------------------------------------------------------- *)
+Section NAT.
+
+Open Scope nat.
+
+Lemma ZNleP x y :
+  reflect (Z.of_nat x <= Z.of_nat y)%Z (x <= y).
+Proof.
+  case h: (x <= y).
+  all: move: h => /leP /Nat2Z.inj_le.
+  all: by constructor.
+Qed.
+
+Lemma ZNltP x y :
+  reflect (Z.of_nat x < Z.of_nat y)%Z (x < y).
+Proof.
+  case h: (x < y).
+  all: move: h => /ZNleP.
+  all: rewrite Nat2Z.inj_succ.
+  all: move=> /Z.le_succ_l.
+  all: by constructor.
+Qed.
+
+Lemma subnn n :
+  n - n = 0.
+Proof. elim: n => //. Qed.
+
+Lemma lt_nm_n n m :
+  n + m < n = false.
+Proof.
+  rewrite -{2}(addn0 n).
+  rewrite ltn_add2l.
+  exact: ltn0.
+Qed.
+
+Lemma sub_nmn n m :
+  n + m - n = m.
+Proof.
+  elim: n => //.
+  by rewrite add0n subn0.
+Qed.
+
+End NAT.
 
 (* ------------------------------------------------------------------------- *)
 
@@ -1660,3 +1722,9 @@ Ltac t_elim_uniq :=
     move=> _
   );
   move=> _.
+
+Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
+  And6 of P1 & P2 & P3 & P4 & P5 & P6.
+
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
+  (and6 P1 P2 P3 P4 P5 P6) : type_scope.

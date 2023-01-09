@@ -176,6 +176,28 @@ Proof.
   by move=> H; apply: rt_trans; apply: rt_step.
 Qed.
 
+Lemma lsem_step2 ls0 ls1 ls2 :
+  lsem1 ls0 ls1
+  -> lsem1 ls1 ls2
+  -> lsem ls0 ls2.
+Proof.
+  move=> h0 h1.
+  apply: (lsem_step h0).
+  apply: (lsem_step h1).
+  exact: rt_refl.
+Qed.
+
+Lemma lsem_step3 ls0 ls1 ls2 ls3 :
+  lsem1 ls0 ls1
+  -> lsem1 ls1 ls2
+  -> lsem1 ls2 ls3
+  -> lsem ls0 ls3.
+Proof.
+  move=> h0 h1 h2.
+  apply: (lsem_step h0).
+  exact: (lsem_step2 h1 h2).
+Qed.
+
 Lemma lsem_step_end s2 s1 s3 :
   lsem s1 s2 →
   lsem1 s2 s3 →
