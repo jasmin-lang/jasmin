@@ -5,7 +5,7 @@
 , ocamlDeps ? !inCI
 , testDeps ? !inCI
 , devTools ? !inCI
-, ecDeps ? false
+, ecRef ? ""
 , opamDeps ? false
 , enableFramePointers ? false
 }:
@@ -18,7 +18,9 @@ let coqPackages = coqPackages_8_14; in
 
 let coqword = callPackage scripts/coqword.nix { inherit coqPackages; }; in
 
-let easycrypt = callPackage scripts/easycrypt.nix { }; in
+let easycrypt = callPackage scripts/easycrypt.nix {
+  inherit ecRef;
+}; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
 
@@ -35,6 +37,8 @@ let oP =
 if !lib.versionAtLeast oP.ocaml.version "4.08"
 then throw "Jasmin requires OCaml ≥ 4.08"
 else
+
+let ecDeps = ecRef != ""; in
 
 stdenv.mkDerivation {
   name = "jasmin-0";
