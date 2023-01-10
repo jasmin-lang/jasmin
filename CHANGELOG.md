@@ -25,6 +25,10 @@
     warning, a vector suffix (e.g., `_4u32`)
     ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303)).
 
+- Division and modulo operators can be used in compound assignments
+  (e.g., `x /= y`)
+  ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
+
 ## Bug fixes
 
  - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`

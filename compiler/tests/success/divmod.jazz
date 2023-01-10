@@ -62,3 +62,14 @@ r += e;
 s = r;
 return s;
 }
+
+export
+fn test_compound(reg u64 x y) -> reg u64 {
+  reg u64 a b c;
+  a = x;
+  b = y;
+  a /= b;
+  a %= b;
+  c = a;
+  return c;
+}
