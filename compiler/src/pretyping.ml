@@ -903,6 +903,8 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `Add  s -> Some (`Add s)
   | `Sub  s -> Some (`Sub s)
   | `Mul  s -> Some (`Mul s)
+  | `Div  s -> Some (`Div s)
+  | `Mod  s -> Some (`Mod s)
   | `ShR  s -> Some (`ShR s)
   | `ShL  s -> Some (`ShL s)
   | `BAnd s -> Some (`BAnd s)

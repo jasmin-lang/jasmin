@@ -1,5 +1,11 @@
 # [unreleased]
 
+## New features
+
+- Division and modulo operators can be used in compound assignments
+  (e.g., `x /= y`)
+  ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
+
 ## Bug fixes
 
 - Safety checker handles the `#copy` operator

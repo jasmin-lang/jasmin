@@ -291,6 +291,8 @@ peqop:
 | PLUS  c=castop EQ  { `Add  c }
 | MINUS c=castop EQ  { `Sub  c }
 | STAR  c=castop EQ  { `Mul  c }
+| SLASH c=castop EQ  { `Div  c }
+| PERCENT c=castop EQ  { `Mod  c }
 | s=loc(GTGT)  c=castop EQ  { `ShR  (setsign c s) }
 | LTLT  c=castop EQ  { `ShL  c }
 | AMP   c=castop EQ  { `BAnd c }
