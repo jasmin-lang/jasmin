@@ -193,6 +193,8 @@ type peqop = [
   | `Add  of castop 
   | `Sub  of castop
   | `Mul  of castop
+  | `Div  of castop
+  | `Mod  of castop
   | `ShR  of castop
   | `ShL  of castop
   | `BAnd of castop

@@ -9,6 +9,10 @@
   `VPAVG`
   ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)).
 
+- Division and modulo operators can be used in compound assignments
+  (e.g., `x /= y`)
+  ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
+
 ## Bug fixes
 
 - Safety checker handles the `#copy` and `#randombytes` operators
