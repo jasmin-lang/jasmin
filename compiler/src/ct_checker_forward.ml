@@ -510,10 +510,13 @@ let rec ty_instr fenv env i =
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl i.i_annot lvl)
 
-  | Copn(xs, _, _, es) | Csyscall(xs, _, es) ->
-    (* FIXME syscall: syscall are assumed constant time ... *)
+  | Copn(xs, _, _, es) ->
     let env, lvl = ty_exprs_max ~public:false env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
+
+  | Csyscall(xs, RandomBytes _, es) ->
+    let env, _ = ty_exprs_max ~public:true env es in
+    ty_lvals1 env xs (declassify_lvl i.i_annot Secret)
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
