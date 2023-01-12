@@ -37,15 +37,14 @@ Record h_clear_stack_params {asm_op syscall_state : Type} {spp : SemPexprParams 
       ~ has (is_label lbl) lc ->
       get_fundef lp.(lp_funcs) fn = Some lfd ->
       lfd.(lfd_body) = lc ++ cmd ->
-      forall scs m vm,
-      get_var vm (vid lp.(lp_rsp)) = ok (Vword (top_stack m)) ->
+      forall scs m vm ptr,
+      get_var vm (vid lp.(lp_rsp)) = ok (Vword ptr) ->
 (*       Sv.subset (sv_of_list v_var lfd.(lfd_res)) (Sv.union (sv_of_list to_var call_reg_ret) (sv_of_list to_var call_xreg_ret)) -> *)
       exists m' vm',
         lsem lp (Lstate scs m vm fn (size lc))
                 (Lstate scs m' vm' fn (size lc+size cmd)) /\
-        mem_equiv m m' /\
-        vm' =[Sv.union (sv_of_list v_var lfd.(lfd_res)) one_varmap.callee_saved] vm /\
-        let top := (align_word ws_align (top_stack m) + wrepr Uptr (- max_stk_size))%R in
+        vm =[Sv.union (sv_of_list v_var lfd.(lfd_res)) one_varmap.callee_saved] vm' /\
+        let top := (align_word ws_align ptr + wrepr Uptr (- max_stk_size))%R in
         (forall p, disjoint_zrange top max_stk_size p (wsize_size U8) ->
           read m p U8 = read m' p U8) /\
         (forall p, between top max_stk_size p U8 -> read m' p U8 = ok 0%R)
@@ -389,14 +388,115 @@ Proof.
   by apply max_lfd_lbl_None.
 Qed.
 
+Lemma eval_jump_mem_eq lp r s1 s2 :
+  eval_jump lp r s1 = ok s2 ->
+  lmem s1 = lmem s2.
+Proof.
+  case: r => fn lbl /=.
+  case: get_fundef => [lfd|//] /=.
+  by t_xrbindP=> _ _ <- /=.
+Qed.
+
+Lemma eval_instr_mem_equiv lp i s1 s2 :
+  eval_instr lp i s1 = ok s2 ->
+  mem_equiv (lmem s1) (lmem s2).
+Proof.
+  rewrite /eval_instr.
+  case: i => [ii []] /=.
+  + rewrite /sem_sopn. t_xrbindP=> ?????? _ _ hw <- /=.
+    split.
+    + apply: psem_facts.write_lvals_stack_stable hw.
+    apply: psem_facts.write_lvals_validw hw.
+  + t_xrbindP=> ?? ? [[??]?] /(@exec_syscallSs _ _ _ _ _ _ _ _ _ _) heq1.
+    t_xrbindP=> ? hw <- /=.
+    apply (psem_facts.mem_equiv_trans heq1).
+    split.
+    + apply: psem_facts.write_lvals_stack_stable hw.
+    apply: psem_facts.write_lvals_validw hw.
+  + t_xrbindP=> -[fn lbl] ?? _ _ ? _.
+    case: encode_label => [w|//].
+    t_xrbindP=> ? hw.
+    move=> /eval_jump_mem_eq /= <-.
+    split.
+    + apply: Memory.write_mem_stable hw.
+    move=> a b; symmetry; move: a b.
+    apply: (write_validw_eq hw).
+  + t_xrbindP=> ?? _ _ ? _.
+    case: decode_label => [[fn lbl]|//] /=.
+    case: get_fundef => [lfd|//] /=.
+    t_xrbindP=> ? _ <- /=.
+    done.
+  + move=> [<-] /=. done.
+  + move=> _ _ [<-] /=. done.
+  + move=> _ /eval_jump_mem_eq /= <-.
+    done.
+  + t_xrbindP=> ??? _ _.
+    case: decode_label => [r|//] /=.
+    move=> /eval_jump_mem_eq <-.
+    done.
+  + move=> ??.
+    case: encode_label => [w|//] /=.
+    t_xrbindP=> _ _ <- /=.
+    done.
+  t_xrbindP=> ???? _ _.
+  case: ifP.
+  + move=> _.
+    case: get_fundef => [lfd|//] /=.
+    t_xrbindP=> _ _ <- /=.
+    done.
+  move=> _ [<-] /=.
+  done.
+Qed.
+
+Lemma lsem_mem_equiv lp s1 s2 :
+  lsem lp s1 s2 ->
+  mem_equiv (lmem s1) (lmem s2).
+Proof.
+  move: s1 s2.
+  apply lsem_ind.
+  + done.
+  move=> s1 s2 s3.
+  rewrite /lsem1 /step.
+  case: find_instr => [i|//].
+  move=> /eval_instr_mem_equiv heq1 _ heq2.
+  apply: (psem_facts.mem_equiv_trans heq1 heq2).
+Qed.
+
+(* j'ai l'impression que certaines clauses sont impliquées par mem_equiv ?? *)
+Record match_mem_clear (m m': mem) (top : pointer) : Prop :=
+    MMC {
+       read_incl_not_stack  : forall p w,
+         ~ (wunsigned (stack_limit m) <= wunsigned p < wunsigned top)%Z ->
+         read m' p U8 = ok w -> read m p U8 = ok w
+     ; read_incl_stack : forall p w,
+         (wunsigned (stack_limit m) <= wunsigned p < wunsigned top)%Z ->
+         read m' p U8 = ok w -> w = 0%R \/ read m p U8 = ok w
+  (*   ; valid_incl_clear : forall p, validw m p U8 -> validw m' p U8
+     ; valid_stk_clear  : forall p,
+         (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z
+       -> validw m' p U8 *)
+      }.
+
+Definition match_mem_export (m m' : mem) top (css : option (cs_strategy * wsize)) :=
+  match css with
+  | Some _ => match_mem_clear m m' top
+  | None => m = m'
+  end.
+
 (* doit-on se comparer à la mémoire source ou la mémoire avant sem ?? *)
 (* utiliser pointer_range ? *)
-Lemma clear_stack_lprogP lp lp' scs m fn vm scs' m' vm' :
+Lemma clear_stack_lprogP lp lp' scs m fn vm scs' m' vm' ptr :
   clear_stack_lprog css_of_fn csparams lp = ok lp' ->
   lsem_exportcall lp scs m fn vm scs' m' vm' ->
-  get_var vm' (vid (lp_rsp lp')) = ok (Vword (top_stack m')) ->
-  exists m'' vm'',
-  lsem_exportcall lp' scs m fn vm scs' m'' vm''. (* /\
+  get_var vm' (vid (lp_rsp lp')) = ok (@Vword Uptr ptr) ->
+  exists m'' vm'', [/\
+    lsem_exportcall lp' scs m fn vm scs' m'' vm'',
+    match_mem_export m' m'' ptr (css_of_fn fn) &
+    exists lfd,
+      get_fundef lp'.(lp_funcs) fn = Some lfd /\
+      (* sans doute que la partie callee_saved est déjà dans lsem_exportcall *)
+      vm' =[Sv.union (sv_of_list v_var lfd.(lfd_res)) one_varmap.callee_saved] vm''].
+   (* /\
   (css_of_fn fn <> None ->
   forall p w, (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z ->
   read m'' p U8 = ok w -> w = 0%R \/ read m p U8 = ok w). *)
@@ -407,31 +507,49 @@ Proof.
   case: css_of_fn => [[css ws]|]; last first.
   + move=> [?]; subst lfd'.
     exists m', vm'.
-(*     split=> //. *)
-    econstructor; eauto.
-    by apply (clear_stack_lprog_lsem hclearlp).
+    split=> //.
+    + econstructor; eauto.
+      by apply (clear_stack_lprog_lsem hclearlp).
+    by exists lfd.
+
   rewrite hexport /=.
   case: ZltP => [hlt|hnlt]; last first.
   + move=> [?]; subst lfd'.
     exists m', vm'.
-(*     split=> //. *)
-    econstructor; eauto.
-    by apply (clear_stack_lprog_lsem hclearlp).
+    split.
+    + econstructor; eauto.
+      by apply (clear_stack_lprog_lsem hclearlp).
+    + split=> //.
+      by move=> p w _ hread; right.
+    by exists lfd.
+
   rewrite /clear_stack_lfd_body.
   t_xrbindP=> halign hle cmd hcmd hmap.
   have hbody: lfd_body lfd' = lfd_body lfd ++ cmd by rewrite -hmap.
-  have [m'' [vm'' [hsem' [hequiv' [heqvm' _]]]]] :=
-    hcsparams.(hcs_clear_stack_cmd) hcmd halign hle (@next_lfd_lblP _) hlfd' hbody scs' hrsp.
-  exists m'', vm''.
-  econstructor; eauto.
-  + by rewrite -hmap.
-  + apply (lsem_trans (clear_stack_lprog_lsem hclearlp hsem)).
-    by rewrite hbody size_cat.
-  (* why eq_onI needs spp ?? *)
-  apply (eq_onT heqvm).
-  apply eq_onS.
-  apply: eq_onI heqvm'.
-  by apply SvP.MP.union_subset_2.
+  have [m'' [vm'' [hsem' [heqvm' [h1 h2]]]]] :=
+    hcsparams.(hcs_clear_stack_cmd) hcmd halign hle (@next_lfd_lblP _) hlfd' hbody scs' m' hrsp.
+  exists m'', vm''; split=> //.
+  + econstructor; eauto.
+    + by rewrite -hmap.
+    + apply (lsem_trans (clear_stack_lprog_lsem hclearlp hsem)).
+      by rewrite hbody size_cat.
+    (* why eq_onI needs spp ?? *)
+    apply (eq_onT heqvm).
+    apply: eq_onI heqvm'.
+    by apply SvP.MP.union_subset_2.
+  + split.
+    + (* il faudrait montrer à partir de stack alloc
+         les modifs entre top_stack et stack_limit sont entre
+         align (top_stack - size) + size , max_stk_size
+      *)
+           align_word lfd_used_stack enough_stack_space
+  + exists lfd'; split; first by move=> //.
+    move=> x /Sv.union_spec [|]. admit.
+    
+    Search eq_on Sv.union.
+    Search eq_vmap_on
+  
+   eauto.
 Qed.
 
 End PROOF.

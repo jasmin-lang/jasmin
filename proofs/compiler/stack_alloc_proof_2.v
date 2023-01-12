@@ -22,7 +22,7 @@ Local Open Scope Z_scope.
 
 Import Region.
 
-(* When the boolean is set to false, some checks are disable. On the Coq side,
+(* When the boolean is set to false, some checks are disabled. On the Coq side,
    we want to perform all the checks, so we set it to true.
 *)
 Notation alloc_fd   := (alloc_fd true).
@@ -2822,6 +2822,92 @@ Proof.
               hdisj
               halloc).
 Qed.
+
+Let Pi_r s1 (i1:instr_r) s2 :=
+  forall pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c2,
+  wf_pmap pmap rsp rip Slots Addr Writable Align ->
+  wf_Slots Slots Addr Writable Align ->
+  forall sao,
+  alloc_i saparams pmap local_alloc sao rmap1 (MkI ii1 i1) = ok (rmap2, c2) ->
+  forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
+  extend_mem (emem s1) (emem s1') rip global_data ->
+  wf_sao rsp (emem s1') sao ->
+  exists s2', sem (sCP:= sCP_stack) P' rip s1' c2 s2' /\
+              valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
+
+Let Pi s1 (i1:instr) s2 :=
+  forall pmap rsp Slots Addr Writable Align rmap1 rmap2 c2,
+  wf_pmap pmap rsp rip Slots Addr Writable Align ->
+  wf_Slots Slots Addr Writable Align ->
+  forall sao,
+  alloc_i saparams pmap local_alloc sao rmap1 i1 = ok (rmap2, c2) ->
+  forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
+  extend_mem (emem s1) (emem s1') rip global_data ->
+  wf_sao rsp (emem s1') sao ->
+  exists s2', sem (sCP:= sCP_stack) P' rip s1' c2 s2' /\
+              valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
+
+Let Pc s1 (c1:cmd) s2 :=
+  forall pmap rsp Slots Addr Writable Align rmap1 rmap2 c2,
+  wf_pmap pmap rsp rip Slots Addr Writable Align ->
+  wf_Slots Slots Addr Writable Align ->
+  forall sao,
+  fmapM (alloc_i saparams pmap local_alloc sao) rmap1 c1 = ok (rmap2, c2) ->
+  forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
+  extend_mem (emem s1) (emem s1') rip global_data ->
+  wf_sao rsp (emem s1') sao ->
+  exists s2', sem (sCP:= sCP_stack) P' rip s1' (flatten c2) s2' /\
+              valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
+
+Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
+
+Definition alloc_ok (SP:sprog) fn m2 :=
+  forall fd, get_fundef (p_funcs SP) fn = Some fd ->
+  allocatable_stack m2 fd.(f_extra).(sf_stk_max) /\
+  (~ is_RAnone fd.(f_extra).(sf_return_address) -> is_align (top_stack m2) fd.(f_extra).(sf_align)).
+
+(* [glob_size] and [rip] were section variables in stack_alloc_proof.v, they
+   are section variables in this file too. Can we put everything in the same
+   section? Probably not if the file is split.
+*)
+Definition wf_args m1 m2 fn :=
+  Forall3 (wf_arg glob_size rip m1 m2) (local_alloc fn).(sao_params).
+Definition wf_results m vargs1 vargs2 fn :=
+  Forall3 (wf_result m vargs1 vargs2) (local_alloc fn).(sao_return).
+
+Definition disjoint_from_writable_params fn p :=
+  Forall3 (disjoint_from_writable_param p) (local_alloc fn).(sao_params).
+Definition mem_unchanged_params fn ms m0 m vargs1 vargs2 :=
+  forall p, validw m0 p U8 -> ~ validw ms p U8 -> disjoint_from_writable_params fn p vargs1 vargs2 ->
+  read m0 p U8 = read m p U8.
+
+Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value) 
+         (scs2: syscall_state) (m2: mem) (vres: seq value) :=
+  forall m1' vargs',
+    extend_mem m1 m1' rip global_data ->
+    wf_args m1 m1' fn vargs vargs' ->
+    disjoint_values (local_alloc fn).(sao_params) vargs vargs' ->
+    alloc_ok P' fn m1' ->
+    exists m2' vres',
+      sem_call (sCP := sCP_stack) P' rip scs1 m1' fn vargs' scs2 m2' vres' /\
+      extend_mem m2 m2' rip global_data /\
+      wf_results m2' vargs vargs' fn vres vres' /\
+      mem_unchanged_params fn m1 m1' m2' vargs vargs'.
+
+
+Lemma test nrip nrsp data oracle_g oracle (P : uprog) (SP : sprog) fn :
+  alloc_prog saparams fresh_reg_ nrip nrsp data oracle_g oracle P = ok SP ->
+  forall rip scs m vargs scs' m' vres,
+    sem_call (sCP := sCP_stack) SP rip scs m fn vargs scs' m' vres ->
+    forall p,
+      pointer_range (stack_limit m) (top_stack m) p ->
+      let size := ((oracle fn).(sao_size) + (oracle fn).(sao_extra_size)) in
+      let top := top_stack_after_alloc (top_stack m) (oracle fn).(sao_align) size in
+      let max_top := (top + wrepr _ (size - (oracle fn).(sao_max_size_used)))%R in
+      ~ between max_top (oracle fn).(sao_max_size_used) p U8 ->
+      read m p U8 = read m' p U8.
+Proof.
+  
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
   alloc_prog saparams fresh_reg_ nrip nrsp data oracle_g oracle P = ok SP →
