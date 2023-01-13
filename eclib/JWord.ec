@@ -1666,6 +1666,13 @@ op PEXT_XX (v m: t) =
   let vbi = filter (fun i => m.[i]) (iota_ 0 size) in
   bits2w (map (fun i => v.[i]) vbi).
 
+op bitpdep (w: t) (i:int) (mask: bool list) =
+  with mask = "[]" => []
+  with mask = b :: mask' => if b then w.[i] :: bitpdep w (i+1) mask' else false :: bitpdep w i mask'.
+
+op PDEP_XX (v m: t) =
+  bits2w (bitpdep v 0 (w2bits m)).
+
 end ALU.
 
 end BitWord.

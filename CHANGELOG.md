@@ -9,7 +9,9 @@
   `VPAVG`
   ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)),
   `CLFLUSH`, `LFENCE`, `MFENCE`, `SFENCE`
-  ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)).
+  ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)),
+  `PDEP`
+  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)).
 
 - Division and modulo operators can be used in compound assignments
   (e.g., `x /= y`)

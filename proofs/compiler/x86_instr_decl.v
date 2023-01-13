@@ -80,6 +80,7 @@ Variant x86_op : Type :=
 | POPCNT of wsize    (* Count bits set to 1 *)
 
 | PEXT   of wsize    (* parallel bits extract *)
+| PDEP   of wsize    (* parallel bits deposit *)
 
   (* MMX instructions *)
 | MOVX  of wsize 
@@ -629,6 +630,10 @@ Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
 Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
   let _ := check_size_32_64 sz in
   ok (@pextr sz v1 v2).
+
+Definition x86_PDEP sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
+  let _ := check_size_32_64 sz in
+  ok (@pdep sz v1 v2).
 
 Definition x86_MOVX sz (x: word sz) : exec (word sz) :=
   Let _ := check_size_32_64 sz in
@@ -1358,6 +1363,9 @@ Definition Ox86_POPCNT_instr :=
 Definition Ox86_PEXT_instr :=
   mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) (primP PEXT) (pp_name "pext").
 
+Definition Ox86_PDEP_instr :=
+  mk_instr_w2_w_120 "PDEP" x86_PDEP (fun _ => [:: [:: r; r; rm true]]) (primP PDEP) (pp_name "pdep").
+
 (* Vectorized instruction *)
 
 Definition check_movd (_:wsize) := [:: [::xmm; rm true]].
@@ -1780,6 +1788,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
   | PEXT sz            => Ox86_PEXT_instr.1 sz
+  | PDEP sz            => Ox86_PDEP_instr.1 sz
   | CQO sz             => Ox86_CQO_instr.1 sz
   | ADD sz             => Ox86_ADD_instr.1 sz
   | SUB sz             => Ox86_SUB_instr.1 sz
@@ -1913,6 +1922,7 @@ Definition x86_prim_string :=
    Ox86_BSWAP_instr.2;
    Ox86_POPCNT_instr.2;
    Ox86_PEXT_instr.2;
+   Ox86_PDEP_instr.2;
    Ox86_CQO_instr.2;
    Ox86_ADD_instr.2;
    Ox86_SUB_instr.2;
