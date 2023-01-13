@@ -1259,6 +1259,19 @@ Definition pextr sz (w1 w2: word sz) :=
  wrepr sz (t2w (in_tuple (mask (w2t w2) (w2t w1)))).
 
 (* -------------------------------------------------------------------*)
+
+Fixpoint bitpdep sz (w:word sz) (i:nat) (mask:bitseq) :=
+  match mask with
+  | [::] => [::]
+  | b :: mask => 
+      if b then wbit_n w i :: bitpdep w (i.+1) mask
+      else false :: bitpdep w i mask
+  end.
+
+Definition pdep sz (w1 w2: word sz) :=
+ wrepr sz (t2w (in_tuple (bitpdep w1 0 (w2t w2)))).
+
+(* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
 
