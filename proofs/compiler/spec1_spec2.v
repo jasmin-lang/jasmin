@@ -51,6 +51,12 @@ match E with
 | None => None
 end.
 
+Definition enter_msf (envi : env) (e: pexpr) := 
+match envi with 
+| (Some (_, _), msf) => (None, Sv.empty)
+| (None, msf) => (Some (e, read_e e), msf)
+end.
+
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
@@ -124,51 +130,56 @@ match ir with
        Error (y not in X) *) (* envi = (Some (e, fv e), msf) *)
   | sopn.Oasm asm_op_spec1.Oset_msf =>
     match es with 
-    | [:: e' ; y] => Let re := get_guard envi.1 in 
-                     let rs := read_e_rec Sv.empty y in
-                     let r2 := disjoint rs envi.2 in
-                     if negb r2 && (eq_expr re e')
-                     then ok ((None, Sv.union (Sv.diff envi.2 (read_e y)) (vrvs xs)), cr)
-                     else Error (spec_transform_error "Msf variable not present in the set")
+    | [:: e' ; y] => match y with 
+                     | Pvar x => Let re := get_guard envi.1 in 
+                                 let r := disjoint (vrv (gv x)) envi.2 in
+                                 if negb r && (eq_expr re e')
+                                 then ok ((None, (vrvs xs)), cr)
+                                 else Error (spec_transform_error "Msf variable not present in the set")
+                     | _ => Error (spec_transform_error "Msf expr is not a variable")
+                    end
     | _ =>  Error (spec_transform_error "Too many arguments")
    end 
    (* xs := protect (e, y)
       should fail if y is not in X *)
   | sopn.Oasm (asm_op_spec1.Oprotect w) => 
     match es with 
-    | [:: e; y] => let cenv := update_cond_env (vrvs xs) envi.1 in 
-                   let rs := read_e_rec Sv.empty y in 
-                   let r := disjoint rs envi.2 in
-                   if r 
-                   then Error (spec_transform_error "Msf variable not present")
-                   else ok ((cenv, Sv.diff envi.2 (vrvs xs)), cr)
+    | [:: e; y] => match y with 
+                   | Pvar x => let cenv := update_cond_env (vrvs xs) envi.1 in 
+                               let r := disjoint (vrv (gv x)) envi.2 in
+                               if r 
+                               then Error (spec_transform_error "Msf variable not present")
+                               else ok ((cenv, Sv.diff envi.2 (vrvs xs)), cr)
+                   | _ => Error (spec_transform_error "Msf expr is not a variable")
+                   end
     | _ => Error (spec_transform_error "Too many arguments")
     end
    (* xs := mov_msf(y) 
       if y is present in msf set then xs U X else return error *)
   | sopn.Oasm asm_op_spec1.Omov_msf => 
     match es with
-    | [:: y] => let rs := read_e_rec Sv.empty y in 
-                let r := disjoint rs envi.2 in
-                if r 
-                then Error (spec_transform_error "Msf variable not present")
-                else ok ((update_cond_env (vrvs xs) envi.1, Sv.union envi.2 (vrvs xs)), cr)
+    | [:: y] => match y with 
+                | Pvar x => let r := disjoint (vrv (gv x)) envi.2 in
+                            if r 
+                            then Error (spec_transform_error "Msf variable not present")
+                            else ok ((update_cond_env (vrvs xs) envi.1, Sv.union envi.2 (vrvs xs)), cr)
+                | _ => Error (spec_transform_error "Msf expr is not a variable")
+               end
     | _ => Error (spec_transform_error "Too many arguments")
     end
   | sopn.Oasm o => ok ((update_cond_env (vrvs xs) envi.1, Sv.diff envi.2 (vrvs xs)), cr) 
   end
- (* FIX ME *)                   
 | Csyscall xs o es => ok ((None, Sv.empty), [:: MkI ii (@Csyscall asm_op_spec2 asmOp_spec2 xs o es)])
-(* FIX ME *)
 | Cif b c1 c2 => 
-  Let rc1 := (c_spec1_to_spec2 i_spec1_to_spec2 (Some (b, read_e b), envi.2) c1) in 
-  Let rc2 := (c_spec1_to_spec2 i_spec1_to_spec2 (Some ((enot b), read_e (enot b)), envi.2) c2) in 
+  Let rc1 := (c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf envi b) c1) in 
+  Let rc2 := (c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf envi (enot b)) c2) in 
   ok ((None, Sv.inter rc1.1.2 rc2.1.2), [:: MkI ii (@Cif asm_op_spec2 asmOp_spec2 b rc1.2 rc2.2)])
 | Cfor x (dir, e1, e2) c => Let cr := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
                             ok (cr.1, [:: MkI ii (@Cfor asm_op_spec2 asmOp_spec2 x (dir, e1, e2) cr.2)])
 | Cwhile a c e c' => Let rc := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
-                     Let rc' := c_spec1_to_spec2 i_spec1_to_spec2 (Some (e, read_e e), rc.1.2) c' in 
-                     ok ((None, Sv.inter rc'.1.2 rc'.1.2), [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a rc.2 e rc'.2)])
+                     Let rc' := c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf rc.1 e) c' in 
+                     ok ((None, Sv.inter rc.1.2 rc'.1.2), [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a rc.2 e rc'.2)])
+(* FIX ME *)
 | Ccall ini xs fn es => ok (envi, [:: MkI ii (@Ccall asm_op_spec2 asmOp_spec2 ini xs fn es)])
 end 
 
@@ -178,7 +189,6 @@ let (ii,ir) := i in
 (ir_spec1_to_spec2 envi ii ir).
 
 End INST.
-
 
 
 
