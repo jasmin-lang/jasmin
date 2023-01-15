@@ -133,7 +133,7 @@ match ir with
     | [:: e' ; y] => match y with 
                      | Pvar x => Let re := get_guard envi.1 in 
                                  let r := disjoint (vrv (gv x)) envi.2 in
-                                 if negb r && (eq_expr re e')
+                                 if negb r && (eq_expr re e') && is_lvar x
                                  then ok ((None, (vrvs xs)), cr)
                                  else Error (spec_transform_error "Msf variable not present in the set")
                      | _ => Error (spec_transform_error "Msf expr is not a variable")
@@ -160,9 +160,9 @@ match ir with
     match es with
     | [:: y] => match y with 
                 | Pvar x => let r := disjoint (vrv (gv x)) envi.2 in
-                            if r 
-                            then Error (spec_transform_error "Msf variable not present")
-                            else ok ((update_cond_env (vrvs xs) envi.1, Sv.union envi.2 (vrvs xs)), cr)
+                            if negb r && is_lvar x
+                            then ok ((update_cond_env (vrvs xs) envi.1, Sv.union envi.2 (vrvs xs)), cr)
+                            else Error (spec_transform_error "Msf variable not present")
                 | _ => Error (spec_transform_error "Msf expr is not a variable")
                end
     | _ => Error (spec_transform_error "Too many arguments")

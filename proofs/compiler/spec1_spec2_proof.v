@@ -156,6 +156,31 @@ move: gd s1 s2 v. elim: e=> //=.
 admit.
 Admitted.
 
+Lemma write_lval_get_var s1 s2 m x gd:
+Sv.In m (vrvs [:: x]) -> 
+write_lval gd x (Vword (zero_extend Uptr (wrepr Uptr 0))) s1 = ok s2 ->
+get_var (evm s2) m = ok (Vword (wrepr Uptr 0)).
+Proof.
+move=> hin hw. rewrite /vrvs /vrvs_rec in hin. case: x hw hin=> //=.
++ move=> vi ty hw hin. have [h1 h2] := SvD.F.empty_iff m. by move: (h1 hin).
++ move=> vi hw hin. have [h1 h2] := Sv.add_spec Sv.empty vi m. move: (h1 hin).
+  move=> {h1} h1. case: h1=> //=.
+  + move=> hmeq; subst. rewrite /write_var /= in hw. move: hw.
+    t_xrbindP=> vm hset hvm; subst; rewrite /=. have := get_var_set_var vi hset.
+    case: ifP=> //=.
+    + move=> /eqP _ -> /=. admit. (* doable *) 
+    by move=> /eqP [].
+  move=> hin'. have [h1' h2'] := SvD.F.empty_iff m. by move: (h1' hin').
++ move=> sz vi i. t_xrbindP=> z z' hg hp z1 z2 hi hp' z3. 
+  rewrite /truncate_word /=. case: ifP=>//= _ [] hz3; subst.
+  move=> mem /= hw hs hin. have [h1 h2] := SvD.F.empty_iff m. by move: (h1 hin).
++ move=> arr wsz vi i. rewrite /on_arr_var /=. t_xrbindP=> z hg. case: z hg=> //=.
+  move=> len a hg. t_xrbindP=> z z' hi hint z1. rewrite /truncate_word. case: ifP=> //= _.
+  move=> [] hz1; subst. move=> z2 /=.  admit.
+move=> arr wsz pos vi i /=. rewrite /on_arr_var /=. t_xrbindP=> z hg. case: z hg=> //=.
+move=> len a hg. by t_xrbindP=> z z' hi /= _ //=.
+Admitted.
+
 Lemma Hskip : sem_Ind_nil (spp := spp_of_asm_op_spec1) Pc.
 Proof.
 move=> s1 envi hwf /=. have heg := eq_globs. split=> //=. 
@@ -373,7 +398,7 @@ move=> [].
   have hevm := disjoint_eq_on (spp := spp_of_asm_op_spec1) hdisj'' hwl.
   have heq := read_e_eq_on (p_globs p') hevm. rewrite /with_vm /= in heq. rewrite -heg.
   by have -> := sem_pexpr_not_mem_eq hee hevm hmem.
-(* set_msf e e' *)
+(* set_msf e e' *) (* done *)
 + move=> xs es. rewrite /Pi_r /ir_spec1_to_spec2 /=. have heg := eq_globs. 
   case: es=> //= e es. case: es=> //= e' es'. case: es'=> //=.
   move=> hop ii envi hwf /=. rewrite /sem_sopn in hop. move: hop.
@@ -390,25 +415,26 @@ move=> [].
     + econstructor. econstructor. admit. (* doable *)
     by constructor.
   rewrite /wf_env /=. split=> //=.
-  move=> m hin. case: hd=> hd1 heq. rewrite /negb in hd1.
+  move=> m hin. case: hd=> /andP [] hd1 heq hvar. rewrite /negb in hd1.
   move: hd1. case: ifP=> //= hd1 _.
   move: (hwf2 e0 fv0 erefl)=> [] hfv [] hmem hetrue.
   have heeq := eq_exprP (p_globs p) s1 heq. have hveq : v = true. 
   + rewrite -heeq in he. admit. (* doable (will go after we remove dependency) *)
   rewrite hveq /= in he hb. case: hb=> hb; subst.
   rewrite /negb in hw. rewrite /disjoint /= in hd1. 
-  (* have [] := SvP.choose_mem_3 (Sv.inter (Sv.add (gv x) Sv.empty) envi.2) hd1.
+  have [] := SvP.choose_mem_3 (Sv.inter (Sv.add (gv x) Sv.empty) envi.2) hd1.
   move=> m' [] hm' hm''. have heq' := SvP.MP.FM.inter_b (Sv.add (gv x) Sv.empty) envi.2 m'. 
   rewrite hm'' in heq'. symmetry in heq'.
   have [h1 h2] := Bool.andb_true_iff (Sv.mem m' (Sv.add (gv x) Sv.empty)) (Sv.mem m' envi.2). 
   move: (h1 heq')=> [] h3 h4. have hin1 := SvP.MP.Dec.F.mem_2 h4.
   move: (hwf1 m' hin1)=> hg'. have hin2 := SvP.MP.Dec.F.mem_2 h3.
-  have hin3 := SvD.MSetDecideTestCases.test_add_In m' (gv x) Sv.empty hin2.
-  have hin1 := SvP.MP.Dec.F.union_1 hin. case: hin1.
-  + move=> hin1. have hm := SvP.MP.FM.diff_1 hin1. move: (hwf1 m hm)=> hmg.
-    rewrite -hmg. apply get_var_eq_on with (Sv.singleton m).
-    + by apply SvD.MSetDecideTestCases.test_In_singleton.*)
-    admit.
+  move: (hwf1 m' hin1)=> hget. have heqx := SvP.MP.singleton_equal_add (gv x).
+  rewrite /Sv.Equal /= in heqx. move: (heqx m')=> [] hinm hinm'. 
+  move: (hinm' hin2)=> hinm''. have heqxm' := SvP.MP.FM.singleton_1 hinm''; subst.
+  move: (hwf1 (gv x) hin1)=> hget'. rewrite /gv /get_gvar /= in hg. rewrite hget' in hg.
+  move=> {h4} {h3} {h2} {h1} {heq'} {hm''} {hm'} {heqx} {hinm''} {hinm'} {hinm}.
+  rewrite hvar /= in hg. case: hg=> hg; subst. rewrite /to_pointer /truncate_word in hp.
+  move: hp. case: ifP=> //= _ [] hwp; subst. by have := write_lval_get_var hin hw.
 (* init_msf *) (* done *)
 + move=> xs [] //= hop. rewrite /Pi_r /=. have heg := eq_globs.
   move=> ii envi hwf /=. rewrite /sem_sopn in hop. move: hop.
@@ -446,26 +472,33 @@ move=> [].
   move=> tu wp hp /=. rewrite /sopn.sopn_sem /=. move=> htu hvs; subst. move=> hws.
   case: xs hws=> //= x xs. t_xrbindP=> s hw. case: xs=> //=. move=> [] hs; subst.
   rewrite /asm_op_spec1.mov_msf /= in htu. case: htu=> h; subst. case: e he=> //= xe hg.
-  case: ifP=> //=.
-  move=> hdisj. split=> //=.
+  case: ifP=> //=. move=> /andP [] /negP hdisj hvar. split=> //=.
   + econstructor.
     + econstructor. econstructor. rewrite -heg /=. admit. (* doable *)
     by constructor.
   rewrite /wf_env in hwf. rewrite /wf_env /update_cond_env /=.
-  case: hwf=> hwf1 hwf2. 
-  split=> //=.
+  case: hwf=> hwf1 hwf2. split=> //=.
   + move=> m hin. have hin' := SvP.MP.FM.union_1 hin. case: hin'=> hin'.
-    + have hin'' : Sv.In (gv xe) envi.2.
-      + admit. (* doable *)
+    + have hin'' : Sv.In (gv xe) envi.2. 
+      + rewrite /not in hdisj. rewrite /disjoint in hdisj. admit. (* doable *)
     move: (hwf1 (gv xe) hin'')=> hgxe. move: (hwf1 m hin')=> hgm. 
-    rewrite /get_gvar in hg.
-    rewrite hgxe /= in hg. move: hg. case: ifP=> //=.
-    (* local variable case *)
-    + move=> hl [] hv; subst. rewrite /to_pointer /= /truncate_word in hp. 
-      move: hp. case: ifP=> //= _ [] hz; subst. admit.
-    admit. 
-  admit.
-  admit.
+    rewrite /get_gvar in hg. rewrite hvar /= in hg.
+    rewrite hgxe /= in hg. case: hg=> hg; subst.
+    rewrite /to_pointer /truncate_word in hp. move: hp.
+    case: ifP=> //= _ [] hu; subst. admit. (* ask ??? *)
+  have hin'' : Sv.In (gv xe) envi.2. 
+  + rewrite /not in hdisj. rewrite /disjoint in hdisj. admit. (* doable *)
+  move: (hwf1 (gv xe) hin'')=> hgxe. rewrite /gv /get_gvar hvar /= in hg. 
+  rewrite hg in hgxe. case: hgxe=> hgxe; subst.
+  rewrite /to_pointer /truncate_word in hp. move: hp.
+  case: ifP=> //= _ [] hu; subst. by have := write_lval_get_var hin' hw.
+ move=> e fv. case: envi.1 hwf2=>//=. move=> -[e1 fv1] hwf2. 
+ case: ifP=> //= hdisj' [] heeq hfveq; subst. move: (hwf2 e fv erefl)=> [] hfv [] hmem he.
+ split=> //=. split=> //=. rewrite -heg. rewrite hfv in hdisj'.
+ have hdisj'' : disjoint (read_e e) (vrvs [:: x]).
+ + by apply disjoint_sym.
+ have hevm := disjoint_eq_on (spp := spp_of_asm_op_spec1) hdisj'' hw. 
+ by have := sem_pexpr_not_mem_eq he hevm hmem.
 (* oasm *) (* done *)
 move=> a xs es hop. rewrite /Pi_r /=. have heg := eq_globs.
 move=> ii envi hwf. rewrite /sem_sopn in hop. move: hop.
