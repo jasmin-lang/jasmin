@@ -1467,15 +1467,6 @@ Proof.
   by rewrite (Z.odd_pow _ _ hn).
 Qed.
 
-Lemma Zle_n_nn n :
-  n <= n * n.
-Proof.
-  case: (Z.lt_ge_cases n 0); first Psatz.lia.
-  move: n.
-  apply: natlike_ind; Psatz.lia.
-Qed.
-
-
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
@@ -1512,10 +1503,6 @@ Proof.
   all: move=> /Z.le_succ_l.
   all: by constructor.
 Qed.
-
-Lemma subnn n :
-  n - n = 0.
-Proof. elim: n => //. Qed.
 
 Lemma lt_nm_n n m :
   n + m < n = false.

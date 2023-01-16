@@ -220,20 +220,7 @@ Lemma wbit_n_add_aux x y z :
   -> (y < x)%Z
   -> (z < x)%Z
   -> (x * y + z < x * x)%Z.
-Proof.
-  rewrite (Zsucc_pred x).
-  move: x (Z.pred x) => _ x.
-  move=> hx hy hz.
-
-  rewrite !Z.mul_succ_l Z.mul_succ_r.
-  apply: (Z.add_le_lt_mono _ _ _ _ _ hz).
-  clear hz.
-
-  move: hy => /Zlt_succ_le hy.
-  apply: (Z.add_le_mono _ _ _ _ _ hy).
-  apply: (Zmult_le_compat_l _ _ _ hy).
-  lia.
-Qed.
+Proof. nia. Qed.
 
 Lemma wbit_n_add ws n lbs hbs (i : nat) :
   let: n2 := (2 ^ n)%Z in
@@ -279,9 +266,6 @@ Proof.
 
     rewrite wbit_nE.
     rewrite wunsigned_repr_small; first done.
-    split; first lia.
-    apply: (Z.lt_le_trans _ (2 ^ n) _); first lia.
-    apply: Z.le_trans; first exact: Zle_n_nn.
     lia.
 
   rewrite -(Zplus_minus n i).
@@ -311,23 +295,7 @@ Lemma mov_movt_aux n x y :
   -> (0 <= y < n)%Z
   -> (0 <= n * x + y < n * n)%Z
   -> (0 <= x < n)%Z.
-Proof.
-  move=> hn [h0y hyn] [hlo hhi].
-  split.
-  - case: (Z.le_gt_cases 0 x) => h0x; first done.
-    exfalso.
-    have h : (n * x < - y)%Z.
-    - apply: (Z.le_lt_trans _ (- n)); last lia.
-      apply Z.opp_le_mono.
-      rewrite Zopp_mult_distr_r.
-      rewrite Z.opp_involutive.
-      rewrite -{1}(Z.mul_1_r n).
-      apply: Z.mul_le_mono_nonneg_l; lia.
-    lia.
-
-  apply: (Zmult_lt_reg_r _ _ _ hn).
-  lia.
-Qed.
+Proof. nia. Qed.
 
 Lemma mov_movt n hbs lbs :
   (0 <= n < wbase reg_size)%Z
