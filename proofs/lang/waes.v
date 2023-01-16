@@ -137,6 +137,8 @@ Definition SubWord (v1 : u32) :=
   make_vec U32 (map Sbox (split_vec U8 v1)).
 Definition InvSubWord (v1 : u32) :=
   make_vec U32 (map InvSbox (split_vec U8 v1)).
+Definition RotWord (v1 : u32) :=
+  make_vec U32 [:: (subword 1 U8 v1); subword 2 U8 v1; subword 3 U8 v1; subword 0 U8 v1].
 
 Definition to_matrix (s : u128) :=
   let s_ := fun i j => (subword (i * U8) U8 (subword (j * U32) U32 s)) in
@@ -183,8 +185,8 @@ Definition InvShiftRows (s : u128) :=
      s30, s31, s32, s33).
 
 (* TODO: Implement these *)
-Definition MixColumns : u128 -> u128 := fun w => w.
-Definition InvMixColumns : u128 -> u128 := fun w => w.
+Parameter MixColumns : u128 -> u128.
+Parameter InvMixColumns : u128 -> u128.
 
 Definition wAESDEC (state rkey : u128) :=
   let state := InvShiftRows state in
@@ -215,9 +217,9 @@ Definition wAESKEYGENASSIST (v1 : u128) (v2 : u8) :=
   let x1 := subword (1 * U32) U32 v1 in
   let x3 := subword (3 * U32) U32 v1 in
   let y0 := SubWord x1 in
-  let y1 := wxor (wror (SubWord x1) 1) rcon in
+  let y1 := wxor (RotWord (SubWord x1)) rcon in
   let y2 := SubWord x3 in
-  let y3 := wxor (wror (SubWord x3) 1) rcon in
+  let y3 := wxor (RotWord (SubWord x3)) rcon in
   make_vec U128 [:: y0; y1; y2; y3].
 
 Definition wAESENC_ (state rkey: u128) :=
