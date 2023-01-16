@@ -107,6 +107,7 @@ lang/memory_model.v
 lang/one_varmap.v
 lang/psem_of_sem_proof.v
 lang/psem_facts.v
+lang/psem_loc.v
 lang/psem.v
 lang/sem.v
 lang/sem_one_varmap.v

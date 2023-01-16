@@ -10,6 +10,7 @@ Require Export stack_alloc stack_alloc_proof.
 Require Import byteset.
 Require Import Psatz.
 Import Utf8.
+Require psem_loc.
 
 
 Set Implicit Arguments.
@@ -1773,6 +1774,21 @@ Proof.
   by rewrite -(ss_top_stack hss) -(ss_limit hss).
 Qed.
 
+Definition slots_bounds Slots Addr m sao :=
+  forall s, Sv.In s Slots ->
+  let size := (sao.(sao_size) + sao.(sao_extra_size)) in
+  let top := top_stack_after_alloc (top_stack m) sao.(sao_align) size in
+  let max_top := (top + wrepr _ (size - sao.(sao_max_size_used)))%R in
+  zbetween max_top sao.(sao_max_size_used) (Addr s) (size_slot s).
+
+Definition addr_bounds ls ms m sao :=
+  forall p ws, List.In (p, ws) ls ->
+  ~ validw ms p ws ->
+  let size := (sao.(sao_size) + sao.(sao_extra_size)) in
+  let top := top_stack_after_alloc (top_stack m) sao.(sao_align) size in
+  let max_top := (top + wrepr _ (size - sao.(sao_max_size_used)))%R in
+  zbetween max_top sao.(sao_max_size_used) p ws.
+
 Let Pi_r s1 (i1:instr_r) s2 :=
   forall pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c2,
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
@@ -1782,8 +1798,10 @@ Let Pi_r s1 (i1:instr_r) s2 :=
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
-  exists s2', sem (sCP:= sCP_stack) P' rip s1' c2 s2' /\
-              valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
+  slots_bounds Slots Addr (emem s1') sao ->
+  exists ls s2', psem_loc.sem (sCP:= sCP_stack) P' rip ls s1' c2 s2' /\
+                 valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2' /\
+                 addr_bounds ls (emem s1) (emem s1') sao.
 
 Let Pi s1 (i1:instr) s2 :=
   forall pmap rsp Slots Addr Writable Align rmap1 rmap2 c2,
@@ -1794,8 +1812,10 @@ Let Pi s1 (i1:instr) s2 :=
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
-  exists s2', sem (sCP:= sCP_stack) P' rip s1' c2 s2' /\
-              valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
+  slots_bounds Slots Addr (emem s1') sao ->
+  exists ls s2', psem_loc.sem (sCP:= sCP_stack) P' rip ls s1' c2 s2' /\
+                 valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2' /\
+                 addr_bounds ls (emem s1) (emem s1') sao.
 
 Let Pc s1 (c1:cmd) s2 :=
   forall pmap rsp Slots Addr Writable Align rmap1 rmap2 c2,
@@ -1806,8 +1826,10 @@ Let Pc s1 (c1:cmd) s2 :=
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
-  exists s2', sem (sCP:= sCP_stack) P' rip s1' (flatten c2) s2' /\
-              valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
+  slots_bounds Slots Addr (emem s1') sao ->
+  exists ls s2', psem_loc.sem (sCP:= sCP_stack) P' rip ls s1' (flatten c2) s2' /\
+                 valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2' /\
+                 addr_bounds ls (emem s1) (emem s1') sao.
 
 Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
 
@@ -1838,27 +1860,32 @@ Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value)
     wf_args m1 m1' fn vargs vargs' ->
     disjoint_values (local_alloc fn).(sao_params) vargs vargs' ->
     alloc_ok P' fn m1' ->
-    exists m2' vres',
-      sem_call (sCP := sCP_stack) P' rip scs1 m1' fn vargs' scs2 m2' vres' /\
+    exists ls m2' vres',
+      psem_loc.sem_call (sCP := sCP_stack) P' rip ls scs1 m1' fn vargs' scs2 m2' vres' /\
       extend_mem m2 m2' rip global_data /\
       wf_results m2' vargs vargs' fn vres vres' /\
-      mem_unchanged_params fn m1 m1' m2' vargs vargs'.
+      mem_unchanged_params fn m1 m1' m2' vargs vargs' /\
+      addr_bounds ls m1 m1' (local_alloc fn).
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof.
   move=> s pmap rsp Slots Addr Writable Align rmap1 rmap2 /= c2 hpmap hwf sao [??] m0 s' hv hext hsao;subst rmap1 c2.
-  exists s'; split => //; exact: Eskip.
+  exists [::], s'; split => //; exact: psem_loc.Eskip.
 Qed.
 
 Local Lemma Hcons : sem_Ind_cons P ev Pc Pi.
 Proof.
   move=> s1 s2 s3 i c hhi Hi hhc Hc pmap rsp Slots Addr Writable Align rmap1 rmap3 c1 hpmap hwf sao /=.
   t_xrbindP => -[rmap2 i'] hi {rmap3} [rmap3 c'] hc /= <- <- m0 s1' hv hext hsao.
-  have [s2' [si hv2]]:= Hi _ _ _ _ _ _ _ _ _ hpmap hwf _ hi _ _ hv hext hsao.
-  have hsao2 := stack_stable_wf_sao (sem_stack_stable_sprog si) hsao.
-  have hext2 := valid_state_extend_mem hwf hv hext hv2 (sem_I_validw_stable_uprog hhi) (sem_validw_stable_sprog si).
-  have [s3' [sc hv3]]:= Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc _ _ hv2 hext2 hsao2.
-  by exists s3'; split => //; apply: sem_app; [exact: si|exact: sc].
+  have [ls1 [s2' [si [hv2 hls1]]]]:= Hi _ _ _ _ _ _ _ _ _ hpmap hwf _ hi _ _ hv hext hsao.
+  have hsao2 := stack_stable_wf_sao (sem_stack_stable_sprog (psem_loc.sem_loc_sem si)) hsao.
+  have hext2 := valid_state_extend_mem hwf hv hext hv2 (sem_I_validw_stable_uprog hhi) (sem_validw_stable_sprog (psem_loc.sem_loc_sem si)).
+  have [ls2 [s3' [sc [hv3 hls2]]]]:= Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc _ _ hv2 hext2 hsao2.
+  exists (ls1++ls2), s3'; split.
+  + by apply: psem_loc.sem_app; [exact: si|exact: sc].
+  split=> //.
+  move=> p ws /List.in_app_iff [/hls1|/hls2] //.
+  by rewrite (sem_I_validw_stable_uprog hhi).
 Qed.
 
 Local Lemma HmkI : sem_Ind_mkI P ev Pi_r Pi.
@@ -1872,14 +1899,17 @@ Proof.
   move=> s1 s1' r tag ty e v v' hv htr hw pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c2 hpmap hwf sao /=.
   case: ifPn => [/is_sarrP [n ?]| _ ]; t_xrbindP.
   + move => [rmap2' i2'] halloc /= ?? m0 s2 hvs hext hsao; subst rmap2' c2 ty.
-    have [s2' [hs2' hvs']] := alloc_array_move_initP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap P'_globs hsaparams hvs hv htr hw halloc.
-    by exists s2'; split => //; apply sem_seq1; constructor.
+    have [l2 [s2' [hs2' [hvs' hl2]]]] := alloc_array_move_initP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap P'_globs hsaparams hvs hv htr hw halloc.
+    exists l2, s2'; split.
+    + by apply psem_loc.sem_seq1; constructor.
+    split=> //.
+    by move=> p ws /hl2.
   move=> e' he1 [rmap2' x'] hax /= ?? m0 s2 hvs hext hsao; subst rmap2' c2.
   have he := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he1.
   have htyv':= truncate_val_has_type htr.
-  have [s2' [/= hw' hvs']]:= alloc_lvalP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap hax hvs htyv' hw.
-  exists s2'; split=> //.
-  by apply sem_seq1; constructor; apply: Eassgn; eauto; rewrite P'_globs; auto.
+  have [l2 [s2' [/= hw' [hvs' hl2]]]]:= alloc_lvalP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap hax hvs htyv' hw.
+  exists l2, s2'; split=> //.
+  by apply psem_loc.sem_seq1; constructor; apply: psem_loc.Eassgn; eauto; rewrite P'_globs; auto.
 Qed.
 
 Local Lemma Hopn : sem_Ind_opn P Pi_r.
@@ -1887,10 +1917,10 @@ Proof.
   move=> s1 s2 t o xs es.
   rewrite /sem_sopn; t_xrbindP=> vs va hes hop hw pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c2 hpmap hwf sao /=.
   t_xrbindP => es' he [rmap4 x'] ha /= ? <- m0 s1' hvs hext hsao; subst rmap4.
-  have [s2' [hw' hvalid']] := alloc_lvalsP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap ha hvs (sopn_toutP hop) hw.
-  exists s2'; split=> //.
-  apply sem_seq1; do 2! constructor.
-  by rewrite /sem_sopn P'_globs (alloc_esP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he hes) /= hop.
+  have [ls2 [s2' [hw' [hvalid' hls2]]]] := alloc_lvalsP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap ha hvs (sopn_toutP hop) hw.
+  exists ls2, s2'; split=> //.
+  apply psem_loc.sem_seq1; do 2! constructor.
+  by rewrite /psem_loc.sem_sopn_loc P'_globs (alloc_esP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he hes) /= hop.
 Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall P Pi_r.
@@ -1898,16 +1928,18 @@ Proof.
   move=> s1 scs m s2 o xs es ves vxs hves hvxs hs2.
   move=> pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c2 hpmap hwf sao /=.
   move=> hsyscall m0 s1' hvs hext hsao.
-  by apply (alloc_syscallP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hpmap P' hsyscall hvs hves hvxs hs2).
-Qed.
+  have [s2' [hs2' hvs2]] := (alloc_syscallP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hpmap P' hsyscall hvs hves hvxs hs2).
+  exists [::], s2'. split=> //.
+Admitted.
 
 Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.
 Proof.
   move=> s1 s2 e c1 c2 Hse _ Hc pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
   t_xrbindP => e' he [rmap4 c1'] hc1 [rmap5 c2'] hc2 /= ?? m0 s1' hv hext hsao; subst rmap2 c.
   have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse; rewrite -P'_globs => he'.
-  have [s2' [Hsem Hvalid']] := Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
-  exists s2'; split; first by apply sem_seq1;constructor;apply: Eif_true.
+  have [ls' [s2' [Hsem [Hvalid' hls']]]] := Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
+  exists ls', s2'; split; first by apply psem_loc.sem_seq1;constructor;apply: psem_loc.Eif_true.
+  split=> //.
   by apply: valid_state_Incl Hvalid'; apply incl_Incl; apply incl_merge_l.
 Qed.
 
@@ -1916,8 +1948,9 @@ Proof.
   move=> s1 s2 e c1 c2 Hse _ Hc pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
   t_xrbindP => e' he [rmap4 c1'] hc1 [rmap5 c2'] hc2 /= ?? m0 s1' hv hext hsao; subst rmap2 c.
   have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse; rewrite -P'_globs => he'.
-  have [s2' [Hsem Hvalid']] := Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc2 _ _ hv hext hsao.
-  exists s2'; split; first by apply sem_seq1; constructor; apply: Eif_false.
+  have [ls' [s2' [Hsem [Hvalid' hls']]]] := Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc2 _ _ hv hext hsao.
+  exists ls', s2'; split; first by apply psem_loc.sem_seq1; constructor; apply: psem_loc.Eif_false.
+  split=> //.
   by apply: valid_state_Incl Hvalid'; apply incl_Incl; apply incl_merge_r.
 Qed.
 
@@ -1939,17 +1972,23 @@ Proof.
   t_xrbindP => -[rmap4 [e' [c1' c2']]] /loop2P [rmap5 [rmap6 [hincl1 []]]].
   t_xrbindP => -[rmap7 c11] hc1 /= e1 he [rmap8 c22] /= hc2 ????? hincl2 ??.
   subst c rmap4 rmap7 rmap8 e1 c11 c22 => m0 s1' /(valid_state_Incl hincl1) hv hext hsao.
-  have [s2' [hs1 hv2]]:= Hc1 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
+  have [ls' [s2' [hs1 [hv2 hls']]]]:= Hc1 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
   have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv2 he Hv; rewrite -P'_globs => he'.
-  have hsao2 := stack_stable_wf_sao (sem_stack_stable_sprog hs1) hsao.
-  have hext2 := valid_state_extend_mem hwf hv hext hv2 (sem_validw_stable_uprog hhi) (sem_validw_stable_sprog hs1).
-  have [s3' [hs2 /(valid_state_Incl (incl_Incl hincl2)) hv3]]:= Hc2 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc2 _ _ hv2 hext2 hsao2.
+  have hsao2 := stack_stable_wf_sao (sem_stack_stable_sprog (psem_loc.sem_loc_sem hs1)) hsao.
+  have hext2 := valid_state_extend_mem hwf hv hext hv2 (sem_validw_stable_uprog hhi) (sem_validw_stable_sprog (psem_loc.sem_loc_sem hs1)).
+  have [ls2' [s3' [hs2 [/(valid_state_Incl (incl_Incl hincl2)) hv3 hls2']]]]:=
+    Hc2 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc2 _ _ hv2 hext2 hsao2.
   set c := [::MkI _ _].
   have /= := Hwhile _ _ _ _ _ _ rmap5 rmap2 ii1 c hpmap hwf sao.
-  have hsao3 := stack_stable_wf_sao (sem_stack_stable_sprog hs2) hsao2.
-  have hext3 := valid_state_extend_mem hwf hv2 hext2 hv3 (sem_validw_stable_uprog hhi2) (sem_validw_stable_sprog hs2).
-  rewrite Loop.nbP /= hc1 /= he /= hc2 /= hincl2 /= => /(_ erefl _ _ hv3 hext3 hsao3) [s4'] [/sem_seq1_iff/sem_IE hs3 hv4].
-  exists s4';split => //; apply sem_seq1; constructor; apply: Ewhile_true; eassumption.
+  have hsao3 := stack_stable_wf_sao (sem_stack_stable_sprog (psem_loc.sem_loc_sem hs2)) hsao2.
+  have hext3 := valid_state_extend_mem hwf hv2 hext2 hv3 (sem_validw_stable_uprog hhi2) (sem_validw_stable_sprog (psem_loc.sem_loc_sem hs2)).
+  rewrite Loop.nbP /= hc1 /= he /= hc2 /= hincl2 /= => /(_ erefl _ _ hv3 hext3 hsao3) [ls3'] [s4'] [/psem_loc.sem_seq1_iff/psem_loc.sem_IE hs3 [hv4 hls3']].
+  exists (ls'++ls2'++ls3'), s4';split.
+  + apply psem_loc.sem_seq1; constructor; apply: psem_loc.Ewhile_true; eassumption.
+  split=> //.
+  move=> p ws /List.in_app_iff [/hls'|/List.in_app_iff [/hls2'|/hls3']] //.
+  + by rewrite -(sem_validw_stable_uprog hhi).
+  by rewrite -(sem_validw_stable_uprog hhi2) -(sem_validw_stable_uprog hhi).
 Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false P ev Pc Pi_r.
@@ -1958,9 +1997,9 @@ Proof.
   t_xrbindP => -[rmap4 [e' [c1' c2']]] /loop2P [rmap5 [rmap6 [hincl1 []]]].
   t_xrbindP => -[rmap7 c11] hc1 /= e1 he [rmap8 c22] /= hc2 ????? hincl2 ??.
   subst c rmap4 rmap7 rmap8 e1 c11 c22 => m0 s1' /(valid_state_Incl hincl1) hv hext hsao.
-  have [s2' [hs1 hv2]]:= Hc1 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
+  have [ls' [s2' [hs1 [hv2 hls']]]]:= Hc1 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
   have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv2 he Hv; rewrite -P'_globs => he'.
-  by exists s2';split => //; apply sem_seq1; constructor; apply: Ewhile_false; eassumption.
+  by exists ls', s2';split => //; apply psem_loc.sem_seq1; constructor; apply: psem_loc.Ewhile_false; eassumption.
 Qed.
 
 Local Lemma Hfor : sem_Ind_for P ev Pi_r Pfor.
@@ -2047,7 +2086,8 @@ Proof.
     have := hsao.(wf_sao_align).
     have /vs_top_stack -> := hvs.
     by apply is_align_m.
-  have [m2 [vres2 [hsem2 [hext' [hresults hunch]]]]] := Hf _ _ hext hargs hdisj halloc_ok.
+  have [ls [m2 [vres2 [hsem2 [hext' [hresults [hunch hls]]]]]]] :=
+    Hf _ _ hext hargs hdisj halloc_ok.
 
   (* after function call, we have [valid_state] for [rmap1] where all writable arguments
      have been cleared.
@@ -2091,8 +2131,8 @@ Proof.
 
     have hvs' := valid_state_incl (alloc_call_args_aux_incl hcargsx) hvs.
     apply (valid_state_holed_rmap hwfsl.(wfsl_no_overflow) hwfsl.(wfsl_disjoint) hpmap hvs'
-             (sem_call_validw_stable_uprog hsem1) (sem_call_stack_stable_sprog hsem2)
-             (sem_call_validw_stable_sprog hsem2) hext'.(em_read_old8) (l:=l)).
+             (sem_call_validw_stable_uprog hsem1) (sem_call_stack_stable_sprog (psem_loc.sem_call_loc_sem_call hsem2))
+             (sem_call_validw_stable_sprog (psem_loc.sem_call_loc_sem_call hsem2)) hext'.(em_read_old8) (l:=l)).
     + apply List.Forall_forall => -[sr ty] /InP.
       rewrite hlin => -[k [sr' [-> hsr' ->]]] /=.
       split.
@@ -2127,9 +2167,11 @@ Proof.
   (* writing of the returned values *)
   have [s2' [hs2' hvs'']] := alloc_call_resP hwfsl.(wfsl_no_overflow) hwfsl.(wfsl_disjoint) hpmap hvs' hcres haddr hresults hs1'.
 
-  exists s2'; split=> //.
-  apply sem_seq1; constructor; econstructor; rewrite ?P'_globs; eauto.
-  by case: hvs => <- *.
+  exists ls, s2'; split.
+  + apply psem_loc.sem_seq1; constructor; econstructor; rewrite ?P'_globs; eauto.
+    by case: hvs => <- *.
+  split=> //.
+  
 Qed.
 
 (* Not sure at all if this is the right way to do the proof. *)
@@ -2657,8 +2699,8 @@ Proof.
    by apply hass.(ass_align_stk).
 
   (* execution of the body *)
-  have [s2' [hsem2 hvs''']] := Hc _ _ _ _ _ _ _ _ _ hpmap hslots _ halloc _ _ hvs' hext'' hsao.
-  have hext''' := valid_state_extend_mem hslots hvs' hext'' hvs''' (sem_validw_stable_uprog hsem1) (sem_validw_stable_sprog hsem2).
+  have [ls2 [s2' [hsem2 [hvs''' hls2]]]] := Hc _ _ _ _ _ _ _ _ _ hpmap hslots _ halloc _ _ hvs' hext'' hsao.
+  have hext''' := valid_state_extend_mem hslots hvs' hext'' hvs''' (sem_validw_stable_uprog hsem1) (sem_validw_stable_sprog (psem_loc.sem_loc_sem hsem2)).
 
   (* get_var of results *)
   have harr: List.Forall2 (fun osr (x : var_i) => osr <> None -> is_sarr (vtype x)) (map fst alloc_params) (f_params fd).
@@ -2687,11 +2729,11 @@ Proof.
   have hvalideq2: validw m2 =2 validw (free_stack (emem s2')).
   + apply: (alloc_free_validw_stable hass _ _ hfss);
       have /= -> := write_vars_emem hs2.
-    + by apply (sem_stack_stable_sprog hsem2).
-    by apply (sem_validw_stable_sprog hsem2).
+    + by apply (sem_stack_stable_sprog (psem_loc.sem_loc_sem hsem2)).
+    by apply (sem_validw_stable_sprog (psem_loc.sem_loc_sem hsem2)).
   have hresults''' := free_stack_spec_wf_results hargs hvalideq2 hfss hnnone hresults''.
 
-  exists (free_stack (emem s2')), vres2'.
+  exists ls2, (free_stack (emem s2')), vres2'.
   split.
   + by econstructor; eauto; case: hvs'''.
   split.
@@ -2700,19 +2742,25 @@ Proof.
     rewrite -hvalideq1 -hvalideq2.
     by apply hext.(em_valid).
   split=> //.
-  rewrite /mem_unchanged_params.
-  move=> p hvalid1 hvalid2 hdisjp.
-  rewrite -hfss.(fss_read_old8) -?hvalideq2 //.
-  have /vs_unchanged := hvs'''; apply => //.
-  + by rewrite -hvalideq1.
-  apply (disjoint_from_writable_params_all_slots hlayout hover hargs'' hsub hparams).
-  + by apply (value_uincl_disjoint_from_writable_params huincl hptreq hdisjp).
-  have ? := hass.(ass_fresh) hvalid1.
   split.
-  + by apply hover.
-  + apply is_align_no_overflow.
-    by apply is_align8.
-  by apply or_comm.
+  + rewrite /mem_unchanged_params.
+    move=> p hvalid1 hvalid2 hdisjp.
+    rewrite -hfss.(fss_read_old8) -?hvalideq2 //.
+    have /vs_unchanged := hvs'''; apply => //.
+    + by rewrite -hvalideq1.
+    apply (disjoint_from_writable_params_all_slots hlayout hover hargs'' hsub hparams).
+    + by apply (value_uincl_disjoint_from_writable_params huincl hptreq hdisjp).
+    have ? := hass.(ass_fresh) hvalid1.
+    split.
+    + by apply hover.
+    + apply is_align_no_overflow.
+      by apply is_align8.
+    by apply or_comm.
+  move=> p ws.
+  have /= -> := (write_vars_emem hs1).
+  move=> hin hnvalid.
+  have [s [hsin hb]] := hls2 _ _ hin hnvalid.
+  Slots
 Qed.
 
 Lemma check_cP scs1 m1 fn vargs scs2 m2 vres : sem_call P ev scs1 m1 fn vargs scs2 m2 vres -> 

@@ -7,6 +7,8 @@ Require Import byteset.
 Require Import Psatz.
 Import Utf8.
 
+Require psem_loc.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -1686,12 +1688,18 @@ Lemma alloc_lvalP rmap r1 r2 v ty m0 (s1 s2: estate) :
   valid_state rmap m0 s1 s2 -> 
   type_of_val v = ty ->
   forall s1', write_lval gd r1 v s1 = ok s1' ->
-  exists s2', write_lval [::] r2.2 v s2 = ok s2' /\ valid_state r2.1 m0 s1' s2'.
+  exists l2' s2', psem_loc.write_lval_loc [::] r2.2 v s2 = ok (s2', l2')
+               /\ valid_state r2.1 m0 s1' s2'
+               /\ ∀ (p : word Uptr) (ws : wsize),
+         List.In (p, ws) l2' ->
+         ~ validw (emem s1) p ws ->
+         ∃ s : Sv.elt,
+           Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws).
 Proof.
   move=> ha hvs ?; subst ty.
   case: r1 ha => //; rewrite /alloc_lval.
   (* Lnone *)
-  + move=> vi ty1 [<-] /= s1' /write_noneP [->] h; exists s2; split => //.
+  + move=> vi ty1 [<-] /= s1' /write_noneP [->] h; exists [::], s2; split => //.
     by rewrite /write_none; case: h => [ [? ->]| [-> ->]].
 
   (* Lvar *)
@@ -1700,7 +1708,7 @@ Proof.
     + t_xrbindP=> /check_diffP hnnew <- s1' /=.
       rewrite /write_var; t_xrbindP => vm1 hvm1 <- /=.
       by apply: set_varP hvm1=> [v' hv <- | hb hv <-]; rewrite /write_var /set_var hv /= ?hb /=;
-        eexists;(split;first by reflexivity); apply valid_state_set_var.
+        eexists _, _;(split;first by reflexivity); split=> //; apply valid_state_set_var.
     case heq: is_word_type => [ws | //]; move /is_word_typeP : heq => hty.
     case htyv: subtype => //; rewrite /= /write_var.
     t_xrbindP => -[xi ei] ha sr hsr rmap2 hsetw <- /= s1' vm1' hvm1' ?; subst s1' => /=.
@@ -1718,12 +1726,17 @@ Proof.
       have [halign _] := set_wordP hwf hsetw.
       by apply (validw_sub_region_addr hvs hwf halign).
     have /writeV -/(_ (zero_extend ws w')) [mem2 hmem2] := hvp.
-    rewrite hmem2 /=; eexists;split;first by reflexivity.
+    rewrite hmem2 /=; eexists _, _;split;first by reflexivity.
+    have hofs: 0 <= 0 /\ size_of (sword ws) <= wsize_size ws by rewrite /=; lia.
+    have hofs' := ofs_bound_option hofs (fun _ => refl_equal).
+    split; last first.
+    + move=> _ _ [[<- <-]|//].
+      eexists; split; first by apply hwf.(wfr_slot).
+      have /= := zbetween_sub_region_addr (sub_region_at_ofs_0_wf hwf).
+      by rewrite -sub_region_addr_offset.
     (* valid_state update word *)
     have [_ hset] := set_wordP hwf hsetw.
     rewrite -to_pword_u.
-    have hofs: 0 <= 0 /\ size_of (sword ws) <= wsize_size ws by rewrite /=; lia.
-    have hofs' := ofs_bound_option hofs (fun _ => refl_equal).
     apply: (valid_state_set_sub_region hvs hwf hlx hpk hofs' _ _ _ hset (v:=Vword (zero_extend ws w'))).
     + by apply (Memory.write_mem_stable hmem2).
     + by move=> ??; apply (write_validw_eq hmem2).
@@ -1745,7 +1758,9 @@ Proof.
     have hvp1 := write_validw hmem1.
     have /valid_incl_word hvp2 := hvp1.
     have /writeV -/(_ w) [mem2 hmem2] := hvp2.
-    rewrite hmem2 /=; eexists;split;first reflexivity.
+    rewrite hmem2 /=; eexists _, _;split;first reflexivity.
+    split; last first.
+    + by move=> _ _ [[<- <-]|//].
     (* valid_state update mem *)
     case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
     constructor => //=.
@@ -1790,7 +1805,7 @@ Proof.
     rewrite he1' /= hi1 hxt2 /= hvw /= htt' /=.
     rewrite /write_var; apply: set_varP hvm1=> [v' hv <- | ]; last by rewrite {1} hty.
     rewrite /set_var hv /=.
-    by eexists;(split;first by reflexivity); apply valid_state_set_var.
+    by eexists _, _;(split;first by reflexivity); split=> //; apply valid_state_set_var.
   t_xrbindP => rmap2 /set_arr_wordP [sr [hget hal hset]] [xi ei] ha <- /=.
   have {he1} he1 : sem_pexpr [::] s2 e1' >>= to_int = ok i1 by rewrite he1'.
   have /wfr_ptr [pk' [hlx' hpk]] := hget.
@@ -1808,7 +1823,14 @@ Proof.
     apply is_align_add => //.
     by rewrite WArray.arr_is_align.
   have /writeV -/(_ w) [mem2 hmem2] := hvp.
-  rewrite hmem2 /=; eexists;split;first by reflexivity.
+  rewrite hmem2 /=; eexists _, _;split;first by reflexivity.
+  split; last first.
+  + move=> _ _ [[<- <-]|//] _.
+    eexists; split; first by apply hwf.(wfr_slot).
+    have hofs: forall zofs, Some (i1 * mk_scale aa ws) = Some zofs -> 0 <= zofs /\ zofs + size_of (sword ws) <= n.
+    + by move=> _ [<-]; split.
+    have /= := zbetween_sub_region_addr (sub_region_at_ofs_wf hwf hofs).
+    by rewrite -sub_region_addr_offset.
   (* valid_state update array *)
   have hofs: 0 <= i1 * mk_scale aa ws /\ i1 * mk_scale aa ws + size_of (sword ws) <= size_slot x.
   + done.
@@ -1843,15 +1865,26 @@ Lemma alloc_lvalsP rmap r1 r2 vs ty m0 (s1 s2: estate) :
   valid_state rmap m0 s1 s2 -> 
   seq.map type_of_val vs = ty -> 
   forall s1', write_lvals gd s1 r1 vs = ok s1' ->
-  exists s2', write_lvals [::] s2 r2.2 vs = ok s2' /\ valid_state r2.1 m0 s1' s2'.
+(*   exists s2', write_lvals [::] s2 r2.2 vs = ok s2' /\ valid_state r2.1 m0 s1' s2'. *)
+  exists ls2' s2', psem_loc.write_lvals_loc [::] s2 r2.2 vs = ok (s2', ls2')
+               /\ valid_state r2.1 m0 s1' s2'
+               /\ ∀ (p : word Uptr) (ws : wsize),
+         List.In (p, ws) ls2' ->
+         ~ validw (emem s1) p ws ->
+         ∃ s : Sv.elt,
+           Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws).
 Proof.
-  elim: r1 r2 rmap ty vs s1 s2=> //= [|a l IH] r2 rmap [ | ty tys] // [ | v vs] //.
-  + move=> s1 s2 [<-] Hvalid _ s1' [] <-; by exists s2; split.
-  move=> vs's1 s2; t_xrbindP => -[a' r3] ha [l' r4] /IH hrec <-.
+  elim: r1 r2 rmap ty vs s1 s2 => //= [|a l IH] r2 rmap [ | ty tys] // [ | v vs] //.
+  + move=> s1 s2 [<-] Hvalid _ s1' [] <-; by exists [::], s2.
+  move=> s1 s2; t_xrbindP => -[a' r3] ha [l' r4] /IH hrec <- /=.
   move=> Hvalid [] hty htys s1' s1'' ha1 hl1.
-  have [s2' [hs2' vs2']]:= alloc_lvalP ha Hvalid hty ha1.
-  have [s2'' [hs2'' vs2'']]:= hrec _ _ _ vs2' htys _ hl1.
-  by exists s2''; split => //=; rewrite hs2'.
+  have [l2' [s2' [hs2' [vs2' hl2']]]]:= alloc_lvalP ha Hvalid hty ha1.
+  have [l2'' [s2'' [hs2'' [vs2'' hl2'']]]]:= hrec _ _ _ vs2' htys _ hl1.
+  exists (l2''++l2'), s2''; split.
+  + by rewrite psem_loc.write_lvals_loc_cons hs2' /= hs2'' /=.
+  split=> //.
+  move=> p ws /List.in_app_iff [/hl2''|/hl2'] //.
+  by rewrite -(write_lval_validw ha1).
 Qed.
 
 Variable (P' : sprog).
@@ -2408,12 +2441,12 @@ Record h_stack_alloc_params (saparams : stack_alloc_params) :=
   {
     (* [mov_ofs] must behave as described in stack_alloc.v. *)
     mov_ofsP :
-      forall (P' : sprog) s1 e i x tag ofs w vpk s2 ins,
+      forall (P' : sprog) s1 e i x tag ofs w vpk s2 ins l,
         p_globs P' = [::]
         -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
         -> sap_mov_ofs saparams x tag vpk e ofs = Some ins
-        -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
-        -> sem_i P' w s1 ins s2;
+        -> psem_loc.write_lval_loc [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok (s2, l)
+        -> psem_loc.sem_i P' w l s1 ins s2;
   }.
 
 Context
@@ -2428,7 +2461,12 @@ Lemma alloc_array_moveP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   truncate_val (sarr n) v = ok v' ->
   write_lval gd r v' s1 = ok s1' ->
   alloc_array_move saparams pmap rmap1 r tag e = ok (rmap2, i2) →
-  ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
+  ∃ l (s2' : estate), psem_loc.sem_i P' rip l s2 i2 s2'
+                   /\ valid_state rmap2 m0 s1' s2'
+                   /\ (∀ (p : word Uptr) (ws : wsize),
+         List.In (p, ws) l
+         → ∃ s : Sv.elt,
+             Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws)).
 Proof.
   move=> hvs he; rewrite /truncate_val /=.
   t_xrbindP=> a' /to_arrI [m [a [? ha']]] ? hw; subst v v'.
@@ -2496,7 +2534,8 @@ Proof.
 
     case: pk hlx hlocal.
     + t_xrbindP=> s ofs' ws z sc hlx hlocal /eqP heqsub <- <-.
-      exists s2; split; first by constructor.
+      exists [::], s2; split; first by constructor.
+      split=> //.
       (* valid_state update *)
       by apply: (valid_state_set_move hvs hwf hlx _ (heqval _)).
     + move=> p hlx hlocal.
@@ -2504,29 +2543,34 @@ Proof.
         last done.
       move=> [<- <-].
       set vp := pof_val p.(vtype) (Vword (sub_region_addr (sub_region_at_ofs sry (Some ofs) len))).
-      exists (with_vm s2 (evm s2).[p <- vp]); split.
+      exists [::], (with_vm s2 (evm s2).[p <- vp]); split.
       + rewrite /vp -sub_region_addr_offset haddr -GRing.addrA -wrepr_add.
         apply (mov_ofsP hsaparams _ P'_globs he1 Hmov_ofs).
         by case: (p) hlocal.(wfr_rtype) => ? pn /= ->.
+      split=> //.
       (* valid_state update *)
       by apply (valid_state_set_move_regptr hvs hwf hlx (heqval _)).
     move=> s ofs' ws z f hlx hlocal.
     case hi2: (if _ then _ else _) => {i2} [i2|//] [<- <-].
 
-    have {hi2} [mem2 [hsemi hss hvalideq hreadeq hreadptr]]:
-      exists mem2,
-      [/\ sem_i P' rip s2 i2 (with_mem s2 mem2),
+    have {hi2} [l [mem2 [hsemi hss hvalideq hreadeq hreadptr hin]]]:
+      exists l mem2,
+      [/\ psem_loc.sem_i P' rip l s2 i2 (with_mem s2 mem2),
           stack_stable (emem s2) mem2,
           (forall p ws, validw mem2 p ws = validw (emem s2) p ws),
           (forall p ws,
             disjoint_range (sub_region_addr (sub_region_stkptr s ws z)) Uptr p ws ->
-            read mem2 p ws = read (emem s2) p ws) &
+            read mem2 p ws = read (emem s2) p ws),
           read mem2 (sub_region_addr (sub_region_stkptr s ws z)) Uptr =
-            ok (sub_region_addr (sub_region_at_ofs sry (Some ofs) len))].
+            ok (sub_region_addr (sub_region_at_ofs sry (Some ofs) len)) &
+          ∀ (p : word Uptr) (ws : wsize),
+         List.In (p, ws) l
+         → ∃ s : Sv.elt,
+             Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws)].
     + move: hi2.
       case: ifP.
       + case heq: Mvar.get => [srx|//] /andP [/eqP heqsub hcheck] [<-].
-        exists (emem s2); split=> //.
+        exists [::], (emem s2); split=> //.
         + by rewrite with_mem_same; constructor.
         + have /wfr_ptr := heq; rewrite hlx => -[_ [[<-] hpk]].
           rewrite -heqsub.
@@ -2537,17 +2581,22 @@ Proof.
         by apply (is_align_sub_region_stkptr hlocal).
       have /writeV -/(_ (w + wrepr Uptr (ofs2 + ofs))%R) [mem2 hmem2] := hvp.
       move => _ hi2.
-      exists mem2; split.
+      exists [:: (sub_region_addr (sub_region_stkptr s ws z), Uptr)], mem2; split.
       + apply (mov_ofsP hsaparams _ P'_globs he1 hi2).
         rewrite /= vs_rsp /= !truncate_word_u /=.
         by rewrite -(sub_region_addr_stkptr hlocal) hmem2.
       + by apply (Memory.write_mem_stable hmem2).
       + by move=> ??; apply (write_validw_eq hmem2).
       + by move=> ??; apply (writeP_neq hmem2).
-      rewrite (writeP_eq hmem2).
-      by rewrite wrepr_add GRing.addrA -haddr -sub_region_addr_offset.
+      + rewrite (writeP_eq hmem2).
+        by rewrite wrepr_add GRing.addrA -haddr -sub_region_addr_offset.
+      move=> _ _ [[<- <-]|//].
+      exists s; split=> //.
+      + by apply hlocal.(wfs_slot).
+      by apply (zbetween_sub_region_addr hwfs).
 
-    exists (with_mem s2 mem2); split=> //.
+    exists l, (with_mem s2 mem2); split=> //.
+    split=> //.
     by apply (valid_state_set_stack_ptr hvs hwf hlx hss hvalideq hreadeq hreadptr (heqval _)).
 
   (* interestingly, we can prove that n = Z.to_pos len = Z.to_pos (arr_size ws len2)
@@ -2557,7 +2606,8 @@ Proof.
   have /= := hgetr; t_xrbindP=> ofs3 hofs3 ? ?; subst x' ofsx.
   case hlx: (get_local pmap x) => [pk|//].
   t_xrbindP=> _ /set_arr_subP [srx [hgetx heqsub <-]] <- <-.
-  exists s2; split; first by constructor.
+  exists [::], s2; split; first by constructor.
+  split=> //.
   apply (valid_state_set_move_sub_write_lval hvs hgetr refl_equal hw hlx).
   + by move=> ?; rewrite hgetx => -[].
   by rewrite heqsub.
@@ -2598,12 +2648,16 @@ Lemma alloc_array_move_initP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   truncate_val (sarr n) v = ok v' ->
   write_lval gd r v' s1 = ok s1' ->
   alloc_array_move_init saparams pmap rmap1 r tag e = ok (rmap2, i2) →
-  ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
+  ∃ l (s2' : estate), psem_loc.sem_i P' rip l s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2' /\
+    (∀ (p : word Uptr) (ws : wsize),
+         List.In (p, ws) l
+         → ∃ s : Sv.elt,
+             Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws)).
 Proof.
   move=> hvs.
   rewrite /alloc_array_move_init.
   case: is_array_initP; last first.
-  + by move=> _; apply alloc_array_moveP.
+  + by move=> _; apply: alloc_array_moveP.
   move=> [m ->] /= [<-].
   rewrite /truncate_val /=.
   t_xrbindP=> _ /WArray.cast_empty_ok -> {m} <- hw [x ofsx] hgetr.
@@ -2613,7 +2667,8 @@ Proof.
                end) => [ofs len].
   case hlx: get_local => [pk|//].
   t_xrbindP=> sr hsr <- <-.
-  exists s2; split; first by constructor.
+  exists [::], s2; split; first by constructor.
+  split=> //.
   (* valid_state update *)
   apply (valid_state_set_move_sub_write_lval hvs hgetr hofsx hw hlx).
   + move=> srx hgetx.
