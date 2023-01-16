@@ -138,7 +138,7 @@ Definition SubWord (v1 : u32) :=
 Definition InvSubWord (v1 : u32) :=
   make_vec U32 (map InvSbox (split_vec U8 v1)).
 Definition RotWord (v1 : u32) :=
-  make_vec U32 [:: (subword 1 U8 v1); subword 2 U8 v1; subword 3 U8 v1; subword 0 U8 v1].
+  make_vec U32 [:: (subword (1 * U8) U8 v1); subword (2 * U8) U8 v1; subword (3 * U8) U8 v1; subword (0 * U8) U8 v1].
 
 Definition to_matrix (s : u128) :=
   let s_ := fun i j => (subword (i * U8) U8 (subword (j * U32) U32 s)) in
