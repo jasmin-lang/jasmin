@@ -57,6 +57,10 @@
   ([PR #322](https://github.com/jasmin-lang/jasmin/pull/322);
   fixes [#319](https://github.com/jasmin-lang/jasmin/issues/319)).
 
+- Improved error message in array expansion
+  ([PR #331](https://github.com/jasmin-lang/jasmin/pull/331);
+  fixes [#333](https://github.com/jasmin-lang/jasmin/issues/333)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported

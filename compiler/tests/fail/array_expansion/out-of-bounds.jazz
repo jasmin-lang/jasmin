@@ -1,0 +1,8 @@
+export
+fn test() -> reg u64 {
+  reg u64 x;
+  reg u64[1] t;
+  t[-1] = 42;
+  x = t[-1];
+  return x;
+}
