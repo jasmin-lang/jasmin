@@ -1,0 +1,15 @@
+inline
+fn bar(reg u64 o, reg u256 v) {
+    (u256) [o] = v;
+}
+
+export
+fn foo(reg u64 o) {
+    inline int i;
+    reg u256[8] v;
+
+    for i = 0 to 11 {
+        bar(o, v[i]);
+    }
+}
+
