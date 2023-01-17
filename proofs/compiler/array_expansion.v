@@ -110,6 +110,11 @@ Definition init_map (fi : expand_info) :=
 Definition check_gvar (m : t) (x: gvar) := 
   ~~ is_lvar x || Sv.mem (gv x) m.(svars).
 
+Definition nelem (ty: stype) (ws: wsize) : Z :=
+      if ty is sarr n
+      then n / wsize_size ws
+      else 0.
+
 (* FIXME: improve error messages *)
 Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr := 
   match e with
@@ -129,6 +134,7 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
+        Let _ := assert ((0 <=? i) && (i <? nelem x.(v_var).(vtype) ai.(ai_ty)))%Z (reg_error x "(index is out of bounds in array read)") in
         match Mi.get ai.(ai_elems) i with
         | Some v => ok (Pvar (mk_lvar {| v_var := v; v_info := v_info x |}))
         | _ => Error (reg_ierror x "the new variable was not given")
@@ -189,6 +195,7 @@ Definition expand_lv (m : t) (x : lval)  :=
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
+        Let _ := assert ((0 <=? i) && (i <? nelem x.(v_var).(vtype) ai.(ai_ty)))%Z (reg_error x "(index is out of bounds in array store)") in
         match Mi.get ai.(ai_elems) i with
         | Some v => ok (Lvar {| v_var := v; v_info := v_info x |})
         | _ => Error (reg_ierror x "the new variable was not given")
