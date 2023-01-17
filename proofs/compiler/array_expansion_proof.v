@@ -119,7 +119,7 @@ Proof.
       by t_xrbindP => i vi /he -> /= -> /= w -> <-. 
     case hgetx : Mvar.get => [ai | //].
     case: (is_constP e) => // i.
-    t_xrbindP => _ /assertP /eqP <- _ /assertP /eqP ->.
+    t_xrbindP => _ /assertP /eqP <- _ /assertP /eqP -> [] bc.
     case hgeti : Mi.get => [xi | //] [<-] v.
     apply on_arr_gvarP => n t hty hx /=.
     t_xrbindP => w hw <-; case: h => -[] _ /(_ _ _ _ _ hgetx hgeti).
@@ -213,7 +213,7 @@ Proof.
       t_xrbindP => i vi /(expand_eP h he) -> /= -> /= ? -> /= t' -> hw.
       by apply (eq_alloc_write_var h hin hw).
     case hai: Mvar.get => [ai | //].
-    case: is_constP => // i ; t_xrbindP => _ /assertP /eqP <- _ /assertP /eqP ->.
+    case: is_constP => // i ; t_xrbindP => _ /assertP /eqP <- _ /assertP /eqP -> [] bc.
     case hxi: Mi.get => [xi | //] [<-] v s1'.
     apply on_arr_varP => n t hty hget /=.
     rewrite /write_var; t_xrbindP => w hvw t' ht' vm' hs <-. 
