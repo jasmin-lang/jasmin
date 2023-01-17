@@ -1694,7 +1694,7 @@ Lemma alloc_lvalP rmap r1 r2 v ty m0 (s1 s2: estate) :
          List.In (p, ws) l2' ->
          ~ validw (emem s1) p ws ->
          ∃ s : Sv.elt,
-           Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws).
+           Sv.In s Slots ∧ Writable s /\ zbetween (Addr s) (size_slot s) p (wsize_size ws).
 Proof.
   move=> ha hvs ?; subst ty.
   case: r1 ha => //; rewrite /alloc_lval.
@@ -1732,6 +1732,10 @@ Proof.
     split; last first.
     + move=> _ _ [[<- <-]|//].
       eexists; split; first by apply hwf.(wfr_slot).
+      split.
+      + rewrite hwf.(wfr_writable).
+        have [_ hset] := set_wordP hwf hsetw.
+        by have [-> _] := set_sub_regionP hset.
       have /= := zbetween_sub_region_addr (sub_region_at_ofs_0_wf hwf).
       by rewrite -sub_region_addr_offset.
     (* valid_state update word *)
@@ -1829,6 +1833,9 @@ Proof.
     eexists; split; first by apply hwf.(wfr_slot).
     have hofs: forall zofs, Some (i1 * mk_scale aa ws) = Some zofs -> 0 <= zofs /\ zofs + size_of (sword ws) <= n.
     + by move=> _ [<-]; split.
+    split.
+    + rewrite hwf.(wfr_writable).
+      by have [-> _] := set_sub_regionP hset.
     have /= := zbetween_sub_region_addr (sub_region_at_ofs_wf hwf hofs).
     by rewrite -sub_region_addr_offset.
   (* valid_state update array *)
@@ -1872,7 +1879,7 @@ Lemma alloc_lvalsP rmap r1 r2 vs ty m0 (s1 s2: estate) :
          List.In (p, ws) ls2' ->
          ~ validw (emem s1) p ws ->
          ∃ s : Sv.elt,
-           Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws).
+           Sv.In s Slots ∧ Writable s /\ zbetween (Addr s) (size_slot s) p (wsize_size ws).
 Proof.
   elim: r1 r2 rmap ty vs s1 s2 => //= [|a l IH] r2 rmap [ | ty tys] // [ | v vs] //.
   + move=> s1 s2 [<-] Hvalid _ s1' [] <-; by exists [::], s2.
@@ -2466,7 +2473,7 @@ Lemma alloc_array_moveP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
                    /\ (∀ (p : word Uptr) (ws : wsize),
          List.In (p, ws) l
          → ∃ s : Sv.elt,
-             Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws)).
+             Sv.In s Slots ∧ Writable s /\ zbetween (Addr s) (size_slot s) p (wsize_size ws)).
 Proof.
   move=> hvs he; rewrite /truncate_val /=.
   t_xrbindP=> a' /to_arrI [m [a [? ha']]] ? hw; subst v v'.
@@ -2566,7 +2573,7 @@ Proof.
           ∀ (p : word Uptr) (ws : wsize),
          List.In (p, ws) l
          → ∃ s : Sv.elt,
-             Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws)].
+             Sv.In s Slots ∧ Writable s /\ zbetween (Addr s) (size_slot s) p (wsize_size ws)].
     + move: hi2.
       case: ifP.
       + case heq: Mvar.get => [srx|//] /andP [/eqP heqsub hcheck] [<-].
@@ -2593,6 +2600,8 @@ Proof.
       move=> _ _ [[<- <-]|//].
       exists s; split=> //.
       + by apply hlocal.(wfs_slot).
+      split.
+      + by rewrite hwfs.(wfr_writable).
       by apply (zbetween_sub_region_addr hwfs).
 
     exists l, (with_mem s2 mem2); split=> //.
@@ -2652,7 +2661,7 @@ Lemma alloc_array_move_initP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
     (∀ (p : word Uptr) (ws : wsize),
          List.In (p, ws) l
          → ∃ s : Sv.elt,
-             Sv.In s Slots ∧ zbetween (Addr s) (size_slot s) p (wsize_size ws)).
+             Sv.In s Slots ∧ Writable s /\ zbetween (Addr s) (size_slot s) p (wsize_size ws)).
 Proof.
   move=> hvs.
   rewrite /alloc_array_move_init.
