@@ -3,6 +3,7 @@ Require sem.
 Require arm_params.
 Require x86_params.
 Require spp_arch_extra.
+Require waes.
 
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
@@ -29,6 +30,8 @@ Extract Constant expr.InstrInfo.t => "IInfo.t".
 Extract Constant expr.InstrInfo.witness => "IInfo.dummy".
 Extract Constant expr.instr_info => "IInfo.t".
 Extract Constant expr.fun_info => "FInfo.t".
+Extract Constant waes.MixColumns => "(fun _ -> failwith ""MixColumns is not implemented"")".
+Extract Constant waes.InvMixColumns => "(fun _ -> failwith ""InvMixColumns not implemented"")".
 
 Cd  "lang/ocaml".
 

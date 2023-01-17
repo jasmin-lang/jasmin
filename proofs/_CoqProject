@@ -119,6 +119,7 @@ lang/type.v
 lang/utils.v
 lang/values.v
 lang/var.v
+lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
