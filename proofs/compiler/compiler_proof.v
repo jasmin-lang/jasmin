@@ -661,13 +661,15 @@ Qed.
   TODO: There might be an equivalent definition that is clearer.
 *)
 
-Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
-  { ma_ghost : mem
-  ; ma_extend_mem : extend_mem m ma_ghost gd data
+Record mem_agreement_with_ghost (m m': mem) (gd: pointer) (data: seq u8) (ma_ghost: mem) : Prop :=
+  { ma_extend_mem : extend_mem m ma_ghost gd data
   ; ma_match_mem : match_mem ma_ghost m'
   ; ma_stack_stable : stack_stable m ma_ghost
   ; ma_stack_range : (wunsigned (stack_limit ma_ghost) <= wunsigned (top_stack m'))%Z
   }.
+
+Definition mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
+  ∃ ma_ghost, mem_agreement_with_ghost m m' gd data ma_ghost.
 
 Lemma compile_prog_to_asmP
   entries
@@ -693,7 +695,7 @@ Lemma compile_prog_to_asmP
             -> asm_reg xm ad_rsp = top_stack m
             -> get_typed_reg_values xm (asm_fd_arg xd) = ok args'
             -> List.Forall2 value_uincl va args'
-  (* FIXME: see comment in compiler_back_end_to_x86P *)
+  (* FIXME: see comment in compiler_back_end_to_asmP *)
             -> exists xm' res',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp), asm_scs xm' = scs'
@@ -704,7 +706,7 @@ Lemma compile_prog_to_asmP
 Proof.
   rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
   have -> := compiler_back_end_to_asm_meta ok_xp.
-  move=> mi1 mi2 mi3 mi4.
+  case=> mi1 mi2 mi3 mi4.
   rewrite (ss_top_stack mi3).
   move=> /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
   have := compiler_front_endP ok_sp ok_fn p_call mi1 ok_mi.
@@ -719,7 +721,7 @@ Proof.
     split => //;
     last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
   case: xp_call => _ _ _ /= _ /asmsem_invariantP /= xm_xm' _.
-  exists mi'.
+  exists mi'; split.
   - rewrite -(asmsem_invariant_rip xm_xm').
     exact: m1.
   - exact: m2.
