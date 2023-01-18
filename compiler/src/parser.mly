@@ -331,6 +331,7 @@ implicites:
 
 plvalues:
 | lv=tuple1(plvalue) { None, lv }
+| LPAREN RPAREN { None, [] }
 | s=implicites { Some s, [] }
 | s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
 
