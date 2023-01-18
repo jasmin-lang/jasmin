@@ -148,6 +148,11 @@ Variant x86_op : Type :=
 (* Cache *)
 | CLFLUSH
 
+(* Fences *)
+| LFENCE
+| MFENCE
+| SFENCE
+
 (* Monitoring *)
 | RDTSC   of wsize
 | RDTSCP  of wsize
@@ -1689,6 +1694,13 @@ Definition Ox86_RDTSCP_instr :=
 Definition Ox86_CLFLUSH_instr :=
   mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (PrimM CLFLUSH) (pp_name "clflush" Uptr).
 
+Definition Ox86_LFENCE_instr :=
+  mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (PrimM LFENCE) (pp_name "lfence" U8).
+Definition Ox86_MFENCE_instr :=
+  mk_instr_pp "MFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (PrimM MFENCE) (pp_name "mfence" U8).
+Definition Ox86_SFENCE_instr :=
+  mk_instr_pp "SFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (PrimM SFENCE) (pp_name "sfence" U8).
+
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname (constr:x86_op) x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem
@@ -1854,6 +1866,9 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
   | VPTEST sz          => Ox86_VPTEST_instr.1 sz
   | CLFLUSH            => Ox86_CLFLUSH_instr.1
+  | LFENCE             => Ox86_LFENCE_instr.1
+  | MFENCE             => Ox86_MFENCE_instr.1
+  | SFENCE             => Ox86_SFENCE_instr.1
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1984,6 +1999,9 @@ Definition x86_prim_string :=
    Ox86_VPMAXS_instr.2;
    Ox86_VPTEST_instr.2;
    Ox86_CLFLUSH_instr.2;
+   Ox86_LFENCE_instr.2;
+   Ox86_MFENCE_instr.2;
+   Ox86_SFENCE_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            
