@@ -145,6 +145,9 @@ Variant x86_op : Type :=
 | VPMAXS of velem & wsize
 | VPTEST `(wsize)
 
+(* Cache *)
+| CLFLUSH
+
 (* Monitoring *)
 | RDTSC   of wsize
 | RDTSCP  of wsize
@@ -1682,6 +1685,10 @@ Definition Ox86_RDTSCP_instr :=
    ,("RDTSCP"%string, PrimP U64 RDTSCP) (* jasmin concrete syntax *)
   ).
 
+(* Fences & cache-related instructions *)
+Definition Ox86_CLFLUSH_instr :=
+  mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (PrimM CLFLUSH) (pp_name "clflush" Uptr).
+
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname (constr:x86_op) x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem
@@ -1846,6 +1853,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMAXU ve sz       => Ox86_VPMAXU_instr.1 ve sz
   | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
   | VPTEST sz          => Ox86_VPTEST_instr.1 sz
+  | CLFLUSH            => Ox86_CLFLUSH_instr.1
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1975,6 +1983,7 @@ Definition x86_prim_string :=
    Ox86_VPMAXU_instr.2;
    Ox86_VPMAXS_instr.2;
    Ox86_VPTEST_instr.2;
+   Ox86_CLFLUSH_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            
