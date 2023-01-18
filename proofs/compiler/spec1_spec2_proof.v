@@ -532,6 +532,7 @@ move=> s1 s2 e c1 c2 he hc1 hpc. rewrite /Pc in hpc.
 move=> ii -[envi1 env2] hwf.
 have heg := eq_globs.
 rewrite /ir_spec1_to_spec2 -/i_spec1_to_spec2 /=. 
+case: ifP=> //= hmem.
 case: envi1 hwf=> //=.
 (* some case *)
 + move=> -[e1 fv1] /= hwf.
@@ -554,14 +555,14 @@ case: envi1 hwf=> //=.
   move=> m hin. have hin1 := SvP.MP.FM.inter_1 hin.
   by move: (hwf11 m hin1).
 (* none case *)
-move=> hwf. 
+move=> hwf.
 case hbc1 : (c_spec1_to_spec2 i_spec1_to_spec2 (Some (e, read_e e), env2) c1)=> [[envc1 c1'] /=|//].
 case hbc2 : (c_spec1_to_spec2 i_spec1_to_spec2 (Some (enot e, read_e (enot e)), env2) c2)=> [[envc2 c2'] /=|//].
 have hwf' : wf_env (Some (e, read_e e), env2) s1 (p_globs p).
 + rewrite /wf_env. case: hwf=> hwf1 hwf2. split=> //=.
   move=> e1 fv1 [] he1 hfv1; subst. split=> //=. 
-  move: (hwf2 e1 (read_e e1))=> hwf2'. split=> //=.
-  admit. (* How to show that condition is not dependent on memory *)
+  move: (hwf2 e1 (read_e e1))=> hwf2'. split=> //=. rewrite /negb in hmem.
+  move: hmem. by case: ifP=> //=.
 move: (hpc (Some (e, read_e e), env2) hwf'). rewrite hbc1 /=.
 move=> [] hc1' hwf1. split=> //=.
 + econstructor. 
@@ -573,14 +574,14 @@ rewrite /wf_env in hwf1. case: hwf1=> hwf11 hwf12.
 rewrite /wf_env /=. split=> //=.
 move=> m hin. have hin1 := SvP.MP.FM.inter_1 hin.
 by move: (hwf11 m hin1).
-Admitted.
+Qed.
 
 Lemma Hif_false : sem_Ind_if_false (spp := spp_of_asm_op_spec1) p ev Pc Pi_r.
 Proof.
 move=> s1 s2 e c1 c2 he hc1 hpc. rewrite /Pc in hpc.  
 move=> ii -[envi1 env2] hwf.
 have heg := eq_globs.
-rewrite /ir_spec1_to_spec2 -/i_spec1_to_spec2 /=. 
+rewrite /ir_spec1_to_spec2 -/i_spec1_to_spec2 /=. case: ifP=> //= hmem.
 case: envi1 hwf=> //=.
 (* some case *)
 + move=> -[e1 fv1] /= hwf.
@@ -610,7 +611,7 @@ have hwf' : wf_env (Some ((enot e), read_e (enot e)), env2) s1 (p_globs p).
 + rewrite /wf_env. case: hwf=> hwf1 hwf2. split=> //=.
   move=> e1 fv1 [] he1 hfv1; subst. split=> //=. 
   split=> //=.
-  + admit. (* How to show that condition is not dependent on memory *)
+  + rewrite /negb in hmem. move: hmem. by case: ifP=> //=.
   admit. (* doable *)
 move: (hpc (Some ((enot e), read_e (enot e)), env2) hwf'). rewrite hbc2 /=.
 move=> [] hc2' hwf1. split=> //=.
@@ -623,6 +624,15 @@ rewrite /wf_env in hwf1. case: hwf1=> hwf11 hwf12.
 rewrite /wf_env /=. split=> //=.
 move=> m hin. have hin1 := SvP.MP.FM.inter_2 hin.
 by move: (hwf11 m hin1).
+Admitted.
+
+Lemma loop_whileP (ii: instr_info) c1 e c2 c1' c2' n envi1 envi2:
+loop_while i_spec1_to_spec2 c1 e c2 n envi1 = ok (envi2,c1', c2') ->
+exists envi envi3, 
+[/\ c_spec1_to_spec2 i_spec1_to_spec2 envi c1 = ok (envi2, c1'), 
+    c_spec1_to_spec2 i_spec1_to_spec2 envi c2 = ok (envi3, c2')
+    & sub_env envi envi3 /\ sub_env envi envi1 ].
+Proof.
 Admitted.
 
 Lemma Hwhile_true : sem_Ind_while_true (spp := spp_of_asm_op_spec1) p ev Pc Pi_r.
@@ -648,7 +658,7 @@ have hwf' : wf_env (enter_msf envc e) s2 (p_globs p).
 move: (hpc' (enter_msf envc e) hwf'). rewrite hbc' /=. move=> [] hc2 hwf''.   
 rewrite /Pi_r in hpi. rewrite -heg in hwf''. move: (hpi ii envc' hwf'').
 rewrite /ir_spec1_to_spec2 -/i_spec1_to_spec2 /=. move=> hpi'.
-split=> //=.
+(*split=> //=.
 + econstructor. 
   + econstructor. eapply (Ewhile_true (spp := spp_of_asm_op_spec2)).  
   + by apply hc1.
@@ -659,7 +669,7 @@ split=> //=.
 rewrite /wf_env /=. split=> //=. case: hwf1=> hwf11 hwf12.
 case: hwf''=> hwf1'' hwf2''. move=> m hin.
 have hin1 := SvP.MP.FM.inter_2 hin.
-admit.
+admit.*)
 Admitted.
 
 Lemma Hwhile_false : sem_Ind_while_false (spp := spp_of_asm_op_spec1) p ev Pc Pi_r.
@@ -680,7 +690,7 @@ have hwf'' : wf_env (enter_msf envc e) s2 (p_globs p).
   move=> e1 fv1 [] hee hfv; subst. split=> //=. split=> //=.
   + admit. (* how to show that condition doesn't depend on memory *)
   admit. (* doable *)
-split=> //=.
+(*split=> //=.
 + apply (Eseq (spp := spp_of_asm_op_spec2) (s2 := s2)). 
   + apply (EmkI (spp := spp_of_asm_op_spec2)). apply @Ewhile_false. 
     + by apply hc1.
@@ -688,7 +698,7 @@ split=> //=.
     by constructor.
 rewrite /wf_env /=. split=> //=. case: hwf'=> hwf11 hwf12.
 move=> m hin. have hin1 := SvP.MP.FM.inter_1 hin.
-by move: (hwf11 m hin1).
+by move: (hwf11 m hin1).*)
 Admitted.
 
 Lemma Hfor : sem_Ind_for (spp := spp_of_asm_op_spec1) p ev Pi_r Pfor.

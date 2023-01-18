@@ -57,6 +57,20 @@ match envi with
 | (None, msf) => (Some (e, read_e e), msf)
 end.
 
+Definition inter_env (env1 : env) (env2 : env) :=
+match env1.1, env2.1 with 
+| None, _ => None 
+| _, None => None 
+| Some e, Some e' => if eq_expr e.1 e'.1 then Some e else None
+end.
+
+Definition sub_env (env1 : env) (env2 : env) :=
+match env1.1, env2.1 with 
+| None, _ => true && Sv.subset env1.2 env2.2
+| Some e, Some e' => eq_expr e.1 e'.1 && Sv.subset env1.2 env2.2
+| _, _ => false
+end. 
+
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
@@ -102,6 +116,31 @@ match cmd with
 end.
 
 End CMD.
+
+Section LOOP.
+
+Context `{asmop : asmOp}.
+Context {pd : PointerData}.
+Variable i_spec1_to_spec2 : env -> @instr asm_op_spec1 asmOp_spec1 -> 
+                            cexec (env * seq (@instr asm_op_spec2 asmOp_spec2))%type.
+Context (ii:instr_info).
+Context (c1:seq (@instr asm_op_spec1 asmOp_spec1))
+        (e:pexpr) 
+        (c2:seq (@instr asm_op_spec1 asmOp_spec1)).
+
+Fixpoint loop_while (n : nat) (envi : env) : 
+cexec (env * seq (@instr asm_op_spec2 asmOp_spec2) * seq (@instr asm_op_spec2 asmOp_spec2)) :=
+match n with
+| O => Error (spec_transform_error "Should atleast loop once")
+| S n =>
+  (* c1; while e do c2; c1 *)
+  Let rc1 := c_spec1_to_spec2 i_spec1_to_spec2 envi c1 in
+  Let rc2 := c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf rc1.1 e) c2 in
+  if sub_env envi rc2.1 then loop_while n ((inter_env envi rc2.1), Sv.inter envi.2 rc2.1.2) 
+  else ok ((enter_msf envi e), rc1.2, rc2.2)
+end.
+
+End LOOP.
 
 Section INST.
 
@@ -171,14 +210,16 @@ match ir with
   end
 | Csyscall xs o es => ok ((None, Sv.empty), [:: MkI ii (@Csyscall asm_op_spec2 asmOp_spec2 xs o es)])
 | Cif b c1 c2 => 
-  Let rc1 := (c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf envi b) c1) in 
-  Let rc2 := (c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf envi (enot b)) c2) in 
-  ok ((None, Sv.inter rc1.1.2 rc2.1.2), [:: MkI ii (@Cif asm_op_spec2 asmOp_spec2 b rc1.2 rc2.2)])
+  if negb (use_mem b)
+  then Let rc1 := (c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf envi b) c1) in 
+       Let rc2 := (c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf envi (enot b)) c2) in 
+       ok ((None, Sv.inter rc1.1.2 rc2.1.2), [:: MkI ii (@Cif asm_op_spec2 asmOp_spec2 b rc1.2 rc2.2)])
+  else Error (spec_transform_error "Conditional guard should not depend on memory")
 | Cfor x (dir, e1, e2) c => Let cr := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
                             ok (cr.1, [:: MkI ii (@Cfor asm_op_spec2 asmOp_spec2 x (dir, e1, e2) cr.2)])
-| Cwhile a c e c' => Let rc := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
-                     Let rc' := c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf rc.1 e) c' in 
-                     ok ((None, Sv.inter rc.1.2 rc'.1.2), [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a rc.2 e rc'.2)])
+| Cwhile a c e c' => Let r := loop_while i_spec1_to_spec2 c e c' Loop.nb envi in
+                     let:(r1, c1, c2) := r in
+                     ok (r1, [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a c1 e c2)])
 (* FIX ME *)
 | Ccall ini xs fn es => ok (envi, [:: MkI ii (@Ccall asm_op_spec2 asmOp_spec2 ini xs fn es)])
 end 
