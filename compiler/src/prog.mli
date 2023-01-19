@@ -328,7 +328,7 @@ val expr_of_lval : 'len glval -> 'len gexpr option
 (* Functions over instruction                                           *)
 
 val has_syscall : ('len, 'info, 'asm) gstmt -> bool
-
+val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
 val clamp_pe : pelem -> Z.t -> Z.t

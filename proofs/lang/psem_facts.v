@@ -105,8 +105,8 @@ Proof.
   by move=> h1 p ws; rewrite h h1.
 Qed.
 
-Lemma alloc_free_stack_stable m1 ws sz sz' m2 m2' m3 :
-  alloc_stack_spec m1 ws sz sz' m2 ->
+Lemma alloc_free_stack_stable m1 ws sz ioff sz' m2 m2' m3 :
+  alloc_stack_spec m1 ws sz ioff sz' m2 ->
   stack_stable m2 m2' ->
   free_stack_spec m2' m3 ->
   stack_stable m1 m3.
@@ -118,8 +118,8 @@ Proof.
   by rewrite hfss.(fss_frames) -hss.(ss_frames) hass.(ass_frames).
 Qed.
 
-Lemma alloc_free_validw_stable m1 ws sz sz' m2 m2' m3 :
-  alloc_stack_spec m1 ws sz sz' m2 ->
+Lemma alloc_free_validw_stable m1 ws sz ioff sz' m2 m2' m3 :
+  alloc_stack_spec m1 ws sz ioff sz' m2 ->
   stack_stable m2 m2' ->
   validw m2 =2 validw m2' ->
   free_stack_spec m2' m3 ->
@@ -147,9 +147,7 @@ Proof.
   change (wsize_size U8) with 1%Z.
   move => ptr_i_lo ptr_i_hi.
   apply: ptr_not_fresh.
-  split; first exact: ptr_i_lo.
-  move: H ptr_i_hi; clear => n.
-  by Lia.lia.
+  move: (ass_ioff hass) (ass_add_ioff hass); Psatz.lia.
 Qed.
 
 Section MEM_EQUIV.

@@ -21,6 +21,10 @@
   ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
   These get extracted to `|<<|` and `|>>|` in EasyCrypt.
 
+- Local functions with return address on the stack use usual `CALL`
+  and `RET` x86 instructions instead of (direct & computed) `JMP`
+  ([PR #194](https://github.com/jasmin-lang/jasmin/pull/194)).
+
 - x86 intrinsics that accept a size suffix (e.g., `_128`) also accept, with a
   warning, a vector suffix (e.g., `_4u32`)
   ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303)).
@@ -31,7 +35,7 @@
 
 ## Bug fixes
 
- - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
+- The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
    or `_256`) instead of a vector description suffix (`4u32` or `8u32`)
   ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303);
   fixes [#301](https://github.com/jasmin-lang/jasmin/issues/301)).

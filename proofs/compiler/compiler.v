@@ -340,8 +340,9 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
+  (* FIXME: we can certainly remove cparams.(extra_free_registers) from merge_varmaps *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
-  Let pl := linear_prog liparams pd cparams.(extra_free_registers) in
+  Let pl := linear_prog liparams pd (* cparams.(extra_free_registers) *) in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in

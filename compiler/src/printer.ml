@@ -373,7 +373,10 @@ let pp_saved_stack ~debug tbl fmt = function
 
 let pp_return_address ~debug tbl fmt = function
   | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar tbl x)
-  | Expr.RAstack z -> Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz z)
+  | Expr.RAstack(Some x, z) -> 
+    Format.fprintf fmt "%a, RSP + %a" (pp_var ~debug) (Conv.var_of_cvar tbl x) Z.pp_print (Conv.z_of_cz z)
+  | Expr.RAstack(None, z) -> 
+    Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz z)
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
 let pp_sprog ~debug tbl asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =

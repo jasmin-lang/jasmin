@@ -2,6 +2,15 @@ open Arch_decl
 open Arch_extra
 open Prog
 
+type 'a callstyle =
+  | StackDirect           (* call instruction push the return address on top of the stack *)
+  | ByReg of 'a option    (* call instruction store the return address on a register, 
+                               (Some r) neams that the register is forced to be r *)
+(* x86    : StackDirect 
+   arm v7 : ByReg (Some ra)
+   riscV  : ByReg (can it be StackDirect too ?)
+*)
+
 module type Core_arch = sig
   type reg
   type regx 
@@ -27,6 +36,9 @@ module type Core_arch = sig
     (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
     (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.prog ->
     unit
+  
+  val callstyle : reg callstyle
+
 end
 
 module type Arch = sig
@@ -54,6 +66,9 @@ module type Arch = sig
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
+
+  val callstyle : var callstyle 
+  
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch

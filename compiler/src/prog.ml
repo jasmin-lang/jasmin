@@ -544,6 +544,15 @@ let rec has_syscall_i i =
 
 and has_syscall c = List.exists has_syscall_i c
 
+let rec has_call_or_syscall_i i =
+  match i.i_desc with
+  | Csyscall _ | Ccall _ -> true
+  | Cassgn _ | Copn _ -> false
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
+  | Cfor (_, _, c) -> has_call_or_syscall c
+
+and has_call_or_syscall c = List.exists has_call_or_syscall_i c
+
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =
   Z.erem z (Z.shift_left Z.one (int_of_ws sz))

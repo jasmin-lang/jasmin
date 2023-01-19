@@ -43,4 +43,5 @@ module X86 (Lowering_params : X86_input) : Arch_full.Core_arch = struct
   let asmOp = Arch_extra.asm_opI asm_e in
   AbsInt.analyze asmOp ()
 
+  let callstyle = Arch_full.StackDirect
 end

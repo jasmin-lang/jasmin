@@ -452,7 +452,7 @@ Section TunnelingProps.
       case: ifP; last by rewrite IHlc // labels_of_body_rcons /= rcons_uniq Hnotin'.
       by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn.
     move: Hnor (IHlc c'' l) => {Heq IHlc}; case: c''' c'' => [ii' i'] [ii i].
-    by case: i => [? ? ?|?|?| | |? ?|[? ?]|?|? ?|? ?]; (case: i' => [? ? ?|?|?| | |? ?|[? ?]|?|? ?|? ?] //= _ IHlc);
+    by case: i => [? ? ?|?|? ?| | |? ?|[? ?]|?|? ?|? ?]; (case: i' => [? ? ?|?|? ?| | |? ?|[? ?]|?|? ?|? ?] //= _ IHlc);
     rewrite labels_of_body_rcons //= => Hnotin; (try by rewrite rcons_uniq => /andP [_]; apply IHl);
     (try by move: Hnotin; rewrite mem_rcons in_cons negb_or => /andP /= [_ Hnotin]; apply IHlc);
     rewrite rcons_uniq => /andP [_]; apply IHlc => //;
@@ -661,7 +661,7 @@ Section TunnelingProps.
     + case: ifP; first by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn. 
       by move => -> /= {Heq}; rewrite tunnel_head_empty.
     move: Hnor {Heq}; case c'' => [ii i]; case c''' => [ii' i'].
-    by case i => [? ? ?|?|?| | |[] ?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?|?|?| | |[] ?|[? ?]|?|? ?|? ?] //=);
+    by case i => [? ? ?|?|? ?| | |[] ?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?|? ?|?| | |[] ?|[? ?]|?|? ?|? ?] //=);
     rewrite ?tunnel_head_empty //; case: ifP; rewrite tunnel_head_empty.
   Qed.
 
@@ -1076,7 +1076,7 @@ Section TunnelingSem.
     case: tunnel_lcmd_pcP => [l l'|l l'|l l' fn' Hneq Hpc HSpc|Hneg].
     + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
       - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
-      case: i Honth => [? ? ?|?|?| | |? ?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
+      case: i Honth => [? ? ?|?|? ?| | |? ?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
       1-6,8-9:
         by apply FT_Otherwise; rewrite Hgfd eq_refl.
       - case: ifP => [/eqP ?|Hneq]; last first.
@@ -1108,7 +1108,7 @@ Section TunnelingSem.
       by rewrite eq_refl /= => HFT; apply: HFT.
     + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
       - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
-      case: i Honth => [? ? ?|?|?| | |? ?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
+      case: i Honth => [? ? ?|?|? ?| | |? ?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
       1-6,8-9:
         by apply FT_Otherwise; rewrite Hgfd eq_refl.
       - case: ifP => [/eqP ?|Hneq]; last first.
@@ -1219,7 +1219,12 @@ Section TunnelingSem.
     eval_instr (tunnel_lprog_pc p fn pc) =2 eval_instr p.
   Proof.
     move => Huniq [ii i] s; case: i => [ | | | | | |[fn' l]|pe|lv l|pe l] //=.
-    + move=> r; rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc //.
+    + move=> o r; rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc //.
+      case: o.
+      + move=> lr. rewrite tunnel_get_label_after_pc.
+        apply bind_eq => // l.
+        case: encode_label => // wl; apply bind_eq => // m.
+        by rewrite eval_jump_tunnel_lprog_pc.
       rewrite tunnel_get_label_after_pc.
       apply bind_eq => // u; apply bind_eq => // l.
       case: encode_label => // wl; apply bind_eq => // m.

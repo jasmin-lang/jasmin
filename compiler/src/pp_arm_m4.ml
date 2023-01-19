@@ -187,10 +187,10 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       [ LInstr ("bl", [ pp_remote_label tbl lbl ]) ]
 
   | POPPC ->
-      [ LInstr ("b", [ pp_register LR ]) ]
+      [ LInstr ("pop", [ "{pc}" ]) ]
 
   | SysCall op ->
-      [LInstr ("call", [pp_syscall op])]
+      [LInstr ("call", [ pp_syscall op ])]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
@@ -209,10 +209,12 @@ let pp_body tbl fn fmt cmd = List.concat_map (pp_instr tbl fn fmt) cmd
 
 let mangle x = Printf.sprintf "_%s" x
 
+let pp_brace s = Format.sprintf "{%s}" s
+
 let pp_fun tbl fmt (fn, fd) =
   let fn = Conv.string_of_funname tbl fn in
   let pre =
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn ] else []
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
   let body = pp_body tbl fn fmt fd.asm_fd_body in
   (* TODO_ARM: Review. *)

@@ -555,12 +555,12 @@ Variant asm_i : Type :=
   | STORELABEL of reg_t & label (* Store the address of a local label *)
   (* Jumps *)
   | JMP    of remote_label (* Direct jump *)
-  | JMPI   of asm_arg (* Indirect jump *)
+  | JMPI   of asm_arg (* Indirect jump, arm : BX *)
   | Jcc    of label & cond_t  (* Conditional jump *)
   (* Functions *)
   | JAL of reg_t & remote_label (* Direct jump; return address is saved in a register *)
   | CALL of remote_label (* Direct jump; return address is saved at the top of the stack *)
-  | POPPC (* Pop a destination from the stack and jump there *)
+  | POPPC (* Pop a destination from the stack and jump there, arm : POP PC, x86 : RET *)
   (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args
   | SysCall of syscall_t.

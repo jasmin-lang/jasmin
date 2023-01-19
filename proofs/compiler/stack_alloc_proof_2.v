@@ -183,46 +183,47 @@ Variable stack : Mvar.t (Z * wsize).
 Hypothesis hlayout : init_stack_layout mglob sao = ok stack.
 
 Lemma init_stack_layoutP :
-  0 <= sao.(sao_size) /\
-  forall x1 ofs1 ws1,
-    Mvar.get stack x1 = Some (ofs1, ws1) -> [/\
-      (ws1 <= sao.(sao_align))%CMP,
-      ofs1 mod wsize_size ws1 = 0,
-      0 <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size),
-      (forall x2 ofs2 ws2,
-        Mvar.get stack x2 = Some (ofs2, ws2) -> x1 <> x2 ->
-        ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1) &
-      Mvar.get mglob x1 = None].
+  [/\ 0 <= sao.(sao_ioff),
+      sao.(sao_ioff) <= sao.(sao_size) &
+      forall x1 ofs1 ws1,
+        Mvar.get stack x1 = Some (ofs1, ws1) -> [/\
+          (ws1 <= sao.(sao_align))%CMP,
+          ofs1 mod wsize_size ws1 = 0,
+          sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size),
+          (forall x2 ofs2 ws2,
+            Mvar.get stack x2 = Some (ofs2, ws2) -> x1 <> x2 ->
+            ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1) &
+          Mvar.get mglob x1 = None]].
 Proof.
   move: hlayout; rewrite /init_stack_layout.
-  t_xrbindP=> -[stack' size] hfold.
+  t_xrbindP=> /ZleP hioff -[stack' size] hfold.
   rewrite zify.
   case: ZleP => [hle|//] [?]; subst stack'.
-  have: 0 <= size /\
+  have: sao.(sao_ioff) <= size /\
     forall x1 ofs1 ws1,
     Mvar.get stack x1 = Some (ofs1, ws1) -> [/\
       (ws1 ≤ sao_align sao)%CMP, ofs1 mod wsize_size ws1 = 0,
-      0 <= ofs1 /\ ofs1 + size_slot x1 <= size,
+      sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= size,
       (forall x2 ofs2 ws2,
         Mvar.get stack x2 = Some (ofs2, ws2) -> x1 <> x2 ->
         ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1) &
       Mvar.get mglob x1 = None];
   last first.
-  + move=> [h1 h2]; split; first by lia.
+  + move=> [h1 h2]; split => //; first by lia.
     by move=> x1 ofs1 ws1 /h2 [?????]; split=> //; lia.
   move: hfold.
-  have: 0 <= (Mvar.empty (Z * wsize), 0).2 /\
+  have: sao.(sao_ioff) <= (Mvar.empty (Z * wsize), sao.(sao_ioff)).2 /\
     forall x1 ofs1 ws1,
-    Mvar.get (Mvar.empty (Z * wsize), 0).1 x1 = Some (ofs1, ws1) -> [/\
+    Mvar.get (Mvar.empty (Z * wsize), sao.(sao_ioff)).1 x1 = Some (ofs1, ws1) -> [/\
       (ws1 <= sao.(sao_align))%CMP,
       ofs1 mod wsize_size ws1 = 0,
-      0 <= ofs1 /\ ofs1 + size_slot x1 <= (Mvar.empty (Z * wsize), 0).2,
+      sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= (Mvar.empty (Z * wsize), sao.(sao_ioff)).2,
       (forall x2 ofs2 ws2,
-        Mvar.get (Mvar.empty (Z * wsize), 0).1 x2 = Some (ofs2, ws2) -> x1 <> x2 ->
+        Mvar.get (Mvar.empty (Z * wsize), sao.(sao_ioff)).1 x2 = Some (ofs2, ws2) -> x1 <> x2 ->
         ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1) &
       Mvar.get mglob x1 = None].
-  + done.
-  elim: sao.(sao_slots) (Mvar.empty _, 0).
+  + by split => //=; apply Z.le_refl.
+  elim: sao.(sao_slots) (Mvar.empty _, sao.(sao_ioff)).
   + by move=> [stack0 size0] /= hbase [<- <-].
   move=> [[x wsx] ofsx] l ih [stack0 size0] /= [hbase1 hbase2].
   t_xrbindP=> -[stack1 size1].
@@ -255,31 +256,36 @@ Proof.
 Qed.
 
 Lemma init_stack_layout_size_ge0 : 0 <= sao.(sao_size).
-Proof. by have [? _] := init_stack_layoutP. Qed.
+Proof. by have [? ? _] := init_stack_layoutP; Psatz.lia. Qed.
 
 Lemma init_stack_layout_stack_align x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> (ws1 <= sao.(sao_align))%CMP.
-Proof. by have [_ h] := init_stack_layoutP => /h [? _ _ _ _]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [? _ _ _ _]. Qed.
 
 Lemma init_stack_layout_align x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> ofs1 mod wsize_size ws1 = 0.
-Proof. by have [_ h] := init_stack_layoutP => /h [_ ? _ _ _]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ ? _ _ _]. Qed.
+
+Lemma init_stack_layout_bounded_ioff x1 ofs1 ws1 :
+  Mvar.get stack x1 = Some (ofs1, ws1) ->
+  sao.(sao_ioff) <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size).
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ ? _ _]. Qed.
 
 Lemma init_stack_layout_bounded x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) ->
   0 <= ofs1 /\ ofs1 + size_slot x1 <= sao.(sao_size).
-Proof. by have [_ h] := init_stack_layoutP => /h [_ _ ? _ _]. Qed.
+Proof. have [? _ h] := init_stack_layoutP => /h [_ _ ? _ _]; lia. Qed.
 
 Lemma init_stack_layout_disjoint x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) ->
   forall x2 ofs2 ws2,
     Mvar.get stack x2 = Some (ofs2, ws2) -> x1 <> x2 ->
     ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1.
-Proof. by have [_ h] := init_stack_layoutP => /h [_ _ _ ? _]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ _ ? _]. Qed.
 
 Lemma init_stack_layout_not_glob x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> Mvar.get mglob x1 = None.
-Proof. by have [_ h] := init_stack_layoutP => /h [_ _ _ _ ?]. Qed.
+Proof. by have [_ _ h] := init_stack_layoutP => /h [_ _ _ _ ?]. Qed.
 
 (* We pack the hypotheses about slots in a record for the sake of simplicity. *)
 Record wf_Slots (Slots : Sv.t) Addr (Writable:slot-> bool) Align := {
@@ -472,6 +478,19 @@ Proof.
   case heq: Mvar.get => [[ofs ws]|//] _.
   rewrite /zbetween !zify (wunsigned_Addr_locals heq).
   have hbound := init_stack_layout_bounded heq.
+  by lia.
+Qed.
+
+Lemma zbetween_Addr_locals_ioff s :
+  wunsigned (rsp + wrepr _ sao.(sao_ioff)) = wunsigned rsp + sao.(sao_ioff) ->
+  Sv.In s Slots_locals ->
+  zbetween (rsp + wrepr _ sao.(sao_ioff)) (sao.(sao_size) - sao.(sao_ioff)) (Addr_locals s) (size_slot s).
+Proof.
+  move=> hadd /in_Slots_slots.
+  case heq: Mvar.get => [[ofs ws]|//] _.
+  rewrite /zbetween !zify (wunsigned_Addr_locals heq).
+  have hbound := init_stack_layout_bounded_ioff heq.
+  rewrite hadd.
   by lia.
 Qed.
 
@@ -1559,7 +1578,7 @@ Record extend_mem (m1 m2:mem) (rip:pointer) (data:seq u8) := {
 (* cf. init_stk_stateI in merge_varmaps_proof *)
 Lemma init_stk_state_valid_state m3 sz' ws :
   extend_mem m1 m2 rip global_data ->
-  alloc_stack_spec m2 ws sao.(sao_size) sz' m3 ->
+  alloc_stack_spec m2 ws sao.(sao_size) sao.(sao_ioff) sz' m3 ->
   rsp = top_stack m3 ->
   vripn <> vrspn ->
   let s2 := {| escs := scs1; emem := m3; evm := vmap0.[vrsp0 <- ok (pword_of_word rsp)].[vrip0 <- ok (pword_of_word rip)] |} in
@@ -1580,7 +1599,8 @@ Proof.
     + right.
       apply: zbetween_trans hb.
       rewrite /Addr (pick_slot_locals hin).
-      have := zbetween_Addr_locals hin.
+      have := (ass_add_ioff hass). rewrite -{1 2}hrsp => hadd.
+      have := zbetween_Addr_locals_ioff hadd hin.
       by rewrite hrsp.
     left.
     have /in_Slots_params := hin.
@@ -2375,9 +2395,9 @@ Proof.
   by move=> _ /to_arrI [n' [_ [-> /WArray.cast_len /ZleP]]] /=.
 Qed.
 
-Lemma alloc_stack_spec_wf_args m1 m2 fn vargs1 vargs2 ws sz sz' m3 :
+Lemma alloc_stack_spec_wf_args m1 m2 fn vargs1 vargs2 ws sz ioff sz' m3 :
   wf_args m1 m2 fn vargs1 vargs2 ->
-  alloc_stack_spec m2 ws sz sz' m3 ->
+  alloc_stack_spec m2 ws sz ioff sz' m3 ->
   wf_args m1 m3 fn vargs1 vargs2.
 Proof.
   move=> hargs hass.
@@ -2394,9 +2414,9 @@ Proof.
   by apply zbetween_refl.
 Qed.
 
-Lemma alloc_stack_spec_extend_mem m1 m2 ws sz sz' m3 :
+Lemma alloc_stack_spec_extend_mem m1 m2 ws sz ioff sz' m3 :
   extend_mem m1 m2 rip global_data ->
-  alloc_stack_spec m2 ws sz sz' m3 ->
+  alloc_stack_spec m2 ws sz ioff sz' m3 ->
   extend_mem m1 m3 rip global_data.
 Proof.
   move=> hext hass.
@@ -2540,12 +2560,12 @@ Proof.
 
   (* init_state *)
   have [m2' halloc_stk]: exists m2',
-    alloc_stack m2 (sao_align (local_alloc fn)) (sao_size (local_alloc fn)) (sao_extra_size (local_alloc fn)) = ok m2'.
+    alloc_stack m2 (sao_align (local_alloc fn)) (sao_size (local_alloc fn)) (sao_ioff (local_alloc fn))
+                   (sao_extra_size (local_alloc fn)) = ok m2'.
   + apply Memory.alloc_stack_complete.
-    apply /and3P; split.
-    + apply /ZleP.
-      by apply (init_stack_layout_size_ge0 hlayout).
-    + by apply /ZleP.
+    have [h1 h2 _] := init_stack_layoutP hlayout.
+    apply /and4P; split.
+    1-3: by apply/ZleP.
     move: hok; rewrite /alloc_ok => /(_ _ hfd2) /=; rewrite /allocatable_stack => -[hallocatable hal].
     case: is_RAnone hal hmax => [_|-> //] hmax; last by apply /ZleP; lia.
     case: is_align; last by apply /ZleP; lia.

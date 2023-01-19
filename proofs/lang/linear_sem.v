@@ -96,7 +96,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let s2 := write_lvals [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
                 (to_lvals (syscall_sig o).(scs_vout)) vs in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
-  | Lcall d =>
+  | Lcall None d =>
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp - wrepr Uptr (wsize_size Uptr))%R in
@@ -107,6 +107,18 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       let s1' :=
         {| lscs := s1.(lscs);
            lmem := m;
+           lvm  := vm;
+           lfn  := s1.(lfn);
+           lpc  := s1.(lpc) |} in
+      eval_jump d s1'
+    else type_error
+  | Lcall (Some r) d =>
+    Let lbl := get_label_after_pc s1 in
+    if encode_label labels (lfn s1, lbl) is Some p then
+      Let vm := set_var s1.(lvm) r (Vword p) in
+      let s1' := 
+        {| lscs := s1.(lscs);
+           lmem := s1.(lmem);
            lvm  := vm;
            lfn  := s1.(lfn);
            lpc  := s1.(lpc) |} in
