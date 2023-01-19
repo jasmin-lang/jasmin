@@ -40,6 +40,10 @@
   ([PR #331](https://github.com/jasmin-lang/jasmin/pull/331);
   fixes [#333](https://github.com/jasmin-lang/jasmin/issues/333)).
 
+- The `randombytes` system-call is better handled by the constant-time checker
+  ([PR #326](https://github.com/jasmin-lang/jasmin/pull/326);
+  fixes [#325](https://github.com/jasmin-lang/jasmin/issues/325)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
