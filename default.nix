@@ -7,7 +7,6 @@
 , devTools ? !inCI
 , ecRef ? ""
 , opamDeps ? false
-, armTestDeps ? false
 , enableFramePointers ? false
 }:
 
@@ -46,7 +45,7 @@ stdenv.mkDerivation {
   src = null;
   buildInputs = []
     ++ optionals coqDeps [ coqPackages.coq coqword ]
-    ++ optionals testDeps ([ curl.bin oP.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
+    ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib ocamlbuild
          (batteries.overrideAttrs (o: { doCheck = false; }))
@@ -54,6 +53,5 @@ stdenv.mkDerivation {
     ++ optionals devTools (with oP; [ merlin ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
-    ++ optionals armTestDeps [ libllvm ]
     ;
 }
