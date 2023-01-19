@@ -803,7 +803,16 @@ let remove_phi_nodes (f: ('info, 'asm) func) : (unit, 'asm) func =
     - rsp: if ~stack_needed and if there is a free register, a free register to hold the stack pointer of the caller (aka environment)
 
 *)
-let post_process ~stack_needed (subst: var -> var) (live: Sv.t) ~(killed: funname -> Sv.t) (f: _ func) : Sv.t * var option =
+let post_process
+  ~allocatable_vars
+  ~callee_save_vars
+  ~not_saved_stack
+  ~stack_needed
+  (subst: var -> var)
+  (live: Sv.t)
+  ~(killed: funname -> Sv.t)
+  (f: _ func) :
+  Sv.t * var option =
   let killed_in_f = killed f.f_name |> Sv.map subst in
   match f.f_cc with
   | Internal -> assert false
@@ -815,14 +824,11 @@ let post_process ~stack_needed (subst: var -> var) (live: Sv.t) ~(killed: funnam
   | Export ->
      begin
        assert (Sv.is_empty live);
-       (* TODO: should we call Sv.of_list once and for all, or is it ok to call each time we enter this function? *)
-       let allocatable = Sv.of_list Arch.allocatable_vars in
        let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
-       let free_regs = Sv.diff allocatable used_in_f in
-       (* TODO: should we call Sv.of_list once and for all, or is it ok to call each time we enter this function? *)
-       let to_save = Sv.inter (Sv.of_list Arch.callee_save_vars) killed_in_f in
+       let free_regs = Sv.diff allocatable_vars used_in_f in
+       let to_save = Sv.inter callee_save_vars killed_in_f in
        if stack_needed && Sv.is_empty to_save then
-         to_save, Sv.Exceptionless.any (Sv.diff free_regs (Sv.of_list Arch.callee_save_vars))
+         to_save, Sv.Exceptionless.any (Sv.diff free_regs not_saved_stack)
        else to_save, None
      end
 
@@ -988,7 +994,14 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
     List.map (fun (a,f) -> a, Prog.refresh_i_loc_f f) dfuncs in
+
   let extra : 'a Hf.t = Hf.create 17 in
+  let allocatable_vars = Sv.of_list Arch.allocatable_vars in
+  let callee_save_vars = Sv.of_list Arch.callee_save_vars in
+  let not_saved_stack =
+    Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
+  in
+
   let funcs, get_liveness, subst, killed, extra_free_registers, return_addresses =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
@@ -1004,7 +1017,17 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
   List.map (fun f ->
       let e = Hf.find extra f.f_name in
       let stack_needed = has_stack f e in
-      let to_save, ro_rsp = post_process ~stack_needed ~killed subst (get_liveness f.f_name) f in
+      let to_save, ro_rsp =
+        post_process
+          ~allocatable_vars
+          ~callee_save_vars
+          ~not_saved_stack
+          ~stack_needed
+          ~killed
+          subst
+          (get_liveness f.f_name)
+          f
+      in
       let ro_return_address =
         match Hf.find return_addresses f.f_name with
         | exception Not_found -> None

@@ -58,45 +58,70 @@ End E.
 
 Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
-    (* Scratch register to compute addresses. *)
+    (* Scratch register used to set up stack. *)
     lip_tmp : Ident.ident;
 
-    (* Return a linear instruction that allocates a stack frame.
-       The linear instruction [lip_allocate_stack_frame rspi sz] increases the
-       stack pointer [sz] bytes.
+    (* Variables that can't be used to save the stack pointer. *)
+    lip_not_saved_stack : seq Ident.ident;
+
+    (* Return the arguments for a linear instruction that allocates a stack
+       frame.
+       The linear instruction derived from [lip_allocate_stack_frame rspi sz]
+       decreases the stack pointer [sz] bytes.
        In symbols, it corresponds to:
-               R[rsp] := R[rsp] − sz
+               R[rsp] := R[rsp] - sz
      *)
     lip_allocate_stack_frame :
       var_i    (* Variable with stack pointer register. *)
       -> Z     (* Amount of space to allocate. *)
-      -> lvals * sopn * pexprs;
+      -> copn_args;
 
-    (* Return a linear instruction that frees a stack frame.
-       The linear instruction [lip_free_stack_frame rspi sz] decreases the
-       stack pointer [sz] bytes.
+    (* Return the arguments for a linear instruction that frees a stack frame.
+       The linear instruction derived from [lip_free_stack_frame rspi sz]
+       increases the stack pointer [sz] bytes.
        In symbols, it corresponds to:
-               R[rsp] := R[rsp] - sz
+               R[rsp] := R[rsp] + sz
      *)
     lip_free_stack_frame :
       var_i    (* Variable with stack pointer register. *)
       -> Z     (* Amount of space to free. *)
-      -> lvals * sopn * pexprs;
+      -> copn_args;
 
-    (* Return a linear instruction that ensures the stack pointer is aligned.
-       The linear instruction [lip_ensure_rsp_alignment rspi ws] ensures that
-       the k least significant bits of the stack pointer are 0, where k is the
-       size of [ws] in bytes.
-       In symbols, it corresponds to:
-               R[rsp] := R[rsp] & - wsize_size ws
-       where rsp is the stack pointer register. *)
-    lip_ensure_rsp_alignment :
-      var_i       (* Variable with stack pointer register. *)
-      -> wsize    (* Size of the unit to align to. *)
-      -> lvals * sopn * pexprs;
+    (* Return the arguments for a linear command that saves the value of the
+       stack pointer to a register, allocates a stack frame and aligns the stack
+       pointer.
+       The linear command derived from [lip_set_up_sp_register rspi sz ws r]
+       corresponds to:
+               r := R[rsp]
+               R[rsp] := (R[rsp] - sz) & - wsize_size ws
+    *)
+    lip_set_up_sp_register :
+      var_i    (* Variable with stack pointer register. *)
+      -> Z     (* Size of the stack frame to allocate. *)
+      -> wsize (* Alignment. *)
+      -> var_i (* Variable to save stack pointer to. *)
+      -> option (seq copn_args);
 
-    (* Return a linear instruction that corresponds to assignment.
-       In symbols, the linear instruction [lip_lassign x ws e] corresponds to:
+    (* Return the arguments for a linear command that allocates a stack frame,
+       aligns the stack pointer, and pushes the old value of the stack pointer
+       to the stack.
+       The linear command derived from [lip_set_up_sp_stack rspi sz ws]
+       corresponds to:
+               R[tmp] := R[rsp]
+               R[rsp] := (R[rsp] - sz) & - wsize_size ws
+               M[R[rsp]] := R[tmp]
+    *)
+    lip_set_up_sp_stack :
+      var_i    (* Variable with stack pointer register. *)
+      -> Z     (* Size of the stack frame to allocate. *)
+      -> wsize (* Alignment. *)
+      -> Z     (* Offset to save old stack pointer. *)
+      -> option (seq copn_args);
+
+    (* Return the arguments for a linear instruction that corresponds to
+       an assignment.
+       In symbols, the linear instruction derived from [lip_lassign x ws e]
+       corresponds to:
                x := (ws)e
      *)
     lip_lassign :
@@ -155,6 +180,21 @@ Definition lstore
   : option linstr_r :=
   lassign (Lmem ws rd (cast_const ofs)) ws (Pvar r0).
 
+Definition li_of_copn_args (ii : instr_info) (p : copn_args) : linstr :=
+  MkLI ii (Lopn p.1.1 p.1.2 p.2).
+
+Definition set_up_sp_register
+  (vrspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : lcmd :=
+  if lip_set_up_sp_register liparams vrspi sf_sz al r is Some args
+  then map (li_of_copn_args dummy_instr_info) args
+  else [::].
+
+Definition set_up_sp_stack
+  (vrspi : var_i) (sf_sz : Z) (al : wsize) (ofs : Z) : lcmd :=
+  if lip_set_up_sp_stack liparams vrspi sf_sz al ofs is Some args
+  then map (li_of_copn_args dummy_instr_info) args
+  else [::].
+
 Definition mkli_dummy (lir : linstr_r) : linstr := MkLI dummy_instr_info lir.
 
 Definition dummy_linstr : linstr := mkli_dummy Lalign.
@@ -173,8 +213,6 @@ Notation rspi := {| v_var := rsp; v_info := dummy_var_info; |}.
 Notation rspg := {| gv := rspi; gs := Slocal; |}.
 
 Notation var_tmp := {| vtype := sword Uptr; vname := lip_tmp liparams; |}.
-Notation var_tmpi := {| v_var := var_tmp; v_info := dummy_var_info; |}.
-Notation var_tmpg := {| gv := var_tmpi; gs := Slocal; |}.
 
 (** Total size of a stack frame: local variables, extra and padding. *)
 Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
@@ -350,6 +388,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
                   end
                   (E.error "bad return-address") in
   let ok_save_stack :=
+    let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
     match sf_save_stack e with
     | SavedStackNone =>
         [&& sf_to_save e == [::]
@@ -363,17 +402,18 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
         let xg := {| gv := xi; gs := Slocal; |} in
         [&& vtype x == sword Uptr
           , sf_to_save e == [::]
-          , isSome (lmove rspi Uptr xg)
-          & isSome (lmove xi Uptr rspg)
+          , vname x \notin (lip_not_saved_stack liparams)
+          , isSome (lip_set_up_sp_register liparams rspi sf_sz (sf_align e) xi)
+          & isSome (lmove rspi Uptr xg)
         ]
 
     | SavedStackStk ofs =>
         [&& check_stack_ofs e ofs Uptr
           , ~~ Sv.mem var_tmp (sv_of_list fst (sf_to_save e))
-          , isSome (lload rspi Uptr rspi ofs)
-          , isSome (lmove var_tmpi Uptr rspg)
-          & isSome (lstore rspi ofs Uptr var_tmpg)
+          , isSome (lip_set_up_sp_stack liparams rspi sf_sz (sf_align e) ofs)
+          & isSome (lload rspi Uptr rspi ofs)
         ]
+
     end
   in
   Let _ :=
@@ -393,11 +433,7 @@ Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   else let args := if free
                    then (lip_free_stack_frame liparams) rspi sz
                    else (lip_allocate_stack_frame liparams) rspi sz
-       in [:: MkLI ii (Lopn args.1.1 args.1.2 args.2) ].
-
-Definition ensure_rsp_alignment ii (al: wsize) : linstr :=
-  let args := (lip_ensure_rsp_alignment liparams) rspi al in
-  MkLI ii (Lopn args.1.1 args.1.2 args.2).
+       in [:: li_of_copn_args ii args ].
 
 (* Return a linear command that pushes variables to the stack.
  * The linear command `lp_push_to_save ii to_save` pushes each
@@ -584,6 +620,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
        , 2%positive
        )
      | RAnone =>
+       let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
        match sf_save_stack e with
        | SavedStackNone =>
          ([::], [::], 1%positive)
@@ -594,9 +631,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
           *)
          let r := VarI x dummy_var_info in
          ( [:: of_olinstr_r dummy_instr_info (lmove rspi Uptr (Gvar r Slocal)) ]
-         , of_olinstr_r dummy_instr_info (lmove r Uptr rspg)
-             :: allocate_stack_frame false dummy_instr_info (sf_stk_sz e + sf_stk_extra_sz e)
-             ++ [:: ensure_rsp_alignment dummy_instr_info e.(sf_align) ]
+         , set_up_sp_register rspi sf_sz (sf_align e) r
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -609,11 +644,8 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
           *)
          ( pop_to_save dummy_instr_info e.(sf_to_save)
              ++ [:: of_olinstr_r dummy_instr_info (lload rspi Uptr rspi ofs) ]
-         , of_olinstr_r dummy_instr_info (lmove var_tmpi Uptr rspg)
-             :: allocate_stack_frame false dummy_instr_info (sf_stk_sz e + sf_stk_extra_sz e)
-             ++ ensure_rsp_alignment dummy_instr_info e.(sf_align)
-             :: of_olinstr_r dummy_instr_info (lstore rspi ofs Uptr var_tmpg)
-             :: push_to_save dummy_instr_info e.(sf_to_save)
+         , set_up_sp_stack rspi sf_sz (sf_align e) ofs
+             ++ push_to_save dummy_instr_info e.(sf_to_save)
          , 1%positive)
        end
      end

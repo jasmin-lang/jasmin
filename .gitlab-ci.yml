@@ -188,7 +188,6 @@ check:
 
 check-arm-target:
   extends: check
-  allow_failure: true
   variables:
     EXTRA_NIX_ARGUMENTS: --arg testDeps true --arg armTestDeps true
     EXTRA_MAKE_ARGUMENTS: CHECKCATS=arm

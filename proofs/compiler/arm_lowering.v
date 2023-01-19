@@ -20,7 +20,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
 Notation lowered_pexpr := (option (arm_op * seq pexpr)) (only parsing).
 
 (* -------------------------------------------------------------------- *)

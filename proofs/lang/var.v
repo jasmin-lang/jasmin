@@ -394,6 +394,18 @@ Arguments Fv.get to vm%vmap_scope x.
 Arguments Fv.set to vm%vmap_scope x v.
 Arguments Fv.ext_eq to vm1%vmap_scope vm2%vmap_scope.
 
+(* Attempt to simplify goals of the form [vm.[y0 <- z0]...[yn <- zn].[x]]. *)
+Ltac t_vm_get :=
+  repeat (
+    rewrite Fv.setP_eq
+    || (rewrite Fv.setP_neq; last (apply/eqP; by [|apply/nesym]))
+  ).
+
+(* Deduce inequalities from [~ Sv.In x (Sv.add y0 (... (Sv.add yn s)))]. *)
+Ltac t_notin_add :=
+  repeat (move=> /Sv.add_spec /Decidable.not_or [] ?);
+  move=> ?.
+
 Module Type Vmap.
 
   Parameter t : (stype -> Type) -> Type.
@@ -528,6 +540,10 @@ Lemma Sv_Subset_union_right (a b c: Sv.t) :
   Sv.Subset a c → Sv.Subset a (Sv.union b c).
 Proof. SvD.fsetdec. Qed.
 
+Lemma Sv_union_empty (a : Sv.t) :
+  Sv.Equal (Sv.union Sv.empty a) a.
+Proof. SvD.fsetdec. Qed.
+
 (* ---------------------------------------------------------------- *)
 Definition sv_of_list T (f: T → Sv.elt) : seq T → Sv.t :=
   foldl (λ s r, Sv.add (f r) s) Sv.empty.
@@ -552,6 +568,20 @@ Proof.
   rewrite /sv_of_list.
   elim: m Sv.empty => // a m ih z.
   by rewrite /= ih.
+Qed.
+
+Lemma sv_of_list_mem_head X f (x : X) xs :
+  Sv.mem (f x) (sv_of_list f (x :: xs)).
+Proof. rewrite sv_of_listE. exact: mem_head. Qed.
+
+Lemma sv_of_list_mem_tail X f v (x : X) xs :
+  Sv.mem v (sv_of_list f xs)
+  -> Sv.mem v (sv_of_list f (x :: xs)).
+Proof.
+  rewrite !sv_of_listE.
+  rewrite in_cons.
+  move=> ->.
+  exact: orbT.
 Qed.
 
 Lemma disjoint_subset_diff xs ys :
@@ -616,6 +646,15 @@ Proof.
   clear.
   SvD.fsetdec.
 Qed.
+
+Lemma Sv_equal_add_add x s :
+  Sv.Equal (Sv.add x (Sv.add x s)) (Sv.add x s).
+Proof. SvD.fsetdec. Qed.
+
+Lemma Sv_neq_not_in_singleton x y :
+  x <> y
+  -> ~ Sv.In y (Sv.singleton x).
+Proof. SvD.fsetdec. Qed.
 
 End SExtra.
 

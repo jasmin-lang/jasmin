@@ -40,6 +40,11 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
 
   let lowering_opt = ()
 
+  let not_saved_stack =
+    List.map
+      Conv.string_of_string0
+      (Arm_params.arm_liparams.lip_not_saved_stack)
+
   let pp_asm = Pp_arm_m4.print_prog
 
   let analyze _ _ _ = failwith "TODO_ARM: analyze"

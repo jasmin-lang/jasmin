@@ -19,6 +19,7 @@ module type Core_arch = sig
 
   val lowering_vars : Conv.coq_tbl -> fresh_vars
   val lowering_opt : lowering_options
+  val not_saved_stack : Name.t list
 
   val pp_asm : Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
   val analyze :
@@ -49,6 +50,7 @@ module type Arch = sig
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
   val callee_save_vars : var list
+  val not_saved_stack : var list
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t

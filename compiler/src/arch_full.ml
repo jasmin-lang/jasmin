@@ -21,6 +21,7 @@ module type Core_arch = sig
 
   val lowering_vars : Conv.coq_tbl -> fresh_vars
   val lowering_opt : lowering_options
+  val not_saved_stack : Name.t list
 
   val pp_asm : Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
   val analyze :
@@ -51,6 +52,7 @@ module type Arch = sig
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
   val callee_save_vars : var list
+  val not_saved_stack : var list
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
@@ -126,6 +128,9 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
   let callee_save_reg = List.filter_map (Arch_decl.get_ARReg arch_decl) callee_save
   let callee_save_regx = List.filter_map (Arch_decl.get_ARegX arch_decl) callee_save
   let callee_save_xreg = List.filter_map (Arch_decl.get_AXReg arch_decl) callee_save
+
+  let not_saved_stack =
+    List.filter (fun x -> List.mem x.v_name not_saved_stack) reg_vars
 
   let rsp = arch_decl.ad_rsp
 

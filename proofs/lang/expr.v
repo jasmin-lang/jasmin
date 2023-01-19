@@ -712,6 +712,9 @@ Definition cast_const z := cast_ptr (Pconst z).
 
 End WITH_POINTER_DATA.
 
+Definition eword_of_int (ws : wsize) (x : Z) : pexpr :=
+  Papp1 (Oword_of_int ws) (Pconst x).
+
 Definition wconst (sz: wsize) (n: word sz) : pexpr :=
   Papp1 (Oword_of_int sz) (Pconst (wunsigned n)).
 
@@ -901,3 +904,5 @@ Definition is_false (e: pexpr) : bool :=
 
 Definition is_zero sz (e: pexpr) : bool :=
   if e is Papp1 (Oword_of_int sz') (Pconst Z0) then sz' == sz else false.
+
+Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
