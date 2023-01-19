@@ -129,7 +129,55 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
       -> wsize    (* Size of the value to assign. *)
       -> pexpr    (* Value to assign. *)
       -> option (lvals * sopn * pexprs);
+       
   }.
+
+
+(* Note on function calls: 
+  
+   + For X86:
+
+     - Return address passed by register in ra:
+          LstoreLabel ra lret
+          Lgoto lcall
+          Llabel lret
+       Internally (to the callee), ra need to be free. 
+       The return is implemented by 
+          Ligoto ra
+       /!\ For protection against Spectre we should avoid this calling convention 
+
+     - Return address passed by stack (on top of the stack):
+          Lcall None lcall;
+          Llabel lret;
+       The return is implemented by 
+          Lret  (i.e ret in X86)
+        The stack frame is incremented by the caller and by the call instruction (to push ra).   
+
+
+   + For ARM v7:
+
+     - Return address passed by register in ra
+         Lcall (Some ra) lcall    (i.e BL lcall with the constraint that ra should be LR(r14))
+         Llabel lret
+       Internally (to the callee), ra need to be free. 
+       The return is implemented by 
+          Ligoto ra   (i.e BX ra)
+       The stack frame is incremented by the caller.
+
+
+     - Return address passed by stack (on top of the stack):
+       Lcall (Some ra) lcall (i.e BL lcall with the constraint that ra should be LR(r14))
+       Llabel lret
+       ra need to be free when Lcall is executed (extra_free_registers = Some ra). 
+       The first instruction of the function call need to push ra.
+          store sp ra
+       So ra need to be known at call cite and at the entry of the function.
+       The stack frame is incremented by the caller.
+
+       The return is implemented by 
+       Lret  (i.e POP PC in arm v7)
+
+*)
 
 Section WITH_PARAMS.
 
@@ -205,8 +253,12 @@ Definition of_olinstr_r (ii : instr_info) (oli : option linstr_r) : linstr :=
 Section PROG.
 
 Context
-  (p : sprog)
-  (extra_free_registers : instr_info -> option var).
+  (p : sprog).
+(*  (extra_free_registers : instr_info -> option var) *)
+
+Definition mk_var_i (x:var) := {| v_var := x; v_info := dummy_var_info; |}.
+
+Definition mk_ovar_i := omap mk_var_i.
 
 Notation rsp := {| vtype := sword Uptr; vname := sp_rsp (p_extra p); |}.
 Notation rspi := {| v_var := rsp; v_info := dummy_var_info; |}.
@@ -259,26 +311,8 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
         let e := f_extra fd in
-        Let _ :=
-          assert
-            match sf_return_address e with
-            | RAnone => false
-            | RAreg ra => true
-            | RAstack ofs =>
-                if extra_free_registers ii is Some ra
-                then
-                  let rag :=
-                    {|
-                      gv := {| v_var := ra; v_info := dummy_var_info; |};
-                      gs := Slocal;
-                    |}
-                  in
-                  isSome (lstore rspi ofs Uptr rag)
-                else
-                  false
-            end
-            (E.ii_error ii "(one_varmap) nowhere to store the return address")
-        in
+        Let _ := assert (sf_return_address e != RAnone) 
+          (E.ii_error ii "internal call to an export function") in
         Let _ := assert (sf_align e <= stack_align)%CMP
           (E.ii_error ii "caller need alignment greater than callee") in
         ok tt
@@ -295,6 +329,13 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
      is_align (wrepr Uptr ofs) ws (* Stack slot is aligned *)
     ].
 
+  Let check_stack_ofs_internal_call e ofs ws : bool :=
+    [&&
+     ofs == 0%Z,
+     wsize_size ws == sf_stk_ioff e &
+     (ws ≤ sf_align e)%CMP (* Stack frame is aligned for storing words of size ws *)
+    ].
+
   Definition all_disjoint_aligned_between (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) : cexec unit :=
     Let last := foldM (λ a base,
                        Let: (ofs, ws) := slot a in
@@ -304,7 +345,6 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
                        ok (ofs + wsize_size ws)%Z
                       ) lo m in
     assert (last <=? hi)%Z (E.error "to-save: overflow in the stack frame").
-
 
   Definition check_to_save_slot (p : var * Z) : cexec (Z * wsize) :=
     let '(x, ofs) := p in
@@ -384,7 +424,9 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
   Let _ := assert match sf_return_address e with
                   | RAnone => true
                   | RAreg ra => vtype ra == sword Uptr
-                  | RAstack ofs => check_stack_ofs e ofs Uptr
+                  | RAstack ora ofs => 
+                      (if ora is Some ra then (vtype ra == sword Uptr) && isSome (lstore rspi ofs Uptr (mk_lvar (mk_var_i ra))) else true) &&
+                      check_stack_ofs_internal_call e ofs Uptr
                   end
                   (E.error "bad return-address") in
   let ok_save_stack :=
@@ -427,10 +469,12 @@ Definition check_prog :=
   Let _ := map_cfprog_name check_fd (p_funcs p) in
   ok tt.
 
-Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
+Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (rastack: bool) : lcmd :=
+  let sz := if rastack then (sz - wsize_size Uptr)%Z else sz in
   if sz == 0%Z
   then [::]
-  else let args := if free
+  else
+    let args := if free
                    then (lip_free_stack_frame liparams) rspi sz
                    else (lip_allocate_stack_frame liparams) rspi sz
        in [:: li_of_copn_args ii args ].
@@ -479,6 +523,15 @@ Definition pop_to_save
       dummy_linstr (* Never happens. *)
   in
   map mkli to_save.
+
+Definition is_rastack_none ra := 
+  match ra with 
+  | RAstack None _ => true
+  | _ => false
+  end.
+
+Definition is_rastack ra :=
+  if ra is RAstack _ _ then true else false.
 
 Let ReturnTarget := Llabel ExternalLabel.
 Let Llabel := linear.Llabel InternalLabel.
@@ -553,55 +606,33 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       if ra == RAnone then (lbl, lc)
       else
         let sz := stack_frame_allocation_size e in
-        let before := allocate_stack_frame false ii sz in
-        let after := allocate_stack_frame true ii sz in
+        let before := allocate_stack_frame false ii sz (is_rastack_none ra) in
+        let after := allocate_stack_frame true ii sz (is_rastack ra) in
         let lret := lbl in
         let lbl := next_lbl lbl in
+        (* The test is used for the proof of linear_has_valid_labels *) 
         let lcall := (fn', if fn' == fn
                            then lret    (* Absurd case. *)
                            else xH      (* Entry point. *)
                      ) in
-        match sf_return_address e with
-        | RAreg ra =>
-          (* Save return address to register ra.
-           * 1. Allocate stack frame.
-           * 2. Store return label in ra.
-           * 3. Insert jump to callee.
-           * 4. Insert return label (callee will jump back here).
-           * 5. Free stack frame.
-           * 6. Continue.
+        let ra :=  
+           match sf_return_address e with
+          | RAreg ra => Some (mk_var_i ra)
+          | RAstack ra _ => mk_ovar_i ra
+          | RAnone => None (* absurd case *)
+          end in
+        (* * 1. Allocate stack frame.
+           * 2. Call callee
+           * 3. Insert return label (callee will jump back here).
+           * 4. Free stack frame.
+           * 5. Continue.
            *)
-          (lbl, before
-                  ++ MkLI ii (LstoreLabel ra lret)
-                  :: MkLI ii (Lgoto lcall)
-                  :: MkLI ii (ReturnTarget lret)
-                  :: after
-                  ++ lc
+        (lbl,    before
+              ++ MkLI ii (Lcall ra lcall)
+              :: MkLI ii (ReturnTarget lret)
+              :: after
+              ++ lc
           )
-
-        | RAstack z =>
-          (* Save return address to the stack with an offset.
-           * 1. Allocate stack frame.
-           * 2. Store return label in ra.
-           * 3. Push ra to stack.
-           * 4. Insert jump to callee.
-           * 5. Insert return label (callee will jump back here).
-           * 6. Free stack frame.
-           * 7. Continue.
-           *)
-          if extra_free_registers ii is Some ra
-          then let glob_ra := Gvar (VarI ra dummy_var_info) Slocal in
-               (lbl, before
-                       ++ MkLI ii (LstoreLabel ra lret)
-                       :: of_olinstr_r ii (lstore rspi z Uptr glob_ra)
-                       :: MkLI ii (Lgoto lcall)
-                       :: MkLI ii (ReturnTarget lret)
-                       :: after
-                       ++ lc
-               )
-          else (lbl, lc)
-        | RAnone => (lbl, lc)
-        end
     else (lbl, lc )
   | Cfor _ _ _ => (lbl, lc)
   end.
@@ -614,9 +645,12 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
        , [:: MkLI dummy_instr_info (Llabel 1) ]
        , 2%positive
        )
-     | RAstack z =>
-       ( [:: MkLI dummy_instr_info (Ligoto (Pload Uptr rspi (cast_const z))) ]
-       , [:: MkLI dummy_instr_info (Llabel 1) ]
+     | RAstack ra z =>
+       ( [:: MkLI dummy_instr_info Lret ]
+       , MkLI dummy_instr_info (Llabel 1) ::
+         (if ra is Some ra 
+          then [::of_olinstr_r dummy_instr_info (lstore rspi z Uptr (mk_lvar (mk_var_i ra)))] 
+          else [::])
        , 2%positive
        )
      | RAnone =>

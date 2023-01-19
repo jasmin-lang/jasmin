@@ -103,10 +103,11 @@ Let vrsp : var := vid p.(p_extra).(sp_rsp).
 #[local] Notation magic_variables := (magic_variables p).
 #[local] Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
 
-Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
+Definition ra_valid fd (ii:instr_info) (k: Sv.t) (x: var) : bool :=
   match fd.(f_extra).(sf_return_address) with
-  | RAstack _ =>
-    extra_free_registers ii != None
+  | RAstack ra _ =>
+    if ra is Some ra then (ra != vgd) && (ra != vrsp)
+    else true
   | RAreg ra =>
     [&& (ra != vgd), (ra != vrsp) & (~~ Sv.mem ra k) ]
   | RAnone => true
@@ -220,6 +221,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
       s1.(emem)
       f.(f_extra).(sf_align)
       f.(f_extra).(sf_stk_sz)
+      f.(f_extra).(sf_stk_ioff)
       f.(f_extra).(sf_stk_extra_sz)
       = ok m1 →
     mapM (λ x : var_i, get_var s1.(evm) x) f.(f_params) = ok args →
@@ -238,7 +240,7 @@ Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef)
   | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: vmap) (res': values) of
     saved_stack_valid fd k &
     Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
-    alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
+    alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
     all2 check_ty_val fd.(f_tyin) args &
     sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
     mapM (λ x : var_i, get_var vm2 x) fd.(f_res) = ok res' &
@@ -336,7 +338,7 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ k' _ _, saved_stack_valid f k')
     (λ f _ _ _ _ _, top_stack_aligned f s)
     (λ _ _ _ _ _ _, valid_RSP s.(emem) s.(evm))
-    (λ f m1 _ _ _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
+    (λ f m1 _ _ _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_ioff) f.(f_extra).(sf_stk_extra_sz) = ok m1)
     (λ f _ _ _ args _, mapM (λ x : var_i, get_var s.(evm) x) f.(f_params) = ok args)
     (λ f _ _ _ args _, all2 check_ty_val f.(f_tyin) args)
     (λ f m1 s2' k' _ _,
@@ -459,7 +461,7 @@ Section SEM_IND.
       saved_stack_valid fd k →
       top_stack_aligned fd s1 →
       valid_RSP s1.(emem) s1.(evm) →
-      alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
+      alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
       mapM (λ x : var_i, get_var s1.(evm) x) fd.(f_params) = ok args →
       all2 check_ty_val fd.(f_tyin) args →
       let vm1 := ra_undef_vm fd s1.(evm) var_tmp in

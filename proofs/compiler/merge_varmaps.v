@@ -108,7 +108,10 @@ Definition check_wmap (wmap: Mp.t Sv.t) : bool :=
   all (λ '(f, fd), Sv.subset (write_fd (get_wmap wmap) fd) (get_wmap wmap f)) (p_funcs p).
 
 Definition check_fv (ii:instr_info) (D R : Sv.t) :=
-  assert (disjoint D R) (E.error ii "modified expression").
+  let I := Sv.inter D R in
+  assert (Sv.is_empty I) 
+         (E.gen_error true (Some ii) 
+                      (pp_hov (pp_s "modified expression :" :: map pp_var (Sv.elements I)))).
 
 Definition check_e (ii:instr_info) (D : Sv.t) (e : pexpr) :=
   check_fv ii D (read_e e).
@@ -200,8 +203,6 @@ Section CHECK.
         Let _ := check_es ii D es in
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
           (E.internal_error ii "alignment constraints error") in
-        Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
-          (E.internal_error ii "no extra free register to compute the return address") in
         Let _ := assert
           (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
           (E.internal_error ii "bad call args") in
@@ -248,7 +249,11 @@ Section CHECK.
       else ok tt in
     match sf_return_address e with
     | RAreg ra => check_preserved_register W J "return address" ra
-    | RAstack _ => ok tt
+    | RAstack ra _ => 
+         if ra is Some r then 
+            assert (vtype r == sword Uptr) 
+             (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s "return address"; pp_var r]))
+         else ok tt
     | RAnone =>
         let to_save := sv_of_list fst fd.(f_extra).(sf_to_save) in
         Let _ := assert (disjoint to_save res)

@@ -430,16 +430,26 @@ let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: ('info, 'asm) func) :
   collect_variables_aux ~allvars excluded fresh tbl None f;
   tbl, total ()
 
+type retaddr = 
+  | StackDirect
+  | StackByReg of var
+  | ByReg of var
+
 let collect_variables_in_prog
       ~(allvars: bool)
       (excluded: Sv.t)
-      (extra: var Hf.t)
+      (return_adresses: retaddr Hf.t)
       (extras: ('k, var) Hashtbl.t)
       (all_reg: var list)
       (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
-  List.iter (fun f -> collect_variables_aux ~allvars excluded fresh tbl (Hf.Exceptionless.find extra f.f_name) f) f;
+  List.iter (fun f -> 
+      let extra = 
+        match Hf.find return_adresses f.f_name with
+        | StackByReg v | ByReg v -> Some v
+        | StackDirect -> None in
+        collect_variables_aux ~allvars excluded fresh tbl extra f) f;
   Hashtbl.iter (fun _ v -> collect_variables_cb ~allvars excluded fresh tbl v) extras;
   List.iter (collect_variables_cb ~allvars excluded fresh tbl) all_reg;
   tbl, total ()
@@ -504,7 +514,7 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
 type reg_oracle_t = {
     ro_to_save: var list;
     ro_rsp: var option;
-    ro_return_address: var option;
+    ro_return_address: retaddr;
   }
 
 module type Regalloc = sig
@@ -567,7 +577,7 @@ module Regalloc (Arch : Arch_full.Arch)
            mallocate_one e (translate_var v) a
         | ADExplicit (_, None) -> ()) id.i_in es
 
-let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
+let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t) (cnf: conflicts)
     (f: ('info, 'asm) func) (a: A.allocation) : unit =
   let split ~ctxt =
     function
@@ -634,7 +644,12 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
   let loc = L.i_loc0 f.f_loc in
   if f.f_cc = Export then alloc_args loc identity f.f_args;
   if f.f_cc = Export then alloc_ret loc L.unloc f.f_ret;
-  alloc_stmt f.f_body
+  alloc_stmt f.f_body;
+  match Hf.find return_addresses f.f_name, Arch.callstyle with
+  | (StackByReg ra | ByReg ra), Arch_full.ByReg (Some r) ->
+      let i = Hv.find vars ra in 
+      allocate_one nv vars (Location.i_loc f.f_loc []) cnf ra i r a
+  | _ -> () 
 
 (* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
 let get_friend_registers (dflt: var) (fr: friend) (a: A.allocation) (i: int) (regs: var list) : var =
@@ -832,7 +847,7 @@ let post_process
        else to_save, None
      end
 
-let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc, var) Hashtbl.t * var Hf.t =
+let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc, var) Hashtbl.t * retaddr Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -843,11 +858,9 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
 
     Initial 'info are preserved in the result.
    *)
-  let count, _ = make_counter () in
   let annot_table : Annotations.f_annot Hf.t = Hf.create 17 in
-  let get_annot fn = Hf.find_default annot_table fn Annotations.f_annot_empty in
   let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
-  let return_addresses : var Hf.t = Hf.create 17 in
+  let return_addresses : retaddr Hf.t = Hf.create 17 in
   let extra_free_registers : (L.i_loc, var) Hashtbl.t = Hashtbl.create 137 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
@@ -855,36 +868,37 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     Hf.add annot_table f.f_name f.f_annot;
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges Arch.aparams.ap_is_move_op false in
     Hf.add liveness_table f.f_name (Liveness.live_fd Arch.aparams.ap_is_move_op true f);
+    (* compute where will be store the return address *)
+    let ra = 
+       match f.f_cc with
+       | Export -> StackDirect
+       | Internal -> assert false 
+       | Subroutine _ ->  
+         match Arch.callstyle with 
+         | Arch_full.StackDirect -> StackDirect
+         | Arch_full.ByReg oreg ->
+           let dfl = oreg <> None && has_call_or_syscall f.f_body in
+           let r = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
+           let rastack = 
+             match f.f_annot.retaddr_kind with
+             | None -> dfl
+             | Some k -> dfl || k = OnStack in
+           if rastack then StackByReg r
+           else ByReg r in
+    Hf.add return_addresses f.f_name ra;
     let written =
       let written, cg = written_vars_fc f in
       let written =
-        if
-          match f.f_cc with
-          | (Export | Internal) -> false
-          | Subroutine _ ->
-             match f.f_annot.retaddr_kind with
-             | Some OnStack -> false
-             | (None | Some OnReg) -> true
-        then
-          let r = V.mk " ra" (Reg(Normal, Direct)) (Bty (U U64)) L._dummy [] in
-          if !Glob_options.debug then
-            Format.eprintf "Fresh variable “%a” for the return address of function “%s”.@."
-              (Printer.pp_var ~debug:true) r f.f_name.fn_name;
-          Hf.add return_addresses f.f_name r;
-          Sv.add r written
-        else written
+        match f.f_cc with
+        | (Export | Internal) -> written
+        | Subroutine _ ->
+          match ra with 
+          | StackDirect -> written 
+          | StackByReg r | ByReg r -> Sv.add r written 
       in
       let killed_by_calls =
-        Mf.fold (fun fn locs acc ->
-            let acc = Sv.union (killed fn) acc in
-            if (get_annot fn).retaddr_kind = Some OnStack then
-              List.fold_left (fun acc loc ->
-                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg(Normal, Direct)) (Bty (U U64)) loc.L.base_loc [] in
-                  Hashtbl.add extra_free_registers loc r;
-                  Sv.add r acc
-                ) acc locs
-            else acc
-          ) cg Sv.empty in
+        Mf.fold (fun fn _locs acc -> Sv.union (killed fn) acc)
+          cg Sv.empty in
       let killed_by_syscalls = if has_syscall f.f_body then Arch.syscall_kill else Sv.empty in
       Sv.union (Sv.union written killed_by_calls) killed_by_syscalls
     in
@@ -928,25 +942,14 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
       liveness_table
       empty_conflicts
   in
-  (* Extra free registers at call-sites conflict with live variables *)
-  let conflicts =
-    let cnf = ref conflicts in
-    Hf.iter (fun _fn f ->
-        Liveness.iter_call_sites (fun loc _fn' _xs (s, _) ->
-            match Hashtbl.find extra_free_registers loc with
-            | exception Not_found -> ()
-            | r -> cnf := Sv.fold (conflicts_add_one Arch.asmOp vars tr (Lmore loc) r) s !cnf
-          ) (fun _ _ _ _ -> ()) f
-      ) liveness_table;
-    !cnf
-  in
+ 
   (* In-register return address conflicts with function arguments *)
   let conflicts =
     List.fold_left (fun a f ->
         match Hf.find return_addresses f.f_name with
-        | ra ->
+        | ByReg ra | StackByReg ra ->
            List.fold_left (fun cnf x -> conflicts_add_one Arch.asmOp vars tr Lnone ra x cnf) a f.f_args
-        | exception Not_found -> a )
+        | StackDirect -> a) 
       conflicts funcs in
   (* Inter-procedural conflicts *)
   let conflicts =
@@ -956,8 +959,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
         let vars = killed f.f_name in
         let cnf =
           match Hf.find return_addresses f.f_name with
-          | ra -> cnf |> add_conflicts (Sv.remove ra vars) ra
-          | exception Not_found -> cnf
+          | ByReg ra -> cnf |> add_conflicts (Sv.remove ra vars) ra
+          | StackDirect | StackByReg _ -> cnf
         in
         cnf |> Sv.fold (add_conflicts vars) live
       ) funcs conflicts in
@@ -977,7 +980,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   in
   List.iter allocate_one Arch.all_registers;
 
-  List.iter (fun f -> allocate_forced_registers translate_var nv vars conflicts f a) funcs;
+  List.iter (fun f -> allocate_forced_registers return_addresses translate_var nv vars conflicts f a) funcs;
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in
 
@@ -1017,8 +1020,8 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
   List.map (fun f ->
       let e = Hf.find extra f.f_name in
       let stack_needed = has_stack f e in
-      let to_save, ro_rsp =
-        post_process
+      let to_save, ro_rsp = 
+         post_process
           ~allocatable_vars
           ~callee_save_vars
           ~not_saved_stack
@@ -1026,15 +1029,14 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
           ~killed
           subst
           (get_liveness f.f_name)
-          f
-      in
-      let ro_return_address =
-        match Hf.find return_addresses f.f_name with
-        | exception Not_found -> None
-        | ra -> Some (subst ra)
-      in
-      let to_save = match ro_return_address with Some ra -> Sv.add ra to_save | None -> to_save in
-      e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
+          f in
+      let ro_return_address = 
+        match Hf.find return_addresses f.f_name with 
+        | StackDirect -> StackDirect 
+        | StackByReg r -> StackByReg (subst r)
+        | ByReg r -> ByReg (subst r) in
+      let ro_to_save = if f.f_cc = Export then Sv.elements to_save else [] in
+      e, { ro_to_save ; ro_rsp ; ro_return_address }, f
     )
   , (fun loc -> Hashtbl.find_opt extra_free_registers loc |> Option.map subst)
 

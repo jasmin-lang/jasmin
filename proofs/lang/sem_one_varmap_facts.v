@@ -361,10 +361,10 @@ Proof.
   1: rewrite SvP.MP.add_union_singleton disjoint_unionE => rax_not_magic.
   1: apply/andP; split; last exact: flags_not_magic.
   1: by rewrite disjoint_singletonE.
-  2: case: sf_save_stack ok_ss => //.
-  all: move => /= r /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
-  all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=.
-  all: SvD.fsetdec.
+  3: case: sf_save_stack ok_ss => //.
+  2: move=> [ra _ /= /andP[]/eqP r_neq_gd /eqP r_neq_rsp| _ _].
+  1,4: move => /= r /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
+  all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=; SvD.fsetdec.
 Qed.
 
 Lemma sem_RSP_GD_not_written k s1 c s2 :

@@ -1187,7 +1187,7 @@ Proof.
   rewrite /label_in_lcmd -cat1s pmap_cat.
   rewrite /label_in_asm -(cat1s ai) pmap_cat.
   congr (_ ++ _); last exact: ih.
-  by case: li ok_ai { ih } => ii [] /=; t_xrbindP => *; subst.
+  by case: li ok_ai { ih } => ii [ | | [] | | | | | | | ] /=; t_xrbindP => *; subst.
 Qed.
 
 Lemma assemble_fd_labels (fn : funname) (fd : lfundef) (fd' : asm_fundef) :
@@ -1203,8 +1203,9 @@ Lemma assemble_i_is_label (li : linstr) (ai : asm_i) lbl :
   assemble_i agparams rip li = ok ai
   -> linear.is_label lbl li = arch_sem.is_label lbl ai.
 Proof.
-  by (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
-    => /= [ > _ <- | > <- | > <- | <- | <- | > <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
+  (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
+    => /= [ > _ <- | > <- | | <- | <- | > <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-] //.
+  by case => [lr l| > [<-] //]; case: to_reg => //; t_xrbindP => > _ <-.
 Qed.
 
 Lemma assemble_c_find_is_label (lc : lcmd) (ac : asm_code) lbl :
@@ -1605,7 +1606,19 @@ Proof.
       rewrite /get_var /=.
       case: _.[_]%vmap => // - [] // _ /ok_inj <-.
       by case: (asm_flag _ _).
-  - move=> r [<-].
+  - move=> [xlr | ] r.
+    + case heqlr: to_reg => [lr | //]; t_xrbindP => _ <- <- l hgetpc.
+      rewrite eqfn; case ptr_eq: encode_label => [ ptr | ] //.
+      rewrite /return_address_from.
+      have -> := assemble_get_label_after_pc eqc eqfn eqpc omap_lc hgetpc.
+      replace (encode_label _ _) with (Some ptr); last by rewrite -assemble_prog_labels.
+      t_xrbindP => vm hset; apply: eval_jumpP.
+      rewrite /st_update_next eqpc.
+      have : write_var xlr (Vword ptr) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vm |}.
+      + by rewrite /write_var /= hset.
+      move/of_varI : heqlr => heqlr.
+      by move=> /(lom_eqv_write_var MSB_CLEAR eqm) -/(_ _ heqlr).
+    move=> [<-].
     t_xrbindP => wsp vsp hsp htow_sp l hgetpc.
     rewrite eqfn; case ptr_eq: encode_label => [ ptr | ] //.
     rewrite /return_address_from.

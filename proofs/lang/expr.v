@@ -563,21 +563,24 @@ Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_e
 
 Variant return_address_location :=
 | RAnone
-| RAreg of var
-| RAstack of Z.
+| RAreg of var               (* The return address is pass by a register and 
+                                keeped in this register during function call *)
+| RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack 
+                                Some r means that the call instruction directly store ra on r and 
+                                the function should store r on the stack *)
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
   | RAreg x1 => if r2 is RAreg x2 then x1 == x2 else false
-  | RAstack z1 => if r2 is RAstack z2 then z1 == z2 else false
+  | RAstack lr1 z1 => if r2 is RAstack lr2 z2 then (lr1 == lr2) && (z1 == z2) else false
   end.
 
 Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
 Proof.
-  case => [ | x1 | z1 ] [ | x2 | z2 ] /=; try by constructor.
+  case => [ | x1 | lr1 z1 ] [ | x2 | lr2 z2 ] /=; try by constructor.
   + by apply (iffP eqP); congruence.
-  by apply (iffP eqP); congruence.
+  by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
 Qed.
 
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
@@ -586,6 +589,7 @@ Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_
 Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
   sf_stk_sz         : Z;
+  sf_stk_ioff       : Z;
   sf_stk_extra_sz   : Z;
   sf_stk_max        : Z;
   sf_max_call_depth : Z;
@@ -597,6 +601,7 @@ Record stk_fun_extra := MkSFun {
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
   (e1.(sf_align) == e2.(sf_align)) &&
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
+  (e1.(sf_stk_ioff) == e2.(sf_stk_ioff)) &&
   (e1.(sf_stk_max) == e2.(sf_stk_max)) &&
   (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)) &&
   (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
@@ -606,9 +611,9 @@ Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
 Proof.
-  case => a b c d e f g h [] a' b' c' d' e' f' g' h'; apply: (equivP andP) => /=; split.
-  + by case => /andP[] /andP[] /andP[] /andP[] /andP[] /andP [] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
-  by case => <- <- <- <- <- <- <- <-; rewrite !eqxx.
+  case => a b c d e f g h i [] a' b' c' d' e' f' g' h' i'; apply: (equivP andP) => /=; split.
+  + by case => /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
+  by case => <- <- <- <- <- <- <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.

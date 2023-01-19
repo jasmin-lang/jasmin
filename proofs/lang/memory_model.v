@@ -598,7 +598,7 @@ Class memory (mem: Type) (CM: coreMem pointer mem) : Type :=
       stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
     ; frames : mem -> seq pointer
-    ; alloc_stack : mem -> wsize -> Z -> Z -> exec mem (* alignement, size, extra-size *)
+    ; alloc_stack : mem -> wsize -> Z -> Z -> Z -> exec mem (* alignement, size, extra initial size, extra-size *)
     ; free_stack : mem -> mem
     ; init : seq (pointer * Z) → pointer → exec mem
 
@@ -614,7 +614,7 @@ Definition top_stack {mem: Type} {CM: coreMem pointer mem} {M: memory CM} (m: me
 
 Section SPEC.
   Context mem (CM: coreMem pointer mem) (M: memory CM)
-    (m: mem) (ws:wsize) (sz: Z) (sz': Z) (m': mem).
+    (m: mem) (ws:wsize) (sz: Z) (ioff:Z) (sz': Z) (m': mem) .
   Let pstk := top_stack m'.
 
   Definition top_stack_after_alloc (top: pointer) (ws: wsize) (sz: Z) : pointer :=
@@ -623,9 +623,10 @@ Section SPEC.
   Record alloc_stack_spec : Prop := mkASS {
     ass_read_old8 : forall p, validw m p U8 -> read m p U8 = read m' p U8;
     ass_read_new  : forall p, ~validw m p U8 -> validw m' p U8 -> read m' p U8 = Error ErrAddrInvalid;
-    ass_valid     : forall p, validw m' p U8 = validw m p U8 || between pstk sz p U8;
+    ass_valid     : forall p, validw m' p U8 = validw m p U8 || between (pstk + wrepr _ ioff) (sz - ioff) p U8;
     ass_align_stk : is_align pstk ws;
-    ass_above_limit: wunsigned (stack_limit m) <= wunsigned pstk ∧ wunsigned pstk + sz + Z.max 0 sz' <= wunsigned (top_stack m);
+    ass_above_limit: wunsigned (stack_limit m) <= wunsigned pstk ∧ wunsigned pstk +  sz + Z.max 0 sz' <= wunsigned (top_stack m);
+    ass_ioff      : 0 <= ioff <= sz;
     ass_fresh     : forall p s, validw m p s ->
                         (wunsigned p + wsize_size s <= wunsigned pstk \/
                          wunsigned pstk + sz <= wunsigned p)%Z;
@@ -653,6 +654,15 @@ Section SPEC.
     is_align (pstk + wrepr _ ofs)%R s = is_align (wrepr _ ofs) s.
   Proof.
     by move=> hs; apply/is_align_addE;apply: is_align_m (ass_align_stk ass).
+  Qed.
+
+  Lemma ass_add_ioff (ass: alloc_stack_spec) :
+    wunsigned (pstk + wrepr _ ioff) = wunsigned pstk + ioff.
+  Proof.
+    have ? := ass_above_limit ass; have ? := ass_ioff ass.
+    rewrite wunsigned_add //.
+    assert (h := wunsigned_range (top_stack m)).  assert (h' := wunsigned_range pstk).
+    Psatz.lia.
   Qed.
 
   Lemma ass_read_old (ass:alloc_stack_spec) p s : validw m p s -> read m p s = read m' p s.
@@ -750,19 +760,19 @@ Context {pd: PointerData}.
   read m p s = ok v -> validw m p s. *)
 
 (* -------------------------------------------------------------------- *)
-Parameter alloc_stackP : forall m m' ws sz sz',
-  alloc_stack m ws sz sz' = ok m' -> alloc_stack_spec m ws sz sz' m'.
+Parameter alloc_stackP : forall m m' ws sz ioff sz',
+  alloc_stack m ws sz ioff sz' = ok m' -> alloc_stack_spec m ws sz ioff sz' m'.
 
-Parameter alloc_stack_complete : forall m ws sz sz',
-  let: old_size:= wunsigned (stack_root m) - wunsigned (top_stack m) in
+Parameter alloc_stack_complete : forall m ws sz ioff sz',
+  let: old_size := wunsigned (stack_root m) - wunsigned (top_stack m) in
   let: max_size := wunsigned (stack_root m) - wunsigned (stack_limit m) in
   let: available := max_size - old_size in
-  [&& 0 <=? sz, 0 <=? sz' &
+  [&& 0 <=? ioff, ioff <=? sz, 0 <=? sz' &
   if is_align (top_stack m) ws
   then round_ws ws (sz + sz') <=? available (* tight bound *)
   else sz + sz' + wsize_size ws - 1 <=? available (* loose bound, exact behavior is under-specified *)
   ] →
-  ∃ m', alloc_stack m ws sz sz' = ok m'.
+  ∃ m', alloc_stack m ws sz ioff sz' = ok m'.
 
 Parameter write_mem_stable : forall m m' p s (v:word s),
   write m p v = ok m' -> stack_stable m m'.

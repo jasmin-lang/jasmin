@@ -27,7 +27,7 @@ Lemma init_stk_stateI fex pex gd s s' :
   [/\
     escs s = escs s',
     (evm s').[vid pex.(sp_rip)] = ok (pword_of_word gd),
-    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_extra_sz) = ok (emem s'),
+    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_ioff) fex.(sf_stk_extra_sz) = ok (emem s'),
     (evm s').[vid pex.(sp_rsp)] = ok (pword_of_word (top_stack (emem s'))) &
     forall (x:var), x <> vid pex.(sp_rip) -> x <> vid pex.(sp_rsp) ->
               (evm s').[x] = vmap0.[x]].
@@ -623,7 +623,7 @@ Section LEMMA.
   Let Pfun scs (m: mem) (fn: funname) (args: seq value) scs' (m': mem) (res: seq value) : Prop :=
     ∀ ii fd tvm1 args',
       get_fundef (p_funcs p) fn = Some fd →
-      (if fd.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
+   (*   (if fd.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) → *)
       (fd.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack m) fd.(f_extra).(sf_align) →
       tvm1.[vrsp] = ok (pword_of_word (top_stack m)) →
       tvm1.[ vgd ] = ok (pword_of_word global_data) →
@@ -683,12 +683,12 @@ Section LEMMA.
 
   Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
   Proof.
-    move => s1 scs2 m2 s2 jj xs fn args vargs vs ok_vargs sexec ih ok_s2 sz ii I O t1.
+    move => s1 scs2 m2 s2 jj xs fn args vargs vs ok_vargs sexec ih ok_s2 sz ii I O t1 + _.
     rewrite /check_instr_r /=; case heq : get_fundef => [ fd | //].
-    t_xrbindP => hces hal hra hargs hres hxs _ pre sim.
+    t_xrbindP => hces hal hargs hres hxs pre sim.
     have [vargs' hvargs' hincl]:= check_esP hces sim ok_vargs.
     have [||| k [tvm2] [res'] [texec hwf hk get_res res_uincl] ] :=
-      ih ii fd (evm t1) vargs' heq hra _ (mvp_top_stack pre) (mvp_global_data pre) _ _ hincl.
+      ih ii fd (evm t1) vargs' heq _ (mvp_top_stack pre) (mvp_global_data pre) _ _ hincl.
     + by rewrite (is_align_m hal (mvp_stack_aligned pre)) orbT.
     + by case: sim.
     + elim: (args) (f_params fd) (vargs') hargs hvargs' => [ | e es hrec] [ |y ys] // vs'.
@@ -754,7 +754,8 @@ Section LEMMA.
       move=> x xs ih [| y ys] //= /andP []; case: x => // x /eqP <- /ih{ih}ih S s1 t1 _ _ [] //.
       move=> v v' vs vs' uv uvs; t_xrbindP => s1' hwx hw sim.
       have hch : check_lv ii S x = ok (Sv.diff S (vrv x)).
-      + rewrite /check_lv /check_fv /=; case: disjointP => //; case => *; SvD.fsetdec.
+      + rewrite /check_lv /check_fv /= -/(disjoint S Sv.empty).
+        by case: (disjointP S Sv.empty) => //; case => *; SvD.fsetdec.
       have [t1' /= ] := check_lvP hch sim hwx uv.
       rewrite /write_var => -> sim'.
       have [t2 h2 sim2] := ih _ _ _ _ _ uvs hw sim'.
@@ -772,7 +773,7 @@ Section LEMMA.
   Proof.
     move => scs m ?? fn fd vargs vargs' s0 s1 s2 vres vres' ok_fd ok_vargs /init_stk_stateI
       -/(_ rip_neq_rsp) [hscs0 vgd_v ok_m' vrsp_v hvmap0] ok_s1 sexec ih ok_vres ok_vres' -> ->
-      ii fd' tvm1 args' ok_fd' ok_rastack sp_align vrsp_tv vgd_tv hwftvm1 ok_args' ok_args''.
+      ii fd' tvm1 args' ok_fd' sp_align vrsp_tv vgd_tv hwftvm1 ok_args' ok_args''.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
     rewrite /check_fd; t_xrbindP => D.
@@ -791,8 +792,7 @@ Section LEMMA.
          ~Sv.In ra (magic_variables p) &
          ~Sv.In ra params
         ]
-      | RAstack _ =>
-        True
+      | RAstack ra _ => if ra is Some r then [/\ vtype r == sword Uptr & ~Sv.In r (magic_variables p)] else True 
       | RAnone =>
           let to_save := sv_of_list fst (sf_to_save (f_extra fd)) in
         [/\ disjoint to_save res,
@@ -802,18 +802,26 @@ Section LEMMA.
            (f_params fd)
           ]
       end.
-    - case: sf_return_address checked_ra; last by [].
-      + by t_xrbindP => ? ?.
-      move => ra; t_xrbindP => -> /Sv_memP ra_not_written.
-      rewrite SvP.union_mem negb_or => /andP[] /Sv_memP ra_not_magic /Sv_memP ra_not_param.
-      by split.
+    - case heq : sf_return_address checked_ra => [ | ra | ra ofs].
+      + by t_xrbindP => ??.
+      + t_xrbindP => -> /Sv_memP ra_not_written.
+        by rewrite SvP.union_mem negb_or => /andP[] /Sv_memP ra_not_magic /Sv_memP ra_not_param.
+      case: ra heq => [ r | ] // heq.
+      move: preserved_magic; rewrite /writefun_ra ok_fd /ra_vm heq /disjoint.
+      by t_xrbindP => /Sv.is_empty_spec h ->; split => //; SvD.fsetdec.
     have ra_neq_magic :
-      if sf_return_address (f_extra fd) is RAreg ra
-      then [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr]
-      else True.
-    - case: sf_return_address checked_ra => // ra []; clear.
-      rewrite /magic_variables /vgd /vrsp /= Sv.add_spec Sv.singleton_spec => -> ra_not_written.
-      by case/Decidable.not_or => /eqP -> /eqP -> _.
+      match sf_return_address (f_extra fd) with 
+      | RAreg ra | RAstack (Some ra) _ =>
+         [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr]
+      | _ => True
+      end.
+    - case: sf_return_address checked_ra => // [ ra | [ ra | ] _] //.
+      + rewrite /magic_variables -/vgd -/vrsp /= => -[].
+        rewrite Sv.add_spec  Sv.singleton_spec => -> ra_not_written.
+        by case/Decidable.not_or => /eqP -> /eqP -> _.
+      rewrite /magic_variables -/vgd -/vrsp /= => -[].
+      rewrite Sv.add_spec  Sv.singleton_spec => ->.
+      by case/Decidable.not_or => /eqP -> /eqP ->.
     set t1' := with_vm s0 (set_RSP p (emem s0) (ra_undef_vm fd tvm1 var_tmp)).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (sf_align (f_extra fd)) (emem s1) (evm t1').
     - split.
@@ -873,10 +881,11 @@ Section LEMMA.
       + move: vgd (ra_undef _ _) (wrf _) hin not_GD; clear; SvD.fsetdec.
       have z_not_arr : ~~ is_sarr (vtype z).
       + move: hin ra_neq_magic checked_save_stack; clear => /SvD.F.union_1[].
-        * rewrite /ra_vm; case: sf_return_address => [ | ra | rastack ]; last by SvD.fsetdec.
-          - case/SvD.F.add_iff; first by move => <-.
-            by move => /vflagsP ->.
-          by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
+        * rewrite /ra_vm; case: sf_return_address => [ | ra | ra rastack ].
+          - by case/SvD.F.add_iff => [<- | /vflagsP ->].
+          - by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
+          case: ra; last by SvD.fsetdec.  
+          by move => r /Sv.singleton_spec -> /and3P [] _ _ /eqP ->.
         rewrite /saved_stack_vm.
         case: sf_save_stack => [ | ra | ofs ] /=; only 1, 3: SvD.fsetdec.
         by move/Sv.singleton_spec => -> _; t_xrbindP => /eqP ->.
@@ -917,9 +926,10 @@ Section LEMMA.
       + exact: ok_fd.
       + move: ok_wrf.
         rewrite /valid_writefun /write_fd /ra_valid /=.
-        case: sf_return_address ok_rastack ra_neq_magic checked_ra => //.
-        move => ra _ /and3P [] -> -> -> /= [] _ hra ?? /Sv.subset_spec ok_wrf.
-        by apply/Sv_memP => ?; apply: hra; apply: ok_wrf; exact: hk.
+        case: sf_return_address ra_neq_magic checked_ra => //.
+        + move => ra /and3P [] -> -> -> /= [] _ hra ?? /Sv.subset_spec ok_wrf.
+          by apply/Sv_memP => ?; apply: hra; apply: ok_wrf; exact: hk.
+        by case => // ? ? /and3P [] -> ->.
       + move: ok_wrf.
         rewrite /valid_writefun /write_fd /saved_stack_valid /=.
         case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ /Sv_memP r_not_written.
@@ -994,7 +1004,7 @@ Proof.
   move => checked_body hdisj checked_params RSP_not_result preserved_magic checked_save_stack.
   t_xrbindP => to_save_not_result ok_callee_saved ok_params.
 
-  rewrite Export => /(_ _ _ erefl erefl) H.
+  move => /(_ _ _ erefl) H.
   exists fd.
   - exact: ok_fd.
   - exact/eqP.

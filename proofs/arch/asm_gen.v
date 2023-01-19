@@ -526,8 +526,14 @@ Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
   | Lsyscall o =>
       ok (SysCall o)
 
-  | Lcall l =>
+  | Lcall None l =>
       ok (CALL l)
+
+  | Lcall (Some r) l =>
+    Let r := 
+      if to_reg r is Some r then ok r
+      else Error (E.verror true "Not a register" ii r) in
+    ok (JAL r l)
 
   | Lret =>
       ok POPPC

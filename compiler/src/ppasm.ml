@@ -429,6 +429,7 @@ module Printer (BP:BPrinter) = struct
       `Instr (iname, [pp_label name lbl])
 
     | JAL _ -> assert false
+
     | CALL lbl ->
        `Instr ("call", [pp_remote_label tbl lbl])
 

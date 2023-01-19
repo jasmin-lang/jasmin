@@ -2,6 +2,11 @@ open Arch_decl
 open Arch_extra
 open Prog
 
+type 'a callstyle =
+  | StackDirect           (* call instruction push the return address on top of the stack *)
+  | ByReg of 'a option    (* call instruction store the return address on a register, 
+                               (Some r) neams that the register is forced to be r *)
+
 (* TODO: check that we cannot use sth already defined on the Coq side *)
 
 module type Core_arch = sig
@@ -29,6 +34,9 @@ module type Core_arch = sig
     (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
     (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.prog ->
     unit
+
+  val callstyle : reg callstyle
+
 end
 
 module type Arch = sig
@@ -56,6 +64,8 @@ module type Arch = sig
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
+
+  val callstyle : var callstyle
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch = struct
@@ -193,4 +203,10 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
   let all_registers = reg_vars @ regx_vars @ xreg_vars @ flag_vars
 
   let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
+
+  let callstyle = 
+    match A.callstyle with
+    | StackDirect -> StackDirect
+    | ByReg o -> ByReg (Utils.omap var_of_reg o)
+    
 end

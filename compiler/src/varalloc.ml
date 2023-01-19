@@ -331,7 +331,7 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size
 
 (* --------------------------------------------------- *)
-let alloc_stack_fd pd is_move_op get_info gtbl fd =
+let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   if !Glob_options.debug then Format.eprintf "ALLOC STACK %s@." fd.f_name.fn_name;
   let alias =
     let get_cc fn = (get_info fn).sao_return in
@@ -369,7 +369,40 @@ let alloc_stack_fd pd is_move_op get_info gtbl fd =
 
   let sao_params, atbl = all_alignment pd ctbl alias sao_return fd.f_args lalloc in
 
-  let sao_align, sao_slots, sao_size = alloc_local_stack 0 (Sv.elements slots) atbl in
+  let ra_on_stack =
+    match fd.f_cc with 
+    | Internal -> assert false 
+    | Export -> 
+        if fd.f_annot.retaddr_kind = Some OnReg then 
+             Utils.warning Always (L.i_loc fd.f_loc [])
+              "for function %s, return address by reg not allowed for export function, annotation is ignored"
+              fd.f_name.fn_name;
+        false (* For export function ra is not counted in the frame *)
+    | Subroutine _ -> 
+      match callstyle with 
+      | Arch_full.StackDirect -> 
+        if fd.f_annot.retaddr_kind = Some OnReg then 
+          Utils.warning Always (L.i_loc fd.f_loc [])
+            "for function %s, return address by reg not allowed for that architecture, annotation is ignored"
+            fd.f_name.fn_name;
+        true
+      | Arch_full.ByReg oreg ->  (* oreg = Some r implies that all call use r,
+                                    so if the function performs some call r will be overwritten,
+                                    so ra need to be saved on stack *)
+        let dfl = oreg <> None && has_call_or_syscall fd.f_body in
+        match fd.f_annot.retaddr_kind with
+        | None -> dfl
+        | Some k -> 
+            if k = OnReg && dfl then 
+              Utils.warning Always (L.i_loc fd.f_loc []) 
+                "for function %s, return address by reg not possible, annotation is ignored" fd.f_name.fn_name;
+            dfl || k = OnStack in
+
+  let sao_align, sao_slots, sao_size =
+    alloc_local_stack
+      (* if ra_on_stack we add some space for the return address,
+         the alignment will be automatically corrected *)
+      (if ra_on_stack then size_of_ws pd else 0) (Sv.elements slots) atbl in
 
   (* FIXME: 1- make this U128 arch (call-conv) dependent; 2- make it a semantic requirement. *)
   let sao_align = if has_syscall fd.f_body && wsize_lt sao_align U128 then U128 else sao_align in
@@ -377,7 +410,7 @@ let alloc_stack_fd pd is_move_op get_info gtbl fd =
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
   let sao_modify_rsp = 
-    sao_size <> 0 || fd.f_annot.retaddr_kind = Some OnStack ||
+    sao_size <> 0 || ra_on_stack ||
       Sf.exists (fun fn -> (get_info fn).sao_modify_rsp) sao_calls in
   let sao = {
     sao_calls;
@@ -416,13 +449,13 @@ let alloc_mem gtbl globs =
   List.iter doslot gao_slots;
   { gao_data = Array.to_list t; gao_align; gao_slots; gao_size }
 
-let alloc_stack_prog pd is_move_op (globs, fds) =
+let alloc_stack_prog callstyle pd is_move_op (globs, fds) =
   let gtbl = Hv.create 107 in
   let ftbl = Hf.create 107 in
   let get_info fn = Hf.find ftbl fn in
   let set_info fn sao = Hf.add ftbl fn sao in
   let doit fd = 
-    let sao = alloc_stack_fd pd is_move_op get_info gtbl fd in
+    let sao = alloc_stack_fd callstyle pd is_move_op get_info gtbl fd in
     set_info fd.f_name sao in
   List.iter doit (List.rev fds);
   let gao =  alloc_mem gtbl globs in
