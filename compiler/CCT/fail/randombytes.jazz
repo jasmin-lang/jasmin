@@ -1,0 +1,11 @@
+export
+fn main() -> #secret reg u64 {
+  stack u64[1] s;
+  reg u64 r;
+  s = #randombytes(s);
+  r = s[0];
+  while (r < 64) {
+    r += 64;
+  }
+  return r;
+}
