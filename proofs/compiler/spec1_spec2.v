@@ -121,8 +121,8 @@ Section LOOP.
 
 Context `{asmop : asmOp}.
 Context {pd : PointerData}.
-Variable i_spec1_to_spec2 : env -> @instr asm_op_spec1 asmOp_spec1 -> 
-                            cexec (env * seq (@instr asm_op_spec2 asmOp_spec2))%type.
+Context (i_spec1_to_spec2 : env -> @instr asm_op_spec1 asmOp_spec1 -> 
+                            cexec (env * seq (@instr asm_op_spec2 asmOp_spec2))%type).
 Context (ii:instr_info).
 Context (c1:seq (@instr asm_op_spec1 asmOp_spec1))
         (e:pexpr) 
@@ -135,9 +135,9 @@ match n with
 | S n =>
   (* c1; while e do c2; c1 *)
   Let rc1 := c_spec1_to_spec2 i_spec1_to_spec2 envi c1 in
-  Let rc2 := c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf rc1.1 e) c2 in
-  if sub_env envi rc2.1 then loop_while n ((inter_env envi rc2.1), Sv.inter envi.2 rc2.1.2) 
-  else ok ((enter_msf envi e), rc1.2, rc2.2)
+  Let rc2 := c_spec1_to_spec2 i_spec1_to_spec2 (update_cond_env rc1.1.2 (Some (e, read_e e)), rc1.1.2) c2 in
+  if sub_env envi rc2.1 then ok ((update_cond_env rc1.1.2 (Some ((enot e), read_e (enot e))), rc1.1.2), rc1.2, rc2.2)
+  else loop_while n ((inter_env envi rc2.1), Sv.inter envi.2 rc2.1.2) 
 end.
 
 End LOOP.
@@ -147,8 +147,9 @@ Section INST.
 Context `{asmop : asmOp}.
 Context {pd : PointerData}.
 
-Fixpoint ir_spec1_to_spec2 envi ii (ir: @instr_r asm_op_spec1 asmOp_spec1) {struct ir}
+Fixpoint i_spec1_to_spec2 envi (i: @instr asm_op_spec1 asmOp_spec1) 
 : cexec (env * seq (@instr asm_op_spec2 asmOp_spec2)) := 
+let (ii, ir) := i in
 match ir with 
 | Cassgn x tag ty e => ok ((update_cond_env (vrv x) envi.1, Sv.diff envi.2 (vrv x)), [:: MkI ii (@Cassgn asm_op_spec2 asmOp_spec2 x tag ty e)])
 | Copn xs tag o es => 
@@ -217,20 +218,17 @@ match ir with
   else Error (spec_transform_error "Conditional guard should not depend on memory")
 | Cfor x (dir, e1, e2) c => Let cr := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
                             ok (cr.1, [:: MkI ii (@Cfor asm_op_spec2 asmOp_spec2 x (dir, e1, e2) cr.2)])
-| Cwhile a c e c' => Let r := loop_while i_spec1_to_spec2 c e c' Loop.nb envi in
-                     let:(r1, c1, c2) := r in
-                     ok (r1, [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a c1 e c2)])
+| Cwhile a c e c' => 
+  if negb (use_mem e)
+  then Let r := loop_while i_spec1_to_spec2 c e c' Loop.nb envi in
+       let:(r1, c1, c2) := r in
+       ok (r1, [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a c1 e c2)])
+  else Error (spec_transform_error "Conditional guard should not depend on memory")
 (* FIX ME *)
 | Ccall ini xs fn es => ok (envi, [:: MkI ii (@Ccall asm_op_spec2 asmOp_spec2 ini xs fn es)])
-end 
-
-with i_spec1_to_spec2 (envi: env) (i : @instr asm_op_spec1 asmOp_spec1)
-: cexec (env * seq (@instr asm_op_spec2 asmOp_spec2)) := 
-let (ii,ir) := i in
-(ir_spec1_to_spec2 envi ii ir).
+end. 
 
 End INST.
-
 
 
 
