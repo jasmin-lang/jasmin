@@ -15,7 +15,9 @@
   `VPMUL`
   ([PR #276](https://github.com/jasmin-lang/jasmin/pull/276)),
   `VPAVG`
-  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)).
+  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)),
+  `CLFLUSH`, `LFENCE`, `MFENCE`, `SFENCE`
+  ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)).
 
 - Add bit rotation operators for expressions: `<<r` and `>>r`
   ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
