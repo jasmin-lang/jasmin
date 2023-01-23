@@ -829,14 +829,14 @@ Section PROOF.
   Definition checked_i fn i : bool :=
     if get_fundef (p_funcs p) fn is Some fd
     then
-      if check_i fn fd.(f_extra).(sf_align) i is Ok tt
+      if check_i fn fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_max) i is Ok tt
       then true
       else false
     else false.
 
   Lemma checked_iE fn i :
     checked_i fn i →
-    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_i fn fd.(f_extra).(sf_align) i = ok tt.
+    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_i fn fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_max) i = ok tt.
     Proof.
       rewrite /checked_i; case: get_fundef => // fd h; exists fd; first by [].
       by case: check_i h => // - [].
@@ -845,14 +845,14 @@ Section PROOF.
   Definition checked_c fn c : bool :=
     if get_fundef (p_funcs p) fn is Some fd
     then
-      if check_c (check_i fn fd.(f_extra).(sf_align)) c is Ok tt
+      if check_c (check_i fn fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_max)) c is Ok tt
       then true
       else false
     else false.
 
   Lemma checked_cE fn c :
     checked_c fn c →
-    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_c (check_i fn fd.(f_extra).(sf_align)) c = ok tt.
+    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_c (check_i fn fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_max)) c = ok tt.
     Proof.
       rewrite /checked_c; case: get_fundef => // fd h; exists fd; first by [].
       by case: check_c h => // - [].
@@ -1336,6 +1336,8 @@ Section PROOF.
     (sp0 : pointer) (* the initial stack pointer *)
     (max0 : Z). (* the max size of the export function *)
 
+  Hypothesis enough_space : (max0 <= wunsigned sp0)%Z.
+
   Definition source_mem_split s sp :=
     forall p, validw (emem s) p U8 = validw m0 p U8 || pointer_range sp sp0 p.
 
@@ -1343,7 +1345,7 @@ Section PROOF.
     forall fd, get_fundef p.(p_funcs) fn = Some fd ->
     let max := fd.(f_extra).(sf_stk_max) in
     (0 <= max)%Z /\
-    (0 <= wunsigned sp0 - max0 <= wunsigned sp - max)%Z.
+    (0 <= wunsigned sp0 - wunsigned sp <= max0 - max)%Z.
 
   Definition target_mem_unchanged m m' :=
     forall p, ~ validw m0 p U8 -> ~ pointer_range (sp0 - wrepr _ max0) sp0 p ->
@@ -1456,11 +1458,14 @@ Section PROOF.
       (* To-save variables are initialized in the initial linear state *)
       is_callee_saved_of fn callee_saved →
       vm_initialized_on vm1 callee_saved →
+      source_mem_split s1 (top_stack (emem s1)) ->
+      is_stack_max fn sp ->
+      source_mem_split s2 (top_stack (emem s1)) /\
       ex2_6
       (λ m2 vm2,
-      if lret is Some ((caller, lbl), _cbody, pc)
+      (if lret is Some ((caller, lbl), _cbody, pc)
       then lsem p' (Lstate (escs s1) m1 vm1 fn 1) (Lstate (escs s2) m2 vm2 caller pc.+1)
-      else lsem p' (Lstate (escs s1) m1 vm1 fn 0) (Lstate (escs s2) m2 vm2 fn (size body)))
+      else lsem p' (Lstate (escs s1) m1 vm1 fn 0) (Lstate (escs s2) m2 vm2 fn (size body))) /\ target_mem_unchanged m1 m2)
       (λ _ vm2, vm1 = vm2 [\ if ra is RAnone then Sv.diff k (sv_of_list id callee_saved) else Sv.union k (extra_free_registers_at extra_free_registers ii)])
       (λ _ vm2, wf_vm vm2)
       (λ _ vm2, s2.[vrsp <- ok (pword_of_word sp)] <=[\ sv_of_list id callee_saved ] vm2)
@@ -1594,19 +1599,6 @@ Section PROOF.
     rewrite !oseq.onth_nth map_cat nth_cat size_map.
     rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; lia.
   Qed.
-
-  Lemma target_mem_unchanged_write_lval x v s1 s2 :
-    write_lval [::] x v s1 = ok s2 ->
-    target_mem_unchanged (emem s1) (emem s2).
-  Proof.
-    move=> hw pr hnm0 hnstack.
-    case: x hw => /= [ _ ty | x | ws x e | aa ws x e | aa ws n x e ].
-    - by case/write_noneP => -> _.
-    - by move=> /write_var_memP ->.
-    - admit.
-    - by apply: on_arr_varP; t_xrbindP=> _ _ _ _ _ _ _ _ _ _ _ _ /write_var_memP ->.
-    - by apply: on_arr_varP; t_xrbindP=> _ _ _ _ _ _ _ _ _ _ _ _ /write_var_memP ->.
-  Abort.
 
   Local Lemma Hasgn : sem_Ind_assgn p Pi_r.
   Proof.
@@ -1779,7 +1771,7 @@ Section PROOF.
       by apply: preserved_metadata_fill_mem hf1 hf2.
     apply: mk_forall2P h happ1 happ2.
   Qed.
-
+(*
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
   Proof.
     move=> ii s1 s2 o xs es scs m ves vs hes ho hw fn lbl /checked_iE [] fd ok_fd chk.
@@ -1800,7 +1792,7 @@ Section PROOF.
     rewrite p_globs_nil in hw ok_s2'.
     have /= := write_lvals_preserves_metadata uvs hw ok_s2' erefl (vm_after_syscall_uincl X1) mm.
     by apply: preserved_metadata_syscall uves ho ho'.
-  Qed.
+  Qed. *)
 
   Remark next_lbl_neq (lbl: label) :
     ((lbl + 1)%positive == lbl) = false.
@@ -1817,7 +1809,7 @@ Section PROOF.
   Proof. by case => ? /= -> ->. Qed.
 
   Let Llabel := linear.Llabel InternalLabel.
-
+(*
   Local Lemma Hif_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
   Proof.
     move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E1 Hc1 fn lbl /checked_iE[] fd ok_fd /=; apply: rbindP => -[] chk_c1 _.
@@ -2367,7 +2359,7 @@ Section PROOF.
     rewrite /eval_instr /= ok_e /=.
     by rewrite !size_cat /= !size_cat /= !addnS !addnA !addn0 !addSn.
   Qed.
-
+*)
   Lemma find_entry_label fn fd :
     sf_return_address (f_extra fd) ≠ RAnone →
     find_label xH (lfd_body (linear_fd fn fd).2) = ok 0.
@@ -2391,10 +2383,10 @@ Section PROOF.
   Proof.
     move => ii k s1 s2 ini res fn' args xargs xres ok_xargs ok_xres exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
     case linear_eq: linear_i => [lbli li].
-    move => fr_undef m1 vm2 P Q W M X D C.
+    move => fr_undef m1 vm2 P Q W M X D C DISJ sp hsp S MAX.
     move: chk_call => /=.
     t_xrbindP => /negbTE fn'_neq_fn.
-    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => ok_ra ok_align _.
+    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => ok_ra ok_align /ZleP ok_max _.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ fd'.
     move => ok_lfd'.
@@ -2417,6 +2409,7 @@ Section PROOF.
     assert (h := encode_label_dom small_dom_p' lbl_valid).
     case ok_ptr: encode_label h => [ ptr | // ] _.
     case/sem_callE: (exec_call) => ? m s' k' args' res'; rewrite ok_fd' => /Some_inj <- ra_sem ok_ss sp_aligned T ok_m ok_args' wt_args' exec_cbody ok_res' wt_res' T' s2_eq.
+    move: hsp; rewrite T => -[?]; subst sp.
     rewrite /ra_valid in ra_sem.
     rewrite /top_stack_aligned in sp_aligned.
     rewrite /ra_vm.
@@ -2459,9 +2452,16 @@ Section PROOF.
         + exists fd'; first exact: ok_fd'.
           move: sp_aligned.
           by rewrite /= ra_eq stack_size GRing.subr0.
-        move: ih => /(_ _ XX SP erefl).
-        case => m' vm' exec_fn' K' W' /vmap_uincl_ex_empty X' H' M' ?; subst k.
-        eexists; first apply: lsem_step; only 2: apply: lsem_step.
+        have MAX': is_stack_max fn' (top_stack (emem s1)).
+        + move=> fd''; rewrite ok_fd' => -[?]; subst fd''.
+          split.
+          + by case/and4P: ok_stk_sz => _ _ _ /ZleP.
+          by move: (MAX _ ok_fd) => /=; lia.
+        move: ih => /(_ _ XX SP erefl S MAX').
+        case => S' [] m' vm' [exec_fn' U'] K' W' /vmap_uincl_ex_empty X' H' M' ?; subst k.
+        split=> //.
+        split=> //.
+        eexists; first split; only 1: apply: lsem_step; only 2: apply: lsem_step.
         + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) addn0 /=.
           rewrite /eval_instr /= ok_ptr set_well_typed_var //.
           exact/eqP.
@@ -2469,6 +2469,7 @@ Section PROOF.
           rewrite /lfd' find_entry_label; last by rewrite ra_eq.
           by rewrite /setcpc /=.
         + rewrite size_cat addn3; exact: exec_fn'.
+        + exact: U'.
         + rewrite -K' /vm /saved_stack_vm => x x_notin_k.
           rewrite Fv.setP_neq //.
           apply/eqP; clear -x_notin_k.
@@ -2519,10 +2520,25 @@ Section PROOF.
       have SP : is_sp_for_call fn' s1 top.
       + exists fd'; first exact: ok_fd'.
         by rewrite /= ra_eq.
-      move: ih => /(_ _ XX SP erefl).
-      case => m' vm' exec_fn' K' W' /vmap_uincl_ex_empty X' H' M' ?; subst k.
+      have MAX': is_stack_max fn' top.
+      + move=> fd''; rewrite ok_fd' => -[?]; subst fd''.
+        have /= {}MAX := MAX _ ok_fd.
+        move: ok_stk_sz; rewrite !zify /= => ok_stk_sz.
+        have ?: (0 <= stack_frame_allocation_size (f_extra fd'))%Z.
+        + rewrite /stack_frame_allocation_size.
+          have := round_ws_range (sf_align (f_extra fd'))
+                    (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')).
+          by lia.
+        assert (R := wunsigned_range (top_stack (emem s1))).
+        by rewrite wunsigned_sub; lia.
+      move: ih => /(_ _ XX SP erefl S MAX').
+
+      case => S' [] m' vm' [exec_fn' U'] K' W' /vmap_uincl_ex_empty X' H' M' ?; subst k.
+      split=> //.
+      split=> //.
       exists m' vm'.[vrsp <- ok (pword_of_word (top_stack (emem s1)))]%vmap.
-      + apply: lsem_step; last apply: lsem_step; last apply: lsem_step; last apply: lsem_step_end.
+      + split=> //.
+        apply: lsem_step; last apply: lsem_step; last apply: lsem_step; last apply: lsem_step_end.
         * rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) addn0 /=.
           apply
             (spec_lip_allocate_stack_frame
@@ -2662,9 +2678,74 @@ Section PROOF.
     + exists fd'; first exact: ok_fd'.
       rewrite /= ra_eq; split; first by [].
       by rewrite /sp top_stack_after_aligned_alloc // wrepr_opp.
-    move => /(_ SP erefl) []m2' vm2' exec_fn' K' W' /vmap_uincl_ex_empty X' H' M'; subst k.
+    have MAX': is_stack_max fn' sp.
+    + move=> fd''; rewrite ok_fd' => -[?]; subst fd''.
+      move: ok_stk_sz; rewrite !zify /= => -[?[?[??]]].
+      have ?: (0 <= stack_frame_allocation_size (f_extra fd'))%Z.
+      + rewrite /stack_frame_allocation_size.
+        have := round_ws_range (sf_align (f_extra fd'))
+                  (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')).
+        by lia.
+      move: (MAX _ ok_fd).
+      rewrite (wunsigned_top_stack_after_aligned_alloc _ _ _ _ ok_m) //.
+      by have -> := alloc_stack_top_stack ok_m; rewrite -/sp /=; lia.
+    move => /(_ SP erefl S MAX') [S'] []m2' vm2' [exec_fn' U'] K' W' /vmap_uincl_ex_empty X' H' M'; subst k.
+    split=> //.
+    split=> //.
     exists m2' (vm2'.[vrsp <- ok (pword_of_word (sp + wrepr Uptr (stack_frame_allocation_size (f_extra fd'))))])%vmap.
-    - apply: lsem_step; only 2: apply: lsem_step; only 3: apply: lsem_step; only 4: apply: lsem_step; only 5: apply: lsem_trans.
+    - split; last first.
+      + move=> pr hnm0 hnstack.
+        rewrite -U' //.
+        symmetry.
+        apply (writeP_neq ok_m1').
+
+        rewrite -/sp.
+        (* proof very similar to the one of MAX' *)
+        have hb1: zbetween (sp0 - wrepr Uptr max0) max0 sp (stack_frame_allocation_size (f_extra fd')).
+        + move: ok_stk_sz; rewrite !zify /= => -[?[?[??]]].
+          have ?: (0 <= stack_frame_allocation_size (f_extra fd'))%Z.
+          + rewrite /stack_frame_allocation_size.
+            have := round_ws_range (sf_align (f_extra fd'))
+                      (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')).
+            by lia.
+          move: (MAX _ ok_fd).
+          rewrite (wunsigned_top_stack_after_aligned_alloc _ _ _ _ ok_m) //.
+          have -> := alloc_stack_top_stack ok_m; rewrite -/sp /= => ?.
+          have ? := wunsigned_range sp0.
+          rewrite wunsigned_sub; lia.
+
+        have hb2: zbetween sp (stack_frame_allocation_size (f_extra fd')) (sp + wrepr Uptr z) (wsize_size Uptr).
+        + rewrite /zbetween !zify.
+          rewrite wunsigned_add. simpl.
+          case/and4P : ok_stk_sz => /ZleP /= ? _ _ _.
+          move/ZleP:z_pos=> /=; lia.
+          split.
+          + have := wunsigned_range sp.
+            case/and4P : ok_stk_sz => /ZleP /= ? _ _ _.
+            move/ZleP:z_pos=> /=; lia.
+          move: ok_stk_sz; rewrite !zify /= => -[?[?[??]]].
+          have := wunsigned_top_stack_after_aligned_alloc _ _ _ _ ok_m.
+          have -> := alloc_stack_top_stack ok_m; rewrite -/sp /=.
+          move=> /(_ ltac:(assumption) ltac:(assumption)ltac:(assumption) ltac:(assumption)).
+          assert (hh := wunsigned_range (top_stack (emem s1))).
+          assert (hh2 := wsize_size_pos Uptr). lia.
+
+        apply: (disjoint_zrange_incl_l hb2).
+        apply: (disjoint_zrange_incl_l hb1).
+
+        split.
+        + rewrite /no_overflow zify. rewrite wunsigned_sub.
+          have := wunsigned_range sp0; lia.
+          move: (MAX _ ok_fd) => /=.
+          have := wunsigned_range sp0; lia.
+        + apply is_align_no_overflow; apply is_align8.
+
+        move: hnstack; rewrite /pointer_range !zify wsize8. simpl.
+        rewrite {2}wunsigned_sub. lia.
+        move: (MAX _ ok_fd) => /=.
+        have := wunsigned_range sp0; lia.
+
+      apply: lsem_step; only 2: apply: lsem_step; only 3: apply: lsem_step; only 4: apply: lsem_step; only 5: apply: lsem_trans.
       + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /=.
 
         have Hvm2 :
@@ -2775,7 +2856,7 @@ Section PROOF.
       rewrite Z.le_0_sub.
       apply: aligned_alloc_no_overflow.
       1-2: lia.
-      + by case: ok_stk_sz => _ [] _.
+      + by case: ok_stk_sz => _ [] _ [] ? _.
       + exact: sp_aligned.
       exact: ok_m.
     exact: M'.

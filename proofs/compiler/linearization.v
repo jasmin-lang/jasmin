@@ -194,7 +194,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
 
   Section CHECK_i.
 
-  Context (this: funname) (stack_align : wsize).
+  Context (this: funname) (stack_align : wsize) (max_size : Z).
 
   Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
@@ -243,6 +243,8 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
         in
         Let _ := assert (sf_align e <= stack_align)%CMP
           (E.ii_error ii "caller need alignment greater than callee") in
+        Let _ := assert (sf_stk_max e + stack_frame_allocation_size e <=? max_size)%Z
+          (E.ii_error ii "max size problem") in
         ok tt
       else Error (E.ii_error ii "call to unknown function")
     end.
@@ -331,15 +333,15 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 Section FUN.
 
 Context
-  (fn : funname)
-  (fn_align : wsize).
+  (fn : funname).
 
 Definition check_fd (fn: funname) (fd:sfundef) :=
   let e := fd.(f_extra) in
   let stack_align := e.(sf_align) in
-  Let _ := check_c (check_i fn stack_align) fd.(f_body) in
+  let max_size := e.(sf_stk_max) in
+  Let _ := check_c (check_i fn stack_align max_size) fd.(f_body) in
   Let _ := check_to_save e in
-  Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e & stack_frame_allocation_size e <? wbase Uptr]%Z
+  Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e, stack_frame_allocation_size e <? wbase Uptr & 0 <=? sf_stk_max e]%Z
                   (E.error "bad stack size") in
   Let _ := assert match sf_return_address e with
                   | RAnone => true
