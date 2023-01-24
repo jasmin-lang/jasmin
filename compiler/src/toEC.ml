@@ -790,11 +790,8 @@ module Normal = struct
     let is_lvar = function Lvar _ -> true | _ -> false in
     List.for_all is_lvar lvs
 
-  let check_lvals lvs = 
-    match lvs with
-    | [] -> assert false
-    | [lv] -> begin match lv with Lvar _ -> true | _ -> false end
-    | _ -> all_vars lvs 
+  let check_lvals lvs =
+    all_vars lvs
 
   let rec init_aux_i asmOp env i = 
     match i.i_desc with
@@ -853,6 +850,10 @@ module Normal = struct
     | Cassgn (lv, _, _ty, e) ->
       let pp_e = pp_cast env (pp_expr pd env) in
       pp_lval1 pd env pp_e fmt (lv , (ty_expr e, e))
+
+    | Copn([], _, op, _es) ->
+       (** Erase opn without any return values *)
+       Format.fprintf fmt "(* Erased call to %a *)" (Printer.pp_opn asmOp) op
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
@@ -1160,6 +1161,12 @@ module Leak = struct
       let pp fmt e = Format.fprintf fmt "<- %a" (pp_expr pd env) e in
       let tys = [ty_expr e] in
       pp_call pd env fmt [lv] tys tys pp e
+
+    | Copn([], _, op, es) ->
+       (** Erase opn without return values but keep their leakage *)
+       let op' = base_op op in
+       pp_leaks_opn pd asmOp env fmt op' es;
+       Format.fprintf fmt "(* Erased call to %a *)" (Printer.pp_opn asmOp) op
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in

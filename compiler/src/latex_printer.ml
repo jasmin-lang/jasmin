@@ -266,7 +266,14 @@ let rec pp_instr depth fmt (_annot, p) =
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
   | PIAssign ((pimp,lvs), op, e, cnd) ->
     begin match pimp, lvs with
-    | None, [] -> ()
+    | None, [] ->
+       (* Special case for Primitive calls without return value *)
+       begin
+         assert (op = `Raw);
+         match L.unloc e with
+         | PEPrim _ -> F.fprintf fmt "() %a" pp_eqop op
+         | _ -> ()
+       end
     | None, _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op 
     | Some pimp, _ ->
       F.fprintf fmt "?%a%a%a %a %a "
