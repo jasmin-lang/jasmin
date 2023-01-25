@@ -345,7 +345,10 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
   let e := fd.(f_extra) in
   Let _ := check_c (check_i fn e) fd.(f_body) in
   Let _ := check_to_save e in
-  Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e, stack_frame_allocation_size e <? wbase Uptr & 0 <=? sf_stk_max e]%Z
+  Let _ := assert [&& 0 <=? sf_stk_sz e,
+                      0 <=? sf_stk_extra_sz e,
+                      stack_frame_allocation_size e <? wbase Uptr
+                    & frame_size e <=? sf_stk_max e]%Z
                   (E.error "bad stack size") in
   Let _ := assert match sf_return_address e with
                   | RAnone => true
