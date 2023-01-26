@@ -18,9 +18,6 @@ Module Import E.
 
 End E.
 
-Definition cond_env_rec (e : pexpr) :=
-if use_mem e then None else Some e.
-
 (* expression defining the boolean condition and Sv.t defining the 
    free variables present in e *)
 Definition cond_env := option (pexpr * Sv.t).
@@ -57,19 +54,25 @@ match envi with
 | (None, msf) => (Some (e, read_e e), msf)
 end.
 
-Definition inter_env (env1 : env) (env2 : env) :=
-match env1.1, env2.1 with 
+Definition merge_cond_env (env1 : cond_env) (env2 : cond_env) :=
+match env1, env2 with 
 | None, _ => None 
 | _, None => None 
 | Some e, Some e' => if eq_expr e.1 e'.1 then Some e else None
 end.
 
-Definition sub_env (env1 : env) (env2 : env) :=
-match env1.1, env2.1 with 
-| None, _ => true && Sv.subset env1.2 env2.2
-| Some e, Some e' => eq_expr e.1 e'.1 && Sv.subset env1.2 env2.2
+Definition merge_env (env1 : env) (env2 : env) := 
+(merge_cond_env env1.1 env2.1, Sv.inter env1.2 env2.2).
+
+Definition sub_cond_env (env1 : cond_env) (env2 : cond_env) :=
+match env1, env2 with 
+| None, _ => true 
+| Some e, Some e' => eq_expr e.1 e'.1 
 | _, _ => false
 end. 
+
+Definition sub_env (env1 : env) (env2 : env) :=
+sub_cond_env env1.1 env2.1 && Sv.subset env1.2 env2.2.
 
 Section ASM_OP.
 
@@ -123,7 +126,20 @@ Context `{asmop : asmOp}.
 Context {pd : PointerData}.
 Context (i_spec1_to_spec2 : env -> @instr asm_op_spec1 asmOp_spec1 -> 
                             cexec (env * seq (@instr asm_op_spec2 asmOp_spec2))%type).
+
 Context (ii:instr_info).
+Context (x:var_i) (c:seq (@instr asm_op_spec1 asmOp_spec1)).
+
+Fixpoint loop_for (n : nat) (envi : env) :
+cexec (env * seq (@instr asm_op_spec2 asmOp_spec2)) :=
+match n with 
+| O => Error (spec_transform_error "Should atleast loop once")
+| S n => 
+  Let rc := c_spec1_to_spec2 i_spec1_to_spec2 (update_cond_env (vrv x) envi.1, Sv.remove x envi.2) c in 
+  if sub_env envi rc.1 then ok (envi, rc.2)
+  else loop_for n (merge_env envi rc.1)
+end.
+
 Context (c1:seq (@instr asm_op_spec1 asmOp_spec1))
         (e:pexpr) 
         (c2:seq (@instr asm_op_spec1 asmOp_spec1)).
@@ -137,10 +153,16 @@ match n with
   Let rc1 := c_spec1_to_spec2 i_spec1_to_spec2 envi c1 in
   Let rc2 := c_spec1_to_spec2 i_spec1_to_spec2 (update_cond_env rc1.1.2 (Some (e, read_e e)), rc1.1.2) c2 in
   if sub_env envi rc2.1 then ok ((update_cond_env rc1.1.2 (Some ((enot e), read_e (enot e))), rc1.1.2), rc1.2, rc2.2)
-  else loop_while n ((inter_env envi rc2.1), Sv.inter envi.2 rc2.1.2) 
+  else loop_while n (merge_env envi rc2.1)
 end.
 
 End LOOP.
+
+(*Fixpoint filer_mem_lvals (lvs : lvals) (envi : env) : bool :=
+match lvs with 
+| [::] => true 
+| l :: lv => if lv_write_mem l then (None, envi.2) else is_mem_lvals lv 
+end.*)
 
 Section INST.
 
@@ -216,8 +238,9 @@ match ir with
        Let rc2 := (c_spec1_to_spec2 i_spec1_to_spec2 (enter_msf envi (enot b)) c2) in 
        ok ((None, Sv.inter rc1.1.2 rc2.1.2), [:: MkI ii (@Cif asm_op_spec2 asmOp_spec2 b rc1.2 rc2.2)])
   else Error (spec_transform_error "Conditional guard should not depend on memory")
-| Cfor x (dir, e1, e2) c => Let cr := c_spec1_to_spec2 i_spec1_to_spec2 envi c in 
-                            ok (cr.1, [:: MkI ii (@Cfor asm_op_spec2 asmOp_spec2 x (dir, e1, e2) cr.2)])
+| Cfor x (dir, e1, e2) c => 
+  Let rc := loop_for i_spec1_to_spec2 x c Loop.nb envi in
+  ok (rc.1, [:: MkI ii (@Cfor asm_op_spec2 asmOp_spec2 x (dir, e1, e2) rc.2)])
 | Cwhile a c e c' => 
   if negb (use_mem e)
   then Let r := loop_while i_spec1_to_spec2 c e c' Loop.nb envi in
@@ -225,10 +248,53 @@ match ir with
        ok (r1, [:: MkI ii (@Cwhile asm_op_spec2 asmOp_spec2 a c1 e c2)])
   else Error (spec_transform_error "Conditional guard should not depend on memory")
 (* FIX ME *)
-| Ccall ini xs fn es => ok (envi, [:: MkI ii (@Ccall asm_op_spec2 asmOp_spec2 ini xs fn es)])
+| Ccall ini xs fn es => 
+  ok (envi, [:: MkI ii (@Ccall asm_op_spec2 asmOp_spec2 ini xs fn es)])
 end. 
 
 End INST.
+
+
+
+(*Section Section.
+
+Context `{asmop : asmOp}.
+Context {pd : PointerData}.
+Context {T} {pT:progT T}.
+
+Definition fun_spec1_to_spec2 (envi : env) (f:@fundef asm_op_spec1 asmOp_spec1 _ _) 
+: cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _) :=
+  let 'MkFun ii si p c so r ev := f in
+  Let c := c_spec1_to_spec2 i_spec1_to_spec2 envi c in
+  ok (c.1, MkFun ii si p c.2 so r ev).
+
+(*Variable map_spec1_to_spec2 : 
+(@fundef asm_op_spec1 asmOp_spec1 _ _ -> 
+cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) -> 
+@prog asm_op_spec1 asmOp_spec1 _ _ -> 
+(@prog asm_op_spec2 asmOp_spec2 _ _).*)
+
+(*Definition fmapM_spec (f : env -> @fundef asm_op_spec1 asmOp_spec1 _ _ -> cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _))  : 
+env -> seq (@fundef asm_op_spec1 asmOp_spec1 _ _) -> cexec (env * seq (@fundef asm_op_spec2 asmOp_spec2 _ _)) :=
+fix mapM a xs :=
+match xs with
+| [::] => ok (a, [::])
+| [:: x & xs] =>
+  Let y := f x a in
+  Let ys := mapM y.1 xs in
+  ok (ys.1, y.2 :: ys.2)
+end.
+About fmapM.*)
+Print f_info. Print fun_decl.
+Definition map_prog_spec (F: env -> (@fundef asm_op_spec1 asmOp_spec1 _ _) -> cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) envi i :
+cexec (env * seq (@fun_decl asm_op_spec2 asmOp_spec2 _ _)) :=
+fmapM (fun (envi : env) (f: (funname * @fundef asm_op_spec1 asmOp_spec1 _ _)) => Let x := add_finfo (f_info f.2) (add_funname f.1 (F envi f.2)) in ok (x.1, (f.1, x.2))) envi i.
+
+Definition prog_spec1_to_spec2 (p: @prog asm_op_spec1 asmOp_spec1 _ _) (envi : env) : cexec (env * @prog asm_op_spec2 asmOp_spec2 _ _) :=
+  Let funcs := map_prog_spec fun_spec1_to_spec2 envi (p_funcs p) in
+  ok (funcs.1, {| p_globs := p_globs p; p_funcs := funcs.2; p_extra := p_extra p|}).
+
+End Section.*)
 
 
 
