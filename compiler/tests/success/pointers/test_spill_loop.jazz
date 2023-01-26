@@ -8,7 +8,7 @@ fn loop(reg u64 x) -> reg u64 {
    p = s;
    sp = p;
    y = 0;
-   while (y < x) {
+   while (y < 42) {
      p = sp;
      p[0] += x;
      x += p[0];

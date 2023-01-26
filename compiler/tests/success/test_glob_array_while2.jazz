@@ -11,6 +11,7 @@ export fn sum (reg u64 x) -> reg u64 {
   gt1 = glob_t;
   while (i < 4) {
     r += gt1[(int)i];
+    i += 1;
   }
   return r;
 }
