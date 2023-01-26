@@ -6,17 +6,18 @@ inline fn __fp_rdcn_low(reg ptr u64[1] a) -> reg u64, reg ptr u64[1]
  return result, a;
 }
 
-export fn fp_exp_low(reg u64 c) -> reg u64
+export fn fp_exp_low() -> reg u64
 {
  stack u64[1] cnr;
- reg u64 k ;
+ reg u64 k c;
 
  k = 0;
  while (k < 64) {
-   k,cnr = __fp_rdcn_low(cnr);
+   c, cnr = __fp_rdcn_low(cnr);
+   k += 1;
  }
 
- return k;
+ return c;
 } 
 
 inline 
@@ -29,14 +30,15 @@ fn aux() -> reg u64 {
  return k;
 }
 
-export fn fp_exp_low1(reg u64 c) -> reg u64
+export fn fp_exp_low1() -> reg u64
 {
- reg u64 k ;
+ reg u64 k c;
 
  k = 0;
  while (k < 64) {
-   k = aux();
+   c = aux();
+   k += 1;
  }
 
- return k;
+ return c;
 }

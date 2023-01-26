@@ -63,12 +63,13 @@ export
 fn test_u256(reg u64 ptr_, reg u64 v, reg u32 w) {
 reg u256 x, y;
 
+x = #set0_256();
 y = (256u)v;
 x ^= y;
 y = (256u)w;
 x ^= y;
 (u128)[ptr_ + 0] = x;
-(u256)[ptr_ + 16] = x;
+(u256)[ptr_ + 32] = x;
 }
 
 export

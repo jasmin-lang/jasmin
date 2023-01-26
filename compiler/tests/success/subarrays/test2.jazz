@@ -80,9 +80,8 @@ export fn test () -> reg u64 {
   inline int i;
   reg u64 r;
   for i = 0 to m {
-    s[u64 i:n] = init(s[u64 i:n]);
+    s[u64 i*n:n] = init(s[u64 i*n:n]);
   } 
   r = s[m * n - 1];
   return r;
 }
-   

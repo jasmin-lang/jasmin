@@ -14,7 +14,7 @@ fn test_vpcmpgt(reg u64 tmp) {
   (u128)[tmp + 32] = k;
 
   z = #VPCMPGT_8u32(x, y);
-  (u256)[tmp + 48] = z;
+  (u256)[tmp + 64] = z;
 
   j = #VPCMPGT_2u64(i, (u128)[tmp]);
   k = #VPCMPGT_2u64(i, j);
