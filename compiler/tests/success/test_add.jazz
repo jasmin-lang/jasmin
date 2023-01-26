@@ -40,7 +40,6 @@ export fn test3() -> reg u64 {
   i = test2();
   while (j <= 12) {
     j = j + i;
-    i += 1;
   }
 
   return j;

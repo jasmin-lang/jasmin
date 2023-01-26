@@ -11,7 +11,7 @@ export fn sum (reg u64 x) -> reg u64 {
 
   i = 32;
   
-  while (i < 4 * 32) {
+  while (i <= 3 * 32) {
     
     aux ^= gt1.[(int)i];
     i += 32;
@@ -19,7 +19,7 @@ export fn sum (reg u64 x) -> reg u64 {
 
   i = 4;
   
-  while (i < 4 * 4) {
+  while (i <= 3 * 4) {
     
     aux ^= gt1.[(int)(8 * i)];
     i += 4;
@@ -41,7 +41,7 @@ export fn sum1 (reg u64 x) -> reg u64 {
 
   i = 16;
   
-  while (i < 8 * 16) {
+  while (i <= 7 * 16) {
     
     aux ^= gt1.[u128 (int)i];
     i += 16;
@@ -49,7 +49,7 @@ export fn sum1 (reg u64 x) -> reg u64 {
 
   i = 8;
   
-  while (i < 4 * 4) {
+  while (i <= 3 * 4) {
     
     aux ^= gt1.[u128 (int)(8 * i)];
     i += 4;
