@@ -6,6 +6,9 @@ reg u32 e, f;
 reg u16 g, h;
 
 r = 0;
+a = 1;
+x = a if x <=u 0;
+x = a if x >=u 32768;
 
 a = x;
 b = x;
@@ -37,6 +40,9 @@ reg u32 d;
 reg u16 e;
 
 r = 0;
+a = 1;
+x = a if x <=u 0;
+x = a if x >=u 32768;
 
 a = x; b = x;
 c = a % b;
@@ -66,6 +72,8 @@ return s;
 export
 fn test_compound(reg u64 x y) -> reg u64 {
   reg u64 a b c;
+  a = 1;
+  y = a if y <=u 0;
   a = x;
   b = y;
   a /= b;
