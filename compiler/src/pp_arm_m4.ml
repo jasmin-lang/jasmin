@@ -180,11 +180,11 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
       [ LInstr (iname, [ pp_label fn lbl ]) ]
 
-  | JAL _ ->
-      failwith "TODO_ARM: pp_instr jal"
-
-  | CALL lbl ->
+  | JAL (LR, lbl) ->
       [ LInstr ("bl", [ pp_remote_label tbl lbl ]) ]
+
+  | CALL _
+  | JAL _ -> assert false
 
   | POPPC ->
       [ LInstr ("pop", [ "{pc}" ]) ]
