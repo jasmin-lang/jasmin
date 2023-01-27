@@ -255,8 +255,7 @@ end.
 End INST.
 
 
-
-(*Section Section.
+Section Section.
 
 Context `{asmop : asmOp}.
 Context {pd : PointerData}.
@@ -268,33 +267,15 @@ Definition fun_spec1_to_spec2 (envi : env) (f:@fundef asm_op_spec1 asmOp_spec1 _
   Let c := c_spec1_to_spec2 i_spec1_to_spec2 envi c in
   ok (c.1, MkFun ii si p c.2 so r ev).
 
-(*Variable map_spec1_to_spec2 : 
-(@fundef asm_op_spec1 asmOp_spec1 _ _ -> 
-cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) -> 
-@prog asm_op_spec1 asmOp_spec1 _ _ -> 
-(@prog asm_op_spec2 asmOp_spec2 _ _).*)
-
-(*Definition fmapM_spec (f : env -> @fundef asm_op_spec1 asmOp_spec1 _ _ -> cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _))  : 
-env -> seq (@fundef asm_op_spec1 asmOp_spec1 _ _) -> cexec (env * seq (@fundef asm_op_spec2 asmOp_spec2 _ _)) :=
-fix mapM a xs :=
-match xs with
-| [::] => ok (a, [::])
-| [:: x & xs] =>
-  Let y := f x a in
-  Let ys := mapM y.1 xs in
-  ok (ys.1, y.2 :: ys.2)
-end.
-About fmapM.*)
-Print f_info. Print fun_decl.
-Definition map_prog_spec (F: env -> (@fundef asm_op_spec1 asmOp_spec1 _ _) -> cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) envi i :
+Definition map_spec1_to_spec2 (F: env -> (@fundef asm_op_spec1 asmOp_spec1 _ _) -> cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) envi i :
 cexec (env * seq (@fun_decl asm_op_spec2 asmOp_spec2 _ _)) :=
 fmapM (fun (envi : env) (f: (funname * @fundef asm_op_spec1 asmOp_spec1 _ _)) => Let x := add_finfo (f_info f.2) (add_funname f.1 (F envi f.2)) in ok (x.1, (f.1, x.2))) envi i.
 
 Definition prog_spec1_to_spec2 (p: @prog asm_op_spec1 asmOp_spec1 _ _) (envi : env) : cexec (env * @prog asm_op_spec2 asmOp_spec2 _ _) :=
-  Let funcs := map_prog_spec fun_spec1_to_spec2 envi (p_funcs p) in
+  Let funcs := map_spec1_to_spec2 fun_spec1_to_spec2 envi (p_funcs p) in
   ok (funcs.1, {| p_globs := p_globs p; p_funcs := funcs.2; p_extra := p_extra p|}).
 
-End Section.*)
+End Section.
 
 
 

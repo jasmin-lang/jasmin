@@ -12,31 +12,6 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 Local Open Scope vmap_scope.
 
-Section Section.
-
-Context `{asmop : asmOp}.
-Context {pd : PointerData}.
-Context {T} {pT:progT T}.
-
-Definition fun_spec1_to_spec2 (f:@fundef asm_op_spec1 asmOp_spec1 _ _)
-: cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _) :=
-  let 'MkFun ii si p c so r ev := f in
-  Let c := c_spec1_to_spec2 i_spec1_to_spec2 empty_env c in
-  ok (c.1, MkFun ii si p c.2 so r ev).
-
-Variable map_spec1_to_spec2 : 
-(@fundef asm_op_spec1 asmOp_spec1 _ _ -> 
-cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) -> 
-@prog asm_op_spec1 asmOp_spec1 _ _ -> 
-(@prog asm_op_spec2 asmOp_spec2 _ _).
-
-Definition prog_spec1_to_spec2 (p:@prog asm_op_spec1 asmOp_spec1 _ _) : 
-(@prog asm_op_spec2 asmOp_spec2 _ _) := 
-map_spec1_to_spec2 fun_spec1_to_spec2 p.
-About map_prog.
-End Section.
-
-
 Section PROOF.
 
 Context
@@ -50,17 +25,13 @@ Existing Instance progUnit.
 
 Variable (ev:extra_val_t).
 Variable (p: @prog asm_op_spec1 asmOp_spec1 _ _).
+Variable (p':@prog asm_op_spec2 asmOp_spec2 _ _).
+Variable (envp: env).
 
 (*Context {T:eqType} {pT:progT T} `{sCP: semCallParams}.
 Variable (ev:extra_val_t).
 Variable (p: @prog asm_op_spec1 asmOp_spec1 _ _).
 Variable (sppe: SemPexprParams asm_op syscall_state).*)
-
-Variable map_spec1_to_spec2 : 
-(@fundef asm_op_spec1 asmOp_spec1 _ _ -> 
-cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) -> 
-@prog asm_op_spec1 asmOp_spec1 _ _ -> 
-@prog asm_op_spec2 asmOp_spec2 _ _.
 
 Definition wf_env (envi : env) (s: estate) (gd : glob_decls) :=
 (forall m, Sv.In m envi.2 -> get_var s.(evm) m = ok (Vword (wrepr Uptr (0)))) /\
@@ -70,7 +41,7 @@ fv = read_e e /\
 use_mem e = false /\
 sem_pexpr gd s e = ok (Vbool true)).
 
-Let p' := prog_spec1_to_spec2 map_spec1_to_spec2 p.
+Hypothesis prog_spec1_spec2_ok : prog_spec1_to_spec2 p empty_env = ok (envp, p').
 
 Let Pi_r s1 (i: @instr_r asm_op_spec1 asmOp_spec1) s2 :=
 forall ii (envi : env) envi' c', 
@@ -93,7 +64,7 @@ sem p' ev s1 c' s2 /\ wf_env envi' s2 (p_globs p').
 Let Pfor (i:var_i) vs s1 c s2 :=
 forall (envi envi': env) c',
 wf_env envi s1 (p_globs p) ->
-c_spec1_to_spec2 (i_spec1_to_spec2) (envi.1, Sv.remove i envi.2) c =  ok (envi', c') ->
+c_spec1_to_spec2 (i_spec1_to_spec2) (update_cond_env (vrv i) envi.1, Sv.remove i envi.2) c =  ok (envi', c') ->
 sub_env envi envi' ->
 sem_for p' ev i vs s1 c' s2 /\ wf_env envi s2 (p_globs p').
 
@@ -101,18 +72,11 @@ sem_for p' ev i vs s1 c' s2 /\ wf_env envi s2 (p_globs p').
 forall vargs', List.Forall2 value_uincl vargs vargs' ->
 exists2 vres', List.Forall2 value_uincl vres vres' & sem_call p' ev scs m fn vargs' scs' m' vres'.*)
 
-(*Set Printing Implicit.
-Set Printing All.
-About sem_Ind_nil. About estate. Print estate. Print sem_Ind_nil.
-Print Instances SemPexprParams. 
-Print Pc.
-Print Estate.*)
-
 Lemma eq_globs : p_globs p = p_globs p'.
 Proof.
-rewrite /p' /=. case: p=> /=. 
-move=> pf pg pe /=. rewrite /prog_spec1_to_spec2 /= /fun_spec1_to_spec2 /=. 
-Admitted.
+have := prog_spec1_spec2_ok. rewrite /prog_spec1_to_spec2.
+by t_xrbindP=> -[envp' fns] /= hm henv hp /=; subst.
+Qed.
 
 Lemma sem_pexpr_not_mem_eq gd s1 s2 e v:
 sem_pexpr gd s1 e = ok v ->
@@ -201,7 +165,7 @@ Qed.
 
 Lemma Hskip : sem_Ind_nil (spp := spp_of_asm_op_spec1) Pc.
 Proof.
-move=> s1 envi envi' c' hwf [] henv hc; subst. have heg := eq_globs. split=> //=. 
+move=> s1 envi' envi'' c' hwf [] henv hc; subst. have heg := eq_globs. split=> //=. 
 + by constructor. by rewrite -heg.
 Qed.
 
@@ -810,53 +774,14 @@ move=> /hrec [envi3' [h1 h2 h3]]; exists envi3'; split => //=.
 by apply/(sub_trans h3)/sub_merge_l.
 Qed.
 
-Lemma eq_expr_dual e1 e2 e3:
-eq_expr e1 e2 ->
-eq_expr e1 e3 ->
-eq_expr e3 e2.
-Proof.
-Admitted.
-
-Lemma eq_expr_use_mem e e':
-eq_expr e e' ->
-use_mem e' = false ->
-use_mem e = false.
-Proof.
-Admitted.
-
-Lemma sub_envP_r envi envi' e fv:
-sub_env (Some (e, fv), envi) envi' ->
-envi'.1 = Some (e, fv).
-Proof.
-case: envi'=> //= envi11' envi12'. rewrite /sub_env /= /sub_cond_env /=.
-case: envi11'=> //= -[se1 fv1] /=. move=> /andP [] heq hsub.
-
-Admitted.
-
 Lemma Hfor : sem_Ind_for (spp := spp_of_asm_op_spec1) p ev Pi_r Pfor.
 Proof.
 move=> s1 s2 i d lo hi c vlo vhi hlo hhi hsem hfor ii envi envi' c' hwf. have heg := eq_globs.
 rewrite /i_spec1_to_spec2 /=. rewrite -/i_spec1_to_spec2 /=.
-t_xrbindP=> -[envc c1] /= /loop_forP [envi3] [hpic hi1 hi2] henv hc; subst.
-have hwf' : wf_env (update_cond_env (vrv i) envi'.1, envi'.2) s1 (p_globs p).
-+ split=> //=.
-  + move=> m hin. case: hwf=> hwf1 hwf2. have hsub' := sub_envP hi2. have hsub2 := SvP.MP.FM.subset_2 hsub'.
-    have hin' := @SvP.MP.in_subset envi'.2 envi.2 m hin hsub2. by apply hwf1.
-  move=> e fv. rewrite /update_cond_env /=. case: (envi') hwf hi2=> //= envi1 envi2.
-  case: envi1=> //= -[se1 fv1] /=. case: ifP=> //= hdisj [] hwf1 /= hwf2 hsub [] h1 h2; subst.
-  rewrite /sub_env in hsub. move: hsub. move=> /andP []. rewrite /sub_cond_env /=.
-  case: envi.1 hwf2=> //= -[se1 fv1] hwf2 /= he hsub. move: (hwf2 se1 fv1 erefl) => [] hfv [] hmem het. 
-  have he' := eq_exprP (p_globs p) s1 he. split=> //=. 
-  + admit.
-  split=> //=. 
-  + by have := eq_expr_use_mem he hmem.
-  admit. (* doable *)
-have hsub' : sub_env (update_cond_env (Sv.add i Sv.empty) envi'.1, envi'.2) envi3.
-+ rewrite /update_cond_env /=. case: (envi') hi1 hi2=> //=.
-  move=> envi1' envi2'. case: envi1'=> //=. move=> -[se fv]. case: ifP=> //=.
-  case: (envi3)=> //= envi31 envi32 hdisj hi2 hi1. rewrite /sub_env /=.
-  by have := sub_envP hi2. 
-move: (hfor (update_cond_env (vrv i) envi'.1, envi'.2) envi3 c1 hwf' hpic hsub')=> [] hfor' hwf''.
+t_xrbindP=> -[envc c1] /= /loop_forP [envi3] [hpic hsub1 hsub2] henv hc; subst.
+have hwf' : wf_env envi' s1 (p_globs p).
++ by have := wf_sub_env hsub2 hwf.
+move: (hfor envi' envi3 c1 hwf' hpic hsub1)=> [] hfor' hwf''.
 split=> //=.
 + econstructor. 
   + econstructor. econstructor.
@@ -864,10 +789,6 @@ split=> //=.
     + rewrite -heg. admit. (* doable *)
     + by apply hfor'.
   by constructor.
-case: (envi') hwf'' hi2 hi1=> //= -envi1' envi2'. case: envi1'=> //= -[se fv].
-case: ifP=> //= hdisj hwf'' hi2 hi1. case: hwf''=> hwf1 hwf2.
-split=> //=. case: hwf=> hwf11 hwf12.
-move=> e fv' [] he hfv; subst. 
 Admitted.
 
 Lemma Hfor_nil : sem_Ind_for_nil (spp := spp_of_asm_op_spec1) Pfor.
@@ -877,31 +798,51 @@ split=> //=.
 + by constructor. by rewrite -heg.
 Qed.
 
+Lemma write_var_valid_env s s' gd envi x v : 
+wf_env envi s gd ->
+write_var x v s = ok s' ->
+wf_env (update_cond_env (vrv x) envi.1, Sv.remove x envi.2) s' gd.
+Proof.
+move=> hwf hw; split=> //=.
++ move=> m hin. case: hwf=> hwf1 hwf2.
+  have h := SvP.MP.Dec.F.remove_iff. move: (h envi.2 x m)=> [] h1 h2.
+  move: (h1 hin)=> [] h1' hneq. move: (hwf1 m h1')=> hg. move: hw; rewrite /write_var /=; t_xrbindP.
+  move=> vm1 hset1 ?; subst s'; rewrite /= in hg; rewrite /=. 
+  have := get_set_var m hset1. case: ifP=> //=.
+  + move=> /eqP hx. by rewrite hx in hneq.
+  move=> /eqP _ hvm. by rewrite /get_var /= hvm. 
+rewrite /update_cond_env /=. case: envi hwf=> //= envi1 envi2.
+case: envi1=> //=. move=> [] se fv [] /= hwf1 /= hwf2 se' fv'.
+case: ifP=> //= hdisj [] hse hfv; subst.
+move: (hwf2 se' fv' erefl)=> [] hfv [] hmem he. split=> //=.
+split=> //=. rewrite hfv in hdisj. have hescs := write_var_scsP hw.
+have hemem := write_var_memP hw. move: hw; rewrite /write_var /=; t_xrbindP.
+move=> vm1 hset1 ?; subst s'; rewrite /=. rewrite -he.
+have h := eq_on_sem_pexpr gd hescs hemem. symmetry. apply h=> //=.
+move=> z hz. have hnez : x.(v_var) != z.
++ apply/eqP => ?; subst z. have hdisj' := disjointP (Sv.add x Sv.empty) (read_e se') hdisj. 
+  have hin' : Sv.In x (Sv.add x Sv.empty). + by apply SvD.F.add_1.
+  move: (hdisj' x hin'). rewrite /not. move=> hnot. by move: (hnot hz). 
+have := get_set_var z hset1. case: ifP=> //=.
+move=> /eqP hneq hvm. rewrite hneq in hnez. rewrite /negb in hnez. 
+move: hnez. case: ifP=> //=. by move=> /eqP //.
+Qed.
+
 Lemma Hfor_cons : sem_Ind_for_cons (spp := spp_of_asm_op_spec1) p ev Pc Pfor.
 Proof.
 move=> s1 s2 s3 s4 i w ws c hw hc hpc hfor hpc'. move=> envi envi' c' hwf hc' hsub.
-have heg := eq_globs. 
-have hwf' : wf_env (envi.1, Sv.remove i envi.2) s2 (p_globs p).
-+ case: hwf=> hwf1 hwf2. split=> //=.
-  + move=> m hin. have h := SvP.MP.Dec.F.remove_iff. move: (h envi.2 i m)=> [] h1 h2.
-    move: (h1 hin)=> [] h1' hneq. rewrite /write_var in hw. move: hw.
-    t_xrbindP=> vm hset <- /=. have := @get_set_var (evm s1) i w vm m hset.
-    case: ifP=> //=.
-    + move=> /eqP hi. by rewrite hi in hneq.
-    move=> /eqP _ hvm. move: (hwf1 m h1')=> hg'. rewrite -hg'. by rewrite /get_var /= hvm.
-  move=> e fv henv. move: (hwf2 e fv henv)=> [] hfv [] hmem he. split=> //=. split=> //=.
-  rewrite -he. apply eq_on_sem_pexpr=> //=. 
-  + by have := write_var_scsP hw.
-  + by have := write_var_memP hw.
-  rewrite /write_var in hw. move: hw. t_xrbindP=> vm hset <- /=. admit. (* doable *)
-move: (hpc (envi.1, Sv.remove i envi.2) envi' c' hwf' hc')=> [] hsem hwf''.
-have hwf1:= wf_sub_env hsub hwf''. rewrite -heg in hwf1.
-move: (hpc' envi envi' c' hwf1 hc' hsub)=> [] hsem' hwf2.
+have heg := eq_globs.
+have hwf' := write_var_valid_env hwf hw.
+move: (hpc (update_cond_env (vrv i) envi.1,
+          Sv.remove i envi.2) envi' c' hwf' hc')=> [] hsem hwf''.
+rewrite -heg in hwf''.
+have hwf1 :=  wf_sub_env hsub hwf''.
+move: (hpc' envi envi' c' hwf1 hc' hsub)=> [] hfor' hwf2. 
 split=> //=. econstructor.
 + by apply hw.
 + by apply hsem.
-by apply hsem'.
-Admitted.
+by apply hfor'.
+Qed.
 
 End PROOF.
 
