@@ -1404,7 +1404,7 @@ Section TunnelingProof.
     rewrite /Q => {Q} s3 s4 s5 Htlsem34 Htlsem145 Hlsem34.
     apply (lsem_trans Hlsem34); case: (tunnel_lprog_pc_lsem1 Hwf Htlsem145).
     + by move => Hlsem145; apply Relation_Operators.rt_step.
-    by case => s6 [Hlsem146 Hlsem165]; apply (@lsem_trans _ _ _ _ p s6);
+    by case => s6 [Hlsem146 Hlsem165]; apply: (lsem_trans (s2 := s6));
     apply Relation_Operators.rt_step.
   Qed.
 

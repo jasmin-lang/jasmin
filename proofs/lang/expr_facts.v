@@ -180,6 +180,8 @@ Qed.
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
 
+Section WRITE.
+
 Instance vrv_rec_m : Proper (Sv.Equal ==> eq ==> Sv.Equal) vrv_rec.
 Proof.
   move=> s1 s2 Hs x r ->;case:r => //= [v | _ _ v _ | _ _ _ v _]; SvD.fsetdec.
@@ -211,13 +213,13 @@ Qed.
 Lemma vrvs_cons r rs : Sv.Equal (vrvs (r::rs)) (Sv.union (vrv r) (vrvs rs)).
 Proof. by rewrite /vrvs /= vrvs_recE. Qed.
 
+Let Pr i := forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)).
+Let Pi i := forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
+Let Pc c := forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)).
+
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
-  apply (@cmd_rect _ _
-           (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
-           (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
-           (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
-     /= {c s}
+  apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
     [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
@@ -278,8 +280,12 @@ Proof. done. Qed.
 Lemma write_Ii ii i: write_I (MkI ii i) = write_i i.
 Proof. by done. Qed.
 
+End WRITE.
+
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
+
+Section READ.
 
 Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
@@ -330,13 +336,13 @@ Proof.
   rewrite {1}/read_rvs /= read_rvsE read_rvE; clear; SvD.fsetdec.
 Qed.
 
+Let Pr i := forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
+Let Pi i := forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
+Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
+
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
-  apply (@cmd_rect _ _
-           (fun i => forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)))
-           (fun i => forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)))
-           (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
-           => /= {c s}
+  apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
@@ -394,6 +400,8 @@ Proof. rewrite /read_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
 Lemma read_Ii ii i: read_I (MkI ii i) = read_i i.
 Proof. by done. Qed.
+
+End READ.
 
 (* ** Compute occurring variables (= read + write)
  * -------------------------------------------------------------------------- *)

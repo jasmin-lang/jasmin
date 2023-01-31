@@ -228,10 +228,15 @@ Proof.
     split => //; split.
     + apply: (eq_onT (vm2:= evm s1)).
       + apply eq_onS.
-        apply (@disjoint_eq_on _ _ _ gd _ x _ _ (Varr t')).
+        apply: (disjoint_eq_on (gd := gd) (r := x) (v := Varr t')).
         + by rewrite vrv_var; move/Sv_memP : hnin => hnin; apply/Sv.is_empty_spec; SvD.fsetdec.
         by rewrite /= /write_var hs.
-      apply: (eq_onT heq); apply (@disjoint_eq_on _ _ _ gd _ (VarI xi x.(v_info)) _ _ (Vword w)).
+      apply: (eq_onT heq).
+      apply:
+        (disjoint_eq_on
+           (gd := gd)
+           (r := Lvar (VarI xi x.(v_info)))
+           (v := Vword w)).
       + by rewrite vrv_var; move/negP/Sv_memP:hnxi => hnxi /=; apply/Sv.is_empty_spec; SvD.fsetdec.
       by rewrite /= /write_var /set_var /= /on_vu (sumbool_of_boolET (cmp_le_refl _)).
     move=> x' ai' i' xi'.
@@ -537,8 +542,23 @@ Qed.
 Lemma expand_callP f scs mem scs' mem' va vr:
   sem_call p1 ev scs mem f va scs' mem' vr -> sem_call p2 ev scs mem f va scs' mem' vr.
 Proof.
-  apply (@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-          Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+  exact:
+    (sem_call_Ind
+       Hskip
+       Hcons
+       HmkI
+       Hassgn
+       Hopn
+       Hsyscall
+       Hif_true
+       Hif_false
+       Hwhile_true
+       Hwhile_false
+       Hfor
+       Hfor_nil
+       Hfor_cons
+       Hcall
+       Hproc).
 Qed.
 
 End WITH_PARAMS.

@@ -145,14 +145,17 @@ Section LEMMA.
     rewrite /add_extra_free_registers /extra_free_registers_at; case: extra_free_registers; SvD.fsetdec.
   Qed.
 
+  Section WRITE.
+
+  Let Pr i := forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)).
+  Let Pi i := forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
+  Let Pc c := forall s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
+
   Lemma write_c_recE c : ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
   Proof.
-    apply: (@cmd_rect _ _
-              (λ i, ∀ s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
-              (λ i, ∀ s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
-              (λ c, ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))).
+    apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)).
     - by move => i ii ih s; rewrite /write_I /write_I_rec -/write_i_rec !add_extra_free_registersE !ih; SvD.fsetdec.
-    - by SvD.fsetdec.
+    - rewrite /Pc. by SvD.fsetdec.
     - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
     - by move => x tg ty e s; rewrite /write_i /write_i_rec -vrv_recE.
     - by move => xs tg op es s; rewrite /write_i /write_i_rec -vrvs_recE.
@@ -183,6 +186,8 @@ Section LEMMA.
   Lemma write_i_while aa c1 e c2 :
     Sv.Equal (write_i (Cwhile aa c1 e c2)) (Sv.union (write_c c1) (write_c c2)).
   Proof. etransitivity; last exact: (write_i_if e c1 c2). reflexivity. Qed.
+
+  End WRITE.
 
   Notation check_instr := (check_i p extra_free_registers var_tmp wrf).
   Notation check_instr_r := (check_ir p extra_free_registers var_tmp wrf).
@@ -373,9 +378,11 @@ Section LEMMA.
     - split.
       + by rewrite (mvm_scs sim).
       + by rewrite (mvm_mem sim).
-      + apply (@vmap_uincl_exT (evm t1)).
+      + apply (vmap_uincl_exT (vm2 := evm t1)).
         + by apply: vmap_uincl_exI (mvm_vmap sim); rewrite heq; clear (* SvD.fsetdec faster *); SvD.fsetdec.
-        apply (@vmap_uincl_exI _ _ _ _ (extra_free_registers_at extra_free_registers ii));
+        apply:
+          (vmap_uincl_exI
+             (s2 := extra_free_registers_at extra_free_registers ii));
           first by move: heq; clear (* SvD.fsetdec faster *); SvD.fsetdec.
         by apply/vmap_eq_except_uincl_ex/vmap_eq_exceptS/kill_extra_register_vmap_eq_except.
       have hwf := mvm_wf sim.
@@ -408,7 +415,7 @@ Section LEMMA.
     exists2 v', sem_pexpr (p_globs p) t e = ok v' & value_uincl v v'.
   Proof.
     rewrite /check_e/check_fv => /assertP/Sv.is_empty_spec hd sim sem.
-    have := @sem_pexpr_uincl_on _ _ _ (p_globs p) s (evm t) _ _ _ sem.
+    have := sem_pexpr_uincl_on (vm2 := evm t) _ sem.
     rewrite (with_vm_m (mvm_scs sim) (mvm_mem sim)) with_vm_same; apply.
     by move=> x hx; apply (mvm_vmap sim); SvD.fsetdec.
   Qed.
@@ -839,7 +846,7 @@ Section LEMMA.
       exact: do_align_is_align.
     have sim1 : match_estate ID s1 t1'.
     - subst t1'; split;
-      [ by rewrite /=; move: ok_s1; rewrite (@write_vars_lvals _ _ _ [::]); apply write_lvals_escs
+      [ by rewrite /=; move: ok_s1; rewrite (write_vars_lvals [::]); apply write_lvals_escs
       | by rewrite emem_with_vm (write_vars_emem ok_s1)
       |
       | by apply/wf_vm_set/wf_kill_vars].
@@ -977,13 +984,28 @@ Section LEMMA.
     exact: res_uincl.
   Qed.
 
-  Definition merge_varmaps_callP :
-    ∀ scs m fn args scs' m' res,
-      psem.sem_call p global_data scs m fn args scs' m' res →
-      _
-    :=
-      Eval hnf in
-      @sem_call_Ind _ _ _ _ _ _ p global_data Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc.
+  Lemma merge_varmaps_callP scs m fn args scs' m' res :
+    psem.sem_call p global_data scs m fn args scs' m' res
+    -> Pfun scs m fn args scs' m' res.
+  Proof.
+    exact:
+      (sem_call_Ind
+        Hnil
+        Hcons
+        HmkI
+        Hassgn
+        Hopn
+        Hsyscall
+        Hif_true
+        Hif_false
+        Hwhile_true
+        Hwhile_false
+        Hfor
+        Hfor_nil
+        Hfor_cons
+        Hcall
+        Hproc).
+  Qed.
 
 End LEMMA.
 

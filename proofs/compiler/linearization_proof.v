@@ -208,14 +208,16 @@ Section CAT.
      linear_i fn i lbl tail =
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@instr_Rect _ _ Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    exact:
+      (instr_Rect HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
      linear_c (linear_i fn) c lbl tail =
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@cmd_rect _ _ Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    exact:
+      (cmd_rect HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
   Qed.
 
 End CAT.
@@ -664,10 +666,10 @@ Section VALIDITY.
   Qed.
 
   Definition linear_has_valid_labels : ∀ c, Pc c :=
-    @cmd_rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    cmd_rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
 
   Definition linear_has_valid_labels_instr : ∀ i, Pi i :=
-    @instr_Rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    instr_Rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
 
 End VALIDITY.
 
@@ -827,10 +829,10 @@ Section NUMBER_OF_LABELS.
   Qed.
 
   Definition linear_c_nb_labels : ∀ c, Pc c :=
-    @cmd_rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    cmd_rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
 
   Definition linear_i_nb_labels : ∀ i, Pi i :=
-    @instr_Rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    instr_Rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
 
   Lemma linear_body_nb_labels fn e body :
     let: (lbl, lc) := linear_body liparams p fn e body in
@@ -1635,8 +1637,7 @@ Section PROOF.
     exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2]; last first.
     + exact: write_lval_preserves_metadata ok_s2 ok_s2' _ X1 M1.
     + exact: wf_write_lval ok_s2'.
-    + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
-      by have := vrvP ok_s2'.
+    + apply: vmap_eq_except_union. by have := vrvP ok_s2'.
     apply: LSem_step.
     rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /=.
     rewrite /of_estate size_cat addn1 addn0.
@@ -1664,8 +1665,7 @@ Section PROOF.
     exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2 ]; last first.
     + exact: write_lvals_preserves_metadata ok_s2 ok_s2' _ X1 M1.
     + exact: wf_write_lvals ok_s2'.
-    + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
-      by have := vrvsP ok_s2'.
+    + apply: vmap_eq_except_union. by have := vrvsP ok_s2'.
     apply: LSem_step.
     rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /= /eval_instr /to_estate /=.
     by rewrite /sem_sopn ok_vs' /= ok_rs' /= ok_s2' /= size_cat addn0 addn1.
@@ -1824,7 +1824,7 @@ Section PROOF.
       - by move: C1; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+      have K2' := vmap_eq_except_union K2.
       exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
@@ -1850,7 +1850,7 @@ Section PROOF.
     have C' : is_linear_of fn (P' ++ lc1 ++ Q').
     + by move: C; rewrite /P' /Q' /= -!catA /= -!catA.
     have {E} [ m2 vm2 E K2 W2 X2 H2 M2 ] := E m1 vm1 P' Q' W1 M1 X1 D' C'.
-      have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+      have K2' := vmap_eq_except_union K2.
     exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
@@ -1882,7 +1882,7 @@ Section PROOF.
       - by move: C; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+      have K2' := vmap_eq_except_union K2.
       exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
@@ -1920,7 +1920,7 @@ Section PROOF.
     have C' : is_linear_of fn (P' ++ lc2 ++ Q' ++ Q).
     + by move: C; rewrite /P' /Q' /= -cats1 /= -!catA /= -!catA.
     have {E} [ m2 vm2 E K2 W2 X2 H2 M2 ] := E m1 vm1 P' (Q' ++ Q) W1 M1 X1 D' C'.
-    have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+    have K2' := vmap_eq_except_union K2.
     exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
@@ -2051,7 +2051,10 @@ Section PROOF.
         exact: sem_stack_stable Ec.
       apply: lsem_trans; last apply: (lsem_trans E1); last apply: (lsem_trans E2).
       - (* align; label *)
-        apply: (@lsem_step_end _ _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        apply:
+          (lsem_step_end
+             (s2 := {| lfn := fn; lpc := size (P ++ add_align ii a [::]); |}));
+          last first.
         + move: C.
           rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
           rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
@@ -2114,7 +2117,10 @@ Section PROOF.
         exact: sem_validw_stable Ec.
       apply: lsem_trans; last apply: (lsem_trans E1).
       - (* align; label *)
-        apply: (@lsem_step_end _ _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        apply:
+          (lsem_step_end
+             (s2 := {| lfn := fn; lpc := size (P ++ add_align ii a [::]); |}));
+           last first.
         + move: C.
           rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
           rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
@@ -2280,7 +2286,8 @@ Section PROOF.
       exists m' vm'; [ | | exact: W' | exact: X' | exact: H' | exact: M' ]; last first.
       - apply: vmap_eq_exceptI K; SvD.fsetdec.
       apply: lsem_trans; last apply: (lsem_trans E).
-      - apply: (@lsem_trans _ _ _ _ _ {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |}).
+      - apply:
+          (lsem_trans (s2 := {| lpc := size (P ++ add_align ii a [::]); |})).
         + subst prefix; case: a C {E} => C; last by rewrite cats0; exact: rt_refl.
           apply: LSem_step.
           move: C.
@@ -3962,7 +3969,20 @@ Section PROOF.
     sem_call p  extra_free_registers var_tmp ii k s1 fn s2 →
     Pfun ii k s1 fn s2.
   Proof.
-    apply (@sem_call_Ind _ _ _ _  p extra_free_registers var_tmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
+    exact:
+      (sem_call_Ind
+         Hnil
+         Hcons
+         HmkI
+         Hasgn
+         Hopn
+         Hsyscall
+         Hif_true
+         Hif_false
+         Hwhile_true
+         Hwhile_false
+         Hcall
+         Hproc).
   Qed.
 
   Lemma linear_exportcallP gd scs m fn args scs' m' res :

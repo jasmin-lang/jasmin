@@ -112,7 +112,7 @@ Qed.
 
 Definition x86_hsaparams is_regx : h_stack_alloc_params (ap_sap x86_params is_regx) :=
   {|
-    mov_ofsP := @x86_mov_ofsP is_regx;
+    mov_ofsP := x86_mov_ofsP (is_regx := is_regx);
   |}.
 
 (* ------------------------------------------------------------------------ *)
@@ -453,6 +453,7 @@ Qed.
 (* ------------------------------------------------------------------------ *)
 (* Lowering hypotheses. *)
 
+(* Due to the order of the parameters we can't defined this as a record. *)
 Definition x86_hloparams : h_lowering_params (ap_lop x86_params).
 Proof.
   split. exact: @lower_callP.
