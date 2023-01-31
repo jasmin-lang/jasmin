@@ -15,6 +15,9 @@ Context
   {spp : SemPexprParams asm_op syscall_state}.
 
 (* -------------------------------------------------------------------- *)
+
+Section CALLS.
+
 Fixpoint i_Calls (i : instr) {struct i} : Sp.t :=
   let: MkI _ i := i in i_Calls_r i
 
@@ -86,15 +89,17 @@ Definition CallsE :=
    i_Calls_call, c_Calls_nil , c_Calls_cons ).
 
 (* -------------------------------------------------------------------- *)
+
+Let Pr i := forall c, Sp.Equal (i_calls_r c i) (Sp.union c (i_Calls_r i)).
+Let Pi i := forall c, Sp.Equal (i_calls c i) (Sp.union c (i_Calls i)).
+Let Pc i := forall c, Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)).
+
 Lemma c_callsE c i : Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)).
 Proof.
 move: c.
-apply (@cmd_rect _ _
-         (fun i => forall c, Sp.Equal (i_calls_r c i) (Sp.union c (i_Calls_r i)))
-         (fun i => forall c, Sp.Equal (i_calls c i) (Sp.union c (i_Calls i)))
-         (fun i => forall c, Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)))) => /=
+apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
   [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | e c1 c2 Hc1 Hc2
-    | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es ] c.
+    | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es ] c /=.
 + by apply Hi.
 + rewrite CallsE; SpD.fsetdec.
 + rewrite CallsE Hc Hi; SpD.fsetdec.
@@ -108,6 +113,8 @@ apply (@cmd_rect _ _
     Hc' Hc -/(c_Calls _) -/(c_Calls _); SpD.fsetdec.
 rewrite /i_calls_r; SpD.fsetdec.
 Qed.
+
+End CALLS.
 
 Section Section.
 
@@ -317,8 +324,24 @@ Section PROOF.
     sem_call p' ev scs mem fd va scs' mem' vr.
   Proof.
     move=> Hincl H.
-    apply: (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-           Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)=> //.
+    apply:
+      (sem_call_Ind
+         Hskip
+         Hcons
+         HmkI
+         Hassgn
+         Hopn
+         Hsyscall
+         Hif_true
+         Hif_false
+         Hwhile_true
+         Hwhile_false
+         Hfor
+         Hfor_nil
+         Hfor_cons
+         Hcall
+         Hproc)
+      => //.
     move => ??; SpD.fsetdec.
   Qed.
 

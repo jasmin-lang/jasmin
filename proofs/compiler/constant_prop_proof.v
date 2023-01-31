@@ -351,7 +351,7 @@ Lemma is_cmp_constP s ty e z :
   end.
 Proof.
   case: ty => /=.
-  - by case: is_constP => // ? /(@Some_inj _ _ _) <-.
+  - by case: is_constP => // ? /Some_inj <-.
   move => sg sz /oseq.obindI [] w [] /(is_wconstP gd s).
   t_xrbindP => v -> ok_w [<-{z}].
   exists v => //.
@@ -1214,9 +1214,25 @@ Section PROOF.
     List.Forall2 value_uincl va va' ->
     exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h.
-    apply h.
+    move=> h.
+    exact:
+      (sem_call_Ind
+         Hskip
+         Hcons
+         HmkI
+         Hassgn
+         Hopn
+         Hsyscall
+         Hif_true
+         Hif_false
+         Hwhile_true
+         Hwhile_false
+         Hfor
+         Hfor_nil
+         Hfor_cons
+         Hcall
+         Hproc
+         h).
   Qed.
 
 End PROOF.

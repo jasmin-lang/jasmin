@@ -2738,22 +2738,23 @@ Qed.
 Lemma check_cP scs1 m1 fn vargs scs2 m2 vres : sem_call P ev scs1 m1 fn vargs scs2 m2 vres -> 
    Pfun scs1 m1 fn vargs scs2 m2 vres.
 Proof.
-  apply (@sem_call_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-                       Hskip
-                       Hcons
-                       HmkI
-                       Hassgn
-                       Hopn
-                       Hsyscall
-                       Hif_true
-                       Hif_false
-                       Hwhile_true
-                       Hwhile_false
-                       Hfor
-                       Hfor_nil
-                       Hfor_cons
-                       Hcall
-                       Hproc).
+  exact:
+    (sem_call_Ind
+       Hskip
+       Hcons
+       HmkI
+       Hassgn
+       Hopn
+       Hsyscall
+       Hif_true
+       Hif_false
+       Hwhile_true
+       Hwhile_false
+       Hfor
+       Hfor_nil
+       Hfor_cons
+       Hcall
+       Hproc).
 Qed.
 
 End PROC.

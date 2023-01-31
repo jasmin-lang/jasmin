@@ -772,10 +772,28 @@ Section PROOF.
     sem_call p1 ev scs mem f va scs' mem' vr ->
     exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    by move=>
-      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)
-      h /h [vr' h1 h2]; exists vr'.
+    move=> hall hsem.
+    have [vr' ??] :=
+      sem_call_Ind
+        Hskip
+        Hcons
+        HmkI
+        Hassgn
+        Hopn
+        Hsyscall
+        Hif_true
+        Hif_false
+        Hwhile_true
+        Hwhile_false
+        Hfor
+        Hfor_nil
+        Hfor_cons
+        Hcall
+        Hproc
+        hsem
+        _
+        hall.
+    by exists vr'.
   Qed.
 
 End PROOF.

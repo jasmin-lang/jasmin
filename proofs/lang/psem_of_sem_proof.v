@@ -271,7 +271,14 @@ Lemma psem_call scs m fn va scs' m' vr :
   sem.sem_call p scs m fn va scs' m' vr →
   psem.sem_call p tt scs m fn va scs' m' vr.
 Proof.
-apply: (@sem.sem_call_Ind _ _ _ p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
+apply:
+  (sem.sem_call_Ind
+     (Pc := Pc)
+     (Pi_r := Pi_r)
+     (Pi := Pi)
+     (Pfor := Pfor)
+     (Pfun := Pfun))
+  => {m fn va m' vr}.
 - by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
 - move => s1 s2 s3 [ii i] c [] {ii i s1 s2} ii i s1 s2 _ ihi _ ihc s1' hss'1.
   case: (ihi s1' hss'1) => s2' [hss'2 hi].

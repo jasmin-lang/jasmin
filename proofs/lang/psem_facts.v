@@ -242,89 +242,89 @@ Qed.
 Lemma sem_mem_equiv s1 c s2 :
   sem P ev s1 c s2 → emem s1 ≡ emem s2.
 Proof.
-  by apply
-    (@sem_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-              mem_equiv_nil
-              mem_equiv_cons
-              mem_equiv_mkI
-              mem_equiv_assgn
-              mem_equiv_opn
-              mem_equiv_syscall
-              mem_equiv_if_true
-              mem_equiv_if_false
-              mem_equiv_while_true
-              mem_equiv_while_false
-              mem_equiv_for
-              mem_equiv_for_nil
-              mem_equiv_for_cons
-              mem_equiv_call
-              mem_equiv_proc).
+  exact:
+    (sem_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 Lemma sem_I_mem_equiv s1 i s2 :
   sem_I P ev s1 i s2 → emem s1 ≡ emem s2.
 Proof.
-  by apply
-    (@sem_I_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-                mem_equiv_nil
-                mem_equiv_cons
-                mem_equiv_mkI
-                mem_equiv_assgn
-                mem_equiv_opn
-                mem_equiv_syscall
-                mem_equiv_if_true
-                mem_equiv_if_false
-                mem_equiv_while_true
-                mem_equiv_while_false
-                mem_equiv_for
-                mem_equiv_for_nil
-                mem_equiv_for_cons
-                mem_equiv_call
-                mem_equiv_proc).
+  exact:
+    (sem_I_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 Lemma sem_i_mem_equiv s1 i s2 :
   sem_i P ev s1 i s2 → emem s1 ≡ emem s2.
 Proof.
-  by apply
-    (@sem_i_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-                mem_equiv_nil
-                mem_equiv_cons
-                mem_equiv_mkI
-                mem_equiv_assgn
-                mem_equiv_opn
-                mem_equiv_syscall
-                mem_equiv_if_true
-                mem_equiv_if_false
-                mem_equiv_while_true
-                mem_equiv_while_false
-                mem_equiv_for
-                mem_equiv_for_nil
-                mem_equiv_for_cons
-                mem_equiv_call
-                mem_equiv_proc).
+  exact:
+    (sem_i_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 Lemma sem_call_mem_equiv scs1 m1 fn vargs scs2 m2 vres :
   sem_call P ev scs1 m1 fn vargs scs2 m2 vres → m1 ≡ m2.
 Proof.
-  by apply
-    (@sem_call_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-                   mem_equiv_nil
-                   mem_equiv_cons
-                   mem_equiv_mkI
-                   mem_equiv_assgn
-                   mem_equiv_opn
-                   mem_equiv_syscall
-                   mem_equiv_if_true
-                   mem_equiv_if_false
-                   mem_equiv_while_true
-                   mem_equiv_while_false
-                   mem_equiv_for
-                   mem_equiv_for_nil
-                   mem_equiv_for_cons
-                   mem_equiv_call
-                   mem_equiv_proc).
+  exact:
+    (sem_call_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 End MEM_EQUIV.
@@ -608,7 +608,24 @@ Lemma sem_deterministic s1 c s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact:
+    (sem_Ind
+       sem_deter_nil
+       sem_deter_cons
+       sem_deter_mkI
+       sem_deter_asgn
+       sem_deter_opn
+       sem_deter_syscall
+       sem_deter_if_true
+       sem_deter_if_false
+       sem_deter_while_true
+       sem_deter_while_false
+       sem_deter_for
+       sem_deter_for_nil
+       sem_deter_for_cons
+       sem_deter_call
+       sem_deter_proc
+       h).
 Qed.
 
 Lemma sem_i_deterministic s1 i s2 s2' :
@@ -617,7 +634,24 @@ Lemma sem_i_deterministic s1 i s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_i_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact:
+    (sem_i_Ind
+       sem_deter_nil
+       sem_deter_cons
+       sem_deter_mkI
+       sem_deter_asgn
+       sem_deter_opn
+       sem_deter_syscall
+       sem_deter_if_true
+       sem_deter_if_false
+       sem_deter_while_true
+       sem_deter_while_false
+       sem_deter_for
+       sem_deter_for_nil
+       sem_deter_for_cons
+       sem_deter_call
+       sem_deter_proc
+       h).
 Qed.
 
 Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr scs2' m2' vr' :
@@ -626,7 +660,24 @@ Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr scs2' m2' vr' :
   [/\ scs2 = scs2', m2 = m2' & vr = vr'].
 Proof.
   move => h.
-  exact: (@sem_call_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ _ _ _ _ h).
+  exact:
+    (sem_call_Ind
+       sem_deter_nil
+       sem_deter_cons
+       sem_deter_mkI
+       sem_deter_asgn
+       sem_deter_opn
+       sem_deter_syscall
+       sem_deter_if_true
+       sem_deter_if_false
+       sem_deter_while_true
+       sem_deter_while_false
+       sem_deter_for
+       sem_deter_for_nil
+       sem_deter_for_cons
+       sem_deter_call
+       sem_deter_proc
+       h).
 Qed.
 
 End DETERMINISM.

@@ -245,9 +245,27 @@ Section REMOVE_INIT.
     sem_call p ev scs mem f va scs' mem' vr ->
     exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn Rsyscall
-             Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc) H.
-    by move=> /H.
+    move=> hall hsem.
+    exact:
+      (sem_call_Ind
+         Rnil
+         Rcons
+         RmkI
+         Rasgn
+         Ropn
+         Rsyscall
+         Rif_true
+         Rif_false
+         Rwhile_true
+         Rwhile_false
+         Rfor
+         Rfor_nil
+         Rfor_cons
+         Rcall
+         Rproc
+         hsem
+         _
+         hall).
   Qed.
 
 End REMOVE_INIT.
@@ -380,12 +398,12 @@ Section ADD_INIT.
   Lemma sem_pexpr_ext_eq s e vm : 
     evm s =v vm ->
     sem_pexpr gd s e = sem_pexpr gd (with_vm s vm) e.
-  Proof. by move=> heq; apply (@read_e_eq_on _ _ _ _ Sv.empty). Qed.
+  Proof. move=> heq. by apply: read_e_eq_on_empty. Qed.
 
   Lemma sem_pexprs_ext_eq s es vm : 
     evm s =v vm ->
     sem_pexprs gd s es = sem_pexprs gd (with_vm s vm) es.
-  Proof. by move=> heq; apply (@read_es_eq_on _ _ _ _ _ Sv.empty). Qed.
+  Proof. move=> heq. by apply: read_es_eq_on_empty. Qed.
 
   Lemma write_lvar_ext_eq x v s1 s2 vm1 :
     evm s1 =v vm1 ->
@@ -560,8 +578,23 @@ Section ADD_INIT.
     sem_call p ev scs mem f va scs' mem' vr ->
     sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
-    by apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun RAnil RAcons RAmkI RAasgn RAopn RAsyscall
-               RAif_true RAif_false RAwhile_true RAwhile_false RAfor RAfor_nil RAfor_cons RAcall RAproc).
+    exact:
+      (sem_call_Ind
+         RAnil
+         RAcons
+         RAmkI
+         RAasgn
+         RAopn
+         RAsyscall
+         RAif_true
+         RAif_false
+         RAwhile_true
+         RAwhile_false
+         RAfor
+         RAfor_nil
+         RAfor_cons
+         RAcall
+         RAproc).
   Qed.
 
 End ADD_INIT.
