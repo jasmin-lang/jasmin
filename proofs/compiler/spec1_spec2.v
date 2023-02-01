@@ -74,6 +74,18 @@ end.
 Definition sub_env (env1 : env) (env2 : env) :=
 sub_cond_env env1.1 env2.1 && Sv.subset env1.2 env2.2.
 
+Fixpoint pos_in_msf_env (envi : env) (es : seq pexpr) : seq nat := 
+match es with 
+| [::] => [::]
+| e :: es => 
+  match e with 
+  | Pvar x => if negb (disjoint (vrv (gv x)) envi.2) 
+              then [::0] ++ pos_in_msf_env envi es 
+              else pos_in_msf_env envi es
+  | _ => pos_in_msf_env envi es 
+  end
+end.  
+
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
@@ -266,6 +278,8 @@ Definition fun_spec1_to_spec2 (envi : env) (f:@fundef asm_op_spec1 asmOp_spec1 _
   let 'MkFun ii si p c so r ev := f in
   Let c := c_spec1_to_spec2 i_spec1_to_spec2 envi c in
   ok (c.1, MkFun ii si p c.2 so r ev).
+
+Print fmapM. Print instr. About map_cfprog_name. Print map_cfprog_name_gen.
 
 Definition map_spec1_to_spec2 (F: env -> (@fundef asm_op_spec1 asmOp_spec1 _ _) -> cexec (env * @fundef asm_op_spec2 asmOp_spec2 _ _)) envi i :
 cexec (env * seq (@fun_decl asm_op_spec2 asmOp_spec2 _ _)) :=
