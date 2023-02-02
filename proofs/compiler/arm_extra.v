@@ -5,6 +5,7 @@ From mathcomp Require Import
 Require Import
   compiler_util
   expr
+  fexpr
   sopn
   utils.
 Require Export
@@ -58,9 +59,9 @@ Instance arm_extra_op_decl : asmOp arm_extra_op | 1 :=
 Definition assemble_extra
            (ii: instr_info)
            (o: arm_extra_op)
-           (outx: lvals)
-           (inx: pexprs)
-           : cexec (asm_op_msb_t * lvals * pexprs) :=
+           (outx: lexprs)
+           (inx: rexprs)
+           : cexec (asm_op_msb_t * lexprs * rexprs) :=
   match o with
   end.
 
