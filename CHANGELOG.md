@@ -80,6 +80,10 @@
   can be expressed using equality and disequality tests
   ([PR #270](https://github.com/jasmin-lang/jasmin/pull/270)).
 
+- The live-range-splitting transformation is run a second time after
+  expansion of register arrays
+  ([PR #341](https://github.com/jasmin-lang/jasmin/pull/341)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
