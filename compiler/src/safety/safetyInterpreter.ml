@@ -1600,6 +1600,10 @@ end = struct
         let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
         aeval_if asmOp ginstr c [cl] [cr] state
 
+      | Cassgn (lv, _, _, Parr_init _) ->
+        let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
+        { state with abs }
+
       | Copn ([ lv ], _, Ocopy _, [ e ])
       | Cassgn (lv, _, _, e) ->
         let abs = AbsExpr.abs_assign
