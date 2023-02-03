@@ -9,6 +9,8 @@ Require Import
   arch_params_proof
   compiler_util
   expr
+  fexpr
+  fexpr_sem
   psem
   psem_facts
   sem_one_varmap.
@@ -871,9 +873,9 @@ Qed.
 Lemma arm_hlip_lassign
   (s1 s2 : estate) pc ii x e ws li ws' (w : word ws) (w' : word ws') :
   lassign arm_liparams x ws e = Some li
-  -> sem_pexpr [::] s1 e = ok (Vword w')
+  -> sem_rexpr (emem s1) (evm s1) e = ok (Vword w')
   -> truncate_word ws w' = ok w
-  -> write_lval [::] x (Vword w) s1 = ok s2
+  -> write_lexpr x (Vword w) s1 = ok s2
   -> eval_instr lp (MkLI ii li) (of_estate s1 fn pc)
      = ok (of_estate s2 fn pc.+1).
 Proof.
@@ -881,33 +883,32 @@ Proof.
 
   move: hlassign.
   rewrite /lassign /= /arm_lassign.
-  case: x hwrite => [| x | ? ? ? ||] hwrite //=; first last.
+  case: x hwrite => [ ? ? ? | x ] hwrite /=.
   {
     case hmn: store_mn_of_wsize => [mn|] // [?]; subst li.
-    all: rewrite /eval_instr /= /sem_sopn /=.
-    all: rewrite to_estate_of_estate.
-    all: rewrite hseme {hseme} /=.
-    all: rewrite (store_mn_of_wsizeP hmn htrunc) {hmn htrunc}.
-    all: by rewrite /Result.bind /write_lvals /fold2 hwrite /=.
+    rewrite /eval_instr /= /sem_sopn /=.
+    rewrite to_estate_of_estate.
+    rewrite hseme {hseme} /=.
+    rewrite (store_mn_of_wsizeP hmn htrunc) {hmn htrunc}.
+    by move: hwrite; rewrite /= => ->.
   }
 
   case: ws w htrunc hwrite => //= w htrunc hwrite.
-  case: e hseme => [||| ? ||| ??? | op1 e |||] //= hseme.
-  - move=> [?]; subst li.
-    rewrite /eval_instr /= /sem_sopn /=.
+  case: e hseme => [ ??? | ]; last case => // e.
+  all: move => /= hseme /Some_inj <-{li}.
+  - rewrite /eval_instr /= /sem_sopn /=.
     rewrite to_estate_of_estate.
     rewrite hseme {hseme} /=.
     rewrite /exec_sopn /=.
     rewrite htrunc {htrunc} /=.
+    rewrite zero_extend_u.
     by rewrite hwrite {hwrite} /=.
 
-  move=> [?]; subst li.
   rewrite /eval_instr /= /sem_sopn /=.
   rewrite to_estate_of_estate.
   rewrite hseme {hseme} /=.
   rewrite /exec_sopn /=.
   rewrite htrunc {htrunc} /=.
-  rewrite zero_extend_u.
   by rewrite hwrite {hwrite} /=.
 Qed.
 
@@ -1060,14 +1061,14 @@ Qed.
 
 Lemma eval_assemble_cond_Pvar ii m rf x r v :
   eqflags m rf
-  -> of_var_e ii (gv x) = ok r
-  -> get_gvar [::] (evm m) x = ok v
+  -> of_var_e ii x = ok r
+  -> get_var (evm m) x = ok v
   -> exists2 v',
        value_of_bool (eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
        & value_uincl v v'.
 Proof.
   move=> eqf hr hv.
-  have hincl := gxgetflag_ex eqf hr hv.
+  have hincl := xgetflag_ex eqf hr hv.
   clear ii x m eqf hr hv.
 
   rewrite condt_of_rflagP.
@@ -1099,10 +1100,10 @@ Qed.
 Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   is_rflags_GE r0 r1 = true
   -> eqflags m rf
-  -> of_var_e ii (gv x0) = ok r0
-  -> get_gvar [::] (evm m) x0 = ok v0
-  -> of_var_e ii (gv x1) = ok r1
-  -> get_gvar [::] (evm m) x1 = ok v1
+  -> of_var_e ii x0 = ok r0
+  -> get_var (evm m) x0 = ok v0
+  -> of_var_e ii x1 = ok r1
+  -> get_var (evm m) x1 = ok v1
   -> sem_sop2 Obeq v0 v1 = ok v
   -> exists2 v',
        value_of_bool (eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
@@ -1114,8 +1115,8 @@ Proof.
   rewrite /mk_sem_sop2 /=.
   move=> [?]; subst b.
 
-  have hincl0 := gxgetflag_ex eqf hr0 hv0.
-  have hincl1 := gxgetflag_ex eqf hr1 hv1.
+  have hincl0 := xgetflag_ex eqf hr0 hv0.
+  have hincl1 := xgetflag_ex eqf hr1 hv1.
   clear ii m x0 x1 eqf hr0 hv0 hr1 hv1.
 
   have ? := to_boolI hb0; subst v0.
@@ -1185,12 +1186,12 @@ Qed.
 Lemma arm_eval_assemble_cond ii m rf e c v :
   eqflags m rf
   -> agp_assemble_cond arm_agparams ii e = ok c
-  -> sem_pexpr [::] m e = ok v
+  -> sem_fexpr (evm m) e = ok v
   -> exists2 v',
        value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   rewrite /=.
-  elim: e c v => [||| x |||| op1 e hind | op2 e0 hind0 e1 hind1 ||] //= c v eqf.
+  elim: e c v => [| x | op1 e hind | op2 e0 hind0 e1 hind1 |] //= c v eqf.
 
   - t_xrbindP=> r hr hc; subst c.
     move=> hv.
@@ -1232,8 +1233,10 @@ Qed.
 Import arch_sem.
 
 Lemma arm_assemble_extra_op
-  rip ii op lvs args op' lvs' args' op'' asm_args m m' s :
-  sem_sopn [::] (Oasm (ExtOp op)) m lvs args = ok m'
+  rip ii op lvs args op' lvs' args' op'' asm_args m xs ys m' s :
+  sem_rexprs m args = ok xs
+  -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
+  -> write_lexprs lvs ys m = ok m'
   -> to_asm ii op lvs args = ok (op', lvs', args')
   -> assemble_asm_op arm_agparams rip ii op' lvs' args'
      = ok (op'', asm_args)

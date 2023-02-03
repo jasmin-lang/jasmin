@@ -1117,6 +1117,14 @@ End FIND_MAP.
 Definition isSome aT (o : option aT) :=
   if o is Some _ then true else false.
 
+Lemma isSome_obind (aT bT: Type) (f: aT → option bT) (o: option aT) :
+  reflect (exists2 a, o = Some a & isSome (f a)) (isSome (o >>= f)%O).
+Proof.
+  apply: Bool.iff_reflect; split.
+  - by case => a ->.
+  by case: o => // a h; exists a.
+Qed.
+
 Fixpoint list_to_rev (ub : nat) :=
   match ub with
   | O    => [::]

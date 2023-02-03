@@ -427,6 +427,10 @@ let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
     | Compiler_util.PPEexpr e ->
       let e = Conv.expr_of_cexpr tbl e in
       pp_expr ~debug fmt e
+    | Compiler_util.PPErexpr e ->
+       PrintFexpr.pp_rexpr tbl fmt e
+    | Compiler_util.PPEfexpr e ->
+       PrintFexpr.pp_fexpr tbl fmt e
     | Compiler_util.PPEbox (box, pp_e) ->
       begin match box with
       | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ " pp_err) pp_e

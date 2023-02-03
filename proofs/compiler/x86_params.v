@@ -4,7 +4,8 @@ From mathcomp.word Require Import ssrZ.
 Require Import
   arch_params
   compiler_util
-  expr.
+  expr
+  fexpr.
 Require Import
   linearization
   lowering
@@ -24,12 +25,12 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* Used to set up stack. *)
-Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) :=
-  let f_to_lvar x := Lvar (VarI (to_var x) dummy_var_info) in
+Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
+  let f_to_lvar x := LLvar (VarI (to_var x) dummy_var_info) in
   let eflags := map f_to_lvar [:: OF; CF; SF; PF; ZF ] in
-  let ex := Pvar (mk_lvar x) in
-  let emask := eword_of_int ws (- wsize_size al) in
-  (eflags ++ [:: Lvar x ], Ox86 (AND ws), [:: ex; emask ]).
+  let ex := Rexpr (Fvar x) in
+  let emask := fconst ws (- wsize_size al) in
+  (eflags ++ [:: LLvar x ], Ox86 (AND ws), [:: ex; Rexpr emask ]).
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
@@ -78,33 +79,30 @@ Section LINEARIZATION.
 Notation vtmpi := {| v_var := to_var RAX; v_info := dummy_var_info; |}.
 
 Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
-  let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Osub (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
-  ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
+  let p := Fapp2 (Osub (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
+  ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ]).
 
 Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
-  let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Oadd (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
-  ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
+  let p := Fapp2 (Oadd (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
+  ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ]).
 
-Definition x86_lassign (x: lval) (ws: wsize) (e: pexpr) :=
+Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
   let op := if (ws <= U64)%CMP
             then MOV ws
             else VMOVDQU ws
   in ([:: x ], Ox86 op, [:: e ]).
 
 Definition x86_set_up_sp_register
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : seq copn_args :=
-  let rspg := mk_lvar rspi in
-  let i0 := x86_lassign (Lvar r) Uptr (Pvar rspg) in
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : seq fopn_args :=
+  let i0 := x86_lassign (LLvar r) Uptr (Rexpr (Fvar rspi)) in
   let i1 := x86_allocate_stack_frame rspi sf_sz in
   let i2 := x86_op_align rspi Uptr al in
   [:: i0; i1; i2 ].
 
 Definition x86_set_up_sp_stack
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq copn_args :=
-  let vtmpg := mk_lvar vtmpi in
-  let i := x86_lassign (Lmem Uptr rspi (cast_const off)) Uptr (Pvar vtmpg) in
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq fopn_args :=
+  let vtmpg := Fvar vtmpi in
+  let i := x86_lassign (Store Uptr rspi (fconst Uptr off)) Uptr (Rexpr vtmpg) in
   x86_set_up_sp_register rspi sf_sz al vtmpi ++ [:: i ].
 
 Definition x86_liparams : linearization_params :=
@@ -179,10 +177,10 @@ Definition of_var_e_bool ii (v: var_i) : cexec rflag :=
   | None => Error (asm_gen.E.invalid_flag ii v)
   end.
 
-Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
+Fixpoint assemble_cond_r ii (e : fexpr) : cexec condt :=
   match e with
-  | Pvar v =>
-      Let r := of_var_e_bool ii (gv v) in
+  | Fvar v =>
+      Let r := of_var_e_bool ii v in
       match r with
       | OF => ok O_ct
       | CF => ok B_ct
@@ -192,23 +190,23 @@ Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
       | DF => Error (E.berror ii e "Cannot branch on DF")
       end
 
-  | Papp1 Onot e =>
+  | Fapp1 Onot e =>
       Let c := assemble_cond_r ii e in
       ok (not_condt c)
 
-  | Papp2 Oor e1 e2 =>
+  | Fapp2 Oor e1 e2 =>
       Let c1 := assemble_cond_r ii e1 in
       Let c2 := assemble_cond_r ii e2 in
       or_condt ii e c1 c2
 
-  | Papp2 Oand e1 e2 =>
+  | Fapp2 Oand e1 e2 =>
       Let c1 := assemble_cond_r ii e1 in
       Let c2 := assemble_cond_r ii e2 in
       and_condt ii e c1 c2
 
-  | Papp2 Obeq (Pvar x1) (Pvar x2) =>
-      Let r1 := of_var_e_bool ii (gv x1) in
-      Let r2 := of_var_e_bool ii (gv x2) in
+  | Fapp2 Obeq (Fvar x1) (Fvar x2) =>
+      Let r1 := of_var_e_bool ii x1 in
+      Let r2 := of_var_e_bool ii x2 in
       if ((r1 == SF) && (r2 == OF)) || ((r1 == OF) && (r2 == SF))
       then ok NL_ct
       else Error (E.berror ii e "Invalid condition (NL)")
@@ -217,7 +215,7 @@ Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
 
   end.
 
-Definition assemble_cond ii (e: pexpr) : cexec condt :=
+Definition assemble_cond ii (e: fexpr) : cexec condt :=
   assemble_cond_r ii e.
 
 Definition x86_agparams : asm_gen_params :=
