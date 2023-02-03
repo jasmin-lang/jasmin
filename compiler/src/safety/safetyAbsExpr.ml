@@ -1119,6 +1119,27 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           (u8_blast_var ~blast_arrays:true eiv)
       ) a vevs  
 
+  (* The variables representing the contents of an array *)
+  let array_contents lhs_arr =
+    lhs_arr |> arr_full_range |> List.map (fun y -> Mlocal y)
+
+  (* The variables representing the contents of a slice *)
+  let slice_contents x ws n =
+    List.init (size_of_ws ws) (fun i -> Mlocal (AarraySlice (x, U8, n + i)))
+
+  let remove_array_contents_mv abs =
+    function
+    | Mlocal (Aarray x) -> array_contents x |> AbsDom.remove_vars abs
+    | Mlocal (AarraySlice (x, ws, n)) -> slice_contents x ws n |> AbsDom.remove_vars abs
+    | _ -> assert false
+
+  let abs_forget_array_contents abs mi lv =
+    match mvar_of_lvar abs mi lv with
+    | MLnone -> abs
+    | MLvar(_, mv) -> remove_array_contents_mv abs mv
+    | MLvars(_, mvs) -> List.fold_left remove_array_contents_mv abs mvs
+    | MLasub(_, _ms) -> failwith "Not implemented (explicit array init of a slice)"
+
   (* Array slice assignment. Does the numerical assignments.
      Remark: array elements do not need to be tracked in the point-to
      abstraction. *)
@@ -1130,12 +1151,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       assign_slice_aux abs lhs rhs
         
     (* If any offset is unknown, we need to forget the array content. *)
-    | _, _ ->
-      let lhs_arr = lhs.ms_v in
-      let mvs = arr_full_range lhs_arr
-                |> List.map (fun y -> Mlocal y) in
-      AbsDom.forget_list abs mvs
-
+    | _, _ -> array_contents lhs.ms_v |> AbsDom.forget_list abs
 
   let omvar_is_offset = function
     | MLvar (_, MvarOffset _) -> true
