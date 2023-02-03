@@ -74,7 +74,9 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
     AbsDom.t -> 'a gty -> mvar -> minfo option -> expr -> AbsDom.t
 
   val a_init_mlv_no_array : mlvar -> AbsDom.t -> AbsDom.t
- 
+
+  val abs_forget_array_contents : AbsDom.t -> minfo -> lval -> AbsDom.t
+
   val abs_assign : AbsDom.t -> ty -> mlvar -> expr -> AbsDom.t
  
   val abs_assign_opn :

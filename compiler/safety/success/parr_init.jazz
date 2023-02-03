@@ -1,0 +1,47 @@
+export
+fn reg_arr_init() -> reg u64 {
+  reg u64 r;
+  reg u64[1] a;
+  ArrayInit(a);
+  a[0] = 1;
+  r = a[0];
+  return r;
+}
+
+export
+fn stack_arr_init() -> reg u64 {
+  reg u64 r;
+  stack u64[1] a;
+  ArrayInit(a);
+  a[0] = 1;
+  r = a[0];
+  return r;
+}
+
+export
+fn slice_arr_init() -> reg u64 {
+  reg u64 r;
+  stack u64[2] a;
+  reg ptr u64[1] s;
+  a[1] = 1;
+  s = a[0:1];
+  ArrayInit(s);
+  r = a[1];
+  return r;
+}
+
+export
+fn slices_arr_init(reg u64 b) -> reg u64 {
+  reg u64 r;
+  stack u64[4] a;
+  reg ptr u64[1] s;
+  if b >s 0 {
+    s = a[0:1];
+  } else {
+    s = a[1:1];
+  }
+  ArrayInit(s);
+  a[0] = 1;
+  r = a[0];
+  return r;
+}
