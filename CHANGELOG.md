@@ -48,6 +48,12 @@
   ([PR #326](https://github.com/jasmin-lang/jasmin/pull/326);
   fixes [#325](https://github.com/jasmin-lang/jasmin/issues/325)).
 
+## Other changes
+
+- The live-range-splitting transformation is run a second time after
+  expansion of register arrays
+  ([PR #341](https://github.com/jasmin-lang/jasmin/pull/341)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes

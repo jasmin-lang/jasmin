@@ -226,6 +226,18 @@ Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit
        assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
     entries.
 
+Definition live_range_splitting (p: uprog) : cexec uprog :=
+  let pv := split_live_ranges_prog p in
+  let pv := cparams.(print_uprog) Splitting pv in
+  let pv := renaming_prog pv in
+  let pv := cparams.(print_uprog) Renaming pv in
+  let pv := remove_phi_nodes_prog pv in
+  let pv := cparams.(print_uprog) RemovePhiNodes pv in
+  Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
+  let p := cparams.(print_uprog) DeadCode_Renaming pv in
+  ok p.
+
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p := array_copy_prog cparams.(fresh_counter) p in
@@ -243,21 +255,15 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := unroll_loop (ap_is_move_op aparams) p in
   let p := cparams.(print_uprog) Unrolling p in
 
-  let pv := split_live_ranges_prog p in
-  let pv := cparams.(print_uprog) Splitting pv in
-  let pv := renaming_prog pv in
-  let pv := cparams.(print_uprog) Renaming pv in
-  let pv := remove_phi_nodes_prog pv in
-  let pv := cparams.(print_uprog) RemovePhiNodes pv in
-  Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
-  let pv := cparams.(print_uprog) DeadCode_Renaming pv in
+  Let pv := live_range_splitting p in
 
   let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   Let pe := expand_prog cparams.(expand_fd) pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
+
+  Let pe := live_range_splitting pe in
 
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
