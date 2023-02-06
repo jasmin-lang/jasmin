@@ -187,7 +187,6 @@ Fixpoint assemble_cond_r ii (e : fexpr) : cexec condt :=
       | ZF => ok E_ct
       | SF => ok S_ct
       | PF => ok P_ct
-      | DF => Error (E.berror ii e "Cannot branch on DF")
       end
 
   | Fapp1 Onot e =>
