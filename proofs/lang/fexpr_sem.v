@@ -26,7 +26,9 @@ End SEM_EXPR.
 
 Section SEM.
 
-Context {asm_op syscall_state} {spp: SemPexprParams asm_op syscall_state}.
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}.
 
 Definition write_lexpr e v (s: estate) : exec estate :=
   match e with

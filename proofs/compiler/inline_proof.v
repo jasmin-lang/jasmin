@@ -15,7 +15,9 @@ Section INLINE.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   (inline_var : var -> bool)
   (rename_fd : instr_info -> funname -> ufundef -> ufundef).
 

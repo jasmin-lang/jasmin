@@ -38,7 +38,9 @@ Let glob_size := Z.of_nat (size global_data).
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   (rip : pointer)
   (no_overflow_glob_size : no_overflow rip glob_size)
   (mglob : Mvar.t (Z * wsize))
@@ -1802,7 +1804,7 @@ Let Pi_r s1 (i1:instr_r) s2 :=
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
-  exists s2', sem (sCP:= sCP_stack) P' rip s1' c2 s2' /\
+  exists s2', sem P' rip s1' c2 s2' /\
               valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
 
 Let Pi s1 (i1:instr) s2 :=
@@ -1814,7 +1816,7 @@ Let Pi s1 (i1:instr) s2 :=
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
-  exists s2', sem (sCP:= sCP_stack) P' rip s1' c2 s2' /\
+  exists s2', sem P' rip s1' c2 s2' /\
               valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
 
 Let Pc s1 (c1:cmd) s2 :=
@@ -1826,7 +1828,7 @@ Let Pc s1 (c1:cmd) s2 :=
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
-  exists s2', sem (sCP:= sCP_stack) P' rip s1' (flatten c2) s2' /\
+  exists s2', sem P' rip s1' (flatten c2) s2' /\
               valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap2 m0 s2 s2'.
 
 Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
@@ -1859,7 +1861,7 @@ Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value)
     disjoint_values (local_alloc fn).(sao_params) vargs vargs' ->
     alloc_ok P' fn m1' ->
     exists m2' vres',
-      sem_call (sCP := sCP_stack) P' rip scs1 m1' fn vargs' scs2 m2' vres' /\
+      sem_call P' rip scs1 m1' fn vargs' scs2 m2' vres' /\
       extend_mem m2 m2' rip global_data /\
       wf_results m2' vargs vargs' fn vres vres' /\
       mem_unchanged_params fn m1 m1' m2' vargs vargs'.
@@ -2765,7 +2767,9 @@ Section HSAPARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   (saparams : stack_alloc_params)
   (hsaparams : h_stack_alloc_params saparams)
   (fresh_reg_ : Ident.ident -> stype -> Ident.ident).
@@ -2805,14 +2809,14 @@ Qed.
 Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
   alloc_prog saparams fresh_reg_ nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev scs1 m1 vargs1 scs1' m1' vres1,
-    sem_call (sCP := sCP_unit) P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
+    sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
     forall rip m2 vargs2,
       extend_mem m1 m2 rip data ->
       wf_args data rip oracle m1 m2 fn vargs1 vargs2 ->
       disjoint_values (oracle fn).(sao_params) vargs1 vargs2 ->
       alloc_ok SP fn m2 ->
       exists m2' vres2,
-        sem_call (sCP := sCP_stack) SP rip scs1 m2 fn vargs2 scs1' m2' vres2 /\
+        sem_call SP rip scs1 m2 fn vargs2 scs1' m2' vres2 /\
         extend_mem m1' m2' rip data /\
         wf_results oracle m2' vargs1 vargs2 fn vres1 vres2 /\
         mem_unchanged_params oracle fn m1 m2 m2' vargs1 vargs2.

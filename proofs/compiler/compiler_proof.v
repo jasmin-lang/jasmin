@@ -30,7 +30,8 @@ Require Import
   arch_decl
   arch_extra
   arch_sem
-  asm_gen_proof.
+  asm_gen_proof
+  sem_params_of_arch_extra.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -64,8 +65,13 @@ Lemma postprocessP (p p': uprog) ev scs m fn va scs' m' vr va' :
 Proof.
   move => ok_p' E A.
   have [ vr1 [ {} E R1 ] ] := const_prop_callP E A.
-  have [ vr2 [ {} E R2 ] ] := dead_code_callPu (hap_is_move_opP haparams) ok_p' (List_Forall2_refl _ value_uincl_refl) E.
-  exists vr2; first exact: E.
+  have! [ vr2 [ E' R2 ] ] :=
+    (dead_code_callPu
+      (hap_is_move_opP haparams)
+      ok_p'
+      (List_Forall2_refl _ value_uincl_refl)
+      E).
+  exists vr2; first exact: E'.
   apply: Forall2_trans R1 R2.
   exact: value_uincl_trans.
 Qed.
@@ -135,7 +141,9 @@ Proof.
   - move=> vr' Hvr'.
     apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pa va_refl).
     exact: Hvr'.
-  apply: compose_pass_uincl; first by move => vr'; apply: (alloc_call_uprogP (spp := mk_spp) ok_p').
+  apply: compose_pass_uincl;
+    first by move => vr';
+             apply: (alloc_call_uprogP (sip := sip_of_asm_e) ok_p').
   exists vr.
   - exact: (List_Forall2_refl _ value_uincl_refl).
   by rewrite surj_prog.
@@ -177,13 +185,13 @@ Proof.
          ok_fvars).
   apply: compose_pass;
     first by move=> vr';
-      apply: (makeReferenceArguments_callP (spp := mk_spp) ok_ph).
+      apply: (makeReferenceArguments_callP (siparams := sip_of_asm_e) ok_ph).
   apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pg).
   apply: compose_pass_uincl'.
   - move => vr' Hvr'.
     apply: (live_range_splittingP ok_pf); exact: Hvr'.
   apply: compose_pass;
-    first by move=> vr'; apply:(expand_callP (spp := mk_spp) ok_pe).
+    first by move=> vr'; apply:(expand_callP (sip := sip_of_asm_e) ok_pe).
   apply: compose_pass_uincl; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
   apply: compose_pass_uincl'.
   - move => vr' Hvr'.
@@ -191,7 +199,8 @@ Proof.
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
   apply: compose_pass;
     first by move => vr';
-      exact: (dead_calls_err_seqP (spp := mk_spp) (sCP := sCP_unit) ok_pb).
+      exact:
+        (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
   apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
@@ -233,18 +242,22 @@ Proof.
     - move => vr' Hvr'.
       apply: (dead_code_callPs (hap_is_move_opP haparams) ok_pc va_refl).
       exact: Hvr'.
-    apply: compose_pass_uincl; first by move => vr'; apply: (alloc_call_sprogP (spp := mk_spp) ok_pb).
+    apply: compose_pass_uincl;
+      first by move => vr';
+        apply:
+          (alloc_call_sprogP (ep := ep_of_asm_e) (sip := sip_of_asm_e) ok_pb).
     rewrite surj_prog.
-    have [vr' [exec_pa]]:=
-      dead_code_tokeep_callPs (hap_is_move_opP haparams) ok_pa va_refl exec_p.
+    have! [vr' [exec_pa]] :=
+      (dead_code_tokeep_callPs (hap_is_move_opP haparams) ok_pa va_refl exec_p).
     rewrite /fn_keep_only (ok_rr _ ok_fn) => vr_vr'.
     by exists vr'.
   rewrite /alloc_ok => fn m alloc_pc fd get_fd.
-  have [fda ok_fda get_fda] :=
-    dead_code_prog_tokeep_get_fundef (spp := mk_spp) ok_pa get_fd.
-  have [fdb [get_fdb ok_fdb]] := allocation_proof.all_checked (spp := mk_spp) ok_pb get_fda.
-  have [fdc ok_fdc get_fdc] :=
-    dead_code_prog_tokeep_get_fundef (spp := mk_spp) ok_pc get_fdb.
+  have! [fda ok_fda get_fda] :=
+    (dead_code_prog_tokeep_get_fundef ok_pa get_fd).
+  have [fdb [get_fdb ok_fdb]] :=
+    allocation_proof.all_checked (sip := sip_of_asm_e) ok_pb get_fda.
+  have! [fdc ok_fdc get_fdc] :=
+    (dead_code_prog_tokeep_get_fundef ok_pc get_fdb).
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   have /=[_ _ _ <-] := check_fundef_meta ok_fdb.
@@ -258,8 +271,8 @@ Lemma compiler_third_part_meta entries (p p' : sprog) :
 Proof.
   rewrite /compiler_third_part.
   t_xrbindP => _ pa hpa _ pb hpb.
-  move: hpa => /(dead_code_prog_tokeep_meta (spp := mk_spp)) [] _ ok_pa.
-  move: hpb => /(dead_code_prog_tokeep_meta (spp := mk_spp)) [].
+  have! [_ ok_pa] := (dead_code_prog_tokeep_meta hpa).
+  have! [] := (dead_code_prog_tokeep_meta hpb).
   rewrite !print_sprogP /= => _ ok_pb <- {p'}.
   by rewrite ok_pb ok_pa.
 Qed.
@@ -339,7 +352,7 @@ Proof.
   t_xrbindP => p1 ok_p1 /check_no_ptrP checked_entries p2 ok_p2 p3.
   rewrite print_sprogP => ok_p3 <- {p'} ok_fn exec_p.
   rewrite (compiler_third_part_meta ok_p3) => m_mi ok_mi.
-  have {ok_mi} ok_mi : alloc_ok (spp := mk_spp) p2 fn mi.
+  assert (ok_mi' : alloc_ok (sip := sip_of_asm_e) p2 fn mi).
   - exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
   have := compiler_first_partP ok_p1 _ exec_p.
   rewrite mem_cat ok_fn => /(_ erefl).
@@ -347,7 +360,7 @@ Proof.
   have gd2 := sp_globs_stack_alloc ok_p2.
   rewrite -gd2 in ok_p2.
   case/sem_call_length: (exec_p1) => fd [] ok_fd size_params size_tyin size_tyout size_res.
-  have [mglob ok_mglob] := alloc_prog_get_fundef (spp := mk_spp) ok_p2.
+  have! [mglob ok_mglob] := (alloc_prog_get_fundef ok_p2).
   move=> /(_ _ _ ok_fd)[] fd' /alloc_fd_checked_sao[] ok_sao_p ok_sao_r ok_fd'.
   move: checked_entries => /(_ _ ok_fn) [] params_noptr return_noptr.
   assert (ok_va : wf_args (sp_globs (p_extra p2)) gd (ao_stack_alloc (stackalloc cparams p1)) m mi fn va va).
@@ -361,7 +374,7 @@ Proof.
   - rewrite /disjoint_values => i1 pi1 w1 i2 pi2 w2.
     by rewrite (allNone_nth _ params_noptr).
   have := alloc_progP (hap_hsap haparams (is_regx cparams)) ok_p2 exec_p1 m_mi.
-  move => /(_ va ok_va disjoint_va ok_mi).
+  move => /(_ va ok_va disjoint_va ok_mi').
   case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 ?.
   have [] := compiler_third_partP ok_p3.
   case/(_ _ _ _ _ _ _ _ _ ok_fn exec_p2) => vr3 vr2_vr3 exec_p3.
@@ -390,7 +403,7 @@ Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
 Proof.
   rewrite /compiler_back_end; t_xrbindP => _ _ lp ok_lp p2.
   rewrite !print_linearP => ok_tp ?; subst p2.
-  have [<- [<- [<- _]]] := tunnel_program_invariants (spp := mk_spp) ok_tp.
+  have! [<- [<- [<- _]]] := (tunnel_program_invariants ok_tp).
   split.
   - exact: lp_ripE ok_lp.
   - exact: lp_rspE ok_lp.
@@ -430,11 +443,9 @@ Proof.
   move => fd ok_fd.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
   split; last by rewrite export.
-  move: ok_fd =>
-    /(get_fundef_p' (spp := mk_spp) ok_lp)
-    /(get_fundef_tunnel_program (spp := mk_spp) ok_tp)
-    /(ok_get_fundef ok_xp)
-    [fd' ok_fd'].
+  have! h0 := (get_fundef_p' ok_lp ok_fd).
+  have! h1 := (get_fundef_tunnel_program ok_tp h0).
+  have! [fd' ok_fd'] := (ok_get_fundef ok_xp h1).
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
   move: ok_fd' => /S /=.
   rewrite /allocatable_stack.
@@ -506,7 +517,7 @@ Proof.
   - exact: Export.
   move=> lm vm args' H H0 H1 H2 H3 H4 H5.
   have {lp_call} := lp_call lm vm args' H _ H1 H2 H3 _ H5.
-  have [-> [-> _]] := tunnel_program_invariants (spp := mk_spp) ok_tp.
+  have! [-> [-> _]] := (tunnel_program_invariants ok_tp).
   move => /(_ H0 H4)[] wt_args' [] vm' [] lm' [] res' [] lp_call M' ok_res' res_res' wt_res'.
   split; first exact: wt_args'.
   exists vm', lm', res'; split; cycle 1.
@@ -519,7 +530,7 @@ Proof.
   exists (tunneling.tunnel_lfundef fn fd).
   - exact: get_fundef_tunnel_program ok_tp ok_fd.
   - exact: Export.
-  case: (lsem_run_tunnel_program (spp := mk_spp) ok_tp lp_exec).
+  have! [|] := (lsem_run_tunnel_program ok_tp lp_exec).
   - by exists fd.
   - move => tp_exec _.
     rewrite /lfd_body size_tunnel_lcmd.

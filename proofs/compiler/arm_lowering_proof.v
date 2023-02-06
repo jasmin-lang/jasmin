@@ -15,7 +15,8 @@ Require Import
   psem
   utils.
 Require Import
-  arch_extra.
+  arch_extra
+  sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -105,7 +106,6 @@ Notation disj_fvars := (disj_fvars fvars).
 Notation disj_fvars_get_fundef := (disj_fvars_get_fundef fv_correct).
 
 Notation p' := (lower_prog p).
-
 
 (* -------------------------------------------------------------------- *)
 
@@ -594,7 +594,7 @@ Proof.
   move=> h hws' hfve hseme.
 
   move: hseme.
-  rewrite /sem_pexpr /= -/(sem_pexpr _ s e).
+  rewrite /sem_pexpr -/(sem_pexpr _ s e).
   t_xrbindP=> wbase' vbase hgetx hbase woff' voff hseme hoff wres hread ? hw;
     subst ws''.
   move: hbase => /to_wordI [ws0 [wbase [? /truncate_wordP [hws0 ?]]]];
@@ -628,7 +628,7 @@ Proof.
   move=> s ws ws' aop es w.
   move=> h hws hfve.
 
-  rewrite /sem_pexpr /= -/(sem_pexpr _ s e).
+  rewrite /sem_pexpr -/(sem_pexpr _ s e).
   t_xrbindP=> v hseme hw.
 
   move: h.
@@ -751,7 +751,7 @@ Proof.
   move=> h hws hfve hseme.
 
   move: hseme.
-  rewrite /sem_pexpr /= -!/(sem_pexpr _ s _).
+  rewrite /sem_pexpr -!/(sem_pexpr _ s _).
   t_xrbindP=> v0 hseme0 v1 hseme1 hsemop.
 
   move: hfve => /disj_fvars_read_e_Papp2 [hfve0 hfve1].

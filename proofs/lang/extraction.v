@@ -2,7 +2,7 @@ Require Import var compiler.
 Require sem.
 Require arm_params.
 Require x86_params.
-Require spp_arch_extra.
+Require sem_params_of_arch_extra.
 Require waes.
 
 Require ExtrOcamlBasic.
@@ -42,7 +42,7 @@ Separate Extraction
   sopn
   expr
   sem
-  spp_arch_extra.spp_of_asm_e
+  sem_params_of_arch_extra
   arch_decl
   x86_decl
   x86_instr_decl

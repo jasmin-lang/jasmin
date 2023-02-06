@@ -22,7 +22,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   {T : eqType}
   {pT : progT T}
   {sCP : semCallParams}.
@@ -181,15 +183,16 @@ rewrite /sadd_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
 + move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
-  have := is_wconstP gd s h2; have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h2).
+  have! := (is_wconstP gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 + case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
-  have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h1).
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
   case: (to_wordI k6) => sz' [w' [? /truncate_word_uincl ?]]; subst.
   by rewrite GRing.add0r k4;eauto.
 case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
-have := is_wconstP gd s h2.
+have! := (is_wconstP gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
 by rewrite GRing.addr0 k3;eauto.
@@ -214,10 +217,11 @@ rewrite /ssub_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
 + move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
-  have := is_wconstP gd s h2; have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h2).
+  have! := (is_wconstP gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
-have := is_wconstP gd s h2.
+have! := (is_wconstP gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
 by rewrite GRing.subr0 k3;eauto.
@@ -248,16 +252,19 @@ rewrite /smul_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
 + move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
-  have := is_wconstP gd s h2; have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h2).
+  have! := (is_wconstP gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 + case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
-  have := is_wconstP gd s h1; t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
+  have! := (is_wconstP gd s h1);
+  t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
   - rewrite wrepr_unsigned GRing.mul0r;eauto.
   - case: (to_wordI k6) => {k6} sz' [w] [? /truncate_word_uincl]; subst.
     by rewrite k4 GRing.mul1r; eauto.
   by rewrite k4 /= k6 /= wrepr_unsigned truncate_word_u /=;eexists;split;eauto => /=.
 case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
-have := is_wconstP gd s h2; t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
+have! := (is_wconstP gd s h2);
+t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
 - by rewrite wrepr_unsigned GRing.mulr0;eauto.
 - case: (to_wordI k5) => {k5} sz' [w] [? /truncate_word_uincl ?]; subst.
   by rewrite k3 GRing.mulr1;eauto.
@@ -286,8 +293,8 @@ Proof.
   t_xrbindP => v1 k1 v2 k2 w1' /to_wordI [sz1 [w1 [? hle1]]]
                   w2' /to_wordI [sz2 [w2 [? hle2]]] ? /= [] ? ?;subst.
   eexists; split; first reflexivity.
-  have := is_wconstP gd s h1; rewrite k1 /= hle1 => -[?]; subst.
-  have := is_wconstP gd s h2; rewrite k2 /= hle2 => -[?]; subst.
+  have! := (is_wconstP gd s h1); rewrite k1 /= hle1 => -[?]; subst.
+  have! := (is_wconstP gd s h2); rewrite k2 /= hle2 => -[?]; subst.
   done.
 Qed.
 
@@ -330,8 +337,8 @@ Proof.
   t_xrbindP => v1 k1 v2 k2 w1' /to_wordI [sz1 [w1 [? hle1]]]
                   w2' /to_wordI [sz2 [w2 [? hle2]]] ? /= [] ? ?;subst.
   eexists; split; first reflexivity.
-  have := is_wconstP gd s h1; rewrite k1 /= hle1 => -[?]; subst.
-  have := is_wconstP gd s h2; rewrite k2 /= hle2 => -[?]; subst.
+  have! := (is_wconstP gd s h1); rewrite k1 /= hle1 => -[?]; subst.
+  have! := (is_wconstP gd s h2); rewrite k2 /= hle2 => -[?]; subst.
   done.
 Qed.
 

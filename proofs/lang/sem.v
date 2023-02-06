@@ -7,7 +7,7 @@ Require Import Psatz xseq.
 Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values.
 Require Export
   flag_combination
-  sem_pexpr_params.
+  sem_params.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -96,23 +96,21 @@ Proof.
   by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
-Section WITH_PARAMS.
-
-Context {cfcd : FlagCombinationParams}.
-
-Definition sem_opN (op: opN) (vs: values) : exec value :=
+Definition sem_opN
+  {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
-End WITH_PARAMS.
+Record estate
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state} := Estate
+  {
+    escs : syscall_state;
+    emem : mem;
+    evm  : vmap
+  }.
 
-Record estate {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state} := Estate {
-  escs : syscall_state_t;
-  emem : mem;
-  evm  : vmap
-}.
-
-Arguments Estate {pd} {syscall_state}%type_scope {sc_sem} _ _ _.
+Arguments Estate {syscall_state}%type_scope {ep} _ _ _.
 
 Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
   assoc gd g.
@@ -160,7 +158,7 @@ Lemma type_of_get_var x vm v :
   type_of_val v = x.(vtype).
 Proof. by rewrite /get_var; apply : on_vuP => // t _ <-; apply type_of_to_val. Qed.
 
-Lemma on_arr_varP {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state}
+Lemma on_arr_varP {syscall_state : Type} {ep : EstateParams syscall_state}
   A (f : forall n, WArray.array n -> exec A) v s x P :
   (forall n t, vtype x = sarr n ->
                get_var (evm s) x = ok (@Varr n t) ->
@@ -196,15 +194,13 @@ Proof.
   by apply: H;rewrite -h.
 Qed.
 
-Section WITH_PARAMS.
+Section SEM_PEXPR.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
-
-Section SEM_PEXPR.
-
-Context (gd: glob_decls).
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  (gd : glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
@@ -287,7 +283,44 @@ Definition write_lvals (s:estate) xs vs :=
 
 End SEM_PEXPR.
 
-(* ---------------------------------------------------------------- *)
+Section EXEC_SYSCALL.
+
+Context
+  {syscall_state : Type}
+  {scs : syscall_sem syscall_state} .
+
+Definition exec_getrandom (scs : syscall_state) len vs :=
+  Let _ :=
+    match vs with
+    | [:: v] => to_arr len v
+    | _ => type_error
+    end in
+  let sd := get_random scs (Zpos len) in
+  Let t := WArray.fill len sd.2 in
+  ok (sd.1, [::Varr t]).
+
+Definition exec_syscall
+  {pd : PointerData}
+  (scs : syscall_state_t)
+  (m : mem)
+  (o : syscall_t)
+  (vs : values) :
+  exec (syscall_state_t * mem * values) :=
+  match o with
+  | RandomBytes len =>
+      Let sv := exec_getrandom scs len vs in
+      ok (sv.1, m, sv.2)
+  end.
+
+End EXEC_SYSCALL.
+
+Section EXEC_ASM.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   let semi := sopn_sem o in
@@ -301,31 +334,21 @@ Proof.
   t_xrbindP => p _ <-;apply type_of_val_ltuple.
 Qed.
 
-Section SEM.
-
-Variable P:uprog.
-
-Notation gd := (p_globs P).
-
 Definition sem_sopn gd o m lvs args :=
   sem_pexprs gd m args >>= exec_sopn o >>= write_lvals gd m lvs.
 
-Definition exec_getrandom (scs : syscall_state_t) len vs := 
-  Let _ := 
-    match vs with
-    | [:: v] => to_arr len v
-    | _ => type_error 
-    end in
-  let sd := get_random scs (Zpos len) in
-  Let t := WArray.fill len sd.2 in
-  ok (sd.1, [::Varr t]).
+End EXEC_ASM.
 
-Definition exec_syscall (scs : syscall_state_t) (m:mem) (o:syscall_t) (vs:values) : exec (syscall_state_t * mem * values) := 
-  match o with
-  | RandomBytes len => 
-    Let sv := exec_getrandom scs len vs in
-    ok (sv.1, m, sv.2)
-  end.
+Section SEM.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  (P : uprog).
+
+Notation gd := (p_globs P).
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
@@ -410,17 +433,9 @@ with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
     sem_call scs1 m1 fn vargs' scs2 m2 vres'.
 
-(* -------------------------------------------------------------------- *)
-(* The generated scheme is borring to use *)
-(*
-Scheme sem_Ind    := Induction for sem      Sort Prop
-with sem_i_Ind    := Induction for sem_i    Sort Prop
-with sem_I_Ind    := Induction for sem_I    Sort Prop
-with sem_for_Ind  := Induction for sem_for  Sort Prop
-with sem_call_Ind := Induction for sem_call Sort Prop.
-*)
-
+(* We define a custom induction principle for program semantics. *)
 Section SEM_IND.
+
   Variables
     (Pc   : estate -> cmd -> estate -> Prop)
     (Pi_r : estate -> instr_r -> estate -> Prop)
@@ -603,5 +618,3 @@ Section SEM_IND.
 End SEM_IND.
 
 End SEM.
-
-End WITH_PARAMS.

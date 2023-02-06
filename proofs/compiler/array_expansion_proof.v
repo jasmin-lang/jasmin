@@ -42,7 +42,13 @@ Definition eq_alloc_vm (m : t) (vm1 vm2 : vmap) :=
     eval_uincl (set_undef_e (t := sword ai.(ai_ty)) (eval_array vm1 ai.(ai_ty) x i)) 
                (set_undef_e vm2.[xi]).
 
-Definition eq_alloc {asm_op syscall_state : Type} {spp : SemPexprParams asm_op syscall_state} (m : t) (s1 s2 : estate) :=
+Definition eq_alloc
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  (m : t)
+  (s1 s2 : estate) :=
   [/\ eq_alloc_vm m s1.(evm) s2.(evm),
       s1.(escs) = s2.(escs) &  s1.(emem) = s2.(emem)].
 
@@ -50,7 +56,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   (fi : funname -> ufundef -> expand_info)
   (p1 p2 : uprog).
 

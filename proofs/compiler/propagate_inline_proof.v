@@ -15,7 +15,9 @@ Local Open Scope vmap_scope.
 
 Record h_propagate_inline_params
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state} :=
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state} :=
   {
     pip_cf_xsemP :
       forall gd s e0 e1 e2 e3 cf v,
@@ -29,7 +31,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   {T : eqType}
   {pT : progT T}
   {sCP : semCallParams}

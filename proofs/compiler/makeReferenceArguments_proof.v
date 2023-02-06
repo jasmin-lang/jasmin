@@ -15,7 +15,9 @@ Section SemInversion.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   (T : eqType)
   (pT : progT T)
   (cs : semCallParams)
@@ -51,7 +53,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {eparams : EstateParams syscall_state}
+  {spparams : SemPexprParams}
+  {siparams : SemInstrParams asm_op syscall_state}
   (is_reg_ptr : var -> bool)
   (fresh_id : Ident.ident → stype → Ident.ident).
 
@@ -399,15 +403,15 @@ Context
     sem_pexpr gd s2 e = ok v.
   Proof.
     move=> hs.
-    pose P e :=
+    pose (P e :=
       forall v,
       noload e →
       sem_pexpr gd s1 e = ok v →
-      sem_pexpr gd s2 e = ok v.
-    pose Q es :=
+      sem_pexpr gd s2 e = ok v).
+    pose (Q es :=
       forall vs,
       all noload es -> sem_pexprs gd s1 es = ok vs →
-      sem_pexprs gd s2 es = ok vs.
+      sem_pexprs gd s2 es = ok vs).
     apply: (pexpr_mut_ind (P:= P) (Q:= Q))=> {e v}; split; rewrite /P /Q /= ?hs // => {P Q}.
     + move=> e ihe es ihes vs /andP [] /ihe{ihe}ihe /ihes{ihes}ihes.
       by t_xrbindP => ? /ihe -> /= ? /ihes -> /= <-.

@@ -8,6 +8,7 @@ open Low_memory
 open Expr
 open Sem
 open Values
+open Sem_params
          
 exception Eval_error of instr_info * Utils0.error 
 
@@ -48,7 +49,7 @@ type ('syscall_state, 'asm) state =
 
 exception Final of Memory.mem * values
 
-let return spp s =
+let return ep spp s =
   assert (s.s_cmd = []);
   match s.s_stk with
   | Sempty(ii, f) ->
@@ -65,7 +66,7 @@ let return spp s =
     let vres = 
       exn_exec ii (mapM (fun (x:var_i) -> get_var vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
-    let s1 = exn_exec ii (write_lvals spp gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
+    let s1 = exn_exec ii (write_lvals ep spp gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
     { s with 
       s_cmd = c;
       s_estate = s1;
@@ -75,14 +76,14 @@ let return spp s =
     match ws with
     | [] -> { s with s_cmd = c; s_stk = stk }
     | w::ws ->
-      let s1 = exn_exec ii (write_var spp i (Vint w) s.s_estate) in
+      let s1 = exn_exec ii (write_var ep i (Vint w) s.s_estate) in
       { s with s_cmd = body;
                s_estate = s1;
                s_stk = Sfor(ii, i, ws, body, c, stk) }
 
-let small_step1 spp s =
+let small_step1 ep spp sip s =
   match s.s_cmd with
-  | [] -> return spp s
+  | [] -> return ep spp s
   | i :: c ->
     let MkI(ii,ir) = i in
     let gd = s.s_prog.p_globs in
@@ -90,39 +91,39 @@ let small_step1 spp s =
     match ir with
 
     | Cassgn(x,_,ty,e) ->
-      let v  = exn_exec ii (sem_pexpr spp gd s1 e) in
+      let v  = exn_exec ii (sem_pexpr ep spp gd s1 e) in
       let v' = exn_exec ii (truncate_val ty v) in
-      let s2 = exn_exec ii (write_lval spp gd x v' s1) in
+      let s2 = exn_exec ii (write_lval ep spp gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn spp gd op s1 xs es) in
+      let s2 = exn_exec ii (sem_sopn ep spp sip._asmop gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
-        let ves = exn_exec ii (sem_pexprs spp gd s1 es) in
-        let ((scs, m), vs) = exn_exec ii (exec_syscall spp s1.escs s1.emem o ves) in
-        let s2 = exn_exec ii (write_lvals spp gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+        let ves = exn_exec ii (sem_pexprs ep spp gd s1 es) in
+        let ((scs, m), vs) = exn_exec ii (exec_syscall sip._sc_sem ep s1.escs s1.emem o ves) in
+        let s2 = exn_exec ii (write_lvals ep spp gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cif(e,c1,c2) ->
-      let b = of_val_b ii (exn_exec ii (sem_pexpr spp gd s1 e)) in
+      let b = of_val_b ii (exn_exec ii (sem_pexpr ep spp gd s1 e)) in
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
     | Cfor (i,((d,lo),hi), body) ->
-      let vlo = of_val_z ii (exn_exec ii (sem_pexpr spp gd s1 lo)) in
-      let vhi = of_val_z ii (exn_exec ii (sem_pexpr spp gd s1 hi)) in
+      let vlo = of_val_z ii (exn_exec ii (sem_pexpr ep spp gd s1 lo)) in
+      let vhi = of_val_z ii (exn_exec ii (sem_pexpr ep spp gd s1 hi)) in
       let rng = wrange d vlo vhi in
       let s =
         {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
-      return spp s
+      return ep spp s
  
     | Cwhile (_, c1, e, c2) ->
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
     | Ccall(_,xs,fn,es) ->
-      let vargs' = exn_exec ii (sem_pexprs spp gd s1 es) in
+      let vargs' = exn_exec ii (sem_pexprs ep spp gd s1 es) in
       let f = 
         match get_fundef s.s_prog.p_funcs fn with
         | Some f -> f
@@ -131,26 +132,26 @@ let small_step1 spp s =
       let {escs; emem = m1; evm = vm1}  = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
       let sf = 
-        exn_exec ii (write_vars spp f.f_params vargs {escs; emem = m1; evm = vmap0}) in
+        exn_exec ii (write_vars ep f.f_params vargs {escs; emem = m1; evm = vmap0}) in
       {s with s_cmd = f.f_body;
               s_estate = sf;
               s_stk = stk }
 
 
-let rec small_step spp s =
-  small_step spp (small_step1 spp s)
+let rec small_step ep spp sip s =
+  small_step ep spp sip (small_step1 ep spp sip s)
 
-let init_state spp scs0 p ii fn args m =
+let init_state ep scs0 p ii fn args m =
   let f = Option.get (get_fundef p.p_funcs fn) in
   let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin args) in
   let s_estate = { escs = scs0; emem = m; evm = vmap0 } in
-  let s_estate = exn_exec ii (write_vars spp f.f_params vargs s_estate) in
+  let s_estate = exn_exec ii (write_vars ep f.f_params vargs s_estate) in
   { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f) }
 
 
-let exec spp scs0 p ii fn args m =
-  let s = init_state spp scs0 p ii fn args m in
-  try small_step spp s
+let exec ep spp sip scs0 p ii fn args m =
+  let s = init_state ep scs0 p ii fn args m in
+  try small_step ep spp sip s
   with Final(m,vs) -> m, vs 
 
 (* ----------------------------------------------------------- *)

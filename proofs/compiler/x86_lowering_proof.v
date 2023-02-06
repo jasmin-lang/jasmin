@@ -4,10 +4,13 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra.
+Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
   lowering_lemmas.
+Require Import
+  arch_extra
+  sem_params_of_arch_extra.
 Require Export x86_lowering.
 Import Utf8.
 Import Psatz.
@@ -448,12 +451,12 @@ Section PROOF.
   Proof.
     rewrite /mulr => ok_v1 ok_v2 hle1 hle2 hsz64 Hw.
     case Heq: (is_wconst _ _) => [z | ].
-    * have := is_wconstP gd s Heq; t_xrbindP => v1 h1 hz [<- <-].
+    * have! := (is_wconstP gd s Heq); t_xrbindP => v1 h1 hz [<- <-].
       split; first done.
       rewrite /= ok_v1 ok_v2 /= /exec_sopn /sopn_sem /= /truncate_word hle1 hle2.
       by rewrite /x86_IMULt /check_size_16_64 hsz64 /= GRing.mulrC Hw.
     case Heq2: (is_wconst _ _) => [z | ].
-    * have := is_wconstP gd s Heq2; t_xrbindP => v2 h2 hz [<- <-].
+    * have! := (is_wconstP gd s Heq2); t_xrbindP => v2 h2 hz [<- <-].
       split; first by rewrite read_es_swap.
       rewrite /= ok_v1 ok_v2 /= /exec_sopn /sopn_sem /= /truncate_word hle1 hle2 /=.
       by rewrite /x86_IMULt /check_size_16_64 hsz64 /= Hw.
@@ -1103,7 +1106,7 @@ Section PROOF.
     by move => hle; rewrite !zero_extend_wrepr.
   Qed.
 
-  Lemma mov_wsP p1 s1 e ws tag i x w s2 :
+  Lemma mov_wsP (p1: prog) s1 e ws tag i x w s2 :
     (ws <= U64)%CMP -> 
     (Let i' := sem_pexpr (p_globs p1) s1 e in to_word ws i') = ok i
     -> write_lval (p_globs p1) x (Vword i) s1 = ok s2
@@ -1184,8 +1187,7 @@ Section PROOF.
       case /andP: hsz => hsz1 hsz2.
       have Hlea :
         Let vs := sem_pexprs gd s1' [:: elea ] in
-        exec_sopn (spp := mk_spp) (Ox86 (LEA sz)) vs
-        = ok [:: Vword w ].
+        exec_sopn (Ox86 (LEA sz)) vs = ok [:: Vword w ].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /sopn_sem /sem_sop2 /= /truncate_word hsz2 /=.
         rewrite Hwb Hwo /= truncate_word_u /= truncate_word_u /= truncate_word_u /= /x86_LEA /check_size_16_64 hsz1 hsz2 /=.
         by rewrite Ew -!/(zero_extend _ _) !zero_extend_wrepr.
@@ -1580,7 +1582,8 @@ Section PROOF.
         by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= He1 He2 /= /truncate_word hsz1 hsz2.
       rewrite /lower_mulu; case hsz: check_size_16_64 => //.
       have /andP [hsz16 hsz64] := assertP hsz.
-      have := @is_wconstP _ _ _ gd s1' sz e1; case: is_wconst => [ n1 | _ ].
+      have! := (is_wconstP gd s1' (sz := sz) (e := e1)).
+      case: is_wconst => [ n1 | _ ].
       + move => /(_ _ erefl) /=; rewrite He1 /= /truncate_word hsz1 => - [?]; subst n1.
         set s2'' := with_vm s1'
            (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w1)) ].
@@ -1606,7 +1609,8 @@ Section PROOF.
             rewrite /get_gvar /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz2 cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE.
             exact Hw''.
         + exact: (eeq_excT Hs3'' Hs2').
-      have := @is_wconstP _ _ _ gd s1' sz e2; case: is_wconst => [ n2 | _ ].
+      have! := (is_wconstP gd s1' (sz := sz) (e := e2)).
+      case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
         set s2'' := with_vm s1' (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ].
         have Heq: eq_exc_fresh s2'' s1'.

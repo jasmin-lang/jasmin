@@ -19,7 +19,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}.
 
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != pex.(sp_rsp) →

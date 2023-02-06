@@ -3,7 +3,7 @@ Require Import ZArith.
 Require Import Utf8.
 
 Require Import oseq expr_facts compiler_util label linear linear_sem.
-Require Import sem_pexpr_params.
+Require Import sem_params.
 Import ssrZ.
 
 Set Implicit Arguments.
@@ -21,7 +21,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap.one_varmap_info}.
 
 Section LprogSemProps.

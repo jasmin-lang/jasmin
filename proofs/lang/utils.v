@@ -1723,3 +1723,11 @@ Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
 
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
   (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+
+Tactic Notation "have!" ":= " constr(x) :=
+  let h := fresh "h" in
+  (assert (h := x); move: h).
+
+Tactic Notation "have!" simple_intropattern(ip) ":= " constr(x) :=
+  let h := fresh "h" in
+  (assert (h := x); move: h => ip).

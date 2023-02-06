@@ -27,7 +27,8 @@ Require Import
   arch_decl
   arch_extra
   asm_gen
-  asm_gen_proof.
+  asm_gen_proof
+  sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -384,13 +385,13 @@ Proof.
   split.
   - apply: lsem_step2; rewrite /lsem1 /step /of_estate.
     + rewrite -(addn0 (size P)).
-      move: (find_instr_skip hbody) => -> /=.
+      rewrite (find_instr_skip hbody) /=.
       rewrite /eval_instr /= /with_vm /= /of_estate /=.
       rewrite zero_extend_u pword_of_wordE addn0.
       reflexivity.
 
     rewrite -addn1.
-    move: (find_instr_skip hbody) => -> /=.
+    rewrite (find_instr_skip hbody) /=.
     rewrite /eval_instr /=.
     rewrite /sem_sopn /= /get_gvar /=.
     rewrite get_var_eq /=.
@@ -452,7 +453,7 @@ Proof.
     rewrite catA in hbody.
     rewrite -!size_cat.
     rewrite -(addn0 (size _)).
-    move: (find_instr_skip hbody) => -> /=.
+    rewrite (find_instr_skip hbody) /=.
 
     have {hgety} hgety :
       get_var vm' y = ok (Vword wy).
@@ -613,7 +614,7 @@ Proof.
       rewrite /of_estate.
       rewrite -catA in hbody.
       rewrite -{1}(addn0 (size P)).
-      move: (find_instr_skip hbody) => -> /=.
+      rewrite (find_instr_skip hbody) /=.
 
       exact:
         (arm_op_mov_eval_instr
@@ -637,7 +638,7 @@ Proof.
     apply: lsem_step2; rewrite /lsem1 /step.
 
     (* R[tmp] := R[tmp] & alignment; *)
-    + move: (find_instr_skip hbody) => -> /=.
+    + rewrite (find_instr_skip hbody) /=.
       clear hbody.
       rewrite onth_cat -/cmd_large_subi ltnn subnn /=.
       exact:
@@ -651,7 +652,7 @@ Proof.
 
     (* R[rsp] := R[tmp]; *)
     + rewrite /= -addnA.
-      move: (find_instr_skip hbody) => -> /=.
+      rewrite (find_instr_skip hbody) /=.
       clear hbody.
       rewrite onth_cat lt_nm_n sub_nmn /=.
 
@@ -724,7 +725,7 @@ Lemma arm_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
        let: s' := {| escs := escs s; evm := vm'; emem := m'; |} in
        let: ls' := of_estate s' fn (size P + size lcmd) in
        let: vars := Sv.add vtmpi (Sv.add vrspi vflags) in
-       [/\ lsem (spp := mk_spp) lp ls ls'
+       [/\ lsem lp ls ls'
          , wf_vm vm'
          , vm' = (evm s) [\ vars ]
          , get_var vm' vrspi = ok (Vword ts')
@@ -780,7 +781,7 @@ Proof.
     apply: lsem_step3; rewrite /lsem1 /step /=.
 
     (* R[tmp] := R[tmp] & alignment; *)
-    + move: (find_instr_skip hbody) => -> /=.
+    + rewrite (find_instr_skip hbody) /=.
       rewrite onth_cat -/cmd_large_subi ltnn subnn /=.
       exact:
         (arm_op_align_eval_instr
@@ -793,7 +794,7 @@ Proof.
 
     (* M[R[rsp]] := R[tmp]; *)
     + rewrite /= -addnA.
-      move: (find_instr_skip hbody) => -> /=.
+      rewrite (find_instr_skip hbody) /=.
       rewrite onth_cat lt_nm_n sub_nmn /=.
       exact:
         (arm_op_str_off_eval_instr
@@ -807,7 +808,7 @@ Proof.
 
     (* R[rsp] := R[tmp]; *)
     + rewrite /= -!addnA addn1.
-      move: (find_instr_skip hbody) => -> /=.
+      rewrite (find_instr_skip hbody) /=.
       rewrite onth_cat lt_nm_n sub_nmn /=.
       rewrite /of_estate /=.
       rewrite !size_cat /=.
