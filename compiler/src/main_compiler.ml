@@ -127,7 +127,13 @@ let main () =
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
     let module Regalloc = Regalloc.Regalloc (Arch) in
     let module StackAlloc = StackAlloc.StackAlloc (Arch) in
-    let spp = Spp_arch_extra.spp_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem in
+    let ep =
+      Sem_params_of_arch_extra.ep_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem
+    in
+    let spp = Sem_params_of_arch_extra.spp_of_asm_e Arch.asm_e in
+    let sip =
+      Sem_params_of_arch_extra.sip_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem
+    in
 
     if !safety_makeconfigdoc <> None
     then (
@@ -284,7 +290,9 @@ let main () =
                  | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
               |>
               Evaluator.exec
+                ep
                 spp
+                sip
                 (Syscall_ocaml.initial_state ())
                 (Expr.to_uprog Arch.asmOp cprog)
                 ii

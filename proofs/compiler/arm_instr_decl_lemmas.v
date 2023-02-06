@@ -6,6 +6,7 @@ From mathcomp.word Require Import ssrZ.
 Require Import
   psem
   shift_kind.
+Require Import sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -52,7 +53,6 @@ Proof. by case: mn. Qed.
    This gets multiplied if they set flags or have shifts. *)
 
 Section WITH_PARAMS.
-
 
 Context
   {syscall_state : Type}

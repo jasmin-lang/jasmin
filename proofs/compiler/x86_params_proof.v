@@ -24,7 +24,8 @@ Require Import
   arch_decl
   arch_extra
   asm_gen
-  asm_gen_proof.
+  asm_gen_proof
+  sem_params_of_arch_extra.
 Require Import
   x86_decl
   x86_extra
@@ -294,7 +295,7 @@ Proof.
 
     (* R[r] := R[rsp]; *)
     + rewrite -{1}(addn0 (size P)).
-      move: (find_instr_skip hbody) => -> /=.
+      rewrite (find_instr_skip hbody) /=.
       apply: x86_lassign_eval_instr.
       * exact: hgetrsp.
       * exact: truncate_word_u.
@@ -303,7 +304,7 @@ Proof.
         reflexivity.
 
     (* R[rsp] := R[rsp] - sz; *)
-    + move: (find_instr_skip hbody) => -> /=.
+    + rewrite (find_instr_skip hbody) /=.
       apply: x86_spec_lip_allocate_stack_frame.
       rewrite Fv.setP_neq; last by apply/eqP.
       move: hgetrsp.
@@ -316,7 +317,7 @@ Proof.
 
     (* R[rsp] := R[rsp] & alignment; *)
     rewrite addn1 -addn2.
-    move: (find_instr_skip hbody) => -> /=.
+    rewrite (find_instr_skip hbody) /=.
     rewrite -(addn1 2) addnA.
     rewrite -/vm2.
     apply:
@@ -389,7 +390,7 @@ Proof.
   - apply: (lsem_trans hsem).
     apply: LSem_step.
     rewrite /lsem1 /step /=.
-    move: (find_instr_skip hbody) => -> /=.
+    rewrite (find_instr_skip hbody) /=.
     rewrite
       (x86_lassign_eval_instr
          _

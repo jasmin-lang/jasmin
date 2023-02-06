@@ -19,7 +19,9 @@ Module INCL. Section INCL.
 
   Context
     {asm_op syscall_state : Type}
-    {spp : SemPexprParams asm_op syscall_state}.
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}.
 
   Section INCL_E.
     Context (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
@@ -312,7 +314,9 @@ Module RGP. Section PROOFS.
 
   Context
     {asm_op syscall_state : Type}
-    {spp : SemPexprParams asm_op syscall_state}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}
     (is_glob : var -> bool)
     (fresh_id : glob_decls -> var -> Ident.ident).
 

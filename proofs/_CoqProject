@@ -24,7 +24,7 @@ arch/arch_sem.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
-arch/spp_arch_extra.v
+arch/sem_params_of_arch_extra.v
 compiler/allocation.v
 compiler/allocation_proof.v
 compiler/arch_params.v
@@ -110,8 +110,8 @@ lang/psem.v
 lang/sem.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
-lang/sem_pexpr_params.v
 lang/sem_one_varmap_facts.v
+lang/sem_params.v
 lang/sem_type.v
 lang/shift_kind.v
 lang/sopn.v

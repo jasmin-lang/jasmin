@@ -38,8 +38,11 @@ Qed.
 
 Section Section.
 
-Context {asm_op syscall_state: Type} {spp: SemPexprParams asm_op syscall_state}.
-Context (gd: glob_decls).
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  (gd : glob_decls).
 
 Lemma fexpr_of_pexprP s e f v :
   fexpr_of_pexpr e = Some f →

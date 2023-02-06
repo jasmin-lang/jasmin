@@ -15,7 +15,8 @@ Require Import
 Require Import
   arch_decl
   arch_extra
-  arch_sem.
+  arch_sem
+  sem_params_of_arch_extra.
 Require Export asm_gen.
 Import Utf8.
 

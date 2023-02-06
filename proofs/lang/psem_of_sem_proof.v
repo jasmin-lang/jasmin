@@ -10,7 +10,9 @@ Section PROOF.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   (p : uprog).
 
 Notation gd := (p_globs p).

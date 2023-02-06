@@ -1,3 +1,4 @@
+
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import
   compiler_util
@@ -8,7 +9,8 @@ Require Import
   arch_extra
   arch_sem
   asm_gen
-  asm_gen_proof.
+  asm_gen_proof
+  sem_params_of_arch_extra.
 Require
   linearization
   linearization_proof
