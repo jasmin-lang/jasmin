@@ -1,22 +1,19 @@
 open Utils
 open Prog
 open Glob_options
+open CLI_errors
 
 (* -------------------------------------------------------------------- *)
 exception UsageError
-exception InputError of input_error
 
 let parse () =
   let error () = raise UsageError in
-  let set_in s =
-    if !infile <> "" then error();
-    if not (BatSys.file_exists s) then raise (InputError (FileNotFound s));
-    if BatSys.is_directory s then raise (InputError (FileIsDirectory s));
-    infile := s  in
+  let set_in s = check_infile s; infile := s in
   (* Set default option values *)
   if Arch.os = Some `Windows then set_cc "windows";
   (* Parse command-line arguments *)
   Arg.parse options set_in usage_msg;
+  check_options ();
   let c =
     match !color with
     | Auto -> Unix.isatty (Unix.descr_of_out_channel stderr)
@@ -518,8 +515,8 @@ let main () =
     Arg.usage options usage_msg;
     exit 1
 
-  | InputError ie ->
-    Format.eprintf "Error: %s\n" (pp_input_error ie);
+  | CLIerror e ->
+    Format.eprintf "Error: %s.\n" (pp_cli_error e);
     exit 1
 
 (* -------------------------------------------------------------------- *)
