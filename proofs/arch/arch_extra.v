@@ -115,11 +115,11 @@ Section AsmOpI.
 
 Context `{asm_e : asm_extra}.
 
-Inductive extended_op := 
+Variant extended_op :=
   | BaseOp of asm_op_msb_t
   | ExtOp of extra_op_t.
 
-Definition extended_op_beq o1 o2 := 
+Definition extended_op_beq o1 o2 :=
   match o1, o2 with
   | BaseOp o1, BaseOp o2 => eq_op (T:= prod_eqType _ ceqT_eqType) o1 o2
   | ExtOp o1, ExtOp o2 => o1 == o2 ::>

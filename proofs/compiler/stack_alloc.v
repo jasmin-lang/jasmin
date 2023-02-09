@@ -444,7 +444,7 @@ Definition assert_check E b (e:E) :=
   if check then assert b e
   else ok tt.
 
-Inductive vptr_kind :=
+Variant vptr_kind :=
   | VKglob of Z * wsize
   | VKptr  of ptr_kind.
 
