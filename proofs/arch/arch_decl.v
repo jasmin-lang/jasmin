@@ -91,7 +91,7 @@ Record reg_address : Type := mkAddress
   ; ad_offset : option reg_t
   }.
 
-Inductive address :=
+Variant address :=
 | Areg of reg_address (* Absolute address. *)
 | Arip of pointer.    (* Address relative to instruction pointer. *)
 
