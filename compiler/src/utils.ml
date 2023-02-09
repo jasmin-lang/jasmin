@@ -427,14 +427,3 @@ let warning (w:warning) loc =
       Format.eprintf "@[<v>%a:@ %t: %t@]@."
         (pp_print_bold Location.pp_iloc)
         loc pp_warning pp)
-
-(* -------------------------------------------------------------------- *)
-
-type input_error =
-  | FileNotFound of string
-  | FileIsDirectory of string
-
-let pp_input_error ie =
-  match ie with
-  | FileNotFound s -> Printf.sprintf "File %s not found" s
-  | FileIsDirectory s -> Printf.sprintf "File %s is a directory" s
