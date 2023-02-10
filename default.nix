@@ -50,7 +50,7 @@ stdenv.mkDerivation {
          ocaml findlib ocamlbuild
          (batteries.overrideAttrs (o: { doCheck = false; }))
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
-    ++ optionals devTools (with oP; [ merlin ocamlformat ])
+    ++ optionals devTools (with oP; [ merlin ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
