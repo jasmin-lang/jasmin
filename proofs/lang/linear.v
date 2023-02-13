@@ -56,6 +56,7 @@ Record lfundef := LFundef {
  (* This is [lfd_total_stack] without padding, rounded to the next alignment
     multiple if the function is export and we need to clean the stack. *)
   lfd_used_stack : Z;
+ lfd_frame_size : Z; (* we need that piece of info for clear stack *)
 }.
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=

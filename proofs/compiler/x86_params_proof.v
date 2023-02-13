@@ -221,8 +221,8 @@ Qed.
 Section toto.
 Context (lp : lprog) (fn : funname) (lfd : lfundef) (lc : lcmd) (lbl : label.label).
 Context (ws_align : wsize) (ws : wsize) (max_stk_size : Z).
-Context (le_ws_ws_align : (ws <= ws_align)%CMP).
 Context (halign : is_align max_stk_size ws).
+Context (le_ws_ws_align : (ws <= ws_align)%CMP).
 Context (hlfd : get_fundef lp.(lp_funcs) fn = Some lfd).
 Context (hlabel : ~~ has (is_label lbl) lc).
 
@@ -232,12 +232,14 @@ Section LARGE.
 
 Context (hlarge : ~ (ws <= U64)%CMP).
 Context (hbody : lfd.(lfd_body) = lc ++ x86_clear_stack_loop_large lbl ws_align ws max_stk_size).
+Context (ptr : pointer).
+Context (hstack : (max_stk_size <= wunsigned (align_word ws_align ptr))%Z).
+Let top := (align_word ws_align ptr - wrepr Uptr max_stk_size)%R.
 
 Section S1.
 
 Context (s1 : estate).
-Context (hstack : (0 <= wunsigned (align_word ws_align (top_stack s1.(emem))) - max_stk_size)%Z).
-Let top := (align_word ws_align (top_stack s1.(emem)) + wrepr Uptr (- max_stk_size))%R.
+Context (hrsp : get_gvar [::] s1.(evm) rsp = ok (Vword ptr)).
 
 Record state_rel_small s2 n := {
   sr_scs : s1.(escs) = s2.(escs);
@@ -246,7 +248,7 @@ Record state_rel_small s2 n := {
   sr_disjoint :
     forall p, disjoint_zrange top max_stk_size p (wsize_size U8) ->
       read s1.(emem) p U8 = read s2.(emem) p U8;
-  sr_tmp : get_var s2.(evm) tmpi = ok (Vword (align_word ws_align (top_stack s1.(emem))));
+  sr_tmp : get_var s2.(evm) tmpi = ok (Vword (align_word ws_align ptr));
   sr_off : get_var s2.(evm) offi = ok (Vword (wrepr Uptr n));
   sr_aligned : is_align n ws;
   sr_bound : (- max_stk_size <= n <= 0)%Z;
@@ -269,7 +271,7 @@ Proof.
   move=> hsr hlt.
   have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_loop_large lbl ws_align ws max_stk_size).
   + by exists lfd.
-  have: validw (emem s2) (align_word ws_align (top_stack (emem s1)) + wrepr Uptr n)%R ws.
+  have: validw (emem s2) (align_word ws_align ptr + wrepr Uptr n)%R ws.
   + apply /validwP; split.
     + apply is_align_add.
       + apply (is_align_m le_ws_ws_align).
@@ -281,16 +283,16 @@ Proof.
     rewrite /between /zbetween addE /top !zify.
     rewrite -GRing.addrA -wrepr_add.
     have hbound := hsr.(sr_bound).
-    assert (h := wunsigned_range (align_word ws_align (top_stack (emem s1)))).
+    assert (h := wunsigned_range (align_word ws_align ptr)).
     have hn: (n <= - wsize_size ws)%Z.
     + have := hsr.(sr_aligned).
       rewrite /is_align WArray.p_to_zE.
       move=> /eqP /Z.mod_divide [//|m ?].
       have: (m < 0)%Z; Lia.nia.
+    rewrite wunsigned_sub; last first.
+    + by move: h hstack => /=; Lia.lia.
     rewrite wunsigned_add; last first.
-    + move: h hstack => /=; Lia.lia.
-    rewrite wunsigned_add; last first.
-    + move: h hstack => /=. Lia.lia.
+    + by move: h hstack => /=; Lia.lia.
     rewrite wsize8. Lia.lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
@@ -334,17 +336,17 @@ Proof.
     rewrite (writeP_neq hm'); first by apply hdisj.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.
-    assert (h := wunsigned_range (align_word ws_align (top_stack (emem s1)))).
+    assert (h := wunsigned_range (align_word ws_align ptr)).
     have hn: (n <= - wsize_size ws)%Z.
     + move: haligned.
       rewrite /is_align WArray.p_to_zE.
       move=> /eqP /Z.mod_divide [//|m ?].
       have ? := wsize_size_pos ws.
       have: (m < 0)%Z; Lia.nia.
-    rewrite wunsigned_add; last first.
+    rewrite wunsigned_sub; last first.
     + move: h hstack => /=; Lia.lia.
     rewrite wunsigned_add; last first.
-    + move: h hstack => /=. Lia.lia.
+    + move: h hstack => /=; Lia.lia.
     Lia.lia.
   + by rewrite !get_var_neq.
   + rewrite get_var_eq /=.
@@ -384,12 +386,12 @@ Proof.
     have := wsize_size_pos ws.
     Lia.lia.
   elim: k n s2 hsr hlt hn => [|k ih] n s2 hsr hlt hn.
-  + move: hn; rewrite /= Z.mul_0_l.
+  + move: hn; rewrite Z.mul_0_l.
     Lia.lia.
   have [s3 [hsem3 hzf3 hsr3]] := loop_bodyP hsr hlt.
   case hzf: (~~ ZF_of_word (wrepr U64 n + wrepr U64 (wsize_size ws))).
   + have hn3: (n + wsize_size ws < 0)%Z.
-    + case: k {ih} hn => /= [|k].
+    + case: k {ih} hn => [|k].
       + rewrite Z.mul_opp_l Z.mul_1_l => hn.
         case /negP: hzf.
         by rewrite /ZF_of_word -wrepr_add hn Z.add_opp_diag_l.
@@ -421,7 +423,7 @@ Proof.
     move /(elimNf idP): hzf.
     rewrite /ZF_of_word -wrepr_add => /eqP ->.
     have ?: (max_stk_size < wbase U64)%Z.
-    + assert (h := wunsigned_range (align_word ws_align (top_stack (emem s1)))).
+    + assert (h := wunsigned_range (align_word ws_align ptr)).
       move: h hstack => /=.
       Lia.lia.
     move=> /(_ ltac:(Lia.lia)).
@@ -441,13 +443,12 @@ Qed.
 End S1.
 
 Context (s0 : estate).
-Context (hstack : (0 <= wunsigned (align_word ws_align (top_stack s0.(emem))) - max_stk_size)%Z).
 Context (hvalid : forall p,
-  between (align_word ws_align (top_stack (emem s0)) + wrepr U64 (- max_stk_size)) max_stk_size p U8 ->
+  between top max_stk_size p U8 ->
   validw (emem s0) p U8).
 
 Lemma init_code_loopP' :
-  get_gvar [::] s0.(evm) rsp = ok (Vword (top_stack s0.(emem))) ->
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
   exists s1,
     lsem lp (of_estate s0 fn (size lc)) (of_estate s1 fn (size lc + 5)) /\
     state_rel s0 s1 (-max_stk_size).
@@ -506,14 +507,14 @@ Proof.
 Qed.
 
 Lemma fullP_large :
-  get_gvar [::] s0.(evm) rsp = ok (Vword (top_stack s0.(emem))) ->
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
   exists s2,
     lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_loop_large lbl ws_align ws max_stk_size)))
     /\ state_rel s0 s2 0.
 Proof.
   move=> hrsp.
   have [s1 [hsem1 hsr1]] := init_code_loopP' hrsp.
-  have [s2 [hsem2 hsr2]] := loopP hstack hsr1 ltac:(Lia.lia).
+  have [s2 [hsem2 hsr2]] := loopP hsr1 ltac:(Lia.lia).
   exists s2; split=> //.
   by apply: (lsem_trans hsem1).
 Qed.
@@ -524,26 +525,28 @@ Section SMALL.
 
 Context (hsmall : (ws <= U64)%CMP).
 Context (hbody : lfd.(lfd_body) = lc ++ x86_clear_stack_loop_small lbl ws_align ws max_stk_size).
+Context (ptr : pointer).
+Context (hstack : (max_stk_size <= wunsigned (align_word ws_align ptr))%Z).
+Let top := (align_word ws_align ptr - wrepr Uptr max_stk_size)%R.
 
 Section S1.
 
 Context (s1 : estate).
-Context (hstack : (0 <= wunsigned (align_word ws_align (top_stack s1.(emem))) - max_stk_size)%Z).
-Let top := (align_word ws_align (top_stack s1.(emem)) + wrepr Uptr (- max_stk_size))%R.
+Context (hrsp : get_gvar [::] s1.(evm) rsp = ok (Vword ptr)).
 
 Lemma loop_bodyP_small s2 n :
-  state_rel_small s1 s2 n ->
+  state_rel_small ptr s1 s2 n ->
   (n < 0)%Z ->
   exists s3,
     [/\ lsem lp (of_estate s2 fn (size lc + 4))
                 (of_estate s3 fn (size lc + 6)),
         get_var s3.(evm) zfi = ok (Vbool (ZF_of_word (wrepr U64 n + wrepr U64 (wsize_size ws))))
-      & state_rel_small s1 s3 (n + wsize_size ws)].
+      & state_rel_small ptr s1 s3 (n + wsize_size ws)].
 Proof.
   move=> hsr hlt.
   have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_loop_small lbl ws_align ws max_stk_size).
   + by exists lfd.
-  have: validw (emem s2) (align_word ws_align (top_stack (emem s1)) + wrepr Uptr n)%R ws.
+  have: validw (emem s2) (align_word ws_align ptr + wrepr Uptr n)%R ws.
   + apply /validwP; split.
     + apply is_align_add.
       + apply (is_align_m le_ws_ws_align).
@@ -555,13 +558,13 @@ Proof.
     rewrite /between /zbetween addE /top !zify.
     rewrite -GRing.addrA -wrepr_add.
     have hbound := hsr.(sr_bound).
-    assert (h := wunsigned_range (align_word ws_align (top_stack (emem s1)))).
+    assert (h := wunsigned_range (align_word ws_align ptr)).
     have hn: (n <= - wsize_size ws)%Z.
     + have := hsr.(sr_aligned).
       rewrite /is_align WArray.p_to_zE.
       move=> /eqP /Z.mod_divide [//|m ?].
       have: (m < 0)%Z; Lia.nia.
-    rewrite wunsigned_add; last first.
+    rewrite wunsigned_sub; last first.
     + move: h hstack => /=; Lia.lia.
     rewrite wunsigned_add; last first.
     + move: h hstack => /=. Lia.lia.
@@ -608,14 +611,14 @@ Proof.
     rewrite (writeP_neq hm'); first by apply hdisj.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.
-    assert (h := wunsigned_range (align_word ws_align (top_stack (emem s1)))).
+    assert (h := wunsigned_range (align_word ws_align ptr)).
     have hn: (n <= - wsize_size ws)%Z.
     + move: haligned.
       rewrite /is_align WArray.p_to_zE.
       move=> /eqP /Z.mod_divide [//|m ?].
       have ? := wsize_size_pos ws.
       have: (m < 0)%Z; Lia.nia.
-    rewrite wunsigned_add; last first.
+    rewrite wunsigned_sub; last first.
     + move: h hstack => /=; Lia.lia.
     rewrite wunsigned_add; last first.
     + move: h hstack => /=. Lia.lia.
@@ -639,12 +642,12 @@ Proof.
 Qed.
 
 Lemma loopP_small s2 n :
-  state_rel_small s1 s2 n ->
+  state_rel_small ptr s1 s2 n ->
   (n < 0)%Z ->
   exists s3,
     [/\ lsem lp (of_estate s2 fn (size lc + 4))
                 (of_estate s3 fn (size lc + 7))
-      & state_rel_small s1 s3 0].
+      & state_rel_small ptr s1 s3 0].
 Proof.
   move=> hsr hlt.
   have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_loop_small lbl ws_align ws max_stk_size).
@@ -658,12 +661,12 @@ Proof.
     have := wsize_size_pos ws.
     Lia.lia.
   elim: k n s2 hsr hlt hn => [|k ih] n s2 hsr hlt hn.
-  + move: hn; rewrite /= Z.mul_0_l.
+  + move: hn; rewrite Z.mul_0_l.
     Lia.lia.
   have [s3 [hsem3 hzf3 hsr3]] := loop_bodyP_small hsr hlt.
   case hzf: (~~ ZF_of_word (wrepr U64 n + wrepr U64 (wsize_size ws))).
   + have hn3: (n + wsize_size ws < 0)%Z.
-    + case: k {ih} hn => /= [|k].
+    + case: k {ih} hn => [|k].
       + rewrite Z.mul_opp_l Z.mul_1_l => hn.
         case /negP: hzf.
         by rewrite /ZF_of_word -wrepr_add hn Z.add_opp_diag_l.
@@ -695,7 +698,7 @@ Proof.
     move /(elimNf idP): hzf.
     rewrite /ZF_of_word -wrepr_add => /eqP ->.
     have ?: (max_stk_size < wbase U64)%Z.
-    + assert (h := wunsigned_range (align_word ws_align (top_stack (emem s1)))).
+    + assert (h := wunsigned_range (align_word ws_align ptr)).
       move: h hstack => /=.
       Lia.lia.
     move=> /(_ ltac:(Lia.lia)).
@@ -715,16 +718,15 @@ Qed.
 End S1.
 
 Context (s0 : estate).
-Context (hstack : (0 <= wunsigned (align_word ws_align (top_stack s0.(emem))) - max_stk_size)%Z).
 Context (hvalid : forall p,
-  between (align_word ws_align (top_stack (emem s0)) + wrepr U64 (- max_stk_size)) max_stk_size p U8 ->
+  between top max_stk_size p U8 ->
   validw (emem s0) p U8).
 
 Lemma init_code_loopP'_small :
-  get_gvar [::] s0.(evm) rsp = ok (Vword (top_stack s0.(emem))) ->
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
   exists s1,
     lsem lp (of_estate s0 fn (size lc)) (of_estate s1 fn (size lc + 4)) /\
-    state_rel_small s0 s1 (-max_stk_size).
+    state_rel_small ptr s0 s1 (-max_stk_size).
 Proof.
   move=> hrsp.
   have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_loop_small lbl ws_align ws max_stk_size).
@@ -765,14 +767,14 @@ Proof.
 Qed.
 
 Lemma fullP_small :
-  get_gvar [::] s0.(evm) rsp = ok (Vword (top_stack s0.(emem))) ->
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
   exists s2,
     lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_loop_small lbl ws_align ws max_stk_size)))
-    /\ state_rel_small s0 s2 0.
+    /\ state_rel_small ptr s0 s2 0.
 Proof.
   move=> hrsp.
   have [s1 [hsem1 hsr1]] := init_code_loopP'_small hrsp.
-  have [s2 [hsem2 hsr2]] := loopP_small hstack hsr1 ltac:(Lia.lia).
+  have [s2 [hsem2 hsr2]] := loopP_small hsr1 ltac:(Lia.lia).
   exists s2; split=> //.
   by apply: (lsem_trans hsem1).
 Qed.
@@ -780,17 +782,17 @@ Qed.
 End SMALL.
 
 Context (hbody : lfd.(lfd_body) = lc ++ x86_clear_stack_loop lbl ws_align ws max_stk_size).
-Context (s0 : estate).
-Context (hstack : (0 <= wunsigned (align_word ws_align (top_stack s0.(emem))) - max_stk_size)%Z).
+Context (s0 : estate) (ptr : pointer).
+Context (hstack : (max_stk_size <= wunsigned (align_word ws_align ptr))%Z).
 Context (hvalid : forall p,
-  between (align_word ws_align (top_stack (emem s0)) + wrepr U64 (- max_stk_size)) max_stk_size p U8 ->
+  between (align_word ws_align ptr - wrepr U64 max_stk_size) max_stk_size p U8 ->
   validw (emem s0) p U8).
 
 Lemma fullP :
-  get_gvar [::] s0.(evm) rsp = ok (Vword (top_stack s0.(emem))) ->
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
   exists s2,
     lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_loop lbl ws_align ws max_stk_size)))
-    /\ state_rel_small s0 s2 0.
+    /\ state_rel_small ptr s0 s2 0.
 Proof.
   move=> hget.
   move: hbody.
@@ -805,36 +807,39 @@ Proof.
 Qed.
 
 End toto.
-
+Opaque Uptr.
 Lemma x86_hcsparams : h_clear_stack_params x86_csparams.
 Proof.
   split.
+  + move=> cs lbl ws_align ws max_stk_size cmd.
+    case: cs => /=.
+    + move=> [<-].
+      rewrite /x86_clear_stack_loop.
+      + by case: ifP.
+      move=> [<-].
+      rewrite /x86_clear_stack_unrolled.
+      case: ifP => _ /=.
+      + by apply ziota_ind.
+      by apply ziota_ind.
+
   move=> cs lbl ws_align ws max_stk_size cmd.
   case: cs => /=.
-  + move=> [<-].
-    move=> lp fn lfd lc /negP hlabel hlfd scs m vm hrsp hbody.
-    have hle: (ws ≤ ws_align)%CMP.
-    + admit.
-    have halign: is_align max_stk_size ws.
-    + admit.
-    have hlt: (0 < max_stk_size)%Z.
-    + admit.
-    have hmax: (0 <= wunsigned (align_word ws_align (top_stack m)) - max_stk_size)%Z.
-    + admit.
-    have hvalid: (forall p : word Uptr,
+  + move=> [<-] max_stk_pos halign hle lp fn lfd lc /negP hlabel hlfd hbody scs m vm ptr enough_stk ok_ptr.
+    have hvalid: (forall p,
       between
-        (align_word ws_align (top_stack m) +
-         wrepr Uptr (- max_stk_size))%R max_stk_size p U8 ->
+        (align_word ws_align ptr -
+         wrepr Uptr max_stk_size)%R max_stk_size p U8 ->
       validw m p U8).
     + admit.
-   have hrsp': get_gvar [::] vm rsp = ok (Vword (top_stack m)).
-   + admit.
-   have := fullP hle halign hlfd hlabel hlt hbody (s0 := Estate (spp:=mk_spp) scs m vm) hmax hvalid hrsp'.
+   have hrsp': get_gvar [::] vm rsp = ok (Vword ptr).
+   + rewrite /get_gvar /=. rewrite /to_var. simpl. done. done. admit.
+   have := fullP halign hle hlfd hlabel max_stk_pos hbody (s0 := Estate (spp:=mk_spp) scs m vm) enough_stk hvalid ok_ptr.
    move=> [s2 [hsem hsr]].
-   exists (evm s2), (emem s2).
+   exists (emem s2), (evm s2).
    split.
    + move: hsem; rewrite /of_estate /=.
      have /= <- := hsr.(sr_scs). done.
+   + state_rel_small
    split.
    + admit.
    split.

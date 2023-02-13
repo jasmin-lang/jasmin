@@ -27,6 +27,7 @@ Definition map_lfundef (f : lcmd -> lcmd) (lfd : lfundef) : lfundef :=
     lfd_callee_saved := lfd_callee_saved lfd;
     lfd_total_stack := lfd_total_stack lfd;
     lfd_used_stack := lfd_used_stack lfd;
+    lfd_frame_size := lfd_frame_size lfd
   |}.
 
 Fixpoint max_map

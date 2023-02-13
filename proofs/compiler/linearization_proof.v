@@ -1345,7 +1345,7 @@ Section PROOF.
 
   Definition is_stack_max fn (sp:pointer) :=
     forall fd, get_fundef p.(p_funcs) fn = Some fd ->
-    let max := fd.(f_extra).(sf_stk_max) in
+    let max := fd.(f_extra).(sf_stk_max_used) in
 (*     (0 <= max)%Z /\ (* probably not needed *) *)
     (max <= max0)%Z /\
     (if fd.(f_extra).(sf_return_address) is RAnone then
@@ -1357,7 +1357,7 @@ Section PROOF.
 
   Definition is_stack_max_sub fn (sp:pointer) :=
     forall fd, get_fundef p.(p_funcs) fn = Some fd ->
-    let max := (fd.(f_extra).(sf_stk_max) - frame_size fd.(f_extra))%Z in
+    let max := (fd.(f_extra).(sf_stk_max_used) - frame_size fd.(f_extra))%Z in
 (*     (0 <= max)%Z (* is this needed? *) /\ *)
     (0 <= wunsigned sp0 - wunsigned sp <= max0 - max)%Z.
 
@@ -4319,37 +4319,69 @@ Section PROOF.
 
   End STACK.
 
+  Definition align_top top ws sz :=
+    (top_stack_after_alloc top ws sz + wrepr _ sz)%R.
+
+  Definition align_top_stack top e :=
+    align_top top e.(sf_align) (e.(sf_stk_sz) + e.(sf_stk_extra_sz)).
+
+  Lemma align_top_aligned top ws sz :
+    (0 <= sz)%Z ->
+    (0 <= wunsigned top - sz < wbase Uptr)%Z ->
+    is_align sz ws ->
+    align_top top ws sz = align_word ws top.
+  Proof.
+    move=> hpos hb hal.
+    rewrite /align_top /top_stack_after_alloc.
+    apply wunsigned_inj.
+    rewrite wunsigned_add; last first.
+    + have := align_word_range ws (top + wrepr Uptr (- sz)).
+      rewrite wrepr_opp wunsigned_sub //.
+      have := wunsigned_range top.
+      have := wunsigned_range (align_word ws (top - wrepr Uptr sz)).
+      lia.
+    rewrite !align_wordE wrepr_opp wunsigned_sub //.
+    rewrite Zminus_mod.
+    move/eqP: hal; rewrite WArray.p_to_zE => ->.
+    rewrite Z.sub_0_r Zmod_mod.
+    lia.
+  Qed.
+
   Lemma linear_exportcallP gd scs m fn args scs' m' res :
     sem_export_call p extra_free_registers var_tmp gd scs m fn args scs' m' res →
-    ∃ fd,
+    ∃ fd lfd,
       [/\
-         get_fundef p'.(lp_funcs) fn = Some fd,
-        fd.(lfd_export) &
+         get_fundef p.(p_funcs) fn = Some fd,
+         get_fundef p'.(lp_funcs) fn = Some lfd,
+        lfd.(lfd_export) &
       ∀ lm vm args',
         wf_vm vm →
         vm.[vid (lp_rsp p')]%vmap = ok (pword_of_word (top_stack m)) →
         match_mem m lm →
-        mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
+        mapM (λ x : var_i, get_var vm x) lfd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid p'.(lp_rip)]%vmap = ok (pword_of_word gd) →
-        vm_initialized_on vm ((var_tmp : var) :: lfd_callee_saved fd) →
-        all2 check_ty_val fd.(lfd_tyin) args' ∧
+        vm_initialized_on vm ((var_tmp : var) :: lfd_callee_saved lfd) →
+        (fd.(f_extra).(sf_stk_max_used) <= wunsigned (align_top_stack (top_stack m) fd.(f_extra)))%Z ->
+        all2 check_ty_val lfd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           (* TODO: vm = vm' [\ k ] ; stack_stable m m' ; etc. *)
           [/\
             lsem_exportcall p' scs lm fn vm scs' lm' vm',
+            target_mem_unchanged m (align_top_stack (top_stack m) fd.(f_extra)) fd.(f_extra).(sf_stk_max_used) lm lm',
             match_mem m' lm',
-            mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
+            mapM (λ x : var_i, get_var vm' x) lfd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
-            all2 check_ty_val fd.(lfd_tyout) res'
+            all2 check_ty_val lfd.(lfd_tyout) res'
           ]
       ].
   Proof.
     case => fd ok_fd Export to_save_not_result RSP_not_result H.
-    exists (linear_fd fn fd).2; split.
+    exists fd, (linear_fd fn fd).2; split.
+    - done.
     - exact: get_fundef_p' ok_fd.
     - exact: Export.
-    rewrite lp_rspE => lm vm args' ok_vm vm_rsp M ok_args' args_args' vm_rip safe_registers.
+    rewrite lp_rspE => lm vm args' ok_vm vm_rsp M ok_args' args_args' vm_rip safe_registers enough_stk.
     have {H}[] := H vm args' ok_vm ok_args' args_args' vm_rsp.
     - by move: vm_rip; rewrite lp_ripE.
     move => m1 k m2 vm2 res' ok_save_stack ok_callee_saved ok_m1 wt_args' sexec ok_res' res_res' wt_res' vm2_rsp ?; subst m'.
@@ -4375,11 +4407,11 @@ Section PROOF.
       + exact: wt_res'.
       + exact: vm2_rsp.
       reflexivity.
-    set m0 := (emem s1).
-    set sp := (top_stack m1 + wrepr _ (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))%R.
-    set max0 := fd.(f_extra).(sf_stk_max).
+    set m0 := m.
+    set sp := align_top_stack (top_stack m) (f_extra fd).
+    set max0 := fd.(f_extra).(sf_stk_max_used).
     case/(_ m0 sp max0 _ lm vm (linear_body liparams p extra_free_registers fn fd.(f_extra) fd.(f_body)).2 RAnone None (top_stack m) (map fst fd.(f_extra).(sf_to_save)) ok_vm M).
-    - 
+    - done.
     - move => x; rewrite !Fv.setP.
       case: eqP => ?; first by subst; rewrite vm_rsp.
       case: eqP => ?; first subst.
@@ -4397,7 +4429,25 @@ Section PROOF.
     - eexists; first exact: ok_fd.
       by move/eqP: Export => /= ->.
     - by move: safe_registers; rewrite /= Export {1}/vm_initialized_on /= => /andP[] _.
-    move => lmo vmo texec vm_eq_vmo ? s2_vmo ? M'.
+    - by move=> pr ?; apply /orP; left.
+    - move=> fd''; rewrite ok_fd => -[?]; subst fd''.
+      move/eqP: Export => -> /=.
+      split.
+      + by rewrite -/max0; lia.
+      split=> //.
+      have := checked_prog ok_fd.
+      rewrite /check_fd.
+      t_xrbindP=> _ _ ok_stk_sz _ _ _.
+      move: ok_stk_sz; rewrite !zify /= => ?.
+      rewrite /m0 /sp /align_top_stack /align_top /max0.
+      rewrite -(alloc_stack_top_stack ok_m1).
+      have /= ? := (alloc_stackP ok_m1).(ass_above_limit).
+      rewrite wunsigned_add; first by lia.
+      assert (h := wunsigned_range (top_stack m1)).
+      assert (h2 := wunsigned_range (top_stack m)).
+      lia.
+
+    move => lmo vmo [texec U] vm_eq_vmo ? s2_vmo ? M'.
     have vm2_vmo : ∀ r, List.In r (f_res fd) → (eval_uincl vm2.[r] vmo.[r])%vmap.
     - move => r r_in_result.
       have r_not_saved : ¬ Sv.In r (sv_of_list id (map fst fd.(f_extra).(sf_to_save))).
@@ -4447,6 +4497,7 @@ Section PROOF.
       rewrite sv_of_list_map Sv.diff_spec => S hrC [] hrX; apply.
       apply: S.
       by rewrite Sv.inter_spec.
+    - exact: U.
     - exact: M'.
     - move/eqP: Export => /= -> /=.
       exact: ok_lres.

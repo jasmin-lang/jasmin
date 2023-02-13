@@ -26,42 +26,47 @@ Record h_clear_stack_params {asm_op syscall_state : Type} {spp : SemPexprParams 
 { ovmi : one_varmap.one_varmap_info }
 (csp : clear_stack_params) :=
   {
-    hcs_no_ext_lbl : forall cs lbl ws_align ws max_stk_size cmd,
-      csp.(cs_clear_stack_cmd) cs lbl ws_align ws max_stk_size = ok cmd ->
+    hcs_no_ext_lbl : forall cs vars lbl ws_align ws max_stk_size cmd,
+      csp.(cs_clear_stack_cmd) cs vars lbl ws_align ws max_stk_size = ok cmd ->
       label_in_lcmd cmd = [::];
+
     hcs_clear_stack_cmd : forall cs lbl ws_align ws max_stk_size cmd,
       csp.(cs_clear_stack_cmd) cs lbl ws_align ws max_stk_size = ok cmd ->
-      is_align max_stk_size ws_align ->
+      (0 < max_stk_size)%Z ->
+      is_align max_stk_size ws ->
       (ws <= ws_align)%CMP ->
       forall (lp : lprog) fn lfd lc,
       ~ has (is_label lbl) lc ->
       get_fundef lp.(lp_funcs) fn = Some lfd ->
       lfd.(lfd_body) = lc ++ cmd ->
       forall scs m vm ptr,
+      (max_stk_size <= wunsigned (align_word ws_align ptr))%Z ->
       get_var vm (vid lp.(lp_rsp)) = ok (Vword ptr) ->
-(*       Sv.subset (sv_of_list v_var lfd.(lfd_res)) (Sv.union (sv_of_list to_var call_reg_ret) (sv_of_list to_var call_xreg_ret)) -> *)
-      exists m' vm',
+      exists m' vm', [/\
         lsem lp (Lstate scs m vm fn (size lc))
-                (Lstate scs m' vm' fn (size lc+size cmd)) /\
-        vm =[Sv.union (sv_of_list v_var lfd.(lfd_res)) one_varmap.callee_saved] vm' /\
-        let top := (align_word ws_align ptr + wrepr Uptr (- max_stk_size))%R in
+                (Lstate scs m' vm' fn (size lc+size cmd)),
+        vm =[vars cmd] vm',
+        validw m =2 validw m' &
+        let top := (align_word ws_align ptr - wrepr Uptr max_stk_size)%R in
         (forall p, disjoint_zrange top max_stk_size p (wsize_size U8) ->
           read m p U8 = read m' p U8) /\
-        (forall p, between top max_stk_size p U8 -> read m' p U8 = ok 0%R)
+        (forall p, between top max_stk_size p U8 -> read m' p U8 = ok 0%R)]
   }.
 
 Section WITH_PARAMS.
 
 Context
-  {pd:PointerData} {ovm_i : one_varmap.one_varmap_info}
-  (asm_op : Type)
-  (asmop : asmOp asm_op)
-  (css_of_fn : funname -> option (cs_strategy * wsize))
-  (csparams : clear_stack_params).
+  {asm_op syscall_state}
+  {spp: SemPexprParams asm_op syscall_state}
+  {ovmi : one_varmap.one_varmap_info}.
+
+Context
+  (csparams : clear_stack_params)
+  (css_of_fn : funname -> option (cs_strategy * wsize)).
 
 Notation clear_stack_cmd := (cs_clear_stack_cmd csparams).
-Notation clear_stack_lfd := (clear_stack_lfd css_of_fn csparams).
-Notation clear_stack_lprog := (clear_stack_lprog css_of_fn csparams).
+Notation clear_stack_lfd := (clear_stack_lfd csparams css_of_fn).
+Notation clear_stack_lprog := (clear_stack_lprog csparams css_of_fn).
 
 Lemma clear_stack_lprog_invariants lp lp' :
   clear_stack_lprog lp = ok lp'
@@ -70,7 +75,7 @@ Lemma clear_stack_lprog_invariants lp lp' :
        & lp_globs lp = lp_globs lp'].
 Proof.
   rewrite /clear_stack_lprog.
-  by t_xrbindP=> _ lp_funs _ <-.
+  by t_xrbindP=> lp_funs _ <-.
 Qed.
 
 Lemma clear_stack_lprog_get_fundef lp lp' :
@@ -82,7 +87,7 @@ Lemma clear_stack_lprog_get_fundef lp lp' :
     get_fundef lp'.(lp_funcs) fn = Some lfd'.
 Proof.
   rewrite /clear_stack_lprog.
-  t_xrbindP=> _ lp_funs hmap <- /= fn lfd' hget.
+  t_xrbindP=> lp_funs hmap <- /= fn lfd' hget.
   by apply (get_map_cfprog_name_gen hmap hget).
 Qed.
 
@@ -97,24 +102,37 @@ Lemma clear_stack_lfd_invariants fn lfd lfd' :
     , lfd_export lfd = lfd_export lfd'
     , lfd_callee_saved lfd = lfd_callee_saved lfd'
     , lfd_total_stack lfd = lfd_total_stack lfd'
-    & lfd_used_stack lfd = lfd_used_stack lfd'].
+    & lfd_used_stack lfd = lfd_used_stack lfd'
+    /\ lfd_frame_size lfd = lfd_frame_size lfd'].
 Proof.
   rewrite /clear_stack_lfd.
+  t_xrbindP=> _.
   case: css_of_fn => [[css ws]|]; last by move=> [<-].
   case: andb; last by move=> [<-].
   rewrite /clear_stack_lfd_body.
-  by t_xrbindP=> _ _ _ _ <- /=.
+  by t_xrbindP=> _ _ _ _ _ <- /=.
+Qed.
+
+Lemma clear_stack_lfd_max_size fn lfd lfd' :
+  clear_stack_lfd fn lfd = ok lfd' ->
+  (lfd.(lfd_used_stack) + wsize_size lfd.(lfd_align) - 1 <= lfd.(lfd_total_stack))%Z.
+Proof.
+  rewrite /clear_stack_lfd.
+  by t_xrbindP=> /ZleP ? _.
 Qed.
 
 End WITH_PARAMS.
 
 Section PROOF.
 
-Context {asm_op syscall_state} {spp: SemPexprParams asm_op syscall_state}.
-Context {ovmi : one_varmap.one_varmap_info}.
+Context
+  {asm_op syscall_state}
+  {spp: SemPexprParams asm_op syscall_state}
+  {ovmi : one_varmap.one_varmap_info}.
 
-Context (css_of_fn : funname -> option (cs_strategy * wsize))
-        (csparams : clear_stack_params) (hcsparams : h_clear_stack_params csparams).
+Context
+  (csparams : clear_stack_params) (hcsparams : h_clear_stack_params csparams)
+  (css_of_fn : funname -> option (cs_strategy * wsize)).
 
 (* oseq.onthP: why eqType ?? *)
 Lemma onth_cat' T (s1 s2 : seq T) n x :
@@ -126,7 +144,7 @@ Proof.
 Qed.
 
 Lemma find_instrP lp lp' s i :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   find_instr lp s = Some i ->
   find_instr lp' s = Some i.
 Proof.
@@ -135,15 +153,16 @@ Proof.
   case hlfd: get_fundef => [lfd|//].
   have [lfd' hclear ->] := clear_stack_lprog_get_fundef hclearlp hlfd.
   move: hclear; rewrite /clear_stack_lfd.
+  t_xrbindP=> _.
   case: css_of_fn => [[??]|]; last by move=> [<-].
   case: andb; last by move=> [<-].
   rewrite /clear_stack_lfd_body.
-  t_xrbindP=> _ _ cmd _ <- /=.
+  t_xrbindP=> _ _ _ cmd _ <- /=.
   by apply: onth_cat'.
 Qed.
 
 Lemma get_label_after_pcP lp lp' s lbl :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   get_label_after_pc lp s = ok lbl ->
   get_label_after_pc lp' s = ok lbl.
 Proof.
@@ -154,23 +173,24 @@ Proof.
 Qed.
 
 Lemma label_in_lcmdP fn lfd lfd' :
-  clear_stack_lfd css_of_fn csparams fn lfd = ok lfd' ->
+  clear_stack_lfd csparams css_of_fn fn lfd = ok lfd' ->
   label_in_lcmd lfd'.(lfd_body) = label_in_lcmd lfd.(lfd_body).
 Proof.
   rewrite /clear_stack_lfd.
+  t_xrbindP=> _.
   case: css_of_fn => [[??]|]; last by move=> [<-].
   case: andb; last by move=> [<-].
   rewrite /clear_stack_lfd_body.
-  t_xrbindP=> _ _ cmd /hcsparams.(hcs_no_ext_lbl) hnoext <- /=.
+  t_xrbindP=> _ _ _ cmd /hcsparams.(hcs_no_ext_lbl) hnoext <- /=.
   by rewrite label_in_lcmd_cat hnoext cats0.
 Qed.
 
 Lemma label_in_lprogP lp lp' :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   label_in_lprog lp' = label_in_lprog lp.
 Proof.
   rewrite /clear_stack_lprog /label_in_lprog.
-  t_xrbindP=> _ lp_funcs' hmap <- /=.
+  t_xrbindP=> lp_funcs' hmap <- /=.
   elim: lp.(lp_funcs) lp_funcs' hmap => [|[fn fd] lp_funcs ih] /=.
   + by move=> _ [<-] /=.
   by t_xrbindP=>
@@ -206,21 +226,22 @@ Proof.
 Qed.
 
 Lemma find_labelP fn lfd lfd' lbl pc :
-  clear_stack_lfd css_of_fn csparams fn lfd = ok lfd' ->
+  clear_stack_lfd csparams css_of_fn fn lfd = ok lfd' ->
   find_label lbl lfd.(lfd_body) = ok pc ->
   find_label lbl lfd'.(lfd_body) = ok pc.
 Proof.
   rewrite /clear_stack_lfd.
+  t_xrbindP=> _.
   case: css_of_fn => [[??]|]; last by move=> [<-].
   case: andb; last by move=> [<-].
   rewrite /clear_stack_lfd_body.
-  t_xrbindP=> _ _ cmd _ <- /=.
+  t_xrbindP=> _ _ _ cmd _ <- /=.
   rewrite /find_label -!has_find has_cat find_cat.
   by case: has.
 Qed.
 
 Lemma eval_jumpP lp lp' r s1 s2 :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   eval_jump lp r s1 = ok s2 ->
   eval_jump lp' r s1 = ok s2.
 Proof.
@@ -233,7 +254,7 @@ Proof.
 Qed.
 
 Lemma eval_instrP lp lp' i s1 s2 :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   eval_instr lp i s1 = ok s2 ->
   eval_instr lp' i s1 = ok s2.
 Proof.
@@ -269,7 +290,7 @@ Qed.
 
 (* TODO: better name *)
 Lemma clear_stack_lprog_lsem1 lp lp' s1 s2 :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   lsem1 lp s1 s2 ->
   lsem1 lp' s1 s2.
 Proof.
@@ -280,10 +301,11 @@ Proof.
   case hpc: oseq.onth => [i|//].
   have hpc': oseq.onth lfd'.(lfd_body) s1.(lpc) = Some i.
   + move: hclear; rewrite /clear_stack_lfd.
+    t_xrbindP=> _.
     case: css_of_fn => [[css ws]|]; last by move=> [<-].
     case: andb; last by move=> [<-].
     rewrite /clear_stack_lfd_body.
-    t_xrbindP=> _ _ cmd _ <- /=.
+    t_xrbindP=> _ _ _ cmd _ <- /=.
     by apply onth_cat'.
   rewrite hpc'.
   by apply eval_instrP.
@@ -291,7 +313,7 @@ Qed.
 
 (* TODO: better name *)
 Lemma clear_stack_lprog_lsem lp lp' s1 s2 :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   lsem lp s1 s2 ->
   lsem lp' s1 s2.
 Proof.
@@ -463,71 +485,71 @@ Proof.
 Qed.
 
 (* j'ai l'impression que certaines clauses sont impliquées par mem_equiv ?? *)
-Record match_mem_clear (m m': mem) (top : pointer) : Prop :=
+Record match_mem_clear (m m': mem) (bottom : pointer) max_used : Prop :=
     MMC {
-       read_incl_not_stack  : forall p w,
-         ~ (wunsigned (stack_limit m) <= wunsigned p < wunsigned top)%Z ->
-         read m' p U8 = ok w -> read m p U8 = ok w
-     ; read_incl_stack : forall p w,
-         (wunsigned (stack_limit m) <= wunsigned p < wunsigned top)%Z ->
-         read m' p U8 = ok w -> w = 0%R \/ read m p U8 = ok w
-  (*   ; valid_incl_clear : forall p, validw m p U8 -> validw m' p U8
+       read_zero : forall p,
+         between bottom max_used p U8 ->
+         read m' p U8 = ok 0%R
+     ; read_untouched : forall p,
+         disjoint_zrange bottom max_used p (wsize_size U8) ->
+         read m p U8 = read m' p U8
+     ; valid_eq : validw m =2 validw m' (*
      ; valid_stk_clear  : forall p,
          (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z
        -> validw m' p U8 *)
       }.
 
-Definition match_mem_export (m m' : mem) top (css : option (cs_strategy * wsize)) :=
+Definition match_mem_export (m m' : mem) top max_used (css : option (cs_strategy * wsize)) :=
   match css with
-  | Some _ => match_mem_clear m m' top
+  | Some _ => match_mem_clear m m' top max_used
   | None => m = m'
   end.
 
 (* doit-on se comparer à la mémoire source ou la mémoire avant sem ?? *)
 (* utiliser pointer_range ? *)
-Lemma clear_stack_lprogP lp lp' scs m fn vm scs' m' vm' ptr :
-  clear_stack_lprog css_of_fn csparams lp = ok lp' ->
+Lemma clear_stack_lprogP lp lp' scs m fn vm scs' m' vm' ptr lfd :
+  clear_stack_lprog csparams css_of_fn lp = ok lp' ->
   lsem_exportcall lp scs m fn vm scs' m' vm' ->
   get_var vm' (vid (lp_rsp lp')) = ok (@Vword Uptr ptr) ->
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  (lfd.(lfd_used_stack) <= wunsigned (align_word lfd.(lfd_align) ptr))%Z ->
   exists m'' vm'', [/\
     lsem_exportcall lp' scs m fn vm scs' m'' vm'',
-    match_mem_export m' m'' ptr (css_of_fn fn) &
-    exists lfd,
-      get_fundef lp'.(lp_funcs) fn = Some lfd /\
-      (* sans doute que la partie callee_saved est déjà dans lsem_exportcall *)
-      vm' =[Sv.union (sv_of_list v_var lfd.(lfd_res)) one_varmap.callee_saved] vm''].
-   (* /\
-  (css_of_fn fn <> None ->
-  forall p w, (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z ->
-  read m'' p U8 = ok w -> w = 0%R \/ read m p U8 = ok w). *)
+(*     exists lfd', [/\
+      get_fundef lp'.(lp_funcs) fn = Some lfd', *)
+      vm' =[sv_of_list v_var lfd.(lfd_res)] vm'' &
+      let bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_used_stack))%R in
+      match_mem_export m' m'' bottom lfd.(lfd_used_stack) (css_of_fn fn)
+(*     ] *)
+  ].
 Proof.
-  move=> hclearlp [] lfd hlfd hexport hsem heqvm hrsp.
+  move=> hclearlp [] {}lfd /[dup] hlfd -> hexport hsem heqvm hrsp [<-] enough_stk.
   have [lfd' hclear hlfd'] := clear_stack_lprog_get_fundef hclearlp hlfd.
   move: hclear; rewrite /clear_stack_lfd.
+  t_xrbindP=> _.
+  rewrite /match_mem_export.
   case: css_of_fn => [[css ws]|]; last first.
   + move=> [?]; subst lfd'.
     exists m', vm'.
     split=> //.
-    + econstructor; eauto.
-      by apply (clear_stack_lprog_lsem hclearlp).
-    by exists lfd.
+    econstructor; eauto.
+    by apply (clear_stack_lprog_lsem hclearlp).
 
   rewrite hexport /=.
   case: ZltP => [hlt|hnlt]; last first.
   + move=> [?]; subst lfd'.
     exists m', vm'.
-    split.
+    split=> //.
     + econstructor; eauto.
       by apply (clear_stack_lprog_lsem hclearlp).
-    + split=> //.
-      by move=> p w _ hread; right.
-    by exists lfd.
+    split=> //.
+    move=> p. rewrite /between /zbetween !zify wsize8. Lia.lia.
 
   rewrite /clear_stack_lfd_body.
-  t_xrbindP=> halign hle cmd hcmd hmap.
+  t_xrbindP=> halign1 halign2 hle cmd hcmd hmap.
   have hbody: lfd_body lfd' = lfd_body lfd ++ cmd by rewrite -hmap.
-  have [m'' [vm'' [hsem' [heqvm' [h1 h2]]]]] :=
-    hcsparams.(hcs_clear_stack_cmd) hcmd halign hle (@next_lfd_lblP _) hlfd' hbody scs' m' hrsp.
+  have [m'' [vm'' [hsem' heqvm' hvalid [h1 h2]]]] :=
+    hcsparams.(hcs_clear_stack_cmd) hcmd hlt halign2 hle (@next_lfd_lblP _) hlfd' hbody scs' m' enough_stk hrsp.
   exists m'', vm''; split=> //.
   + econstructor; eauto.
     + by rewrite -hmap.
@@ -537,19 +559,8 @@ Proof.
     apply (eq_onT heqvm).
     apply: eq_onI heqvm'.
     by apply SvP.MP.union_subset_2.
-  + split.
-    + (* il faudrait montrer à partir de stack alloc
-         les modifs entre top_stack et stack_limit sont entre
-         align (top_stack - size) + size , max_stk_size
-      *)
-           align_word lfd_used_stack enough_stack_space
-  + exists lfd'; split; first by move=> //.
-    move=> x /Sv.union_spec [|]. admit.
-    
-    Search eq_on Sv.union.
-    Search eq_vmap_on
-  
-   eauto.
+  apply: eq_onI heqvm'.
+  by apply SvP.MP.union_subset_1.
 Qed.
 
 End PROOF.

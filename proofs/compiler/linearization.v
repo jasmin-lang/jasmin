@@ -249,7 +249,7 @@ Definition frame_size (e: stk_fun_extra) : Z :=
         in
         Let _ := assert (sf_align e <= sf_align e_caller)%CMP
           (E.ii_error ii "caller need alignment greater than callee") in
-        Let _ := assert (sf_stk_max e + frame_size e_caller <=? e_caller.(sf_stk_max))%Z
+        Let _ := assert (sf_stk_max_used e + frame_size e_caller <=? e_caller.(sf_stk_max_used))%Z
           (E.ii_error ii "max size problem") in
         ok tt
       else Error (E.ii_error ii "call to unknown function")
@@ -348,7 +348,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
   Let _ := assert [&& 0 <=? sf_stk_sz e,
                       0 <=? sf_stk_extra_sz e,
                       stack_frame_allocation_size e <? wbase Uptr
-                    & frame_size e <=? sf_stk_max e]%Z
+                    & frame_size e <=? sf_stk_max_used e]%Z
                   (E.error "bad stack size") in
   Let _ := assert match sf_return_address e with
                   | RAnone => true
@@ -641,6 +641,7 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_tyout := f_tyout fd
     ; lfd_total_stack := sf_stk_max e
     ; lfd_used_stack := sf_stk_max_used e
+    ; lfd_frame_size := frame_size e
     ; lfd_res := res
     ; lfd_export := is_export
     ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]

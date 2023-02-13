@@ -291,6 +291,12 @@ let memory_analysis pp_err ~debug tbl up =
       | Export, None -> stk_size
       | Internal, _ -> assert false
     in
+    (* FIXME: meilleur patch *)
+    let extra_size =
+      match fd.f_cc, fd.f_annot.clear_stack with
+      | Export, Some _ -> Z.to_int (Z.sub frame_size (Conv.z_of_cz csao.Stack_alloc.sao_size))
+      | _ -> extra_size
+    in
     let max_frame_size =
       (* the max size includes the padding introduced by the alignment of export functions *)
       match fd.f_cc with
