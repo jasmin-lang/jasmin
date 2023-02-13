@@ -77,6 +77,7 @@ Separate Extraction
   arm_instr_decl
   arm_extra
   arm_params
-  compiler.
+  compiler
+  exec_x86.
 
 Cd  "../..".
