@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
 module J = Jasminc
 
-let () = J.Main_compiler.main ()
+let () = J.Exec_x86_ocaml.main ()
 

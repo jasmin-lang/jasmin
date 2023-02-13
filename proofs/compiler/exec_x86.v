@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import syscall_sem.
 Require Import arch_decl arch_sem.
 Require Import x86_decl x86_extra.
@@ -21,21 +21,21 @@ Definition asmmem0 init_sys regs : exec asmmem :=
   asm_reg := finfun (fun r =>
     match r with
     | RAX => wrepr U64 (nth 0%Z regs 0)
-    | RCX => wrepr U64 (nth 0%Z regs 0)
-    | RDX => wrepr U64 (nth 0%Z regs 0)
-    | RBX => wrepr U64 (nth 0%Z regs 0)
-    | RSP => wrepr U64 (nth 0%Z regs 0)
-    | RBP => wrepr U64 (nth 0%Z regs 0)
-    | RSI => wrepr U64 (nth 0%Z regs 0)
-    | RDI => wrepr U64 (nth 0%Z regs 0)
-    | R8 => wrepr U64 (nth 0%Z regs 0)
-    | R9 => wrepr U64 (nth 0%Z regs 0)
-    | R10 => wrepr U64 (nth 0%Z regs 0)
-    | R11 => wrepr U64 (nth 0%Z regs 0)
-    | R12 => wrepr U64 (nth 0%Z regs 0)
-    | R13 => wrepr U64 (nth 0%Z regs 0)
-    | R14 => wrepr U64 (nth 0%Z regs 0)
-    | R15 => wrepr U64 (nth 0%Z regs 0)
+    | RCX => wrepr U64 (nth 0%Z regs 1)
+    | RDX => wrepr U64 (nth 0%Z regs 2)
+    | RBX => wrepr U64 (nth 0%Z regs 3)
+    | RSP => wrepr U64 (nth 0%Z regs 4)
+    | RBP => wrepr U64 (nth 0%Z regs 5)
+    | RSI => wrepr U64 (nth 0%Z regs 6)
+    | RDI => wrepr U64 (nth 0%Z regs 7)
+    | R8 => wrepr U64 (nth 0%Z regs 8)
+    | R9 => wrepr U64 (nth 0%Z regs 9)
+    | R10 => wrepr U64 (nth 0%Z regs 10)
+    | R11 => wrepr U64 (nth 0%Z regs 11)
+    | R12 => wrepr U64 (nth 0%Z regs 12)
+    | R13 => wrepr U64 (nth 0%Z regs 13)
+    | R14 => wrepr U64 (nth 0%Z regs 14)
+    | R15 => wrepr U64 (nth 0%Z regs 15)
     end);
   asm_regx := [ffun=> wrepr U64 0];
   asm_xreg := [ffun=> wrepr U256 0];
@@ -50,7 +50,7 @@ Definition asm_state0 init_sys regs fn i : exec asm_state :=
     asm_ip := 0
   |}.
 
-Definition exec_i init_sys regs fn i :=
+Definition exec_i init_sys regs fn i : exec (nat * seq Z * seq rflagv) :=
   let fd := {|
     asm_fd_align := U256;
     asm_fd_arg := [::];
@@ -66,7 +66,7 @@ Definition exec_i init_sys regs fn i :=
   Let asm_state0 := asm_state0 init_sys regs fn i in
   Let asm_state1 := eval_instr p i asm_state0 in
   let asmmem1 := asm_state1.(asm_m) in
-  let regs1 := [seq asmmem1.(asm_reg) x | x : register] in
+  let regs1 := [seq wunsigned (asmmem1.(asm_reg) x) | x : register] in
   let flags1 := [seq asmmem1.(asm_flag) f | f : rflag] in
   ok (asm_state1.(asm_ip), regs1, flags1).
 

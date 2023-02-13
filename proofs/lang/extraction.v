@@ -52,6 +52,8 @@ Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 Extract Constant ident.Cident.name_of_string => "CoreIdent.Cident.name_of_string".
 Extract Constant ident.Cident.string_of_name => "CoreIdent.Cident.string_of_name".
 
+Extract Constant label.encode_label => "(fun _ -> failwith ""encode_label not implemented"")".
+Extract Constant label.decode_label => "(fun _ -> failwith ""decode_label not implemented"")".
 
 Cd  "lang/ocaml".
 

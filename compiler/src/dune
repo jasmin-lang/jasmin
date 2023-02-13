@@ -11,13 +11,13 @@
  (name jasmin)
  (public_name jasmin.jasmin)
  (flags -rectypes)
- (modules :standard \ arch main_compiler x86_safety uint63_63 uint63_31)
+ (modules :standard \ arch main_compiler x86_safety uint63_63 uint63_31 exec_x86_ocaml)
  (libraries batteries.unthreaded zarith menhirLib))
 
 (library
  (name jasminc)
  (flags -rectypes)
- (modules arch main_compiler x86_safety)
+ (modules arch main_compiler x86_safety exec_x86_ocaml)
  (libraries jasmin jasmin_checksafety))
 
 (rule
