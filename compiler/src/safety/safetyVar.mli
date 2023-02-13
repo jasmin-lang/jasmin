@@ -41,6 +41,11 @@ val arr_size  : 'a gty gvar -> wsize
 val ty_mvar   : mvar -> ty
 
 (*---------------------------------------------------------------*)
+(** Resets the conversion table between [mvar] and [avar]. To
+  be called between two analyses. *)
+val reset : unit -> unit
+
+(*---------------------------------------------------------------*)
 val avar_of_mvar : mvar -> Apron.Var.t
                              
 val mvar_of_svar : string      -> mvar
