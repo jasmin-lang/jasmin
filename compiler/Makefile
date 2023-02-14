@@ -1,7 +1,11 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-OCAMLBUILD_JOBS  ?= 2
+MAKE_PID := $(shell echo $$PPID)
+JOB_FLAG := $(shell ps T | sed -n 's/.*$(MAKE_PID).*$(MAKE).* \(-j\|--jobs=*\) *\([0-9]*\).*/-j\2/p')
+JOB_NUM  ?= $(or $(patsubst -j%,%,$(or $(JOB_FLAG),-j1)),$(shell nproc))
+
+OCAMLBUILD_JOBS  ?= $(JOB_NUM)
 OCAMLBUILD_BIN   ?= ocamlbuild
 OCAMLBUILD_EXTRA ?=
 OCAMLBUILD_OPTS  := -use-ocamlfind -j $(OCAMLBUILD_JOBS)
@@ -15,7 +19,7 @@ OCAMLBUILD_OPTS += $(OCAMLBUILD_EXTRA)
 OCAMLBUILD := $(OCAMLBUILD_BIN) $(OCAMLBUILD_OPTS)
 
 # --------------------------------------------------------------------
-JSJOBS    ?= 2
+JSJOBS    ?= $(JOB_NUM)
 CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config

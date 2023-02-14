@@ -9,6 +9,10 @@ PREFIX   ?= /usr/local
 PREFIX   := $(abspath $(PREFIX))
 export PREFIX
 
+# detect the given number of job slots
+MAKE_PID := $(shell echo $$PPID)
+JOB_FLAG := $(shell ps T | sed -n 's/.*$(MAKE_PID).*$(MAKE).* \(-j\|--jobs=*\) *\([0-9]*\).*/-j\2/p')
+JOB_NUM  := $(or $(patsubst -j%,%,$(or $(JOB_FLAG),-j1)),$(shell nproc))
 # --------------------------------------------------------------------
 .PHONY: all build check clean install uninstall dist distcheck
 
@@ -16,8 +20,8 @@ all: build
 
 build:
 	$(MAKE) -C proofs all
-	$(MAKE) -C compiler CIL
-	$(MAKE) -C compiler all
+	$(MAKE) -C compiler CIL JOB_NUM=$(JOB_NUM)
+	$(MAKE) -C compiler all JOB_NUM=$(JOB_NUM)
 
 check:
 	$(MAKE) -C eclib check
