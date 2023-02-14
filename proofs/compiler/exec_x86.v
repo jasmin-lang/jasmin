@@ -19,24 +19,25 @@ Definition asmmem0 init_sys regs : exec asmmem :=
   asm_scs := init_sys;
   asm_mem := mem0;
   asm_reg := finfun (fun r =>
-    match r with
-    | RAX => wrepr U64 (nth 0%Z regs 0)
-    | RCX => wrepr U64 (nth 0%Z regs 1)
-    | RDX => wrepr U64 (nth 0%Z regs 2)
-    | RBX => wrepr U64 (nth 0%Z regs 3)
-    | RSP => wrepr U64 (nth 0%Z regs 4)
-    | RBP => wrepr U64 (nth 0%Z regs 5)
-    | RSI => wrepr U64 (nth 0%Z regs 6)
-    | RDI => wrepr U64 (nth 0%Z regs 7)
-    | R8 => wrepr U64 (nth 0%Z regs 8)
-    | R9 => wrepr U64 (nth 0%Z regs 9)
-    | R10 => wrepr U64 (nth 0%Z regs 10)
-    | R11 => wrepr U64 (nth 0%Z regs 11)
-    | R12 => wrepr U64 (nth 0%Z regs 12)
-    | R13 => wrepr U64 (nth 0%Z regs 13)
-    | R14 => wrepr U64 (nth 0%Z regs 14)
-    | R15 => wrepr U64 (nth 0%Z regs 15)
-    end);
+    wrepr U64 (nth 0%Z regs
+      match r with
+      | RAX => 0
+      | RCX => 1
+      | RDX => 2
+      | RBX => 3
+      | RSP => 4
+      | RBP => 5
+      | RSI => 6
+      | RDI => 7
+      | R8 => 8
+      | R9 => 9
+      | R10 => 10
+      | R11 => 11
+      | R12 => 12
+      | R13 => 13
+      | R14 => 14
+      | R15 => 15
+      end));
   asm_regx := [ffun=> wrepr U64 0];
   asm_xreg := [ffun=> wrepr U256 0];
   asm_flag := [ffun=> Undef]
