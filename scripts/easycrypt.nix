@@ -63,7 +63,7 @@ stdenv.mkDerivation rec {
   inherit version patches src;
 
   buildInputs = with ocamlPackages; [
-    ocaml findlib dune_2
+    ocaml findlib dune_3
     batteries camlp-streams dune-build-info inifiles menhir menhirLib yojson zarith
   ];
   propagatedBuildInputs = [ why3 ];
