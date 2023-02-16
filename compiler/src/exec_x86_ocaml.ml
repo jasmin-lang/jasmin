@@ -38,18 +38,57 @@ let main () =
   let pp_rflagv fmt r =
     let open Arch_decl in
     match r with
-    | Def b -> Format.fprintf fmt "[Def %b]" b
-    | Undef -> Format.fprintf fmt "Undef"
+    | Def b -> Format.fprintf fmt "%b" b
+    | Undef -> Format.fprintf fmt "undef"
+  in
+
+  let pp_ip fmt asm_state =
+    Format.fprintf fmt "ip: %d" (Conv.int_of_nat (Exec_x86.read_ip Syscall_ocaml.sc_sem asm_state))
+  in
+
+  let pp_regs fmt asm_state =
+    List.iter (fun r ->
+      Format.fprintf fmt "%a: %a@;"
+        PrintCommon.pp_string0 (X86_decl_core.string_of_register r)
+        Z.pp_print (Conv.z_of_cz (Exec_x86.read_reg Syscall_ocaml.sc_sem asm_state r))) X86_decl.registers
+  in
+
+  let pp_flags fmt asm_state =
+    List.iter (fun f ->
+      Format.fprintf fmt "%a: %a@;"
+        PrintCommon.pp_string0 (X86_decl_core.string_of_rflag f)
+        pp_rflagv (Exec_x86.read_flag Syscall_ocaml.sc_sem asm_state f)) X86_decl.rflags
+  in
+
+  let pp_asm_state fmt asm_state =
+    Format.fprintf fmt "@[<v>%a@;%a%a@]"
+      pp_ip asm_state
+      pp_regs asm_state
+      pp_flags asm_state
   in
 
   let dummy_asmscsem = fun _ _ -> assert false in
-  let reg_values = List.map Conv.cz_of_int [1; -1; 1; 2; 2; 2; 3; 3; 3; 4; 4; 4; 5; 5; 5; 6] in
+  let exec_i ip reg_values flag_values fn i =
+    let asm_state =
+      match Exec_x86.mk_asm_state Syscall_ocaml.sc_sem (Syscall_ocaml.initial_state ()) ip reg_values flag_values fn i with
+      | Utils0.Ok state -> state
+      | Utils0.Error _ -> failwith "state initialization failed!"
+    in
+    Format.printf "Initial state:@;%a@." pp_asm_state asm_state;
+    Format.printf "Running instruction:@;%a@;@." (Ppasm.pp_instr "name") i;
+    let asm_state' =
+      match Exec_x86.exec_i Syscall_ocaml.sc_sem call_conv dummy_asmscsem asm_state i with
+      | Utils0.Ok state -> state
+      | Utils0.Error _ -> failwith "execution failed!"
+    in
+    Format.printf "New state:@;%a@." pp_asm_state asm_state';
+    Exec_x86.of_asm_state Syscall_ocaml.sc_sem asm_state'
+  in
+
+  let ip = Conv.nat_of_int !ip in
+  let reg_values = List.map Conv.cz_of_int (List.map (!) Glob_options.regs) in
+  let flag_values = List.map (!) Glob_options.flags in
   let fn = Prog.F.mk "f" in
   let i = Arch_decl.AsmOp (X86_instr_decl.MOV U64, [Reg X86_decl_core.RSP; Reg X86_decl_core.RCX]) in
-  match Exec_x86.exec_i Syscall_ocaml.sc_sem call_conv dummy_asmscsem (Syscall_ocaml.initial_state ()) reg_values fn i with
-  | Utils0.Ok ((ip, reg_values'), flag_values') ->
-      Format.printf "@[<v>ip: %a@;regs: @[<h>%a@]@;flags: @[<h>%a@]@]@."
-        Z.pp_print (Conv.z_of_nat ip)
-        (Format.pp_print_list ~pp_sep:Format.pp_print_space (fun fmt z -> Z.pp_print fmt (Conv.z_of_cz z))) reg_values'
-        (Format.pp_print_list ~pp_sep:Format.pp_print_space pp_rflagv) flag_values'
-  | Utils0.Error _ -> Format.printf "this is wrong, stupid guy!@."
+  let _ = exec_i ip reg_values flag_values fn i in
+  ()

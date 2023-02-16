@@ -180,7 +180,6 @@ Canonical xreg_finType :=
   Eval hnf in FinType xmm_register xreg_finMixin.
 
 (* -------------------------------------------------------------------- *)
-#[ local ]
 Definition rflags := [:: CF; PF; ZF; SF; OF ].
 
 #[ local ]
