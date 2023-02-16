@@ -81,48 +81,50 @@ let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
+module Core_arch_ARM : Arch_full.Core_arch =
+  Arm_arch_full.Arm(struct
+    let call_conv = Arm_decl.arm_linux_call_conv
+  end)
+
+let core_arch_x86 ~use_lea ~use_set0 call_conv : (module Arch_full.Core_arch) =
+  let module Lowering_params = struct
+    let call_conv =
+      match call_conv with
+      | Linux -> X86_decl.x86_linux_call_conv
+      | Windows -> X86_decl.x86_windows_call_conv
+
+    open X86_lowering
+
+    let lowering_vars tbl =
+        let f ty n =
+          let v = V.mk n (Reg(Normal, Direct)) ty L._dummy [] in
+          Conv.cvar_of_var tbl v in
+        let b = f tbool in
+        { fresh_OF = (b "OF").vname
+        ; fresh_CF = (b "CF").vname
+        ; fresh_SF = (b "SF").vname
+        ; fresh_PF = (b "PF").vname
+        ; fresh_ZF = (b "ZF").vname
+        ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
+        }
+
+    let lowering_opt = { use_lea ; use_set0 }
+
+  end in
+  (module X86_arch_full.X86(Lowering_params))
+
+(* -------------------------------------------------------------------- *)
 let main () =
 
   let is_regx tbl x = is_regx (Conv.var_of_cvar tbl x) in
 
-  let lowering_vars tbl = X86_lowering.(
-
-    let f ty n = 
-      let v = V.mk n (Reg(Normal, Direct)) ty L._dummy [] in
-      Conv.cvar_of_var tbl v in
-    let b = f tbool in
-    { fresh_OF = (b "OF").vname
-    ; fresh_CF = (b "CF").vname
-    ; fresh_SF = (b "SF").vname
-    ; fresh_PF = (b "PF").vname
-    ; fresh_ZF = (b "ZF").vname
-    ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
-    }) in
   try
     parse();
 
-    let (module Ocaml_params : Arch_full.Core_arch) = 
+    let (module Ocaml_params : Arch_full.Core_arch) =
       match !target_arch with
-      | X86_64 ->
-        let lowering_opt =
-          X86_lowering.{ use_lea = !Glob_options.lea;
-                         use_set0 = !Glob_options.set0; } in
-        let module Lowering_params = struct 
-            let call_conv = 
-              match !Glob_options.call_conv with 
-              | Linux -> X86_decl.x86_linux_call_conv
-              | Windows -> X86_decl.x86_windows_call_conv
-            
-            let lowering_vars = lowering_vars 
-            
-            let lowering_opt = lowering_opt
-          end in
-        (module X86_arch_full.X86(Lowering_params))
-      | ARM_M4 ->
-        let module Lowering_params = struct
-          let call_conv = Arm_decl.arm_linux_call_conv
-        end in
-        (module Arm_arch_full.Arm(Lowering_params))
+      | X86_64 -> core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv
+      | ARM_M4 -> (module Core_arch_ARM)
     in
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
     let module Regalloc = Regalloc.Regalloc (Arch) in
