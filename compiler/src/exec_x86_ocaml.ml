@@ -4,8 +4,16 @@ open Glob_options
 
 let main () =
   (* Parse command-line arguments *)
-  let set_in _ = failwith "anonymous arguments are not allowed" in
+  let op = ref "" in
+  let args = ref [] in
+  let set_in =
+    let first = ref true in
+    fun s ->
+      if !first then (op := s; first := false)
+      else args := s :: !args
+  in
   Arg.parse Glob_options.options set_in usage_msg;
+  if !op = "" then failwith "an instruction is expected";
   let c =
     match !color with
     | Auto -> Unix.isatty (Unix.descr_of_out_channel stderr)
@@ -67,6 +75,21 @@ let main () =
       pp_flags asm_state
   in
 
+  (* a bit horrible *)
+  let parse_op (op:string) =
+    let id = Location.mk_loc Location._dummy op in
+    let op, _ = Pretyping.tt_prim (Arch_extra.asm_opI X86_arch_full.X86_core.asm_e) None id [] in
+    match op with
+    | BaseOp (_, op) -> op
+    | ExtOp _ -> failwith "extop"
+  in
+
+  let parse_arg =
+    let reg_names = List.map (fun r -> (Conv.string_of_cstring (X86_decl_core.string_of_register r), r)) X86_decl.registers in
+    fun arg ->
+      Arch_decl.Reg (List.assoc arg reg_names)
+  in
+
   let dummy_asmscsem = fun _ _ -> assert false in
   let exec_i ip reg_values flag_values fn i =
     let asm_state =
@@ -75,7 +98,7 @@ let main () =
       | Utils0.Error _ -> failwith "state initialization failed!"
     in
     Format.printf "Initial state:@;%a@." pp_asm_state asm_state;
-    Format.printf "Running instruction:@;%a@;@." (Ppasm.pp_instr "name") i;
+    Format.printf "@[<v>Running instruction:@;%a@;@]@." (Ppasm.pp_instr "name") i;
     let asm_state' =
       match Exec_x86.exec_i Syscall_ocaml.sc_sem call_conv dummy_asmscsem asm_state i with
       | Utils0.Ok state -> state
@@ -88,7 +111,9 @@ let main () =
   let ip = Conv.nat_of_int !ip in
   let reg_values = List.map Conv.cz_of_int (List.map (!) Glob_options.regs) in
   let flag_values = List.map (!) Glob_options.flags in
+  let op = parse_op !op in
+  let args = List.map parse_arg !args in
+  let i = Arch_decl.AsmOp (op, args) in
   let fn = Prog.F.mk "f" in
-  let i = Arch_decl.AsmOp (X86_instr_decl.MOV U64, [Reg X86_decl_core.RSP; Reg X86_decl_core.RCX]) in
   let _ = exec_i ip reg_values flag_values fn i in
   ()
