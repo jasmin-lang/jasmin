@@ -525,6 +525,3 @@ let main () =
   | CLIerror e ->
     Format.eprintf "Error: %s.\n" (pp_cli_error e);
     exit 1
-
-(* -------------------------------------------------------------------- *)
-let () = main ()
