@@ -36,6 +36,7 @@ Record h_lowering_params
         (sCP : semCallParams)
         (p : prog)
         (ev : extra_val_t)
+        (is_regx : var -> bool)
         (options : lowering_options)
         (warning : instr_info -> warning_msg -> instr_info)
         (fv : fresh_vars)
@@ -48,7 +49,7 @@ Record h_lowering_params
         sem_call p ev scs mem f va scs' mem' vr
         -> let lprog :=
              lowering.lower_prog
-               (lop_lower_i loparams)
+               (lop_lower_i loparams is_regx)
                options
                warning
                fv

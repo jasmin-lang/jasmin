@@ -21,7 +21,8 @@ Record lowering_params
   {
     (* Lower an instruction to architecture-specific instructions. *)
     lop_lower_i :
-      lowering_options      (* Lowering options depend on the architecture. *)
+      (var -> bool) (* Whether the variable is a register from the extra bank. *)
+      -> lowering_options      (* Lowering options depend on the architecture. *)
       -> (instr_info -> warning_msg -> instr_info)
       -> fresh_vars
       -> (var_i -> bool)    (* Whether the variable is in memory. *)

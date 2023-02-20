@@ -942,6 +942,7 @@ Lemma arm_lower_callP
   (sCP : semCallParams)
   (p : prog)
   (ev : extra_val_t)
+  (is_regx : var -> bool)
   (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
@@ -953,7 +954,7 @@ Lemma arm_lower_callP
   psem.sem_call p ev scs mem f va scs' mem' vr
   -> let lprog :=
        lowering.lower_prog
-         (lop_lower_i arm_loparams)
+         (lop_lower_i arm_loparams is_regx)
          options
          warning
          fv
