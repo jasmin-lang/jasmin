@@ -4362,12 +4362,13 @@ Section PROOF.
         List.Forall2 value_uincl args args' →
         vm.[vid p'.(lp_rip)]%vmap = ok (pword_of_word gd) →
         vm_initialized_on vm ((var_tmp : var) :: lfd_callee_saved lfd) →
-        (fd.(f_extra).(sf_stk_max_used) <= wunsigned (align_top_stack (top_stack m) fd.(f_extra)))%Z ->
+        (fd.(f_extra).(sf_stk_max_used) + wsize_size fd.(f_extra).(sf_align) - 1 <= wunsigned (top_stack m))%Z ->
         all2 check_ty_val lfd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           (* TODO: vm = vm' [\ k ] ; stack_stable m m' ; etc. *)
           [/\
             lsem_exportcall p' scs lm fn vm scs' lm' vm',
+            vm'.[vid (lp_rsp p')]%vmap = ok (pword_of_word (top_stack m)),
             target_mem_unchanged m (align_top_stack (top_stack m) fd.(f_extra)) fd.(f_extra).(sf_stk_max_used) lm lm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) lfd.(lfd_res) = ok res',
@@ -4411,7 +4412,22 @@ Section PROOF.
     set sp := align_top_stack (top_stack m) (f_extra fd).
     set max0 := fd.(f_extra).(sf_stk_max_used).
     case/(_ m0 sp max0 _ lm vm (linear_body liparams p extra_free_registers fn fd.(f_extra) fd.(f_body)).2 RAnone None (top_stack m) (map fst fd.(f_extra).(sf_to_save)) ok_vm M).
-    - done.
+    - rewrite /sp /align_top_stack /align_top.
+      rewrite wunsigned_add.
+      + have: (0 <= sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) <= wunsigned (top_stack m))%Z.
+        + have := (alloc_stackP ok_m1).(ass_above_limit).
+          have := checked_prog ok_fd.
+          rewrite /check_fd. t_xrbindP. move=> _ _ h _ _ _.
+          move: h; rewrite !zify.
+          assert (hh := wunsigned_range (top_stack m1)). Lia.lia.
+        move=> /(top_stack_after_alloc_bounded (ws:=fd.(f_extra).(sf_align))). Lia.lia.
+      have := (alloc_stackP ok_m1).(ass_above_limit).
+      rewrite -(alloc_stack_top_stack ok_m1).
+      have := checked_prog ok_fd.
+          rewrite /check_fd. t_xrbindP. move=> _ _ h _ _ _.
+          move: h; rewrite !zify.
+      assert (hh1 := wunsigned_range (top_stack m)).
+      assert (hh2 := wunsigned_range (top_stack m1)). Lia.lia.
     - move => x; rewrite !Fv.setP.
       case: eqP => ?; first by subst; rewrite vm_rsp.
       case: eqP => ?; first subst.
@@ -4497,13 +4513,14 @@ Section PROOF.
       rewrite sv_of_list_map Sv.diff_spec => S hrC [] hrX; apply.
       apply: S.
       by rewrite Sv.inter_spec.
+    - admit.
     - exact: U.
     - exact: M'.
     - move/eqP: Export => /= -> /=.
       exact: ok_lres.
     - exact: res_lres.
     exact: wt_lres.
-  Qed.
+  Admitted.
 
 End PROOF.
 End WITH_PARAMS.

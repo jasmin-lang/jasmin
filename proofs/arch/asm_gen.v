@@ -571,7 +571,7 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
      ; asm_fd_body := fd'
      ; asm_fd_res := res
      ; asm_fd_export := lfd_export fd
-     ; asm_fd_total_stack := lfd_total_stack fd
+     ; asm_fd_total_stack := lfd_used_stack fd + wsize_size (lfd_align fd) - 1
     |} in
 
   Let _ := assert (check_call_conv fd) 

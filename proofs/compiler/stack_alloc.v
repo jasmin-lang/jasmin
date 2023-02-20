@@ -895,8 +895,8 @@ Record stk_alloc_oracle_t :=
   { sao_align : wsize 
   ; sao_size: Z
   ; sao_extra_size: Z
+  ; sao_padding : Z
   ; sao_max_size_used : Z
-  ; sao_max_size : Z
   ; sao_max_call_depth : Z
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
   ; sao_return : seq (option nat)         (* Where to find the param input region *)
@@ -1063,18 +1063,13 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
   let sao_callee := local_alloc fn in
   Let es  := alloc_call_args rmap sao_callee.(sao_params) es in
   let '(rmap, es) := es in
-  Let rs  := alloc_call_res rmap es sao_callee.(sao_return) rs in (*
+  Let rs  := alloc_call_res rmap es sao_callee.(sao_return) rs in 
   Let _   := assert_check (~~ is_RAnone sao_callee.(sao_return_address))
-               (Cerr_stk_alloc "cannot call export function")
-  in *)
+               (stk_ierror_no_var "cannot call export function")
+  in
   Let _   :=
-    let local_size :=
-      if is_RAnone sao_caller.(sao_return_address) then
-        (sao_caller.(sao_size) + sao_caller.(sao_extra_size) + wsize_size sao_caller.(sao_align) - 1)%Z
-      else
-        (round_ws sao_caller.(sao_align) (sao_caller.(sao_size) + sao_caller.(sao_extra_size)))%Z
-    in
-    assert_check (local_size + sao_callee.(sao_max_size) <=? sao_caller.(sao_max_size))%Z
+    let local_size := (sao_caller.(sao_size) + sao_caller.(sao_extra_size) + sao_caller.(sao_padding))%Z in
+    assert_check (local_size + sao_callee.(sao_max_size_used) <=? sao_caller.(sao_max_size_used))%Z
                  (stk_ierror_no_var "error in max size computation")
   in
   Let _   := assert_check (sao_callee.(sao_align) <= sao_caller.(sao_align))%CMP
@@ -1363,15 +1358,22 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
   Let _ := assert (0 <=? sao.(sao_extra_size))%Z
                   (stk_ierror_no_var "negative extra size")
   in
+  Let _ := assert (0 <=? sao.(sao_padding))%Z
+                  (stk_ierror_no_var "negative padding")
+  in
   Let _ :=
     let local_size :=
       if is_RAnone sao.(sao_return_address) then
-        (sao.(sao_size) + sao.(sao_extra_size) + wsize_size sao.(sao_align) - 1)%Z
+        (sao.(sao_size) + sao.(sao_extra_size))%Z
       else
         (round_ws sao.(sao_align) (sao.(sao_size) + sao.(sao_extra_size)))%Z
     in
-    assert_check (local_size <=? sao.(sao_max_size))%Z
-                 (stk_ierror_no_var "sao_max_size too small")
+    assert_check (local_size <=? sao.(sao_size) + sao.(sao_extra_size) + sao.(sao_padding))%Z
+                 (stk_ierror_no_var "local size too small")
+  in
+  Let _ :=
+    assert (sao.(sao_size) + sao.(sao_extra_size) + sao.(sao_padding) <=? sao.(sao_max_size_used))%Z
+           (stk_ierror_no_var "sao_max_size too small")
   in
   Let rbody := fmapM (alloc_i pmap local_alloc sao) rmap fd.(f_body) in
   let: (rmap, body) := rbody in
@@ -1393,8 +1395,8 @@ Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string) (local
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
         sf_stk_extra_sz := sao.(sao_extra_size);
+        sf_stk_padding := sao.(sao_padding);
         sf_stk_max_used := sao_max_size_used sao;
-        sf_stk_max := sao.(sao_max_size);
         sf_max_call_depth := sao.(sao_max_call_depth);
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);

@@ -363,7 +363,7 @@ Proof.
   rewrite print_linearP => tp' ok_tp.
   rewrite print_linearP => ?; subst tp'.
   have [ <- [] <- [] <- _ ] := tunnel_program_invariants (spp := mk_spp) ok_tp.
-  have [<- <- <-] := clear_stack_lprog_invariants ok_lp0.
+  have [<- <- <-] := clear_stack_lprog_invariants (spp := mk_spp) ok_lp0.
   split.
   - exact: lp_ripE ok_lp.
   - exact: lp_rspE ok_lp.
@@ -406,15 +406,15 @@ Proof.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
   split; last by rewrite export.
   move: ok_fd => /(get_fundef_p' (spp := mk_spp) ok_lp).
-  move=> /(clear_stack_lprog_get_fundef ok_lp0) [lfd' ok_lfd' h].
+  move=> /(clear_stack_lprog_get_fundef (spp := mk_spp) ok_lp0) [lfd' ok_lfd' h].
   move: h =>
     /(get_fundef_tunnel_program (spp := mk_spp) ok_tp)
     /(ok_get_fundef ok_xp)
     [fd' ok_fd'].
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ? _; subst fd'.
   move: ok_fd' => /S /=.
-  move: ok_lfd' => /clear_stack_lfd_invariants [_ _ _ _ _ _ _ _ <- _].
-  rewrite /allocatable_stack /=.
+  move: ok_lfd' => /clear_stack_lfd_invariants [ _ <- _ _ _ _ _ _ [<- _]].
+  rewrite /allocatable_stack /sf_stk_max export /=.
   move:
     (wunsigned (stack_limit (pd := arch_pd) m))
     (wunsigned (top_stack (pd := arch_pd) m))
@@ -453,7 +453,7 @@ Lemma compiler_back_endP
         List.Forall2 value_uincl args args' →
         vm.[vid tp.(lp_rip)]%vmap = ok (pword_of_word rip) →
         vm_initialized_on vm (var_tmp aparams :: lfd_callee_saved fd) →
-        allocatable_stack m fd.(lfd_total_stack) ->
+        allocatable_stack m (fd.(lfd_used_stack) + wsize_size fd.(lfd_align) - 1) ->
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
@@ -485,25 +485,28 @@ Proof.
       ok_lp
       p_call.
   case => fd [] lfd [] get_fd get_lfd Export lp_call.
-  have [cfd ok_cfd get_cfd] := clear_stack_lprog_get_fundef ok_cp get_lfd.
+  have [cfd ok_cfd get_cfd] := clear_stack_lprog_get_fundef (spp := mk_spp) ok_cp get_lfd.
   exists (tunneling.tunnel_lfundef fn cfd); split.
   - by apply (get_fundef_tunnel_program (spp := mk_spp) ok_tp get_cfd).
   - move=> /=.
-    have [_ _ _ _ _ _ <- _ _ _] := clear_stack_lfd_invariants ok_cfd.
+    have [_ _ _ _ _ _ <- _ _] := clear_stack_lfd_invariants ok_cfd.
     exact: Export.
   move=> tm tvm targs /=.
-  have [_ _ <- <- <- <- _ <- _ _] := clear_stack_lfd_invariants ok_cfd.
+  have [_ _ <- <- <- <- _ <- _] := clear_stack_lfd_invariants ok_cfd.
   move=> H H0 H1 H2 H3 H4 H5 H6.
   have {lp_call} := lp_call tm tvm targs H _ H1 H2 H3 _ H5.
-  have [-> -> _] := clear_stack_lprog_invariants ok_cp.
+  have [-> -> _] := clear_stack_lprog_invariants (spp := mk_spp) ok_cp.
   have [-> [-> _]] := tunnel_program_invariants (spp := mk_spp) ok_tp.
-  have H6': (sf_stk_max_used (f_extra fd) <= wunsigned (align_top_stack (top_stack m) (f_extra fd)) - wunsigned (stack_limit m))%Z.
-  + move: H6; rewrite /allocatable_stack.
-    have [_ _ _ _ _ _ _ _ <- _] := clear_stack_lfd_invariants ok_cfd.
-    have := clear_stack_lfd_max_size ok_cfd.
+  have H6': (sf_stk_max (f_extra fd) <= wunsigned (top_stack m) - wunsigned (stack_limit m))%Z.
+  + move: H6; rewrite /allocatable_stack /sf_stk_max.
+    move/allMP: ok_export => /(_ _ ok_fn).
+    rewrite /is_export.
+    rewrite get_fd. t_xrbindP=> /eqP -> /=.
+    have [_ <- _ _ _ _ _ _ [<- _]] := clear_stack_lfd_invariants ok_cfd.
+(*     have := clear_stack_lfd_max_size ok_cfd. *)
     have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
     rewrite get_lfd => -[->] /=.
-    rewrite /align_top_stack.
+    rewrite /align_top_stack. Lia.lia. (* done.
     rewrite wunsigned_add; last first.
     + (* this is true due to alloc_stack succeeding *)
       have [m1 ok_m1]: exists m1,
@@ -538,28 +541,29 @@ Proof.
       assert (h1 := wunsigned_range (top_stack m1)).
       simpl in *. Lia.lia.
     move=> /top_stack_after_alloc_bounded -/(_ (f_extra fd).(sf_align)).
-    simpl in *. Lia.lia.
-  have H7: (sf_stk_max_used (f_extra fd) <= wunsigned (align_top_stack (top_stack m) (f_extra fd)))%Z.
+    simpl in *. Lia.lia. *)
+  have H7: (sf_stk_max (f_extra fd) <= wunsigned (top_stack m))%Z.
   + assert (h1 := wunsigned_range (stack_limit m)). Lia.lia.
+  move: H7. rewrite /sf_stk_max.
+  move/allMP: (ok_export) => /(_ _ ok_fn).
+  rewrite /is_export.
+  rewrite get_fd. t_xrbindP=> /eqP -> /=.
+  move=> H7.
 
-  move => /(_ H0 H4 H7)[] wt_targs [] lvm' [] lm' [] lres [] lp_call U M' ok_lres res_lres wt_lres.
+  move => /(_ H0 H4 H7)[] wt_targs [] lvm' [] lm' [] lres [] lp_call lvm'_rsp U M' ok_lres res_lres wt_lres.
   split; first exact: wt_targs.
 
   have := clear_stack_lprogP (hap_hcsp haparams) ok_cp lp_call.
   have hsp: get_var lvm' (vid (lp_rsp cp)) = ok (@Vword Uptr (top_stack m)).
-  + move: (ok_cp); rewrite /clear_stack_lprog; t_xrbindP=> /Sv_memP hin _ _ _.
-    case: lp_call=> _ _ _ _.
-    move=> /(_ (vid (lp_rsp lp)) hin).
-    rewrite /get_var.
-    have [_ <- _] := clear_stack_lprog_invariants ok_cp.
-    move=> <- /=.
-    move: H0.
-    have [_ [<- _]] := tunnel_program_invariants (spp:=mk_spp) ok_tp.
-    have [_ <- _] := clear_stack_lprog_invariants ok_cp.
-    move=> -> /=.
-    done.
-  move=> /(_ _ hsp) [cm' [cvm' [cp_call]]].
-  rewrite get_cfd => -[_ [[<-] heqvm]].
+  + have [_ [-> _]] := tunnel_program_invariants (spp:=mk_spp) ok_tp.
+    rewrite /get_var lvm'_rsp /=. done.
+  move=> /(_ _ _ hsp get_lfd).
+  have: (lfd_used_stack lfd + wsize_size (lfd_align lfd) - 1 <= wunsigned (top_stack m))%Z.
+  + move: H7; rewrite /sf_stk_max.
+    Search linear_prog sf_stk_max_used.
+    have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
+    rewrite get_lfd => -[->] /=. done.
+  move=> H7' /(_ H7') [cm' [cvm' [cp_call heqvm]]].
   rewrite get_fd => hclear.
 
   exists cvm', cm', lres; split; cycle 1.
@@ -567,7 +571,7 @@ Proof.
     + move=> p1 w1 hw1.
       case hcss: clear_stack_info hclear => [[css ows]|]; last first.
       + move=> /= <-. by apply M'.(read_incl).
-      have [_ <- _ _ _ _ _ _ _ [<- _]] := clear_stack_lfd_invariants ok_cfd.
+(*       have [_ <- _ _ _ _ _ _ _ [<- _]] := clear_stack_lfd_invariants ok_cfd. *)
       have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
       rewrite get_lfd => -[->] /=.
       set bottom := (align_word _ _ - _)%R.
@@ -579,65 +583,31 @@ Proof.
         rewrite /pointer_range !zify => hstack.
         have /negP := stack_region_is_free hstack.
         by have := readV hw1.
-      move: H6'. rewrite /align_top_stack align_top_aligned; cycle 1.
-      + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
-        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
-        Lia.lia.
-      + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
-        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
-        have := psem.sem_callE exec_p.
-        rewrite get_fd => -[_ [[<-]]].
-        move=> [_ [s [_ [_ [_ [_ [h' _] _ _ _]]]]]].
-        move: h'; rewrite /= /init_stk_state.
-        t_xrbindP=> m1 ok_m1 _.
-        have /= := (Memory.alloc_stackP ok_m1).(ass_above_limit).
-        assert (h1 := wunsigned_range (top_stack m)).
-        assert (h2 := wunsigned_range (top_stack m1)).
-        simpl in *. Lia.lia.
-      + move: ok_cfd; rewrite /clear_stack_lfd.
-        t_xrbindP=> _. rewrite hcss get_fd. rewrite -/ws. rewrite Export /=.
-        have: exists ws', ws = Some (css, ws').
-        + by case: ows @ws {M'' hcss} => /=; eauto.
-        move=> [ws' ->].
-        case: ZltP.
-        + move=> used_pos.
-          rewrite /clear_stack_lfd_body.
-          t_xrbindP=> hal _ _ _ _ _; move: hal.
-          have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
-          rewrite get_lfd => -[->] /=.
-          rewrite /frame_size.
-          move/allMP: ok_export => /(_ _ ok_fn). rewrite get_fd.
-          t_xrbindP=> /eqP ->. done.
-        (* if there is no stack, 0 is aligned... *)
-        move=> used_neg _.
-        have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
-        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
-        have ->: (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) = 0)%Z.
-        + move: used_neg.
-          have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
-          rewrite get_lfd => -[->] /=.
-          move: h.
-          rewrite /frame_size.
-          move/allMP: ok_export => /(_ _ ok_fn). rewrite get_fd.
-          t_xrbindP=> /eqP ->. simpl. Lia.lia.
-        rewrite /is_align WArray.p_to_zE Zmod_0_l. done.
-      move=> H6'.
+      
+      have: exists ws', ws = Some (css, ws').
+      + by case: ows @ws {M'' hcss} => /=; eauto.
+      move: ws M'' => ws M'' [ws' ?]; subst ws.
+      rewrite -M''.(read_untouched).
+      + by apply M'.
       have ?: (wunsigned (stack_limit m) <= wunsigned bottom /\ wunsigned bottom + sf_stk_max_used (f_extra fd) <= wunsigned (top_stack m))%Z.
       + rewrite /bottom.
         rewrite wunsigned_sub; last first.
         + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
           rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
           have := @frame_size_pos (f_extra fd) ltac:(Lia.lia) ltac:(Lia.lia).
-          assert (h2 := wunsigned_range (stack_limit m)).
+(*           assert (h2 := wunsigned_range (stack_limit m)). *)
           assert (h3 := wunsigned_range (align_word (sf_align (f_extra fd)) (top_stack m))).
+          simpl in *. split; last by Lia.lia.
+          assert (hh := align_word_range (sf_align (f_extra fd)) (top_stack m)).
           simpl in *. Lia.lia.
         assert (h := align_word_range (sf_align (f_extra fd)) (top_stack m)).
+        simpl in *. split; last by Lia.lia.
+        move: H6'. rewrite /sf_stk_max.
+        move/allMP: (ok_export) => /(_ _ ok_fn).
+        rewrite /is_export.
+        rewrite get_fd. t_xrbindP=> /eqP -> /=.
+        assert (hh := align_word_range (sf_align (f_extra fd)) (top_stack m)).
         simpl in *. Lia.lia.
-      have: exists ws', ws = Some (css, ws').
-      + by case: ows @ws {M'' hcss} => /=; eauto.
-      move: ws M'' => ws M'' [ws' ?]; subst ws.
-      rewrite -M''.(read_untouched).
-      apply M'. done.
       split.
       + rewrite /no_overflow zify.
         assert (h := wunsigned_range (top_stack m)).
@@ -668,7 +638,6 @@ Proof.
     + exact: ok_lres.
     move=> x hin.
     rewrite /get_var heqvm //.
-    have [_ _ _ _ _ <- _ _ _ _] := clear_stack_lfd_invariants ok_cfd.
     apply /sv_of_listP /in_map.
     by exists x.
   - exact: res_lres.

@@ -639,7 +639,6 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_tyin := f_tyin fd
     ; lfd_arg := f_params fd
     ; lfd_tyout := f_tyout fd
-    ; lfd_total_stack := sf_stk_max e
     ; lfd_used_stack := sf_stk_max_used e
     ; lfd_frame_size := frame_size e
     ; lfd_res := res

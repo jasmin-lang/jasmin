@@ -209,6 +209,10 @@ Definition x86_agparams : asm_gen_params :=
 
 Section CLEAR_STACK.
 
+Section RSP.
+
+Context (rspi : var_i).
+
 Let vlocal {t T} {_ : ToString t T} (x : T) : gvar :=
   {|
     gv := {| v_info := dummy_var_info; v_var := to_var x; |};
@@ -220,7 +224,7 @@ Let off : gvar := vlocal RDI.
 Let r   : gvar := vlocal RCX.
 Let vlr : gvar := vlocal XMM2.
 
-Let rsp : gvar := vlocal RSP.
+Let rsp : gvar := mk_lvar rspi.
 Let zf : gvar := vlocal ZF.
 Let tmpi : var_i := gv tmp.
 Let offi : var_i := gv off.
@@ -274,12 +278,16 @@ Definition x86_clear_stack_loop_small (lbl : label) ws_align ws (max_stk_size : 
 
   map (MkLI dummy_instr_info) [:: i0; i1; i2; i3; i4; i5; i6 ].
 
-Definition x86_clear_stack_loop_large (lbl : label) ws_align ws (max_stk_size : Z) : lcmd :=
-  (* ymm = #set0_ws(); *)
-  let i0 := Lopn [:: Lvar vlri ] (Oasm (ExtOp (Oset0 ws))) [::] in
+Definition i1 := Lopn [:: Lvar tmpi ] (Ox86 (MOV U64)) [:: Pvar rsp ].
 
+(* we read rsp first, so that we are sure that we don't modify it ; otherwise,
+   we would have to add hypotheses like rsp <> XMM2 *)
+Definition x86_clear_stack_loop_large (lbl : label) ws_align ws (max_stk_size : Z) : lcmd :=
   (* tmp = rsp; *)
   let i1 := Lopn [:: Lvar tmpi ] (Ox86 (MOV U64)) [:: Pvar rsp ] in
+
+  (* ymm = #set0_ws(); *)
+  let i0 := Lopn [:: Lvar vlri ] (Oasm (ExtOp (Oset0 ws))) [::] in
 
   (* tmp &= - (wsize_size ws_align); *)
   let i2 :=
@@ -316,7 +324,7 @@ Definition x86_clear_stack_loop_large (lbl : label) ws_align ws (max_stk_size : 
   (* if (!zf) goto l1 *)
   let i7 := Lcond (Papp1 Onot (Pvar zf)) lbl in
 
-  map (MkLI dummy_instr_info) [:: i0; i1; i2; i3; i4; i5; i6; i7 ].
+  map (MkLI dummy_instr_info) [:: i1; i0; i2; i3; i4; i5; i6; i7 ].
 
 Definition x86_clear_stack_loop lbl ws_align ws max_stk_size :=
   if (ws <= U64)%CMP then x86_clear_stack_loop_small lbl ws_align ws max_stk_size
@@ -347,11 +355,11 @@ Definition x86_clear_stack_unrolled_small ws_align ws (max_stk_size : Z) : lcmd 
   map (MkLI dummy_instr_info) [:: i0, i1 & map f offs].
 
 Definition x86_clear_stack_unrolled_large ws_align ws (max_stk_size : Z) : lcmd :=
-  (* ymm = #set0_ws(); *)
-  let i0 := Lopn [:: Lvar vlri ] (Oasm (ExtOp (Oset0 ws))) [::] in
-
   (* tmp = rsp; *)
   let i1 := Lopn [:: Lvar tmpi ] (Ox86 (MOV U64)) [:: Pvar rsp ] in
+
+  (* ymm = #set0_ws(); *)
+  let i0 := Lopn [:: Lvar vlri ] (Oasm (ExtOp (Oset0 ws))) [::] in
 
   (* tmp &= - (wsize_size ws_align); *)
   let i2 :=
@@ -371,17 +379,19 @@ Definition x86_clear_stack_unrolled_large ws_align ws (max_stk_size : Z) : lcmd 
 
   let offs := map (fun x => x * wsize_size ws)%Z (ziota 1 ((max_stk_size-1) / wsize_size ws + 1)) in
 
-  map (MkLI dummy_instr_info) [:: i0, i1, i2 & map f offs].
+  map (MkLI dummy_instr_info) [:: i1, i0, i2 & map f offs].
 
-Definition x86_clear_stack_unrolled ws_align ws max_stk_size :=
-  if (ws <= U64)%CMP then x86_clear_stack_unrolled_small ws_align ws max_stk_size
-  else x86_clear_stack_unrolled_large ws_align ws max_stk_size.
+End RSP.
+
+Definition x86_clear_stack_unrolled rsp ws_align ws max_stk_size :=
+  if (ws <= U64)%CMP then x86_clear_stack_unrolled_small rsp ws_align ws max_stk_size
+  else x86_clear_stack_unrolled_large rsp ws_align ws max_stk_size.
 
 Definition x86_clear_stack_cmd
-  (css : cs_strategy) (lbl : label) ws_align ws (max_stk_size : Z) : cexec lcmd :=
+  (css : cs_strategy) rsp (lbl : label) ws_align ws (max_stk_size : Z) : cexec lcmd :=
   match css with
-  | CSSloop => ok (x86_clear_stack_loop lbl ws_align ws max_stk_size)
-  | CSSunrolled => ok (x86_clear_stack_unrolled ws_align ws max_stk_size)
+  | CSSloop => ok (x86_clear_stack_loop rsp lbl ws_align ws max_stk_size)
+  | CSSunrolled => ok (x86_clear_stack_unrolled rsp ws_align ws max_stk_size)
   end.
 
 End CLEAR_STACK.

@@ -58,15 +58,14 @@ let pp_return fmt n =
    Not needed for the compilation. *)
 type stack_alloc_oracle_info = {
     extra_padding : Z.t (* padding included in extra_size *)
-  ; frame_size : Z.t (* total frame size = local vars size + extra size + padding *)
-  ; max_frame_size : Z.t (* max frame size = frame size + max runtime export padding *)
 }
 
 let pp_sao tbl fmt (sao, sao_info) =
-  let { extra_padding; frame_size; max_frame_size } = sao_info in
+  let { extra_padding } = sao_info in
   let open Stack_alloc in
   let sao_size = Conv.z_of_cz sao.sao_size in
   let sao_extra_size = Conv.z_of_cz sao.sao_extra_size in
+  let sao_padding = Conv.z_of_cz sao.sao_padding in
   let sao_max_size = Conv.z_of_cz sao.sao_max_size in
   let pp_extra fmt =
     Format.fprintf fmt "%a (= %a (data) + %a (padding))"
@@ -75,7 +74,7 @@ let pp_sao tbl fmt (sao, sao_info) =
   in
   let pp_frame fmt =
     Format.fprintf fmt "%a (= %a (local stack vars) + %a (extra) + %a (padding))"
-      Z.pp_print frame_size Z.pp_print sao_size Z.pp_print sao_extra_size
+      Z.pp_print Z.(sao_size + sao_extra_size + sao_padding) Z.pp_print sao_size Z.pp_print sao_extra_size
       Z.pp_print Z.(frame_size - sao_size - sao_extra_size)
   in
   let pp_max_frame fmt =
@@ -278,31 +277,18 @@ let memory_analysis pp_err ~debug tbl up =
       | _, _ -> align
     in
     (* stack size + extra_size + padding *)
+    let stk_size = 
+      Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                 (Z.of_int extra_size) in
+    (* if we clear the stack, we ensure that the stack size of the export
+       function is a multiple of the alignment (this is what we systematically
+       do for subroutines *)
     let frame_size =
-      let stk_size = 
-        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
-                   (Z.of_int extra_size) in
-      (* if we clear the stack, we ensure that the stack size of the export
-         function is a multiple of the alignment (this is what we systematically
-         do for subroutines *)
       match fd.f_cc, fd.f_annot.clear_stack with
       | Export, Some _ | Subroutine _, _ ->
         Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
       | Export, None -> stk_size
       | Internal, _ -> assert false
-    in
-    (* FIXME: meilleur patch *)
-    let extra_size =
-      match fd.f_cc, fd.f_annot.clear_stack with
-      | Export, Some _ -> Z.to_int (Z.sub frame_size (Conv.z_of_cz csao.Stack_alloc.sao_size))
-      | _ -> extra_size
-    in
-    let max_frame_size =
-      (* the max size includes the padding introduced by the alignment of export functions *)
-      match fd.f_cc with
-      | Export -> Z.add frame_size (Z.of_int (size_of_ws align - 1))
-      | Subroutine _ -> frame_size
-      | Internal -> assert false
     in
     (* if we clear the stack, we ensure that the max size is a multiple of the
        size of the clear step. We use [fd.f_annot.clear_stack] and not [align],
@@ -319,7 +305,6 @@ let memory_analysis pp_err ~debug tbl up =
           Conv.z_of_cz (Memory_model.round_ws ws (Conv.cz_of_z max_size))
       | _, _ -> max_size
     in
-    let max_size = Z.add max_stk max_frame_size in
     let max_call_depth = Z.succ max_call_depth in
     let saved_stack = 
       if has_stack then
@@ -345,7 +330,6 @@ let memory_analysis pp_err ~debug tbl up =
         sao_align = align;
         sao_extra_size = Conv.cz_of_int extra_size;
         sao_max_size_used = Conv.cz_of_z max_size_used;
-        sao_max_size = Conv.cz_of_z max_size;
         sao_max_call_depth = Conv.cz_of_z max_call_depth;
         sao_to_save = convert_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;
@@ -359,8 +343,6 @@ let memory_analysis pp_err ~debug tbl up =
     Hf.replace atbl fn csao;
     let sao_info = {
         extra_padding = Z.of_int extra_padding
-      ; frame_size
-      ; max_frame_size
     } in
     Hf.add infos_tbl fn sao_info
   in

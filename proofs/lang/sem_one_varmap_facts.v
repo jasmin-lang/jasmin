@@ -279,6 +279,7 @@ Lemma eq_except_disjoint_eq_on s s' x y :
 Proof.
   rewrite /disjoint /is_true Sv.is_empty_spec => h d r hr.
   apply: h.
+  clear -d hr.
   SvD.fsetdec.
 Qed.
 

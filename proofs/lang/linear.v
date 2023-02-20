@@ -52,7 +52,6 @@ Record lfundef := LFundef {
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
  lfd_export: bool;
  lfd_callee_saved: seq var; (* A list of variables that must be initialized before calling this function *)
- lfd_total_stack: Z; (* total amount of stack memory needed by this function (and all functions called by this one *)
  (* This is [lfd_total_stack] without padding, rounded to the next alignment
     multiple if the function is export and we need to clean the stack. *)
   lfd_used_stack : Z;

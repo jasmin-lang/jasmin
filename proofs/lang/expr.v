@@ -605,8 +605,8 @@ Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
   sf_stk_sz         : Z;
   sf_stk_extra_sz   : Z;
+  sf_stk_padding    : Z;
   sf_stk_max_used   : Z;
-  sf_stk_max        : Z;
   sf_max_call_depth : Z;
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
@@ -616,10 +616,10 @@ Record stk_fun_extra := MkSFun {
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
   (e1.(sf_align) == e2.(sf_align)) &&
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
-  (e1.(sf_stk_max_used) == e2.(sf_stk_max_used)) &&
-  (e1.(sf_stk_max) == e2.(sf_stk_max)) &&
-  (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)) &&
   (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
+  (e1.(sf_stk_padding) == e2.(sf_stk_padding)) &&
+  (e1.(sf_stk_max_used) == e2.(sf_stk_max_used)) &&
+  (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)) &&
   (e1.(sf_to_save) == e2.(sf_to_save)) &&
   (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
   (e1.(sf_return_address) == e2.(sf_return_address)).
