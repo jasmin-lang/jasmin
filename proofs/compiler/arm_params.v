@@ -196,7 +196,7 @@ Definition arm_fvars_correct
 
 Definition arm_loparams : lowering_params fresh_vars lowering_options :=
   {|
-    lop_lower_i := fun _ _ => lower_i;
+    lop_lower_i _ _ _ := lower_i;
     lop_fvars_correct := arm_fvars_correct;
   |}.
 

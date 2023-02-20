@@ -167,9 +167,10 @@ Proof.
     exact: Hvr'.
   apply: compose_pass.
   - move => vr'.
-    by apply:
+    exact:
       (hlop_lower_callP
          (hap_hlop haparams)
+         (is_regx cparams)
          (lowering_opt cparams)
          (warning cparams)
          (is_var_in_memory cparams)

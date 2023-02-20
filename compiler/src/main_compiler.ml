@@ -97,7 +97,6 @@ let main () =
     ; fresh_PF = (b "PF").vname
     ; fresh_ZF = (b "ZF").vname
     ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
-    ; is_regx = is_regx tbl
     }) in
   try
     parse();

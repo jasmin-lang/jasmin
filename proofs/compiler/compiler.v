@@ -278,7 +278,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   let pl :=
     lower_prog
-      (lop_lower_i loparams)
+      (lop_lower_i loparams (is_regx cparams))
       (lowering_opt cparams)
       (warning cparams)
       (lowering_vars cparams)

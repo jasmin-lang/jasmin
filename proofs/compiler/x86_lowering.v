@@ -22,8 +22,6 @@ Definition mov_ws ws x y tag :=
   else
     Copn [:: x] tag (Ox86 (MOV ws)) [:: y].
 
-End IS_REGX.
-
 Section LOWERING.
 
 Record fresh_vars : Type :=
@@ -35,7 +33,6 @@ Record fresh_vars : Type :=
     fresh_ZF : Equality.sort Ident.ident;
 
     fresh_multiplicand : wsize → Equality.sort Ident.ident;
-    is_regx            : var -> bool
   }.
 
 Record lowering_options : Type :=
@@ -468,7 +465,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
         else
           [:: MkI ii (Copn [:: x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
       else 
-        [:: MkI ii (mov_ws fv.(is_regx) szty x e tg)]
+        [:: MkI ii (mov_ws szty x e tg)]
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
   | LowerFopn sz o es m => map (MkI ii) (opn_5flags m sz vi f x tg o es)
@@ -616,3 +613,5 @@ Fixpoint lower_i (i:instr) : cmd :=
   end.
 
 End LOWERING.
+
+End IS_REGX.
