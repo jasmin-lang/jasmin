@@ -213,13 +213,18 @@ let pp_brace s = Format.sprintf "{%s}" s
 
 let pp_fun tbl fmt (fn, fd) =
   let fn = Conv.string_of_funname tbl fn in
+  let head =
+    if fd.asm_fd_export then
+      [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
+    else []
+  in
   let pre =
     if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
   let body = pp_body tbl fn fmt fd.asm_fd_body in
   (* TODO_ARM: Review. *)
   let pos = if fd.asm_fd_export then pp_instr tbl fn fmt POPPC else [] in
-  pre @ body @ pos
+  head @ pre @ body @ pos
 
 let pp_funcs tbl fmt funs = List.concat_map (pp_fun tbl fmt) funs
 
