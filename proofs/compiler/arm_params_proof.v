@@ -14,7 +14,9 @@ Require Import
   lowering
   propagate_inline_proof
   stack_alloc
-  stack_alloc_proof.
+  stack_alloc_proof
+  clear_stack
+  clear_stack_proof.
 Require
   arch_sem.
 Require Import
@@ -40,6 +42,10 @@ Context
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
+
+
+Lemma arm_hcsparams : h_clear_stack_params arm_csparams.
+Proof. done. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Flag combination hypotheses. *)
@@ -645,6 +651,7 @@ Definition arm_h_params : h_architecture_params arm_params :=
     hap_hlip := arm_hliparams;
     ok_lip_tmp := arm_ok_lip_tmp;
     hap_hlop := arm_hloparams;
+    hap_hcsp := arm_hcsparams;
     hap_hagp := arm_hagparams;
     hap_is_move_opP := arm_is_move_opP;
   |}.

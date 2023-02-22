@@ -214,7 +214,7 @@ Definition arm_agparams : asm_gen_params :=
 (* FIXME: put real values here *)
 Definition arm_csparams : clear_stack_params :=
   {|
-    cs_clear_stack_cmd := fun _ _ _ _ _ =>
+    cs_clear_stack_cmd := fun _ _ _ _ _ _ =>
       Error (clear_stack.E.error (compiler_util.pp_s "arm not supported"))
   |}.
 

@@ -257,7 +257,7 @@ Section S1.
 Context (s1 : estate).
 Context (hrsp : get_gvar [::] s1.(evm) rsp = ok (Vword ptr)).
 
-Record state_rel_small vars s2 n := {
+Record state_rel_unrolled_small vars s2 n := {
   sr_scs : s1.(escs) = s2.(escs);
   sr_mem : mem_equiv s1.(emem) s2.(emem);
   sr_mem_valid : forall p, between top max_stk_size p U8 -> validw s2.(emem) p U8;
@@ -268,9 +268,18 @@ Record state_rel_small vars s2 n := {
     between top (max_stk_size + n) p U8 -> read s2.(emem) p U8 = ok 0%R;
   sr_vm : s1.(evm) = s2.(evm) [\ vars];
   sr_tmp : get_var s2.(evm) tmpi = ok (Vword (align_word ws_align ptr));
-  sr_off : get_var s2.(evm) offi = ok (Vword (wrepr Uptr n));
   sr_aligned : is_align n ws;
   sr_bound : (- max_stk_size <= n <= 0)%Z;
+}.
+
+Record state_rel_unrolled vars s2 n := {
+  sru_vlr : get_var s2.(evm) vlri = ok (@Vword ws 0);
+  sru_srs :> state_rel_unrolled_small vars s2 n
+}.
+
+Record state_rel_small vars s2 n := {
+  sr_off : get_var s2.(evm) offi = ok (Vword (wrepr Uptr n));
+  srs_srs :> state_rel_unrolled_small vars s2 n
 }.
 
 Record state_rel c s2 n := {
@@ -321,9 +330,9 @@ Proof.
       rewrite /eval_instr /= /sem_sopn /=.
       rewrite /get_gvar hsr.(sr_vlr) /=.
       have: exec_sopn (spp:=mk_spp) (Ox86 (VMOVDQU ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0%R].
-      + case: ws hlarge => //= _.
-        rewrite /exec_sopn /=. rewrite zero_extend_u. done.
-        rewrite /exec_sopn /=. rewrite zero_extend_u. done.
+      + rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /= /x86_VMOVDQU.
+        rewrite wsize_nle_u64_check_128_256 //.
+        by apply /negbTE /negP.
       move=> -> /=.
       rewrite hsr.(sr_tmp) /=.
       rewrite /get_gvar hsr.(sr_off) /=.
@@ -340,9 +349,12 @@ Proof.
     by rewrite -addnS.
   + rewrite get_var_neq //.
     by rewrite get_var_eq.
-  case: hsr => hvlr [hscs hmem hvalid hdisj hclear hvm htmp hoff haligned hbound].
+  case: hsr => hvlr [hoff [hscs hmem hvalid hdisj hclear hvm htmp haligned hbound]].
   split=> //=.
   + by rewrite !get_var_neq.
+  split=> //=.
+  + rewrite get_var_eq /=.
+    by rewrite wrepr_add.
   split=> //=.
   + apply (mem_equiv_trans hmem).
     split.
@@ -385,8 +397,6 @@ Proof.
   + do 6 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
     done.
   + by rewrite !get_var_neq.
-  + rewrite get_var_eq /=.
-    by rewrite wrepr_add.
   + move: haligned.
     rewrite /is_align !WArray.p_to_zE.
     rewrite Zplus_mod.
@@ -533,12 +543,13 @@ Proof.
   + do 7 rewrite get_var_neq //.
     rewrite get_var_eq /=. done.
   split=> //=.
+  + rewrite get_var_eq. done.
+  split=> //=.
   + move=> p. rewrite /between /zbetween !zify wsize8. Lia.lia.
   + do 9 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
     done.
   + rewrite get_var_neq //.
     rewrite get_var_eq /=. done.
-  + rewrite get_var_eq. done.
   + move: halign.
     rewrite /is_align !WArray.p_to_zE.
     by move=> /eqP /Z_mod_zero_opp_full /eqP.
@@ -615,11 +626,8 @@ Proof.
       rewrite (find_instr_skip hlinear) /=.
       rewrite /eval_instr /= /sem_sopn /=.
       have: exec_sopn (spp:=mk_spp) (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0%R].
-      + case: ws hsmall => //= _.
-        rewrite /exec_sopn /=. rewrite zero_extend_u. done.
-        rewrite /exec_sopn /=. rewrite zero_extend_u. done.
-        rewrite /exec_sopn /=. rewrite zero_extend_u. done.
-        rewrite /exec_sopn /=. rewrite zero_extend_u. done.
+      + rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /= /x86_MOV.
+        by rewrite /check_size_8_64 hsmall /=.
       rewrite wrepr0.
       move=> -> /=.
       rewrite hsr.(sr_tmp) /=.
@@ -637,7 +645,10 @@ Proof.
     by rewrite -addnS.
   + rewrite get_var_neq //.
     by rewrite get_var_eq.
-  case: hsr => hscs hmem hvalid hdisj hclear hvm htmp hoff haligned hbound.
+  case: hsr => hoff [hscs hmem hvalid hdisj hclear hvm htmp haligned hbound].
+  split=> //=.
+  + rewrite get_var_eq /=.
+    by rewrite wrepr_add.
   split=> //=.
   + apply (mem_equiv_trans hmem).
     split.
@@ -680,8 +691,6 @@ Proof.
   + do 6 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
     done.
   + by rewrite !get_var_neq.
-  + rewrite get_var_eq /=.
-    by rewrite wrepr_add.
   + move: haligned.
     rewrite /is_align !WArray.p_to_zE.
     rewrite Zplus_mod.
@@ -813,12 +822,13 @@ Proof.
     rewrite /of_estate /=.
     by rewrite -addnS.
   split=> //=.
+  + rewrite get_var_eq. done.
+  split=> //=.
   + move=> p; rewrite /between /zbetween !zify wsize8; Lia.lia.
   + do 8 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
     done.
   + rewrite get_var_neq //.
     rewrite get_var_eq /=. done.
-  + rewrite get_var_eq. done.
   + move: halign.
     rewrite /is_align !WArray.p_to_zE.
     by move=> /eqP /Z_mod_zero_opp_full /eqP.
@@ -891,15 +901,14 @@ Section S1.
 Context (s1 : estate).
 Context (hrsp : get_gvar [::] s1.(evm) rsp = ok (Vword ptr)).
 
-Lemma loop_bodyP s2 n :
-  state_rel ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s2 (-max_stk_size + Z.of_nat n * wsize_size ws) ->
+Lemma unrolled_bodyP s2 n :
+  state_rel_unrolled ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s2 (-max_stk_size + Z.of_nat n * wsize_size ws) ->
 (*   (- max_stk_size + Z.of_nat (n.+1) * wsize_size ws <= 0)%Z -> *)
-n < Z.to_nat ((max_stk_size - 1) / wsize_size ws + 1) ->
+  (Z.of_nat n < max_stk_size / wsize_size ws)%Z ->
   exists s3,
     [/\ lsem lp (of_estate s2 fn (size lc + 3 + n))
-                (of_estate s3 fn (size lc + 3 + n.+1)),
-        get_var s3.(evm) zfi = ok (Vbool (ZF_of_word (wrepr U64 n + wrepr U64 (wsize_size ws))))
-      & state_rel ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s3 (n + wsize_size ws)].
+                (of_estate s3 fn (size lc + 3 + n.+1))
+      & state_rel_unrolled ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s3 (-max_stk_size + (Z.of_nat n + 1) * wsize_size ws)].
 Proof.
   move=> hsr hlt.
   have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size).
@@ -916,16 +925,19 @@ Proof.
     rewrite /between /zbetween addE /top !zify.
     rewrite -GRing.addrA -wrepr_add.
     have hbound := hsr.(sr_bound).
-    assert (h := wunsigned_range (align_word ws_align ptr)). (*
-    have hn: (n <= - wsize_size ws)%Z.
-    + have := hsr.(sr_aligned).
-      rewrite /is_align WArray.p_to_zE.
-      move=> /eqP /Z.mod_divide [//|m ?].
-      have: (m < 0)%Z; Lia.nia. *)
+    assert (h := wunsigned_range (align_word ws_align ptr)).
     rewrite wunsigned_sub; last first.
     + by move: h hstack => /=; Lia.lia.
+    have hbound': (- max_stk_size + Z.of_nat n * wsize_size ws <= - wsize_size ws)%Z.
+    + have := hsr.(sr_aligned).
+      rewrite /is_align WArray.p_to_zE.
+      move=> /eqP /Z.mod_divide [//|m hh].
+      have: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+      + Lia.lia.
+      move=> ?; subst max_stk_size.
+      move: hlt. rewrite Z.div_mul //. Lia.nia.
     rewrite wunsigned_add; last first.
-    + have := wsize_size_pos ws. Search "/" Nat.mul. by move: h hstack => /=; Lia.lia.
+    + Lia.lia.
     rewrite wsize8. Lia.lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
@@ -935,25 +947,75 @@ Proof.
     rewrite (find_instr_skip hlinear) /=.
     rewrite oseq.onth_nth.
     rewrite (nth_map {| li_ii := dummy_instr_info; li_i := Lalign |}); last first.
-    rewrite !size_map. rewrite size_iota.
-    have := wsize_size_pos ws. Lia.lia. n
-    2: simpl.
-    nth map
-    
-    rewrite (oseq.onth_cat [::_; _; _]). rewrite -/(map _ _).
-    case: ltP.
-    + move=> /=. rewrite -plusE. Lia.lia.
-    move=> _ /=.
-    Search oseq.onth nth cat map nth ziota
+    + rewrite !size_map size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite (nth_map Lalign); last first.
+    + rewrite !size_map size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite (nth_map 0%Z); last first.
+    + rewrite size_map size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite (nth_map 0%Z); last first.
+    + rewrite size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite nth_rev; last first.
+    + rewrite size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite size_ziota.
+    rewrite nth_ziota; last first.
+    + have ?: (0 < Z.to_nat (max_stk_size / wsize_size ws)).
+      + apply /ltP.
+        apply Nat2Z.inj_lt.
+        rewrite Z2Nat.id //=; Lia.lia.
+      by rewrite ltn_subrL /=.
+    have ->: ((-((1 + Z.of_nat (Z.to_nat (max_stk_size / wsize_size ws) - n.+1)) *
+      wsize_size ws)) = - max_stk_size + Z.of_nat n * wsize_size ws)%Z.
+    + rewrite Nat2Z.n2zB; last first.
+      + apply /ltP.
+        apply Nat2Z.inj_lt.
+        rewrite Z2Nat.id //.
+        Lia.lia.
+      rewrite Z2Nat.id; last first.
+      + Lia.lia.
+      rewrite -subZE. rewrite Z.mul_add_distr_r Z.mul_sub_distr_r.
+      have: (max_stk_size / wsize_size ws * wsize_size ws = max_stk_size)%Z.
+      + have := hsr.(sr_aligned).
+        rewrite /is_align WArray.p_to_zE.
+        move=> /eqP /Z.mod_divide [//|m hh].
+        have ->: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+        + Lia.lia.
+        by rewrite Z.div_mul.
+      Lia.lia.
     rewrite /eval_instr /= /sem_sopn /=.
-    rewrite /get_gvar hsr.(sr_off) /=.
-    rewrite /of_estate /= !zero_extend_u pword_of_wordE.
-    by rewrite -addnS.
-  + rewrite get_var_neq //.
-    by rewrite get_var_eq.
-  case: hsr => hvlr [hscs hmem hvalid hdisj hclear hvm htmp hoff haligned hbound].
+    rewrite /get_gvar hsr.(sru_vlr) /=.
+    have: exec_sopn (spp:=mk_spp) (Ox86 (VMOVDQU ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0%R].
+    + rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /= /x86_VMOVDQU.
+      rewrite wsize_nle_u64_check_128_256 //.
+      by apply /negbTE /negP.
+    move=> -> /=.
+    rewrite hsr.(sr_tmp) /=.
+    rewrite !zero_extend_u.
+    rewrite truncate_word_u /=.
+    rewrite hm' /=.
+    rewrite -!addnS !addnA.
+    by rewrite /of_estate /=.
+  case: hsr => hvlr [hscs hmem hvalid hdisj hclear hvm htmp haligned hbound].
   split=> //=.
-  + by rewrite !get_var_neq.
   split=> //=.
   + apply (mem_equiv_trans hmem).
     split.
@@ -967,17 +1029,19 @@ Proof.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.
     assert (h := wunsigned_range (align_word ws_align ptr)).
-    have hn: (n <= - wsize_size ws)%Z.
-    + move: haligned.
+    have hbound': (- max_stk_size + Z.of_nat n * wsize_size ws <= - wsize_size ws)%Z.
+    + have := haligned.
       rewrite /is_align WArray.p_to_zE.
-      move=> /eqP /Z.mod_divide [//|m ?].
-      have ? := wsize_size_pos ws.
-      have: (m < 0)%Z; Lia.nia.
+      move=> /eqP /Z.mod_divide [//|m hh].
+      have: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+      + Lia.lia.
+      move=> ?; subst max_stk_size.
+      move: hlt. rewrite Z.div_mul //. Lia.nia.
     rewrite wunsigned_sub; last first.
     + move: h hstack => /=; Lia.lia.
     rewrite wunsigned_add; last first.
-    + move: h hstack => /=; Lia.lia.
-    Lia.lia.
+    + Lia.lia.
+    move=> /=; Lia.lia.
   + move=> p hb.
     rewrite (write_read8 hm') subE /=.
     case: ifPn.
@@ -993,98 +1057,63 @@ Proof.
     rewrite wunsigned_add; last first.
     + assert (h := wunsigned_range (align_word ws_align ptr)). simpl in *. Lia.lia.
     case: ZleP=> [_|? _] /=; Lia.lia.
-  + do 6 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
-    done.
-  + by rewrite !get_var_neq.
-  + rewrite get_var_eq /=.
-    by rewrite wrepr_add.
-  + move: haligned.
+  + rewrite Z.mul_add_distr_r Z.mul_1_l Z.add_assoc.
+    move: haligned.
     rewrite /is_align !WArray.p_to_zE.
-    rewrite Zplus_mod.
+    rewrite (Zplus_mod _ (wsize_size ws)).
     move=> /eqP -> /=.
     by rewrite Z_mod_same_full.
-  have hn: (n <= - wsize_size ws)%Z.
-  + move: haligned.
+  have hbound': (- max_stk_size + Z.of_nat n * wsize_size ws <= - wsize_size ws)%Z.
+  + have := haligned.
     rewrite /is_align WArray.p_to_zE.
-    move=> /eqP /Z.mod_divide [//|m ?].
-    have ? := wsize_size_pos ws.
-    have: (m < 0)%Z; Lia.nia.
+    move=> /eqP /Z.mod_divide [//|m hh].
+    have: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+    + Lia.lia.
+    move=> ?; subst max_stk_size.
+    move: hlt. rewrite Z.div_mul //. Lia.nia.
   have := wsize_size_pos ws.
   by Lia.lia.
 Qed.
 
-Lemma loopP s2 n :
-  state_rel (write_c (x86_clear_stack_loop_large rspi lbl ws_align ws max_stk_size)) s2 n ->
-  (n < 0)%Z ->
+Lemma unrolledP s2 :
+  state_rel_unrolled ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s2 (-max_stk_size) ->
   exists s3,
-    [/\ lsem lp (of_estate s2 fn (size lc + 5))
-                (of_estate s3 fn (size lc + 8))
-      & state_rel (write_c (x86_clear_stack_loop_large rspi lbl ws_align ws max_stk_size)) s3 0].
+    [/\ lsem lp (of_estate s2 fn (size lc + 3))
+                (of_estate s3 fn (size lc + 3 + Z.to_nat (max_stk_size / wsize_size ws)))
+      & state_rel_unrolled ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s3 0].
 Proof.
-  move=> hsr hlt.
-  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_loop_large rspi lbl ws_align ws max_stk_size).
+  move=> hsr.
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size).
   + by exists lfd.
-  have [k hn]: (exists k, n = - Z.of_nat k * wsize_size ws)%Z.
-  + have := hsr.(sr_aligned).
+  have [k [hmax hbound]]: (exists k, (max_stk_size = Z.of_nat k * wsize_size ws)%Z /\ k <= Z.to_nat (max_stk_size / wsize_size ws)).
+  + have := halign.
     rewrite /is_align WArray.p_to_zE.
-    move=> /eqP /Z.mod_divide [//|m ?].
-    exists (Z.to_nat (-m)).
-    rewrite Z2Nat.id; first by rewrite Z.opp_involutive.
-    have := wsize_size_pos ws.
-    Lia.lia.
-  elim: k n s2 hsr hlt hn => [|k ih] n s2 hsr hlt hn.
-  + move: hn; rewrite Z.mul_0_l.
-    Lia.lia.
-  have [s3 [hsem3 hzf3 hsr3]] := loop_bodyP hsr hlt.
-  case hzf: (~~ ZF_of_word (wrepr U64 n + wrepr U64 (wsize_size ws))).
-  + have hn3: (n + wsize_size ws < 0)%Z.
-    + case: k {ih} hn => [|k].
-      + rewrite Z.mul_opp_l Z.mul_1_l => hn.
-        case /negP: hzf.
-        by rewrite /ZF_of_word -wrepr_add hn Z.add_opp_diag_l.
+    move=> /eqP /Z.mod_divide [//|m h].
+    exists (Z.to_nat m).
+    split.
+    + rewrite Z2Nat.id //.
       have := wsize_size_pos ws.
       Lia.lia.
-    have := ih _ _ hsr3 hn3.
-    move=> /(_ ltac:(Lia.lia)).
-    move=> [s4 [hsem4 hsr4]].
-    exists s4; split=> //.
-    apply: (lsem_trans hsem3).
-    apply: lsem_step.
-    + rewrite /lsem1 /step.
-      rewrite (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /=.
-      rewrite /get_gvar hzf3 /= hzf hlfd /=.
-      rewrite hbody.
-      rewrite (find_label_cat_hd (spp:=mk_spp) _ hlabel).
-      do 5 rewrite (find_labelE (spp:=mk_spp)) /=.
-      rewrite /is_label /= eq_refl /=.
-      by rewrite /setcpc /=.
-    rewrite -addnS.
-    by apply hsem4.
-  have hn3: (n + wsize_size ws = 0)%Z.
-  + have hb3 := hsr3.(sr_bound).
-    case: (Z.le_gt_cases 0 (n + wsize_size ws)); first by Lia.lia.
-    move=> hn'.
-    have := @wunsigned_repr_small U64 (wbase U64 + n + wsize_size ws).
-    rewrite -Z.add_assoc wrepr_add. rewrite wreprB.
-    move /(elimNf idP): hzf.
-    rewrite /ZF_of_word -wrepr_add => /eqP ->.
-    have ?: (max_stk_size < wbase U64)%Z.
-    + assert (h := wunsigned_range (align_word ws_align ptr)).
-      move: h hstack => /=.
-      Lia.lia.
-    move=> /(_ ltac:(Lia.lia)).
-    change (wunsigned (0 + 0)) with 0%Z.
-    Lia.lia. (* proof ugly and probably too complex *)
-  exists s3; split; last by rewrite -hn3.
-  apply: (lsem_trans hsem3).
-  apply: LSem_step.
-  rewrite /lsem1 /step.
-  rewrite (find_instr_skip hlinear) /=.
-  rewrite /eval_instr /=.
-  rewrite /get_gvar hzf3 /= hzf.
-  rewrite /setpc /=.
-  by rewrite -addnS.
+    by rewrite h Z.div_mul.
+  replace 0%Z with (-max_stk_size + max_stk_size)%Z by Lia.lia.
+  rewrite {1 5}hmax {hmax}.
+  rewrite Z.div_mul // Nat2Z.id.
+  elim: k s2 hbound hsr => [|k ih] s2 hbound hsr.
+  + rewrite /= addn0 Z.add_0_r.
+    exists s2; split=> //.
+    by apply Relation_Operators.rt_refl.
+  have [s3 [hsem3 hsr3]] := ih _ (ltnW hbound) hsr.
+  have := unrolled_bodyP hsr3.
+  have hbound': (Z.of_nat k < max_stk_size / wsize_size ws)%Z.
+  + move: hbound => /leP /Nat2Z.inj_lt.
+    rewrite Z2Nat.id //.
+    apply Z.div_pos => //.
+    by Lia.lia.
+  move=> /(_ hbound') [s4 [hsem4 hsr4]].
+  exists s4; split.
+  + by apply (lsem_trans hsem3).
+  replace (Z.of_nat k.+1) with (Z.of_nat k + 1)%Z by Lia.lia.
+  done.
 Qed.
 
 End S1.
@@ -1094,14 +1123,27 @@ Context (hvalid : forall p,
   between top max_stk_size p U8 ->
   validw (emem s0) p U8).
 
-Lemma init_code_loopP' :
+Lemma write_c_unrolled_large :
+  Sv.Subset
+    (Sv.remove offi (write_c (x86_clear_stack_loop_large rspi 1%positive ws_align ws max_stk_size)))
+    (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)).
+Proof.
+  rewrite /x86_clear_stack_unrolled_large.
+  elim: rev.
+  + apply Sv.subset_spec. done.
+  move=> ??.
+  rewrite /write_c /=.
+  SvD.fsetdec.
+Qed.
+
+Lemma init_code_unrolledP' :
   get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
   exists s1,
-    lsem lp (of_estate s0 fn (size lc)) (of_estate s1 fn (size lc + 5)) /\
-    state_rel s0 (write_c (x86_clear_stack_loop_large rspi lbl ws_align ws max_stk_size)) s1 (-max_stk_size).
+    lsem lp (of_estate s0 fn (size lc)) (of_estate s1 fn (size lc + 3)) /\
+    state_rel_unrolled ws_align ws max_stk_size ptr s0 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s1 (-max_stk_size).
 Proof.
   move=> hrsp.
-  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_loop_large rspi lbl ws_align ws max_stk_size).
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size).
   + by exists lfd.
   have h256 := wsize_ge_U256 ws.
   eexists (Estate _ _ _); split.
@@ -1122,33 +1164,22 @@ Proof.
       move=> -> /=.
       rewrite (sumbool_of_boolET h256).
       by rewrite /of_estate /=.
-    apply: lsem_step.
+    apply: LSem_step.
     + rewrite /lsem1 /step.
-      rewrite -addnS (find_instr_skip hlinear) /=.
+      rewrite -addnS (find_instr_skip hlinear).
       rewrite /eval_instr /= /sem_sopn /=.
       rewrite get_gvar_neq //.
       rewrite (@get_gvar_eq _ tmp) /=; last by [].
-      by rewrite /of_estate /= !zero_extend_u pword_of_wordE.
-    apply: lsem_step.
-    + rewrite /lsem1 /step.
-      rewrite -addnS (find_instr_skip hlinear) /=.
-      rewrite /eval_instr /= /of_estate /= zero_extend_u pword_of_wordE.
+      rewrite /of_estate /= !zero_extend_u pword_of_wordE.
       by rewrite -addnS.
-    apply: LSem_step.
-    rewrite /lsem1 /step.
-    rewrite (find_instr_skip hlinear) /=.
-    rewrite /eval_instr /= /setpc /=.
-    rewrite /of_estate /=.
-    by rewrite -addnS.
   split=> //=.
-  + do 7 rewrite get_var_neq //.
+  + do 6 rewrite get_var_neq //.
     rewrite get_var_eq /=. done.
   split=> //=.
   + move=> p. rewrite /between /zbetween !zify wsize8. Lia.lia.
-  + do 9 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
+  + apply: (vmap_eq_exceptI write_c_unrolled_large).
+    do 8 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
     done.
-  + rewrite get_var_neq //.
-    rewrite get_var_eq /=. done.
   + rewrite get_var_eq. done.
   + move: halign.
     rewrite /is_align !WArray.p_to_zE.
@@ -1156,25 +1187,352 @@ Proof.
   Lia.lia.
 Qed.
 
-Lemma fullP_large :
+Lemma fullP_unrolled_large :
   get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
   exists s2,
-    lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_loop_large rspi lbl ws_align ws max_stk_size)))
-    /\ state_rel s0 (write_c (x86_clear_stack_loop_large rspi lbl ws_align ws max_stk_size)) s2 0.
+    lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)))
+    /\ state_rel_unrolled ws_align ws max_stk_size ptr s0 (write_c (x86_clear_stack_unrolled_large rspi ws_align ws max_stk_size)) s2 0.
 Proof.
   move=> hrsp.
-  have [s1 [hsem1 hsr1]] := init_code_loopP' hrsp.
-  have [s2 [hsem2 hsr2]] := loopP hsr1 ltac:(Lia.lia).
+  have [s1 [hsem1 hsr1]] := init_code_unrolledP' hrsp.
+  have [s2 [hsem2 hsr2]] := unrolledP hsr1.
   exists s2; split=> //.
-  by apply: (lsem_trans hsem1).
+  rewrite /= !size_map size_rev size_ziota.
+  apply: (lsem_trans hsem1).
+  by rewrite -(addn3 (Z.to_nat _)) (addnC (Z.to_nat _)) addnA.
 Qed.
 
 End LARGE.
 
+Section SMALL.
+
+Context (hsmall : (ws <= U64)%CMP).
+Context (hbody : lfd.(lfd_body) = lc ++ x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size).
+Context (ptr : pointer).
+Context (hstack : (max_stk_size <= wunsigned (align_word ws_align ptr))%Z).
+Let top := (align_word ws_align ptr - wrepr Uptr max_stk_size)%R.
+
+Section S1.
+
+Context (s1 : estate).
+Context (hrsp : get_gvar [::] s1.(evm) rsp = ok (Vword ptr)).
+
+Lemma unrolled_bodyP_small s2 n :
+  state_rel_unrolled_small ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)) s2 (-max_stk_size + Z.of_nat n * wsize_size ws) ->
+  (Z.of_nat n < max_stk_size / wsize_size ws)%Z ->
+  exists s3,
+    [/\ lsem lp (of_estate s2 fn (size lc + 2 + n))
+                (of_estate s3 fn (size lc + 2 + n.+1))
+      & state_rel_unrolled_small ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)) s3 (-max_stk_size + (Z.of_nat n + 1) * wsize_size ws)].
+Proof.
+  move=> hsr hlt.
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size).
+  + by exists lfd.
+  have: validw (emem s2) (align_word ws_align ptr + wrepr Uptr (-max_stk_size + Z.of_nat n * wsize_size ws))%R ws.
+  + apply /validwP; split.
+    + apply is_align_add.
+      + apply (is_align_m le_ws_ws_align).
+        by apply do_align_is_align.
+      rewrite WArray.arr_is_align.
+      by apply hsr.(sr_aligned).
+    move=> k hk.
+    apply hsr.(sr_mem_valid).
+    rewrite /between /zbetween addE /top !zify.
+    rewrite -GRing.addrA -wrepr_add.
+    have hbound := hsr.(sr_bound).
+    assert (h := wunsigned_range (align_word ws_align ptr)).
+    rewrite wunsigned_sub; last first.
+    + by move: h hstack => /=; Lia.lia.
+    have hbound': (- max_stk_size + Z.of_nat n * wsize_size ws <= - wsize_size ws)%Z.
+    + have := hsr.(sr_aligned).
+      rewrite /is_align WArray.p_to_zE.
+      move=> /eqP /Z.mod_divide [//|m hh].
+      have: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+      + Lia.lia.
+      move=> ?; subst max_stk_size.
+      move: hlt. rewrite Z.div_mul //. Lia.nia.
+    rewrite wunsigned_add; last first.
+    + Lia.lia.
+    rewrite wsize8. Lia.lia.
+  move=> /(writeV 0) [m' hm'].
+  eexists (Estate _ _ _); split=> /=.
+  + apply: LSem_step.
+    rewrite /lsem1 /step.
+    rewrite -addnA.
+    rewrite (find_instr_skip hlinear) /=.
+    rewrite oseq.onth_nth.
+    rewrite (nth_map {| li_ii := dummy_instr_info; li_i := Lalign |}); last first.
+    + rewrite !size_map size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite (nth_map Lalign); last first.
+    + rewrite !size_map size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite (nth_map 0%Z); last first.
+    + rewrite size_map size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite (nth_map 0%Z); last first.
+    + rewrite size_rev size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite nth_rev; last first.
+    + rewrite size_ziota.
+      apply /ltP.
+      apply Nat2Z.inj_lt.
+      rewrite Z2Nat.id //.
+      Lia.lia.
+    rewrite size_ziota.
+    rewrite nth_ziota; last first.
+    + have ?: (0 < Z.to_nat (max_stk_size / wsize_size ws)).
+      + apply /ltP.
+        apply Nat2Z.inj_lt.
+        rewrite Z2Nat.id //=; Lia.lia.
+      by rewrite ltn_subrL /=.
+    have ->: ((-((1 + Z.of_nat (Z.to_nat (max_stk_size / wsize_size ws) - n.+1)) *
+      wsize_size ws)) = - max_stk_size + Z.of_nat n * wsize_size ws)%Z.
+    + rewrite Nat2Z.n2zB; last first.
+      + apply /ltP.
+        apply Nat2Z.inj_lt.
+        rewrite Z2Nat.id //.
+        Lia.lia.
+      rewrite Z2Nat.id; last first.
+      + Lia.lia.
+      rewrite -subZE. rewrite Z.mul_add_distr_r Z.mul_sub_distr_r.
+      have: (max_stk_size / wsize_size ws * wsize_size ws = max_stk_size)%Z.
+      + have := hsr.(sr_aligned).
+        rewrite /is_align WArray.p_to_zE.
+        move=> /eqP /Z.mod_divide [//|m hh].
+        have ->: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+        + Lia.lia.
+        by rewrite Z.div_mul.
+      Lia.lia.
+    rewrite /eval_instr /= /sem_sopn /=.
+    have: exec_sopn (spp:=mk_spp) (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0%R].
+    + rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /= /x86_MOV.
+      by rewrite /check_size_8_64 hsmall /=.
+    rewrite wrepr0.
+    move=> -> /=.
+    rewrite hsr.(sr_tmp) /=.
+    rewrite !zero_extend_u.
+    rewrite truncate_word_u /=.
+    rewrite hm' /=.
+    rewrite -!addnS !addnA.
+    by rewrite /of_estate /=.
+  case: hsr => hscs hmem hvalid hdisj hclear hvm htmp haligned hbound.
+  split=> //=.
+  + apply (mem_equiv_trans hmem).
+    split.
+    + by apply (Memory.write_mem_stable hm').
+    by move=> ??; symmetry; apply (write_validw_eq hm').
+  + move=> p hb.
+    rewrite (write_validw_eq hm').
+    by apply hvalid.
+  + move=> p hp.
+    rewrite (writeP_neq hm'); first by apply hdisj.
+    apply: disjoint_zrange_incl_l hp.
+    rewrite /top /zbetween !zify.
+    assert (h := wunsigned_range (align_word ws_align ptr)).
+    have hbound': (- max_stk_size + Z.of_nat n * wsize_size ws <= - wsize_size ws)%Z.
+    + have := haligned.
+      rewrite /is_align WArray.p_to_zE.
+      move=> /eqP /Z.mod_divide [//|m hh].
+      have: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+      + Lia.lia.
+      move=> ?; subst max_stk_size.
+      move: hlt. rewrite Z.div_mul //. Lia.nia.
+    rewrite wunsigned_sub; last first.
+    + move: h hstack => /=; Lia.lia.
+    rewrite wunsigned_add; last first.
+    + Lia.lia.
+    move=> /=; Lia.lia.
+  + move=> p hb.
+    rewrite (write_read8 hm') subE /=.
+    case: ifPn.
+    + move=> _. by rewrite read0.
+    move=> h.
+    apply hclear.
+    (* je n'ai pas tout compris à la preuve *)
+    move: h hb; rewrite /between /zbetween /top.
+    rewrite !zify wsize8.
+    rewrite wunsigned_sub; last first.
+    + assert (h := wunsigned_range (align_word ws_align ptr)). simpl in *. Lia.lia.
+    rewrite wunsigned_sub_if.
+    rewrite wunsigned_add; last first.
+    + assert (h := wunsigned_range (align_word ws_align ptr)). simpl in *. Lia.lia.
+    case: ZleP=> [_|? _] /=; Lia.lia.
+  + rewrite Z.mul_add_distr_r Z.mul_1_l Z.add_assoc.
+    move: haligned.
+    rewrite /is_align !WArray.p_to_zE.
+    rewrite (Zplus_mod _ (wsize_size ws)).
+    move=> /eqP -> /=.
+    by rewrite Z_mod_same_full.
+  have hbound': (- max_stk_size + Z.of_nat n * wsize_size ws <= - wsize_size ws)%Z.
+  + have := haligned.
+    rewrite /is_align WArray.p_to_zE.
+    move=> /eqP /Z.mod_divide [//|m hh].
+    have: (max_stk_size = (Z.of_nat n - m) * wsize_size ws)%Z.
+    + Lia.lia.
+    move=> ?; subst max_stk_size.
+    move: hlt. rewrite Z.div_mul //. Lia.nia.
+  have := wsize_size_pos ws.
+  by Lia.lia.
+Qed.
+
+Lemma unrolledP_small s2 :
+  state_rel_unrolled_small ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)) s2 (-max_stk_size) ->
+  exists s3,
+    [/\ lsem lp (of_estate s2 fn (size lc + 2))
+                (of_estate s3 fn (size lc + 2 + Z.to_nat (max_stk_size / wsize_size ws)))
+      & state_rel_unrolled_small ws_align ws max_stk_size ptr s1 (write_c (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)) s3 0].
+Proof.
+  move=> hsr.
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size).
+  + by exists lfd.
+  have [k [hmax hbound]]: (exists k, (max_stk_size = Z.of_nat k * wsize_size ws)%Z /\ k <= Z.to_nat (max_stk_size / wsize_size ws)).
+  + have := halign.
+    rewrite /is_align WArray.p_to_zE.
+    move=> /eqP /Z.mod_divide [//|m h].
+    exists (Z.to_nat m).
+    split.
+    + rewrite Z2Nat.id //.
+      have := wsize_size_pos ws.
+      Lia.lia.
+    by rewrite h Z.div_mul.
+  replace 0%Z with (-max_stk_size + max_stk_size)%Z by Lia.lia.
+  rewrite {1 5}hmax {hmax}.
+  rewrite Z.div_mul // Nat2Z.id.
+  elim: k s2 hbound hsr => [|k ih] s2 hbound hsr.
+  + rewrite /= addn0 Z.add_0_r.
+    exists s2; split=> //.
+    by apply Relation_Operators.rt_refl.
+  have [s3 [hsem3 hsr3]] := ih _ (ltnW hbound) hsr.
+  have := unrolled_bodyP_small hsr3.
+  have hbound': (Z.of_nat k < max_stk_size / wsize_size ws)%Z.
+  + move: hbound => /leP /Nat2Z.inj_lt.
+    rewrite Z2Nat.id //.
+    apply Z.div_pos => //.
+    by Lia.lia.
+  move=> /(_ hbound') [s4 [hsem4 hsr4]].
+  exists s4; split.
+  + by apply (lsem_trans hsem3).
+  replace (Z.of_nat k.+1) with (Z.of_nat k + 1)%Z by Lia.lia.
+  done.
+Qed.
+
+End S1.
+
+Context (s0 : estate).
+Context (hvalid : forall p,
+  between top max_stk_size p U8 ->
+  validw (emem s0) p U8).
+
+Lemma write_c_unrolled_small :
+  Sv.Subset
+    (Sv.remove offi (write_c (x86_clear_stack_loop_small rspi 1%positive ws_align ws max_stk_size)))
+    (write_c (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)).
+Proof.
+  rewrite /x86_clear_stack_unrolled_small.
+  elim: rev.
+  + apply Sv.subset_spec. done.
+  move=> ??.
+  rewrite /write_c /=.
+  SvD.fsetdec.
+Qed.
+
+Lemma init_code_unrolledP'_small :
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
+  exists s1,
+    lsem lp (of_estate s0 fn (size lc)) (of_estate s1 fn (size lc + 2)) /\
+    state_rel_unrolled_small ws_align ws max_stk_size ptr s0 (write_c (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)) s1 (-max_stk_size).
+Proof.
+  move=> hrsp.
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size).
+  + by exists lfd.
+  have h256 := wsize_ge_U256 ws.
+  eexists (Estate _ _ _); split.
+  + apply: lsem_step.
+    + rewrite /lsem1 /step.
+      rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
+      rewrite /eval_instr /= /of_estate /to_estate /=.
+      rewrite /sem_sopn /=.
+      by rewrite hrsp /= zero_extend_u pword_of_wordE.
+    apply: LSem_step.
+    + rewrite /lsem1 /step.
+      rewrite -addnS (find_instr_skip hlinear).
+      rewrite /eval_instr /= /sem_sopn /=.
+      rewrite (@get_gvar_eq _ tmp) /=; last by [].
+      rewrite /of_estate /= !zero_extend_u pword_of_wordE.
+      by rewrite -addnS.
+  split=> //=.
+  + move=> p. rewrite /between /zbetween !zify wsize8. Lia.lia.
+  + apply: (vmap_eq_exceptI write_c_unrolled_small).
+    do 7 (rewrite vmap_eq_except_set; last by apply /Sv_memP).
+    done.
+  + rewrite get_var_eq. done.
+  + move: halign.
+    rewrite /is_align !WArray.p_to_zE.
+    by move=> /eqP /Z_mod_zero_opp_full /eqP.
+  Lia.lia.
+Qed.
+
+Lemma fullP_unrolled_small :
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
+  exists s2,
+    lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)))
+    /\ state_rel_unrolled_small ws_align ws max_stk_size ptr s0 (write_c (x86_clear_stack_unrolled_small rspi ws_align ws max_stk_size)) s2 0.
+Proof.
+  move=> hrsp.
+  have [s1 [hsem1 hsr1]] := init_code_unrolledP'_small hrsp.
+  have [s2 [hsem2 hsr2]] := unrolledP_small hsr1.
+  exists s2; split=> //.
+  rewrite /= !size_map size_rev size_ziota.
+  apply: (lsem_trans hsem1).
+  by rewrite -(addn2 (Z.to_nat _)) (addnC (Z.to_nat _)) addnA.
+Qed.
+
+End SMALL.
+
+Context (hbody : lfd.(lfd_body) = lc ++ x86_clear_stack_unrolled rspi ws_align ws max_stk_size).
+Context (s0 : estate) (ptr : pointer).
+Context (hstack : (max_stk_size <= wunsigned (align_word ws_align ptr))%Z).
+Context (hvalid : forall p,
+  between (align_word ws_align ptr - wrepr U64 max_stk_size) max_stk_size p U8 ->
+  validw (emem s0) p U8).
+
+Lemma fullP_unrolled :
+  get_gvar [::] s0.(evm) rsp = ok (Vword ptr) ->
+  exists s2,
+    lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_unrolled rspi ws_align ws max_stk_size)))
+    /\ state_rel_unrolled_small ws_align ws max_stk_size ptr s0 (write_c (x86_clear_stack_unrolled rspi ws_align ws max_stk_size)) s2 0.
+Proof.
+  move=> hget.
+  move: hbody.
+  rewrite /x86_clear_stack_unrolled.
+  case: ifPn.
+  + move=> hbody' hsmall.
+    by apply fullP_unrolled_small.
+  move=> /negP h1 h2.
+  have [s2 [hsem hsr]] := fullP_unrolled_large h1 h2 hstack hvalid hget.
+  exists s2; split => //.
+  by case: hsr.
+Qed.
+
+End toto.
 
 End Unrolled.
 
 End CLEAR_STACK.
+
 Opaque Uptr.
 
 Lemma x86_hcsparams : h_clear_stack_params x86_csparams.
@@ -1188,30 +1546,48 @@ Proof.
       move=> [<-].
       rewrite /x86_clear_stack_unrolled.
       case: ifP => _ /=.
-      + by apply ziota_ind.
-      by apply ziota_ind.
+      + by elim: rev.
+      by elim: rev.
 
   move=> cs rsp lbl ws_align ws max_stk_size cmd.
   case: cs => /=.
   + move=> [<-] max_stk_pos halign hle lp fn lfd lc /negP hlabel hlfd hbody scs m vm ptr enough_stk ok_ptr hvalid.
-   have hrsp': get_gvar [::] vm (mk_lvar rsp) = ok (Vword ptr).
-   + done.
-   have := fullP halign hle hlfd hlabel max_stk_pos hbody (s0 := Estate (spp:=mk_spp) scs m vm) enough_stk hvalid ok_ptr.
-   move=> [s2 [hsem hsr]].
-   exists (emem s2), (evm s2).
-   split.
-   + move: hsem; rewrite /of_estate /=.
-     have /= <- := hsr.(sr_scs). done.
-   + by apply hsr.(sr_vm).
-   + by apply hsr.(sr_mem).
-   split.
-   + by apply hsr.(sr_disjoint).
-   move=> p hb.
-   apply hsr.(sr_clear).
-   by rewrite Z.add_0_r.
+    have hrsp': get_gvar [::] vm (mk_lvar rsp) = ok (Vword ptr).
+    + done.
+    have := fullP halign hle hlfd hlabel max_stk_pos hbody (s0 := Estate (spp:=mk_spp) scs m vm) enough_stk hvalid ok_ptr.
+    move=> [s2 [hsem hsr]].
+    exists (emem s2), (evm s2).
+    split.
+    + move: hsem; rewrite /of_estate /=.
+      have /= <- := hsr.(sr_scs). done.
+    + by apply hsr.(sr_vm).
+    + by apply hsr.(sr_mem).
+    split.
+    + by apply hsr.(sr_disjoint).
+    move=> p hb.
+    apply hsr.(sr_clear).
+    by rewrite Z.add_0_r.
   move=> [<-] max_stk_pos halign hle lp fn lfd lc /negP hlabel hlfd hbody scs m vm ptr enough_stk ok_ptr hvalid.
-  admit.
-Admitted.
+  have hrsp': get_gvar [::] vm (mk_lvar rsp) = ok (Vword ptr).
+  + done.
+  have := fullP_unrolled halign hle hlfd max_stk_pos hbody (s0 := Estate (spp:=mk_spp) scs m vm) enough_stk hvalid ok_ptr.
+  move=> [s2 [hsem hsr]].
+  exists (emem s2), (evm s2).
+  split.
+  + move: hsem; rewrite /of_estate /=.
+    have /= <- := hsr.(sr_scs). done.
+  + by apply hsr.(sr_vm).
+  + by apply hsr.(sr_mem).
+  split.
+  + by apply hsr.(sr_disjoint).
+  move=> p hb.
+  apply hsr.(sr_clear).
+  by rewrite Z.add_0_r.
+Qed.
+
+Transparent Uptr.
+
+End bla.
 
 (* ------------------------------------------------------------------------ *)
 (* Flag combination hypotheses. *)
@@ -1726,6 +2102,7 @@ Definition x86_h_params {call_conv : calling_convention} : h_architecture_params
     hap_hlip := x86_hliparams;
     ok_lip_tmp := x86_ok_lip_tmp;
     hap_hlop := x86_hloparams;
+    hap_hcsp := x86_hcsparams;
     hap_hagp := x86_hagparams;
     hap_is_move_opP := x86_is_move_opP;
   |}.

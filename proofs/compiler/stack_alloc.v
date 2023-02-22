@@ -1372,7 +1372,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
                  (stk_ierror_no_var "local size too small")
   in
   Let _ :=
-    assert (sao.(sao_size) + sao.(sao_extra_size) + sao.(sao_padding) <=? sao.(sao_max_size_used))%Z
+    assert_check (sao.(sao_size) + sao.(sao_extra_size) + sao.(sao_padding) <=? sao.(sao_max_size_used))%Z
            (stk_ierror_no_var "sao_max_size too small")
   in
   Let rbody := fmapM (alloc_i pmap local_alloc sao) rmap fd.(f_body) in

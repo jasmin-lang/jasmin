@@ -350,7 +350,7 @@ Definition x86_clear_stack_unrolled_small ws_align ws (max_stk_size : Z) : lcmd 
       [:: pword_of_int ws 0 ]
   in
 
-  let offs := map (fun x => x * wsize_size ws)%Z (ziota 1 ((max_stk_size-1) / wsize_size ws + 1)) in
+  let offs := map (fun x => x * wsize_size ws)%Z (rev (ziota 1 (max_stk_size / wsize_size ws))) in
 
   map (MkLI dummy_instr_info) [:: i0, i1 & map f offs].
 
@@ -377,7 +377,7 @@ Definition x86_clear_stack_unrolled_large ws_align ws (max_stk_size : Z) : lcmd 
       [:: Pvar vlr ]
   in
 
-  let offs := map (fun x => x * wsize_size ws)%Z (ziota 1 ((max_stk_size-1) / wsize_size ws + 1)) in
+  let offs := map (fun x => x * wsize_size ws)%Z (rev (ziota 1 (max_stk_size / wsize_size ws))) in
 
   map (MkLI dummy_instr_info) [:: i1, i0, i2 & map f offs].
 

@@ -66,7 +66,6 @@ let pp_sao tbl fmt (sao, sao_info) =
   let sao_size = Conv.z_of_cz sao.sao_size in
   let sao_extra_size = Conv.z_of_cz sao.sao_extra_size in
   let sao_padding = Conv.z_of_cz sao.sao_padding in
-  let sao_max_size = Conv.z_of_cz sao.sao_max_size in
   let pp_extra fmt =
     Format.fprintf fmt "%a (= %a (data) + %a (padding))"
       Z.pp_print sao_extra_size
@@ -75,26 +74,14 @@ let pp_sao tbl fmt (sao, sao_info) =
   let pp_frame fmt =
     Format.fprintf fmt "%a (= %a (local stack vars) + %a (extra) + %a (padding))"
       Z.pp_print Z.(sao_size + sao_extra_size + sao_padding) Z.pp_print sao_size Z.pp_print sao_extra_size
-      Z.pp_print Z.(frame_size - sao_size - sao_extra_size)
+      Z.pp_print sao_padding
   in
-  let pp_max_frame fmt =
-    Format.fprintf fmt "%a (= %a (frame size) + %a (max runtime padding for export function))"
-      Z.pp_print max_frame_size Z.pp_print frame_size
-      Z.pp_print (Z.sub max_frame_size frame_size)
-  in
-  let pp_max fmt =
-    Format.fprintf fmt "%a (= %a (max frame size) + %a (max stack size of callees))"
-      Z.pp_print sao_max_size Z.pp_print max_frame_size
-      Z.pp_print (Z.sub sao_max_size max_frame_size)
-  in
-  Format.fprintf fmt "alignment = %s@;size = %a@;extra size = %t@;frame size = %t@;max frame size = %t@;max used size = %a@;max size = %t@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
+  Format.fprintf fmt "alignment = %s@;size = %a@;extra size = %t@;frame size = %t@;max used size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
    (string_of_ws sao.sao_align)
     Z.pp_print sao_size
     pp_extra
     pp_frame
-    pp_max_frame
     Z.pp_print (Conv.z_of_cz sao.sao_max_size_used)
-    pp_max
     Z.pp_print (Conv.z_of_cz sao.sao_max_call_depth)
     (pp_list "@;" (pp_param_info tbl)) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
@@ -164,8 +151,8 @@ let memory_analysis pp_err ~debug tbl up =
         sao_align  = align;
         sao_size   = Conv.cz_of_int size;
         sao_extra_size = Z0;
+        sao_padding = Z0;
         sao_max_size_used = Z0;
-        sao_max_size = Z0;
         sao_max_call_depth = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
         sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
@@ -196,7 +183,7 @@ let memory_analysis pp_err ~debug tbl up =
       })
     in
     let sao_infos  _ =
-      { extra_padding = Z.zero; frame_size = Z.zero; max_frame_size = Z.zero }
+      { extra_padding = Z.zero }
     in
     Format.eprintf
 "(* -------------------------------------------------------------------- *)@.";
@@ -262,7 +249,7 @@ let memory_analysis pp_err ~debug tbl up =
           let sao = get_sao fn in
           let fn_align = sao.Stack_alloc.sao_align in
           let align = if wsize_lt align fn_align then fn_align else align in
-          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size) in
+          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size_used) in
           let max_stk = Z.max max_stk fn_max in
           let fn_max_call_depth = Conv.z_of_cz (sao.Stack_alloc.sao_max_call_depth) in
           let max_call_depth = Z.max max_call_depth fn_max_call_depth in

@@ -560,10 +560,43 @@ Proof.
   move=> /(_ _ _ hsp get_lfd).
   have: (lfd_used_stack lfd + wsize_size (lfd_align lfd) - 1 <= wunsigned (top_stack m))%Z.
   + move: H7; rewrite /sf_stk_max.
-    Search linear_prog sf_stk_max_used.
     have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
     rewrite get_lfd => -[->] /=. done.
-  move=> H7' /(_ H7') [cm' [cvm' [cp_call heqvm]]].
+  have: let bottom :=
+       (align_word (lfd_align lfd) (top_stack m) -
+        wrepr Uptr (lfd_used_stack lfd))%R in
+     (∀ p0 : word Uptr,
+        between bottom (lfd_used_stack lfd) p0 U8 → validw tm p0 U8).
+  + move=> bottom p0 hb.
+    have ?: (wunsigned (stack_limit m) <= wunsigned bottom /\ wunsigned bottom + sf_stk_max_used (f_extra fd) <= wunsigned (top_stack m))%Z.
+    + rewrite /bottom.
+      have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
+      rewrite get_lfd => -[->] /=.
+      rewrite /bottom.
+      rewrite wunsigned_sub; last first.
+      + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
+        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
+        have := @frame_size_pos (f_extra fd) ltac:(Lia.lia) ltac:(Lia.lia).
+(*           assert (h2 := wunsigned_range (stack_limit m)). *)
+        assert (h3 := wunsigned_range (align_word (sf_align (f_extra fd)) (top_stack m))).
+        simpl in *. split; last by Lia.lia.
+        assert (hh := align_word_range (sf_align (f_extra fd)) (top_stack m)).
+        simpl in *. Lia.lia.
+      assert (h := align_word_range (sf_align (f_extra fd)) (top_stack m)).
+      simpl in *. split; last by Lia.lia.
+      move: H6'. rewrite /sf_stk_max.
+      move/allMP: (ok_export) => /(_ _ ok_fn).
+      rewrite /is_export.
+      rewrite get_fd. t_xrbindP=> /eqP -> /=.
+      assert (hh := align_word_range (sf_align (f_extra fd)) (top_stack m)).
+      simpl in *. Lia.lia.
+    apply H1.(valid_stk).
+    move: hb; rewrite /between /zbetween !zify wsize8.
+    have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
+    rewrite get_lfd => -[->] /=.
+    assert (hh := top_stack_below_root _ m); move: hh; rewrite -/(top_stack _).
+    simpl in *. Lia.lia.
+  move=> hbottom H7' /(_ H7' hbottom) [cm' [cvm' [cp_call heqvm]]].
   rewrite get_fd => hclear.
 
   exists cvm', cm', lres; split; cycle 1.
