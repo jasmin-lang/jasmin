@@ -190,7 +190,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       [ LInstr ("pop", [ "{pc}" ]) ]
 
   | SysCall op ->
-      [LInstr ("call", [ pp_syscall op ])]
+      [LInstr ("bl", [ pp_syscall op ])]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
