@@ -895,22 +895,24 @@ Proof.
   }
 
   case: ws w htrunc hwrite => //= w htrunc hwrite.
-  case: e hseme => [ ??? | ]; last case => // e.
+  case: e hseme => [ ??? | ]; last case => //; last case => // - [] // [] // z.
+  2: move => e.
   all: move => /= hseme /Some_inj <-{li}.
-  - rewrite /eval_instr /= /sem_sopn /=.
-    rewrite to_estate_of_estate.
-    rewrite hseme {hseme} /=.
+  all: rewrite /eval_instr /= /sem_sopn /= to_estate_of_estate.
+  - rewrite hseme {hseme} /=.
     rewrite /exec_sopn /=.
     rewrite htrunc {htrunc} /=.
     rewrite zero_extend_u.
     by rewrite hwrite {hwrite} /=.
 
-  rewrite /eval_instr /= /sem_sopn /=.
-  rewrite to_estate_of_estate.
-  rewrite hseme {hseme} /=.
-  rewrite /exec_sopn /=.
-  rewrite htrunc {htrunc} /=.
-  by rewrite hwrite {hwrite} /=.
+  - rewrite hseme {hseme} /=.
+    rewrite /exec_sopn /=.
+    rewrite htrunc {htrunc} /=.
+    by rewrite hwrite {hwrite} /=.
+
+  case/ok_inj/Vword_inj: hseme => ?; subst => /= ?; subst.
+  move: htrunc; rewrite truncate_word_u => /ok_inj ?; subst.
+  by rewrite zero_extend_u {} hwrite.
 Qed.
 
 End LINEARIZATION.

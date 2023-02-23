@@ -119,6 +119,7 @@ Definition arm_lassign
         if ws is U32
         then
           match e with
+          | Rexpr (Fapp1 (Oword_of_int U32) (Fconst _))
           | Rexpr (Fvar _) =>
               Some (MOV, e)
           | Load _ _ _ =>
