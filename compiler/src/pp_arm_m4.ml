@@ -174,7 +174,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
         | Reg r -> pp_register r
         | _ -> failwith "TODO_ARM: pp_instr jmpi"
       in
-      [ LInstr ("b", [ lbl ]) ]
+      [ LInstr ("bx", [ lbl ]) ]
 
   | Jcc (lbl, ct) ->
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
