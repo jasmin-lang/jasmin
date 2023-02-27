@@ -71,11 +71,11 @@ end = struct
 
   and mk_lvals fn lvs = List.map (mk_lval fn) lvs
 
-  and mk_instr fn st = { i_desc = mk_instr_r fn st.i_desc;
-                         i_loc = st.i_loc;
-                         i_info = { i_instr_number = uniq_i_nb ();};
-                         i_annot = [];
-                       }
+  and mk_instr fn st = {
+      st with
+      i_desc = mk_instr_r fn st.i_desc;
+      i_info = { i_instr_number = uniq_i_nb ();};
+    }
 
   and mk_instr_r fn st = match st with
     | Cassgn (lv, tag, ty, e) ->

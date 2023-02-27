@@ -1626,6 +1626,26 @@ end = struct
       | Cif(e,c1,c2) ->
         aeval_if asmOp ginstr e c1 c2 state
 
+      | Cwhile(_, c1, e, c2) when List.exists (fun (k, _) -> String.equal (L.unloc k) "bounded") ginstr.i_annot ->
+         let prog_pt = ginstr.i_loc in
+         let body = c2 @ c1 in
+         let rec fully_unroll out state =
+           let state = check_safety state (InProg prog_pt) (safe_e e) in
+           let continue = Option.get (AbsExpr.bexpr_to_btcons e state.abs) in
+           let exit = Option.get (flip_btcons continue) in
+           let left = AbsDom.meet_btcons state.abs continue in
+           let right = AbsDom.meet_btcons state.abs exit in
+           let out = AbsDom.join out right in
+           if AbsDom.is_bottom left
+           then { state with abs = out }
+           else { state with abs = left } |> aeval_gstmt asmOp body |> fully_unroll out
+         in
+         let state = { state with abs = AbsDom.new_cnstr_blck state.abs prog_pt } in
+         let state = aeval_gstmt asmOp c1 state in
+         let bot = AbsDom.meet_btcons state.abs (BLeaf (false_tcons1)) in
+         let state = fully_unroll bot state in
+         { state with abs = AbsDom.pop_cnstr_blck state.abs prog_pt }
+
       | Cwhile(_,c1, e, c2) ->
         let prog_pt = ginstr.i_loc in
 

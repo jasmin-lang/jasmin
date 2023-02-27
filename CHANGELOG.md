@@ -43,6 +43,9 @@
   `jazz2tex` tool; the `-latex` command line flag is deprecated
   ([PR #372](https://github.com/jasmin-lang/jasmin/pull/372)).
 
+- The safety checker fully unrolls `while` loops annotated as `#bounded`
+  ([PR #362](https://github.com/jasmin-lang/jasmin/pull/362)).
+
 ## Bug fixes
 
 - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
