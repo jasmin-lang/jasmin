@@ -1,0 +1,23 @@
+param int N = 4;
+
+export
+fn uninit(reg u64 bound) -> reg u64 {
+  reg u64 i max;
+  stack u64[N] t;
+  max = N;
+  max = bound if bound < N;
+  i = 0;
+  #bounded
+  while (i < max) {
+    t[(int) i] = i;
+    i += 1;
+  }
+  max = t[N - 1];
+  return max;
+}
+
+inline
+fn test() {
+  #inline _ = uninit(0);
+}
+exec test()
