@@ -34,6 +34,10 @@
   ([PR #331](https://github.com/jasmin-lang/jasmin/pull/331);
   fixes [#333](https://github.com/jasmin-lang/jasmin/issues/333)).
 
+- Stack-allocation ensures that array slices are in bounds
+  ([PR #363](https://github.com/jasmin-lang/jasmin/pull/363);
+  fixes [#54](https://github.com/jasmin-lang/jasmin/issues/54)).
+
 # Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus
