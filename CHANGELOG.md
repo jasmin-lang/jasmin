@@ -76,6 +76,10 @@
   ([PR #326](https://github.com/jasmin-lang/jasmin/pull/326);
   fixes [#325](https://github.com/jasmin-lang/jasmin/issues/325)).
 
+- Stack-allocation ensures that array slices are in bounds
+  ([PR #363](https://github.com/jasmin-lang/jasmin/pull/363);
+  fixes [#54](https://github.com/jasmin-lang/jasmin/issues/54)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
