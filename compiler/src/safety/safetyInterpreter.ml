@@ -866,7 +866,7 @@ end = struct
        Also, every variable (of the callee or caller) which was initalized
        remains so. *)   
     let abs = AbsDom.meet
-        ~join_align:true ~join_init:true
+        ~join_align:true
         state.abs fstate.abs in
     let state = { abs = abs;
                   it = fstate.it;
