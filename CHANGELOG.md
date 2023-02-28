@@ -61,7 +61,8 @@
 
 - Fixes to the safety checker
   ([PR #315](https://github.com/jasmin-lang/jasmin/pull/315),
-  ([PR #343](https://github.com/jasmin-lang/jasmin/pull/343);
+  ([PR #343](https://github.com/jasmin-lang/jasmin/pull/343),
+  ([PR #365](https://github.com/jasmin-lang/jasmin/pull/365);
   fixes [#314](https://github.com/jasmin-lang/jasmin/issues/314)).
 
 - Safety checker better handles integer shift operators

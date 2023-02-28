@@ -323,12 +323,12 @@ module Init : InitT = struct
   let meet = Mm.merge (fun _ b b' ->
       let b = odfl false b
       and b' = odfl false b' in
-      Some (b && b'))
+      Some (b || b'))
 
   let join = Mm.merge (fun _ b b' ->
       let b = odfl false b
       and b' = odfl false b' in
-      Some (b || b'))
+      Some (b && b'))
 
   let widening = join
 
@@ -469,11 +469,10 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       (* TODO: check why not NR.meet ? *)
       EMs.map2 AbsNum.NR.unify eb eb'
   
-  let meet ~join_align ~join_init t t' =
+  let meet ~join_align t t' =
     let t,t'    = merge_bool_dom t t' in
     { bool      = Mbv2.map2 AbsNum.NR.meet t.bool t'.bool;
-      init      =
-        (if join_init then Init.join else Init.meet) t.init t'.init;
+      init      = Init.meet t.init t'.init;
       num       = AbsNum.R.meet t.num t'.num;
       points_to = Pt.meet t.points_to t'.points_to;
       sym       = Sym.meet t.sym t'.sym;
