@@ -216,7 +216,7 @@ module type AbsNumBoolType = sig
   (* Make a top value defined on the given variables *)
   val make : mvar list -> mem_loc list -> t
 
-  val meet : join_align:bool -> join_init:bool -> t -> t -> t    
+  val meet : join_align:bool -> t -> t -> t
   val join : t -> t -> t
   val widening : Mtcons.t option -> t -> t -> t
 
