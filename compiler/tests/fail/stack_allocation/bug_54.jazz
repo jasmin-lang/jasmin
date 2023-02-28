@@ -1,0 +1,9 @@
+export
+fn main () -> reg u64 {
+  reg u64 res;
+  stack u64[3] a, b;
+  b[1] = 42;
+  a[0:2] = b[1:2];
+  res = a[0];
+  return res;
+}

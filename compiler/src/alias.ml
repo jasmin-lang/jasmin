@@ -132,8 +132,12 @@ let merge_slices params a s1 s2 =
   else
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
+    let y = s2.in_var in
     let lo = fst s2.range - fst s1.range in
-    Mv.add x { s2 with range = lo, lo + size_of x.v_ty } a
+    let hi = lo + size_of x.v_ty in
+    if lo < 0 || size_of y.v_ty < hi
+    then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var x;
+    Mv.add x { s2 with range = lo, hi } a
 
 (* Precondition: both maps are normalized *)
 let merge params a1 a2 =
