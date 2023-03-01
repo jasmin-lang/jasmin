@@ -4,17 +4,17 @@ open Utils
 (* -------------------------------------------------------------------- *)
 
 type cli_error =
-  | RedundantInputFile of string
+  | RedundantInputFile of string * string
   | FileNotFound of string
   | FileIsDirectory of string
   | FilePathNotFound of string
 
 let pp_cli_error ie =
   match ie with
-  | RedundantInputFile s ->
+  | RedundantInputFile (infile, s) ->
       Format.asprintf
         "Input file already set to %s, second input file %s is redundant"
-        !infile
+        infile
         s
   | FileNotFound s -> Format.asprintf "File %s not found" s
   | FileIsDirectory s -> Format.asprintf "File %s is a directory" s
@@ -27,7 +27,6 @@ exception CLIerror of cli_error
 let is_directory fname = BatSys.file_exists fname && BatSys.is_directory fname
 
 let check_infile s =
-  if !infile <> "" then raise (CLIerror (RedundantInputFile s));
   if not (BatSys.file_exists s) then raise (CLIerror (FileNotFound s));
   if is_directory s then raise (CLIerror (FileIsDirectory s))
 

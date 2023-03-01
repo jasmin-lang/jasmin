@@ -2,7 +2,6 @@ open Utils
 (*--------------------------------------------------------------------- *)
 let version_string = "Jasmin Compiler @VERSION@"
 (*--------------------------------------------------------------------- *)
-let infile = ref ""
 let outfile = ref ""
 let latexfile = ref ""
 let debug = ref false

@@ -8,12 +8,12 @@ exception UsageError
 
 let parse () =
   let error () = raise UsageError in
-  let set_in s = check_infile s; infile := s in
+  let infiles = ref [] in
+  let set_in s = infiles := s :: !infiles in
   (* Set default option values *)
   if Arch.os = Some `Windows then set_cc "windows";
   (* Parse command-line arguments *)
   Arg.parse options set_in usage_msg;
-  check_options ();
   let c =
     match !color with
     | Auto -> Unix.isatty (Unix.descr_of_out_channel stderr)
@@ -21,9 +21,16 @@ let parse () =
     | Never -> false
   in
   if c then enable_colors ();
-  if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
-     && (not !help_version)
-  then error()
+  match !infiles with
+  | [] ->
+    if !help_intrinsics || !safety_makeconfigdoc <> None || !help_version
+    then ""
+    else error()
+  | [ infile ] ->
+    check_options ();
+    check_infile infile;
+    infile
+  | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
 let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
@@ -54,7 +61,7 @@ let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 let main () =
 
   try
-    parse();
+    let infile = parse() in
 
     let (module Ocaml_params : Arch_full.Core_arch) =
       match !target_arch with
@@ -88,7 +95,7 @@ let main () =
         | None -> () in
 
     let env, pprog, ast =
-      try Compile.parse_file Arch.reg_size Arch.asmOp_sopn !infile
+      try Compile.parse_file Arch.reg_size Arch.asmOp_sopn infile
       with
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
@@ -260,5 +267,7 @@ let main () =
     exit 1
 
   | CLIerror e ->
-    Format.eprintf "Error: %s.\n" (pp_cli_error e);
+    Format.eprintf "%a: %s.\n"
+      (pp_print_bold_red Format.pp_print_string) "Error"
+      (pp_cli_error e);
     exit 1
