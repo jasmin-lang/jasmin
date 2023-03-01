@@ -4,7 +4,7 @@ From mathcomp Require Import
 Import
   Order.POrderTheory
   Order.TotalTheory.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import Psatz.
 
 Require Import

@@ -3,13 +3,13 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ word.
+From mathcomp Require Import word_ssrZ word.
 Require Import ssrring.
 Require Zquot.
 Require Import Psatz ZArith utils.
 Require Export wsize.
 Import Utf8.
-Import ssrZ.
+Import word_ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -883,7 +883,7 @@ Proof.
   move: (mathcomp.word.word.urepr w) => z hle.
   apply/word_ext.
   have [n ->] := modulus_m (wsize_size_m hle).
-  case: ssrZ.ltzP => // hgt.
+  case: word_ssrZ.ltzP => // hgt.
   by rewrite Zminus_mod Z_mod_mult Z.sub_0_r Zmod_mod.
 Qed.
 

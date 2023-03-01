@@ -9,7 +9,7 @@ Require Import ZArith Utf8.
         Import Relations.
 
 Require sem_one_varmap_facts label.
-Import ssrZ.
+Import word_ssrZ.
 Import ssrring.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts low_memory.
 Require Import constant_prop constant_prop_proof.

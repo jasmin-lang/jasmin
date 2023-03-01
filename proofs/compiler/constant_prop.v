@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import expr ZArith sem_op_typed compiler_util.
 Import all_ssreflect all_algebra.
 Import Utf8.

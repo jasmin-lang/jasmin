@@ -1,6 +1,5 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
 Require Import xseq strings utils var type values sopn expr fexpr arch_decl.
 Require Import compiler_util.
 

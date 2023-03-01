@@ -4,7 +4,7 @@ Require Import Utf8.
 
 Require Import oseq expr_facts compiler_util label linear linear_sem.
 Require Import sem_params.
-Import ssrZ.
+Import word_ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
