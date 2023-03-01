@@ -16,7 +16,7 @@ let inherit (lib) optionals; in
 
 let coqPackages = coqPackages_8_16; in
 
-let coqword = callPackage scripts/coqword.nix { inherit coqPackages; }; in
+let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
@@ -44,8 +44,8 @@ stdenv.mkDerivation {
   name = "jasmin-0";
   src = null;
   buildInputs = []
-    ++ optionals coqDeps [ coqPackages.coq coqword ]
-    ++ optionals testDeps ([ ocamlPackages.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
+    ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
+    ++ optionals testDeps ([ oP.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib ocamlbuild
          (batteries.overrideAttrs (o: { doCheck = false; }))
