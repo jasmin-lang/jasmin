@@ -4,11 +4,10 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ word.
+From mathcomp Require Import word_ssrZ word.
 Require Import word.
 Require Import Psatz ZArith utils.
 Import Utf8.
-Import ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
