@@ -7,7 +7,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq.
 From mathcomp Require Import choice ssralg bigop.
-From mathcomp.word Require Export ssrZ.
+From mathcomp Require Export word_ssrZ.
 
 Import GRing.Theory.
 

@@ -3,7 +3,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra lowering.
 Require Export x86_lowering.
 Import Utf8.
@@ -351,7 +351,7 @@ Section PROOF.
   Lemma between_ZR (a b c: Z) :
     (a <= b < c)%R →
     (a <= b < c)%Z.
-  Proof. by case/andP => /ssrZ.lezP ? /ssrZ.ltzP. Qed.
+  Proof. by case/andP => /word_ssrZ.lezP ? /word_ssrZ.ltzP. Qed.
 
   Lemma wleuE' sz (α β: word sz) :
     wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
@@ -370,13 +370,13 @@ Section PROOF.
   elim_div => z a [] //.
   elim_div => z1 b [] //.
   set m := (wsize_size_minus_1 sz).+1.
-  have /ssrZ.ltzP := mathcomp.word.word.modulus_gt0 m.
+  have /word_ssrZ.ltzP := mathcomp.word.word.modulus_gt0 m.
   match goal with |- (?x < _)%Z → _ => have hz : x = 0%Z by [] end.
   rewrite hz in hα, hβ |- * => {hz}.
   move => hm /Z.eq_opp_r ?; subst α => - []; last Psatz.lia.
   case => ??? []; last Psatz.lia.
   case => ??.
-  symmetry; case: ssrZ.lezP => h; apply/eqP; first Psatz.nia.
+  symmetry; case: word_ssrZ.lezP => h; apply/eqP; first Psatz.nia.
   fold m in hα', hβ'.
   suff: z = (- z1)%Z; Psatz.nia.
   Qed.
