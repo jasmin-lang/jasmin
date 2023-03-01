@@ -1,7 +1,11 @@
 (* -------------------------------------------------------------------------- *)
 (* CLI errors. *)
 
-type cli_error
+type cli_error =
+   | RedundantInputFile of string * string
+   | FileNotFound of string
+   | FileIsDirectory of string
+   | FilePathNotFound of string
 
 val pp_cli_error : cli_error -> string
 

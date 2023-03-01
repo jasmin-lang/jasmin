@@ -169,6 +169,8 @@ exception HiError of hierror
 val add_iloc : hierror -> Location.i_loc -> hierror
 val pp_hierror : Format.formatter -> hierror -> unit
 
+val pp_print_bold_red : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a -> unit
+
 val hierror :
       loc:error_loc -> ?funname:string -> kind:string
    -> ?sub_kind:string -> ?internal:bool
