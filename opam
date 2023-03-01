@@ -29,5 +29,5 @@ depends: [
   "coq" {>= "8.14.0" & < "8.17"}
   "coq-mathcomp-ssreflect" {>= "1.12" & < "1.16"}
   "coq-mathcomp-algebra"
-  "coq-mathcomp-word" {>= "2.0"}
+  "coq-mathcomp-word" {>= "2.1"}
 ]
