@@ -2,7 +2,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Export strings word utils type ident var global sem_type sopn.
 Require Import xseq.
 Import Utf8 ZArith.

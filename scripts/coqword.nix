@@ -1,11 +1,11 @@
-{ stdenv, lib, fetchFromGitHub, coqPackages, ocaml, dune_2 }:
+{ stdenv, lib, fetchFromGitHub, coqPackages, ocaml, dune_3 }:
 
 let inherit (coqPackages) coq; in
 
 let mathcomp = coqPackages.mathcomp.override { version = "1.15.0"; }
 ; in
 
-let rev = "b94f0020377791cb3e1dbdc37731327f02b1355c"; in
+let rev = "bbab8bb37bfe3c7e83753d681fd35c89295b2fa2"; in
 
 stdenv.mkDerivation rec {
   version = "2.0-git-${builtins.substring 0 8 rev}";
@@ -15,10 +15,10 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    sha256 = "sha256-x9AEFadlYiIIOxAhjv4Vc/dxdRZC7AdWQ6AByvLOFDk=";
+    hash = "sha256-oN/zvnePq64Nt7l/zIDLdhb4t9ayKxnZCsn+pzqS030=";
   };
 
-  buildInputs = [ coq ocaml dune_2 ];
+  buildInputs = [ coq ocaml dune_3 ];
 
   propagatedBuildInputs = [ mathcomp.algebra mathcomp.fingroup mathcomp.ssreflect ];
 

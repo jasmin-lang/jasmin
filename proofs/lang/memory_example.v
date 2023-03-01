@@ -26,7 +26,7 @@ Require memory_model array type.
 Import Utf8.
 Import all_ssreflect all_algebra.
 Import ZArith.
-Import ssrZ.
+Import word_ssrZ.
 Import type word utils gen_map.
 Import memory_model.
 Import GRing.Theory.

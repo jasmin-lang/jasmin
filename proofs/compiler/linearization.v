@@ -9,7 +9,7 @@ Import Relations.
 
 Require Import expr compiler_util label constant_prop.
 Require Export linear.
-Import ssrZ.
+Import word_ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

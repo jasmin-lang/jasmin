@@ -4,7 +4,7 @@ From Coq Require Import RelationClasses.
 Require memory_example.
 
 Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Import Utf8 ZArith.
 Import ssrring.
 Import type word utils.
@@ -110,7 +110,7 @@ Lemma wunsigned_sub_small (p: pointer) (n: Z) :
   n <= wunsigned p)%Z.
 Proof.
   move => n_range.
-  rewrite wunsigned_sub_if; case: ssrZ.leZP; rewrite wunsigned_repr_small //.
+  rewrite wunsigned_sub_if; case: word_ssrZ.leZP; rewrite wunsigned_repr_small //.
   Lia.lia.
 Qed.
 

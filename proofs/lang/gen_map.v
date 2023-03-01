@@ -704,7 +704,7 @@ Module Mp := Mmake CmpPos.
 (* --------------------------------------------------------------------------
  ** Map of Z
  * -------------------------------------------------------------------------- *)
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Module CmpZ.
 
   Definition t := [eqType of Z].

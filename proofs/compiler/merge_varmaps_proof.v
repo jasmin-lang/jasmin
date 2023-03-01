@@ -3,7 +3,7 @@
 Require Import sem_one_varmap sem_one_varmap_facts merge_varmaps psem_facts.
 Import Utf8.
 Import all_ssreflect all_algebra.
-Import ssrZ.
+Import word_ssrZ.
 Import psem.
 Import merge_varmaps.
 Import compiler_util.

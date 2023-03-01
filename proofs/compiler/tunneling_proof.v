@@ -3,7 +3,7 @@ Require Import ZArith.
 Require Import Utf8.
 
 Require Import oseq expr_facts compiler_util label linear linear_sem.
-Import ssrZ.
+Import word_ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

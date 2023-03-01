@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import strings word utils gen_map type var expr low_memory sem.
 Require Import compiler_util byteset.
 Require Import ZArith.
