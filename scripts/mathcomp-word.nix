@@ -8,8 +8,8 @@ let mathcomp = coqPackages.mathcomp.override { version = "1.15.0"; }
 let rev = "bbab8bb37bfe3c7e83753d681fd35c89295b2fa2"; in
 
 stdenv.mkDerivation rec {
-  version = "2.0-git-${builtins.substring 0 8 rev}";
-  name = "coq${coq.coq-version}-coqword-${version}";
+  version = "2.1-git-${builtins.substring 0 8 rev}";
+  pname = "coq${coq.coq-version}-mathcomp-word";
 
   src = fetchFromGitHub {
     owner = "jasmin-lang";
