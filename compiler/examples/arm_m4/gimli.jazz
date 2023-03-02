@@ -6,7 +6,7 @@ param int ROUND_CONSTANT_LOW = 0x7900;
 
 inline
 fn rotate (reg u32 x, inline int bits) -> reg u32 {
-    x = #ROR(x, bits);
+    x = #ROR(x, 32 - bits);
     return x;
 }
 

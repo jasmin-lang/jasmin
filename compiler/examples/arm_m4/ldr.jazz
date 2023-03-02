@@ -4,6 +4,7 @@ fn ldr(reg u32 arg) -> reg u32 {
     x = [arg];
 
     x = [x + 3];
+    x = [x - 3];
 
     // Shifts.
     x = [x + arg * 1];
@@ -32,6 +33,8 @@ fn ldr(reg u32 arg) -> reg u32 {
     x = [x] if z || n != v;  // LE
 
     x = [x + arg] if !z;
+    x = [x + 3] if !z;
+    x = [x - 3] if !z;
     x = [x + arg * 4] if !z;
 
     reg u32 res;

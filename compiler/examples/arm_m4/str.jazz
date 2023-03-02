@@ -6,6 +6,7 @@ fn str(reg u32 arg) {
     [arg] = x;
 
     [x + 3] = x;
+    [x - 3] = x;
 
     // Shifts.
     [x + (arg * 1)] = x;
@@ -34,5 +35,7 @@ fn str(reg u32 arg) {
     [x] = x if z || n != v;  // LE
 
     [x + arg] = x if !z;
+    [x + 3] = x if !z;
+    [x - 3] = x if !z;
     [x + arg * 4] = x if !z;
 }

@@ -34,5 +34,7 @@ fn strh(reg u32 arg) {
     (u16)[x] = x if z || n != v;  // LE
 
     (u16)[x + arg] = x if !z;
+    (u16)[x + 3] = x if !z;
+    (u16)[x - 3] = x if !z;
     (u16)[x + arg * 4] = x if !z;
 }

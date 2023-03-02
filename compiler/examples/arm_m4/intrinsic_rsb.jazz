@@ -1,0 +1,96 @@
+export
+fn rsb(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
+    x = #RSB(arg0, arg1);
+    [x] = x;
+
+    // Immediates.
+    x = #RSB(arg0, 1);
+    [x] = x;
+    x = #RSB(arg0, -1);
+    [x] = x;
+
+    // Shifts.
+    x = #RSB(arg0, arg1, #LSL(0));
+    [x] = x;
+    x = #RSB(arg0, arg1, #LSL(1));
+    [x] = x;
+    x = #RSB(arg0, arg1, #LSL(31));
+    [x] = x;
+    x = #RSB(arg0, arg1, #LSR(1));
+    [x] = x;
+    x = #RSB(arg0, arg1, #LSR(31));
+    [x] = x;
+    x = #RSB(arg0, arg1, #ASR(1));
+    [x] = x;
+    x = #RSB(arg0, arg1, #ASR(31));
+    [x] = x;
+    x = #RSB(arg0, arg1, #ROR(1));
+    [x] = x;
+    x = #RSB(arg0, arg1, #ROR(31));
+    [x] = x;
+
+    // Set flags.
+    nf, zf, cf, vf, x = #RSBS(x, arg0);
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #RSBcc(arg0, arg1, zf, x);
+    // NE
+    x = #RSBcc(arg0, arg1, !zf, x);
+    // CS
+    x = #RSBcc(arg0, arg1, cf, x);
+    // CC
+    x = #RSBcc(arg0, arg1, !cf, x);
+    // MI
+    x = #RSBcc(arg0, arg1, nf, x);
+    // PL
+    x = #RSBcc(arg0, arg1, !nf, x);
+    // VS
+    x = #RSBcc(arg0, arg1, vf, x);
+    // VC
+    x = #RSBcc(arg0, arg1, !vf, x);
+    // HI
+    x = #RSBcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #RSBcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #RSBcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #RSBcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #RSBcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #RSBcc(arg0, arg1, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, vf, x = #RSBScc(x, arg0, nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #RSBS(x, 2);
+    nf, zf, cf, vf, x = #RSBS(x, arg0, #LSL(3));
+    nf, zf, cf, vf, x = #RSBS(x, arg0, #LSR(3));
+    nf, zf, cf, vf, x = #RSBS(x, arg0, #ASR(3));
+    nf, zf, cf, vf, x = #RSBS(x, arg0, #ROR(3));
+    nf, zf, cf, vf, x = #RSBScc(x, 2, nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #RSBScc(x, arg0, #LSL(3), nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #RSBScc(x, arg0, #LSL(3), !!(nf == vf), nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #RSBScc(x, arg0, #LSR(3), nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #RSBScc(x, arg0, #ASR(3), nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #RSBScc(x, arg0, #ROR(3), nf == vf, nf, zf, cf, vf, x);
+    x = #RSBcc(x, arg0, !!!!zf, x);
+    x = #RSBcc(x, 2, zf, x);
+    x = #RSBcc(x, 2, !!zf, x);
+    x = #RSBcc(x, arg0, #LSL(3), zf, x);
+    x = #RSBcc(x, arg0, #LSL(3), !!zf, x);
+    x = #RSBcc(x, arg0, #LSR(3), zf, x);
+    x = #RSBcc(x, arg0, #ASR(3), zf, x);
+    x = #RSBcc(x, arg0, #ROR(3), zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

@@ -1,47 +1,104 @@
 export
 fn sub(reg u32 arg0, reg u32 arg1) -> reg u32 {
     reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
     x = arg0 - arg1;
+    [x] = x;
 
     // Immediates.
+    x = arg0 - 1;
     x -= 1;
+    [x] = x;
+    x = arg0 - -1;
     x -= -1;
+    [x] = x;
 
     // Shifts.
+    x = arg0 - (arg1 << 0);
     x -= arg0 << 0;
+    [x] = x;
+    x = arg0 - (arg1 << 1);
+    x -= arg0 << 1;
+    [x] = x;
+    x = arg0 - (arg1 << 31);
     x -= arg0 << 31;
+    [x] = x;
+    x = arg0 - (arg1 >> 1);
     x -= arg0 >> 1;
-    x -= arg0 >> 31; // Should check 32.
+    [x] = x;
+    x = arg0 - (arg1 >> 31);
+    x -= arg0 >> 31;
+    [x] = x;
+    x = arg0 - (arg1 >>s 1);
     x -= arg0 >>s 1;
-    x -= arg0 >>s 31; // Should check 32.
-    //x -= arg0 ROR 1;
-    //x -= arg0 ROR 31;
-    //x -= RRX arg0;
+    [x] = x;
+    x = arg0 - (arg1 >>s 31);
+    x -= arg0 >>s 31;
+    [x] = x;
+    x = arg0 - (arg1 >>r 1);
+    x -= arg0 >>r 1;
+    [x] = x;
+    x = arg0 - (arg1 >>r 31);
+    x -= arg0 >>r 31;
+    [x] = x;
 
-    // Set flags.
-    reg bool n, z, v, c;
-    n, z, c, v, _ = #MOVS(x);
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
 
-    // Conditions.
-    x -= arg0 if z;            // EQ
-    x -= arg0 if !z;           // NE
-    x -= arg0 if c;            // CS
-    x -= arg0 if !c;           // CC
-    x -= arg0 if n;            // MI
-    x -= arg0 if !n;           // PL
-    x -= arg0 if v;            // VS
-    x -= arg0 if !v;           // VC
-    x -= arg0 if c && !z;      // HI
-    x -= arg0 if !c || z;      // LS
-    x -= arg0 if n == v;       // GE
-    x -= arg0 if n != v;       // LT
-    x -= arg0 if !z && n == v; // GT
-    x -= arg0 if z || n != v;  // LE
+    // EQ
+    x = arg0 - arg1 if zf;
+    x -= arg0 if zf;
+    // NE
+    x = arg0 - arg1 if !zf;
+    x -= arg0 if !zf;
+    // CS
+    x = arg0 - arg1 if cf;
+    x -= arg0 if cf;
+    // CC
+    x = arg0 - arg1 if !cf;
+    x -= arg0 if !cf;
+    // MI
+    x = arg0 - arg1 if nf;
+    x -= arg0 if nf;
+    // PL
+    x = arg0 - arg1 if !nf;
+    x -= arg0 if !nf;
+    // VS
+    x = arg0 - arg1 if vf;
+    x -= arg0 if vf;
+    // VC
+    x = arg0 - arg1 if !vf;
+    x -= arg0 if !vf;
+    // HI
+    x = arg0 - arg1 if cf && !zf;
+    x -= arg0 if cf && !zf;
+    // LS
+    x = arg0 - arg1 if !cf || zf;
+    x -= arg0 if !cf || zf;
+    // GE
+    x = arg0 - arg1 if nf == vf;
+    x -= arg0 if nf == vf;
+    // LT
+    x = arg0 - arg1 if nf != vf;
+    x -= arg0 if nf != vf;
+    // GT
+    x = arg0 - arg1 if !zf && nf == vf;
+    x -= arg0 if !zf && nf == vf;
+    // LE
+    x = arg0 - arg1 if zf || nf != vf;
+    x -= arg0 if zf || nf != vf;
 
-    x -= 1 if !!!!z;                       // EQ
-    x -= arg0 << 3 if !(!!z || !(n == v)); // GT
-    x -= arg0 >> 3 if z;
-    x -= arg0 >>s 3 if z;
+    // Combinations.
+    x -= arg0 if !!!!zf;
+    x -= 2 if zf;
+    x -= 2 if !!zf;
+    x -= arg0 << 3 if zf;
+    x -= arg0 << 3 if !(!!zf || !(nf == vf));
+    x -= arg0 >> 3 if zf;
+    x -= arg0 >>s 3 if zf;
+    x -= arg0 >>r 3 if zf;
 
     reg u32 res;
     res = x;

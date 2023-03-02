@@ -1,28 +1,46 @@
 export
 fn mul(reg u32 arg0, reg u32 arg1) -> reg u32 {
     reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
     x = #MUL(arg0, arg1);
+    [x] = x;
 
     // Set flags.
-    reg bool n, z, c, v;
-    n, z, x = #MULS(x, arg0);
-    n, z, c, v, _ = #MOVS(x);
+    nf, zf, x = #MULS(x, arg0);
 
-    // Conditions.
-    x = #MULcc(x, arg0, z, x);            // EQ
-    x = #MULcc(x, arg0, !z, x);           // NE
-    x = #MULcc(x, arg0, c, x);            // CS
-    x = #MULcc(x, arg0, !c, x);           // CC
-    x = #MULcc(x, arg0, n, x);            // MI
-    x = #MULcc(x, arg0, !n, x);           // PL
-    x = #MULcc(x, arg0, v, x);            // VS
-    x = #MULcc(x, arg0, !v, x);           // VC
-    x = #MULcc(x, arg0, c && !z, x);      // HI
-    x = #MULcc(x, arg0, !c || z, x);      // LS
-    x = #MULcc(x, arg0, n == v, x);       // GE
-    x = #MULcc(x, arg0, n != v, x);       // LT
-    x = #MULcc(x, arg0, !z && n == v, x); // GT
-    x = #MULcc(x, arg0, z || n != v, x);  // LE
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #MULcc(arg0, arg1, zf, x);
+    // NE
+    x = #MULcc(arg0, arg1, !zf, x);
+    // CS
+    x = #MULcc(arg0, arg1, cf, x);
+    // CC
+    x = #MULcc(arg0, arg1, !cf, x);
+    // MI
+    x = #MULcc(arg0, arg1, nf, x);
+    // PL
+    x = #MULcc(arg0, arg1, !nf, x);
+    // VS
+    x = #MULcc(arg0, arg1, vf, x);
+    // VC
+    x = #MULcc(arg0, arg1, !vf, x);
+    // HI
+    x = #MULcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #MULcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #MULcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #MULcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #MULcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #MULcc(arg0, arg1, zf || nf != vf, x);
 
     reg u32 res;
     res = x;

@@ -1,0 +1,41 @@
+export
+fn ldrb(reg u32 arg) -> reg u32 {
+    reg u32 x;
+
+    x = #LDRB((u8)[arg]);
+    x = #LDRB((u8)[x + 2]);
+    x = #LDRB((u8)[x - 2]);
+    x = #LDRB((u8)[x + arg]);
+    x = #LDRB((u8)[x + (arg * 1)]);
+    x = #LDRB((u8)[x + (arg * 2)]);
+    x = #LDRB((u8)[x + (arg * 4)]);
+    x = #LDRB((u8)[x + (arg * 8)]);
+
+    reg bool n, z, v, c;
+    n, z, c, v, x = #MOVS(x);
+
+    // Conditions.
+    x = #LDRBcc((u8)[x], z, x);            // EQ
+    x = #LDRBcc((u8)[x], !z, x);           // NE
+    x = #LDRBcc((u8)[x], c, x);            // CS
+    x = #LDRBcc((u8)[x], !c, x);           // CC
+    x = #LDRBcc((u8)[x], n, x);            // MI
+    x = #LDRBcc((u8)[x], !n, x);           // PL
+    x = #LDRBcc((u8)[x], v, x);            // VS
+    x = #LDRBcc((u8)[x], !v, x);           // VC
+    x = #LDRBcc((u8)[x], c && !z, x);      // HI
+    x = #LDRBcc((u8)[x], !c || z, x);      // LS
+    x = #LDRBcc((u8)[x], n == v, x);       // GE
+    x = #LDRBcc((u8)[x], n != v, x);       // LT
+    x = #LDRBcc((u8)[x], !z && n == v, x); // GT
+    x = #LDRBcc((u8)[x], z || n != v, x);  // LE
+
+    x = #LDRBcc((u8)[x + arg], z, x);
+    x = #LDRBcc((u8)[x + 3], z, x);
+    x = #LDRBcc((u8)[x - 3], z, x);
+    x = #LDRBcc((u8)[x + (arg * 2)], z, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

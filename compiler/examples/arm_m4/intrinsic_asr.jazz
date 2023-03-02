@@ -1,37 +1,58 @@
 export
 fn asr(reg u32 arg0, reg u32 arg1) -> reg u32 {
     reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
     x = #ASR(arg0, arg1);
+    [x] = x;
 
     // Immediates.
-    x = #ASR(x, 1);
-    x = #ASR(x, 3);
+    x = #ASR(arg0, 1);
+    [x] = x;
 
     // Set flags.
-    reg bool n, z, c, v;
-    n, z, c, x = #ASRS(x, arg0);
-    n, z, c, x = #ASRS(x, 1);
-    n, z, c, v, _ = #MOVS(x); // ASR does not set V.
+    nf, zf, cf, x = #ASRS(x, arg0);
 
-    // Conditions.
-    x = #ASRcc(x, arg0, z, x);            // EQ
-    x = #ASRcc(x, arg0, !z, x);           // NE
-    x = #ASRcc(x, arg0, c, x);            // CS
-    x = #ASRcc(x, arg0, !c, x);           // CC
-    x = #ASRcc(x, arg0, n, x);            // MI
-    x = #ASRcc(x, arg0, !n, x);           // PL
-    x = #ASRcc(x, arg0, v, x);            // VS
-    x = #ASRcc(x, arg0, !v, x);           // VC
-    x = #ASRcc(x, arg0, c && !z, x);      // HI
-    x = #ASRcc(x, arg0, !c || z, x);      // LS
-    x = #ASRcc(x, arg0, n == v, x);       // GE
-    x = #ASRcc(x, arg0, n != v, x);       // LT
-    x = #ASRcc(x, arg0, !z && n == v, x); // GT
-    x = #ASRcc(x, arg0, z || n != v, x);  // LE
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
 
-    x = #ASRcc(x, 1, !!!!z, x);
-    n, z, c, x = #ASRScc(x, arg0, n == v, n, z, c, x);
-    n, z, c, x = #ASRScc(x, 2, !c || z, n, z, c, x);
+    // EQ
+    x = #ASRcc(arg0, arg1, zf, x);
+    // NE
+    x = #ASRcc(arg0, arg1, !zf, x);
+    // CS
+    x = #ASRcc(arg0, arg1, cf, x);
+    // CC
+    x = #ASRcc(arg0, arg1, !cf, x);
+    // MI
+    x = #ASRcc(arg0, arg1, nf, x);
+    // PL
+    x = #ASRcc(arg0, arg1, !nf, x);
+    // VS
+    x = #ASRcc(arg0, arg1, vf, x);
+    // VC
+    x = #ASRcc(arg0, arg1, !vf, x);
+    // HI
+    x = #ASRcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #ASRcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #ASRcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #ASRcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #ASRcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #ASRcc(arg0, arg1, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, x = #ASRScc(x, arg0, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #ASRS(x, 2);
+    nf, zf, cf, x = #ASRScc(x, 2, nf == vf, nf, zf, cf, x);
+    x = #ASRcc(x, arg0, !!!!zf, x);
+    x = #ASRcc(x, 2, zf, x);
+    x = #ASRcc(x, 2, !!zf, x);
 
     reg u32 res;
     res = x;

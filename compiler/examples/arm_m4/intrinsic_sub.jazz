@@ -1,50 +1,94 @@
 export
-fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
+fn sub(reg u32 arg0, reg u32 arg1) -> reg u32 {
     reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
     x = #SUB(arg0, arg1);
+    [x] = x;
 
     // Immediates.
-    x = #SUB(x, 1);
-    x = #SUB(x, -1);
+    x = #SUB(arg0, 1);
+    [x] = x;
+    x = #SUB(arg0, -1);
+    [x] = x;
 
     // Shifts.
-    x = #SUB(x, arg0, #LSL(0));
-    x = #SUB(x, arg0, #LSL(31));
-    x = #SUB(x, arg0, #LSR(1));
-    x = #SUB(x, arg0, #LSR(32));
-    x = #SUB(x, arg0, #ASR(1));
-    x = #SUB(x, arg0, #ASR(32));
-    x = #SUB(x, arg0, #ROR(1));
-    x = #SUB(x, arg0, #ROR(31));
-    //x = #SUB(x, arg0, #RRX(1));
+    x = #SUB(arg0, arg1, #LSL(0));
+    [x] = x;
+    x = #SUB(arg0, arg1, #LSL(1));
+    [x] = x;
+    x = #SUB(arg0, arg1, #LSL(31));
+    [x] = x;
+    x = #SUB(arg0, arg1, #LSR(1));
+    [x] = x;
+    x = #SUB(arg0, arg1, #LSR(31));
+    [x] = x;
+    x = #SUB(arg0, arg1, #ASR(1));
+    [x] = x;
+    x = #SUB(arg0, arg1, #ASR(31));
+    [x] = x;
+    x = #SUB(arg0, arg1, #ROR(1));
+    [x] = x;
+    x = #SUB(arg0, arg1, #ROR(31));
+    [x] = x;
 
     // Set flags.
-    reg bool n, z, v, c;
-    n, z, c, v, x = #SUBS(x, arg0);
-    n, z, c, v, x = #SUBS(x, 1);
-    n, z, c, v, x = #SUBS(x, arg0, #LSL(3));
+    nf, zf, cf, vf, x = #SUBS(x, arg0);
 
-    // Conditions.
-    x = #SUBcc(x, arg0, z, x);            // EQ
-    x = #SUBcc(x, arg0, !z, x);           // NE
-    x = #SUBcc(x, arg0, c, x);            // CS
-    x = #SUBcc(x, arg0, !c, x);           // CC
-    x = #SUBcc(x, arg0, n, x);            // MI
-    x = #SUBcc(x, arg0, !n, x);           // PL
-    x = #SUBcc(x, arg0, v, x);            // VS
-    x = #SUBcc(x, arg0, !v, x);           // VC
-    x = #SUBcc(x, arg0, c && !z, x);      // HI
-    x = #SUBcc(x, arg0, !c || z, x);      // LS
-    x = #SUBcc(x, arg0, n == v, x);       // GE
-    x = #SUBcc(x, arg0, n != v, x);       // LT
-    x = #SUBcc(x, arg0, !z && n == v, x); // GT
-    x = #SUBcc(x, arg0, z || n != v, x);  // LE
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
 
-    x = #SUBcc(x, 1, !!!!z, x);
-    n, z, c, v, x = #SUBScc(x, arg0, n == v, n, z, c, v, x);
-    n, z, c, v, x = #SUBScc(x, 2, !c || z, n, z, c, v, x);
-    x = #SUBcc(x, arg0, #LSL(3), z, x);
-    n, z, c, v, x = #SUBScc(x, arg0, #LSL(3), z, n, z, c, v, x);
+    // EQ
+    x = #SUBcc(arg0, arg1, zf, x);
+    // NE
+    x = #SUBcc(arg0, arg1, !zf, x);
+    // CS
+    x = #SUBcc(arg0, arg1, cf, x);
+    // CC
+    x = #SUBcc(arg0, arg1, !cf, x);
+    // MI
+    x = #SUBcc(arg0, arg1, nf, x);
+    // PL
+    x = #SUBcc(arg0, arg1, !nf, x);
+    // VS
+    x = #SUBcc(arg0, arg1, vf, x);
+    // VC
+    x = #SUBcc(arg0, arg1, !vf, x);
+    // HI
+    x = #SUBcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #SUBcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #SUBcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #SUBcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #SUBcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #SUBcc(arg0, arg1, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, vf, x = #SUBScc(x, arg0, nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #SUBS(x, 2);
+    nf, zf, cf, vf, x = #SUBS(x, arg0, #LSL(3));
+    nf, zf, cf, vf, x = #SUBS(x, arg0, #LSR(3));
+    nf, zf, cf, vf, x = #SUBS(x, arg0, #ASR(3));
+    nf, zf, cf, vf, x = #SUBS(x, arg0, #ROR(3));
+    nf, zf, cf, vf, x = #SUBScc(x, 2, nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #SUBScc(x, arg0, #LSL(3), nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #SUBScc(x, arg0, #LSL(3), !!(nf == vf), nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #SUBScc(x, arg0, #LSR(3), nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #SUBScc(x, arg0, #ASR(3), nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #SUBScc(x, arg0, #ROR(3), nf == vf, nf, zf, cf, vf, x);
+    x = #SUBcc(x, arg0, !!!!zf, x);
+    x = #SUBcc(x, 2, zf, x);
+    x = #SUBcc(x, 2, !!zf, x);
+    x = #SUBcc(x, arg0, #LSL(3), zf, x);
+    x = #SUBcc(x, arg0, #LSL(3), !!zf, x);
+    x = #SUBcc(x, arg0, #LSR(3), zf, x);
+    x = #SUBcc(x, arg0, #ASR(3), zf, x);
+    x = #SUBcc(x, arg0, #ROR(3), zf, x);
 
     reg u32 res;
     res = x;

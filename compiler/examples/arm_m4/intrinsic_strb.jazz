@@ -1,0 +1,36 @@
+export
+fn strb(reg u32 arg0, reg u32 arg1) {
+
+    (u8)[arg0] = #STRB(arg0);
+    (u8)[arg0 + 2] = #STRB(arg0);
+    (u8)[arg0 + arg1] = #STRB(arg0);
+    (u8)[arg0 + (arg1 * 1)] = #STRB(arg0);
+    (u8)[arg0 + (arg1 * 2)] = #STRB(arg0);
+    (u8)[arg0 + (arg1 * 4)] = #STRB(arg0);
+    (u8)[arg0 + (arg1 * 8)] = #STRB(arg0);
+
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(arg0);
+
+    // Conditionals.
+    (u8)[arg0] = #STRBcc(arg0, z, (u8)[arg0]);            // EQ
+    (u8)[arg0] = #STRBcc(arg0, !z, (u8)[arg0]);           // NE
+    (u8)[arg0] = #STRBcc(arg0, c, (u8)[arg0]);            // CS
+    (u8)[arg0] = #STRBcc(arg0, !c, (u8)[arg0]);           // CC
+    (u8)[arg0] = #STRBcc(arg0, n, (u8)[arg0]);            // MI
+    (u8)[arg0] = #STRBcc(arg0, !n, (u8)[arg0]);           // PL
+    (u8)[arg0] = #STRBcc(arg0, v, (u8)[arg0]);            // VS
+    (u8)[arg0] = #STRBcc(arg0, !v, (u8)[arg0]);           // VC
+    (u8)[arg0] = #STRBcc(arg0, c && !z, (u8)[arg0]);      // HI
+    (u8)[arg0] = #STRBcc(arg0, !c || z, (u8)[arg0]);      // LS
+    (u8)[arg0] = #STRBcc(arg0, n == v, (u8)[arg0]);       // GE
+    (u8)[arg0] = #STRBcc(arg0, n != v, (u8)[arg0]);       // LT
+    (u8)[arg0] = #STRBcc(arg0, !z && n == v, (u8)[arg0]); // GT
+    (u8)[arg0] = #STRBcc(arg0, z || n != v, (u8)[arg0]);  // LE
+
+    // Combinations.
+    (u8)[arg0 + arg1] = #STRBcc(arg0, z, (u8)[arg0 + arg1]);
+    (u8)[arg0 + 3] = #STRBcc(arg0, z, (u8)[arg0 + 3]);
+    (u8)[arg0 - 3] = #STRBcc(arg0, z, (u8)[arg0 - 3]);
+    (u8)[arg0 + (arg1 * 2)] = #STRBcc(arg0, z, (u8)[arg0 + (arg1 * 2)]);
+}

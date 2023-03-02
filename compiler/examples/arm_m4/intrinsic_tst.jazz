@@ -1,7 +1,11 @@
 export
 fn tst(reg u32 arg0, reg u32 arg1) -> reg u32 {
     reg bool n, z, c, v;
+
     n, z, c = #TST(arg0, arg1);
+
+    // Immediates.
+    n, z, c = #TST(arg0, 3);
 
     // Set flags.
     n, z, c, v, _ = #MOVS(arg0);
@@ -22,9 +26,7 @@ fn tst(reg u32 arg0, reg u32 arg1) -> reg u32 {
     n, z, c = #TSTcc(arg0, arg1, !z && n == v, n, z, c); // GT
     n, z, c = #TSTcc(arg0, arg1, z || n != v, n, z, c);  // LE
 
-    arg0 = 0 if n;
-    arg0 = 0 if z;
-    arg0 = 0 if c;
+    n, z, c = #TSTcc(arg0, 3, z, n, z, c);
 
     return arg0;
 }

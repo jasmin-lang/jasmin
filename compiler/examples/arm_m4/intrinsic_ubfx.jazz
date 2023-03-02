@@ -1,0 +1,51 @@
+export
+fn ubfx(reg u32 arg0) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    x = #UBFX(arg0, 0, 1);
+    x = #UBFX(x, 0, 32);
+    x = #UBFX(x, 3, 1);
+    x = #UBFX(x, 3, 29);
+    x = #UBFX(x, 31, 1);
+    [x] = x;
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #UBFXcc(arg0, 3, 5, zf, x);
+    // NE
+    x = #UBFXcc(arg0, 3, 5, !zf, x);
+    // CS
+    x = #UBFXcc(arg0, 3, 5, cf, x);
+    // CC
+    x = #UBFXcc(arg0, 3, 5, !cf, x);
+    // MI
+    x = #UBFXcc(arg0, 3, 5, nf, x);
+    // PL
+    x = #UBFXcc(arg0, 3, 5, !nf, x);
+    // VS
+    x = #UBFXcc(arg0, 3, 5, vf, x);
+    // VC
+    x = #UBFXcc(arg0, 3, 5, !vf, x);
+    // HI
+    x = #UBFXcc(arg0, 3, 5, cf && !zf, x);
+    // LS
+    x = #UBFXcc(arg0, 3, 5, !cf || zf, x);
+    // GE
+    x = #UBFXcc(arg0, 3, 5, nf == vf, x);
+    // LT
+    x = #UBFXcc(arg0, 3, 5, nf != vf, x);
+    // GT
+    x = #UBFXcc(arg0, 3, 5, !zf && nf == vf, x);
+    // LE
+    x = #UBFXcc(arg0, 3, 5, zf || nf != vf, x);
+
+    // Combinations.
+    x = #UBFXcc(x, 3, 5, !!!!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

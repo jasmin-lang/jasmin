@@ -1,54 +1,96 @@
 export
 fn mvn(reg u32 arg0) -> reg u32 {
     reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
     x = #MVN(arg0);
+    [x] = x;
 
     // Immediates.
     x = #MVN(1);
+    [x] = x;
     x = #MVN(-1);
+    [x] = x;
 
     // Shifts.
-    x = #MVN(x, #LSL(0));
-    x = #MVN(x, #LSL(31));
-    x = #MVN(x, #LSR(1));
-    x = #MVN(x, #LSR(32));
-    x = #MVN(x, #ASR(1));
-    x = #MVN(x, #ASR(32));
-    x = #MVN(x, #ROR(1));
-    x = #MVN(x, #ROR(31));
-    //x = #MVN(x, #RRX(1));
+    x = #MVN(arg0, #LSL(0));
+    [x] = x;
+    x = #MVN(arg0, #LSL(1));
+    [x] = x;
+    x = #MVN(arg0, #LSL(31));
+    [x] = x;
+    x = #MVN(arg0, #LSR(1));
+    [x] = x;
+    x = #MVN(arg0, #LSR(31));
+    [x] = x;
+    x = #MVN(arg0, #ASR(1));
+    [x] = x;
+    x = #MVN(arg0, #ASR(31));
+    [x] = x;
+    x = #MVN(arg0, #ROR(1));
+    [x] = x;
+    x = #MVN(arg0, #ROR(31));
+    [x] = x;
 
     // Set flags.
-    reg bool n, z, c, v;
-    n, z, c, x = #MVNS(x);
-    n, z, c, x = #MVNS(1);
-    n, z, c, x = #MVNS(x, #LSL(3));
-    n, z, c, v, _ = #MOVS(x); // MVN does not set V.
+    nf, zf, cf, x = #MVNS(arg0);
 
-    // Conditions.
-    x = #MVNcc(x, z, x);            // EQ
-    x = #MVNcc(x, !z, x);           // NE
-    x = #MVNcc(x, c, x);            // CS
-    x = #MVNcc(x, !c, x);           // CC
-    x = #MVNcc(x, n, x);            // MI
-    x = #MVNcc(x, !n, x);           // PL
-    x = #MVNcc(x, v, x);            // VS
-    x = #MVNcc(x, !v, x);           // VC
-    x = #MVNcc(x, c && !z, x);      // HI
-    x = #MVNcc(x, !c || z, x);      // LS
-    x = #MVNcc(x, n == v, x);       // GE
-    x = #MVNcc(x, n != v, x);       // LT
-    x = #MVNcc(x, !z && n == v, x); // GT
-    x = #MVNcc(x, z || n != v, x);  // LE
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
 
-    x = #MVNcc(x, !!!!z, x);
-    n, z, c, x = #MVNScc(x, n == v, n, z, c, x);
-    n, z, c, x = #MVNScc(2, !c || z, n, z, c, x);
-    x = #MVNcc(x, #LSL(3), z, x);
-    n, z, c, x = #MVNScc(x, #LSL(3), z, n, z, c, x);
+    // EQ
+    x = #MVNcc(arg0, zf, x);
+    // NE
+    x = #MVNcc(arg0, !zf, x);
+    // CS
+    x = #MVNcc(arg0, cf, x);
+    // CC
+    x = #MVNcc(arg0, !cf, x);
+    // MI
+    x = #MVNcc(arg0, nf, x);
+    // PL
+    x = #MVNcc(arg0, !nf, x);
+    // VS
+    x = #MVNcc(arg0, vf, x);
+    // VC
+    x = #MVNcc(arg0, !vf, x);
+    // HI
+    x = #MVNcc(arg0, cf && !zf, x);
+    // LS
+    x = #MVNcc(arg0, !cf || zf, x);
+    // GE
+    x = #MVNcc(arg0, nf == vf, x);
+    // LT
+    x = #MVNcc(arg0, nf != vf, x);
+    // GT
+    x = #MVNcc(arg0, !zf && nf == vf, x);
+    // LE
+    x = #MVNcc(arg0, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, x = #MVNScc(arg0, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNS(2);
+    nf, zf, cf, x = #MVNS(arg0, #LSL(3));
+    nf, zf, cf, x = #MVNS(arg0, #LSR(3));
+    nf, zf, cf, x = #MVNS(arg0, #ASR(3));
+    nf, zf, cf, x = #MVNS(arg0, #ROR(3));
+    nf, zf, cf, x = #MVNScc(2, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0, #LSL(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0, #LSL(3), !!(nf == vf), nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0, #LSR(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0, #ASR(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0, #ROR(3), nf == vf, nf, zf, cf, x);
+    x = #MVNcc(arg0, !!!!zf, x);
+    x = #MVNcc(2, zf, x);
+    x = #MVNcc(2, !!zf, x);
+    x = #MVNcc(arg0, #LSL(3), zf, x);
+    x = #MVNcc(arg0, #LSL(3), !!zf, x);
+    x = #MVNcc(arg0, #LSR(3), zf, x);
+    x = #MVNcc(arg0, #ASR(3), zf, x);
+    x = #MVNcc(arg0, #ROR(3), zf, x);
 
     reg u32 res;
     res = x;
     return res;
 }
-

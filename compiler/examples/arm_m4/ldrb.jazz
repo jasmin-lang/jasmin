@@ -4,6 +4,7 @@ fn ldrb(reg u32 arg) -> reg u32 {
     x = (32u)(u8)[arg];
 
     x = (32u)(u8)[x + 3];
+    x = (32u)(u8)[x - 3];
 
     // Shifts.
     x = (32u)(u8)[x + arg * 1];
@@ -32,6 +33,8 @@ fn ldrb(reg u32 arg) -> reg u32 {
     x = (32u)(u8)[x] if z || n != v;  // LE
 
     x = (32u)(u8)[x + arg] if !z;
+    x = (32u)(u8)[x + 3] if !z;
+    x = (32u)(u8)[x - 3] if !z;
     x = (32u)(u8)[x + arg * 4] if !z;
 
     reg u32 res;

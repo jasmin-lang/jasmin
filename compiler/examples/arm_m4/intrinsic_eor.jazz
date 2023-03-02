@@ -1,0 +1,96 @@
+export
+fn eor(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
+    x = #EOR(arg0, arg1);
+    [x] = x;
+
+    // Immediates.
+    x = #EOR(arg0, 1);
+    [x] = x;
+    x = #EOR(arg0, -1);
+    [x] = x;
+
+    // Shifts.
+    x = #EOR(arg0, arg1, #LSL(0));
+    [x] = x;
+    x = #EOR(arg0, arg1, #LSL(1));
+    [x] = x;
+    x = #EOR(arg0, arg1, #LSL(31));
+    [x] = x;
+    x = #EOR(arg0, arg1, #LSR(1));
+    [x] = x;
+    x = #EOR(arg0, arg1, #LSR(31));
+    [x] = x;
+    x = #EOR(arg0, arg1, #ASR(1));
+    [x] = x;
+    x = #EOR(arg0, arg1, #ASR(31));
+    [x] = x;
+    x = #EOR(arg0, arg1, #ROR(1));
+    [x] = x;
+    x = #EOR(arg0, arg1, #ROR(31));
+    [x] = x;
+
+    // Set flags.
+    nf, zf, cf, x = #EORS(x, arg0);
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #EORcc(arg0, arg1, zf, x);
+    // NE
+    x = #EORcc(arg0, arg1, !zf, x);
+    // CS
+    x = #EORcc(arg0, arg1, cf, x);
+    // CC
+    x = #EORcc(arg0, arg1, !cf, x);
+    // MI
+    x = #EORcc(arg0, arg1, nf, x);
+    // PL
+    x = #EORcc(arg0, arg1, !nf, x);
+    // VS
+    x = #EORcc(arg0, arg1, vf, x);
+    // VC
+    x = #EORcc(arg0, arg1, !vf, x);
+    // HI
+    x = #EORcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #EORcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #EORcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #EORcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #EORcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #EORcc(arg0, arg1, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, x = #EORScc(x, arg0, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #EORS(x, 2);
+    nf, zf, cf, x = #EORS(x, arg0, #LSL(3));
+    nf, zf, cf, x = #EORS(x, arg0, #LSR(3));
+    nf, zf, cf, x = #EORS(x, arg0, #ASR(3));
+    nf, zf, cf, x = #EORS(x, arg0, #ROR(3));
+    nf, zf, cf, x = #EORScc(x, 2, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #EORScc(x, arg0, #LSL(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #EORScc(x, arg0, #LSL(3), !!(nf == vf), nf, zf, cf, x);
+    nf, zf, cf, x = #EORScc(x, arg0, #LSR(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #EORScc(x, arg0, #ASR(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #EORScc(x, arg0, #ROR(3), nf == vf, nf, zf, cf, x);
+    x = #EORcc(x, arg0, !!!!zf, x);
+    x = #EORcc(x, 2, zf, x);
+    x = #EORcc(x, 2, !!zf, x);
+    x = #EORcc(x, arg0, #LSL(3), zf, x);
+    x = #EORcc(x, arg0, #LSL(3), !!zf, x);
+    x = #EORcc(x, arg0, #LSR(3), zf, x);
+    x = #EORcc(x, arg0, #ASR(3), zf, x);
+    x = #EORcc(x, arg0, #ROR(3), zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

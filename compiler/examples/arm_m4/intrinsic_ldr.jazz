@@ -4,6 +4,7 @@ fn ldr(reg u32 arg) -> reg u32 {
 
     x = #LDR([arg]);
     x = #LDR([x + 2]);
+    x = #LDR([x - 2]);
     x = #LDR([x + arg]);
     x = #LDR([x + (arg * 1)]);
     x = #LDR([x + (arg * 2)]);
@@ -29,9 +30,10 @@ fn ldr(reg u32 arg) -> reg u32 {
     x = #LDRcc([x], !z && n == v, x); // GT
     x = #LDRcc([x], z || n != v, x);  // LE
 
-    x = #LDRcc([x + 2], z, x);
     x = #LDRcc([x + arg], z, x);
-    x = #LDRcc([x + (arg * 1)], z, x);
+    x = #LDRcc([x + 3], z, x);
+    x = #LDRcc([x - 3], z, x);
+    x = #LDRcc([x + (arg * 2)], z, x);
 
     reg u32 res;
     res = x;

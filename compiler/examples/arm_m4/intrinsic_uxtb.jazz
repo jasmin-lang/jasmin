@@ -1,0 +1,49 @@
+export
+fn uxtb(reg u32 arg0) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    x = #UXTB(arg0, 0);
+    x = #UXTB(x, 8);
+    x = #UXTB(x, 16);
+    x = #UXTB(x, 24);
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #UXTBcc(arg0, 8, zf, x);
+    // NE
+    x = #UXTBcc(arg0, 8, !zf, x);
+    // CS
+    x = #UXTBcc(arg0, 8, cf, x);
+    // CC
+    x = #UXTBcc(arg0, 8, !cf, x);
+    // MI
+    x = #UXTBcc(arg0, 8, nf, x);
+    // PL
+    x = #UXTBcc(arg0, 8, !nf, x);
+    // VS
+    x = #UXTBcc(arg0, 8, vf, x);
+    // VC
+    x = #UXTBcc(arg0, 8, !vf, x);
+    // HI
+    x = #UXTBcc(arg0, 8, cf && !zf, x);
+    // LS
+    x = #UXTBcc(arg0, 8, !cf || zf, x);
+    // GE
+    x = #UXTBcc(arg0, 8, nf == vf, x);
+    // LT
+    x = #UXTBcc(arg0, 8, nf != vf, x);
+    // GT
+    x = #UXTBcc(arg0, 8, !zf && nf == vf, x);
+    // LE
+    x = #UXTBcc(arg0, 8, zf || nf != vf, x);
+
+    // Combinations.
+    x = #UXTBcc(arg0, 8, !!!!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

@@ -12,7 +12,7 @@ fn str(reg u32 arg0, reg u32 arg1) {
     reg bool n, z, v, c;
     n, z, c, v, _ = #MOVS(arg0);
 
-    // Conditions.
+    // Conditionals.
     [arg0] = #STRcc(arg0, z, [arg0]);            // EQ
     [arg0] = #STRcc(arg0, !z, [arg0]);           // NE
     [arg0] = #STRcc(arg0, c, [arg0]);            // CS
@@ -27,4 +27,10 @@ fn str(reg u32 arg0, reg u32 arg1) {
     [arg0] = #STRcc(arg0, n != v, [arg0]);       // LT
     [arg0] = #STRcc(arg0, !z && n == v, [arg0]); // GT
     [arg0] = #STRcc(arg0, z || n != v, [arg0]);  // LE
+
+    // Combinations.
+    [arg0 + arg1] = #STRcc(arg0, z, [arg0 + arg1]);
+    [arg0 + 3] = #STRcc(arg0, z, [arg0 + 3]);
+    [arg0 - 3] = #STRcc(arg0, z, [arg0 - 3]);
+    [arg0 + (arg1 * 2)] = #STRcc(arg0, z, [arg0 + (arg1 * 2)]);
 }

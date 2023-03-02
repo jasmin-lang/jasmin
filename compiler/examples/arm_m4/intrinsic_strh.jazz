@@ -1,0 +1,36 @@
+export
+fn strh(reg u32 arg0, reg u32 arg1) {
+
+    (u16)[arg0] = #STRH(arg0);
+    (u16)[arg0 + 2] = #STRH(arg0);
+    (u16)[arg0 + arg1] = #STRH(arg0);
+    (u16)[arg0 + (arg1 * 1)] = #STRH(arg0);
+    (u16)[arg0 + (arg1 * 2)] = #STRH(arg0);
+    (u16)[arg0 + (arg1 * 4)] = #STRH(arg0);
+    (u16)[arg0 + (arg1 * 8)] = #STRH(arg0);
+
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(arg0);
+
+    // Conditionals.
+    (u16)[arg0] = #STRHcc(arg0, z, (u16)[arg0]);            // EQ
+    (u16)[arg0] = #STRHcc(arg0, !z, (u16)[arg0]);           // NE
+    (u16)[arg0] = #STRHcc(arg0, c, (u16)[arg0]);            // CS
+    (u16)[arg0] = #STRHcc(arg0, !c, (u16)[arg0]);           // CC
+    (u16)[arg0] = #STRHcc(arg0, n, (u16)[arg0]);            // MI
+    (u16)[arg0] = #STRHcc(arg0, !n, (u16)[arg0]);           // PL
+    (u16)[arg0] = #STRHcc(arg0, v, (u16)[arg0]);            // VS
+    (u16)[arg0] = #STRHcc(arg0, !v, (u16)[arg0]);           // VC
+    (u16)[arg0] = #STRHcc(arg0, c && !z, (u16)[arg0]);      // HI
+    (u16)[arg0] = #STRHcc(arg0, !c || z, (u16)[arg0]);      // LS
+    (u16)[arg0] = #STRHcc(arg0, n == v, (u16)[arg0]);       // GE
+    (u16)[arg0] = #STRHcc(arg0, n != v, (u16)[arg0]);       // LT
+    (u16)[arg0] = #STRHcc(arg0, !z && n == v, (u16)[arg0]); // GT
+    (u16)[arg0] = #STRHcc(arg0, z || n != v, (u16)[arg0]);  // LE
+
+    // Combinations.
+    (u16)[arg0 + arg1] = #STRHcc(arg0, z, (u16)[arg0 + arg1]);
+    (u16)[arg0 + 3] = #STRHcc(arg0, z, (u16)[arg0 + 3]);
+    (u16)[arg0 - 3] = #STRHcc(arg0, z, (u16)[arg0 - 3]);
+    (u16)[arg0 + (arg1 * 2)] = #STRHcc(arg0, z, (u16)[arg0 + (arg1 * 2)]);
+}

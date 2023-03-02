@@ -34,5 +34,7 @@ fn strb(reg u32 arg) {
     (u8)[x] = x if z || n != v;  // LE
 
     (u8)[x + arg] = x if !z;
+    (u8)[x + 3] = x if !z;
+    (u8)[x - 3] = x if !z;
     (u8)[x + arg * 4] = x if !z;
 }
