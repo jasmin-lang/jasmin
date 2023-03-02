@@ -183,6 +183,7 @@ type warning =
   | IntroduceNone
   | IntroduceArrayCopy
   | SimplifyVectorSuffix
+  | Deprecated
   | Always
 
 val nowarning : unit -> unit
