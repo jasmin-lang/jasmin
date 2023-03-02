@@ -48,16 +48,17 @@ all: build
 build: jasmin.mlpack native
 
 define do-build
-	rm -f jasminc
-	$(OCAMLBUILD) "$(1)"
-	ln -sf "_build/$(1)" jasminc
+	$(RM) jasminc jazz2tex
+	$(OCAMLBUILD) "entry/jasminc.$(1)" "entry/jazz2tex.$(1)"
+	ln -sf "_build/entry/jasminc.$(1)" jasminc
+	ln -sf "_build/entry/jazz2tex.$(1)" jazz2tex
 endef
 
 byte:
-	$(call do-build,entry/jasminc.byte)
+	$(call do-build,byte)
 
 native:
-	$(call do-build,entry/jasminc.native)
+	$(call do-build,native)
 
 jasmin.mlpack: __force__
 	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
@@ -85,9 +86,11 @@ clean:
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T jasminc.native $(DESTDIR)$(BINDIR)/jasminc
+	$(INSTALL) -m 0755 -T jazz2tex.native $(DESTDIR)$(BINDIR)/jazz2tex
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/jasminc
+	$(RM) $(DESTDIR)$(BINDIR)/jasminc
+	$(RM) $(DESTDIR)$(BINDIR)/jazz2tex
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz

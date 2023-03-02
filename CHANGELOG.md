@@ -39,6 +39,10 @@
   (e.g., `x /= y`)
   ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
 
+- The pretty-printer of Jasmin programs to LATEX is now available as a separate
+  `jazz2tex` tool
+  ([PR #???](https://github.com/jasmin-lang/jasmin/pull/3??)).
+
 ## Bug fixes
 
 - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
