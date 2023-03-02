@@ -424,6 +424,9 @@ let warning (w:warning) loc =
   Format.kdprintf (fun pp ->
     if to_warn w then
       let pp_warning fmt = pp_print_bold_magenta pp_string fmt "warning" in
-      Format.eprintf "@[<v>%a:@ %t: %t@]@."
-        (pp_print_bold Location.pp_iloc)
-        loc pp_warning pp)
+      let pp_iloc fmt d =
+        if not (Location.isdummy d.Location.base_loc) then
+          Format.fprintf fmt "%a@ " (pp_print_bold Location.pp_iloc) d in
+      Format.eprintf "@[<v>%a%t: %t@]@."
+        pp_iloc loc
+        pp_warning pp)
