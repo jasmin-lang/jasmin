@@ -203,6 +203,9 @@ Definition has_shift_mnemonics : seq arm_mnemonic :=
 Definition condition_mnemonics : seq arm_mnemonic :=
   [:: CMP; TST ].
 
+Definition always_has_shift_mnemonics : seq (arm_mnemonic * shift_kind) :=
+  [:: (UXTB, SROR); (UXTH, SROR) ].
+
 Definition wsize_uload_mn : seq (wsize * arm_mnemonic) :=
   [:: (U8, LDRB); (U16, LDRH); (U32, LDR) ].
 
@@ -885,11 +888,11 @@ Definition arm_RSB_instr : instr_desc_t :=
     {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
-      (* The only difference with SUB is the order of the arguments. *)
-      id_in := [:: E 2; E 1 ];
+      id_in := [:: E 1; E 2 ];
       id_tout := snzcv_r;
       id_out := ad_nzcv ++ [:: E 0 ];
-      id_semi := arm_SUB_semi;
+      (* The only difference with SUB is the order of the arguments. *)
+      id_semi := fun wn wm => arm_SUB_semi wm wn;
       id_nargs := 3;
       id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
       id_eq_size := refl_equal;
@@ -1366,8 +1369,8 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_in := [:: E 1; E 2 ];
     id_tout := [:: sreg ];
     id_out := [:: E 0 ];
-    (* TODO_ARM: Where to enforce [0 <= wroram < 4]? *)
-    id_semi := fun wn wroram => extend_bits_semi 8 wn (wrepr U8 8 * wroram);
+    (* TODO_ARM: Where to enforce [wroram \in [:: 0; 8; 16; 24 ]]? *)
+    id_semi := extend_bits_semi 8;
     id_nargs := 3;
     id_args_kinds := ak_reg_reg_imm8;
     id_eq_size := refl_equal;
@@ -1387,9 +1390,9 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_in := [:: E 1; E 2 ];
     id_tout := [:: sreg ];
     id_out := [:: E 0 ];
-    (* TODO_ARM: Where to enforce [0 <= wroram < 4]? *)
-    id_semi := fun wn wroram => extend_bits_semi 16 wn (wrepr U8 8 * wroram);
-    id_nargs := 4;
+    (* TODO_ARM: Where to enforce [wroram \in [:: 0; 8; 16; 24 ]]? *)
+    id_semi := extend_bits_semi 16;
+    id_nargs := 3;
     id_args_kinds := ak_reg_reg_imm16;
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
@@ -1600,12 +1603,20 @@ Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
   else x.
 
 Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
+  Eval compute in
+
   let mk_prim mn sf ic hs :=
+    let hs :=
+      if xseq.assoc always_has_shift_mnemonics mn is Some sk
+      then Some sk
+      else hs
+    in
     let opts :=
       {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
     in
     ARM_op mn opts
   in
+
   map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 
 #[ export ]
