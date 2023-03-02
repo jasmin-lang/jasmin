@@ -40,8 +40,8 @@
   ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
 
 - The pretty-printer of Jasmin programs to LATEX is now available as a separate
-  `jazz2tex` tool
-  ([PR #???](https://github.com/jasmin-lang/jasmin/pull/3??)).
+  `jazz2tex` tool; the `-latex` command line flag is deprecated
+  ([PR #372](https://github.com/jasmin-lang/jasmin/pull/372)).
 
 ## Bug fixes
 

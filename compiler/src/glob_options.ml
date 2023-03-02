@@ -153,7 +153,7 @@ let options = [
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
-    "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
+    "-latex"   , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file (deprecated)";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , ": use [xor x x] to set x to 0 (default is not)";

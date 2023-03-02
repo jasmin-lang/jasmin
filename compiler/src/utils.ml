@@ -402,6 +402,7 @@ type warning =
   | IntroduceNone 
   | IntroduceArrayCopy
   | SimplifyVectorSuffix
+  | Deprecated
   | Always
 
 let warns = ref None
