@@ -1,5 +1,5 @@
 require "file1.jazz"
-require "../require/file1.jazz"
+require "../x86-64/file1.jazz"
 
 export fn main(reg u64 x y) -> reg u64 {
    reg u64 r1 r2;

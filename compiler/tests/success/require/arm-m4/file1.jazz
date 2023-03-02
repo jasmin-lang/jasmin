@@ -1,0 +1,5 @@
+fn add(reg u32 x y) -> reg u32 {
+   reg u32 r;
+   r = x + y;
+   return r;
+}

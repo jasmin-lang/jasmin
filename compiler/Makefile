@@ -19,7 +19,7 @@ JSJOBS    ?= 2
 CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
-CHECKCATS ?= all safety CCT nolea print arm
+CHECKCATS ?= safety CCT x86-64_all x86-64_print x86-64_nolea arm-m4_all
 
 # --------------------------------------------------------------------
 DESTDIR  ?=
