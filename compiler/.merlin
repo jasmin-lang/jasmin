@@ -9,6 +9,7 @@ B _build/**
 
 PKG apron
 PKG batteries
+PKG cmdliner
 PKG menhirLib
 PKG zarith
 PKG apron

@@ -73,6 +73,7 @@ ocaml:
     paths:
     - compiler/_build/
     - compiler/jasminc.native
+    - compiler/jasminpp.native
 
 eclib:
   stage: prove
