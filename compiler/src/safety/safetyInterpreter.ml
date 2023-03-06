@@ -107,7 +107,12 @@ type safe_cond =
   | AlignedExpr of wsize * expr       (* aligned expression *)
                
   | NotZero of wsize * expr
-  | Termination
+  | Termination of bool (* the boolean signals whether this is a severe violation *)
+
+let severe_violation =
+  function
+  | Termination b -> b
+  | _ -> true
 
 let pp_var = Printer.pp_var ~debug:false
 let pp_expr = Printer.pp_expr ~debug:false
@@ -146,7 +151,7 @@ let pp_safety_cond fmt = function
   | AlignedExpr (sz, e) ->
     Format.fprintf fmt "aligned %a u%a" pp_expr e pp_ws sz
             
-  | Termination -> Format.fprintf fmt "termination"
+  | Termination b -> Format.fprintf fmt "termination%s" (if b then "" else " has not been checked")
 
 type violation_loc =
   | InProg of Prog.L.i_loc
@@ -169,6 +174,12 @@ let pp_violations fmt violations =
   else
     Format.fprintf fmt "@[<v 2>*** Possible Safety Violation(s):@;@[<v>%a@]@]"
       (pp_list pp_violation) violations
+
+let pp_assumptions fmt =
+  function
+  | [] -> ()
+  | m -> Format.fprintf fmt "@[<v>*** Safety Assumptions:@;@[<v>%a@]@]"
+           (pp_list pp_violation) m
 
 let vloc_compare v v' = match v, v' with
   | InReturn fn, InReturn fn' -> Stdlib.compare fn fn'
@@ -618,7 +629,7 @@ end = struct
           AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     (* These are checked elsewhere *)
-    | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination -> true
+    | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination _ -> true
 
   let is_safe state cond =
     let res = is_safe state cond in
@@ -1544,6 +1555,9 @@ end = struct
       fname
       L.pp_iloc ginstr.i_loc
 
+  let has_annot a { i_annot ; _ } =
+    List.exists (fun (k, _) -> String.equal (L.unloc k) a) i_annot
+
   let cells_of_array x ofs n =
     let x = L.unloc x in
     List.init (Conv.int_of_pos n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
@@ -1626,7 +1640,7 @@ end = struct
       | Cif(e,c1,c2) ->
         aeval_if asmOp ginstr e c1 c2 state
 
-      | Cwhile(_, c1, e, c2) when List.exists (fun (k, _) -> String.equal (L.unloc k) "bounded") ginstr.i_annot ->
+      | Cwhile(_, c1, e, c2) when has_annot "bounded" ginstr ->
          let prog_pt = ginstr.i_loc in
          let body = c2 @ c1 in
          let rec fully_unroll out state =
@@ -1677,7 +1691,7 @@ end = struct
           else
             match ni_e with
             | None -> (* Here, we cannot prove termination *)
-              let violation = (InProg prog_pt, Termination) in
+              let violation = (InProg prog_pt, Termination true) in
               add_violations state [violation]
 
             | Some nie ->
@@ -1720,7 +1734,7 @@ end = struct
               if (Interval.is_leq int test_into) &&
                  (Interval.is_leq zint test_intz) then state
               else
-                let violation = (InProg prog_pt, Termination) in
+                let violation = (InProg prog_pt, Termination true) in
                 add_violations state [violation] in
 
 
@@ -1731,8 +1745,11 @@ end = struct
           let state_o = aeval_gstmt asmOp (c2 @ c1) state_i in
 
           (* We check that if the loop does not exit, then ni_e decreased by
-             at least one *)
-          let state_o = check_ni_dec state_o in
+             at least one, unless the loop is specially annotated *)
+          let state_o =
+            if has_annot "no_termination_check" ginstr
+            then add_violations state_o [(InProg prog_pt, Termination false)]
+            else check_ni_dec state_o in
 
           (* We forget the variable storing the initial value of the 
              candidate decreasing quantity. *)
@@ -2187,6 +2204,8 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           Format.eprintf "@[<v 2>Memory ranges:@;%a@]@;"
             (pp_list res.print_var_interval) npt in
 
+      let violations, assumptions = List.partition (fun (_, v) -> severe_violation v) res.violations in
+
       let pp_warnings fmt warns =
         if warns <> [] then
           Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
@@ -2194,14 +2213,16 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       
       Format.eprintf "@?@[<v>%a@;\
                       %a@;\
+                      %a@;\
                       %t\
                       %a@]@."
         pp_warnings res.warnings
-        pp_violations res.violations
+        pp_assumptions assumptions
+        pp_violations violations
         pp_mem_range
         (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
 
-      if res.violations <> [] then begin
+      if violations <> [] then begin
         Format.eprintf "@[<v>Program is not safe!@;@]@.";
         exit(2)
       end;

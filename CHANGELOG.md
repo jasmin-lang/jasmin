@@ -44,6 +44,8 @@
   ([PR #372](https://github.com/jasmin-lang/jasmin/pull/372)).
 
 - The safety checker fully unrolls `while` loops annotated as `#bounded`
+  and does not attempt at proving termination of `while` loops annotated
+  with `#no_termination_check`
   ([PR #362](https://github.com/jasmin-lang/jasmin/pull/362)).
 
 ## Bug fixes
