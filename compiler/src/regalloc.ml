@@ -44,16 +44,15 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
 
 type kind = Word | Vector | Flag | Unknown of ty
 
-let kind_of_type =
+let kind_of_type reg_size =
   function
-  | Bty (U (U8 | U16 | U32 | U64)) -> Word
-  | Bty (U (U128 | U256)) -> Vector
+  | Bty (U sz) -> if Wsize.wsize_cmp sz reg_size = Datatypes.Gt then Vector else Word
   | Bty Bool -> Flag
   | ty -> Unknown ty
 
 (* Only variables that will be allocated to the same “bank” may conflict. *)
-let types_cannot_conflict x y : bool =
-  match kind_of_type x, kind_of_type y with
+let types_cannot_conflict reg_size x y : bool =
+  match kind_of_type reg_size x, kind_of_type reg_size y with
   | Word, Word | Vector, Vector | Flag, Flag -> false
   | _, _ -> true
 
@@ -96,11 +95,11 @@ let find_var outs ins ap : _ option =
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
-let asm_equality_constraints ~loc asmOp is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
+let asm_equality_constraints ~loc reg_size asmOp is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs) : unit =
   let assert_compatible_types x y =
-    if types_cannot_conflict (L.unloc x).v_ty (L.unloc y).v_ty then
+    if types_cannot_conflict reg_size (L.unloc x).v_ty (L.unloc y).v_ty then
       hierror_reg ~loc "Variables %a and %a must be merged due to architectural constraints but have incompatible types"
         (Printer.pp_var ~debug:true) (L.unloc x)
         (Printer.pp_var ~debug:true) (L.unloc y)
@@ -356,8 +355,8 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let conflicts_add_one asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
-  if types_cannot_conflict v.v_ty w.v_ty then c else
+let conflicts_add_one reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
+  if types_cannot_conflict reg_size v.v_ty w.v_ty then c else
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
@@ -368,9 +367,9 @@ let conflicts_add_one asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : confli
     c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
 
-let collect_conflicts asmOp
+let collect_conflicts reg_size asmOp
       (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
-  let add_one = conflicts_add_one asmOp tbl tr in
+  let add_one = conflicts_add_one reg_size asmOp tbl tr in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
     c
     |> conflicts_in i (add_one loc)
@@ -593,7 +592,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
         match f p with
         | i ->
           let d, rs, xs =
-            match kind_of_type p.v_ty with
+            match kind_of_type Arch.reg_size p.v_ty with
             | Word -> let d, rs = split ~ctxt rs in d, rs, xs
             | Vector -> let d, xs = split ~ctxt xs in d, rs, xs
             | Flag ->
@@ -751,7 +750,7 @@ let greedy_allocation
     | exception Not_found -> Hashtbl.add tbl i [ v ]
   in
   Hv.iter (fun v i ->
-      match kind_of_type v.v_ty with
+      match kind_of_type Arch.reg_size v.v_ty with
       | Word -> 
           if reg_kind v.v_kind = Normal then push_var scalars i v
           else push_var extra_scalars i v
@@ -932,12 +931,12 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   in
   let excluded = Sv.of_list [Arch.rip; Arch.rsp_var] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers Arch.all_registers funcs in
-  let eqc, tr, fr = collect_equality_constraints_in_prog Arch.asmOp Arch.aparams.ap_is_move_op "Regalloc" asm_equality_constraints vars nv funcs in
+  let eqc, tr, fr = collect_equality_constraints_in_prog Arch.asmOp Arch.aparams.ap_is_move_op "Regalloc" (asm_equality_constraints Arch.reg_size) vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
   let conflicts =
     Hf.fold (fun _fn lf conflicts ->
-        collect_conflicts Arch.asmOp vars tr lf conflicts
+        collect_conflicts Arch.reg_size Arch.asmOp vars tr lf conflicts
       )
       liveness_table
       empty_conflicts
@@ -948,12 +947,12 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     List.fold_left (fun a f ->
         match Hf.find return_addresses f.f_name with
         | ByReg ra | StackByReg ra ->
-           List.fold_left (fun cnf x -> conflicts_add_one Arch.asmOp vars tr Lnone ra x cnf) a f.f_args
+           List.fold_left (fun cnf x -> conflicts_add_one Arch.reg_size Arch.asmOp vars tr Lnone ra x cnf) a f.f_args
         | StackDirect -> a) 
       conflicts funcs in
   (* Inter-procedural conflicts *)
   let conflicts =
-    let add_conflicts s x = Sv.fold (conflicts_add_one Arch.asmOp vars tr Lnone x) s in
+    let add_conflicts s x = Sv.fold (conflicts_add_one Arch.reg_size Arch.asmOp vars tr Lnone x) s in
     List.fold_right (fun f cnf ->
         let live = get_liveness f.f_name in
         let vars = killed f.f_name in
@@ -967,7 +966,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
 
   (* syscall conflicts *)
   let conflicts =
-    let add_conflicts x = Sv.fold (conflicts_add_one Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
+    let add_conflicts x = Sv.fold (conflicts_add_one Arch.reg_size Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
     Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
 
   let a = A.empty nv in
