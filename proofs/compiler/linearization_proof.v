@@ -4323,7 +4323,7 @@ Section PROOF.
     (top_stack_after_alloc top ws sz + wrepr _ sz)%R.
 
   Definition align_top_stack top e :=
-    align_top top e.(sf_align) (e.(sf_stk_sz) + e.(sf_stk_extra_sz)).
+    align_top top e.(sf_align) (e.(sf_stk_sz) + e.(sf_stk_extra_sz) + e.(sf_stk_padding)).
 
   Lemma align_top_aligned top ws sz :
     (0 <= sz)%Z ->

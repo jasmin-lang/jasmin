@@ -425,6 +425,19 @@ Qed.
 
 Import sem_one_varmap.
 
+Lemma zbetween_or_disjoint_zrange p1 s1 p :
+  no_overflow p1 s1 ->
+  zbetween p1 s1 p 1 \/ disjoint_zrange p1 s1 p 1.
+Proof.
+  rewrite /zbetween /disjoint_zrange !zify.
+  have: (wunsigned p1 <= wunsigned p)%Z /\ (wunsigned p + 1 <= wunsigned p1 + s1)%Z
+      ∨ ((wunsigned p1 + s1 <= wunsigned p)%Z ∨ (wunsigned p + 1 <= wunsigned p1)%Z).
+  + Lia.lia.
+  case; first by left.
+  move=> ??; right; split=> //.
+  apply (is_align_no_overflow (sz:=U8)). by apply is_align8.
+Qed.
+
 Lemma compiler_back_endP
   entries
   (p : @sprog _pd _ _asmop)
@@ -459,6 +472,9 @@ Lemma compiler_back_endP
           [/\
             lsem_exportcall tp scs lm fn vm scs' lm' vm',
             match_mem m' lm',
+            (cparams.(clear_stack_info) fn <> None -> forall p w,
+              ~ validw m p U8 ->
+              read lm' p U8 = ok w -> read lm p U8 = ok w \/ w = 0%R),
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
             all2 check_ty_val fd.(lfd_tyout) res'
@@ -666,6 +682,81 @@ Proof.
       move=> [ws' ->].
       move=>/valid_eq <-.
       by apply M'.(valid_stk).
+
+  - case: clear_stack_info hclear => [[? ows]|//].
+    set ws := match ows with | Some _ => _ | _ => _ end.
+    have: exists ws', ws = Some ws'.
+    + by case: ows @ws => /=; eauto.
+    move=> {ws} [ws] ->.
+    case=> h1 h2 _ _.
+    move=> p0 w hnvalid ok_w.
+    have: no_overflow (align_word (lfd_align lfd) (top_stack m) - wrepr Uptr (lfd_used_stack lfd))
+         (lfd_used_stack lfd).
+    + rewrite /no_overflow zify.
+      have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
+      rewrite get_lfd => -[->] /=.
+      rewrite wunsigned_sub; last first.
+      + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
+        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
+        have := @frame_size_pos (f_extra fd) ltac:(Lia.lia) ltac:(Lia.lia).
+(*           assert (h2 := wunsigned_range (stack_limit m)). *)
+        assert (h3 := wunsigned_range (align_word (sf_align (f_extra fd)) (top_stack m))).
+        simpl in *. split; last by Lia.lia.
+        assert (hh := align_word_range (sf_align (f_extra fd)) (top_stack m)).
+        simpl in *. Lia.lia.
+      assert (h:=wunsigned_range (align_word (sf_align (f_extra fd)) (top_stack m))).
+      simpl in *. Lia.lia.
+    case/(zbetween_or_disjoint_zrange p0).
+    + move=> /h1. rewrite ok_w. move=> [<-]. by right.
+    move=> hdisj.
+    left.
+    rewrite (U p0 hnvalid); last first.
+    + rewrite /align_top_stack align_top_aligned; cycle 1.
+      + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
+        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
+        simpl in h. Lia.lia.
+      + have [m1 ok_m1]: exists m1,
+          alloc_stack m (sf_align (f_extra fd))
+            (sf_stk_sz (f_extra fd)) (sf_stk_extra_sz (f_extra fd)) = ok m1.
+        + have := psem.sem_callE exec_p.
+          rewrite get_fd => -[_ [[<-]]].
+          move=> [_ [s [_ [_ [_ [_ [h _] _ _ _]]]]]].
+          move: h; rewrite /= /init_stk_state.
+          t_xrbindP=> m1 ok_m1 _.
+          by exists m1.
+        have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
+        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
+        have /= := (Memory.alloc_stackP ok_m1).(ass_above_limit).
+        assert (h3 := wunsigned_range (top_stack m)).
+        assert (h4 := wunsigned_range (top_stack m1)).
+        simpl in *. Lia.lia.
+      + 
+      
+      move: H6'. rewrite /sf_stk_max.
+        sem
+        move/allMP: (ok_export) => /(_ _ ok_fn).
+        rewrite /is_export.
+        rewrite get_fd. t_xrbindP=> /eqP -> /=.
+      move=> /pointer_range_between.
+      rewrite wunsigned_sub; last first.
+      + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
+        rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify => h.
+        have := @frame_size_pos (f_extra fd) ltac:(Lia.lia) ltac:(Lia.lia).
+(*           assert (h2 := wunsigned_range (stack_limit m)). *)
+        assert (h3 := wunsigned_range (align_word (sf_align (f_extra fd)) (top_stack m))).
+        simpl in *. split; last by Lia.lia.
+        assert (hh := align_word_range (sf_align (f_extra fd)) (top_stack m)).
+        simpl in *. Lia.lia.
+      ring_simplify (wunsigned (align_top_stack (top_stack m) (f_extra fd)) -
+   (wunsigned (align_top_stack (top_stack m) (f_extra fd) - wrepr Uptr (sf_stk_max_used (f_extra fd)))))%Z.
+      rewrite Z.
+    zbetween_not_disjoint_zrange
+    disjoint_zrange zbetween
+    
+    move=> /h2. rewrite ok_w. have := H1.(read_incl). tm target_mem_unchanged match_mem
+    case/zbetween_or_disjoint_zrange.
+      + move=> ?; eexists (_, _); done.
+      
 
   - rewrite (mapM_ext (f2 := (λ x : var_i, get_var lvm' x))).
     + exact: ok_lres.
