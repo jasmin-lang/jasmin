@@ -366,6 +366,12 @@ end = struct
       (* We ignore the loop index, since we do not use widening for loops. *)
       pa_stmt fn prog st c
 
+    | Cwhile (_, c1, _, c2) when has_annot "bounded" instr ->
+      (* Ignore the loop condition, as this loop will be fully unrolled at analysis time. *)
+      let st = pa_stmt fn prog st c1 in
+      let st = pa_stmt fn prog st c2 in
+      st
+
     | Cwhile (_, c1, b, c2) ->
       let vs,st = expr_vars st b in
 

@@ -329,6 +329,8 @@ val expr_of_lval : 'len glval -> 'len gexpr option
 
 val has_syscall : ('len, 'info, 'asm) gstmt -> bool
 val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
+val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
+
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
 val clamp_pe : pelem -> Z.t -> Z.t
