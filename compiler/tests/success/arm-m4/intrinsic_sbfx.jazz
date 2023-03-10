@@ -1,0 +1,51 @@
+export
+fn sbfx(reg u32 arg0) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    x = #SBFX(arg0, 0, 1);
+    x = #SBFX(x, 0, 32);
+    x = #SBFX(x, 3, 1);
+    x = #SBFX(x, 3, 29);
+    x = #SBFX(x, 31, 1);
+    [x] = x;
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #SBFXcc(arg0, 3, 5, zf, x);
+    // NE
+    x = #SBFXcc(arg0, 3, 5, !zf, x);
+    // CS
+    x = #SBFXcc(arg0, 3, 5, cf, x);
+    // CC
+    x = #SBFXcc(arg0, 3, 5, !cf, x);
+    // MI
+    x = #SBFXcc(arg0, 3, 5, nf, x);
+    // PL
+    x = #SBFXcc(arg0, 3, 5, !nf, x);
+    // VS
+    x = #SBFXcc(arg0, 3, 5, vf, x);
+    // VC
+    x = #SBFXcc(arg0, 3, 5, !vf, x);
+    // HI
+    x = #SBFXcc(arg0, 3, 5, cf && !zf, x);
+    // LS
+    x = #SBFXcc(arg0, 3, 5, !cf || zf, x);
+    // GE
+    x = #SBFXcc(arg0, 3, 5, nf == vf, x);
+    // LT
+    x = #SBFXcc(arg0, 3, 5, nf != vf, x);
+    // GT
+    x = #SBFXcc(arg0, 3, 5, !zf && nf == vf, x);
+    // LE
+    x = #SBFXcc(arg0, 3, 5, zf || nf != vf, x);
+
+    // Combinations.
+    x = #SBFXcc(x, 3, 5, !!!!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

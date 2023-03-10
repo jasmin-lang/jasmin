@@ -1,0 +1,60 @@
+export
+fn lsr(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
+    x = #LSR(arg0, arg1);
+    [x] = x;
+
+    // Immediates.
+    x = #LSR(arg0, 1);
+    [x] = x;
+
+    // Set flags.
+    nf, zf, cf, x = #LSRS(x, arg0);
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #LSRcc(arg0, arg1, zf, x);
+    // NE
+    x = #LSRcc(arg0, arg1, !zf, x);
+    // CS
+    x = #LSRcc(arg0, arg1, cf, x);
+    // CC
+    x = #LSRcc(arg0, arg1, !cf, x);
+    // MI
+    x = #LSRcc(arg0, arg1, nf, x);
+    // PL
+    x = #LSRcc(arg0, arg1, !nf, x);
+    // VS
+    x = #LSRcc(arg0, arg1, vf, x);
+    // VC
+    x = #LSRcc(arg0, arg1, !vf, x);
+    // HI
+    x = #LSRcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #LSRcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #LSRcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #LSRcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #LSRcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #LSRcc(arg0, arg1, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, x = #LSRScc(x, arg0, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #LSRS(x, 2);
+    nf, zf, cf, x = #LSRScc(x, 2, nf == vf, nf, zf, cf, x);
+    x = #LSRcc(x, arg0, !!!!zf, x);
+    x = #LSRcc(x, 2, zf, x);
+    x = #LSRcc(x, 2, !!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

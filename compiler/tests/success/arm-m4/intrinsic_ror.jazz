@@ -1,0 +1,60 @@
+export
+fn ror(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
+    x = #ROR(arg0, arg1);
+    [x] = x;
+
+    // Immediates.
+    x = #ROR(arg0, 1);
+    [x] = x;
+
+    // Set flags.
+    nf, zf, cf, x = #RORS(x, arg0);
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #RORcc(arg0, arg1, zf, x);
+    // NE
+    x = #RORcc(arg0, arg1, !zf, x);
+    // CS
+    x = #RORcc(arg0, arg1, cf, x);
+    // CC
+    x = #RORcc(arg0, arg1, !cf, x);
+    // MI
+    x = #RORcc(arg0, arg1, nf, x);
+    // PL
+    x = #RORcc(arg0, arg1, !nf, x);
+    // VS
+    x = #RORcc(arg0, arg1, vf, x);
+    // VC
+    x = #RORcc(arg0, arg1, !vf, x);
+    // HI
+    x = #RORcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #RORcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #RORcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #RORcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #RORcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #RORcc(arg0, arg1, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, x = #RORScc(x, arg0, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #RORS(x, 2);
+    nf, zf, cf, x = #RORScc(x, 2, nf == vf, nf, zf, cf, x);
+    x = #RORcc(x, arg0, !!!!zf, x);
+    x = #RORcc(x, 2, zf, x);
+    x = #RORcc(x, 2, !!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

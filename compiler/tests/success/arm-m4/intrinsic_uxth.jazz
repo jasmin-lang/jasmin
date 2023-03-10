@@ -1,0 +1,49 @@
+export
+fn uxth(reg u32 arg0) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    x = #UXTH(arg0, 0);
+    x = #UXTH(x, 8);
+    x = #UXTH(x, 16);
+    x = #UXTH(x, 24);
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #UXTHcc(arg0, 8, zf, x);
+    // NE
+    x = #UXTHcc(arg0, 8, !zf, x);
+    // CS
+    x = #UXTHcc(arg0, 8, cf, x);
+    // CC
+    x = #UXTHcc(arg0, 8, !cf, x);
+    // MI
+    x = #UXTHcc(arg0, 8, nf, x);
+    // PL
+    x = #UXTHcc(arg0, 8, !nf, x);
+    // VS
+    x = #UXTHcc(arg0, 8, vf, x);
+    // VC
+    x = #UXTHcc(arg0, 8, !vf, x);
+    // HI
+    x = #UXTHcc(arg0, 8, cf && !zf, x);
+    // LS
+    x = #UXTHcc(arg0, 8, !cf || zf, x);
+    // GE
+    x = #UXTHcc(arg0, 8, nf == vf, x);
+    // LT
+    x = #UXTHcc(arg0, 8, nf != vf, x);
+    // GT
+    x = #UXTHcc(arg0, 8, !zf && nf == vf, x);
+    // LE
+    x = #UXTHcc(arg0, 8, zf || nf != vf, x);
+
+    // Combinations.
+    x = #UXTHcc(arg0, 8, !!!!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}
