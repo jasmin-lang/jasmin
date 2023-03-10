@@ -1555,9 +1555,6 @@ end = struct
       fname
       L.pp_iloc ginstr.i_loc
 
-  let has_annot a { i_annot ; _ } =
-    List.exists (fun (k, _) -> String.equal (L.unloc k) a) i_annot
-
   let cells_of_array x ofs n =
     let x = L.unloc x in
     List.init (Conv.int_of_pos n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))

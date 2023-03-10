@@ -553,6 +553,9 @@ let rec has_call_or_syscall_i i =
 
 and has_call_or_syscall c = List.exists has_call_or_syscall_i c
 
+let has_annot a { i_annot ; _ } =
+  List.exists (fun (k, _) -> String.equal (L.unloc k) a) i_annot
+
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =
   Z.erem z (Z.shift_left Z.one (int_of_ws sz))
