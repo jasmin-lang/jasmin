@@ -146,7 +146,7 @@ def _options():
         scenario.args    = config.get(test, 'args').split()
         scenario.okdirs  = config.get(test, 'okdirs')
         scenario.kodirs  = config.get(test, 'kodirs')
-        scenario.exclude = config.get(test, 'exclude').split()
+        scenario.exclude = config.get(test, 'exclude')
         options.scenarios[test[5:]] = scenario
 
     for x in options.targets:
@@ -279,7 +279,7 @@ def _main():
                     for root, dnames, _ in os.walk(x[1:]):
                         aout.extend([os.path.join(root, x) for x in dnames])
                 else:
-                    aout.extend(glob.glob(x))
+                    aout.extend(glob.glob(x, recursive=True))
                 return aout
 
             dirs = [for1(x) for x in re.split(r'\s+', dirs)]
@@ -292,7 +292,7 @@ def _main():
                          for x in expand(scenario.okdirs)])
         dirs.extend([Object(src = x, valid = False, **data) \
                          for x in expand(scenario.kodirs)])
-        dirs = [x for x in dirs if x.src not in scenario.exclude]
+        dirs = [x for x in dirs if x.src not in expand(scenario.exclude)]
         dirs = map(lambda x : gather(x, scenario), dirs)
         return list(itertools.chain.from_iterable(dirs))
 
