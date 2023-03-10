@@ -1750,12 +1750,12 @@ Hypothesis Halloc_fd : forall fn fd,
 
 (* RAnone -> export function (TODO: rename RAexport?) *)
 Definition enough_size m sao :=
-  let sz := sao.(sao_size) + sao.(sao_extra_size) + sao.(sao_padding) in (*
+  let sz :=
     if is_RAnone sao.(sao_return_address) then
       sao.(sao_size) + sao.(sao_extra_size)
     else
       round_ws sao.(sao_align) (sao.(sao_size) + sao.(sao_extra_size))
-  in *)
+  in
   allocatable_stack m (sao.(sao_max_size_used) - sz).
 
 Record wf_sao rsp m sao := {
@@ -1998,8 +1998,10 @@ Proof.
   rewrite /alloc_fd /alloc_fd_aux /=.
   t_xrbindP=> ?? hlayout [[??]?] hlocal_map.
   t_xrbindP=> -[[[??]?]?] hparams.
-  t_xrbindP=> /ZleP hextra /ZleP hpadding _ /ZleP hmax _ _ _ _.
+  t_xrbindP=> /ZleP hextra /ZleP hmax _ _ _ _.
   have hsize := init_stack_layout_size_ge0 hlayout.
+  case: is_RAnone hmax; first by lia.
+  have := round_ws_range (local_alloc fn).(sao_align) ((local_alloc fn).(sao_size) + (local_alloc fn).(sao_extra_size)).
   by lia.
 Qed.
 
@@ -2024,7 +2026,7 @@ Proof.
   t_xrbindP => -[rmap2' i2'] /= halloc ?? m0 s2 hvs hext hsao; subst rmap2' c.
   move: halloc; rewrite /alloc_call /assert_check.
   t_xrbindP=> -[rmap1 es] hcargs.
-  (* FIXME: is_RAnone twice *)
+  (* FIXME: is_RAnone def twice *)
   t_xrbindP=> -[{rmap2}rmap2 rs2] hcres ra_none /ZleP hsize hle /= <- <-.
 
   (* evaluation of the arguments *)
@@ -2531,7 +2533,7 @@ Proof.
   move: halloc; rewrite /alloc_fd /alloc_fd_aux /=.
   t_xrbindP=> fd2' stack hlayout [[locals1 rmap1] vnew1] hlocal_map.
   t_xrbindP=> -[[[vnew2 locals2] rmap2] alloc_params] hparams.
-  t_xrbindP=> /ZleP hextra /ZleP hpadding /ZleP hcmp /ZleP hmax.
+  t_xrbindP=> /ZleP hextra /ZleP hmax.
   move=> [rmap3 c] halloc.
   t_xrbindP=> res hcresults ??; subst fd2 fd2'.
 
@@ -2550,7 +2552,7 @@ Proof.
       by apply (init_stack_layout_size_ge0 hlayout).
     + by apply /ZleP.
     move: hok; rewrite /alloc_ok => /(_ _ hfd2) /=; rewrite /allocatable_stack /sf_stk_max /= => -[hallocatable hal].
-    case: is_RAnone hal hallocatable hcmp => [_|-> //] hallocatable hcmp; last by apply /ZleP; lia.
+    case: is_RAnone hal hmax hallocatable => [_|->] hmax hallocatable; last by apply /ZleP; lia.
     case: is_align; last by apply /ZleP; lia.
     apply /ZleP.
     have := round_ws_range (sao_align (local_alloc fn)) (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
@@ -2643,14 +2645,14 @@ Proof.
       have hsize := init_stack_layout_size_ge0 hlayout.
       assert (hge := wunsigned_range (stack_limit m2)).
       have hpos := wsize_size_pos (sao_align (local_alloc fn)).
-      case: is_RAnone hcmp.
-      + move=> hcmp hok _.
+      case: is_RAnone hmax.
+      + move=> hmax hok _.
         have hbound: 0 <= sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)
                   /\ sao_size (local_alloc fn) + sao_extra_size (local_alloc fn) <= wunsigned (top_stack m2).
         + by lia.
         have := @top_stack_after_alloc_bounded _ _ (local_alloc fn).(sao_align) _ hbound.
         by lia.
-      move=> hcmp hok1 hok2.
+      move=> hmax hok1 hok2.
       rewrite (top_stack_after_aligned_alloc _ (hok2 _)) //.
       rewrite wunsigned_add; first by lia.
       split; first by lia.
@@ -2851,7 +2853,7 @@ Proof.
   rewrite /alloc_fd/alloc_fd_aux/check_results.
   t_xrbindP => ?? _ [[? ?] ?] _.
   t_xrbindP => [] [[[? ?] ?] ?] ok_params.
-  t_xrbindP => _ _ _ _ [? ?] _.
+  t_xrbindP => _ _ [? ?] _.
   t_xrbindP => ? _ ok_results; subst.
   split.
   - by case: (size_fmapM2 ok_params).

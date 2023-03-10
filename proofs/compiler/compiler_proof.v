@@ -683,12 +683,12 @@ Proof.
       move=>/valid_eq <-.
       by apply M'.(valid_stk).
 
-  - case: clear_stack_info hclear => [[? ows]|//].
+  - case hcss: clear_stack_info hclear => [[css ows]|//].
     set ws := match ows with | Some _ => _ | _ => _ end.
     have: exists ws', ws = Some ws'.
-    + by case: ows @ws => /=; eauto.
+    + by case: ows @ws {hcss} => /=; eauto.
     move=> {ws} [ws] ->.
-    case=> h1 h2 _ _.
+    case=> h1 h2 _ _ {ws}.
     move=> p0 w hnvalid ok_w.
     have: no_overflow (align_word (lfd_align lfd) (top_stack m) - wrepr Uptr (lfd_used_stack lfd))
          (lfd_used_stack lfd).
@@ -730,13 +730,32 @@ Proof.
         assert (h3 := wunsigned_range (top_stack m)).
         assert (h4 := wunsigned_range (top_stack m1)).
         simpl in *. Lia.lia.
-      + 
-      
-      move: H6'. rewrite /sf_stk_max.
-        sem
+      + move: ok_cfd.
+        rewrite /clear_stack_lfd hcss get_fd.
+        set ws := match ows with | Some _ => _ | _ => _ end.
+        have: exists ws', ws = Some ws'.
+        + by case: ows @ws {hcss} => /=; eauto.
+        move=> {ws} [ws] ->.
+        (* TODO: écrire le test sur ws de manière différente pour que ce soit
+           moins pénible à utiliser dans les preuves *)
+        case: ws=> ? ws.
         move/allMP: (ok_export) => /(_ _ ok_fn).
-        rewrite /is_export.
-        rewrite get_fd. t_xrbindP=> /eqP -> /=.
+        rewrite get_fd; t_xrbindP=> hra.
+        have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
+        rewrite get_lfd => -[->] /=; rewrite hra /=.
+        case: ZltP.
+        + move=> _.
+          rewrite /clear_stack_lfd_body /=.
+          t_xrbindP => hh _ _ _ _ _ _.
+          move: hh.
+          rewrite /frame_size.
+          by move: hra => /eqP ->.
+        move=> ? _.
+        have: (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) = 0)%Z.
+        + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
+          rewrite /check_fd; t_xrbindP=> _ _ h _ _ _; move: h; rewrite !zify /frame_size.
+          move: hra => /eqP ->. simpl. Lia.lia.
+        by move=> ->.
       move=> /pointer_range_between.
       rewrite wunsigned_sub; last first.
       + have := linearization_proof.checked_prog (spp:=mk_spp) ok_lp get_fd.
@@ -747,16 +766,16 @@ Proof.
         simpl in *. split; last by Lia.lia.
         assert (hh := align_word_range (sf_align (f_extra fd)) (top_stack m)).
         simpl in *. Lia.lia.
-      ring_simplify (wunsigned (align_top_stack (top_stack m) (f_extra fd)) -
-   (wunsigned (align_top_stack (top_stack m) (f_extra fd) - wrepr Uptr (sf_stk_max_used (f_extra fd)))))%Z.
-      rewrite Z.
-    zbetween_not_disjoint_zrange
-    disjoint_zrange zbetween
-    
-    move=> /h2. rewrite ok_w. have := H1.(read_incl). tm target_mem_unchanged match_mem
-    case/zbetween_or_disjoint_zrange.
-      + move=> ?; eexists (_, _); done.
-      
+        replace
+          ((wunsigned (align_word (sf_align (f_extra fd)) (top_stack m)) -
+           (wunsigned (align_word (sf_align (f_extra fd)) (top_stack m)) -
+            sf_stk_max_used (f_extra fd))))%Z
+          with (sf_stk_max_used (f_extra fd)) by ring.
+        move=> /zbetween_not_disjoint_zrange /(_ ltac:(done)).
+        move: hdisj.
+        have := get_fundef_p' (spp:=mk_spp) ok_lp get_fd.
+        rewrite get_lfd => -[->] /=. done.
+    by rewrite h2.
 
   - rewrite (mapM_ext (f2 := (λ x : var_i, get_var lvm' x))).
     + exact: ok_lres.
@@ -807,6 +826,9 @@ Lemma compiler_back_end_to_asmP
             -> exists xm' res',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , match_mem m' xm'.(asm_mem), xm'.(asm_scs) = scs'
+                  , (cparams.(clear_stack_info) fn <> None -> forall p w,
+                      ~ validw m p U8 ->
+                      read xm'.(asm_mem) p U8 = ok w -> read xm.(asm_mem) p U8 = ok w \/ w = 0%R)
                   , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
                   & List.Forall2 value_uincl res res'
                 ]
@@ -894,7 +916,7 @@ Proof.
       [] vm'
       [] lm'
       [] res'
-      [] {} lp_call M' ok_res' res_res' _wt_res'.
+      [] {} lp_call M' hclear ok_res' res_res' _wt_res'.
   subst scs.
   have :=
     asm_gen_exportcall
@@ -939,6 +961,10 @@ Proof.
   exists xm', res''; split => //.
   - by case: LM' => /= _ <-.
   - by case: LM' => <-.
+  - move=> hcss p1 w hnvalid hread.
+    apply (hclear hcss p1 w hnvalid).
+    case: LM' => /= _ -> _ _ _ _ _ _.
+    done.
   apply: Forall2_trans res_res' res'_res''.
   exact: value_uincl_trans.
 Qed.
@@ -984,6 +1010,9 @@ Lemma compile_prog_to_asmP
             -> exists xm' res',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp), asm_scs xm' = scs'
+                  , (cparams.(clear_stack_info) fn <> None -> forall p w,
+                      ~ validw m p U8 ->
+                      read xm'.(asm_mem) p U8 = ok w -> read xm.(asm_mem) p U8 = ok w \/ w = 0%R)
                   , get_typed_reg_values xm' (asm_fd_res xd) = ok res'
                   & List.Forall2 value_uincl vr res'
                 ]
@@ -1004,23 +1033,28 @@ Proof.
   + move: (henough _ ok_xd). rewrite /allocatable_stack /=.
     simpl in *. Lia.lia.
   have := xp_call _ ok_scs ok_rsp ok_args' va_args' hallocatable.
-  case => xm' [] res' [] {} xp_call m2 ok_scs' ok_res' vr'_res'.
+  case => xm' [] res' [] {} xp_call m2 ok_scs' hclear ok_res' vr'_res'.
   exists xm', res';
     split => //;
     last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
-  case: xp_call => _ _ _ /= _ /asmsem_invariantP /= xm_xm' _.
-  exists mi'.
-  - rewrite -(asmsem_invariant_rip xm_xm').
-    exact: m1.
-  - exact: m2.
-  - transitivity mi;
-      last exact: (sem_call_stack_stable_sprog sp_call).
-    transitivity m; last exact: mi3.
-    symmetry. exact: (sem_call_stack_stable p_call).
-  rewrite
-    -(ss_limit (sem_call_stack_stable_sprog sp_call))
-    -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
-  exact: mi4.
+  - case: xp_call => _ _ _ /= _ /asmsem_invariantP /= xm_xm' _.
+    exists mi'.
+    - rewrite -(asmsem_invariant_rip xm_xm').
+      exact: m1.
+    - exact: m2.
+    - transitivity mi;
+        last exact: (sem_call_stack_stable_sprog sp_call).
+      transitivity m; last exact: mi3.
+      symmetry. exact: (sem_call_stack_stable p_call).
+    rewrite
+      -(ss_limit (sem_call_stack_stable_sprog sp_call))
+      -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
+    exact: mi4.
+  move=> hcss p1 w hnvalid hread.
+  case: mi1 => _ _ _ _ ? _.
+  (* presque... -> extend_mem avec = plutôt que incl *)
+  apply (hclear hcss p1 w).
+  + case: mi1 => _ _ _ _ ? _. extend_mem
 Qed.
 
 End PROOF.

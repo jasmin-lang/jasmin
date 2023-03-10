@@ -58,14 +58,15 @@ let pp_return fmt n =
    Not needed for the compilation. *)
 type stack_alloc_oracle_info = {
     extra_padding : Z.t (* padding included in extra_size *)
+  ; frame_size : Z.t (* total frame size = local vars size + extra size + padding *)
 }
 
 let pp_sao tbl fmt (sao, sao_info) =
-  let { extra_padding } = sao_info in
+  let { extra_padding; frame_size } = sao_info in
   let open Stack_alloc in
   let sao_size = Conv.z_of_cz sao.sao_size in
   let sao_extra_size = Conv.z_of_cz sao.sao_extra_size in
-  let sao_padding = Conv.z_of_cz sao.sao_padding in
+  let sao_max_size_used = Conv.z_of_cz sao.sao_max_size_used in
   let pp_extra fmt =
     Format.fprintf fmt "%a (= %a (data) + %a (padding))"
       Z.pp_print sao_extra_size
@@ -73,15 +74,20 @@ let pp_sao tbl fmt (sao, sao_info) =
   in
   let pp_frame fmt =
     Format.fprintf fmt "%a (= %a (local stack vars) + %a (extra) + %a (padding))"
-      Z.pp_print Z.(sao_size + sao_extra_size + sao_padding) Z.pp_print sao_size Z.pp_print sao_extra_size
-      Z.pp_print sao_padding
+      Z.pp_print frame_size Z.pp_print sao_size Z.pp_print sao_extra_size
+      Z.pp_print Z.(frame_size - sao_size - sao_extra_size)
   in
-  Format.fprintf fmt "alignment = %s@;size = %a@;extra size = %t@;frame size = %t@;max used size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
+  let pp_max_size_used fmt =
+    Format.fprintf fmt "%a (= %a (frame size) + %a (max stack size of callees))"
+      Z.pp_print sao_max_size_used Z.pp_print frame_size
+      Z.pp_print (Z.sub sao_max_size_used frame_size)
+  in
+  Format.fprintf fmt "alignment = %s@;size = %a@;extra size = %t@;frame size = %t@;max used size = %t@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
    (string_of_ws sao.sao_align)
     Z.pp_print sao_size
     pp_extra
     pp_frame
-    Z.pp_print (Conv.z_of_cz sao.sao_max_size_used)
+    pp_max_size_used
     Z.pp_print (Conv.z_of_cz sao.sao_max_call_depth)
     (pp_list "@;" (pp_param_info tbl)) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
@@ -183,7 +189,7 @@ let memory_analysis pp_err ~debug tbl up =
       })
     in
     let sao_infos  _ =
-      { extra_padding = Z.zero }
+      { extra_padding = Z.zero; frame_size = Z.zero }
     in
     Format.eprintf
 "(* -------------------------------------------------------------------- *)@.";
@@ -330,6 +336,7 @@ let memory_analysis pp_err ~debug tbl up =
     Hf.replace atbl fn csao;
     let sao_info = {
         extra_padding = Z.of_int extra_padding
+      ; frame_size
     } in
     Hf.add infos_tbl fn sao_info
   in
