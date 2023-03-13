@@ -1,11 +1,17 @@
 export
-fn cmp(reg u32 arg0, reg u32 arg1) -> reg u32 {
+fn cmp(reg u32 arg0 arg1 p) {
     reg bool n, z, c, v;
+    reg u32 x;
+    x = 0;
 
     n, z, c, v = #CMP(arg0, arg1);
+    x = 1 if n;
+    [p] = x;
 
     // Immediates.
     n, z, c, v = #CMP(arg0, 3);
+    x = 1 if n;
+    [p] = x;
 
     // Conditions.
     n, z, c, v = #CMPcc(arg0, arg1, z, n, z, c, v);            // EQ
@@ -25,5 +31,6 @@ fn cmp(reg u32 arg0, reg u32 arg1) -> reg u32 {
 
     n, z, c, v = #CMPcc(arg0, 3, z, n, z, c, v);
 
-    return arg0;
+    x = 1 if n;
+    [p] = x;
 }
