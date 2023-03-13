@@ -91,6 +91,11 @@
   ([PR #363](https://github.com/jasmin-lang/jasmin/pull/363);
   fixes [#54](https://github.com/jasmin-lang/jasmin/issues/54)).
 
+- Safety checker folds constant expressions during linearization
+  ([PR #387](https://github.com/jasmin-lang/jasmin/pull/387);
+  fixes [#385](https://github.com/jasmin-lang/jasmin/issues/385)),
+  [#386](https://github.com/jasmin-lang/jasmin/issues/386)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
