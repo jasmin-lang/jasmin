@@ -431,6 +431,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
   let rec linearize_iexpr abs (e : expr) =
+    match aeval_cst_zint abs e with
+    | Some c -> mtexpr_of_z c
+    | None ->
     match e with
     | Pconst z -> mtexpr_of_z z
 
