@@ -2552,7 +2552,7 @@ Proof.
       by apply (init_stack_layout_size_ge0 hlayout).
     + by apply /ZleP.
     move: hok; rewrite /alloc_ok => /(_ _ hfd2) /=; rewrite /allocatable_stack /sf_stk_max /= => -[hallocatable hal].
-    case: is_RAnone hal hmax hallocatable => [_|->] hmax hallocatable; last by apply /ZleP; lia.
+    case: is_RAnone hal hmax hallocatable => [_|-> //] hmax hallocatable; last by apply /ZleP; lia.
     case: is_align; last by apply /ZleP; lia.
     apply /ZleP.
     have := round_ws_range (sao_align (local_alloc fn)) (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
@@ -2765,9 +2765,28 @@ Proof.
   by apply: get_map_cfprog_name_gen hmap.
 Qed.
 
+
+(* [m2] is exactly [m1] augmented with data [data] at address [rip]. *)
+Record extend_mem_eq (m1 m2:mem) (rip:pointer) (data:seq u8) := {
+  eme_no_overflow : no_overflow rip (Z.of_nat (size data));
+    (* [rip] is able to store a block large enough *)
+  eme_align       : is_align rip U256;
+    (* [rip] is 32-bytes aligned (and thus is 1,2,4,8,16-bytes aligned) *)
+    (* could be formulated, [forall ws, is_align rip ws] *)
+  eme_read_old8   : forall p, validw m1 p U8 -> read m1 p U8 = read m2 p U8;
+    (* [m2] contains [m1] *)
+  eme_fresh       : forall p, validw m1 p U8 -> disjoint_zrange rip (Z.of_nat (size data)) p (wsize_size U8);
+   (* the bytes in [rip; rip + Z.of_nat (size data) - 1] are disjoint from the valid bytes of [m1] *)
+  eme_valid       : forall p, validw m1 p U8 || between rip (Z.of_nat (size data)) p U8 = validw m2 p U8;
+    (* [m2] contains exactly [m1] and [rip; rip + Z.of_nat (size data) - 1] *)
+  eme_read_new    : forall i, 0 <= i < Z.of_nat (size data) ->
+                     read m2 (rip + wrepr _ i)%R U8 = ok (nth 0%R data (Z.to_nat i))
+    (* the memory at address [rip] contains [data] *)
+}.
+
 (* Here are informal descriptions of the predicates used in the theorem.
 
-   - extend_mem m1 m2 rip data: [m2] is a memory that contains at least [m1]
+   - extend_mem_eq m1 m2 rip data: [m2] is a memory that contains exactly [m1]
        and (disjointly) data [data] at adress [rip];
 
    - wf_args: link between the values taken as arguments in the source and the target
@@ -2791,13 +2810,13 @@ Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
   forall ev scs1 m1 vargs1 scs1' m1' vres1,
     sem_call (sCP := sCP_unit) P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
     forall rip m2 vargs2,
-      extend_mem m1 m2 rip data ->
+      extend_mem_eq m1 m2 rip data ->
       wf_args data rip oracle m1 m2 fn vargs1 vargs2 ->
       disjoint_values (oracle fn).(sao_params) vargs1 vargs2 ->
       alloc_ok SP fn m2 ->
       exists m2' vres2,
         sem_call (sCP := sCP_stack) SP rip scs1 m2 fn vargs2 scs1' m2' vres2 /\
-        extend_mem m1' m2' rip data /\
+        extend_mem_eq m1' m2' rip data /\
         wf_results oracle m2' vargs1 vargs2 fn vres1 vres2 /\
         mem_unchanged_params oracle fn m1 m2 m2' vargs1 vargs2.
 Proof.
@@ -2812,8 +2831,12 @@ Proof.
   have [fd1 hfd1]: exists fd, get_fundef (p_funcs P) fn = Some fd.
   + have [fd1 [hfd1 _]] := sem_callE hsem1.
     by exists fd1.
-  by apply (check_cP
-              hext.(em_no_overflow)
+  have hext': extend_mem m1 m2 rip data.
+  + case: hext => hover halign hold hfresh hvalid hnew.
+    split=> //.
+    by move=> p; rewrite hvalid.
+  have := (check_cP
+              hext'.(em_no_overflow)
               hmap
               hcheck
               (P':=P')
@@ -2822,10 +2845,19 @@ Proof.
               (get_alloc_fd hfds)
               hneq
               hsem1
-              hext
+              hext'
               hargs
               hdisj
               halloc).
+  move=> [m2' [vres' [hcall [hext2 [hwf hunchanged]]]]].
+  exists m2', vres'.
+  split=> //; split=> //.
+  case hext2 => hover halign hold hfresh hvalid hnew.
+  split=> //.
+  move=> p.
+  rewrite -(sem_call_validw_stable_uprog hsem1).
+  rewrite -(sem_call_validw_stable_sprog hcall).
+  by apply hext.(eme_valid).
 Qed.
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :

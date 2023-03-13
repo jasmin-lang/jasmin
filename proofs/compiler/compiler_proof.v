@@ -295,13 +295,13 @@ Lemma compiler_front_endP
   compiler_front_end aparams cparams entries subroutines p = ok p' →
   fn \in entries →
   sem.sem_call p scs m fn va scs' m' vr →
-  extend_mem m mi gd (sp_globs (p_extra p')) →
+  extend_mem_eq m mi gd (sp_globs (p_extra p')) →
   alloc_ok p' fn mi →
   ∃ vr' mi',
     [/\
      List.Forall2 value_uincl vr vr',
      psem.sem_call p' gd scs mi fn va scs' mi' vr' &
-     extend_mem m' mi' gd (sp_globs (p_extra p'))
+     extend_mem_eq m' mi' gd (sp_globs (p_extra p'))
     ].
 Proof.
   rewrite /compiler_front_end;
@@ -455,7 +455,6 @@ Lemma compiler_back_endP
   psem.sem_call p rip scs m fn args scs' m' res →
   ∃ fd : lfundef,
     [/\
-      (* TODO_CS: This is not true. *)
       get_fundef tp.(lp_funcs) fn = Some fd,
       fd.(lfd_export) &
       ∀ lm vm args',
@@ -472,9 +471,9 @@ Lemma compiler_back_endP
           [/\
             lsem_exportcall tp scs lm fn vm scs' lm' vm',
             match_mem m' lm',
-            (cparams.(clear_stack_info) fn <> None -> forall p w,
+            (cparams.(clear_stack_info) fn <> None -> forall p,
               ~ validw m p U8 ->
-              read lm' p U8 = ok w -> read lm p U8 = ok w \/ w = 0%R),
+              read lm' p U8 = read lm p U8 \/ read lm' p U8 = ok 0%R),
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
             all2 check_ty_val fd.(lfd_tyout) res'
@@ -689,7 +688,7 @@ Proof.
     + by case: ows @ws {hcss} => /=; eauto.
     move=> {ws} [ws] ->.
     case=> h1 h2 _ _ {ws}.
-    move=> p0 w hnvalid ok_w.
+    move=> p0 hnvalid.
     have: no_overflow (align_word (lfd_align lfd) (top_stack m) - wrepr Uptr (lfd_used_stack lfd))
          (lfd_used_stack lfd).
     + rewrite /no_overflow zify.
@@ -707,7 +706,7 @@ Proof.
       assert (h:=wunsigned_range (align_word (sf_align (f_extra fd)) (top_stack m))).
       simpl in *. Lia.lia.
     case/(zbetween_or_disjoint_zrange p0).
-    + move=> /h1. rewrite ok_w. move=> [<-]. by right.
+    + move=> /h1. by right.
     move=> hdisj.
     left.
     rewrite (U p0 hnvalid); last first.
@@ -826,9 +825,9 @@ Lemma compiler_back_end_to_asmP
             -> exists xm' res',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , match_mem m' xm'.(asm_mem), xm'.(asm_scs) = scs'
-                  , (cparams.(clear_stack_info) fn <> None -> forall p w,
+                  , (cparams.(clear_stack_info) fn <> None -> forall p,
                       ~ validw m p U8 ->
-                      read xm'.(asm_mem) p U8 = ok w -> read xm.(asm_mem) p U8 = ok w \/ w = 0%R)
+                      read xm'.(asm_mem) p U8 = read xm.(asm_mem) p U8 \/ read xm'.(asm_mem) p U8 = ok 0%R)
                   , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
                   & List.Forall2 value_uincl res res'
                 ]
@@ -961,10 +960,9 @@ Proof.
   exists xm', res''; split => //.
   - by case: LM' => /= _ <-.
   - by case: LM' => <-.
-  - move=> hcss p1 w hnvalid hread.
-    apply (hclear hcss p1 w hnvalid).
-    case: LM' => /= _ -> _ _ _ _ _ _.
-    done.
+  - move=> hcss p1 hnvalid.
+    case: LM' => /= _ <- _ _ _ _ _ _.
+    by apply (hclear hcss p1 hnvalid).
   apply: Forall2_trans res_res' res'_res''.
   exact: value_uincl_trans.
 Qed.
@@ -976,7 +974,7 @@ Qed.
 
 Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
   { ma_ghost : mem
-  ; ma_extend_mem : extend_mem m ma_ghost gd data
+  ; ma_extend_mem : extend_mem_eq m ma_ghost gd data
   ; ma_match_mem : match_mem ma_ghost m'
   ; ma_stack_stable : stack_stable m ma_ghost
   ; ma_stack_range : (wunsigned (stack_limit ma_ghost) <= wunsigned (top_stack m'))%Z
@@ -1010,9 +1008,9 @@ Lemma compile_prog_to_asmP
             -> exists xm' res',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp), asm_scs xm' = scs'
-                  , (cparams.(clear_stack_info) fn <> None -> forall p w,
+                  , (cparams.(clear_stack_info) fn <> None -> forall p,
                       ~ validw m p U8 ->
-                      read xm'.(asm_mem) p U8 = ok w -> read xm.(asm_mem) p U8 = ok w \/ w = 0%R)
+                      read xm'.(asm_mem) p U8 = read xm.(asm_mem) p U8 \/ read xm'.(asm_mem) p U8 = ok 0%R)
                   , get_typed_reg_values xm' (asm_fd_res xd) = ok res'
                   & List.Forall2 value_uincl vr res'
                 ]
@@ -1050,11 +1048,22 @@ Proof.
       -(ss_limit (sem_call_stack_stable_sprog sp_call))
       -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
     exact: mi4.
-  move=> hcss p1 w hnvalid hread.
-  case: mi1 => _ _ _ _ ? _.
-  (* presque... -> extend_mem avec = plutôt que incl *)
-  apply (hclear hcss p1 w).
-  + case: mi1 => _ _ _ _ ? _. extend_mem
+  move=> hcss p1 hnvalid.
+  have := mi1.(eme_valid) p1.
+  case: (@idP (between _ _ _ _)).
+  + move=> hb _; left.
+    have: exists i, (0 <= i < (Z.of_nat (size (sp_globs (p_extra sp)))))%Z /\ (p1 = asm_rip xm + wrepr _ i)%R.
+    + exists (wunsigned p1 - wunsigned (asm_rip xm))%Z; split; last first.
+      + rewrite wrepr_sub !wrepr_unsigned.
+        by rewrite GRing.addrC GRing.subrK.
+      move: hb; rewrite /between /zbetween !zify wsize8. simpl. Lia.lia.
+    move=> [i [hi1 ->]].
+    have /mi2.(read_incl) -> := mi1.(eme_read_new) hi1.
+    have /m2.(read_incl) -> := m1.(eme_read_new) hi1.
+    done.
+  move=> _.
+  rewrite orbF. move=> h. rewrite {}h in hnvalid.
+  by apply (hclear hcss p1).
 Qed.
 
 End PROOF.

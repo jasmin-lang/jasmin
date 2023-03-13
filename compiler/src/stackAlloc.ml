@@ -157,7 +157,6 @@ let memory_analysis pp_err ~debug tbl up =
         sao_align  = align;
         sao_size   = Conv.cz_of_int size;
         sao_extra_size = Z0;
-        sao_padding = Z0;
         sao_max_size_used = Z0;
         sao_max_call_depth = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
@@ -269,19 +268,31 @@ let memory_analysis pp_err ~debug tbl up =
           if wsize_lt align ws then ws else align
       | _, _ -> align
     in
-    (* stack size + extra_size + padding *)
-    let stk_size = 
-      Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
-                 (Z.of_int extra_size) in
     (* if we clear the stack, we ensure that the stack size of the export
        function is a multiple of the alignment (this is what we systematically
        do for subroutines *)
+    let extra_size =
+      (* stack size + extra_size + padding *)
+      let stk_size = 
+        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                   (Z.of_int extra_size) in
+      match fd.f_annot.clear_stack with
+      | Some _ ->
+          (* TODO: replace all these round_ws with frame_size? *)
+          let round = Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size)) in
+          Z.to_int (Z.sub round (Conv.z_of_cz csao.Stack_alloc.sao_size))
+      | None -> extra_size
+    in
     let frame_size =
-      match fd.f_cc, fd.f_annot.clear_stack with
-      | Export, Some _ | Subroutine _, _ ->
+      (* stack size + extra_size + padding *)
+      let stk_size = 
+        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                   (Z.of_int extra_size) in
+      match fd.f_cc with
+      | Export -> stk_size
+      | Subroutine _ ->
         Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
-      | Export, None -> stk_size
-      | Internal, _ -> assert false
+      | Internal -> assert false
     in
     (* if we clear the stack, we ensure that the max size is a multiple of the
        size of the clear step. We use [fd.f_annot.clear_stack] and not [align],
