@@ -1,0 +1,43 @@
+export
+fn ldrsb(reg u32 arg) -> reg u32 {
+    reg u32 x;
+    x = (32s)(u8)[arg];
+
+    x = (32s)(u8)[x + 3];
+    x = (32s)(u8)[x - 3];
+
+    // Shifts.
+    x = (32s)(u8)[x + arg * 1];
+    x = (32s)(u8)[x + arg * 2];
+    x = (32s)(u8)[x + arg * 4];
+    x = (32s)(u8)[x + arg * 8];
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = (32s)(u8)[x] if z;            // EQ
+    x = (32s)(u8)[x] if !z;           // NE
+    x = (32s)(u8)[x] if c;            // CS
+    x = (32s)(u8)[x] if !c;           // CC
+    x = (32s)(u8)[x] if n;            // MI
+    x = (32s)(u8)[x] if !n;           // PL
+    x = (32s)(u8)[x] if v;            // VS
+    x = (32s)(u8)[x] if !v;           // VC
+    x = (32s)(u8)[x] if c && !z;      // HI
+    x = (32s)(u8)[x] if !c || z;      // LS
+    x = (32s)(u8)[x] if n == v;       // GE
+    x = (32s)(u8)[x] if n != v;       // LT
+    x = (32s)(u8)[x] if !z && n == v; // GT
+    x = (32s)(u8)[x] if z || n != v;  // LE
+
+    x = (32s)(u8)[x + arg] if !z;
+    x = (32s)(u8)[x + 3] if !z;
+    x = (32s)(u8)[x - 3] if !z;
+    x = (32s)(u8)[x + arg * 4] if !z;
+
+    reg u32 res;
+    res = x;
+    return res;
+}
