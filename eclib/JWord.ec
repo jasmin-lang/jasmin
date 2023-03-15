@@ -173,7 +173,10 @@ qed.
 op dword = duniform all_words.
 
 lemma dword_ll : is_lossless dword.
-proof. apply duniform_ll; smt(List.in_nil all_wordsP). qed.
+proof.
+apply: duniform_ll; apply/negP=> eq0.
+by have := all_wordsP witness; rewrite eq0.
+qed.
 
 lemma dword_uni : is_uniform dword.
 proof. by apply duniform_uni. qed.
