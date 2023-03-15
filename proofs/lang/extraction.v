@@ -1,12 +1,9 @@
-Require Import var compiler.
-Require sem.
-Require arm_params.
-Require x86_params.
-Require sem_params_of_arch_extra.
-Require waes.
+Require jasmin_compiler.
+(* Do not “Require” other modules from Jasmin here:
+   expand the jasmin_compiler module instead. *)
 
-Require ExtrOcamlBasic.
-Require ExtrOcamlString.
+From Coq Require ExtrOcamlBasic.
+From Coq Require ExtrOcamlString.
 
 (* This is a hack to force the extraction to keep the singleton here,
    This need should be removed if we add more constructor to syscall_t *)
