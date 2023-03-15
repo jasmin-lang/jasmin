@@ -19,7 +19,6 @@ variables:
 
 .common:
   before_script:
-  - nix-shell -p nix-info --run 'nix-info -m'
   - >-
     nix-shell
     --extra-substituters "$EXTRA_SUBSTITUTERS"
