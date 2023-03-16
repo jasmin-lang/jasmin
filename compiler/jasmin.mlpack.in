@@ -65,4 +65,5 @@ src/Typing
 src/Utils
 src/Varalloc
 src/X86_arch_full
+src/X86_safety
 src/Arm_arch_full

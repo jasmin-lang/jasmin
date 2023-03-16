@@ -29,11 +29,6 @@ module type Core_arch = sig
   val not_saved_stack : Name.t list
 
   val pp_asm : Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
-  val analyze :
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.prog ->
-    unit
 
   val callstyle : reg callstyle
 
