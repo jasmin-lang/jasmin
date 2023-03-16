@@ -68,7 +68,15 @@ module type Arch = sig
   val callstyle : var callstyle
 end
 
-module Arch_from_Core_arch (A : Core_arch) : Arch = struct
+module Arch_from_Core_arch (A : Core_arch) :
+  Arch
+    with type reg = A.reg
+     and type regx = A.regx
+     and type xreg = A.xreg
+     and type rflag = A.rflag
+     and type cond = A.cond
+     and type asm_op = A.asm_op
+     and type extra_op = A.extra_op = struct
   include A
 
   let arch_decl = A.asm_e._asm._arch_decl 
