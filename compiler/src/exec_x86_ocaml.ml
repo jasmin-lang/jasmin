@@ -12,7 +12,7 @@ let main () =
       if !first then (op := s; first := false)
       else args := s :: !args
   in
-  Arg.parse Glob_options.options set_in usage_msg;
+  Arg.parse_expand Glob_options.options set_in usage_msg;
   if !op = "" then failwith "an instruction is expected";
   let c =
     match !color with

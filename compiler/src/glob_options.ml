@@ -297,6 +297,13 @@ let options = [
     "-ip", Arg.Set_int ip, "initial value of ip";
     "-regs", Arg.Tuple (List.map (fun r -> Arg.Set_int r) regs), "initial values of the regs";
     "-flags", Arg.Tuple (List.map (fun f -> Arg.String (set_flag f)) flags), "initial values of the flags";
+    "-filearg",
+      Arg.Expand (fun name ->
+        let f = open_in name in
+        let s = input_line f in
+        close_in f;
+        Array.of_list (List.filter ((<>) "") (String.split_on_char ' ' s))),
+      "pass the arguments in a file"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
