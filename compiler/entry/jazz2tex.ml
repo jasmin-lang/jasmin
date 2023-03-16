@@ -7,9 +7,11 @@ let parse_and_print arch call_conv =
     J.Arch_full.Arch_from_Core_arch
       ((val match arch with
             | Amd64 ->
-                J.CoreArchFactory.core_arch_x86 ~use_lea:false ~use_set0:false
-                  call_conv
-            | CortexM -> (module J.CoreArchFactory.Core_arch_ARM))) in
+                (module (val J.CoreArchFactory.core_arch_x86 ~use_lea:false
+                               ~use_set0:false call_conv)
+                : J.Arch_full.Core_arch)
+            | CortexM ->
+                (module J.CoreArchFactory.Core_arch_ARM : J.Arch_full.Core_arch))) in
   fun output file ->
     let _, _, ast = J.Compile.parse_file A.reg_size A.asmOp_sopn file in
     let out, close =

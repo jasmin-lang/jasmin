@@ -65,7 +65,7 @@ let main () =
 
     let (module Ocaml_params : Arch_full.Core_arch) =
       match !target_arch with
-      | X86_64 -> CoreArchFactory.core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv
+      | X86_64 -> (module (val CoreArchFactory.core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv) : Arch_full.Core_arch)
       | ARM_M4 -> (module CoreArchFactory.Core_arch_ARM)
     in
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
