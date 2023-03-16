@@ -1,0 +1,8 @@
+export fn f () -> reg u64 {
+  reg bool b; // maybe this should be rejected by typechecking
+  reg u64 res;
+  if (b) {
+    res = 2;
+  }
+  return res;
+}
