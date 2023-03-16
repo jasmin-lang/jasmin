@@ -756,7 +756,9 @@ let greedy_allocation
           else push_var extra_scalars i v
       | Vector -> push_var vectors i v
       | Flag -> push_var flags i v
-      | Unknown _ -> ()
+      | Unknown ty ->
+          hierror_reg ~loc:Lnone "unable to allocate variable %a (defined at %a): no register bank for type %a"
+            (Printer.pp_var ~debug:true) v L.pp_loc v.v_dloc PrintCommon.pp_ty ty
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
   two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;

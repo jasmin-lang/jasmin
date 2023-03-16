@@ -1,8 +1,7 @@
-export fn f () -> reg u64 {
-  reg bool b; // maybe this should be rejected by typechecking
+export fn main () -> reg u64 {
   reg u64 res;
-  if (b) {
-    res = 2;
-  }
+  reg int toto;
+  toto = 0;
+  res = (64u)toto;
   return res;
 }
