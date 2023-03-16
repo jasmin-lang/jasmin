@@ -58,17 +58,35 @@ let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
+module type ArchCoreWithAnalyze = sig
+  module C : Arch_full.Core_arch
+  val analyze :
+    (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op Sopn.asmOp ->
+    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
+    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
+    (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) prog -> unit
+end
+
+
 let main () =
 
   try
     let infile = parse() in
 
-    let (module Ocaml_params : Arch_full.Core_arch) =
+    let (module P : ArchCoreWithAnalyze) =
       match !target_arch with
-      | X86_64 -> (module (val CoreArchFactory.core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv) : Arch_full.Core_arch)
-      | ARM_M4 -> (module CoreArchFactory.Core_arch_ARM)
+      | X86_64 ->
+         (module struct
+            module C = (val CoreArchFactory.core_arch_x86 ~use_lea:!lea ~use_set0:!set0 !call_conv)
+            let analyze = X86_safety.analyze
+          end)
+      | ARM_M4 ->
+         (module struct
+            module C = CoreArchFactory.Core_arch_ARM
+            let analyze _ _ = failwith "TODO_ARM: analyze"
+          end)
     in
-    let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
+    let module Arch = Arch_full.Arch_from_Core_arch (P.C) in
     let ep =
       Sem_params_of_arch_extra.ep_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem
     in
@@ -143,7 +161,7 @@ let main () =
     *)
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_p Arch.asmOp Arch.analyze s p source_prog
+        check_safety_p Arch.asmOp (P.analyze Arch.asmOp) s p source_prog
         |> donotcompile
       else (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;

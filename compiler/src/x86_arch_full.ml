@@ -40,16 +40,5 @@ module X86 (Lowering_params : X86_input) :
       (X86_params.x86_liparams.lip_not_saved_stack)
 
   let pp_asm = Ppasm.pp_prog
-
-  let analyze source_f_decl f_decl p =
-    let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
-        let main_source = source_f_decl
-        let main = f_decl
-        let prog = p
-      end) in
-  (* FIXME: code duplication! already in arch_full.ml *)
-  let asmOp = Arch_extra.asm_opI asm_e in
-  AbsInt.analyze asmOp ()
-
   let callstyle = Arch_full.StackDirect
 end
