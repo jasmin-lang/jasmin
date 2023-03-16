@@ -1,0 +1,6 @@
+export
+fn too_many_large_ret() -> reg u64 {
+  reg u64 x;
+  x = 0;
+  return x;
+}

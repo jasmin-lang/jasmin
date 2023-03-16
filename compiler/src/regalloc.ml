@@ -578,23 +578,27 @@ module Regalloc (Arch : Arch_full.Arch)
 
 let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t) (cnf: conflicts)
     (f: ('info, 'asm) func) (a: A.allocation) : unit =
-  let split ~ctxt =
+  let split ~ctxt ~num =
     function
     | hd :: tl -> hd, tl
     | [] ->
-       hierror_reg ~loc:(Lone f.f_loc) ~funname:f.f_name.fn_name "too many %s according to the ABI"
-         ctxt
+       hierror_reg ~loc:(Lone f.f_loc) ~funname:f.f_name.fn_name "too many %s according to the ABI (only %d available on this architecture)"
+         ctxt num
   in
   let alloc_from_list loc ~ctxt rs xs q vs : unit =
     let f x = Hv.find vars x in
+    let num_rs = List.length rs in
+    let num_xs = List.length xs in
     List.fold_left (fun (rs, xs) p ->
         let p = q p in
         match f p with
         | i ->
           let d, rs, xs =
             match kind_of_type Arch.reg_size p.v_ty with
-            | Word -> let d, rs = split ~ctxt rs in d, rs, xs
-            | Vector -> let d, xs = split ~ctxt xs in d, rs, xs
+            | Word -> let d, rs = split ~ctxt ~num:num_rs rs in d, rs, xs
+            | Vector ->
+                let ctxt = "large " ^ ctxt in
+                let d, xs = split ~ctxt ~num:num_xs xs in d, rs, xs
             | Flag ->
                hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" (Printer.pp_var ~debug:true) p
             | Unknown ty ->

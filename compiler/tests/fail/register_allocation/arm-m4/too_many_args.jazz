@@ -1,0 +1,2 @@
+export
+fn too_many_args(reg u32 a b c d e) {}

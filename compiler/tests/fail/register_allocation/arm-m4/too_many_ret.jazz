@@ -2,8 +2,8 @@
    triggered. */
 
 export
-fn too_many_ret() -> reg u64, reg u64, reg u64 {
-  reg u64 x y z;
+fn too_many_ret() -> reg u32, reg u32, reg u32 {
+  reg u32 x y z;
   x = 0;
   y = 1;
   z = 2;
