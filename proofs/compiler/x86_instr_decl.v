@@ -1427,11 +1427,11 @@ Definition pp_viname_t name ve (ts:seq wsize) args :=
 
 Definition Ox86_VPEXTR_instr :=
   ((fun sz =>
-      let ve := if sz == U32 then  VE32 else VE64 in
-      mk_instr (pp_sz "VPEXTR" sz) w128w8_ty (w_ty sz) [:: E 1 ; E 2] [:: E 0] (reg_msb_flag sz) (@x86_VPEXTR sz)
-                       (check_vpextr sz) 3 [::]
-                       (pp_viname_t "vpextr" ve [:: sz; U128; U8])),
-    ("VPEXTR"%string, (primP VPEXTR))).
+      let ve := match sz with U8 => VE8 | U16 => VE16 | U32 => VE32 | _ => VE64 end in
+      mk_instr (pp_sz "VPEXTR" sz) w128w8_ty (w_ty sz) [:: E 1 ; E 2] [:: E 0]
+               MSB_CLEAR (@x86_VPEXTR sz) (check_vpextr sz) 3 [::]
+               (pp_viname_t "vpextr" ve [:: if sz==U32 then U32 else U64; U128; U8])),
+   ("VPEXTR"%string, (primP VPEXTR))).
 
 Definition pp_vpinsr ve args :=
   let rs := match ve with VE8 | VE16 | VE32 => U32 | VE64 => U64 end in
