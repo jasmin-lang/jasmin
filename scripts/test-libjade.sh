@@ -12,7 +12,7 @@ OUT="results"
 
 DIR="$ROOT/$1"
 
-MAKELINE="-C $DIR CI=1 JASMIN=$PWD/compiler/jasminc.native"
+MAKELINE="-C $DIR CI=1 JASMIN=$PWD/compiler/jasminc"
 
 # Exclude primitives that are known not to build
 export EXCLUDE=""
