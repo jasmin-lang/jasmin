@@ -172,6 +172,10 @@ Variant x86_op : Type :=
 | VAESIMC
 | AESKEYGENASSIST
 | VAESKEYGENASSIST 
+
+(* PCLMULQDQ instructions *)
+| PCLMULQDQ
+| VPCLMULQDQ of wsize
 .
 
 Scheme Equality for x86_op.
@@ -956,6 +960,39 @@ Definition x86_AESENC          (v1 v2 : u128)           : ex_tpl (w_ty U128) := 
 Definition x86_AESENCLAST      (v1 v2 : u128)           : ex_tpl (w_ty U128) := ok (wAESENCLAST      v1 v2).
 Definition x86_AESIMC          (v1    : u128)           : ex_tpl (w_ty U128) := ok (wAESIMC          v1).
 Definition x86_AESKEYGENASSIST (v1    : u128) (v2 : u8) : ex_tpl (w_ty U128) := ok (wAESKEYGENASSIST v1 v2).
+
+(* --------------------------------------------------------------------------------------
+Instruction:		PCLMULQDQ xmm1, xmm2/m128, imm8
+CPUID feature flag:	PCLMULQDQ
+Description:		Carry-less multiplication of one quadword of xmm1 by one quadword
+			of xmm2/m128, stores the 128-bit result in xmm1. The immediate is
+			used to determine which quadwords of xmm1 and xmm2/m128 should be
+			used.
+Instruction:		VPCLMULQDQ xmm1, xmm2, xmm3/m128, imm8
+CPUID feature flag:	PCLMULQDQ AVX
+Description:		Carry-less multiplication of one quadword of xmm2 by one quadword
+			of xmm3/m128, stores the 128-bit result in xmm1. The immediate is
+			used to determine which quadwords of xmm2 and xmm3/m128 should be
+			used.
+Instruction:		VPCLMULQDQ ymm1, ymm2, ymm3/m256, imm8
+CPUID feature flag:	VPCLMULQDQ
+Description:		Carry-less multiplication of one quadword of ymm2 by one quadword
+			of ymm3/m256, stores the 128-bit result in ymm1. The immediate is
+			used to determine which quadwords of ymm2 and ymm3/m256 should be
+			used.                                                            *)
+
+Definition wclmulq (x1 x2: word U64): word U128 :=
+ let x := zero_extend U128 x1 in
+ foldr (fun k r => wxor (if wbit_n x2 k then wshl x (Z.of_nat k) else 0%R) r) 0%R (iota 0 64).
+
+Definition wPCLMULDQD sz (w1 w2: word sz): word sz :=
+ let x1 := @nth (word U64) 0%R (split_vec U64 w1) (wbit_n w2 0) in
+ let x2 := @nth (word U64) 0%R (split_vec U64 w2) (wbit_n w2 4) in
+ zero_extend sz (wclmulq x1 x2).
+
+Definition x86_VPCLMULQDQ sz (v1 v2: word sz) (k: u8): ex_tpl (w_ty sz) :=
+ let _ := check_size_128_256 sz in
+ ok (wPCLMULDQD v1 v2).
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -1767,6 +1804,23 @@ Definition Ox86_VAESKEYGENASSIST_instr :=
    (check_xmm_xmmm_imm8 U128) 3 (PrimM VAESKEYGENASSIST)
    (pp_name_ty "vaeskeygenassist" [::U128;U128;U8]).
 
+(* PCLMULDQD instructions *)
+
+Definition Ox86_PCLMULQDQ_instr := 
+  mk_instr_pp "PCLMULQDQ" [:: sword U128; sword U128; sword U8] (w_ty U128)
+    [:: E 0; E 1; E 2] [:: E 0] MSB_CLEAR (@x86_VPCLMULQDQ U128)
+    (check_xmm_xmmm_imm8 U128) 3 (PrimM PCLMULQDQ)
+   (pp_name_ty "pclmulqdq" [::U128;U128;U8]).
+
+Definition Ox86_VPCLMULQDQ_instr := 
+ (fun sz =>
+   mk_instr (pp_sz "VPCLMULQDQ"%string sz) [:: sword sz; sword sz; sword U8] (w_ty sz)
+       [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR (@x86_VPCLMULQDQ sz)
+       (check_xmm_xmm_xmmm_imm8 sz) 4 [::] (pp_name "vpclmulqdq" sz)
+ , ("VPCLMULQDQ"%string, PrimP U128 VPCLMULQDQ)).
+  
+
+
 Definition x86_instr_desc o : instr_desc_t :=
   match o with
   | MOV sz             => Ox86_MOV_instr.1 sz
@@ -1898,6 +1952,8 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VAESIMC            => Ox86_VAESIMC_instr.1         
   | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1 
   | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1 
+  | PCLMULQDQ          => Ox86_PCLMULQDQ_instr.1
+  | VPCLMULQDQ sz      => Ox86_VPCLMULQDQ_instr.1 sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -2033,6 +2089,8 @@ Definition x86_prim_string :=
    Ox86_VAESIMC_instr.2;         
    Ox86_AESKEYGENASSIST_instr.2; 
    Ox86_VAESKEYGENASSIST_instr.2;
+   Ox86_PCLMULQDQ_instr.2;
+   Ox86_VPCLMULQDQ_instr.2;
    ("VPMAX"%string, 
      PrimSV (fun signedness ve sz => 
               if signedness is Signed then VPMAXS ve sz else VPMAXU ve sz));

@@ -964,6 +964,30 @@ abbrev [-printing] VAESENCLAST      = AESENCLAST.
 abbrev [-printing] VAESIMC          = AESIMC.
 abbrev [-printing] VAESKEYGENASSIST = AESKEYGENASSIST.
 
+(* ------------------------------------------------------------------- *)
+(* PCLMULQDQ instructions *)
+(*
+| PCLMULQDQ
+| VPCLMULQDQ  of wsize
+*)
+op clmulq (x y: W64.t): W128.t =
+ let x128 =  W128.of_int (to_uint x) in
+ foldr (fun i r => (if y.[i] then x128 `<<<` i else W128.zero) `^` r)
+       W128.zero
+       (iota_ 0 64).
+
+op PCLMULQDQ (v1 v2: W128.t) (k: int): W128.t =
+ let x1 = v1 \bits64 (k %% 2) in
+ let x2 = v2 \bits64 (k %% 16 %% 2) in
+ clmulq x1 x2.
+
+abbrev [-printing] VPCLMULQDQ_128 = PCLMULQDQ.
+
+op VPCLMULQDQ_256 (v1 v2: W256.t) (k: int): W256.t =
+ let x1 = v1 \bits64 (k %% 2) in
+ let x2 = v2 \bits64 (k %% 16 %% 2) in
+ pack2 [ W128.zero; clmulq x1 x2].
+
 
 (* -------------------------------------------------------------------- *)
 
