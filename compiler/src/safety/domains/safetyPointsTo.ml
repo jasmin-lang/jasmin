@@ -44,7 +44,7 @@ module PointsToImpl : PointsTo = struct
             Some (List.sort_uniq Stdlib.compare l_inter )
         ) t.pts t'.pts in
 
-    { t with pts = pts'' }
+    { pts = pts'' }
 
   let join : t -> t -> t = fun t t' ->
     let pts'' =
@@ -55,7 +55,7 @@ module PointsToImpl : PointsTo = struct
             Some (List.sort_uniq Stdlib.compare (l @ l'))
         ) t.pts t'.pts in
 
-    { t with pts = pts'' }
+    { pts = pts'' }
 
   let widening t t' = join t t'
 
@@ -73,7 +73,7 @@ module PointsToImpl : PointsTo = struct
 
   let forget_list : t -> mvar list -> t = fun t l_rem ->
     let l_rem = u8_blast_vars ~blast_arrays:true l_rem in 
-    { t with pts = Mm.filter (fun v _ -> not (List.mem v l_rem)) t.pts }
+    { pts = Mm.filter (fun v _ -> not (List.mem v l_rem)) t.pts }
 
   let is_included : t -> t -> bool = fun t t' ->
     Mm.for_all (fun v l ->
@@ -94,11 +94,11 @@ module PointsToImpl : PointsTo = struct
     aux [] ptrss
 
   let pt_assign : t -> mvar -> ptrs -> t = fun t v ptrs -> match ptrs with
-    | Ptrs vpts -> { t with pts = Mm.add v vpts t.pts }
-    | TopPtr -> { t with pts = Mm.remove v t.pts }
+    | Ptrs vpts -> { pts = Mm.add v vpts t.pts }
+    | TopPtr -> { pts = Mm.remove v t.pts }
 
   let assign_ptr_expr : t -> mvar -> ptr_expr -> t = fun t v e -> match e with
-    | PtTopExpr -> { t with pts = Mm.remove v t.pts }
+    | PtTopExpr -> { pts = Mm.remove v t.pts }
     | PtVars el ->
       let v_pts =
         List.fold_left (fun acc var ->
