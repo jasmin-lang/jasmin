@@ -10,8 +10,8 @@ trap "rm -r ${DIR}" EXIT
 set -x
 
 # Check that no printer crashes
-$(dirname $0)/../jasminc.native -pall "$@" >/dev/null
+$(dirname $0)/../jasminc -pall "$@" >/dev/null
 # Pretty-print the program before compilation
-$(dirname $0)/../jasminc.native -ptyping "$@" > ${OUT}
+$(dirname $0)/../jasminc -ptyping "$@" > ${OUT}
 # Try to parse it and type-check it again
-$(dirname $0)/../jasminc.native -until_typing ${OUT}
+$(dirname $0)/../jasminc -until_typing ${OUT}

@@ -1,0 +1,6 @@
+(ocamllex
+ (modules lexer))
+
+(menhir
+ (flags "--table" "--explain")
+ (modules parser))

@@ -1,20 +1,6 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-OCAMLBUILD_JOBS  ?= 2
-OCAMLBUILD_BIN   ?= ocamlbuild
-OCAMLBUILD_EXTRA ?=
-OCAMLBUILD_OPTS  := -use-ocamlfind -j $(OCAMLBUILD_JOBS)
-
-# In Emacs, use classic display to enable error jumping.
-ifeq ($(shell echo $$TERM), dumb)
- OCAMLBUILD_OPTS += -classic-display
-endif
-OCAMLBUILD_OPTS += $(OCAMLBUILD_EXTRA)
-
-OCAMLBUILD := $(OCAMLBUILD_BIN) $(OCAMLBUILD_OPTS)
-
-# --------------------------------------------------------------------
 JSJOBS    ?= 2
 CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
@@ -45,26 +31,21 @@ OBELISK ?= obelisk
 all: build
 	@true
 
-build: jasmin.mlpack native
+build: native
 
 define do-build
 	$(RM) jasminc jazz2tex
-	$(OCAMLBUILD) "entry/jasminc.$(1)" "entry/jazz2tex.$(1)"
-	ln -sf "_build/entry/jasminc.$(1)" jasminc
-	ln -sf "_build/entry/jazz2tex.$(1)" jazz2tex
+	dune build jasminc.$(1)
+	dune build jazz2tex.$(1)
+	ln -sf "_build/default/jasminc.$(1)" jasminc
+	ln -sf "_build/default/jazz2tex.$(1)" jazz2tex
 endef
 
 byte:
-	$(call do-build,byte)
+	$(call do-build,bc)
 
 native:
-	$(call do-build,native)
-
-jasmin.mlpack: __force__
-	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
-	  cat jasmin.mlpack.in; \
-	  echo "$(wildcard CIL/*.ml*)" | tr ' ' '\n' | sed 's/\..*$$//' | sort -u ) \
-	> jasmin.mlpack
+	$(call do-build,exe)
 
 CIL:
 	rm -f CIL/*.ml CIL/*.mli ../proofs/extraction.vo
@@ -79,14 +60,14 @@ check-ci:
 	$(CHECK) --report=- $(CHECKCATS)
 
 clean:
-	$(OCAMLBUILD) -clean -classic-display
+	dune clean
 	rm -rf _c_build
-	rm -f jasminc.native jasminc.byte lib*.a
+	rm -f jasminc jazz2tex lib*.a
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) -m 0755 -T jasminc.native $(DESTDIR)$(BINDIR)/jasminc
-	$(INSTALL) -m 0755 -T jazz2tex.native $(DESTDIR)$(BINDIR)/jazz2tex
+	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
+	$(INSTALL) -m 0755 -T jazz2tex $(DESTDIR)$(BINDIR)/jazz2tex
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
@@ -111,8 +92,8 @@ lib%.a: _c_build/%.o
 _c_build/%.o: _c_build/%.s
 	gcc -c -o $@ $<
 
-_c_build/%.s: examples/%.jazz _c_build jasminc.native
-	./jasminc.native $< -o $@
+_c_build/%.s: examples/%.jazz _c_build jasminc
+	./jasminc $< -o $@
 
 # --------------------------------------------------------------------
 %.inferred.mli:
