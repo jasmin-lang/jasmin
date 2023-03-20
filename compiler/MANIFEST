@@ -4,9 +4,9 @@ README.md
 
 default.nix
 Makefile
-jasmin.mlpack.in
-_tags
-myocamlbuild.ml
+dune
+dune-project
+src/dune
 .merlin
 
 find:CIL:*.ml
