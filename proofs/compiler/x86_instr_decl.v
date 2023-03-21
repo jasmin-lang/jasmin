@@ -716,10 +716,12 @@ Definition x86_VPMULHRS ve sz v1 v2 :=
 (* ---------------------------------------------------------------- *)
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
   Let _ := check_size_8_64 ve in
+  let i := wand i (x86_nelem_mask ve U128) in
   ok (nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i))).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VPINSR (ve: velem) (v1: u128) (v2: word ve) (i: u8) : ex_tpl (w_ty U128) :=
+  let i := wand i (x86_nelem_mask ve U128) in
   ok (wpinsr v1 v2 i).
 
 Arguments x86_VPINSR : clear implicits.
