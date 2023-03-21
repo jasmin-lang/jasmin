@@ -981,18 +981,19 @@ Description:		Carry-less multiplication of one quadword of ymm2 by one quadword
 			used to determine which quadwords of ymm2 and ymm3/m256 should be
 			used.                                                            *)
 
-Definition wclmulq (x1 x2: word U64): word U128 :=
+Definition wclmulq (x1 x2: u64): word U128 :=
  let x := zero_extend U128 x1 in
  foldr (fun k r => wxor (if wbit_n x2 k then wshl x (Z.of_nat k) else 0%R) r) 0%R (iota 0 64).
 
-Definition wPCLMULDQD sz (w1 w2: word sz): word sz :=
- let x1 := @nth (word U64) 0%R (split_vec U64 w1) (wbit_n w2 0) in
- let x2 := @nth (word U64) 0%R (split_vec U64 w2) (wbit_n w2 4) in
- zero_extend sz (wclmulq x1 x2).
+Definition wVPCLMULDQD sz (w1 w2: word sz) (k: u8): word sz :=
+ let get1 (w: u128) := @nth u64 0%R (split_vec U64 w) (wbit_n k 0) in
+ let get2 (w: u128) := @nth u64 0%R (split_vec U64 w) (wbit_n k 4) in
+ let f (w1 w2: u128) := wclmulq (get1 w1) (get2 w2) in
+ make_vec sz (map2 f (split_vec U128 w1) (split_vec U128 w2)).
 
 Definition x86_VPCLMULQDQ sz (v1 v2: word sz) (k: u8): ex_tpl (w_ty sz) :=
  let _ := check_size_128_256 sz in
- ok (wPCLMULDQD v1 v2).
+ ok (wVPCLMULDQD v1 v2 k).
 
 (* ----------------------------------------------------------------------------- *)
 

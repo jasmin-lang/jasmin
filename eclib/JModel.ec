@@ -976,18 +976,16 @@ op clmulq (x y: W64.t): W128.t =
        W128.zero
        (iota_ 0 64).
 
-op PCLMULQDQ (v1 v2: W128.t) (k: int): W128.t =
- let x1 = v1 \bits64 (k %% 2) in
- let x2 = v2 \bits64 (k %% 16 %% 2) in
- clmulq x1 x2.
+op PCLMULQDQ (v1 v2: W128.t) (k: W8.t): W128.t =
+ let x0 = v1 \bits64 (W8.to_uint k %% 2) in
+ let x1 = v2 \bits64 (W8.to_uint k %/ 16 %% 2) in
+ clmulq x0 x1.
 
 abbrev [-printing] VPCLMULQDQ_128 = PCLMULQDQ.
 
-op VPCLMULQDQ_256 (v1 v2: W256.t) (k: int): W256.t =
- let x1 = v1 \bits64 (k %% 2) in
- let x2 = v2 \bits64 (k %% 16 %% 2) in
- pack2 [ W128.zero; clmulq x1 x2].
-
+op VPCLMULQDQ_256 (v1 v2: W256.t) (k: W8.t): W256.t =
+ pack2 [ PCLMULQDQ (v1 \bits128 0) (v2 \bits128 0) k
+       ; PCLMULQDQ (v1 \bits128 1) (v2 \bits128 1) k ].
 
 (* -------------------------------------------------------------------- *)
 
