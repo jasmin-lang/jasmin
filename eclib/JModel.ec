@@ -977,8 +977,8 @@ op clmulq (x y: W64.t): W128.t =
        (iota_ 0 64).
 
 op PCLMULQDQ (v1 v2: W128.t) (k: W8.t): W128.t =
- let x0 = v1 \bits64 (W8.to_uint k %% 2) in
- let x1 = v2 \bits64 (W8.to_uint k %/ 16 %% 2) in
+ let x0 = v1 \bits64 (b2i k.[0]) in
+ let x1 = v2 \bits64 (b2i k.[4]) in
  clmulq x0 x1.
 
 abbrev [-printing] VPCLMULQDQ_128 = PCLMULQDQ.
