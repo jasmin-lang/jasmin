@@ -22,6 +22,8 @@
   ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
   `VMOVDQA`
   ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
+  `PCLMULQDQ`, `VPCLMULQDQ`
+  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
 
 - Add bit rotation operators for expressions: `<<r` and `>>r`
   ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
