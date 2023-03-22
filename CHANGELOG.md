@@ -58,6 +58,8 @@ This release fixes the AUTHORS file which was not up-to-date.
   ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
   `VMOVDQA`
   ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
+  `PCLMULQDQ`, `VPCLMULQDQ`
+  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
 
 - Division and modulo operators can be used in compound assignments
   (e.g., `x /= y`)
