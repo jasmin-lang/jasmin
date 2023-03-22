@@ -7,7 +7,6 @@ Makefile
 dune
 dune-project
 src/dune
-.merlin
 jasmin.opam
 
 find:CIL:*.ml
