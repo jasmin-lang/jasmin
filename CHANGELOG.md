@@ -61,6 +61,10 @@
   fixes [#385](https://github.com/jasmin-lang/jasmin/issues/385)),
   [#386](https://github.com/jasmin-lang/jasmin/issues/386)).
 
+- Fix compilation and semantics of the `VPEXTR` and `VPINSR` instructions
+  ([PR #394](https://github.com/jasmin-lang/jasmin/pull/394);
+  fixes [#395](https://github.com/jasmin-lang/jasmin/issues/395)).
+
 ## Other changes
 
 - The live-range-splitting transformation is run a second time after

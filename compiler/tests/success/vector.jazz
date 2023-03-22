@@ -213,21 +213,28 @@ z = #VPSLLV_4u64(x, y);
 }
 
 export
-fn test_vpextr(reg u64 p) -> reg u32 {
-reg u32 r, x;
-reg u64 y;
+fn test_vpextr(reg u64 p) -> reg u64 {
+reg u32 r32, x;
+reg u64 r64, y;
 reg u128 a;
 
-r = 0;
+r32 = 0;
 
 a = (u128)[p + 0];
 
+x = (32u) #VPEXTR_8(a, 5);
+r32 += x;
 x = #VPEXTR_32(a, 0);
-y = #VPEXTR_64(a, 1);
-r += x;
-r += y;
+r32 += x;
 
-return r;
+r64 = (64u) r32;
+
+y = (64u) #VPEXTR_16(a, 3);
+r64 += y;
+y = #VPEXTR_64(a, 1);
+r64 += y;
+
+return r64;
 }
 
 export

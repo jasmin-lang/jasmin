@@ -717,10 +717,12 @@ Definition x86_VPMULHRS ve sz v1 v2 :=
 (* ---------------------------------------------------------------- *)
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
   Let _ := check_size_8_64 ve in
+  let i := wand i (x86_nelem_mask ve U128) in
   ok (nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i))).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VPINSR (ve: velem) (v1: u128) (v2: word ve) (i: u8) : ex_tpl (w_ty U128) :=
+  let i := wand i (x86_nelem_mask ve U128) in
   ok (wpinsr v1 v2 i).
 
 Arguments x86_VPINSR : clear implicits.
@@ -1437,11 +1439,11 @@ Definition pp_viname_t name ve (ts:seq wsize) args :=
 
 Definition Ox86_VPEXTR_instr :=
   ((fun sz =>
-      let ve := if sz == U32 then  VE32 else VE64 in
-      mk_instr (pp_sz "VPEXTR" sz) w128w8_ty (w_ty sz) [:: E 1 ; E 2] [:: E 0] (reg_msb_flag sz) (@x86_VPEXTR sz)
-                       (check_vpextr sz) 3 U128 [::]
-                       (pp_viname_t "vpextr" ve [:: sz; U128; U8])),
-    ("VPEXTR"%string, (primP VPEXTR))).
+      let ve := match sz with U8 => VE8 | U16 => VE16 | U32 => VE32 | _ => VE64 end in
+      mk_instr (pp_sz "VPEXTR" sz) w128w8_ty (w_ty sz) [:: E 1 ; E 2] [:: E 0]
+               MSB_CLEAR (@x86_VPEXTR sz) (check_vpextr sz) 3 U128 [::]
+               (pp_viname_t "vpextr" ve [:: if sz==U32 then U32 else U64; U128; U8])),
+   ("VPEXTR"%string, (primP VPEXTR))).
 
 Definition pp_vpinsr ve args :=
   let rs := match ve with VE8 | VE16 | VE32 => U32 | VE64 => U64 end in
