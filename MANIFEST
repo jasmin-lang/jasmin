@@ -19,9 +19,8 @@ compiler/entry/jasminc.ml
 compiler/src/LICENSE.puf
 compiler/scripts/runtest
 compiler/Makefile
-compiler/dune
+find:compiler:dune
 compiler/dune-project
-compiler/src/dune
 compiler/jasmin.opam
 compiler/CIL/.keep
 compiler/config/tests.config

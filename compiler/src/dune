@@ -4,3 +4,21 @@
 (menhir
  (flags "--table" "--explain")
  (modules parser))
+
+(library
+  (name jasmin_support)
+  (wrapped false)
+  (modules annotations fInfo iInfo location syscall_t)
+  (libraries zarith))
+
+(library
+ (name jasmin)
+ (flags -rectypes)
+ (modules (:standard \ annotations fInfo iInfo location syscall_t x86_safety main_compiler))
+ (libraries cil jasmin_support batteries zarith menhirLib))
+
+(library
+  (name jasmin_compiler)
+  (flags -rectypes)
+  (modules main_compiler x86_safety)
+  (libraries jasmin_checksafety))

@@ -143,7 +143,7 @@ opam-compiler:
     nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
     'eval $(opam env) &&
      make -C compiler -j$NIX_BUILD_CORES &&
-     (cd compiler && mkdir -p bin && cp _build/default/jasminc.exe bin/jasminc)'
+     (cd compiler && mkdir -p bin && cp _build/default/entry/jasminc.exe bin/jasminc)'
   artifacts:
     paths:
     - compiler/bin/jasminc

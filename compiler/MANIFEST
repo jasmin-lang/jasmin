@@ -4,10 +4,10 @@ README.md
 
 default.nix
 Makefile
-dune
 dune-project
-src/dune
 jasmin.opam
+
+find:.:dune
 
 find:CIL:*.ml
 find:CIL:*.mli

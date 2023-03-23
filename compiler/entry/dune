@@ -1,0 +1,15 @@
+(executable
+ (public_name jasminc)
+ (name jasminc)
+ (modules jasminc)
+ (flags -rectypes)
+ (modes byte exe)
+ (libraries jasmin jasmin_compiler))
+
+(executable
+ (public_name jazz2tex)
+ (name jazz2tex)
+ (modules jazz2tex)
+ (flags -rectypes)
+ (modes byte exe)
+ (libraries cmdliner jasmin))
