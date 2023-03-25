@@ -23,9 +23,17 @@
  (modes byte exe)
  (libraries cmdliner jasmin))
 
+(executable
+ (public_name jazz2cl)
+ (name jazz2cl)
+ (modules jazz2cl)
+ (flags -rectypes)
+ (modes byte exe)
+ (libraries cmdliner jasmin))
+
 (library
  (name jasmin)
  (public_name jasmin.jasmin)
- (modules :standard \ jasminc jazz2tex)
+ (modules :standard \ jasminc jazz2tex jazz2cl)
  (flags -rectypes)
  (libraries batteries zarith menhirLib yojson apron.octMPQ apron.ppl apron.boxMPQ))

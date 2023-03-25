@@ -34,11 +34,13 @@ all: build
 build: native
 
 define do-build
-	$(RM) jasminc jazz2tex
+	$(RM) jasminc jazz2tex jazz2cl
 	dune build jasminc.$(1)
 	dune build jazz2tex.$(1)
+	dune build jazz2cl.$(1)
 	ln -sf "_build/default/jasminc.$(1)" jasminc
 	ln -sf "_build/default/jazz2tex.$(1)" jazz2tex
+	ln -sf "_build/default/jazz2cl.$(1)" jazz2cl
 endef
 
 byte:
@@ -62,16 +64,18 @@ check-ci:
 clean:
 	dune clean
 	rm -rf _c_build
-	rm -f jasminc jazz2tex lib*.a
+	rm -f jasminc jazz2tex jazz2cl lib*.a
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
 	$(INSTALL) -m 0755 -T jazz2tex $(DESTDIR)$(BINDIR)/jazz2tex
+	$(INSTALL) -m 0755 -T jazz2cl $(DESTDIR)$(BINDIR)/jazz2cl
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
 	$(RM) $(DESTDIR)$(BINDIR)/jazz2tex
+	$(RM) $(DESTDIR)$(BINDIR)/jazz2cl
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz

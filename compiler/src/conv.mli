@@ -54,6 +54,7 @@ val string_of_funname : coq_tbl -> BinNums.positive -> string
 val cufdef_of_fdef : coq_tbl -> (unit, 'asm) func -> BinNums.positive * 'asm Expr._ufundef
 val fdef_of_cufdef : coq_tbl -> BinNums.positive * 'asm Expr._ufundef -> (unit, 'asm) func
 
+val cprog_of_prog : coq_tbl -> (unit, 'asm) prog -> 'asm Expr._uprog
 val cuprog_of_prog : var list -> (unit, 'asm) prog -> coq_tbl * 'asm Expr._uprog
 val prog_of_cuprog : coq_tbl -> 'asm Expr._uprog -> (unit, 'asm) prog
 

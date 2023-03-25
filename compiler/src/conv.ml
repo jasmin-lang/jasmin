@@ -325,15 +325,18 @@ let cgd_of_gd tbl (x, gd) =
 let gd_of_cgd tbl (x, gd) =
   (var_of_cvar tbl x, gd)
 
+let cprog_of_prog tbl p =
+  let fds = List.map (cufdef_of_fdef tbl) (snd p) in
+  let gd  = List.map (cgd_of_gd tbl) (fst p) in
+  { C.p_globs = gd; C.p_funcs = fds; C.p_extra = () }
+
 let cuprog_of_prog (all_registers: var list) p =
   let tbl = empty_tbl in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
     all_registers;
-  let fds = List.map (cufdef_of_fdef tbl) (snd p) in
-  let gd  = List.map (cgd_of_gd tbl) (fst p) in
-  tbl, { C.p_globs = gd; C.p_funcs = fds; C.p_extra = () }
+  tbl, cprog_of_prog tbl p 
 
 let prog_of_cuprog tbl p =
   List.map (gd_of_cgd tbl) p.C.p_globs,

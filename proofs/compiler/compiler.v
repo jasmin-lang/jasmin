@@ -363,4 +363,67 @@ Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
 Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=
   compiler_front_end entries subroutines p >>= compiler_back_end_to_asm entries.
 
+
+Definition compiler_CL_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
+  let p := add_init_prog cparams.(is_ptr) p in
+  let p := cparams.(print_uprog) AddArrInit p in
+
+  Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
+  let p := cparams.(print_uprog) Inlining p in
+
+  Let p := dead_calls_err_seq to_keep p in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+
+  Let p := unroll_loop (ap_is_move_op aparams) p in
+  let p := cparams.(print_uprog) Unrolling p in
+
+  live_range_splitting p.
+
+Definition compiler_CL_second_part (p: prog) : cexec uprog :=
+        
+  Let p := array_copy_prog cparams.(fresh_counter) p in
+  let p := cparams.(print_uprog) ArrayCopy p in
+
+  Let p := unroll_loop (ap_is_move_op aparams) p in
+  let p := cparams.(print_uprog) Unrolling p in
+
+  Let pv := live_range_splitting p in
+
+  let pr := remove_init_prog cparams.(is_reg_array) pv in
+  let pr := cparams.(print_uprog) RemoveArrInit pr in
+
+  Let pe := expand_prog cparams.(expand_fd) pr in
+  let pe := cparams.(print_uprog) RegArrayExpansion pe in
+
+  Let pe := live_range_splitting pe in
+
+  Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
+  let pg := cparams.(print_uprog) RemoveGlobal pg in
+
+  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) pg in
+  let pa := cparams.(print_uprog) MakeRefArguments pa in
+
+  Let _ :=
+    assert
+      (lop_fvars_correct loparams cparams.(lowering_vars) (p_funcs pa))
+      (pp_internal_error_s "lowering" "lowering check fails")
+  in
+
+  let pl :=
+    lower_prog
+      (lop_lower_i loparams (is_regx cparams))
+      (lowering_opt cparams)
+      (warning cparams)
+      (lowering_vars cparams)
+      (is_var_in_memory cparams)
+      pa
+  in
+  let pl := cparams.(print_uprog) LowerInstruction pl in
+
+  Let pp := propagate_inline.pi_prog pl in
+  let pp := cparams.(print_uprog) PropagateInline pp in
+
+  ok pp.
+
+
 End COMPILER.

@@ -492,6 +492,9 @@ let is_stack_array x =
   let x = L.unloc x in
   is_ty_arr x.v_ty && x.v_kind = Stack Direct
 
+let is_arr v =
+  is_ty_arr v.v_ty
+
 (* -------------------------------------------------------------------- *)
 (* Functions over expressions                                           *)
 

@@ -1,0 +1,10 @@
+fn f(reg u64 x) -> reg u64 {
+   x += 1;
+   return x;
+}
+
+fn g(reg u64 x) -> reg u64 {
+   x = f(x);
+   x = f(x);
+   return x;
+}

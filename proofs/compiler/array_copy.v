@@ -33,10 +33,20 @@ Context (fresh_counter: Ident.ident).
   }
 *)
 
-Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
+Definition add e ei := 
+  match e with
+  | Some e => Papp2 (Oadd Op_int) e ei
+  | None   => ei 
+  end.
+
+Definition array_copy ii (x: var_i * option pexpr) (ws: wsize) (n: positive) (y: gvar * option pexpr) :=
+  let '(x,ex) := x in
+  let '(y,ey) := y in
   let i_name := fresh_counter in
   let i := {| v_var := {| vtype := sint ; vname := i_name |}; v_info := v_info x |} in
   let ei := Pvar (mk_lvar i) in
+  let xei := add ex ei in
+  let yei := add ey ei in
   let sz := Z.to_pos (wsize_size ws * n) in
   let pre := 
     if eq_gvar (mk_lvar x) y then Copn [::] AT_none Onop [::]
@@ -44,7 +54,7 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   [:: MkI ii pre;
       MkI ii 
         (Cfor i (UpTo, Pconst 0, Pconst n) 
-           [:: MkI ii (Cassgn (Laset AAscale ws x ei) AT_none (sword ws) (Pget AAscale ws y ei))])
+           [:: MkI ii (Cassgn (Laset AAscale ws x xei) AT_none (sword ws) (Pget AAscale ws y yei))])
     ].
 
 Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd := 
@@ -59,16 +69,28 @@ Definition is_copy o :=
 
 Definition is_Pvar es := 
   match es with 
-  | [:: Pvar x] => Some x
+  | [:: Pvar x] => Some (x, None)
+  | [:: Psub AAscale ws n x e] => Some(x, Some(ws, n, e))
   | _ => None
   end.
 
 Definition is_Lvar xs := 
   match xs with 
-  | [:: Lvar x] => Some x 
+  | [:: Lvar x] => Some (x, None) 
+  | [:: Lasub AAscale ws n x e] => Some (x, Some (ws, n, e))
   | _ => None
   end.
 
+Definition check_x (A:Type) ii ws (xe: A * option (wsize * positive * pexpr)) := 
+  match xe with
+  | (x, None) => 
+    ok (x, None)
+  | (x, Some (ws', n', e)) => 
+    Let _ := assert (ws' == ws) 
+                    (pp_internal_error_s_at E.pass ii "bad type for copy") in
+    ok (x, Some e)                    
+  end.
+                  
 Fixpoint array_copy_i (i:instr) : cexec cmd := 
   let:(MkI ii id) := i in
   match id with
@@ -80,9 +102,8 @@ Fixpoint array_copy_i (i:instr) : cexec cmd :=
       | Some y =>
         match is_Lvar xs with
         | Some x => 
-          (* FIXME error msg *)
-          Let _ := assert (vtype x == sarr (Z.to_pos (arr_size ws n))) 
-                          (pp_internal_error_s_at E.pass ii "bad type for copy") in
+          Let x := check_x ii ws x in
+          Let y := check_x ii ws y in  
           ok (array_copy ii x ws n y)
         | None => 
           (* FIXME error msg *)

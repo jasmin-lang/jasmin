@@ -1,0 +1,14 @@
+fn f(reg u64 x) -> reg u64 {
+   stack u64[3] t;
+   inline int i;
+   for i = 0 to 3 {
+      t[i] = x;
+   }
+
+   for i = 0 to 3 {
+      x += t[i];
+   }   
+
+   return x;
+
+}
