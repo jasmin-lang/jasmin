@@ -51,6 +51,10 @@
   ([PR #362](https://github.com/jasmin-lang/jasmin/pull/362)),
   ([PR #384](https://github.com/jasmin-lang/jasmin/pull/384)).
 
+- The safety checker warns about possible alignment issues rather than failing,
+  when the `-nocheckalignment` command-line flag is given
+  ([PR #401](https://github.com/jasmin-lang/jasmin/pull/401)).
+
 ## Bug fixes
 
 - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`

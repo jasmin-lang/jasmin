@@ -14,6 +14,7 @@ let safety_param = ref None
 let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
+let trust_aligned = ref false
 
 let help_version = ref false
 let help_intrinsics = ref false
@@ -176,6 +177,7 @@ let options = [
      len_1,...,len_k: input lengths of f_i";
      "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker";
     "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir]: make the safety checker configuration docs in [dir]";
+    "-nocheckalignment", Arg.Set trust_aligned, "do not report alignment issue as safety violations";
     "-wlea", Arg.Unit (add_warning UseLea), ": print warning when lea is used";
     "-w_"  , Arg.Unit (add_warning IntroduceNone), ": print warning when extra _ is introduced";
     "-wea", Arg.Unit (add_warning ExtraAssignment), ": print warning when extra assignment is introduced";

@@ -114,6 +114,11 @@ let severe_violation =
   | Termination b -> b
   | _ -> true
 
+let alignment_violation =
+  function
+  | (AlignedPtr _ | AlignedExpr _) -> true
+  | _ -> false
+
 let pp_var = Printer.pp_var ~debug:false
 let pp_expr = Printer.pp_expr ~debug:false
 let pp_ws fmt ws = Format.fprintf fmt "%i" (int_of_ws ws)
@@ -180,6 +185,12 @@ let pp_assumptions fmt =
   | [] -> ()
   | m -> Format.fprintf fmt "@[<v>*** Safety Assumptions:@;@[<v>%a@]@]"
            (pp_list pp_violation) m
+
+let pp_alignment fmt =
+  function
+  | [] -> ()
+  | m -> Format.fprintf fmt "@[<v>*** Possible alignment issue(s):@;@[<v>%a@]@]"
+        (pp_list pp_violation) m
 
 let vloc_compare v v' = match v, v' with
   | InReturn fn, InReturn fn' -> Stdlib.compare fn fn'
@@ -2202,6 +2213,10 @@ module AbsAnalyzer (EW : ExportWrap) = struct
             (pp_list res.print_var_interval) npt in
 
       let violations, assumptions = List.partition (fun (_, v) -> severe_violation v) res.violations in
+      let alignment, violations =
+        if !Glob_options.trust_aligned
+        then List.partition (fun (_, v) -> alignment_violation v) violations
+        else [], violations in
 
       let pp_warnings fmt warns =
         if warns <> [] then
@@ -2211,10 +2226,12 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       Format.eprintf "@?@[<v>%a@;\
                       %a@;\
                       %a@;\
+                      %a@;\
                       %t\
                       %a@]@."
         pp_warnings res.warnings
         pp_assumptions assumptions
+        pp_alignment alignment
         pp_violations violations
         pp_mem_range
         (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
