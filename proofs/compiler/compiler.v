@@ -16,6 +16,7 @@ Require Import
   array_copy
   array_expansion
   array_init
+  register_zeroization
   constant_prop
   dead_calls
   dead_code
@@ -92,6 +93,7 @@ Variant compiler_step :=
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
   | Linearization               : compiler_step
+  | RegisterZeroization         : compiler_step
   | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
 
@@ -121,6 +123,7 @@ Definition compiler_step_list := [::
   ; RegAllocation
   ; DeadCode_RegAllocation
   ; Linearization
+  ; RegisterZeroization
   ; Tunneling
   ; Assembly
 ].
@@ -178,6 +181,7 @@ Record compiler_params
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
   is_regx          : var -> bool;
+  cp_rzm_of_fn     : funname -> rzmode;
 }.
 
 
@@ -350,6 +354,11 @@ Definition compiler_back_end entries (pd: sprog) :=
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
   Let pl := linear_prog liparams pd (* cparams.(extra_free_registers) *) in
   let pl := cparams.(print_linear) Linearization pl in
+  (* Register zeroization. *)
+  Let pl :=
+    register_zeroization_lprog (cp_rzm_of_fn cparams) (ap_rzp aparams) pl
+  in
+  let pl := cparams.(print_linear) RegisterZeroization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
   let pl := cparams.(print_linear) Tunneling pl in

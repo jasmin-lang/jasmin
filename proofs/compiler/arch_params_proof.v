@@ -12,6 +12,8 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 Require
+  register_zeroization
+  register_zeroization_proof
   linearization
   linearization_proof
   lowering
@@ -91,6 +93,10 @@ Record h_architecture_params
 
     (* Assembly generation hypotheses. See [asm_gen_proof.v]. *)
     hap_hagp : h_asm_gen_params (ap_agp aparams);
+
+    (* Register zeroization hypotheses. See [register_zeroization.v]. *)
+    hap_hrzp :
+      register_zeroization_proof.h_register_zeroization_params (ap_rzp aparams);
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

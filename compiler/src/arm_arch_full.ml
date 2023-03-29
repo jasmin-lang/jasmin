@@ -7,7 +7,7 @@ module type Arm_input = sig
 
 end
 
-module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
+module Arm (Arch_input : Arm_input) : Arch_full.Core_arch = struct
   type reg = register
   type regx = Arm_decl.__
   type xreg = Arm_decl.__
@@ -19,9 +19,10 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
   type lowering_options = Arm_lowering.lowering_options
 
   let asm_e = Arm_extra.arm_extra
-  let aparams = Arm_params.arm_params
+  let aparams =
+    Arm_params.arm_params (Asm_gen.ovm_i arm_decl Arch_input.call_conv)
 
-  include Lowering_params
+  include Arch_input
 
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
      Here we assume it's just a variable register. *)

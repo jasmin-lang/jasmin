@@ -1955,4 +1955,17 @@ Proof.
 Qed.
 
 End PROG.
+
+Lemma flags_notin_callee_saved (f : rflag) :
+  to_var f \notin Sv.elements one_varmap.callee_saved.
+Proof.
+  rewrite /callee_saved /=.
+  apply/negP.
+  move=> /Sv_elemsP /sv_of_listP.
+  change (to_var f) with (var_of_asm_typed_reg (ABReg f)).
+  rewrite (mem_map var_of_asm_typed_reg_inj).
+  move: (callee_saved_not_bool (calling_convention := call_conv)) => /allP h.
+  by move=> /h.
+Qed.
+
 End ASM_EXTRA.

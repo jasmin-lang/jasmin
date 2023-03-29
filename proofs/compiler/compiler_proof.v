@@ -25,7 +25,8 @@ Require Import
   tunneling_proof
   linearization_proof
   merge_varmaps_proof
-  psem_of_sem_proof.
+  psem_of_sem_proof
+  register_zeroization_proof.
 Require Import
   arch_decl
   arch_extra
@@ -401,9 +402,13 @@ Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
      lp_globs tp = p.(p_extra).(sp_globs)
   ].
 Proof.
-  rewrite /compiler_back_end; t_xrbindP => _ _ lp ok_lp p2.
-  rewrite !print_linearP => ok_tp ?; subst p2.
+  rewrite /compiler_back_end.
+  t_xrbindP=> _ _ lp ok_lp.
+  rewrite print_linearP => lp0 ok_lp0.
+  rewrite print_linearP => tp' ok_tp.
+  rewrite print_linearP => ?; subst tp'.
   have! [<- [<- [<- _]]] := (tunnel_program_invariants ok_tp).
+  have! [<- <- <-] := (register_zeroization_lprog_invariants ok_lp0).
   split.
   - exact: lp_ripE ok_lp.
   - exact: lp_rspE ok_lp.
@@ -438,18 +443,28 @@ Lemma enough_stack_space_alloc_ok
   -> alloc_ok sp fn m.
 Proof.
   rewrite /compiler_back_end_to_asm /compiler_back_end.
-  t_xrbindP => ? /allMP ok_export _ lp ok_lp tp.
-  rewrite !print_linearP => ok_tp <- ok_xp /InP ok_fn M S.
+  t_xrbindP => ? /allMP ok_export _ lp ok_lp.
+  rewrite print_linearP => lp0 ok_lp0.
+  rewrite print_linearP => tp ok_tp <-.
+  rewrite print_linearP => ok_xp /InP ok_fn M S.
   move => fd ok_fd.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
   split; last by rewrite export.
   have! h0 := (get_fundef_p' ok_lp ok_fd).
-  have! h1 := (get_fundef_tunnel_program ok_tp h0).
-  have! [fd' ok_fd'] := (ok_get_fundef ok_xp h1).
+  have! [? ok_rzfd h1] := (register_zeroization_lprog_get_fundef ok_lp0 h0).
+  have! h2 := (get_fundef_tunnel_program ok_tp h1).
+  have! [fd' ok_fd'] := (ok_get_fundef ok_xp h2).
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
   move: ok_fd' => /S /=.
-  rewrite /allocatable_stack.
-  move: (wunsigned (stack_limit m)) (wunsigned (top_stack m)) (wunsigned (top_stack m')) M => L T T'.
+  move: ok_rzfd => /register_zeroization_lfd_invariants [_ _ _ _ _ _ ->].
+  rewrite /allocatable_stack /=.
+  move:
+    (wunsigned (stack_limit (pd := arch_pd) m))
+    (wunsigned (top_stack (pd := arch_pd) m))
+    (wunsigned (top_stack (pd := arch_pd) m'))
+    M => L T T'.
+  rewrite /check_call_conv /=.
+  rewrite /check_list /=.
   Lia.lia.
 Qed.
 
@@ -493,8 +508,9 @@ Lemma compiler_back_endP
           ]
       ].
 Proof.
-  rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp tp'.
-  rewrite !print_linearP => ok_tp ? /InP ok_fn exec_p; subst tp'.
+  rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp lp'.
+  rewrite !print_linearP => ok_lp' tp' ok_tp.
+  rewrite !print_linearP => ? /InP ok_fn exec_p; subst tp'.
   set vtmp := var_tmp aparams.
   have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
@@ -512,26 +528,46 @@ Proof.
       ok_lp
       p_call.
   case => fd [] ok_fd Export lp_call.
-  exists (tunneling.tunnel_lfundef fn fd); split.
-  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+
+  have! [lfd' ok_lfd' ok_fd'] :=
+    (register_zeroization_lprog_get_fundef ok_lp' ok_fd).
+
+  exists (tunneling.tunnel_lfundef fn lfd').
+  have [-> -> -> -> -> -> _] := register_zeroization_lfd_invariants ok_lfd'.
+
+  split.
+
+  - by have! := (get_fundef_tunnel_program ok_tp ok_fd').
+
   - exact: Export.
+
   move=> lm vm args' H H0 H1 H2 H3 H4 H5.
+
   have {lp_call} := lp_call lm vm args' H _ H1 H2 H3 _ H5.
+  have! [-> -> _] := (register_zeroization_lprog_invariants ok_lp').
   have! [-> [-> _]] := (tunnel_program_invariants ok_tp).
   move => /(_ H0 H4)[] wt_args' [] vm' [] lm' [] res' [] lp_call M' ok_res' res_res' wt_res'.
   split; first exact: wt_args'.
-  exists vm', lm', res'; split; cycle 1.
+
+  have [vm0 lp_call0 hvm0] :=
+    register_zeroization_correct (hap_hrzp haparams) ok_lp' lp_call ok_fd ok_res'.
+
+  exists vm0, lm', res'; split; cycle 1.
   - exact: M'.
-  - exact: ok_res'.
+  - exact: hvm0.
   - exact: res_res'.
   - exact: wt_res'.
-  clear -lp_call ok_tp.
-  case: lp_call => fd ok_fd Export lp_exec ok_callee_saved.
-  exists (tunneling.tunnel_lfundef fn fd).
-  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+  clear - haparams lp_call0 ok_tp ok_lp'.
+
+  case: lp_call0 => fd0 ok_fd0 Export lp_exec ok_callee_saved.
+  exists (tunneling.tunnel_lfundef fn fd0).
+
+  - exact: (get_fundef_tunnel_program ok_tp ok_fd0).
+
   - exact: Export.
+
   have! [|] := (lsem_run_tunnel_program ok_tp lp_exec).
-  - by exists fd.
+  - by exists fd0.
   - move => tp_exec _.
     rewrite /lfd_body size_tunnel_lcmd.
     exact: tp_exec.

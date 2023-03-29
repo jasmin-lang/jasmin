@@ -61,6 +61,7 @@ compiler/lea.v
 compiler/lea_proof.v
 compiler/linearization.v
 compiler/linearization_proof.v
+compiler/linear_util.v
 compiler/lowering.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
@@ -68,6 +69,8 @@ compiler/merge_varmaps.v
 compiler/merge_varmaps_proof.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
+compiler/register_zeroization.v
+compiler/register_zeroization_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v

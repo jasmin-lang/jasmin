@@ -656,6 +656,27 @@ Lemma Sv_neq_not_in_singleton x y :
   -> ~ Sv.In y (Sv.singleton x).
 Proof. SvD.fsetdec. Qed.
 
+Lemma sv_of_list_elements s :
+  Sv.Equal (sv_of_list id (Sv.elements s)) s.
+Proof.
+  apply: SvP.MP.subset_antisym.
+  - move=> x /sv_of_listP. rewrite map_id. by move=> /Sv_elemsP.
+  move=> x hx.
+  apply/sv_of_listP.
+  rewrite map_id.
+  by apply/Sv_elemsP.
+Qed.
+
+Lemma disjoint_seq_diff T s0 (xs : seq T) f :
+  let: s1 := Sv.elements (Sv.diff (sv_of_list f xs) s0) in
+  disjoint s0 (sv_of_list id s1).
+Proof.
+  apply/disjointP.
+  move=> x hx.
+  rewrite sv_of_list_elements.
+  by move=> /Sv.diff_spec [].
+Qed.
+
 End SExtra.
 
 Module SvExtra := SExtra CmpVar.

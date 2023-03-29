@@ -217,6 +217,27 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       List.iter (warn_extra_fd Arch.asmOp) fds
   in
 
+  let get_annot fn =
+    let cfd = List.assoc fn cprog.Expr.p_funcs in
+    (fdef_of_cufdef fn cfd).f_annot
+  in
+
+  let rzm_of_fn fn =
+    match (get_annot fn).annot_rz_all with
+    | Some b ->
+      {
+        Register_zeroization.rzm_flags = false;
+        Register_zeroization.rzm_registers = b;
+        Register_zeroization.rzm_xregisters = false;
+      }
+    | None ->
+      {
+        Register_zeroization.rzm_flags = false;
+        Register_zeroization.rzm_registers = false;
+        Register_zeroization.rzm_xregisters = false;
+      }
+  in
+
   let cparams =
     {
       Compiler.rename_fd;
@@ -264,6 +285,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.is_ptr;
       Compiler.is_reg_array;
       Compiler.is_regx = is_regx tbl;
+      Compiler.cp_rzm_of_fn = rzm_of_fn;
     }
   in
 

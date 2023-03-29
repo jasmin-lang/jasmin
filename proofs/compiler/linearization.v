@@ -7,7 +7,7 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr fexpr compiler_util label constant_prop.
+Require Import expr fexpr compiler_util label constant_prop linear_util.
 Require Export linear.
 Import word_ssrZ.
 
@@ -235,19 +235,16 @@ Definition lstore
   : option linstr_r :=
   lassign (Store ws rd (fconst Uptr ofs)) ws (Rexpr (Fvar r0)).
 
-Definition li_of_copn_args (ii : instr_info) (p : fopn_args) : linstr :=
-  MkLI ii (Lopn p.1.1 p.1.2 p.2).
-
 Definition set_up_sp_register
   (vrspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : lcmd :=
   if lip_set_up_sp_register liparams vrspi sf_sz al r is Some args
-  then map (li_of_copn_args dummy_instr_info) args
+  then map (li_of_lopn_args dummy_instr_info) args
   else [::].
 
 Definition set_up_sp_stack
   (vrspi : var_i) (sf_sz : Z) (al : wsize) (ofs : Z) : lcmd :=
   if lip_set_up_sp_stack liparams vrspi sf_sz al ofs is Some args
-  then map (li_of_copn_args dummy_instr_info) args
+  then map (li_of_lopn_args dummy_instr_info) args
   else [::].
 
 Definition mkli_dummy (lir : linstr_r) : linstr := MkLI dummy_instr_info lir.
@@ -511,7 +508,7 @@ Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (rastack: 
     let args := if free
                    then (lip_free_stack_frame liparams) rspi sz
                    else (lip_allocate_stack_frame liparams) rspi sz
-       in [:: li_of_copn_args ii args ].
+       in [:: li_of_lopn_args ii args ].
 
 (* Return a linear command that pushes variables to the stack.
  * The linear command `lp_push_to_save ii to_save` pushes each

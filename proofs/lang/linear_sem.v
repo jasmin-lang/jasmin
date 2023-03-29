@@ -5,6 +5,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
+Require Psatz.
 Require oseq.
 Require Import psem fexpr_sem compiler_util label one_varmap linear sem_one_varmap.
 
@@ -327,6 +328,132 @@ Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: vmap) 
   & vm =[ callee_saved ] vm'
 .
 
+Definition is_linear_of (fn : funname) (c : lcmd) : Prop :=
+  exists2 lfd,
+    get_fundef (lp_funcs P) fn = Some lfd
+    & lfd_body lfd = c.
+
+Lemma find_instrE fn body :
+  is_linear_of fn body
+  -> forall scs m vm n,
+       find_instr (Lstate scs m vm fn n) = oseq.onth body n.
+Proof. by rewrite /find_instr => - [] fd /= -> ->. Qed.
+
+Lemma find_instr_skip fn pre pos :
+  is_linear_of fn (pre ++ pos)
+  -> forall scs m vm n,
+       find_instr (Lstate scs m vm fn (size pre + n)) = oseq.onth pos n.
+Proof.
+  move => h scs m vm n; rewrite (find_instrE h).
+  rewrite !oseq.onth_nth map_cat nth_cat size_map.
+  rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; Psatz.lia.
+Qed.
+
 End SEM.
 
 Arguments lsem_split_start {_ _ _ _ _ _}.
+
+Section LSEM_INVARIANT.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {ovmi : one_varmap_info}
+  (E X : Type)
+  (get_lopn : X -> result E lopn_args)
+  (P : seq X -> relation estate).
+
+Definition get_lopn_invariant :=
+  forall lp scs vm m fn x pre pos args ii,
+    get_lopn x = ok args
+    -> let: li := li_of_lopn_args ii args in
+       is_linear_of lp fn (pre ++ li :: pos)
+       -> exists scs' vm' m',
+           let: s :=
+             {|
+               escs := scs;
+               evm := vm;
+               emem := m;
+             |}
+           in
+           let: ls := of_estate s fn (size pre) in
+           let: s' :=
+             {|
+               escs := scs';
+               evm := vm';
+               emem := m';
+             |}
+           in
+           let: ls' := of_estate s' fn (size pre + 1) in
+           lsem lp ls ls' /\ P [:: x ] s s'.
+
+Definition map_get_lopn_invariant :=
+  forall lp scs vm m fn xs pre pos args ii,
+    mapM get_lopn xs = ok args
+    -> let: lcmd := map (li_of_lopn_args ii) args in
+       is_linear_of lp fn (pre ++ lcmd ++ pos)
+       -> exists scs' vm' m',
+            let: s :=
+              {|
+                escs := scs;
+                evm := vm;
+                emem := m;
+              |}
+            in
+            let: ls := of_estate s fn (size pre) in
+            let: s' :=
+              {|
+                escs := scs';
+                evm := vm';
+                emem := m';
+              |}
+            in
+            let: ls' := of_estate s' fn (size pre + size lcmd) in
+            lsem lp ls ls' /\ P xs s s'.
+
+Context
+  (get_lopnP : get_lopn_invariant)
+  (Prefl : reflexive estate (P [::]))
+  (Ptrans :
+    forall x ys s0 s1 s2,
+      P [:: x ] s0 s1
+      -> P ys s1 s2
+      -> P (x :: ys) s0 s2).
+
+Lemma map_get_lopn_invariantP :
+  map_get_lopn_invariant.
+Proof.
+  move=> lp scs vm m fn xs pre pos args ii.
+  rewrite /of_estate /=.
+  move: scs vm m pre args.
+  elim: xs => [| x xs hind ] /= scs vm m pre args h hbody.
+
+  - move: h => [?]; subst args.
+    rewrite addn0.
+    eexists; eexists; eexists; split; first exact: rt_refl.
+    exact: Prefl.
+
+  move: h.
+  t_xrbindP=> li hx args' hxs ?; subst args.
+
+  rewrite /= -cat1s in hbody.
+  have [scs0 [vm0 [m0 [hsem0 hzero0]]]] := get_lopnP scs vm m hx hbody.
+  clear hx.
+
+  rewrite catA in hbody.
+  have [scs' [vm' [m' [hsem' hzero']]]] := hind scs0 vm0 m0 _ _ hxs hbody.
+  clear hxs.
+
+  exists scs', vm', m';
+    split;
+    last exact: (Ptrans hzero0 hzero').
+
+  apply: (lsem_trans hsem0).
+  move: hsem'.
+  rewrite /of_estate size_cat /=.
+  by rewrite -(addn1 (size _)) (addnC (size (map _ _)) 1) addnA.
+Qed.
+
+End LSEM_INVARIANT.

@@ -578,7 +578,8 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let ssa_main, pa_res =
     (* FIXME: code duplication! dirty hack *)
     let is_move_op =
-      X86_params.x86_params.ap_is_move_op
+      let ovmi = Asm_gen.ovm_i X86_decl.x86_decl X86_decl.x86_linux_call_conv in
+      (X86_params.x86_params ovmi).ap_is_move_op
     in
     let asmOp = Arch_extra.asm_opI X86_extra.x86_extra in
     FSPa.fs_pa_make asmOp is_move_op PW.main

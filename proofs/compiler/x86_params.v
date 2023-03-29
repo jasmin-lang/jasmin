@@ -5,8 +5,10 @@ Require Import
   arch_params
   compiler_util
   expr
-  fexpr.
+  fexpr
+  one_varmap.
 Require Import
+  register_zeroization
   linearization
   lowering
   stack_alloc.
@@ -225,6 +227,58 @@ Definition x86_agparams : asm_gen_params :=
 
 
 (* ------------------------------------------------------------------------ *)
+(* Register zeroization parameters. *)
+
+Section REGISTER_ZEROIZATION.
+
+Context {ovmi : one_varmap_info}.
+
+Definition x86_zeroize_var
+  (err_register : var -> pp_error_loc) (x : var) : cexec lopn_args :=
+  if vtype x is sword ws
+  then
+    let op := if (ws <= U64)%CMP then MOV else VMOVDQU in
+    let xi := {| v_var := x; v_info := dummy_var_info; |} in
+    ok ([:: LLvar xi ], Ox86 (op ws), [:: Rexpr (fconst ws 0) ])
+  else
+    Error (err_register x).
+
+Definition x86_zeroize_flags
+  (err_flags : pp_error_loc) (ox : option var) : cexec (seq lopn_args) :=
+  if ox is Some x
+  then
+    let xi := {| v_var := x; v_info := dummy_var_info; |} in
+    let e := Rexpr (Fvar xi) in
+    let to_lflag f := LLvar {| v_var := to_var f; v_info := dummy_var_info; |} in
+    let lflags := map to_lflag [:: OF; CF; SF; PF; ZF ] in
+    ok [:: (lflags, Ox86 (CMP reg_size), [:: e; e ]) ]
+  else
+    Error (err_flags).
+
+Definition x86_rz_cmd_args
+  (rzm : rzmode)
+  (xs : seq var)
+  (err_flags : pp_error_loc)
+  (err_register : var -> pp_error_loc) :
+  cexec (seq lopn_args) :=
+  let f x := seq_diff x (Sv.elements one_varmap.callee_saved ++ xs) in
+  let regs := if rzm_registers rzm then f (map to_var registers) else [::] in
+  let xregs := if rzm_xregisters rzm then f (map to_var xregisters) else [::] in
+  Let rzvars := mapM (x86_zeroize_var err_register) (regs ++ xregs) in
+  Let rzflags :=
+    if rzm_flags rzm then x86_zeroize_flags err_flags (ohead regs) else ok [::]
+  in
+  ok (rzvars ++ rzflags).
+
+Definition x86_rzparams : register_zeroization_params :=
+  {|
+    rz_cmd_args := x86_rz_cmd_args;
+  |}.
+
+End REGISTER_ZEROIZATION.
+
+
+(* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
 
 Definition x86_is_move_op (o : asm_op_t) :=
@@ -237,11 +291,13 @@ Definition x86_is_move_op (o : asm_op_t) :=
 
 (* ------------------------------------------------------------------------ *)
 
-Definition x86_params : architecture_params fresh_vars lowering_options :=
+Definition x86_params {ovmi : one_varmap_info} :
+  architecture_params fresh_vars lowering_options :=
   {|
     ap_sap := x86_saparams;
     ap_lip := x86_liparams;
     ap_lop := x86_loparams;
     ap_agp := x86_agparams;
+    ap_rzp := x86_rzparams;
     ap_is_move_op := x86_is_move_op;
   |}.

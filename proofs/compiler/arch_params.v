@@ -8,6 +8,7 @@ Require Import
 Require
   linearization
   lowering
+  register_zeroization
   stack_alloc
   asm_gen.
 
@@ -53,6 +54,9 @@ Record architecture_params
 
     (* Assembly generation parameters. See asm_gen.v. *)
     ap_agp : asm_gen.asm_gen_params;
+
+    (* Register zeroization parameters. See register_zeroization.v. *)
+    ap_rzp : register_zeroization.register_zeroization_params;
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

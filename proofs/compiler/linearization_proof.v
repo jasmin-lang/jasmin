@@ -12,7 +12,7 @@ Require sem_one_varmap_facts label.
 Import word_ssrZ.
 Import ssrring.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts low_memory.
-Require Import constant_prop constant_prop_proof.
+Require Import constant_prop constant_prop_proof linear_util.
 Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem.
 Import Memory.
@@ -66,8 +66,8 @@ Qed.
 
 Local Open Scope seq_scope.
 
-Lemma map_li_of_copn_args_label_in_lcmd ii args :
-  label_in_lcmd (map (li_of_copn_args ii) args) = [::].
+Lemma map_li_of_lopn_args_label_in_lcmd ii args :
+  label_in_lcmd (map (li_of_lopn_args ii) args) = [::].
 Proof. by elim: args => [|[]]. Qed.
 
 Lemma set_up_sp_register_label_in_lcmd liparams x sf_sz al y :
@@ -75,7 +75,7 @@ Lemma set_up_sp_register_label_in_lcmd liparams x sf_sz al y :
 Proof.
   rewrite /set_up_sp_register.
   case: lip_set_up_sp_register => // ?.
-  by rewrite map_li_of_copn_args_label_in_lcmd.
+  by rewrite map_li_of_lopn_args_label_in_lcmd.
 Qed.
 
 Lemma set_up_sp_stack_label_in_lcmd liparams x sf_sz al off :
@@ -83,11 +83,11 @@ Lemma set_up_sp_stack_label_in_lcmd liparams x sf_sz al off :
 Proof.
   rewrite /set_up_sp_stack.
   case: lip_set_up_sp_stack => // ?.
-  by rewrite map_li_of_copn_args_label_in_lcmd.
+  by rewrite map_li_of_lopn_args_label_in_lcmd.
 Qed.
 
-Lemma map_li_of_copn_args_has_label lbl ii args :
-  has (is_label lbl) (map (li_of_copn_args ii) args) = false.
+Lemma map_li_of_lopn_args_has_label lbl ii args :
+  has (is_label lbl) (map (li_of_lopn_args ii) args) = false.
 Proof. by elim: args => [|[]]. Qed.
 
 Lemma set_up_sp_register_has_label lbl liparams x sf_sz al y :
@@ -95,7 +95,7 @@ Lemma set_up_sp_register_has_label lbl liparams x sf_sz al y :
 Proof.
   rewrite /set_up_sp_register.
   case: lip_set_up_sp_register => // ?.
-  by rewrite map_li_of_copn_args_has_label.
+  by rewrite map_li_of_lopn_args_has_label.
 Qed.
 
 Lemma set_up_sp_stack_has_label lbl liparams x sf_sz al off :
@@ -103,7 +103,7 @@ Lemma set_up_sp_stack_has_label lbl liparams x sf_sz al off :
 Proof.
   rewrite /set_up_sp_stack.
   case: lip_set_up_sp_stack => // ?.
-  by rewrite map_li_of_copn_args_has_label.
+  by rewrite map_li_of_lopn_args_has_label.
 Qed.
 
 Lemma all_has {T} (p q: pred T) (s: seq T) :
@@ -383,12 +383,6 @@ Qed.
 
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
 Proof. by case: a. Qed.
-
-Definition is_linear_of (p : lprog) (fn : funname) (c : lcmd) : Prop :=
-  exists2 fd,
-    get_fundef (lp_funcs p) fn = Some fd
-    & lfd_body fd = c.
-
 
 Section LINEARIZATION_PARAMS.
 
@@ -1675,22 +1669,6 @@ Section PROOF.
     - exact: X.
     - exact: preserved_metadataE H.
     exact: M.
-  Qed.
-
-  Lemma find_instrE fn body :
-    is_linear_of fn body →
-    ∀ scs m vm n,
-    find_instr p' (Lstate scs m vm fn n) = oseq.onth body n.
-  Proof. by rewrite /find_instr => - [] fd /= -> ->. Qed.
-
-  Lemma find_instr_skip fn P Q :
-    is_linear_of fn (P ++ Q) →
-    ∀ scs m vm n,
-    find_instr p' (Lstate scs m vm fn (size P + n)) = oseq.onth Q n.
-  Proof.
-    move => h scs m vm n; rewrite (find_instrE h).
-    rewrite !oseq.onth_nth map_cat nth_cat size_map.
-    rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; lia.
   Qed.
 
   Local Lemma Hasgn : sem_Ind_assgn p Pi_r.

@@ -137,6 +137,19 @@ Proof.
   by move=> [<-]; apply: of_varI.
 Qed.
 
+Lemma var_of_asm_typed_reg_inj :
+  injective var_of_asm_typed_reg.
+Proof.
+  move=> [] x [] y //=.
+  all: try by move=> /inj_to_var ->.
+  - by move=> [] /(inj_toS_reg_regx (r := x) (rx := y)).
+  - by move: (reg_size_neq_xreg_size (arch_decl := arch)) => /eqP ? [].
+  - by move=> [] /esym /(inj_toS_reg_regx (r := y) (rx := x)).
+  - by move: (reg_size_neq_xreg_size (arch_decl := arch)) => /eqP ? [].
+  - by move: (reg_size_neq_xreg_size (arch_decl := arch)) => /eqP /nesym ? [].
+  by move: (reg_size_neq_xreg_size (arch_decl := arch)) => /eqP /nesym ? [].
+Qed.
+
 End OF_TO.
 
 Section ASM_EXTRA.

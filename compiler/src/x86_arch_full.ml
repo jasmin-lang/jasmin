@@ -10,7 +10,7 @@ module type X86_input = sig
 end 
 
 
-module X86 (Lowering_params : X86_input) :
+module X86 (Arch_input : X86_input) :
   Arch_full.Core_arch
     with type reg = register
      and type regx = register_ext
@@ -30,9 +30,10 @@ module X86 (Lowering_params : X86_input) :
   type lowering_options = X86_lowering.lowering_options
 
   let asm_e = X86_extra.x86_extra
-  let aparams = X86_params.x86_params
+  let aparams =
+    X86_params.x86_params (Asm_gen.ovm_i x86_decl Arch_input.call_conv)
 
-  include Lowering_params
+  include Arch_input
 
   let not_saved_stack =
     List.map

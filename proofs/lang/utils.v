@@ -1721,8 +1721,25 @@ Ltac t_elim_uniq :=
 Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
   And6 of P1 & P2 & P3 & P4 & P5 & P6.
 
+Inductive and7 (P1 P2 P3 P4 P5 P6 P7 : Prop) : Prop :=
+  And7 of P1 & P2 & P3 & P4 & P5 & P6 & P7.
+
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
   (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 & P7 ]" :=
+  (and7 P1 P2 P3 P4 P5 P6 P7) : type_scope.
+
+Definition seq_diff {X : eqType} (xs ys : seq X) : seq X :=
+  filter (fun x => x \notin ys) xs.
+
+Lemma seq_diff_seq_diff {X : eqType} (xs ys ys' : seq X) :
+  seq_diff (seq_diff xs ys) ys' = seq_diff xs (ys ++ ys').
+Proof.
+  elim: xs ys ys' => // x xs hind ys ys'.
+  rewrite /= mem_cat negb_or.
+  case h : (x \notin ys) => /=; by rewrite hind.
+Qed.
 
 Tactic Notation "have!" ":= " constr(x) :=
   let h := fresh "h" in
