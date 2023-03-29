@@ -420,6 +420,7 @@ Proof.
   rewrite -wxor_zero_extend // -wand_zero_extend //.
   rewrite zero_extend_wshl // zero_extend_idem // wshl_ovf; last first.
   + by apply/leP; case: (sz) (sz') hsz_sz'=> -[].
+  + by [].
   by rewrite wandC wand0 wxor0.
 Qed.
 
@@ -430,6 +431,7 @@ Proof.
   move=> h; case: f; first by rewrite word_extend_CLEAR.
   rewrite /word_extend /arch_sem.mask_word wshl_ovf; last first.
   + by apply/leP; case: (sz) (szo) h => -[].
+  + by [].
   by rewrite wandC wand0 wxor0.
 Qed.
 (*
