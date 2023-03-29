@@ -368,13 +368,13 @@ Lemma wle_refl sz sg (w: word sz) :
 Proof. case: sg; exact: Z.leb_refl. Qed.
 
 Definition wshr sz (x: word sz) (n: Z) : word sz :=
-  lsr x (Z.to_nat n).
+  mkword sz (Z.shiftr (wunsigned x) n).
 
 Definition wshl sz (x: word sz) (n: Z) : word sz :=
-  lsl x (Z.to_nat n).
+  mkword sz (Z.shiftl (wunsigned x) n).
 
 Definition wsar sz (x: word sz) (n: Z) : word sz :=
-  asr x (Z.to_nat n).
+  mkword sz (Z.shiftr (wsigned x) n).
 
 Definition wmulhu sz (x y: word sz) : word sz :=
   wrepr sz ((wunsigned x * wunsigned y) / wbase sz).
@@ -513,8 +513,12 @@ Proof.
 Qed.
 
 Lemma wshrE sz (x: word sz) c i :
+  0 <= c →
   wbit_n (wshr x c) i = wbit_n x (Z.to_nat c + i).
-Proof. exact: wbit_lsr. Qed.
+Proof.
+  move/Z2Nat.id => {1}<-.
+  exact: wbit_lsr.
+Qed.
 
 Lemma wunsigned_wshr sz (x: word sz) c :
   wunsigned (wshr x (Z.of_nat c)) = wunsigned x / 2 ^ Z.of_nat c.
@@ -531,7 +535,7 @@ Proof.
   rewrite -wunsigned_repr.
   congr wunsigned.
   apply/eqP/eq_from_wbit_n => i.
-  rewrite /wshr Nat2Z.id /wbit_n wbit_lsr wunsigned_repr /wbit.
+  rewrite /wbit_n wbit_lsr wunsigned_repr /wbit.
   rewrite Z.mod_small //.
   rewrite Z.div_pow2_bits.
   2-3: lia.
@@ -539,8 +543,10 @@ Proof.
 Qed.
 
 Lemma wshlE sz (w: word sz) c i :
+  0 <= c →
   wbit_n (wshl w c) i = (Z.to_nat c <= i <= wsize_size_minus_1 sz)%nat && wbit_n w (i - Z.to_nat c).
 Proof.
+  move/Z2Nat.id => {1}<-.
   rewrite /wbit_n /wshl /=.
   case: leP => hic /=;
     last (rewrite wbit_lsl_lo //; apply/leP; lia).
@@ -556,7 +562,6 @@ Local Ltac lia :=
 Lemma wunsigned_wshl sz (x: word sz) c :
   wunsigned (wshl x (Z.of_nat c)) = (wunsigned x * 2 ^ Z.of_nat c) mod wbase sz.
 Proof.
-  rewrite /wshl Nat2Z.id.
   rewrite -wunsigned_repr.
   congr wunsigned.
   apply/eqP/eq_from_wbit_n => i.
@@ -595,11 +600,12 @@ Proof.
 Qed.
 
 Lemma wshl_ovf sz (w: word sz) c :
+  0 <= c →
   (wsize_size_minus_1 sz < Z.to_nat c)%coq_nat →
   wshl w c = 0%R.
 Proof.
-  move => hc; apply/eqP/eq_from_wbit_n => i.
-  rewrite wshlE {2}/wbit_n wbit0.
+  move => c_not_neg hc; apply/eqP/eq_from_wbit_n => i.
+  rewrite wshlE // {2}/wbit_n wbit0.
   case: i => i /= /leP /le_S_n hi.
   have /leP -> := hi.
   case: leP => //; lia.
@@ -686,7 +692,7 @@ Proof.
   apply/eqP/eq_from_wbit_n.
   move=> i.
   rewrite w0E.
-  rewrite wshrE.
+  rewrite wshrE //.
   rewrite /wsize_bits /=.
   rewrite SuccNat2Pos.id_succ.
   rewrite /wbit_n.
@@ -702,7 +708,7 @@ Lemma wshl_full sz (w : word sz) : wshl w (wsize_bits sz) = 0%R.
 Proof.
   apply/eqP/eq_from_wbit_n.
   move=> i.
-  rewrite wshlE.
+  rewrite wshlE; last by [].
   rewrite /wsize_bits /=.
   rewrite SuccNat2Pos.id_succ.
   case hi: (_ <= _ <= _)%N; last by rewrite w0E.
@@ -1056,10 +1062,11 @@ Qed.
 
 Lemma zero_extend_wshl sz sz' (x: word sz') c :
   (sz ≤ sz')%CMP →
+  0 <= c →
   zero_extend sz (wshl x c) = wshl (zero_extend sz x) c.
 Proof.
-move => hle; apply/eqP/eq_from_wbit_n => i.
-rewrite !(wbit_zero_extend, wshlE).
+move => hle hc; apply/eqP/eq_from_wbit_n => i.
+rewrite !(wbit_zero_extend, wshlE) //.
 have := wsize_size_m hle.
 move: i.
 set m := wsize_size_minus_1 _.
@@ -1608,8 +1615,9 @@ Lemma wand_pow2nm1 sz (x: word sz) n :
   wand x (wrepr sz (2 ^ Z.of_nat n - 1)) = wshr (wshl x (Z.of_nat k)) (Z.of_nat k).
 Proof.
   set k := (_ - _)%nat.
+  have k_ge0 := Nat2Z.is_nonneg k.
   apply/eqP/eq_from_wbit_n => i.
-  rewrite wandE wshrE wshlE wbit_n_pow2m1.
+  rewrite wandE wshrE // wshlE // wbit_n_pow2m1.
   have := ltn_ord i.
   move: (nat_of_ord i) => {i} i i_bounded.
   replace (i < _)%nat with (i < n)%nat; last first.
@@ -1688,7 +1696,8 @@ Lemma wand_Npow2n sz (x: word sz) n :
   wand x (wrepr sz (- 2 ^ Z.of_nat n)) = wshl (wshr x (Z.of_nat n)) (Z.of_nat n).
 Proof.
   apply/eqP/eq_from_wbit_n => i.
-  rewrite wandE wshlE wshrE Nat2Z.id wbit_n_Npow2n.
+  have n_ge0 := Nat2Z.is_nonneg n.
+  rewrite wandE wshlE // wshrE // Nat2Z.id wbit_n_Npow2n.
   move: (nat_of_ord i) (ltn_ord i) => {i} i.
   rewrite ltnS => i_bounded.
   rewrite i_bounded andbT andbC.
@@ -1952,6 +1961,6 @@ Proof.
   move=> h0n hrange.
   rewrite wrepr_mul.
   rewrite -(wshl_sem _ h0n).
-  rewrite wshlE.
+  rewrite wshlE //.
   by rewrite hrange.
 Qed.
