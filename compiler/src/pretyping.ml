@@ -1928,14 +1928,8 @@ let process_f_annot annot =
     match !Glob_options.register_zeroization with
     | Some rzm -> Some rzm
     | None ->
-        let mk_rz s =
-          let open Register_zeroization_mode in
-          Annot.filter_string_list
-            None
-            ["regs", rzm_regs; "regs-flags", rzm_regs_flags]
-            s
-        in
-        Annot.ensure_uniq1 "registerzeroization" mk_rz annot
+        let mk_rzm = Annot.filter_string_list None rzmodes in
+        Annot.ensure_uniq1 "registerzeroization" mk_rzm annot
   in
 
   { retaddr_kind          = Annot.ensure_uniq1 "returnaddress"  mk_ra                annot;

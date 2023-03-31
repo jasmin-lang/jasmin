@@ -191,3 +191,8 @@ val add_warning : warning -> unit -> unit
 val warning :
       warning -> Location.i_loc
    -> ('a, Format.formatter, unit) format -> 'a
+
+(* -------------------------------------------------------------------- *)
+
+val rzm_none : Register_zeroization_mode.rzmode
+val rzmodes : (string * Register_zeroization_mode.rzmode) list

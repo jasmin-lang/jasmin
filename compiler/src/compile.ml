@@ -225,7 +225,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let rzm_of_fn fn =
     match (get_annot fn).annot_rzm with
     | Some b -> b
-    | None -> Register_zeroization_mode.rzm_none
+    | None -> rzm_none
   in
 
   let cparams =

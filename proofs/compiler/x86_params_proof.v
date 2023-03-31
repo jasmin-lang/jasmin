@@ -762,24 +762,57 @@ Proof.
   move: x => [[|||ws] xname] //=.
   set x := {| vname := xname; |}.
   rewrite /x86_zeroize_var /=.
-  t_xrbindP=> hws ?; subst args.
-
   rewrite -cat1s in hbody.
+
+  case hws : (ws <= U64)%CMP;
+    move=> [?]; subst args.
+
+  - eexists; eexists; eexists; split.
+    + apply: LSem_step.
+      rewrite /lsem1 /step -{1}(addn0 (size pre)).
+      rewrite (find_instr_skip hbody) /=.
+
+      (* TODO: Abstract. *)
+      rewrite /eval_instr /=.
+      rewrite /of_estate /=.
+      subst x.
+      {
+        all: case: ws hws hbody => // _ _.
+        all: rewrite /= pword_of_wordE zero_extend_u addn1.
+        all: reflexivity.
+      }
+
+    (* TODO: This is the same as the wide register case. *)
+    split; first done; first done.
+    split=> y hy.
+
+    + move: hy => /sv_of_listP.
+      rewrite notin_cons.
+      move=> /andP [] /eqP hyx _.
+      rewrite /=.
+      by t_vm_get.
+
+    move: hy.
+    rewrite in_cons.
+    move=> /orP []; last done.
+    move=> /eqP ?; subst y.
+    rewrite /zeroized_on.
+    by rewrite get_var_eq /= wrepr0.
 
   eexists; eexists; eexists; split.
   - apply: LSem_step.
     rewrite /lsem1 /step -{1}(addn0 (size pre)).
     rewrite (find_instr_skip hbody) /=.
-    (***************************)
+
+    (* TODO: Abstract. *)
     rewrite /eval_instr /=.
     rewrite /of_estate /=.
     subst x.
     {
-      case: ws hws hbody => hws hbody //.
-      all: rewrite /= pword_of_wordE zero_extend_u addn1.
+      all: case: ws hws hbody => // _ _.
+      all: rewrite /= pword_of_wordE addn1.
       all: reflexivity.
     }
-    (***************************)
 
   split; first done; first done.
   split=> y hy.
@@ -787,6 +820,7 @@ Proof.
   - move: hy => /sv_of_listP.
     rewrite notin_cons.
     move=> /andP [] /eqP hyx _.
+    rewrite /=.
     by t_vm_get.
 
   move: hy.
@@ -794,8 +828,7 @@ Proof.
   move=> /orP []; last done.
   move=> /eqP ?; subst y.
   rewrite /zeroized_on.
-  rewrite get_var_eq /=.
-  by rewrite wrepr0.
+  by rewrite get_var_eq /=.
 Qed.
 
 Lemma x86_zeroize_varsP err_register :
