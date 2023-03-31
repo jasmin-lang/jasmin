@@ -5,6 +5,7 @@ let version_string = "Jasmin Compiler @VERSION@"
 let outfile = ref ""
 let latexfile = ref ""
 let debug = ref false
+let timings = ref false
 let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
@@ -153,6 +154,7 @@ let options = [
     "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-debug"   , Arg.Set debug         , ": print debug information";
+    "-timings" , Arg.Set timings       , ": print a timestamp after each pass";
     "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
     "-latex"   , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file (deprecated)";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
@@ -202,6 +204,8 @@ let usage_msg = "Usage : jasminc [option] filename"
 
 (* -------------------------------------------------------------------- *)
 let eprint step pp_prog p =
+  if !timings then
+    Format.eprintf "%t after %s@." pp_now (fst (print_strings step));
   if List.mem step !print_list then begin
     let (_, msg) = print_strings step in
     Format.printf

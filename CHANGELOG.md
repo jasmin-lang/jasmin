@@ -120,6 +120,9 @@
   expansion of register arrays
   ([PR #341](https://github.com/jasmin-lang/jasmin/pull/341)).
 
+- When the `-timings` command-line flag is given, timestamps are
+  written to the standard error after each compilation pass.
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
