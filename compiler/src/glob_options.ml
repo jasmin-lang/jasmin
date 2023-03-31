@@ -204,7 +204,7 @@ let options =
     "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
     "-register-zeroization",
       rzm_args,
-      " override register zeroization behaviour for export functions";
+      ": override register zeroization mode for export functions";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
