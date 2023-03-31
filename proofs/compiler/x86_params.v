@@ -237,9 +237,9 @@ Definition x86_zeroize_var
   (err_register : var -> pp_error_loc) (x : var) : cexec lopn_args :=
   if vtype x is sword ws
   then
-    let op := if (ws <= U64)%CMP then MOV else VMOVDQU in
+    Let: tt := assert (ws <= 64) (err_register x) in
     let xi := {| v_var := x; v_info := dummy_var_info; |} in
-    ok ([:: LLvar xi ], Ox86 (op ws), [:: Rexpr (fconst ws 0) ])
+    ok ([:: LLvar xi ], Ox86 (MOV ws), [:: Rexpr (fconst ws 0) ])
   else
     Error (err_register x).
 
@@ -249,7 +249,9 @@ Definition x86_zeroize_flags
   then
     let xi := {| v_var := x; v_info := dummy_var_info; |} in
     let e := Rexpr (Fvar xi) in
-    let to_lflag f := LLvar {| v_var := to_var f; v_info := dummy_var_info; |} in
+    let
+      to_lflag f := LLvar {| v_var := to_var f; v_info := dummy_var_info; |}
+    in
     let lflags := map to_lflag [:: OF; CF; SF; PF; ZF ] in
     ok [:: (lflags, Ox86 (CMP reg_size), [:: e; e ]) ]
   else

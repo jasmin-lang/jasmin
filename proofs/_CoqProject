@@ -111,6 +111,7 @@ lang/one_varmap.v
 lang/psem_of_sem_proof.v
 lang/psem_facts.v
 lang/psem.v
+lang/register_zeroization_mode.v
 lang/sem.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v

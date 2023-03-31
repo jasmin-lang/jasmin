@@ -761,7 +761,8 @@ Proof.
   move: h.
   move: x => [[|||ws] xname] //=.
   set x := {| vname := xname; |}.
-  move=> [?]; subst args.
+  rewrite /x86_zeroize_var /=.
+  t_xrbindP=> hws ?; subst args.
 
   rewrite -cat1s in hbody.
 
@@ -774,7 +775,7 @@ Proof.
     rewrite /of_estate /=.
     subst x.
     {
-      case: ws hbody => hbody.
+      case: ws hws hbody => hws hbody //.
       all: rewrite /= pword_of_wordE zero_extend_u addn1.
       all: reflexivity.
     }
@@ -974,8 +975,6 @@ Proof.
 
   remember (seq_diff _ _) as vars eqn:hvars.
   move=> hrzflags.
-
-  Check x86_zeroize_flags_aux hrzflags hzero0.
 
   (* [rzm_registers rzm] must be true. *)
   subst vregs.

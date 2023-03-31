@@ -32,6 +32,16 @@ let introduce_array_copy = ref true
 let print_dependencies = ref false 
 let lazy_regalloc = ref false
 
+let register_zeroization = ref None
+let set_register_zeroization s =
+  match s with
+  | "regs" ->
+    register_zeroization := Some Register_zeroization_mode.rzm_regs
+  | "regs-flags" ->
+    register_zeroization := Some Register_zeroization_mode.rzm_regs_flags
+  | _ ->
+    assert false
+
 type architecture =
   | X86_64
   | ARM_M4
@@ -193,6 +203,9 @@ let options = [
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
     "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
+    "-register-zeroization",
+      Arg.Symbol (["regs"; "regs-flags"], set_register_zeroization),
+      " override register zeroization behaviour for export functions";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

@@ -223,19 +223,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let rzm_of_fn fn =
-    match (get_annot fn).annot_rz_all with
-    | Some b ->
-      {
-        Register_zeroization.rzm_flags = false;
-        Register_zeroization.rzm_registers = b;
-        Register_zeroization.rzm_xregisters = false;
-      }
-    | None ->
-      {
-        Register_zeroization.rzm_flags = false;
-        Register_zeroization.rzm_registers = false;
-        Register_zeroization.rzm_xregisters = false;
-      }
+    match (get_annot fn).annot_rzm with
+    | Some b -> b
+    | None -> Register_zeroization_mode.rzm_none
   in
 
   let cparams =

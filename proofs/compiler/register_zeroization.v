@@ -2,8 +2,7 @@
 
   This pass zeroizes all registers (normal, extra registers, and flags).
   The code to do this is architecture specific, as well as the zeroization
-  notion.
-*)
+  notion. *)
 
 From mathcomp Require Import
   all_ssreflect
@@ -17,8 +16,8 @@ Require Import
   one_varmap
   sopn
   utils.
-Require Import
-  compiler_util.
+Require Import compiler_util.
+Require Export register_zeroization_mode.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -26,38 +25,19 @@ Unset Printing Implicit Defensive.
 
 Module E.
 
-  Definition pass : string := "register zeroization".
-
-  Definition base_error msg :=
-    {|
-      pel_msg := msg;
-      pel_fn := None;
-      pel_fi := None;
-      pel_ii := None;
-      pel_vi := None;
-      pel_pass := Some pass;
-      pel_internal := true;
-    |}.
+  Notation internal_error := (pp_internal_error "register zeroization").
 
   Definition cant_zeroize_flags : pp_error_loc :=
-    base_error (pp_s "can't zeoize flags").
+    internal_error (pp_s "can't zeoize flags").
 
   Definition cant_zeroize_register (x : var) : pp_error_loc :=
     let: msg := "can't zeroize register"%string in
-    base_error (pp_box [:: pp_s msg; pp_s (vname x) ]).
+    internal_error (pp_box [:: pp_s msg; pp_s (vname x) ]).
 
   Definition res_has_bool : pp_error_loc :=
-    base_error (pp_s "there's a boolean return variable").
+    internal_error (pp_s "there's a boolean return variable").
 
 End E.
-
-Record rzmode :=
-  {
-    rzm_flags : bool;
-    rzm_registers : bool;
-    rzm_xregisters : bool;
-  }.
-
 
 Section REGISTER_ZEROIZATION_PARAMS.
 
