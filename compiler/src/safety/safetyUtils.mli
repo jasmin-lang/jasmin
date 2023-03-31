@@ -15,6 +15,7 @@ val only_rel_print : bool ref
 
 (*---------------------------------------------------------------*)
 val debug : (unit -> unit) -> unit
+val timestamp : unit -> _ Prog.func -> [ `Call of Prog.L.i_loc | `Ret ] -> unit
 
 (*---------------------------------------------------------------*)
 val ident : 'a -> 'a
