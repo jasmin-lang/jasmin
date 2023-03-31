@@ -1589,6 +1589,8 @@ end = struct
        let abs = List.fold_left AbsDom.is_init state.abs cells in
        { state with abs }
 
+  let log = timestamp ()
+
   let rec aeval_ginstr asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
@@ -1872,6 +1874,7 @@ end = struct
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 
+        log f_decl (`Call ginstr.i_loc);
         debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]%!" fn.fn_name);
         let callsite = ginstr.i_loc in
 
@@ -1883,6 +1886,7 @@ end = struct
         let conds = safe_return f_decl in
         let fstate = check_safety fstate (InReturn fn) conds in
 
+        log f_decl `Ret;
         debug(fun () ->
             print_return ginstr fstate.abs fn.fn_name);
 
