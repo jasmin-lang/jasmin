@@ -395,6 +395,12 @@ let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
 
 
 (* -------------------------------------------------------------------- *)
+let pp_now fmt =
+  let open Unix in
+  let { tm_hour; tm_min; tm_sec; _ } = () |> gettimeofday |> localtime in
+  Format.fprintf fmt "[%02d:%02d:%02d]" tm_hour tm_min tm_sec
+
+(* -------------------------------------------------------------------- *)
 
 type warning = 
   | ExtraAssignment 

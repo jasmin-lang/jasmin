@@ -177,6 +177,9 @@ val hierror :
    -> ('a, Format.formatter, unit, 'b) format4 -> 'a
 
 (* -------------------------------------------------------------------- *)
+val pp_now  : Format.formatter -> unit
+
+(* -------------------------------------------------------------------- *)
 type warning = 
   | ExtraAssignment 
   | UseLea
