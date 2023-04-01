@@ -42,46 +42,134 @@ Context
   (rip : pointer)
   (no_overflow_glob_size : no_overflow rip glob_size)
   (mglob : Mvar.t (Z * wsize))
-  (hmap : init_map (Z.of_nat (size global_data)) global_alloc = ok mglob).
+  (P : uprog) (ev: @extra_val_t _ progUnit)
+  (hmap : init_map global_alloc global_data (p_globs P) = ok mglob).
+
+Notation gd := (p_globs P).
+
+
+Lemma ztakeP (A:Type) z (l l1 l2:list A) : 
+  ztake z l = Some(l1, l2) -> l = l1 ++ l2 /\ size l1 = Z.to_nat z.
+Proof.
+  case: z => //= [ [<- <-] // | p ].
+  case heq: (ptake p [::] l) => [ [r l2']| //]. 
+  move=> [<- <- {l1 l2}].
+  suff : rev [::] ++ l = rev r ++ l2' ∧ size (rev r) = (Pos.to_nat p + size (@nil A))%nat.
+  + by rewrite /= addn0.
+  elim: p [::] l r l2' heq => /= [p hp | p hp | ] acc l r l2.
+  + case: l => // x l.
+    case: ptake (hp (x::acc) l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
+    rewrite -cat_rcons -rev_cons h1 h3 h4 -(size_rev r1) h2; split => //=. 
+    rewrite Pos2Nat.inj_xI. 
+    change ((Pos.to_nat p + (Pos.to_nat p + (size acc).+1))%nat = ((2 * Pos.to_nat p).+1 + size acc)%nat); ring.
+  + case: ptake (hp acc l) => // -[r1 l21] /(_ _ _ erefl) [h1 h2] /hp [h3 h4].
+    rewrite h1 h3 h4 -(size_rev r1) h2; split => //=. 
+    rewrite Pos2Nat.inj_xO. 
+    change ((Pos.to_nat p + (Pos.to_nat p + (size acc)))%nat = ((2 * Pos.to_nat p) + size acc)%nat); ring.
+  by case: l => // x l [<- <-]; rewrite rev_cons cat_rcons size_rcons size_rev. 
+Qed.
+
+Lemma check_globP data gv tt : 
+  check_glob data gv = ok tt -> size data = Z.to_nat (size_glob gv) ->
+  forall k w, get_val_byte (gv2val gv) k = ok w -> nth 0%R data (Z.to_nat k) = w.
+Proof.
+  case: gv; rewrite /check_glob. 
+  + move=> ws s; t_xrbindP => /eqP <- hsz k w /=.
+    case:ifP => // ? [] <-. 
+    rewrite /LE.wread8; f_equal.
+    apply (LE.decode_inj (sz:=ws)) => //.
+    + by rewrite LE.size_encode. 
+    by rewrite LE.decodeK.
+  move=> p t /=.
+  set test := λ (wd : u8) (i : Z),
+       match read t i U8 with
+       | ok _ w => if wd == w then ok (i + 1) else Error (E.stk_ierror_no_var "bad decode array eq")
+       | Error _ => Error (E.stk_ierror_no_var "bad decode array len")
+       end.
+  t_xrbindP => z hf _ hsz. 
+  assert (H : forall data' i l z,
+    foldM test i data' = ok z → 
+    data = l ++ data' →
+    Z.of_nat (size l) = i → 
+    (∀ (k : Z) (w : u8), 0%Z <= k < i -> read t k U8 = ok w → (data`_(Z.to_nat k))%R = w) → 
+    ∀ (k : Z) (w : u8), read t k U8 = ok w → (data`_(Z.to_nat k))%R = w); last first.
+  + by move=> hfold hsize; apply (H data 0%Z [::] z) => //; lia.
+  move=> {z hf }; elim => [ | w data' hrec] i l z /=.
+  + rewrite cats0 => _ <- <- h k w hr.
+    have /= ? := @get_val_byte_bound (Varr t) k _ hr.
+    by apply h => //; rewrite hsz positive_nat_Z.
+  rewrite {2}/test; t_xrbindP => i'.
+  case heq: read => [ wp | ] //.  
+  case: eqP => [? | //] [?] h heq' hi hr; subst wp i' i.
+  apply (hrec _ (rcons l w) _ h).
+  + by rewrite cat_rcons.
+  + by rewrite size_rcons Nat2Z.inj_succ.
+  move=> k w0 hk.
+  case (k =P  Z.of_nat (size l)) => [-> | ]. 
+  + by rewrite heq heq' Nat2Z.id => -[<-]; rewrite nth_cat ltnn subnn.
+  move=> ?; apply hr; lia.
+Qed.
 
 Lemma init_mapP : forall x1 ofs1 ws1,
   Mvar.get mglob x1 = Some (ofs1, ws1) -> [/\
     ofs1 mod wsize_size ws1 = 0,
-    0 <= ofs1 /\ ofs1 + size_slot x1 <= glob_size &
+    0 <= ofs1 /\ ofs1 + size_slot x1 <= glob_size,
+    (forall gv, get_global_value gd x1 = Some gv ->
+                forall k w, get_val_byte (gv2val gv) k = ok w ->
+                            nth 0%R global_data (Z.to_nat (ofs1 + k)) = w) &
     (forall x2 ofs2 ws2,
       Mvar.get mglob x2 = Some (ofs2, ws2) -> x1 <> x2 ->
       ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1)].
 Proof.
   move: hmap; rewrite /init_map.
-  t_xrbindP=> -[mglob' size] hfold /=.
-  case: ZleP => [hle|//] [?] x1 ofs1 ws1 hget; subst mglob'.
+  t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /ZleP hle /= _ ? x1 ofs1 ws1 hget; subst mglob'.
   have: [/\ ofs1 mod wsize_size ws1 = 0,
-    0 <= ofs1 /\ ofs1 + size_slot x1 <= size &
+    0 <= ofs1 /\ ofs1 + size_slot x1 <= size,
+    (forall gv, get_global_value gd x1 = Some gv ->
+                forall k w, get_val_byte (gv2val gv) k = ok w ->
+                            nth 0%R global_data (Z.to_nat (ofs1 + k)) = w) &  
     ∀ x2 ofs2 ws2,
       Mvar.get mglob x2 = Some (ofs2, ws2) -> x1 ≠ x2 ->
       ofs1 + size_slot x1 <= ofs2 ∨ ofs2 + size_slot x2 <= ofs1];
   last first.
-  + by move=> [h1 h2 h3]; split=> //; lia.
+  + by move=> [h1 h2 h3 h4]; split=> //; lia.
   move: hfold x1 ofs1 ws1 hget.
-  have: 0 <= (Mvar.empty (Z * wsize), 0).2 /\
+  have : [/\ 
+    0 <= (Mvar.empty (Z * wsize), 0, global_data).1.2,
+    (exists l, seq.size l = Z.to_nat (Mvar.empty (Z * wsize), 0, global_data).1.2 /\
+       global_data = l ++ (Mvar.empty (Z * wsize), 0, global_data).2) &
     forall x1 ofs1 ws1,
-    Mvar.get (Mvar.empty (Z * wsize), 0).1 x1 = Some (ofs1, ws1) -> [/\
+    Mvar.get (Mvar.empty (Z * wsize), 0, global_data).1.1 x1 = Some (ofs1, ws1) -> [/\
     ofs1 mod wsize_size ws1 = 0,
-    0 <= ofs1 /\ ofs1 + size_slot x1 <= (Mvar.empty (Z * wsize), 0).2 &
-      (forall x2 ofs2 ws2,
-        Mvar.get (Mvar.empty (Z * wsize), 0).1 x2 = Some (ofs2, ws2) -> x1 <> x2 ->
-        ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1)].
-  + done.
-  elim: global_alloc (Mvar.empty _, 0).
-  + by move=> [mglob0 size0] [_ hbase2] /= [<- <-].
-  move=> [[x wsx] ofsx] l ih [mglob0 size0] /= [hbase1 hbase2].
-  t_xrbindP=> -[mglob1 size1].
+    0 <= ofs1 /\ ofs1 + size_slot x1 <= (Mvar.empty (Z * wsize), 0, global_data).1.2,
+    (forall gv, get_global_value gd x1 = Some gv ->
+                forall k w, get_val_byte (gv2val gv) k = ok w ->
+                            nth 0%R global_data (Z.to_nat (ofs1 + k)) = w) &
+    (forall x2 ofs2 ws2,
+       Mvar.get (Mvar.empty (Z * wsize), 0, global_data).1.1 x2 = Some (ofs2, ws2) -> x1 <> x2 ->
+       ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1)]].
+  + by split => //; exists [::].
+  elim: global_alloc (Mvar.empty _, 0, global_data).
+  + by move=> [[mglob0 size0] data] /= [] ? heq hbase2 [<- <- ?].
+  move=> [[x wsx] ofsx] l ih [[mglob0 size0] data0] /= [hbase1 [l0 [heqsz heq]] hbase2].
+  t_xrbindP=> -[[mglob1 size1] data1].
   case: ZleP => [h1|//].
   case: eqP => [h2|//].
-  move=> [<- <-].
+  case heqt : (ztake (ofsx - size0) data0) => [[rdata ldata] | //].
+  case heqt' : (ztake (size_slot x) ldata) => [[vdata data] | //].
+  rewrite -/(get_global_value gd x).
+  case heqg: (get_global_value gd x) => [gv | //].
+  t_xrbindP => /eqP heqszg hcheck ???; subst data1 size1 mglob1.
   apply ih.
+  have [? hsz1] := ztakeP heqt; subst data0.
+  have [? hsz2] := ztakeP heqt'; subst ldata.
   split=> /=.
   + by have := size_slot_gt0 x; lia.
+  + exists (l0 ++ rdata ++ vdata).
+    rewrite heq -!catA; split => //.
+    have ? := size_slot_gt0 x.
+    rewrite -Nat2Z.inj_iff !size_cat !Nat2Z.inj_add Z2Nat.id //; last by lia.
+    by rewrite hsz1 hsz2 heqsz !Z2Nat.id //; first ring; lia.
   move=> x1 ofs1 ws1.
   rewrite Mvar.setP.
   case: eqP => [|_].
@@ -89,6 +177,24 @@ Proof.
     split.
     + by rewrite -Zland_mod.
     + by lia.
+    + rewrite heqg => _ [<-].
+      move=> k w hget; rewrite heq.
+      have ? := get_val_byte_bound hget.
+      rewrite /= Z2Nat.inj_add; last first. + lia. + lia.
+      rewrite catA nth_cat.
+      have heqo : Z.to_nat ofsx = seq.size (l0 ++ rdata).
+      + rewrite size_cat heqsz hsz1 Z2Nat.inj_sub // subnKC //.
+        by apply /leP; apply Z2Nat.inj_le => //; lia.
+      have /negP/negbTE-> : ~((Z.to_nat ofsx + Z.to_nat k)%coq_nat < seq.size (l0 ++ rdata))%nat. 
+      + by rewrite -heqo => /ltP; lia.
+      rewrite -heqo.
+      replace (subn _ _) with (Z.to_nat k) by (clear; rewrite /subn /subn_rec; lia).
+      have hh : seq.size vdata = Z.to_nat (size_glob gv) by rewrite hsz2 heqszg.
+      have := check_globP hcheck hh hget.
+      rewrite nth_cat.
+      have ? : size_glob gv = size_val (gv2val gv) by case: (gv).
+      have -> // : (Z.to_nat k < seq.size vdata)%nat.
+      by apply/ltP; rewrite Nat2Z.inj_lt hsz2 !Z2Nat.id; lia. 
     move=> x2 ofs2 ws2.
     rewrite Mvar.setP.
     case: eqP => [//|_].
@@ -117,48 +223,30 @@ Lemma init_map_disjoint x1 ofs1 ws1 :
     ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1.
 Proof. by move=> /init_mapP [_ _ ?]. Qed.
 
-
-Variable (P : uprog) (ev: @extra_val_t _ progUnit).
-Notation gd := (p_globs P).
-
-Hypothesis hglobs : check_globs gd mglob global_data.
-
-Lemma check_globP gd :
-  check_glob mglob global_data gd ->
-  exists ofs ws,
-    Mvar.get mglob gd.1 = Some (ofs, ws) /\
-    forall k w,
-      get_val_byte (gv2val gd.2) k = ok w ->
-      nth 0%R global_data (Z.to_nat (ofs + k)) = w.
+Lemma init_map_full : forall x gv,
+  get_global_value gd x = Some gv ->
+  exists ofs ws, Mvar.get mglob x = Some (ofs, ws).
 Proof.
-  rewrite /check_glob.
-  case heq: Mvar.get => [[ofs ws]|//].
-  move=> h; eexists _, _; (split; first by reflexivity); move: h.
-  move /init_map_bounded in heq.
-  case: gd.2.
-  + move=> ws' w /andP [] /leP; rewrite size_drop => hle /eqP hw.
-    move=> k u /=.
-    case: andP => //; rewrite !zify => hbound [<-].
-    rewrite Z2Nat.inj_add; try lia.
-    rewrite -nth_drop -(@nth_take (Z.to_nat (wsize_size ws')));
-      last by apply /ltP; apply Z2Nat.inj_lt; lia.
-    rewrite /LE.wread8.
-    f_equal.
-    apply (LE.decode_inj (sz:=ws')).
-    + rewrite size_take size_drop LE.size_encode.
-      by case: ltP; lia.
-    + rewrite size_take size_drop.
-      by case: ltP; lia.
-    by rewrite -hw LE.decodeK.
-  move=> len a /andP [] /leP; rewrite size_drop => hle /allP hread.
-  move=> k w /dup[] /get_val_byte_bound /= hbound hw.
-  apply /eqP; rewrite Z2Nat.inj_add; try lia.
-  move: (hread (Z.to_nat k)).
-  rewrite Z2Nat.id; last by lia.
-  rewrite hw nth_drop.
-  apply.
-  rewrite mem_iota; apply /andP; split; first by apply /leP; lia.
-  by apply /ltP; apply Z2Nat.inj_lt; lia.
+  move: hmap; rewrite /init_map.
+  t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /ZleP hle /= /SvD.F.subset_iff hsub ? x gv h; subst mglob'.
+  move: hfold.
+  have : x \in (map (fun t => t.1.1) global_alloc) \/ 
+         ∃ (ofs : Z) (ws : wsize), Mvar.get (Mvar.empty (Z * wsize), 0, global_data).1.1 x = Some (ofs, ws).
+  + left; apply /sv_of_listP/hsub/sv_of_listP.
+    by apply: assoc_mem_dom' h.
+  elim: global_alloc (Mvar.empty (Z * wsize), 0, global_data) => /=.
+  + by move=> p [] // [ofs [ws ?]] [?]; subst p; exists ofs, ws.
+  move=> [[ x1 ws] z] glob_alloc ih [[mvar pos] data] hx1.
+  t_xrbindP => -[[mvar1 pos1] data1]; case: ZleP => // ?.
+  case: ifP => // ?.
+  case: ztake => // -[_ data0].
+  case: ztake => // -[vdata data2].
+  case: assoc => // gv1; t_xrbindP => ?????.
+  apply ih; case: hx1.
+  + rewrite in_cons => /orP [/eqP | ] /= ?; subst; last by left.
+    by right; exists z, ws; rewrite Mvar.setP eqxx.
+  move=> ?; subst; right.
+  rewrite Mvar.setP; case: eqP => // *; by exists z, ws.
 Qed.
 
 Lemma check_globsP g gv :
@@ -169,10 +257,10 @@ Lemma check_globsP g gv :
       get_val_byte (gv2val gv) k = ok w ->
       nth 0%R global_data (Z.to_nat (ofs + k)) = w.
 Proof.
-  move: hglobs; rewrite /check_globs.
-  elim: gd => // -[g' gv'] gd ih /= /andP [/check_globP h1 /ih h2].
-  case: eqP => [|//].
-  by move=> -> [<-].
+  move=> h; move: (h) => /init_map_full [ofs [ws hget]].
+  exists ofs, ws; split => //.
+  have [_ _ h1 _] := init_mapP hget.
+  apply (h1 _ h).
 Qed.
 
 Section LOCAL.
@@ -2798,9 +2886,7 @@ Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
 Proof.
   move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 hsem1 rip m2 vargs2 hext hargs hdisj halloc.
   move: hprog; rewrite /alloc_prog.
-  t_xrbindP=> mglob hmap.
-  case: eqP => [//|hneq].
-  case: ifP => [hcheck|//].
+  t_xrbindP=> mglob hmap /eqP hneq.
   t_xrbindP=> fds hfds.
   set P' := {| p_funcs := _ |} => ?; subst SP.
 
@@ -2810,7 +2896,6 @@ Proof.
   by apply (check_cP
               hext.(em_no_overflow)
               hmap
-              hcheck
               (P':=P')
               refl_equal
               hsaparams
@@ -2826,17 +2911,14 @@ Qed.
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
   alloc_prog saparams fresh_reg_ nrip nrsp data oracle_g oracle P = ok SP →
   exists2 mglob,
-    init_map (Z.of_nat (size data)) oracle_g = ok mglob &
+    init_map oracle_g data (p_globs P) = ok mglob &
     ∀ fn fd,
     get_fundef (p_funcs P) fn = Some fd →
     exists2 fd',
       alloc_fd saparams {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob fresh_reg_ oracle fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
-  rewrite /alloc_prog; t_xrbindP => mglob ->.
-  case: eqP => // _.
-  case: ifP => // _.
-  t_xrbindP => fds ok_fds <- {SP} /=.
+  rewrite /alloc_prog; t_xrbindP => mglob -> _ fds ok_fds <- {SP} /=.
   exists mglob; first reflexivity.
   exact: get_alloc_fd.
 Qed.
