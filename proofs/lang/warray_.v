@@ -217,6 +217,16 @@ Module WArray.
     if (len' <=? len)%Z then ok {| arr_data := a.(arr_data) |}
     else type_error.
 
+  Definition of_list {ws} (l:list (word ws)) : array (Z.to_pos (Z.of_nat (size l) * wsize_size ws)) :=
+    let m := Mz.empty in
+    let do8 (mz: Mz.t _ * Z) (w:u8) :=
+      let '(m,z) := mz in
+      (Mz.set m z w, Z.succ z) in
+    let dow (mz: Mz.t _ * Z) (w:word ws) :=
+      foldl do8 mz (LE.encode w) in
+    let '(m, z) := foldl dow (Mz.empty u8, 0%Z) l in
+    {| arr_data := m |}.
+
   Definition uincl {len1 len2} (a1 : array len1) (a2 : array len2) :=
     (len1 <= len2)%Z /\
     ∀ i w, read a1 i U8 = ok w -> read a2 i U8 = ok w.
