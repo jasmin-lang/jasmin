@@ -10,6 +10,8 @@ jasmin.opam
 find:.:dune
 
 find:entry:*.ml
+find:safetylib:*.ml
+find:safetylib:*.mli
 find:src:*.ml
 find:src:*.mli
 find:src:*.mll

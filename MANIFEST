@@ -15,7 +15,9 @@ find:compiler/src:*.ml
 find:compiler/src:*.mli
 find:compiler/src:*.mll
 find:compiler/src:*.mly
-compiler/entry/jasminc.ml
+find:compiler/entry:*.ml
+find:compiler/safetylib:*.ml
+find:compiler/safetylib:*.mli
 compiler/src/LICENSE.puf
 compiler/scripts/runtest
 compiler/Makefile

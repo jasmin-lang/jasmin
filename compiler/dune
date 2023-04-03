@@ -11,7 +11,7 @@
  (modules jasminc)
  (flags -rectypes)
  (modes byte exe)
- (libraries jasmin))
+ (libraries jasminc))
 
 (executable
  (public_name jazz2tex)
