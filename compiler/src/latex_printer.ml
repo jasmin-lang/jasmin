@@ -226,7 +226,7 @@ let pp_args fmt (sty, xs) =
     fmt
     "%a %a"
     pp_sto_ty sty
-    (pp_list ", " pp_var) xs
+    (pp_list " " pp_var) xs
 
 let pp_rty =
   pp_opt
