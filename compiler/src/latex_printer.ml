@@ -114,7 +114,7 @@ let pp_space fmt _ =
   F.fprintf fmt " "
 
 let pp_attribute_key fmt s =
-  if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' -> true | _ -> false) s
+  if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false) s
   then F.fprintf fmt "%s" s
   else F.fprintf fmt "%S" s
 
@@ -259,8 +259,8 @@ let pp_sidecond fmt =
 let pp_vardecls fmt d =
   F.fprintf fmt "%a;" pp_args d
 
-(* TODO: print annot *)
-let rec pp_instr depth fmt (_annot, p) =
+let rec pp_instr depth fmt (annot, p) =
+  if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;
   indent fmt depth;
   match L.unloc p with
   | PIdecl d -> pp_vardecls fmt d 
