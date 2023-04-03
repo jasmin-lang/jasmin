@@ -277,7 +277,7 @@ let rec pp_instr depth fmt (_annot, p) =
        end
     | None, _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op 
     | Some pimp, _ ->
-      F.fprintf fmt "?%a%a%a %a %a "
+      F.fprintf fmt "?%a%a%a, %a %a "
         openbrace ()
         pp_struct_attribute (L.unloc pimp)
         closebrace ()
