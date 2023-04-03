@@ -102,6 +102,9 @@
   ([PR #394](https://github.com/jasmin-lang/jasmin/pull/394);
   fixes [#395](https://github.com/jasmin-lang/jasmin/issues/395)).
 
+- Various fixes to the LATEX printer
+  ([PR #406](https://github.com/jasmin-lang/jasmin/pull/406).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
