@@ -374,15 +374,13 @@ let pp_pitem fmt pi =
   | PParam p  -> pp_param fmt p
   | PGlobal g -> pp_global fmt g
   | Pexec _   -> ()
-  | Prequire (from, s) -> 
-    let pp_from fmt from = 
-      match from with
-      | None -> ()
-      | Some name -> Format.fprintf fmt "from %s " (L.unloc name) in
-    Format.fprintf fmt "%arequire @[<hov>%a@]"
-      pp_from from 
-      (pp_list "@ " (fun fmt s -> Format.fprintf fmt "\"%s\"" (L.unloc s)))
-      s
+  | Prequire (from, s) ->
+    let pp_from fmt =
+      Option.may (fun name ->
+          F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
+      F.fprintf fmt "%a%a " pp_from from kw "require";
+      List.iter (fun s -> F.fprintf fmt "%S " (L.unloc s)) s;
+      F.fprintf fmt eol
 
-let pp_prog fmt prog =
-  F.fprintf fmt "%a" (pp_list "\n" pp_pitem) prog
+let pp_prog fmt =
+  List.iter (F.fprintf fmt "%a" pp_pitem)
