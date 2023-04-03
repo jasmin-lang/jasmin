@@ -1,3 +1,4 @@
+open Jasmin
 module type ExportWrap = sig
   (* main function, before any compilation pass *)
   val main_source : (unit, X86_extra.x86_extended_op) Prog.func

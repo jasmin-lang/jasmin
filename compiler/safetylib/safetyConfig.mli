@@ -1,3 +1,5 @@
+open Jasmin
+
 type call_strategy =
   | Call_Direct 
   | Call_TopByCallSite 

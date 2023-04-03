@@ -11,4 +11,11 @@
  (name jasmin)
  (public_name jasmin.jasmin)
  (flags -rectypes)
- (libraries batteries zarith menhirLib yojson apron.octMPQ apron.ppl apron.boxMPQ))
+ (modules :standard \ main_compiler x86_safety)
+ (libraries batteries zarith menhirLib))
+
+(library
+ (name jasminc)
+ (flags -rectypes)
+ (modules main_compiler x86_safety)
+ (libraries jasmin jasmin_checksafety))
