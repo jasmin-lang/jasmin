@@ -11,7 +11,7 @@ stdenv.mkDerivation {
     mkdir -p $out/bin
     for p in jasminc jazz2tex
     do
-      cp _build/default/$p.exe $out/bin/$p
+      cp _build/default/entry/$p.exe $out/bin/$p
     done
   '';
 }
