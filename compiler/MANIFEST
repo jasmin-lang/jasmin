@@ -4,13 +4,11 @@ README.md
 
 default.nix
 Makefile
-dune
 dune-project
-src/dune
 jasmin.opam
 
-find:CIL:*.ml
-find:CIL:*.mli
+find:.:dune
+
 find:entry:*.ml
 find:src:*.ml
 find:src:*.mli
@@ -18,6 +16,6 @@ find:src:*.mll
 find:src:*.mly
 
 src/LICENSE.puf
-CIL/LICENSE.coq
-CIL/LICENSE.coqword
-CIL/LICENSE.mathcomp
+src/CIL/LICENSE.coq
+src/CIL/LICENSE.coqword
+src/CIL/LICENSE.mathcomp

@@ -1,6 +1,14 @@
+(include_subdirs unqualified)
+
 (ocamllex
  (modules lexer))
 
 (menhir
  (flags "--table" "--explain")
  (modules parser))
+
+(library
+ (name jasmin)
+ (public_name jasmin.jasmin)
+ (flags -rectypes)
+ (libraries batteries zarith menhirLib yojson apron.octMPQ apron.ppl apron.boxMPQ))
