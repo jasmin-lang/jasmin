@@ -103,7 +103,10 @@ let small_step1 spp s =
         let ves = exn_exec ii (sem_pexprs spp gd s1 es) in
         let ((scs, m), vs) = exn_exec ii (exec_syscall spp s1.escs s1.emem o ves) in
         let s2 = exn_exec ii (write_lvals spp gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
-      { s with s_cmd = c; s_estate = s2 }
+        { s with s_cmd = c; s_estate = s2 }
+
+    | Cassert _ ->
+      { s with s_cmd = c}
 
     | Cif(e,c1,c2) ->
       let b = of_val_b ii (exn_exec ii (sem_pexpr spp gd s1 e)) in

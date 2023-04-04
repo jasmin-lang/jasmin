@@ -53,6 +53,9 @@ and live_d is_move_op weak d (s_o: Sv.t) =
      else s_o in
     s_i, s_o, Copn(xs,t,o,es)
 
+  | Cassert e ->
+    (vars_e e), s_o, Cassert e
+
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c is_move_op weak c1 s_o in
     let s2, c2 = live_c is_move_op weak c2 s_o in
@@ -102,7 +105,7 @@ let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
                     (f: (Sv.t * Sv.t, 'asm) func) : unit =
   let rec iter_instr_r loc ii =
     function
-    | (Cassgn _ | Copn _) -> ()
+    | (Cassgn _ | Copn _ | Cassert _ ) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
     | Ccall (_, xs, fn, _) ->
@@ -129,7 +132,7 @@ let rec conflicts_i cf i =
   let cf = merge_class cf s1 in
 
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ ->
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ ->
     merge_class cf s2
   | Cfor( _, _, c) ->
     conflicts_c (merge_class cf s2) c

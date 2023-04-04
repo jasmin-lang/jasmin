@@ -23,6 +23,7 @@
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
     
+    "assert", ASSERT ;
     "const" , CONSTANT; 
     "downto", DOWNTO ;
     "else"  , ELSE   ;

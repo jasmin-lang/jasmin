@@ -515,6 +515,10 @@ let rec ty_instr fenv env i =
     let env, lvl = ty_exprs_max ~public:false env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
 
+  | Cassert e ->
+    let env, _ = ty_expr ~public:true env e in
+    env
+
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
     let env1 = ty_cmd fenv env c1 in

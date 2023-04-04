@@ -364,6 +364,20 @@ Proof.
   by econstructor; eauto; rewrite -(eq_alloc_mem heqa) -(eq_alloc_scs heqa).
 Qed.
 
+Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
+Proof.
+  move => s e he ? m ii i2 s1' hwf heqa /=; t_xrbindP => e' he' es' hes.
+  have := expand_eP hwf heqa he' he;rewrite -eq_globs => hse'.
+  by exists s1';split => //; subst; apply Eassert_true.
+Qed.
+
+Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
+Proof.
+  move => s e he ? m ii i2 s1' hwf heqa /=; t_xrbindP => e' he' es' hes.
+  have := expand_eP hwf heqa he' he;rewrite -eq_globs => hse'.
+  by exists s1';split => //; subst; apply Eassert_false.
+Qed.
+
 Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
 Proof.
   move => s1 s2 e c1 c2 hse hs hrec ii m ii' ? s1' hwf  heqa /=.
@@ -538,7 +552,7 @@ Lemma expand_callP f scs mem scs' mem' va vr:
   sem_call p1 ev scs mem f va scs' mem' vr -> sem_call p2 ev scs mem f va scs' mem' vr.
 Proof.
   apply (@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-          Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+        Hassert_true Hassert_false  Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
 Qed.
 
 End WITH_PARAMS.

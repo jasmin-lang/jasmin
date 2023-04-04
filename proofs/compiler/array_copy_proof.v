@@ -240,6 +240,26 @@ Proof.
   by apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs.
 Qed.
 
+Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
+Proof.
+  move => s e he ii. rewrite /Pi vars_I_assert => hsub c /=.
+  t_xrbindP =>  hc vm1 hvm1.
+  have [|v hv /value_uinclE ?]:= sem_pexpr_uincl_on (vmap_uincl_onI _ hvm1) he; first by SvD.fsetdec.
+  subst c v.
+  exists vm1 => //=. apply sem_seq1.
+  by constructor; apply Eassert_true; rewrite -eq_globs.
+Qed.
+
+Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
+Proof.
+  move => s e he ii. rewrite /Pi vars_I_assert => hsub c /=.
+  t_xrbindP =>  hc vm1 hvm1.
+  have [|v hv /value_uinclE ?]:= sem_pexpr_uincl_on (vmap_uincl_onI _ hvm1) he; first by SvD.fsetdec.
+  subst c v.
+  exists vm1 => //=. apply sem_seq1.
+  by constructor; apply Eassert_false; rewrite -eq_globs.
+Qed.
+
 Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
 Proof.
   move => s1 s2 e c1 c2 he _ hc ii; rewrite /Pi vars_I_if => hsub c /=.
@@ -347,7 +367,7 @@ Lemma array_copy_fdP f scs mem scs' mem' va va' vr:
 Proof.
   move=> Hall Hsem.
   have [vres' h1 h2] := @sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-               Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
+               Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
                scs mem f va scs' mem' vr Hsem _ Hall.
   by exists vres'.
 Qed.

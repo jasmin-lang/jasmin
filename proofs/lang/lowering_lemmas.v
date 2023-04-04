@@ -235,6 +235,14 @@ Proof.
   by move=> /disjoint_union.
 Qed.
 
+Lemma disj_fvars_vars_I_Cassert ii e :
+  disj_fvars (vars_I (MkI ii (Cassert e)))
+  -> disj_fvars (read_e e).
+Proof.
+  apply disjoint_equal_l.
+  apply vars_I_assert.
+Qed.
+
 Lemma disj_fvars_vars_I_Cif ii e c0 c1 :
   disj_fvars (vars_I (MkI ii (Cif e c0 c1)))
   -> [/\ disj_fvars (read_e e)

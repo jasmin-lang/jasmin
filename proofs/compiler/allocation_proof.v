@@ -642,232 +642,260 @@ Section PROOF.
     by exists vm2;split=>//; econstructor; eauto; rewrite -eq_globs.
   Qed.
 
-  Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
+Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
+Proof.
+move => s1 s2 e c1 c2.
+case: s1 => scs1 sm1 svm1 Hve _ Hc1 r1 [] //= e' c1' c2' r2 vm1 Hvm1.
+rewrite /check_i.
+t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
+move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.
+move => r3 Hr3 r4 Hr4 <-.
+have [vm2 [Hvm2 Hsem]]:= Hc1 _ _ _ _ Hr1' Hr3;exists vm2;split.
++ by eapply eq_alloc_incl;eauto;apply M.merge_incl_l.
+by apply Eif_true => //;rewrite -eq_globs Hve'.
+Qed.
+
+  Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
   Proof.
-    move => s1 s2 e c1 c2.
-    case: s1 => scs1 sm1 svm1 Hve _ Hc1 r1 [] //= e' c1' c2' r2 vm1 Hvm1.
+    move=> s e.
+    case: s => scs sm svm Hve r1 [] //= e' r2 vm1 Hvm1.
     rewrite /check_i.
     t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.
-    move => r3 Hr3 r4 Hr4 <-.
-    have [vm2 [Hvm2 Hsem]]:= Hc1 _ _ _ _ Hr1' Hr3;exists vm2;split.
-    + by eapply eq_alloc_incl;eauto;apply M.merge_incl_l.
-    by apply Eif_true => //;rewrite -eq_globs Hve'.
+    move => Hr2.
+    exists vm1;split.
+    + apply eq_alloc_incl with (r1:= r1'); auto; subst r1';apply M.incl_refl.
+      by apply Eassert_true => //; rewrite -eq_globs Hve'.
   Qed.
 
-  Local Lemma Hif_false : sem_Ind_if_false p1 ev Pc Pi_r.
+  Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
   Proof.
-    move => s1 s2 e c1 c2.
-    case: s1 => scs1 sm1 svm1 Hve _ Hc1 r1 [] //= e' c1' c2' r2 vm1 Hvm1.
+    move=> s e.
+    case: s => scs sm svm Hve r1 [] //= e' r2 vm1 Hvm1.
     rewrite /check_i.
     t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.
-    move => r3 Hr3 r4 Hr4 <-.
-    have [vm2 [Hvm2 Hsem]]:= Hc1 _ _ _ _ Hr1' Hr4;exists vm2;split.
-    + by eapply eq_alloc_incl;eauto;apply M.merge_incl_r.
-    by apply Eif_false => //;rewrite -eq_globs Hve'.
+    move => Hr2.
+    exists vm1;split.
+    + apply eq_alloc_incl with (r1:= r1'); auto; subst r1';apply M.incl_refl.
+      by apply Eassert_false => //; rewrite -eq_globs Hve'.
   Qed.
 
-  Local Lemma loop2P check_c n r1 r2:
-    loop2 check_c n r1 = ok r2 ->
-      exists r2' r3,
-      [/\ check_c r2' = ok (r2, r3), M.incl r2' r1 & M.incl r2' r3].
-  Proof.
-    elim: n r1 r2 => //= n Hrec r1 r2.
-    apply: rbindP => -[r2_1 r2_2] Hc;case:ifPn => [? [] <- | _ /Hrec].
-    + exists r1, r2_2;split=>//;apply M.incl_refl.
-    move=> [r2' [r3 [H1 H2 H3]]];exists r2', r3;split=>//.
-    apply: (M.incl_trans H2); apply M.merge_incl_l.
-  Qed.
+Local Lemma Hif_false : sem_Ind_if_false p1 ev Pc Pi_r.
+Proof.
+move => s1 s2 e c1 c2.
+case: s1 => scs1 sm1 svm1 Hve _ Hc1 r1 [] //= e' c1' c2' r2 vm1 Hvm1.
+rewrite /check_i.
+t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
+move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.
+move => r3 Hr3 r4 Hr4 <-.
+have [vm2 [Hvm2 Hsem]]:= Hc1 _ _ _ _ Hr1' Hr4;exists vm2;split.
++ by eapply eq_alloc_incl;eauto;apply M.merge_incl_r.
+by apply Eif_false => //;rewrite -eq_globs Hve'.
+Qed.
 
-  Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
-  Proof.
-    move => s1 s2 s3 s4 a c e c'.
-    case: s2 => scs2 sm2 svm2 _ Hc Hse _ Hc' _ Hw r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
-    rewrite /check_i -/check_I.
-    apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
-    have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
-    move: H; t_xrbindP => r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 [Hvm2 /= Hc2]] re Hre.
-    have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP gd Hre Hvm2.
-    subst vb' => r' Cc2' ??;subst r2 r3.
-    move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 [Hvm3 /= Hc2']].
-    have /Hw {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
-    have : check_i (Cwhile a c e c') (Cwhile a2 c2 e2 c2') r2' = ok re.
-    + by rewrite /check_i -/check_I Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
-    move=> /Hw [vm4 [Hvm4 Hsw]];exists vm4;split => //.
-    by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
-  Qed.
+Local Lemma loop2P check_c n r1 r2:
+loop2 check_c n r1 = ok r2 ->
+  exists r2' r3,
+  [/\ check_c r2' = ok (r2, r3), M.incl r2' r1 & M.incl r2' r3].
+Proof.
+elim: n r1 r2 => //= n Hrec r1 r2.
+apply: rbindP => -[r2_1 r2_2] Hc;case:ifPn => [? [] <- | _ /Hrec].
++ exists r1, r2_2;split=>//;apply M.incl_refl.
+move=> [r2' [r3 [H1 H2 H3]]];exists r2', r3;split=>//.
+apply: (M.incl_trans H2); apply M.merge_incl_l.
+Qed.
 
-  Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
-  Proof.
-    move => s1 s2 a c e c'.
-    case: s2 => scs2 sm2 svm2 _ Hc Hse r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
-    rewrite /check_i -/check_I.
-    t_xrbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] ?;subst r.
-    have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
-    move: H; t_xrbindP=> r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 [Hvm2 /= Hc2]] re Hre.
-    have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP gd Hre Hvm2.
-    subst vb' => r' Cc2' ??;subst r2 r3.
-    exists vm2;split => //.
-    by apply: Ewhile_false;rewrite // -eq_globs Hse2.
-  Qed.
+Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
+Proof.
+move => s1 s2 s3 s4 a c e c'.
+case: s2 => scs2 sm2 svm2 _ Hc Hse _ Hc' _ Hw r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
+rewrite /check_i -/check_I.
+apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
+have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
+move: H; t_xrbindP => r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 [Hvm2 /= Hc2]] re Hre.
+have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP gd Hre Hvm2.
+subst vb' => r' Cc2' ??;subst r2 r3.
+move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 [Hvm3 /= Hc2']].
+have /Hw {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
+have : check_i (Cwhile a c e c') (Cwhile a2 c2 e2 c2') r2' = ok re.
++ by rewrite /check_i -/check_I Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
+move=> /Hw [vm4 [Hvm4 Hsw]];exists vm4;split => //.
+by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
+Qed.
 
-  Local Lemma loopP check_c n r1 r2:
-    loop check_c n r1 = ok r2 ->
-      exists r2',
-      [/\ check_c r2 = ok r2', M.incl r2 r1 & M.incl r2 r2'].
-  Proof.
-    elim: n r1 r2 => //= n Hrec r1 r2.
-    apply: rbindP => r2' Hc;case:ifPn => [? [] <- | _ /Hrec].
-    + exists r2';split=>//;apply M.incl_refl.
-    move=> [r2'' [H1 H2 H3]];exists r2'';split=>//.
-    apply: (M.incl_trans H2); apply M.merge_incl_l.
-  Qed.
+Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
+Proof.
+move => s1 s2 a c e c'.
+case: s2 => scs2 sm2 svm2 _ Hc Hse r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
+rewrite /check_i -/check_I.
+t_xrbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] ?;subst r.
+have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
+move: H; t_xrbindP=> r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 [Hvm2 /= Hc2]] re Hre.
+have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP gd Hre Hvm2.
+subst vb' => r' Cc2' ??;subst r2 r3.
+exists vm2;split => //.
+by apply: Ewhile_false;rewrite // -eq_globs Hse2.
+Qed.
 
-  Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
-  Proof.
-    move => s1 s2 i d lo hi c vlo vhi.
-    case: s1 => scs1 sm1 svm1.
-    move=> Hlo Hhi Hc Hfor r1 [] //= i2 [[d2 lo2] hi2] c2 r2 vm1 Hvm1.
-    rewrite /check_i -/check_I.
-    case: eqP => //= ?;subst d2.
-    t_xrbindP => r1' r1'' /check_eP -/(_ gd _ _ Hvm1) [Hr1'' Heqlo].
-    have [vlo'' [Hlo2 /value_uinclE Hvlo']] := Heqlo _ _ _ Hlo.
-    subst vlo'' => /check_eP -/(_ gd _ _ Hr1'') [Hr1' Heqhi].
-    have [vhi'' [Hhi2 /value_uinclE Hhi']] := Heqhi _ _ _ Hhi.
-    subst vhi'' => /loopP [r2'] []; t_xrbindP=> r2'' Hcv Hcc Hr2r1 Hr2r2.
-    have := Hfor _ _ _ _ _ _ (eq_alloc_incl Hr2r1 Hr1') Hcv Hcc Hr2r2.
-    move=> [vm2 [Hvm2 Hsem2]];exists vm2;split=> //.
-    econstructor; rewrite -?eq_globs ?Hlo2 ?Hhi2 /= ;eauto.
-  Qed.
+Local Lemma loopP check_c n r1 r2:
+loop check_c n r1 = ok r2 ->
+  exists r2',
+  [/\ check_c r2 = ok r2', M.incl r2 r1 & M.incl r2 r2'].
+Proof.
+elim: n r1 r2 => //= n Hrec r1 r2.
+apply: rbindP => r2' Hc;case:ifPn => [? [] <- | _ /Hrec].
++ exists r2';split=>//;apply M.incl_refl.
+move=> [r2'' [H1 H2 H3]];exists r2'';split=>//.
+apply: (M.incl_trans H2); apply M.merge_incl_l.
+Qed.
 
-  Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
-  Proof.
-    by move=> s i c i2 r1 r1' c2 r2 vm1 Ha ???;exists vm1;split=> //;constructor.
-  Qed.
+Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
+Proof.
+move => s1 s2 i d lo hi c vlo vhi.
+case: s1 => scs1 sm1 svm1.
+move=> Hlo Hhi Hc Hfor r1 [] //= i2 [[d2 lo2] hi2] c2 r2 vm1 Hvm1.
+rewrite /check_i -/check_I.
+case: eqP => //= ?;subst d2.
+t_xrbindP => r1' r1'' /check_eP -/(_ gd _ _ Hvm1) [Hr1'' Heqlo].
+have [vlo'' [Hlo2 /value_uinclE Hvlo']] := Heqlo _ _ _ Hlo.
+subst vlo'' => /check_eP -/(_ gd _ _ Hr1'') [Hr1' Heqhi].
+have [vhi'' [Hhi2 /value_uinclE Hhi']] := Heqhi _ _ _ Hhi.
+subst vhi'' => /loopP [r2'] []; t_xrbindP=> r2'' Hcv Hcc Hr2r1 Hr2r2.
+have := Hfor _ _ _ _ _ _ (eq_alloc_incl Hr2r1 Hr1') Hcv Hcc Hr2r2.
+move=> [vm2 [Hvm2 Hsem2]];exists vm2;split=> //.
+econstructor; rewrite -?eq_globs ?Hlo2 ?Hhi2 /= ;eauto.
+Qed.
 
-  Local Lemma Hfor_cons : sem_Ind_for_cons p1 ev Pc Pfor.
-  Proof.
-    move=> s1 s1' s2 s3 i w ws c Hwi _ Hc _ Hfor i2 r1 r1' c2 r2 vm2 Heq Hr1' Hcc Hincl.
-    have [//|vm3 [Hwi2 Hvm3]] := check_lvalP (gd := gd) Hr1' Heq (value_uincl_refl _) _ Hwi.
-    have [vm4 [Hvm4 Hsc]] := Hc _ _ _ _ Hvm3 Hcc.
-    have [vm5 [Hvm5 Hsf]] := Hfor _ _ _ _ _ _ (eq_alloc_incl Hincl Hvm4) Hr1' Hcc Hincl.
-    by exists vm5;split=>//;econstructor;eauto.
-  Qed.
+Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
+Proof.
+by move=> s i c i2 r1 r1' c2 r2 vm1 Ha ???;exists vm1;split=> //;constructor.
+Qed.
 
-  Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
-  Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw r1 [] //= ii2 xs2 fn2 args2 r2 vm1 Hr1.
-    rewrite /check_i.
-    case: eqP => //= ?;subst fn2.
-    apply: rbindP => r1' Hca Hcxs.
-    have [Hr1' /(_ _ Hes) [vargs2 [Hargs2 Hvargs]]] := check_esP Hca Hr1.
-    have [v' [Hs2 Hvs]]:= Hfun _ Hvargs.
-    have /(_ _ Hr1') [vm2 [Hw2 Hr2]]:= check_lvalsP Hcxs _ Hvs Hw.
-    exists vm2;split=>//. by econstructor;eauto;rewrite -?eq_globs.
-  Qed.
+Local Lemma Hfor_cons : sem_Ind_for_cons p1 ev Pc Pfor.
+Proof.
+move=> s1 s1' s2 s3 i w ws c Hwi _ Hc _ Hfor i2 r1 r1' c2 r2 vm2 Heq Hr1' Hcc Hincl.
+have [//|vm3 [Hwi2 Hvm3]] := check_lvalP (gd := gd) Hr1' Heq (value_uincl_refl _) _ Hwi.
+have [vm4 [Hvm4 Hsc]] := Hc _ _ _ _ Hvm3 Hcc.
+have [vm5 [Hvm5 Hsf]] := Hfor _ _ _ _ _ _ (eq_alloc_incl Hincl Hvm4) Hr1' Hcc Hincl.
+by exists vm5;split=>//;econstructor;eauto.
+Qed.
 
-  Section REFL.
+Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
+Proof.
+move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw r1 [] //= ii2 xs2 fn2 args2 r2 vm1 Hr1.
+rewrite /check_i.
+case: eqP => //= ?;subst fn2.
+apply: rbindP => r1' Hca Hcxs.
+have [Hr1' /(_ _ Hes) [vargs2 [Hargs2 Hvargs]]] := check_esP Hca Hr1.
+have [v' [Hs2 Hvs]]:= Hfun _ Hvargs.
+have /(_ _ Hr1') [vm2 [Hw2 Hr2]]:= check_lvalsP Hcxs _ Hvs Hw.
+exists vm2;split=>//. by econstructor;eauto;rewrite -?eq_globs.
+Qed.
 
-    Hypothesis eq_prog : p1 = p2.
+Section REFL.
 
-    Local Lemma Hproc_eq scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres':
-      get_fundef (p_funcs p1) fn = Some f ->
-      mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-      init_state f.(f_extra) (p_extra p1) ev (Estate scs1 m1 vmap0) = ok s0 ->
-      write_vars (f_params f) vargs s0 = ok s1 ->
-      sem p1 ev s1 (f_body f) s2 ->
-      Pc s1 (f_body f) s2 ->
-      mapM (fun x : var_i => get_var s2.(evm) x) (f_res f) = ok vres ->
-      mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-      scs2 = s2.(escs) ->
-      m2 = finalize f.(f_extra) s2.(emem) ->
-      Pfun scs1 m1 fn vargs' scs2 m2 vres'.
-    Proof.
-      move=> Hget Hca Hi Hw Hsem _ Hres Hcr hscs Hfi vargs2 Hvargs2; rewrite -eq_prog.
-      have: sem_call p1 ev scs1 m1 fn vargs' scs2 m2 vres' by econstructor;eauto.
-      by apply: sem_call_uincl.
-    Qed.
+Hypothesis eq_prog : p1 = p2.
 
-    Lemma alloc_funP_eq_aux fn f f' scs1 m1 scs2 m2 vargs vargs' vres s0 s1 s2 vres':
-      check_fundef ep1 ep2 (fn, f) (fn, f') tt = ok tt ->
-      mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-      init_state f.(f_extra) (p_extra p1) ev (Estate scs1 m1 vmap0) = ok s0 ->
-      write_vars (f_params f) vargs s0 = ok s1 ->
-      sem p1 ev s1 (f_body f) s2 ->
-      mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
-      mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-      scs2 = s2.(escs) ->
-      m2 = finalize f.(f_extra) s2.(emem) ->
-      exists vm0' vm1' vm2' vres1 vres1',
-       [ /\ mapM2 ErrType truncate_val f'.(f_tyin) vargs' = ok vargs,
-            init_state f'.(f_extra) (p_extra p2) ev (Estate scs1 m1 vmap0) = ok (with_vm s0 vm0') /\
-            write_vars (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
-            sem p2 ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-            [ /\ mapM (fun x : var_i => get_var (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1, 
-                 List.Forall2 value_uincl vres' vres1' &
-                mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'] &
-            scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
-    Proof.
-      rewrite /check_fundef eq_refl => /=.
-      case: ifP => // /andP[]/andP[]/eqP htyin /eqP htyout /eqP hextra.
-      t_xrbindP => r0 Hcinit r1 Hcparams r2 Hcc r3 Hcres _ Hca.
-      move=> /(init_allocP Hcinit) [vm0 [Hi0 Hvm0]].
-      rewrite (write_vars_lvals gd)=> /(check_lvalsP Hcparams).
-      move=> /(_ vargs _ Hvm0) [ | vm3 /= [Hw2 Hvm3]].
-      + by apply: List_Forall2_refl.
-      move=> /(sem_Ind Hskip Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false
-                Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc_eq) Hc.
-      have [vm4 /= [Hvm4 Hsc2] Hres Hcr]:= Hc _ _ _ _ Hvm3 Hcc.
-      have := check_esP Hcres Hvm4.
-      move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
-      rewrite sem_pexprs_get_var => hmap huincl ??.
-      have [vres2' ??]:= mapM2_truncate_val Hcr huincl.
-      do 5 eexists;split;eauto.
-      + by rewrite -htyin.
-      + rewrite -hextra; split; first by eauto.
-        by rewrite (write_vars_lvals gd).
-      + by rewrite -htyout;split;eauto.
-      by rewrite -hextra.
-    Qed.
+Local Lemma Hproc_eq scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres':
+  get_fundef (p_funcs p1) fn = Some f ->
+  mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
+  init_state f.(f_extra) (p_extra p1) ev (Estate scs1 m1 vmap0) = ok s0 ->
+  write_vars (f_params f) vargs s0 = ok s1 ->
+  sem p1 ev s1 (f_body f) s2 ->
+  Pc s1 (f_body f) s2 ->
+  mapM (fun x : var_i => get_var s2.(evm) x) (f_res f) = ok vres ->
+  mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
+  scs2 = s2.(escs) ->
+  m2 = finalize f.(f_extra) s2.(emem) ->
+  Pfun scs1 m1 fn vargs' scs2 m2 vres'.
+Proof.
+  move=> Hget Hca Hi Hw Hsem _ Hres Hcr hscs Hfi vargs2 Hvargs2; rewrite -eq_prog.
+  have: sem_call p1 ev scs1 m1 fn vargs' scs2 m2 vres' by econstructor;eauto.
+  by apply: sem_call_uincl.
+Qed.
 
-  End REFL.
+Lemma alloc_funP_eq_aux fn f f' scs1 m1 scs2 m2 vargs vargs' vres s0 s1 s2 vres':
+  check_fundef ep1 ep2 (fn, f) (fn, f') tt = ok tt ->
+  mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
+  init_state f.(f_extra) (p_extra p1) ev (Estate scs1 m1 vmap0) = ok s0 ->
+  write_vars (f_params f) vargs s0 = ok s1 ->
+  sem p1 ev s1 (f_body f) s2 ->
+  mapM (fun x : var_i => get_var (evm s2) x) (f_res f) = ok vres ->
+  mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
+  scs2 = s2.(escs) ->
+  m2 = finalize f.(f_extra) s2.(emem) ->
+  exists vm0' vm1' vm2' vres1 vres1',
+   [ /\ mapM2 ErrType truncate_val f'.(f_tyin) vargs' = ok vargs,
+        init_state f'.(f_extra) (p_extra p2) ev (Estate scs1 m1 vmap0) = ok (with_vm s0 vm0') /\
+        write_vars (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
+        sem p2 ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
+        [ /\ mapM (fun x : var_i => get_var (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1, 
+             List.Forall2 value_uincl vres' vres1' &
+            mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'] &
+        scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
+Proof.
+  rewrite /check_fundef eq_refl => /=.
+  case: ifP => // /andP[]/andP[]/eqP htyin /eqP htyout /eqP hextra.
+  t_xrbindP => r0 Hcinit r1 Hcparams r2 Hcc r3 Hcres _ Hca.
+  move=> /(init_allocP Hcinit) [vm0 [Hi0 Hvm0]].
+  rewrite (write_vars_lvals gd)=> /(check_lvalsP Hcparams).
+  move=> /(_ vargs _ Hvm0) [ | vm3 /= [Hw2 Hvm3]].
+  + by apply: List_Forall2_refl.
+    move=> /(sem_Ind Hskip Hcons HmkI Hassgn Hopn Hsyscall Hassert_true Hassert_false
+              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil
+              Hfor_cons Hcall Hproc_eq) Hc.
+  have [vm4 /= [Hvm4 Hsc2] Hres Hcr]:= Hc _ _ _ _ Hvm3 Hcc.
+  have := check_esP Hcres Hvm4.
+  move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
+  rewrite sem_pexprs_get_var => hmap huincl ??.
+  have [vres2' ??]:= mapM2_truncate_val Hcr huincl.
+  do 5 eexists;split;eauto.
+  + by rewrite -htyin.
+  + rewrite -hextra; split; first by eauto.
+    by rewrite (write_vars_lvals gd).
+  + by rewrite -htyout;split;eauto.
+  by rewrite -hextra.
+Qed.
 
-  Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
-  Proof.
-    move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw _ Hc Hres Hcr Hscs Hfi.
-    have [fd2 [Hget2 /=]]:= all_checked Hget.
-    rewrite eq_refl /=;case: ifP => // /andP[]/andP[] /eqP htyin /eqP htyout /eqP hextra.
-    t_xrbindP => r0 Hcinit r1 Hcparams r2 Hcc r3 Hcres _.
-    move=> vargs2 Hvargs2.
-    have [vm0 [Hi0 Hvm0]]:= init_allocP Hcinit Hi.
-    have [vs2 htr hall2]:= mapM2_truncate_val Hca Hvargs2.
-    move: Hw;rewrite (write_vars_lvals gd)=> /(check_lvalsP Hcparams).
-    move=> /(_ _ _ Hvm0 hall2) [vm3 /= [Hw2 Hvm3]].
-    have [vm4 /= [Hvm4 Hsc2]]:= Hc _ _ _ _ Hvm3 Hcc.
-    have := check_esP Hcres Hvm4.
-    move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
-    rewrite sem_pexprs_get_var => H1 H2.
-    have [vs3 ??]:= mapM2_truncate_val Hcr H2.
-    econstructor;split;eauto.
-    econstructor;eauto.
-    + by rewrite -htyin; eauto.
-    + by rewrite -hextra; eauto.
-    + by rewrite (write_vars_lvals gd).
-    + by rewrite -htyout.
-    by rewrite -hextra.
-  Qed.
+End REFL.
 
-  Lemma alloc_callP_aux f scs mem scs' mem' va vr:
-    sem_call p1 ev scs mem f va scs' mem' vr ->
-    exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
-  Proof.
-    move=>
+Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
+Proof.
+move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw _ Hc Hres Hcr Hscs Hfi.
+have [fd2 [Hget2 /=]]:= all_checked Hget.
+rewrite eq_refl /=;case: ifP => // /andP[]/andP[] /eqP htyin /eqP htyout /eqP hextra.
+t_xrbindP => r0 Hcinit r1 Hcparams r2 Hcc r3 Hcres _.
+move=> vargs2 Hvargs2.
+have [vm0 [Hi0 Hvm0]]:= init_allocP Hcinit Hi.
+have [vs2 htr hall2]:= mapM2_truncate_val Hca Hvargs2.
+move: Hw;rewrite (write_vars_lvals gd)=> /(check_lvalsP Hcparams).
+move=> /(_ _ _ Hvm0 hall2) [vm3 /= [Hw2 Hvm3]].
+have [vm4 /= [Hvm4 Hsc2]]:= Hc _ _ _ _ Hvm3 Hcc.
+have := check_esP Hcres Hvm4.
+move=> [Hr3];rewrite sem_pexprs_get_var => /(_ _ Hres) [vres1' /= []].
+rewrite sem_pexprs_get_var => H1 H2.
+have [vs3 ??]:= mapM2_truncate_val Hcr H2.
+econstructor;split;eauto.
+econstructor;eauto.
++ by rewrite -htyin; eauto.
++ by rewrite -hextra; eauto.
++ by rewrite (write_vars_lvals gd).
++ by rewrite -htyout.
+by rewrite -hextra.
+Qed.
+
+Lemma alloc_callP_aux f scs mem scs' mem' va vr:
+sem_call p1 ev scs mem f va scs' mem' vr ->
+exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+Proof.
+move=>
       /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
-    move=> H;apply H.
-    by apply List_Forall2_refl.
-  Qed.
+          Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil
+          Hfor_cons Hcall Hproc).
+move=> H;apply H.
+by apply List_Forall2_refl.
+Qed.
 
 End PROOF.
 

@@ -202,6 +202,12 @@ Proof.
   by split; [rewrite ho1 | move=> ??; rewrite ho2].
 Qed.
 
+Lemma mem_equiv_assert_true : sem_Ind_assert_true P Pi_r.
+Proof. by []. Qed.
+
+Lemma mem_equiv_assert_false : sem_Ind_assert_false P Pi_r.
+Proof. by []. Qed.
+
 Lemma mem_equiv_if_true : sem_Ind_if_true P ev Pc Pi_r.
 Proof. by []. Qed.
 
@@ -252,6 +258,8 @@ Proof.
               mem_equiv_assgn
               mem_equiv_opn
               mem_equiv_syscall
+              mem_equiv_assert_true
+              mem_equiv_assert_false
               mem_equiv_if_true
               mem_equiv_if_false
               mem_equiv_while_true
@@ -274,6 +282,8 @@ Proof.
                 mem_equiv_assgn
                 mem_equiv_opn
                 mem_equiv_syscall
+                mem_equiv_assert_true
+                mem_equiv_assert_false
                 mem_equiv_if_true
                 mem_equiv_if_false
                 mem_equiv_while_true
@@ -296,6 +306,8 @@ Proof.
                 mem_equiv_assgn
                 mem_equiv_opn
                 mem_equiv_syscall
+                mem_equiv_assert_true
+                mem_equiv_assert_false
                 mem_equiv_if_true
                 mem_equiv_if_false
                 mem_equiv_while_true
@@ -318,6 +330,8 @@ Proof.
                    mem_equiv_assgn
                    mem_equiv_opn
                    mem_equiv_syscall
+                   mem_equiv_assert_true
+                   mem_equiv_assert_false
                    mem_equiv_if_true
                    mem_equiv_if_false
                    mem_equiv_while_true
@@ -543,6 +557,18 @@ Proof.
   by rewrite hes => -[<-]; rewrite ho => -[<- <- <-]; rewrite hw => -[].
 Qed.
 
+Local Lemma sem_deter_assert_true : sem_Ind_assert_true p Pi_r.
+Proof.
+  intros s e eval_e s2 h.
+  inversion h;eauto.
+Qed.
+
+Local Lemma sem_deter_assert_false : sem_Ind_assert_false p Pi_r.
+Proof.
+  intros s e eval_e s2 h.
+  inversion h;eauto.
+Qed.
+
 Local Lemma sem_deter_if_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
   red => s1 s2 e c1 c2 eval_e _ ih s2' /sem_iE[] b [].
@@ -610,7 +636,7 @@ Lemma sem_deterministic s1 c s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact: (@sem_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_assert_true sem_deter_assert_false sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
 Qed.
 
 Lemma sem_i_deterministic s1 i s2 s2' :
@@ -619,7 +645,7 @@ Lemma sem_i_deterministic s1 i s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_i_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact: (@sem_i_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_assert_true sem_deter_assert_false sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
 Qed.
 
 Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr scs2' m2' vr' :
@@ -628,7 +654,7 @@ Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr scs2' m2' vr' :
   [/\ scs2 = scs2', m2 = m2' & vr = vr'].
 Proof.
   move => h.
-  exact: (@sem_call_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ _ _ _ _ h).
+  exact: (@sem_call_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_assert_true sem_deter_assert_false sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ _ _ _ _ h).
 Qed.
 
 End DETERMINISM.

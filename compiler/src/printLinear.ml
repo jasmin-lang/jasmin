@@ -79,6 +79,7 @@ let pp_instr asmOp tbl fmt i =
       (Pr.pp_opn asmOp) op
       (pp_list ",@ " (pp_expr tbl)) es
   | Lsyscall o -> F.fprintf fmt "SysCall %s" (Printer.pp_syscall o)
+  | Lassert e -> F.fprintf fmt "Assert %a" (pp_expr tbl) e
   | Lcall lbl  -> F.fprintf fmt "Call %a" (pp_remote_label tbl) lbl
   | Lret       -> F.fprintf fmt "Return"
   | Lalign     -> F.fprintf fmt "Align"

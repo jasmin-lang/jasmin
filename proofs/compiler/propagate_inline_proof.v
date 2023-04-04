@@ -523,7 +523,7 @@ Section PROOF.
     exists2 vres', List.Forall2 value_uincl vres vres' & sem_call p2 ev scs m fn vargs' scs' m' vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
-  Proof. move=> s pi pic2 vm1 [<-] ??; exists vm1; split => //; constructor. Qed.
+  Proof. move=> s pi pic2 vm1 [<-] ?? ; exists vm1; split => //; constructor. Qed.
 
   Local Lemma Hcons : sem_Ind_cons p1 ev Pc Pi.
   Proof.
@@ -617,6 +617,20 @@ Section PROOF.
     have [c' [hg' heq]] := inclP hincl hg.
     have [v' hs hu]:= vpi_ok hv hg' hx.
     by exists v' => //; rewrite -hs; apply eq_exprP.
+  Qed.
+
+  Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
+  Proof.
+    move => s e he ? pi pi2 vm1  [<-] hu hv .
+    exists vm1; split => //; do 2 constructor;rewrite -eq_globs.
+    by have [b' -> /value_uinclE ->]:= pi_eP_uincl hv hu he.
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
+  Proof.
+    move => s e he ? pi pi2 vm1  [<-] hu hv .
+    exists vm1; split => //; constructor; apply Eassert_false;rewrite -eq_globs.
+    by have [b' -> /value_uinclE ->]:= pi_eP_uincl hv hu he.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
@@ -779,7 +793,7 @@ Section PROOF.
   Proof.
     by move=>
       /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)
+          Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)
       h /h [vr' h1 h2]; exists vr'.
   Qed.
 

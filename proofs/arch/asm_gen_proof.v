@@ -1206,7 +1206,7 @@ Lemma assemble_i_is_label (li : linstr) (ai : asm_i) lbl :
   -> linear.is_label lbl li = arch_sem.is_label lbl ai.
 Proof.
   by (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
-    => /= [ > _ <- | > <- | > <- | <- | <- | ? <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
+    => /= [ > _ <- | > <- | | > <- | <- | <- | ? <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
 Qed.
 
 Lemma assemble_c_find_is_label (lc : lcmd) (ac : asm_code) lbl :
@@ -1607,6 +1607,7 @@ Proof.
       rewrite /get_var /=.
       case: _.[_]%vmap => // - [] // _ /ok_inj <-.
       by case: (asm_flag _ _).
+  - move => pe H. inversion H.
   - move=> r [<-].
     t_xrbindP => wsp vsp hsp htow_sp l hgetpc.
     rewrite eqfn; case ptr_eq: encode_label => [ ptr | ] //.

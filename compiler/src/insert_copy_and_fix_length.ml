@@ -79,7 +79,7 @@ and iac_instr_r pd loc ir =
       Csyscall(xs, Syscall_t.RandomBytes p, es)
     end
 
-  | Ccall _ -> ir
+  | Ccall _ | Cassert _ -> ir
 
 let iac_func pd f =
   { f with f_body = iac_stmt pd f.f_body }

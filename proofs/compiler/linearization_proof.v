@@ -124,6 +124,12 @@ Section CAT.
   Let Hsyscall : forall xs o es, Pr (Csyscall xs o es).
   Proof. by []. Qed.
 
+  Let Hassert_true : forall e, Pr (Cassert e).
+  Proof. by []. Qed.
+
+  Let Hassert : forall e, Pr (Cassert e).
+  Proof. by []. Qed.
+
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii fn lbl l /=.
@@ -169,14 +175,14 @@ Section CAT.
      linear_i fn i lbl tail =
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@instr_Rect _ _ Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    apply (@instr_Rect _ _ Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
      linear_c (linear_i fn) c lbl tail =
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@cmd_rect _ _ Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    apply (@cmd_rect _ _ Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
 
 End CAT.
@@ -189,6 +195,7 @@ Definition valid_labels (fn: funname) (lo hi: label) (i: linstr) : bool :=
   match li_i i with
   | Lopn _ _ _
   | Lsyscall _
+  | Lassert _
   | Lalign
   | Ligoto _
   | Lret
@@ -497,6 +504,11 @@ Section VALIDITY.
   Let Hsyscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
   Proof. split => //; exact: Pos.le_refl. Qed.
 
+  Let Hassert (e : pexpr) : Pr (Cassert e).
+  Proof.
+    split => //;exact: Pos.le_refl.
+  Qed.
+
   Let Hif (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
   Proof.
     move => hc1 hc2 ii fn lbl /=.
@@ -587,10 +599,10 @@ Section VALIDITY.
   Qed.
 
   Definition linear_has_valid_labels : ∀ c, Pc c :=
-    @cmd_rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    @cmd_rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall.
 
   Definition linear_has_valid_labels_instr : ∀ i, Pi i :=
-    @instr_Rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    @instr_Rect _ _ Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall.
 
 End VALIDITY.
 
@@ -1187,7 +1199,7 @@ Section PROOF.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
   Proof.
-    move => s1 fn lbl _ m1 vm1 P Q M X D C; rewrite cats0; exists m1 vm1 => //; exact: rt_refl.
+    move => s1 fn lbl _ m1 vm1 P Q M X D C; rewrite cats0; exists m1 vm1 => //;exact: rt_refl.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p extra_free_registers var_tmp Pc Pi.
@@ -1435,7 +1447,37 @@ Section PROOF.
     by apply: preserved_metadata_syscall uves ho ho'.
   Qed.
 
-  Remark next_lbl_neq (lbl: label) :
+  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => ii k s e he fn lbs ? ? m1 vm1 P Q M X D C K //=.
+    exists m1 vm1; [ | | exact: M | exact: D | | exact: X]; last first.
+    + unfold preserved_metadata.
+      intros.
+      reflexivity.
+    + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
+      reflexivity.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip K) /=.
+      rewrite /of_estate size_cat addn1 addn0.
+      reflexivity.
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => ii k s e he fn lbs ? ? m1 vm1 P Q M X D C K //=.
+    exists m1 vm1; [ | | exact: M | exact: D | | exact: X]; last first.
+    + unfold preserved_metadata.
+      intros.
+      reflexivity.
+    + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
+      reflexivity.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip K) /=.
+      rewrite /of_estate size_cat addn1 addn0.
+      reflexivity.
+  Qed.
+
+    Remark next_lbl_neq (lbl: label) :
     ((lbl + 1)%positive == lbl) = false.
   Proof.
     apply/eqP => k.
@@ -3657,7 +3699,7 @@ Section PROOF.
     sem_call p extra_free_registers var_tmp ii k s1 fn s2 →
     Pfun ii k s1 fn s2.
   Proof.
-    exact: (@sem_call_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
+    exact: (@sem_call_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
   Qed.
 
   Lemma linear_exportcallP gd scs m fn args scs' m' res :

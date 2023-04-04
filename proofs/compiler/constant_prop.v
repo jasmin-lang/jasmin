@@ -459,6 +459,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let (m,xs) := const_prop_rvs m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
 
+  | Cassert b =>
+      let b := const_prop_e m b in
+      (m, [:: MkI ii (Cassert b) ])
+
   | Cif b c1 c2 =>
     let b := const_prop_e m b in
     match is_bool b with

@@ -475,6 +475,14 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     write_lvals gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
     sem_i s1 (Csyscall xs o es) s2
 
+| Eassert_true s e:
+      sem_pexpr gd s e = ok (Vbool true) ->
+      sem_i s (Cassert e) s
+
+| Eassert_false s e:
+      sem_pexpr gd s e = ok (Vbool false) ->
+      sem_i s (Cassert e) s
+
 | Eif_true s1 s2 e c1 c2 :
     sem_pexpr gd s1 e = ok (Vbool true) ->
     sem s1 c1 s2 ->
@@ -558,6 +566,8 @@ Lemma sem_iE s i s' :
     [/\ sem_pexprs gd s es = ok ves, 
         exec_syscall s.(escs) s.(emem) o ves = ok (scs, m, vs) & 
         write_lvals gd (with_scs (with_mem s m) scs) xs vs = ok s']
+  | Cassert e =>
+    ∃ b, sem_pexpr gd s e = ok (Vbool b)
   | Cif e th el =>
     ∃ b, sem_pexpr gd s e = ok (Vbool b) ∧ sem s (if b then th else el) s'
   | Cfor i (d, lo, hi) c =>
@@ -578,7 +588,9 @@ Proof.
   case => {s i s'} //.
   - by move => s s' x _ ty e v v' hv hv' hw; exists v, v'.
   - by move => s scs m s' xs o es ves vs h1 h2 h3; exists scs, m, ves, vs.
-  - by move => s s' e th el he hth; exists true.
+  - by move => s e; exists true.
+  - by move => s e; exists false.
+  - by move => s s' e th el he hth ; exists true.
   - by move => s s' e th el he hel; exists false.
   - by move => s si sj s' c e c' hc he hc' hrec; exists si, true; constructor => //; exists sj.
   - by move => s s' c e c' hc he; exists s', false.
@@ -667,6 +679,16 @@ Section SEM_IND.
       write_lvals gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
       Pi_r s1 (Csyscall xs o es) s2.
 
+  Definition sem_Ind_assert_true : Prop :=
+    forall (s : estate) (e : pexpr),
+      sem_pexpr gd s e = ok (Vbool true) ->
+      Pi_r s (Cassert e) s.
+
+  Definition sem_Ind_assert_false : Prop :=
+    forall (s : estate) (e : pexpr),
+      sem_pexpr gd s e = ok (Vbool false) ->
+      Pi_r s (Cassert e) s.
+
   Definition sem_Ind_if_true : Prop :=
     forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr gd s1 e = ok (Vbool true) ->
@@ -694,6 +716,8 @@ Section SEM_IND.
     (Hasgn: sem_Ind_assgn)
     (Hopn: sem_Ind_opn)
     (Hsyscall: sem_Ind_syscall)
+    (Hassert_true: sem_Ind_assert_true)
+    (Hassert_false: sem_Ind_assert_false)
     (Hif_true: sem_Ind_if_true)
     (Hif_false: sem_Ind_if_false)
     (Hwhile_true: sem_Ind_while_true)
@@ -769,6 +793,8 @@ Section SEM_IND.
     | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
     | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
     | @Esyscall s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall s1 scs m s2 o xs es ves vs h1 h2 h3
+    | @Eassert_true s e h => @Hassert_true s e h
+    | @Eassert_false s e h => @Hassert_false s e h
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
     | @Eif_false s1 s2 e1 c1 c2 e2 s0 =>
@@ -2305,6 +2331,22 @@ Proof.
   exists vm2;split=> //; econstructor; eauto.
 Qed.
 
+Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+Proof.
+  move=> s e H vm1 Hvm1.
+  have [v' H1 /value_uinclE ?]:= sem_pexpr_uincl Hvm1 H;subst v'.
+  exists vm1. split.
+  by apply Eassert_true. eauto.
+Qed.
+
+Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+Proof.
+  move=> s e H vm1 Hvm1.
+  have [v' H1 /value_uinclE ?]:= sem_pexpr_uincl Hvm1 H;subst v'.
+  exists vm1. split.
+  by apply Eassert_false. eauto.
+Qed.
+
 Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
   move=> s1 s2 e c1 c2 H _ Hc vm1 Hvm1.
@@ -2394,7 +2436,8 @@ Proof.
   move=> H1 H2.
   by apply:
     (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-        Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
+       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
+       Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
 Lemma sem_i_uincl s1 i s2 vm1 :
@@ -2407,7 +2450,8 @@ Proof.
   move=> H1 H2.
   by apply:
     (@sem_i_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-        Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
+       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
+       Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
 Lemma sem_I_uincl s1 i s2 vm1 :
@@ -2420,7 +2464,8 @@ Proof.
   move=> H1 H2.
   by apply:
     (@sem_I_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-        Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
+       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
+       Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
 Lemma sem_uincl s1 c s2 vm1 :
@@ -2433,7 +2478,8 @@ Proof.
   move=> H1 H2.
   by apply:
     (@sem_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-        Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
+       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
+       Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
 End UNDEFINCL.
@@ -2716,7 +2762,9 @@ Section WF.
     + move=> xs t o es s1 s2 /sem_iE.
       by apply:rbindP => ?? Hw ?;apply: wf_write_lvals Hw.
     + by move=> xs o es s1 s2 /sem_iE [scs [m [ves [vs [_ _ hw]]]]] hu; apply: wf_write_lvals hw.
-    + move=> e c1 c2 Hc1 Hc2 s1 s2 /sem_iE [b] [_]; case: b; [apply Hc1 | apply Hc2].
+    + intros e s1 s2 H H1.
+      inversion H;subst;eauto.
+    + move=> e c1 c2 Hc1 Hc2 s1 s2 /sem_iE [b] [_]; case: b ; [apply Hc1 | apply Hc2].
     + move=> i dir lo hi c Hc s1 s2 /sem_iE [vlo] [vhi] [hlo hhi hfor].
       elim: hfor Hc => // ???? ???? Hw Hsc Hsf Hrec Hc.
       by move=> /wf_write_var -/(_ _ _ _ Hw) -/(Hc _ _ Hsc);apply: Hrec Hc.

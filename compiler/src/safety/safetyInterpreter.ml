@@ -324,7 +324,7 @@ let safe_opn safe opn es =
 let safe_instr ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
-  | Cif(e, _, _) -> safe_e e
+  | Cif(e, _, _) | Cassert e -> safe_e e
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
   | Ccall(_, lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
@@ -1412,6 +1412,7 @@ end = struct
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Cassert e -> nm_e vs_for e
       | Cif (e, st, st')        -> 
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1595,6 +1596,8 @@ end = struct
         let assgns = opn_dflt (List.length lvs) in
         let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
         { state with abs = abs; }
+
+      | Cassert _ -> state
 
       | Cif(e,c1,c2) ->
         aeval_if asmOp ginstr e c1 c2 state

@@ -509,6 +509,9 @@ Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
   | Llabel lbl =>
       ok (LABEL lbl)
 
+  | Lassert _ =>
+       Error (fail ii "Assert not supported")
+
   | Lgoto lbl =>
       ok (JMP lbl)
 
