@@ -331,13 +331,8 @@ let remove_params (prog : ('info, 'asm) pprog) =
          n
     | Arr (ws, n), GEarray es ->
       let p = Conv.pos_of_int (n * size_of_ws ws) in
-      let t = ref (Warray_.WArray.empty p) in
-      let doit i e =
-        match Warray_.WArray.set p ws !t Warray_.AAscale (Conv.cz_of_int i) (mk_word ws e) with
-        | Ok t1 -> t := t1
-        | _ -> assert false in
-      List.iteri doit es;
-      x, Global.Garr(p, !t)
+      let t = Warray_.WArray.of_list ws (List.map (mk_word ws) es) in
+      x, Global.Garr(p, t)
     | _, _ -> assert false
   in
   let globals = List.map doglob globals in
