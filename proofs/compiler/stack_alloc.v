@@ -1453,7 +1453,7 @@ Definition size_glob gv :=
   | @Garr p _ => Zpos p
   end.
 
-Definition init_map (l:list (var * wsize * Z)) data global_data : cexec (Mvar.t (Z*wsize)) :=
+Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mvar.t (Z*wsize)) :=
   let add (vp:var * wsize * Z) (globals: Mvar.t (Z*wsize) * Z * seq u8) :=
     let '(v, ws, p) := vp in
     let '(mvar, pos, data) := globals in
@@ -1466,7 +1466,7 @@ Definition init_map (l:list (var * wsize * Z)) data global_data : cexec (Mvar.t 
         match ztake s data with
         | None =>  Error (stk_ierror_no_var "bad data 2")
         | Some (vdata, data) => 
-          match assoc global_data v with
+          match assoc gd v with
           | None => Error (stk_ierror_no_var "unknown var")  
           | Some gv => 
             Let _ := assert (s == size_glob gv) (stk_ierror_no_var "bad size") in 
@@ -1477,12 +1477,11 @@ Definition init_map (l:list (var * wsize * Z)) data global_data : cexec (Mvar.t 
       else Error (stk_ierror_no_var "bad global alignment")
     else Error (stk_ierror_no_var "global overlap") in
   Let globals := foldM add (Mvar.empty (Z*wsize), 0%Z, data) l in
-  let '(mvar, pos, _) := globals in
-  Let _ := assert (pos <=? Z.of_nat (size data))%Z (stk_ierror_no_var "bad size") in
-  Let _ := assert (Sv.subset (sv_of_list fst global_data) (sv_of_list (fun x => x.1.1) l)) 
+  let '(mvar, _, _) := globals in
+  Let _ := assert (Sv.subset (sv_of_list fst gd) (sv_of_list (fun x => x.1.1) l)) 
                   (stk_ierror_no_var "missing globals") in
   ok mvar.
-                       
+
 Definition alloc_prog (fresh_reg:string -> stype -> Ident.ident) 
     rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
   Let mglob := init_map  global_alloc global_data P.(p_globs) in
