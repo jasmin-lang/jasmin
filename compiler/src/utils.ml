@@ -395,10 +395,40 @@ let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
 
 
 (* -------------------------------------------------------------------- *)
-let pp_now fmt =
+(** Splits a time in seconds into hours, minutes, seconds, and centiseconds.
+  Number of hours must be below one hundred. *)
+let hmsc f =
+  let open Float in
+  let cut f n =
+    let r = rem f n in
+    to_int r, (f -. r) /. n
+  in
+  let c, f = modf f in
+  let s, f = cut f 60. in
+  let m, f = cut f 60. in
+  let h, f = cut f 100. in
+  assert (f = 0.);
+  h, m, s, to_int (100. *. c)
+
+let pp_now =
   let open Unix in
-  let { tm_hour; tm_min; tm_sec; _ } = () |> gettimeofday |> localtime in
-  Format.fprintf fmt "[%02d:%02d:%02d]" tm_hour tm_min tm_sec
+  let timestamp = ref (-1.) in
+  let pp_elapsed fmt now =
+    let old = !timestamp in
+    if old >= 0. then begin
+      let diff = now -. old in
+      let h, m, s, c = hmsc diff in
+      Format.fprintf fmt "|";
+      if h > 0 then Format.fprintf fmt "%2dh" h else Format.fprintf fmt "   ";
+      if h > 0 || m > 0 then Format.fprintf fmt "%2dm" m else Format.fprintf fmt "   ";
+      Format.fprintf fmt "%2ds%02d" s c
+    end;
+    timestamp := now
+  in
+  fun fmt ->
+    let  now = gettimeofday () in
+    let { tm_hour; tm_min; tm_sec; _ } = localtime now in
+  Format.fprintf fmt "[%02d:%02d:%02d%a]" tm_hour tm_min tm_sec pp_elapsed now
 
 (* -------------------------------------------------------------------- *)
 

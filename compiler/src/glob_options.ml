@@ -154,7 +154,7 @@ let options = [
     "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-debug"   , Arg.Set debug         , ": print debug information";
-    "-timings" , Arg.Set timings       , ": print a timestamp after each pass";
+    "-timings" , Arg.Set timings       , ": print a timestamp and elapsed time after each pass";
     "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
     "-latex"   , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file (deprecated)";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
