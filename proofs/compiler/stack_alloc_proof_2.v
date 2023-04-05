@@ -124,17 +124,7 @@ Lemma init_mapP : forall x1 ofs1 ws1,
       ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1)].
 Proof.
   move: hmap; rewrite /init_map.
-  t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /ZleP hle /= _ ? x1 ofs1 ws1 hget; subst mglob'.
-  have: [/\ ofs1 mod wsize_size ws1 = 0,
-    0 <= ofs1 /\ ofs1 + size_slot x1 <= size,
-    (forall gv, get_global_value gd x1 = Some gv ->
-                forall k w, get_val_byte (gv2val gv) k = ok w ->
-                            nth 0%R global_data (Z.to_nat (ofs1 + k)) = w) &  
-    ∀ x2 ofs2 ws2,
-      Mvar.get mglob x2 = Some (ofs2, ws2) -> x1 ≠ x2 ->
-      ofs1 + size_slot x1 <= ofs2 ∨ ofs2 + size_slot x2 <= ofs1];
-  last first.
-  + by move=> [h1 h2 h3 h4]; split=> //; lia.
+  t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /= _ ? x1 ofs1 ws1 hget; subst mglob'.
   move: hfold x1 ofs1 ws1 hget.
   have : [/\ 
     0 <= (Mvar.empty (Z * wsize), 0, global_data).1.2,
@@ -152,7 +142,10 @@ Proof.
        ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1)]].
   + by split => //; exists [::].
   elim: global_alloc (Mvar.empty _, 0, global_data).
-  + by move=> [[mglob0 size0] data] /= [] ? heq hbase2 [<- <- ?].
+  + move=> [[mglob0 size0] data0] /= [] ? [l [hsize heq]] hbase2 [???]; subst mglob0 size0 data0.
+    move=> ??? /hbase2 [????]; split=> //.
+    rewrite /glob_size heq size_cat hsize Nat2Z.inj_add Z2Nat.id //.
+    by lia.
   move=> [[x wsx] ofsx] l ih [[mglob0 size0] data0] /= [hbase1 [l0 [heqsz heq]] hbase2].
   t_xrbindP=> -[[mglob1 size1] data1].
   case: ZleP => [h1|//].
@@ -229,7 +222,7 @@ Lemma init_map_full : forall x gv,
   exists ofs ws, Mvar.get mglob x = Some (ofs, ws).
 Proof.
   move: hmap; rewrite /init_map.
-  t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /ZleP hle /= /SvD.F.subset_iff hsub ? x gv h; subst mglob'.
+  t_xrbindP=> -[[mglob' size] data'] hfold; t_xrbindP => /= /SvD.F.subset_iff hsub ? x gv h; subst mglob'.
   move: hfold.
   have : x \in (map (fun t => t.1.1) global_alloc) \/ 
          ∃ (ofs : Z) (ws : wsize), Mvar.get (Mvar.empty (Z * wsize), 0, global_data).1.1 x = Some (ofs, ws).
