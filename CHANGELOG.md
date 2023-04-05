@@ -122,7 +122,8 @@
 
 - When the `-timings` command-line flag is given, timestamps are
   written to the standard error after each compilation pass and during
-  safety analysis when entering a local function
+  safety analysis when entering a local function; the elapsed time since
+  previous timestamp is also displayed
   ([PR #403](https://github.com/jasmin-lang/jasmin/pull/403)).
 
 # Jasmin 2022.09.0
