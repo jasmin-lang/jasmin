@@ -548,6 +548,9 @@ Context
 
 Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
+  | Cassert e1, Cassert e2 => 
+    check_e e1 e2 r 
+
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
     if ty1 == ty2 then
      check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2

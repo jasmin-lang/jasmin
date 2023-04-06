@@ -143,6 +143,7 @@ type funname = {
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
 type ('len,'info,'asm) ginstr_r =
+  | Cassert of 'len gexpr
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
@@ -340,6 +341,7 @@ let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
 
 let rec rvars_i f s i =
   match i.i_desc with
+  | Cassert e -> rvars_e f s e 
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
   | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
@@ -380,6 +382,7 @@ let written_lv s =
 
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
+  | Cassert _ -> v, f
   | Cassgn(x, _, _, _) -> written_lv v x, f
   | Copn(xs, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
@@ -401,7 +404,7 @@ let written_vars_fc fc =
 let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr = 
   let i_desc = 
     match i.i_desc with
-    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
+    | Cassert _ | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
     | Cif(e, c1, c2) ->
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->
@@ -541,7 +544,7 @@ let expr_of_lval = function
 let rec has_syscall_i i =
   match i.i_desc with
   | Csyscall _ -> true
-  | Cassgn _ | Copn _ | Ccall _ -> false
+  | Cassert _ | Cassgn _ | Copn _ | Ccall _ -> false
   | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_syscall c1 || has_syscall c2
   | Cfor (_, _, c) -> has_syscall c
 
@@ -550,7 +553,7 @@ and has_syscall c = List.exists has_syscall_i c
 let rec has_call_or_syscall_i i =
   match i.i_desc with
   | Csyscall _ | Ccall _ -> true
-  | Cassgn _ | Copn _ -> false
+  | Cassert _ | Cassgn _ | Copn _ -> false
   | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
   | Cfor (_, _, c) -> has_call_or_syscall c
 

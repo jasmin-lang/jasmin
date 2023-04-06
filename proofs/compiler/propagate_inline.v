@@ -168,6 +168,10 @@ End LOOP.
 Fixpoint pi_i (pi:pimap) (i:instr) := 
   let (ii, ir) := i in
   match ir with
+  | Cassert e => 
+    let e := pi_e pi e in
+    ok (pi, MkI ii (Cassert e))
+
   | Cassgn x tag ty e =>
     let e := pi_e pi e in
     let (pi, x) := pi_lv pi x in 

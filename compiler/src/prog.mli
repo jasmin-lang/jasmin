@@ -109,6 +109,7 @@ type 'len grange = E.dir * 'len gexpr * 'len gexpr
    This is durty ...
 *)   
 type ('len,'info,'asm) ginstr_r =
+  | Cassert of 'len gexpr
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs

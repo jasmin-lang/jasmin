@@ -264,6 +264,7 @@ let rec pp_instr depth fmt (_annot, p) =
   indent fmt depth;
   match L.unloc p with
   | PIdecl d -> pp_vardecls fmt d 
+  | PIAssert e -> F.fprintf fmt "assert %a;" pp_expr e
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
   | PIAssign ((pimp,lvs), op, e, cnd) ->
     begin match pimp, lvs with

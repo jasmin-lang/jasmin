@@ -78,6 +78,8 @@ end = struct
     }
 
   and mk_instr_r fn st = match st with
+    | Cassert e ->
+      Cassert (mk_expr fn e)
     | Cassgn (lv, tag, ty, e) ->
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
@@ -307,7 +309,7 @@ end = struct
       if Option.is_none i_opt then pa_flag_setfrom v t else i_opt
   
   and pa_flag_setfrom_i v i = match i.i_desc with
-    | Cassgn _ -> None
+    | Cassert _ | Cassgn _ -> None
 
     | Copn (lvs, _, Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP _)), es) ->
       if flag_mem_lvs v lvs then
@@ -345,6 +347,8 @@ end = struct
       
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
     match instr.i_desc with
+    | Cassert _ -> st
+
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
 
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
@@ -514,6 +518,8 @@ end = struct
       collect_vars_es sv es
     | Cassgn (lv, _, _, e) ->
       let sv = collect_vars_lv sv lv in
+      collect_vars_e sv e
+    | Cassert e ->
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
 

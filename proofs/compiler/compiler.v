@@ -24,6 +24,7 @@ Require Import
   lowering
   makeReferenceArguments
   propagate_inline
+  remove_assert 
   remove_globals
   stack_alloc
   tunneling
@@ -72,6 +73,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | RemoveAssert                : compiler_step
   | ArrayCopy                   : compiler_step
   | AddArrInit                  : compiler_step
   | Inlining                    : compiler_step
@@ -101,6 +103,7 @@ Variant compiler_step :=
 Definition compiler_step_list := [::
     Typing
   ; ParamsExpansion
+  ; RemoveAssert
   ; ArrayCopy
   ; AddArrInit
   ; Inlining
@@ -238,6 +241,10 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   ok p.
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
+
+  let p := remove_assert_prog p in
+  let p := cparams.(print_uprog) RemoveAssert p in
+  
 
   Let p := array_copy_prog cparams.(fresh_counter) p in
   let p := cparams.(print_uprog) ArrayCopy p in
@@ -392,7 +399,7 @@ Definition compiler_CL_second_part (p: prog) : cexec uprog :=
   let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  Let pe := expand_prog cparams.(expand_fd) pr in
+  Let pe := expand_prog_CL cparams.(expand_fd) pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in

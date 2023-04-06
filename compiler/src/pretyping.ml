@@ -1699,6 +1699,10 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
     let env, _ = tt_annot_vardecls (fun _ -> true) pd env (annot, tvs) in
     env, []
 
+  | S.PIAssert e ->
+    let c  = tt_expr_bool pd env e in
+    env, [mk_i (Cassert c)]
+    
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
     let x = tt_var `AllVar env x in
     let xi = (L.mk_loc lc x) in
@@ -1937,7 +1941,7 @@ let rec add_reserved_i env (_,i) =
   match L.unloc i with 
   | S.PIdecl (_, ids) -> 
       List.fold_left (fun env id -> Env.add_reserved env (L.unloc id)) env ids 
-  | PIArrayInit _ | PIAssign _ -> env
+  | PIAssert _ | PIArrayInit _ | PIAssign _ -> env
   | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' env c) oc
   | PIFor(_, _, c) -> add_reserved_c' env c
   | PIWhile(oc1, _, oc2) -> add_reserved_oc (add_reserved_oc env oc1) oc2

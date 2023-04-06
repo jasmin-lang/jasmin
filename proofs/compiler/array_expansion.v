@@ -49,6 +49,8 @@ Module Import E.
 
   Definition reg_ierror_no_var := pp_internal_error_s pass.
 
+  Definition length_mismatch := pp_internal_error_s pass "length mismatch".
+
 End E.
 
 Module CmpIndex.
@@ -78,11 +80,12 @@ Module Mi := gen_map.Mmake CmpIndex.
 Record array_info := {
    ai_ty    : wsize;
    ai_elems : Mi.t var;
+   ai_n     : nat; 
 }.
 
 Record t := {
   svars : Sv.t;
-  sarrs : Mvar.t array_info;
+  sarrs : Mvar.t array_info;  
 }.
 
 Definition of_list (l: list var) := 
@@ -99,8 +102,8 @@ Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
   let ty := sword x.(vi_s) in
   Let _ :=  assert (~~ Sv.mem x.(vi_v) sv) (reg_ierror_no_var "init_array_info") in
   Let svelems := foldM (init_elems ty) (sv,Mi.empty _,0%Z) x.(vi_n) in
-  let '(sv, mi, _) := svelems in
-  ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_elems := mi |}).
+  let '(sv, mi, z) := svelems in
+  ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_elems := mi; ai_n := Z.to_nat z|}).
 
 Definition init_map (fi : expand_info) := 
   let svars := of_list fi.(vars) in
@@ -221,6 +224,10 @@ Context `{asmop:asmOp}.
 Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
   let (ii,ir) := i in
   match ir with
+  | Cassert e => 
+    Let e := add_iinfo ii (expand_e m e) in
+    ok (MkI ii (Cassert e))
+ 
   | Cassgn x tag ty e =>
     Let x := add_iinfo ii (expand_lv m x) in
     Let e := add_iinfo ii (expand_e m e) in
@@ -278,6 +285,49 @@ Definition expand_fd (fi : funname -> ufundef -> expand_info) (f : funname) (fd:
 
 Definition expand_prog (fi : funname -> ufundef -> expand_info) (p: uprog) : cexec uprog :=
   Let funcs := map_cfprog_name (expand_fd fi) (p_funcs p) in
+  ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+
+
+
+
+(* This is a durty hack for the moment *)
+Definition do_params fi m ty args := 
+   mapM2 length_mismatch
+     (fun ty x =>    
+        match Mvar.get m.(sarrs) (v_var x) with
+        | Some ai => 
+          let doit (i:nat) := 
+            let i := Z.of_nat i in
+            match Mi.get ai.(ai_elems) i with
+            | Some v => ok (sword ai.(ai_ty), {| v_var := v; v_info := v_info x |})
+            | _ => Error (reg_ierror x "params array error")
+            end in
+          mapM doit (iota 0 ai.(ai_n))
+        | None => 
+          Let _ := 
+            assert (Sv.mem (v_var x) m.(svars))
+                   (reg_ferror fi "bad info") in
+          ok [:: (ty, x)]
+        end) ty args.
+
+Definition expand_fd_CL (fi : funname -> ufundef -> expand_info) (f : funname) (fd: ufundef) :=
+  Let m := init_map (fi f fd) in
+  match fd with
+  | MkFun fi tyin params c tyout res ef =>
+    Let typarams := do_params fi m tyin params in
+    Let tyres    := do_params fi m tyout res in
+    let typarams := flatten typarams in
+    let tyin     := unzip1 typarams in
+    let params   := unzip2 typarams in
+    let tyres    := flatten tyres in
+    let tyout    := unzip1 tyres in
+    let res      := unzip2 tyres in
+    Let c := mapM (expand_i m) c in
+    ok (MkFun fi tyin params c tyout res ef)
+  end.
+
+Definition expand_prog_CL (fi : funname -> ufundef -> expand_info) (p: uprog) : cexec uprog :=
+  Let funcs := map_cfprog_name (expand_fd_CL fi) (p_funcs p) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
 End ASM_OP.

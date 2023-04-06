@@ -40,7 +40,7 @@ let rec warn_extra_i asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ -> ()
+  | Cassert _ | Ccall _ | Csyscall _ -> ()
 
 let warn_extra_fd asmOp (_, fd) = List.iter (warn_extra_i asmOp) fd.f_body
 
@@ -550,7 +550,7 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
       Copn([Lvar x],t, Ocopy(ws, Conv.pos_of_int n), [e])
   | Cassgn(Lasub (_, ws, n,_, _) as x, t, _ty, e) when not (is_array_init e) ->
       Copn([x],t, Ocopy(ws, Conv.pos_of_int n), [e])
-  | Ccall _ | Copn _ | Csyscall _ | Cassgn _ -> i
+  | Cassert _ | Ccall _ | Copn _ | Csyscall _ | Cassgn _ -> i
 
   and add_array_copy_c c = 
     List.map add_array_copy_i c in

@@ -46,6 +46,7 @@
     "while" , WHILE  ;
     "export", EXPORT ;
     "ArrayInit", ARRAYINIT;
+    "assert", ASSERT;
     "_"     , UNDERSCORE;
   ]
 

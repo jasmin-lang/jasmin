@@ -11,7 +11,7 @@ fn f () -> reg u64 {
   /* Remark the array_copy introduced after inlining does not make sens ... 
      A solution will be to do a "After variable renaming to remove copies"
   */
-  #inline t = fill(t);
+  t = fill(t);
   
   reg u64 r;
   inline int i;

@@ -69,6 +69,7 @@ let write_mem_lvals = List.exists write_mem_lval
 
 let rec read_mem_i s i =
   match i.i_desc with
+  | Cassert e -> read_mem_e e 
   | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
   | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
@@ -82,6 +83,7 @@ let read_mem_f s f = read_mem_c s f.f_body
 
 let rec write_mem_i s i =
   match i.i_desc with
+  | Cassert _ -> false 
   | Cassgn (x, _, _, _)  -> write_mem_lval x 
   | Copn (xs, _, _, _) | Csyscall(xs, Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
@@ -798,7 +800,7 @@ module Normal = struct
 
   let rec init_aux_i asmOp env i = 
     match i.i_desc with
-    | Cassgn _ -> env
+    | Cassert _ | Cassgn _ -> env
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux asmOp (init_aux asmOp env c1) c2
     | Cfor(_,_,c) -> init_aux asmOp (add_aux env [tint]) c
     | Copn (lvs, _, op, _) -> 
@@ -846,6 +848,7 @@ module Normal = struct
 
   and pp_instr pd asmOp env fmt i =
     match i.i_desc with 
+    | Cassert _ -> ()
     | Cassgn(v, _, _, Parr_init _) ->
       let pp_e fmt _ = Format.fprintf fmt "witness" in
       pp_lval1 pd env pp_e fmt (v, ((), ()))
@@ -1095,6 +1098,7 @@ module Leak = struct
 
   let rec init_aux_i asmOp env i =
     match i.i_desc with
+    | Cassert _ -> env
     | Cassgn (lv, _, _, e) -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
     | Copn (lvs, _, op, _) ->
        let op = base_op op in
@@ -1155,6 +1159,7 @@ module Leak = struct
 
   and pp_instr pd asmOp env fmt i =
     match i.i_desc with 
+    | Cassert _ -> ()
     | Cassgn(v, _, _, (Parr_init _ as e)) ->
       pp_leaks_e pd env fmt e;
       let pp_e fmt _ = Format.fprintf fmt "witness" in
@@ -1421,7 +1426,7 @@ and used_func_c used c =
 
 and used_func_i used i = 
   match i.i_desc with
-  | Cassgn _ | Copn _ | Csyscall _ -> used
+  | Cassert _ | Cassgn _ | Copn _ | Csyscall _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2

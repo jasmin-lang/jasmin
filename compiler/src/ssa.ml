@@ -34,6 +34,7 @@ let rec written_vars_instr_r allvars w =
   function
   | Cfor (_, _, s)
     -> written_vars_stmt allvars w s
+  | Cassert _ -> w
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _, _)
   | Csyscall(xs,_,_)
@@ -56,6 +57,9 @@ let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit
   let f = Liveness.live_fd is_move_op false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
+    | Cassert e -> 
+      let e = rename_expr m e in
+      m, Cassert e 
     | Cassgn (x, tg, ty, e) ->
       let e = rename_expr m e in
       let m, y = rename_lval allvars (m, []) x in
@@ -130,7 +134,7 @@ let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
        | _ -> Some i)
     | Cif (b, s1, s2) -> Some (Cif (b, stmt s1, stmt s2))
     | Cwhile (a, s1, b, s2) -> Some (Cwhile (a, stmt s1, b, stmt s2))
-    | (Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> Some i
+    | (Cassert _ | Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> Some i
   and instr i =
     try Option.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
     with HiError e -> raise (HiError (add_iloc e i.i_loc))

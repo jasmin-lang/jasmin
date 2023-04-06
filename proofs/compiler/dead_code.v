@@ -113,6 +113,9 @@ Fixpoint check_keep_only (xs:lvals) (tokeep: seq bool) s : cexec (Sv.t * lvals) 
 Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
   let (ii,ir) := i in
   match ir with
+  | Cassert e =>
+      ok (read_e_rec s e, [:: i ])
+
   | Cassgn x tag ty e =>
     let w := write_i ir in
     if tag != AT_keep then

@@ -55,6 +55,7 @@ Definition assgn ii x e := MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e
 Fixpoint unroll_i (i: instr) : cmd * bool :=
   let (ii, ir) := i in
   match ir with
+  | Cassert _ 
   | Cassgn _ _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _

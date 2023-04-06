@@ -27,6 +27,7 @@
 %token SHARP
 %token AMP
 %token AMPAMP
+%token ASSERT
 %token BANG
 %token BANGEQ
 %token COLON
@@ -336,6 +337,9 @@ plvalues:
 | s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
 
 pinstr_r:
+| ASSERT e=pexpr SEMICOLON
+   { PIAssert e }
+
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 

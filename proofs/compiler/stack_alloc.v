@@ -1120,6 +1120,9 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
   let (ii, ir) := i in
 
     match ir with
+    | Cassert _ => 
+        Error (stk_ierror_no_var "assert instruction remains")
+
     | Cassgn r t ty e => 
       if is_sarr ty then 
         Let ri := add_iinfo ii (alloc_array_move_init rmap r t e) in

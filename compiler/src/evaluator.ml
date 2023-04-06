@@ -9,23 +9,34 @@ open Expr
 open Sem
 open Values
 open Sem_params
-         
-exception Eval_error of instr_info * Utils0.error 
+        
+ 
+type eval_error = 
+ | Uerror of Utils0.error
+ | Aerror of pexpr 
 
-let pp_error fmt err =
-  let msg = 
-    match err with
-    | ErrOob -> "out_of_bound"
-    | ErrAddrUndef -> "undefined address"
-    | ErrAddrInvalid -> "invalid address"
-    | ErrStack -> "stack error"
-    | ErrType  -> "type error" in
-  Format.fprintf fmt "%s" msg
+exception Eval_error of instr_info * eval_error
+
+let pp_error tbl fmt err =
+  match err with
+  | Aerror e -> 
+    Format.fprintf fmt "assert fail : %a" 
+      (Printer.pp_expr ~debug:true) 
+      (Conv.expr_of_cexpr tbl e)
+  | Uerror err ->
+    let msg = 
+      match err with
+      | ErrOob -> "out_of_bound"
+      | ErrAddrUndef -> "undefined address"
+      | ErrAddrInvalid -> "invalid address"
+      | ErrStack -> "stack error"
+      | ErrType  -> "type error" in
+    Format.fprintf fmt "%s" msg
 
 let exn_exec (ii:instr_info) (r: 't exec) = 
   match r with
   | Ok r -> r
-  | Error e -> raise (Eval_error(ii, e))
+  | Error e -> raise (Eval_error(ii, Uerror e))
 
 let of_val_z ii v : coq_Z = 
   Obj.magic (exn_exec ii (of_val Coq_sint v))
@@ -90,6 +101,12 @@ let small_step1 ep spp sip s =
     let s1 = s.s_estate in
     match ir with
 
+    | Cassert e -> 
+      let v = exn_exec ii (sem_pexpr ep spp gd s1 e) in
+      let b = of_val_b ii v in 
+      if not b then raise (Eval_error(ii, Aerror e));
+      { s with s_cmd = c }
+      
     | Cassgn(x,_,ty,e) ->
       let v  = exn_exec ii (sem_pexpr ep spp gd s1 e) in
       let v' = exn_exec ii (truncate_val ty v) in

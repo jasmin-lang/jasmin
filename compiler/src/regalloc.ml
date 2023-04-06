@@ -30,6 +30,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
   let fill_lvs lvs = List.map fill_lv lvs in
   let rec fill_instr_r =
     function
+    | Cassert e -> Cassert e
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
@@ -242,6 +243,7 @@ let collect_equality_constraints_in_func
        | (None, _) | (_, None) -> ()
        end
     | Cassgn _ -> ()
+    | Cassert _ -> ()
     | Ccall (_, xs, fn, es) ->
       let get_Pvar a =
         match a with
@@ -379,6 +381,7 @@ let collect_conflicts reg_size asmOp
     function
     | Cfor (_, _, s)
       -> collect_stmt c s
+    | Cassert _
     | Cassgn _
     | Copn _
     | Csyscall _
@@ -400,6 +403,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let iter_exprs es = vars_es es |> iter_sv in
   let rec iter_instr_r =
     function
+    | Cassert e -> iter_expr e
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
     | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
@@ -628,7 +632,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
-    | Cassgn _
+    | Cassert _ | Cassgn _
       -> ()
     | Ccall (_, lvs, _, es) ->
        (* TODO: check this *)

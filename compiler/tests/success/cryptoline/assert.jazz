@@ -1,0 +1,15 @@
+inline fn mul(reg u64 x, reg u64 y) -> reg u64 {
+   assert (x == 2);
+   reg u64 z;
+   z = x * y;
+   assert (z == (2 * y));
+   return z;
+}
+
+fn mul4(reg u64 y1) -> reg u64 {
+   reg u64 y;
+   y = mul(2, y1);
+   y = mul(2, y);
+   assert (y == (4*y1));
+   return y;
+}

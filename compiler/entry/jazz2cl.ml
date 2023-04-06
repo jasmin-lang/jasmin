@@ -14,7 +14,7 @@ and add_inline_id i =
   | Cfor(x,r,c)  -> Cfor(x,r, add_inline_c c)
   | Cwhile(a,c1,e,c2) -> Cwhile(a, add_inline_c c1, e, add_inline_c c2)
   | Ccall (_, xs, f, es) -> Ccall(InlineFun, xs, f, es)
-  | Cassgn _ | Copn _ | Csyscall _ -> i
+  | Cassert _ | Cassgn _ | Copn _ | Csyscall _ -> i
 
 and add_inline_c c = 
   List.map add_inline_i c
@@ -27,13 +27,13 @@ let parse_and_print print arch call_conv =
 
   let module A =
     Arch_full.Arch_from_Core_arch
-      ((val match arch with
-            | Amd64 ->
+      ((val (*match arch with
+            | Amd64 -> *)
                 (module (val CoreArchFactory.core_arch_x86 ~use_lea:false
                                ~use_set0:false call_conv)
                 : Arch_full.Core_arch)
-            | CortexM ->
-                (module CoreArchFactory.Core_arch_ARM : Arch_full.Core_arch))) in
+           (* | CortexM ->
+                (module CoreArchFactory.Core_arch_ARM : Arch_full.Core_arch) *))) in
   fun output file funname ->
   try
     let _, pprog, _ = 
@@ -77,7 +77,8 @@ let parse_and_print print arch call_conv =
      in
      let fmt = Format.formatter_of_out_channel out in
      let prog = Conv.prog_of_cuprog tbl ((* FIXME *) Obj.magic prog) in
-     Format.fprintf fmt "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
+     Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
+     Format.fprintf fmt "%a@." ToCL.pp_fun (List.nth (snd prog) 0);
      close out
 
   with

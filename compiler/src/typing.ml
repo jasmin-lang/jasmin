@@ -174,6 +174,9 @@ let getfun env fn =
 let rec check_instr pd asmOp env i = 
   let loc = i.i_loc in
   match i.i_desc with
+  | Cassert e -> 
+    check_expr pd loc e tbool
+
   | Cassgn(x,_,ty,e) ->
     check_expr pd loc e ty;
     check_lval pd loc x ty

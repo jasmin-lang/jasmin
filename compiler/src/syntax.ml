@@ -217,6 +217,7 @@ type vardecls = pstotype * pident list
 
 type pinstr_r =
   | PIArrayInit of pident
+  | PIAssert    of pexpr
   | PIAssign    of plvals * peqop * pexpr * pexpr option
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock

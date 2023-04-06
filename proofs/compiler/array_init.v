@@ -41,6 +41,7 @@ Fixpoint remove_init_i i :=
           end in
         if t then [::] else [::i]
       else [::i]
+    | Cassert _      => [::i]
     | Copn _ _ _ _   => [::i]
     | Csyscall _ _ _ => [::i]
     | Cif e c1 c2  =>

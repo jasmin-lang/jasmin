@@ -82,6 +82,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   match i with
   | MkI iinfo ir =>
     match ir with
+    | Cassert _ 
     | Cassgn _ _ _ _
     | Copn _ _ _ _
     | Csyscall _ _ _

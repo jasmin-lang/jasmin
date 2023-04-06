@@ -1,0 +1,43 @@
+fn main(reg u8 a8) -> reg u64
+{
+  reg bool cf;
+  reg u16 a16 b16;
+  reg u32 a32 b32;
+  reg u64 a64 b64;
+
+  // u8
+  // assume( 0 <= a8 <= 254)
+  cf, a8 +8u= 1;
+
+  // assert( 1 <= a8 <= 255)
+  // assert( true && cf = 0@1)
+
+  // u16
+  a16 = (16u) a8;
+  b16 = a16;
+  a16 *= b16;
+  // assert( 0x1 <= a16 <= 0xFE01)
+  cf, a16 +16u= 0x1FE;
+  // assert( 0x1FE + 0x1 <= a16 <= 0xFFFF)
+  // assert( true && cf = 0@1)
+
+  // u32
+  a32 = (32u) a16;
+  b32 = a32;
+  a32 *= b32;
+  // assert( 0x3FC01 <= a32 <= 0xFFFE0001)
+  cf, a32 +32u= 0x1FFFE;
+  // 0x5FBFF <= a32 <= 0xFFFFFFFF
+  // assert( true && cf = 0@1)
+
+  // u64 //////////
+  a64 = (64u) a32;
+  b64 = a64;
+  a64 *= b64;
+  // assert( 0x23D0040801 <= a64 <= 0xFFFFFFFE00000001)
+  cf, a64 += 0x1FFFFFFFE;
+  // assert( 0x25D00407FF <= a64 <= 0xFFFFFFFFFFFFFFFF)
+  // assert( true && cf = 0@1)
+
+  return a64;
+}

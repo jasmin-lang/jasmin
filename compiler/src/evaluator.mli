@@ -1,4 +1,8 @@
-exception Eval_error of Expr.instr_info * Utils0.error
+type eval_error = 
+ | Uerror of Utils0.error
+ | Aerror of Expr.pexpr 
+
+exception Eval_error of Expr.instr_info * eval_error
 
 val exec :
   'syscall_state Sem_params.coq_EstateParams ->
@@ -15,4 +19,4 @@ val exec :
 val pp_val : Format.formatter -> Values.value -> unit
 
 val pp_error :
-  Format.formatter -> Utils0.error -> unit
+  Conv.coq_tbl -> Format.formatter -> eval_error -> unit

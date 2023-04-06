@@ -115,6 +115,7 @@ let set_cc cc =
   in call_conv := cc
 
 let print_strings = function
+  | Compiler.RemoveAssert                -> "rmassert", "remove logical assertion"
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
   | Compiler.ArrayCopy                   -> "arraycopy", "array copy"

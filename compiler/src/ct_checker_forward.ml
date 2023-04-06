@@ -506,6 +506,9 @@ let declassify_lvls annot lvls =
 let rec ty_instr fenv env i =
   let env1 =
   match i.i_desc with
+  | Cassert _ ->
+    env
+
   | Cassgn(x, _, _, e) ->
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl i.i_annot lvl)

@@ -95,7 +95,7 @@ Section REMOVE.
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ _ => ok gd
+    | Cassert _ | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -257,6 +257,10 @@ Section REMOVE.
       match i with
       | MkI ii i =>
         match i with
+        | Cassert e => 
+          Let e := remove_glob_e ii env e in
+          ok (env, [::MkI ii (Cassert e)])
+ 
         | Cassgn lv tag ty e =>
           Let e := remove_glob_e ii env e in
           match lv with

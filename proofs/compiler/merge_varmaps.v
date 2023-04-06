@@ -72,6 +72,7 @@ Section WRITE1.
 
   Fixpoint write_i_rec s (i:instr_r) :=
     match i with
+    | Cassert _       => s
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
     | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
@@ -168,6 +169,7 @@ Section CHECK.
 
   with check_ir sz ii D ir :=
     match ir with
+    | Cassert _ => Error (E.internal_error ii "assert remains")
     | Cassgn x tag ty e =>
       Let _ := check_e ii D e in
       check_lv ii D x

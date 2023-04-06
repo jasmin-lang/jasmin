@@ -238,7 +238,7 @@ let main () =
               in
               (match m_init with
                  | Utils0.Ok m -> m
-                 | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
+                 | Utils0.Error err -> raise (Evaluator.Eval_error (ii, Evaluator.Uerror err)))
               |>
               Evaluator.exec
                 ep
@@ -256,7 +256,8 @@ let main () =
             Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
             let i_loc, _ = ii in
-            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err
+            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" 
+              (Evaluator.pp_error tbl) err
         in
         List.iter exec to_exec
       end;
