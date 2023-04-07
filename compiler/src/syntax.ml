@@ -147,7 +147,16 @@ let string_of_peop2 : peop2 -> string =
   | `Le s -> f s "<="
   | `Gt s -> f s ">"
   | `Ge s -> f s ">="
- 
+
+(* -------------------------------------------------------------------- *)
+module W = Wsize
+
+type size_annotation =
+  | SAw of W.wsize
+  | SAv of W.signedness * W.velem * W.wsize
+  | SAx of W.wsize * W.wsize
+  | SAvv of W.velem * W.wsize * W.velem * W.wsize
+  | SA
 
 (* -------------------------------------------------------------------- *)
 
