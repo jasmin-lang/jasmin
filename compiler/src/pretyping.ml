@@ -1296,14 +1296,8 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
 let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
   List.map (fun (s, x) -> Conv.string_of_string0 s, x) asmOp.Sopn.prim_string
 
-type size_annotation =
-  | SAw of W.wsize
-  | SAv of W.signedness * W.velem * W.wsize
-  | SAx of W.wsize * W.wsize
-  | SAvv of W.velem * W.wsize * W.velem * W.wsize
-  | SA
-
-let extract_size str : string * size_annotation =
+let extract_size str : string * S.size_annotation =
+  let open S in
   let get_size =
     function
     | "8"   -> SAw W.U8
@@ -1379,7 +1373,7 @@ let tt_prim asmOp ws id args =
   | ARM_M4 ->
       oget
         ~exn:(tyerror ~loc (UnknownPrim s))
-        (Tt_arm_m4.tt_prim (prim_string asmOp) s args)
+        (Tt_arm_m4.tt_prim (prim_string asmOp) name sz args)
   | X86_64 ->
       let c =
   match List.assoc name (prim_string asmOp) with
