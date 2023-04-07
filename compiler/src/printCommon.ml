@@ -45,7 +45,7 @@ let string_of_op1 = function
   | E.Oneg _ -> "-"
 
 let string_of_op2 = function
-  | E.Obeq -> "="
+  | E.Obeq -> "=="
   | E.Oand -> "&&"
   | E.Oor -> "||"
   | E.Oadd _ -> "+"
