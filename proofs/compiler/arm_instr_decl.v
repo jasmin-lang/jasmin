@@ -710,6 +710,11 @@ Section ARM_INSTR.
 Context
   (opts : arm_options).
 
+Let string_of_arm_mnemonic mn :=
+      (string_of_arm_mnemonic mn
+        ++ (if set_flags opts then "S" else "")
+        ++ (if is_conditional opts then "cc" else ""))%string.
+
 Definition arm_ADD_semi (wn wm : ty_r) : exec ty_nzcv_r :=
   let x :=
     nzcv_w_of_aluop
@@ -1499,7 +1504,7 @@ Definition arm_extend_semi
   let f := if sign then sign_extend else zero_extend in
   ok (f ws' ws wn).
 
-Definition arm_load_instr mn opts : instr_desc_t :=
+Definition arm_load_instr mn : instr_desc_t :=
   let ws :=
     if wsize_of_load_mn mn is Some ws'
     then ws'
@@ -1523,7 +1528,7 @@ Definition arm_load_instr mn opts : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
-Definition arm_store_instr mn opts : instr_desc_t :=
+Definition arm_store_instr mn : instr_desc_t :=
   let ws :=
     if wsize_of_store_mn mn is Some ws'
     then ws'
@@ -1549,55 +1554,52 @@ Definition arm_store_instr mn opts : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
-End ARM_INSTR.
-
 
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
-Definition mn_desc (mn : arm_mnemonic) (opts : arm_options) : instr_desc_t :=
-  let desc :=
-    match mn with
-    | ADD => arm_ADD_instr
-    | ADC => arm_ADC_instr
-    | MUL => arm_MUL_instr
-    | SDIV => arm_SDIV_instr
-    | SUB => arm_SUB_instr
-    | RSB => arm_RSB_instr
-    | UDIV => arm_UDIV_instr
-    | UMULL => arm_UMULL_instr
-    | AND => arm_AND_instr
-    | BIC => arm_BIC_instr
-    | EOR => arm_EOR_instr
-    | MVN => arm_MVN_instr
-    | ORR => arm_ORR_instr
-    | ASR => arm_ASR_instr
-    | LSL => arm_LSL_instr
-    | LSR => arm_LSR_instr
-    | ROR => arm_ROR_instr
-    | MOV => arm_MOV_instr
-    | MOVT => arm_MOVT_instr
-    | UBFX => arm_UBFX_instr
-    | UXTB => arm_UXTB_instr
-    | UXTH => arm_UXTH_instr
-    | SBFX => arm_SBFX_instr
-    | CMP => arm_CMP_instr
-    | TST => arm_TST_instr
-    | LDR => arm_load_instr LDR
-    | LDRB => arm_load_instr LDRB
-    | LDRH => arm_load_instr LDRH
-    | LDRSB => arm_load_instr LDRSB
-    | LDRSH => arm_load_instr LDRSH
-    | STR => arm_store_instr STR
-    | STRB => arm_store_instr STRB
-    | STRH => arm_store_instr STRH
-    end
-  in
-  desc opts.
+Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
+  match mn with
+  | ADD => arm_ADD_instr
+  | ADC => arm_ADC_instr
+  | MUL => arm_MUL_instr
+  | SDIV => arm_SDIV_instr
+  | SUB => arm_SUB_instr
+  | RSB => arm_RSB_instr
+  | UDIV => arm_UDIV_instr
+  | UMULL => arm_UMULL_instr
+  | AND => arm_AND_instr
+  | BIC => arm_BIC_instr
+  | EOR => arm_EOR_instr
+  | MVN => arm_MVN_instr
+  | ORR => arm_ORR_instr
+  | ASR => arm_ASR_instr
+  | LSL => arm_LSL_instr
+  | LSR => arm_LSR_instr
+  | ROR => arm_ROR_instr
+  | MOV => arm_MOV_instr
+  | MOVT => arm_MOVT_instr
+  | UBFX => arm_UBFX_instr
+  | UXTB => arm_UXTB_instr
+  | UXTH => arm_UXTH_instr
+  | SBFX => arm_SBFX_instr
+  | CMP => arm_CMP_instr
+  | TST => arm_TST_instr
+  | LDR => arm_load_instr LDR
+  | LDRB => arm_load_instr LDRB
+  | LDRH => arm_load_instr LDRH
+  | LDRSB => arm_load_instr LDRSB
+  | LDRSH => arm_load_instr LDRSH
+  | STR => arm_store_instr STR
+  | STRB => arm_store_instr STRB
+  | STRH => arm_store_instr STRH
+  end.
+
+End ARM_INSTR.
 
 Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
   let '(ARM_op mn opts) := o in
-  let x := mn_desc mn opts in
+  let x := mn_desc opts mn in
   if is_conditional opts
   then mk_cond x
   else x.
