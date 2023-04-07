@@ -37,7 +37,7 @@ end = struct
   let to_atcons t env = Tcons1.make (Mtexpr.to_aexpr t.expr env) t.typ
 
   let to_lincons t env =
-    omap (fun linexpr -> Lincons1.make linexpr t.typ)
+    Option.map (fun linexpr -> Lincons1.make linexpr t.typ)
       (Mtexpr.to_linexpr t.expr env)
 
   let get_expr t = t.expr
@@ -137,7 +137,7 @@ let pp_s_expr fmt (e : s_expr) =
     Format.fprintf fmt "@[<v 0>%d constraints:@;@[<v 1>%a@]@;term: @[%a@]@]"
       (List.length l)
       (pp_list pp_btcons) l
-      (pp_opt Mtexpr.print) ((omap (fun x -> x)) t_opt) in
+      (pp_opt Mtexpr.print) t_opt in
 
   Format.fprintf fmt "@[<v 0>%a@]"
     (pp_list pp_el) e

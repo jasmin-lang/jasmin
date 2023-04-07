@@ -75,7 +75,7 @@ let detect_os () : os option =
     then try Some (Sys.getenv "OS") with Not_found -> None
     else uname 's' in
 
-  obind detect name
+  Option.bind name detect
 
 (* -------------------------------------------------------------------- *)
 let detect_arch () : arch option =
@@ -93,7 +93,7 @@ let detect_arch () : arch option =
          with Not_found -> None
     else uname 'm' in
 
-  obind detect name
+  Option.bind name detect
 
 (* --------------------------------------------------------------------- *)
 let os   = detect_os   ()

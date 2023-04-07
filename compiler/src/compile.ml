@@ -236,7 +236,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.extra_free_registers =
         (fun ii ->
           let loc, _ = ii in
-          !saved_extra_free_registers loc |> omap (Conv.cvar_of_var tbl));
+          !saved_extra_free_registers loc |> Option.map (Conv.cvar_of_var tbl));
       Compiler.lowering_vars = Arch.lowering_vars tbl;
       Compiler.is_var_in_memory;
       Compiler.print_uprog =
