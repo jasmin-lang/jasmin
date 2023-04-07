@@ -88,7 +88,7 @@ let pp_reg_address addr =
       let disp =
         if Z.equal disp Z.zero then None else Some (Z.to_string disp)
       in
-      let off = omap pp_register addr.ad_offset in
+      let off = Option.map pp_register addr.ad_offset in
       let scal = Conv.z_of_nat addr.ad_scale in
       let scal =
         if Z.equal scal Z.zero then None else Some (Z.to_string scal)

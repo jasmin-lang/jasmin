@@ -223,7 +223,7 @@ module SymExprImpl : SymExpr = struct
 
       (* Add the negative variable symbolic expression *)
       let n_btcons = flip_constr tcons in
-      let bsym = omap_dfl (fun c -> Mbv.add bv_n c bsym) bsym n_btcons in
+      let bsym = Option.map_default (fun c -> Mbv.add bv_n c bsym) bsym n_btcons in
       { t with bsym = bsym }
       
     | BVar _bv -> t               (* FIXME: we could use [_bv] 

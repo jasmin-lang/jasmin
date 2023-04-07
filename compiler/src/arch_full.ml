@@ -210,6 +210,6 @@ module Arch_from_Core_arch (A : Core_arch) :
   let callstyle = 
     match A.callstyle with
     | StackDirect -> StackDirect
-    | ByReg o -> ByReg (Utils.omap var_of_reg o)
+    | ByReg o -> ByReg (Option.map var_of_reg o)
     
 end
