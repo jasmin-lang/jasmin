@@ -1772,7 +1772,9 @@ let process_f_annot annot =
     stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot;
     stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot;
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
-    max_call_depth        = Annot.ensure_uniq1 "calldepth"      (Annot.pos_int None) annot}
+    max_call_depth        = Annot.ensure_uniq1 "calldepth"      (Annot.pos_int None) annot;
+    f_user_annot          = annot;
+  }
 
 
 (* -------------------------------------------------------------------- *)

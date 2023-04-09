@@ -182,7 +182,7 @@ Lemma sem_condition_mn ii tag mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1) :
      sem p' ev s [:: MkI ii i ] (estate_of_condition_mn mn s w0' w1').
 Proof.
   move=> hmn hws0 hws1 hsemes /=.
-  apply: sem_seq1. apply: EmkI. apply: Eopn.
+  apply: sem_seq_ir. apply: Eopn.
   rewrite /sem_sopn /=.
   rewrite hsemes {hsemes} /=.
 
@@ -1147,7 +1147,7 @@ Proof.
   rewrite map_cat /=.
   apply: (sem_app hsem01').
   clear hsem01'.
-  apply: sem_seq1. apply: EmkI.
+  apply: sem_seq_ir.
 
   apply: (sem_i_conditional (p := p') ev tag _ hsemc' _ _ hexeces hwrite12').
 
@@ -1255,7 +1255,7 @@ Proof.
   case: is_lval_in_memory.
   - case h: lower_store => [[op' es']|] // [? ? ? ?]; subst pre lvs op es.
     exists s1'; last exact: eeq_excR.
-    apply: sem_seq1. apply: EmkI.
+    apply: sem_seq_ir.
     exact: (sem_i_lower_store tag h hs00 hws hfve hseme hwrite01').
 
   case h: lower_pexpr => [[[pre' op'] es']|] // [? ? ? ?];
@@ -1349,7 +1349,7 @@ Proof.
 Qed.
 
 Lemma lower_add_carryP s0 s1 lvs tag es lvs' op' es' :
-  sem_i p' ev s0 (Copn lvs tag (Oaddcarry U32) es) s1
+  sem_i p' ev s0 (Copn lvs tag (sopn_addcarry U32) es) s1
   -> lower_add_carry lvs es = Some (lvs', op', es')
   -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
 Proof.
@@ -1409,11 +1409,6 @@ Ltac intro_opn_args :=
     | [ |- forall (_ : option bool), _ ] => move=> ?
     | [ |- forall (_ : _ (word _)), _ ] => move=> ?
     end.
-
-#[ local ]
-Ltac destruct_opn_args :=
-  repeat (t_xrbindP=> -[|?]; first done);
-  (t_xrbindP=> -[]; last done).
 
 #[local]
 Ltac intro_args_wrapper :=
@@ -1567,7 +1562,7 @@ Proof.
 Qed.
 
 Lemma lower_muluP s0 s1 lvs tag es lvs' op' es' :
-  sem_i p' ev s0 (Copn lvs tag (Omulu U32) es) s1
+  sem_i p' ev s0 (Copn lvs tag (sopn_mulu U32) es) s1
   -> lower_mulu lvs es = Some (lvs', op', es')
   -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
 Proof.
@@ -1586,7 +1581,7 @@ Lemma lower_copnP s0 s1 lvs tag op es lvs' op' es' :
   -> lower_copn lvs op es = Some (lvs', op', es')
   -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
 Proof.
-  case: op => // [ [] | [] | [[[] aop]|]] // hfve.
+  case: op => // [[] // [] | [[[] aop]|]] // hfve.
   - exact: lower_muluP.
   - exact: lower_add_carryP.
   exact: lower_base_op.
@@ -1715,7 +1710,7 @@ Proof.
 
   exists s1'; last exact: hs11.
   clear hs11.
-  apply: sem_seq1. apply: EmkI.
+  apply: sem_seq_ir.
 
   assert (hcopn : sem_i p' ev s0' (Copn lvs tag op es) s1').
   - apply: Eopn.
@@ -1744,7 +1739,7 @@ Proof.
   + by rewrite /eq_fv /estate_eq_except /=; case: hs1' => ?? ->.
   have [s2' hw' hs2'] := eeq_exc_write_lvals hdisjx hs1'w hw.
   exists s2' => //.
-  apply: sem_seq1; constructor; econstructor; eauto.
+  apply: sem_seq_ir; econstructor; eauto.
   by case: hs1' => -> -> _.
 Qed.
 
@@ -1769,7 +1764,7 @@ Proof.
 
   rewrite map_cat.
   apply: (sem_app hsem01').
-  apply: sem_seq1. apply: EmkI. apply: Eif_true.
+  apply: sem_seq_ir. apply: Eif_true.
   - exact: hseme'.
   exact: hsem12'.
 Qed.
@@ -1795,7 +1790,7 @@ Proof.
 
   rewrite map_cat.
   apply: (sem_app hsem01').
-  apply: sem_seq1. apply: EmkI. apply: Eif_false.
+  apply: sem_seq_ir. apply: Eif_false.
   - exact: hseme'.
   exact: hsem12'.
 Qed.
@@ -1820,7 +1815,7 @@ Proof.
   exists s4'; last exact: hs43.
   clear hs43.
 
-  apply: sem_seq1. apply: EmkI. apply: Ewhile_true.
+  apply: sem_seq_ir. apply: Ewhile_true.
   - exact: (sem_app hsem01' hsem12').
   - exact: hseme'.
   - exact: hsem23'.
@@ -1851,7 +1846,7 @@ Proof.
   exists s2'; last exact: hs21.
   clear hs21.
 
-  apply: sem_seq1. apply: EmkI. apply: Ewhile_false.
+  apply: sem_seq_ir. apply: Ewhile_false.
   - apply: (sem_app hsem01' hsem12').
   exact: hseme'.
 Qed.
@@ -1870,7 +1865,7 @@ Proof.
   exists s1'; last exact: hs11.
   clear hs11.
 
-  apply: sem_seq1. apply: EmkI. apply: Efor.
+  apply: sem_seq_ir. apply: Efor.
   - exact: (eeq_exc_sem_pexpr hfvlo hs00 hlo).
   - exact: (eeq_exc_sem_pexpr hfvhi hs00 hhi).
   exact: hsemf01'.
@@ -1931,7 +1926,7 @@ Proof.
   exists s1'; last exact: hs11.
   clear hs11.
 
-  apply: sem_seq1. apply: EmkI. apply: Ecall.
+  apply: sem_seq_ir. apply: Ecall.
   - exact: (eeq_exc_sem_pexprs hfvargs hs0' hsemargs).
   - move: hs0' => [-> -> _]. exact: hfun.
   - exact: hwrite01'.

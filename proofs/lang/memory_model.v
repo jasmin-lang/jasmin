@@ -307,8 +307,6 @@ End CoreMem.
 (* ** Memory
  * -------------------------------------------------------------------- *)
 
-Notation pointer := (word Uptr) (only parsing).
-
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
 

@@ -1,7 +1,20 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
-Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
+From Coq Require Import
+  Relation_Operators
+  Utf8.
+
+Require Import
+  global
+  label
+  memory_model
+  oseq
+  sem_type
+  strings
+  syscall
+  utils
+  word.
 Require Import
   flag_combination
   shift_kind.
@@ -43,8 +56,11 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; ad_fcp :> FlagCombinationParams
   }.
 
-#[global]
+#[export]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+
+#[export]
+Instance arch_msfsz `{arch_decl} : MSFsize := { msf_size := reg_size }.
 
 Definition mk_ptr `{arch_decl} name :=
   {| vtype := sword Uptr; vname := name; |}.

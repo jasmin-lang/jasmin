@@ -24,12 +24,15 @@ Require Import
   lowering
   makeReferenceArguments
   propagate_inline
+  slh_lowering
   remove_globals
   stack_alloc
   tunneling
   unrolling
   wsize.
-Require merge_varmaps.
+Require
+  merge_varmaps.
+
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -41,6 +44,7 @@ Definition pp_s := compiler_util.pp_s.
 Section IS_MOVE_OP.
 
 Context
+  {msfsz : MSFsize}
   `{asmop : asmOp}
   {fcp : FlagCombinationParams}
   (is_move_op : asm_op_t -> bool).
@@ -87,6 +91,7 @@ Variant compiler_step :=
   | RemoveGlobal                : compiler_step
   | MakeRefArguments            : compiler_step
   | LowerInstruction            : compiler_step
+  | SLHLowering                 : compiler_step
   | PropagateInline             : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
@@ -116,6 +121,7 @@ Definition compiler_step_list := [::
   ; RemoveGlobal
   ; MakeRefArguments
   ; LowerInstruction
+  ; SLHLowering
   ; PropagateInline 
   ; StackAllocation
   ; RemoveReturn
@@ -171,8 +177,8 @@ Record compiler_params
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   is_reg_array     : var -> bool;
+  slh_info         : _uprog → funname → seq slh_t * seq slh_t
 }.
-
 
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
@@ -188,6 +194,7 @@ Context
 Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
 Notation loparams := (ap_lop aparams).
+Notation shparams := (ap_shp aparams).
 Notation agparams := (ap_agp aparams).
 
 #[local]
@@ -280,6 +287,9 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
+  Let pl := lower_slh_prog shparams (cparams.(slh_info) pl) to_keep pl in
+  let pl := cparams.(print_uprog) SLHLowering pl in
+
   Let pp := propagate_inline.pi_prog pl in
   let pp := cparams.(print_uprog) PropagateInline pp in
 
@@ -304,7 +314,6 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
-
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
@@ -312,6 +321,7 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
   Let ps :=
     stack_alloc.alloc_prog
       true
+      shparams
       saparams
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
       (global_static_data_symbol cparams)

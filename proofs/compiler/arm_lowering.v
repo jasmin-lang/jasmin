@@ -7,6 +7,7 @@ Require Import
   compiler_util
   expr
   lowering
+  pseudo_operator
   shift_kind.
 Require Import
   arch_decl
@@ -468,15 +469,21 @@ Definition lower_base_op
       | _ => None end
     else None.
 
-Definition lower_copn
-  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
+Definition lower_pseudo_operator
+  (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option copn_args :=
   match op with
   | Oaddcarry U32 => lower_add_carry lvs es
   | Omulu U32 => lower_mulu lvs es
-  | Oasm (BaseOp (None, aop)) => lower_base_op lvs aop es
   | _ => None
   end.
 
+Definition lower_copn
+  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
+  match op with
+  | Opseudo_op pop => lower_pseudo_operator lvs pop es
+  | Oasm (BaseOp (None, aop)) => lower_base_op lvs aop es
+  | _ => None
+  end.
 
 (* -------------------------------------------------------------------- *)
 

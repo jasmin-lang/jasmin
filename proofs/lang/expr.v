@@ -3,7 +3,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import word_ssrZ.
-Require Export strings word utils type ident var global sem_type sopn syscall.
+Require Export strings word utils type ident var global sem_type slh_ops sopn syscall.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -899,3 +899,21 @@ Definition is_zero sz (e: pexpr) : bool :=
   if e is Papp1 (Oword_of_int sz') (Pconst Z0) then sz' == sz else false.
 
 Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
+
+Definition instr_of_copn_args
+  {asm_op : Type}
+  {asmop : asmOp asm_op}
+  (tg : assgn_tag)
+  (args : copn_args)
+  : instr_r :=
+  Copn args.1.1 tg args.1.2 args.2.
+
+Fixpoint use_mem (e : pexpr) : bool :=
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
+  | Pload _ _ _ => true
+  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
+  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
+  | PappN _ es => has use_mem es
+  | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
+  end.

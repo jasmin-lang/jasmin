@@ -951,6 +951,11 @@ Proof.
   by case/semE => ? [?] /semE ->.
 Qed.
 
+Lemma sem_seq_ir ii ir s0 s1 :
+  sem_i s0 ir s1
+  -> sem s0 [:: MkI ii ir ] s1.
+Proof. by move=> /(EmkI ii) /sem_seq1. Qed.
+
 End SEM.
 
 Section WITH_PARAMS.
@@ -1007,6 +1012,17 @@ Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.
   by rewrite /= truncate_word_le.
+Qed.
+
+Lemma is_wconstI ws e w :
+  is_wconst ws e = Some w ->
+  exists ws' z, e = Papp1 (Oword_of_int ws') (Pconst z).
+Proof.
+  case: e => //.
+  move=> [] //= ? e.
+  case: (_ <= _)%CMP; last done.
+  case: e => //.
+  by eexists; eexists.
 Qed.
 
 Lemma size_wrange d z1 z2 :
@@ -1212,6 +1228,17 @@ Lemma write_iP i s1 s2 :
 Proof. by move=> h; have /write_IP := EmkI dummy_instr_info h. Qed.
 
 End Write.
+
+Lemma set_var_disjoint_eq_on x s v vm vm' :
+  ~~ Sv.mem x s ->
+  set_var vm x v = ok vm' ->
+  vm =[ s ] vm'.
+Proof.
+  move=> /Sv_memP hx hsetx y hy.
+  rewrite (get_set_var y hsetx).
+  case: eqP => // ?; subst y.
+  SvD.fsetdec.
+Qed.
 
 Lemma disjoint_eq_on gd s r s1 s2 v:
   disjoint s (vrv r) ->

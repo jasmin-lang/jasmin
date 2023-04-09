@@ -3,6 +3,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import strings word utils type var expr.
 Require Import compiler_util byteset.
+Require slh_lowering.
 Require Import ZArith.
 
 Set Implicit Arguments.
@@ -401,9 +402,14 @@ End Region.
 
 Import Region.
 
-Section ASM_OP.
-Context {pd: PointerData}.
-Context `{asmop:asmOp}.
+Section WITH_PARAMS.
+
+Context
+  {asm_op : Type}
+  {pd : PointerData}
+  {msfsz : MSFsize}
+  {asmop : asmOp asm_op}
+.
 
 Definition mul := Papp2 (Omul (Op_w Uptr)).
 Definition add := Papp2 (Oadd (Op_w Uptr)).
@@ -474,6 +480,7 @@ Definition mk_mov vpk :=
   end.
 
 Context
+  (shparams : slh_lowering.sh_params)
   (saparams : stack_alloc_params).
 
 Section Section.
@@ -696,7 +703,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     ok (rmap, Lmem ws x e1)
   end.
 
-Definition nop := Copn [::] AT_none Onop [::]. 
+Definition nop := Copn [::] AT_none sopn_nop [::].
 
 (* [is_spilling] is used for stack pointers. *)
 Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
@@ -839,6 +846,64 @@ Definition alloc_array_move rmap r tag e :=
       ok (rmap, nop)
     end
   end.
+
+Definition is_protect_ptr_fail (rs:lvals) (o:sopn) (es:pexprs) :=
+  match o, rs, es with
+  | Oslh (SLHprotect_ptr_fail _), [::r], [:: e; msf] => Some (r, e, msf)
+  | _, _, _ => None
+  end.
+
+Definition lower_protect_ptr_fail ii lvs t es :=
+  slh_lowering.lower_slho shparams ii lvs t (SLHprotect Uptr) es.
+
+(* This seems to be a duplication of alloc_array_move, but we are able to share the corresponding proofs *)
+Definition alloc_protect_ptr rmap ii r t e msf :=
+  Let xsub := get_Lvar_sub r in
+  Let ysub := get_Pvar_sub e in
+  let '(x,subx) := xsub in
+  let '(y,suby) := ysub in
+
+   Let sryl :=
+    let vy := y.(gv) in
+    Let vk := get_var_kind y in
+    let ofs := 0%Z in
+    Let len :=
+      match suby with
+      | None => ok (size_slot vy)
+      | Some _ => Error (stk_error_no_var "argument of protect_ptr cannot be a sub array" )
+      end in
+    match vk with
+    | None => Error (stk_error_no_var "argument of protect_ptr should be a reg ptr")
+    | Some vpk =>
+      Let _ := assert (if vpk is VKptr (Pregptr _) then true else false)
+                      (stk_error_no_var "argument of protect_ptr should be a reg ptr") in
+      Let _ := assert (if r is Lvar _ then true else false)
+                      (stk_error_no_var "destination of protect_ptr should be a reg ptr") in
+      Let srs := check_vpk rmap vy vpk (Some ofs) len in
+      let sry := srs.2 in
+      Let: (e, _ofs) := mk_addr_pexpr rmap vy vpk in (* ofs is ensured to be 0 *)
+      ok (sry, vpk, e)
+    end
+  in
+  let '(sry, vpk, ey) := sryl in
+  match subx with
+  | None =>
+    match get_local (v_var x) with
+    | None    => Error (stk_error_no_var "only reg ptr can receive the result of protect_ptr")
+    | Some pk =>
+      match pk with
+      | Pregptr px =>
+        let dx := Lvar (with_var x px) in
+        Let msf := add_iinfo ii (alloc_e rmap msf) in
+        Let ir := lower_protect_ptr_fail ii [::dx] t [:: ey; msf] in
+        let rmap := Region.set_move rmap x sry in
+        ok (rmap, ir)
+      | _ => Error (stk_error_no_var "only reg ptr can receive the result of protect_ptr")
+      end
+    end
+  | Some _ => Error (stk_error_no_var "cannot assign protect_ptr in a sub array" )
+  end.
+
 
 (* This function is also defined in array_init.v *)
 (* TODO: clean *)
@@ -1140,6 +1205,10 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
         ok (r.1, [:: MkI ii (Cassgn r.2 t ty e)])
 
     | Copn rs t o e => 
+      if is_protect_ptr_fail rs o e is Some (r, e, msf) then
+         Let rs := alloc_protect_ptr rmap ii r t e msf in
+         ok (rs.1, [:: MkI ii rs.2])
+      else
       Let e  := add_iinfo ii (alloc_es rmap e) in
       Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
       ok (rs.1, [:: MkI ii (Copn rs.2 t o e)])
@@ -1171,7 +1240,6 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
     | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
 
     end.
-
 
 End PROG.
 
@@ -1507,4 +1575,4 @@ Definition alloc_prog (fresh_reg : Ident.name -> stype -> Ident.ident)
 
 End CHECK.
 
-End ASM_OP.
+End WITH_PARAMS.

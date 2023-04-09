@@ -37,6 +37,8 @@ module type Arch = sig
   include Core_arch
 
   val reg_size : Wsize.wsize
+  val pointer_data : Wsize.wsize
+  val msf_size : Wsize.wsize
   val rip : var
 
   val asmOp      : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.asmOp
@@ -76,13 +78,15 @@ module Arch_from_Core_arch (A : Core_arch) :
   let arch_decl = A.asm_e._asm._arch_decl 
   let reg_size = arch_decl.reg_size
   let xreg_size = arch_decl.xreg_size
+  let pointer_data = arch_pd A.asm_e._asm._arch_decl
+  let msf_size = arch_msfsz A.asm_e._asm._arch_decl
 
   let atoI = A.asm_e._atoI
   (* not sure it is the best place to define [rip], but we need to know [reg_size] *)
   let rip = V.mk "RIP" (Reg (Normal, Direct)) (tu reg_size) L._dummy []
 
   let asmOp = Arch_extra.asm_opI A.asm_e
-  let asmOp_sopn = Sopn.asmOp_sopn reg_size asmOp
+  let asmOp_sopn = Sopn.asmOp_sopn pointer_data msf_size asmOp
 
   let var_of_reg (r:reg) : var = atoI.toI_r.to_ident r
 

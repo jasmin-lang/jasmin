@@ -12,6 +12,7 @@ as parameters.
 Require Import
   flag_combination
   sopn
+  type
   syscall
   wsize.
 
@@ -22,6 +23,7 @@ Require Import
 Class EstateParams (syscall_state : Type) := mk_ep
   {
     _pd :> PointerData | 1000;
+    _msf_size :> MSFsize | 1000;
   }.
 
 Arguments mk_ep {_ _}.

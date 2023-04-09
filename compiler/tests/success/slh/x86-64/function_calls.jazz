@@ -1,0 +1,71 @@
+fn no_speculation() -> reg u64 {
+    reg u64 x;
+    x = 0;
+    return x;
+}
+
+export
+fn main_no_spec(reg u64 x) {
+    reg u64 y msf;
+
+    msf = #init_msf();
+    y = no_speculation();
+    x += y;
+    x = #protect(x, msf);
+    [x] = 0;
+}
+
+fn id_msf(reg u64 msf) -> #msf reg u64 {
+    return msf;
+}
+
+export
+fn main_id(reg u64 x) {
+    reg u64 msf;
+
+    msf = #init_msf();
+    msf = id_msf(msf);
+    x = #protect(x, msf);
+    [x] = 0;
+}
+
+fn my_mov_msf(reg u64 msf) -> #msf reg u64 {
+    reg u64 msf1;
+    msf1 = #mov_msf(msf);
+    return msf1;
+}
+
+export
+fn main_move(reg u64 x) {
+    reg u64 msf msf1;
+
+    msf = #init_msf();
+
+    msf = my_mov_msf(msf);
+    x = #protect(x, msf);
+
+    msf1 = my_mov_msf(msf);
+    x = #protect(x, msf1);
+
+    [x] = 0;
+}
+
+fn dup_msf(reg u64 msf) -> #msf reg u64, #msf reg u64 {
+    reg u64 msf1 msf2;
+    msf1 = #mov_msf(msf);
+    msf2 = #mov_msf(msf);
+    return (msf1, msf2);
+}
+
+export
+fn main_dup(reg u64 x) {
+    reg u64 msf msf1;
+
+    msf = #init_msf();
+
+    msf, msf1 = dup_msf(msf);
+    x = #protect(x, msf);
+    x = #protect(x, msf1);
+
+    [x] = 0;
+}

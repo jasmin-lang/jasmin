@@ -205,3 +205,8 @@ Class PointerData := {
   Uptr : wsize;
 }.
 
+(* -------------------------------------------------------------------- *)
+Class MSFsize :=
+  {
+    msf_size : wsize;
+  }.

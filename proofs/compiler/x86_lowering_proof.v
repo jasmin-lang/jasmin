@@ -1083,7 +1083,7 @@ Section PROOF.
   Proof.
     clear => A B.
     case.
-    1-5: move => >; exact: B.
+    1-2: move => >; exact: B.
     case; last by move => >; exact: B.
     case => ws.
     case; try by move => >; exact: B.
@@ -1586,7 +1586,8 @@ Section PROOF.
     disj_fvars (vars_lvals xs) →
     disj_fvars (read_es es) →
     sem_pexprs gd si' es = ok x →
-    exec_sopn ((if sub then Osubcarry else Oaddcarry) sz) x = ok v →
+    let: op := if sub then sopn_subcarry else sopn_addcarry in
+    exec_sopn (op sz) x = ok v →
     write_lvals gd si' xs v = ok so →
     ∃ so',
       sem p' ev si' (map (MkI ii) (lower_addcarry fv sz sub xs t es)) so' ∧
@@ -1643,7 +1644,8 @@ Section PROOF.
     have Hx' := eeq_exc_sem_pexprs Hdisje Hs1' Hx; have [s2' Hw' Hs2'] := eeq_exc_write_lvals Hdisjl Hs1' Hw.
     have default : ∃ s2', sem p' ev s1' [:: MkI ii (Copn xs t o es)] s2' ∧ eq_exc_fresh s2' s2.
     + by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn; rewrite /sem_sopn Hx' /=; rewrite /= in Hv; by rewrite Hv.
-    case: o Hv default => //; (move => sz Hv default || move => Hv default).
+    case: o Hv default => // -[] //;
+     (move => sz Hv default || move => Hv default).
     (* Omulu *)
     + move: Hv; rewrite /exec_sopn; t_xrbindP => y hy.
       have := app_ww_dec hy => -[sz1] [w1 [sz2 [w2 [hsz1 [hsz2 [? [?]]]]]]] ?; subst x y v.
@@ -1654,7 +1656,7 @@ Section PROOF.
       have [He1 He2] := sem_pexprs_dec2 Hx'.
       have hdefault : ∃ s1'0,
           sem p' ev s1'
-              [seq MkI ii i | i <- [:: Copn [:: x1; x2] t (Omulu sz) [:: e1; e2]]] s1'0
+              [seq MkI ii i | i <- [:: Copn [:: x1; x2] t (sopn_mulu sz) [:: e1; e2]]] s1'0
           ∧ eq_exc_fresh s1'0 s2.
       + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
         by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= He1 He2 /= !truncate_word_le.

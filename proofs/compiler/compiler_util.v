@@ -68,6 +68,21 @@ Notation pp_re   := PPErexpr.
 Notation pp_fe   := PPEfexpr.
 Notation pp_fn   := PPEfunname.
 
+Fixpoint pp_list {A} sep (pp : A -> pp_error) xs : pp_error :=
+  match xs with
+  | [::] => pp_nobox [::]
+  | [:: x] => pp x
+  | x :: xs => pp_nobox [:: pp x; sep; pp_list sep pp xs]
+  end.
+
+Definition pp_break pp := pp_nobox [:: pp; PPEbreak].
+
+Definition pp_break_s s := pp_break (pp_s s).
+
+Definition pp_Sv (s:Sv.t) : pp_error :=
+ pp_nobox [:: pp_s "{"; pp_list (pp_break_s ",") pp_var (Sv.elements s); pp_s "}"].
+
+
 (* Not currently used *)
 Definition pp_neq {A:Type} (pp_a: A -> pp_error) e1 e2 (_: unit):=
   pp_hov [:: pp_a e1; pp_s "should be equal to"; pp_a e2].

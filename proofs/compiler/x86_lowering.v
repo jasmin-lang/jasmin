@@ -1,7 +1,12 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import Utf8.
-Require Import compiler_util expr lowering lea.
+Require Import
+  compiler_util
+  expr
+  lowering
+  lea
+  pseudo_operator.
 Require Import x86_decl x86_instr_decl x86_extra.
 
 Section Section.
@@ -561,12 +566,13 @@ Definition lower_addcarry_classify (sub: bool) (xs: lvals) (es: pexprs) :=
   end.
 
 Definition lower_addcarry sz (sub: bool) (xs: lvals) tg (es: pexprs) : seq instr_r :=
+  let op := if sub then sopn_subcarry else sopn_addcarry in
   if (sz ≤ U64)%CMP then
   match lower_addcarry_classify sub xs es with
   | Some (vi, o, es, cf, r) => opn_5flags (Some U32) sz vi cf r tg (Ox86 (o sz)) es
-  | None => [:: Copn xs tg ((if sub then Osubcarry else Oaddcarry) sz) es ]
+  | None => [:: Copn xs tg (op sz) es ]
   end
-  else [:: Copn xs tg ((if sub then Osubcarry else Oaddcarry) sz) es ].
+  else [:: Copn xs tg (op sz) es ].
 
 Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
   if check_size_16_64 sz is Ok _ then
@@ -587,16 +593,27 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
           Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) [:: x ; Plvar c ] ]
     | None => [:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) es ]
     end end
-  | _, _ => [:: Copn xs tg (Omulu sz) es ]
+  | _, _ => [:: Copn xs tg (sopn_mulu sz) es ]
   end
-  else [:: Copn xs tg (Omulu sz) es ].
+  else [:: Copn xs tg (sopn_mulu sz) es ].
 
-Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r :=
+Definition lower_pseudo_operator
+  (xs : lvals)
+  (tg : assgn_tag)
+  (op : pseudo_operator)
+  (es : pexprs) :
+  seq instr_r :=
   match op with
   | Oaddcarry sz => lower_addcarry sz false xs tg es
   | Osubcarry sz => lower_addcarry sz true xs tg es
   | Omulu sz     => lower_mulu sz xs tg es
-  | _            => [:: Copn xs tg op es]
+  | _            => [:: Copn xs tg (Opseudo_op op) es]
+  end.
+
+Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r :=
+  match op with
+  | Opseudo_op pop => lower_pseudo_operator xs tg pop es
+  | _ => [:: Copn xs tg op es]
   end.
 
 Fixpoint lower_i (i:instr) : cmd :=

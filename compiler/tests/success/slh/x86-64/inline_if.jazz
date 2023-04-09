@@ -1,0 +1,25 @@
+/* These conditionals need the `inline` annotation to convince the type-checker
+   that they don't affect speculation. */
+export
+fn main(reg u64 x) -> reg u64 {
+    reg u64 msf;
+    msf = #init_msf();
+
+    inline bool b;
+    b = true;
+
+    #inline
+    if (b) {
+        x += 1;
+    }
+
+    #inline
+    if (!b) {
+        x += 1;
+    }
+
+    reg u64 y;
+    y = x;
+    y = #protect(y, msf);
+    return y;
+}

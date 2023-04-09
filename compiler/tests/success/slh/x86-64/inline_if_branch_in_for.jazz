@@ -1,0 +1,21 @@
+export
+fn branch_in_loop(reg u64 p) -> reg u64 {
+    reg u64 msf;
+    reg u64 x;
+
+    msf = #init_msf();
+    x = 0;
+
+    inline int i;
+    for i = 0 to 10 {
+        if i < 5 {
+          [p + i] = i;
+          x += [p + i];
+        } else {
+          [p + i] = 10;
+          x += [p + i];
+        }
+    }
+
+    return x;
+}

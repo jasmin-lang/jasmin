@@ -26,6 +26,7 @@ let color = ref Auto
 let ct_list = ref None
 let infer   = ref false 
 
+let sct_list = ref None
 
 let lea = ref false
 let set0 = ref false
@@ -97,6 +98,17 @@ let set_ct_on s =
           | None -> [s]
           | Some l -> s::l)
 
+let set_sct () =
+  if !sct_list = None then sct_list := Some []
+
+let set_sct_on s =
+  sct_list :=
+    Some (match !sct_list with
+          | None -> [s]
+          | Some l -> s::l)
+
+let sct_comp_pass = ref Compiler.ParamsExpansion
+
 let parse_jasmin_path s =
   s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
 
@@ -137,6 +149,7 @@ let print_strings = function
   | Compiler.RemoveGlobal                -> "rmglobals", "remove globals variables"
   | Compiler.MakeRefArguments            -> "makeref"  , "add assignments before and after call to ensure that arguments and results are ref ptr"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
+  | Compiler.SLHLowering                  -> "slhlowering" , "selective load hardening lowering of instructions"
   | Compiler.PropagateInline             -> "propagate", "propagate inline variables"
   | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
   | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
@@ -145,6 +158,17 @@ let print_strings = function
   | Compiler.Linearization               -> "linear"   , "linearization"
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
+
+let compiler_step_symbol =
+  List.map (fun s -> fst (print_strings s)) Compiler.compiler_step_list
+
+let symbol2pass =
+  let tbl = Hashtbl.create 101 in
+  List.iter (fun s -> Hashtbl.add tbl (fst (print_strings s)) s) Compiler.compiler_step_list;
+  fun s -> Hashtbl.find tbl s
+
+let set_sct_comp_pass s =
+ sct_comp_pass := symbol2pass s
 
 let print_option p =
   let s, msg = print_strings p in
@@ -172,6 +196,9 @@ let options = [
     "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
     "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
     "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
+    "-checkSCT", Arg.Unit set_sct       , ": checks that the full program is speculative constant time (using a type system)";
+    "-checkSCTon", Arg.String set_sct_on, "[f]: checks that the function [f] is speculative constant time (using a type system)";
+    "-checkSCTafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), "start sct checker after given pass";
     "-slice"    , Arg.String set_slice  , "[f]: keep function [f] and all what it needs";
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";

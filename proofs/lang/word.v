@@ -2043,3 +2043,57 @@ Proof.
   rewrite wshlE //.
   by rewrite hrange.
 Qed.
+
+Notation pointer := (word Uptr) (only parsing).
+
+Lemma subword_make_vec_bits_low (n m : nat) x y :
+  (n < m)%Z ->
+  word.subword 0 n (word.mkword m (wcat_r [:: x; y ])) = x.
+Proof.
+  move=> h.
+  apply/eqP/word.eq_from_wbit => i.
+  rewrite subwordE wbit_t2wE /word.word.wbit /=.
+  rewrite (nth_map i); last by rewrite size_enum_ord.
+  rewrite addn0 nth_ord_enum modulusZE.
+  rewrite Z.shiftl_0_l Z.lor_0_r.
+  rewrite Z.mod_pow2_bits_low.
+  - rewrite Z.lor_spec Z.shiftl_spec_low; first by rewrite orbF.
+    by apply/ZNltP.
+  apply: (Z.lt_trans _ _ _ _ h).
+  by apply/ZNltP.
+Qed.
+
+Lemma Z_lor_le x y ws :
+  (0 <= x < wbase ws)%Z ->
+  (0 <= y < wbase ws)%Z ->
+  (0 <= Z.lor x y < wbase ws)%Z.
+Proof.
+  move=> /iswordZP hx /iswordZP hy.
+  rewrite -[x]/(urepr (mkWord hx)) -[y]/(urepr (mkWord hy)).
+  apply/iswordZP.
+  exact: word.wor_subproof.
+Qed.
+
+Lemma make_vec_4x64 (w : word.word U64) :
+  make_vec U256 [:: make_vec U128 [:: w; w ]; make_vec U128 [:: w; w ]]
+  = make_vec U256 [:: w; w; w; w ].
+Proof.
+  rewrite /make_vec /wcat_r.
+  rewrite !Z.shiftl_0_l !Z.lor_0_r.
+  f_equal.
+  rewrite Z.shiftl_lor.
+  rewrite Z.lor_assoc.
+  rewrite Z.shiftl_shiftl; last done.
+  rewrite -![urepr _]/(wunsigned _).
+  rewrite wunsigned_repr_small; first done.
+
+  have [hw0 hwn] := wunsigned_range w.
+
+  apply: Z_lor_le.
+  - have := @wbase_m U64 U128 refl_equal. Psatz.lia.
+
+  rewrite Z.shiftl_mul_pow2; last done.
+  split; first Psatz.lia.
+  rewrite /wbase (modulusD 64 64) modulusE -expZE /=.
+  exact: Zmult_lt_compat_r.
+Qed.

@@ -73,6 +73,8 @@ compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
+compiler/slh_lowering.v
+compiler/slh_lowering_proof.v
 compiler/stack_alloc.v
 compiler/stack_alloc_proof.v
 compiler/stack_alloc_proof_2.v
@@ -112,6 +114,7 @@ lang/one_varmap.v
 lang/psem_of_sem_proof.v
 lang/psem_facts.v
 lang/psem.v
+lang/pseudo_operator.v
 lang/sem.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
@@ -120,6 +123,7 @@ lang/sem_params.v
 lang/sem_type.v
 lang/shift_kind.v
 lang/sopn.v
+lang/slh_ops.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v

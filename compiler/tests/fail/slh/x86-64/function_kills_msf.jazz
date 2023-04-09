@@ -1,0 +1,12 @@
+fn f(reg u64 msf) -> reg u64 {
+    return msf;
+}
+
+export
+fn main(reg u64 x) {
+    reg u64 msf;
+    msf = #init_msf();
+    msf = f(msf);
+    x = #protect(x, msf);
+    [x] = 0;
+}
