@@ -37,6 +37,9 @@ Notation sword128 := (sword U128).
 Notation sword256 := (sword U256).
 
 (* -------------------------------------------------------------------- *)
+Notation ty_msf := (sword msf_size).
+
+(* -------------------------------------------------------------------- *)
 Scheme Equality for stype.
 
 Lemma stype_axiom : Equality.axiom stype_beq.

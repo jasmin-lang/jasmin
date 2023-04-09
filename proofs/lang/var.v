@@ -598,6 +598,11 @@ Lemma Sv_union_empty (a : Sv.t) :
 Proof. SvD.fsetdec. Qed.
 
 (* ---------------------------------------------------------------- *)
+
+Definition sv_of_option (oa : option Sv.elt) : Sv.t :=
+  omap_dflt Sv.empty Sv.singleton oa.
+
+(* ---------------------------------------------------------------- *)
 Definition sv_of_list T (f: T → Sv.elt) : seq T → Sv.t :=
   foldl (λ s r, Sv.add (f r) s) Sv.empty.
 
@@ -700,6 +705,14 @@ Proof.
   SvD.fsetdec.
 Qed.
 
+Lemma disjoint_singleton x s :
+  disjoint (Sv.singleton x) s = ~~ Sv.mem x s.
+Proof.
+  case: disjointP; case: Sv_memP => //.
+  - move => H K; elim: (K _ _ H); SvD.fsetdec.
+  by move => H K; elim: K => y /Sv.singleton_spec ->.
+Qed.
+
 Lemma Sv_equal_add_add x s :
   Sv.Equal (Sv.add x (Sv.add x s)) (Sv.add x s).
 Proof. SvD.fsetdec. Qed.
@@ -708,6 +721,10 @@ Lemma Sv_neq_not_in_singleton x y :
   x <> y
   -> ~ Sv.In y (Sv.singleton x).
 Proof. SvD.fsetdec. Qed.
+
+Lemma Sv_subset_remove s x :
+  Sv.subset (Sv.remove x s) s.
+Proof. apply/Sv.subset_spec. by apply: SvP.MP.subset_remove_3. Qed.
 
 End SExtra.
 

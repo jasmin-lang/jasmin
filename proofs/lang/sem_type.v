@@ -27,6 +27,8 @@ Definition sem_ot (t:stype) : Type :=
 
 Definition sem_tuple ts := ltuple (map sem_ot ts).
 
+Notation wmsf := (word msf_size).
+
 (* -------------------------------------------------------------------- *)
 
 Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :=

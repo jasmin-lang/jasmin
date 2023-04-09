@@ -35,6 +35,12 @@ Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info
 Definition internal_error ii msg := 
   gen_error true (Some ii) None (pp_s msg).
 
+Definition unexpected_sopn `{PointerData} `{MSFsize} `{asmOp} ii msg op :=
+  let err :=
+    pp_box [:: pp_s msg; pp_s "unexpected operator"; pp_s (string_of_sopn op) ]
+  in
+  gen_error true (Some ii) None err.
+
 Definition error ii msg := 
   gen_error false (Some ii) None msg.
 
@@ -157,6 +163,10 @@ Context
   (agparams : asm_gen_params).
 
 Notation assemble_cond := (agp_assemble_cond agparams).
+
+(* -------------------------------------------------------------------- *)
+(* Compilation of fexprs *)
+(* -------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------- *)
 Definition scale_of_z ii (z: Z) : cexec nat :=
@@ -426,21 +436,14 @@ Definition pp_arg_kind c :=
   | CAxmm => pp_s "xreg"
   end.
 
-Fixpoint pp_list {A} sep (pp : A -> pp_error) xs : seq pp_error :=
-  match xs with
-  | [::] => [::]
-  | [:: x] => [:: pp x]
-  | x :: xs => pp x :: sep :: (pp_list sep pp xs)
-  end.
-
 Definition pp_arg_kinds cond :=
-  pp_box [:: pp_nobox (pp_s "[" :: pp_list (pp_nobox [:: pp_s ";"; PPEbreak]) pp_arg_kind cond ++ [:: pp_s "]"])].
+  pp_box [:: pp_nobox [:: pp_s "["; pp_list (pp_break_s ";") pp_arg_kind cond; pp_s "]"]].
 
 Definition pp_args_kinds cond :=
-  pp_box [:: pp_nobox (pp_s "[" :: pp_list (pp_nobox [:: pp_s ";"; PPEbreak]) pp_arg_kinds cond ++ [:: pp_s "]"])].
+  pp_box [:: pp_nobox [:: pp_s "["; pp_list (pp_break_s ";") pp_arg_kinds cond; pp_s "]"]].
 
 Definition pp_i_args_kinds cond :=
-  pp_vbox [:: pp_nobox (pp_list PPEbreak pp_args_kinds cond)].
+  pp_vbox [:: pp_list PPEbreak pp_args_kinds cond].
 
 Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
   let id := instr_desc op in
@@ -472,76 +475,77 @@ Definition assemble_asm_op rip ii op (outx : lexprs) (inx : rexprs) :=
                   (E.internal_error ii "assemble_asm_opn: cannot check") in
   ok (op.2, asm_args).
 
+Definition assemble_asm_args rip ii args :=
+  let '(op, ls, rs) := args in
+  assemble_asm_op rip ii op ls rs.
+
 Definition assemble_sopn rip ii (op: sopn) (outx : lexprs) (inx : rexprs) :=
   match op with
-  | Ocopy _ _
-  | Onop
-  | Omulu     _ 
-  | Oaddcarry _ 
-  | Osubcarry _ =>
-    Error (E.internal_error ii "assemble_sopn : invalid op")
-  (* Low level x86 operations *)
+  (* Low level operations. *)
   | Oasm (BaseOp op) =>
-    assemble_asm_op rip ii op outx inx
+    Let i := assemble_asm_op rip ii op outx inx in
+    ok [:: i ]
   | Oasm (ExtOp op) =>
-    Let: (op, outx, inx) := to_asm ii op outx inx in
-    assemble_asm_op rip ii op outx inx
+    Let args := to_asm ii op outx inx in
+    mapM (assemble_asm_args rip ii) args
+  | _ => Error (E.unexpected_sopn ii "assemble_sopn:" op)
   end.
 
 (* -------------------------------------------------------------------- *)
 Definition is_not_app1 e : bool :=
   if e is Rexpr (Fapp1 _ _) then false else true.
 
-Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
+Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
   let '{| li_ii := ii; li_i := ir; |} := i in
   match ir with
   | Lopn ds op es =>
-      Let  ao := assemble_sopn rip ii op ds es in
-      ok (AsmOp ao.1 ao.2)
+      Let args := assemble_sopn rip ii op ds es in
+      ok (map (fun x => AsmOp x.1 x.2) args)
 
   | Lalign =>
-      ok ALIGN
+      ok [:: ALIGN ]
 
   | Llabel k lbl =>
-      ok (LABEL k lbl)
+      ok [:: LABEL k lbl ]
 
   | Lgoto lbl =>
-      ok (JMP lbl)
+      ok [:: JMP lbl ]
 
   | Ligoto e =>
       Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
       Let arg := assemble_word AK_mem rip ii Uptr e in
-      ok (JMPI arg)
+      ok [:: JMPI arg ]
 
   | LstoreLabel x lbl =>
       Let dst := if of_var x is Some r then ok r else Error (fail ii "bad var") in
-      ok (STORELABEL dst lbl)
+      ok [:: STORELABEL dst lbl ]
 
   | Lcond e l =>
       Let cond := assemble_cond ii e in
-      ok (Jcc l cond)
+      ok [:: Jcc l cond ]
 
   | Lsyscall o =>
-      ok (SysCall o)
+      ok [:: SysCall o ]
 
   | Lcall None l =>
-      ok (CALL l)
+      ok [:: CALL l ]
 
   | Lcall (Some r) l =>
     Let r := 
       if to_reg r is Some r then ok r
       else Error (E.verror true "Not a register" ii r) in
-    ok (JAL r l)
+      ok [:: JAL r l ]
 
   | Lret =>
-      ok POPPC
+      ok [:: POPPC ]
 
   end.
 
 (* -------------------------------------------------------------------- *)
 (*TODO: use in whatever characterization using an lprog there is.*)
 Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
-  mapM (assemble_i rip) lc.
+  Let c := mapM (assemble_i rip) lc in
+  ok (flatten c).
 
 (* -------------------------------------------------------------------- *)
 

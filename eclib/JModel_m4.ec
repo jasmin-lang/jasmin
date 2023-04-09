@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 require import AllCore List Bool.
-require export JModel_common JArray JWord_array JMemory JLeakage.
+require export JModel_common JArray JWord_array JMemory JLeakage Jslh.
 
 (* -------------------------------------------------------------------- *)
 op nzcv (r: W32.t) (u s: int) : bool * bool * bool * bool =

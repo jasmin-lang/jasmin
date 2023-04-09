@@ -35,13 +35,13 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
+let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
                       %a@;@]@."
         s1 s2
-        (Printer.pp_prog ~debug:true asmOp) p
+        (Printer.pp_prog ~debug:true pd asmOp) p
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
@@ -60,9 +60,14 @@ let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
+let check_sct _s p _source_p =
+  Sct_checker_forward.ty_prog p (oget !sct_list)
+
+(* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
   module C : Arch_full.Core_arch
   val analyze :
+    Wsize.wsize ->
     (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op Sopn.asmOp ->
     (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
     (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
@@ -85,7 +90,7 @@ let main () =
       | ARM_M4 ->
          (module struct
             module C = CoreArchFactory.Core_arch_ARM
-            let analyze _ _ = failwith "TODO_ARM: analyze"
+            let analyze _ _ _ _ _ = failwith "TODO_ARM: analyze"
           end)
     in
     let module Arch = Arch_full.Arch_from_Core_arch (P.C) in
@@ -136,7 +141,7 @@ let main () =
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
   
-    eprint Compiler.Typing (Printer.pp_pprog Arch.asmOp) pprog;
+    eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
 
     let prog =
       try Compile.preprocess Arch.reg_size Arch.asmOp pprog
@@ -161,14 +166,27 @@ let main () =
         - Pretty-print the program
         - Add your own checker here!
     *)
+    (* FIXME: I think this donotcompile stuff does not work anymore,
+       At least the compilation will not be stopped if the passes are after Compiler.ParamsExpansion *)
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_p Arch.asmOp (P.analyze Arch.asmOp) s p source_prog
+        check_safety_p
+          Arch.reg_size
+          Arch.asmOp
+          (P.analyze Arch.pointer_data Arch.asmOp)
+          s
+          p
+          source_prog
         |> donotcompile
-      else (
+      else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
+        check_sct s p source_prog
+        |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
+        |> donotcompile
+      else
+      (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;
         if s == Unrolling then CheckAnnot.check_no_inline_instr p;
-        eprint s (Printer.pp_prog ~debug Arch.asmOp) p
+        eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
       ) in
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
@@ -200,9 +218,10 @@ let main () =
         let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
            Format.printf "/* Security types:\n@[<v>%a@]*/@."
               (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
-           Stdlib.Option.iter (fun (loc, msg) ->
-               hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg)
-             status;
+           let on_err (loc, msg) =
+             hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
+           in
+           Stdlib.Option.iter on_err status;
         donotcompile()
     end;
 

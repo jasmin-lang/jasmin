@@ -10,7 +10,8 @@ Require Import
 Require Import
   linearization
   lowering
-  stack_alloc.
+  stack_alloc
+  slh_lowering.
 Require Import
   arch_decl
   arch_extra
@@ -215,6 +216,14 @@ Definition arm_loparams : lowering_params lowering_options :=
 
 
 (* ------------------------------------------------------------------------ *)
+(* Speculative execution operator lowering parameters. *)
+
+Definition arm_shparams : sh_params :=
+  {|
+    shp_lower := fun _ _ _ => None;
+  |}.
+
+(* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
 
 Definition condt_of_rflag (r : rflag) : condt :=
@@ -327,6 +336,7 @@ Definition arm_params : architecture_params lowering_options :=
     ap_lip := arm_liparams;
     ap_lop := arm_loparams;
     ap_agp := arm_agparams;
+    ap_shp := arm_shparams;
     ap_is_move_op := arm_is_move_op;
   |}.
 

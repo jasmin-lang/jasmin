@@ -17,7 +17,8 @@ Require
   lowering
   propagate_inline_proof
   stack_alloc
-  stack_alloc_proof.
+  stack_alloc_proof
+  slh_lowering_proof.
 Require Export arch_params.
 
 Set Implicit Arguments.
@@ -87,6 +88,9 @@ Record h_architecture_params
 
     (* Assembly generation hypotheses. See [asm_gen_proof.v]. *)
     hap_hagp : h_asm_gen_params (ap_agp aparams);
+
+    (* Speculative execution lowering hypothesis *)
+    hap_hshp : slh_lowering_proof.h_sh_params (ap_shp aparams);
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

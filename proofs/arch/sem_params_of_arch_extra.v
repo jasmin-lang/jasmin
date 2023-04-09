@@ -1,8 +1,15 @@
-(* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra.
-Require Import syscall sem_params arch_decl arch_extra.
+From mathcomp Require Import
+  all_ssreflect
+  all_algebra.
 
-Set   Implicit Arguments.
+Require Import
+  sem_params
+  syscall.
+Require Import
+  arch_decl
+  arch_extra.
+
+Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
@@ -22,6 +29,7 @@ Section SEM_PARAMS.
     EstateParams syscall_state :=
     {
       _pd := arch_pd;
+      _msf_size := arch_msfsz;
     }.
 
   #[export]

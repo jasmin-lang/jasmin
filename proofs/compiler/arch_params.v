@@ -9,6 +9,7 @@ Require
   linearization
   lowering
   stack_alloc
+  slh_lowering
   asm_gen.
 
 Set Implicit Arguments.
@@ -48,6 +49,10 @@ Record architecture_params
 
     (* Lowering parameters. Defined above. *)
     ap_lop : lowering_params lowering_options;
+
+    (* Speculative execution operator lowering parameters. See
+       slh_lowering.v. *)
+    ap_shp : slh_lowering.sh_params;
 
     (* Assembly generation parameters. See asm_gen.v. *)
     ap_agp : asm_gen.asm_gen_params;

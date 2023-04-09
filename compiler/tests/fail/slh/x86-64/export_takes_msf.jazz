@@ -1,0 +1,6 @@
+export
+fn main(reg u64 y) -> reg u64 {
+    reg u64 x;
+    x = #mov_msf(y);
+    return x;
+}

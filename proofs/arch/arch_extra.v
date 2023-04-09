@@ -258,8 +258,13 @@ Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
   { _asm   :> asm reg regx xreg rflag cond asm_op
   ; _atoI  :> arch_toIdent
   ; _extra :> asmOp extra_op (* description of extra ops *)
-  ; to_asm : instr_info -> extra_op -> lexprs -> rexprs -> cexec (asm_op_msb_t * lexprs * rexprs)
-      (* how to compile extra ops into asm op *)
+  (* How to compile extra ops into a assembly instructions. *)
+  ; to_asm :
+    instr_info
+    -> extra_op
+    -> lexprs
+    -> rexprs
+    -> cexec (seq (asm_op_msb_t * lexprs * rexprs))
   }.
 
 Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.

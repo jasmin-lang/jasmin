@@ -579,7 +579,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let ssa_main, pa_res =
     (* FIXME: code duplication! dirty hack *)
     let asmOp = Arch_extra.asm_opI X86_arch_full.X86_core.asm_e in
-    FSPa.fs_pa_make asmOp PW.main
+    FSPa.fs_pa_make X86_decl.x86_decl.reg_size asmOp PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp

@@ -522,6 +522,15 @@ Proof.
   by exists b.
 Qed.
 
+Lemma mapM_take eT aT bT (f: aT → result eT bT) (xs: seq aT) ys n :
+  mapM f xs = ok ys →
+  mapM f (take n xs) = ok (take n ys).
+Proof.
+  elim: xs ys n => [ | x xs hrec] ys n /=; first by move => /ok_inj<-.
+  t_xrbindP => y hy ys' /hrec h ?; subst ys; case: n; first by rewrite take0.
+  by move => n; rewrite /= (h n) /= hy.
+Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -537,6 +546,12 @@ Section FOLDM.
     | [::]         => Ok eT acc
     | [:: a & la ] => foldrM acc la >>= f a
     end.
+
+  Lemma foldM_cat acc l1 l2 :
+    foldM acc (l1 ++ l2) =
+      Let acc1 := foldM acc l1 in
+      foldM acc1 l2.
+  Proof. by elim: l1 acc => //= x l hrec acc; case: f. Qed.
 
 End FOLDM.
 
@@ -965,6 +980,17 @@ Section DifferentTypes.
 
   End Ind.
 
+  Lemma all2_nth s t n ss ts :
+    (n < size ss)%nat || (n < size ts)%nat ->
+    all2 p ss ts ->
+    p (nth s ss n) (nth t ts n).
+  Proof.
+    move=> hn; rewrite all2E => /andP [] /eqP hsz.
+    move: hn; rewrite -hsz orbb => hn.
+    move=> /(all_nthP (s, t)) -/(_ n).
+    by rewrite size_zip -hsz minnn nth_zip //; apply.
+  Qed.
+
 End DifferentTypes.
 
 Section SameType.
@@ -1117,6 +1143,9 @@ Proof.
   - by case => a ->.
   by case: o => // a h; exists a.
 Qed.
+
+Definition omap_dflt {aT bT} (d : bT) (f : aT -> bT) (oa : option aT) :=
+  if oa is Some x then f x else d.
 
 Fixpoint list_to_rev (ub : nat) :=
   match ub with
@@ -1756,8 +1785,38 @@ Tactic Notation "have!" simple_intropattern(ip) ":= " constr(x) :=
   let h := fresh "h" in
   (assert (h := x); move: h => ip).
 
-(* Attempt to prove [injective f] on [eqType]s by case analysis on the
-   arguments. *)
-Ltac t_inj_cases :=
-  move=> [] [] /eqP h;
-  apply/eqP.
+#[local]
+Ltac t_do_rewrites tac :=
+  repeat
+    match goal with
+    | [ h : ?lhs = ?rhs |- _ ] => tac h lhs rhs
+    | [ h : is_true (?lhs == ?rhs) |- _ ] => move: h => /eqP h; tac h lhs rhs
+    end.
+
+#[local]
+Ltac head_term e :=
+  match e with
+  | ?a _ => head_term a
+  | _ => e
+  end.
+
+#[local]
+Ltac is_simpl e :=
+  is_var e
+  || let x := head_term e in is_constructor x.
+
+#[local]
+Ltac simpl_rewrite h lhs rhs :=
+  (is_simpl lhs; rewrite -!h) || (is_simpl rhs; rewrite !h).
+
+Ltac t_simpl_rewrites := t_do_rewrites simpl_rewrite.
+
+#[local]
+Ltac eq_rewrite h _ _ :=
+  (rewrite !h || rewrite -!h); clear h.
+
+Ltac t_eq_rewrites := t_do_rewrites eq_rewrite.
+
+Ltac destruct_opn_args :=
+  repeat (t_xrbindP=> -[|?]; first done);
+  (t_xrbindP=> -[]; last done).

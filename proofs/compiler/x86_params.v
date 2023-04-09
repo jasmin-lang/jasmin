@@ -9,7 +9,8 @@ Require Import
 Require Import
   linearization
   lowering
-  stack_alloc.
+  stack_alloc
+  slh_lowering.
 Require Import
   arch_decl
   arch_extra
@@ -123,6 +124,36 @@ Definition x86_loparams : lowering_params lowering_options :=
 
 
 (* ------------------------------------------------------------------------ *)
+(* Speculative execution operator lowering parameters. *)
+
+Definition lflags := nseq 5 (Lnone dummy_var_info sbool).
+
+Definition x86_sh_lower
+  (lvs : seq lval)
+  (slho : slh_op)
+  (es : seq pexpr) :
+  option copn_args :=
+  let O x := Oasm (ExtOp x) in
+  match slho with
+  | SLHinit   => Some (lvs, O Ox86SLHinit, es)
+
+  | SLHupdate => Some (Lnone dummy_var_info ty_msf :: lvs, O Ox86SLHupdate, es)
+
+  | SLHmove   => Some (lvs, O (Ox86SLHmove), es)
+
+  | SLHprotect ws =>
+    let extra := if (ws <= U64)%CMP then lflags else [:: Lnone dummy_var_info (sword ws)] in
+    Some (extra ++ lvs, O (Ox86SLHprotect ws), es)
+
+  | SLHprotect_ptr _ | SLHprotect_ptr_fail _ => None (* Taken into account by stack alloc *)
+  end.
+
+Definition x86_shparams : sh_params :=
+  {|
+    shp_lower := x86_sh_lower;
+  |}.
+
+(* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
 
 Definition not_condt (c : condt) :=
@@ -223,6 +254,7 @@ Definition x86_is_move_op (o : asm_op_t) :=
   | BaseOp (None, MOV _) => true
   | BaseOp (None, VMOVDQA _) => true
   | BaseOp (None, VMOVDQU _) => true
+  | ExtOp Ox86SLHmove => true
   | _ => false
   end.
 
@@ -234,6 +266,7 @@ Definition x86_params : architecture_params lowering_options :=
     ap_lip := x86_liparams;
     ap_lop := x86_loparams;
     ap_agp := x86_agparams;
+    ap_shp := x86_shparams;
     ap_is_move_op := x86_is_move_op;
   |}.
 

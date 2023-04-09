@@ -96,7 +96,7 @@ let find_var outs ins ap : _ option =
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
-let asm_equality_constraints ~loc reg_size asmOp is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
+let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs) : unit =
   let assert_compatible_types x y =
@@ -119,7 +119,7 @@ let asm_equality_constraints ~loc reg_size asmOp is_move_op (int_of_var: var_i -
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
-    let id = get_instr_desc asmOp op in
+    let id = get_instr_desc pd asmOp op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -133,12 +133,12 @@ let asm_equality_constraints ~loc reg_size asmOp is_move_op (int_of_var: var_i -
 (* Set of instruction information for each variable equivalence class. *)
 type ('info, 'asm) trace = (int, ('info, 'asm) instr list) Hashtbl.t
 
-let pp_trace asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
+let pp_trace pd asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
   let j = try Hashtbl.find tr i with Not_found -> [] in
   let pp_i fmt i =
     Format.fprintf fmt "@[<v>at %a:@;<1 2>%a@]"
       L.pp_iloc i.i_loc
-      (Printer.pp_instr ~debug:true asmOp) i
+      (Printer.pp_instr ~debug:true pd asmOp) i
   in
   Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_i) j
 
@@ -356,7 +356,7 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let conflicts_add_one reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
+let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
   if types_cannot_conflict reg_size v.v_ty w.v_ty then c else
   try
     let i = Hv.find tbl v in
@@ -364,13 +364,13 @@ let conflicts_add_one reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts)
     if i = j then hierror_reg ~loc:loc "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
                     (Printer.pp_var ~debug:true) v
                     (Printer.pp_var ~debug:true) w
-                    (pp_trace asmOp i) tr;
+                    (pp_trace pd asmOp i) tr;
     c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
 
-let collect_conflicts reg_size asmOp
+let collect_conflicts pd reg_size asmOp
       (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
-  let add_one = conflicts_add_one reg_size asmOp tbl tr in
+  let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
     c
     |> conflicts_in i (add_one loc)
@@ -557,7 +557,7 @@ module Regalloc (Arch : Arch_full.Arch)
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
-    let id = get_instr_desc Arch.asmOp op in
+    let id = get_instr_desc Arch.reg_size Arch.asmOp op in
     List.iter2 (fun ad lv ->
         match ad with
         | ADImplicit v ->
@@ -909,7 +909,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   let funcs : (unit, 'asm) func list = funcs |> List.rev |> List.rev_map preprocess in
   if !Glob_options.debug then
     Format.printf "Before REGALLOC:@.%a@."
-      Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.asmOp)) (List.rev funcs);
+      Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.reg_size Arch.asmOp)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness, slive =
     let live : Sv.t Hf.t = Hf.create 17 in
@@ -933,12 +933,21 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   in
   let excluded = Sv.of_list [Arch.rip; Arch.rsp_var] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses Arch.all_registers funcs in
-  let eqc, tr, fr = collect_equality_constraints_in_prog Arch.asmOp Arch.aparams.ap_is_move_op "Regalloc" (asm_equality_constraints Arch.reg_size) vars nv funcs in
+  let eqc, tr, fr =
+    collect_equality_constraints_in_prog
+      Arch.asmOp
+      Arch.aparams.ap_is_move_op
+      "Regalloc"
+      (asm_equality_constraints Arch.pointer_data Arch.reg_size)
+      vars
+      nv
+      funcs
+  in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
   let conflicts =
     Hf.fold (fun _fn lf conflicts ->
-        collect_conflicts Arch.reg_size Arch.asmOp vars tr lf conflicts
+        collect_conflicts Arch.pointer_data Arch.reg_size Arch.asmOp vars tr lf conflicts
       )
       liveness_table
       empty_conflicts
@@ -949,12 +958,12 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     List.fold_left (fun a f ->
         match Hf.find return_addresses f.f_name with
         | ByReg ra | StackByReg ra ->
-           List.fold_left (fun cnf x -> conflicts_add_one Arch.reg_size Arch.asmOp vars tr Lnone ra x cnf) a f.f_args
+           List.fold_left (fun cnf x -> conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone ra x cnf) a f.f_args
         | StackDirect -> a) 
       conflicts funcs in
   (* Inter-procedural conflicts *)
   let conflicts =
-    let add_conflicts s x = Sv.fold (conflicts_add_one Arch.reg_size Arch.asmOp vars tr Lnone x) s in
+    let add_conflicts s x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) s in
     List.fold_right (fun f cnf ->
         let live = get_liveness f.f_name in
         let vars = killed f.f_name in
@@ -968,7 +977,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
 
   (* syscall conflicts *)
   let conflicts =
-    let add_conflicts x = Sv.fold (conflicts_add_one Arch.reg_size Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
+    let add_conflicts x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
     Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
 
   let a = A.empty nv in

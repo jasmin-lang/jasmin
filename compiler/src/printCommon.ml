@@ -75,7 +75,7 @@ let string_of_op2 = function
   | Ovlsl (ve, ws) -> asprintf "<<%s" (string_of_velem Signed ws ve)
 
 (* -------------------------------------------------------------------- *)
-let pp_opn asmOp fmt o = pp_string0 fmt (Sopn.string_of_sopn asmOp o)
+let pp_opn pd asmOp fmt o = pp_string0 fmt (Sopn.string_of_sopn pd asmOp o)
 
 (* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =

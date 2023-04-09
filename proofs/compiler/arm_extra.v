@@ -62,7 +62,7 @@ Definition assemble_extra
            (o: arm_extra_op)
            (outx: lexprs)
            (inx: rexprs)
-           : cexec (asm_op_msb_t * lexprs * rexprs) :=
+           : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
   match o with
   end.
 

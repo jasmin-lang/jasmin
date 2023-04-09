@@ -107,8 +107,8 @@ Proof.
   apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs //.
 Qed.
 
-Lemma is_copyP o ws n : is_copy o = Some(ws,n) -> o = Ocopy ws n.
-Proof. by case: o => // ??[-> ->]. Qed.
+Lemma is_copyP o ws n : is_copy o = Some(ws,n) -> o = sopn_copy ws n.
+Proof. by case: o => // -[] // ?? [-> ->]. Qed.
 
 Lemma is_PvarP es y : is_Pvar es = Some y -> es = [::Pvar y].
 Proof. by case: es => // -[] // ? [] // [->]. Qed.

@@ -1,0 +1,18 @@
+export
+fn foo() -> reg u64 {
+    reg u64 x;
+    x = 0;
+
+    reg u64 msf msf1;
+    msf = #init_msf();
+    x = #protect(x, msf);
+
+    msf = #mov_msf(msf);
+    x = #protect(x, msf);
+
+    msf1 = #mov_msf(msf);
+    x = #protect(x, msf);
+    x = #protect(x, msf1);
+
+    return x;
+}

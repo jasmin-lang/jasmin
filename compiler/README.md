@@ -11,6 +11,10 @@ The files `src/puf.ml` and `src/puf.mli` are distributed under the terms of the
 GNU Library General Public License version 2.1, with the special exception on
 linking described in file [`src/LICENSE.puf`](src/LICENSE.puf).
 
+The files `src/UnionFindBasic.ml`, and `src/UnionFindBasic.mli` are distributed
+under the terms of the GNU Library General Public License version 2, with the
+special exception on linking described in file [`src/LICENSE.ufb`](src/LICENSE.ufb).
+
 The contents of the `src/CIL` directory are extracted from Coq files from several sources:
 
  -  the Coq standard library (LGPL 2.1 only, see [`src/CIL/LICENSE.coq`](src/CIL/LICENSE.coq))

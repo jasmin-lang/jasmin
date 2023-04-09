@@ -19,30 +19,30 @@ let parse_file reg_size asmOp_sopn fname =
   Pretyping.tt_program reg_size asmOp_sopn env fname
 
 (* -------------------------------------------------------------------- *)
-let rec warn_extra_i asmOp i =
+let rec warn_extra_i pd asmOp i =
   match i.i_desc with
   | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) -> (
       match tag with
       | AT_rename ->
           warning ExtraAssignment i.i_loc
             "@[<v>extra assignment introduced:@;<0 2>%a@]"
-            (Printer.pp_instr ~debug:false asmOp)
+            (Printer.pp_instr ~debug:false pd asmOp)
             i
       | AT_inline ->
           hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
             "@[<v>AT_inline flag remains in instruction:@;<0 2>@[%a@]@]"
-            (Printer.pp_instr ~debug:false asmOp)
+            (Printer.pp_instr ~debug:false pd asmOp)
             i
       | _ -> ())
   | Cif (_, c1, c2) | Cwhile (_, c1, _, c2) ->
-      List.iter (warn_extra_i asmOp) c1;
-      List.iter (warn_extra_i asmOp) c2
+      List.iter (warn_extra_i pd asmOp) c1;
+      List.iter (warn_extra_i pd asmOp) c2
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
   | Ccall _ | Csyscall _ -> ()
 
-let warn_extra_fd asmOp (_, fd) = List.iter (warn_extra_i asmOp) fd.f_body
+let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 
 (*--------------------------------------------------------------------- *)
 
@@ -101,10 +101,10 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let pp_csprog fmt cp =
     let p = Conv.prog_of_csprog cp in
-    Printer.pp_sprog ~debug:true Arch.asmOp fmt p
+    Printer.pp_sprog ~debug:true Arch.pointer_data Arch.asmOp fmt p
   in
 
-  let pp_linear fmt lp = PrintLinear.pp_prog Arch.asmOp fmt lp in
+  let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.asmOp fmt lp in
 
   let rename_fd ii fn cfd =
     let ii, _ = ii in
@@ -167,7 +167,14 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
       let fds, _ = Conv.prog_of_csprog p in
-      List.iter (warn_extra_fd Arch.asmOp) fds
+      List.iter (warn_extra_fd Arch.pointer_data Arch.asmOp) fds
+  in
+
+  let slh_info up =
+    let p = Conv.prog_of_cuprog up in
+    let ttbl = Sct_checker_forward.compile_infer_msf p in
+    fun fn ->
+      try Hf.find ttbl fn with Not_found -> assert false
   in
 
   let cparams =
@@ -205,6 +212,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.is_reg_array;
+      Compiler.slh_info;
     }
   in
 

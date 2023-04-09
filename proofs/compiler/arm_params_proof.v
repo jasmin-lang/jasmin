@@ -171,13 +171,6 @@ Notation x :=
     v_info := vi;
   |}.
 
-(* Try to rewrite and clear all equalities in the context. *)
-Ltac t_rewrite_eqs :=
-  repeat
-    match goal with
-    | [ h : _ = _ |- _ ] => rewrite !h /=; clear h
-    end.
-
 (* Most ARM instructions with default options are executed as follows:
    1. Unfold instruction execution definitions, e.g. [eval_instr].
    2. Rewrite argument hypotheses, i.e. [sem_pexpr].
@@ -187,11 +180,11 @@ Ltac t_rewrite_eqs :=
  *)
 Ltac t_arm_op :=
   rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
-  t_rewrite_eqs;
+  t_simpl_rewrites;
   rewrite /of_estate /= /with_vm /=;
   repeat rewrite truncate_word_u /=;
   rewrite ?zero_extend_u ?pword_of_wordE addn1;
-  t_rewrite_eqs.
+  t_simpl_rewrites.
 
 Lemma arm_op_subi_eval_instr lp ls ii y imm wy :
   get_var (lvm ls) (v_var y) = ok (Vword wy)
@@ -1245,16 +1238,16 @@ Qed.
 (* TODO_ARM: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
-Lemma arm_assemble_extra_op
-  rip ii op lvs args op' lvs' args' op'' asm_args m xs ys m' s :
+Lemma arm_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops':
   sem_rexprs m args = ok xs
   -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
   -> write_lexprs lvs ys m = ok m'
-  -> to_asm ii op lvs args = ok (op', lvs', args')
-  -> assemble_asm_op arm_agparams rip ii op' lvs' args'
-     = ok (op'', asm_args)
+  -> to_asm ii op lvs args = ok ops
+  -> mapM (fun '(op0, ls, rs) => assemble_asm_op arm_agparams rip ii op0 ls rs) ops = ok ops'
   -> lom_eqv rip m s
-  -> exists2 s', eval_op op'' asm_args s = ok s' & lom_eqv rip m' s'.
+  -> exists2 s' : asmmem,
+       foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s ops' = ok s' &
+       lom_eqv rip m' s'.
 Proof. by case: op. Qed.
 
 Definition arm_hagparams : h_asm_gen_params (ap_agp arm_params) :=
@@ -1287,6 +1280,9 @@ Proof.
   exact: (word_uincl_zero_ext w' hws').
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+Lemma arm_hshp: slh_lowering_proof.h_sh_params (ap_shp arm_params).
+Proof. by constructor; move=> ???? []. Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -1298,6 +1294,7 @@ Definition arm_h_params : h_architecture_params arm_params :=
     ok_lip_tmp := arm_ok_lip_tmp;
     hap_hlop := arm_hloparams;
     hap_hagp := arm_hagparams;
+    hap_hshp := arm_hshp;
     hap_is_move_opP := arm_is_move_opP;
   |}.
 

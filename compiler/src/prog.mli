@@ -37,6 +37,8 @@ val is_ptr          : v_kind -> bool
 val is_reg_ptr_kind : v_kind -> bool
 val is_stk_ptr_kind : v_kind -> bool
 
+val is_reg_direct_kind : v_kind -> bool
+
 
 (* ------------------------------------------------------------------------ *)
 

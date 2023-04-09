@@ -167,7 +167,22 @@ let memory_analysis pp_err ~debug up =
   end;
 
   let sp' =
-    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false Arch.aparams.ap_sap (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy) crip crsp gao.gao_data cglobs get_sao up with
+    match
+      Stack_alloc.alloc_prog
+        Arch.pointer_data
+        Arch.msf_size
+        Arch.asmOp
+        false
+        Arch.aparams.ap_shp
+        Arch.aparams.ap_sap
+        (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy)
+        crip
+        crsp
+        gao.gao_data
+        cglobs
+        get_sao
+        up
+    with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror pp_err e in
@@ -177,7 +192,7 @@ let memory_analysis pp_err ~debug up =
   
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true Arch.asmOp) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], (List.map snd fds));
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse fds in
@@ -192,7 +207,7 @@ let memory_analysis pp_err ~debug up =
   let fds = List.map deadcode fds in
   if debug then
     Format.eprintf "After remove unused return @.%a@."
-      (Printer.pp_prog ~debug:true Arch.asmOp) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) ([], (List.map snd fds));
   
   (* register allocation *)
   let translate_var = Conv.var_of_cvar in

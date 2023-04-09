@@ -1,0 +1,15 @@
+/* Currently this is unnecessary: for loops are removed before MSF lowering
+   (there are no branches in this program). */
+
+export
+fn main(reg u64 p) {
+    reg u64 msf;
+    msf = #init_msf();
+
+    inline int i;
+    for i = 0 to 10 {
+        msf = #update_msf(i < 10, msf);
+        p = #protect(p, msf);
+        [p + i] = i;
+    }
+}

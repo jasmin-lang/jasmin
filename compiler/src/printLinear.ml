@@ -31,7 +31,7 @@ let pp_label_kind fmt = function
   | InternalLabel -> ()
   | ExternalLabel -> F.fprintf fmt "#returnaddress "
 
-let pp_instr asmOp fmt i =
+let pp_instr pd asmOp fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
     let pp_cast fmt = function
@@ -41,7 +41,7 @@ let pp_instr asmOp fmt i =
     F.fprintf fmt "@[%a@] = %a%a@[(%a)@]"
       (pp_list ",@ " pp_lexpr) lvs
       pp_cast op
-      (pp_opn asmOp) op
+      (pp_opn pd asmOp) op
       (pp_list ",@ " pp_rexpr) es
   | Lsyscall o -> F.fprintf fmt "SysCall %s" (pp_syscall o)
   | Lcall(lr, lbl) -> 
@@ -72,17 +72,16 @@ let pp_return is_export fmt =
   | [] -> if is_export then F.fprintf fmt "@ return"
   | res -> F.fprintf fmt "@ return %a" (pp_list ",@ " pp_var_i) res
 
-let pp_lfun asmOp fmt (fn, fd) =
+let pp_lfun pd asmOp fmt (fn, fd) =
   F.fprintf fmt "@[<v>%a@ fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
     pp_meta fd
     fn.P.fn_name
     (pp_list ",@ " pp_param) fd.lfd_arg
     (pp_list ",@ " pp_stype) fd.lfd_tyout
-    (pp_list ";@ " (pp_instr asmOp)) fd.lfd_body
+    (pp_list ";@ " (pp_instr pd asmOp)) fd.lfd_body
     (pp_return fd.lfd_export) fd.lfd_res
 
-let pp_prog asmOp fmt lp =
+let pp_prog pd asmOp fmt lp =
   F.fprintf fmt "@[<v>%a@ @ %a@]"
     pp_datas lp.lp_globs
-    (pp_list "@ @ " (pp_lfun asmOp)) (List.rev lp.lp_funcs)
-
+    (pp_list "@ @ " (pp_lfun pd asmOp)) (List.rev lp.lp_funcs)
