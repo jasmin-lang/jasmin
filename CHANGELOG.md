@@ -1,6 +1,10 @@
 
 # [unreleased]
 
+# Jasmin 2022.09.2
+
+This release fixes the AUTHORS file which was not up-to-date.
+
 # Jasmin 2022.09.1
 
 ## New features
