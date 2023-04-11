@@ -1,6 +1,8 @@
 
 # [unreleased]
 
+# Jasmin 2022.09.1
+
 ## New features
 
 - More x86 instructions are available:
