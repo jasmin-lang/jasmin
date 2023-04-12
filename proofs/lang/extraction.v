@@ -36,6 +36,7 @@ Extraction Blacklist String List Nat Utils Var Array.
 
 Separate Extraction
   utils
+  warray_
   sopn
   expr
   register_zeroization_mode

@@ -51,6 +51,10 @@
   ([PR #362](https://github.com/jasmin-lang/jasmin/pull/362)),
   ([PR #384](https://github.com/jasmin-lang/jasmin/pull/384)).
 
+- The safety checker warns about possible alignment issues rather than failing,
+  when the `-nocheckalignment` command-line flag is given
+  ([PR #401](https://github.com/jasmin-lang/jasmin/pull/401)).
+
 ## Bug fixes
 
 - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
@@ -102,6 +106,9 @@
   ([PR #394](https://github.com/jasmin-lang/jasmin/pull/394);
   fixes [#395](https://github.com/jasmin-lang/jasmin/issues/395)).
 
+- Various fixes to the LATEX printer
+  ([PR #406](https://github.com/jasmin-lang/jasmin/pull/406).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
@@ -112,6 +119,12 @@
 - The live-range-splitting transformation is run a second time after
   expansion of register arrays
   ([PR #341](https://github.com/jasmin-lang/jasmin/pull/341)).
+
+- When the `-timings` command-line flag is given, timestamps are
+  written to the standard error after each compilation pass and during
+  safety analysis when entering a local function; the elapsed time since
+  previous timestamp is also displayed
+  ([PR #403](https://github.com/jasmin-lang/jasmin/pull/403)).
 
 # Jasmin 2022.09.0
 

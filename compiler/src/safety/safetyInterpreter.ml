@@ -114,6 +114,11 @@ let severe_violation =
   | Termination b -> b
   | _ -> true
 
+let alignment_violation =
+  function
+  | (AlignedPtr _ | AlignedExpr _) -> true
+  | _ -> false
+
 let pp_var = Printer.pp_var ~debug:false
 let pp_expr = Printer.pp_expr ~debug:false
 let pp_ws fmt ws = Format.fprintf fmt "%i" (int_of_ws ws)
@@ -180,6 +185,12 @@ let pp_assumptions fmt =
   | [] -> ()
   | m -> Format.fprintf fmt "@[<v>*** Safety Assumptions:@;@[<v>%a@]@]"
            (pp_list pp_violation) m
+
+let pp_alignment fmt =
+  function
+  | [] -> ()
+  | m -> Format.fprintf fmt "@[<v>*** Possible alignment issue(s):@;@[<v>%a@]@]"
+        (pp_list pp_violation) m
 
 let vloc_compare v v' = match v, v' with
   | InReturn fn, InReturn fn' -> Stdlib.compare fn fn'
@@ -1578,6 +1589,8 @@ end = struct
        let abs = List.fold_left AbsDom.is_init state.abs cells in
        { state with abs }
 
+  let log = timestamp ()
+
   let rec aeval_ginstr asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
@@ -1861,6 +1874,7 @@ end = struct
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 
+        log f_decl (`Call ginstr.i_loc);
         debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]%!" fn.fn_name);
         let callsite = ginstr.i_loc in
 
@@ -1872,6 +1886,7 @@ end = struct
         let conds = safe_return f_decl in
         let fstate = check_safety fstate (InReturn fn) conds in
 
+        log f_decl `Ret;
         debug(fun () ->
             print_return ginstr fstate.abs fn.fn_name);
 
@@ -2202,6 +2217,10 @@ module AbsAnalyzer (EW : ExportWrap) = struct
             (pp_list res.print_var_interval) npt in
 
       let violations, assumptions = List.partition (fun (_, v) -> severe_violation v) res.violations in
+      let alignment, violations =
+        if !Glob_options.trust_aligned
+        then List.partition (fun (_, v) -> alignment_violation v) violations
+        else [], violations in
 
       let pp_warnings fmt warns =
         if warns <> [] then
@@ -2211,10 +2230,12 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       Format.eprintf "@?@[<v>%a@;\
                       %a@;\
                       %a@;\
+                      %a@;\
                       %t\
                       %a@]@."
         pp_warnings res.warnings
         pp_assumptions assumptions
+        pp_alignment alignment
         pp_violations violations
         pp_mem_range
         (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
