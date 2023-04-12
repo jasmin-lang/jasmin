@@ -1291,10 +1291,13 @@ Definition invariant (xs : seq var) (s s' : estate) : Prop :=
     & zeroized_on_vars (evm s) (evm s') xs
   ].
 
-Lemma arm_zeroize_varP err_register :
-  get_lopn_invariant (arm_zeroize_var err_register) invariant.
+Lemma arm_zeroize_varP err_register x :
+  get_lopn_invariant
+    (fun x => Let args := arm_zeroize_var err_register x in ok [:: args ])
+    invariant
+    x.
 Proof.
-  move=> lp scs vm m fn x pre pos args ii h hbody.
+  move=> lp scs vm m fn pre pos args ii h hbody.
 
   move: h.
   move: x => [[|||[]] xname] //=.
@@ -1327,18 +1330,24 @@ Proof.
   by rewrite wrepr0.
 Qed.
 
-Lemma arm_zeroize_varsP err_register :
-  map_get_lopn_invariant (arm_zeroize_var err_register) invariant.
+Lemma arm_zeroize_varsP err_register xs :
+  map_get_lopn_invariant
+    (fun x => Let args := arm_zeroize_var err_register x in ok [:: args ])
+    invariant
+    xs.
 Proof.
   apply: map_get_lopn_invariantP;
-    first exact: arm_zeroize_varP;
     first done.
-  move=> x xs s0 s1 s2 [hscs0 hm0 hzero0] [hscs1 hm1 hzero1].
-  split;
-    first (by rewrite hscs0);
-    first by rewrite hm0.
-  rewrite -cat1s.
-  exact: (zeroized_on_varsT hzero0 hzero1).
+
+  - clear.
+    move=> xs ys s0 s1 s2 [hscs0 hm0 hzero0] [hscs1 hm1 hzero1].
+    split;
+      first (by rewrite hscs0);
+      first by rewrite hm0.
+    exact: (zeroized_on_varsT hzero0 hzero1).
+
+  move=> x _.
+  exact: arm_zeroize_varP.
 Qed.
 
 Lemma arm_zeroize_flagsP lp scs vm m fn ii err_flags xname P Q args :
@@ -1446,8 +1455,11 @@ Proof.
 
   (* Zeroize registers. *)
   rewrite map_cat -!catA in hbody.
+  move: hrzregisters => /mapM_singleton hrzregisters.
+  rewrite -(conc_map_singleton _ rzregisters) in hbody.
   have [scs0 [vm0 [m0 [hsem0 [hscs0 hm0 hzero0]]]]] :=
     arm_zeroize_varsP scs vm m hrzregisters hbody.
+  rewrite conc_map_singleton in hsem0.
   move: hscs0 hm0 => /= ? ?; subst scs0 m0.
   clear hrzregisters.
 
@@ -1494,6 +1506,7 @@ Proof.
   rewrite catA in hbody.
 
   have [vm1 hsem1 hzero1] := arm_zeroize_flagsP scs m hrzflags hx hbody.
+  rewrite conc_map_singleton in hsem1.
 
   (* Put everything together. *)
   exists vm1.

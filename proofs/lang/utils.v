@@ -519,6 +519,18 @@ Proof.
   by exists b.
 Qed.
 
+Lemma mapM_singleton eT xT yT (f : xT -> result eT yT) xs ys :
+  mapM f xs = ok ys
+  -> mapM (fun x => Let y := f x in ok [:: y ]) xs
+      = ok (map (fun x => [:: x ]) ys).
+Proof.
+  elim: xs ys => [|x xs hind] /= ys.
+  - by move=> [?]; subst ys.
+
+  t_xrbindP=> ? -> ? h ?; subst ys.
+  by rewrite /= (hind _ h).
+Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -1147,6 +1159,11 @@ Qed.
 
 Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
   flatten (map f l).
+
+Lemma conc_map_singleton X Y (f : X -> Y) xs :
+  conc_map (map f) (map (fun x => [:: x ]) xs) = map f xs.
+Proof. rewrite /conc_map. elim: xs => [// | x xs hind]. by rewrite /= hind. Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)

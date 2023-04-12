@@ -57,6 +57,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type extra_op = extra_op) visit_prog_after_pass prog tbl cprog =
   let module Regalloc = Regalloc.Regalloc (Arch) in
   let module StackAlloc = StackAlloc.StackAlloc (Arch) in
+  let fname_of_cfname fn = Conv.fun_of_cfun tbl fn in
   let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn, cfd) in
   let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
 
@@ -217,15 +218,28 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       List.iter (warn_extra_fd Arch.asmOp) fds
   in
 
-  let get_annot fn =
-    let cfd = List.assoc fn cprog.Expr.p_funcs in
-    (fdef_of_cufdef fn cfd).f_annot
+  let tbl_annot : Annotations.f_annot Hf.t = Hf.create 17 in
+  let () =
+    let add (cfn, cfd) =
+      let fn = fname_of_cfname cfn in
+      let fd = fdef_of_cufdef cfn cfd in
+      Hf.add tbl_annot fn fd.f_annot
+    in
+    List.iter add cprog.Expr.p_funcs
   in
 
-  let rzm_of_fn fn =
-    match (get_annot fn).annot_rzm with
+  let rzm_of_fn cfn =
+    match (Hf.find tbl_annot (fname_of_cfname cfn)).annot_rzm with
     | Some b -> b
     | None -> rzm_none
+    | exception Not_found ->
+        let fn = Conv.string_of_funname tbl cfn in
+        hierror
+          ~loc:Lnone
+          ~funname:fn
+          ~kind:"compiler error"
+          ~internal:true
+          "Invalid annotation table."
   in
 
   let cparams =

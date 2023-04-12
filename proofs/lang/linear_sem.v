@@ -353,107 +353,131 @@ End SEM.
 
 Arguments lsem_split_start {_ _ _ _ _ _}.
 
+
+(* --------------------------------------------------------------------------- *)
+
 Section LSEM_INVARIANT.
 
-Context
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}
-  {ovmi : one_varmap_info}
-  (E X : Type)
-  (get_lopn : X -> result E lopn_args)
-  (P : seq X -> relation estate).
+  (* This lemma models the situation where we insert assembly code derived from
+     each element in some list [xs].
+     The function [get_lopn] maps elements [x] to assembly code, and [P] is a
+     state relation parameterized by [xs] (relating the states before and after
+     executing the assembly instructions).
+     This lemma simply states that we only need to prove that [P] holds for each
+     [x] in [xs]. *)
 
-Definition get_lopn_invariant :=
-  forall lp scs vm m fn x pre pos args ii,
-    get_lopn x = ok args
-    -> let: li := li_of_lopn_args ii args in
-       is_linear_of lp fn (pre ++ li :: pos)
-       -> exists scs' vm' m',
-           let: s :=
-             {|
-               escs := scs;
-               evm := vm;
-               emem := m;
-             |}
-           in
-           let: ls := of_estate s fn (size pre) in
-           let: s' :=
-             {|
-               escs := scs';
-               evm := vm';
-               emem := m';
-             |}
-           in
-           let: ls' := of_estate s' fn (size pre + 1) in
-           lsem lp ls ls' /\ P [:: x ] s s'.
+  Context
+    {asm_op syscall_state : Type}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}
+    {ovmi : one_varmap_info}
+    (E X : Type)
+    (get_lopn : X -> result E (seq lopn_args))
+    (P : seq X -> relation estate).
 
-Definition map_get_lopn_invariant :=
-  forall lp scs vm m fn xs pre pos args ii,
-    mapM get_lopn xs = ok args
-    -> let: lcmd := map (li_of_lopn_args ii) args in
-       is_linear_of lp fn (pre ++ lcmd ++ pos)
-       -> exists scs' vm' m',
-            let: s :=
-              {|
-                escs := scs;
-                evm := vm;
-                emem := m;
-              |}
-            in
-            let: ls := of_estate s fn (size pre) in
-            let: s' :=
-              {|
-                escs := scs';
-                evm := vm';
-                emem := m';
-              |}
-            in
-            let: ls' := of_estate s' fn (size pre + size lcmd) in
-            lsem lp ls ls' /\ P xs s s'.
+  (* Executing [get_lopn x] succeeds and [P x s s'] holds. *)
+  Definition get_lopn_invariant x : Prop :=
+    forall lp scs vm m fn pre pos args ii,
+      get_lopn x = ok args
+      -> let: c := map (li_of_lopn_args ii) args in
+         is_linear_of lp fn (pre ++ c ++ pos)
+         -> exists scs' vm' m',
+              let: s :=
+                {|
+                  escs := scs;
+                  evm := vm;
+                  emem := m;
+                |}
+              in
+              let: ls := of_estate s fn (size pre) in
+              let: s' :=
+                {|
+                  escs := scs';
+                  evm := vm';
+                  emem := m';
+                |}
+              in
+              let: ls' := of_estate s' fn (size pre + size args) in
+              lsem lp ls ls' /\ P [:: x ] s s'.
 
-Context
-  (get_lopnP : get_lopn_invariant)
-  (Prefl : reflexive estate (P [::]))
-  (Ptrans :
-    forall x ys s0 s1 s2,
-      P [:: x ] s0 s1
-      -> P ys s1 s2
-      -> P (x :: ys) s0 s2).
+  (* Executing several [get_lopn x]s succeeds and [P xs s s'] holds. *)
+  Definition map_get_lopn_invariant xs : Prop :=
+    forall lp scs vm m fn pre pos args ii,
+      mapM get_lopn xs = ok args
+      -> let: lcmd := conc_map (map (li_of_lopn_args ii)) args in
+         is_linear_of lp fn (pre ++ lcmd ++ pos)
+         -> exists scs' vm' m',
+              let: s :=
+                {|
+                  escs := scs;
+                  evm := vm;
+                  emem := m;
+                |}
+              in
+              let: ls := of_estate s fn (size pre) in
+              let: s' :=
+                {|
+                  escs := scs';
+                  evm := vm';
+                  emem := m';
+                |}
+              in
+              let: ls' := of_estate s' fn (size pre + size lcmd) in
+              lsem lp ls ls' /\ P xs s s'.
 
-Lemma map_get_lopn_invariantP :
-  map_get_lopn_invariant.
+  Context
+    (Prefl : reflexive estate (P [::]))
+    (Pconcat :
+       forall xs ys s0 s1 s2,
+         P xs s0 s1
+         -> P ys s1 s2
+         -> P (xs ++ ys) s0 s2).
+
+Lemma map_get_lopn_invariantP xs :
+  (forall x, List.In x xs -> get_lopn_invariant x)
+  -> map_get_lopn_invariant xs.
 Proof.
-  move=> lp scs vm m fn xs pre pos args ii.
+  move=> h lp scs vm m fn pre pos args ii.
   rewrite /of_estate /=.
   move: scs vm m pre args.
-  elim: xs => [| x xs hind ] /= scs vm m pre args h hbody.
+  elim: xs h => [| x xs hind ] /= h scs vm m pre args hxs hbody.
 
-  - move: h => [?]; subst args.
+  - move: hxs => [?]; subst args.
     rewrite addn0.
     eexists; eexists; eexists; split; first exact: rt_refl.
     exact: Prefl.
 
-  move: h.
-  t_xrbindP=> li hx args' hxs ?; subst args.
+  move: hxs.
+  t_xrbindP=> argsx hx argsxs hxs ?; subst args.
 
-  rewrite /= -cat1s in hbody.
-  have [scs0 [vm0 [m0 [hsem0 hzero0]]]] := get_lopnP scs vm m hx hbody.
+  move: hbody.
+  rewrite /conc_map /=.
+  rewrite -!catA.
+  move=> hbody.
+
+  have hinv : get_lopn_invariant x.
+  - apply: h. by left.
+
+  have [scs0 [vm0 [m0 [hsem0 hzero0]]]] := hinv lp scs vm m fn _ _ _ _ hx hbody.
   clear hx.
 
   rewrite catA in hbody.
-  have [scs' [vm' [m' [hsem' hzero']]]] := hind scs0 vm0 m0 _ _ hxs hbody.
-  clear hxs.
+  have h' :
+    forall y, List.In y xs -> get_lopn_invariant y.
+  - move=> y hy. apply: h. by right.
+
+  have [scs' [vm' [m' [hsem' hzero']]]] := hind h' scs0 vm0 m0 _ _ hxs hbody.
+  clear h hxs h'.
 
   exists scs', vm', m';
     split;
-    last exact: (Ptrans hzero0 hzero').
+    last exact: (Pconcat hzero0 hzero').
 
   apply: (lsem_trans hsem0).
   move: hsem'.
   rewrite /of_estate size_cat /=.
-  by rewrite -(addn1 (size _)) (addnC (size (map _ _)) 1) addnA.
+  by rewrite size_cat size_map !addnA.
 Qed.
 
 End LSEM_INVARIANT.

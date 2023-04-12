@@ -268,7 +268,6 @@ Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
 
   | Fapp2 Oand e0 e1 =>
       Let c0 := assemble_cond ii e0 in
-(* ------------------------------------------------------------------------ *)
       Let c1 := assemble_cond ii e1 in
       if condt_and c0 c1 is Some ct
       then ok ct
