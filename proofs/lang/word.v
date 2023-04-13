@@ -820,6 +820,9 @@ Qed.
 Lemma wand0 sz (x: word sz) : wand 0 x = 0%R.
 Proof. by apply/eqP. Qed.
 
+Lemma wand_xx sz (x: word sz) : wand x x = x.
+Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.land_diag. Qed.
+
 Lemma wandN1 sz (x: word sz) : wand (-1) x = x.
 Proof.
   apply/eqP/eq_from_wbit_n => i.
