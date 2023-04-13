@@ -480,16 +480,21 @@ Section PROOF.
     sem_pexpr gd s e = ok z →
     to_word U8 z = ok w →
     Sv.Subset (read_e sa) (read_e e) ∧
-    exists2 n, sem_pexpr gd s sa >>= to_word U8 = ok n & ∀ f (a: word sz), sem_shift f a w = sem_shift f a n.
+    exists2 n, sem_pexpr gd s sa >>= to_word U8 = ok n & ∀ f (a: word sz), sem_shift f a w = sem_shift f a (wand n (x86_shift_mask sz)).
   Proof.
-   Ltac eop := move => > /Some_inj -> -> /= ->; split; [ reflexivity | eexists ].
     rewrite /check_shift_amount.
-    case: e; try by eop.
-    case; try by eop.
-    move => sz' a b.
-    case en: is_wconst => [ n | ]; last by eop.
-    case: eqP => n_range; last by eop.
-    move => /Some_inj ? /=; subst a n.
+    case en: is_wconst => [ n | ].
+    - case: eqP; last by [].
+      move => n_in_range /Some_inj <-{sa} ok_z ok_w.
+      have! := (is_wconstP gd s en).
+      rewrite {en} ok_z /= ok_w => /ok_inj ?; subst w.
+      split; first by [].
+      exists n; first reflexivity.
+      by rewrite -n_in_range.
+    case: {en} e => // - [] // sz' a b.
+    case en: is_wconst => [ n | ]; last by [].
+    case: eqP; last by [].
+    move => ? /Some_inj ? /=; subst a n.
     rewrite /sem_sop2 /=; t_xrbindP => a ok_a c ok_c wa ok_wa wb ok_wb <-{z} /truncate_wordP[] _ ->{w}.
     have! := (is_wconstP gd s en).
     rewrite {en} ok_a ok_c /= => hc.
@@ -499,8 +504,7 @@ Section PROOF.
     move => f x; rewrite /sem_shift; do 2 f_equal.
     have := to_word_m ok_wb (wsize_le_U8 _).
     rewrite {ok_wb} hc => /ok_inj ->.
-    rewrite !wand_zero_extend; only 2-3: exact: wsize_le_U8.
-    by rewrite -wandA wand_xx.
+    by rewrite wand_zero_extend; last exact: wsize_le_U8.
   Qed.
 
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr gd s e = ok v)

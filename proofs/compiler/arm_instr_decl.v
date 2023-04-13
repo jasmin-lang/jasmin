@@ -1143,7 +1143,7 @@ Definition arm_ASR_semi (wn : ty_r) (wsham : word U8) : exec ty_nzc_r :=
      register: if it's an immediate it must be between 0 and 31, but if it's a
      register it must be between 0 and 255 (the lower byte of the register).
      Since registers only 32 bits it makes no difference. *)
-  let sham := wunsigned (wand wsham (wrepr U8 31)) in
+  let sham := wunsigned wsham in
   let res := wsar wn sham in
   ok (:: Some (NF_of_word res)
        , Some (ZF_of_word res)
@@ -1177,7 +1177,7 @@ Definition arm_ASR_instr : instr_desc_t :=
   else drop_nzc x.
 
 Definition arm_LSL_semi (wn : ty_r) (wsham : word U8) : exec ty_nzc_r :=
-  let sham := wunsigned (wand wsham (wrepr U8 31)) in
+  let sham := wunsigned wsham in
   let res := wshl wn sham in
   ok (:: Some (NF_of_word res)
        , Some (ZF_of_word res)
@@ -1211,7 +1211,7 @@ Definition arm_LSL_instr : instr_desc_t :=
   else drop_nzc x.
 
 Definition arm_LSR_semi (wn : ty_r) (wsham : word U8) : exec ty_nzc_r :=
-  let sham := wunsigned (wand wsham (wrepr U8 31)) in
+  let sham := wunsigned wsham in
   let res := wshr wn sham in
   ok (:: Some (NF_of_word res)
        , Some (ZF_of_word res)
@@ -1245,7 +1245,7 @@ Definition arm_LSR_instr : instr_desc_t :=
   else drop_nzc x.
 
 Definition arm_ROR_semi (wn : ty_r) (wsham : word U8) : exec ty_nzc_r :=
-  let sham := wunsigned (wand wsham (wrepr U8 31)) in
+  let sham := wunsigned wsham in
   let res := wror wn sham in
   ok (:: Some (NF_of_word res)
        , Some (ZF_of_word res)

@@ -483,8 +483,8 @@ Instance shift_kind_toS : ToString sint shift_kind :=
 Definition check_shift_amount (sk: shift_kind) (z: Z) : bool :=
   match sk with
   | SLSL => (0 <=? z)%Z && (z <=? 31)%Z
-  | SLSR => (1 <=? z)%Z && (z <=? 31)%Z (* TODO_ARM: Should be 32. *)
-  | SASR => (1 <=? z)%Z && (z <=? 31)%Z (* TODO_ARM: Should be 32. *)
+  | SLSR => (1 <=? z)%Z && (z <=? 32)%Z
+  | SASR => (1 <=? z)%Z && (z <=? 32)%Z
   | SROR => (1 <=? z)%Z && (z <=? 31)%Z
   end.
 

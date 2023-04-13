@@ -33,7 +33,7 @@ Definition zasr (x i : Z) : Z :=
   zlsl x (-i).
 
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
-  let i :=  wunsigned (wand i (x86_shift_mask s)) in
+  let i :=  wunsigned i in
   shift v i.
 
 Definition sem_shr {s} := @sem_shift (@wshr) s.

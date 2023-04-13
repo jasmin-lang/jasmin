@@ -420,17 +420,6 @@ Notation u64  := (word U64).
 Notation u128 := (word U128).
 Notation u256 := (word U256).
 
-Definition x86_shift_mask (s:wsize) : u8 :=
-  match s with
-  | U8 | U16 | U32 => wrepr U8 31
-  | U64  => wrepr U8 63
-  | U128 => wrepr U8 127
-  | U256 => wrepr U8 255
-  end%Z.
-
-Definition x86_nelem_mask (sze szc:wsize) : u8 :=
-  wrepr U8 (2 ^ (wsize_log2 szc - wsize_log2 sze) - 1).
-
 Definition wbit_n sz (w:word sz) (n:nat) : bool :=
    wbit (wunsigned w) n.
 

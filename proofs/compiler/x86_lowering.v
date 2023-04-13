@@ -244,13 +244,14 @@ Definition mulr sz a b :=
  end.
 
   Definition check_shift_amount sz e :=
-    match match e with
+    if is_wconst U8 e is Some n
+    then if n == wand n (x86_shift_mask sz) then Some e else None
+    else match e with
     | Papp2 (Oland _) a b =>
         if is_wconst U8 b is Some n
         then if n == x86_shift_mask sz then Some a else None
         else None
-    | _ => None end
-    with None => Some e | x => x end.
+    | _ => None end.
 
 (* x =(ty) e *)
 Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
