@@ -1573,7 +1573,7 @@ end = struct
 
   let aeval_syscall state sc lvs _es =
     match sc with
-    | Syscall_t.RandomBytes n ->
+    | Jazz.Syscall_t.RandomBytes n ->
        let cells = match lvs with
          | [ Lnone _ ] -> []
          | [ Lvar x ] -> cells_of_array x 0 n

@@ -2,4 +2,4 @@
   (name cil)
   (wrapped false)
   (flags (:standard -w -32-33-34))
-  (libraries jasmin_support))
+  (libraries jazz))

@@ -1,9 +1,9 @@
 %{
-  module L = Location
+  module L = Jazz.Location
   module S = Syntax
 
   open Syntax
-  open Annotations
+  open Jazz.Annotations
 
   let setsign c s = 
     match c with

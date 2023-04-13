@@ -10,6 +10,7 @@ module Mint = Map.Make (BatInt)
 module Ss = Set.Make(String)
 module Ms = Map.Make(String)
 
+module L = Jazz.Location
 (* -------------------------------------------------------------------- *)
 let timed f x =
   let t1   = Unix.gettimeofday () in
@@ -276,7 +277,7 @@ let enable_colors () =
    We could probably just have an [i_loc], though, since we can simulate
    the other cases with a dummy location and an empty list.
 *)
-type error_loc = Lnone | Lone of Location.t | Lmore of Location.i_loc
+type error_loc = Lnone | Lone of L.t | Lmore of L.i_loc
 type hierror = {
   err_msg      : Format.formatter -> unit; (* a printer of the main error message              *)
   err_loc      : error_loc;                (* the location                                     *)
@@ -292,7 +293,7 @@ let add_iloc e i_loc =
   let err_loc =
     match e.err_loc with
     | Lnone -> Lmore i_loc
-    | Lone loc -> Lmore (Location.i_loc loc i_loc.stack_loc)
+    | Lone loc -> Lmore (L.i_loc loc i_loc.stack_loc)
     | Lmore _ as err_loc -> err_loc (* we already have a more precise location *)
   in
   { e with err_loc }
@@ -301,8 +302,8 @@ let pp_hierror fmt e =
   let pp_loc fmt =
     match e.err_loc with
     | Lnone -> ()
-    | Lone l -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_loc) l
-    | Lmore i_loc -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_iloc) i_loc
+    | Lone l -> Format.fprintf fmt "%a:@ " (pp_print_bold L.pp_loc) l
+    | Lmore i_loc -> Format.fprintf fmt "%a:@ " (pp_print_bold L.pp_iloc) i_loc
   in
   let pp_kind fmt =
     let pp fmt () =
@@ -426,8 +427,8 @@ let warning (w:warning) loc =
     if to_warn w then
       let pp_warning fmt = pp_print_bold_magenta pp_string fmt "warning" in
       let pp_iloc fmt d =
-        if not (Location.isdummy d.Location.base_loc) then
-          Format.fprintf fmt "%a@ " (pp_print_bold Location.pp_iloc) d in
+        if not (L.isdummy d.L.base_loc) then
+          Format.fprintf fmt "%a@ " (pp_print_bold L.pp_iloc) d in
       Format.eprintf "@[<v>%a%t: %t@]@."
         pp_iloc loc
         pp_warning pp)

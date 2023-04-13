@@ -70,7 +70,7 @@ let write_mem_lvals = List.exists write_mem_lval
 let rec read_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
-  | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
+  | Copn (xs, _, _, es) | Csyscall (xs, Jazz.Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
   | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
@@ -83,7 +83,7 @@ let read_mem_f s f = read_mem_c s f.f_body
 let rec write_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, _)  -> write_mem_lval x 
-  | Copn (xs, _, _, _) | Csyscall(xs, Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
+  | Copn (xs, _, _, _) | Csyscall(xs, Jazz.Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
   | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
@@ -327,7 +327,7 @@ let pp_fname env fmt f = Format.fprintf fmt "%s" (get_funname env f)
 
 let pp_syscall env fmt o =
   match o with
-  | Syscall_t.RandomBytes p ->
+  | Jazz.Syscall_t.RandomBytes p ->
     let n = (Conv.int_of_pos p) in
     env.randombytes := Sint.add n !(env.randombytes);
     Format.fprintf fmt "%s.randombytes_%i" syscall_mod_arg n

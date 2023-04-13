@@ -194,7 +194,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
  
 (* --------------------------------------------------- *)
 let err_var_not_initialized x =
-  hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Location.pp_loc x.v_dloc
+  hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Jazz.Location.pp_loc x.v_dloc
 
 let get_slot coloring x =
   let sz = size_of x.v_ty in

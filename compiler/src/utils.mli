@@ -143,7 +143,7 @@ type model =
 val enable_colors : unit -> unit
 
 (* -------------------------------------------------------------------- *)
-type error_loc = Lnone | Lone of Location.t | Lmore of Location.i_loc
+type error_loc = Lnone | Lone of Jazz.Location.t | Lmore of Jazz.Location.i_loc
 type hierror = {
   err_msg      : Format.formatter -> unit; (* a printer of the main error message              *)
   err_loc      : error_loc;                (* the location                                     *)
@@ -154,7 +154,7 @@ type hierror = {
 }
 exception HiError of hierror
 
-val add_iloc : hierror -> Location.i_loc -> hierror
+val add_iloc : hierror -> Jazz.Location.i_loc -> hierror
 val pp_hierror : Format.formatter -> hierror -> unit
 
 val pp_print_bold_red : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a -> unit
@@ -180,5 +180,5 @@ type warning =
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit 
 val warning :
-      warning -> Location.i_loc
+      warning -> Jazz.Location.i_loc
    -> ('a, Format.formatter, unit) format -> 'a

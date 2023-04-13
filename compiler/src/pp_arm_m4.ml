@@ -138,9 +138,9 @@ let pp_mnemonic_ext (ARM_op (mn, opts)) args =
   let mn = String.lowercase_ascii mn in
   Printf.sprintf "%s%s%s" mn (pp_set_flags opts) (pp_conditional args)
 
-let pp_syscall (o : _ Syscall_t.syscall_t) =
+let pp_syscall (o : _ Jazz.Syscall_t.syscall_t) =
   match o with
-  | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
+  | Jazz.Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 
 (* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
    must be introduced *in addition* to conditional suffixes. *)

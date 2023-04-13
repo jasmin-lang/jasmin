@@ -1,6 +1,6 @@
 open Utils
 open Prog
-module L = Location
+module L = Jazz.Location
 
 let is_array_copy (x:lval) (e:expr) =
   match x with
@@ -61,14 +61,14 @@ and iac_instr_r pd loc ir =
 
   | Csyscall(xs, o, es) ->
     begin match o with
-    | Syscall_t.RandomBytes _ ->
+    | Jazz.Syscall_t.RandomBytes _ ->
       (* Fix the size it is dummy for the moment *)
       let ty =
         match xs with
         | [x] -> Typing.ty_lval pd loc x
         | _ -> assert false in
       let p = Conv.pos_of_int (Prog.size_of ty) in
-      Csyscall(xs, Syscall_t.RandomBytes p, es)
+      Csyscall(xs, Jazz.Syscall_t.RandomBytes p, es)
     end
 
   | Ccall _ -> ir

@@ -1,6 +1,6 @@
 open Utils
 
-module L = Location
+module L = Jazz.Location
 module S = Syntax
 
 (* -------------------------------------------------------------------- *)

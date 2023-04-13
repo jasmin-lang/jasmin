@@ -255,7 +255,7 @@ let collect_equality_constraints_in_func
       | None -> ()
       | Some get_func ->
         let g = get_func fn in
-        List.iter2 (fun a p -> addv ii (get_Pvar a) Location.(mk_loc _dummy p))
+        List.iter2 (fun a p -> addv ii (get_Pvar a) Jazz.Location.(mk_loc _dummy p))
           es g.f_args;
         List.iter2 (fun r x -> addv ii r (get_Lvar x))
           g.f_ret xs
@@ -651,7 +651,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
   match Hf.find return_addresses f.f_name, Arch.callstyle with
   | (StackByReg ra | ByReg ra), Arch_full.ByReg (Some r) ->
       let i = Hv.find vars ra in 
-      allocate_one nv vars (Location.i_loc f.f_loc []) cnf ra i r a
+      allocate_one nv vars (Jazz.Location.i_loc0 f.f_loc) cnf ra i r a
   | _ -> () 
 
 (* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
@@ -863,7 +863,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
 
     Initial 'info are preserved in the result.
    *)
-  let annot_table : Annotations.f_annot Hf.t = Hf.create 17 in
+  let annot_table : Jazz.Annotations.f_annot Hf.t = Hf.create 17 in
   let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
   let return_addresses : retaddr Hf.t = Hf.create 17 in
   let extra_free_registers : (L.i_loc, var) Hashtbl.t = Hashtbl.create 137 in
@@ -917,7 +917,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness, slive =
     let live : Sv.t Hf.t = Hf.create 17 in
-    let slive : (BinNums.positive Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
+    let slive : (BinNums.positive Jazz.Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in

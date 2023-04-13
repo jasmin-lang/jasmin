@@ -95,7 +95,7 @@ let pp_glvs pp_len pp_var fmt lvs =
 (* -------------------------------------------------------------------- *)
 let rec pp_simple_attribute fmt =
   function
-  | Annotations.Aint z -> Z.pp_print fmt z
+  | Jazz.Annotations.Aint z -> Z.pp_print fmt z
   | Aid s | Astring s -> F.fprintf fmt "%S" s
   | Aws ws -> F.fprintf fmt "%s" (string_of_ws (ws_of_ws ws))
   | Astruct a -> F.fprintf fmt "(%a)" pp_annotations a
@@ -214,9 +214,9 @@ let pp_var_decl pp_var pp_size fmt v =
 
 let pp_call_conv fmt =
   function
-  | FInfo.Export -> Format.fprintf fmt "export@ "
-  | FInfo.Internal -> Format.fprintf fmt "inline@ "
-  | FInfo.Subroutine _ -> ()
+  | Jazz.FInfo.Export -> Format.fprintf fmt "export@ "
+  | Jazz.FInfo.Internal -> Format.fprintf fmt "inline@ "
+  | Jazz.FInfo.Subroutine _ -> ()
 
 let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in

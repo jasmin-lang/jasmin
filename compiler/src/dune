@@ -6,8 +6,7 @@
  (modules parser))
 
 (library
-  (name jasmin_support)
-  (wrapped false)
+  (name jazz)
   (modules annotations fInfo iInfo location syscall_t)
   (libraries zarith))
 
@@ -15,7 +14,7 @@
  (name jasmin)
  (flags -rectypes)
  (modules (:standard \ annotations fInfo iInfo location syscall_t x86_safety main_compiler))
- (libraries cil jasmin_support batteries zarith menhirLib))
+ (libraries cil jazz batteries zarith menhirLib))
 
 (library
   (name jasmin_compiler)

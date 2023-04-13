@@ -1,7 +1,7 @@
 open Utils
 open Prog
 
-module A = Annotations
+module A = Jazz.Annotations
 module S = Syntax
 module Pt = Pretyping
 

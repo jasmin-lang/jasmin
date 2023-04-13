@@ -1,6 +1,6 @@
 open Utils
 open Prog
-module L = Location
+module L = Jazz.Location
 
 (* When there is no location, we report an internal error. *)
 let hierror ?loc fmt =

@@ -1,9 +1,9 @@
-open Annotations
+open Jazz.Annotations
 (* -------------------------------------------------------------------- *)
-module L = Location
+module L = Jazz.Location
 
 (* -------------------------------------------------------------------- *)
-exception ParseError of Location.t * string option
+exception ParseError of L.t * string option
 
 let parse_error ?msg loc =
   raise (ParseError (loc, msg))

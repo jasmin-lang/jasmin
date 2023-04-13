@@ -1,8 +1,9 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
+open Jazz.Annotations
 open Wsize
 module E = Expr
-module L = Location
+module L = Jazz.Location
 
 module Name = struct
   type t = string
@@ -43,7 +44,7 @@ type 'len gvar = {
   v_kind : v_kind;
   v_ty   : 'len gty;
   v_dloc : L.t;   (* location where declared *)
-  v_annot : Annotations.annotations;
+  v_annot : annotations;
 }
 
 type 'len gvar_i = 'len gvar L.located
@@ -146,7 +147,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
-  | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
+  | Csyscall of 'len glvals * BinNums.positive Jazz.Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
@@ -156,7 +157,7 @@ and ('len,'info,'asm) ginstr = {
     i_desc : ('len,'info,'asm) ginstr_r;
     i_loc  : L.i_loc;
     i_info : 'info;
-    i_annot : Annotations.annotations;
+    i_annot : annotations;
   }
 
 and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
@@ -164,14 +165,14 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 (* ------------------------------------------------------------------------ *)
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot: Annotations.f_annot;
-    f_cc   : FInfo.call_conv;
+    f_annot: f_annot;
+    f_cc   : Jazz.FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
     f_body : ('len,'info,'asm) gstmt;
     f_tyout : 'len gty list;
-    f_outannot : Annotations.annotations list; (* annotation attach to return type *)
+    f_outannot : annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
   }
 

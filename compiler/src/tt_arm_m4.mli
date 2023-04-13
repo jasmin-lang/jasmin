@@ -1,4 +1,4 @@
-module L = Location
+module L = Jazz.Location
 module S = Syntax
 
 val tt_prim :

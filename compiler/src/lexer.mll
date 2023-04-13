@@ -2,7 +2,7 @@
   open Utils
   open Parser
 
-  module L = Location
+  module L = Jazz.Location
   module S = Syntax
 
   let unterminated_comment loc =

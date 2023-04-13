@@ -2,8 +2,8 @@
 open Utils
 module Path = BatPathGen.OfString
 module F = Format
-module L = Location
-module A = Annotations
+module L = Jazz.Location
+module A = Jazz.Annotations
 module S = Syntax
 module E = Expr
 module P = Prog
@@ -1722,8 +1722,8 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
         | Some () -> E.InlineFun
         | None -> 
           match f.P.f_cc with 
-          | FInfo.Internal -> E.InlineFun
-          | FInfo.Export | FInfo.Subroutine _ -> E.DoNotInline in
+          | Jazz.FInfo.Internal -> E.InlineFun
+          | Jazz.FInfo.Export | Jazz.FInfo.Subroutine _ -> E.DoNotInline in
       let annot = Annot.consume "inline" annot in
       env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
 
@@ -1745,7 +1745,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast pd env (L.loc pi) args [ty] in
-      env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
+      env, [mk_i (P.Csyscall([x], Jazz.Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p, args = tt_prim asmOp None f args in
@@ -1862,7 +1862,7 @@ let tt_funbody pd asmOp (env : 'asm Env.env) (pb : S.pfunbody) =
       
 let tt_call_conv loc params returns cc =
   match cc with
-  | Some `Inline -> FInfo.Internal
+  | Some `Inline -> Jazz.FInfo.Internal
 
   | Some `Export ->
     let check s x = 
@@ -1875,7 +1875,7 @@ let tt_call_conv loc params returns cc =
     List.iter (check "result") returns;
     if 2 < List.length returns then
       rs_tyerror ~loc (string_error "export function should return at most two arguments");
-    FInfo.Export
+    Jazz.FInfo.Export
 
   | None         -> 
     let check s x =
@@ -1915,7 +1915,7 @@ let tt_call_conv loc params returns cc =
           rs_tyerror ~loc (string_error "%a is mutable, it should be returned"
                              Printer.pp_pvar x) in
     List.iteri check_writable_param params;
-    FInfo.Subroutine { returned_params }
+    Jazz.FInfo.Subroutine { returned_params }
 
 (* -------------------------------------------------------------------- *)
 
