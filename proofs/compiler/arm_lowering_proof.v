@@ -28,20 +28,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* TODO_ARM: Move? *)
-Lemma get_arg_shiftP_aux z :
-  (0 <= z <= 31)%Z
-  -> wunsigned (wand (wrepr U8 z) (wrepr U8 31)) = wunsigned (wrepr U8 z).
-Proof.
-  move=> hrange.
-  change 31%Z with (2 ^ Z.of_nat 5 - 1)%Z.
-  rewrite wand_modulo.
-  rewrite wunsigned_repr_small.
-  - apply: Z.mod_small. lia.
-  change (wbase U8) with 256%Z.
-  lia.
-Qed.
-
 (* TODO_ARM: Improve. Move? *)
 Lemma nzcv_of_aluop_CF_sub ws (x y : word ws) :
   (wunsigned (x - y) != (wunsigned x + wunsigned (wnot y) + 1)%Z)
@@ -509,8 +495,7 @@ Proof.
   all: rewrite /sem_shr /sem_shl /sem_sar /sem_ror /=.
   all: rewrite /sem_shift /=.
   all: rewrite !zero_extend_u.
-  all: rewrite get_arg_shiftP_aux; first reflexivity.
-  all: lia.
+  all: reflexivity.
 Qed.
 
 Lemma disj_fvars_read_es2 e0 e1 :

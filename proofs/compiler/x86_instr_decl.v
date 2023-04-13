@@ -503,6 +503,14 @@ Definition x86_NOT sz (v: word sz)  : ex_tpl (w_ty sz) :=
   Let _  := check_size_8_64 sz in
   ok (wnot v).
 
+Definition x86_shift_mask (s:wsize) : u8 :=
+  match s with
+  | U8 | U16 | U32 => wrepr U8 31
+  | U64  => wrepr U8 63
+  | U128 => wrepr U8 127
+  | U256 => wrepr U8 255
+  end%Z.
+
 Definition x86_ROR sz (v: word sz) (i: u8) : ex_tpl (b2w_ty sz) :=
   Let _  := check_size_8_64 sz in
   let i := wand i (x86_shift_mask sz) in
@@ -718,6 +726,9 @@ Definition x86_VPMULHRS ve sz v1 v2 :=
   x86_u128_binop (lift2_vec U16 (@wmulhrs U16) sz) v1 v2.
 
 (* ---------------------------------------------------------------- *)
+Definition x86_nelem_mask (sze szc:wsize) : u8 :=
+  wrepr U8 (2 ^ (wsize_log2 szc - wsize_log2 sze) - 1).
+
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
   Let _ := check_size_8_64 ve in
   let i := wand i (x86_nelem_mask ve U128) in

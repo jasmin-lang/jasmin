@@ -114,6 +114,10 @@
 - Various fixes to the LATEX printer
   ([PR #406](https://github.com/jasmin-lang/jasmin/pull/406)).
 
+- Fix the semantics of shift and rotation operators: the second
+  argument (the shift amount) is no longer truncated
+  ([PR #413](https://github.com/jasmin-lang/jasmin/pull/413)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
