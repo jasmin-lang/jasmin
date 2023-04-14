@@ -29,7 +29,7 @@ xc[i] = [xp + 8 * i];
 yc[i] = [yp + 8 * i];
 }
 
-swap >>= sb;
+swap >>= sb & 63;
 
 xc, yc = cswap(xc, yc, swap);
 
