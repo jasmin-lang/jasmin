@@ -1,5 +1,6 @@
 #!/bin/sh
 
+REPO=formosa-crypto
 NAME=libjade
 BRANCH=main
 
@@ -19,7 +20,7 @@ export EXCLUDE=""
 
 echo "Info: $MAKELINE (EXCLUDE=$EXCLUDE)"
 
-curl -v -o $FILE https://codeload.github.com/formosa-crypto/$NAME/tar.gz/refs/heads/$BRANCH
+curl -v -o $FILE https://codeload.github.com/$REPO/$NAME/tar.gz/refs/heads/$BRANCH
 tar xvf $FILE
 
 make $MAKELINE
