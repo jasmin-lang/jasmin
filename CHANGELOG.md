@@ -126,6 +126,10 @@
   previous timestamp is also displayed
   ([PR #403](https://github.com/jasmin-lang/jasmin/pull/403)).
 
+- Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by
+  an amount that is explicitly truncated (e.g., `x >>= y & 63`)
+  ([PR #412](https://github.com/jasmin-lang/jasmin/pull/412)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
