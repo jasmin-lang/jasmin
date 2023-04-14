@@ -246,6 +246,15 @@ Definition mulr sz a b :=
     end
  end.
 
+  Definition check_shift_amount sz e :=
+    match match e with
+    | Papp2 (Oland _) a b =>
+        if is_wconst U8 b is Some n
+        then if n == x86_shift_mask sz then Some a else None
+        else None
+    | _ => None end
+    with None => Some e | x => x end.
+
 (* x =(ty) e *)
 Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
@@ -362,9 +371,9 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
       if (sz ≤ U64)%CMP
       then k8 sz (LowerFopn (Ox86 (XOR sz)) [:: a ; b ] (Some U32))
       else kb true sz (LowerCopn (Ox86 (VPXOR sz)) [:: a ; b ])
-    | Olsr sz => k8 sz (LowerFopn (Ox86 (SHR sz)) [:: a ; b ] (Some U8))
-    | Olsl (Op_w sz) => k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
-    | Oasr (Op_w sz) => k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
+    | Olsr sz => if check_shift_amount sz b is Some b then k8 sz (LowerFopn (Ox86 (SHR sz)) [:: a ; b ] (Some U8)) else LowerAssgn
+    | Olsl (Op_w sz) => if check_shift_amount sz b is Some b then k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8)) else LowerAssgn
+    | Oasr (Op_w sz) => if check_shift_amount sz b is Some b then k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8)) else LowerAssgn
 
     | Olt _ | Ole _ | Oeq _ | Oneq _ | Oge _ | Ogt _ => LowerCond
 

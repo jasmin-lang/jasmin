@@ -1,6 +1,12 @@
 
 # [unreleased]
 
+## Other changes
+
+- Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by
+  an amount that is explicitly truncated (e.g., `x >>= y & 63`)
+  ([PR #412](https://github.com/jasmin-lang/jasmin/pull/412)).
+
 # Jasmin 2022.09.2
 
 This release fixes the AUTHORS file which was not up-to-date.

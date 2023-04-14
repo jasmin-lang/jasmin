@@ -596,6 +596,44 @@ Section PROOF.
     by rewrite /x86_IMULt /check_size_16_64 hsz64 /= Hw.
   Qed.
 
+  Lemma to_word_m sz sz' a w :
+    to_word sz a = ok w →
+    (sz' ≤ sz)%CMP →
+    to_word sz' a = ok (zero_extend sz' w).
+  Proof.
+    clear.
+    case/to_wordI' => n [] m [] sz_le_n ->{a} ->{w} /= sz'_le_sz.
+    by rewrite /truncate_word zero_extend_idem // (cmp_le_trans sz'_le_sz sz_le_n).
+  Qed.
+
+  Lemma check_shift_amountP sz e sa s z w :
+    check_shift_amount sz e = Some sa →
+    sem_pexpr gd s e = ok z →
+    to_word U8 z = ok w →
+    Sv.Subset (read_e sa) (read_e e) ∧
+    exists2 n, sem_pexpr gd s sa >>= to_word U8 = ok n & ∀ f (a: word sz), sem_shift f a w = sem_shift f a n.
+  Proof.
+   Ltac eop := move => > /Some_inj -> -> /= ->; split; [ reflexivity | eexists ].
+    rewrite /check_shift_amount.
+    case: e; try by eop.
+    case; try by eop.
+    move => sz' a b.
+    case en: is_wconst => [ n | ]; last by eop.
+    case: eqP => n_range; last by eop.
+    move => /Some_inj ? /=; subst a n.
+    rewrite /sem_sop2 /=; t_xrbindP => a ok_a c ok_c wa ok_wa wb ok_wb <-{z} /truncate_wordP[] _ ->{w}.
+    have := (is_wconstP gd s en).
+    rewrite {en} ok_a ok_c /= => hc.
+    split.
+    - clear; rewrite {2}/read_e /= !read_eE; SvD.fsetdec.
+    eexists; first by rewrite (to_word_m ok_wa (wsize_le_U8 _)).
+    move => f x; rewrite /sem_shift; do 2 f_equal.
+    have := to_word_m ok_wb (wsize_le_U8 _).
+    rewrite {ok_wb} hc => /ok_inj ->.
+    rewrite !wand_zero_extend; only 2-3: exact: wsize_le_U8.
+    by rewrite -wandA wand_xx.
+  Qed.
+
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr gd s e = ok v)
       (Hv': truncate_val ty v = ok v')
       (Hw: write_lval gd l v' s = ok s'):
@@ -976,41 +1014,58 @@ Section PROOF.
         rewrite /x86_VPXOR /x86_u128_binop /=.
         by rewrite (wsize_nle_u64_check_128_256 hty).
       (* Olsr *)
-      + case: andP => // - [hsz64] /eqP ?; subst ty.
-         rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
-         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
-         t_xrbindP => w1 -> w2 -> /= ?; subst v.
-         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
-         split. by rewrite read_es_swap.
-         move: Hw; rewrite /sem_shr /sem_shift /x86_SHR /check_size_8_64 hsz64 /=.
-         case: eqP.
-         * by move => ->; rewrite /= wshr0 => ->.
-         move => _ /=.
-         by case: ifP => /= _ ->.
+      + case good_shift: check_shift_amount => [ sa | ]; last by [].
+        case: andP => // - [hsz64] /eqP ?; subst ty.
+        rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ok_v2.
+        move/check_shift_amountP: good_shift => /(_ _ _ _ ok_v2) good_shift.
+        rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+        t_xrbindP => w1 ok_w1 w2 ok_w2 /= ?; subst.
+        move: good_shift => /(_ _ ok_w2) []read_subset[]; t_xrbindP => ?? -> /= -> /= {} ok_w2.
+        rewrite {} ok_w1.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+        split.
+        * rewrite /read_es /read_e /= !read_eE; move: read_subset; clear; SvD.fsetdec.
+        move: Hw; rewrite /sem_shr ok_w2 /sem_shift /x86_SHR /check_size_8_64 hsz64 /=.
+        case: eqP.
+        * by move => ->; rewrite /= wshr0 => ->.
+        move => _ /=.
+        by case: ifP => /= _ ->.
       (* Olsl *)
       + case: sz => // sz.
+        case good_shift: check_shift_amount => [ sa | ]; last by [].
         case: andP => // - [hsz64] /eqP ?; subst ty.
-        rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
-         rewrite /sem_sop2 /exec_sopn /sopn_sem /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
-         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
-         split. by rewrite read_es_swap.
-         move: Hw; rewrite /sem_shl /sem_shift /x86_SHL /check_size_8_64 hsz64 /=.
-         case: eqP.
-         * by move => ->; rewrite /= wshl0 => ->.
-         move => _ /=.
-         by case: ifP => /= _ ->.
+        rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ok_v2.
+        move/check_shift_amountP: good_shift => /(_ _ _ _ ok_v2) good_shift.
+        rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+        t_xrbindP => w1 ok_w1 w2 ok_w2 /= ?; subst.
+        move: good_shift => /(_ _ ok_w2) []read_subset[]; t_xrbindP => ?? -> /= -> /= {} ok_w2.
+        rewrite {} ok_w1.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+        split.
+        * rewrite /read_es /read_e /= !read_eE; move: read_subset; clear; SvD.fsetdec.
+        move: Hw; rewrite /sem_shl ok_w2 /sem_shift /x86_SHL /check_size_8_64 hsz64 /=.
+        case: eqP.
+        * by move => ->; rewrite /= wshl0 => ->.
+        move => _ /=.
+        by case: ifP => /= _ ->.
       (* Oasr *)
       + case: sz => // sz.
+        case good_shift: check_shift_amount => [ sa | ]; last by [].
         case: andP => // - [hsz64] /eqP ?; subst ty.
-        rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
-         rewrite /sem_sop2 /exec_sopn /sopn_sem /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
-         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
-         split. by rewrite read_es_swap.
-         move: Hw; rewrite /sem_sar /sem_shift /x86_SAR /check_size_8_64 hsz64 /=.
-         case: eqP.
-         * by move => ->; rewrite /= wsar0 => ->.
-         move => _ /=.
-         by case: ifP => /= _ ->.
+        rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ok_v2.
+        move/check_shift_amountP: good_shift => /(_ _ _ _ ok_v2) good_shift.
+        rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+        t_xrbindP => w1 ok_w1 w2 ok_w2 /= ?; subst.
+        move: good_shift => /(_ _ ok_w2) []read_subset[]; t_xrbindP => ?? -> /= -> /= {} ok_w2.
+        rewrite {} ok_w1.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+        split.
+        * rewrite /read_es /read_e /= !read_eE; move: read_subset; clear; SvD.fsetdec.
+        move: Hw; rewrite /sem_sar ok_w2 /sem_shift /x86_SAR /check_size_8_64 hsz64 /=.
+        case: eqP.
+        * by move => ->; rewrite /= wsar0 => ->.
+        move => _ /=.
+        by case: ifP => /= _ ->.
 
       (* Ovadd ve sz *)
       + case: ifP => // /andP [hle /eqP ?]; subst ty.
