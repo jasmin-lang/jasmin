@@ -570,6 +570,17 @@ Proof.
   by rewrite /= ih.
 Qed.
 
+Lemma sv_of_list_id_map X f (xs : seq X) :
+  Sv.Equal (sv_of_list id (map f xs)) (sv_of_list f xs).
+Proof.
+  move=> x.
+  split.
+  all: move=> /sv_of_listP h.
+  all: apply/sv_of_listP.
+  all: move: h.
+  all: by rewrite map_id.
+Qed.
+
 Lemma sv_of_list_mem_head X f (x : X) xs :
   Sv.mem (f x) (sv_of_list f (x :: xs)).
 Proof. rewrite sv_of_listE. exact: mem_head. Qed.
@@ -584,6 +595,24 @@ Proof.
   exact: orbT.
 Qed.
 
+Lemma sv_of_list_cat X (xs ys : seq X) f :
+  Sv.Equal
+    (sv_of_list f (xs ++ ys))
+    (Sv.union (sv_of_list f xs) (sv_of_list f ys)).
+Proof.
+  split=> hx.
+
+  - apply/Sv.union_spec.
+    move: hx => /sv_of_listP.
+    rewrite map_cat mem_cat.
+    move=> /orP [] /sv_of_listP ?; by econstructor.
+
+  apply/sv_of_listP.
+  rewrite map_cat mem_cat.
+  apply/orP.
+  move: hx => /Sv.union_spec [] /sv_of_listP hx; by econstructor.
+Qed.
+
 Lemma disjoint_subset_diff xs ys :
   disjoint xs ys
   -> Sv.Subset xs (Sv.diff xs ys).
@@ -591,6 +620,12 @@ Proof.
   move=> /disjoint_sym /disjoint_diff /SvP.MP.equal_sym.
   exact: SvP.MP.subset_equal.
 Qed.
+
+Lemma Sv_subset_diff_diff xs xs' ys ys' :
+  Sv.Subset xs ys
+  -> Sv.Subset ys' xs'
+  -> Sv.Subset (Sv.diff xs xs') (Sv.diff ys ys').
+Proof. clear. SvD.fsetdec. Qed.
 
 Lemma in_add_singleton x y :
   Sv.In x (Sv.add y (Sv.singleton x)).
@@ -665,16 +700,6 @@ Proof.
   apply/sv_of_listP.
   rewrite map_id.
   by apply/Sv_elemsP.
-Qed.
-
-Lemma disjoint_seq_diff T s0 (xs : seq T) f :
-  let: s1 := Sv.elements (Sv.diff (sv_of_list f xs) s0) in
-  disjoint s0 (sv_of_list id s1).
-Proof.
-  apply/disjointP.
-  move=> x hx.
-  rewrite sv_of_list_elements.
-  by move=> /Sv.diff_spec [].
 Qed.
 
 End SExtra.

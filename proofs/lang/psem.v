@@ -322,6 +322,12 @@ Lemma vmap_eq_except_eq_on x y z e o :
   x =[Sv.diff o e] z.
 Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
 
+Lemma get_var_eq_except vm0 vm1 x xs :
+  ~ Sv.In x xs
+  -> vm0 = vm1 [\ xs ]
+  -> get_var vm0 x = get_var vm1 x.
+Proof. rewrite /get_var. by move=> ? ->. Qed.
+
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 

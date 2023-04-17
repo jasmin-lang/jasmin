@@ -481,3 +481,106 @@ Proof.
 Qed.
 
 End LSEM_INVARIANT.
+
+Section LPROG_EXTEND.
+
+  (* This models the behaviour of some passes of the compiler: appending a piece
+     of code at the end of a function body. *)
+
+  Definition is_prefix {X} (xs ys : seq X) : Prop :=
+    exists zs, ys = xs ++ zs.
+
+  Lemma onth_prefix {X} (xs ys : seq X) n x :
+    oseq.onth xs n = Some x
+    -> is_prefix xs ys
+    -> oseq.onth ys n = Some x.
+  Proof.
+    move=> hnth [tail htail].
+    elim: xs ys n hnth htail => //= x0 xs hi ys n.
+    case: n.
+    - move=> [?]; subst x0. by move=> ->.
+    move=> n hnth -> /=.
+    by apply: (hi _ _ hnth).
+  Qed.
+
+  Context
+    {asm_op syscall_state : Type}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}
+    {ovm_i : one_varmap_info}
+    (lp lp' : lprog).
+
+  Definition lprog_extend lp lp' :=
+    forall fn lfd,
+      get_fundef (lp_funcs lp) fn = Some lfd
+      -> exists2 lfd',
+           get_fundef (lp_funcs lp') fn = Some lfd'
+           & is_prefix (lfd_body lfd) (lfd_body lfd').
+
+  Context (hextend : lprog_extend lp lp').
+
+  Lemma lprog_extend_get_fundef fn lfd :
+    get_fundef (lp_funcs lp) fn = Some lfd
+    -> exists lfd',
+         get_fundef (lp_funcs lp') fn = Some lfd'.
+  Proof. move=> h. have [lfd' hlfd' _] := hextend h. by exists lfd'. Qed.
+
+  Lemma lprog_extend_find_instr ls i :
+    find_instr lp ls = Some i
+    -> find_instr lp' ls = Some i.
+  Proof.
+    rewrite /find_instr.
+    case hlfd: get_fundef => [lfd | //] hget.
+    have [lfd' hlfd'] := lprog_extend_get_fundef hlfd.
+    rewrite hlfd'.
+    have [lfd'' hlfd'' hpre] := hextend hlfd.
+    move: hlfd''.
+    rewrite hlfd'.
+    move=> [?]; subst lfd''.
+    by rewrite (onth_prefix hget hpre).
+  Qed.
+
+  Definition lprog_extend_eval_instr i ls ls' :
+    eval_instr lp i ls = ok ls'
+    -> eval_instr lp' i ls = ok ls'.
+  Proof.
+    move: i => [ii i].
+    case: i => //.
+  Admitted.
+
+  Lemma lprog_extend_lsem1 ls ls' :
+    lsem1 lp ls ls'
+    -> lsem1 lp' ls ls'.
+  Proof.
+    rewrite /lsem1 /step /find_instr.
+    case hlfd: get_fundef => [lfd | //].
+    have [lfd' hlfd'] := lprog_extend_get_fundef hlfd.
+    rewrite hlfd'.
+
+    case hpc: oseq.onth => [i | //].
+    have -> : oseq.onth (lfd_body lfd') (lpc ls) = Some i.
+    - have : find_instr lp' ls = Some i.
+      + apply: lprog_extend_find_instr. rewrite /find_instr. by rewrite hlfd.
+      rewrite /find_instr.
+      case h0: get_fundef => [lfd0 | //].
+      move: h0.
+      rewrite hlfd'.
+      by move=> [->].
+
+    exact: lprog_extend_eval_instr.
+  Qed.
+
+  Lemma lprog_extend_lsem ls ls' :
+    lsem lp ls ls'
+    -> lsem lp' ls ls'.
+  Proof.
+    move: ls'.
+    apply: clos_refl_trans_ind_left; first exact: rt_refl.
+    move=> ls0 ls1 hsem hsem' hstep.
+    apply: (lsem_step_end hsem').
+    apply: lprog_extend_lsem1.
+    exact: hstep.
+  Qed.
+
+End LPROG_EXTEND.

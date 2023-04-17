@@ -10,6 +10,7 @@ Require Import
   one_varmap.
 Require Import
   register_zeroization
+  register_zeroization_utils
   linearization
   lowering
   stack_alloc.
@@ -327,23 +328,9 @@ Definition arm_zeroize_flags
   else
     Error (err_flags).
 
-Definition arm_rz_cmd_args
-  (rzm : rzmode)
-  (xs : seq var)
-  (err_flags : pp_error_loc)
-  (err_register : var -> pp_error_loc) :
-  cexec (seq lopn_args) :=
-  let f x := seq_diff x (Sv.elements one_varmap.callee_saved ++ xs) in
-  let regs := if rzm_registers rzm then f (map to_var registers) else [::] in
-  Let rzvars := mapM (arm_zeroize_var err_register) regs in
-  Let rzflags :=
-    if rzm_flags rzm then arm_zeroize_flags err_flags (ohead regs) else ok [::]
-  in
-  ok (rzvars ++ rzflags).
-
 Definition arm_rzparams : register_zeroization_params :=
   {|
-    rz_cmd_args := arm_rz_cmd_args;
+    rz_cmd_args := naive_rz_cmd_args arm_zeroize_var arm_zeroize_flags;
   |}.
 
 End REGISTER_ZEROIZATION.

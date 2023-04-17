@@ -17,12 +17,13 @@ Require Import
   linearization_proof
   lowering
   propagate_inline_proof
-  register_zeroization
-  register_zeroization_proof
   stack_alloc
   stack_alloc_proof.
 Require
-  arch_sem.
+  register_zeroization
+  register_zeroization_proof
+  register_zeroization_proof_utils.
+Require arch_sem.
 Require Import
   arch_decl
   arch_extra
@@ -734,8 +735,11 @@ Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
 Section REGISTER_ZEROIZATION.
 
 Import
-  linear_sem
-  one_varmap.
+  linear_sem.
+Import
+  register_zeroization
+  register_zeroization_proof
+  register_zeroization_proof_utils.
 
 Definition x86_h_rz_zeroized (x : var) : option value :=
   match vtype x with
@@ -744,20 +748,15 @@ Definition x86_h_rz_zeroized (x : var) : option value :=
   | _ => None
   end.
 
-Notation zeroized_on := (zeroized_on x86_h_rz_zeroized).
-Notation zeroized_on_vars := (zeroized_on_vars x86_h_rz_zeroized).
+Notation invariant := (invariant x86_h_rz_zeroized).
 
-Definition invariant (xs : seq var) (s s' : estate) : Prop :=
-  [/\ escs s = escs s'
-    , emem s = emem s'
-    & zeroized_on_vars (evm s) (evm s') xs
-  ].
+(* All lemmas are generalized to code rather than a single instruction. *)
+Notation zeroize_var_cmd err :=
+  (fun x => Let args := x86_zeroize_var err x in ok [:: args ])
+  (only parsing).
 
 Lemma x86_zeroize_varP err_register x :
-  get_lopn_invariant
-    (fun x => Let args := x86_zeroize_var err_register x in ok [:: args ])
-    invariant
-    x.
+  get_lopn_invariant (zeroize_var_cmd err_register) invariant x.
 Proof.
   move=> lp scs vm m fn pre pos args ii h hbody.
 
@@ -794,7 +793,7 @@ Proof.
       rewrite /=.
       by t_vm_get.
 
-    move: hy.
+    move: hy => /Sv_memP /sv_of_listP.
     rewrite in_cons.
     move=> /orP []; last done.
     move=> /eqP ?; subst y.
@@ -825,7 +824,7 @@ Proof.
     rewrite /=.
     by t_vm_get.
 
-  move: hy.
+  move: hy => /Sv_memP /sv_of_listP.
   rewrite in_cons.
   move=> /orP []; last done.
   move=> /eqP ?; subst y.
@@ -833,54 +832,10 @@ Proof.
   by rewrite get_var_eq /=.
 Qed.
 
-Lemma x86_zeroize_varsP err_register xs :
-  map_get_lopn_invariant
-    (fun x => Let args := x86_zeroize_var err_register x in ok [:: args ])
-    invariant
-    xs.
+Lemma x86_zeroize_flagsP :
+  zeroize_flags_spec x86_zeroize_flags x86_h_rz_zeroized.
 Proof.
-  apply: map_get_lopn_invariantP;
-    first done.
-
-  - clear.
-    move=> x xs s0 s1 s2 [hscs0 hm0 hzero0] [hscs1 hm1 hzero1].
-    split;
-      first (by rewrite hscs0);
-      first by rewrite hm0.
-    exact: (zeroized_on_varsT hzero0 hzero1).
-
-  move=> x _.
-  exact: x86_zeroize_varP.
-Qed.
-
-Lemma x86_zeroize_flagsP lp scs vm m fn ii err_flags xname P Q args :
-  let: x := {| vname := xname; vtype := sword reg_size; |} in
-  x86_zeroize_flags err_flags (Some x) = ok args
-  -> zeroized_on vm x
-  -> let: lcmd := map (li_of_lopn_args ii) args in
-     is_linear_of lp fn (P ++ lcmd ++ Q)
-     -> exists2 vm',
-         let: ls :=
-           {|
-             lscs := scs;
-             lvm := vm;
-             lmem := m;
-             lfn := fn;
-             lpc := size P;
-           |}
-         in
-         let: ls' :=
-           {|
-             lscs := scs;
-             lvm := vm';
-             lmem := m;
-             lfn := fn;
-             lpc := size P + size lcmd;
-           |}
-         in
-         lsem lp ls ls'
-         & zeroized_on_vars vm vm' (map to_var rflags).
-Proof.
+  move=> lp scs vm m err_flags fn ii xname P Q args.
   move=> [?]; subst args.
   set lflags := LLvar _ :: _.
   move=> hx hbody.
@@ -903,188 +858,22 @@ Proof.
 
   split=> y; first last.
 
-  - rewrite /zeroized_on !in_cons.
+  - move=> /Sv_memP /sv_of_listP.
+    rewrite /= /zeroized_on !in_cons.
     repeat (move=> /orP [/eqP -> |]; first by t_get_var).
     done.
 
   move=> /sv_of_listP.
-  rewrite map_id !notin_cons.
+  rewrite !notin_cons.
   repeat (move=> /andP [] /eqP ?).
   move=> _.
   by t_vm_get.
 Qed.
 
-Lemma seq_diff_cat {X : eqType} (xs ys zs : seq X) :
-  seq_diff (xs ++ ys) zs = seq_diff xs zs ++ seq_diff ys zs.
-Proof. by rewrite /seq_diff filter_cat. Qed.
-
-Lemma seq_diff_disjoint {X : eqType} (xs ys : seq X) :
-  (forall x, x \in xs -> x \notin ys)
-  -> seq_diff xs ys = xs.
+Lemma x86_h_rz_cmd_args :
+  h_rz_cmd_args_spec (rz_cmd_args x86_rzparams) x86_h_rz_zeroized.
 Proof.
-  move=> h.
-  rewrite /seq_diff.
-  rewrite (eq_in_filter (a2 := predT)); first by rewrite filter_predT.
-  move=> y hy.
-  by rewrite (h _ hy).
-Qed.
-
-Lemma seq_diff_nil {X : eqType} (ys : seq X) :
-  seq_diff [::] ys = [::].
-Proof. done. Qed.
-
-Lemma x86_zeroize_flags_aux err_flags rzm xs rzflags vm vm' xregs :
-  let: regs := if rzm_registers rzm then xs else [::] in
-  x86_zeroize_flags err_flags (ohead regs) = ok rzflags
-  -> zeroized_on_vars vm vm' (regs ++ xregs)
-  -> rzm_registers rzm
-     /\ exists x tail,
-          xs = x :: tail /\ zeroized_on vm' x.
-Proof.
-  case: rzm_registers; last done.
-  case: xs => // x xs _ [hvm hzero].
-  split; first done.
-  eexists;
-    eexists;
-    split;
-    first reflexivity.
-  apply: hzero.
-  by rewrite mem_cat mem_head.
-Qed.
-
-Lemma x86_h_rz_cmd_args
-  lp scs vm m fn rzm xs err_flags err_register P Q args :
-  rz_cmd_args x86_rzparams rzm xs err_flags err_register = ok args
-  -> (forall x, x \in xs -> ~~ is_sbool (vtype x))
-  -> let: lcmd := map (li_of_lopn_args dummy_instr_info) args in
-     is_linear_of lp fn (P ++ lcmd ++ Q)
-     -> exists2 vm',
-          let: ls :=
-            {|
-              lscs := scs;
-              lvm := vm;
-              lmem := m;
-              lfn := fn;
-              lpc := size P;
-            |}
-          in
-          let: ls' :=
-            {|
-              lscs := scs;
-              lvm := vm';
-              lmem := m;
-              lfn := fn;
-              lpc := size P + size lcmd;
-            |}
-          in
-          lsem lp ls ls'
-          & zeroized_on_vars vm vm' (seq_diff (vars_of_rzm rzm) xs).
-Proof.
-  move=> h hxs hbody.
-
-  move: h.
-  rewrite /= /x86_rz_cmd_args.
-  rewrite /vars_of_rzm /registers_of_rzm /xregisters_of_rzm /flags_of_rzm.
-  set vregs : seq var := if rzm_registers _ then _ else _.
-  set vxregs : seq var := if rzm_xregisters _ then _ else _.
-  set vflags : seq var := if rzm_flags _ then _ else _.
-  t_xrbindP=> rzregisters hrzregisters rzflags hrzflags ?; subst args.
-
-  rewrite seq_diff_seq_diff.
-
-  (* Zeroize registers. *)
-  rewrite map_cat -!catA in hbody.
-  move: hrzregisters => /mapM_singleton hrzregisters.
-  rewrite -(conc_map_singleton _ rzregisters) in hbody.
-  have [scs0 [vm0 [m0 [hsem0 [hscs0 hm0 hzero0]]]]] :=
-    x86_zeroize_varsP scs vm m hrzregisters hbody.
-  rewrite conc_map_singleton in hsem0.
-  move: hscs0 hm0 => /= ? ?; subst scs0 m0.
-  clear hrzregisters.
-
-  (* Zeroize flags. *)
-  move: hrzflags.
-  subst vflags.
-  case hrzmf: rzm_flags; first last.
-
-  - move=> [?]; subst rzflags.
-    rewrite !cats0.
-    exists vm0; first exact: hsem0.
-    move: hzero0.
-    subst vregs vxregs.
-    case: rzm_registers;
-      case: rzm_xregisters => //;
-      last by rewrite cats0.
-    by rewrite seq_diff_cat.
-
-  remember (seq_diff _ _) as vars eqn:hvars.
-  move=> hrzflags.
-
-  (* [rzm_registers rzm] must be true. *)
-  subst vregs.
-  move: hvars hrzflags hzero0.
-  case hrzmr: rzm_registers; last done.
-  move=> hvars hrzflags hzero0.
-
-  (* [seq_diff vregs (Sv.elements callee_saved ++ xs)] must be non-empty. *)
-  move: hvars hrzflags hzero0.
-  case: vars => [// | x vars].
-  move=> hvars hrzflags hzero0.
-
-  have hvtype : vtype x = sword reg_size.
-  - have := mem_head x vars.
-    rewrite hvars mem_filter.
-    move=> /andP [] _.
-    by move=> /mapP [? _ ->].
-
-  move: hvars hrzflags hzero0.
-  move: x hvtype => [[|||[]] xname] // _.
-  set x := {| vname := xname; |}.
-  move=> hvars hrzflags hzero0.
-
-  have hx : zeroized_on vm0 x.
-  - move: hzero0 => [_ h]. apply: h. by rewrite mem_head.
-
-  rewrite catA in hbody.
-
-  have [vm1 hsem1 hzero1] := x86_zeroize_flagsP scs m hrzflags hx hbody.
-  rewrite conc_map_singleton in hsem1.
-
-  (* Put everything together. *)
-  exists vm1.
-  - apply: (lsem_trans hsem0). move: hsem1. by rewrite map_cat !size_cat addnA.
-
-  set vregs := map _ registers.
-  set vflags := map _ rflags.
-  have -> :
-    seq_diff (vregs ++ vxregs ++ vflags) (Sv.elements callee_saved ++ xs)
-    = (x :: vars)
-        ++ seq_diff vxregs (Sv.elements callee_saved ++ xs)
-        ++ map to_var rflags.
-  - rewrite !seq_diff_cat.
-    rewrite hvars.
-    f_equal.
-    f_equal.
-    rewrite seq_diff_disjoint; first done.
-    move=> y.
-    rewrite !in_cons.
-
-    have flags_notin_regs :
-      forall (f : rflag), to_var f \notin Sv.elements callee_saved ++ xs.
-    + move=> f.
-      rewrite mem_cat negb_or.
-      rewrite (flags_notin_callee_saved (asm_e := x86_extra)) /=.
-      apply/negP.
-      by move=> /hxs.
-
-    by repeat (move=> /orP [/eqP -> |]; first by rewrite flags_notin_regs).
-
-  clear hxs hvars.
-
-  subst vxregs.
-  rewrite (fun_if (fun x => seq_diff x (_ ++ _))).
-  rewrite seq_diff_nil catA.
-  exact: (zeroized_on_varsT hzero0 hzero1).
+  exact: (naive_rz_cmd_argsP _ _ _ x86_zeroize_varP x86_zeroize_flagsP).
 Qed.
 
 Definition x86_hrzparams : h_register_zeroization_params x86_rzparams :=
