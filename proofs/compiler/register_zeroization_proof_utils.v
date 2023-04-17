@@ -18,73 +18,9 @@ Require Import
   arch_decl
   arch_extra
   sem_params_of_arch_extra.
-Require
-  asm_gen
-  asm_gen_proof.
+Require asm_gen_proof.
 
 Import one_varmap.
-
-#[local]
-Existing Instance asm_gen.ovm_i.
-
-(* MOVE *)
-Lemma Sv_union_empty_r s :
-  Sv.Equal (Sv.union s Sv.empty) s.
-Proof. SvD.fsetdec. Qed.
-
-Lemma Sv_union_diff_diff s0 s1 s2 :
-  Sv.Equal
-    (Sv.union (Sv.diff s0 s2) (Sv.diff s1 s2))
-    (Sv.diff (Sv.union s0 s1) s2).
-Proof. SvD.fsetdec. Qed.
-
-Lemma Sv_diff_diff s0 s1 s2 :
-  Sv.Equal
-    (Sv.diff (Sv.diff s0 s1) s2)
-    (Sv.diff s0 (Sv.union s1 s2)).
-Proof. SvD.fsetdec. Qed.
-
-Lemma sv_of_list_filter (X : eqType) f s (xs : seq X) :
-  Sv.Equal
-    (sv_of_list f (filter (fun x => ~~ Sv.mem (f x) s) xs))
-    (Sv.diff (sv_of_list f xs) s).
-Proof.
-  move=> fx.
-  split.
-
-  - move=> /sv_of_listP /in_map [x hx ?]; subst fx.
-    move: hx => /InP.
-    rewrite mem_filter.
-    move=> /andP [hs hxs].
-    apply/Sv.diff_spec.
-    split; last by apply/Sv_memP.
-    apply: sv_of_listP.
-    by rewrite (map_f _ hxs).
-
-  move=> /Sv.diff_spec [hxs hs].
-  move: hxs => /sv_of_listP.
-  move=> /in_map [x hxs ?]; subst fx.
-  apply/sv_of_listP.
-  apply/in_map.
-  eexists; last done.
-  apply/InP.
-  rewrite mem_filter.
-  move: hs => /Sv_memP -> /=.
-  by apply/InP.
-Qed.
-
-Lemma filter_nil (X : eqType) p (xs : seq X) :
-  filter p xs = [::]
-  -> forall x, x \in xs -> ~~ p x.
-Proof.
-  move=> /eqP /negPn.
-  rewrite -has_filter.
-  by move=> /hasPn.
-Qed.
-
-
-
-
 
 Section RZP_UTILS.
 

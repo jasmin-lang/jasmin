@@ -1725,6 +1725,15 @@ Lemma notin_cons (T : eqType) (x y : T) (s : seq T) :
   (x \notin y :: s) = (x != y) && (x \notin s).
 Proof. by rewrite in_cons negb_or. Qed.
 
+Lemma filter_nil (X : eqType) p (xs : seq X) :
+  filter p xs = [::]
+  -> forall x, x \in xs -> ~~ p x.
+Proof.
+  move=> /eqP /negPn.
+  rewrite -has_filter.
+  by move=> /hasPn.
+Qed.
+
 (* Convert [ C |- uniq xs -> P ] into
    [ C, ? : x0 <> x1, ? : x0 <> x2, ... |- P ]. *)
 Ltac t_elim_uniq :=

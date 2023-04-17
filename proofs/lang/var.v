@@ -2,6 +2,7 @@
 Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings utils gen_map type ident.
+Require xseq.
 Require Import Utf8.
 
 Set Implicit Arguments.
@@ -690,6 +691,51 @@ Lemma Sv_neq_not_in_singleton x y :
   x <> y
   -> ~ Sv.In y (Sv.singleton x).
 Proof. SvD.fsetdec. Qed.
+
+Lemma Sv_union_empty_r s :
+  Sv.Equal (Sv.union s Sv.empty) s.
+Proof. SvD.fsetdec. Qed.
+
+Lemma Sv_union_diff_diff s0 s1 s2 :
+  Sv.Equal
+    (Sv.union (Sv.diff s0 s2) (Sv.diff s1 s2))
+    (Sv.diff (Sv.union s0 s1) s2).
+Proof. SvD.fsetdec. Qed.
+
+Lemma Sv_diff_diff s0 s1 s2 :
+  Sv.Equal
+    (Sv.diff (Sv.diff s0 s1) s2)
+    (Sv.diff s0 (Sv.union s1 s2)).
+Proof. SvD.fsetdec. Qed.
+
+Lemma sv_of_list_filter (X : eqType) f s (xs : seq X) :
+  Sv.Equal
+    (sv_of_list f (filter (fun x => ~~ Sv.mem (f x) s) xs))
+    (Sv.diff (sv_of_list f xs) s).
+Proof.
+  move=> fx.
+  split.
+
+  - move=> /sv_of_listP /xseq.in_map [x hx ?]; subst fx.
+    move: hx => /xseq.InP.
+    rewrite mem_filter.
+    move=> /andP [hs hxs].
+    apply/Sv.diff_spec.
+    split; last by apply/Sv_memP.
+    apply: sv_of_listP.
+    by rewrite (map_f _ hxs).
+
+  move=> /Sv.diff_spec [hxs hs].
+  move: hxs => /sv_of_listP.
+  move=> /xseq.in_map [x hxs ?]; subst fx.
+  apply/sv_of_listP.
+  apply/xseq.in_map.
+  eexists; last done.
+  apply/xseq.InP.
+  rewrite mem_filter.
+  move: hs => /Sv_memP -> /=.
+  by apply/xseq.InP.
+Qed.
 
 Lemma sv_of_list_elements s :
   Sv.Equal (sv_of_list id (Sv.elements s)) s.
