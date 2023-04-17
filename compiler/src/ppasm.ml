@@ -268,9 +268,9 @@ module ATT : BPrinter = struct
       Z.to_string disp
     else begin
       let disp = if Z.equal disp Z.zero then None else Some disp in
-      let disp = odfl "" (omap Z.to_string disp) in
-      let base = odfl "" (omap (pp_register ~reg_pre`U64) base) in
-      let off  = omap (pp_register ~reg_pre `U64) off in
+      let disp = Option.map_default Z.to_string "" disp in
+      let base = Option.map_default (pp_register ~reg_pre`U64) "" base in
+      let off  = Option.map (pp_register ~reg_pre `U64) off in
   
       match off, scal with
       | None, _ ->
@@ -328,9 +328,9 @@ module Intel : BPrinter = struct
       Z.to_string disp
     else 
       let disp = if Z.equal disp Z.zero then None else Some disp in
-      let disp = omap Z.to_string disp in
-      let base = omap (pp_register ~reg_pre `U64) base in
-      let off  = omap (pp_register ~reg_pre `U64) off in
+      let disp = Option.map Z.to_string disp in
+      let base = Option.map (pp_register ~reg_pre `U64) base in
+      let off  = Option.map (pp_register ~reg_pre `U64) off in
       let off = 
         match off with
         | Some so when scal <> O -> Some (Printf.sprintf "%s * %s" so (pp_scale scal))

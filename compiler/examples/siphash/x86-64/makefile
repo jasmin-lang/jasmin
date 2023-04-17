@@ -1,4 +1,4 @@
-JASMINC?=../../jasminc
+JASMINC ?= ../../../jasminc
 
 all: run
 	./run

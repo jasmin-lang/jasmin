@@ -671,7 +671,7 @@ let check_sig_lvs loc sig_ lvs =
 
   List.iter2
     (fun ty (loc, _, lty) -> lty
-      |> oiter (fun lty -> check_ty_eq ~loc ~from:ty ~to_:lty))
+      |> Option.may (fun lty -> check_ty_eq ~loc ~from:ty ~to_:lty))
      sig_ lvs;
 
   List.map2 (fun ty (_,flv,_) -> flv ty) sig_ lvs
@@ -1086,7 +1086,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PEGet (aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
-    let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in
+    let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
@@ -1190,7 +1190,7 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
       match k with
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
-  let ct = ct |> omap_dfl tt_ws pd in
+  let ct = ct |> Option.map_default tt_ws pd in
   (ct,L.mk_loc xlc x,e)
 
 (* -------------------------------------------------------------------- *)
@@ -1263,7 +1263,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
-    let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
+    let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
     check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
@@ -1377,8 +1377,8 @@ let tt_prim asmOp ws id args =
   (* TODO_ARM: Merge this. *)
   match !Glob_options.target_arch with
   | ARM_M4 ->
-      ofdfl
-        (fun () -> rs_tyerror ~loc (UnknownPrim s))
+      oget
+        ~exn:(tyerror ~loc (UnknownPrim s))
         (Tt_arm_m4.tt_prim (prim_string asmOp) s args)
   | X86_64 ->
       let c =
@@ -1533,7 +1533,7 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
                   | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (Var0.Var.vname r)))
           implicit in
 
-      let iargs = List.pmap (omap String.uppercase_ascii) arguments in
+      let iargs = List.pmap (Option.map String.uppercase_ascii) arguments in
     
       let check (id, _) = 
         let loc = L.loc id in
@@ -1593,7 +1593,7 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
             error (c,s) in
         let _, flv, vty = tt_lvalue pd env a in
         let e, ety = P.PappN (E.Ocombine_flags (List.assoc (L.unloc c) combines), args), P.tbool in
-        let e = vty |> omap_dfl (cast (L.loc a) e ety) e in
+        let e = vty |> Option.map_default (cast (L.loc a) e ety) e in
         let ety =
           match vty with
           | None -> ety
@@ -1768,7 +1768,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
   | PIAssign((None,[lv]), `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue pd env lv in
       let e, ety = tt_expr ~mode:`AllVar pd env pe in
-      let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
+      let e = vty |> Option.map_default (cast (L.loc pe) e ety) e in
       let ety =
         match vty with
         | None -> ety
@@ -1807,14 +1807,14 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
         match i with
         | { i_desc = P.Cassgn (x, _, ty, e) ; _ } :: is -> x, ty, e, is
         | _ -> rs_tyerror ~loc exn in
-      let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
+      let e' = oget ~exn:(tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool pd env cp in
       env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
 
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool pd env cp in
       let st = tt_block pd asmOp env st in
-      let sf = odfl [] (omap (tt_block pd asmOp env) sf) in
+      let sf = Option.map_default (tt_block pd asmOp env) [] sf in
       env, [mk_i (P.Cif (c, st, sf))]
 
   | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
@@ -1828,10 +1828,10 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
 
   | PIWhile (s1, c, s2) ->
       let c  = tt_expr_bool pd env c in
-      let s1 = omap_dfl (tt_block pd asmOp env) [] s1 in
-      let s2 = omap_dfl (tt_block pd asmOp env) [] s2 in
+      let s1 = Option.map_default (tt_block pd asmOp env) [] s1 in
+      let s2 = Option.map_default (tt_block pd asmOp env) [] s2 in
       let a = 
-        omap_dfl (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
+        Option.map_default (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
       let annot = Annot.consume "align" annot in
       env, [mk_i ~annot (P.Cwhile (a, s1, c, s2))]
 
@@ -1854,7 +1854,7 @@ let tt_funbody pd asmOp (env : 'asm Env.env) (pb : S.pfunbody) =
   let env, bdy = tt_cmd pd asmOp env pb.S.pdb_instr in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
-    List.map for1 (odfl [] pb.pdb_ret) in
+    List.map for1 (Option.default [] pb.pdb_ret) in
   (bdy, ret)
 
 
@@ -1957,8 +1957,10 @@ and add_reserved_c env c =
 
 and add_reserved_c' env c = add_reserved_c env (L.unloc c) 
 
-and add_reserved_oc env oc = 
-  ofold (fun c env -> add_reserved_c' env c) env oc
+and add_reserved_oc env =
+  function
+  | None -> env
+  | Some c -> add_reserved_c' env c
 
 (* -------------------------------------------------------------------- *)
 
@@ -1985,15 +1987,15 @@ let add_known_implicits env c =
 let tt_fundef pd asmOp (env : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
   if is_combine_flags pf.pdf_name then
     rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
-  let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
+  let inret = Option.map_default (List.map L.unloc) [] pf.pdf_body.pdb_ret in
   let dfl_mut x = List.mem x inret in
   
   let envb, args = 
     let env, args = List.map_fold (tt_annot_vardecls dfl_mut pd) env pf.pdf_args in
     let env = add_known_implicits env pf.pdf_body.pdb_instr in
     env, List.flatten args in
-  let rty  = odfl [] (omap (List.map (tt_type pd env |- snd |- snd)) pf.pdf_rty) in
-  let oannot = odfl [] (omap (List.map fst) pf.pdf_rty) in
+  let rty  = Option.map_default (List.map (tt_type pd env |- snd |- snd)) [] pf.pdf_rty in
+  let oannot = Option.map_default (List.map fst) [] pf.pdf_rty in
   let body, xret = tt_funbody pd asmOp envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in

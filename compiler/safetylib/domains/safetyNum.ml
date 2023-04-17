@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Prog
 open Apron
@@ -68,8 +69,8 @@ let thresholds_vars env =
 
 
 let thresholds_param env param =
-  let param_pts  = Utils.odfl [] param.pointers
-  and param_rels = Utils.odfl [] param.relationals  in
+  let param_pts  = Option.default [] param.pointers
+  and param_rels = Option.default [] param.relationals  in
 
   let vars = fst (Environment.vars env)
              |> Array.to_list in
@@ -321,7 +322,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     arr
 
   let thrs_of_oc oc env =
-    match omap_dfl (fun x -> Mtcons.to_lincons x env) None oc with
+    match Option.map_default (fun x -> Mtcons.to_lincons x env) None oc with
     | None -> []
     | Some lc -> [lc]
 
@@ -334,7 +335,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
    *   Abstract1.meet_lincons_array man res to_add *)
 
   let compute_thresholds env oc =
-    let vars = omap_dfl (fun c -> 
+    let vars = Option.map_default (fun c ->
         Mtexpr.get_var (Mtcons.get_expr c)
       ) [] oc in
     let thrs_vars = 
@@ -671,7 +672,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     let int = bound_texpr_man man a (Mtcons.get_expr c) in
     let oi = interval_to_zint int in
 
-    Utils.omap_dfl (fun i -> match Mtcons.get_typ c with
+    Option.map_default (fun i -> match Mtcons.get_typ c with
         | Tcons0.DISEQ -> Z.equal i Z.zero
         | Tcons0.EQ    -> not (Z.equal i Z.zero)
         | Tcons0.SUP   -> Z.leq i Z.zero

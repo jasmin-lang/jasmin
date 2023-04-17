@@ -15,15 +15,16 @@ find:compiler/src:*.ml
 find:compiler/src:*.mli
 find:compiler/src:*.mll
 find:compiler/src:*.mly
-compiler/entry/jasminc.ml
+find:compiler/entry:*.ml
+find:compiler/safetylib:*.ml
+find:compiler/safetylib:*.mli
 compiler/src/LICENSE.puf
 compiler/scripts/runtest
 compiler/Makefile
-compiler/dune
+find:compiler:dune
 compiler/dune-project
-compiler/src/dune
 compiler/jasmin.opam
-compiler/CIL/.keep
+compiler/src/CIL/.keep
 compiler/config/tests.config
 
 # EasyCrypt library

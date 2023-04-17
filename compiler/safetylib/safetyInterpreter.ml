@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Prog
 open Apron
@@ -396,7 +397,7 @@ let in_cp_var v = match v with
   | _ -> None
 
 let fun_in_args_no_offset f_decl =
-  fun_args_no_offset f_decl |> List.map in_cp_var
+  fun_args_no_offset f_decl |> List.pmap in_cp_var
 
 let get_mem_range env = List.map (fun x -> MmemRange x) env.m_locs
 
@@ -554,7 +555,7 @@ end = struct
       let abs = AbsExpr.apply_glob glob_decls abs in
 
       (* We extend the environment to its local variables *)
-      let f_vars = (List.map otolist f_in_args |> List.flatten)
+      let f_vars = (List.pmap (fun x -> x) f_in_args)
                    @ fun_vars ~expand_arrays:true main_decl env in
 
       let abs = AbsDom.change_environment abs f_vars in
@@ -1810,7 +1811,7 @@ end = struct
 
         let exit_loop state =
           debug (fun () -> Format.eprintf "Exit loop@;");
-          match obind flip_btcons (oec state.abs) with
+          match Option.bind (oec state.abs) flip_btcons with
           | Some neg_ec ->
             debug (fun () -> Format.eprintf "Meet with %a@;" pp_btcons neg_ec);
             { state with abs = AbsDom.meet_btcons state.abs neg_ec }
@@ -1821,7 +1822,7 @@ end = struct
            candidate decreasing numerical quantity to make the threshold. *)
         let smpl_thrs abs = match simpl_obtcons (oec abs) with
           | Some _ as constr -> constr
-          | None -> omap (fun e -> Mtcons.make e Lincons1.SUP) ni_e in
+          | None -> Option.map (fun e -> Mtcons.make e Lincons1.SUP) ni_e in
             
         let rec stabilize state pre_state =
           if is_stable state pre_state then exit_loop state
@@ -2008,7 +2009,7 @@ end = struct
       else
         (* FIXME: check that the fact that we do not introduce a 
            disjunction node does not create issues. *)
-        let noec = obind flip_btcons oec in
+        let noec = Option.bind oec flip_btcons in
         ( eval_cond state oec, eval_cond state noec ) in
 
     (* Branches evaluation *)
@@ -2070,9 +2071,7 @@ end = struct
       Interval.print int
 
   let mem_ranges_printer state f_decl fmt () =
-    let in_vars = fun_in_args_no_offset f_decl
-                  |> List.map otolist
-                  |> List.flatten in
+    let in_vars = fun_in_args_no_offset f_decl in
     let vars_to_keep = in_vars @ get_mem_range state.env in
     let vars = in_vars @ fun_vars ~expand_arrays:false f_decl state.env in
     let rem_vars = List.fold_left (fun acc v ->
@@ -2179,7 +2178,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
 
   let analyze asmOp () =
     try     
-    let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
+    let ps_assoc = Option.map_default parse_params
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
 

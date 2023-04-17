@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Apron
 
@@ -167,8 +168,8 @@ module AbsNumCongr : AbsNumType = struct
       
   let app2 f a b =
     Mm.merge (fun _ c c' ->
-        let c  = odfl Congr.top c
-        and c' = odfl Congr.top c' in
+        let c  = Option.default Congr.top c
+        and c' = Option.default Congr.top c' in
         Some (f c c')) a b
 
   let appl f l = match l with
@@ -189,8 +190,8 @@ module AbsNumCongr : AbsNumType = struct
 
   let is_included a a' =
     let am =
-      Mm.merge (fun _ x y' -> Some (odfl Congr.top x,
-                                    odfl Congr.top y'))
+      Mm.merge (fun _ x y' -> Some (Option.default Congr.top x,
+                                    Option.default Congr.top y'))
         a a' in
     Mm.for_all (fun _ (x,y) -> Congr.is_included x y) am
     

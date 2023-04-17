@@ -72,47 +72,11 @@ let snd_map (f : 'b -> 'c) ((x, y) : 'a * 'b) =
 module Option = BatOption
 
 (* -------------------------------------------------------------------- *)
-let oiter (f : 'a -> unit) (x : 'a option) =
-  match x with None -> () | Some x -> f x
-
-let obind (f : 'a -> 'b option) (x : 'a option) =
-  match x with None -> None | Some x -> f x
-
-let otolist (x : 'a option) =
-  match x with None -> [] | Some x -> [x]
-
-let ofold (f : 'a -> 'b -> 'b) (v : 'b) (x : 'a option) =
-  match x with
-  | None   -> v
-  | Some x -> f x v
-
-let omap (f : 'a -> 'b) (x : 'a option) =
-  match x with None -> None | Some x -> Some (f x)
-
-let omap_dfl (f : 'a -> 'b) (d : 'b) (x : 'a option) =
-  match x with None -> d  | Some x -> f x
-
-let odfl (d : 'a) (x : 'a option) =
-  match x with None -> d | Some x -> x
-
-let ofdfl (d : unit -> 'a) (x : 'a option) =
-  match x with None -> d () | Some x -> x
-
 let oget ?exn (x : 'a option) =
   match x, exn with
   | None  , None     -> assert false
   | None  , Some exn -> raise exn
   | Some x, _        -> x
-
-(* -------------------------------------------------------------------- *)
-let iterop (op : 'a -> 'a) (n : int) (x : 'a) =
-  let rec doit n x = if n <= 0 then x else doit (n-1) (op x) in
-  if n < 0 then invalid_arg "[iterop]: n < 0";
-  doit n x
-
-(* -------------------------------------------------------------------- *)
-let iter (op : 'a -> 'a) (x : 'a) =
-  let rec doit x = doit (op x) in doit x
 
 (* -------------------------------------------------------------------- *)
 module Uniq = struct

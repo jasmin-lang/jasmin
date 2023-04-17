@@ -49,19 +49,7 @@ val fst_map : ('a -> 'c) -> 'a * 'b -> 'c * 'b
 val snd_map : ('b -> 'c) -> 'a * 'b -> 'a * 'c
 
 (* -------------------------------------------------------------------- *)
-val oiter      : ('a -> unit) -> 'a option -> unit
-val obind      : ('a -> 'b option) -> 'a option -> 'b option
-val ofold      : ('a -> 'b -> 'b) -> 'b -> 'a option -> 'b
-val omap       : ('a -> 'b) -> 'a option -> 'b option
-val odfl       : 'a -> 'a option -> 'a
-val ofdfl      : (unit -> 'a) -> 'a option -> 'a
 val oget       : ?exn:exn -> 'a option -> 'a
-val otolist    : 'a option -> 'a list
-val omap_dfl   : ('a -> 'b) -> 'b -> 'a option -> 'b
-
-(* -------------------------------------------------------------------- *)
-val iterop: ('a -> 'a) -> int -> 'a -> 'a
-val iter: ('a -> 'a) -> 'a -> 'b
 
 (* -------------------------------------------------------------------- *)
 module Uniq : sig

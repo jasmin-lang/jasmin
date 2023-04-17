@@ -405,8 +405,8 @@ let error_of_cerror pp_err tbl e =
   let open Utils in
   let msg = Format.dprintf "%a" pp_err e.Compiler_util.pel_msg in
   let iloc = iloc_of_loc e in
-  let funname = omap (fun fn -> (fun_of_cfun tbl fn).fn_name) e.pel_fn in
-  let pass = omap string_of_string0 e.pel_pass in
+  let funname = Option.map (fun fn -> (fun_of_cfun tbl fn).fn_name) e.pel_fn in
+  let pass = Option.map string_of_string0 e.pel_pass in
   { err_msg = msg;
     err_loc = iloc;
     err_funname = funname;
