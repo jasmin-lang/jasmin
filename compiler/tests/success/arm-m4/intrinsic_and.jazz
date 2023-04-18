@@ -14,23 +14,23 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
     [x] = x;
 
     // Shifts.
-    x = #AND(arg0, arg1, #LSL(0));
+    x = #AND(arg0, arg1 << 0);
     [x] = x;
-    x = #AND(arg0, arg1, #LSL(1));
+    x = #AND(arg0, arg1 << 1);
     [x] = x;
-    x = #AND(arg0, arg1, #LSL(31));
+    x = #AND(arg0, arg1 << 31);
     [x] = x;
-    x = #AND(arg0, arg1, #LSR(1));
+    x = #AND(arg0, arg1 >> 1);
     [x] = x;
-    x = #AND(arg0, arg1, #LSR(31));
+    x = #AND(arg0, arg1 >> 31);
     [x] = x;
-    x = #AND(arg0, arg1, #ASR(1));
+    x = #AND(arg0, arg1 >>s 1);
     [x] = x;
-    x = #AND(arg0, arg1, #ASR(31));
+    x = #AND(arg0, arg1 >>s 31);
     [x] = x;
-    x = #AND(arg0, arg1, #ROR(1));
+    x = #AND(arg0, arg1 >>r 1);
     [x] = x;
-    x = #AND(arg0, arg1, #ROR(31));
+    x = #AND(arg0, arg1 >>r 31);
     [x] = x;
 
     // Set flags.
@@ -71,24 +71,24 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
     // Combinations.
     nf, zf, cf, x = #ANDScc(x, arg0, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #ANDS(x, 2);
-    nf, zf, cf, x = #ANDS(x, arg0, #LSL(3));
-    nf, zf, cf, x = #ANDS(x, arg0, #LSR(3));
-    nf, zf, cf, x = #ANDS(x, arg0, #ASR(3));
-    nf, zf, cf, x = #ANDS(x, arg0, #ROR(3));
+    nf, zf, cf, x = #ANDS(x, arg0 << 3);
+    nf, zf, cf, x = #ANDS(x, arg0 >> 3);
+    nf, zf, cf, x = #ANDS(x, arg0 >>s 3);
+    nf, zf, cf, x = #ANDS(x, arg0 >>r 3);
     nf, zf, cf, x = #ANDScc(x, 2, nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #ANDScc(x, arg0, #LSL(3), nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #ANDScc(x, arg0, #LSL(3), !!(nf == vf), nf, zf, cf, x);
-    nf, zf, cf, x = #ANDScc(x, arg0, #LSR(3), nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #ANDScc(x, arg0, #ASR(3), nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #ANDScc(x, arg0, #ROR(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #ANDScc(x, arg0 << 3, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #ANDScc(x, arg0 << 3, !!(nf == vf), nf, zf, cf, x);
+    nf, zf, cf, x = #ANDScc(x, arg0 >> 3, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #ANDScc(x, arg0 >>s 3, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #ANDScc(x, arg0 >>r 3, nf == vf, nf, zf, cf, x);
     x = #ANDcc(x, arg0, !!!!zf, x);
     x = #ANDcc(x, 2, zf, x);
     x = #ANDcc(x, 2, !!zf, x);
-    x = #ANDcc(x, arg0, #LSL(3), zf, x);
-    x = #ANDcc(x, arg0, #LSL(3), !!zf, x);
-    x = #ANDcc(x, arg0, #LSR(3), zf, x);
-    x = #ANDcc(x, arg0, #ASR(3), zf, x);
-    x = #ANDcc(x, arg0, #ROR(3), zf, x);
+    x = #ANDcc(x, arg0 << 3, zf, x);
+    x = #ANDcc(x, arg0 << 3, !!zf, x);
+    x = #ANDcc(x, arg0 >> 3, zf, x);
+    x = #ANDcc(x, arg0 >>s 3, zf, x);
+    x = #ANDcc(x, arg0 >>r 3, zf, x);
 
     reg u32 res;
     res = x;

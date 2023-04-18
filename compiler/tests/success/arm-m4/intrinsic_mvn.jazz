@@ -14,23 +14,23 @@ fn mvn(reg u32 arg0) -> reg u32 {
     [x] = x;
 
     // Shifts.
-    x = #MVN(arg0, #LSL(0));
+    x = #MVN(arg0 << 0);
     [x] = x;
-    x = #MVN(arg0, #LSL(1));
+    x = #MVN(arg0 << 1);
     [x] = x;
-    x = #MVN(arg0, #LSL(31));
+    x = #MVN(arg0 << 31);
     [x] = x;
-    x = #MVN(arg0, #LSR(1));
+    x = #MVN(arg0 >> 1);
     [x] = x;
-    x = #MVN(arg0, #LSR(31));
+    x = #MVN(arg0 >> 31);
     [x] = x;
-    x = #MVN(arg0, #ASR(1));
+    x = #MVN(arg0 >>s 1);
     [x] = x;
-    x = #MVN(arg0, #ASR(31));
+    x = #MVN(arg0 >>s 31);
     [x] = x;
-    x = #MVN(arg0, #ROR(1));
+    x = #MVN(arg0 >>r 1);
     [x] = x;
-    x = #MVN(arg0, #ROR(31));
+    x = #MVN(arg0 >>r 31);
     [x] = x;
 
     // Set flags.
@@ -71,24 +71,24 @@ fn mvn(reg u32 arg0) -> reg u32 {
     // Combinations.
     nf, zf, cf, x = #MVNScc(arg0, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #MVNS(2);
-    nf, zf, cf, x = #MVNS(arg0, #LSL(3));
-    nf, zf, cf, x = #MVNS(arg0, #LSR(3));
-    nf, zf, cf, x = #MVNS(arg0, #ASR(3));
-    nf, zf, cf, x = #MVNS(arg0, #ROR(3));
+    nf, zf, cf, x = #MVNS(arg0 << 3);
+    nf, zf, cf, x = #MVNS(arg0 >> 3);
+    nf, zf, cf, x = #MVNS(arg0 >>s 3);
+    nf, zf, cf, x = #MVNS(arg0 >>r 3);
     nf, zf, cf, x = #MVNScc(2, nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #MVNScc(arg0, #LSL(3), nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #MVNScc(arg0, #LSL(3), !!(nf == vf), nf, zf, cf, x);
-    nf, zf, cf, x = #MVNScc(arg0, #LSR(3), nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #MVNScc(arg0, #ASR(3), nf == vf, nf, zf, cf, x);
-    nf, zf, cf, x = #MVNScc(arg0, #ROR(3), nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0 << 3, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0 << 3, !!(nf == vf), nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0 >> 3, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0 >>s 3, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #MVNScc(arg0 >>r 3, nf == vf, nf, zf, cf, x);
     x = #MVNcc(arg0, !!!!zf, x);
     x = #MVNcc(2, zf, x);
     x = #MVNcc(2, !!zf, x);
-    x = #MVNcc(arg0, #LSL(3), zf, x);
-    x = #MVNcc(arg0, #LSL(3), !!zf, x);
-    x = #MVNcc(arg0, #LSR(3), zf, x);
-    x = #MVNcc(arg0, #ASR(3), zf, x);
-    x = #MVNcc(arg0, #ROR(3), zf, x);
+    x = #MVNcc(arg0 << 3, zf, x);
+    x = #MVNcc(arg0 << 3, !!zf, x);
+    x = #MVNcc(arg0 >> 3, zf, x);
+    x = #MVNcc(arg0 >>s 3, zf, x);
+    x = #MVNcc(arg0 >>r 3, zf, x);
 
     reg u32 res;
     res = x;
