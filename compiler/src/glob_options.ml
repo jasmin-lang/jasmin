@@ -10,6 +10,7 @@ let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let ec_array_path = ref Filename.current_dir_name
+let slice = ref []
 let check_safety = ref false
 let safety_param = ref None
 let safety_config = ref None
@@ -66,6 +67,9 @@ let set_ec f =
 
 let set_ec_array_path p =
   ec_array_path := p
+
+let set_slice f =
+  slice := f :: !slice
 
 let set_constTime () = model := ConstantTime
 let set_safety () = model := Safety
@@ -168,6 +172,7 @@ let options = [
     "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
     "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
     "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
+    "-slice"    , Arg.String set_slice  , "[f]: keep function [f] and all what it needs";
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,

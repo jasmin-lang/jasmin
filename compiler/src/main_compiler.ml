@@ -150,6 +150,12 @@ let main () =
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
 
+    let prog =
+      if !slice <> []
+      then Slicing.slice !slice prog
+      else prog
+    in
+
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
