@@ -389,13 +389,43 @@ Definition lower_add_carry
       None
   end.
 
-(* TODO_ARM: Lower shifts. *)
+Definition with_shift opts sh :=
+  {| set_flags := set_flags opts; is_conditional := is_conditional opts; has_shift := Some sh |}.
+
 Definition lower_base_op
   (lvs : seq lval) (aop : arm_op) (es : seq pexpr) : option copn_args :=
-  let '(ARM_op mn opts) := aop in
-  if mn \in has_shift_mnemonics
-  then Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
-  else None.
+  let: ARM_op mn opts := aop in
+  if has_shift opts != None
+  then
+    if mn \in has_shift_mnemonics
+    then Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+    else None
+  else
+    if MVN == mn
+    then
+      match es with
+      | x :: rest =>
+          if get_arg_shift U32 [:: x ] is Some (ebase, sh, esham)
+          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), ebase :: esham :: rest)
+          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+      | _ => None end
+    else if mn \in [:: ADD; SUB; RSB; AND; BIC; EOR; ORR; CMP; TST ]
+    then
+      match es with
+      | x :: y :: rest =>
+          if get_arg_shift U32 [:: y ] is Some (ebase, sh, esham)
+          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), x :: ebase :: esham :: rest)
+          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+      | _ => None end
+    else if ADC == mn
+    then
+      match es with
+      | x :: y :: z :: rest =>
+          if get_arg_shift U32 [:: y ] is Some (ebase, sh, esham)
+          then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), x :: ebase :: z :: esham :: rest)
+          else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+      | _ => None end
+    else None.
 
 Definition lower_copn
   (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=

@@ -435,16 +435,16 @@ Qed.
 
 (* Note that the interpretation of the expression is [zero_extend reg_size w]
    due to the implicit castings in [sem]. *)
-Lemma get_arg_shiftP s e ws ws0 (w : word ws0) e' sh n :
+Lemma get_arg_shiftP s e ws w e' sh n :
   get_arg_shift ws [:: e ] = Some (e', sh, n)
   -> disj_fvars (read_e e)
-  -> sem_pexpr (p_globs p) s e = ok (Vword w)
+  -> sem_pexpr (p_globs p) s e = ok w
   -> exists ws1 (wbase : word ws1) (wsham : word U8),
        [/\ (ws <= ws1)%CMP
          , sem_pexpr (p_globs p) s e' = ok (Vword wbase)
          , sem_pexpr (p_globs p) s n = ok (Vword wsham)
-         , zero_extend reg_size w
-           = shift_op sh (zero_extend reg_size wbase) (wunsigned wsham)
+         , to_word reg_size w
+           = ok (shift_op sh (zero_extend reg_size wbase) (wunsigned wsham))
          & (disj_fvars (read_e e') /\ disj_fvars (read_e n))
        ].
 Proof.
@@ -479,8 +479,7 @@ Proof.
   all: rewrite /mk_sem_sop2 /=.
   all: move=> [?]; subst wres.
 
-  all: move: hw => /Vword_inj [?]; subst ws0.
-  all: move=> /= ?; subst w.
+  all: subst w.
 
   all: rewrite hget {hget} /=.
 
@@ -494,7 +493,7 @@ Proof.
 
   all: rewrite /sem_shr /sem_shl /sem_sar /sem_ror /=.
   all: rewrite /sem_shift /=.
-  all: rewrite !zero_extend_u.
+  all: rewrite !zero_extend_u !truncate_word_u.
   all: reflexivity.
 Qed.
 
@@ -680,13 +679,14 @@ Proof.
   move: hw => /Vword_inj [?]; subst ws'.
   move=> /= ?; subst w.
 
-  move: hw' => /to_wordI [ws0 [w0' [? /truncate_wordP [hws0 ?]]]]; subst v w'.
   rewrite /arg_shift.
   case hshift: get_arg_shift => [[[e' sh] sham]|] /=.
 
-  - have [ws1 [wbase [wsham [hws1 hbase hsham -> [hfvbase hfvsham]]]]] :=
+  - have [ws1 [wbase [wsham [hws1 hbase hsham hv [hfvbase hfvsham]]]]] :=
       get_arg_shiftP hshift hfve hseme.
-    clear hshift hseme hfve w0'.
+    case/to_wordI': hv => ws [] w'' []  hws ? hv; subst v.
+    case/truncate_wordP: hw' => hws0 ?; subst w'.
+    clear hshift hseme hfve.
     move=> [? ?]; subst aop es.
     have hfves := disj_fvars_read_es2 hfvbase hfvsham.
     clear hfvbase hfvsham.
@@ -697,7 +697,7 @@ Proof.
     eexists; first reflexivity.
     rewrite /exec_sopn /=.
     rewrite /truncate_word hws1 {hws1} /=.
-    by rewrite !zero_extend_u.
+    by rewrite !zero_extend_u hv.
 
   clear hshift.
   move=> [? ?]; subst aop es.
@@ -706,8 +706,7 @@ Proof.
   rewrite hseme {hseme} /=.
   eexists; first reflexivity.
   rewrite /exec_sopn /=.
-  rewrite /truncate_word hws0 /=.
-  by rewrite zero_extend_u.
+  by rewrite hw' /= zero_extend_u.
 Qed.
 
 Lemma mk_sem_divmodP ws op (w0 w1 : word ws) w :
@@ -805,6 +804,7 @@ Proof.
       all: have hfves := disj_fvars_read_es3 hfve0 hfvbase hfvsham.
       all: split; last done.
       all: clear hfve0 hfvbase hfvsham hfves.
+      all: case/truncate_wordP: hw1 => _ hw1.
 
       all: rewrite /=.
       all: rewrite hseme0 hbase hsham {hseme0 hbase hsham} /=.
@@ -821,8 +821,7 @@ Proof.
       5: rewrite -(wxor_zero_extend _ _ hws).
 
       all: rewrite !(zero_extend_idem _ hws).
-      all: rewrite hw1 {hw1} /=.
-      all: by rewrite !zero_extend_u.
+      all: by rewrite zero_extend_u hw1.
    }
 
   all: move=> [? ? ?]; subst mn' opts es.
@@ -1279,25 +1278,181 @@ Proof.
   all: by move=> -> /= ->.
 Qed.
 
+Section WITH_SHIFT_OP.
+
+#[ local ]
+Ltac intro_opn_args :=
+  rewrite /sem_tuple /=;
+  repeat
+    match goal with
+    | [ |- forall (_ : _ * _), _ ] => move=> []
+    | [ |- forall (_ : option bool), _ ] => move=> ?
+    | [ |- forall (_ : _ (word _)), _ ] => move=> ?
+    end.
+
+#[ local ]
+Ltac destruct_opn_args :=
+  repeat (t_xrbindP=> -[|?]; first done);
+  (t_xrbindP=> -[]; last done).
+
+#[local]
+Ltac intro_args_wrapper hys hts :=
+  intro_opn_args;
+  rewrite /truncate_word hys hts => -> _ /ok_inj <-.
+
+#[local]
+Ltac destruct_args_wrapper vs :=
+  move: vs;
+  destruct_opn_args;
+  repeat (move=> ? ->).
+
+(* Rewrite result of execution. If we are under conditional execution, find
+   the condition and case on it, the case when the instruction is not
+   executiod is trivial.
+   We can't match on [sopn_sem] because of the dependent types. *)
+#[local]
+Ltac rewrite_exec :=
+  let h := fresh "h" in
+  move=> /= h ?;
+  subst;
+  move: h;
+  let mytac := move=> /ok_inj; (move=> <- || move=> [] *; subst) in
+  match goal with
+  | [ b : bool |- context [{| is_conditional := true |}] ] =>
+      case: b; mytac; last done
+  end
+  || mytac;
+  rewrite /= !zero_extend_u.
+
+Lemma with_shift_unop s eb ea ts (b: word ts) (a: u8) x vs sh opts r :
+  (U32 ≤ ts)%CMP ->
+  has_shift opts = None ->
+  sem_pexpr (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr (p_globs p) s ea = ok (Vword a) ->
+  to_word reg_size x = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op MVN opts))) [:: x & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op MVN (with_shift opts sh) ))) [:: Vword b, Vword a & vs] = ok r.
+Proof.
+  case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] xs [] wx [] hxs ->{x} hx.
+  case: cc S => - [].
+  all: rewrite /exec_sopn /=; t_xrbindP.
+  all: intro_opn_args; rewrite /truncate_word hxs hts => /ok_inj <-.
+  all: destruct_args_wrapper vs.
+  all: rewrite_exec.
+  all: by rewrite hx.
+Qed.
+
+Lemma with_shift_binop mn s eb ea ts (b: word ts) (a: u8) x y vs sh opts r :
+  mn \in [:: ADD; SUB; RSB; AND; BIC; EOR; ORR; CMP; TST] ->
+  (U32 ≤ ts)%CMP ->
+  has_shift opts = None ->
+  sem_pexpr (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr (p_globs p) s ea = ok (Vword a) ->
+  to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, Vword a & vs] = ok r.
+Proof.
+  rewrite !inE.
+  case: opts => S cc /= _ mn_binop hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
+  case: cc S => - [].
+  all: repeat case/orP: mn_binop => [ /eqP -> { mn } | mn_binop ]; last move/eqP: mn_binop => -> { mn }.
+  all: rewrite /exec_sopn /=; t_xrbindP.
+  all: intro_args_wrapper hys hts.
+  all: destruct_args_wrapper vs.
+  all: rewrite_exec.
+  all: by rewrite hy.
+Qed.
+
+Lemma with_shift_terop s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
+  (U32 ≤ ts)%CMP ->
+  has_shift opts = None ->
+  sem_pexpr (p_globs p) s eb = ok (Vword b) ->
+  sem_pexpr (p_globs p) s ea = ok (Vword a) ->
+  to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op ADC opts))) [:: x, y, z & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op ADC (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
+Proof.
+  case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
+  case: S cc => - [].
+  all: rewrite /exec_sopn /=; t_xrbindP.
+  all: intro_args_wrapper hys hts.
+  all: destruct_args_wrapper vs.
+  all: rewrite_exec.
+  all: by rewrite hy.
+Qed.
+
+End WITH_SHIFT_OP.
+
 Lemma lower_base_op s0 s1 lvs tag aop es lvs' op' es' :
-  sem_i p' ev s0 (Copn lvs tag (Oasm (BaseOp (None, aop))) es) s1
+  disj_fvars (read_es es)
+  -> sem_i p' ev s0 (Copn lvs tag (Oasm (BaseOp (None, aop))) es) s1
   -> lower_base_op lvs aop es = Some (lvs', op', es')
   -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
 Proof.
   move: aop => [mn opts].
-  move=> hsemi.
+  move=> hfve hsemi.
   rewrite /lower_base_op.
-  case: (_ \in _) => //.
-  move=> [? ? ?]; subst lvs' op' es'.
-  exact: hsemi.
+  assert (default : forall lvs' op' es', Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es) = Some (lvs', op', es') -> sem_i p' ev s0 (Copn lvs' tag op' es') s1).
+  - move: hsemi; clear => hsemi lvs' op' es' /Some_inj[? ? ?]; subst lvs' op' es'.
+    exact: hsemi.
+  case: ifP.
+  - case: (_ \in _) => // _.
+    exact: default.
+  move/eqP => no_shift.
+  case: eqP => mn_mvn.
+  - subst mn.
+    case: es hsemi hfve default => // x es hsemi hfve default.
+    case x_has_shift: get_arg_shift => [ [ [] ebase sh esham ] | ] ; last exact: default.
+    case/Some_inj => <-{lvs'} <-{op'} <-{es'}.
+    constructor.
+    have {} hfve : disj_fvars (read_e x).
+    + move: hfve; clear.
+      by rewrite /disj_fvars read_es_cons => /disjoint_union[].
+    move/sem_iE: hsemi.
+    rewrite /sem_sopn /=; t_xrbindP => r _ w hx ws hes <- hr hwrite.
+    have [ ts [] t [] wsham [] hts ht hwsham hw [] hfb hfa ] := get_arg_shiftP x_has_shift hfve hx.
+    rewrite ht hwsham hes /=.
+    have -> /= := with_shift_unop hts no_shift ht hwsham hw hr.
+    exact: hwrite.
+  case: ifP => mn_binop.
+  - case: es hsemi hfve default => // x [] // y es hsemi hfve default.
+    case y_has_shift: get_arg_shift => [ [ [] ebase sh esham ] | ] ; last exact: default.
+    case/Some_inj => <-{lvs'} <-{op'} <-{es'}.
+    constructor.
+    have {} hfve : disj_fvars (read_e y).
+    + move: hfve; clear.
+      by rewrite /disj_fvars !read_es_cons => /disjoint_union[] _ /disjoint_union[].
+    move/sem_iE: hsemi.
+    rewrite /sem_sopn /=; t_xrbindP => r _ w -> _ z hy ws hes <- <- hr hwrite.
+    have [ ts [] t [] wsham [] hts ht hwsham hw [] hfb hfa ] := get_arg_shiftP y_has_shift hfve hy.
+    rewrite ht hwsham hes /=.
+    have -> /= := with_shift_binop mn_binop hts no_shift ht hwsham hw hr.
+    exact: hwrite.
+  case: eqP => // ?.
+  subst mn.
+  case: es hsemi hfve default => // x [] // y [] // z es hsemi hfve default.
+  case y_has_shift: get_arg_shift => [ [ [] ebase sh esham ] | ] ; last exact: default.
+  case/Some_inj => <-{lvs'} <-{op'} <-{es'}.
+  constructor.
+  have {} hfve : disj_fvars (read_e y).
+  + move: hfve; clear.
+    by rewrite /disj_fvars !read_es_cons => /disjoint_union[] _ /disjoint_union[].
+  move/sem_iE: hsemi.
+  rewrite /sem_sopn; t_xrbindP => r ws hes hr hwrite.
+  move: hes; rewrite /=; t_xrbindP => ? -> /= _ ? hy _ ? -> ? hes <- <- ?; subst ws.
+  have [ ts [] t [] wsham [] hts ht hwsham hw [] hfb hfa ] := get_arg_shiftP y_has_shift hfve hy.
+  rewrite ht hwsham hes /=.
+  have -> /= := with_shift_terop hts no_shift ht hwsham hw hr.
+  exact: hwrite.
 Qed.
 
 Lemma lower_copnP s0 s1 lvs tag op es lvs' op' es' :
-  sem_i p' ev s0 (Copn lvs tag op es) s1
+  disj_fvars (read_es es)
+  -> sem_i p' ev s0 (Copn lvs tag op es) s1
   -> lower_copn lvs op es = Some (lvs', op', es')
   -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
 Proof.
-  case: op => // [[] | [[[] aop]|]] //.
+  case: op => // [[] | [[[] aop]|]] // hfve.
   - exact: lower_add_carryP.
   exact: lower_base_op.
 Qed.
@@ -1427,10 +1582,10 @@ Proof.
     rewrite (eeq_exc_sem_pexprs hfve hs00 hsemes) {hfve hs00 hsemes} /=.
     rewrite hexec /=.
     exact: hwrite'.
-  clear hfve hs00 hsemes hwrite'.
+  clear hs00 hsemes hwrite'.
 
   case h: lower_copn => [[[lvs' op'] es']|].
-  - exact: (lower_copnP hcopn h).
+  - exact: (lower_copnP hfve hcopn h).
   exact: hcopn.
 Qed.
 
