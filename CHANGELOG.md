@@ -55,6 +55,11 @@
   when the `-nocheckalignment` command-line flag is given
   ([PR #401](https://github.com/jasmin-lang/jasmin/pull/401)).
 
+- The `jasminc` tool may process only a slice of the input program, when one or
+  more `-slice f` arguments are given on the command line; slicing occurs after
+  expansion of parameters and its result can be observed with `-pcstexp`
+  ([PR #414](https://github.com/jasmin-lang/jasmin/pull/414)).
+
 ## Bug fixes
 
 - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
