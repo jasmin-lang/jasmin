@@ -68,7 +68,7 @@ let string_of_velem s ws ve =
   Format.sprintf "%d%s%d" (nws/nve) s nve
 
 let string_of_op2 = function
-  | E.Obeq   -> "=" 
+  | E.Obeq   -> "=="
   | E.Oand   -> "&&"
   | E.Oor    -> "||"
   | E.Oadd _ -> "+"
