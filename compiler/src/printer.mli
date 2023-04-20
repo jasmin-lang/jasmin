@@ -23,6 +23,7 @@ val pp_pprog : ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extr
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
 
+val string_of_velem : Wsize.signedness -> Wsize.wsize -> Wsize.velem -> string
 val string_of_op1 : Expr.sop1 -> string
 val string_of_op2 : Expr.sop2 -> string
 val string_of_combine_flags : Expr.combine_flags -> string

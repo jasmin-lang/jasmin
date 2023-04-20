@@ -349,7 +349,8 @@ type warning =
   | ExtraAssignment 
   | UseLea
   | IntroduceNone
-  | IntroduceArrayCopy 
+  | IntroduceArrayCopy
+  | SimplifyVectorSuffix
   | Always
 
 val nowarning : unit -> unit
