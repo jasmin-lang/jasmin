@@ -1355,6 +1355,12 @@ let add_glob_arrsz env (x,d) =
     env.warrsz := Sint.add (arr_size ws n) !(env.warrsz); 
     env
 
+let jmodel () =
+  let open Glob_options in
+  match !target_arch with
+  | X86_64 -> "JModel"
+  | ARM_M4 -> "JModel_m4"
+
 let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
 
   let env = empty_env model funcs arrsz warrsz randombytes in
@@ -1405,9 +1411,10 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
   in
 
   Format.fprintf fmt 
-     "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
+     "@[<v>%s.@ %s %s.@ @ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
     "require import AllCore IntDiv CoreMap List Distr"
-    "from Jasmin require import JModel"
+    "from Jasmin require import"
+    (jmodel ())
     (pp_arrays "Array") !(env.arrsz)
     (pp_arrays "WArray") !(env.warrsz)
     (pp_list "@ @ " (pp_glob_decl env)) globs 
