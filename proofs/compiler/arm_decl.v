@@ -11,7 +11,9 @@ Require Import
   strings
   utils
   wsize.
-Require Export arch_decl.
+Require Import
+  arch_decl
+  arch_utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -37,18 +39,10 @@ Definition register_dec_eq (r0 r1: register) : {r0 = r1} + {r0 <> r1}.
 Defined.
 
 Definition register_beq (r0 r1: register) : bool :=
-  if register_dec_eq r0 r1 is left _
-  then true
-  else false.
+  is_left (register_dec_eq r0 r1).
 
 Lemma register_eq_axiom : Equality.axiom register_beq.
-Proof.
-  move=> x y.
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /register_beq;
-    by case: register_dec_eq.
-Qed.
+Proof. by t_eq_axiom register_beq register_dec_eq. Qed.
 
 #[ export ]
 Instance eqTC_register : eqTypeC register :=
@@ -58,9 +52,6 @@ Canonical arm_register_eqType := @ceqT_eqType _ eqTC_register.
 
 Definition registers :=
   [:: R00; R01; R02; R03; R04; R05; R06; R07; R08; R09; R10; R11; R12; LR; SP ].
-
-Lemma registers_fin_axiom : Finite.axiom registers.
-Proof. by case. Qed.
 
 Lemma register_fin_axiom : Finite.axiom registers.
 Proof. by case. Qed.
@@ -93,152 +84,13 @@ Definition string_of_register (r : register) : string :=
   | SP  => "sp"
   end.
 
-Lemma string_of_register_inj : injective string_of_register.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
 #[ export ]
 Instance reg_toS : ToString sword32 register :=
   { category      := "register"
   ; to_string     := string_of_register
   ; strings       := [seq (string_of_register x, x)
                      | x <- enum [finType of register]]
-  ; inj_to_string := string_of_register_inj
-  ; stringsE      := refl_equal
-  }.
-
-
-(* -------------------------------------------------------------------- *)
-Variant register_ext : Type :=.
-
-Definition register_ext_dec_eq (xr0 xr1: register_ext) : {xr0 = xr1} + {xr0 <> xr1}.
-  by repeat decide equality.
-Defined.
-
-Definition register_ext_beq (xr0 xr1: register_ext) : bool :=
-  if register_ext_dec_eq xr0 xr1 is left _
-  then true
-  else false.
-
-Lemma regx_eq_axiom : Equality.axiom register_ext_beq.
-Proof.
-  move=> x y.
-  apply:(iffP idP);
-    last move=> <-;
-    rewrite /register_ext_beq;
-    by case: register_ext_dec_eq.
-Qed.
-
-Definition regx_eqMixin := Equality.Mixin regx_eq_axiom.
-Canonical  regx_eqType  := EqType register_ext regx_eqMixin.
-
-Definition register_exts : seq register_ext := [::].
-
-Lemma register_exts_fin_axiom : Finite.axiom register_exts.
-Proof. by case. Qed.
-
-Definition regx_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK register_exts_fin_axiom).
-Canonical regx_choiceType :=
-  Eval hnf in ChoiceType register_ext regx_choiceMixin.
-
-Definition regx_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK register_exts_fin_axiom).
-Canonical regx_countType :=
-  Eval hnf in CountType register_ext regx_countMixin.
-
-Definition regx_finMixin :=
-  FinMixin register_exts_fin_axiom.
-Canonical regx_finType :=
-  Eval hnf in FinType register_ext regx_finMixin.
-
-Definition string_of_register_ext (r: register_ext) : string :=
-  match r with
-  end.
-
-Lemma string_of_register_ext_inj : injective string_of_register_ext.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
-#[ export ]
-Instance eqTC_register_ext : eqTypeC register_ext :=
-  { ceqP := regx_eq_axiom }.
-
-#[ export ]
-Instance finC_register_ext : finTypeC register_ext :=
-  { cenumP := register_exts_fin_axiom }.
-
-#[ export ]
-Instance regx_toS : ToString sword32 register_ext :=
-  { category      := "register"
-  ; to_string     := string_of_register_ext
-  ; strings       := [seq (string_of_register_ext x, x)
-                     | x <- enum [finType of register_ext]]
-  ; inj_to_string := string_of_register_ext_inj
-  ; stringsE      := refl_equal
-  }.
-
-(* -------------------------------------------------------------------- *)
-(* Extra registers. *)
-
-Variant xregister : Type :=.
-
-Definition xregister_dec_eq (xr0 xr1: xregister) : {xr0 = xr1} + {xr0 <> xr1}.
-  by repeat decide equality.
-Defined.
-
-Definition xregister_beq (xr0 xr1: xregister) : bool :=
-  if xregister_dec_eq xr0 xr1 is left _
-  then true
-  else false.
-
-Lemma xregister_eq_axiom : Equality.axiom xregister_beq.
-Proof.
-  move=> x y.
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /xregister_beq;
-    by case: xregister_dec_eq.
-Qed.
-
-#[ export ]
-Instance eqTC_xregister : eqTypeC xregister :=
-  { ceqP := xregister_eq_axiom }.
-
-Canonical xregister_eqType := @ceqT_eqType _ eqTC_xregister.
-
-Definition xregisters : seq xregister := [::].
-
-Lemma xregister_fin_axiom : Finite.axiom xregisters.
-Proof. by case. Qed.
-
-#[ export ]
-Instance finTC_xregister : finTypeC xregister :=
-  {
-    cenum := xregisters;
-    cenumP := xregister_fin_axiom;
-  }.
-
-Canonical xregister_finType := @cfinT_finType _ finTC_xregister.
-
-Definition string_of_xregister (r: xregister) : string :=
-  match r with
-  end.
-
-Lemma string_of_xregister_inj : injective string_of_xregister.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
-#[ export ]
-Instance xreg_toS : ToString sword64 xregister :=
-  { category      := "xregister"
-  ; to_string     := string_of_xregister
-  ; strings       := [seq (string_of_xregister x, x)
-                     | x <- enum [finType of xregister]]
-  ; inj_to_string := string_of_xregister_inj
+  ; inj_to_string := ltac:(by t_inj_cases)
   ; stringsE      := refl_equal
   }.
 
@@ -257,18 +109,10 @@ Definition rflag_dec_eq (f0 f1: rflag) : {f0 = f1} + {f0 <> f1}.
 Defined.
 
 Definition rflag_beq (f0 f1: rflag) : bool :=
-  if rflag_dec_eq f0 f1 is left _
-  then true
-  else false.
+  is_left (rflag_dec_eq f0 f1).
 
 Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
-Proof.
-  move=> x y.
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /rflag_beq;
-    by case: rflag_dec_eq.
-Qed.
+Proof. by t_eq_axiom rflag_beq rflag_dec_eq. Qed.
 
 #[ export ]
 Instance eqTC_rflag : eqTypeC rflag :=
@@ -298,17 +142,12 @@ Definition string_of_rflag (f : rflag) : string :=
   | VF => "VF"
   end.
 
-Lemma string_of_rflag_inj : injective string_of_rflag.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
 #[ export ]
 Instance rflag_toS : ToString sbool rflag :=
   { category      := "rflag"
   ; to_string     := string_of_rflag
   ; strings       := [seq (string_of_rflag x, x) | x <- enum [finType of rflag]]
-  ; inj_to_string := string_of_rflag_inj
+  ; inj_to_string := ltac:(by t_inj_cases)
   ; stringsE      := refl_equal
   }.
 
@@ -337,18 +176,10 @@ Definition condt_dec_eq (c0 c1: condt) : {c0 = c1} + {c0 <> c1}.
 Defined.
 
 Definition condt_beq (c0 c1: condt) : bool :=
-  if condt_dec_eq c0 c1 is left _
-  then true
-  else false.
+  is_left (condt_dec_eq c0 c1).
 
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
-Proof.
-  move=> x y.
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /condt_beq;
-    by case: condt_dec_eq.
-Qed.
+Proof. by t_eq_axiom condt_beq condt_dec_eq. Qed.
 
 #[ export ]
 Instance eqTC_condt : eqTypeC condt :=
@@ -391,31 +222,11 @@ Definition string_of_condt (c : condt) : string :=
   | LE_ct => "le"
   end.
 
-Lemma string_of_condt_inj : injective string_of_condt.
-Proof.
-  by move=> x y /eqP h; apply/eqP; case: x y h => -[]; vm_compute.
-Qed.
-
 
 (* -------------------------------------------------------------------- *)
 (* Register shifts.
  * Some instructions can shift a register before performing an operation.
  *)
-
-(*
-TODO_ARM: Moved to separate module to implement parsing.
-
-Variant shift_kind : Type :=
-| SLSL          (* Logical shift left by 0 <= n < 32 bits. *)
-| SLSR          (* Logical shift left by 1 <= n < 33 bits. *)
-| SASR          (* Logical shift left by 1 <= n < 33 bits. *)
-| SROR          (* Logical shift left by 1 <= n < 33 bits. *)
-| SRRX.         (* Rotate right one bit, with extend.
-                 * - bit [0] is written to shifter_carry_out.
-                 * - bits [31:1] are shifted right one bit.
-                 * - CF is shifted into bit [31].
-                 *)
-*)
 
 Definition shift_kind_dec_eq (sk0 sk1 : shift_kind) :
   {sk0 = sk1} + {sk0 <> sk1}.
@@ -423,18 +234,10 @@ Definition shift_kind_dec_eq (sk0 sk1 : shift_kind) :
 Defined.
 
 Definition shift_kind_beq (sk0 sk1 : shift_kind) : bool :=
-  if shift_kind_dec_eq sk0 sk1 is left _
-  then true
-  else false.
+  is_left (shift_kind_dec_eq sk0 sk1).
 
 Lemma shift_kind_eq_axiom : Equality.axiom shift_kind_beq.
-Proof.
-  move=> sk0 sk1.
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /shift_kind_beq;
-    by case: shift_kind_dec_eq.
-Qed.
+Proof. by t_eq_axiom shift_kind_beq shift_kind_dec_eq. Qed.
 
 #[ export ]
 Instance eqTC_shift_kind : eqTypeC shift_kind :=
@@ -445,18 +248,6 @@ Canonical shift_kind_eqType := @ceqT_eqType _ eqTC_shift_kind.
 Definition shift_kinds :=
   [:: SLSL; SLSR; SASR; SROR ].
 
-Lemma shift_kind_fin_axiom : Finite.axiom shift_kinds.
-Proof. by case. Qed.
-
-#[ export ]
-Instance finTC_shift_kind : finTypeC shift_kind :=
-  {
-    cenum := shift_kinds;
-    cenumP := shift_kind_fin_axiom;
-  }.
-
-Canonical shift_kind_finType := @cfinT_finType _ finTC_shift_kind.
-
 Definition string_of_shift_kind (sk : shift_kind) : string :=
   match sk with
   | SLSL => "lsl"
@@ -464,21 +255,6 @@ Definition string_of_shift_kind (sk : shift_kind) : string :=
   | SASR => "asr"
   | SROR => "ror"
   end.
-
-Lemma string_of_shift_kind_inj : injective string_of_shift_kind.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
-#[ export ]
-Instance shift_kind_toS : ToString sint shift_kind :=
-  { category      := "shift"
-  ; to_string     := string_of_shift_kind
-  ; strings       := [seq (string_of_shift_kind x, x)
-                     | x <- enum [finType of shift_kind]]
-  ; inj_to_string := string_of_shift_kind_inj
-  ; stringsE      := refl_equal
-  }.
 
 Definition check_shift_amount (sk: shift_kind) (z: Z) : bool :=
   match sk with
@@ -505,19 +281,6 @@ Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
   | U32, Oror U32 => Some SROR
   | _, _ => None
   end.
-
-
-(* -------------------------------------------------------------------- *)
-
-Lemma arm_reg_size_neq_xreg_size : U32 != U64.
-Proof. done. Qed.
-
-
-(* -------------------------------------------------------------------- *)
-
-Lemma arm_inj_toS_reg_regx (r : register) (rx : register_ext) :
-  to_string r <> to_string rx.
-Proof. by case: rx. Qed.
 
 
 (* -------------------------------------------------------------------- *)
@@ -557,18 +320,21 @@ Instance arm_fcp : FlagCombinationParams :=
 (* -------------------------------------------------------------------- *)
 (* Architecture declaration. *)
 
+Notation register_ext := empty.
+Notation xregister := empty.
+
 #[ export ]
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := U32
   ; xreg_size := U64
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
-  ; toS_rx    := regx_toS
-  ; toS_x     := xreg_toS
+  ; toS_rx    := empty_toS sword32
+  ; toS_x     := empty_toS sword64
   ; toS_f     := rflag_toS
-  ; reg_size_neq_xreg_size := arm_reg_size_neq_xreg_size
+  ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
-  ; inj_toS_reg_regx := arm_inj_toS_reg_regx
+  ; inj_toS_reg_regx := ltac:(done)
   ; ad_fcp := arm_fcp
   }.
 
