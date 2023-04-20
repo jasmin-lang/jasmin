@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Apron
 open Wsize
@@ -143,7 +144,7 @@ module MakeEqMap (K : Ordered) : EqMap with type key = K.t = struct
         | (i,l) :: r ->
           let k = Sk.any l in
           let oi' = try Some (Mk.find k t'.ktoc) with Not_found -> None in
-          let l' = match obind (fun i' -> List.assoc_opt i' lt') oi' with
+          let l' = match Option.bind oi' (fun i' -> List.assoc_opt i' lt') with
             | Some s -> s
             | None -> Sk.empty in
           let join =
@@ -321,13 +322,13 @@ module Init : InitT = struct
   let make () = Mm.empty
 
   let meet = Mm.merge (fun _ b b' ->
-      let b = odfl false b
-      and b' = odfl false b' in
+      let b = Option.default false b
+      and b' = Option.default false b' in
       Some (b || b'))
 
   let join = Mm.merge (fun _ b b' ->
-      let b = odfl false b
-      and b' = odfl false b' in
+      let b = Option.default false b
+      and b' = Option.default false b' in
       Some (b && b'))
 
   let widening = join

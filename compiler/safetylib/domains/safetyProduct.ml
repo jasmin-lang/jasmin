@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Apron
 open Prog
@@ -277,7 +278,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   let join_list = list_app NonRel.join_list PplDom.join_list
 
   let widening oc a a' =
-    let fp d = omap_dfl (fun c -> proj_constr a' d c |> Option.some) None oc in
+    let fp d = Option.map (proj_constr a' d) oc in
     let nroc  = fp (Nrd 0)
     and pploc = fp (Ppl 0) in
     bin_app (NonRel.widening nroc) (PplDom.widening pploc) a a'

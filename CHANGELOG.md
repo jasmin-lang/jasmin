@@ -22,6 +22,8 @@
   ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
   `VMOVDQA`
   ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
+  `PCLMULQDQ`, `VPCLMULQDQ`
+  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
 
 - Add bit rotation operators for expressions: `<<r` and `>>r`
   ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
@@ -46,8 +48,12 @@
 - The safety checker fully unrolls `while` loops annotated as `#bounded`
   and does not attempt at proving termination of `while` loops annotated
   with `#no_termination_check`
-  ([PR #362](https://github.com/jasmin-lang/jasmin/pull/362)),
-  ([PR #384](https://github.com/jasmin-lang/jasmin/pull/384)).
+  ([PR #362](https://github.com/jasmin-lang/jasmin/pull/362),
+  [PR #384](https://github.com/jasmin-lang/jasmin/pull/384)).
+
+- The safety checker warns about possible alignment issues rather than failing,
+  when the `-nocheckalignment` command-line flag is given
+  ([PR #401](https://github.com/jasmin-lang/jasmin/pull/401)).
 
 ## Bug fixes
 
@@ -71,8 +77,8 @@
 
 - Fixes to the safety checker
   ([PR #315](https://github.com/jasmin-lang/jasmin/pull/315),
-  ([PR #343](https://github.com/jasmin-lang/jasmin/pull/343),
-  ([PR #365](https://github.com/jasmin-lang/jasmin/pull/365);
+  [PR #343](https://github.com/jasmin-lang/jasmin/pull/343),
+  [PR #365](https://github.com/jasmin-lang/jasmin/pull/365);
   fixes [#314](https://github.com/jasmin-lang/jasmin/issues/314)).
 
 - Safety checker better handles integer shift operators
@@ -93,8 +99,15 @@
 
 - Safety checker folds constant expressions during linearization
   ([PR #387](https://github.com/jasmin-lang/jasmin/pull/387);
-  fixes [#385](https://github.com/jasmin-lang/jasmin/issues/385)),
+  fixes [#385](https://github.com/jasmin-lang/jasmin/issues/385),
   [#386](https://github.com/jasmin-lang/jasmin/issues/386)).
+
+- Fix compilation and semantics of the `VPEXTR` and `VPINSR` instructions
+  ([PR #394](https://github.com/jasmin-lang/jasmin/pull/394);
+  fixes [#395](https://github.com/jasmin-lang/jasmin/issues/395)).
+
+- Various fixes to the LATEX printer
+  ([PR #406](https://github.com/jasmin-lang/jasmin/pull/406)).
 
 ## Other changes
 
@@ -106,6 +119,12 @@
 - The live-range-splitting transformation is run a second time after
   expansion of register arrays
   ([PR #341](https://github.com/jasmin-lang/jasmin/pull/341)).
+
+- When the `-timings` command-line flag is given, timestamps are
+  written to the standard error after each compilation pass and during
+  safety analysis when entering a local function; the elapsed time since
+  previous timestamp is also displayed
+  ([PR #403](https://github.com/jasmin-lang/jasmin/pull/403)).
 
 # Jasmin 2022.09.0
 

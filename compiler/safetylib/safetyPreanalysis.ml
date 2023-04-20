@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Prog
 
@@ -261,10 +262,10 @@ end = struct
 
   let st_merge st1 st2 ct =
     let mdp = Mv.merge (fun _ osv1 osv2 ->
-        let sv1,sv2 = odfl Sv.empty osv1, odfl Sv.empty osv2 in
+        let sv1,sv2 = Option.default Sv.empty osv1, Option.default Sv.empty osv2 in
         Sv.union sv1 sv2 |> Option.some) in
     let mcfg = Mf.merge (fun _ osf1 osf2 -> 
-        let sf1,sf2 = odfl Sf.empty osf1, odfl Sf.empty osf2 in
+        let sf1,sf2 = Option.default Sf.empty osf1, Option.default Sf.empty osf2 in
         Sf.union sf1 sf2 |> Option.some) in
     { dp = mdp st1.dp st2.dp;
       cfg = mcfg st1.cfg st2.cfg;

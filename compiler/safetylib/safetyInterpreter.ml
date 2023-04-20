@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Prog
 open Apron
@@ -114,6 +115,11 @@ let severe_violation =
   | Termination b -> b
   | _ -> true
 
+let alignment_violation =
+  function
+  | (AlignedPtr _ | AlignedExpr _) -> true
+  | _ -> false
+
 let pp_var = Printer.pp_var ~debug:false
 let pp_expr = Printer.pp_expr ~debug:false
 let pp_ws fmt ws = Format.fprintf fmt "%i" (int_of_ws ws)
@@ -180,6 +186,12 @@ let pp_assumptions fmt =
   | [] -> ()
   | m -> Format.fprintf fmt "@[<v>*** Safety Assumptions:@;@[<v>%a@]@]"
            (pp_list pp_violation) m
+
+let pp_alignment fmt =
+  function
+  | [] -> ()
+  | m -> Format.fprintf fmt "@[<v>*** Possible alignment issue(s):@;@[<v>%a@]@]"
+        (pp_list pp_violation) m
 
 let vloc_compare v v' = match v, v' with
   | InReturn fn, InReturn fn' -> Stdlib.compare fn fn'
@@ -386,7 +398,7 @@ let in_cp_var v = match v with
   | _ -> None
 
 let fun_in_args_no_offset f_decl =
-  fun_args_no_offset f_decl |> List.map in_cp_var
+  fun_args_no_offset f_decl |> List.pmap in_cp_var
 
 let get_mem_range env = List.map (fun x -> MmemRange x) env.m_locs
 
@@ -544,7 +556,7 @@ end = struct
       let abs = AbsExpr.apply_glob glob_decls abs in
 
       (* We extend the environment to its local variables *)
-      let f_vars = (List.map otolist f_in_args |> List.flatten)
+      let f_vars = (List.pmap (fun x -> x) f_in_args)
                    @ fun_vars ~expand_arrays:true main_decl env in
 
       let abs = AbsDom.change_environment abs f_vars in
@@ -1580,6 +1592,8 @@ end = struct
        let abs = List.fold_left AbsDom.is_init state.abs cells in
        { state with abs }
 
+  let log = timestamp ()
+
   let rec aeval_ginstr asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
@@ -1801,7 +1815,7 @@ end = struct
 
         let exit_loop state =
           debug (fun () -> Format.eprintf "Exit loop@;");
-          match obind flip_btcons (oec state.abs) with
+          match Option.bind (oec state.abs) flip_btcons with
           | Some neg_ec ->
             debug (fun () -> Format.eprintf "Meet with %a@;" pp_btcons neg_ec);
             { state with abs = AbsDom.meet_btcons state.abs neg_ec }
@@ -1812,7 +1826,7 @@ end = struct
            candidate decreasing numerical quantity to make the threshold. *)
         let smpl_thrs abs = match simpl_obtcons (oec abs) with
           | Some _ as constr -> constr
-          | None -> omap (fun e -> Mtcons.make e Lincons1.SUP) ni_e in
+          | None -> Option.map (fun e -> Mtcons.make e Lincons1.SUP) ni_e in
             
         let rec stabilize state pre_state =
           if is_stable state pre_state then exit_loop state
@@ -1865,6 +1879,7 @@ end = struct
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 
+        log f_decl (`Call ginstr.i_loc);
         debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]%!" fn.fn_name);
         let callsite = ginstr.i_loc in
 
@@ -1876,6 +1891,7 @@ end = struct
         let conds = safe_return f_decl in
         let fstate = check_safety fstate (InReturn fn) conds in
 
+        log f_decl `Ret;
         debug(fun () ->
             print_return ginstr fstate.abs fn.fn_name);
 
@@ -1997,7 +2013,7 @@ end = struct
       else
         (* FIXME: check that the fact that we do not introduce a 
            disjunction node does not create issues. *)
-        let noec = obind flip_btcons oec in
+        let noec = Option.bind oec flip_btcons in
         ( eval_cond state oec, eval_cond state noec ) in
 
     (* Branches evaluation *)
@@ -2059,9 +2075,7 @@ end = struct
       Interval.print int
 
   let mem_ranges_printer state f_decl fmt () =
-    let in_vars = fun_in_args_no_offset f_decl
-                  |> List.map otolist
-                  |> List.flatten in
+    let in_vars = fun_in_args_no_offset f_decl in
     let vars_to_keep = in_vars @ get_mem_range state.env in
     let vars = in_vars @ fun_vars ~expand_arrays:false f_decl state.env in
     let rem_vars = List.fold_left (fun acc v ->
@@ -2168,7 +2182,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
 
   let analyze asmOp () =
     try     
-    let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
+    let ps_assoc = Option.map_default parse_params
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
 
@@ -2206,6 +2220,10 @@ module AbsAnalyzer (EW : ExportWrap) = struct
             (pp_list res.print_var_interval) npt in
 
       let violations, assumptions = List.partition (fun (_, v) -> severe_violation v) res.violations in
+      let alignment, violations =
+        if !Glob_options.trust_aligned
+        then List.partition (fun (_, v) -> alignment_violation v) violations
+        else [], violations in
 
       let pp_warnings fmt warns =
         if warns <> [] then
@@ -2215,10 +2233,12 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       Format.eprintf "@?@[<v>%a@;\
                       %a@;\
                       %a@;\
+                      %a@;\
                       %t\
                       %a@]@."
         pp_warnings res.warnings
         pp_assumptions assumptions
+        pp_alignment alignment
         pp_violations violations
         pp_mem_range
         (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;

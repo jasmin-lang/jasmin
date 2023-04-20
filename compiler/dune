@@ -4,16 +4,14 @@
   (release
     (flags (:standard -w +Z+Y+28-23+32+33+34-58@8))))
 
-(dirs src CIL entry)
-(include_subdirs unqualified)
-
+(subdir entry
 (executable
  (public_name jasminc)
  (name jasminc)
  (modules jasminc)
  (flags -rectypes)
  (modes byte exe)
- (libraries jasmin))
+ (libraries jasminc))
 
 (executable
  (public_name jazz2tex)
@@ -30,10 +28,4 @@
  (flags -rectypes)
  (modes byte exe)
  (libraries cmdliner jasmin))
-
-(library
- (name jasmin)
- (public_name jasmin.jasmin)
- (modules :standard \ jasminc jazz2tex jazz2cl)
- (flags -rectypes)
- (libraries batteries zarith menhirLib yojson apron.octMPQ apron.ppl apron.boxMPQ))
+)

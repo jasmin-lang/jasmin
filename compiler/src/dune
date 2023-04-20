@@ -1,6 +1,21 @@
+(include_subdirs unqualified)
+
 (ocamllex
  (modules lexer))
 
 (menhir
  (flags "--table" "--explain")
  (modules parser))
+
+(library
+ (name jasmin)
+ (public_name jasmin.jasmin)
+ (flags -rectypes)
+ (modules :standard \ main_compiler x86_safety)
+ (libraries batteries zarith menhirLib))
+
+(library
+ (name jasminc)
+ (flags -rectypes)
+ (modules main_compiler x86_safety)
+ (libraries jasmin jasmin_checksafety))

@@ -1,3 +1,4 @@
+open Jasmin
 open Utils
 open Prog
 open Apron
@@ -313,10 +314,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Pconst c -> Some (Z.of_string (Z.to_string c))
 
     | Papp1 (E.Oneg Op_int, e) ->
-      obind (fun x -> Some (Z.neg x)) (aeval_cst_zint abs e)
+      Option.map Z.neg (aeval_cst_zint abs e)
 
     | Papp1 (E.Oint_of_word _, e) ->
-      obind (fun x -> Some x) (aeval_cst_zint abs e)
+      aeval_cst_zint abs e
     (* No need to check for overflows because we do not allow word operations. *)
 
     | Papp2 (Oadd Op_int, e1, e2) ->
@@ -356,18 +357,18 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Papp1 (E.Oword_of_int ws, e) ->
       let c_e = aeval_cst_zint abs e in
       let pws = Z.pow (Z.of_int 2) (int_of_ws ws) in
-      omap (fun c_e ->
+      Option.map (fun c_e ->
           let x = Z.add Z.(c_e mod pws) pws in
           Z.(x mod pws)) c_e
 
     | _ -> None
 
   let rec aeval_cst_w_i abs e =
-    try omap Z.to_int (aeval_cst_w abs e) with
+    try Option.map Z.to_int (aeval_cst_w abs e) with
     | Z.Overflow -> None
 
   let aeval_cst_int abs e =
-    try omap Z.to_int (aeval_cst_zint abs e) with
+    try Option.map Z.to_int (aeval_cst_zint abs e) with
     | Z.Overflow -> None
 
   (*-------------------------------------------------------------------------*)
@@ -393,7 +394,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     List.init len (fun j -> AarraySlice (x, ws, init_offset + wss * j))
 
   let abs_sub_arr_range_at abs x acc ws len ei =
-    match omap Z.to_int (aeval_cst_zint abs ei) with
+    match Option.map Z.to_int (aeval_cst_zint abs ei) with
     | Some i ->
       sub_arr_range x acc ws len i
     | None -> arr_full_range x

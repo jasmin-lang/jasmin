@@ -13,9 +13,9 @@ build: [
 ]
 install: [
   mkdir -p "%{prefix}%/bin"
-  cp "_build/default/jasminc.exe" "%{prefix}%/bin/jasminc"
-  cp "_build/default/jazz2tex.exe" "%{prefix}%/bin/jazz2tex"
-  cp "_build/default/jazz2cl.exe" "%{prefix}%/bin/jazz2cl"
+  cp "_build/default/entry/jasminc.exe" "%{prefix}%/bin/jasminc"
+  cp "_build/default/entry/jazz2tex.exe" "%{prefix}%/bin/jazz2tex"
+  cp "_build/default/entry/jazz2cl.exe" "%{prefix}%/bin/jazz2cl"
 ]
 depends: [
   "ocaml" { >= "4.10" & build }

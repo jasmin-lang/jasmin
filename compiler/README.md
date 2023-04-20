@@ -11,9 +11,9 @@ The files `src/puf.ml` and `src/puf.mli` are distributed under the terms of the
 GNU Library General Public License version 2.1, with the special exception on
 linking described in file [`src/LICENSE.puf`](src/LICENSE.puf).
 
-The contents of the `CIL` directory are extracted from Coq files from several sources:
+The contents of the `src/CIL` directory are extracted from Coq files from several sources:
 
- -  the Coq standard library (LGPL 2.1 only, see [`CIL/LICENSE.coq`](CIL/LICENSE.coq))
- -  the Mathematical Components library (CēCILL-B, see [`CIL/LICENSE.mathcomp`](CIL/LICENSE.mathcomp))
- -  the coqword library (MIT, see [`CIL/LICENSE.coqword`](CIL/LICENSE.coqword))
+ -  the Coq standard library (LGPL 2.1 only, see [`src/CIL/LICENSE.coq`](src/CIL/LICENSE.coq))
+ -  the Mathematical Components library (CēCILL-B, see [`src/CIL/LICENSE.mathcomp`](src/CIL/LICENSE.mathcomp))
+ -  the coqword library (MIT, see [`src/CIL/LICENSE.coqword`](src/CIL/LICENSE.coqword))
  -  the Jasmin coq source files (MIT, the [same license](LICENSE) as the rest of the compiler).

@@ -1,3 +1,4 @@
+open Jasmin
 open Prog
 open Apron
 open Wsize
@@ -35,6 +36,24 @@ let debug a =
   if !Glob_options.debug then
     if debug_print_time then print_time a else a ()
   else ()
+
+let timestamp () =
+  if !Glob_options.timings then
+    let depth = ref 0 in
+    let pp_depth fmt = Format.fprintf fmt "%s" (String.make !depth '.') in
+    fun f_decl ->
+    if f_decl.f_cc = Internal then ignore else
+      function
+      | `Ret ->
+         decr depth
+      | `Call loc ->
+         incr depth;
+         Format.eprintf "%t %t%s (%a)@."
+           Utils.pp_now
+           pp_depth
+           f_decl.f_name.fn_name
+           L.pp_iloc loc
+  else fun _ _ -> ()
 
 let () = debug (fun () ->
     Format.eprintf "Debug: record backtrace@.";

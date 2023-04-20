@@ -428,6 +428,9 @@ Definition x86_shift_mask (s:wsize) : u8 :=
   | U256 => wrepr U8 255
   end%Z.
 
+Definition x86_nelem_mask (sze szc:wsize) : u8 :=
+  wrepr U8 (2 ^ (wsize_log2 szc - wsize_log2 sze) - 1).
+
 Definition wbit_n sz (w:word sz) (n:nat) : bool :=
    wbit (wunsigned w) n.
 

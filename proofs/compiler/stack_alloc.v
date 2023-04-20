@@ -1407,62 +1407,96 @@ Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string) (local
       |} in
   ok (swith_extra fd f_extra).
 
-Definition check_glob (m: Mvar.t (Z*wsize)) (data:seq u8) (gd:glob_decl) := 
-  let x := gd.1 in
-  match Mvar.get m x with
-  | None => false 
-  | Some (z, _) =>
-    let n := Z.to_nat z in
-    let data := drop n data in
-    match gd.2 with
-    | @Gword ws w =>
-      let s := Z.to_nat (wsize_size ws) in 
-      (s <= size data) &&
-      (LE.decode ws (take s data) == w)
-    | @Garr p t =>
-      let s := Z.to_nat p in
-      (s <= size data) &&
-      all (fun i => 
-             match read t (Z.of_nat i) U8 with
-             | Ok w => nth 0%R data i == w
-             | _    => false
-             end) (iota 0 s)
+Fixpoint ptake (A:Type) p (r l:list A) := 
+  match p, l with
+  | xH, x :: l => Some (x::r, l)
+  | xI p, x :: l => 
+    match ptake p (x::r) l with
+    | None => None
+    | Some (r, l) => ptake p r l
     end
+  | xO p, l => 
+    match ptake p r l with
+    | None => None
+    | Some (r, l) => ptake p r l
+    end
+  | _, [::] => None
   end.
 
-Definition check_globs (gd:glob_decls) (m:Mvar.t (Z*wsize)) (data:seq u8) := 
-  all (check_glob m data) gd.
+Definition ztake (A:Type) z (l:list A) := 
+  match z with
+  | Zpos p => 
+    match ptake p [::] l with
+    | None => None
+    | Some (r, l) => Some (rev r, l)
+    end
+  | Z0     => Some([::], l)
+  | _      => None
+  end.
 
-Definition init_map (sz:Z) (l:list (var * wsize * Z)) : cexec (Mvar.t (Z*wsize)) :=
-  let add (vp:var * wsize * Z) (globals:Mvar.t (Z*wsize) * Z) :=
+Definition check_glob data gv := 
+  match gv with
+  | @Gword ws w => assert (LE.decode ws data == w) (stk_ierror_no_var "bad decode")
+  | @Garr p t =>
+    Let _ := foldM (fun wd i => 
+             match read t i U8 with
+             | Ok w => 
+               if wd == w then ok (i+1)%Z 
+               else Error (stk_ierror_no_var "bad decode array eq")
+             | _ => Error (stk_ierror_no_var "bad decode array len")
+             end) 0%Z data in
+    ok tt  
+  end.
+
+Definition size_glob gv := 
+  match gv with
+  | @Gword ws _ => wsize_size ws
+  | @Garr p _ => Zpos p
+  end.
+
+Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mvar.t (Z*wsize)) :=
+  let add (vp:var * wsize * Z) (globals: Mvar.t (Z*wsize) * Z * seq u8) :=
     let '(v, ws, p) := vp in
-    if (globals.2 <=? p)%Z then
+    let '(mvar, pos, data) := globals in
+    if (pos <=? p)%Z then
       if Z.land p (wsize_size ws - 1) == 0%Z then
         let s := size_slot v in
-        ok (Mvar.set globals.1 v (p,ws), p + s)%Z
+        match ztake (p - pos) data with 
+        | None => Error (stk_ierror_no_var "bad data 1") 
+        | Some (_, data) =>  
+        match ztake s data with
+        | None =>  Error (stk_ierror_no_var "bad data 2")
+        | Some (vdata, data) => 
+          match assoc gd v with
+          | None => Error (stk_ierror_no_var "unknown var")  
+          | Some gv => 
+            Let _ := assert (s == size_glob gv) (stk_ierror_no_var "bad size") in 
+            Let _ := check_glob vdata gv in
+            ok (Mvar.set mvar v (p,ws), p + s, data)%Z
+          end
+        end end
       else Error (stk_ierror_no_var "bad global alignment")
     else Error (stk_ierror_no_var "global overlap") in
-  Let globals := foldM add (Mvar.empty (Z*wsize), 0%Z) l in
-  if (globals.2 <=? sz)%Z then ok globals.1
-  else Error (stk_ierror_no_var "global size").
+  Let globals := foldM add (Mvar.empty (Z*wsize), 0%Z, data) l in
+  let '(mvar, _, _) := globals in
+  Let _ := assert (Sv.subset (sv_of_list fst gd) (sv_of_list (fun x => x.1.1) l)) 
+                  (stk_ierror_no_var "missing globals") in
+  ok mvar.
 
 Definition alloc_prog (fresh_reg:string -> stype -> Ident.ident) 
     rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
-  Let mglob := init_map (Z.of_nat (size global_data)) global_alloc in
+  Let mglob := init_map  global_alloc global_data P.(p_globs) in
   let p_extra :=  {|
     sp_rip   := rip;
     sp_rsp   := rsp;
     sp_globs := global_data;
   |} in
-  if rip == rsp then Error (stk_ierror_no_var "rip and rsp clash")
-  else if check_globs P.(p_globs) mglob global_data then
-    Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
-    ok  {| p_funcs  := p_funs;
-           p_globs := [::];
-           p_extra := p_extra;
-        |}
-  else 
-     Error (stk_ierror_no_var "invalid data").
+  Let _ := assert (rip != rsp) (stk_ierror_no_var "rip and rsp clash") in
+  Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
+  ok  {| p_funcs  := p_funs;
+         p_globs := [::];
+         p_extra := p_extra;
+      |}.
 
 End CHECK.
 
