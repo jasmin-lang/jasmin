@@ -211,8 +211,10 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
   if ws is U32
   then
     match op with
-    | Oword_of_int U32 =>
-        Some (ARM_op MOV default_opts, [:: Papp1 op e ])
+    | Oword_of_int ws' =>
+        if (U32 ≤ ws')%CMP
+        then Some (ARM_op MOV default_opts, [:: Papp1 (Oword_of_int U32) e ])
+        else None
     | Osignext U32 ws' =>
         if is_load e
         then

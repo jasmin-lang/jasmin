@@ -619,13 +619,13 @@ Proof.
   move: h.
   rewrite /lower_pexpr_aux /lower_Papp1.
   case: ws hws => // hws'.
-  case: op hw hfve => [[] || [] ws'' | [] ws'' || [] |] // hw hfve.
+  case: op hw hfve => [ ws'' || [] ws'' | [] ws'' || [] |] // hw hfve.
 
   (* Case: [Oword_of_int]. *)
   - move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.
-    move=> [? ?]; subst aop es.
+    case: ifP => // hws'' /Some_inj[] <-{aop} <-{es}.
     split; last done.
     clear hfve.
 
@@ -635,7 +635,7 @@ Proof.
     rewrite /sem_sop1 /=.
     rewrite hw' {hw'} /=.
     eexists; first reflexivity.
-    by rewrite /exec_sopn /=.
+    by rewrite /exec_sopn /= zero_extend_u zero_extend_wrepr.
 
   (* TODO_ARM: The following two cases are the same. *)
 
