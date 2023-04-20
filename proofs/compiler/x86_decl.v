@@ -12,7 +12,9 @@ Utf8
 Relation_Operators
 sem_type.
 Require Import flag_combination.
-Require Export arch_decl.
+Require Import
+  arch_decl
+  arch_utils.
 
 (* Import Memory. *)
 
@@ -252,11 +254,6 @@ Definition x86_string_of_register r :=
   | R15 => "R15"
   end%string.
 
-Lemma x86_string_of_register_inj : injective x86_string_of_register.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
 #[global]
 Instance eqTC_register : eqTypeC register :=
   { ceqP := reg_eq_axiom }.
@@ -270,7 +267,7 @@ Instance x86_reg_toS : ToString sword64 register :=
   { category      := "register"
   ; to_string     := x86_string_of_register
   ; strings       := [seq (x86_string_of_register x, x) | x <- enum [finType of register]]
-  ; inj_to_string := x86_string_of_register_inj
+  ; inj_to_string := ltac:(by t_inj_cases)
   ; stringsE      := refl_equal
   }.
 
@@ -288,11 +285,6 @@ Definition x86_string_of_regx r :=
   | MM7 => "MM7"
   end%string.
 
-Lemma x86_string_of_regx_inj : injective x86_string_of_regx.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
 #[global]
 Instance eqTC_regx : eqTypeC register_ext :=
   { ceqP := regx_eq_axiom }.
@@ -306,7 +298,7 @@ Instance x86_regx_toS : ToString sword64 register_ext :=
   { category      := "register"
   ; to_string     := x86_string_of_regx
   ; strings       := [seq (x86_string_of_regx x, x) | x <- enum [finType of register_ext]]
-  ; inj_to_string := x86_string_of_regx_inj
+  ; inj_to_string := ltac:(by t_inj_cases)
   ; stringsE      := refl_equal
   }.
 
@@ -331,11 +323,6 @@ Definition x86_string_of_xmm_register r : string :=
   | XMM15 => "XMM15"
   end.
 
-Lemma x86_string_of_xmm_register_inj : injective x86_string_of_xmm_register.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
 #[global]
 Instance eqTC_xmm_register : eqTypeC xmm_register :=
   { ceqP := xreg_eq_axiom }.
@@ -349,7 +336,7 @@ Instance x86_xreg_toS : ToString sword256 xmm_register :=
   { category      := "ymm_register"
   ; to_string     := x86_string_of_xmm_register
   ; strings       := [seq (x86_string_of_xmm_register x, x) | x <- enum [finType of xmm_register]]
-  ; inj_to_string := x86_string_of_xmm_register_inj
+  ; inj_to_string := ltac:(by t_inj_cases)
   ; stringsE      := refl_equal
   }.
 
@@ -362,11 +349,6 @@ Definition x86_string_of_rflag (rf : rflag) : string :=
  | SF => "SF"
  | OF => "OF"
  end%string.
-
-Lemma x86_string_of_rflag_inj : injective x86_string_of_rflag.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
 
 #[global]
 Instance eqTC_rflag : eqTypeC rflag :=
@@ -381,7 +363,7 @@ Instance x86_rflag_toS : ToString sbool rflag :=
   { category      := "rflag"
   ; to_string     := x86_string_of_rflag
   ; strings       := [seq (x86_string_of_rflag x, x) | x <- enum [finType of rflag]]
-  ; inj_to_string := x86_string_of_rflag_inj
+  ; inj_to_string := ltac:(by t_inj_cases)
   ; stringsE      := refl_equal
   }.
 
