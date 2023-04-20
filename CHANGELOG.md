@@ -7,6 +7,13 @@
   warning, a vector suffix (e.g., `_4u32`)
   ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303)).
 
+## Bug fixes
+
+- The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
+  or `_256`) instead of a vector description suffix (`4u32` or `8u32`)
+  ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303);
+  fixes [#301](https://github.com/jasmin-lang/jasmin/issues/301)).
+
 ## Other changes
 
 - Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by

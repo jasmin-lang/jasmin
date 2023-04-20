@@ -3,20 +3,20 @@ fn test(reg u64 p) {
   reg u128 a b;
   reg u256 x y;
 
-  a = #VMOVSLDUP_4u32((u128)[p]);
-  b = #VMOVSLDUP_4u32(a);
+  a = #VMOVSLDUP_128((u128)[p]);
+  b = #VMOVSLDUP_128(a);
   (u128)[p] = b;
 
-  a = #VMOVSHDUP_4u32((u128)[p]);
-  b = #VMOVSHDUP_4u32(a);
+  a = #VMOVSHDUP_128((u128)[p]);
+  b = #VMOVSHDUP_128(a);
   (u128)[p] = b;
 
-  x = #VMOVSLDUP_8u32((u256)[p]);
-  y = #VMOVSLDUP_8u32(x);
+  x = #VMOVSLDUP_256((u256)[p]);
+  y = #VMOVSLDUP_256(x);
   (u128)[p] = y;
 
-  x = #VMOVSHDUP_8u32((u256)[p]);
-  y = #VMOVSHDUP_8u32(x);
+  x = #VMOVSHDUP_256((u256)[p]);
+  y = #VMOVSHDUP_256(x);
   (u128)[p] = y;
 
 }
