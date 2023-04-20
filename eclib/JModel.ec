@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder Bool.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
-require export JUtils JArray JWord JWord_array JMemory AES.
+require export JModel_common JArray JWord_array JMemory AES JLeakage.
 
 
 (* ------------------------------------------------------------------- *)
@@ -66,47 +66,6 @@ abbrev [-printing] (\vmul8u256)  (w1 w2:W256.t) = VPMULL_32u8 w1 w2.
 abbrev [-printing] (\vmul16u256) (w1 w2:W256.t) = VPMULL_16u16 w1 w2.
 abbrev [-printing] (\vmul32u256) (w1 w2:W256.t) = VPMULL_8u32 w1 w2.
 abbrev [-printing] (\vmul64u256) (w1 w2:W256.t) = VPMULL_4u64 w1 w2.
-
-(* ------------------------------------------------------------------- *)
-(* Semantic of sopn *)
-(* 
-| Ocopy     of wsize & positive
-| Onop
-| Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
-| Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Oasm      of asm_op_t.
-*)
-
-op copy_8   ['a] (x:'a) = x.
-op copy_16  ['a] (x:'a) = x.
-op copy_32  ['a] (x:'a) = x.
-op copy_64  ['a] (x:'a) = x.
-op copy_128 ['a] (x:'a) = x.
-op copy_256 ['a] (x:'a) = x.
-
-op NOP (_:unit) = ().
-
-abbrev [-printing] mulu_8   = W8.mulu.
-abbrev [-printing] mulu_16  = W16.mulu.
-abbrev [-printing] mulu_32  = W32.mulu.
-abbrev [-printing] mulu_64  = W64.mulu.
-abbrev [-printing] mulu_128 = W128.mulu.
-abbrev [-printing] mulu_256 = W256.mulu.
-
-abbrev [-printing] adc_8   = W8.addc.
-abbrev [-printing] adc_16  = W16.addc.
-abbrev [-printing] adc_32  = W32.addc.
-abbrev [-printing] adc_64  = W64.addc.
-abbrev [-printing] adc_128 = W128.addc.
-abbrev [-printing] adc_256 = W256.addc.
-
-abbrev [-printing] sbb_8   = W8.subc.
-abbrev [-printing] sbb_16  = W16.subc.
-abbrev [-printing] sbb_32  = W32.subc.
-abbrev [-printing] sbb_64  = W64.subc.
-abbrev [-printing] sbb_128 = W128.subc.
-abbrev [-printing] sbb_256 = W256.subc.
 
 (* ------------------------------------------------------------------- *)
 
@@ -1051,18 +1010,3 @@ lemma rotate24_256_E w :
 proof. by apply: (W256.all_eq_eq _ _ _); cbv delta. qed.
 
 hint simplify (rotate8_256_E, rotate16_256_E, rotate24_256_E).
-
-(* ------------------------------------------------------------------- *)
-(* Leakages                                                            *)
-
-type leakage_t = [
-  | LeakAddr of address list
-  | LeakCond of bool
-  | LeakFor  of (int * int)
-].
-
-type leakages_t = leakage_t list.
-
-
-op zlog2 : int -> int.
-
