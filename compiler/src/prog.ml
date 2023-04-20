@@ -515,14 +515,14 @@ let is_var = function
   | Pvar _ -> true
   | _ -> false
 
+let access_offset aa ws i =
+  match aa with
+  | Warray_.AAscale -> size_of_ws ws * i
+  | Warray_.AAdirect -> i
+
 let get_ofs aa ws e =
   match e with
-  | Pconst i ->
-     Some
-       (match aa with
-        | Warray_.AAdirect -> Z.to_int i
-        | Warray_.AAscale -> size_of_ws ws * Z.to_int i
-       )
+  | Pconst i -> Some (access_offset aa ws (Z.to_int i))
   | _ -> None
 
 (* -------------------------------------------------------------------- *)
@@ -546,6 +546,18 @@ let rec has_syscall_i i =
   | Cfor (_, _, c) -> has_syscall c
 
 and has_syscall c = List.exists has_syscall_i c
+
+let rec has_call_or_syscall_i i =
+  match i.i_desc with
+  | Csyscall _ | Ccall _ -> true
+  | Cassgn _ | Copn _ -> false
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
+  | Cfor (_, _, c) -> has_call_or_syscall c
+
+and has_call_or_syscall c = List.exists has_call_or_syscall_i c
+
+let has_annot a { i_annot ; _ } =
+  List.exists (fun (k, _) -> String.equal (L.unloc k) a) i_annot
 
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =

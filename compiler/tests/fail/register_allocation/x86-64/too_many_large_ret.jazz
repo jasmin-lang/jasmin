@@ -1,0 +1,11 @@
+/* This fails early with a type error, the error in regalloc cannot be
+   triggered. */
+
+export
+fn too_many_large_ret() -> reg u256, reg u256, reg u256 {
+  reg u256 x y z;
+  x = 0;
+  y = 1;
+  z = 2;
+  return x, y, z;
+}

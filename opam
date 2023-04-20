@@ -17,6 +17,7 @@ install: [
 depends: [
   "ocaml" { >= "4.10" & build }
   "batteries" {>= "3.4"}
+  "cmdliner" { build }
   "menhir" {>= "20160825" & build }
   "menhirLib"
   "camlidl"
@@ -29,5 +30,5 @@ depends: [
   "coq" {>= "8.14.0" & < "8.17"}
   "coq-mathcomp-ssreflect" {>= "1.12" & < "1.16"}
   "coq-mathcomp-algebra"
-  "coq-mathcomp-word" {>= "2.0"}
+  "coq-mathcomp-word" {>= "2.1"}
 ]

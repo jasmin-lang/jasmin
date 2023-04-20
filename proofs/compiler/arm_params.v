@@ -5,7 +5,8 @@ From mathcomp Require Import
 Require Import
   arch_params
   compiler_util
-  expr.
+  expr
+  fexpr.
 Require Import
   linearization
   lowering
@@ -24,16 +25,69 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Definition arm_op_mov (x y : var_i) : fopn_args :=
+  ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar y) ]).
+
+Definition arm_op_movi (x : var_i) (imm : Z) : fopn_args :=
+  let e := fconst reg_size imm in
+  ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr e ]).
+
+Definition arm_op_movt (x : var_i) (imm : Z) : fopn_args :=
+  let e := fconst U16 imm in
+  ([:: LLvar x ], Oarm (ARM_op MOVT default_opts), [:: Rexpr (Fvar x); Rexpr e ]).
+
+Definition arm_op_sub (x y z : var_i) : fopn_args :=
+  let f v := Rexpr (Fvar v) in
+  ([:: LLvar x ], Oarm (ARM_op SUB default_opts), map f [:: y; z ]).
+
+Definition arm_op_str_off (x y : var_i) (off : Z) : fopn_args :=
+  let lv := Store reg_size y (fconst Uptr off) in
+  ([:: lv ], Oarm (ARM_op STR default_opts), [:: Rexpr (Fvar x) ]).
+
+Definition arm_op_arith_imm
+  (op : arm_mnemonic) (x y : var_i) (imm : Z) : fopn_args :=
+  let ey := Rexpr (Fvar y) in
+  let eimm := fconst reg_size imm in
+  ([:: LLvar x ], Oarm (ARM_op op default_opts), [:: ey; Rexpr eimm ]).
+
+Definition arm_op_addi (x y : var_i) (imm : Z) : fopn_args :=
+  arm_op_arith_imm ADD x y imm.
+
+Definition arm_op_subi (x y : var_i) (imm : Z) : fopn_args :=
+  arm_op_arith_imm SUB x y imm.
+
+Definition arm_op_align (x y : var_i) (al : wsize) :=
+  arm_op_arith_imm AND x y (- wsize_size al).
+
+(* Precondition: [0 <= imm < wbase reg_size]. *)
+Definition arm_cmd_load_large_imm (x : var_i) (imm : Z) : seq fopn_args :=
+  let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
+  [:: arm_op_movi x lbs; arm_op_movt x hbs ].
+
+(* Return a command that performs an operation with an immediate argument,
+   loading it into a register if needed.
+   In symbols,
+       R[x] := R[y] <+> imm
+ *)
+Definition arm_cmd_large_arith_imm
+  (on_reg : var_i -> var_i -> var_i -> fopn_args)
+  (on_imm : var_i -> var_i -> Z -> fopn_args)
+  (x y : var_i)
+  (imm : Z) :
+  seq fopn_args :=
+  arm_cmd_load_large_imm x imm ++ [:: on_reg x y x ].
+
+Definition arm_cmd_large_subi (x y : var_i) (imm : Z) : seq fopn_args :=
+  arm_cmd_large_arith_imm arm_op_sub arm_op_subi x y imm.
+
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
 
-Definition addi x tag y ofs :=
-  let eofs := Papp1 (Oword_of_int reg_size) (Pconst ofs) in
-  Copn [:: x ] tag (Oarm (ARM_op ADD default_opts)) [:: y; eofs ].
-
 Definition arm_mov_ofs
-  (x : lval) tag (_ : vptr_kind) (y : pexpr) (ofs : Z) : option instr_r :=
-  Some (addi x tag y ofs).
+  (x : lval) (tag : assgn_tag) (_ : vptr_kind) (y : pexpr) (ofs : Z) :
+  option instr_r :=
+  let op := Oarm (ARM_op ADD default_opts) in
+  Some (Copn [:: x ] tag op [:: y; eword_of_int reg_size ofs ]).
 
 Definition arm_saparams : stack_alloc_params :=
   {|
@@ -44,67 +98,89 @@ Definition arm_saparams : stack_alloc_params :=
 (* ------------------------------------------------------------------------ *)
 (* Linearization parameters. *)
 
+Section LINEARIZATION.
+
+Notation vtmpi := {| v_var := to_var R12; v_info := dummy_var_info; |}.
+
+(* TODO_ARM: This assumes 0 <= sz < 4096. *)
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
-  let rspg := Gvar rspi Slocal in
-  let esz := Papp1 (Oword_of_int reg_size) (Pconst sz) in
-  ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
+  arm_op_subi rspi rspi sz.
 
+(* TODO_ARM: This assumes 0 <= sz < 4096. *)
 Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
-  let rspg := Gvar rspi Slocal in
-  let esz := Papp1 (Oword_of_int reg_size) (Pconst (-sz)) in
-  ([:: Lvar rspi ], Oarm (ARM_op ADD default_opts), [:: Pvar rspg; esz ]).
-
-Definition arm_ensure_rsp_alignment (rspi : var_i) (al : wsize) :=
-  let p0 := Pvar (Gvar rspi Slocal) in
-  let p1 := Papp1 (Oword_of_int reg_size) (Pconst (- wsize_size al)) in
-  ([:: Lvar rspi ], Oarm (ARM_op AND default_opts), [:: p0; p1 ]).
+  arm_op_addi rspi rspi sz.
 
 (* TODO_ARM: Review. This seems unnecessary. *)
 Definition arm_lassign
-  (lv : lval) (ws : wsize) (e : pexpr) : option copn_args :=
+  (lv : lexpr) (ws : wsize) (e : rexpr) : option _ :=
   let args :=
     match lv with
-    | Lvar _ =>
+    | LLvar _ =>
         if ws is U32
         then
           match e with
-          | Pvar _ =>
+          | Rexpr (Fapp1 (Oword_of_int U32) (Fconst _))
+          | Rexpr (Fvar _) =>
               Some (MOV, e)
-          | Pload _ _ _ =>
+          | Load _ _ _ =>
               Some (LDR, e)
-          | Papp1 (Ozeroext U32 ws') e' =>
-              if e' is Pload _ _ _
-              then
-                if uload_mn_of_wsize ws' is Some mn
-                then Some (mn, e')
-                else None
-              else
-                None
           | _ =>
               None
           end
         else
           None
-    | Lmem _ _ _ =>
+    | Store _ _ _ =>
         if store_mn_of_wsize ws is Some mn
         then Some (mn, e)
         else None
-    | _ =>
-        None
     end
   in
   if args is Some (mn, e')
   then Some ([:: lv ], Oarm (ARM_op mn default_opts), [:: e' ])
   else None.
 
+Definition arm_set_up_sp_register
+  (rspi : var_i)
+  (sf_sz : Z)
+  (al : wsize)
+  (r : var_i) :
+  option (seq fopn_args) :=
+  if (0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z
+  then
+    let i0 := arm_op_mov r rspi in
+    let load_imm := arm_cmd_large_subi vtmpi rspi sf_sz in
+    let i1 := arm_op_align vtmpi vtmpi al in
+    let i2 := arm_op_mov rspi vtmpi in
+    Some (i0 :: load_imm ++ [:: i1; i2 ])
+  else
+    None.
+
+Definition arm_set_up_sp_stack
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : option (seq fopn_args) :=
+  if (0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z
+  then
+    let load_imm := arm_cmd_large_subi vtmpi rspi sf_sz in
+    let i0 := arm_op_align vtmpi vtmpi al in
+    let i1 := arm_op_str_off rspi vtmpi off in
+    let i2 := arm_op_mov rspi vtmpi in
+    Some (load_imm ++ [:: i0; i1; i2 ])
+  else
+    None.
+
+Definition arm_tmp : Ident.ident := vname (v_var vtmpi).
+
 Definition arm_liparams : linearization_params :=
   {|
-    lip_tmp := "r12"%string; (* TODO_ARM: Review. *)
+    lip_tmp := arm_tmp;
+    lip_not_saved_stack := [:: arm_tmp ];
     lip_allocate_stack_frame := arm_allocate_stack_frame;
     lip_free_stack_frame := arm_free_stack_frame;
-    lip_ensure_rsp_alignment := arm_ensure_rsp_alignment;
+    lip_set_up_sp_register := arm_set_up_sp_register;
+    lip_set_up_sp_stack := arm_set_up_sp_stack;
     lip_lassign := arm_lassign;
   |}.
+
+End LINEARIZATION.
 
 
 (* ------------------------------------------------------------------------ *)
@@ -121,7 +197,7 @@ Definition arm_fvars_correct
 
 Definition arm_loparams : lowering_params fresh_vars lowering_options :=
   {|
-    lop_lower_i := fun _ _ => lower_i;
+    lop_lower_i _ _ _ := lower_i;
     lop_fvars_correct := arm_fvars_correct;
   |}.
 
@@ -180,31 +256,31 @@ Definition is_rflags_GE (r0 r1 : rflag) : bool :=
   | _, _ => false
   end.
 
-Fixpoint assemble_cond ii (e : pexpr) : cexec condt :=
+Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
   match e with
-  | Pvar v =>
-      Let r := of_var_e ii (gv v) in ok (condt_of_rflag r)
+  | Fvar v =>
+      Let r := of_var_e ii v in ok (condt_of_rflag r)
 
-  | Papp1 Onot e =>
+  | Fapp1 Onot e =>
       Let c := assemble_cond ii e in ok (condt_not c)
 
-  | Papp2 Oand e0 e1 =>
+  | Fapp2 Oand e0 e1 =>
       Let c0 := assemble_cond ii e0 in
       Let c1 := assemble_cond ii e1 in
       if condt_and c0 c1 is Some ct
       then ok ct
       else Error (E.berror ii e "Invalid condition (AND)")
 
-  | Papp2 Oor e0 e1 =>
+  | Fapp2 Oor e0 e1 =>
       Let c0 := assemble_cond ii e0 in
       Let c1 := assemble_cond ii e1 in
       if condt_or c0 c1 is Some ct
       then ok ct
       else Error (E.berror ii e "Invalid condition (OR)")
 
-  | Papp2 Obeq (Pvar x0) (Pvar x1) =>
-      Let r0 := of_var_e ii (gv x0) in
-      Let r1 := of_var_e ii (gv x1) in
+  | Fapp2 Obeq (Fvar x0) (Fvar x1) =>
+      Let r0 := of_var_e ii x0 in
+      Let r1 := of_var_e ii x1 in
       if is_rflags_GE r0 r1
       then ok GE_ct
       else Error (E.berror ii e "Invalid condition (EQ).")

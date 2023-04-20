@@ -1,0 +1,27 @@
+u64[4] glob_t = { 0, 1, 2, 3 };
+
+export fn sum (reg u64 x) -> reg u64 {
+  reg u64 r;
+  inline int i1;
+  reg u64 i;
+  stack u64[4] gt1;
+  reg ptr u64[4] gt2;
+
+  for i1 = 0 to 4 {
+     gt1[i1] = i1;
+  }
+  gt2 = gt1; 
+  r = 0; 
+  i = 0;
+  while (i < 4) {
+    r += gt1[(int)i];
+    i += 1;
+  }
+  i = 0;
+  while (i < 4) {
+    r += gt2[(int)i];
+    i += 1;
+  }   
+  return r;
+}
+

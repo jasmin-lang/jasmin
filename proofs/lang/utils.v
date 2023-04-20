@@ -4,7 +4,7 @@ From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
 Require Psatz.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 
 
 Set Implicit Arguments.
@@ -635,6 +635,21 @@ Section MAP2.
 
 End MAP2.
 
+Section FMAP.
+
+  Context (A B C:Type) (f : A -> B -> A * C).
+
+  Fixpoint fmap (a:A) (bs:seq B) : A * seq C :=
+    match bs with
+    | [::] => (a, [::])
+    | b::bs =>
+      let (a, c) := f a b in
+      let (a, cs) := fmap a bs in
+      (a, c :: cs)
+    end.
+
+End FMAP.
+
 Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> seq bT -> result eT (aT * seq cT) :=
   fix mapM a xs :=
     match xs with
@@ -1102,6 +1117,14 @@ End FIND_MAP.
 Definition isSome aT (o : option aT) :=
   if o is Some _ then true else false.
 
+Lemma isSome_obind (aT bT: Type) (f: aT → option bT) (o: option aT) :
+  reflect (exists2 a, o = Some a & isSome (f a)) (isSome (o >>= f)%O).
+Proof.
+  apply: Bool.iff_reflect; split.
+  - by case => a ->.
+  by case: o => // a h; exists a.
+Qed.
+
 Fixpoint list_to_rev (ub : nat) :=
   match ub with
   | O    => [::]
@@ -1443,6 +1466,15 @@ Qed.
 Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
 Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
+Lemma Z_odd_pow_2 n x :
+  (0 < n)%Z
+  -> Z.odd (2 ^ n * x) = false.
+Proof.
+  move=> hn.
+  rewrite Z.odd_mul.
+  by rewrite (Z.odd_pow _ _ hn).
+Qed.
+
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
@@ -1456,6 +1488,46 @@ Proof. by move=> ?; split. Qed.
 (* -------------------------------------------------------------------- *)
 Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
 Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
+
+(* -------------------------------------------------------------------- *)
+Section NAT.
+
+Open Scope nat.
+
+Lemma ZNleP x y :
+  reflect (Z.of_nat x <= Z.of_nat y)%Z (x <= y).
+Proof.
+  case h: (x <= y).
+  all: move: h => /leP /Nat2Z.inj_le.
+  all: by constructor.
+Qed.
+
+Lemma ZNltP x y :
+  reflect (Z.of_nat x < Z.of_nat y)%Z (x < y).
+Proof.
+  case h: (x < y).
+  all: move: h => /ZNleP.
+  all: rewrite Nat2Z.inj_succ.
+  all: move=> /Z.le_succ_l.
+  all: by constructor.
+Qed.
+
+Lemma lt_nm_n n m :
+  n + m < n = false.
+Proof.
+  rewrite -{2}(addn0 n).
+  rewrite ltn_add2l.
+  exact: ltn0.
+Qed.
+
+Lemma sub_nmn n m :
+  n + m - n = m.
+Proof.
+  elim: n => //.
+  by rewrite add0n subn0.
+Qed.
+
+End NAT.
 
 (* ------------------------------------------------------------------------- *)
 
@@ -1645,3 +1717,17 @@ Ltac t_elim_uniq :=
     move=> _
   );
   move=> _.
+
+Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
+  And6 of P1 & P2 & P3 & P4 & P5 & P6.
+
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
+  (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+
+Tactic Notation "have!" ":= " constr(x) :=
+  let h := fresh "h" in
+  (assert (h := x); move: h).
+
+Tactic Notation "have!" simple_intropattern(ip) ":= " constr(x) :=
+  let h := fresh "h" in
+  (assert (h := x); move: h => ip).

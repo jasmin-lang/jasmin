@@ -1,0 +1,8 @@
+/* no call: max call depth is 1 */
+
+#[calldepth=2]
+export fn f () -> reg u64 {
+  reg u64 res;
+  res = 0;
+  return res;
+}

@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require oseq.
 Require Import ZArith
 utils
@@ -38,7 +38,7 @@ Variant xmm_register : Type :=
 .
 
 (* -------------------------------------------------------------------- *)
-Variant rflag : Type := CF | PF | ZF | SF | OF | DF.
+Variant rflag : Type := CF | PF | ZF | SF | OF.
 
 (* -------------------------------------------------------------------- *)
 Variant condt : Type :=
@@ -203,7 +203,7 @@ Canonical xreg_finType :=
 
 (* -------------------------------------------------------------------- *)
 #[ local ]
-Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
+Definition rflags := [:: CF; PF; ZF; SF; OF ].
 
 #[ local ]
 Lemma rflags_fin_axiom : Finite.axiom rflags.
@@ -361,7 +361,6 @@ Definition x86_string_of_rflag (rf : rflag) : string :=
  | ZF => "ZF"
  | SF => "SF"
  | OF => "OF"
- | DF => "DF"
  end%string.
 
 Lemma x86_string_of_rflag_inj : injective x86_string_of_rflag.

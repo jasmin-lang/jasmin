@@ -1,0 +1,121 @@
+export
+fn test_zeroext (reg u8 a) -> reg u32 {
+
+reg u16 b;
+reg u32 c, d;
+reg u64 e, f, g;
+
+b = (16u) a;
+c = (32u) a;
+d = (32u) b;
+e = (64u) a;
+f = (64u) b;
+g = (64u) c;
+
+f += e;
+g += f;
+
+d += g;
+
+return d;
+}
+
+export
+fn test_signext(reg u8 a) -> reg u32 {
+reg u16 b;
+reg u32 c, d;
+reg u64 e, f, g;
+
+b = (16s) a;
+c = (32s) a;
+d = (32s) b;
+
+e = (64s) a;
+f = (64s) b;
+g = (64s) c;
+
+f += e;
+g += f;
+
+d += g;
+
+return d;
+}
+
+export
+fn test_u128(reg u64 ptr_, reg u64 v, reg u32 w) {
+reg u128 x, y;
+
+x = (128u)v;
+y = (128u)w;
+
+x ^= y;
+
+y = #VMOV(v);
+x ^= y;
+y = #VMOV_32(w);
+x ^= y;
+(u128)[ptr_ + 0] = x;
+}
+
+
+export
+fn test_u256(reg u64 ptr_, reg u64 v, reg u32 w) {
+reg u256 x, y;
+
+x = #set0_256();
+y = (256u)v;
+x ^= y;
+y = (256u)w;
+x ^= y;
+(u128)[ptr_ + 0] = x;
+(u256)[ptr_ + 32] = x;
+}
+
+export
+fn test_imm(reg u64 p) {
+inline u8 a;
+inline u16 b;
+inline u32 c;
+reg u64 d;
+a = 0xFF;
+b = (16s) a;
+c = (32s) b;
+d = (64s) c;
+[p + 0] = d;
+
+a = 0xFF;
+b = (16u) a;
+c = (32u) b;
+d = (64u) c;
+[p + 8] = d;
+}
+
+export
+fn test_truncate(reg u256 y) -> reg u32 {
+  reg u128 x;
+  reg u64 r s;
+  reg u32 e f;
+  x = y;
+
+  r = y;
+  s = x;
+  s ^= r;
+
+  e = y;
+  f = x;
+  f ^= e;
+
+  f ^= s;
+  return f;
+}
+
+export
+fn test_avx_to_mem(reg u64 p, reg u256 y) {
+  reg u128 x;
+  x = y;
+  (u32)[p] = x;
+  (u32)[p + 4] = y;
+  [p + 8] = x;
+  [p + 16] = y;
+}

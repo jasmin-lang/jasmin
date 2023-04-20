@@ -1,11 +1,3 @@
-(* This step has two purposes: 
-   1/ Fix the size information (n) in Ocopy(ws, n). 
-      For the moment pretyping add a dummy value for n, it is fixed here.
-   2/ Replace x = y with #copy, when x and y are arrays and at least one of them
-      is a reg array. This #copy will be transformed into a loop later.
-      This is optional: !Glob_options.introduce_array_copy 
-*)
-
 open Utils
 open Prog
 module L = Location
@@ -60,7 +52,7 @@ and iac_instr_r pd loc ir =
         Typing.error loc 
           "the variable %a has type %a, its size (%i) should be a multiple of %i"
           (Printer.pp_var ~debug:false) (L.unloc x)
-          Printer.pp_ty (L.unloc x).v_ty 
+          PrintCommon.pp_ty (L.unloc x).v_ty
           xn wsn
       else Copn(xs,t,Sopn.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
     | Sopn.Ocopy _, _ -> assert false

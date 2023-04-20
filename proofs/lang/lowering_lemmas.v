@@ -17,7 +17,8 @@ Section ESTATE_EQ_EXCEPT.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}.
 
 (* State equality up to a set of variables. *)
 Definition estate_eq_except ys s1 s2 :=

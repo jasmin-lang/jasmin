@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
 Require Import
   flag_combination
@@ -91,7 +91,7 @@ Record reg_address : Type := mkAddress
   ; ad_offset : option reg_t
   }.
 
-Inductive address :=
+Variant address :=
 | Areg of reg_address (* Absolute address. *)
 | Arip of pointer.    (* Address relative to instruction pointer. *)
 
@@ -551,16 +551,16 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
 (* Assembly language. *)
 Variant asm_i : Type :=
   | ALIGN
-  | LABEL of label
+  | LABEL of label_kind & label
   | STORELABEL of reg_t & label (* Store the address of a local label *)
   (* Jumps *)
   | JMP    of remote_label (* Direct jump *)
-  | JMPI   of asm_arg (* Indirect jump *)
+  | JMPI   of asm_arg (* Indirect jump, arm : BX *)
   | Jcc    of label & cond_t  (* Conditional jump *)
   (* Functions *)
   | JAL of reg_t & remote_label (* Direct jump; return address is saved in a register *)
   | CALL of remote_label (* Direct jump; return address is saved at the top of the stack *)
-  | POPPC (* Pop a destination from the stack and jump there *)
+  | POPPC (* Pop a destination from the stack and jump there, arm : POP PC, x86 : RET *)
   (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args
   | SysCall of syscall_t.

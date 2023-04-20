@@ -1,0 +1,14 @@
+export
+fn toss(#secret reg u64 a b) -> #secret reg u64 {
+  stack u8[1] s;
+  reg u8 t;
+  reg u64 r;
+  reg u64[2] input;
+  input[0] = a;
+  input[1] = b;
+  s = #randombytes(s);
+  t = s[0];
+  r = input[0];
+  r = input[1] if t <s 0;
+  return r;
+}

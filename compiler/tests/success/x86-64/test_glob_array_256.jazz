@@ -1,0 +1,61 @@
+u256[4] glob_t = { 0, 1, 2, 3 };
+
+export fn sum (reg u64 x) -> reg u64 {
+  reg u64 r;
+  reg u64 i;
+  reg ptr u256[4] gt1;
+  reg u256 aux;
+
+  gt1 = glob_t; 
+  aux = glob_t[0];
+
+  i = 32;
+  
+  while (i <= 3 * 32) {
+    
+    aux ^= gt1.[(int)i];
+    i += 32;
+  }
+
+  i = 4;
+  
+  while (i <= 3 * 4) {
+    
+    aux ^= gt1.[(int)(8 * i)];
+    i += 4;
+  }
+
+
+  r = #VPEXTR_64(aux, 0);
+  return r;
+}
+
+export fn sum1 (reg u64 x) -> reg u64 {
+  reg u64 r;
+  reg u64 i;
+  reg ptr u256[4] gt1;
+  reg u128 aux;
+
+  gt1 = glob_t; 
+  aux = glob_t[u128 0];
+
+  i = 16;
+  
+  while (i <= 7 * 16) {
+    
+    aux ^= gt1.[u128 (int)i];
+    i += 16;
+  }
+
+  i = 8;
+  
+  while (i <= 3 * 4) {
+    
+    aux ^= gt1.[u128 (int)(8 * i)];
+    i += 4;
+  }
+
+
+  r = #VPEXTR_64(aux, 0);
+  return r;
+}

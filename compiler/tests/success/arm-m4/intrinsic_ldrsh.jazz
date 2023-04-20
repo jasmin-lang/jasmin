@@ -1,0 +1,41 @@
+export
+fn ldrsh(reg u32 arg) -> reg u32 {
+    reg u32 x;
+
+    x = #LDRSH((u16)[arg]);
+    x = #LDRSH((u16)[x + 2]);
+    x = #LDRSH((u16)[x - 2]);
+    x = #LDRSH((u16)[x + arg]);
+    x = #LDRSH((u16)[x + (arg * 1)]);
+    x = #LDRSH((u16)[x + (arg * 2)]);
+    x = #LDRSH((u16)[x + (arg * 4)]);
+    x = #LDRSH((u16)[x + (arg * 8)]);
+
+    reg bool n, z, v, c;
+    n, z, c, v, x = #MOVS(x);
+
+    // Conditions.
+    x = #LDRSHcc((u16)[x], z, x);            // EQ
+    x = #LDRSHcc((u16)[x], !z, x);           // NE
+    x = #LDRSHcc((u16)[x], c, x);            // CS
+    x = #LDRSHcc((u16)[x], !c, x);           // CC
+    x = #LDRSHcc((u16)[x], n, x);            // MI
+    x = #LDRSHcc((u16)[x], !n, x);           // PL
+    x = #LDRSHcc((u16)[x], v, x);            // VS
+    x = #LDRSHcc((u16)[x], !v, x);           // VC
+    x = #LDRSHcc((u16)[x], c && !z, x);      // HI
+    x = #LDRSHcc((u16)[x], !c || z, x);      // LS
+    x = #LDRSHcc((u16)[x], n == v, x);       // GE
+    x = #LDRSHcc((u16)[x], n != v, x);       // LT
+    x = #LDRSHcc((u16)[x], !z && n == v, x); // GT
+    x = #LDRSHcc((u16)[x], z || n != v, x);  // LE
+
+    x = #LDRSHcc((u16)[x + arg], z, x);
+    x = #LDRSHcc((u16)[x + 3], z, x);
+    x = #LDRSHcc((u16)[x - 3], z, x);
+    x = #LDRSHcc((u16)[x + (arg * 2)], z, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

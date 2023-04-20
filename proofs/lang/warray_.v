@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import Psatz xseq.
 Require Export utils array gen_map type word memory_model.
 Import Utf8 ZArith.
@@ -216,6 +216,16 @@ Module WArray.
   Definition cast len len' (a:array len) : result error (array len') :=
     if (len' <=? len)%Z then ok {| arr_data := a.(arr_data) |}
     else type_error.
+
+  Definition of_list {ws} (l:list (word ws)) : array (Z.to_pos (Z.of_nat (size l) * wsize_size ws)) :=
+    let m := Mz.empty in
+    let do8 (mz: Mz.t _ * Z) (w:u8) :=
+      let '(m,z) := mz in
+      (Mz.set m z w, Z.succ z) in
+    let dow (mz: Mz.t _ * Z) (w:word ws) :=
+      foldl do8 mz (LE.encode w) in
+    let '(m, z) := foldl dow (Mz.empty u8, 0%Z) l in
+    {| arr_data := m |}.
 
   Definition uincl {len1 len2} (a1 : array len1) (a2 : array len2) :=
     (len1 <= len2)%Z /\

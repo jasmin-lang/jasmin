@@ -1,0 +1,15 @@
+inline fn f(reg u32 i) {
+  reg bool zf;
+  while {
+    _,_,_,zf,i = #DEC_32(i);
+  } (!zf)
+}
+
+inline fn g() {
+  reg u32 i;
+  i = 42;
+  f(2);
+}
+
+export fn test1() { g(); }
+export fn test2() { g(); }

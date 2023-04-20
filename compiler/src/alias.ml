@@ -132,8 +132,12 @@ let merge_slices params a s1 s2 =
   else
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
+    let y = s2.in_var in
     let lo = fst s2.range - fst s1.range in
-    Mv.add x { s2 with range = lo, lo + size_of x.v_ty } a
+    let hi = lo + size_of x.v_ty in
+    if lo < 0 || size_of y.v_ty < hi
+    then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var x;
+    Mv.add x { s2 with range = lo, hi } a
 
 (* Precondition: both maps are normalized *)
 let merge params a1 a2 =
@@ -143,21 +147,22 @@ let merge params a1 a2 =
       merge_slices params a s1 s2
     ) a1 a2
 
-let range_of_asub aa ws len { gv } i =
+let range_of_asub aa ws len gv i =
   match get_ofs aa ws i with
   | None -> hierror ~loc:(Lone (L.loc gv)) "cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
   | Some start -> start, start + arr_size ws len
 
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in
-  range_in_slice (range_of_asub aa ws len x i) s
+  range_in_slice (range_of_asub aa ws len x.gv i) s
 
 let slice_of_pexpr a =
   function
   | Parr_init _ -> None
   | Pvar x -> Some (normalize_gvar a x)
   | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
-  | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ | Pif _) -> assert false
+  | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ ) -> assert false
+  | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
 
 let slice_of_lval a =
   function

@@ -7,9 +7,9 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr compiler_util label constant_prop.
+Require Import expr fexpr compiler_util label constant_prop.
 Require Export linear.
-Import ssrZ.
+Import word_ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -56,55 +56,129 @@ End E.
 
 (* --------------------------------------------------------------------------- *)
 
+Notation fopn_args := (lexprs * sopn * rexprs)%type.
+
 Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
-    (* Scratch register to compute addresses. *)
+    (* Scratch register used to set up stack. *)
     lip_tmp : Ident.ident;
 
-    (* Return a linear instruction that allocates a stack frame.
-       The linear instruction [lip_allocate_stack_frame rspi sz] increases the
-       stack pointer [sz] bytes.
+    (* Variables that can't be used to save the stack pointer. *)
+    lip_not_saved_stack : seq Ident.ident;
+
+    (* Return the arguments for a linear instruction that allocates a stack
+       frame.
+       The linear instruction derived from [lip_allocate_stack_frame rspi sz]
+       decreases the stack pointer [sz] bytes.
        In symbols, it corresponds to:
-               R[rsp] := R[rsp] + sz
+               R[rsp] := R[rsp] - sz
      *)
     lip_allocate_stack_frame :
       var_i    (* Variable with stack pointer register. *)
       -> Z     (* Amount of space to allocate. *)
-      -> lvals * sopn * pexprs;
+      -> fopn_args;
 
-    (* Return a linear instruction that frees a stack frame.
-       The linear instruction [lip_free_stack_frame rspi sz] decreases the
-       stack pointer [sz] bytes.
+    (* Return the arguments for a linear instruction that frees a stack frame.
+       The linear instruction derived from [lip_free_stack_frame rspi sz]
+       increases the stack pointer [sz] bytes.
        In symbols, it corresponds to:
-               R[rsp] := R[rsp] - sz
+               R[rsp] := R[rsp] + sz
      *)
     lip_free_stack_frame :
       var_i    (* Variable with stack pointer register. *)
       -> Z     (* Amount of space to free. *)
-      -> lvals * sopn * pexprs;
+      -> fopn_args;
 
-    (* Return a linear instruction that ensures the stack pointer is aligned.
-       The linear instruction [lip_ensure_rsp_alignment rspi ws] ensures that
-       the k least significant bits of the stack pointer are 0, where k is the
-       size of [ws] in bytes.
-       In symbols, it corresponds to:
-               R[rsp] := R[rsp] & - wsize_size ws
-       where rsp is the stack pointer register. *)
-    lip_ensure_rsp_alignment :
-      var_i       (* Variable with stack pointer register. *)
-      -> wsize    (* Size of the unit to align to. *)
-      -> lvals * sopn * pexprs;
+    (* Return the arguments for a linear command that saves the value of the
+       stack pointer to a register, allocates a stack frame and aligns the stack
+       pointer.
+       The linear command derived from [lip_set_up_sp_register rspi sz ws r]
+       corresponds to:
+               r := R[rsp]
+               R[rsp] := (R[rsp] - sz) & - wsize_size ws
+    *)
+    lip_set_up_sp_register :
+      var_i    (* Variable with stack pointer register. *)
+      -> Z     (* Size of the stack frame to allocate. *)
+      -> wsize (* Alignment. *)
+      -> var_i (* Variable to save stack pointer to. *)
+      -> option (seq fopn_args);
 
-    (* Return a linear instruction that corresponds to assignment.
-       In symbols, the linear instruction [lip_lassign x ws e] corresponds to:
+    (* Return the arguments for a linear command that allocates a stack frame,
+       aligns the stack pointer, and pushes the old value of the stack pointer
+       to the stack.
+       The linear command derived from [lip_set_up_sp_stack rspi sz ws]
+       corresponds to:
+               R[tmp] := R[rsp]
+               R[rsp] := (R[rsp] - sz) & - wsize_size ws
+               M[R[rsp]] := R[tmp]
+    *)
+    lip_set_up_sp_stack :
+      var_i    (* Variable with stack pointer register. *)
+      -> Z     (* Size of the stack frame to allocate. *)
+      -> wsize (* Alignment. *)
+      -> Z     (* Offset to save old stack pointer. *)
+      -> option (seq fopn_args);
+
+    (* Return the arguments for a linear instruction that corresponds to
+       an assignment.
+       In symbols, the linear instruction derived from [lip_lassign x ws e]
+       corresponds to:
                x := (ws)e
      *)
     lip_lassign :
-      lval        (* Value to overwrite. *)
+      lexpr        (* Value to overwrite. *)
       -> wsize    (* Size of the value to assign. *)
-      -> pexpr    (* Value to assign. *)
-      -> option (lvals * sopn * pexprs);
+      -> rexpr    (* Value to assign. *)
+      -> option fopn_args;
   }.
+
+
+(* Note on function calls: 
+  
+   + For X86:
+
+     - Return address passed by register in ra:
+          LstoreLabel ra lret
+          Lgoto lcall
+          Llabel lret
+       Internally (to the callee), ra need to be free. 
+       The return is implemented by 
+          Ligoto ra
+       /!\ For protection against Spectre we should avoid this calling convention 
+
+     - Return address passed by stack (on top of the stack):
+          Lcall None lcall;
+          Llabel lret;
+       The return is implemented by 
+          Lret  (i.e ret in X86)
+        The stack frame is incremented by the caller and by the call instruction (to push ra).   
+
+
+   + For ARM v7:
+
+     - Return address passed by register in ra
+         Lcall (Some ra) lcall    (i.e BL lcall with the constraint that ra should be LR(r14))
+         Llabel lret
+       Internally (to the callee), ra need to be free. 
+       The return is implemented by 
+          Ligoto ra   (i.e BX ra)
+       The stack frame is incremented by the caller.
+
+
+     - Return address passed by stack (on top of the stack):
+       Lcall (Some ra) lcall (i.e BL lcall with the constraint that ra should be LR(r14))
+       Llabel lret
+       ra need to be free when Lcall is executed (extra_free_registers = Some ra). 
+       The first instruction of the function call need to push ra.
+          store sp ra
+       So ra need to be known at call cite and at the entry of the function.
+       The stack frame is incremented by the caller.
+
+       The return is implemented by 
+       Lret  (i.e POP PC in arm v7)
+
+*)
 
 Section WITH_PARAMS.
 
@@ -115,10 +189,16 @@ Context
   (liparams : linearization_params).
 
 Definition lassign
-  (lv : lval) (ws : wsize) (e : pexpr) : option linstr_r :=
+  (lv : lexpr) (ws : wsize) (e : rexpr) : option linstr_r :=
   if lip_lassign liparams lv ws e is Some (lvs, op, es)
   then Some (Lopn lvs op es)
   else None.
+
+Definition lassign'
+  (lv : lval) (ws : wsize) (e : pexpr) : option linstr_r :=
+  obind (λ x,
+      obind (lassign x ws) (rexpr_of_pexpr e))
+      (lexpr_of_lval lv).
 
 (* Return a linear instruction that corresponds to copying a register.
    The linear instruction [lmove ii rd ws r0] corresponds to
@@ -127,9 +207,9 @@ Definition lassign
 Definition lmove
   (rd : var_i)      (* Destination register. *)
   (ws : wsize)      (* Size of the value to copy. *)
-  (r0 : gvar)       (* Source register. *)
+  (r0 : var_i)       (* Source register. *)
   : option linstr_r :=
-  lassign (Lvar rd) ws (Pvar r0).
+  lassign (LLvar rd) ws (Rexpr (Fvar r0)).
 
 (* Return a linear instruction that corresponds to loading from memory.
    The linear instruction [lload ii rd ws r0 ofs] corresponds to
@@ -141,7 +221,7 @@ Definition lload
   (r0 : var_i)      (* Base register. *)
   (ofs : Z)         (* Offset. *)
   : option linstr_r :=
-  lassign (Lvar rd) ws (Pload ws r0 (cast_const ofs)).
+  lassign (LLvar rd) ws (Load ws r0 (fconst Uptr ofs)).
 
 (* Return a linear instruction that corresponds to storing to memory.
    The linear instruction [lstore ii rd ofs ws r0] corresponds to
@@ -151,9 +231,24 @@ Definition lstore
   (rd : var_i)      (* Base register. *)
   (ofs : Z)         (* Offset. *)
   (ws : wsize)      (* Size of the value to copy. *)
-  (r0 : gvar)       (* Source register. *)
+  (r0 : var_i)       (* Source register. *)
   : option linstr_r :=
-  lassign (Lmem ws rd (cast_const ofs)) ws (Pvar r0).
+  lassign (Store ws rd (fconst Uptr ofs)) ws (Rexpr (Fvar r0)).
+
+Definition li_of_copn_args (ii : instr_info) (p : fopn_args) : linstr :=
+  MkLI ii (Lopn p.1.1 p.1.2 p.2).
+
+Definition set_up_sp_register
+  (vrspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : lcmd :=
+  if lip_set_up_sp_register liparams vrspi sf_sz al r is Some args
+  then map (li_of_copn_args dummy_instr_info) args
+  else [::].
+
+Definition set_up_sp_stack
+  (vrspi : var_i) (sf_sz : Z) (al : wsize) (ofs : Z) : lcmd :=
+  if lip_set_up_sp_stack liparams vrspi sf_sz al ofs is Some args
+  then map (li_of_copn_args dummy_instr_info) args
+  else [::].
 
 Definition mkli_dummy (lir : linstr_r) : linstr := MkLI dummy_instr_info lir.
 
@@ -162,19 +257,47 @@ Definition dummy_linstr : linstr := mkli_dummy Lalign.
 Definition of_olinstr_r (ii : instr_info) (oli : option linstr_r) : linstr :=
   if oli is Some lir then MkLI ii lir else dummy_linstr.
 
+(* -------------------------------------------------------------------------- *)
+Section CHECK_SOME.
+  Context (E: Type) (error: string → E) (A B: Type) (conv: A → option B).
+
+  Definition check_Some msg (a: A) : result E unit :=
+    if isSome (conv a) then ok tt
+    else Error (error msg).
+
+End CHECK_SOME.
+
+(* -------------------------------------------------------------------------- *)
+Section EXPR.
+  Context (ii: instr_info).
+
+  Definition to_fexpr (e: pexpr) : fexpr :=
+    if fexpr_of_pexpr e is Some r then r else Fconst 0.
+
+  Let error msg := E.gen_error true (Some ii) msg.
+
+  Definition check_fexpr := check_Some error fexpr_of_pexpr "check_fexpr".
+
+  Definition check_rexpr := check_Some error rexpr_of_pexpr "check_rexpr".
+
+  Definition check_lexpr := check_Some error lexpr_of_lval "check_lexpr".
+
+End EXPR.
+
 Section PROG.
 
 Context
-  (p : sprog)
-  (extra_free_registers : instr_info -> option var).
+  (p : sprog).
+(*  (extra_free_registers : instr_info -> option var) *)
+
+Definition mk_var_i (x:var) := {| v_var := x; v_info := dummy_var_info; |}.
+
+Definition mk_ovar_i := omap mk_var_i.
 
 Notation rsp := {| vtype := sword Uptr; vname := sp_rsp (p_extra p); |}.
 Notation rspi := {| v_var := rsp; v_info := dummy_var_info; |}.
-Notation rspg := {| gv := rspi; gs := Slocal; |}.
 
 Notation var_tmp := {| vtype := sword Uptr; vname := lip_tmp liparams; |}.
-Notation var_tmpi := {| v_var := var_tmp; v_info := dummy_var_info; |}.
-Notation var_tmpg := {| gv := var_tmpi; gs := Slocal; |}.
 
 (** Total size of a stack frame: local variables, extra and padding. *)
 Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
@@ -202,47 +325,32 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
     | Cassgn x tag ty e =>
       if ty is sword ws
       then
-        if isSome (lassign x ws e)
+        if isSome (lassign' x ws e)
         then ok tt
         else Error (E.ii_error ii "assign failed")
       else Error (E.ii_error ii "assign not a word")
     | Copn xs tag o es =>
-      ok tt
+      allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
         ok tt
     | Cassert b =>
         ok tt
     | Cif b c1 c2 =>
-      check_c check_i c1 >> check_c check_i c2
+      check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
     | Cfor _ _ _ =>
       Error (E.ii_error ii "for found in linear")
     | Cwhile _ c e c' =>
-      if is_false e then check_c check_i c
-      else check_c check_i c >> check_c check_i c'
+      match is_bool e with
+      | Some false => check_c check_i c
+      | Some true => check_c check_i c >> check_c check_i c'
+      | None => check_fexpr ii e >> check_c check_i c >> check_c check_i c'
+      end
     | Ccall _ xs fn es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
         let e := f_extra fd in
-        Let _ :=
-          assert
-            match sf_return_address e with
-            | RAnone => false
-            | RAreg ra => true
-            | RAstack ofs =>
-                if extra_free_registers ii is Some ra
-                then
-                  let rag :=
-                    {|
-                      gv := {| v_var := ra; v_info := dummy_var_info; |};
-                      gs := Slocal;
-                    |}
-                  in
-                  isSome (lstore rspi ofs Uptr rag)
-                else
-                  false
-            end
-            (E.ii_error ii "(one_varmap) nowhere to store the return address")
-        in
+        Let _ := assert (sf_return_address e != RAnone)
+          (E.ii_error ii "internal call to an export function") in
         Let _ := assert (sf_align e <= stack_align)%CMP
           (E.ii_error ii "caller need alignment greater than callee") in
         ok tt
@@ -259,6 +367,13 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
      is_align (wrepr Uptr ofs) ws (* Stack slot is aligned *)
     ].
 
+  Let check_stack_ofs_internal_call e ofs ws : bool :=
+    [&&
+     ofs == 0%Z,
+     wsize_size ws == sf_stk_ioff e &
+     (ws ≤ sf_align e)%CMP (* Stack frame is aligned for storing words of size ws *)
+    ].
+
   Definition all_disjoint_aligned_between (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) : cexec unit :=
     Let last := foldM (λ a base,
                        Let: (ofs, ws) := slot a in
@@ -269,16 +384,14 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
                       ) lo m in
     assert (last <=? hi)%Z (E.error "to-save: overflow in the stack frame").
 
-
   Definition check_to_save_slot (p : var * Z) : cexec (Z * wsize) :=
     let '(x, ofs) := p in
     if is_word_type (vtype x) is Some ws
     then
       let xi := {| v_var := x; v_info := dummy_var_info; |} in
-      let xg := {| gv := xi; gs := Slocal; |} in
       Let _ :=
         assert
-          (isSome (lload xi ws rspi ofs) && isSome (lstore rspi ofs ws xg))
+          (isSome (lload xi ws rspi ofs) && isSome (lstore rspi ofs ws xi))
           (E.error "to-save: can't push/pop to stack")
       in
       ok (ofs, ws)
@@ -348,10 +461,13 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
   Let _ := assert match sf_return_address e with
                   | RAnone => true
                   | RAreg ra => vtype ra == sword Uptr
-                  | RAstack ofs => check_stack_ofs e ofs Uptr
+                  | RAstack ora ofs => 
+                      (if ora is Some ra then (vtype ra == sword Uptr) && isSome (lstore rspi ofs Uptr (mk_var_i ra)) else true) &&
+                      check_stack_ofs_internal_call e ofs Uptr
                   end
                   (E.error "bad return-address") in
   let ok_save_stack :=
+    let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
     match sf_save_stack e with
     | SavedStackNone =>
         [&& sf_to_save e == [::]
@@ -362,20 +478,20 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
 
     | SavedStackReg x =>
         let xi := {| v_var := x; v_info := dummy_var_info; |} in
-        let xg := {| gv := xi; gs := Slocal; |} in
         [&& vtype x == sword Uptr
           , sf_to_save e == [::]
-          , isSome (lmove rspi Uptr xg)
-          & isSome (lmove xi Uptr rspg)
+          , vname x \notin (lip_not_saved_stack liparams)
+          , isSome (lip_set_up_sp_register liparams rspi sf_sz (sf_align e) xi)
+          & isSome (lmove rspi Uptr xi)
         ]
 
     | SavedStackStk ofs =>
         [&& check_stack_ofs e ofs Uptr
           , ~~ Sv.mem var_tmp (sv_of_list fst (sf_to_save e))
-          , isSome (lload rspi Uptr rspi ofs)
-          , isSome (lmove var_tmpi Uptr rspg)
-          & isSome (lstore rspi ofs Uptr var_tmpg)
+          , isSome (lip_set_up_sp_stack liparams rspi sf_sz (sf_align e) ofs)
+          & isSome (lload rspi Uptr rspi ofs)
         ]
+
     end
   in
   Let _ :=
@@ -389,17 +505,15 @@ Definition check_prog :=
   Let _ := map_cfprog_name check_fd (p_funcs p) in
   ok tt.
 
-Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
+Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (rastack: bool) : lcmd :=
+  let sz := if rastack then (sz - wsize_size Uptr)%Z else sz in
   if sz == 0%Z
   then [::]
-  else let args := if free
-                   then (lip_allocate_stack_frame liparams) rspi sz
-                   else (lip_free_stack_frame liparams) rspi sz
-       in [:: MkLI ii (Lopn args.1.1 args.1.2 args.2) ].
-
-Definition ensure_rsp_alignment ii (al: wsize) : linstr :=
-  let args := (lip_ensure_rsp_alignment liparams) rspi al in
-  MkLI ii (Lopn args.1.1 args.1.2 args.2).
+  else
+    let args := if free
+                   then (lip_free_stack_frame liparams) rspi sz
+                   else (lip_allocate_stack_frame liparams) rspi sz
+       in [:: li_of_copn_args ii args ].
 
 (* Return a linear command that pushes variables to the stack.
  * The linear command `lp_push_to_save ii to_save` pushes each
@@ -417,8 +531,7 @@ Definition push_to_save
     if is_word_type x.(vtype) is Some ws
     then
       let xi := {| v_var := x; v_info := dummy_var_info; |} in
-      let xg := {| gv := xi; gs := Slocal; |} in
-      of_olinstr_r ii (lstore rspi ofs ws xg)
+      of_olinstr_r ii (lstore rspi ofs ws xi)
     else
       dummy_linstr (* Never happens. *)
   in
@@ -446,15 +559,31 @@ Definition pop_to_save
   in
   map mkli to_save.
 
+Definition is_rastack_none ra := 
+  match ra with 
+  | RAstack None _ => true
+  | _ => false
+  end.
+
+Definition is_rastack ra :=
+  if ra is RAstack _ _ then true else false.
+
+Let ReturnTarget := Llabel ExternalLabel.
+Let Llabel := linear.Llabel InternalLabel.
+
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn x _ ty e =>
     let lc' := if ty is sword sz
-               then of_olinstr_r ii (lassign x sz e) :: lc
+               then of_olinstr_r ii (lassign' x sz e) :: lc
                else lc
     in (lbl, lc')
-  | Copn xs _ o es => (lbl, MkLI ii (Lopn xs o es) :: lc)
+  | Copn xs _ o es =>
+      match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
+      | Some xs, Some es => (lbl, MkLI ii (Lopn xs o es) :: lc)
+      | _, _ => (lbl, lc) (* absurd case *)
+      end
 
   | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
 
@@ -463,18 +592,18 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (to_fexpr e) L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond (snot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (to_fexpr (snot e)) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 c2 =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
-                           MkLI ii (Lcond e L1) >;
+                           MkLI ii (Lcond (to_fexpr e) L1) >;
                            linear_c linear_i c2 ;;
                            MkLI ii (Lgoto (fn, L2)) >;
     MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
@@ -499,7 +628,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let L1 := lbl in
       let lbl := next_lbl L1 in
       align ii a (MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L1) :: lc))
+                             (MkLI ii (Lcond (to_fexpr e) L1) :: lc))
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in
@@ -507,7 +636,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
                              MkLI ii (Lgoto (fn, L1)) >;
       align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;;
       MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L2) :: lc))
+                             (MkLI ii (Lcond (to_fexpr e) L2) :: lc))
       end
     end
 
@@ -518,73 +647,55 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       if ra == RAnone then (lbl, lc)
       else
         let sz := stack_frame_allocation_size e in
-        let before := allocate_stack_frame false ii sz in
-        let after := allocate_stack_frame true ii sz in
+        let before := allocate_stack_frame false ii sz (is_rastack_none ra) in
+        let after := allocate_stack_frame true ii sz (is_rastack ra) in
         let lret := lbl in
         let lbl := next_lbl lbl in
+        (* The test is used for the proof of linear_has_valid_labels *) 
         let lcall := (fn', if fn' == fn
                            then lret    (* Absurd case. *)
                            else xH      (* Entry point. *)
                      ) in
-        match sf_return_address e with
-        | RAreg ra =>
-          (* Save return address to register ra.
-           * 1. Allocate stack frame.
-           * 2. Store return label in ra.
-           * 3. Insert jump to callee.
-           * 4. Insert return label (callee will jump back here).
-           * 5. Free stack frame.
-           * 6. Continue.
+        let ra :=  
+           match sf_return_address e with
+          | RAreg ra => Some (mk_var_i ra)
+          | RAstack ra _ => mk_ovar_i ra
+          | RAnone => None (* absurd case *)
+          end in
+        (* * 1. Allocate stack frame.
+           * 2. Call callee
+           * 3. Insert return label (callee will jump back here).
+           * 4. Free stack frame.
+           * 5. Continue.
            *)
-          (lbl, before
-                  ++ MkLI ii (LstoreLabel ra lret)
-                  :: MkLI ii (Lgoto lcall)
-                  :: MkLI ii (Llabel lret)
-                  :: after
-                  ++ lc
+        (lbl,    before
+              ++ MkLI ii (Lcall ra lcall)
+              :: MkLI ii (ReturnTarget lret)
+              :: after
+              ++ lc
           )
-
-        | RAstack z =>
-          (* Save return address to the stack with an offset.
-           * 1. Allocate stack frame.
-           * 2. Store return label in ra.
-           * 3. Push ra to stack.
-           * 4. Insert jump to callee.
-           * 5. Insert return label (callee will jump back here).
-           * 6. Free stack frame.
-           * 7. Continue.
-           *)
-          if extra_free_registers ii is Some ra
-          then let glob_ra := Gvar (VarI ra dummy_var_info) Slocal in
-               (lbl, before
-                       ++ MkLI ii (LstoreLabel ra lret)
-                       :: of_olinstr_r ii (lstore rspi z Uptr glob_ra)
-                       :: MkLI ii (Lgoto lcall)
-                       :: MkLI ii (Llabel lret)
-                       :: after
-                       ++ lc
-               )
-          else (lbl, lc)
-        | RAnone => (lbl, lc)
-        end
     else (lbl, lc )
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
+Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r =>
-       ( [:: MkLI dummy_instr_info (Ligoto (Pvar (Gvar (VarI r dummy_var_info) Slocal))) ]
+       ( [:: MkLI dummy_instr_info (Ligoto (Rexpr (Fvar (VarI r dummy_var_info)))) ]
        , [:: MkLI dummy_instr_info (Llabel 1) ]
        , 2%positive
        )
-     | RAstack z =>
-       ( [:: MkLI dummy_instr_info (Ligoto (Pload Uptr rspi (cast_const z))) ]
-       , [:: MkLI dummy_instr_info (Llabel 1) ]
+     | RAstack ra z =>
+       ( [:: MkLI dummy_instr_info Lret ]
+       , MkLI dummy_instr_info (Llabel 1) ::
+         (if ra is Some ra
+          then [::of_olinstr_r dummy_instr_info (lstore rspi z Uptr (mk_var_i ra))]
+          else [::])
        , 2%positive
        )
      | RAnone =>
+       let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
        match sf_save_stack e with
        | SavedStackNone =>
          ([::], [::], 1%positive)
@@ -594,10 +705,8 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
           *       Setup stack.
           *)
          let r := VarI x dummy_var_info in
-         ( [:: of_olinstr_r dummy_instr_info (lmove rspi Uptr (Gvar r Slocal)) ]
-         , of_olinstr_r dummy_instr_info (lmove r Uptr rspg)
-             :: allocate_stack_frame false dummy_instr_info (sf_stk_sz e + sf_stk_extra_sz e)
-             ++ [:: ensure_rsp_alignment dummy_instr_info e.(sf_align) ]
+         ( [:: of_olinstr_r dummy_instr_info (lmove rspi Uptr r) ]
+         , set_up_sp_register rspi sf_sz (sf_align e) r
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -610,33 +719,32 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
           *)
          ( pop_to_save dummy_instr_info e.(sf_to_save)
              ++ [:: of_olinstr_r dummy_instr_info (lload rspi Uptr rspi ofs) ]
-         , of_olinstr_r dummy_instr_info (lmove var_tmpi Uptr rspg)
-             :: allocate_stack_frame false dummy_instr_info (sf_stk_sz e + sf_stk_extra_sz e)
-             ++ ensure_rsp_alignment dummy_instr_info e.(sf_align)
-             :: of_olinstr_r dummy_instr_info (lstore rspi ofs Uptr var_tmpg)
-             :: push_to_save dummy_instr_info e.(sf_to_save)
+         , set_up_sp_stack rspi sf_sz (sf_align e) ofs
+             ++ push_to_save dummy_instr_info e.(sf_to_save)
          , 1%positive)
        end
      end
   in
   let fd' := linear_c linear_i body lbl tail in
-  head ++ fd'.2.
+  (fd'.1, head ++ fd'.2).
 
 Definition linear_fd (fd: sfundef) :=
   let e := fd.(f_extra) in
   let is_export := sf_return_address e == RAnone in
   let res := if is_export then f_res fd else [::] in
-  {| lfd_info := f_info fd
-  ; lfd_align := sf_align e
-  ; lfd_tyin := f_tyin fd
-  ; lfd_arg := f_params fd
-  ; lfd_tyout := f_tyout fd
-  ; lfd_total_stack := sf_stk_max e
-  ; lfd_res := res
-  ; lfd_export := is_export
-  ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
-  ; lfd_body := linear_body e fd.(f_body)
-  |}.
+  let body := linear_body e fd.(f_body) in
+  (body.1,
+    {| lfd_info := f_info fd
+    ; lfd_align := sf_align e
+    ; lfd_tyin := f_tyin fd
+    ; lfd_arg := f_params fd
+    ; lfd_tyout := f_tyout fd
+    ; lfd_total_stack := sf_stk_max e
+    ; lfd_res := res
+    ; lfd_export := is_export
+    ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
+    ; lfd_body := body.2
+    |}).
 
 End FUN.
 
@@ -644,11 +752,17 @@ Definition linear_prog : cexec lprog :=
   Let _ := check_prog in
   Let _ := assert (size p.(p_globs) == 0)
              (E.internal_error "invalid p_globs") in
-  let funcs := map (fun '(f,fd) => (f, linear_fd f fd)) p.(p_funcs) in
+  let funcs := fmap (fun nb_lbl '(f,fd) =>
+    let fd := linear_fd f fd in
+    ((nb_lbl + fd.1)%positive, (f, fd.2))) 1%positive p.(p_funcs)
+  in
+  Let _ := assert (funcs.1 <=? wbase Uptr)%Z
+                  (E.internal_error "too many labels")
+  in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_rsp   := p.(p_extra).(sp_rsp);
         lp_globs := p.(p_extra).(sp_globs);
-        lp_funcs := funcs |}.
+        lp_funcs := funcs.2 |}.
 
 End PROG.
 End WITH_PARAMS.

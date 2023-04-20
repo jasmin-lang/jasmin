@@ -66,6 +66,8 @@
 %token REG
 %token REQUIRE
 %token RETURN
+%token ROR
+%token ROL
 %token SEMICOLON
 %token <Syntax.swsize>SWSIZE
 %token <Syntax.svsize> SVSIZE
@@ -89,7 +91,7 @@
 %left PIPE
 %left HAT
 %left AMP
-%left LTLT GTGT
+%left LTLT GTGT ROR ROL
 %left PLUS MINUS
 %left STAR SLASH PERCENT
 %nonassoc BANG 
@@ -212,6 +214,8 @@ cast:
 | HAT         c=castop { `BXOr c}
 | LTLT        c=castop { `ShL  c} 
 | s=loc(GTGT) c=castop { `ShR (setsign c s)}
+| ROR         c=castop { `ROR  c}
+| ROL         c=castop { `ROL  c}
 | EQEQ        c=castop { `Eq   c}
 | BANGEQ      c=castop { `Neq  c}
 | s=loc(LT)   c=castop { `Lt  (setsign c s)}
@@ -293,8 +297,12 @@ peqop:
 | PLUS  c=castop EQ  { `Add  c }
 | MINUS c=castop EQ  { `Sub  c }
 | STAR  c=castop EQ  { `Mul  c }
+| SLASH c=castop EQ  { `Div  c }
+| PERCENT c=castop EQ  { `Mod  c }
 | s=loc(GTGT)  c=castop EQ  { `ShR  (setsign c s) }
 | LTLT  c=castop EQ  { `ShL  c }
+| ROR   c=castop EQ  { `ROR  c }
+| ROL   c=castop EQ  { `ROL  c }
 | AMP   c=castop EQ  { `BAnd c }
 | HAT   c=castop EQ  { `BXOr c }
 | PIPE  c=castop EQ  { `BOr  c }
@@ -324,6 +332,7 @@ implicites:
 
 plvalues:
 | lv=tuple1(plvalue) { None, lv }
+| LPAREN RPAREN { None, [] }
 | s=implicites { Some s, [] }
 | s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
 

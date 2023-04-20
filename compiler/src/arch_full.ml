@@ -2,6 +2,11 @@ open Arch_decl
 open Arch_extra
 open Prog
 
+type 'a callstyle =
+  | StackDirect           (* call instruction push the return address on top of the stack *)
+  | ByReg of 'a option    (* call instruction store the return address on a register, 
+                               (Some r) neams that the register is forced to be r *)
+
 (* TODO: check that we cannot use sth already defined on the Coq side *)
 
 module type Core_arch = sig
@@ -21,13 +26,12 @@ module type Core_arch = sig
 
   val lowering_vars : Conv.coq_tbl -> fresh_vars
   val lowering_opt : lowering_options
+  val not_saved_stack : Name.t list
 
   val pp_asm : Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
-  val analyze :
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.prog ->
-    unit
+
+  val callstyle : reg callstyle
+
 end
 
 module type Arch = sig
@@ -51,12 +55,23 @@ module type Arch = sig
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
   val callee_save_vars : var list
+  val not_saved_stack : var list
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
+
+  val callstyle : var callstyle
 end
 
-module Arch_from_Core_arch (A : Core_arch) : Arch = struct
+module Arch_from_Core_arch (A : Core_arch) :
+  Arch
+    with type reg = A.reg
+     and type regx = A.regx
+     and type xreg = A.xreg
+     and type rflag = A.rflag
+     and type cond = A.cond
+     and type asm_op = A.asm_op
+     and type extra_op = A.extra_op = struct
   include A
 
   let arch_decl = A.asm_e._asm._arch_decl 
@@ -127,6 +142,9 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
   let callee_save_regx = List.filter_map (Arch_decl.get_ARegX arch_decl) callee_save
   let callee_save_xreg = List.filter_map (Arch_decl.get_AXReg arch_decl) callee_save
 
+  let not_saved_stack =
+    List.filter (fun x -> List.mem x.v_name not_saved_stack) reg_vars
+
   let rsp = arch_decl.ad_rsp
 
   let mk_allocatable regs callee_save = 
@@ -188,4 +206,10 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
   let all_registers = reg_vars @ regx_vars @ xreg_vars @ flag_vars
 
   let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
+
+  let callstyle = 
+    match A.callstyle with
+    | StackDirect -> StackDirect
+    | ByReg o -> ByReg (Option.map var_of_reg o)
+    
 end

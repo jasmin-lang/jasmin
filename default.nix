@@ -14,12 +14,19 @@ with pkgs;
 
 let inherit (lib) optionals; in
 
-let coqPackages = coqPackages_8_14; in
+let coqPackages = coqPackages_8_16; in
 
-let coqword = callPackage scripts/coqword.nix { inherit coqPackages; }; in
+let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
+  why3 = pkgs.why3.overrideAttrs (o: rec {
+      version = "1.6.0";
+      src = pkgs.fetchurl {
+        url = "https://why3.gitlabpages.inria.fr/releases/${o.pname}-${version}.tar.gz";
+        hash = "sha256-hFvM6kHScaCtcHCc6Vezl9CR7BFbiKPoTEh7kj0ZJxw=";
+      };
+    });
 }; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
@@ -44,13 +51,14 @@ stdenv.mkDerivation {
   name = "jasmin-0";
   src = null;
   buildInputs = []
-    ++ optionals coqDeps [ coqPackages.coq coqword coqPackages.coq.ocamlPackages.ocaml ]
-    ++ optionals testDeps ([ curl.bin oP.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
+    ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
+    ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
-         ocaml findlib ocamlbuild
+         ocaml findlib dune_3
+         cmdliner
          (batteries.overrideAttrs (o: { doCheck = false; }))
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
-    ++ optionals devTools (with oP; [ merlin ])
+    ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;

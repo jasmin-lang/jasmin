@@ -25,7 +25,7 @@ let pick sz n =
   | [] -> V.mk n.v_name (Stack Direct) (Arr(U8,sz)) n.v_dloc n.v_annot, []
   | c :: free -> c, free
 
-let rec solve_rec sz (free, result) =
+let solve_rec sz (free, result) =
   function
   | _, Start n ->
      let c, free = pick sz n free in

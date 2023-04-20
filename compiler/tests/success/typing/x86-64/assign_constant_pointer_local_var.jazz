@@ -1,0 +1,12 @@
+/* The type checker should not reject this program, as it does not write to the
+   constant pointer. */
+export
+fn main() -> reg u64{
+  reg u64 a;
+  stack u64[1] s;
+  reg const ptr u64[1] p;
+  s[0] = 42;
+  p = s;
+  a = s[0];
+  return a;
+}

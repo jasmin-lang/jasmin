@@ -1,0 +1,92 @@
+param int NREGISTERS = 14;
+param int NREGISTERS_CALLEE_SAVED = 8;
+
+/* Threshold such that all non callee saved registers are used. */
+param int n = NREGISTERS - NREGISTERS_CALLEE_SAVED - 1;
+
+/* Many free registers. */
+export
+fn onregister0(reg u32 x) -> reg u32 {
+    reg u32 result;
+    reg u32[1] tab;
+    inline int i;
+    stack u32 t;
+
+    t = x;
+
+    for i = 0 to 1 {
+        tab[i] = x;
+    }
+
+    result = t;
+    for i = 0 to 1 {
+        result += tab[i];
+    }
+
+    return result;
+}
+
+/* One free register. */
+export
+fn onregister1(reg u32 x) -> reg u32 {
+    reg u32 result;
+    reg u32[n-1] tab;
+    inline int i;
+    stack u32 t;
+
+    t = x;
+
+    for i = 0 to n - 1 {
+        tab[i] = x;
+    }
+
+    result = t;
+    for i = 0 to n - 1 {
+        result += tab[i];
+    }
+
+    return result;
+}
+
+export
+fn onstack0(reg u32 x) -> reg u32 {
+    reg u32 result;
+    reg u32[n] tab;
+    inline int i;
+    stack u32 t;
+
+    t = x;
+
+    for i = 0 to n {
+        tab[i] = x;
+    }
+
+    result = t;
+    for i = 0 to n {
+        result += tab[i];
+    }
+
+    return result;
+}
+
+export
+fn onstack1(reg u32 x) -> reg u32 {
+    reg u32 result;
+    reg u32[NREGISTERS - 1] tab;
+    inline int i;
+    stack u32 t;
+
+    t = x;
+
+    for i = 0 to NREGISTERS - 1 {
+        tab[i] = x;
+    }
+
+    result = t;
+    for i = 0 to NREGISTERS - 1 {
+        result += tab[i];
+    }
+
+    return result;
+}
+

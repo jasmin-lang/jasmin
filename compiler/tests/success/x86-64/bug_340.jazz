@@ -1,0 +1,13 @@
+inline fn xor(reg u256 a b) -> reg u256 {
+  reg u256 c;
+  c = a ^ b;
+  return c;
+}
+
+export
+fn main(reg u256 x) -> reg u256 {
+  reg u256[1] a;
+  a[0] = x;
+  x = xor(a[0], a[0]);
+  return x;
+}

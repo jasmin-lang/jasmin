@@ -1,0 +1,20 @@
+/* The type checker should not reject this program, as `foo` does not write to
+   the constant pointer `px` (inferred to be constant since it is not returned).
+*/
+fn foo (reg ptr u64[3] px) -> reg u64 {
+  reg u64 res_x;
+  stack u64[3] y;
+  px = y;
+  y[0] = 666;
+  res_x = px[0];
+  return res_x;
+}
+
+export fn main () -> reg u64 {
+  stack u64[3] x;
+  reg u64 res;
+  x[0] = 41;
+  _ = foo(x);
+  res = x[0];
+  return res;
+}

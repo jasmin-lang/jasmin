@@ -15,7 +15,9 @@ Local Open Scope vmap_scope.
 
 Record h_propagate_inline_params
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state} :=
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state} :=
   {
     pip_cf_xsemP :
       forall gd s e0 e1 e2 e3 cf v,
@@ -29,7 +31,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   {T : eqType}
   {pT : progT T}
   {sCP : semCallParams}
@@ -125,12 +129,7 @@ Proof.
   by move=> [v] [->] /value_uinclE ->.
 Qed.
 
-Lemma sbeqE e1 e2 b : 
-  sem_pexpr gd s (Papp2 Obeq e1 e2) = ok (Vbool b) ->
-  sem_pexpr gd s (sbeq e1 e2) = ok (Vbool b).
-Proof. by move=> /sbeqP [v] [-> /value_uinclE ->]. Qed.
-
-Lemma sbeqE' e0 e1 b0 b1 :
+Lemma sbeqE e0 e1 b0 b1 :
   sem_pexpr gd s e0 = ok (Vbool b0) ->
   sem_pexpr gd s e1 = ok (Vbool b1) ->
   sem_pexpr gd s (sbeq e0 e1) = ok (Vbool (b0 == b1)).
@@ -189,7 +188,7 @@ Proof.
   all: have h1 := ih1 b1 hv1.
   all:
     solve
-      [ exact: (sandE h0 h1) | exact: (sorE h0 h1) | exact: (sbeqE' h0 h1) ].
+      [ exact: (sandE h0 h1) | exact: (sorE h0 h1) | exact: (sbeqE h0 h1) ].
 Qed.
 
 Lemma cf_esem_ssem e0 e1 e2 e3 cf b :
@@ -791,10 +790,30 @@ Section PROOF.
     sem_call p1 ev scs mem f va scs' mem' vr ->
     exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    by move=>
-      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-          Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)
-      h /h [vr' h1 h2]; exists vr'.
+    move=> hall hsem.
+    have [vr' ??] :=
+      sem_call_Ind
+        Hskip
+        Hcons
+        HmkI
+        Hassgn
+        Hopn
+        Hsyscall
+        Hassert_true
+        Hassert_false
+        Hif_true
+        Hif_false
+        Hwhile_true
+        Hwhile_false
+        Hfor
+        Hfor_nil
+        Hfor_cons
+        Hcall
+        Hproc
+        hsem
+        _
+        hall.
+    by exists vr'.
   Qed.
 
 End PROOF.

@@ -1,0 +1,29 @@
+fn loop(reg u64 x) -> reg u64 {
+   stack u64[1] s;
+   reg ptr u64[1] p;
+   stack ptr u64[1] sp;
+   reg u64 y;
+   
+   s[0] = x;
+   p = s;
+   sp = p;
+   y = 0;
+   while (y < 42) {
+     p = sp;
+     p[0] += x;
+     x += p[0];
+     sp = p;
+     y += 1;
+   }
+   p = sp;
+   s = p;
+   x = s[0];
+   return x;
+
+}
+
+export fn test (reg u64 x) -> reg u64 {
+   reg u64 z;
+   z = loop(x);
+   return z;
+}

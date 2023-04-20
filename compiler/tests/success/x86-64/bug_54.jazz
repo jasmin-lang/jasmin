@@ -1,0 +1,10 @@
+export
+fn main () -> reg u8 {
+  reg u8 res;
+  stack u8[3] a;
+  stack u8[4] b;
+  b[1] = 42;
+  a[0:2] = b[1:2];
+  res = a[0];
+  return res;
+}

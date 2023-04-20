@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-module J = Jasmin
+module J = Jasminc
 
-let main () = J.Main_compiler.main ()
+let () = J.Main_compiler.main ()
 

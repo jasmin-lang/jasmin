@@ -226,32 +226,162 @@ Proof.
   by case: negP => // hg; rewrite get_var_neq //; apply h.
 Qed.
 
-Lemma get_gvar_set_eq gd vm1 vm2 x y v: 
-  get_gvar gd vm1 y = get_gvar gd vm2 y ->
-  get_gvar gd vm1.[x <- v] y = get_gvar gd vm2.[x <- v] y.
-Proof.
-  case : (@idP (is_glob y)) => hg; first by rewrite !get_gvar_neq.
-  case:( x =P (gv y)) => heq; last by rewrite !get_gvar_neq.
-  by move: v; rewrite heq => v; rewrite !get_gvar_eq.
-Qed.
-
 Definition vm_initialized_on (vm: vmap) : seq var → Prop :=
   all (λ x, is_ok (get_var vm x >>= of_val (vtype x))).
+
+(* Attempt to simplify goals of the form
+   [get_var vm.[y0 <- z0]...[yn <- zn] x]. *)
+Ltac t_get_var :=
+  repeat (
+    rewrite get_var_eq
+    || (rewrite get_var_neq; last by [|apply/nesym])
+  ).
+
+Definition eq_on (s : Sv.t) (vm1 vm2 : vmap) :=
+  forall x, Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
+
+Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
+
+Lemma eq_onT s vm1 vm2 vm3:
+  vm1 =[s] vm2 -> vm2 =[s] vm3 -> vm1 =[s] vm3.
+Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
+
+Lemma eq_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
+Proof. move=> Hs Heq x Hin. apply Heq. exact: (SvP.MP.in_subset Hin Hs). Qed.
+
+Lemma eq_onS vm1 s vm2 : vm1 =[s] vm2 -> vm2 =[s] vm1.
+Proof. by move=> Heq x Hin;rewrite Heq. Qed.
+
+#[export]
+Instance equiv_eq_on s: Equivalence (eq_on s).
+Proof.
+  constructor=> //.
+  move=> ??;apply: eq_onS.
+  move=> ???;apply: eq_onT.
+Qed.
+
+#[export]
+Instance eq_on_impl : Proper (Basics.flip Sv.Subset ==> eq ==> eq ==> Basics.impl) eq_on.
+Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: eq_onI. Qed.
+
+Global Instance eq_on_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) eq_on.
+Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: eq_onI;rewrite Heq. Qed.
+
+(* -------------------------------------------------------------------- *)
+
+Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
+  forall x, ~Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
+
+Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
+
+Lemma vmap_eq_exceptT vm2 s vm1 vm3:
+  vm1 = vm2 [\s] -> vm2 = vm3 [\s] -> vm1 = vm3 [\s].
+Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
+
+Lemma vmap_eq_exceptI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 = vm2 [\s1] -> vm1 = vm2 [\s2].
+Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
+
+Lemma vmap_eq_except_union s1 s2 vm1 vm2 :
+  vm1 = vm2 [\ s1 ]
+  -> vm1 = vm2 [\ Sv.union s1 s2 ].
+Proof. apply: vmap_eq_exceptI. exact: SvP.MP.union_subset_1. Qed.
+
+Lemma vmap_eq_exceptTI s1 s2 vm1 vm2 vm3 :
+  vm1 = vm2 [\s1] ->
+  vm2 = vm3 [\s2] ->
+  vm1 = vm3 [\Sv.union s1 s2].
+Proof.
+  move => h12 h23; apply: vmap_eq_exceptT; apply: vmap_eq_exceptI.
+  2: exact: h12.
+  3: exact: h23.
+  all: SvD.fsetdec.
+Qed.
+
+Lemma vmap_eq_exceptS vm1 s vm2 : vm1 = vm2 [\s] -> vm2 = vm1 [\s].
+Proof. by move=> Heq x Hin;rewrite Heq. Qed.
+
+Global Instance equiv_vmap_eq_except s: Equivalence (vmap_eq_except s).
+Proof.
+  constructor=> //.
+  move=> ??;apply: vmap_eq_exceptS.
+  move=> ???;apply: vmap_eq_exceptT.
+Qed.
+
+Global Instance vmap_eq_except_impl :
+  Proper (Sv.Subset ==> eq ==> eq ==> Basics.impl) vmap_eq_except.
+Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_eq_exceptI. Qed.
+
+Global Instance vmap_eq_except_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_eq_except.
+Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_eq_exceptI;rewrite Heq. Qed.
+
+Lemma vmap_eq_except_eq_on x y z e o :
+  x = y [\e] →
+  z =[o] y →
+  x =[Sv.diff o e] z.
+Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
 Record estate
-  {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state} :=
-  Estate
-    {
-      escs : syscall_state;
-      emem : mem;
-      evm  : vmap
-    }.
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state} := Estate
+  {
+    escs : syscall_state;
+    emem : mem;
+    evm  : vmap
+  }.
 
-Arguments Estate {_ _ _} _ _ _.
+Arguments Estate {_ _} _ _ _.
+
+Section ESTATE_UTILS.
+
+Context
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}.
+
+Definition with_vm (s:estate) vm :=
+  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
+
+Definition with_mem (s:estate) m :=
+  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
+
+Definition with_scs (s:estate) scs :=
+  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
+
+Lemma surj_estate s : s = {| escs := escs s; emem := emem s; evm := evm s |}.
+Proof. by case:s. Qed.
+
+Lemma with_vm_same s : with_vm s (evm s) = s.
+Proof. by case: s. Qed.
+
+Lemma with_vm_idem s vm1 vm2 : with_vm (with_vm s vm1) vm2 = with_vm s vm2.
+Proof. by case: s. Qed.
+
+Lemma with_mem_same s : with_mem s (emem s) = s.
+Proof. by case: s. Qed.
+
+Lemma with_mem_idem s m1 m2 : with_mem (with_mem s m1) m2 = with_mem s m2.
+Proof. by case: s. Qed.
+
+Lemma with_scs_same s : with_scs s (escs s) = s.
+Proof. by case: s. Qed.
+
+Lemma with_scs_idem s scs1 scs2 : with_scs (with_scs s scs1) scs2 = with_scs s scs2.
+Proof. by case: s. Qed.
+
+Lemma evm_with_vm s vm : evm (with_vm s vm) = vm.
+Proof. by case: s. Qed.
+
+Lemma emem_with_vm s vm : emem (with_vm s vm) = emem s.
+Proof. by case: s. Qed.
+
+Lemma escs_with_vm s vm : escs (with_vm s vm) = escs s.
+Proof. by case: s. Qed.
+
+End ESTATE_UTILS.
 
 Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
@@ -259,15 +389,13 @@ Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
 Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
 
-Section WITH_PARAMS.
+Section SEM_PEXPR.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
-
-Section SEM_PEXPR.
-
-Context (gd: glob_decls).
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  (gd : glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
@@ -308,15 +436,6 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
-
-Definition with_vm (s:estate) vm := 
-  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
-
-Definition with_mem (s:estate) m := 
-  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
-
-Definition with_scs (s:estate) scs := 
-  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var s.(evm) x v in
@@ -359,39 +478,15 @@ Definition write_lvals (s:estate) xs vs :=
 
 End SEM_PEXPR.
 
-Lemma surj_estate s : s = {| escs := escs s; emem := emem s; evm := evm s |}.
-Proof. by case:s. Qed.
-
-Lemma with_vm_same s : with_vm s (evm s) = s.
-Proof. by case: s. Qed.
-
-Lemma with_vm_idem s vm1 vm2 : with_vm (with_vm s vm1) vm2 = with_vm s vm2.
-Proof. by case: s. Qed.
-
-Lemma with_mem_same s : with_mem s (emem s) = s.
-Proof. by case: s. Qed.
-
-Lemma with_mem_idem s m1 m2 : with_mem (with_mem s m1) m2 = with_mem s m2.
-Proof. by case: s. Qed.
-
-Lemma with_scs_same s : with_scs s (escs s) = s.
-Proof. by case: s. Qed.
-
-Lemma with_scs_idem s scs1 scs2 : with_scs (with_scs s scs1) scs2 = with_scs s scs2.
-Proof. by case: s. Qed.
-
-Lemma evm_with_vm s vm : evm (with_vm s vm) = vm.
-Proof. by case: s. Qed.
-
-Lemma emem_with_vm s vm : emem (with_vm s vm) = emem s.
-Proof. by case: s. Qed.
-
-Lemma escs_with_vm s vm : escs (with_vm s vm) = escs s.
-Proof. by case: s. Qed.
-
 Section WITH_SCS.
 
-  Context (gd: glob_decls) (s1:estate) (scs: syscall_state).
+  Context
+    {asm_op syscall_state : Type}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    (gd : glob_decls)
+    (s1 : estate)
+    (scs : syscall_state).
 
   Let P e : Prop :=
     sem_pexpr gd s1 e = sem_pexpr gd (with_scs s1 scs) e.
@@ -410,14 +505,41 @@ Section WITH_SCS.
 
 End WITH_SCS.
 
+Section EXEC_ASM.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {asmop : asmOp asm_op}.
+
+Definition sem_sopn gd o m lvs args :=
+  sem_pexprs gd m args >>= exec_sopn o >>= write_lvals gd m lvs.
+
+Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
+  all2 subtype (sopn_tin o) (List.map type_of_val vs).
+Proof.
+  rewrite /exec_sopn /sopn_tin /sopn_sem.
+  case (get_instr_desc o) => /= _ tin _ tout _ semi _ _.
+  t_xrbindP => p hp _.
+  elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
+  by t_xrbindP => sv /= /of_val_subtype -> /hrec.
+Qed.
+
+End EXEC_ASM.
+
+
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
-Section SEM.
-
-Context {T} {pT:progT T}.
-
-Class semCallParams := SemCallParams {
+Class semCallParams
+  {syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {scs : syscall_sem syscall_state}
+  {T : eqType}
+  {pT : progT T}
+  := SemCallParams
+  {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
   finalize   : extra_fun_t -> mem -> mem;
   exec_syscall : syscall_state_t -> mem -> syscall_t -> values -> exec (syscall_state_t * mem * values);
@@ -430,21 +552,20 @@ Class semCallParams := SemCallParams {
      mem_equiv m rm;
 }.
 
-Context {sCP : semCallParams}.
+Section SEM.
 
-Variable P:prog.
-Variable ev: extra_val_t.
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {T : eqType}
+  {pT : progT T}
+  {scP : semCallParams}
+  (P : prog)
+  (ev : extra_val_t).
 
 Notation gd := (p_globs P).
-
-Definition sem_range (s : estate) (r : range) :=
-  let: (d,pe1,pe2) := r in
-  Let i1 := sem_pexpr gd s pe1 >>= to_int in
-  Let i2 := sem_pexpr gd s pe2 >>= to_int in
-  ok (wrange d i1 i2).
-
-Definition sem_sopn gd o m lvs args :=
-  sem_pexprs gd m args >>= exec_sopn o >>= write_lvals gd m lvs.
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
@@ -860,15 +981,12 @@ Qed.
 
 End SEM.
 
-Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
-  all2 subtype (sopn_tin o) (List.map type_of_val vs).
-Proof.
-  rewrite /exec_sopn /sopn_tin /sopn_sem.
-  case (get_instr_desc o) => /= _ tin _ tout _ semi _ _.
-  t_xrbindP => p hp _.
-  elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
-  by t_xrbindP => sv /= /of_val_subtype -> /hrec.
-Qed.
+Section WITH_PARAMS.
+
+Context
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}.
 
 Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v vm x P:
   (forall n t, vtype x = sarr n -> get_var vm x = ok (@Varr n t) ->
@@ -920,35 +1038,6 @@ Proof.
   by rewrite /= /truncate_word hle.
 Qed.
 
-Definition eq_on (s : Sv.t) (vm1 vm2 : vmap) :=
-  forall x, Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
-
-Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
-  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
-
-Lemma eq_onT s vm1 vm2 vm3:
-  vm1 =[s] vm2 -> vm2 =[s] vm3 -> vm1 =[s] vm3.
-Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
-
-Lemma eq_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 =[s2] vm2 -> vm1 =[s1] vm2.
-Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
-
-Lemma eq_onS vm1 s vm2 : vm1 =[s] vm2 -> vm2 =[s] vm1.
-Proof. by move=> Heq x Hin;rewrite Heq. Qed.
-
-Global Instance equiv_eq_on s: Equivalence (eq_on s).
-Proof.
-  constructor=> //.
-  move=> ??;apply: eq_onS.
-  move=> ???;apply: eq_onT.
-Qed.
-
-Global Instance eq_on_impl : Proper (Basics.flip Sv.Subset ==> eq ==> eq ==> Basics.impl) eq_on.
-Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: eq_onI. Qed.
-
-Global Instance eq_on_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) eq_on.
-Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: eq_onI;rewrite Heq. Qed.
-
 Lemma size_wrange d z1 z2 :
   size (wrange d z1 z2) = Z.to_nat (z2 - z1).
 Proof. by case: d => /=; rewrite ?size_rev size_map size_iota. Qed.
@@ -997,61 +1086,14 @@ move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; last lia.
 by rewrite Z2Nat.id; lia.
 Qed.
 
-(* -------------------------------------------------------------------- *)
-
-Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
-  forall x, ~Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
-
-Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
-  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
-
-Lemma vmap_eq_exceptT vm2 s vm1 vm3:
-  vm1 = vm2 [\s] -> vm2 = vm3 [\s] -> vm1 = vm3 [\s].
-Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
-
-Lemma vmap_eq_exceptI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 = vm2 [\s1] -> vm1 = vm2 [\s2].
-Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
-
-Lemma vmap_eq_exceptTI s1 s2 vm1 vm2 vm3 :
-  vm1 = vm2 [\s1] ->
-  vm2 = vm3 [\s2] ->
-  vm1 = vm3 [\Sv.union s1 s2].
-Proof.
-  move => h12 h23; apply: vmap_eq_exceptT; apply: vmap_eq_exceptI.
-  2: exact: h12.
-  3: exact: h23.
-  all: SvD.fsetdec.
-Qed.
-
-Lemma vmap_eq_exceptS vm1 s vm2 : vm1 = vm2 [\s] -> vm2 = vm1 [\s].
-Proof. by move=> Heq x Hin;rewrite Heq. Qed.
-
-Global Instance equiv_vmap_eq_except s: Equivalence (vmap_eq_except s).
-Proof.
-  constructor=> //.
-  move=> ??;apply: vmap_eq_exceptS.
-  move=> ???;apply: vmap_eq_exceptT.
-Qed.
-
-Global Instance vmap_eq_except_impl :
-  Proper (Sv.Subset ==> eq ==> eq ==> Basics.impl) vmap_eq_except.
-Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_eq_exceptI. Qed.
-
-Global Instance vmap_eq_except_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_eq_except.
-Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_eq_exceptI;rewrite Heq. Qed.
-
-Lemma vmap_eq_except_eq_on x y z e o :
-  x = y [\e] →
-  z =[o] y →
-  x =[Sv.diff o e] z.
-Proof. move => he ho j hj; rewrite he ?ho; SvD.fsetdec. Qed.
-
 Lemma vrvP_var (x:var_i) v s1 s2 :
   write_var x v s1 = ok s2 ->
   s1.(evm) = s2.(evm) [\ Sv.add x Sv.empty].
 Proof.
   rewrite /write_var;t_xrbindP => vm.
-  by apply: set_varP => [t | _] => ? <- <- z Hz; rewrite Fv.setP_neq //;apply /eqP; SvD.fsetdec.
+  apply: set_varP => [t | _] => ? <- <- z Hz;
+    rewrite Fv.setP_neq //;
+    by move: Hz => /Sv.singleton_spec /nesym /eqP.
 Qed.
 
 Lemma write_noneP s s' ty v:
@@ -1086,7 +1128,7 @@ Proof.
   elim: xs vs s1 s2 => [|x xs Hrec] [|v vs] s1 s2 //=.
   + by move=> [<-].
   apply: rbindP => s /vrvP Hrv /Hrec Hrvs.
-  rewrite vrvs_cons;apply: (@vmap_eq_exceptT (evm s)).
+  rewrite vrvs_cons; apply: vmap_eq_exceptT.
   + by apply: vmap_eq_exceptI Hrv;SvD.fsetdec.
   by apply: vmap_eq_exceptI Hrvs;SvD.fsetdec.
 Qed.
@@ -1125,20 +1167,45 @@ Qed.
 
 Section Write.
 
-Context {T} {pT:progT T} {sCP : semCallParams}.
+Context
+  {sip : SemInstrParams asm_op syscall_state}
+  {T}
+  {pT : progT T}
+  {sCP : semCallParams}.
 
 Variable P : prog.
 Variable ev : extra_val_t.
 
+Let Pc s1 c s2 := s1.(evm) = s2.(evm) [\ write_c c].
+
+Let Pi_r s1 i s2 := s1.(evm) = s2.(evm) [\ write_i i].
+
+Let Pi s1 i s2 := s1.(evm) = s2.(evm) [\ write_I i].
+
+Let Pfor x (_ : seq Z) s1 c s2 :=
+  s1.(evm) = s2.(evm) [\ (Sv.union (Sv.singleton x) (write_c c))].
+
+Let Pfun
+  (_ : syscall_state_t)
+  (_ : mem)
+  (_ : funname)
+  (_ : seq value)
+  (_ : syscall_state_t)
+  (_ : mem)
+  (_ : seq value) :=
+  True.
+
 Lemma writeP c s1 s2 :
    sem P ev s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
 Proof.
-  apply (@sem_Ind _ _ sCP P ev (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
-                  (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_i i])
-                  (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_I i])
-                  (fun x ws s1 c s2 =>
-                     s1.(evm) = s2.(evm) [\ (Sv.union (Sv.singleton x) (write_c c))])
-                  (fun _ _ _ _ _ _ _ => True)) => {c s1 s2} //.
+  apply:
+    (sem_Ind
+       (Pc := Pc)
+       (Pi_r := Pi_r)
+       (Pi := Pi)
+       (Pfor := Pfor)
+       (Pfun := Pfun))
+    => {c s1 s2} //.
   + move=> s1 s2 s3 i c _ Hi _ Hc z;rewrite write_c_cons => Hnin.
     by rewrite Hi ?Hc //;SvD.fsetdec.
   + move=> s1 s2 x tag ty e v v' ? hty Hw z.
@@ -1147,7 +1214,7 @@ Proof.
     case: (Let _ := sem_pexprs _ _ _ in _) => //= vs Hw z.
     by rewrite write_i_opn;apply (vrvsP Hw).
   + move=> s1 scs m s2 x o es ves vs hes hscs hw.
-    by rewrite write_i_syscall; apply (vrvsP hw).
+    by rewrite /Pi_r write_i_syscall; apply (vrvsP hw).
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 s3 s4 a c e c' _ Hc _ _ Hc' _ Hw z Hnin; rewrite Hc ?Hc' ?Hw //;
@@ -1214,12 +1281,15 @@ Lemma on_arr_gvar_eq_on s' gd X s A x (f: ∀ n, WArray.array n → exec A) :
    on_arr_var (get_gvar gd (evm s) x) f = on_arr_var (get_gvar gd (evm s') x) f.
 Proof.
   move=> Heq; rewrite /get_gvar /read_gvar;case:ifP => _ Hin //.
-  by apply: (@on_arr_var_eq_on _ X) => //; SvD.fsetdec.
+  by apply: (on_arr_var_eq_on (X := X)) => //; SvD.fsetdec.
 Qed.
 
 Section READ_E_ES_EQ_ON.
+
   Context (gd: glob_decls) (s1:estate) (vm': vmap).
 
+Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
   Let P e : Prop :=
     ∀ s, evm s1 =[read_e_rec s e]  vm' →
          sem_pexpr gd s1 e = sem_pexpr gd (with_vm s1 vm') e.
@@ -1239,10 +1309,10 @@ Section READ_E_ES_EQ_ON.
       by move: ih => /(_ _ Heq) ->.
     - by move=> x s /get_gvar_eq_on -> //; SvD.fsetdec.
     - move=> aa sz x e He s Heq; rewrite (He _ Heq) => {He}.
-      rewrite (@on_arr_gvar_eq_on (with_vm s1 vm') _ _ s1 _ _ _ Heq) ?read_eE //.
+      rewrite (on_arr_gvar_eq_on (s' := with_vm s1 vm') _ _ Heq) ?read_eE //.
       by SvD.fsetdec.
     - move=> aa sz len x e He s Heq; rewrite (He _ Heq) => {He}.
-      rewrite (@on_arr_gvar_eq_on (with_vm s1 vm') _ _ s1 _ _ _ Heq) ?read_eE //.
+      rewrite (on_arr_gvar_eq_on (s' := with_vm s1 vm') _ _ Heq) ?read_eE //.
       by SvD.fsetdec.
     - by move=> sz x e He s Hvm; rewrite (get_var_eq_on _ Hvm) ?(He _ Hvm) // read_eE;SvD.fsetdec.
     - by move=> op e He s /He ->.
@@ -1261,8 +1331,18 @@ End READ_E_ES_EQ_ON.
 Definition read_e_eq_on gd s vm' s1 e :=
   (read_e_es_eq_on gd s1 vm').1 e s.
 
+Lemma read_e_eq_on_empty gd vm s e :
+  evm s =[ read_e_rec Sv.empty e ]  vm
+  -> sem_pexpr gd s e = sem_pexpr gd (with_vm s vm) e.
+Proof. exact: read_e_eq_on. Qed.
+
 Definition read_es_eq_on gd es s s1 vm' :=
   (read_e_es_eq_on gd s1 vm').2 es s.
+
+Lemma read_es_eq_on_empty gd es s vm :
+  evm s =[ read_es_rec Sv.empty es ]  vm
+  -> sem_pexprs gd s es = sem_pexprs gd (with_vm s vm) es.
+Proof. exact: read_es_eq_on. Qed.
 
 Corollary eq_on_sem_pexpr s' gd s e :
   escs s = escs s' →
@@ -1327,7 +1407,7 @@ Proof.
     apply: rbindP => vx ->;apply: rbindP => ve ->;apply: rbindP => w /= ->.
     by apply: rbindP => m /= -> [<-] /=;exists vm1.
   + rewrite read_eE=> Hsub Hsem Hvm;move:Hsem.
-    rewrite (@on_arr_var_eq_on (with_vm s1 vm1) X s1 _ _ _ Hvm);
+    rewrite (on_arr_var_eq_on (s' := with_vm s1 vm1) _ Hvm);
       last by SvD.fsetdec.
     rewrite (@read_e_eq_on gd (Sv.add x Sv.empty) vm1) /=;first last.
     + by apply: eq_onI Hvm;rewrite read_eE.
@@ -1336,7 +1416,7 @@ Proof.
     have [vm2' [heq hw]]:= write_var_eq_on h Hvm; exists vm2'; split => //.
     by apply: eq_onI heq;SvD.fsetdec.
   rewrite read_eE=> Hsub Hsem Hvm;move:Hsem.
-  rewrite (@on_arr_var_eq_on (with_vm s1 vm1) X s1 _ _ _ Hvm);
+  rewrite (on_arr_var_eq_on (s' := with_vm s1 vm1) _ Hvm);
       last by SvD.fsetdec.
   rewrite (@read_e_eq_on gd (Sv.add x Sv.empty) vm1) /=;first last.
   + by apply: eq_onI Hvm;rewrite read_eE.
@@ -1741,25 +1821,7 @@ Corollary sem_pexprs_uincl gd s1 vm2 es vs1 :
               List.Forall2 value_uincl vs1 vs2.
 Proof. move => /(@vm_uincl_vmap_uincl_on (read_es es)); exact: sem_pexprs_uincl_on. Qed.
 
-Lemma disjoint_uincl_on gd s r s1 s2 v:
-  disjoint s (vrv r) ->
-  write_lval gd r v s1 = ok s2 ->
-  s1.(evm) <=[s] s2.(evm).
-Proof.
-  move=> Hd /vrvP H z Hnin. rewrite (H z). done.
-  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.
-Qed.
-
-Lemma disjoint_uincl_ons gd s r s1 s2 v:
-  disjoint s (vrvs r) ->
-  write_lvals gd s1 r v = ok s2 ->
-  s1.(evm) <=[s] s2.(evm).
-Proof.
-  move=> Hd /vrvsP H z Hnin. rewrite (H z). done.
-  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.
-Qed.
-
-Lemma vuincl_exec_opn o vs vs' v :
+Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
 Proof.
@@ -2115,7 +2177,7 @@ Proof.
   move=> hsub.
   pose vm1 : vmap :=
     Fv.empty (fun (x:var) => if Sv.mem x (read_es_rec s es) then vm.[x] else vm'.[x]).
-  rewrite (@read_es_eq_on _ _ s _ vm1) /with_vm /=; last first.
+  rewrite (read_es_eq_on _ (s := s) (vm' := vm1)) /with_vm /=; last first.
   + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
   have hle: vm_uincl vm1 vm'.
   + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
@@ -2250,7 +2312,11 @@ Qed.
 (* ---------------------------------------------------------------- *)
 Section UNDEFINCL.
 
-Context {T} {pT:progT T} {sCP : semCallParams}.
+Context
+  {sip : SemInstrParams asm_op syscall_state}
+  {T}
+  {pT : progT T}
+  {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.
 
@@ -2434,10 +2500,28 @@ Lemma sem_call_uincl vargs scs1 m1 f scs2 m2 vres vargs':
   exists vres', sem_call p ev scs1 m1 f vargs' scs2 m2 vres' /\ List.Forall2 value_uincl vres vres'.
 Proof.
   move=> H1 H2.
-  by apply:
-    (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
-       Hfor_nil Hfor_cons Hcall Hproc) H1.
+  exact:
+    (sem_call_Ind
+       Hnil
+       Hcons
+       HmkI
+       Hasgn
+       Hopn
+       Hsyscall
+       Hassert_true
+       Hassert_false
+       Hif_true
+       Hif_false
+       Hwhile_true
+       Hwhile_false
+       Hfor
+       Hfor_nil
+       Hfor_cons
+       Hcall
+       Hproc
+       H2
+       _
+       H1).
 Qed.
 
 Lemma sem_i_uincl s1 i s2 vm1 :
@@ -2448,10 +2532,28 @@ Lemma sem_i_uincl s1 i s2 vm1 :
     vm_uincl (evm s2) vm2.
 Proof.
   move=> H1 H2.
-  by apply:
-    (@sem_i_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
-       Hfor_nil Hfor_cons Hcall Hproc) H1.
+  exact:
+    (sem_i_Ind
+       Hnil
+       Hcons
+       HmkI
+       Hasgn
+       Hopn
+       Hsyscall
+       Hassert_true
+       Hassert_false
+       Hif_true
+       Hif_false
+       Hwhile_true
+       Hwhile_false
+       Hfor
+       Hfor_nil
+       Hfor_cons
+       Hcall
+       Hproc
+       H2
+       _
+       H1).
 Qed.
 
 Lemma sem_I_uincl s1 i s2 vm1 :
@@ -2462,10 +2564,28 @@ Lemma sem_I_uincl s1 i s2 vm1 :
     vm_uincl (evm s2) vm2.
 Proof.
   move=> H1 H2.
-  by apply:
-    (@sem_I_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
-       Hfor_nil Hfor_cons Hcall Hproc) H1.
+  exact:
+    (sem_I_Ind
+       Hnil
+       Hcons
+       HmkI
+       Hasgn
+       Hopn
+       Hsyscall
+       Hassert_true
+       Hassert_false
+       Hif_true
+       Hif_false
+       Hwhile_true
+       Hwhile_false
+       Hfor
+       Hfor_nil
+       Hfor_cons
+       Hcall
+       Hproc
+       H2
+       _
+       H1).
 Qed.
 
 Lemma sem_uincl s1 c s2 vm1 :
@@ -2476,10 +2596,28 @@ Lemma sem_uincl s1 c s2 vm1 :
     vm_uincl (evm s2) vm2.
 Proof.
   move=> H1 H2.
-  by apply:
-    (@sem_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
-       Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor
-       Hfor_nil Hfor_cons Hcall Hproc) H1.
+  exact:
+    (sem_Ind
+       Hnil
+       Hcons
+       HmkI
+       Hasgn
+       Hopn
+       Hsyscall
+       Hassert_true
+       Hassert_false
+       Hif_true
+       Hif_false
+       Hwhile_true
+       Hwhile_false
+       Hfor
+       Hfor_nil
+       Hfor_cons
+       Hcall
+       Hproc
+       H2
+       _
+       H1).
 Qed.
 
 End UNDEFINCL.
@@ -2521,27 +2659,6 @@ Lemma eq_exprsP gd m es1 es2:
   all2 eq_expr es1 es2 → sem_pexprs gd m es1 = sem_pexprs gd m es2.
 Proof.
   apply: eq_expr_recP => e _ e'; exact: eq_exprP.
-Qed.
-
-Lemma eq_lvalP gd m lv lv' v :
-  eq_lval lv lv' ->
-  write_lval gd lv v m = write_lval gd lv' v m.
-Proof.
-  case: lv lv'=> [ ?? | [??] | sz [??] e | aa sz [??] e | aa sz len [??] e] 
-                 [ ?? | [??] | sz' [??] e' | aa' sz' [??] e' | aa' sz' len' [??] e'] //=.
-  + by move=> /eqP ->.
-  + by move=> /eqP ->.
-  + by case/andP => /andP [] /eqP -> /eqP -> /eq_exprP ->.
-  + by move=> /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eq_exprP ->.
-  by move=> /andP [] /andP [] /andP [] /andP [] /eqP -> /eqP -> /eqP -> /eqP -> /eq_exprP ->.
-Qed.
-
-Lemma eq_lvalsP gd m ls1 ls2 vs:
-  all2 eq_lval ls1 ls2 → write_lvals gd m ls1 vs =  write_lvals gd m ls2 vs.
-Proof.
- rewrite /write_lvals.
- elim: ls1 ls2 vs m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m.
- by move=> /andP [] /eq_lvalP -> /Hrec; case: write_lval => /=.
 Qed.
 
 Lemma pto_val_inj t (v1 v2:psem_t t) : pto_val v1 = pto_val v2 -> v1 = v2.
@@ -2611,17 +2728,14 @@ Qed.
 Lemma apply_undef_pundef_addr t : apply_undef (pundef_addr t) = pundef_addr t.
 Proof. by case: t. Qed.
 
-Lemma eval_uincl_apply_undef t (v1 v2 : exec (psem_t t)):
-  eval_uincl v1 v2 ->
-  eval_uincl (apply_undef v1) (apply_undef v2).
-Proof.
-  case:v1 v2=> [v1 | []] [v2 | e2] //=; try by move=> <-.
-  by move=> _; apply eval_uincl_undef.
-Qed.
-
 (* ------------------------------------------------------------------------------ *)
 
-(* ** Semantic without stack 
+Section SEM_CALL_PARAMS.
+
+Context
+  {sip : SemInstrParams asm_op syscall_state}.
+
+(* ** Semantic without stack
  * -------------------------------------------------------------------- *)
 
 Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
@@ -2647,7 +2761,7 @@ Proof.
 Qed.
 
 #[ global ]
-Instance sCP_unit : @semCallParams _ progUnit :=
+Instance sCP_unit : semCallParams (pT := progUnit) :=
   { init_state := fun _ _ _ s => ok s;
     finalize   := fun _ m => m; 
     exec_syscall  := sem.exec_syscall;
@@ -2662,7 +2776,7 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
   let scs1 := s.(escs) in
   let m1   := s.(emem) in
   let vm1  := s.(evm) in
-  Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) sf.(sf_stk_extra_sz) in
+  Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) sf.(sf_stk_ioff) sf.(sf_stk_extra_sz) in
   write_vars [:: vid pe.(sp_rsp) ; vid pe.(sp_rip)]
              [:: Vword (top_stack m1'); Vword wrip] (Estate scs1 m1' vmap0).
 
@@ -2670,7 +2784,7 @@ Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
 
 #[ global ]
-Instance sCP_stack : @semCallParams _ progStack :=
+Instance sCP_stack : semCallParams (pT := progStack) :=
   { init_state := init_stk_state;
     finalize   := finalize_stk_mem; 
     exec_syscall  := exec_syscall_s;
@@ -2683,7 +2797,12 @@ Instance sCP_stack : @semCallParams _ progStack :=
 (* FIXME : MOVE THIS, this should be an invariant in vmap *)
 Section WF.
 
-  Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+  Context
+    {T : eqType}
+    {pT : progT T}
+    {sCP : semCallParams}
+    (p : prog)
+    (ev : extra_val_t).
 
   Definition wf_vm (vm:vmap) :=
     forall x,
@@ -2746,14 +2865,19 @@ Section WF.
     apply: rbindP => s1' /(wf_write_lval Hwf);apply Hrec.
   Qed.
 
-  Lemma wf_sem p ev s1 c s2 :
+  Let Pr i :=
+    forall s1 s2, sem_i p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
+
+  Let Pi i :=
+    forall s1 s2, sem_I p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
+
+  Let Pc c :=
+    forall s1 s2, sem   p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
+
+  Lemma wf_sem s1 c s2 :
     sem p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
   Proof.
-    apply (@cmd_rect _ _
-             (fun i => forall s1 s2, sem_i p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
-             (fun i => forall s1 s2, sem_I p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
-             (fun c => forall s1 s2, sem   p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2)))=>
-      {s1 s2 c}.
+    apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => {s1 s2 c}.
     + by move=> i ii Hrec s1 s2 /sem_IE; apply: Hrec.
     + by move => s1 s2 /semE ->.
     + by move=> i c Hi Hc s1 s2 /semE [si] [] /Hi {Hi} Hi ? /Hi; apply: Hc.
@@ -2793,8 +2917,8 @@ Section WF.
     init_state fe pe ev s1 = ok s2 ->
     wf_vm (evm s1) -> wf_vm (evm s2).
 
-  Lemma wf_sem_I p0 ev0 s1 i s2 :
-    sem_I p0 ev0 s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
+  Lemma wf_sem_I s1 i s2 :
+    sem_I p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
   Proof. by move=> H;have := sem_seq1 H; apply: wf_sem. Qed.
 
 End WF.
@@ -2805,20 +2929,16 @@ Lemma wf_initu : wf_init sCP_unit.
 Proof. by move=> ????? [->]. Qed.
 
 Lemma wf_inits : wf_init sCP_stack.
-Proof. 
+Proof.
   move=> ????? => /=; rewrite /init_stk_state; t_xrbindP => ?? h1 h2.
   apply: wf_write_vars h1; apply wf_vmap0.
 Qed.
 
+End SEM_CALL_PARAMS.
+
 End WITH_PARAMS.
 
 (* We redefine the notations outside the section so that we can use them in other files *)
-Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
-  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
-
-Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
-  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
-
 Notation "vm1 '<=[' s ']' vm2" := (vmap_uincl_on s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  <=[ s ]  '/'  vm2 ']'").
 

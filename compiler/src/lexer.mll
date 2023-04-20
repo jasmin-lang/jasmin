@@ -136,7 +136,7 @@ rule main = parse
       { INT (Z.of_string s) }
 
   | ident+ as s
-      { odfl (NID s) (Hash.find_option keywords s) }
+      { Option.default (NID s) (Hash.find_option keywords s) }
 
   | (size as sw) (signletter as s)                { SWSIZE(mksizesign sw s)  }
   | (vsize as r) (signletter as s) (gensize as g) { SVSIZE(mkvsizesign r s g)}
@@ -153,6 +153,8 @@ rule main = parse
   | "?"     { QUESTIONMARK  }
   | ":"     { COLON  }
 
+  | ">>r"                   { ROR              }
+  | "<<r"                   { ROL              }
   | "<<"                    { LTLT            }
   | "<=" (signletter as s)? { LE   (mk_sign s) }
   | "<"  (signletter as s)? { LT   (mk_sign s) }

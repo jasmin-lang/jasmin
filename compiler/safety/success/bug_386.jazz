@@ -1,0 +1,12 @@
+export fn main(){
+  stack u16[3 * 4] a;
+  reg u64 i;
+  i = 0;
+  while (i < 3 * 3) {
+    inline int k;
+    for k = 0 to 4 {
+      a[(int) i] = 0;
+      i += 1;
+    }
+  }
+}

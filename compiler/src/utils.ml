@@ -70,47 +70,11 @@ let snd_map (f : 'b -> 'c) ((x, y) : 'a * 'b) =
 module Option = BatOption
 
 (* -------------------------------------------------------------------- *)
-let oiter (f : 'a -> unit) (x : 'a option) =
-  match x with None -> () | Some x -> f x
-
-let obind (f : 'a -> 'b option) (x : 'a option) =
-  match x with None -> None | Some x -> f x
-
-let otolist (x : 'a option) =
-  match x with None -> [] | Some x -> [x]
-
-let ofold (f : 'a -> 'b -> 'b) (v : 'b) (x : 'a option) =
-  match x with
-  | None   -> v
-  | Some x -> f x v
-
-let omap (f : 'a -> 'b) (x : 'a option) =
-  match x with None -> None | Some x -> Some (f x)
-
-let omap_dfl (f : 'a -> 'b) (d : 'b) (x : 'a option) =
-  match x with None -> d  | Some x -> f x
-
-let odfl (d : 'a) (x : 'a option) =
-  match x with None -> d | Some x -> x
-
-let ofdfl (d : unit -> 'a) (x : 'a option) =
-  match x with None -> d () | Some x -> x
-
 let oget ?exn (x : 'a option) =
   match x, exn with
   | None  , None     -> assert false
   | None  , Some exn -> raise exn
   | Some x, _        -> x
-
-(* -------------------------------------------------------------------- *)
-let iterop (op : 'a -> 'a) (n : int) (x : 'a) =
-  let rec doit n x = if n <= 0 then x else doit (n-1) (op x) in
-  if n < 0 then invalid_arg "[iterop]: n < 0";
-  doit n x
-
-(* -------------------------------------------------------------------- *)
-let iter (op : 'a -> 'a) (x : 'a) =
-  let rec doit x = doit (op x) in doit x
 
 (* -------------------------------------------------------------------- *)
 module Uniq = struct
@@ -395,12 +359,50 @@ let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
 
 
 (* -------------------------------------------------------------------- *)
+(** Splits a time in seconds into hours, minutes, seconds, and centiseconds.
+  Number of hours must be below one hundred. *)
+let hmsc f =
+  let open Float in
+  let cut f n =
+    let r = rem f n in
+    to_int r, (f -. r) /. n
+  in
+  let c, f = modf f in
+  let s, f = cut f 60. in
+  let m, f = cut f 60. in
+  let h, f = cut f 100. in
+  assert (f = 0.);
+  h, m, s, to_int (100. *. c)
+
+let pp_now =
+  let open Unix in
+  let timestamp = ref (-1.) in
+  let pp_elapsed fmt now =
+    let old = !timestamp in
+    if old >= 0. then begin
+      let diff = now -. old in
+      let h, m, s, c = hmsc diff in
+      Format.fprintf fmt "|";
+      if h > 0 then Format.fprintf fmt "%2dh" h else Format.fprintf fmt "   ";
+      if h > 0 || m > 0 then Format.fprintf fmt "%2dm" m else Format.fprintf fmt "   ";
+      Format.fprintf fmt "%2ds%02d" s c
+    end;
+    timestamp := now
+  in
+  fun fmt ->
+    let  now = gettimeofday () in
+    let { tm_hour; tm_min; tm_sec; _ } = localtime now in
+  Format.fprintf fmt "[%02d:%02d:%02d%a]" tm_hour tm_min tm_sec pp_elapsed now
+
+(* -------------------------------------------------------------------- *)
 
 type warning = 
   | ExtraAssignment 
   | UseLea
   | IntroduceNone 
   | IntroduceArrayCopy
+  | SimplifyVectorSuffix
+  | Deprecated
   | Always
 
 let warns = ref None
@@ -423,17 +425,9 @@ let warning (w:warning) loc =
   Format.kdprintf (fun pp ->
     if to_warn w then
       let pp_warning fmt = pp_print_bold_magenta pp_string fmt "warning" in
-      Format.eprintf "@[<v>%a:@ %t: %t@]@."
-        (pp_print_bold Location.pp_iloc)
-        loc pp_warning pp)
-
-(* -------------------------------------------------------------------- *)
-
-type input_error =
-  | FileNotFound of string
-  | FileIsDirectory of string
-
-let pp_input_error ie =
-  match ie with
-  | FileNotFound s -> Printf.sprintf "File %s not found" s
-  | FileIsDirectory s -> Printf.sprintf "File %s is a directory" s
+      let pp_iloc fmt d =
+        if not (Location.isdummy d.Location.base_loc) then
+          Format.fprintf fmt "%a@ " (pp_print_bold Location.pp_iloc) d in
+      Format.eprintf "@[<v>%a%t: %t@]@."
+        pp_iloc loc
+        pp_warning pp)

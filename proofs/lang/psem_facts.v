@@ -11,7 +11,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}.
 
 Lemma write_var_emem x v s s' :
   write_var x v s = ok s' →
@@ -105,8 +107,8 @@ Proof.
   by move=> h1 p ws; rewrite h h1.
 Qed.
 
-Lemma alloc_free_stack_stable m1 ws sz sz' m2 m2' m3 :
-  alloc_stack_spec m1 ws sz sz' m2 ->
+Lemma alloc_free_stack_stable m1 ws sz ioff sz' m2 m2' m3 :
+  alloc_stack_spec m1 ws sz ioff sz' m2 ->
   stack_stable m2 m2' ->
   free_stack_spec m2' m3 ->
   stack_stable m1 m3.
@@ -118,8 +120,8 @@ Proof.
   by rewrite hfss.(fss_frames) -hss.(ss_frames) hass.(ass_frames).
 Qed.
 
-Lemma alloc_free_validw_stable m1 ws sz sz' m2 m2' m3 :
-  alloc_stack_spec m1 ws sz sz' m2 ->
+Lemma alloc_free_validw_stable m1 ws sz ioff sz' m2 m2' m3 :
+  alloc_stack_spec m1 ws sz ioff sz' m2 ->
   stack_stable m2 m2' ->
   validw m2 =2 validw m2' ->
   free_stack_spec m2' m3 ->
@@ -147,9 +149,7 @@ Proof.
   change (wsize_size U8) with 1%Z.
   move => ptr_i_lo ptr_i_hi.
   apply: ptr_not_fresh.
-  split; first exact: ptr_i_lo.
-  move: H ptr_i_hi; clear => n.
-  by Lia.lia.
+  move: (ass_ioff hass) (ass_add_ioff hass); Psatz.lia.
 Qed.
 
 Section MEM_EQUIV.
@@ -250,97 +250,97 @@ Qed.
 Lemma sem_mem_equiv s1 c s2 :
   sem P ev s1 c s2 → emem s1 ≡ emem s2.
 Proof.
-  by apply
-    (@sem_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-              mem_equiv_nil
-              mem_equiv_cons
-              mem_equiv_mkI
-              mem_equiv_assgn
-              mem_equiv_opn
-              mem_equiv_syscall
-              mem_equiv_assert_true
-              mem_equiv_assert_false
-              mem_equiv_if_true
-              mem_equiv_if_false
-              mem_equiv_while_true
-              mem_equiv_while_false
-              mem_equiv_for
-              mem_equiv_for_nil
-              mem_equiv_for_cons
-              mem_equiv_call
-              mem_equiv_proc).
+  exact:
+    (sem_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 Lemma sem_I_mem_equiv s1 i s2 :
   sem_I P ev s1 i s2 → emem s1 ≡ emem s2.
 Proof.
-  by apply
-    (@sem_I_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-                mem_equiv_nil
-                mem_equiv_cons
-                mem_equiv_mkI
-                mem_equiv_assgn
-                mem_equiv_opn
-                mem_equiv_syscall
-                mem_equiv_assert_true
-                mem_equiv_assert_false
-                mem_equiv_if_true
-                mem_equiv_if_false
-                mem_equiv_while_true
-                mem_equiv_while_false
-                mem_equiv_for
-                mem_equiv_for_nil
-                mem_equiv_for_cons
-                mem_equiv_call
-                mem_equiv_proc).
+  exact:
+    (sem_I_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 Lemma sem_i_mem_equiv s1 i s2 :
   sem_i P ev s1 i s2 → emem s1 ≡ emem s2.
 Proof.
-  by apply
-    (@sem_i_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-                mem_equiv_nil
-                mem_equiv_cons
-                mem_equiv_mkI
-                mem_equiv_assgn
-                mem_equiv_opn
-                mem_equiv_syscall
-                mem_equiv_assert_true
-                mem_equiv_assert_false
-                mem_equiv_if_true
-                mem_equiv_if_false
-                mem_equiv_while_true
-                mem_equiv_while_false
-                mem_equiv_for
-                mem_equiv_for_nil
-                mem_equiv_for_cons
-                mem_equiv_call
-                mem_equiv_proc).
+  exact:
+    (sem_i_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 Lemma sem_call_mem_equiv scs1 m1 fn vargs scs2 m2 vres :
   sem_call P ev scs1 m1 fn vargs scs2 m2 vres → m1 ≡ m2.
 Proof.
-  by apply
-    (@sem_call_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
-                   mem_equiv_nil
-                   mem_equiv_cons
-                   mem_equiv_mkI
-                   mem_equiv_assgn
-                   mem_equiv_opn
-                   mem_equiv_syscall
-                   mem_equiv_assert_true
-                   mem_equiv_assert_false
-                   mem_equiv_if_true
-                   mem_equiv_if_false
-                   mem_equiv_while_true
-                   mem_equiv_while_false
-                   mem_equiv_for
-                   mem_equiv_for_nil
-                   mem_equiv_for_cons
-                   mem_equiv_call
-                   mem_equiv_proc).
+  exact:
+    (sem_call_Ind
+       mem_equiv_nil
+       mem_equiv_cons
+       mem_equiv_mkI
+       mem_equiv_assgn
+       mem_equiv_opn
+       mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
+       mem_equiv_if_true
+       mem_equiv_if_false
+       mem_equiv_while_true
+       mem_equiv_while_false
+       mem_equiv_for
+       mem_equiv_for_nil
+       mem_equiv_for_cons
+       mem_equiv_call
+       mem_equiv_proc).
 Qed.
 
 End MEM_EQUIV.
@@ -636,7 +636,26 @@ Lemma sem_deterministic s1 c s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_assert_true sem_deter_assert_false sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact:
+    (sem_Ind
+       sem_deter_nil
+       sem_deter_cons
+       sem_deter_mkI
+       sem_deter_asgn
+       sem_deter_opn
+       sem_deter_syscall
+       sem_deter_assert_true
+       sem_deter_assert_false
+       sem_deter_if_true
+       sem_deter_if_false
+       sem_deter_while_true
+       sem_deter_while_false
+       sem_deter_for
+       sem_deter_for_nil
+       sem_deter_for_cons
+       sem_deter_call
+       sem_deter_proc
+       h).
 Qed.
 
 Lemma sem_i_deterministic s1 i s2 s2' :
@@ -645,7 +664,26 @@ Lemma sem_i_deterministic s1 i s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_i_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_assert_true sem_deter_assert_false sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact:
+    (sem_i_Ind
+       sem_deter_nil
+       sem_deter_cons
+       sem_deter_mkI
+       sem_deter_asgn
+       sem_deter_opn
+       sem_deter_syscall
+       sem_deter_assert_true
+       sem_deter_assert_false
+       sem_deter_if_true
+       sem_deter_if_false
+       sem_deter_while_true
+       sem_deter_while_false
+       sem_deter_for
+       sem_deter_for_nil
+       sem_deter_for_cons
+       sem_deter_call
+       sem_deter_proc
+       h).
 Qed.
 
 Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr scs2' m2' vr' :
@@ -654,10 +692,75 @@ Lemma sem_call_deterministic scs1 m1 fn va scs2 m2 vr scs2' m2' vr' :
   [/\ scs2 = scs2', m2 = m2' & vr = vr'].
 Proof.
   move => h.
-  exact: (@sem_call_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_syscall sem_deter_assert_true sem_deter_assert_false sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ _ _ _ _ h).
+  exact:
+    (sem_call_Ind
+       sem_deter_nil
+       sem_deter_cons
+       sem_deter_mkI
+       sem_deter_asgn
+       sem_deter_opn
+       sem_deter_syscall
+       sem_deter_assert_true
+       sem_deter_assert_false
+       sem_deter_if_true
+       sem_deter_if_false
+       sem_deter_while_true
+       sem_deter_while_false
+       sem_deter_for
+       sem_deter_for_nil
+       sem_deter_for_cons
+       sem_deter_call
+       sem_deter_proc
+       h).
 Qed.
 
 End DETERMINISM.
+
+(* ------------------------------------------------------------------- *)
+Lemma cast_wP sz e gd s v :
+  sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v →
+  exists2 v', sem_pexpr gd s (cast_w sz e) = ok v' & value_uincl v v'.
+Proof.
+  elim: e v => /=; t_xrbindP => //.
+  1, 2: by move => > ->; eauto.
+  1, 2, 6: by move => > _ > -> /= ->; eauto.
+  1: by move => > _ > -> /= -> > -> /= -> > /= -> /= -> ->; eauto.
+  3: by move => > _ > _ > _ > -> /= -> > -> /= -> > -> /= -> /= -> ->; eauto.
+  - case.
+    7: case.
+    1, 3-6, 8: by move => > _ > /= -> /= -> /= ->; eauto.
+    + move => > _ >.
+      case: ifP; last by move => _ /= -> /= -> /= ->; eauto.
+      rewrite /sem_sop1; t_xrbindP => A -> /= ? /to_wordI[] ? [] ? [] -> /truncate_wordP[] B -> <- /=.
+      t_xrbindP => ? <- <-; eexists; first reflexivity.
+      rewrite -/(zero_extend sz _) zero_extend_idem //=.
+      apply: word_uincl_zero_ext.
+      exact: cmp_le_trans A B.
+    rewrite /= /sem_sop1 /=.
+    t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
+    move: ih.
+    rewrite A /= B => /(_ _ erefl)[] ? -> /value_uinclE[] ? [] ? [] -> /andP[] sz_le /eqP D.
+    rewrite /= /truncate_word sz_le -D.
+    eexists; first reflexivity.
+    apply/andP; split; first exact: cmp_le_refl.
+    by rewrite wopp_zero_extend // zero_extend_u wrepr_opp.
+  case.
+  all: try match goal with [ |- forall h : op_kind, _ ] => case end.
+  all: try by move => > _ > _ > /= -> > -> /= -> /= ->; eauto.
+  all: move => e1 ih1 e2 ih2 > h1 > h2.
+  all: rewrite /sem_sop2; t_xrbindP => /= ? A ? B ? [] <- <-.
+  all: move: ih1 ih2.
+  all: rewrite h1 h2 /= /sem_sop1 /= A B /=.
+  all: move => /(_ _ erefl) [] v1 -> /value_uinclE[] ? [] ? [] -> /andP[] le1 /eqP {} h1.
+  all: move => /(_ _ erefl) [] v2 -> /value_uinclE[] ? [] ? [] -> /andP[] le2 /eqP {} h2.
+  all: case => <- /=.
+  all: rewrite /sem_sop2 /= /truncate_word le1 -h1 le2 -h2 /=.
+  all: eexists; first reflexivity.
+  all: apply/andP; split; first by auto.
+  - by rewrite wadd_zero_extend // !zero_extend_u wrepr_add.
+  - by rewrite wmul_zero_extend // !zero_extend_u wrepr_mul.
+  by rewrite wsub_zero_extend // !zero_extend_u wrepr_sub.
+Qed.
 
 End WITH_PARAMS.
 

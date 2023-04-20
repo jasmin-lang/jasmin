@@ -30,6 +30,7 @@ val z_of_int32 : Obj.t -> Z.t
 val z_of_int16 : Obj.t -> Z.t
 val z_of_int8 : Obj.t -> Z.t
 val z_of_word : wsize -> Obj.t -> Z.t
+val z_unsigned_of_word : wsize -> Obj.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
 val cty_of_ty : Prog.ty -> Type.stype

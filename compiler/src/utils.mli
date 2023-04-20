@@ -49,19 +49,7 @@ val fst_map : ('a -> 'c) -> 'a * 'b -> 'c * 'b
 val snd_map : ('b -> 'c) -> 'a * 'b -> 'a * 'c
 
 (* -------------------------------------------------------------------- *)
-val oiter      : ('a -> unit) -> 'a option -> unit
-val obind      : ('a -> 'b option) -> 'a option -> 'b option
-val ofold      : ('a -> 'b -> 'b) -> 'b -> 'a option -> 'b
-val omap       : ('a -> 'b) -> 'a option -> 'b option
-val odfl       : 'a -> 'a option -> 'a
-val ofdfl      : (unit -> 'a) -> 'a option -> 'a
 val oget       : ?exn:exn -> 'a option -> 'a
-val otolist    : 'a option -> 'a list
-val omap_dfl   : ('a -> 'b) -> 'b -> 'a option -> 'b
-
-(* -------------------------------------------------------------------- *)
-val iterop: ('a -> 'a) -> int -> 'a -> 'a
-val iter: ('a -> 'a) -> 'a -> 'b
 
 (* -------------------------------------------------------------------- *)
 module Uniq : sig
@@ -169,17 +157,24 @@ exception HiError of hierror
 val add_iloc : hierror -> Location.i_loc -> hierror
 val pp_hierror : Format.formatter -> hierror -> unit
 
+val pp_print_bold_red : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a -> unit
+
 val hierror :
       loc:error_loc -> ?funname:string -> kind:string
    -> ?sub_kind:string -> ?internal:bool
    -> ('a, Format.formatter, unit, 'b) format4 -> 'a
 
 (* -------------------------------------------------------------------- *)
+val pp_now  : Format.formatter -> unit
+
+(* -------------------------------------------------------------------- *)
 type warning = 
   | ExtraAssignment 
   | UseLea
   | IntroduceNone
-  | IntroduceArrayCopy 
+  | IntroduceArrayCopy
+  | SimplifyVectorSuffix
+  | Deprecated
   | Always
 
 val nowarning : unit -> unit
@@ -187,12 +182,3 @@ val add_warning : warning -> unit -> unit
 val warning :
       warning -> Location.i_loc
    -> ('a, Format.formatter, unit) format -> 'a
-
-
-(* -------------------------------------------------------------------- *)
-
-type input_error =
-  | FileNotFound of string
-  | FileIsDirectory of string
-
-val pp_input_error : input_error -> string

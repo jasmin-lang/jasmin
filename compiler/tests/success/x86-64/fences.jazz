@@ -1,0 +1,3 @@
+export fn test_lfence() { () = #LFENCE(); }
+export fn test_mfence() { () = #MFENCE(); }
+export fn test_sfence() { () = #SFENCE(); }

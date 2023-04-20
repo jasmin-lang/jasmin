@@ -1,10 +1,12 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 
 Require Import
   arch_params_proof
   compiler_util
   expr
+  fexpr
+  fexpr_sem
   psem
   psem_facts
   one_varmap
@@ -22,7 +24,8 @@ Require Import
   arch_decl
   arch_extra
   asm_gen
-  asm_gen_proof.
+  asm_gen_proof
+  sem_params_of_arch_extra.
 Require Import
   x86_decl
   x86_extra
@@ -34,7 +37,6 @@ Require Export x86_params.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
 
 Section Section.
 Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}. 
@@ -113,7 +115,7 @@ Qed.
 
 Definition x86_hsaparams is_regx : h_stack_alloc_params (ap_sap x86_params is_regx) :=
   {|
-    mov_ofsP := @x86_mov_ofsP is_regx;
+    mov_ofsP := x86_mov_ofsP (is_regx := is_regx);
   |}.
 
 (* ------------------------------------------------------------------------ *)
@@ -121,25 +123,101 @@ Definition x86_hsaparams is_regx : h_stack_alloc_params (ap_sap x86_params is_re
 
 Section LINEARIZATION.
 
+Definition x86_lassign_eval_instr
+  {call_conv : calling_convention}
+  (lp : lprog)
+  s0 s1 fn pc ii x e ws ws' w (w' : word ws') :
+  sem_rexpr (emem s0) (evm s0) e = ok (Vword w')
+  -> truncate_word ws w' = ok w
+  -> write_lexpr x (Vword w) s0 = ok s1
+  -> let: li := li_of_copn_args ii (x86_lassign x ws e) in
+     let: ls0 := of_estate s0 fn pc in
+     let: ls1 := of_estate s1 fn (pc + 1) in
+     eval_instr lp li ls0 = ok ls1.
+Proof.
+  move=> hseme hw hwritex.
+  rewrite /eval_instr /=.
+  rewrite /sem_sopn /=.
+  rewrite to_estate_of_estate.
+  rewrite hseme {hseme} /=.
+
+  case: ws w hw hwritex => /= w hw hwritex.
+  all: rewrite /exec_sopn /=.
+  all: rewrite hw {hw} /=.
+  all: rewrite hwritex {hwritex} /=.
+  all: by rewrite addn1.
+Qed.
+
+Definition x86_op_align_eval_instr
+  {call_conv : calling_convention}
+  (lp : lprog)
+  ls ii xname vi ws al w :
+  let: x :=
+    {|
+      v_var := {| vname := xname; vtype := sword ws; |};
+      v_info := vi;
+    |}
+  in
+  (ws <= U64)%CMP
+  -> get_var (lvm ls) (v_var x) = ok (Vword w)
+  -> let: li := li_of_copn_args ii (x86_op_align x ws al) in
+     let w' := align_word al w in
+     let: vm' :=
+       (lvm ls)
+         .[to_var OF <- ok false]
+         .[to_var CF <- ok false]
+         .[to_var SF <- ok (SF_of_word w')]
+         .[to_var PF <- ok (PF_of_word w')]
+         .[to_var ZF <- ok (ZF_of_word w')]
+         .[v_var x <- ok (pword_of_word w')]%vmap
+     in
+     let: ls' :=
+       {|
+         lscs := lscs ls;
+         lmem := lmem ls;
+         lvm := vm';
+         lfn := lfn ls;
+         lpc := lpc ls + 1;
+       |}
+     in
+     eval_instr lp li ls = ok ls'.
+Proof.
+  set x := {| vname := xname; |}.
+  set xi := {| v_var := x; |}.
+  set w' := align_word _ _.
+  move=> hws hgetx.
+  rewrite /eval_instr /=.
+  rewrite /sem_sopn /=.
+  rewrite /get_gvar /=.
+  rewrite hgetx {hgetx} /=.
+  rewrite /exec_sopn /=.
+  rewrite !truncate_word_u /=.
+  rewrite /sopn_sem /=.
+  rewrite /x86_AND /check_size_8_64.
+  rewrite hws {hws} /=.
+  rewrite sumbool_of_boolET.
+  rewrite /with_vm /of_estate pword_of_wordE -/(align_word al w) /=.
+  by rewrite addn1.
+Qed.
+
+
 Context
   {call_conv : calling_convention}
   (lp : lprog)
-  (s : estate)
   (sp_rsp : Ident.ident)
-  (ii : instr_info)
-  (fn : funname)
-  (pc : nat).
+  (fn : funname).
 
 Let vrsp : var := mk_ptr sp_rsp.
 Let vrspi : var_i := VarI vrsp dummy_var_info.
-Let vm := evm s.
+Let vtmp : var := mk_ptr (lip_tmp x86_liparams).
+Let vtmpi : var_i := VarI vtmp dummy_var_info.
 
-Definition x86_spec_lip_allocate_stack_frame ts sz :
-  let args := lip_allocate_stack_frame x86_liparams vrspi sz in
-  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let ts' := pword_of_word (ts + wrepr Uptr sz) in
-  let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
-  (vm.[vrsp])%vmap = ok (pword_of_word ts)
+Definition x86_spec_lip_allocate_stack_frame s pc ii ts sz :
+  let: args := lip_allocate_stack_frame x86_liparams vrspi sz in
+  let: i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
+  let: ts' := pword_of_word (ts - wrepr Uptr sz) in
+  let: s' := with_vm s (evm s).[vrsp <- ok ts']%vmap in
+  (evm s).[vrsp]%vmap = ok (pword_of_word ts)
   -> eval_instr lp i (of_estate s fn pc)
      = ok (of_estate s' fn pc.+1).
 Proof.
@@ -151,12 +229,12 @@ Proof.
   by rewrite 3!zero_extend_u.
 Qed.
 
-Definition x86_spec_lip_free_stack_frame ts sz :
+Definition x86_spec_lip_free_stack_frame s pc ii ts sz :
   let args := lip_free_stack_frame x86_liparams vrspi sz in
   let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let ts' := pword_of_word (ts - wrepr Uptr sz) in
-  let s' := with_vm s (vm.[vrsp <- ok ts'])%vmap in
-  (vm.[vrsp])%vmap = ok (pword_of_word ts)
+  let ts' := pword_of_word (ts + wrepr Uptr sz) in
+  let s' := with_vm s (evm s).[vrsp <- ok ts']%vmap in
+  (evm s).[vrsp]%vmap = ok (pword_of_word ts)
   -> eval_instr lp i (of_estate s fn pc)
     = ok (of_estate s' fn pc.+1).
 Proof.
@@ -168,69 +246,191 @@ Proof.
   by rewrite 3!zero_extend_u.
 Qed.
 
-Definition x86_spec_lip_ensure_rsp_alignment ws ts' :
-  let al := align_word ws ts' in
-  let args := lip_ensure_rsp_alignment x86_liparams vrspi ws in
-  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  get_var (evm s) vrsp = ok (Vword ts')
+Lemma x86_spec_lip_set_up_sp_register s r ts al sz P Q :
+  let: ts' := align_word al (ts - wrepr Uptr sz) in
+  let: lcmd := set_up_sp_register x86_liparams vrspi sz al r in
+  is_linear_of lp fn (P ++ lcmd ++ Q)
+  -> isSome (lip_set_up_sp_register x86_liparams vrspi sz al r)
+  -> vtype r = sword Uptr
+  -> vtmp <> vrsp
+  -> vname (v_var r) \notin (lip_not_saved_stack x86_liparams)
+  -> v_var r <> vrsp
+  -> get_var (evm s) vrsp = ok (Vword ts)
   -> wf_vm (evm s)
   -> exists vm',
-      [/\ eval_instr lp i (of_estate s fn pc)
-          = ok (of_estate (with_vm s vm') fn pc.+1)
-        , vm' = (evm s).[vrsp <- ok (pword_of_word al)]%vmap
-              [\one_varmap.vflags]
-        , forall x,
-            Sv.In x (one_varmap.vflags)
-            -> ~ is_ok (vm'.[x]%vmap)
-            -> (evm s).[x]%vmap = vm'.[x]%vmap
-        & wf_vm vm'
-      ].
+       let: ls := of_estate s fn (size P) in
+       let: s' := with_vm s vm' in
+       let: ls' := of_estate s' fn (size P + size lcmd) in
+       [/\ lsem lp ls ls'
+         , wf_vm vm'
+         , vm' = (evm s)
+             [\ Sv.add (v_var r) (Sv.add vtmp (Sv.add vrsp vflags)) ]
+         , get_var vm' vrsp = ok (Vword ts')
+         , get_var vm' (v_var r) = ok (Vword ts)
+         & forall x,
+             Sv.In x vflags
+             -> ~ is_ok (vm'.[x]%vmap)
+             -> (evm s).[x]%vmap = vm'.[x]%vmap
+       ].
 Proof.
-  move=> al /= Hvrsp.
-  rewrite /eval_instr /= /sem_sopn /= /get_gvar /=.
-  rewrite Hvrsp /=.
-  rewrite !zero_extend_u pword_of_wordE /=.
-  rewrite /with_vm /=.
-  eexists; split; first by reflexivity.
-  + move=> x hin. rewrite !(@Fv.setP _ _ vrsp).
-    case: (vrsp =P x).
-    + by move=> ?; subst x.
-    move=> _.
-    have hneq: forall (f : rflag), to_var f != x.
-    + move=> f.
-      apply/eqP => heq.
-      apply /hin /sv_of_listP /mapP.
-      exists f => //.
-      rewrite /rflags /x86_decl.rflags.
-      by rewrite (mem_cenum (cfinT := finC_rflag)).
-    by rewrite !Fv.setP_neq.
-  + move=> x /sv_of_listP /mapP [f _ ->].
-    by case f;
-      repeat (rewrite Fv.setP_eq || rewrite Fv.setP_neq //).
-  by do! apply wf_vm_set.
+  move=> hbody _ hr.
+  set ts' := align_word _ _.
+  move: r hr hbody => [[rtype rname] rinfo] /= ?; subst rtype.
+  set r := {| v_info := rinfo; |}.
+  move=> hbody _ _ hneq_r_rsp hgetrsp hwf_vm.
+
+  move: hbody.
+  set i_mov_r := _ _ (x86_lassign (LLvar r) _ _).
+  set i_sub_rsp := _ _ (x86_allocate_stack_frame vrspi _).
+  set i_align_rsp := _ _ (x86_op_align vrspi _ _).
+  move=> hbody.
+
+  set vm0 := (evm s).[v_var r <- ok (pword_of_word ts)]%vmap.
+  set vm2 := vm0.[vrsp <- ok (pword_of_word (ts - wrepr Uptr sz))]%vmap.
+
+  eexists.
+  split.
+
+  - apply: lsem_step3; rewrite /lsem1 /step.
+
+    (* R[r] := R[rsp]; *)
+    + rewrite -{1}(addn0 (size P)).
+      rewrite (find_instr_skip hbody) /=.
+      apply: x86_lassign_eval_instr.
+      * exact: hgetrsp.
+      * exact: truncate_word_u.
+        rewrite /write_lval /write_var /=.
+        rewrite /with_vm pword_of_wordE -/vm0.
+        reflexivity.
+
+    (* R[rsp] := R[rsp] - sz; *)
+    + rewrite (find_instr_skip hbody) /=.
+      apply: x86_spec_lip_allocate_stack_frame.
+      rewrite Fv.setP_neq; last by apply/eqP.
+      move: hgetrsp.
+      rewrite get_varE.
+      case: _.[_]%vmap => //= -[pws w ?].
+      move=> [?]; subst pws.
+      move=> [?]; subst w.
+      rewrite pword_of_wordE.
+      reflexivity.
+
+    (* R[rsp] := R[rsp] & alignment; *)
+    rewrite addn1 -addn2.
+    rewrite (find_instr_skip hbody) /=.
+    rewrite -(addn1 2) addnA.
+    rewrite -/vm2.
+    apply:
+      (x86_op_align_eval_instr
+         (w := ts - wrepr Uptr sz)
+         _ _ _
+         (cmp_le_refl _)).
+    by t_get_var.
+
+  - repeat apply: wf_vm_set. exact: hwf_vm.
+
+  - move=> x. t_notin_add. by t_vm_get.
+
+  - by t_get_var.
+
+  - by t_get_var.
+
+  rewrite /= -/ts'.
+  move=> x /sv_of_listP /mapP [f _ ->].
+  case: f; by t_vm_get.
+Qed.
+
+Lemma x86_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
+  let: ts' := align_word al (ts - wrepr Uptr sz) in
+  let: lcmd := set_up_sp_stack x86_liparams vrspi sz al off in
+  is_linear_of lp fn (P ++ lcmd ++ Q)
+  -> isSome (lip_set_up_sp_stack x86_liparams vrspi sz al off)
+  -> vtmp <> vrsp
+  -> get_var (evm s) vrsp = ok (Vword ts)
+  -> wf_vm (evm s)
+  -> write (emem s) (ts' + wrepr Uptr off)%R ts = ok m'
+  -> exists vm',
+       let: ls := of_estate s fn (size P) in
+       let: s' := {| escs := escs s; evm := vm'; emem := m'; |} in
+       let: ls' := of_estate s' fn (size P + size lcmd) in
+       [/\ lsem (spp := mk_spp) lp ls ls'
+         , wf_vm vm'
+         , vm' = (evm s) [\ Sv.add vtmp (Sv.add vrsp vflags) ]
+         , get_var vm' vrsp = ok (Vword ts')
+         & forall x,
+             Sv.In x vflags
+             -> ~ is_ok (vm'.[x]%vmap)
+             -> (evm s).[x]%vmap = vm'.[x]%vmap
+       ].
+Proof.
+  set ts' := align_word _ _.
+  move=> hbody _ hneq_tmp_rsp hgetrsp hwf_vm hwrite.
+
+  move: hbody.
+  rewrite /=.
+  rewrite -[[:: _, _, _, _ & Q]]/([:: _; _; _ ] ++ [:: _ & Q]).
+  rewrite -[[:: _; _; _]]/(map _ (x86_set_up_sp_register vrspi sz al vtmpi)).
+  move=> hbody.
+
+  have [vm0 [hsem hwf_vm0 hvm0 hgetrsp0 hgettmp0 hflags]] :=
+    x86_spec_lip_set_up_sp_register
+      (r := vtmpi)
+      hbody
+      erefl
+      erefl
+      hneq_tmp_rsp
+      erefl
+      hneq_tmp_rsp
+      hgetrsp
+      hwf_vm.
+
+  exists vm0.
+  split.
+
+  - apply: (lsem_trans hsem).
+    apply: LSem_step.
+    rewrite /lsem1 /step /=.
+    rewrite (find_instr_skip hbody) /=.
+    rewrite
+      (x86_lassign_eval_instr
+         _
+         (s1 := {| escs := escs s; emem := m'; evm := vm0; |})
+         _ _ _
+         (w := ts)
+         (w' := ts)).
+    + by rewrite -addnA addn1.
+    + exact: hgettmp0.
+    + exact: truncate_word_u.
+    + rewrite /=.
+      rewrite hgetrsp0 {hgetrsp0} /=.
+      rewrite !zero_extend_u.
+      rewrite -/ts'.
+      by rewrite hwrite {hwrite}.
+
+  - exact: hwf_vm0.
+
+  - move=> x hx.
+    rewrite hvm0; first done.
+    rewrite Sv_equal_add_add.
+    exact: hx.
+
+  - exact: hgetrsp0.
+
+  exact: hflags.
 Qed.
 
 Definition x86_hlip_lassign
-  (s1 s2 : estate) x e ws li ws' (w : word ws) (w' : word ws') :
+  (s1 s2 : estate) pc ii x e ws li ws' (w : word ws) (w' : word ws') :
   lassign x86_liparams x ws e = Some li
-  -> sem_pexpr [::] s1 e = ok (Vword w')
+  -> sem_rexpr (emem s1) (evm s1) e = ok (Vword w')
   -> truncate_word ws w' = ok w
-  -> write_lval [::] x (Vword w) s1 = ok s2
+  -> write_lexpr x (Vword w) s1 = ok s2
   -> eval_instr lp (MkLI ii li) (of_estate s1 fn pc)
      = ok (of_estate s2 fn pc.+1).
 Proof.
-  move=> /= hlassign Hsem_pexpr Htruncate_word Hwrite_lval.
-  rewrite /eval_instr /= /sem_sopn /=.
-  rewrite to_estate_of_estate.
-  move: hlassign => [?]; subst li.
-  rewrite /=.
-  rewrite Hsem_pexpr /=.
-  rewrite /exec_sopn /=.
-  case: ws w Htruncate_word Hwrite_lval
-    => /= ? Htruncate_word Hwrite_lval;
-    rewrite Htruncate_word /=;
-    rewrite Hwrite_lval /=;
-    done.
+  move=> [<-] hseme hw hwritex.
+  rewrite (x86_lassign_eval_instr _ _ _ _ hseme hw hwritex).
+  by rewrite addn1.
 Qed.
 
 End LINEARIZATION.
@@ -239,7 +439,8 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
   {|
     spec_lip_allocate_stack_frame := x86_spec_lip_allocate_stack_frame;
     spec_lip_free_stack_frame := x86_spec_lip_free_stack_frame;
-    spec_lip_ensure_rsp_alignment := x86_spec_lip_ensure_rsp_alignment;
+    spec_lip_set_up_sp_register := x86_spec_lip_set_up_sp_register;
+    spec_lip_set_up_sp_stack := x86_spec_lip_set_up_sp_stack;
     hlip_lassign := x86_hlip_lassign;
   |}.
 
@@ -255,6 +456,7 @@ Qed.
 (* ------------------------------------------------------------------------ *)
 (* Lowering hypotheses. *)
 
+(* Due to the order of the parameters we can't defined this as a record. *)
 Definition x86_hloparams : h_lowering_params (ap_lop x86_params).
 Proof.
   split. exact: @lower_callP.
@@ -315,14 +517,14 @@ Proof. by rewrite /of_var_e_bool /of_var_e; case: of_var. Qed.
 Lemma eval_assemble_cond ii m rf e c v:
   eqflags m rf
   -> agp_assemble_cond x86_agparams ii e = ok c
-  -> sem_pexpr [::] m e = ok v
+  -> sem_fexpr (evm m) e = ok v
   -> exists2 v',
        value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   rewrite /x86_agparams /eval_cond /get_rf /=.
   move=> eqv; elim: e c v => //.
   + move=> x c v /=; t_xrbindP=> r /of_var_e_boolP ok_r ok_ct ok_v.
-    have := gxgetflag_ex eqv ok_r ok_v.
+    have := xgetflag_ex eqv ok_r ok_v.
     case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h;
       eexists;
       eauto;
@@ -337,7 +539,7 @@ Proof.
   case => //=.
   + move=> e1 _ e2 _ c v.
     case: e1 => //= x1; case: e2 => //= x2; t_xrbindP => f1 /of_var_e_boolP ok_f1 f2 /of_var_e_boolP ok_f2.
-    case: ifP => // /orP hor [<-] v1 /(gxgetflag eqv ok_f1) hv1 v2 /(gxgetflag eqv ok_f2) hv2.
+    case: ifP => // /orP hor [<-] v1 /(xgetflag eqv ok_f1) hv1 v2 /(xgetflag eqv ok_f2) hv2.
     move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
     move: (hv1 _ hb1) (hv2 _ hb2) => hfb1 hfb2.
     exists (b1 == b2); last done.
@@ -356,20 +558,24 @@ Proof.
   by exists (b1 || b2).
 Qed.
 
-Lemma assemble_extra_op rip ii op lvs args op' lvs' args' op'' asm_args m m' s :
-  sem_sopn [::] (Oasm (ExtOp op)) m lvs args = ok m'
+Lemma assemble_extra_op rip ii op lvs args op' lvs' args' op'' asm_args m xs ys m' s :
+  sem_rexprs m args = ok xs
+  -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
+  -> write_lexprs lvs ys m = ok m'
   -> to_asm ii op lvs args = ok (op', lvs', args')
   -> assemble_asm_op x86_agparams rip ii op' lvs' args'
      = ok (op'', asm_args)
   -> lom_eqv rip m s
   -> exists2 s', eval_op op'' asm_args s = ok s' & lom_eqv rip m' s'.
 Proof.
-  rewrite /x86_agparams /=.
   case: op.
-  + move=> sz; rewrite /sem_sopn /exec_sopn /sopn_sem /=.
+  + move=> sz; rewrite /exec_sopn /sopn_sem /=.
     rewrite /Oset0_instr; case: ifP => /= hsz64.
-    + t_xrbindP => ? []// ?? [<-] /= <-.
-      move=> hw x hx <- <- <-; rewrite /assemble_asm_op.
+    + case: args => /=; t_xrbindP; last by move => *; subst.
+      move => <-{xs} _ /ok_inj <- /= <-{ys}.
+      move => hw x.
+      case: rev => [ // | [ // | d ] ds ] /ok_inj <-{x} <-{op'} <-{lvs'} <-{args'}.
+      rewrite /assemble_asm_op.
       t_xrbindP => asm_args' _ hc.
       case hci: enforce_imm_i_args_kinds =>
         {asm_args} [asm_args|//] _ [<-] /andP [hca hcd] <- <-.
@@ -390,8 +596,9 @@ Proof.
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
              (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
-    t_xrbindP => ? []// ?? [<-] /= <-.
-    move=> hw x hx <- <- <-; rewrite /assemble_asm_op.
+    case: xs => // ok_xs /ok_inj <-{ys} hw.
+    case: rev => [ // | [ // | d ] ds ] /ok_inj[] <-{op'} <-{lvs'} <-{args'}.
+    rewrite /assemble_asm_op.
     t_xrbindP => asm_args' _ hc.
     case hci: enforce_imm_i_args_kinds =>
       {asm_args} [asm_args|//] _ [<-] /andP [hca hcd] <- <-.
@@ -409,16 +616,15 @@ Proof.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz) => hlo.
-    by apply: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _ 
+    exact: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
                rip ii m lvs m' s [:: a0; XReg r; XReg r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
                (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
-  + t_xrbindP.
-    case: args => // h [] // [] // x [] //=.
-    rewrite /sem_sopn /exec_sopn /sopn_sem /=.
-    t_xrbindP => ?? vh hvh ? vl hvl <- <- /= vd.
-    t_xrbindP => wh hwh wl hwl <- <- /= hwr <- <- <-.
+  + case: args => // h [] // [] // [] // x [] //=.
+    rewrite /exec_sopn /sopn_sem /=.
+    t_xrbindP => vh hvh _ vl hvl <- <-{xs} ?.
+    t_xrbindP => ? hwh ? hwl <- <-{ys} /= hwr <-{op'} <-{lvs'} <-{args'}.
     rewrite /assemble_asm_op.
 
     t_xrbindP => asm_args' haux hc'.
@@ -439,7 +645,6 @@ Opaque eval_arg_in_v check_i_args_kinds.
 Transparent eval_arg_in_v check_i_args_kinds.
     move: hE1; rewrite /check_sopn_arg /=.
     case: oseq.onth => // a.
-    case: x hvl haux => x [] // hvl haux.
     case heq: xreg_of_var => [ a' | //] /andP[] hc _.
     have := xreg_of_varI heq => {heq}.
     case: a' hc => //= [ r | rx | xmm].
@@ -466,8 +671,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
     rewrite /compat_imm; case:a => //= xmm' /orP [ /eqP[?]| //] hxmm;subst xmm'.
     rewrite hvh' hv1 /= -hwm /=; do 3! f_equal.
     have := xxgetreg_ex hlow hxmm hvl.
-    rewrite zero_extend_u /winserti128 => hu.
-    have -> : (lsb (wrepr U8 (wunsigned 1))) by done.
+    rewrite zero_extend_u /winserti128 => hu /=.
     do 2! f_equal; rewrite /split_vec /=.
     move: hwl hu; rewrite /to_word.
     case: (vl) => // [ws wl' /= | []//].
@@ -476,19 +680,19 @@ Transparent eval_arg_in_v check_i_args_kinds.
     rewrite (@subword0 U128 U256) // => -[] <- /andP [] _ /eqP ->.
     by rewrite zero_extend_idem.
   case: lvs => // -[] // x [] //.
-  rewrite /sem_sopn /exec_sopn /sopn_sem /=.
-  case: args => //= a args.
-  t_xrbindP => vs1 vs2 va hva vs3 h <- /=.
-  case: args h => /=; t_xrbindP; last by move=> *; subst.
-  move => <- ? wa htwa [<-] <-; t_xrbindP => m1 hwx ? <- <- <-;subst m1.
+  rewrite /exec_sopn /sopn_sem /=.
+  case: xs => //; t_xrbindP => vs1 [] // hva _ va htwa /ok_inj <- <-{ys}.
+  t_xrbindP => _ m1 hwx <- <-{m'} <-{op'} <-{lvs'} <-{args'}.
   rewrite /assemble_asm_op.
   t_xrbindP => asm_args' _ hc.
   case hci: enforce_imm_i_args_kinds =>
     {asm_args} [asm_args|//] _ [<-] /andP [hca hcd] <- <- hlo.
   have {hci} hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
-  case: asm_args hidc hcd hca => // a0 [] // a1 []// hidc hcd;
-    last by rewrite /check_args_kinds /= !andbF.
-  rewrite /check_sopn_args /= andbT => hca1.
+  case: asm_args hidc hcd hca => // a0 [ | a1 [] ]; only 1, 3: by rewrite /check_args_kinds /= !andbF.
+  move => hidc hcd.
+  have := size_mapM hva.
+  case: args hva => // r0 [] //=; t_xrbindP => q hva ? _; subst q.
+  rewrite andbT => hca1.
   rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
   rewrite /= in hidc;rewrite hidc.
   have [v' /= -> /= -> /=] :=
@@ -501,7 +705,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
   eexists; first reflexivity.
   case: hlo => h0 h1 hrip hd h2 h2x h3 h4.
   move: hwx; rewrite /write_var /set_var.
-  rewrite -xr => -[<-]{m'}.
+  rewrite -xr => -[<-]{m1}.
   constructor => //=.
   + by rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.
   + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.

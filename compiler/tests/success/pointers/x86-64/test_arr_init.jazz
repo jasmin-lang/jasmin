@@ -1,0 +1,35 @@
+#stacksize=16  /* ra + b on stack */
+fn test1 (reg u64 x) -> reg u64 {
+  stack u64[1] a, b;
+  a[0] = x;
+  x += a[0];
+  b[0] = x;
+  x += b[0];
+  return x;
+}
+
+#stacksize="16"  /* ra + b on stack */
+fn test2 (reg u64 x) -> reg u64 {
+  stack u64[1] a, b;
+  if (x == 1) {
+    a[0] = x;
+    x += a[0];
+    b[0] = x;
+    x += b[0];
+  } else {
+    b[0] = x;
+    x += b[0];
+  }
+  return x;
+}
+
+#stacksize=0
+export fn test (reg u64 x) -> reg u64 {
+  reg u64 r;
+  r = x;
+  r = test1(r);
+  r = test2(r);
+  return r;
+}
+
+

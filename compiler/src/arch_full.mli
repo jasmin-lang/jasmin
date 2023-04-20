@@ -2,6 +2,15 @@ open Arch_decl
 open Arch_extra
 open Prog
 
+type 'a callstyle =
+  | StackDirect           (* call instruction push the return address on top of the stack *)
+  | ByReg of 'a option    (* call instruction store the return address on a register, 
+                               (Some r) neams that the register is forced to be r *)
+(* x86    : StackDirect 
+   arm v7 : ByReg (Some ra)
+   riscV  : ByReg (can it be StackDirect too ?)
+*)
+
 module type Core_arch = sig
   type reg
   type regx 
@@ -19,13 +28,12 @@ module type Core_arch = sig
 
   val lowering_vars : Conv.coq_tbl -> fresh_vars
   val lowering_opt : lowering_options
+  val not_saved_stack : Name.t list
 
   val pp_asm : Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
-  val analyze :
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
-    (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.prog ->
-    unit
+
+  val callstyle : reg callstyle
+
 end
 
 module type Arch = sig
@@ -49,9 +57,20 @@ module type Arch = sig
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
   val callee_save_vars : var list
+  val not_saved_stack : var list
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
+
+  val callstyle : var callstyle 
+  
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch
+       with type reg = A.reg
+        and type regx =  A.regx
+        and type xreg = A.xreg
+        and type rflag = A.rflag
+        and type cond = A.cond
+        and type asm_op = A.asm_op
+        and type extra_op = A.extra_op

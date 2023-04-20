@@ -4,7 +4,7 @@ From mathcomp Require Import
 Import
   Order.POrderTheory
   Order.TotalTheory.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import Psatz.
 
 Require Import
@@ -15,7 +15,8 @@ Require Import
   psem
   utils.
 Require Import
-  arch_extra.
+  arch_extra
+  sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -105,7 +106,6 @@ Notation disj_fvars := (disj_fvars fvars).
 Notation disj_fvars_get_fundef := (disj_fvars_get_fundef fv_correct).
 
 Notation p' := (lower_prog p).
-
 
 (* -------------------------------------------------------------------- *)
 
@@ -450,7 +450,7 @@ Qed.
 (* Note that the interpretation of the expression is [zero_extend reg_size w]
    due to the implicit castings in [sem]. *)
 Lemma get_arg_shiftP s e ws ws0 (w : word ws0) e' sh n :
-  get_arg_shift ws e = Some (e', sh, n)
+  get_arg_shift ws [:: e ] = Some (e', sh, n)
   -> disj_fvars (read_e e)
   -> sem_pexpr (p_globs p) s e = ok (Vword w)
   -> exists ws1 (wbase : word ws1) (wsham : word U8),
@@ -475,7 +475,7 @@ Proof.
   move=> hfve.
 
   case: ws w hsemop => // w hsemop.
-  case: op hsemop hfve => // [[] | [|[]] | [|[]]] //= hsemop hfve.
+  case: op hsemop hfve => // [[] | [|[]] | [|[]] | []] //= hsemop hfve.
   all: case: ifP => // /andP [] /ZleP hlo /ZleP hhi.
   all: move=> [? ? ?]; subst e' sh n.
 
@@ -506,7 +506,7 @@ Proof.
          move=> //.
   all: clear hws1 hfve.
 
-  all: rewrite /sem_shr /sem_shl /sem_sar /=.
+  all: rewrite /sem_shr /sem_shl /sem_sar /sem_ror /=.
   all: rewrite /sem_shift /=.
   all: rewrite !zero_extend_u.
   all: rewrite get_arg_shiftP_aux; first reflexivity.
@@ -594,7 +594,7 @@ Proof.
   move=> h hws' hfve hseme.
 
   move: hseme.
-  rewrite /sem_pexpr /= -/(sem_pexpr _ s e).
+  rewrite /sem_pexpr -/(sem_pexpr _ s e).
   t_xrbindP=> wbase' vbase hgetx hbase woff' voff hseme hoff wres hread ? hw;
     subst ws''.
   move: hbase => /to_wordI [ws0 [wbase [? /truncate_wordP [hws0 ?]]]];
@@ -628,7 +628,7 @@ Proof.
   move=> s ws ws' aop es w.
   move=> h hws hfve.
 
-  rewrite /sem_pexpr /= -/(sem_pexpr _ s e).
+  rewrite /sem_pexpr -/(sem_pexpr _ s e).
   t_xrbindP=> v hseme hw.
 
   move: h.
@@ -655,7 +655,7 @@ Proof.
   (* TODO_ARM: The following two cases are the same. *)
 
   (* Case: [Osignext]. *)
-  - case: e hfve hseme => // ? ? ? hfve hseme.
+  - case: is_load; last by [].
     move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.
@@ -673,7 +673,7 @@ Proof.
     }
 
   (* Case: [Ozeroext]. *)
-  - case: e hfve hseme => // ? ? ? hfve hseme.
+  - case: is_load; last by [].
     move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.
@@ -696,7 +696,7 @@ Proof.
   move=> /= ?; subst w.
 
   move: hw' => /to_wordI [ws0 [w0' [? /truncate_wordP [hws0 ?]]]]; subst v w'.
-  rewrite /arg_shift /=.
+  rewrite /arg_shift.
   case hshift: get_arg_shift => [[[e' sh] sham]|] /=.
 
   - have [ws1 [wbase [wsham [hws1 hbase hsham -> [hfvbase hfvsham]]]]] :=
@@ -751,7 +751,7 @@ Proof.
   move=> h hws hfve hseme.
 
   move: hseme.
-  rewrite /sem_pexpr /= -!/(sem_pexpr _ s _).
+  rewrite /sem_pexpr -!/(sem_pexpr _ s _).
   t_xrbindP=> v0 hseme0 v1 hseme1 hsemop.
 
   move: hfve => /disj_fvars_read_e_Papp2 [hfve0 hfve1].
@@ -789,7 +789,15 @@ Proof.
           | [ |- context[Olsr] ] => case: ws'' => //
           | [ |- context[Olsl] ] => case: ws'' => //
           | [ |- context[Oasr] ] => case: ws'' => //
+          | [ |- context[Oror] ] => case: ws'' => //
           end.
+      all:
+        try
+          match goal with
+          | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
+          | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
+          | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
+        end.
 
       all: move=> [? ? ?] hsemop; subst mn e0' e1'.
       all: discriminate hhas_shift || clear hhas_shift.
@@ -849,6 +857,20 @@ Proof.
       | [ |- context[Olsr] ] => case: ws'' => //
       | [ |- context[Olsl] ] => case: ws'' => //
       | [ |- context[Oasr] ] => case: ws'' => //
+      | [ |- context[Oror] ] => case: ws'' => //
+      end.
+
+  Local Ltac on_is_zero h :=
+    rewrite /=; case: is_zeroP;
+      [ move => ?; subst; case: h => ?; subst
+      | move => hzero ].
+
+  all:
+    try
+      match goal with
+      | [ |- context[ Olsr ] ] => on_is_zero hseme1
+      | [ |- context[ Oasr ] ] => on_is_zero hseme1
+      | [ |- context[ Oror ] ] => on_is_zero hseme1
       end.
 
   all: move=> [? ? ?] hsemop; subst mn e0' e1'.
@@ -857,8 +879,10 @@ Proof.
   all: move: hsemop => /sem_sop2I /= [w0' [w1' [w2 [hw0 hw1 hop hw]]]].
   all: move: hw0 => /to_wordI [ws0 [w0 [? /truncate_wordP [hws0 ?]]]];
          subst v0 w0'.
-  all: move: hw1 => /to_wordI [ws1 [w1 [? /truncate_wordP [hws1 ?]]]];
-         subst v1 w1'.
+  all: move: hw1.
+  all: try case/to_wordI => ws1 [w1] [?].
+  all: case/truncate_wordP => hws1 ?.
+  all: subst.
 
   all: rewrite /=.
   all: match goal with
@@ -874,7 +898,8 @@ Proof.
   all: clear hfve0 hfve1 hfves.
 
   all: rewrite /=.
-  all: rewrite hseme0 hseme1 {hseme0 hseme1} /=.
+  all: rewrite hseme0 {hseme0} /=.
+  all: try rewrite hseme1 {hseme1} /=.
   all: eexists; first reflexivity.
 
   all: rewrite /exec_sopn /=.
@@ -884,11 +909,16 @@ Proof.
 
   (* Shift instructions take a byte as second argument. *)
   all:
-    match goal with
-    | [ |- context[LSL] ] => rewrite hws1
-    | [ |- context[LSR] ] => rewrite hws1
-    | [ |- context[ASR] ] => rewrite hws1
-    end || rewrite (cmp_le_trans hws hws1).
+    try
+      match goal with
+      | [ |- context[LSL] ] => rewrite hws1
+      | [ |- context[LSR] ] => rewrite hws1
+      | [ |- context[ASR] ] => rewrite hws1
+      | [ |- context[ROR] ] => rewrite hws1
+      end.
+
+  (* The rest need [e32 <= ws1]. *)
+  all: try rewrite (cmp_le_trans hws hws1).
 
   all: rewrite /=.
 
@@ -899,6 +929,10 @@ Proof.
   5: rewrite -(wxor_zero_extend _ _ hws).
   6: rewrite (wmul_zero_extend _ _ hws).
   1-6: by rewrite !(zero_extend_idem _ hws).
+
+  3: rewrite /sem_shr /sem_shift wshr0.
+  6: rewrite /sem_sar /sem_shift wsar0.
+  8: rewrite /sem_ror /sem_shift wror0.
 
   all: by rewrite !zero_extend_u.
 Qed.

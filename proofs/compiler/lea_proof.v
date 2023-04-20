@@ -1,6 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
+Require Import oseq.
 Require Import psem compiler_util.
+Require Import fexpr fexpr_sem fexpr_facts.
 Require Export lea.
 Import Utf8.
 Import ssrring.
@@ -15,7 +17,9 @@ Local Open Scope seq_scope.
 Section PROOF.
   Context
     {asm_op syscall_state : Type}
-    {spp : SemPexprParams asm_op syscall_state}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}
     (gd : glob_decls).
 
   (* ---------------------------------------------------------- *)
@@ -111,16 +115,16 @@ Section PROOF.
     by rewrite /sem_lea /= hb1 ho1 /=; f_equal; rewrite wrepr_sub; ssring.
   Qed.
 
-  Lemma mk_lea_recP s e l sz sz' (w: word sz') :
-    (sz <= Uptr)%CMP -> 
+  Lemma mk_lea_recP vm e l sz sz' (w: word sz') :
+    (sz <= Uptr)%CMP ->
     (sz ≤ sz')%CMP →
     mk_lea_rec sz e = Some l ->
-    sem_pexpr gd s e = ok (Vword w) ->
-    sem_lea sz (evm s) l = ok (zero_extend sz w).
+    sem_fexpr vm e = ok (Vword w) ->
+    sem_lea sz vm l = ok (zero_extend sz w).
   Proof.
     move=> hsz.
     elim: e l sz' w => //=.
-    + move=> x l sz' w hsz'; rewrite /get_gvar; case: ifP => // hlv [<-].
+    + move=> x l sz' w hsz' [<-].
       by rewrite lea_varP => -> /=; f_equal; rewrite /truncate_word hsz'.
     + move=> [] //= sz1 [] //= e1 he1 l sz' w hsz' [<-]; rewrite /sem_sop1 /= => h.
       have /Vword_inj[? ? /=] := ok_inj h; subst.
@@ -149,48 +153,6 @@ Section PROOF.
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hsub).
   Qed.
 
-  Lemma push_cast_szP sz e s v :  
-    sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v ->
-    exists v', sem_pexpr gd s (push_cast_sz sz e) = ok v' /\ value_uincl v v'.
-  Proof.
-    elim: e v; eauto.
-    + move=> o e1 he1 v.
-      case: o; eauto.
-      move=> sz' /=.
-      case: (@idP (sz <= sz')%CMP); last eauto; rewrite /sem_sop1 /=.
-      t_xrbindP=> hsz > -> ? /to_wordI' [? [? [? -> ->]]] <- ? [<-] <-.
-      eexists; split=> //=.
-      have -> : forall w, wrepr sz (wunsigned w) = zero_extend sz w by done.
-      rewrite zero_extend_idem //.
-      by apply: word_uincl_zero_ext (cmp_le_trans hsz _).
-    rewrite /= /sem_sop1 => o e1 he1 e2 he2 v.
-    case: o; eauto; case; eauto; rewrite /= /sem_sop2 /=;
-      t_xrbindP=> _ ? heq1 ? heq2 i1 /to_intI ? i2 /to_intI ? <- _ [<-] <-; subst;
-      move: (he1 (Vword (wrepr sz i1))) (he2 (Vword (wrepr sz i2))) => {he1 he2};
-      rewrite {}heq1 {}heq2 => [[//| ? [-> /value_uinclE [? [? [-> +]]]]]]
-        [//| ? [-> /value_uinclE [? [? [-> +]]]]] /=;
-      rewrite /word_uincl /truncate_word => /andP[-> /eqP <-] /andP[-> /eqP <-] /=;
-      eexists; split=> //=; apply/andP; split=> //.
-    + by rewrite -wrepr_add zero_extend_wrepr.
-    + by rewrite -wrepr_mul zero_extend_wrepr.
-    by rewrite -wrepr_sub zero_extend_wrepr.
-  Qed.
-
-  Lemma push_castP e s v :
-    sem_pexpr gd s e = ok v ->
-    exists v', sem_pexpr gd s (push_cast e) = ok v' /\ value_uincl v v'.
-  Proof.
-    elim: e v; eauto.
-    + move=> o e1 he1 v /=.
-      t_xrbindP => v1 /he1{he1} [v1' [he1 hu]].
-      move=> /(vuincl_sem_sop1 hu).
-      case o => [sz | ? | ?? | ?? | | ? | ?] he1'; try by exists v; rewrite /= he1 /= he1'.
-      by apply push_cast_szP; rewrite /= he1 /= he1'.
-    move=> o e1 he1 e2 he2 /=.
-    t_xrbindP => ? v1 /he1 [v1' [-> hu1]] v2 /he2 [v2' [-> hu2]]. 
-    by move=> /(vuincl_sem_sop2 hu1 hu2) /= ->; eauto.
-  Qed.
-
   Lemma mk_leaP s e l sz sz' (w: word sz') :
     (sz <= Uptr)%CMP -> 
     (sz ≤ sz')%CMP →
@@ -198,12 +160,8 @@ Section PROOF.
     sem_pexpr gd s e = ok (Vword w) ->
     sem_lea sz (evm s) l = ok (zero_extend sz w).
   Proof.
-    rewrite /mk_lea => h1 h2 hrec.
-    move=> /push_castP [v' [he hu]].
-    have [sz1 [w1 [? /andP [] hle /eqP ->]]]:= value_uinclE hu; subst v'.
-    rewrite zero_extend_idem //.
-    apply: mk_lea_recP hrec he => //.
-    by apply: cmp_le_trans h2 hle.
+    rewrite /mk_lea => h1 h2 /obindI[] f [] /fexpr_of_pexprP h hrec /h.
+    exact: mk_lea_recP.
   Qed.
 
   Definition read_ovar (o: option var_i) : Sv.t :=
@@ -264,50 +222,36 @@ Section PROOF.
 
   Lemma mk_lea_rec_read sz e m :
     mk_lea_rec sz e = Some m →
-    Sv.Subset (read_lea m) (read_e e).
+    Sv.Subset (read_lea m) (free_vars e).
   Proof.
   elim: e m => //=.
-  + by move => [x []] //= _ [<-]; rewrite read_e_var; apply: SvD.F.Subset_refl.
+  + move => > /Some_inj <-.
+    rewrite /read_lea /= read_e_var; exact: SvD.F.Subset_refl.
   + by case => // sz' [] // z _ _ [<-].
   case => //.
   + case => // sz' e1.
     case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
     case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_add_read.
-    rewrite /read_e /= !read_eE.
+    rewrite /free_vars /= !free_varsE.
     by SvD.fsetdec.
   + case => // sz' e1.
     case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
     case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_mul_read.
-    rewrite /read_e /= !read_eE.
+    rewrite /free_vars /= !free_varsE.
     by SvD.fsetdec.
   case => // sz' e1.
   case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
   case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_sub_read.
-  rewrite /read_e /= !read_eE.
+  rewrite /free_vars /= !free_varsE.
   by SvD.fsetdec.
-  Qed.
-
-  Lemma push_cast_sz_read sz e :
-    Sv.Equal (read_e (push_cast_sz sz e)) (read_e e).
-  Proof.
-  elim: e => //=.
-  + by move=> o e1 he1; case: o => //= sz'; case: ifP.
-  by move=> o e1 he1 e2 he2; case: o => //= -[] //=; 
-   rewrite /read_e /= !read_eE; SvD.fsetdec.
-  Qed.
-
-  Lemma push_cast_read e :
-    Sv.Equal (read_e (push_cast e)) (read_e e).
-  Proof.
-  elim: e => //=.
-  + move=> o e1 he1; case: o => //= sz'.
-    by rewrite push_cast_sz_read he1.
-  by move=> o e1 he1 e2 he2; rewrite /read_e /= !read_eE; SvD.fsetdec.
   Qed.
 
   Lemma mk_lea_read sz e m :
     mk_lea sz e = Some m →
     Sv.Subset (read_lea m) (read_e e).
-  Proof. by move=> /mk_lea_rec_read; rewrite push_cast_read. Qed.
+  Proof.
+    case/obindI => f [] /free_vars_rec_of_pexpr h /mk_lea_rec_read.
+    by rewrite /free_vars h.
+  Qed.
 
 End PROOF.

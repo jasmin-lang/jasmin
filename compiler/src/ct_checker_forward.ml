@@ -240,8 +240,8 @@ end = struct
     try
       let _ =
         Mv.merge (fun _ (klvl1) (klvl2) ->
-            let k1, lvl1 = odfl (Flexible, Public) klvl1 in
-            let k2, lvl2 = odfl (Flexible, Public) klvl2 in
+            let k1, lvl1 = Option.default (Flexible, Public) klvl1 in
+            let k2, lvl2 = Option.default (Flexible, Public) klvl2 in
             let lvl1 = norm_lvl env1 lvl1 in
             let lvl2 = norm_lvl env2 lvl2 in
             assert (k1 = k2 && (k1 = Flexible || Lvl.equal lvl1 lvl2));
@@ -448,7 +448,7 @@ let get_annot ensure_annot f =
     let doit (n, (k, o)) =
       match o with
       | None -> Flexible, Lvl.poly1 (fresh_lvl ~n ())
-      | Some lvl -> odfl Strict k, lvl in
+      | Some lvl -> Option.default Strict k, lvl in
     List.map doit ain
   in
   (* Compute the local variables info *)
@@ -483,7 +483,7 @@ let get_annot ensure_annot f =
              (pp_list ", " Vl.pp) (Svl.elements diff))
     | _ -> () in
 
-  List.iter (oiter check_lvl) aout;
+  List.iter (Option.may check_lvl) aout;
   List.iter (fun (_, lvl) -> check_lvl lvl) ldecls;
   ain, aout, ldecls
 
@@ -510,10 +510,13 @@ let rec ty_instr fenv env i =
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl i.i_annot lvl)
 
-  | Copn(xs, _, _, es) | Csyscall(xs, _, es) ->
-    (* FIXME syscall: syscall are assumed constant time ... *)
+  | Copn(xs, _, _, es) ->
     let env, lvl = ty_exprs_max ~public:false env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
+
+  | Csyscall(xs, RandomBytes _, es) ->
+    let env, _ = ty_exprs_max ~public:true env es in
+    ty_lvals1 env xs (declassify_lvl i.i_annot Secret)
 
   | Cassert e ->
     let env, _ = ty_expr ~public:true env e in

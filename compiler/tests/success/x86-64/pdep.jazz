@@ -1,0 +1,21 @@
+export
+fn test_pdep32(reg u64 tmp)
+{
+  reg u32 a b c;
+
+  a = 0xFF;
+  b = 0x02;
+  c = #PDEP_32(a, b);
+  (u32)[tmp] = c;
+}
+
+export
+fn test_pdep64(reg u64 tmp)
+{
+  reg u64 a b c;
+
+  a = 0xFF;
+  b = 0x02;
+  c = #PDEP_64(a, b);
+  (u64)[tmp] = c;
+}

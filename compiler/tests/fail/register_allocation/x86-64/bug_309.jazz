@@ -1,0 +1,9 @@
+export
+fn test(reg u64 x) -> reg u64 {
+  reg u64 r;
+  reg bool cf;
+  cf, x = x + x;
+  r = #set0();
+  r = x if cf;
+  return r;
+}

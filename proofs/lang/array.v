@@ -1,4 +1,4 @@
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 From mathcomp Require Import all_ssreflect.
 Require Import utils gen_map.
 

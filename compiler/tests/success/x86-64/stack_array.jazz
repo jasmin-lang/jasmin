@@ -1,0 +1,27 @@
+export 
+fn fill(reg u64 in, reg u64 out, reg u64 len) -> reg u64 {
+   stack u64[10] t; 
+   reg u64 i, max, aux;
+
+   max = 10;
+   max = len if len < max;
+
+   i = 0;
+   #bounded
+   while (i < max) {
+     // t[(int)i] = [in + 8 * i];  // works but not in the spirit
+     aux = [in + 8 * i];
+     t[(int)i] = aux;
+     i += 1;
+   }
+
+   i = 0;
+   while (i < max) {
+     // [out + 8 * i] = t[(int)i];
+     aux = t[(int)i];
+     [in + 8 * i] = aux;
+     i += 1; 
+   }  
+
+   return i;
+}

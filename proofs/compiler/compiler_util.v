@@ -1,6 +1,6 @@
 Require Import ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import expr.
+Require Import expr fexpr.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -38,6 +38,8 @@ Inductive pp_error :=
 (*   | PPEinstr   `(instr_r) *)
   | PPEiinfo   `(instr_info)
   | PPEexpr    `(pexpr)
+  | PPErexpr of rexpr
+  | PPEfexpr of fexpr
   | PPEbox     `(box) `(seq pp_error)
   | PPEbreak.
 
@@ -62,6 +64,8 @@ Definition pp_nobox := PPEbox Nobox.
 Notation pp_s    := PPEstring.
 Notation pp_var  := PPEvar.
 Notation pp_e    := PPEexpr.
+Notation pp_re   := PPErexpr.
+Notation pp_fe   := PPEfexpr.
 Notation pp_fn   := PPEfunname.
 
 (* Not currently used *)

@@ -1,0 +1,13 @@
+export
+fn main(reg u64 x) -> reg u64 {
+  reg u64 r;
+  if x > 0 {
+    r = 0;
+  }
+  return r;
+}
+
+inline fn test() {
+#inline _ = main(0);
+}
+exec test()

@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import xseq.
 Require Import compiler_util ZArith expr psem remove_globals low_memory.
 Import Utf8.
@@ -19,7 +19,9 @@ Module INCL. Section INCL.
 
   Context
     {asm_op syscall_state : Type}
-    {spp : SemPexprParams asm_op syscall_state}.
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}.
 
   Section INCL_E.
     Context (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
@@ -191,10 +193,25 @@ Module INCL. Section INCL.
   Lemma gd_incl_fun scs m (fn : funname) (l : seq value) scs0 m0 vs:
       sem_call P1 ev scs m fn l scs0 m0 vs -> Pfun scs m fn l scs0 m0 vs.
   Proof.
-    apply: (@sem_call_Ind _ _ _ _ _ _ P1 ev Pc Pi_r Pi Pfor Pfun
-              Hnil Hcons HmkI Hasgn Hopn Hsyscall
-              Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false
-             Hfor Hfor_nil Hfor_cons Hcall Hproc).
+    exact:
+      (sem_call_Ind
+         Hnil
+         Hcons
+         HmkI
+         Hasgn
+         Hopn
+         Hsyscall
+         Hassert_true
+         Hassert_false
+         Hif_true
+         Hif_false
+         Hwhile_true
+         Hwhile_false
+         Hfor
+         Hfor_nil
+         Hfor_cons
+         Hcall
+         Hproc).
   Qed.
 
 End INCL. End INCL. Import INCL.
@@ -294,7 +311,7 @@ Section PROOFS.
     foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    exact: (@cmd_rect _ _ Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
+    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
 
 End PROOFS.
@@ -316,7 +333,9 @@ Module RGP. Section PROOFS.
 
   Context
     {asm_op syscall_state : Type}
-    {spp : SemPexprParams asm_op syscall_state}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    {sip : SemInstrParams asm_op syscall_state}
     (is_glob : var -> bool)
     (fresh_id : glob_decls -> var -> Ident.ident).
 
@@ -810,8 +829,25 @@ Module RGP. Section PROOFS.
      sem_call P ev scs1 m1 f vargs scs2 m2 vres ->
      Pfun scs1 m1 f vargs scs2 m2 vres.
   Proof.
-    apply (@sem_call_Ind _ _ _ _ _ _ P ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hassert_true Hassert_false Hif_true Hif_false
-              Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+    exact:
+      (sem_call_Ind
+         Hnil
+         Hcons
+         HmkI
+         Hasgn
+         Hopn
+         Hsyscall
+         Hassert_true
+         Hassert_false
+         Hif_true
+         Hif_false
+         Hwhile_true
+         Hwhile_false
+         Hfor
+         Hfor_nil
+         Hfor_cons
+         Hcall
+         Hproc).
   Qed.
 
   End FDS.

@@ -63,8 +63,8 @@ abstract theory MonoArray.
   proof. by move=> h1 ->;rewrite get_setE. qed.
 
   lemma nosmt set_neqiE (t : t) x y a :
-    0 <= x < size => y <> x => t.[x <- a].[y] = t.[y].
-  proof. by move=> h1; rewrite get_setE // => ->. qed.
+    y <> x => t.[x <- a].[y] = t.[y].
+  proof. by rewrite get_set_if => /neqF ->. qed.
 
   hint simplify (set_eqiE, set_neqiE).
 

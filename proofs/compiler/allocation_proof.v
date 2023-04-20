@@ -16,7 +16,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}.
 
 Lemma wextend_typeP t1 t2 : 
   reflect (t1 = t2 \/ exists s1 s2, [/\ t1 = sword s1, t2 = sword s2 & (s1 <= s2)%CMP])
@@ -830,7 +832,7 @@ Lemma alloc_funP_eq_aux fn f f' scs1 m1 scs2 m2 vargs vargs' vres s0 s1 s2 vres'
         init_state f'.(f_extra) (p_extra p2) ev (Estate scs1 m1 vmap0) = ok (with_vm s0 vm0') /\
         write_vars (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
         sem p2 ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-        [ /\ mapM (fun x : var_i => get_var (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1, 
+        [ /\ mapM (fun x : var_i => get_var (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1,
              List.Forall2 value_uincl vres' vres1' &
             mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'] &
         scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
@@ -885,17 +887,45 @@ econstructor;eauto.
 by rewrite -hextra.
 Qed.
 
-Lemma alloc_callP_aux f scs mem scs' mem' va vr:
-sem_call p1 ev scs mem f va scs' mem' vr ->
-exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
-Proof.
-move=>
-      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-          Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil
-          Hfor_cons Hcall Hproc).
-move=> H;apply H.
-by apply List_Forall2_refl.
-Qed.
+(* Lemma alloc_callP_aux f scs mem scs' mem' va vr: *)
+(* sem_call p1 ev scs mem f va scs' mem' vr -> *)
+(* exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'. *)
+(* Proof. *)
+(* move=> *)
+(*       /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall *)
+(*           Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil *)
+(*           Hfor_cons Hcall Hproc). *)
+(* move=> H;apply H. *)
+(* by apply List_Forall2_refl. *)
+(* Qed. *)
+(* ======= *)
+  Lemma alloc_callP_aux f scs mem scs' mem' va vr:
+    sem_call p1 ev scs mem f va scs' mem' vr ->
+    exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+  Proof.
+    move=> h.
+    apply:
+      (sem_call_Ind
+          Hskip
+          Hcons
+          HmkI
+          Hassgn
+          Hopn
+          Hsyscall
+          Hassert_true
+          Hassert_false
+          Hif_true
+          Hif_false
+          Hwhile_true
+          Hwhile_false
+          Hfor
+          Hfor_nil
+          Hfor_cons
+          Hcall
+          Hproc
+          h).
+    by apply List_Forall2_refl.
+  Qed.
 
 End PROOF.
 

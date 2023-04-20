@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import compiler_util expr ZArith constant_prop.
 Require Import
   flag_combination.
@@ -82,9 +82,6 @@ Context
   {asmop:asmOp asm_op}
   {fcp : FlagCombinationParams}.
 
-Definition sbneq e1 e2 := 
-  snot (sbeq e1 e2).
-
 Definition scfc (cf : combine_flags) (es : seq pexpr) : pexpr :=
   if es is [:: eof; ecf; esf; ezf ]
   then cf_xsem snot sand sor sbeq eof ecf esf ezf cf
@@ -124,24 +121,9 @@ Definition pi_lv (pi:pimap) (lv:lval) :=
   | Lmem ws x e         => (remove_m pi, Lmem ws x (pi_e pi e))
   | Laset aa ws x e     => (remove pi x, Laset aa ws x (pi_e pi e))
   | Lasub aa ws len x e => (remove pi x, Lasub aa ws len x (pi_e pi e))
-  end. 
-  
-(* TODO: move this in utils use it in constant_prop.const_prop_rvs ... *)
-Section MF.
-  Context (A B C:Type) (f : A -> B -> A * C).
+  end.
 
-  Fixpoint map_fold (a:A) (lb:list B) : A * list C := 
-    match lb with
-    | [::] => (a, [::])
-    | b::lb => 
-      let (a, c) := f a b in
-      let (a, lc) := map_fold a lb in
-      (a, c :: lc)
-    end.
-
-End MF.
-
-Definition pi_lvs (pi:pimap) (xs:lvals) := map_fold pi_lv pi xs.
+Definition pi_lvs (pi:pimap) (xs:lvals) := fmap pi_lv pi xs.
 
 Definition set_lv (pi:pimap) x tag (e:pexpr) :=
   if x is Lvar x then
@@ -151,17 +133,9 @@ Definition set_lv (pi:pimap) x tag (e:pexpr) :=
 
 Section LOOP.
 
-  Context (pi_i : pimap -> instr -> cexec (pimap * instr)). 
+  Context (pi_i : pimap -> instr -> cexec (pimap * instr)).
 
-  (* TODO: add map_foldM in utils *)
-  Fixpoint pi_c (pi:pimap) (c:cmd) := 
-    match c with
-    | [::] => ok (pi, [::])
-    | i::c => 
-      Let pii := pi_i pi i in 
-      Let pic := pi_c pii.1 c in
-      ok (pic.1, pii.2 :: pic.2)
-    end.
+  Definition pi_c := fmapM pi_i.
 
   Context (ii:instr_info).
   Context (x:var) (c:cmd).

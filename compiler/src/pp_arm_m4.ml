@@ -1,3 +1,9 @@
+(* Assembly printer for ARM Cortex M4 (ARMv7-M).
+
+We always use the Unified Assembly Language (UAL).
+Immediate values (denoted <imm>) are always nonnegative integers.
+*)
+
 open Arch_decl
 open Utils
 open Arm_decl
@@ -7,11 +13,12 @@ let arch = arm_decl
 
 let imm_pre = "#"
 
-(* Possible memory accesses in ARMv7-M are:
+(* We support the following ARMv7-M memory accesses.
    Offset addressing:
-     - A base register and an immediate offset (displacement): [<reg>, #<imm>]
-     - A base register and a register offset: [<reg>, <reg>]
-     - A base register and a scaled register offset: [<reg>, <reg>, LSL #<imm>]
+     - A base register and an immediate offset (displacement):
+       [<reg>, #+/-<imm>] (where + can be omitted).
+     - A base register and a register offset: [<reg>, <reg>].
+     - A base register and a scaled register offset: [<reg>, <reg>, LSL #<imm>].
 *)
 let pp_reg_address_aux base disp off scal =
   match (disp, off, scal) with
@@ -81,7 +88,7 @@ let pp_reg_address addr =
       let disp =
         if Z.equal disp Z.zero then None else Some (Z.to_string disp)
       in
-      let off = omap pp_register addr.ad_offset in
+      let off = Option.map pp_register addr.ad_offset in
       let scal = Conv.z_of_nat addr.ad_scale in
       let scal =
         if Z.equal scal Z.zero then None else Some (Z.to_string scal)
@@ -96,7 +103,7 @@ let pp_address addr =
 let pp_asm_arg arg =
   match arg with
   | Condt _ -> None
-  | Imm (ws, w) -> Some (pp_imm (Conv.z_of_word ws w))
+  | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx r -> Some (pp_register_ext r)
   | Addr addr -> Some (pp_address addr)
@@ -151,7 +158,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
 
-  | LABEL lbl ->
+  | LABEL (_, lbl) ->
       [ LLabel (pp_label fn lbl) ]
 
   | STORELABEL (dst, lbl) ->
@@ -167,23 +174,23 @@ let pp_instr tbl fn (_ : Format.formatter) i =
         | Reg r -> pp_register r
         | _ -> failwith "TODO_ARM: pp_instr jmpi"
       in
-      [ LInstr ("b", [ lbl ]) ]
+      [ LInstr ("bx", [ lbl ]) ]
 
   | Jcc (lbl, ct) ->
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
       [ LInstr (iname, [ pp_label fn lbl ]) ]
 
-  | JAL _ ->
-      failwith "TODO_ARM: pp_instr jal"
-
-  | CALL lbl ->
+  | JAL (LR, lbl) ->
       [ LInstr ("bl", [ pp_remote_label tbl lbl ]) ]
 
+  | CALL _
+  | JAL _ -> assert false
+
   | POPPC ->
-      [ LInstr ("b", [ pp_register LR ]) ]
+      [ LInstr ("pop", [ "{pc}" ]) ]
 
   | SysCall op ->
-      [LInstr ("call", [pp_syscall op])]
+      [LInstr ("bl", [ pp_syscall op ])]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
@@ -202,15 +209,22 @@ let pp_body tbl fn fmt cmd = List.concat_map (pp_instr tbl fn fmt) cmd
 
 let mangle x = Printf.sprintf "_%s" x
 
+let pp_brace s = Format.sprintf "{%s}" s
+
 let pp_fun tbl fmt (fn, fd) =
   let fn = Conv.string_of_funname tbl fn in
+  let head =
+    if fd.asm_fd_export then
+      [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
+    else []
+  in
   let pre =
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn ] else []
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
   let body = pp_body tbl fn fmt fd.asm_fd_body in
   (* TODO_ARM: Review. *)
   let pos = if fd.asm_fd_export then pp_instr tbl fn fmt POPPC else [] in
-  pre @ body @ pos
+  head @ pre @ body @ pos
 
 let pp_funcs tbl fmt funs = List.concat_map (pp_fun tbl fmt) funs
 

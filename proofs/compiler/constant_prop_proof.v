@@ -22,7 +22,9 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
   {T : eqType}
   {pT : progT T}
   {sCP : semCallParams}.
@@ -181,15 +183,16 @@ rewrite /sadd_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
 + move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
-  have := is_wconstP gd s h2; have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h2).
+  have! := (is_wconstP gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 + case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
-  have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h1).
   t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
   case: (to_wordI k6) => sz' [w' [? /truncate_word_uincl ?]]; subst.
   by rewrite GRing.add0r k4;eauto.
 case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
-have := is_wconstP gd s h2.
+have! := (is_wconstP gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
 by rewrite GRing.addr0 k3;eauto.
@@ -214,10 +217,11 @@ rewrite /ssub_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
 + move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
-  have := is_wconstP gd s h2; have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h2).
+  have! := (is_wconstP gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 case: eqP => // hz s v /=; rewrite /sem_sop2 /=.
-have := is_wconstP gd s h2.
+have! := (is_wconstP gd s h2).
 t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 <-; clarify.
 case: (to_wordI k5) => sz' [w' [? /truncate_word_uincl ?]]; subst.
 by rewrite GRing.subr0 k3;eauto.
@@ -248,16 +252,19 @@ rewrite /smul_w.
 case h1: (is_wconst sz e1) => [ n1 | ];
 case h2: (is_wconst sz e2) => [ n2 | ] //.
 + move => s v /=; rewrite /sem_sop2 /sem_sop1 /=.
-  have := is_wconstP gd s h2; have := is_wconstP gd s h1.
+  have! := (is_wconstP gd s h2).
+  have! := (is_wconstP gd s h1).
   by t_xrbindP => *; clarify; rewrite wrepr_unsigned;eauto.
 + case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
-  have := is_wconstP gd s h1; t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
+  have! := (is_wconstP gd s h1);
+  t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
   - rewrite wrepr_unsigned GRing.mul0r;eauto.
   - case: (to_wordI k6) => {k6} sz' [w] [? /truncate_word_uincl]; subst.
     by rewrite k4 GRing.mul1r; eauto.
   by rewrite k4 /= k6 /= wrepr_unsigned truncate_word_u /=;eexists;split;eauto => /=.
 case: eqP => hn1; [| case: eqP => hn2] => s v /=; rewrite /sem_sop2 /sem_sop1 /=;
-have := is_wconstP gd s h2; t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
+have! := (is_wconstP gd s h2);
+t_xrbindP => ? k1 k2 ? k3 ? k4 ? k5 ? k6 ?; clarify.
 - by rewrite wrepr_unsigned GRing.mulr0;eauto.
 - case: (to_wordI k5) => {k5} sz' [w] [? /truncate_word_uincl ?]; subst.
   by rewrite k3 GRing.mulr1;eauto.
@@ -286,8 +293,8 @@ Proof.
   t_xrbindP => v1 k1 v2 k2 w1' /to_wordI [sz1 [w1 [? hle1]]]
                   w2' /to_wordI [sz2 [w2 [? hle2]]] ? /= [] ? ?;subst.
   eexists; split; first reflexivity.
-  have := is_wconstP gd s h1; rewrite k1 /= hle1 => -[?]; subst.
-  have := is_wconstP gd s h2; rewrite k2 /= hle2 => -[?]; subst.
+  have! := (is_wconstP gd s h1); rewrite k1 /= hle1 => -[?]; subst.
+  have! := (is_wconstP gd s h2); rewrite k2 /= hle2 => -[?]; subst.
   done.
 Qed.
 
@@ -330,8 +337,8 @@ Proof.
   t_xrbindP => v1 k1 v2 k2 w1' /to_wordI [sz1 [w1 [? hle1]]]
                   w2' /to_wordI [sz2 [w2 [? hle2]]] ? /= [] ? ?;subst.
   eexists; split; first reflexivity.
-  have := is_wconstP gd s h1; rewrite k1 /= hle1 => -[?]; subst.
-  have := is_wconstP gd s h2; rewrite k2 /= hle2 => -[?]; subst.
+  have! := (is_wconstP gd s h1); rewrite k1 /= hle1 => -[?]; subst.
+  have! := (is_wconstP gd s h2); rewrite k2 /= hle2 => -[?]; subst.
   done.
 Qed.
 
@@ -351,7 +358,7 @@ Lemma is_cmp_constP s ty e z :
   end.
 Proof.
   case: ty => /=.
-  - by case: is_constP => // ? /(@Some_inj _ _ _) <-.
+  - by case: is_constP => // ? /Some_inj <-.
   move => sg sz /oseq.obindI [] w [] /(is_wconstP gd s).
   t_xrbindP => v -> ok_w [<-{z}].
   exists v => //.
@@ -383,7 +390,7 @@ Proof.
   + move => -> ->; exact: eeq_w_refl.
   move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
   by case: sg h1 => <- <- v;
-    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= ssrZ.ltzE.
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= word_ssrZ.ltzE.
 Qed.
 
 Lemma sleP ty e1 e2 : Papp2 (Ole ty) e1 e2 =E sle ty e1 e2.
@@ -403,7 +410,7 @@ Proof.
   + move => -> ->; exact: eeq_w_refl.
   move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
   by case: sg h1 => <- <- v;
-    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= ssrZ.lezE.
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= word_ssrZ.lezE.
 Qed.
 
 Lemma sgtP ty e1 e2 : Papp2 (Ogt ty) e1 e2 =E sgt ty e1 e2.
@@ -423,7 +430,7 @@ Proof.
   + move => -> ->; exact: eeq_w_refl.
   move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
   by case: sg h1 => <- <- v;
-    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.gtb_ltb ssrZ.ltzE.
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.gtb_ltb word_ssrZ.ltzE.
 Qed.
 
 Lemma sgeP ty e1 e2 : Papp2 (Oge ty) e1 e2 =E sge ty e1 e2.
@@ -443,7 +450,7 @@ Proof.
   + move => -> ->; exact: eeq_w_refl.
   move => sg sz [] v1 ok_v1 [] w1 ok_w1 h1 [] v2 ok_v2 [] w2 ok_w2.
   by case: sg h1 => <- <- v;
-    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.geb_leb ssrZ.lezE.
+    rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.geb_leb word_ssrZ.lezE.
 Qed.
 
 Lemma ssem_sop2P o e1 e2 : Papp2 o e1 e2 =E ssem_sop2 o e1 e2.
@@ -1242,9 +1249,27 @@ Section PROOF.
     List.Forall2 value_uincl va va' ->
     exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-             Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h.
-    apply h.
+    move=> h.
+    exact:
+      (sem_call_Ind
+         Hskip
+         Hcons
+         HmkI
+         Hassgn
+         Hopn
+         Hsyscall
+         Hassert_true
+         Hassert_false
+         Hif_true
+         Hif_false
+         Hwhile_true
+         Hwhile_false
+         Hfor
+         Hfor_nil
+         Hfor_cons
+         Hcall
+         Hproc
+         h).
   Qed.
 
 End PROOF.

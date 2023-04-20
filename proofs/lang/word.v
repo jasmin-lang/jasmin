@@ -3,13 +3,13 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ word.
+From mathcomp Require Import word_ssrZ word.
 Require Import ssrring.
 Require Zquot.
 Require Import Psatz ZArith utils.
 Require Export wsize.
 Import Utf8.
-Import ssrZ.
+Import word_ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -100,6 +100,10 @@ Lemma wsize8 : wsize_size U8 = 1%Z. done. Qed.
 
 Definition wbase (s: wsize) : Z :=
   modulus (wsize_size_minus_1 s).+1.
+
+Lemma wbaseE ws :
+  wbase ws = (2 ^ (wsize_size_minus_1 ws).+1)%Z.
+Proof. rewrite /wbase /word.modulus. by rewrite two_power_nat_equiv. Qed.
 
 Lemma wbase_pos ws :
   (wbase ws > 0)%Z.
@@ -424,12 +428,72 @@ Definition x86_shift_mask (s:wsize) : u8 :=
   | U256 => wrepr U8 255
   end%Z.
 
+Definition x86_nelem_mask (sze szc:wsize) : u8 :=
+  wrepr U8 (2 ^ (wsize_log2 szc - wsize_log2 sze) - 1).
+
 Definition wbit_n sz (w:word sz) (n:nat) : bool :=
    wbit (wunsigned w) n.
+
+Lemma wbit_nE ws (w : word ws) i :
+  wbit_n w i = Z.odd (wunsigned w / 2 ^ i)%Z.
+Proof.
+  have [hlo _] := wunsigned_range w.
+  rewrite /wbit_n.
+  rewrite word.wbitE; last by rewrite !zify.
+
+  rewrite -(Nat2Z.id (_ %/ _)).
+
+  rewrite -oddZE; last first.
+  - rewrite !zify. exact: Zle_0_nat.
+
+  rewrite divnZE; first last.
+  - apply: lt0n_neq0. by rewrite expn_gt0.
+
+  rewrite Z2Nat.id; last done.
+  by rewrite Nat2Z.n2zX expZE.
+Qed.
 
 Lemma eq_from_wbit_n s (w1 w2: word s) :
   reflect (∀ i : 'I_(wsize_size_minus_1 s).+1, wbit_n w1 i = wbit_n w2 i) (w1 == w2).
 Proof. apply/eq_from_wbit. Qed.
+
+Lemma wbit_higher_bits_0 x n ws (i : nat) :
+  (0 <= n)%Z
+  -> (0 <= x < 2 ^ n)%Z
+  -> (n <= i < (wsize_size_minus_1 ws).+1)%Z
+  -> wbit_n (wrepr ws x) i = false.
+Proof.
+  set m : Z := (wsize_size_minus_1 ws).+1.
+  move=> h0n [h0x hxn] [hni him].
+
+  rewrite wbit_nE.
+  rewrite Zdiv_small; first done.
+
+  have hxi : (x < 2 ^ i)%Z.
+  - apply: (Z.lt_le_trans _ _ _ hxn). apply: Z.pow_le_mono_r; lia.
+
+  have hnm : (x < 2 ^ m)%Z.
+  - apply: (Z.lt_le_trans _ _ _ hxn). apply: Z.pow_le_mono_r; lia.
+
+  rewrite wunsigned_repr_small; first done.
+  by rewrite wbaseE.
+Qed.
+
+Lemma wbit_lower_bits_0 x n ws (i : nat) :
+  (0 <= i < n)%Z
+  -> (0 <= 2 ^ n * x < wbase ws)%Z
+  -> wbit_n (wrepr ws (2 ^ n * x)) i = false.
+Proof.
+  move=> [h0i hin] hw.
+  rewrite wbit_nE.
+  rewrite (wunsigned_repr_small hw).
+  rewrite -(Zplus_minus i n).
+  rewrite Z.pow_add_r; last lia; last lia.
+  rewrite -Z.mul_assoc Z.mul_comm.
+  rewrite Z_div_mult; last lia.
+  rewrite Z_odd_pow_2; first done.
+  lia.
+Qed.
 
 Lemma wandE s (w1 w2: word s) i :
   wbit_n (wand w1 w2) i = wbit_n w1 i && wbit_n w2 i.
@@ -522,6 +586,25 @@ Proof.
   rewrite Z.mul_pow2_bits_low //; lia.
 Qed.
 
+Lemma wshl_sem ws w n :
+  (0 <= n)%Z
+  -> wshl w n = (wrepr ws (2 ^ n) * w)%R.
+Proof.
+  move=> hlo.
+  apply: wunsigned_inj.
+
+  rewrite -(Z2Nat.id _ hlo).
+  rewrite wunsigned_wshl.
+  rewrite (Z2Nat.id _ hlo).
+
+  rewrite -(wrepr_unsigned w).
+  rewrite -wrepr_mul.
+  rewrite !wunsigned_repr.
+
+  rewrite Zmult_mod_idemp_l.
+  by rewrite Z.mul_comm.
+Qed.
+
 Lemma wshl_ovf sz (w: word sz) c :
   (wsize_size_minus_1 sz < Z.to_nat c)%coq_nat →
   wshl w c = 0%R.
@@ -609,8 +692,33 @@ Proof. by case: sz. Qed.
 Lemma wshr0 sz (w: word sz) : wshr w 0 = w.
 Proof. by rewrite /wshr /lsr Z.shiftr_0_r ureprK. Qed.
 
+Lemma wshr_full sz (w : word sz) : wshr w (wsize_bits sz) = 0%R.
+Proof.
+  apply/eqP/eq_from_wbit_n.
+  move=> i.
+  rewrite w0E.
+  rewrite wshrE.
+  rewrite /wsize_bits /=.
+  rewrite SuccNat2Pos.id_succ.
+  rewrite /wbit_n.
+  rewrite wbit_word_ovf; first done.
+  apply: ltn_addr.
+  exact: ltnSn.
+Qed.
+
 Lemma wshl0 sz (w: word sz) : wshl w 0 = w.
 Proof. by rewrite /wshl /lsl Z.shiftl_0_r ureprK. Qed.
+
+Lemma wshl_full sz (w : word sz) : wshl w (wsize_bits sz) = 0%R.
+Proof.
+  apply/eqP/eq_from_wbit_n.
+  move=> i.
+  rewrite wshlE.
+  rewrite /wsize_bits /=.
+  rewrite SuccNat2Pos.id_succ.
+  case hi: (_ <= _ <= _)%N; last by rewrite w0E.
+  by move: hi => /andP [] /ltn_geF ->.
+Qed.
 
 Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
 Proof. by rewrite /wsar /asr Z.shiftr_0_r sreprK. Qed.
@@ -778,7 +886,7 @@ Proof.
   move: (mathcomp.word.word.urepr w) => z hle.
   apply/word_ext.
   have [n ->] := modulus_m (wsize_size_m hle).
-  case: ssrZ.ltzP => // hgt.
+  case: word_ssrZ.ltzP => // hgt.
   by rewrite Zminus_mod Z_mod_mult Z.sub_0_r Zmod_mod.
 Qed.
 
@@ -835,6 +943,41 @@ Proof.
   by rewrite wandE wN1E ltn_ord.
 Qed.
 
+Lemma wand_small n :
+  (0 <= n < wbase U16)
+  -> wand (wrepr U32 n) (zero_extend U32 (wrepr U16 (-1))) = wrepr U32 n.
+Proof.
+  move=> [hlo hhi].
+  apply/eqP/eq_from_wbit_n.
+  move=> [i hrangei] /=.
+
+  case hi: (i < 16)%nat.
+
+  - rewrite wandE.
+    rewrite wrepr_m1 wbit_zero_extend.
+    rewrite wN1E.
+
+    have -> : (i <= wsize_size_minus_1 U32)%nat.
+    - by apply: (ltnSE hrangei).
+    rewrite andTb.
+
+    rewrite hi.
+    by rewrite andbT.
+
+  have -> : wbit_n (wrepr U32 n) i = false.
+  - rewrite -(Nat2Z.id i).
+    apply: (wbit_higher_bits_0 (n := 16) _ _) => //=.
+    move: hi => /ZNltP hi.
+    move: hrangei => /ZNleP /= h.
+    lia.
+
+  rewrite wandE.
+  rewrite wrepr_m1 wbit_zero_extend.
+  rewrite wN1E.
+  rewrite hi /=.
+  by rewrite !andbF.
+Qed.
+
 Lemma worC sz : commutative (@wor sz).
 Proof.
   by move => x y; apply/eqP/eq_from_wbit => i;
@@ -855,6 +998,24 @@ Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lxor_nilpotent. Qed.
 
 Lemma wmulE sz (x y: word sz) : (x * y)%R = wrepr sz (wunsigned x * wunsigned y).
 Proof. by rewrite /wunsigned /wrepr; apply: word_ext. Qed.
+
+Lemma wror0 sz (w : word sz) : wror w 0 = w.
+Proof.
+  rewrite /wror.
+  rewrite wshr0.
+  rewrite Zmod_0_l Z.sub_0_r.
+  rewrite wshl_full.
+  by rewrite worC wor0.
+Qed.
+
+Lemma wrol0 sz (w : word sz) : wrol w 0 = w.
+Proof.
+  rewrite /wrol.
+  rewrite wshl0.
+  rewrite Zmod_0_l Z.sub_0_r.
+  rewrite wshr_full.
+  by rewrite worC wor0.
+Qed.
 
 Lemma wadd_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
@@ -1099,6 +1260,19 @@ Definition popcnt sz (w: word sz) :=
 (* -------------------------------------------------------------------*)
 Definition pextr sz (w1 w2: word sz) :=
  wrepr sz (t2w (in_tuple (mask (w2t w2) (w2t w1)))).
+
+(* -------------------------------------------------------------------*)
+
+Fixpoint bitpdep sz (w:word sz) (i:nat) (mask:bitseq) :=
+  match mask with
+  | [::] => [::]
+  | b :: mask => 
+      if b then wbit_n w i :: bitpdep w (i.+1) mask
+      else false :: bitpdep w i mask
+  end.
+
+Definition pdep sz (w1 w2: word sz) :=
+ wrepr sz (t2w (in_tuple (bitpdep w1 0 (w2t w2)))).
 
 (* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
@@ -1776,4 +1950,16 @@ Proof.
   rewrite unsigned_overflow //; rewrite -!/(wunsigned _).
   have := wunsigned_range w1; have := wunsigned_range w2.
   lia.
+Qed.
+
+Lemma wbit_pow_2 ws n x (i : nat) :
+  0 <= n
+  -> (Z.to_nat n <= i <= wsize_size_minus_1 ws)%nat
+  -> wbit_n (wrepr ws (2 ^ n * x)) i = wbit_n (wrepr ws x) (i - Z.to_nat n).
+Proof.
+  move=> h0n hrange.
+  rewrite wrepr_mul.
+  rewrite -(wshl_sem _ h0n).
+  rewrite wshlE.
+  by rewrite hrange.
 Qed.

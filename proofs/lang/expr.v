@@ -2,7 +2,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Export strings word utils type ident var global sem_type sopn syscall.
 Require Import xseq.
 Import Utf8 ZArith.
@@ -58,6 +58,8 @@ Variant sop2 :=
 | Olsr  of wsize 
 | Olsl  of op_kind
 | Oasr  of op_kind
+| Oror  of wsize
+| Orol  of wsize
 
 | Oeq   of op_kind
 | Oneq  of op_kind
@@ -161,7 +163,7 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Odiv (Cmp_w _ s) | Omod (Cmp_w _ s)
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
-  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s)
+  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s) | Oror s | Orol s
   | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
     => let t := sword s in (t, sword8, t)
   | Oeq Op_int | Oneq Op_int
@@ -217,10 +219,6 @@ Notation vid ident :=
       |};
     v_info := dummy_var_info;
   |}.
-
-Record var_attr := VarA {
-  va_pub : bool
-}.
 
 Variant v_scope := 
   | Slocal 
@@ -568,31 +566,36 @@ Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_e
 
 Variant return_address_location :=
 | RAnone
-| RAreg of var
-| RAstack of Z.
+| RAreg of var               (* The return address is pass by a register and 
+                                keeped in this register during function call *)
+| RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack 
+                                Some r means that the call instruction directly store ra on r and 
+                                the function should store r on the stack *)
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
   | RAreg x1 => if r2 is RAreg x2 then x1 == x2 else false
-  | RAstack z1 => if r2 is RAstack z2 then z1 == z2 else false
+  | RAstack lr1 z1 => if r2 is RAstack lr2 z2 then (lr1 == lr2) && (z1 == z2) else false
   end.
 
 Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
 Proof.
-  case => [ | x1 | z1 ] [ | x2 | z2 ] /=; try by constructor.
+  case => [ | x1 | lr1 z1 ] [ | x2 | lr2 z2 ] /=; try by constructor.
   + by apply (iffP eqP); congruence.
-  by apply (iffP eqP); congruence.
+  by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
 Qed.
 
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
 Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_location return_address_location_eqMixin.
 
-Record stk_fun_extra := MkSFun { 
+Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
   sf_stk_sz         : Z;
+  sf_stk_ioff       : Z;
   sf_stk_extra_sz   : Z;
-  sf_stk_max        : Z; 
+  sf_stk_max        : Z;
+  sf_max_call_depth : Z;
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
@@ -601,7 +604,9 @@ Record stk_fun_extra := MkSFun {
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
   (e1.(sf_align) == e2.(sf_align)) &&
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
-  (e1.(sf_stk_max) == e2.(sf_stk_max)) && 
+  (e1.(sf_stk_ioff) == e2.(sf_stk_ioff)) &&
+  (e1.(sf_stk_max) == e2.(sf_stk_max)) &&
+  (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)) &&
   (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
   (e1.(sf_to_save) == e2.(sf_to_save)) &&
   (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
@@ -609,9 +614,9 @@ Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
 Proof.
-  case => a b c d e f g [] a' b' c' d' e' f' g'; apply: (equivP andP) => /=; split.
-  + by case => /andP[] /andP[] /andP[] /andP[] /andP [] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
-  by case => <- <- <- <- <- <- <-; rewrite !eqxx.
+  case => a b c d e f g h i [] a' b' c' d' e' f' g' h' i'; apply: (equivP andP) => /=; split.
+  + by case => /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
+  by case => <- <- <- <- <- <- <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
@@ -683,12 +688,28 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
-Definition is_app1 (e : pexpr) :=
-  if e is Papp1 op e
-  then Some (op, e)
-  else None.
-
-Definition cast_w ws := Papp1 (Oword_of_int ws).
+Fixpoint cast_w ws (e: pexpr) : pexpr :=
+  match e with
+  | Papp2 (Oadd Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Oadd (Op_w ws)) e1 e2
+  | Papp2 (Osub Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Osub (Op_w ws)) e1 e2
+  | Papp2 (Omul Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Omul (Op_w ws)) e1 e2
+  | Papp1 (Oneg Op_int) e' =>
+      let: e' := cast_w ws e' in
+      Papp1 (Oneg (Op_w ws)) e'
+  | Papp1 (Oint_of_word ws') e' =>
+      if (ws ≤ ws')%CMP then e'
+      else Papp1 (Oword_of_int ws) e
+  | _ => Papp1 (Oword_of_int ws) e
+  end.
 
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
@@ -698,6 +719,9 @@ Definition cast_ptr := cast_w Uptr.
 Definition cast_const z := cast_ptr (Pconst z).
 
 End WITH_POINTER_DATA.
+
+Definition eword_of_int (ws : wsize) (x : Z) : pexpr :=
+  Papp1 (Oword_of_int ws) (Pconst x).
 
 Definition wconst (sz: wsize) (n: word sz) : pexpr :=
   Papp1 (Oword_of_int sz) (Pconst (wunsigned n)).
@@ -880,19 +904,6 @@ Fixpoint eq_expr e e' :=
   | _             , _                 => false
   end.
 
-Definition eq_lval (x x': lval) : bool :=
-  match x, x' with
-  | Lnone _ ty,  Lnone _ ty' => ty == ty'
-  | Lvar v, Lvar v' => v_var v == v_var v'
-  | Lmem w v e, Lmem w' v' e' => (w == w') && (v_var v == v_var v') && (eq_expr e e')
-  | Laset aa w v e, Laset aa' w' v' e'
-    => (aa == aa') && (w == w') && (v_var v == v_var v') && (eq_expr e e')
-  | Lasub aa w len v e, Lasub aa' w' len' v' e'
-    => (aa == aa') && (w == w') && (len == len') && (v_var v == v_var v') && (eq_expr e e')
-
-  | _, _ => false
-  end.
-
 (* ------------------------------------------------------------------- *)
 Definition to_lvals (l:seq var) : seq lval := 
   map (fun x => Lvar {|v_var := x; v_info := dummy_var_info |}) l.
@@ -903,3 +914,5 @@ Definition is_false (e: pexpr) : bool :=
 
 Definition is_zero sz (e: pexpr) : bool :=
   if e is Papp1 (Oword_of_int sz') (Pconst Z0) then sz' == sz else false.
+
+Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).

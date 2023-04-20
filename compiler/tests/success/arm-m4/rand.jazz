@@ -1,0 +1,15 @@
+export
+fn random32() -> reg u32 {
+  stack u8[4] s;
+  reg ptr u8[4] p;
+  p = s;
+  s = #randombytes(p);
+  reg u32 r x;
+  inline int i;
+  r = (32u)s[0];
+  for i = 1 to 4 {
+    x = (32u)s[i];
+    r |= x << 8 * i;
+  }
+  return r;
+}

@@ -4,7 +4,7 @@ open Prog
 
 let check_stack_size fds =
   List.iter
-    (fun ( { Expr.sf_stk_sz; Expr.sf_stk_extra_sz; Expr.sf_align },
+    (fun ( { Expr.sf_stk_sz; Expr.sf_stk_extra_sz; Expr.sf_align; Expr.sf_max_call_depth },
            { f_loc; f_annot; f_name } ) ->
       let hierror fmt =
         hierror ~loc:(Lone f_loc) ~funname:f_name.fn_name
@@ -36,7 +36,7 @@ let check_stack_size fds =
           else
             hierror "the stack has size %a (expected: %a)" Z.pp_print actual
               Z.pp_print expected);
-      match f_annot.stack_align with
+      (match f_annot.stack_align with
       | None -> ()
       | Some expected ->
           let actual = sf_align in
@@ -47,7 +47,18 @@ let check_stack_size fds =
                 f_name.fn_name (string_of_ws expected))
           else
             hierror "the stack has alignment %s (expected: %s)"
-              (string_of_ws actual) (string_of_ws expected))
+              (string_of_ws actual) (string_of_ws expected));
+      match f_annot.max_call_depth with
+      | None -> ()
+      | Some expected ->
+          let actual = Conv.z_of_cz sf_max_call_depth in
+          if actual = expected then (
+            if !debug then
+              Format.eprintf "INFO: %s has the expected max call depth (%a)@."
+                f_name.fn_name Z.pp_print expected)
+            else
+              hierror "the maximum call depth is %a (expected: %a)"
+                Z.pp_print actual Z.pp_print expected)
     fds
 
 let rec check_no_for_loop ~funname s =

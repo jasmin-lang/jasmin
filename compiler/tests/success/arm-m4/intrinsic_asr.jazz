@@ -1,0 +1,60 @@
+export
+fn asr(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
+    x = #ASR(arg0, arg1);
+    [x] = x;
+
+    // Immediates.
+    x = #ASR(arg0, 1);
+    [x] = x;
+
+    // Set flags.
+    nf, zf, cf, x = #ASRS(x, arg0);
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = #ASRcc(arg0, arg1, zf, x);
+    // NE
+    x = #ASRcc(arg0, arg1, !zf, x);
+    // CS
+    x = #ASRcc(arg0, arg1, cf, x);
+    // CC
+    x = #ASRcc(arg0, arg1, !cf, x);
+    // MI
+    x = #ASRcc(arg0, arg1, nf, x);
+    // PL
+    x = #ASRcc(arg0, arg1, !nf, x);
+    // VS
+    x = #ASRcc(arg0, arg1, vf, x);
+    // VC
+    x = #ASRcc(arg0, arg1, !vf, x);
+    // HI
+    x = #ASRcc(arg0, arg1, cf && !zf, x);
+    // LS
+    x = #ASRcc(arg0, arg1, !cf || zf, x);
+    // GE
+    x = #ASRcc(arg0, arg1, nf == vf, x);
+    // LT
+    x = #ASRcc(arg0, arg1, nf != vf, x);
+    // GT
+    x = #ASRcc(arg0, arg1, !zf && nf == vf, x);
+    // LE
+    x = #ASRcc(arg0, arg1, zf || nf != vf, x);
+
+    // Combinations.
+    nf, zf, cf, x = #ASRScc(x, arg0, nf == vf, nf, zf, cf, x);
+    nf, zf, cf, x = #ASRS(x, 2);
+    nf, zf, cf, x = #ASRScc(x, 2, nf == vf, nf, zf, cf, x);
+    x = #ASRcc(x, arg0, !!!!zf, x);
+    x = #ASRcc(x, 2, zf, x);
+    x = #ASRcc(x, 2, !!zf, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

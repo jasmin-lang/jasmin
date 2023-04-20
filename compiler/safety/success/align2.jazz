@@ -1,12 +1,14 @@
 export
 fn main(reg u64 pt) -> reg u64 {
-  reg u64 tmp, i;
+  reg u64 tmp res i;
 
+  res = 0;
   i = 0;
   while (i < 16) {
     tmp = (u64)[pt + 8*i];
+    res += tmp;
     i += 1;
   }
-  
-  return tmp;
+
+  return res;
 }

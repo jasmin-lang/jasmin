@@ -1,0 +1,69 @@
+export
+fn ror(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    // Registers.
+    x = arg0 >>r arg1;
+    [x] = x;
+
+    // Immediates.
+    x = arg0 >>r 1;
+    x >>r= 1;
+    [x] = x;
+
+    // Conditionals.
+    nf, zf, cf, vf, _ = #MOVS(x);
+
+    // EQ
+    x = arg0 >>r arg1 if zf;
+    x >>r= arg0 if zf;
+    // NE
+    x = arg0 >>r arg1 if !zf;
+    x >>r= arg0 if !zf;
+    // CS
+    x = arg0 >>r arg1 if cf;
+    x >>r= arg0 if cf;
+    // CC
+    x = arg0 >>r arg1 if !cf;
+    x >>r= arg0 if !cf;
+    // MI
+    x = arg0 >>r arg1 if nf;
+    x >>r= arg0 if nf;
+    // PL
+    x = arg0 >>r arg1 if !nf;
+    x >>r= arg0 if !nf;
+    // VS
+    x = arg0 >>r arg1 if vf;
+    x >>r= arg0 if vf;
+    // VC
+    x = arg0 >>r arg1 if !vf;
+    x >>r= arg0 if !vf;
+    // HI
+    x = arg0 >>r arg1 if cf && !zf;
+    x >>r= arg0 if cf && !zf;
+    // LS
+    x = arg0 >>r arg1 if !cf || zf;
+    x >>r= arg0 if !cf || zf;
+    // GE
+    x = arg0 >>r arg1 if nf == vf;
+    x >>r= arg0 if nf == vf;
+    // LT
+    x = arg0 >>r arg1 if nf != vf;
+    x >>r= arg0 if nf != vf;
+    // GT
+    x = arg0 >>r arg1 if !zf && nf == vf;
+    x >>r= arg0 if !zf && nf == vf;
+    // LE
+    x = arg0 >>r arg1 if zf || nf != vf;
+    x >>r= arg0 if zf || nf != vf;
+
+    // Combinations.
+    x >>r= arg0 if !!!!zf;
+    x >>r= 2 if zf;
+    x >>r= 2 if !!zf;
+
+    reg u32 res;
+    res = x;
+    return res;
+}

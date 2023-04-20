@@ -1,0 +1,22 @@
+export fn test (reg u64 in) { 
+  reg u128 x y z;
+  reg u256 xx yy zz;
+  x = (u128)[in];
+  y = x;
+  z = #PCLMULQDQ(x,y,0x10);
+  (u128)[in] = z;
+
+  x = (u128)[in];
+  y = x;
+  z = #VPCLMULQDQ(x,y,0x11);
+  (u128)[in] = x;
+  (u128)[in] = y;
+  (u128)[in] = z;
+
+  xx = (u256)[in];
+  yy = xx;
+  zz = #VPCLMULQDQ_256(xx,yy,0x01);
+  (u256)[in] = xx;
+  (u256)[in] = yy;
+  (u256)[in] = zz;
+}

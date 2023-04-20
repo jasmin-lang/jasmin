@@ -1,0 +1,22 @@
+export
+fn test(reg u64 p) {
+  reg u128 a b;
+  reg u256 x y;
+
+  a = #VMOVSLDUP_128((u128)[p]);
+  b = #VMOVSLDUP_128(a);
+  (u128)[p] = b;
+
+  a = #VMOVSHDUP_128((u128)[p]);
+  b = #VMOVSHDUP_128(a);
+  (u128)[p] = b;
+
+  x = #VMOVSLDUP_256((u256)[p]);
+  y = #VMOVSLDUP_256(x);
+  (u128)[p] = y;
+
+  x = #VMOVSHDUP_256((u256)[p]);
+  y = #VMOVSHDUP_256(x);
+  (u128)[p] = y;
+
+}

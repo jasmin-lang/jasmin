@@ -1,0 +1,11 @@
+/* 64-bit modulo */
+export
+fn f(reg u64 x y) -> reg u64 {
+  reg u64 r;
+  x = x;       /* This line allows the compiler to comply with register allocation constrainte */
+  r = 1;
+  y = r if y <= 0;
+  r = x % y;
+  r = r;       /* Same comment */
+  return r;
+}

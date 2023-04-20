@@ -1,0 +1,83 @@
+export
+fn test_div(reg u64 x) -> reg u8 {
+reg u8 r, s;
+reg u64 a, b, c, d;
+reg u32 e, f;
+reg u16 g, h;
+
+r = 0;
+a = 1;
+x = a if x <=u 0;
+x = a if x >=u 32768;
+
+a = x;
+b = x;
+
+c = a / b;
+d = c /64s b;
+
+r += d;
+
+e = d /32u b;
+f = e /32s b;
+
+r += f;
+
+g = f /16u b;
+h = g /16s b;
+
+r += h;
+
+s = r;
+return s;
+}
+
+export
+fn test_mod(reg u64 x) -> reg u8 {
+reg u8 r, s;
+reg u64 a, b, c;
+reg u32 d;
+reg u16 e;
+
+r = 0;
+a = 1;
+x = a if x <=u 0;
+x = a if x >=u 32768;
+
+a = x; b = x;
+c = a % b;
+r += c;
+a = x; b = x;
+c = a %64s b;
+r += c;
+
+a = x; b = x;
+d = a %32u b;
+r += d;
+a = x; b = x;
+d = a %32s b;
+r += d;
+
+a = x; b = x;
+e = a %16u b;
+r += e;
+a = x; b = x;
+e = a %16s b;
+r += e;
+
+s = r;
+return s;
+}
+
+export
+fn test_compound(reg u64 x y) -> reg u64 {
+  reg u64 a b c;
+  a = 1;
+  y = a if y <=u 0;
+  a = x;
+  b = y;
+  a /= b;
+  a %= b;
+  c = a;
+  return c;
+}

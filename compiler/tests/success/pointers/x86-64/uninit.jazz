@@ -1,0 +1,21 @@
+#stacksize=8   /* return address, should we really want to count it here ? */
+fn copy(reg ptr u64[1] dst, reg const ptr u64[1] src) -> reg ptr u64[1] {
+reg u64 tmp;
+tmp = src[0];
+dst[0] = tmp;
+return dst;
+}
+
+#stacksize=16  /* a and b */
+export
+fn main(reg u64 x) -> reg u64 {
+reg u64 result;
+stack u64[1] a b;
+
+a[0] = x;
+
+b = copy(b, a);
+
+result = b[0];
+return result;
+}

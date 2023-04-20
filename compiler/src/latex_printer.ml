@@ -55,6 +55,8 @@ let pp_op2 fmt =
   | `BXOr s -> f s "\\textasciicircum{}"
   | `ShR s -> f s ">{}>"
   | `ShL s -> f s "<{}<"
+  | `ROR s -> f s ">{}>r"
+  | `ROL s -> f s "<{}<r"
   | `Eq s -> f s "=="
   | `Neq s -> f s "!="
   | `Lt s -> f s "<"
@@ -78,7 +80,6 @@ type prio =
   | Pmul
   | Punary
   | Pbang
-  | Pmax
 
 let prio_of_op1 =
   function
@@ -95,7 +96,7 @@ let prio_of_op2 =
   | `BAnd _ -> Pbwand
   | `BOr _ -> Pbwor
   | `BXOr _ -> Pbwxor
-  | `ShR _ | `ShL _ -> Pshift
+  | `ShR _  | `ShL _ | `ROR _ | `ROL _ -> Pshift
   | `Eq _ | `Neq _ -> Pcmpeq
   | `Lt _ | `Le _ | `Gt _ | `Ge _
     -> Pcmp
@@ -113,7 +114,7 @@ let pp_space fmt _ =
   F.fprintf fmt " "
 
 let pp_attribute_key fmt s =
-  if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' -> true | _ -> false) s
+  if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false) s
   then F.fprintf fmt "%s" s
   else F.fprintf fmt "%S" s
 
@@ -225,7 +226,7 @@ let pp_args fmt (sty, xs) =
     fmt
     "%a %a"
     pp_sto_ty sty
-    (pp_list ", " pp_var) xs
+    (pp_list " " pp_var) xs
 
 let pp_rty =
   pp_opt
@@ -258,18 +259,25 @@ let pp_sidecond fmt =
 let pp_vardecls fmt d =
   F.fprintf fmt "%a;" pp_args d
 
-(* TODO: print annot *)
-let rec pp_instr depth fmt (_annot, p) =
+let rec pp_instr depth fmt (annot, p) =
+  if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;
   indent fmt depth;
   match L.unloc p with
   | PIdecl d -> pp_vardecls fmt d 
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
   | PIAssign ((pimp,lvs), op, e, cnd) ->
     begin match pimp, lvs with
-    | None, [] -> ()
+    | None, [] ->
+       (* Special case for Primitive calls without return value *)
+       begin
+         assert (op = `Raw);
+         match L.unloc e with
+         | PEPrim _ -> F.fprintf fmt "() %a" pp_eqop op
+         | _ -> ()
+       end
     | None, _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op 
     | Some pimp, _ ->
-      F.fprintf fmt "?%a%a%a %a %a "
+      F.fprintf fmt "?%a%a%a, %a %a "
         openbrace ()
         pp_struct_attribute (L.unloc pimp)
         closebrace ()
@@ -368,15 +376,13 @@ let pp_pitem fmt pi =
   | PParam p  -> pp_param fmt p
   | PGlobal g -> pp_global fmt g
   | Pexec _   -> ()
-  | Prequire (from, s) -> 
-    let pp_from fmt from = 
-      match from with
-      | None -> ()
-      | Some name -> Format.fprintf fmt "from %s " (L.unloc name) in
-    Format.fprintf fmt "%arequire @[<hov>%a@]"
-      pp_from from 
-      (pp_list "@ " (fun fmt s -> Format.fprintf fmt "\"%s\"" (L.unloc s)))
-      s
+  | Prequire (from, s) ->
+    let pp_from fmt =
+      Option.may (fun name ->
+          F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
+      F.fprintf fmt "%a%a " pp_from from kw "require";
+      List.iter (fun s -> F.fprintf fmt "%S " (L.unloc s)) s;
+      F.fprintf fmt eol
 
-let pp_prog fmt prog =
-  F.fprintf fmt "%a" (pp_list "\n" pp_pitem) prog
+let pp_prog fmt =
+  List.iter (F.fprintf fmt "%a" pp_pitem)

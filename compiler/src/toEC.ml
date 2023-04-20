@@ -1,6 +1,7 @@
 open Utils
 open Wsize
 open Prog
+open PrintCommon
 module E = Expr
 
 let pp_size fmt sz =
@@ -465,6 +466,8 @@ let pp_op2 fmt = function
   | E.Olsr  _ -> Format.fprintf fmt "`>>`"
   | E.Olsl  _ -> Format.fprintf fmt "`<<`"
   | E.Oasr  _ -> Format.fprintf fmt "`|>>`"
+  | E.Orol _ -> Format.fprintf fmt "`|<<|`"
+  | E.Oror _ -> Format.fprintf fmt "`|>>|`"
 
   | E.Oeq   _ -> Format.fprintf fmt "="
   | E.Oneq  _ -> Format.fprintf fmt "<>"
@@ -547,7 +550,7 @@ let rec pp_expr pd env fmt (e:expr) =
   match e with
   | Pconst z -> Format.fprintf fmt "%a" pp_print_i z
 
-  | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
+  | Pbool b -> Format.fprintf fmt "%a" pp_bool b
 
   | Parr_init _n -> Format.fprintf fmt "witness"
 
@@ -597,8 +600,10 @@ let rec pp_expr pd env fmt (e:expr) =
 
     
   | Pload (sz, x, e) -> 
-    Format.fprintf fmt "(loadW%a Glob.mem (W64.to_uint %a))" 
-      pp_size sz (pp_wcast pd env) (add_ptr pd (gkvar x) e)
+    Format.fprintf fmt "(loadW%a Glob.mem (W%d.to_uint %a))"
+      pp_size sz
+      (int_of_ws pd)
+      (pp_wcast pd env) (add_ptr pd (gkvar x) e)
 
   | Papp1 (op1, e) -> 
     Format.fprintf fmt "(%a %a)" pp_op1 op1 (pp_wcast pd env) (in_ty_op1 op1, e)
@@ -678,7 +683,8 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
   match lv with 
   | Lnone _ -> assert false
   | Lmem(ws, x, e1) -> 
-    Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W64.to_uint %a) (%a);@]" pp_size ws
+    Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W%d.to_uint %a) (%a);@]" pp_size ws
+      (int_of_ws pd)
       (pp_wcast pd env) (add_ptr pd (gkvar x) e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
@@ -792,11 +798,8 @@ module Normal = struct
     let is_lvar = function Lvar _ -> true | _ -> false in
     List.for_all is_lvar lvs
 
-  let check_lvals lvs = 
-    match lvs with
-    | [] -> assert false
-    | [lv] -> begin match lv with Lvar _ -> true | _ -> false end
-    | _ -> all_vars lvs 
+  let check_lvals lvs =
+    all_vars lvs
 
   let rec init_aux_i asmOp env i = 
     match i.i_desc with
@@ -856,13 +859,17 @@ module Normal = struct
       let pp_e = pp_cast env (pp_expr pd env) in
       pp_lval1 pd env pp_e fmt (lv , (ty_expr e, e))
 
+    | Copn([], _, op, _es) ->
+       (** Erase opn without any return values *)
+       Format.fprintf fmt "(* Erased call to %a *)" (pp_opn asmOp) op
+
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
       let otys,itys = ty_sopn asmOp op in
       let otys', _ = ty_sopn asmOp op' in  
       let pp_e fmt (op,es) = 
-        Format.fprintf fmt "%a %a" (Printer.pp_opn asmOp) op
+        Format.fprintf fmt "%a %a" (pp_opn asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
       if List.length lvs = 1 then
         let pp_e fmt (op, es) =
@@ -954,6 +961,7 @@ module Leak = struct
     | E.Oadd _  | E.Omul _  | E.Osub _ 
     | E.Oland _ | E.Olor _  | E.Olxor _ 
     | E.Olsr _  | E.Olsl _  | E.Oasr _
+    | E.Orol _ | E.Oror _
     | E.Oeq _   | E.Oneq _  | E.Olt _  | E.Ole _ | E.Ogt _ | E.Oge _ 
     | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
     | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> safe
@@ -1165,13 +1173,19 @@ module Leak = struct
       let tys = [ty_expr e] in
       pp_call pd env fmt [lv] tys tys pp e
 
+    | Copn([], _, op, es) ->
+       (** Erase opn without return values but keep their leakage *)
+       let op' = base_op op in
+       pp_leaks_opn pd asmOp env fmt op' es;
+       Format.fprintf fmt "(* Erased call to %a *)" (pp_opn asmOp) op
+
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
       let otys,itys = ty_sopn asmOp op in 
       let otys', _ = ty_sopn asmOp op' in 
       let pp fmt (op, es) = 
-        Format.fprintf fmt "<- %a %a" (Printer.pp_opn asmOp) op
+        Format.fprintf fmt "<- %a %a" (pp_opn asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
       pp_leaks_opn pd asmOp env fmt op' es;
       pp_call pd env fmt lvs otys otys' pp (op, es)

@@ -1,0 +1,55 @@
+export
+fn test_vpcmpgt(reg u64 tmp) {
+  reg u256 x y z;
+  reg u128 i j k;
+
+  y = #set0_256();
+  x = #set0_256();
+  z = #VPCMPGT_32u8(x, y);
+  (u256)[tmp] = z;
+
+  i = #set0_128();
+  j = #set0_128();
+  k = #VPCMPGT_8u16(i, j);
+  (u128)[tmp + 32] = k;
+
+  z = #VPCMPGT_8u32(x, y);
+  (u256)[tmp + 64] = z;
+
+  j = #VPCMPGT_2u64(i, (u128)[tmp]);
+  k = #VPCMPGT_2u64(i, j);
+  (u128)[tmp] = k;
+
+  y = #VPCMPGT_4u64(x, (u256)[tmp]);
+  z = #VPCMPGT_4u64(x, y);
+  (u256)[tmp] = z;
+}
+
+export
+fn test_vpcmpeq(reg u64 p) {
+  reg u128 i j k;
+  reg u256 x y z;
+
+  i = (u128)[p];
+  j = #VPCMPEQ_16u8(i, (u128)[p]);
+  k = #VPCMPEQ_16u8(i, j);
+  i = #VPCMPEQ_8u16(k, (u128)[p]);
+  k = #VPCMPEQ_8u16(i, j);
+  j = #VPCMPEQ_4u32(k, (u128)[p]);
+  k = #VPCMPEQ_4u32(i, j);
+  j = #VPCMPEQ_2u64(k, (u128)[p]);
+  k = #VPCMPEQ_2u64(i, j);
+  (u128)[p] = k;
+
+  x = (u256)[p];
+  y = #VPCMPEQ_32u8(x, (u256)[p]);
+  z = #VPCMPEQ_32u8(x, y);
+  x = #VPCMPEQ_16u16(z, (u256)[p]);
+  z = #VPCMPEQ_16u16(x, y);
+  y = #VPCMPEQ_8u32(z, (u256)[p]);
+  z = #VPCMPEQ_8u32(x, y);
+  y = #VPCMPEQ_4u64(z, (u256)[p]);
+  z = #VPCMPEQ_4u64(x, y);
+  (u256)[p] = z;
+
+}

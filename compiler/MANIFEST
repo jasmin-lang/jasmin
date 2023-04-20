@@ -4,20 +4,20 @@ README.md
 
 default.nix
 Makefile
-jasmin.mlpack.in
-_tags
-myocamlbuild.ml
-.merlin
+dune-project
+jasmin.opam
 
-find:CIL:*.ml
-find:CIL:*.mli
+find:.:dune
+
 find:entry:*.ml
+find:safetylib:*.ml
+find:safetylib:*.mli
 find:src:*.ml
 find:src:*.mli
 find:src:*.mll
 find:src:*.mly
 
 src/LICENSE.puf
-CIL/LICENSE.coq
-CIL/LICENSE.coqword
-CIL/LICENSE.mathcomp
+src/CIL/LICENSE.coq
+src/CIL/LICENSE.coqword
+src/CIL/LICENSE.mathcomp

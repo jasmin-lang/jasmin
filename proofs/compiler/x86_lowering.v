@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import Utf8.
 Require Import compiler_util expr lowering lea.
 Require Import x86_decl x86_instr_decl x86_extra.
@@ -22,8 +22,6 @@ Definition mov_ws ws x y tag :=
   else
     Copn [:: x] tag (Ox86 (MOV ws)) [:: y].
 
-End IS_REGX.
-
 Section LOWERING.
 
 Record fresh_vars : Type :=
@@ -35,7 +33,6 @@ Record fresh_vars : Type :=
     fresh_ZF : Equality.sort Ident.ident;
 
     fresh_multiplicand : wsize → Equality.sort Ident.ident;
-    is_regx            : var -> bool
   }.
 
 Record lowering_options : Type :=
@@ -197,6 +194,7 @@ Variant lower_cassgn_t : Type :=
   | LowerInc  of sopn & pexpr
   | LowerLea of wsize & lea
   | LowerFopn of wsize & sopn & list pexpr & option wsize
+  | LowerDiscardFlags of nat & sopn & list pexpr
   | LowerCond
   | LowerIf   of stype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
@@ -364,6 +362,8 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     | Olsr sz => k8 sz (LowerFopn sz (Ox86 (SHR sz)) [:: a ; b ] (Some U8))
     | Olsl (Op_w sz) => k8 sz (LowerFopn sz (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
     | Oasr (Op_w sz) => k8 sz (LowerFopn sz (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
+    | Oror sz => k8 sz (LowerDiscardFlags 2 (Ox86 (ROR sz)) [:: a ; b ])
+    | Orol sz => k8 sz (LowerDiscardFlags 2 (Ox86 (ROL sz)) [:: a ; b ])
 
     | Olt _ | Ole _ | Oeq _ | Oneq _ | Oge _ | Ogt _ => LowerCond
 
@@ -465,10 +465,13 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
         else
           [:: MkI ii (Copn [:: x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
       else 
-        [:: MkI ii (mov_ws fv.(is_regx) szty x e tg)]
+        [:: MkI ii (mov_ws szty x e tg)]
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
   | LowerFopn sz o es m => map (MkI ii) (opn_5flags m sz vi f x tg o es)
+  | LowerDiscardFlags n op es =>
+      let lvs := nseq n (Lnone_b vi) in
+      [:: MkI ii (Copn (lvs ++ [:: x ]) tg op es) ]
   | LowerLea sz (MkLea d b sc o) =>
     let de := wconst (wrepr Uptr d) in
     let sce := wconst (wrepr Uptr sc) in
@@ -610,3 +613,5 @@ Fixpoint lower_i (i:instr) : cmd :=
   end.
 
 End LOWERING.
+
+End IS_REGX.

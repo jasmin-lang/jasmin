@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import strings word utils type var expr.
 Require Import compiler_util byteset.
 Require Import ZArith.
@@ -410,20 +410,12 @@ Context `{asmop:asmOp}.
 Definition mul := Papp2 (Omul (Op_w Uptr)).
 Definition add := Papp2 (Oadd (Op_w Uptr)).
 
-Definition cast_word e := 
-  match e with
-  | Papp1 (Oint_of_word sz) e1 => if (sz == Uptr)%CMP
-                                  then e1
-                                  else cast_ptr e
-  | _  => cast_ptr e
-  end.
-
 Definition mk_ofs aa ws e1 ofs := 
   let sz := mk_scale aa ws in
   if is_const e1 is Some i then 
     cast_const (i * sz + ofs)%Z
   else 
-    add (mul (cast_const sz) (cast_word e1)) (cast_const ofs).
+    add (mul (cast_const sz) (cast_ptr e1)) (cast_const ofs).
 
 Definition mk_ofsi aa ws e1 := 
   if is_const e1 is Some i then Some (i * (mk_scale aa ws))%Z
@@ -452,7 +444,7 @@ Definition assert_check E b (e:E) :=
   if check then assert b e
   else ok tt.
 
-Inductive vptr_kind :=
+Variant vptr_kind :=
   | VKglob of Z * wsize
   | VKptr  of ptr_kind.
 
@@ -902,8 +894,10 @@ End LOOP.
 Record stk_alloc_oracle_t :=
   { sao_align : wsize 
   ; sao_size: Z
+  ; sao_ioff: Z
   ; sao_extra_size: Z
   ; sao_max_size : Z
+  ; sao_max_call_depth : Z
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
   ; sao_return : seq (option nat)         (* Where to find the param input region *)
   ; sao_slots : seq (var * wsize * Z)  
@@ -1194,7 +1188,8 @@ Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) sao :=
           else Error (stk_ierror_no_var "bad stack region alignment")
         else Error (stk_ierror_no_var "bad stack alignment")
       else Error (stk_ierror_no_var "stack region overlap") in
-  Let sp := foldM add (Mvar.empty _, 0%Z) sao.(sao_slots) in
+  Let _ := assert (0 <=? sao.(sao_ioff))%Z (stk_ierror_no_var "negative initial stack offset") in
+  Let sp := foldM add (Mvar.empty _, sao.(sao_ioff)) sao.(sao_slots) in
   let '(stack, size) := sp in
   if (size <= sao.(sao_size))%CMP then ok stack
   else Error (stk_ierror_no_var "stack size").
@@ -1353,6 +1348,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
+  let ra := sao.(sao_return_address) in
   Let stack := init_stack_layout mglob sao in
   Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
   let '(locals, rmap, disj) := mstk in
@@ -1402,70 +1398,106 @@ Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string) (local
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
-        sf_stk_max := sao.(sao_max_size);
+        sf_stk_ioff := sao.(sao_ioff);
         sf_stk_extra_sz := sao.(sao_extra_size);
+        sf_stk_max := sao.(sao_max_size);
+        sf_max_call_depth := sao.(sao_max_call_depth);
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
       |} in
   ok (swith_extra fd f_extra).
 
-Definition check_glob (m: Mvar.t (Z*wsize)) (data:seq u8) (gd:glob_decl) := 
-  let x := gd.1 in
-  match Mvar.get m x with
-  | None => false 
-  | Some (z, _) =>
-    let n := Z.to_nat z in
-    let data := drop n data in
-    match gd.2 with
-    | @Gword ws w =>
-      let s := Z.to_nat (wsize_size ws) in 
-      (s <= size data) &&
-      (LE.decode ws (take s data) == w)
-    | @Garr p t =>
-      let s := Z.to_nat p in
-      (s <= size data) &&
-      all (fun i => 
-             match read t (Z.of_nat i) U8 with
-             | Ok w => nth 0%R data i == w
-             | _    => false
-             end) (iota 0 s)
+Fixpoint ptake (A:Type) p (r l:list A) := 
+  match p, l with
+  | xH, x :: l => Some (x::r, l)
+  | xI p, x :: l => 
+    match ptake p (x::r) l with
+    | None => None
+    | Some (r, l) => ptake p r l
     end
+  | xO p, l => 
+    match ptake p r l with
+    | None => None
+    | Some (r, l) => ptake p r l
+    end
+  | _, [::] => None
   end.
 
-Definition check_globs (gd:glob_decls) (m:Mvar.t (Z*wsize)) (data:seq u8) := 
-  all (check_glob m data) gd.
+Definition ztake (A:Type) z (l:list A) := 
+  match z with
+  | Zpos p => 
+    match ptake p [::] l with
+    | None => None
+    | Some (r, l) => Some (rev r, l)
+    end
+  | Z0     => Some([::], l)
+  | _      => None
+  end.
 
-Definition init_map (sz:Z) (l:list (var * wsize * Z)) : cexec (Mvar.t (Z*wsize)) :=
-  let add (vp:var * wsize * Z) (globals:Mvar.t (Z*wsize) * Z) :=
+Definition check_glob data gv := 
+  match gv with
+  | @Gword ws w => assert (LE.decode ws data == w) (stk_ierror_no_var "bad decode")
+  | @Garr p t =>
+    Let _ := foldM (fun wd i => 
+             match read t i U8 with
+             | Ok w => 
+               if wd == w then ok (i+1)%Z 
+               else Error (stk_ierror_no_var "bad decode array eq")
+             | _ => Error (stk_ierror_no_var "bad decode array len")
+             end) 0%Z data in
+    ok tt  
+  end.
+
+Definition size_glob gv := 
+  match gv with
+  | @Gword ws _ => wsize_size ws
+  | @Garr p _ => Zpos p
+  end.
+
+Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mvar.t (Z*wsize)) :=
+  let add (vp:var * wsize * Z) (globals: Mvar.t (Z*wsize) * Z * seq u8) :=
     let '(v, ws, p) := vp in
-    if (globals.2 <=? p)%Z then
+    let '(mvar, pos, data) := globals in
+    if (pos <=? p)%Z then
       if Z.land p (wsize_size ws - 1) == 0%Z then
         let s := size_slot v in
-        ok (Mvar.set globals.1 v (p,ws), p + s)%Z
+        match ztake (p - pos) data with 
+        | None => Error (stk_ierror_no_var "bad data 1") 
+        | Some (_, data) =>  
+        match ztake s data with
+        | None =>  Error (stk_ierror_no_var "bad data 2")
+        | Some (vdata, data) => 
+          match assoc gd v with
+          | None => Error (stk_ierror_no_var "unknown var")  
+          | Some gv => 
+            Let _ := assert (s == size_glob gv) (stk_ierror_no_var "bad size") in 
+            Let _ := check_glob vdata gv in
+            ok (Mvar.set mvar v (p,ws), p + s, data)%Z
+          end
+        end end
       else Error (stk_ierror_no_var "bad global alignment")
     else Error (stk_ierror_no_var "global overlap") in
-  Let globals := foldM add (Mvar.empty (Z*wsize), 0%Z) l in
-  if (globals.2 <=? sz)%Z then ok globals.1
-  else Error (stk_ierror_no_var "global size").
+  Let globals := foldM add (Mvar.empty (Z*wsize), 0%Z, data) l in
+  let '(mvar, _, _) := globals in
+  Let _ := assert (Sv.subset (sv_of_list fst gd) (sv_of_list (fun x => x.1.1) l)) 
+                  (stk_ierror_no_var "missing globals") in
+  ok mvar.
 
 Definition alloc_prog (fresh_reg:string -> stype -> Ident.ident) 
     rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
-  Let mglob := init_map (Z.of_nat (size global_data)) global_alloc in
+  Let mglob := init_map  global_alloc global_data P.(p_globs) in
   let p_extra :=  {|
     sp_rip   := rip;
     sp_rsp   := rsp;
     sp_globs := global_data;
   |} in
-  if rip == rsp then Error (stk_ierror_no_var "rip and rsp clash")
-  else if check_globs P.(p_globs) mglob global_data then
-    Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
-    ok  {| p_funcs  := p_funs;
-           p_globs := [::];
-           p_extra := p_extra;
-        |}
-  else 
-     Error (stk_ierror_no_var "invalid data").
+  Let _ := assert (rip != rsp) (stk_ierror_no_var "rip and rsp clash") in
+  Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
+  ok  {| p_funcs  := p_funs;
+         p_globs := [::];
+         p_extra := p_extra;
+      |}.
 
 End CHECK.
 

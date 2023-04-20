@@ -1,0 +1,87 @@
+param int n = 4;
+param int m = 5;
+
+fn init (reg ptr u64[n] t) -> reg ptr u64[n] {
+  inline int i;
+  for i = 0 to n {
+    t[i] = 0;
+  }    
+  return t;
+}
+
+fn test1 (reg ptr u64[m * n] s) -> reg ptr u64[m * n] {
+  inline int i;
+  reg u64 r;
+  for i = 0 to m {
+    s[u64 i:n] = init(s[u64 i:n]);
+  } 
+  return s;
+}
+
+fn test2 (reg ptr u64[m * n] s) -> reg ptr u64[m * n] {
+  inline int i;
+  reg u64 r;
+  reg ptr u64[n] s0;
+  reg ptr u64[n] s1;
+  reg ptr u64[n] s2;
+  reg ptr u64[n] s3;
+  reg ptr u64[n] s4;
+  reg ptr u64[n] aux;
+  s0 = s[u64 0*n:n];
+  s1 = s[u64 1*n:n];
+  s2 = s[u64 2*n:n];
+  s3 = s[u64 3*n:n];
+  s4 = s[u64 4*n:n];
+  aux = s0; aux = init(aux); s0 = aux;
+  aux = s1; aux = init(aux); s1 = aux;
+  aux = s2; aux = init(aux); s2 = aux;
+  aux = s3; aux = init(aux); s3 = aux;
+  aux = s4; aux = init(aux); s4 = aux;
+  s[u64 0*n:n] = s0;
+  s[u64 1*n:n] = s1;
+  s[u64 2*n:n] = s2;
+  s[u64 3*n:n] = s3;
+  s[u64 4*n:n] = s4;
+  return s;
+}
+
+
+fn test3 (reg ptr u64[m * n] s) -> reg ptr u64[m * n] {
+  inline int i;
+  reg u64 r;
+  reg ptr u64[n] s0;
+  reg ptr u64[n] s1;
+  reg ptr u64[n] s2;
+  reg ptr u64[n] s3;
+  reg ptr u64[n] s4;
+  reg ptr u64[n] aux;
+  s0 = s[u64 0*n:n];
+  s1 = s[u64 1*n:n];
+  aux = s0; aux = init(aux); s0 = aux;
+  aux = s1; aux = init(aux); s1 = aux;
+  s[u64 2*n] = 10;
+  s2 = s[u64 2*n:n];
+  s3 = s[u64 3*n:n];
+  s4 = s[u64 4*n:n];
+  aux = s2; aux = init(aux); s2 = aux;
+  aux = s3; aux = init(aux); s3 = aux;
+  aux = s4; aux = init(aux); s4 = aux;
+  s[u64 0*n:n] = s0;
+  s[u64 1*n:n] = s1;
+  s[u64 2*n:n] = s2;
+  s[u64 3*n:n] = s3;
+  s[u64 4*n:n] = s4;
+  return s;
+}
+
+
+export fn test () -> reg u64 {
+  stack u64[m * n] s;
+  inline int i;
+  reg u64 r;
+  for i = 0 to m {
+    s[u64 i*n:n] = init(s[u64 i*n:n]);
+  } 
+  r = s[m * n - 1];
+  return r;
+}

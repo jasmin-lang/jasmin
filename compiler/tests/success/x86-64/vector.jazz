@@ -1,0 +1,306 @@
+export
+fn test_mem128(reg u64 p) {
+reg u128 r;
+
+r = (u128)[p + 16 * 0];
+(u128)[p + 16 * 1] = r;
+}
+
+export
+fn test_vmovdqa(reg u64 p) {
+reg u128 r;
+
+r = #VMOVDQA_128((u128)[p + 16 * 0]);
+(u128)[p + 16 * 1] = #VMOVDQA_128(r);
+}
+
+export
+fn test_vmovdqu(reg u64 p) {
+reg u128 r;
+
+r = #VMOVDQU_128((u128)[p + 16 * 0]);
+(u128)[p + 16 * 1] = #VMOVDQU_128(r);
+}
+
+export
+fn test_xor (reg u64 p) {
+reg u128 r, s, t, u;
+r = (u128)[p + 16 * 0];
+s = (u128)[p + 16 * 1];
+t = (u128)[p + 16 * 2];
+u = (u128)[p + 16 * 3];
+
+r ^= s;
+r &= t;
+r |= u;
+
+(u128)[p + 16 * 1] = r;
+
+}
+
+export
+fn test_add(reg u64 p) {
+reg u128 r, s, t, u;
+
+r = (u128)[p + 16 * 0];
+s = (u128)[p + 16 * 1];
+
+u = #VPADD_16u8(r, s);
+t = #VPADD_8u16(r, u);
+r = #VPADD_4u32(s, t);
+s = #VPADD_2u64(t, r);
+
+(u128)[p + 16 * 1] = s;
+}
+
+export
+fn test_mul(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = (u128)[p + 16];
+
+c = #VPMUL(a, b);
+
+(u128)[p + 0] = c;
+
+x = (u256)[p + 0];
+y = (u256)[p + 32];
+
+z = #VPMUL_256(x, y);
+
+(u256)[p + 0] = z;
+
+}
+
+export
+fn test_mulu(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = (u128)[p + 16];
+
+c = #VPMULU(a, b);
+
+(u128)[p + 0] = c;
+
+x = (u256)[p + 0];
+y = (u256)[p + 32];
+
+z = #VPMULU_256(x, y);
+
+(u256)[p + 0] = z;
+
+}
+
+u128 rotate24pattern = 0x0c0f0e0d080b0a090407060500030201;
+
+export
+fn test_shuffle(reg u64 p) {
+reg u128 r;
+r = (u128)[p + 0];
+r = #VPSHUFB(r, rotate24pattern);
+(u128)[p + 0] = r;
+}
+
+export
+fn test_avx2(reg u64 p) {
+reg u256 r, s, t, u, v;
+r = (u256)[p + 0];
+s = (u256)[p + 32];
+t = (u256)[p + 64];
+r = #VPSHUFD_256(r, 0x33);
+u = #VPBLEND_8u32(s, t, 0xa4);
+v = r ^ u;
+(u256)[p + 32] = v;
+}
+
+export
+fn test_vpshuf(reg u64 p) {
+reg u128 a, b;
+reg u256 y, z;
+
+a = (u128)[p + 0];
+y = (u256)[p + 32];
+
+b = #VPSHUFLW(a, 7);
+z = #VPSHUFHW_256(y, 42);
+
+(u128)[p + - 16] = b;
+(u256)[p + 32] = z;
+}
+
+export
+fn test_vpunpck(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = (u128)[p + 16];
+
+c = #VPUNPCKH_16u8(a, b);
+a = #VPUNPCKL_8u16(b, c);
+b = #VPUNPCKH_4u32(c, a);
+c = #VPUNPCKL_2u64(a, b);
+
+(u128)[p + 0] = c;
+
+x = (u256)[p + 32];
+y = (u256)[p + 64];
+
+z = #VPUNPCKL_32u8(x, y);
+x = #VPUNPCKH_16u16(y, z);
+y = #VPUNPCKL_8u32(z, x);
+z = #VPUNPCKH_4u64(x, y);
+
+(u256)[p + 32] = z;
+
+}
+
+export
+fn test_vpandn(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = (u128)[p + 16];
+
+c = #VPANDN(a, b);
+
+(u128)[p + 0] = c;
+
+x = (u256)[p + 32];
+y = (u256)[p + 64];
+
+z = #VPANDN_256(x, y);
+
+(u256)[p + 32] = z;
+
+}
+
+export
+fn test_vpermq(reg u64 p) {
+reg u256 x, y;
+x = (u256)[p + 0];
+y = #VPERMQ(x, 42);
+x = #VPERM2I128(x, y, 123);
+(u256)[p + 0] = x;
+}
+
+export
+fn test_vpshift(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = #VPSLL_8u16(a, 1);
+c = #VPSLL_4u32(b, 2);
+a = #VPSLL_2u64(c, 3);
+b = #VPSLLV_4u32(c, a);
+c = #VPSLLV_2u64(a, b);
+(u128)[p + 0] = c;
+
+x = (u256)[p + 32];
+y = #VPSLL_16u16(x, 1);
+z = #VPSLL_8u32(y, 2);
+x = #VPSLL_4u64(z, 3);
+y = #VPSLLV_8u32(z, x);
+z = #VPSLLV_4u64(x, y);
+(u256)[p + 32] = z;
+
+}
+
+export
+fn test_vpextr(reg u64 p) -> reg u64 {
+reg u32 r32, x;
+reg u64 r64, y;
+reg u128 a;
+
+r32 = 0;
+
+a = (u128)[p + 0];
+
+x = (32u) #VPEXTR_8(a, 5);
+r32 += x;
+x = #VPEXTR_32(a, 0);
+r32 += x;
+
+r64 = (64u) r32;
+
+y = (64u) #VPEXTR_16(a, 3);
+r64 += y;
+y = #VPEXTR_64(a, 1);
+r64 += y;
+
+return r64;
+}
+
+export
+fn test_extracti128(reg u64 p) {
+reg u256 x;
+reg u128 y, z, w;
+
+x = (u256)[p + 0];
+y = #VEXTRACTI128(x, 0);
+z = #VEXTRACTI128(x, 1);
+w = y ^ z;
+
+(u128)[p + 32] = w;
+}
+
+export
+fn test_vpinsr(reg u64 p) {
+reg u128 a;
+a = (u128)[p + 0];
+a = #VPINSR_2u64(a, p, 0);
+a = #VPINSR_4u32(a, p, 1);
+a = #VPINSR_8u16(a, p, 2);
+a = #VPINSR_16u8(a, p, 3);
+(u128)[p + 0] = a;
+}
+
+export
+fn test_vpbroadcast(reg u64 p) {
+reg u128 a, b;
+reg u256 c, d, e;
+
+a = #VPBROADCAST_16u8((u8)[p + 0]);
+b = #VPBROADCAST_16u8(a);
+c = #VPBROADCAST_32u8((u8)[p + 0]);
+d = #VPBROADCAST_32u8(b);
+
+e = c;
+e ^= d;
+
+a = #VPBROADCAST_8u16((u16)[p + 0]);
+b = #VPBROADCAST_8u16(a);
+c = #VPBROADCAST_16u16((u16)[p + 0]);
+d = #VPBROADCAST_16u16(b);
+
+e ^= c;
+e ^= d;
+
+a = #VPBROADCAST_4u32((u32)[p + 0]);
+b = #VPBROADCAST_4u32(a);
+c = #VPBROADCAST_8u32((u32)[p + 0]);
+d = #VPBROADCAST_8u32(b);
+
+e ^= c;
+e ^= d;
+
+a = #VPBROADCAST_2u64((u64)[p + 0]);
+b = #VPBROADCAST_2u64(a);
+c = #VPBROADCAST_4u64((u64)[p + 0]);
+d = #VPBROADCAST_4u64(b);
+
+e ^= c;
+e ^= d;
+
+d = #VPBROADCAST_2u128((u128)[p + 16 * 0]);
+
+e ^= d;
+
+(u256)[p + 32 ] = e;
+}

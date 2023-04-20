@@ -1,0 +1,23 @@
+#[returnaddress=reg]
+fn inc(reg u32 x) -> reg u32 {
+  reg u32 y;
+  y = x;
+  y += 1;
+  return y;
+}
+
+#[returnaddress=stack]
+fn dec(reg u32 x) -> reg u32 {
+  reg u32 y;
+  y = x;
+  y -= 1;
+  return y;
+}
+
+export
+fn main(reg u32 a) -> reg u32 {
+  reg u32 r;
+  r = inc(a);
+  r = dec(r);
+  return r;
+}

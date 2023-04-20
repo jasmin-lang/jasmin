@@ -1,0 +1,7 @@
+export fn main () -> reg u64 {
+  reg u64 res;
+  reg int toto;
+  toto = 0;
+  res = (64u)toto;
+  return res;
+}

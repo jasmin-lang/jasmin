@@ -1,0 +1,15 @@
+param int N = 256;
+
+export
+fn test() -> reg u64 {
+  stack u64[N] t;
+  reg u64 i;
+  i = 0;
+  #bounded
+  while (i < N) {
+    t[(int) i] = i;
+    i += 1;
+  }
+  i = t[N/2];
+  return i;
+}

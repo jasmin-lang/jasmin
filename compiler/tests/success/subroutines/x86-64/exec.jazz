@@ -1,0 +1,32 @@
+#returnaddress=stack
+fn add(reg u128 x, reg u128 z) -> reg u128 {
+  reg u128 y;
+  stack u128[2] t;
+  y = z;
+  t[0] = x;
+  t[1] = y;
+  x ^= t[0];
+  y ^= t[1];
+  x ^= y;
+  return x;
+}
+
+u128 c3 = 3;
+u128 c7 = 7;
+
+export fn main() -> reg u128 {
+
+  reg u128 x y z;
+  stack u128 s;
+  x = c3;
+  y = c7;
+  z = #set0_128();
+  s = z;
+  x = add(x, y);
+  x ^= s;
+  x = add(x, y);
+  x ^= s;
+  x = add(x, y);
+  x ^= s;
+  return x;
+}

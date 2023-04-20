@@ -1,0 +1,15 @@
+export fn test1() -> reg u64 {
+  stack u64[1] r;
+  reg u64 x;
+  r = #randombytes(r);
+  x = r[0];
+  return x;
+}
+
+export fn test2() -> reg u64 {
+  stack u64[2] r;
+  reg u64 x;
+  r[1:1] = #randombytes(r[1:1]);
+  x = r[1];
+  return x;
+}

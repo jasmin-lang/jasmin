@@ -4,7 +4,7 @@ From Coq Require Import RelationClasses.
 Require memory_example.
 
 Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import Lia.
 Import Utf8 ZArith.
 Import ssrring.
@@ -96,8 +96,8 @@ Proof.
   by apply hval1; Lia.lia.
 Qed.
 
-Lemma alloc_stack_top_stack m ws sz sz' m' :
-  alloc_stack m ws sz sz' = ok m' →
+Lemma alloc_stack_top_stack m ws sz ioff sz' m' :
+  alloc_stack m ws sz ioff sz' = ok m' →
   top_stack m' = top_stack_after_alloc (top_stack m) ws (sz + sz').
 Proof.
   rewrite /top_stack => /Memory.alloc_stackP a.
@@ -111,16 +111,16 @@ Lemma wunsigned_sub_small (p: pointer) (n: Z) :
   n <= wunsigned p)%Z.
 Proof.
   move => n_range.
-  rewrite wunsigned_sub_if; case: ssrZ.leZP; rewrite wunsigned_repr_small //.
+  rewrite wunsigned_sub_if; case: word_ssrZ.leZP; rewrite wunsigned_repr_small //.
   Lia.lia.
 Qed.
 
-Lemma aligned_alloc_no_overflow m ws sz sz' m' :
+Lemma aligned_alloc_no_overflow m ws sz ioff sz' m' :
   (0 <= sz →
   0 <= sz' →
   round_ws ws (sz + sz') < wbase Uptr →
   is_align (top_stack m) ws →
-  alloc_stack m ws sz sz' = ok m' →
+  alloc_stack m ws sz ioff sz' = ok m' →
   round_ws ws (sz + sz') <= wunsigned (top_stack m))%Z.
 Proof.
   move => sz_pos sz'_pos no_ovf AL A; apply: wunsigned_sub_small.

@@ -1,7 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
-Require Import xseq strings utils var type values sopn expr arch_decl.
+Require Import xseq strings utils var type values sopn expr fexpr arch_decl.
 Require Import compiler_util.
 
 Set   Implicit Arguments.
@@ -105,7 +104,7 @@ End ARCH.
 Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
   { _asm   :> asm reg regx xreg rflag cond asm_op
   ; _extra :> asmOp extra_op (* description of extra ops *)
-  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
+  ; to_asm : instr_info -> extra_op -> lexprs -> rexprs -> cexec (asm_op_msb_t * lexprs * rexprs)
       (* how to compile extra ops into asm op *)
   }.
 
@@ -115,11 +114,11 @@ Section AsmOpI.
 
 Context `{asm_e : asm_extra}.
 
-Inductive extended_op := 
+Variant extended_op :=
   | BaseOp of asm_op_msb_t
   | ExtOp of extra_op_t.
 
-Definition extended_op_beq o1 o2 := 
+Definition extended_op_beq o1 o2 :=
   match o1, o2 with
   | BaseOp o1, BaseOp o2 => eq_op (T:= prod_eqType _ ceqT_eqType) o1 o2
   | ExtOp o1, ExtOp o2 => o1 == o2 ::>

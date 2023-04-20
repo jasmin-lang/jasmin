@@ -1,9 +1,0 @@
-export fn test(reg u64 buffer)
-{
-  inline int i j;
-  for i = 0 to 4 {
-  for j = 0 to 1 << i {
-    [buffer + 16 * i + j] = 1;
-   }
-  }
-}

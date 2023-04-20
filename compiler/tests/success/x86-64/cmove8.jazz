@@ -1,0 +1,64 @@
+export
+fn f(reg u8 b, reg u64 x y) -> reg u64 {
+  reg u64 r;
+  reg bool c;
+
+  r = x;
+  c = b == 1;
+  r = y if c;
+
+  c = x <s y;
+  r = y if c;
+
+  c = x <u y;
+  r = y if c;
+
+  c = x <=s y;
+  r = y if c;
+
+  c = x <=u y;
+  r = y if c;
+
+  c = x == y;
+  r = y if c;
+
+  c = x >=u y;
+  r = y if c;
+
+  c = x >=s y;
+  r = y if c;
+
+  c = x >u y;
+  r = y if c;
+
+  c = x >s y;
+  r = y if c;
+
+  return r;
+}
+
+export
+fn g(reg u64 x y) -> reg u64 {
+  reg u64 r;
+  reg u8 z;
+  reg bool c cf zf sf of;
+  inline bool b0 b1 b2;
+
+  ?{cf,zf,sf,of, "==" = b0, "<s" = c, "<u" = b1} = #CMP_64(x,y);
+  b2 = _uGT(of, cf, sf, zf);
+  r = y if b0;
+  r = y if b1;
+  z = #SETcc(b1);
+  x = (64u)z;
+  r = y if b2;
+  r += x;
+
+  ?{"==" = b0, "<s" = c, "<u" = b1} = #CMP_64(x,y);
+  r = y if b0;
+  r = y if b1;
+  z = #SETcc(b1);
+  x = (64u)z;
+  r += x;
+
+  return r;
+}

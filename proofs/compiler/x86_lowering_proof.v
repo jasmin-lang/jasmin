@@ -3,11 +3,14 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
-Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra.
+From mathcomp Require Import word_ssrZ.
+Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
   lowering_lemmas.
+Require Import
+  arch_extra
+  sem_params_of_arch_extra.
 Require Export x86_lowering.
 Import Utf8.
 Import Psatz.
@@ -27,15 +30,15 @@ Section PROOF.
   Variable p : prog.
   Variable ev : extra_val_t.
   Notation gd := (p_globs p).
-  Context (options: lowering_options).
+  Context (is_regx: var -> bool) (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
   Context (is_var_in_memory: var_i → bool).
 
   Notation lower_prog :=
-    (lower_prog (asmop := _asmop) lower_i options warning fv is_var_in_memory).
+    (lower_prog (asmop := _asmop) (lower_i is_regx) options warning fv is_var_in_memory).
   Notation lower_cmd :=
-    (lower_cmd (asmop := _asmop) lower_i options warning fv is_var_in_memory).
+    (lower_cmd (asmop := _asmop) (lower_i is_regx) options warning fv is_var_in_memory).
 
   Hypothesis fvars_correct: fvars_correct fv (p_funcs p).
 
@@ -117,7 +120,7 @@ Section PROOF.
   Let Pi s (i:instr) s' :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' ev s1 (lower_i options warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' ev s1 (lower_i is_regx options warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pi_r s (i:instr_r) s' :=
     forall ii, Pi s (MkI ii i) s'.
@@ -226,7 +229,7 @@ Section PROOF.
   Lemma between_ZR (a b c: Z) :
     (a <= b < c)%R →
     (a <= b < c)%Z.
-  Proof. by case/andP => /ssrZ.lezP ? /ssrZ.ltzP. Qed.
+  Proof. by case/andP => /word_ssrZ.lezP ? /word_ssrZ.ltzP. Qed.
 
   Lemma wleuE' sz (α β: word sz) :
     wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
@@ -245,13 +248,13 @@ Section PROOF.
   elim_div => z a [] //.
   elim_div => z1 b [] //.
   set m := (wsize_size_minus_1 sz).+1.
-  have /ssrZ.ltzP := mathcomp.word.word.modulus_gt0 m.
+  have /word_ssrZ.ltzP := mathcomp.word.word.modulus_gt0 m.
   match goal with |- (?x < _)%Z → _ => have hz : x = 0%Z by [] end.
   rewrite hz in hα, hβ |- * => {hz}.
   move => hm /Z.eq_opp_r ?; subst α => - []; last Psatz.lia.
   case => ??? []; last Psatz.lia.
   case => ??.
-  symmetry; case: ssrZ.lezP => h; apply/eqP; first Psatz.nia.
+  symmetry; case: word_ssrZ.lezP => h; apply/eqP; first Psatz.nia.
   fold m in hα', hβ'.
   suff: z = (- z1)%Z; Psatz.nia.
   Qed.
@@ -292,7 +295,7 @@ Section PROOF.
         rewrite evm_with_vm => z hz.
         by rewrite !Fv.setP_neq //; apply/eqP => heq; subst z; elim hz;
          auto using of_in_fv, cf_in_fv, sf_in_fv, pf_in_fv.
-      split; rewrite !evm_with_vm /=.
+      split=> /=.
       + rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_zf; rewrite h eqxx.
         rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_sf; rewrite h eqxx.
         rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_cf; rewrite h eqxx.
@@ -448,12 +451,12 @@ Section PROOF.
   Proof.
     rewrite /mulr => ok_v1 ok_v2 hle1 hle2 hsz64 Hw.
     case Heq: (is_wconst _ _) => [z | ].
-    * have := is_wconstP gd s Heq; t_xrbindP => v1 h1 hz [<- <-].
+    * have! := (is_wconstP gd s Heq); t_xrbindP => v1 h1 hz [<- <-].
       split; first done.
       rewrite /= ok_v1 ok_v2 /= /exec_sopn /sopn_sem /= /truncate_word hle1 hle2.
       by rewrite /x86_IMULt /check_size_16_64 hsz64 /= GRing.mulrC Hw.
     case Heq2: (is_wconst _ _) => [z | ].
-    * have := is_wconstP gd s Heq2; t_xrbindP => v2 h2 hz [<- <-].
+    * have! := (is_wconstP gd s Heq2); t_xrbindP => v2 h2 hz [<- <-].
       split; first by rewrite read_es_swap.
       rewrite /= ok_v1 ok_v2 /= /exec_sopn /sopn_sem /= /truncate_word hle1 hle2 /=.
       by rewrite /x86_IMULt /check_size_16_64 hsz64 /= Hw.
@@ -479,6 +482,12 @@ Section PROOF.
       Sv.Subset (read_es e') (read_e e) ∧
       sem_pexprs gd s e' >>= exec_sopn o >>=
       write_lvals gd s [:: f; f; f; f; f; l] = ok s'
+    | LowerDiscardFlags n op e' =>
+      let f := Lnone (var_info_of_lval l) sbool in
+      Sv.Subset (read_es e') (read_e e)
+      /\ sem_pexprs gd s e'
+         >>= exec_sopn op
+         >>= write_lvals gd s (nseq n f ++ [:: l ]) = ok s'
     | LowerDivMod p u sz o a b =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
@@ -600,7 +609,7 @@ Section PROOF.
         rewrite /truncate_val /= /truncate_word /= cmp_le_refl /= zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hv /exec_sopn /= /truncate_word Hsz /sopn_sem /= /x86_NEG /check_size_8_64 hsz /= Hw.
-    + case: o => // [[] sz |[] sz|[] sz|[]// u sz| []// u sz|sz|sz|sz|sz|sz|sz| ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.
+    + case: o => // [[] sz |[] sz|[] sz|[]// u sz| []// u sz|sz|sz|sz|sz|sz|sz|sz|sz| ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.
       case: andP => // - [hsz64] /eqP ?; subst ty.
       (* Oadd Op_w *)
        + rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
@@ -877,6 +886,36 @@ Section PROOF.
          * by move => ->; rewrite /= wsar0 => ->.
          move => _ /=.
          by case: ifP => /= _ ->.
+      (* Oror *)
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
+         rewrite /=; t_xrbindP => v1 -> v2 ->.
+         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+         t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+         split. by rewrite read_es_swap.
+         move: Hw; rewrite /sem_shr /sem_shift /x86_ROR /check_size_8_64 hsz64 /=.
+         case: eqP.
+         * rewrite /sem_ror /sem_shift.
+           move=> -> /=.
+           rewrite wunsigned0 wror0.
+           by move=> ->.
+         move=> _ /=.
+         by case: ifP => /= _ ->.
+      (* Orol *)
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
+         rewrite /=; t_xrbindP => v1 -> v2 ->.
+         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
+         t_xrbindP => w1 -> w2 -> /= ?; subst v.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
+         split. by rewrite read_es_swap.
+         move: Hw; rewrite /sem_shr /sem_shift /x86_ROL /check_size_8_64 hsz64 /=.
+         case: eqP.
+         * rewrite /sem_rol /sem_shift.
+           move=> -> /=.
+           rewrite wunsigned0 wrol0.
+           by move=> ->.
+         move=> _ /=.
+         by case: ifP => /= _ ->.
 
       (* Ovadd ve sz *)
       + case: ifP => // /andP [hle /eqP ?]; subst ty.
@@ -1067,7 +1106,7 @@ Section PROOF.
     by move => hle; rewrite !zero_extend_wrepr.
   Qed.
 
-  Lemma mov_wsP p1 is_regx s1 e ws tag i x w s2 :
+  Lemma mov_wsP (p1: prog) s1 e ws tag i x w s2 :
     (ws <= U64)%CMP -> 
     (Let i' := sem_pexpr (p_globs p1) s1 e in to_word ws i') = ok i
     -> write_lval (p_globs p1) x (Vword i) s1 = ok s2
@@ -1148,8 +1187,7 @@ Section PROOF.
       case /andP: hsz => hsz1 hsz2.
       have Hlea :
         Let vs := sem_pexprs gd s1' [:: elea ] in
-        exec_sopn (spp := mk_spp) (Ox86 (LEA sz)) vs
-        = ok [:: Vword w ].
+        exec_sopn (Ox86 (LEA sz)) vs = ok [:: Vword w ].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /sopn_sem /sem_sop2 /= /truncate_word hsz2 /=.
         rewrite Hwb Hwo /= truncate_word_u /= truncate_word_u /= truncate_word_u /= /x86_LEA /check_size_16_64 hsz1 hsz2 /=.
         by rewrite Ew -!/(zero_extend _ _) !zero_extend_wrepr.
@@ -1228,6 +1266,17 @@ Section PROOF.
       move: LE Hdisje. apply disjoint_w.
       exact Hdisjl.
       exact: (aux_eq_exc_trans Hs2').
+
+    (* LowerDiscardFlags *)
+    + set vi := var_info_of_lval _.
+      move=> n o es [] hreades.
+      t_xrbindP=> ys xs hxs hys hs2.
+      exists s2'.
+      split; last exact: Hs2'.
+      apply: sem_seq1. constructor. constructor.
+      rewrite /sem_sopn hxs {hxs} /=.
+      rewrite hys {hys} /=.
+      exact: hs2.
 
     (* LowerCond *)
     + move=> _.
@@ -1533,7 +1582,8 @@ Section PROOF.
         by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= He1 He2 /= /truncate_word hsz1 hsz2.
       rewrite /lower_mulu; case hsz: check_size_16_64 => //.
       have /andP [hsz16 hsz64] := assertP hsz.
-      have := @is_wconstP _ _ _ gd s1' sz e1; case: is_wconst => [ n1 | _ ].
+      have! := (is_wconstP gd s1' (sz := sz) (e := e1)).
+      case: is_wconst => [ n1 | _ ].
       + move => /(_ _ erefl) /=; rewrite He1 /= /truncate_word hsz1 => - [?]; subst n1.
         set s2'' := with_vm s1'
            (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w1)) ].
@@ -1559,7 +1609,8 @@ Section PROOF.
             rewrite /get_gvar /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz2 cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE.
             exact Hw''.
         + exact: (eeq_excT Hs3'' Hs2').
-      have := @is_wconstP _ _ _ gd s1' sz e2; case: is_wconst => [ n2 | _ ].
+      have! := (is_wconstP gd s1' (sz := sz) (e := e2)).
+      case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
         set s2'' := with_vm s1' (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ].
         have Heq: eq_exc_fresh s2'' s1'.
@@ -1792,8 +1843,25 @@ Section PROOF.
     sem_call p  ev scs mem f va scs' mem' vr ->
     sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ mk_spp _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-            Hassert_true Hassert_false Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+    exact:
+      (sem_call_Ind
+         Hskip
+         Hcons
+         HmkI
+         Hassgn
+         Hopn
+         Hsyscall
+         Hassert_true
+         Hassert_false
+         Hif_true
+         Hif_false
+         Hwhile_true
+         Hwhile_false
+         Hfor
+         Hfor_nil
+         Hfor_cons
+         Hcall
+         Hproc).
   Qed.
 
 End PROOF.

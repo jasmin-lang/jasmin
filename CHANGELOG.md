@@ -6,12 +6,125 @@
 - Support ARMv7 (Cortex-M4) as target architecture
   ([PR #242](https://github.com/jasmin-lang/jasmin/pull/242)).
 
+- Compute the maximal call depth for each function; a function annotation
+  `#[calldepth=n]` can be used to check that the maximal call depth is exactly
+  `n`
+  ([PR #282](https://github.com/jasmin-lang/jasmin/pull/282)).
+
+- More x86 instructions are available:
+  `VPMUL`
+  ([PR #276](https://github.com/jasmin-lang/jasmin/pull/276)),
+  `VPAVG`
+  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)),
+  `CLFLUSH`, `LFENCE`, `MFENCE`, `SFENCE`
+  ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)),
+  `PDEP`
+  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
+  `VMOVDQA`
+  ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
+  `PCLMULQDQ`, `VPCLMULQDQ`
+  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
+
+- Add bit rotation operators for expressions: `<<r` and `>>r`
+  ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
+  These get extracted to `|<<|` and `|>>|` in EasyCrypt.
+
+- Local functions with return address on the stack use usual `CALL`
+  and `RET` x86 instructions instead of (direct & computed) `JMP`
+  ([PR #194](https://github.com/jasmin-lang/jasmin/pull/194)).
+
+- x86 intrinsics that accept a size suffix (e.g., `_128`) also accept, with a
+  warning, a vector suffix (e.g., `_4u32`)
+  ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303)).
+
+- Division and modulo operators can be used in compound assignments
+  (e.g., `x /= y`)
+  ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
+
+- The pretty-printer of Jasmin programs to LATEX is now available as a separate
+  `jazz2tex` tool; the `-latex` command line flag is deprecated
+  ([PR #372](https://github.com/jasmin-lang/jasmin/pull/372)).
+
+- The safety checker fully unrolls `while` loops annotated as `#bounded`
+  and does not attempt at proving termination of `while` loops annotated
+  with `#no_termination_check`
+  ([PR #362](https://github.com/jasmin-lang/jasmin/pull/362),
+  [PR #384](https://github.com/jasmin-lang/jasmin/pull/384)).
+
+- The safety checker warns about possible alignment issues rather than failing,
+  when the `-nocheckalignment` command-line flag is given
+  ([PR #401](https://github.com/jasmin-lang/jasmin/pull/401)).
+
+## Bug fixes
+
+- The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
+   or `_256`) instead of a vector description suffix (`4u32` or `8u32`)
+  ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303);
+  fixes [#301](https://github.com/jasmin-lang/jasmin/issues/301)).
+
+- Safety checker handles the `#copy` and `#randombytes` operators
+  ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312),
+  [PR #317](https://github.com/jasmin-lang/jasmin/pull/317);
+  fixes [#308](https://github.com/jasmin-lang/jasmin/issues/308)).
+
+- Register allocation takes into account conflicts between flag registers
+  ([PR #311](https://github.com/jasmin-lang/jasmin/pull/311);
+  fixes [#309](https://github.com/jasmin-lang/jasmin/issues/309)).
+
+- Register allocation fails when some `reg bool` variables remain unallocated
+  ([PR #313](https://github.com/jasmin-lang/jasmin/pull/313);
+  fixes [#310](https://github.com/jasmin-lang/jasmin/issues/310)).
+
+- Fixes to the safety checker
+  ([PR #315](https://github.com/jasmin-lang/jasmin/pull/315),
+  [PR #343](https://github.com/jasmin-lang/jasmin/pull/343),
+  [PR #365](https://github.com/jasmin-lang/jasmin/pull/365);
+  fixes [#314](https://github.com/jasmin-lang/jasmin/issues/314)).
+
+- Safety checker better handles integer shift operators
+  ([PR #322](https://github.com/jasmin-lang/jasmin/pull/322);
+  fixes [#319](https://github.com/jasmin-lang/jasmin/issues/319)).
+
+- Improved error message in array expansion
+  ([PR #331](https://github.com/jasmin-lang/jasmin/pull/331);
+  fixes [#333](https://github.com/jasmin-lang/jasmin/issues/333)).
+
+- The `randombytes` system-call is better handled by the constant-time checker
+  ([PR #326](https://github.com/jasmin-lang/jasmin/pull/326);
+  fixes [#325](https://github.com/jasmin-lang/jasmin/issues/325)).
+
+- Stack-allocation ensures that array slices are in bounds
+  ([PR #363](https://github.com/jasmin-lang/jasmin/pull/363);
+  fixes [#54](https://github.com/jasmin-lang/jasmin/issues/54)).
+
+- Safety checker folds constant expressions during linearization
+  ([PR #387](https://github.com/jasmin-lang/jasmin/pull/387);
+  fixes [#385](https://github.com/jasmin-lang/jasmin/issues/385),
+  [#386](https://github.com/jasmin-lang/jasmin/issues/386)).
+
+- Fix compilation and semantics of the `VPEXTR` and `VPINSR` instructions
+  ([PR #394](https://github.com/jasmin-lang/jasmin/pull/394);
+  fixes [#395](https://github.com/jasmin-lang/jasmin/issues/395)).
+
+- Various fixes to the LATEX printer
+  ([PR #406](https://github.com/jasmin-lang/jasmin/pull/406)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
   in x86 assembly generation; conditions that used to be supported
   can be expressed using equality and disequality tests
   ([PR #270](https://github.com/jasmin-lang/jasmin/pull/270)).
+
+- The live-range-splitting transformation is run a second time after
+  expansion of register arrays
+  ([PR #341](https://github.com/jasmin-lang/jasmin/pull/341)).
+
+- When the `-timings` command-line flag is given, timestamps are
+  written to the standard error after each compilation pass and during
+  safety analysis when entering a local function; the elapsed time since
+  previous timestamp is also displayed
+  ([PR #403](https://github.com/jasmin-lang/jasmin/pull/403)).
 
 # Jasmin 2022.09.0
 
@@ -126,7 +239,7 @@
   fixes [#136](https://github.com/jasmin-lang/jasmin/issues/136),
   fixes [#104](https://github.com/jasmin-lang/jasmin/issues/104)).
 
-# Jasmin 22.0
+# Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus
 contains a lot of new functionalities compared to Jasmin 21.0, the main ones

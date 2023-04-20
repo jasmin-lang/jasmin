@@ -1,25 +1,11 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-OCAMLBUILD_JOBS  ?= 2
-OCAMLBUILD_BIN   ?= ocamlbuild
-OCAMLBUILD_EXTRA ?=
-OCAMLBUILD_OPTS  := -use-ocamlfind -j $(OCAMLBUILD_JOBS)
-
-# In Emacs, use classic display to enable error jumping.
-ifeq ($(shell echo $$TERM), dumb)
- OCAMLBUILD_OPTS += -classic-display
-endif
-OCAMLBUILD_OPTS += $(OCAMLBUILD_EXTRA)
-
-OCAMLBUILD := $(OCAMLBUILD_BIN) $(OCAMLBUILD_OPTS)
-
-# --------------------------------------------------------------------
 JSJOBS    ?= 2
 CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
-CHECKCATS ?= all safety CCT nolea print
+CHECKCATS ?= safety CCT x86-64-ATT x86-64-Intel x86-64-print x86-64-nolea arm-m4
 
 # --------------------------------------------------------------------
 DESTDIR  ?=
@@ -45,31 +31,27 @@ OBELISK ?= obelisk
 all: build
 	@true
 
-build: jasmin.mlpack native
+build: native
 
 define do-build
-	rm -f jasminc
-	$(OCAMLBUILD) "$(1)"
-	ln -sf "_build/$(1)" jasminc
+	$(RM) jasminc jazz2tex
+	dune build entry/jasminc.$(1)
+	dune build entry/jazz2tex.$(1)
+	ln -sf "_build/default/entry/jasminc.$(1)" jasminc
+	ln -sf "_build/default/entry/jazz2tex.$(1)" jazz2tex
 endef
 
 byte:
-	$(call do-build,entry/jasminc.byte)
+	$(call do-build,bc)
 
 native:
-	$(call do-build,entry/jasminc.native)
-
-jasmin.mlpack: __force__
-	( echo '# GENERATED - EDIT jasmin.mlpack.in'; \
-	  cat jasmin.mlpack.in; \
-	  echo "$(wildcard CIL/*.ml*)" | tr ' ' '\n' | sed 's/\..*$$//' | sort -u ) \
-	> jasmin.mlpack
+	$(call do-build,exe)
 
 CIL:
-	rm -f CIL/*.ml CIL/*.mli ../proofs/extraction.vo
+	rm -f src/CIL/*.ml src/CIL/*.mli ../proofs/extraction.vo
 	$(MAKE) -C ../proofs extraction
-	cp ../proofs/lang/ocaml/*.ml  CIL/
-	cp ../proofs/lang/ocaml/*.mli CIL/
+	cp ../proofs/lang/ocaml/*.ml  src/CIL/
+	cp ../proofs/lang/ocaml/*.mli src/CIL/
 
 check: build
 	$(CHECK) --report=report.log $(CHECKCATS)
@@ -78,16 +60,18 @@ check-ci:
 	$(CHECK) --report=- $(CHECKCATS)
 
 clean:
-	$(OCAMLBUILD) -clean -classic-display
+	dune clean
 	rm -rf _c_build
-	rm -f jasminc.native jasminc.byte lib*.a
+	rm -f jasminc jazz2tex lib*.a
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) -m 0755 -T jasminc.native $(DESTDIR)$(BINDIR)/jasminc
+	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
+	$(INSTALL) -m 0755 -T jazz2tex $(DESTDIR)$(BINDIR)/jazz2tex
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/jasminc
+	$(RM) $(DESTDIR)$(BINDIR)/jasminc
+	$(RM) $(DESTDIR)$(BINDIR)/jazz2tex
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz
@@ -108,8 +92,8 @@ lib%.a: _c_build/%.o
 _c_build/%.o: _c_build/%.s
 	gcc -c -o $@ $<
 
-_c_build/%.s: examples/%.jazz _c_build jasminc.native
-	./jasminc.native $< -o $@
+_c_build/%.s: examples/%.jazz _c_build jasminc
+	./jasminc $< -o $@
 
 # --------------------------------------------------------------------
 %.inferred.mli:

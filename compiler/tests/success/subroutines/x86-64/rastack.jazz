@@ -1,0 +1,71 @@
+#[returnaddress=stack, stacksize=16]
+fn copy(reg u64 x) -> reg u64 {
+reg u64 r;
+stack u64 t;
+t = x;
+r = t;
+return r;
+}
+
+#stacksize=0
+export
+fn main(reg u64 arg) -> reg u64 {
+reg u64 result;
+result = copy(arg);
+return result;
+}
+
+#returnaddress=stack
+fn copy32(reg u32 x) -> reg u32 {
+reg u32 r;
+stack u32 t;
+t = x;
+r = t;
+return r;
+}
+
+#[stacksize=0, stackalign=u64]
+export
+fn main32(reg u32 arg) -> reg u32 {
+reg u32 result;
+result = copy32(arg);
+return result;
+}
+
+fn copy32_32(reg u32 x) -> reg u32 {
+reg u32 r;
+stack u32 t;
+t = x;
+r = t;
+return r;
+}
+
+#[stacksize=0, stackalign=u64] /* u64 come from the push of the ra from the call */
+export
+fn main32_32(reg u32 arg) -> reg u32 {
+reg u32 result;
+result = copy32_32(arg);
+return result;
+}
+
+// Remark: The compiler can reduce the stack space to 32, if it try to fill the hole with q.
+#[returnaddress=stack, stacksize=36, stackalign=u128]
+fn copy128(reg u128 x) -> reg u128 {
+reg u128 r w;
+stack u128 t;
+stack u32 q;
+t = x;
+q = 0;
+r = #MOVD_32(q);
+w = t;
+r +4u32= w;
+return r;
+}
+
+#stacksize=0
+export
+fn main128(reg u128 arg) -> reg u128 {
+reg u128 result;
+result = copy128(arg);
+return result;
+}

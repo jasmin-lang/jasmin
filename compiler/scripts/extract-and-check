@@ -10,8 +10,8 @@ trap "rm -r ${DIR}" EXIT
 
 set -x
 
-$(dirname $0)/../jasminc.native -oecarray ${DIR} -oec ${EC} "$@"
-$(dirname $0)/../jasminc.native -oecarray ${DIR} -CT -oec ${CT} "$@"
+$(dirname $0)/../jasminc -oecarray ${DIR} -oec ${EC} "$@"
+$(dirname $0)/../jasminc -oecarray ${DIR} -CT -oec ${CT} "$@"
 
 easycrypt ${ECARGS} ${EC}
 easycrypt ${ECARGS} ${CT}

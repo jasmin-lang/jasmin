@@ -1,0 +1,31 @@
+export
+fn test(reg u64 a) -> reg u8 {
+  stack u8[2] s;
+  reg ptr u8[1] p q r;
+  reg u8 f;
+  s[0] = 0;
+  s[1] = 1;
+  p = s[0:1];
+  q = s[1:1];
+  r = p;
+  r = q if a <s 0;
+  f = r[0];
+  return f;
+}
+
+inline
+fn zero() -> reg u8 {
+  reg u8 r;
+  #inline r = test(42);
+  return r;
+}
+
+inline
+fn one() -> reg u8 {
+  reg u8 r;
+  #inline r = test(-42);
+  return r;
+}
+
+exec zero()
+exec one()

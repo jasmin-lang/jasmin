@@ -202,7 +202,7 @@ let pp_glob_data fmt gd =
             `Instr (".p2align", [pp_align U256]);
             `Label m;
             `Label n]);
-      Format.fprintf fmt "      %a\n%!" Printer.pp_datas gd
+      Format.fprintf fmt "      %a\n%!" PrintCommon.pp_datas gd
     end
 
 let pp_instr_wsize (ws : W.wsize) =
@@ -268,9 +268,9 @@ module ATT : BPrinter = struct
       Z.to_string disp
     else begin
       let disp = if Z.equal disp Z.zero then None else Some disp in
-      let disp = odfl "" (omap Z.to_string disp) in
-      let base = odfl "" (omap (pp_register ~reg_pre`U64) base) in
-      let off  = omap (pp_register ~reg_pre `U64) off in
+      let disp = Option.map_default Z.to_string "" disp in
+      let base = Option.map_default (pp_register ~reg_pre`U64) "" base in
+      let off  = Option.map (pp_register ~reg_pre `U64) off in
   
       match off, scal with
       | None, _ ->
@@ -328,9 +328,9 @@ module Intel : BPrinter = struct
       Z.to_string disp
     else 
       let disp = if Z.equal disp Z.zero then None else Some disp in
-      let disp = omap Z.to_string disp in
-      let base = omap (pp_register ~reg_pre `U64) base in
-      let off  = omap (pp_register ~reg_pre `U64) off in
+      let disp = Option.map Z.to_string disp in
+      let base = Option.map (pp_register ~reg_pre `U64) base in
+      let off  = Option.map (pp_register ~reg_pre `U64) off in
       let off = 
         match off with
         | Some so when scal <> O -> Some (Printf.sprintf "%s * %s" so (pp_scale scal))
@@ -414,7 +414,7 @@ module Printer (BP:BPrinter) = struct
     | ALIGN ->
       `Instr (".p2align", ["5"])
   
-    | LABEL lbl ->
+    | LABEL (_, lbl) ->
       `Label (pp_label name lbl)
   
     | STORELABEL (dst, lbl) ->
@@ -429,6 +429,7 @@ module Printer (BP:BPrinter) = struct
       `Instr (iname, [pp_label name lbl])
 
     | JAL _ -> assert false
+
     | CALL lbl ->
        `Instr ("call", [pp_remote_label tbl lbl])
 

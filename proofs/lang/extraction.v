@@ -1,11 +1,9 @@
-Require Import var compiler.
-Require sem.
-Require arm_params.
-Require x86_params.
-Require spp_arch_extra.
+Require jasmin_compiler.
+(* Do not “Require” other modules from Jasmin here:
+   expand the jasmin_compiler module instead. *)
 
-Require ExtrOcamlBasic.
-Require ExtrOcamlString.
+From Coq Require ExtrOcamlBasic.
+From Coq Require ExtrOcamlString.
 
 (* This is a hack to force the extraction to keep the singleton here,
    This need should be removed if we add more constructor to syscall_t *)
@@ -29,6 +27,8 @@ Extract Constant expr.InstrInfo.t => "IInfo.t".
 Extract Constant expr.InstrInfo.witness => "IInfo.dummy".
 Extract Constant expr.instr_info => "IInfo.t".
 Extract Constant expr.fun_info => "FInfo.t".
+Extract Constant waes.MixColumns => "(fun _ -> failwith ""MixColumns is not implemented"")".
+Extract Constant waes.InvMixColumns => "(fun _ -> failwith ""InvMixColumns not implemented"")".
 
 Cd  "lang/ocaml".
 
@@ -36,10 +36,11 @@ Extraction Blacklist String List Nat Utils Var Array.
 
 Separate Extraction
   utils
+  warray_
   sopn
   expr
   sem
-  spp_arch_extra.spp_of_asm_e
+  sem_params_of_arch_extra
   arch_decl
   x86_decl
   x86_instr_decl
