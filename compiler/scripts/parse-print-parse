@@ -7,11 +7,19 @@ OUT=${DIR}/jasmin.jazz
 
 trap "rm -r ${DIR}" EXIT
 
+if [[ $1 == "arm" ]]
+then
+    shift
+    ARCH="-arch arm-m4"
+else
+    ARCH="-arch x86-64"
+fi
+
 set -x
 
 # Check that no printer crashes
-$(dirname $0)/../jasminc -pall "$@" >/dev/null
+$(dirname $0)/../jasminc ${ARCH} -pall "$@" >/dev/null
 # Pretty-print the program before compilation
-$(dirname $0)/../jasminc -ptyping "$@" > ${OUT}
+$(dirname $0)/../jasminc ${ARCH} -ptyping "$@" > ${OUT}
 # Try to parse it and type-check it again
-$(dirname $0)/../jasminc -until_typing ${OUT}
+$(dirname $0)/../jasminc ${ARCH} -until_typing ${OUT}

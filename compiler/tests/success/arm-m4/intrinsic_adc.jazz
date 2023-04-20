@@ -12,21 +12,21 @@ fn adc(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #ADC(x, -1, c);
 
     // Shifts.
-    x = #ADC(x, arg0, c, #LSL(0));
-    x = #ADC(x, arg0, c, #LSL(31));
-    x = #ADC(x, arg0, c, #LSR(1));
-    x = #ADC(x, arg0, c, #LSR(32));
-    x = #ADC(x, arg0, c, #ASR(1));
-    x = #ADC(x, arg0, c, #ASR(32));
-    x = #ADC(x, arg0, c, #ROR(1));
-    x = #ADC(x, arg0, c, #ROR(31));
+    x = #ADC(x, arg0 << 0, c);
+    x = #ADC(x, arg0 << 31, c);
+    x = #ADC(x, arg0 >> 1, c);
+    x = #ADC(x, arg0 >> 32, c);
+    x = #ADC(x, arg0 >>s 1, c);
+    x = #ADC(x, arg0 >>s 32, c);
+    x = #ADC(x, arg0 >>r 1, c);
+    x = #ADC(x, arg0 >>r 31, c);
     // x = #ADC(x, arg0, #RRX(1));
 
     // Set flags.
     reg bool n, z, v;
     n, z, c, v, x = #ADCS(x, arg0, c);
     n, z, c, v, x = #ADCS(x, 1, c);
-    n, z, c, v, x = #ADCS(x, arg0, c, #LSL(3));
+    n, z, c, v, x = #ADCS(x, arg0 << 3, c);
 
     // Conditions.
     x = #ADCcc(x, arg0, c, z, x);            // EQ
@@ -47,8 +47,8 @@ fn adc(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #ADCcc(x, 1, c, !!!!z, x);
     n, z, c, v, x = #ADCScc(x, arg0, c, n == v, n, z, c, v, x);
     n, z, c, v, x = #ADCScc(x, 2, c, !c || z, n, z, c, v, x);
-    x = #ADCcc(x, arg0, c, #LSL(3), z, x);
-    n, z, c, v, x = #ADCScc(x, arg0, c, #LSL(3), z, n, z, c, v, x);
+    x = #ADCcc(x, arg0 << 3, c, z, x);
+    n, z, c, v, x = #ADCScc(x, arg0 << 3, c, z, n, z, c, v, x);
 
     reg bool zf, cf;
     ?{CF = c}, x = #ADCS(x, arg0, c);
