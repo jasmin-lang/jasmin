@@ -460,7 +460,7 @@ Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) :=
 Definition x86_SETcc (b:bool) : ex_tpl (w_ty U8) := ok (wrepr U8 (Z.b2z b)).
 
 Definition x86_BT sz (x y: word sz) : ex_tpl (b_ty) :=
-  Let _  := check_size_8_64 sz in
+  Let _  := check_size_16_64 sz in
   ok (Some (wbit x y)).
 
 (* -------------------------------------------------------------------- *)
@@ -1325,7 +1325,7 @@ Definition Ox86_SETcc_instr             :=
 
 Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
 Definition Ox86_BT_instr                :=
-  mk_instr_w2_b "BT" x86_BT [:: E 0; E 1] [:: F CF] 2 check_bt (primP BT) (pp_iname_w_8 "bt").
+  mk_instr_w2_b "BT" x86_BT [:: E 0; E 1] [:: F CF] 2 check_bt (primP BT) (pp_iname "bt").
 
 (* -------------------------------------------------------------------- *)
 Definition Ox86_CLC_instr :=

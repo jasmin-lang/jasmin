@@ -118,6 +118,9 @@
   argument (the shift amount) is no longer truncated
   ([PR #413](https://github.com/jasmin-lang/jasmin/pull/413)).
 
+- Fixes for x86 instruction `BT`
+  ([PR #420](https://github.com/jasmin-lang/jasmin/pull/420)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
