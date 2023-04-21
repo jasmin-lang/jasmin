@@ -121,6 +121,10 @@
 - Fixes for x86 instruction `BT`
   ([PR #420](https://github.com/jasmin-lang/jasmin/pull/420)).
 
+- Register allocation checks that forced register are from the expected bank
+  ([PR #422](https://github.com/jasmin-lang/jasmin/pull/422);
+  fixes [#421](https://github.com/jasmin-lang/jasmin/issues/421)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported

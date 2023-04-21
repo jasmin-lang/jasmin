@@ -1,0 +1,17 @@
+export
+fn test_cqo(reg u64 x) -> reg u64 {
+  reg u16 u v;
+  reg u32 y;
+  reg u64 z r;
+  u = x;
+  u = #CQO_16(u);
+  v = u;
+  y = x;
+  y = #CQO_32(y);
+  v |= y;
+  z = x;
+  z = #CQO(z);
+  v |= z;
+  r = (64u) v;
+  return r;
+}
