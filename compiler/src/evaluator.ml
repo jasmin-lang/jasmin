@@ -100,13 +100,6 @@ let small_step1 ep spp sip s =
     let gd = s.s_prog.p_globs in
     let s1 = s.s_estate in
     match ir with
-
-    | Cassert e -> 
-      let v = exn_exec ii (sem_pexpr ep spp gd s1 e) in
-      let b = of_val_b ii v in 
-      if not b then raise (Eval_error(ii, Aerror e));
-      { s with s_cmd = c }
-      
     | Cassgn(x,_,ty,e) ->
       let v  = exn_exec ii (sem_pexpr ep spp gd s1 e) in
       let v' = exn_exec ii (truncate_val ty v) in
@@ -122,6 +115,12 @@ let small_step1 ep spp sip s =
         let ((scs, m), vs) = exn_exec ii (exec_syscall sip._sc_sem ep s1.escs s1.emem o ves) in
         let s2 = exn_exec ii (write_lvals ep spp gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
+
+    | Cassert e ->
+      (* let v = exn_exec ii (sem_pexpr ep spp gd s1 e) in *)
+      (* let b = of_val_b ii v in *)
+      (* if not b then raise (Eval_error(ii, Aerror e)); *)
+      { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->
       let b = of_val_b ii (exn_exec ii (sem_pexpr ep spp gd s1 e)) in

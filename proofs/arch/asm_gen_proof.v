@@ -1160,7 +1160,7 @@ Proof.
   rewrite /label_in_lcmd -cat1s pmap_cat.
   rewrite /label_in_asm -(cat1s ai) pmap_cat.
   congr (_ ++ _); last exact: ih.
-  by case: li ok_ai { ih } => ii [ | | [] | | | | | | | ] /=; t_xrbindP => *; subst.
+  by case: li ok_ai { ih } => ii [ | | | [] | | | | | | | ] /=; t_xrbindP => *; subst.
 Qed.
 
 Lemma assemble_fd_labels (fn : funname) (fd : lfundef) (fd' : asm_fundef) :
@@ -1177,7 +1177,7 @@ Lemma assemble_i_is_label (li : linstr) (ai : asm_i) lbl :
   -> linear.is_label lbl li = arch_sem.is_label lbl ai.
 Proof.
   (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
-    => /= [ > _ <- | > <- | | <- | <- | > <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-] //.
+   => /= [ > _ <- | > <- | | | <- | <- | > <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-] //.
   by case => [lr l| > [<-] //]; case: to_reg => //; t_xrbindP => > _ <-.
 Qed.
 
@@ -1569,7 +1569,8 @@ Proof.
       rewrite /get_var /=.
       case: _.[_]%vmap => // - [] // _ /ok_inj <-.
       by case: (asm_flag _ _).
-  - move=> [xlr | ] r.
+  - move => pe H. inversion H.
+  -  move=> [xlr | ] r.
     + case heqlr: to_reg => [lr | //]; t_xrbindP => _ <- <- l hgetpc.
       rewrite eqfn; case ptr_eq: encode_label => [ ptr | ] //.
       rewrite /return_address_from.

@@ -23,6 +23,7 @@
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
     
+    "assert", ASSERT ;
     "const" , CONSTANT; 
     "downto", DOWNTO ;
     "else"  , ELSE   ;
@@ -46,7 +47,6 @@
     "while" , WHILE  ;
     "export", EXPORT ;
     "ArrayInit", ARRAYINIT;
-    "assert", ASSERT;
     "_"     , UNDERSCORE;
   ]
 

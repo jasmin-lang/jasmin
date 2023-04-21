@@ -346,10 +346,9 @@ let safe_opn safe opn es =
      id.i_safe) @ safe
 
 let safe_instr ginstr = match ginstr.i_desc with
-  | Cassert e -> safe_e e
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
-  | Cif(e, _, _) -> safe_e e
+  | Cif(e, _, _) | Cassert e -> safe_e e
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
   | Ccall(_, lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
@@ -1434,10 +1433,10 @@ end = struct
     (* vs_for: integer variable from for loops, which will be inlined to
        a constant integer value. *)
     let rec nm_i vs_for i = match i.i_desc with
-      | Cassert e               -> nm_e vs_for e
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Cassert e               -> nm_e vs_for e
       | Cif (e, st, st')        -> 
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1611,8 +1610,6 @@ end = struct
   and aeval_ginstr_aux asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
     match ginstr.i_desc with 
-      | Cassert _ -> state
-
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
         when Config.sc_pif_movecc_as_if () ->
         assert (ty1 = ty2);
@@ -1651,6 +1648,8 @@ end = struct
 
       | Csyscall(lvs, sc, es) ->
          aeval_syscall state sc lvs es
+
+      | Cassert _ -> state
 
       | Cif(e,c1,c2) ->
         aeval_if asmOp ginstr e c1 c2 state

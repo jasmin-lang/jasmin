@@ -442,9 +442,6 @@ End CMD.
 
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
-  | Cassert e => 
-    let e := const_prop_e m e in
-    (m, [:: MkI ii (Cassert e)])
 
   | Cassgn x tag ty e =>
     let e := const_prop_e m e in
@@ -462,6 +459,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let es := map (const_prop_e m) es in
     let (m,xs) := const_prop_rvs m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
+
+  | Cassert b =>
+      let b := const_prop_e m b in
+      (m, [:: MkI ii (Cassert b) ])
 
   | Cif b c1 c2 =>
     let b := const_prop_e m b in

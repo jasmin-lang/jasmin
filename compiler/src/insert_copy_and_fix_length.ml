@@ -30,7 +30,6 @@ let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
 and iac_instr_r pd loc ir =
   match ir with
-  | Cassert e -> Cassert e 
   | Cassgn (x, t, _, e) ->
     if !Glob_options.introduce_array_copy then 
       match is_array_copy x e with
@@ -72,7 +71,7 @@ and iac_instr_r pd loc ir =
       Csyscall(xs, Syscall_t.RandomBytes p, es)
     end
 
-  | Ccall _ -> ir
+  | Ccall _ | Cassert _ -> ir
 
 let iac_func pd f =
   { f with f_body = iac_stmt pd f.f_body }

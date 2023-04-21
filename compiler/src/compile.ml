@@ -40,7 +40,7 @@ let rec warn_extra_i asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Cassert _ | Ccall _ | Csyscall _ -> ()
+  | Ccall _ | Csyscall _ | Cassert _ -> ()
 
 let warn_extra_fd asmOp (_, fd) = List.iter (warn_extra_i asmOp) fd.f_body
 

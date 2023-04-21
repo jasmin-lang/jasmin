@@ -147,7 +147,7 @@ Definition get_syscall_sig o :=
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   match ir with
-  | Cassert _ | Cassgn _ _ _ _ |  Copn _ _ _ _  => ok [::i]
+  | Cassgn _ _ _ _ |  Copn _ _ _ _  | Cassert _ => ok [::i]
   | Cif b c1 c2 =>
     Let c1 := update_c (update_i X) c1 in
     Let c2 := update_c (update_i X) c2 in

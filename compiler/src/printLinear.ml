@@ -31,6 +31,25 @@ let pp_label_kind fmt = function
   | InternalLabel -> ()
   | ExternalLabel -> F.fprintf fmt "#returnaddress "
 
+let rec pp_expr tbl fmt =
+  let pp_expr = pp_expr tbl in
+  function
+  | E.Pconst z -> Z.pp_print fmt (Conv.z_of_cz z)
+  | E.Pbool b -> PrintCommon.pp_bool fmt b
+  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" Z.pp_print (Conv.z_of_pos n)
+  | E.Pvar x -> pp_var_i tbl fmt x.gv
+  | E.Pget (aa, ws, x, e) ->
+    PrintCommon.pp_arr_access (pp_var_i tbl) pp_expr PrintCommon.pp_len fmt aa ws x.gv e None
+  | E.Psub (aa, ws, len, x, e) ->
+    PrintCommon.pp_arr_access (pp_var_i tbl) pp_expr PrintCommon.pp_len fmt aa ws x.gv e
+      (Some (Conv.int_of_pos len))
+
+  | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
+  | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (PrintCommon.string_of_op1 op) pp_expr e
+  | E.Papp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_expr e1 (PrintCommon.string_of_op2 op) pp_expr e2
+  | E.PappN (_op, _es) -> assert false
+  | E.Pif (_, c, e1, e2) -> F.fprintf fmt "(%a ? %a : %a)" pp_expr c pp_expr e1 pp_expr e2
+
 let pp_instr asmOp tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
@@ -44,7 +63,8 @@ let pp_instr asmOp tbl fmt i =
       (pp_opn asmOp) op
       (pp_list ",@ " (pp_rexpr tbl)) es
   | Lsyscall o -> F.fprintf fmt "SysCall %s" (pp_syscall o)
-  | Lcall(lr, lbl) -> 
+  | Lassert e -> F.fprintf fmt "Assert %a" (pp_expr tbl) e
+  | Lcall(lr, lbl) ->
       let pp_o fmt o = match o with None -> () | Some v -> Format.fprintf fmt "%a " (pp_var_i tbl) v in
       F.fprintf fmt "Call %a%a" pp_o lr (pp_remote_label tbl) lbl
   | Lret       -> F.fprintf fmt "Return"

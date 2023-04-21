@@ -94,6 +94,20 @@ Section PROOF.
     apply: sem_seq1; apply: EmkI; apply: Esyscall; rewrite ?p'_globs; eassumption.
   Qed.
 
+  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e He H.
+    rewrite /Pc /Pi_r /=.
+    by apply: sem_seq1; apply: EmkI; apply: Eassert_true; rewrite ?p'_globs.
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e He H.
+    rewrite /Pc /Pi_r /=.
+    by apply: sem_seq1; apply: EmkI; apply: Eassert_false; rewrite ?p'_globs.
+  Qed.
+
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move => s1 s2 e c1 c2 Hb _.
@@ -198,6 +212,8 @@ Section PROOF.
          Hassgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true

@@ -100,7 +100,8 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let: (scs, m, vs) := exec_syscall (semCallParams:= sCP_stack) s1.(lscs) s1.(lmem) o ves in 
     Let s2 := write_lvals [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
                 (to_lvals (syscall_sig o).(scs_vout)) vs in
-    ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+                ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+  | Lassert _ => ok (setpc s1 s1.(lpc).+1)
   | Lcall None d =>
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var s1.(lvm) vrsp >>= to_pointer in

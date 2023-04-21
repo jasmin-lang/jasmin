@@ -506,9 +506,6 @@ let declassify_lvls annot lvls =
 let rec ty_instr fenv env i =
   let env1 =
   match i.i_desc with
-  | Cassert _ ->
-    env
-
   | Cassgn(x, _, _, e) ->
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl i.i_annot lvl)
@@ -520,6 +517,10 @@ let rec ty_instr fenv env i =
   | Csyscall(xs, RandomBytes _, es) ->
     let env, _ = ty_exprs_max ~public:true env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot Secret)
+
+  | Cassert e ->
+    let env, _ = ty_expr ~public:true env e in
+    env
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in

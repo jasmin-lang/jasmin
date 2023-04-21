@@ -55,6 +55,7 @@ Section INCL.
     + by move=> * ?.
     + by move=> * ?.
     + by move=> * ?.
+    + by move=> * ?.
     + move=> e c1 c2 Hc1 Hc2 ii X1 c' X2 /=.
       by t_xrbindP => -[Xc1 c1'] /Hc1 -> /= -[Xc2 c2'] /Hc2 -> /= <- <-.
     + move=> i dir lo hi c Hc ii X1 c0 X2 /=.
@@ -165,6 +166,15 @@ Section SUBSET.
     rewrite read_Ii read_i_if read_eE;SvD.fsetdec.
   Qed.
 
+  Local Lemma Sassert : forall e, Pr(Cassert e).
+  Proof.
+    move => e ii X Xc /= [<-].
+    rewrite read_Ii.
+    rewrite /read_i.
+    rewrite /read_i_rec.
+    rewrite read_eE => //=.
+  Qed.
+
   Local Lemma Sfor   : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Proof. by move=> i d lo hi c Hc ii X2 Xc;apply:rbindP => Xc' /Hc ? [<-]. Qed.
 
@@ -182,19 +192,19 @@ Section SUBSET.
 
   Lemma inline_c_subset c : Pc c.
   Proof.
-    exact: (cmd_rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+    exact: (cmd_rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i_subset i : Pr i.
   Proof.
     exact:
-      (instr_r_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+      (instr_r_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i'_subset i : Pi i.
   Proof.
     exact:
-      (instr_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sif Sfor Swhile Scall).
+      (instr_Rect Smk Snil Scons Sasgn Sopn Ssyscall Sassert Sif Sfor Swhile Scall).
   Qed.
 
 End SUBSET.
@@ -363,6 +373,44 @@ Section PROOF.
     + by apply: wf_write_lvals Hw'.
     + by apply: vmap_uincl_onI Hvm2;SvD.fsetdec.
     by apply: sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs.
+  Qed.
+
+  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e he ii X1 X2 c [<- <-] vm1 hwf.
+    rewrite /read_i /read_i_rec read_eE => //=.
+    exists vm1;split => //=.
+    + apply vmap_uincl_onI with (s2:= Sv.union (Sv.union (read_e e) Sv.empty) X2).
+      apply SvP.MP.union_subset_2. apply H.
+    + apply sem_seq1; constructor; apply Eassert_true.
+      unfold with_vm.
+      have h : evm s <=[read_e e] vm1.
+      apply vmap_uincl_onI with (s2 := (Sv.union (Sv.union (read_e e) Sv.empty) X2)).
+      apply Sv_Subset_union_left.
+      apply Sv_Subset_union_left.
+      apply SvP.MP.subset_refl.
+      apply H => //=.
+      have {h} := sem_pexpr_uincl_on h he.
+      by rewrite -eq_globs => -[ve' -> /value_uinclE -> /=].
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e he ii X1 X2 c [<- <-] vm1 hwf.
+    rewrite /read_i /read_i_rec read_eE => //=.
+    exists vm1;split => //=.
+    + apply vmap_uincl_onI with (s2:= Sv.union (Sv.union (read_e e) Sv.empty) X2).
+      apply SvP.MP.union_subset_2. apply H.
+    + apply sem_seq1; constructor; apply Eassert_false.
+      unfold with_vm.
+      have h : evm s <=[read_e e] vm1.
+      apply vmap_uincl_onI with (s2 := (Sv.union (Sv.union (read_e e) Sv.empty) X2)).
+      apply Sv_Subset_union_left.
+      apply Sv_Subset_union_left.
+      apply SvP.MP.subset_refl.
+      apply H => //=.
+      have {h} := sem_pexpr_uincl_on h he.
+      by rewrite -eq_globs => -[ve' -> /value_uinclE -> /=].
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -581,6 +629,8 @@ Section PROOF.
          Hassgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true

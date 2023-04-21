@@ -94,7 +94,6 @@ Definition check_x (A:Type) ii ws (xe: A * option (wsize * positive * pexpr)) :=
 Fixpoint array_copy_i (i:instr) : cexec cmd := 
   let:(MkI ii id) := i in
   match id with
-  | Cassert _ => ok [:: i]
   | Cassgn _ _ _ _ => ok [:: i] 
   | Copn xs _ o es => 
     match is_copy o with
@@ -118,6 +117,7 @@ Fixpoint array_copy_i (i:instr) : cexec cmd :=
     | _ => ok [:: i] 
     end
   | Csyscall _ _ _ => ok [:: i]
+  | Cassert _ => ok [:: i]
   | Cif e c1 c2    => 
       Let c1 := array_copy_c array_copy_i c1 in
       Let c2 := array_copy_c array_copy_i c2 in

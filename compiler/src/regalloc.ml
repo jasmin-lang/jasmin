@@ -30,10 +30,10 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
   let fill_lvs lvs = List.map fill_lv lvs in
   let rec fill_instr_r =
     function
-    | Cassert e -> Cassert e
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
+    | Cassert e -> Cassert e
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
@@ -381,11 +381,11 @@ let collect_conflicts reg_size asmOp
     function
     | Cfor (_, _, s)
       -> collect_stmt c s
-    | Cassert _
     | Cassgn _
     | Copn _
     | Csyscall _
     | Ccall _
+    | Cassert _
       -> c
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
@@ -632,7 +632,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
-    | Cassert _ | Cassgn _
+    | Cassgn _ | Cassert _
       -> ()
     | Ccall (_, lvs, _, es) ->
        (* TODO: check this *)

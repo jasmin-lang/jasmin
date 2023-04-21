@@ -134,10 +134,20 @@ Module INCL. Section INCL.
     econstructor; eauto.
   Qed.
 
+  Local Lemma Hassert_true : sem_Ind_assert_true P1 Pi_r.
+  Proof.
+    by move=> s1 e he; apply Eassert_true; apply (gd_incl_e hincl).
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false P1 Pi_r.
+  Proof.
+    by move=> s1 e he; apply Eassert_false; apply (gd_incl_e hincl).
+  Qed.
+
   Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
-    sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem P1 ev s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
-  Proof. by move=> ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_true. Qed.
+      sem_pexpr gd s1 e = ok (Vbool true) ->
+      sem P1 ev s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
+  Proof.  by move=> ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_true. Qed.
 
   Local Lemma Hif_false : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr gd s1 e = ok (Vbool false) ->
@@ -191,6 +201,8 @@ Module INCL. Section INCL.
          Hasgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true
@@ -276,6 +288,13 @@ Section PROOFS.
     by t_xrbindP => gd3 /hc1 h1 /hc2; apply: gd_inclT.
   Qed.
 
+  Local Lemma Hassert  : forall e, Pr (Cassert e).
+  Proof.
+    move=> e ii gd1 gd2 /=.
+    t_xrbindP => gd3 h1 v h.
+    by rewrite <- gd3.
+  Qed.
+
   Local Lemma Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Proof. by move=> ????? hc ii gd1 gd2 /= /hc. Qed.
 
@@ -292,7 +311,7 @@ Section PROOFS.
     foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+    exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hassert Hif Hfor Hwhile Hcall).
   Qed.
 
 End PROOFS.
@@ -629,6 +648,26 @@ Module RGP. Section PROOFS.
     by case: Mvar.get => //= g2; case:ifP => // /eqP <- [<-].
   Qed.
 
+  Local Lemma Hassert_true : sem_Ind_assert_true P Pi_r.
+  Proof.
+    move => s1 e he ii m m' c' /= hrm s1' hval.
+    move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he' => hm hc'.
+    subst.
+    exists s1';split.
+    + by auto.
+      by apply sem_seq1;constructor; apply Eassert_true.
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false P Pi_r.
+  Proof.
+    move => s1 e he ii m m' c' /= hrm s1' hval.
+    move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he' => hm hc'.
+    subst.
+    exists s1';split.
+    + by auto.
+      by apply sem_seq1;constructor; apply Eassert_false.
+  Qed.
+
   Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 he _ hc ii m m' c' /= hrm s1' hval.
@@ -798,6 +837,8 @@ Module RGP. Section PROOFS.
          Hasgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true

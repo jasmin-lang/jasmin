@@ -322,8 +322,6 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
     match ir with
-    | Cassert _ => 
-      Error (E.ii_error ii "assert remains")
     | Cassgn x tag ty e =>
       if ty is sword ws
       then
@@ -334,7 +332,9 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
-      ok tt
+        ok tt
+    | Cassert b =>
+        ok tt
     | Cif b c1 c2 =>
       check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
     | Cfor _ _ _ =>
@@ -574,8 +574,6 @@ Let Llabel := linear.Llabel InternalLabel.
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
-  | Cassert _ => 
-    (lbl, lc)
   | Cassgn x _ ty e =>
     let lc' := if ty is sword sz
                then of_olinstr_r ii (lassign' x sz e) :: lc
@@ -588,6 +586,8 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       end
 
   | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
+
+  | Cassert e => (lbl, MkLI ii (Lassert e) :: lc)
 
   | Cif e [::] c2 =>
     let L1 := lbl in

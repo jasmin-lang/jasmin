@@ -1,0 +1,9 @@
+export fn foo () -> reg u64 {
+  reg u64 r;
+  stack u64[2] s;
+  r = 0;
+  assert (r < s[0] + s[1]);
+  return r;
+}
+
+exec foo()

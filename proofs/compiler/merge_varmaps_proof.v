@@ -162,6 +162,7 @@ Section LEMMA.
     - by move => x tg ty e s; rewrite /write_i /write_i_rec -vrv_recE.
     - by move => xs tg op es s; rewrite /write_i /write_i_rec -vrvs_recE.
     - by move => xs op es s; rewrite /write_i /write_i_rec !vrvs_recE; SvD.fsetdec.
+    - move => e s; rewrite /write_i /write_i_rec; SvD.fsetdec.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
@@ -487,6 +488,26 @@ Section LEMMA.
     have [t2 ok_t2 hsim'] := check_lvsP hlv hsim ok_s2 urs.
     exists t2=> //; eexists; last reflexivity.
     by econstructor; eauto; rewrite /sem_sopn ok_w /= ok_w' /=.
+  Qed.
+
+  Lemma Hassert_true: sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e eval_e sz ii I O t1.
+   rewrite /check_instr_r -/check_instr.
+    t_xrbindP  => hce hc hf pre hsim. subst O.
+    have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
+    exists t1 => //. eexists;last reflexivity.
+    by apply sem_one_varmap.Eassert_true.
+  Qed.
+
+  Lemma Hassert_false: sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e eval_e sz ii I O t1.
+    rewrite /check_instr_r -/check_instr.
+    t_xrbindP  => hce hc hf pre hsim. subst O.
+    have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
+    exists t1 => //. eexists;last reflexivity.
+    by apply sem_one_varmap.Eassert_false.
   Qed.
 
   Lemma Hif_true: sem_Ind_if_true p global_data Pc Pi_r.
@@ -998,6 +1019,8 @@ Section LEMMA.
         Hassgn
         Hopn
         Hsyscall
+        Hassert_true
+        Hassert_false
         Hif_true
         Hif_false
         Hwhile_true

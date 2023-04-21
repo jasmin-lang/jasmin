@@ -300,6 +300,17 @@ Context
       rewrite -(read_es_eq_on _ (s := X)) //; last first.
       + by move=> z;rewrite read_esE => hz;apply heq1; SvD.fsetdec.
       by apply: eq_onI heq2; SvD.fsetdec.
+      (* Focus 3. *)
+    + move => s1 e he vm X hsub heq.
+      exists vm; split => //.
+      apply Eassert_true.
+      rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) //.
+      by rewrite read_eE; apply: eq_onI heq; SvD.fsetdec.
+    + move => s1 e he vm X hsub heq.
+      exists vm; split => //.
+      apply Eassert_false.
+      rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) //.
+      by rewrite read_eE; apply: eq_onI heq; SvD.fsetdec.
     + move=> s1 s2 e c1 c2 he _ ih vm1 X.
       rewrite read_i_if => hsub heq1.
       case: (ih vm1 X _ heq1); first SvD.fsetdec.
@@ -588,6 +599,28 @@ Context
     rewrite /sem_sopn Let_Let -(read_es_eq_on _ (s := X)); last first.
     + by rewrite read_esE; apply: (eq_onI _ hvm1); SvD.fsetdec.
     by rewrite Hsem_pexprs /= Hexec_sopn.
+  Qed.
+
+  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e He Hs ii c' [<-].
+    move => H vm Hvm.
+    exists vm => //.
+    apply/sem_seq1/EmkI. apply Eassert_true.
+    rewrite - eq_globs -He.
+    rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) // -/(read_e _).
+    by apply: (eq_onI _ Hvm); SvD.fsetdec.
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e He Hs ii c' [<-].
+    move => H vm Hvm.
+    exists vm => //.
+    apply/sem_seq1/EmkI. apply Eassert_false.
+    rewrite - eq_globs -He.
+    rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) // -/(read_e _).
+    by apply: (eq_onI _ Hvm); SvD.fsetdec.
   Qed.
 
   Lemma write_Ii ii i : write_I (MkI ii i) = write_i i.
@@ -905,6 +938,8 @@ Context
          Hassgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true

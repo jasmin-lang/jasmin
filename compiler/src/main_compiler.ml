@@ -196,6 +196,7 @@ let main () =
       donotcompile()
     end;
 
+
     if !ct_list <> None then begin
         let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
            Format.printf "/* Security types:\n@[<v>%a@]*/@."
@@ -207,7 +208,7 @@ let main () =
     end;
 
     if !do_compile then begin
-  
+
     (* Now call the coq compiler *)
     let tbl, cprog =
       let all_vars = Arch.rip :: Arch.all_registers in
@@ -264,20 +265,46 @@ let main () =
         List.iter exec to_exec
       end;
 
-    begin match Compile.compile (module Arch) visit_prog_after_pass prog tbl cprog with
-    | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
-      raise (HiError e)
-    | Utils0.Ok asm ->
-      if !outfile <> "" then begin
-        BatFile.with_file_out !outfile (fun out ->
-          let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" (Arch.pp_asm tbl) asm);
-          if !debug then Format.eprintf "assembly listing written@."
-      end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" (Arch.pp_asm tbl) asm
-    end
-    end
+    if !cl_list <> [] then
+      begin
+        let fmt, close = Format.std_formatter, fun () -> () in
+
+        match
+          BatPervasives.finally
+            (fun () -> close ())
+            (fun () ->
+               ToCL.extract
+                 (module Arch)
+                 visit_prog_after_pass
+                 fmt
+                 prog
+                 tbl
+                 cprog
+                 !cl_list
+            )
+            ()
+        with
+        | Utils0.Error e ->
+          let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
+          raise (HiError e)
+        | Utils0.Ok _ -> ()
+        | exception e -> BatPervasives.ignore_exceptions (fun () -> ()) (); raise e
+      end
+    else
+      begin match Compile.compile (module Arch) visit_prog_after_pass prog tbl cprog with
+        | Utils0.Error e ->
+          let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
+          raise (HiError e)
+        | Utils0.Ok asm ->
+          if !outfile <> "" then begin
+            BatFile.with_file_out !outfile (fun out ->
+                let fmt = BatFormat.formatter_of_out_channel out in
+                Format.fprintf fmt "%a%!" (Arch.pp_asm tbl) asm);
+            if !debug then Format.eprintf "assembly listing written@."
+          end else if List.mem Compiler.Assembly !print_list then
+            Format.printf "%a%!" (Arch.pp_asm tbl) asm
+      end
+  end
   with
   | Utils.HiError e ->
     Format.eprintf "%a@." pp_hierror e;

@@ -1468,10 +1468,43 @@ Proof.
 Qed.
 
 #[ local ]
+Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+Proof.
+  move => s e he.
+  move => ii hfv s0' hs0'.
+  move: hfv => /disj_fvars_vars_I_Cassert [hfve].
+  rewrite /=.
+  case h: lower_condition => [pre e'].
+  have [s1' [hsem01' hs10 hseme']] := sem_lower_condition ii h hs0' hfve he.
+  exists s1' => //.
+  rewrite map_cat.
+  apply: (sem_app hsem01').
+  apply: sem_seq1; constructor; apply: Eassert_true.
+  rewrite //=.
+Qed.
+
+#[ local ]
+Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+Proof.
+  move => s e he.
+  move => ii hfv s0' hs0'.
+  move: hfv => /disj_fvars_vars_I_Cassert [hfve].
+  rewrite /=.
+  case h: lower_condition => [pre e'].
+  have [s1' [hsem01' hs10 hseme']] := sem_lower_condition ii h hs0' hfve he.
+  exists s1' => //.
+  rewrite map_cat.
+  apply: (sem_app hsem01').
+  apply: sem_seq1; constructor; apply: Eassert_false.
+  rewrite //=.
+Qed.
+
+#[ local ]
 Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
   move=> s0 s1 e c0 c1 hseme _ hc.
   move=> ii hfv s0' hs00.
+
 
   move: hfv => /disj_fvars_vars_I_Cif [hfve hfv0 _].
 
@@ -1694,6 +1727,8 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert_true
+       Hassert_false
        Hif_true
        Hif_false
        Hwhile_true

@@ -129,9 +129,6 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
-  | Cassert e -> 
-    F.fprintf fmt "@[<hov 2>assert@ %a;@]" (pp_ge pp_len pp_var) e
-
   | Cassgn(x, tg, ty, Parr_init n) ->
     F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
       (pp_glv pp_len pp_var) x
@@ -159,6 +156,9 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
   | Csyscall(x, o, e) ->
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
         (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
+
+  | Cassert e ->
+    F.fprintf fmt "@[<hov 2>assert@ %a;@]" (pp_ge pp_len pp_var) e
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"

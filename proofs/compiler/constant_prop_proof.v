@@ -848,6 +848,14 @@ Section PROPER.
     by do 3 f_equal; apply: map_ext => z _; rewrite Heq.
   Qed.
 
+  Local Lemma Wassert e: Pr (Cassert e).
+  Proof.
+    move=> ii m1 m2 Heq /=.
+    rewrite /const_prop_ir.
+    split => //=; rewrite /RelationPairs.RelCompFun /=.
+    by do 3 f_equal ; rewrite Heq.
+  Qed.
+
   Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> Hc1 Hc2 ii m1 m2 Heq /=.
@@ -904,21 +912,21 @@ Lemma const_prop_i_m :
   Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) const_prop_i.
 Proof.
   move=> m1 m2 Hm i1 i2 <-.
-  apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall i1) Hm.
+  apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
 Lemma const_prop_i_r_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq ==> @Mvarc_eq const_v) const_prop_ir.
 Proof.
   move=> m1 m2 Hm ii1 ii2 <- i1 i2 <-.
-  apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall i1) Hm.
+  apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
 Lemma const_prop_m :
   Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop const_prop_i).
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
-  apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall c1) Hm.
+  apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wassert Wif Wfor Wwhile Wcall c1) Hm.
 Qed.
 
 Lemma valid_cpm_m :
@@ -1042,7 +1050,27 @@ Section PROOF.
     have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
     have [vs' ho' Us']:= exec_syscallP ho (Forall2_trans value_uincl_trans Us u2).
     have /(_ _ hvm1) [vm2 hw' U]:= writes_uincl _ Us' h2.
-    exists vm2; split => //=; apply sem_seq1; constructor; econstructor; eauto.
+    exists vm2; split => //=; apply sem_seq1 ; constructor ; econstructor; eauto.
+  Qed.
+
+  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move=> s e /= he. split=>// vm1 hu1.
+    have  [v' [] ] /= := const_prop_eP H he.
+    case: v' => // b {he} he ?;subst.
+    exists vm1; split => //.
+    apply sem_seq1;do 2 constructor.
+    by have [v2 -> /value_uinclE ->]:= sem_pexpr_uincl hu1 he.
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move=> s e /= he. split=>// vm1 hu1.
+    have  [v' [] ] /= := const_prop_eP H he.
+    case: v' => // b {he} he ?;subst.
+    exists vm1; split => //.
+    apply sem_seq1;constructor; apply Eassert_false.
+    by have [v2 -> /value_uinclE ->]:= sem_pexpr_uincl hu1 he.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -1230,6 +1258,8 @@ Section PROOF.
          Hassgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true

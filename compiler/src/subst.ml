@@ -52,10 +52,10 @@ let gsubst_es flen f = List.map (gsubst_e flen f)
 let rec gsubst_i flen f i =
   let i_desc =
     match i.i_desc with
-    | Cassert e -> Cassert (gsubst_e flen f e)
     | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_ty flen ty, gsubst_e flen f e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
+    | Cassert e -> Cassert (gsubst_e flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
@@ -367,7 +367,7 @@ let clone_func fc =
 let rec extend_iinfo_i pre i =
   let i_desc = 
     match i.i_desc with
-    | Cassert _ | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ -> i.i_desc
     | Cif(e,c1,c2) -> 
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
     | Cfor(x,r,c) -> 

@@ -1698,10 +1698,6 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
   | S.PIdecl tvs -> 
     let env, _ = tt_annot_vardecls (fun _ -> true) pd env (annot, tvs) in
     env, []
-
-  | S.PIAssert e ->
-    let c  = tt_expr_bool pd env e in
-    env, [mk_i (Cassert c)]
     
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
     let x = tt_var `AllVar env x in
@@ -1814,6 +1810,10 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let e' = oget ~exn:(tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool pd env cp in
       env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
+
+  | PIAssert cp ->
+    let c  = tt_expr_bool pd env cp in
+    env, [mk_i (P.Cassert c) ]
 
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool pd env cp in
@@ -1941,7 +1941,7 @@ let rec add_reserved_i env (_,i) =
   match L.unloc i with 
   | S.PIdecl (_, ids) -> 
       List.fold_left (fun env id -> Env.add_reserved env (L.unloc id)) env ids 
-  | PIAssert _ | PIArrayInit _ | PIAssign _ -> env
+  | PIArrayInit _ | PIAssign _ | PIAssert _ -> env
   | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' env c) oc
   | PIFor(_, _, c) -> add_reserved_c' env c
   | PIWhile(oc1, _, oc2) -> add_reserved_oc (add_reserved_oc env oc1) oc2

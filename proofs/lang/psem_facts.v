@@ -202,6 +202,12 @@ Proof.
   by split; [rewrite ho1 | move=> ??; rewrite ho2].
 Qed.
 
+Lemma mem_equiv_assert_true : sem_Ind_assert_true P Pi_r.
+Proof. by []. Qed.
+
+Lemma mem_equiv_assert_false : sem_Ind_assert_false P Pi_r.
+Proof. by []. Qed.
+
 Lemma mem_equiv_if_true : sem_Ind_if_true P ev Pc Pi_r.
 Proof. by []. Qed.
 
@@ -252,6 +258,8 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -274,6 +282,8 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -296,6 +306,8 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -318,6 +330,8 @@ Proof.
        mem_equiv_assgn
        mem_equiv_opn
        mem_equiv_syscall
+       mem_equiv_assert_true
+       mem_equiv_assert_false
        mem_equiv_if_true
        mem_equiv_if_false
        mem_equiv_while_true
@@ -543,6 +557,18 @@ Proof.
   by rewrite hes => -[<-]; rewrite ho => -[<- <- <-]; rewrite hw => -[].
 Qed.
 
+Local Lemma sem_deter_assert_true : sem_Ind_assert_true p Pi_r.
+Proof.
+  intros s e eval_e s2 h.
+  inversion h;eauto.
+Qed.
+
+Local Lemma sem_deter_assert_false : sem_Ind_assert_false p Pi_r.
+Proof.
+  intros s e eval_e s2 h.
+  inversion h;eauto.
+Qed.
+
 Local Lemma sem_deter_if_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
   red => s1 s2 e c1 c2 eval_e _ ih s2' /sem_iE[] b [].
@@ -618,6 +644,8 @@ Proof.
        sem_deter_asgn
        sem_deter_opn
        sem_deter_syscall
+       sem_deter_assert_true
+       sem_deter_assert_false
        sem_deter_if_true
        sem_deter_if_false
        sem_deter_while_true
@@ -644,6 +672,8 @@ Proof.
        sem_deter_asgn
        sem_deter_opn
        sem_deter_syscall
+       sem_deter_assert_true
+       sem_deter_assert_false
        sem_deter_if_true
        sem_deter_if_false
        sem_deter_while_true
@@ -670,6 +700,8 @@ Proof.
        sem_deter_asgn
        sem_deter_opn
        sem_deter_syscall
+       sem_deter_assert_true
+       sem_deter_assert_false
        sem_deter_if_true
        sem_deter_if_false
        sem_deter_while_true

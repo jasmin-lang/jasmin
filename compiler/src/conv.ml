@@ -209,11 +209,6 @@ let rec cinstr_of_instr tbl i c =
 
 and cinstr_r_of_instr_r tbl p i tl =
   match i with
-  | Cassert e -> 
-    let ir = 
-      C.Cassert (cexpr_of_expr tbl e) in
-    C.MkI(p,ir) :: tl
-  
   | Cassgn(x,t, ty,e) ->
     let ir  =
       C.Cassgn(clval_of_lval tbl x, t, cty_of_ty ty, cexpr_of_expr tbl e) in
@@ -227,6 +222,10 @@ and cinstr_r_of_instr_r tbl p i tl =
   | Csyscall(x,o,e) ->
     let ir =
       C.Csyscall(clval_of_lvals tbl x, o, cexpr_of_exprs tbl e) in
+    C.MkI(p, ir) :: tl
+
+  | Cassert e ->
+    let ir = C.Cassert(cexpr_of_expr tbl e) in
     C.MkI(p, ir) :: tl
 
   | Cif(e,c1,c2) ->
@@ -262,9 +261,6 @@ let rec instr_of_cinstr tbl i =
     { i_desc; i_loc; i_info = (); i_annot }
 
 and instr_r_of_cinstr_r tbl = function
-  | C.Cassert e -> 
-    Cassert (expr_of_cexpr tbl e)
-
   | C.Cassgn(x,t, ty,e) ->
     Cassgn(lval_of_clval tbl x, t, ty_of_cty ty, expr_of_cexpr tbl e)
 
@@ -273,6 +269,9 @@ and instr_r_of_cinstr_r tbl = function
 
   | C.Csyscall(x,o,e) ->
     Csyscall(lval_of_clvals tbl x, o, expr_of_cexprs tbl e)
+
+  | C.Cassert e ->
+    Cassert(expr_of_cexpr tbl e)
 
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt tbl c1 in

@@ -161,6 +161,22 @@ Section REMOVE_INIT.
     apply sem_seq1; constructor; econstructor; eauto.
   Qed.
 
+  Local Lemma Rassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e he ii vm1 hvm1.
+    have [v' H1 /value_uinclE ?] := sem_pexpr_uincl hvm1 he;subst => Hwf.
+    exists vm1;split => //.
+    apply sem_seq1;constructor;apply Eassert_true. eauto.
+  Qed.
+
+  Local Lemma Rassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e he ii vm1 hvm1.
+    have [v' H1 /value_uinclE ?] := sem_pexpr_uincl hvm1 he;subst => Hwf.
+    exists vm1;split => //.
+    apply sem_seq1;constructor;apply Eassert_false. eauto.
+  Qed.
+
   Local Lemma Rif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 H _ Hc ii vm1 Hvm1.
@@ -256,6 +272,8 @@ Section REMOVE_INIT.
          Rasgn
          Ropn
          Rsyscall
+         Rassert_true
+         Rassert_false
          Rif_true
          Rif_false
          Rwhile_true
@@ -492,6 +510,29 @@ Section ADD_INIT.
     by constructor; apply: Eif_true => //; rewrite -(sem_pexpr_ext_eq e heq1).
   Qed.
 
+
+  Local Lemma RAassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e he ii /=.
+    apply aux => //.
+    - by constructor; constructor.
+    - move => vm1 heq1.
+      exists vm1 =>  //=.
+      constructor;constructor.
+      by rewrite -(sem_pexpr_ext_eq e heq1).
+  Qed.
+
+  Local Lemma RAassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e he ii /=.
+    apply aux => //.
+    - by constructor; constructor.
+    - move => vm1 heq1.
+      exists vm1 =>  //=.
+      constructor;apply Eassert_false.
+      by rewrite -(sem_pexpr_ext_eq e heq1).
+  Qed.
+
   Local Lemma RAif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 H _ [] hs Hc ii /=; split.
@@ -588,6 +629,8 @@ Section ADD_INIT.
          RAasgn
          RAopn
          RAsyscall
+         RAassert_true
+         RAassert_false
          RAif_true
          RAif_false
          RAwhile_true

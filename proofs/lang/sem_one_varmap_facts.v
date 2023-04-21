@@ -44,7 +44,10 @@ Let Pi_r (_: instr_info) (_: Sv.t) s1 (_: instr_r) s2 : Prop := emem s1 ≡ emem
 Let Pfun (_: instr_info) (_: Sv.t) s1 (_: funname) s2 : Prop := emem s1 ≡ emem s2.
 
 Lemma Hnil : sem_Ind_nil Pc.
-Proof. by []. Qed.
+Proof.
+  move=> s.
+
+  by []. Qed.
 
 Lemma Hcons : sem_Ind_cons p extra_free_registers var_tmp Pc Pi.
 Proof. move => ki kc x y z i c _ xy _ yz; red; transitivity (emem y); assumption. Qed.
@@ -63,6 +66,12 @@ Proof.
   move => ii s1 s2 o xs es scs m ves vs hes h; have {h} := exec_syscallS h; move=> [ho _] /write_lvals_stack_stable hw.
   by rewrite /Pi_r ho.
 Qed.
+
+Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+Proof. by []. Qed.
+
+Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+Proof. by []. Qed.
 
 Lemma Hif_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
@@ -107,6 +116,8 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert_true
+       Hassert_false
        Hif_true
        Hif_false
        Hwhile_true
@@ -126,6 +137,8 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert_true
+       Hassert_false
        Hif_true
        Hif_false
        Hwhile_true
@@ -145,6 +158,8 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert_true
+       Hassert_false
        Hif_true
        Hif_false
        Hwhile_true
@@ -164,6 +179,8 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
+       Hassert_true
+       Hassert_false
        Hif_true
        Hif_false
        Hwhile_true
@@ -239,6 +256,12 @@ Proof.
   by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->.
 Qed.
 
+Lemma Hassert_true_nw : sem_Ind_assert_true p Pi_r.
+Proof. by []. Qed.
+
+Lemma Hassert_false_nw : sem_Ind_assert_false p Pi_r.
+Proof. by []. Qed.
+
 Lemma Hif_true_nw : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -290,6 +313,8 @@ Proof.
        Hassgn_nw
        Hopn_nw
        Hsyscall_nw
+       Hassert_true_nw
+       Hassert_false_nw
        Hif_true_nw
        Hif_false_nw
        Hwhile_true_nw
@@ -310,6 +335,8 @@ Proof.
        Hassgn_nw
        Hopn_nw
        Hsyscall_nw
+       Hassert_true_nw
+       Hassert_false_nw
        Hif_true_nw
        Hif_false_nw
        Hwhile_true_nw
@@ -330,6 +357,8 @@ Proof.
        Hassgn_nw
        Hopn_nw
        Hsyscall_nw
+       Hassert_true_nw
+       Hassert_false_nw
        Hif_true_nw
        Hif_false_nw
        Hwhile_true_nw
@@ -402,6 +431,12 @@ Proof. by []. Qed.
 Lemma Hsyscall_pm : sem_Ind_syscall p Pi_r.
 Proof. by []. Qed.
 
+Lemma Hassert_true_pm : sem_Ind_assert_true p Pi_r.
+Proof. by []. Qed.
+
+Lemma Hassert_false_pm : sem_Ind_assert_false p Pi_r.
+Proof. by []. Qed.
+
 Lemma Hif_true_pm : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -457,6 +492,8 @@ Proof.
        Hassgn_pm
        Hopn_pm
        Hsyscall_pm
+       Hassert_true_pm
+       Hassert_false_pm
        Hif_true_pm
        Hif_false_pm
        Hwhile_true_pm
@@ -477,6 +514,8 @@ Proof.
        Hassgn_pm
        Hopn_pm
        Hsyscall_pm
+       Hassert_true_pm
+       Hassert_false_pm
        Hif_true_pm
        Hif_false_pm
        Hwhile_true_pm
@@ -535,6 +574,12 @@ Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /wr
 Lemma validw_stable_syscall : sem_Ind_syscall p Pi_r.
 Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ??; rewrite ho. Qed.
 
+Lemma validw_stable_assert_true : sem_Ind_assert_true p Pi_r.
+Proof. by []. Qed.
+
+Lemma validw_stable_assert_false : sem_Ind_assert_false p Pi_r.
+Proof. by []. Qed.
+
 Lemma validw_stable_if_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -575,6 +620,8 @@ Proof.
        validw_stable_assgn
        validw_stable_opn
        validw_stable_syscall
+       validw_stable_assert_true
+       validw_stable_assert_false
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true
@@ -594,6 +641,8 @@ Proof.
        validw_stable_assgn
        validw_stable_opn
        validw_stable_syscall
+       validw_stable_assert_true
+       validw_stable_assert_false
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true
@@ -613,6 +662,8 @@ Proof.
        validw_stable_assgn
        validw_stable_opn
        validw_stable_syscall
+       validw_stable_assert_true
+       validw_stable_assert_false
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true
@@ -632,6 +683,8 @@ Proof.
        validw_stable_assgn
        validw_stable_opn
        validw_stable_syscall
+       validw_stable_assert_true
+       validw_stable_assert_false
        validw_stable_if_true
        validw_stable_if_false
        validw_stable_while_true

@@ -337,8 +337,6 @@ plvalues:
 | s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
 
 pinstr_r:
-| ASSERT e=pexpr SEMICOLON
-   { PIAssert e }
 
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
@@ -350,6 +348,9 @@ pinstr_r:
     c=prefix(IF, pexpr)? SEMICOLON
     { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, args)), c) }
+
+| ASSERT e=pexpr SEMICOLON
+   { PIAssert e }
 
 | s=pif { s }
 

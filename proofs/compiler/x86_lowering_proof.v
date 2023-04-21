@@ -1658,6 +1658,30 @@ Section PROOF.
     by case: hs1' => -> ->.
   Qed.
 
+  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e Hz ii /= Hdisj s' Hs'/=.
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assert => Hdisje.
+    set x := lower_condition fv dummy_var_info e.
+    have Hcond: x = lower_condition fv dummy_var_info e by [].
+    move: x Hcond=> [i e'] Hcond.
+    exists s';split => //.
+    apply: sem_seq1; apply: EmkI; apply: Eassert_true.
+    apply (eeq_exc_sem_pexpr Hdisje Hs' Hz).
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e Hz ii /= Hdisj s' Hs'/=.
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assert => Hdisje.
+    set x := lower_condition fv dummy_var_info e.
+    have Hcond: x = lower_condition fv dummy_var_info e by [].
+    move: x Hcond=> [i e'] Hcond.
+    exists s';split => //.
+    apply: sem_seq1; apply: EmkI; apply: Eassert_false.
+    apply (eeq_exc_sem_pexpr Hdisje Hs' Hz).
+  Qed.
+
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
@@ -1827,6 +1851,8 @@ Section PROOF.
          Hassgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true

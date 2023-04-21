@@ -295,6 +295,35 @@ Section PROOF.
     by apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs.
   Qed.
 
+
+  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Proof.
+    move => s e He ii sv0 /= Hwf vm Hvm.
+    rewrite (surj_estate s) in He.
+    have := sem_pexpr_uincl_on' Hvm He.
+    move=> [v] He' Hv.
+    exists vm;split.
+    - rewrite read_eE in Hvm.
+      apply: vmap_uincl_onI Hvm ;SvD.fsetdec.
+    - apply sem_seq1; econstructor;constructor;rewrite -?eq_globs.
+      rewrite /value_uincl in Hv. case: v Hv He'=> //=.
+      by move=> b -> He'.
+  Qed.
+
+  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
+  Proof.
+    move => s e He ii sv0 /= Hwf vm Hvm.
+    rewrite (surj_estate s) in He.
+    have := sem_pexpr_uincl_on' Hvm He.
+    move=> [v] He' Hv.
+    exists vm;split.
+    - rewrite read_eE in Hvm.
+      apply: vmap_uincl_onI Hvm ;SvD.fsetdec.
+    - apply sem_seq1; econstructor;apply Eassert_false;rewrite -?eq_globs.
+      rewrite /value_uincl in Hv. case: v Hv He'=> //=.
+      by move=> b -> He'.
+  Qed.
+
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hval Hp Hc ii sv0 /=.
@@ -610,6 +639,8 @@ Section PROOF.
          Hassgn
          Hopn
          Hsyscall
+         Hassert_true
+         Hassert_false
          Hif_true
          Hif_false
          Hwhile_true
