@@ -14,6 +14,9 @@
   ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303);
   fixes [#301](https://github.com/jasmin-lang/jasmin/issues/301)).
 
+- Fixes for x86 instruction `BT`
+  ([PR #420](https://github.com/jasmin-lang/jasmin/pull/420)).
+
 ## Other changes
 
 - Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by
