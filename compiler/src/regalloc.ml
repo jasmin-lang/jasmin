@@ -529,6 +529,12 @@ module Regalloc (Arch : Arch_full.Arch)
       (a: A.allocation) : unit =
     let allocate_one x y a =
       let x = L.unloc x in
+      if types_cannot_conflict x.v_ty y.v_ty
+      then hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a with type “%a”) must be allocated to register %a from an incompatible bank"
+          (Printer.pp_var ~debug:true) x
+          L.pp_sloc x.v_dloc
+          Printer.pp_ty x.v_ty
+          (Printer.pp_var ~debug:false) y;
       let i =
         try Hv.find vars x
         with Not_found ->
