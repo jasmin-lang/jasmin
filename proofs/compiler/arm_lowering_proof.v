@@ -936,7 +936,7 @@ Proof.
     do 3 f_equal.
     rewrite /sem_rol /sem_shift !zero_extend_u wrepr_unsigned -wror_opp.
     apply: wror_m.
-    change (wsize_bits U32) with (wsize_size U256).
+    change (wsize_bits _) with (wsize_size U256).
     by rewrite wunsigned_sub_mod.
   }
 

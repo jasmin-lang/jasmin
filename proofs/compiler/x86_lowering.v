@@ -26,13 +26,13 @@ Section LOWERING.
 
 Record fresh_vars : Type :=
   {
-    fresh_OF : Equality.sort Ident.ident;
-    fresh_CF : Equality.sort Ident.ident;
-    fresh_SF : Equality.sort Ident.ident;
-    fresh_PF : Equality.sort Ident.ident;
-    fresh_ZF : Equality.sort Ident.ident;
+    fresh_OF : Ident.ident;
+    fresh_CF : Ident.ident;
+    fresh_SF : Ident.ident;
+    fresh_PF : Ident.ident;
+    fresh_ZF : Ident.ident;
 
-    fresh_multiplicand : wsize → Equality.sort Ident.ident;
+    fresh_multiplicand : wsize → Ident.ident;
   }.
 
 Record lowering_options : Type :=

@@ -2,6 +2,7 @@
 open Utils
 open Arch_decl
 open Label
+open X86_decl_core
 open X86_decl
 (* -------------------------------------------------------------------- *)
 module W = Wsize
@@ -40,7 +41,7 @@ type lreg =
   | RAlpha   of char
   | RSpecial of [`RStack | `RBase | `RSrcIdx | `RDstIdx]
 
-let lreg_of_reg (reg : X86_decl.register) =
+let lreg_of_reg (reg : register) =
   match reg with
   | RSP -> RSpecial `RStack
   | RBP -> RSpecial `RBase
@@ -69,7 +70,7 @@ let rsize_of_wsize (ws : W.wsize) =
   | _   -> raise (InvalidRegSize ws)
 
 (* -------------------------------------------------------------------- *)
-let pp_register ~(reg_pre:string) (ws : rsize) (reg : X86_decl.register) =
+let pp_register ~(reg_pre:string) (ws : rsize) (reg : register) =
   let ssp = function
     | `RStack  -> "sp"
     | `RBase   -> "bp"
@@ -94,7 +95,7 @@ let pp_register ~(reg_pre:string) (ws : rsize) (reg : X86_decl.register) =
 
 (* -------------------------------------------------------------------- *)
 
-let pp_register_ext ~(reg_pre:string) (_ws: W.wsize) (r: X86_decl.register_ext) : string =
+let pp_register_ext ~(reg_pre:string) (_ws: W.wsize) (r: register_ext) : string =
   Format.sprintf "%smm%d" 
     reg_pre
     (match r with
@@ -108,7 +109,7 @@ let pp_register_ext ~(reg_pre:string) (_ws: W.wsize) (r: X86_decl.register_ext) 
      | MM7 -> 7)
 
 (* -------------------------------------------------------------------- *)
-let pp_xmm_register ~(reg_pre:string) (ws: W.wsize) (r: X86_decl.xmm_register) : string =
+let pp_xmm_register ~(reg_pre:string) (ws: W.wsize) (r: xmm_register) : string =
   Format.sprintf "%s%smm%d" 
     reg_pre
     (match ws with
@@ -237,12 +238,11 @@ module type BPrinter = sig
   val imm_pre         : string
   val reg_pre         : string
   val indirect_pre    : string
-  val pp_address      : W.wsize -> (X86_decl.register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
+  val pp_address      : W.wsize -> (register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
   val rev_args        : 'a list -> 'a list
   val pp_iname_ext    : W.wsize -> string
   val pp_iname2_ext   : char list -> W.wsize -> W.wsize -> string
-(*  val pp_name_ext     : ('a, 'b, 'c, X86_decl.condt) Arch_decl.pp_asm_op -> string *)
-  val pp_storelabel   : string -> X86_decl.register -> Label.label -> string 
+  val pp_storelabel   : string -> register -> Label.label -> string
   val pp_asm_syntax : string  
 end 
 

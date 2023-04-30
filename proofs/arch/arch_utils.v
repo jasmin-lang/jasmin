@@ -37,12 +37,12 @@ Instance finTC_empty : finTypeC empty :=
   }.
 
 #[export]
-Instance empty_toS t : ToString t empty :=
+Instance empty_toI t : ToIdent t empty :=
   {
     category := "empty";
-    to_string := of_empty _;
-    inj_to_string := ltac:(done);
-    stringsE := refl_equal;
+    to_ident := of_empty _;
+    inj_to_ident := ltac:(done);
+    identsE := refl_equal;
   }.
 
 

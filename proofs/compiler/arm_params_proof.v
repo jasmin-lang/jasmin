@@ -342,7 +342,7 @@ Proof.
 
   - rewrite wbit_lower_bits_0 /=; first done.
     + by have := Zle_0_nat i.
-    rewrite wbaseE /= in hn.
+    rewrite wbaseE /= /arm_reg_size in hn.
     lia.
 
   rewrite (wbit_higher_bits_0 (n := 16) _ hlbs); first last.
@@ -573,7 +573,7 @@ Proof.
 
   have hneq_r_tmp :
     v_var r <> vtmp.
-  - move=> [h]. move: hnot_saved_stack. by rewrite mem_seq1 h.
+  - move=> [h]. move: hnot_saved_stack. by rewrite mem_seq1 h eqxx.
   clear hnot_saved_stack.
 
   move: hbody.
@@ -934,12 +934,12 @@ Definition arm_hliparams :
   |}.
 
 Lemma arm_ok_lip_tmp :
-  exists r : reg_t, of_string (lip_tmp (ap_lip arm_params)) = Some r.
+  exists r : reg_t, of_ident (lip_tmp (ap_lip arm_params)) = Some r.
 Proof.
   exists R12.
   rewrite /=.
-  change "r12"%string with (to_string R12).
-  exact: to_stringK.
+  change arm_tmp with (to_ident R12).
+  exact: to_identK.
 Qed.
 
 (* ------------------------------------------------------------------------ *)

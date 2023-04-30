@@ -5,10 +5,10 @@ val print_instr :
   Conv.coq_tbl
   -> string (* Current function name. *)
   -> Format.formatter
-  -> ( Arm_decl.register
+  -> ( Arm_decl_core.register
      , Arm_decl.__
      , Arm_decl.__
-     , Arm_decl.rflag
+     , Arm_decl_core.rflag
      , Arm_decl.condt
      , Arm_instr_decl.arm_op )
      Arch_decl.asm_i

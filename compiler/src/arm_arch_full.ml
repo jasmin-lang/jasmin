@@ -1,6 +1,8 @@
 open Arch_decl
 open Prog
+open Arm_decl_core
 open Arm_decl
+
 
 module type Arm_input = sig
   val call_conv : (register, Arm_decl.__, Arm_decl.__, rflag, condt) calling_convention

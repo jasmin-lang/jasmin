@@ -72,4 +72,4 @@ val error_of_cerror :
 
 (* ---------------------------------------------------- *)
 val fresh_reg_ptr :
-  coq_tbl -> 'b (* coq string *) -> Type.stype -> Eqtype.Equality.sort (* Var0.var *)
+  coq_tbl -> 'b (* coq string *) -> Type.stype -> Ident.Ident.ident

@@ -10,10 +10,10 @@ Unset Printing Implicit Defensive.
 (* should this Section be moved elsewhere? *)
 Section Section.
 
-Context `{tS : ToString}.
+Context `{tI : ToIdent}.
 
-Definition of_string (s : string) :=
-  assoc strings s.
+Definition of_ident (s : Ident.ident) :=
+  assoc idents s.
 
 (* -------------------------------------------------------------------- *)
 Lemma in_enum (r:T) : r \in enum cfinT_finType.
@@ -21,37 +21,37 @@ Proof. apply (mem_enum (T:=cfinT_finType)). Qed.
 
 Hint Resolve in_enum : core.
 
-Lemma to_stringK : pcancel to_string of_string.
+Lemma to_identK : pcancel to_ident of_ident.
 Proof.
-move=> r; rewrite /of_string stringsE; apply /(@assocP _ ceqT_eqType).
+move=> r; rewrite /of_ident identsE; apply /(@assocP _ ceqT_eqType).
 + rewrite -map_comp (map_inj_uniq (T1:=ceqT_eqType)) //.
   + by apply: (enum_uniq (T:=cfinT_finType)).
-  by apply inj_to_string.
+  by apply inj_to_ident.
 by apply: (map_f (T1:=ceqT_eqType) (T2:=prod_eqType _ ceqT_eqType)).
 Qed.
 
 (* -------------------------------------------------------------------- *)
 
-Lemma of_stringI s r : of_string s = Some r -> to_string r = s.
+Lemma of_identI s r : of_ident s = Some r -> to_ident r = s.
 Proof.
-  have h := to_stringK r.
+  have h := to_identK r.
   apply : (assoc_inj (U:= ceqT_eqType) _ h).
-  by rewrite stringsE -map_comp (map_inj_uniq (T1:=ceqT_eqType)) ?(enum_uniq (T:=cfinT_finType)).
+  by rewrite identsE -map_comp (map_inj_uniq (T1:=ceqT_eqType)) ?(enum_uniq (T:=cfinT_finType)).
 Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition to_var r :=
-  {| vtype := rtype; vname := to_string r |}.
+  {| vtype := rtype; vname := to_ident r |}.
 
 Definition of_var (v:var) :=
-  if v.(vtype) == rtype then of_string v.(vname)
+  if v.(vtype) == rtype then of_ident v.(vname)
   else None.
 
-Lemma of_varP v r : of_var v = Some r <-> v.(vtype) = rtype /\ of_string v.(vname) = Some r.
+Lemma of_varP v r : of_var v = Some r <-> v.(vtype) = rtype /\ of_ident v.(vname) = Some r.
 Proof. by rewrite /of_var; split=> [ | []/eqP -> ?]; first case: eqP. Qed.
 
 Lemma to_varK : pcancel to_var of_var.
-Proof. by move=> ?; rewrite /to_var /of_var /= eq_refl to_stringK. Qed.
+Proof. by move=> ?; rewrite /to_var /of_var /= eq_refl to_identK. Qed.
 
 Lemma inj_to_var : injective to_var.
 Proof. apply: pcan_inj to_varK. Qed.
@@ -59,7 +59,7 @@ Global Arguments inj_to_var {_ _}.
 
 Lemma of_varI {v r} : of_var v = Some r -> to_var r = v.
 Proof.
-  rewrite /of_var /= /to_var; case: eqP => // heq /of_stringI.
+  rewrite /of_var /= /to_var; case: eqP => // heq /of_identI.
   by case: v heq => /= ?? -> <-.
 Qed.
 
@@ -74,7 +74,7 @@ Context `{arch : arch_decl}.
 
 Lemma to_var_reg_neq_regx (r : reg_t) (x : regx_t) :
   to_var r <> to_var x.
-Proof. rewrite /to_var => -[]; apply: inj_toS_reg_regx. Qed.
+Proof. rewrite /to_var => -[]; apply: inj_toI_reg_regx. Qed.
 
 Lemma to_var_reg_neq_xreg (r : reg_t) (x : xreg_t) :
   to_var r <> to_var x.

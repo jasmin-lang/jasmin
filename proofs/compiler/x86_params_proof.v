@@ -349,7 +349,9 @@ Proof.
 
   rewrite /= -/ts'.
   move=> x /sv_of_listP /mapP [f _ ->].
-  case: f; by t_vm_get.
+  rewrite Fv.setP_neq //.
+  case: f;
+    by repeat (rewrite Fv.setP_neq; last by apply /eqP => /inj_to_var); rewrite Fv.setP_eq.
 Qed.
 
 Lemma x86_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
@@ -457,12 +459,12 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
   |}.
 
 Lemma x86_ok_lip_tmp :
-  exists r : reg_t, of_string (lip_tmp (ap_lip x86_params)) = Some r.
+  exists r : reg_t, of_ident (lip_tmp (ap_lip x86_params)) = Some r.
 Proof.
   exists RAX.
   rewrite /=.
-  change "RAX"%string with (to_string RAX).
-  exact: to_stringK.
+  change Ident.X86.RAX with (to_ident RAX).
+  exact: to_identK.
 Qed.
 
 (* ------------------------------------------------------------------------ *)

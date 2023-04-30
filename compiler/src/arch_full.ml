@@ -85,10 +85,10 @@ module Arch_from_Core_arch (A : Core_arch) :
   let asmOp_sopn = Sopn.asmOp_sopn reg_size asmOp
 
   let string_of_reg r =
-    Conv.string_of_string0 (arch_decl.toS_r.to_string r)
+    Conv.string_of_string0 (arch_decl.toI_r.to_ident r)
 
   let reg_vars =
-    let l = arch_decl.toS_r.strings in
+    let l = arch_decl.toI_r.idents in
     let reg_k = Reg (Normal, Direct) in
     List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (tu reg_size) L._dummy []) l
 
@@ -97,10 +97,10 @@ module Arch_from_Core_arch (A : Core_arch) :
     List.find (fun x -> x.v_name = s) reg_vars
 
   let string_of_regx r =
-    Conv.string_of_string0 (arch_decl.toS_rx.to_string r)
+    Conv.string_of_string0 (arch_decl.toI_rx.to_ident r)
 
   let regx_vars =
-    let l = arch_decl.toS_rx.strings in
+    let l = arch_decl.toI_rx.idents in
     let reg_k = Reg (Extra, Direct) in
     List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (tu reg_size) L._dummy []) l
 
@@ -109,10 +109,10 @@ module Arch_from_Core_arch (A : Core_arch) :
     List.find (fun x -> x.v_name = s) regx_vars
 
   let string_of_xreg r =
-    Conv.string_of_string0 (arch_decl.toS_x.to_string r)
+    Conv.string_of_string0 (arch_decl.toI_x.to_ident r)
 
   let xreg_vars =
-    let l = arch_decl.toS_x.strings in
+    let l = arch_decl.toI_x.idents in
     let reg_k = Reg (Normal, Direct) in
     List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (tu xreg_size) L._dummy []) l
 
@@ -121,10 +121,10 @@ module Arch_from_Core_arch (A : Core_arch) :
     List.find (fun x -> x.v_name = s) xreg_vars
 
   let string_of_flag f =
-    Conv.string_of_string0 (arch_decl.toS_f.to_string f)
+    Conv.string_of_string0 (arch_decl.toI_f.to_ident f)
 
   let flag_vars =
-    let l = arch_decl.toS_f.strings in
+    let l = arch_decl.toI_f.idents in
     let reg_k = Reg (Normal, Direct) in
     List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (Bty Bool) L._dummy []) l
 

@@ -63,9 +63,9 @@ End E.
 Definition fail ii (msg: string) :=
   asm_gen.E.error ii (pp_box [:: pp_s "store-label:"; pp_s msg]).
 
-Section TOSTRING.
+Section TOIDENT.
 
-Context `{tS : ToString}.
+Context `{tI : ToIdent}.
 
 (* move ? *)
 Definition of_var_e ii (v: var_i) :=
@@ -86,7 +86,7 @@ Qed.
 Lemma of_var_eI {ii v r} : of_var_e ii v = ok r -> to_var r = v.
 Proof. by move => /of_var_eP; apply/of_varI. Qed.
 
-End TOSTRING.
+End TOIDENT.
 
 (* -------------------------------------------------------------------- *)
 
@@ -583,7 +583,7 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
   in
   Let _ :=
     assert
-      (of_string (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
+      (of_ident (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
       (E.gen_error true None None (pp_s "Invalid RSP"))
   in
   Let fds :=

@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
-Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
+Require Import utils oseq strings ident word memory_model global Utf8 Relation_Operators sem_type syscall label.
 Require Import
   flag_combination
   shift_kind.
@@ -17,16 +17,16 @@ Unset Printing Implicit Defensive.
  * with sword U64 being the associated stype) or flags (represented as "CF",
  * "ZF", with sbool the associated stype).
  *)
-Class ToString (t: stype) (T: Type) :=
+Class ToIdent (t: stype) (T: Type) :=
   { category      : string    (* Name of the "register" used to print errors. *)
   ; _finC         :> finTypeC T
-  ; to_string     : T -> string
-  ; strings       : list (string * T)
-  ; inj_to_string : injective to_string
-  ; stringsE      : strings = [seq (to_string x, x) | x <- enum cfinT_finType]
+  ; to_ident     : T -> Ident.ident
+  ; idents       : list (Ident.ident * T)
+  ; inj_to_ident : injective to_ident
+  ; identsE      : idents = [seq (to_ident x, x) | x <- enum cfinT_finType]
   }.
 
-Definition rtype {t T} `{ToString t T} := t.
+Definition rtype {t T} `{ToIdent t T} := t.
 
 
 (* -------------------------------------------------------------------- *)
@@ -37,13 +37,13 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   { reg_size : wsize     (* Register size. Also used as pointer size. *)
   ; xreg_size : wsize    (* Extended registers size. *)
   ; cond_eqC :> eqTypeC cond
-  ; toS_r :> ToString (sword reg_size) reg
-  ; toS_rx :> ToString (sword reg_size) regx
-  ; toS_x :> ToString (sword xreg_size) xreg
-  ; toS_f :> ToString sbool rflag
+  ; toI_r :> ToIdent (sword reg_size) reg
+  ; toI_rx :> ToIdent (sword reg_size) regx
+  ; toI_x :> ToIdent (sword xreg_size) xreg
+  ; toI_f :> ToIdent sbool rflag
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
-  ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
+  ; inj_toI_reg_regx : forall (r:reg) (rx:regx), to_ident r <> to_ident rx
   ; ad_fcp :> FlagCombinationParams
   }.
 

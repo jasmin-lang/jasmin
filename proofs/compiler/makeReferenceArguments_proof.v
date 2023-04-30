@@ -57,7 +57,7 @@ Context
   {spparams : SemPexprParams}
   {siparams : SemInstrParams asm_op syscall_state}
   (is_reg_ptr : var -> bool)
-  (fresh_id : Ident.ident → stype → Ident.ident).
+  (fresh_id : Ident.name → stype → Ident.ident).
 
   Lemma make_referenceprog_globs (p p' : uprog) :
     makereference_prog is_reg_ptr fresh_id p = ok p' ->
@@ -68,7 +68,7 @@ Context
   Qed.
 
   Section MakeEpilogueInd.
-  Variable P : seq (bool * Ident.ident * stype) -> lvals -> seq pseudo_instr -> Prop.
+  Variable P : seq (bool * Ident.name * stype) -> lvals -> seq pseudo_instr -> Prop.
   Variable (ii : instr_info) (X:Sv.t).
 
   Hypothesis P0 : P [::] [::] [::].

@@ -506,7 +506,7 @@ Proof.
       | _ => type_error
       end = ok vt.
     + by case: vt h.
-    have -> /= : vm =  ((evm m).[to_var (tS:=toS_f) f <- match vt with Some b => ok b | None => undef_error end])%vmap.
+    have -> /= : vm =  ((evm m).[to_var (tI:=toI_f) f <- match vt with Some b => ok b | None => undef_error end])%vmap.
     + by case: vt h => [b | ] /= [<-].
     eexists; split; first reflexivity.
     constructor => //=.
@@ -542,7 +542,7 @@ Proof.
       rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply inj_to_var.
       by apply h2.
     + move=> r' v'; rewrite get_var_neq; last first. 
-      - rewrite /to_var /= /rtype /=. move=> []. exact: inj_toS_reg_regx.
+      - rewrite /to_var /= /rtype /=. move=> []. exact: inj_toI_reg_regx.
       by apply h3.
     + move=> r' v'; rewrite get_var_neq; last by apply to_var_reg_neq_xreg.
       by apply h4.
@@ -573,10 +573,10 @@ Proof.
     2, 4, 7, 9, 12, 14: rewrite eq_sym. 
     1: exact: h3.
     1: rewrite /to_var /= /rtype /=; apply /eqP; move=> []. apply nesym. 
-       exact: inj_toS_reg_regx.
+       exact: inj_toI_reg_regx.
     1: apply /eqP. apply nesym. by apply to_var_reg_neq_xreg.
     1: rewrite /to_var /= /rtype /=; apply /eqP; move=> []. 
-       exact: inj_toS_reg_regx.
+       exact: inj_toI_reg_regx.
     1: rewrite eq_sym; by apply /eqP /to_var_regx_neq_xreg.
     1: apply /eqP. by apply /to_var_reg_neq_xreg.
     1: by apply /eqP /to_var_regx_neq_xreg.
@@ -1247,7 +1247,7 @@ Lemma assemble_progP :
   let rsp := mk_ptr (lp_rsp p) in
   let assemble_fd := assemble_fd agparams rip rsp in
   [/\ disj_rip rip
-    , to_string ad_rsp = lp_rsp p
+    , to_ident ad_rsp = lp_rsp p
     , asm_globs p' = lp_globs p
     & map_cfprog_linear assemble_fd (lp_funcs p)
       = ok (asm_funcs p')
@@ -1268,7 +1268,7 @@ Proof.
     assert (H := reg_size_neq_xreg_size).
     rewrite hsz in H.
     by rewrite eqxx in H.
-  exact: of_stringI ok_rsp.
+  exact: of_identI ok_rsp.
 Qed.
 
 Lemma assemble_prog_labels :
@@ -1774,7 +1774,7 @@ Qed.
 
 Section VMAP_SET_VARS.
 
-  Context {t : stype} {T: eqType} `{ToString t T}.
+  Context {t : stype} {T: eqType} `{ToIdent t T}.
   Context (fromT: T -> exec (psem_t t)).
 
   Definition vmap_set_vars : vmap -> seq T -> vmap :=
