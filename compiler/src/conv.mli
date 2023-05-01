@@ -4,8 +4,8 @@ open Prog
 
 type coq_tbl
 
-val string0_of_string : string -> 'a (* coq string *)
-val string_of_string0 : 'a (* coq string *) -> string
+val string0_of_string : string -> char list (* coq string *)
+val string_of_string0 : char list (* coq string *) -> string
 
 val z_of_nat  : Datatypes.nat -> Z.t
 val int_of_nat : Datatypes.nat -> int
@@ -54,7 +54,7 @@ val string_of_funname : coq_tbl -> BinNums.positive -> string
 val cufdef_of_fdef : coq_tbl -> (unit, 'asm) func -> BinNums.positive * 'asm Expr._ufundef
 val fdef_of_cufdef : coq_tbl -> BinNums.positive * 'asm Expr._ufundef -> (unit, 'asm) func
 
-val cuprog_of_prog : var list -> (unit, 'asm) prog -> coq_tbl * 'asm Expr._uprog
+val cuprog_of_prog : (* var list -> *) (unit, 'asm) prog -> coq_tbl * 'asm Expr._uprog
 val prog_of_cuprog : coq_tbl -> 'asm Expr._uprog -> (unit, 'asm) prog
 
 val csfdef_of_fdef : coq_tbl -> (unit, 'asm) sfundef -> BinNums.positive * 'asm Expr._sfundef
@@ -72,4 +72,4 @@ val error_of_cerror :
 
 (* ---------------------------------------------------- *)
 val fresh_reg_ptr :
-  coq_tbl -> 'b (* coq string *) -> Type.stype -> Ident.Ident.ident
+  coq_tbl -> Ident.Ident.name -> Type.stype -> Ident.Ident.ident

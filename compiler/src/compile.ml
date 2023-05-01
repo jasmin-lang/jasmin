@@ -167,23 +167,16 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let fresh_id _gd x =
     let x = Conv.var_of_cvar tbl x in
-    let x' = Prog.V.clone x in
-    let cx = Conv.cvar_of_var tbl x' in
-    cx.Var0.Var.vname
+    Prog.V.clone x
   in
 
   let fresh_reg name ty =
-    let name = Conv.string_of_string0 name in
     let ty = Conv.ty_of_cty ty in
-    let p = Prog.V.mk name (Reg (Normal, Direct)) ty L._dummy [] in
-    let cp = Conv.cvar_of_var tbl p in
-    cp.Var0.Var.vname
+    Prog.V.mk name (Reg (Normal, Direct)) ty L._dummy []
   in
 
   let fresh_counter =
-    let i = Prog.V.mk "i__copy" Inline tint L._dummy [] in
-    let ci = Conv.cvar_of_var tbl i in
-    ci.Var0.Var.vname
+    Prog.V.mk "i__copy" Inline tint L._dummy []
   in
 
   let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in

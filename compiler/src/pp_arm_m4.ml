@@ -6,6 +6,8 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 
 open Arch_decl
 open Utils
+open Prog
+open Var0
 open Arm_decl_core
 open Arm_decl
 open Arm_instr_decl
@@ -73,11 +75,11 @@ let pp_label n lbl = string_of_label n lbl
 let pp_remote_label tbl (fn, lbl) =
   string_of_label (Conv.string_of_funname tbl fn) lbl
 
-let pp_register r = Conv.string_of_string0 (arch.toI_r.to_ident r)
+let pp_register r = (arch.toI_r.to_ident r).v_name
 
-let pp_register_ext r = Conv.string_of_string0 (arch.toI_rx.to_ident r)
+let pp_register_ext r = (arch.toI_rx.to_ident r).v_name
 
-let pp_xregister r = Conv.string_of_string0 (arch.toI_x.to_ident r)
+let pp_xregister r = (arch.toI_x.to_ident r).v_name
 
 let pp_condt c = Conv.string_of_string0 (string_of_condt c)
 

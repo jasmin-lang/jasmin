@@ -1524,7 +1524,7 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
         List.map
           (function
            | ADExplicit _ -> None
-           | ADImplicit v -> Some (Conv.string_of_string0 (Var0.Var.vname v)))
+           | ADImplicit v -> Some (Var0.Var.vname v).v_name)
           implicit in
 
       let iargs = List.pmap (Option.map String.uppercase_ascii) arguments in

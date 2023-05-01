@@ -28,3 +28,9 @@ let z_of_cz z =
 
 let cz_of_int i = cz_of_z (Z.of_int i)
 let int_of_cz z = Z.to_int (z_of_cz z)
+
+let string0_of_string (s:string) : char list =
+  Utils.String.to_list s
+
+let string_of_string0 (s0:char list) : string =
+  Utils.String.of_list s0

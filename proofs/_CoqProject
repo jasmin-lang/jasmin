@@ -122,6 +122,7 @@ lang/sopn.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v
+lang/tagged.v
 lang/type.v
 lang/utils.v
 lang/values.v

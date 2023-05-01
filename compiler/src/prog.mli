@@ -1,50 +1,12 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
 open Wsize
+
+include module type of struct include CoreIdent end
+
 module E = Expr
-module L = Location
-
-module Name : sig
-  type t = string
-end
-
-type uid
-val int_of_uid : uid -> int
 
 (* ------------------------------------------------------------------------ *)
-type base_ty =
-  | Bool
-  | Int              (* Unbounded integer for pexpr *)
-  | U   of wsize (* U(n): unsigned n-bit integer *)
-
-  [@@deriving compare,sexp]
-
-type 'len gty =
-  | Bty of base_ty
-  | Arr of wsize * 'len (* Arr(n,de): array of n-bit integers with dim. *)
-           (* invariant only Const variable can be used in expression *)
-           (* the type of the expression is [Int] *)
-
-type writable = Constant | Writable
-type pointer = Direct | Pointer of writable
-type reg_kind = Normal | Extra
-
-type v_kind =
-  | Const             (* global parameter  *)
-  | Stack of pointer  (* stack variable    *)
-  | Reg   of reg_kind * pointer  (* register variable *)
-  | Inline            (* inline variable   *)
-  | Global            (* global (in memory) constant *) 
-  [@@deriving compare,sexp]
-
-type 'len gvar = private {
-  v_name : Name.t;
-  v_id   : uid;
-  v_kind : v_kind;
-  v_ty   : 'len gty;
-  v_dloc : L.t;   (* location where declared *)
-  v_annot : Annotations.annotations;
-}
 
 type 'len gvar_i = 'len gvar L.located
 
@@ -68,16 +30,6 @@ type 'len gexpr =
 
 type 'len gexprs = 'len gexpr list
 
-val u8    : 'e gty
-val u16   : 'e gty
-val u32   : 'e gty
-val u64   : 'e gty
-val u128  : 'e gty
-val u256  : 'e gty
-val tu    : wsize -> 'e gty
-val tint  : 'e gty
-val tbool : 'e gty
-
 val is_stack_kind   : v_kind -> bool
 val is_reg_kind     : v_kind -> bool
 val reg_kind        : v_kind -> reg_kind
@@ -99,7 +51,7 @@ type 'len glvals = 'len glval list
 
 type funname = private {
   fn_name : Name.t;
-  fn_id   : uid;
+  fn_id   : int (* uid *);
 }
 
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
@@ -215,6 +167,9 @@ type ('info,'asm) prog     = global_decl list *('info,'asm) func list
 
 
 (* -------------------------------------------------------------------- *)
+val var_of_ident : CoreIdent.var -> var
+val ident_of_var : var -> CoreIdent.var
+
 module V : sig
   type t = var
 

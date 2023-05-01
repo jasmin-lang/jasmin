@@ -216,8 +216,7 @@ let main () =
   
     (* Now call the coq compiler *)
     let tbl, cprog =
-      let all_vars = Arch.rip :: Arch.all_registers in
-       Conv.cuprog_of_prog all_vars prog in
+       Conv.cuprog_of_prog prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
 

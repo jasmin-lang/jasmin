@@ -35,10 +35,7 @@ module X86 (Lowering_params : X86_input) :
 
   include Lowering_params
 
-  let not_saved_stack =
-    List.map
-      Conv.string_of_string0
-      (X86_params.x86_liparams.lip_not_saved_stack)
+  let not_saved_stack = X86_params.x86_liparams.lip_not_saved_stack
 
   let pp_asm = Ppasm.pp_prog
   let callstyle = Arch_full.StackDirect

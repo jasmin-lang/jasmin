@@ -3,7 +3,7 @@ open Prog
 
 let init_tbl fc =
   let tbl = Hv.create 107 in
-  let init_var v =
+  let init_var (v:var) =
     let ws, sz = array_kind v.v_ty in
     let ty = Bty (U ws) in
     let vi i =

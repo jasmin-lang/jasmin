@@ -28,20 +28,6 @@ let z_of_int8 z  = z_of_cz (Word0.wsigned W.U8 z)
 
 let z_of_word sz z = z_of_cz (Word0.wsigned sz z)
 let z_unsigned_of_word sz z = z_of_cz (Word0.wunsigned sz z)
-(* ------------------------------------------------------------------------ *)
-
-let string0_of_string s =
-  let s0 = ref [] in
-  for i = String.length s - 1 downto 0 do
-    s0 := s.[i] :: !s0
-  done;
-  (Obj.magic !s0)
-
-let string_of_string0 s0 =
-  let s0 = Obj.magic s0 in
-  let s0 = Array.of_list s0 in
-  let sz = Array.length s0 in
-  String.init sz (fun i -> s0.(i))
 
 (* ------------------------------------------------------------------------ *)
 
@@ -61,8 +47,6 @@ let ty_of_cty = function
 
 type coq_tbl = {
      mutable count : int;
-     var           : (Var.var, var) Hashtbl.t;
-     cvar          : Var.var Hv.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
   }
@@ -74,36 +58,22 @@ let new_count tbl =
 
 let empty_tbl = {
     count    = 1;
-    var      = Hashtbl.create 101;
-    cvar     = Hv.create 101;
     funname  = Hashtbl.create 101;
     cfunname = Hashtbl.create 101;
   }
 
 (* ------------------------------------------------------------------------ *)
 
-let gen_cvar_of_var with_uid tbl v =
-  try Hv.find tbl.cvar v
-  with Not_found ->
-    let s =
-      if with_uid then
-        v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id))
-      else v.v_name in
-    let cv = {
-      Var.vtype = cty_of_ty v.v_ty;
-      Var.vname = string0_of_string s
-    } in
-    Hv.add tbl.cvar v cv;
-    assert (not (Hashtbl.mem tbl.var cv));
-    Hashtbl.add tbl.var cv v;
-    cv
-
-let cvar_of_var tbl v = gen_cvar_of_var true tbl v
-let cvar_of_reg tbl v = gen_cvar_of_var false tbl v
+let cvar_of_var tbl v =
+   { Var.vtype = cty_of_ty v.v_ty;
+     (* FIXME : use the same trick than for var_info *)
+     Var.vname = v
+   }
 
 let var_of_cvar tbl cv =
-  try Hashtbl.find tbl.var cv
-  with Not_found -> assert false
+  let v = cv.Var.vname in
+  assert (cty_of_ty v.v_ty = cv.Var.vtype);
+  v
 
 (* ------------------------------------------------------------------------ *)
 
@@ -325,12 +295,9 @@ let cgd_of_gd tbl (x, gd) =
 let gd_of_cgd tbl (x, gd) =
   (var_of_cvar tbl x, gd)
 
-let cuprog_of_prog (all_registers: var list) p =
+
+let cuprog_of_prog (*all_registers: var list*) p =
   let tbl = empty_tbl in
-  (* First add registers *)
-  List.iter
-    (fun x -> ignore (cvar_of_reg tbl x))
-    all_registers;
   let fds = List.map (cufdef_of_fdef tbl) (snd p) in
   let gd  = List.map (cgd_of_gd tbl) (fst p) in
   tbl, { C.p_globs = gd; C.p_funcs = fds; C.p_extra = () }
@@ -416,9 +383,8 @@ let error_of_cerror pp_err tbl e =
   }
 
 (* -------------------------------------------------------------------------- *)
-let fresh_reg_ptr tbl name ty =
-  let name = string_of_string0 name in
+let fresh_reg_ptr tbl (x:Ident.Ident.name) ty =
   let ty = ty_of_cty ty in
-  let p = Prog.V.mk name (Reg (Normal, Pointer Writable)) ty L._dummy [] in
+  let p = Prog.V.mk x (Reg (Normal, Pointer Writable)) ty L._dummy [] in
   let cp = cvar_of_var tbl p in
   cp.Var0.Var.vname
