@@ -72,8 +72,8 @@ let string_of_label name p = Printf.sprintf "L%s$%d" name (Conv.int_of_pos p)
 
 let pp_label n lbl = string_of_label n lbl
 
-let pp_remote_label tbl (fn, lbl) =
-  string_of_label (Conv.string_of_funname tbl fn) lbl
+let pp_remote_label (fn, lbl) =
+  string_of_label (Conv.string_of_funname fn) lbl
 
 let pp_register r = (arch.toI_r.to_ident r).v_name
 
@@ -160,7 +160,7 @@ let get_IT i =
     end
   | _ -> []
 
-let pp_instr tbl fn (_ : Format.formatter) i =
+let pp_instr fn (_ : Format.formatter) i =
   match i with
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
@@ -172,7 +172,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       [ LInstr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
 
   | JMP lbl ->
-      [ LInstr ("b", [ pp_remote_label tbl lbl ]) ]
+      [ LInstr ("b", [ pp_remote_label lbl ]) ]
 
   | JMPI arg ->
       (* TODO_ARM: Review. *)
@@ -188,7 +188,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
       [ LInstr (iname, [ pp_label fn lbl ]) ]
 
   | JAL (LR, lbl) ->
-      [ LInstr ("bl", [ pp_remote_label tbl lbl ]) ]
+      [ LInstr ("bl", [ pp_remote_label lbl ]) ]
 
   | CALL _
   | JAL _ -> assert false
@@ -209,7 +209,7 @@ let pp_instr tbl fn (_ : Format.formatter) i =
 
 (* -------------------------------------------------------------------- *)
 
-let pp_body tbl fn fmt cmd = List.concat_map (pp_instr tbl fn fmt) cmd
+let pp_body fn fmt cmd = List.concat_map (pp_instr fn fmt) cmd
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -218,8 +218,8 @@ let mangle x = Printf.sprintf "_%s" x
 
 let pp_brace s = Format.sprintf "{%s}" s
 
-let pp_fun tbl fmt (fn, fd) =
-  let fn = Conv.string_of_funname tbl fn in
+let pp_fun fmt (fn, fd) =
+  let fn = Conv.string_of_funname fn in
   let head =
     if fd.asm_fd_export then
       [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
@@ -228,22 +228,22 @@ let pp_fun tbl fmt (fn, fd) =
   let pre =
     if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
-  let body = pp_body tbl fn fmt fd.asm_fd_body in
+  let body = pp_body fn fmt fd.asm_fd_body in
   (* TODO_ARM: Review. *)
-  let pos = if fd.asm_fd_export then pp_instr tbl fn fmt POPPC else [] in
+  let pos = if fd.asm_fd_export then pp_instr fn fmt POPPC else [] in
   head @ pre @ body @ pos
 
-let pp_funcs tbl fmt funs = List.concat_map (pp_fun tbl fmt) funs
+let pp_funcs fmt funs = List.concat_map (pp_fun fmt) funs
 
 let pp_data globs =
   if not (List.is_empty globs) then
     LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
   else []
 
-let pp_prog tbl fmt p =
-  let code = pp_funcs tbl fmt p.asm_funcs in
+let pp_prog fmt p =
+  let code = pp_funcs fmt p.asm_funcs in
   let data = pp_data p.asm_globs in
   headers @ code @ data
 
-let print_instr tbl s fmt i = print_asm_lines fmt (pp_instr tbl s fmt i)
-let print_prog tbl fmt p = print_asm_lines fmt (pp_prog tbl fmt p)
+let print_instr s fmt i = print_asm_lines fmt (pp_instr s fmt i)
+let print_prog fmt p = print_asm_lines fmt (pp_prog fmt p)

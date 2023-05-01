@@ -2,8 +2,7 @@ val mangle : string -> string
 
 (* [pp_instr tbl fn fmt i] prints an ARMv7 assembly instruction. *)
 val print_instr :
-  Conv.coq_tbl
-  -> string (* Current function name. *)
+  string (* Current function name. *)
   -> Format.formatter
   -> ( Arm_decl_core.register
      , Arm_decl.__
@@ -15,4 +14,4 @@ val print_instr :
   -> unit
 
 val print_prog :
-  Conv.coq_tbl -> Format.formatter -> Arm_instr_decl.arm_prog -> unit
+  Format.formatter -> Arm_instr_decl.arm_prog -> unit

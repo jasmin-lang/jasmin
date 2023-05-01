@@ -24,10 +24,11 @@ let core_arch_x86 ~use_lea ~use_set0 call_conv :
 
     open X86_lowering
 
-    let lowering_vars tbl =
+    (* FIXME why we still create a variable ? *)
+    let lowering_vars =
       let f ty n =
         let v = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
-        Conv.cvar_of_var tbl v
+        Conv.cvar_of_var v
       in
       let b = f tbool in
       {

@@ -3,8 +3,7 @@ open Prog
 val ws_of_ws : Annotations.wsize -> Wsize.wsize
 
 val pp_warning_msg :  Format.formatter -> Compiler_util.warning_msg -> unit
-val pp_err : debug:bool -> Conv.coq_tbl ->
-             Format.formatter -> Compiler_util.pp_error -> unit
+val pp_err : debug:bool -> Format.formatter -> Compiler_util.pp_error -> unit
 
 val pp_print_X : Format.formatter -> Z.t -> unit
 
@@ -46,15 +45,16 @@ val pp_prog  : debug:bool ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) prog -> unit
 
-val pp_to_save : debug:bool -> Conv.coq_tbl ->
+val pp_to_save : debug:bool ->
                  Format.formatter -> Var0.Var.var * BinNums.coq_Z -> unit
-val pp_saved_stack : debug:bool -> Conv.coq_tbl ->
+
+val pp_saved_stack : debug:bool ->
                      Format.formatter -> Expr.saved_stack -> unit
-val pp_return_address : debug:bool -> Conv.coq_tbl ->
+
+val pp_return_address : debug:bool ->
                         Format.formatter -> Expr.return_address_location -> unit
 
 val pp_sprog : debug:bool ->
-               Conv.coq_tbl ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) sprog -> unit
 

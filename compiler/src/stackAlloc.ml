@@ -7,20 +7,20 @@ let pp_var = Printer.pp_var ~debug:true
 let pp_var_ty fmt x =
  Format.fprintf fmt "%a %a" PrintCommon.pp_ty x.v_ty pp_var x
 
-let pp_param_info tbl fmt pi =
+let pp_param_info fmt pi =
   let open Stack_alloc in
   match pi with
   | None -> Format.fprintf fmt "_"
   | Some pi ->
     Format.fprintf fmt "%s %a aligned on %s"
       (if pi.pp_writable then "mut" else "const")
-      pp_var_ty (Conv.var_of_cvar tbl pi.pp_ptr)
+      pp_var_ty (Conv.var_of_cvar pi.pp_ptr)
       (string_of_ws pi.pp_align)
 
-let pp_slot tbl fmt ((x, ws), ofs) =
+let pp_slot fmt ((x, ws), ofs) =
   Format.fprintf fmt "%a: %a aligned on %s"
     Z.pp_print (Conv.z_of_cz ofs)
-    pp_var_ty (Conv.var_of_cvar tbl x)
+    pp_var_ty (Conv.var_of_cvar x)
     (string_of_ws ws)
 
 let pp_zone fmt z =
@@ -29,32 +29,32 @@ let pp_zone fmt z =
     Z.pp_print (Conv.z_of_cz z.z_ofs)
     Z.pp_print (Conv.z_of_cz z.z_len)
 
-let pp_ptr_kind_init tbl fmt pki =
+let pp_ptr_kind_init fmt pki =
   let open Stack_alloc in
   match pki with
   | PIdirect (v, z, sc) ->
     Format.fprintf fmt "%s %a %a"
       (if sc = Sglob then "global" else "stack")
-      pp_var (Conv.var_of_cvar tbl v)
+      pp_var (Conv.var_of_cvar v)
       pp_zone z
   | PIregptr v ->
     Format.fprintf fmt "reg ptr %a"
-      pp_var (Conv.var_of_cvar tbl v)
+      pp_var (Conv.var_of_cvar v)
   | PIstkptr (v, z, x) ->
     Format.fprintf fmt "stack ptr %a %a (pseudo-reg %a)"
-      pp_var_ty (Conv.var_of_cvar tbl v)
+      pp_var_ty (Conv.var_of_cvar v)
       pp_zone z
-      pp_var_ty (Conv.var_of_cvar tbl x)
+      pp_var_ty (Conv.var_of_cvar x)
 
-let pp_alloc tbl fmt (x, pki) =
-    Format.fprintf fmt "%a -> %a" pp_var (Conv.var_of_cvar tbl x) (pp_ptr_kind_init tbl) pki
+let pp_alloc fmt (x, pki) =
+    Format.fprintf fmt "%a -> %a" pp_var (Conv.var_of_cvar x) (pp_ptr_kind_init) pki
 
 let pp_return fmt n =
   match n with
   | None -> Format.fprintf fmt "_"
   | Some n -> Format.fprintf fmt "%d" (Conv.int_of_nat n)
 
-let pp_sao tbl fmt sao =
+let pp_sao fmt sao =
   let open Stack_alloc in
   Format.fprintf fmt "alignment = %s; size = %a; ioff = %a; extra size = %a; max size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
     (string_of_ws sao.sao_align)
@@ -63,44 +63,44 @@ let pp_sao tbl fmt sao =
     Z.pp_print (Conv.z_of_cz sao.sao_extra_size)
     Z.pp_print (Conv.z_of_cz sao.sao_max_size)
     Z.pp_print (Conv.z_of_cz sao.sao_max_call_depth)
-    (pp_list "@;" (pp_param_info tbl)) sao.sao_params
+    (pp_list "@;" pp_param_info) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
-    (pp_list "@;" (pp_slot tbl)) sao.sao_slots
-    (pp_list "@;" (pp_alloc tbl)) sao.sao_alloc
-    (pp_list "@;" (Printer.pp_to_save ~debug:true tbl)) sao.sao_to_save
-    (Printer.pp_saved_stack ~debug:true tbl) sao.sao_rsp
-    (Printer.pp_return_address ~debug:true tbl) sao.sao_return_address
+    (pp_list "@;" pp_slot) sao.sao_slots
+    (pp_list "@;" pp_alloc) sao.sao_alloc
+    (pp_list "@;" (Printer.pp_to_save ~debug:true)) sao.sao_to_save
+    (Printer.pp_saved_stack ~debug:true) sao.sao_rsp
+    (Printer.pp_return_address ~debug:true) sao.sao_return_address
 
-let pp_oracle tbl up fmt saos =
+let pp_oracle up fmt saos =
   let open Compiler in
   let { ao_globals; ao_global_alloc; ao_stack_alloc } = saos in
   let pp_global fmt global =
     Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_word U8 global)
   in
   let pp_stack_alloc fmt f =
-    let sao = ao_stack_alloc (Conv.cfun_of_fun tbl f.f_name) in
-    Format.fprintf fmt "@[<v 2>%s@;%a@]" f.f_name.fn_name (pp_sao tbl) sao
+    let sao = ao_stack_alloc (Conv.cfun_of_fun f.f_name) in
+    Format.fprintf fmt "@[<v 2>%s@;%a@]" f.f_name.fn_name pp_sao sao
   in
-  let _, fs = Conv.prog_of_cuprog tbl up in
+  let _, fs = Conv.prog_of_cuprog up in
   Format.fprintf fmt "@[<v>Global data:@;<2 2>@[<hov>%a@]@;Global slots:@;<2 2>@[<v>%a@]@;Stack alloc:@;<2 2>@[<v>%a@]@]"
     (pp_list "@;" pp_global) ao_globals
-    (pp_list "@;" (pp_slot tbl)) ao_global_alloc
+    (pp_list "@;" pp_slot) ao_global_alloc
     (pp_list "@;" pp_stack_alloc) fs
 
 module StackAlloc (Arch: Arch_full.Arch) = struct
 
 module Regalloc = Regalloc (Arch)
 
-let memory_analysis pp_err ~debug tbl up =
+let memory_analysis pp_err ~debug up =
   if debug then Format.eprintf "START memory analysis@.";
-  let p = Conv.prog_of_cuprog tbl up in
+  let p = Conv.prog_of_cuprog up in
   let gao, sao = Varalloc.alloc_stack_prog Arch.callstyle Arch.reg_size Arch.aparams.ap_is_move_op p in
   
   (* build coq info *)
-  let crip = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rip) in
-  let crsp = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rsp_var) in
+  let crip = Var0.Var.vname (Conv.cvar_of_var Arch.rip) in
+  let crsp = Var0.Var.vname (Conv.cvar_of_var Arch.rsp_var) in
   let do_slots slots = 
-    List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.cz_of_int ofs)) slots in                            
+    List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var x, ws), Conv.cz_of_int ofs)) slots in
   let cglobs = do_slots gao.gao_slots in
   
   let mk_csao fn = 
@@ -109,7 +109,7 @@ let memory_analysis pp_err ~debug tbl up =
     let size = sao.sao_size in
     let conv_pi (pi:Varalloc.param_info) = 
       Stack_alloc.({
-        pp_ptr = Conv.cvar_of_var tbl pi.pi_ptr;
+        pp_ptr = Conv.cvar_of_var pi.pi_ptr;
         pp_writable = pi.pi_writable;
         pp_align    = pi.pi_align;
       }) in
@@ -117,14 +117,14 @@ let memory_analysis pp_err ~debug tbl up =
       Stack_alloc.{ z_ofs = Conv.cz_of_int i.min; 
                     z_len = Conv.cz_of_int (Interval.size i) } in
     let conv_ptr_kind x = function
-      | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var tbl s, conv_sub i, sc)
-      | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
+      | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var s, conv_sub i, sc)
+      | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var s)
       | StackPtr s                 ->
         let xp = V.clone x in
-        Stack_alloc.PIstkptr(Conv.cvar_of_var tbl s, 
-                             conv_sub Interval.{min = 0; max = size_of_ws Arch.reg_size}, Conv.cvar_of_var tbl xp) in
+        Stack_alloc.PIstkptr(Conv.cvar_of_var s,
+                             conv_sub Interval.{min = 0; max = size_of_ws Arch.reg_size}, Conv.cvar_of_var xp) in
   
-    let conv_alloc (x,k) = Conv.cvar_of_var tbl x, conv_ptr_kind x k in
+    let conv_alloc (x,k) = Conv.cvar_of_var x, conv_ptr_kind x k in
   
     let sao = Stack_alloc.{
         sao_align  = align;
@@ -151,7 +151,7 @@ let memory_analysis pp_err ~debug tbl up =
       Hf.add atbl fn csao;
       csao in
   
-  let cget_sao fn = get_sao (Conv.fun_of_cfun tbl fn) in
+  let cget_sao fn = get_sao (Conv.fun_of_cfun fn) in
 
   if debug && !Glob_options.print_stack_alloc then begin
     let saos =
@@ -164,18 +164,18 @@ let memory_analysis pp_err ~debug tbl up =
     Format.eprintf
 "(* -------------------------------------------------------------------- *)@.";
     Format.eprintf "(* Intermediate results of the stack allocation oracle *)@.@.";
-    Format.eprintf "%a@.@.@." (pp_oracle tbl up) saos
+    Format.eprintf "%a@.@.@." (pp_oracle up) saos
   end;
 
-  let is_regx x = is_regx (Conv.var_of_cvar tbl x) in
+  let is_regx x = is_regx (Conv.var_of_cvar x) in
   let sp' = 
-    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) (Conv.fresh_reg_ptr tbl) crip crsp gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) Conv.fresh_reg_ptr crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
-      let e = Conv.error_of_cerror (pp_err tbl) tbl e in
+      let e = Conv.error_of_cerror pp_err e in
       raise (HiError e)
   in
-  let fds, _ = Conv.prog_of_csprog tbl sp' in
+  let fds, _ = Conv.prog_of_csprog sp' in
   
   if debug then
     Format.eprintf "After memory analysis@.%a@."
@@ -183,12 +183,12 @@ let memory_analysis pp_err ~debug tbl up =
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
-  let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
+  let tokeep fn = tokeep (Conv.fun_of_cfun fn) in
   let deadcode (extra, fd) =
-    let (fn, cfd) = Conv.cufdef_of_fdef tbl fd in
+    let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
       match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
-      | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
+      | Utils0.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
       | Utils0.Error _ -> assert false in 
     (extra,fd) in
   let fds = List.map deadcode fds in
@@ -197,7 +197,7 @@ let memory_analysis pp_err ~debug tbl up =
       (Printer.pp_prog ~debug:true Arch.asmOp) ([], (List.map snd fds));
   
   (* register allocation *)
-  let translate_var = Conv.var_of_cvar tbl in
+  let translate_var = Conv.var_of_cvar in
   let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
   let fds, _extra_free_registers =
     Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) fds in
@@ -251,12 +251,12 @@ let memory_analysis pp_err ~debug tbl up =
     let saved_stack = 
       if has_stack then
         match ro.ro_rsp with
-        | Some x -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
+        | Some x -> Expr.SavedStackReg (Conv.cvar_of_var x)
         | None   -> Expr.SavedStackStk (Conv.cz_of_int (List.assoc rsp extrapos))
       else Expr.SavedStackNone in
 
     let conv_to_save x =
-      Conv.cvar_of_var tbl x,
+      Conv.cvar_of_var x,
       List.assoc x extrapos
     in
 
@@ -282,8 +282,8 @@ let memory_analysis pp_err ~debug tbl up =
           | Subroutine _ ->
               match ro.ro_return_address with
               | StackDirect  -> RAstack (None, Conv.cz_of_int 0)
-              | StackByReg r -> RAstack (Some (Conv.cvar_of_var tbl r), Conv.cz_of_int 0)
-              | ByReg r      -> RAreg (Conv.cvar_of_var tbl r)
+              | StackByReg r -> RAstack (Some (Conv.cvar_of_var r), Conv.cz_of_int 0)
+              | ByReg r      -> RAreg (Conv.cvar_of_var r)
       } in
     Hf.replace atbl fn csao in
   List.iter fix_csao (List.rev fds);
@@ -294,7 +294,7 @@ let memory_analysis pp_err ~debug tbl up =
       ao_global_alloc = cglobs;
       ao_stack_alloc  =
         fun fn ->
-        try Hf.find atbl (Conv.fun_of_cfun tbl fn)
+        try Hf.find atbl (Conv.fun_of_cfun fn)
         with Not_found -> assert false
     })
   in
@@ -303,7 +303,7 @@ let memory_analysis pp_err ~debug tbl up =
     Format.eprintf
 "(* -------------------------------------------------------------------- *)@.";
     Format.eprintf "(* Final results of the stack allocation oracle *)@.@.";
-    Format.eprintf "%a@.@.@." (pp_oracle tbl up) saos
+    Format.eprintf "%a@.@.@." (pp_oracle up) saos
   end;
 
   saos

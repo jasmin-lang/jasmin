@@ -153,8 +153,8 @@ let global_datas = "glob_data"
 (* -------------------------------------------------------------------- *)
 let pp_label = string_of_label
 
-let pp_remote_label tbl (fn, lbl) =
-  string_of_label (Conv.string_of_funname tbl fn) lbl
+let pp_remote_label (fn, lbl) =
+  string_of_label (Conv.string_of_funname fn) lbl
 
 (* -------------------------------------------------------------------- *)
 let pp_ct (ct : X86_decl.condt) =
@@ -227,9 +227,6 @@ let pp_instr_velem_long =
   | W.VE16 -> "wd"
   | W.VE32 -> "dq"
   | W.VE64 -> "qdq"
-
-(* -------------------------------------------------------------------- *)
-type tbl = Conv.coq_tbl
 
 (* -------------------------------------------------------------------- *)
 
@@ -409,7 +406,7 @@ module Printer (BP:BPrinter) = struct
     | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 
   (* -------------------------------------------------------------------- *)
-  let pp_instr tbl name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+  let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
     match i with
     | ALIGN ->
       `Instr (".p2align", ["5"])
@@ -421,7 +418,7 @@ module Printer (BP:BPrinter) = struct
        `Instr (BP.pp_storelabel name dst lbl, [])
   
     | JMP lbl ->
-       `Instr ("jmp", [pp_remote_label tbl lbl])
+       `Instr ("jmp", [pp_remote_label lbl])
     | JMPI lbl ->
        `Instr ("jmp", [pp_indirect_label lbl])
     | Jcc(lbl,ct) ->
@@ -431,7 +428,7 @@ module Printer (BP:BPrinter) = struct
     | JAL _ -> assert false
 
     | CALL lbl ->
-       `Instr ("call", [pp_remote_label tbl lbl])
+       `Instr ("call", [pp_remote_label lbl])
 
     | POPPC ->
        `Instr ("ret", [])
@@ -449,15 +446,15 @@ module Printer (BP:BPrinter) = struct
       `Instr(name, args)
   
   (* -------------------------------------------------------------------- *)
-  let pp_instr tbl name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
-    pp_gen fmt (pp_instr tbl name i)
+  let pp_instr name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+    pp_gen fmt (pp_instr name i)
   
   (* -------------------------------------------------------------------- *)
-  let pp_instrs tbl name (fmt : Format.formatter) (is : (_, _, _, _, _, _) Arch_decl.asm_i list) =
-    List.iter (Format.fprintf fmt "%a\n%!" (pp_instr tbl name)) is
+  let pp_instrs name (fmt : Format.formatter) (is : (_, _, _, _, _, _) Arch_decl.asm_i list) =
+    List.iter (Format.fprintf fmt "%a\n%!" (pp_instr name)) is
     
   (* -------------------------------------------------------------------- *)  
-  let pp_prog (tbl: tbl) (fmt : Format.formatter)
+  let pp_prog (fmt : Format.formatter)
      (asm : X86_instr_decl.x86_prog) =
     pp_gens fmt
       [`Instr (pp_asm_syntax, []);
@@ -466,20 +463,20 @@ module Printer (BP:BPrinter) = struct
   
     List.iter (fun (n, d) ->
         if d.asm_fd_export then pp_gens fmt
-      [`Instr (".globl", [mangle (Conv.string_of_funname tbl n)]);
-       `Instr (".globl", [Conv.string_of_funname tbl n])])
+      [`Instr (".globl", [mangle (Conv.string_of_funname n)]);
+       `Instr (".globl", [Conv.string_of_funname n])])
       asm.asm_funcs;
   
     List.iter (fun (n, d) ->
-        let name = Conv.string_of_funname tbl n in
+        let name = Conv.string_of_funname n in
         let export = d.asm_fd_export in
         if export then
         pp_gens fmt [
-          `Label (mangle (Conv.string_of_funname tbl n));
+          `Label (mangle (Conv.string_of_funname n));
           `Label name
         ];
   
-        pp_instrs tbl name fmt d.asm_fd_body;
+        pp_instrs name fmt d.asm_fd_body;
   
         if export then
         pp_gens fmt [`Instr ("ret", [])]
@@ -491,13 +488,13 @@ end
 module PATT = Printer(ATT)
 module PIntel = Printer(Intel)
 
-let pp_instr (tbl: tbl) name fmt i =
+let pp_instr name fmt i =
     match !Glob_options.assembly_style with
-    | `ATT -> PATT.pp_instr tbl name fmt i
-    | `Intel -> PIntel.pp_instr tbl name fmt i
+    | `ATT -> PATT.pp_instr name fmt i
+    | `Intel -> PIntel.pp_instr name fmt i
 
-let pp_prog (tbl: tbl) (fmt : Format.formatter)
+let pp_prog (fmt : Format.formatter)
      (asm : X86_instr_decl.x86_prog) =
     match !Glob_options.assembly_style with
-    | `ATT -> PATT.pp_prog tbl fmt asm 
-    | `Intel -> PIntel.pp_prog tbl fmt asm 
+    | `ATT -> PATT.pp_prog fmt asm
+    | `Intel -> PIntel.pp_prog fmt asm

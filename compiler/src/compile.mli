@@ -46,7 +46,6 @@ val compile :
   prog ->
   unit) ->
   _ prog ->
-  Conv.coq_tbl ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
   Expr._uprog ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op) Arch_decl.asm_prog

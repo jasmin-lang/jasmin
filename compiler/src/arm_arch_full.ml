@@ -28,10 +28,10 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
      Here we assume it's just a variable register. *)
 
-  let lowering_vars tbl =
+  let lowering_vars =
     let f ty n =
       let v = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
-      Conv.cvar_of_var tbl v
+      Conv.cvar_of_var v
     in
     {
       Arm_lowering.fv_NF = (f tbool "NF").vname;

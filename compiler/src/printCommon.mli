@@ -31,5 +31,5 @@ val pp_arr_access :
 val pp_len : Format.formatter -> int -> unit
 val pp_ty : Format.formatter -> Prog.ty -> unit
 val pp_datas : Format.formatter -> Ssralg.GRing.ComRing.sort list -> unit
-val pp_var : Conv.coq_tbl -> Format.formatter -> Var0.Var.var -> unit
-val pp_var_i : Conv.coq_tbl -> Format.formatter -> Expr.var_i -> unit
+val pp_var : Format.formatter -> Var0.Var.var -> unit
+val pp_var_i : Format.formatter -> Expr.var_i -> unit

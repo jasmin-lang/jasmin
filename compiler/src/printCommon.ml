@@ -136,8 +136,8 @@ let pp_datas fmt data =
 
 (* -------------------------------------------------------------------- *)
 
-let pp_var tbl fmt x =
-  let y = Conv.var_of_cvar tbl x in
+let pp_var fmt x =
+  let y = Conv.var_of_cvar x in
   fprintf fmt "%s" y.v_name
 
-let pp_var_i tbl fmt x = pp_var tbl fmt x.E.v_var
+let pp_var_i fmt x = pp_var fmt x.E.v_var

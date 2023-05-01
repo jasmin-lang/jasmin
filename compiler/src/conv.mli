@@ -2,8 +2,6 @@
 open Wsize
 open Prog
 
-type coq_tbl
-
 val string0_of_string : string -> char list (* coq string *)
 val string_of_string0 : char list (* coq string *) -> string
 
@@ -37,39 +35,39 @@ val cty_of_ty : Prog.ty -> Type.stype
 val ty_of_cty : Type.stype -> Prog.ty
 
 (* -------------------------------------------------------------------- *)
-val cvar_of_var : coq_tbl -> var -> Var0.Var.var
-val var_of_cvar : coq_tbl -> Var0.Var.var -> var
-val vari_of_cvari : coq_tbl -> Expr.var_i -> var L.located
+val cvar_of_var :  var -> Var0.Var.var
+val var_of_cvar :  Var0.Var.var -> var
+val vari_of_cvari :  Expr.var_i -> var L.located
 
-val lval_of_clval : coq_tbl -> Expr.lval -> Prog.lval
+val lval_of_clval :  Expr.lval -> Prog.lval
 
-val cexpr_of_expr : coq_tbl -> expr -> Expr.pexpr
-val expr_of_cexpr : coq_tbl -> Expr.pexpr -> expr
+val cexpr_of_expr :  expr -> Expr.pexpr
+val expr_of_cexpr :  Expr.pexpr -> expr
 
-val cfun_of_fun : coq_tbl -> funname -> Var0.funname
-val fun_of_cfun : coq_tbl -> Var0.funname -> funname
+val cfun_of_fun :  funname -> Var0.funname
+val fun_of_cfun :  Var0.funname -> funname
 
-val string_of_funname : coq_tbl -> Var0.funname -> string
+val string_of_funname :  Var0.funname -> string
 
-val cufdef_of_fdef : coq_tbl -> (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
-val fdef_of_cufdef : coq_tbl -> Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
+val cufdef_of_fdef :  (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
+val fdef_of_cufdef :  Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
 
-val cuprog_of_prog : (* var list -> *) (unit, 'asm) prog -> coq_tbl * 'asm Expr._uprog
-val prog_of_cuprog : coq_tbl -> 'asm Expr._uprog -> (unit, 'asm) prog
+val cuprog_of_prog : (unit, 'asm) prog -> 'asm Expr._uprog
+val prog_of_cuprog :  'asm Expr._uprog -> (unit, 'asm) prog
 
-val csfdef_of_fdef : coq_tbl -> (unit, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
-val fdef_of_csfdef : coq_tbl -> Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
+val csfdef_of_fdef :  (unit, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
+val fdef_of_csfdef :  Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
 
-val prog_of_csprog : coq_tbl -> 'asm Expr._sprog -> (unit, 'asm) sprog
+val prog_of_csprog :  'asm Expr._sprog -> (unit, 'asm) sprog
 
 val to_array : 
   Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Z.t array
 
 val error_of_cerror :
   (Format.formatter -> Compiler_util.pp_error -> unit) ->
-  coq_tbl -> Compiler_util.pp_error_loc -> Utils.hierror
+   Compiler_util.pp_error_loc -> Utils.hierror
 
 
 (* ---------------------------------------------------- *)
 val fresh_reg_ptr :
-  coq_tbl -> Ident.Ident.name -> Type.stype -> Ident.Ident.ident
+   Ident.Ident.name -> Type.stype -> Ident.Ident.ident
