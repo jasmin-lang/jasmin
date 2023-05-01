@@ -1675,11 +1675,6 @@ Lemma sumbool_of_boolEF (b: bool) (h: b = false) :
   Sumbool.sumbool_of_bool b = right h.
 Proof. by move: h; rewrite /is_true => ?; subst. Qed.
 
-(* ------------------------------------------------------------------------- *)
-Definition funname := positive.
-
-Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
-  assoc p f.
 
 (* ------------------------------------------------------------------------- *)
 

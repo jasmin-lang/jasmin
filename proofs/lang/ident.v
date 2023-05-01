@@ -321,6 +321,7 @@ Module Tident <: TAGGED with Definition t := Cident.t
 
 #[global] Canonical ident_eqType  := Eval compute in Tident.t_eqType.
 
+(* Necessary for extraction *)
 Module WrapIdent.
   Definition t := Cident.t.
   Definition name  := Cident.name.

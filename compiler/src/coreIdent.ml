@@ -206,3 +206,30 @@ module Cident = struct
   end
 
 end
+
+(* ------------------------------------------------------------------------ *)
+(* Function name                                                            *)
+
+type funname = {
+  fn_name : Name.t;
+  fn_id   : uid;
+}
+
+let funname_tag (f:funname) : int = f.fn_id
+
+module F = struct
+  let mk fn_name =
+    { fn_name; fn_id = Uniq.gen (); }
+
+  type t = funname
+
+  let compare f1 f2 = f1.fn_id - f2.fn_id
+
+  let equal f1 f2 = f1.fn_id = f2.fn_id
+
+  let hash f = f.fn_id
+end
+
+module Sf = Set.Make (F)
+module Mf = Map.Make (F)
+module Hf = Hash.Make(F)

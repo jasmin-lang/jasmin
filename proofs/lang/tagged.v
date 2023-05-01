@@ -82,4 +82,8 @@ Module Tagged(C:TaggedCore) <: TAGGED with Definition t := C.t
 
   Module Mt : MAP with Definition K.t := [eqType of t] := Mmake CmpT.
 
+  Module St  := Smake CmpT.
+  Module StP := MSetEqProperties.EqProperties St.
+  Module StD := MSetDecide.WDecide St.
+
 End Tagged.

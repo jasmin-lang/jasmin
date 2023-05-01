@@ -193,3 +193,25 @@ module Cident : sig
   end
 
 end
+
+(* -------------------------------------------------------------------- *)
+type funname = private {
+  fn_name : Name.t;
+  fn_id   : uid;
+}
+
+val funname_tag : funname -> int
+
+module F : sig
+  val mk : Name.t -> funname
+
+  val compare : funname -> funname -> int
+
+  val equal : funname -> funname -> bool
+
+  val hash : funname -> int
+end
+
+module Sf : Set.S  with type elt = funname
+module Mf : Map.S  with type key = funname
+module Hf : Hash.S with type key = funname

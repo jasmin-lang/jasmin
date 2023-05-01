@@ -95,16 +95,16 @@ Section WRITE1.
 
 End WRITE1.
 
-Definition get_wmap (wmap: Mp.t Sv.t) (fn: funname) : Sv.t :=
-  odflt Sv.empty (Mp.get wmap fn).
+Definition get_wmap (wmap: Mf.t Sv.t) (fn: funname) : Sv.t :=
+  odflt Sv.empty (Mf.get wmap fn).
 
 Definition mk_wmap :=
   foldr (λ '(f, fd) wmap,
          let w := write_fd (get_wmap wmap) fd in
-         Mp.set wmap f w)
-        (Mp.empty _) p.(p_funcs).
+         Mf.set wmap f w)
+        (Mf.empty _) p.(p_funcs).
 
-Definition check_wmap (wmap: Mp.t Sv.t) : bool :=
+Definition check_wmap (wmap: Mf.t Sv.t) : bool :=
   all (λ '(f, fd), Sv.subset (write_fd (get_wmap wmap) fd) (get_wmap wmap f)) (p_funcs p).
 
 Definition check_fv (ii:instr_info) (D R : Sv.t) :=

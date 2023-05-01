@@ -47,8 +47,6 @@ let ty_of_cty = function
 
 type coq_tbl = {
      mutable count : int;
-     funname       : (funname, BinNums.positive) Hashtbl.t;
-     cfunname      : (BinNums.positive, funname) Hashtbl.t;
   }
 
 let new_count tbl =
@@ -58,17 +56,12 @@ let new_count tbl =
 
 let empty_tbl = {
     count    = 1;
-    funname  = Hashtbl.create 101;
-    cfunname = Hashtbl.create 101;
   }
 
 (* ------------------------------------------------------------------------ *)
 
 let cvar_of_var tbl v =
-   { Var.vtype = cty_of_ty v.v_ty;
-     (* FIXME : use the same trick than for var_info *)
-     Var.vname = v
-   }
+   { Var.vtype = cty_of_ty v.v_ty; Var.vname = v }
 
 let var_of_cvar tbl cv =
   let v = cv.Var.vname in
@@ -154,20 +147,13 @@ let cexpr_of_exprs tbl es = List.map (cexpr_of_expr tbl) es
 let expr_of_cexprs tbl es = List.map (expr_of_cexpr tbl) es
 
 (* ------------------------------------------------------------------------ *)
+(* FIXME remove this *)
+let cfun_of_fun tbl (fn:Prog.funname) : Var0.funname =  fn
 
-let cfun_of_fun tbl fn =
-  try Hashtbl.find tbl.funname fn
-  with Not_found ->
-    let p = pos_of_int (new_count tbl) in
-    Hashtbl.add tbl.funname fn p;
-    Hashtbl.add tbl.cfunname p fn;
-    p
-
-let fun_of_cfun tbl p =
-  try Hashtbl.find tbl.cfunname p
-  with Not_found -> assert false
+let fun_of_cfun tbl (p:Var0.funname) : Prog.funname = p
 
 (* -------------------------------------------------------------------- *)
+(* FIXME remove this *)
 let string_of_funname tbl p =
   (fun_of_cfun tbl p).fn_name
 

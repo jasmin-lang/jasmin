@@ -46,19 +46,19 @@ val lval_of_clval : coq_tbl -> Expr.lval -> Prog.lval
 val cexpr_of_expr : coq_tbl -> expr -> Expr.pexpr
 val expr_of_cexpr : coq_tbl -> Expr.pexpr -> expr
 
-val cfun_of_fun : coq_tbl -> funname -> BinNums.positive
-val fun_of_cfun : coq_tbl -> BinNums.positive -> funname
+val cfun_of_fun : coq_tbl -> funname -> Var0.funname
+val fun_of_cfun : coq_tbl -> Var0.funname -> funname
 
-val string_of_funname : coq_tbl -> BinNums.positive -> string
+val string_of_funname : coq_tbl -> Var0.funname -> string
 
-val cufdef_of_fdef : coq_tbl -> (unit, 'asm) func -> BinNums.positive * 'asm Expr._ufundef
-val fdef_of_cufdef : coq_tbl -> BinNums.positive * 'asm Expr._ufundef -> (unit, 'asm) func
+val cufdef_of_fdef : coq_tbl -> (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
+val fdef_of_cufdef : coq_tbl -> Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
 
 val cuprog_of_prog : (* var list -> *) (unit, 'asm) prog -> coq_tbl * 'asm Expr._uprog
 val prog_of_cuprog : coq_tbl -> 'asm Expr._uprog -> (unit, 'asm) prog
 
-val csfdef_of_fdef : coq_tbl -> (unit, 'asm) sfundef -> BinNums.positive * 'asm Expr._sfundef
-val fdef_of_csfdef : coq_tbl -> BinNums.positive * 'asm Expr._sfundef -> (unit, 'asm) sfundef
+val csfdef_of_fdef : coq_tbl -> (unit, 'asm) sfundef -> Var0.funname * 'asm Expr._sfundef
+val fdef_of_csfdef : coq_tbl -> Var0.funname * 'asm Expr._sfundef -> (unit, 'asm) sfundef
 
 val prog_of_csprog : coq_tbl -> 'asm Expr._sprog -> (unit, 'asm) sprog
 

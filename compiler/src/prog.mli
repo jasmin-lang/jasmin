@@ -49,11 +49,6 @@ type 'len glval =
 
 type 'len glvals = 'len glval list
 
-type funname = private {
-  fn_name : Name.t;
-  fn_id   : int (* uid *);
-}
-
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
 (* Warning E.sopn (E.Ocopy) contain a 'len without being polymorphic.
@@ -195,21 +190,6 @@ val is_regx : var -> bool
 (* -------------------------------------------------------------------- *)
 val kind_i : 'len gvar_i -> v_kind
 val ty_i   : 'len gvar_i -> 'len gty 
-
-(* -------------------------------------------------------------------- *)
-module F : sig
-  val mk : Name.t -> funname
-
-  val compare : funname -> funname -> int
-
-  val equal : funname -> funname -> bool
-
-  val hash : funname -> int
-end
-
-module Sf : Set.S  with type elt = funname
-module Mf : Map.S  with type key = funname
-module Hf : Hash.S with type key = funname
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)

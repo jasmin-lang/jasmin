@@ -90,11 +90,6 @@ type 'len glval =
 
 type 'len glvals = 'len glval list
 
-type funname = {
-    fn_name : Name.t;
-    fn_id   : int(* uid *);
-  }
-
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
 type ('len,'info,'asm) ginstr_r =
@@ -225,27 +220,6 @@ module Hv = Hash.Make (V)
 
 let var_of_ident (x: CoreIdent.var) : var = x
 let ident_of_var (x:var) : CoreIdent.var = x
-
-(* ------------------------------------------------------------------------ *)
-(* Function name                                                            *)
-
-module F = struct
-  let mk fn_name =
-    { fn_name; fn_id = Uniq.gen (); }
-
-  type t = funname
-
-  let compare f1 f2 = f1.fn_id - f2.fn_id
-
-  let equal f1 f2 = f1.fn_id = f2.fn_id
-
-  let hash f = f.fn_id
-end
-
-module Sf = Set.Make (F)
-module Mf = Map.Make (F)
-module Hf = Hash.Make(F)
-
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)

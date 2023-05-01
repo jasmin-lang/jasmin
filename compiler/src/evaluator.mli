@@ -7,7 +7,7 @@ val exec :
   'syscall_state ->
   'asm_op Expr.prog ->
   Expr.instr_info ->
-  Utils0.funname ->
+  Prog.funname ->
   Values.values ->
   Low_memory.Memory.mem ->
   Low_memory.Memory.mem * Values.values

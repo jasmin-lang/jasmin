@@ -69,7 +69,7 @@ Let var_tmp : var := vid id_tmp.
 Definition valid_writefun (w: funname → Sv.t) (f: sfun_decl) : bool :=
   Sv.subset (write_fd p extra_free_registers var_tmp w f.2) (w f.1).
 
-Lemma check_wmapP (wm: Mp.t Sv.t) (fn: funname) (fd: sfundef) :
+Lemma check_wmapP (wm: Mf.t Sv.t) (fn: funname) (fd: sfundef) :
   get_fundef (p_funcs p) fn = Some fd →
   check_wmap p extra_free_registers var_tmp wm →
   valid_writefun (get_wmap wm) (fn, fd).

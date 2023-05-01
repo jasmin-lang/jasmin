@@ -1,12 +1,40 @@
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import strings utils gen_map type ident.
+Require Import strings utils gen_map type ident tagged.
 Require Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+(* ------------------------------------------------------------------------- *)
+
+
+Module FunName : TaggedCore.
+  Import PrimInt63.
+  Definition t : Type := int.
+  Definition tag (x : t) : int := x.
+
+  Lemma tagI : injective tag.
+  Proof. done. Qed.
+
+End FunName.
+
+Module TFunName <: TAGGED with Definition t := FunName.t
+  := Tagged (FunName).
+
+#[global] Canonical funname_eqType  := Eval compute in TFunName.t_eqType.
+
+Module Mf  := TFunName.Mt.
+Module Sf  := TFunName.St.
+Module SfP := TFunName.StP.
+Module SfD := TFunName.StD.
+
+Definition funname := FunName.t.
+
+Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
+  xseq.assoc p f.
 
 (* ** Variables map, to be used when computation is needed
  * -------------------------------------------------------------------- *)
@@ -444,6 +472,7 @@ Module CmpVar.
 
 End CmpVar.
 
+(* FIXME: move this *)
 Module SExtra (T : CmpType).
 
 Module Sv := Smake T.

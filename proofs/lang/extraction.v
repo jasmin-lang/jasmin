@@ -36,6 +36,14 @@ Extract Constant PrimInt63.int      => "ExtractInt63.t".
 Extract Constant PrimInt63.compares => "ExtractInt63.compare".
 Extract Constant PrimInt63.eqb      => "ExtractInt63.equal".
 
+(* Extraction for Var.FunName *)
+Extract Constant var.FunName.t   => "CoreIdent.funname".
+Extract Constant var.funname     => "CoreIdent.funname".
+Extract Constant var.FunName.tag => "CoreIdent.funname_tag".
+
+
+
+
 (* Module Cident *)
 
 Extract Constant ident.Cident.t       => "CoreIdent.Cident.t".
