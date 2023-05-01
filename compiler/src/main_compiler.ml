@@ -253,7 +253,7 @@ let main () =
                 (Syscall_ocaml.initial_state ())
                 (Expr.to_uprog Arch.asmOp cprog)
                 ii
-                (Conv.cfun_of_fun f)
+                f
                 []
             in
 

@@ -78,7 +78,7 @@ let pp_oracle up fmt saos =
     Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_word U8 global)
   in
   let pp_stack_alloc fmt f =
-    let sao = ao_stack_alloc (Conv.cfun_of_fun f.f_name) in
+    let sao = ao_stack_alloc f.f_name in
     Format.fprintf fmt "@[<v 2>%s@;%a@]" f.f_name.fn_name pp_sao sao
   in
   let _, fs = Conv.prog_of_cuprog up in
@@ -151,14 +151,12 @@ let memory_analysis pp_err ~debug up =
       Hf.add atbl fn csao;
       csao in
   
-  let cget_sao fn = get_sao (Conv.fun_of_cfun fn) in
-
   if debug && !Glob_options.print_stack_alloc then begin
     let saos =
       Compiler.({
         ao_globals      = gao.gao_data;
         ao_global_alloc = cglobs;
-        ao_stack_alloc  = cget_sao
+        ao_stack_alloc  = get_sao
       })
     in
     Format.eprintf
@@ -169,7 +167,7 @@ let memory_analysis pp_err ~debug up =
 
   let is_regx x = is_regx (Conv.var_of_cvar x) in
   let sp' = 
-    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) Conv.fresh_reg_ptr crip crsp gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) Conv.fresh_reg_ptr crip crsp gao.gao_data cglobs get_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror pp_err e in
@@ -183,7 +181,7 @@ let memory_analysis pp_err ~debug up =
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
-  let tokeep fn = tokeep (Conv.fun_of_cfun fn) in
+  let tokeep fn = tokeep fn in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
@@ -294,7 +292,7 @@ let memory_analysis pp_err ~debug up =
       ao_global_alloc = cglobs;
       ao_stack_alloc  =
         fun fn ->
-        try Hf.find atbl (Conv.fun_of_cfun fn)
+        try Hf.find atbl fn
         with Not_found -> assert false
     })
   in

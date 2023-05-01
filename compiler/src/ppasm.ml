@@ -1,5 +1,6 @@
 (* -------------------------------------------------------------------- *)
 open Utils
+open Prog
 open Arch_decl
 open Label
 open X86_decl_core
@@ -154,7 +155,7 @@ let global_datas = "glob_data"
 let pp_label = string_of_label
 
 let pp_remote_label (fn, lbl) =
-  string_of_label (Conv.string_of_funname fn) lbl
+  string_of_label fn.fn_name lbl
 
 (* -------------------------------------------------------------------- *)
 let pp_ct (ct : X86_decl.condt) =
@@ -463,16 +464,16 @@ module Printer (BP:BPrinter) = struct
   
     List.iter (fun (n, d) ->
         if d.asm_fd_export then pp_gens fmt
-      [`Instr (".globl", [mangle (Conv.string_of_funname n)]);
-       `Instr (".globl", [Conv.string_of_funname n])])
+      [`Instr (".globl", [mangle n.fn_name]);
+       `Instr (".globl", [n.fn_name])])
       asm.asm_funcs;
   
     List.iter (fun (n, d) ->
-        let name = Conv.string_of_funname n in
+        let name = n.fn_name in
         let export = d.asm_fd_export in
         if export then
         pp_gens fmt [
-          `Label (mangle (Conv.string_of_funname n));
+          `Label (mangle name);
           `Label name
         ];
   

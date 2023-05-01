@@ -73,7 +73,7 @@ let string_of_label name p = Printf.sprintf "L%s$%d" name (Conv.int_of_pos p)
 let pp_label n lbl = string_of_label n lbl
 
 let pp_remote_label (fn, lbl) =
-  string_of_label (Conv.string_of_funname fn) lbl
+  string_of_label fn.fn_name lbl
 
 let pp_register r = (arch.toI_r.to_ident r).v_name
 
@@ -219,7 +219,7 @@ let mangle x = Printf.sprintf "_%s" x
 let pp_brace s = Format.sprintf "{%s}" s
 
 let pp_fun fmt (fn, fd) =
-  let fn = Conv.string_of_funname fn in
+  let fn = fn.fn_name in
   let head =
     if fd.asm_fd_export then
       [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]

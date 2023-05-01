@@ -417,7 +417,7 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
     | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
     | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc
-    | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun fn).fn_name
+    | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" fn.fn_name
     | Compiler_util.PPEiinfo ii ->
       let i_loc, _ = ii in
       Format.fprintf fmt "%a" L.pp_iloc i_loc

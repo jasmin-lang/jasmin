@@ -132,17 +132,6 @@ let cexpr_of_exprs es = List.map (cexpr_of_expr) es
 let expr_of_cexprs es = List.map (expr_of_cexpr) es
 
 (* ------------------------------------------------------------------------ *)
-(* FIXME remove this *)
-let cfun_of_fun (fn:Prog.funname) : Var0.funname =  fn
-
-let fun_of_cfun (p:Var0.funname) : Prog.funname = p
-
-(* -------------------------------------------------------------------- *)
-(* FIXME remove this *)
-let string_of_funname p =
-  (fun_of_cfun p).fn_name
-
-(* ------------------------------------------------------------------------ *)
 
 let rec cinstr_of_instr i c =
   let n = i.i_loc, i.i_annot in
@@ -183,7 +172,7 @@ and cinstr_r_of_instr_r p i tl =
     C.MkI(p,ir) :: tl
   | Ccall(ii, x, f, e) ->
     let ir =
-      C.Ccall(ii, clval_of_lvals x, cfun_of_fun f, cexpr_of_exprs e)
+      C.Ccall(ii, clval_of_lvals x, f, cexpr_of_exprs e)
     in
     C.MkI(p,ir) :: tl
 
@@ -222,7 +211,7 @@ and instr_r_of_cinstr_r = function
     Cwhile(a, stmt_of_cstmt c, expr_of_cexpr e, stmt_of_cstmt c')
 
   | Ccall(ii, x, f, e) ->
-    Ccall(ii, lval_of_clvals x, fun_of_cfun f, expr_of_cexprs e)
+    Ccall(ii, lval_of_clvals x, f, expr_of_cexprs e)
 
 and stmt_of_cstmt c =
   List.map (instr_of_cinstr) c
@@ -230,7 +219,7 @@ and stmt_of_cstmt c =
 
 (* ------------------------------------------------------------------------ *)
 let cufdef_of_fdef fd =
-  let fn = cfun_of_fun fd.f_name in
+  let fn = fd.f_name in
   let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_outannot in
   let f_params =
     List.map (fun x -> cvari_of_vari (L.mk_loc L._dummy x)) fd.f_args in
@@ -251,7 +240,7 @@ let fdef_of_cufdef (fn, fd) =
   { f_loc;
     f_annot;
     f_cc;
-    f_name = fun_of_cfun fn;
+    f_name = fn;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
     f_args = List.map (fun v -> L.unloc (vari_of_cvari v)) fd.C.f_params;
     f_body = stmt_of_cstmt fd.C.f_body;
@@ -342,7 +331,7 @@ let error_of_cerror pp_err e =
   let open Utils in
   let msg = Format.dprintf "%a" pp_err e.Compiler_util.pel_msg in
   let iloc = iloc_of_loc e in
-  let funname = Option.map (fun fn -> (fun_of_cfun fn).fn_name) e.pel_fn in
+  let funname = Option.map (fun fn -> fn.fn_name) e.pel_fn in
   let pass = Option.map string_of_string0 e.pel_pass in
   { err_msg = msg;
     err_loc = iloc;

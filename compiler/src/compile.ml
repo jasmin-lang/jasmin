@@ -186,7 +186,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let removereturn sp =
     let fds, _data = Conv.prog_of_csprog sp in
     let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
-    let tokeep fn = tokeep (Conv.fun_of_cfun fn) in
     tokeep
   in
 
@@ -261,7 +260,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let export_functions =
-    let conv fd = Conv.cfun_of_fun fd.f_name in
+    let conv fd = fd.f_name in
     List.fold_right
       (fun fd acc ->
         match fd.f_cc with

@@ -25,7 +25,7 @@ let pp_label fmt lbl =
   F.fprintf fmt "%a" Z.pp_print (Conv.z_of_pos lbl)
 
 let pp_remote_label fmt (fn, lbl) =
-  F.fprintf fmt "%s.%a" (Conv.string_of_funname fn) pp_label lbl
+  F.fprintf fmt "%s.%a" fn.P.fn_name pp_label lbl
 
 let pp_label_kind fmt = function
   | InternalLabel -> ()
@@ -73,10 +73,9 @@ let pp_return is_export fmt =
   | res -> F.fprintf fmt "@ return %a" (pp_list ",@ " pp_var_i) res
 
 let pp_lfun asmOp fmt (fn, fd) =
-  let name = Conv.fun_of_cfun fn in
   F.fprintf fmt "@[<v>%a@ fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
     pp_meta fd
-    name.P.fn_name
+    fn.P.fn_name
     (pp_list ",@ " pp_param) fd.lfd_arg
     (pp_list ",@ " pp_stype) fd.lfd_tyout
     (pp_list ";@ " (pp_instr asmOp)) fd.lfd_body
