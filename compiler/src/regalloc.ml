@@ -560,24 +560,18 @@ module Regalloc (Arch : Arch_full.Arch)
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
     let id = get_instr_desc Arch.asmOp op in
-    (* TODO: move !! *)
-    let var_of_implicit v =
-      match v with
-      | IArflag v -> v
-      | IAreg v -> v
-    in
     List.iter2 (fun ad lv ->
         match ad with
         | ADImplicit v ->
            begin match lv with
-           | Lvar w -> allocate_one w (translate_var (var_of_implicit v)) a
+           | Lvar w -> allocate_one w (translate_var v) a
            | _ -> assert false
            end
         | ADExplicit _ -> ()) id.i_out lvs;
     List.iter2 (fun ad e ->
         match ad with
         | ADImplicit v ->
-           mallocate_one e (translate_var (var_of_implicit v)) a
+           mallocate_one e (translate_var v) a
         | ADExplicit (_, Some v) ->
            mallocate_one e (translate_var v) a
         | ADExplicit (_, None) -> ()) id.i_in es

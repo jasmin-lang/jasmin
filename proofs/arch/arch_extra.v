@@ -86,8 +86,8 @@ Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
 
 Definition sopn_implicit_arg (i: implicit_arg) :=
   match i with
-  | IArflag r => sopn.IArflag (to_var r)
-  | IAreg   r => sopn.IArflag (to_var r)
+  | IArflag r => to_var r
+  | IAreg r => to_var r
   end.
 
 Definition sopn_arg_desc (ad:arg_desc) :=

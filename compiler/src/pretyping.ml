@@ -1521,10 +1521,10 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
       let arguments = 
         (* FIXME this is not generic *)
         let open Sopn in
-        List.map 
-          (function ADExplicit _           -> None 
-                  | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (Var0.Var.vname f))
-                  | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (Var0.Var.vname r)))
+        List.map
+          (function
+           | ADExplicit _ -> None
+           | ADImplicit v -> Some (Conv.string_of_string0 (Var0.Var.vname v)))
           implicit in
 
       let iargs = List.pmap (Option.map String.uppercase_ascii) arguments in
