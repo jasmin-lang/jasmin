@@ -7,7 +7,7 @@ OUT=${DIR}/jasmin.jazz
 
 trap "rm -r ${DIR}" EXIT
 
-if [ $1 = "arm" ]
+if [ "$1" = "arm" ]
 then
     shift
     ARCH="-arch arm-m4"
