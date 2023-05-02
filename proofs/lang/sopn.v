@@ -11,13 +11,8 @@ Local Unset Elimination Schemes.
 
 (* ----------------------------------------------------------------------------- *)
 
-Variant implicit_arg : Type :=
-  | IArflag of var
-  | IAreg   of var
-  .
-
 Variant arg_desc :=
-| ADImplicit  of implicit_arg
+| ADImplicit  of var
 | ADExplicit  of nat & option var.
 
 Record instruction_desc := mkInstruction {
