@@ -7,8 +7,6 @@ BRANCH=main
 FILE="$NAME.tar.gz"
 ROOT="$NAME-$BRANCH"
 
-OUT="results"
-
 [ 1 -le $# ] || exit 127
 
 DIR="$ROOT/$1"
