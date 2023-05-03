@@ -1358,7 +1358,7 @@ let add_glob_arrsz env (x,d) =
 let jmodel () =
   let open Glob_options in
   match !target_arch with
-  | X86_64 -> "JModel"
+  | X86_64 -> "JModel_x86"
   | ARM_M4 -> "JModel_m4"
 
 let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
@@ -1411,10 +1411,11 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
   in
 
   Format.fprintf fmt 
-     "@[<v>%s.@ %s %s.@ @ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
+     "@[<v>%s.@ %s %s.@ @ %s@ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
     "require import AllCore IntDiv CoreMap List Distr"
     "from Jasmin require import"
     (jmodel ())
+    (if env.model = ConstantTime then "from Jasmin require import JLeakage." else "")
     (pp_arrays "Array") !(env.arrsz)
     (pp_arrays "WArray") !(env.warrsz)
     (pp_list "@ @ " (pp_glob_decl env)) globs 
