@@ -146,6 +146,10 @@
   an amount that is explicitly truncated (e.g., `x >>= y & 63`)
   ([PR #412](https://github.com/jasmin-lang/jasmin/pull/412)).
 
+- Local functions that are never called are removed from the program during the
+  “remove unused function” pass
+  ([PR #427](https://github.com/jasmin-lang/jasmin/pull/427)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
