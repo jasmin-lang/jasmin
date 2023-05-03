@@ -33,29 +33,10 @@ let pp_reg_address_aux base disp off scal =
   | _, _, _ ->
       failwith "TODO_ARM: pp_reg_address_aux"
 
-(* TODO_ARM: get rid of global state *)
-let label_of_global_offset, all_global_offsets =
-  let fresh =
-    let counter = ref (-1) in
-    fun () ->
-      incr counter;
-      !counter
-  in
-  let m = Hashtbl.create 137 in
-  ( (fun z ->
-      match Hashtbl.find m z with
-        | n -> n
-        | exception Not_found ->
-          let n = Format.asprintf ".jasmin_global_%d" (fresh ()) in
-          Hashtbl.add m z n;
-          n),
-    fun () ->
-      m
-      |> Batteries.Hashtbl.to_list
-      |> List.sort (fun (x, _) (y, _) -> Stdlib.Int.compare x y) )
+let global_datas = "glob_data"
 
 let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
-  Conv.z_of_int32 p |> Z.to_int |> label_of_global_offset
+  Format.asprintf "%s+%a" global_datas Z.pp_print (Conv.z_of_int32 p)
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -253,22 +234,7 @@ let pp_funcs tbl fmt funs = List.concat_map (pp_fun tbl fmt) funs
 
 let pp_data globs =
   if not (List.is_empty globs) then
-    let labels = all_global_offsets () in
-    let _, _, data =
-      List.fold_left
-        (fun (i, labels, data) b ->
-          let labels, data =
-            match labels with
-            | (z, n) :: labels when Stdlib.Int.equal z i ->
-                (labels, LLabel n :: data)
-            | _ -> (labels, data)
-          in
-          let b = b |> Conv.z_of_int8 |> Z.to_string in
-          let data = LByte b :: data in
-          (i + 1, labels, data))
-        (0, labels, []) globs
-    in
-    List.rev data
+    LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
   else []
 
 let pp_prog tbl fmt p =
