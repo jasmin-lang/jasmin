@@ -7,3 +7,10 @@ fn f (reg ptr u64[2] r) -> reg u32 {
   res = b[1];
   return res;
 }
+
+export fn main() -> reg 32 {
+  stack u64[2] s;
+  reg u32 r;
+  r = f(s);
+  return r;
+}
