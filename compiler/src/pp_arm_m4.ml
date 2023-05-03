@@ -33,8 +33,29 @@ let pp_reg_address_aux base disp off scal =
   | _, _, _ ->
       failwith "TODO_ARM: pp_reg_address_aux"
 
-let pp_rip_address (_ : Ssralg.GRing.ComRing.sort) : string =
-  failwith "TODO_ARM: pp_rip_address"
+(* TODO_ARM: get rid of global state *)
+let label_of_global_offset, all_global_offsets =
+  let fresh =
+    let counter = ref (-1) in
+    fun () ->
+      incr counter;
+      !counter
+  in
+  let m = Hashtbl.create 137 in
+  ( (fun z ->
+      match Hashtbl.find m z with
+        | n -> n
+        | exception Not_found ->
+          let n = Format.asprintf ".jasmin_global_%d" (fresh ()) in
+          Hashtbl.add m z n;
+          n),
+    fun () ->
+      m
+      |> Batteries.Hashtbl.to_list
+      |> List.sort (fun (x, _) (y, _) -> Stdlib.Int.compare x y) )
+
+let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
+  Conv.z_of_int32 p |> Z.to_int |> label_of_global_offset
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -43,6 +64,7 @@ let pp_rip_address (_ : Ssralg.GRing.ComRing.sort) : string =
 type asm_line =
   | LLabel of string
   | LInstr of string * string list
+  | LByte of string
 
 let iwidth = 4
 
@@ -54,6 +76,7 @@ let print_asm_line fmt ln =
       Format.fprintf fmt "\t%-*s" iwidth s
   | LInstr (s, args) ->
       Format.fprintf fmt "\t%-*s\t%s" iwidth s (String.concat ", " args)
+  | LByte n -> Format.fprintf fmt "\t.byte\t%s" n
 
 let print_asm_lines fmt lns =
   List.iter (Format.fprintf fmt "%a\n%!" print_asm_line) lns
@@ -228,10 +251,25 @@ let pp_fun tbl fmt (fn, fd) =
 
 let pp_funcs tbl fmt funs = List.concat_map (pp_fun tbl fmt) funs
 
-let pp_glob (_ : Ssralg.GRing.ComRing.sort) : asm_line list =
-  failwith "TODO_ARM: pp_glob"
-
-let pp_data globs = List.concat_map pp_glob globs
+let pp_data globs =
+  if not (List.is_empty globs) then
+    let labels = all_global_offsets () in
+    let _, _, data =
+      List.fold_left
+        (fun (i, labels, data) b ->
+          let labels, data =
+            match labels with
+            | (z, n) :: labels when Stdlib.Int.equal z i ->
+                (labels, LLabel n :: data)
+            | _ -> (labels, data)
+          in
+          let b = b |> Conv.z_of_int8 |> Z.to_string in
+          let data = LByte b :: data in
+          (i + 1, labels, data))
+        (0, labels, []) globs
+    in
+    List.rev data
+  else []
 
 let pp_prog tbl fmt p =
   let code = pp_funcs tbl fmt p.asm_funcs in
@@ -239,5 +277,4 @@ let pp_prog tbl fmt p =
   headers @ code @ data
 
 let print_instr tbl s fmt i = print_asm_lines fmt (pp_instr tbl s fmt i)
-
 let print_prog tbl fmt p = print_asm_lines fmt (pp_prog tbl fmt p)
