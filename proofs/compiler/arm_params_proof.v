@@ -115,15 +115,11 @@ Lemma arm_mov_ofsP (P': sprog) s1 e i x tag ofs w vpk s2 ins :
   -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
   -> psem.sem_i (pT := progStack) P' w s1 ins s2.
 Proof.
-  move=> P'_globs he [?] hx; subst ins.
-  constructor.
-  rewrite /sem_sopn /=.
-  rewrite P'_globs.
-  rewrite /exec_sopn /=.
-  move: he.
-  t_xrbindP=> ? -> /= -> /=.
-  rewrite zero_extend_u.
-  by rewrite hx.
+  rewrite /sap_mov_ofs /= /arm_mov_ofs => P'_globs.
+  t_xrbindP => z ok_z ok_i.
+  case: (mk_mov vpk) => /Some_inj <-{ins} hx.
+  all: constructor.
+  all: by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= !zero_extend_u /= hx.
 Qed.
 
 Definition arm_hsaparams is_regx :

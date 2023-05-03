@@ -42,16 +42,6 @@ Section IS_REGX.
 
 Context (is_regx : var -> bool).
 
-Variant mov_kind :=
-  | MK_LEA
-  | MK_MOV.
-
-Definition mk_mov vpk :=
-  match vpk with
-  | VKglob _ | VKptr (Pdirect _ _ _ _ Sglob) => MK_LEA
-  | _ => MK_MOV
-  end.
-
 Definition x86_mov_ofs x tag vpk y ofs :=
   let addr :=
     if mk_mov vpk is MK_LEA
