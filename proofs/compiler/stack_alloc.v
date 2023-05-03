@@ -463,6 +463,16 @@ Record stack_alloc_params :=
       -> option instr_r;
   }.
 
+Variant mov_kind :=
+  | MK_LEA
+  | MK_MOV.
+
+Definition mk_mov vpk :=
+  match vpk with
+  | VKglob _ | VKptr (Pdirect _ _ _ _ Sglob) => MK_LEA
+  | _ => MK_MOV
+  end.
+
 Context
   (saparams : stack_alloc_params).
 

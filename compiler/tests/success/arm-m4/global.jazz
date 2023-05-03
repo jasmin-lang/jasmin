@@ -15,3 +15,13 @@ fn two () -> reg u32 {
   r = (32u)t[1];
   return r;
 }
+
+export
+fn mod4p1(reg u32 i) -> reg u32 {
+  reg u32 r;
+  reg ptr u8[4] p;
+  p = t;
+  i &= 3;
+  r = (32u)p[(int) i];
+  return r;
+}
