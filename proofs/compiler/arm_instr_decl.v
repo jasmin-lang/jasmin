@@ -117,6 +117,7 @@ Variant arm_mnemonic : Type :=
 | ROR                            (* Rotate right *)
 
 (* Other data processing instructions *)
+| ADR                            (* Adds immediate to PC *)
 | MOV                            (* Copy operand to destination *)
 | MOVT                           (* Write the top halfword of a register *)
 | UBFX                           (* Extract a sub-word and zero extend *)
@@ -169,7 +170,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; MUL; SDIV; SUB; RSB; UDIV; UMULL
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR
-    ; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
+    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
     ; CMP; TST
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
@@ -257,6 +258,7 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | LSL => "LSL"
   | LSR => "LSR"
   | ROR => "ROR"
+  | ADR => "ADR"
   | MOV => "MOV"
   | MOVT => "MOVT"
   | UBFX => "UBFX"
@@ -1278,6 +1280,29 @@ Definition arm_ROR_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+Definition arm_ADR_semi (wn: ty_r) : exec ty_r :=
+  ok wn.
+
+Definition arm_ADR_instr : instr_desc_t :=
+  let mn := ADR in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg ];
+    id_in := [:: Ec 1 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_ADR_semi;
+    id_nargs := 2;
+    id_args_kinds := ak_reg_addr;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
 Definition arm_MOV_semi (wn : ty_r) : exec ty_nzcv_r :=
   ok (nzcv_w_of_aluop wn (wunsigned wn) (wsigned wn)).
 
@@ -1577,6 +1602,7 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | LSL => arm_LSL_instr
   | LSR => arm_LSR_instr
   | ROR => arm_ROR_instr
+  | ADR => arm_ADR_instr
   | MOV => arm_MOV_instr
   | MOVT => arm_MOVT_instr
   | UBFX => arm_UBFX_instr
