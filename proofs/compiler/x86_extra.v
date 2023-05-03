@@ -33,6 +33,26 @@ Canonical  x86_extra_op_eqType      := Eval hnf in EqType x86_extra_op x86_extra
 
 Local Notation E n := (ADExplicit n None).
 
+(* TODO: to be removed? can we have one module for all asmgen errors? *)
+Module E.
+
+Definition pass_name := "asmgen"%string.
+
+Definition error (ii:instr_info) (msg:string) :=
+  {| pel_msg      := compiler_util.pp_s msg
+   ; pel_fn       := None
+   ; pel_fi       := None
+   ; pel_ii       := Some ii
+   ; pel_vi       := None
+   ; pel_pass     := Some pass_name
+   ; pel_internal := true
+  |}.
+
+End E.
+
+Section Section.
+Context {atoI : arch_toIdent}.
+
 Definition Oset0_instr sz  :=
   if (sz <= U64)%CMP then 
     mk_instr_desc (pp_sz "set0" sz)
@@ -75,23 +95,6 @@ Definition prim_string :=
     ("concat_2u128"%string, PrimM (fun _ => Oconcat128))
     (* Ox86MOVZX32 is ignored on purpose *)
   ].
-
-(* TODO: to be removed? can we have one module for all asmgen errors? *)
-Module E.
-
-Definition pass_name := "asmgen"%string.
-
-Definition error (ii:instr_info) (msg:string) := 
-  {| pel_msg      := compiler_util.pp_s msg
-   ; pel_fn       := None
-   ; pel_fi       := None
-   ; pel_ii       := Some ii
-   ; pel_vi       := None
-   ; pel_pass     := Some pass_name
-   ; pel_internal := true
-  |}.
-
-End E.
 
 Definition assemble_extra ii o outx inx : cexec (asm_op_msb_t * lexprs * rexprs) :=
   match o with
@@ -141,3 +144,5 @@ Definition x86_extended_op :=
   @extended_op _ _ _ _ _ _ _ x86_extra.
 
 Definition Ox86 o : @sopn x86_extended_op _ := Oasm (BaseOp (None, o)).
+
+End Section.

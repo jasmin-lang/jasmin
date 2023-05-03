@@ -299,7 +299,7 @@ let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
 
 let pp_var ~debug =
     if debug then
-      fun fmt x -> F.fprintf fmt "%s.%i" x.v_name (int_of_uid x.v_id)
+      fun fmt x -> F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name
 

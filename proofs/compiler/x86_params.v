@@ -24,6 +24,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section Section.
+Context {atoI : arch_toIdent}.
+
 (* Used to set up stack. *)
 Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
   let f_to_lvar x := LLvar (VarI (to_var x) dummy_var_info) in
@@ -239,3 +242,5 @@ Definition x86_params : architecture_params fresh_vars lowering_options :=
     ap_agp := x86_agparams;
     ap_is_move_op := x86_is_move_op;
   |}.
+
+End Section.

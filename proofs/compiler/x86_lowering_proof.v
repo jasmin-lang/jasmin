@@ -25,7 +25,10 @@ Local Open Scope vmap_scope.
 Local Open Scope seq_scope.
 
 Section PROOF.
-  Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state} {T:eqType} {pT:progT T} {sCP: semCallParams}.
+  Context
+    {atoI : arch_toIdent}
+    {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
+    {T:eqType} {pT:progT T} {sCP: semCallParams}.
 
   Variable p : prog.
   Variable ev : extra_val_t.

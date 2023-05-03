@@ -22,6 +22,9 @@ Unset Printing Implicit Defensive.
 
 Notation lowered_pexpr := (option (arm_op * seq pexpr)) (only parsing).
 
+Section Section.
+Context {atoI : arch_toIdent}.
+
 (* -------------------------------------------------------------------- *)
 (* Fresh variables. *)
 (* This pass is parameterized by four variable names that will be used to create
@@ -482,3 +485,5 @@ Fixpoint lower_i (i : instr) : cmd :=
   end.
 
 End ARM_LOWERING.
+
+End Section.

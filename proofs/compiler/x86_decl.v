@@ -218,51 +218,30 @@ Instance eqTC_register : eqTypeC register :=
 Instance finC_register : finTypeC register := 
   { cenumP := registers_fin_axiom }.
 
-Module REG.
-
-Definition to_ident r :=
+Definition register_to_string r : string :=
   match r with
-  | RAX => Ident.X86.RAX
-  | RCX => Ident.X86.RCX
-  | RDX => Ident.X86.RDX
-  | RBX => Ident.X86.RBX
-  | RSP => Ident.X86.RSP
-  | RBP => Ident.X86.RBP
-  | RSI => Ident.X86.RSI
-  | RDI => Ident.X86.RDI
-  | R8  => Ident.X86.R8
-  | R9  => Ident.X86.R9
-  | R10 => Ident.X86.R10
-  | R11 => Ident.X86.R11
-  | R12 => Ident.X86.R12
-  | R13 => Ident.X86.R13
-  | R14 => Ident.X86.R14
-  | R15 => Ident.X86.R15
+  | RAX => "RAX"
+  | RCX => "RCX"
+  | RDX => "RDX"
+  | RBX => "RBX"
+  | RSP => "RSP"
+  | RBP => "RBP"
+  | RSI => "RSI"
+  | RDI => "RDI"
+  | R8  => "R8"
+  | R9  => "R9"
+  | R10 => "R10"
+  | R11 => "R11"
+  | R12 => "R12"
+  | R13 => "R13"
+  | R14 => "R14"
+  | R15 => "R15"
   end.
 
-Lemma to_identP r :
-  to_ident r = nth Ident.X86.RAX Ident.X86.id_registers (seq.index r registers).
-Proof. by case: r. Qed.
-
-Lemma to_identI : injective to_ident.
-Proof.
-  move=> x y; rewrite !to_identP => /eqP.
-  have hx : x \in registers by rewrite (mem_cenum (cfinT := finC_register)).
-  have hy : y \in registers by rewrite (mem_cenum (cfinT := finC_register)).
-  rewrite nth_uniq ?(index_mem) // .
-  + by move => /eqP h; rewrite -(nth_index RAX hx) -(nth_index RAX hy) h.
-  apply Ident.X86.id_registers_uniq.
-Qed.
-
-End REG.
-
 #[global]
-Instance x86_reg_toI : ToIdent (sword x86_reg_size) register :=
-  { category      := "register"
-  ; to_ident     := REG.to_ident
-  ; idents       := [seq (REG.to_ident x, x) | x <- enum [finType of register]]
-  ; inj_to_ident := REG.to_identI
-  ; identsE      := refl_equal
+Instance x86_reg_toS : ToString (sword x86_reg_size) register :=
+  { category  := "register"
+  ; to_string := register_to_string
   }.
 
 (* -------------------------------------------------------------------- *)
@@ -274,43 +253,22 @@ Instance eqTC_regx : eqTypeC register_ext :=
 Instance finC_regx : finTypeC register_ext := 
   { cenumP := regxs_fin_axiom }.
 
-Module REGX.
-
-Definition to_ident r :=
+Definition regx_to_string r : string:=
   match r with
-  | MM0 => Ident.X86.MM0
-  | MM1 => Ident.X86.MM1
-  | MM2 => Ident.X86.MM2
-  | MM3 => Ident.X86.MM3
-  | MM4 => Ident.X86.MM4
-  | MM5 => Ident.X86.MM5
-  | MM6 => Ident.X86.MM6
-  | MM7 => Ident.X86.MM7
+  | MM0 => "MM0"
+  | MM1 => "MM1"
+  | MM2 => "MM2"
+  | MM3 => "MM3"
+  | MM4 => "MM4"
+  | MM5 => "MM5"
+  | MM6 => "MM6"
+  | MM7 => "MM7"
   end.
 
-Lemma to_identP r :
-  to_ident r = nth Ident.X86.MM0 Ident.X86.id_regxs (seq.index r regxs).
-Proof. by case: r. Qed.
-
-Lemma to_identI : injective to_ident.
-Proof.
-  move=> x y; rewrite !to_identP => /eqP.
-  have hx : x \in regxs by rewrite (mem_cenum (cfinT := finC_regx)).
-  have hy : y \in regxs by rewrite (mem_cenum (cfinT := finC_regx)).
-  rewrite nth_uniq ?(index_mem) // .
-  + by move => /eqP h; rewrite -(nth_index MM0 hx) -(nth_index MM0 hy) h.
-  apply Ident.X86.id_regxs_uniq.
-Qed.
-
-End REGX.
-
 #[global]
-Instance x86_regx_toI : ToIdent (sword x86_reg_size) register_ext :=
-  { category      := "register"
-  ; to_ident     := REGX.to_ident
-  ; idents       := [seq (REGX.to_ident x, x) | x <- enum [finType of register_ext]]
-  ; inj_to_ident := REGX.to_identI
-  ; identsE      := refl_equal
+Instance x86_regx_toS : ToString (sword x86_reg_size) register_ext :=
+  { category  := "register"
+  ; to_string := regx_to_string
   }.
 
 (* -------------------------------------------------------------------- *)
@@ -322,51 +280,30 @@ Instance eqTC_xmm_register : eqTypeC xmm_register :=
 Instance finC_xmm_register : finTypeC xmm_register := 
   { cenumP := xmm_registers_fin_axiom }.
 
-Module XREG.
-
-Definition to_ident r :=
+Definition xreg_to_string r : string :=
   match r with
-  | XMM0  => Ident.X86.XMM0
-  | XMM1  => Ident.X86.XMM1
-  | XMM2  => Ident.X86.XMM2
-  | XMM3  => Ident.X86.XMM3
-  | XMM4  => Ident.X86.XMM4
-  | XMM5  => Ident.X86.XMM5
-  | XMM6  => Ident.X86.XMM6
-  | XMM7  => Ident.X86.XMM7
-  | XMM8  => Ident.X86.XMM8
-  | XMM9  => Ident.X86.XMM9
-  | XMM10 => Ident.X86.XMM10
-  | XMM11 => Ident.X86.XMM11
-  | XMM12 => Ident.X86.XMM12
-  | XMM13 => Ident.X86.XMM13
-  | XMM14 => Ident.X86.XMM14
-  | XMM15 => Ident.X86.XMM15
+  | XMM0  => "XMM0"
+  | XMM1  => "XMM1"
+  | XMM2  => "XMM2"
+  | XMM3  => "XMM3"
+  | XMM4  => "XMM4"
+  | XMM5  => "XMM5"
+  | XMM6  => "XMM6"
+  | XMM7  => "XMM7"
+  | XMM8  => "XMM8"
+  | XMM9  => "XMM9"
+  | XMM10 => "XMM10"
+  | XMM11 => "XMM11"
+  | XMM12 => "XMM12"
+  | XMM13 => "XMM13"
+  | XMM14 => "XMM14"
+  | XMM15 => "XMM15"
   end.
 
-Lemma to_identP r :
-  to_ident r = nth Ident.X86.XMM0 Ident.X86.id_xmm_registers (seq.index r xmm_registers).
-Proof. by case: r. Qed.
-
-Lemma to_identI : injective to_ident.
-Proof.
-  move=> x y; rewrite !to_identP => /eqP.
-  have hx : x \in xmm_registers by rewrite (mem_cenum (cfinT := finC_xmm_register)).
-  have hy : y \in xmm_registers by rewrite (mem_cenum (cfinT := finC_xmm_register)).
-  rewrite nth_uniq ?(index_mem) // .
-  + by move => /eqP h; rewrite -(nth_index XMM0 hx) -(nth_index XMM0 hy) h.
-  apply Ident.X86.id_xmm_registers_uniq.
-Qed.
-
-End XREG.
-
 #[global]
-Instance x86_xreg_toI : ToIdent (sword x86_xreg_size) xmm_register :=
-  { category     := "ymm_register"
-  ; to_ident     := XREG.to_ident
-  ; idents       := [seq (XREG.to_ident x, x) | x <- enum [finType of xmm_register]]
-  ; inj_to_ident := XREG.to_identI
-  ; identsE      := refl_equal
+Instance x86_xreg_toS : ToString (sword x86_xreg_size) xmm_register :=
+  { category  := "ymm_register"
+  ; to_string := xreg_to_string
   }.
 
 (* -------------------------------------------------------------------- *)
@@ -379,63 +316,26 @@ Instance eqTC_rflag : eqTypeC rflag :=
 Instance finC_rflag : finTypeC rflag :=
   { cenumP := rflags_fin_axiom }.
 
-Module FLAG.
-
-Definition to_ident rf :=
+Definition rflag_to_string rf : string :=
   match rf with
-  | CF => Ident.X86.CF
-  | PF => Ident.X86.PF
-  | ZF => Ident.X86.ZF
-  | SF => Ident.X86.SF
-  | OF => Ident.X86.OF
+  | CF => "CF"
+  | PF => "PF"
+  | ZF => "ZF"
+  | SF => "SF"
+  | OF => "OF"
   end.
 
-Lemma to_identP r :
-  to_ident r = nth Ident.X86.CF Ident.X86.id_rflags (seq.index r rflags).
-Proof. by case: r. Qed.
-
-Lemma to_identI : injective to_ident.
-Proof.
-  move=> x y; rewrite !to_identP => /eqP.
-  have hx : x \in rflags by rewrite (mem_cenum (cfinT := finC_rflag)).
-  have hy : y \in rflags by rewrite (mem_cenum (cfinT := finC_rflag)).
-  rewrite nth_uniq ?(index_mem) // .
-  + by move => /eqP h; rewrite -(nth_index CF hx) -(nth_index CF hy) h.
-  apply Ident.X86.id_rflags_uniq.
-Qed.
-
-End FLAG.
-
 #[global]
-Instance x86_rflag_toI : ToIdent sbool rflag :=
-  { category     := "rflag"
-  ; to_ident     := FLAG.to_ident
-  ; idents       := [seq (FLAG.to_ident x, x) | x <- enum [finType of rflag]]
-  ; inj_to_ident := FLAG.to_identI
-  ; identsE      := refl_equal
+Instance x86_rflag_toS : ToString sbool rflag :=
+  { category  := "rflag"
+  ; to_string := rflag_to_string
   }.
-
-(* -------------------------------------------------------------------- *)
-Lemma x86_inj_toI_reg_regx (r:register) (rx: register_ext) : to_ident r <> to_ident rx.
-Proof.
-  rewrite /= REG.to_identP REGX.to_identP.
-  set x := nth Ident.X86.RAX _ _; set y := nth _ _ _ => h.
-  have hx : x \in Ident.X86.id_registers.
-  + by rewrite /x /registers /Ident.X86.id_registers; case: (r) => //=;
-      rewrite !in_cons eqxx ?orbT /=.
-  have hy : y \in Ident.X86.id_regxs.
-  + by rewrite /y /regxs /Ident.X86.id_regxs; case: (rx) => //=;
-      rewrite !in_cons eqxx ?orbT /=.
-  have /allP /(_ x hx) := Ident.X86.reg_regx.
-  by rewrite h hy.
-Qed.
 
 (* -------------------------------------------------------------------- *)
 
 #[global]
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
-
 
 (* -------------------------------------------------------------------- *)
 
@@ -467,13 +367,12 @@ Instance x86_fcp : FlagCombinationParams :=
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   { reg_size := U64
   ; xreg_size := U256
-  ; toI_r := x86_reg_toI
-  ; toI_rx:= x86_regx_toI
-  ; toI_x := x86_xreg_toI
-  ; toI_f := x86_rflag_toI
+  ; toS_r := x86_reg_toS
+  ; toS_rx:= x86_regx_toS
+  ; toS_x := x86_xreg_toS
+  ; toS_f := x86_rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := RSP
-  ; inj_toI_reg_regx := x86_inj_toI_reg_regx
   ; ad_fcp := x86_fcp
   }.
 

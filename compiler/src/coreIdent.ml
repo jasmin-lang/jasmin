@@ -8,8 +8,8 @@ module Name = struct
   type t = string
 end
 
-type uid = int
-let int_of_uid i = i
+type uid = Uint63.t
+let string_of_uid = Uint63.to_string
 
 (* ------------------------------------------------------------------------ *)
 type base_ty =
@@ -63,16 +63,16 @@ type 'len gvar = {
 (* ------------------------------------------------------------------------ *)
 module GV = struct
   let mk v_name v_kind v_ty v_dloc v_annot =
-    let v_id = Uniq.gen () in
+    let v_id = Uint63.of_int (Uniq.gen ()) in
     { v_name; v_id; v_kind; v_ty; v_dloc; v_annot }
 
   let clone v = mk v.v_name v.v_kind v.v_ty v.v_dloc v.v_annot
 
-  let compare v1 v2 = v1.v_id - v2.v_id
+  let compare v1 v2 = Uint63.compares v1.v_id v2.v_id
 
-  let equal v1 v2 = v1.v_id = v2.v_id
+  let equal v1 v2 = Uint63.equal v1.v_id v2.v_id
 
-  let hash v = v.v_id
+  let hash v = Uint63.hash v.v_id
 
   let is_glob v = v.v_kind = Const
 
@@ -108,102 +108,8 @@ module Cident = struct
   let len__ : name = "__len__"
 
   (* FIXME: can we use something else that L._dummy? *)
-  let mk x k t = V.mk (CoreConv.string_of_string0 x) k t L._dummy []
+  let mk x k t = V.mk (CoreConv.string_of_cstring x) k t L._dummy []
   let mk_flag x = mk x (Reg(Normal,Direct)) tbool
-
-  module X86 = struct
-
-    open X86_decl_core
-
-    let mk_reg  x = mk x (Reg(Normal,Direct)) (tu x86_reg_size)
-    let mk_regx x = mk x (Reg(Extra, Direct)) (tu x86_reg_size)
-    let mk_xreg x = mk x (Reg(Normal,Direct)) (tu x86_xreg_size)
-
-    let reg  x = mk_reg  (string_of_register x)
-    let regx x = mk_regx (string_of_regx x)
-    let xreg x = mk_xreg (string_of_xmm_register x)
-    let flag x = mk_flag (string_of_rflag x)
-
-    let iRAX = reg RAX
-    let iRCX = reg RCX
-    let iRDX = reg RDX
-    let iRBX = reg RBX
-    let iRSP = reg RSP
-    let iRBP = reg RBP
-    let iRSI = reg RSI
-    let iRDI = reg RDI
-    let iR8  = reg R8
-    let iR9  = reg R9
-    let iR10 = reg R10
-    let iR11 = reg R11
-    let iR12 = reg R12
-    let iR13 = reg R13
-    let iR14 = reg R14
-    let iR15 = reg R15
-
-    let iMM0 = regx MM0
-    let iMM1 = regx MM1
-    let iMM2 = regx MM2
-    let iMM3 = regx MM3
-    let iMM4 = regx MM4
-    let iMM5 = regx MM5
-    let iMM6 = regx MM6
-    let iMM7 = regx MM7
-
-    let iXMM0  = xreg XMM0
-    let iXMM1  = xreg XMM1
-    let iXMM2  = xreg XMM2
-    let iXMM3  = xreg XMM3
-    let iXMM4  = xreg XMM4
-    let iXMM5  = xreg XMM5
-    let iXMM6  = xreg XMM6
-    let iXMM7  = xreg XMM7
-    let iXMM8  = xreg XMM8
-    let iXMM9  = xreg XMM9
-    let iXMM10 = xreg XMM10
-    let iXMM11 = xreg XMM11
-    let iXMM12 = xreg XMM12
-    let iXMM13 = xreg XMM13
-    let iXMM14 = xreg XMM14
-    let iXMM15 = xreg XMM15
-
-    let iCF = flag CF
-    let iPF = flag PF
-    let iZF = flag ZF
-    let iSF = flag SF
-    let iOF = flag OF
-
-  end
-
-  module ARM = struct
-    open Arm_decl_core
-
-    let mk_reg  x = mk x (Reg(Normal,Direct)) (tu arm_reg_size)
-
-    let reg  x = mk_reg  (string_of_register x)
-    let flag x = mk_flag (string_of_rflag x)
-
-    let iR00 = reg R00
-    let iR01 = reg R01
-    let iR02 = reg R02
-    let iR03 = reg R03
-    let iR04 = reg R04
-    let iR05 = reg R05
-    let iR06 = reg R06
-    let iR07 = reg R07
-    let iR08 = reg R08
-    let iR09 = reg R09
-    let iR10 = reg R10
-    let iR11 = reg R11
-    let iR12 = reg R12
-    let iLR  = reg LR
-    let iSP  = reg SP
-
-    let iNF  = flag NF
-    let iZF  = flag ZF
-    let iCF  = flag CF
-    let iVF  = flag VF
-  end
 
 end
 
@@ -215,19 +121,19 @@ type funname = {
   fn_id   : uid;
 }
 
-let funname_tag (f:funname) : int = f.fn_id
+let funname_tag (f:funname) = f.fn_id
 
 module F = struct
   let mk fn_name =
-    { fn_name; fn_id = Uniq.gen (); }
+    { fn_name; fn_id = Uint63.of_int (Uniq.gen ()); }
 
   type t = funname
 
-  let compare f1 f2 = f1.fn_id - f2.fn_id
+  let compare f1 f2 = Uint63.compares f1.fn_id f2.fn_id
 
-  let equal f1 f2 = f1.fn_id = f2.fn_id
+  let equal f1 f2 = Uint63.equal f1.fn_id f2.fn_id
 
-  let hash f = f.fn_id
+  let hash f = Uint63.hash f.fn_id
 end
 
 module Sf = Set.Make (F)

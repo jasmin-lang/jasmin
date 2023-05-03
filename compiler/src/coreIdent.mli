@@ -10,7 +10,7 @@ end
 
 type uid
 
-val int_of_uid : uid -> int
+val string_of_uid : uid -> string
 
 (* ------------------------------------------------------------------------ *)
 type base_ty =
@@ -108,89 +108,12 @@ module Cident : sig
   type t = var
   type name = Name.t
 
-  val tag : var -> int
+  val tag : var -> Uint63.t
   val id_name : t -> Name.t
 
   val dummy : t
   val p__   : name
   val len__ : name
-
-  module X86 : sig
-
-    val iRAX : t
-    val iRCX : t
-    val iRDX : t
-    val iRBX : t
-    val iRSP : t
-    val iRBP : t
-    val iRSI : t
-    val iRDI : t
-    val iR8  : t
-    val iR9  : t
-    val iR10 : t
-    val iR11 : t
-    val iR12 : t
-    val iR13 : t
-    val iR14 : t
-    val iR15 : t
-
-    val iMM0 : t
-    val iMM1 : t
-    val iMM2 : t
-    val iMM3 : t
-    val iMM4 : t
-    val iMM5 : t
-    val iMM6 : t
-    val iMM7 : t
-
-    val iXMM0  : t
-    val iXMM1  : t
-    val iXMM2  : t
-    val iXMM3  : t
-    val iXMM4  : t
-    val iXMM5  : t
-    val iXMM6  : t
-    val iXMM7  : t
-    val iXMM8  : t
-    val iXMM9  : t
-    val iXMM10 : t
-    val iXMM11 : t
-    val iXMM12 : t
-    val iXMM13 : t
-    val iXMM14 : t
-    val iXMM15 : t
-
-    val iCF : t
-    val iPF : t
-    val iZF : t
-    val iSF : t
-    val iOF : t
-
-  end
-
-  module ARM : sig
-
-    val iR00 : t
-    val iR01 : t
-    val iR02 : t
-    val iR03 : t
-    val iR04 : t
-    val iR05 : t
-    val iR06 : t
-    val iR07 : t
-    val iR08 : t
-    val iR09 : t
-    val iR10 : t
-    val iR11 : t
-    val iR12 : t
-    val iLR  : t
-    val iSP  : t
-
-    val iNF  : t
-    val iZF  : t
-    val iCF  : t
-    val iVF  : t
-  end
 
 end
 
@@ -200,7 +123,7 @@ type funname = private {
   fn_id   : uid;
 }
 
-val funname_tag : funname -> int
+val funname_tag : funname -> Uint63.t
 
 module F : sig
   val mk : Name.t -> funname

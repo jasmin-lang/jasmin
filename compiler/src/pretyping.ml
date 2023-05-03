@@ -1294,7 +1294,7 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   o.i_out
 
 let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
-  List.map (fun (s, x) -> Conv.string_of_string0 s, x) asmOp.Sopn.prim_string
+  List.map (fun (s, x) -> Conv.string_of_cstring s, x) asmOp.Sopn.prim_string
 
 let extract_size str : string * S.size_annotation =
   let open S in

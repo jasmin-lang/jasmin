@@ -75,13 +75,25 @@ let pp_label n lbl = string_of_label n lbl
 let pp_remote_label (fn, lbl) =
   string_of_label fn.fn_name lbl
 
-let pp_register r = (arch.toI_r.to_ident r).v_name
+let hash_to_string_core (to_string : 'a -> string) =
+  let tbl = Hashtbl.create 17 in
+  fun r ->
+     try Hashtbl.find tbl r
+     with Not_found ->
+       let s = to_string r in
+       Hashtbl.add tbl r s;
+       s
 
-let pp_register_ext r = (arch.toI_rx.to_ident r).v_name
+let hash_to_string (to_string : 'a -> char list) =
+  hash_to_string_core (fun x -> Conv.string_of_cstring (to_string x))
 
-let pp_xregister r = (arch.toI_x.to_ident r).v_name
+let pp_register = hash_to_string arch.toS_r.to_string
 
-let pp_condt c = Conv.string_of_string0 (string_of_condt c)
+let pp_register_ext = hash_to_string arch.toS_rx.to_string
+
+let pp_xregister = hash_to_string arch.toS_x.to_string
+
+let pp_condt = hash_to_string string_of_condt
 
 let pp_imm imm = Printf.sprintf "%s%s" imm_pre (Z.to_string imm)
 
@@ -129,20 +141,27 @@ let pp_set_flags opts = if opts.set_flags then "s" else ""
    print. *)
 let pp_conditional args =
   match List.opick (is_Condt arch) args with
-  | Some ct -> Conv.string_of_string0 (string_of_condt ct)
+  | Some ct -> pp_condt ct
   | None -> ""
+
+let pp_shift_kind = hash_to_string string_of_shift_kind
 
 let pp_shift (ARM_op (_, opts)) args =
   match opts.has_shift with
   | None ->
       args
   | Some sk ->
-      let sh = Conv.string_of_string0 (string_of_shift_kind sk) in
+      let sh = pp_shift_kind sk in
       List.modify_last (Printf.sprintf "%s %s" sh) args
 
+let pp_arm_mnemonic =
+  let to_string mn =
+    let mn = Conv.string_of_cstring (string_of_arm_mnemonic mn) in
+    String.lowercase_ascii mn in
+  hash_to_string_core to_string
+
 let pp_mnemonic_ext (ARM_op (mn, opts)) args =
-  let mn = Conv.string_of_string0 (string_of_arm_mnemonic mn) in
-  let mn = String.lowercase_ascii mn in
+  let mn = pp_arm_mnemonic mn in
   Printf.sprintf "%s%s%s" mn (pp_set_flags opts) (pp_conditional args)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =

@@ -55,59 +55,36 @@ Proof. by case. Qed.
 #[ export ]
 Instance finTC_register : finTypeC register :=
   {
-    cenum := registers;
+    cenum  := registers;
     cenumP := register_fin_axiom;
   }.
 
 Canonical register_finType := @cfinT_finType _ finTC_register.
 
-Module REG.
-
-Definition to_ident (r: register) : Ident.ident :=
+Definition register_to_string (r: register) : string :=
   match r with
-  | R00 => Ident.ARM.R00
-  | R01 => Ident.ARM.R01
-  | R02 => Ident.ARM.R02
-  | R03 => Ident.ARM.R03
-  | R04 => Ident.ARM.R04
-  | R05 => Ident.ARM.R05
-  | R06 => Ident.ARM.R06
-  | R07 => Ident.ARM.R07
-  | R08 => Ident.ARM.R08
-  | R09 => Ident.ARM.R09
-  | R10 => Ident.ARM.R10
-  | R11 => Ident.ARM.R11
-  | R12 => Ident.ARM.R12
-  | LR  => Ident.ARM.LR
-  | SP  => Ident.ARM.SP
+  | R00 => "r0"
+  | R01 => "r1"
+  | R02 => "r2"
+  | R03 => "r3"
+  | R04 => "r4"
+  | R05 => "r5"
+  | R06 => "r6"
+  | R07 => "r7"
+  | R08 => "r8"
+  | R09 => "r9"
+  | R10 => "r10"
+  | R11 => "r11"
+  | R12 => "r12"
+  | LR  => "lr"
+  | SP  => "sp"
   end.
 
-Lemma to_identP r :
-  to_ident r = nth Ident.ARM.R00 Ident.ARM.id_registers (seq.index r registers).
-Proof. by case: r. Qed.
-
-Lemma to_identI : injective to_ident.
-Proof.
-  move=> x y; rewrite !to_identP => /eqP.
-  have hx : x \in registers by rewrite (mem_cenum (cfinT := finTC_register)).
-  have hy : y \in registers by rewrite (mem_cenum (cfinT := finTC_register)).
-  rewrite nth_uniq ?(index_mem) // .
-  + by move => /eqP h; rewrite -(nth_index R00 hx) -(nth_index R00 hy) h.
-  apply Ident.ARM.id_registers_uniq.
-Qed.
-
-End REG.
-
 #[ export ]
-Instance reg_toI : ToIdent (sword arm_reg_size) register :=
-  {| category     := "register"
-  ; to_ident     := REG.to_ident
-  ; idents       := [seq (REG.to_ident x, x)
-                     | x <- enum [finType of register]]
-  ; inj_to_ident := REG.to_identI
-  ; identsE      := refl_equal
+Instance reg_toS : ToString (sword arm_reg_size) register :=
+  {| category  := "register"
+   ; to_string := register_to_string
   |}.
-
 
 (* -------------------------------------------------------------------- *)
 (* Flags. *)
@@ -133,47 +110,25 @@ Proof. by case. Qed.
 #[ export ]
 Instance finTC_rflag : finTypeC rflag :=
   {
-    cenum := rflags;
+    cenum  := rflags;
     cenumP := rflag_fin_axiom;
   }.
 
 Canonical rflag_finType := @cfinT_finType _ finTC_rflag.
 
-Module FLAG.
-
-Definition to_ident (f : rflag) : Ident.ident :=
+Definition flag_to_string (f : rflag) : string :=
   match f with
-  | NF => Ident.ARM.NF
-  | ZF => Ident.ARM.ZF
-  | CF => Ident.ARM.CF
-  | VF => Ident.ARM.VF
+  | NF => "NF"
+  | ZF => "ZF"
+  | CF => "CF"
+  | VF => "VF"
   end.
 
-Lemma to_identP r :
-  to_ident r = nth Ident.ARM.R00 Ident.ARM.id_rflags (seq.index r rflags).
-Proof. by case: r. Qed.
-
-Lemma to_identI : injective to_ident.
-Proof.
-  move=> x y; rewrite !to_identP => /eqP.
-  have hx : x \in rflags by rewrite (mem_cenum (cfinT := finTC_rflag)).
-  have hy : y \in rflags by rewrite (mem_cenum (cfinT := finTC_rflag)).
-  rewrite nth_uniq ?(index_mem) // .
-  + by move => /eqP h; rewrite -(nth_index NF hx) -(nth_index NF hy) h.
-  apply Ident.ARM.id_rflags_uniq.
-Qed.
-
-End FLAG.
-
 #[ export ]
-Instance rflag_toI : ToIdent sbool rflag :=
-  { category      := "rflag"
-  ; to_ident     := FLAG.to_ident
-  ; idents       := [seq (FLAG.to_ident x, x) | x <- enum [finType of rflag]]
-  ; inj_to_ident := FLAG.to_identI
-  ; identsE      := refl_equal
+Instance rflag_toS : ToString sbool rflag :=
+  { category  := "rflag"
+  ; to_string := flag_to_string
   }.
-
 
 (* -------------------------------------------------------------------- *)
 (* Conditions. *)
@@ -344,13 +299,12 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := arm_decl_core.arm_reg_size
   ; xreg_size := U64
   ; cond_eqC  := eqTC_condt
-  ; toI_r     := reg_toI
-  ; toI_rx    := empty_toI sword32
-  ; toI_x     := empty_toI sword64
-  ; toI_f     := rflag_toI
+  ; toS_r     := reg_toS
+  ; toS_rx    := empty_toS sword32
+  ; toS_x     := empty_toS sword64
+  ; toS_f     := rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
-  ; inj_toI_reg_regx := ltac:(done)
   ; ad_fcp := arm_fcp
   }.
 

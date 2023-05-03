@@ -56,6 +56,7 @@ Qed.
 Section PROOF.
 
 Context
+  {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {eft : eqType}

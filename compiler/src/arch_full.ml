@@ -79,27 +79,28 @@ module Arch_from_Core_arch (A : Core_arch) :
   let reg_size = arch_decl.reg_size
   let xreg_size = arch_decl.xreg_size
 
+  let atoI = A.asm_e._atoI
   (* not sure it is the best place to define [rip], but we need to know [reg_size] *)
   let rip = V.mk "RIP" (Reg (Normal, Direct)) (tu reg_size) L._dummy []
 
   let asmOp = Arch_extra.asm_opI A.asm_e
   let asmOp_sopn = Sopn.asmOp_sopn reg_size asmOp
 
-  let reg_vars : var list = List.map fst arch_decl.toI_r.idents
+  let var_of_reg (r:reg) : var = atoI.toI_r.to_ident r
 
-  let var_of_reg (r:reg) : var = List.assoc_inv r arch_decl.toI_r.idents
+  let reg_vars : var list = List.map var_of_reg arch_decl.toS_r._finC.cenum
 
-  let regx_vars : var list = List.map fst arch_decl.toI_rx.idents
+  let var_of_regx (r:regx) : var = atoI.toI_rx.to_ident r
 
-  let var_of_regx (r:regx) : var = List.assoc_inv r arch_decl.toI_rx.idents
+  let regx_vars : var list = List.map var_of_regx arch_decl.toS_rx._finC.cenum
 
-  let xreg_vars : var list = List.map fst arch_decl.toI_x.idents
+  let var_of_xreg (r:xreg) : var = atoI.toI_x.to_ident r
 
-  let var_of_xreg (r:xreg) : var = List.assoc_inv r arch_decl.toI_x.idents
+  let xreg_vars : var list = List.map var_of_xreg arch_decl.toS_x._finC.cenum
 
-  let flag_vars : var list = List.map fst arch_decl.toI_f.idents
+  let var_of_flag (f:rflag) : var = atoI.toI_f.to_ident f
 
-  let var_of_flag (f:rflag) : var = List.assoc_inv f arch_decl.toI_f.idents
+  let flag_vars : var list = List.map var_of_flag  arch_decl.toS_f._finC.cenum
 
   let callee_save = call_conv.callee_saved
 

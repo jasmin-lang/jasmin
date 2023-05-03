@@ -25,6 +25,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section Section.
+Context {atoI : arch_toIdent}.
+
 Definition arm_op_mov (x y : var_i) : fopn_args :=
   ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar y) ]).
 
@@ -326,3 +329,5 @@ Definition arm_params : architecture_params fresh_vars lowering_options :=
     ap_agp := arm_agparams;
     ap_is_move_op := arm_is_move_op;
   |}.
+
+End Section.

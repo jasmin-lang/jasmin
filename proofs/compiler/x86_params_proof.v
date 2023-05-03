@@ -39,7 +39,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section Section.
-Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}. 
+Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 
 
 (* ------------------------------------------------------------------------ *)
@@ -117,7 +117,7 @@ Lemma x86_immediateP w s (x: var_i) z :
 Proof.
   case: x => - [] [] // [] // x xi _ /=.
   have := mov_wsP (pT := progStack) is_regx AT_none _ (cmp_le_refl _).
-  move => /(_ _ _ _ _ P').
+  move => /(_ _ _ _ _ _ P').
   apply; last reflexivity.
   by rewrite /= truncate_word_u.
 Qed.
@@ -351,7 +351,7 @@ Proof.
   move=> x /sv_of_listP /mapP [f _ ->].
   rewrite Fv.setP_neq //.
   case: f;
-    by repeat (rewrite Fv.setP_neq; last by apply /eqP => /inj_to_var); rewrite Fv.setP_eq.
+    by repeat (rewrite Fv.setP_neq; last by apply /eqP => h; have := inj_to_var h); rewrite Fv.setP_eq.
 Qed.
 
 Lemma x86_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
@@ -461,10 +461,7 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
 Lemma x86_ok_lip_tmp :
   exists r : reg_t, of_ident (lip_tmp (ap_lip x86_params)) = Some r.
 Proof.
-  exists RAX.
-  rewrite /=.
-  change Ident.X86.RAX with (to_ident RAX).
-  exact: to_identK.
+  by exists RAX; rewrite /= to_identK.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -714,7 +711,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
   move: hcd; rewrite /check_sopn_dests /= /check_sopn_dest /= => /andP -[].
   case ok_y: xreg_of_var => [y|//]; move /xreg_of_varI in ok_y.
   rewrite andbT => /eqP ? _; subst a0.
-  case: y hidc hca1 ok_y => // r hidc hca1 /of_varI xr.
+  case: y hidc hca1 ok_y => // r hidc hca1 h; have {h} xr := of_varI h.
   rewrite /mem_write_vals.
   eexists; first reflexivity.
   case: hlo => h0 h1 hrip hd h2 h2x h3 h4.
@@ -725,8 +722,9 @@ Transparent eval_arg_in_v check_i_args_kinds.
   + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
     case: eqP => [-> | hne].
     + by rewrite Fv.setP_eq /reg_msb_flag /= word_extend_CLEAR zero_extend_u => -[<-].
-    rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply inj_to_var.
-    by apply h2.
+    rewrite Fv.setP_neq; first by apply h2.
+    by apply /eqP => h; apply hne; apply: inj_to_var.
+
   + move=> r' v''; rewrite /get_var /on_vu /= Fv.setP_neq; first by apply h2x.
     by apply/eqP/to_var_reg_neq_regx.
   + move=> r' v''; rewrite /get_var /on_vu /=.

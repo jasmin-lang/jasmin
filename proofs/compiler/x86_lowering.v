@@ -4,6 +4,10 @@ Require Import Utf8.
 Require Import compiler_util expr lowering lea.
 Require Import x86_decl x86_instr_decl x86_extra.
 
+Section Section.
+
+Context {atoI : arch_toIdent}.
+
 Section IS_REGX.
 
 Context (is_regx : var -> bool).
@@ -630,3 +634,5 @@ Fixpoint lower_i (i:instr) : cmd :=
 End LOWERING.
 
 End IS_REGX.
+
+End Section.
