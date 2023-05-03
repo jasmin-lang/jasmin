@@ -267,17 +267,16 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     }
   in
 
-  let export_functions, subroutines =
+  let export_functions =
     let conv fd = Conv.cfun_of_fun tbl fd.f_name in
     List.fold_right
-      (fun fd ((e, i) as acc) ->
+      (fun fd acc ->
         match fd.f_cc with
-        | Export -> (conv fd :: e, i)
-        | Internal -> acc
-        | Subroutine _ -> (e, conv fd :: i))
-      (snd prog) ([], [])
+        | Export -> conv fd :: acc
+        | Internal | Subroutine _ -> acc)
+      (snd prog) []
   in
 
   Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams cparams
-    export_functions subroutines
+    export_functions
     (Expr.to_uprog Arch.asmOp cprog)

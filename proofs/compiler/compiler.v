@@ -308,9 +308,9 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   ok pd.
 
-Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : cexec sprog :=
+Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
-  Let pl := compiler_first_part (entries ++ subroutines) p in
+  Let pl := compiler_first_part entries p in
 
   (* stack + register allocation *)
 
@@ -360,7 +360,7 @@ Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
   Let lp := compiler_back_end entries p in
   assemble_prog agparams lp.
 
-Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=
-  compiler_front_end entries subroutines p >>= compiler_back_end_to_asm entries.
+Definition compile_prog_to_asm entries (p: prog): cexec asm_prog :=
+  compiler_front_end entries p >>= compiler_back_end_to_asm entries.
 
 End COMPILER.

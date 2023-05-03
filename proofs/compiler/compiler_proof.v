@@ -329,12 +329,11 @@ Qed.
 
 Lemma compiler_front_endP
   entries
-  subroutines
   (p: prog)
   (p': @sprog _pd _ _asmop)
   (gd : pointer)
   scs m mi fn va scs' m' vr :
-  compiler_front_end aparams cparams entries subroutines p = ok p' →
+  compiler_front_end aparams cparams entries p = ok p' →
   fn \in entries →
   sem.sem_call p scs m fn va scs' m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
@@ -352,8 +351,7 @@ Proof.
   rewrite (compiler_third_part_meta ok_p3) => m_mi ok_mi.
   assert (ok_mi' : alloc_ok (sip := sip_of_asm_e) p2 fn mi).
   - exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
-  have := compiler_first_partP ok_p1 _ exec_p.
-  rewrite mem_cat ok_fn => /(_ erefl).
+  have := compiler_first_partP ok_p1 ok_fn exec_p.
   case => {p ok_p1 exec_p} vr1 vr_vr1 exec_p1.
   have gd2 := sp_globs_stack_alloc ok_p2.
   rewrite -gd2 in ok_p2.
@@ -714,7 +712,6 @@ Definition mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
 
 Lemma compile_prog_to_asmP
   entries
-  subroutine
   (p : prog)
   (xp : asm_prog)
   scs (m : mem) scs' (m' : mem)
@@ -722,7 +719,7 @@ Lemma compile_prog_to_asmP
   va
   vr
   xm :
-  compile_prog_to_asm aparams cparams entries subroutine p = ok xp
+  compile_prog_to_asm aparams cparams entries p = ok xp
   -> fn \in entries
   -> sem.sem_call p scs m fn va scs' m' vr
   -> mem_agreement m (asm_mem xm) (asm_rip xm) (asm_globs xp)
