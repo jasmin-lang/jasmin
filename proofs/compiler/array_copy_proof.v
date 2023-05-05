@@ -228,7 +228,7 @@ Proof.
     by apply hvm2; SvD.fsetdec.
   apply: (Eseq hipre); apply sem_seq1; constructor.
   apply: Efor => //.
-  have -> : wrange UpTo 0 n = ziota 0 n by rewrite /wrange Z.sub_0_r.
+  have -> : wrange UpTo 0 n = ziota 0 n by rewrite /wrange ziotaE Z.sub_0_r.
   by case: (s1) hw hfor; rewrite /write_var /= => ???; t_xrbindP => ?? <-.
 Qed.
 
