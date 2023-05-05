@@ -129,9 +129,10 @@ Definition compiler_step_list := [::
 Scheme Equality for compiler_step.
 Lemma compiler_step_eq_axiom : Equality.axiom compiler_step_beq.
 Proof.
-  move=> x y; apply:(iffP idP).
-  + by apply: internal_compiler_step_dec_bl.
-  by apply: internal_compiler_step_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_compiler_step_dec_bl
+       internal_compiler_step_dec_lb).
 Qed.
 Definition compiler_step_eqMixin := Equality.Mixin compiler_step_eq_axiom.
 Canonical  compiler_step_eqType  := Eval hnf in EqType compiler_step compiler_step_eqMixin.

@@ -186,9 +186,7 @@ Scheme Equality for msb_flag.
 
 Lemma msb_flag_eq_axiom : Equality.axiom msb_flag_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_msb_flag_dec_bl.
-  by apply: internal_msb_flag_dec_lb.
+  exact: (eq_axiom_of_scheme internal_msb_flag_dec_bl internal_msb_flag_dec_lb).
 Qed.
 
 Definition msb_flag_eqMixin := Equality.Mixin msb_flag_eq_axiom.
@@ -232,9 +230,8 @@ Scheme Equality for addr_kind.
 
 Lemma addr_kind_eq_axiom : Equality.axiom addr_kind_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_addr_kind_dec_bl.
-  by apply: internal_addr_kind_dec_lb.
+  exact:
+    (eq_axiom_of_scheme internal_addr_kind_dec_bl internal_addr_kind_dec_lb).
 Qed.
 
 Definition addr_kind_eqMixin := Equality.Mixin addr_kind_eq_axiom.
@@ -299,9 +296,7 @@ Scheme Equality for arg_kind.
 
 Lemma arg_kind_eq_axiom : Equality.axiom arg_kind_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_arg_kind_dec_bl.
-  by apply: internal_arg_kind_dec_lb.
+  exact: (eq_axiom_of_scheme internal_arg_kind_dec_bl internal_arg_kind_dec_lb).
 Qed.
 
 Definition arg_kind_eqMixin := Equality.Mixin arg_kind_eq_axiom.
@@ -676,9 +671,7 @@ Scheme Equality for rflagv.
 
 Lemma rflagv_eq_axiom : Equality.axiom rflagv_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_rflagv_dec_bl.
-  by apply: internal_rflagv_dec_lb.
+  exact: (eq_axiom_of_scheme internal_rflagv_dec_bl internal_rflagv_dec_lb).
 Qed.
 
 Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.

@@ -270,14 +270,8 @@ Definition nset (T:Type) (m:nmap T) (n:nat) (t:T) :=
   fun x => if x == n then Some t else nget m x.
 Definition nempty (T:Type) := fun n:nat => @None T.
 
-Definition var_of_implicit (i:implicit_arg) :=
-  match i with
-  | IArflag f => to_var f
-  | IAreg r   => to_var r
-  end.
-
 Definition is_implicit (i: implicit_arg) (e: rexpr) : bool :=
-  if e is Rexpr (Fvar x) then x.(v_var) == var_of_implicit i else false.
+  if e is Rexpr (Fvar x) then x.(v_var) == var_of_implicit_arg i else false.
 
 Definition compile_arg rip ii (ade: (arg_desc * stype) * rexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
   let ad := ade.1 in

@@ -14,9 +14,7 @@ Scheme Equality for Ascii.ascii.
 
 Lemma ascii_eqP : Equality.axiom ascii_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_ascii_dec_bl.
-  by apply: internal_ascii_dec_lb.
+  exact: (eq_axiom_of_scheme internal_ascii_dec_bl internal_ascii_dec_lb).
 Qed.
 
 Definition ascii_eqMixin := EqMixin ascii_eqP.
@@ -59,9 +57,7 @@ Scheme Equality for String.string.
 
 Lemma string_eqP : Equality.axiom string_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_string_dec_bl.
-  by apply: internal_string_dec_lb.
+  exact: (eq_axiom_of_scheme internal_string_dec_bl internal_string_dec_lb).
 Qed.
 
 Definition string_eqMixin := EqMixin string_eqP.

@@ -12,6 +12,12 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope Z_scope.
 
+Lemma eq_axiom_of_scheme X (beq : X -> X -> bool) :
+  (forall x y : X, beq x y -> x = y) ->
+  (forall x y : X, x = y -> beq x y) ->
+  Equality.axiom beq.
+Proof. move=> hbl hlb x y. apply: (iffP idP); first exact: hbl. exact: hlb. Qed.
+
 (* -------------------------------------------------------------------- *)
 Module FinIsCount.
 Section FinIsCount.
@@ -247,9 +253,7 @@ Scheme Equality for error.
 
 Lemma error_beqP : Equality.axiom error_beq.
 Proof.
-  move=> e1 e2;case Heq: error_beq;constructor.
-  + by apply: internal_error_dec_bl.
-  by move=> /internal_error_dec_lb;rewrite Heq.
+  exact: (eq_axiom_of_scheme internal_error_dec_bl internal_error_dec_lb).
 Qed.
 
 Canonical error_eqMixin := EqMixin error_beqP.
@@ -1192,9 +1196,8 @@ Scheme Equality for comparison.
 
 Lemma comparison_beqP : Equality.axiom comparison_beq.
 Proof.
-  move=> e1 e2;case Heq: comparison_beq;constructor.
-  + by apply: internal_comparison_dec_bl.
-  by move=> /internal_comparison_dec_lb;rewrite Heq.
+  exact:
+    (eq_axiom_of_scheme internal_comparison_dec_bl internal_comparison_dec_lb).
 Qed.
 
 Canonical comparison_eqMixin := EqMixin comparison_beqP.
@@ -1767,3 +1770,9 @@ Tactic Notation "have!" ":= " constr(x) :=
 Tactic Notation "have!" simple_intropattern(ip) ":= " constr(x) :=
   let h := fresh "h" in
   (assert (h := x); move: h => ip).
+
+(* Attempt to prove [injective f] on [eqType]s by case analysis on the
+   arguments. *)
+Ltac t_inj_cases :=
+  move=> [] [] /eqP h;
+  apply/eqP.

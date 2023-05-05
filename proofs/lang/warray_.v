@@ -20,9 +20,8 @@ Scheme Equality for arr_access.
 
 Lemma arr_access_eq_axiom : Equality.axiom arr_access_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_arr_access_dec_bl.
-  by apply: internal_arr_access_dec_lb.
+  exact:
+    (eq_axiom_of_scheme internal_arr_access_dec_bl internal_arr_access_dec_lb).
 Qed.
 
 Definition arr_access_eqMixin     := Equality.Mixin arr_access_eq_axiom.

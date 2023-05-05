@@ -15,7 +15,9 @@ Require Import
   utils
   word.
 Require xseq.
-Require Export arch_decl.
+Require Import
+  arch_decl
+  arch_utils.
 Require Import arm_decl.
 
 Set Implicit Arguments.
@@ -141,23 +143,14 @@ Variant arm_mnemonic : Type :=
 | STRB                           (* Store a byte *)
 | STRH.                          (* Store a halfword *)
 
-Definition arm_mnemonic_dec_eq (mn0 mn1 : arm_mnemonic) :
-  {mn0 = mn1} + {mn0 <> mn1}.
-  by repeat decide equality.
-Defined.
-
-Definition arm_mnemonic_beq (mn0 mn1 : arm_mnemonic) : bool :=
-  if arm_mnemonic_dec_eq mn0 mn1 is left _
-  then true
-  else false.
+Scheme Equality for arm_mnemonic.
 
 Lemma arm_mnemonic_eq_axiom : Equality.axiom arm_mnemonic_beq.
 Proof.
-  move=> mn0 mn1.
-  apply: (iffP idP);
-    last move=> <-;
-    rewrite /arm_mnemonic_beq;
-    by case: arm_mnemonic_dec_eq.
+  exact:
+    (eq_axiom_of_scheme
+       internal_arm_mnemonic_dec_bl
+       internal_arm_mnemonic_dec_lb).
 Qed.
 
 #[ export ]
@@ -351,25 +344,6 @@ Definition ad_nzcv : seq arg_desc := map F [:: NF; ZF; CF; VF ].
 
 
 (* -------------------------------------------------------------------- *)
-(* Common argument kinds. *)
-
-Definition ak_reg_reg := [:: [:: [:: CAreg ]; [:: CAreg ] ] ].
-Definition ak_reg_imm := [:: [:: [:: CAreg ]; [:: CAimm reg_size ] ] ].
-Definition ak_reg_imm8 := [:: [:: [:: CAreg ]; [:: CAimm U8 ] ] ].
-Definition ak_reg_imm16 := [:: [:: [:: CAreg ]; [:: CAimm U16 ] ] ].
-Definition ak_reg_reg_reg := [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ] ].
-Definition ak_reg_reg_reg_reg :=
-  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ; [:: CAreg ] ] ].
-Definition ak_reg_reg_imm :=
-  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm reg_size ] ] ].
-Definition ak_reg_reg_imm8 :=
-  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U8 ] ] ].
-Definition ak_reg_reg_imm16 :=
-  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U16 ] ] ].
-Definition ak_reg_addr := [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
-
-
-(* -------------------------------------------------------------------- *)
 (* Common flag definitions. *)
 
 Definition NF_of_word (ws : wsize) (w : word ws) := msb w.
@@ -400,125 +374,11 @@ Definition nzcv_w_of_aluop {ws : wsize} (w : word ws) (wun wsi : Z) :=
 (* -------------------------------------------------------------------- *)
 (* Flag setting transformations.
    Instruction descriptions are defined setting flags. The case where
-   the flags should not be set is considered with `drop_nzcv`. *)
+   the flags should not be set is considered with [drop_nzcv]. *)
 
-Notation beheadn n xs := (ssrnat.iter n behead xs).
-Notation behead2 xs := (beheadn 2 xs).
-Notation behead3 xs := (beheadn 3 xs).
-Notation behead4 xs := (beheadn 4 xs).
-
-#[ local ]
-Lemma size_beheadn {A B} {n : nat} {xs : seq A} {ys : seq B} :
-  size xs == size ys
-  -> size (beheadn n xs) == size (beheadn n ys).
-Proof.
-  move=> h.
-  elim: n => [|n'].
-  - exact: h.
-  rewrite !size_behead -!/(beheadn n' _).
-  by move=> /eqP <-.
-Qed.
-
-#[ local ]
-Lemma all_beheadn {A} {p : A -> bool} {n : nat} {xs : seq A} :
-  all p xs
-  -> all p (beheadn n xs).
-Proof.
-  move=> h. elim: n => // n' hind. exact: all_behead hind.
-Qed.
-
-#[ local ]
-Lemma all2_beheadn
-  {A B} {p : A -> B -> bool} {n : nat} {xs : seq A} {ys : seq B} :
-  all2 p xs ys
-  -> all2 p (beheadn n xs) (beheadn n ys).
-Proof.
-  move=> h.
-  elim: n => [|n' hind].
-  - exact: h.
-  exact: all2_behead hind.
-Qed.
-
-Definition drop_semi_nz
-  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_prod tin (exec (sem_tuple (behead2 tout))) :=
-  behead_tuple (behead_tuple semi).
-
-Definition drop_semi_nzc
-  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_prod tin (exec (sem_tuple (behead3 tout))) :=
-  behead_tuple (behead_tuple (behead_tuple semi)).
-
-Definition drop_semi_nzcv
-  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
-  sem_prod tin (exec (sem_tuple (behead4 tout))) :=
-  behead_tuple (behead_tuple (behead_tuple (behead_tuple semi))).
-
-#[ local ]
-Lemma drop_eq_size {A B} {p} {n : nat} {xs : seq A} {ys : seq B} :
-  p && (size xs == size ys)
-  -> p && (size (beheadn n xs) == size (beheadn n ys)).
-Proof. move=> /andP [-> hsize]. exact: size_beheadn. Qed.
-
-Definition drop_nz (idt : instr_desc_t) : instr_desc_t :=
-  {|
-    id_msb_flag := MSB_MERGE;
-    id_tin := id_tin idt;
-    id_in := id_in idt;
-    id_tout := behead2 (id_tout idt);
-    id_out := behead2 (id_out idt);
-    id_semi := drop_semi_nz (id_semi idt);
-    id_nargs := id_nargs idt;
-    id_args_kinds := id_args_kinds idt;
-    id_eq_size := drop_eq_size (id_eq_size idt);
-    id_tin_narr := id_tin_narr idt;
-    id_tout_narr := all_beheadn (id_tout_narr idt);
-    id_check_dest := all2_beheadn (id_check_dest idt);
-    id_str_jas := id_str_jas idt;
-    id_safe := id_safe idt;
-    id_pp_asm := id_pp_asm idt;
-  |}.
-Arguments drop_nz : clear implicits.
-
-Definition drop_nzc (idt : instr_desc_t) : instr_desc_t :=
-  {|
-    id_msb_flag := MSB_MERGE;
-    id_tin := id_tin idt;
-    id_in := id_in idt;
-    id_tout := behead3 (id_tout idt);
-    id_out := behead3 (id_out idt);
-    id_semi := drop_semi_nzc (id_semi idt);
-    id_nargs := id_nargs idt;
-    id_args_kinds := id_args_kinds idt;
-    id_eq_size := drop_eq_size (id_eq_size idt);
-    id_tin_narr := id_tin_narr idt;
-    id_tout_narr := all_beheadn (id_tout_narr idt);
-    id_check_dest := all2_beheadn (id_check_dest idt);
-    id_str_jas := id_str_jas idt;
-    id_safe := id_safe idt;
-    id_pp_asm := id_pp_asm idt;
-  |}.
-Arguments drop_nzc : clear implicits.
-
-Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
-  {|
-    id_msb_flag := MSB_MERGE;
-    id_tin := id_tin idt;
-    id_in := id_in idt;
-    id_tout := behead4 (id_tout idt);
-    id_out := behead4 (id_out idt);
-    id_semi := drop_semi_nzcv (id_semi idt);
-    id_nargs := id_nargs idt;
-    id_args_kinds := id_args_kinds idt;
-    id_eq_size := drop_eq_size (id_eq_size idt);
-    id_tin_narr := id_tin_narr idt;
-    id_tout_narr := all_beheadn (id_tout_narr idt);
-    id_check_dest := all2_beheadn (id_check_dest idt);
-    id_str_jas := id_str_jas idt;
-    id_safe := id_safe idt;
-    id_pp_asm := id_pp_asm idt;
-  |}.
-Arguments drop_nzcv : clear implicits.
+Definition drop_nz : instr_desc_t -> instr_desc_t := idt_drop2.
+Definition drop_nzc : instr_desc_t -> instr_desc_t := idt_drop3.
+Definition drop_nzcv : instr_desc_t -> instr_desc_t := idt_drop4.
 
 
 (* -------------------------------------------------------------------- *)
@@ -1654,4 +1514,4 @@ Instance arm_op_decl : asm_op_decl arm_op :=
     prim_string := arm_prim_string;
   |}.
 
-Definition arm_prog := @asm_prog register _ _ _ _ _ _ arm_op_decl.
+Definition arm_prog := @asm_prog _ _ _ _ _ _ _ arm_op_decl.

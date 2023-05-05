@@ -1279,8 +1279,6 @@ Proof.
   rewrite /exec_sopn /=.
   t_xrbindP=> w w'' hvx.
   have [ws' [w' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
-  rewrite /sopn_sem /=.
-  rewrite /drop_semi_nzcv /=.
   move=> [<-] <-.
   apply: List.Forall2_cons; last done.
   exact: (word_uincl_zero_ext w' hws').

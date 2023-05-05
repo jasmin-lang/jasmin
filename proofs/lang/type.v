@@ -41,9 +41,7 @@ Scheme Equality for stype.
 
 Lemma stype_axiom : Equality.axiom stype_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_stype_dec_bl.
-  by apply: internal_stype_dec_lb.
+  exact: (eq_axiom_of_scheme internal_stype_dec_bl internal_stype_dec_lb).
 Qed.
 
 Definition stype_eqMixin     := Equality.Mixin stype_axiom.

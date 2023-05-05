@@ -68,9 +68,7 @@ Scheme Equality for register.
 
 Lemma reg_eq_axiom : Equality.axiom register_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_register_dec_bl.
-  by apply: internal_register_dec_lb.
+  exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
 Qed.
 
 Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
@@ -83,9 +81,10 @@ Scheme Equality for register_ext.
 
 Lemma regx_eq_axiom : Equality.axiom register_ext_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_register_ext_dec_bl.
-  by apply: internal_register_ext_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_register_ext_dec_bl
+       internal_register_ext_dec_lb).
 Qed.
 
 Definition regx_eqMixin := Equality.Mixin regx_eq_axiom.
@@ -97,9 +96,10 @@ Scheme Equality for xmm_register.
 
 Lemma xreg_eq_axiom : Equality.axiom xmm_register_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_xmm_register_dec_bl.
-  by apply: internal_xmm_register_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_xmm_register_dec_bl
+       internal_xmm_register_dec_lb).
 Qed.
 
 Definition xreg_eqMixin := Equality.Mixin xreg_eq_axiom.
@@ -111,9 +111,7 @@ Scheme Equality for rflag.
 
 Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_rflag_dec_bl.
-  by apply: internal_rflag_dec_lb.
+  exact: (eq_axiom_of_scheme internal_rflag_dec_bl internal_rflag_dec_lb).
 Qed.
 
 Definition rflag_eqMixin := Equality.Mixin rflag_eq_axiom.
@@ -125,9 +123,7 @@ Scheme Equality for condt.
 
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_condt_dec_bl.
-  by apply: internal_condt_dec_lb.
+  exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
 Qed.
 
 Definition condt_eqMixin := Equality.Mixin condt_eq_axiom.

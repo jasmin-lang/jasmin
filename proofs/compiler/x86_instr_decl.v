@@ -182,9 +182,7 @@ Scheme Equality for x86_op.
 
 Lemma x86_op_eq_axiom : Equality.axiom x86_op_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_x86_op_dec_bl.
-  by apply: internal_x86_op_dec_lb.
+  exact: (eq_axiom_of_scheme internal_x86_op_dec_bl internal_x86_op_dec_lb).
 Qed.
 
 Definition x86_op_eqMixin := Equality.Mixin x86_op_eq_axiom.

@@ -311,7 +311,7 @@ Qed.
 
 Lemma is_implicitP i e :
   is_implicit i e →
-  ∃ vi, e = Rexpr (Fvar {| v_var := var_of_implicit i ; v_info := vi |}).
+  ∃ vi, e = Rexpr (Fvar {| v_var := var_of_implicit_arg i ; v_info := vi |}).
 Proof. by case: e => //- [] // [] x vi //= /eqP ->; exists vi. Qed.
 
 Section EVAL_ASSEMBLE_COND.
