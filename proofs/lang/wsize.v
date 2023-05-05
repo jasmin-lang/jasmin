@@ -44,9 +44,7 @@ Scheme Equality for wsize.
 
 Lemma wsize_axiom : Equality.axiom wsize_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_wsize_dec_bl.
-  by apply: internal_wsize_dec_lb.
+  exact: (eq_axiom_of_scheme internal_wsize_dec_bl internal_wsize_dec_lb).
 Qed.
 
 Definition wsize_eqMixin     := Equality.Mixin wsize_axiom.
@@ -78,9 +76,7 @@ Scheme Equality for velem.
 
 Lemma velem_axiom : Equality.axiom velem_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_velem_dec_bl.
-  by apply: internal_velem_dec_lb.
+  exact: (eq_axiom_of_scheme internal_velem_dec_bl internal_velem_dec_lb).
 Qed.
 
 Definition velem_eqMixin     := Equality.Mixin velem_axiom.

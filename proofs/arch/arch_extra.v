@@ -84,7 +84,7 @@ Lemma to_var_regx_neq_xreg (r : regx_t) (x : xreg_t) :
   to_var r <> to_var x.
 Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
 
-Definition sopn_implicit_arg (i: implicit_arg) :=
+Definition var_of_implicit_arg (i : implicit_arg) : var :=
   match i with
   | IArflag r => to_var r
   | IAreg r => to_var r
@@ -92,7 +92,7 @@ Definition sopn_implicit_arg (i: implicit_arg) :=
 
 Definition sopn_arg_desc (ad:arg_desc) :=
   match ad with
-  | ADImplicit ia => sopn.ADImplicit (sopn_implicit_arg ia)
+  | ADImplicit ia => sopn.ADImplicit (var_of_implicit_arg ia)
   | ADExplicit _ n ox => sopn.ADExplicit n (omap to_var ox)
   end.
 

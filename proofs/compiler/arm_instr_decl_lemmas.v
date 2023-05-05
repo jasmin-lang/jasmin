@@ -6,7 +6,9 @@ From mathcomp Require Import word_ssrZ.
 Require Import
   psem
   shift_kind.
-Require Import sem_params_of_arch_extra.
+Require Import
+  arch_utils
+  sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -96,8 +98,6 @@ Proof.
     ).
 
   all: move: hsemop.
-  all: rewrite /sopn_sem /=.
-  all: rewrite /drop_semi_nzcv /=.
   all: move=> [?]; subst v.
   all: by case: b.
 Qed.

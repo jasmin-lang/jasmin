@@ -26,9 +26,10 @@ Scheme Equality for arm_extra_op.
 
 Lemma arm_extra_op_eq_axiom : Equality.axiom arm_extra_op_beq.
 Proof.
-  move=> x y; apply:(iffP idP).
-  + by apply: internal_arm_extra_op_dec_bl.
-  by apply: internal_arm_extra_op_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_arm_extra_op_dec_bl
+       internal_arm_extra_op_dec_lb).
 Qed.
 
 Definition arm_extra_op_eqMixin :=

@@ -118,9 +118,7 @@ Scheme Equality for zone.
 
 Lemma zone_eq_axiom : Equality.axiom zone_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_zone_dec_bl.
-  by apply: internal_zone_dec_lb.
+  exact: (eq_axiom_of_scheme internal_zone_dec_bl internal_zone_dec_lb).
 Qed.
 
 Definition zone_eqMixin := Equality.Mixin zone_eq_axiom.

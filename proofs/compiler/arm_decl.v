@@ -34,15 +34,12 @@ Variant register : Type :=
 | LR                            (* Subroutine link register. *)
 | SP.                           (* Stack pointer. *)
 
-Definition register_dec_eq (r0 r1: register) : {r0 = r1} + {r0 <> r1}.
-  by repeat decide equality.
-Defined.
-
-Definition register_beq (r0 r1: register) : bool :=
-  is_left (register_dec_eq r0 r1).
+Scheme Equality for register.
 
 Lemma register_eq_axiom : Equality.axiom register_beq.
-Proof. by t_eq_axiom register_beq register_dec_eq. Qed.
+Proof.
+  exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_register : eqTypeC register :=
@@ -104,15 +101,12 @@ Variant rflag : Type :=
 | CF    (* Carry condition flag. *)
 | VF.   (* Overflow condition flag. *)
 
-Definition rflag_dec_eq (f0 f1: rflag) : {f0 = f1} + {f0 <> f1}.
-  by repeat decide equality.
-Defined.
-
-Definition rflag_beq (f0 f1: rflag) : bool :=
-  is_left (rflag_dec_eq f0 f1).
+Scheme Equality for rflag.
 
 Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
-Proof. by t_eq_axiom rflag_beq rflag_dec_eq. Qed.
+Proof.
+  exact: (eq_axiom_of_scheme internal_rflag_dec_bl internal_rflag_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_rflag : eqTypeC rflag :=
@@ -171,15 +165,12 @@ Variant condt : Type :=
 | GT_ct    (* Signed greater than. *)
 | LE_ct.   (* Signed less than or equal. *)
 
-Definition condt_dec_eq (c0 c1: condt) : {c0 = c1} + {c0 <> c1}.
-  by repeat decide equality.
-Defined.
-
-Definition condt_beq (c0 c1: condt) : bool :=
-  is_left (condt_dec_eq c0 c1).
+Scheme Equality for condt.
 
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
-Proof. by t_eq_axiom condt_beq condt_dec_eq. Qed.
+Proof.
+  exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_condt : eqTypeC condt :=
@@ -228,16 +219,13 @@ Definition string_of_condt (c : condt) : string :=
  * Some instructions can shift a register before performing an operation.
  *)
 
-Definition shift_kind_dec_eq (sk0 sk1 : shift_kind) :
-  {sk0 = sk1} + {sk0 <> sk1}.
-  by repeat decide equality.
-Defined.
-
-Definition shift_kind_beq (sk0 sk1 : shift_kind) : bool :=
-  is_left (shift_kind_dec_eq sk0 sk1).
+Scheme Equality for shift_kind.
 
 Lemma shift_kind_eq_axiom : Equality.axiom shift_kind_beq.
-Proof. by t_eq_axiom shift_kind_beq shift_kind_dec_eq. Qed.
+Proof.
+  exact:
+    (eq_axiom_of_scheme internal_shift_kind_dec_bl internal_shift_kind_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_shift_kind : eqTypeC shift_kind :=
@@ -281,7 +269,6 @@ Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
   | U32, Oror U32 => Some SROR
   | _, _ => None
   end.
-
 
 (* -------------------------------------------------------------------- *)
 (* Flag combinations.
@@ -339,7 +326,8 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   }.
 
 Definition arm_linux_call_conv : calling_convention :=
-  {| callee_saved   := map ARReg [:: R04; R05; R06; R07; R08; R09; R10; R11; SP ]
+  {| callee_saved :=
+      map ARReg [:: R04; R05; R06; R07; R08; R09; R10; R11; SP ]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: R00; R01; R02; R03 ]
    ; call_xreg_args := [::]
