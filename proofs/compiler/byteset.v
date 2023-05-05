@@ -3,7 +3,7 @@ From mathcomp Require Import all_ssreflect.
 Require Import utils Wellfounded.
 Import Lexicographic_Product Relation_Operators.
 
-Import Utf8 ZArith Psatz.
+Import Utf8 ZArith Lia.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
