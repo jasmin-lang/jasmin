@@ -122,10 +122,20 @@ Proof.
   all: by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= !zero_extend_u /= hx.
 Qed.
 
+Lemma arm_immediateP (P': sprog) w s (x: var_i) z :
+  vtype x = sword Uptr
+  -> psem.sem_i (pT := progStack) P' w s (arm_immediate x z) (with_vm s (evm s).[x <- pof_val x.(vtype) (Vword (wrepr Uptr z))])%vmap.
+Proof.
+  case: x => - [] [] // [] // x xi _ /=.
+  constructor.
+  by rewrite /sem_sopn /= zero_extend_u.
+Qed.
+
 Definition arm_hsaparams is_regx :
   h_stack_alloc_params (ap_sap arm_params is_regx) :=
   {|
     mov_ofsP := arm_mov_ofsP;
+    sap_immediateP := arm_immediateP;
   |}.
 
 

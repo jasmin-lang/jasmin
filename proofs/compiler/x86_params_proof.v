@@ -81,23 +81,21 @@ Definition x86_hpiparams : h_propagate_inline_params :=
 Section STACK_ALLOC.
 
   Variable (is_regx : var -> bool) (P' : sprog).
-  Hypothesis P'_globs : P'.(p_globs) = [::].
 
   Lemma lea_ptrP s1 e i x tag ofs w s2 :
-    (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+    P'.(p_globs) = [::]
+    -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
     -> write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2
     -> psem.sem_i (pT := progStack) P' w s1 (lea_ptr x e tag ofs) s2.
   Proof.
-    move=> he hx.
+    move=> P'_globs he hx.
     constructor.
     rewrite /sem_sopn /= P'_globs /sem_sop2 /=.
     move: he; t_xrbindP=> _ -> /= -> /=.
     by rewrite !zero_extend_u hx.
   Qed.
 
-End STACK_ALLOC.
-
-Lemma x86_mov_ofsP (is_regx : var -> bool) (P' : sprog) s1 e i x tag ofs w vpk s2 ins :
+Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs (x86_saparams is_regx) x tag vpk e ofs = Some ins
@@ -107,15 +105,29 @@ Proof.
   move=> P'_globs he.
   rewrite /x86_saparams /= /x86_mov_ofs.
   case: (mk_mov vpk).
-  - move=> [<-]. by apply lea_ptrP.
+  - move=> [<-]. exact: lea_ptrP.
   case: eqP => [-> | _] [<-].
   + by rewrite wrepr0 GRing.addr0 -P'_globs; apply mov_wsP; rewrite // P'_globs.
-  by apply lea_ptrP.
+  exact: lea_ptrP.
 Qed.
+
+Lemma x86_immediateP w s (x: var_i) z :
+  vtype x = sword Uptr
+  -> psem.sem_i (pT := progStack) P' w s (x86_immediate is_regx x z) (with_vm s (evm s).[x <- pof_val x.(vtype) (Vword (wrepr Uptr z))])%vmap.
+Proof.
+  case: x => - [] [] // [] // x xi _ /=.
+  have := mov_wsP (pT := progStack) is_regx AT_none _ (cmp_le_refl _).
+  move => /(_ _ _ _ _ P').
+  apply; last reflexivity.
+  by rewrite /= truncate_word_u.
+Qed.
+
+End STACK_ALLOC.
 
 Definition x86_hsaparams is_regx : h_stack_alloc_params (ap_sap x86_params is_regx) :=
   {|
     mov_ofsP := x86_mov_ofsP (is_regx := is_regx);
+    sap_immediateP := x86_immediateP is_regx;
   |}.
 
 (* ------------------------------------------------------------------------ *)
