@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 From Coq.Unicode Require Import Utf8.
-Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
@@ -1559,7 +1559,42 @@ Notation zify := (Zcmp_le, Zcmp_lt, pify, (rwR2 (@ZleP), rwR2 (@ZltP))).
 
 (* -------------------------------------------------------------------- *)
 
-Definition ziota p (z:Z) := [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
+Definition Zwf0_pred_t x : Prop :=
+  if x is Zpos p
+  then 0 <= Zpos p ∧ Z.pred (Zpos p) < Zpos p
+  else True.
+
+Lemma Zwf0_pred x : Zwf0_pred_t x.
+Proof. case: x => // p; red; Lia.lia. Qed.
+
+Fixpoint ziota_rec (first z: Z) (H: Acc (Zwf 0) z) : seq Z :=
+  let: Acc_intro REC := H in
+  match z as z' return (∀ x : Z, Zwf 0 x z' → @Acc Z (Zwf 0) x) -> Zwf0_pred_t z' -> seq Z with
+  | Zpos p => λ REC h, first :: ziota_rec (Z.succ first) (REC (Z.pred p) h)
+  | _ => λ _ _, [::]
+  end REC (Zwf0_pred z).
+
+Definition ziota p z : seq Z :=
+  ziota_rec p (Acc_intro_generator 2 (Zwf_well_founded 0) z).
+
+Fixpoint ziota_recP p z H :
+  @ziota_rec p z H = [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
+Proof.
+  case: H => REC.
+  rewrite /ziota_rec.
+  case: z REC => // z' REC.
+  rewrite -/(@ziota_rec (Z.succ p) (Z.pred z')).
+  have -> : Z.to_nat z' = (Z.to_nat (Z.pred z')).+1 by Lia.lia.
+  rewrite map_cons -/(iota _ _) Z.add_0_r; congr (_ :: _).
+  rewrite (iotaDl 1) -map_comp.
+  rewrite ziota_recP.
+  apply: eq_map => i /=.
+  Lia.lia.
+Qed.
+
+Lemma ziotaE p z :
+  ziota p z = [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
+Proof. exact: ziota_recP. Qed.
 
 Lemma ziota0 p : ziota p 0 = [::].
 Proof. done. Qed.
@@ -1569,6 +1604,7 @@ Proof. by case: z. Qed.
 
 Lemma ziotaS_cons p z: 0 <= z -> ziota p (Z.succ z) = p :: ziota (p+1) z.
 Proof.
+  rewrite !ziotaE.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
   rewrite -addn1 addnC iotaDl -map_comp.
   by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat; Lia.lia.
@@ -1576,7 +1612,8 @@ Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
 Proof.
-  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
+  rewrite !ziotaE.
+  by move=> hz;rewrite Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
 Qed.
 
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
@@ -1593,12 +1630,12 @@ Proof.
 Qed.
 
 Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.
-Proof. by rewrite size_map size_iota. Qed.
+Proof. by rewrite ziotaE size_map size_iota. Qed.
 
 Lemma nth_ziota p (i:nat) z : leq (S i) (Z.to_nat z) ->
    nth 0%Z (ziota p z) i = (p + Z.of_nat i)%Z.
 Proof.
-  by move=> hi;rewrite (nth_map O) ?size_iota // nth_iota.
+  by move=> hi; rewrite ziotaE (nth_map O) ?size_iota // nth_iota.
 Qed.
 
 Lemma list_all_ind (Q : Z -> bool) (P : list Z -> Prop):
