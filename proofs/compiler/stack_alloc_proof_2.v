@@ -2000,7 +2000,7 @@ Proof.
   move=> s1 scs m s2 o xs es ves vxs hves hvxs hs2.
   move=> pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c2 hpmap hwf sao /=.
   move=> hsyscall m0 s1' hvs hext hsao.
-  by apply (alloc_syscallP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hpmap P' hsyscall hvs hves hvxs hs2).
+  by apply (alloc_syscallP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hpmap P' hsaparams hsyscall hvs hves hvxs hs2).
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.

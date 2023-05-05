@@ -2416,6 +2416,11 @@ Record h_stack_alloc_params (saparams : stack_alloc_params) :=
         -> sap_mov_ofs saparams x tag vpk e ofs = Some ins
         -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
         -> sem_i P' w s1 ins s2;
+    (* specification of sap_immediate *)
+    sap_immediateP :
+    forall (P' : sprog) w s (x: var_i) z,
+      vtype x = sword Uptr ->
+      sem_i P' w s (sap_immediate saparams x z) (with_vm s (evm s).[x <- pof_val x.(vtype) (Vword (wrepr Uptr z))]);
   }.
 
 Context
@@ -4012,7 +4017,7 @@ Qed.
 
 (* TODO: in the long term, try to merge with what is proved about calls *)
 Lemma alloc_syscallP ii rmap rs o es rmap2 c m0 s1 s2 ves scs m vs s1' :
-  alloc_syscall pmap ii rmap rs o es = ok (rmap2, c) ->
+  alloc_syscall saparams pmap ii rmap rs o es = ok (rmap2, c) ->
   valid_state rmap m0 s1 s2 ->
   sem_pexprs gd s1 es = ok ves ->
   sem.exec_syscall (escs s1) (emem s1) o ves = ok (scs, m, vs) ->
@@ -4043,15 +4048,9 @@ Proof.
   set i2 := (X in [:: _; X]).
 
   (* write [len] in register [vxlen] *)
-  set s2' := with_vm s2 (evm s2).[vxlen pmap <- pof_val (vxlen pmap).(vtype) (Vword (wrepr Uptr len))].
-  have [hsem1 hvs']: sem_I P' rip s2 i1 s2' /\ valid_state rmap m0 s1 s2'.
-  + split.
-    + constructor; apply: Eassgn.
-      + by rewrite /= /sem_sop1 /=.
-      + by rewrite /truncate_val /= truncate_word_u /=.
-      rewrite /s2' /= /write_var /=.
-      assert (htlen := wt_len).
-      by case: (vxlen pmap) htlen => _ vxlenn /= ->.
+  have := @sap_immediateP _ hsaparams P' rip s2 (with_var (gv g) (vxlen pmap)) len (@wt_len wf_pmap0).
+  set s2' := with_vm s2 _ => hsem1.
+  have hvs': valid_state rmap m0 s1 s2'.
     apply (valid_state_distinct_reg _ hvs).
     + by apply len_neq_rip.
     + by apply len_neq_rsp.

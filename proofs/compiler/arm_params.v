@@ -94,9 +94,13 @@ Definition arm_mov_ofs
     end in
   Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args).
 
+Definition arm_immediate (x: var_i) z :=
+  Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [:: cast_const z ].
+
 Definition arm_saparams : stack_alloc_params :=
   {|
     sap_mov_ofs := arm_mov_ofs;
+    sap_immediate := arm_immediate;
   |}.
 
 

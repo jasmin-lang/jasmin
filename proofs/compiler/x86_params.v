@@ -54,11 +54,15 @@ Definition x86_mov_ofs x tag vpk y ofs :=
   in
   Some addr.
 
+Definition x86_immediate x z :=
+  mov_ws is_regx Uptr (Lvar x) (cast_const z) AT_none.
+
 End IS_REGX.
 
 Definition x86_saparams is_regx : stack_alloc_params :=
   {|
     sap_mov_ofs := x86_mov_ofs is_regx;
+    sap_immediate := x86_immediate is_regx;
   |}.
 
 (* ------------------------------------------------------------------------ *)

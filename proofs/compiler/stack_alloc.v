@@ -461,6 +461,8 @@ Record stack_alloc_params :=
       -> pexpr        (* Variable with base address. *)
       -> Z            (* Offset. *)
       -> option instr_r;
+    (* Build an instruction that assigns an immediate value *)
+    sap_immediate : var_i -> Z -> instr_r;
   }.
 
 Variant mov_kind :=
@@ -1119,7 +1121,7 @@ Definition alloc_syscall ii rmap rs o es :=
       Let sr := get_sub_region rmap xe in
       Let rmap := set_sub_region rmap x sr (Some 0%Z) (Zpos len) in
       ok (rmap,
-          [:: MkI ii (Cassgn (Lvar xlen) AT_none (sword Uptr) (cast_const (Zpos len)));
+          [:: MkI ii (sap_immediate saparams xlen (Zpos len));
               MkI ii (Csyscall [::Lvar xp] o [:: Plvar p; Plvar xlen])])
     | _, _ =>
       Error (stk_ierror_no_var "randombytes: invalid args or result")
