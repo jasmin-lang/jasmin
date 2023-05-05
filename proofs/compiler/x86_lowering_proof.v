@@ -581,27 +581,39 @@ Section PROOF.
       * move => h; eexists; first reflexivity.
         split; first exact: (cmp_le_trans hle (cmp_le_trans Hs' h)).
         by eexists _, _; split; last reflexivity.
-      rewrite eqxx andbT => _.
+      move => hsz_le_64.
+      case: ifP => h128_le_sz''.
+      * by rewrite /= ok_v /exec_sopn /sopn_sem /= ok_w /x86_VMOVDQ /check_size_128_256 h128_le_sz'' wsize_ge_U256.
       case: ifP => // hsz''.
-      by rewrite /= ok_v /exec_sopn /sopn_sem /= /x86_MOVX /check_size_32_64 hsz'' ok_w.
+      rewrite /= ok_v /exec_sopn /sopn_sem /= /x86_MOVX /check_size_32_64 hsz'' ok_w.
+      have : (sz'' ≤ U64)%CMP; last by move ->.
+      by move: h128_le_sz''; clear; case: sz''.
     + rewrite /=; apply: rbindP => - [] // len a /= ok_a; t_xrbindP => i j ok_j ok_i w ok_w ?; subst v.
       case: x ok_a => x xs ok_a.
       case/truncate_valE: Hv' => sz' [] w' [] -> {ty} ok_w' ?; subst v'.
-      case: ifP.
-      * move => h.
-        eexists; first reflexivity.
+      case: ifP => hsz.
+      * eexists; first reflexivity.
         case/truncate_wordP: ok_w' => hle _.
         split; first exact: (cmp_le_trans hle).
         by eauto.
-      rewrite eqxx andbT => _.
+      case: ifP => h128_le_sz'.
+      * by rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn /sopn_sem /= /x86_VMOVDQ /check_size_128_256 h128_le_sz' ok_w' wsize_ge_U256.
       case: ifP => // hsz''.
-      by rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn /sopn_sem /= /x86_MOVX /check_size_32_64 hsz'' ok_w'.
-    + rewrite /=; t_xrbindP => ???????? w _ ?; subst v; case: ifP => // ?.
-      have {Hv'} [sz' [? [? /truncate_wordP [hle _] ?]]] := truncate_valE Hv'.
-      subst v' ty => /=.
-      eexists; first reflexivity.
-      split; first exact: (cmp_le_trans hle).
-      by eauto.
+      rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn /sopn_sem /= /x86_MOVX /check_size_32_64 hsz'' ok_w'.
+      have : (sz' ≤ U64)%CMP; last by move ->.
+      by move: h128_le_sz'; clear; case: sz'.
+    + rewrite /=; t_xrbindP => ?? hx hy ?? he hz w hload ?; subst v; case: ifP => hsz.
+      1-2: have {Hv'} [sz' [? [? /truncate_wordP [hle ?] ?]]] := truncate_valE Hv'.
+      1-2: subst => /=.
+      * eexists; first reflexivity.
+        split; first exact: (cmp_le_trans hle).
+        by eauto.
+      case: eqP => // - [] ?; subst sz'.
+      rewrite /= hx he /= hy hz /= hload /exec_sopn /sopn_sem /= /x86_VMOVDQ truncate_word_u /=.
+      rewrite /check_size_128_256.
+      set b := (X in assert X).
+      suff -> : b; first by rewrite zero_extend_u.
+      by subst b; move: hsz; clear; case: sz.
     + case: o => //.
       (* Oword_of_int *)
       - move => sz; case: e => // z [?]; subst v.
