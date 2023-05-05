@@ -3,7 +3,6 @@ From mathcomp Require Import all_ssreflect.
 From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
-Require Psatz.
 From mathcomp Require Import word_ssrZ.
 
 
@@ -606,7 +605,7 @@ Section MAP2.
     + by move=> [|//] _ [<-].
     move=> a ma ih [//|b mb] /=.
     t_xrbindP=> _ r hf lr /ih{ih}ih <- /=.
-    by Psatz.lia.
+    by Lia.lia.
   Qed.
 
   Lemma mapM2_Forall2 (P: R → B → Prop) ma mb mr :
@@ -680,7 +679,7 @@ Proof.
   + by move=> [|//] _ _ _ [_ <-].
   move=> b lb ih [//|c lc] a /=.
   t_xrbindP=> _ _ _ _ [_ ld] /ih{ih}ih _ <- /=.
-  by Psatz.lia.
+  by Lia.lia.
 Qed.
 
 (* Forall and size *)
@@ -1572,7 +1571,7 @@ Lemma ziotaS_cons p z: 0 <= z -> ziota p (Z.succ z) = p :: ziota (p+1) z.
 Proof.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
   rewrite -addn1 addnC iotaDl -map_comp.
-  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat;Psatz.lia.
+  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat; Lia.lia.
 Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
@@ -1584,13 +1583,13 @@ Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
 Proof.
   case: (ZleP 0 z) => hz.
   + move: p; pattern z; apply natlike_ind => [ p | {z hz} z hz hrec p| //].
-    + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Psatz.lia.
+    + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Lia.lia.
     rewrite ziotaS_cons // in_cons; case: eqP => [-> | ?] /=.
-    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Psatz.lia.
+    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Lia.lia.
     by rewrite hrec; apply Bool.eq_iff_eq_true;split=> /andP [/ZleP ? /ZltP ?];
-      (apply /andP;split;[apply /ZleP| apply /ZltP]); Psatz.lia.
-  rewrite ziota_neg;last Psatz.lia.
-  rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Psatz.lia.
+      (apply /andP;split;[apply /ZleP| apply /ZltP]); Lia.lia.
+  rewrite ziota_neg;last Lia.lia.
+  rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Lia.lia.
 Qed.
 
 Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.

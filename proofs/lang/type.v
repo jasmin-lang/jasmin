@@ -300,6 +300,6 @@ Qed.
 Lemma compat_subtype_undef t1 t2 : compat_type t1 t2 → subtype (vundef_type t1) t2.
 Proof.
   case: t1 => [/eqP ->|/eqP ->|?|?] //=; case: t2 => // *.
-  + by apply /ZleP; Psatz.lia.
+  + by apply /ZleP; Lia.lia.
   by apply wsize_le_U8.
 Qed.
