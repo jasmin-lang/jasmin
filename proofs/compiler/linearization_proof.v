@@ -586,12 +586,7 @@ Section VALIDITY.
   Qed.
 
   Let Hassign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
-  Proof.
-    move => ii fn lbl /=.
-    case: ty;
-      (split => //; first exact: Pos.le_refl).
-    exact: valid_lassign.
-  Qed.
+  Proof. move => ???; exact: default. Qed.
 
   Let Hopn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
   Proof.
@@ -755,12 +750,7 @@ Section NUMBER_OF_LABELS.
   Qed.
 
   Let Hassign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
-  Proof.
-    move => ii fn lbl /=.
-    case: ty => /=; try lia.
-    move=> ws.
-    by rewrite get_label_lassign' /=; apply Z.le_refl.
-  Qed.
+  Proof. move => ???; exact: Z.le_refl. Qed.
 
   Let Hopn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
   Proof.
@@ -960,7 +950,7 @@ Section PROOF.
   Hypothesis linear_ok : linear_prog liparams p = ok p'.
 
   Notation is_linear_of := (is_linear_of p').
-  Notation check_i := (check_i liparams p).
+  Notation check_i := (check_i p).
   Notation check_fd := (check_fd liparams p).
   Notation linear_i := (linear_i liparams p).
   Notation linear_c fn := (linear_c (linear_i fn)).
@@ -1694,34 +1684,7 @@ Section PROOF.
   Qed.
 
   Local Lemma Hasgn : sem_Ind_assgn p Pi_r.
-  Proof.
-    move => ii s1 s2 x tg ty e v v'; rewrite p_globs_nil => ok_v ok_v' ok_s2.
-    move => fn lbl /checked_iE[] fd ok_fd.
-    case: ty ok_v' ok_s2 => // sz.
-    move=> /truncate_val_typeE [w0 [sz' [w' [htw ??]]]]; subst v v' => ok_s2.
-
-    rewrite /check_i.
-    case: ifP => // /isSome_obind[] d ok_d /isSome_obind[] r ok_r hchk _.
-
-    move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
-    have [ v' ok_v' ] := sem_pexpr_uincl X1 ok_v.
-    case/value_uinclE => [sz''] [w] [?]; subst v' => /andP[] hle' /eqP ?; subst w'.
-    have [ vm2 /(match_mem_write_lval M1) [ m2 ok_s2' M2 ] ok_vm2 ] := write_uincl X1 (value_uincl_refl _) ok_s2.
-    exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2]; last first.
-    + exact: write_lval_preserves_metadata ok_s2 ok_s2' _ X1 M1.
-    + exact: wf_write_lval ok_s2'.
-    + apply: vmap_eq_except_union. by have := vrvP ok_s2'.
-    apply: LSem_step.
-    rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /=.
-    rewrite /lassign' ok_d ok_r /=.
-    rewrite /of_estate size_cat addn1 addn0.
-    have {} ok_v' := match_mem_sem_pexpr M1 ok_v'.
-    have {} ok_v' := rexpr_of_pexprP ok_r ok_v'.
-    have {} ok_s2' := lexpr_of_lvalP ok_d ok_s2'.
-    apply: (spec_lassign hliparams _ _ _ _ hchk ok_v' _ ok_s2').
-    move: htw => /truncate_wordP [hle ->].
-    by rewrite (zero_extend_idem _ hle) /truncate_word (ifT _ _ (cmp_le_trans hle hle')).
-  Qed.
+  Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 fn lbl /checked_iE[]. Qed.
 
   Lemma check_rexprsP ii es u :
     allM (check_rexpr ii) es = ok u →
