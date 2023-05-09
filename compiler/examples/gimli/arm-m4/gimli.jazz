@@ -5,12 +5,6 @@ param int ROUND_CONSTANT_HIGH = 0x9e37;
 param int ROUND_CONSTANT_LOW = 0x7900;
 
 inline
-fn rotate (reg u32 x, inline int bits) -> reg u32 {
-    x = #ROR(x, 32 - bits);
-    return x;
-}
-
-inline
 fn swap(reg u32 state, inline int i, inline int j) {
     reg u32 x y;
 
@@ -33,9 +27,9 @@ fn gimli (reg u32 state) {
     for round = N_ROUND downto 0 {
     for column = 0 to N_COLUMN {
     x = (u32)[state + WORD_SIZE * (0 * WORD_SIZE + column)];
-    x = rotate(x, 24);
+    x <<r= 24;
     y = (u32)[state + WORD_SIZE * (1 * WORD_SIZE + column)];
-    y = rotate(y, 9);
+    y <<r= 9;
     z = (u32)[state + WORD_SIZE * (2 * WORD_SIZE + column)];
 
     a = x ^ (z << 1);
