@@ -1,4 +1,4 @@
-JASMINC?=../../jasminc
+JASMINC?=../../../jasminc
 
 .SUFFIXES: .s .o .jazz .jinc
 
