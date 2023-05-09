@@ -781,6 +781,7 @@ Proof.
           | [ |- context[Olsl] ] => case: ws'' => //
           | [ |- context[Oasr] ] => case: ws'' => //
           | [ |- context[Oror] ] => case: ws'' => //
+          | [ |- context[Orol] ] => case: ws'' => //
           end.
       all:
         try
@@ -788,6 +789,7 @@ Proof.
           | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
           | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
           | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
+          | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
         end.
 
       all: move=> [? ? ?] hsemop; subst mn e0' e1'.
@@ -849,6 +851,7 @@ Proof.
       | [ |- context[Olsl] ] => case: ws'' => //
       | [ |- context[Oasr] ] => case: ws'' => //
       | [ |- context[Oror] ] => case: ws'' => //
+      | [ |- context[Orol] ] => case: ws'' => //
       end.
 
   Local Ltac on_is_zero h :=
@@ -862,6 +865,7 @@ Proof.
       | [ |- context[ Olsr ] ] => on_is_zero hseme1
       | [ |- context[ Oasr ] ] => on_is_zero hseme1
       | [ |- context[ Oror ] ] => on_is_zero hseme1
+      | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
       end.
 
   all: move=> [? ? ?] hsemop; subst mn e0' e1'.
@@ -924,6 +928,17 @@ Proof.
   3: rewrite /sem_shr /sem_shift wshr0.
   6: rewrite /sem_sar /sem_shift wsar0.
   8: rewrite /sem_ror /sem_shift wror0.
+  10, 11: have! := (is_wconstP (p_globs p) s hconst); rewrite hseme1 => /truncate_wordP[] _.
+  10: move => <-; rewrite /sem_rol /sem_shift wrol0.
+
+  11: {
+    move => ?; subst c.
+    do 3 f_equal.
+    rewrite /sem_rol /sem_shift !zero_extend_u wrepr_unsigned -wror_opp.
+    apply: wror_m.
+    change (wsize_bits U32) with (wsize_size U256).
+    by rewrite wunsigned_sub_mod.
+  }
 
   all: by rewrite !zero_extend_u.
 Qed.
