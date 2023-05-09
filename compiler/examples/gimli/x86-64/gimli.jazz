@@ -1,63 +1,76 @@
-export
-fn gimli(reg u64 state) {
+fn gimli_ref(reg ptr u32[12] state) -> reg ptr u32[12] {
 inline int round, column;
 reg u32 x, y, z;
 reg u32 a, b, c;
 
 for round = 24 downto 0 {
   for column = 0 to 4 {
-    x = (u32)[state + 4 * column];
+    x = state[0 + column];
     x <<r= 24;
-    y = (u32)[state + 4 * (4 + column)];
+    y = state[4 + column];
     y <<r= 9;
-    z = (u32)[state + 4 * (8 + column)];
+    z = state[8 + column];
 
     a = x;
     b = z; b <<= 1;
     c = y; c &= z; c <<= 2;
     a ^= b; a ^= c;
 
-    (u32)[state + 4 * (8 + column)] = a;
+    state[8 + column] = a;
 
     a = y;
     b = x; b |= z; b <<= 1;
     a ^= x; a ^= b;
 
-    (u32)[state + 4 * (4 + column)] = a;
+    state[4 + column] = a;
 
     a = z;
     b = x; b &= y; b <<= 3;
     a ^= y; a ^= b;
 
-    (u32)[state + 4 * column] = a;
+    state[0 + column] = a;
   }
 
   if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
-    x = (u32)[state + 4 * 0];
-    y = (u32)[state + 4 * 1];
-    (u32)[state + 4 * 0] = y;
-    (u32)[state + 4 * 1] = x;
+    x = state[0];
+    y = state[1];
+    state[0] = y;
+    state[1] = x;
 
-    x = (u32)[state + 4 * 2];
-    y = (u32)[state + 4 * 3];
-    (u32)[state + 4 * 2] = y;
-    (u32)[state + 4 * 3] = x;
+    x = state[2];
+    y = state[3];
+    state[2] = y;
+    state[3] = x;
   }
 
   if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
-    x = (u32)[state + 4 * 0];
-    y = (u32)[state + 4 * 2];
-    (u32)[state + 4 * 0] = y;
-    (u32)[state + 4 * 2] = x;
+    x = state[0];
+    y = state[2];
+    state[0] = y;
+    state[2] = x;
 
-    x = (u32)[state + 4 * 1];
-    y = (u32)[state + 4 * 3];
-    (u32)[state + 4 * 1] = y;
-    (u32)[state + 4 * 3] = x;
+    x = state[1];
+    y = state[3];
+    state[1] = y;
+    state[3] = x;
   }
 
   if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
-    (u32)[state + 4 * 0] ^= 0x9e377900 + round;
+    state[0] ^= 0x9e377900 + round;
   }
 }
+return state;
+}
+
+export
+fn gimli(reg u64 io) {
+  stack u32[12] state;
+  inline int i;
+  for i = 0 to 12 {
+    state[i] = (u32)[io + 4 * i];
+  }
+  state = gimli_ref(state);
+  for i = 0 to 12 {
+    (u32)[io + 4 * i] = state[i];
+  }
 }
