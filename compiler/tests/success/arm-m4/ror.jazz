@@ -8,6 +8,9 @@ fn ror(reg u32 arg0, reg u32 arg1) -> reg u32 {
     [x] = x;
 
     // Immediates.
+    x = arg0 >>r 0;
+    [x] = x;
+
     x = arg0 >>r 1;
     x >>r= 1;
     [x] = x;
