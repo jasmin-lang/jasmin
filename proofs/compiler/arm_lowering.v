@@ -266,6 +266,11 @@ Definition lower_Papp2_op
     | Oror U32 =>
         if is_zero U8 e1 then Some (MOV, e0, [::])
         else Some (ROR, e0, [:: e1 ])
+    | Orol U32 =>
+        if is_wconst U8 e1 is Some c then
+        if c == 0%R then Some (MOV, e0, [::])
+        else Some (ROR, e0, [:: wconst (32 - c) ])
+        else None
     | _ =>
         None
     end
