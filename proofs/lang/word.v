@@ -1791,6 +1791,24 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
+Lemma wror_opp sz (x: word sz) c :
+  wror x (wsize_bits sz - c) = wrol x c.
+Proof.
+  rewrite /wror /wrol.
+  have : 0 < wsize_bits sz by [].
+  move: (wsize_bits _) (wshr_full x) (wshl_full x) => n R L n_pos.
+  have nnz : n ≠ 0 by lia.
+  rewrite Zminus_mod Z_mod_same_full Z.sub_0_l.
+  have : c mod n = 0 ∨ 0 < c mod n < n.
+  - move: (Z.mod_pos_bound c n n_pos); lia.
+  case => c_mod_n.
+  - by rewrite c_mod_n Z.sub_0_r Zmod_0_l wshr0 wshl0 R L.
+  rewrite !Z.mod_opp_l_nz // Zmod_mod; last lia.
+  rewrite worC; do 2 f_equal.
+  lia.
+Qed.
+
+(* ------------------------------------------------------------------------- *)
 
 Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
   (sz1 <= sz2)%CMP && (w1 == zero_extend sz1 w2).
