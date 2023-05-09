@@ -1808,6 +1808,11 @@ Proof.
   lia.
 Qed.
 
+Lemma wror_m sz (x: word sz) y y' :
+  y mod wsize_bits sz = y' mod wsize_bits sz →
+  wror x y = wror x y'.
+Proof. by rewrite /wror => ->. Qed.
+
 (* ------------------------------------------------------------------------- *)
 
 Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
