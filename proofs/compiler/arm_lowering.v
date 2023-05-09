@@ -181,16 +181,10 @@ Definition lower_Pvar (ws : wsize) (v : gvar) : lowered_pexpr :=
   else
     None.
 
-(* Lower an expression of the form [(ws)[v + e]].
-   Precondition:
-   - [v] is a register.
-   - [e] is one of the following:
-     + a register.
-     + an immediate. *)
-Definition lower_Pload
-  (ws ws' : wsize) (v : var_i) (e : pexpr) : lowered_pexpr :=
+(* Lower an expression of the form [(ws)[v + e]] or [tab[ws e]]. *)
+Definition lower_load (ws: wsize) (e: pexpr) : lowered_pexpr :=
   if ws is U32
-  then Some (ARM_op LDR default_opts, [:: Pload ws' v e ])
+  then Some (ARM_op LDR default_opts, [:: e ])
   else None.
 
 Definition is_load (e: pexpr) : bool :=
@@ -296,7 +290,8 @@ Definition lower_Papp2
 Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : lowered_pexpr :=
   match e with
   | Pvar v => lower_Pvar ws v
-  | Pload ws' v e => lower_Pload ws ws' v e
+  | Pget _ _ _ _
+  | Pload _ _ _=> lower_load ws e
   | Papp1 op e => lower_Papp1 ws op e
   | Papp2 op a b => lower_Papp2 ws op a b
   | _ => None

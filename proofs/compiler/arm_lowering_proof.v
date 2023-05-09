@@ -571,14 +571,25 @@ Proof.
   all: by rewrite ?zero_extend_u.
 Qed.
 
-Lemma lower_PloadP ws x e :
-  Plower_pexpr_aux (Pload ws x e).
+Lemma lower_loadP e :
+  match e with Pload _ _ _ | Pget _ _ _ _ => Plower_pexpr_aux e
+  | _ => True end.
 Proof.
-  move=> s ws' ws'' aop es w.
-  move=> h hws' hfve hseme.
+  case: e => // [ aa | ] ws x e s ws' ws'' aop es w.
+  all: rewrite /lower_pexpr_aux /lower_load.
+  all: case: ws' => // /Some_inj[] ?? hws hfve; subst aop es.
+  all: rewrite /sem_pexpr -/(sem_pexpr _ s e).
 
-  move: hseme.
-  rewrite /sem_pexpr -/(sem_pexpr _ s e).
+  - apply: on_arr_gvarP => n t hty ok_t.
+    apply: rbindP => idx.
+    apply: rbindP => ? ok_idx /to_intI ?; subst.
+    apply: rbindP => r ok_r /ok_inj /Vword_inj[] ??; subst => /=.
+    split.
+    + rewrite /= ok_t /= ok_idx /= ok_r /=.
+      eexists; first reflexivity.
+      by rewrite /exec_sopn /= /truncate_word hws /= zero_extend_u.
+    done.
+
   t_xrbindP=> wbase' vbase hgetx hbase woff' voff hseme hoff wres hread ? hw;
     subst ws''.
   move: hbase => /to_wordI [ws0 [wbase [? /truncate_wordP [hws0 ?]]]];
@@ -586,10 +597,6 @@ Proof.
   move: hoff => /to_wordI [ws1 [woff [? /truncate_wordP [hws1 ?]]]];
     subst woff' voff.
   move: hw => [?]; subst wres.
-
-  move: h.
-  rewrite /lower_pexpr_aux /lower_Pload.
-  case: ws' hws' => // hws -[? ?]; subst aop es.
 
   split; last done.
   clear hfve.
@@ -925,12 +932,13 @@ Lemma lower_pexpr_auxP e :
   Plower_pexpr_aux e.
 Proof.
   move=> s ws ws' aop es w.
-  case: e => [||| gx ||| ws0 x e | op e | op e0 e1 ||] // h hws hfve hseme.
+  case: e => [||| gx | aa ws0 x e || ws0 x e | op e | op e0 e1 ||] //.
 
-  - exact: (lower_PvarP h hws hfve hseme).
-  - exact: (lower_PloadP h hws hfve hseme).
-  - exact: (lower_Papp1P h hws hfve hseme).
-  exact: (lower_Papp2P h hws hfve hseme).
+  - exact: lower_PvarP.
+  - exact: (lower_loadP (Pget _ _ _ _)).
+  - exact: (lower_loadP (Pload _ _ _)).
+  - exact: lower_Papp1P.
+  exact: lower_Papp2P.
 Qed.
 
 Lemma sem_i_lower_pexpr_aux s0 s1 s0' ws ws' e aop es (w : word ws') lv tag :
@@ -987,17 +995,17 @@ Proof.
   move=> h hs00 hws hfve hfvlv hseme hwrite.
 
   move: s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
-  case: e => [||| gx ||| ws0 x e | op e | op e0 e1 || ty c e0 e1] //
+  case: e => [||| gx | aa ws0 x e || ws0 x e | op e | op e0 e1 || ty c e0 e1] //
     s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
 
-  1-4: move: h => /no_preP [? h]; subst pre.
-  1-4: have [s1' hsem' hs11] :=
+  1-5: move: h => /no_preP [? h]; subst pre.
+  1-5: have [s1' hsem' hs11] :=
     sem_i_lower_pexpr_aux tag h hs00 hws hfve hfvlv hseme hwrite.
-  1-4: clear s0 ws w h hs00 hws hfve hfvlv hseme hwrite.
-  1-4: exists s1'; last exact: hs11.
-  1-4: clear hs11.
-  1-4: apply: sem_seq1.
-  1-4: exact: (EmkI ii hsem').
+  1-5: clear s0 ws w h hs00 hws hfve hfvlv hseme hwrite.
+  1-5: exists s1'; last exact: hs11.
+  1-5: clear hs11.
+  1-5: apply: sem_seq1.
+  1-5: exact: (EmkI ii hsem').
 
   clear hws.
   move: h.
