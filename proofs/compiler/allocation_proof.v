@@ -391,28 +391,27 @@ Proof.
       apply eq_alloc_rm => //.
   + rewrite /write_var=> Hc Hvm1 Hv Happ; apply rbindP => vm1' Hset [<-] /=.
     move: Hc;case: is_Pvar (@is_PvarP e2).
-    + move=> [ty x] /(_ _ (refl_equal _)) ?;subst e2.
+    + move=> [ [ty x] xi]/(_ _ (refl_equal _)) ?;subst e2.
       case: M.v_wextendtyP => // ht;case:ifPn; last first.
       + move=> ? hc;have [vm2' [-> /= ?]]:= check_varP Hvm1 hc Hset Hv;eexists.
         by rewrite !with_vm_idem;eauto.
-      move=> /andP[]/eqP ? /eqP heqt. subst ty.
-      move: x1 x2 x heqt ht Hset Happ=> [[xt1 xn1] ii1] [[xt2 xn2] ii2] [x ii] /=.
+      move=> /andP[]/eqP heqt /eqP. 
+      move: x1 x2 x heqt ht Hset Happ => [[xt1 xn1] ii1] [[xt2 xn2] ii2] /= x ?; subst xt1.
       set x1 := {| vname := xn1 |}; set x2 := {| vname := xn2 |}.
-      move=> hteq ht hset; t_xrbindP => v2' Happ htr ? ?;subst => /=.
+      move=> ht hset Happ [] ?? [?]; subst xt2 xn2.
       apply: set_varP hset => /=;rewrite /set_var.
       + move=> v1' Hv1 ?;subst.
         apply: on_vuP Happ => //.
         move=> v2_ hv2_ ?;subst.
-        have ?:= truncate_pto_val htr;subst v2.
         rewrite pof_val_pto_val /=;eexists;rewrite !with_vm_idem;split;first reflexivity.
         have /= := @eq_alloc_add x1 (ok v1') r1 x2 (evm s1) vm1 ht Hvm1.
         rewrite hv2_ /= /pval_uincl => H;apply H;last by eauto.
         by apply (value_uincl_pof_val Hv1 Hv).
       move=> /= hniw hv1 ?;subst; rewrite hniw /=.
       apply: on_vuP Happ => //.
-      move=> v2_ heq ?;subst;have ?:= truncate_pto_val htr;subst v2.
+      move=> v2_ heq ?;subst. 
       rewrite pof_val_pto_val /=;eexists;rewrite !with_vm_idem;split;first reflexivity.
-      have /= := @eq_alloc_add x1 (pundef_addr xt2) r1 x2 (evm s1) vm1 ht Hvm1.
+      have /= := @eq_alloc_add x1 (pundef_addr ty) r1 x2 (evm s1) vm1 ht Hvm1.
       rewrite heq /= apply_undef_pundef_addr=> H;apply H.
       + by apply eval_uincl_undef.
       by move /eqP: hniw => ->;right.
@@ -572,14 +571,12 @@ Section PROOF.
 
   Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
   Proof.
-    move => s1 s2 x tag ty e v v'.
-    case: s1 => scs1 sm1 svm1 He Htr Hw r1 [] //= x2 tag2 ty2 e2 r2 vm1 Hvm1.
-    rewrite /check_i.
-    case: eqP => // <- {ty2}; t_xrbindP.
+    move => s1 s2 x tag e v.
+    case: s1 => scs1 sm1 svm1 He Hw r1 [] //= x2 tag2 e2 r2 vm1 Hvm1.
+    t_xrbindP.
     move=> r1' /check_eP -/(_ (p_globs p1) _ _ Hvm1) [Hr1'] /(_ _ _ _ He) [v2 [He2 Hu2]] Hcx.
-    have [v2' Htr' Hu2']:= value_uincl_truncate Hu2 Htr.
-    have  /(_ _ Hr1') [|]:= check_lvalP Hcx _ Hu2' _ Hw.
-    + by rewrite /= He2 /= Htr'.
+    have  /(_ _ Hr1') [|]:= check_lvalP Hcx _ Hu2 _ Hw.
+    + by rewrite /= He2.
     move=> vm2 [Hwv Hvm2].
     by exists vm2; split=>//;econstructor;rewrite -?eq_globs;eauto.
   Qed.
