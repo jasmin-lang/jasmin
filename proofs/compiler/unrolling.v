@@ -50,12 +50,12 @@ Definition unroll_cmd (unroll_i: instr -> cmd * bool) (c:cmd) : cmd * bool :=
        (i' ++ c', a || b))
     ([::], false) c.
 
-Definition assgn ii x e := MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e).
+Definition assgn ii x e := MkI ii (Cassgn (Lvar x) AT_inline e).
 
 Fixpoint unroll_i (i: instr) : cmd * bool :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn _ _ _ _
+  | Cassgn _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _
   | Ccall _ _ _ _

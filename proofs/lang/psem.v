@@ -580,11 +580,10 @@ with sem_I : estate -> instr -> estate -> Prop :=
     sem_I s1 (MkI ii i) s2
 
 with sem_i : estate -> instr_r -> estate -> Prop :=
-| Eassgn s1 s2 (x:lval) tag ty e v v' :
+| Eassgn s1 s2 (x:lval) tag e v :
     sem_pexpr gd s1 e = ok v ->
-    truncate_val ty v = ok v' →
-    write_lval gd x v' s1 = ok s2 ->
-    sem_i s1 (Cassgn x tag ty e) s2
+    write_lval gd x v s1 = ok s2 ->
+    sem_i s1 (Cassgn x tag e) s2
 
 | Eopn s1 s2 t o xs es:
     sem_sopn gd o s1 xs es = ok s2 ->
@@ -670,9 +669,8 @@ Proof. by case. Qed.
 Lemma sem_iE s i s' :
   sem_i s i s' ->
   match i with
-  | Cassgn lv _ ty e =>
-    ∃ v v',
-    [/\ sem_pexpr gd s e = ok v, truncate_val ty v = ok v' & write_lval gd lv v' s = ok s' ]
+  | Cassgn lv _ e =>
+    exists2 v, sem_pexpr gd s e = ok v & write_lval gd lv v s = ok s'
   | Copn lvs _ op es => sem_sopn gd op s lvs es = ok s'
   | Csyscall xs o es =>
     ∃ scs m ves vs,
@@ -697,7 +695,7 @@ Lemma sem_iE s i s' :
   end.
 Proof.
   case => {s i s'} //.
-  - by move => s s' x _ ty e v v' hv hv' hw; exists v, v'.
+  - by move => s s' x _ e v hv hw; exists v.
   - by move => s scs m s' xs o es ves vs h1 h2 h3; exists scs, m, ves, vs.
   - by move => s s' e th el he hth; exists true.
   - by move => s s' e th el he hel; exists false.
@@ -770,11 +768,10 @@ Section SEM_IND.
   Hypothesis HmkI : sem_Ind_mkI.
 
   Definition sem_Ind_assgn : Prop :=
-    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
+    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) (e : pexpr) v,
       sem_pexpr gd s1 e = ok v →
-      truncate_val ty v = ok v' →
-      write_lval gd x v' s1 = ok s2 →
-      Pi_r s1 (Cassgn x tag ty e) s2.
+      write_lval gd x v s1 = ok s2 →
+      Pi_r s1 (Cassgn x tag e) s2.
 
   Definition sem_Ind_opn : Prop :=
     forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
@@ -887,7 +884,7 @@ Section SEM_IND.
   with sem_i_Ind (e : estate) (i : instr_r) (e0 : estate) (s : sem_i e i e0) {struct s} :
     Pi_r e i e0 :=
     match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
-    | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
+    | @Eassgn s1 s2 x tag e1 v h1 h2 => @Hasgn s1 s2 x tag e1 v h1 h2
     | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
     | @Esyscall s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall s1 scs m s2 o xs es ves vs h1 h2 h3
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
@@ -1182,7 +1179,7 @@ Proof.
     => {c s1 s2} //.
   + move=> s1 s2 s3 i c _ Hi _ Hc z;rewrite write_c_cons => Hnin.
     by rewrite Hi ?Hc //;SvD.fsetdec.
-  + move=> s1 s2 x tag ty e v v' ? hty Hw z.
+  + move=> s1 s2 x tag e v ? Hw z.
     by rewrite write_i_assgn;apply (vrvP Hw).
   + move=> s1 s2 t o xs es; rewrite /sem_sopn.
     case: (Let _ := sem_pexprs _ _ _ in _) => //= vs Hw z.
@@ -2345,10 +2342,9 @@ Proof. by move=> ii i s1 s2 _ Hi vm1 /Hi [vm2 []] Hsi ?;exists vm2. Qed.
 
 Local Lemma Hasgn : sem_Ind_assgn p Pi_r.
 Proof.
-  move=> s1 s2 x tag ty e v v' hsem hty hwr vm1 Hvm1.
+  move=> s1 s2 x tag e v hsem hwr vm1 Hvm1.
   have [w hsem' hle]:= sem_pexpr_uincl Hvm1 hsem.
-  have [w'' hty' hle'] := value_uincl_truncate hle hty.
-  have  [vm2 Hw ?]:= write_uincl Hvm1 hle' hwr;exists vm2;split=> //.
+  have  [vm2 Hw ?]:= write_uincl Hvm1 hle hwr; exists vm2; split=> //.
   by econstructor;first exact hsem'; eauto.
 Qed.
 
@@ -2831,7 +2827,7 @@ Section WF.
     + by move=> i ii Hrec s1 s2 /sem_IE; apply: Hrec.
     + by move => s1 s2 /semE ->.
     + by move=> i c Hi Hc s1 s2 /semE [si] [] /Hi {Hi} Hi ? /Hi; apply: Hc.
-    + move=> x t ty e s1 s2 /sem_iE [v] [v'] [hv hv' ok_s2] hw.
+    + move=> x t e s1 s2 /sem_iE [] v hv ok_s2 hw.
       by apply: wf_write_lval ok_s2.
     + move=> xs t o es s1 s2 /sem_iE.
       by apply:rbindP => ?? Hw ?;apply: wf_write_lvals Hw.

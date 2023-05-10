@@ -129,18 +129,16 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
-  | Cassgn(x, tg, ty, Parr_init n) ->
-    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
+  | Cassgn(x, tg, Parr_init n) ->
+    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %s */@]"
       (pp_glv pp_len pp_var) x
       pp_len n
-      (pp_gtype pp_len) ty
       (pp_tag tg)
 
-  | Cassgn(x , tg, ty, e) ->
-    F.fprintf fmt "@[<hov 2>%a =@ %a; /* %a%s */@]"
+  | Cassgn(x , tg, e) ->
+    F.fprintf fmt "@[<hov 2>%a =@ %a; /* %s */@]"
       (pp_glv pp_len pp_var) x
       (pp_ge pp_len pp_var) e
-      (pp_gtype pp_len) ty
       (pp_tag tg)
 
   | Copn(x, t, o, e) ->

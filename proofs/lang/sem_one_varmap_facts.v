@@ -53,7 +53,7 @@ Lemma HmkI : sem_Ind_mkI p extra_free_registers var_tmp Pi Pi_r.
 Proof. by []. Qed.
 
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
-Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_stack_stable. Qed.
+Proof. by move => ii s1 s2 x tg e v ok_v /write_lval_stack_stable. Qed.
 
 Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
@@ -225,7 +225,7 @@ Proof.
 Qed.
 
 Lemma Hassgn_nw : sem_Ind_assgn p Pi_r.
-Proof. move => ii s1 s2 x tg ty e v v' ok_v ok_v'; exact: vrvP. Qed.
+Proof. move => ii s1 s2 x tg e v ok_v; exact: vrvP. Qed.
 
 Lemma Hopn_nw : sem_Ind_opn p Pi_r.
 Proof. move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vs' vs ok_vs ok_vs'; exact: vrvsP. Qed.
@@ -527,7 +527,7 @@ Lemma validw_stable_mkI : sem_Ind_mkI p extra_free_registers var_tmp Pi Pi_r.
 Proof. by []. Qed.
 
 Lemma validw_stable_assgn : sem_Ind_assgn p Pi_r.
-Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_validw. Qed.
+Proof. by move => ii s1 s2 x tg e v ok_v /write_lval_validw. Qed.
 
 Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.

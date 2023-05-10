@@ -468,11 +468,10 @@ Section LEMMA.
 
   Lemma Hassgn: sem_Ind_assgn p Pi_r.
   Proof.
-    move => s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 sz ii I O t1.
+    move => s1 s2 x tg e v ok_v ok_s2 sz ii I O t1.
     rewrite /check_instr_r; t_xrbindP => hce hlv _ hpre hsim.
     have [w ok_w vw]:= check_eP hce hsim ok_v.
-    have [w' ok_w' vw'] := value_uincl_truncate vw ok_v'.
-    have [t2 ok_t2 hsim']:= check_lvP hlv hsim ok_s2 vw'.
+    have [t2 ok_t2 hsim']:= check_lvP hlv hsim ok_s2 vw.
     exists t2 => //; eexists; last reflexivity.
     econstructor; eauto.
   Qed.

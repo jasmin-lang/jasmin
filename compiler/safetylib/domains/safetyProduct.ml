@@ -676,7 +676,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | Copn (lvs,_,_,_), Copn (ssa_lvs,_,_,_) ->
       List.fold_left2 (build_map_lv i.i_info) lmap lvs ssa_lvs
         
-    | Cassgn (lv,_,_,_), Cassgn (ssa_lv,_,_,_) ->
+    | Cassgn (lv, _, _), Cassgn (ssa_lv, _, _) ->
       build_map_lv i.i_info lmap lv ssa_lv
 
     | Cwhile (_, is1, _, is2), Cwhile (_, ssa_is1, _, ssa_is2)         
@@ -692,7 +692,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | _, _ -> lmap
 
   and build_lmap lmap is ssa_is = match is, ssa_is with
-    | _, { i_desc = Cassgn (_,AT_phinode,_,_) } :: ssa_is ->
+    | _, { i_desc = Cassgn (_, AT_phinode, _) } :: ssa_is ->
       build_lmap lmap is ssa_is
     | i :: is, ssa_i :: ssa_is ->
       let lmap = build_lmap_i lmap i ssa_i in

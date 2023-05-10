@@ -37,13 +37,13 @@ let rec live_i is_move_op weak i s_o =
 
 and live_d is_move_op weak d (s_o: Sv.t) =
   match d with
-  | Cassgn(x, tg, ty, e) ->
+  | Cassgn(x, tg, e) ->
 
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
     let s_o =
       if weak && not (is_trivial_move x e) then writev_lval s_o x
       else s_o in
-    s_i, s_o, Cassgn(x, tg, ty, e)
+    s_i, s_o, Cassgn(x, tg, e)
 
   | Copn(xs,t,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in

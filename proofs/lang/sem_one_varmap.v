@@ -167,11 +167,10 @@ with sem_I : Sv.t → estate → instr → estate → Prop :=
     sem_I (Sv.union (extra_free_registers_at ii) k) s1 (MkI ii i) s2
 
 with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
-| Eassgn ii s1 s2 (x:lval) tag ty e v v' :
+| Eassgn ii s1 s2 (x:lval) tag e v :
     sem_pexpr gd s1 e = ok v →
-    truncate_val ty v = ok v' →
-    write_lval gd x v' s1 = ok s2 →
-    sem_i ii (vrv x) s1 (Cassgn x tag ty e) s2
+    write_lval gd x v s1 = ok s2 →
+    sem_i ii (vrv x) s1 (Cassgn x tag e) s2
 
 | Eopn ii s1 s2 t o xs es:
     sem_sopn gd o s1 xs es = ok s2 →
@@ -299,9 +298,9 @@ Proof. by case => {k s i s'} ii k i s1 s2 ???; exists k. Qed.
 Lemma sem_iE ii k s i s' :
   sem_i ii k s i s' →
   match i with
-  | Cassgn x tag ty e =>
+  | Cassgn x tag e =>
     k = vrv x ∧
-    exists2 v', sem_pexpr gd s e >>= truncate_val ty = ok v' & write_lval gd x v' s = ok s'
+    exists2 v, sem_pexpr gd s e = ok v & write_lval gd x v s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
   | Csyscall xs o es => 
     k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
@@ -326,7 +325,6 @@ Lemma sem_iE ii k s i s' :
   end.
 Proof.
   case => { ii k s i s' }; eauto.
-  - by move => _ s s' x _ ty e v v' -> /= ->; eauto.
   - by move=> _ s1 scs m s2 o xs es ves vs h1 h2 h3; split => //; exists scs, m, ves, vs.
   - by move => ii k k' krec s1 s2 s3 s4 a c e c' exec_c eval_e exec_c' rec; exists k, s2, true; split; try eexists; eauto.
   by move => ii k s1 s2 a c e c' exec_c eval_e; exists k, s2, false.
@@ -393,11 +391,10 @@ Section SEM_IND.
   Hypothesis HmkI : sem_Ind_mkI.
 
   Definition sem_Ind_assgn : Prop :=
-    ∀ (ii: instr_info) (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
+    ∀ (ii: instr_info) (s1 s2 : estate) (x : lval) (tag : assgn_tag) (e : pexpr) v,
       sem_pexpr gd s1 e = ok v →
-      truncate_val ty v = ok v' →
-      write_lval gd x v' s1 = ok s2 →
-      Pi_r ii (vrv x) s1 (Cassgn x tag ty e) s2.
+      write_lval gd x v s1 = ok s2 →
+      Pi_r ii (vrv x) s1 (Cassgn x tag e) s2.
 
   Definition sem_Ind_opn : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
@@ -493,7 +490,7 @@ Section SEM_IND.
   with sem_i_Ind (ii: instr_info) (k: Sv.t) (e : estate) (i : instr_r) (e0 : estate) (s : sem_i ii k e i e0) {struct s} :
     Pi_r ii k e i e0 :=
     match s in sem_i ii k s1 i s2 return Pi_r ii k s1 i s2 with
-    | @Eassgn ii s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn ii s1 s2 x tag ty e1 v v' h1 h2 h3
+    | @Eassgn ii s1 s2 x tag e1 v h1 h2 => @Hasgn ii s1 s2 x tag e1 v h1 h2
     | @Eopn ii s1 s2 t o xs es e1 => @Hopn ii s1 s2 t o xs es e1
     | @Esyscall ii s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall ii s1 s2 o xs es scs m ves vs h1 h2 h3
     | @Eif_true ii k s1 s2 e1 c1 c2 e2 s0 =>

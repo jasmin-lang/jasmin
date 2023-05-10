@@ -21,7 +21,7 @@ let parse_file reg_size asmOp_sopn fname =
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i asmOp i =
   match i.i_desc with
-  | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) -> (
+  | Cassgn (_, tag, _) | Copn (_, tag, _, _) -> (
       match tag with
       | AT_rename ->
           warning ExtraAssignment i.i_loc

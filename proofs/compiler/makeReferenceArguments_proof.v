@@ -86,7 +86,7 @@ Context
     -> is_reg_ptr_lval is_reg_ptr fresh_id b x ty lv = Some y
     -> make_pseudo_epilogue is_reg_ptr fresh_id ii X xftys lvs = ok args
     -> P xftys lvs args
-    -> P ((b, x, ty) :: xftys) (lv :: lvs) (PI_lv (Lvar y) :: (PI_i lv ty y) :: args).
+    -> P ((b, x, ty) :: xftys) (lv :: lvs) (PI_lv (Lvar y) :: (PI_i lv y) :: args).
 
   Lemma make_pseudo_epilogueW xftys lvs args :
        make_pseudo_epilogue is_reg_ptr fresh_id ii X xftys lvs = ok args
@@ -113,10 +113,10 @@ Context
      write_lval (p_globs p') lv v s1 = ok s2 ->
      sem_pis ii s2 pis vs s3 ->
      sem_pis ii s1 (PI_lv lv :: pis) (v::vs) s3
-   | SPI_i : forall s1 s2 s3 lv ty y pis vs,
-     sem_I p' ev s1 (mk_ep_i ii lv ty y) s2 ->
+   | SPI_i : forall s1 s2 s3 lv y pis vs,
+     sem_I p' ev s1 (mk_ep_i ii lv y) s2 ->
      sem_pis ii s2 pis vs s3 ->
-     sem_pis ii s1 (PI_i lv ty y :: pis) vs s3.
+     sem_pis ii s1 (PI_i lv y :: pis) vs s3.
 
   Lemma sem_pisE ii s1 pis vs s3 :
     sem_pis ii s1 pis vs s3 →
@@ -125,14 +125,14 @@ Context
     | PI_lv lv :: pis' =>
         ∃ v vs' s2,
         [/\ vs = v ::vs', write_lval (p_globs p') lv v s1 = ok s2 & sem_pis ii s2 pis' vs' s3 ]
-    | PI_i lv ty y :: pis' =>
-        exists2 s2, sem_I p' ev s1 (mk_ep_i ii lv ty y) s2 & sem_pis ii s2 pis' vs s3
+    | PI_i lv y :: pis' =>
+        exists2 s2, sem_I p' ev s1 (mk_ep_i ii lv y) s2 & sem_pis ii s2 pis' vs s3
   end.
   Proof.
     case => {s1 pis vs s3}.
     - by [].
     - by move => s1 s2 s3 lv pis v vs ok_s2 rec; exists v, vs, s2.
-    by move => s1 s2 s3 lv ty y pis vs h h'; exists s2.
+    by move => s1 s2 s3 lv y pis vs h h'; exists s2.
   Qed.
 
   Lemma eq_globs : p_globs p = p_globs p'.
@@ -217,13 +217,12 @@ Context
       - move=> z hz; rewrite Fv.setP_neq; first by apply eqvm.
         by apply/eqP => ?;subst z;SvD.fsetdec.
       by rewrite /get_gvar /= /get_var Fv.setP_eq.
-    set I := mk_ep_i ii lv (vtype y) y.
+    set I := mk_ep_i ii lv y.
     have [vm1' semI eqvm1']:
      exists2 vm1', sem_I p' ev (with_vm s1 vmy) I (with_vm s1' vm1') & evm s1' =[X]  vm1'.
     + have [ | vm1' [eqvm1' hwvm1']]:= write_lval_eq_on (X:=X) _ hw eqvmy;first by SvD.fsetdec.
       exists vm1'; last by apply: eq_onI eqvm1'; SvD.fsetdec.
-      constructor; apply Eassgn with vt vt => //.
-      - by apply: truncate_val_idem ht.
+      constructor; apply Eassgn with vt => //.
       by rewrite -eq_globs.
     have [|vm2 sem2 eqvm2]:= ih s1' vm1' vs vst hts _ hws eqvm1'; first by SvD.fsetdec.
     exists vm2 => //; econstructor; eauto; econstructor; eauto.
@@ -274,7 +273,7 @@ Context
       by move=> vm3 [hc heq3]; exists vm3;split => //; econstructor; eauto.
     + move=> ii i s1 s2 _ ih vm1 X; rewrite read_Ii => hsub heq1.
       by case: (ih vm1 X hsub heq1) => vm2 [??];exists vm2; split.
-    + move=> s1 s2 x t ty e v v' he htr hw vm1 X.
+    + move=> s1 s2 x t e v he hw vm1 X.
       rewrite read_i_assgn => hsub heq1.
       case: (write_lval_eq_on _ hw heq1); first by SvD.fsetdec.
       move=> vm2 [ heq2 ?];exists vm2; split.
@@ -448,7 +447,7 @@ Context
     + case/ok_inj => <- <-{lvs' c'} /sem_pisE[] -> <- {vs s1}.
       exists s2, (evm s2); split => //.
       by rewrite with_vm_same; constructor.
-    case: pi => [lv | lv ty y] /=; t_xrbindP => -[] lvs c /ih{ih}ih.
+    case: pi => [lv | lv y] /=; t_xrbindP => -[] lvs c /ih{ih}ih.
     + move=> [??] h; subst lvs' c'.
       case/sem_pisE: h => v [] vs' [] s2' [] ? H H0; subst.
       have [s1' [vm2 [hws hsem]]] := ih _ _ H0.
@@ -456,7 +455,7 @@ Context
     t_xrbindP => /Sv.is_empty_spec.
     rewrite /mk_ep_i /= /write_I /read_I /= -/vrv -/read_rv -Sv.is_empty_spec.
     move=> hrw hwr wflv ?? h; subst c' lvs'.
-    case/sem_pisE: h => s3 /sem_IE/sem_iE[] v [] v' [] H ok_v' H3 H0.
+    case/sem_pisE: h => s3 /sem_IE/sem_iE[] v H H3 H0.
     have [s1' [vm2 [hws hsem heqvm]]]:= ih _ _ H0.
     have heqr := eq_onS (disjoint_eq_on hrw H3).
     have nwm_pi : ~~ lv_write_mem lv by case: (lv) wflv.
@@ -474,7 +473,7 @@ Context
     + move=> x hx; have /= <- := vrvsP hw3; last by SvD.fsetdec.
       rewrite -(vrvsP hws); last by SvD.fsetdec.
       by rewrite -(vrvP H3) //; SvD.fsetdec.
-    have [vmi [hsemi heqv]]: exists vmi, write_lval (p_globs p') lv v' (with_vm s1' vm3) = ok (with_vm s1' vmi) /\ evm s1' =v vmi.
+    have [vmi [hsemi heqv]]: exists vmi, write_lval (p_globs p') lv v (with_vm s1' vm3) = ok (with_vm s1' vmi) /\ evm s1' =v vmi.
     + move: H3; rewrite /write_lval.
       move /Sv.is_empty_spec: hwr; move /Sv.is_empty_spec: hrw.
       rewrite /read_I_rec /write_I_rec [X in (Sv.inter (vrvs _) X)]/= /read_gvar
@@ -564,7 +563,7 @@ Context
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move=> s1 s2 x t ty e v v' he htr hw ii X c' [<-].
+    move=> s1 s2 x t e v he hw ii X c' [<-].
     rewrite read_Ii /write_I /write_I_rec vrv_recE read_i_assgn => hsub vm1 hvm1.
     move: he; rewrite (read_e_eq_on_empty _ (vm := vm1)); last first.
     + by apply: eq_onI hvm1; rewrite read_eE; SvD.fsetdec.
@@ -572,7 +571,7 @@ Context
     + by SvD.fsetdec.
     move => vm2 [eq_s2_vm2 H_write_lval]; exists vm2.
     + by apply: (eq_onI _ eq_s2_vm2); SvD.fsetdec.
-    by apply/sem_seq1/EmkI/(Eassgn _ _ he htr); rewrite -eq_globs.
+    by apply/sem_seq1/EmkI/(Eassgn _ _ he); rewrite -eq_globs.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
@@ -769,9 +768,12 @@ Context
     + rewrite /= /get_gvar /= /get_var -(h4 y); last by SvD.fsetdec.
       rewrite /on_vu /vm1' Fv.setP_eq -(truncate_val_has_type hv) h2.
       by have [? -> ->] /= := pof_val_type_of_val v_def.
-    apply: Eseq h1; apply/EmkI; econstructor; eauto.
+    apply: Eseq h1; apply/EmkI.
+    apply Eassgn with va.
     + rewrite -hva -(make_referenceprog_globs Hp); apply eq_on_sem_pexpr => //.
       by rewrite evm_with_vm; apply/eq_onS/eq_onI/heqvm.
+    rewrite /write_lval /write_var evm_with_vm.
+    move: hset.
     by rewrite /write_lval /write_var hset /= with_vm_idem.
   Qed.
 

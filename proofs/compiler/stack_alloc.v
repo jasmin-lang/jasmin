@@ -655,7 +655,7 @@ Definition sub_region_pk x pk :=
   | _ => Error (stk_ierror x (pp_box [:: pp_var x; pp_s "is not in the stack"]))
   end.
 
-Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
+Definition alloc_lval (rmap: region_map) (r:lval) :=
   match r with
   | Lnone _ _ => ok (rmap, r)
 
@@ -665,13 +665,11 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     | None => Let _ := check_diff x in ok (rmap, r)
     | Some pk => 
       if is_word_type (vtype x) is Some ws then 
-        if subtype (sword ws) ty then 
-          Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
-          Let sr   := sub_region_pk x pk in
-          let r := Lmem ws pofs.1 pofs.2 in
-          Let rmap := Region.set_word rmap x sr ws in
-          ok (rmap, r)
-        else Error (stk_ierror_basic x "invalid type for assignment")
+        Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
+        Let sr   := sub_region_pk x pk in
+        let r := Lmem ws pofs.1 pofs.2 in
+        Let rmap := Region.set_word rmap x sr ws in
+        ok (rmap, r)
       else Error (stk_ierror_basic x "not a word variable in assignment")
     end
 
@@ -881,10 +879,8 @@ Definition alloc_array_move_init rmap r tag e :=
     ok (rmap, nop)
   else alloc_array_move rmap r tag e.
 
-Definition bad_lval_number := stk_ierror_no_var "invalid number of lval".
-
-Definition alloc_lvals rmap rs tys := 
-  fmapM2 bad_lval_number alloc_lval rmap rs tys.
+Definition alloc_lvals rmap rs :=
+  fmapM alloc_lval rmap rs.
 
 Section LOOP.
 
@@ -1065,6 +1061,8 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
     end
   end.
 
+Definition bad_lval_number := stk_ierror_no_var "invalid number of lval".
+
 Definition alloc_call_res rmap srs ret_pos rs := 
   fmapM2 bad_lval_number (alloc_lval_call srs) rmap rs ret_pos.
 
@@ -1128,22 +1126,40 @@ Definition alloc_syscall ii rmap rs o es :=
     end
   end.
 
+(*
+Definition stype_of_lval (x: lval) : stype :=
+  match x with
+  | Lnone _ ty => ty
+  | Lvar x => x.(var_i).(vtype)
+  | Lmem sz _ _ => sword sz
+  | Laset H H0 H1 H2 => #
+  | Lasub H H0 H1 H2 H3 => #
+  end
+*)
+Definition lval_is_sarr (x: lval) : bool :=
+  match x with
+  | Lnone _ ty => is_sarr ty
+  | Lvar x => is_sarr x.(v_var).(vtype)
+  | Lmem _ _ _ => false
+  | Laset _ _ _ _ | Lasub _ _ _ _ _ => true
+  end.
+
 Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
   let (ii, ir) := i in
 
     match ir with
-    | Cassgn r t ty e => 
-      if is_sarr ty then 
+    | Cassgn r t e =>
+      if lval_is_sarr r then
         Let ri := add_iinfo ii (alloc_array_move_init rmap r t e) in
         ok (ri.1, [:: MkI ii ri.2]) 
       else
         Let e := add_iinfo ii (alloc_e rmap e) in
-        Let r := add_iinfo ii (alloc_lval rmap r ty) in
-        ok (r.1, [:: MkI ii (Cassgn r.2 t ty e)])
+        Let r := add_iinfo ii (alloc_lval rmap r) in
+        ok (r.1, [:: MkI ii (Cassgn r.2 t e)])
 
     | Copn rs t o e => 
       Let e  := add_iinfo ii (alloc_es rmap e) in
-      Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
+      Let rs := add_iinfo ii (alloc_lvals rmap rs) in
       ok (rs.1, [:: MkI ii (Copn rs.2 t o e)])
 
     | Csyscall rs o es =>

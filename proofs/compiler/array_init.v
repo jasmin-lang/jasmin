@@ -31,7 +31,7 @@ Fixpoint remove_init_i i :=
   match i with
   | MkI ii ir =>
     match ir with
-    | Cassgn x _ _ e => 
+    | Cassgn x _ e =>
       if is_array_init e then 
         let t := 
           match x with
@@ -104,7 +104,7 @@ Definition add_init_aux ii x c :=
   | sarr n =>
     if ~~ is_ptr x then
       let x := VarI x dummy_var_info in
-      MkI ii (Cassgn (Lvar x) AT_none (sarr n) (Parr_init n)) :: c
+      MkI ii (Cassgn (Lvar x) AT_none (Parr_init n)) :: c
     else c
   | _ => c
   end.

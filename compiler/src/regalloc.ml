@@ -30,7 +30,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
   let fill_lvs lvs = List.map fill_lv lvs in
   let rec fill_instr_r =
     function
-    | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
+    | Cassgn (lv, tg, e) -> Cassgn (fill_lv lv, tg, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
@@ -226,16 +226,16 @@ let collect_equality_constraints_in_func
           op
           es
     | Csyscall (_lvs, _op, _es) -> ()
-    | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
+    | Cassgn (Lvar x, AT_phinode, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
-    | Cassgn (Lvar x, AT_rename, _, Pvar y) when
+    | Cassgn (Lvar x, AT_rename, Pvar y) when
        is_gkvar y
        && kind_compatible (kind_i x) (kind_i y.gv)
        && not (is_stack_array x) ->
       addv ii x y.gv
 
-    | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv && 
+    | Cassgn (Lvar x, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv &&
                                           not (is_stack_array x) ->
        begin match int_of_var x, int_of_var y.gv with
        | Some i, Some j -> addf i j
@@ -400,7 +400,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let iter_exprs es = vars_es es |> iter_sv in
   let rec iter_instr_r =
     function
-    | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
+    | Cassgn (lv, _, e) -> iter_lv lv; iter_expr e
     | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false

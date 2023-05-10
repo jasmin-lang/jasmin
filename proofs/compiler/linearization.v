@@ -319,10 +319,16 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
 
   Context (this: funname) (stack_align : wsize).
 
+  Definition wsize_of_lval (x: lval) : option wsize :=
+    match x with
+    | Lvar x => if x.(v_var).(vtype) is sword sz then Some sz else None
+    | Lmem sz _ _ => Some sz
+    | _ => None end.
+
   Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
     match ir with
-    | Cassgn x tag ty e => Error (E.ii_error ii "assign remains")
+    | Cassgn x tag e => Error (E.ii_error ii "assign remains")
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
@@ -566,7 +572,7 @@ Let Llabel := linear.Llabel InternalLabel.
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn _ _ _ _ => (lbl, lc) (* absurd case *)
+  | Cassgn _ _ _ => (lbl, lc) (* absurd case *)
   | Copn xs _ o es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
       | Some xs, Some es => (lbl, MkLI ii (Lopn xs o es) :: lc)

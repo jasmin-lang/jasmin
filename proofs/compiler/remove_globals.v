@@ -83,7 +83,7 @@ Section REMOVE.
   Fixpoint extend_glob_i  (i:instr) (gd:glob_decls) :=
     let (ii,i) := i in
     match i with
-    | Cassgn lv _ ty e =>
+    | Cassgn lv _ e =>
       match lv with
       | Lvar xi =>
         let x := xi.(v_var) in
@@ -257,7 +257,7 @@ Section REMOVE.
       match i with
       | MkI ii i =>
         match i with
-        | Cassgn lv tag ty e =>
+        | Cassgn lv tag e =>
           Let e := remove_glob_e ii env e in
           match lv with
           | Lvar xi =>
@@ -265,7 +265,7 @@ Section REMOVE.
             if is_glob x then 
               match e with
               | Papp1 (Oword_of_int ws) (Pconst z) =>
-                if (ty == sword ws) && (vtype x == sword ws) then
+                if (vtype x == sword ws) then
                   Let g := find_glob ii xi gd (wrepr ws z) in
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)
@@ -273,10 +273,10 @@ Section REMOVE.
               end
             else
               Let lv := remove_glob_lv ii env lv in
-              ok (env, [::MkI ii (Cassgn lv tag ty e)])
+              ok (env, [::MkI ii (Cassgn lv tag e)])
           | _ =>
             Let lv := remove_glob_lv ii env lv in
-            ok (env, [::MkI ii (Cassgn lv tag ty e)])
+            ok (env, [::MkI ii (Cassgn lv tag e)])
           end
         | Copn lvs tag o es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in

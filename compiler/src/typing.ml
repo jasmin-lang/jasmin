@@ -174,8 +174,8 @@ let getfun env fn =
 let rec check_instr pd asmOp env i = 
   let loc = i.i_loc in
   match i.i_desc with
-  | Cassgn(x,_,ty,e) ->
-    check_expr pd loc e ty;
+  | Cassgn(x, _, e) ->
+     let ty = ty_expr pd loc e in
     check_lval pd loc x ty
 
   | Copn(xs,_,op,es) ->

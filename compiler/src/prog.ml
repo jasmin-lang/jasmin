@@ -143,7 +143,7 @@ type funname = {
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
 type ('len,'info,'asm) ginstr_r =
-  | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
+  | Cassgn of 'len glval * E.assgn_tag * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
@@ -340,7 +340,7 @@ let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
 
 let rec rvars_i f s i =
   match i.i_desc with
-  | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
+  | Cassgn(x, _, e)  -> rvars_e f (rvars_lv f s x) e
   | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
@@ -380,7 +380,7 @@ let written_lv s =
 
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
-  | Cassgn(x, _, _, _) -> written_lv v x, f
+  | Cassgn(x, _, _) -> written_lv v x, f
   | Copn(xs, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
   | Ccall(_, xs, fn, _) ->
@@ -531,6 +531,13 @@ let expr_of_lval = function
   | Lmem (ws, x, e) -> Some (Pload(ws,x,e))
   | Laset(a, ws, x, e) -> Some (Pget(a,ws,gkvar x,e))
   | Lasub(a, ws, l, x, e) -> Some (Psub(a,ws,l,gkvar x, e))
+
+let ty_lval = function
+  | Lnone (_, ty) -> ty
+  | Lvar x -> (L.unloc x).v_ty
+  | Lmem (ws,_,_) -> Bty (U ws)
+  | Laset(_,ws, _, _) -> Bty (U ws)
+  | Lasub (_,ws, len, _, _) -> Arr(ws, len)
 
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)

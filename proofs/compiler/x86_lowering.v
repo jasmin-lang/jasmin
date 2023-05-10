@@ -82,7 +82,9 @@ Definition var_info_of_lval (x: lval) : var_info :=
 Definition stype_of_lval (x: lval) : stype :=
   match x with
   | Lnone _ t => t
-  | Lvar v | Lmem _ v _ | Laset _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
+  | Lvar v => v.(vtype)
+  | Lmem sz _ _ | Laset _ sz _ _ => sword sz
+  | Lasub _ _ _ _ _ => sword Uptr
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
@@ -399,8 +401,8 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     end
 
   | Pif t e e1 e2 =>
-    if stype_of_lval x is sword _ then
-      k16 (wsize_of_lval x) (LowerIf t e e1 e2)
+    if stype_of_lval x is sword sz then
+      k16 sz (LowerIf t e e1 e2)
     else
       LowerAssgn
 
@@ -527,7 +529,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
 
   | LowerCond =>
     let (i,e') := lower_condition vi e in
-    map (MkI ii) (i ++ [::Cassgn x AT_inline ty e'])
+    map (MkI ii) (i ++ [::Cassgn x AT_inline e'])
 
   | LowerIf t e e1 e2 =>
      let (l, e) := lower_condition vi e in
@@ -552,7 +554,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
   | LowerConcat h l =>
     [:: MkI ii (Copn [:: x ] tg (Oasm (ExtOp Oconcat128)) [:: h ; l ]) ]
 
-  | LowerAssgn => [::  MkI ii (Cassgn x tg ty e)]
+  | LowerAssgn => [::  MkI ii (Cassgn x tg e)]
   end.
 
 (* Lowering of Oaddcarry
@@ -614,7 +616,7 @@ Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r :=
 Fixpoint lower_i (i:instr) : cmd :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn l tg ty e => lower_cassgn ii l tg ty e
+  | Cassgn l tg e => lower_cassgn ii l tg (stype_of_lval l) e
   | Copn l t o e => map (MkI ii) (lower_copn l t o e)
   | Cif e c1 c2  =>
      let '(pre, e) := lower_condition dummy_var_info e in

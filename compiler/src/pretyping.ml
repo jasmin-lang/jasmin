@@ -1595,7 +1595,7 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
         in
         let x = flv ety in
         let tg = E.AT_inline in
-        P.{ i_desc = Cassgn (x, tg, P.tbool, e);
+        P.{ i_desc = Cassgn (x, tg, e);
             i_loc = L.of_loc c;
             i_info = ();
             i_annot = [] } in
@@ -1617,15 +1617,15 @@ let tt_exprs_cast pd env loc les tys =
 let arr_init xi = 
   let x = L.unloc xi in 
   match x.P.v_ty with
-  | P.Arr(ws, e) as ty ->
+  | P.Arr(ws, e) ->
     let size =  let open P in (icnst (size_of_ws ws) ** e) in
-    P.Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
+    P.Cassgn (Lvar xi, E.AT_inline, P.Parr_init size)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
 
-let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
+let cassgn_for (x: P.plval) (tg: E.assgn_tag) (e: P.pexpr) :
   (P.pexpr, unit, 'asm) P.ginstr_r =
-  Cassgn (x, tg, ty, e)
+  Cassgn (x, tg, e)
 
 let rec is_constant e = 
   match e with 
@@ -1773,7 +1773,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
         P.(match v with
             | Lvar v -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
             | _ -> AT_none) in
-      env, [mk_i (cassgn_for v tg ety e)]
+      env, [mk_i (cassgn_for v tg e)]
         
   | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
@@ -1797,13 +1797,13 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let exn = Unsupported "if not allowed here" in
       let cpi = S.PIAssign (ls, eqop, e, None) in
       let env, i = tt_instr pd asmOp env (annot, L.mk_loc loc cpi) in
-      let x, ty, e, is =
+      let x, e, is =
         match i with
-        | { i_desc = P.Cassgn (x, _, ty, e) ; _ } :: is -> x, ty, e, is
+        | { i_desc = P.Cassgn (x, _, e) ; _ } :: is -> x, e, is
         | _ -> rs_tyerror ~loc exn in
       let e' = oget ~exn:(tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool pd env cp in
-      env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
+      env, mk_i (P.Cassgn (x, AT_none, Pif (P.ty_lval x, c, e, e'))) :: is
 
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool pd env cp in

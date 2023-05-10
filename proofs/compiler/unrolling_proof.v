@@ -78,7 +78,7 @@ Section PROOF.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' hv hv' hw ii.
+    move=> s1 s2 x tag e v hv hw ii.
     by apply: sem_seq1; apply: EmkI; apply: Eassgn; rewrite ?p'_globs; eassumption.
   Qed.
 
@@ -165,7 +165,7 @@ Section PROOF.
     apply: EForOne; [exact: Hw|exact: Hc|exact: Hfor].
     move: Hfor'=> /(_ ii) Hfor'.
     apply: Eseq.
-    + apply: EmkI; apply: Eassgn;[ reflexivity | by rewrite (write_var_Z Hw) | exact Hw].
+    + apply: EmkI; apply: Eassgn;[ reflexivity | exact Hw].
     apply: sem_app; [ exact: Hc | exact: Hfor'].
   Qed.
 

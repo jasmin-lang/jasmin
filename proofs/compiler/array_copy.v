@@ -40,11 +40,11 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   let sz := Z.to_pos (wsize_size ws * n) in
   let pre := 
     if eq_gvar (mk_lvar x) y then Copn [::] AT_none Onop [::]
-    else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init sz) in
+    else Cassgn (Lvar x) AT_none (Parr_init sz) in
   [:: MkI ii pre;
       MkI ii 
         (Cfor i (UpTo, Pconst 0, Pconst n) 
-           [:: MkI ii (Cassgn (Laset AAscale ws x ei) AT_none (sword ws) (Pget AAscale ws y ei))])
+           [:: MkI ii (Cassgn (Laset AAscale ws x ei) AT_none (Pget AAscale ws y ei))])
     ].
 
 Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd := 
@@ -72,7 +72,7 @@ Definition is_Lvar xs :=
 Fixpoint array_copy_i (i:instr) : cexec cmd := 
   let:(MkI ii id) := i in
   match id with
-  | Cassgn _ _ _ _ => ok [:: i] 
+  | Cassgn _ _ _ => ok [:: i]
   | Copn xs _ o es => 
     match is_copy o with
     | Some (ws, n) => 

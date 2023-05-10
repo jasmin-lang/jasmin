@@ -90,10 +90,9 @@ let small_step1 ep spp sip s =
     let s1 = s.s_estate in
     match ir with
 
-    | Cassgn(x,_,ty,e) ->
+    | Cassgn(x, _, e) ->
       let v  = exn_exec ii (sem_pexpr ep spp gd s1 e) in
-      let v' = exn_exec ii (truncate_val ty v) in
-      let s2 = exn_exec ii (write_lval ep spp gd x v' s1) in
+      let s2 = exn_exec ii (write_lval ep spp gd x v s1) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->

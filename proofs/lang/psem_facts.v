@@ -189,7 +189,7 @@ Lemma mem_equiv_mkI : sem_Ind_mkI P ev Pi_r Pi.
 Proof. by []. Qed.
 
 Lemma mem_equiv_assgn : sem_Ind_assgn P Pi_r.
-Proof. by move => s1 s2 x tg ty e v v' ok_v ok_v' /dup[] /write_lval_validw ? /write_lval_stack_stable. Qed.
+Proof. by move => s1 s2 x tg e v ok_v /dup[] /write_lval_validw ? /write_lval_stack_stable. Qed.
 
 Lemma mem_equiv_opn : sem_Ind_opn P Pi_r.
 Proof. by move => s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /dup[] /write_lvals_validw ? /write_lvals_stack_stable. Qed.
@@ -525,9 +525,8 @@ Arguments ok_inj {_ _ _ _}.
 
 Local Lemma sem_deter_asgn : sem_Ind_assgn p Pi_r.
 Proof.
-  red => s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 s2' /sem_iE[] w [] w' [].
+  red => s1 s2 x tg e v ok_v ok_s2 s2' /sem_iE[] w.
   rewrite ok_v => /ok_inj <-.
-  rewrite ok_v' => /ok_inj <-.
   by rewrite ok_s2 => /ok_inj.
 Qed.
 

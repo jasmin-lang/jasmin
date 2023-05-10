@@ -363,11 +363,10 @@ with sem_I : estate -> instr -> estate -> Prop :=
     sem_I s1 (MkI ii i) s2
 
 with sem_i : estate -> instr_r -> estate -> Prop :=
-| Eassgn s1 s2 (x:lval) tag ty e v v':
+| Eassgn s1 s2 (x:lval) tag e v:
     sem_pexpr gd s1 e = ok v ->
-    truncate_val ty v = ok v' →
-    write_lval gd x v' s1 = ok s2 ->
-    sem_i s1 (Cassgn x tag ty e) s2
+    write_lval gd x v s1 = ok s2 ->
+    sem_i s1 (Cassgn x tag e) s2
 
 | Eopn s1 s2 t o xs es:
     sem_sopn gd o s1 xs es = ok s2 ->
@@ -462,11 +461,10 @@ Section SEM_IND.
   Hypothesis HmkI : sem_Ind_mkI.
 
   Definition sem_Ind_assgn : Prop :=
-    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
+    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) (e : pexpr) v,
       sem_pexpr gd s1 e = ok v ->
-      truncate_val ty v = ok v' →
-      write_lval gd x v' s1 = Ok error s2 ->
-      Pi_r s1 (Cassgn x tag ty e) s2.
+      write_lval gd x v s1 = Ok error s2 ->
+      Pi_r s1 (Cassgn x tag e) s2.
 
   Definition sem_Ind_opn : Prop :=
     forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
@@ -573,7 +571,7 @@ Section SEM_IND.
   with sem_i_Ind (e : estate) (i : instr_r) (e0 : estate) (s : sem_i e i e0) {struct s} :
     Pi_r e i e0 :=
     match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
-    | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
+    | @Eassgn s1 s2 x tag e1 v h1 h2 => @Hasgn s1 s2 x tag e1 v h1 h2
     | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
     | @Esyscall s1 scs m s2 xs o es ves vs h1 h2 h3 => @Hsyscall s1 scs m s2 xs o es ves vs h1 h2 h3
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>

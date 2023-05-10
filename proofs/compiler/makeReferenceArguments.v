@@ -54,7 +54,7 @@ Fixpoint make_prologue ii (X:Sv.t) xtys es :=
       Let _ := assert (~~Sv.mem y X) (make_ref_error ii "bad fresh id (prologue)") in
       Let pes := make_prologue ii (Sv.add y X) xtys es in
       let: (p,es') := pes in 
-      ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
+      ok (MkI ii (Cassgn (Lvar y) AT_rename e) :: p, Plvar y :: es')
     | None =>
       Let pes := make_prologue ii X xtys es in
       let: (p,es') := pes in
@@ -65,7 +65,7 @@ Fixpoint make_prologue ii (X:Sv.t) xtys es :=
 
 Variant pseudo_instr :=
   | PI_lv of lval
-  | PI_i  of lval & stype & var_i.
+  | PI_i  of lval & var_i.
 
 Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xtys rs :=
   match xtys, rs with
@@ -76,7 +76,7 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xtys rs :=
        Let _ := assert (~~Sv.mem y X)
                        (make_ref_error ii "bad fresh id (epilogue)") in
        Let pis := make_pseudo_epilogue ii X xtys rs in
-       ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
+       ok (PI_lv (Lvar y) :: (PI_i r y) :: pis)
      | None =>
        Let pis :=  make_pseudo_epilogue ii X xtys rs in
        ok (PI_lv r :: pis) 
@@ -84,7 +84,7 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xtys rs :=
    | _, _ => Error (make_ref_error ii "assert false (epilogue)")
    end.
 
-Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
+Definition mk_ep_i ii r y :=  MkI ii (Cassgn r AT_rename (Plvar y)).
 
 Fixpoint noload (e:pexpr) := 
   match e with
@@ -110,10 +110,10 @@ Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) :=
     Let lvep := swapable ii pis in
     let '(lvs,ep) := lvep in
     ok (lv::lvs, ep)
-  | PI_i r ty y :: pis =>
+  | PI_i r y :: pis =>
     Let lvep := swapable ii pis in
     let: (lvs,ep) := lvep in
-    let i := mk_ep_i ii r ty y in
+    let i := mk_ep_i ii r y in
     Let _ := assert (disjoint (read_rvs lvs) (write_I i))
                     (make_ref_error ii "cannot swap 1") in
     Let _ := assert (disjoint (vrvs lvs) (Sv.union (write_I i) (read_I i)))
@@ -147,7 +147,7 @@ Definition get_syscall_sig o :=
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   match ir with
-  | Cassgn _ _ _ _ |  Copn _ _ _ _  => ok [::i]
+  | Cassgn _ _ _ |  Copn _ _ _ _  => ok [::i]
   | Cif b c1 c2 =>
     Let c1 := update_c (update_i X) c1 in
     Let c2 := update_c (update_i X) c2 in

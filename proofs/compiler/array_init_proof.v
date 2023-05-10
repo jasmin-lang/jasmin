@@ -77,21 +77,19 @@ Section REMOVE_INIT.
   Lemma is_array_initP e : is_array_init e -> exists n, e = Parr_init n.
   Proof. by case: e => // n _; eauto. Qed.
 
-  Lemma assgn_uincl s1 s2 e v ty v' vm1 x ii tag:  
+  Lemma assgn_uincl s1 s2 e v vm1 x ii tag:
     sem_pexpr gd s1 e = ok v ->
-    truncate_val ty v = ok v' -> 
-    write_lval gd x v' s1 = ok s2 ->
+    write_lval gd x v s1 = ok s2 ->
     vm_uincl (evm s1) vm1 ->
     wf_vm vm1 ->
     ∃ vm2 : vmap, 
-      [/\ sem p' ev (with_vm s1 vm1) [:: MkI ii (Cassgn x tag ty e)] (with_vm s2 vm2), 
+      [/\ sem p' ev (with_vm s1 vm1) [:: MkI ii (Cassgn x tag e)] (with_vm s2 vm2),
           vm_uincl (evm s2) vm2 & 
           wf_vm vm2].
   Proof.
-    move=> Hse hsub hwr Hvm1. 
+    move=> Hse hwr Hvm1.
     have [z' Hz' Hz] := sem_pexpr_uincl Hvm1 Hse.
-    have [z1 htr Uz1]:= value_uincl_truncate Hz hsub.
-    move=> hwf ; have [vm2 Hw ?]:= write_uincl Hvm1 Uz1 hwr.
+    move=> hwf ; have [vm2 Hw ?]:= write_uincl Hvm1 Hz hwr.
     exists vm2;split=> //.
     + apply sem_seq1;constructor;econstructor;eauto.
     by apply: wf_write_lval Hw.
@@ -99,14 +97,12 @@ Section REMOVE_INIT.
 
   Local Lemma Rasgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' Hse hsub hwr ii vm1 Hvm1 /=; case: ifP; last first.
-    + by move=> _; apply: assgn_uincl Hse hsub hwr Hvm1.
+    move=> s1 s2 x tag e v Hse hwr ii vm1 Hvm1 /=; case: ifP; last first.
+    + by move=> _; apply: assgn_uincl Hse hwr Hvm1.
     case: ifP; last first.
-    + by move=> _ _; apply: assgn_uincl Hse hsub hwr Hvm1.
+    + by move=> _ _; apply: assgn_uincl Hse hwr Hvm1.
     move=> _ /is_array_initP [n e1];subst e.
     case: Hse => ?; subst v.
-    move: hsub;rewrite /truncate_val;case: ty => //= nty.
-    t_xrbindP => empty /WArray.cast_empty_ok ??; subst v' empty.
     case: x hwr => [vi t | [[xt xn] xi] | ws x e | aa ws x e | aa ws len [[xt xn] xi] e] /=.
     + by move=> /write_noneP [->];exists vm1;split=> //;constructor.
     + apply: rbindP => vm1';apply: on_vuP => //=.
@@ -372,7 +368,6 @@ Section ADD_INIT.
         + by rewrite Fv.setP_eq hx. 
         by rewrite Fv.setP_neq // hu1.
       constructor; econstructor; first reflexivity.
-      + by rewrite /truncate_val /= WArray.castK.
       by rewrite /= /write_var /= /set_var /= WArray.castK.
     by have [vm3 ? hc']:= hl _ heq2; exists vm3 => //; apply: Eseq hc'.
   Qed.
@@ -447,7 +442,7 @@ Section ADD_INIT.
 
   Local Lemma RAasgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' hse htr hwr ii /=.
+    move=> s1 s2 x tag e v hse hwr ii /=.
     apply aux => //.
     + by constructor; econstructor; eauto.
     move=> vm1 heq1.

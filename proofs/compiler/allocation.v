@@ -469,15 +469,15 @@ Definition check_varc (xi1 xi2:var_i) m : cexec M.t :=
   if M.v_wextendtyP x1 x2 is left h then check_var_aux m h
   else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
-Definition is_Pvar (e:option (stype * pexpr)) :=
+Definition is_Pvar (e:option pexpr) :=
   match e with
-  | Some (ty, Pvar x) => if is_lvar x then Some (ty,x.(gv)) else None
+  | Some (Pvar x) => if is_lvar x then Some x.(gv) else None
   | _ => None
   end.
 
 Definition error_lv := pp_internal_error_s "allocation" "lval not equal".
 
-Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
+Definition check_lval (e2: option pexpr) (x1 x2:lval) m : cexec M.t :=
   match x1, x2 with
   | Lnone  _ t1, Lnone _ t2  =>
     if wextend_type t1 t2 then ok m else Error error_lv
@@ -487,9 +487,9 @@ Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
     else Error error_lv
   | Lvar x1    , Lvar x2     =>
     match is_Pvar e2 with
-    | Some (ty, x2') =>
+    | Some x2' =>
       if M.v_wextendtyP x1 x2 is left h then
-        if (vtype x1 == ty) && (vtype x1 == vtype x2) && (x2.(v_var) == x2') then ok (M.add m x1 x2 h)
+        if (vtype x1 == vtype x2) && (x2.(v_var) == x2') then ok (M.add m x1 x2 h)
         else check_var_aux m h
       else Error (cerr_varalloc x1 x2 "type mismatch")
     | _               => check_varc x1 x2 m
@@ -548,10 +548,8 @@ Context
 
 Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
-  | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
-    if ty1 == ty2 then
-     check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
-    else Error (alloc_error "bad type in assignment")
+  | Cassgn x1 _ e1, Cassgn x2 _ e2 =>
+      check_e e1 e2 r >>= check_lval (Some e2) x1 x2
   | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
     if o1 == o2 then
       check_es es1 es2 r >>= check_lvals xs1 xs2

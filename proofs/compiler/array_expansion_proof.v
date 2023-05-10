@@ -349,7 +349,7 @@ Qed.
 
 Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
 Proof.
-  move => s1 s2 x tag ty e v v' hse htr hw ii m ii' i2 s1' hwf heqa /=.
+  move => s1 s2 x tag e v hse hw ii m ii' i2 s1' hwf heqa /=.
   t_xrbindP => x' hx e' he _ <-.
   have ? := expand_eP hwf heqa he hse.
   have [s2' [hw' heqa']] := expand_lvP hwf heqa hx hw.

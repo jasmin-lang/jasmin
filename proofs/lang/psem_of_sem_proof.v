@@ -289,7 +289,7 @@ apply:
 - move => ii i s1 s2 _ ih s1' hss'1.
   case: (ih s1' hss'1) => s2' [hss'2 hi].
   by exists s2'; split; first exact: hss'2; constructor.
-- move => s1 s2 x tg ty e v1 v2 hv1 hv2 hw s1' hss'1.
+- move => s1 s2 x tg e v1 hv1 hw s1' hss'1.
   have hv1' := sem_pexpr_sim hss'1 hv1.
   case: (write_lval_sim hss'1 hw) => s2' [hss'2 hw'].
   exists s2'; split; first exact: hss'2.

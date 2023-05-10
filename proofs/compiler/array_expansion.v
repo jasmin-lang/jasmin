@@ -221,10 +221,10 @@ Context `{asmop:asmOp}.
 Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
   let (ii,ir) := i in
   match ir with
-  | Cassgn x tag ty e =>
+  | Cassgn x tag e =>
     Let x := add_iinfo ii (expand_lv m x) in
     Let e := add_iinfo ii (expand_e m e) in
-    ok (MkI ii (Cassgn x tag ty e))
+    ok (MkI ii (Cassgn x tag e))
 
   | Copn xs tag o es =>
     Let xs := add_iinfo ii (expand_lvs m xs) in

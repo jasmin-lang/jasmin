@@ -79,8 +79,8 @@ end = struct
     }
 
   and mk_instr_r fn st = match st with
-    | Cassgn (lv, tag, ty, e) ->
-      Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
+    | Cassgn (lv, tag, e) ->
+      Cassgn (mk_lval fn lv, tag, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
     | Csyscall (lvls, o, exprs) ->
@@ -346,7 +346,7 @@ end = struct
       
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
     match instr.i_desc with
-    | Cassgn (lv, _, _, e) -> pa_lv st lv e
+    | Cassgn (lv, _, e) -> pa_lv st lv e
 
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
@@ -513,7 +513,7 @@ end = struct
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) ->
       let sv = collect_vars_lvs sv lvs in
       collect_vars_es sv es
-    | Cassgn (lv, _, _, e) ->
+    | Cassgn (lv, _, e) ->
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
     | Ccall _ -> raise Fcall

@@ -590,26 +590,31 @@ Proof.
   by case: ifP => //= _ ? [<-] [<-] /=;rewrite /get_var /= Fv.setP_neq.
 Qed.
 
-Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
+Lemma add_cpmP s1 s1' m x e tag v1 v :
   sem_pexpr gd s1 e = ok v1 ->
   value_uincl v v1 ->
-  truncate_val ty v = ok v' ->
-  write_lval gd x v' s1 = ok s1' ->
+  write_lval gd x v s1 = ok s1' ->
   valid_cpm (evm s1') m ->
-  valid_cpm (evm s1') (add_cpm m x tag ty e).
+  valid_cpm (evm s1') (add_cpm m x tag e).
 Proof.
   rewrite /add_cpm;case: x => //= x He.
   case: tag => //.
   case: e He => // [n | b | [] // sz [] //= q ] [<-].
-  + case: v => //= ?;last by rewrite compat_typeC => ? /eqP ?; subst; case: ty.
-    move=> -> /truncate_valE [_ ->].
+  + case: v => //= ?;last by rewrite compat_typeC => ? /eqP ?; subst; case: x => - [] [].
+    move=> ->.
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
     case: ({| vtype := sint; vname := xn |} =P z).
     + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
     by move=> /eqP Hneq;rewrite Mvar.setP_neq.
   + case: v => //= ?;last first.
-    + by rewrite compat_typeC => ? /eqP ?;subst; case: ty.
+    + rewrite compat_typeC => ? /eqP ?;subst.
+      case: x => - [] [] // x xi /ok_inj <- /=.
+      move => h k n; rewrite Mvar.setP; case: eqP; last by move => _; exact: h.
+      move => ? /Some_inj ?; subst n k.
+      rewrite get_var_eq /=.
+      move: h. rewrite /=.
+    + by rewrite compat_typeC => ? /eqP ?;subst; case: x => - [] [].
     move=> -> /truncate_valE [_ ->].
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.

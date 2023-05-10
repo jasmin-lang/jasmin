@@ -193,7 +193,7 @@ let rec analyze_instr_r params cc a =
   | Cfor _ -> assert false
   | Ccall (_, xs, fn, es) -> link_array_return params a xs es (cc fn)
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
-  | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
+  | Cassgn (x, _, e) -> if is_ty_arr (ty_lval x) then assign_arr params a x e else a
   | Copn _ -> a
   | Cif(_, s1, s2) ->
      let a1 = analyze_stmt params cc a s1 |> normalize_map in

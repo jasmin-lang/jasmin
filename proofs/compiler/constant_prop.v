@@ -401,18 +401,17 @@ Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals :=
 Definition wsize_of_stype (ty: stype) : wsize :=
   if ty is sword sz then sz else U64.
 
-Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
+Definition add_cpm (m:cpm) (rv:lval) tag e :=
   if rv is Lvar x then
     if tag is AT_inline then
       match e with
       | Pbool b  => Mvar.set m x (Cbool b)
       | Pconst z =>  Mvar.set m x (Cint z)
       | Papp1 (Oword_of_int sz') (Pconst z) =>
-        let szty := wsize_of_stype ty in
-        let w := zero_extend szty (wrepr sz' z) in
+        let w := wrepr sz' z in
         let w :=
             let szx := wsize_of_stype (vtype x) in
-            if (szty ≤ szx)%CMP
+            if (sz' ≤ szx)%CMP
             then Cword w
             else Cword (zero_extend szx w) in
         Mvar.set m x w
@@ -442,11 +441,11 @@ End CMD.
 
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
-  | Cassgn x tag ty e =>
+  | Cassgn x tag e =>
     let e := const_prop_e m e in
     let (m,x) := const_prop_rv m x in
-    let m := add_cpm m x tag ty e in
-    (m, [:: MkI ii (Cassgn x tag ty e)])
+    let m := add_cpm m x tag e in
+    (m, [:: MkI ii (Cassgn x tag e)])
 
   | Copn xs t o es =>
     (* TODO: Improve this *)

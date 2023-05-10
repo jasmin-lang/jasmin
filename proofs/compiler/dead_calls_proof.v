@@ -29,7 +29,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sp.t :=
   in
 
   match i with
-  | Cassgn _ _ _ _
+  | Cassgn _ _ _
   | Copn   _ _ _ _
   | Csyscall _ _ _
     => Sp.empty
@@ -47,8 +47,8 @@ Lemma i_Calls_MkI ii i :
   i_Calls (MkI ii i) = i_Calls_r i.
 Proof. by []. Qed.
 
-Lemma i_Calls_asgn lv tg ty e :
-  i_Calls_r (Cassgn lv tg ty e) = Sp.empty.
+Lemma i_Calls_asgn lv tg e :
+  i_Calls_r (Cassgn lv tg e) = Sp.empty.
 Proof. by []. Qed.
 
 Lemma i_Calls_opn lv t op es :
@@ -235,7 +235,7 @@ Section PROOF.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move => s1 s2 x tag ty e v v' hv hv' hw _.
+    move => s1 s2 x tag e v hv hw _.
     by apply: Eassgn;eauto.
   Qed.
 

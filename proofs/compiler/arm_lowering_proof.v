@@ -1160,27 +1160,24 @@ Proof.
   all: by rewrite hwrite {hwrite}.
 Qed.
 
-Lemma lower_cassgnP ii s0 lv tag ty e v v' s0' s1' pre lvs op es :
-  lower_cassgn fv is_var_in_memory lv ty e = Some (pre, (lvs, op, es))
+Lemma lower_cassgnP ii s0 lv tag e v s0' s1' pre lvs op es :
+  lower_cassgn fv is_var_in_memory lv e = Some (pre, (lvs, op, es))
   -> sem_pexpr (p_globs p) s0 e = ok v
-  -> truncate_val ty v = ok v'
-  -> write_lval (p_globs p) lv v' s0' = ok s1'
+  -> write_lval (p_globs p) lv v s0' = ok s1'
   -> eq_fv s0' s0
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
-  -> sem_i p' ev s0' (Cassgn lv tag ty e) s1'
+  -> sem_i p' ev s0' (Cassgn lv tag e) s1'
   -> exists2 s2',
        sem p' ev s0' (map (MkI ii) (pre ++ [:: Copn lvs tag op es ])) s2'
        & eq_fv s1' s2'.
 Proof.
-  move=> h hseme htrunc hwrite01' hs00 hfve hfvlv hsem01'.
+  move=> h hseme hwrite01' hs00 hfve hfvlv hsem01'.
 
   move: h.
   rewrite /lower_cassgn.
-  case: ty hsem01' htrunc => [|||ws] // hsem01' htrunc.
+  case hws: wsize_of_lval => [ ws | // ].
 
-  move: htrunc.
-  rewrite /truncate_val.
   t_xrbindP=> w' hw' ?; subst v'.
   move: hw' => /to_wordI [ws' [w [? /truncate_wordP [hws ?]]]]; subst v w'.
 

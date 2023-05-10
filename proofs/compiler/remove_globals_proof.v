@@ -109,13 +109,12 @@ Module INCL. Section INCL.
   Local Lemma HmkI : sem_Ind_mkI P1 ev Pi_r Pi.
   Proof. move=> ?????;apply: EmkI. Qed.
 
-  Local Lemma Hasgn : forall s1 s2 (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
+  Local Lemma Hasgn : forall s1 s2 (x : lval) (tag : assgn_tag) (e : pexpr) v,
     sem_pexpr gd s1 e = ok v ->
-    truncate_val ty v = ok v' ->
-    write_lval gd x v' s1 = ok s2 ->
-    Pi_r s1 (Cassgn x tag ty e) s2.
+    write_lval gd x v s1 = ok s2 ->
+    Pi_r s1 (Cassgn x tag e) s2.
   Proof.
-    move=> ???????? /(gd_incl_e hincl) h1 h2 /(gd_incl_wl hincl) h3.
+    move=> ?????? /(gd_incl_e hincl) h1 /(gd_incl_wl hincl) h2.
     apply: Eassgn;eauto.
   Qed.
 
@@ -251,9 +250,9 @@ Section PROOFS.
     by elim: s => //= -[x' u] l ih; case: eqP => [-> [<-] | ? /ih];auto.
   Qed.
 
-  Local Lemma Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
+  Local Lemma Hasgn: forall x tg e, Pr (Cassgn x tg e).
   Proof.
-    move=> [ii ty|x|ws x e|aa ws x e|aa ws len x e] ?? e1 ??? //=. 1,3-5: by move=> [<-].
+    move=> [ii ty|x|ws x e|aa ws x e|aa ws len x e] ? e1 ??? //=. 1,3-5: by move=> [<-].
     case: ifP => ?; last by move=> [<-].
     case: e1 => // - [] // w [] // z; rewrite /add_glob.
     case:ifPn => hhas1; first by move=> [<-].
@@ -541,19 +540,18 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hasgn : sem_Ind_assgn P Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' he hv hw ii m m' c' /= hrm s1' hval.
+    move=> s1 s2 x tag e v he hw ii m m' c' /= hrm s1' hval.
     move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he'.
     have :
       (Let lv := remove_globals.remove_glob_lv is_glob ii m x in
-      ok (m, [:: MkI ii (Cassgn lv tag ty e')])) = ok (m', c') ->
+      ok (m, [:: MkI ii (Cassgn lv tag e')])) = ok (m', c') ->
       exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
     + t_xrbindP => x' /(remove_glob_lvP hval) -/(_ _ _ hw) [s2' [hs2' hw' ]] <- <-.
       exists s2';split => //; apply sem_seq1; constructor; econstructor; eauto.
     case: x hw => //=.
     move=> xi hxi hdef; case: ifPn => // hglob {hdef}.
     case: e' he' => // - [] // sz [] //= z [?]; subst v.
-    case: andP => //= -[/eqP ? /eqP htxi];subst ty.
-    move: hv; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
+    case: eqP => // htxi.
     move: xi htxi hglob hxi.
     rewrite /write_var /set_var => -[[xty xn] xii] /= ? hglob; subst xty.
     rewrite /pof_val /= sumbool_of_boolET => -[<-].

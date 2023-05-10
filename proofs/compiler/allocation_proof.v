@@ -135,8 +135,8 @@ Proof.
   case:eqP => [-> [<-] ?| //]; split;eauto.
 Qed.
 
-Lemma is_PvarP e ty x : is_Pvar e = Some (ty,x) -> e = Some (ty, Plvar x).
-Proof. by case: e => //= -[? []] //= [] v [] // [<- <-]. Qed.
+Lemma is_PvarP e x : is_Pvar e = Some x -> e = Some (Plvar x).
+Proof. by case: e => // - [] // - [] [] ?? [] // /Some_inj <-. Qed.
 
 Section CHECK_EP.
   Context (gd: glob_decls) (vm2: vmap).
@@ -365,7 +365,7 @@ Lemma check_lvalP gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
   eq_alloc r1 s1.(evm) vm1 ->
   value_uincl v1 v2 ->
   oapp (fun te2 =>
-      sem_pexpr gd (with_vm s1 vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->
+      sem_pexpr gd (with_vm s1 vm1) te2 = ok v2) true e2 ->
   write_lval gd x1 v1 s1 = ok s1' ->
   exists vm1',
     write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
@@ -391,11 +391,11 @@ Proof.
       apply eq_alloc_rm => //.
   + rewrite /write_var=> Hc Hvm1 Hv Happ; apply rbindP => vm1' Hset [<-] /=.
     move: Hc;case: is_Pvar (@is_PvarP e2).
-    + move=> [ty x] /(_ _ _ (refl_equal _)) ?;subst e2.
+    + move=> [ty x] /(_ _ (refl_equal _)) ?;subst e2.
       case: M.v_wextendtyP => // ht;case:ifPn; last first.
       + move=> ? hc;have [vm2' [-> /= ?]]:= check_varP Hvm1 hc Hset Hv;eexists.
         by rewrite !with_vm_idem;eauto.
-      move=> /andP[]/andP[]/eqP ? /eqP heqt /eqP;subst ty.
+      move=> /andP[]/eqP ? /eqP heqt. subst ty.
       move: x1 x2 x heqt ht Hset Happ=> [[xt1 xn1] ii1] [[xt2 xn2] ii2] [x ii] /=.
       set x1 := {| vname := xn1 |}; set x2 := {| vname := xn2 |}.
       move=> hteq ht hset; t_xrbindP => v2' Happ htr ? ?;subst => /=.

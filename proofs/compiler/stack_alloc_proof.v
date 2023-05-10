@@ -1683,14 +1683,13 @@ Proof.
   by apply: (write_read8_no_overflow _ hmem2); lia.
 Qed.
 
-Lemma alloc_lvalP rmap r1 r2 v ty m0 (s1 s2: estate) :
-  alloc_lval pmap rmap r1 ty = ok r2 -> 
+Lemma alloc_lvalP rmap r1 r2 v m0 (s1 s2: estate) :
+  alloc_lval pmap rmap r1 = ok r2 ->
   valid_state rmap m0 s1 s2 -> 
-  type_of_val v = ty ->
   forall s1', write_lval gd r1 v s1 = ok s1' ->
   exists s2', write_lval [::] r2.2 v s2 = ok s2' /\ valid_state r2.1 m0 s1' s2'.
 Proof.
-  move=> ha hvs ?; subst ty.
+  move=> ha hvs.
   case: r1 ha => //; rewrite /alloc_lval.
   (* Lnone *)
   + move=> vi ty1 [<-] /= s1' /write_noneP [->] h; exists s2; split => //.
@@ -1704,7 +1703,7 @@ Proof.
       by apply: set_varP hvm1=> [v' hv <- | hb hv <-]; rewrite /write_var /set_var hv /= ?hb /=;
         eexists;(split;first by reflexivity); apply valid_state_set_var.
     case heq: is_word_type => [ws | //]; move /is_word_typeP : heq => hty.
-    case htyv: subtype => //; rewrite /= /write_var.
+    rewrite /= /write_var.
     t_xrbindP => -[xi ei] ha sr hsr rmap2 hsetw <- /= s1' vm1' hvm1' ?; subst s1' => /=.
     have he1 : sem_pexpr [::] s2 0 >>= to_int = ok 0 by done.
     have hpk := sub_region_pk_valid rmap s2 hsr.
@@ -1712,14 +1711,12 @@ Proof.
     move: hvm1'; apply set_varP; last by rewrite {1}hty.
     move=> {ha}; case: x hty hlx hsr hsetw => -[xty xn] xii /= ->.
     set x := {| vtype := sword ws; vname := xn |} => hlx hsr hsetw /= w hto <-.
-    have [ws' [w' [hle ??]]] := subtype_of_val_to_pword htyv hto; subst w v.
-    rewrite /= /truncate_word hle /=.
     have hwf := sub_region_pk_wf hsr hlx refl_equal.
     have hvp: validw (emem s2) (sub_region_addr sr + wrepr _ 0)%R ws.
     + rewrite wrepr0 GRing.addr0.
       have [halign _] := set_wordP hwf hsetw.
       by apply (validw_sub_region_addr hvs hwf halign).
-    have /writeV -/(_ (zero_extend ws w')) [mem2 hmem2] := hvp.
+    have /writeV -/(_ (zero_extend ws v)) [mem2 hmem2] := hvp.
     rewrite hmem2 /=; eexists;split;first by reflexivity.
     (* valid_state update word *)
     have [_ hset] := set_wordP hwf hsetw.

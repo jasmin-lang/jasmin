@@ -220,11 +220,11 @@ Proof.
   rewrite /disj_fvars. rewrite vars_c_cons. exact: disjoint_union.
 Qed.
 
-Lemma disj_fvars_vars_I_Cassgn ii lv tag ty e :
-  disj_fvars (vars_I (MkI ii (Cassgn lv tag ty e)))
+Lemma disj_fvars_vars_I_Cassgn ii lv tag e :
+  disj_fvars (vars_I (MkI ii (Cassgn lv tag e)))
   -> disj_fvars (vars_lval lv) /\ disj_fvars (read_e e).
 Proof.
-  move=> /(disjoint_equal_l (vars_I_assgn ii lv tag ty e)).
+  move=> /(disjoint_equal_l (vars_I_assgn ii lv tag e)).
   by move=> /disjoint_union.
 Qed.
 

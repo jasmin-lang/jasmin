@@ -30,7 +30,7 @@ let rec inspect_stmt k stmt = List.fold_left inspect_instr k stmt
 and inspect_instr k i = inspect_instr_r k i.i_desc
 
 and inspect_instr_r k = function
-  | Cassgn (x, _, _, e) -> inspect_lv (inspect_e k e) x
+  | Cassgn (x, _, e) -> inspect_lv (inspect_e k e) x
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
       inspect_lvs (inspect_es k es) xs
   | Cif (g, a, b) | Cwhile (_, a, g, b) ->

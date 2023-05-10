@@ -346,7 +346,7 @@ let safe_opn safe opn es =
      id.i_safe) @ safe
 
 let safe_instr ginstr = match ginstr.i_desc with
-  | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
+  | Cassgn (lv, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
@@ -1433,7 +1433,7 @@ end = struct
     (* vs_for: integer variable from for loops, which will be inlined to
        a constant integer value. *)
     let rec nm_i vs_for i = match i.i_desc with
-      | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
+      | Cassgn (lv, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Cif (e, st, st')        -> 
@@ -1608,12 +1608,11 @@ end = struct
 
   and aeval_ginstr_aux asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
-    match ginstr.i_desc with 
-      | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
+    match ginstr.i_desc with
+      | Cassgn (lv,tag, Pif (ty, c, el, er))
         when Config.sc_pif_movecc_as_if () ->
-        assert (ty1 = ty2);
-        let cl = { ginstr with i_desc = Cassgn (lv, tag, ty1, el) } in
-        let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
+        let cl = { ginstr with i_desc = Cassgn (lv, tag, el) } in
+        let cr = { ginstr with i_desc = Cassgn (lv, tag, er) } in
         aeval_if asmOp ginstr c [cl] [cr] state
 
       | Copn (lvs,tag,Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.CMOVcc sz)),es)
@@ -1621,16 +1620,16 @@ end = struct
         assert (x = None);
         let c,el,er = as_seq3 es in
         let lv = as_seq1 lvs in
-        let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
-        let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
+        let cl = { ginstr with i_desc = Cassgn (lv, tag, el) } in
+        let cr = { ginstr with i_desc = Cassgn (lv, tag, er) } in
         aeval_if asmOp ginstr c [cl] [cr] state
 
-      | Cassgn (lv, _, _, Parr_init _) ->
+      | Cassgn (lv, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
         { state with abs }
 
       | Copn ([ lv ], _, Ocopy _, [ e ])
-      | Cassgn (lv, _, _, e) ->
+      | Cassgn (lv, _, e) ->
         let abs = AbsExpr.abs_assign
             state.abs 
             (ty_lval lv)

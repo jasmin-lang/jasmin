@@ -30,7 +30,7 @@ let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
 and iac_instr_r pd loc ir =
   match ir with
-  | Cassgn (x, t, _, e) ->
+  | Cassgn (x, t, e) ->
     if !Glob_options.introduce_array_copy then 
       match is_array_copy x e with
       | None -> ir

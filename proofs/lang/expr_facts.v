@@ -243,7 +243,7 @@ Lemma write_c_app c1 c2 :
   Sv.Equal (write_c (c1 ++ c2)) (Sv.union (write_c c1) (write_c c2)).
 Proof. by elim: c1 => //= i c1 Hrec;rewrite !write_c_cons; clear -Hrec; SvD.fsetdec. Qed.
 
-Lemma write_i_assgn x tag ty e : write_i (Cassgn x tag ty e) = vrv x.
+Lemma write_i_assgn x tag e : write_i (Cassgn x tag e) = vrv x.
 Proof. done. Qed.
 
 Lemma write_i_opn xs t o es : write_i (Copn xs t o es) = vrvs xs.
@@ -362,8 +362,8 @@ Proof. done. Qed.
 Lemma read_c_cons i c: Sv.Equal (read_c (i::c)) (Sv.union (read_I i) (read_c c)).
 Proof. by rewrite {1}/read_c /= read_cE //. Qed.
 
-Lemma read_i_assgn x tag ty e :
-  Sv.Equal (read_i (Cassgn x tag ty e)) (Sv.union (read_rv x) (read_e e)).
+Lemma read_i_assgn x tag e :
+  Sv.Equal (read_i (Cassgn x tag e)) (Sv.union (read_rv x) (read_e e)).
 Proof. rewrite /read_i /read_i_rec read_rvE read_eE; clear; SvD.fsetdec. Qed.
 
 Lemma read_i_opn xs t o es:
@@ -420,8 +420,8 @@ Proof.
   clear; SvD.fsetdec.
 Qed.
 
-Lemma vars_I_assgn ii l tag ty e:
-  Sv.Equal (vars_I (MkI ii (Cassgn l tag ty e))) (Sv.union (vars_lval l) (read_e e)).
+Lemma vars_I_assgn ii l tag e:
+  Sv.Equal (vars_I (MkI ii (Cassgn l tag e))) (Sv.union (vars_lval l) (read_e e)).
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_assgn write_i_assgn /vars_lval; clear; SvD.fsetdec. Qed.
 
 Lemma vars_I_opn ii xs t o es:

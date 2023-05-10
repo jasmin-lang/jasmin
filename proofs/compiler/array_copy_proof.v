@@ -99,12 +99,11 @@ Proof. move=> ii i s1 s2 _; apply. Qed.
 
 Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
 Proof.
-  move=> s1 s2 x tag ty e v v' he htr hw ii; rewrite /Pi vars_I_assgn /vars_lval => hsub /= _ [<-] vm1 hvm1.
+  move=> s1 s2 x tag e v he hw ii; rewrite /Pi vars_I_assgn /vars_lval => hsub /= _ [<-] vm1 hvm1.
   have [|v1 hv1 uv1]:= sem_pexpr_uincl_on (vm2:= vm1) _ he; first by apply: vmap_uincl_onI hvm1;SvD.fsetdec.
-  have [v1' hv1' uv1']:= value_uincl_truncate uv1 htr.
-  have [|vm2 hvm2 hw']:= write_lval_uincl_on _ uv1' hw hvm1; first by SvD.fsetdec.
+  have [|vm2 hvm2 hw']:= write_lval_uincl_on _ uv1 hw hvm1; first by SvD.fsetdec.
   exists vm2 => //=; first by apply: vmap_uincl_onI hvm2; SvD.fsetdec.
-  apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs //.
+  apply: sem_seq1; constructor; econstructor; rewrite -eq_globs; eauto.
 Qed.
 
 Lemma is_copyP o ws n : is_copy o = Some(ws,n) -> o = Ocopy ws n.
@@ -148,7 +147,7 @@ Proof.
   rewrite -/len => /WArray.cast_uincl utyty'.
   case: uv1 => n2 [ty1 [? ut]]; subst v1.
   have {ut utyty' hty} ut:= WArray.uincl_trans utyty' ut.
-  set ipre := if _ then _ else _; set c := [:: MkI _ (Cassgn _ _ _ _) ].
+  set ipre := if _ then _ else _; set c := [:: MkI _ (Cassgn _ _ _) ].
   have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1', 
     vm1 <=[Sv.union (read_e y) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = ok tx & 
     sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
@@ -163,7 +162,7 @@ Proof.
       move=> z hz; rewrite Fv.setP_neq //; apply /eqP => heq; subst z.
       have : Sv.In x (read_e y) by SvD.fsetdec.
       by move: hxy; rewrite read_e_var /eq_gvar /= /read_gvar; case: (y) => /= vy [/= /eqP | /=]; SvD.fsetdec.
-    constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
+    constructor; apply: Eassgn => //=.
     by rewrite /write_var /set_var /= /on_vu WArray.castK.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 (Z.le_refl _))) => -[tx'] hcopy hutx.
   have :
@@ -212,7 +211,6 @@ Proof.
       move=> _v hv /value_uinclE [n' [ty' [? hty]]]; subst _v.
       rewrite -eq_globs; move: hv => /= => -> /=.
       by rewrite (@get_gvar_eq _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty) hget).
-    + by rewrite /truncate_val /= truncate_word_u. 
     rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ (mk_lvar i)) //= truncate_word_u /=.
     by rewrite hset /= /write_var /set_var /= WArray.castK. 
   move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by Psatz.lia.

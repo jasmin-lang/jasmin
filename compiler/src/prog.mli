@@ -109,7 +109,7 @@ type 'len grange = E.dir * 'len gexpr * 'len gexpr
    This is durty ...
 *)   
 type ('len,'info,'asm) ginstr_r =
-  | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
+  | Cassgn of 'len glval * E.assgn_tag * 'len gexpr
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
@@ -323,6 +323,7 @@ val get_ofs : Warray_.arr_access -> Wsize.wsize -> 'len gexpr -> int option
 (* Functions over lvalue                                                *)
 
 val expr_of_lval : 'len glval -> 'len gexpr option
+val ty_lval : 'len glval -> 'len gty
 
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)

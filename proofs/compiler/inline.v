@@ -42,9 +42,9 @@ Definition get_flag (x:lval) flag :=
   | _      => flag
   end.
 
-Definition assgn_tuple iinfo (xs:lvals) flag (tys:seq stype) (es:pexprs) :=
-  let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
-  map assgn (zip xs (zip tys es)).
+Definition assgn_tuple iinfo (xs:lvals) flag (es:pexprs) :=
+  let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2) in
+  map assgn (zip xs es).
 
 Definition inline_c (inline_i: instr -> Sv.t -> cexec (Sv.t * cmd)) c s :=
   foldr (fun i r =>
@@ -82,7 +82,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   match i with
   | MkI iinfo ir =>
     match ir with
-    | Cassgn _ _ _ _
+    | Cassgn _ _ _
     | Copn _ _ _ _
     | Csyscall _ _ _
       => ok (Sv.union (read_i ir) X, [::i])
@@ -105,9 +105,9 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
         Let fd := add_iinfo iinfo (get_fun p f) in
         let fd' := rename_fd iinfo f fd in
         Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
-        ok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
+        ok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename es ++
                   (fd'.(f_body) ++
-                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
+                  assgn_tuple iinfo xs AT_rename (map Plvar fd'.(f_res))))
       else ok (X, [::i])
     end
   end.

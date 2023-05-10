@@ -52,7 +52,7 @@ let gsubst_es flen f = List.map (gsubst_e flen f)
 let rec gsubst_i flen f i =
   let i_desc =
     match i.i_desc with
-    | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_ty flen ty, gsubst_e flen f e)
+    | Cassgn(x, tg, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_e flen f e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)

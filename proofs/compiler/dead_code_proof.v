@@ -124,28 +124,25 @@ Section PROOF.
     by exists x1, i1, i2.
   Qed.
 
-  Local Lemma Hassgn_aux ii s1 s2 v v' x tag ty e s:
+  Local Lemma Hassgn_aux ii s1 s2 v x tag e s:
     sem_pexpr gd s1  e = ok v ->
-    truncate_val ty v = ok v' ->
-    write_lval gd x v' s1 = ok s2 ->
+    write_lval gd x v s1 = ok s2 ->
     wf_vm (evm s1) →
     ∀ vm1' : vmap,
-      (evm s1) <=[read_rv_rec (read_e_rec (Sv.diff s (write_i (Cassgn x tag ty e))) e) x]  vm1' →
+      (evm s1) <=[read_rv_rec (read_e_rec (Sv.diff s (write_i (Cassgn x tag e))) e) x]  vm1' →
       ∃ vm2' : vmap, (evm s2) <=[s]  vm2'
-        ∧ sem p' ev (with_vm s1 vm1') [:: MkI ii (Cassgn x tag ty e)] (with_vm s2 vm2').
+        ∧ sem p' ev (with_vm s1 vm1') [:: MkI ii (Cassgn x tag e)] (with_vm s2 vm2').
   Proof.
-    move=> Hv Hv' Hw Hwf vm1' Hvm.
+    move=> Hv Hw Hwf vm1' Hvm.
     rewrite write_i_assgn in Hvm.
     move: Hvm; rewrite read_rvE read_eE=> Hvm.
     rewrite (surj_estate s1) in Hv.
     have h : (evm s1) <=[read_e e] vm1' by apply: vmap_uincl_onI Hvm;SvD.fsetdec.
     have [v'' Hv'' Hveq] :=  sem_pexpr_uincl_on' h Hv.
-    have Huincl := truncate_value_uincl Hv'.
-    have [v''' Ht Hv''']:= value_uincl_truncate Hveq Hv'.
-    have [| vm2' Hvm2 Hw2]:= write_lval_uincl_on _ Hv''' Hw Hvm; first by SvD.fsetdec.
+    have [| vm2' Hvm2 Hw2]:= write_lval_uincl_on _ Hveq Hw Hvm; first by SvD.fsetdec.
     exists vm2'; split; first by apply: vmap_uincl_onI Hvm2; SvD.fsetdec.
-    apply sem_seq1; constructor. apply Eassgn with v'' v''';rewrite -?eq_globs.
-    rewrite /with_vm /=. apply Hv''. apply Ht. apply Hw2.
+    apply sem_seq1; constructor. apply Eassgn with v'';rewrite -?eq_globs.
+    rewrite /with_vm /=. apply Hv''. apply Hw2.
   Qed.
 
   Local Lemma Hwrite_disj s1 s2 s x v:
@@ -177,9 +174,9 @@ Section PROOF.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move => [scs1 m1 vm1] [scs2 m2 vm2] x tag ty e v v' Hv htr Hw ii s /=.
-    case: ifPn=> _ /=; last by apply: Hassgn_aux Hv htr Hw.
-    case: ifPn=> /= [ | _]; last by apply: Hassgn_aux Hv htr Hw.
+    move => [scs1 m1 vm1] [scs2 m2 vm2] x tag e v Hv Hw ii s /=.
+    case: ifPn=> _ /=; last by apply: Hassgn_aux Hv Hw.
+    case: ifPn=> /= [ | _]; last by apply: Hassgn_aux Hv Hw.
     move=> /orP [].
     + rewrite write_i_assgn => /andP [Hdisj Hwmem] Hwf vm1' Hvm.
       have /= [ <- Hvm1 <-]:= Hwrite_disj Hw Hdisj Hwmem.
@@ -189,21 +186,19 @@ Section PROOF.
     have [-> -> Hs] : [/\ scs1 = scs2, m1 = m2 & vm2 <=[s] vm1].
     + move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He]]]];subst x e.
       case: x0 Hv Hw => ty'' xn0 /= Hv Hw.
-      have Hv': value_uincl v' v.
-      + by apply: on_vuP Hv=> //= pty'' /= Ht pty; subst; apply (truncate_value_uincl htr).
       move: Hw; rewrite /= /write_var /set_var /=; t_xrbindP=> vm2'. 
       apply: on_vuP=> /=.
       + move=>v'' hv'' <- <- <- <- /=; split=> //= => z Hin.
         case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
         + move=> Hz; subst z; rewrite Fv.setP_eq; move: Hv; rewrite /get_gvar /= /get_var /=. 
-          apply: on_vuP=> //= v1 -> /= hv1; subst; have [v1' [/= h1 h2]]:= pof_val_uincl Hv' hv''.
-          by rewrite pof_val_pto_val in h1; case: h1=> ->.
+          apply: on_vuP=> //= v1 -> /= hv1; subst.
+          by move: hv''; rewrite pof_val_pto_val => /ok_inj <-.
         by move=> Hz; rewrite Fv.setP_neq //; apply /eqP.
       move=> Hz; case: ifP=> //= Hb [] <- <- <- <- /=; split=> //= z Hin.
       case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
       + move=> Hz'; subst z; rewrite Fv.setP_eq; move: Hv; rewrite /get_gvar /= /get_var /=. 
         apply: on_vuP=> //= v1 -> /= hv1; subst; move/is_sboolP : Hb => Hb; subst. 
-        by have /= h1 := pof_val_undef Hv' Hz.
+        by [].
       by move=> Hz'; rewrite Fv.setP_neq //; apply /eqP.
     eexists; split; last by exact: Eskip.
     by apply: vmap_uincl_onT=> //; apply: vmap_uincl_onT Hs Hvm.

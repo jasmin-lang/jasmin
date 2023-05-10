@@ -209,9 +209,9 @@ let rec cinstr_of_instr tbl i c =
 
 and cinstr_r_of_instr_r tbl p i tl =
   match i with
-  | Cassgn(x,t, ty,e) ->
+  | Cassgn(x, t, e) ->
     let ir  =
-      C.Cassgn(clval_of_lval tbl x, t, cty_of_ty ty, cexpr_of_expr tbl e) in
+      C.Cassgn(clval_of_lval tbl x, t, cexpr_of_expr tbl e) in
     C.MkI(p, ir) :: tl
 
   | Copn(x,t,o,e) ->
@@ -257,8 +257,8 @@ let rec instr_of_cinstr tbl i =
     { i_desc; i_loc; i_info = (); i_annot }
 
 and instr_r_of_cinstr_r tbl = function
-  | C.Cassgn(x,t, ty,e) ->
-    Cassgn(lval_of_clval tbl x, t, ty_of_cty ty, expr_of_cexpr tbl e)
+  | C.Cassgn(x, t, e) ->
+    Cassgn(lval_of_clval tbl x, t, expr_of_cexpr tbl e)
 
   | C.Copn(x,t,o,e) ->
     Copn(lval_of_clvals tbl x, t, o, expr_of_cexprs tbl e)

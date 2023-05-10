@@ -34,7 +34,7 @@ let rec written_vars_instr_r allvars w =
   function
   | Cfor (_, _, s)
     -> written_vars_stmt allvars w s
-  | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
+  | Cassgn (x, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _, _)
   | Csyscall(xs,_,_)
   | Ccall (_, xs, _, _)
@@ -49,17 +49,17 @@ and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) 
 let ir (m: names) (x: var) (y: var) : (unit, 'asm) instr =
   let x = Mv.find_default x x m in
   let v u = L.mk_loc L._dummy u in
-  let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
+  let i_desc = Cassgn (Lvar (v y), AT_phinode, Pvar (gkvar (v x))) in
   { i_desc ; i_info = () ; i_loc = L.i_dummy ; i_annot = [] }
 
 let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
   let f = Liveness.live_fd is_move_op false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
-    | Cassgn (x, tg, ty, e) ->
+    | Cassgn (x, tg, e) ->
       let e = rename_expr m e in
       let m, y = rename_lval allvars (m, []) x in
-      m, Cassgn (List.hd y, tg, ty, e)
+      m, Cassgn (List.hd y, tg, e)
     | Copn (xs, tg, op, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
@@ -116,7 +116,7 @@ let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit
 let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
   let rec instr_r =
     function
-    | Cassgn (x, tg, _, e) as i ->
+    | Cassgn (x, tg, e) as i ->
       (match tg with
        | AT_phinode ->
          (match x, e with

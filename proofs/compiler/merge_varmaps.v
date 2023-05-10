@@ -72,7 +72,7 @@ Section WRITE1.
 
   Fixpoint write_i_rec s (i:instr_r) :=
     match i with
-    | Cassgn x _ _ _  => vrv_rec s x
+    | Cassgn x _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
     | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
@@ -168,7 +168,7 @@ Section CHECK.
 
   with check_ir sz ii D ir :=
     match ir with
-    | Cassgn x tag ty e =>
+    | Cassgn x tag e =>
       Let _ := check_e ii D e in
       check_lv ii D x
     | Copn xs tag o es =>

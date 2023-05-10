@@ -346,10 +346,17 @@ Definition lower_store (ws : wsize) (e : pexpr) : option (arm_op * seq pexpr) :=
   else
     None.
 
+(* FIXME: duplicate def *)
+  Definition wsize_of_lval (x: lval) : option wsize :=
+    match x with
+    | Lvar x => if x.(v_var).(vtype) is sword sz then Some sz else None
+    | Lmem sz _ _ | Laset _ sz _ _ => Some sz
+    | _ => None end.
+
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn
-  (lv : lval) (ty : stype) (e : pexpr) : option (seq instr_r * copn_args) :=
-  if ty is sword ws
+  (lv : lval) (e : pexpr) : option (seq instr_r * copn_args) :=
+  if wsize_of_lval lv is Some ws
   then
     let le :=
       if is_lval_in_memory lv
@@ -445,9 +452,9 @@ Definition lowering_options := unit.
 Fixpoint lower_i (i : instr) : cmd :=
   let '(MkI ii ir) := i in
   match ir with
-  | Cassgn lv tag ty e =>
+  | Cassgn lv tag e =>
       let irs :=
-        if lower_cassgn lv ty e is Some (pre, (lvs, op, es))
+        if lower_cassgn lv e is Some (pre, (lvs, op, es))
         then pre ++ [:: Copn lvs tag op es ]
         else [:: ir ]
       in

@@ -12,11 +12,11 @@ let rec ty_expr = function
   | Psub (_,ws,len,_,_) -> Arr (ws,len)
   | a -> ToEC.ty_expr a
 
-(* TODO: fix [ToEC.ty_lval] and use it here instead*)
-let rec ty_lval = function
+(* TODO: fix [Prog.ty_lval] and use it here instead*)
+let ty_lval = function
   | Lasub (_,ws,len,_,_) -> Arr (ws,len)
-  | a -> ToEC.ty_lval a
-           
+  | a -> ty_lval a
+
 (*---------------------------------------------------------------*)
 exception Aint_error of string
                
