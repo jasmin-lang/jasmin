@@ -25,12 +25,6 @@ module X86_core = struct
   let atoI =
     let open Prog in
     let mk_var k t s =
-      let k =
-        (* FIXME avoid this *)
-        match k with
-        | Arch_extra.Normal -> Normal
-        | Arch_extra.Extra -> Extra
-      in
       V.mk (Conv.string_of_cstring s) (Reg(k,Direct)) (Conv.ty_of_cty t) L._dummy [] in
 
     match Arch_extra.MkAToIdent.mk x86_decl mk_var with

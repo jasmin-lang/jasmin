@@ -168,15 +168,11 @@ Class arch_toIdent :=
 
 End ARCH.
 
-Inductive kind :=
-  | Normal
-  | Extra.
-
 Module Type AToIdent_T.
 
   Parameter mk :
     forall `{arch : arch_decl},
-      (kind -> stype -> string -> Ident.ident) ->  result pp_error_loc arch_toIdent.
+      (reg_kind -> stype -> string -> Ident.ident) ->  result pp_error_loc arch_toIdent.
 
 End AToIdent_T.
 
@@ -205,7 +201,7 @@ Module MkAToIdent : AToIdent_T.
 
   End AUX.
 
-  Definition mk (toid : kind -> stype -> string -> Ident.ident) :=
+  Definition mk (toid : reg_kind -> stype -> string -> Ident.ident) :=
     Let toI_r  := MkToIdent.mk (T:= reg) (toid Normal (sword reg_size)) in
     Let toI_rx := MkToIdent.mk (T:= regx) (toid Extra (sword reg_size)) in
     Let toI_x  := MkToIdent.mk (T:= xreg) (toid Normal (sword xreg_size)) in

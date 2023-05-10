@@ -24,12 +24,6 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
     let open Prog in
     (* FIXME: share the code with x86_arch_full *)
     let mk_var k t s =
-      let k =
-        (* FIXME avoid this *)
-        match k with
-        | Arch_extra.Normal -> Normal
-        | Arch_extra.Extra -> Extra
-      in
       V.mk (Conv.string_of_cstring s) (Reg(k,Direct)) (Conv.ty_of_cty t) L._dummy [] in
 
     match Arch_extra.MkAToIdent.mk arm_decl mk_var with

@@ -39,8 +39,6 @@ let tint  = Bty Int
 type writable = Constant | Writable
 type pointer = Direct | Pointer of writable
 
-type reg_kind = Normal | Extra
-
 type v_kind =
   | Const            (* global parameter  *)
   | Stack of pointer (* stack variable    *)

@@ -573,8 +573,8 @@ let tt_pointer dfl_writable (p:S.ptr) : P.pointer =
 
 let tt_reg_kind annot = 
   match Annot.ensure_uniq1 "mmx" Annot.none annot with
-  | Some () -> P.Extra
-  | None    -> P.Normal
+  | Some () -> W.Extra
+  | None    -> W.Normal
 
 let tt_sto regkind dfl_writable (sto : S.pstorage) : P.v_kind =
   match sto with

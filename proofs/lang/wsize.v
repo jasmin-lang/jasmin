@@ -178,6 +178,11 @@ Definition pp_sz_sz (s: string) (sign:bool) (sz sz': wsize) (_: unit) : string :
   s ++ "_u" ++ string_of_wsize sz ++ (if sign then "s" else "u")%string ++ string_of_wsize sz'.
 
 (* -------------------------------------------------------------------- *)
+Variant reg_kind : Type :=
+| Normal
+| Extra.
+
+(* -------------------------------------------------------------------- *)
 Variant safe_cond :=
   | NotZero of wsize & nat  (* the nth argument of size sz is not zero *)
   | AllInit of wsize & positive & nat.         (* the nth argument of is an array ws[p] where all ceil are initialized *)
