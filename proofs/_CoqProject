@@ -110,6 +110,7 @@ lang/psem_of_sem_proof.v
 lang/psem_facts.v
 lang/psem.v
 lang/sem.v
+lang/typing.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v
