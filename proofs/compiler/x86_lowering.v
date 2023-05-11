@@ -4,6 +4,10 @@ Require Import Utf8.
 Require Import compiler_util expr lowering lea.
 Require Import x86_decl x86_instr_decl x86_extra.
 
+Section Section.
+
+Context {atoI : arch_toIdent}.
+
 Section IS_REGX.
 
 Context (is_regx : var -> bool).
@@ -26,13 +30,13 @@ Section LOWERING.
 
 Record fresh_vars : Type :=
   {
-    fresh_OF : Equality.sort Ident.ident;
-    fresh_CF : Equality.sort Ident.ident;
-    fresh_SF : Equality.sort Ident.ident;
-    fresh_PF : Equality.sort Ident.ident;
-    fresh_ZF : Equality.sort Ident.ident;
+    fresh_OF : Ident.ident;
+    fresh_CF : Ident.ident;
+    fresh_SF : Ident.ident;
+    fresh_PF : Ident.ident;
+    fresh_ZF : Ident.ident;
 
-    fresh_multiplicand : wsize → Equality.sort Ident.ident;
+    fresh_multiplicand : wsize → Ident.ident;
   }.
 
 Record lowering_options : Type :=
@@ -630,3 +634,5 @@ Fixpoint lower_i (i:instr) : cmd :=
 End LOWERING.
 
 End IS_REGX.
+
+End Section.

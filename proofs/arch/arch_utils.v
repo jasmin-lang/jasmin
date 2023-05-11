@@ -41,8 +41,6 @@ Instance empty_toS t : ToString t empty :=
   {
     category := "empty";
     to_string := of_empty _;
-    inj_to_string := ltac:(done);
-    stringsE := refl_equal;
   }.
 
 

@@ -63,9 +63,9 @@ End E.
 Definition fail ii (msg: string) :=
   asm_gen.E.error ii (pp_box [:: pp_s "store-label:"; pp_s msg]).
 
-Section TOSTRING.
+Section TOIDENT.
 
-Context `{tS : ToString}.
+Context `{tI : ToIdent}.
 
 (* move ? *)
 Definition of_var_e ii (v: var_i) :=
@@ -86,13 +86,13 @@ Qed.
 Lemma of_var_eI {ii v r} : of_var_e ii v = ok r -> to_var r = v.
 Proof. by move => /of_var_eP; apply/of_varI. Qed.
 
-End TOSTRING.
+End TOIDENT.
 
 (* -------------------------------------------------------------------- *)
 
 Section OF_TO.
 
-Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
+Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent}.
 
 Definition to_reg   : var -> option reg_t   := of_var.
 Definition to_regx  : var -> option regx_t  := of_var.
@@ -142,7 +142,6 @@ End OF_TO.
 Section ASM_EXTRA.
 
 Context `{asm_e : asm_extra} {call_conv: calling_convention}.
-
 
 (* -------------------------------------------------------------------- *)
 (* Compilation of fexprs *)
@@ -270,8 +269,17 @@ Definition nset (T:Type) (m:nmap T) (n:nat) (t:T) :=
   fun x => if x == n then Some t else nget m x.
 Definition nempty (T:Type) := fun n:nat => @None T.
 
+(* FIXME: try to use the commented version *)
 Definition is_implicit (i: implicit_arg) (e: rexpr) : bool :=
   if e is Rexpr (Fvar x) then x.(v_var) == var_of_implicit_arg i else false.
+(*
+Definition is_implicit (i: implicit_arg) (e: rexpr) : bool :=
+  match i, e with
+  | Rexpr (Fvar x), IArflag f => eq_op (T := [eqType of option ceqT_eqType]) (of_var x) (Some f)
+  | Rexpr (Fvar x), IAreg r   => eq_op (T := [eqType of option ceqT_eqType]) (of_var x) (Some r)
+  | _, _ => false
+  end.
+*)
 
 Definition compile_arg rip ii (ade: (arg_desc * stype) * rexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
   let ad := ade.1 in
@@ -583,7 +591,7 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
   in
   Let _ :=
     assert
-      (of_string (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
+      (of_ident (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
       (E.gen_error true None None (pp_s "Invalid RSP"))
   in
   Let fds :=
@@ -595,7 +603,7 @@ End ASM_EXTRA.
 
 Section OVM_I.
 
-Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {call_conv: calling_convention}.
+Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent} {call_conv: calling_convention}.
 
 Definition vflags := sv_of_list to_var rflags.
 

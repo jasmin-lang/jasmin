@@ -21,9 +21,6 @@ Class ToString (t: stype) (T: Type) :=
   { category      : string    (* Name of the "register" used to print errors. *)
   ; _finC         :> finTypeC T
   ; to_string     : T -> string
-  ; strings       : list (string * T)
-  ; inj_to_string : injective to_string
-  ; stringsE      : strings = [seq (to_string x, x) | x <- enum cfinT_finType]
   }.
 
 Definition rtype {t T} `{ToString t T} := t.
@@ -43,7 +40,6 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; toS_f :> ToString sbool rflag
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
-  ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
   ; ad_fcp :> FlagCombinationParams
   }.
 

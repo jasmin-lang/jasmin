@@ -84,7 +84,7 @@ Record h_architecture_params
        Needed for the compiler proof. *)
     ok_lip_tmp :
       exists r : reg_t,
-        of_string (linearization.lip_tmp (ap_lip aparams)) = Some r;
+        of_ident (linearization.lip_tmp (ap_lip aparams)) = Some r;
 
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);

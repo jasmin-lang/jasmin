@@ -1350,10 +1350,10 @@ Definition init_params mglob stack disj lmap rmap sao_params params :=
   fmapM2 (stk_ierror_no_var "invalid function info")
     (init_param mglob stack) (disj, lmap, rmap) sao_params params.
 
-Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
+Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
-  let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
+  let vxlen := {| vtype := sword Uptr; vname := fresh_reg Ident.len__ (sword Uptr) |} in
   let ra := sao.(sao_return_address) in
   Let stack := init_stack_layout mglob sao in
   Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
@@ -1398,7 +1398,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
     f_res := res;
     f_extra := f_extra fd |}.
 
-Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string) (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
+Definition alloc_fd p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
   let: sao := local_alloc fn in
   Let fd := alloc_fd_aux p_extra mglob fresh_reg local_alloc sao fd in
   let f_extra := {|
@@ -1490,7 +1490,7 @@ Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mva
                   (stk_ierror_no_var "missing globals") in
   ok mvar.
 
-Definition alloc_prog (fresh_reg:string -> stype -> Ident.ident) 
+Definition alloc_prog (fresh_reg : Ident.name -> stype -> Ident.ident)
     rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
   Let mglob := init_map  global_alloc global_data P.(p_globs) in
   let p_extra :=  {|

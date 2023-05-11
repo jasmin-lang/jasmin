@@ -215,9 +215,7 @@ let main () =
     if !do_compile then begin
   
     (* Now call the coq compiler *)
-    let tbl, cprog =
-      let all_vars = Arch.rip :: Arch.all_registers in
-       Conv.cuprog_of_prog all_vars prog in
+    let cprog = Conv.cuprog_of_prog prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
 
@@ -255,7 +253,7 @@ let main () =
                 (Syscall_ocaml.initial_state ())
                 (Expr.to_uprog Arch.asmOp cprog)
                 ii
-                (Conv.cfun_of_fun tbl f)
+                f
                 []
             in
 
@@ -269,18 +267,18 @@ let main () =
         List.iter exec to_exec
       end;
 
-    begin match Compile.compile (module Arch) visit_prog_after_pass prog tbl cprog with
+    begin match Compile.compile (module Arch) visit_prog_after_pass prog cprog with
     | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
+      let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
       raise (HiError e)
     | Utils0.Ok asm ->
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" (Arch.pp_asm tbl) asm);
+          Format.fprintf fmt "%a%!" Arch.pp_asm asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" (Arch.pp_asm tbl) asm
+          Format.printf "%a%!" Arch.pp_asm asm
     end
     end
   with

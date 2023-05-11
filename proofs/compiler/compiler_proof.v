@@ -632,7 +632,7 @@ Proof.
     apply/andP; split.
     + rewrite /var_tmp.
       have [tmp_r htmp] := ok_lip_tmp haparams.
-      rewrite -(of_stringI htmp).
+      rewrite -(of_identI htmp).
       rewrite (XM (ARReg _)).
       by rewrite /get_typed_reg_value /= truncate_word_u.
 

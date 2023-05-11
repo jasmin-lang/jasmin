@@ -172,8 +172,8 @@ Record compiler_params
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_reg        : string -> stype -> Ident.ident;
-  fresh_reg_ptr    : string -> stype -> Ident.ident;
+  fresh_reg        : Ident.name -> stype -> Ident.ident;
+  fresh_reg_ptr    : Ident.name -> stype -> Ident.ident;
   fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;

@@ -20,13 +20,12 @@ End E.
 Section Section.
 Context `{asmop:asmOp}.
 Context (is_reg_ptr : var -> bool)
-        (fresh_reg_ptr : Ident.ident -> stype -> Ident.ident).
+        (fresh_reg_ptr : Ident.name -> stype -> Ident.ident).
 Context (p : uprog).
 
 Definition with_id vi id ty :=
   {| v_var := {| vtype := ty; vname := fresh_reg_ptr id ty |};
      v_info := vi |}.
-
 
 Definition is_reg_ptr_expr doit id ty e :=
   match e with
@@ -131,7 +130,7 @@ Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
   ok (flatten ls).
 
 Definition mk_info (x:var_i) (ty:stype) :=
-  (is_reg_ptr x, x.(vname), ty).
+  (is_reg_ptr x, Ident.id_name x.(vname), ty).
 
 Definition get_sig fn :=
   if get_fundef p.(p_funcs) fn is Some fd then
@@ -141,8 +140,8 @@ Definition get_sig fn :=
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u o in
-  (map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tin),
-   map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tout)).
+  (map (fun ty => (is_sarr ty, Ident.p__, ty)) s.(scs_tin),
+   map (fun ty => (is_sarr ty, Ident.p__, ty)) s.(scs_tout)).
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in

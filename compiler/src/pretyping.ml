@@ -573,8 +573,8 @@ let tt_pointer dfl_writable (p:S.ptr) : P.pointer =
 
 let tt_reg_kind annot = 
   match Annot.ensure_uniq1 "mmx" Annot.none annot with
-  | Some () -> P.Extra
-  | None    -> P.Normal
+  | Some () -> W.Extra
+  | None    -> W.Normal
 
 let tt_sto regkind dfl_writable (sto : S.pstorage) : P.v_kind =
   match sto with
@@ -1294,7 +1294,7 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   o.i_out
 
 let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
-  List.map (fun (s, x) -> Conv.string_of_string0 s, x) asmOp.Sopn.prim_string
+  List.map (fun (s, x) -> Conv.string_of_cstring s, x) asmOp.Sopn.prim_string
 
 let extract_size str : string * S.size_annotation =
   let open S in
@@ -1524,7 +1524,7 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
         List.map
           (function
            | ADExplicit _ -> None
-           | ADImplicit v -> Some (Conv.string_of_string0 (Var0.Var.vname v)))
+           | ADImplicit v -> Some (Var0.Var.vname v).v_name)
           implicit in
 
       let iargs = List.pmap (Option.map String.uppercase_ascii) arguments in

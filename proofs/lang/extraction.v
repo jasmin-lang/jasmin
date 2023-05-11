@@ -4,6 +4,7 @@ Require jasmin_compiler.
 
 From Coq Require ExtrOcamlBasic.
 From Coq Require ExtrOcamlString.
+From Coq Require ExtrOCamlInt63.
 
 (* This is a hack to force the extraction to keep the singleton here,
    This need should be removed if we add more constructor to syscall_t *)
@@ -18,7 +19,8 @@ Extraction Inline utils.Result.bind.
 Extraction Inline Datatypes.implb.
 
 Extract Constant strings.ascii_beq => "Char.equal".
-Extract Constant strings.ascii_cmp => "(fun x y -> let c = Char.compare x y in if c = 0 then Datatypes.Eq else if c < 0 then Datatypes.Lt else Datatypes.Gt)".
+Extract Constant strings.ascii_cmp =>
+  "(fun x y -> let c = Char.compare x y in if c = 0 then Datatypes.Eq else if c < 0 then Datatypes.Lt else Datatypes.Gt)".
 
 Extract Constant expr.VarInfo.t => "Location.t".
 Extract Constant expr.VarInfo.witness => "Location._dummy".
@@ -29,6 +31,27 @@ Extract Constant expr.instr_info => "IInfo.t".
 Extract Constant expr.fun_info => "FInfo.t".
 Extract Constant waes.MixColumns => "(fun _ -> failwith ""MixColumns is not implemented"")".
 Extract Constant waes.InvMixColumns => "(fun _ -> failwith ""InvMixColumns not implemented"")".
+
+(* Extraction for Var.FunName *)
+Extract Constant var.FunName.t   => "CoreIdent.funname".
+Extract Constant var.funname     => "CoreIdent.funname".
+Extract Constant var.FunName.tag => "CoreIdent.funname_tag".
+
+(* Module Cident *)
+
+Extract Constant ident.Cident.t       => "CoreIdent.Cident.t".
+Extract Constant ident.Cident.name    => "CoreIdent.Cident.name".
+Extract Constant ident.WrapIdent.t    => "CoreIdent.Cident.t".
+Extract Constant ident.WrapIdent.name => "CoreIdent.Cident.name".
+
+
+Extract Constant ident.Cident.tag     => "CoreIdent.Cident.tag".
+Extract Constant ident.Cident.id_name => "CoreIdent.Cident.id_name".
+
+Extract Constant ident.Cident.dummy   => "CoreIdent.Cident.dummy".
+Extract Constant ident.Cident.p__     => "CoreIdent.Cident.p__".
+Extract Constant ident.Cident.len__   => "CoreIdent.Cident.len__".
+
 
 Cd  "lang/ocaml".
 
@@ -42,10 +65,13 @@ Separate Extraction
   sem
   sem_params_of_arch_extra
   arch_decl
+  arch_extra
+  x86_decl_core
   x86_decl
   x86_instr_decl
   x86_extra
   x86_params
+  arm_decl_core
   arm_decl
   arm_instr_decl
   arm_extra

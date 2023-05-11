@@ -39,7 +39,7 @@ end = struct
       f_ret = List.map (mk_v_loc f_decl.f_name.fn_name) f_decl.f_ret }
 
   and mk_v fn v =
-    let short_name v = v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id)) in
+    let short_name v = v.v_name ^ "." ^ (string_of_uid v.v_id) in
     let long_name v =
       if Config.sc_var_append_fun_name ()
       then (short_name v) ^ "#" ^ fn

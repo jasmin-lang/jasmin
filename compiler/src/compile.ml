@@ -54,11 +54,11 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op
-       and type extra_op = extra_op) visit_prog_after_pass prog tbl cprog =
+       and type extra_op = extra_op) visit_prog_after_pass prog cprog =
   let module Regalloc = Regalloc.Regalloc (Arch) in
   let module StackAlloc = StackAlloc.StackAlloc (Arch) in
-  let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn, cfd) in
-  let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
+  let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd) in
+  let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef fd) in
 
   let apply msg trans fn cfd =
     if !debug then Format.eprintf "START %s@." msg;
@@ -68,12 +68,12 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     cufdef_of_fdef fd
   in
 
-  let translate_var = Conv.var_of_cvar tbl in
+  let translate_var = Conv.var_of_cvar in
 
   let memory_analysis up : Compiler.stack_alloc_oracles =
     StackAlloc.memory_analysis
       (Printer.pp_err ~debug:!debug)
-      ~debug:!debug tbl up
+      ~debug:!debug up
   in
 
   let saved_extra_free_registers : (L.i_loc -> var option) ref =
@@ -82,7 +82,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let global_regalloc fds =
     if !debug then Format.eprintf "START regalloc@.";
-    let fds = List.map (Conv.fdef_of_csfdef tbl) fds in
+    let fds = List.map Conv.fdef_of_csfdef fds in
 
     CheckAnnot.check_stack_size fds;
 
@@ -96,27 +96,27 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     in
     saved_extra_free_registers := extra_free_registers;
     let fds = List.map (fun (y, _, x) -> (y, x)) fds in
-    let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
+    let fds = List.map Conv.csfdef_of_fdef fds in
     fds
   in
 
   let is_var_in_memory cv : bool =
-    let v = Conv.vari_of_cvari tbl cv |> L.unloc in
+    let v = Conv.vari_of_cvari cv |> L.unloc in
     match v.v_kind with
     | Stack _ | Reg (_, Pointer _) | Global -> true
     | Const | Inline | Reg (_, Direct) -> false
   in
 
   let pp_cuprog s cp =
-    Conv.prog_of_cuprog tbl cp |> visit_prog_after_pass ~debug:true s
+    Conv.prog_of_cuprog cp |> visit_prog_after_pass ~debug:true s
   in
 
   let pp_csprog fmt cp =
-    let p = Conv.prog_of_csprog tbl cp in
-    Printer.pp_sprog ~debug:true tbl Arch.asmOp fmt p
+    let p = Conv.prog_of_csprog cp in
+    Printer.pp_sprog ~debug:true Arch.asmOp fmt p
   in
 
-  let pp_linear fmt lp = PrintLinear.pp_prog Arch.asmOp tbl fmt lp in
+  let pp_linear fmt lp = PrintLinear.pp_prog Arch.asmOp fmt lp in
 
   let rename_fd ii fn cfd =
     let ii, _ = ii in
@@ -128,9 +128,9 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let expand_fd fn cfd =
-    let fd = Conv.fdef_of_cufdef tbl (fn, cfd) in
+    let fd = Conv.fdef_of_cufdef (fn, cfd) in
     let vars, harrs = Array_expand.init_tbl fd in
-    let cvar = Conv.cvar_of_var tbl in
+    let cvar = Conv.cvar_of_var in
     let vars = List.map cvar (Sv.elements vars) in
     let arrs = ref [] in
     let doarr x (ws, xs) =
@@ -156,34 +156,27 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let inline_var x =
-    let x = Conv.var_of_cvar tbl x in
+    let x = Conv.var_of_cvar x in
     x.v_kind = Inline
   in
 
   let is_glob x =
-    let x = Conv.var_of_cvar tbl x in
+    let x = Conv.var_of_cvar x in
     x.v_kind = Global
   in
 
   let fresh_id _gd x =
-    let x = Conv.var_of_cvar tbl x in
-    let x' = Prog.V.clone x in
-    let cx = Conv.cvar_of_var tbl x' in
-    cx.Var0.Var.vname
+    let x = Conv.var_of_cvar x in
+    Prog.V.clone x
   in
 
   let fresh_reg name ty =
-    let name = Conv.string_of_string0 name in
     let ty = Conv.ty_of_cty ty in
-    let p = Prog.V.mk name (Reg (Normal, Direct)) ty L._dummy [] in
-    let cp = Conv.cvar_of_var tbl p in
-    cp.Var0.Var.vname
+    Prog.V.mk name (Reg (Normal, Direct)) ty L._dummy []
   in
 
   let fresh_counter =
-    let i = Prog.V.mk "i__copy" Inline tint L._dummy [] in
-    let ci = Conv.cvar_of_var tbl i in
-    ci.Var0.Var.vname
+    Prog.V.mk "i__copy" Inline tint L._dummy []
   in
 
   let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
@@ -191,29 +184,28 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd in
 
   let removereturn sp =
-    let fds, _data = Conv.prog_of_csprog tbl sp in
+    let fds, _data = Conv.prog_of_csprog sp in
     let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
-    let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
     tokeep
   in
 
-  let is_regx tbl x = is_regx (Conv.var_of_cvar tbl x) in
+  let is_regx x = is_regx (Conv.var_of_cvar x) in
 
   let is_reg_ptr x =
-    let x = Conv.var_of_cvar tbl x in
+    let x = Conv.var_of_cvar x in
     is_reg_ptr_kind x.v_kind
   in
 
   let is_ptr x =
-    let x = Conv.var_of_cvar tbl x in
+    let x = Conv.var_of_cvar x in
     is_ptr x.v_kind
   in
 
-  let is_reg_array x = is_reg_arr (Conv.var_of_cvar tbl x) in
+  let is_reg_array x = is_reg_arr (Conv.var_of_cvar x) in
 
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
-      let fds, _ = Conv.prog_of_csprog tbl p in
+      let fds, _ = Conv.prog_of_csprog p in
       List.iter (warn_extra_fd Arch.asmOp) fds
   in
 
@@ -227,17 +219,17 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.remove_phi_nodes_fd =
         apply "remove phi nodes" remove_phi_nodes_fd;
       Compiler.stack_register_symbol =
-        Var0.Var.vname (Conv.cvar_of_var tbl Arch.rsp_var);
+        Var0.Var.vname (Conv.cvar_of_var Arch.rsp_var);
       Compiler.global_static_data_symbol =
-        Var0.Var.vname (Conv.cvar_of_var tbl Arch.rip);
+        Var0.Var.vname (Conv.cvar_of_var Arch.rip);
       Compiler.stackalloc = memory_analysis;
       Compiler.removereturn;
       Compiler.regalloc = global_regalloc;
       Compiler.extra_free_registers =
         (fun ii ->
           let loc, _ = ii in
-          !saved_extra_free_registers loc |> Option.map (Conv.cvar_of_var tbl));
-      Compiler.lowering_vars = Arch.lowering_vars tbl;
+          !saved_extra_free_registers loc |> Option.map Conv.cvar_of_var);
+      Compiler.lowering_vars = Arch.lowering_vars;
       Compiler.is_var_in_memory;
       Compiler.print_uprog =
         (fun s p ->
@@ -259,16 +251,16 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_id;
       Compiler.fresh_counter;
       Compiler.fresh_reg;
-      Compiler.fresh_reg_ptr = Conv.fresh_reg_ptr tbl;
+      Compiler.fresh_reg_ptr = Conv.fresh_reg_ptr;
       Compiler.is_reg_ptr;
       Compiler.is_ptr;
       Compiler.is_reg_array;
-      Compiler.is_regx = is_regx tbl;
+      Compiler.is_regx = is_regx;
     }
   in
 
   let export_functions =
-    let conv fd = Conv.cfun_of_fun tbl fd.f_name in
+    let conv fd = fd.f_name in
     List.fold_right
       (fun fd acc ->
         match fd.f_cc with

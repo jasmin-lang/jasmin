@@ -1,4 +1,5 @@
 module Core_arch_ARM : Arch_full.Core_arch
+open X86_decl_core
 open X86_decl
 
 val core_arch_x86 :

@@ -579,9 +579,9 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let ssa_main, pa_res =
     (* FIXME: code duplication! dirty hack *)
     let is_move_op =
-      X86_params.x86_params.ap_is_move_op
+      X86_arch_full.X86_core.aparams.ap_is_move_op
     in
-    let asmOp = Arch_extra.asm_opI X86_extra.x86_extra in
+    let asmOp = Arch_extra.asm_opI X86_arch_full.X86_core.asm_e in
     FSPa.fs_pa_make asmOp is_move_op PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)

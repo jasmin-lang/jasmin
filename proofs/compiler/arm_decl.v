@@ -10,7 +10,12 @@ Require Import
   shift_kind
   strings
   utils
-  wsize.
+  wsize
+  ident.
+
+Require Export
+  arm_decl_core.
+
 Require Import
   arch_decl
   arch_utils.
@@ -27,12 +32,6 @@ Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
 (* Registers. *)
-Variant register : Type :=
-| R00 | R01 | R02 | R03         (* Lower general-purpose registers. *)
-| R04 | R05 | R06 | R07         (* Lower general-purpose registers. *)
-| R08 | R09 | R10 | R11 | R12   (* Higher general-purpose registers. *)
-| LR                            (* Subroutine link register. *)
-| SP.                           (* Stack pointer. *)
 
 Scheme Equality for register.
 
@@ -56,13 +55,13 @@ Proof. by case. Qed.
 #[ export ]
 Instance finTC_register : finTypeC register :=
   {
-    cenum := registers;
+    cenum  := registers;
     cenumP := register_fin_axiom;
   }.
 
 Canonical register_finType := @cfinT_finType _ finTC_register.
 
-Definition string_of_register (r : register) : string :=
+Definition register_to_string (r: register) : string :=
   match r with
   | R00 => "r0"
   | R01 => "r1"
@@ -82,24 +81,13 @@ Definition string_of_register (r : register) : string :=
   end.
 
 #[ export ]
-Instance reg_toS : ToString sword32 register :=
-  { category      := "register"
-  ; to_string     := string_of_register
-  ; strings       := [seq (string_of_register x, x)
-                     | x <- enum [finType of register]]
-  ; inj_to_string := ltac:(by t_inj_cases)
-  ; stringsE      := refl_equal
-  }.
-
+Instance reg_toS : ToString (sword arm_reg_size) register :=
+  {| category  := "register"
+   ; to_string := register_to_string
+  |}.
 
 (* -------------------------------------------------------------------- *)
 (* Flags. *)
-
-Variant rflag : Type :=
-| NF    (* Negative condition flag. *)
-| ZF    (* Zero confition flag. *)
-| CF    (* Carry condition flag. *)
-| VF.   (* Overflow condition flag. *)
 
 Scheme Equality for rflag.
 
@@ -122,13 +110,13 @@ Proof. by case. Qed.
 #[ export ]
 Instance finTC_rflag : finTypeC rflag :=
   {
-    cenum := rflags;
+    cenum  := rflags;
     cenumP := rflag_fin_axiom;
   }.
 
 Canonical rflag_finType := @cfinT_finType _ finTC_rflag.
 
-Definition string_of_rflag (f : rflag) : string :=
+Definition flag_to_string (f : rflag) : string :=
   match f with
   | NF => "NF"
   | ZF => "ZF"
@@ -138,13 +126,9 @@ Definition string_of_rflag (f : rflag) : string :=
 
 #[ export ]
 Instance rflag_toS : ToString sbool rflag :=
-  { category      := "rflag"
-  ; to_string     := string_of_rflag
-  ; strings       := [seq (string_of_rflag x, x) | x <- enum [finType of rflag]]
-  ; inj_to_string := ltac:(by t_inj_cases)
-  ; stringsE      := refl_equal
+  { category  := "rflag"
+  ; to_string := flag_to_string
   }.
-
 
 (* -------------------------------------------------------------------- *)
 (* Conditions. *)
@@ -312,7 +296,7 @@ Notation xregister := empty.
 
 #[ export ]
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
-  { reg_size  := U32
+  { reg_size  := arm_decl_core.arm_reg_size
   ; xreg_size := U64
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
@@ -321,7 +305,6 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; toS_f     := rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
-  ; inj_toS_reg_regx := ltac:(done)
   ; ad_fcp := arm_fcp
   }.
 

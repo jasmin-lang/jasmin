@@ -35,7 +35,10 @@ Proof. by case: mn. Qed.
 
 Section WITH_PARAMS.
 
+
+
 Context
+  {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {eft : eqType}

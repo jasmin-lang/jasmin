@@ -730,7 +730,7 @@ Qed.
 
 (* TODO: move (and cf. dummy_info in array_init.v) *)
 (* We need a var to give to nth as a default value *)
-Definition dummy_var := {| vtype := sbool; vname := ""%string |}.
+Definition dummy_var := {| vtype := sbool; vname := Ident.dummy |}.
 
 Lemma get_pi_nth s pi v1 v2 :
   get_pi s = Some (pi, (v1, v2)) ->
@@ -1844,7 +1844,7 @@ Context
   (hsaparams : h_stack_alloc_params saparams).
 
 Variable (local_alloc : funname -> stk_alloc_oracle_t).
-Variable (fresh_reg_ : string → stype → string).
+Variable (fresh_reg_ : Ident.name → stype → Ident.ident).
 Hypothesis Halloc_fd : forall fn fd,
   get_fundef P.(p_funcs) fn = Some fd ->
   exists2 fd', alloc_fd saparams P'.(p_extra) mglob fresh_reg_ local_alloc fn fd = ok fd' &
@@ -2852,7 +2852,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   (saparams : stack_alloc_params)
   (hsaparams : h_stack_alloc_params saparams)
-  (fresh_reg_ : Ident.ident -> stype -> Ident.ident).
+  (fresh_reg_ : Ident.name -> stype -> Ident.ident).
 
 Lemma get_alloc_fd p_extra mglob oracle fds1 fds2 :
   map_cfprog_name (alloc_fd saparams p_extra mglob fresh_reg_ oracle) fds1 = ok fds2 ->
