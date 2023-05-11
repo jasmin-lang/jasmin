@@ -13,7 +13,8 @@ Context
   {spp : SemPexprParams}
   (gd : glob_decls).
 
-Theorem sem_pexpr_type : forall pd ty e s v,
+(* If a well-typed expression progresses to a value then the value has the same type *) 
+Theorem sem_pexpr_well_typed : forall pd ty e s v,
 ty_pexpr pd e = ok ty ->
 sem_pexpr gd s e = ok v ->
 type_of_val v = ty.
@@ -71,4 +72,10 @@ move=> e1t e1t' hte1. case: ifP=> //= hsub [] heq; subst. move=> e2t e2t' hte2.
 case: ifP=> //= hsub' [] heq; subst. move=> hteq; subst. move=> bv bv' hb hbt e1v e1v' he1 ht e2v e2v' he2 ht' <-.
 case: ifP=> //= _. by have := truncate_val_has_type ht. by have := truncate_val_has_type ht'.
 Admitted.
- 
+
+Theorem sem_pexpr_type_error : forall pd ty e s er,
+ty_pexpr pd e = ok ty ->
+sem_pexpr gd s e = Error er ->
+er <> ErrType.
+Proof.
+Admitted. 
