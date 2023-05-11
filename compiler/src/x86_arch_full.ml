@@ -10,6 +10,16 @@ module type X86_input = sig
 
 end 
 
+let atoI decl =
+  let open Prog in
+  let mk_var k t s =
+    V.mk (Conv.string_of_cstring s) (Reg(k,Direct)) (Conv.ty_of_cty t) L._dummy [] in
+
+  match Arch_extra.MkAToIdent.mk decl mk_var with
+  | Utils0.Error e ->
+      let e = Conv.error_of_cerror (Printer.pp_err ~debug:true) e in
+      raise (Utils.HiError e)
+  | Utils0.Ok atoI -> atoI
 
 module X86_core = struct
   type reg = register
@@ -22,17 +32,7 @@ module X86_core = struct
   type fresh_vars = X86_lowering.fresh_vars
   type lowering_options = X86_lowering.lowering_options
 
-  let atoI =
-    let open Prog in
-    let mk_var k t s =
-      V.mk (Conv.string_of_cstring s) (Reg(k,Direct)) (Conv.ty_of_cty t) L._dummy [] in
-
-    match Arch_extra.MkAToIdent.mk x86_decl mk_var with
-    | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:true) e in
-      raise (Utils.HiError e)
-    | Utils0.Ok atoI -> atoI
-
+  let atoI = atoI x86_decl
   let asm_e = X86_extra.x86_extra atoI
   let aparams = X86_params.x86_params atoI
 
