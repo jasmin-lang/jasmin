@@ -9,7 +9,7 @@ module type Arm_input = sig
 
 end
 
-module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
+module Arm_core = struct
   type reg = register
   type regx = Arm_decl.__
   type xreg = Arm_decl.__
@@ -34,7 +34,10 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
 
   let asm_e = Arm_extra.arm_extra atoI
   let aparams = Arm_params.arm_params atoI
+end
 
+module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
+  include Arm_core
   include Lowering_params
 
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
