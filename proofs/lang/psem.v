@@ -1871,7 +1871,7 @@ Lemma subtype_eval_uincl_pundef t1 t2 :
   eval_uincl (pundef_addr t1) (pundef_addr t2).
 Proof.
   case: t1 => /= [/eqP?|/eqP?|n| s];subst => //=; case: t2 => //=.
-  by move=> ? /eqP ? /=; split => // ??; rewrite WArray.get_empty; case: ifP.
+  by move => ? /eqP [] <-.
 Qed.
 
 Lemma compat_type_word w t : compat_type (sword w) t -> exists w', t = sword w'.
@@ -2666,8 +2666,8 @@ Definition apply_undef t (v : exec (psem_t t)) :=
 Lemma eval_uincl_undef t1 t2 (v:psem_t t2) :
   subtype t1 t2 ->
   eval_uincl (pundef_addr t1) (ok v).
-Proof. 
-  case: t1 => //= p; case: t2 v => //= p2 a /eqP; split => // ??. 
+Proof.
+  case: t1 => //= p; case: t2 v => //= p2 a /eqP[] ->; split => // ??.
   by rewrite WArray.get_empty; case: ifP.
 Qed.
 

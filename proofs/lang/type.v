@@ -245,7 +245,6 @@ Proof. by case t. Qed.
 Definition subtype (t t': stype) :=
   match t with
   | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | sarr n => if t' is sarr n' then n == n' else false
   | _ => t == t'
   end.
 
@@ -253,12 +252,10 @@ Lemma subtypeE ty ty' :
   subtype ty ty' →
   match ty' with
   | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
-  | sarr n'   => ty = sarr n' 
   | _         => ty = ty'
 end.
 Proof.
   destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /eqP ->.
   by case: ty' => //; eauto.
 Qed.
 
@@ -266,12 +263,10 @@ Lemma subtypeEl ty ty' :
   subtype ty ty' →
   match ty with
   | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
-  | sarr n   => ty' = sarr n 
   | _        => ty' = ty
   end.
 Proof.
   destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /eqP ->.
   by case: ty' => //; eauto.
 Qed.
 

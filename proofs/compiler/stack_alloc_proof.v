@@ -2437,8 +2437,7 @@ Lemma alloc_array_moveP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   alloc_array_move saparams pmap rmap1 r tag e = ok (rmap2, i2) →
   ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
 Proof.
-  move=> hvs he; rewrite /truncate_val /=.
-  t_xrbindP=> a' /to_arrI ?? hw; subst v v'.
+  move=> hvs he /truncate_val_typeE[] a' ?? hw; subst v v'.
   rewrite /alloc_array_move.
   t_xrbindP=> -[x ofsx] hgetr [y ofsy] hgete.
   case hkindy: (get_var_kind pmap y) => [vk|] //.
@@ -2463,9 +2462,10 @@ Proof.
     by rewrite hkindy => -[_ [[]] <-].
   move=> [e1 ofs2] /(mk_addr_pexprP _ hwfpky hpky) [w [he1 haddr]] ? <- <- ?; subst sry' ofs2'.
   have [? [ay [hgety hay]]] := get_Pvar_subP he hgete hofsy.
+  subst n.
   have hread: forall bytes,
     eq_sub_region_val_read (emem s2) (sub_region_at_ofs sry (Some ofs) len) bytes (Varr a').
-  + move=> bytes off hmem w' /= /dup[]; subst n.
+  + move=> bytes off hmem w' /= /dup[].
     rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP hoff.
     move=> /hay.
     rewrite -sub_region_addr_offset -GRing.addrA -wrepr_add.
@@ -2495,7 +2495,7 @@ Proof.
 
     have hwf: wf_sub_region (sub_region_at_ofs sry (Some ofs) len) x.(vtype).
     + apply: (wf_sub_region_subtype _ hwfy').
-      by apply /eqP; rewrite (WArray.cast_len hax). 
+      by apply /eqP; rewrite -(WArray.cast_len hax).
 
     rewrite -(WArray.castK ax).
 
@@ -4063,8 +4063,7 @@ Proof.
   have hsub: subtype x.(vtype) g.(gv).(vtype).
   + have -> /= := type_of_get_gvar_array hgvarg.
     apply /eqP.
-    move: hcastx => /WArray.cast_len.
-    by lia.
+    by move/WArray.cast_len: hcastx => ->.
 
   (* clear the argument *)
   have [rmap1 [rmap2' [hrmap1 hrmap2' hincl2]]] := set_sub_region_clear hrmap2.

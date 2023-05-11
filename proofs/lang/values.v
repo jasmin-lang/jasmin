@@ -264,7 +264,7 @@ Lemma of_valE t v v' : of_val t v = ok v' ->
   | Vundef t h => False
   end.
 Proof.
-  case: t v' => > /of_val_typeE; try (simpl=> ->; exists erefl; eauto);
+  by case: t v' => > /of_val_typeE; try (simpl=> ->; exists erefl; eauto);
     simpl=> > [? [? [-> ]]]; eexists; exists erefl; eauto.
 Qed.
 
@@ -292,7 +292,7 @@ Qed.
 Lemma of_value_uincl_te ty v v' vt :
   value_uincl v v' -> of_val ty v = ok vt ->
   match ty as ty return sem_t ty -> Prop with
-  | sarr n => fun vt => 
+  | sarr n => fun vt =>
     exists2 vt', of_val (sarr n) v' = ok vt' & WArray.uincl vt vt'
   | _ => fun _ => of_val ty v' = ok vt
   end vt.
