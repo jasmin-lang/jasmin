@@ -125,7 +125,7 @@
   ([PR #422](https://github.com/jasmin-lang/jasmin/pull/422);
   fixes [#421](https://github.com/jasmin-lang/jasmin/issues/421)).
 
-- Fix semantics of the `VPERMD` instruction
+- Fix semantics of the `VPERMD` and `VPMADDWD` instructions
   ([PR #442](https://github.com/jasmin-lang/jasmin/pull/442)).
 
 ## Other changes
