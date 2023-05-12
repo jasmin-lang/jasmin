@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 From Coq.Unicode Require Import Utf8.
-From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses Psatz.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
@@ -284,6 +284,9 @@ Lemma Let_Let {eT A B C} (a:result eT A) (b:A -> result eT B) (c: B -> result eT
   ((a >>= b) >>= c) = a >>= (fun a => b a >>= c).
 Proof. by case: a. Qed.
 
+Lemma LetK {eT T} (r : result eT T) : Let x := r in ok x = r.
+Proof. by case: r. Qed.
+
 Definition mapM eT aT bT (f : aT -> result eT bT)  : seq aT → result eT (seq bT) :=
   fix mapM xs :=
   match xs with
@@ -511,6 +514,10 @@ Proof.
   by move => n; rewrite /= (h n) /= hy.
 Qed.
 
+Lemma mapM_ok {eT} {A B:Type} (f: A -> B) (l:list A) :
+  mapM (eT:=eT) (fun x => ok (f x)) l = ok (map f l).
+Proof. by elim l => //= ?? ->. Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -553,6 +560,14 @@ Section FOLD2.
     fold2 xs ys x0 = ok v -> size xs = size ys.
   Proof.
     by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
+  Qed.
+
+  Lemma cat_fold2 ha ta hb tb x v v' :
+    fold2 ha hb x = ok v -> fold2 ta tb v = ok v' ->
+    fold2 (ha ++ ta) (hb ++ tb) x = ok v'.
+  Proof.
+    elim: ha hb x v => [[] // > [<-] | > hrec []] //= >.
+    by t_xrbindP => ? -> /hrec{hrec}h/h{h}.
   Qed.
 
 End FOLD2.
@@ -629,6 +644,14 @@ Section MAP2.
     move=> a ma ih [//|b mb] /=.
     t_xrbindP=> _ r h mr /ih{ih}ih <-.
     by constructor.
+  Qed.
+
+  Lemma cat_mapM2 ha ta hb tb hl tl :
+    mapM2 ha hb = ok hl -> mapM2 ta tb = ok tl ->
+    mapM2 (ha ++ ta) (hb ++ tb) = ok (hl ++ tl).
+  Proof.
+    elim: ha hb hl => [[]//?[<-]|> hrec []] //=.
+    by t_xrbindP=> > -> ? /hrec{hrec}hrec <- /hrec{hrec} ->.
   Qed.
 
 End MAP2.
@@ -1562,6 +1585,17 @@ Proof.
   by move=> hz;rewrite Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
 Qed.
 
+Lemma ziota_cat p y z: 0 <= y -> 0 <= z ->
+  ziota p y ++ ziota (p + y) z = ziota p (y + z).
+Proof.
+  move=> ? /Z2Nat.id <-; elim: (Z.to_nat _).
+  + by rewrite Z.add_0_r /= cats0.
+  move=> ? hrw; rewrite Nat2Z.inj_succ Z.add_succ_r !ziotaS_cat; last 2 first.
+  + exact: (Ztac.add_le _ _ _ (Zle_0_nat _)).
+  + exact: Zle_0_nat.
+  by rewrite catA hrw Z.add_assoc.
+Qed.
+
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
 Proof.
   case: (ZleP 0 z) => hz.
@@ -1609,6 +1643,66 @@ Lemma all_ziota p1 p2 (f1 f2: Z -> bool) :
   all f1 (ziota p1 p2) = all f2 (ziota p1 p2).
 Proof. by move => h; apply ziota_ind => //= i l /h -> ->. Qed.
 
+Lemma ziota_shift i p : ziota i p = map (fun k => i + k)%Z (ziota 0 p).
+Proof. by rewrite !ziotaE -map_comp /comp. Qed.
+
+Section ZNTH.
+  Context {A: Type} (dfl: A).
+
+  Fixpoint pnth (m: list A) (p: positive) :=
+    match m with
+    | [::] => dfl
+    | a :: m =>
+        match p with
+        | 1 => a
+        | q~1 => pnth m q~0
+        | q~0 => pnth m (Pos.pred_double q)
+        end%positive
+    end.
+
+  Definition znth m (z: Z) : A :=
+    if m is a :: m then
+      match z with
+      | Z0 => a
+      | Zpos p => pnth m p
+      | Zneg _ => dfl
+      end
+  else dfl.
+
+End ZNTH.
+
+(* Warning : this is not efficient, it should be used only for proof *)
+Definition zindex (T:eqType) (t:T) l :=
+  Z.of_nat (seq.index t l).
+
+Lemma znthE (A:Type) dfl (l:list A) i :
+  (0 <= i)%Z ->
+  znth dfl l i = nth dfl l (Z.to_nat i).
+Proof.
+  case: l; first by rewrite nth_nil.
+  case: i => // p a m _.
+  elim/Pos.peano_ind: p a m; first by move => ? [].
+  move => p /= ih a; rewrite Pos2Nat.inj_succ /=.
+  case; first by rewrite nth_nil.
+  move => /= b m.
+  by case: Pos.succ (Pos.succ_not_1 p) (Pos.pred_succ p) => // _ _ /= ->.
+Qed.
+
+Lemma mem_znth (A:eqType) dfl (l:list A) i :
+  [&& 0 <=? i & i <? Z.of_nat (size l)]%Z ->
+  znth dfl l i \in l.
+Proof.
+  move=> /andP []/ZleP h0i /ZltP hi.
+  by rewrite znthE //; apply/mem_nth/ZNltP; rewrite Z2Nat.id.
+Qed.
+
+Lemma znth_index (T : eqType) (x0 x : T) (s : seq T):
+  x \in s → znth x0 s (zindex x s) = x.
+Proof.
+  move=> hin; rewrite /zindex znthE; last by apply Zle_0_nat.
+  by rewrite Nat2Z.id nth_index.
+Qed.
+
 (* ------------------------------------------------------------------------- *)
 Lemma sumbool_of_boolET (b: bool) (h: b) :
   Sumbool.sumbool_of_bool b = left h.
@@ -1651,9 +1745,9 @@ Fixpoint merge_tuple (l1 l2: list Type) : ltuple l1 -> ltuple l2 -> ltuple (l1 +
    end.
 
 (* ------------------------------------------------------------------------- *)
-  Lemma neq_sym (T: eqType) (x y: T) :
-    (x != y) = (y != x).
-  Proof. apply/eqP; case: eqP => //; exact: not_eq_sym. Qed.
+Lemma neq_sym (T: eqType) (x y: T) :
+   (x != y) = (y != x).
+Proof. apply/eqP; case: eqP => //; exact: not_eq_sym. Qed.
 
 (* ------------------------------------------------------------------------- *)
 Lemma nth_not_default T x0 (s:seq T) n x :
@@ -1744,3 +1838,45 @@ Ltac t_eq_rewrites := t_do_rewrites eq_rewrite.
 Ltac destruct_opn_args :=
   repeat (t_xrbindP=> -[|?]; first done);
   (t_xrbindP=> -[]; last done).
+
+(* Attempt to prove [injective f] on [eqType]s by case analysis on the
+   arguments. *)
+Ltac t_inj_cases :=
+  move=> [] [] /eqP h;
+  apply/eqP.
+
+(* ------------------------------------------------------------------------- *)
+
+Module Option.
+
+Variant option_spec X A o xs xn : option A -> X -> Prop :=
+| OptionSpecSome : forall a, o = Some a -> option_spec o xs xn (Some a) (xs a)
+| OptionSpecNone : o = None -> option_spec o xs xn None xn.
+
+Lemma oappP R A (f : A -> R) x u : option_spec u f x u (oapp f x u).
+Proof. by case: u; constructor. Qed.
+
+Lemma odfltP T (x : T) u : option_spec u id x u (odflt x u).
+Proof. by case: u; constructor. Qed.
+
+Lemma obindP A R (f : A -> option R) u : option_spec u f None u (obind f u).
+Proof. by case: u; constructor. Qed.
+
+Lemma omapP A R (f : A -> R) u :
+  option_spec u (fun x => Some (f x)) None u (Option.map f u).
+Proof. by case: u; constructor. Qed.
+
+End Option.
+
+Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
+Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
+
+Lemma cat_inj_tail T (x y z : seq T) : x ++ z = y ++ z -> x = y.
+Proof.
+  elim: z x y => >; first by rewrite !cats0.
+  by move=> hrec >; rewrite -!cat_rcons => /hrec /rcons_inj[].
+Qed.
+
+Lemma map_const_nseq A B (l : list A) (c : B) : map (fun=> c) l = nseq (size l) c.
+Proof. by elim: l => // > ? /=; f_equal. Qed.
+

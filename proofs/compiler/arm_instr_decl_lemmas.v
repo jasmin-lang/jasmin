@@ -35,9 +35,8 @@ Proof. by case: mn. Qed.
 
 Section WITH_PARAMS.
 
-
-
 Context
+  {wsw : WithSubWord}
   {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -107,20 +106,20 @@ Qed.
 
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)
 Lemma sem_i_conditional
-  (p : prog)
+  {dc : DirectCall} (p : prog)
   ev s0 s1 mn sf osk lvs tag args c prev vargs b vprev vprev' vres :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
   in
   let aop := Oarm (ARM_op mn opts) in
-  sem_pexprs (p_globs p) s0 args = ok vargs
-  -> sem_pexpr (p_globs p) s0 c = ok (Vbool b)
-  -> sem_pexprs (p_globs p) s0 prev = ok vprev
+  sem_pexprs true (p_globs p) s0 args = ok vargs
+  -> sem_pexpr true (p_globs p) s0 c = ok (Vbool b)
+  -> sem_pexprs true (p_globs p) s0 prev = ok vprev
   -> truncate_args aop vprev = ok vprev'
   -> exec_sopn aop vargs = ok vres
   -> (if b
-      then write_lvals (p_globs p) s0 lvs vres = ok s1
-      else write_lvals (p_globs p) s0 lvs vprev' = ok s1)
+      then write_lvals true (p_globs p) s0 lvs vres = ok s1
+      else write_lvals true (p_globs p) s0 lvs vprev' = ok s1)
   -> let aop' := Oarm (ARM_op mn (set_is_conditional opts)) in
      let ir := Copn lvs tag aop' (args ++ c :: prev) in
      sem_i p ev s0 ir s1.
@@ -129,7 +128,7 @@ Proof.
 
   apply: Eopn.
   rewrite /sem_sopn /=.
-  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _).
+  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _ _).
   rewrite hsemargs hsemc hsemprev {hsemargs hsemc hsemprev} /=.
 
   case: b hwrite => hwrite.

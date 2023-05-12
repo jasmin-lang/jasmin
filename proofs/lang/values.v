@@ -24,14 +24,25 @@ Proof. by case: s. Qed.
 Lemma is_undef_t_not_sarr t : is_undef_t t -> is_not_sarr t.
 Proof. by case: t. Qed.
 
-Definition undef_t t (_: is_not_sarr t) := if is_sword t then sword8 else t.
-Arguments undef_t _ _ : clear implicits.
+Definition undef_t t := if is_sword t then sword8 else t.
+Arguments undef_t _ : clear implicits.
 
-Lemma is_undef_t_undef_t t harr : is_undef_t (undef_t t harr).
-Proof. by case: t harr. Qed.
+Lemma is_undef_t_undef_t t : is_not_sarr t -> is_undef_t (undef_t t).
+Proof. by case: t. Qed.
 
-Lemma undef_t_id t harr : is_undef_t t -> undef_t t harr = t.
-Proof. by case: t harr => // ?? /is_undef_t_sword ->. Qed.
+Lemma subtype_undef_tP t1 t2 :
+  subtype (undef_t t1) t2 <-> undef_t t1 = undef_t t2.
+Proof. by case: t1 => [ | | len1 | ws1]; case: t2 => [ | | len2 | ws2] //=; split => /eqP. Qed.
+
+Lemma undef_tK t : undef_t (undef_t t) = undef_t t.
+Proof. by case: t. Qed.
+
+Lemma undef_t_subtype ty : subtype (undef_t ty) ty.
+Proof. by rewrite subtype_undef_tP. Qed.
+#[global] Hint Resolve undef_t_subtype : core.
+
+Lemma compat_type_undef_t b t1 t2 : compat_type b t1 t2 -> undef_t t1 = undef_t t2.
+Proof. by move=> /compat_type_subtype h; rewrite -subtype_undef_tP (subtype_trans _ h). Qed.
 
 (* ** Values
   * -------------------------------------------------------------------- *)
@@ -60,9 +71,24 @@ Lemma Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
   exists e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w'.
 Proof. by case: e => ?; subst sz' => [[<-]]; exists erefl. Qed.
 
+Lemma ok_word_inj E sz sz' w w' :
+  ok (@Vword sz w) = Ok E (@Vword sz' w') →
+  ∃ e : sz = sz', eq_rect sz word w sz' e = w'.
+Proof. by move => h; have /Vword_inj := ok_inj h. Qed.
+
 Notation undef_b := (Vundef sbool erefl).
 Notation undef_i := (Vundef sint erefl).
 Notation undef_w := (Vundef sword8 erefl).
+
+Definition undef_v t (h: is_not_sarr t) :=
+  Vundef (undef_t t) (is_undef_t_undef_t h).
+Arguments undef_v _ _ : clear implicits.
+
+Definition undef_addr t :=
+  match t with
+  | sarr n => Varr (WArray.empty n)
+  | t0 => undef_v t0 erefl
+  end.
 
 Definition values := seq value.
 
@@ -80,6 +106,21 @@ Proof.
     f_equal; exact: Eqdep_dec.UIP_refl_bool.
 Qed.
 
+Lemma Vundef_eq t1 t2 i1 i2 :
+  t1 = t2 ->
+  Vundef t1 i1 = Vundef t2 i2.
+Proof. by move=> ?; subst t2; rewrite (Eqdep_dec.UIP_dec Bool.bool_dec i1 i2). Qed.
+
+Lemma is_undef_undef_t t :
+  is_undef_t t ->
+  undef_t t = t.
+Proof. by move=> /or3P [] /eqP ->. Qed.
+
+Lemma undef_addr_eq t1 t2 (i : is_undef_t t2) :
+  undef_t t1 = t2 ->
+  undef_addr t1 = Vundef t2 i.
+Proof. by move=> ?; subst t2; case: t1 i => //= *; apply Vundef_eq. Qed.
+
 (* ** Type of values
   * -------------------------------------------------------------------- *)
 
@@ -92,15 +133,16 @@ Definition type_of_val v :=
   | Vundef t _ => t
   end.
 
-Lemma type_of_valI v :
-  match type_of_val v with
+Lemma type_of_valI v t :
+  type_of_val v = t ->
+  match t with
   | sbool => v = undef_b \/ exists b: bool, v = b
   | sint => v = undef_i \/ exists i: Z, v = i
   | sarr len => exists a, v = @Varr len a
   | sword ws => v = undef_w \/ exists w, v = @Vword ws w
   end.
 Proof.
-  by case: v; last case; move=> > //=; eauto; rewrite undef_x_vundef; eauto.
+  by move=> <-; case: v; last case; move=> > //=; eauto; rewrite undef_x_vundef; eauto.
 Qed.
 
 Definition check_ty_val (ty:stype) (v:value) :=
@@ -110,6 +152,9 @@ Definition is_word v := is_sword (type_of_val v).
 
 Lemma is_wordI v : is_word v → subtype sword8 (type_of_val v).
 Proof. by case: v => // [> | [] > //] _; exact: wsize_le_U8. Qed.
+
+Definition DB wdb v :=
+  ~~wdb || (is_defined v || (type_of_val v == sbool)).
 
 (* ** Test for extension of values
   * -------------------------------------------------------------------- *)
@@ -139,8 +184,7 @@ Qed.
 
 Lemma value_uincl_refl v: value_uincl v v.
 Proof. by case: v => //=. Qed.
-#[global]
-Hint Resolve value_uincl_refl : core.
+#[global]Hint Resolve value_uincl_refl : core.
 
 Lemma value_uincl_subtype v1 v2 :
   value_uincl v1 v2 ->
@@ -166,6 +210,36 @@ Proof.
   rewrite /check_ty_val => h /value_uincl_subtype.
   by apply: subtype_trans.
 Qed.
+
+Lemma type_of_undef t : type_of_val (undef_addr t) = undef_t t.
+Proof. by case: t. Qed.
+
+Lemma is_defined_undef_addr ty :
+  is_defined (undef_addr ty) -> exists len, ty = sarr len.
+Proof. case: ty => //=; eauto. Qed.
+
+Lemma subtype_value_uincl_undef t v :
+  subtype (undef_t t) (type_of_val v) ->
+  value_uincl (undef_addr t) v.
+Proof. by case: t => //= p /eqP /(@sym_eq stype) /type_of_valI [a ->]; apply WArray.uincl_empty. Qed.
+
+Lemma value_uincl_undef t v :
+  undef_t t = undef_t (type_of_val v) ->
+  value_uincl (undef_addr t) v.
+Proof. move=> /subtype_undef_tP; apply subtype_value_uincl_undef. Qed.
+
+Lemma value_uincl_undef_t t1 t2 :
+  undef_t t1 = undef_t t2 ->
+  value_uincl (undef_addr t1) (undef_addr t2).
+Proof. by move=> h; apply value_uincl_undef; rewrite type_of_undef h undef_tK. Qed.
+
+Lemma Array_set_uincl n1 n2
+   (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz aa i (v:word wz):
+  value_uincl (Varr a1) (Varr a2) ->
+  WArray.set a1 aa i v = ok a1' ->
+  exists2 a2', WArray.set a2 aa i v = ok a2' &
+    value_uincl (Varr a1) (Varr a2).
+Proof. move=> /= hu hs; have [?[]]:= WArray.uincl_set hu hs; eauto. Qed.
 
 (* ** Conversions between values and sem_t
   * -------------------------------------------------------------------- *)
@@ -214,7 +288,7 @@ Proof. by case: v => //= ??; rewrite /WArray.cast; case: ifP. Qed.
 Definition to_word s v : exec (word s) :=
   match v with
   | Vword s' w => truncate_word s w
-  | Vundef (sword s') _ => Error (if (s <= s')%CMP then ErrAddrUndef else ErrType)
+  | Vundef (sword s') _ => undef_error
   | _ => type_error
   end.
 
@@ -413,6 +487,24 @@ Proof.
   move=> /word_uincl_truncate h/h{h} ->; eauto.
 Qed.
 
+Lemma value_uincl_defined wdb v1 v2 :
+  value_uincl v1 v2 -> wdb || is_defined v1 -> wdb || is_defined v2.
+Proof.
+  case: wdb => //=.
+  case: v1 => [b | z| len t| ws w | t i] /value_uinclE //; try by move=> ->.
+  + by move=> [? ->].
+  by move=> [? [? [-> _]]].
+Qed.
+
+Lemma value_uincl_DB wdb v1 v2 :
+  value_uincl v1 v2 -> DB wdb v1 -> DB wdb v2.
+Proof.
+  case: wdb => //.
+  case: v1 => [b | z| len t| ws w | t i] /value_uinclE; try by move=> ->.
+  + by move=> [? ->]. + by move=> [? [? [-> _]]].
+  by rewrite /DB => /= + /eqP ?; subst t => /eqP <-; rewrite eqxx orbT.
+Qed.
+
 (* ** Values implicit downcast (upcast is explicit because of signedness)
   * -------------------------------------------------------------------- *)
 
@@ -482,6 +574,30 @@ Proof.
     => [[]|[]|[]|[?[?[+/truncate_wordP[??]]]]|//]
     => ->.
 Qed.
+
+Lemma truncate_val_subtype_eq ty v v' :
+  truncate_val ty v = ok v' ->
+  subtype (type_of_val v) ty ->
+  v = v'.
+Proof.
+  move=> /truncate_valE; case: v => [b | z | len a | ws w | //]; try by move=> [_ ->].
+  move=> [ws' [w' [-> /truncate_wordP [h ->]->]]] /= /(cmp_le_antisym h) ?; subst ws'.
+  by rewrite zero_extend_u.
+Qed.
+
+Lemma truncate_val_idem (t : stype) (v v' : value) :
+  truncate_val t v = ok v' -> truncate_val t v' = ok v'.
+Proof.
+  move=> /truncate_valI; case: v' => [b[]|z[]|len a[]|ws w[?[?[]]]| ] //= -> //=.
+  + by move=> _; rewrite /truncate_val /= WArray.castK.
+  by move=> _ _; rewrite /truncate_val /= truncate_word_u.
+Qed.
+
+Lemma truncate_val_defined ty v v' : truncate_val ty v = ok v' -> is_defined v'.
+Proof. by move=> /truncate_valI; case: v'. Qed.
+
+Lemma truncate_val_DB wdb ty v v' : truncate_val ty v = ok v' -> DB wdb v'.
+Proof. by case: wdb => //; move=> /truncate_valI; case: v'. Qed.
 
 (* ----------------------------------------------------------------------- *)
 

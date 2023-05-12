@@ -10,6 +10,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+#[local] Existing Instance withsubword.
+
 Section PROG.
 
 Context
@@ -20,12 +22,6 @@ Context
   {ovm_i : one_varmap_info}
   (p : sprog)
   (var_tmp : var).
-
-Lemma wf_kill_vars X vm: wf_vm vm -> wf_vm (kill_vars X vm).
-Proof.
-  move=> hwf x; rewrite kill_varsE.
-  by case: ifP (hwf x) => // _ _; case: (vtype x).
-Qed.
 
 Section STACK_STABLE.
 
@@ -79,8 +75,8 @@ Proof. by []. Qed.
 
 Lemma Hproc : sem_Ind_proc p var_tmp Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_rsp /Memory.alloc_stackP A ok_args wt_args _.
-  rewrite /Pc /= => B ok_res wt_res _ ->.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp /Memory.alloc_stackP A _.
+  rewrite /Pc /= => B _ ->.
   red => /=.
   have C := Memory.free_stackP (emem s2').
   split.
@@ -172,25 +168,25 @@ Lemma sem_call_valid_RSP ii k s1 fn s2 :
   sem_call p var_tmp ii k s1 fn s2 →
   valid_RSP p (emem s1) (evm s2).
 Proof.
-  case/sem_callE => fd m s k' args res ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m ok_args wt_args exec_body ok_res wt_res ok_RSP' -> /= _.
-  rewrite /valid_RSP /set_RSP Fv.setP_eq /top_stack.
+  case/sem_callE => fd m s k' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m exec_body ok_RSP' -> /= _.
+  rewrite /valid_RSP /set_RSP Vm.setP_eq /top_stack.
   have ok_alloc := Memory.alloc_stackP ok_m.
   have /= ok_exec := sem_stack_stable exec_body.
   have ok_free := Memory.free_stackP (emem s).
   rewrite (fss_frames ok_free) -(ss_frames ok_exec) (ass_frames ok_alloc).
   rewrite (fss_root ok_free) -(ss_root ok_exec) (ass_root ok_alloc) -/(top_stack (emem s1)).
-  done.
+  by rewrite cmp_le_refl.
 Qed.
 
 (* The contents of variables that are not written are preserved. *)
 Section NOT_WRITTEN.
 
-Local Coercion evm : estate >-> vmap.
+Local Coercion evm : estate >-> Vm.t.
 
-Let Pc (k: Sv.t) (s1: estate) (_: cmd) (s2: estate) : Prop := s1 = s2 [\ k].
-Let Pi (k: Sv.t) (s1: estate) (_: instr) (s2: estate) : Prop := s1 = s2 [\ k].
-Let Pi_r (_: instr_info) (k: Sv.t) (s1: estate) (_: instr_r) (s2: estate) : Prop := s1 = s2 [\ k].
-Let Pfun (_: instr_info) (k: Sv.t) (s1: estate) (_: funname) (s2: estate) : Prop := s1 = s2 [\ k].
+Let Pc (k: Sv.t) (s1: estate) (_: cmd) (s2: estate) : Prop := s1 =[\ k] s2 .
+Let Pi (k: Sv.t) (s1: estate) (_: instr) (s2: estate) : Prop := s1 =[\ k] s2.
+Let Pi_r (_: instr_info) (k: Sv.t) (s1: estate) (_: instr_r) (s2: estate) : Prop := s1 =[\ k] s2.
+Let Pfun (_: instr_info) (k: Sv.t) (s1: estate) (_: funname) (s2: estate) : Prop := s1 =[\ k] s2.
 
 Local Lemma Hnil_nw : sem_Ind_nil Pc.
 Proof. by []. Qed.
@@ -198,7 +194,7 @@ Proof. by []. Qed.
 Lemma Hcons_nw : sem_Ind_cons p var_tmp Pc Pi.
 Proof.
   move => ki kc x y z i c _ xy _ yz.
-  exact: vmap_eq_exceptTI yz.
+  exact: eq_exTI yz.
 Qed.
 
 Lemma HmkI_nw : sem_Ind_mkI p var_tmp Pi Pi_r.
@@ -214,8 +210,8 @@ Lemma Hsyscall_nw : sem_Ind_syscall p Pi_r.
 Proof.
   move => ii s1 s2 o xs es scs m ves vs hes ho hw.
   have h1 := vrvsP hw; rewrite /Pi_r.
-  apply: vmap_eq_exceptT; last by apply: vmap_eq_exceptI h1; SvD.fsetdec.
-  apply: (vmap_eq_exceptI (s1:= syscall_kill)); first by SvD.fsetdec.
+  apply: eq_exT; last by apply: eq_exI h1; SvD.fsetdec.
+  apply: (eq_exI (s2:= syscall_kill)); first by SvD.fsetdec.
   by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->.
 Qed.
 
@@ -228,8 +224,8 @@ Proof. by []. Qed.
 Lemma Hwhile_true_nw : sem_Ind_while_true p var_tmp Pc Pi Pi_r.
 Proof.
   move => ii k k' krec s1 s2 s3 s4 a c e c' _ ih _ _ ih' _ ihrec.
-  apply: vmap_eq_exceptTI.
-  - apply: vmap_eq_exceptTI.
+  apply: eq_exTI.
+  - apply: eq_exTI.
     + exact: ih.
     exact: ih'.
   exact: ihrec.
@@ -243,24 +239,24 @@ Proof. by []. Qed.
 
 Lemma Hproc_nw : sem_Ind_proc p var_tmp Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 ok_args wt_args /sem_stack_stable s ih ok_res wt_res ok_RSP' -> r hr /=.
-  rewrite /set_RSP Fv.setP.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' -> r hr /=.
+  rewrite /set_RSP Vm.setP.
   case: eqP.
   - move => ?; subst.
     have ok_free := Memory.free_stackP (emem s2').
     rewrite /top_stack (fss_root ok_free) -(ss_root s) (fss_frames ok_free) -(ss_frames s) /=.
     have ok_alloc:= Memory.alloc_stackP ok_m1.
-    rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (emem s1)).
+    rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (emem s1)) cmp_le_refl.
     exact: ok_RSP.
   move => /eqP r_neq_rsp.
   rewrite -(ih r). 2: SvD.fsetdec.
-  rewrite /set_RSP Fv.setP_neq // /ra_undef_vm kill_varsE.
+  rewrite /set_RSP Vm.setP_neq // /ra_undef_vm kill_varsE.
   case: Sv_memP => //; rewrite /ra_undef; SvD.fsetdec.
 Qed.
 
 Lemma sem_not_written k s1 c s2 :
   sem p var_tmp k s1 c s2 →
-  s1 = s2 [\k].
+  s1 =[\k] s2.
 Proof.
   exact:
     (sem_Ind
@@ -280,7 +276,7 @@ Qed.
 
 Lemma sem_I_not_written k s1 i s2 :
   sem_I p var_tmp k s1 i s2 →
-  s1 = s2 [\k].
+  s1 =[\k] s2.
 Proof.
   exact:
     (sem_I_Ind
@@ -300,7 +296,7 @@ Qed.
 
 Lemma sem_call_not_written ii k s1 fn s2 :
   sem_call p var_tmp ii k s1 fn s2 →
-  s1 = s2 [\k].
+  s1 =[\k] s2.
 Proof.
   exact:
     (sem_call_Ind
@@ -331,16 +327,6 @@ Proof.
   intuition SvD.fsetdec.
 Qed.
 
-Lemma eq_except_disjoint_eq_on s s' x y :
-  x = y [\s] →
-  disjoint s s' →
-  x =[s'] y.
-Proof.
-  rewrite /disjoint /is_true Sv.is_empty_spec => h d r hr.
-  apply: h.
-  SvD.fsetdec.
-Qed.
-
 (* The contents of RSP and GD registers are preserved. *)
 Section PRESERVED_RSP_GD.
 
@@ -353,8 +339,7 @@ Let Pfun (_: instr_info) (k: Sv.t) (_: estate) (_: funname) (_: estate) : Prop :
 
 Local Lemma Hnil_pm : sem_Ind_nil Pc.
 Proof.
-  move => s; rewrite /Pc /disjoint.
-  SvD.fsetdec.
+  move => s; rewrite /Pc /disjoint; SvD.fsetdec.
 Qed.
 
 Lemma Hcons_pm : sem_Ind_cons p var_tmp Pc Pi.
@@ -403,7 +388,7 @@ Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p var_tmp Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 ok_args wt_args /sem_stack_stable s ih ok_res wt_res ok_RSP' ->.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
   rewrite /ra_valid in ok_ra.
   rewrite /saved_stack_valid in ok_ss.
   rewrite /Pfun !disjoint_unionE ih /=.
@@ -462,7 +447,7 @@ Lemma sem_preserved_RSP_GD k s1 c s2 :
   sem p var_tmp k s1 c s2 → evm s1 =[magic_variables p] evm s2.
 Proof.
   move => exec.
-  apply: eq_except_disjoint_eq_on.
+  apply: eq_ex_disjoint_eq_on.
   - exact: sem_not_written exec.
   exact: sem_RSP_GD_not_written exec.
 Qed.
@@ -471,7 +456,7 @@ Lemma sem_I_preserved_RSP_GD k s1 i s2 :
   sem_I p var_tmp k s1 i s2 → evm s1 =[magic_variables p] evm s2.
 Proof.
   move => exec.
-  apply: eq_except_disjoint_eq_on.
+  apply: eq_ex_disjoint_eq_on.
   - exact: sem_I_not_written exec.
   exact: sem_I_RSP_GD_not_written exec.
 Qed.
@@ -530,9 +515,9 @@ Proof. by []. Qed.
 
 Lemma validw_stable_proc : sem_Ind_proc p var_tmp Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 ok_args wt_args /sem_stack_stable /= ss.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 /sem_stack_stable /= ss.
   have A := Memory.alloc_stackP ok_m1.
-  rewrite /Pc /= => B ok_res wt_res _ -> ptr sz /=.
+  rewrite /Pc /= => B _ -> ptr sz /=.
   have C := Memory.free_stackP (emem s2').
   by apply (alloc_free_validw_stable A ss B C).
 Qed.

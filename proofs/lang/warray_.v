@@ -495,6 +495,40 @@ Module WArray.
     0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= lena.
   Proof. by rewrite /set_sub; case: ifP => //; rewrite !zify. Qed.
 
+  Transparent arr_size. Opaque Z.mul ziota.
+  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_pos (arr_size ws len))) t':
+    set_sub AAscale t i s = ok t' ->
+    forall j,
+    get AAscale ws t' j =
+      if ((i <=? j) && (j <? i + len))%Z then get AAscale ws s (j - i)%Z
+      else get AAscale ws t j.
+  Proof.
+    move=> hget j.
+    have ht':= set_sub_get8 hget.
+    have := set_sub_bound hget.
+    have ltws := wsize_size_pos ws; rewrite /arr_size /mk_scale => hb.
+    have [{hb} h0i hilen'] : (0 <= i /\ i + len <= lena)%Z by Psatz.nia.
+    rewrite /get !readE !is_align_scale /=.
+    case: ifPn.
+    + move=> /andP[]/ZleP ? /ZltP ?.
+      have -> // :
+        mapM (λ k : Z, read t' (add ( j      * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read s  (add ((j - i) * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+      apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+      rewrite ht' /= !WArray.addE.
+      case: ifPn => [ _ | /negP]; first by f_equal; ring.
+      elim; apply/andP; split; [apply/ZleP|apply/ZltP; rewrite /arr_size]; Psatz.nia.
+    move=> /negP hij.
+    have -> // :
+        mapM (λ k : Z, read t' (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read t  (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+    apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite ht' /= !WArray.addE /arr_size.
+    case: ifPn => // /andP [] /ZleP ? /ZltP ?; elim hij.
+    apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.nia.
+  Qed.
+  Transparent Z.mul ziota. Opaque arr_size.
+
   Lemma get_sub_data_get8 aa ws a len p k: 
     Mz.get (get_sub_data aa ws len a p) k = 
       let start := (p * mk_scale aa ws)%Z in
@@ -563,6 +597,27 @@ Module WArray.
     by move=> k w; rewrite hr1 hr2; case: ifP => // [ ? /hget2| ? /hget1].
   Qed.
 
+  Transparent arr_size.
+  Lemma get_sub_get ws lena len (t:WArray.array lena) i st:
+    WArray.get_sub AAscale ws len t i = ok st ->
+    forall j, (0 <= j < len)%Z ->
+    WArray.get AAscale ws st j = WArray.get AAscale ws t (i + j)%Z.
+  Proof.
+    move=> /WArray.get_sub_get8 => hr j hj.
+    rewrite /WArray.get !readE !WArray.is_align_scale.
+    have -> // :
+      mapM (λ k : Z, read st (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+      mapM (λ k : Z, read t (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+    apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite hr /= !WArray.addE.
+    have ? := wsize_size_pos ws.
+    have -> /= : (0 <=? j * wsize_size ws + k)%Z.
+    + by apply/ZleP; Psatz.lia.
+    have -> /= : (j * wsize_size ws + k <? arr_size ws len)%Z.
+    + by apply /ZltP; rewrite /arr_size; Psatz.nia.
+    f_equal; ring.
+  Qed.
+  Opaque arr_size.
 End WArray.
 
 #[global]

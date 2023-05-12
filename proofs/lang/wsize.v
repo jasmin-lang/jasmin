@@ -119,6 +119,8 @@ Proof. by case: s. Qed.
 Lemma wsize_ge_U256 s: (s <= U256)%CMP.
 Proof. by case s. Qed.
 
+#[global]Hint Resolve wsize_le_U8 wsize_ge_U256: core.
+
 (* -------------------------------------------------------------------- *)
 Definition check_size_8_64 sz := assert (sz ≤ U64)%CMP ErrType.
 Definition check_size_8_32 sz := assert (sz ≤ U32)%CMP ErrType.

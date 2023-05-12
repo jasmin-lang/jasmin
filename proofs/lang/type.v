@@ -250,3 +250,8 @@ Proof.
   case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
 Qed.
 
+Lemma is_sword_subtype t1 t2 : subtype t1 t2 -> is_sword t1 = is_sword t2.
+Proof.
+  by case: t1 => //= [/eqP <-|/eqP <-|?|?] //;case:t2.
+Qed.
+

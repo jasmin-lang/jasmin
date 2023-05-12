@@ -56,6 +56,7 @@ compiler/dead_calls.v
 compiler/dead_calls_proof.v
 compiler/dead_code.v
 compiler/dead_code_proof.v
+compiler/direct_call_proof.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/jasmin_compiler.v
@@ -110,11 +111,11 @@ lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
 lang/one_varmap.v
-lang/psem_of_sem_proof.v
-lang/psem_facts.v
 lang/psem.v
+lang/psem_defs.v
+lang/psem_of_sem_proof.v
 lang/pseudo_operator.v
-lang/sem.v
+lang/psem_facts.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v
@@ -131,6 +132,7 @@ lang/type.v
 lang/utils.v
 lang/values.v
 lang/var.v
+lang/varmap.v
 lang/waes.v
 lang/warray_.v
 lang/word.v

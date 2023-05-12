@@ -759,3 +759,59 @@ Proof.
   - by move => <-; left.
   by move => ne; right => - [].
 Qed.
+
+(* -------------------------------------------------------------------- *)
+
+Section WRANGE.
+Local Open Scope Z_scope.
+Import Psatz.
+
+Lemma size_wrange d z1 z2 :
+  size (wrange d z1 z2) = Z.to_nat (z2 - z1).
+Proof. by case: d => /=; rewrite ?size_rev size_map size_iota. Qed.
+
+Lemma nth_wrange z0 d z1 z2 n : (n < Z.to_nat (z2 - z1))%nat ->
+  nth z0 (wrange d z1 z2) n =
+    if   d is UpTo
+    then z1 + Z.of_nat n
+    else z2 - Z.of_nat n.
+Proof.
+case: d => ltn /=;
+  by rewrite (nth_map 0%nat) ?size_iota ?nth_iota.
+Qed.
+
+Lemma last_wrange_up_ne z0 lo hi :
+  lo < hi -> last z0 (wrange UpTo lo hi) = hi - 1.
+Proof.
+move=> lt; rewrite -nth_last nth_wrange; last rewrite size_wrange prednK //.
+rewrite size_wrange -subn1 Nat2Z.inj_sub; first by rewrite Z2Nat.id; lia.
++ apply/leP/ltP; rewrite -Z2Nat.inj_0; apply Z2Nat.inj_lt; lia.
++ apply/ltP; rewrite -Z2Nat.inj_0; apply Z2Nat.inj_lt; lia.
+Qed.
+
+Lemma last_wrange_up lo hi : last (hi-1) (wrange UpTo lo hi) = hi - 1.
+Proof.
+case: (Z_lt_le_dec lo hi) => [lt|le]; first by apply: last_wrange_up_ne.
+rewrite -nth_last nth_default // size_wrange.
+by rewrite [Z.to_nat _](_ : _ = 0%nat) ?Z_to_nat_le0 //; lia.
+Qed.
+
+Lemma wrange_cons lo hi : lo <= hi ->
+  lo - 1 :: wrange UpTo lo hi = wrange UpTo (lo - 1) hi.
+Proof.
+set s1 := wrange _ _ _; set s2 := wrange _ _ _ => /=.
+move=> lt; apply/(@eq_from_nth _ 0) => /=.
++ rewrite {}/s1 {}/s2 !size_wrange -Z2Nat.inj_succ; last lia.
+  by apply: Nat2Z.inj; rewrite !Z2Nat.id; lia.
+rewrite {1}/s1 size_wrange; case => [|i].
++ rewrite /s2 nth_wrange /=; try lia.
+  by rewrite -Z2Nat.inj_0; apply/leP/Z2Nat.inj_lt; lia.
+move=> lti; rewrite -[nth _ (_ :: _) _]/(nth 0 s1 i) {}/s1 {}/s2.
+rewrite !nth_wrange; first lia; last first.
++ by apply/leP; move/leP: lti; lia.
+apply/leP/Nat2Z.inj_lt; rewrite Z2Nat.id; last lia.
+move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; last lia.
+by rewrite Z2Nat.id; lia.
+Qed.
+
+End WRANGE.
