@@ -1073,7 +1073,7 @@ Section EXPR.
   Proof.
     move=> hty hget.
     have := type_of_get_gvar hget; rewrite hty => /subtypeE [ws' [hty' hsub]].
-    case /type_of_valI : hty'; case=> w ?; subst.
+    have := type_of_valI v; rewrite hty'; case => [? | [w ?]]; subst.
     + by have := get_gvar_undef hget erefl.
     by exists ws', w.
   Qed.

@@ -601,23 +601,21 @@ Proof.
   rewrite /add_cpm;case: x => //= x He.
   case: tag => //.
   case: e He => // [n | b | [] // sz [] //= q ] [<-].
-  + case: v => //= ?;last by rewrite compat_typeC => ? /eqP ?; subst; case: ty.
+  + case: v => //= ?; last by move=> ?? /truncate_valE.
     move=> -> /truncate_valE [_ ->].
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
     case: ({| vtype := sint; vname := xn |} =P z).
     + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
     by move=> /eqP Hneq;rewrite Mvar.setP_neq.
-  + case: v => //= ?;last first.
-    + by rewrite compat_typeC => ? /eqP ?;subst; case: ty.
+  + case: v => //= ?;last by move=> ??/truncate_valE.
     move=> -> /truncate_valE [_ ->].
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
     case: ({| vtype := sbool; vname := xn |} =P z).
     + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
     by move=> /eqP Hneq;rewrite Mvar.setP_neq.
-  case: v => //= s ;last first.
-  + by move=> he; rewrite compat_typeC; case: s he => //= s' ?;case: ty.
+  case: v => //= s ;last by move=> ??/truncate_valE. 
   move=> w /andP[] Ule /eqP -> /truncate_valE [szw [ww [-> /truncate_wordP[hle ->] ->]]] /=.
   rewrite !(zero_extend_wrepr _ Ule, zero_extend_wrepr _ (cmp_le_trans hle Ule), zero_extend_wrepr _ hle).
   case: x => -[] [] //= szx xn vi; apply: rbindP => vm.
