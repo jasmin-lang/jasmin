@@ -1380,9 +1380,9 @@ Fixpoint add_pairs (m: seq Z) : seq Z :=
   else [::].
 
 Definition wpmaddubsw sz (v1 v2: word sz) : word sz :=
-  let w1 := map wunsigned (split_vec VE8 v1) in
-  let w2 := map wsigned (split_vec VE8 v2) in
-  let result := [seq wrepr_saturated_signed sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  let w1 := map wunsigned (split_vec U8 v1) in
+  let w2 := map wsigned (split_vec U8 v2) in
+  let result := [seq wrepr_saturated_signed U16 z | z <- add_pairs (map2 *%R w1 w2) ] in
   make_vec sz result.
 
 Definition wpmaddwd sz (v1 v2: word sz) : word sz :=
