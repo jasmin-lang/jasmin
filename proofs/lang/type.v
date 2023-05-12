@@ -206,41 +206,6 @@ Lemma is_word_typeP ty ws :
   is_word_type ty = Some ws -> ty = sword ws.
 Proof. by case: ty => //= w [->]. Qed.
 
-Definition vundef_type (t:stype) :=
-  match t with
-  | sword _ => sword8
-  | _       => t
-  end.
-
-(* -------------------------------------------------------------------- *)
-Definition compat_type t1 t2 :=
-  match t1 with
-  | sint    => t2 == sint
-  | sbool   => t2 == sbool
-  | sword _ => is_sword t2
-  | sarr _  => t2 == t1
-  end.
-
-Lemma compat_typeC t1 t2 : compat_type t1 t2 = compat_type t2 t1.
-Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2] /=. Qed.
-
-Lemma compat_type_refl t : compat_type t t.
-Proof. by case: t => [||n|wz] /=. Qed.
-#[global]
-Hint Resolve compat_type_refl : core.
-
-Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
-Proof.
-  case: t1 => /=.
-  + by move => /eqP -> /eqP ->.
-  + by move => /eqP -> /eqP ->.
-  + by move=> n /eqP -> /=.
-  by case: t2.
-Qed.
-
-Lemma compat_type_undef t : compat_type t (vundef_type t).
-Proof. by case t. Qed.
-
 (* -------------------------------------------------------------------- *)
 Definition subtype (t t': stype) :=
   match t with
@@ -282,14 +247,3 @@ Proof.
   case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
 Qed.
 
-Lemma subtype_compat t1 t2 : subtype t1 t2 -> compat_type t1 t2.
-Proof.
-  by case: t1 => [/eqP ->| /eqP -> | p | w] // ; case: t2 => //= > /eqP ->.
-Qed.
-
-Lemma compat_subtype_undef t1 t2 : compat_type t1 t2 → subtype (vundef_type t1) t2.
-Proof.
-  case: t1 => [/eqP ->|/eqP ->|?|?] //=; case: t2 => // >.
-  + by move=> /eqP [->].
-  by move=> ?; apply wsize_le_U8.
-Qed.

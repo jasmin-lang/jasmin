@@ -77,16 +77,14 @@ Lemma to_pword_u ws (w : word ws) :
 Proof. by rewrite /= sumbool_of_boolET. Qed.
 
 Lemma to_pword_undef w v :
-  to_pword w v = undef_error -> exists w', v = undef_w w'.
-Proof.
-  by case: v => //= -[] // w' e _; rewrite (Eqdep_dec.UIP_refl_bool _ e); exists w'.
-Qed.
+  to_pword w v = undef_error -> v = undef_w.
+Proof. by case: v => //= -[] // w' e _; rewrite undef_x_vundef. Qed.
 
 Lemma type_of_val_to_pword sz v w :
   type_of_val v = sword sz → to_pword sz v = ok w →
   ∃ w' : word sz, w = pword_of_word w' ∧ v = Vword w'.
 Proof.
-  move=> /type_of_valI [] [w' ->] //=.
+  move=> h; have := type_of_valI v; rewrite h => - [ -> | [w' ->] ] //=.
   by rewrite sumbool_of_boolET => - [<-]; exists w'.
 Qed.
 
@@ -1424,12 +1422,6 @@ Proof.
   by case: t v => //= s w; apply pw_proof.
 Qed.
 
-Lemma subtype_vundef_type t : subtype (vundef_type t) t.
-Proof. by apply compat_subtype_undef. Qed.
-
-Lemma vundef_type_idem v : vundef_type v = vundef_type (vundef_type v).
-Proof. by case: v. Qed.
-
 Lemma type_of_get_var x vm v :
   get_var vm x = ok v ->
   subtype (type_of_val v) (x.(vtype)).
@@ -1819,17 +1811,6 @@ case: t v => [||p|sz] [] //=.
 by case => // sz' e; case: ifP => // *; exists (sword sz'), e.
 Qed.
 
-Lemma pof_val_error t v:
-  pof_val t v = undef_error -> exists t' h, subtype (vundef_type t) t' /\ v = Vundef t' h.
-Proof.
-case: t v => [||p|sz] [] //=.
-+ by case => //;eauto.
-+ by case => //;eauto.
-+ by move=> ??; rewrite /WArray.cast; case: ifP.
-case => // s e _; exists (sword s), e; split => //.
-by apply wsize_le_U8.
-Qed.
-
 Lemma pof_val_pto_val t (v:psem_t t): pof_val t (pto_val v) = ok v.
 Proof.
   case: t v => [b | z | n a | s w] //=.
@@ -1874,9 +1855,6 @@ Proof.
   by move => ? /eqP [] <-.
 Qed.
 
-Lemma compat_type_word w t : compat_type (sword w) t -> exists w', t = sword w'.
-Proof. case: t => //; eauto. Qed.
-
 Lemma pof_val_bool_undef v : pof_val sbool v = undef_error -> v = undef_b.
 Proof. by case: v => //= -[] // e; rewrite (Eqdep_dec.UIP_refl_bool _ e). Qed.
 
@@ -1885,7 +1863,8 @@ Lemma pof_val_undef v v':
   pof_val sbool v = undef_error ->
   v' = undef_b \/ exists b, v' = Vbool b.
 Proof.
-  by move=> + /pof_val_bool_undef ?; subst=> /= /eqP /type_of_valI.
+  move=> + /pof_val_bool_undef ?; subst => /= /eqP h.
+  by have := type_of_valI v'; rewrite -h.
 Qed.
 
 Lemma vmap_uincl_on_set (vm vm': vmap) (x: var) (v v': exec (psem_t (vtype x))) :

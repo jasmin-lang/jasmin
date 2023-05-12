@@ -324,8 +324,8 @@ Proof.
   move=> v1' Hv1' <- Hu.
   case: x1 v1' h Hv1' (h) => t1 x1 /= /eqP ?;subst t1.
   case: x2 => t2 x2 h;rewrite /M.v_wextendty => /to_bool_undef ? /=;subst v1.
-  move=> h0; have ? := wextend_typeP_bool h0; subst t2; move: Hu => /eqP.
-  move=> /type_of_valI [? | [b ?]]; subst v2 => /=;
+  move=> h0; have ? := wextend_typeP_bool h0; subst t2; move: Hu => /eqP heq.
+  have := type_of_valI v2; rewrite -heq => -[? | [b ?]]; subst v2 => /=;
     eexists; (split; first reflexivity).
   + have hincl : @eval_uincl sbool sbool undef_error undef_error by done.
     by apply (eq_alloc_set h Hea hincl);eauto.
