@@ -1557,9 +1557,9 @@ Definition wpmaddubsw sz (v1 v2: word sz) : word sz :=
   make_vec sz result.
 
 Definition wpmaddwd sz (v1 v2: word sz) : word sz :=
-  let w1 := map wsigned (split_vec VE16 v1) in
-  let w2 := map wsigned (split_vec VE16 v2) in
-  let result := [seq wrepr sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  let w1 := map wsigned (split_vec U16 v1) in
+  let w2 := map wsigned (split_vec U16 v2) in
+  let result := [seq wrepr U32 z | z <- add_pairs (map2 *%R w1 w2) ] in
   make_vec sz result.
 
 (* Test case from the documentation: VPMADDWD wraps when all inputs are min-signed *)
