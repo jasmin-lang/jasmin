@@ -20,6 +20,7 @@ Require Import linear_sem.
 Section WITH_PARAMS.
 
 Context
+  {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -1099,7 +1100,7 @@ Section TunnelingSem.
         case: encode_label => // wl; apply bind_eq => // m.
         by rewrite eval_jump_tunnel_lprog_pc.
       rewrite tunnel_get_label_after_pc.
-      apply bind_eq => // u; apply bind_eq => // l.
+      apply bind_eq => // u. apply bind_eq => // vm.
       case: encode_label => // wl; apply bind_eq => // m.
       by rewrite eval_jump_tunnel_lprog_pc.
     + rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc //.

@@ -769,6 +769,19 @@ Definition write_c_rec s c := foldl write_I_rec s c.
 
 Definition write_c c := write_c_rec Sv.empty c.
 
+(* ** Expression depends/reads on memory
+ * -------------------------------------------------------------------- *)
+
+Fixpoint use_mem (e : pexpr) :=
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
+  | Pload _ _ _ => true
+  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
+  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
+  | PappN _ es => has use_mem es
+  | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
+  end.
+
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
@@ -908,12 +921,3 @@ Definition instr_of_copn_args
   : instr_r :=
   Copn args.1.1 tg args.1.2 args.2.
 
-Fixpoint use_mem (e : pexpr) : bool :=
-  match e with
-  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
-  | Pload _ _ _ => true
-  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
-  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
-  | PappN _ es => has use_mem es
-  | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
-  end.

@@ -60,9 +60,10 @@ Extraction Blacklist String List Nat Utils Var Array.
 Separate Extraction
   utils
   warray_
+  sem_type
   sopn
   expr
-  sem
+  psem_defs
   sem_params_of_arch_extra
   arch_decl
   arch_extra

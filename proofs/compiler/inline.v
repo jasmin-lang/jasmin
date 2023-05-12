@@ -7,7 +7,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -32,6 +31,7 @@ End E.
 Section INLINE.
 
 Context
+  {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}.
 

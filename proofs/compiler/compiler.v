@@ -87,9 +87,9 @@ Variant compiler_step :=
   | RemovePhiNodes              : compiler_step
   | DeadCode_Renaming           : compiler_step
   | RemoveArrInit               : compiler_step
+  | MakeRefArguments            : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
-  | MakeRefArguments            : compiler_step
   | LowerInstruction            : compiler_step
   | SLHLowering                 : compiler_step
   | PropagateInline             : compiler_step
@@ -117,12 +117,12 @@ Definition compiler_step_list := [::
   ; RemovePhiNodes
   ; DeadCode_Renaming
   ; RemoveArrInit
+  ; MakeRefArguments
   ; RegArrayExpansion
   ; RemoveGlobal
-  ; MakeRefArguments
   ; LowerInstruction
   ; SLHLowering
-  ; PropagateInline 
+  ; PropagateInline
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
@@ -233,7 +233,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := remove_phi_nodes_prog pv in
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
   let pv := map_prog_name (refresh_instr_info cparams) pv in
-  Let _ := check_uprog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  Let _ := check_uprog (wsw:= withsubword) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
   let p := cparams.(print_uprog) DeadCode_Renaming pv in
   ok p.
@@ -246,7 +246,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
 
-  Let p := inline_prog_err cparams.(rename_fd) p in
+  Let p := inline_prog_err (wsw:= withsubword) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -260,7 +260,10 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  Let pe := expand_prog cparams.(expand_fd) pr in
+  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
+  let pa := cparams.(print_uprog) MakeRefArguments pa in
+
+  Let pe := expand_prog cparams.(expand_fd) to_keep pa in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
@@ -268,12 +271,9 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pg in
-  let pa := cparams.(print_uprog) MakeRefArguments pa in
-
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pa))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pg))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -283,7 +283,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lowering_opt cparams)
       (warning cparams)
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
-      pa
+      pg
   in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
@@ -304,7 +304,7 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
-  Let _ := check_sprog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
+  Let _ := check_sprog (wsw:= withsubword) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
   Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in

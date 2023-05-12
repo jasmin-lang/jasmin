@@ -11,7 +11,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
-Local Open Scope vmap_scope.
 Local Open Scope Z_scope.
 
 

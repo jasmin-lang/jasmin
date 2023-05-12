@@ -41,6 +41,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+#[local] Existing Instance withsubword.
+
 Section Section.
 Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 
@@ -48,11 +50,11 @@ Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem sysca
 (* ------------------------------------------------------------------------ *)
 (* Flag combination hypotheses. *)
 
-Lemma x86_cf_xsemP gd s e0 e1 e2 e3 cf v :
+Lemma x86_cf_xsemP wdb gd s e0 e1 e2 e3 cf v :
   let e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
   let e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
-  sem_pexpr gd s e = ok v
-  -> sem_pexpr gd s e' = ok v.
+  sem_pexpr wdb gd s e = ok v
+  -> sem_pexpr wdb gd s e' = ok v.
 Proof.
   rewrite /=.
 
@@ -73,7 +75,7 @@ Proof.
   all: by rewrite ?hv0 ?hv1 ?hv2 ?hv3.
 Qed.
 
-Definition x86_hpiparams : h_propagate_inline_params :=
+Definition x86_hpiparams {dc: DirectCall} : h_propagate_inline_params :=
   {|
     pip_cf_xsemP := x86_cf_xsemP;
   |}.
@@ -82,27 +84,26 @@ Definition x86_hpiparams : h_propagate_inline_params :=
 (* Stack alloc hypotheses. *)
 
 Section STACK_ALLOC.
+Context {dc : DirectCall} (is_regx : var -> bool) (P' : sprog).
 
-  Variable (P' : sprog).
-
-  Lemma lea_ptrP s1 e i x tag ofs w s2 :
-    P'.(p_globs) = [::]
-    -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
-    -> write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2
-    -> psem.sem_i (pT := progStack) P' w s1 (lea_ptr x e tag ofs) s2.
-  Proof.
-    move=> P'_globs he hx.
-    constructor.
-    rewrite /sem_sopn /= P'_globs /sem_sop2 /=.
-    move: he; t_xrbindP=> _ -> /= -> /=.
-    by rewrite /exec_sopn truncate_word_u /= truncate_word_u /= hx.
-  Qed.
+Lemma lea_ptrP s1 e i x tag ofs w s2 :
+  P'.(p_globs) = [::]
+  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
+  -> write_lval true [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2
+  -> psem.sem_i (pT := progStack) P' w s1 (lea_ptr x e tag ofs) s2.
+Proof.
+  move=> P'_globs he hx.
+  constructor.
+  rewrite /sem_sopn /= P'_globs /sem_sop2 /=.
+  move: he; t_xrbindP=> _ -> /= -> /=.
+  by rewrite /exec_sopn truncate_word_u /= truncate_word_u /= hx.
+Qed.
 
 Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
-  -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
-  -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+  -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
   -> psem.sem_i (pT := progStack) P' w s1 ins s2.
 Proof.
   move=> P'_globs he.
@@ -116,18 +117,18 @@ Qed.
 
 Lemma x86_immediateP w s (x: var_i) z :
   vtype x = sword Uptr
-  -> psem.sem_i (pT := progStack) P' w s (x86_immediate x z) (with_vm s (evm s).[x <- pof_val x.(vtype) (Vword (wrepr Uptr z))])%vmap.
+  -> psem.sem_i (pT := progStack) P' w s (x86_immediate x z) (with_vm s (evm s).[x <- Vword (wrepr Uptr z)]).
 Proof.
   case: x => - [] [] // [] // x xi _ /=.
   have := mov_wsP (pT := progStack) AT_none _ (cmp_le_refl _).
-  move => /(_ _ _ _ _ _ P').
+  move => /(_ _ _ _ _ _ _ _ P').
   apply; last reflexivity.
   by rewrite /= truncate_word_u.
 Qed.
 
 End STACK_ALLOC.
 
-Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
+Definition x86_hsaparams {dc : DirectCall} : h_stack_alloc_params (ap_sap x86_params) :=
   {|
     mov_ofsP := x86_mov_ofsP;
     sap_immediateP := x86_immediateP;
@@ -174,17 +175,17 @@ Definition x86_op_align_eval_instr
     |}
   in
   (ws <= U64)%CMP
-  -> get_var (lvm ls) (v_var x) = ok (Vword w)
+  -> get_var true (lvm ls) (v_var x) = ok (@Vword ws w)
   -> let: li := li_of_copn_args ii (x86_op_align x ws al) in
      let w' := align_word al w in
      let: vm' :=
        (lvm ls)
-         .[to_var OF <- ok false]
-         .[to_var CF <- ok false]
-         .[to_var SF <- ok (SF_of_word w')]
-         .[to_var PF <- ok (PF_of_word w')]
-         .[to_var ZF <- ok (ZF_of_word w')]
-         .[v_var x <- ok (pword_of_word w')]%vmap
+         .[to_var OF <- false]
+         .[to_var CF <- false]
+         .[to_var SF <- (SF_of_word w')]
+         .[to_var PF <- (PF_of_word w')]
+         .[to_var ZF <- (ZF_of_word w')]
+         .[v_var x   <- Vword w']
      in
      let: ls' :=
        {|
@@ -210,11 +211,8 @@ Proof.
   rewrite /sopn_sem /=.
   rewrite /x86_AND /check_size_8_64.
   rewrite hws {hws} /=.
-  rewrite sumbool_of_boolET.
-  rewrite /with_vm /of_estate pword_of_wordE -/(align_word al w) /=.
-  by rewrite addn1.
+  by rewrite /with_vm /of_estate /= -/(align_word al w) /= addn1.
 Qed.
-
 
 Context
   {call_conv : calling_convention}
@@ -230,33 +228,31 @@ Let vtmpi : var_i := VarI vtmp dummy_var_info.
 Definition x86_spec_lip_allocate_stack_frame s pc ii ts sz :
   let: args := lip_allocate_stack_frame x86_liparams vrspi sz in
   let: i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let: ts' := pword_of_word (ts - wrepr Uptr sz) in
-  let: s' := with_vm s (evm s).[vrsp <- ok ts']%vmap in
-  (evm s).[vrsp]%vmap = ok (pword_of_word ts)
+  let: ts' := Vword (ts - wrepr Uptr sz) in
+  let: s' := with_vm s (evm s).[vrsp <- ts'] in
+  (evm s).[vrsp] = Vword ts
   -> eval_instr lp i (of_estate s fn pc)
      = ok (of_estate s' fn pc.+1).
 Proof.
   move=> /= Hvm.
   rewrite /eval_instr /= /sem_sopn /=.
-  rewrite /get_gvar /get_var /on_vu /=.
-  rewrite Hvm /=.
-  by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /= pword_of_wordE.
+  by rewrite /get_gvar /get_var /= Hvm /= /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u.
 Qed.
 
 Definition x86_spec_lip_free_stack_frame s pc ii ts sz :
   let args := lip_free_stack_frame x86_liparams vrspi sz in
   let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let ts' := pword_of_word (ts + wrepr Uptr sz) in
-  let s' := with_vm s (evm s).[vrsp <- ok ts']%vmap in
-  (evm s).[vrsp]%vmap = ok (pword_of_word ts)
+  let ts' := Vword (ts + wrepr Uptr sz) in
+  let s' := with_vm s (evm s).[vrsp <- ts'] in
+  (evm s).[vrsp] = Vword ts
   -> eval_instr lp i (of_estate s fn pc)
     = ok (of_estate s' fn pc.+1).
 Proof.
   move=> /= Hvm.
   rewrite /eval_instr /= /sem_sopn /=.
-  rewrite /get_gvar /get_var /on_vu /=.
+  rewrite /get_gvar /get_var /=.
   rewrite Hvm /=.
-  by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /= pword_of_wordE.
+  by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u.
 Qed.
 
 Lemma x86_spec_lip_set_up_sp_register s r ts al sz P Q :
@@ -268,29 +264,26 @@ Lemma x86_spec_lip_set_up_sp_register s r ts al sz P Q :
   -> vtmp <> vrsp
   -> vname (v_var r) \notin (lip_not_saved_stack x86_liparams)
   -> v_var r <> vrsp
-  -> get_var (evm s) vrsp = ok (Vword ts)
-  -> wf_vm (evm s)
+  -> get_var true (evm s) vrsp = ok (Vword ts)
   -> exists vm',
        let: ls := of_estate s fn (size P) in
        let: s' := with_vm s vm' in
        let: ls' := of_estate s' fn (size P + size lcmd) in
        [/\ lsem lp ls ls'
-         , wf_vm vm'
-         , vm' = (evm s)
-             [\ Sv.add (v_var r) (Sv.add vtmp (Sv.add vrsp vflags)) ]
-         , get_var vm' vrsp = ok (Vword ts')
-         , get_var vm' (v_var r) = ok (Vword ts)
+         , vm' =[\ Sv.add (v_var r) (Sv.add vtmp (Sv.add vrsp vflags)) ] (evm s)
+         , get_var true vm' vrsp = ok (Vword ts')
+         , get_var true vm' (v_var r) = ok (Vword ts)
          & forall x,
              Sv.In x vflags
-             -> ~ is_ok (vm'.[x]%vmap)
-             -> (evm s).[x]%vmap = vm'.[x]%vmap
+             -> ~ is_defined vm'.[x]
+             -> (evm s).[x] = vm'.[x]
        ].
 Proof.
   move=> hbody _ hr.
   set ts' := align_word _ _.
   move: r hr hbody => [[rtype rname] rinfo] /= ?; subst rtype.
   set r := {| v_info := rinfo; |}.
-  move=> hbody _ _ hneq_r_rsp hgetrsp hwf_vm.
+  move=> hbody _ _ hneq_r_rsp hgetrsp.
 
   move: hbody.
   set i_mov_r := _ _ (x86_lassign (LLvar r) _ _).
@@ -298,8 +291,8 @@ Proof.
   set i_align_rsp := _ _ (x86_op_align vrspi _ _).
   move=> hbody.
 
-  set vm0 := (evm s).[v_var r <- ok (pword_of_word ts)]%vmap.
-  set vm2 := vm0.[vrsp <- ok (pword_of_word (ts - wrepr Uptr sz))]%vmap.
+  set vm0 := (evm s).[v_var r <- Vword ts].
+  set vm2 := vm0.[vrsp <- Vword (ts - wrepr Uptr sz)].
 
   eexists.
   split.
@@ -313,19 +306,14 @@ Proof.
       * exact: hgetrsp.
       * exact: truncate_word_u.
         rewrite /write_lval /write_var /=.
-        rewrite /with_vm pword_of_wordE -/vm0.
+        rewrite /with_vm -/vm0.
         reflexivity.
 
     (* R[rsp] := R[rsp] - sz; *)
     + rewrite (find_instr_skip hbody) /=.
       apply: x86_spec_lip_allocate_stack_frame.
-      rewrite Fv.setP_neq; last by apply/eqP.
-      move: hgetrsp.
-      rewrite get_varE.
-      case: _.[_]%vmap => //= -[pws w ?].
-      move=> [?]; subst pws.
-      move=> [?]; subst w.
-      rewrite pword_of_wordE.
+      rewrite Vm.setP_neq; last by apply/eqP.
+      move /get_varP: hgetrsp => [<- _ _].
       reflexivity.
 
     (* R[rsp] := R[rsp] & alignment; *)
@@ -338,9 +326,7 @@ Proof.
          (w := ts - wrepr Uptr sz)
          _ _ _
          (cmp_le_refl _)).
-    by t_get_var.
-
-  - repeat apply: wf_vm_set. exact: hwf_vm.
+    by rewrite /get_var /= /vm2 Vm.setP_eq vm_truncate_val_eq //.
 
   - move=> x. t_notin_add. by t_vm_get.
 
@@ -350,9 +336,9 @@ Proof.
 
   rewrite /= -/ts'.
   move=> x /sv_of_listP /mapP [f _ ->].
-  rewrite Fv.setP_neq //.
+  rewrite Vm.setP_neq //.
   case: f;
-    by repeat (rewrite Fv.setP_neq; last by apply /eqP => h; have := inj_to_var h); rewrite Fv.setP_eq.
+    by repeat (rewrite Vm.setP_neq; last by apply /eqP => h; have := inj_to_var h); rewrite Vm.setP_eq.
 Qed.
 
 Lemma x86_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
@@ -361,25 +347,23 @@ Lemma x86_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> isSome (lip_set_up_sp_stack x86_liparams vrspi sz al off)
   -> vtmp <> vrsp
-  -> get_var (evm s) vrsp = ok (Vword ts)
-  -> wf_vm (evm s)
+  -> get_var true (evm s) vrsp = ok (Vword ts)
   -> write (emem s) (ts' + wrepr Uptr off)%R ts = ok m'
   -> exists vm',
        let: ls := of_estate s fn (size P) in
        let: s' := {| escs := escs s; evm := vm'; emem := m'; |} in
        let: ls' := of_estate s' fn (size P + size lcmd) in
        [/\ lsem (spp := mk_spp) lp ls ls'
-         , wf_vm vm'
-         , vm' = (evm s) [\ Sv.add vtmp (Sv.add vrsp vflags) ]
-         , get_var vm' vrsp = ok (Vword ts')
+         , vm' =[\ Sv.add vtmp (Sv.add vrsp vflags) ] (evm s)
+         , get_var true vm' vrsp = ok (Vword ts')
          & forall x,
              Sv.In x vflags
-             -> ~ is_ok (vm'.[x]%vmap)
-             -> (evm s).[x]%vmap = vm'.[x]%vmap
+             -> ~ is_defined vm'.[x]
+             -> (evm s).[x] = vm'.[x]
        ].
 Proof.
   set ts' := align_word _ _.
-  move=> hbody _ hneq_tmp_rsp hgetrsp hwf_vm hwrite.
+  move=> hbody _ hneq_tmp_rsp hgetrsp hwrite.
 
   move: hbody.
   rewrite /=.
@@ -387,7 +371,7 @@ Proof.
   rewrite -[[:: _; _; _]]/(map _ (x86_set_up_sp_register vrspi sz al vtmpi)).
   move=> hbody.
 
-  have [vm0 [hsem hwf_vm0 hvm0 hgetrsp0 hgettmp0 hflags]] :=
+  have [vm0 [hsem hvm0 hgetrsp0 hgettmp0 hflags]] :=
     x86_spec_lip_set_up_sp_register
       (r := vtmpi)
       hbody
@@ -396,8 +380,7 @@ Proof.
       hneq_tmp_rsp
       erefl
       hneq_tmp_rsp
-      hgetrsp
-      hwf_vm.
+      hgetrsp.
 
   exists vm0.
   split.
@@ -421,8 +404,6 @@ Proof.
       rewrite !truncate_word_u.
       rewrite -/ts'.
       by rewrite /= hwrite {hwrite}.
-
-  - exact: hwf_vm0.
 
   - move=> x hx.
     rewrite hvm0; first done.
@@ -469,11 +450,10 @@ Qed.
 (* Lowering hypotheses. *)
 
 (* Due to the order of the parameters we can't defined this as a record. *)
-Definition x86_hloparams : h_lowering_params (ap_lop x86_params).
+Definition x86_hloparams {dc : DirectCall} : h_lowering_params (ap_lop x86_params).
 Proof.
   split. exact: @lower_callP.
 Defined.
-
 
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
@@ -582,21 +562,14 @@ Qed.
 
 Lemma lom_eqv_set_xreg rip (xr : xreg_t) m s :
   lom_eqv rip m s ->
-  let: pw :=
-    {|
-      pw_size := U256;
-      pw_word := asm_xreg s xr;
-      pw_proof := erefl (U256 ≤ U256)%CMP;
-    |}
-  in
-  lom_eqv rip (with_vm m (evm m).[to_var xr <- ok pw]%vmap) s.
+  lom_eqv rip (with_vm m (evm m).[to_var xr <- Vword (asm_xreg s xr)]) s.
 Proof.
   case => h1 h2 h3 h4 h5 h6 h7 h9; split => //; rewrite /eqflags /get_var /=.
-  + by rewrite Fv.setP_neq //; apply/eqP; case: h4; auto.
-  1,2,4: by move=> x v; rewrite Fv.setP_neq; auto.
-  move=> x v; case: (to_var xr =P to_var x) => [h | /eqP hne].
-  + move: (inj_to_var h) => ->. by rewrite Fv.setP_eq => -[<-].
-  by rewrite Fv.setP_neq; auto.
+  + by rewrite Vm.setP_neq //; apply/eqP; case: h4; auto.
+  1,2,4: by move=> x; rewrite Vm.setP_neq; auto.
+  move=> x; case: (to_var xr =P to_var x) => [h | /eqP hne].
+  + move: (inj_to_var h) => ->. by rewrite Vm.setP_eq.
+  by rewrite Vm.setP_neq; auto.
 Qed.
 
 Lemma check_sopn_args_xmm rip ii oargs es ads cond n k ws:
@@ -697,12 +670,15 @@ Proof.
   move: hwm; rewrite /mem_write_vals /= /mem_write_val /= !truncate_word_u /= truncate_word_u /= => <-; do 2!f_equal.
   rewrite  /winserti128 /split_vec /=; f_equal.
   congr (fun x => [::x; wh]).
-  case: hlow => _ _ _ _ _ _ /(_ _ _ hvl) hu _.
-  move: hwl hu; rewrite /to_word.
-  case: (vl) => // [ws wl' /= | []//].
-  rewrite /word_uincl mul0n => /truncate_wordP[] hle ? /andP[] _ /eqP ?; subst.
+  case: hlow => _ _ _ _ _ _ hu _.
+  move /get_varP: hvl => -[]/= ? hd _; subst vl.
+  have := hu lr.
+  case: (evm m).[to_var lr] hd hwl => //= ws wl' _ /truncate_wordP [] hle ? /andP[] _ /eqP ?; subst.
+  rewrite /word_uincl mul0n.
   by rewrite (@subword0 U128 U256) zero_extend_idem.
 Qed.
+
+
 
 Lemma assemble_extra_op rip ii op lvs args m xs ys m' s ops ops':
   sem_rexprs m args = ok xs ->
@@ -796,7 +772,6 @@ Proof.
     move: (hlow) => [h0 h1 hrip hd h2 h2x h3 h4].
     move: hwx; rewrite /write_var /set_var.
     rewrite -xr => -[<-]{m1}.
-    rewrite -/(to_pword _ (Vword (zero_extend U64 _))).
     apply: (lom_eqv_write_reg _ _ hlow).
     by right.
 
@@ -829,7 +804,7 @@ Proof.
       rewrite (free_vars_rP (vm2:= vm) (vm1:=evm m) (r:=emsf) (emem m));
         last by apply: set_var_disjoint_eq_on haux2 hset.
       move=> _ -> _ _ -> <- -> [->] /=.
-      by rewrite (get_var_set_var vaux hset) eqxx /sem_sop1 /= hb haux.
+      by move/set_varP : hset => -[?? ->];rewrite /get_var /= Vm.setP_eq /sem_sop1 /= hb haux.
     have hws : write_lexprs [:: x] [:: Vword (if ~~ b then wrepr U64 (-1) else w)] (with_vm m vm) = ok m2.
     + by rewrite /= hw2.
     have []:= compile_asm_opn_aux eval_assemble_cond hes _ hws hca hcd hidc hlo.
@@ -872,55 +847,51 @@ Opaque cat.
   have [yr [vi /= hy _ ]] := check_sopn_dests_xmm (n:= 0) hcd hidc erefl erefl erefl.
 
   pose v0 := (s.(asm_xreg) xr).
-  pose (pv0 := @Build_pword U256 U256 v0 erefl).
-  pose (vm0 := ((evm m).[to_var xr <- ok pv0])%vmap).
+  pose (vm0 := (evm m).[to_var xr <- Vword v0]).
   pose (m0 := with_vm m vm0).
   have hlo0: lom_eqv rip m0 s by apply lom_eqv_set_xreg.
 
   move: hes1 => /=; t_xrbindP => z hew _ z1 hemsf <- ? [?]; subst z z1.
   have heqvm0 : vm0 =[free_vars_r emsf] evm m.
-  + by apply/eq_onS/(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword (s.(asm_xreg) xr))).
+  + by apply/eq_onS/(set_var_disjoint_eq_on (wdb:=true) (x:= to_var xr) (v:= Vword (s.(asm_xreg) xr))).
   move: hmap; rewrite -hops !mapM_cat; t_xrbindP.
   move=> ops1' hmap1 _ ops2' hmap2 ops3' hmap3 <- <-.
   rewrite foldM_cat.
   (* first instruction *)
   pose v1 := wpinsr (zero_extend U128 (s.(asm_xreg) xr)) wmsf (wrepr U8 0).
-  pose (pv1 := (@Build_pword U256 U128 v1 erefl)).
-  pose (vm1 := ((evm m0).[to_var xr <- ok pv1])%vmap).
+  pose (vm1 := ((evm m0).[to_var xr <- Vword v1])).
   pose (m1 := with_vm m vm1).
   (* second instruction *)
   pose v2 := wpbroadcast U128 wmsf.
-  pose (pv2 := (@Build_pword U256 U128 v2 erefl)).
-  pose (vm2 := ((evm m1).[to_var xr <- ok pv2])%vmap).
+  pose (vm2 := ((evm m1).[to_var xr <- Vword v2])).
   pose (m2 := with_vm m vm2).
 
   have /(_ m2) [|s2 -> hlo2] /= :=
     assemble_opsP eval_assemble_cond hmap1 erefl _ hlo0.
-  + have -> /=: get_var vm0 (to_var xr) = ok (Vword (s.(asm_xreg) xr)).
-    + by rewrite /get_var /vm0 Fv.setP_eq /=.
+  + have -> /=: get_var true vm0 (to_var xr) = ok (Vword (s.(asm_xreg) xr)).
+    + by rewrite /get_var /vm0 Vm.setP_eq /=.
     have -> /= : sem_rexpr (emem m) vm0 emsf = ok vmsf.
     + by rewrite -hemsf; apply: free_vars_rP.
     rewrite /exec_sopn /= hmsf /= !truncate_word_le // /=.
     have -> : wand (wrepr U8 0) (x86_nelem_mask U64 U128) = wrepr U8 0.
     + by apply/wunsigned_inj/(wand_modulo _ 1).
-    have -> /=: get_var vm1 (to_var xr) = ok (Vword v1).
-    + by rewrite /get_var /vm0 Fv.setP_eq /=.
+    have -> /=: get_var true vm1 (to_var xr) = ok (Vword v1).
+    + by rewrite /get_var /vm0 Vm.setP_eq /=.
     have -> /= : sem_rexpr (emem m) vm1 emsf = ok vmsf.
     + rewrite -hemsf; apply: free_vars_rP.
       apply/(eq_onT (vm2:= vm0)) => //.
-      by apply/eq_onS/(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v1)).
+      by apply/eq_onS/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
     rewrite /exec_sopn /= hmsf /= !truncate_word_u /=.
     have -> : wand (wrepr U8 1) (x86_nelem_mask U64 U128) = wrepr U8 1.
     + by apply/wunsigned_inj/(wand_modulo _ 1).
-    rewrite /m2 /= /vm2 /pv2 /v2 /with_vm /=.
+    rewrite /m2 /= /vm2 /v2 /with_vm /=.
     do 5! f_equal.
     rewrite /wpinsr /v2 /wpbroadcast /= /v1 /wpinsr /=.
     by rewrite subword_make_vec_bits_low.
   rewrite foldM_cat => {hmap1 hops}.
   (* third write *)
   pose v3 := wpbroadcast ws wmsf.
-  pose (pv3 := (@Build_pword U256 ws v3 (wsize_ge_U256 ws))).
-  pose (vm3 := ((evm m2).[to_var xr <- ok pv3])%vmap).
+  pose (vm3 := ((evm m2).[to_var xr <- Vword v3])).
   pose (m3 := with_vm m2 vm3).
   have : exists2 s3,
       foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s2 ops2' = ok s3 &
@@ -930,46 +901,43 @@ Opaque cat.
       eexists; first reflexivity.
       apply: (lom_eqv_ext _ hlo2).
       move=> z; rewrite /vm3.
-      case: (to_var xr =P z) => [<- | /eqP ?]; last by rewrite Fv.setP_neq.
-      rewrite /m2 /vm2 /= !Fv.setP_eq /pv2 /pv3.
+      case: (to_var xr =P z) => [<- | /eqP ?]; last by rewrite Vm.setP_neq.
+      rewrite /m2 /vm2 /= !Vm.setP_eq.
       have ? : ws = U128 by case: (ws) hws1 Hws.
-      by subst ws; rewrite -(Eqdep_dec.UIP_refl_bool _ (wsize_ge_U256 U128)).
+      by subst ws.
     subst ws => hmap2.
     apply: (@assemble_extra_concat128 rip ii [:: LLvar aux] [:: Rexpr (Fvar aux); Rexpr (Fvar aux)]
             m2 [:: Vword v2; Vword v2] [:: Vword (wpbroadcast U256 wmsf)] m3 s2 _ ops2') hmap2 hlo2 => //=.
-    + by rewrite /get_var /vm2 Fv.setP_eq.
-    + rewrite /exec_sopn /= truncate_word_u /=; do 3!f_equal.
-      rewrite /v2 /wpbroadcast /=.
-      exact: make_vec_4x64.
-    by rewrite -(Eqdep_dec.UIP_refl_bool _ (wsize_ge_U256 U256)).
+    + by rewrite /get_var /vm2 Vm.setP_eq.
+    rewrite /exec_sopn /= truncate_word_u /=; do 3!f_equal.
+    rewrite /v2 /wpbroadcast /=.
+    exact: make_vec_4x64.
 Transparent cat.
   move=> [s3 -> hlo3] /= {hmap2}.
   (* fourth instruction *)
   move: hws; subst y => /=.
-  rewrite (sumbool_of_boolET (wsize_ge_U256 ws)) /with_vm /=.
-  set v4 := wor _ _; set pv4 := {| pw_word := v4 |}.
-  set vm1' := ((evm m).[ _ <- _])%vmap => -[<-].
-  pose (vm4 := (vm3 .[ to_var yr <- ok pv4])%vmap).
+  rewrite /with_vm /=.
+  set v4 := wor _ _.
+  set vm1' := ((evm m).[ _ <- _]) => -[<-].
+  pose (vm4 := (vm3 .[ to_var yr <- Vword v4])).
   have /(_ (with_vm m vm4)) [|s' -> hlo4] /= :=
     assemble_opsP eval_assemble_cond hmap3 erefl _ hlo3.
-  + have -> /=: get_var vm3 (to_var xr) = ok (Vword v3).
-    + by rewrite /get_var /vm3 Fv.setP_eq /=.
+  + have -> /=: get_var true vm3 (to_var xr) = ok (Vword v3).
+    + by rewrite /get_var /vm3 Vm.setP_eq /= wsize_ge_U256.
     have -> /= : sem_rexpr (emem m) vm3 ew = ok vw.
     + rewrite -hew; apply: free_vars_rP.
       apply/eq_onS/(eq_onT (vm2:= vm2)); [ apply/(eq_onT (vm2:= vm1)); [ apply/(eq_onT (vm2:= vm0)) | ] | ].
-      + by apply(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v0)).
-      + by apply/(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v1)).
-      + by apply/(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v2)).
-      apply/(set_var_disjoint_eq_on (x:= to_var xr) (v:= Vword v3)) => //.
-      by rewrite /set_var /= (sumbool_of_boolET (wsize_ge_U256 ws)).
+      + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v0)).
+      + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v1)).
+      + by apply(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v2)).
+      apply/(set_var_disjoint_eq_on (wdb := true) (x:= to_var xr) (v:= Vword v3)) => //.
     by rewrite /exec_sopn /= truncate_word_u hw /= /sopn_sem /= /x86_VPOR /x86_u128_binop
-         /check_size_128_256 Hws' /= (wsize_ge_U256 ws) /=
-         (sumbool_of_boolET (wsize_ge_U256 ws)).
+         /check_size_128_256 Hws' /= (wsize_ge_U256 ws) /=.
   exists s' => //; apply: lom_eqv_ext hlo4 => z /=.
-  rewrite /vm4; case: (to_var yr =P z) => [ | /eqP] ?;first by subst z; rewrite !Fv.setP_eq.
-  rewrite Fv.setP_neq // Fv.setP_neq // /vm3 /m2 /vm2 /m1 /vm1 /m0 /vm0 /vm1' /=.
-  case: (to_var xr =P z) => [<- | /eqP ?]; first by rewrite !Fv.setP_eq.
-  by rewrite !Fv.setP_neq.
+  rewrite /vm4; case: (to_var yr =P z) => [ | /eqP] ?;first by subst z; rewrite !Vm.setP_eq.
+  rewrite Vm.setP_neq // Vm.setP_neq // /vm3 /m2 /vm2 /m1 /vm1 /m0 /vm0 /vm1' /=.
+  case: (to_var xr =P z) => [<- | /eqP ?]; first by rewrite !Vm.setP_eq.
+  by rewrite !Vm.setP_neq.
 Qed.
 
 Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
@@ -1034,7 +1002,7 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-Definition x86_h_params {call_conv : calling_convention} : h_architecture_params x86_params :=
+Definition x86_h_params {dc : DirectCall} {call_conv : calling_convention} : h_architecture_params x86_params :=
   {|
     hap_hpip := x86_hpiparams;
     hap_hsap := x86_hsaparams;

@@ -12,6 +12,65 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope Z_scope.
 
+
+
+
+Section SourceSysCall.
+
+Context
+  {pd: PointerData}
+  {syscall_state : Type}
+  {sc_sem : syscall_sem syscall_state} .
+
+Definition exec_getrandom_u (scs : syscall_state) len vs :=
+  Let _ :=
+    match vs with
+    | [:: v] => to_arr len v
+    | _ => type_error
+    end in
+  let sd := get_random scs (Zpos len) in
+  Let t := WArray.fill len sd.2 in
+  ok (sd.1, [::Varr t]).
+
+Definition exec_syscall_u
+  {pd : PointerData}
+  (scs : syscall_state_t)
+  (m : mem)
+  (o : syscall_t)
+  (vs : values) :
+  exec (syscall_state_t * mem * values) :=
+  match o with
+  | RandomBytes len =>
+      Let sv := exec_getrandom_u scs len vs in
+      ok (sv.1, m, sv.2)
+  end.
+
+Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
+  exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
+  List.Forall2 value_uincl vargs vargs' →
+  exists2 vres' : values,
+    exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
+Proof.
+  rewrite /exec_syscall_u; case: o => [ p ].
+  t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
+  move: h; rewrite /exec_getrandom_u.
+  case: hu => // va va' ?? /of_value_uincl_te h [] //.
+  t_xrbindP => a /h{h}[? /= -> ?] ra hra ??; subst rscs vres.
+  by rewrite hra /=; eexists; eauto.
+Qed.
+
+Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =2 validw m2.
+
+Lemma exec_syscallSu scs m o vargs rscs rm vres :
+  exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
+  mem_equiv m rm.
+Proof.
+  rewrite /exec_syscall_u; case: o => [ p ].
+  by t_xrbindP => -[scs' v'] /= _ _ <- _.
+Qed.
+
+End SourceSysCall.
+
 Section Section.
 
 Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
@@ -64,8 +123,6 @@ Proof.
   move=> h1 h2; rewrite (exec_syscallPs_eq h1 h2).
   by exists vres=> //; apply List_Forall2_refl.
 Qed.
-
-Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =2 validw m2.
 
 Lemma sem_syscall_equiv o scs m : 
   mk_forall (fun (rm: (syscall_state_t * mem * _)) => mem_equiv m rm.1.2)
