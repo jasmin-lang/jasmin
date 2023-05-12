@@ -209,7 +209,6 @@ Proof. by case: ty => //= w [->]. Qed.
 Definition vundef_type (t:stype) :=
   match t with
   | sword _ => sword8
-  | sarr _  => sarr 1
   | _       => t
   end.
 
@@ -219,14 +218,14 @@ Definition compat_type t1 t2 :=
   | sint    => t2 == sint
   | sbool   => t2 == sbool
   | sword _ => is_sword t2
-  | sarr _  => is_sarr t2
+  | sarr _  => t2 == t1
   end.
 
 Lemma compat_typeC t1 t2 : compat_type t1 t2 = compat_type t2 t1.
-Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2]. Qed.
+Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2] /=. Qed.
 
 Lemma compat_type_refl t : compat_type t t.
-Proof. by case: t => [||n|wz]. Qed.
+Proof. by case: t => [||n|wz] /=. Qed.
 #[global]
 Hint Resolve compat_type_refl : core.
 
@@ -235,7 +234,7 @@ Proof.
   case: t1 => /=.
   + by move => /eqP -> /eqP ->.
   + by move => /eqP -> /eqP ->.
-  + by case: t2.
+  + by move=> n /eqP -> /=.
   by case: t2.
 Qed.
 
@@ -246,7 +245,6 @@ Proof. by case t. Qed.
 Definition subtype (t t': stype) :=
   match t with
   | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | sarr n => if t' is sarr n' then (n <=? n')%Z else false
   | _ => t == t'
   end.
 
@@ -254,12 +252,10 @@ Lemma subtypeE ty ty' :
   subtype ty ty' →
   match ty' with
   | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
-  | sarr n'   => ∃ n, ty = sarr n ∧ (n <= n')%Z
   | _         => ty = ty'
 end.
 Proof.
   destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /ZleP ?; eauto.
   by case: ty' => //; eauto.
 Qed.
 
@@ -267,37 +263,33 @@ Lemma subtypeEl ty ty' :
   subtype ty ty' →
   match ty with
   | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
-  | sarr n   => ∃ n', ty' = sarr n' ∧ (n <= n')%Z
   | _        => ty' = ty
   end.
 Proof.
   destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /ZleP ?; eauto.
   by case: ty' => //; eauto.
 Qed.
 
 Lemma subtype_refl x : subtype x x.
-Proof. case: x => //= ?;apply Z.leb_refl. Qed.
+Proof. case: x => //=. Qed.
 #[global]
 Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
 Proof.
   case: x => //= [/eqP<-|/eqP<-|n1|sx] //.
-  + case: y => //= n2 /ZleP h1;case: z => //= n3 /ZleP h2.
-    by apply /ZleP;apply: Z.le_trans h1 h2.
+  + by case: y => //= n2 /eqP ->.
   case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
 Qed.
 
 Lemma subtype_compat t1 t2 : subtype t1 t2 -> compat_type t1 t2.
 Proof.
-  by case: t1 => [/eqP ->| /eqP -> | p | w] // ; case: t2.
+  by case: t1 => [/eqP ->| /eqP -> | p | w] // ; case: t2 => //= > /eqP ->.
 Qed.
-
 
 Lemma compat_subtype_undef t1 t2 : compat_type t1 t2 → subtype (vundef_type t1) t2.
 Proof.
-  case: t1 => [/eqP ->|/eqP ->|?|?] //=; case: t2 => // *.
-  + by apply /ZleP; Lia.lia.
-  by apply wsize_le_U8.
+  case: t1 => [/eqP ->|/eqP ->|?|?] //=; case: t2 => // >.
+  + by move=> /eqP [->].
+  by move=> ?; apply wsize_le_U8.
 Qed.

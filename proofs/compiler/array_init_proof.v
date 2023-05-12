@@ -116,7 +116,7 @@ Section REMOVE_INIT.
         case: ({| vtype := sarr p0; vname := xn |} =P z) => [<- _ | /eqP neq].
         + rewrite Fv.setP_eq; have := Wf1 {| vtype := sarr p0; vname := xn |}.
           case: (vm1.[_]) => //= [ | [] //].
-          move=> a _;split;first by apply Z.le_refl.
+          move=> a _;split => //.
           move=> ??; rewrite (WArray.get_empty); case: ifP => //.
         by rewrite Fv.setP_neq.
       by rewrite /of_val;case:xt => //= ? ?; case: wsize_eq_dec => // ?; case: CEDecStype.pos_dec.
@@ -135,7 +135,7 @@ Section REMOVE_INIT.
     case: vm1.[x] => [a2 | //] [ _ hu] heq _.
     have ?:= Varr_inj1 (ok_inj heq); subst a1 => {heq}.
     rewrite WArray.castK.
-    split; first by apply Z.le_refl.
+    split => //.
     move=> k w; rewrite (WArray.set_sub_get8 ht1) /=; case: ifP => ?.
     + by rewrite WArray.get_empty; case: ifP.
     by apply hu.

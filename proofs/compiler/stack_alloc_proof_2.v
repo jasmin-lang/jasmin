@@ -1461,7 +1461,7 @@ Proof.
   apply: set_varP hvm1; last by rewrite {1}hty2.
   case: param hty2 hnnew heq1 heq3 heq4 hpi hpmap2 => -[_ paramn] paramii /= -> /=.
   set param := {| vname := paramn |} => hnnew heq1 heq3 heq4 hpi hpmap2.
-  move=> a1 /to_arrI [n2 [a2 [? hcast]]] <-; subst varg1.
+  move=> a1 /to_arrI ? <-; subst varg1.
   set sr := sub_region_full _ _.
   have hin: Sv.In sr.(sr_region).(r_slot) Slots_params.
   + by apply in_Slots_params => /=; congruence.
@@ -1481,8 +1481,7 @@ Proof.
   + split=> //.
     move=> off _ w' hget.
     rewrite -haddr.
-    apply hargp.(wap_read).
-    by apply (cast_get8 hcast).
+    by apply hargp.(wap_read).
   + by rewrite /get_local /= Mvar.setP_eq.
   case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   split=> //.
@@ -2291,8 +2290,9 @@ Lemma value_uincl_get_val_byte v1 v2 :
     get_val_byte v1 off = ok w ->
     get_val_byte v2 off = ok w.
 Proof.
-  move=> /value_uinclE; case: v1 => //= > [? [? [-> H]]] >.
-  + by case: H => _; apply.
+  move=> /value_uinclE; case: v1 => //= >.
+  + by move=> [? -> H] > /=; case: H => _; apply.
+  move=> [? [? [-> H]]] >.
   case: ifP => //=; rewrite !zify; move: H => /andP[hle /eqP ->] hoff.
   have hle' := Z.divide_pos_le _ _ (wsize_size_pos _) (wsize_size_le hle).
   move=> <-; rewrite ifT; last by rewrite !zify; lia.
@@ -2474,7 +2474,7 @@ Proof.
   t_xrbindP=> vm1 hvm1 _.
   apply: set_varP hvm1; last by rewrite {1}hty.
   move=> t h _; move: t h; rewrite hty /=.
-  by move=> _ /to_arrI [n' [_ [-> /WArray.cast_len /ZleP]]] /=.
+  by move=> _ /to_arrI -> /=.
 Qed.
 
 Lemma alloc_stack_spec_wf_args m1 m2 fn vargs1 vargs2 ws sz ioff sz' m3 :

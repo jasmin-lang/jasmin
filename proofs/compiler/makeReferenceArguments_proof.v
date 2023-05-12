@@ -171,8 +171,7 @@ Context
   rewrite /truncate_val; case: t v => [||q|w].
   + by move=> x; t_xrbindP=> b bE <-.
   + by move=> x; t_xrbindP=> i iE <-.
-  + move=> x; t_xrbindP=> a aE <- /=.
-    by rewrite /WArray.cast Z.leb_refl /=; case: (a).
+  + by move=> x; t_xrbindP=> a aE <- /=; rewrite WArray.castK.
   + move=> x; t_xrbindP=> w' w'E <- /=.
     by rewrite truncate_word_u.
   Qed.
@@ -714,9 +713,7 @@ Context
     exists2 x, pof_val (type_of_val v) v = ok x & pto_val x = v.
   Proof.
   case: v => //=; eauto.
-  + move=> n a _;rewrite /WArray.cast.
-    exists a => //; case: ifP => /ZleP; last by Psatz.lia.
-    by move=> _; f_equal;case: a.
+  + by move=> n a _; rewrite WArray.castK /=; exists a.
   move => sz w _; rewrite (sumbool_of_boolET (cmp_le_refl sz)).
   eexists; split; eauto.
   Qed.
