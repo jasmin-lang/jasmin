@@ -1328,8 +1328,8 @@ Definition wpermd1 (v: seq u32) (idx: u32) :=
   let off := wunsigned idx mod 8 in
   (v`_(Z.to_nat off))%R.
 
-Definition wpermd sz (w1 idx: word sz) : word sz :=
-  let v := split_vec U32 w1 in
+Definition wpermd sz (idx w: word sz) : word sz :=
+  let v := split_vec U32 w in
   let i := split_vec U32 idx in
   make_vec sz (map (wpermd1 v) i).
 

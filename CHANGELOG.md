@@ -21,6 +21,9 @@
   ([PR #422](https://github.com/jasmin-lang/jasmin/pull/422);
   fixes [#421](https://github.com/jasmin-lang/jasmin/issues/421)).
 
+- Fix semantics of the `VPERMD` instruction
+  ([PR #442](https://github.com/jasmin-lang/jasmin/pull/442)).
+
 ## Other changes
 
 - Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by
