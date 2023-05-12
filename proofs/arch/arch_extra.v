@@ -92,7 +92,7 @@ Module MkToIdent : MkToIdent_T.
   Let rid := map (fun r => (r, mk_id (to_string r))) cenum.
 
   Lemma rid_cenum : unzip1 rid = cenum.
-  Proof. by rewrite /rid /unzip1 -map_comp -(eq_map (f1:= fun x => x)) ?map_id. Qed.
+  Proof. by rewrite /rid /unzip1 -map_comp map_id. Qed.
 
   Let T_eqType := ceqT_eqType. Canonical T_eqType.
 
