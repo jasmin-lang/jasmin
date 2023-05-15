@@ -128,6 +128,9 @@
 - Fix semantics of the `VPERMD`, `VPMADDWD`, and `VPMADDUBSW` instructions
   ([PR #442](https://github.com/jasmin-lang/jasmin/pull/442)).
 
+- Fix semantics of the `VPMOVSX` and `VPMOVZX` instructions
+  ([PR #446](https://github.com/jasmin-lang/jasmin/pull/446)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
