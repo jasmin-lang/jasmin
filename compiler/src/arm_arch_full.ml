@@ -34,16 +34,16 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
      Here we assume it's just a variable register. *)
 
   let lowering_vars =
-    let f ty n =
-      let v = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
-      Conv.cvar_of_var v
-    in
-    {
-      Arm_lowering.fv_NF = (f tbool "NF").vname;
-      Arm_lowering.fv_ZF = (f tbool "ZF").vname;
-      Arm_lowering.fv_CF = (f tbool "CF").vname;
-      Arm_lowering.fv_VF = (f tbool "VF").vname;
-    }
+    let memo = Hashtbl.create 5 in
+    fun n st ->
+    let k = (n, st) in
+    match Hashtbl.find memo k with
+    | x -> x
+    | exception Not_found ->
+       let ty = Conv.ty_of_cty st in
+       let x = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
+       Hashtbl.add memo k x;
+       x
 
   let lowering_opt = ()
 
