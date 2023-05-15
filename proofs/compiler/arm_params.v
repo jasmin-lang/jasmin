@@ -207,7 +207,7 @@ Definition arm_fvars_correct
   bool :=
   fvars_correct (all_fresh_vars fv) (fvars fv) fds.
 
-Definition arm_loparams : lowering_params fresh_vars lowering_options :=
+Definition arm_loparams : lowering_params lowering_options :=
   {|
     lop_lower_i _ _ _ := lower_i;
     lop_fvars_correct := arm_fvars_correct;
@@ -321,7 +321,7 @@ Definition arm_is_move_op (o : asm_op_t) : bool :=
       false
   end.
 
-Definition arm_params : architecture_params fresh_vars lowering_options :=
+Definition arm_params : architecture_params lowering_options :=
   {|
     ap_sap := (fun _ => arm_saparams);
     ap_lip := arm_liparams;

@@ -4,8 +4,10 @@ Require Import compiler_util expr.
 
 Section LOWERING.
 
+Definition fresh_vars : Type := Ident.name -> stype -> Ident.ident.
+
 Context
-  {asm_op lowering_options fresh_vars : Type}
+  {asm_op lowering_options : Type}
   {asmop : asmOp asm_op}
   (lower_i0 :
     lowering_options

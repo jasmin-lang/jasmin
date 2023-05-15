@@ -28,8 +28,8 @@ Unset Printing Implicit Defensive.
 Record h_lowering_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} 
-  (fresh_vars lowering_options : Type)
-  (loparams : lowering_params fresh_vars lowering_options) :=
+  (lowering_options : Type)
+  (loparams : lowering_params lowering_options) :=
   {
     hlop_lower_callP :
       forall
@@ -41,7 +41,7 @@ Record h_lowering_params
         (is_regx : var -> bool)
         (options : lowering_options)
         (warning : instr_info -> warning_msg -> instr_info)
-        (fv : fresh_vars)
+        (fv : lowering.fresh_vars)
         (is_var_in_memory : var_i -> bool)
         (_ : lop_fvars_correct loparams fv (p_funcs p))
         (f : funname)
@@ -64,8 +64,8 @@ Record h_lowering_params
 Record h_architecture_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
-  (fresh_vars lowering_options : Type)
-  (aparams : architecture_params fresh_vars lowering_options) :=
+  (lowering_options : Type)
+  (aparams : architecture_params lowering_options) :=
   {
     (* Propagate inline hypotheses. See [propagate_inline_proof.v]. *)
     hap_hpip : propagate_inline_proof.h_propagate_inline_params;

@@ -150,7 +150,7 @@ Record stack_alloc_oracles : Type :=
 Record compiler_params
   {asm_op : Type}
   {asmop : asmOp asm_op}
-  (fresh_vars lowering_options : Type) := {
+  (lowering_options : Type) := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
@@ -189,9 +189,9 @@ Context
 
 Context
   {call_conv: calling_convention}
-  {fresh_vars lowering_options : Type}
-  (aparams : architecture_params fresh_vars lowering_options)
-  (cparams : compiler_params fresh_vars lowering_options).
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
+  (cparams : compiler_params lowering_options).
 
 Notation saparams := (ap_sap aparams cparams.(is_regx)).
 Notation liparams := (ap_lip aparams).

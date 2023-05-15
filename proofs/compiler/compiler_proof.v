@@ -43,10 +43,10 @@ Section PROOF.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
-  {fresh_vars lowering_options : Type}
-  (aparams : architecture_params fresh_vars lowering_options)
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params fresh_vars lowering_options).
+  (cparams : compiler_params lowering_options).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
