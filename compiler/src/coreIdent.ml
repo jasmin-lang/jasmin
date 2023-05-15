@@ -99,9 +99,7 @@ module Cident = struct
 
   let id_name (x: t) : name = x.v_name
 
-  let p__ : name = "__p__"
-
-  let len__ : name = "__len__"
+  let name_of_string = CoreConv.string_of_cstring
 
   (* FIXME: can we use something else that L._dummy? *)
   let mk x k t = V.mk (CoreConv.string_of_cstring x) k t L._dummy []

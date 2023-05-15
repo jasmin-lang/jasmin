@@ -48,8 +48,7 @@ Extract Constant ident.WrapIdent.name => "CoreIdent.Cident.name".
 Extract Constant ident.Cident.tag     => "CoreIdent.Cident.tag".
 Extract Constant ident.Cident.id_name => "CoreIdent.Cident.id_name".
 
-Extract Constant ident.Cident.p__     => "CoreIdent.Cident.p__".
-Extract Constant ident.Cident.len__   => "CoreIdent.Cident.len__".
+Extract Constant ident.Cident.name_of_string => "CoreIdent.Cident.name_of_string".
 
 
 Cd  "lang/ocaml".

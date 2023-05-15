@@ -109,8 +109,7 @@ module Cident : sig
   val tag : var -> Uint63.t
   val id_name : t -> Name.t
 
-  val p__   : name
-  val len__ : name
+  val name_of_string : char list -> name
 
 end
 
