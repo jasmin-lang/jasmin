@@ -65,4 +65,4 @@ val error_of_cerror :
 
 (* ---------------------------------------------------- *)
 val fresh_reg_ptr :
-   Ident.Ident.name -> Type.stype -> Ident.Ident.ident
+   Name.t -> Type.stype -> Ident.Ident.ident
