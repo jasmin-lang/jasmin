@@ -30,13 +30,12 @@ Context {atoI : arch_toIdent}.
 (* This pass is parameterized by four variable names that will be used to create
    variables for the processor flags. *)
 
-Record fresh_vars :=
-  {
-    fv_NF : Ident.ident;
-    fv_ZF : Ident.ident;
-    fv_CF : Ident.ident;
-    fv_VF : Ident.ident;
-  }.
+Definition fresh_vars : Type := Ident.name -> stype -> Ident.ident.
+
+Definition fv_NF (fv: fresh_vars) := fv (Ident.name_of_string "__n__") sbool.
+Definition fv_ZF (fv: fresh_vars) := fv (Ident.name_of_string "__z__") sbool.
+Definition fv_CF (fv: fresh_vars) := fv (Ident.name_of_string "__c__") sbool.
+Definition fv_VF (fv: fresh_vars) := fv (Ident.name_of_string "__v__") sbool.
 
 Definition all_fresh_vars (fv : fresh_vars) : seq Ident.ident :=
   [:: fv_NF fv; fv_ZF fv; fv_CF fv; fv_VF fv ].
