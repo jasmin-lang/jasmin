@@ -660,12 +660,12 @@ Definition same_vector_length ve sz ve' sz' :=
 Definition x86_VPMOVSX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: word sz) : exec (word sz') :=
   Let _ := check_size_128_256 sz' in
   Let _ := same_vector_length ve sz ve' sz' in
-  ok (lift1_vec' (@sign_extend ve ve') sz' w).
+  ok (lift1_vec' (@sign_extend ve' ve) sz' w).
 
 Definition x86_VPMOVZX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: word sz) : exec (word sz') :=
   Let _ := check_size_128_256 sz' in
   Let _ := same_vector_length ve sz ve' sz' in
-  ok (lift1_vec' (@zero_extend ve ve') sz' w).
+  ok (lift1_vec' (@zero_extend ve' ve) sz' w).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VMOVDQ sz (v: word sz) : ex_tpl (w_ty sz) :=
