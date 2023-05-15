@@ -28,8 +28,6 @@ Definition mov_ws ws x y tag :=
 
 Section LOWERING.
 
-Definition fresh_vars : Type := Ident.name → stype → Ident.ident.
-
 Record lowering_options : Type :=
   {
     use_lea  : bool;

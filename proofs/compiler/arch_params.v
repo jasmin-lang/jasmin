@@ -17,14 +17,14 @@ Unset Printing Implicit Defensive.
 
 
 Record lowering_params
-  `{asmop : asmOp} (fresh_vars lowering_options : Type) :=
+  `{asmop : asmOp} (lowering_options : Type) :=
   {
     (* Lower an instruction to architecture-specific instructions. *)
     lop_lower_i :
       (var -> bool) (* Whether the variable is a register from the extra bank. *)
       -> lowering_options      (* Lowering options depend on the architecture. *)
       -> (instr_info -> warning_msg -> instr_info)
-      -> fresh_vars
+      -> lowering.fresh_vars
       -> (var_i -> bool)    (* Whether the variable is in memory. *)
       -> instr              (* Source instruction. *)
       -> cmd;
@@ -32,7 +32,7 @@ Record lowering_params
     (* Whether all fresh vars are different from each other and
      from those in a list of function declarations. *)
     lop_fvars_correct :
-      fresh_vars
+      lowering.fresh_vars
       -> forall (eft : eqType) (pT : progT eft),
            seq fun_decl
            -> bool;
@@ -40,7 +40,7 @@ Record lowering_params
 
 Record architecture_params
   `{asm_e : asm_extra}
-  (fresh_vars lowering_options : Type) :=
+  (lowering_options : Type) :=
   {
     (* Stack alloc parameters. See stack_alloc.v. *)
     ap_sap : (var -> bool) -> stack_alloc.stack_alloc_params;
@@ -49,7 +49,7 @@ Record architecture_params
     ap_lip : linearization.linearization_params;
 
     (* Lowering parameters. Defined above. *)
-    ap_lop : lowering_params fresh_vars lowering_options;
+    ap_lop : lowering_params lowering_options;
 
     (* Assembly generation parameters. See asm_gen.v. *)
     ap_agp : asm_gen.asm_gen_params;

@@ -22,13 +22,8 @@ let core_arch_x86 ~use_lea ~use_set0 call_conv :
       | Linux -> x86_linux_call_conv
       | Windows -> x86_windows_call_conv
 
-    open X86_lowering
-
-    (* FIXME why we still create a variable ? *)
-    let lowering_vars n st =
-      let ty = Conv.ty_of_cty st in
-      V.mk n (Reg (Normal, Direct)) ty L._dummy []
-
-    let lowering_opt = { use_lea; use_set0 }
+    let lowering_opt =
+      let open X86_lowering in
+      { use_lea; use_set0 }
   end in
   (module X86_arch_full.X86 (Lowering_params))

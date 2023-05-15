@@ -33,18 +33,6 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
   (* TODO_ARM: r9 is a platform register. (cf. arch_decl)
      Here we assume it's just a variable register. *)
 
-  let lowering_vars =
-    let memo = Hashtbl.create 5 in
-    fun n st ->
-    let k = (n, st) in
-    match Hashtbl.find memo k with
-    | x -> x
-    | exception Not_found ->
-       let ty = Conv.ty_of_cty st in
-       let x = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
-       Hashtbl.add memo k x;
-       x
-
   let lowering_opt = ()
 
   let not_saved_stack = (Arm_params.arm_liparams atoI).lip_not_saved_stack

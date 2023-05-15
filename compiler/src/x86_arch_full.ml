@@ -5,7 +5,6 @@ open X86_decl
 module type X86_input = sig
   
  val call_conv : (register, register_ext, xmm_register, rflag, condt) calling_convention 
- val lowering_vars : X86_lowering.fresh_vars
  val lowering_opt : X86_lowering.lowering_options
 
 end 
@@ -29,7 +28,6 @@ module X86_core = struct
   type cond = condt
   type asm_op = X86_instr_decl.x86_op
   type extra_op = X86_extra.x86_extra_op
-  type fresh_vars = X86_lowering.fresh_vars
   type lowering_options = X86_lowering.lowering_options
 
   let atoI = atoI x86_decl
