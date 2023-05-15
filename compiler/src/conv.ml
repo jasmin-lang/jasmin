@@ -342,8 +342,6 @@ let error_of_cerror pp_err e =
   }
 
 (* -------------------------------------------------------------------------- *)
-let fresh_reg_ptr (x:Ident.Ident.name) ty =
+let fresh_reg_ptr (x: Name.t) ty =
   let ty = ty_of_cty ty in
-  let p = Prog.V.mk x (Reg (Normal, Pointer Writable)) ty L._dummy [] in
-  let cp = cvar_of_var p in
-  cp.Var0.Var.vname
+  Prog.V.mk x (Reg (Normal, Pointer Writable)) ty L._dummy []
