@@ -28,16 +28,7 @@ Definition mov_ws ws x y tag :=
 
 Section LOWERING.
 
-Record fresh_vars : Type :=
-  {
-    fresh_OF : Ident.ident;
-    fresh_CF : Ident.ident;
-    fresh_SF : Ident.ident;
-    fresh_PF : Ident.ident;
-    fresh_ZF : Ident.ident;
-
-    fresh_multiplicand : wsize → Ident.ident;
-  }.
+Definition fresh_vars : Type := Ident.name → stype → Ident.ident.
 
 Record lowering_options : Type :=
   {
@@ -53,15 +44,17 @@ Definition vword vt vn := {| vtype := sword vt ; vname := vn |}.
 
 Context (fv: fresh_vars).
 
-Definition fv_of := vbool fv.(fresh_OF).
-Definition fv_cf := vbool fv.(fresh_CF).
-Definition fv_sf := vbool fv.(fresh_SF).
-Definition fv_pf := vbool fv.(fresh_PF).
-Definition fv_zf := vbool fv.(fresh_ZF).
+Let fresh_flag n := vbool (fv (Ident.name_of_string n) sbool).
+Let fresh_word sz := vword sz (fv (Ident.name_of_string "__wtmp__") (sword sz)).
+
+Definition fv_of := fresh_flag "__of__".
+Definition fv_cf := fresh_flag "__cf__".
+Definition fv_sf := fresh_flag "__sf__".
+Definition fv_zf := fresh_flag "__zf__".
 
 Definition fvars :=
-  foldl (λ s sz, Sv.add (vword sz (fv.(fresh_multiplicand) sz)) s)
-    (Sv.add fv_of (Sv.add fv_cf (Sv.add fv_sf (Sv.add fv_pf (Sv.singleton fv_zf)))))
+  foldl (λ s sz, Sv.add (fresh_word sz) s)
+    (Sv.add fv_of (Sv.add fv_cf (Sv.add fv_sf (Sv.singleton fv_zf))))
     wsizes.
 
 Definition disj_fvars v := disjoint v fvars.
@@ -70,12 +63,12 @@ Context {T} {pT:progT T}.
 
 Definition fvars_correct p :=
   [&& disj_fvars (vars_p p),
-      fv.(fresh_OF) != fv.(fresh_CF),
-      fv.(fresh_OF) != fv.(fresh_SF),
-      fv.(fresh_OF) != fv.(fresh_ZF),
-      fv.(fresh_CF) != fv.(fresh_SF),
-      fv.(fresh_CF) != fv.(fresh_ZF) &
-      fv.(fresh_SF) != fv.(fresh_ZF)].
+      fv_of != fv_cf,
+      fv_of != fv_sf,
+      fv_of != fv_zf,
+      fv_cf != fv_sf,
+      fv_cf != fv_zf &
+      fv_sf != fv_zf].
 
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with
@@ -105,11 +98,11 @@ Definition wsize_of_lval (lv: lval) : wsize :=
 
 Definition lower_cond_classify vi (e: pexpr) :=
   let nil := Lnone vi sbool in
-  let fr n := {| v_var := {| vtype := sbool; vname := n fv |} ; v_info := vi |} in
-  let vof := fr fresh_OF in
-  let vcf := fr fresh_CF in
-  let vsf := fr fresh_SF in
-  let vzf := fr fresh_ZF in
+  let fr n := {| v_var := n ; v_info := vi |} in
+  let vof := fr fv_of in
+  let vcf := fr fv_cf in
+  let vsf := fr fv_sf in
+  let vzf := fr fv_zf in
 
   let lof := Lvar vof in
   let lcf := Lvar vcf in
@@ -452,7 +445,7 @@ Definition opn_5flags (immed_bound: option wsize) (sopn_wsize: wsize) (vi: var_i
   let fopn o a := [:: Copn [:: f ; cf ; f ; f ; f ; x ] tg o a ] in
   match opn_5flags_cases a immed_bound sopn_wsize with
   | Opn5f_large_immed x y z =>
-    let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
+    let c := {| v_var := fresh_word U64 ; v_info := vi |} in
     Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: y] :: fopn (opn_no_imm o) (x :: Plvar c :: z)
   | Opn5f_other => fopn o a
   end.
@@ -473,7 +466,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
     let e := reduce_wconst szty e in
     if b
     then
-      let c := {| v_var := {| vtype := sword szty; vname := fresh_multiplicand fv szty |} ; v_info := vi |} in
+      let c := {| v_var := fresh_word szty ; v_info := vi |} in
       [:: MkI ii (Copn [:: Lvar c] tg (Ox86 (MOV szty)) [:: e ])
        ; MkI ii (Copn [:: x ] tg (Ox86 (MOV szty)) [:: Plvar c ]) ]
     else
@@ -524,7 +517,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
             else if d == (wbase U32 / 2)%Z
             then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (SUB sz)) [:: b ; wconst (wrepr sz (-d)) ])]
             else
-              let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
+              let c := {| v_var := fresh_word U64 ; v_info := vi |} in
               [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
                  MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Plvar c ])]
       else lea tt
@@ -539,7 +532,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
      map (MkI ii) (l ++ [:: Copn [:: x] tg (Ox86 (CMOVcc sz)) [:: e; e1; e2]])
 
   | LowerDivMod p s sz op a b =>
-    let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
+    let c := {| v_var := fresh_word sz ; v_info := vi |} in
     let lv :=
       match p with
       | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (sword sz)]
@@ -592,13 +585,13 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
     let f := Lnone_b vi in
     match is_wconst sz x with
     | Some _ =>
-      let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
+      let c := {| v_var := fresh_word sz ; v_info := vi |} in
       [:: Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: x ] ;
           Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) [:: y ; Plvar c ] ]
     | None =>
     match is_wconst sz y with
     | Some _ =>
-      let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
+      let c := {| v_var := fresh_word sz ; v_info := vi |} in
       [:: Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: y ] ;
           Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) [:: x ; Plvar c ] ]
     | None => [:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) es ]

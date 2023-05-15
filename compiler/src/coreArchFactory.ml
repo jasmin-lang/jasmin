@@ -25,17 +25,9 @@ let core_arch_x86 ~use_lea ~use_set0 call_conv :
     open X86_lowering
 
     (* FIXME why we still create a variable ? *)
-    let lowering_vars =
-      let f ty n = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
-      let b = f tbool in
-      {
-        fresh_OF = b "OF";
-        fresh_CF = b "CF";
-        fresh_SF = b "SF";
-        fresh_PF = b "PF";
-        fresh_ZF = b "ZF";
-        fresh_multiplicand = (fun sz -> f (Bty (U sz)) "multiplicand");
-      }
+    let lowering_vars n st =
+      let ty = Conv.ty_of_cty st in
+      V.mk n (Reg (Normal, Direct)) ty L._dummy []
 
     let lowering_opt = { use_lea; use_set0 }
   end in
