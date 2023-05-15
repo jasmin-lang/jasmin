@@ -52,39 +52,37 @@ Section PROOF.
   Lemma fvars_fresh: disj_fvars vars_p.
   Proof. by move: fvars_correct => /andP []. Qed.
 
-  Lemma of_neq_cf : fv.(fresh_OF) != fv.(fresh_CF).
+  Lemma of_neq_cf : fv_of fv != fv_cf fv.
   Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
-  Lemma of_neq_sf : fv.(fresh_OF) != fv.(fresh_SF).
+  Lemma of_neq_sf : fv_of fv != fv_sf fv.
   Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
-  Lemma of_neq_zf : fv.(fresh_OF) != fv.(fresh_ZF).
+  Lemma of_neq_zf : fv_of fv != fv_zf fv.
   Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
-  Lemma cf_neq_sf : fv.(fresh_CF) != fv.(fresh_SF).
+  Lemma cf_neq_sf : fv_cf fv != fv_sf fv.
   Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
-  Lemma cf_neq_zf : fv.(fresh_CF) != fv.(fresh_ZF).
+  Lemma cf_neq_zf : fv_cf fv != fv_zf fv.
   Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
-  Lemma sf_neq_zf : fv.(fresh_SF) != fv.(fresh_ZF).
+  Lemma sf_neq_zf : fv_sf fv != fv_zf fv.
   Proof. by move: fvars_correct=> /and5P [] ???? /and3P []. Qed.
 
-  Lemma of_in_fv: Sv.In (vbool fv.(fresh_OF)) fvars.
+  Lemma of_in_fv: Sv.In (fv_of fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_of; SvD.fsetdec. Qed.
-  Lemma cf_in_fv: Sv.In (vbool fv.(fresh_CF)) fvars.
+  Lemma cf_in_fv: Sv.In (fv_cf fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_cf; SvD.fsetdec. Qed.
-  Lemma sf_in_fv: Sv.In (vbool fv.(fresh_SF)) fvars.
+  Lemma sf_in_fv: Sv.In (fv_sf fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_sf; SvD.fsetdec. Qed.
-  Lemma pf_in_fv: Sv.In (vbool fv.(fresh_PF)) fvars.
-  Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_pf; SvD.fsetdec. Qed.
-  Lemma zf_in_fv: Sv.In (vbool fv.(fresh_ZF)) fvars.
+  Lemma zf_in_fv: Sv.In (fv_zf fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_zf; SvD.fsetdec. Qed.
-  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv.(fresh_multiplicand) sz)) fvars.
+  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv (Ident.name_of_string "__wtmp__") (sword sz))) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /=; case: sz; SvD.fsetdec. Qed.
 
   Local Hint Resolve of_neq_cf of_neq_sf of_neq_zf cf_neq_sf cf_neq_zf sf_neq_zf : core.
-  Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv : core.
+  Local Hint Resolve of_in_fv cf_in_fv sf_in_fv zf_in_fv multiplicand_in_fv : core.
 
   Local
   Definition p' := lower_prog p.
@@ -278,10 +276,10 @@ Section PROOF.
     + by move=> _ [ -> ->]; exists s1' => /=; split => //; constructor.
     move=> hws [??]; subst i e'.
     case: e He heq => // o e1 e2 /=; t_xrbindP => v1 hv1 v2 hv2.
-    set Of := {| v_var := {| vname := fresh_OF _ |} |}.
-    set Cf := {| v_var := {| vname := fresh_CF _ |} |}.
-    set Sf := {| v_var := {| vname := fresh_SF _ |} |}.
-    set Zf := {| v_var := {| vname := fresh_ZF _ |} |}.
+    set Of := {| v_var := fv_of _ |}.
+    set Cf := {| v_var := fv_cf _ |}.
+    set Sf := {| v_var := fv_sf _ |}.
+    set Zf := {| v_var := fv_zf _ |}.
     have hw : forall (bof bcf bsf bpf bzf: bool),
       exists s2',
        [/\
@@ -297,16 +295,16 @@ Section PROOF.
         + by rewrite !escs_with_vm. + by rewrite !emem_with_vm.
         rewrite evm_with_vm => z hz.
         by rewrite !Fv.setP_neq //; apply/eqP => heq; subst z; elim hz;
-         auto using of_in_fv, cf_in_fv, sf_in_fv, pf_in_fv.
+         auto using of_in_fv, cf_in_fv, sf_in_fv.
       split=> /=.
-      + rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_zf; rewrite h eqxx.
-        rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_sf; rewrite h eqxx.
-        rewrite get_gvar_neq; last by move=> _ [] h; have := of_neq_cf; rewrite h eqxx.
+      + rewrite get_gvar_neq; last by move => _; apply nesym; apply/eqP; exact: of_neq_zf.
+        rewrite get_gvar_neq; last by move => _; apply nesym; apply/eqP; exact: of_neq_sf.
+        rewrite get_gvar_neq; last by move => _; apply nesym; apply/eqP; exact: of_neq_cf.
         by rewrite (@get_gvar_eq gd (mk_lvar Of)).
-      + rewrite get_gvar_neq; last by move=> _ [] h; have := cf_neq_zf; rewrite h eqxx.
-        rewrite get_gvar_neq; last by move=> _ [] h; have := cf_neq_sf; rewrite h eqxx.
+      + rewrite get_gvar_neq; last by move => _; apply nesym; apply/eqP; exact: cf_neq_zf.
+        rewrite get_gvar_neq; last by move => _; apply nesym; apply/eqP; exact: cf_neq_sf.
         by rewrite (@get_gvar_eq gd (mk_lvar Cf)).
-      + rewrite get_gvar_neq; last by move=> _ [] h; have := sf_neq_zf; rewrite h eqxx.
+      + rewrite get_gvar_neq; last by move => _; apply nesym; apply/eqP; exact: sf_neq_zf.
         by rewrite (@get_gvar_eq gd (mk_lvar Sf)).
       by rewrite (@get_gvar_eq gd (mk_lvar Zf)).
     have {hw}hw : forall wx wy,
@@ -1122,9 +1120,10 @@ Section PROOF.
     case hopn: opn_5flags_cases => [x y z|] /=.
 
     + move: hopn => /opn_5flags_casesP [n ??]; subst a y.
+      set wtmp := {| v_var := _ |}.
       set ℓ :=
         with_vm s
-        (evm s).[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok (pwrepr64 n)].
+        (evm s).[wtmp <- ok (pwrepr64 n)].
       assert (eq_exc_fresh ℓ s) as e.
       + subst ℓ; case:(s) => ?? /=;split => //.
         by apply vmap_eq_except_set, multiplicand_in_fv.
@@ -1211,9 +1210,10 @@ Section PROOF.
       have [sz [vw [h [hsz hw]]]] := reduce_wconstP tw Hv'.
       rewrite (cmp_le_min hle) in hsz.
       case: b.
-      * set ℓ :=
+      * set wtmp := {| v_var := _ |}.
+        set ℓ :=
           with_vm s1'
-          (evm s1').[{| vtype := sword tw; vname := fresh_multiplicand fv tw |} <- ok (pword_of_word (zero_extend tw vw)) ].
+          (evm s1').[ wtmp <- ok (pword_of_word (zero_extend tw vw)) ].
         assert (eq_exc_fresh ℓ s1') as dℓ.
         + subst ℓ; case:(s1') => ?? /=; split => //.
           by apply vmap_eq_except_set, multiplicand_in_fv.
@@ -1317,9 +1317,10 @@ Section PROOF.
         rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb /= Hwb /=.
         rewrite truncate_word_u /x86_SUB /check_size_8_64 hsz2 /=.
         by rewrite wrepr_unsigned wrepr_opp GRing.opprK Hw'.
+      set wtmp := {| v_var := _ |}.
       set si :=
         with_vm s1'
-            (evm s1').[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok {| pw_size := U64 ; pw_word := wrepr U64 d ; pw_proof := erefl (U64 ≤ U64)%CMP |}].
+            (evm s1').[ wtmp <- ok {| pw_size := U64 ; pw_word := wrepr U64 d ; pw_proof := erefl (U64 ≤ U64)%CMP |}].
       have hsi : eq_exc_fresh si s1'.
       + by rewrite /si; case: (s1') => ?? /=; split => //= k hk; rewrite Fv.setP_neq //; apply/eqP => ?; subst k; apply: hk; exact: multiplicand_in_fv.
       have [si' Hwi hsi'] := eeq_exc_write_lval Hdisjl hsi Hw'.
@@ -1663,8 +1664,9 @@ Section PROOF.
       have! := (is_wconstP gd s1' (sz := sz) (e := e1)).
       case: is_wconst => [ n1 | _ ].
       + move => /(_ _ erefl) /=; rewrite He1 /= /truncate_word hsz1 => - [?]; subst n1.
+        set wtmp := {| v_var := _ |}.
         set s2'' := with_vm s1'
-           (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w1)) ].
+           (evm s1').[ wtmp <- ok (pword_of_word (zero_extend _ w1)) ].
         have Heq: eq_exc_fresh s2'' s1'.
           split=> //.
           rewrite /s2'' /= => x Hx.
@@ -1690,7 +1692,8 @@ Section PROOF.
       have! := (is_wconstP gd s1' (sz := sz) (e := e2)).
       case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
-        set s2'' := with_vm s1' (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ].
+        set wtmp := {| v_var := _ |}.
+        set s2'' := with_vm s1' (evm s1').[ wtmp <- ok (pword_of_word (zero_extend _ w2)) ].
         have Heq: eq_exc_fresh s2'' s1'.
         * split=> //.
           rewrite /s2'' /= => x Hx.
