@@ -156,7 +156,6 @@ Record compiler_params
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
   renaming_fd      : funname -> _ufundef -> _ufundef;
   remove_phi_nodes_fd : funname -> _ufundef -> _ufundef;
-  lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
   stack_register_symbol: Ident.ident;
@@ -273,7 +272,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams cparams.(lowering_vars) (p_funcs pa))
+      (lop_fvars_correct loparams cparams.(fresh_reg) (p_funcs pa))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -282,7 +281,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lop_lower_i loparams (is_regx cparams))
       (lowering_opt cparams)
       (warning cparams)
-      (lowering_vars cparams)
+      (fresh_reg cparams)
       (is_var_in_memory cparams)
       pa
   in

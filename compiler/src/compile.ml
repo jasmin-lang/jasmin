@@ -170,11 +170,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     Prog.V.clone x
   in
 
-  let fresh_reg name ty =
-    let ty = Conv.ty_of_cty ty in
-    Prog.V.mk name (Reg (Normal, Direct)) ty L._dummy []
-  in
-
   let fresh_counter =
     Prog.V.mk "i__copy" Inline tint L._dummy []
   in
@@ -209,7 +204,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       List.iter (warn_extra_fd Arch.asmOp) fds
   in
 
-  let lowering_vars =
+  let fresh_reg =
     let memo = Hashtbl.create 5 in
     fun n st ->
     let k = (n, st) in
@@ -242,7 +237,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         (fun ii ->
           let loc, _ = ii in
           !saved_extra_free_registers loc |> Option.map Conv.cvar_of_var);
-      Compiler.lowering_vars;
       Compiler.is_var_in_memory;
       Compiler.print_uprog =
         (fun s p ->
