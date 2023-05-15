@@ -19,11 +19,7 @@ Module Type CORE_IDENT.
 
   Parameter id_name : t -> name.
 
-  (* Needed in makeReferenceArguments *)
-  Parameter p__ : name.
-
-  (* Needed in stack_alloc *)
-  Parameter len__ : name.
+  Parameter name_of_string : string → name.
 
 End CORE_IDENT.
 
@@ -41,9 +37,7 @@ Module Cident : CORE_IDENT.
 
   Definition id_name (x : t) : name := x.
 
-  Definition p__ : name := 1%uint63.
-
-  Definition len__ : name := 2%uint63.
+  Definition name_of_string of string := 1%uint63.
 
 End Cident.
 
@@ -71,7 +65,6 @@ Module Ident <: IDENT.
 
   Module Mid := Tident.Mt.
 
-  Definition p__   : name := Cident.p__.
-  Definition len__ : name := Cident.len__.
+  Definition name_of_string : string → name := Cident.name_of_string.
 
 End Ident.

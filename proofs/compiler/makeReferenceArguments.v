@@ -140,8 +140,8 @@ Definition get_sig fn :=
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u o in
-  (map (fun ty => (is_sarr ty, Ident.p__, ty)) s.(scs_tin),
-   map (fun ty => (is_sarr ty, Ident.p__, ty)) s.(scs_tout)).
+  (map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tin),
+   map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tout)).
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
