@@ -772,7 +772,7 @@ Definition x86_VPSLLDQ sz := x86_vpsxldq (@wpslldq sz).
 Definition x86_VPSRLDQ sz := x86_vpsxldq (@wpsrldq sz).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_VPSHUFB sz := x86_u128_binop (@wpshufb sz).
+Definition x86_VPSHUFB sz := x86_u128_binop (lift2_vec U128 (@wpshufb U128) sz).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_vpshuf sz (op: word sz → Z → word sz) (v1: word sz) (v2: u8) : ex_tpl (w_ty sz) :=
