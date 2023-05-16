@@ -27,7 +27,7 @@
 - Fix semantics of the `VPMOVSX` and `VPMOVZX` instructions
   ([PR #446](https://github.com/jasmin-lang/jasmin/pull/446)).
 
-- Fix semantics of the `VPSHUFB` instruction
+- Fix semantics of the `VPSHUFB` and `VPCMPGT` instructions
   ([PR #449](https://github.com/jasmin-lang/jasmin/pull/449)).
 
 ## Other changes

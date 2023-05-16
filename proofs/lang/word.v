@@ -1348,15 +1348,15 @@ Definition wpslldq := wpsxldq (@wshl _).
 Definition wpsrldq := wpsxldq (@wshr _).
 
 (* -------------------------------------------------------------------*)
-Definition wpcmpu1 (cmp: Z → Z → bool) ve (x y: word ve) : word ve :=
-  if cmp (wunsigned x) (wunsigned y) then (-1)%R else 0%R.
-Arguments wpcmpu1 cmp {ve} _ _.
+Definition wpcmps1 (cmp: Z → Z → bool) ve (x y: word ve) : word ve :=
+  if cmp (wsigned x) (wsigned y) then (-1)%R else 0%R.
+Arguments wpcmps1 cmp {ve} _ _.
 
 Definition wpcmpeq ve sz (w1 w2: word sz) : word sz :=
-  lift2_vec ve (wpcmpu1 Z.eqb) sz w1 w2.
+  lift2_vec ve (wpcmps1 Z.eqb) sz w1 w2.
 
 Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
-  lift2_vec ve (wpcmpu1 Z.gtb) sz w1 w2.
+  lift2_vec ve (wpcmps1 Z.gtb) sz w1 w2.
 
 (* -------------------------------------------------------------------*)
 Definition wminmax1 ve (cmp : word ve -> word ve -> bool) (x y : word ve) : word ve :=
