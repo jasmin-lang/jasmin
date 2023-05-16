@@ -48,7 +48,6 @@ Extract Constant ident.WrapIdent.name => "CoreIdent.Cident.name".
 Extract Constant ident.Cident.tag     => "CoreIdent.Cident.tag".
 Extract Constant ident.Cident.id_name => "CoreIdent.Cident.id_name".
 
-Extract Constant ident.Cident.dummy   => "CoreIdent.Cident.dummy".
 Extract Constant ident.Cident.p__     => "CoreIdent.Cident.p__".
 Extract Constant ident.Cident.len__   => "CoreIdent.Cident.len__".
 

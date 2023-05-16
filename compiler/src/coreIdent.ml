@@ -99,8 +99,6 @@ module Cident = struct
 
   let id_name (x: t) : name = x.v_name
 
-  let dummy = V.mk "" (Reg(Normal,Direct)) tbool L._dummy []
-
   let p__ : name = "__p__"
 
   let len__ : name = "__len__"
