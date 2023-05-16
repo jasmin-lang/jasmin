@@ -728,14 +728,10 @@ Proof.
   by apply hsub.
 Qed.
 
-(* TODO: move (and cf. dummy_info in array_init.v) *)
-(* We need a var to give to nth as a default value *)
-Definition dummy_var := {| vtype := sbool; vname := Ident.dummy |}.
-
 Lemma get_pi_nth s pi v1 v2 :
   get_pi s = Some (pi, (v1, v2)) ->
   exists k,
-    [/\ nth dummy_var (map v_var params) k = s,
+    [/\ oseq.onth (map v_var params) k = Some s,
         nth None sao.(sao_params) k = Some pi,
         nth (Vbool true) vargs1 k = v1 &
         nth (Vbool true) vargs2 k = v2].

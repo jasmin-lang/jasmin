@@ -19,9 +19,6 @@ Module Type CORE_IDENT.
 
   Parameter id_name : t -> name.
 
-  (* A dummy ident needed in stack alloc *)
-  Parameter dummy : t.
-
   (* Needed in makeReferenceArguments *)
   Parameter p__ : name.
 
@@ -43,8 +40,6 @@ Module Cident : CORE_IDENT.
   Definition name : Type := int.
 
   Definition id_name (x : t) : name := x.
-
-  Definition dummy : t := 0%uint63.
 
   Definition p__ : name := 1%uint63.
 
@@ -76,7 +71,6 @@ Module Ident <: IDENT.
 
   Module Mid := Tident.Mt.
 
-  Definition dummy : ident := Cident.dummy.
   Definition p__   : name := Cident.p__.
   Definition len__ : name := Cident.len__.
 
