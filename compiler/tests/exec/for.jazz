@@ -1,0 +1,8 @@
+require "../success/x86-64/eval_for.jazz"
+
+inline
+fn test_param() -> inline int {
+  inline int i;
+  i = n;
+  return i;
+}

@@ -13,23 +13,3 @@ e = #VPSLLDQ_256(d, 3);
 f = #VPSRLDQ_256(e, 4);
 (u256)[p + 32] = f;
 }
-
-inline
-fn etest() -> reg u256[2] {
-global u128 g;
-reg u64 p;
-reg u256[2] r;
-p = 0x480;
-
-g = 0x12345678901234567890123456789012;
-(u128)[p + 0] = g;
-
-#inline test(p);
-
-r[0] = (u256)[p + 0];
-r[1] = (u256)[p + 32];
-
-return r;
-}
-
-exec etest (0x480 :64)

@@ -1,0 +1,9 @@
+require "../success/x86-64/inline_call_to_export.jazz"
+
+/* Inline call to an export function from an inline function. */
+inline
+fn test() -> reg u64 {
+  reg u64 a;
+  #inline a = sum(42, 24);
+  return a;
+}

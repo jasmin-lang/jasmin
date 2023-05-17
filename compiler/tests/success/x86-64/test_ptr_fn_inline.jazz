@@ -18,5 +18,3 @@ export fn foo() -> reg u64 {
   }
   return r;
 }
-
-exec foo()
