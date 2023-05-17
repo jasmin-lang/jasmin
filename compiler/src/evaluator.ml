@@ -155,6 +155,34 @@ let exec ep spp sip scs0 p ii fn args m =
   with Final(m,vs) -> m, vs 
 
 (* ----------------------------------------------------------- *)
+let initial_memory reg_size rsp alloc =
+  let ptr_of_z z = Word0.wrepr reg_size (Conv.cz_of_z z) in
+  (Low_memory.Memory.coq_M reg_size).init
+    (List.map (fun (ptr, sz) -> (ptr_of_z ptr, Conv.cz_of_z sz)) alloc)
+    (ptr_of_z rsp)
+
+(* ----------------------------------------------------------- *)
+let run (type reg regx xreg rflag cond asm_op extra_op)
+      (module A : Arch_full.Arch
+              with type reg = reg
+               and type regx = regx
+               and type xreg = xreg
+               and type rflag = rflag
+               and type cond = cond
+               and type asm_op = asm_op
+               and type extra_op = extra_op)
+      (p :
+         (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op
+           Expr.uprog) ii fn args m =
+  let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e Syscall_ocaml.sc_sem in
+  let spp = Sem_params_of_arch_extra.spp_of_asm_e A.asm_e in
+  let sip =
+    Sem_params_of_arch_extra.sip_of_asm_e A.asm_e Syscall_ocaml.sc_sem
+  in
+  let scs0 = Syscall_ocaml.initial_state () in
+  exec ep spp sip scs0 p ii fn args m
+
+(* ----------------------------------------------------------- *)
 let pp_undef fmt ty = 
   Format.fprintf fmt "undef<%a>" PrintCommon.pp_ty (Conv.ty_of_cty ty)
  

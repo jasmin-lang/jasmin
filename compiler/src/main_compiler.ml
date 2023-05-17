@@ -89,13 +89,6 @@ let main () =
           end)
     in
     let module Arch = Arch_full.Arch_from_Core_arch (P.C) in
-    let ep =
-      Sem_params_of_arch_extra.ep_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem
-    in
-    let spp = Sem_params_of_arch_extra.spp_of_asm_e Arch.asm_e in
-    let sip =
-      Sem_params_of_arch_extra.sip_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem
-    in
 
     if !safety_makeconfigdoc <> None
     then (
@@ -230,31 +223,15 @@ let main () =
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
-
-              let ptr_of_z z = Word0.wrepr Arch.reg_size (Conv.cz_of_z z) in
-              let live =
-                List.map
-                  (fun (ptr, sz) -> ptr_of_z ptr, Conv.cz_of_z sz)
-                  m
-              in
-              let m_init =
-                (Low_memory.Memory.coq_M Arch.reg_size).init
-                  live
-                  (ptr_of_z (Z.of_string "1024"))
-              in
-              (match m_init with
-                 | Utils0.Ok m -> m
-                 | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
-              |>
-              Evaluator.exec
-                ep
-                spp
-                sip
-                (Syscall_ocaml.initial_state ())
-                (Expr.to_uprog Arch.asmOp cprog)
-                ii
-                f
-                []
+              (match
+                 Evaluator.initial_memory Arch.reg_size (Z.of_string "1024") m
+               with
+               | Utils0.Ok m -> m
+               | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
+              |> Evaluator.run
+                   (module Arch)
+                   (Expr.to_uprog Arch.asmOp cprog)
+                   ii f []
             in
 
             Format.printf "@[<v>%a@]@."
