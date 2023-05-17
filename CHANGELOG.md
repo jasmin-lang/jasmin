@@ -30,6 +30,9 @@
 - Fix semantics of the `VPSHUFB` and `VPCMPGT` instructions
   ([PR #449](https://github.com/jasmin-lang/jasmin/pull/449)).
 
+- Fix semantics of the `SHR` instruction
+  ([PR #451](https://github.com/jasmin-lang/jasmin/pull/451)).
+
 ## Other changes
 
 - Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by
