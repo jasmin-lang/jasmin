@@ -107,13 +107,13 @@ let pp_baseop fmt xs o es =
          pp_expr (List.nth es 0) pp_uint ws
          pp_expr (List.nth es 1) pp_uint ws
       
-  | SUB ws -> (* CHECK ME *)
+(*
+  | SUB ws ->
      Format.fprintf fmt "subb %a%a %a%a %a%a %a%a"
        pp_lval (List.nth xs 1) pp_bool ()
        pp_lval (List.nth xs 5) pp_uint ws
        pp_expr (List.nth es 0) pp_uint ws
        pp_expr (List.nth es 1) pp_uint ws
-(*
   | MUL ws ->
      Format.fprintf fmt "umull"
   | IMUL of wsize
@@ -124,16 +124,17 @@ let pp_baseop fmt xs o es =
          pp_expr (List.nth es 0) pp_uint ws
          pp_expr (List.nth es 1) pp_uint ws
   
-  | IMULri ws -> (* CHECK ME *)
+  (*
+  | IMULri ws ->
      Format.fprintf fmt "mull dontcare %a%a %a%a %a%a"
          pp_lval (List.nth xs 5) pp_uint ws
          pp_expr (List.nth es 0) pp_uint ws
          pp_expr (List.nth es 1) pp_uint ws
 
-  (*
   | DIV of wsize
   | IDIV of wsize
-  | CQO of wsize *)
+  | CQO of wsize
+   *)
   | ADC ws ->
     Format.fprintf fmt "adcs %a%a %a%a %a%a %a%a %a%a"
       pp_lval (List.nth xs 1) pp_bool ()
@@ -170,7 +171,7 @@ let pp_baseop fmt xs o es =
       pp_expr (List.nth es 1) pp_uint ws
       
   | ANDN ws ->
-     Format.fprintf fmt "not %a%a %a%a\nand %a%a %a%a %a%a"
+     Format.fprintf fmt "not %a%a %a%a;\nand %a%a %a%a %a%a"
        pp_lval (List.nth xs 5) pp_uint ws
        pp_expr (List.nth es 0) pp_uint ws
        pp_lval (List.nth xs 5) pp_uint ws
@@ -264,10 +265,33 @@ let pp_baseop fmt xs o es =
   | VMOVDQU of wsize
   | VPMOVSX of velem * wsize * velem * wsize
   | VPMOVZX of velem * wsize * velem * wsize
-  | VPAND of wsize
-  | VPANDN of wsize
-  | VPOR of wsize
-  | VPXOR of wsize
+ *)
+  | VPAND ws ->
+     Format.fprintf fmt "and %a%a %a%a %a%a"
+       pp_lval (List.nth xs 0) pp_uint ws
+       pp_expr (List.nth es 0) pp_uint ws
+       pp_expr (List.nth es 1) pp_uint ws
+
+  | VPANDN ws ->
+     Format.fprintf fmt "not %a%a %a%a;\nand %a%a %a%a %a%a"
+       pp_lval (List.nth xs 5) pp_uint ws
+       pp_expr (List.nth es 0) pp_uint ws
+       pp_lval (List.nth xs 5) pp_uint ws
+       pp_lval (List.nth xs 5) pp_uint ws
+       pp_expr (List.nth es 1) pp_uint ws
+
+  | VPOR ws ->
+     Format.fprintf fmt "or %a%a %a%a %a%a"
+       pp_lval (List.nth xs 0) pp_uint ws
+       pp_expr (List.nth es 0) pp_uint ws
+       pp_expr (List.nth es 1) pp_uint ws
+
+  | VPXOR ws ->
+     Format.fprintf fmt "xor %a%a %a%a %a%a"
+       pp_lval (List.nth xs 0) pp_uint ws
+       pp_expr (List.nth es 0) pp_uint ws
+       pp_expr (List.nth es 1) pp_uint ws
+(*
   | VPADD of velem * wsize
   | VPSUB of velem * wsize
   | VPAVG of velem * wsize
