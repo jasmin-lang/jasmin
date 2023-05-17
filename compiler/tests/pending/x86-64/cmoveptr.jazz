@@ -12,20 +12,3 @@ fn test(reg u64 a) -> reg u8 {
   f = r[0];
   return f;
 }
-
-inline
-fn zero() -> reg u8 {
-  reg u8 r;
-  #inline r = test(42);
-  return r;
-}
-
-inline
-fn one() -> reg u8 {
-  reg u8 r;
-  #inline r = test(-42);
-  return r;
-}
-
-exec zero()
-exec one()
