@@ -1,0 +1,8 @@
+inline fn andn(reg u64 b c) -> reg u64
+{
+  reg u64 h;
+
+  h = #ANDN(b, c);
+
+  return h;
+}
