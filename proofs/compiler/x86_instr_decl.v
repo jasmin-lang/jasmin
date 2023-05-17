@@ -601,7 +601,7 @@ Definition x86_SHR sz (v: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   else
     let rc := lsb (wshr v (wunsigned i - 1)) in
     let r  := wshr v (wunsigned i) in
-    rflags_OF i r rc (msb r).
+    rflags_OF i r rc (msb v).
 
 Definition x86_SHRD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   Let _  := check_size_16_64 sz in
