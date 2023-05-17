@@ -29,19 +29,19 @@ fn gimli_ref(reg ptr u32[12] state) -> reg ptr u32[12] {
     for column = 0 to N_COLUMN {
     x = state[0 + column];
     x <<r= 24;
-    y = state[1 + column];
+    y = state[4 + column];
     y <<r= 9;
-    z = state[2 + column];
+    z = state[8 + column];
 
     a = x ^ (z << 1);
     b = y & z;
     a ^= b << 2;
-    state[2 + column] = a;
+    state[8 + column] = a;
 
     a = y ^ x;
     b = x | z;
     a ^= b << 1;
-    state[1 + column] = a;
+    state[4 + column] = a;
 
     a = z ^ y;
     b = x & y;
@@ -61,7 +61,7 @@ fn gimli_ref(reg ptr u32[12] state) -> reg ptr u32[12] {
 
     if (round % 4 == 0) {
     a = state[0];
-    b = rc | round;
+    b = rc + round;
     a ^= b;
     state[0] = a;
     }
