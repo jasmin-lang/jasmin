@@ -176,13 +176,14 @@ build-from-tarball:
 check:
   stage: test
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg testDeps true
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true --arg ocamlDeps true
   extends: .common
   needs:
   - coq-program
   - ocaml
   script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc -version'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'cd compiler && dune runtest'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci $EXTRA_MAKE_ARGUMENTS'
 
 libjade-compile-to-asm:
