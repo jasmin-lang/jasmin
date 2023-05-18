@@ -522,37 +522,33 @@ Definition x86_ROL sz (v: word sz) (i: u8) : ex_tpl (b2w_ty sz) :=
     let OF := if i == 1%R then Some (msb r != CF) else None in
     ok (:: OF, Some CF & r ).
 
-Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
+
+Definition x86_rotate_with_carry (sz: wsize)
+  (rot: word.word.word sz.+1 → nat → word.word.word sz.+1)
+  (ovf: word sz → bool → bool)
+  (v: word sz) (i: u8) (cf: bool)
+  : ex_tpl (b2w_ty sz) :=
   Let _  := check_size_8_64 sz in
   let i := wand i (x86_shift_mask sz) in
-  let im :=
+  let i :=
     match sz with
     | U8 => Zmod (wunsigned i) 9
     | U16 => Zmod (wunsigned i) 17
     | _  => wunsigned i
     end in
   let r := mathcomp.word.word.t2w [tuple of cf::mathcomp.word.word.w2t v] in
-  let r := mathcomp.word.word.rotl r (Z.to_nat im) in
-  let CF := mathcomp.word.word.msb r in
-  let r : word sz := mathcomp.word.word.t2w [tuple of behead (mathcomp.word.word.w2t r)] in
-  let OF := if i == 1%R then Some (msb r != CF) else None in
+  let r := rot r (Z.to_nat i) in
+  let r := mathcomp.word.word.w2t r in
+  let CF := head false r in
+  let r : word sz := mathcomp.word.word.t2w [tuple of behead r] in
+  let OF := if i == 1%R then Some (ovf r CF) else None in
   ok (:: OF, Some CF & r ).
 
+Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
+  @x86_rotate_with_carry sz (@mathcomp.word.word.rotl _) (λ r c, msb r != c) v i cf.
+
 Definition x86_RCR sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
-  Let _  := check_size_8_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  let im :=
-    match sz with
-    | U8 => Zmod (wunsigned i) 9
-    | U16 => Zmod (wunsigned i) 17
-    | _  => wunsigned i
-    end in
-  let OF := if i == 1%R then Some (msb v != cf) else None in
-  let r := mathcomp.word.word.t2w [tuple of rcons (mathcomp.word.word.w2t v) cf] in
-  let r := mathcomp.word.word.rotr r (Z.to_nat im) in
-  let CF := mathcomp.word.word.lsb r in
-  let r : word sz := mathcomp.word.word.t2w [tuple of rev (behead (rev (mathcomp.word.word.w2t r)))] in
-  ok (:: OF, Some CF & r ).
+  @x86_rotate_with_carry sz (@mathcomp.word.word.rotr _) (λ _ _, msb v != cf) v i cf.
 
 Definition rflags_OF {s} sz (i:word s) (r:word sz) rc OF : ex_tpl (b5w_ty sz) :=
   let OF := if i == 1%R then Some OF else None in
