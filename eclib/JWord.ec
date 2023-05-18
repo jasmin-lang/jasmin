@@ -1755,9 +1755,9 @@ theory W8.
     let i  = shift_mask i in
     let im = im i in
     let r  = fun j => if j = 0 then cf else v.[j-1] in
-    let r  = fun j => r ((j - i) %% im) in
+    let r  = fun j => r ((j - i) %% 9) in
     let CF = r 0 in 
-    let r  = init (fun j => r (j-1)) in
+    let r  = init (fun j => r (j+1)) in
     let OF = if i = 1 then (ALU.SF_of r <> CF) else undefined_flag in
     (OF, CF, r).
   
@@ -1765,10 +1765,10 @@ theory W8.
     let i  = shift_mask i in
     let im = im i in
     let r  = fun j => if j = 0 then cf else v.[j-1] in
-    let r  = fun j => r ((j + i) %% im) in
+    let r  = fun j => r ((j + i) %% 9) in
     let OF = if i = 1 then ALU.SF_of  v <> cf else undefined_flag in
     let CF = r 0 in 
-    let r  = init (fun j => r (j-1)) in
+    let r  = init (fun j => r (j+1)) in
     (OF, CF, r).
 
   op rflags_OF (i:int) (r:t) (rc OF:bool) =
@@ -2405,22 +2405,22 @@ abstract theory BitWordSH.
 
   op RCL_XX (v: t) (i: W8.t) (cf:bool) =
     let i  = shift_mask i in
-    let im = im i in
+    let i = im i in
     let r  = fun j => if j = 0 then cf else v.[j-1] in
-    let r  = fun j => r ((j - i) %% im) in
+    let r  = fun j => r ((j - i) %% (size + 1)) in
     let CF = r 0 in 
-    let r  = init (fun j => r (j-1)) in
+    let r  = init (fun j => r (j+1)) in
     let OF = if i = 1 then (ALU.SF_of r <> CF) else undefined_flag in
     (OF, CF, r).
   
   op RCR_XX (v: t) (i: W8.t) (cf:bool) =
     let i  = shift_mask i in
-    let im = im i in
+    let i = im i in
     let r  = fun j => if j = 0 then cf else v.[j-1] in
-    let r  = fun j => r ((j + i) %% im) in
+    let r  = fun j => r ((j + i) %% (size + 1)) in
     let OF = if i = 1 then ALU.SF_of  v <> cf else undefined_flag in
     let CF = r 0 in 
-    let r  = init (fun j => r (j-1)) in
+    let r  = init (fun j => r (j+1)) in
     (OF, CF, r).
 
   op rflags_OF (i:int) (r:t) (rc OF:bool) =
