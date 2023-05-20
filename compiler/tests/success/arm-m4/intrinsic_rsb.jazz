@@ -11,6 +11,10 @@ fn rsb(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #RSB(arg0, 1);
     [x] = x;
     x = #RSB(arg0, -1);
+    x = #RSB(x, 0xcacacaca); // `bbbb` pattern.
+    x = #RSB(x, 0xca00ca00); // `b0b0` pattern.
+    x = #RSB(x, 0x00ca00ca); // `0b0b` pattern.
+    x = #RSB(x, 0x00cb0000); // Shifted.
     [x] = x;
 
     // Shifts.

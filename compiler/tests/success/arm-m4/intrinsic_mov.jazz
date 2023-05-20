@@ -1,14 +1,35 @@
 export
-fn mov() -> reg u32 {
-    reg u32 x y;
-    y = #MOV(1);
+fn mov(reg u32 arg0) -> reg u32 {
+    reg u32 x;
 
-    x = #MOV(y);
+    x = arg0;
+    [x] = x;
+
+    // Immediates.
+    x = #MOV(1);
+    [x] = x;
+    x = #MOV(0xcacacaca); // `bbbb` pattern.
+    [x] = x;
+    x = #MOV(0xca00ca00); // `b0b0` pattern.
+    [x] = x;
+    x = #MOV(0x00ca00ca); // `0b0b` pattern.
+    [x] = x;
+    x = #MOV(0x0000cb00); // Shifted immediate gets converted into W-encoding.
+    [x] = x;
+    x = #MOV(0x0000caca); // W-encoding.
+    [x] = x;
 
     // Set flags.
+    ?{}, x = #MOVS(x);
+    [x] = x;
+    ?{}, x = #MOVS(0xcacacaca);
+    [x] = x;
+    ?{}, x = #MOVS(0xca00ca00);
+    [x] = x;
+    ?{}, x = #MOVS(0x00ca00ca);
+    [x] = x;
     reg bool n, z, v, c;
-    n, z, c, v, x = #MOVS(x);
-    n, z, c, v, _ = #MOVS(1);
+    n, z, c, v, _ = #MOVS(-1);
 
     // Conditions.
     x = #MOVcc(x, z, x);            // EQ
@@ -27,7 +48,7 @@ fn mov() -> reg u32 {
     x = #MOVcc(x, z || n != v, x);  // LE
 
     x = #MOVcc(1, !z, x);
-    n, z, c, v, x = #MOVScc(y, !z, n, z, c, v, x);
+    n, z, c, v, x = #MOVScc(arg0, !z, n, z, c, v, x);
     n, z, c, v, x = #MOVScc(49, !!z, n, z, c, v, x);
 
     reg u32 res;

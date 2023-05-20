@@ -160,9 +160,9 @@ let pp_arm_mnemonic =
     String.lowercase_ascii mn in
   hash_to_string_core to_string
 
-let pp_mnemonic_ext (ARM_op (mn, opts)) args =
+let pp_mnemonic_ext (ARM_op (mn, opts)) suff args =
   let mn = pp_arm_mnemonic mn in
-  Printf.sprintf "%s%s%s" mn (pp_set_flags opts) (pp_conditional args)
+  Printf.sprintf "%s%s%s%s" mn suff (pp_set_flags opts) (pp_conditional args)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =
   match o with
@@ -179,7 +179,76 @@ let get_IT i =
     end
   | _ -> []
 
-let pp_instr fn (_ : Format.formatter) i =
+
+module ArgChecker : sig
+  (* Return the (possibly empty) suffix for the mnemonic according to its
+     arguments.
+     Raise an error if the arguments are invalid. *)
+  val check_args :
+    arm_op ->
+    (Wsize.wsize * (register, Arm_decl.__, Arm_decl.__, rflag, condt) asm_arg)
+    list ->
+    string
+end = struct
+  let exn_imm_too_big n =
+    hierror
+      ~loc:Lnone
+      ~kind:"printing"
+      "invalid immediate (%s is too large)."
+      (Z.to_string (Conv.z_of_cz n))
+
+  let exn_imm_shifted n =
+      hierror
+      ~loc:Lnone
+      ~kind:"printing"
+      "unsupported immediate (%s needs a shift with carry)."
+      (Z.to_string (Conv.z_of_cz n))
+
+  let chk_imm args n on_shift on_none =
+    match List.at args n with
+    | _, Imm (_, w) -> (
+        let n = Word0.wunsigned Wsize.U32 w in
+        match ei_kind n with
+        | EI_shift -> on_shift n
+        | EI_none -> on_none n
+        | _ -> "")
+    | _ -> ""
+
+  let chk_w12_encoding opts n =
+    if opts.set_flags || not (is_w12_encoding n) then exn_imm_too_big n
+    else "w"
+
+  let chk_w16_encoding opts n =
+    if opts.set_flags || not (is_w16_encoding n) then exn_imm_too_big n
+    else "w"
+
+  (* Accept [EI_shift], reject [EI_none]. *)
+  let chk_imm_accept_shift args n = chk_imm args n (fun _ -> "") exn_imm_too_big
+
+  (* Accept [EI_shift], force W-encoding of 12-bits on [EI_none]. *)
+  let chk_imm_accept_shift_w12 args n opts =
+    chk_imm args n (fun _ -> "") (chk_w12_encoding opts)
+
+  (* Reject [EI_shift] and [EI_none]. *)
+  let chk_imm_reject_shift args n =
+    chk_imm args n exn_imm_shifted exn_imm_too_big
+
+  (* Force W-encoding of 16-bits on [EI_shift] and [EI_none]. *)
+  let chk_imm_w16_encoding args n opts =
+    chk_imm args n (chk_w16_encoding opts) (chk_w16_encoding opts)
+
+  let check_args (ARM_op (mn, opts)) args =
+    match mn with
+    | ADC | RSB -> chk_imm_accept_shift args 2
+    | CMP -> chk_imm_accept_shift args 1
+    | ADD | SUB -> chk_imm_accept_shift_w12 args 2 opts
+    | MOV -> chk_imm_w16_encoding args 1 opts
+    | AND | BIC | EOR | ORR -> chk_imm_reject_shift args 2
+    | MVN | TST -> chk_imm_reject_shift args 1
+    | _ -> ""
+end
+
+let pp_instr fn _ i =
   match i with
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
@@ -221,10 +290,12 @@ let pp_instr fn (_ : Format.formatter) i =
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
       let pp = id.id_pp_asm args in
-      let name = pp_mnemonic_ext op args in
+      let suff = ArgChecker.check_args op pp.pp_aop_args in
+      let name = pp_mnemonic_ext op suff args in
       let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
       let args = pp_shift op args in
       get_IT i @ [ LInstr (name, args) ]
+
 
 (* -------------------------------------------------------------------- *)
 

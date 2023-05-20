@@ -614,6 +614,21 @@ Proof.
   by rewrite zero_extend_u.
 Qed.
 
+Lemma mov_imm_mnemonicP e mn e' :
+  mov_imm_mnemonic e = Some (mn, e') ->
+  (mn = MOV /\ e' = e) \/
+  exists z,
+    [/\ e = Pconst z
+      , mn = MVN
+      & e' = Pconst (Z_mod_lnot z reg_size)
+    ].
+Proof.
+  rewrite /mov_imm_mnemonic.
+  case: is_constP => [] ?.
+  all: repeat case: ifP => _.
+  all: by [|move=> [<- <-]; econstructor; econstructor].
+Qed.
+
 Lemma lower_Papp1P op e:
   Plower_pexpr_aux (Papp1 op e).
 Proof.
@@ -632,17 +647,19 @@ Proof.
   - move: hw => /sem_sop1I /= [w' hw' hw].
     move: hw => /Vword_inj [?]; subst ws'.
     move=> /= ?; subst w.
-    case: ifP => // hws'' /Some_inj[] <-{aop} <-{es}.
-    split; last done.
-    clear hfve.
-
-    rewrite /=.
-    rewrite hseme {hseme} /=.
-
-    rewrite /sem_sop1 /=.
-    rewrite hw' {hw'} /=.
-    eexists; first reflexivity.
-    by rewrite /exec_sopn /= zero_extend_u zero_extend_wrepr.
+    case: ifP => // _.
+    case h: mov_imm_mnemonic => [[mn e'] | //] [<- <-] {aop es}.
+    {
+      case: (mov_imm_mnemonicP h) => [[??] | [z [???]]]; subst.
+      all: split; last done.
+      all: eexists; first by [|rewrite /= hseme /= /sem_sop1 /= hw'].
+      - by rewrite /exec_sopn /= zero_extend_u zero_extend_wrepr.
+      rewrite /exec_sopn /= zero_extend_u.
+      move: hseme => [?]; subst v.
+      move: hw' => [?]; subst w'.
+      rewrite wrepr_mod -wrepr_wnot wnot_wnot wrepr_mod.
+      by rewrite zero_extend_wrepr.
+    }
 
   (* TODO_ARM: The following two cases are the same. *)
 

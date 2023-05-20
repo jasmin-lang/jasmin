@@ -33,6 +33,7 @@ compiler/arch_params_proof.v
 compiler/arm_decl.v
 compiler/arm_decl_core.v
 compiler/arm_extra.v
+compiler/arm_facts.v
 compiler/arm_instr_decl.v
 compiler/arm_instr_decl_lemmas.v
 compiler/arm_lowering.v

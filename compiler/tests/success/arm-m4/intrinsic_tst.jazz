@@ -10,8 +10,13 @@ fn tst(reg u32 arg0 arg1 p) {
 
     // Immediates.
     n, z, c = #TST(arg0, 3);
-    x = 1 if n;
-    [p] = x;
+    [x] = x if z;
+    n, z, c = #TST(x, 0xcacacaca); // `bbbb` pattern.
+    [x] = x if z;
+    n, z, c = #TST(x, 0xca00ca00); // `b0b0` pattern.
+    [x] = x if z;
+    n, z, c = #TST(x, 0x00ca00ca); // `0b0b` pattern.
+    [x] = x if z;
 
     // Set flags.
     n, z, c, v, _ = #MOVS(arg0);

@@ -318,3 +318,54 @@ Definition arm_linux_call_conv : calling_convention :=
    ; call_xreg_ret  := [::]
    ; call_reg_ret_uniq := erefl true;
   |}.
+
+
+(* -------------------------------------------------------------------- *)
+(* Valid immediates checks. *)
+
+Variant expand_immediate_kind :=
+| EI_none
+| EI_byte
+| EI_pattern
+| EI_shift.
+
+Definition z_to_bytes (n : Z) : Z * Z * Z * Z :=
+  let '(n, b0) := Z.div_eucl n 256 in
+  let '(n, b1) := Z.div_eucl n 256 in
+  let '(n, b2) := Z.div_eucl n 256 in
+  let b3 := (n mod 256)%Z in
+  (b3, b2, b1, b0).
+
+(* An immediate of the pattern kind has the shape [bbbb], [0b0b], or [b0b0],
+   where [b] is a byte. *)
+Definition is_ei_pattern (n : Z) : bool :=
+  let '(b3, b2, b1, b0) := z_to_bytes n in
+  [|| [&& b3 == b0, b2 == b0 & b1 == b0 ]
+    , [&& b3 == 0, b2 == b0 & b1 == 0 ]
+    | [&& b3 == b1, b2 == 0 & b0 == 0 ]
+  ].
+
+(* An immediate of the shift kind has the shape [0...01xxxxxxx0...0] where the
+   number of suffix zeroes is at least one.
+   Here we assume that last part, i.e. that [n] is larger than 2 (if it were
+   not, we would have caught it in the ETI_byte case). *)
+Definition is_ei_shift (n : Z) : bool :=
+  (* Find where the first set bit and move 7 bits further. *)
+  let byte_end := (Z.log2 n - 7)%Z in
+  (* Check if any bit after the byte is one. *)
+  Z.rem n (Z.pow 2 byte_end) == 0.
+
+Definition ei_kind (n : Z) : expand_immediate_kind :=
+  if [&& 0 <=? n & n <? 256 ]%Z then EI_byte
+  else if is_ei_pattern n then EI_pattern
+  else if is_ei_shift n then EI_shift
+  else EI_none.
+
+Definition is_expandable (n : Z) : bool :=
+  match ei_kind n with
+  | EI_byte | EI_pattern => true
+  | EI_shift | EI_none => false
+  end.
+
+Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
+Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.

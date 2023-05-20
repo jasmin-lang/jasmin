@@ -11,6 +11,9 @@ fn eor(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #EOR(arg0, 1);
     [x] = x;
     x = #EOR(arg0, -1);
+    x = #EOR(x, 0xcacacaca); // `bbbb` pattern.
+    x = #EOR(x, 0xca00ca00); // `b0b0` pattern.
+    x = #EOR(x, 0x00ca00ca); // `0b0b` pattern.
     [x] = x;
 
     // Shifts.
@@ -71,6 +74,9 @@ fn eor(reg u32 arg0, reg u32 arg1) -> reg u32 {
     // Combinations.
     nf, zf, cf, x = #EORScc(x, arg0, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #EORS(x, 2);
+    ?{}, x = #EORS(x, 0xcacacaca);
+    ?{}, x = #EORS(x, 0xca00ca00);
+    ?{}, x = #EORS(x, 0x00ca00ca);
     nf, zf, cf, x = #EORS(x, arg0 << 3);
     nf, zf, cf, x = #EORS(x, arg0 >> 3);
     nf, zf, cf, x = #EORS(x, arg0 >>s 3);

@@ -13,6 +13,11 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
     [x] = x;
     x = arg0 + -1;
     x += -1;
+    x += 0xcacacaca; // `bbbb` pattern.
+    x += 0xca00ca00; // `b0b0` pattern.
+    x += 0x00ca00ca; // `0b0b` pattern.
+    x += 0x000cb000; // Shifted.
+    x += 0x00000aca; // W-encoding.
     [x] = x;
 
     // Shifts.

@@ -129,6 +129,11 @@ Proof. done. Qed.
 Lemma wsize_size_wbase s : wsize_size s < wbase U8.
 Proof. by apply /ZltP; case: s; vm_compute. Qed.
 
+Lemma wbase_div_wbase ws0 ws1 :
+  (ws0 <= ws1)%CMP ->
+  (wbase ws0 | wbase ws1).
+Proof. move=> h. exists (wbase ws1 / wbase ws0). case: ws0 h; by case: ws1. Qed.
+
 Lemma wsize_size_div_wbase sz sz' : (wsize_size sz | wbase sz').
 Proof.
   apply Znumtheory.Zmod_divide => //.
@@ -1881,6 +1886,8 @@ Proof.
   by rewrite 3!(Z.mod_pow2_bits_high _ _ _ hrange).
 Qed.
 
+(* -------------------------------------------------------------------- *)
+
 Lemma wrepr_xor ws (x y : Z) :
   wxor (wrepr ws x) (wrepr ws y) = wrepr ws (Z.lxor x y).
 Proof.
@@ -1892,19 +1899,21 @@ Proof.
   by rewrite Zlxor_mod.
 Qed.
 
-Lemma msb_wnot ws (x : word ws) :
-  msb (wnot x) = ~~ msb x.
-Proof. rewrite /msb. by have /= -> := wnotE x (Ordinal (ltnSn _)). Qed.
+Lemma wrepr_wnot ws z :
+  wnot (wrepr ws z) = wrepr ws (Z.lnot z).
+Proof. by rewrite /wnot wrepr_xor Z.lxor_m1_r. Qed.
+
+Lemma wnot_wnot ws (x : word ws) :
+  wnot (wnot x) = x.
+Proof. by rewrite -(wrepr_unsigned x) 2!wrepr_wnot Z.lnot_involutive. Qed.
 
 Lemma wnotP ws (x : word ws) :
   wnot x = wrepr ws (Z.lnot (wunsigned x)).
-Proof.
-  rewrite /wnot.
-  rewrite -Z.lxor_m1_r.
-  rewrite -wrepr_xor.
-  rewrite wrepr_unsigned.
-  by rewrite wrepr_m1.
-Qed.
+Proof. by rewrite -{1}(wrepr_unsigned x) wrepr_wnot. Qed.
+
+Lemma msb_wnot ws (x : word ws) :
+  msb (wnot x) = ~~ msb x.
+Proof. rewrite /msb. by have /= -> := wnotE x (Ordinal (ltnSn _)). Qed.
 
 Lemma wnot1_wopp ws (x : word ws) :
   (wnot x + 1)%R = (- x)%R.
