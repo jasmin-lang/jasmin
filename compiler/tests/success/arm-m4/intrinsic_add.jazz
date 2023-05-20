@@ -11,6 +11,11 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #ADD(arg0, 1);
     [x] = x;
     x = #ADD(arg0, -1);
+    x = #ADD(x, 0xcacacaca); // `bbbb` pattern.
+    x = #ADD(x, 0xca00ca00); // `b0b0` pattern.
+    x = #ADD(x, 0x00ca00ca); // `0b0b` pattern.
+    x = #ADD(x, 0x000cb000); // Shifted.
+    x = #ADD(x, 0x00000aca); // W-encoding of 12-bits.
     [x] = x;
 
     // Shifts.
@@ -71,6 +76,10 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
     // Combinations.
     nf, zf, cf, vf, x = #ADDScc(x, arg0, nf == vf, nf, zf, cf, vf, x);
     nf, zf, cf, vf, x = #ADDS(x, 2);
+    ?{}, x = #ADDS(x, 0xcacacaca);
+    ?{}, x = #ADDS(x, 0xca00ca00);
+    ?{}, x = #ADDS(x, 0x00ca00ca);
+    ?{}, x = #ADDS(x, 0x00cb0000);
     nf, zf, cf, vf, x = #ADDS(x, arg0 << 3);
     nf, zf, cf, vf, x = #ADDS(x, arg0 >> 3);
     nf, zf, cf, vf, x = #ADDS(x, arg0 >>s 3);

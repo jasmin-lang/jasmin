@@ -60,7 +60,7 @@ Definition arm_op_subi (x y : var_i) (imm : Z) : fopn_args :=
   arm_op_arith_imm SUB x y imm.
 
 Definition arm_op_align (x y : var_i) (al : wsize) :=
-  arm_op_arith_imm AND x y (- wsize_size al).
+  arm_op_arith_imm BIC x y (wsize_size al - 1).
 
 (* Precondition: [0 <= imm < wbase reg_size]. *)
 Definition arm_cmd_load_large_imm (x : var_i) (imm : Z) : seq fopn_args :=

@@ -189,7 +189,7 @@ Ltac t_arm_op :=
   rewrite /eval_instr /= /sem_sopn /= /get_gvar /=;
   t_rewrite_eqs;
   rewrite /of_estate /= /with_vm /=;
-  rewrite ?zero_extend_u ?pword_of_wordE;
+  rewrite ?zero_extend_u ?pword_of_wordE addn1;
   t_rewrite_eqs.
 
 Lemma arm_op_subi_eval_instr lp ls ii y imm wy :
@@ -198,7 +198,7 @@ Lemma arm_op_subi_eval_instr lp ls ii y imm wy :
      let: wx' := (wy - wrepr reg_size imm)%R in
      let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wx')]%vmap in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite wsub_wnot1 addn1. Qed.
+Proof. move=> hgety. t_arm_op. by rewrite wsub_wnot1. Qed.
 
 Lemma arm_op_align_eval_instr lp ls ii y al wy :
   get_var (lvm ls) (v_var y) = ok (Vword wy)
@@ -206,14 +206,20 @@ Lemma arm_op_align_eval_instr lp ls ii y al wy :
      let: wx' := align_word al wy in
      let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wx')]%vmap in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite addn1. Qed.
+Proof.
+  move=> hgety.
+  Opaque wsize_size.
+  t_arm_op.
+  Transparent wsize_size.
+  by rewrite wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
+Qed.
 
 Lemma arm_op_mov_eval_instr lp ls ii y wy :
   get_var (lvm ls) (v_var y) = ok (Vword wy)
   -> let: li := li_of_copn_args ii (arm_op_mov x y) in
      let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wy)]%vmap in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite addn1. Qed.
+Proof. move=> hgety. by t_arm_op. Qed.
 
 Lemma arm_op_str_off_eval_instr lp ls m' ii y off wx (wy : word reg_size) :
   get_var (lvm ls) (v_var x) = ok (Vword wx)
@@ -221,7 +227,7 @@ Lemma arm_op_str_off_eval_instr lp ls m' ii y off wx (wy : word reg_size) :
   -> write (lmem ls) (wx + wrepr Uptr off)%R wy = ok m'
   -> let: li := li_of_copn_args ii (arm_op_str_off y x off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
-Proof. move=> hgety hgetx hwrite. t_arm_op. by rewrite addn1. Qed.
+Proof. move=> hgety hgetx hwrite. by t_arm_op. Qed.
 
 End ARM_OP.
 

@@ -204,13 +204,38 @@ Definition is_load (e: pexpr) : bool :=
     => is_var_in_memory x
   end.
 
+Definition Z_mod_lnot (z : Z) (ws : wsize) : Z :=
+  let m := wbase ws in
+  (Z.lnot (z mod m) mod m)%Z.
+
+(* If the expression is an integer, we first check that the immediate is either
+   a byte or an expandable pattern. If not, we try to use the W-encoding
+   (16-bit immediate and we can't set flags). Otherwise, we try to use [MVN]. *)
+Definition mov_imm_mnemonic (e : pexpr) : option (arm_mnemonic * pexpr) :=
+  if is_const e is Some z
+  then
+    if is_expandable z
+    then Some (MOV, e)
+    else
+      if is_w16_encoding z
+      then Some (MOV, e)
+      else
+        let nz := Z_mod_lnot z reg_size in
+        if is_expandable nz
+        then Some (MVN, Pconst nz)
+        else None
+  else Some (MOV, e).
+
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
   if ws is U32
   then
     match op with
     | Oword_of_int ws' =>
-        if (U32 ≤ ws')%CMP
-        then Some (ARM_op MOV default_opts, [:: Papp1 (Oword_of_int U32) e ])
+        if (U32 <= ws')%CMP
+        then
+          if mov_imm_mnemonic e is Some (mn, e')
+          then Some (ARM_op mn default_opts, [:: Papp1 (Oword_of_int U32) e' ])
+          else None
         else None
     | Osignext U32 ws' =>
         if is_load e

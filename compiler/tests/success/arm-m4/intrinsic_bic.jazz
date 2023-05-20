@@ -11,6 +11,9 @@ fn bic(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #BIC(arg0, 1);
     [x] = x;
     x = #BIC(arg0, -1);
+    x = #BIC(x, 0xcacacaca); // `bbbb` pattern.
+    x = #BIC(x, 0xca00ca00); // `b0b0` pattern.
+    x = #BIC(x, 0x00ca00ca); // `0b0b` pattern.
     [x] = x;
 
     // Shifts.
@@ -71,6 +74,9 @@ fn bic(reg u32 arg0, reg u32 arg1) -> reg u32 {
     // Combinations.
     nf, zf, cf, x = #BICScc(x, arg0, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #BICS(x, 2);
+    ?{}, x = #BICS(x, 0xcacacaca);
+    ?{}, x = #BICS(x, 0xca00ca00);
+    ?{}, x = #BICS(x, 0x00ca00ca);
     nf, zf, cf, x = #BICS(x, arg0 << 3);
     nf, zf, cf, x = #BICS(x, arg0 >> 3);
     nf, zf, cf, x = #BICS(x, arg0 >>s 3);
