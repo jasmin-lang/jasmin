@@ -134,7 +134,7 @@ let expr_of_cexprs es = List.map (expr_of_cexpr) es
 (* ------------------------------------------------------------------------ *)
 
 let rec cinstr_of_instr i c =
-  let n = i.i_loc, i.i_annot in
+  let n = L.refresh_i_loc i.i_loc, i.i_annot in
   cinstr_r_of_instr_r n i.i_desc c
 
 and cinstr_r_of_instr_r p i tl =
