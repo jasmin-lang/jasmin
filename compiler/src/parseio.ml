@@ -6,7 +6,7 @@ module L = Lexing
 
 (* -------------------------------------------------------------------- *)
 let lexbuf_from_channel = fun name channel ->
-  let lexbuf = Lexing.from_channel channel in
+  let lexbuf = Lexing.from_function channel in
     lexbuf.Lexing.lex_curr_p <- {
         Lexing.pos_fname = name;
         Lexing.pos_lnum  = 1;
@@ -26,5 +26,6 @@ let lexer (lexbuf : L.lexbuf) =
 
 (* -------------------------------------------------------------------- *)
 let parse_program ?(name = "") (inc : IO.input) =
-  let lexbuf = lexbuf_from_channel name (IO.to_input_channel inc) in
+  let lexbuf = lexbuf_from_channel name @@ fun buf n ->
+  try IO.input inc buf 0 n with IO.No_more_input -> 0 in
   parserfun_entry (fun () -> lexer lexbuf)
