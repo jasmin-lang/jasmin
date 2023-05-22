@@ -898,6 +898,8 @@ abbrev (`^`) = (+^).
 
 op msb (b: t): bool = 2^(size - 1) <= (to_uint b).
 
+op lsb (w: t): bool = w.[0].
+
 op (`>>>`) (x : t) (i : int) =
   init (fun j => x.[j + i])
 axiomatized by wlsrE.
@@ -1443,8 +1445,6 @@ theory ALU.
 
 op SF_of (w : t) = w.[size - 1].
 
-op PF_of (w : t) = w.[0].
-
 op ZF_of (w : t) = w = zero.
 
 (*
@@ -1460,7 +1460,7 @@ op rflags_of_bwop (w : t) =
   let OF = false in
   let CF = false in
   let SF = SF_of w in 
-  let PF = PF_of w in
+  let PF = undefined_flag in
   let ZF = ZF_of w in
   (OF, CF, SF, PF, ZF).
 
@@ -1468,7 +1468,7 @@ op rflags_of_aluop (w : t) (vu vs : int) =
   let OF = to_sint w <> vs in
   let CF = to_uint w <> vu in
   let SF = SF_of w in
-  let PF = PF_of w in
+  let PF = undefined_flag in
   let ZF = ZF_of w in
   (OF, CF, SF, PF, ZF).
 
@@ -1491,7 +1491,7 @@ op rflags_of_popcnt (w: t) =
 op rflags_of_aluop_nocf_w (w : t) (vs : int) =
   let OF = to_sint w <> vs in
   let SF = SF_of w in
-  let PF = PF_of w in
+  let PF = undefined_flag in
   let ZF = ZF_of w in
   (OF, SF, PF, ZF, w).
 
@@ -1602,7 +1602,7 @@ op NEG_XX (w: t) =
   let OF = to_sint v <> vs in
   let CF = w <> of_int 0 in
   let SF = SF_of v in
-  let PF = PF_of v in
+  let PF = undefined_flag in
   let ZF = ZF_of v in
   (OF, CF, SF, PF, ZF, v).
 
@@ -1741,7 +1741,7 @@ theory W8.
     if i = 0 then(undefined_flag, undefined_flag, v)
     else
       let r = v `|<<<|` i in
-      let CF = ALU.PF_of r in
+      let CF = lsb r in
       let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
       (OF, CF, r)
   axiomatized by ROL_8_E.
@@ -1775,7 +1775,7 @@ theory W8.
     let OF = if i = 1 then OF else undefined_flag in
     let CF = rc in
     let SF = ALU.SF_of r in
-    let PF = ALU.PF_of r in
+    let PF = undefined_flag in
     let ZF = ALU.ZF_of r in
     (OF, CF, SF, PF, ZF, r).
 
@@ -1801,7 +1801,7 @@ theory W8.
     let i = shift_mask i in 
     if i = 0 then flags_w rflags_undefined v 
     else
-      let rc = ALU.PF_of (v `>>>` i -1) in
+      let rc = lsb (v `>>>` i -1) in
       let r  = v `>>>` i in
       rflags_OF i r rc (ALU.SF_of r).
   
@@ -1809,7 +1809,7 @@ theory W8.
     let i = shift_mask i in
     if i = 0 then flags_w rflags_undefined v1
     else
-      let rc = ALU.PF_of (v1 `>>>` i - 1) in
+      let rc = lsb (v1 `>>>` i - 1) in
       let r1 = v1 `>>>` i in
       let r2 = v2 `<<<` (size - i) in
       let r  = r1 +^ r2 in
@@ -1819,7 +1819,7 @@ theory W8.
     let i = shift_mask i in 
     if i = 0 then flags_w rflags_undefined v
     else
-      let rc = ALU.PF_of (sar v (i - 1)) in
+      let rc = lsb (sar v (i - 1)) in
       let r  = sar v i in
       rflags_OF i r rc false.
 
@@ -2393,7 +2393,7 @@ abstract theory BitWordSH.
     if i = 0 then(undefined_flag, undefined_flag, v)
     else
       let r = v `|<<<|` i in
-      let CF = ALU.PF_of r in
+      let CF = lsb r in
       let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
       (OF, CF, r)
   axiomatized by ROL_XX_E.
@@ -2427,7 +2427,7 @@ abstract theory BitWordSH.
     let OF = if i = 1 then OF else undefined_flag in
     let CF = rc in
     let SF = ALU.SF_of r in
-    let PF = ALU.PF_of r in
+    let PF = lsb r in
     let ZF = ALU.ZF_of r in
     (OF, CF, SF, PF, ZF, r).
 
@@ -2455,7 +2455,7 @@ abstract theory BitWordSH.
     let i = shift_mask i in 
     if i = 0 then flags_w rflags_undefined v 
     else
-      let rc = ALU.PF_of (v `>>>` i -1) in
+      let rc = lsb (v `>>>` i -1) in
       let r  = v `>>>` i in
       rflags_OF i r rc (ALU.SF_of r).
   
@@ -2463,7 +2463,7 @@ abstract theory BitWordSH.
     let i = shift_mask i in
     if i = 0 then flags_w rflags_undefined v1
     else
-      let rc = ALU.PF_of (v1 `>>>` i - 1) in
+      let rc = lsb (v1 `>>>` i - 1) in
       let r1 = v1 `>>>` i in
       let r2 = v2 `<<<` (size - i) in
       let r  = r1 +^ r2 in
@@ -2473,7 +2473,7 @@ abstract theory BitWordSH.
     let i = shift_mask i in 
     if i = 0 then flags_w rflags_undefined v
     else
-      let rc = ALU.PF_of (sar v (i - 1)) in
+      let rc = lsb (sar v (i - 1)) in
       let r  = sar v i in
       rflags_OF i r rc false.
 
