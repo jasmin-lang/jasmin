@@ -11,7 +11,7 @@ fn sbfx(reg u32 arg0) -> reg u32 {
     [x] = x;
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = #SBFXcc(arg0, 3, 5, zf, x);

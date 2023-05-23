@@ -9,7 +9,7 @@ fn uxth(reg u32 arg0) -> reg u32 {
     x = #UXTH(x, 24);
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = #UXTHcc(arg0, 8, zf, x);

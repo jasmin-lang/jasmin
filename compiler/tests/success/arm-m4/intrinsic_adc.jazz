@@ -3,7 +3,7 @@ fn adc(reg u32 arg0, reg u32 arg1) -> reg u32 {
     reg u32 x;
     reg bool c;
 
-    _, _, c, _, _ = #MOVS(arg0);
+    _, _, c, _ = #MOVS(arg0);
 
     x = #ADC(arg0, arg1, c);
 

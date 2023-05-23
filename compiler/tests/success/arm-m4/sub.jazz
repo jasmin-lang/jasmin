@@ -50,7 +50,7 @@ fn sub(reg u32 arg0, reg u32 arg1) -> reg u32 {
     [x] = x;
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf, _ = #SUBS(x, 0);
 
     // EQ
     x = arg0 - arg1 if zf;

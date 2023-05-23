@@ -10,7 +10,7 @@ fn rol(reg u32 arg0) -> reg u32 {
     x <<r= 1;
     [x] = x;
 
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     x <<r= 2 if zf;
     x <<r= 2 if !!zf;
