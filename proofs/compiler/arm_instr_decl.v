@@ -1220,7 +1220,7 @@ Definition bit_field_extract_semi
   (shr : wreg -> Z -> wreg) (wn : wreg) (widx wwidth : word U8) : exec wreg :=
   let idx := wunsigned widx in
   let width := wunsigned wwidth in
-  ok (shr (wshl wn (32 - idx)%Z) (32 - width)%Z).
+  ok (shr (wshl wn (32 - width - idx)%Z) (32 - width)%Z).
 
 Definition arm_UBFX_instr : instr_desc_t :=
   let mn := UBFX in
