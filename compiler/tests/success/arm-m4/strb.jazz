@@ -15,7 +15,7 @@ fn strb(reg u32 arg) {
 
     // Set flags.
     reg bool n, z, v, c;
-    n, z, c, v, _ = #MOVS(x);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     (u8)[x] = x if z;            // EQ

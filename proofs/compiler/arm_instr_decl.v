@@ -1163,8 +1163,8 @@ Definition arm_ADR_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
-Definition arm_MOV_semi (wn : ty_r) : exec ty_nzcv_r :=
-  ok (nzcv_w_of_aluop wn (wunsigned wn) (wsigned wn)).
+Definition arm_MOV_semi (wn : ty_r) : exec ty_nzc_r :=
+  ok (:: Some (NF_of_word wn), Some (ZF_of_word wn), None (* TODO_ARM: Complete *) & wn).
 
 Definition arm_MOV_instr : instr_desc_t :=
   let mn := MOV in
@@ -1173,8 +1173,8 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg ];
       id_in := [:: E 1 ];
-      id_tout := snzcv_r;
-      id_out := ad_nzcv ++ [:: E 0 ];
+      id_tout := snzc_r;
+      id_out := ad_nzc ++ [:: E 0 ];
       id_semi := arm_MOV_semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg ++ ak_reg_imm;
@@ -1189,7 +1189,7 @@ Definition arm_MOV_instr : instr_desc_t :=
   in
   if set_flags opts
   then x
-  else drop_nzcv x.
+  else drop_nzc x.
 
 Definition arm_MOVT_semi (wn : ty_r) (wm : word U16) : exec ty_r :=
   let hi := wshl (zero_extend reg_size wm) 16 in

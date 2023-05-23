@@ -12,7 +12,7 @@ fn main(reg u32 arg0, reg u32 arg1) -> reg u32 {
     stack u32 y;
     reg bool z;
 
-    _, z, _, _, x = #MOVS(arg0);
+    _, z, _, x = #MOVS(arg0);
     y = arg1;
 
     if (z) {
@@ -27,7 +27,7 @@ fn main(reg u32 arg0, reg u32 arg1) -> reg u32 {
     }
 
     while {
-    _, z, _, _, _ = #MOVS(x);
+    _, z, _, _ = #MOVS(x);
     } (z) {
     x = add(x, y);
     }

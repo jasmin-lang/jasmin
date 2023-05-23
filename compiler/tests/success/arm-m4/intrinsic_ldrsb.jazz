@@ -12,7 +12,7 @@ fn ldrb(reg u32 arg) -> reg u32 {
     x = #LDRSB((u8)[x + (arg * 8)]);
 
     reg bool n, z, v, c;
-    n, z, c, v, x = #MOVS(x);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     x = #LDRSBcc((u8)[x], z, x);            // EQ

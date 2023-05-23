@@ -42,7 +42,6 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
     nf, zf, cf, vf, x = #ADDS(x, arg0);
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
 
     // EQ
     x = #ADDcc(arg0, arg1, zf, x);

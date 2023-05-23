@@ -19,7 +19,7 @@ fn tst(reg u32 arg0 arg1 p) {
     [x] = x if z;
 
     // Set flags.
-    n, z, c, v, _ = #MOVS(arg0);
+    n, z, c, v = #CMP(arg0, 0);
 
     // Conditions.
     n, z, c = #TSTcc(arg0, arg1, z, n, z, c);            // EQ

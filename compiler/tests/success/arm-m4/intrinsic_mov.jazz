@@ -29,7 +29,7 @@ fn mov(reg u32 arg0) -> reg u32 {
     ?{}, x = #MOVS(0x00ca00ca);
     [x] = x;
     reg bool n, z, v, c;
-    n, z, c, v, _ = #MOVS(-1);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     x = #MOVcc(x, z, x);            // EQ
@@ -48,8 +48,8 @@ fn mov(reg u32 arg0) -> reg u32 {
     x = #MOVcc(x, z || n != v, x);  // LE
 
     x = #MOVcc(1, !z, x);
-    n, z, c, v, x = #MOVScc(arg0, !z, n, z, c, v, x);
-    n, z, c, v, x = #MOVScc(49, !!z, n, z, c, v, x);
+    n, z, c, x = #MOVScc(arg0, !z, n, z, c, x);
+    n, z, c, x = #MOVScc(49, !!z, n, z, c, x);
 
     reg u32 res;
     res = x;

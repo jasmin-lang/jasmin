@@ -56,9 +56,9 @@ op LSR x y = let (_n, _z, _c, r) = LSRS x y in r.
 op LSRScc x y g n z c o = if g then LSRS x y else (n, z, c, o).
 op LSRcc x y g o = if g then LSR x y else o.
 
-op MOVS (x: W32.t) : bool * bool * bool * bool * W32.t.
-op MOV x = let (_n, _z, _c, _v, r) = MOVS x in r.
-op MOVScc x g n z c v o = if g then MOVS x else (n, z, c, v, o).
+op MOVS (x: W32.t) : bool * bool * bool * W32.t.
+op MOV x = let (_n, _z, _c, r) = MOVS x in r.
+op MOVScc x g n z c o = if g then MOVS x else (n, z, c, o).
 op MOVcc x g o = if g then MOV x else o.
 
 op MOVT : W32.t -> W16.t -> W32.t.
