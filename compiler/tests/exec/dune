@@ -13,7 +13,9 @@
     ../success/x86-64/test_parity.jazz
     ../success/x86-64/test_ptr_fn_inline.jazz
     vpsxldq.jazz ../success/x86-64/vpsxldq.jazz
+    sem_unit.jazz
   )
   (flags -rectypes)
   (names
-    exec))
+    exec
+    sem_unit))
