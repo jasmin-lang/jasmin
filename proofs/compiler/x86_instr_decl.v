@@ -740,7 +740,7 @@ Definition x86_VPSRA (ve: velem) sz := x86_u128_shift ve sz (@wsar _).
 Definition x86_u128_shift_variable ve sz op v1 v2 : ex_tpl (w_ty sz) :=
   Let _ := check_size_32_64 ve in
   Let _ := check_size_128_256 sz in
-  ok (lift2_vec ve (λ v1 v2, op v1 (wunsigned v2)) sz v1 v2).
+  ok (lift2_vec ve (λ v1 v2, op v1 (Z.min (wunsigned v2) (wsize_bits ve))) sz v1 v2).
 
 Arguments x86_u128_shift_variable : clear implicits.
 
