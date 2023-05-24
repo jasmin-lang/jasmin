@@ -9,7 +9,7 @@ proof.
   inline *; wp.
   pose k := 2654435584.
   while (={round, state} /\ rc{1} = W32.of_int k); wp.
-  - by while (={column, state} /\ rc{1} = W32.of_int k); wp; skip => /> /#.
+  - by while (={column, state} /\ rc{1} = W32.of_int k); auto => /> /#.
   skip => />.
   by rewrite (W2u16.of_uint_pack2 k) (iotaS 0 1) // iota1.
 qed.
