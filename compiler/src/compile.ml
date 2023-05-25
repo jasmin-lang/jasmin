@@ -148,6 +148,10 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     { Array_expansion.vars; arrs = !arrs }
   in
 
+  let refresh_instr_info fn f =
+    (fn, f) |> Conv.fdef_of_cufdef |> refresh_i_loc_f |> Conv.cufdef_of_fdef |> snd
+  in
+
   let warning ii msg =
     (if not !Glob_options.lea then
      let loc, _ = ii in
@@ -251,6 +255,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         (fun s p ->
           eprint s pp_linear p;
           p);
+      Compiler.refresh_instr_info;
       Compiler.warning;
       Compiler.inline_var;
       Compiler.lowering_opt = Arch.lowering_opt;
