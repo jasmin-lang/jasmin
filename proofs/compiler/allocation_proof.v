@@ -566,7 +566,7 @@ Section PROOF.
 
   Local Lemma HmkI : sem_Ind_mkI p1 ev Pi_r Pi.
   Proof.
-    move=> ii i s1 s2 _ Hi  r1 [? i2] r2 vm1 /Hi Hvm /= /Hvm [vm2 [??]].
+    move=> ii i s1 s2 _ Hi  r1 [? i2] r2 vm1 /Hi Hvm /= /add_iinfoP /Hvm [vm2 [??]].
     by exists vm2;split=>//;constructor.
   Qed.
 
