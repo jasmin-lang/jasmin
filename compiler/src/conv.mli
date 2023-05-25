@@ -62,7 +62,5 @@ val error_of_cerror :
   (Format.formatter -> Compiler_util.pp_error -> unit) ->
    Compiler_util.pp_error_loc -> Utils.hierror
 
-
 (* ---------------------------------------------------- *)
-val fresh_reg_ptr :
-   Name.t -> Type.stype -> Ident.Ident.ident
+val fresh_reg_ident : reference -> IInfo.t -> Name.t -> Type.stype -> var

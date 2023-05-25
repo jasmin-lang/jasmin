@@ -208,19 +208,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       List.iter (warn_extra_fd Arch.asmOp) fds
   in
 
-  let fresh_reg =
-    let memo = Hashtbl.create 5 in
-    fun n st ->
-    let k = (n, st) in
-    match Hashtbl.find memo k with
-    | x -> x
-    | exception Not_found ->
-       let ty = Conv.ty_of_cty st in
-       let x = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
-       Hashtbl.add memo k x;
-       x
-  in
-
   let cparams =
     {
       Compiler.rename_fd;
@@ -262,8 +249,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.is_glob;
       Compiler.fresh_id;
       Compiler.fresh_counter;
-      Compiler.fresh_reg;
-      Compiler.fresh_reg_ptr = Conv.fresh_reg_ptr;
+      Compiler.fresh_reg_ident = Conv.fresh_reg_ident;
       Compiler.is_reg_ptr;
       Compiler.is_ptr;
       Compiler.is_reg_array;

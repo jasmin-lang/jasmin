@@ -342,6 +342,14 @@ let error_of_cerror pp_err e =
   }
 
 (* -------------------------------------------------------------------------- *)
-let fresh_reg_ptr (x: Name.t) ty =
-  let ty = ty_of_cty ty in
-  Prog.V.mk x (Reg (Normal, Pointer Writable)) ty L._dummy []
+let fresh_reg_ident =
+  let memo = Hashtbl.create 5 in
+  fun r (i_loc, _) n st ->
+    let k = (r, i_loc.L.uid_loc, n, st) in
+    match Hashtbl.find memo k with
+    | x -> x
+    | exception Not_found ->
+        let ty = ty_of_cty st in
+        let x = V.mk n (Reg (Normal, r)) ty i_loc.L.base_loc [] in
+        Hashtbl.add memo k x;
+        x

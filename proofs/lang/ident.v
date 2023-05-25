@@ -20,6 +20,7 @@ Module Type CORE_IDENT.
   Parameter id_name : t -> name.
 
   Parameter name_of_string : string → name.
+  Parameter string_of_name : name → string.
 
 End CORE_IDENT.
 
@@ -38,6 +39,7 @@ Module Cident : CORE_IDENT.
   Definition id_name (x : t) : name := x.
 
   Definition name_of_string of string := 1%uint63.
+  Definition string_of_name of name := ""%string.
 
 End Cident.
 
@@ -66,5 +68,6 @@ Module Ident <: IDENT.
   Module Mid := Tident.Mt.
 
   Definition name_of_string : string → name := Cident.name_of_string.
+  Definition string_of_name : name → string := Cident.string_of_name.
 
 End Ident.

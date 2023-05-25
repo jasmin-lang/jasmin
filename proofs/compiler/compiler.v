@@ -172,8 +172,7 @@ Record compiler_params
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_reg        : Ident.name -> stype -> Ident.ident;
-  fresh_reg_ptr    : Ident.name -> stype -> Ident.ident;
+  fresh_reg_ident  : reference -> instr_info -> Ident.name -> stype -> Ident.ident;
   fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
@@ -269,12 +268,12 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) (fresh_reg_ident cparams (wsize.Pointer Writable)) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams cparams.(fresh_reg) (p_funcs pa))
+      (lop_fvars_correct loparams (fresh_reg_ident cparams Direct dummy_instr_info) (p_funcs pa))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -283,7 +282,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lop_lower_i loparams (is_regx cparams))
       (lowering_opt cparams)
       (warning cparams)
-      (fresh_reg cparams)
+      (fresh_reg_ident cparams Direct dummy_instr_info)
       (is_var_in_memory cparams)
       pa
   in
@@ -322,7 +321,7 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
     stack_alloc.alloc_prog
       true
       saparams
-      cparams.(fresh_reg)
+      (fresh_reg_ident cparams Direct dummy_instr_info)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)

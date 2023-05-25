@@ -563,13 +563,13 @@ end
 
 
 (* -------------------------------------------------------------------- *)
-let tt_pointer dfl_writable (p:S.ptr) : P.pointer = 
+let tt_pointer dfl_writable (p:S.ptr) : W.reference =
   match p with
-  | `Pointer (Some `Writable) -> P.Pointer P.Writable
-  | `Pointer (Some `Constant) -> P.Pointer P.Constant
+  | `Pointer (Some `Writable) -> W.Pointer W.Writable
+  | `Pointer (Some `Constant) -> W.Pointer W.Constant
   | `Pointer None             -> 
-    P.Pointer (if dfl_writable then P.Writable else P.Constant)
-  | `Direct  -> P.Direct
+    W.Pointer (if dfl_writable then W.Writable else W.Constant)
+  | `Direct  -> W.Direct
 
 let tt_reg_kind annot = 
   match Annot.ensure_uniq1 "mmx" Annot.none annot with
