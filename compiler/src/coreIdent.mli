@@ -37,13 +37,10 @@ val tint  : 'len gty
 
 (* ------------------------------------------------------------------------ *)
 
-type writable = Constant | Writable
-type pointer = Direct | Pointer of writable
-
 type v_kind =
   | Const            (* global parameter  *)
-  | Stack of pointer (* stack variable    *)
-  | Reg   of reg_kind * pointer (* register variable *)
+  | Stack of reference (* stack variable    *)
+  | Reg   of reg_kind * reference (* register variable *)
   | Inline           (* inline variable   *)
   | Global           (* global (in memory) constant *)
 
@@ -110,6 +107,7 @@ module Cident : sig
   val id_name : t -> Name.t
 
   val name_of_string : char list -> name
+  val string_of_name : name -> char list
 
 end
 

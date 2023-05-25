@@ -36,13 +36,10 @@ let tint  = Bty Int
 
 (* ------------------------------------------------------------------------ *)
 
-type writable = Constant | Writable
-type pointer = Direct | Pointer of writable
-
 type v_kind =
   | Const            (* global parameter  *)
-  | Stack of pointer (* stack variable    *)
-  | Reg   of reg_kind * pointer (* register variable *)
+  | Stack of reference (* stack variable    *)
+  | Reg   of reg_kind * reference (* register variable *)
   | Inline           (* inline variable   *)
   | Global           (* global (in memory) constant *)
 
@@ -100,6 +97,7 @@ module Cident = struct
   let id_name (x: t) : name = x.v_name
 
   let name_of_string = CoreConv.string_of_cstring
+  let string_of_name = CoreConv.cstring_of_string
 
   (* FIXME: can we use something else that L._dummy? *)
   let mk x k t = V.mk (CoreConv.string_of_cstring x) k t L._dummy []

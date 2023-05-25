@@ -1,4 +1,5 @@
 open Utils
+open Wsize
 open Sopn
 open Prog
 
@@ -167,7 +168,7 @@ type ('info, 'asm) collect_equality_constraints_state =
 (* Renaming assignments can be removed between variables of compatible kinds,
 where “compatibility” is defined below and allows the promotion of mutable
 pointers to constant pointers. *)
-let pointer_compatible (x: pointer) (y: pointer) : bool =
+let pointer_compatible (x: reference) (y: reference) : bool =
   match x, y with
   | Direct, Direct
   | Pointer Writable, Pointer Writable

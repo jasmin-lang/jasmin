@@ -182,6 +182,10 @@ Variant reg_kind : Type :=
 | Normal
 | Extra.
 
+Variant writable : Type := Constant | Writable.
+
+Variant reference : Type := Direct | Pointer of writable.
+
 (* -------------------------------------------------------------------- *)
 Variant safe_cond :=
   | NotZero of wsize & nat  (* the nth argument of size sz is not zero *)
