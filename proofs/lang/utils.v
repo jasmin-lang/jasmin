@@ -1083,26 +1083,16 @@ End MAPI.
 
 Section FIND_MAP.
 
-Context {A : eqType} {B : Type}.
-
-Section DEF.
-
-Context (f: A -> option B).
-
 (* The name comes from OCaml. *)
-Fixpoint find_map l :=
+Fixpoint find_map {A B: Type} (f: A → option B) l :=
   match l with
   | [::] => None
   | a::l =>
-    match f a with
-    | Some b => Some b
-    | None => find_map l
-    end
+    let fa := f a in
+    if fa is None then find_map f l else fa
   end.
 
-End DEF.
-
-Lemma find_map_correct {f l b} :
+Lemma find_map_correct {A: eqType} {B: Type} {f: A → option B} {l b} :
   find_map f l = Some b -> exists2 a, a \in l & f a = Some b.
 Proof.
   elim: l => //= a l ih.

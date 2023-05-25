@@ -48,14 +48,6 @@ Section REMOVE.
 
   Notation venv := (Mvar.t var).
 
-  Fixpoint myfind (A B:Type) (f: A -> option B) (l:seq A) : option B :=
-    match l with
-    | [::] => None
-    | a :: l =>
-      let fa := f a in
-      if fa is None then myfind f l else fa
-    end.
-
   Definition check_data (d:glob_value) (ws:wsize) (w:word ws) := 
     match d with
     | @Gword ws' w' => (ws == ws') && (w == zero_extend ws w')
@@ -66,7 +58,7 @@ Section REMOVE.
     let test (gv:glob_decl) := 
       if (sword ws == vtype gv.1) && (check_data gv.2 w) then Some gv.1
       else None in 
-    match myfind test gd with 
+    match find_map test gd with
     | None => Error (rm_glob_error ii xi)
     | Some g => ok g
     end. 
