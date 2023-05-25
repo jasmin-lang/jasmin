@@ -592,7 +592,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
 
 with check_I i1 i2 r :=
   match i1, i2 with
-  | MkI _ i1, MkI ii i2 => check_i i1 i2 r
+  | MkI _ i1, MkI ii i2 => add_iinfo ii (check_i i1 i2 r)
   end.
 
 Definition check_cmd := fold2 E.fold2 check_I.
