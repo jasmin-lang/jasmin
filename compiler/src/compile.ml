@@ -174,10 +174,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     Prog.V.clone x
   in
 
-  let fresh_counter =
-    Prog.V.mk "i__copy" Inline tint L._dummy []
-  in
-
   let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
   let renaming_fd fd = Regalloc.renaming fd in
   let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd in
@@ -248,8 +244,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.is_glob;
       Compiler.fresh_id;
-      Compiler.fresh_counter;
-      Compiler.fresh_reg_ident = Conv.fresh_reg_ident;
+      Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.is_reg_ptr;
       Compiler.is_ptr;
       Compiler.is_reg_array;

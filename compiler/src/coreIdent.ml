@@ -36,14 +36,6 @@ let tint  = Bty Int
 
 (* ------------------------------------------------------------------------ *)
 
-type v_kind =
-  | Const            (* global parameter  *)
-  | Stack of reference (* stack variable    *)
-  | Reg   of reg_kind * reference (* register variable *)
-  | Inline           (* inline variable   *)
-  | Global           (* global (in memory) constant *)
-
-
 type 'len gvar = {
   v_name : Name.t;
   v_id   : uid;

@@ -51,7 +51,7 @@ type tyerror =
   | ReturnLocalStack    of A.symbol
   | PtrOnlyForArray
   | ArgumentNotVar      
-  | BadVariableKind     of P.v_kind
+  | BadVariableKind     of W.v_kind
   | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
@@ -576,12 +576,12 @@ let tt_reg_kind annot =
   | Some () -> W.Extra
   | None    -> W.Normal
 
-let tt_sto regkind dfl_writable (sto : S.pstorage) : P.v_kind =
+let tt_sto regkind dfl_writable (sto : S.pstorage) : W.v_kind =
   match sto with
-  | `Inline  -> P.Inline
-  | `Reg   p -> P.Reg (regkind, tt_pointer dfl_writable p)
-  | `Stack p -> P.Stack (tt_pointer dfl_writable p)
-  | `Global  -> P.Global
+  | `Inline  -> W.Inline
+  | `Reg   p -> W.Reg (regkind, tt_pointer dfl_writable p)
+  | `Stack p -> W.Stack (tt_pointer dfl_writable p)
+  | `Global  -> W.Global
 
 type tt_mode = [
   | `AllVar
@@ -597,10 +597,10 @@ let tt_var (mode:tt_mode) (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = lc; }
     | None -> rs_tyerror ~loc:lc (UnknownVar x) in
   begin match mode with
   | `OnlyParam ->
-    if v.P.v_kind <> P.Const then
+    if v.P.v_kind <> W.Const then
       rs_tyerror ~loc:lc (StringError "only param variable are allowed here")
   | `NoParam -> 
-    if v.P.v_kind = P.Const then
+    if v.P.v_kind = W.Const then
       rs_tyerror ~loc:lc (StringError "param variable not allowed here")
   | `AllVar -> ()
   end;
@@ -1236,7 +1236,7 @@ let tt_param pd (env : 'asm Env.env) _loc (pp : S.pparam) : 'asm Env.env =
 
   check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
 
-  let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) [] in
+  let x = P.PV.mk (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
   let env = Env.Vars.push_param env (x,pe) in
   env
 
@@ -1630,7 +1630,7 @@ let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
 let rec is_constant e = 
   match e with 
   | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
-  | P.Pvar x  -> P.kind_i x.P.gv = P.Const || P.kind_i x.P.gv = P.Inline
+  | P.Pvar x  -> P.kind_i x.P.gv = W.Const || P.kind_i x.P.gv = W.Inline
   | P.Pget _ | P.Psub _ | P.Pload _ -> false
   | P.Papp1 (_, e) -> is_constant e
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
@@ -1886,8 +1886,8 @@ let tt_call_conv loc params returns cc =
         let loc = L.loc x in
         let x = L.unloc x in
         match x.P.v_kind with
-        | P.Reg(_, Direct) -> None
-        | P.Reg(_, Pointer writable) -> 
+        | W.Reg(_, Direct) -> None
+        | W.Reg(_, Pointer writable) ->
           if writable = Constant then
             warning Always (L.i_loc0 loc) "no need to return a [reg const ptr] %a"
               Printer.pp_pvar x;
@@ -1899,7 +1899,7 @@ let tt_call_conv loc params returns cc =
         | _ -> assert false) returns in
     let is_writable_ptr k = 
       match k with
-      | P.Reg(_, Pointer Writable) -> true
+      | W.Reg(_, Pointer Writable) -> true
       | _ -> false in
     let check_writable_param i x = 
       let loc = L.loc x in
@@ -2036,7 +2036,7 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
     | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
   in
 
-  let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) [] in
+  let x = P.PV.mk (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
 
   Env.Globals.push env (x,d)
 
