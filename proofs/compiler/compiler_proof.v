@@ -33,6 +33,7 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 Import Utf8.
+Import wsize.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -279,7 +280,7 @@ Qed.
 
 (* TODO: move *)
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog (ap_sap aparams (is_regx cparams)) (fresh_reg_ident cparams Direct dummy_instr_info) rip rsp data ga la p = ok p' →
+  alloc_prog (ap_sap aparams (is_regx cparams)) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
   by rewrite /alloc_prog; t_xrbindP => ???? _ <-.

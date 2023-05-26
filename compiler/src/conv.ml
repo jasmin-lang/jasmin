@@ -343,7 +343,7 @@ let error_of_cerror pp_err e =
   }
 
 (* -------------------------------------------------------------------------- *)
-let fresh_reg_ident =
+let fresh_var_ident =
   let memo = Hashtbl.create 5 in
   fun r (i_loc, _) n st ->
     let k = (r, i_loc.L.uid_loc, n, st) in
@@ -351,6 +351,6 @@ let fresh_reg_ident =
     | x -> x
     | exception Not_found ->
         let ty = ty_of_cty st in
-        let x = V.mk n (Reg (Normal, r)) ty i_loc.L.base_loc [] in
+        let x = V.mk n r ty i_loc.L.base_loc [] in
         Hashtbl.add memo k x;
         x

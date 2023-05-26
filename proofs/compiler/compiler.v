@@ -27,7 +27,8 @@ Require Import
   remove_globals
   stack_alloc
   tunneling
-  unrolling.
+  unrolling
+  wsize.
 Require merge_varmaps.
 
 Set Implicit Arguments.
@@ -172,8 +173,7 @@ Record compiler_params
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_reg_ident  : reference -> instr_info -> Ident.name -> stype -> Ident.ident;
-  fresh_counter    : Ident.ident;
+  fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
@@ -240,7 +240,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
-  Let p := array_copy_prog cparams.(fresh_counter) p in
+  Let p := array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog cparams.(is_ptr) p in
@@ -268,12 +268,12 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) (fresh_reg_ident cparams (wsize.Pointer Writable)) pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_reg_ident cparams Direct dummy_instr_info) (p_funcs pa))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pa))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -282,7 +282,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lop_lower_i loparams (is_regx cparams))
       (lowering_opt cparams)
       (warning cparams)
-      (fresh_reg_ident cparams Direct dummy_instr_info)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
       (is_var_in_memory cparams)
       pa
   in
@@ -321,7 +321,7 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
     stack_alloc.alloc_prog
       true
       saparams
-      (fresh_reg_ident cparams Direct dummy_instr_info)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)

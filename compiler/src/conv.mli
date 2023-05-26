@@ -64,4 +64,4 @@ val error_of_cerror :
    Compiler_util.pp_error_loc -> Utils.hierror
 
 (* ---------------------------------------------------- *)
-val fresh_reg_ident : reference -> IInfo.t -> Name.t -> Type.stype -> var
+val fresh_var_ident : v_kind -> IInfo.t -> Name.t -> Type.stype -> var
