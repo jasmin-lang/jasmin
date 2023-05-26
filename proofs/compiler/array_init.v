@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 Require Import ZArith.
 From mathcomp Require Import all_ssreflect.
-Require Import expr compiler_util wsize.
+Require Import expr compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -93,11 +93,6 @@ Section Section.
     end.
 
 End Section.
-
-Definition is_ptr (x: var) : bool :=
-  match Ident.id_kind x.(vname) with
-  | Reg (_, Pointer _) | Stack (Pointer _) => true
-  | _ => false end.
 
 Definition add_init_aux ii x c :=
   match x.(vtype) with

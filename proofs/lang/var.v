@@ -340,6 +340,24 @@ Proof. by apply: contra => /eqP ->. Qed.
 Lemma vname_diff x x': vname x != vname x' -> x != x'.
 Proof. by apply: contra => /eqP ->. Qed.
 
+(* ------------------------------------------------------------------------- *)
+Definition is_glob_var (x: var) : bool :=
+  if Ident.id_kind x.(vname) is Global then true else false.
+
+Definition is_inline_var (x: var) : bool :=
+  if Ident.id_kind x.(vname) is Inline then true else false.
+
+Definition is_ptr (x: var) : bool :=
+  match Ident.id_kind x.(vname) with
+  | Reg (_, Pointer _) | Stack (Pointer _) => true
+  | _ => false end.
+
+Definition is_reg_ptr (x: var) : bool :=
+  if Ident.id_kind x.(vname) is Reg (_, Pointer _) then true else false.
+
+Definition is_regx (x: var) : bool :=
+  if Ident.id_kind x.(vname) is Reg(Extra, _) then true else false.
+
 (* ** Variables function: to be not used if computation is needed,
  *                       but extentianality is permited
  * -------------------------------------------------------------------- *)

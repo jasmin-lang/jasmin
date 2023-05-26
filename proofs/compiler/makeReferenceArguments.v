@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 From Coq Require Import HexadecimalString ZArith.
-Require Import gen_map expr compiler_util wsize.
+Require Import gen_map expr compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -17,9 +17,6 @@ Module Import E.
   Definition make_ref_error := pp_internal_error_s_at pass.
 
 End E.
-
-Definition is_reg_ptr (x: var) : bool :=
-  if Ident.id_kind x.(vname) is Reg (_, Pointer _) then true else false.
 
 Section Section.
 Context `{asmop:asmOp}.

@@ -8,9 +8,6 @@ Section Section.
 
 Context {atoI : arch_toIdent}.
 
-Definition is_regx (x: var) : bool :=
-  if Ident.id_kind x.(vname) is wsize.Reg(Extra, _) then true else false.
-
 Definition is_regx_e (e:pexpr) := 
   if e is Pvar x then is_regx x.(gv)
   else false.
