@@ -347,6 +347,12 @@ Definition is_glob_var (x: var) : bool :=
 Definition is_inline_var (x: var) : bool :=
   if Ident.id_kind x.(vname) is Inline then true else false.
 
+Definition is_var_in_memory (x: var) : bool :=
+  match Ident.id_kind x.(vname) with
+  | Stack _ | Reg (_, Pointer _) | Global => true
+  | Const | Inline | Reg (_, Direct) => false
+  end.
+
 Definition is_ptr (x: var) : bool :=
   match Ident.id_kind x.(vname) with
   | Reg (_, Pointer _) | Stack (Pointer _) => true

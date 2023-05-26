@@ -24,7 +24,6 @@ Record lowering_params
       lowering_options      (* Lowering options depend on the architecture. *)
       -> (instr_info -> warning_msg -> instr_info)
       -> lowering.fresh_vars
-      -> (var_i -> bool)    (* Whether the variable is in memory. *)
       -> instr              (* Source instruction. *)
       -> cmd;
 

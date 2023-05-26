@@ -36,12 +36,11 @@ Section PROOF.
   Context (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
-  Context (is_var_in_memory: var_i → bool).
 
   Notation lower_prog :=
-    (lower_prog (asmop := _asmop) lower_i options warning fv is_var_in_memory).
+    (lower_prog (asmop := _asmop) lower_i options warning fv).
   Notation lower_cmd :=
-    (lower_cmd (asmop := _asmop) lower_i options warning fv is_var_in_memory).
+    (lower_cmd (asmop := _asmop) lower_i options warning fv).
 
   Hypothesis fvars_correct: fvars_correct fv (p_funcs p).
 
@@ -121,7 +120,7 @@ Section PROOF.
   Let Pi s (i:instr) s' :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' ev s1 (lower_i options warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' ev s1 (lower_i options warning fv i) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pi_r s (i:instr_r) s' :=
     forall ii, Pi s (MkI ii i) s'.
@@ -375,8 +374,8 @@ Section PROOF.
 
   (* ---------------------------------------------------------- *)
 
-  Lemma is_leaP f sz x e l :
-    is_lea f sz x e = Some l ->
+  Lemma is_leaP sz x e l :
+    is_lea sz x e = Some l ->
     [/\ (U16 ≤ sz)%CMP && (sz ≤ U64)%CMP,
          Sv.Subset (read_lea l) (read_e e),
          mk_lea sz e = Some l & check_scale l.(lea_scale)].
@@ -511,7 +510,7 @@ Section PROOF.
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr gd s e = ok v)
       (Hv': truncate_val ty v = ok v')
       (Hw: write_lval gd l v' s = ok s'):
-    match lower_cassgn_classify is_var_in_memory ty e l with
+    match lower_cassgn_classify ty e l with
     | LowerMov _ =>
       exists2 sz, ty = sword sz & (sz ≤ U64)%CMP ∧
       ∃ sz' (w : word sz'), (sz ≤ sz')%CMP ∧ v = Vword w
@@ -1203,7 +1202,7 @@ Section PROOF.
     have [s2' Hw' Hs2'] := eeq_exc_write_lval Hdisjl Hs1' Hw.
     rewrite /= /lower_cassgn.
     have := lower_cassgn_classifyP Hv' hty Hw'.
-    case: (lower_cassgn_classify is_var_in_memory _ e l).
+    case: (lower_cassgn_classify _ e l).
     (* LowerMov *)
     + move=> b [tw ?] [hle'] [sz'] [w] [hsz' ?]; subst ty v.
       move: hty; rewrite /truncate_val; apply: rbindP => w' /truncate_wordP [] hle -> {w'} [?]; subst v'.

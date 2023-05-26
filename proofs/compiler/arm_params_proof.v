@@ -961,7 +961,6 @@ Lemma arm_lower_callP
   (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
-  (is_var_in_memory : var_i -> bool)
   (_ : lop_fvars_correct arm_loparams fv (p_funcs p))
   (f : funname)
   scs mem scs' mem'
@@ -973,7 +972,6 @@ Lemma arm_lower_callP
          options
          warning
          fv
-         is_var_in_memory
          p
      in
      psem.sem_call lprog ev scs mem f va scs' mem' vr.

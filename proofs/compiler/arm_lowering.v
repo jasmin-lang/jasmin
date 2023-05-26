@@ -56,11 +56,7 @@ Definition fvars (fv : fresh_vars) : Sv.t := sv_of_list id (fresh_flags fv).
 Section ARM_LOWERING.
 
 Context
-  (fv : fresh_vars)
-  (is_var_in_memory : var_i -> bool).
-
-Notation is_lval_in_memory := (is_lval_in_memory is_var_in_memory).
-
+  (fv : fresh_vars).
 
 (* -------------------------------------------------------------------- *)
 (* Lowering of conditions. *)

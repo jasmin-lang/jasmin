@@ -181,7 +181,6 @@ Proof.
          (hap_hlop haparams)
          (lowering_opt cparams)
          (warning cparams)
-         (is_var_in_memory cparams)
          ok_fvars).
   apply: compose_pass;
     first by move=> vr';

@@ -67,28 +67,23 @@ Context
   (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
-  (is_var_in_memory : var_i -> bool)
   (fv_correct : fvars_correct (all_fresh_vars fv) (fvars fv) (p_funcs p)).
 
 Notation fvars := (fvars fv).
-Notation lower_Pvar := (lower_Pvar is_var_in_memory).
-Notation lower_pexpr_aux := (lower_pexpr_aux is_var_in_memory).
-Notation lower_pexpr := (lower_pexpr fv is_var_in_memory).
+Notation lower_pexpr := (lower_pexpr fv).
 Notation lower_cmd :=
   (lower_cmd
      (fun _ _ => lower_i)
      options
      warning
-     fv
-     is_var_in_memory).
+     fv).
 Notation lower_prog :=
   (lower_prog
      (fun _ _ => lower_i)
      options
      warning
-     fv
-     is_var_in_memory).
-Notation lower_i := (lower_i fv is_var_in_memory).
+     fv).
+Notation lower_i := (lower_i fv).
 Notation disj_fvars := (disj_fvars fvars).
 Notation disj_fvars_get_fundef := (disj_fvars_get_fundef fv_correct).
 
@@ -1179,7 +1174,7 @@ Proof.
 Qed.
 
 Lemma lower_cassgnP ii s0 lv tag ty e v v' s0' s1' pre lvs op es :
-  lower_cassgn fv is_var_in_memory lv ty e = Some (pre, (lvs, op, es))
+  lower_cassgn fv lv ty e = Some (pre, (lvs, op, es))
   -> sem_pexpr (p_globs p) s0 e = ok v
   -> truncate_val ty v = ok v'
   -> write_lval (p_globs p) lv v' s0' = ok s1'
