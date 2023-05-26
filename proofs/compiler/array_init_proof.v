@@ -290,11 +290,11 @@ Proof. apply remove_init_fdP; apply wf_inits. Qed.
 
 Section ADD_INIT.
 
-  Context (is_ptr : var -> bool) (p : uprog) (ev:unit).
+  Context (p : uprog) (ev:unit).
 
   Notation gd := (p_globs p).
 
-  Notation p' := (add_init_prog is_ptr p).
+  Notation p' := (add_init_prog p).
 
   Definition undef_except (X:Sv.t) (vm:vmap) := 
    forall x, ~Sv.In x X ->  vm.[x] = pundef_addr (vtype x).
@@ -303,10 +303,10 @@ Section ADD_INIT.
     (forall vm1, evm s1 =v vm1 -> 
        exists2 vm2, evm s2 =v vm2 & sem_I p' ev (with_vm s1 vm1) i (with_vm s2 vm2)) /\
     forall I, undef_except I (evm s1) ->
-      undef_except (add_init_i is_ptr I i).2 (evm s2) /\
+      undef_except (add_init_i I i).2 (evm s2) /\
       forall vm1, evm s1 =v vm1 -> 
         exists2 vm2, evm s2 =v vm2 &
-          sem p' ev (with_vm s1 vm1) (add_init_i is_ptr I i).1 (with_vm s2 vm2).
+          sem p' ev (with_vm s1 vm1) (add_init_i I i).1 (with_vm s2 vm2).
 
   Let Pi_r s1 (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
 
@@ -314,10 +314,10 @@ Section ADD_INIT.
     (forall vm1, evm s1 =v vm1 -> 
          exists2 vm2, evm s2 =v vm2 & sem p' ev (with_vm s1 vm1) c (with_vm s2 vm2)) /\
     forall I, undef_except I (evm s1) ->
-      undef_except (add_init_c (add_init_i is_ptr) I c).2 (evm s2) /\
+      undef_except (add_init_c add_init_i I c).2 (evm s2) /\
       forall vm1, evm s1 =v vm1 -> 
         exists2 vm2, evm s2 =v vm2 &
-         sem p' ev (with_vm s1 vm1) (add_init_c (add_init_i is_ptr) I c).1 (with_vm s2 vm2).
+         sem p' ev (with_vm s1 vm1) (add_init_c add_init_i I c).1 (with_vm s2 vm2).
 
   Let Pfor (i:var_i) vs s1 c s2 :=
     forall vm1, evm s1 =v vm1 -> 
@@ -349,7 +349,7 @@ Section ADD_INIT.
     (∀ vm1 : vmap, evm s1 =v vm1 → exists2 vm2 : vmap, evm s2 =v vm2 & sem_I p' ev (with_vm s1 vm1) (MkI ii i) (with_vm s2 vm2)) →
     ∀ vm1 : vmap, evm s1 =v vm1 → 
     exists2 vm2 : vmap,
-        evm s2 =v vm2 & sem p' ev (with_vm s1 vm1) (add_init is_ptr ii I X (MkI ii i)) (with_vm s2 vm2).
+        evm s2 =v vm2 & sem p' ev (with_vm s1 vm1) (add_init ii I X (MkI ii i)) (with_vm s2 vm2).
   Proof.
     move=> hu hs; rewrite /add_init Sv.fold_spec.
     have : forall x:var, x \in Sv.elements (Sv.diff X I) -> (evm s1).[x] = pundef_addr (vtype x).
@@ -389,7 +389,7 @@ Section ADD_INIT.
         exists2 vm2 : vmap,
           evm s2 =v vm2 &
           sem p' ev (with_vm s1 vm1)
-            (add_init is_ptr ii I (Sv.union (write_i i) (read_i i)) (MkI ii i)) (with_vm s2 vm2).
+            (add_init ii I (Sv.union (write_i i) (read_i i)) (MkI ii i)) (with_vm s2 vm2).
   Proof.
     move=> hs hs'; split => //.
     move=> I hu; split.
@@ -561,7 +561,7 @@ Section ADD_INIT.
   Local Lemma RAproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
     move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 s2 vres vres' Hget Htin Hi Hargs Hsem [] hsi Hrec Hmap Htout Hsys Hfi.
-    have hget : get_fundef (p_funcs p') fn = Some (add_init_fd is_ptr fd).
+    have hget : get_fundef (p_funcs p') fn = Some (add_init_fd fd).
     + by rewrite /p' get_map_prog Hget.
     set I := vrvs [seq (Lvar i) | i <- f_params fd].
     case: (Hrec I).
@@ -571,7 +571,7 @@ Section ADD_INIT.
       + by rewrite -/I /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec.
       by SvD.fsetdec.     
     move=> ?  /(_ (evm s1) (fun _ => erefl)) [vm2] heq2 hsem {Hsem Hget}.    
-    eapply (EcallRun (f := add_init_fd is_ptr fd) (s1:= with_vm s1 (evm s1)) (s2:= (with_vm s2 vm2))); eauto.
+    eapply (EcallRun (f := add_init_fd fd) (s1:= with_vm s1 (evm s1)) (s2:= (with_vm s2 vm2))); eauto.
     + by case: (s1) Hargs.
     by rewrite -Hmap; apply mapM_ext => // y; rewrite /get_var heq2.
   Qed.

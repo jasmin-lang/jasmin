@@ -172,7 +172,6 @@ Record compiler_params
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
-  is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
   is_regx          : var -> bool;
 }.
@@ -240,7 +239,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
-  let p := add_init_prog cparams.(is_ptr) p in
+  let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
 
   Let p := inline_prog_err cparams.(rename_fd) p in
