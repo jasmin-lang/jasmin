@@ -87,6 +87,7 @@ module Cident = struct
   type name = Name.t
 
   let id_name (x: t) : name = x.v_name
+  let id_kind (x: t) : v_kind = x.v_kind
 
   let name_of_string = CoreConv.string_of_cstring
   let string_of_name = CoreConv.cstring_of_string

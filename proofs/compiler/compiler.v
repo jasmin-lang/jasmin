@@ -157,7 +157,6 @@ Record compiler_params
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
   renaming_fd      : funname -> _ufundef -> _ufundef;
   remove_phi_nodes_fd : funname -> _ufundef -> _ufundef;
-  inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
   stack_register_symbol: Ident.ident;
   global_static_data_symbol: Ident.ident;
@@ -246,7 +245,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := add_init_prog cparams.(is_ptr) p in
   let p := cparams.(print_uprog) AddArrInit p in
 
-  Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
+  Let p := inline_prog_err cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in

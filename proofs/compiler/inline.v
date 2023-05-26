@@ -33,8 +33,10 @@ Section INLINE.
 
 Context
   {asm_op syscall_state : Type}
-  {asmop:asmOp asm_op}
-  (inline_var : var -> bool).
+  {asmop:asmOp asm_op}.
+
+Definition inline_var (x: var) : bool :=
+  if Ident.id_kind x.(vname) is Inline then true else false.
 
 Definition get_flag (x:lval) flag :=
   match x with
