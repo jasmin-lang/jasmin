@@ -41,10 +41,6 @@ Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
 Definition lea_ptr x y tag ofs : instr_r :=
   Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
 
-Section IS_REGX.
-
-Context (is_regx : var -> bool).
-
 Definition x86_mov_ofs x tag vpk y ofs :=
   let addr :=
     if mk_mov vpk is MK_LEA
@@ -52,20 +48,18 @@ Definition x86_mov_ofs x tag vpk y ofs :=
       lea_ptr x y tag ofs
     else
       if ofs == 0%Z
-      then mov_ws is_regx Uptr x y tag
+      then mov_ws Uptr x y tag
       else lea_ptr x y tag ofs
   in
   Some addr.
 
 Definition x86_immediate x z :=
-  mov_ws is_regx Uptr (Lvar x) (cast_const z) AT_none.
+  mov_ws Uptr (Lvar x) (cast_const z) AT_none.
 
-End IS_REGX.
-
-Definition x86_saparams is_regx : stack_alloc_params :=
+Definition x86_saparams : stack_alloc_params :=
   {|
-    sap_mov_ofs := x86_mov_ofs is_regx;
-    sap_immediate := x86_immediate is_regx;
+    sap_mov_ofs := x86_mov_ofs;
+    sap_immediate := x86_immediate;
   |}.
 
 (* ------------------------------------------------------------------------ *)

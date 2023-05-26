@@ -173,7 +173,6 @@ Record compiler_params
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   is_reg_array     : var -> bool;
-  is_regx          : var -> bool;
 }.
 
 
@@ -188,7 +187,7 @@ Context
   (aparams : architecture_params lowering_options)
   (cparams : compiler_params lowering_options).
 
-Notation saparams := (ap_sap aparams cparams.(is_regx)).
+Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
 Notation loparams := (ap_lop aparams).
 Notation agparams := (ap_agp aparams).
@@ -275,7 +274,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   let pl :=
     lower_prog
-      (lop_lower_i loparams (is_regx cparams))
+      (lop_lower_i loparams)
       (lowering_opt cparams)
       (warning cparams)
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)

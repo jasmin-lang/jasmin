@@ -166,9 +166,8 @@ let memory_analysis pp_err ~debug up =
     Format.eprintf "%a@.@.@." (pp_oracle up) saos
   end;
 
-  let is_regx x = is_regx (Conv.var_of_cvar x) in
-  let sp' = 
-    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy) crip crsp gao.gao_data cglobs get_sao up with
+  let sp' =
+    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false Arch.aparams.ap_sap (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy) crip crsp gao.gao_data cglobs get_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror pp_err e in

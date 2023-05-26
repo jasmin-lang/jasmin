@@ -33,15 +33,15 @@ Section PROOF.
   Variable p : prog.
   Variable ev : extra_val_t.
   Notation gd := (p_globs p).
-  Context (is_regx: var -> bool) (options: lowering_options).
+  Context (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
   Context (is_var_in_memory: var_i → bool).
 
   Notation lower_prog :=
-    (lower_prog (asmop := _asmop) (lower_i is_regx) options warning fv is_var_in_memory).
+    (lower_prog (asmop := _asmop) lower_i options warning fv is_var_in_memory).
   Notation lower_cmd :=
-    (lower_cmd (asmop := _asmop) (lower_i is_regx) options warning fv is_var_in_memory).
+    (lower_cmd (asmop := _asmop) lower_i options warning fv is_var_in_memory).
 
   Hypothesis fvars_correct: fvars_correct fv (p_funcs p).
 
@@ -121,7 +121,7 @@ Section PROOF.
   Let Pi s (i:instr) s' :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' ev s1 (lower_i is_regx options warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' ev s1 (lower_i options warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pi_r s (i:instr_r) s' :=
     forall ii, Pi s (MkI ii i) s'.
@@ -1187,7 +1187,7 @@ Section PROOF.
     (ws <= U64)%CMP -> 
     (Let i' := sem_pexpr (p_globs p1) s1 e in to_word ws i') = ok i
     -> write_lval (p_globs p1) x (Vword i) s1 = ok s2
-    -> sem_i p1 w s1 (mov_ws is_regx ws x e tag) s2.
+    -> sem_i p1 w s1 (mov_ws ws x e tag) s2.
   Proof.
     by move=> hws he hx; rewrite /mov_ws; case: ifP => [ /andP [] _ h | _];
      constructor; rewrite /sem_sopn /= /exec_sopn /=;

@@ -209,7 +209,7 @@ Definition arm_fvars_correct
 
 Definition arm_loparams : lowering_params lowering_options :=
   {|
-    lop_lower_i _ _ _ := lower_i;
+    lop_lower_i _ _ := lower_i;
     lop_fvars_correct := arm_fvars_correct;
   |}.
 
@@ -323,7 +323,7 @@ Definition arm_is_move_op (o : asm_op_t) : bool :=
 
 Definition arm_params : architecture_params lowering_options :=
   {|
-    ap_sap := (fun _ => arm_saparams);
+    ap_sap := arm_saparams;
     ap_lip := arm_liparams;
     ap_lop := arm_loparams;
     ap_agp := arm_agparams;

@@ -174,8 +174,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     tokeep
   in
 
-  let is_regx x = is_regx (Conv.var_of_cvar x) in
-
   let is_reg_array x = is_reg_arr (Conv.var_of_cvar x) in
 
   let warn_extra s p =
@@ -224,7 +222,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.is_reg_array;
-      Compiler.is_regx = is_regx;
     }
   in
 
