@@ -333,8 +333,8 @@ Module RGP. Section PROOFS.
 
   Definition valid (m:venv) (s1 s2:estate) :=
     [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem),
-        (forall x, ~~is_glob x -> get_var (evm s1) x = get_var (evm s2) x),
-        (forall x g, Mvar.get m x = Some g -> is_glob x) &
+        (forall x, ~~is_glob_var x -> get_var (evm s1) x = get_var (evm s2) x),
+        (forall x g, Mvar.get m x = Some g -> is_glob_var x) &
         (forall x g v,
            Mvar.get m x = Some g ->
            get_var (evm s1) x = ok v ->
@@ -409,7 +409,7 @@ Module RGP. Section PROOFS.
     (@remove_glob_e_esP m ii s1 s2 h).2 es es' vs.
 
   Lemma write_var_remove (x:var_i) m s1 s2 v vm :
-    ~~ is_glob x ->
+    ~~ is_glob_var x ->
     valid m s1 s2 ->
     set_var (evm s1) x v = ok vm ->
     exists s2', valid m (with_vm s1 vm) s2' /\ write_var x v s2 = ok s2'.
@@ -498,7 +498,7 @@ Module RGP. Section PROOFS.
   Let Pi_r s1 i s2 := forall ii, Pi s1 (MkI ii i) s2.
 
   Let Pfor xi vs s1 c s2 :=
-    ~~is_glob xi.(v_var) ->
+    ~~is_glob_var xi.(v_var) ->
     forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
     Mincl m m' ->
     forall s1', valid m s1 s1' ->
