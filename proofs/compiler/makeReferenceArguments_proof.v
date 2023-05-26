@@ -56,11 +56,10 @@ Context
   {eparams : EstateParams syscall_state}
   {spparams : SemPexprParams}
   {siparams : SemInstrParams asm_op syscall_state}
-  (is_reg_ptr : var -> bool)
   (fresh_id : instr_info → Ident.name → stype → Ident.ident).
 
   Lemma make_referenceprog_globs (p p' : uprog) :
-    makereference_prog is_reg_ptr fresh_id p = ok p' ->
+    makereference_prog fresh_id p = ok p' ->
       p.(p_globs) = p'.(p_globs).
   Proof.
     case: p p' => [???] [???]; t_xrbindP.
@@ -75,21 +74,21 @@ Context
 
   Hypothesis PSNone :
     forall ctr b x ty xftys lv lvs args,
-         is_reg_ptr_lval is_reg_ptr fresh_id ii ctr b x ty lv = None
-      -> make_pseudo_epilogue is_reg_ptr fresh_id ii X ctr xftys lvs = ok args
+         is_reg_ptr_lval fresh_id ii ctr b x ty lv = None
+      -> make_pseudo_epilogue fresh_id ii X ctr xftys lvs = ok args
       -> P ctr xftys lvs args
       -> P ctr ((b,x,ty) :: xftys) (lv :: lvs) (PI_lv lv :: args).
 
   Hypothesis PSSome :
     forall ctr b x ty xftys lv lvs (y : var_i) args,
        ~~Sv.mem y X
-    -> is_reg_ptr_lval is_reg_ptr fresh_id ii ctr b x ty lv = Some y
-    -> make_pseudo_epilogue is_reg_ptr fresh_id ii X (Hexadecimal.Little.succ ctr) xftys lvs = ok args
+    -> is_reg_ptr_lval fresh_id ii ctr b x ty lv = Some y
+    -> make_pseudo_epilogue fresh_id ii X (Hexadecimal.Little.succ ctr) xftys lvs = ok args
     -> P (Hexadecimal.Little.succ ctr) xftys lvs args
     -> P ctr ((b, x, ty) :: xftys) (lv :: lvs) (PI_lv (Lvar y) :: (PI_i lv ty y) :: args).
 
   Lemma make_pseudo_epilogueW ctr xftys lvs args :
-       make_pseudo_epilogue is_reg_ptr fresh_id ii X ctr xftys lvs = ok args
+       make_pseudo_epilogue fresh_id ii X ctr xftys lvs = ok args
     -> P ctr xftys lvs args.
   Proof.
   elim: xftys lvs args ctr.
@@ -105,7 +104,7 @@ Context
   Context (p p' : uprog).
   Let ev : unit := tt.
 
-  Hypothesis Hp : makereference_prog is_reg_ptr fresh_id p = ok p'.
+  Hypothesis Hp : makereference_prog fresh_id p = ok p'.
 
   Inductive sem_pis ii : estate -> seq pseudo_instr -> values -> estate -> Prop :=
    | SPI_nil : forall s, sem_pis ii s [::] [::] s
@@ -143,7 +142,7 @@ Context
    by move => y _ <-.
   Qed.
 
-  Lemma eq_funcs : map_cfprog (update_fd is_reg_ptr fresh_id p) (p_funcs p) = ok (p_funcs p').
+  Lemma eq_funcs : map_cfprog (update_fd fresh_id p) (p_funcs p) = ok (p_funcs p').
   Proof.
     move : Hp; rewrite /makereference_prog.
     by t_xrbindP => fdecls Hmap_cfprog <- /=.
@@ -177,11 +176,11 @@ Context
   Qed.
 
   Lemma is_reg_ptr_lval_ty ii ctr b x ty lv y:
-     is_reg_ptr_lval is_reg_ptr fresh_id ii ctr b x ty lv = Some y -> vtype y = ty.
+     is_reg_ptr_lval fresh_id ii ctr b x ty lv = Some y -> vtype y = ty.
   Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
 
   Lemma make_pseudo_codeP ii X ctr xtys lvs pis s1 s2 vm1 vs vst:
-    make_pseudo_epilogue is_reg_ptr fresh_id ii X ctr xtys lvs = ok pis ->
+    make_pseudo_epilogue fresh_id ii X ctr xtys lvs = ok pis ->
     mapM2 ErrType truncate_val (map snd xtys) vs = ok vst ->
     Sv.Subset (Sv.union (read_rvs lvs) (vrvs lvs)) X ->
     write_lvals (p_globs p) s1 lvs vst = ok s2 ->
@@ -515,7 +514,7 @@ Context
   Qed.
 
   Let Pi s1 (i:instr) s2:=
-    forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p X i = ok c' ->
+    forall (X:Sv.t) c', update_i fresh_id p X i = ok c' ->
      Sv.Subset (Sv.union (read_I i) (write_I i)) X ->
      forall vm1, evm s1 =[X] vm1 ->
      exists2 vm2, evm s2 =[X] vm2 & sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2).
@@ -524,14 +523,14 @@ Context
     forall ii, Pi s1 (MkI ii i) s2.
 
   Let Pc s1 (c:cmd) s2:=
-    forall (X:Sv.t) c', update_c (update_i is_reg_ptr fresh_id p X) c = ok c' ->
+    forall (X:Sv.t) c', update_c (update_i fresh_id p X) c = ok c' ->
      Sv.Subset (Sv.union (read_c c) (write_c c)) X ->
      forall vm1, evm s1 =[X] vm1 ->
      exists2 vm2, evm s2 =[X] vm2 & sem p' ev (with_vm s1 vm1) c' (with_vm s2 vm2).
 
   Let Pfor (i:var_i) vs s1 c s2 :=
     forall X c',
-    update_c (update_i is_reg_ptr fresh_id p X) c = ok c' ->
+    update_c (update_i fresh_id p X) c = ok c' ->
     Sv.Subset (Sv.add i (Sv.union (read_c c) (write_c c))) X ->
     forall vm1, evm s1 =[X] vm1 ->
     exists2 vm2, evm s2 =[X] vm2 & sem_for p' ev i vs (with_vm s1 vm1) c' (with_vm s2 vm2).
@@ -552,7 +551,7 @@ Context
     t_xrbindP => lc ci {}/hi hi cc hcc <- <-.
     rewrite read_c_cons write_c_cons => hsub vm1 hvm1.
     have [|vm2 hvm2 hs2]:= hi _ vm1 hvm1; first by SvD.fsetdec.
-    have /hc : update_c (update_i is_reg_ptr fresh_id p X) c = ok (flatten cc).
+    have /hc : update_c (update_i fresh_id p X) c = ok (flatten cc).
     + by rewrite /update_c hcc.
     move=> /(_ _ vm2 hvm2) [|vm3 hvm3 hs3]; first by SvD.fsetdec.
     by exists vm3 => //=; apply: sem_app hs2 hs3.
@@ -698,7 +697,7 @@ Context
   Qed.
 
   Lemma is_reg_ptr_expr_ty ii ctr b x ty lv y:
-     is_reg_ptr_expr is_reg_ptr fresh_id ii ctr b x ty lv = Some y -> vtype y = ty.
+     is_reg_ptr_expr fresh_id ii ctr b x ty lv = Some y -> vtype y = ty.
   Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
 
   (* FIXME: move this *)
@@ -721,7 +720,7 @@ Context
 
   Lemma make_prologueP X ii s:
      forall xfty ctr args Y pl args',
-       make_prologue is_reg_ptr fresh_id ii Y ctr xfty args = ok (pl, args') ->
+       make_prologue fresh_id ii Y ctr xfty args = ok (pl, args') ->
        Sv.Subset X Y ->
        Sv.Subset (read_es args) X ->
      forall vargs vs vm1,
@@ -773,7 +772,7 @@ Context
   Qed.
 
   Lemma make_epilogueP X ii s1 s2 xfty lv lv' ep vres vs vm1 :
-    make_epilogue is_reg_ptr fresh_id ii X xfty lv = ok (lv', ep) ->
+    make_epilogue fresh_id ii X xfty lv = ok (lv', ep) ->
     Sv.Subset (Sv.union (read_rvs lv) (vrvs lv)) X ->
     write_lvals (p_globs p) s1 lv vs = ok s2 ->
     mapM2 ErrType truncate_val (map snd xfty) vres = ok vs ->
@@ -798,10 +797,10 @@ Context
     rewrite !(read_i_call, write_i_call) => le_X vm1 eq_s1_vm1.
     case: (sem_callE h1) hupd => fnd [fnE] [vs] [s1'] [s2'] [s3'] [vres] [vsE] [_ hwrinit] _ [hgetout aoutE] _.
     rewrite /= /get_sig fnE.
-    have heqin : map snd (map2 (mk_info is_reg_ptr) (f_params fnd) (f_tyin fnd)) = f_tyin fnd.
+    have heqin : map snd (map2 mk_info (f_params fnd) (f_tyin fnd)) = f_tyin fnd.
     + have [_ h] := size_mapM2 vsE; rewrite -(size_fold2 hwrinit) in h.
       by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply map_ext.
-    have heqout : map snd (map2 (mk_info is_reg_ptr) (f_res fnd) (f_tyout fnd)) = f_tyout fnd.
+    have heqout : map snd (map2 mk_info (f_res fnd) (f_tyout fnd)) = f_tyout fnd.
     + have [h _] := size_mapM2 aoutE; rewrite -(size_mapM hgetout) in h.
       by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply map_ext.
     move=> {s1' s2' s3' hwrinit hgetout}.
