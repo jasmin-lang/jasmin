@@ -40,10 +40,12 @@ Module Import E.
 
 End E.
 
+Definition is_glob (x: var) : bool :=
+  if Ident.id_kind x.(vname) is Global then true else false.
+
 Section REMOVE.
 
   Context `{asmop:asmOp}.
-  Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
   Notation venv := (Mvar.t var).

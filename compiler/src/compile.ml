@@ -159,11 +159,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     ii
   in
 
-  let is_glob x =
-    let x = Conv.var_of_cvar x in
-    x.v_kind = Global
-  in
-
   let fresh_id _gd x =
     let x = Conv.var_of_cvar x in
     Prog.V.clone x
@@ -236,7 +231,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.refresh_instr_info;
       Compiler.warning;
       Compiler.lowering_opt = Arch.lowering_opt;
-      Compiler.is_glob;
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.is_reg_ptr;

@@ -170,7 +170,6 @@ Record compiler_params
   refresh_instr_info: funname -> _ufundef -> _ufundef;
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
-  is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   is_reg_ptr       : var -> bool;
@@ -264,7 +263,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let pe := live_range_splitting pe in
 
-  Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
+  Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
   Let pa := makereference_prog cparams.(is_reg_ptr) (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pg in
