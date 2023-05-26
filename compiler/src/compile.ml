@@ -159,11 +159,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     ii
   in
 
-  let inline_var x =
-    let x = Conv.var_of_cvar x in
-    x.v_kind = Inline
-  in
-
   let is_glob x =
     let x = Conv.var_of_cvar x in
     x.v_kind = Global
@@ -240,7 +235,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
           p);
       Compiler.refresh_instr_info;
       Compiler.warning;
-      Compiler.inline_var;
       Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.is_glob;
       Compiler.fresh_id;

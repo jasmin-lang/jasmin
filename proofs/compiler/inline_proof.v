@@ -18,16 +18,15 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  (inline_var : var -> bool)
   (rename_fd : instr_info -> funname -> ufundef -> ufundef).
 
 Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Local Notation inline_i' := (inline_i inline_var rename_fd).
-Local Notation inline_fd' := (inline_fd inline_var rename_fd).
-Local Notation inline_prog' := (inline_prog inline_var rename_fd).
+Local Notation inline_i' := (inline_i rename_fd).
+Local Notation inline_fd' := (inline_fd rename_fd).
+Local Notation inline_prog' := (inline_prog rename_fd).
 
 Section INCL.
 
@@ -205,7 +204,7 @@ Lemma assgn_tuple_Lvar (p:uprog) (ev:unit) ii (xs:seq var_i) flag tys es vs vs' 
   sem_pexprs (p_globs p) s es = ok vs ->
   mapM2 ErrType truncate_val tys vs = ok vs' ->
   write_lvals (p_globs p) s xs vs' = ok s' ->
-  sem p ev s (assgn_tuple inline_var ii xs flag tys es) s'.
+  sem p ev s (assgn_tuple ii xs flag tys es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   elim: xs es tys vs vs' s s' => [ | x xs Hrec] [ | e es] [ | ty tys] [ | v vs] vs' s s' //=;
@@ -236,7 +235,7 @@ Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
   mapM (fun x : var_i => get_var (evm s) x) rxs = ok vs ->
   mapM2 ErrType truncate_val tys vs = ok vs' ->
   write_lvals (p_globs p) s xs vs' = ok s' ->
-  sem p ev s (assgn_tuple inline_var ii xs flag tys es) s'.
+  sem p ev s (assgn_tuple ii xs flag tys es) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   have : evm s = evm s [\vrvs xs] by done.
@@ -598,7 +597,7 @@ Section PROOF.
 End PROOF.
 
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
-  inline_prog_err inline_var rename_fd p = ok p' ->
+  inline_prog_err rename_fd p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem f va scs' mem' vr ->
   exists vr',

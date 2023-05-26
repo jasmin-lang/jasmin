@@ -18,6 +18,7 @@ Module Type CORE_IDENT.
   Parameter name : Type.
 
   Parameter id_name : t -> name.
+  Parameter id_kind : t -> wsize.v_kind.
 
   Parameter name_of_string : string → name.
   Parameter string_of_name : name → string.
@@ -37,6 +38,7 @@ Module Cident : CORE_IDENT.
   Definition name : Type := int.
 
   Definition id_name (x : t) : name := x.
+  Definition id_kind of t := wsize.Const.
 
   Definition name_of_string of string := 1%uint63.
   Definition string_of_name of name := ""%string.
@@ -64,6 +66,7 @@ Module Ident <: IDENT.
   Definition ident := WrapIdent.t.
   Definition name  := WrapIdent.name.
   Definition id_name : ident -> name := Cident.id_name.
+  Definition id_kind : ident → wsize.v_kind := Cident.id_kind.
 
   Module Mid := Tident.Mt.
 
