@@ -100,13 +100,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     fds
   in
 
-  let is_var_in_memory cv : bool =
-    let v = Conv.vari_of_cvari cv |> L.unloc in
-    match v.v_kind with
-    | Stack _ | Reg (_, Pointer _) | Global -> true
-    | Const | Inline | Reg (_, Direct) -> false
-  in
-
   let pp_cuprog s cp =
     Conv.prog_of_cuprog cp |> visit_prog_after_pass ~debug:true s
   in
@@ -202,7 +195,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
         (fun ii ->
           let loc, _ = ii in
           !saved_extra_free_registers loc |> Option.map Conv.cvar_of_var);
-      Compiler.is_var_in_memory;
       Compiler.print_uprog =
         (fun s p ->
           pp_cuprog s p;

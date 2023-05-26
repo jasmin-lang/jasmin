@@ -192,16 +192,13 @@ Variant lower_cassgn_t : Type :=
   | LowerConcat of pexpr & pexpr
   | LowerAssgn.
 
-Context (is_var_in_memory : var_i → bool).
-Notation is_lval_in_memory := (is_lval_in_memory is_var_in_memory).
-
 (* -------------------------------------------------------------------- *)
 
 Definition is_lea sz x e :=
   if ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP) && ~~ is_lval_in_memory x then
     match mk_lea sz e with
     | Some (MkLea d b sc o) =>
-      let check o := match o with Some x => ~~(is_var_in_memory x) | None => true end in
+      let check o := match o with Some x => ~~(is_var_in_memory x.(v_var)) | None => true end in
       (* FIXME: check that d is not to big *)
       if check_scale sc && check b && check o then  Some (MkLea d b sc o)
       else None

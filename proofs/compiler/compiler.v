@@ -157,7 +157,6 @@ Record compiler_params
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
   renaming_fd      : funname -> _ufundef -> _ufundef;
   remove_phi_nodes_fd : funname -> _ufundef -> _ufundef;
-  is_var_in_memory : var_i → bool;
   stack_register_symbol: Ident.ident;
   global_static_data_symbol: Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
@@ -278,7 +277,6 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lowering_opt cparams)
       (warning cparams)
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
-      (is_var_in_memory cparams)
       pa
   in
   let pl := cparams.(print_uprog) LowerInstruction pl in
