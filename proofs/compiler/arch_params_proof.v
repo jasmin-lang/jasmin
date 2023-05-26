@@ -38,7 +38,6 @@ Record h_lowering_params
         (sCP : semCallParams)
         (p : prog)
         (ev : extra_val_t)
-        (is_regx : var -> bool)
         (options : lowering_options)
         (warning : instr_info -> warning_msg -> instr_info)
         (fv : lowering.fresh_vars)
@@ -51,7 +50,7 @@ Record h_lowering_params
         sem_call p ev scs mem f va scs' mem' vr
         -> let lprog :=
              lowering.lower_prog
-               (lop_lower_i loparams is_regx)
+               (lop_lower_i loparams)
                options
                warning
                fv
@@ -72,8 +71,7 @@ Record h_architecture_params
 
     (* Stack alloc hypotheses. See [stack_alloc_proof.v]. *)
     hap_hsap :
-      forall is_regx,
-        stack_alloc_proof.h_stack_alloc_params (ap_sap aparams is_regx);
+        stack_alloc_proof.h_stack_alloc_params (ap_sap aparams);
 
     (* Linearization hypotheses. See [linearization_proof.v]. *)
     hap_hlip :

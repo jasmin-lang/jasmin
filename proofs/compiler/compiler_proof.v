@@ -179,7 +179,6 @@ Proof.
     exact:
       (hlop_lower_callP
          (hap_hlop haparams)
-         (is_regx cparams)
          (lowering_opt cparams)
          (warning cparams)
          (is_var_in_memory cparams)
@@ -280,7 +279,7 @@ Qed.
 
 (* TODO: move *)
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog (ap_sap aparams (is_regx cparams)) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) rip rsp data ga la p = ok p' →
+  alloc_prog (ap_sap aparams) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
   by rewrite /alloc_prog; t_xrbindP => ???? _ <-.
@@ -370,7 +369,7 @@ Proof.
   have disjoint_va : disjoint_values (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va.
   - rewrite /disjoint_values => i1 pi1 w1 i2 pi2 w2.
     by rewrite (allNone_nth _ params_noptr).
-  have := alloc_progP (hap_hsap haparams (is_regx cparams)) ok_p2 exec_p1 m_mi.
+  have := alloc_progP (hap_hsap haparams) ok_p2 exec_p1 m_mi.
   move => /(_ va ok_va disjoint_va ok_mi').
   case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 ?.
   have [] := compiler_third_partP ok_p3.

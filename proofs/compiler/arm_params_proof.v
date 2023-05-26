@@ -132,8 +132,8 @@ Proof.
   by rewrite /sem_sopn /= zero_extend_u.
 Qed.
 
-Definition arm_hsaparams is_regx :
-  h_stack_alloc_params (ap_sap arm_params is_regx) :=
+Definition arm_hsaparams :
+  h_stack_alloc_params (ap_sap arm_params) :=
   {|
     mov_ofsP := arm_mov_ofsP;
     sap_immediateP := arm_immediateP;
@@ -958,7 +958,6 @@ Lemma arm_lower_callP
   (sCP : semCallParams)
   (p : prog)
   (ev : extra_val_t)
-  (is_regx : var -> bool)
   (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
@@ -970,7 +969,7 @@ Lemma arm_lower_callP
   psem.sem_call p ev scs mem f va scs' mem' vr
   -> let lprog :=
        lowering.lower_prog
-         (lop_lower_i arm_loparams is_regx)
+         (lop_lower_i arm_loparams)
          options
          warning
          fv

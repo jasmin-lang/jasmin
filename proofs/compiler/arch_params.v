@@ -21,8 +21,7 @@ Record lowering_params
   {
     (* Lower an instruction to architecture-specific instructions. *)
     lop_lower_i :
-      (var -> bool) (* Whether the variable is a register from the extra bank. *)
-      -> lowering_options      (* Lowering options depend on the architecture. *)
+      lowering_options      (* Lowering options depend on the architecture. *)
       -> (instr_info -> warning_msg -> instr_info)
       -> lowering.fresh_vars
       -> (var_i -> bool)    (* Whether the variable is in memory. *)
@@ -43,7 +42,7 @@ Record architecture_params
   (lowering_options : Type) :=
   {
     (* Stack alloc parameters. See stack_alloc.v. *)
-    ap_sap : (var -> bool) -> stack_alloc.stack_alloc_params;
+    ap_sap : stack_alloc.stack_alloc_params;
 
     (* Linearization parameters. See linearization.v. *)
     ap_lip : linearization.linearization_params;

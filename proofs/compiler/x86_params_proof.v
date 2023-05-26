@@ -80,7 +80,7 @@ Definition x86_hpiparams : h_propagate_inline_params :=
 
 Section STACK_ALLOC.
 
-  Variable (is_regx : var -> bool) (P' : sprog).
+  Variable (P' : sprog).
 
   Lemma lea_ptrP s1 e i x tag ofs w s2 :
     P'.(p_globs) = [::]
@@ -98,7 +98,7 @@ Section STACK_ALLOC.
 Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
-  -> sap_mov_ofs (x86_saparams is_regx) x tag vpk e ofs = Some ins
+  -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
   -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
   -> psem.sem_i (pT := progStack) P' w s1 ins s2.
 Proof.
@@ -113,10 +113,10 @@ Qed.
 
 Lemma x86_immediateP w s (x: var_i) z :
   vtype x = sword Uptr
-  -> psem.sem_i (pT := progStack) P' w s (x86_immediate is_regx x z) (with_vm s (evm s).[x <- pof_val x.(vtype) (Vword (wrepr Uptr z))])%vmap.
+  -> psem.sem_i (pT := progStack) P' w s (x86_immediate x z) (with_vm s (evm s).[x <- pof_val x.(vtype) (Vword (wrepr Uptr z))])%vmap.
 Proof.
   case: x => - [] [] // [] // x xi _ /=.
-  have := mov_wsP (pT := progStack) is_regx AT_none _ (cmp_le_refl _).
+  have := mov_wsP (pT := progStack) AT_none _ (cmp_le_refl _).
   move => /(_ _ _ _ _ _ P').
   apply; last reflexivity.
   by rewrite /= truncate_word_u.
@@ -124,10 +124,10 @@ Qed.
 
 End STACK_ALLOC.
 
-Definition x86_hsaparams is_regx : h_stack_alloc_params (ap_sap x86_params is_regx) :=
+Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
   {|
-    mov_ofsP := x86_mov_ofsP (is_regx := is_regx);
-    sap_immediateP := x86_immediateP is_regx;
+    mov_ofsP := x86_mov_ofsP;
+    sap_immediateP := x86_immediateP;
   |}.
 
 (* ------------------------------------------------------------------------ *)
