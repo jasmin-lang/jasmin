@@ -172,7 +172,6 @@ Record compiler_params
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
-  is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
   is_regx          : var -> bool;
@@ -266,7 +265,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pg in
+  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ :=

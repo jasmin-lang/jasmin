@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
-From Coq Require Import HexadecimalString.
-Require Import gen_map expr compiler_util ZArith.
+From Coq Require Import HexadecimalString ZArith.
+Require Import gen_map expr compiler_util wsize.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -18,10 +18,12 @@ Module Import E.
 
 End E.
 
+Definition is_reg_ptr (x: var) : bool :=
+  if Ident.id_kind x.(vname) is Reg (_, Pointer _) then true else false.
+
 Section Section.
 Context `{asmop:asmOp}.
-Context (is_reg_ptr : var -> bool)
-        (fresh_reg_ptr : instr_info -> Ident.name -> stype -> Ident.ident).
+Context (fresh_reg_ptr : instr_info -> Ident.name -> stype -> Ident.ident).
 Context (p : uprog).
 
 Definition with_id ii sfx vi id ty :=
