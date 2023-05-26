@@ -176,11 +176,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let is_regx x = is_regx (Conv.var_of_cvar x) in
 
-  let is_ptr x =
-    let x = Conv.var_of_cvar x in
-    is_ptr x.v_kind
-  in
-
   let is_reg_array x = is_reg_arr (Conv.var_of_cvar x) in
 
   let warn_extra s p =
@@ -228,7 +223,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
-      Compiler.is_ptr;
       Compiler.is_reg_array;
       Compiler.is_regx = is_regx;
     }
