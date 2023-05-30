@@ -14,6 +14,7 @@ Require Import
 Require Import
   allocation
   array_copy
+  array_copy_cl
   array_expansion
   array_init
   constant_prop
@@ -24,7 +25,7 @@ Require Import
   lowering
   makeReferenceArguments
   propagate_inline
-  remove_assert 
+  remove_assert
   remove_globals
   stack_alloc
   tunneling
@@ -118,7 +119,7 @@ Definition compiler_step_list := [::
   ; RemoveGlobal
   ; MakeRefArguments
   ; LowerInstruction
-  ; PropagateInline 
+  ; PropagateInline
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
@@ -244,9 +245,8 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   let p := remove_assert_prog p in
   let p := cparams.(print_uprog) RemoveAssert p in
-  
 
-  Let p := array_copy_prog cparams.(fresh_counter) p in
+  Let p := array_copy.array_copy_prog cparams.(fresh_counter) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog cparams.(is_ptr) p in
@@ -387,8 +387,8 @@ Definition compiler_CL_first_part (to_keep: seq funname) (p: prog) : cexec uprog
   live_range_splitting p.
 
 Definition compiler_CL_second_part (p: prog) : cexec uprog :=
-        
-  Let p := array_copy_prog cparams.(fresh_counter) p in
+
+  Let p := array_copy_cl.array_copy_prog cparams.(fresh_counter) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   Let p := unroll_loop (ap_is_move_op aparams) p in

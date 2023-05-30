@@ -21,6 +21,7 @@ Require Import
   array_expansion
   array_expansion_proof
   remove_globals_proof
+  remove_assert_proof
   stack_alloc_proof_2
   tunneling_proof
   linearization_proof
@@ -157,9 +158,9 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
     List.Forall2 value_uincl vr vr' &
     psem.sem_call p' tt scs m fn va scs' m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => pa0.
+  rewrite /compiler_first_part;  t_xrbindP => pa0.
   rewrite print_uprogP => ok_pa0 pa.
-  rewrite print_uprogP => ok_pa pb.
+  rewrite print_uprogP. rewrite print_uprogP => ok_pa pb.
   rewrite print_uprogP => ok_pb pc.
   rewrite print_uprogP => ok_pc.
   rewrite !print_uprogP => pd ok_pd.
@@ -203,7 +204,8 @@ Proof.
         (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
   apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
-  apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
+  apply: compose_pass_uincl; first by  move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
+  apply: compose_pass_uincl;first by move => vr' ; apply: (remove_assert_fdPu va_refl).
   apply: compose_pass; first by move => vr'; exact: psem_call.
   exists vr => //.
   exact: (List_Forall2_refl _ value_uincl_refl).

@@ -42,6 +42,7 @@ compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
 compiler/array_copy_proof.v
+compiler/array_copy_cl.v
 compiler/array_init.v
 compiler/array_init_proof.v
 compiler/byteset.v
@@ -69,6 +70,7 @@ compiler/merge_varmaps_proof.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
 compiler/remove_assert.v
+compiler/remove_assert_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v
