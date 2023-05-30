@@ -80,8 +80,8 @@ This release fixes the AUTHORS file which was not up-to-date.
 
 - Fixes to the safety checker
   ([PR #315](https://github.com/jasmin-lang/jasmin/pull/315),
-  ([PR #343](https://github.com/jasmin-lang/jasmin/pull/343),
-  ([PR #365](https://github.com/jasmin-lang/jasmin/pull/365);
+  [PR #343](https://github.com/jasmin-lang/jasmin/pull/343),
+  [PR #365](https://github.com/jasmin-lang/jasmin/pull/365);
   fixes [#314](https://github.com/jasmin-lang/jasmin/issues/314)).
 
 - Safety checker better handles integer shift operators
@@ -102,7 +102,7 @@ This release fixes the AUTHORS file which was not up-to-date.
 
 - Safety checker folds constant expressions during linearization
   ([PR #387](https://github.com/jasmin-lang/jasmin/pull/387);
-  fixes [#385](https://github.com/jasmin-lang/jasmin/issues/385)),
+  fixes [#385](https://github.com/jasmin-lang/jasmin/issues/385),
   [#386](https://github.com/jasmin-lang/jasmin/issues/386)).
 
 - Fix compilation and semantics of the `VPEXTR` and `VPINSR` instructions
