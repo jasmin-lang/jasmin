@@ -62,7 +62,7 @@ Definition signed {A:Type} (fu fs:A) s :=
   end.
 
 Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
-  if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then type_error
+  if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then Error ErrArith
   else ok (o w1 w2).
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
