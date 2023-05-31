@@ -11,20 +11,6 @@
   `n`
   ([PR #282](https://github.com/jasmin-lang/jasmin/pull/282)).
 
-- More x86 instructions are available:
-  `VPMUL`
-  ([PR #276](https://github.com/jasmin-lang/jasmin/pull/276)),
-  `VPAVG`
-  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)),
-  `CLFLUSH`, `LFENCE`, `MFENCE`, `SFENCE`
-  ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)),
-  `PDEP`
-  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
-  `VMOVDQA`
-  ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
-  `PCLMULQDQ`, `VPCLMULQDQ`
-  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
-
 - Add bit rotation operators for expressions: `<<r` and `>>r`
   ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).
   These get extracted to `|<<|` and `|>>|` in EasyCrypt.
@@ -32,14 +18,6 @@
 - Local functions with return address on the stack use usual `CALL`
   and `RET` x86 instructions instead of (direct & computed) `JMP`
   ([PR #194](https://github.com/jasmin-lang/jasmin/pull/194)).
-
-- x86 intrinsics that accept a size suffix (e.g., `_128`) also accept, with a
-  warning, a vector suffix (e.g., `_4u32`)
-  ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303)).
-
-- Division and modulo operators can be used in compound assignments
-  (e.g., `x /= y`)
-  ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
 
 - The pretty-printer of Jasmin programs to LATEX is now available as a separate
   `jazz2tex` tool; the `-latex` command line flag is deprecated
@@ -62,10 +40,98 @@
 
 ## Bug fixes
 
+- Various fixes to the LATEX printer
+  ([PR #406](https://github.com/jasmin-lang/jasmin/pull/406)).
+
+- Fix the semantics of shift and rotation operators: the second
+  argument (the shift amount) is no longer truncated
+  ([PR #413](https://github.com/jasmin-lang/jasmin/pull/413)).
+
+## Other changes
+
+- Explicit if-then-else in flag combinations is no longer supported
+  in x86 assembly generation; conditions that used to be supported
+  can be expressed using equality and disequality tests
+  ([PR #270](https://github.com/jasmin-lang/jasmin/pull/270)).
+
+- When the `-timings` command-line flag is given, timestamps are
+  written to the standard error after each compilation pass and during
+  safety analysis when entering a local function; the elapsed time since
+  previous timestamp is also displayed
+  ([PR #403](https://github.com/jasmin-lang/jasmin/pull/403)).
+
+- Local functions that are never called are removed from the program during the
+  “remove unused function” pass
+  ([PR #427](https://github.com/jasmin-lang/jasmin/pull/427)).
+
+# Jasmin 2022.09.3 — Villers-lès-Nancy, 2023-05-31
+
+## New features
+
+- x86 instructions `PCLMULQDQ`, `VPCLMULQDQ` are available
+  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
+
+- x86 intrinsics that accept a size suffix (e.g., `_128`) also accept, with a
+  warning, a vector suffix (e.g., `_4u32`)
+  ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303)).
+
+## Bug fixes
+
 - The x86 instructions `VMOVSHDUP` and `VMOVSLDUP` accept a size suffix (`_128`
-   or `_256`) instead of a vector description suffix (`4u32` or `8u32`)
+  or `_256`) instead of a vector description suffix (`4u32` or `8u32`)
   ([PR #303](https://github.com/jasmin-lang/jasmin/pull/303);
   fixes [#301](https://github.com/jasmin-lang/jasmin/issues/301)).
+
+- Fixes for x86 instruction `BT`
+  ([PR #420](https://github.com/jasmin-lang/jasmin/pull/420)).
+
+- Register allocation checks that forced register are from the expected bank
+  ([PR #422](https://github.com/jasmin-lang/jasmin/pull/422);
+  fixes [#421](https://github.com/jasmin-lang/jasmin/issues/421)).
+
+- Fix semantics of the `VPERMD`, `VPMADDWD`, and `VPMADDUBSW` instructions
+  ([PR #442](https://github.com/jasmin-lang/jasmin/pull/442)).
+
+- Fix semantics of the `VPMOVSX` and `VPMOVZX` instructions
+  ([PR #446](https://github.com/jasmin-lang/jasmin/pull/446)).
+
+- Fix semantics of the `VPSHUFB` and `VPCMPGT` instructions
+  ([PR #449](https://github.com/jasmin-lang/jasmin/pull/449)).
+
+- Fix semantics of the `SHR`, `RCL`, and `RCR` instructions
+  ([PR #451](https://github.com/jasmin-lang/jasmin/pull/451)).
+
+## Other changes
+
+- Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by
+  an amount that is explicitly truncated (e.g., `x >>= y & 63`)
+  ([PR #412](https://github.com/jasmin-lang/jasmin/pull/412)).
+
+# Jasmin 2022.09.2
+
+This release fixes the AUTHORS file which was not up-to-date.
+
+# Jasmin 2022.09.1
+
+## New features
+
+- More x86 instructions are available:
+  `VPMUL`
+  ([PR #276](https://github.com/jasmin-lang/jasmin/pull/276)),
+  `VPAVG`
+  ([PR #285](https://github.com/jasmin-lang/jasmin/pull/285)),
+  `CLFLUSH`, `LFENCE`, `MFENCE`, `SFENCE`
+  ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)),
+  `PDEP`
+  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
+  `VMOVDQA`
+  ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
+
+- Division and modulo operators can be used in compound assignments
+  (e.g., `x /= y`)
+  ([PR #324](https://github.com/jasmin-lang/jasmin/pull/324)).
+
+## Bug fixes
 
 - Safety checker handles the `#copy` and `#randombytes` operators
   ([PR #312](https://github.com/jasmin-lang/jasmin/pull/312),
@@ -111,56 +177,11 @@
   ([PR #394](https://github.com/jasmin-lang/jasmin/pull/394);
   fixes [#395](https://github.com/jasmin-lang/jasmin/issues/395)).
 
-- Various fixes to the LATEX printer
-  ([PR #406](https://github.com/jasmin-lang/jasmin/pull/406)).
-
-- Fix the semantics of shift and rotation operators: the second
-  argument (the shift amount) is no longer truncated
-  ([PR #413](https://github.com/jasmin-lang/jasmin/pull/413)).
-
-- Fixes for x86 instruction `BT`
-  ([PR #420](https://github.com/jasmin-lang/jasmin/pull/420)).
-
-- Register allocation checks that forced register are from the expected bank
-  ([PR #422](https://github.com/jasmin-lang/jasmin/pull/422);
-  fixes [#421](https://github.com/jasmin-lang/jasmin/issues/421)).
-
-- Fix semantics of the `VPERMD`, `VPMADDWD`, and `VPMADDUBSW` instructions
-  ([PR #442](https://github.com/jasmin-lang/jasmin/pull/442)).
-
-- Fix semantics of the `VPMOVSX` and `VPMOVZX` instructions
-  ([PR #446](https://github.com/jasmin-lang/jasmin/pull/446)).
-
-- Fix semantics of the `VPSHUFB` and `VPCMPGT` instructions
-  ([PR #449](https://github.com/jasmin-lang/jasmin/pull/449)).
-
-- Fix semantics of the `SHR`, `RCL`, and `RCR` instructions
-  ([PR #451](https://github.com/jasmin-lang/jasmin/pull/451)).
-
 ## Other changes
-
-- Explicit if-then-else in flag combinations is no longer supported
-  in x86 assembly generation; conditions that used to be supported
-  can be expressed using equality and disequality tests
-  ([PR #270](https://github.com/jasmin-lang/jasmin/pull/270)).
 
 - The live-range-splitting transformation is run a second time after
   expansion of register arrays
   ([PR #341](https://github.com/jasmin-lang/jasmin/pull/341)).
-
-- When the `-timings` command-line flag is given, timestamps are
-  written to the standard error after each compilation pass and during
-  safety analysis when entering a local function; the elapsed time since
-  previous timestamp is also displayed
-  ([PR #403](https://github.com/jasmin-lang/jasmin/pull/403)).
-
-- Instruction selection for `x86_64` recognizes shifts (rotations, etc.) by
-  an amount that is explicitly truncated (e.g., `x >>= y & 63`)
-  ([PR #412](https://github.com/jasmin-lang/jasmin/pull/412)).
-
-- Local functions that are never called are removed from the program during the
-  “remove unused function” pass
-  ([PR #427](https://github.com/jasmin-lang/jasmin/pull/427)).
 
 # Jasmin 2022.09.0
 
