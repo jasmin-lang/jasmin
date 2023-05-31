@@ -1,7 +1,12 @@
 
 # [unreleased]
 
+# Jasmin 2022.09.3 — Villers-lès-Nancy, 2023-05-31
+
 ## New features
+
+- x86 instructions `PCLMULQDQ`, `VPCLMULQDQ` are available
+  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
 
 - x86 intrinsics that accept a size suffix (e.g., `_128`) also accept, with a
   warning, a vector suffix (e.g., `_4u32`)
@@ -58,8 +63,6 @@ This release fixes the AUTHORS file which was not up-to-date.
   ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
   `VMOVDQA`
   ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
-  `PCLMULQDQ`, `VPCLMULQDQ`
-  ([PR #396](https://github.com/jasmin-lang/jasmin/pull/396)).
 
 - Division and modulo operators can be used in compound assignments
   (e.g., `x /= y`)
