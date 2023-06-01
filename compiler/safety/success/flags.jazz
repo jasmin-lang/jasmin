@@ -1,0 +1,8 @@
+export fn f(reg u64 x) -> reg u64 {
+  reg u64 r;
+  reg bool c;
+  r = x;
+  ?{ "==" = c }, x = #SUB(x, 1);
+  r = x if !c;
+  return r;
+}
