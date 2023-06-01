@@ -303,6 +303,12 @@ let pp_var ~debug =
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name
 
+let pp_dvar ~debug fmt x =
+  let pp_dloc fmt d =
+    if not (L.isdummy d) then F.fprintf fmt " (defined at %a)" L.pp_loc d
+  in
+  F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
+
 let pp_expr ~debug fmt e =
   let pp_var = pp_var ~debug in
   pp_ge pp_len pp_var fmt e
@@ -409,7 +415,7 @@ let pp_warning_msg fmt = function
 let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
   let pp_var fmt v =
     let v = Conv.var_of_cvar v in
-    Format.fprintf fmt "%a (defined at %a)" (pp_var ~debug) v L.pp_loc v.v_dloc
+    Format.fprintf fmt "%a" (pp_dvar ~debug) v
   in
   let rec pp_err fmt pp_e =
     match pp_e with
