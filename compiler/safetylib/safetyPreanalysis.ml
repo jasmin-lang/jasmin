@@ -473,7 +473,7 @@ end
 
 (* Flow-sensitive Pre-Analysis *)
 module FSPa : sig    
-  val fs_pa_make : X86_extra.x86_extended_op Sopn.asmOp -> (X86_extra.x86_extended_op -> bool) -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
+  val fs_pa_make : X86_extra.x86_extended_op Sopn.asmOp -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
   let rec collect_vars_e sv = function
@@ -525,7 +525,7 @@ end = struct
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
     
-  let fs_pa_make asmOp is_move_op (f : ('info, 'asm) func) =
+  let fs_pa_make asmOp (f : ('info, 'asm) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->
@@ -536,7 +536,7 @@ end = struct
     (* We make sure that variable are uniquely defined by their names. *)
     assert (check_uniq_names vars);
      
-    let ssa_f = Ssa.split_live_ranges is_move_op false f in
+    let ssa_f = Ssa.split_live_ranges false f in
     debug (fun () ->
         Format.eprintf "SSA transform of %s:@;%a"
           f.f_name.fn_name

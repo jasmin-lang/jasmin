@@ -180,7 +180,7 @@ let memory_analysis pp_err ~debug up =
       (Printer.pp_prog ~debug:true Arch.asmOp) ([], (List.map snd fds));
   
   (* remove unused result *)
-  let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
+  let tokeep = RemoveUnusedResults.analyse fds in
   let tokeep fn = tokeep fn in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in

@@ -792,7 +792,7 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   a
 
 let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
-  Ssa.split_live_ranges Arch.aparams.ap_is_move_op true f
+  Ssa.split_live_ranges true f
 
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
@@ -872,8 +872,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   let killed fn = Hf.find killed_map fn in
   let preprocess f =
     Hf.add annot_table f.f_name f.f_annot;
-    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges Arch.aparams.ap_is_move_op false in
-    Hf.add liveness_table f.f_name (Liveness.live_fd Arch.aparams.ap_is_move_op true f);
+    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
+    Hf.add liveness_table f.f_name (Liveness.live_fd true f);
     (* compute where will be store the return address *)
     let ra = 
        match f.f_cc with

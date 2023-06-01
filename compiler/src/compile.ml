@@ -163,7 +163,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let removereturn sp =
     let fds, _data = Conv.prog_of_csprog sp in
-    let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
+    let tokeep = RemoveUnusedResults.analyse fds in
     tokeep
   in
 
