@@ -15,6 +15,7 @@ val pp_pprog : ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extr
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
+val pp_dvar   : debug:bool -> Format.formatter -> var -> unit
 
 val string_of_combine_flags : Expr.combine_flags -> string
 
