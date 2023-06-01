@@ -10,9 +10,9 @@ let used_results (live: Sv.t) : lvals -> Sint.t =
     )
     Sint.empty
 
-let analyse is_move_op funcs =
+let analyse funcs =
   let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
-  List.iter (fun (_,f) -> Hf.add liveness_table f.f_name (Liveness.live_fd is_move_op false f)) funcs;
+  List.iter (fun (_,f) -> Hf.add liveness_table f.f_name (Liveness.live_fd false f)) funcs;
   let live_results =
     let live : Sint.t Hf.t = Hf.create 17 in
     let cbf _loc fn xs (_, s) =

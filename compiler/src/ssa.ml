@@ -52,8 +52,8 @@ let ir (m: names) (x: var) (y: var) : (unit, 'asm) instr =
   let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
   { i_desc ; i_info = () ; i_loc = L.i_dummy ; i_annot = [] }
 
-let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
-  let f = Liveness.live_fd is_move_op false f in
+let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
+  let f = Liveness.live_fd false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cassgn (x, tg, ty, e) ->

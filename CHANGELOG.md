@@ -47,6 +47,10 @@
   argument (the shift amount) is no longer truncated
   ([PR #413](https://github.com/jasmin-lang/jasmin/pull/413)).
 
+- Improve liveness analysis for register allocation
+  ([PR #469](https://github.com/jasmin-lang/jasmin/pull/469);
+  fixes [#455](https://github.com/jasmin-lang/jasmin/issues/455)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
