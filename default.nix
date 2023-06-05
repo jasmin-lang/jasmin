@@ -41,8 +41,8 @@ let oP =
   else ocamlPackages
 ; in
 
-if !lib.versionAtLeast oP.ocaml.version "4.08"
-then throw "Jasmin requires OCaml ≥ 4.08"
+if !lib.versionAtLeast oP.ocaml.version "4.11"
+then throw "Jasmin requires OCaml ≥ 4.11"
 else
 
 let ecDeps = ecRef != ""; in
