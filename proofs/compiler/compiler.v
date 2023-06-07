@@ -162,7 +162,6 @@ Record compiler_params
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : seq _sfun_decl -> seq _sfun_decl;
-  extra_free_registers : instr_info → option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : compiler_step -> lprog -> lprog;
@@ -340,9 +339,8 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  (* FIXME: we can certainly remove cparams.(extra_free_registers) from merge_varmaps *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
-  Let pl := linear_prog liparams pd (* cparams.(extra_free_registers) *) in
+  Let _ := merge_varmaps.check pd var_tmp in
+  Let pl := linear_prog liparams pd in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in

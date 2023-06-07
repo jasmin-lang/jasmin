@@ -76,17 +76,13 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       ~debug:!debug up
   in
 
-  let saved_extra_free_registers : (L.i_loc -> var option) ref =
-    ref (fun _ -> None)
-  in
-
   let global_regalloc fds =
     if !debug then Format.eprintf "START regalloc@.";
     let fds = List.map Conv.fdef_of_csfdef fds in
 
     CheckAnnot.check_stack_size fds;
 
-    let fds, extra_free_registers =
+    let fds =
       Regalloc.alloc_prog translate_var
         (fun _fd extra ->
           match extra.Expr.sf_save_stack with
@@ -94,7 +90,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
           | Expr.SavedStackNone -> false)
         fds
     in
-    saved_extra_free_registers := extra_free_registers;
     let fds = List.map (fun (y, _, x) -> (y, x)) fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
     fds
@@ -191,10 +186,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.stackalloc = memory_analysis;
       Compiler.removereturn;
       Compiler.regalloc = global_regalloc;
-      Compiler.extra_free_registers =
-        (fun ii ->
-          let loc, _ = ii in
-          !saved_extra_free_registers loc |> Option.map Conv.cvar_of_var);
       Compiler.print_uprog =
         (fun s p ->
           pp_cuprog s p;

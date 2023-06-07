@@ -127,8 +127,7 @@ Section CAT.
 
   Context
     (liparams : linearization_params)
-    (p : sprog)
-    (extra_free_registers : instr_info -> option var).
+    (p : sprog).
 
   Let linear_i := linear_i liparams p.
 
@@ -542,7 +541,6 @@ End LINEARIZATION_PARAMS.
 Section VALIDITY.
   Context
     (p : sprog)
-    (extra_free_registers : instr_info -> option var)
     (lp : lprog)
     (liparams : linearization_params)
     (hliparams : h_linearization_params liparams).
@@ -691,7 +689,6 @@ End VALIDITY.
 Section NUMBER_OF_LABELS.
   Context
     (p : sprog)
-    (extra_free_registers : instr_info -> option var)
     (lp : lprog)
     (liparams : linearization_params)
     (hliparams : h_linearization_params liparams).
@@ -935,7 +932,6 @@ Section PROOF.
     (liparams : linearization_params)
     (hliparams : h_linearization_params liparams)
     (p : sprog)
-    (extra_free_registers : instr_info -> option var)
     (p' : lprog).
 
   Let vgd : var := Var (sword Uptr) (sp_rip (p_extra p)).
@@ -1501,9 +1497,6 @@ Section PROOF.
     ∀ fn lbl,
       checked_i fn (MkI ii i) →
       let: (lbli, li) := linear_i fn (MkI ii i) lbl [::] in
-      (if extra_free_registers ii is Some fr then
-           [/\ fr <> vgd, fr <> vrsp, vtype fr = sword Uptr & s1.[fr]%vmap = Error ErrAddrUndef]
-       else True) →
      ∀ m1 vm1 P Q,
        wf_vm vm1 →
        match_mem s1 m1 →
@@ -1516,7 +1509,7 @@ Section PROOF.
                     (Lstate (escs s1) m1 vm1 fn (size P))
                     (Lstate (escs s2) m2 vm2 fn (size (P ++ li)))
        )
-       (λ _ vm2, vm1 = vm2 [\  Sv.union k (extra_free_registers_at extra_free_registers ii) ])
+       (λ _ vm2, vm1 = vm2 [\  k ])
        (λ _ vm2, wf_vm vm2)
        (λ _ vm2, vm_uincl s2 vm2)
        (λ m2 _, preserved_metadata s1 m1 m2)
@@ -1571,8 +1564,8 @@ Section PROOF.
       else lsem p' (Lstate (escs s1) m1 vm1 fn 0) (Lstate (escs s2) m2 vm2 fn (size body)))
       (λ _ vm2, vm1 = vm2 [\ match ra with
                              | RAnone => Sv.diff k (sv_of_list id callee_saved)
-                             | RAreg _ => Sv.union k (extra_free_registers_at extra_free_registers ii)
-                             | RAstack _ _ => Sv.add vrsp (Sv.union k (extra_free_registers_at extra_free_registers ii))
+                             | RAreg _ => k
+                             | RAstack _ _ => Sv.add vrsp k
                              end ])
       (λ _ vm2, wf_vm vm2)
       (λ _ vm2, s2.[vrsp <- ok (pword_of_word (if ra is RAstack _ _ then sp + wrepr _ (wsize_size Uptr)
@@ -1599,7 +1592,7 @@ Section PROOF.
     move => s1 fn lbl _ m1 vm1 P Q M X D C; rewrite cats0; exists m1 vm1 => //; exact: rt_refl.
   Qed.
 
-  Local Lemma Hcons : sem_Ind_cons p extra_free_registers var_tmp Pc Pi.
+  Local Lemma Hcons : sem_Ind_cons p var_tmp Pc Pi.
   Proof.
     move => ki kc s1 s2 s3 i c exec_i hi _ hc.
     move => fn lbl /checked_cI[] chk_i chk_c /=.
@@ -1632,32 +1625,12 @@ Section PROOF.
     all: SvD.fsetdec.
   Qed.
 
-  Local Lemma HmkI : sem_Ind_mkI p extra_free_registers var_tmp Pi Pi_r.
+  Local Lemma HmkI : sem_Ind_mkI p var_tmp Pi Pi_r.
   Proof.
-    move => ii k i s1 s2 ok_fr _ h _ fn lbl chk.
+    move => ii k i s1 s2 ok_fr h _ fn lbl chk.
     move: h => /(_ fn lbl chk); case: linear_i (valid_i fn (MkI ii i) lbl) => lbli li [L V] S.
     move => m1 vm1 P Q W M X D C.
-    have E :
-      match extra_free_registers ii return Prop with
-      | Some fr =>
-          [/\ fr ≠ vgd, fr ≠ vrsp, vtype fr = spointer
-            & ((kill_extra_register extra_free_registers ii s1).[fr])%vmap = Error ErrAddrUndef]
-      | None => True
-      end.
-    + rewrite /kill_extra_register /kill_extra_register_vmap.
-      rewrite /efr_valid in ok_fr.
-      case: extra_free_registers ok_fr
-      => // fr /and3P [] /eqP hrip /eqP hrsp /andP[] /eqP hty not_while;
-        split => //=.
-      rewrite /=; case heq: s1.[fr]%vmap (W fr) (X fr) => [vfr | efr /=].
-      + by move=> _ _; rewrite Fv.setP_eq hty.
-      rewrite heq; case: vm1.[fr]%vmap.
-      + by move=> _ _; case efr.
-      by move=> [] // _; case: (efr).
-    have {S E} S := S E.
-    have [ | {W M X} ] := S _ vm1 _ _ W M _ D C.
-    - by apply: vm_uincl_trans; first exact: kill_extra_register_vm_uincl.
-    move => m2 vm2 E K W X H M.
+    have {W M X} [m2 vm2 E K W X H M] := S _ vm1 _ _ W M X D C.
     exists m2 vm2.
     - exact: E.
     - apply: vmap_eq_exceptI K; SvD.fsetdec.
@@ -1719,14 +1692,14 @@ Section PROOF.
     move => fn lbl /checked_iE[] fd ok_fd.
     rewrite /check_i; t_xrbindP => /check_rexprsP[] qs ok_qs chk_es /check_lexprsP[] ds ok_ds chk_xs.
     rewrite /= ok_ds ok_qs.
-    move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
+    move => m1 vm1 P Q W1 M1 X1 D1 C1.
     have [ vs' /(match_mem_sem_pexprs M1) /chk_es ok_vs' vs_vs' ] := sem_pexprs_uincl X1 ok_vs.
     have [ rs' ok_rs' rs_rs' ] := vuincl_exec_opn vs_vs' ok_rs.
     have [ vm2 /(match_mem_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
     exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2 ]; last first.
     + exact: write_lvals_preserves_metadata ok_s2 ok_s2' _ X1 M1.
     + exact: wf_write_lvals ok_s2'.
-    + apply: vmap_eq_except_union. by have := vrvsP ok_s2'.
+    + by have := vrvsP ok_s2'.
     apply: LSem_step.
     rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /= /eval_instr /to_estate /=.
     have {} ok_s2' := chk_xs _ _ _ ok_s2'.
@@ -1821,7 +1794,7 @@ Section PROOF.
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
   Proof.
     move=> ii s1 s2 o xs es scs m ves vs hes ho hw fn lbl /checked_iE [] fd ok_fd chk.
-    move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
+    move => m1 vm1 P Q W1 M1 X1 D1 C1.
     have [ves' hes' uves]:= get_vars_uincl_ X1 hes.
     have [vs' /= ho' uvs]:= exec_syscallP ho uves.
     have [m' {ho'}ho' mm]:= match_mem_exec_syscall M1 ho'.
@@ -1856,7 +1829,7 @@ Section PROOF.
 
   Let Llabel := linear.Llabel InternalLabel.
 
-  Local Lemma Hif_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
+  Local Lemma Hif_true : sem_Ind_if_true p var_tmp Pc Pi_r.
   Proof.
     move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E1 Hc1 fn lbl /checked_iE[] fd ok_fd /=.
     t_xrbindP => /check_fexprP[] f ok_f chk_c1 _.
@@ -1865,7 +1838,7 @@ Section PROOF.
     + case/semE: E1 => hk ?; subst s2.
       rewrite /= linear_c_nil; case: (linear_c fn) (valid_c fn c2 (next_lbl lbl)) => lbl2 lc2.
       rewrite /next_lbl => - [L V].
-      move => fr_undef m1 vm1 P Q W1 M1 X1 D C1.
+      move => m1 vm1 P Q W1 M1 X1 D C1.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       have {} ok_e' := fexpr_of_pexprP ok_f ok_e'.
       exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
@@ -1881,7 +1854,7 @@ Section PROOF.
       rewrite ok_nf.
       case: (linear_c fn) (Hc1 fn (next_lbl lbl)) => lbl1 lc1.
       rewrite /checked_c ok_fd chk_c1 => /(_ erefl) S.
-      move => fr_undef m1 vm1 P Q W1 M1 X1 D C1.
+      move => m1 vm1 P Q W1 M1 X1 D C1.
       set P' := rcons P (MkLI ii (Lcond nf lbl)).
       have D' : disjoint_labels (next_lbl lbl) lbl1 P'.
       - rewrite /P' -cats1; apply: disjoint_labels_cat; last by [].
@@ -1891,8 +1864,7 @@ Section PROOF.
       - by move: C1; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      have K2' := vmap_eq_except_union K2.
-      exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
+      exists m2 vm2; [ | exact: K2 | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
       - have /= := snot_spec ok_e'.
@@ -1908,7 +1880,7 @@ Section PROOF.
     rewrite /checked_c ok_fd chk_c1 => /(_ erefl) E.
     rewrite linear_c_nil.
     case: (linear_c fn) (valid_c fn (i2 :: c2) lbl1) => lbl2 lc2 [L2 V2].
-    move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
+    move => m1 vm1 P Q W1 M1 X1 D C.
     have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
     set P' := P ++ {| li_ii := ii; li_i := Lcond f lbl |} :: lc2 ++ [:: {| li_ii := ii; li_i := Lgoto (fn, (lbl + 1)%positive) |}; {| li_ii := ii; li_i := Llabel lbl |} ].
     have D' : disjoint_labels (lbl + 1 + 1) lbl1 P'.
@@ -1919,8 +1891,7 @@ Section PROOF.
     have C' : is_linear_of fn (P' ++ lc1 ++ Q').
     + by move: C; rewrite /P' /Q' /= -!catA /= -!catA.
     have {E} [ m2 vm2 E K2 W2 X2 H2 M2 ] := E m1 vm1 P' Q' W1 M1 X1 D' C'.
-      have K2' := vmap_eq_except_union K2.
-    exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
+    exists m2 vm2; [ | exact: K2 | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
     - have {} ok_e' := fexpr_of_pexprP ok_f ok_e'.
@@ -1935,7 +1906,7 @@ Section PROOF.
     by rewrite /P' /Q' -!catA /= -!catA; repeat rewrite !size_cat /=; rewrite !addnS !addn0.
   Qed.
 
-  Local Lemma Hif_false : sem_Ind_if_false p extra_free_registers var_tmp Pc Pi_r.
+  Local Lemma Hif_false : sem_Ind_if_false p var_tmp Pc Pi_r.
   Proof.
     move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E2 Hc2 fn lbl /checked_iE[] fd ok_fd /=.
     t_xrbindP => /check_fexprP[] f ok_f _ chk_c2.
@@ -1944,7 +1915,7 @@ Section PROOF.
     + rewrite linear_c_nil.
       case: (linear_c fn) (Hc2 fn (next_lbl lbl)) => lbl2 lc2.
       rewrite /checked_c ok_fd chk_c2 => /(_ erefl) S.
-      move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
+      move => m1 vm1 P Q W1 M1 X1 D C.
       set P' := rcons P (MkLI ii (Lcond f lbl)).
       have D' : disjoint_labels (next_lbl lbl) lbl2 P'.
       - rewrite /P' -cats1; apply: disjoint_labels_cat; last by [].
@@ -1954,8 +1925,7 @@ Section PROOF.
       - by move: C; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      have K2' := vmap_eq_except_union K2.
-      exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
+      exists m2 vm2; [ | exact: K2 | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
       - have {} ok_e' := fexpr_of_pexprP ok_f ok_e'.
@@ -1969,7 +1939,7 @@ Section PROOF.
       rewrite ok_nf.
       rewrite linear_c_nil; case: (linear_c fn) (valid_c fn (i1 :: c1) (next_lbl lbl)) => lbl1 lc1.
       rewrite /next_lbl => - [L V].
-      move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
+      move => m1 vm1 P Q W1 M1 X1 D C.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
       apply: LSem_step.
@@ -1987,7 +1957,7 @@ Section PROOF.
     rewrite linear_c_nil.
     case: (linear_c fn) (valid_c fn (i2 :: c2) lbl1) (Hc2 fn lbl1) => lbl2 lc2 [L2 V2].
     rewrite /checked_c ok_fd chk_c2 => /(_ erefl) E.
-    move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
+    move => m1 vm1 P Q W1 M1 X1 D C.
     have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
     set P' := rcons P {| li_ii := ii; li_i := Lcond f lbl |}.
     have D' : disjoint_labels lbl1 lbl2 P'.
@@ -1997,8 +1967,7 @@ Section PROOF.
     have C' : is_linear_of fn (P' ++ lc2 ++ Q' ++ Q).
     + by move: C; rewrite /P' /Q' /= -cats1 /= -!catA /= -!catA.
     have {E} [ m2 vm2 E K2 W2 X2 H2 M2 ] := E m1 vm1 P' (Q' ++ Q) W1 M1 X1 D' C'.
-    have K2' := vmap_eq_except_union K2.
-    exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
+    exists m2 vm2; [ | exact: K2 | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
     + have {} ok_e' := fexpr_of_pexprP ok_f ok_e'.
@@ -2065,7 +2034,7 @@ Section PROOF.
     exact: rt_refl.
   Qed.
 
-  Local Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers var_tmp Pc Pi Pi_r.
+  Local Lemma Hwhile_true : sem_Ind_while_true p var_tmp Pc Pi Pi_r.
   Proof.
     red. clear Pfun.
     move => ii k k' krec s1 s2 s3 s4 a c e c' Ec Hc ok_e Ec' Hc' Ew Hw.
@@ -2091,7 +2060,7 @@ Section PROOF.
       rewrite linear_c_nil.
       move: {Hc} (Hc fn lblc').
       rewrite /checked_c ok_fd ok_c => /(_ erefl).
-      case: (linear_c fn c lblc' [::]) (valid_c fn c lblc') => lblc lc [L V] Hc /= Hw _.
+      case: (linear_c fn c lblc' [::]) (valid_c fn c lblc') => lblc lc [L V] Hc /= Hw.
       rewrite add_align_nil.
       move => m vm P Q W M X D C.
       have {Hc} := Hc m vm (P ++ add_align ii a [::] ++ [:: ι (Llabel lbl) ]) (lc' ++ [:: ι (Lgoto (fn, lbl)) ] ++ Q) W M X.
@@ -2171,7 +2140,7 @@ Section PROOF.
       move: {Hc} (Hc fn (next_lbl lbl)).
       rewrite /checked_c ok_fd ok_c => /(_ erefl).
       case: (linear_c fn c (next_lbl lbl) [::]) (valid_c fn c (next_lbl lbl)) => lblc lc.
-      rewrite /next_lbl => - [L V] Hc /= /(_ erefl) Hw _.
+      rewrite /next_lbl => - [L V] Hc /= /(_ erefl) Hw.
       rewrite add_align_nil.
       move => m vm P Q W M X D C.
       have {Hc} := Hc m vm (P ++ add_align ii a [::] ++ [:: ι (Llabel lbl) ]) ([:: ι (Lcond f lbl) ] ++ Q) W M X.
@@ -2238,7 +2207,7 @@ Section PROOF.
     rewrite linear_c_nil.
     move: {Hc'} (Hc' fn lblc).
     rewrite /checked_c ok_fd ok_c' => /(_ erefl).
-    case: (linear_c fn (i :: c') lblc [::]) (valid_c fn (i :: c') lblc) => lblc' lc' [L' V'] Hc' /= /(_ erefl) Hw _.
+    case: (linear_c fn (i :: c') lblc [::]) (valid_c fn (i :: c') lblc) => lblc' lc' [L' V'] Hc' /= /(_ erefl) Hw.
     rewrite add_align_nil.
     move => m vm P Q W M X D C.
     have {Hc} := Hc m vm (P ++ ι (Lgoto (fn, lbl)) :: add_align ii a [::] ++ [:: ι (Llabel (lbl + 1)) ] ++ lc' ++ [:: ι (Llabel lbl) ]) ([:: ι (Lcond f (lbl + 1)) ] ++ Q) W M X.
@@ -2321,7 +2290,7 @@ Section PROOF.
     by case: (a).
   Qed.
 
-  Local Lemma Hwhile_false : sem_Ind_while_false p extra_free_registers var_tmp Pc Pi_r.
+  Local Lemma Hwhile_false : sem_Ind_while_false p var_tmp Pc Pi_r.
   Proof.
     move => ii k s1 s2 a c e c' Ec Hc; rewrite p_globs_nil => ok_e fn lbl /checked_iE[] fd ok_fd /=.
     case: is_boolP ok_e; first case; first by [].
@@ -2330,7 +2299,7 @@ Section PROOF.
       move: {Hc} (Hc fn lbl).
       rewrite /checked_c ok_fd ok_c => /(_ erefl).
       case: (linear_c fn c lbl [::]) => lblc lc.
-      move => Hc _.
+      move => Hc.
       move => m vm P Q W M X D C.
       have {Hc} [ m' vm' E K W' X' H' M' ] := Hc m vm P Q W M X D C.
       exists m' vm'; [ exact: E | | exact: W' | exact: X' | exact: H' | exact: M' ].
@@ -2345,7 +2314,7 @@ Section PROOF.
       move: {Hc} (Hc fn (next_lbl lbl)).
       rewrite /checked_c ok_fd ok_c => /(_ erefl).
       case: (linear_c fn c (next_lbl lbl) [::]) => lblc lc.
-      move => Hc _.
+      move => Hc.
       rewrite /= add_align_nil.
       move => m vm P Q W M X D.
       rewrite -cat1s !catA.
@@ -2387,7 +2356,7 @@ Section PROOF.
     move: {Hc} (Hc fn (next_lbl (next_lbl lbl))).
     rewrite /checked_c ok_fd ok_c => /(_ erefl).
     case: (linear_c fn c (next_lbl (next_lbl lbl)) [::]) (valid_c fn c (next_lbl (next_lbl lbl))) => lblc lc.
-    rewrite /next_lbl => -[L V] Hc _.
+    rewrite /next_lbl => -[L V] Hc.
     rewrite linear_c_nil.
     case: (linear_c fn (i :: c') lblc [::]) (valid_c fn (i :: c') lblc) => lblc' lc' [L' V'].
     rewrite /= add_align_nil.
@@ -2479,11 +2448,11 @@ Section PROOF.
     assert (X := wunsigned_range (top_stack s1)); lia.
   Qed.
 
-  Local Lemma Hcall : sem_Ind_call p extra_free_registers var_tmp Pi_r Pfun.
+  Local Lemma Hcall : sem_Ind_call p var_tmp Pi_r Pfun.
   Proof.
     move => ii k s1 s2 ini res fn' args xargs xres ok_xargs ok_xres exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
     case linear_eq: linear_i => [lbli li].
-    move => fr_undef m1 vm2 P Q W M X D C.
+    move => m1 vm2 P Q W M X D C.
     move: chk_call => /=.
     t_xrbindP => /negbTE fn'_neq_fn.
     case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => ok_ra ok_align _.
@@ -3038,7 +3007,7 @@ Section PROOF.
     all: SvD.fsetdec.
   Qed.
 
-  Local Lemma Hproc : sem_Ind_proc p extra_free_registers var_tmp Pc Pfun.
+  Local Lemma Hproc : sem_Ind_proc p var_tmp Pc Pfun.
   Proof.
     red => ii k s1 _ fn fd args m1' s2' res ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' ok_args wt_args exec_body ih ok_res wt_res valid_rsp' -> m1 vm1 _ ra lret sp callee_saved W M X [] fd' ok_fd' <- [].
     rewrite ok_fd => _ /Some_inj <- ?; subst ra.
@@ -3796,7 +3765,6 @@ Section PROOF.
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
-        apply: Sv_Subset_union_left.
         exact: SvP.MP.union_subset_1.
       move => ?; rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
       move: (ok_vm2 vrsp).
@@ -4046,7 +4014,7 @@ Section PROOF.
   Qed.
 
   Lemma linear_fdP ii k s1 fn s2 :
-    sem_call p  extra_free_registers var_tmp ii k s1 fn s2 →
+    sem_call p  var_tmp ii k s1 fn s2 →
     Pfun ii k s1 fn s2.
   Proof.
     exact:
@@ -4066,7 +4034,7 @@ Section PROOF.
   Qed.
 
   Lemma linear_exportcallP gd scs m fn args scs' m' res :
-    sem_export_call p extra_free_registers var_tmp gd scs m fn args scs' m' res →
+    sem_export_call p var_tmp gd scs m fn args scs' m' res →
     ∃ fd,
       [/\
          get_fundef p'.(lp_funcs) fn = Some fd,
@@ -4103,7 +4071,7 @@ Section PROOF.
     set k' := Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra | RAstack (Some ra) _ => Sv.singleton ra | RAstack _ _ => Sv.empty | RAnone => Sv.add var_tmp vflags end (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty)).
     set s1 := {| escs := scs; emem := m ; evm := vm |}.
     set s2 := {| escs := scs'; emem := free_stack m2 ; evm := set_RSP p (free_stack m2) vm2 |}.
-    have {sexec} /linear_fdP : sem_call p extra_free_registers var_tmp dummy_instr_info k' s1 fn s2.
+    have {sexec} /linear_fdP : sem_call p var_tmp dummy_instr_info k' s1 fn s2.
     - econstructor.
       + exact: ok_fd.
       + by rewrite /ra_valid; move/eqP: Export => ->.

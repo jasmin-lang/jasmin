@@ -439,7 +439,6 @@ let collect_variables_in_prog
       ~(allvars: bool)
       (excluded: Sv.t)
       (return_adresses: retaddr Hf.t)
-      (extras: ('k, var) Hashtbl.t)
       (all_reg: var list)
       (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
@@ -450,7 +449,6 @@ let collect_variables_in_prog
         | StackByReg v | ByReg v -> Some v
         | StackDirect -> None in
         collect_variables_aux ~allvars excluded fresh tbl extra f) f;
-  Hashtbl.iter (fun _ v -> collect_variables_cb ~allvars excluded fresh tbl v) extras;
   List.iter (collect_variables_cb ~allvars excluded fresh tbl) all_reg;
   tbl, total ()
 
@@ -528,7 +526,6 @@ module type Regalloc = sig
     (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
     ('a * (unit, extended_op) func) list ->
     ('a * reg_oracle_t * (unit, extended_op) func) list
-    * (L.i_loc -> var option)
 end
 
 module Regalloc (Arch : Arch_full.Arch)
@@ -853,11 +850,10 @@ let post_process
        else to_save, None
      end
 
-let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc, var) Hashtbl.t * retaddr Hf.t =
+let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
-    - generate fresh variables to hold extra-free-registers
     - split live ranges (caveat: do not forget to remove φ-nodes at the end)
     - compute liveness information
     - compute variables that are killed by a call to a function (including return addresses and extra registers)
@@ -867,7 +863,6 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   let annot_table : Annotations.f_annot Hf.t = Hf.create 17 in
   let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
   let return_addresses : retaddr Hf.t = Hf.create 17 in
-  let extra_free_registers : (L.i_loc, var) Hashtbl.t = Hashtbl.create 137 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
   let preprocess f =
@@ -937,7 +932,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     (fun fn -> Hf.find_default live fn Sv.empty), slive
   in
   let excluded = Sv.of_list [Arch.rip; Arch.rsp_var] in
-  let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers Arch.all_registers funcs in
+  let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses Arch.all_registers funcs in
   let eqc, tr, fr = collect_equality_constraints_in_prog Arch.asmOp Arch.aparams.ap_is_move_op "Regalloc" (asm_equality_constraints Arch.reg_size) vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
@@ -994,11 +989,10 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   get_liveness,
   subst
   , killed
-  , extra_free_registers
   , return_addresses
 
 let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfuncs: ('a * ('info, 'asm) func) list)
-    : ('a * reg_oracle_t * (unit, 'asm) func) list * (L.i_loc -> var option) =
+    : ('a * reg_oracle_t * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
@@ -1011,17 +1005,11 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
     Sv.of_list (Arch.not_saved_stack @ Arch.callee_save_vars)
   in
 
-  let funcs, get_liveness, subst, killed, extra_free_registers, return_addresses =
+  let funcs, get_liveness, subst, killed, return_addresses =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation translate_var
   in
-  if !Glob_options.debug then
-    begin
-      Format.eprintf "Extra free regs: ";
-      Hashtbl.iter (fun loc r -> Format.eprintf "(%a → %a: %a)" L.pp_iloc loc (Printer.pp_var ~debug:true) r (Printer.pp_var ~debug:false) (subst r)) extra_free_registers;
-      Format.eprintf "@."
-    end;
   funcs |>
   List.map (fun f ->
       let e = Hf.find extra f.f_name in
@@ -1044,6 +1032,5 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
       let ro_to_save = if f.f_cc = Export then Sv.elements to_save else [] in
       e, { ro_to_save ; ro_rsp ; ro_return_address }, f
     )
-  , (fun loc -> Hashtbl.find_opt extra_free_registers loc |> Option.map subst)
 
 end
