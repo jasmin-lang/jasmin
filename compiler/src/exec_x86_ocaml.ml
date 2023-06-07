@@ -3,25 +3,6 @@ open Utils
 open Glob_options
 
 let main () =
-  (* Parse command-line arguments *)
-  let op = ref "" in
-  let args = ref [] in
-  let set_in =
-    let first = ref true in
-    fun s ->
-      if !first then (op := s; first := false)
-      else args := s :: !args
-  in
-  Arg.parse_expand Glob_options.options set_in usage_msg;
-  if !op = "" then failwith "an instruction is expected";
-  let c =
-    match !color with
-    | Auto -> Unix.isatty (Unix.descr_of_out_channel stderr)
-    | Always -> true
-    | Never -> false
-  in
-  if c then enable_colors ();
-
   let call_conv =
     match !Glob_options.call_conv with
     | Linux -> X86_decl.x86_linux_call_conv
@@ -108,9 +89,15 @@ let main () =
     Exec_x86.of_asm_state Syscall_ocaml.sc_sem asm_state'
   in
 
-  let ip = Conv.nat_of_int !ip in
-  let reg_values = List.map Conv.cz_of_int (List.map (!) Glob_options.regs) in
-  let flag_values = List.map (!) Glob_options.flags in
+  (* checking some basic stuff  *)
+  let op = ref "ADD" in
+  let args = ref ["RAX"; "RBX"] in
+  let regs = [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15] in
+  let flags = [Arch_decl.Undef; Arch_decl.Undef; Arch_decl.Undef; Arch_decl.Undef; Arch_decl.Undef] in
+
+  let ip = Conv.nat_of_int 0 in
+  let reg_values = List.map Conv.cz_of_int (regs) in
+  let flag_values = flags in
   let op = parse_op !op in
   let args = List.map parse_arg !args in
   let i = Arch_decl.AsmOp (op, args) in
