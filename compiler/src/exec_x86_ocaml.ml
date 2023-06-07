@@ -42,6 +42,20 @@ let main () =
         Z.pp_print (Conv.z_of_cz (Exec_x86.read_reg Syscall_ocaml.sc_sem asm_state r))) X86_decl.registers
   in
 
+  let pp_regxs fmt asm_state =
+    List.iter (fun rx ->
+      Format.fprintf fmt "%a: %a@;"
+        PrintCommon.pp_string0 (X86_decl_core.string_of_regx rx)
+        Z.pp_print (Conv.z_of_cz (Exec_x86.read_regx Syscall_ocaml.sc_sem asm_state rx))) X86_decl.regxs
+  in
+
+  let pp_xregs fmt asm_state =
+    List.iter (fun rx ->
+      Format.fprintf fmt "%a: %a@;"
+        PrintCommon.pp_string0 (X86_decl_core.string_of_xmm_register rx)
+        Z.pp_print (Conv.z_of_cz (Exec_x86.read_xreg Syscall_ocaml.sc_sem asm_state rx))) X86_decl.xmm_registers
+  in
+
   let pp_flags fmt asm_state =
     List.iter (fun f ->
       Format.fprintf fmt "%a: %a@;"
@@ -50,9 +64,11 @@ let main () =
   in
 
   let pp_asm_state fmt asm_state =
-    Format.fprintf fmt "@[<v>%a@;%a%a@]"
+    Format.fprintf fmt "@[<v>%a@;%a%a%a%a@]"
       pp_ip asm_state
       pp_regs asm_state
+      pp_regxs asm_state
+      pp_xregs asm_state
       pp_flags asm_state
   in
 
@@ -72,9 +88,10 @@ let main () =
   in
 
   let dummy_asmscsem = fun _ _ -> assert false in
-  let exec_i ip reg_values flag_values fn i =
+  let exec_i ip reg_values regx_values xreg_values flag_values fn i =
     let asm_state =
-      match Exec_x86.mk_asm_state Syscall_ocaml.sc_sem (Syscall_ocaml.initial_state ()) ip reg_values flag_values fn i with
+      match Exec_x86.mk_asm_state Syscall_ocaml.sc_sem (Syscall_ocaml.initial_state ())
+            ip reg_values regx_values xreg_values flag_values fn i with
       | Utils0.Ok state -> state
       | Utils0.Error _ -> failwith "state initialization failed!"
     in
@@ -93,14 +110,18 @@ let main () =
   let op = ref "ADD" in
   let args = ref ["RAX"; "RBX"] in
   let regs = [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15] in
+  let regx = [0; 0; 0; 0; 0; 0; 0; 0] in
+  let xreg = [0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0] in
   let flags = [Arch_decl.Undef; Arch_decl.Undef; Arch_decl.Undef; Arch_decl.Undef; Arch_decl.Undef] in
 
   let ip = Conv.nat_of_int 0 in
   let reg_values = List.map Conv.cz_of_int (regs) in
+  let regx_values = List.map Conv.cz_of_int (regx) in
+  let xreg_values = List.map Conv.cz_of_int (xreg) in
   let flag_values = flags in
   let op = parse_op !op in
   let args = List.map parse_arg !args in
   let i = Arch_decl.AsmOp (op, args) in
   let fn = Prog.F.mk "f" in
-  let _ = exec_i ip reg_values flag_values fn i in
+  let _ = exec_i ip reg_values regx_values xreg_values flag_values fn i in
   ()

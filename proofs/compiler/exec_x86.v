@@ -12,7 +12,7 @@ Context
 
 Definition mem0 := low_memory.Memory.M.(init) [::] (wrepr U64 1024).
 
-Definition asmmem0 init_sys reg_values flag_values : exec asmmem :=
+Definition asmmem0 init_sys reg_values regx_values xreg_values flag_values : exec asmmem :=
   Let mem0 := mem0 in ok {|
   asm_rip := wrepr U64 0;
   asm_scs := init_sys;
@@ -21,15 +21,23 @@ Definition asmmem0 init_sys reg_values flag_values : exec asmmem :=
     let n := seq.index r registers in
     let z := nth 0%Z reg_values n in
     wrepr U64 z];
-  asm_regx := [ffun=> wrepr U64 0];
-  asm_xreg := [ffun=> wrepr U256 0];
+  asm_regx := [ffun r =>
+    let n := seq.index r registerxs in
+    let z := nth 0%Z regx_values n in
+    wrepr U64 z];
+  asm_xreg := [ffun r =>
+    let n := seq.index r xregisters in
+    let z := nth 0%Z xreg_values n in
+    wrepr U256 z];
+  (* asm_regx := [ffun=> wrepr U64 0]; *)
+  (* asm_xreg := [ffun=> wrepr U256 0]; *)
   asm_flag := [ffun f =>
     let n := seq.index f rflags in
     nth Undef flag_values n]
 |}.
 
-Definition mk_asm_state init_sys ip reg_values flag_values fn i : exec asm_state :=
-  Let asmmem0 := asmmem0 init_sys reg_values flag_values in ok {|
+Definition mk_asm_state init_sys ip reg_values regx_values xreg_values flag_values fn i : exec asm_state :=
+  Let asmmem0 := asmmem0 init_sys reg_values regx_values xreg_values flag_values in ok {|
     asm_m := asmmem0;
     asm_f := fn;
     asm_c := [::i];
@@ -42,11 +50,19 @@ Definition read_ip asm_state :=
 Definition read_reg asm_state (r:register) :=
   wunsigned (asm_state.(asm_m).(asm_reg) r).
 
+Definition read_regx asm_state (rx:register_ext) :=
+  wunsigned (asm_state.(asm_m).(asm_regx) rx).
+
+Definition read_xreg asm_state (xr:xmm_register) :=
+  wunsigned (asm_state.(asm_m).(asm_xreg) xr).
+
 Definition read_flag asm_state (f:rflag) :=
   asm_state.(asm_m).(asm_flag) f.
 
 Definition of_asm_state asm_state :=
-  (read_ip asm_state, List.map (read_reg asm_state) registers, List.map (read_flag asm_state) rflags).
+  (read_ip asm_state, List.map (read_reg asm_state) registers,
+  List.map (read_regx asm_state) registerxs, List.map (read_xreg
+  asm_state) xregisters, List.map (read_flag asm_state) rflags).
 
 Definition exec_i asm_state (i:asm_i) :=
   let fd := {|
