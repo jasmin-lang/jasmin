@@ -1,6 +1,8 @@
 
 # [unreleased]
 
+# Jasmin 2023.06.0 — Villers-lès-Nancy, 2023-06-09
+
 ## New features
 
 - Support ARMv7 (Cortex-M4) as target architecture
