@@ -57,7 +57,7 @@ stdenv.mkDerivation {
          ocaml findlib dune_3
          cmdliner
          (batteries.overrideAttrs (o: { doCheck = false; }))
-         menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
+         menhir (oP.menhirLib or null) zarith camlidl apron yojson crowbar]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     # Apron as packaged in opam is broken with gnumake ≥ 4.4

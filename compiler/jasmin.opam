@@ -32,4 +32,5 @@ depends: [
   "yojson" {>= "1.6.0"}
   "ocamlbuild" { build }
   "ocamlfind" { build }
+  "crowbar"
 ]
