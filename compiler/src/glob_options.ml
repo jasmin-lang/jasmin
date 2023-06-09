@@ -1,4 +1,3 @@
-open X86_decl_core
 open Utils
 (*--------------------------------------------------------------------- *)
 let version_string = "Jasmin Compiler @VERSION@"
@@ -179,71 +178,6 @@ let stop_after_option p =
   let s, msg = print_strings p in
   ("-until_"^s, Arg.Unit (set_stop_after p), "stop after "^msg)
 
-let ip = ref 0
-
-let rax = ref 0
-let rcx = ref 0
-let rdx = ref 0
-let rbx = ref 0
-let rsp = ref 0
-let rbp = ref 0
-let rsi = ref 0
-let rdi = ref 0
-let r8  = ref 0
-let r9  = ref 0
-let r10 = ref 0
-let r11 = ref 0
-let r12 = ref 0
-let r13 = ref 0
-let r14 = ref 0
-let r15 = ref 0
-
-let ref_of_reg r =
-  let open X86_decl in
-  match r with
-  | RAX -> rax
-  | RCX -> rcx
-  | RDX -> rdx
-  | RBX -> rbx
-  | RSP -> rsp
-  | RBP -> rbp
-  | RSI -> rsi
-  | RDI -> rdi
-  | R8  -> r8
-  | R9  -> r9
-  | R10 -> r10
-  | R11 -> r11
-  | R12 -> r12
-  | R13 -> r13
-  | R14 -> r14
-  | R15 -> r15
-let regs = List.map ref_of_reg X86_decl.registers
-
-let cf = ref Arch_decl.Undef
-let pf = ref Arch_decl.Undef
-let zf = ref Arch_decl.Undef
-let sf = ref Arch_decl.Undef
-let ofl = ref Arch_decl.Undef
-
-let ref_of_flag f =
-  let open X86_decl in
-  match f with
-  | CF -> cf
-  | PF -> pf
-  | ZF -> zf
-  | SF -> sf
-  | OF -> ofl
-let flags = List.map ref_of_flag X86_decl.rflags
-
-let set_flag f s =
-  let open Arch_decl in
-  let b =
-    if s = "0" then Def false
-    else if s = "1" then Def true
-    else Undef
-  in
-  f := b
-
 let options = [
     "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
@@ -294,16 +228,6 @@ let options = [
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
     "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
-    "-ip", Arg.Set_int ip, "initial value of ip";
-    "-regs", Arg.Tuple (List.map (fun r -> Arg.Set_int r) regs), "initial values of the regs";
-    "-flags", Arg.Tuple (List.map (fun f -> Arg.String (set_flag f)) flags), "initial values of the flags";
-    "-filearg",
-      Arg.Expand (fun name ->
-        let f = open_in name in
-        let s = input_line f in
-        close_in f;
-        Array.of_list (List.filter ((<>) "") (String.split_on_char ' ' s))),
-      "pass the arguments in a file"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
