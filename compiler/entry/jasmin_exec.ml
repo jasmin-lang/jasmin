@@ -36,7 +36,9 @@ module Impl (A : J.Arch_full.Arch) = struct
         arch_decl.toS_r._finC.cenum
     in
     fun arg ->
-      Arch_decl.Reg (List.assoc arg reg_names)
+      try
+        Arch_decl.Reg (List.assoc arg reg_names)
+      with Not_found -> Format.eprintf "\"%s\" is not a valid register.@." arg; exit 1
 
   let pp_rflagv fmt r =
     let open Arch_decl in
@@ -82,6 +84,15 @@ module Impl (A : J.Arch_full.Arch) = struct
       pp_regxs asm_state
       pp_xregs asm_state
       pp_flags asm_state
+
+  let regs_of_val l =
+    List.map2 (fun r v -> (arch_decl.toS_r.to_string r, Conv.cz_of_int v)) arch_decl.toS_r._finC.cenum l
+  let regxs_of_val l =
+    List.map2 (fun r v -> (arch_decl.toS_rx.to_string r, Conv.cz_of_int v)) arch_decl.toS_rx._finC.cenum l
+  let xregs_of_val l =
+    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, Conv.cz_of_int v)) arch_decl.toS_x._finC.cenum l
+  let flags_of_val l =
+    List.map2 (fun f v -> (arch_decl.toS_f.to_string f, v)) arch_decl.toS_f._finC.cenum l
 end
 
 type arch = Amd64 | CortexM
@@ -116,7 +127,7 @@ module Arch_from_Core_arch' (A : Core_arch') :
   include J.Arch_full.Arch_from_Core_arch (A)
 end
 
-let parse_and_exec arch call_conv =
+let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
   let module A =
     Arch_from_Core_arch'
       ((val match arch with
@@ -128,18 +139,32 @@ let parse_and_exec arch call_conv =
                 (module struct include J.CoreArchFactory.Core_arch_ARM let pp_instr = fun _ _ -> assert false end : Core_arch'))) in
   let module Impl = Impl(A) in
 
-  let op = ref "ADD" in
-  let args = ref ["RAX"; "RBX"] in
-  let _regs = [0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15] in
-  let _regx = [0; 0; 0; 0; 0; 0; 0; 0] in
-  let _xreg = [0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0] in
-  let _flags = [J.Arch_decl.Undef; J.Arch_decl.Undef; J.Arch_decl.Undef; J.Arch_decl.Undef; J.Arch_decl.Undef] in
+  if (reg <> [] && (regs <> [] || regxs <> [] || xregs <> [])) then (Format.eprintf "Options \"--reg\" and {\"--regs\",\"--regxs\",\"--xregs\"} must not be used at the same time.@."; exit 1);
+  if (flag <> [] && flags <> []) then (Format.eprintf "Options \"--flag\" and \"--flags\" must not be used at the same time.@."; exit 1);
+
+  let reg_values =
+    if reg <> [] then List.map (fun (r, v) -> (J.Conv.cstring_of_string r, J.Conv.cz_of_int v)) reg
+    else
+      try
+        let l1 = if regs <> [] then Impl.regs_of_val regs else [] in
+        let l2 = if regxs <> [] then Impl.regxs_of_val regxs else [] in
+        let l3 = if xregs <> [] then Impl.xregs_of_val xregs else [] in
+        l1 @ l2 @ l3
+      with Invalid_argument _ -> Format.eprintf "Not the right number of regs/regxs/xregs.@."; exit 1
+  in
+
+  let flag_values =
+    if flag <> [] then List.map (fun (f, v) -> (J.Conv.cstring_of_string f, v)) flag
+    else if flags = [] then []
+    else
+      try
+        Impl.flags_of_val flags
+      with Invalid_argument _ -> Format.eprintf "Not the right number of flags.@."; exit 1
+  in
 
   let ip = J.Conv.nat_of_int 0 in
-  let reg_values = List.map (fun (r, z) -> (J.Conv.cstring_of_string r, J.Conv.cz_of_int z)) [("RAX", 2)] in
-  let flag_values = [] in
-  let op = Impl.parse_op !op in
-  let args = List.map Impl.parse_arg !args in
+  let op = Impl.parse_op op in
+  let args = List.map Impl.parse_arg args in
   let i = J.Arch_decl.AsmOp (op, args) in
   let fn = J.Prog.F.mk "f" in
 
@@ -170,6 +195,44 @@ let call_conv =
     & opt call_conv J.Glob_options.Linux
     & info [ "call-conv"; "cc" ] ~docv:"OS" ~doc)
 
+let op =
+  Arg.(required & pos 0 (some string) None & info [] ~docv:"OP")
+let args =
+  Arg.(value & pos_right 0 string [] & info [] ~docv:"ARG")
+
+let reg =
+  Arg.(value & opt_all (t2 ~sep:'=' string int) [] & info ["reg"] ~docv:"REG")
+
+let regs =
+  Arg.(value & opt (list int) [] & info ["regs"] ~docv:"REGS")
+
+let regxs =
+  Arg.(value & opt (list int) [] & info ["regxs"] ~docv:"REGXS")
+
+let xregs =
+  Arg.(value & opt (list int) [] & info ["xregs"] ~docv:"XREGS")
+
+let flag_arg =
+  let open J.Arch_decl in
+  let parse s =
+    if s = "1" then Ok (Def true)
+    else if s = "0" then Ok (Def false)
+    else if s = "x" then Ok Undef
+    else Error (`Msg "unable to parse flag")
+  in
+  let print ppf f =
+    match f with
+    | Def b -> Format.fprintf ppf "%b" b
+    | Undef -> Format.fprintf ppf "undef"
+  in
+  Cmdliner.Arg.conv ~docv:"FLAG" (parse, print)
+
+let flag =
+  Arg.(value & opt_all (t2 ~sep:'=' string flag_arg) [] & info ["flag"] ~docv:"FLAG")
+
+let flags =
+  Arg.(value & opt (list flag_arg) [] & info ["flags"] ~docv:"FLAGS")
+
 let () =
   let doc = "Execute one Jasmin instruction" in
   let man =
@@ -183,5 +246,5 @@ let () =
   let info =
     Cmd.info "jasmin_instr" ~version:J.Glob_options.version_string ~doc ~man
   in
-  Cmd.v info Term.(const parse_and_exec $ arch $ call_conv)
+  Cmd.v info Term.(const parse_and_exec $ arch $ call_conv $ op $ args $ reg $ regs $ regxs $ xregs $ flag $ flags)
   |> Cmd.eval |> exit
