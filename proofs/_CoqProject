@@ -58,6 +58,7 @@ compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/direct_call_proof.v
 compiler/exec_x86.v
+compiler/exec.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/jasmin_compiler.v

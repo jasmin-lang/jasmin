@@ -80,6 +80,6 @@ Separate Extraction
   arm_extra
   arm_params
   compiler
-  exec_x86.
+  exec.
 
 Cd  "../..".
