@@ -20,4 +20,12 @@
  (flags -rectypes)
  (modes byte exe)
  (libraries cmdliner jasmin))
+
+(executable
+ (public_name jasmin_exec)
+ (name jasmin_exec)
+ (modules jasmin_exec)
+ (flags -rectypes)
+ (modes byte exe)
+ (libraries cmdliner jasmin))
 )
