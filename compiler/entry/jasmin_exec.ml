@@ -136,8 +136,13 @@ let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
                                ~use_set0:false call_conv) let pp_instr = J.Ppasm.pp_instr "name" end)
                 : Core_arch')
             | CortexM ->
-                (module struct include J.CoreArchFactory.Core_arch_ARM let pp_instr = fun _ _ -> assert false end : Core_arch'))) in
+                (module struct include J.CoreArchFactory.Core_arch_ARM let pp_instr = J.Pp_arm_m4.print_instr "name" end : Core_arch'))) in
   let module Impl = Impl(A) in
+  (* we need to sync with glob_options for [tt_prim] to work, this is ugly *)
+  begin match arch with
+  | CortexM -> J.Glob_options.target_arch := ARM_M4
+  | _ -> ()
+  end;
 
   if (reg <> [] && (regs <> [] || regxs <> [] || xregs <> [])) then (Format.eprintf "Options \"--reg\" and {\"--regs\",\"--regxs\",\"--xregs\"} must not be used at the same time.@."; exit 1);
   if (flag <> [] && flags <> []) then (Format.eprintf "Options \"--flag\" and \"--flags\" must not be used at the same time.@."; exit 1);

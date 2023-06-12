@@ -26,7 +26,16 @@ module Arm_core = struct
   let aparams = Arm_params.arm_params atoI
 end
 
-module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
+module Arm (Lowering_params : Arm_input) :
+  Arch_full.Core_arch
+    with type reg = Arm_core.reg
+     and type regx = Arm_core.regx
+     and type xreg = Arm_core.xreg
+     and type rflag = Arm_core.rflag
+     and type cond = Arm_core.cond
+     and type asm_op = Arm_core.asm_op
+     and type extra_op = Arm_core.extra_op
+  = struct
   include Arm_core
   include Lowering_params
 

@@ -1,4 +1,16 @@
-module Core_arch_ARM : Arch_full.Core_arch
+open Arm_arch_full
+
+module Core_arch_ARM :
+  Arch_full.Core_arch
+    with type reg = Arm_core.reg
+     and type regx = Arm_core.regx
+     and type xreg = Arm_core.xreg
+     and type rflag = Arm_core.rflag
+     and type cond = Arm_core.cond
+     and type asm_op = Arm_core.asm_op
+     and type extra_op = Arm_core.extra_op
+
+
 open X86_decl_core
 open X86_decl
 
