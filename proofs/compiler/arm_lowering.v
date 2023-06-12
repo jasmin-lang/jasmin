@@ -250,6 +250,8 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
           None
     | Olnot U32 =>
         Some (arg_shift MVN U32 [:: e ])
+    | Oneg (Op_w U32) =>
+        Some (ARM_op RSB default_opts, [:: e; wconst (wrepr U32 0) ])
     | _ =>
         None
     end

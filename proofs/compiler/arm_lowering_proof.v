@@ -727,6 +727,14 @@ Proof.
   eexists; first reflexivity.
   rewrite /exec_sopn /=.
   by rewrite hw' /= zero_extend_u.
+
+  (* Case: [Oneg] *)
+  case: hw hfve => // - [] //.
+  apply: rbindP => /= w' ok_w' /ok_inj /Vword_inj[] ?? hfve /Some_inj[] ??; subst => /=.
+  split; last by [].
+  exists [:: v; @Vword U32 0 ].
+  - by rewrite /= hseme wrepr0.
+  by rewrite /exec_sopn /= /sopn_sem ok_w' /= zero_extend0 GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
 Lemma mk_sem_divmodP ws op (w0 w1 : word ws) w :
