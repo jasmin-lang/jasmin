@@ -1376,8 +1376,8 @@ Definition check_results pmap rmap paramsi params ret_pos res :=
 Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) := 
   let: (disj, lmap, rmap) := accu in
   Let _ := assert (~~ Sv.mem x disj) (stk_ierror_no_var "a parameter already exists") in
-  if Mvar.get lmap x is Some _ then Error (stk_ierror_no_var "a stack variable also occurs as a parameter")
-  else
+(*  if Mvar.get lmap x is Some _ then Error (stk_ierror_no_var "a stack variable also occurs as a parameter")
+  else *)
   match pi with
   | None => ok (accu, (None, x))
   | Some pi => 
@@ -1402,7 +1402,8 @@ Definition init_params mglob stack disj lmap rmap sao_params params :=
   fmapM2 (stk_ierror_no_var "invalid function info")
     (init_param mglob stack) (disj, lmap, rmap) sao_params params.
 
-Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
+Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : 
+  cexec _ufundef :=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg (Ident.name_of_string "__len__") (sword Uptr) |} in
@@ -1413,7 +1414,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.
   (* adding params to the map *)
   Let rparams :=
     init_params mglob stack disj locals rmap sao.(sao_params) fd.(f_params) in
-  let: (sv, lmap, rmap, alloc_params) := rparams in
+  let: (sv, lmap, rmapp, alloc_params) := rparams in
   let paramsi := map fst alloc_params in
   let params : seq var_i := map snd alloc_params in
   let pmap := {|
@@ -1437,7 +1438,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.
     assert_check (local_size <=? sao.(sao_max_size))%Z
                  (stk_ierror_no_var "sao_max_size too small")
   in
-  Let rbody := fmapM (alloc_i pmap local_alloc sao) rmap fd.(f_body) in
+  Let rbody := fmapM (alloc_i pmap local_alloc sao) rmapp fd.(f_body) in
   let: (rmap, body) := rbody in
   Let res :=
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in

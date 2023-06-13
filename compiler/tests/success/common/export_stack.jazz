@@ -1,0 +1,12 @@
+export fn main(reg u32 a b c d e, stack u32 f, reg u32 h i) -> reg u32{
+  reg u32 g;
+  g = 1;
+  a += g;
+  a += f;
+  a += b;
+  a += c;
+  a += d;
+  a += e;
+  b = a;
+  return b;
+} 

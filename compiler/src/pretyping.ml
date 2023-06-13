@@ -1750,20 +1750,22 @@ let tt_call_conv loc params returns cc =
           (string_error "%a has kind %a, only reg are allowed in %s of export function"
             Printer.pp_pvar (L.unloc x)
             PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
-    List.iter (check "parameter") params;
+    (* FIXME: export stack *)
+(*    List.iter (check "parameter") params; *)
     List.iter (check "result") returns;
     if 2 < List.length returns then
       rs_tyerror ~loc (string_error "export function should return at most two arguments");
     FInfo.Export
 
   | None         -> 
-    let check s x =
+    let check s x = 
       if not (P.is_reg_kind (L.unloc x).P.v_kind) then 
         rs_tyerror ~loc:(L.loc x) 
           (string_error "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
             PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
-    List.iter (check "parameter") params;
+
+    List.iter (check "parameter") params; 
     List.iter (check "result") returns;
     let returned_params =
       let args = List.map L.unloc params in
