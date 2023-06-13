@@ -416,6 +416,9 @@ Definition lower_add_carry
       None
   end.
 
+Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option copn_args :=
+  Some (lvs, Oasm (BaseOp (None, ARM_op UMULL default_opts)), es).
+
 Definition with_shift opts sh :=
   {| set_flags := set_flags opts; is_conditional := is_conditional opts; has_shift := Some sh |}.
 
@@ -458,6 +461,7 @@ Definition lower_copn
   (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
   match op with
   | Oaddcarry U32 => lower_add_carry lvs es
+  | Omulu U32 => lower_mulu lvs es
   | Oasm (BaseOp (None, aop)) => lower_base_op lvs aop es
   | _ => None
   end.
