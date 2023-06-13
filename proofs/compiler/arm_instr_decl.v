@@ -807,7 +807,7 @@ Definition arm_UMULL_semi (wn wm : ty_r) : exec ty_rr :=
   let res := (zero_extend U64 wn * zero_extend U64 wm)%R in
   let lo := zero_extend U32 res in
   let hi := zero_extend U32 (wshr res 32) in
-  ok (lo, hi).
+  ok (hi, lo).
 
 Definition arm_UMULL_instr : instr_desc_t :=
   let mn := UMULL in
@@ -816,7 +816,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_tin := [:: sreg; sreg ];
     id_in := [:: E 2; E 3 ];
     id_tout := [:: sreg; sreg ];
-    id_out := [:: E 0; E 1 ];
+    id_out := [:: E 1; E 0 ];
     id_semi := arm_UMULL_semi;
     id_nargs := 4;
     id_args_kinds := ak_reg_reg_reg_reg;

@@ -1490,13 +1490,39 @@ Proof.
   exact: hwrite.
 Qed.
 
+Lemma lower_muluP s0 s1 lvs tag es lvs' op' es' :
+  sem_i p' ev s0 (Copn lvs tag (Omulu U32) es) s1
+  -> lower_mulu lvs es = Some (lvs', op', es')
+  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+Proof.
+  rewrite /lower_mulu => /sem_iE hsemi /Some_inj[] <- <- <- {lvs' op' es'}.
+  apply: Eopn.
+  move: hsemi.
+  rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /=.
+  t_xrbindP => ? [] // x; t_xrbindP => - [] // y; t_xrbindP => - [] // ok_vs.
+  move => ? a ok_a b ok_b /ok_inj <- <- ok_write.
+  rewrite ok_vs /= ok_a /= ok_b /=.
+  set args := [:: _; _]; pattern args.
+  apply: eq_ind; first exact: ok_write.
+  subst args; clear.
+  rewrite -wrepr_mul /wumul /=; repeat f_equal; last first.
+  - by rewrite zero_extend_wrepr.
+  rewrite -wmulhuE /wmulhu /zero_extend (wunsigned_wshr _ 32) wunsigned_repr_small //.
+  rewrite /arm_reg_size.
+  have := wunsigned_range a.
+  have := wunsigned_range b.
+  have -> : (wbase U64 = wbase U32 * wbase U32)%Z by vm_compute.
+  nia.
+Qed.
+
 Lemma lower_copnP s0 s1 lvs tag op es lvs' op' es' :
   disj_fvars (read_es es)
   -> sem_i p' ev s0 (Copn lvs tag op es) s1
   -> lower_copn lvs op es = Some (lvs', op', es')
   -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
 Proof.
-  case: op => // [[] | [[[] aop]|]] // hfve.
+  case: op => // [ [] | [] | [[[] aop]|]] // hfve.
+  - exact: lower_muluP.
   - exact: lower_add_carryP.
   exact: lower_base_op.
 Qed.
