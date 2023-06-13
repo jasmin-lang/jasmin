@@ -1,0 +1,7 @@
+export
+fn test(reg u32 x y) -> reg u32 {
+  reg u32 lo hi;
+  hi, lo = x * y;
+  lo ^= hi;
+  return lo;
+}
