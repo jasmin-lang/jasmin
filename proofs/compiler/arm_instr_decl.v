@@ -106,6 +106,13 @@ Variant arm_mnemonic : Type :=
 | UDIV                           (* Unsigned division *)
 | UMULL                          (* Multiply and split the result in two
                                     registers *)
+| UMLAL                          (* Multiply and split the result to add it 
+                                    to the two destinations*)
+| SMULL                          (* Signed version of UMULL*)
+| SMLAL                          (* Signed version of UMLAL*)
+| SMMUL                          (* Signed multiplication, writes the most significant
+                                    32 bits of the result *)
+| SMMULR                         (* Rounding version of SMMUL *)
 
 (* Logical *)
 | AND                            (* Bitwise AND *)
@@ -162,7 +169,7 @@ Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
 Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
-  [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL
+  [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR
     ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
@@ -246,6 +253,11 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | RSB => "RSB"
   | UDIV => "UDIV"
   | UMULL => "UMULL"
+  | UMLAL => "UMLAL"
+  | SMULL => "SMULL"
+  | SMLAL => "SMLAL"
+  | SMMUL => "SMMUL"
+  | SMMULR => "SMMULR" 
   | AND => "AND"
   | BIC => "BIC"
   | EOR => "EOR"
@@ -854,10 +866,7 @@ Definition arm_UDIV_instr : instr_desc_t :=
   |}.
 
 Definition arm_UMULL_semi (wn wm : ty_r) : exec ty_rr :=
-  let res := (zero_extend U64 wn * zero_extend U64 wm)%R in
-  let lo := zero_extend U32 res in
-  let hi := zero_extend U32 (wshr res 32) in
-  ok (hi, lo).
+  ok (wumul wn wm).
 
 Definition arm_UMULL_instr : instr_desc_t :=
   let mn := UMULL in
@@ -878,6 +887,128 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_safe := [::]; (* TODO_ARM: Complete. *)
     id_pp_asm := pp_arm_op mn opts;
   |}.
+
+Definition arm_UMLAL_semi (dlo dhi wn wm : ty_r) : exec ty_rr :=
+  let (hi, lo) := wumul wn wm in
+  ok(wdaddu dhi dlo hi lo).
+
+Definition arm_UMLAL_instr : instr_desc_t :=
+  let mn := UMLAL in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg; sreg; sreg ];
+    id_in := [:: E 0; E 1; E 2; E 3 ];
+    id_tout := [:: sreg; sreg ];
+    id_out := [:: E 0; E 1 ];
+    id_semi := arm_UMLAL_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_SMULL_semi (wn wm : ty_r) : exec ty_rr :=
+  let (hi, lo) := wsmul wn wm in
+  ok (lo, hi).
+
+Definition arm_SMULL_instr : instr_desc_t :=
+  let mn := SMULL in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg ];
+    id_in := [:: E 2; E 3 ];
+    id_tout := [:: sreg; sreg ];
+    id_out := [:: E 0; E 1 ];
+    id_semi := arm_SMULL_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_SMLAL_semi (dlo dhi wn wm : ty_r) : exec ty_rr :=
+  let (hi, lo) := wsmul wn wm in
+  ok(wdadds dhi dlo hi lo).
+
+
+Definition arm_SMLAL_instr : instr_desc_t :=
+  let mn := SMLAL in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg; sreg; sreg ];
+    id_in := [:: E 0; E 1; E 2; E 3 ];
+    id_tout := [:: sreg; sreg ];
+    id_out := [:: E 0; E 1 ];
+    id_semi := arm_SMLAL_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_SMMUL_semi (wn wm : ty_r) : exec ty_r :=
+  ok (wmulhs wn wm).
+
+Definition arm_SMMUL_instr : instr_desc_t :=
+  let mn := SMMUL in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg ];
+    id_in := [:: E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0];
+    id_semi := arm_SMMUL_semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+
+Definition arm_SMMULR_semi (wn wm : ty_r) : exec ty_r :=
+  let (hi, lo) := wsmul wn wm in
+  ok ((hi + wrepr U32 (Z.b2z (msb lo)))%R).
+
+Definition arm_SMMULR_instr : instr_desc_t :=
+  let mn := SMMULR in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg ];
+    id_in := [:: E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0];
+    id_semi := arm_SMMULR_semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
 
 Definition arm_bitwise_semi
   {ws : wsize}
@@ -1505,6 +1636,11 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | RSB => arm_RSB_instr
   | UDIV => arm_UDIV_instr
   | UMULL => arm_UMULL_instr
+  | UMLAL => arm_UMLAL_instr
+  | SMULL => arm_SMULL_instr
+  | SMLAL => arm_SMLAL_instr
+  | SMMUL => arm_SMMUL_instr
+  | SMMULR => arm_SMMULR_instr
   | AND => arm_AND_instr
   | BIC => arm_BIC_instr
   | EOR => arm_EOR_instr

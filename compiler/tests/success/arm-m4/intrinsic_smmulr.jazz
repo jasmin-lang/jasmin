@@ -1,0 +1,30 @@
+export
+fn smmulr(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = #SMMULR(arg0, arg1);
+
+    // Set flags.
+    reg bool n, z, c, v;
+    n, z, c, v = #CMP(x, 0);
+
+    // Conditions.
+    x = #SMMULRcc(x, arg0, z, x);            // EQ
+    x = #SMMULRcc(x, arg0, !z, x);           // NE
+    x = #SMMULRcc(x, arg0, c, x);            // CS
+    x = #SMMULRcc(x, arg0, !c, x);           // CC
+    x = #SMMULRcc(x, arg0, n, x);            // MI
+    x = #SMMULRcc(x, arg0, !n, x);           // PL
+    x = #SMMULRcc(x, arg0, v, x);            // VS
+    x = #SMMULRcc(x, arg0, !v, x);           // VC
+    x = #SMMULRcc(x, arg0, c && !z, x);      // HI
+    x = #SMMULRcc(x, arg0, !c || z, x);      // LS
+    x = #SMMULRcc(x, arg0, n == v, x);       // GE
+    x = #SMMULRcc(x, arg0, n != v, x);       // LT
+    x = #SMMULRcc(x, arg0, !z && n == v, x); // GT
+    x = #SMMULRcc(x, arg0, z || n != v, x);  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}
+

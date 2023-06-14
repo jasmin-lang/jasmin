@@ -182,6 +182,35 @@ op UMULL (x y: W32.t) : W32.t * W32.t =
   (lo, hi).
 op UMULLcc x y g o h = if g then UMULL x y else (o, h).
 
+op UMLAL (u v x y: W32.t) : W32.t * W32.t =
+  let (hi, lo) = mulu x y in
+  (lo + u, hi + v + of_int (b2i (carry_add lo u false)))%W32.
+op UMLALcc u v x y g o h= if g then UMLAL u v x y else (o, h).
+
+op SMULL (x y: W32.t) : W32.t * W32.t =
+  let lo = x * y in
+  let hi = wmulhs x y in
+  (lo, hi).
+op SMULLcc x y g o h = if g then SMULL x y else (o, h).
+
+op SMLAL (u v x y: W32.t) : W32.t * W32.t =
+  let lo = x * y in
+  let hi = wmulhs x y in
+  (lo + u, hi + v + of_int (b2i (carry_add lo u false)))%W32.
+op SMLALcc u v x y g o h= if g then SMLAL u v x y else (o, h).
+
+op SMMUL (x y: W32.t) : W32.t =
+  wmulhs x y.
+op SMMULcc x y g o = if g then SMMUL x y else o.
+
+op SMMULR (x y: W32.t) : W32.t =
+  let lo = x * y in
+  let hi = wmulhs x y in
+  if msb lo
+    then (hi + (W32.of_int 1))
+    else hi.
+op SMMULRcc x y g o = if g then SMMULR x y else o.
+ 
 op UXTB (x: W32.t) (n: W8.t) : W32.t =
   andw (ror x (to_uint n)) (W32.of_int 255).
 op UXTBcc x n g o = if g then UXTB x n else o.
