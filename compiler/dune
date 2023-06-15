@@ -27,5 +27,5 @@
  (modules jasmin_exec)
  (flags -rectypes)
  (modes byte exe)
- (libraries cmdliner jasmin))
+ (libraries cmdliner jasmin bar ctypes ctypes.foreign crowbar))
 )

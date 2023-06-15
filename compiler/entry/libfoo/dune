@@ -1,0 +1,10 @@
+(library
+ (name bar)
+ (foreign_archives foo))
+
+ (rule
+ (targets libfoo.a libfoo.so dllfoo.so)
+ (action
+ (no-infer
+  (progn
+   (run make)))))

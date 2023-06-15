@@ -238,18 +238,30 @@ let flag =
 let flags =
   Arg.(value & opt (list flag_arg) [] & info ["flags"] ~docv:"FLAGS")
 
+open Ctypes
+open Foreign
+
+type minimal
+let minimal : minimal structure typ = structure "minimal"
+let rax = field minimal "rax" int
+let rbx = field minimal "rbx" int
+let () = seal minimal
+
+let do_stuff = foreign "do_stuff" (ptr minimal @-> returning void)
+
+let is_correct x y =
+  let state = make minimal in
+    setf state rax x;
+    setf state rbx y;
+
+  let check state x _ =
+    do_stuff (addr state);
+    let res1  = getf state rax in
+    res1 = x
+  in
+  Crowbar.check(check state x y)
+
 let () =
-  let doc = "Execute one Jasmin instruction" in
-  let man =
-    [
-      `S Manpage.s_environment;
-      Manpage.s_environment_intro;
-      `I ("OCAMLRUNPARAM", "This is an OCaml program");
-      `I ("JASMINPATH", "To resolve $(i,require) directives");
-    ]
-  in
-  let info =
-    Cmd.info "jasmin_instr" ~version:J.Glob_options.version_string ~doc ~man
-  in
-  Cmd.v info Term.(const parse_and_exec $ arch $ call_conv $ op $ args $ reg $ regs $ regxs $ xregs $ flag $ flags)
-  |> Cmd.eval |> exit
+  let x = Crowbar.(uint16) in
+  let y = Crowbar.(uint16) in
+  Crowbar.add_test ~name:"check foreign addition" [ x ;  y ]  (fun x y -> is_correct x y)
