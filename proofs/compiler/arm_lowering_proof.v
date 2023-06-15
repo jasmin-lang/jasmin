@@ -170,7 +170,7 @@ Proof.
   all: by move: fvars_NF fvars_ZF fvars_CF fvars_VF.
 Qed.
 
-Lemma sem_condition_mn ii mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1) :
+Lemma sem_condition_mn ii tag mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1) :
   mn \in condition_mnemonics
   -> (reg_size <= ws0)%CMP
   -> (reg_size <= ws1)%CMP
@@ -178,7 +178,7 @@ Lemma sem_condition_mn ii mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1) :
   -> let w0' := zero_extend reg_size w0 in
      let w1' := zero_extend reg_size w1 in
      let aop := Oarm (ARM_op mn default_opts) in
-     let i := Copn (lflags_of_mn fv mn) AT_none aop es in
+     let i := Copn (lflags_of_mn fv mn) tag aop es in
      sem p' ev s [:: MkI ii i ] (estate_of_condition_mn mn s w0' w1').
 Proof.
   move=> hmn hws0 hws1 hsemes /=.
@@ -352,13 +352,13 @@ Proof.
     by rewrite -wleuE.
 Qed.
 
-Lemma sem_lower_condition_pexpr s0 s0' ii e v lvs aop es c :
+Lemma sem_lower_condition_pexpr tag s0 s0' ii e v lvs aop es c :
   lower_condition_pexpr fv e = Some (lvs, aop, es, c)
   -> eq_fv s0' s0
   -> disj_fvars (read_e e)
   -> sem_pexpr (p_globs p) s0 e = ok v
   -> exists s1',
-       [/\ sem p' ev s0' [:: MkI ii (Copn lvs AT_none aop es) ] s1'
+       [/\ sem p' ev s0' [:: MkI ii (Copn lvs tag aop es) ] s1'
          , eq_fv s1' s0
          & sem_pexpr (p_globs p) s1' c = ok v
        ].
@@ -383,7 +383,7 @@ Proof.
     lower_condition_Papp2P h hsem0' hsem1' hsemop.
   clear h hsemop hsem0' hsem1'.
 
-  have /= hsem' := sem_condition_mn ii hmn hws0 hws1 hsemes.
+  have /= hsem' := sem_condition_mn ii tag hmn hws0 hws1 hsemes.
   clear hws0 hws1 hsemes.
 
   all: eexists;
@@ -414,7 +414,7 @@ Proof.
   case h: lower_condition_pexpr => [[[[lvs op] es] c]|] [? ?];
     subst e' pre.
 
-  - exact: (sem_lower_condition_pexpr ii h hs00 hfv hseme).
+  - exact: sem_lower_condition_pexpr h hs00 hfv hseme.
   clear h.
 
   exists s0'.
@@ -1181,25 +1181,23 @@ Proof.
   all: by rewrite hwrite {hwrite}.
 Qed.
 
-Lemma lower_cassgnP ii s0 lv tag ty e v v' s0' s1' pre lvs op es :
-  lower_cassgn fv lv ty e = Some (pre, (lvs, op, es))
+Lemma lower_cassgn_wordP ii s0 lv tag ws e v v' s0' s1' pre lvs op es :
+  lower_cassgn_word fv lv ws e = Some (pre, (lvs, op, es))
   -> sem_pexpr (p_globs p) s0 e = ok v
-  -> truncate_val ty v = ok v'
+  -> truncate_val (sword ws) v = ok v'
   -> write_lval (p_globs p) lv v' s0' = ok s1'
   -> eq_fv s0' s0
   -> disj_fvars (read_e e)
   -> disj_fvars (vars_lval lv)
-  -> sem_i p' ev s0' (Cassgn lv tag ty e) s1'
+  -> sem_i p' ev s0' (Cassgn lv tag (sword ws) e) s1'
   -> exists2 s2',
        sem p' ev s0' (map (MkI ii) (pre ++ [:: Copn lvs tag op es ])) s2'
        & eq_fv s1' s2'.
 Proof.
+  rewrite /lower_cassgn_word.
   move=> h hseme htrunc hwrite01' hs00 hfve hfvlv hsem01'.
 
   move: h.
-  rewrite /lower_cassgn.
-  case: ty hsem01' htrunc => [|||ws] // hsem01' htrunc.
-
   move: htrunc.
   rewrite /truncate_val.
   t_xrbindP=> w' hw' ?; subst v'.
@@ -1224,6 +1222,35 @@ Proof.
   exact: hsem03'.
 Qed.
 
+Lemma lower_cassgn_boolP ii s0 lv tag e v v' s0' s1' irs :
+  lower_cassgn_bool fv lv tag e = Some irs
+  -> sem_pexpr (p_globs p) s0 e = ok v
+  -> truncate_val sbool v = ok v'
+  -> write_lval (p_globs p) lv v' s0' = ok s1'
+  -> eq_fv s0' s0
+  -> disj_fvars (read_e e)
+  -> disj_fvars (vars_lval lv)
+  -> sem_i p' ev s0' (Cassgn lv tag sbool e) s1'
+  -> exists2 s2',
+       sem p' ev s0' (map (MkI ii) irs) s2'
+       & eq_fv s1' s2'.
+Proof.
+  rewrite /lower_cassgn_bool => h ok_v ok_v' ok_s1' hs00 hfve hfvlv hsem01'.
+  case h: lower_condition_pexpr h => [ [] [] [] lvs op es c | // ] /Some_inj <-{irs}.
+  have [ si [] hsem0i hs0i {} ok_v ] := sem_lower_condition_pexpr tag ii h hs00 hfve ok_v.
+  have hsi0' : eq_fv si s0' := eeq_excT hs0i (eeq_excS hs00).
+  have [ sj ok_sj hsj1' ] := eeq_exc_write_lval hfvlv hsi0' ok_s1'.
+  eexists.
+  - rewrite /= -cat1s.
+    apply: (sem_app hsem0i).
+    apply: sem_seq1.
+    constructor.
+    apply: Eassgn.
+    + exact: ok_v.
+    + exact: ok_v'.
+    exact: ok_sj.
+  exact: eeq_excS.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 (* Lowering of ARM-specific instructions. *)
@@ -1613,18 +1640,24 @@ Proof.
     + exact: htrunc.
     exact: hwrite'.
 
+  assert (default: exists2 s1'0 : estate, sem p' ev s0' [:: MkI ii (Cassgn lv tag ty e)] s1'0 & eq_fv s1'0 s1).
+  - exists s1'; last exact: hs11.
+    by apply: sem_seq1; apply: EmkI.
+
   rewrite /lower_i.
-  case h: lower_cassgn => [[pre [[lvs op] es]]|].
-  - have [s2' hsem02' hs12'] :=
-      lower_cassgnP ii h hseme htrunc hwrite' hs00 hfve hfvlv hassgn.
-    exists s2'; last exact: (eeq_excT (eeq_excS hs12') hs11).
-    exact: hsem02'.
+  case: ty htrunc hassgn default => // [ | ws ] htrunc hassgn default.
+  - case h: lower_cassgn_bool => [ irs | ]; last by [].
+    have [ sj hsemj hs1j ] := lower_cassgn_boolP ii h hseme htrunc hwrite' hs00 hfve hfvlv hassgn.
+    exists sj; first exact: hsemj.
+    apply: eeq_excS.
+    apply: eeq_excT hs1j.
+    exact: eeq_excS.
 
-  exists s1'; last exact: hs11.
-  clear hs11.
-
-  apply: sem_seq1. apply: EmkI.
-  exact: hassgn.
+  case h: lower_cassgn_word => [[pre [[lvs op] es]]|]; last by [].
+  have [s2' hsem02' hs12'] :=
+    lower_cassgn_wordP ii h hseme htrunc hwrite' hs00 hfve hfvlv hassgn.
+  exists s2'; last exact: (eeq_excT (eeq_excS hs12') hs11).
+  exact: hsem02'.
 Qed.
 
 #[ local ]

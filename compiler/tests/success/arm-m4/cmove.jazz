@@ -1,0 +1,14 @@
+export
+fn cond_swap(reg u32 p q cond) {
+  reg u32 a b c d;
+  reg bool f;
+  f = cond != 0;
+  a = [p];
+  b = [q];
+  c = b if f;
+  d = a if f;
+  c = a if !f;
+  d = b if !f;
+  [p] = c;
+  [q] = d;
+}

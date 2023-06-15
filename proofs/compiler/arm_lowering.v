@@ -372,21 +372,21 @@ Definition lower_store (ws : wsize) (e : pexpr) : option (arm_op * seq pexpr) :=
     None.
 
 (* Convert an assignment into an architecture-specific operation. *)
-Definition lower_cassgn
-  (lv : lval) (ty : stype) (e : pexpr) : option (seq instr_r * copn_args) :=
-  if ty is sword ws
-  then
-    let le :=
-      if is_lval_in_memory lv
-      then no_pre (lower_store ws e)
-      else lower_pexpr ws e
-    in
-    if le is Some (pre, aop, es)
-    then Some (pre, ([:: lv ], Oarm aop, es))
-    else None
-  else
-    None.
+Definition lower_cassgn_word
+  (lv : lval) (ws : wsize) (e : pexpr) : option (seq instr_r * copn_args) :=
+  let le :=
+    if is_lval_in_memory lv
+    then no_pre (lower_store ws e)
+    else lower_pexpr ws e
+  in
+  if le is Some (pre, aop, es)
+  then Some (pre, ([:: lv ], Oarm aop, es))
+  else None.
 
+Definition lower_cassgn_bool (lv : lval) (tag: assgn_tag) (e : pexpr) : option (seq instr_r) :=
+  if lower_condition_pexpr e is Some (lvs, op, es, c)
+  then Some [:: Copn lvs tag op es ; Cassgn lv AT_inline sbool c ]
+  else None.
 
 (* -------------------------------------------------------------------- *)
 (* Lowering of architecture-specific operations. *)
@@ -475,11 +475,17 @@ Fixpoint lower_i (i : instr) : cmd :=
   let '(MkI ii ir) := i in
   match ir with
   | Cassgn lv tag ty e =>
-      let irs :=
-        if lower_cassgn lv ty e is Some (pre, (lvs, op, es))
-        then pre ++ [:: Copn lvs tag op es ]
-        else [:: ir ]
+      let oirs :=
+        match ty with
+        | sword ws =>
+            if lower_cassgn_word lv ws e is Some (pre, (lvs, op, es))
+            then Some (pre ++ [:: Copn lvs tag op es ])
+            else None
+        | sbool => lower_cassgn_bool lv tag e
+        | _ => None
+        end
       in
+      let irs := if oirs is Some irs then irs else [:: ir ] in
       map (MkI ii) irs
 
   | Copn lvs tag op es =>
