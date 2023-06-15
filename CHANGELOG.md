@@ -1,6 +1,13 @@
 
 # [unreleased]
 
+## Other changes
+
+- Various improvements related to ARMv7
+  ([PR #476](https://github.com/jasmin-lang/jasmin/pull/476),
+   [PR #477](https://github.com/jasmin-lang/jasmin/pull/477),
+   [PR #479](https://github.com/jasmin-lang/jasmin/pull/479)).
+
 # Jasmin 2023.06.0 — Villers-lès-Nancy, 2023-06-09
 
 ## New features
