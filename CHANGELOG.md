@@ -1,6 +1,12 @@
 
 # [unreleased]
 
+## New features
+
+- More arm instructions are available:
+  `MLA`, `MLS`
+  ([PR #480](https://github.com/jasmin-lang/jasmin/pull/480)).
+
 ## Other changes
 
 - Various improvements related to ARMv7
