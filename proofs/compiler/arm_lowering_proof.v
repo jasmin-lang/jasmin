@@ -503,6 +503,16 @@ Proof.
   exact: (union_disjoint h1 h0).
 Qed.
 
+Lemma disj_fvars_read_es2_app2 e op x y :
+  disj_fvars (read_e e)
+  -> disj_fvars (read_e (Papp2 op x y))
+  -> disj_fvars (read_es [:: x; y; e ]).
+Proof.
+  rewrite /disj_fvars {2}/read_e/= read_eE -/read_e => h0 /disjoint_union [] h1 h2.
+  rewrite /read_es /= 2!read_eE.
+  by repeat apply: union_disjoint.
+Qed.
+
 Lemma disj_fvars_read_es3 e0 e1 e2 :
   disj_fvars (read_e e0)
   -> disj_fvars (read_e e1)
@@ -756,6 +766,19 @@ Proof.
   all: by auto.
 Qed.
 
+Section IS_MUL.
+
+Variant is_mul_spec (e: pexpr) : option (pexpr * pexpr) -> Type :=
+  | IsMulSome x y : e = Papp2 (Omul (Op_w U32)) x y -> is_mul_spec e (Some (x, y))
+  | IsMulNone : is_mul_spec e None.
+
+#[local] Hint Constructors is_mul_spec : core.
+
+Lemma is_mulP e : is_mul_spec e (is_mul e).
+Proof. by case: e => // - [] // - [] // - [] // x y; left. Qed.
+
+End IS_MUL.
+
 Lemma lower_Papp2P op e0 e1 :
   Plower_pexpr_aux (Papp2 op e0 e1).
 Proof.
@@ -807,11 +830,19 @@ Proof.
       all:
         try
           match goal with
+          | [ |- context[ Oadd ] ] => rewrite /=
+          | [ |- context[ Osub ] ] => rewrite /=
           | [ |- context[ Olsr ] ] => rewrite /=; case: is_zeroP => hzero
           | [ |- context[ Oasr ] ] => rewrite /=; case: is_zeroP => hzero
           | [ |- context[ Oror ] ] => rewrite /=; case: is_zeroP => hzero
           | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
         end.
+
+      all:
+        repeat
+          match goal with
+          | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
+          end.
 
       all: move=> [? ? ?] hsemop; subst mn e0' e1'.
       all: discriminate hhas_shift || clear hhas_shift.
@@ -883,10 +914,18 @@ Proof.
   all:
     try
       match goal with
+      | [ |- context[ Oadd ] ] => rewrite /=
+      | [ |- context[ Osub ] ] => rewrite /=
       | [ |- context[ Olsr ] ] => on_is_zero hseme1
       | [ |- context[ Oasr ] ] => on_is_zero hseme1
       | [ |- context[ Oror ] ] => on_is_zero hseme1
       | [ |- context[ Orol ] ] => rewrite /=; case hconst: is_wconst => [ c | // ]; case: eqP => ?; [ subst c | ]
+      end.
+
+  all:
+    repeat
+      match goal with
+      | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
       end.
 
   all: move=> [? ? ?] hsemop; subst mn e0' e1'.
@@ -910,18 +949,22 @@ Proof.
   all: move=> /= ?; subst w.
 
   all: have hfves := disj_fvars_read_es2 hfve0 hfve1.
+  6: have hfves' := disj_fvars_read_es2_app2 hfve1 hfve0.
+  7, 9: have hfves' := disj_fvars_read_es2_app2 hfve0 hfve1.
   all: split; last done.
   all: clear hfve0 hfve1 hfves.
 
   all: rewrite /=.
-  all: rewrite hseme0 {hseme0} /=.
+  6: move: hseme0 => /=; t_xrbindP => ? -> ? -> /= hseme0.
+  7, 8: move: hseme1 => /=; t_xrbindP => ? -> ? -> /= hseme1.
+  all: try rewrite hseme0 {hseme0} /=.
   all: try rewrite hseme1 {hseme1} /=.
   all: eexists; first reflexivity.
 
   all: rewrite /exec_sopn /=.
   all: rewrite /truncate_word /=.
 
-  all: rewrite (cmp_le_trans hws hws0).
+  all: rewrite (cmp_le_trans hws hws0) || rewrite (cmp_le_trans hws hws1).
 
   (* Shift instructions take a byte as second argument. *)
   all:
@@ -943,8 +986,16 @@ Proof.
   3: rewrite -(wand_zero_extend _ _ hws).
   4: rewrite -(wor_zero_extend _ _ hws).
   5: rewrite -(wxor_zero_extend _ _ hws).
-  6: rewrite (wmul_zero_extend _ _ hws).
-  1-6: by rewrite !(zero_extend_idem _ hws).
+  9: rewrite (wmul_zero_extend _ _ hws).
+  1-5, 9: by rewrite !(zero_extend_idem _ hws).
+
+  1: move: hseme0.
+  2, 3: move: hseme1.
+  1-3: rewrite /sem_sop2 /=; apply: rbindP => ? ->; apply: rbindP => ? -> /ok_inj/Vword_inj[] ??; subst => /=.
+  1: have ? := cmp_le_antisym hws hws0; subst.
+  2, 3: have ? := cmp_le_antisym hws hws1; subst.
+  2: rewrite GRing.addrC.
+  1-3: by rewrite !zero_extend_u.
 
   3: rewrite /sem_shr /sem_shift wshr0.
   6: rewrite /sem_sar /sem_shift wsar0.

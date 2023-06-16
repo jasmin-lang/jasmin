@@ -98,6 +98,8 @@ Variant arm_mnemonic : Type :=
 | ADC                            (* Add with carry *)
 | MUL                            (* Multiply and write the least significant
                                     32 bits of the result *)
+| MLA                            (* Multiply and accumulate *)
+| MLS                            (* Multiply and subtract *)
 | SDIV                           (* Signed division *)
 | SUB                            (* Subtract without carry *)
 | RSB                            (* Reverse subtract without carry *)
@@ -160,7 +162,7 @@ Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
 Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
-  [:: ADD; ADC; MUL; SDIV; SUB; RSB; UDIV; UMULL
+  [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR
     ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
@@ -237,6 +239,8 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | ADD => "ADD"
   | ADC => "ADC"
   | MUL => "MUL"
+  | MLA => "MLA"
+  | MLS => "MLS"
   | SDIV => "SDIV"
   | SUB => "SUB"
   | RSB => "RSB"
@@ -685,6 +689,52 @@ Definition arm_MUL_instr : instr_desc_t :=
   if set_flags opts
   then x
   else drop_nz x.
+
+Definition arm_MLA_semi (wn wm wa: ty_r) : exec ty_r :=
+  ok (wn * wm + wa)%R.
+
+Definition arm_MLA_instr : instr_desc_t :=
+  let mn := MLA in
+  {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg; sreg ];
+      id_in := [:: E 1; E 2; E 3 ];
+      id_tout := [:: sreg ];
+      id_out := [:: E 0 ];
+      id_semi := arm_MLA_semi;
+      id_nargs := 4;
+      id_args_kinds := ak_reg_reg_reg_reg;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_MLS_semi (wn wm wa: ty_r) : exec ty_r :=
+  ok (wa - wn * wm)%R.
+
+Definition arm_MLS_instr : instr_desc_t :=
+  let mn := MLS in
+  {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg; sreg ];
+      id_in := [:: E 1; E 2; E 3 ];
+      id_tout := [:: sreg ];
+      id_out := [:: E 0 ];
+      id_semi := arm_MLS_semi;
+      id_nargs := 4;
+      id_args_kinds := ak_reg_reg_reg_reg;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+  |}.
 
 Definition arm_SDIV_semi (wn wm : ty_r) : exec ty_r :=
   ok (wdivi wn wm).
@@ -1448,6 +1498,8 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | ADD => arm_ADD_instr
   | ADC => arm_ADC_instr
   | MUL => arm_MUL_instr
+  | MLA => arm_MLA_instr
+  | MLS => arm_MLS_instr
   | SDIV => arm_SDIV_instr
   | SUB => arm_SUB_instr
   | RSB => arm_RSB_instr

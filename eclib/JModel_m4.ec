@@ -102,6 +102,14 @@ op MOVT (old: W32.t) (hi: W16.t) : W32.t =
   pack2 [old \bits16 0 ; hi].
 op MOVTcc x y g o = if g then MOVT x y else o.
 
+op MLA (m n a: W32.t) : W32.t =
+  a + m * n.
+op MLAcc m n a g o = if g then MLA m n a else o.
+
+op MLS (m n a: W32.t) : W32.t =
+  a - m * n.
+op MLScc m n a g o = if g then MLS m n a else o.
+
 op MULS (x y: W32.t) : bool * bool * W32.t =
   with_nz (x * y).
 op MUL x y = let (_n, _z, r) = MULS x y in r.
