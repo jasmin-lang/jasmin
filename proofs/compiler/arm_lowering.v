@@ -258,6 +258,9 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
   else
     None.
 
+Definition is_mul (e: pexpr) : option (pexpr * pexpr) :=
+  if e is Papp2 (Omul (Op_w U32)) x y then Some (x, y) else None.
+
 Definition lower_Papp2_op
   (ws : wsize) (op : sop2) (e0 e1 : pexpr) :
   option (arm_mnemonic * pexpr * pexprs) :=
@@ -265,10 +268,18 @@ Definition lower_Papp2_op
   then
     match op with
     | Oadd (Op_w _) =>
+        if is_mul e0 is Some (x, y)
+        then Some (MLA, x, [:: y; e1 ])
+        else if is_mul e1 is Some (x, y)
+        then Some (MLA, x, [:: y; e0 ])
+        else
         Some (ADD, e0, [:: e1 ])
     | Omul (Op_w _) =>
         Some (MUL, e0, [:: e1 ])
     | Osub (Op_w _) =>
+        if is_mul e1 is Some (x, y)
+        then Some (MLS, x, [:: y; e0 ])
+        else
         Some (SUB, e0, [:: e1 ])
     | Odiv (Cmp_w Signed U32) =>
         Some (SDIV, e0, [:: e1 ])
