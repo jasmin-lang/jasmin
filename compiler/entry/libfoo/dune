@@ -3,15 +3,15 @@
  (foreign_archives foo))
 
  (rule
- (deps Makefile foo.c (source_tree inputs))
+ (deps Makefile foo.c myasm.s (source_tree inputs))
  (targets libfoo.a libfoo.so dllfoo.so)
  (action
  (no-infer
   (progn
    (bash "make -j1 --no-print-directory")
-   (bash "cp libfoo.a ../libfoo.a")
-   (bash "cp libfoo.so ../libfoo.so")
-   (bash "cp dllfoo.so ../dllfoo.so")
+   (bash "cp -f libfoo.a ../libfoo.a")
+   (bash "cp -f libfoo.so ../libfoo.so")
+   (bash "cp -f dllfoo.so ../dllfoo.so")
    (bash "mkdir -p ../inputs")
-   (bash "cp inputs/input ../inputs")
+   (bash "cp -f inputs/input ../inputs")
    ))))

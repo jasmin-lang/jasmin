@@ -177,7 +177,8 @@ let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
   Format.printf "Initial state:@;%a@." Impl.pp_asm_state asm_state;
   Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i;
   let asm_state' = Impl.exec_instr A.call_conv asm_state i in
-  Format.printf "New state:@;%a@." Impl.pp_asm_state asm_state'
+  Format.printf "New state:@;%a@." Impl.pp_asm_state asm_state';
+
 
 open Cmdliner
 
@@ -241,27 +242,78 @@ let flags =
 open Ctypes
 open Foreign
 
-type minimal
-let minimal : minimal structure typ = structure "minimal"
-let rax = field minimal "rax" int
-let rbx = field minimal "rbx" int
-let () = seal minimal
+type asm_state
+let asm_state : asm_state structure typ = structure "asm_state"
+let rax = field asm_state "rax" int
+let rcx = field asm_state "rcx" int
+let rdx = field asm_state "rdx" int
+let rbx = field asm_state "rbx" int
+let rsi = field asm_state "rsi" int
+let rdi = field asm_state "rdi" int
+let rsp = field asm_state "rsp" int
+let rbp = field asm_state "rbp" int
+let r8 = field asm_state "r8" int
+let r9 = field asm_state "r9" int
+let r10 = field asm_state "r10" int
+let r11 = field asm_state "r11" int
+let r12 = field asm_state "r12" int
+let r13 = field asm_state "r13" int
+let r14 = field asm_state "r14" int
+let r15 = field asm_state "r15" int
+let rflags = field asm_state "rflags" int
+let () = seal asm_state
 
-let do_stuff = foreign "do_stuff" (ptr minimal @-> returning void)
+let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void)
+(* let set_execute_get = foreign "set_execute_get" (ptr asm_state @-> returning void) *)
 
-let is_correct x y =
-  let state = make minimal in
+let is_correct x =
+  let state = make asm_state in
     setf state rax x;
-    setf state rbx y;
+    setf state rbx 0;
+    setf state rcx 0;
+    setf state rdx 0;
+    setf state rsi 0;
+    setf state rdi 0;
+    setf state rsp 0;
+    setf state rbp 0;
+    setf state r8 0;
+    setf state r9 0;
+    setf state r10 0;
+    setf state r11 0;
+    setf state r12 0;
+    setf state r13 0;
+    setf state r14 0;
+    setf state r15 0;
+    setf state rflags 0;
 
-  let check state x _ =
-    do_stuff (addr state);
+
+  let check state x  =
+    Printf.printf "Before: rax %d\n" (getf state rax);
+    increment_rax (addr state);
+    Printf.printf "After: rax %d\n" (getf state rax);
     let res1  = getf state rax in
-    res1 = x
+    let res2 = x + 1 in
+    res1 = res2
   in
-  Crowbar.check(check state x y)
+  Crowbar.check(check state x)
 
 let () =
-  let x = Crowbar.(uint16) in
-  let y = Crowbar.(uint16) in
-  Crowbar.add_test ~name:"check foreign addition" [ x ;  y ]  (fun x y -> is_correct x y)
+  let arch = Amd64 in
+  let call_conv = !(J.Glob_options.call_conv) in
+  let reg = [] in
+  let regs = [1;2;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
+  let regxs = [0;0;0;0;0;0;0;0] in
+  let xregs = [0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
+  let flag = [] in
+  let flags = [] in
+
+  (* let ip = J.Conv.nat_of_int 0 in *)
+
+  let op = "INC" in
+  let args = ["RAX"] in
+
+  parse_and_exec arch call_conv op args reg regs regxs xregs flag flags;
+
+  (* let x = Crowbar.(uint16) in *)
+  (* let y = Crowbar.(uint16) in *)
+  (* Crowbar.add_test ~name:"check increment" [ x ]  (fun x -> is_correct x) *)
