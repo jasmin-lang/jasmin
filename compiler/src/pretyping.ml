@@ -1368,32 +1368,27 @@ let extract_size str : string * S.size_annotation =
 let tt_prim asmOp ws id args =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
-  (* TODO_ARM: Merge this. *)
-  match !Glob_options.target_arch with
-  | ARM_M4 ->
-      oget
-        ~exn:(tyerror ~loc (UnknownPrim s))
-        (Tt_arm_m4.tt_prim (prim_string asmOp) name sz args)
-  | X86_64 ->
-      let c =
-  match List.assoc name (prim_string asmOp) with
-  | PrimP (d, pr) ->
-    pr ws (match sz with
-        | SAw sz -> sz 
-        | SA -> d 
-        | SAv (s, ve, sz) ->
-           warning SimplifyVectorSuffix (L.i_loc0 loc) "vector suffix simplified from %s to %a"
-             (PrintCommon.string_of_velem s sz ve) PrintCommon.pp_wsize sz;
-           sz
-        | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
-        | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-  | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
-  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
-  | PrimARM _ -> failwith "tt_prim ARM M4"
-  | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
-      in (c, args)
+  let c =
+    match List.assoc name (prim_string asmOp) with
+    | PrimP (d, pr) ->
+        pr ws (match sz with
+          | SAw sz -> sz
+          | SA -> d
+          | SAv (s, ve, sz) ->
+              warning SimplifyVectorSuffix (L.i_loc0 loc) "vector suffix simplified from %s to %a"
+                (PrintCommon.string_of_velem s sz ve) PrintCommon.pp_wsize sz;
+              sz
+          | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
+          | SAx _ -> rs_tyerror ~loc (PrimNotX s))
+    | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
+    | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+    | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
+    | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
+    | PrimARM _ | exception Not_found ->
+        oget
+          ~exn:(tyerror ~loc (UnknownPrim s))
+          (Tt_arm_m4.tt_prim (prim_string asmOp) name sz)
+  in (c, args)
 
 let prim_of_op exn loc o =
   (* TODO: use context typing information when the operator is not annotated *)
