@@ -171,10 +171,10 @@ let parse_and_exec op args reg regs regxs xregs flag flags =
   let fn = J.Prog.F.mk "f" in
 
   let asm_state = init_state ip reg_values flag_values fn i in
-  Format.printf "Initial state:@;%a@." pp_asm_state asm_state;
+  (* Format.printf "Initial state:@;%a@." pp_asm_state asm_state; *)
   Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i;
   let asm_state' = exec_instr A.call_conv asm_state i in
-  Format.printf "New state:@;%a@." pp_asm_state asm_state';
+  (* Format.printf "New state:@;%a@." pp_asm_state asm_state'; *)
   asm_state'
 end
 
@@ -184,7 +184,7 @@ module A =
   Arch_from_Core_arch'
       (struct include (val J.CoreArchFactory.core_arch_x86 ~use_lea:false
         ~use_set0:false J.Glob_options.Linux) let pp_instr = J.Ppasm.pp_instr "name" end)
-module Impl = Impl(A)
+module ImplA = Impl(A)
 
 let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
   (* we need to sync with glob_options for [tt_prim] to work, this is ugly *)
@@ -192,7 +192,7 @@ let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
   | CortexM -> J.Glob_options.target_arch := ARM_M4
   | _ -> ()
   end;
-  Impl.parse_and_exec op args reg regs regxs xregs flag flags
+  ImplA.parse_and_exec op args reg regs regxs xregs flag flags
 
 open Cmdliner
 
@@ -302,32 +302,28 @@ let is_correct x =
 
 
   let check state x  =
-    Printf.printf "Before: rax %d\n" (getf state rax);
+    let arch = Amd64 in
+    let call_conv = !(J.Glob_options.call_conv) in
+    let reg = [] in
+    let regs = [x;2;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
+    let regxs = [0;0;0;0;0;0;0;0] in
+    let xregs = [0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
+    let flag = [] in
+    let flags = [] in
+    let op = "INC" in
+    let args = ["RAX"] in
+
+    let new_state = parse_and_exec arch call_conv op args reg regs regxs xregs flag flags in
+    (* Format.printf "New state:@;%a@." ImplA.pp_asm_state new_state; *)
+    let rax_val =  Z.to_int (J.Conv.z_of_cz (J.Exec.read_reg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state RAX)) in
+    (* Printf.printf "Before: rax %d\n" (getf state rax); *)
     increment_rax (addr state);
-    Printf.printf "After: rax %d\n" (getf state rax);
+    (* Printf.printf "After: rax %d\n" (getf state rax); *)
     let res1  = getf state rax in
-    let res2 = x + 1 in
-    res1 = res2
+    res1 = rax_val
   in
   Crowbar.check(check state x)
 
 let () =
-  let arch = Amd64 in
-  let call_conv = !(J.Glob_options.call_conv) in
-  let reg = [] in
-  let regs = [1;2;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
-  let regxs = [0;0;0;0;0;0;0;0] in
-  let xregs = [0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
-  let flag = [] in
-  let flags = [] in
-
-  (* let ip = J.Conv.nat_of_int 0 in *)
-
-  let op = "INC" in
-  let args = ["RAX"] in
-
-  parse_and_exec arch call_conv op args reg regs regxs xregs flag flags;
-
-  (* let x = Crowbar.(uint16) in *)
-  (* let y = Crowbar.(uint16) in *)
-  (* Crowbar.add_test ~name:"check increment" [ x ]  (fun x -> is_correct x) *)
+  let x = Crowbar.(uint16) in
+  Crowbar.add_test ~name:"check increment" [ x ]  (fun x -> is_correct x)

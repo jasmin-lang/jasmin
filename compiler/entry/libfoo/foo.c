@@ -23,7 +23,7 @@ struct asm_state {
 
 void increment_rax (struct asm_state* state) {
     state->rax += 1;
-    if (state->rax == 100) {
+    if (state->rax == 100) {        // Synthetic bug
         state->rax = 0;
     }
 }
