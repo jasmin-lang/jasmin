@@ -28,7 +28,7 @@ depends: [
   "ocamlbuild" { build }
   "ocamlfind" { build }
   "coq" {>= "8.14.0" & < "8.17"}
-  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.16"}
+  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.18"}
   "coq-mathcomp-algebra"
   "coq-mathcomp-word" {>= "2.1"}
 ]
