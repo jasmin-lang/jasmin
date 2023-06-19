@@ -17,17 +17,11 @@ let get_arm_prim s =
   let set_flags, s = get_set_flags s in
   (s, set_flags, is_conditional)
 
-let tt_prim ps s sa args =
+let tt_prim ps s sa =
   let name, set_flags, is_conditional = get_arm_prim s in
   match List.assoc_opt name ps with
   | Some (Sopn.PrimARM pr) ->
     if sa == S.SA
-    then Some (pr set_flags is_conditional None, args)
+    then Some (pr set_flags is_conditional None)
     else None
-  (* The following is for [copy], [mulu], [adc], and [sbb]. *)
-  | Some (Sopn.PrimP (ws, pr)) ->
-    (match sa with
-     | S.SA -> Some ((pr None ws), args)
-     | S.SAw ws' when ws' = ws -> Some (pr None ws, args)
-     | _ -> None)
   | _ -> None
