@@ -2,13 +2,21 @@ open Prog
 open Wsize
 open Sopn
 
-val pp_fun :
-  Format.formatter ->
-  ('a, 'b,
-   ('c, 'd, 'e, 'f, 'g, X86_instr_decl.x86_op,
-    X86_extra.x86_extra_op)
-     Arch_extra.extended_op)
-    Prog.gfunc -> unit
+     val pp_fun :
+           ('a, 'b, 'c, 'd, 'e, X86_instr_decl.x86_op,
+            X86_extra.x86_extra_op)
+           Arch_extra.extended_op Sopn.asmOp ->
+           Format.formatter ->
+           (int, 'f,
+            ('a, 'b, 'c, 'd, 'e, X86_instr_decl.x86_op,
+             X86_extra.x86_extra_op)
+            Arch_extra.extended_op)
+           Prog.gfunc -> unit
+
+
+
+
+
 
 val extract :
   (module Arch_full.Arch

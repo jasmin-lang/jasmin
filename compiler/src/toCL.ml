@@ -76,6 +76,8 @@ and pp_expr fmt e =
   | Parr_init _ | Pget _ | Psub _ | Pload _ -> assert false 
   | Pif _ -> assert false 
 
+exception NoTranslation
+
 let pp_baseop fmt xs o es = 
   match o with
   | X86_instr_decl.MOV ws -> 
@@ -361,7 +363,8 @@ let pp_baseop fmt xs o es =
   | VAESIMC
   | AESKEYGENASSIST
   | VAESKEYGENASSIST *)
-  | _ -> assert false 
+  | _ -> raise NoTranslation 
+
 
 let pp_extop fmt xs o es = 
   match o with
@@ -370,8 +373,6 @@ let pp_extop fmt xs o es =
       Format.fprintf fmt "mov %a 0%a"
         pp_lval (List.nth xs 5)
         pp_uint ws
-
-
   | Oconcat128 -> assert false
   | Ox86MOVZX32 -> 
       Format.fprintf fmt "cast %a@@uint64 %a@@uint32"
@@ -393,18 +394,22 @@ let pp_sopn fmt xs o es =
   | Sopn.Osubcarry _ws -> assert false 
   | Sopn.Oasm o -> pp_ext_op fmt xs o es 
 
-let pp_i fmt i = 
+let pp_i asmOp fmt i = 
   match i.i_desc with
   | Cassert _e -> Format.fprintf fmt "assert true" (* FIXME *)
   | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ -> assert false
   | Cassgn (x, _, _, e) -> 
       Format.fprintf fmt "@[<h>mov %a %a@]" pp_lval x pp_expr e
   | Copn(xs, _, o, es) -> 
-      pp_sopn fmt xs o es 
+      try 
+        pp_sopn fmt xs o es 
+      with NoTranslation ->
+       Format.eprintf "No Translation for: %a@."
+          (Printer.pp_instr ~debug:true asmOp) i
 
-let pp_c fmt c = 
+let pp_c asmOp fmt c = 
   Format.fprintf fmt "@[<v>%a;@]"
-    (pp_list ";@ " pp_i) c
+    (pp_list ";@ " (pp_i asmOp)) c
 
 
 let pp_pre fmt fd = 
@@ -428,12 +433,12 @@ let pp_args fmt xs =
 let pp_res fmt xs = 
   pp_args fmt (List.map L.unloc xs)
   
-let pp_fun fmt fd = 
+let pp_fun asmOp fmt fd = 
   Format.fprintf fmt "@[<v>proc main(@[<hov>%a;@ %a@]) = @ %a@ @ %a@ @ %a@]"
     pp_args fd.f_args
     pp_res  fd.f_ret
     pp_pre ()
-    pp_c fd.f_body
+    (pp_c asmOp) fd.f_body
     pp_post ()
 
 

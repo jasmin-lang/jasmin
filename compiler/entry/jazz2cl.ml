@@ -31,7 +31,8 @@ let parse_and_print print arch call_conv =
             | Amd64 -> *)
                 (module (val CoreArchFactory.core_arch_x86 ~use_lea:false
                                ~use_set0:false call_conv)
-                : Arch_full.Core_arch)
+                : Arch_full.Core_arch with type asm_op = X86_instr_decl.x86_op
+                                      and  type extra_op = X86_extra.x86_extra_op )
            (* | CortexM ->
                 (module CoreArchFactory.Core_arch_ARM : Arch_full.Core_arch) *))) in
   fun output file funname ->
@@ -78,7 +79,7 @@ let parse_and_print print arch call_conv =
      let fmt = Format.formatter_of_out_channel out in
      let prog = Conv.prog_of_cuprog tbl ((* FIXME *) Obj.magic prog) in
      Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
-     Format.fprintf fmt "%a@." ToCL.pp_fun (List.nth (snd prog) 0);
+     Format.fprintf fmt "%a@." (ToCL.pp_fun A.asmOp) (List.nth (snd prog) 0);
      close out
 
   with
