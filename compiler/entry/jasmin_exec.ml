@@ -1,7 +1,37 @@
 (* -------------------------------------------------------------------- *)
 module J = Jasmin
 
-module Impl (A : J.Arch_full.Arch) = struct
+(* We want to print isolated instructions *)
+module type Core_arch' = sig
+  include J.Arch_full.Core_arch
+  val pp_instr :
+    Format.formatter ->
+    (reg, regx, xreg, rflag, cond, asm_op) J.Arch_decl.asm_i ->
+    unit
+end
+
+module type Arch' = sig
+  include J.Arch_full.Arch
+  val pp_instr :
+    Format.formatter ->
+    (reg, regx, xreg, rflag, cond, asm_op) J.Arch_decl.asm_i ->
+    unit
+end
+
+module Arch_from_Core_arch' (A : Core_arch') :
+  Arch'
+    with type reg = A.reg
+     and type regx = A.regx
+     and type xreg = A.xreg
+     and type rflag = A.rflag
+     and type cond = A.cond
+     and type asm_op = A.asm_op
+     and type extra_op = A.extra_op = struct
+  include A
+  include J.Arch_full.Arch_from_Core_arch (A)
+end
+
+module Impl (A : Arch') = struct
 
   open Jasmin
 
@@ -93,42 +123,9 @@ module Impl (A : J.Arch_full.Arch) = struct
     List.map2 (fun r v -> (arch_decl.toS_x.to_string r, Conv.cz_of_int v)) arch_decl.toS_x._finC.cenum l
   let flags_of_val l =
     List.map2 (fun f v -> (arch_decl.toS_f.to_string f, v)) arch_decl.toS_f._finC.cenum l
-end
 
-type arch = Amd64 | CortexM
-
-(* We want to print isolated instructions *)
-module type Core_arch' = sig
-  include J.Arch_full.Core_arch
-  val pp_instr :
-    Format.formatter ->
-    (reg, regx, xreg, rflag, cond, asm_op) J.Arch_decl.asm_i ->
-    unit
-end
-
-module type Arch' = sig
-  include J.Arch_full.Arch
-  val pp_instr :
-    Format.formatter ->
-    (reg, regx, xreg, rflag, cond, asm_op) J.Arch_decl.asm_i ->
-    unit
-end
-
-module Arch_from_Core_arch' (A : Core_arch') :
-  Arch'
-    with type reg = A.reg
-     and type regx = A.regx
-     and type xreg = A.xreg
-     and type rflag = A.rflag
-     and type cond = A.cond
-     and type asm_op = A.asm_op
-     and type extra_op = A.extra_op = struct
-  include A
-  include J.Arch_full.Arch_from_Core_arch (A)
-end
-
-let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
-  let module A =
+let parse_and_exec op args reg regs regxs xregs flag flags =
+(*  let module A =
     Arch_from_Core_arch'
       ((val match arch with
             | Amd64 ->
@@ -142,7 +139,7 @@ let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
   begin match arch with
   | CortexM -> J.Glob_options.target_arch := ARM_M4
   | _ -> ()
-  end;
+  end; *)
 
   if (reg <> [] && (regs <> [] || regxs <> [] || xregs <> [])) then (Format.eprintf "Options \"--reg\" and {\"--regs\",\"--regxs\",\"--xregs\"} must not be used at the same time.@."; exit 1);
   if (flag <> [] && flags <> []) then (Format.eprintf "Options \"--flag\" and \"--flags\" must not be used at the same time.@."; exit 1);
@@ -151,9 +148,9 @@ let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
     if reg <> [] then List.map (fun (r, v) -> (J.Conv.cstring_of_string r, J.Conv.cz_of_int v)) reg
     else
       try
-        let l1 = if regs <> [] then Impl.regs_of_val regs else [] in
-        let l2 = if regxs <> [] then Impl.regxs_of_val regxs else [] in
-        let l3 = if xregs <> [] then Impl.xregs_of_val xregs else [] in
+        let l1 = if regs <> [] then regs_of_val regs else [] in
+        let l2 = if regxs <> [] then regxs_of_val regxs else [] in
+        let l3 = if xregs <> [] then xregs_of_val xregs else [] in
         l1 @ l2 @ l3
       with Invalid_argument _ -> Format.eprintf "Not the right number of regs/regxs/xregs.@."; exit 1
   in
@@ -163,22 +160,39 @@ let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
     else if flags = [] then []
     else
       try
-        Impl.flags_of_val flags
+        flags_of_val flags
       with Invalid_argument _ -> Format.eprintf "Not the right number of flags.@."; exit 1
   in
 
   let ip = J.Conv.nat_of_int 0 in
-  let op = Impl.parse_op op in
-  let args = List.map Impl.parse_arg args in
+  let op = parse_op op in
+  let args = List.map parse_arg args in
   let i = J.Arch_decl.AsmOp (op, args) in
   let fn = J.Prog.F.mk "f" in
 
-  let asm_state = Impl.init_state ip reg_values flag_values fn i in
-  Format.printf "Initial state:@;%a@." Impl.pp_asm_state asm_state;
+  let asm_state = init_state ip reg_values flag_values fn i in
+  Format.printf "Initial state:@;%a@." pp_asm_state asm_state;
   Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i;
-  let asm_state' = Impl.exec_instr A.call_conv asm_state i in
-  Format.printf "New state:@;%a@." Impl.pp_asm_state asm_state';
+  let asm_state' = exec_instr A.call_conv asm_state i in
+  Format.printf "New state:@;%a@." pp_asm_state asm_state';
+  asm_state'
+end
 
+type arch = Amd64 | CortexM
+
+module A =
+  Arch_from_Core_arch'
+      (struct include (val J.CoreArchFactory.core_arch_x86 ~use_lea:false
+        ~use_set0:false J.Glob_options.Linux) let pp_instr = J.Ppasm.pp_instr "name" end)
+module Impl = Impl(A)
+
+let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
+  (* we need to sync with glob_options for [tt_prim] to work, this is ugly *)
+  begin match arch with
+  | CortexM -> J.Glob_options.target_arch := ARM_M4
+  | _ -> ()
+  end;
+  Impl.parse_and_exec op args reg regs regxs xregs flag flags
 
 open Cmdliner
 
