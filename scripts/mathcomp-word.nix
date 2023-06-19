@@ -2,7 +2,7 @@
 
 let inherit (coqPackages) coq; in
 
-let mathcomp = coqPackages.mathcomp.override { version = "1.15.0"; }
+let mathcomp = coqPackages.mathcomp.override { version = "1.17.0"; }
 ; in
 
 let rev = "bbab8bb37bfe3c7e83753d681fd35c89295b2fa2"; in
