@@ -231,7 +231,7 @@ Proof.
   t_xrbindP => hbrip.
   case ho: lea_offset => [ // | ] _ <- /=.
   case: lom => _ _ hrip _ _ _.
-  move: hsemlea; rewrite /sem_lea ho hb /= hbrip hrip /= /truncate_word hsz64 /= => h.
+  move: hsemlea; rewrite /sem_lea ho hb /= hbrip hrip /= truncate_word_le // /= => h.
   have <- := ok_inj h.
   move => _ _.
   by rewrite GRing.mulr0 GRing.addr0 GRing.addrC wadd_zero_extend // zero_extend_wrepr.
@@ -1710,7 +1710,7 @@ Proof.
     [ move: (Mr' r) (Mr r) | move: (Mrx' r) (Mrx r) | move: (Mxr' r) (Mxr r) | move: (Mf' r) (Mf r) ];
     rewrite /get_var E.
   1-3: by case: _.[_]%vmap => [ | [] // ] /= [] sz w sz_le /(_ _ erefl) /= X' /(_ _ erefl) /= X;
-       rewrite /truncate_word; case: ifP => // /(cmp_le_antisym sz_le) ? _; subst sz;
+       move => /is_okP[] _ /truncate_wordP[] /(cmp_le_antisym sz_le) ? _; subst sz;
        rewrite -(word_uincl_eq X) -(word_uincl_eq X').
   case: _.[_]%vmap => [ | [] // ] /= b /(_ _ erefl) /= X' /(_ _ erefl) /= X _.
   case: (asm_flag xm' r) X' => //= _ <-.   

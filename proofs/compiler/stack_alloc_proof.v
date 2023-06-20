@@ -1713,7 +1713,7 @@ Proof.
     move=> {ha}; case: x hty hlx hsr hsetw => -[xty xn] xii /= ->.
     set x := {| vtype := sword ws; vname := xn |} => hlx hsr hsetw /= w hto <-.
     have [ws' [w' [hle ??]]] := subtype_of_val_to_pword htyv hto; subst w v.
-    rewrite /= /truncate_word hle /=.
+    rewrite /= truncate_word_le // {hle} /=.
     have hwf := sub_region_pk_wf hsr hlx refl_equal.
     have hvp: validw (emem s2) (sub_region_addr sr + wrepr _ 0)%R ws.
     + rewrite wrepr0 GRing.addr0.

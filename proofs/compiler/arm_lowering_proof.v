@@ -188,7 +188,7 @@ Proof.
 
   case: mn hmn => // _.
   all: rewrite /exec_sopn /=.
-  all: by rewrite /truncate_word hws0 hws1 {hws0 hws1} /=.
+  all: by rewrite !truncate_word_le.
 Qed.
 
 Lemma lower_TST_match e0 e1 es :
@@ -468,7 +468,7 @@ Proof.
          subst vbase wbase'.
 
   all: move: hsham.
-  all: rewrite /truncate_word wsize_le_U8 /=.
+  all: rewrite truncate_word_le //.
   all: move=> [?]; subst wsham'.
 
   all: move: hop.
@@ -573,7 +573,7 @@ Proof.
   all: rewrite /= hget {hget} /=.
   all: eexists; first reflexivity.
   all: rewrite /exec_sopn /=.
-  all: rewrite /truncate_word hws {hws} /=.
+  all: rewrite truncate_word_le // {hws} /=.
   all: by rewrite ?zero_extend_u.
 Qed.
 
@@ -593,7 +593,7 @@ Proof.
     split.
     + rewrite /= ok_t /= ok_idx /= ok_r /=.
       eexists; first reflexivity.
-      by rewrite /exec_sopn /= /truncate_word hws /= zero_extend_u.
+      by rewrite /exec_sopn /= truncate_word_le // /= zero_extend_u.
     done.
 
   t_xrbindP=> wbase' vbase hgetx hbase woff' voff hseme hoff wres hread ? hw;
@@ -609,13 +609,13 @@ Proof.
 
   rewrite /sem_pexprs /=.
   rewrite hgetx hseme {hgetx hseme} /=.
-  rewrite /truncate_word hws0 hws1 {hws0 hws1} /=.
+  rewrite !truncate_word_le // {hws0 hws1} /=.
   rewrite hread {hread} /=.
 
   eexists; first reflexivity.
 
   rewrite /exec_sopn /=.
-  rewrite /truncate_word hws {hws} /=.
+  rewrite truncate_word_le // {hws} /=.
   by rewrite zero_extend_u.
 Qed.
 
@@ -658,11 +658,11 @@ Proof.
       case: (mov_imm_mnemonicP h) => [[??] | [z [???]]]; subst.
       all: split; last done.
       all: eexists; first by [|rewrite /= hseme /= /sem_sop1 /= hw'].
-      - by rewrite /exec_sopn /= zero_extend_u zero_extend_wrepr.
-      rewrite /exec_sopn /= zero_extend_u.
+      - by rewrite /exec_sopn /= truncate_word_u zero_extend_wrepr.
+      rewrite /exec_sopn /= truncate_word_u.
       move: hseme => [?]; subst v.
       move: hw' => [?]; subst w'.
-      rewrite wrepr_mod -wrepr_wnot wnot_wnot wrepr_mod.
+      rewrite wrepr_mod -wrepr_wnot /= wnot_wnot wrepr_mod.
       by rewrite zero_extend_wrepr.
     }
 
@@ -726,7 +726,7 @@ Proof.
     rewrite hbase hsham {hbase hsham} /=.
     eexists; first reflexivity.
     rewrite /exec_sopn /=.
-    rewrite /truncate_word hws1 {hws1} /=.
+    rewrite !truncate_word_le // {hws1} /=.
     by rewrite !zero_extend_u hv.
 
   clear hshift.
@@ -744,7 +744,7 @@ Proof.
   split; last by [].
   exists [:: v; @Vword U32 0 ].
   - by rewrite /= hseme wrepr0.
-  by rewrite /exec_sopn /= /sopn_sem ok_w' /= zero_extend0 GRing.add0r wnot1_wopp zero_extend_u.
+  by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= GRing.add0r wnot1_wopp zero_extend_u.
 Qed.
 
 Lemma mk_sem_divmodP ws op (w0 w1 : word ws) w :
@@ -873,7 +873,7 @@ Proof.
 
       all: rewrite /exec_sopn /=.
       all: rewrite /sopn_sem /=.
-      all: rewrite /truncate_word hws0 hws2 {hws0 hws2} /=.
+      all: rewrite !truncate_word_le // {hws0 hws2} /=.
 
       1: rewrite (wadd_zero_extend _ _ hws).
       2: rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
@@ -962,9 +962,7 @@ Proof.
   all: eexists; first reflexivity.
 
   all: rewrite /exec_sopn /=.
-  all: rewrite /truncate_word /=.
-
-  all: rewrite (cmp_le_trans hws hws0) || rewrite (cmp_le_trans hws hws1).
+  all: repeat (rewrite truncate_word_le /=; [ | by rewrite ?(cmp_le_trans hws hws0) ?(cmp_le_trans hws hws1) ]).
 
   (* Shift instructions take a byte as second argument. *)
   all:
@@ -1157,7 +1155,7 @@ Proof.
   - rewrite /=. by rewrite (eeq_exc_sem_pexpr hfve1 hs10 hseme1).
   rewrite /truncate_args /truncate_val /=.
   rewrite htout /=.
-  by rewrite /truncate_word hws1 /=.
+  by rewrite truncate_word_le.
 Qed.
 
 Lemma sem_i_lower_store s0 s1 s0' ws ws' e aop es (w : word ws') lv tag :
@@ -1217,16 +1215,16 @@ Proof.
   all: case: ws hws hwrite hmn => // hws hwrite [?]; subst mn.
   all: rewrite /exec_sopn /=.
   all: rewrite /sopn_sem /=.
-  all: rewrite /truncate_word.
+  all: rewrite ?truncate_word_le //.
 
-  1-3: rewrite hws {hws} /=.
-  1-3: rewrite zero_extend_u.
+  1-3: rewrite /= zero_extend_u.
   1-3: by rewrite hwrite {hwrite}.
 
   all: rewrite hseme0 hsemc hseme1 {hseme0 hsemc hseme1} /=.
-  all: rewrite /truncate_word.
-  all: rewrite (cmp_le_trans hws hws0) {hws0} /=.
-  all: rewrite (cmp_le_trans hws hws1) {hws1} /=.
+  all: rewrite truncate_word_le.
+  2, 4, 6, 8, 10, 12: exact: cmp_le_trans hws hws1.
+  all: rewrite truncate_word_le /=.
+  2, 4, 6, 8, 10, 12: exact: cmp_le_trans hws hws0.
   all: rewrite (zero_extend_idem _ hws) {hws} /= in hwrite.
   1-3: rewrite zero_extend_u.
   all: by rewrite hwrite {hwrite}.
@@ -1390,7 +1388,7 @@ Proof.
   2: rewrite hseme2 /= {hseme2}.
 
   all: rewrite /exec_sopn /=.
-  all: rewrite /truncate_word hws hws' /=.
+  all: rewrite !truncate_word_le // {hws hws'} /=.
   all: move: hwrite00 hwrite1.
   all: rewrite wunsigned_carry.
 
@@ -1418,9 +1416,9 @@ Ltac destruct_opn_args :=
   (t_xrbindP=> -[]; last done).
 
 #[local]
-Ltac intro_args_wrapper hys hts :=
+Ltac intro_args_wrapper :=
   intro_opn_args;
-  rewrite /truncate_word hys hts => -> _ /ok_inj <-.
+  rewrite !truncate_word_le // => -> _ /ok_inj <-.
 
 #[local]
 Ltac destruct_args_wrapper vs :=
@@ -1458,7 +1456,7 @@ Proof.
   case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] xs [] wx [] hxs ->{x} hx.
   case: cc S => - [].
   all: rewrite /exec_sopn /=; t_xrbindP.
-  all: intro_opn_args; rewrite /truncate_word hxs hts => /ok_inj <-.
+  all: intro_opn_args; rewrite !truncate_word_le // {hxs hts} => /ok_inj <-.
   all: destruct_args_wrapper vs.
   all: rewrite_exec.
   all: by rewrite hx.
@@ -1479,7 +1477,7 @@ Proof.
   case: cc S => - [].
   all: repeat case/orP: mn_binop => [ /eqP -> { mn } | mn_binop ]; last move/eqP: mn_binop => -> { mn }.
   all: rewrite /exec_sopn /=; t_xrbindP.
-  all: intro_args_wrapper hys hts.
+  all: intro_args_wrapper => {hys hts}.
   all: destruct_args_wrapper vs.
   all: rewrite_exec.
   all: by rewrite hy.
@@ -1497,7 +1495,7 @@ Proof.
   case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
   case: S cc => - [].
   all: rewrite /exec_sopn /=; t_xrbindP.
-  all: intro_args_wrapper hys hts.
+  all: intro_args_wrapper => {hys hts}.
   all: destruct_args_wrapper vs.
   all: rewrite_exec.
   all: by rewrite hy.
