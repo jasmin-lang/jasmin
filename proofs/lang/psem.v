@@ -1006,7 +1006,7 @@ Lemma is_wconstP gd s sz e w:
 Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.
-  by rewrite /= /truncate_word hle.
+  by rewrite /= truncate_word_le.
 Qed.
 
 Lemma size_wrange d z1 z2 :
@@ -1807,7 +1807,7 @@ case: t v => [||p|sz] [] //=.
 + by case => //; eauto.
 + by case => //; eauto.
 + by move => n a; rewrite /WArray.cast; case: ifPn.
-+ by move=> ??;rewrite /truncate_word;case:ifP.
++ by move=> ?? /truncate_word_errP[].
 by case => // sz' e; case: ifP => // *; exists (sword sz'), e.
 Qed.
 

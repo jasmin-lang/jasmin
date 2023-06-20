@@ -92,7 +92,7 @@ Section STACK_ALLOC.
     constructor.
     rewrite /sem_sopn /= P'_globs /sem_sop2 /=.
     move: he; t_xrbindP=> _ -> /= -> /=.
-    by rewrite !zero_extend_u hx.
+    by rewrite /exec_sopn truncate_word_u /= truncate_word_u /= hx.
   Qed.
 
 Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
@@ -237,8 +237,7 @@ Proof.
   rewrite /eval_instr /= /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite Hvm /=.
-  rewrite pword_of_wordE.
-  by rewrite 3!zero_extend_u.
+  by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /= pword_of_wordE.
 Qed.
 
 Definition x86_spec_lip_free_stack_frame s pc ii ts sz :
@@ -254,8 +253,7 @@ Proof.
   rewrite /eval_instr /= /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite Hvm /=.
-  rewrite pword_of_wordE.
-  by rewrite 3!zero_extend_u.
+  by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /= pword_of_wordE.
 Qed.
 
 Lemma x86_spec_lip_set_up_sp_register s r ts al sz P Q :
@@ -417,9 +415,9 @@ Proof.
     + exact: truncate_word_u.
     + rewrite /=.
       rewrite hgetrsp0 {hgetrsp0} /=.
-      rewrite !zero_extend_u.
+      rewrite !truncate_word_u.
       rewrite -/ts'.
-      by rewrite hwrite {hwrite}.
+      by rewrite /= hwrite {hwrite}.
 
   - exact: hwf_vm0.
 
@@ -599,7 +597,7 @@ Proof.
       rewrite !andbT /compat_imm.
       case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1; only 2-3: by [].
       rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
-      rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
+      rewrite truncate_word_le // /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc_op (XOR sz) => hlo.
       rewrite /SF_of_word msb0.
       by apply: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
@@ -624,7 +622,8 @@ Proof.
     case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a1 a2.
     1-2: by move: hidc; rewrite /check_args_kinds /= andbF.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
-    rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256.
+    rewrite truncate_word_le; last exact: wsize_ge_U256.
+    rewrite /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz) => hlo.
     exact: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
@@ -666,8 +665,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
       case: hlow => _ _ _ _ /(_ _ _ hvl) hu _ _ _.
       move: hwl hu; rewrite /to_word.
       case: (vl) => // [ ws w /=| []//].
-      rewrite /truncate_word /word_uincl.
-      case: ifP => // h1 _ /andP [] h2.
+      case/truncate_wordP => h1 _ /andP[] h2 _.
       by have := cmp_le_trans h1 h2.
     + rewrite /compat_imm; case:a => //= r' /orP [/eqP [?]|//] hr; subst r'.
       have heq := of_varI hr.
@@ -676,19 +674,17 @@ Transparent eval_arg_in_v check_i_args_kinds.
       case: hlow => _ _ _ _ _ /(_ _ _ hvl) hu _ _.
       move: hwl hu; rewrite /to_word.
       case: (vl) => // [ ws w /=| []//].
-      rewrite /truncate_word /word_uincl.
-      case: ifP => // h1 _ /andP [] h2.
+      case/truncate_wordP => h1 _ /andP[] h2 _.
       by have := cmp_le_trans h1 h2.
     rewrite /compat_imm; case:a => //= xmm' /orP [ /eqP[?]| //] hxmm;subst xmm'.
     rewrite hvh' hv1 /= -hwm /=; do 3! f_equal.
     have := xxgetreg_ex hlow hxmm hvl.
-    rewrite zero_extend_u /winserti128 => hu /=.
+    rewrite truncate_word_u /winserti128 => hu /=.
     do 2! f_equal; rewrite /split_vec /=.
     move: hwl hu; rewrite /to_word.
     case: (vl) => // [ws wl' /= | []//].
-    rewrite /truncate_word /word_uincl mul0n.
-    case: ifP => // hle.
-    rewrite (@subword0 U128 U256) // => -[] <- /andP [] _ /eqP ->.
+    rewrite /winserti128 /= mul0n (@subword0 U128 U256).
+    case/truncate_wordP => hle -> /andP[] _ /eqP ->.
     by rewrite zero_extend_idem.
   case: lvs => // -[] // x [] //.
   rewrite /exec_sopn /sopn_sem /=.
@@ -713,7 +709,8 @@ Transparent eval_arg_in_v check_i_args_kinds.
   rewrite andbT => /eqP ? _; subst a0.
   case: y hidc hca1 ok_y => // r hidc hca1 h; have {h} xr := of_varI h.
   rewrite /mem_write_vals.
-  eexists; first reflexivity.
+  eexists.
+  + by rewrite /= /mem_write_val /oof_val /= truncate_word_u.
   case: hlo => h0 h1 hrip hd h2 h2x h3 h4.
   move: hwx; rewrite /write_var /set_var.
   rewrite -xr => -[<-]{m1}.
@@ -721,7 +718,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
   + by rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.
   + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
     case: eqP => [-> | hne].
-    + by rewrite Fv.setP_eq /reg_msb_flag /= word_extend_CLEAR zero_extend_u => -[<-].
+    + by rewrite Fv.setP_eq /reg_msb_flag /= word_extend_CLEAR => -[<-].
     rewrite Fv.setP_neq; first by apply h2.
     by apply /eqP => h; apply hne; apply: inj_to_var.
 
