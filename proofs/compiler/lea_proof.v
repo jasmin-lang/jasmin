@@ -125,7 +125,7 @@ Section PROOF.
     move=> hsz.
     elim: e l sz' w => //=.
     + move=> x l sz' w hsz' [<-].
-      by rewrite lea_varP => -> /=; f_equal; rewrite /truncate_word hsz'.
+      by rewrite lea_varP => -> /=; f_equal; rewrite truncate_word_le.
     + move=> [] //= sz1 [] //= e1 he1 l sz' w hsz' [<-]; rewrite /sem_sop1 /= => h.
       have /Vword_inj[? ? /=] := ok_inj h; subst.
       by rewrite lea_constP.

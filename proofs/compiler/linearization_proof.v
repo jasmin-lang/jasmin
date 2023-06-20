@@ -3438,7 +3438,7 @@ Section PROOF.
                (w' := w')
                hliparams
                p') => //.
-          + by rewrite /truncate_word hle.
+          + by rewrite truncate_word_le.
           rewrite /= hgetrsp /=.
           rewrite !truncate_word_u /=.
           rewrite -wrepr_opp.

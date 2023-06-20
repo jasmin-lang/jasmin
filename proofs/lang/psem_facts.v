@@ -708,7 +708,7 @@ Proof.
     t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
     move: ih.
     rewrite A /= B => /(_ _ erefl)[] ? -> /value_uinclE[] ? [] ? [] -> /andP[] sz_le /eqP D.
-    rewrite /= /truncate_word sz_le -D.
+    rewrite /= truncate_word_le // -D.
     eexists; first reflexivity.
     apply/andP; split; first exact: cmp_le_refl.
     by rewrite wopp_zero_extend // zero_extend_u wrepr_opp.
@@ -722,7 +722,7 @@ Proof.
   all: move => /(_ _ erefl) [] v1 -> /value_uinclE[] ? [] ? [] -> /andP[] le1 /eqP {} h1.
   all: move => /(_ _ erefl) [] v2 -> /value_uinclE[] ? [] ? [] -> /andP[] le2 /eqP {} h2.
   all: case => <- /=.
-  all: rewrite /sem_sop2 /= /truncate_word le1 -h1 le2 -h2 /=.
+  all: rewrite /sem_sop2 /= !truncate_word_le // {le1 le2} -h1 -h2 /=.
   all: eexists; first reflexivity.
   all: apply/andP; split; first by auto.
   - by rewrite wadd_zero_extend // !zero_extend_u wrepr_add.

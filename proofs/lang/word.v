@@ -678,8 +678,30 @@ Definition zero_extend sz sz' (w: word sz') : word sz :=
 Definition sign_extend sz sz' (w: word sz') : word sz :=
   wrepr sz (wsigned w).
 
-Definition truncate_word s s' (w:word s') :=
-   if (s <= s')%CMP then ok (zero_extend s w) else type_error.
+Definition truncate_word s s' (w:word s') : exec (word s) :=
+  match gcmp s s' as c return gcmp s s' = c → exec (word s) with
+  | Eq => λ h, ok (ecast s (word s) (esym (cmp_eq h)) w)
+  | Lt => λ _, ok (zero_extend s w)
+  | Gt => λ _, type_error
+  end erefl.
+
+Variant truncate_word_spec s s' (w: word s') : exec (word s) → Type :=
+  | TruncateWordEq (h: s' = s) : truncate_word_spec w (ok (ecast s (word s) h w))
+  | TruncateWordLt (h: (s < s')%CMP) : truncate_word_spec w (ok (zero_extend s w))
+  | TruncateWordGt : (s' < s)%CMP → truncate_word_spec w type_error
+  .
+
+Lemma truncate_wordP' s s' (w: word s') : truncate_word_spec w (truncate_word s w).
+Proof.
+  rewrite /truncate_word/gcmp.
+  case: {2 3} (wsize_cmp s s') erefl.
+  - move => /cmp_eq ?; exact: TruncateWordEq.
+  - move => h; apply: TruncateWordLt.
+    by rewrite /cmp_lt /gcmp h.
+  rewrite -/(gcmp s s') => h.
+  apply: TruncateWordGt.
+  by rewrite /cmp_lt cmp_sym h.
+Qed.
 
 Definition wbit sz (w i: word sz) : bool :=
   wbit_n w (Z.to_nat (wunsigned i mod wsize_bits sz)).
@@ -905,18 +927,31 @@ Qed.
 Lemma sign_extend_u sz (w: word sz) : sign_extend sz w = w.
 Proof. exact: sreprK. Qed.
 
-Lemma truncate_word_u s (a : word s) : truncate_word s a = ok a.
-Proof. by rewrite /truncate_word cmp_le_refl zero_extend_u. Qed.
+Lemma truncate_word_le s s' (w: word s') :
+  (s ≤ s')%CMP →
+  truncate_word s w = ok (zero_extend s w).
+  case: truncate_wordP' => //.
+  - by move => ?; subst; rewrite zero_extend_u.
+  by rewrite -cmp_nle_lt => /negbTE ->.
+Qed.
 
 Lemma truncate_wordP s1 s2 (w1:word s1) (w2:word s2) :
   truncate_word s1 w2 = ok w1 → (s1 <= s2)%CMP /\ w1 = zero_extend s1 w2.
-Proof. by rewrite /truncate_word; case: ifP => // ? []. Qed.
+Proof.
+  case: truncate_wordP'; last by [].
+  - move => ?; subst => /ok_inj ->{w2}.
+    by rewrite cmp_le_refl zero_extend_u.
+  by move => /(@cmp_lt_le _ _ _ _ _) -> /ok_inj ->.
+Qed.
 
 Lemma truncate_word_errP s1 s2 (w: word s2) e :
   truncate_word s1 w = Error e → e = ErrType ∧ (s2 < s1)%CMP.
-Proof.
-  by rewrite /truncate_word; case: ifP => // /negbT; rewrite cmp_nle_lt => ? [].
-Qed.
+Proof. by case: truncate_wordP' => // -> [] <-. Qed.
+
+Global Opaque truncate_word.
+
+Lemma truncate_word_u s (a : word s) : truncate_word s a = ok a.
+Proof. by rewrite truncate_word_le ?zero_extend_u ?cmp_refl. Qed.
 
 Lemma wbase_n0 sz : wbase sz <> 0%Z.
 Proof. by case sz. Qed.
@@ -1870,7 +1905,7 @@ Lemma word_uincl_truncate sz1 (w1: word sz1) sz2 (w2: word sz2) sz w:
   word_uincl w1 w2 -> truncate_word sz w1 = ok w -> truncate_word sz w2 = ok w.
 Proof.
   rewrite /word_uincl => /andP[hc1 /eqP ->] /truncate_wordP[hc2 ->].
-  rewrite (zero_extend_idem _ hc2) /truncate_word ifT //.
+  rewrite (zero_extend_idem _ hc2) truncate_word_le //.
   exact: (cmp_le_trans hc2 hc1).
 Qed.
 

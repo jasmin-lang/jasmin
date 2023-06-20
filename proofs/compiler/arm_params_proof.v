@@ -120,7 +120,7 @@ Proof.
   t_xrbindP => z ok_z ok_i.
   case: (mk_mov vpk) => /Some_inj <-{ins} hx.
   all: constructor.
-  all: by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= !zero_extend_u /= hx.
+  all: by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
 Qed.
 
 Lemma arm_immediateP (P': sprog) w s (x: var_i) z :
@@ -129,7 +129,7 @@ Lemma arm_immediateP (P': sprog) w s (x: var_i) z :
 Proof.
   case: x => - [] [] // [] // x xi _ /=.
   constructor.
-  by rewrite /sem_sopn /= zero_extend_u.
+  by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
 Qed.
 
 Definition arm_hsaparams :
@@ -186,9 +186,10 @@ Ltac t_rewrite_eqs :=
    4. Rewrite result hypotheses, i.e. [write_lval].
  *)
 Ltac t_arm_op :=
-  rewrite /eval_instr /= /sem_sopn /= /get_gvar /=;
+  rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
   t_rewrite_eqs;
   rewrite /of_estate /= /with_vm /=;
+  repeat rewrite truncate_word_u /=;
   rewrite ?zero_extend_u ?pword_of_wordE addn1;
   t_rewrite_eqs.
 
@@ -400,7 +401,7 @@ Proof.
     + rewrite -(addn0 (size P)).
       rewrite (find_instr_skip hbody) /=.
       rewrite /eval_instr /= /with_vm /= /of_estate /=.
-      rewrite zero_extend_u pword_of_wordE addn0.
+      rewrite /exec_sopn /= truncate_word_u /= pword_of_wordE addn0.
       reflexivity.
 
     rewrite -addn1.
@@ -409,7 +410,7 @@ Proof.
     rewrite /sem_sopn /= /get_gvar /=.
     rewrite get_var_eq /=.
     rewrite /with_vm /= /of_estate /=.
-    rewrite !zero_extend_u.
+    rewrite /exec_sopn /= !truncate_word_u /=.
     rewrite (mov_movt himm hdivmod).
     rewrite pword_of_wordE.
     rewrite addn1 -addn2.
@@ -477,7 +478,7 @@ Proof.
     rewrite /sem_sopn /=.
     rewrite /get_gvar /=.
     rewrite hgetx hgety {hgetx hgety} /=.
-    rewrite pword_of_wordE !zero_extend_u.
+    rewrite /exec_sopn /= !truncate_word_u /= pword_of_wordE.
     rewrite /of_estate /with_vm /=.
     rewrite wsub_wnot1.
     rewrite !size_cat addn0 -addn1 addnA /=.
@@ -516,9 +517,8 @@ Proof.
   rewrite /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite hvm /=.
-  rewrite pword_of_wordE.
-  rewrite wsub_wnot1.
-  by rewrite zero_extend_u zero_extend_wrepr.
+  rewrite /exec_sopn /= !truncate_word_u /= pword_of_wordE.
+  by rewrite wsub_wnot1.
 Qed.
 
 Lemma arm_spec_lip_free_stack_frame s pc ii ts sz :
@@ -535,8 +535,7 @@ Proof.
   rewrite /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite hvm /=.
-  rewrite pword_of_wordE.
-  by rewrite zero_extend_u zero_extend_wrepr.
+  by rewrite /exec_sopn /= !truncate_word_u /= pword_of_wordE.
 Qed.
 
 Lemma arm_spec_lip_set_up_sp_register s r ts al sz P Q :
@@ -925,7 +924,7 @@ Proof.
 
   case/ok_inj/Vword_inj: hseme => ?; subst => /= ?; subst.
   move: htrunc; rewrite truncate_word_u => /ok_inj ?; subst.
-  by rewrite zero_extend_u {} hwrite.
+  by rewrite /exec_sopn /= truncate_word_u /= hwrite.
 Qed.
 
 End LINEARIZATION.
