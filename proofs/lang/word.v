@@ -633,14 +633,12 @@ Definition waddcarry sz (x y: word sz) (c: bool) :=
   (wbase sz <=? n, wrepr sz n).
 
 Definition wdaddu sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
-  let (c, lo) := waddcarry lo_1 lo_2 false in
-  let hi := wunsigned hi_1 + wunsigned hi_2 + Z.b2z c in
-  (lo, wrepr sz hi).
+  let n := (wdwordu hi_1 lo_1) + (wdwordu hi_2 lo_2) in
+  (wrepr sz n, wrepr sz (Z.quot n (wbase sz))).
 
 Definition wdadds sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
-  let (c, lo) := waddcarry lo_1 lo_2 false in
-  let hi := wsigned hi_1 + wsigned hi_2 + Z.b2z c in
-  (lo, wrepr sz hi).
+  let n := (wdwords hi_1 lo_1) + (wdwords hi_2 lo_2) in
+  (wrepr sz n, wrepr sz (Z.quot n (wbase sz))).
 
 Definition wsubcarry sz (x y: word sz) (c: bool) :=
   let n := wunsigned x - wunsigned y - Z.b2z c in

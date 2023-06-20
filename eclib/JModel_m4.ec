@@ -183,8 +183,9 @@ op UMULL (x y: W32.t) : W32.t * W32.t =
 op UMULLcc x y g o h = if g then UMULL x y else (o, h).
 
 op UMLAL (u v x y: W32.t) : W32.t * W32.t =
-  let (hi, lo) = mulu x y in
-  (lo + u, hi + v + of_int (b2i (carry_add lo u false)))%W32.
+  let n = wdwordu (mulhi x y) (x*y) in
+  let m = wdwordu v u in
+  (of_int (n + m), of_int (IntDiv.(%/) (n + m) modulus))%W32.
 op UMLALcc u v x y g o h= if g then UMLAL u v x y else (o, h).
 
 op SMULL (x y: W32.t) : W32.t * W32.t =
@@ -194,9 +195,9 @@ op SMULL (x y: W32.t) : W32.t * W32.t =
 op SMULLcc x y g o h = if g then SMULL x y else (o, h).
 
 op SMLAL (u v x y: W32.t) : W32.t * W32.t =
-  let lo = x * y in
-  let hi = wmulhs x y in
-  (lo + u, hi + v + of_int (b2i (carry_add lo u false)))%W32.
+  let n = wdwords (wmulhs x y) (x*y) in
+  let m = wdwords v u in
+  (of_int (n + m), of_int (IntDiv.(%/) (n + m) modulus))%W32.
 op SMLALcc u v x y g o h= if g then SMLAL u v x y else (o, h).
 
 op SMMUL (x y: W32.t) : W32.t =
