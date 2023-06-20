@@ -116,11 +116,11 @@ module Impl (A : Arch') = struct
       pp_flags asm_state
 
   let regs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_r.to_string r, Conv.cz_of_int v)) arch_decl.toS_r._finC.cenum l
+    List.map2 (fun r v -> (arch_decl.toS_r.to_string r, J.Conv.cz_of_z (Z.of_int64 v))) arch_decl.toS_r._finC.cenum l
   let regxs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_rx.to_string r, Conv.cz_of_int v)) arch_decl.toS_rx._finC.cenum l
+    List.map2 (fun r v -> (arch_decl.toS_rx.to_string r, J.Conv.cz_of_z (Z.of_int64 v))) arch_decl.toS_rx._finC.cenum l
   let xregs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, Conv.cz_of_int v)) arch_decl.toS_x._finC.cenum l
+    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, J.Conv.cz_of_z (Z.of_int64 v))) arch_decl.toS_x._finC.cenum l
   let flags_of_val l =
     List.map2 (fun f v -> (arch_decl.toS_f.to_string f, v)) arch_decl.toS_f._finC.cenum l
 
@@ -145,7 +145,7 @@ let parse_and_exec op args reg regs regxs xregs flag flags =
   if (flag <> [] && flags <> []) then (Format.eprintf "Options \"--flag\" and \"--flags\" must not be used at the same time.@."; exit 1);
 
   let reg_values =
-    if reg <> [] then List.map (fun (r, v) -> (J.Conv.cstring_of_string r, J.Conv.cz_of_int v)) reg
+    if reg <> [] then List.map (fun (r, v) -> (J.Conv.cstring_of_string r, J.Conv.cz_of_z (Z.of_int64 v))) reg
     else
       try
         let l1 = if regs <> [] then regs_of_val regs else [] in
@@ -172,7 +172,7 @@ let parse_and_exec op args reg regs regxs xregs flag flags =
 
   let asm_state = init_state ip reg_values flag_values fn i in
   (* Format.printf "Initial state:@;%a@." pp_asm_state asm_state; *)
-  Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i;
+  (* Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i; *)
   let asm_state' = exec_instr A.call_conv asm_state i in
   (* Format.printf "New state:@;%a@." pp_asm_state asm_state'; *)
   asm_state'
@@ -258,23 +258,23 @@ open Foreign
 
 type asm_state
 let asm_state : asm_state structure typ = structure "asm_state"
-let rax = field asm_state "rax" int
-let rcx = field asm_state "rcx" int
-let rdx = field asm_state "rdx" int
-let rbx = field asm_state "rbx" int
-let rsi = field asm_state "rsi" int
-let rdi = field asm_state "rdi" int
-let rsp = field asm_state "rsp" int
-let rbp = field asm_state "rbp" int
-let r8 = field asm_state "r8" int
-let r9 = field asm_state "r9" int
-let r10 = field asm_state "r10" int
-let r11 = field asm_state "r11" int
-let r12 = field asm_state "r12" int
-let r13 = field asm_state "r13" int
-let r14 = field asm_state "r14" int
-let r15 = field asm_state "r15" int
-let rflags = field asm_state "rflags" int
+let rax = field asm_state "rax" int64_t
+let rcx = field asm_state "rcx" int64_t
+let rdx = field asm_state "rdx" int64_t
+let rbx = field asm_state "rbx" int64_t
+let rsp = field asm_state "rsp" int64_t
+let rbp = field asm_state "rbp" int64_t
+let rsi = field asm_state "rsi" int64_t
+let rdi = field asm_state "rdi" int64_t
+let r8 = field asm_state "r8" int64_t
+let r9 = field asm_state "r9" int64_t
+let r10 = field asm_state "r10" int64_t
+let r11 = field asm_state "r11" int64_t
+let r12 = field asm_state "r12" int64_t
+let r13 = field asm_state "r13" int64_t
+let r14 = field asm_state "r14" int64_t
+let r15 = field asm_state "r15" int64_t
+let rflags = field asm_state "rflags" int64_t
 let () = seal asm_state
 
 let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void)
@@ -283,31 +283,31 @@ let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void)
 let is_correct x =
   let state = make asm_state in
     setf state rax x;
-    setf state rbx 0;
-    setf state rcx 0;
-    setf state rdx 0;
-    setf state rsi 0;
-    setf state rdi 0;
-    setf state rsp 0;
-    setf state rbp 0;
-    setf state r8 0;
-    setf state r9 0;
-    setf state r10 0;
-    setf state r11 0;
-    setf state r12 0;
-    setf state r13 0;
-    setf state r14 0;
-    setf state r15 0;
-    setf state rflags 0;
+    setf state rcx 0L;
+    setf state rdx 0L;
+    setf state rbx 0L;
+    setf state rsp 0L;
+    setf state rbp 0L;
+    setf state rsi 0L;
+    setf state rdi 0L;
+    setf state r8 0L;
+    setf state r9 0L;
+    setf state r10 0L;
+    setf state r11 0L;
+    setf state r12 0L;
+    setf state r13 0L;
+    setf state r14 0L;
+    setf state r15 0L;
+    setf state rflags 0L;
 
 
-  let check state x  =
+  let check state (x: int64)  =
     let arch = Amd64 in
     let call_conv = !(J.Glob_options.call_conv) in
     let reg = [] in
-    let regs = [x;2;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
-    let regxs = [0;0;0;0;0;0;0;0] in
-    let xregs = [0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0] in
+    let regs = [x;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
+    let regxs = [0L;0L;0L;0L;0L;0L;0L;0L] in
+    let xregs = [0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
     let flag = [] in
     let flags = [] in
     let op = "INC" in
@@ -315,15 +315,17 @@ let is_correct x =
 
     let new_state = parse_and_exec arch call_conv op args reg regs regxs xregs flag flags in
     (* Format.printf "New state:@;%a@." ImplA.pp_asm_state new_state; *)
-    let rax_val =  Z.to_int (J.Conv.z_of_cz (J.Exec.read_reg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state RAX)) in
-    (* Printf.printf "Before: rax %d\n" (getf state rax); *)
+    (* Printf.printf "Before: rax %Ld\n" (getf state rax); *)
     increment_rax (addr state);
-    (* Printf.printf "After: rax %d\n" (getf state rax); *)
-    let res1  = getf state rax in
+    (* Printf.printf "After: rax %Ld \n" (getf state rax); *)
+    let rax_val = (J.Conv.z_of_cz (J.Exec.read_reg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state RAX)) in
+    (* Printf.printf "After: rax %Ld and coq_rax: %Ld \n" (getf state rax) rax_val; *)
+    let res1  =  Z.of_int64_unsigned (getf state rax) in
+    (* Format.printf " C: %a  Coq: %a " Z.pp_print  res1 Z.pp_print rax_val; *)
     res1 = rax_val
   in
   Crowbar.check(check state x)
 
 let () =
-  let x = Crowbar.(uint16) in
+  let x = Crowbar.int64 in
   Crowbar.add_test ~name:"check increment" [ x ]  (fun x -> is_correct x)

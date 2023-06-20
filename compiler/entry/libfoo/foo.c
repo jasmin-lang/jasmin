@@ -1,24 +1,24 @@
 #include <stdint.h>
 
 struct asm_state {
-    uint64_t rax;
-    uint64_t rcx;
-    uint64_t rdx;
-    uint64_t rbx;
-    uint64_t rsi;
-    uint64_t rdi;
-    uint64_t rsp;       // should be dummy and ignored for now
-    uint64_t rbp;
-    uint64_t r8;
-    uint64_t r9;
-    uint64_t r10;
-    uint64_t r11;
-    uint64_t r12;
-    uint64_t r13;
-    uint64_t r14;
-    uint64_t r15;
+    int64_t rax;
+    int64_t rcx;
+    int64_t rdx;
+    int64_t rbx;
+    int64_t rsp;       // should be dummy and ignored for now
+    int64_t rbp;
+    int64_t rsi;
+    int64_t rdi;
+    int64_t r8;
+    int64_t r9;
+    int64_t r10;
+    int64_t r11;
+    int64_t r12;
+    int64_t r13;
+    int64_t r14;
+    int64_t r15;
     // RFLAGS
-    uint64_t rflags;
+    int64_t rflags;
 };
 
 void increment_rax (struct asm_state* state) {
