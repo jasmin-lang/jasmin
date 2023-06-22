@@ -5,8 +5,6 @@ type tyerror
 exception TyError of Location.t * tyerror
 
 val pp_tyerror : Format.formatter -> tyerror -> unit
-val rs_tyerror : loc:Location.t -> tyerror -> 'a
-val string_error : ('a, Format.formatter, unit, tyerror) format4 -> 'a
 
 module Env : sig
   type 'asm env
@@ -51,6 +49,10 @@ val tt_file :
   'asm Env.env * Syntax.pprogram
 
 module Annot : sig
+  exception AnnotationError of Location.t * (Format.formatter -> unit)
+
+  val error : loc:Location.t -> ('a, Format.formatter, unit, 'b) format4 -> 'a
+
   val on_attribute :
     ?on_empty:(Location.t -> 'a -> unit -> 'b) ->
     ?on_int:(Location.t -> 'a -> Z.t -> 'b) ->
