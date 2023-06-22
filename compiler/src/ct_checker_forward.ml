@@ -119,7 +119,7 @@ end = struct
     | Public -> Format.fprintf fmt "#%s" spublic
 
   let parse ~(single:bool) ~(kind_allowed:bool) (annot: A.annotations) =
-    let module A = Pt.Annot in
+    let module A = Annot in
     let on_struct loc _nid s =
       List.iter A.none s;
       let s = List.fold_left (fun s (id, _) -> Svl.add (Vl.mk_poly (L.unloc id)) s) Svl.empty s in
@@ -495,7 +495,7 @@ let get_annot ensure_annot f =
 let sdeclassify = "declassify"
 
 let is_declasify annot =
-  Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
+  Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
 
 let declassify_lvl annot lvl =
   if is_declasify annot then Public
@@ -625,7 +625,7 @@ let ty_prog ~infer (prog: ('info, 'asm) prog) fl =
   let status =
     match List.iter (fun fn -> ignore (get_fun fenv fn : signature)) fl with
     | () -> None
-    | exception Pt.Annot.AnnotationError (loc, msg)
+    | exception Annot.AnnotationError (loc, msg)
     | exception CtTypeError (loc, msg)
       -> Some (loc, msg)
   in
