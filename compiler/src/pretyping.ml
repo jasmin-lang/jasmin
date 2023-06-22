@@ -420,7 +420,13 @@ let tt_ws (ws : A.wsize) = Printer.ws_of_ws ws
 (* -------------------------------------------------------------------- *)
 
 module Annot = struct
- 
+
+  exception AnnotationError of Location.t * (Format.formatter -> unit)
+
+  let error ~loc =
+    Format.kdprintf (fun msg ->
+        raise (AnnotationError (loc, msg)))
+
   let on_attribute ?on_empty ?on_int ?on_id ?on_string ?on_ws ?on_struct error (id, attribute) =
     let nid = L.unloc id in
     let doit loc o arg = 
@@ -443,9 +449,9 @@ module Annot = struct
     | Some a -> Format.fprintf fmt "@ default is “%a”" pp a 
     | None   -> () 
 
-  let error_attribute loc id pp a pp_dfl dfl = 
-    rs_tyerror ~loc (string_error "attribute for “%s” should be %a%a"
-                       id pp a (pp_dfl_attribute pp_dfl) dfl)
+  let error_attribute loc id pp a pp_dfl dfl =
+    error ~loc "attribute for “%s” should be %a%a"
+      id pp a (pp_dfl_attribute pp_dfl) dfl
 
   let on_empty error dfl loc nid () = 
     match dfl with
@@ -475,8 +481,8 @@ module Annot = struct
     on_attribute
       ~on_empty:(fun _loc _nid () -> ())
       (fun loc _nid -> 
-        rs_tyerror ~loc 
-          (string_error "attribute for “%s” should be empty" (L.unloc id)))
+        error ~loc
+          "attribute for “%s” should be empty" (L.unloc id))
       arg
     
   let int dfl arg = 
@@ -541,14 +547,14 @@ module Annot = struct
   let process_annot ?(case_sensitive=true) (filters: (string * (A.annotation -> 'a)) list) annot =
     List.flatten 
       (List.map (fun (name,f) -> filter_attribute ~case_sensitive name f annot) filters)
-    
+
   let ensure_uniq ?(case_sensitive=true) (filters: (string * (A.annotation -> 'a)) list) annot =
     match process_annot ~case_sensitive filters annot with
     | [] -> None
     | [_, r] -> Some r
-    | (id, _) :: _ as l -> 
-      rs_tyerror ~loc:(L.loc id) (string_error "only one of the attribute %a is expected"
-                                 (pp_list ", " (fun fmt (id, _) -> Format.fprintf fmt "%s" (L.unloc id))) l)
+    | (id, _) :: _ as l ->
+        error ~loc:(L.loc id) "only one of the attribute %a is expected"
+          (pp_list ", " (fun fmt (id, _) -> Format.fprintf fmt "%s" (L.unloc id))) l
 
   let ensure_uniq1 ?(case_sensitive=true) id f annot = 
     ensure_uniq ~case_sensitive [id, f] annot
