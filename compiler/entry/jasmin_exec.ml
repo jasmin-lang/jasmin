@@ -277,8 +277,8 @@ let r15 = field asm_state "r15" int64_t
 let rflags = field asm_state "rflags" int64_t
 let () = seal asm_state
 
-let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void)
-(* let set_execute_get = foreign "set_execute_get" (ptr asm_state @-> returning void) *)
+(* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
+let set_execute_get = foreign "set_execute_get" (ptr asm_state @-> returning void)
 
 let is_correct x =
   let state = make asm_state in
@@ -316,7 +316,8 @@ let is_correct x =
     let new_state = parse_and_exec arch call_conv op args reg regs regxs xregs flag flags in
     (* Format.printf "New state:@;%a@." ImplA.pp_asm_state new_state; *)
     (* Printf.printf "Before: rax %Ld\n" (getf state rax); *)
-    increment_rax (addr state);
+    (* increment_rax (addr state); *)
+    set_execute_get (addr state);
     (* Printf.printf "After: rax %Ld \n" (getf state rax); *)
     let rax_val = (J.Conv.z_of_cz (J.Exec.read_reg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state RAX)) in
     (* Printf.printf "After: rax %Ld and coq_rax: %Ld \n" (getf state rax) rax_val; *)
