@@ -21,12 +21,6 @@ Context
   (p : sprog)
   (var_tmp : var).
 
-Lemma wf_kill_var x vm: wf_vm vm -> wf_vm (kill_var x vm).
-Proof.
-  move=> hwf y; rewrite kill_varE.
-  by case: eqP (hwf y) => // <- _; case: (vtype x).
-Qed.
-
 Lemma wf_kill_vars X vm: wf_vm vm -> wf_vm (kill_vars X vm).
 Proof.
   move=> hwf x; rewrite kill_varsE.

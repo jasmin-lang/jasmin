@@ -27,11 +27,7 @@ Section Section.
 
 Context {pd: PointerData} {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
   (p: sprog)
-  (extra_free_registers: instr_info → option var)
 .
-
-Definition extra_free_registers_at ii : Sv.t :=
-  if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).

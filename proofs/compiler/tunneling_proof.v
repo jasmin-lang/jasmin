@@ -12,7 +12,7 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-Require Import seq_extra xseq_extra unionfind tunneling unionfind_proof.
+Require Import seq_extra unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 
 
@@ -791,18 +791,6 @@ Section TunnelingWFProps.
       elim: lf => [//|[fn' fd'] lf IHlf]; rewrite /= in_cons negb_or.
       by move => /andP []; case: ifP => // _ _ Hnotin /andP [-> /=]; apply/IHlf.
     by rewrite /tunnel_lfundef lfd_body_setfb; apply/well_formed_tunnel_lcmd.
-  Qed.
-
-  Lemma well_formed_tunnel_funcs lf :
-    well_formed_funcs lf ->
-    well_formed_funcs (tunnel_funcs lf).
-  Proof.
-    rewrite tunnel_funcs_partial_eq => Hwf.
-    elim: (size lf) => [|n IHwf]; first by rewrite tunnel_funcs_partial0.
-    rewrite tunnel_funcs_partial_fn; last first.
-    + by move: Hwf; rewrite /well_formed_funcs => /andP [].
-    case Honth: (onth _ _) => [[fn fd]|//].
-    by apply/well_formed_tunnel_funcs_fn.
   Qed.
 
   Lemma well_formed_tunnel_lprog_pc p fn pc :

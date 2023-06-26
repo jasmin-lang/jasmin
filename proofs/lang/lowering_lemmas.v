@@ -27,11 +27,6 @@ Definition estate_eq_except ys s1 s2 :=
 (* FIXME syscall : why it is needed to redeclare it here *)
 (* note that in utils, it is CMorphisms.Proper, here it is Morpisms.Proper *)
 #[global]
-Instance and3_impl_morphism :
-  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and3 | 1.
-Proof. apply and3_impl_morphism. Qed.
-
-#[global]
 Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
 Proof. apply and3_iff_morphism. Qed.
@@ -153,18 +148,6 @@ Proof.
   move: hwrite1.
   rewrite /=.
   by t_xrbindP => ? ? <-.
-Qed.
-
-Lemma eeq_exc_get_gvar gd s0 s1 (x : gvar) vs :
-  ~~ Sv.mem (gv x) vs
-  -> estate_eq_except vs s0 s1
-  -> get_gvar gd (evm s0) x = get_gvar gd (evm s1) x.
-Proof.
-  move=> /Sv_memP hx [hscs hmem hvm].
-  rewrite /get_gvar /=.
-  case: is_lvar; last done.
-  rewrite /get_var /=.
-  by rewrite (hvm _ hx).
 Qed.
 
 End ESTATE_EQ_EXCEPT.

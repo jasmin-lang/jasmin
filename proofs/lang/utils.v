@@ -126,26 +126,6 @@ Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
 Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
 
-#[global]
-Instance and4_impl_morphism :
-  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and4 | 1.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 [/h1 ? /h2 ? /h3 ? /h4 ?]. Qed.
-
-#[global]
-Instance and4_iff_morphism :
-  Proper (iff ==> iff ==> iff ==> iff ==> iff) and4.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4; split => -[] /h1 ? /h2 ? /h3 ? /h4. Qed.
-
-#[global]
-Instance and5_impl_morphism :
-  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and5 | 1.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5 [/h1 ? /h2 ? /h3 ? /h4 ? /h5]. Qed.
-
-#[global]
-Instance and5_iff_morphism :
-  Proper (iff ==> iff ==> iff ==> iff ==> iff ==> iff) and5.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5; split => -[] /h1 ? /h2 ? /h3 ? /h4 ? /h5 ?. Qed.
-
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
@@ -1771,7 +1751,7 @@ Ltac t_elim_uniq :=
   );
   move=> _.
 
-Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
+Variant and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
   And6 of P1 & P2 & P3 & P4 & P5 & P6.
 
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
