@@ -48,6 +48,14 @@ let pp_uint fmt ws =
 let pp_int fmt ws =
   Format.fprintf fmt "@@sint%i" (int_of_ws ws)
 
+let pp_bw fmt t =
+  Format.fprintf fmt "@@%i" (int_of_ws t)
+
+let pp_sign t =
+  match t with
+  | Wsize.Signed -> "s"
+  | Unsigned -> "u"
+
 let rec pp_op1 fmt o e = 
   match o with 
   | Expr.Oword_of_int ws -> 
@@ -57,13 +65,72 @@ let rec pp_op1 fmt o e =
   | Ozeroext _ -> assert false 
   | Onot -> assert false 
   | Olnot _ -> assert false 
+  | Oneg _ -> assert false
+
+and pp_rop1 fmt o e = 
+  match o with 
+  | Expr.Oword_of_int ws -> 
+    Format.fprintf fmt "%a" pp_rexpr (e, ws)
+  | Oint_of_word _ -> assert false 
+  | Osignext _ -> assert false 
+  | Ozeroext _ -> assert false 
+  | Onot -> assert false 
+  | Olnot _ -> assert false 
   | Oneg _ -> assert false 
 
-and pp_op2 fmt o e1 e2 = 
-  assert false
+and pp_op2 fmt o e1 e2 =
+  match o with
+  | Obeq -> assert false
+  | Oand ->
+     Format.fprintf fmt "and [%a, %a]" pp_expr e1 pp_expr e2
+  | Oor ->
+     Format.fprintf fmt "or [%a, %a]" pp_expr e1 pp_expr e2
+  | Oadd Op_int
+  | Omul Op_int
+  | Osub Op_int
+  | Odiv Cmp_int | Omod Cmp_int
+  | Olsl Op_int | Oasr Op_int -> assert false
+  | Oadd (Op_w ws) -> Format.fprintf fmt "%a + %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Omul (Op_w ws) -> Format.fprintf fmt "%a * %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Osub (Op_w ws) -> Format.fprintf fmt "%a - %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Odiv (Cmp_w (_, s)) | Omod (Cmp_w (_, s)) -> assert false
+  | Oland ws -> Format.fprintf fmt "%a & %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Olor ws -> Format.fprintf fmt "%a | %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Olxor ws -> Format.fprintf fmt "%a ^ %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Ovadd (_, s) | Ovsub (_, s) | Ovmul (_, s) -> assert false
+  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s) | Oror s
+  | Orol s | Ovlsr (_, s) | Ovlsl (_, s) | Ovasr (_, s) -> assert false
+  | Oeq Op_int | Oneq Op_int
+  | Olt Cmp_int | Ole Cmp_int
+  | Ogt Cmp_int | Oge Cmp_int -> assert false
+  | Oeq (Op_w ws) ->
+     Format.fprintf fmt "eq %a %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Oneq (Op_w ws) ->
+     Format.fprintf fmt "neg eq %a %a" pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Olt (Cmp_w (s,ws)) ->
+     Format.fprintf fmt "%slt %a %a" (pp_sign s) pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Ole (Cmp_w (s,ws)) ->
+     Format.fprintf fmt "%sle %a %a" (pp_sign s) pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Ogt (Cmp_w (s,ws)) ->
+     Format.fprintf fmt "%sgt %a %a" (pp_sign s) pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+  | Oge (Cmp_w (s,ws)) ->
+     Format.fprintf fmt "%sge %a %a" (pp_sign s) pp_rexpr (e1,ws) pp_rexpr (e2,ws)
+
 
 and pp_opn fmt o es = 
   assert false 
+
+and pp_rexpr fmt (e,ws) = (* DIRTY HACK: print bitwidth for constants in range assertions *)
+  match e with
+  | Pconst z ->  Format.fprintf fmt "%a%a" pp_print_i z pp_bw ws
+  | Pconst z -> pp_print_i fmt z
+  | Pvar x -> pp_gvar_i fmt x.gv
+  | Pbool _b -> assert false 
+  | Papp1(o, e) -> pp_rop1 fmt o e
+  | Papp2(o, e1, e2) -> pp_op2 fmt o e1 e2
+  | PappN(o, es) -> pp_opn fmt o es
+  | _ -> assert false
+
 
 and pp_expr fmt e = 
   match e with
@@ -126,13 +193,13 @@ let pp_baseop fmt xs o es =
          pp_expr (List.nth es 0) pp_uint ws
          pp_expr (List.nth es 1) pp_uint ws
   
-  (*
   | IMULri ws ->
      Format.fprintf fmt "mull dontcare %a%a %a%a %a%a"
          pp_lval (List.nth xs 5) pp_uint ws
          pp_expr (List.nth es 0) pp_uint ws
          pp_expr (List.nth es 1) pp_uint ws
 
+  (*
   | DIV of wsize
   | IDIV of wsize
   | CQO of wsize
@@ -396,7 +463,7 @@ let pp_sopn fmt xs o es =
 
 let pp_i asmOp fmt i = 
   match i.i_desc with
-  | Cassert _e -> Format.fprintf fmt "assert true" (* FIXME *)
+  | Cassert e -> Format.fprintf fmt "assert true && %a" pp_expr e (* FIXME: decide when to use epred and rpred *)
   | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ -> assert false
   | Cassgn (x, _, _, e) -> 
       Format.fprintf fmt "@[<h>mov %a %a@]" pp_lval x pp_expr e
