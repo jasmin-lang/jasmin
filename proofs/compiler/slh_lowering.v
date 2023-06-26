@@ -275,7 +275,7 @@ Section CHECK_SLHO.
       ok (Env.after_assign_vars env (vrv (get_lv lvs 0)))
     end.
 
-  Inductive slh_t :=
+  Variant slh_t :=
     | Slh_None
     | Slh_msf.
 

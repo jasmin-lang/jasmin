@@ -50,9 +50,6 @@ Definition of_var (v:var) :=
   if v.(vtype) == rtype then of_ident v.(vname)
   else None.
 
-Lemma of_varP v r : of_var v = Some r <-> v.(vtype) = rtype /\ of_ident v.(vname) = Some r.
-Proof. by rewrite /of_var; split=> [ | []/eqP -> ?]; first case: eqP. Qed.
-
 Lemma to_varK : pcancel to_var of_var.
 Proof. by move=> ?; rewrite /to_var /of_var /= eq_refl to_identK. Qed.
 
@@ -65,9 +62,6 @@ Proof.
   rewrite /of_var /= /to_var; case: eqP => // heq /of_identI.
   by case: v heq => /= ?? -> <-.
 Qed.
-
-Lemma inj_of_var {v1 v2 r} : of_var v1 = Some r -> of_var v2 = Some r -> v1 = v2.
-Proof. by move=> /of_varI <- /of_varI <-. Qed.
 
 End ToIdent.
 Arguments ToIdent [t] T%type_scope {tS}.
