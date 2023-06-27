@@ -26,12 +26,6 @@ Lemma assoc_cat (s1 s2: seq (T * U)) x :
 Proof. by elim: s1 => [|[t u] s1 ih] //=; case: eqP. Qed.
 End Assoc.
 
-Lemma assocE (T: eqType) U (s : seq (T * U)) (x : T) : assoc s x =
-  nth None [seq Some v.2 | v <- s] (seq.index x [seq v.1 | v <- s]).
-Proof.
-by elim: s => // [[/= u v] s ih]; rewrite [x==u]eq_sym; case: eqP.
-Qed.
-
 Lemma assoc_mem' (T: eqType) U (s: seq (T * U)) x w :
   assoc s x = Some w → List.In (x, w) s.
 Proof.

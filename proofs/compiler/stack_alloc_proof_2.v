@@ -210,13 +210,6 @@ Lemma init_map_bounded x1 ofs1 ws1 :
   0 <= ofs1 /\ ofs1 + size_slot x1 <= glob_size.
 Proof. by move=> /init_mapP [_ ? _]. Qed.
 
-Lemma init_map_disjoint x1 ofs1 ws1 :
-  Mvar.get mglob x1 = Some (ofs1, ws1) ->
-  forall x2 ofs2 ws2,
-    Mvar.get mglob x2 = Some (ofs2, ws2) -> x1 <> x2 ->
-    ofs1 + size_slot x1 <= ofs2 \/ ofs2 + size_slot x2 <= ofs1.
-Proof. by move=> /init_mapP [_ _ ?]. Qed.
-
 Lemma init_map_full : forall x gv,
   get_global_value gd x = Some gv ->
   exists ofs ws, Mvar.get mglob x = Some (ofs, ws).
@@ -438,28 +431,6 @@ Variable m1 m2 : mem.
 Hypothesis Hargs : Forall3 (wf_arg glob_size rip m1 m2) sao.(sao_params) vargs1 vargs2.
 Hypothesis Hdisj : disjoint_values sao.(sao_params) vargs1 vargs2.
 Hypothesis Hsub : Forall3 (fun opi (x:var_i) v => opi <> None -> subtype x.(vtype) (type_of_val v)) sao.(sao_params) params vargs1.
-
-(* [param_info] is registered as [eqType], so that we can use all operators of
-   the [seq] library on sequences containing [param_info]s.
-   Is it the right place to perform this registration?
-*)
-Definition param_info_beq pi1 pi2 :=
-  [&& pi1.(pp_ptr) == pi2.(pp_ptr),
-      pi1.(pp_writable) == pi2.(pp_writable) &
-      pi1.(pp_align) == pi2.(pp_align)].
-
-Lemma param_info_axiom : Equality.axiom param_info_beq.
-Proof.
-  move=> [ptr1 w1 al1] [ptr2 w2 al2].
-  by apply:(iffP and3P) => /= [[/eqP -> /eqP -> /eqP ->] | [-> -> ->]].
-Qed.
-
-Definition param_info_eqMixin := Equality.Mixin param_info_axiom.
-Canonical  param_info_eqType  := EqType param_info param_info_eqMixin.
-
-(* We would have liked to do the same for values, but this is impossible
-   because of arrays, thus we still have non-eqType in our sequences, which is painful.
-*)
 
 Definition param_tuples :=
   let s := zip params (zip sao.(sao_params) (zip vargs1 vargs2)) in

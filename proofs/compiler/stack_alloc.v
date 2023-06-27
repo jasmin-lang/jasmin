@@ -1093,12 +1093,6 @@ Definition check_lval_reg_call (r:lval) :=
   | Lmem ws x e1     => Error (stk_ierror_basic x "call result should be stored in reg")
   end.
 
-Definition check_is_Lvar r (x:var) :=
-  match r with
-  | Lvar x' => x == x' 
-  | _       => false 
-  end.
-
 Definition get_regptr (x:var_i) := 
   match get_local x with
   | Some (Pregptr p) => ok (with_var x p)

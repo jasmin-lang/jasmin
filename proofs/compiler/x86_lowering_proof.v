@@ -428,9 +428,6 @@ Section PROOF.
   Lemma check_size_16_64_ve (ve:velem) : (U16 ≤ ve)%CMP -> check_size_16_64 ve = ok tt.
   Proof. by rewrite /check_size_16_64 => ->; case:ve. Qed.
 
-  Lemma check_size_32_64_ve (ve:velem) : (U32 ≤ ve)%CMP -> check_size_32_64 ve = ok tt.
-  Proof. by rewrite /check_size_32_64 => ->; case:ve. Qed.
-
   Lemma check_size_128_256_ge sz : (U128 <= sz)%CMP -> check_size_128_256 sz = ok tt.
   Proof. by move=> h; rewrite /check_size_128_256 h wsize_ge_U256. Qed.
 

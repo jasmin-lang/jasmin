@@ -447,15 +447,6 @@ Qed.
 Definition pointer_range (lo hi: pointer) : pred pointer :=
   λ p, (wunsigned lo <=? wunsigned p) && (wunsigned p <? wunsigned hi).
 
-Lemma pointer_range_between lo hi p :
-  pointer_range lo hi p →
-  between lo (wunsigned hi - wunsigned lo) p U8.
-Proof.
-  rewrite /pointer_range /between !zify.
-  change (wsize_size U8) with 1.
-  Psatz.lia.
-Qed.
-
 (* -------------------------------------------------- *)
 (** Pointer arithmetic *)
 
