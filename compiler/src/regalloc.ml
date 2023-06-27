@@ -281,12 +281,11 @@ let collect_equality_constraints
     copn_constraints
     (tbl: int Hv.t)
     (nv: int)
-    (f: ('info, 'asm) func) : Puf.t * ('info, 'asm) trace * friend =
+    (f: ('info, 'asm) func) : Puf.t =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
   collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg int_of_var copn_constraints s f;
-  let eqc = s.cac_eqc in
-  eqc, normalize_trace eqc s.cac_trace, normalize_friend eqc s.cac_friends
+  s.cac_eqc
 
 let collect_equality_constraints_in_prog
       asmOp
@@ -793,7 +792,7 @@ let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
 
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
-  let eqc, _tr, _fr =
+  let eqc =
     collect_equality_constraints
       Arch.asmOp
       Arch.aparams
