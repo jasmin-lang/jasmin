@@ -220,10 +220,24 @@ let pp_baseop fmt xs o es =
       pp_expr (List.nth es 1) pp_uint ws
       pp_expr (List.nth es 2) pp_bool ()
 
+  | NEG ws ->
+     Format.fprintf fmt "sub %a%a %a%a %a%a"
+       pp_lval (List.nth xs 4) pp_int ws
+       pp_print_i (Z.of_int 0) pp_int ws
+       pp_expr (List.nth es 0) pp_int ws
+
+  | INC ws ->
+     Format.fprintf fmt "add %a%a %a%a %a%a"
+       pp_lval (List.nth xs 4) pp_uint ws
+       pp_expr (List.nth es 0) pp_uint ws
+       pp_print_i (Z.of_int 1) pp_uint ws
+
+  | DEC ws ->
+     Format.fprintf fmt "sub %a%a %a%a %a%a"
+       pp_lval (List.nth xs 4) pp_uint ws
+       pp_expr (List.nth es 0) pp_uint ws
+       pp_print_i (Z.of_int 1) pp_uint ws
 (*
-  | NEG of wsize
-  | INC of wsize
-  | DEC of wsize
   | LZCNT of wsize
   | SETcc
   | BT of wsize
