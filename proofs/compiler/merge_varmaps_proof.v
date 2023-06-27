@@ -123,9 +123,6 @@ Proof.
   eauto using disjoint_w.
 Qed.
 
-Instance merged_vmap_precondition_m : Proper (Sv.Equal ==> eq ==> eq ==> eq ==> iff) merged_vmap_precondition.
-Proof. by move => W W' hW sz _ <- m _ <- vm _ <-; split => -[???]; split => //; rewrite ?hW // -hW. Qed.
-
 Lemma not_written_magic W :
   disjoint W (magic_variables p) →
   ¬ Sv.In vgd W ∧ ¬ Sv.In vrsp W.
@@ -214,11 +211,6 @@ Section LEMMA.
     check_instr sz D (MkI ii i) = ok D' →
     check_instr_r sz ii D i = ok D'.
   Proof. by []. Qed.
-
-  Remark read_rvs_rec_vars X vs xs :
-    mapM get_lvar vs = ok (map v_var xs) →
-    read_rvs_rec X vs = X.
-  Proof. elim: vs xs X => // - [] // [] v /= _ vs ih [ | x xs ] X; t_xrbindP => // ? ok_vs ? ?; subst; exact: ih ok_vs. Qed.
 
   Remark vrvs_vars vs xs :
     mapM get_lvar vs = ok (map v_var xs) →
@@ -322,17 +314,6 @@ Section LEMMA.
           Sv.Subset k (write_i i) &
         match_estate O s2 t2.
 
-  (* TODO: move this *)
-  Lemma wf_set_undef vm v: 
-    ~~is_sarr (vtype v) ->
-    wf_vm vm ->
-    wf_vm vm.[v <- pundef_addr (vtype v)].
-  Proof.
-    move=> hty hwf z; case: (v =P z).
-    + by move=> <-; rewrite Fv.setP_eq; case: vtype hty.
-    by move=> /eqP hne; rewrite Fv.setP_neq //; apply hwf.
-  Qed.
- 
   Lemma HmkI : sem_Ind_mkI p global_data Pi_r Pi.
   Proof.
     move => ii i s1 s2 exec_i h sz I O t1 /check_instrP ok_i ok_W sim.

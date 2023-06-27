@@ -737,15 +737,6 @@ Section NUMBER_OF_LABELS.
     by case: lip_lassign => [[[??]?]|].
   Qed.
 
-  Lemma get_label_lassign' ii x ws e :
-    get_label (of_olinstr_r ii (lassign' liparams x ws e)) = None.
-  Proof.
-    rewrite /lassign'.
-    case: lexpr_of_lval => // d.
-    case: rexpr_of_pexpr => //= r.
-    exact: get_label_lassign.
-  Qed.
-
   Let Hassign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
   Proof. move => ???; exact: Z.le_refl. Qed.
 
@@ -2406,13 +2397,6 @@ Section PROOF.
     find_label xH (lfd_body (linear_fd fn fd).2) = ok 0.
   Proof. by rewrite /linear_fd /linear_body; case: sf_return_address. Qed.
 
-  Lemma is_label_lmove lbl ii x ws y :
-    is_label lbl (of_olinstr_r ii (lmove liparams x ws y)) = false.
-  Proof.
-    rewrite /lmove /lassign.
-    by case: lip_lassign => [[[? ?] ?]|].
-  Qed.
-
   Lemma is_label_lstore lbl ii x ofs ws y :
     is_label lbl (of_olinstr_r ii (lstore liparams x ofs ws y)) = false.
   Proof.
@@ -2698,18 +2682,6 @@ Section PROOF.
     elim: m => // - [] x ofs m /= /negbTE ->.
     case: is_word_type => // ws.
     by rewrite is_label_lstore.
-  Qed.
-
-  Lemma not_magic_neq_rsp x :
-    ~~ Sv.mem x (magic_variables p) →
-    (x == vrsp) = false.
-  Proof.
-    rewrite /magic_variables => /Sv_memP H.
-    apply/eqP => Hvrsp.
-    clear -H Hvrsp.
-    apply H.
-    rewrite Hvrsp.
-    exact: in_add_singleton.
   Qed.
 
   Lemma all_disjoint_aligned_betweenP (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) :

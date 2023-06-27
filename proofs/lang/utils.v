@@ -704,19 +704,6 @@ Proof.
   by apply ih.
 Qed.
 
-Lemma nth_Forall A (R : A -> Prop) l d :
-  (forall i, (i < size l)%nat -> R (nth d l i)) ->
-  List.Forall R l.
-Proof.
-  elim: l => //.
-  move=> a l ih h.
-  constructor.
-  + by apply (h 0%nat).
-  apply ih.
-  by move=> i; apply (h i.+1).
-Qed.
-Arguments nth_Forall [A R l].
-
 Lemma Forall2_nth A B (R : A -> B -> Prop) la lb :
   List.Forall2 R la lb ->
   forall a b i, (i < size la)%nat ->
@@ -725,21 +712,6 @@ Proof.
   elim {la lb} => // a b la lb h _ ih a0 b0 [//|i].
   by apply ih.
 Qed.
-
-Lemma nth_Forall2 A B (R : A -> B -> Prop) la lb a b:
-  size la = size lb ->
-  (forall i, (i < size la)%nat -> R (nth a la i) (nth b lb i)) ->
-  List.Forall2 R la lb.
-Proof.
-  elim: la lb.
-  + by move=> [|//] _ _; constructor.
-  move=> a0 la ih [//|b0 lb] [hsize] h.
-  constructor.
-  + by apply (h 0%nat).
-  apply ih => //.
-  by move=> i; apply (h i.+1).
-Qed.
-Arguments nth_Forall2 [A B R la lb].
 
 Lemma Forall2_forall A B (R : A -> B -> Prop) la lb :
   List.Forall2 R la lb ->
@@ -750,20 +722,6 @@ Proof.
   case.
   + by move=> [<- <-].
   by apply ih.
-Qed.
-
-Lemma forall_Forall2 A B (R : A -> B -> Prop) la lb :
-  size la = size lb ->
-  (forall a b, List.In (a, b) (zip la lb) -> R a b) ->
-  List.Forall2 R la lb.
-Proof.
-  elim: la lb.
-  + by move=> [|//]; constructor.
-  move=> a la ih [//|b l2] [hsize] h.
-  constructor.
-  + by apply h; left.
-  apply ih => //.
-  by move=> ???; apply h; right.
 Qed.
 
 Lemma Forall2_impl A B (R1 R2 : A -> B -> Prop) :
@@ -821,20 +779,6 @@ Proof.
   case.
   + by move=> [<- <- <-].
   by apply ih.
-Qed.
-
-Lemma forall_Forall3 A B C (R : A -> B -> C -> Prop) la lb lc :
-  size la = size lb -> size la = size lc ->
-  (forall a b c, List.In (a, (b, c)) (zip la (zip lb lc)) -> R a b c) ->
-  Forall3 R la lb lc.
-Proof.
-  elim: la lb lc.
-  + by move=> [|//] [|//]; constructor.
-  move=> a la ih [//|b l2] [//|c l3] [hsize1] [hsize2] h.
-  constructor.
-  + by apply h; left.
-  apply ih => //.
-  by move=> ????; apply h; right.
 Qed.
 
 Lemma Forall3_impl A B C (R1 R2 : A -> B -> C -> Prop) :
