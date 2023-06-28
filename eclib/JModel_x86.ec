@@ -365,22 +365,32 @@ op VPAVG_16u16 (x y: W256.t) : W256.t =
 (* ------------------------------------------------------------------- *)
 (*
 | VPMULL   `(velem) `(wsize)
-| VPMULH   `(velem) `(wsize)   (* signed multiplication of 16-bits*)
 *)
 
 (* ------------------------------------------------------------------- *)
 (*
-| VPMULHU  `(velem) `(wsize)
+| VPMULH   of wsize   (* signed multiplication of 16-bits*)
 *)
-op VPMULHU_8u16 (w1 w2: W128.t) : W128.t =
+
+op VPMULH_128 (w1 w2: W128.t) =
+   map2 (fun (x y: W16.t) => wmulhs x y) w1 w2.
+
+op VPMULH_256 (w1 w2: W256.t) =
+   map2 (fun (x y: W16.t) => wmulhs x y) w1 w2.
+
+(* ------------------------------------------------------------------- *)
+(*
+| VPMULHU  of wsize
+*)
+op VPMULHU_128 (w1 w2: W128.t) : W128.t =
   map2 (fun (x y:W16.t) => mulhi x y) w1 w2.
 
-op VPMULHU_16u16 (w1 w2: W256.t) : W256.t =
+op VPMULHU_256 (w1 w2: W256.t) : W256.t =
   map2 (fun (x y:W16.t) => mulhi x y) w1 w2.
 
 (* ------------------------------------------------------------------- *)
 (*
-| VPMULHRS of velem & wsize (* Packed Multiply High with Round and Scale *)
+| VPMULHRS of wsize (* Packed Multiply High with Round and Scale *)
 *)
 
 op round_scalew(x: int): W16.t =
@@ -389,10 +399,10 @@ op round_scalew(x: int): W16.t =
 
 op mulhrs (w1 w2:W16.t) = round_scalew (to_sint w1 * to_sint w2).
 
-op VPMULHRS_8u16 (w1 w2: W128.t): W128.t =
+op VPMULHRS_128 (w1 w2: W128.t): W128.t =
   map2 mulhrs w1 w2.
 
-op VPMULHRS_16u16 (w1 w2: W256.t): W256.t =
+op VPMULHRS_256 (w1 w2: W256.t): W256.t =
   map2 mulhrs w1 w2.
 
 (* ------------------------------------------------------------------- *)

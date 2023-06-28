@@ -16,6 +16,12 @@
   `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
   ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481)).
 
+## Bug fixes
+
+- The x86 instructions `VPMULH`, `VPMULHU`, and `VPMULHRS` accept a size suffix
+  (`_128` or `_256`) instead of a vector description suffix (`8u16` or `16u16`)
+  ([PR #488](https://github.com/jasmin-lang/jasmin/pull/488)).
+
 ## Other changes
 
 - Various improvements related to ARMv7
