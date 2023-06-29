@@ -16,6 +16,7 @@ Require Import
   utils
   word.
 Require Import
+  sopn
   flag_combination
   shift_kind.
 
@@ -409,22 +410,6 @@ Record instr_desc_t := {
   id_safe       : seq safe_cond;
   id_pp_asm     : asm_args -> pp_asm_op;
 }.
-
-
-(* -------------------------------------------------------------------- *)
-
-Variant prim_constructor (asm_op:Type) :=
-  | PrimP of wsize & (wsize -> asm_op)
-  | PrimM of asm_op
-  | PrimV of (velem -> wsize -> asm_op)
-  | PrimSV of (signedness -> velem -> wsize -> asm_op)
-  | PrimX of (wsize -> wsize -> asm_op)
-  | PrimVV of (velem → wsize → velem → wsize → asm_op)
-  | PrimARM of
-    (bool                 (* set_flags *)
-     -> bool              (* is_conditional *)
-     -> option shift_kind (* has_shift *)
-     -> asm_op).
 
 
 (* -------------------------------------------------------------------- *)
