@@ -42,12 +42,7 @@ type tyerror =
   | PrimNotAllowed
   | Unsupported         of string
   | UnknownPrim         of A.symbol
-  | PrimNoSize          of A.symbol
-  | PrimNotVector       of A.symbol
-  | PrimIsVector        of A.symbol
-  | PrimIsVectorVector  of A.symbol
-  | PrimIsX             of A.symbol
-  | PrimNotX            of A.symbol
+  | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
   | ReturnLocalStack    of A.symbol
   | PtrOnlyForArray
   | ArgumentNotVar      
@@ -84,6 +79,16 @@ let pp_typat fmt = function
   | TPInt   -> F.fprintf fmt "int"
   | TPWord  -> F.fprintf fmt "word (u8, u16, u32, u64)"
   | TPArray -> F.fprintf fmt "array"
+
+let pp_suffix fmt =
+  let open Sopn in
+  let open PrintCommon in
+  function
+  | PVp sz -> F.fprintf fmt "_%a" pp_wsize sz
+  | PVv (ve, sz) -> F.fprintf fmt "_%s" (string_of_velem Unsigned sz ve)
+  | PVsv (sg, ve, sz) -> F.fprintf fmt "_%s" (string_of_velem sg sz ve)
+  | PVx (szo, szi) -> F.fprintf fmt "_u%a_u%a" pp_wsize szo pp_wsize szi
+  | PVvv (ve, sz, ve', sz') -> F.fprintf fmt "_%s_%s" (string_of_velem Unsigned sz ve) (string_of_velem Unsigned sz' ve')
 
 let pp_tyerror fmt (code : tyerror) =
   match code with
@@ -177,23 +182,12 @@ let pp_tyerror fmt (code : tyerror) =
   | UnknownPrim s ->
       F.fprintf fmt "unknown primitive: `%s'" s
 
-  | PrimNoSize s ->
+  | PrimWrongSuffix (s, []) ->
       F.fprintf fmt "primitive accepts no size annotation: `%s'" s
 
-  | PrimNotVector s ->
-      F.fprintf fmt "primitive does not operate on vectors: `%s'" s
-
-  | PrimNotX s ->
-      F.fprintf fmt "primitive does not need  two word sizes annotations: `%s'" s
-
-  | PrimIsVector s ->
-     F.fprintf fmt "primitive needs a vector size annotation: `%s'" s
-
-  | PrimIsVectorVector s ->
-     F.fprintf fmt "primitive needs two vector size annotations: `%s'" s
-
-  | PrimIsX s ->
-      F.fprintf fmt "primitive needs two word sizes annotations: `%s'" s
+  | PrimWrongSuffix (s, sfxs) ->
+     F.fprintf fmt "primitive “%s” only accepts the following size annotations: %a" s
+       (pp_list ",@ " pp_suffix) sfxs
 
   | ReturnLocalStack v ->
       F.fprintf fmt "can not return the local stack variable %s" v
@@ -1159,47 +1153,47 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
 let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
   List.map (fun (s, x) -> Conv.string_of_cstring s, x) asmOp.Sopn.prim_string
 
-let extract_size str : string * S.size_annotation =
-  let open S in
+let extract_size str : string * Sopn.prim_x86_suffix option =
   let get_size =
+    let open Sopn in
     function
-    | "8"   -> SAw W.U8
-    | "16"  -> SAw W.U16
-    | "32"  -> SAw W.U32
-    | "64"  -> SAw W.U64
-    | "128" -> SAw W.U128
-    | "256" -> SAw W.U256
+    | "8"   -> PVp W.U8
+    | "16"  -> PVp W.U16
+    | "32"  -> PVp W.U32
+    | "64"  -> PVp W.U64
+    | "128" -> PVp W.U128
+    | "256" -> PVp W.U256
 
-    | "2u8"   -> SAv (W.Unsigned, W.VE8,  W.U16)
-    | "4u8"   -> SAv (W.Unsigned, W.VE8,  W.U32)
-    | "2u16"  -> SAv (W.Unsigned, W.VE16, W.U32)
-    | "8u8"   -> SAv (W.Unsigned, W.VE8,  W.U64)
-    | "4u16"  -> SAv (W.Unsigned, W.VE16, W.U64)
-    | "2u32"  -> SAv (W.Unsigned, W.VE32, W.U64)
-    | "16u8"  -> SAv (W.Unsigned, W.VE8,  W.U128)
-    | "8u16"  -> SAv (W.Unsigned, W.VE16, W.U128)
-    | "4u32"  -> SAv (W.Unsigned, W.VE32, W.U128)
-    | "2u64"  -> SAv (W.Unsigned, W.VE64, W.U128)
-    | "32u8"  -> SAv (W.Unsigned, W.VE8,  W.U256)
-    | "16u16" -> SAv (W.Unsigned, W.VE16, W.U256)
-    | "8u32"  -> SAv (W.Unsigned, W.VE32, W.U256)
-    | "4u64"  -> SAv (W.Unsigned, W.VE64, W.U256)
+    | "2u8"   -> PVsv (W.Unsigned, W.VE8,  W.U16)
+    | "4u8"   -> PVsv (W.Unsigned, W.VE8,  W.U32)
+    | "2u16"  -> PVsv (W.Unsigned, W.VE16, W.U32)
+    | "8u8"   -> PVsv (W.Unsigned, W.VE8,  W.U64)
+    | "4u16"  -> PVsv (W.Unsigned, W.VE16, W.U64)
+    | "2u32"  -> PVsv (W.Unsigned, W.VE32, W.U64)
+    | "16u8"  -> PVsv (W.Unsigned, W.VE8,  W.U128)
+    | "8u16"  -> PVsv (W.Unsigned, W.VE16, W.U128)
+    | "4u32"  -> PVsv (W.Unsigned, W.VE32, W.U128)
+    | "2u64"  -> PVsv (W.Unsigned, W.VE64, W.U128)
+    | "32u8"  -> PVsv (W.Unsigned, W.VE8,  W.U256)
+    | "16u16" -> PVsv (W.Unsigned, W.VE16, W.U256)
+    | "8u32"  -> PVsv (W.Unsigned, W.VE32, W.U256)
+    | "4u64"  -> PVsv (W.Unsigned, W.VE64, W.U256)
 
-    | "2s8"   -> SAv (W.Signed, W.VE8,  W.U16)
-    | "4s8"   -> SAv (W.Signed, W.VE8,  W.U32)
-    | "2s16"  -> SAv (W.Signed, W.VE16, W.U32)
-    | "8s8"   -> SAv (W.Signed, W.VE8,  W.U64)
-    | "4s16"  -> SAv (W.Signed, W.VE16, W.U64)
-    | "2s32"  -> SAv (W.Signed, W.VE32, W.U64)
-    | "16s8"  -> SAv (W.Signed, W.VE8,  W.U128)
-    | "8s16"  -> SAv (W.Signed, W.VE16, W.U128)
-    | "4s32"  -> SAv (W.Signed, W.VE32, W.U128)
-    | "2s64"  -> SAv (W.Signed, W.VE64, W.U128)
-    | "32s8"  -> SAv (W.Signed, W.VE8,  W.U256)
-    | "16s16" -> SAv (W.Signed, W.VE16, W.U256)
-    | "8s32"  -> SAv (W.Signed, W.VE32, W.U256)
-    | "4s64"  -> SAv (W.Signed, W.VE64, W.U256)
-    | s -> 
+    | "2s8"   -> PVsv (W.Signed, W.VE8,  W.U16)
+    | "4s8"   -> PVsv (W.Signed, W.VE8,  W.U32)
+    | "2s16"  -> PVsv (W.Signed, W.VE16, W.U32)
+    | "8s8"   -> PVsv (W.Signed, W.VE8,  W.U64)
+    | "4s16"  -> PVsv (W.Signed, W.VE16, W.U64)
+    | "2s32"  -> PVsv (W.Signed, W.VE32, W.U64)
+    | "16s8"  -> PVsv (W.Signed, W.VE8,  W.U128)
+    | "8s16"  -> PVsv (W.Signed, W.VE16, W.U128)
+    | "4s32"  -> PVsv (W.Signed, W.VE32, W.U128)
+    | "2s64"  -> PVsv (W.Signed, W.VE64, W.U128)
+    | "32s8"  -> PVsv (W.Signed, W.VE8,  W.U256)
+    | "16s16" -> PVsv (W.Signed, W.VE16, W.U256)
+    | "8s32"  -> PVsv (W.Signed, W.VE32, W.U256)
+    | "4s64"  -> PVsv (W.Signed, W.VE64, W.U256)
+    | s ->
       let wsize_of_int = function
         | 8   -> W.U8
         | 16  -> W.U16
@@ -1208,46 +1202,61 @@ let extract_size str : string * S.size_annotation =
         | 128 -> W.U128
         | 256 -> W.U256
         | _   -> raise Not_found in
-      try 
-        Scanf.sscanf s "%c%u%c%u%!" 
-          (fun c0 i c1 j -> 
+      try
+        Scanf.sscanf s "%c%u%c%u%!"
+          (fun c0 i c1 j ->
             if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
-            SAx(wsize_of_int i, wsize_of_int j))
-      with Not_found | End_of_file | Scanf.Scan_failure _ -> SA
+            PVx(wsize_of_int i, wsize_of_int j))
+      with End_of_file | Scanf.Scan_failure _ -> raise Not_found
   in
+  try
   match List.rev (String.split_on_char '_' str) with
-  | [] -> str, SA
+  | [] -> str, None
   | suf2 :: ((suf1 :: s) as tail) ->
-     begin match get_size suf1, get_size suf2 with
-     | SAv (_, ve1, sz1), SAv (_, ve2, sz2) -> String.concat "_" (List.rev s), SAvv (ve1, sz1, ve2, sz2)
-     | _, SA -> str, SA
-     | _, sz -> String.concat "_" (List.rev tail), sz
+     let sz = get_size suf2 in
+     begin try match get_size suf1, sz with
+     | PVsv (_, ve1, sz1), PVsv (_, ve2, sz2) -> String.concat "_" (List.rev s), Some (PVvv (ve1, sz1, ve2, sz2))
+     | _, _ -> String.concat "_" (List.rev tail), Some sz
+     with Not_found -> String.concat "_" (List.rev tail), Some sz
      end
   | suf :: s ->
-    match get_size suf with
-    | SA -> str, SA
-    | sz -> String.concat "_" (List.rev s), sz
+     let sz = get_size suf in
+     String.concat "_" (List.rev s), Some sz
+  with Not_found -> str, None
+
+let simplify_suffix ~loc =
+  let open Sopn in
+  let open PrintCommon in
+  function
+  | PVsv (_sg, ve, sz) -> Some (PVv (ve, sz), fun x -> x)
+  | PVv (ve, sz) -> Some (PVp sz, fun () ->
+      warning SimplifyVectorSuffix (L.i_loc0 loc) "vector suffix simplified from %s to %a"
+        (string_of_velem Unsigned sz ve) pp_wsize sz)
+  | _ -> None
+
+let default_suffix =
+  function
+  | x :: _ -> x
+  | [] -> Sopn.PVp U8
 
 let tt_prim asmOp id args =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   let c =
     match List.assoc name (prim_string asmOp) with
-    | PrimP (d, pr) ->
-        pr (match sz with
-          | SAw sz -> sz
-          | SA -> d
-          | SAv (s, ve, sz) ->
-              warning SimplifyVectorSuffix (L.i_loc0 loc) "vector suffix simplified from %s to %a"
-                (PrintCommon.string_of_velem s sz ve) PrintCommon.pp_wsize sz;
-              sz
-          | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
-          | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-    | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
-    | PrimV pr -> (match sz with SAv (_s, ve, sz) -> pr ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-    | PrimSV pr -> (match sz with SAv (s, ve, sz) -> pr s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-    | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-    | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
+    | PrimX86 (valid_suffixes, preop) ->
+      begin match match sz with
+          | None -> default_suffix valid_suffixes |> preop
+       | Some sfx ->
+              let rec loop sfx =
+                if List.mem sfx valid_suffixes then preop sfx else
+                  begin match simplify_suffix ~loc sfx with
+              | Some (sfx, w) -> w (); loop sfx
+              | None -> None end
+              in loop sfx
+        with | Some d -> d
+            | None -> rs_tyerror ~loc (PrimWrongSuffix (name, valid_suffixes))
+    end
     | PrimARM _ | exception Not_found ->
         oget
           ~exn:(tyerror ~loc (UnknownPrim s))
@@ -1706,7 +1715,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i ~annot (P.Cwhile (a, s1, c, s2))]
 
 (* -------------------------------------------------------------------- *)
-and tt_block pd asmOp (env : 'asm Env.env) (pb : S.pblock) =
+and tt_block pd asmOp env (pb : S.pblock) =
   snd (tt_cmd pd asmOp env (L.unloc pb))
 
 and tt_cmd pd asmOp env c =
@@ -1718,7 +1727,7 @@ and tt_cmd pd asmOp env c =
     env, i @ c
 
 (* -------------------------------------------------------------------- *)
-let tt_funbody pd asmOp (env : 'asm Env.env) (pb : S.pfunbody) =
+let tt_funbody pd asmOp env (pb : S.pfunbody) =
  (* let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in 
   let env = fst (tt_vardecls_push (fun _ -> true) env vars) in *)
   let env, bdy = tt_cmd pd asmOp env pb.S.pdb_instr in

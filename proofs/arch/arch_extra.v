@@ -304,11 +304,11 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
 Definition sopn_prim_string_base (o : seq (string * prim_constructor asm_op)) :=
   let to_ex o := BaseOp (None, o) in
   map (fun '(s, p) => (s, map_prim_constructor to_ex p)) o.
-Definition sopn_prim_string_extra (o : seq (string * sopn.prim_constructor extra_op)) :=
+Definition sopn_prim_string_extra (o : seq (string * prim_constructor extra_op)) :=
   let to_ex o := ExtOp o in
   map (fun '(s, p) => (s, map_prim_constructor to_ex p)) o.
 
-Definition get_prime_op : seq (string * sopn.prim_constructor extended_op) :=
+Definition get_prime_op : seq (string * prim_constructor extended_op) :=
   sopn_prim_string_base prim_string ++ sopn_prim_string_extra sopn.prim_string.
 
 Instance eqTC_extended_op : eqTypeC extended_op :=
