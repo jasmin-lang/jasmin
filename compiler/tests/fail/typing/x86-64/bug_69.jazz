@@ -1,0 +1,7 @@
+export fn f (reg u64 x y) -> reg u64 {
+   reg u64 z;
+   x = x;
+   y = y;
+   ?{}, z = (32u)#AND(x, y);
+   return z;
+}

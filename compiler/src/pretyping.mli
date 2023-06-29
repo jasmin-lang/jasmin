@@ -27,23 +27,26 @@ val tt_ws : Annotations.wsize -> Wsize.wsize
 
 val tt_item :
   Wsize.wsize ->
-  'asm Sopn.sopn Sopn.asmOp ->
-  'asm Env.env ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Syntax.pitem Location.located ->
-  'asm Env.env
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
 
 val tt_program :
   Wsize.wsize ->
-  'asm Sopn.sopn Sopn.asmOp ->
-  'asm Env.env ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   string ->
-  'asm Env.env * (unit, 'asm) Prog.pmod_item list * Syntax.pprogram
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Prog.pmod_item
+    list
+  * Syntax.pprogram
 
 val tt_file :
   Wsize.wsize ->
-  'asm Sopn.sopn Sopn.asmOp ->
-  'asm Env.env ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
   Annotations.pident option ->
   Location.t option ->
   string ->
-  'asm Env.env * Syntax.pprogram
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env * Syntax.pprogram

@@ -16,6 +16,12 @@
   `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
   ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481)).
 
+## Bug fixes
+
+- Type-checking rejects wrongly casted primitive operators
+  ([PR #489](https://github.com/jasmin-lang/jasmin/pull/488);
+  fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
+
 ## Other changes
 
 - Various improvements related to ARMv7
