@@ -1234,7 +1234,7 @@ let tt_prim asmOp id args =
   let c =
     match List.assoc name (prim_string asmOp) with
     | PrimP (d, pr) ->
-        pr None (match sz with
+        pr (match sz with
           | SAw sz -> sz
           | SA -> d
           | SAv (s, ve, sz) ->
@@ -1243,10 +1243,11 @@ let tt_prim asmOp id args =
               sz
           | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
           | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-    | PrimM pr -> if sz = SA then pr None else rs_tyerror ~loc (PrimNoSize s)
-    | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr None s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-    | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr None sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-    | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr None ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
+    | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
+    | PrimV pr -> (match sz with SAv (_s, ve, sz) -> pr ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+    | PrimSV pr -> (match sz with SAv (s, ve, sz) -> pr s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+    | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
+    | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
     | PrimARM _ | exception Not_found ->
         oget
           ~exn:(tyerror ~loc (UnknownPrim s))

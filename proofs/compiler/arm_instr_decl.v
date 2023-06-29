@@ -16,6 +16,7 @@ Require Import
   word.
 Require xseq.
 Require Import
+  sopn
   arch_decl
   arch_utils.
 Require Import arm_decl.
