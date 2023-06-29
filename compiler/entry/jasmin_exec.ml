@@ -172,7 +172,7 @@ let parse_and_exec op args reg regs regxs xregs flag flags =
 
   let asm_state = init_state ip reg_values flag_values fn i in
   (* Format.printf "Initial state:@;%a@." pp_asm_state asm_state; *)
-  (* Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i; *)
+  Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i;
   let asm_state' = exec_instr A.call_conv asm_state i in
   (* Format.printf "New state:@;%a@." pp_asm_state asm_state'; *)
   asm_state'
@@ -280,32 +280,31 @@ let () = seal asm_state
 (* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
 let set_execute_get = foreign "set_execute_get" (ptr asm_state @-> returning void)
 
-let is_correct x =
+let is_correct asm_arr =
   let state = make asm_state in
-    setf state rax x;
-    setf state rcx 0L;
-    setf state rdx 0L;
-    setf state rbx 0L;
-    setf state rsp 0L;
-    setf state rbp 0L;
-    setf state rsi 0L;
-    setf state rdi 0L;
-    setf state r8 0L;
-    setf state r9 0L;
-    setf state r10 0L;
-    setf state r11 0L;
-    setf state r12 0L;
-    setf state r13 0L;
-    setf state r14 0L;
-    setf state r15 0L;
+    setf state rax asm_arr.(0);
+    setf state rcx asm_arr.(1);
+    setf state rdx asm_arr.(2);
+    setf state rbx asm_arr.(3);
+    setf state rsp asm_arr.(4);
+    setf state rbp asm_arr.(5);
+    setf state rsi asm_arr.(6);
+    setf state rdi asm_arr.(7);
+    setf state r8 asm_arr.(8);
+    setf state r9 asm_arr.(9);
+    setf state r10 asm_arr.(10);
+    setf state r11 asm_arr.(11);
+    setf state r12 asm_arr.(12);
+    setf state r13 asm_arr.(13);
+    setf state r14 asm_arr.(14);
+    setf state r15 asm_arr.(15);
     setf state rflags 0L;
 
-
-  let check state (x: int64)  =
+  let check state asm_arr  =
     let arch = Amd64 in
     let call_conv = !(J.Glob_options.call_conv) in
     let reg = [] in
-    let regs = [x;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
+    let regs = (Array.to_list asm_arr) in
     let regxs = [0L;0L;0L;0L;0L;0L;0L;0L] in
     let xregs = [0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
     let flag = [] in
@@ -314,19 +313,58 @@ let is_correct x =
     let args = ["RAX"] in
 
     let new_state = parse_and_exec arch call_conv op args reg regs regxs xregs flag flags in
-    (* Format.printf "New state:@;%a@." ImplA.pp_asm_state new_state; *)
-    (* Printf.printf "Before: rax %Ld\n" (getf state rax); *)
-    (* increment_rax (addr state); *)
     set_execute_get (addr state);
-    (* Printf.printf "After: rax %Ld \n" (getf state rax); *)
-    let rax_val = (J.Conv.z_of_cz (J.Exec.read_reg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state RAX)) in
-    (* Printf.printf "After: rax %Ld and coq_rax: %Ld \n" (getf state rax) rax_val; *)
-    let res1  =  Z.of_int64_unsigned (getf state rax) in
-    (* Format.printf " C: %a  Coq: %a " Z.pp_print  res1 Z.pp_print rax_val; *)
-    res1 = rax_val
+    (* TODO: do we need jregs? *)
+    let jregs: A.reg array = [|RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15|] in
+    let jasm =
+      let jarr = Array.make 16 Z.zero in
+      for i = 0 to 15 do
+        jarr.(i) <- (J.Conv.z_of_cz (J.Exec.read_reg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jregs.(i)))
+      done;
+      jarr
+    in
+    let cregs = [|rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi; r8; r9; r10; r11; r12; r13; r14; r15|] in
+    let casm =
+      let carr = Array.make 16 Z.zero in
+      for i = 0 to 15 do
+        carr.(i) <- Z.of_int64_unsigned (getf state cregs.(i))
+      done;
+      carr
+    in
+    let result = ref true in
+    for i = 0 to 15 do
+      (* Skip checking rsp and rbp values *)
+      if i <> 4 && i <> 5 then
+      result := !result && (jasm.(i) = casm.(i))
+    done;
+    !result
   in
-  Crowbar.check(check state x)
+  Crowbar.check(check state asm_arr)
 
 let () =
-  let x = Crowbar.int64 in
-  Crowbar.add_test ~name:"check increment" [ x ]  (fun x -> is_correct x)
+  let asm_arr =
+    let crax = Crowbar.int64 in
+    let crcx = Crowbar.int64 in
+    let crdx = Crowbar.int64 in
+    let crbx = Crowbar.int64 in
+    let crsp = Crowbar.int64 in
+    let crbp = Crowbar.int64 in
+    let crsi = Crowbar.int64 in
+    let crdi = Crowbar.int64 in
+    let cr8 = Crowbar.int64 in
+    let cr9 = Crowbar.int64 in
+    let cr10 = Crowbar.int64 in
+    let cr11 = Crowbar.int64 in
+    let cr12 = Crowbar.int64 in
+    let cr13 = Crowbar.int64 in
+    let cr14 = Crowbar.int64 in
+    let cr15 = Crowbar.int64 in
+
+    Crowbar.map [crax; crcx; crdx; crbx; crsp; crbp; crsi; crdi;cr8; cr9; cr10; cr11; cr12; cr13; cr14; cr15] (
+      fun rax rcx rdx rbx rsp rbp rsi rdi r8 r9 r10 r11 r12 r13 r14 r15 ->
+        let my_array = [|rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi; r8; r9; r10; r11; r12; r13; r14; r15|] in
+        my_array
+    )
+  in
+
+  Crowbar.add_test ~name:"check increment" [ asm_arr]  (fun asm_arr -> is_correct asm_arr)
