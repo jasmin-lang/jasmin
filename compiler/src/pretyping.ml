@@ -57,6 +57,8 @@ type tyerror =
   | PackWrongWS of int
   | PackWrongPE of int
   | PackWrongLength of int * int
+  | UnsupportedZeroExtend of (F.formatter -> unit)
+  | InvalidZeroExtend of W.wsize * W.wsize * (F.formatter -> unit)
   | StringError of string
 
 exception TyError of L.t * tyerror
@@ -220,7 +222,13 @@ let pp_tyerror fmt (code : tyerror) =
 
   | PackWrongLength (e, f) ->
     F.fprintf fmt "wrong length of pack; expected: %d; found: %d" e f
-  
+
+  | UnsupportedZeroExtend name ->
+      F.fprintf fmt "primitive operator %t does not support zero-extension" name
+
+  | InvalidZeroExtend (src, dst, name) ->
+      F.fprintf fmt "primitive operator %t returns an output of size %a; it cannot be zero-extended to size %a" name PrintCommon.pp_wsize src PrintCommon.pp_wsize dst
+
   | StringError s ->
     F.fprintf fmt "%s" s
 
@@ -1365,13 +1373,13 @@ let extract_size str : string * S.size_annotation =
     | SA -> str, SA
     | sz -> String.concat "_" (List.rev s), sz
 
-let tt_prim asmOp ws id args =
+let tt_prim asmOp id args =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   let c =
     match List.assoc name (prim_string asmOp) with
     | PrimP (d, pr) ->
-        pr ws (match sz with
+        pr None (match sz with
           | SAw sz -> sz
           | SA -> d
           | SAv (s, ve, sz) ->
@@ -1380,10 +1388,10 @@ let tt_prim asmOp ws id args =
               sz
           | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
           | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-    | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
-    | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-    | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-    | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
+    | PrimM pr -> if sz = SA then pr None else rs_tyerror ~loc (PrimNoSize s)
+    | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr None s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+    | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr None sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
+    | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr None ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
     | PrimARM _ | exception Not_found ->
         oget
           ~exn:(tyerror ~loc (UnknownPrim s))
@@ -1469,6 +1477,21 @@ let prim_of_pe pe =
     L.mk_loc (L.loc pe) desc
   | _ -> raise exn
 
+let cast_opn ~loc id ws =
+  let open Sopn in
+  let name fmt = PrintCommon.pp_string0 fmt (id.str ()) in
+  let invalid () = rs_tyerror ~loc (UnsupportedZeroExtend name) in
+  let open Arch_extra in
+  function
+  | Oasm (BaseOp (None, op)) ->
+    begin match List.last id.tout with
+      | Coq_sword from ->
+          if wsize_le ws from then rs_tyerror ~loc(InvalidZeroExtend (from, ws, name))
+          else Oasm (BaseOp (Some ws, op))
+      | _ -> invalid ()
+  end
+  | Oasm (BaseOp (Some _, _)) -> assert false
+  | _ -> invalid ()
 
 (* -------------------------------------------------------------------- *)
 let pexpr_of_plvalue exn l =
@@ -1737,7 +1760,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p, args = tt_prim asmOp None f args in
+      let p, args = tt_prim asmOp f args in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1748,7 +1771,9 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let ws, s = ct in
       let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
-      let p, args = tt_prim asmOp (Some ws) f args in
+      let p, args = tt_prim asmOp f args in
+      let id = Sopn.asm_op_instr asmOp p in
+      let p = cast_opn ~loc:(L.loc pi) id ws p in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in

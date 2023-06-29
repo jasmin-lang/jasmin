@@ -17,6 +17,10 @@
   ([PR #590](https://github.com/jasmin-lang/jasmin/pull/590);
   fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
 
+- Type-checking rejects wrongly casted primitive operators
+  ([PR #489](https://github.com/jasmin-lang/jasmin/pull/488);
+  fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
+
 ## Other changes
 
 - Unsigned division on x86 emits a xor instead of “mov 0“
