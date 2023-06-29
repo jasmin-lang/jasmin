@@ -184,8 +184,8 @@ Definition get_instr_desc o :=
 
 Definition prim_string :=
   [::
-    ("set0"%string, PrimP U64 (fun sz => Oset0 sz));
-    ("concat_2u128"%string, PrimM Oconcat128)
+    ("set0"%string, primP Oset0);
+    ("concat_2u128"%string, primM Oconcat128)
     (* Ox86MOVZX32 is ignored on purpose *)
     (* SLH operators are ignored on purpose. *)
   ].

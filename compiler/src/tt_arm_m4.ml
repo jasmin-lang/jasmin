@@ -21,7 +21,7 @@ let tt_prim ps s sa =
   let name, set_flags, is_conditional = get_arm_prim s in
   match List.assoc_opt name ps with
   | Some (Sopn.PrimARM pr) ->
-    if sa == S.SA
+    if sa == None
     then Some (pr set_flags is_conditional None)
     else None
   | _ -> None

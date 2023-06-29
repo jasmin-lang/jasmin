@@ -52,19 +52,21 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe :=
 
 (* -------------------------------------------------------------------- *)
 
+Variant prim_x86_suffix :=
+  | PVp of wsize
+  | PVv of velem & wsize
+  | PVsv of signedness & velem & wsize
+  | PVx of wsize & wsize
+  | PVvv of velem & wsize & velem & wsize
+.
+
 Variant prim_constructor (asm_op:Type) :=
-  | PrimP of wsize & (wsize -> asm_op)
-  | PrimM of asm_op
-  | PrimV of (velem -> wsize -> asm_op)
-  | PrimSV of (signedness -> velem -> wsize -> asm_op)
-  | PrimX of (wsize -> wsize -> asm_op)
-  | PrimVV of (velem -> wsize -> velem -> wsize -> asm_op)
+  | PrimX86 of seq prim_x86_suffix & (prim_x86_suffix -> option asm_op)
   | PrimARM of
     (bool                 (* set_flags *)
      -> bool              (* is_conditional *)
      -> option shift_kind (* has_shift *)
      -> asm_op).
-
 
 Class asmOp (asm_op : Type) := {
   _eqT           :> eqTypeC asm_op
@@ -320,27 +322,27 @@ Instance eqC_sopn : eqTypeC sopn :=
 
 Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : prim_constructor B :=
   match p with
-  | PrimP x1 x2 => PrimP x1 (fun ws => f (x2 ws))
-  | PrimM x => PrimM (f x)
-  | PrimV x => PrimV (fun v ws => f (x v ws))
-  | PrimSV x => PrimSV (fun s v ws => f (x s v ws))
-  | PrimX x => PrimX (fun ws1 ws2 => f (x ws1 ws2))
-  | PrimVV x => PrimVV (fun v1 ws1 v2 ws2 => f (x v1 ws1 v2 ws2))
+  | PrimX86 a k => PrimX86 a (fun x => Option.bind (olift f) (k x))
   | PrimARM x => PrimARM (fun sf ic hs => f (x sf ic hs))
   end.
 
+Definition primM {A: Type} f  := @PrimX86 A [::] (fun _ => Some f).
+Definition primP {A: Type} (f: wsize -> A) :=
+      PrimX86 (map PVp (Uptr :: rem Uptr wsizes))
+        (fun s => if s is PVp sz then Some (f sz) else None).
+
 Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
   [::
-    ("copy", PrimP Uptr (fun sz => Opseudo_op (Ocopy sz xH)));  (* The size is fixed later *)
+    ("copy", primP (fun sz => Opseudo_op (Ocopy sz xH)));  (* The size is fixed later *)
     (* "NOP" is ignored on purpose *)
-    ("mulu", PrimP Uptr (fun sz => Opseudo_op (Omulu sz)));
-    ("adc", PrimP Uptr (fun sz => Opseudo_op (Oaddcarry sz)));
-    ("sbb", PrimP Uptr (fun sz => Opseudo_op (Osubcarry sz)));
-    ("init_msf"   , PrimM (Oslh SLHinit));
-    ("update_msf" , PrimM (Oslh SLHupdate));
-    ("mov_msf"    , PrimM (Oslh SLHmove));
-    ("protect"    , PrimP Uptr (fun sz => Oslh (SLHprotect sz)));
-    ("protect_ptr", PrimM (Oslh (SLHprotect_ptr xH))) (* The size is fixed later *)
+    ("mulu", primP (fun sz => Opseudo_op (Omulu sz)));
+    ("adc", primP (fun sz => Opseudo_op (Oaddcarry sz)));
+    ("sbb", primP (fun sz => Opseudo_op (Osubcarry sz)));
+    ("init_msf"   , primM (Oslh SLHinit));
+    ("update_msf" , primM (Oslh SLHupdate));
+    ("mov_msf"    , primM (Oslh SLHmove));
+    ("protect"    , primP (fun sz => Oslh (SLHprotect sz)));
+    ("protect_ptr", primM (Oslh (SLHprotect_ptr xH))) (* The size is fixed later *)
    ]%string
   ++ map (fun '(s, p) => (s, map_prim_constructor Oasm p)) prim_string.
 
