@@ -5,7 +5,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings ZArith utils.
 Import Utf8.
-Import ssrZ.
+Import word_ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

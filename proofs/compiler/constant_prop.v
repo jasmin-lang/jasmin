@@ -1,8 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import expr ZArith psem compiler_util.
-Require Import dead_code.
-Require Export low_memory.
 Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.
