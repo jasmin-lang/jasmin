@@ -29,6 +29,9 @@
    [PR #477](https://github.com/jasmin-lang/jasmin/pull/477),
    [PR #479](https://github.com/jasmin-lang/jasmin/pull/479)).
 
+- Pretty-printing of Jasmin programs is more precise
+  ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).
+
 # Jasmin 2023.06.0 — Villers-lès-Nancy, 2023-06-09
 
 ## New features
