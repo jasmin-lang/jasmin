@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require Import psem.
 Require Import compiler_util ZArith.
 Import Utf8.
@@ -1216,7 +1216,7 @@ Module MakeMalloc(M:gen_map.MAP).
   Proof.
     rewrite /rm_x. case Heq: (M.get (mvar m) x) => [id'|];last first.
     + by move=> /mvalid;rewrite Heq.
-    by rewrite Ms.removeP; case: (id'=Pid) => // Hne /mvalid;rewrite Heq=> -[] ?;elim Hne.
+    by rewrite Ms.removeP; case: eqP => // Hne /mvalid; congruence.
   Qed.
 
   Lemma valid_rm m id : valid (rm_id m id) (Ms.remove (mid m) id).

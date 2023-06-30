@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
-Require Import Psatz xseq. 
+From mathcomp Require Import word_ssrZ.
+Require Import Psatz xseq.
 Require Export leakage.
 Import Utf8.
 Import GRing.Theory.

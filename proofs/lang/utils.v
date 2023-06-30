@@ -4,7 +4,7 @@ From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
 Require Psatz.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 
 
 Set Implicit Arguments.

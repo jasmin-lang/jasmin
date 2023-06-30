@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
+From mathcomp Require Import word_ssrZ.
 Require oseq.
 Require Import ZArith
 utils

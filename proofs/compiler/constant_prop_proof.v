@@ -838,11 +838,11 @@ rewrite /trans_sem. rewrite /slt;case:ifP => [ /eq_exprP Hs /=| _ ].
     * t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
       rewrite /sem_sop2 /=. rewrite ok_v1 ok_v2 /=.
       move=> h2 [] <- <- _. exists (wsigned w1 <? wsigned w2)%Z.
-      by rewrite ssrZ.ltzE.
+      by rewrite word_ssrZ.ltzE.
     t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
     rewrite /sem_sop2 /=. t_xrbindP. rewrite ok_v1 ok_v2 /=.
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 <? wunsigned w2)%Z.
-    by rewrite ssrZ.ltzE.
+    by rewrite word_ssrZ.ltzE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
     move=> <- <-. rewrite Hs /=. by exists h3.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
@@ -874,11 +874,11 @@ rewrite /trans_sem. rewrite /sle;case:ifP => [ /eq_exprP Hs /=| _ ].
     * t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
       rewrite /sem_sop2 /=. rewrite ok_v1 ok_v2 /=.
       move=> h2 [] <- <- _. exists (wsigned w1 <=? wsigned w2)%Z.
-      by rewrite ssrZ.lezE.
+      by rewrite word_ssrZ.lezE.
     t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
     rewrite /sem_sop2 /=. t_xrbindP. rewrite ok_v1 ok_v2 /=.
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 <=? wunsigned w2)%Z.
-    by rewrite ssrZ.lezE.
+    by rewrite word_ssrZ.lezE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
     move=> <- <-. rewrite Hs /=. by exists h3.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
@@ -910,11 +910,11 @@ rewrite /trans_sem. rewrite /sgt;case:ifP => [ /eq_exprP Hs /=| _ ].
     * t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
       rewrite /sem_sop2 /=. rewrite ok_v1 ok_v2 /=.
       move=> h2 [] <- <- _. exists (wsigned w1 >? wsigned w2)%Z.
-      by rewrite Z.gtb_ltb ssrZ.ltzE.
+      by rewrite Z.gtb_ltb word_ssrZ.ltzE.
     t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
     rewrite /sem_sop2 /=. t_xrbindP. rewrite ok_v1 ok_v2 /=.
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 >? wunsigned w2)%Z.
-    by rewrite Z.gtb_ltb ssrZ.ltzE.
+    by rewrite Z.gtb_ltb word_ssrZ.ltzE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
     move=> <- <-. rewrite Hs /=. by exists h3.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
@@ -945,11 +945,11 @@ rewrite /trans_sem. rewrite /sge;case:ifP => [ /eq_exprP Hs /=| _ ].
     * t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
       rewrite /sem_sop2 /=. rewrite ok_v1 ok_v2 /=.
       move=> h2 [] <- <- _. exists (wsigned w1 >=? wsigned w2)%Z.
-      by rewrite Z.geb_leb ssrZ.lezE.
+      by rewrite Z.geb_leb word_ssrZ.lezE.
     t_xrbindP. rewrite He1 He2 /=. move=> y [] <- h0 [] <-.
     rewrite /sem_sop2 /=. t_xrbindP. rewrite ok_v1 ok_v2 /=.
     move=> h y0 [] <- h2 [] <- <- <- _. exists (wunsigned w1 >=? wunsigned w2)%Z.
-    by rewrite Z.geb_leb ssrZ.lezE.
+    by rewrite Z.geb_leb word_ssrZ.lezE.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
     move=> <- <-. rewrite Hs /=. by exists h3.
   - move=> h /=. t_xrbindP. move=> y -> h1 -> /= h3 Hs.
