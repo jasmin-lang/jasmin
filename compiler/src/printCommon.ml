@@ -36,31 +36,35 @@ let string_of_op_kind = function
 
 (* -------------------------------------------------------------------- *)
 
+let string_of_op_w s ws =
+  asprintf "%s %du" s (int_of_ws ws)
+
 let string_of_op1 = function
   | E.Oint_of_word sz -> asprintf "(int /* of u%d */)" (int_of_ws sz)
   | E.Osignext (szo, _) -> asprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo | E.Ozeroext (szo, _) -> asprintf "(%du)" (int_of_ws szo)
-  | E.Olnot _ -> "!"
+  | E.Olnot w -> string_of_op_w "!" w
   | E.Onot -> "!"
-  | E.Oneg _ -> "-"
+  | E.Oneg k -> "-" ^ string_of_op_kind k
 
 let string_of_op2 = function
   | E.Obeq -> "=="
   | E.Oand -> "&&"
   | E.Oor -> "||"
-  | E.Oadd _ -> "+"
-  | E.Omul _ -> "*"
-  | E.Osub _ -> "-"
+  | E.Oadd k -> "+" ^ string_of_op_kind k
+  | E.Omul k -> "*" ^ string_of_op_kind k
+  | E.Osub k -> "-" ^ string_of_op_kind k
   | E.Odiv k -> "/" ^ string_of_cmp_kind k
   | E.Omod k -> "%" ^ string_of_cmp_kind k
-  | E.Oland _ -> "&"
-  | E.Olor _ -> "|"
-  | E.Olxor _ -> "^"
-  | E.Olsr _ -> ">>"
-  | E.Olsl _ -> "<<"
-  | E.Oasr _ -> ">>s"
-  | E.Oror _ -> ">>r"
-  | E.Orol _ -> "<<r"
+  | E.Oland w -> string_of_op_w "&" w
+  | E.Olor w -> string_of_op_w "|" w
+  | E.Olxor w -> string_of_op_w "^" w
+  | E.Olsr w -> string_of_op_w ">>" w
+  | E.Olsl k -> "<<" ^ string_of_op_kind k
+  | E.Oasr E.Op_int -> ">>s"
+  | E.Oasr (E.Op_w w) -> asprintf ">>%ds" (int_of_ws w)
+  | E.Oror w -> string_of_op_w ">>r" w
+  | E.Orol w -> string_of_op_w "<<r" w
   | E.Oeq k -> "==" ^ string_of_op_kind k
   | E.Oneq k -> "!=" ^ string_of_op_kind k
   | E.Olt k -> "<" ^ string_of_cmp_ty k
