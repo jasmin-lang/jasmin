@@ -280,6 +280,9 @@ let () = seal asm_state
 (* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
 let set_execute_get = foreign "set_execute_get" (ptr asm_state @-> returning void)
 
+let op_ref = ref ""
+let args_ref = ref []
+
 let is_correct asm_arr =
   let state = make asm_state in
     setf state rax asm_arr.(0);
@@ -309,10 +312,8 @@ let is_correct asm_arr =
     let xregs = [0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
     let flag = [] in
     let flags = [] in
-    let op = "INC" in
-    let args = ["RAX"] in
 
-    let new_state = parse_and_exec arch call_conv op args reg regs regxs xregs flag flags in
+    let new_state = parse_and_exec arch call_conv !op_ref !args_ref reg regs regxs xregs flag flags in
     set_execute_get (addr state);
     (* TODO: do we need jregs? *)
     let jregs: A.reg array = [|RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15|] in
@@ -342,6 +343,10 @@ let is_correct asm_arr =
   Crowbar.check(check state asm_arr)
 
 let () =
+  let my_arg_array = Stdlib.Arg.read_arg "op_args.txt" in
+  op_ref := my_arg_array.(0);                               (* ADD *)
+  args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
+
   let asm_arr =
     let crax = Crowbar.int64 in
     let crcx = Crowbar.int64 in
