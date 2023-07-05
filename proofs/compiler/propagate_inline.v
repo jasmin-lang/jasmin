@@ -19,16 +19,6 @@ Module Import E.
 End E.
 
 
-Fixpoint use_mem (e : pexpr) :=
-  match e with 
-  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false 
-  | Pload _ _ _ => true
-  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e 
-  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2 
-  | PappN _ es => has use_mem es 
-  | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2 
-  end.
-
 (* -------------------------------------------------------------------------- *)
 (* ** Data structure used for the analisys                                    *)
 (* -------------------------------------------------------------------------- *)

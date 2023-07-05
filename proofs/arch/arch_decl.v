@@ -1,8 +1,22 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
-Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
+From Coq Require Import
+  Relation_Operators
+  Utf8.
+
 Require Import
+  global
+  label
+  memory_model
+  oseq
+  sem_type
+  strings
+  syscall
+  utils
+  word.
+Require Import
+  sopn
   flag_combination
   shift_kind.
 
@@ -21,9 +35,6 @@ Class ToString (t: stype) (T: Type) :=
   { category      : string    (* Name of the "register" used to print errors. *)
   ; _finC         :> finTypeC T
   ; to_string     : T -> string
-  ; strings       : list (string * T)
-  ; inj_to_string : injective to_string
-  ; stringsE      : strings = [seq (to_string x, x) | x <- enum cfinT_finType]
   }.
 
 Definition rtype {t T} `{ToString t T} := t.
@@ -43,12 +54,14 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; toS_f :> ToString sbool rflag
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
-  ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
   ; ad_fcp :> FlagCombinationParams
   }.
 
-#[global]
+#[export]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+
+#[export]
+Instance arch_msfsz `{arch_decl} : MSFsize := { msf_size := reg_size }.
 
 Definition mk_ptr `{arch_decl} name :=
   {| vtype := sword Uptr; vname := name; |}.
@@ -186,9 +199,7 @@ Scheme Equality for msb_flag.
 
 Lemma msb_flag_eq_axiom : Equality.axiom msb_flag_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_msb_flag_dec_bl.
-  by apply: internal_msb_flag_dec_lb.
+  exact: (eq_axiom_of_scheme internal_msb_flag_dec_bl internal_msb_flag_dec_lb).
 Qed.
 
 Definition msb_flag_eqMixin := Equality.Mixin msb_flag_eq_axiom.
@@ -232,9 +243,8 @@ Scheme Equality for addr_kind.
 
 Lemma addr_kind_eq_axiom : Equality.axiom addr_kind_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_addr_kind_dec_bl.
-  by apply: internal_addr_kind_dec_lb.
+  exact:
+    (eq_axiom_of_scheme internal_addr_kind_dec_bl internal_addr_kind_dec_lb).
 Qed.
 
 Definition addr_kind_eqMixin := Equality.Mixin addr_kind_eq_axiom.
@@ -299,9 +309,7 @@ Scheme Equality for arg_kind.
 
 Lemma arg_kind_eq_axiom : Equality.axiom arg_kind_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_arg_kind_dec_bl.
-  by apply: internal_arg_kind_dec_lb.
+  exact: (eq_axiom_of_scheme internal_arg_kind_dec_bl internal_arg_kind_dec_lb).
 Qed.
 
 Definition arg_kind_eqMixin := Equality.Mixin arg_kind_eq_axiom.
@@ -402,22 +410,6 @@ Record instr_desc_t := {
   id_safe       : seq safe_cond;
   id_pp_asm     : asm_args -> pp_asm_op;
 }.
-
-
-(* -------------------------------------------------------------------- *)
-
-Variant prim_constructor (asm_op:Type) :=
-  | PrimP of wsize & (wsize -> asm_op)
-  | PrimM of asm_op
-  | PrimV of (velem -> wsize -> asm_op)
-  | PrimSV of (signedness -> velem -> wsize -> asm_op)
-  | PrimX of (wsize -> wsize -> asm_op)
-  | PrimVV of (velem → wsize → velem → wsize → asm_op)
-  | PrimARM of
-    (bool                 (* set_flags *)
-     -> bool              (* is_conditional *)
-     -> option shift_kind (* has_shift *)
-     -> asm_op).
 
 
 (* -------------------------------------------------------------------- *)
@@ -676,9 +668,7 @@ Scheme Equality for rflagv.
 
 Lemma rflagv_eq_axiom : Equality.axiom rflagv_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_rflagv_dec_bl.
-  by apply: internal_rflagv_dec_lb.
+  exact: (eq_axiom_of_scheme internal_rflagv_dec_bl internal_rflagv_dec_lb).
 Qed.
 
 Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.

@@ -210,19 +210,18 @@ Context `{asmop:asmOp}.
 
 Section PROOFS.
 
-  Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
   Let Pi (i:instr) :=
     forall gd1 gd2,
-      extend_glob_i is_glob fresh_id i gd1 = ok gd2 ->
+      extend_glob_i fresh_id i gd1 = ok gd2 ->
       gd_incl gd1 gd2.
 
   Let Pr (i:instr_r) := forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
     forall gd1 gd2,
-      foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
+      foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
       gd_incl gd1 gd2.
 
   Local Lemma Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
@@ -289,7 +288,7 @@ Section PROOFS.
   Proof. by move=> i xs f es ii gd1 gd2 /= [<-]. Qed.
 
   Local Lemma extend_glob_cP c gd1 gd2 :
-    foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
+    foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
     exact: (cmd_rect Hmk Hnil Hcons Hasgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
@@ -297,8 +296,8 @@ Section PROOFS.
 
 End PROOFS.
 
-Lemma extend_glob_progP is_glob fresh_id P gd' :
-  extend_glob_prog is_glob fresh_id P = ok gd' ->
+Lemma extend_glob_progP fresh_id P gd' :
+  extend_glob_prog fresh_id P = ok gd' ->
   gd_incl (p_globs P) gd'.
 Proof.
   rewrite /extend_glob_prog.
@@ -317,7 +316,6 @@ Module RGP. Section PROOFS.
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
-    (is_glob : var -> bool)
     (fresh_id : glob_decls -> var -> Ident.ident).
 
   Notation venv := (Mvar.t var).
@@ -329,14 +327,14 @@ Module RGP. Section PROOFS.
   Context (fds: ufun_decls).
   Notation gd := (p_globs P).
 
-  Hypothesis fds_ok : map_cfprog (remove_glob_fundef is_glob gd) (p_funcs P) = ok fds.
+  Hypothesis fds_ok : map_cfprog (remove_glob_fundef gd) (p_funcs P) = ok fds.
   Hypothesis uniq_gd : uniq (map fst gd).
   Notation P' := {|p_globs := gd; p_funcs := fds; p_extra := p_extra P |}.
 
   Definition valid (m:venv) (s1 s2:estate) :=
     [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem),
-        (forall x, ~~is_glob x -> get_var (evm s1) x = get_var (evm s2) x),
-        (forall x g, Mvar.get m x = Some g -> is_glob x) &
+        (forall x, ~~is_glob_var x -> get_var (evm s1) x = get_var (evm s2) x),
+        (forall x g, Mvar.get m x = Some g -> is_glob_var x) &
         (forall x g v,
            Mvar.get m x = Some g ->
            get_var (evm s1) x = ok v ->
@@ -347,13 +345,13 @@ Module RGP. Section PROOFS.
 
     Let Pe e : Prop :=
       ∀ e' v,
-        remove_glob_e is_glob ii m e = ok e' →
+        remove_glob_e ii m e = ok e' →
         sem_pexpr gd s1 e = ok v →
         sem_pexpr gd s2 e' = ok v.
 
     Let Pes es : Prop :=
       ∀ es' vs,
-        mapM (remove_glob_e is_glob ii m) es = ok es' →
+        mapM (remove_glob_e ii m) es = ok es' →
         sem_pexprs gd s1 es = ok vs →
         sem_pexprs gd s2 es' = ok vs.
 
@@ -411,7 +409,7 @@ Module RGP. Section PROOFS.
     (@remove_glob_e_esP m ii s1 s2 h).2 es es' vs.
 
   Lemma write_var_remove (x:var_i) m s1 s2 v vm :
-    ~~ is_glob x ->
+    ~~ is_glob_var x ->
     valid m s1 s2 ->
     set_var (evm s1) x v = ok vm ->
     exists s2', valid m (with_vm s1 vm) s2' /\ write_var x v s2 = ok s2'.
@@ -440,7 +438,7 @@ Module RGP. Section PROOFS.
 
   Lemma remove_glob_lvP m ii s1 s1' s2 lv lv' v :
     valid m s1 s2 ->
-    remove_glob_lv is_glob ii m lv = ok lv' ->
+    remove_glob_lv ii m lv = ok lv' ->
     write_lval gd lv v s1 = ok s1' ->
     exists s2',
       valid m s1' s2' /\ write_lval gd lv' v s2 = ok s2'.
@@ -472,7 +470,7 @@ Module RGP. Section PROOFS.
 
   Lemma remove_glob_lvsP  m ii s1 s1' s2 lv lv' v :
     valid m s1 s2 ->
-    mapM (remove_glob_lv is_glob ii m) lv = ok lv' ->
+    mapM (remove_glob_lv ii m) lv = ok lv' ->
     write_lvals gd s1 lv v = ok s1' ->
     exists s2',
       valid m s1' s2' /\ write_lvals gd s2 lv' v = ok s2'.
@@ -488,20 +486,20 @@ Module RGP. Section PROOFS.
   Qed.
 
   Let Pc s1 c s2 :=
-    forall m m' c', remove_glob (remove_glob_i is_glob gd) m c = ok (m', c') ->
+    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
 
   Let Pi s1 i s2 :=
-    forall m m' c', remove_glob_i is_glob gd m i = ok (m', c') ->
+    forall m m' c', remove_glob_i gd m i = ok (m', c') ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
 
   Let Pi_r s1 i s2 := forall ii, Pi s1 (MkI ii i) s2.
 
   Let Pfor xi vs s1 c s2 :=
-    ~~is_glob xi.(v_var) ->
-    forall m m' c', remove_glob (remove_glob_i is_glob gd) m c = ok (m', c') ->
+    ~~is_glob_var xi.(v_var) ->
+    forall m m' c', remove_glob (remove_glob_i gd) m c = ok (m', c') ->
     Mincl m m' ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m s2 s2' /\ sem_for P' ev xi vs s1' c' s2'.
@@ -544,7 +542,7 @@ Module RGP. Section PROOFS.
     move=> s1 s2 x tag ty e v v' he hv hw ii m m' c' /= hrm s1' hval.
     move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he'.
     have :
-      (Let lv := remove_globals.remove_glob_lv is_glob ii m x in
+      (Let lv := remove_globals.remove_glob_lv ii m x in
       ok (m, [:: MkI ii (Cassgn lv tag ty e')])) = ok (m', c') ->
       exists s2', valid m' s2 s2' /\ sem P' ev s1' c' s2'.
     + t_xrbindP => x' /(remove_glob_lvP hval) -/(_ _ _ hw) [s2' [hs2' hw' ]] <- <-.
@@ -684,7 +682,7 @@ Module RGP. Section PROOFS.
     have /h1' [s2' [hs2 hc1]]: valid m3 s1 s1' by apply: valid_Mincl hval.
     have he' := remove_glob_eP hs2 he1 he.
     have [s3' [hs3 hc2]]:= h2' _ hs2.
-    have : remove_glob_i is_glob gd m3 (MkI ii (Cwhile a c e c')) =
+    have : remove_glob_i gd m3 (MkI ii (Cwhile a c e c')) =
              ok (m', [::MkI ii (Cwhile a c1' e' c2')]).
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
@@ -764,7 +762,7 @@ Module RGP. Section PROOFS.
     get_fundef (p_funcs P) fn = Some f ->
     exists f',
        get_fundef (p_funcs P') fn = Some f' /\
-       remove_glob_fundef is_glob gd f = ok f'.
+       remove_glob_fundef gd f = ok f'.
   Proof.
     move=> hget.
     have [f' hget' hremove] := get_map_cfprog_gen fds_ok hget.
@@ -812,7 +810,7 @@ Module RGP. Section PROOFS.
   End FDS.
 
   Lemma remove_globP P P' f ev scs mem scs' mem' va vr :
-    remove_glob_prog is_glob fresh_id P = ok P' ->
+    remove_glob_prog fresh_id P = ok P' ->
     sem_call P ev scs mem f va scs' mem' vr ->
     sem_call P' ev scs mem f va scs' mem' vr.
   Proof.

@@ -6,12 +6,20 @@ DIR=$(mktemp -d jasminXXXXXX)
 EC=${DIR}/jasmin.ec
 CT=${DIR}/jasmin_ct.ec
 
+if [ "$1" = "arm" ]
+then
+	shift
+	ARCH="-arch arm-m4"
+else
+	ARCH="-arch x86-64"
+fi
+
 trap "rm -r ${DIR}" EXIT
 
 set -x
 
-$(dirname $0)/../jasminc -oecarray ${DIR} -oec ${EC} "$@"
-$(dirname $0)/../jasminc -oecarray ${DIR} -CT -oec ${CT} "$@"
+$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -oec ${EC} "$@"
+$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$@"
 
 easycrypt ${ECARGS} ${EC}
 easycrypt ${ECARGS} ${CT}

@@ -119,18 +119,18 @@ end = struct
     | Public -> Format.fprintf fmt "#%s" spublic
 
   let parse ~(single:bool) ~(kind_allowed:bool) (annot: A.annotations) =
-    let module A = Pt.Annot in
+    let module A = Annot in
     let on_struct loc _nid s =
       List.iter A.none s;
       let s = List.fold_left (fun s (id, _) -> Svl.add (Vl.mk_poly (L.unloc id)) s) Svl.empty s in
       if single && Svl.cardinal s <> 1 then
-        Pt.rs_tyerror ~loc
-          (Pt.string_error "= ident or = { ident } is expected after “%s”" spoly);
+        A.error ~loc
+          "= ident or = { ident } is expected after “%s”" spoly;
       Poly s in
     let on_id _loc _nid id = poly1 (Vl.mk_poly id) in
     let error loc _nid =
-      Pt.rs_tyerror ~loc
-        (Pt.string_error "= ident or = { ident, ..., ident } is expected after “%s”" spoly) in
+      A.error ~loc
+        "= ident or = { ident, ..., ident } is expected after “%s”" spoly in
     let poly arg = A.on_attribute ~on_id ~on_struct error arg in
     let filters =
       [spublic, (fun a -> A.none a; Public);
@@ -140,11 +140,11 @@ end = struct
     let kind =
       let check_allowed (id,_) =
         if not kind_allowed then
-          Pt.rs_tyerror ~loc:(L.loc id)
-            (Pt.string_error "%s not allowed here" (L.unloc id));
+          A.error ~loc:(L.loc id)
+            "%s not allowed here" (L.unloc id);
         if lvl = None then
-          Pt.rs_tyerror ~loc:(L.loc id)
-            (Pt.string_error "type level should be provided")
+          A.error ~loc:(L.loc id)
+            "type level should be provided"
       in
       let filters =
         [ sflexible, (fun a -> check_allowed a; A.none a; Flexible);
@@ -179,6 +179,13 @@ let pp_signature prog fmt (fn, { tyin ; tyout }) =
     fn.fn_name
     (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) (snd prog)).f_args tyin)
     (pp_list ",@ " Lvl.pp) tyout
+
+(* -----------------------------------------------------------*)
+exception CtTypeError of Location.t * (Format.formatter -> unit)
+
+let error ~loc =
+  Format.kdprintf (fun msg ->
+      raise (CtTypeError (loc, msg)))
 
 (* -----------------------------------------------------------*)
 
@@ -255,12 +262,11 @@ end = struct
     let k, lvlx = get_var env x in
     if k = Strict then
       if not (Lvl.equal lvl lvlx) then
-        Pt.rs_tyerror ~loc:(L.loc x)
-          (Pt.string_error
+        error ~loc:(L.loc x)
              "%a has type #%s %a it cannot receive a value of type %a"
              (Printer.pp_var ~debug:false) (L.unloc x)
              Lvl.sstrict Lvl.pp lvlx
-             Lvl.pp lvl)
+             Lvl.pp lvl
       else env
     else { env with env_v = Mv.add (L.unloc x) (Flexible, lvl) env.env_v }
 
@@ -274,20 +280,19 @@ end = struct
     if public then
       match lvl with
       | Secret ->
-        Pt.rs_tyerror ~loc
-          (Pt.string_error "%a has type secret it needs to be public"
-             (Printer.pp_var ~debug:false) (L.unloc x))
+        error ~loc
+          "%a has type secret it needs to be public"
+             (Printer.pp_var ~debug:false) (L.unloc x)
       | Public -> env, Public
       | Poly s ->
         let poly = Svl.filter Vl.is_poly s in
         if Svl.is_empty poly then { env with env_vl = Svl.union s env.env_vl }, Public
         else
-          Pt.rs_tyerror ~loc
-            (Pt.string_error
+          error ~loc
                "variable %a has type %a, it should be public. Replace the polymorphic variable(s) %a by public"
                (Printer.pp_var ~debug:false) (L.unloc x)
                Lvl.pp lvl
-               (pp_list ",@ " Vl.pp) (Svl.elements poly))
+               (pp_list ",@ " Vl.pp) (Svl.elements poly)
     else env, lvl
 
   let gget ~(public:bool) env x =
@@ -413,10 +418,9 @@ let get_annot ensure_annot f =
 
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
-      Pt.rs_tyerror ~loc:f.f_loc
-        (Pt.string_error
+      error ~loc:f.f_loc
            "export functions should be fully annotated, missing some security annotations on %s.@ User option “-infer” to infer them."
-           msg) in
+           msg in
   if ensure_annot && f.f_cc = Export then
     (check_defined "result types" aout;
      check_defined "function parameters" ainlevels);
@@ -478,9 +482,9 @@ let get_annot ensure_annot f =
     | Poly s ->
       let diff = Svl.diff s known in
       if not (Svl.is_empty diff) then
-        Pt.rs_tyerror ~loc:f.f_loc
-          (Pt.string_error "variable(s) level %a should be used in the input security annotations"
-             (pp_list ", " Vl.pp) (Svl.elements diff))
+        error ~loc:f.f_loc
+          "variable(s) level %a should be used in the input security annotations"
+             (pp_list ", " Vl.pp) (Svl.elements diff)
     | _ -> () in
 
   List.iter (Option.may check_lvl) aout;
@@ -491,7 +495,7 @@ let get_annot ensure_annot f =
 let sdeclassify = "declassify"
 
 let is_declasify annot =
-  Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
+  Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
 
 let declassify_lvl annot lvl =
   if is_declasify annot then Public
@@ -594,10 +598,10 @@ and ty_fun fenv fn =
       | Some alvl ->
         if Lvl.le lvl alvl then alvl
         else
-          Pt.rs_tyerror ~loc:(L.loc x)
-            (Pt.string_error "the variable %a has type %a instead of %a"
+          error ~loc:(L.loc x)
+            "the variable %a has type %a instead of %a"
               (Printer.pp_var ~debug:false) (L.unloc x)
-              Lvl.pp lvl Lvl.pp alvl) in
+              Lvl.pp lvl Lvl.pp alvl in
     lvl in
   let tyout = List.map2 (do_r env) f.f_ret aout in
   (* Normalize the input type *)
@@ -621,6 +625,8 @@ let ty_prog ~infer (prog: ('info, 'asm) prog) fl =
   let status =
     match List.iter (fun fn -> ignore (get_fun fenv fn : signature)) fl with
     | () -> None
-    | exception Pt.TyError (loc, code) -> Some (loc, code)
+    | exception Annot.AnnotationError (loc, msg)
+    | exception CtTypeError (loc, msg)
+      -> Some (loc, msg)
   in
   Hf.to_list fenv.env_ty, status

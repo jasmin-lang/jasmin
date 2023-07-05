@@ -4,11 +4,14 @@ let show_intrinsics asmOp fmt =
   let index =
     let open Sopn in
     function
-    | PrimM _ -> 0
-    | PrimP _ -> 1
-    | PrimX _ -> 2
-    | PrimV _ -> 3
-    | PrimVV _ -> 4
+    | PrimX86 (sfx, _) ->
+      begin match sfx with
+      | [] -> 0
+      | PVp _ :: _ -> 1
+      | PVx _ :: _ -> 2
+      | (PVv _ | PVsv _) :: _ -> 3
+      | PVvv _ :: _ -> 4
+      end
     | PrimARM _ -> 5
   in
   let headers = [|

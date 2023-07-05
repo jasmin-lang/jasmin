@@ -10,6 +10,7 @@ end
 (* Abstract Interpreter. *)
 module AbsAnalyzer (PW : ExportWrap) : sig
   val analyze :
+    Wsize.wsize ->
     X86_extra.x86_extended_op Sopn.asmOp ->
     unit -> unit
 end

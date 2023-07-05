@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
-Require Import ZArith utils strings word waes sem_type global oseq.
-Import Utf8 Relation_Operators.
+Require Import utils strings word waes sem_type global oseq sopn.
+Import Utf8 Relation_Operators ZArith.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -99,13 +99,13 @@ Variant x86_op : Type :=
 | VPSUB    `(velem) `(wsize)
 | VPAVG of velem & wsize
 | VPMULL   `(velem) `(wsize)
-| VPMULH   `(velem) `(wsize)   (* signed multiplication of 16-bits*)
-| VPMULHU  `(velem) `(wsize)
-| VPMULHRS of velem & wsize (* Packed Multiply High with Round and Scale *)
+| VPMULH   of wsize   (* signed multiplication of 16-bits*)
+| VPMULHU  of wsize
+| VPMULHRS of wsize (* Packed Multiply High with Round and Scale *)
 | VPMUL    `(wsize)
 | VPMULU   `(wsize)
-| VPEXTR   `(wsize)
-| VPINSR   `(velem)
+| VPEXTR   of wsize
+| VPINSR   of velem
 | VPSLL    `(velem) `(wsize)
 | VPSRL    `(velem) `(wsize)
 | VPSRA    `(velem) `(wsize)
@@ -182,9 +182,7 @@ Scheme Equality for x86_op.
 
 Lemma x86_op_eq_axiom : Equality.axiom x86_op_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_x86_op_dec_bl.
-  by apply: internal_x86_op_dec_lb.
+  exact: (eq_axiom_of_scheme internal_x86_op_dec_bl internal_x86_op_dec_lb).
 Qed.
 
 Definition x86_op_eqMixin := Equality.Mixin x86_op_eq_axiom.
@@ -289,6 +287,68 @@ Definition rflags_of_aluop_nocf_w sz (w : word sz) (vs : Z) :=
 
 Definition rflags_of_bwop_w sz (w : word sz) :=
   flags_w (rflags_of_bwop w) w.
+
+(* -------------------------------------------------------------------- *)
+Section PRIM_RANGE.
+
+Context {A: Type}.
+
+Let prim_range range (f: wsize → A) : prim_constructor A :=
+  PrimX86 (map PVp range)
+        (fun s => if s is PVp sz then Some (f sz) else None).
+
+Definition prim_8_64 := prim_range [:: U64; U32; U16; U8 ].
+Definition prim_16_64 := prim_range [:: U64; U32; U16 ].
+Definition prim_32_64 := prim_range [:: U64; U32 ].
+Definition prim_128_256 := prim_range [:: U128; U256 ].
+
+Let prim_movxx range (f: wsize → wsize → x86_op) :=
+  PrimX86 range
+        (fun s => if s is PVx szo szi then Some (f szo szi) else None).
+
+Definition prim_movsx := prim_movxx [:: PVx U16 U8; PVx U32 U8; PVx U64 U8; PVx U16 U16; PVx U32 U16; PVx U64 U16; PVx U32 U32; PVx U64 U32 ].
+
+Definition prim_movzx := prim_movxx [:: PVx U16 U8; PVx U32 U8; PVx U64 U8; PVx U32 U16; PVx U64 U16 ].
+
+Definition prim_vv (f: velem → wsize → velem → wsize → x86_op) : prim_constructor x86_op :=
+  PrimX86
+    [:: PVvv VE8 U64 VE16 U128
+     ; PVvv VE8 U32 VE32 U128
+     ; PVvv VE8 U16 VE64 U128
+     ; PVvv VE16 U64 VE32 U128
+     ; PVvv VE16 U32 VE64 U128
+     ; PVvv VE32 U64 VE64 U128
+     ; PVvv VE8 U128 VE16 U256
+     ; PVvv VE8 U64 VE32 U256
+     ; PVvv VE8 U32 VE64 U256
+     ; PVvv VE16 U128 VE32 U256
+     ; PVvv VE16 U64 VE64 U256
+     ; PVvv VE32 U128 VE64 U256
+    ]
+    (fun s => if s is PVvv ve sz ve' sz' then Some (f ve sz ve' sz') else None).
+
+Definition primV_range range (f: velem → wsize → x86_op) : prim_constructor x86_op :=
+  PrimX86 range
+    (fun s => if s is PVv ve sz then Some (f ve sz) else None).
+
+Definition primV := primV_range [seq PVv ve sz | ve <- [:: VE8; VE16; VE32; VE64 ], sz <- [:: U128; U256 ]].
+Definition primV_8_16 := primV_range [seq PVv ve sz | ve <- [:: VE8; VE16 ], sz <- [:: U128; U256 ]].
+Definition primV_8_32 := primV_range [seq PVv ve sz | ve <- [:: VE8; VE16; VE32 ], sz <- [:: U128; U256 ]].
+Definition primV_16 := primV_range [seq PVv VE16 sz | sz <- [:: U128; U256 ]].
+Definition primV_16_32 := primV_range [seq PVv ve sz | ve <- [:: VE16; VE32 ], sz <- [:: U128; U256 ]].
+Definition primV_16_64 := primV_range [seq PVv ve sz | ve <- [:: VE16; VE32; VE64 ], sz <- [:: U128; U256 ]].
+Definition primV_128 := primV_range [seq PVv ve U128 | ve <- [:: VE8; VE16; VE32; VE64 ]].
+
+Definition primSV_8_32 (f: signedness → velem → wsize → x86_op) : prim_constructor x86_op :=
+  PrimX86
+    [seq pv sz | pv <- [seq PVsv sg ve | sg <- [:: Signed; Unsigned], ve <- [:: VE8; VE16; VE32 ] ], sz <- [:: U128; U256 ] ]
+    (fun s => if s is PVsv sg ve sz then Some (f sg ve sz) else None).
+
+Definition primX (f: wsize → wsize → x86_op) : prim_constructor x86_op :=
+  PrimX86 [seq PVx ssz dsz | ssz <- [:: U128; U256 ], dsz <- [:: U64; U32 ] ]
+    (fun s => if s is PVx ssz dsz then Some (f ssz dsz) else None).
+
+End PRIM_RANGE.
 
 (* -------------------------------------------------------------------- *)
 
@@ -460,7 +520,7 @@ Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) :=
 Definition x86_SETcc (b:bool) : ex_tpl (w_ty U8) := ok (wrepr U8 (Z.b2z b)).
 
 Definition x86_BT sz (x y: word sz) : ex_tpl (b_ty) :=
-  Let _  := check_size_8_64 sz in
+  Let _  := check_size_16_64 sz in
   ok (Some (wbit x y)).
 
 (* -------------------------------------------------------------------- *)
@@ -503,6 +563,14 @@ Definition x86_NOT sz (v: word sz)  : ex_tpl (w_ty sz) :=
   Let _  := check_size_8_64 sz in
   ok (wnot v).
 
+Definition x86_shift_mask (s:wsize) : u8 :=
+  match s with
+  | U8 | U16 | U32 => wrepr U8 31
+  | U64  => wrepr U8 63
+  | U128 => wrepr U8 127
+  | U256 => wrepr U8 255
+  end%Z.
+
 Definition x86_ROR sz (v: word sz) (i: u8) : ex_tpl (b2w_ty sz) :=
   Let _  := check_size_8_64 sz in
   let i := wand i (x86_shift_mask sz) in
@@ -525,37 +593,33 @@ Definition x86_ROL sz (v: word sz) (i: u8) : ex_tpl (b2w_ty sz) :=
     let OF := if i == 1%R then Some (msb r != CF) else None in
     ok (:: OF, Some CF & r ).
 
-Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
+
+Definition x86_rotate_with_carry (sz: wsize)
+  (rot: word.word.word sz.+1 → nat → word.word.word sz.+1)
+  (ovf: word sz → bool → bool)
+  (v: word sz) (i: u8) (cf: bool)
+  : ex_tpl (b2w_ty sz) :=
   Let _  := check_size_8_64 sz in
   let i := wand i (x86_shift_mask sz) in
-  let im :=
+  let i :=
     match sz with
     | U8 => Zmod (wunsigned i) 9
     | U16 => Zmod (wunsigned i) 17
     | _  => wunsigned i
     end in
   let r := mathcomp.word.word.t2w [tuple of cf::mathcomp.word.word.w2t v] in
-  let r := mathcomp.word.word.rotl r (Z.to_nat im) in
-  let CF := mathcomp.word.word.msb r in
-  let r : word sz := mathcomp.word.word.t2w [tuple of behead (mathcomp.word.word.w2t r)] in
-  let OF := if i == 1%R then Some (msb r != CF) else None in
+  let r := rot r (Z.to_nat i) in
+  let r := mathcomp.word.word.w2t r in
+  let CF := head false r in
+  let r : word sz := mathcomp.word.word.t2w [tuple of behead r] in
+  let OF := if i == 1%R then Some (ovf r CF) else None in
   ok (:: OF, Some CF & r ).
 
+Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
+  @x86_rotate_with_carry sz (@mathcomp.word.word.rotl _) (λ r c, msb r != c) v i cf.
+
 Definition x86_RCR sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
-  Let _  := check_size_8_64 sz in
-  let i := wand i (x86_shift_mask sz) in
-  let im :=
-    match sz with
-    | U8 => Zmod (wunsigned i) 9
-    | U16 => Zmod (wunsigned i) 17
-    | _  => wunsigned i
-    end in
-  let OF := if i == 1%R then Some (msb v != cf) else None in
-  let r := mathcomp.word.word.t2w [tuple of rcons (mathcomp.word.word.w2t v) cf] in
-  let r := mathcomp.word.word.rotr r (Z.to_nat im) in
-  let CF := mathcomp.word.word.lsb r in
-  let r : word sz := mathcomp.word.word.t2w [tuple of rev (behead (rev (mathcomp.word.word.w2t r)))] in
-  ok (:: OF, Some CF & r ).
+  @x86_rotate_with_carry sz (@mathcomp.word.word.rotr _) (λ _ _, msb v != cf) v i cf.
 
 Definition rflags_OF {s} sz (i:word s) (r:word sz) rc OF : ex_tpl (b5w_ty sz) :=
   let OF := if i == 1%R then Some OF else None in
@@ -595,7 +659,7 @@ Definition x86_SHR sz (v: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   else
     let rc := lsb (wshr v (wunsigned i - 1)) in
     let r  := wshr v (wunsigned i) in
-    rflags_OF i r rc (msb r).
+    rflags_OF i r rc (msb v).
 
 Definition x86_SHRD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   Let _  := check_size_16_64 sz in
@@ -663,12 +727,12 @@ Definition same_vector_length ve sz ve' sz' :=
 Definition x86_VPMOVSX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: word sz) : exec (word sz') :=
   Let _ := check_size_128_256 sz' in
   Let _ := same_vector_length ve sz ve' sz' in
-  ok (lift1_vec' (@sign_extend ve ve') sz' w).
+  ok (lift1_vec' (@sign_extend ve' ve) sz' w).
 
 Definition x86_VPMOVZX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: word sz) : exec (word sz') :=
   Let _ := check_size_128_256 sz' in
   Let _ := same_vector_length ve sz ve' sz' in
-  ok (lift1_vec' (@zero_extend ve ve') sz' w).
+  ok (lift1_vec' (@zero_extend ve' ve) sz' w).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VMOVDQ sz (v: word sz) : ex_tpl (w_ty sz) :=
@@ -705,19 +769,19 @@ Definition x86_VPAVG (ve: velem) (sz: wsize) v1 v2 :=
 
 (* ---------------------------------------------------------------- *)
 
-Definition x86_VPMULH ve sz v1 v2 :=
-  Let _ := assert (ve == VE16) ErrType in
+Definition x86_VPMULH sz v1 v2 :=
   x86_u128_binop (lift2_vec U16 (@wmulhs U16) sz) v1 v2.
 
-Definition x86_VPMULHU ve sz v1 v2 :=
-  Let _ := assert (ve == VE16) ErrType in
+Definition x86_VPMULHU sz v1 v2 :=
   x86_u128_binop (lift2_vec U16 (@wmulhu U16) sz) v1 v2.
 
-Definition x86_VPMULHRS ve sz v1 v2 :=
-  Let _ := assert (ve == VE16) ErrType in
+Definition x86_VPMULHRS sz v1 v2 :=
   x86_u128_binop (lift2_vec U16 (@wmulhrs U16) sz) v1 v2.
 
 (* ---------------------------------------------------------------- *)
+Definition x86_nelem_mask (sze szc:wsize) : u8 :=
+  wrepr U8 (2 ^ (wsize_log2 szc - wsize_log2 sze) - 1).
+
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
   Let _ := check_size_8_64 ve in
   let i := wand i (x86_nelem_mask ve U128) in
@@ -747,7 +811,7 @@ Definition x86_VPSRA (ve: velem) sz := x86_u128_shift ve sz (@wsar _).
 Definition x86_u128_shift_variable ve sz op v1 v2 : ex_tpl (w_ty sz) :=
   Let _ := check_size_32_64 ve in
   Let _ := check_size_128_256 sz in
-  ok (lift2_vec ve (λ v1 v2, op v1 (wunsigned v2)) sz v1 v2).
+  ok (lift2_vec ve (λ v1 v2, op v1 (Z.min (wunsigned v2) (wsize_bits ve))) sz v1 v2).
 
 Arguments x86_u128_shift_variable : clear implicits.
 
@@ -763,7 +827,7 @@ Definition x86_VPSLLDQ sz := x86_vpsxldq (@wpslldq sz).
 Definition x86_VPSRLDQ sz := x86_vpsxldq (@wpsrldq sz).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_VPSHUFB sz := x86_u128_binop (@wpshufb sz).
+Definition x86_VPSHUFB sz := x86_u128_binop (lift2_vec U128 (@wpshufb U128) sz).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_vpshuf sz (op: word sz → Z → word sz) (v1: word sz) (v2: u8) : ex_tpl (w_ty sz) :=
@@ -1113,7 +1177,6 @@ Notation mk_ve_instr_ww8_w_120 name semi check prc pp_asm := ((fun ve sz =>
   mk_instr (pp_ve_sz name ve sz) (ww8_ty sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Definition max_32 (sz:wsize) := if (sz <= U32)%CMP then sz else U32.
-Definition primP (op:wsize -> x86_op) := PrimP U64 op.
 
 Definition map_sz (sz:wsize) (a:asm_args) := List.map (fun a => (sz,a)) a.
 
@@ -1201,7 +1264,7 @@ Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm true].
 Definition check_mov sz := [:: r_rmi sz; m_ri (max_32 sz)].
 Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV [:: E 1] [:: E 0] 2
-               check_mov (primP MOV) (pp_iname "mov").
+               check_mov (prim_8_64 MOV) (pp_iname "mov").
 
 Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
 
@@ -1216,7 +1279,7 @@ Definition pp_movd name sz args :=
 
 Definition Ox86_MOVX_instr               :=
   mk_instr_w_w "MOVX" x86_MOVX [:: E 1] [:: E 0] 2
-               check_movx (primP MOVX) (pp_movd "mov").
+               check_movx (prim_32_64 MOVX) (pp_movd "mov").
 
 Definition check_movsx (_ _:wsize) := [:: r_rm ].
 
@@ -1227,7 +1290,7 @@ Definition pp_movsx szs szd args :=
      pp_aop_args := zip [::szd; szs] args; |}.
 
 Definition Ox86_MOVSX_instr             :=
-  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movsx (PrimX MOVSX) pp_movsx.
+  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movsx (prim_movsx MOVSX) pp_movsx.
 
 Definition pp_movzx szs szd args :=
   {| pp_aop_name := "movz";
@@ -1235,56 +1298,56 @@ Definition pp_movzx szs szd args :=
      pp_aop_args := zip [::szd; szs] args; |}.
 
 Definition Ox86_MOVZX_instr             :=
-  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movsx (PrimX MOVZX) pp_movzx.
+  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movsx (prim_movzx MOVZX) pp_movzx.
 
 Definition c_r_rm := [:: c; r; rm true].
 Definition Ox86_CMOVcc_instr            :=
-  mk_instr_bw2_w_0211 "CMOVcc" x86_CMOVcc (fun sz => [::c_r_rm]) (primP CMOVcc) (pp_ct "cmov").
+  mk_instr_bw2_w_0211 "CMOVcc" x86_CMOVcc (fun sz => [::c_r_rm]) (prim_16_64 CMOVcc) (pp_ct "cmov").
 
 Definition check_add sz := [:: m_ri (max_32 sz); r_rmi (max_32 sz)].
 Definition Ox86_ADD_instr  :=
-  mk_instr_w2_b5w_010 "ADD" x86_ADD check_add (primP ADD) (pp_iname "add").
+  mk_instr_w2_b5w_010 "ADD" x86_ADD check_add (prim_8_64 ADD) (pp_iname "add").
 Definition Ox86_SUB_instr :=
-  mk_instr_w2_b5w_010 "SUB" x86_SUB check_add (primP SUB) (pp_iname "sub").
+  mk_instr_w2_b5w_010 "SUB" x86_SUB check_add (prim_8_64 SUB) (pp_iname "sub").
 
 Definition check_mul (_:wsize) := [:: [::rm true]].
 Definition Ox86_MUL_instr :=
   mk_instr_w2_b5w2 "MUL"  x86_MUL [:: R RAX; E 0] [:: R RDX; R RAX] 1
-    check_mul (primP MUL) (pp_iname "mul").
+    check_mul (prim_16_64 MUL) (pp_iname "mul").
 
 Definition Ox86_IMUL_instr :=
   mk_instr_w2_b5w2 "IMUL" x86_IMUL [:: R RAX; E 0] [:: R RDX; R RAX] 1
-    check_mul (primP IMUL) (pp_iname "imul") .
+    check_mul (prim_16_64 IMUL) (pp_iname "imul") .
 
 Definition Ox86_IMULr_instr             :=
   mk_instr_w2_b5w_010 "IMULr" x86_IMULt
-    (fun _ => [::r_rm]) (primP IMULr) (pp_iname "imul").
+    (fun _ => [::r_rm]) (prim_16_64 IMULr) (pp_iname "imul").
 
 Definition Ox86_IMULri_instr :=
   mk_instr_w2_b5w "IMULri" x86_IMULt [:: E 1; E 2] [:: E 0] 3
-  (fun sz => [:: [::r; rm true; i (max_32 sz)]]) (primP IMULri) (pp_iname "imul").
+  (fun sz => [:: [::r; rm true; i (max_32 sz)]]) (prim_16_64 IMULri) (pp_iname "imul").
 
 Definition Ox86_DIV_instr :=
-  mk_instr_w3_b5w2_da0ad "DIV" x86_DIV check_mul (primP DIV) (pp_iname "div").
+  mk_instr_w3_b5w2_da0ad "DIV" x86_DIV check_mul (prim_16_64 DIV) (pp_iname "div").
 
 Definition Ox86_IDIV_instr :=
-  mk_instr_w3_b5w2_da0ad "IDIV" x86_IDIV check_mul (primP IDIV) (pp_iname "idiv").
+  mk_instr_w3_b5w2_da0ad "IDIV" x86_IDIV check_mul (prim_16_64 IDIV) (pp_iname "idiv").
 
 Definition Ox86_CQO_instr :=
-  mk_instr_w_w "CQO" x86_CQO [:: R RAX] [:: R RDX] 0 (fun _ => [:: [::]]) (primP CQO) pp_cqo.
+  mk_instr_w_w "CQO" x86_CQO [:: R RAX] [:: R RDX] 0 (fun _ => [:: [::]]) (prim_16_64 CQO) pp_cqo.
 
 Definition Ox86_ADC_instr :=
-  mk_instr_w2b_b5w_010 "ADC" x86_ADC check_add (primP ADC) (pp_iname "adc").
+  mk_instr_w2b_b5w_010 "ADC" x86_ADC check_add (prim_8_64 ADC) (pp_iname "adc").
 
 Definition Ox86_SBB_instr               :=
-  mk_instr_w2b_b5w_010 "SBB" x86_SBB check_add (primP SBB) (pp_iname "sbb").
+  mk_instr_w2b_b5w_010 "SBB" x86_SBB check_add (prim_8_64 SBB) (pp_iname "sbb").
 
 Definition check_adcx (_:wsize) := [:: r_rm].
 Definition Ox86_ADCX_instr :=
-  mk_instr_w2b_bw "ADCX" x86_ADCX CF check_adcx (primP ADCX) (pp_iname "adcx").
+  mk_instr_w2b_bw "ADCX" x86_ADCX CF check_adcx (prim_32_64 ADCX) (pp_iname "adcx").
 
 Definition Ox86_ADOX_instr :=
-  mk_instr_w2b_bw "ADOX" x86_ADCX OF check_adcx (primP ADOX) (pp_iname "adox").
+  mk_instr_w2b_bw "ADOX" x86_ADCX OF check_adcx (prim_32_64 ADOX) (pp_iname "adox").
 
 Definition check_mulx := [:: [::r;r;rm true]].
 Definition Ox86_MULX_instr :=
@@ -1293,129 +1356,129 @@ Definition Ox86_MULX_instr :=
      mk_instr (pp_sz name sz) (w2_ty sz sz) (w2_ty sz sz)
          [::R RDX; E 2] [:: E 0; E 1] (reg_msb_flag sz)
          (@x86_MULX sz) check_mulx 3 [::] (pp_iname name sz)),
-    (name, PrimP U64 MULX)).
+    (name, prim_32_64 MULX)).
 
 Definition check_neg (_:wsize) := [::[::rm false]].
 Definition Ox86_NEG_instr               :=
-  mk_instr_w_b5w "NEG" x86_NEG [:: E 0] [:: E 0] 1 check_neg (primP NEG) (pp_iname "neg").
+  mk_instr_w_b5w "NEG" x86_NEG [:: E 0] [:: E 0] 1 check_neg (prim_8_64 NEG) (pp_iname "neg").
 
 Definition Ox86_INC_instr               :=
-  mk_instr_w_b4w_00 "INC" x86_INC check_neg (primP INC) (pp_iname "inc").
+  mk_instr_w_b4w_00 "INC" x86_INC check_neg (prim_8_64 INC) (pp_iname "inc").
 
 Definition Ox86_DEC_instr :=
-  mk_instr_w_b4w_00 "DEC" x86_DEC check_neg (primP DEC) (pp_iname "dec").
+  mk_instr_w_b4w_00 "DEC" x86_DEC check_neg (prim_8_64 DEC) (pp_iname "dec").
 
 Definition Ox86_LZCNT_instr               :=
-  mk_instr_w_b5w "LZCNT" x86_LZCNT [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) (primP LZCNT) (pp_iname "lzcnt").
+  mk_instr_w_b5w "LZCNT" x86_LZCNT [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) (prim_16_64 LZCNT) (pp_iname "lzcnt").
 
 Definition check_setcc := [:: [::c; rm false]].
 Definition Ox86_SETcc_instr             :=
-  mk_instr_pp "SETcc" b_ty w8_ty [:: E 0] [:: E 1] (reg_msb_flag U8) x86_SETcc check_setcc 2 (PrimM SETcc) (pp_ct "set" U8).
+  mk_instr_pp "SETcc" b_ty w8_ty [:: E 0] [:: E 1] (reg_msb_flag U8) x86_SETcc check_setcc 2 (primM SETcc) (pp_ct "set" U8).
 
 Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
 Definition Ox86_BT_instr                :=
-  mk_instr_w2_b "BT" x86_BT [:: E 0; E 1] [:: F CF] 2 check_bt (primP BT) (pp_iname_w_8 "bt").
+  mk_instr_w2_b "BT" x86_BT [:: E 0; E 1] [:: F CF] 2 check_bt (prim_16_64 BT) (pp_iname "bt").
 
 (* -------------------------------------------------------------------- *)
 Definition Ox86_CLC_instr :=
-  mk_instr_pp "CLC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_CLC [:: [::]] 0 (PrimM CLC) (pp_name "clc" U8).
+  mk_instr_pp "CLC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_CLC [:: [::]] 0 (primM CLC) (pp_name "clc" U8).
 
 Definition Ox86_STC_instr :=
-  mk_instr_pp "STC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_STC [:: [::]] 0 (PrimM STC) (pp_name "stc" U8).
+  mk_instr_pp "STC" [::] b_ty [::] [:: F CF ] MSB_CLEAR x86_STC [:: [::]] 0 (primM STC) (pp_name "stc" U8).
 
 (* -------------------------------------------------------------------- *)
 Definition check_lea (_:wsize) := [:: [::r; m true]].
 Definition Ox86_LEA_instr :=
-  mk_instr_w_w "LEA" x86_LEA [:: Ec 1] [:: E 0] 2 check_lea (primP LEA) (pp_iname "lea").
+  mk_instr_w_w "LEA" x86_LEA [:: Ec 1] [:: E 0] 2 check_lea (prim_16_64 LEA) (pp_iname "lea").
 
 Definition check_test (sz:wsize) := [:: [::rm false; ri (max_32 sz)]].
 Definition Ox86_TEST_instr              :=
-  mk_instr_w2_b5 "TEST" x86_TEST [:: E 0; E 1] 2 check_test (primP TEST) (pp_iname "test").
+  mk_instr_w2_b5 "TEST" x86_TEST [:: E 0; E 1] 2 check_test (prim_8_64 TEST) (pp_iname "test").
 
 Definition check_cmp (sz:wsize) := [:: [::rm false; ri (max_32 sz)]; r_rm].
 Definition Ox86_CMP_instr :=
-  mk_instr_w2_b5 "CMP" x86_CMP [:: E 0; E 1] 2 check_cmp (primP CMP) (pp_iname "cmp").
+  mk_instr_w2_b5 "CMP" x86_CMP [:: E 0; E 1] 2 check_cmp (prim_8_64 CMP) (pp_iname "cmp").
 
 Definition Ox86_AND_instr :=
-  mk_instr_w2_b5w_010 "AND" x86_AND check_cmp (primP AND) (pp_iname "and").
+  mk_instr_w2_b5w_010 "AND" x86_AND check_cmp (prim_8_64 AND) (pp_iname "and").
 
 Definition Ox86_OR_instr                :=
-  mk_instr_w2_b5w_010 "OR" x86_OR check_cmp (primP OR) (pp_iname "or").
+  mk_instr_w2_b5w_010 "OR" x86_OR check_cmp (prim_8_64 OR) (pp_iname "or").
 
 Definition Ox86_XOR_instr               :=
-  mk_instr_w2_b5w_010 "XOR" x86_XOR check_cmp (primP XOR) (pp_iname "xor").
+  mk_instr_w2_b5w_010 "XOR" x86_XOR check_cmp (prim_8_64 XOR) (pp_iname "xor").
 
 Definition check_andn (_:wsize) := [:: [:: r; r; rm true]].
 Definition Ox86_ANDN_instr              :=
   mk_instr_w2_b5w "ANDN" x86_ANDN [:: E 1; E 2] [:: E 0] 3
-  check_andn (primP ANDN) (pp_iname "andn").
+  check_andn (prim_32_64 ANDN) (pp_iname "andn").
 
 Definition Ox86_NOT_instr               :=
-  mk_instr_w_w "NOT" x86_NOT [:: E 0] [:: E 0] 1 check_neg (primP NOT) (pp_iname "not").
+  mk_instr_w_w "NOT" x86_NOT [:: E 0] [:: E 0] 1 check_neg (prim_8_64 NOT) (pp_iname "not").
 
 Definition check_ror (_:wsize):= [::[::rm false; ri U8]].
 Definition Ox86_ROR_instr               :=
-  mk_instr_ww8_b2w_0c0 "ROR" x86_ROR check_ror (primP ROR) (pp_iname_w_8 "ror").
+  mk_instr_ww8_b2w_0c0 "ROR" x86_ROR check_ror (prim_8_64 ROR) (pp_iname_w_8 "ror").
 
 Definition Ox86_ROL_instr :=
-  mk_instr_ww8_b2w_0c0 "ROL" x86_ROL check_ror (primP ROL) (pp_iname_w_8 "rol").
+  mk_instr_ww8_b2w_0c0 "ROL" x86_ROL check_ror (prim_8_64 ROL) (pp_iname_w_8 "rol").
 
 Definition Ox86_RCR_instr :=
-  mk_instr_ww8b_b2w_0c0 "RCR" x86_RCR check_ror (primP RCR) (pp_iname_w_8 "rcr").
+  mk_instr_ww8b_b2w_0c0 "RCR" x86_RCR check_ror (prim_8_64 RCR) (pp_iname_w_8 "rcr").
 
 Definition Ox86_RCL_instr :=
-  mk_instr_ww8b_b2w_0c0 "RCL" x86_RCL check_ror (primP RCL) (pp_iname_w_8 "rcl").
+  mk_instr_ww8b_b2w_0c0 "RCL" x86_RCL check_ror (prim_8_64 RCL) (pp_iname_w_8 "rcl").
 
 Definition Ox86_SHL_instr :=
-  mk_instr_ww8_b5w_0c0 "SHL" x86_SHL check_ror (primP SHL) (pp_iname_w_8 "shl").
+  mk_instr_ww8_b5w_0c0 "SHL" x86_SHL check_ror (prim_8_64 SHL) (pp_iname_w_8 "shl").
 
 Definition Ox86_SHR_instr :=
-  mk_instr_ww8_b5w_0c0 "SHR" x86_SHR check_ror (primP SHR) (pp_iname_w_8 "shr").
+  mk_instr_ww8_b5w_0c0 "SHR" x86_SHR check_ror (prim_8_64 SHR) (pp_iname_w_8 "shr").
 
 Definition Ox86_SAL_instr :=
-  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL check_ror (primP SAL) (pp_iname_w_8 "sal").
+  mk_instr_ww8_b5w_0c0 "SAL" x86_SHL check_ror (prim_8_64 SAL) (pp_iname_w_8 "sal").
 
 Definition Ox86_SAR_instr :=
-  mk_instr_ww8_b5w_0c0 "SAR" x86_SAR check_ror (primP SAR) (pp_iname_w_8 "sar").
+  mk_instr_ww8_b5w_0c0 "SAR" x86_SAR check_ror (prim_8_64 SAR) (pp_iname_w_8 "sar").
 
 Definition check_shld (_:wsize):= [::[::rm false; r; ri U8]].
 Definition Ox86_SHLD_instr :=
-  mk_instr_w2w8_b5w_01c0 "SHLD" x86_SHLD check_shld (primP SHLD) (pp_iname_ww_8 "shld").
+  mk_instr_w2w8_b5w_01c0 "SHLD" x86_SHLD check_shld (prim_16_64 SHLD) (pp_iname_ww_8 "shld").
 
 Definition Ox86_SHRD_instr :=
-  mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD check_shld (primP SHRD) (pp_iname_ww_8 "shrd").
+  mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD check_shld (prim_16_64 SHRD) (pp_iname_ww_8 "shrd").
 
 Definition Ox86_BSWAP_instr :=
-  mk_instr_w_w "BSWAP" x86_BSWAP [:: E 0] [:: E 0] 1 (fun _ => [:: [::r]]) (primP BSWAP) (pp_iname "bswap").
+  mk_instr_w_w "BSWAP" x86_BSWAP [:: E 0] [:: E 0] 1 (fun _ => [:: [::r]]) (prim_32_64 BSWAP) (pp_iname "bswap").
 
 Definition Ox86_POPCNT_instr :=
-  mk_instr_w_b5w "POPCNT" x86_POPCNT [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) (primP POPCNT) (pp_name "popcnt").
+  mk_instr_w_b5w "POPCNT" x86_POPCNT [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) (prim_16_64 POPCNT) (pp_name "popcnt").
 
 Definition Ox86_PEXT_instr :=
-  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) (primP PEXT) (pp_name "pext").
+  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) (prim_32_64 PEXT) (pp_name "pext").
 
 Definition Ox86_PDEP_instr :=
-  mk_instr_w2_w_120 "PDEP" x86_PDEP (fun _ => [:: [:: r; r; rm true]]) (primP PDEP) (pp_name "pdep").
+  mk_instr_w2_w_120 "PDEP" x86_PDEP (fun _ => [:: [:: r; r; rm true]]) (prim_32_64 PDEP) (pp_name "pdep").
 
 (* Vectorized instruction *)
 
 Definition check_movd (_:wsize) := [:: [::xmm; rm true]].
 Definition Ox86_MOVD_instr :=
-  mk_instr_w_w128_10 "MOVD" MSB_MERGE x86_MOVD check_movd (primP MOVD) (pp_movd "mov").
+  mk_instr_w_w128_10 "MOVD" MSB_MERGE x86_MOVD check_movd (prim_32_64 MOVD) (pp_movd "mov").
 
 Definition Ox86_MOVV_instr :=
-  mk_instr_w_w "MOVV" x86_MOVX [:: E 1 ] [:: E 0 ] 2 (λ _, [:: [:: rm false; xmm ] ]) (primP MOVV) (pp_movd "mov").
+  mk_instr_w_w "MOVV" x86_MOVX [:: E 1 ] [:: E 0 ] 2 (λ _, [:: [:: rm false; xmm ] ]) (prim_32_64 MOVV) (pp_movd "mov").
 
 Definition Ox86_VMOV_instr :=
-  mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd (primP VMOV) (pp_movd "vmov").
+  mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd (prim_32_64 VMOV) (pp_movd "vmov").
 
 Definition check_vmovdq (_:wsize) := [:: xmm_xmmm; xmmm_xmm].
 
 Definition Ox86_VMOVDQA_instr :=
-  mk_instr_w_w "VMOVDQA" x86_VMOVDQ [:: E 1] [:: E 0] 2 check_vmovdq (PrimP U128 VMOVDQA) (pp_name "vmovdqa").
+  mk_instr_w_w "VMOVDQA" x86_VMOVDQ [:: E 1] [:: E 0] 2 check_vmovdq (prim_128_256 VMOVDQA) (pp_name "vmovdqa").
 
 Definition Ox86_VMOVDQU_instr :=
-  mk_instr_w_w "VMOVDQU" x86_VMOVDQ [:: E 1] [:: E 0] 2 check_vmovdq (PrimP U128 VMOVDQU) (pp_name "vmovdqu").
+  mk_instr_w_w "VMOVDQU" x86_VMOVDQ [:: E 1] [:: E 0] 2 check_vmovdq (prim_128_256 VMOVDQU) (pp_name "vmovdqu").
 
 Definition pp_vpmovx name ve sz ve' sz' args :=
   {| pp_aop_name := name;
@@ -1427,7 +1490,7 @@ Definition Ox86_VPMOVSX_instr :=
   (λ ve sz ve' sz',
    mk_instr (pp_ve_sz_ve_sz name ve sz ve' sz') [:: sword sz ] [:: sword sz' ] [:: E 1 ] [:: E 0 ]
             MSB_CLEAR (@x86_VPMOVSX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2 [::] (pp_vpmovx "vpmovsx" ve sz ve' sz'),
-   (name, PrimVV VPMOVSX)
+   (name, prim_vv VPMOVSX)
    ).
 
 Definition Ox86_VPMOVZX_instr :=
@@ -1435,28 +1498,33 @@ Definition Ox86_VPMOVZX_instr :=
   (λ ve sz ve' sz',
    mk_instr (pp_ve_sz_ve_sz name ve sz ve' sz') [:: sword sz ] [:: sword sz' ] [:: E 1 ] [:: E 0 ]
             MSB_CLEAR (@x86_VPMOVZX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2 [::] (pp_vpmovx "vpmovzx" ve sz ve' sz'),
-   (name, PrimVV VPMOVZX)
+   (name, prim_vv VPMOVZX)
    ).
 
 Definition check_xmm_xmm_xmmm (_:wsize) := [:: xmm_xmm_xmmm].
 
-Definition Ox86_VPAND_instr  := mk_instr_w2_w_120    "VPAND"   x86_VPAND  check_xmm_xmm_xmmm (PrimP U128 VPAND) (pp_name "vpand").
-Definition Ox86_VPANDN_instr := mk_instr_w2_w_120    "VPANDN"  x86_VPANDN check_xmm_xmm_xmmm (PrimP U128 VPANDN) (pp_name "vpandn").
-Definition Ox86_VPOR_instr   := mk_instr_w2_w_120    "VPOR"    x86_VPOR   check_xmm_xmm_xmmm (PrimP U128 VPOR) (pp_name "vpor").
-Definition Ox86_VPXOR_instr  := mk_instr_w2_w_120    "VPXOR"   x86_VPXOR  check_xmm_xmm_xmmm (PrimP U128 VPXOR) (pp_name "vpxor").
-Definition Ox86_VPADD_instr  := mk_ve_instr_w2_w_120 "VPADD"   x86_VPADD  check_xmm_xmm_xmmm (PrimV VPADD) (pp_viname "vpadd").
-Definition Ox86_VPSUB_instr  := mk_ve_instr_w2_w_120 "VPSUB"   x86_VPSUB  check_xmm_xmm_xmmm (PrimV VPSUB) (pp_viname "vpsub").
+Definition Ox86_VPAND_instr  := mk_instr_w2_w_120    "VPAND"   x86_VPAND  check_xmm_xmm_xmmm (prim_128_256 VPAND) (pp_name "vpand").
+Definition Ox86_VPANDN_instr := mk_instr_w2_w_120    "VPANDN"  x86_VPANDN check_xmm_xmm_xmmm (prim_128_256 VPANDN) (pp_name "vpandn").
+Definition Ox86_VPOR_instr   := mk_instr_w2_w_120    "VPOR"    x86_VPOR   check_xmm_xmm_xmmm (prim_128_256 VPOR) (pp_name "vpor").
+Definition Ox86_VPXOR_instr  := mk_instr_w2_w_120    "VPXOR"   x86_VPXOR  check_xmm_xmm_xmmm (prim_128_256 VPXOR) (pp_name "vpxor").
+Definition Ox86_VPADD_instr  := mk_ve_instr_w2_w_120 "VPADD"   x86_VPADD  check_xmm_xmm_xmmm (primV VPADD) (pp_viname "vpadd").
+Definition Ox86_VPSUB_instr  := mk_ve_instr_w2_w_120 "VPSUB"   x86_VPSUB  check_xmm_xmm_xmmm (primV VPSUB) (pp_viname "vpsub").
 
-Definition Ox86_VPAVG_instr := mk_ve_instr_w2_w_120 "VPAVG" x86_VPAVG check_xmm_xmm_xmmm (PrimV VPAVG) (pp_viname "vpavg").
+Definition Ox86_VPAVG_instr := mk_ve_instr_w2_w_120 "VPAVG" x86_VPAVG check_xmm_xmm_xmmm (primV_8_16 VPAVG) (pp_viname "vpavg").
 
-Definition Ox86_VPMULL_instr := mk_ve_instr_w2_w_120 "VPMULL" x86_VPMULL check_xmm_xmm_xmmm (PrimV VPMULL) (pp_viname "vpmull").
-Definition Ox86_VPMUL_instr  := ((fun sz => mk_instr (pp_sz "VPMUL" sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMUL sz) (check_xmm_xmm_xmmm sz) 3 [::] (pp_name "vpmuldq" sz)), ("VPMUL"%string, (PrimP U128 VPMUL))).
-Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_sz "VPMULU" sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMULU sz) (check_xmm_xmm_xmmm sz) 3 [::] (pp_name "vpmuludq" sz)), ("VPMULU"%string, (PrimP U128 VPMULU))).
+Definition Ox86_VPMULL_instr := mk_ve_instr_w2_w_120 "VPMULL" x86_VPMULL check_xmm_xmm_xmmm (primV_16_32 VPMULL) (pp_viname "vpmull").
+Definition Ox86_VPMUL_instr  := ((fun sz => mk_instr (pp_sz "VPMUL" sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMUL sz) (check_xmm_xmm_xmmm sz) 3 [::] (pp_name "vpmuldq" sz)), ("VPMUL"%string, (prim_128_256 VPMUL))).
+Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_sz "VPMULU" sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMULU sz) (check_xmm_xmm_xmmm sz) 3 [::] (pp_name "vpmuludq" sz)), ("VPMULU"%string, (prim_128_256 VPMULU))).
 
-Definition Ox86_VPMULH_instr := mk_ve_instr_w2_w_120 "VPMULH" x86_VPMULH check_xmm_xmm_xmmm (PrimV VPMULH) (pp_viname "vpmulh").
-Definition Ox86_VPMULHU_instr := mk_ve_instr_w2_w_120 "VPMULHU" x86_VPMULHU check_xmm_xmm_xmmm (PrimV VPMULHU) (pp_viname "vpmulhu").
+Notation mk_instr_vpmulh name semi prc asm_name :=
+  ((λ sz,
+     mk_instr (pp_ve_sz name VE16 sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2 ] [:: E 0] (reg_msb_flag sz) (semi sz) (check_xmm_xmm_xmmm sz) 3 [::] (pp_viname asm_name VE16 sz)), (name%string, primV_16 (λ _, prc)))  (only parsing).
 
-Definition Ox86_VPMULHRS_instr := mk_ve_instr_w2_w_120 "VPMULHRS" x86_VPMULHRS check_xmm_xmm_xmmm (PrimV VPMULHRS) (pp_viname "vpmulhrs").
+Definition Ox86_VPMULH_instr := mk_instr_vpmulh "VPMULH" x86_VPMULH VPMULH "vpmulh".
+
+Definition Ox86_VPMULHU_instr := mk_instr_vpmulh "VPMULHU" x86_VPMULHU VPMULHU "vpmulhu".
+
+Definition Ox86_VPMULHRS_instr := mk_instr_vpmulh "VPMULHRS" x86_VPMULHRS VPMULHRS "vpmulhrs".
 
 Definition check_vpextr (_:wsize) :=  [:: [:: rm false; xmm; i U8] ].
 
@@ -1471,7 +1539,7 @@ Definition Ox86_VPEXTR_instr :=
       mk_instr (pp_sz "VPEXTR" sz) w128w8_ty (w_ty sz) [:: E 1 ; E 2] [:: E 0]
                MSB_CLEAR (@x86_VPEXTR sz) (check_vpextr sz) 3 [::]
                (pp_viname_t "vpextr" ve [:: if sz==U32 then U32 else U64; U128; U8])),
-   ("VPEXTR"%string, (primP VPEXTR))).
+   ("VPEXTR"%string, (prim_8_64 VPEXTR))).
 
 Definition pp_vpinsr ve args :=
   let rs := match ve with VE8 | VE16 | VE32 => U32 | VE64 => U64 end in
@@ -1481,73 +1549,74 @@ Definition pp_vpinsr ve args :=
 
 Definition check_vpinsr (_:wsize) :=  [:: [:: xmm; xmm; rm true; i U8] ].
 Definition Ox86_VPINSR_instr  :=
-  ((fun (sz:velem) => mk_instr (pp_ve_sz "VPINSR" sz U128) (w128ww8_ty sz) w128_ty [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (x86_VPINSR sz)
-                               (check_vpinsr sz) 4 [::] (pp_vpinsr sz)),
-   ("VPINSR"%string, PrimV (fun ve _ => VPINSR ve))).
+  ((fun (ve:velem) =>
+      mk_instr (pp_ve_sz "VPINSR" ve U128) (w128ww8_ty ve) w128_ty [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (x86_VPINSR ve)
+                               (check_vpinsr ve) 4 [::] (pp_vpinsr ve)),
+   ("VPINSR"%string, primV_128 (λ ve _, VPINSR ve))).
 
 Definition check_xmm_xmm_imm8 (_:wsize) := [:: [:: xmm; xmm; i U8]].
 Definition Ox86_VPSLL_instr :=
-  mk_ve_instr_ww8_w_120 "VPSLL" x86_VPSLL check_xmm_xmm_imm8 (PrimV VPSLL) (pp_viname "vpsll").
+  mk_ve_instr_ww8_w_120 "VPSLL" x86_VPSLL check_xmm_xmm_imm8 (primV_16_64 VPSLL) (pp_viname "vpsll").
 
 Definition Ox86_VPSRL_instr :=
-  mk_ve_instr_ww8_w_120 "VPSRL" x86_VPSRL check_xmm_xmm_imm8 (PrimV VPSRL) (pp_viname "vpsrl").
+  mk_ve_instr_ww8_w_120 "VPSRL" x86_VPSRL check_xmm_xmm_imm8 (primV_16_64 VPSRL) (pp_viname "vpsrl").
 
 Definition Ox86_VPSRA_instr :=
-  mk_ve_instr_ww8_w_120 "VPSRA" x86_VPSRA check_xmm_xmm_imm8 (PrimV VPSRA) (pp_viname "vpsra").
+  mk_ve_instr_ww8_w_120 "VPSRA" x86_VPSRA check_xmm_xmm_imm8 (primV_16_64 VPSRA) (pp_viname "vpsra").
 
 Definition Ox86_VPSLLV_instr :=
-  mk_ve_instr_w2_w_120 "VPSLLV" x86_VPSLLV check_xmm_xmm_xmmm (PrimV VPSLLV) (pp_viname "vpsllv").
+  mk_ve_instr_w2_w_120 "VPSLLV" x86_VPSLLV check_xmm_xmm_xmmm (primV_16_64 VPSLLV) (pp_viname "vpsllv").
 
 Definition Ox86_VPSRLV_instr :=
-  mk_ve_instr_w2_w_120 "VPSRLV" x86_VPSRLV check_xmm_xmm_xmmm (PrimV VPSRLV) (pp_viname "vpsrlv").
+  mk_ve_instr_w2_w_120 "VPSRLV" x86_VPSRLV check_xmm_xmm_xmmm (primV_16_64 VPSRLV) (pp_viname "vpsrlv").
 
 Definition Ox86_VPSLLDQ_instr :=
-  mk_instr_ww8_w_120 "VPSLLDQ" x86_VPSLLDQ check_xmm_xmm_imm8 (PrimP U128 VPSLLDQ) (pp_name "vpslldq").
+  mk_instr_ww8_w_120 "VPSLLDQ" x86_VPSLLDQ check_xmm_xmm_imm8 (prim_128_256 VPSLLDQ) (pp_name "vpslldq").
 
 Definition Ox86_VPSRLDQ_instr :=
-  mk_instr_ww8_w_120 "VPSRLDQ" x86_VPSRLDQ check_xmm_xmm_imm8 (PrimP U128 VPSRLDQ) (pp_name "vpsrldq").
+  mk_instr_ww8_w_120 "VPSRLDQ" x86_VPSRLDQ check_xmm_xmm_imm8 (prim_128_256 VPSRLDQ) (pp_name "vpsrldq").
 
 Definition Ox86_VPSHUFB_instr :=
-  mk_instr_w2_w_120 "VPSHUFB" x86_VPSHUFB check_xmm_xmm_xmmm (PrimP U128 VPSHUFB) (pp_name "vpshufb").
+  mk_instr_w2_w_120 "VPSHUFB" x86_VPSHUFB check_xmm_xmm_xmmm (prim_128_256 VPSHUFB) (pp_name "vpshufb").
 
 Definition check_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmmm true; i U8]].
 Definition Ox86_VPSHUFHW_instr          :=
-  mk_instr_ww8_w_120 "VPSHUFHW" x86_VPSHUFHW check_xmm_xmmm_imm8 (PrimP U128 VPSHUFHW) (pp_name "vpshufhw").
+  mk_instr_ww8_w_120 "VPSHUFHW" x86_VPSHUFHW check_xmm_xmmm_imm8 (prim_128_256 VPSHUFHW) (pp_name "vpshufhw").
 
 Definition Ox86_VPSHUFLW_instr :=
-  mk_instr_ww8_w_120 "VPSHUFLW" x86_VPSHUFLW check_xmm_xmmm_imm8 (PrimP U128 VPSHUFLW) (pp_name "vpshuflw").
+  mk_instr_ww8_w_120 "VPSHUFLW" x86_VPSHUFLW check_xmm_xmmm_imm8 (prim_128_256 VPSHUFLW) (pp_name "vpshuflw").
 
 Definition Ox86_VPSHUFD_instr :=
-  mk_instr_ww8_w_120 "VPSHUFD" x86_VPSHUFD check_xmm_xmmm_imm8 (PrimP U128 VPSHUFD) (pp_name "vpshufd").
+  mk_instr_ww8_w_120 "VPSHUFD" x86_VPSHUFD check_xmm_xmmm_imm8 (prim_128_256 VPSHUFD) (pp_name "vpshufd").
 
 Definition Ox86_VPUNPCKH_instr :=
-  mk_ve_instr_w2_w_120 "VPUNPCKH" x86_VPUNPCKH check_xmm_xmm_xmmm (PrimV VPUNPCKH) (pp_viname_long "vpunpckh").
+  mk_ve_instr_w2_w_120 "VPUNPCKH" x86_VPUNPCKH check_xmm_xmm_xmmm (primV VPUNPCKH) (pp_viname_long "vpunpckh").
 
 Definition Ox86_VPUNPCKL_instr :=
-  mk_ve_instr_w2_w_120 "VPUNPCKL" x86_VPUNPCKL check_xmm_xmm_xmmm (PrimV VPUNPCKL) (pp_viname_long "vpunpckl").
+  mk_ve_instr_w2_w_120 "VPUNPCKL" x86_VPUNPCKL check_xmm_xmm_xmmm (primV VPUNPCKL) (pp_viname_long "vpunpckl").
 
 Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U8]].
 Definition Ox86_VPBLEND_instr :=
-  mk_ve_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 (PrimV VPBLEND) (pp_viname "vpblend").
+  mk_ve_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 (primV_16_32 VPBLEND) (pp_viname "vpblend").
 
 Definition check_xmm_xmm_xmmm_xmm (_:wsize) := [:: [:: xmm; xmm; xmmm true; xmm]].
 Definition Ox86_VPBLENDVB_instr :=
   (fun sz => mk_instr
                (pp_sz "VPBLENDVB" sz) (w3_ty sz) (w_ty sz) [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR
                (@x86_VPBLENDVB sz) (check_xmm_xmm_xmmm_xmm sz) 4 [::]
-               (pp_name "vpblendvb" sz), ("VPBLENDVB"%string, PrimP U128 VPBLENDVB)).
+               (pp_name "vpblendvb" sz), ("VPBLENDVB"%string, prim_128_256 VPBLENDVB)).
 
 Definition Ox86_VPACKUS_instr :=
- mk_ve_instr_w2_w_120 "VPACKUS" x86_VPACKUS check_xmm_xmm_xmmm (PrimV VPACKUS)
+ mk_ve_instr_w2_w_120 "VPACKUS" x86_VPACKUS check_xmm_xmm_xmmm (primV_16_32 VPACKUS)
    (fun (ve:velem) => pp_name (if U16 == ve then "vpackuswb"%string else "vpackusdw"%string)).
 
 Definition Ox86_VPACKSS_instr :=
- mk_ve_instr_w2_w_120 "VPACKSS" x86_VPACKSS check_xmm_xmm_xmmm (PrimV VPACKSS)
+ mk_ve_instr_w2_w_120 "VPACKSS" x86_VPACKSS check_xmm_xmm_xmmm (primV_16_32 VPACKSS)
    (fun (ve:velem) => pp_name (if U16 == ve then "vpacksswb"%string else "vpackssdw"%string)).
 
-Definition Ox86_VSHUFPS_instr := 
-  mk_instr_w2w8_w_1230 "VSHUFPS" (@x86_VSHUFPS) check_xmm_xmm_xmmm_imm8 (PrimP U128 VSHUFPS)
-      (pp_name "vshufps").                 
+Definition Ox86_VSHUFPS_instr :=
+  mk_instr_w2w8_w_1230 "VSHUFPS" (@x86_VSHUFPS) check_xmm_xmm_xmmm_imm8 (prim_128_256 VSHUFPS)
+      (pp_name "vshufps").
 
 Definition pp_vpbroadcast ve sz args :=
   {| pp_aop_name := "vpbroadcast";
@@ -1557,47 +1626,47 @@ Definition pp_vpbroadcast ve sz args :=
 Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm true]].
 
 Definition Ox86_VPBROADCAST_instr       :=
-  mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_xmmm (PrimV VPBROADCAST) pp_vpbroadcast.
+  mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_xmmm (primV VPBROADCAST) pp_vpbroadcast.
 
 Definition Ox86_VMOVSHDUP_instr :=
-  mk_instr_w_w "VMOVSHDUP" x86_VMOVSHDUP [:: E 1 ] [:: E 0 ] 2 check_xmm_xmmm (PrimP U256 VMOVSHDUP) (pp_name "vmovshdup").
+  mk_instr_w_w "VMOVSHDUP" x86_VMOVSHDUP [:: E 1 ] [:: E 0 ] 2 check_xmm_xmmm (prim_128_256 VMOVSHDUP) (pp_name "vmovshdup").
 
 Definition Ox86_VMOVSLDUP_instr :=
-  mk_instr_w_w "VMOVSLDUP" x86_VMOVSLDUP [:: E 1 ] [:: E 0 ] 2 check_xmm_xmmm (PrimP U256 VMOVSLDUP) (pp_name "vmovsldup").
+  mk_instr_w_w "VMOVSLDUP" x86_VMOVSLDUP [:: E 1 ] [:: E 0 ] 2 check_xmm_xmmm (prim_128_256 VMOVSLDUP) (pp_name "vmovsldup").
 
-Definition Ox86_VPALIGNR_instr := 
+Definition Ox86_VPALIGNR_instr :=
   ((fun sz =>
-     mk_instr (pp_sz "VPALIGNR" sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR 
-      (@x86_VPALIGNR sz) (check_xmm_xmm_xmmm_imm8 sz) 4 [::] (pp_name "vpalignr" sz)), ("VPALIGNR"%string, PrimP U128 VPALIGNR)).
+     mk_instr (pp_sz "VPALIGNR" sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR
+      (@x86_VPALIGNR sz) (check_xmm_xmm_xmmm_imm8 sz) 4 [::] (pp_name "vpalignr" sz)), ("VPALIGNR"%string, prim_128_256 VPALIGNR)).
 
 (* 256 *)
 
 Definition Ox86_VBROADCASTI128_instr    :=
   (mk_instr (pp_s "VPBROADCAST_2u128") w128_ty w256_ty [:: E 1] [:: E 0] MSB_CLEAR (x86_VPBROADCAST U256)
             ([:: [::xmm; m true]]) 2 [::] (pp_name_ty "vbroadcasti128" [::U256; U128]),
-   ("VPBROADCAST_2u128"%string, (PrimM VBROADCASTI128))).
+   ("VPBROADCAST_2u128"%string, (primM VBROADCASTI128))).
 
 Definition check_xmmm_xmm_imm8 (_:wsize) := [:: [:: xmmm false; xmm; i U8]].
 
 Definition Ox86_VEXTRACTI128_instr :=
   mk_instr_pp "VEXTRACTI128" w256w8_ty w128_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VEXTRACTI128
-              (check_xmmm_xmm_imm8 U256) 3 (PrimM VEXTRACTI128) (pp_name_ty "vextracti128" [::U128; U256; U8]).
+              (check_xmmm_xmm_imm8 U256) 3 (primM VEXTRACTI128) (pp_name_ty "vextracti128" [::U128; U256; U8]).
 
 Definition Ox86_VINSERTI128_instr :=
   mk_instr_pp "VINSERTI128" w256w128w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VINSERTI128
-              (check_xmm_xmm_xmmm_imm8 U256) 4 (PrimM VINSERTI128) (pp_name_ty "vinserti128" [::U256;U256; U128; U8]).
+              (check_xmm_xmm_xmmm_imm8 U256) 4 (primM VINSERTI128) (pp_name_ty "vinserti128" [::U256;U256; U128; U8]).
 
 Definition Ox86_VPERM2I128_instr :=
   mk_instr_pp "VPERM2I128" w256x2w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VPERM2I128
-              (check_xmm_xmm_xmmm_imm8 U256) 4 (PrimM VPERM2I128) (pp_name_ty "vperm2i128" [::U256;U256;U256;U8]).
+              (check_xmm_xmm_xmmm_imm8 U256) 4 (primM VPERM2I128) (pp_name_ty "vperm2i128" [::U256;U256;U256;U8]).
 
 Definition Ox86_VPERMD_instr :=
   mk_instr_pp "VPERMD" (w2_ty U256 U256) w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMD
-       (check_xmm_xmm_xmmm U256) 3 (PrimM VPERMD) (pp_name "vpermd" U256).
+       (check_xmm_xmm_xmmm U256) 3 (primM VPERMD) (pp_name "vpermd" U256).
 
 Definition Ox86_VPERMQ_instr :=
   mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMQ
-              (check_xmm_xmmm_imm8 U256) 3 (PrimM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
+              (check_xmm_xmmm_imm8 U256) 3 (primM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
 
 Definition Ox86_PMOVMSKB_instr :=
   (fun ssz dsz => mk_instr
@@ -1612,7 +1681,7 @@ Definition Ox86_PMOVMSKB_instr :=
     2 (* nargs *)
     [::]
     (pp_name_ty "vpmovmskb" [:: dsz; ssz]) (* asm pprinter *)
-  , ("VPMOVMSKB"%string, PrimX VPMOVMSKB) (* jasmin concrete syntax *)
+  , ("VPMOVMSKB"%string, primX VPMOVMSKB) (* jasmin concrete syntax *)
   ).
 
 Definition Ox86_VPCMPEQ_instr :=
@@ -1628,7 +1697,7 @@ Definition Ox86_VPCMPEQ_instr :=
                   3
                   [::]
                   (pp_viname "vpcmpeq" ve sz)
-                ,("VPCMPEQ"%string, PrimV VPCMPEQ)
+                ,("VPCMPEQ"%string, primV VPCMPEQ)
   ).
 
 Definition Ox86_VPCMPGT_instr :=
@@ -1644,7 +1713,7 @@ Definition Ox86_VPCMPGT_instr :=
                   3
                   [::]
                   (pp_viname "vpcmpgt" ve sz)
-                ,("VPCMPGT"%string, PrimV VPCMPGT)
+                ,("VPCMPGT"%string, primV VPCMPGT)
   ).
 
 Definition Ox86_VPMADDUBSW_instr :=
@@ -1660,7 +1729,7 @@ Definition Ox86_VPMADDUBSW_instr :=
                 3
                 [::]
                 (pp_name_ty "vpmaddubsw" [:: sz; sz; sz])
-             ,("VPMADDUBSW"%string, PrimP U128 VPMADDUBSW)
+             ,("VPMADDUBSW"%string, prim_128_256 VPMADDUBSW)
   ).
 
 Definition Ox86_VPMADDWD_instr :=
@@ -1676,35 +1745,35 @@ Definition Ox86_VPMADDWD_instr :=
                 3
                 [::]
                 (pp_name_ty "vpmaddwd" [:: sz; sz; sz])
-             ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
+             ,("VPMADDWD"%string, prim_128_256 VPMADDWD)
   ).
 
 Definition check_movpd := [:: [::m false; xmm]].
 
 Definition Ox86_VMOVLPD_instr :=
-  mk_instr_pp "VMOVLPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVLPD check_movpd 2 (PrimM VMOVLPD) (pp_name_ty "vmovlpd" [::U64; U128]).
+  mk_instr_pp "VMOVLPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVLPD check_movpd 2 (primM VMOVLPD) (pp_name_ty "vmovlpd" [::U64; U128]).
 
 Definition Ox86_VMOVHPD_instr :=
-  mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVHPD check_movpd 2 (PrimM VMOVHPD) (pp_name_ty "vmovhpd" [::U64;U128]).
+  mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVHPD check_movpd 2 (primM VMOVHPD) (pp_name_ty "vmovhpd" [::U64;U128]).
 
-Definition Ox86_VPMINS_instr  := 
-  mk_ve_instr_w2_w_120 "VPMINS" x86_VPMINS check_xmm_xmm_xmmm (PrimV VPMINS) (pp_viname "vpmins").
+Definition Ox86_VPMINS_instr  :=
+  mk_ve_instr_w2_w_120 "VPMINS" x86_VPMINS check_xmm_xmm_xmmm (primV_8_32 VPMINS) (pp_viname "vpmins").
 
-Definition Ox86_VPMINU_instr  := 
-  mk_ve_instr_w2_w_120 "VPMINU" x86_VPMINU check_xmm_xmm_xmmm (PrimV VPMINU) (pp_viname "vpminu").
+Definition Ox86_VPMINU_instr  :=
+  mk_ve_instr_w2_w_120 "VPMINU" x86_VPMINU check_xmm_xmm_xmmm (primV_8_32 VPMINU) (pp_viname "vpminu").
 
-Definition Ox86_VPMAXS_instr  := 
-  mk_ve_instr_w2_w_120 "VPMAXS" x86_VPMAXS check_xmm_xmm_xmmm (PrimV VPMAXS) (pp_viname "vpmaxs").
+Definition Ox86_VPMAXS_instr  :=
+  mk_ve_instr_w2_w_120 "VPMAXS" x86_VPMAXS check_xmm_xmm_xmmm (primV_8_32 VPMAXS) (pp_viname "vpmaxs").
 
-Definition Ox86_VPMAXU_instr  := 
-  mk_ve_instr_w2_w_120 "VPMAXU" x86_VPMAXU check_xmm_xmm_xmmm (PrimV VPMAXU) (pp_viname "vpmaxu").
+Definition Ox86_VPMAXU_instr  :=
+  mk_ve_instr_w2_w_120 "VPMAXU" x86_VPMAXU check_xmm_xmm_xmmm (primV_8_32 VPMAXU) (pp_viname "vpmaxu").
 
 Definition check_vptest (_:wsize) := [:: xmm_xmmm].
 Definition Ox86_VPTEST_instr :=
   (fun sz => mk_instr
                (pp_sz "VPTEST" sz) (w2_ty sz sz) (b5_ty) [:: E 0; E 1] implicit_flags MSB_MERGE
                (@x86_VPTEST sz) (check_vptest sz) 2 [::]
-               (pp_name "vptest" sz), ("VPTEST"%string, PrimP U128 VPTEST)).
+               (pp_name "vptest" sz), ("VPTEST"%string, prim_128_256 VPTEST)).
 
 (* Monitoring instructions.
    These instructions are declared for the convenience of the programmer.
@@ -1724,7 +1793,7 @@ Definition Ox86_RDTSC_instr :=
               0 (* nargs *)
               [::]
               (pp_name_ty "rdtsc" [:: sz; sz]) (* asm pretty-print*)
-   ,("RDTSC"%string, PrimP U64 RDTSC) (* jasmin concrete syntax *)
+   ,("RDTSC"%string, prim_32_64 RDTSC) (* jasmin concrete syntax *)
   ).
 
 Definition Ox86_RDTSCP_instr :=
@@ -1740,28 +1809,28 @@ Definition Ox86_RDTSCP_instr :=
               0 (* nargs *)
               [::]
               (pp_name_ty "rdtscp" [:: sz; sz; sz]) (* asm pprinter *)
-   ,("RDTSCP"%string, PrimP U64 RDTSCP) (* jasmin concrete syntax *)
+   ,("RDTSCP"%string, prim_32_64 RDTSCP) (* jasmin concrete syntax *)
   ).
 
 (* Fences & cache-related instructions *)
 Definition Ox86_CLFLUSH_instr :=
-  mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (PrimM CLFLUSH) (pp_name "clflush" Uptr).
+  mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" Uptr).
 
 Definition Ox86_LFENCE_instr :=
-  mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (PrimM LFENCE) (pp_name "lfence" U8).
+  mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (primM LFENCE) (pp_name "lfence" U8).
 Definition Ox86_MFENCE_instr :=
-  mk_instr_pp "MFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (PrimM MFENCE) (pp_name "mfence" U8).
+  mk_instr_pp "MFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (primM MFENCE) (pp_name "mfence" U8).
 Definition Ox86_SFENCE_instr :=
-  mk_instr_pp "SFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (PrimM SFENCE) (pp_name "sfence" U8).
+  mk_instr_pp "SFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (primM SFENCE) (pp_name "sfence" U8).
 
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname (constr:x86_op) x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem
-         (check_xmm_xmmm U128) 2 (PrimM constr) (pp_name_ty aname [::U128;U128]).
+         (check_xmm_xmmm U128) 2 (primM constr) (pp_name_ty aname [::U128;U128]).
 
 Definition mk_instr_aes3 jname aname (constr:x86_op) x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 1; E 2] [:: E 0] msb_flag x86_sem
-         (check_xmm_xmm_xmmm U128) 3 (PrimM constr) (pp_name_ty aname [::U128;U128;U128]).
+         (check_xmm_xmm_xmmm U128) 3 (primM constr) (pp_name_ty aname [::U128;U128;U128]).
 
 Definition Ox86_AESDEC_instr := 
   mk_instr_aes2 "AESDEC" "aesdec" AESDEC x86_AESDEC MSB_MERGE.
@@ -1789,22 +1858,22 @@ Definition Ox86_VAESENCLAST_instr :=
 
 Definition Ox86_AESIMC_instr := 
   mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_MERGE x86_AESIMC
-         (check_xmm_xmmm U128) 2 (PrimM AESIMC) (pp_name_ty "aesimc" [::U128;U128]).
+         (check_xmm_xmmm U128) 2 (primM AESIMC) (pp_name_ty "aesimc" [::U128;U128]).
 
 Definition Ox86_VAESIMC_instr := 
   mk_instr_pp "VAESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_CLEAR x86_AESIMC
-         (check_xmm_xmmm U128) 2 (PrimM VAESIMC) (pp_name_ty "vaesimc" [::U128;U128]).
+         (check_xmm_xmmm U128) 2 (primM VAESIMC) (pp_name_ty "vaesimc" [::U128;U128]).
 
 Definition Ox86_AESKEYGENASSIST_instr := 
   mk_instr_pp "AESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
     MSB_MERGE x86_AESKEYGENASSIST
-   (check_xmm_xmmm_imm8 U128) 3 (PrimM AESKEYGENASSIST)
+   (check_xmm_xmmm_imm8 U128) 3 (primM AESKEYGENASSIST)
    (pp_name_ty "aeskeygenassist" [::U128;U128;U8]).
 
 Definition Ox86_VAESKEYGENASSIST_instr := 
   mk_instr_pp "VAESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
     MSB_CLEAR x86_AESKEYGENASSIST
-   (check_xmm_xmmm_imm8 U128) 3 (PrimM VAESKEYGENASSIST)
+   (check_xmm_xmmm_imm8 U128) 3 (primM VAESKEYGENASSIST)
    (pp_name_ty "vaeskeygenassist" [::U128;U128;U8]).
 
 (* PCLMULDQD instructions *)
@@ -1812,7 +1881,7 @@ Definition Ox86_VAESKEYGENASSIST_instr :=
 Definition Ox86_PCLMULQDQ_instr := 
   mk_instr_pp "PCLMULQDQ" [:: sword U128; sword U128; sword U8] (w_ty U128)
     [:: E 0; E 1; E 2] [:: E 0] MSB_CLEAR (@x86_VPCLMULQDQ U128)
-    (check_xmm_xmmm_imm8 U128) 3 (PrimM PCLMULQDQ)
+    (check_xmm_xmmm_imm8 U128) 3 (primM PCLMULQDQ)
    (pp_name_ty "pclmulqdq" [::U128;U128;U8]).
 
 Definition Ox86_VPCLMULQDQ_instr := 
@@ -1820,7 +1889,7 @@ Definition Ox86_VPCLMULQDQ_instr :=
    mk_instr (pp_sz "VPCLMULQDQ"%string sz) [:: sword sz; sword sz; sword U8] (w_ty sz)
        [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR (@x86_VPCLMULQDQ sz)
        (check_xmm_xmm_xmmm_imm8 sz) 4 [::] (pp_name "vpclmulqdq" sz)
- , ("VPCLMULQDQ"%string, PrimP U128 VPCLMULQDQ)).
+ , ("VPCLMULQDQ"%string, prim_128_256 VPCLMULQDQ)).
   
 
 
@@ -1894,9 +1963,9 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMULL sz sz'      => Ox86_VPMULL_instr.1 sz sz'
   | VPMUL sz           => Ox86_VPMUL_instr.1 sz
   | VPMULU sz          => Ox86_VPMULU_instr.1 sz
-  | VPMULH ve sz       => Ox86_VPMULH_instr.1 ve sz
-  | VPMULHU ve sz      => Ox86_VPMULHU_instr.1 ve sz
-  | VPMULHRS ve sz     => Ox86_VPMULHRS_instr.1 ve sz
+  | VPMULH sz          => Ox86_VPMULH_instr.1 sz
+  | VPMULHU sz         => Ox86_VPMULHU_instr.1 sz
+  | VPMULHRS sz        => Ox86_VPMULHRS_instr.1 sz
   | VPSLL sz sz'       => Ox86_VPSLL_instr.1 sz sz'
   | VPSRL sz sz'       => Ox86_VPSRL_instr.1 sz sz'
   | VPSRA sz sz'       => Ox86_VPSRA_instr.1 sz sz'
@@ -2094,11 +2163,11 @@ Definition x86_prim_string :=
    Ox86_VAESKEYGENASSIST_instr.2;
    Ox86_PCLMULQDQ_instr.2;
    Ox86_VPCLMULQDQ_instr.2;
-   ("VPMAX"%string, 
-     PrimSV (fun signedness ve sz => 
+   ("VPMAX"%string,
+     primSV_8_32 (fun signedness ve sz =>
               if signedness is Signed then VPMAXS ve sz else VPMAXU ve sz));
-   ("VPMIN"%string, 
-     PrimSV (fun signedness ve sz => 
+   ("VPMIN"%string,
+     primSV_8_32 (fun signedness ve sz =>
               if signedness is Signed then VPMINS ve sz else VPMINU ve sz))
  ].
 

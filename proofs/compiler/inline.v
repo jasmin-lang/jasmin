@@ -33,12 +33,11 @@ Section INLINE.
 
 Context
   {asm_op syscall_state : Type}
-  {asmop:asmOp asm_op}
-  (inline_var : var -> bool).
+  {asmop:asmOp asm_op}.
 
 Definition get_flag (x:lval) flag :=
   match x with
-  | Lvar x => if inline_var x then AT_inline else flag
+  | Lvar x => if is_inline_var x then AT_inline else flag
   | _      => flag
   end.
 

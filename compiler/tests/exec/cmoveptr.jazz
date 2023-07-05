@@ -1,0 +1,15 @@
+require "../pending/x86-64/cmoveptr.jazz"
+
+inline
+fn zero() -> reg u8 {
+  reg u8 r;
+  #inline r = test(42);
+  return r;
+}
+
+inline
+fn one() -> reg u8 {
+  reg u8 r;
+  #inline r = test(-42);
+  return r;
+}

@@ -34,7 +34,6 @@ module type Regalloc = sig
     (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
     ('a * (unit, extended_op) func) list ->
     ('a * reg_oracle_t * (unit, extended_op) func) list
-    * (L.i_loc -> var option)
 end
 
 module Regalloc (Arch : Arch_full.Arch) :

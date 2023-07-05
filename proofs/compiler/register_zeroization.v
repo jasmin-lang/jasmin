@@ -32,7 +32,7 @@ Module E.
 
   Definition cant_zeroize_register (x : var) : pp_error_loc :=
     let: msg := "can't zeroize register"%string in
-    internal_error (pp_box [:: pp_s msg; pp_s (vname x) ]).
+    internal_error (pp_box [:: pp_s msg; pp_var x ]).
 
   Definition res_has_bool : pp_error_loc :=
     internal_error (pp_s "there's a boolean return variable").

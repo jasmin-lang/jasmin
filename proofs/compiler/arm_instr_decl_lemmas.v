@@ -6,7 +6,9 @@ From mathcomp Require Import word_ssrZ.
 Require Import
   psem
   shift_kind.
-Require Import sem_params_of_arch_extra.
+Require Import
+  arch_utils
+  sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -16,27 +18,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Lemma mn_desc_is_conditional mn sf ic hs ic' :
-  let opts :=
-    {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
-  in
-  let opts' :=
-    {| set_flags := sf; is_conditional := ic'; has_shift := hs; |}
-  in
-  mn_desc mn opts = mn_desc mn opts'.
-Proof. by case: mn. Qed.
-
-Lemma ignore_set_flags mn sf ic hs sf' :
-  mn \notin set_flags_mnemonics
-  -> let opts :=
-       {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
-     in
-     let opts' :=
-       {| set_flags := sf'; is_conditional := ic; has_shift := hs; |}
-     in
-     mn_desc mn opts = mn_desc mn opts'.
-Proof. by case: mn. Qed.
-
 Lemma ignore_has_shift mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=
@@ -45,7 +26,7 @@ Lemma ignore_has_shift mn sf ic hs hs' :
      let opts' :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs'; |}
      in
-     mn_desc mn opts = mn_desc mn opts'.
+     mn_desc opts mn = mn_desc opts' mn.
 Proof. by case: mn. Qed.
 
 (* TODO_ARM: It seems like we need to characterize conditional execution,
@@ -54,7 +35,10 @@ Proof. by case: mn. Qed.
 
 Section WITH_PARAMS.
 
+
+
 Context
+  {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {eft : eqType}
@@ -117,8 +101,6 @@ Proof.
     ).
 
   all: move: hsemop.
-  all: rewrite /sopn_sem /=.
-  all: rewrite /drop_semi_nzcv /=.
   all: move=> [?]; subst v.
   all: by case: b.
 Qed.

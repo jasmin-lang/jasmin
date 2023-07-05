@@ -1,0 +1,22 @@
+export
+fn protect_init_msf_later(#transient reg u64 p) -> #public reg u64 {
+    reg u64 msf, temp;
+    #public reg u64 sum;
+    #public reg u64 i;
+    reg bool b;
+
+    msf = #init_msf();
+    sum = 0;
+    i = 0;
+
+    b = i < 10;
+    while{b = i < 10;}(b){
+        #declassify temp = [p + i];
+        sum += temp;
+        i += 1;
+    }
+    msf = #init_msf();
+    sum = #protect(sum, msf);
+
+    return sum;
+}

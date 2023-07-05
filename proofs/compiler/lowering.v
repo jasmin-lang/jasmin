@@ -4,14 +4,15 @@ Require Import compiler_util expr.
 
 Section LOWERING.
 
+Definition fresh_vars : Type := Ident.name -> stype -> Ident.ident.
+
 Context
-  {asm_op lowering_options fresh_vars : Type}
+  {asm_op lowering_options : Type}
   {asmop : asmOp asm_op}
   (lower_i0 :
     lowering_options
     -> (instr_info -> warning_msg -> instr_info)
     -> fresh_vars
-    -> (var_i -> bool)
     -> instr
     -> cmd)
   (options : lowering_options)
@@ -19,7 +20,6 @@ Context
   (fv : fresh_vars)
   {eft : eqType}
   {pT : progT eft}
-  (is_var_in_memory : var_i -> bool)
   (all_fresh_vars : seq Ident.ident)
   (fvars : Sv.t).
 
@@ -38,7 +38,7 @@ Definition is_lval_in_memory (x : lval) : bool :=
   end.
 
 Notation lower_i :=
-  (lower_i0 options warning fv is_var_in_memory).
+  (lower_i0 options warning fv).
 
 Definition lower_cmd  (c : cmd) : cmd :=
   conc_map lower_i c.

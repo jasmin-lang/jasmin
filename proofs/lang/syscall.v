@@ -1,6 +1,9 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From Coq Require Import PArith ZArith.
-Require Import word type.
+Require Import
+  word
+  type
+  utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -15,9 +18,8 @@ Scheme Equality for syscall_t.
 
 Lemma syscall_t_eq_axiom : Equality.axiom syscall_t_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_syscall_t_dec_bl.
-  by apply: internal_syscall_t_dec_lb.
+  exact:
+    (eq_axiom_of_scheme internal_syscall_t_dec_bl internal_syscall_t_dec_lb).
 Qed.
 
 Definition syscall_t_eqMixin     := Equality.Mixin syscall_t_eq_axiom.

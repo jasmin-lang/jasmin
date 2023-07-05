@@ -1,5 +1,6 @@
 open Glob_options
 open Prog
+open X86_decl_core
 open X86_decl
 
 module Core_arch_ARM : Arch_full.Core_arch = Arm_arch_full.Arm (struct
@@ -21,23 +22,8 @@ let core_arch_x86 ~use_lea ~use_set0 call_conv :
       | Linux -> x86_linux_call_conv
       | Windows -> x86_windows_call_conv
 
-    open X86_lowering
-
-    let lowering_vars tbl =
-      let f ty n =
-        let v = V.mk n (Reg (Normal, Direct)) ty L._dummy [] in
-        Conv.cvar_of_var tbl v
-      in
-      let b = f tbool in
-      {
-        fresh_OF = (b "OF").vname;
-        fresh_CF = (b "CF").vname;
-        fresh_SF = (b "SF").vname;
-        fresh_PF = (b "PF").vname;
-        fresh_ZF = (b "ZF").vname;
-        fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname);
-      }
-
-    let lowering_opt = { use_lea; use_set0 }
+    let lowering_opt =
+      let open X86_lowering in
+      { use_lea; use_set0 }
   end in
   (module X86_arch_full.X86 (Lowering_params))

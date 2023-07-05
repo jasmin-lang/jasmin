@@ -74,3 +74,9 @@ Fixpoint free_vars_rec (s: Sv.t) (e: fexpr) : Sv.t :=
 
 Definition free_vars (e: fexpr) : Sv.t :=
   free_vars_rec Sv.empty e.
+
+Definition free_vars_r (r:rexpr) : Sv.t :=
+  match r with
+  | Load _ x e => free_vars_rec (Sv.singleton x) e
+  | Rexpr e    => free_vars e
+  end.

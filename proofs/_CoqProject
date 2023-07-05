@@ -15,12 +15,12 @@
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
-ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
 arch/arch_decl.v
 arch/arch_extra.v
 arch/arch_sem.v
+arch/arch_utils.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
@@ -30,7 +30,9 @@ compiler/allocation_proof.v
 compiler/arch_params.v
 compiler/arch_params_proof.v
 compiler/arm_decl.v
+compiler/arm_decl_core.v
 compiler/arm_extra.v
+compiler/arm_facts.v
 compiler/arm_instr_decl.v
 compiler/arm_instr_decl_lemmas.v
 compiler/arm_lowering.v
@@ -75,6 +77,8 @@ compiler/register_zeroization_proof.v
 compiler/register_zeroization_proof_utils.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
+compiler/slh_lowering.v
+compiler/slh_lowering_proof.v
 compiler/stack_alloc.v
 compiler/stack_alloc_proof.v
 compiler/stack_alloc_proof_2.v
@@ -85,6 +89,7 @@ compiler/unionfind_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
+compiler/x86_decl_core.v
 compiler/x86_extra.v
 compiler/x86_instr_decl.v
 compiler/x86_lowering.v
@@ -114,6 +119,7 @@ lang/psem_of_sem_proof.v
 lang/psem_facts.v
 lang/psem.v
 lang/register_zeroization_mode.v
+lang/pseudo_operator.v
 lang/sem.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
@@ -122,9 +128,11 @@ lang/sem_params.v
 lang/sem_type.v
 lang/shift_kind.v
 lang/sopn.v
+lang/slh_ops.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v
+lang/tagged.v
 lang/type.v
 lang/utils.v
 lang/values.v

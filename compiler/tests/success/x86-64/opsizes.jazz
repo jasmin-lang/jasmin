@@ -6,9 +6,9 @@ u = v;
 x = x + s;
 x = x + 64;
 x = x + 64s s;
-x = x >> u;
-x = x >>s 64;
-x = x >>64s u;
+x >>= u & 63;
+x = x >>s 24;
+x >>64s= u & 63;
 return x;
 }
 

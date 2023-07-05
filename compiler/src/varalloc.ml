@@ -348,7 +348,7 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
       classes Sv.empty in
   Mv.iter (check_class fd.f_name.fn_name fd.f_loc ptr_classes ptr_args) classes;
 
-  let fd = Live.live_fd is_move_op false fd in
+  let fd = Live.live_fd false fd in
   let (_, ranges), stack_pointers =
     live_ranges_stmt pd alias ptr_classes (0, Mint.empty) fd.f_body in
 

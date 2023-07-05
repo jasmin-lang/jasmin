@@ -12,7 +12,7 @@ fn ldr(reg u32 arg) -> reg u32 {
     x = #LDR([x + (arg * 8)]);
 
     reg bool n, z, v, c;
-    n, z, c, v, x = #MOVS(x);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     x = #LDRcc([x], z, x);            // EQ

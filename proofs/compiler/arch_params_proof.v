@@ -19,7 +19,8 @@ Require
   lowering
   propagate_inline_proof
   stack_alloc
-  stack_alloc_proof.
+  stack_alloc_proof
+  slh_lowering_proof.
 Require Export arch_params.
 
 Set Implicit Arguments.
@@ -30,8 +31,8 @@ Unset Printing Implicit Defensive.
 Record h_lowering_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} 
-  (fresh_vars lowering_options : Type)
-  (loparams : lowering_params fresh_vars lowering_options) :=
+  (lowering_options : Type)
+  (loparams : lowering_params lowering_options) :=
   {
     hlop_lower_callP :
       forall
@@ -40,11 +41,9 @@ Record h_lowering_params
         (sCP : semCallParams)
         (p : prog)
         (ev : extra_val_t)
-        (is_regx : var -> bool)
         (options : lowering_options)
         (warning : instr_info -> warning_msg -> instr_info)
-        (fv : fresh_vars)
-        (is_var_in_memory : var_i -> bool)
+        (fv : lowering.fresh_vars)
         (_ : lop_fvars_correct loparams fv (p_funcs p))
         (f : funname)
         (scs: syscall_state_t) (mem : low_memory.mem)
@@ -53,11 +52,10 @@ Record h_lowering_params
         sem_call p ev scs mem f va scs' mem' vr
         -> let lprog :=
              lowering.lower_prog
-               (lop_lower_i loparams is_regx)
+               (lop_lower_i loparams)
                options
                warning
                fv
-               is_var_in_memory
                p
            in
            sem_call lprog ev scs mem f va scs' mem' vr;
@@ -66,16 +64,15 @@ Record h_lowering_params
 Record h_architecture_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
-  (fresh_vars lowering_options : Type)
-  (aparams : architecture_params fresh_vars lowering_options) :=
+  (lowering_options : Type)
+  (aparams : architecture_params lowering_options) :=
   {
     (* Propagate inline hypotheses. See [propagate_inline_proof.v]. *)
     hap_hpip : propagate_inline_proof.h_propagate_inline_params;
 
     (* Stack alloc hypotheses. See [stack_alloc_proof.v]. *)
     hap_hsap :
-      forall is_regx,
-        stack_alloc_proof.h_stack_alloc_params (ap_sap aparams is_regx);
+        stack_alloc_proof.h_stack_alloc_params (ap_sap aparams);
 
     (* Linearization hypotheses. See [linearization_proof.v]. *)
     hap_hlip :
@@ -86,7 +83,7 @@ Record h_architecture_params
        Needed for the compiler proof. *)
     ok_lip_tmp :
       exists r : reg_t,
-        of_string (linearization.lip_tmp (ap_lip aparams)) = Some r;
+        of_ident (linearization.lip_tmp (ap_lip aparams)) = Some r;
 
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);
@@ -97,6 +94,9 @@ Record h_architecture_params
     (* Register zeroization hypotheses. See [register_zeroization.v]. *)
     hap_hrzp :
       register_zeroization_proof.h_register_zeroization_params (ap_rzp aparams);
+
+    (* Speculative execution lowering hypothesis *)
+    hap_hshp : slh_lowering_proof.h_sh_params (ap_shp aparams);
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

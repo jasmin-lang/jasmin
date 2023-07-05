@@ -66,6 +66,7 @@ Qed.
 Section Section.
 
 Context
+  {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
@@ -121,21 +122,27 @@ Lemma arm_mov_ofsP (P': sprog) s1 e i x tag ofs w vpk s2 ins :
   -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
   -> psem.sem_i (pT := progStack) P' w s1 ins s2.
 Proof.
-  move=> P'_globs he [?] hx; subst ins.
-  constructor.
-  rewrite /sem_sopn /=.
-  rewrite P'_globs.
-  rewrite /exec_sopn /=.
-  move: he.
-  t_xrbindP=> ? -> /= -> /=.
-  rewrite zero_extend_u.
-  by rewrite hx.
+  rewrite /sap_mov_ofs /= /arm_mov_ofs => P'_globs.
+  t_xrbindP => z ok_z ok_i.
+  case: (mk_mov vpk) => /Some_inj <-{ins} hx.
+  all: constructor.
+  all: by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
 Qed.
 
-Definition arm_hsaparams is_regx :
-  h_stack_alloc_params (ap_sap arm_params is_regx) :=
+Lemma arm_immediateP (P': sprog) w s (x: var_i) z :
+  vtype x = sword Uptr
+  -> psem.sem_i (pT := progStack) P' w s (arm_immediate x z) (with_vm s (evm s).[x <- pof_val x.(vtype) (Vword (wrepr Uptr z))])%vmap.
+Proof.
+  case: x => - [] [] // [] // x xi _ /=.
+  constructor.
+  by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
+Qed.
+
+Definition arm_hsaparams :
+  h_stack_alloc_params (ap_sap arm_params) :=
   {|
     mov_ofsP := arm_mov_ofsP;
+    sap_immediateP := arm_immediateP;
   |}.
 
 
@@ -170,13 +177,6 @@ Notation x :=
     v_info := vi;
   |}.
 
-(* Try to rewrite and clear all equalities in the context. *)
-Ltac t_rewrite_eqs :=
-  repeat
-    match goal with
-    | [ h : _ = _ |- _ ] => rewrite !h /=; clear h
-    end.
-
 (* Most ARM instructions with default options are executed as follows:
    1. Unfold instruction execution definitions, e.g. [eval_instr].
    2. Rewrite argument hypotheses, i.e. [sem_pexpr].
@@ -185,11 +185,12 @@ Ltac t_rewrite_eqs :=
    4. Rewrite result hypotheses, i.e. [write_lval].
  *)
 Ltac t_arm_op :=
-  rewrite /eval_instr /= /sem_sopn /= /get_gvar /=;
-  t_rewrite_eqs;
+  rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
+  t_simpl_rewrites;
   rewrite /of_estate /= /with_vm /=;
-  rewrite ?zero_extend_u ?pword_of_wordE;
-  t_rewrite_eqs.
+  repeat rewrite truncate_word_u /=;
+  rewrite ?zero_extend_u ?pword_of_wordE addn1;
+  t_simpl_rewrites.
 
 Lemma arm_op_movi_eval_instr lp ls ii imm :
   let: li := li_of_lopn_args ii (arm_op_movi x imm) in
@@ -204,7 +205,7 @@ Lemma arm_op_subi_eval_instr lp ls ii y imm wy :
      let: wx' := (wy - wrepr reg_size imm)%R in
      let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wx')]%vmap in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite wsub_wnot1 addn1. Qed.
+Proof. move=> hgety. t_arm_op. by rewrite wsub_wnot1. Qed.
 
 Lemma arm_op_align_eval_instr lp ls ii y al wy :
   get_var (lvm ls) (v_var y) = ok (Vword wy)
@@ -212,14 +213,20 @@ Lemma arm_op_align_eval_instr lp ls ii y al wy :
      let: wx' := align_word al wy in
      let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wx')]%vmap in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite addn1. Qed.
+Proof.
+  move=> hgety.
+  Opaque wsize_size.
+  t_arm_op.
+  Transparent wsize_size.
+  by rewrite wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
+Qed.
 
 Lemma arm_op_mov_eval_instr lp ls ii y wy :
   get_var (lvm ls) (v_var y) = ok (Vword wy)
   -> let: li := li_of_lopn_args ii (arm_op_mov x y) in
      let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wy)]%vmap in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite addn1. Qed.
+Proof. move=> hgety. by t_arm_op. Qed.
 
 Lemma arm_op_str_off_eval_instr lp ls m' ii y off wx (wy : word reg_size) :
   get_var (lvm ls) (v_var x) = ok (Vword wx)
@@ -227,7 +234,7 @@ Lemma arm_op_str_off_eval_instr lp ls m' ii y off wx (wy : word reg_size) :
   -> write (lmem ls) (wx + wrepr Uptr off)%R wy = ok m'
   -> let: li := li_of_lopn_args ii (arm_op_str_off y x off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
-Proof. move=> hgety hgetx hwrite. t_arm_op. by rewrite addn1. Qed.
+Proof. move=> hgety hgetx hwrite. by t_arm_op. Qed.
 
 End ARM_OP.
 
@@ -349,7 +356,7 @@ Proof.
 
   - rewrite wbit_lower_bits_0 /=; first done.
     + by have := Zle_0_nat i.
-    rewrite wbaseE /= in hn.
+    rewrite wbaseE /= /arm_reg_size in hn.
     lia.
 
   rewrite (wbit_higher_bits_0 (n := 16) _ hlbs); first last.
@@ -400,7 +407,7 @@ Proof.
     + rewrite -(addn0 (size P)).
       rewrite (find_instr_skip hbody) /=.
       rewrite /eval_instr /= /with_vm /= /of_estate /=.
-      rewrite zero_extend_u pword_of_wordE addn0.
+      rewrite /exec_sopn /= truncate_word_u /= pword_of_wordE addn0.
       reflexivity.
 
     rewrite -addn1.
@@ -409,7 +416,7 @@ Proof.
     rewrite /sem_sopn /= /get_gvar /=.
     rewrite get_var_eq /=.
     rewrite /with_vm /= /of_estate /=.
-    rewrite !zero_extend_u.
+    rewrite /exec_sopn /= !truncate_word_u /=.
     rewrite (mov_movt himm hdivmod).
     rewrite pword_of_wordE.
     rewrite addn1 -addn2.
@@ -477,7 +484,7 @@ Proof.
     rewrite /sem_sopn /=.
     rewrite /get_gvar /=.
     rewrite hgetx hgety {hgetx hgety} /=.
-    rewrite pword_of_wordE !zero_extend_u.
+    rewrite /exec_sopn /= !truncate_word_u /= pword_of_wordE.
     rewrite /of_estate /with_vm /=.
     rewrite wsub_wnot1.
     rewrite !size_cat addn0 -addn1 addnA /=.
@@ -516,9 +523,8 @@ Proof.
   rewrite /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite hvm /=.
-  rewrite pword_of_wordE.
-  rewrite wsub_wnot1.
-  by rewrite zero_extend_u zero_extend_wrepr.
+  rewrite /exec_sopn /= !truncate_word_u /= pword_of_wordE.
+  by rewrite wsub_wnot1.
 Qed.
 
 Lemma arm_spec_lip_free_stack_frame s pc ii ts sz :
@@ -535,8 +541,7 @@ Proof.
   rewrite /sem_sopn /=.
   rewrite /get_gvar /get_var /on_vu /=.
   rewrite hvm /=.
-  rewrite pword_of_wordE.
-  by rewrite zero_extend_u zero_extend_wrepr.
+  by rewrite /exec_sopn /= !truncate_word_u /= pword_of_wordE.
 Qed.
 
 Lemma arm_spec_lip_set_up_sp_register s r ts al sz P Q :
@@ -580,7 +585,7 @@ Proof.
 
   have hneq_r_tmp :
     v_var r <> vtmp.
-  - move=> [h]. move: hnot_saved_stack. by rewrite mem_seq1 h.
+  - move=> [h]. move: hnot_saved_stack. by rewrite mem_seq1 h eqxx.
   clear hnot_saved_stack.
 
   move: hbody.
@@ -925,7 +930,7 @@ Proof.
 
   case/ok_inj/Vword_inj: hseme => ?; subst => /= ?; subst.
   move: htrunc; rewrite truncate_word_u => /ok_inj ?; subst.
-  by rewrite zero_extend_u {} hwrite.
+  by rewrite /exec_sopn /= truncate_word_u /= hwrite.
 Qed.
 
 End LINEARIZATION.
@@ -941,12 +946,12 @@ Definition arm_hliparams :
   |}.
 
 Lemma arm_ok_lip_tmp :
-  exists r : reg_t, of_string (lip_tmp (ap_lip arm_params)) = Some r.
+  exists r : reg_t, of_ident (lip_tmp (ap_lip arm_params)) = Some r.
 Proof.
   exists R12.
   rewrite /=.
-  change "r12"%string with (to_string R12).
-  exact: to_stringK.
+  change arm_tmp with (to_ident R12).
+  exact: to_identK.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -958,11 +963,9 @@ Lemma arm_lower_callP
   (sCP : semCallParams)
   (p : prog)
   (ev : extra_val_t)
-  (is_regx : var -> bool)
   (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
-  (is_var_in_memory : var_i -> bool)
   (_ : lop_fvars_correct arm_loparams fv (p_funcs p))
   (f : funname)
   scs mem scs' mem'
@@ -970,11 +973,10 @@ Lemma arm_lower_callP
   psem.sem_call p ev scs mem f va scs' mem' vr
   -> let lprog :=
        lowering.lower_prog
-         (lop_lower_i arm_loparams is_regx)
+         (lop_lower_i arm_loparams)
          options
          warning
          fv
-         is_var_in_memory
          p
      in
      psem.sem_call lprog ev scs mem f va scs' mem' vr.
@@ -1249,16 +1251,16 @@ Qed.
 (* TODO_ARM: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
-Lemma arm_assemble_extra_op
-  rip ii op lvs args op' lvs' args' op'' asm_args m xs ys m' s :
+Lemma arm_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops':
   sem_rexprs m args = ok xs
   -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
   -> write_lexprs lvs ys m = ok m'
-  -> to_asm ii op lvs args = ok (op', lvs', args')
-  -> assemble_asm_op arm_agparams rip ii op' lvs' args'
-     = ok (op'', asm_args)
+  -> to_asm ii op lvs args = ok ops
+  -> mapM (fun '(op0, ls, rs) => assemble_asm_op arm_agparams rip ii op0 ls rs) ops = ok ops'
   -> lom_eqv rip m s
-  -> exists2 s', eval_op op'' asm_args s = ok s' & lom_eqv rip m' s'.
+  -> exists2 s' : asmmem,
+       foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s ops' = ok s' &
+       lom_eqv rip m' s'.
 Proof. by case: op. Qed.
 
 Definition arm_hagparams : h_asm_gen_params (ap_agp arm_params) :=
@@ -1398,13 +1400,14 @@ Proof.
   rewrite /exec_sopn /=.
   t_xrbindP=> w w'' hvx.
   have [ws' [w' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
-  rewrite /sopn_sem /=.
-  rewrite /drop_semi_nzcv /=.
   move=> [<-] <-.
   apply: List.Forall2_cons; last done.
   exact: (word_uincl_zero_ext w' hws').
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+Lemma arm_hshp: slh_lowering_proof.h_sh_params (ap_shp arm_params).
+Proof. by constructor; move=> ???? []. Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -1417,6 +1420,7 @@ Definition arm_h_params : h_architecture_params arm_params :=
     hap_hlop := arm_hloparams;
     hap_hagp := arm_hagparams;
     hap_hrzp := arm_hrzparams;
+    hap_hshp := arm_hshp;
     hap_is_move_opP := arm_is_move_opP;
   |}.
 

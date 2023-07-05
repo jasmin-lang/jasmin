@@ -13,7 +13,8 @@ Require Import
   register_zeroization_utils
   linearization
   lowering
-  stack_alloc.
+  stack_alloc
+  slh_lowering.
 Require Import
   arch_decl
   arch_extra
@@ -27,6 +28,9 @@ Require Import
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Section Section.
+Context {atoI : arch_toIdent}.
 
 Definition arm_op_mov (x y : var_i) : fopn_args :=
   ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar y) ]).
@@ -60,7 +64,7 @@ Definition arm_op_subi (x y : var_i) (imm : Z) : fopn_args :=
   arm_op_arith_imm SUB x y imm.
 
 Definition arm_op_align (x y : var_i) (al : wsize) :=
-  arm_op_arith_imm AND x y (- wsize_size al).
+  arm_op_arith_imm BIC x y (wsize_size al - 1).
 
 (* Precondition: [0 <= imm < wbase reg_size]. *)
 Definition arm_cmd_load_large_imm (x : var_i) (imm : Z) : seq fopn_args :=
@@ -87,14 +91,23 @@ Definition arm_cmd_large_subi (x y : var_i) (imm : Z) : seq fopn_args :=
 (* Stack alloc parameters. *)
 
 Definition arm_mov_ofs
-  (x : lval) (tag : assgn_tag) (_ : vptr_kind) (y : pexpr) (ofs : Z) :
+  (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
   option instr_r :=
-  let op := Oarm (ARM_op ADD default_opts) in
-  Some (Copn [:: x ] tag op [:: y; eword_of_int reg_size ofs ]).
+  let ofs := eword_of_int reg_size ofs in
+  let: (op, args) :=
+    match mk_mov vpk with
+    | MK_LEA => (ADR, [:: add y ofs ])
+    | MK_MOV => (ADD, [:: y; ofs ])
+    end in
+  Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args).
+
+Definition arm_immediate (x: var_i) z :=
+  Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [:: cast_const z ].
 
 Definition arm_saparams : stack_alloc_params :=
   {|
     sap_mov_ofs := arm_mov_ofs;
+    sap_immediate := arm_immediate;
   |}.
 
 
@@ -198,12 +211,20 @@ Definition arm_fvars_correct
   bool :=
   fvars_correct (all_fresh_vars fv) (fvars fv) fds.
 
-Definition arm_loparams : lowering_params fresh_vars lowering_options :=
+Definition arm_loparams : lowering_params lowering_options :=
   {|
-    lop_lower_i _ _ _ := lower_i;
+    lop_lower_i _ _ := lower_i;
     lop_fvars_correct := arm_fvars_correct;
   |}.
 
+
+(* ------------------------------------------------------------------------ *)
+(* Speculative execution operator lowering parameters. *)
+
+Definition arm_shparams : sh_params :=
+  {|
+    shp_lower := fun _ _ _ => None;
+  |}.
 
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
@@ -351,13 +372,16 @@ Definition arm_is_move_op (o : asm_op_t) : bool :=
       false
   end.
 
-Definition arm_params {ovmi : one_varmap_info} :
-  architecture_params fresh_vars lowering_options :=
+Definition arm_params
+  {ovmi : one_varmap_info} : architecture_params lowering_options :=
   {|
-    ap_sap := (fun _ => arm_saparams);
+    ap_sap := arm_saparams;
     ap_lip := arm_liparams;
     ap_lop := arm_loparams;
     ap_agp := arm_agparams;
     ap_rzp := arm_rzparams;
+    ap_shp := arm_shparams;
     ap_is_move_op := arm_is_move_op;
   |}.
+
+End Section.

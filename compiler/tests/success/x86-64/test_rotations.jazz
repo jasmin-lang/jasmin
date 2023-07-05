@@ -10,7 +10,7 @@ fn f(reg u64 x) -> reg u64 {
     d = 4;
 
     // Left rotations (flags are discarded).
-    a = a <<r d;
+    a <<r= d & 63;
     a = a <<r 2;
 
     // Intrinsic syntax.
@@ -20,7 +20,7 @@ fn f(reg u64 x) -> reg u64 {
     cf, b += x + cf;
 
     // Right rotations (flags are discarded).
-    c = b >>r d;
+    c = b >>r (d & 63);
     c = b >>r 3;
 
     // Intrinsic syntax.

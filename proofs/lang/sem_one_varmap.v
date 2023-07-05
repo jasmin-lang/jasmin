@@ -76,34 +76,14 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}
   (p : sprog)
-  (extra_free_registers : instr_info → option var)
   (var_tmp : var).
 
 Local Notation gd := (p_globs p).
-
-Definition kill_extra_register_vmap ii (vm: vmap) : vmap :=
-  if extra_free_registers ii is Some x
-  then if vm.[x] is Ok _ then vm.[x <- pundef_addr (vtype x) ] else vm
-  else vm.
-
-Definition kill_extra_register ii (s: estate) : estate :=
-  with_vm s (kill_extra_register_vmap ii s.(evm)).
-
-Remark kill_extra_register_vm_uincl ii s :
-  vm_uincl (kill_extra_register ii s).(evm) (evm s).
-Proof.
-  rewrite /= /kill_extra_register_vmap.
-  case: extra_free_registers => // x y.
-  case hx: (evm s).[x] => [ v | ] //; case: (x =P y).
-  + move => <- {y}; rewrite hx Fv.setP_eq; apply: eval_uincl_undef; exact: subtype_refl.
-  by move => /eqP x_ne_y; rewrite Fv.setP_neq.
-Qed.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 #[local] Notation magic_variables := (magic_variables p).
-#[local] Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
 
 Definition ra_valid fd (ii:instr_info) (k: Sv.t) (x: var) : bool :=
   match fd.(f_extra).(sf_return_address) with
@@ -127,12 +107,6 @@ Definition ra_undef_vm fd vm (x: var) : vmap :=
 Definition saved_stack_valid fd (k: Sv.t) : bool :=
   if fd.(f_extra).(sf_save_stack) is SavedStackReg r
   then [&& (r != vgd), (r != vrsp) & (~~ Sv.mem r k) ]
-  else true.
-
-Definition efr_valid ii i : bool :=
-  if extra_free_registers ii is Some r
-  then [&& r != vgd, r != vrsp, vtype r == sword Uptr &
-           if i is Cwhile _ _ _ _ then false else true]
   else true.
 
 Definition top_stack_aligned fd st : bool :=
@@ -161,10 +135,9 @@ Inductive sem : Sv.t → estate → cmd → estate → Prop :=
 
 with sem_I : Sv.t → estate → instr → estate → Prop :=
 | EmkI ii k i s1 s2:
-    efr_valid ii i →
-    sem_i ii k (kill_extra_register ii s1) i s2 →
+    sem_i ii k s1 i s2 →
     disjoint k magic_variables →
-    sem_I (Sv.union (extra_free_registers_at ii) k) s1 (MkI ii i) s2
+    sem_I k s1 (MkI ii i) s2
 
 with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
 | Eassgn ii s1 s2 (x:lval) tag ty e v v' :
@@ -288,13 +261,8 @@ Proof. by case => // {k s c s'} ki kc s si s' i c; exists ki kc si. Qed.
 Lemma sem_IE k s i s' :
   sem_I k s i s' →
   let: MkI ii r := i in
-  ∃ k',
-  [/\
-  efr_valid ii r,
-  sem_i ii k' (kill_extra_register ii s) r s',
-  disjoint k' magic_variables &
-  k = Sv.union (extra_free_registers_at ii) k' ].
-Proof. by case => {k s i s'} ii k i s1 s2 ???; exists k. Qed.
+  sem_i ii k s r s' ∧ disjoint k magic_variables.
+Proof. by case => {k s i s'} ii k i s1 s2 ??. Qed.
 
 Lemma sem_iE ii k s i s' :
   sem_i ii k s i s' →
@@ -384,11 +352,10 @@ Section SEM_IND.
 
   Definition sem_Ind_mkI : Prop :=
     ∀ (ii : instr_info) (k: Sv.t) (i : instr_r) (s1 s2 : estate),
-      efr_valid ii i →
-      sem_i ii k (kill_extra_register ii s1) i s2 →
-      Pi_r ii k (kill_extra_register ii s1) i s2 →
+      sem_i ii k s1 i s2 →
+      Pi_r ii k s1 i s2 →
       disjoint k magic_variables →
-      Pi (Sv.union (extra_free_registers_at ii) k) s1 (MkI ii i) s2.
+      Pi k s1 (MkI ii i) s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
 
@@ -511,7 +478,7 @@ Section SEM_IND.
 
   with sem_I_Ind (k: Sv.t) (s1 : estate) (i : instr) (s2 : estate) (s : sem_I k s1 i s2) {struct s} : Pi k s1 i s2 :=
     match s in sem_I k e1 i0 e2 return Pi k e1 i0 e2 with
-    | @EmkI ii k i s1 s2 nom exec pm => @HmkI ii k i s1 s2 nom exec (@sem_i_Ind ii k _ i s2 exec) pm
+    | @EmkI ii k i s1 s2 exec pm => @HmkI ii k i s1 s2 exec (@sem_i_Ind ii k _ i s2 exec) pm
     end
 
   with sem_call_Ind (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii k s1 fn s2) {struct s} : Pfun ii k s1 fn s2 :=

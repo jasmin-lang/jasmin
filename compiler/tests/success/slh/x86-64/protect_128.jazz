@@ -1,0 +1,10 @@
+export
+fn foo (reg u128 x) -> reg u128 {
+    reg u64 msf;
+    msf = #init_msf();
+
+    reg u128 y;
+    y = #protect_128(x, msf);
+
+    return y;
+}

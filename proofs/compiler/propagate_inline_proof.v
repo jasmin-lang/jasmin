@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem constant_prop constant_prop_proof.
+Require Import psem psem_facts constant_prop constant_prop_proof.
 Require Export propagate_inline.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
@@ -333,29 +333,6 @@ Proof.
 Qed.
 
 End Expr.
-
-Section UseMem.
-
-Context (s1 s2 : estate) (heq : evm s1 = evm s2).
-
-Lemma use_memP e: 
-  ~~use_mem e -> 
-  sem_pexpr gd s1 e = sem_pexpr gd s2 e.
-Proof.
-  apply (pexpr_mut_ind (P := fun e => ~~use_mem e -> sem_pexpr gd s1 e = sem_pexpr gd s2 e)
-                      (Q := fun e => ~~has use_mem e -> sem_pexprs gd s1 e = sem_pexprs gd s2 e)).
-  split => //= {e}.
-  + by move=> e hrec es hrecs; rewrite negb_or => /andP [] /hrec -> /hrecs ->. 
-  + by move=> x _; rewrite heq.
-  + by move=> ?? x e hrec /hrec ->; rewrite heq.
-  + by move=> ??? x e hrec /hrec ->; rewrite heq.
-  + by move=> ? e hrec /hrec ->.
-  + by move=> ? e1 hrec1 e2 hrec2; rewrite negb_or => /andP[] /hrec1 -> /hrec2 ->.
-  + by move=> ? es; rewrite /sem_pexprs => h/h->.
-  by move=> ty e he e1 he1 e2 he2; rewrite !negb_or=> /andP[]/andP[] /he-> /he1-> /he2->.
-Qed.
-
-End UseMem.
 
 Lemma write_var_valid_pi s s' pi x v : 
   valid_pi s pi -> 

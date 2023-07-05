@@ -42,21 +42,18 @@ type tyerror =
   | PrimNotAllowed
   | Unsupported         of string
   | UnknownPrim         of A.symbol
-  | PrimNoSize          of A.symbol
-  | PrimNotVector       of A.symbol
-  | PrimIsVector        of A.symbol
-  | PrimIsVectorVector  of A.symbol
-  | PrimIsX             of A.symbol
-  | PrimNotX            of A.symbol
+  | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
   | ReturnLocalStack    of A.symbol
   | PtrOnlyForArray
   | ArgumentNotVar      
-  | BadVariableKind     of P.v_kind
+  | BadVariableKind     of W.v_kind
   | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
   | PackWrongLength of int * int
+  | UnsupportedZeroExtend of (F.formatter -> unit)
+  | InvalidZeroExtend of W.wsize * W.wsize * (F.formatter -> unit)
   | StringError of string
 
 exception TyError of L.t * tyerror
@@ -82,6 +79,16 @@ let pp_typat fmt = function
   | TPInt   -> F.fprintf fmt "int"
   | TPWord  -> F.fprintf fmt "word (u8, u16, u32, u64)"
   | TPArray -> F.fprintf fmt "array"
+
+let pp_suffix fmt =
+  let open Sopn in
+  let open PrintCommon in
+  function
+  | PVp sz -> F.fprintf fmt "_%a" pp_wsize sz
+  | PVv (ve, sz) -> F.fprintf fmt "_%s" (string_of_velem Unsigned sz ve)
+  | PVsv (sg, ve, sz) -> F.fprintf fmt "_%s" (string_of_velem sg sz ve)
+  | PVx (szo, szi) -> F.fprintf fmt "_u%a_u%a" pp_wsize szo pp_wsize szi
+  | PVvv (ve, sz, ve', sz') -> F.fprintf fmt "_%s_%s" (string_of_velem Unsigned sz ve) (string_of_velem Unsigned sz' ve')
 
 let pp_tyerror fmt (code : tyerror) =
   match code with
@@ -175,23 +182,12 @@ let pp_tyerror fmt (code : tyerror) =
   | UnknownPrim s ->
       F.fprintf fmt "unknown primitive: `%s'" s
 
-  | PrimNoSize s ->
+  | PrimWrongSuffix (s, []) ->
       F.fprintf fmt "primitive accepts no size annotation: `%s'" s
 
-  | PrimNotVector s ->
-      F.fprintf fmt "primitive does not operate on vectors: `%s'" s
-
-  | PrimNotX s ->
-      F.fprintf fmt "primitive does not need  two word sizes annotations: `%s'" s
-
-  | PrimIsVector s ->
-     F.fprintf fmt "primitive needs a vector size annotation: `%s'" s
-
-  | PrimIsVectorVector s ->
-     F.fprintf fmt "primitive needs two vector size annotations: `%s'" s
-
-  | PrimIsX s ->
-      F.fprintf fmt "primitive needs two word sizes annotations: `%s'" s
+  | PrimWrongSuffix (s, sfxs) ->
+     F.fprintf fmt "primitive “%s” only accepts the following size annotations: %a" s
+       (pp_list ",@ " pp_suffix) sfxs
 
   | ReturnLocalStack v ->
       F.fprintf fmt "can not return the local stack variable %s" v
@@ -220,7 +216,13 @@ let pp_tyerror fmt (code : tyerror) =
 
   | PackWrongLength (e, f) ->
     F.fprintf fmt "wrong length of pack; expected: %d; found: %d" e f
-  
+
+  | UnsupportedZeroExtend name ->
+      F.fprintf fmt "primitive operator %t does not support zero-extension" name
+
+  | InvalidZeroExtend (src, dst, name) ->
+      F.fprintf fmt "primitive operator %t returns an output of size %a; it cannot be zero-extended to size %a" name PrintCommon.pp_wsize src PrintCommon.pp_wsize dst
+
   | StringError s ->
     F.fprintf fmt "%s" s
 
@@ -418,170 +420,25 @@ end
 let tt_ws (ws : A.wsize) = Printer.ws_of_ws ws
 
 (* -------------------------------------------------------------------- *)
-
-module Annot = struct
- 
-  let on_attribute ?on_empty ?on_int ?on_id ?on_string ?on_ws ?on_struct error (id, attribute) =
-    let nid = L.unloc id in
-    let doit loc o arg = 
-      match o with
-      | None -> error loc nid 
-      | Some f -> f loc nid arg in
-    match attribute with
-    | None -> doit (L.loc id) on_empty ()
-    | Some a ->
-      let loc = L.loc a in
-      match L.unloc a with
-      | A.Aint i    -> doit loc on_int i
-      | A.Aid id    -> doit loc on_id id
-      | A.Astring s -> doit loc on_string s
-      | A.Aws ws    -> doit loc on_ws ws
-      | A.Astruct s -> doit loc on_struct s
-
-  let pp_dfl_attribute pp fmt dfl = 
-    match dfl with
-    | Some a -> Format.fprintf fmt "@ default is “%a”" pp a 
-    | None   -> () 
-
-  let error_attribute loc id pp a pp_dfl dfl = 
-    rs_tyerror ~loc (string_error "attribute for “%s” should be %a%a"
-                       id pp a (pp_dfl_attribute pp_dfl) dfl)
-
-  let on_empty error dfl loc nid () = 
-    match dfl with
-    | None -> error loc nid
-    | Some d -> d
-
-  let filter_string_list dfl l arg = 
-    let error loc nid = 
-      assert (l<> []);
-      let pp fmt l = 
-        Format.fprintf fmt "(@[%a@])" (pp_list " |@ " (fun fmt (s,_) -> Format.pp_print_string fmt s)) l in
-      error_attribute loc nid pp l Format.pp_print_string dfl in
-    let on_string loc nid s =
-      try List.assoc s l 
-      with Not_found -> error loc nid in
-    on_attribute  
-      ~on_empty:(fun loc nid () -> on_string loc nid (on_empty error dfl loc nid ()))
-      ~on_id:(on_string) 
-      ~on_string error arg
-
-  let bool dfl = 
-    filter_string_list 
-      (Some (if dfl then "yes" else "no"))
-      ["yes", true; "no", false]
-
-  let none (id,_ as arg) = 
-    on_attribute
-      ~on_empty:(fun _loc _nid () -> ())
-      (fun loc _nid -> 
-        rs_tyerror ~loc 
-          (string_error "attribute for “%s” should be empty" (L.unloc id)))
-      arg
-    
-  let int dfl arg = 
-    let error loc nid =
-       error_attribute loc nid Format.pp_print_string "an integer"
-                              Z.pp_print dfl in
-    let on_empty loc nid () = 
-      match dfl with
-      | Some i -> i
-      | None -> error loc nid in
-
-    let on_string loc nid s = 
-      try Z.of_string s 
-      with Invalid_argument _ -> error loc nid in
-
-    on_attribute 
-      ~on_empty
-      ~on_int:(fun _loc _nid i -> i)
-      ~on_string 
-      error arg 
-
-  let pos_int dfl (id, _ as arg) = 
-    let i = int dfl arg in
-    if Z.lt i Z.zero then 
-      error_attribute (L.loc id) (L.unloc id) 
-        Format.pp_print_string "a positive integer"
-        Z.pp_print dfl;
-    i
-        
-  let ws_of_string =
-    let l = List.map (fun ws -> P.string_of_ws (tt_ws ws), ws)
-        [`W8; `W16; `W32; `W64; `W128; `W256] in
-    fun s -> List.assoc s l
-
-  let wsize dfl arg = 
-    let error loc nid =
-      error_attribute loc nid 
-        Format.pp_print_string "a word size"
-        (fun fmt ws -> Format.fprintf fmt "%s" (P.string_of_ws (tt_ws ws))) dfl in
-    let on_empty loc nid () = 
-      match dfl with
-      | Some ws -> ws
-      | None -> error loc nid in
-    let on_string loc nid s = 
-      try ws_of_string s with Not_found -> error loc nid in
-    let on_ws _loc _nid ws = ws in
-    on_attribute 
-      ~on_empty
-      ~on_string 
-      ~on_ws 
-      error arg 
-  
-  let filter_attribute ?(case_sensitive=true) name (f: A.annotation -> 'a) (annot: A.annotations) =
-    let test = 
-      if case_sensitive then fun id -> L.unloc id = name 
-      else 
-        let name = String.uppercase_ascii name in
-        fun id -> String.uppercase_ascii (L.unloc id) = name in
-
-    List.pmap (fun (id,_ as arg) -> if test id then Some (id, f arg) else None) annot
-
-  let process_annot ?(case_sensitive=true) (filters: (string * (A.annotation -> 'a)) list) annot =
-    List.flatten 
-      (List.map (fun (name,f) -> filter_attribute ~case_sensitive name f annot) filters)
-    
-  let ensure_uniq ?(case_sensitive=true) (filters: (string * (A.annotation -> 'a)) list) annot =
-    match process_annot ~case_sensitive filters annot with
-    | [] -> None
-    | [_, r] -> Some r
-    | (id, _) :: _ as l -> 
-      rs_tyerror ~loc:(L.loc id) (string_error "only one of the attribute %a is expected"
-                                 (pp_list ", " (fun fmt (id, _) -> Format.fprintf fmt "%s" (L.unloc id))) l)
-
-  let ensure_uniq1 ?(case_sensitive=true) id f annot = 
-    ensure_uniq ~case_sensitive [id, f] annot
-
-  let consume id annot : A.annotations =
-    List.filter (fun (k, _) -> not (String.equal id (L.unloc k))) annot
-
-end
-
-
-
-
-
-(* -------------------------------------------------------------------- *)
-let tt_pointer dfl_writable (p:S.ptr) : P.pointer = 
+let tt_pointer dfl_writable (p:S.ptr) : W.reference =
   match p with
-  | `Pointer (Some `Writable) -> P.Pointer P.Writable
-  | `Pointer (Some `Constant) -> P.Pointer P.Constant
+  | `Pointer (Some `Writable) -> W.Pointer W.Writable
+  | `Pointer (Some `Constant) -> W.Pointer W.Constant
   | `Pointer None             -> 
-    P.Pointer (if dfl_writable then P.Writable else P.Constant)
-  | `Direct  -> P.Direct
+    W.Pointer (if dfl_writable then W.Writable else W.Constant)
+  | `Direct  -> W.Direct
 
 let tt_reg_kind annot = 
   match Annot.ensure_uniq1 "mmx" Annot.none annot with
-  | Some () -> P.Extra
-  | None    -> P.Normal
+  | Some () -> W.Extra
+  | None    -> W.Normal
 
-let tt_sto regkind dfl_writable (sto : S.pstorage) : P.v_kind =
+let tt_sto regkind dfl_writable (sto : S.pstorage) : W.v_kind =
   match sto with
-  | `Inline  -> P.Inline
-  | `Reg   p -> P.Reg (regkind, tt_pointer dfl_writable p)
-  | `Stack p -> P.Stack (tt_pointer dfl_writable p)
-  | `Global  -> P.Global
+  | `Inline  -> W.Inline
+  | `Reg   p -> W.Reg (regkind, tt_pointer dfl_writable p)
+  | `Stack p -> W.Stack (tt_pointer dfl_writable p)
+  | `Global  -> W.Global
 
 type tt_mode = [
   | `AllVar
@@ -597,10 +454,10 @@ let tt_var (mode:tt_mode) (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = lc; }
     | None -> rs_tyerror ~loc:lc (UnknownVar x) in
   begin match mode with
   | `OnlyParam ->
-    if v.P.v_kind <> P.Const then
+    if v.P.v_kind <> W.Const then
       rs_tyerror ~loc:lc (StringError "only param variable are allowed here")
   | `NoParam -> 
-    if v.P.v_kind = P.Const then
+    if v.P.v_kind = W.Const then
       rs_tyerror ~loc:lc (StringError "param variable not allowed here")
   | `AllVar -> ()
   end;
@@ -1236,7 +1093,7 @@ let tt_param pd (env : 'asm Env.env) _loc (pp : S.pparam) : 'asm Env.env =
 
   check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
 
-  let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) [] in
+  let x = P.PV.mk (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
   let env = Env.Vars.push_param env (x,pe) in
   env
 
@@ -1294,55 +1151,49 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   o.i_out
 
 let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
-  List.map (fun (s, x) -> Conv.string_of_string0 s, x) asmOp.Sopn.prim_string
+  List.map (fun (s, x) -> Conv.string_of_cstring s, x) asmOp.Sopn.prim_string
 
-type size_annotation =
-  | SAw of W.wsize
-  | SAv of W.signedness * W.velem * W.wsize
-  | SAx of W.wsize * W.wsize
-  | SAvv of W.velem * W.wsize * W.velem * W.wsize
-  | SA
-
-let extract_size str : string * size_annotation =
+let extract_size str : string * Sopn.prim_x86_suffix option =
   let get_size =
+    let open Sopn in
     function
-    | "8"   -> SAw W.U8
-    | "16"  -> SAw W.U16
-    | "32"  -> SAw W.U32
-    | "64"  -> SAw W.U64
-    | "128" -> SAw W.U128
-    | "256" -> SAw W.U256
+    | "8"   -> PVp W.U8
+    | "16"  -> PVp W.U16
+    | "32"  -> PVp W.U32
+    | "64"  -> PVp W.U64
+    | "128" -> PVp W.U128
+    | "256" -> PVp W.U256
 
-    | "2u8"   -> SAv (W.Unsigned, W.VE8,  W.U16)
-    | "4u8"   -> SAv (W.Unsigned, W.VE8,  W.U32)
-    | "2u16"  -> SAv (W.Unsigned, W.VE16, W.U32)
-    | "8u8"   -> SAv (W.Unsigned, W.VE8,  W.U64)
-    | "4u16"  -> SAv (W.Unsigned, W.VE16, W.U64)
-    | "2u32"  -> SAv (W.Unsigned, W.VE32, W.U64)
-    | "16u8"  -> SAv (W.Unsigned, W.VE8,  W.U128)
-    | "8u16"  -> SAv (W.Unsigned, W.VE16, W.U128)
-    | "4u32"  -> SAv (W.Unsigned, W.VE32, W.U128)
-    | "2u64"  -> SAv (W.Unsigned, W.VE64, W.U128)
-    | "32u8"  -> SAv (W.Unsigned, W.VE8,  W.U256)
-    | "16u16" -> SAv (W.Unsigned, W.VE16, W.U256)
-    | "8u32"  -> SAv (W.Unsigned, W.VE32, W.U256)
-    | "4u64"  -> SAv (W.Unsigned, W.VE64, W.U256)
+    | "2u8"   -> PVsv (W.Unsigned, W.VE8,  W.U16)
+    | "4u8"   -> PVsv (W.Unsigned, W.VE8,  W.U32)
+    | "2u16"  -> PVsv (W.Unsigned, W.VE16, W.U32)
+    | "8u8"   -> PVsv (W.Unsigned, W.VE8,  W.U64)
+    | "4u16"  -> PVsv (W.Unsigned, W.VE16, W.U64)
+    | "2u32"  -> PVsv (W.Unsigned, W.VE32, W.U64)
+    | "16u8"  -> PVsv (W.Unsigned, W.VE8,  W.U128)
+    | "8u16"  -> PVsv (W.Unsigned, W.VE16, W.U128)
+    | "4u32"  -> PVsv (W.Unsigned, W.VE32, W.U128)
+    | "2u64"  -> PVsv (W.Unsigned, W.VE64, W.U128)
+    | "32u8"  -> PVsv (W.Unsigned, W.VE8,  W.U256)
+    | "16u16" -> PVsv (W.Unsigned, W.VE16, W.U256)
+    | "8u32"  -> PVsv (W.Unsigned, W.VE32, W.U256)
+    | "4u64"  -> PVsv (W.Unsigned, W.VE64, W.U256)
 
-    | "2s8"   -> SAv (W.Signed, W.VE8,  W.U16)
-    | "4s8"   -> SAv (W.Signed, W.VE8,  W.U32)
-    | "2s16"  -> SAv (W.Signed, W.VE16, W.U32)
-    | "8s8"   -> SAv (W.Signed, W.VE8,  W.U64)
-    | "4s16"  -> SAv (W.Signed, W.VE16, W.U64)
-    | "2s32"  -> SAv (W.Signed, W.VE32, W.U64)
-    | "16s8"  -> SAv (W.Signed, W.VE8,  W.U128)
-    | "8s16"  -> SAv (W.Signed, W.VE16, W.U128)
-    | "4s32"  -> SAv (W.Signed, W.VE32, W.U128)
-    | "2s64"  -> SAv (W.Signed, W.VE64, W.U128)
-    | "32s8"  -> SAv (W.Signed, W.VE8,  W.U256)
-    | "16s16" -> SAv (W.Signed, W.VE16, W.U256)
-    | "8s32"  -> SAv (W.Signed, W.VE32, W.U256)
-    | "4s64"  -> SAv (W.Signed, W.VE64, W.U256)
-    | s -> 
+    | "2s8"   -> PVsv (W.Signed, W.VE8,  W.U16)
+    | "4s8"   -> PVsv (W.Signed, W.VE8,  W.U32)
+    | "2s16"  -> PVsv (W.Signed, W.VE16, W.U32)
+    | "8s8"   -> PVsv (W.Signed, W.VE8,  W.U64)
+    | "4s16"  -> PVsv (W.Signed, W.VE16, W.U64)
+    | "2s32"  -> PVsv (W.Signed, W.VE32, W.U64)
+    | "16s8"  -> PVsv (W.Signed, W.VE8,  W.U128)
+    | "8s16"  -> PVsv (W.Signed, W.VE16, W.U128)
+    | "4s32"  -> PVsv (W.Signed, W.VE32, W.U128)
+    | "2s64"  -> PVsv (W.Signed, W.VE64, W.U128)
+    | "32s8"  -> PVsv (W.Signed, W.VE8,  W.U256)
+    | "16s16" -> PVsv (W.Signed, W.VE16, W.U256)
+    | "8s32"  -> PVsv (W.Signed, W.VE32, W.U256)
+    | "4s64"  -> PVsv (W.Signed, W.VE64, W.U256)
+    | s ->
       let wsize_of_int = function
         | 8   -> W.U8
         | 16  -> W.U16
@@ -1351,55 +1202,66 @@ let extract_size str : string * size_annotation =
         | 128 -> W.U128
         | 256 -> W.U256
         | _   -> raise Not_found in
-      try 
-        Scanf.sscanf s "%c%u%c%u%!" 
-          (fun c0 i c1 j -> 
+      try
+        Scanf.sscanf s "%c%u%c%u%!"
+          (fun c0 i c1 j ->
             if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
-            SAx(wsize_of_int i, wsize_of_int j))
-      with Not_found | End_of_file | Scanf.Scan_failure _ -> SA
+            PVx(wsize_of_int i, wsize_of_int j))
+      with End_of_file | Scanf.Scan_failure _ -> raise Not_found
   in
+  try
   match List.rev (String.split_on_char '_' str) with
-  | [] -> str, SA
+  | [] -> str, None
   | suf2 :: ((suf1 :: s) as tail) ->
-     begin match get_size suf1, get_size suf2 with
-     | SAv (_, ve1, sz1), SAv (_, ve2, sz2) -> String.concat "_" (List.rev s), SAvv (ve1, sz1, ve2, sz2)
-     | _, SA -> str, SA
-     | _, sz -> String.concat "_" (List.rev tail), sz
+     let sz = get_size suf2 in
+     begin try match get_size suf1, sz with
+     | PVsv (_, ve1, sz1), PVsv (_, ve2, sz2) -> String.concat "_" (List.rev s), Some (PVvv (ve1, sz1, ve2, sz2))
+     | _, _ -> String.concat "_" (List.rev tail), Some sz
+     with Not_found -> String.concat "_" (List.rev tail), Some sz
      end
   | suf :: s ->
-    match get_size suf with
-    | SA -> str, SA
-    | sz -> String.concat "_" (List.rev s), sz
+     let sz = get_size suf in
+     String.concat "_" (List.rev s), Some sz
+  with Not_found -> str, None
 
-let tt_prim asmOp ws id args =
+let simplify_suffix ~loc =
+  let open Sopn in
+  let open PrintCommon in
+  function
+  | PVsv (_sg, ve, sz) -> Some (PVv (ve, sz), fun x -> x)
+  | PVv (ve, sz) -> Some (PVp sz, fun () ->
+      warning SimplifyVectorSuffix (L.i_loc0 loc) "vector suffix simplified from %s to %a"
+        (string_of_velem Unsigned sz ve) pp_wsize sz)
+  | _ -> None
+
+let default_suffix =
+  function
+  | x :: _ -> x
+  | [] -> Sopn.PVp U8
+
+let tt_prim asmOp id args =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
-  (* TODO_ARM: Merge this. *)
-  match !Glob_options.target_arch with
-  | ARM_M4 ->
-      oget
-        ~exn:(tyerror ~loc (UnknownPrim s))
-        (Tt_arm_m4.tt_prim (prim_string asmOp) s args)
-  | X86_64 ->
-      let c =
-  match List.assoc name (prim_string asmOp) with
-  | PrimP (d, pr) ->
-    pr ws (match sz with
-        | SAw sz -> sz 
-        | SA -> d 
-        | SAv (s, ve, sz) ->
-           warning SimplifyVectorSuffix (L.i_loc0 loc) "vector suffix simplified from %s to %a"
-             (PrintCommon.string_of_velem s sz ve) PrintCommon.pp_wsize sz;
-           sz
-        | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
-        | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-  | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
-  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
-  | PrimARM _ -> failwith "tt_prim ARM M4"
-  | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
-      in (c, args)
+  let c =
+    match List.assoc name (prim_string asmOp) with
+    | PrimX86 (valid_suffixes, preop) ->
+      begin match match sz with
+          | None -> default_suffix valid_suffixes |> preop
+       | Some sfx ->
+              let rec loop sfx =
+                if List.mem sfx valid_suffixes then preop sfx else
+                  begin match simplify_suffix ~loc sfx with
+              | Some (sfx, w) -> w (); loop sfx
+              | None -> None end
+              in loop sfx
+        with | Some d -> d
+            | None -> rs_tyerror ~loc (PrimWrongSuffix (name, valid_suffixes))
+    end
+    | PrimARM _ | exception Not_found ->
+        oget
+          ~exn:(tyerror ~loc (UnknownPrim s))
+          (Tt_arm_m4.tt_prim (prim_string asmOp) name sz)
+  in (c, args)
 
 let prim_of_op exn loc o =
   (* TODO: use context typing information when the operator is not annotated *)
@@ -1480,6 +1342,21 @@ let prim_of_pe pe =
     L.mk_loc (L.loc pe) desc
   | _ -> raise exn
 
+let cast_opn ~loc id ws =
+  let open Sopn in
+  let name fmt = PrintCommon.pp_string0 fmt (id.str ()) in
+  let invalid () = rs_tyerror ~loc (UnsupportedZeroExtend name) in
+  let open Arch_extra in
+  function
+  | Oasm (BaseOp (None, op)) ->
+    begin match List.last id.tout with
+      | Coq_sword from ->
+          if wsize_le ws from then rs_tyerror ~loc(InvalidZeroExtend (from, ws, name))
+          else Oasm (BaseOp (Some ws, op))
+      | _ -> invalid ()
+  end
+  | Oasm (BaseOp (Some _, _)) -> assert false
+  | _ -> invalid ()
 
 (* -------------------------------------------------------------------- *)
 let pexpr_of_plvalue exn l =
@@ -1527,10 +1404,10 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
       let arguments = 
         (* FIXME this is not generic *)
         let open Sopn in
-        List.map 
-          (function ADExplicit _           -> None 
-                  | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (Var0.Var.vname f))
-                  | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (Var0.Var.vname r)))
+        List.map
+          (function
+           | ADExplicit _ -> None
+           | ADImplicit v -> Some (Var0.Var.vname v).v_name)
           implicit in
 
       let iargs = List.pmap (Option.map String.uppercase_ascii) arguments in
@@ -1636,7 +1513,7 @@ let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
 let rec is_constant e = 
   match e with 
   | P.Pconst _ | P.Pbool _ | P.Parr_init _ -> true
-  | P.Pvar x  -> P.kind_i x.P.gv = P.Const || P.kind_i x.P.gv = P.Inline
+  | P.Pvar x  -> P.kind_i x.P.gv = W.Const || P.kind_i x.P.gv = W.Inline
   | P.Pget _ | P.Psub _ | P.Pload _ -> false
   | P.Papp1 (_, e) -> is_constant e
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
@@ -1748,7 +1625,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p, args = tt_prim asmOp None f args in
+      let p, args = tt_prim asmOp f args in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1759,7 +1636,9 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let ws, s = ct in
       let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
-      let p, args = tt_prim asmOp (Some ws) f args in
+      let p, args = tt_prim asmOp f args in
+      let id = Sopn.asm_op_instr asmOp p in
+      let p = cast_opn ~loc:(L.loc pi) id ws p in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1836,7 +1715,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i ~annot (P.Cwhile (a, s1, c, s2))]
 
 (* -------------------------------------------------------------------- *)
-and tt_block pd asmOp (env : 'asm Env.env) (pb : S.pblock) =
+and tt_block pd asmOp env (pb : S.pblock) =
   snd (tt_cmd pd asmOp env (L.unloc pb))
 
 and tt_cmd pd asmOp env c =
@@ -1848,7 +1727,7 @@ and tt_cmd pd asmOp env c =
     env, i @ c
 
 (* -------------------------------------------------------------------- *)
-let tt_funbody pd asmOp (env : 'asm Env.env) (pb : S.pfunbody) =
+let tt_funbody pd asmOp env (pb : S.pfunbody) =
  (* let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in 
   let env = fst (tt_vardecls_push (fun _ -> true) env vars) in *)
   let env, bdy = tt_cmd pd asmOp env pb.S.pdb_instr in
@@ -1892,8 +1771,8 @@ let tt_call_conv loc params returns cc =
         let loc = L.loc x in
         let x = L.unloc x in
         match x.P.v_kind with
-        | P.Reg(_, Direct) -> None
-        | P.Reg(_, Pointer writable) -> 
+        | W.Reg(_, Direct) -> None
+        | W.Reg(_, Pointer writable) ->
           if writable = Constant then
             warning Always (L.i_loc0 loc) "no need to return a [reg const ptr] %a"
               Printer.pp_pvar x;
@@ -1905,7 +1784,7 @@ let tt_call_conv loc params returns cc =
         | _ -> assert false) returns in
     let is_writable_ptr k = 
       match k with
-      | P.Reg(_, Pointer Writable) -> true
+      | W.Reg(_, Pointer Writable) -> true
       | _ -> false in
     let check_writable_param i x = 
       let loc = L.loc x in
@@ -1938,6 +1817,7 @@ let process_f_annot annot =
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
     max_call_depth        = Annot.ensure_uniq1 "calldepth"      (Annot.pos_int None) annot;
     annot_rzm             = parse_rz_annot;
+    f_user_annot          = annot;
   }
 
 
@@ -2052,7 +1932,7 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
     | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
   in
 
-  let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) [] in
+  let x = P.PV.mk (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
 
   Env.Globals.push env (x,d)
 

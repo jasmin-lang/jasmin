@@ -1,9 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 From Coq.Unicode Require Import Utf8.
-Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
-Require Psatz.
 From mathcomp Require Import word_ssrZ.
 
 
@@ -12,6 +11,12 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope Z_scope.
+
+Lemma eq_axiom_of_scheme X (beq : X -> X -> bool) :
+  (forall x y : X, beq x y -> x = y) ->
+  (forall x y : X, x = y -> beq x y) ->
+  Equality.axiom beq.
+Proof. move=> hbl hlb x y. apply: (iffP idP); first exact: hbl. exact: hlb. Qed.
 
 (* -------------------------------------------------------------------- *)
 Module FinIsCount.
@@ -121,26 +126,6 @@ Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
 Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
 
-#[global]
-Instance and4_impl_morphism :
-  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and4 | 1.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 [/h1 ? /h2 ? /h3 ? /h4 ?]. Qed.
-
-#[global]
-Instance and4_iff_morphism :
-  Proper (iff ==> iff ==> iff ==> iff ==> iff) and4.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4; split => -[] /h1 ? /h2 ? /h3 ? /h4. Qed.
-
-#[global]
-Instance and5_impl_morphism :
-  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and5 | 1.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5 [/h1 ? /h2 ? /h3 ? /h4 ? /h5]. Qed.
-
-#[global]
-Instance and5_iff_morphism :
-  Proper (iff ==> iff ==> iff ==> iff ==> iff ==> iff) and5.
-Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5; split => -[] /h1 ? /h2 ? /h3 ? /h4 ? /h5 ?. Qed.
-
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
@@ -242,15 +227,13 @@ Proof. by case: b. Qed.
 Arguments assertP {E b e u} _.
 
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith.
 
 Scheme Equality for error.
 
 Lemma error_beqP : Equality.axiom error_beq.
 Proof.
-  move=> e1 e2;case Heq: error_beq;constructor.
-  + by apply: internal_error_dec_bl.
-  by move=> /internal_error_dec_lb;rewrite Heq.
+  exact: (eq_axiom_of_scheme internal_error_dec_bl internal_error_dec_lb).
 Qed.
 
 Canonical error_eqMixin := EqMixin error_beqP.
@@ -531,6 +514,15 @@ Proof.
   by rewrite /= (hind _ h).
 Qed.
 
+Lemma mapM_take eT aT bT (f: aT → result eT bT) (xs: seq aT) ys n :
+  mapM f xs = ok ys →
+  mapM f (take n xs) = ok (take n ys).
+Proof.
+  elim: xs ys n => [ | x xs hrec] ys n /=; first by move => /ok_inj<-.
+  t_xrbindP => y hy ys' /hrec h ?; subst ys; case: n; first by rewrite take0.
+  by move => n; rewrite /= (h n) /= hy.
+Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -546,6 +538,12 @@ Section FOLDM.
     | [::]         => Ok eT acc
     | [:: a & la ] => foldrM acc la >>= f a
     end.
+
+  Lemma foldM_cat acc l1 l2 :
+    foldM acc (l1 ++ l2) =
+      Let acc1 := foldM acc l1 in
+      foldM acc1 l2.
+  Proof. by elim: l1 acc => //= x l hrec acc; case: f. Qed.
 
 End FOLDM.
 
@@ -618,7 +616,7 @@ Section MAP2.
     + by move=> [|//] _ [<-].
     move=> a ma ih [//|b mb] /=.
     t_xrbindP=> _ r hf lr /ih{ih}ih <- /=.
-    by Psatz.lia.
+    by Lia.lia.
   Qed.
 
   Lemma mapM2_Forall2 (P: R → B → Prop) ma mb mr :
@@ -692,7 +690,7 @@ Proof.
   + by move=> [|//] _ _ _ [_ <-].
   move=> b lb ih [//|c lc] a /=.
   t_xrbindP=> _ _ _ _ [_ ld] /ih{ih}ih _ <- /=.
-  by Psatz.lia.
+  by Lia.lia.
 Qed.
 
 (* Forall and size *)
@@ -718,19 +716,6 @@ Proof.
   by apply ih.
 Qed.
 
-Lemma nth_Forall A (R : A -> Prop) l d :
-  (forall i, (i < size l)%nat -> R (nth d l i)) ->
-  List.Forall R l.
-Proof.
-  elim: l => //.
-  move=> a l ih h.
-  constructor.
-  + by apply (h 0%nat).
-  apply ih.
-  by move=> i; apply (h i.+1).
-Qed.
-Arguments nth_Forall [A R l].
-
 Lemma Forall2_nth A B (R : A -> B -> Prop) la lb :
   List.Forall2 R la lb ->
   forall a b i, (i < size la)%nat ->
@@ -739,21 +724,6 @@ Proof.
   elim {la lb} => // a b la lb h _ ih a0 b0 [//|i].
   by apply ih.
 Qed.
-
-Lemma nth_Forall2 A B (R : A -> B -> Prop) la lb a b:
-  size la = size lb ->
-  (forall i, (i < size la)%nat -> R (nth a la i) (nth b lb i)) ->
-  List.Forall2 R la lb.
-Proof.
-  elim: la lb.
-  + by move=> [|//] _ _; constructor.
-  move=> a0 la ih [//|b0 lb] [hsize] h.
-  constructor.
-  + by apply (h 0%nat).
-  apply ih => //.
-  by move=> i; apply (h i.+1).
-Qed.
-Arguments nth_Forall2 [A B R la lb].
 
 Lemma Forall2_forall A B (R : A -> B -> Prop) la lb :
   List.Forall2 R la lb ->
@@ -764,20 +734,6 @@ Proof.
   case.
   + by move=> [<- <-].
   by apply ih.
-Qed.
-
-Lemma forall_Forall2 A B (R : A -> B -> Prop) la lb :
-  size la = size lb ->
-  (forall a b, List.In (a, b) (zip la lb) -> R a b) ->
-  List.Forall2 R la lb.
-Proof.
-  elim: la lb.
-  + by move=> [|//]; constructor.
-  move=> a la ih [//|b l2] [hsize] h.
-  constructor.
-  + by apply h; left.
-  apply ih => //.
-  by move=> ???; apply h; right.
 Qed.
 
 Lemma Forall2_impl A B (R1 R2 : A -> B -> Prop) :
@@ -835,20 +791,6 @@ Proof.
   case.
   + by move=> [<- <- <-].
   by apply ih.
-Qed.
-
-Lemma forall_Forall3 A B C (R : A -> B -> C -> Prop) la lb lc :
-  size la = size lb -> size la = size lc ->
-  (forall a b c, List.In (a, (b, c)) (zip la (zip lb lc)) -> R a b c) ->
-  Forall3 R la lb lc.
-Proof.
-  elim: la lb lc.
-  + by move=> [|//] [|//]; constructor.
-  move=> a la ih [//|b l2] [//|c l3] [hsize1] [hsize2] h.
-  constructor.
-  + by apply h; left.
-  apply ih => //.
-  by move=> ????; apply h; right.
 Qed.
 
 Lemma Forall3_impl A B C (R1 R2 : A -> B -> C -> Prop) :
@@ -974,6 +916,17 @@ Section DifferentTypes.
 
   End Ind.
 
+  Lemma all2_nth s t n ss ts :
+    (n < size ss)%nat || (n < size ts)%nat ->
+    all2 p ss ts ->
+    p (nth s ss n) (nth t ts n).
+  Proof.
+    move=> hn; rewrite all2E => /andP [] /eqP hsz.
+    move: hn; rewrite -hsz orbb => hn.
+    move=> /(all_nthP (s, t)) -/(_ n).
+    by rewrite size_zip -hsz minnn nth_zip //; apply.
+  Qed.
+
 End DifferentTypes.
 
 Section SameType.
@@ -1092,26 +1045,16 @@ End MAPI.
 
 Section FIND_MAP.
 
-Context {A : eqType} {B : Type}.
-
-Section DEF.
-
-Context (f: A -> option B).
-
 (* The name comes from OCaml. *)
-Fixpoint find_map l :=
+Fixpoint find_map {A B: Type} (f: A → option B) l :=
   match l with
   | [::] => None
   | a::l =>
-    match f a with
-    | Some b => Some b
-    | None => find_map l
-    end
+    let fa := f a in
+    if fa is None then find_map f l else fa
   end.
 
-End DEF.
-
-Lemma find_map_correct {f l b} :
+Lemma find_map_correct {A: eqType} {B: Type} {f: A → option B} {l b} :
   find_map f l = Some b -> exists2 a, a \in l & f a = Some b.
 Proof.
   elim: l => //= a l ih.
@@ -1136,6 +1079,9 @@ Proof.
   - by case => a ->.
   by case: o => // a h; exists a.
 Qed.
+
+Definition omap_dflt {aT bT} (d : bT) (f : aT -> bT) (oa : option aT) :=
+  if oa is Some x then f x else d.
 
 Fixpoint list_to_rev (ub : nat) :=
   match ub with
@@ -1210,9 +1156,8 @@ Scheme Equality for comparison.
 
 Lemma comparison_beqP : Equality.axiom comparison_beq.
 Proof.
-  move=> e1 e2;case Heq: comparison_beq;constructor.
-  + by apply: internal_comparison_dec_bl.
-  by move=> /internal_comparison_dec_lb;rewrite Heq.
+  exact:
+    (eq_axiom_of_scheme internal_comparison_dec_bl internal_comparison_dec_lb).
 Qed.
 
 Canonical comparison_eqMixin := EqMixin comparison_beqP.
@@ -1577,7 +1522,42 @@ Notation zify := (Zcmp_le, Zcmp_lt, pify, (rwR2 (@ZleP), rwR2 (@ZltP))).
 
 (* -------------------------------------------------------------------- *)
 
-Definition ziota p (z:Z) := [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
+Definition Zwf0_pred_t x : Prop :=
+  if x is Zpos p
+  then 0 <= Zpos p ∧ Z.pred (Zpos p) < Zpos p
+  else True.
+
+Lemma Zwf0_pred x : Zwf0_pred_t x.
+Proof. case: x => // p; red; Lia.lia. Qed.
+
+Fixpoint ziota_rec (first z: Z) (H: Acc (Zwf 0) z) : seq Z :=
+  let: Acc_intro REC := H in
+  match z as z' return (∀ x : Z, Zwf 0 x z' → @Acc Z (Zwf 0) x) -> Zwf0_pred_t z' -> seq Z with
+  | Zpos p => λ REC h, first :: ziota_rec (Z.succ first) (REC (Z.pred p) h)
+  | _ => λ _ _, [::]
+  end REC (Zwf0_pred z).
+
+Definition ziota p z : seq Z :=
+  ziota_rec p (Acc_intro_generator 2 (Zwf_well_founded 0) z).
+
+Fixpoint ziota_recP p z H :
+  @ziota_rec p z H = [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
+Proof.
+  case: H => REC.
+  rewrite /ziota_rec.
+  case: z REC => // z' REC.
+  rewrite -/(@ziota_rec (Z.succ p) (Z.pred z')).
+  have -> : Z.to_nat z' = (Z.to_nat (Z.pred z')).+1 by Lia.lia.
+  rewrite map_cons -/(iota _ _) Z.add_0_r; congr (_ :: _).
+  rewrite (iotaDl 1) -map_comp.
+  rewrite ziota_recP.
+  apply: eq_map => i /=.
+  Lia.lia.
+Qed.
+
+Lemma ziotaE p z :
+  ziota p z = [seq p + Z.of_nat i | i <- iota 0 (Z.to_nat z)].
+Proof. exact: ziota_recP. Qed.
 
 Lemma ziota0 p : ziota p 0 = [::].
 Proof. done. Qed.
@@ -1587,36 +1567,38 @@ Proof. by case: z. Qed.
 
 Lemma ziotaS_cons p z: 0 <= z -> ziota p (Z.succ z) = p :: ziota (p+1) z.
 Proof.
+  rewrite !ziotaE.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
   rewrite -addn1 addnC iotaDl -map_comp.
-  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat;Psatz.lia.
+  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat; Lia.lia.
 Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
 Proof.
-  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
+  rewrite !ziotaE.
+  by move=> hz;rewrite Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
 Qed.
 
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
 Proof.
   case: (ZleP 0 z) => hz.
   + move: p; pattern z; apply natlike_ind => [ p | {z hz} z hz hrec p| //].
-    + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Psatz.lia.
+    + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Lia.lia.
     rewrite ziotaS_cons // in_cons; case: eqP => [-> | ?] /=.
-    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Psatz.lia.
+    + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Lia.lia.
     by rewrite hrec; apply Bool.eq_iff_eq_true;split=> /andP [/ZleP ? /ZltP ?];
-      (apply /andP;split;[apply /ZleP| apply /ZltP]); Psatz.lia.
-  rewrite ziota_neg;last Psatz.lia.
-  rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Psatz.lia.
+      (apply /andP;split;[apply /ZleP| apply /ZltP]); Lia.lia.
+  rewrite ziota_neg;last Lia.lia.
+  rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Lia.lia.
 Qed.
 
 Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.
-Proof. by rewrite size_map size_iota. Qed.
+Proof. by rewrite ziotaE size_map size_iota. Qed.
 
 Lemma nth_ziota p (i:nat) z : leq (S i) (Z.to_nat z) ->
    nth 0%Z (ziota p z) i = (p + Z.of_nat i)%Z.
 Proof.
-  by move=> hi;rewrite (nth_map O) ?size_iota // nth_iota.
+  by move=> hi; rewrite ziotaE (nth_map O) ?size_iota // nth_iota.
 Qed.
 
 Lemma list_all_ind (Q : Z -> bool) (P : list Z -> Prop):
@@ -1653,11 +1635,6 @@ Lemma sumbool_of_boolEF (b: bool) (h: b = false) :
   Sumbool.sumbool_of_bool b = right h.
 Proof. by move: h; rewrite /is_true => ?; subst. Qed.
 
-(* ------------------------------------------------------------------------- *)
-Definition funname := positive.
-
-Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
-  assoc p f.
 
 (* ------------------------------------------------------------------------- *)
 
@@ -1744,7 +1721,7 @@ Ltac t_elim_uniq :=
   );
   move=> _.
 
-Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
+Variant and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
   And6 of P1 & P2 & P3 & P4 & P5 & P6.
 
 Inductive and7 (P1 P2 P3 P4 P5 P6 P7 : Prop) : Prop :=
@@ -1763,3 +1740,39 @@ Tactic Notation "have!" ":= " constr(x) :=
 Tactic Notation "have!" simple_intropattern(ip) ":= " constr(x) :=
   let h := fresh "h" in
   (assert (h := x); move: h => ip).
+
+#[local]
+Ltac t_do_rewrites tac :=
+  repeat
+    match goal with
+    | [ h : ?lhs = ?rhs |- _ ] => tac h lhs rhs
+    | [ h : is_true (?lhs == ?rhs) |- _ ] => move: h => /eqP h; tac h lhs rhs
+    end.
+
+#[local]
+Ltac head_term e :=
+  match e with
+  | ?a _ => head_term a
+  | _ => e
+  end.
+
+#[local]
+Ltac is_simpl e :=
+  is_var e
+  || let x := head_term e in is_constructor x.
+
+#[local]
+Ltac simpl_rewrite h lhs rhs :=
+  (is_simpl lhs; rewrite -!h) || (is_simpl rhs; rewrite !h).
+
+Ltac t_simpl_rewrites := t_do_rewrites simpl_rewrite.
+
+#[local]
+Ltac eq_rewrite h _ _ :=
+  (rewrite !h || rewrite -!h); clear h.
+
+Ltac t_eq_rewrites := t_do_rewrites eq_rewrite.
+
+Ltac destruct_opn_args :=
+  repeat (t_xrbindP=> -[|?]; first done);
+  (t_xrbindP=> -[]; last done).

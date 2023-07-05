@@ -26,7 +26,8 @@ Require Import
   linearization_proof
   merge_varmaps_proof
   psem_of_sem_proof
-  register_zeroization_proof.
+  register_zeroization_proof
+  slh_lowering_proof.
 Require Import
   arch_decl
   arch_extra
@@ -34,6 +35,7 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 Import Utf8.
+Import wsize.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -44,10 +46,10 @@ Section PROOF.
 Context
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
-  {fresh_vars lowering_options : Type}
-  (aparams : architecture_params fresh_vars lowering_options)
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
   (haparams : h_architecture_params aparams)
-  (cparams : compiler_params fresh_vars lowering_options).
+  (cparams : compiler_params lowering_options).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
@@ -167,22 +169,24 @@ Proof.
   rewrite !print_uprogP => pe ok_pe.
   rewrite !print_uprogP => pf ok_pf pg ok_pg.
   rewrite !print_uprogP => ph ok_ph.
-  rewrite !print_uprogP => ok_fvars pp ok_pp.
-  rewrite print_uprogP => <- {p'} ok_fn exec_p.
+  rewrite !print_uprogP => ok_fvars pi ok_pi pp.
+  rewrite !print_uprogP => ok_pp <- {p'} ok_fn exec_p.
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: compose_pass_uincl.
   - move=> vr' Hvr'.
     apply: (pi_callP (sCP := sCP_unit) (hpip := hap_hpip haparams) ok_pp va_refl).
     exact: Hvr'.
   apply: compose_pass.
+  - move=> vr' Hvr'.
+    assert (h := lower_slh_prog_sem_call (hap_hshp haparams) (ev:= tt) ok_pi).
+    apply h => //; exact Hvr'.
+  apply: compose_pass.
   - move => vr'.
     exact:
       (hlop_lower_callP
          (hap_hlop haparams)
-         (is_regx cparams)
          (lowering_opt cparams)
          (warning cparams)
-         (is_var_in_memory cparams)
          ok_fvars).
   apply: compose_pass;
     first by move=> vr';
@@ -198,10 +202,9 @@ Proof.
   - move => vr' Hvr'.
     apply: (live_range_splittingP ok_pd); exact: Hvr'.
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
-  apply: compose_pass;
-    first by move => vr';
-      exact:
-        (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
+  apply: compose_pass.
+  - move => vr';
+    exact: (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
   apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
@@ -280,7 +283,7 @@ Qed.
 
 (* TODO: move *)
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog (ap_sap aparams (is_regx cparams)) cparams.(fresh_reg) rip rsp data ga la p = ok p' →
+  alloc_prog (ap_shp aparams) (ap_sap aparams) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
   by rewrite /alloc_prog; t_xrbindP => ???? _ <-.
@@ -330,12 +333,11 @@ Qed.
 
 Lemma compiler_front_endP
   entries
-  subroutines
   (p: prog)
   (p': @sprog _pd _ _asmop)
   (gd : pointer)
   scs m mi fn va scs' m' vr :
-  compiler_front_end aparams cparams entries subroutines p = ok p' →
+  compiler_front_end aparams cparams entries p = ok p' →
   fn \in entries →
   sem.sem_call p scs m fn va scs' m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
@@ -353,8 +355,7 @@ Proof.
   rewrite (compiler_third_part_meta ok_p3) => m_mi ok_mi.
   assert (ok_mi' : alloc_ok (sip := sip_of_asm_e) p2 fn mi).
   - exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
-  have := compiler_first_partP ok_p1 _ exec_p.
-  rewrite mem_cat ok_fn => /(_ erefl).
+  have := compiler_first_partP ok_p1 ok_fn exec_p.
   case => {p ok_p1 exec_p} vr1 vr_vr1 exec_p1.
   have gd2 := sp_globs_stack_alloc ok_p2.
   rewrite -gd2 in ok_p2.
@@ -372,8 +373,8 @@ Proof.
   have disjoint_va : disjoint_values (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va.
   - rewrite /disjoint_values => i1 pi1 w1 i2 pi2 w2.
     by rewrite (allNone_nth _ params_noptr).
-  have := alloc_progP (hap_hsap haparams (is_regx cparams)) ok_p2 exec_p1 m_mi.
-  move => /(_ va ok_va disjoint_va ok_mi').
+  have := alloc_progP _ (hap_hsap haparams) ok_p2 exec_p1 m_mi.
+  move => /(_ (hap_hshp haparams) va ok_va disjoint_va ok_mi').
   case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 ?.
   have [] := compiler_third_partP ok_p3.
   case/(_ _ _ _ _ _ _ _ _ ok_fn exec_p2) => vr3 vr2_vr3 exec_p3.
@@ -513,7 +514,7 @@ Proof.
   have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
   have p_call :
-    sem_export_call p (extra_free_registers cparams) vtmp rip scs m fn args scs' m' res.
+    sem_export_call p vtmp rip scs m fn args scs' m' res.
   - apply: (merge_varmaps_export_callP checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
@@ -670,7 +671,7 @@ Proof.
     apply/andP; split.
     + rewrite /var_tmp.
       have [tmp_r htmp] := ok_lip_tmp haparams.
-      rewrite -(of_stringI htmp).
+      rewrite -(of_identI htmp).
       rewrite (XM (ARReg _)).
       by rewrite /get_typed_reg_value /= truncate_word_u.
 
@@ -750,7 +751,6 @@ Definition mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
 
 Lemma compile_prog_to_asmP
   entries
-  subroutine
   (p : prog)
   (xp : asm_prog)
   scs (m : mem) scs' (m' : mem)
@@ -758,7 +758,7 @@ Lemma compile_prog_to_asmP
   va
   vr
   xm :
-  compile_prog_to_asm aparams cparams entries subroutine p = ok xp
+  compile_prog_to_asm aparams cparams entries p = ok xp
   -> fn \in entries
   -> sem.sem_call p scs m fn va scs' m' vr
   -> mem_agreement m (asm_mem xm) (asm_rip xm) (asm_globs xp)

@@ -1,0 +1,11 @@
+export
+fn foo(reg u64 p) -> {
+    reg u64 msf;
+    msf = #init_msf();
+
+    reg u64 x;
+    x = 0;
+    x = #protect(x, msf);
+
+    (u64)[p] = x;
+}

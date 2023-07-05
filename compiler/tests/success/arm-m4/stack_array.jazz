@@ -1,0 +1,7 @@
+export
+fn id_by_stack(reg u32 x) -> reg u32 {
+  stack u32[4] s;
+  s[1] = x;
+  x = s[1];
+  return x;
+}

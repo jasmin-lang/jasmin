@@ -26,8 +26,8 @@ end
 
 module FSPa : sig
   val fs_pa_make :
+    Wsize.wsize ->
     X86_extra.x86_extended_op Sopn.asmOp ->
-    (X86_extra.x86_extended_op -> bool) ->
     ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end
 

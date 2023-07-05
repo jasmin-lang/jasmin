@@ -1,0 +1,23 @@
+export
+fn protect_each_iter(#transient reg u64 p) -> #public reg u64 {
+    reg u64 msf, temp;
+    #public reg u64 sum;
+    #public reg u64 i;
+    reg bool b;
+
+    msf = #init_msf();
+    sum = 0;
+    i = 0;
+
+    b = i < 10;
+    while{b = i < 10;}(b){
+        msf = #update_msf(b, msf);
+        #declassify temp = [p + i];
+        temp = #protect(temp, msf);
+        sum += temp;
+        i += 1;
+    }
+    msf = #update_msf(!b, msf);
+
+    return sum;
+}

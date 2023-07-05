@@ -143,7 +143,7 @@ Definition to_matrix (s : u128) :=
   let s_ := fun i j => (subword (i * U8) U8 (subword (j * U32) U32 s)) in
   (s_ 0 0, s_ 0 1, s_ 0 2, s_ 0 3,
     s_ 1 0, s_ 1 1, s_ 1 2, s_ 1 3,
-    s_ 2 0, s_ 2 1, s_ 2 2, s_ 2 2,
+    s_ 2 0, s_ 2 1, s_ 2 2, s_ 2 3,
     s_ 3 0, s_ 3 1, s_ 3 2, s_ 3 3)%nat.
 
 Definition to_state (m : u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8 * u8) :=

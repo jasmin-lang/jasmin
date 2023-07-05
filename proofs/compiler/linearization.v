@@ -319,13 +319,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
     match ir with
-    | Cassgn x tag ty e =>
-      if ty is sword ws
-      then
-        if isSome (lassign' x ws e)
-        then ok tt
-        else Error (E.ii_error ii "assign failed")
-      else Error (E.ii_error ii "assign not a word")
+    | Cassgn x tag ty e => Error (E.ii_error ii "assign remains")
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
@@ -569,11 +563,7 @@ Let Llabel := linear.Llabel InternalLabel.
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
-  | Cassgn x _ ty e =>
-    let lc' := if ty is sword sz
-               then of_olinstr_r ii (lassign' x sz e) :: lc
-               else lc
-    in (lbl, lc')
+  | Cassgn _ _ _ _ => (lbl, lc) (* absurd case *)
   | Copn xs _ o es =>
       match oseq.omap lexpr_of_lval xs, oseq.omap rexpr_of_pexpr es with
       | Some xs, Some es => (lbl, MkLI ii (Lopn xs o es) :: lc)

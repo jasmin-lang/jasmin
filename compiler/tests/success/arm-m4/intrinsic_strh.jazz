@@ -10,7 +10,7 @@ fn strh(reg u32 arg0, reg u32 arg1) {
     (u16)[arg0 + (arg1 * 8)] = #STRH(arg0);
 
     reg bool n, z, v, c;
-    n, z, c, v, _ = #MOVS(arg0);
+    n, z, c, v = #CMP(arg0, 0);
 
     // Conditionals.
     (u16)[arg0] = #STRHcc(arg0, z, (u16)[arg0]);            // EQ

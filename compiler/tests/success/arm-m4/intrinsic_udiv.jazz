@@ -5,7 +5,7 @@ fn udiv(reg u32 arg0, reg u32 arg1) -> reg u32 {
 
     // Set flags.
     reg bool n, z, c, v;
-    n, z, c, v, _ = #MOVS(x);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     x = #UDIVcc(x, arg0, z, x);            // EQ

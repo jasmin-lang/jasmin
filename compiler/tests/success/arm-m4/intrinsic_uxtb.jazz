@@ -9,7 +9,7 @@ fn uxtb(reg u32 arg0) -> reg u32 {
     x = #UXTB(x, 24);
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = #UXTBcc(arg0, 8, zf, x);

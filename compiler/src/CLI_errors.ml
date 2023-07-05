@@ -46,6 +46,14 @@ let check_options () =
     end
   in
 
+  if !call_conv = Windows
+  then warning Experimental Location.i_dummy
+      "support for windows calling-convention is experimental";
+
+  if !target_arch = ARM_M4
+    then warning Experimental Location.i_dummy
+      "support of the ARMv7 architecture is experimental";
+
   if !latexfile <> ""
   then warning Deprecated Location.i_dummy
          "the [-latex] option has been deprecated since March 2023; use [jazz2tex] instead";

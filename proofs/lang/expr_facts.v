@@ -318,6 +318,30 @@ Lemma read_es_cons e es :
   Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
 Proof. by rewrite /read_es /= !read_esE read_eE; clear; SvD.fsetdec. Qed.
 
+Lemma read_e_Pget aa ws x e :
+  Sv.Equal (read_e (Pget aa ws x e)) (Sv.union (read_gvar x) (read_e e)).
+Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
+
+Lemma read_e_Psub aa ws len x e :
+  Sv.Equal (read_e (Psub aa ws len x e)) (Sv.union (read_gvar x) (read_e e)).
+Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
+
+Lemma read_e_Pload ws x e :
+  Sv.Equal (read_e (Pload ws x e)) (Sv.add (v_var x) (read_e e)).
+Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
+
+Lemma read_e_Papp1 op e :
+  Sv.Equal (read_e (Papp1 op e)) (read_e e).
+Proof. done. Qed.
+
+Lemma read_e_Papp2 op e0 e1 :
+  Sv.Equal (read_e (Papp2 op e0 e1)) (Sv.union (read_e e0) (read_e e1)).
+Proof. by rewrite {1}/read_e /= read_eE. Qed.
+
+Lemma read_e_PappN_cons opn e es :
+  Sv.Equal (read_e (PappN opn (e :: es))) (Sv.union (read_e e) (read_es es)).
+Proof. by rewrite -[read_e (PappN _ _)]/(read_es _) read_es_cons. Qed.
+
 Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
 Proof.
   case: x => //= *; rewrite /read_rv /= ?read_eE; clear; SvD.fsetdec.
@@ -335,6 +359,12 @@ Lemma read_rvs_cons x xs : Sv.Equal (read_rvs (x::xs)) (Sv.union (read_rv x) (re
 Proof.
   rewrite {1}/read_rvs /= read_rvsE read_rvE; clear; SvD.fsetdec.
 Qed.
+
+Lemma read_e_Pif ty e e0 e1 :
+  Sv.Equal
+    (read_e (Pif ty e e0 e1))
+    (Sv.union (read_e e) (Sv.union (read_e e0) (read_e e1))).
+Proof. by rewrite {1}/read_e /= 2!read_eE. Qed.
 
 Let Pr i := forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
 Let Pi i := forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
@@ -487,6 +517,53 @@ elim: es ih => // e es ih h /=; rewrite h.
 by left.
 Qed.
 
+Lemma eq_gvar_symm gx gy :
+  eq_gvar gx gy -> eq_gvar gy gx.
+Proof. rewrite /eq_gvar. move=> /andP [] /eqP -> /eqP ->. by rewrite !eqxx. Qed.
+
+Lemma eq_expr_symm e0 e1 :
+  eq_expr e0 e1 -> eq_expr e1 e0.
+Proof.
+  elim: e1 e0 =>
+    [? | ? | ? | ? | ????? | ?????? | ???? | ??? | ????? | ? es1 hind | ???????]
+    [? | ? | ? | ? | ????  | ?????  | ???  | ??  | ???   | ? es0 h | ????]
+    //= *.
+
+  all:
+    repeat
+      match goal with
+      | [ h : is_true (_ && _) |- _ ] => move: h => /andP [??]
+      end.
+
+  (* Rewrite equalities, [gvar] equalities, and apply inductive hypotheses. *)
+  all:
+    repeat
+      match goal with
+      | [ h : is_true (?x == _) |- _ ] => move: h => /eqP ->
+      | [ h : is_true (eq_gvar ?x ?y) |- _ ] => move: h => /eq_gvar_symm ->
+      | [
+          hind : forall _, _ -> is_true (eq_expr _ _),
+          h : is_true (eq_expr _ _)
+          |- _
+        ] => rewrite (hind _ h) {hind h}
+      end.
+
+  (* We are finished with all but the [PopN] case. *)
+  all: try by rewrite ?eqxx.
+
+  move: h => /= /andP [] /eqP -> h.
+  rewrite eqxx /=.
+
+  elim: es0 es1 hind h => [|e0 es0 hind'] [|e1 es1] //= hind h.
+  move: h => /andP [h0 h1].
+  rewrite (hind _ _ _ h0) {h0} /=; last by left.
+  apply: (hind' _ _ h1).
+  clear hind' h1.
+  move=> e he.
+  apply: hind.
+  by right.
+Qed.
+
 Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
 Proof. by rewrite /eq_gvar => /andP[] /eqP -> /eqP -> /andP[] /eqP -> /eqP ->; rewrite !eqxx. Qed.
 
@@ -522,6 +599,147 @@ Proof.
   move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
 Qed.
+
+#[export]
+Instance equiv_eq_expr : Equivalence eq_expr.
+Proof.
+  constructor.
+  - exact: eq_expr_refl.
+  - exact: eq_expr_symm.
+  move=> x y z.
+  exact: eq_expr_trans.
+Qed.
+
+(* Memory accesses are independent from variable info. *)
+Definition eq_expr_use_mem e0 e1 :
+  eq_expr e0 e1
+  -> use_mem e0 = use_mem e1.
+Proof.
+  elim: e0 e1 =>
+    [? | ? | ? | ? | ????? | ?????? | ???? | ??? | ????? | ? es0 hind | ???????]
+    [? | ? | ? | ? | ????  | ?????  | ???  | ??  | ???   | ? es1 h | ????]
+    //= *.
+
+  all:
+    repeat
+      match goal with
+      | [ h : is_true (_ && _) |- _ ] => move: h => /andP [??]
+      end.
+
+  all:
+    try by repeat
+      match goal with
+      | [
+          hind : forall (_ : pexpr), _ -> _,
+          h : is_true (eq_expr _ _)
+          |- _
+        ] => rewrite (hind _ h) {hind h}
+      end.
+
+  move: h => /= /andP [_ h].
+  elim: es0 es1 h hind => [|e0 es0 hind0] [|e1 es1] h hind //=.
+  move: h => /= /andP [h0 h1].
+  rewrite (hind _ _ _ h0); last by left.
+  f_equal.
+  apply: (hind0 _ h1).
+  move=> e he.
+  apply: hind.
+  by right.
+Qed.
+
+Section EQ_EXPR_READ_E.
+
+  (* Read variables are independent from variable info. *)
+
+  Definition eq_gvar_read_gvar gx gy :
+    eq_gvar gx gy
+    -> Sv.Equal (read_gvar gx) (read_gvar gy).
+  Proof.
+    move: gx => [xv xs].
+    move: gy => [yv ys].
+    move=> /andP [] /= /eqP ? /eqP h; subst ys.
+    by rewrite /read_gvar h.
+  Qed.
+
+  (* This proof goes by induction on [e0].
+     Six out of the eight cases consist of rewriting the inductive hypothesis,
+     we solve them with [t_solve]. *)
+
+  (* Apply inductive hypothesis or [read_gvar] hypotheses. *)
+  #[local]
+    Ltac t_apply :=
+    repeat
+      match goal with
+      | [
+          hind : forall (e : pexpr), is_true (eq_expr _ e) -> _,
+            he : is_true (eq_expr _ _)
+            |- _
+        ] => rewrite (hind _ he) {hind he}
+
+      | [ h : is_true (eq_gvar _ _) |- _ ] => rewrite (eq_gvar_read_gvar h) {h}
+      end.
+
+  #[local]
+  Ltac t_solve :=
+    rewrite
+      ?read_e_Pget
+      ?read_e_Psub
+      ?read_e_Pload
+      ?read_e_Papp1
+      ?read_e_Papp2
+      ?read_e_Pif;
+    (repeat move=> /andP []);
+    move=> /= *;
+    t_eq_rewrites;
+    t_apply.
+
+  Definition eq_expr_read_e e0 e1 :
+    eq_expr e0 e1
+    -> Sv.Equal (read_e e0) (read_e e1).
+  Proof.
+    elim: e0 e1 =>
+      [ ?
+      | ?
+      | ?
+      | [??]
+      | ??? e0 hinde0
+      | ???? e0 hinde0
+      | ?? e0 hinde0
+      | ? e0 hinde0
+      | ? e00 hinde00 e01 hinde01
+      | ? es0 hindes0
+      | ? e0 hinde0 e00 hinde00 e01 hinde01
+      ]
+      [ ?
+      | ?
+      | ?
+      | [??]
+      | ??? e1
+      | ???? e1
+      | ?? e1
+      | ? e1
+      | ? e10 e11
+      | ? es1
+      | ? e1 e10 e11
+      ] //=; try by t_solve.
+
+    - move=> h. rewrite /read_e /=. by rewrite (eq_gvar_read_gvar h).
+
+    move=> /andP [] _ h.
+    rewrite 2![read_e (PappN _ _)]/(read_es _) -/read_es.
+    move: h hindes0.
+    apply: (list_all2_ind (P := fun _ _ => _ -> Sv.Equal _ _))
+      => // {es0 es1} e0 es0 e1 es1 h0 h1 hind0 hind1.
+    rewrite /read_es /= -/read_e !read_esE.
+    rewrite (hind1 _ _ _ h0) {h0}; last by left.
+    rewrite hind0 {hind0}; first done.
+    move=> e2 he2.
+    apply: hind1.
+    by right.
+  Qed.
+
+End EQ_EXPR_READ_E.
+
 
 (* ------------------------------------------------------------------- *)
 Lemma is_falseP e : reflect (e = Pbool false) (is_false e).

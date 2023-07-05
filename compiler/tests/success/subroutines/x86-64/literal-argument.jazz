@@ -9,5 +9,3 @@ fn one() -> reg u64 {
   #inline r = inc(0);
   return r;
 }
-
-exec one()

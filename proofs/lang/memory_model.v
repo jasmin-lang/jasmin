@@ -144,7 +144,7 @@ Section CoreMem.
       Let l := mapM (fun k => read m (add p k) U8) (ziota 0 (wsize_size sz)) in
       ok (LE.decode sz l).
   Proof.
-    by rewrite {1}/read; case: is_align => //=; f_equal; apply eq_mapM => k _; apply get_read8.
+    by rewrite {1}/read !ziotaE; case: is_align => //=; f_equal; apply eq_mapM => k _; apply get_read8.
   Qed.
 
   Lemma write_valid8_eq m m' p s (v :word s) :
@@ -189,15 +189,19 @@ Section CoreMem.
     (forall i, 0 <= i < wsize_size ws -> read m1 (add p i) U8 = read m2 (add p i) U8) ->
     read m1 p ws = read m2 p ws.
   Proof.
-    move=> h8; rewrite !readE; case: is_align => //=; f_equal.
-    by apply eq_mapM => k; rewrite in_ziota !zify; apply h8.
+    Opaque Z.to_nat.
+    move=> h8; rewrite !readE ziotaE; case: is_align => //=; f_equal.
+    apply eq_mapM => k /mapP[] n; rewrite mem_iota add0n => /andP[] /leP ? /ltP ? ?; subst.
+    apply: h8.
+    Lia.lia.
   Qed.
-  
+
   Lemma writeV s (v:word s) m p:
     reflect (exists m', write m p v = ok m') (validw m p s).
   Proof.
-    rewrite /write /validw; case: is_align => //=; last by constructor => -[].
-    elim: ziota m => /=; first by move=> ?; constructor; eauto.
+    rewrite /write /validw; case: is_align => //; last by constructor => -[].
+    rewrite ziotaE /=.
+    elim: iota m => /=; first by move=> ?; constructor; eauto.
     move=> k l hrec m.
     apply (iffP andP).
     + move=> [] /valid8P -/(_ (LE.wread8 v k)) [m'] hset hall.
@@ -225,11 +229,11 @@ Section CoreMem.
     (forall i, 0 <= i < wsize_size s -> read m (add p i) U8 = ok (LE.wread8 v i)) ->
     read m p s = if is_align p s then ok v else Error ErrAddrInvalid.
   Proof.
-    rewrite readE => h8; case: is_align => //=.
-    have -> /= : mapM (λ k, read m (add p k) U8) (ziota 0 (wsize_size s)) = 
+    rewrite readE => h8; case: is_align => //.
+    have -> : mapM (λ k, read m (add p k) U8) (ziota 0 (wsize_size s)) =
                    ok (map (λ k, LE.wread8 v k) (ziota 0 (wsize_size s))).
     + by apply ziota_ind => //= k l hk ->; rewrite h8.
-    by rewrite -{2}(LE.decodeK v) LE.encodeE.
+    by rewrite -{2}(LE.decodeK v) LE.encodeE ziotaE.
   Qed.
 
   Lemma read_read8 m p s v: 
@@ -302,8 +306,6 @@ End CoreMem.
 
 (* ** Memory
  * -------------------------------------------------------------------- *)
-
-Notation pointer := (word Uptr) (only parsing).
 
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
@@ -444,15 +446,6 @@ Qed.
 
 Definition pointer_range (lo hi: pointer) : pred pointer :=
   λ p, (wunsigned lo <=? wunsigned p) && (wunsigned p <? wunsigned hi).
-
-Lemma pointer_range_between lo hi p :
-  pointer_range lo hi p →
-  between lo (wunsigned hi - wunsigned lo) p U8.
-Proof.
-  rewrite /pointer_range /between !zify.
-  change (wsize_size U8) with 1.
-  Psatz.lia.
-Qed.
 
 (* -------------------------------------------------- *)
 (** Pointer arithmetic *)

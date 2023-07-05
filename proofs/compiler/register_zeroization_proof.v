@@ -91,6 +91,7 @@ Section H_REGISTER_ZEROIZATION_PARAMS.
 Context
   {reg regx xreg rflag cond : Type}
   {arch : arch_decl reg regx xreg rflag cond}
+  {atoI : arch_toIdent}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -165,6 +166,7 @@ Section WITH_PARAMS.
 Context
   {reg regx xreg rflag cond : Type}
   {arch : arch_decl reg regx xreg rflag cond}
+  {atoI : arch_toIdent}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}

@@ -15,6 +15,10 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
+Lemma write_lvals_write_lval gd lv v s :
+  write_lval gd lv v s = write_lvals gd s [:: lv ] [:: v ].
+Proof. rewrite /=. by case: write_lval. Qed.
+
 Lemma write_var_emem x v s s' :
   write_var x v s = ok s' →
   emem s = emem s'.
@@ -27,6 +31,31 @@ Proof.
   elim: xs vs a => [ | x xs ih ] [] //.
   - by move => a [<-].
   by move => v vs a /=; t_xrbindP => b /write_var_emem -> /ih.
+Qed.
+
+Lemma get_var_write_var_word s s' ws (w : word ws) x :
+  vtype (v_var x) = sword ws
+  -> write_var x (Vword w) s = ok s'
+  -> get_var (evm s') (v_var x) = ok (Vword w).
+Proof.
+  move=> hty.
+  rewrite /write_var.
+  t_xrbindP=> vm hset ?; subst s'.
+  rewrite (get_var_set_var _ hset).
+  rewrite hty /=.
+  by rewrite eqxx sumbool_of_boolET.
+Qed.
+
+Lemma get_var_write_var_word_neq s s' x y v :
+  v_var x <> y
+  -> write_var x v s = ok s'
+  -> get_var (evm s') y = get_var (evm s) y.
+Proof.
+  move=> hxy.
+  rewrite /write_var.
+  t_xrbindP=> vm hset ?; subst s'.
+  rewrite (get_var_set_var _ hset).
+  by move: hxy => /eqP /negbTE ->.
 Qed.
 
 Lemma vrvs_Lvar xs :
@@ -708,7 +737,7 @@ Proof.
     t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
     move: ih.
     rewrite A /= B => /(_ _ erefl)[] ? -> /value_uinclE[] ? [] ? [] -> /andP[] sz_le /eqP D.
-    rewrite /= /truncate_word sz_le -D.
+    rewrite /= truncate_word_le // -D.
     eexists; first reflexivity.
     apply/andP; split; first exact: cmp_le_refl.
     by rewrite wopp_zero_extend // zero_extend_u wrepr_opp.
@@ -722,13 +751,101 @@ Proof.
   all: move => /(_ _ erefl) [] v1 -> /value_uinclE[] ? [] ? [] -> /andP[] le1 /eqP {} h1.
   all: move => /(_ _ erefl) [] v2 -> /value_uinclE[] ? [] ? [] -> /andP[] le2 /eqP {} h2.
   all: case => <- /=.
-  all: rewrite /sem_sop2 /= /truncate_word le1 -h1 le2 -h2 /=.
+  all: rewrite /sem_sop2 /= !truncate_word_le // {le1 le2} -h1 -h2 /=.
   all: eexists; first reflexivity.
   all: apply/andP; split; first by auto.
   - by rewrite wadd_zero_extend // !zero_extend_u wrepr_add.
   - by rewrite wmul_zero_extend // !zero_extend_u wrepr_mul.
   by rewrite wsub_zero_extend // !zero_extend_u wrepr_sub.
 Qed.
+
+Section USE_MEM.
+
+(* Solve [ h : vm =[ read e ] vm' |- vm =[ read e' ] vm'] with [e'] a
+   subexpression of [e]. *)
+#[local]
+Ltac t_vm_eq_on_read_e :=
+  apply: eq_onI;
+    last eassumption;
+    rewrite ?read_e_Papp2 ?read_e_Pif ?read_e_PappN_cons /=;
+    by
+      [ done
+      | eauto 1 using SvP.MP.union_subset_1, SvP.MP.union_subset_2
+      | SvD.fsetdec
+      ].
+
+Lemma eq_on_sem_pexpr_nomem gd s s' e :
+  ~~ use_mem e
+  -> evm s =[ read_e e ] evm s'
+  -> sem_pexpr gd s e = sem_pexpr gd s' e.
+Proof.
+  elim: e =>
+    [||| x
+    | aa ws x e hinde
+    | aa ws len x e hinde
+    || op1 e hinde
+    | op2 e0 hinde0 e1 hinde1
+    | opn es hindes
+    | ty e hinde e0 hinde0 e1 hinde1
+    ] //= hmem hvm.
+
+  - clear hmem. apply: (get_gvar_eq_on _ _ hvm). by rewrite read_e_var.
+
+  - rewrite read_e_Pget in hvm.
+    rewrite (on_arr_gvar_eq_on (s' := s') gd _ hvm _);
+      last exact: SvP.MP.union_subset_1.
+    rewrite (hinde hmem _) {hinde hmem}; first done.
+    by t_vm_eq_on_read_e.
+
+  - rewrite read_e_Psub in hvm.
+    rewrite (on_arr_gvar_eq_on (s' := s') gd _ hvm _);
+      last exact: SvP.MP.union_subset_1.
+    rewrite (hinde hmem _) {hinde hmem}; first done.
+    by t_vm_eq_on_read_e.
+
+  - by rewrite (hinde hmem hvm).
+
+  - rewrite negb_or in hmem.
+    move: hmem => /andP [hmeme0 hmeme1].
+    rewrite (hinde0 hmeme0); last by t_vm_eq_on_read_e.
+    rewrite (hinde1 hmeme1); first done.
+    by t_vm_eq_on_read_e.
+
+  - have -> :
+      mapM (sem_pexpr gd s) es = mapM (sem_pexpr gd s') es.
+    + elim: es hindes hmem hvm => //= e es hind hindes hmem hvm.
+      rewrite negb_or in hmem.
+      move: hmem => /andP [hmeme hmemes].
+      rewrite (hindes _ _ hmeme) {hmeme}; first last.
+      * by t_vm_eq_on_read_e.
+      * by left.
+      rewrite (hind _ hmemes) {hind hmemes};
+        first done;
+        last by t_vm_eq_on_read_e.
+      move=> e0 he0.
+      apply: hindes.
+      by right.
+    done.
+
+  rewrite !negb_or in hmem.
+  move: hmem => /andP [] /andP [] hmeme hmeme0 hmeme1.
+  rewrite (hinde hmeme) {hinde hmeme}; last by t_vm_eq_on_read_e.
+  rewrite (hinde0 hmeme0) {hinde0 hmeme0}; last by t_vm_eq_on_read_e.
+  rewrite (hinde1 hmeme1) {hinde1 hmeme1}; first done.
+  by t_vm_eq_on_read_e.
+Qed.
+
+Lemma use_memP s1 s2 gd e :
+  evm s1 = evm s2 ->
+  ~~ use_mem e ->
+  sem_pexpr gd s1 e = sem_pexpr gd s2 e.
+Proof.
+  move=> hvm hmem.
+  rewrite (eq_on_sem_pexpr_nomem (s' := s2) _ hmem); first done.
+  by rewrite hvm.
+Qed.
+
+End USE_MEM.
 
 End WITH_PARAMS.
 

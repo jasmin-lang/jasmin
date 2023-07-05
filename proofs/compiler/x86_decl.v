@@ -3,7 +3,7 @@ From mathcomp Require Import word_ssrZ.
 Require oseq.
 Require Import ZArith
 utils
-strings wsize
+strings wsize ident
 memory_model
 (* word *)
 global
@@ -12,33 +12,15 @@ Utf8
 Relation_Operators
 sem_type.
 Require Import flag_combination.
-Require Export arch_decl.
+Require Import
+  arch_decl
+  arch_utils.
 
-(* Import Memory. *)
+Require Export x86_decl_core.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-(* -------------------------------------------------------------------- *)
-Variant register : Type :=
-  | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
-  | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
-
-(* -------------------------------------------------------------------- *)
-Variant register_ext : Type :=
-  | MM0 | MM1 | MM2 | MM3 | MM4 | MM5 | MM6 | MM7.
-
-(* -------------------------------------------------------------------- *)
-Variant xmm_register : Type :=
-  | XMM0 | XMM1 | XMM2 | XMM3
-  | XMM4 | XMM5 | XMM6 | XMM7
-  | XMM8 | XMM9 | XMM10 | XMM11
-  | XMM12 | XMM13 | XMM14 | XMM15
-.
-
-(* -------------------------------------------------------------------- *)
-Variant rflag : Type := CF | PF | ZF | SF | OF.
 
 (* -------------------------------------------------------------------- *)
 Variant condt : Type :=
@@ -66,9 +48,7 @@ Scheme Equality for register.
 
 Lemma reg_eq_axiom : Equality.axiom register_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_register_dec_bl.
-  by apply: internal_register_dec_lb.
+  exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
 Qed.
 
 Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
@@ -81,9 +61,10 @@ Scheme Equality for register_ext.
 
 Lemma regx_eq_axiom : Equality.axiom register_ext_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_register_ext_dec_bl.
-  by apply: internal_register_ext_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_register_ext_dec_bl
+       internal_register_ext_dec_lb).
 Qed.
 
 Definition regx_eqMixin := Equality.Mixin regx_eq_axiom.
@@ -95,9 +76,10 @@ Scheme Equality for xmm_register.
 
 Lemma xreg_eq_axiom : Equality.axiom xmm_register_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_xmm_register_dec_bl.
-  by apply: internal_xmm_register_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_xmm_register_dec_bl
+       internal_xmm_register_dec_lb).
 Qed.
 
 Definition xreg_eqMixin := Equality.Mixin xreg_eq_axiom.
@@ -109,9 +91,7 @@ Scheme Equality for rflag.
 
 Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_rflag_dec_bl.
-  by apply: internal_rflag_dec_lb.
+  exact: (eq_axiom_of_scheme internal_rflag_dec_bl internal_rflag_dec_lb).
 Qed.
 
 Definition rflag_eqMixin := Equality.Mixin rflag_eq_axiom.
@@ -123,9 +103,7 @@ Scheme Equality for condt.
 
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_condt_dec_bl.
-  by apply: internal_condt_dec_lb.
+  exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
 Qed.
 
 Definition condt_eqMixin := Equality.Mixin condt_eq_axiom.
@@ -232,7 +210,15 @@ Canonical rflag_finType :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition x86_string_of_register r :=
+#[global]
+Instance eqTC_register : eqTypeC register :=
+  { ceqP := reg_eq_axiom }.
+
+#[global]
+Instance finC_register : finTypeC register := 
+  { cenumP := registers_fin_axiom }.
+
+Definition register_to_string r : string :=
   match r with
   | RAX => "RAX"
   | RCX => "RCX"
@@ -250,33 +236,24 @@ Definition x86_string_of_register r :=
   | R13 => "R13"
   | R14 => "R14"
   | R15 => "R15"
-  end%string.
-
-Lemma x86_string_of_register_inj : injective x86_string_of_register.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
+  end.
 
 #[global]
-Instance eqTC_register : eqTypeC register :=
-  { ceqP := reg_eq_axiom }.
-
-#[global]
-Instance finC_register : finTypeC register := 
-  { cenumP := registers_fin_axiom }.
-
-#[global]
-Instance x86_reg_toS : ToString sword64 register :=
-  { category      := "register"
-  ; to_string     := x86_string_of_register
-  ; strings       := [seq (x86_string_of_register x, x) | x <- enum [finType of register]]
-  ; inj_to_string := x86_string_of_register_inj
-  ; stringsE      := refl_equal
+Instance x86_reg_toS : ToString (sword x86_reg_size) register :=
+  { category  := "register"
+  ; to_string := register_to_string
   }.
 
 (* -------------------------------------------------------------------- *)
+#[global]
+Instance eqTC_regx : eqTypeC register_ext :=
+  { ceqP := regx_eq_axiom }.
 
-Definition x86_string_of_regx r :=
+#[global]
+Instance finC_regx : finTypeC register_ext := 
+  { cenumP := regxs_fin_axiom }.
+
+Definition regx_to_string r : string:=
   match r with
   | MM0 => "MM0"
   | MM1 => "MM1"
@@ -286,56 +263,15 @@ Definition x86_string_of_regx r :=
   | MM5 => "MM5"
   | MM6 => "MM6"
   | MM7 => "MM7"
-  end%string.
-
-Lemma x86_string_of_regx_inj : injective x86_string_of_regx.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
+  end.
 
 #[global]
-Instance eqTC_regx : eqTypeC register_ext :=
-  { ceqP := regx_eq_axiom }.
-
-#[global]
-Instance finC_regx : finTypeC register_ext := 
-  { cenumP := regxs_fin_axiom }.
-
-#[global]
-Instance x86_regx_toS : ToString sword64 register_ext :=
-  { category      := "register"
-  ; to_string     := x86_string_of_regx
-  ; strings       := [seq (x86_string_of_regx x, x) | x <- enum [finType of register_ext]]
-  ; inj_to_string := x86_string_of_regx_inj
-  ; stringsE      := refl_equal
+Instance x86_regx_toS : ToString (sword x86_reg_size) register_ext :=
+  { category  := "register"
+  ; to_string := regx_to_string
   }.
 
 (* -------------------------------------------------------------------- *)
-Definition x86_string_of_xmm_register r : string :=
-  match r with
-  | XMM0 => "XMM0"
-  | XMM1 => "XMM1"
-  | XMM2 => "XMM2"
-  | XMM3 => "XMM3"
-  | XMM4 => "XMM4"
-  | XMM5 => "XMM5"
-  | XMM6 => "XMM6"
-  | XMM7 => "XMM7"
-  | XMM8 => "XMM8"
-  | XMM9 => "XMM9"
-  | XMM10 => "XMM10"
-  | XMM11 => "XMM11"
-  | XMM12 => "XMM12"
-  | XMM13 => "XMM13"
-  | XMM14 => "XMM14"
-  | XMM15 => "XMM15"
-  end.
-
-Lemma x86_string_of_xmm_register_inj : injective x86_string_of_xmm_register.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
-
 #[global]
 Instance eqTC_xmm_register : eqTypeC xmm_register :=
   { ceqP := xreg_eq_axiom }.
@@ -344,29 +280,33 @@ Instance eqTC_xmm_register : eqTypeC xmm_register :=
 Instance finC_xmm_register : finTypeC xmm_register := 
   { cenumP := xmm_registers_fin_axiom }.
 
+Definition xreg_to_string r : string :=
+  match r with
+  | XMM0  => "XMM0"
+  | XMM1  => "XMM1"
+  | XMM2  => "XMM2"
+  | XMM3  => "XMM3"
+  | XMM4  => "XMM4"
+  | XMM5  => "XMM5"
+  | XMM6  => "XMM6"
+  | XMM7  => "XMM7"
+  | XMM8  => "XMM8"
+  | XMM9  => "XMM9"
+  | XMM10 => "XMM10"
+  | XMM11 => "XMM11"
+  | XMM12 => "XMM12"
+  | XMM13 => "XMM13"
+  | XMM14 => "XMM14"
+  | XMM15 => "XMM15"
+  end.
+
 #[global]
-Instance x86_xreg_toS : ToString sword256 xmm_register :=
-  { category      := "ymm_register"
-  ; to_string     := x86_string_of_xmm_register
-  ; strings       := [seq (x86_string_of_xmm_register x, x) | x <- enum [finType of xmm_register]]
-  ; inj_to_string := x86_string_of_xmm_register_inj
-  ; stringsE      := refl_equal
+Instance x86_xreg_toS : ToString (sword x86_xreg_size) xmm_register :=
+  { category  := "ymm_register"
+  ; to_string := xreg_to_string
   }.
 
 (* -------------------------------------------------------------------- *)
-Definition x86_string_of_rflag (rf : rflag) : string :=
-  match rf with
- | CF => "CF"
- | PF => "PF"
- | ZF => "ZF"
- | SF => "SF"
- | OF => "OF"
- end%string.
-
-Lemma x86_string_of_rflag_inj : injective x86_string_of_rflag.
-Proof.
-  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
-Qed.
 
 #[global]
 Instance eqTC_rflag : eqTypeC rflag :=
@@ -376,27 +316,26 @@ Instance eqTC_rflag : eqTypeC rflag :=
 Instance finC_rflag : finTypeC rflag :=
   { cenumP := rflags_fin_axiom }.
 
+Definition rflag_to_string rf : string :=
+  match rf with
+  | CF => "CF"
+  | PF => "PF"
+  | ZF => "ZF"
+  | SF => "SF"
+  | OF => "OF"
+  end.
+
 #[global]
 Instance x86_rflag_toS : ToString sbool rflag :=
-  { category      := "rflag"
-  ; to_string     := x86_string_of_rflag
-  ; strings       := [seq (x86_string_of_rflag x, x) | x <- enum [finType of rflag]]
-  ; inj_to_string := x86_string_of_rflag_inj
-  ; stringsE      := refl_equal
+  { category  := "rflag"
+  ; to_string := rflag_to_string
   }.
-
-(* -------------------------------------------------------------------- *)
-Lemma x86_inj_toS_reg_regx (r:register) (rx: register_ext) : to_string r <> to_string rx.
-Proof.
-  by case:r; case: rx.
-Qed.
 
 (* -------------------------------------------------------------------- *)
 
 #[global]
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
-
 
 (* -------------------------------------------------------------------- *)
 
@@ -434,7 +373,6 @@ Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   ; toS_f := x86_rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := RSP
-  ; inj_toS_reg_regx := x86_inj_toS_reg_regx
   ; ad_fcp := x86_fcp
   }.
 

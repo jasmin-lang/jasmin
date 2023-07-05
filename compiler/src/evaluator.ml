@@ -13,14 +13,14 @@ open Sem_params
 exception Eval_error of instr_info * Utils0.error 
 
 let pp_error fmt err =
-  let msg = 
-    match err with
-    | ErrOob -> "out_of_bound"
-    | ErrAddrUndef -> "undefined address"
-    | ErrAddrInvalid -> "invalid address"
-    | ErrStack -> "stack error"
-    | ErrType  -> "type error" in
-  Format.fprintf fmt "%s" msg
+  Format.fprintf fmt "%s" @@
+  match err with
+  | ErrOob -> "out_of_bound"
+  | ErrAddrUndef -> "undefined address"
+  | ErrAddrInvalid -> "invalid address"
+  | ErrStack -> "stack error"
+  | ErrType  -> "type error"
+  | ErrArith -> "arithmetic error"
 
 let exn_exec (ii:instr_info) (r: 't exec) = 
   match r with
@@ -102,7 +102,9 @@ let small_step1 ep spp sip s =
 
     | Csyscall(xs,o, es) ->
         let ves = exn_exec ii (sem_pexprs ep spp gd s1 es) in
-        let ((scs, m), vs) = exn_exec ii (exec_syscall sip._sc_sem ep s1.escs s1.emem o ves) in
+        let ((scs, m), vs) =
+          exn_exec ii (exec_syscall sip._sc_sem ep._pd s1.escs s1.emem o ves)
+        in
         let s2 = exn_exec ii (write_lvals ep spp gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
@@ -153,6 +155,34 @@ let exec ep spp sip scs0 p ii fn args m =
   let s = init_state ep scs0 p ii fn args m in
   try small_step ep spp sip s
   with Final(m,vs) -> m, vs 
+
+(* ----------------------------------------------------------- *)
+let initial_memory reg_size rsp alloc =
+  let ptr_of_z z = Word0.wrepr reg_size (Conv.cz_of_z z) in
+  (Low_memory.Memory.coq_M reg_size).init
+    (List.map (fun (ptr, sz) -> (ptr_of_z ptr, Conv.cz_of_z sz)) alloc)
+    (ptr_of_z rsp)
+
+(* ----------------------------------------------------------- *)
+let run (type reg regx xreg rflag cond asm_op extra_op)
+      (module A : Arch_full.Arch
+              with type reg = reg
+               and type regx = regx
+               and type xreg = xreg
+               and type rflag = rflag
+               and type cond = cond
+               and type asm_op = asm_op
+               and type extra_op = extra_op)
+      (p :
+         (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op
+           Expr.uprog) ii fn args m =
+  let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e Syscall_ocaml.sc_sem in
+  let spp = Sem_params_of_arch_extra.spp_of_asm_e A.asm_e in
+  let sip =
+    Sem_params_of_arch_extra.sip_of_asm_e A.asm_e Syscall_ocaml.sc_sem
+  in
+  let scs0 = Syscall_ocaml.initial_state () in
+  exec ep spp sip scs0 p ii fn args m
 
 (* ----------------------------------------------------------- *)
 let pp_undef fmt ty = 

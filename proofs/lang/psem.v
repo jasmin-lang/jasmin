@@ -77,16 +77,14 @@ Lemma to_pword_u ws (w : word ws) :
 Proof. by rewrite /= sumbool_of_boolET. Qed.
 
 Lemma to_pword_undef w v :
-  to_pword w v = undef_error -> exists w', v = undef_w w'.
-Proof.
-  by case: v => //= -[] // w' e _; rewrite (Eqdep_dec.UIP_refl_bool _ e); exists w'.
-Qed.
+  to_pword w v = undef_error -> v = undef_w.
+Proof. by case: v => //= -[] // w' e _; rewrite undef_x_vundef. Qed.
 
 Lemma type_of_val_to_pword sz v w :
   type_of_val v = sword sz → to_pword sz v = ok w →
   ∃ w' : word sz, w = pword_of_word w' ∧ v = Vword w'.
 Proof.
-  move=> /type_of_valI [] [w' ->] //=.
+  move=> h; have := type_of_valI v; rewrite h => - [ -> | [w' ->] ] //=.
   by rewrite sumbool_of_boolET => - [<-]; exists w'.
 Qed.
 
@@ -173,7 +171,7 @@ Proof.
   case: x => /= xt x ->.
   rewrite /set_var /on_vu /=.
   case: v => //=.
-  + by rewrite /WArray.cast /= => ??; rewrite Z.leb_refl.
+  + by move=> ??; rewrite WArray.castK. 
   by case => //= ?; case:ifP.
 Qed.
 
@@ -959,6 +957,11 @@ Proof.
   by case/semE => ? [?] /semE ->.
 Qed.
 
+Lemma sem_seq_ir ii ir s0 s1 :
+  sem_i s0 ir s1
+  -> sem s0 [:: MkI ii ir ] s1.
+Proof. by move=> /(EmkI ii) /sem_seq1. Qed.
+
 End SEM.
 
 Section WITH_PARAMS.
@@ -1003,8 +1006,7 @@ Lemma truncate_pto_val ty v v':
 Proof.
 case: ty v.
 + by move=> ? [<-]. + by move=> ? [<-].
-+ move=> p t1; rewrite /truncate_val /= /WArray.cast Z.leb_refl /= => -[<-].
-  by f_equal;case: t1.
++ by move=> p t1; rewrite /truncate_val /= WArray.castK /= => -[<-].
 move => w [] // s v /= hle; apply: rbindP => w' /truncate_wordP [hle'] -> [<-].
 by rewrite -(cmp_le_antisym hle hle') zero_extend_u.
 Qed.
@@ -1015,7 +1017,18 @@ Lemma is_wconstP gd s sz e w:
 Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.
-  by rewrite /= /truncate_word hle.
+  by rewrite /= truncate_word_le.
+Qed.
+
+Lemma is_wconstI ws e w :
+  is_wconst ws e = Some w ->
+  exists ws' z, e = Papp1 (Oword_of_int ws') (Pconst z).
+Proof.
+  case: e => //.
+  move=> [] //= ? e.
+  case: (_ <= _)%CMP; last done.
+  case: e => //.
+  by eexists; eexists.
 Qed.
 
 Lemma size_wrange d z1 z2 :
@@ -1221,6 +1234,17 @@ Lemma write_iP i s1 s2 :
 Proof. by move=> h; have /write_IP := EmkI dummy_instr_info h. Qed.
 
 End Write.
+
+Lemma set_var_disjoint_eq_on x s v vm vm' :
+  ~~ Sv.mem x s ->
+  set_var vm x v = ok vm' ->
+  vm =[ s ] vm'.
+Proof.
+  move=> /Sv_memP hx hsetx y hy.
+  rewrite (get_set_var y hsetx).
+  case: eqP => // ?; subst y.
+  SvD.fsetdec.
+Qed.
 
 Lemma disjoint_eq_on gd s r s1 s2 v:
   disjoint s (vrv r) ->
@@ -1428,16 +1452,8 @@ Qed.
 Lemma subtype_type_of_val t (v:psem_t t):
   subtype (type_of_val (pto_val v)) t.
 Proof.
-  case: t v => //= s w.
-  + by apply Z.leb_refl.
-  by apply pw_proof.
+  by case: t v => //= s w; apply pw_proof.
 Qed.
-
-Lemma subtype_vundef_type t : subtype (vundef_type t) t.
-Proof. by apply compat_subtype_undef. Qed.
-
-Lemma vundef_type_idem v : vundef_type v = vundef_type (vundef_type v).
-Proof. by case: v. Qed.
 
 Lemma type_of_get_var x vm v :
   get_var vm x = ok v ->
@@ -1493,7 +1509,7 @@ Proof.
 case: t vt => //=.
 by move=> ? /to_boolI ->.
 by move=> ? /to_intI ->.
-by move=> ?? /to_arrI [len' [t' [-> ?]]]; apply WArray.cast_uincl.
+by move=> ?? /to_arrI ->.
 move=> ?? /to_pwordI [ws' [w' [-> ->]]].
 case: Sumbool.sumbool_of_bool => //= h.
 by apply/word_uincl_zero_ext/cmp_lt_le; rewrite -cmp_nle_lt h.
@@ -1552,7 +1568,7 @@ Proof.
     try by move=> _ /pof_val_undef_ok.
   + by move=> <- ?;exists z.
   + by move=> <- ?;exists z.
-  + by move=> hu; case: t z => //= p a1; apply: WArray.uincl_cast hu.
+  + by move=> hu; case: t z => //= p a1 /(WArray.uincl_cast hu) []; eauto.
   move=> /andP []hsz /eqP ->;rewrite /pof_val /pval_uincl /=.
   case: t z => //= s z.
   case: (Sumbool.sumbool_of_bool (sz ≤ s)%CMP).
@@ -1746,13 +1762,13 @@ Proof.
   + move: Hu => /vmap_uincl_on_union[] /Hp{Hp}Hp Hu.
     apply on_arr_gvarP => n t Htx; rewrite /on_arr_var => /get_gvar_uincl_at - /(_ vm2) [].
     * by move: Hu; case: ifP => // _; apply; SvD.fsetdec.
-    t_xrbindP=> ? -> /value_uinclE [? [? [-> /WArray.uincl_get hg]]] > /Hp{Hp}
+    t_xrbindP=> ? -> /value_uinclE [? -> /WArray.uincl_get hg] > /Hp{Hp}
       [? -> ] /[swap] /to_intI -> /value_uinclE -> ? /hg{hg} /= -> /= ->.
     by eauto.
   + move: Hu => /vmap_uincl_on_union[] /Hp{Hp}Hp Hu.
     apply on_arr_gvarP => n t Htx; rewrite /on_arr_var => /get_gvar_uincl_at - /(_ vm2) [].
     * by move: Hu; case: ifP => // _; apply; SvD.fsetdec.
-    t_xrbindP=> ? -> /value_uinclE[? [? [-> /WArray.uincl_get_sub h]]] > /Hp{Hp}
+    t_xrbindP=> ? -> /value_uinclE [? -> /WArray.uincl_get_sub h] > /Hp{Hp}
       [? -> ] /[swap] /to_intI -> /value_uinclE -> ? /h{h} /= [? -> ?] /= <-.
     by eauto.
   + move: Hu => /vmap_uincl_on_union[] /Hp{Hp}Hp Hu > /get_var_uincl_at - /(_ vm2) [].
@@ -1824,19 +1840,8 @@ case: t v => [||p|sz] [] //=.
 + by case => //; eauto.
 + by case => //; eauto.
 + by move => n a; rewrite /WArray.cast; case: ifPn.
-+ by move=> ??;rewrite /truncate_word;case:ifP.
++ by move=> ?? /truncate_word_errP[].
 by case => // sz' e; case: ifP => // *; exists (sword sz'), e.
-Qed.
-
-Lemma pof_val_error t v:
-  pof_val t v = undef_error -> exists t' h, subtype (vundef_type t) t' /\ v = Vundef t' h.
-Proof.
-case: t v => [||p|sz] [] //=.
-+ by case => //;eauto.
-+ by case => //;eauto.
-+ by move=> ??; rewrite /WArray.cast; case: ifP.
-case => // s e _; exists (sword s), e; split => //.
-by apply wsize_le_U8.
 Qed.
 
 Lemma pof_val_pto_val t (v:psem_t t): pof_val t (pto_val v) = ok v.
@@ -1868,8 +1873,7 @@ Proof.
   case: t v1' v2 => [] >.
   + by move=> /to_boolI ->.
   + by move=> /to_intI ->.
-  + move=> /to_arrI [? [? [-> ]]] /WArray.uincl_cast h/h[? []].
-    by rewrite WArray.castK => -[->].
+  + by move=> /to_arrI ->.
   case: v1 => //= [ s' w| [] //] [<-].
   case: Sumbool.sumbool_of_bool => //= /negbT hnle.
   have hle := cmp_nle_le hnle; apply: word_uincl_trans.
@@ -1881,11 +1885,8 @@ Lemma subtype_eval_uincl_pundef t1 t2 :
   eval_uincl (pundef_addr t1) (pundef_addr t2).
 Proof.
   case: t1 => /= [/eqP?|/eqP?|n| s];subst => //=; case: t2 => //=.
-  by move=> ? /ZleP ? /=; split => // ??; rewrite WArray.get_empty; case: ifP.
+  by move => ? /eqP [] <-.
 Qed.
-
-Lemma compat_type_word w t : compat_type (sword w) t -> exists w', t = sword w'.
-Proof. case: t => //; eauto. Qed.
 
 Lemma pof_val_bool_undef v : pof_val sbool v = undef_error -> v = undef_b.
 Proof. by case: v => //= -[] // e; rewrite (Eqdep_dec.UIP_refl_bool _ e). Qed.
@@ -1895,7 +1896,8 @@ Lemma pof_val_undef v v':
   pof_val sbool v = undef_error ->
   v' = undef_b \/ exists b, v' = Vbool b.
 Proof.
-  by move=> + /pof_val_bool_undef ?; subst=> /= /eqP /type_of_valI.
+  move=> + /pof_val_bool_undef ?; subst => /= /eqP h.
+  by have := type_of_valI v'; rewrite -h.
 Qed.
 
 Lemma vmap_uincl_on_set (vm vm': vmap) (x: var) (v v': exec (psem_t (vtype x))) :
@@ -2006,7 +2008,7 @@ Proof.
   + move: Hvm1 => /vmap_uincl_on_union[] /sem_pexpr_uincl_on Hvmp Hvmx.
     apply: on_arr_varP => n a Htx /get_var_uincl_at - /(_ vm1) [].
     * by apply: Hvmx; SvD.fsetdec.
-    move=> ? /[swap] /value_uinclE [? [? [-> /WArray.uincl_set hu]]] ->.
+    move=> ? /[swap] /value_uinclE [? -> /WArray.uincl_set hu] ->.
     t_xrbindP=> > /Hvmp{Hvmp} [? ->]
       /[swap] /to_intI -> /value_uinclE -> ? /to_wordI [? [? [? ]]].
     subst; move: Hv => /value_uinclE[? [? [-> /word_uincl_truncate h]]] /h{h}
@@ -2015,11 +2017,11 @@ Proof.
   move: Hvm1 => /vmap_uincl_on_union[] /sem_pexpr_uincl_on Hvm1 Hvmx.
   apply: on_arr_varP => n a Htx /get_var_uincl_at - /(_ vm1) [].
   + by apply: Hvmx; SvD.fsetdec.
-  move=> ? /[swap] /value_uinclE [? [? [-> /WArray.uincl_set_sub hu]]] ->.
+  move=> ? /[swap] /value_uinclE [? -> /WArray.uincl_set_sub hu] ->.
   t_xrbindP=> > /Hvm1{Hvm1} [? ->]
-    /[swap] /to_intI -> /value_uinclE -> ? /to_arrI [? [? [? ]]].
-  subst; move: Hv => /value_uinclE [? [? [-> /WArray.uincl_cast h]]] /h{h}
-    /= [? [-> /hu{hu}hu]] ? /hu{hu} /= [? -> ?] /write_var_uincl_on.
+    /[swap] /to_intI -> /value_uinclE -> ? /to_arrI ?.
+  subst; move: Hv => /value_uinclE [? ->] /= h.
+  rewrite WArray.castK /= => ? /hu -/(_ _ h){hu h} [? -> ?] /= /write_var_uincl_on.
   by apply.
 Qed.
 
@@ -2676,8 +2678,8 @@ Definition apply_undef t (v : exec (psem_t t)) :=
 Lemma eval_uincl_undef t1 t2 (v:psem_t t2) :
   subtype t1 t2 ->
   eval_uincl (pundef_addr t1) (ok v).
-Proof. 
-  case: t1 => //= p; case: t2 v => //= p2 a /ZleP; split => // ??. 
+Proof.
+  case: t1 => //= p; case: t2 v => //= p2 a /eqP[] ->; split => // ??.
   by rewrite WArray.get_empty; case: ifP.
 Qed.
 

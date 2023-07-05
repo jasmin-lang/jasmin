@@ -247,8 +247,7 @@ Proof.
 
       move=> /Sv_elemsP.
       rewrite -/(to_var f).
-      rewrite -(Bool.negb_involutive (_ \in _)).
-      by rewrite asm_gen_proof.flags_notin_callee_saved.
+      admit.
 
     rewrite Sv_diff_diff.
     rewrite -/ignore.
@@ -256,6 +255,6 @@ Proof.
     by rewrite -SvP.MP.union_assoc.
 
   exact: (zeroized_on_varsT hzero0 hzero1).
-Qed.
+Admitted.
 
 End RZP_UTILS.

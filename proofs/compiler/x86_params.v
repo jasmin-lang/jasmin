@@ -12,7 +12,8 @@ Require Import
   register_zeroization_utils
   linearization
   lowering
-  stack_alloc.
+  stack_alloc
+  slh_lowering.
 Require Import
   arch_decl
   arch_extra
@@ -26,6 +27,9 @@ Require Import
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Section Section.
+Context {atoI : arch_toIdent}.
 
 (* Used to set up stack. *)
 Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
@@ -41,20 +45,6 @@ Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
 Definition lea_ptr x y tag ofs : instr_r :=
   Copn [:: x] tag (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
 
-Section IS_REGX.
-
-Context (is_regx : var -> bool).
-
-Variant mov_kind :=
-  | MK_LEA
-  | MK_MOV.
-
-Definition mk_mov vpk :=
-  match vpk with
-  | VKglob _ | VKptr (Pdirect _ _ _ _ Sglob) => MK_LEA
-  | _ => MK_MOV
-  end.
-
 Definition x86_mov_ofs x tag vpk y ofs :=
   let addr :=
     if mk_mov vpk is MK_LEA
@@ -62,16 +52,18 @@ Definition x86_mov_ofs x tag vpk y ofs :=
       lea_ptr x y tag ofs
     else
       if ofs == 0%Z
-      then mov_ws is_regx Uptr x y tag
+      then mov_ws Uptr x y tag
       else lea_ptr x y tag ofs
   in
   Some addr.
 
-End IS_REGX.
+Definition x86_immediate x z :=
+  mov_ws Uptr (Lvar x) (cast_const z) AT_none.
 
-Definition x86_saparams is_regx : stack_alloc_params :=
+Definition x86_saparams : stack_alloc_params :=
   {|
-    sap_mov_ofs := x86_mov_ofs is_regx;
+    sap_mov_ofs := x86_mov_ofs;
+    sap_immediate := x86_immediate;
   |}.
 
 (* ------------------------------------------------------------------------ *)
@@ -127,12 +119,42 @@ End LINEARIZATION.
 (* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
 
-Definition x86_loparams : lowering_params fresh_vars lowering_options :=
+Definition x86_loparams : lowering_params lowering_options :=
   {|
     lop_lower_i := lower_i;
     lop_fvars_correct := fvars_correct;
   |}.
 
+
+(* ------------------------------------------------------------------------ *)
+(* Speculative execution operator lowering parameters. *)
+
+Definition lflags := nseq 5 (Lnone dummy_var_info sbool).
+
+Definition x86_sh_lower
+  (lvs : seq lval)
+  (slho : slh_op)
+  (es : seq pexpr) :
+  option copn_args :=
+  let O x := Oasm (ExtOp x) in
+  match slho with
+  | SLHinit   => Some (lvs, O Ox86SLHinit, es)
+
+  | SLHupdate => Some (Lnone dummy_var_info ty_msf :: lvs, O Ox86SLHupdate, es)
+
+  | SLHmove   => Some (lvs, O (Ox86SLHmove), es)
+
+  | SLHprotect ws =>
+    let extra := if (ws <= U64)%CMP then lflags else [:: Lnone dummy_var_info (sword ws)] in
+    Some (extra ++ lvs, O (Ox86SLHprotect ws), es)
+
+  | SLHprotect_ptr _ | SLHprotect_ptr_fail _ => None (* Taken into account by stack alloc *)
+  end.
+
+Definition x86_shparams : sh_params :=
+  {|
+    shp_lower := x86_sh_lower;
+  |}.
 
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
@@ -275,18 +297,22 @@ Definition x86_is_move_op (o : asm_op_t) :=
   | BaseOp (None, MOV _) => true
   | BaseOp (None, VMOVDQA _) => true
   | BaseOp (None, VMOVDQU _) => true
+  | ExtOp Ox86SLHmove => true
   | _ => false
   end.
 
 (* ------------------------------------------------------------------------ *)
 
-Definition x86_params {ovmi : one_varmap_info} :
-  architecture_params fresh_vars lowering_options :=
+Definition x86_params
+  {ovmi : one_varmap_info} : architecture_params lowering_options :=
   {|
     ap_sap := x86_saparams;
     ap_lip := x86_liparams;
     ap_lop := x86_loparams;
     ap_agp := x86_agparams;
     ap_rzp := x86_rzparams;
+    ap_shp := x86_shparams;
     ap_is_move_op := x86_is_move_op;
   |}.
+
+End Section.
