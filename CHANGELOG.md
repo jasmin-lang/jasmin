@@ -8,6 +8,7 @@
   ([PR #480](https://github.com/jasmin-lang/jasmin/pull/480)), 
   `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
   ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481),
+   [PR #492](https://github.com/jasmin-lang/jasmin/pull/492),
    [PR #514](https://github.com/jasmin-lang/jasmin/pull/514)).
 
 ## Bug fixes

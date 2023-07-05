@@ -205,13 +205,9 @@ op SMMUL (x y: W32.t) : W32.t =
 op SMMULcc x y g o = if g then SMMUL x y else o.
 
 op SMMULR (x y: W32.t) : W32.t =
-  let lo = x * y in
-  let hi = wmulhs x y in
-  if msb lo
-    then (hi + (W32.of_int 1))
-    else hi.
+  W32.of_int (IntDiv.(%/) (to_sint x * to_sint y + 2 ^ 31) (2 ^ 32)).
 op SMMULRcc x y g o = if g then SMMULR x y else o.
- 
+
 op UXTB (x: W32.t) (n: W8.t) : W32.t =
   andw (ror x (to_uint n)) (W32.of_int 255).
 op UXTBcc x n g o = if g then UXTB x n else o.
