@@ -986,8 +986,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
 
 
 Definition arm_SMMULR_semi (wn wm : ty_r) : exec ty_r :=
-  let (hi, lo) := wsmul wn wm in
-  ok ((hi + wrepr U32 (Z.b2z (msb lo)))%R).
+  ok (wrepr U32 (Z.shiftr (wsigned wn * wsigned wm + 0x80000000) 32)).
 
 Definition arm_SMMULR_instr : instr_desc_t :=
   let mn := SMMULR in
