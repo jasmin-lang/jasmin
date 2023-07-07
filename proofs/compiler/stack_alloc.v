@@ -972,6 +972,12 @@ Record stk_alloc_oracle_t :=
   ; sao_return_address: return_address_location
   }.
 
+Definition sao_frame_size sao :=
+  if is_RAnone sao.(sao_return_address) then
+    (sao.(sao_size) + sao.(sao_extra_size))%Z
+  else
+    (round_ws sao.(sao_align) (sao.(sao_size) + sao.(sao_extra_size)))%Z.
+
 Section PROG.
 
 Context (local_alloc: funname -> stk_alloc_oracle_t).
@@ -1115,24 +1121,16 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
 Definition alloc_call_res rmap srs ret_pos rs := 
   fmapM2 bad_lval_number (alloc_lval_call srs) rmap rs ret_pos.
 
-Definition is_RAnone ral :=
-  if ral is RAnone then true else false.
-
 Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn es :=
   let sao_callee := local_alloc fn in
   Let es  := alloc_call_args rmap sao_callee.(sao_params) es in
   let '(rmap, es) := es in
-  Let rs  := alloc_call_res rmap es sao_callee.(sao_return) rs in (*
+  Let rs  := alloc_call_res rmap es sao_callee.(sao_return) rs in
   Let _   := assert_check (~~ is_RAnone sao_callee.(sao_return_address))
-               (Cerr_stk_alloc "cannot call export function")
-  in *)
+               (stk_ierror_no_var "cannot call export function")
+  in
   Let _   :=
-    let local_size :=
-      if is_RAnone sao_caller.(sao_return_address) then
-        (sao_caller.(sao_size) + sao_caller.(sao_extra_size) + wsize_size sao_caller.(sao_align) - 1)%Z
-      else
-        (round_ws sao_caller.(sao_align) (sao_caller.(sao_size) + sao_caller.(sao_extra_size)))%Z
-    in
+    let local_size := sao_frame_size sao_caller in
     assert_check (local_size + sao_callee.(sao_max_size) <=? sao_caller.(sao_max_size))%Z
                  (stk_ierror_no_var "error in max size computation")
   in
@@ -1428,12 +1426,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.
                   (stk_ierror_no_var "negative extra size")
   in
   Let _ :=
-    let local_size :=
-      if is_RAnone sao.(sao_return_address) then
-        (sao.(sao_size) + sao.(sao_extra_size) + wsize_size sao.(sao_align) - 1)%Z
-      else
-        (round_ws sao.(sao_align) (sao.(sao_size) + sao.(sao_extra_size)))%Z
-    in
+    let local_size := sao_frame_size sao in
     assert_check (local_size <=? sao.(sao_max_size))%Z
                  (stk_ierror_no_var "sao_max_size too small")
   in

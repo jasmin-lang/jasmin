@@ -466,8 +466,10 @@ Proof.
   have! [fd' ok_fd'] := (ok_get_fundef ok_xp h1).
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
   move: ok_fd' => /S /=.
-  rewrite /allocatable_stack.
+  rewrite /allocatable_stack /sf_total_stack export.
+  rewrite /lfd_total_stack.
   move: (wunsigned (stack_limit m)) (wunsigned (top_stack m)) (wunsigned (top_stack m')) M => L T T'.
+  move=> /=.
   Lia.lia.
 Qed.
 

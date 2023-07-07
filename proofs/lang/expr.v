@@ -554,6 +554,9 @@ Variant return_address_location :=
                                 Some r means that the call instruction directly store ra on r and 
                                 the function should store r on the stack *)
 
+Definition is_RAnone ra :=
+  if ra is RAnone then true else false.
+
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
