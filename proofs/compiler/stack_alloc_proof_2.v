@@ -1811,12 +1811,7 @@ Hypothesis Halloc_fd : forall fn fd,
 
 (* RAnone -> export function (TODO: rename RAexport?) *)
 Definition enough_size m sao :=
-  let sz :=
-    if is_RAnone sao.(sao_return_address) then
-      sao.(sao_size) + sao.(sao_extra_size) + wsize_size sao.(sao_align) - 1
-    else
-      round_ws sao.(sao_align) (sao.(sao_size) + sao.(sao_extra_size))
-  in
+  let sz := sao_frame_size sao in
   allocatable_stack m (sao.(sao_max_size) - sz).
 
 Record wf_sao rsp m sao := {
@@ -1872,9 +1867,15 @@ Let Pc s1 (c1:cmd) s2 :=
 
 Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
 
+(* takes into account the padding due to the alignment of the stack of export functions *)
+Definition sf_total_stack e :=
+  if is_RAnone e.(sf_return_address) then
+    e.(sf_stk_max) + wsize_size e.(sf_align) - 1
+  else e.(sf_stk_max).
+
 Definition alloc_ok (SP:sprog) fn m2 :=
   forall fd, get_fundef (p_funcs SP) fn = Some fd ->
-  allocatable_stack m2 fd.(f_extra).(sf_stk_max) /\
+  allocatable_stack m2 (sf_total_stack fd.(f_extra)) /\
   (~ is_RAnone fd.(f_extra).(sf_return_address) -> is_align (top_stack m2) fd.(f_extra).(sf_align)).
 
 (* [glob_size] and [rip] were section variables in stack_alloc_proof.v, they
@@ -2058,6 +2059,18 @@ Proof.
   by rewrite get_bytes_clear.
 Qed.
 
+Lemma sao_frame_size_ge0 sao :
+  (0 <= sao.(sao_size))%Z ->
+  (0 <= sao.(sao_extra_size))%Z ->
+  (0 <= sao_frame_size sao)%Z.
+Proof.
+  move=> hsz hextra.
+  rewrite /sao_frame_size.
+  case: is_RAnone; first by lia.
+  have := round_ws_range (sao_align sao) (sao_size sao + sao_extra_size sao).
+  by lia.
+Qed.
+
 Lemma alloc_fd_max_size_ge0 pex fn fd fd' :
   alloc_fd shparams saparams pex mglob fresh_reg_ local_alloc fn fd = ok fd' ->
   0 <= (local_alloc fn).(sao_max_size).
@@ -2067,11 +2080,8 @@ Proof.
   t_xrbindP=> -[[[??]?]?] hparams.
   t_xrbindP=> /ZleP hextra /ZleP hmax _ _ _ _.
   have hsize := init_stack_layout_size_ge0 hlayout.
-  case: is_RAnone hmax.
-  + have := wsize_size_pos (local_alloc fn).(sao_align).
-    by lia.
-  have := round_ws_range (local_alloc fn).(sao_align) ((local_alloc fn).(sao_size) + (local_alloc fn).(sao_extra_size)).
-  by lia.
+  apply: Z.le_trans hmax.
+  by apply sao_frame_size_ge0.
 Qed.
 
 Lemma disjoint_set_clear rmap sr ofs len x :
@@ -2095,7 +2105,7 @@ Proof.
   t_xrbindP => -[rmap2' i2'] /= halloc ?? m0 s2 hvs hext hsao; subst rmap2' c.
   move: halloc; rewrite /alloc_call /assert_check.
   t_xrbindP=> -[rmap1 es] hcargs.
-  t_xrbindP=> -[{rmap2}rmap2 rs2] hcres /ZleP hsize hle /= <- <-.
+  t_xrbindP=> -[{rmap2}rmap2 rs2] hcres ra_none /ZleP hsize hle /= <- <-.
 
   (* evaluation of the arguments *)
   have [vargs2 [hvargs2 hargs hdisj haddr hclear]] :=
@@ -2112,7 +2122,8 @@ Proof.
   have halloc_ok: alloc_ok P' fn (emem s2).
   + rewrite /alloc_ok hfd2 => _ [<-] /=.
     split.
-    + rewrite /allocatable_stack.
+    + rewrite /allocatable_stack /sf_total_stack /=.
+      case: is_RAnone ra_none => [//|_].
       move: hsao.(wf_sao_size); rewrite /enough_size /allocatable_stack.
       by lia.
     move=> _.
@@ -2621,8 +2632,9 @@ Proof.
     have [h1 h2 _] := init_stack_layoutP hlayout.
     apply /and4P; split.
     1-3: by apply/ZleP.
-    move: hok; rewrite /alloc_ok => /(_ _ hfd2) /=; rewrite /allocatable_stack => -[hallocatable hal].
-    case: is_RAnone hal hmax => [_|-> //] hmax; last by apply /ZleP; lia.
+    move: hok; rewrite /alloc_ok => /(_ _ hfd2) /=; rewrite /allocatable_stack /sf_total_stack /= => -[hallocatable hal].
+    move: hmax; rewrite /sao_frame_size.
+    case: is_RAnone hal hallocatable => [_|-> //] hallocatable hmax; last by apply /ZleP; lia.
     case: is_align; last by apply /ZleP; lia.
     apply /ZleP.
     have := round_ws_range (sao_align (local_alloc fn)) (sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)).
@@ -2704,11 +2716,12 @@ Proof.
     + rewrite /enough_size /allocatable_stack.
       split; first by lia.
       rewrite /top_stack hass.(ass_frames) /= hass.(ass_limit).
-      move: hok; rewrite /alloc_ok => /(_ _ hfd2) /= []; rewrite /allocatable_stack.
+      move: hok; rewrite /alloc_ok => /(_ _ hfd2) /= []; rewrite /allocatable_stack /sf_total_stack /=.
       have hsize := init_stack_layout_size_ge0 hlayout.
       assert (hge := wunsigned_range (stack_limit m2)).
       have hpos := wsize_size_pos (sao_align (local_alloc fn)).
-      case: is_RAnone hmax.
+      move: hmax; rewrite /sao_frame_size.
+      case: is_RAnone.
       + move=> hmax hok _.
         have hbound: 0 <= sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)
                   /\ sao_size (local_alloc fn) + sao_extra_size (local_alloc fn) <= wunsigned (top_stack m2).

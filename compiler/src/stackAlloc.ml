@@ -253,7 +253,7 @@ let memory_analysis pp_err ~debug up =
                    (Z.of_int extra_size) in
       let stk_size = 
         match fd.f_cc with
-        | Export       -> Z.add stk_size (Z.of_int (size_of_ws align - 1))
+        | Export       -> stk_size
         | Subroutine _ -> 
           Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
