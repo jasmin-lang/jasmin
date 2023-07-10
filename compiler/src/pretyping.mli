@@ -16,6 +16,14 @@ module Env : sig
   val add_from : 'asm env -> string * string -> 'asm env
   val dependencies : 'asm env -> string list list
 
+  val enter_file : 'asm env -> Annotations.pident option -> Location.t option -> string -> ('asm env * string) option
+  val exit_file : 'asm env -> 'asm env
+
+  module Funs : sig
+    val push : 'asm env -> (unit, 'asm) Prog.pfunc -> Prog.pty list -> 'asm env
+    val find : Annotations.symbol -> 'asm env -> ((unit, 'asm) Prog.pfunc * Prog.pty list) option
+  end
+
   module Exec : sig
     val push :
       Location.t -> Prog.funname -> (Z.t * Z.t) list -> 'asm env -> 'asm env
@@ -33,6 +41,33 @@ val tt_item :
   'asm Env.env ->
   Syntax.pitem Location.located ->
   'asm Env.env
+
+val tt_param :
+  Wsize.wsize ->
+  'asm Env.env ->
+  'a ->
+  Syntax.pparam ->
+  'asm Env.env
+
+val tt_fundef :
+  Wsize.wsize ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  Location.t ->
+  Syntax.pfundef ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+
+val tt_global :
+  Wsize.wsize ->
+  'asm Env.env ->
+  'a ->
+  Syntax.pglobal ->
+  'asm Env.env
+
+val tt_fun :
+  'asm Env.env ->
+  Annotations.symbol Location.located ->
+  (unit,'asm) Prog.pfunc * Prog.pty list
 
 val tt_program :
   Wsize.wsize ->
