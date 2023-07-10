@@ -36,8 +36,7 @@ set_execute_get:
     movq    56(%rdi), %rdi
 
     # Execute the instruction here
-    # replace me
-    incq    %rax
+    divq	%rcx
 
     # post execution
     pushq   %rdi                    # save the post-exec rdi
