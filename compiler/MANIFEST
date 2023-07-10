@@ -5,9 +5,8 @@ README.md
 default.nix
 Makefile
 dune-project
+dune
 jasmin.opam
-
-find:.:dune
 
 find:entry:*.ml
 find:safetylib:*.ml
@@ -17,6 +16,9 @@ find:src:*.mli
 find:src:*.mll
 find:src:*.mly
 
+safetylib/dune
+
+src/dune
 src/LICENSE.puf
 src/CIL/LICENSE.coq
 src/CIL/LICENSE.coqword
