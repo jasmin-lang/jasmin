@@ -21,6 +21,9 @@
   arrays;
   ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452)).
 
+- Notation for string literals; there is no implicit zero terminator;
+  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators

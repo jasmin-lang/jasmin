@@ -60,3 +60,7 @@ let () =
 let () =
   let prog = load_file "vpsxldq.jazz" in
   exec prog [ (Z.of_int 0x480, Z.of_int 64) ] "etest" []
+
+let () =
+  let prog = load_file "../success/x86-64/test_global_string_literal.jazz" in
+  exec prog [] "main" []

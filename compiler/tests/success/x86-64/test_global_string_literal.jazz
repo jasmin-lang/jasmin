@@ -1,0 +1,12 @@
+u8[10] test = "Teststring";
+
+export fn main() -> reg u8
+{
+    reg u8 res tmp;
+    res = 0x54;
+
+    tmp = test[0];
+    res = res ^ tmp;
+
+    return res;
+}

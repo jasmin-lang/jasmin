@@ -458,6 +458,7 @@ pparam:
 pgexpr:
 | e=pexpr { GEword e }
 | LBRACE es = rtuple1(pexpr) RBRACE { GEarray es } 
+| e=loc(STRING) { GEstring e }
 
 pglobal:
 | pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON
