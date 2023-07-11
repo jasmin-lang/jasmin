@@ -172,7 +172,7 @@ module V : sig
 
   val mk : Name.t -> v_kind -> ty -> L.t -> Annotations.annotations -> var
 
-  val clone : var -> var
+  val clone : ?dloc: L.t -> var -> var
 
   val compare : var -> var -> int
 

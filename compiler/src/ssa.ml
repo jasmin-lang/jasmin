@@ -7,14 +7,14 @@ type names = var Mv.t
 
 let rename_expr (m: names) (e: expr) : expr = Subst.vsubst_e m e
 
-let fresh_name (m: names) (x: var) : var * names =
-  let y = V.clone x in
+let fresh_name ~dloc (m: names) (x: var) : var * names =
+  let y = V.clone ~dloc x in
   y, Mv.add x y m
 
 let rename_lval (allvars: bool) ((m, xs): names * lval list) : lval -> names * lval list =
   function
   | Lvar x when allvars || is_reg_kind (L.unloc x).v_kind ->
-    let y, m = fresh_name m (L.unloc x) in
+    let y, m = fresh_name ~dloc:(L.loc x) m (L.unloc x) in
     m, Lvar (L.mk_loc (L.loc x) y) :: xs
   | x -> m, Subst.vsubst_lval m x :: xs
 
@@ -54,7 +54,7 @@ let ir (m: names) (x: var) (y: var) : (unit, 'asm) instr =
 
 let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
   let f = Liveness.live_fd false f in
-  let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
+  let rec instr_r i_loc (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cassgn (x, tg, ty, e) ->
       let e = rename_expr m e in
@@ -82,7 +82,7 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
         Sv.fold (fun x ((m, tl1, tl2) as n) ->
             if Sv.mem x lo
             then
-              let y, m = fresh_name m x in
+              let y, m = fresh_name ~dloc:i_loc.L.base_loc m x in
               m, ir m1 x y :: tl1, ir m2 x y :: tl2
             else n
           ) os (m, [], [])
@@ -102,8 +102,8 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
       in
       m1, Cwhile (a, s1, e, s2 @ tl2)
   and instr (m, tl) i =
-    let { i_desc ; i_info = (li, lo) } = i in
-    let m, i_desc = instr_r li lo m i_desc in
+    let { i_desc ; i_info = (li, lo) ; i_loc ; _ } = i in
+    let m, i_desc = instr_r i_loc li lo m i_desc in
     m, { i with i_info = () ; i_desc } :: tl
   and stmt m s =
     let m, s = List.fold_left instr (m, []) s in

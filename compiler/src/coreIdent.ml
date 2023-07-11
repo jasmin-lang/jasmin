@@ -53,7 +53,8 @@ module GV = struct
     let v_id = Uint63.of_int (Uniq.gen ()) in
     { v_name; v_id; v_kind; v_ty; v_dloc; v_annot }
 
-  let clone v = mk v.v_name v.v_kind v.v_ty v.v_dloc v.v_annot
+  let clone ?dloc v =
+    mk v.v_name v.v_kind v.v_ty (Option.default v.v_dloc dloc) v.v_annot
 
   let compare v1 v2 = Uint63.compares v1.v_id v2.v_id
 
