@@ -1,2 +1,2 @@
-DIV_64
-RCX
+AND_32
+RSI RSI

@@ -36,7 +36,7 @@ set_execute_get:
     movq    56(%rdi), %rdi
 
     # Execute the instruction here
-    divq	%rcx
+    andl	%esi, %esi
 
     # post execution
     pushq   %rdi                    # save the post-exec rdi
@@ -49,8 +49,8 @@ set_execute_get:
     movq    %rbx, 24(%rdi)
     movq    %rsp, 32(%rdi)
     movq    %rbp, 40(%rdi)
-    movq    48(%rdi), %rsi
-    # movq    56(%rdi), %rdi
+    movq    %rsi, 48(%rdi)
+    # movq  %rdi, 56(%rdi)
     movq    %r8, 64(%rdi)
     movq    %r9, 72(%rdi)
     movq    %r10, 80(%rdi)

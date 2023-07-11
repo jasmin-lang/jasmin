@@ -171,10 +171,10 @@ let parse_and_exec op args reg regs regxs xregs flag flags =
   let fn = J.Prog.F.mk "f" in
 
   let asm_state = init_state ip reg_values flag_values fn i in
-  (* Format.printf "Initial state:@;%a@." pp_asm_state asm_state; *)
+  Format.printf "Initial state:@;%a@." pp_asm_state asm_state;
   Format.printf "@[<v>Running instruction:@;%a@;@]@." A.pp_instr i;
   let asm_state' = exec_instr A.call_conv asm_state i in
-  (* Format.printf "New state:@;%a@." pp_asm_state asm_state'; *)
+  Format.printf "New state:@;%a@." pp_asm_state asm_state';
   asm_state'
 end
 
@@ -311,10 +311,10 @@ let is_correct asm_arr =
     let regxs = [0L;0L;0L;0L;0L;0L;0L;0L] in
     let xregs = [0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
     let flag = [] in
-    let flags = [] in
+    let flags = [J.Arch_decl.Def false; J.Arch_decl.Def false; J.Arch_decl.Def false; J.Arch_decl.Def false; J.Arch_decl.Def false]  in
 
-    let new_state = parse_and_exec arch call_conv !op_ref !args_ref reg regs regxs xregs flag flags in
     set_execute_get (addr state);
+    let new_state = parse_and_exec arch call_conv !op_ref !args_ref reg regs regxs xregs flag flags in
     (* TODO: do we need jregs? *)
     let jregs: A.reg array = [|RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15|] in
     let jasm =

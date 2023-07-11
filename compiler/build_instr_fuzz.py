@@ -28,17 +28,31 @@ regs["R13"] = {8: "%r13b", 16: "%r13w", 32 : "%r13d", 64 : "%r13"}
 regs["R14"] = {8: "%r14b", 16: "%r14w", 32 : "%r14d", 64 : "%r14"}
 regs["R15"] = {8: "%r15b", 16: "%r15w", 32 : "%r15d", 64 : "%r15"}
 
-ops_one_arg = {}
-# ops_one_arg["NEG"] = "neg"
-# ops_one_arg["INC"] = "inc"
-# ops_one_arg["DEC"] = "dec"
-ops_one_arg["MUL"] = "mul"
-ops_one_arg["DIV"] = "div"
+ops_zero_arg            = {}
+ops_zero_arg["CQO"]     = "cqo"
 
-ops_two_args = {}
-# ops_two_args["ADD"] = "add"
-# ops_two_args["SUB"] = "sub"
-ops_two_args["DIV"] = "div"
+ops_one_arg             = {}
+ops_one_arg["NEG"]      = "neg"
+ops_one_arg["INC"]      = "inc"
+ops_one_arg["DEC"]      = "dec"
+ops_one_arg["MUL"]      = "mul"
+ops_one_arg["DIV"]      = "div"
+ops_one_arg["IMUL"]     = "imul"
+ops_one_arg["IDIV"]     = "idiv"
+ops_one_arg["NOT"]      = "not"
+
+ops_two_args            = {}
+ops_two_args["ADD"]     = "add"
+ops_two_args["ADC"]     = "adc"
+ops_two_args["SUB"]     = "sub"
+ops_two_args["SBB"]     = "sbb"
+ops_two_args["IMULr"]   = "imul"
+ops_two_args["LZCNT"]   = "lzcnt"
+ops_two_args["AND"]     = "and"
+ops_two_args["ANDN"]    = "andn"
+ops_two_args["OR"]      = "or"
+ops_two_args["XOR"]     = "xor"
+
 
 size_variations = {}
 size_variations[8] = ["_8", "b"]
@@ -71,61 +85,68 @@ def get_usable_reg (rlist):
 
 regs_list = list(regs.keys())
 
-
-for op in ops_one_arg:
-    for size in size_variations:
-        for num in range(2):
-            reg = get_usable_reg(regs_list)
-            folder_name = op + size_variations[size][0] + "_" + reg
-            mv_to_folder = move_build_to_out_dir + "/" + folder_name
-            if mv_to_folder in test_folders:
+def gen_one_arg_instrs():
+    for op in ops_one_arg:
+        for size in size_variations:
+            # these are currently not supported in Jasmin
+            if size == 8 and ( op == "MUL" or op == "IMUL" or op == "DIV" or op == "IDIV" ) :
                 continue
-            test_folders.add(mv_to_folder)
-            jazz_instr = "{}{}\t{}".format(op, size_variations[size][0], reg)
-            print(jazz_instr)
-            asm_instr = "{}{}\t{}".format(ops_one_arg[op], size_variations[size][1], regs[reg][size])
-            print(asm_instr)
 
-            # TODO: improve this later
-            with open(my_asm_orig, "r") as reader:
-                with open(my_asm_final, "w") as writer:
-                    line = reader.read()
-                    final_line = line.replace("replace_me", asm_instr)
-                    writer.write(final_line)
-            with open(op_args_file, "w") as writer:
-                j_op = "{}{}".format(op, size_variations[size][0])
-                j_args = reg
-                writer.write(j_op + "\n" + j_args)
-            os.system(make_clean_cmd)
-            os.system(make_build_cmd)
-            os.system(mv_to_folder)
+            for num in range(2):
+                reg = get_usable_reg(regs_list)
+                folder_name = op + size_variations[size][0] + "_" + reg
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                jazz_instr = "{}{}\t{}".format(op, size_variations[size][0], reg)
+                print(jazz_instr)
+                asm_instr = "{}{}\t{}".format(ops_one_arg[op], size_variations[size][1], regs[reg][size])
+                print(asm_instr)
 
+                # TODO: improve this later
+                with open(my_asm_orig, "r") as reader:
+                    with open(my_asm_final, "w") as writer:
+                        line = reader.read()
+                        final_line = line.replace("replace_me", asm_instr)
+                        writer.write(final_line)
+                with open(op_args_file, "w") as writer:
+                    j_op = "{}{}".format(op, size_variations[size][0])
+                    j_args = reg
+                    writer.write(j_op + "\n" + j_args)
+                os.system(make_clean_cmd)
+                os.system(make_build_cmd)
+                os.system(mv_to_folder)
 
-# for op in ops_two_args:
-#     for size in size_variations:
-#         for num in range(1):
-#             reg1 = get_usable_reg(regs_list)
-#             reg2 = get_usable_reg(regs_list)
-#             folder_name = op + size_variations[size][0] + "_" + reg1 + "_" + reg2
-#             mv_to_folder = move_build_to_out_dir + "/" + folder_name
-#             if mv_to_folder in test_folders:
-#                 continue
-#             test_folders.add(mv_to_folder)
-#             jazz_instr = "{}{}\t{} {}".format(op, size_variations[size][0], reg1, reg2)
-#             print(jazz_instr)
-#             asm_instr = "{}{}\t{}, {}".format(ops_two_args[op], size_variations[size][1], regs[reg2][size], regs[reg1][size])
-#             print(asm_instr)
+def gen_two_arg_instrs():
+    for op in ops_two_args:
+        for size in size_variations:
+            for num in range(2):
+                reg1 = get_usable_reg(regs_list)
+                reg2 = get_usable_reg(regs_list)
+                folder_name = op + size_variations[size][0] + "_" + reg1 + "_" + reg2
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                jazz_instr = "{}{}\t{} {}".format(op, size_variations[size][0], reg1, reg2)
+                print(jazz_instr)
+                asm_instr = "{}{}\t{}, {}".format(ops_two_args[op], size_variations[size][1], regs[reg2][size], regs[reg1][size])
+                print(asm_instr)
 
-#             # TODO: improve this later
-#             with open(my_asm_orig, "r") as reader:
-#                 with open(my_asm_final, "w") as writer:
-#                     line = reader.read()
-#                     final_line = line.replace("replace_me", asm_instr)
-#                     writer.write(final_line)
-#             with open(op_args_file, "w") as writer:
-#                 j_op = "{}{}".format(op, size_variations[size][0])
-#                 j_args = reg1 + " " + reg2
-#                 writer.write(j_op + "\n" + j_args)
-#             os.system(make_clean_cmd)
-#             os.system(make_build_cmd)
-#             os.system(mv_to_folder)
+                # TODO: improve this later
+                with open(my_asm_orig, "r") as reader:
+                    with open(my_asm_final, "w") as writer:
+                        line = reader.read()
+                        final_line = line.replace("replace_me", asm_instr)
+                        writer.write(final_line)
+                with open(op_args_file, "w") as writer:
+                    j_op = "{}{}".format(op, size_variations[size][0])
+                    j_args = reg1 + " " + reg2
+                    writer.write(j_op + "\n" + j_args)
+                os.system(make_clean_cmd)
+                os.system(make_build_cmd)
+                os.system(mv_to_folder)
+
+if __name__ == "__main__":
+    gen_two_arg_instrs()
