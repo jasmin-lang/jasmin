@@ -38,6 +38,10 @@
   ([PR #363](https://github.com/jasmin-lang/jasmin/pull/363);
   fixes [#54](https://github.com/jasmin-lang/jasmin/issues/54)).
 
+- Handle the size parameter in LZCNT semantic
+  ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
+  fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
+
 # Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus

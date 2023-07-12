@@ -422,15 +422,15 @@ Definition x86_DEC sz (w: word sz) : ex_tpl (b4w_ty sz) :=
     (wsigned w - 1)%Z).
 
 
-Fixpoint leading_zero_aux (n: Z) (k : nat) :=
-  if (n <? 2^(64 - k))%Z then k 
+Fixpoint leading_zero_aux (n: Z) (k : nat) (sz : nat) :=
+  if (n <? 2^(sz - k))%Z then k 
   else match k with 
   | 0 => 0
-  | S k' => leading_zero_aux n k'
+  | S k' => leading_zero_aux n k' sz
   end.
       
 Definition leading_zero sz (w: word sz) : word sz := 
-  wrepr sz (leading_zero_aux (wunsigned w) sz).
+  wrepr sz (leading_zero_aux (wunsigned w) sz sz).
 
 Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) := 
    Let _ := check_size_16_64 sz in
