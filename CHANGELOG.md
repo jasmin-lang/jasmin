@@ -11,6 +11,9 @@
    [PR #492](https://github.com/jasmin-lang/jasmin/pull/492),
    [PR #514](https://github.com/jasmin-lang/jasmin/pull/514)).
 
+- Notation for string literals; there is no implicit zero terminator;
+  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517)).
+
 ## Bug fixes
 
 - Fix semantics of the `IMUL`, `IMULr`, and `IMULri` instructions

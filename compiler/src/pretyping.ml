@@ -2000,11 +2000,17 @@ let tt_global_def pd env (gd:S.gpexpr) =
   let f e = 
     let pe,ety = tt_expr ~mode:`OnlyParam pd env e in
     (L.mk_loc e.pl_loc pe, ety) in
+  let array_of_string s =
+    L.unloc s |> String.to_list |> List.map @@ fun c ->
+    c |> Char.code |> Z.of_int |> fun z ->
+    P.(L.mk_loc (L.loc s) (Papp1 (E.Oword_of_int W.U8, Pconst z)), u8) in
   match gd with
   | S.GEword e -> 
     `Word (f e)
   | S.GEarray es ->
     `Array (List.map f es) 
+  | S.GEstring e ->
+    `Array (array_of_string e)
 
 let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
 

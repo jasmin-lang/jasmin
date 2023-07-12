@@ -1,0 +1,12 @@
+u8[10] test = "Teststring";
+
+export fn main() -> reg u32
+{
+    reg u32 res tmp;
+    res = 0x54;
+
+    tmp = (32u)test[0];
+    res = res ^ tmp;
+
+    return res;
+}
