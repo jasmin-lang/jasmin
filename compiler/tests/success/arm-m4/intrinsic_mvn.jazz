@@ -12,6 +12,12 @@ fn mvn(reg u32 arg0) -> reg u32 {
     [x] = x;
     x = #MVN(-1);
     [x] = x;
+    x = #MVN(0xcacacaca); // `bbbb` pattern.
+    [x] = x;
+    x = #MVN(0xca00ca00); // `b0b0` pattern.
+    [x] = x;
+    x = #MVN(0x00ca00ca); // `0b0b` pattern.
+    [x] = x;
 
     // Shifts.
     x = #MVN(arg0 << 0);
@@ -37,7 +43,7 @@ fn mvn(reg u32 arg0) -> reg u32 {
     nf, zf, cf, x = #MVNS(arg0);
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = #MVNcc(arg0, zf, x);
@@ -71,10 +77,21 @@ fn mvn(reg u32 arg0) -> reg u32 {
     // Combinations.
     nf, zf, cf, x = #MVNScc(arg0, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #MVNS(2);
+    [x] = x;
+    ?{}, x = #MVNS(0xcacacaca);
+    [x] = x;
+    ?{}, x = #MVNS(0xca00ca00);
+    [x] = x;
+    ?{}, x = #MVNS(0x00ca00ca);
+    [x] = x;
     nf, zf, cf, x = #MVNS(arg0 << 3);
+    [x] = x;
     nf, zf, cf, x = #MVNS(arg0 >> 3);
+    [x] = x;
     nf, zf, cf, x = #MVNS(arg0 >>s 3);
+    [x] = x;
     nf, zf, cf, x = #MVNS(arg0 >>r 3);
+    [x] = x;
     nf, zf, cf, x = #MVNScc(2, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #MVNScc(arg0 << 3, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #MVNScc(arg0 << 3, !!(nf == vf), nf, zf, cf, x);

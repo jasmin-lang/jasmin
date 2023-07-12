@@ -10,7 +10,7 @@ val ty_prog :
   infer:bool ->
   _ prog ->
   Name.t list ->
-  (funname * signature) list * (L.t * Pretyping.tyerror) option
+  (funname * signature) list * (L.t * (Format.formatter -> unit)) option
 (** Type-check (for constant-time) a list of functions in the given program
   (defaults to all functions if the list is empty).
 

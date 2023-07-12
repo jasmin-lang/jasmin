@@ -39,7 +39,7 @@ end = struct
       f_ret = List.map (mk_v_loc f_decl.f_name.fn_name) f_decl.f_ret }
 
   and mk_v fn v =
-    let short_name v = v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id)) in
+    let short_name v = v.v_name ^ "." ^ (string_of_uid v.v_id) in
     let long_name v =
       if Config.sc_var_append_fun_name ()
       then (short_name v) ^ "#" ^ fn
@@ -473,7 +473,7 @@ end
 
 (* Flow-sensitive Pre-Analysis *)
 module FSPa : sig    
-  val fs_pa_make : X86_extra.x86_extended_op Sopn.asmOp -> (X86_extra.x86_extended_op -> bool) -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
+  val fs_pa_make : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
   let rec collect_vars_e sv = function
@@ -525,7 +525,7 @@ end = struct
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
     
-  let fs_pa_make asmOp is_move_op (f : ('info, 'asm) func) =
+  let fs_pa_make pd asmOp (f : ('info, 'asm) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->
@@ -536,11 +536,11 @@ end = struct
     (* We make sure that variable are uniquely defined by their names. *)
     assert (check_uniq_names vars);
      
-    let ssa_f = Ssa.split_live_ranges is_move_op false f in
+    let ssa_f = Ssa.split_live_ranges false f in
     debug (fun () ->
         Format.eprintf "SSA transform of %s:@;%a"
           f.f_name.fn_name
-          (Printer.pp_func ~debug:true asmOp) ssa_f);
+          (Printer.pp_func ~debug:true pd asmOp) ssa_f);
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in

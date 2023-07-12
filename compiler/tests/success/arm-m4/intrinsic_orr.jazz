@@ -11,6 +11,9 @@ fn orr(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #ORR(arg0, 1);
     [x] = x;
     x = #ORR(arg0, -1);
+    x = #ORR(x, 0xcacacaca); // `bbbb` pattern.
+    x = #ORR(x, 0xca00ca00); // `b0b0` pattern.
+    x = #ORR(x, 0x00ca00ca); // `0b0b` pattern.
     [x] = x;
 
     // Shifts.
@@ -37,7 +40,7 @@ fn orr(reg u32 arg0, reg u32 arg1) -> reg u32 {
     nf, zf, cf, x = #ORRS(x, arg0);
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = #ORRcc(arg0, arg1, zf, x);
@@ -71,6 +74,9 @@ fn orr(reg u32 arg0, reg u32 arg1) -> reg u32 {
     // Combinations.
     nf, zf, cf, x = #ORRScc(x, arg0, nf == vf, nf, zf, cf, x);
     nf, zf, cf, x = #ORRS(x, 2);
+    ?{}, x = #ORRS(x, 0xcacacaca);
+    ?{}, x = #ORRS(x, 0xca00ca00);
+    ?{}, x = #ORRS(x, 0x00ca00ca);
     nf, zf, cf, x = #ORRS(x, arg0 << 3);
     nf, zf, cf, x = #ORRS(x, arg0 >> 3);
     nf, zf, cf, x = #ORRS(x, arg0 >>s 3);

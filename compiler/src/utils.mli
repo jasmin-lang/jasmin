@@ -175,6 +175,7 @@ type warning =
   | IntroduceArrayCopy
   | SimplifyVectorSuffix
   | Deprecated
+  | Experimental
   | Always
 
 val nowarning : unit -> unit

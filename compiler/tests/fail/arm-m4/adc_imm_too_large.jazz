@@ -1,0 +1,7 @@
+export
+fn main(reg u32 x) -> reg u32 {
+    reg bool c;
+    c, x += x;
+    x = #ADC(x, 0x0000caca, c);
+    [x] = x;
+}

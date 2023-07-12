@@ -318,6 +318,30 @@ Lemma read_es_cons e es :
   Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
 Proof. by rewrite /read_es /= !read_esE read_eE; clear; SvD.fsetdec. Qed.
 
+Lemma read_e_Pget aa ws x e :
+  Sv.Equal (read_e (Pget aa ws x e)) (Sv.union (read_gvar x) (read_e e)).
+Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
+
+Lemma read_e_Psub aa ws len x e :
+  Sv.Equal (read_e (Psub aa ws len x e)) (Sv.union (read_gvar x) (read_e e)).
+Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
+
+Lemma read_e_Pload ws x e :
+  Sv.Equal (read_e (Pload ws x e)) (Sv.add (v_var x) (read_e e)).
+Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
+
+Lemma read_e_Papp1 op e :
+  Sv.Equal (read_e (Papp1 op e)) (read_e e).
+Proof. done. Qed.
+
+Lemma read_e_Papp2 op e0 e1 :
+  Sv.Equal (read_e (Papp2 op e0 e1)) (Sv.union (read_e e0) (read_e e1)).
+Proof. by rewrite {1}/read_e /= read_eE. Qed.
+
+Lemma read_e_PappN_cons opn e es :
+  Sv.Equal (read_e (PappN opn (e :: es))) (Sv.union (read_e e) (read_es es)).
+Proof. by rewrite -[read_e (PappN _ _)]/(read_es _) read_es_cons. Qed.
+
 Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
 Proof.
   case: x => //= *; rewrite /read_rv /= ?read_eE; clear; SvD.fsetdec.
@@ -335,6 +359,12 @@ Lemma read_rvs_cons x xs : Sv.Equal (read_rvs (x::xs)) (Sv.union (read_rv x) (re
 Proof.
   rewrite {1}/read_rvs /= read_rvsE read_rvE; clear; SvD.fsetdec.
 Qed.
+
+Lemma read_e_Pif ty e e0 e1 :
+  Sv.Equal
+    (read_e (Pif ty e e0 e1))
+    (Sv.union (read_e e) (Sv.union (read_e e0) (read_e e1))).
+Proof. by rewrite {1}/read_e /= 2!read_eE. Qed.
 
 Let Pr i := forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
 Let Pi i := forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
@@ -487,6 +517,53 @@ elim: es ih => // e es ih h /=; rewrite h.
 by left.
 Qed.
 
+Lemma eq_gvar_symm gx gy :
+  eq_gvar gx gy -> eq_gvar gy gx.
+Proof. rewrite /eq_gvar. move=> /andP [] /eqP -> /eqP ->. by rewrite !eqxx. Qed.
+
+Lemma eq_expr_symm e0 e1 :
+  eq_expr e0 e1 -> eq_expr e1 e0.
+Proof.
+  elim: e1 e0 =>
+    [? | ? | ? | ? | ????? | ?????? | ???? | ??? | ????? | ? es1 hind | ???????]
+    [? | ? | ? | ? | ????  | ?????  | ???  | ??  | ???   | ? es0 h | ????]
+    //= *.
+
+  all:
+    repeat
+      match goal with
+      | [ h : is_true (_ && _) |- _ ] => move: h => /andP [??]
+      end.
+
+  (* Rewrite equalities, [gvar] equalities, and apply inductive hypotheses. *)
+  all:
+    repeat
+      match goal with
+      | [ h : is_true (?x == _) |- _ ] => move: h => /eqP ->
+      | [ h : is_true (eq_gvar ?x ?y) |- _ ] => move: h => /eq_gvar_symm ->
+      | [
+          hind : forall _, _ -> is_true (eq_expr _ _),
+          h : is_true (eq_expr _ _)
+          |- _
+        ] => rewrite (hind _ h) {hind h}
+      end.
+
+  (* We are finished with all but the [PopN] case. *)
+  all: try by rewrite ?eqxx.
+
+  move: h => /= /andP [] /eqP -> h.
+  rewrite eqxx /=.
+
+  elim: es0 es1 hind h => [|e0 es0 hind'] [|e1 es1] //= hind h.
+  move: h => /andP [h0 h1].
+  rewrite (hind _ _ _ h0) {h0} /=; last by left.
+  apply: (hind' _ _ h1).
+  clear hind' h1.
+  move=> e he.
+  apply: hind.
+  by right.
+Qed.
+
 Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
 Proof. by rewrite /eq_gvar => /andP[] /eqP -> /eqP -> /andP[] /eqP -> /eqP ->; rewrite !eqxx. Qed.
 
@@ -523,6 +600,147 @@ Proof.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
 Qed.
 
+#[export]
+Instance equiv_eq_expr : Equivalence eq_expr.
+Proof.
+  constructor.
+  - exact: eq_expr_refl.
+  - exact: eq_expr_symm.
+  move=> x y z.
+  exact: eq_expr_trans.
+Qed.
+
+(* Memory accesses are independent from variable info. *)
+Definition eq_expr_use_mem e0 e1 :
+  eq_expr e0 e1
+  -> use_mem e0 = use_mem e1.
+Proof.
+  elim: e0 e1 =>
+    [? | ? | ? | ? | ????? | ?????? | ???? | ??? | ????? | ? es0 hind | ???????]
+    [? | ? | ? | ? | ????  | ?????  | ???  | ??  | ???   | ? es1 h | ????]
+    //= *.
+
+  all:
+    repeat
+      match goal with
+      | [ h : is_true (_ && _) |- _ ] => move: h => /andP [??]
+      end.
+
+  all:
+    try by repeat
+      match goal with
+      | [
+          hind : forall (_ : pexpr), _ -> _,
+          h : is_true (eq_expr _ _)
+          |- _
+        ] => rewrite (hind _ h) {hind h}
+      end.
+
+  move: h => /= /andP [_ h].
+  elim: es0 es1 h hind => [|e0 es0 hind0] [|e1 es1] h hind //=.
+  move: h => /= /andP [h0 h1].
+  rewrite (hind _ _ _ h0); last by left.
+  f_equal.
+  apply: (hind0 _ h1).
+  move=> e he.
+  apply: hind.
+  by right.
+Qed.
+
+Section EQ_EXPR_READ_E.
+
+  (* Read variables are independent from variable info. *)
+
+  Definition eq_gvar_read_gvar gx gy :
+    eq_gvar gx gy
+    -> Sv.Equal (read_gvar gx) (read_gvar gy).
+  Proof.
+    move: gx => [xv xs].
+    move: gy => [yv ys].
+    move=> /andP [] /= /eqP ? /eqP h; subst ys.
+    by rewrite /read_gvar h.
+  Qed.
+
+  (* This proof goes by induction on [e0].
+     Six out of the eight cases consist of rewriting the inductive hypothesis,
+     we solve them with [t_solve]. *)
+
+  (* Apply inductive hypothesis or [read_gvar] hypotheses. *)
+  #[local]
+    Ltac t_apply :=
+    repeat
+      match goal with
+      | [
+          hind : forall (e : pexpr), is_true (eq_expr _ e) -> _,
+            he : is_true (eq_expr _ _)
+            |- _
+        ] => rewrite (hind _ he) {hind he}
+
+      | [ h : is_true (eq_gvar _ _) |- _ ] => rewrite (eq_gvar_read_gvar h) {h}
+      end.
+
+  #[local]
+  Ltac t_solve :=
+    rewrite
+      ?read_e_Pget
+      ?read_e_Psub
+      ?read_e_Pload
+      ?read_e_Papp1
+      ?read_e_Papp2
+      ?read_e_Pif;
+    (repeat move=> /andP []);
+    move=> /= *;
+    t_eq_rewrites;
+    t_apply.
+
+  Definition eq_expr_read_e e0 e1 :
+    eq_expr e0 e1
+    -> Sv.Equal (read_e e0) (read_e e1).
+  Proof.
+    elim: e0 e1 =>
+      [ ?
+      | ?
+      | ?
+      | [??]
+      | ??? e0 hinde0
+      | ???? e0 hinde0
+      | ?? e0 hinde0
+      | ? e0 hinde0
+      | ? e00 hinde00 e01 hinde01
+      | ? es0 hindes0
+      | ? e0 hinde0 e00 hinde00 e01 hinde01
+      ]
+      [ ?
+      | ?
+      | ?
+      | [??]
+      | ??? e1
+      | ???? e1
+      | ?? e1
+      | ? e1
+      | ? e10 e11
+      | ? es1
+      | ? e1 e10 e11
+      ] //=; try by t_solve.
+
+    - move=> h. rewrite /read_e /=. by rewrite (eq_gvar_read_gvar h).
+
+    move=> /andP [] _ h.
+    rewrite 2![read_e (PappN _ _)]/(read_es _) -/read_es.
+    move: h hindes0.
+    apply: (list_all2_ind (P := fun _ _ => _ -> Sv.Equal _ _))
+      => // {es0 es1} e0 es0 e1 es1 h0 h1 hind0 hind1.
+    rewrite /read_es /= -/read_e !read_esE.
+    rewrite (hind1 _ _ _ h0) {h0}; last by left.
+    rewrite hind0 {hind0}; first done.
+    move=> e2 he2.
+    apply: hind1.
+    by right.
+  Qed.
+
+End EQ_EXPR_READ_E.
+
+
 (* ------------------------------------------------------------------- *)
 Lemma is_falseP e : reflect (e = Pbool false) (is_false e).
 Proof.
@@ -541,3 +759,59 @@ Proof.
   - by move => <-; left.
   by move => ne; right => - [].
 Qed.
+
+(* -------------------------------------------------------------------- *)
+
+Section WRANGE.
+Local Open Scope Z_scope.
+Import Psatz.
+
+Lemma size_wrange d z1 z2 :
+  size (wrange d z1 z2) = Z.to_nat (z2 - z1).
+Proof. by case: d => /=; rewrite ?size_rev size_map size_iota. Qed.
+
+Lemma nth_wrange z0 d z1 z2 n : (n < Z.to_nat (z2 - z1))%nat ->
+  nth z0 (wrange d z1 z2) n =
+    if   d is UpTo
+    then z1 + Z.of_nat n
+    else z2 - Z.of_nat n.
+Proof.
+case: d => ltn /=;
+  by rewrite (nth_map 0%nat) ?size_iota ?nth_iota.
+Qed.
+
+Lemma last_wrange_up_ne z0 lo hi :
+  lo < hi -> last z0 (wrange UpTo lo hi) = hi - 1.
+Proof.
+move=> lt; rewrite -nth_last nth_wrange; last rewrite size_wrange prednK //.
+rewrite size_wrange -subn1 Nat2Z.inj_sub; first by rewrite Z2Nat.id; lia.
++ apply/leP/ltP; rewrite -Z2Nat.inj_0; apply Z2Nat.inj_lt; lia.
++ apply/ltP; rewrite -Z2Nat.inj_0; apply Z2Nat.inj_lt; lia.
+Qed.
+
+Lemma last_wrange_up lo hi : last (hi-1) (wrange UpTo lo hi) = hi - 1.
+Proof.
+case: (Z_lt_le_dec lo hi) => [lt|le]; first by apply: last_wrange_up_ne.
+rewrite -nth_last nth_default // size_wrange.
+by rewrite [Z.to_nat _](_ : _ = 0%nat) ?Z_to_nat_le0 //; lia.
+Qed.
+
+Lemma wrange_cons lo hi : lo <= hi ->
+  lo - 1 :: wrange UpTo lo hi = wrange UpTo (lo - 1) hi.
+Proof.
+set s1 := wrange _ _ _; set s2 := wrange _ _ _ => /=.
+move=> lt; apply/(@eq_from_nth _ 0) => /=.
++ rewrite {}/s1 {}/s2 !size_wrange -Z2Nat.inj_succ; last lia.
+  by apply: Nat2Z.inj; rewrite !Z2Nat.id; lia.
+rewrite {1}/s1 size_wrange; case => [|i].
++ rewrite /s2 nth_wrange /=; try lia.
+  by rewrite -Z2Nat.inj_0; apply/leP/Z2Nat.inj_lt; lia.
+move=> lti; rewrite -[nth _ (_ :: _) _]/(nth 0 s1 i) {}/s1 {}/s2.
+rewrite !nth_wrange; first lia; last first.
++ by apply/leP; move/leP: lti; lia.
+apply/leP/Nat2Z.inj_lt; rewrite Z2Nat.id; last lia.
+move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; last lia.
+by rewrite Z2Nat.id; lia.
+Qed.
+
+End WRANGE.

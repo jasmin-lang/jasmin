@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem constant_prop constant_prop_proof.
+Require Import psem psem_facts constant_prop constant_prop_proof.
 Require Export propagate_inline.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
@@ -10,26 +10,29 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
-Local Open Scope vmap_scope.
 
 
 Record h_propagate_inline_params
+  {wsw : WithSubWord}
+  {dc:DirectCall}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state} :=
   {
     pip_cf_xsemP :
-      forall gd s e0 e1 e2 e3 cf v,
+      forall wdb gd s e0 e1 e2 e3 cf v,
         let e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
         let e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
-        sem_pexpr gd s e = ok v
-        -> sem_pexpr gd s e' = ok v;
+        sem_pexpr wdb gd s e = ok v
+        -> sem_pexpr wdb gd s e' = ok v;
   }.
 
 Section WITH_PARAMS.
 
 Context
+  {wsw : WithSubWord}
+  {dc:DirectCall}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -114,59 +117,59 @@ Proof.
 Qed.
 
 Section Global.
-Context (gd: glob_decls).
+Context (gd : glob_decls).
 
 Section SCFC.
 
-Context (s:estate).
+Context (s : estate).
 
-Lemma snotE e b: 
-  sem_pexpr gd s e = ok (Vbool b) ->
-  sem_pexpr gd s (snot e) = ok (Vbool (~~ b)).
+Lemma snotE wdb e b:
+  sem_pexpr wdb gd s e = ok (Vbool b) ->
+  sem_pexpr wdb gd s (snot e) = ok (Vbool (~~ b)).
 Proof.
-  move=> he; have /snotP : sem_pexpr gd s (Papp1 Onot e) = ok (Vbool (~~b)).
+  move=> he; have /snotP : sem_pexpr wdb gd s (Papp1 Onot e) = ok (Vbool (~~b)).
   + by rewrite /= he.
   by move=> [v] [->] /value_uinclE ->.
 Qed.
 
-Lemma sbeqE e0 e1 b0 b1 :
-  sem_pexpr gd s e0 = ok (Vbool b0) ->
-  sem_pexpr gd s e1 = ok (Vbool b1) ->
-  sem_pexpr gd s (sbeq e0 e1) = ok (Vbool (b0 == b1)).
+Lemma sbeqE wdb e0 e1 b0 b1 :
+  sem_pexpr wdb gd s e0 = ok (Vbool b0) ->
+  sem_pexpr wdb gd s e1 = ok (Vbool b1) ->
+  sem_pexpr wdb gd s (sbeq e0 e1) = ok (Vbool (b0 == b1)).
 Proof.
   move=> h0 h1.
-  have : sem_pexpr gd s (Papp2 Obeq e0 e1) = ok (Vbool (b0 == b1)).
+  have : sem_pexpr wdb gd s (Papp2 Obeq e0 e1) = ok (Vbool (b0 == b1)).
   - by rewrite /= h0 h1.
   clear h0 h1.
   move=> /sbeqP [v [-> hincl]].
   by move: hincl => /value_uinclE ?; subst v.
 Qed.
 
-Lemma sorE e1 e2 b1 b2 : 
-  sem_pexpr gd s e1 = ok (Vbool b1) ->
-  sem_pexpr gd s e2 = ok (Vbool b2) ->
-  sem_pexpr gd s (sor e1 e2) = ok (Vbool (b1 || b2)).
-Proof. 
-  move=> h1 h2; have : sem_pexpr gd s (Papp2 Oor e1 e2) = ok (Vbool (b1 || b2)).
+Lemma sorE wdb e1 e2 b1 b2 :
+  sem_pexpr wdb gd s e1 = ok (Vbool b1) ->
+  sem_pexpr wdb gd s e2 = ok (Vbool b2) ->
+  sem_pexpr wdb gd s (sor e1 e2) = ok (Vbool (b1 || b2)).
+Proof.
+  move=> h1 h2; have : sem_pexpr wdb gd s (Papp2 Oor e1 e2) = ok (Vbool (b1 || b2)).
   + by rewrite /= h1 h2.
   by move=> /sorP [v] [-> /value_uinclE ->]. 
 Qed.
 
-Lemma sandE e1 e2 b1 b2 : 
-  sem_pexpr gd s e1 = ok (Vbool b1) ->
-  sem_pexpr gd s e2 = ok (Vbool b2) ->
-  sem_pexpr gd s (sand e1 e2) = ok (Vbool (b1 && b2)).
-Proof. 
-  move=> h1 h2; have : sem_pexpr gd s (Papp2 Oand e1 e2) = ok (Vbool (b1 && b2)).
+Lemma sandE wdb e1 e2 b1 b2 :
+  sem_pexpr wdb gd s e1 = ok (Vbool b1) ->
+  sem_pexpr wdb gd s e2 = ok (Vbool b2) ->
+  sem_pexpr wdb gd s (sand e1 e2) = ok (Vbool (b1 && b2)).
+Proof.
+  move=> h1 h2; have : sem_pexpr wdb gd s (Papp2 Oand e1 e2) = ok (Vbool (b1 && b2)).
   + by rewrite /= h1 h2.
   by move=> /sandP [v] [-> /value_uinclE ->]. 
 Qed.
 
-Lemma fc_esem_ssem e0 e1 e2 e3 fc b :
+Lemma fc_esem_ssem wdb e0 e1 e2 e3 fc b :
   let esem := fc_sem enot eand eor expr.eeq  in
   let ssem := fc_sem snot sand sor sbeq in
-  sem_pexpr gd s (esem e0 e1 e2 e3 fc) = ok (Vbool b)
-  -> sem_pexpr gd s (ssem e0 e1 e2 e3 fc) = ok (Vbool b).
+  sem_pexpr wdb gd s (esem e0 e1 e2 e3 fc) = ok (Vbool b)
+  -> sem_pexpr wdb gd s (ssem e0 e1 e2 e3 fc) = ok (Vbool b).
 Proof.
   rewrite /=.
   elim: fc b
@@ -191,11 +194,11 @@ Proof.
       [ exact: (sandE h0 h1) | exact: (sorE h0 h1) | exact: (sbeqE h0 h1) ].
 Qed.
 
-Lemma cf_esem_ssem e0 e1 e2 e3 cf b :
+Lemma cf_esem_ssem wdb e0 e1 e2 e3 cf b :
   let esem := cf_xsem enot eand eor expr.eeq  in
   let ssem := cf_xsem snot sand sor sbeq in
-  sem_pexpr gd s (esem e0 e1 e2 e3 cf) = ok (Vbool b)
-  -> sem_pexpr gd s (ssem e0 e1 e2 e3 cf) = ok (Vbool b).
+  sem_pexpr wdb gd s (esem e0 e1 e2 e3 cf) = ok (Vbool b)
+  -> sem_pexpr wdb gd s (ssem e0 e1 e2 e3 cf) = ok (Vbool b).
 Proof.
   rewrite /cf_xsem.
   case: cf_tbl => -[] cfc; last exact: fc_esem_ssem.
@@ -207,10 +210,10 @@ Proof.
   exact: (fc_esem_ssem hv).
 Qed.
 
-Lemma scfcP c es vs v :
-  sem_pexprs gd s es = ok vs
+Lemma scfcP wdb c es vs v :
+  sem_pexprs wdb gd s es = ok vs
   -> sem_opN (Ocombine_flags c) vs = ok v
-  -> sem_pexpr gd s (scfc c es) = ok v.
+  -> sem_pexpr wdb gd s (scfc c es) = ok v.
 Proof.
   rewrite /scfc.
   case: es => /= [[<-] | eof es]; first done.
@@ -244,27 +247,26 @@ Qed.
 
 End SCFC.
 
-Record valid_pi (s : estate) (pi:pimap) :=
+Record valid_pi (s : estate) (pi : pimap) :=
   { vpi_ok :
-     forall x c v, 
-       Mvar.get pi x = Some c -> 
-       get_var (evm s) x = ok v -> 
-       exists2 v', sem_pexpr gd s c.(pi_def) = ok v' & value_uincl v v' }. 
+     forall x c,
+       Mvar.get pi x = Some c ->
+       exists2 v', sem_pexpr true gd s c.(pi_def) = ok v' & value_uincl (evm s).[x] v' }.
 
 Lemma valid_pi_empty s : valid_pi s piempty.
-Proof. by constructor => ???; rewrite Mvar.get0. Qed.
+Proof. by constructor => ??; rewrite Mvar.get0. Qed.
 
 Section Expr.
 
-Context (s:estate) (pi:pimap) (hvalid: valid_pi s pi).
+Context (s : estate) (pi : pimap) (hvalid : valid_pi s pi) (wdb : bool).
 
-Let P e : Prop := 
-  forall v, sem_pexpr gd s e = ok v -> 
-  exists2 v', sem_pexpr gd s (pi_e pi e) = ok v' & value_uincl v v'.
+Let P e : Prop :=
+  forall v, sem_pexpr wdb gd s e = ok v ->
+  exists2 v', sem_pexpr wdb gd s (pi_e pi e) = ok v' & value_uincl v v'.
 
-Let Q es : Prop := 
-  forall vs, sem_pexprs gd s es = ok vs -> 
-  exists2 vs', sem_pexprs gd s (pi_es pi es) = ok vs' & List.Forall2 value_uincl vs vs'.
+Let Q es : Prop :=
+  forall vs, sem_pexprs wdb gd s es = ok vs ->
+  exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' & List.Forall2 value_uincl vs vs'.
 
 Lemma pi_eP_and : (forall e, P e) /\ (forall es, Q es).
 Proof. 
@@ -275,7 +277,8 @@ Proof.
   1-3: by move=> ?? [<-]; eauto.
   + move=> x v; case: ifP => h /=; last by eauto.
     move=> hg; case heq : Mvar.get => [[e' fv m ??] | ]; last by eauto.
-    by move: hg; rewrite /get_gvar h => /(vpi_ok hvalid heq) /=.
+    move: hg; rewrite /get_gvar h => /get_varP [-> ??].
+    have /= [v' /(sem_pexpr_wdb wdb)??]:= vpi_ok hvalid heq; eexists; eauto.
   + move=> ?? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
     t_xrbindP => i vi /= /hrec [v' -> /= /of_value_uincl_te h] /(h sint) /= -> w hget <-.
     by rewrite /= hget /=; (eexists; first reflexivity) => /=.
@@ -291,7 +294,7 @@ Proof.
     by rewrite (vuincl_sem_sop2 hu1 hu2 hs); eauto.
   + move=> o es hrec ?; t_xrbindP => ? /hrec [vs' hs' hu].
     case: o => [wz pe | c] /=.
-    + move=> ho; rewrite -/(sem_pexprs gd _ (pi_es pi es)) hs' /=.
+    + move=> ho; rewrite -/(sem_pexprs wdb gd _ (pi_es pi es)) hs' /=.
       by apply: vuincl_sem_opN ho hu.
     move=> ho; have [v' ho' hu']:= vuincl_sem_opN ho hu.
     by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
@@ -303,29 +306,29 @@ Proof.
 Qed.
 
 Lemma pi_eP e v :
-  sem_pexpr gd s e = ok v -> 
-  exists2 v', sem_pexpr gd s (pi_e pi e) = ok v' & value_uincl v v'.
+  sem_pexpr wdb gd s e = ok v ->
+  exists2 v', sem_pexpr wdb gd s (pi_e pi e) = ok v' & value_uincl v v'.
 Proof. case: pi_eP_and => h _; apply h. Qed.
 
-Lemma pi_esP es vs : 
-  sem_pexprs gd s es = ok vs -> 
-  exists2 vs', sem_pexprs gd s (pi_es pi es) = ok vs' &
+Lemma pi_esP es vs :
+  sem_pexprs wdb gd s es = ok vs ->
+  exists2 vs', sem_pexprs wdb gd s (pi_es pi es) = ok vs' &
     List.Forall2 value_uincl vs vs'.
 Proof. case: pi_eP_and => _ h; apply h. Qed.
 
-Context (vm:vmap) (hu: vm_uincl (evm s) vm).
+Context (vm:Vm.t) (hu: evm s <=1 vm).
 
 Lemma pi_eP_uincl e v :
-  sem_pexpr gd s e = ok v -> 
-  exists2 v', sem_pexpr gd (with_vm s vm) (pi_e pi e) = ok v' & value_uincl v v'.
-Proof. 
+  sem_pexpr wdb gd s e = ok v ->
+  exists2 v', sem_pexpr wdb gd (with_vm s vm) (pi_e pi e) = ok v' & value_uincl v v'.
+Proof.
   move=> /pi_eP [v'] /(sem_pexpr_uincl hu) [v'' ? h2] h1. 
   exists v'' => //; apply: value_uincl_trans h1 h2.
 Qed.
 
-Lemma pi_esP_uincl es vs : 
-  sem_pexprs gd s es = ok vs -> 
-  exists2 vs', sem_pexprs gd (with_vm s vm) (pi_es pi es) = ok vs' &
+Lemma pi_esP_uincl es vs :
+  sem_pexprs wdb gd s es = ok vs ->
+  exists2 vs', sem_pexprs wdb gd (with_vm s vm) (pi_es pi es) = ok vs' &
     List.Forall2 value_uincl vs vs'.
 Proof. 
   move=> /pi_esP [vs'] /(sem_pexprs_uincl hu) [vs'' ? h2] h1.
@@ -334,99 +337,72 @@ Qed.
 
 End Expr.
 
-Section UseMem.
 
-Context (s1 s2 : estate) (heq : evm s1 = evm s2).
-
-Lemma use_memP e: 
-  ~~use_mem e -> 
-  sem_pexpr gd s1 e = sem_pexpr gd s2 e.
-Proof.
-  apply (pexpr_mut_ind (P := fun e => ~~use_mem e -> sem_pexpr gd s1 e = sem_pexpr gd s2 e)
-                      (Q := fun e => ~~has use_mem e -> sem_pexprs gd s1 e = sem_pexprs gd s2 e)).
-  split => //= {e}.
-  + by move=> e hrec es hrecs; rewrite negb_or => /andP [] /hrec -> /hrecs ->. 
-  + by move=> x _; rewrite heq.
-  + by move=> ?? x e hrec /hrec ->; rewrite heq.
-  + by move=> ??? x e hrec /hrec ->; rewrite heq.
-  + by move=> ? e hrec /hrec ->.
-  + by move=> ? e1 hrec1 e2 hrec2; rewrite negb_or => /andP[] /hrec1 -> /hrec2 ->.
-  + by move=> ? es; rewrite /sem_pexprs => h/h->.
-  by move=> ty e he e1 he1 e2 he2; rewrite !negb_or=> /andP[]/andP[] /he-> /he1-> /he2->.
-Qed.
-
-End UseMem.
-
-Lemma write_var_valid_pi s s' pi x v : 
-  valid_pi s pi -> 
-  write_var x v s = ok s' -> 
+Lemma write_var_valid_pi wdb s s' pi x v :
+  valid_pi s pi ->
+  write_var wdb x v s = ok s' ->
   valid_pi s' (remove pi x) /\
-  write_var x v s = ok s'.
+  write_var wdb x v s = ok s'.
 Proof.
   move=> hvalid hw; split => //.
-  constructor => y c vy; rewrite removeP //; case: eqP => //=.
-  case: Sv_memP => // hnin /eqP hne h hg.
-  move: hw; rewrite /write_var /=; t_xrbindP.
-  move=> vm1 hset1 ?; subst s'; rewrite /= in hg.
-  move: hg; have /= -> := (get_var_set_var y hset1).
-  rewrite (negbTE hne) => hg.
-  have [vy' hs huy]:= vpi_ok hvalid h hg.
-  exists vy' => //=; rewrite -hs. 
+  constructor => y c; rewrite removeP //; case: eqP => //=.
+  case: Sv_memP => // hnin /eqP hne h.
+  move: hw => /write_varP [-> ??] /=; rewrite Vm.setP_neq //.
+  have [vy' hs huy] := vpi_ok hvalid h.
+  exists vy' => //=; rewrite -hs.
   apply eq_on_sem_pexpr => //=.
-  move=> z hz; have hnez : x.(v_var) != z.
-  + by apply/eqP => ?; subst z; apply hnin; rewrite h /= pi_fv_ok.
-  by apply:set_varP hset1 => w hw <-; rewrite Fv.setP_neq.
+  move=> z hz;  rewrite Vm.setP_neq //.
+  by apply/eqP => ?; subst z; apply hnin; rewrite h /= pi_fv_ok.
 Qed.
 
 Lemma valid_pi_remove_m s pi m : 
   valid_pi s pi ->
   valid_pi (with_mem s m) (remove_m pi).
 Proof.
-  move=> hvalid; constructor; move=> y c vy /=; rewrite remove_mP //.
+  move=> hvalid; constructor; move=> y c /=; rewrite remove_mP //.
   case: ifP => //.
-  move=> hm hy hgy; rewrite hy /= in hm.
+  move=> hm hy; rewrite hy /= in hm.
   rewrite pi_m_ok in hm.
   have /use_memP <- : evm s = evm (with_mem s m) by done.
-  + by apply (vpi_ok hvalid hy hgy).
+  + by apply (vpi_ok hvalid hy).
   by rewrite hm.
 Qed.
 
-Lemma pi_lvP pi s s' x v : 
+Lemma pi_lvP wdb pi s s' x v :
   valid_pi s pi ->
-  write_lval gd x v s = ok s' ->
+  write_lval wdb gd x v s = ok s' ->
   valid_pi s' (pi_lv pi x).1 /\
-  write_lval gd (pi_lv pi x).2 v s = ok s'.
+  write_lval wdb gd (pi_lv pi x).2 v s = ok s'.
 Proof.
   move=> hvalid; case: x => /=.
-  + move=> vi ty /write_noneP [] ->.
-    by rewrite /write_none => -[ [? ->] | [-> ->]].
+  + by move=> vi ty /write_noneP; rewrite /write_none => -[-> -> ->].
   + by move=> x; apply write_var_valid_pi.
   + move=> ws x e; t_xrbindP => px vx gx hpx pe ve he hpe w hw m hwr <-.
     split; first by apply valid_pi_remove_m.
-    have /(_ _ _ he) [ve' -> /of_value_uincl_te hu] := pi_eP hvalid.
+    have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] := pi_eP hvalid.
     have /= -> := hu (sword _) _ hpe.
     by rewrite gx /= hpx hw /= hwr.
   + move=> aa ws x e; apply on_arr_varP => n t hty hx.
     t_xrbindP => i ve he hi w hw t' ht' hwr.
     rewrite /on_arr_var hx /=.
-    have /(_ _ _ he) [ve' -> /of_value_uincl_te hu] /= := pi_eP hvalid.
+    have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] /= := pi_eP hvalid.
     have /= -> := (hu sint _ hi).
     rewrite hw /= ht' /=.
     by apply write_var_valid_pi.
   move=> aa ws len x e; apply on_arr_varP => n t hty hx.
   t_xrbindP => i ve he hi w hw t' ht' hwr.
   rewrite /on_arr_var hx /=.
-  have /(_ _ _ he) [ve' -> /of_value_uincl_te hu] /= := pi_eP hvalid.
+  have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] /= := pi_eP hvalid.
   have /= -> := (hu sint _ hi).
   rewrite hw /= ht' /=.
   by apply write_var_valid_pi.
 Qed.
 
-Lemma pi_lvsP pi s s' xs vs : 
+Lemma pi_lvsP wdb pi s s' xs vs :
   valid_pi s pi ->
-  write_lvals gd s xs vs = ok s' ->
+  write_lvals wdb gd s xs vs = ok s' ->
   valid_pi s' (pi_lvs pi xs).1 /\
-  write_lvals gd s (pi_lvs pi xs).2 vs = ok s'.
+  write_lvals wdb gd s (pi_lvs pi xs).2 vs = ok s'.
 Proof.
   elim: xs vs pi s => [ | x xs hrec] [ | v vs] //= pi s hvalid.
   + by move=> [<-].
@@ -436,28 +412,28 @@ Proof.
   by rewrite /= hw1.
 Qed.
 
-Lemma pi_lvP_uincl pi s vm s' x v v': 
-  vm_uincl (evm s) vm -> value_uincl v v' ->
+Lemma pi_lvP_uincl wdb pi s vm s' x v v':
+  evm s <=1 vm -> value_uincl v v' ->
   valid_pi s pi ->
-  write_lval gd x v s = ok s' ->
+  write_lval wdb gd x v s = ok s' ->
   exists vm', 
-  [/\ vm_uincl (evm s') vm',
+  [/\ evm s' <=1 vm',
       valid_pi s' (pi_lv pi x).1
-    & write_lval gd (pi_lv pi x).2 v' (with_vm s vm) = ok (with_vm s' vm') ].
+    & write_lval wdb gd (pi_lv pi x).2 v' (with_vm s vm) = ok (with_vm s' vm') ].
 Proof.
   move=> hu huv hvalid hw.
   have [hvalid' hw'] := pi_lvP hvalid hw.
   by have [vm' hw'' hu']:= write_uincl hu huv hw'; exists vm'.
 Qed.
 
-Lemma pi_lvsP_uincl pi s vm s' xs vs vs': 
-  vm_uincl (evm s) vm -> List.Forall2 value_uincl vs vs' ->
+Lemma pi_lvsP_uincl wdb pi s vm s' xs vs vs':
+  evm s <=1 vm -> List.Forall2 value_uincl vs vs' ->
   valid_pi s pi ->
-  write_lvals gd s xs vs = ok s' ->
+  write_lvals wdb gd s xs vs = ok s' ->
   exists vm',
-  [/\ vm_uincl (evm s') vm',
+  [/\ evm s' <=1 vm',
       valid_pi s' (pi_lvs pi xs).1
-    & write_lvals gd (with_vm s vm) (pi_lvs pi xs).2 vs' = ok (with_vm s' vm') ].
+    & write_lvals wdb gd (with_vm s vm) (pi_lvs pi xs).2 vs' = ok (with_vm s' vm') ].
 Proof.
   move=> hu huv hvalid hw.
   have [hvalid' hw'] := pi_lvsP hvalid hw.
@@ -493,9 +469,9 @@ Section PROOF.
   Let Pi s1 (i1:instr) s2:=
     forall pi pi2 vm1, 
       pi_i pi i1 = ok pi2 ->
-      vm_uincl (evm s1) vm1 -> valid_pi gd s1 pi -> 
+      evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
       exists vm2, 
-      [/\ vm_uincl (evm s2) vm2, valid_pi gd s2 pi2.1
+      [/\ evm s2 <=1 vm2, valid_pi gd s2 pi2.1
         & sem_I p2 ev (with_vm s1 vm1) pi2.2 (with_vm s2 vm2)].
 
   Let Pi_r s1 (i1:instr_r) s2 :=
@@ -504,17 +480,17 @@ Section PROOF.
   Let Pc s1 (c1:cmd) s2:=
     forall pi pc2 vm1, 
       pi_c pi_i pi c1 = ok pc2 ->
-      vm_uincl (evm s1) vm1 -> valid_pi gd s1 pi -> 
+      evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
       exists vm2,
-      [/\ vm_uincl (evm s2) vm2, valid_pi gd s2 pc2.1
+      [/\ evm s2 <=1 vm2, valid_pi gd s2 pc2.1
         & sem p2 ev (with_vm s1 vm1) pc2.2 (with_vm s2 vm2) ].
 
   Let Pfor (i1:var_i) vs s1 c1 s2 :=
     forall pi pc2 vm1, 
       pi_c pi_i (remove pi i1) c1 = ok pc2 -> incl pi pc2.1 ->
-      vm_uincl (evm s1) vm1 -> valid_pi gd s1 pi -> 
+      evm s1 <=1 vm1 -> valid_pi gd s1 pi ->
       exists vm2,
-      [/\ vm_uincl (evm s2) vm2, valid_pi gd s2 pi
+      [/\ evm s2 <=1 vm2, valid_pi gd s2 pi
         & sem_for p2 ev i1 vs (with_vm s1 vm1) pc2.2 (with_vm s2 vm2) ].
 
   Let Pfun scs m fn vargs scs' m' vres :=
@@ -567,17 +543,17 @@ Section PROOF.
     have [??] : x = x0 /\ pi' = remove pi x0.    
     + by case: (x) heq => // ? [] <- ->.
     subst x pi'. 
-    constructor => y c vy; rewrite setP; case: andP => [| _]; last by apply (vpi_ok hv').
-    move=>  [/eqP <- /Sv_memP hnin] [<-] /= hg.
-    move: hwr; rewrite /= /write_var; t_xrbindP => vm_ /= hset ?; subst s2.
-    have := sym_eq (get_var_set_var x0 hset); rewrite eqxx hg.
-    t_xrbindP => vx0 hvx0 ?; subst vy; exists vpe.
+    constructor => y c; rewrite setP; case: andP => [| _]; last by apply (vpi_ok hv').
+    move=>  [/eqP <- /Sv_memP hnin] [<-] /=.
+    move/write_varP: hwr => [? hdb htrv]; subst s2 => /=.
+    rewrite Vm.setP_eq //.
+    exists vpe.
     + rewrite -hvpe; apply eq_on_sem_pexpr => //=.
-      move=> z hz; have hnz : x0.(v_var) != z by apply/eqP => ?; subst z;apply hnin.
-      by apply: set_varP hset => ?? <-; rewrite Fv.setP_neq.
+      move=> z hz; rewrite Vm.setP_neq //.
+      by apply/eqP => ?; subst z;apply hnin.
     apply: value_uincl_trans hupe.
     apply: value_uincl_trans (truncate_value_uincl htr).
-    by apply value_uincl_pto_val.
+    apply: vm_truncate_value_uincl htrv.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
@@ -594,8 +570,8 @@ Section PROOF.
 
   Lemma valid_pi_with_scs s pi scs : valid_pi gd s pi -> valid_pi gd (with_scs s scs) pi.
   Proof.
-    move=> [] h; constructor => m c v h1 h2.
-    by have := h _ _ _ h1 h2; rewrite -sem_pexpr_with_scs.
+    move=> [] h; constructor => m c h1.
+    by have := h _ _ h1; rewrite -sem_pexpr_with_scs.
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall p1 Pi_r.
@@ -612,9 +588,9 @@ Section PROOF.
 
   Lemma valid_pi_incl s pi1 pi2 : incl pi1 pi2 -> valid_pi gd s pi2 -> valid_pi gd s pi1.
   Proof.
-    move=> hincl hv; constructor => x c v hg hx.
+    move=> hincl hv; constructor => x c hg.
     have [c' [hg' heq]] := inclP hincl hg.
-    have [v' hs hu]:= vpi_ok hv hg' hx.
+    have [v' hs hu]:= vpi_ok hv hg'.
     by exists v' => //; rewrite -hs; apply eq_exprP.
   Qed.
 
@@ -762,11 +738,11 @@ Section PROOF.
     move=> hget htr hinit hwr _ hc hres hrtr hscs hfin.
     have [fd2 /=]:= all_checked hget.
     t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.
-    have [vargs1' {htr} htr hua] := mapM2_truncate_val htr hvargs1.
+    have [vargs1' {htr} htr hua] := mapM2_dc_truncate_val htr hvargs1.
     have [{hua hwr} vm1 hwr hu] := write_vars_uincl (vm_uincl_refl _) hua hwr. 
     have [{hc hc_ hu}vm2 [hu' hv' hs]] := hc _ _ _ hc_ hu (valid_pi_empty _ _).
     have [{hres hu'} vs hvs huvs] := get_vars_uincl hu' hres.
-    have [{hrtr huvs} vs' hrtr huvs] := mapM2_truncate_val hrtr huvs.
+    have [{hrtr huvs} vs' hrtr huvs] := mapM2_dc_truncate_val hrtr huvs.
     exists vs' => //; econstructor; eauto => /=.
     by case: (s0) hinit => emem evm /=; rewrite eq_p_extra.
   Qed.

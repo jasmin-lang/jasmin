@@ -24,11 +24,15 @@ Require Import
   lowering
   makeReferenceArguments
   propagate_inline
+  slh_lowering
   remove_globals
   stack_alloc
   tunneling
-  unrolling.
-Require merge_varmaps.
+  unrolling
+  wsize.
+Require
+  merge_varmaps.
+
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -40,6 +44,7 @@ Definition pp_s := compiler_util.pp_s.
 Section IS_MOVE_OP.
 
 Context
+  {msfsz : MSFsize}
   `{asmop : asmOp}
   {fcp : FlagCombinationParams}
   (is_move_op : asm_op_t -> bool).
@@ -82,10 +87,11 @@ Variant compiler_step :=
   | RemovePhiNodes              : compiler_step
   | DeadCode_Renaming           : compiler_step
   | RemoveArrInit               : compiler_step
+  | MakeRefArguments            : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
-  | MakeRefArguments            : compiler_step
   | LowerInstruction            : compiler_step
+  | SLHLowering                 : compiler_step
   | PropagateInline             : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
@@ -111,11 +117,12 @@ Definition compiler_step_list := [::
   ; RemovePhiNodes
   ; DeadCode_Renaming
   ; RemoveArrInit
+  ; MakeRefArguments
   ; RegArrayExpansion
   ; RemoveGlobal
-  ; MakeRefArguments
   ; LowerInstruction
-  ; PropagateInline 
+  ; SLHLowering
+  ; PropagateInline
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
@@ -129,9 +136,10 @@ Definition compiler_step_list := [::
 Scheme Equality for compiler_step.
 Lemma compiler_step_eq_axiom : Equality.axiom compiler_step_beq.
 Proof.
-  move=> x y; apply:(iffP idP).
-  + by apply: internal_compiler_step_dec_bl.
-  by apply: internal_compiler_step_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_compiler_step_dec_bl
+       internal_compiler_step_dec_lb).
 Qed.
 Definition compiler_step_eqMixin := Equality.Mixin compiler_step_eq_axiom.
 Canonical  compiler_step_eqType  := Eval hnf in EqType compiler_step compiler_step_eqMixin.
@@ -149,37 +157,28 @@ Record stack_alloc_oracles : Type :=
 Record compiler_params
   {asm_op : Type}
   {asmop : asmOp asm_op}
-  (fresh_vars lowering_options : Type) := {
+  (lowering_options : Type) := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
   renaming_fd      : funname -> _ufundef -> _ufundef;
   remove_phi_nodes_fd : funname -> _ufundef -> _ufundef;
-  lowering_vars    : fresh_vars;
-  inline_var       : var -> bool;
-  is_var_in_memory : var_i → bool;
   stack_register_symbol: Ident.ident;
   global_static_data_symbol: Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
   regalloc         : seq _sfun_decl -> seq _sfun_decl;
-  extra_free_registers : instr_info → option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
   print_linear     : compiler_step -> lprog -> lprog;
+  refresh_instr_info: funname -> _ufundef -> _ufundef;
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
-  is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_reg        : string -> stype -> Ident.ident;
-  fresh_reg_ptr    : string -> stype -> Ident.ident;
-  fresh_counter    : Ident.ident;
-  is_reg_ptr       : var -> bool;
-  is_ptr           : var -> bool;
+  fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   is_reg_array     : var -> bool;
-  is_regx          : var -> bool;
+  slh_info         : _uprog → funname → seq slh_t * seq slh_t
 }.
-
 
 Context
   {reg regx xreg rflag cond asm_op extra_op : Type}
@@ -188,13 +187,14 @@ Context
 
 Context
   {call_conv: calling_convention}
-  {fresh_vars lowering_options : Type}
-  (aparams : architecture_params fresh_vars lowering_options)
-  (cparams : compiler_params fresh_vars lowering_options).
+  {lowering_options : Type}
+  (aparams : architecture_params lowering_options)
+  (cparams : compiler_params lowering_options).
 
-Notation saparams := (ap_sap aparams cparams.(is_regx)).
+Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
 Notation loparams := (ap_lop aparams).
+Notation shparams := (ap_shp aparams).
 Notation agparams := (ap_agp aparams).
 
 #[local]
@@ -232,20 +232,21 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := cparams.(print_uprog) Renaming pv in
   let pv := remove_phi_nodes_prog pv in
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
-  Let _ := check_uprog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  let pv := map_prog_name (refresh_instr_info cparams) pv in
+  Let _ := check_uprog (wsw:= withsubword) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
   let p := cparams.(print_uprog) DeadCode_Renaming pv in
   ok p.
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
-  Let p := array_copy_prog cparams.(fresh_counter) p in
+  Let p := array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
-  let p := add_init_prog cparams.(is_ptr) p in
+  let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
 
-  Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
+  Let p := inline_prog_err (wsw:= withsubword) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -259,33 +260,35 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  Let pe := expand_prog cparams.(expand_fd) pr in
+  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
+  let pa := cparams.(print_uprog) MakeRefArguments pa in
+
+  Let pe := expand_prog cparams.(expand_fd) to_keep pa in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
 
-  Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
+  Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
-
-  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) pg in
-  let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams cparams.(lowering_vars) (p_funcs pa))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pg))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
   let pl :=
     lower_prog
-      (lop_lower_i loparams (is_regx cparams))
+      (lop_lower_i loparams)
       (lowering_opt cparams)
       (warning cparams)
-      (lowering_vars cparams)
-      (is_var_in_memory cparams)
-      pa
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
+      pg
   in
   let pl := cparams.(print_uprog) LowerInstruction pl in
+
+  Let pl := lower_slh_prog shparams (cparams.(slh_info) pl) to_keep pl in
+  let pl := cparams.(print_uprog) SLHLowering pl in
 
   Let pp := propagate_inline.pi_prog pl in
   let pp := cparams.(print_uprog) PropagateInline pp in
@@ -301,17 +304,16 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
-  Let _ := check_sprog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
+  Let _ := check_sprog (wsw:= withsubword) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
   Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.
 
-Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : cexec sprog :=
+Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
-  Let pl := compiler_first_part (entries ++ subroutines) p in
-
+  Let pl := compiler_first_part entries p in
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
@@ -319,8 +321,9 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
   Let ps :=
     stack_alloc.alloc_prog
       true
+      shparams
       saparams
-      cparams.(fresh_reg)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)
@@ -346,9 +349,8 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  (* FIXME: we can certainly remove cparams.(extra_free_registers) from merge_varmaps *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
-  Let pl := linear_prog liparams pd (* cparams.(extra_free_registers) *) in
+  Let _ := merge_varmaps.check pd var_tmp in
+  Let pl := linear_prog liparams pd in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
@@ -360,7 +362,7 @@ Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
   Let lp := compiler_back_end entries p in
   assemble_prog agparams lp.
 
-Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=
-  compiler_front_end entries subroutines p >>= compiler_back_end_to_asm entries.
+Definition compile_prog_to_asm entries (p: prog): cexec asm_prog :=
+  compiler_front_end entries p >>= compiler_back_end_to_asm entries.
 
 End COMPILER.

@@ -11,7 +11,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
-Local Open Scope vmap_scope.
 Local Open Scope Z_scope.
 
 
@@ -423,7 +422,7 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
 
 Section ASM_OP.
 
-Context `{asmop:asmOp}.
+Context {msfsz : MSFsize} `{asmop:asmOp}.
 
 Section CMD.
 
@@ -440,6 +439,12 @@ Section CMD.
 
 End CMD.
 
+Definition is_update_imm (xs:lvals) o es :=
+  match o, es, xs with
+  | Oslh SLHupdate, [:: Pbool b; e], [:: x] => Some (x, b, e)
+  | _, _, _=> None
+  end.
+
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
   | Cassgn x tag ty e =>
@@ -452,7 +457,13 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     (* TODO: Improve this *)
     let es := map (const_prop_e m) es in
     let (m,xs) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Copn xs t o es) ])
+    let ir :=
+      if is_update_imm xs o es is Some (x, b, e) then
+        if b then Copn [:: x ] AT_none (Oslh SLHmove) [:: e ]
+        else Cassgn x AT_none ty_msf (wconst (sz := msf_size) (-1))
+      else (Copn xs t o es)
+    in
+    (m, [:: MkI ii ir ])
 
   | Csyscall xs o es =>
     let es := map (const_prop_e m) es in

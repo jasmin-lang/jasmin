@@ -35,13 +35,13 @@ let parse () =
   | infile :: s :: _ -> raise CLI_errors.(CLIerror (RedundantInputFile (infile, s)))
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
+let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
                       %a@;@]@."
         s1 s2
-        (Printer.pp_prog ~debug:true asmOp) p
+        (Printer.pp_prog ~debug:true pd asmOp) p
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
@@ -60,9 +60,14 @@ let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
+let check_sct _s p _source_p =
+  Sct_checker_forward.ty_prog p (oget !sct_list)
+
+(* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
   module C : Arch_full.Core_arch
   val analyze :
+    Wsize.wsize ->
     (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op Sopn.asmOp ->
     (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
     (unit, (C.reg, C.regx, C.xreg, C.rflag, C.cond, C.asm_op, C.extra_op) Arch_extra.extended_op) func ->
@@ -85,17 +90,10 @@ let main () =
       | ARM_M4 ->
          (module struct
             module C = CoreArchFactory.Core_arch_ARM
-            let analyze _ _ = failwith "TODO_ARM: analyze"
+            let analyze _ _ _ _ _ = failwith "TODO_ARM: analyze"
           end)
     in
     let module Arch = Arch_full.Arch_from_Core_arch (P.C) in
-    let ep =
-      Sem_params_of_arch_extra.ep_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem
-    in
-    let spp = Sem_params_of_arch_extra.spp_of_asm_e Arch.asm_e in
-    let sip =
-      Sem_params_of_arch_extra.sip_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem
-    in
 
     if !safety_makeconfigdoc <> None
     then (
@@ -117,6 +115,7 @@ let main () =
     let env, pprog, ast =
       try Compile.parse_file Arch.reg_size Arch.asmOp_sopn infile
       with
+      | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =
@@ -142,7 +141,7 @@ let main () =
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
   
-    eprint Compiler.Typing (Printer.pp_pprog Arch.asmOp) pprog;
+    eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
 
     let prog =
       try Compile.preprocess Arch.reg_size Arch.asmOp pprog
@@ -167,14 +166,27 @@ let main () =
         - Pretty-print the program
         - Add your own checker here!
     *)
+    (* FIXME: I think this donotcompile stuff does not work anymore,
+       At least the compilation will not be stopped if the passes are after Compiler.ParamsExpansion *)
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_p Arch.asmOp (P.analyze Arch.asmOp) s p source_prog
+        check_safety_p
+          Arch.reg_size
+          Arch.asmOp
+          (P.analyze Arch.pointer_data Arch.asmOp)
+          s
+          p
+          source_prog
         |> donotcompile
-      else (
+      else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
+        check_sct s p source_prog
+        |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
+        |> donotcompile
+      else
+      (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;
         if s == Unrolling then CheckAnnot.check_no_inline_instr p;
-        eprint s (Printer.pp_prog ~debug Arch.asmOp) p
+        eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
       ) in
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
@@ -206,18 +218,17 @@ let main () =
         let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
            Format.printf "/* Security types:\n@[<v>%a@]*/@."
               (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
-           Stdlib.Option.iter (fun (loc, code) ->
-               hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code)
-             status;
+           let on_err (loc, msg) =
+             hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
+           in
+           Stdlib.Option.iter on_err status;
         donotcompile()
     end;
 
     if !do_compile then begin
   
     (* Now call the coq compiler *)
-    let tbl, cprog =
-      let all_vars = Arch.rip :: Arch.all_registers in
-       Conv.cuprog_of_prog all_vars prog in
+    let cprog = Conv.cuprog_of_prog prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
 
@@ -232,31 +243,15 @@ let main () =
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
-
-              let ptr_of_z z = Word0.wrepr Arch.reg_size (Conv.cz_of_z z) in
-              let live =
-                List.map
-                  (fun (ptr, sz) -> ptr_of_z ptr, Conv.cz_of_z sz)
-                  m
-              in
-              let m_init =
-                (Low_memory.Memory.coq_M Arch.reg_size).init
-                  live
-                  (ptr_of_z (Z.of_string "1024"))
-              in
-              (match m_init with
-                 | Utils0.Ok m -> m
-                 | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
-              |>
-              Evaluator.exec
-                ep
-                spp
-                sip
-                (Syscall_ocaml.initial_state ())
-                (Expr.to_uprog Arch.asmOp cprog)
-                ii
-                (Conv.cfun_of_fun tbl f)
-                []
+              (match
+                 Evaluator.initial_memory Arch.reg_size (Z.of_string "1024") m
+               with
+               | Utils0.Ok m -> m
+               | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
+              |> Evaluator.run
+                   (module Arch)
+                   (Expr.to_uprog Arch.asmOp cprog)
+                   ii f []
             in
 
             Format.printf "@[<v>%a@]@."
@@ -269,18 +264,18 @@ let main () =
         List.iter exec to_exec
       end;
 
-    begin match Compile.compile (module Arch) visit_prog_after_pass prog tbl cprog with
+    begin match Compile.compile (module Arch) visit_prog_after_pass prog cprog with
     | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
+      let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
       raise (HiError e)
     | Utils0.Ok asm ->
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" (Arch.pp_asm tbl) asm);
+          Format.fprintf fmt "%a%!" Arch.pp_asm asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" (Arch.pp_asm tbl) asm
+          Format.printf "%a%!" Arch.pp_asm asm
     end
     end
   with

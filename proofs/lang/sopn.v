@@ -1,7 +1,15 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import strings type var sem_type values.
-Require Import shift_kind.
+
+Require Import
+  pseudo_operator
+  sem_type
+  shift_kind
+  strings
+  slh_ops
+  type
+  values
+  var.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -42,14 +50,23 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe :=
      i_safe   := safe;
   |}.
 
+(* -------------------------------------------------------------------- *)
+
+Variant prim_x86_suffix :=
+  | PVp of wsize
+  | PVv of velem & wsize
+  | PVsv of signedness & velem & wsize
+  | PVx of wsize & wsize
+  | PVvv of velem & wsize & velem & wsize
+.
+
 Variant prim_constructor (asm_op:Type) :=
-  | PrimP of wsize & (option wsize -> wsize -> asm_op)
-  | PrimM of (option wsize -> asm_op)
-  | PrimV of (option wsize -> signedness -> velem -> wsize -> asm_op)
-  | PrimX of (option wsize -> wsize -> wsize -> asm_op)
-  | PrimVV of (option wsize -> velem -> wsize -> velem -> wsize -> asm_op)
-  | PrimARM of (bool -> bool -> option shift_kind -> asm_op)
-  .
+  | PrimX86 of seq prim_x86_suffix & (prim_x86_suffix -> option asm_op)
+  | PrimARM of
+    (bool                 (* set_flags *)
+     -> bool              (* is_conditional *)
+     -> option shift_kind (* has_shift *)
+     -> asm_op).
 
 Class asmOp (asm_op : Type) := {
   _eqT           :> eqTypeC asm_op
@@ -59,40 +76,45 @@ Class asmOp (asm_op : Type) := {
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 
-Section ASM_OP.
+Section WITH_PARAMS.
 
-Context {pd: PointerData}.
-Context `{asmop : asmOp}.
+Context
+  {asm_op : Type}
+  {pd : PointerData}
+  {msfsz : MSFsize}
+  {asmop : asmOp asm_op}.
 
-(* Instructions that must be present in all the architectures. *)
 Variant sopn :=
-| Ocopy     of wsize & positive
-| Onop
-| Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
-| Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Oasm      of asm_op_t.
+| Opseudo_op of pseudo_operator
+| Oslh of slh_op
+| Oasm of asm_op_t.
 
 Definition sopn_beq (o1 o2:sopn) :=
   match o1, o2 with
-  | Ocopy ws1 p1, Ocopy ws2 p2 => (ws1 == ws2) && (p1 == p2)
-  | Onop, Onop => true
-  | Omulu ws1, Omulu ws2 => ws1 == ws2
-  | Oaddcarry ws1, Oaddcarry ws2 => ws1 == ws2
-  | Osubcarry ws1, Osubcarry ws2 => ws1 == ws2
+  | Opseudo_op o1, Opseudo_op o2 => o1 == o2
+  | Oslh o1, Oslh o2 => o1 == o2
   | Oasm o1, Oasm o2 => o1 == o2 ::>
   | _, _ => false
   end.
 
 Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
 Proof.
-  move=> [ws1 p1||ws1|ws1|ws1|o1] [ws2 p2||ws2|ws2|ws2|o2] /=;
-   first (by apply (iffP andP) => [[/eqP -> /eqP ->] | [-> ->]]);
-   try by (constructor || apply: reflect_inj eqP => ?? []).
+  move=> [] ? [] ?.
+  all: by [ constructor | apply: reflect_inj eqP => ?? [] ].
 Qed.
 
 Definition sopn_eqMixin := Equality.Mixin sopn_eq_axiom.
 Canonical  sopn_eqType  := EqType sopn sopn_eqMixin.
+
+Definition sopn_copy (ws : wsize) (p : positive) : sopn :=
+  Opseudo_op (Ocopy ws p).
+Definition sopn_nop : sopn := Opseudo_op Onop.
+Definition sopn_mulu (ws : wsize) : sopn := Opseudo_op (Omulu ws).
+Definition sopn_addcarry (ws : wsize) : sopn := Opseudo_op (Oaddcarry ws).
+Definition sopn_subcarry (ws : wsize) : sopn := Opseudo_op (Osubcarry ws).
+
+(* ------------------------------------------------------------- *)
+(* Descriptors for speudo operators                              *)
 
 (* The fields [i_in] and [i_out] are used in the regalloc pass only. The
    following instructions should be replaced before that pass (in lowering),
@@ -147,13 +169,145 @@ Definition Osubcarry_instr sz:=
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
            [::].
 
-Definition get_instr_desc o :=
+Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   match o with
   | Ocopy ws p   => Ocopy_instr ws p
   | Onop         => Onop_instr
   | Omulu     sz => Omulu_instr sz
   | Oaddcarry sz => Oaddcarry_instr sz
   | Osubcarry sz => Osubcarry_instr sz
+  end.
+
+(* ------------------------------------------------------------- *)
+(* Descriptors for speculative execution operators               *)
+
+(* This define the semantic at the source level.
+   Since at source level we do not take into account speculative execution,
+   the protect/protect_ptr are simply the identity *)
+
+Definition se_init_sem : exec wmsf := ok 0%R.
+
+Definition se_update_sem (b : bool) (msf : wmsf) : exec wmsf :=
+  ok (if b then msf else (-1)%R).
+
+Definition se_move_sem (w : wmsf) : exec wmsf := ok w.
+
+Definition se_protect_sem {ws : wsize} (w : word ws) (msf : wmsf) : exec (word ws) := ok w.
+
+Definition se_protect_ptr_sem {p:positive} (t: WArray.array p) (msf : wmsf) : exec (WArray.array p) := ok t.
+
+Definition se_protect_ptr_fail_sem {p:positive} (t: WArray.array p) (msf : wmsf) : exec (WArray.array p) :=
+  Let _ := assert (msf == 0%R) ErrType in
+  ok t.
+
+Definition SLHinit_str := "init_msf"%string.
+Definition SLHinit_instr :=
+  mk_instr_desc (pp_s SLHinit_str)
+      [::]
+      [::]           (* this info is irrelevant *)
+      [:: ty_msf ]
+      [:: E 0 ]      (* this info is irrelevant *)
+      se_init_sem
+      [::].
+
+Definition SLHupdate_str := "update_msf"%string.
+Definition SLHupdate_instr :=
+  mk_instr_desc (pp_s SLHupdate_str)
+      [:: sbool; ty_msf ]
+      [:: E 0; E 1 ] (* this info is irrelevant *)
+      [:: ty_msf ]
+      [:: E 2 ]      (* this info is irrelevant *)
+      se_update_sem
+      [::].
+
+Definition SLHmove_str := "mov_msf"%string.
+Definition SLHmove_instr :=
+  mk_instr_desc (pp_s SLHmove_str)
+      [:: ty_msf ]
+      [:: E 0 ]      (* this info is irrelevant *)
+      [:: ty_msf ]
+      [:: E 1 ]      (* this info is irrelevant *)
+      se_move_sem
+      [::].
+
+Definition SLHprotect_str := "protect"%string.
+Definition SLHprotect_instr ws :=
+  mk_instr_desc (pp_sz SLHprotect_str ws)
+      [:: sword ws; ty_msf ]
+      [:: E 0; E 1 ] (* this info is irrelevant *)
+      [:: sword ws ]
+      [:: E 2 ]      (* this info is irrelevant *)
+      (@se_protect_sem ws)
+      [::].
+
+Lemma protect_ptr_semu p vs vs' v:
+  List.Forall2 value_uincl vs vs' ->
+  @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_sem p) vs = ok v ->
+  exists2 v' : values,
+   @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_sem p) vs' = ok v' &
+   List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (sarr p)) /= hu.
+  move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
+  move=> _ /List_Forall2_inv_l -[v2' [_ [-> [/of_value_uincl_te -/(_ ty_msf) /= hu' /List_Forall2_inv_l ->]]]].
+  t_xrbindP => /= t a /hu [t' -> ha] w' /hu' -> [<-] <- /=.
+  by exists [::Varr t'] => //; constructor.
+Qed.
+
+Definition SLHprotect_ptr_str := "protect_ptr"%string.
+Definition SLHprotect_ptr_instr p :=
+  {| str      := pp_s SLHprotect_ptr_str;
+     tin      := [:: sarr p; ty_msf ];
+     i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
+     tout     := [:: sarr p ];
+     i_out    := [:: E 2 ]; (* this info is irrelevant *)
+     semi     := @se_protect_ptr_sem p;
+     semu     := @protect_ptr_semu p;
+     i_safe   := [::];
+  |}.
+
+Lemma protect_ptr_fail_semu p vs vs' v:
+  List.Forall2 value_uincl vs vs' ->
+  @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs = ok v ->
+  exists2 v' : values,
+   @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs' = ok v' &
+   List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (sarr p)) /= hu.
+  move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
+  move=> _ /List_Forall2_inv_l -[v2' [_ [-> [/of_value_uincl_te -/(_ ty_msf) /= hu' /List_Forall2_inv_l ->]]]].
+  rewrite /se_protect_ptr_fail_sem; t_xrbindP => /= t a /hu [t' -> ha] w' /hu' -> /eqP -> <- <- /=.
+  by rewrite eqxx /=; exists [::Varr t'] => //; constructor.
+Qed.
+
+Definition SLHprotect_ptr_fail_str := "protect_ptr_fail"%string.
+Definition SLHprotect_ptr_fail_instr p :=
+  {| str      := pp_s SLHprotect_ptr_fail_str;
+     tin      := [:: sarr p; ty_msf ];
+     i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
+     tout     := [:: sarr p ];
+     i_out    := [:: E 2 ]; (* this info is irrelevant *)
+     semi     := @se_protect_ptr_fail_sem p;
+     semu     := @protect_ptr_fail_semu p;
+     i_safe   := [::];
+  |}.
+
+Definition slh_op_instruction_desc  (o : slh_op) : instruction_desc :=
+  match o with
+  | SLHinit               => SLHinit_instr
+  | SLHupdate             => SLHupdate_instr
+  | SLHmove               => SLHmove_instr
+  | SLHprotect ws         => SLHprotect_instr ws
+  | SLHprotect_ptr p      => SLHprotect_ptr_instr p
+  | SLHprotect_ptr_fail p => SLHprotect_ptr_fail_instr p
+  end.
+
+(* ---------------------------------------------------------------------- *)
+
+Definition get_instr_desc o :=
+  match o with
+  | Opseudo_op o => pseudo_op_get_instr_desc o
+  | Oslh o => slh_op_instruction_desc o
   | Oasm o       => asm_op_instr o
   end.
 
@@ -168,22 +322,28 @@ Instance eqC_sopn : eqTypeC sopn :=
 
 Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : prim_constructor B :=
   match p with
-  | PrimP x1 x2 => PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
-  | PrimM x => PrimM (fun ws => f (x ws))
-  | PrimV x => PrimV (fun ws1 s v ws2 => f (x ws1 s v ws2))
-  | PrimX x => PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
-  | PrimVV x => PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
+  | PrimX86 a k => PrimX86 a (fun x => Option.bind (olift f) (k x))
   | PrimARM x => PrimARM (fun sf ic hs => f (x sf ic hs))
   end.
 
+Definition primM {A: Type} f  := @PrimX86 A [::] (fun _ => Some f).
+Definition primP {A: Type} (f: wsize -> A) :=
+      PrimX86 (map PVp (Uptr :: rem Uptr wsizes))
+        (fun s => if s is PVp sz then Some (f sz) else None).
+
 Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
   [::
-    ("copy", PrimP Uptr (fun _ws sz => Ocopy sz xH));
+    ("copy", primP (fun sz => Opseudo_op (Ocopy sz xH)));  (* The size is fixed later *)
     (* "NOP" is ignored on purpose *)
-    ("mulu", PrimP Uptr (fun _ws sz => Omulu sz));
-    ("adc", PrimP Uptr (fun _ws sz => Oaddcarry sz));
-    ("sbb", PrimP Uptr (fun _ws sz => Osubcarry sz))
-  ]%string
+    ("mulu", primP (fun sz => Opseudo_op (Omulu sz)));
+    ("adc", primP (fun sz => Opseudo_op (Oaddcarry sz)));
+    ("sbb", primP (fun sz => Opseudo_op (Osubcarry sz)));
+    ("init_msf"   , primM (Oslh SLHinit));
+    ("update_msf" , primM (Oslh SLHupdate));
+    ("mov_msf"    , primM (Oslh SLHmove));
+    ("protect"    , primP (fun sz => Oslh (SLHprotect sz)));
+    ("protect_ptr", primM (Oslh (SLHprotect_ptr xH))) (* The size is fixed later *)
+   ]%string
   ++ map (fun '(s, p) => (s, map_prim_constructor Oasm p)) prim_string.
 
 (* used in the OCaml world, it could be a definition it seems *)
@@ -191,4 +351,4 @@ Instance asmOp_sopn : asmOp sopn :=
   { asm_op_instr := get_instr_desc;
     prim_string := sopn_prim_string }.
 
-End ASM_OP.
+End WITH_PARAMS.

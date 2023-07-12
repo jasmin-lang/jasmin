@@ -12,7 +12,7 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-Require Import seq_extra xseq_extra unionfind tunneling unionfind_proof.
+Require Import seq_extra unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 
 
@@ -20,6 +20,7 @@ Require Import linear_sem.
 Section WITH_PARAMS.
 
 Context
+  {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -793,18 +794,6 @@ Section TunnelingWFProps.
     by rewrite /tunnel_lfundef lfd_body_setfb; apply/well_formed_tunnel_lcmd.
   Qed.
 
-  Lemma well_formed_tunnel_funcs lf :
-    well_formed_funcs lf ->
-    well_formed_funcs (tunnel_funcs lf).
-  Proof.
-    rewrite tunnel_funcs_partial_eq => Hwf.
-    elim: (size lf) => [|n IHwf]; first by rewrite tunnel_funcs_partial0.
-    rewrite tunnel_funcs_partial_fn; last first.
-    + by move: Hwf; rewrite /well_formed_funcs => /andP [].
-    case Honth: (onth _ _) => [[fn fd]|//].
-    by apply/well_formed_tunnel_funcs_fn.
-  Qed.
-
   Lemma well_formed_tunnel_lprog_pc p fn pc :
     well_formed_lprog p ->
     well_formed_lprog (tunnel_lprog_pc p fn pc).
@@ -1111,7 +1100,7 @@ Section TunnelingSem.
         case: encode_label => // wl; apply bind_eq => // m.
         by rewrite eval_jump_tunnel_lprog_pc.
       rewrite tunnel_get_label_after_pc.
-      apply bind_eq => // u; apply bind_eq => // l.
+      apply bind_eq => // u. apply bind_eq => // vm.
       case: encode_label => // wl; apply bind_eq => // m.
       by rewrite eval_jump_tunnel_lprog_pc.
     + rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc //.

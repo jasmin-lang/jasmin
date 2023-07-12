@@ -26,9 +26,10 @@ Scheme Equality for arm_extra_op.
 
 Lemma arm_extra_op_eq_axiom : Equality.axiom arm_extra_op_beq.
 Proof.
-  move=> x y; apply:(iffP idP).
-  + by apply: internal_arm_extra_op_dec_bl.
-  by apply: internal_arm_extra_op_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_arm_extra_op_dec_bl
+       internal_arm_extra_op_dec_lb).
 Qed.
 
 Definition arm_extra_op_eqMixin :=
@@ -61,17 +62,17 @@ Definition assemble_extra
            (o: arm_extra_op)
            (outx: lexprs)
            (inx: rexprs)
-           : cexec (asm_op_msb_t * lexprs * rexprs) :=
+           : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
   match o with
   end.
 
 #[ export ]
-Instance arm_extra :
+Instance arm_extra {atoI : arch_toIdent} :
   asm_extra register register_ext xregister rflag condt arm_op arm_extra_op :=
   { to_asm := assemble_extra }.
 
 (* This concise name is convenient in OCaml code. *)
-Definition arm_extended_op :=
+Definition arm_extended_op {atoI : arch_toIdent} :=
   @extended_op _ _ _ _ _ _ _ arm_extra.
 
-Definition Oarm o : @sopn arm_extended_op _ := Oasm (BaseOp (None, o)).
+Definition Oarm {atoI : arch_toIdent} o : @sopn arm_extended_op _ := Oasm (BaseOp (None, o)).

@@ -11,6 +11,54 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* ----------------------------------------------------------- *)
+
+Class WithSubWord := { sw_allowed : bool }.
+
+Definition nosubword   := {| sw_allowed := false |}.
+Definition withsubword := {| sw_allowed := true |}.
+
+Definition compat_type (sw:bool) :=
+  if sw then subtype else eq_op.
+
+Lemma compat_type_refl b ty : compat_type b ty ty.
+Proof. by rewrite /compat_type; case: b. Qed.
+#[global]Hint Resolve compat_type_refl : core.
+
+Lemma compat_type_eq_refl b ty1 ty2 : ty1 = ty2 -> compat_type b ty1 ty2.
+Proof. by move=> ->. Qed.
+
+Lemma compat_type_subtype b t1 t2:
+  compat_type b t1 t2 -> subtype t1 t2.
+Proof. by case: b => //= /eqP ->. Qed.
+
+Lemma compat_typeE b ty ty' :
+  compat_type b ty ty' →
+  match ty' with
+  | sword sz' =>
+    exists2 sz, ty = sword sz & if b then ((sz ≤ sz')%CMP:Prop) else sz' = sz
+  | _ => ty = ty'
+end.
+Proof.
+  rewrite /compat_type; case: b => [/subtypeE|/eqP ->]; case: ty' => //.
+  + by move=> ws [ws' [*]]; eauto.
+  by eauto.
+Qed.
+
+Lemma compat_typeEl b ty ty' :
+  compat_type b ty ty' →
+  match ty with
+  | sword sz =>
+    exists2 sz', ty' = sword sz' & if b then ((sz ≤ sz')%CMP:Prop) else sz = sz'
+  | _ => ty' = ty
+  end.
+Proof.
+  rewrite /compat_type; case: b => [/subtypeEl|/eqP ->].
+  + by case: ty => // ws [ws' [*]]; eauto.
+  by case: ty'; eauto.
+Qed.
+
+(* ----------------------------------------------------------- *)
 Definition sem_t (t : stype) : Type :=
   match t with
   | sbool    => bool
@@ -26,6 +74,8 @@ Definition sem_ot (t:stype) : Type :=
   else sem_t t.
 
 Definition sem_tuple ts := ltuple (map sem_ot ts).
+
+Notation wmsf := (word msf_size).
 
 (* -------------------------------------------------------------------- *)
 

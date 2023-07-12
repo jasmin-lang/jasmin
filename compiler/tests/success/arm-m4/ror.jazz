@@ -8,12 +8,15 @@ fn ror(reg u32 arg0, reg u32 arg1) -> reg u32 {
     [x] = x;
 
     // Immediates.
+    x = arg0 >>r 0;
+    [x] = x;
+
     x = arg0 >>r 1;
     x >>r= 1;
     [x] = x;
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = arg0 >>r arg1 if zf;

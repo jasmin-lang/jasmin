@@ -765,6 +765,19 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           | Some (ty,eb,el,er)  -> aux (Pif (ty,eb,el,er))
           | None -> flat_bexpr_to_btcons abs op2 e1 e2 end
 
+    | PappN (Ocombine_flags c, [ eof; ecf; esf; ezf ]) ->
+      begin match c with
+        | E.CF_EQ -> aux ezf
+        | E.CF_LT Unsigned -> aux ecf
+        | E.CF_LE Unsigned -> BOr (aux ecf, aux ezf)
+        | E.CF_NEQ -> aux (Papp1 (Onot, ezf))
+        | E.CF_LT Signed -> aux (Papp1 (Onot, (Papp2 (E.Obeq, eof, esf))))
+        | E.CF_LE Signed -> BOr (aux (Papp1 (Onot, (Papp2 (E.Obeq, eof, esf)))), aux ezf)
+        | E.CF_GE Signed -> aux (Papp2 (E.Obeq, eof, esf))
+        | E.CF_GE Unsigned -> aux (Papp1 (Onot, ecf))
+        | E.CF_GT Unsigned -> BAnd (aux (Papp1 (Onot, ecf)), aux (Papp1 (Onot, ezf)))
+        | E.CF_GT Signed -> BAnd (aux (Papp2 (E.Obeq, eof, esf)), aux (Papp1 (Onot, ezf)))
+      end
     | _ -> assert false
 
   and flat_bexpr_to_btcons abs op2 e1 e2 =

@@ -37,14 +37,16 @@ and iac_instr_r pd loc ir =
       | Some (ws, n) -> 
           warning IntroduceArrayCopy 
             loc "an array copy is introduced";
-          Copn([x], t, Sopn.Ocopy(ws, Conv.pos_of_int n), [e])
+          let op = Pseudo_operator.Ocopy(ws, Conv.pos_of_int n) in
+          Copn([x], t, Sopn.Opseudo_op op, [e])
     else ir
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
   | Cfor (i, r, s) -> Cfor (i, r, iac_stmt pd s)
   | Cwhile (a, c1, t, c2) -> Cwhile (a, iac_stmt pd c1, t, iac_stmt pd c2)
   | Copn (xs,t,o,es) ->
+
     begin match o, xs with
-    | Sopn.Ocopy(ws, _), [Lvar x] ->
+    | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in
       let wsn = size_of_ws ws in
@@ -54,8 +56,15 @@ and iac_instr_r pd loc ir =
           (Printer.pp_var ~debug:false) (L.unloc x)
           PrintCommon.pp_ty (L.unloc x).v_ty
           xn wsn
-      else Copn(xs,t,Sopn.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
-    | Sopn.Ocopy _, _ -> assert false
+      else
+        let op = Pseudo_operator.Ocopy (ws, Conv.pos_of_int (xn / wsn)) in
+        Copn(xs,t,Sopn.Opseudo_op op, es)
+    | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
+      (* Fix the size it is dummy for the moment *)
+      let xn = size_of (L.unloc x).v_ty in
+      let op = Slh_ops.SLHprotect_ptr (Conv.pos_of_int xn) in
+      Copn(xs,t, Sopn.Oslh op, es)
+    | (Sopn.Opseudo_op(Pseudo_operator.Ocopy _) | Sopn.Oslh (SLHprotect_ptr _)), _ -> assert false
     | _ -> ir
     end
 

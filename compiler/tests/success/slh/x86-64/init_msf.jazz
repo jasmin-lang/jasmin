@@ -1,0 +1,9 @@
+export fn foo () -> reg u64 {
+   reg u64 msf;
+   msf = #init_msf();
+   return msf;
+}
+
+export fn foo2() {
+   _ = #init_msf();
+}

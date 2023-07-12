@@ -1,5 +1,8 @@
 From mathcomp Require Import all_ssreflect.
-Require Import expr compiler_util.
+Require Import
+  compiler_util
+  expr
+  pseudo_operator.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -39,7 +42,7 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   let ei := Pvar (mk_lvar i) in
   let sz := Z.to_pos (wsize_size ws * n) in
   let pre := 
-    if eq_gvar (mk_lvar x) y then Copn [::] AT_none Onop [::]
+    if eq_gvar (mk_lvar x) y then Copn [::] AT_none sopn_nop [::]
     else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init sz) in
   [:: MkI ii pre;
       MkI ii 
@@ -53,7 +56,7 @@ Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd 
 
 Definition is_copy o := 
   match o with 
-  | Ocopy ws p => Some (ws, p) 
+  | Opseudo_op (Ocopy ws p) => Some (ws, p)
   | _ => None 
   end.
 

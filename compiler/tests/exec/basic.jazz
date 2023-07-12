@@ -1,0 +1,40 @@
+fn f() -> (reg u32, reg u32) {
+  reg u32 b, c;
+  b = 5;
+  c = b;
+  c += 1;
+  return (b,c);
+}
+
+inline fn ft() -> reg u32[2] {
+  reg u32[2] t;
+
+  t[0] = 1;
+  t[1] = 15;
+  
+  return t;
+}
+
+inline fn mem() -> reg u64 {
+  reg u64 r;
+  reg u64 p;
+
+  p = 0x1000;
+
+  [ p + 0] = 255;
+  r = [ p + 0];
+
+  return r;
+}
+
+inline fn mem1() -> reg u32 {
+  reg u32 r;
+  reg u64 p;
+
+  p = 0x1000;
+
+  [ p + 8 ] = 255;
+  r = [ p + 8];
+
+  return r;
+}

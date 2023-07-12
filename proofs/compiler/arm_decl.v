@@ -10,7 +10,12 @@ Require Import
   shift_kind
   strings
   utils
-  wsize.
+  wsize
+  ident.
+
+Require Export
+  arm_decl_core.
+
 Require Import
   arch_decl
   arch_utils.
@@ -27,22 +32,13 @@ Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
 (* Registers. *)
-Variant register : Type :=
-| R00 | R01 | R02 | R03         (* Lower general-purpose registers. *)
-| R04 | R05 | R06 | R07         (* Lower general-purpose registers. *)
-| R08 | R09 | R10 | R11 | R12   (* Higher general-purpose registers. *)
-| LR                            (* Subroutine link register. *)
-| SP.                           (* Stack pointer. *)
 
-Definition register_dec_eq (r0 r1: register) : {r0 = r1} + {r0 <> r1}.
-  by repeat decide equality.
-Defined.
-
-Definition register_beq (r0 r1: register) : bool :=
-  is_left (register_dec_eq r0 r1).
+Scheme Equality for register.
 
 Lemma register_eq_axiom : Equality.axiom register_beq.
-Proof. by t_eq_axiom register_beq register_dec_eq. Qed.
+Proof.
+  exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_register : eqTypeC register :=
@@ -59,13 +55,13 @@ Proof. by case. Qed.
 #[ export ]
 Instance finTC_register : finTypeC register :=
   {
-    cenum := registers;
+    cenum  := registers;
     cenumP := register_fin_axiom;
   }.
 
 Canonical register_finType := @cfinT_finType _ finTC_register.
 
-Definition string_of_register (r : register) : string :=
+Definition register_to_string (r: register) : string :=
   match r with
   | R00 => "r0"
   | R01 => "r1"
@@ -85,34 +81,20 @@ Definition string_of_register (r : register) : string :=
   end.
 
 #[ export ]
-Instance reg_toS : ToString sword32 register :=
-  { category      := "register"
-  ; to_string     := string_of_register
-  ; strings       := [seq (string_of_register x, x)
-                     | x <- enum [finType of register]]
-  ; inj_to_string := ltac:(by t_inj_cases)
-  ; stringsE      := refl_equal
-  }.
-
+Instance reg_toS : ToString (sword arm_reg_size) register :=
+  {| category  := "register"
+   ; to_string := register_to_string
+  |}.
 
 (* -------------------------------------------------------------------- *)
 (* Flags. *)
 
-Variant rflag : Type :=
-| NF    (* Negative condition flag. *)
-| ZF    (* Zero confition flag. *)
-| CF    (* Carry condition flag. *)
-| VF.   (* Overflow condition flag. *)
-
-Definition rflag_dec_eq (f0 f1: rflag) : {f0 = f1} + {f0 <> f1}.
-  by repeat decide equality.
-Defined.
-
-Definition rflag_beq (f0 f1: rflag) : bool :=
-  is_left (rflag_dec_eq f0 f1).
+Scheme Equality for rflag.
 
 Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
-Proof. by t_eq_axiom rflag_beq rflag_dec_eq. Qed.
+Proof.
+  exact: (eq_axiom_of_scheme internal_rflag_dec_bl internal_rflag_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_rflag : eqTypeC rflag :=
@@ -128,13 +110,13 @@ Proof. by case. Qed.
 #[ export ]
 Instance finTC_rflag : finTypeC rflag :=
   {
-    cenum := rflags;
+    cenum  := rflags;
     cenumP := rflag_fin_axiom;
   }.
 
 Canonical rflag_finType := @cfinT_finType _ finTC_rflag.
 
-Definition string_of_rflag (f : rflag) : string :=
+Definition flag_to_string (f : rflag) : string :=
   match f with
   | NF => "NF"
   | ZF => "ZF"
@@ -144,13 +126,9 @@ Definition string_of_rflag (f : rflag) : string :=
 
 #[ export ]
 Instance rflag_toS : ToString sbool rflag :=
-  { category      := "rflag"
-  ; to_string     := string_of_rflag
-  ; strings       := [seq (string_of_rflag x, x) | x <- enum [finType of rflag]]
-  ; inj_to_string := ltac:(by t_inj_cases)
-  ; stringsE      := refl_equal
+  { category  := "rflag"
+  ; to_string := flag_to_string
   }.
-
 
 (* -------------------------------------------------------------------- *)
 (* Conditions. *)
@@ -171,15 +149,12 @@ Variant condt : Type :=
 | GT_ct    (* Signed greater than. *)
 | LE_ct.   (* Signed less than or equal. *)
 
-Definition condt_dec_eq (c0 c1: condt) : {c0 = c1} + {c0 <> c1}.
-  by repeat decide equality.
-Defined.
-
-Definition condt_beq (c0 c1: condt) : bool :=
-  is_left (condt_dec_eq c0 c1).
+Scheme Equality for condt.
 
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
-Proof. by t_eq_axiom condt_beq condt_dec_eq. Qed.
+Proof.
+  exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_condt : eqTypeC condt :=
@@ -228,16 +203,13 @@ Definition string_of_condt (c : condt) : string :=
  * Some instructions can shift a register before performing an operation.
  *)
 
-Definition shift_kind_dec_eq (sk0 sk1 : shift_kind) :
-  {sk0 = sk1} + {sk0 <> sk1}.
-  by repeat decide equality.
-Defined.
-
-Definition shift_kind_beq (sk0 sk1 : shift_kind) : bool :=
-  is_left (shift_kind_dec_eq sk0 sk1).
+Scheme Equality for shift_kind.
 
 Lemma shift_kind_eq_axiom : Equality.axiom shift_kind_beq.
-Proof. by t_eq_axiom shift_kind_beq shift_kind_dec_eq. Qed.
+Proof.
+  exact:
+    (eq_axiom_of_scheme internal_shift_kind_dec_bl internal_shift_kind_dec_lb).
+Qed.
 
 #[ export ]
 Instance eqTC_shift_kind : eqTypeC shift_kind :=
@@ -282,7 +254,6 @@ Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
   | _, _ => None
   end.
 
-
 (* -------------------------------------------------------------------- *)
 (* Flag combinations.
    The ARM terminology is different from Intel's (chapter A7.3 from the
@@ -325,7 +296,7 @@ Notation xregister := empty.
 
 #[ export ]
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
-  { reg_size  := U32
+  { reg_size  := arm_decl_core.arm_reg_size
   ; xreg_size := U64
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
@@ -334,12 +305,12 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; toS_f     := rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
-  ; inj_toS_reg_regx := ltac:(done)
   ; ad_fcp := arm_fcp
   }.
 
 Definition arm_linux_call_conv : calling_convention :=
-  {| callee_saved   := map ARReg [:: R04; R05; R06; R07; R08; R09; R10; R11; SP ]
+  {| callee_saved :=
+      map ARReg [:: R04; R05; R06; R07; R08; R09; R10; R11; SP ]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: R00; R01; R02; R03 ]
    ; call_xreg_args := [::]
@@ -347,3 +318,54 @@ Definition arm_linux_call_conv : calling_convention :=
    ; call_xreg_ret  := [::]
    ; call_reg_ret_uniq := erefl true;
   |}.
+
+
+(* -------------------------------------------------------------------- *)
+(* Valid immediates checks. *)
+
+Variant expand_immediate_kind :=
+| EI_none
+| EI_byte
+| EI_pattern
+| EI_shift.
+
+Definition z_to_bytes (n : Z) : Z * Z * Z * Z :=
+  let '(n, b0) := Z.div_eucl n 256 in
+  let '(n, b1) := Z.div_eucl n 256 in
+  let '(n, b2) := Z.div_eucl n 256 in
+  let b3 := (n mod 256)%Z in
+  (b3, b2, b1, b0).
+
+(* An immediate of the pattern kind has the shape [bbbb], [0b0b], or [b0b0],
+   where [b] is a byte. *)
+Definition is_ei_pattern (n : Z) : bool :=
+  let '(b3, b2, b1, b0) := z_to_bytes n in
+  [|| [&& b3 == b0, b2 == b0 & b1 == b0 ]
+    , [&& b3 == 0, b2 == b0 & b1 == 0 ]
+    | [&& b3 == b1, b2 == 0 & b0 == 0 ]
+  ].
+
+(* An immediate of the shift kind has the shape [0...01xxxxxxx0...0] where the
+   number of suffix zeroes is at least one.
+   Here we assume that last part, i.e. that [n] is larger than 2 (if it were
+   not, we would have caught it in the ETI_byte case). *)
+Definition is_ei_shift (n : Z) : bool :=
+  (* Find where the first set bit and move 7 bits further. *)
+  let byte_end := (Z.log2 n - 7)%Z in
+  (* Check if any bit after the byte is one. *)
+  Z.rem n (Z.pow 2 byte_end) == 0.
+
+Definition ei_kind (n : Z) : expand_immediate_kind :=
+  if [&& 0 <=? n & n <? 256 ]%Z then EI_byte
+  else if is_ei_pattern n then EI_pattern
+  else if is_ei_shift n then EI_shift
+  else EI_none.
+
+Definition is_expandable (n : Z) : bool :=
+  match ei_kind n with
+  | EI_byte | EI_pattern => true
+  | EI_shift | EI_none => false
+  end.
+
+Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
+Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.

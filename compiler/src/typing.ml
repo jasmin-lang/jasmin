@@ -73,9 +73,9 @@ let type_of_opN op =
   let tins, tout = E.type_of_opN op in
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
-let type_of_sopn asmOp op = 
-  List.map Conv.ty_of_cty (Sopn.sopn_tin asmOp op),
-  List.map Conv.ty_of_cty (Sopn.sopn_tout asmOp op)
+let type_of_sopn pd asmOp op =
+  List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op),
+  List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op)
 
 (* -------------------------------------------------------------------- *)
 
@@ -179,7 +179,7 @@ let rec check_instr pd asmOp env i =
     check_lval pd loc x ty
 
   | Copn(xs,_,op,es) ->
-    let tins, tout = type_of_sopn asmOp op in
+    let tins, tout = type_of_sopn pd asmOp op in
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 

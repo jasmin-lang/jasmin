@@ -8,9 +8,9 @@ fn mvn(reg u32 arg0) -> reg u32 {
     [x] = x;
 
     // Immediates.
-    x = !32u 1;
+    x = 0xfffffffe; // MOV can't do this.
     [x] = x;
-    x = !32u -1;
+    x = 0xffffff00; // MOV can't do this.
     [x] = x;
 
     // Shifts.
@@ -34,7 +34,7 @@ fn mvn(reg u32 arg0) -> reg u32 {
     [x] = x;
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = !arg0 if zf;

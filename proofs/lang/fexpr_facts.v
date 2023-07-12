@@ -39,14 +39,16 @@ Qed.
 Section Section.
 
 Context
+  {wsw : WithSubWord}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
+  (wdb : bool)
   (gd : glob_decls).
 
 Lemma fexpr_of_pexprP s e f v :
   fexpr_of_pexpr e = Some f →
-  sem_pexpr gd s e = ok v →
+  sem_pexpr true gd s e = ok v →
   sem_fexpr (evm s) f = ok v.
 Proof.
   elim: e f v => //=.
@@ -74,7 +76,7 @@ Qed.
 
 Lemma rexpr_of_pexprP s e r v :
   rexpr_of_pexpr e = Some r →
-  sem_pexpr gd s e = ok v →
+  sem_pexpr true gd s e = ok v →
   sem_rexpr (emem s) (evm s) r = ok v.
 Proof.
   elim/rexpr_of_pexpr_ind: (rexpr_of_pexpr e).
@@ -85,13 +87,41 @@ Qed.
 
 Lemma lexpr_of_lvalP x d s v s' :
   lexpr_of_lval x = Some d →
-  write_lval gd x v s = ok s' →
+  write_lval true gd x v s = ok s' →
   write_lexpr d v s = ok s'.
 Proof.
   case: x => //.
   - by move => x /Some_inj <-.
   move => ws x e /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <- {d} /=.
   by t_xrbindP => > -> /= -> > /ok_a -> /= -> /= > -> /= > -> <-.
+Qed.
+
+Lemma free_vars_recP vm2 vm1 s f :
+  vm1 =[free_vars_rec s f] vm2 ->
+  sem_fexpr vm1 f = sem_fexpr vm2 f.
+Proof.
+  elim: f s => //= [x | o f1 hf1 | o f1 hf1 f2 hf2 | fb hfb f1 hf1 f2 hf2] s.
+  + by apply: get_var_eq_on; SvD.fsetdec.
+  + by move=> /hf1 ->.
+  + move=> heq; rewrite (hf2 _ heq) (hf1 s) //.
+    by apply: eq_onI heq; have := free_varsE f2 (free_vars_rec s f1); SvD.fsetdec.
+  move=> heq.
+  have h1 := free_varsE f1 (free_vars_rec s fb).
+  have h2 := free_varsE f2 (free_vars_rec (free_vars_rec s fb) f1).
+  rewrite (hf2 _ heq) (hf1 (free_vars_rec s fb)) ?(hfb s) //; apply: eq_onI heq; SvD.fsetdec.
+Qed.
+
+Lemma free_varsP vm2 vm1 f :
+  vm1 =[free_vars f] vm2 ->
+  sem_fexpr vm1 f = sem_fexpr vm2 f.
+Proof. apply free_vars_recP. Qed.
+
+Lemma free_vars_rP vm2 vm1 r m:
+  vm1 =[free_vars_r r] vm2 ->
+  sem_rexpr m vm1 r = sem_rexpr m vm2 r.
+Proof.
+  case: r => [w v f | f] /= heq; last by apply free_varsP.
+  rewrite (free_vars_recP heq) (get_var_eq_on _ _ heq) // free_varsE; SvD.fsetdec.
 Qed.
 
 End Section.

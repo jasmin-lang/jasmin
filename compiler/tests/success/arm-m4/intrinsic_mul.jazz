@@ -11,7 +11,7 @@ fn mul(reg u32 arg0, reg u32 arg1) -> reg u32 {
     nf, zf, x = #MULS(x, arg0);
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = #MULcc(arg0, arg1, zf, x);

@@ -1,0 +1,38 @@
+export
+fn foo() -> reg u64, reg u64 {
+    stack u64[2] s;
+
+    s[0] = 0;
+    s[1] = 1;
+
+    reg u64 msf;
+    msf = #init_msf();
+
+    reg ptr u64[2] p;
+    p = s;
+    p = #protect_ptr(p, msf);
+
+    reg u64 x y;
+    x = p[0];
+    y = p[1];
+    return x, y;
+}
+
+export
+fn foo2() -> reg u64 {
+    stack u32[2] s;
+
+    s[0] = 0;
+    s[1] = 1;
+
+    reg u64 msf;
+    msf = #init_msf();
+
+    reg ptr u32[2] p;
+    p = s;
+    p = #protect_ptr(p, msf);
+
+    reg u64 x;
+    x = p[u64 0];
+    return x;
+}

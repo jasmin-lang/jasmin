@@ -7,7 +7,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Section ASM_OP.
@@ -94,11 +93,6 @@ Section Section.
 
 End Section.
 
-
-Section Section.
-
-Context (is_ptr : var -> bool).
-
 Definition add_init_aux ii x c :=
   match x.(vtype) with
   | sarr n =>
@@ -143,7 +137,5 @@ Definition add_init_fd (fd:fundef) :=
   |}.
 
 Definition add_init_prog (p:prog) := map_prog add_init_fd p.
-
-End Section.
 
 End ASM_OP.

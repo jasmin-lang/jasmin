@@ -31,13 +31,6 @@ Definition fold2 := error "fold2".
 
 End E.
 
-Definition wextend_type t1 t2 :=
-  (t1 == t2) ||
-    match t1, t2 with
-    | sword s1, sword s2 => (s1 <= s2)%CMP
-    | _, _ => false
-    end.
-
 Module M.
 
   Module Mv.
@@ -177,12 +170,15 @@ Module M.
     if b as b0 return ({b0} + {~~ b0}) then left (erefl true)
     else right (erefl true).
 
-  Definition v_wextendty x y := wextend_type (vtype x) (vtype y).
+  Section WSW.
+  Context {wsw : WithSubWord}.
 
-  Definition v_wextendtyP x y := bool_dec (v_wextendty x y).
+  Definition v_compat_type x y := compat_type sw_allowed (vtype x) (vtype y).
+
+  Definition v_compat_typeP x y := bool_dec (v_compat_type x y).
 
   Definition mset_valid (mvar: Mvar.t var) (mset:Sv.t) :=
-    forall x id, Mvar.get mvar x = Some id -> Sv.In x mset /\ v_wextendty x id.
+    forall x id, Mvar.get mvar x = Some id -> Sv.In x mset /\ v_compat_type x id.
 
   Record t_ := mkT {
     mv : Mv.t;
@@ -195,7 +191,7 @@ Module M.
   Definition get (m:t) (x:var) := Mv.get (mv m) x.
 
   Lemma mset_valid_set m x id :
-    v_wextendty x id ->
+    v_compat_type x id ->
     mset_valid (Mv.mvar (Mv.set (mv m) x id)) (Sv.add x (mset m)).
   Proof.
     move=> hsub y idy;rewrite Mvar.setP;case: eqP => ?.
@@ -207,7 +203,7 @@ Module M.
   Arguments set m x id h : clear implicits.
 
   Lemma mset_valid_add m x id :
-    v_wextendty x id ->
+    v_compat_type x id ->
     mset_valid (Mv.mvar (Mv.add (mv m) x id)) (Sv.add x (mset m)).
   Proof.
     move=> h y idy;rewrite Mvar.setP;case: eqP => ?.
@@ -219,7 +215,7 @@ Module M.
   Arguments add m x id h : clear implicits.
 
   Definition addc m x id :=
-    if v_wextendtyP x id is left h then add m x id h
+    if v_compat_typeP x id is left h then add m x id h
     else m.
 
   Lemma mset_valid_empty s : mset_valid (Mv.mvar Mv.empty) s.
@@ -275,9 +271,9 @@ Module M.
 
   Lemma addcP m x id y :
     get (addc m x id) y =
-     if v_wextendty x id && (x == y) then Some id else get m y.
+     if v_compat_type x id && (x == y) then Some id else get m y.
   Proof.
-    rewrite /addc;case: v_wextendtyP => [ heq | /negbTE -> //].
+    rewrite /addc;case: v_compat_typeP => [ heq | /negbTE -> //].
     by rewrite heq addP.
   Qed.
 
@@ -314,7 +310,7 @@ Module M.
       + by move=> ? H;apply Hl;rewrite in_cons H orbC.
       rewrite /f /P.
       have /Hl -/merge_auxP Hp := mem_head p l.
-      have : v_wextendty p.1 p.2.
+      have : v_compat_type p.1 p.2.
       + have : get m1 p.1 = Some p.2 \/ get m2 p.1 = Some p.2 by intuition.
         by move=> [] /svalid [].
       by rewrite addcP => ->; case:eqP => [<- [<-] //| ne ];apply Hm.
@@ -329,14 +325,14 @@ Module M.
     have : P (empty_s (Sv.union (mset m1) (mset m2))).
     + by rewrite /P /empty_s.
     have :
-      (forall p, p \in Mvar.elements (merge_aux m1 m2) -> v_wextendty p.1 p.2).
+      (forall p, p \in Mvar.elements (merge_aux m1 m2) -> v_compat_type p.1 p.2).
     + move=> p /Mvar.elementsP -/merge_auxP ?.
       have : get m1 p.1 = Some p.2 \/ get m2 p.1 = Some p.2 by intuition.
       by move=> [] /svalid [].
     elim : Mvar.elements (empty_s _) => //= -[x idx] l Hl m Hp Hm.
     apply Hl;first by move=> p hin;apply Hp;rewrite in_cons hin orbT.
     move:Hm;rewrite /f /P /addc /=.
-    case: v_wextendtyP => [? | ].
+    case: v_compat_typeP => [? | ].
     + rewrite addP_mset;SvD.fsetdec.
     by have /= -> := Hp _ (mem_head (x, idx) l).
   Qed.
@@ -395,7 +391,14 @@ Module M.
     by have := @mergeP_mset r1 r2;SvD.fsetdec.
   Qed.
 
+  End WSW.
+  Arguments add {wsw} m x id h.
+  Arguments set {wsw} m x id h.
+
 End M.
+
+Section WSW.
+Context {wsw : WithSubWord}.
 
 Definition alloc_error := pp_internal_error_s "allocation".
 
@@ -405,68 +408,62 @@ Definition cerr_varalloc xi1 xi2 s:=
 Definition check_v xi1 xi2 (m:M.t) : cexec M.t :=
   let x1 := xi1.(v_var) in
   let x2 := xi2.(v_var) in
-  if M.v_wextendtyP x1 x2 is left h then
+  if M.v_compat_typeP x1 x2 is left h then
     match M.get m x1 with
     | None     =>
-      if Sv.mem x1 (M.mset m) then 
-          Error (cerr_varalloc xi1 xi2 "variable already set")
-      else ok (M.set m x1 x2 h)
+      Let _ := assert (~~Sv.mem x1 (M.mset m)) (cerr_varalloc xi1 xi2 "variable already set") in
+      ok (M.set m x1 x2 h)
     | Some x2' =>
-      if x2 == x2' then ok m
-      else Error (cerr_varalloc xi1 xi2 "variable mismatch")
+      Let _ := assert (x2 == x2') (cerr_varalloc xi1 xi2 "variable mismatch") in ok m
     end
   else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
 Definition error_e := pp_internal_error_s "allocation" "expression are not equal".
 
 Definition check_gv x1 x2 (m:M.t) : cexec M.t :=
-  if x1.(gs) == x2.(gs) then
-    if is_lvar x1 then check_v x1.(gv) x2.(gv) m 
-    else 
-      if x1.(gv).(v_var) == x2.(gv).(v_var) then ok m
-      else Error error_e
-  else Error error_e.
+  Let _ := assert (x1.(gs) == x2.(gs)) error_e in
+  if is_lvar x1 then check_v x1.(gv) x2.(gv) m
+  else
+    Let _ := assert (x1.(gv).(v_var) == x2.(gv).(v_var)) error_e in ok m.
 
 Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   match e1, e2 with
   | Pconst n1, Pconst n2 =>
-    if n1 == n2 then ok m else Error error_e
+    Let _ := assert (n1 == n2) error_e in ok m
   | Pbool  b1, Pbool  b2 =>
-    if b1 == b2 then ok m else Error error_e
+    Let _ := assert (b1 == b2) error_e in ok m
   | Parr_init n1, Parr_init n2 =>
-    if n1 == n2 then ok m else Error error_e
+    Let _  := assert (n1 == n2) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget aa1 w1 x1 e1, Pget aa2 w2 x2 e2 =>
-    if (aa1 == aa2) && (w1 == w2) then check_gv x1 x2 m >>= check_e e1 e2 else Error error_e
+    Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_e in
+    check_gv x1 x2 m >>= check_e e1 e2
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
-    if (aa1 == aa2) && (w1 == w2) && (len1 == len2) then check_gv x1 x2 m >>= check_e e1 e2 
-    else Error error_e
+    Let _ := assert ([&& aa1 == aa2, w1 == w2 & len1 == len2]) error_e in
+    check_gv x1 x2 m >>= check_e e1 e2
   | Pload w1 x1 e1, Pload w2 x2 e2 =>
-    if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else Error error_e
+    Let _ := assert (w1 == w2) error_e in
+    check_v x1 x2 m >>= check_e e1 e2
   | Papp1 o1 e1, Papp1 o2 e2 =>
-    if o1 == o2 then check_e e1 e2 m
-    else Error error_e
+    Let _ := assert (o1 == o2) error_e in check_e e1 e2 m
    | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
-    if o1 == o2 then check_e e11 e21 m >>= check_e e12 e22
-    else Error error_e
+    Let _ := assert (o1 == o2) error_e in check_e e11 e21 m >>= check_e e12 e22
   | PappN o1 es1, PappN o2 es2 =>
-    if o1 == o2
-    then fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
-    else Error error_e
+    Let _ := assert (o1 == o2) error_e in
+    fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
-    if t == t' then
-      check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
-    else Error error_e
+    Let _ := assert (t == t') error_e in
+    check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
   | _, _ => Error error_e
   end.
 
-Definition check_var_aux (x1 x2:var) m (h:M.v_wextendty x1 x2): cexec M.t :=
+Definition check_var_aux (x1 x2:var) m (h:M.v_compat_type x1 x2): cexec M.t :=
   ok (M.set m x1 x2 h).
 
 Definition check_varc (xi1 xi2:var_i) m : cexec M.t :=
   let x1 := xi1.(v_var) in
   let x2 := xi2.(v_var) in
-  if M.v_wextendtyP x1 x2 is left h then check_var_aux m h
+  if M.v_compat_typeP x1 x2 is left h then check_var_aux m h
   else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
 Definition is_Pvar (e:option (stype * pexpr)) :=
@@ -480,29 +477,29 @@ Definition error_lv := pp_internal_error_s "allocation" "lval not equal".
 Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
   match x1, x2 with
   | Lnone  _ t1, Lnone _ t2  =>
-    if wextend_type t1 t2 then ok m else Error error_lv
+    Let _ := assert (compat_type sw_allowed t1 t2) error_lv in
+    ok m
   | Lnone  _ t1, Lvar x      =>
-    if wextend_type t1 x.(v_var).(vtype) then
-      ok (M.remove m x.(v_var))
-    else Error error_lv
+    Let _ := assert (compat_type sw_allowed t1 x.(v_var).(vtype)) error_lv in
+    ok (M.remove m x.(v_var))
   | Lvar x1    , Lvar x2     =>
     match is_Pvar e2 with
     | Some (ty, x2') =>
-      if M.v_wextendtyP x1 x2 is left h then
-        if (vtype x1 == ty) && (vtype x1 == vtype x2) && (x2.(v_var) == x2') then ok (M.add m x1 x2 h)
+      if M.v_compat_typeP x1 x2 is left h then
+        if [&& vtype x1 == ty, vtype x1 == vtype x2 & x2.(v_var) == x2'] then ok (M.add m x1 x2 h)
         else check_var_aux m h
       else Error (cerr_varalloc x1 x2 "type mismatch")
     | _               => check_varc x1 x2 m
     end
   | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
-    if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else Error error_lv
+    Let _ := assert (w1 == w2) error_lv in
+    check_v x1 x2 m >>= check_e e1 e2
   | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 =>
-    if (aa1 == aa2) && (w1 == w2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
-    else Error error_lv
+    Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_lv in
+    check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
   | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 =>
-    if (aa1 == aa2) && (w1 == w2) && (len1 == len2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
-    else Error error_lv
-
+    Let _ := assert [&& aa1 == aa2, w1 == w2 & len1 == len2] error_lv in
+    check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
   | _          , _           => Error error_lv
   end.
 
@@ -549,35 +546,35 @@ Context
 Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
-    if ty1 == ty2 then
-     check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
-    else Error (alloc_error "bad type in assignment")
+    Let _ := assert (ty1 == ty2) (alloc_error "bad type in assignment") in
+    check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
+
   | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
-    if o1 == o2 then
-      check_es es1 es2 r >>= check_lvals xs1 xs2
-    else Error (alloc_error "operators not equals")
+    Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
+    check_es es1 es2 r >>= check_lvals xs1 xs2
+
   | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
-    if o1 == o2 then
-      check_es es1 es2 r >>= check_lvals xs1 xs2
-    else Error (alloc_error "operators not equals")
+    Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
+    check_es es1 es2 r >>= check_lvals xs1 xs2
 
   | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 =>
-    if f1 == f2 then
-      check_es arg1 arg2 r >>= check_lvals x1 x2
-    else Error (alloc_error "functions not equals")
+    Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
+    check_es arg1 arg2 r >>= check_lvals x1 x2
+
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     Let re := check_e e1 e2 r in
     Let r1 := fold2 E.fold2 check_I c11 c21 re in
     Let r2 := fold2 E.fold2 check_I c12 c22 re in
     ok (M.merge r1 r2)
+
   | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
-    if d1 == d2 then
-      Let rhi := check_e lo1 lo2 r >>=check_e hi1 hi2 in
-      let check_c r :=
-          check_var x1 x2 r >>=
-          fold2 E.fold2 check_I c1 c2 in
-      loop check_c Loop.nb rhi
-    else Error (alloc_error "loop directions not equals")
+    Let _ := assert (d1 == d2) (alloc_error "loop directions not equals") in
+    Let rhi := check_e lo1 lo2 r >>=check_e hi1 hi2 in
+    let check_c r :=
+      check_var x1 x2 r >>=
+      fold2 E.fold2 check_I c1 c2 in
+    loop check_c Loop.nb rhi
+
   | Cwhile a1 c1 e1 c1', Cwhile a2 c2 e2 c2' =>
     let check_c r :=
       Let r := fold2 E.fold2 check_I c1 c2 r in
@@ -592,7 +589,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
 
 with check_I i1 i2 r :=
   match i1, i2 with
-  | MkI _ i1, MkI ii i2 => check_i i1 i2 r
+  | MkI _ i1, MkI ii i2 => add_iinfo ii (check_i i1 i2 r)
   end.
 
 Definition check_cmd := fold2 E.fold2 check_I.
@@ -604,20 +601,18 @@ Context {T:eqType} {pT:progT T}.
 Variable (init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t).
 
 Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Datatypes.unit) :=
-
   let (f1,fd1) := f1 in
   let (f2,fd2) := f2 in
   add_funname f1 (add_finfo fd1.(f_info) (
-  if (f1 == f2) && (fd1.(f_tyin) == fd2.(f_tyin)) && (fd1.(f_tyout) == fd2.(f_tyout)) &&
-      (fd1.(f_extra) == fd2.(f_extra)) then
+    Let _ := assert [&& f1 == f2, fd1.(f_tyin) == fd2.(f_tyin), fd1.(f_tyout) == fd2.(f_tyout) &
+                        fd1.(f_extra) == fd2.(f_extra)] (E.error "functions not equal") in
     Let r := init_alloc fd1.(f_extra) ep1 ep2 in
     Let r := check_vars fd1.(f_params) fd2.(f_params) r in
     Let r := check_cmd fd1.(f_body) fd2.(f_body) r in
     let es1 := map Plvar fd1.(f_res) in
     let es2 := map Plvar fd2.(f_res) in
     Let _r := check_es es1 es2 r in
-    ok tt
-  else Error (E.error "functions not equals"))).
+    ok tt)).
 
 Definition check_prog_error := alloc_error "check_fundef (fold2)".
 
@@ -654,3 +649,5 @@ Definition check_sprog := check_prog init_alloc_sprog.
 End SPROG.
 
 End WITH_PARAMS.
+
+End WSW.

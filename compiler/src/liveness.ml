@@ -19,43 +19,32 @@ let writev_lval s = function
 
 let writev_lvals s lvs = List.fold_left writev_lval s lvs
 
-let is_trivial_move x e =
-  match x, e with
-  | Lvar x, Pvar y -> is_gkvar y && kind_i x = kind_i y.gv
-  | _              -> false
-
-(* Extends [is_move_op] to [asm_op Sopn.sopn] *)
-let is_move_sopn is_move_op o =
-  match o with
-  | Sopn.Oasm o -> is_move_op o
-  | _ -> false
-
 (* When [weak] is true, the out live-set contains also the written variables. *)
-let rec live_i is_move_op weak i s_o =
-  let s_i, s_o, d = live_d is_move_op weak i.i_desc s_o in
+let rec live_i weak i s_o =
+  let s_i, s_o, d = live_d weak i.i_desc s_o in
   s_i, { i_desc = d; i_loc = i.i_loc; i_info = (s_i, s_o); i_annot = []}
 
-and live_d is_move_op weak d (s_o: Sv.t) =
+and live_d weak d (s_o: Sv.t) =
   match d with
   | Cassgn(x, tg, ty, e) ->
 
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
     let s_o =
-      if weak && not (is_trivial_move x e) then writev_lval s_o x
+      if weak then writev_lval s_o x
       else s_o in
     s_i, s_o, Cassgn(x, tg, ty, e)
 
   | Copn(xs,t,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     let s_o =
-     if weak && not (is_move_sopn is_move_op o && is_trivial_move (List.hd xs) (List.hd es))
+     if weak
      then writev_lvals s_o xs
      else s_o in
     s_i, s_o, Copn(xs,t,o,es)
 
   | Cif(e,c1,c2) ->
-    let s1, c1 = live_c is_move_op weak c1 s_o in
-    let s2, c2 = live_c is_move_op weak c2 s_o in
+    let s1, c1 = live_c weak c1 s_o in
+    let s2, c2 = live_c weak c2 s_o in
     Sv.union (vars_e e) (Sv.union s1 s2), s_o, Cif(e, c1, c2)
 
   | Cfor _ -> assert false (* Should have been removed before *)
@@ -65,8 +54,8 @@ and live_d is_move_op weak d (s_o: Sv.t) =
     let rec loop s_o =
       (* loop (c; if e then c' else exit) *)
       let s_o' = Sv.union ve s_o in
-      let s_i, c = live_c is_move_op weak c s_o' in
-      let s_i', c' = live_c is_move_op weak c' s_i in
+      let s_i, c = live_c weak c s_o' in
+      let s_i', c' = live_c weak c' s_i in
       if Sv.subset s_i' s_o then s_i, (c,c')
       else loop (Sv.union s_i' s_o) in
     let s_i, (c,c') = loop s_o in
@@ -80,21 +69,21 @@ and live_d is_move_op weak d (s_o: Sv.t) =
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     s_i, (if weak then writev_lvals s_o xs else s_o), Csyscall(xs,o,es)
 
-and live_c is_move_op weak c s_o =
+and live_c weak c s_o =
   List.fold_right
     (fun i (s_o, c) ->
-      let s_i, i = live_i is_move_op weak i s_o in
+      let s_i, i = live_i weak i s_o in
       (s_i, i :: c))
     c
     (s_o, [])
 
-let live_fd is_move_op weak fd =
+let live_fd weak fd =
   let s_o = Sv.of_list (List.map L.unloc fd.f_ret) in
-  let _, c = live_c is_move_op weak fd.f_body s_o in
+  let _, c = live_c weak fd.f_body s_o in
   { fd with f_body = c }
 
-let liveness is_move_op weak prog = 
-  let fds = List.map (live_fd is_move_op weak) (snd prog) in
+let liveness weak prog =
+  let fds = List.map (live_fd weak) (snd prog) in
   fst prog, fds
 
 let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)

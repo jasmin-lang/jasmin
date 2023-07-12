@@ -1,0 +1,4 @@
+export
+fn main(reg u64 p) {
+    [p] = #init_msf();
+}

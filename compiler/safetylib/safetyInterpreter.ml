@@ -333,7 +333,12 @@ let safe_lval = function
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
 let safe_opn safe opn es = 
-  let id = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) opn in
+  let id =
+    Sopn.get_instr_desc
+      X86_decl.x86_decl.reg_size
+      (Arch_extra.asm_opI X86_arch_full.X86_core.asm_e)
+      opn
+  in
   List.flatten (List.map (fun c ->
       match c with
       | Wsize.NotZero(sz, i) ->
@@ -431,7 +436,7 @@ type analyse_res =
     warnings : warnings; }
                      
 module AbsInterpreter (PW : ProgWrap) : sig
-  val analyze : X86_extra.x86_extended_op Sopn.asmOp -> unit -> analyse_res
+  val analyze : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> unit -> analyse_res
 end = struct
 
   let source_main_decl = PW.main_source
@@ -1100,7 +1105,7 @@ end = struct
   (* Remark: the assignments must be done in the correct order.
      Bitwise operators are ignored for now (result is soundly set to top).
      See x86_instr_decl.v for a desciption of the operators. *)
-  let split_opn asmOp n opn es = match opn with
+  let split_opn pd asmOp n opn es = match opn with
     | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Oset0 ws) ->
        let zero = Some (pcast ws (Pconst (Z.of_int 0))) in
        begin match wsize_cmp U64 ws with
@@ -1108,9 +1113,9 @@ end = struct
        | _ -> [ None; None; None; None; None; zero ]
        end
 
-    | Sopn.Osubcarry ws -> mk_subcarry ws es
+    | Sopn.Opseudo_op (Osubcarry ws) -> mk_subcarry ws es
 
-    | Sopn.Oaddcarry ws -> mk_addcarry ws es
+    | Sopn.Opseudo_op (Oaddcarry ws) -> mk_addcarry ws es
 
     | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Ox86MOVZX32) ->
       let e = as_seq1 es in
@@ -1300,7 +1305,7 @@ end = struct
     | _ ->
       debug (fun () ->
           Format.eprintf "Warning: unknown opn %a, default to ⊤.@."
-            (PrintCommon.pp_opn asmOp) opn);
+            (PrintCommon.pp_opn pd asmOp) opn);
       opn_dflt n
 
 
@@ -1317,10 +1322,10 @@ end = struct
   
   
   (* [v] is the variable receiving the assignment. *)
-  let opn_heur asmOp opn v es =
+  let opn_heur pd asmOp opn v es =
     match opn with 
     (* sub carry *) 
-    | Sopn.Osubcarry _ ->
+    | Sopn.Opseudo_op (Osubcarry _) ->
       (* FIXME: improve precision by allowing decrement by something else 
          than 1 here. *)
       Some { fh_zf = None;
@@ -1359,7 +1364,7 @@ end = struct
     | _ ->
       debug (fun () ->
           Format.eprintf "No heuristic for the return flags of %a@."
-            (PrintCommon.pp_opn asmOp) opn);
+            (PrintCommon.pp_opn pd asmOp) opn);
       None
 
   exception Heuristic_failed
@@ -1378,7 +1383,7 @@ end = struct
 
   (* Heuristic for the (candidate) decreasing quantity to prove while
      loop termination. *)  
-  let dec_qnty_heuristic asmOp loop_body loop_cond =
+  let dec_qnty_heuristic pd asmOp loop_body loop_cond =
     let heur_leaf leaf = match Mtcons.get_typ leaf with
       | Lincons0.SUPEQ | Lincons0.SUP -> Mtcons.get_expr leaf
 
@@ -1413,7 +1418,7 @@ end = struct
                           | Lnone _ -> raise Heuristic_failed
                           | _ -> assert false in
 
-                        let heur = opn_heur asmOp opn reg_assgn es in
+                        let heur = opn_heur pd asmOp opn reg_assgn es in
                         Some (find_heur bv heur)
                       else None
                     | _ -> None) lvs
@@ -1520,13 +1525,13 @@ end = struct
   (* -------------------------------------------------------------------- *)
   let num_instr_evaluated = ref 0
 
-  let print_ginstr asmOp ginstr abs_vals =
+  let print_ginstr pd asmOp ginstr abs_vals =
     Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: nb %d, %a %a@;@;@]%!"
       (AbsDom.print ~full:true) abs_vals
       (let a = !num_instr_evaluated in incr num_instr_evaluated; a)
       ginstr.i_info.i_instr_number
       L.pp_sloc ginstr.i_loc.L.base_loc
-      (Printer.pp_instr ~debug:false asmOp) ginstr
+      (Printer.pp_instr ~debug:false pd asmOp) ginstr
 
   let print_binop fmt (cpt_instr,abs1,abs2,abs3) =
     Format.fprintf fmt "@[<v 2>Of %d:@;%a@]@;\
@@ -1538,10 +1543,10 @@ end = struct
       (AbsDom.print ~full:true) abs2
       (AbsDom.print ~full:true) abs3
 
-  let print_if_join asmOp cpt_instr ginstr labs rabs abs_r =
+  let print_if_join pd asmOp cpt_instr ginstr labs rabs abs_r =
     Format.eprintf "@;@[<v 2>If join %a for Instr:@;%a @;@;%a@]@."
       L.pp_sloc ginstr.i_loc.L.base_loc
-      (Printer.pp_instr ~debug:false asmOp) ginstr
+      (Printer.pp_instr ~debug:false pd asmOp) ginstr
       (print_binop) (cpt_instr,
                      labs,
                      rabs,
@@ -1592,10 +1597,10 @@ end = struct
 
   let log = timestamp ()
 
-  let rec aeval_ginstr asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
+  let rec aeval_ginstr pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
-        print_ginstr asmOp ginstr state.abs);
+        print_ginstr pd asmOp ginstr state.abs);
 
       (* We stop if the abstract state is bottom *)
       if AbsDom.is_bottom state.abs
@@ -1604,9 +1609,9 @@ end = struct
         (* We check the safety conditions *)
         let conds = safe_instr ginstr in
         let state = check_safety state (InProg ginstr.i_loc) conds in
-        aeval_ginstr_aux asmOp ginstr state
+        aeval_ginstr_aux pd asmOp ginstr state
 
-  and aeval_ginstr_aux asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
+  and aeval_ginstr_aux pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
     match ginstr.i_desc with 
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
@@ -1614,7 +1619,7 @@ end = struct
         assert (ty1 = ty2);
         let cl = { ginstr with i_desc = Cassgn (lv, tag, ty1, el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
-        aeval_if asmOp ginstr c [cl] [cr] state
+        aeval_if pd asmOp ginstr c [cl] [cr] state
 
       | Copn (lvs,tag,Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.CMOVcc sz)),es)
         when Config.sc_pif_movecc_as_if () ->
@@ -1623,13 +1628,13 @@ end = struct
         let lv = as_seq1 lvs in
         let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
-        aeval_if asmOp ginstr c [cl] [cr] state
+        aeval_if pd asmOp ginstr c [cl] [cr] state
 
       | Cassgn (lv, _, _, Parr_init _) ->
         let abs = AbsExpr.abs_forget_array_contents state.abs ginstr.i_info lv in
         { state with abs }
 
-      | Copn ([ lv ], _, Ocopy _, [ e ])
+      | Copn ([ lv ], _, Opseudo_op (Ocopy _), [ e ])
       | Cassgn (lv, _, _, e) ->
         let abs = AbsExpr.abs_assign
             state.abs 
@@ -1640,7 +1645,7 @@ end = struct
 
       | Copn (lvs,_,opn,es) ->
         (* Remark: the assignments must be done in the correct order. *)
-        let assgns = split_opn asmOp (List.length lvs) opn es in
+        let assgns = split_opn pd asmOp (List.length lvs) opn es in
         let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
 
         { state with abs = abs; }
@@ -1649,7 +1654,7 @@ end = struct
          aeval_syscall state sc lvs es
 
       | Cif(e,c1,c2) ->
-        aeval_if asmOp ginstr e c1 c2 state
+        aeval_if pd asmOp ginstr e c1 c2 state
 
       | Cwhile(_, c1, e, c2) when has_annot "bounded" ginstr ->
          let prog_pt = ginstr.i_loc in
@@ -1663,10 +1668,10 @@ end = struct
            let out = AbsDom.join out right in
            if AbsDom.is_bottom left
            then { state with abs = out }
-           else { state with abs = left } |> aeval_gstmt asmOp body |> fully_unroll out
+           else { state with abs = left } |> aeval_gstmt pd asmOp body |> fully_unroll out
          in
          let state = { state with abs = AbsDom.new_cnstr_blck state.abs prog_pt } in
-         let state = aeval_gstmt asmOp c1 state in
+         let state = aeval_gstmt pd asmOp c1 state in
          let bot = AbsDom.meet_btcons state.abs (BLeaf (false_tcons1)) in
          let state = fully_unroll bot state in
          { state with abs = AbsDom.pop_cnstr_blck state.abs prog_pt }
@@ -1679,7 +1684,7 @@ end = struct
         let state = { state with abs = abs; } in
 
         let cpt = ref 0 in
-        let state = aeval_gstmt asmOp c1 state in
+        let state = aeval_gstmt pd asmOp c1 state in
 
         (* We now check that e is safe *)
         let conds = safe_e e in
@@ -1690,7 +1695,7 @@ end = struct
 
         (* Candidate decreasing quantity *)
         let ni_e =
-          try Some (dec_qnty_heuristic asmOp (c2 @ c1) (oec state.abs))
+          try Some (dec_qnty_heuristic pd asmOp (c2 @ c1) (oec state.abs))
           with Heuristic_failed -> None in
         (* Variable where we store its value before executing the loop body. *)
         let mvar_ni = MNumInv prog_pt in
@@ -1753,7 +1758,7 @@ end = struct
         let eval_body state_i state =
           let cpt_instr = !num_instr_evaluated - 1 in
 
-          let state_o = aeval_gstmt asmOp (c2 @ c1) state_i in
+          let state_o = aeval_gstmt pd asmOp (c2 @ c1) state_i in
 
           (* We check that if the loop does not exit, then ni_e decreased by
              at least one, unless the loop is specially annotated *)
@@ -1881,7 +1886,7 @@ end = struct
 
         let state_i = prepare_call state callsite f es in
 
-        let fstate = aeval_call asmOp f f_decl callsite state_i in
+        let fstate = aeval_call pd asmOp f f_decl callsite state_i in
 
         (* We check the safety conditions of the return *)
         let conds = safe_return f_decl in
@@ -1924,7 +1929,7 @@ end = struct
                 let state =
                   { state with
                     abs = AbsDom.is_init abs (Avar (L.unloc i)); }
-                  |> aeval_gstmt asmOp c in
+                  |> aeval_gstmt pd asmOp c in
 
                 (* We pop the disjunctive constraint block. *)
                 let abs = AbsDom.pop_cnstr_blck state.abs prog_pt in
@@ -1940,12 +1945,12 @@ end = struct
           assert false
         )
 
-  and aeval_call asmOp : funname -> (minfo, 'asm) func -> L.i_loc -> astate -> astate =
+  and aeval_call pd asmOp : funname -> (minfo, 'asm) func -> L.i_loc -> astate -> astate =
     fun f f_decl callsite st_in ->
     let itk = ItFunIn (f,callsite) in
 
     match aeval_call_strategy callsite f_decl st_in with 
-    | Config.Call_Direct -> aeval_body asmOp f_decl.f_body st_in
+    | Config.Call_Direct -> aeval_body pd asmOp f_decl.f_body st_in
 
     (* Precond: [check_valid_call_top st_in] must hold:
        the function must not use memory loads/stores, array accesses must be 
@@ -1980,7 +1985,7 @@ end = struct
           { st_in with abs = abs } 
         in
 
-        let st_out_ndisj = aeval_body asmOp f_decl.f_body st_in_ndisj in
+        let st_out_ndisj = aeval_body pd asmOp f_decl.f_body st_in_ndisj in
 
         (* We make a new function abstraction for f. Roughly, it is of the form:
            input |--> (output,effects) *)
@@ -1996,7 +2001,7 @@ end = struct
         { st_out_ndisj with 
           abs = AbsDom.to_shape st_out_ndisj.abs st_in.abs }
         
-  and aeval_if asmOp ginstr e c1 c2 state =
+  and aeval_if pd asmOp ginstr e c1 c2 state =
     let eval_cond state = function
       | Some ec -> AbsDom.meet_btcons state.abs ec
       | None -> state.abs in
@@ -2013,28 +2018,28 @@ end = struct
         ( eval_cond state oec, eval_cond state noec ) in
 
     (* Branches evaluation *)
-    let lstate = aeval_gstmt asmOp c1 { state with abs = labs; } in
+    let lstate = aeval_gstmt pd asmOp c1 { state with abs = labs; } in
 
     let cpt_instr = !num_instr_evaluated - 1 in
 
     (* We abstractly evaluate the right branch
        Be careful the start from lstate, as we need to use the
        updated abstract iterator. *)
-    let rstate = aeval_gstmt asmOp c2 { lstate with abs = rabs; } in
+    let rstate = aeval_gstmt pd asmOp c2 { lstate with abs = rabs; } in
 
     let abs_res = AbsDom.join lstate.abs rstate.abs in
     debug (fun () ->
-        print_if_join asmOp cpt_instr ginstr lstate.abs rstate.abs abs_res);
+        print_if_join pd asmOp cpt_instr ginstr lstate.abs rstate.abs abs_res);
     { rstate with abs = abs_res; }
 
-  and aeval_body asmOp f_body state =
+  and aeval_body pd asmOp f_body state =
     debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
-    aeval_gstmt asmOp f_body state
+    aeval_gstmt pd asmOp f_body state
 
-  and aeval_gstmt asmOp : ('ty,'i,'asm) gstmt -> astate -> astate =
+  and aeval_gstmt pd asmOp : ('ty,'i,'asm) gstmt -> astate -> astate =
     fun gstmt state ->
     let state = List.fold_left (fun state ginstr ->
-        aeval_ginstr asmOp ginstr state)
+        aeval_ginstr pd asmOp ginstr state)
         state gstmt in
     let () = if gstmt <> [] then
         debug (fun () ->            
@@ -2089,8 +2094,7 @@ end = struct
     Format.fprintf fmt "@[%a@]" (AbsDom.print ~full:true) abs_proj;
     only_rel_print := sb
 
-
-  let analyze asmOp () =
+  let analyze pd asmOp () =
     (* Stats *)
     let exception UserInterupt in
 
@@ -2110,7 +2114,7 @@ end = struct
       let state, warnings = init_state source_main_decl main_decl prog in
 
       (* We abstractly evaluate the main function *)
-      let final_st = aeval_gstmt asmOp main_decl.f_body state in
+      let final_st = aeval_gstmt pd asmOp main_decl.f_body state in
 
       (* We check the safety conditions of the return *)
       let conds = safe_return main_decl in
@@ -2176,7 +2180,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-  let analyze asmOp () =
+  let analyze pd asmOp () =
     try     
     let ps_assoc = Option.map_default parse_params
         [ None, [ { relationals = None; pointers = None } ]]
@@ -2204,7 +2208,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
             include EW
             let param = p
           end) in
-        AbsInt.analyze asmOp ()) ps in
+        AbsInt.analyze pd asmOp ()) ps in
 
     match l_res with
     | [] -> raise (Failure "-safetyparam ill-formed (empty list of params)")

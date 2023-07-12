@@ -1,0 +1,61 @@
+require "../success/x86-64/eval_poly1305_u32.jazz"
+
+u256 key = 0x1bf54941aff6bf4afdb20dfb8a800301a806d542fe52447f336d555778bed685;
+
+inline
+fn test_poly1305() -> reg u8[16] {
+reg u64 in, out, inlen, k, tmp;
+reg u8[16] result;
+inline int i;
+
+out = 0x1200;
+k = 0x1100;
+in = 0x1000;
+
+(u256)[k + 0] = key;
+
+(u8)[in + 0] = 0x43;
+(u8)[in + 1] = 0x72;
+(u8)[in + 2] = 0x79;
+(u8)[in + 3] = 0x70;
+(u8)[in + 4] = 0x74;
+(u8)[in + 5] = 0x6f;
+(u8)[in + 6] = 0x67;
+(u8)[in + 7] = 0x72;
+(u8)[in + 8] = 0x61;
+(u8)[in + 9] = 0x70;
+(u8)[in + 10] = 0x68;
+(u8)[in + 11] = 0x69;
+(u8)[in + 12] = 0x63;
+(u8)[in + 13] = 0x20;
+(u8)[in + 14] = 0x46;
+(u8)[in + 15] = 0x6f;
+(u8)[in + 16] = 0x72;
+(u8)[in + 17] = 0x75;
+(u8)[in + 18] = 0x6d;
+(u8)[in + 19] = 0x20;
+(u8)[in + 20] = 0x52;
+(u8)[in + 21] = 0x65;
+(u8)[in + 22] = 0x73;
+(u8)[in + 23] = 0x65;
+(u8)[in + 24] = 0x61;
+(u8)[in + 25] = 0x72;
+(u8)[in + 26] = 0x63;
+(u8)[in + 27] = 0x68;
+(u8)[in + 28] = 0x20;
+(u8)[in + 29] = 0x47;
+(u8)[in + 30] = 0x72;
+(u8)[in + 31] = 0x6f;
+(u8)[in + 32] = 0x75;
+(u8)[in + 33] = 0x70;
+
+inlen = 34;
+
+#inline tmp = poly1305(out, in, inlen, k);
+
+for i = 0 to 16 {
+  result[i] = (u8)[out + i];
+}
+
+return result;
+}

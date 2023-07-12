@@ -1,0 +1,13 @@
+fn my_protect(reg u64 x msf) -> reg u64 {
+    x = #protect(x, msf);
+    return x;
+}
+
+export
+fn main(reg u64 x) {
+    reg u64 msf;
+
+    msf = 0;
+    x = my_protect(x, msf);
+    [x] = 0;
+}

@@ -1,50 +1,14 @@
 (* ------------------------------------------------------------------------ *)
 open Utils
 open Wsize
-module E = Expr
-module L = Location
-
-module Name = struct
-  type t = string
-end
-
-type uid = int
-
-let int_of_uid i = i
 
 (* ------------------------------------------------------------------------ *)
-type base_ty =
-  | Bool
-  | Int              (* Unbounded integer for pexpr *)
-  | U   of wsize (* U(n): unsigned n-bit integer *)
-  [@@deriving compare,sexp]
 
-type writable = Constant | Writable
-type pointer = Direct | Pointer of writable
+include CoreIdent
 
-type reg_kind = Normal | Extra
+(* ------------------------------------------------------------------------ *)
 
-type v_kind =
-  | Const            (* global parameter  *)
-  | Stack of pointer (* stack variable    *)
-  | Reg   of reg_kind * pointer (* register variable *)
-  | Inline           (* inline variable   *)
-  | Global           (* global (in memory) constant *) 
-
-type 'len gty =
-  | Bty of base_ty
-  | Arr of wsize * 'len (* Arr(n,de): array of n-bit integers with dim. *)
-           (* invariant only Const variable can be used in expression *)
-           (* the type of the expression is [Int] *)
-
-type 'len gvar = {
-  v_name : Name.t;
-  v_id   : uid;
-  v_kind : v_kind;
-  v_ty   : 'len gty;
-  v_dloc : L.t;   (* location where declared *)
-  v_annot : Annotations.annotations;
-}
+module E = Expr
 
 type 'len gvar_i = 'len gvar L.located
 
@@ -68,15 +32,6 @@ type 'len gexpr =
 
 type 'len gexprs = 'len gexpr list
 
-let u8   = Bty (U U8)
-let u16  = Bty (U U16)
-let u32  = Bty (U U32)
-let u64  = Bty (U U64)
-let u128 = Bty (U U128)
-let u256 = Bty (U U256)
-let tu ws = Bty (U ws)
-let tbool = Bty Bool
-let tint  = Bty Int
 
 let kind_i v = (L.unloc v).v_kind
 let ty_i v = (L.unloc v).v_ty
@@ -135,11 +90,6 @@ type 'len glval =
 
 type 'len glvals = 'len glval list
 
-type funname = {
-    fn_name : Name.t;
-    fn_id   : uid;
-  }
-
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
 type ('len,'info,'asm) ginstr_r =
@@ -188,23 +138,6 @@ type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
-module GV = struct
-  let mk v_name v_kind v_ty v_dloc v_annot =
-    let v_id = Uniq.gen () in
-    { v_name; v_id; v_kind; v_ty; v_dloc; v_annot }
-
-  let clone v = mk v.v_name v.v_kind v.v_ty v.v_dloc v.v_annot
-
-  let compare v1 v2 = v1.v_id - v2.v_id
-
-  let equal v1 v2 = v1.v_id = v2.v_id
-
-  let hash v = v.v_id
-
-  let is_glob v = v.v_kind = Const
-
-  let is_local v = not (is_glob v)
-end
 
 let gkglob x = { gv = x; gs = E.Sglob}
 let gkvar x = { gv = x; gs = E.Slocal}
@@ -281,35 +214,12 @@ type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list * ('info,'asm) func list
 
-module V = struct
-  type t = var
-  include GV
-end
-
 module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
-(* ------------------------------------------------------------------------ *)
-(* Function name                                                            *)
-
-module F = struct
-  let mk fn_name =
-    { fn_name; fn_id = Uniq.gen (); }
-
-  type t = funname
-
-  let compare f1 f2 = f1.fn_id - f2.fn_id
-
-  let equal f1 f2 = f1.fn_id = f2.fn_id
-
-  let hash f = f.fn_id
-end
-
-module Sf = Set.Make (F)
-module Mf = Map.Make (F)
-module Hf = Hash.Make(F)
-
+let var_of_ident (x: CoreIdent.var) : var = x
+let ident_of_var (x:var) : CoreIdent.var = x
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)

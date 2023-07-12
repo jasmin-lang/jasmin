@@ -3,7 +3,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import word_ssrZ.
-Require Export strings word utils type ident var global sem_type sopn syscall.
+Require Export strings word utils type ident var global sem_type slh_ops sopn syscall.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -97,9 +97,7 @@ Scheme Equality for sop1.
 
 Lemma sop1_eq_axiom : Equality.axiom sop1_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_sop1_dec_bl.
-  by apply: internal_sop1_dec_lb.
+  exact: (eq_axiom_of_scheme internal_sop1_dec_bl internal_sop1_dec_lb).
 Qed.
 
 Definition sop1_eqMixin     := Equality.Mixin sop1_eq_axiom.
@@ -110,9 +108,7 @@ Scheme Equality for sop2.
 
 Lemma sop2_eq_axiom : Equality.axiom sop2_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_sop2_dec_bl.
-  by apply: internal_sop2_dec_lb.
+  exact: (eq_axiom_of_scheme internal_sop2_dec_bl internal_sop2_dec_lb).
 Qed.
 
 Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
@@ -122,9 +118,7 @@ Scheme Equality for opN.
 
 Lemma opN_eq_axiom : Equality.axiom opN_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_opN_dec_bl.
-  by apply: internal_opN_dec_lb.
+  exact: (eq_axiom_of_scheme internal_opN_dec_bl internal_opN_dec_lb).
 Qed.
 
 Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
@@ -228,9 +222,7 @@ Scheme Equality for v_scope.
 
 Lemma v_scope_eq_axiom : Equality.axiom v_scope_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_v_scope_dec_bl.
-  by apply: internal_v_scope_dec_lb.
+  exact: (eq_axiom_of_scheme internal_v_scope_dec_bl internal_v_scope_dec_lb).
 Qed.
 
 Definition v_scope_eqMixin     := Equality.Mixin v_scope_eq_axiom.
@@ -296,9 +288,7 @@ Scheme Equality for dir.
 
 Lemma dir_eq_axiom : Equality.axiom dir_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_dir_dec_bl.
-  by apply: internal_dir_dec_lb.
+  exact: (eq_axiom_of_scheme internal_dir_dec_bl internal_dir_dec_lb).
 Qed.
 
 Definition dir_eqMixin     := Equality.Mixin dir_eq_axiom.
@@ -335,9 +325,8 @@ Scheme Equality for assgn_tag.
 
 Lemma assgn_tag_eq_axiom : Equality.axiom assgn_tag_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_assgn_tag_dec_bl.
-  by apply: internal_assgn_tag_dec_lb.
+  exact:
+    (eq_axiom_of_scheme internal_assgn_tag_dec_bl internal_assgn_tag_dec_lb).
 Qed.
 
 Definition assgn_tag_eqMixin     := Equality.Mixin assgn_tag_eq_axiom.
@@ -353,9 +342,10 @@ Scheme Equality for inline_info.
 
 Lemma inline_info_eq_axiom : Equality.axiom inline_info_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_inline_info_dec_bl.
-  by apply: internal_inline_info_dec_lb.
+  exact:
+    (eq_axiom_of_scheme
+       internal_inline_info_dec_bl
+       internal_inline_info_dec_lb).
 Qed.
 
 Definition inline_info_eqMixin     := Equality.Mixin inline_info_eq_axiom.
@@ -371,9 +361,7 @@ Scheme Equality for align.
 
 Lemma align_eq_axiom : Equality.axiom align_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_align_dec_bl.
-  by apply: internal_align_dec_lb.
+  exact: (eq_axiom_of_scheme internal_align_dec_bl internal_align_dec_lb).
 Qed.
 
 Definition align_eqMixin     := Equality.Mixin align_eq_axiom.
@@ -781,6 +769,19 @@ Definition write_c_rec s c := foldl write_I_rec s c.
 
 Definition write_c c := write_c_rec Sv.empty c.
 
+(* ** Expression depends/reads on memory
+ * -------------------------------------------------------------------- *)
+
+Fixpoint use_mem (e : pexpr) :=
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
+  | Pload _ _ _ => true
+  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
+  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
+  | PappN _ es => has use_mem es
+  | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
+  end.
+
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
@@ -911,3 +912,12 @@ Definition is_zero sz (e: pexpr) : bool :=
   if e is Papp1 (Oword_of_int sz') (Pconst Z0) then sz' == sz else false.
 
 Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
+
+Definition instr_of_copn_args
+  {asm_op : Type}
+  {asmop : asmOp asm_op}
+  (tg : assgn_tag)
+  (args : copn_args)
+  : instr_r :=
+  Copn args.1.1 tg args.1.2 args.2.
+

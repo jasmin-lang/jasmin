@@ -73,9 +73,68 @@ case: ifP=> //= hsub' [] heq; subst. move=> hteq; subst. move=> bv bv' hb hbt e1
 case: ifP=> //= _. by have := truncate_val_has_type ht. by have := truncate_val_has_type ht'.
 Admitted.
 
+Lemma get_gvar_not_tyerr : forall pd g ty s v,
+ty_pexpr pd (Pvar g) = ok ty ->
+get_gvar gd (evm s) g = Error v ->
+v <> ErrType.
+Proof.
+move=> pd g ty s v /= [] hty. rewrite /get_gvar /=. case: ifP=> //=.
++ rewrite /get_var /= /on_vu. Search stype get_var. Check on_vuP. /on_vu. Print on Locate wf_vmap. Search vmap.  admit.
+rewrite /get_global /=. case: g hty=> //=.
+move=> gv gs -> /=. case: gv=> //= gr gi. case: gr=> //= gt gn. case: get_global_value=> //= a.
+
+
+ case: (get_global_value gd (gv g))=> //=.
++ move=> a hf. case: ifP=> //= /eqP; subst. rewrite /type_of_val /=.
+  case: (gv2val a)=> //=.
+Admitted.
+
 Theorem sem_pexpr_type_error : forall pd ty e s er,
 ty_pexpr pd e = ok ty ->
 sem_pexpr gd s e = Error er ->
-er <> ErrType.
+er <> ErrType. 
 Proof.
+move=> pd ty e s v hty hsem. case: e hty hsem.
+(* Pconst *)
++ by move=> z /= [] hty //=.
+(* Pbool *)
++ by move=> b /= [] hty //=.
+(* Parr_init *)
++ by move=> p /= [] hty //=.
+(* Pgvar *)
++ move=> g. /= [] hty hg.  Search get_gvar.
+
+
+case: g hty hg=> //= gi gs hty.
+  case: get_gvar=> //= er. case: er=> //=. rewrite /vtype /= in hty.
+move=> g /= [] hty. case: get_gvar=> //= e. case: e=> //=. 
+  + by move=> [] <-. rewrite /get_gvar /=.
+  case: ifP=> //=.
+  (* lvar *)
+  + move=> hl. case: get_var=> //.
+(* Pget *)
++ move=> a w g e. rewrite /ty_get_set /check_array. 
+  t_xrbindP=> t ht t'. admit.
+(* Psub *)
++ admit.
+(* Pload *)
++ move=> w x e hty he. have hrec := sem_pexpr_well_typed pd ty (Pload w x e) s. 
+  rewrite hty in hrec. rewrite /= /ty_load_store /check_ptr /check_type in hty. move: hty.
+  t_xrbindP=> t ht t'. case: ifP=> //=; subst. case: (vtype x)=> //=.
+  move=> sz' hcmp [] heq; subst. case: t ht=> //= sz'' ht t1'. 
+  case: ifP=> //= hcmp' [] heq'' hty; subst. 
+  case: v he=> //=. 
+
+
+case: get_var=> //=.
+  + move=> p. case: to_pointer=> //=. admit. move=> e0 [] //= he; subst.
+ admit.
+(* Papp1 *)
++ admit.
+(* Papp2 *)
++ admit.
+(* Pappn *)
++ admit.
+(* Pif *)
+move=> t e1 e2 e3 hty he; subst. Print sem_pexpr.
 Admitted. 

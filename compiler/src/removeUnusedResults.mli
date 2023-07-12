@@ -8,6 +8,4 @@ returned values that are never used by the callers.
 FIXME: this assumes that the program never calls export functions.
 
 *)
-val analyse : ('asm -> bool) ->
-              ('a * ('info, 'asm) func) list -> (funname -> bool list option)
-
+val analyse : ('a * ('info, 'asm) func) list -> funname -> bool list option

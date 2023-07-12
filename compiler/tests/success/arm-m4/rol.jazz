@@ -1,0 +1,21 @@
+export
+fn rol(reg u32 arg0) -> reg u32 {
+    reg u32 x;
+    reg bool nf, zf, vf, cf;
+
+    x = arg0 <<r 0;
+    [x] = x;
+
+    x = arg0 <<r 1;
+    x <<r= 1;
+    [x] = x;
+
+    nf, zf, cf, vf = #CMP(x, 0);
+
+    x <<r= 2 if zf;
+    x <<r= 2 if !!zf;
+
+    reg u32 res;
+    res = x;
+    return res;
+}

@@ -7,7 +7,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -32,13 +31,13 @@ End E.
 Section INLINE.
 
 Context
+  {wsw : WithSubWord}
   {asm_op syscall_state : Type}
-  {asmop:asmOp asm_op}
-  (inline_var : var -> bool).
+  {asmop:asmOp asm_op}.
 
 Definition get_flag (x:lval) flag :=
   match x with
-  | Lvar x => if inline_var x then AT_inline else flag
+  | Lvar x => if is_inline_var x then AT_inline else flag
   | _      => flag
   end.
 

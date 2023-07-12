@@ -10,39 +10,39 @@ Unset Printing Implicit Defensive.
 Section WITH_PARAMS.
 
 Context
+  {wsw:WithSubWord}
+  {dc:DirectCall}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
-Lemma write_var_emem x v s s' :
-  write_var x v s = ok s' →
-  emem s = emem s'.
-Proof. by rewrite /write_var; t_xrbindP => vm _ <-; rewrite emem_with_vm. Qed.
+Lemma write_lvals_write_lval wdb gd lv v s :
+  write_lval wdb gd lv v s = write_lvals wdb gd s [:: lv ] [:: v ].
+Proof. by rewrite /=; case: write_lval. Qed.
 
-Lemma write_vars_emem xs vs a z :
-  write_vars xs vs a = ok z →
-  emem a = emem z.
+Lemma get_write_var_word wdb s s' ws (w : word ws) x :
+  vtype (v_var x) = sword ws
+  -> write_var wdb x (Vword w) s = ok s'
+  -> (evm s').[v_var x] = Vword w.
 Proof.
-  elim: xs vs a => [ | x xs ih ] [] //.
-  - by move => a [<-].
-  by move => v vs a /=; t_xrbindP => b /write_var_emem -> /ih.
+  by move=> hty /write_varP [-> _ _]; rewrite /= Vm.setP_eq /= hty cmp_le_refl !orbT.
 Qed.
 
 Lemma vrvs_Lvar xs :
   vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
 Proof. rewrite /vrvs /sv_of_list; elim: xs Sv.empty => //=. Qed.
 
-Lemma write_vars_eq_except xs vs s s' :
-  write_vars xs vs s = ok s' →
-  evm s = evm s' [\ sv_of_list v_var xs].
+Lemma write_vars_eq_ex wdb xs vs s s' :
+  write_vars wdb xs vs s = ok s' →
+  evm s =[\ sv_of_list v_var xs] evm s' .
 Proof.
-  by rewrite (write_vars_lvals [::]) => /vrvsP; rewrite vrvs_Lvar.
+  by rewrite (write_vars_lvals _ [::]) => /vrvsP; rewrite vrvs_Lvar.
 Qed.
 
-Lemma write_lvals_emem gd xs ys s vs s' :
+Lemma write_lvals_emem wdb gd xs ys s vs s' :
   mapM get_lvar xs = ok ys →
-  write_lvals gd s xs vs = ok s' →
+  write_lvals wdb gd s xs vs = ok s' →
   emem s' = emem s.
 Proof.
   elim: xs ys vs s; first by move => _ [] // ? _ [] ->.
@@ -50,8 +50,8 @@ Proof.
   by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
 Qed.
 
-Lemma write_lvals_escs gd xs s vs s' :
-  write_lvals gd s xs vs = ok s' →
+Lemma write_lvals_escs wdb gd xs s vs s' :
+  write_lvals wdb gd s xs vs = ok s' →
   escs s' = escs s.
 Proof.
   elim: xs vs s => [ | x xs ih] /= [] // => [ _ [->] //| v vs s].
@@ -61,44 +61,40 @@ Qed.
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 
-Lemma write_lval_stack_stable gd x v s s' :
-  write_lval gd x v s = ok s' →
+Lemma write_lval_stack_stable wdb gd x v s s' :
+  write_lval wdb gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
-  case: x => [ vi ty | x | ws x e | aa ws x e | aa ws len x e ].
-  - apply: on_vuP; first by move => _ _ ->.
-    by move => _; case: ifP => // _ [<-].
-  - by move => /write_var_emem ->.
+  case: x => [ vi ty | x | ws x e | aa ws x e | aa ws len x e ] /=.
+  - by move=> /write_noneP [<-].
+  - by move => /write_var_memP ->.
   - rewrite /=; t_xrbindP => ?????????? m' ok_m' <- /=.
     exact: write_mem_stable ok_m'.
   all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_stack_stable gd xs vs s s' :
-  write_lvals gd s xs vs = ok s' →
+Lemma write_lvals_stack_stable wdb gd xs vs s s' :
+  write_lvals wdb gd s xs vs = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
   elim: xs vs s => [ | x xs ih ] [] //; first by move => ? [<-].
   by move => v vs s /=; t_xrbindP => ? /write_lval_stack_stable -> /ih.
 Qed.
 
-Lemma write_lval_validw gd x v s s' :
-  write_lval gd x v s = ok s' ->
+Lemma write_lval_validw wdb gd x v s s' :
+  write_lval wdb gd x v s = ok s' ->
   validw (emem s) =2 validw (emem s').
 Proof.
-  case: x => /=.
-  - by move => _ ty /write_noneP [] <-.
-  - by move => x /write_var_emem <-.
-  - t_xrbindP => /= ????? ?? ?? ? ? ? ? ? h <- /=.
+  case: x => [ vi ty | x | ws x e | aa ws x e | aa ws len x e ] /=.
+  - by move => /write_noneP [] <-.
+  - by move => /write_var_memP <-.
+  - t_xrbindP => /= ?? ?? ?? ? ? ? ? ? h <- /=.
     by move=> ??; rewrite (write_validw_eq h).
-  - move => aa sz x e.
-    by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
-  move => aa sz ty x e.
-  by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
+  all: by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
-Lemma write_lvals_validw gd xs vs s s' :
-  write_lvals gd s xs vs = ok s' ->
+Lemma write_lvals_validw wdb gd xs vs s s' :
+  write_lvals wdb gd s xs vs = ok s' ->
   validw (emem s) =2 validw (emem s').
 Proof.
   elim: xs vs s.
@@ -227,7 +223,7 @@ Proof. by []. Qed.
 
 Lemma mem_equiv_for_cons : sem_Ind_for_cons P ev Pc Pfor.
 Proof.
-  move => ???????? /write_var_emem A _ B _ C; red.
+  move => ???????? /write_var_memP A _ B _ C; red.
   rewrite A; etransitivity; [ exact: B | exact: C ].
 Qed.
 
@@ -237,7 +233,7 @@ Proof. move=> s1 scs2 m2 s2 ii xs fn args vargs vres _ _ ? /dup[] /write_lvals_v
 Lemma mem_equiv_proc : sem_Ind_proc P ev Pc Pfun.
 Proof.
   move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 s2 vres vres' ok_fd ok_vargs ok_s0 ok_s1 _ Hc _ _ -> ->.
-  rewrite /Pc -(write_vars_emem ok_s1) in Hc.
+  rewrite /Pc -(write_vars_memP ok_s1) in Hc.
   by apply (init_finalize_mem_equiv ok_s0 Hc).
 Qed.
 
@@ -392,7 +388,8 @@ Lemma sem_stack_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
 Proof.
   apply sem_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -404,7 +401,8 @@ Lemma sem_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
 Proof.
   apply sem_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -416,7 +414,8 @@ Lemma sem_i_stack_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
 Proof.
   apply sem_i_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -428,7 +427,8 @@ Lemma sem_i_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
 Proof.
   apply sem_i_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -440,7 +440,8 @@ Lemma sem_I_stack_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
 Proof.
   apply sem_I_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -452,7 +453,8 @@ Lemma sem_I_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
 Proof.
   apply sem_I_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -464,7 +466,8 @@ Lemma sem_call_stack_stable_sprog (p : sprog) (gd : pointer) scs1 m1 fn vargs sc
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -477,7 +480,8 @@ Lemma sem_call_validw_stable_sprog (p : sprog) (gd : pointer) scs1 m1 fn vargs s
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
-  t_xrbindP=> m1 /Memory.alloc_stackP hass [<-] /= [hss hvalid].
+  t_xrbindP=> m1 /Memory.alloc_stackP hass /=.
+  do 2!rewrite write_var_eq_type //=; move=> [<-] /= [hss hvalid].
   have hfss := Memory.free_stackP m2.
   split.
   + by apply (alloc_free_stack_stable hass hss hfss).
@@ -685,9 +689,9 @@ Qed.
 End DETERMINISM.
 
 (* ------------------------------------------------------------------- *)
-Lemma cast_wP sz e gd s v :
-  sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v →
-  exists2 v', sem_pexpr gd s (cast_w sz e) = ok v' & value_uincl v v'.
+Lemma cast_wP wdb sz e gd s v :
+  sem_pexpr wdb gd s (Papp1 (Oword_of_int sz) e) = ok v →
+  exists2 v', sem_pexpr wdb gd s (cast_w sz e) = ok v' & value_uincl v v'.
 Proof.
   elim: e v => /=; t_xrbindP => //.
   1, 2: by move => > ->; eauto.
@@ -708,7 +712,7 @@ Proof.
     t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
     move: ih.
     rewrite A /= B => /(_ _ erefl)[] ? -> /value_uinclE[] ? [] ? [] -> /andP[] sz_le /eqP D.
-    rewrite /= /truncate_word sz_le -D.
+    rewrite /= truncate_word_le // -D.
     eexists; first reflexivity.
     apply/andP; split; first exact: cmp_le_refl.
     by rewrite wopp_zero_extend // zero_extend_u wrepr_opp.
@@ -722,7 +726,7 @@ Proof.
   all: move => /(_ _ erefl) [] v1 -> /value_uinclE[] ? [] ? [] -> /andP[] le1 /eqP {} h1.
   all: move => /(_ _ erefl) [] v2 -> /value_uinclE[] ? [] ? [] -> /andP[] le2 /eqP {} h2.
   all: case => <- /=.
-  all: rewrite /sem_sop2 /= /truncate_word le1 -h1 le2 -h2 /=.
+  all: rewrite /sem_sop2 /= !truncate_word_le // {le1 le2} -h1 -h2 /=.
   all: eexists; first reflexivity.
   all: apply/andP; split; first by auto.
   - by rewrite wadd_zero_extend // !zero_extend_u wrepr_add.
@@ -731,10 +735,3 @@ Proof.
 Qed.
 
 End WITH_PARAMS.
-
-(* TODO: move? *)
-Lemma pword_of_wordE (ws : wsize) (w : word ws) p :
-  {| pw_size := ws; pw_word := w; pw_proof := p; |} = pword_of_word w.
-Proof.
-  by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec p (cmp_le_refl _)).
-Qed.

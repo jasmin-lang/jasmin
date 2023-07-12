@@ -16,6 +16,8 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
+#[local] Existing Instance withsubword.
+
 Section SEM.
 
 Context
@@ -43,7 +45,7 @@ Notation labels := label_in_lprog.
 Record lstate := Lstate
   { lscs : syscall_state_t;
     lmem : mem;
-    lvm  : vmap;
+    lvm  : Vm.t;
     lfn : funname;
     lpc  : nat; }.
 
@@ -96,16 +98,16 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let s2 := write_lexprs xs res s in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
   | Lsyscall o =>
-    Let ves := mapM (get_var s1.(lvm)) (syscall_sig o).(scs_vin) in 
+    Let ves := mapM (get_var true s1.(lvm)) (syscall_sig o).(scs_vin) in
     Let: (scs, m, vs) := exec_syscall (semCallParams:= sCP_stack) s1.(lscs) s1.(lmem) o ves in 
-    Let s2 := write_lvals [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
+    Let s2 := write_lvals true [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
                 (to_lvals (syscall_sig o).(scs_vout)) vs in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
   | Lcall None d =>
     let vrsp := v_var (vid (lp_rsp P)) in
-    Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
+    Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp - wrepr Uptr (wsize_size Uptr))%R in
-    Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
+    Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
     Let lbl := get_label_after_pc s1 in
     if encode_label labels (lfn s1, lbl) is Some p then
       Let m :=  write s1.(lmem) nsp p in
@@ -120,7 +122,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Lcall (Some r) d =>
     Let lbl := get_label_after_pc s1 in
     if encode_label labels (lfn s1, lbl) is Some p then
-      Let vm := set_var s1.(lvm) r (Vword p) in
+      Let vm := set_var true s1.(lvm) r (Vword p) in
       let s1' := 
         {| lscs := s1.(lscs);
            lmem := s1.(lmem);
@@ -131,10 +133,10 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     else type_error
   | Lret =>
     let vrsp := v_var (vid (lp_rsp P)) in
-    Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
+    Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
     Let p  := read s1.(lmem) sp Uptr in
-    Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
+    Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
     let s1' :=
       {| lscs := s1.(lscs);
          lmem := s1.(lmem);
@@ -155,7 +157,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | LstoreLabel x lbl =>
     if encode_label labels (lfn s1, lbl) is Some p
     then
-      Let vm := set_var s1.(lvm) x (Vword p) in
+      Let vm := set_var true s1.(lvm) x (Vword p) in
       ok {| lscs := s1.(lscs) ; lmem := s1.(lmem) ; lvm := vm ; lfn := s1.(lfn) ; lpc := s1.(lpc).+1 |}
     else type_error
   | Lcond e lbl =>
@@ -278,24 +280,6 @@ Proof.
   by move => b{}z ab /clos_rt_rt1n_iff bz; right; exists b.
 Qed.
 
-(*
-Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
-| LSem_fd : forall m1' fd va vm2 m2' s1 s2 vr,
-    get_fundef P.(lp_funcs) fn = Some fd ->
-    alloc_stack m1 fd.(lfd_align) fd.(lfd_stk_size) = ok m1' ->
-    let c := fd.(lfd_body) in
-    write_vars [:: vid P.(lp_stk_id)   ; vid P.(lp_rip)]
-               [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0) = ok s1 ->
-    mapM2 ErrType truncate_val fd.(lfd_tyin) va' = ok va ->
-    write_vars fd.(lfd_arg) va s1 = ok s2 ->
-    lsem (of_estate s2 fn c 0)
-           {| lmem := m2'; lvm := vm2; lfn := fn ; lc := c; lpc := size c |} ->
-    mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
-    mapM2 ErrType truncate_val fd.(lfd_tyout) vr = ok vr' ->
-    m2 = free_stack m2' fd.(lfd_stk_size) ->
-    lsem_fd wrip m1 fn va' m2 vr'.
-*)
-
 (* Linear execution state is final when it reaches the point after the last instruction. *)
 Definition lsem_final (s: lstate) : Prop :=
   exists2 fd, get_fundef (lp_funcs P) (lfn s) = Some fd & lpc s = size fd.(lfd_body).
@@ -317,7 +301,7 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
-Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: vmap) (scs':syscall_state_t) (m': mem) (vm': vmap) : Prop :=
+Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) (scs':syscall_state_t) (m': mem) (vm': Vm.t) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd

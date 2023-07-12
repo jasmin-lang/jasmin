@@ -43,18 +43,9 @@ End E.
 Section REMOVE.
 
   Context `{asmop:asmOp}.
-  Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
   Notation venv := (Mvar.t var).
-
-  Fixpoint myfind (A B:Type) (f: A -> option B) (l:seq A) : option B :=
-    match l with
-    | [::] => None
-    | a :: l =>
-      let fa := f a in
-      if fa is None then myfind f l else fa
-    end.
 
   Definition check_data (d:glob_value) (ws:wsize) (w:word ws) := 
     match d with
@@ -66,7 +57,7 @@ Section REMOVE.
     let test (gv:glob_decl) := 
       if (sword ws == vtype gv.1) && (check_data gv.2 w) then Some gv.1
       else None in 
-    match myfind test gd with 
+    match find_map test gd with
     | None => Error (rm_glob_error ii xi)
     | Some g => ok g
     end. 
@@ -87,7 +78,7 @@ Section REMOVE.
       match lv with
       | Lvar xi =>
         let x := xi.(v_var) in
-        if is_glob x then
+        if is_glob_var x then
           match e with
           | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (wrepr ws z)
           | _                   => Error (rm_glob_error ii xi)
@@ -117,7 +108,7 @@ Section REMOVE.
       if is_lvar xi then
         let vi := xi.(gv) in 
         let x := vi.(v_var) in
-        if is_glob x then
+        if is_glob_var x then
           match Mvar.get env x with
           | Some g => ok (mk_gvar (VarI g vi.(v_info)))
           | None   => Error (rm_glob_error ii vi)
@@ -145,7 +136,7 @@ Section REMOVE.
 
       | Pload ws xi e =>
         let x := xi.(v_var) in
-        if is_glob x then Error (rm_glob_error ii xi)
+        if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Pload ws xi e)
@@ -171,23 +162,23 @@ Section REMOVE.
       | Lnone _ _ => ok lv
       | Lvar xi =>
         let x := xi.(v_var) in
-        if is_glob x then Error (rm_glob_error ii xi)
+        if is_glob_var x then Error (rm_glob_error ii xi)
         else ok lv
       | Lmem ws xi e =>
         let x := xi.(v_var) in
-        if is_glob x then Error (rm_glob_error ii xi)
+        if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Lmem ws xi e)
       | Laset aa ws xi e =>
         let x := xi.(v_var) in
-        if is_glob x then Error (rm_glob_error ii xi)
+        if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Laset aa ws xi e)
       | Lasub aa ws len xi e =>
         let x := xi.(v_var) in
-        if is_glob x then Error (rm_glob_error ii xi)
+        if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Lasub aa ws len xi e)
@@ -262,7 +253,7 @@ Section REMOVE.
           match lv with
           | Lvar xi =>
             let x := xi.(v_var) in
-            if is_glob x then 
+            if is_glob_var x then
               match e with
               | Papp1 (Oword_of_int ws) (Pconst z) =>
                 if (ty == sword ws) && (vtype x == sword ws) then
@@ -307,7 +298,7 @@ Section REMOVE.
           let: (Loop2_r e c1 c2 env) := lr in
           ok (env, [::MkI ii (Cwhile a c1 e c2)])
         | Cfor xi (d,e1,e2) c =>
-          if is_glob xi.(v_var) then Error (rm_glob_error ii xi)
+          if is_glob_var xi.(v_var) then Error (rm_glob_error ii xi)
           else
             Let e1 := remove_glob_e ii env e1 in
             Let e2 := remove_glob_e ii env e2 in
@@ -327,7 +318,7 @@ Section REMOVE.
     Definition remove_glob_fundef (f:ufundef) :=
       let env := Mvar.empty _ in
       let check_var xi :=
-        if is_glob xi.(v_var) then Error (rm_glob_error dummy_instr_info xi) else ok tt in
+        if is_glob_var xi.(v_var) then Error (rm_glob_error dummy_instr_info xi) else ok tt in
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob remove_glob_i env f.(f_body) in
