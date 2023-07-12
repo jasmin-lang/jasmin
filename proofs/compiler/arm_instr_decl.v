@@ -913,8 +913,7 @@ Definition arm_UMLAL_instr : instr_desc_t :=
   |}.
 
 Definition arm_SMULL_semi (wn wm : ty_r) : exec ty_rr :=
-  let (hi, lo) := wsmul wn wm in
-  ok (lo, hi).
+  ok (wsmul wn wm).
 
 Definition arm_SMULL_instr : instr_desc_t :=
   let mn := SMULL in
@@ -923,7 +922,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_tin := [:: sreg; sreg ];
     id_in := [:: E 2; E 3 ];
     id_tout := [:: sreg; sreg ];
-    id_out := [:: E 0; E 1 ];
+    id_out := [:: E 1; E 0 ];
     id_semi := arm_SMULL_semi;
     id_nargs := 4;
     id_args_kinds := ak_reg_reg_reg_reg;

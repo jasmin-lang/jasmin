@@ -650,7 +650,7 @@ Definition wumul sz (x y: word sz) :=
 
 Definition wsmul sz (x y: word sz) :=
   let n := wsigned x * wsigned y in
-  (wrepr sz (Z.quot n (wbase sz)), wrepr sz n).
+  (wrepr sz (Z.shiftr n (wsize_bits sz)), wrepr sz n).
 
 Definition wdiv {sz} (p q : word sz) : word sz :=
   let p := wunsigned p in
@@ -718,6 +718,49 @@ Definition wrol sz (w:word sz) (z:Z) :=
 Lemma wsignedE sz (w: word sz) :
   wsigned w = if msb w then wunsigned w - wbase sz else wunsigned w.
 Proof. done. Qed.
+
+Lemma wsigned_repr sz z :
+  wmin_signed sz <= z <= wmax_signed sz →
+  wsigned (wrepr sz z) = z.
+Proof.
+  rewrite wsignedE msb_wordE msbE /= wunsigned_repr -/(wbase _) => z_range.
+  elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.
+  subst z.
+  case: ifP => /ZleP.
+  all: move: sz z_range b_range.
+  all: move: {-2} Z.mul (erefl Z.mul) => K ?.
+  all: rewrite /wmin_signed /wmax_signed /wbase /modulus /two_power_nat.
+  all: case => /=; subst K; lia.
+Qed.
+
+(* -------------------------------------------------------------------*)
+Lemma wsmulP sz (x y: word sz) :
+  let: (hi, lo) := wsmul x y in
+  wdwords hi lo = wsigned x * wsigned y.
+Proof.
+  have x_range := wsigned_range x.
+  have y_range := wsigned_range y.
+  rewrite /wsmul /wdwords Z.shiftr_div_pow2 //.
+  set p := _ * wsigned _.
+  have p_range : wmin_signed sz * wmax_signed sz <= p <= wmin_signed sz * wmin_signed sz.
+  { subst p; case: sz x y x_range y_range => x y;
+    rewrite /wmin_signed /wmax_signed /=;
+    nia. }
+  replace (2 ^ wsize_bits sz) with (wbase sz); last first.
+  - by case: (sz); vm_compute.
+  have hi_range : wmin_signed sz <= p / wbase sz <= wmax_signed sz.
+  { move: sz {x y x_range y_range} p p_range => sz p p_range.
+    elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.
+    subst p.
+    move: sz p_range b_range.
+    move: {-2} Z.mul (erefl Z.mul) => K ?.
+    rewrite /wmin_signed /wmax_signed /wbase /modulus /two_power_nat.
+    case => /=; subst K; lia. }
+  rewrite wsigned_repr; last exact: hi_range.
+  rewrite wunsigned_repr -/(wbase _).
+  have := Z_div_mod_eq_full p (wbase sz).
+  lia.
+Qed.
 
 (* -------------------------------------------------------------------*)
 Lemma msb0 sz : @msb sz 0 = false.
