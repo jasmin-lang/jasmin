@@ -345,7 +345,8 @@ let is_correct asm_arr =
 let () =
   let my_arg_array = Stdlib.Arg.read_arg "op_args.txt" in
   op_ref := my_arg_array.(0);                               (* ADD *)
-  args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
+  if Array.length my_arg_array > 1 then
+    args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
 
   let asm_arr =
     let crax = Crowbar.int64 in

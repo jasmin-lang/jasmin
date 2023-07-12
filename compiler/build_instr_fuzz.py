@@ -30,6 +30,9 @@ regs["R15"] = {8: "%r15b", 16: "%r15w", 32 : "%r15d", 64 : "%r15"}
 
 ops_zero_arg            = {}
 ops_zero_arg["CQO"]     = "cqo"
+ops_zero_arg["LFENCE"]  = "lfence"
+ops_zero_arg["MFENCE"]  = "mfence"
+ops_zero_arg["SFENCE"]  = "sfence"
 
 ops_one_arg             = {}
 ops_one_arg["NEG"]      = "neg"
@@ -40,6 +43,7 @@ ops_one_arg["DIV"]      = "div"
 ops_one_arg["IMUL"]     = "imul"
 ops_one_arg["IDIV"]     = "idiv"
 ops_one_arg["NOT"]      = "not"
+ops_one_arg["BSWAP"]    = "bswap"
 
 ops_two_args            = {}
 ops_two_args["ADD"]     = "add"
@@ -49,9 +53,14 @@ ops_two_args["SBB"]     = "sbb"
 ops_two_args["IMULr"]   = "imul"
 ops_two_args["LZCNT"]   = "lzcnt"
 ops_two_args["AND"]     = "and"
-ops_two_args["ANDN"]    = "andn"
 ops_two_args["OR"]      = "or"
 ops_two_args["XOR"]     = "xor"
+ops_two_args["POPCNT"]  = "popcnt"
+
+ops_three_args = {}
+ops_three_args["ANDN"]  = "andn"
+ops_three_args["PEXT"]  = "pext"
+ops_three_args["PDEP"]  = "pdep"
 
 
 size_variations = {}
@@ -85,14 +94,42 @@ def get_usable_reg (rlist):
 
 regs_list = list(regs.keys())
 
+def gen_zero_arg_instrs():
+    for op in ops_zero_arg:
+        folder_name = op
+        mv_to_folder = move_build_to_out_dir + "/" + folder_name
+        if mv_to_folder in test_folders:
+            continue
+        test_folders.add(mv_to_folder)
+        jazz_instr = op
+        asm_instr = ops_zero_arg[op]
+        print(jazz_instr)
+        print(asm_instr)
+
+        # TODO: improve this later
+        with open(my_asm_orig, "r") as reader:
+            with open(my_asm_final, "w") as writer:
+                line = reader.read()
+                final_line = line.replace("replace_me", asm_instr)
+                writer.write(final_line)
+        with open(op_args_file, "w") as writer:
+            j_op = op
+            writer.write(j_op)
+        os.system(make_clean_cmd)
+        os.system(make_build_cmd)
+        os.system(mv_to_folder)
+
 def gen_one_arg_instrs():
     for op in ops_one_arg:
         for size in size_variations:
             # these are currently not supported in Jasmin
-            if size == 8 and ( op == "MUL" or op == "IMUL" or op == "DIV" or op == "IDIV" ) :
+            if size == 8 and ( op == "MUL" or op == "IMUL" or op == "DIV" or op == "IDIV"):
                 continue
 
-            for num in range(2):
+            if op == "BSWAP" and (size == 8 or size == 16):
+                continue
+
+            for _ in range(2):
                 reg = get_usable_reg(regs_list)
                 folder_name = op + size_variations[size][0] + "_" + reg
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
@@ -121,7 +158,11 @@ def gen_one_arg_instrs():
 def gen_two_arg_instrs():
     for op in ops_two_args:
         for size in size_variations:
-            for num in range(2):
+
+            if size == 8 and (op == "IMULr" or op == "LZCNT" or op == "POPCNT"):
+                continue
+
+            for _ in range(2):
                 reg1 = get_usable_reg(regs_list)
                 reg2 = get_usable_reg(regs_list)
                 folder_name = op + size_variations[size][0] + "_" + reg1 + "_" + reg2
@@ -149,4 +190,4 @@ def gen_two_arg_instrs():
                 os.system(mv_to_folder)
 
 if __name__ == "__main__":
-    gen_two_arg_instrs()
+    gen_zero_arg_instrs()
