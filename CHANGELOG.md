@@ -26,6 +26,10 @@
 
 ## Bug fixes
 
+- Handle the size parameter in LZCNT semantic
+  ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
+  fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
+
 - Type-checking rejects wrongly casted primitive operators
   ([PR #489](https://github.com/jasmin-lang/jasmin/pull/488);
   fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
