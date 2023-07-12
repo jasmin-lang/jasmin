@@ -9,6 +9,12 @@
   `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
   ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481)).
 
+## Bug fixes
+
+- Handle the size parameter in LZCNT semantic
+  ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
+  fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
+
 ## Other changes
 
 - Various improvements related to ARMv7
