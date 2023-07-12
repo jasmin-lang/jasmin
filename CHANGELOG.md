@@ -1,6 +1,12 @@
 
 # [unreleased]
 
+## Bug fixes
+
+- Handle the size parameter in LZCNT semantic
+  ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
+  fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
+
 # Jasmin 2022.09.3 — Villers-lès-Nancy, 2023-05-31
 
 ## New features
