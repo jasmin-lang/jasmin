@@ -123,7 +123,7 @@ and pp_rexpr fmt (e,ws) =
   match e with
   | Pconst z -> Format.fprintf fmt "%a%a" pp_print_i z pp_bw (oget ws)
   | Pvar x -> pp_gvar_i fmt x.gv
-  | Pbool _b -> assert false 
+  | Pbool b -> Format.fprintf fmt "%b" b
   | Papp1(o, e) -> pp_rop1 fmt o e
   | Papp2(o, e1, e2) -> pp_op2 fmt o e1 e2
   | PappN(o, es) -> pp_opn fmt o es
@@ -147,13 +147,27 @@ exception NoTranslation
 
 let pp_baseop fmt xs o es = 
   match o with
-  | X86_instr_decl.MOV ws -> 
-    Format.fprintf fmt "mov %a%a %a%a"
-      pp_lval (List.nth xs 0)
-      pp_uint ws
-      pp_expr (List.nth es 0)
-      pp_uint ws
-
+  | X86_instr_decl.MOV ws ->
+     (match (List.nth es 0) with
+      | Pvar x ->
+         let ws_x = ws_of_ty (L.unloc x.gv).v_ty in
+         if ws_x != ws (* implicit cast *)
+         then Format.fprintf fmt "cast %a%a %a%a"
+                pp_lval (List.nth xs 0)
+                pp_uint ws
+                pp_expr (List.nth es 0)
+                pp_uint ws_x
+         else Format.fprintf fmt "mov %a%a %a%a"
+               pp_lval (List.nth xs 0)
+               pp_uint ws
+               pp_expr (List.nth es 0)
+               pp_uint ws
+      | _ -> Format.fprintf fmt "mov %a%a %a%a"
+               pp_lval (List.nth xs 0)
+               pp_uint ws
+               pp_expr (List.nth es 0)
+               pp_uint ws
+     )
   (* | MOVSX of wsize * wsize *)
   | MOVZX (ws1, ws2) -> 
     Format.fprintf fmt "cast %a%a %a%a"
@@ -278,24 +292,24 @@ let pp_baseop fmt xs o es =
        pp_lval (List.nth xs 5) pp_uint ws
        pp_expr (List.nth es 0) pp_uint ws
 
-  | ROR ws ->
-     Format.fprintf fmt "ror %a%a %a%a %a@@uint8"
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_expr (List.nth es 1)
+  (* | ROR ws -> *)
+  (*    Format.fprintf fmt "ror %a%a %a%a %a@@uint8" *)
+  (*      pp_lval (List.nth xs 5) pp_uint ws *)
+  (*      pp_expr (List.nth es 0) pp_uint ws *)
+  (*      pp_expr (List.nth es 1) *)
 
-  | ROL ws ->
-     Format.fprintf fmt "rol %a%a %a%a %a@@uint8"
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_expr (List.nth es 1)
+  (* | ROL ws -> *)
+  (*    Format.fprintf fmt "rol %a%a %a%a %a@@uint8" *)
+  (*      pp_lval (List.nth xs 5) pp_uint ws *)
+  (*      pp_expr (List.nth es 0) pp_uint ws *)
+  (*      pp_expr (List.nth es 1) *)
 (*
   | RCR of wsize
   | RCL of wsize
  *)
 
   | SHL ws ->
-     Format.fprintf fmt "shl %a%a %a%a %a@@uint8"
+     Format.fprintf fmt "shl %a%a %a%a %a"
        pp_lval (List.nth xs 5)
        pp_uint ws
        pp_expr (List.nth es 0)
@@ -303,7 +317,7 @@ let pp_baseop fmt xs o es =
        pp_expr (List.nth es 1)
 
   | SHR ws ->
-     Format.fprintf fmt "shr %a%a %a%a %a@@uint8"
+     Format.fprintf fmt "shr %a%a %a%a %a"
        pp_lval (List.nth xs 5)
        pp_uint ws
        pp_expr (List.nth es 0)
@@ -311,7 +325,7 @@ let pp_baseop fmt xs o es =
        pp_expr (List.nth es 1)
 
   | SAL ws ->
-     Format.fprintf fmt "shl %a%a %a%a %a@@uint8"
+     Format.fprintf fmt "shl %a%a %a%a %a"
        pp_lval (List.nth xs 5)
        pp_uint ws
        pp_expr (List.nth es 0)
@@ -319,7 +333,7 @@ let pp_baseop fmt xs o es =
        pp_expr (List.nth es 1)
 
   | SAR ws ->
-     Format.fprintf fmt "sar %a%a %a%a %a@@uint8"
+     Format.fprintf fmt "sar %a%a %a%a %a"
        pp_lval (List.nth xs 5) pp_uint ws
        pp_expr (List.nth es 0) pp_uint ws
        pp_expr (List.nth es 1)
@@ -374,8 +388,17 @@ let pp_baseop fmt xs o es =
        pp_lval (List.nth xs 0) pp_uint ws
        pp_expr (List.nth es 0) pp_uint ws
        pp_expr (List.nth es 1) pp_uint ws
-(*
-  | VPADD of velem * wsize
+
+  (*
+  | VPADD (ve,ws) ->
+     let ve0 = Word0.nat_of_wsize (Wsize.wsize_of_velem ve) in
+     let v1 = Word0.split_vec ws ve0 (List.nth es 0) in
+     let v2 = Word0.split_vec ws ve0 (List.nth es 1) in
+     Format.fprintf fmt "add %a%a %a%a %a%a"
+       pp_lval (List.nth xs 0) pp_uint ws
+       pp_expr (List.nth es 0) pp_uint ws
+       pp_expr (List.nth es 1) pp_uint ws
+
   | VPSUB of velem * wsize
   | VPAVG of velem * wsize
   | VPMULL of velem * wsize
@@ -502,9 +525,9 @@ let pp_post fmt fd =
 let pp_ty fmt ty =
   match ty with
   | Bty Bool -> Format.fprintf fmt "uint1"
-  | Bty Int -> assert false 
+  | Bty Int -> assert false
   | Bty (U ws) -> Format.fprintf fmt "uint%i" (int_of_ws ws)
-  | Arr _ -> assert false 
+  | Arr _ -> assert false
 
 let pp_args fmt xs = 
   (pp_list ",@ " 
