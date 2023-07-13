@@ -1355,7 +1355,7 @@ Definition Ox86_MULX_instr :=
    ((fun (sz:wsize) =>
      mk_instr (pp_sz name sz) (w2_ty sz sz) (w2_ty sz sz)
          [::R RDX; E 2] [:: E 0; E 1] (reg_msb_flag sz)
-         (@x86_MULX sz) check_mulx 3 [::] (pp_iname name sz)),
+         (@x86_MULX sz) check_mulx 3 [::] (pp_iname "mulx" sz)),
     (name, prim_32_64 MULX)).
 
 Definition check_neg (_:wsize) := [::[::rm false]].
