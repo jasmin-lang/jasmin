@@ -15,3 +15,8 @@ fn vpsllv_4u64(reg u256 x y) -> reg u256 {
   z = #VPSLLV_4u64(x, y);
   return z;
 }
+
+fn shrd_16(reg u16 x y, reg u8 c) -> reg u16 {
+  ?{}, x = #SHRD_16(x, y, c);
+  return x;
+}
