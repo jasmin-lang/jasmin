@@ -3,6 +3,9 @@
 
 ## Bug fixes
 
+- Fix semantics of the `SHLD_16` and `SHRD_16` instructions
+  ([PR #520](https://github.com/jasmin-lang/jasmin/pull/520)).
+
 - Handle the size parameter in LZCNT semantic
   ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
   fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
