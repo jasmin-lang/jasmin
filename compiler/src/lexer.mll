@@ -128,7 +128,7 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
-  | '"' { read_string (B.create 256) lexbuf } (* TODO: escape sequences *)
+  | '"' { read_string (B.create 256) lexbuf }
 
   (* Why this is needed *)
   | ((*'-'?*) digit+) as s   
