@@ -4,6 +4,7 @@
 
   module L = Location
   module S = Syntax
+  module B = Buffer
 
   let unterminated_comment loc =
     raise (S.ParseError (loc, Some "unterminated comment"))
@@ -11,6 +12,9 @@
   let invalid_char loc (c : char) =
     let msg = Printf.sprintf "invalid char: `%c'" c in
     raise (S.ParseError (loc, Some msg))
+
+  let unterminated_string loc = 
+    raise (S.ParseError (loc, Some "unterminated string"))
 
   let _keywords = [
     "u8"    , T_U8   ;
@@ -114,7 +118,6 @@ let signletter = ['s' 'u']
 let gensize = "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" 
 let vsize   = "2" | "4" | "8" | "16" | "32" 
 
-
 (* -------------------------------------------------------------------- *)
 rule main = parse
   | newline { Lexing.new_line lexbuf; main lexbuf }
@@ -125,7 +128,7 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
-  | '"' ([^'"']* as s) '"' { STRING s } (* TODO: escape sequences *)
+  | '"' { read_string (B.create 256) lexbuf } (* TODO: escape sequences *)
 
   (* Why this is needed *)
   | ((*'-'?*) digit+) as s   
@@ -187,3 +190,18 @@ and comment lvl = parse
   | newline          { Lexing.new_line lexbuf; comment lvl lexbuf }
   | [^'\n']          { comment lvl lexbuf }
   | eof              { unterminated_comment (L.of_lexbuf lexbuf) }
+and read_string buf = parse
+  | '"'       { STRING (B.contents buf) }
+  | '\\' '\\' { Buffer.add_char buf '\\'; read_string buf lexbuf }
+  | '\\' '\"' { Buffer.add_char buf '\"'; read_string buf lexbuf }
+  (** | '\\' ['x' 'X']  { read_escaped_character buf lexbuf } *)
+  | [^ '"' '\\']+
+    { Buffer.add_string buf (Lexing.lexeme lexbuf);
+      read_string buf lexbuf
+    }
+  | _ as c { invalid_char (L.of_lexbuf lexbuf) c }
+  | eof { unterminated_string (L.of_lexbuf lexbuf) }
+(** and read_escaped_character buf = parse
+  | hexdigit as a hexdigit as b { }
+  | _ as c { invalid_char (L.of_lexbuf lexbuf) c }
+  | eof { unterminated_string (L.of_lexbuf lexbuf) } *)
