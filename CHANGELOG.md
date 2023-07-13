@@ -26,7 +26,7 @@
 
 ## Bug fixes
 
-- Fix semantics of the `SHLD_16` and `SHRD_16` instructions
+- Fix semantics of the `SHLD_16`, `SHRD_16`, `VPSLLV`, and `VPSRLV` instructions
   ([PR #520](https://github.com/jasmin-lang/jasmin/pull/520)).
 
 - Handle the size parameter in LZCNT semantic
