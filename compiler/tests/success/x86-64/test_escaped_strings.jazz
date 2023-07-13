@@ -1,0 +1,12 @@
+u8[3] test = "\x00\\\"";
+
+export fn main() -> reg u8
+{
+    reg u8 res tmp;
+    res = 0x00;
+
+    tmp = test[0];
+    res = res ^ tmp;
+
+    return res;
+}
