@@ -191,17 +191,13 @@ and comment lvl = parse
   | [^'\n']          { comment lvl lexbuf }
   | eof              { unterminated_comment (L.of_lexbuf lexbuf) }
 and read_string buf = parse
-  | '"'       { STRING (B.contents buf) }
-  | '\\' '\\' { Buffer.add_char buf '\\'; read_string buf lexbuf }
-  | '\\' '\"' { Buffer.add_char buf '\"'; read_string buf lexbuf }
-  (** | '\\' ['x' 'X']  { read_escaped_character buf lexbuf } *)
+  | '"'       { STRING (Scanf.unescaped (B.contents buf)) }
+  | '\\' '\"' { Buffer.add_string buf "\\\""; read_string buf lexbuf }
+  | '\\' '\\' { Buffer.add_string buf "\\\\"; read_string buf lexbuf }
+  | '\\' 'x'  { Buffer.add_string buf "\\x"; read_string buf lexbuf }
   | [^ '"' '\\']+
     { Buffer.add_string buf (Lexing.lexeme lexbuf);
       read_string buf lexbuf
     }
   | _ as c { invalid_char (L.of_lexbuf lexbuf) c }
   | eof { unterminated_string (L.of_lexbuf lexbuf) }
-(** and read_escaped_character buf = parse
-  | hexdigit as a hexdigit as b { }
-  | _ as c { invalid_char (L.of_lexbuf lexbuf) c }
-  | eof { unterminated_string (L.of_lexbuf lexbuf) } *)
