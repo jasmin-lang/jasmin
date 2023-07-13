@@ -42,6 +42,9 @@
   ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
   fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
 
+- Fix semantics of the `SHLD_16` and `SHRD_16` instructions
+  ([PR #520](https://github.com/jasmin-lang/jasmin/pull/520)).
+
 # Jasmin 2022.04.0
 
 This release is the result of more than two years of active development. It thus

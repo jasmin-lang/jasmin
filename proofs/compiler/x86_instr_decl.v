@@ -563,9 +563,11 @@ Definition x86_SHLD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   if i == 0%R then
     ok (rflags_None_w v1)
   else
+    let j := (wsize_bits sz - wunsigned i)%Z in
+    if (j <? 0)%Z then type_error else
     let rc := msb (wshl v1 (wunsigned i - 1)) in
     let r1 := wshl v1 (wunsigned i) in
-    let r2 := wshr v2 (wsize_bits sz - (wunsigned i)) in
+    let r2 := wshr v2 j in
     let r  := wor r1 r2 in
     rflags_OF i r rc (msb r (+) rc).
 
@@ -585,9 +587,11 @@ Definition x86_SHRD sz (v1 v2: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
   if i == 0%R then
     ok (rflags_None_w v1)
   else
+    let j := (wsize_bits sz - wunsigned i)%Z in
+    if (j <? 0)%Z then type_error else
     let rc := lsb (wshr v1 (wunsigned i - 1)) in
     let r1 := wshr v1 (wunsigned i) in
-    let r2 := wshl v2 (wsize_bits sz - (wunsigned i)) in
+    let r2 := wshl v2 j in
     let r  := wor r1 r2 in
     rflags_OF i r rc (msb r (+) msb v1).
 
