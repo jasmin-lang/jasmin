@@ -82,11 +82,11 @@ Variant x86_op : Type :=
 | PDEP   of wsize    (* parallel bits deposit *)
 
   (* MMX instructions *)
-| MOVX  of wsize 
+| MOVX  of wsize
   (* SSE instructions *)
 | MOVD     of wsize (* MOVD/MOVQ to wide registers *)
 | MOVV     of wsize (* MOVD/MOVQ from wide registers *)
-| VMOV     of wsize 
+| VMOV     of wsize
 | VMOVDQA  of wsize
 | VMOVDQU  `(wsize)
 | VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
@@ -171,7 +171,7 @@ Variant x86_op : Type :=
 | AESIMC
 | VAESIMC
 | AESKEYGENASSIST
-| VAESKEYGENASSIST 
+| VAESKEYGENASSIST
 
 (* PCLMULQDQ instructions *)
 | PCLMULQDQ
@@ -362,7 +362,7 @@ Definition x86_MOVSX szi szo (x: word szi) : ex_tpl (w_ty szo) :=
   Let _ :=
     match szi with
     | U8 => check_size_16_64 szo
-    | U16 => check_size_16_64 szo 
+    | U16 => check_size_16_64 szo
     | U32 => check_size_32_64 szo
     | _ => type_error
     end in
@@ -502,21 +502,21 @@ Definition x86_DEC sz (w: word sz) : ex_tpl (b4w_ty sz) :=
 
 
 Fixpoint leading_zero_aux (n: Z) (k : nat) (sz : nat) :=
-  if (n <? 2^(sz - k))%Z then k 
-  else match k with 
+  if (n <? 2^(sz - k))%Z then k
+  else match k with
   | 0 => 0
   | S k' => leading_zero_aux n k' sz
   end.
-      
-Definition leading_zero sz (w: word sz) : word sz := 
+
+Definition leading_zero sz (w: word sz) : word sz :=
   wrepr sz (leading_zero_aux (wunsigned w) sz sz).
 
-Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) := 
-   Let _ := check_size_16_64 sz in
-   let v := leading_zero w in 
-   ok (flags_w 
+Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) :=
+    Let _ := check_size_16_64 sz in
+    let v := leading_zero w in
+    ok (flags_w
         (*  OF;     CF;                  SF;   PF;    ZF  *)
-         ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v).
+          ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v).
 
 Definition x86_SETcc (b:bool) : ex_tpl (w_ty U8) := ok (wrepr U8 (Z.b2z b)).
 
@@ -850,7 +850,7 @@ Definition x86_VPSHUFD sz := x86_vpshuf sz (@wpshufd _).
 Definition wshufps_128 (o : u8) (s1 s2: u128) :=
   @make_vec U32 U128 [:: wpshufd1 s1 o 0; wpshufd1 s1 o 1; wpshufd1 s2 o 2; wpshufd1 s2 o 3].
 
-Definition x86_VSHUFPS sz s1 s2 o := 
+Definition x86_VSHUFPS sz s1 s2 o :=
   Let _ := check_size_128_256 sz in
   ok (lift2_vec U128 (wshufps_128 o) sz s1 s2).
 
@@ -879,39 +879,39 @@ Definition x86_VPBLENDVB sz (x y m: word sz) : ex_tpl (w_ty sz) :=
 
 (* ---------------------------------------------------------------- *)
 
-Definition SaturatedSignedToUnsigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
+Definition SaturatedSignedToUnsigned (sz1 sz2:wsize) (w:word sz1) : word sz2 :=
   let i1 := wsigned w in
   let i2 := max 0%Z (min i1 (wmax_unsigned sz2)) in
   wrepr sz2 i2.
 
-Definition SaturatedSignedToSigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
+Definition SaturatedSignedToSigned (sz1 sz2:wsize) (w:word sz1) : word sz2 :=
   let i1 := wsigned w in
   let i2 := max (wmin_signed sz2) (min i1 (wmax_signed sz2)) in
   wrepr sz2 i2.
 
-Definition vpack2 (sz1 sz2 sz:wsize) (op:word sz1 -> word sz2) (w1 w2:word sz) : word sz := 
+Definition vpack2 (sz1 sz2 sz:wsize) (op:word sz1 -> word sz2) (w1 w2:word sz) : word sz :=
   make_vec sz (map op (split_vec sz1 w1) ++ map op (split_vec sz1 w2)).
 
-Definition x86_VPACKUS ve sz (v1 v2:word sz) : ex_tpl (w_ty sz) := 
+Definition x86_VPACKUS ve sz (v1 v2:word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_16_32 ve in
   Let _ := check_size_128_256 sz in
-  let doit sz (v1 v2:word sz) := 
+  let doit sz (v1 v2:word sz) :=
       if ve == U32 then vpack2 (@SaturatedSignedToUnsigned U32 U16) v1 v2
       else vpack2 (@SaturatedSignedToUnsigned U16 U8) v1 v2 in
   ok (
       if sz == U128 then doit sz v1 v2
       else lift2_vec U128 (doit U128) sz v1 v2).
 
-Definition x86_VPACKSS ve sz (v1 v2:word sz) : ex_tpl (w_ty sz) := 
+Definition x86_VPACKSS ve sz (v1 v2:word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_16_32 ve in
   Let _ := check_size_128_256 sz in
-  let doit sz (v1 v2:word sz) := 
+  let doit sz (v1 v2:word sz) :=
       if ve == U32 then vpack2 (@SaturatedSignedToSigned U32 U16) v1 v2
       else vpack2 (@SaturatedSignedToSigned U16 U8) v1 v2 in
   ok (
       if sz == U128 then doit sz v1 v2
       else lift2_vec U128 (doit U128) sz v1 v2).
-      
+
 (* ---------------------------------------------------------------- *)
 Definition x86_VPBROADCAST ve sz (v: word ve) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
@@ -945,12 +945,12 @@ Definition x86_VPERMQ (v: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wpermq v m).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 := 
+Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 :=
   let v := make_vec U256 [::v2;v1] in
   let v' := wshr v (wunsigned m * 8) in
   @nth (word U128) 0%R (split_vec U128 v') 0.
- 
-Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : ex_tpl (w_ty sz) := 
+
+Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (lift2_vec U128 (x86_VPALIGNR128 m) sz v1 v2).
 
@@ -988,22 +988,22 @@ Definition x86_VMOVHPD (v: u128): ex_tpl (w_ty U64) :=
   ok (zero_extend U64 (wshr v 64)).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_VPMINU (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+Definition x86_VPMINU (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
   ok (wmin Unsigned ve x y).
 
-Definition x86_VPMINS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+Definition x86_VPMINS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
   ok (wmin Signed ve x y).
 
-Definition x86_VPMAXU (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+Definition x86_VPMAXU (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
   ok (wmax Unsigned ve x y).
 
-Definition x86_VPMAXS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+Definition x86_VPMAXS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
   ok (wmax Signed ve x y).
@@ -1837,65 +1837,65 @@ Definition mk_instr_aes3 jname aname (constr:x86_op) x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 1; E 2] [:: E 0] msb_flag x86_sem
          (check_xmm_xmm_xmmm U128) 3 (primM constr) (pp_name_ty aname [::U128;U128;U128]).
 
-Definition Ox86_AESDEC_instr := 
+Definition Ox86_AESDEC_instr :=
   mk_instr_aes2 "AESDEC" "aesdec" AESDEC x86_AESDEC MSB_MERGE.
 
-Definition Ox86_VAESDEC_instr := 
+Definition Ox86_VAESDEC_instr :=
   mk_instr_aes3 "VAESDEC" "vaesdec" VAESDEC x86_AESDEC MSB_CLEAR.
 
-Definition Ox86_AESDECLAST_instr := 
+Definition Ox86_AESDECLAST_instr :=
   mk_instr_aes2 "AESDECLAST" "aesdeclast" AESDECLAST x86_AESDECLAST MSB_MERGE.
 
-Definition Ox86_VAESDECLAST_instr := 
+Definition Ox86_VAESDECLAST_instr :=
   mk_instr_aes3 "VAESDECLAST" "vaesdeclast" VAESDECLAST x86_AESDECLAST MSB_CLEAR.
 
-Definition Ox86_AESENC_instr := 
+Definition Ox86_AESENC_instr :=
   mk_instr_aes2 "AESENC" "aesenc" AESENC x86_AESENC MSB_MERGE.
 
-Definition Ox86_VAESENC_instr := 
+Definition Ox86_VAESENC_instr :=
   mk_instr_aes3 "VAESENC" "vaesenc" VAESENC x86_AESENC MSB_CLEAR.
 
-Definition Ox86_AESENCLAST_instr := 
+Definition Ox86_AESENCLAST_instr :=
   mk_instr_aes2 "AESENCLAST" "aesenclast" AESENCLAST x86_AESENCLAST MSB_MERGE.
 
-Definition Ox86_VAESENCLAST_instr := 
+Definition Ox86_VAESENCLAST_instr :=
   mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST x86_AESENCLAST MSB_CLEAR.
 
-Definition Ox86_AESIMC_instr := 
+Definition Ox86_AESIMC_instr :=
   mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_MERGE x86_AESIMC
          (check_xmm_xmmm U128) 2 (primM AESIMC) (pp_name_ty "aesimc" [::U128;U128]).
 
-Definition Ox86_VAESIMC_instr := 
+Definition Ox86_VAESIMC_instr :=
   mk_instr_pp "VAESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_CLEAR x86_AESIMC
          (check_xmm_xmmm U128) 2 (primM VAESIMC) (pp_name_ty "vaesimc" [::U128;U128]).
 
-Definition Ox86_AESKEYGENASSIST_instr := 
-  mk_instr_pp "AESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
+Definition Ox86_AESKEYGENASSIST_instr :=
+  mk_instr_pp "AESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0]
     MSB_MERGE x86_AESKEYGENASSIST
    (check_xmm_xmmm_imm8 U128) 3 (primM AESKEYGENASSIST)
    (pp_name_ty "aeskeygenassist" [::U128;U128;U8]).
 
-Definition Ox86_VAESKEYGENASSIST_instr := 
-  mk_instr_pp "VAESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
+Definition Ox86_VAESKEYGENASSIST_instr :=
+  mk_instr_pp "VAESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0]
     MSB_CLEAR x86_AESKEYGENASSIST
    (check_xmm_xmmm_imm8 U128) 3 (primM VAESKEYGENASSIST)
    (pp_name_ty "vaeskeygenassist" [::U128;U128;U8]).
 
 (* PCLMULDQD instructions *)
 
-Definition Ox86_PCLMULQDQ_instr := 
+Definition Ox86_PCLMULQDQ_instr :=
   mk_instr_pp "PCLMULQDQ" [:: sword U128; sword U128; sword U8] (w_ty U128)
     [:: E 0; E 1; E 2] [:: E 0] MSB_CLEAR (@x86_VPCLMULQDQ U128)
     (check_xmm_xmmm_imm8 U128) 3 (primM PCLMULQDQ)
    (pp_name_ty "pclmulqdq" [::U128;U128;U8]).
 
-Definition Ox86_VPCLMULQDQ_instr := 
+Definition Ox86_VPCLMULQDQ_instr :=
  (fun sz =>
    mk_instr (pp_sz "VPCLMULQDQ"%string sz) [:: sword sz; sword sz; sword U8] (w_ty sz)
        [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR (@x86_VPCLMULQDQ sz)
        (check_xmm_xmm_xmmm_imm8 sz) 4 [::] (pp_name "vpclmulqdq" sz)
  , ("VPCLMULQDQ"%string, prim_128_256 VPCLMULQDQ)).
-  
+
 
 
 Definition x86_instr_desc o : instr_desc_t :=
@@ -1992,7 +1992,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
   | VMOVSHDUP sz       => Ox86_VMOVSHDUP_instr.1 sz
   | VMOVSLDUP sz       => Ox86_VMOVSLDUP_instr.1 sz
-  | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
+  | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
   | VPERMD             => Ox86_VPERMD_instr.1
@@ -2017,18 +2017,18 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SFENCE             => Ox86_SFENCE_instr.1
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
-  | AESDEC             => Ox86_AESDEC_instr.1          
-  | VAESDEC            => Ox86_VAESDEC_instr.1         
-  | AESDECLAST         => Ox86_AESDECLAST_instr.1      
-  | VAESDECLAST        => Ox86_VAESDECLAST_instr.1     
-  | AESENC             => Ox86_AESENC_instr.1          
-  | VAESENC            => Ox86_VAESENC_instr.1         
-  | AESENCLAST         => Ox86_AESENCLAST_instr.1      
-  | VAESENCLAST        => Ox86_VAESENCLAST_instr.1     
-  | AESIMC             => Ox86_AESIMC_instr.1          
-  | VAESIMC            => Ox86_VAESIMC_instr.1         
-  | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1 
-  | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1 
+  | AESDEC             => Ox86_AESDEC_instr.1
+  | VAESDEC            => Ox86_VAESDEC_instr.1
+  | AESDECLAST         => Ox86_AESDECLAST_instr.1
+  | VAESDECLAST        => Ox86_VAESDECLAST_instr.1
+  | AESENC             => Ox86_AESENC_instr.1
+  | VAESENC            => Ox86_VAESENC_instr.1
+  | AESENCLAST         => Ox86_AESENCLAST_instr.1
+  | VAESENCLAST        => Ox86_VAESENCLAST_instr.1
+  | AESIMC             => Ox86_AESIMC_instr.1
+  | VAESIMC            => Ox86_VAESIMC_instr.1
+  | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1
+  | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1
   | PCLMULQDQ          => Ox86_PCLMULQDQ_instr.1
   | VPCLMULQDQ sz      => Ox86_VPCLMULQDQ_instr.1 sz
   end.
@@ -2143,7 +2143,7 @@ Definition x86_prim_string :=
    Ox86_VPMADDWD_instr.2;
    Ox86_VMOVLPD_instr.2;
    Ox86_VMOVHPD_instr.2;
-   Ox86_VPMINU_instr.2;   
+   Ox86_VPMINU_instr.2;
    Ox86_VPMINS_instr.2;
    Ox86_VPMAXU_instr.2;
    Ox86_VPMAXS_instr.2;
@@ -2154,17 +2154,17 @@ Definition x86_prim_string :=
    Ox86_SFENCE_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
-   Ox86_AESDEC_instr.2;            
-   Ox86_VAESDEC_instr.2;         
-   Ox86_AESDECLAST_instr.2;      
-   Ox86_VAESDECLAST_instr.2;     
-   Ox86_AESENC_instr.2;          
-   Ox86_VAESENC_instr.2;         
-   Ox86_AESENCLAST_instr.2;      
-   Ox86_VAESENCLAST_instr.2;     
-   Ox86_AESIMC_instr.2;          
-   Ox86_VAESIMC_instr.2;         
-   Ox86_AESKEYGENASSIST_instr.2; 
+   Ox86_AESDEC_instr.2;
+   Ox86_VAESDEC_instr.2;
+   Ox86_AESDECLAST_instr.2;
+   Ox86_VAESDECLAST_instr.2;
+   Ox86_AESENC_instr.2;
+   Ox86_VAESENC_instr.2;
+   Ox86_AESENCLAST_instr.2;
+   Ox86_VAESENCLAST_instr.2;
+   Ox86_AESIMC_instr.2;
+   Ox86_VAESIMC_instr.2;
+   Ox86_AESKEYGENASSIST_instr.2;
    Ox86_VAESKEYGENASSIST_instr.2;
    Ox86_PCLMULQDQ_instr.2;
    Ox86_VPCLMULQDQ_instr.2;
@@ -2182,7 +2182,7 @@ Instance eqC_x86_op : eqTypeC x86_op :=
 
 #[global]
 Instance x86_op_decl : asm_op_decl x86_op := {
-   instr_desc_op  := x86_instr_desc; 
+   instr_desc_op  := x86_instr_desc;
    prim_string    := x86_prim_string;
 }.
 

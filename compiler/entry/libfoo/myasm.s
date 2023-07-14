@@ -36,7 +36,7 @@ set_execute_get:
     movq    56(%rdi), %rdi
 
     # Execute the instruction here
-    andl	%esi, %esi
+    MULXq	%rdx, %r15, %r14
 
     # post execution
     pushq   %rdi                    # save the post-exec rdi
