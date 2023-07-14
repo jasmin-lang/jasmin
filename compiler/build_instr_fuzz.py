@@ -48,8 +48,6 @@ ops_one_arg["BSWAP"]    = "bswap"
 ops_two_args            = {}
 ops_two_args["ADD"]     = "add"
 ops_two_args["ADC"]     = "adc"
-ops_two_args["ADCX"]    = "adcx"
-ops_two_args["ADOX"]    = "adox"
 ops_two_args["SUB"]     = "sub"
 ops_two_args["SBB"]     = "sbb"
 ops_two_args["IMULr"]   = "imul"
@@ -63,7 +61,7 @@ ops_three_args = {}
 ops_three_args["ANDN"]  = "andn"
 ops_three_args["PEXT"]  = "pext"
 ops_three_args["PDEP"]  = "pdep"
-ops_three_args["MULX"]  = "mulx"
+
 
 size_variations = {}
 size_variations[8] = ["_8", "b"]
@@ -131,7 +129,7 @@ def gen_one_arg_instrs():
             if op == "BSWAP" and (size == 8 or size == 16):
                 continue
 
-            for _ in range(1):
+            for _ in range(2):
                 reg = get_usable_reg(regs_list)
                 folder_name = op + size_variations[size][0] + "_" + reg
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
@@ -164,10 +162,7 @@ def gen_two_arg_instrs():
             if size == 8 and (op == "IMULr" or op == "LZCNT" or op == "POPCNT"):
                 continue
 
-            if (op == "ADCX" or op == "ADOX") and (size == 8 or size == 16):
-                continue
-
-            for _ in range(1):
+            for _ in range(2):
                 reg1 = get_usable_reg(regs_list)
                 reg2 = get_usable_reg(regs_list)
                 folder_name = op + size_variations[size][0] + "_" + reg1 + "_" + reg2
@@ -194,41 +189,5 @@ def gen_two_arg_instrs():
                 os.system(make_build_cmd)
                 os.system(mv_to_folder)
 
-def gen_three_arg_instrs():
-    for op in ops_three_args:
-        for size in size_variations:
-
-            # currently the existing ops don't support these sizes
-            if size == 8 or size == 16:
-                continue
-
-            for _ in range(1):
-                reg1 = get_usable_reg(regs_list)
-                reg2 = get_usable_reg(regs_list)
-                reg3 = get_usable_reg(regs_list)
-                folder_name = op + size_variations[size][0] + "_" + reg1 + "_" + reg2 + "_" + reg3
-                mv_to_folder = move_build_to_out_dir + "/" + folder_name
-                if mv_to_folder in test_folders:
-                    continue
-                test_folders.add(mv_to_folder)
-                jazz_instr = "{}{}\t{} {} {}".format(op, size_variations[size][0], reg1, reg2, reg3)
-                print(jazz_instr)
-                asm_instr = "{}{}\t{}, {}, {}".format(ops_three_args[op], size_variations[size][1], regs[reg3][size], regs[reg2][size], regs[reg1][size])
-                print(asm_instr)
-
-                # TODO: improve this later
-                with open(my_asm_orig, "r") as reader:
-                    with open(my_asm_final, "w") as writer:
-                        line = reader.read()
-                        final_line = line.replace("replace_me", asm_instr)
-                        writer.write(final_line)
-                with open(op_args_file, "w") as writer:
-                    j_op = "{}{}".format(op, size_variations[size][0])
-                    j_args = reg1 + " " + reg2 + " " + reg3
-                    writer.write(j_op + "\n" + j_args)
-                os.system(make_clean_cmd)
-                os.system(make_build_cmd)
-                os.system(mv_to_folder)
-
 if __name__ == "__main__":
-    gen_three_arg_instrs()
+    gen_zero_arg_instrs()

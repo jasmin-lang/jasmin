@@ -501,22 +501,28 @@ Definition x86_DEC sz (w: word sz) : ex_tpl (b4w_ty sz) :=
     (wsigned w - 1)%Z).
 
 
+<<<<<<< HEAD
 Fixpoint leading_zero_aux (n: Z) (k : nat) (sz : nat) :=
   if (n <? 2^(sz - k))%Z then k
   else match k with
+=======
+Fixpoint leading_zero_aux (n: Z) (k : nat) :=
+  if (n <? 2^(64 - k))%Z then k
+  else match k with
+>>>>>>> Revert "wip.. added some three op instructions"
   | 0 => 0
-  | S k' => leading_zero_aux n k' sz
+  | S k' => leading_zero_aux n k'
   end.
 
 Definition leading_zero sz (w: word sz) : word sz :=
-  wrepr sz (leading_zero_aux (wunsigned w) sz sz).
+  wrepr sz (leading_zero_aux (wunsigned w) sz).
 
 Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) :=
-    Let _ := check_size_16_64 sz in
-    let v := leading_zero w in
-    ok (flags_w
+   Let _ := check_size_16_64 sz in
+   let v := leading_zero w in
+   ok (flags_w
         (*  OF;     CF;                  SF;   PF;    ZF  *)
-          ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v).
+         ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v).
 
 Definition x86_SETcc (b:bool) : ex_tpl (w_ty U8) := ok (wrepr U8 (Z.b2z b)).
 
