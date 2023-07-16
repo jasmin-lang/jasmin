@@ -278,7 +278,7 @@ let rflags = field asm_state "rflags" int64_t
 let () = seal asm_state
 
 (* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
-let set_execute_get = foreign "set_execute_get" (ptr asm_state @-> returning void)
+let set_execute_get = foreign "set_execute_get_wrapper" (ptr asm_state @-> returning void)
 
 let op_ref = ref ""
 let args_ref = ref []
@@ -338,12 +338,43 @@ let is_correct asm_arr =
       if i <> 4 && i <> 5 then
       result := !result && (jasm.(i) = casm.(i))
     done;
+
+    (* Checking the 5 flags  *)
+    let my_rflagv r =
+      let open A in
+      match r with
+      | J.Arch_decl.Def b -> if b = true then 1 else 0
+      | J.Arch_decl.Undef -> 2
+    in
     let jflags : A.rflag array = [|CF; PF; ZF; SF; OF|] in
-    for i = 0 to 4 do
-      let flag =  J.Exec.read_flag J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jflags.(i) in
-      if flag <> Undef then
-        result := !result
-    done;
+    let jflags_vals =
+      let temp = Array.make 5 2 in
+      for i = 0 to 4 do
+        temp.(i) <- my_rflagv (J.Exec.read_flag J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jflags.(i))
+      done;
+      temp
+    in
+    let cflags_vals = Z.of_int64_unsigned(getf state rflags) in
+
+    (* checking CF flag  *)
+    if jflags_vals.(0) <> 2 then
+      result := !result && (Z.testbit cflags_vals 0 = (jflags_vals.(0) = 1));
+
+    (* checking PF flag  *)
+    if jflags_vals.(1) <> 2 then
+      result := !result && (Z.testbit cflags_vals 2 = (jflags_vals.(1) = 1));
+
+    (* checking ZF flag  *)
+    if jflags_vals.(1) <> 2 then
+      result := !result && (Z.testbit cflags_vals 6 = (jflags_vals.(2) = 1));
+
+    (* checking SF flag  *)
+    if jflags_vals.(1) <> 2 then
+      result := !result && (Z.testbit cflags_vals 7 = (jflags_vals.(3) = 1));
+
+    (* checking OF flag  *)
+    if jflags_vals.(1) <> 2 then
+      result := !result && (Z.testbit cflags_vals 11 = (jflags_vals.(4) = 1));
 
     !result
   in
