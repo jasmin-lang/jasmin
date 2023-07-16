@@ -19,8 +19,8 @@ regs["RSP"] = {8: "%spl", 16: "%sp", 32 : "%esp", 64 : "%rsp"}
 regs["RBP"] = {8: "%bpl", 16: "%bp", 32 : "%ebp", 64 : "%rbp"}
 regs["RSI"] = {8: "%sil", 16: "%si", 32 : "%esi", 64 : "%rsi"}
 regs["RDI"] = {8: "%dil", 16: "%di", 32 : "%edi", 64 : "%rdi"}
-regs["R8"] = {8: "%r8b", 16: "%r8w", 32 : "%r8d", 64 : "%r8"}
-regs["R9"] = {8: "%r9b", 16: "%r9w", 32 : "%r9d", 64 : "%r9"}
+regs["R8"]  = {8: "%r8b", 16: "%r8w", 32 : "%r8d", 64 : "%r8"}
+regs["R9"]  = {8: "%r9b", 16: "%r9w", 32 : "%r9d", 64 : "%r9"}
 regs["R10"] = {8: "%r10b", 16: "%r10w", 32 : "%r10d", 64 : "%r10"}
 regs["R11"] = {8: "%r11b", 16: "%r11w", 32 : "%r11d", 64 : "%r11"}
 regs["R12"] = {8: "%r12b", 16: "%r12w", 32 : "%r12d", 64 : "%r12"}
@@ -59,23 +59,23 @@ ops_two_args["OR"]      = "or"
 ops_two_args["XOR"]     = "xor"
 ops_two_args["POPCNT"]  = "popcnt"
 
-ops_three_args = {}
+ops_three_args          = {}
 ops_three_args["ANDN"]  = "andn"
 ops_three_args["PEXT"]  = "pext"
 ops_three_args["PDEP"]  = "pdep"
 ops_three_args["MULX"]  = "mulx"
 
-size_variations = {}
-size_variations[8] = ["_8", "b"]
+size_variations     = {}
+size_variations[8]  = ["_8", "b"]
 size_variations[16] = ["_16", "w"]
 size_variations[32] = ["_32", "l"]
 size_variations[64] = ["_64", "q"]
 
 
-make_clean_cmd = "make clean;"
-make_build_cmd = "make -j;"
-make_out_dir_cmd = "mkdir -p "
-move_build_to_out_dir = "mv -f _build/default/entry/ "
+make_clean_cmd          = "make clean;"
+make_build_cmd          = "make -j;"
+make_out_dir_cmd        = "mkdir -p "
+move_build_to_out_dir   = "mv -f _build/default/entry/ "
 
 
 parser = argparse.ArgumentParser()
@@ -231,4 +231,7 @@ def gen_three_arg_instrs():
                 os.system(mv_to_folder)
 
 if __name__ == "__main__":
+    gen_zero_arg_instrs()
+    gen_one_arg_instrs()
+    gen_two_arg_instrs()
     gen_three_arg_instrs()

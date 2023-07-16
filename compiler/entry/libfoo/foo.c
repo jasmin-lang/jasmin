@@ -1,5 +1,5 @@
+#include <stdio.h>
 #include <stdint.h>
-
 struct asm_state {
     int64_t rax;
     int64_t rcx;
@@ -21,9 +21,9 @@ struct asm_state {
     int64_t rflags;
 };
 
-void increment_rax (struct asm_state* state) {
-    state->rax += 1;
-    if (state->rax == 100) {        // Synthetic bug
-        state->rax = 0;
-    }
+extern void set_execute_get(struct asm_state *);
+
+void set_execute_get_wrapper(struct asm_state *state) {
+    set_execute_get(state);
+    printf("the flag is %ld\n", state->rflags);
 }

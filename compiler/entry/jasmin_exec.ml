@@ -338,6 +338,13 @@ let is_correct asm_arr =
       if i <> 4 && i <> 5 then
       result := !result && (jasm.(i) = casm.(i))
     done;
+    let jflags : A.rflag array = [|CF; PF; ZF; SF; OF|] in
+    for i = 0 to 4 do
+      let flag =  J.Exec.read_flag J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jflags.(i) in
+      if flag <> Undef then
+        result := !result
+    done;
+
     !result
   in
   Crowbar.check(check state asm_arr)
