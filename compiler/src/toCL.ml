@@ -89,16 +89,20 @@ and pp_op2 fmt o e1 e2 =
   | Osub Op_int
   | Odiv Cmp_int | Omod Cmp_int
   | Olsl Op_int | Oasr Op_int -> assert false
-  | Oadd (Op_w ws) -> Format.fprintf fmt "%a + %a" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
+  | Oadd (Op_w ws) -> Format.fprintf fmt "(%a + %a)" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
   | Omul (Op_w ws) -> Format.fprintf fmt "%a * %a" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
-  | Osub (Op_w ws) -> Format.fprintf fmt "%a - %a" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
-  | Odiv (Cmp_w (_, s)) | Omod (Cmp_w (_, s)) -> assert false
-  | Oland ws -> Format.fprintf fmt "%a & %a" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
-  | Olor ws -> Format.fprintf fmt "%a | %a" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
-  | Olxor ws -> Format.fprintf fmt "%a ^ %a" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
+  | Osub (Op_w ws) -> Format.fprintf fmt "(%a - %a)" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
+  | Odiv (Cmp_w (_, s)) -> assert false
+  | Omod (Cmp_w (s, ws)) ->
+     Format.fprintf fmt "%smod %a %a" (pp_sign s) pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
+  | Oland ws -> Format.fprintf fmt "(%a & %a)" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
+  | Olor ws -> Format.fprintf fmt "(%a | %a)" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
+  | Olxor ws -> Format.fprintf fmt "(%a ^ %a)" pp_rexpr (e1, Some ws) pp_rexpr (e2, Some ws)
   | Ovadd (_, s) | Ovsub (_, s) | Ovmul (_, s) -> assert false
-  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s) | Oror s
-  | Orol s | Ovlsr (_, s) | Ovlsl (_, s) | Ovasr (_, s) -> assert false
+  | Olsr s -> Format.fprintf fmt "shr %a %a" pp_rexpr (e1, Some s) pp_rexpr (e2, Some s)
+  | Olsl (Op_w s) -> Format.fprintf fmt "shl %a %a" pp_rexpr (e1, Some s) pp_rexpr (e2, Some s)
+  | Oasr (Op_w s) -> Format.fprintf fmt "sar %a %a" pp_rexpr (e1, Some s) pp_rexpr (e2, Some s)
+  | Oror s | Orol s | Ovlsr (_, s) | Ovlsl (_, s) | Ovasr (_, s) -> assert false
   | Oeq Op_int | Oneq Op_int
   | Olt Cmp_int | Ole Cmp_int
   | Ogt Cmp_int | Oge Cmp_int -> assert false
