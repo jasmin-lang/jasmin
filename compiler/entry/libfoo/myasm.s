@@ -19,10 +19,11 @@ set_execute_get:
     pushf
     pop    %ax
     andw    $0x7b3a, %ax
+    movq    128(%rdi), %rbx                 # move the generated flag value
+    andw    $0x8c5, %bx                     # get only the required 5 bits
+    orw     %bx, %ax                        # set the flags using OR
     push   %ax
     popf
-
-    # Need to set mask using OR
 
     # start moving to registers
     movq    (%rdi), %rax

@@ -301,17 +301,30 @@ let is_correct asm_arr =
     setf state r13 asm_arr.(13);
     setf state r14 asm_arr.(14);
     setf state r15 asm_arr.(15);
-    setf state rflags 0L;
+    setf state rflags asm_arr.(16);
 
   let check state asm_arr  =
     let arch = Amd64 in
     let call_conv = !(J.Glob_options.call_conv) in
     let reg = [] in
-    let regs = (Array.to_list asm_arr) in
+    let regs = [asm_arr.(0); asm_arr.(1); asm_arr.(2); asm_arr.(3); asm_arr.(4); asm_arr.(5); asm_arr.(6); asm_arr.(7);
+                asm_arr.(8); asm_arr.(9); asm_arr.(10); asm_arr.(11); asm_arr.(12); asm_arr.(13); asm_arr.(14); asm_arr.(15)] in
     let regxs = [0L;0L;0L;0L;0L;0L;0L;0L] in
     let xregs = [0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
     let flag = [] in
-    let flags = [J.Arch_decl.Def false; J.Arch_decl.Def false; J.Arch_decl.Def false; J.Arch_decl.Def false; J.Arch_decl.Def false]  in
+    let flags_ref =
+      let open A in
+      let num = Z.of_int64_unsigned(asm_arr.(16)) in
+      let my_list = ref [] in
+      (* CF; PF; ZF; SF; OF *)
+      if Z.testbit num 0 then my_list := !my_list @ [J.Arch_decl.Def true] else my_list := !my_list @ [J.Arch_decl.Def false] ;
+      if Z.testbit num 2 then my_list := !my_list @ [J.Arch_decl.Def true] else my_list := !my_list @ [J.Arch_decl.Def false] ;
+      if Z.testbit num 6 then my_list := !my_list @ [J.Arch_decl.Def true] else my_list := !my_list @ [J.Arch_decl.Def false] ;
+      if Z.testbit num 7 then my_list := !my_list @ [J.Arch_decl.Def true] else my_list := !my_list @ [J.Arch_decl.Def false] ;
+      if Z.testbit num 11 then my_list := !my_list @ [J.Arch_decl.Def true] else my_list := !my_list @ [J.Arch_decl.Def false] ;
+      my_list
+    in
+    let flags = !flags_ref in
 
     set_execute_get (addr state);
     let new_state = parse_and_exec arch call_conv !op_ref !args_ref reg regs regxs xregs flag flags in
@@ -403,10 +416,11 @@ let () =
     let cr13 = Crowbar.int64 in
     let cr14 = Crowbar.int64 in
     let cr15 = Crowbar.int64 in
+    let crflags = Crowbar.int64 in
 
-    Crowbar.map [crax; crcx; crdx; crbx; crsp; crbp; crsi; crdi;cr8; cr9; cr10; cr11; cr12; cr13; cr14; cr15] (
-      fun rax rcx rdx rbx rsp rbp rsi rdi r8 r9 r10 r11 r12 r13 r14 r15 ->
-        let my_array = [|rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi; r8; r9; r10; r11; r12; r13; r14; r15|] in
+    Crowbar.map [crax; crcx; crdx; crbx; crsp; crbp; crsi; crdi;cr8; cr9; cr10; cr11; cr12; cr13; cr14; cr15; crflags] (
+      fun rax rcx rdx rbx rsp rbp rsi rdi r8 r9 r10 r11 r12 r13 r14 r15 rflags ->
+        let my_array = [|rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi; r8; r9; r10; r11; r12; r13; r14; r15; rflags|] in
         my_array
     )
   in
