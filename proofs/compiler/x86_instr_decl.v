@@ -1160,8 +1160,8 @@ Notation mk_instr_ww8b_b2w_0c0 name semi check prc pp_asm := ((fun sz =>
 Notation mk_instr_ww8_b5w_0c0 name semi check prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: E 0; Ef 1 RCX] (implicit_flags ++ [:: E 0]) (reg_msb_flag sz) (semi sz) (check sz) 2 [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
-Notation mk_instr_w2w8_b5w_01c0 name semi check prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: E 0; E 1; Ef 2 RCX] (implicit_flags ++ [:: E 0]) (reg_msb_flag sz) (semi sz) (check sz) 3 [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+Notation mk_instr_w2w8_b5w_01c0 name semi check safe_cond prc pp_asm := ((fun sz =>
+  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: E 0; E 1; Ef 2 RCX] (implicit_flags ++ [:: E 0]) (reg_msb_flag sz) (semi sz) (check sz) 3 (safe_cond sz) (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2w8_w_1230 name semi check prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] (reg_msb_flag sz) (semi sz) (check sz) 4 [::] (pp_asm sz)), (name%string,prc))  (only parsing).
@@ -1447,11 +1447,15 @@ Definition Ox86_SAR_instr :=
   mk_instr_ww8_b5w_0c0 "SAR" x86_SAR check_ror (prim_8_64 SAR) (pp_iname_w_8 "sar").
 
 Definition check_shld (_:wsize):= [::[::rm false; r; ri U8]].
+
+Definition safe_shxd sz : seq safe_cond :=
+  if (sz ≤ U16)%CMP then [:: InRange U8 0 15 2 ] else [::].
+
 Definition Ox86_SHLD_instr :=
-  mk_instr_w2w8_b5w_01c0 "SHLD" x86_SHLD check_shld (prim_16_64 SHLD) (pp_iname_ww_8 "shld").
+  mk_instr_w2w8_b5w_01c0 "SHLD" x86_SHLD check_shld safe_shxd (prim_16_64 SHLD) (pp_iname_ww_8 "shld").
 
 Definition Ox86_SHRD_instr :=
-  mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD check_shld (prim_16_64 SHRD) (pp_iname_ww_8 "shrd").
+  mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD check_shld safe_shxd (prim_16_64 SHRD) (pp_iname_ww_8 "shrd").
 
 Definition Ox86_BSWAP_instr :=
   mk_instr_w_w "BSWAP" x86_BSWAP [:: E 0] [:: E 0] 1 (fun _ => [:: [::r]]) (prim_32_64 BSWAP) (pp_iname "bswap").
