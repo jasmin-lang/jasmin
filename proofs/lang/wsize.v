@@ -199,6 +199,7 @@ Variant v_kind :=
 (* -------------------------------------------------------------------- *)
 Variant safe_cond :=
   | NotZero of wsize & nat  (* the nth argument of size sz is not zero *)
+  | InRange of wsize & Z & Z & nat (* the nth argument must be in the given range *)
   | AllInit of wsize & positive & nat.         (* the nth argument of is an array ws[p] where all ceil are initialized *)
 
 

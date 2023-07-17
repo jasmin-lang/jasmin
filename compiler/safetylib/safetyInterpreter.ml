@@ -102,6 +102,7 @@ type safe_cond =
       
   | Initai  of arr_slice
   | InBound of int * arr_slice
+  | InRange of Z.t * Z.t * expr
 
   | Valid       of wsize * var * expr (* allocated memory region *)
   | AlignedPtr  of wsize * var * expr (* aligned pointer *)                   
@@ -146,6 +147,7 @@ let pp_safety_cond fmt = function
       pp_arr_slice slice
       
   | NotZero(sz,e) -> Format.fprintf fmt "%a <>%a zero" pp_expr e pp_ws sz
+  | InRange(lo, hi, e) -> Format.fprintf fmt "%a ∈ [%a; %a]" pp_expr e Z.pp_print lo Z.pp_print hi
   | InBound(n,slice)  ->
     Format.fprintf fmt "in_bound: %a (length %i U8)"      
       pp_arr_slice slice n
@@ -343,6 +345,8 @@ let safe_opn safe opn es =
       match c with
       | Wsize.NotZero(sz, i) ->
         [ NotZero(sz, List.nth es (Conv.int_of_nat i))]
+      | Wsize.InRange(sz, lo, hi, n) ->
+         [ InRange(Conv.z_of_cz lo, Conv.z_of_cz hi, Papp1 (Oint_of_word sz, List.nth es (Conv.int_of_nat n)))]
       | Wsize.AllInit(ws, p, i) -> 
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
@@ -636,6 +640,17 @@ end = struct
           | None -> false
           | Some c -> 
             AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
+
+    | InRange(lo, hi, e) ->
+       begin
+         let out_of_range =
+           Papp2(Oor,
+                 Papp2 (Olt E.Cmp_int, e, Pconst lo),
+                 Papp2 (Olt E.Cmp_int, Pconst hi, e)) in
+         let s = state.abs in
+         match AbsExpr.bexpr_to_btcons out_of_range s with
+         | None -> false
+         | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons s c) end
 
     | NotZero (ws,e) ->
       (* We check that e is never 0 *)
