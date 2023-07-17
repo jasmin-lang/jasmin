@@ -167,9 +167,11 @@ def gen_two_arg_instrs():
             if (op == "ADCX" or op == "ADOX") and (size == 8 or size == 16):
                 continue
 
-            for _ in range(1):
+            for num in range(2):
                 reg1 = get_usable_reg(regs_list)
                 reg2 = get_usable_reg(regs_list)
+                if num == 1:
+                    reg2 = reg1             # uses the same register as both operands
                 folder_name = op + size_variations[size][0] + "_" + reg1 + "_" + reg2
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
                 if mv_to_folder in test_folders:
@@ -202,10 +204,20 @@ def gen_three_arg_instrs():
             if size == 8 or size == 16:
                 continue
 
-            for _ in range(1):
+            for num in range(5):
                 reg1 = get_usable_reg(regs_list)
                 reg2 = get_usable_reg(regs_list)
                 reg3 = get_usable_reg(regs_list)
+                #create some variations
+                if num == 1:
+                    reg2 = reg1
+                if num == 2:
+                    reg3 = reg1
+                if num == 3:
+                    reg3 = reg2
+                if num == 4:
+                    reg2 = reg1
+                    reg3 = reg1
                 folder_name = op + size_variations[size][0] + "_" + reg1 + "_" + reg2 + "_" + reg3
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
                 if mv_to_folder in test_folders:
