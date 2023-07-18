@@ -27,6 +27,10 @@
 
 ## Bug fixes
 
+- Fix semantics of the `IMUL`, `IMULr`, and `IMULri` instructions
+  ([PR #528](https://github.com/jasmin-lang/jasmin/pull/528);
+  fixes [#524](https://github.com/jasmin-lang/jasmin/issues/524)).
+
 - Fix semantics of the `SHLD_16`, `SHRD_16`, `VPSLLV`, and `VPSRLV` instructions
   ([PR #520](https://github.com/jasmin-lang/jasmin/pull/520)).
 

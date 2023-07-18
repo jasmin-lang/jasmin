@@ -405,7 +405,7 @@ Definition x86_MUL sz (v1 v2: word sz) : ex_tpl (b5w2_ty sz) :=
 
 Definition x86_IMUL_overflow sz (hi lo: word sz) : bool :=
   let ov := wdwords hi lo in
-  (ov <? -wbase sz)%Z || (ov >? wbase sz - 1)%Z.
+  (ov <? wmin_signed sz)%Z || (ov >? wmax_signed sz)%Z.
 
 Definition x86_IMUL sz (v1 v2: word sz) : ex_tpl (b5w2_ty sz) :=
   Let _  := check_size_16_64 sz in
