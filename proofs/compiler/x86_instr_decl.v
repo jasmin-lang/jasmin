@@ -71,7 +71,6 @@ Variant x86_op : Type :=
 | SAR    of wsize    (*   signed / right *)
 | SHLD   of wsize    (* unsigned (double) / left *)
 | SHRD   of wsize    (* unsigned (double) / right *)
-| MULX    of wsize     (* mul unsigned, doesn't affect arithmetic flags *)
 | MULX_lo_hi of wsize  (* mul unsigned, doesn't affect arithmetic flags *)
 | ADCX    of wsize  (* add with carry flag, only writes carry flag *)
 | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
@@ -465,14 +464,10 @@ Definition x86_ADCX sz (v1 v2: word sz) (c:bool) : ex_tpl (bw_ty sz) :=
   let (c,w) := waddcarry v1 v2 c in
   ok (Some c, w).
 
-Definition x86_MULX sz (v1 v2: word sz) : ex_tpl (w2_ty sz sz) :=
-  Let _ := check_size_32_64 sz in
-  ok (wumul v1 v2).
-
 Definition x86_MULX_lo_hi sz (v1 v2: word sz) : ex_tpl (w2_ty sz sz) :=
   Let _ := check_size_32_64 sz in
-  let p := wumul v1 v2 in
-  ok (p.2, p.1).
+  let '(hi,lo) := wumul v1 v2 in
+  ok (lo, hi).
 
 Definition sub_borrow sz (x y c: Z) : word sz :=
   wrepr sz (x - y - c).
@@ -1360,15 +1355,6 @@ Definition Ox86_ADOX_instr :=
   mk_instr_w2b_bw "ADOX" x86_ADCX OF check_adcx (prim_32_64 ADOX) (pp_iname "adox").
 
 Definition check_mulx := [:: [::r;r;rm true]].
-Definition Ox86_MULX_instr :=
-  let name := "MULX"%string in
-   ((fun (sz:wsize) =>
-     mk_instr (pp_sz name sz) (w2_ty sz sz) (w2_ty sz sz)
-         [::R RDX; E 2] [:: E 0; E 1] (* hi, lo *) (reg_msb_flag sz)
-         (@x86_MULX sz) check_mulx 3 [::] (pp_iname "mulx" sz)),
-    (name, prim_32_64 MULX)).
-
-
 Definition Ox86_MULX_lo_hi_instr :=
   let name := "MULX_lo_hi"%string in
    ((fun (sz:wsize) =>
@@ -1934,7 +1920,6 @@ Definition x86_instr_desc o : instr_desc_t :=
   | ADC sz             => Ox86_ADC_instr.1 sz
   | ADCX sz            => Ox86_ADCX_instr.1 sz
   | ADOX sz            => Ox86_ADOX_instr.1 sz
-  | MULX sz            => Ox86_MULX_instr.1 sz
   | MULX_lo_hi sz      => Ox86_MULX_lo_hi_instr.1 sz
   | SBB sz             => Ox86_SBB_instr.1 sz
   | NEG sz             => Ox86_NEG_instr.1 sz
@@ -2072,7 +2057,6 @@ Definition x86_prim_string :=
    Ox86_ADC_instr.2;
    Ox86_ADCX_instr.2;
    Ox86_ADOX_instr.2;
-   Ox86_MULX_instr.2;
    Ox86_MULX_lo_hi_instr.2;
    Ox86_SBB_instr.2;
    Ox86_NEG_instr.2;

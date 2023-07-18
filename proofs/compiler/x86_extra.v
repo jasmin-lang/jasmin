@@ -53,10 +53,15 @@ Variant x86_extra_op : Type :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
 | Ox86MOVZX32
+| Ox86MULX  of wsize
+| Ox86MULX_hi of wsize
+
 | Ox86SLHinit
 | Ox86SLHupdate
 | Ox86SLHmove
-| Ox86SLHprotect of wsize.
+| Ox86SLHprotect of wsize
+
+.
 
 Scheme Equality for x86_extra_op.
 
@@ -104,6 +109,30 @@ Definition Ox86MOVZX32_instr :=
            [:: sword64] [:: E 0] 
            (λ x : u32, ok (zero_extend U64 x)) 
            [::].
+
+Definition x86_MULX sz (v1 v2: word sz) : ex_tpl (w2_ty sz sz) :=
+  Let _ := check_size_32_64 sz in
+  ok (wumul v1 v2).
+
+Definition Ox86MULX_instr sz :=
+   let name := "MULX"%string in
+   mk_instr_desc (pp_sz name sz)
+        (w2_ty sz sz) [::ADImplicit (to_var RDX); E 2]
+        (w2_ty sz sz) [:: E 0; E 1] (* hi, lo *)
+        (@x86_MULX sz) [::].
+
+Definition x86_MULX_hi sz (v1 v2: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_32_64 sz in
+  let '(hi,lo) := wumul v1 v2 in
+  ok hi.
+
+Definition Ox86MULX_hi_instr sz :=
+   let name := "MULX_hi"%string in
+   mk_instr_desc (pp_sz name sz)
+        (w2_ty sz sz) [::ADImplicit (to_var RDX); E 1]
+        (w_ty sz) [:: E 0] 
+        (@x86_MULX_hi sz) [::].
+
 
 Definition Ox86SLHinit_str := append "Ox86_" SLHinit_str.
 Definition Ox86SLHinit_instr :=
@@ -176,6 +205,9 @@ Definition get_instr_desc o :=
   | Oset0 ws         => Oset0_instr ws
   | Oconcat128       => Oconcat128_instr
   | Ox86MOVZX32      => Ox86MOVZX32_instr
+  | Ox86MULX ws      => Ox86MULX_instr ws
+  | Ox86MULX_hi ws   => Ox86MULX_hi_instr ws
+
   | Ox86SLHinit       => Ox86SLHinit_instr
   | Ox86SLHupdate     => Ox86SLHupdate_instr
   | Ox86SLHmove       => Ox86SLHmove_instr
@@ -183,10 +215,11 @@ Definition get_instr_desc o :=
   end.
 
 Definition prim_string :=
-  [::
-    ("set0"%string, primP Oset0);
-    ("concat_2u128"%string, primM Oconcat128)
-    (* Ox86MOVZX32 is ignored on purpose *)
+  [:: ("set0"%string, primP Oset0)
+    ; ("concat_2u128"%string, primM Oconcat128)
+      (* Ox86MOVZX32 is ignored on purpose *)
+    ; ("MULX"%string, prim_32_64 Ox86MULX)
+    ; ("MULX_hi"%string, prim_32_64 Ox86MULX_hi) 
     (* SLH operators are ignored on purpose. *)
   ].
 
@@ -266,11 +299,29 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * re
     ok [:: outx ::= (MOV U32) inx ]
   | Oconcat128 =>
     Let inx :=
-        match inx with
-        | [:: h; Rexpr (Fvar _) as l] => ok [:: l; h; re8_1]
-        |  _ => Error (E.error ii "Oconcat: assert false")
-        end in
+      match inx with
+      | [:: h; Rexpr (Fvar _) as l] => ok [:: l; h; re8_1]
+      |  _ => Error (E.error ii "Oconcat: assert false")
+      end in
     ok [:: outx ::= VINSERTI128 inx ]
+  | Ox86MULX sz => 
+    Let outx := 
+      match outx with 
+      | [:: LLvar hi; LLvar lo] => 
+          Let _ := assert (v_var lo != v_var hi) (E.error ii "Ox86MULX: lo = hi") in
+          ok [:: LLvar lo; LLvar hi]
+      | _ => Error (E.error ii "Ox86MULX: assert false")
+      end in
+    ok [:: outx ::= (MULX_lo_hi sz) inx]
+
+  | Ox86MULX_hi sz => 
+    Let outx := 
+      match outx with 
+      | [:: hi] => ok [::hi; hi]
+      | _ => Error (E.error ii "Ox86MULX_hi: assert false")
+      end in
+    ok [:: outx ::= (MULX_lo_hi sz) inx]
+
   | Ox86SLHinit => assemble_slh_init outx
   | Ox86SLHupdate => assemble_slh_update ii outx inx
   | Ox86SLHmove => ok [:: outx ::= (MOV Uptr) inx ]

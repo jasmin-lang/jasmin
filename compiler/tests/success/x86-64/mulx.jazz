@@ -31,6 +31,15 @@ export fn test_lo_hi (reg u64 x, reg u64 y) -> reg u64 {
    
 }
 
+export fn test_hi (reg u64 x, reg u64 y) -> reg u64 {
+   reg u64 hi, lo, z1, z2;
+   x = x;
+   hi = #MULX_hi(x, y);
+   z1 = hi << 1;
+   return z1;
+   
+}
+
 /* success, but mulx still use 2 differents registers for destination */
 export fn test_lo_hi_ (reg u64 x, reg u64 y) -> reg u64 {
    reg u64 hi, lo, z1, z2;
