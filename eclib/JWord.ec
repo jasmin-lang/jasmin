@@ -1510,7 +1510,7 @@ op MUL_XX (v1 v2: t) =
 
 op IMUL_overflow (hi lo: t) : bool =
   let ov = wdwords hi lo in
-  (ov < -modulus) || (modulus - 1 < ov).
+  (ov < min_sint) || (max_sint < ov).
 
 op wmulhs (v1 v2: t) = 
   of_int (to_sint v1 * to_sint v2 %/ modulus).
