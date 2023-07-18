@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
-Require Import sem.
+Require Import psem_defs.
 
 (*---------------- Check on subtyping -------------------------------*)
 (* returns true in case t is subtype of te *)
