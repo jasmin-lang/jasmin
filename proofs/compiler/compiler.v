@@ -234,6 +234,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
   let pv := map_prog_name (refresh_instr_info cparams) pv in
   Let _ := check_uprog (wsw:= withsubword) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  let pv := const_prop_prog pv in
   Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
   let p := cparams.(print_uprog) DeadCode_Renaming pv in
   ok p.

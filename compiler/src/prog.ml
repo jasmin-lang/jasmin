@@ -396,7 +396,7 @@ let is_stack_var v =
   is_stack_kind v.v_kind 
 
 let is_reg_arr v =
-  is_reg_direct_kind v.v_kind && is_ty_arr v.v_ty
+  (is_reg_direct_kind v.v_kind || v.v_kind = Inline) && is_ty_arr v.v_ty
 
 let is_stack_array x =
   let x = L.unloc x in

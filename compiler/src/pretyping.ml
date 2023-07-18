@@ -1656,7 +1656,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let v = flv ety in
       let tg =
         P.(match v with
-            | Lvar v -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
+            | (Lvar v | Laset (_, _, v, _)) -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
             | _ -> AT_none) in
       env, [mk_i (cassgn_for v tg ety e)]
         

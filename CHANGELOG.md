@@ -45,6 +45,10 @@
 
 ## Other changes
 
+- Better support for inline arrays
+  ([PR #530](https://github.com/jasmin-lang/jasmin/pull/530);
+  fixes [#529](https://github.com/jasmin-lang/jasmin/issues/529)).
+
 - Various improvements related to ARMv7
   ([PR #476](https://github.com/jasmin-lang/jasmin/pull/476),
    [PR #477](https://github.com/jasmin-lang/jasmin/pull/477),

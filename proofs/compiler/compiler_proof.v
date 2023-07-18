@@ -147,6 +147,10 @@ Proof.
   - move=> vr' Hvr'.
     apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pa va_refl).
     exact: Hvr'.
+  apply: compose_pass_uincl.
+  - move=> vr' Hvr'.
+    apply: (const_prop_callP _ va_refl).
+    exact: Hvr'.
   apply: compose_pass_uincl;
     first by move => vr';
              apply: (alloc_call_uprogP (sip := sip_of_asm_e) ok_p').

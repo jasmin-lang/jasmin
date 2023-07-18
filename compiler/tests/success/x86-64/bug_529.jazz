@@ -1,0 +1,8 @@
+export
+fn bug_529() -> reg u32 {
+  inline u32[1] t;
+  reg u32 r;
+  t[0] = 0;
+  r = t[0];
+  return r;
+}
