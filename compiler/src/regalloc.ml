@@ -502,11 +502,13 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
      else
        let pv = Printer.pp_var ~debug:true in
        let regs = reverse_classes nv vars in
-       hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to conflicting register %a { %a }"
+       let other = IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements in
+       hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to register %a due to architectural constaints; this register already holds conflicting variable%s: %a"
          pv x_
          (Printer.pp_var ~debug:false) r
+         (match other with [ _ ] -> "" | _ -> "s")
          (pp_list "; " pv)
-         (IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements)
+         other
 
 type reg_oracle_t = {
     ro_to_save: var list;
