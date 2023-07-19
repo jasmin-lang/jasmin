@@ -52,7 +52,6 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; toS_rx :> ToString (sword reg_size) regx
   ; toS_x :> ToString (sword xreg_size) xreg
   ; toS_f :> ToString sbool rflag
-  ; toS_c :> ToString sbool cond
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
   ; ad_fcp :> FlagCombinationParams
@@ -568,7 +567,7 @@ Variant asm_typed_reg :=
   | ABReg of rflag_t.
 Notation asm_typed_regs := (seq asm_typed_reg).
 
-Definition asm_typed_reg_beq r1 r2 :=
+Definition asm_typed_reg_beq r1 r2 := 
   match r1, r2 with
   | ARReg r1, ARReg r2 => r1 == r2 ::>
   | ARegX r1, ARegX r2 => r1 == r2 ::>
@@ -603,46 +602,46 @@ Record asm_prog : Type :=
 (* -------------------------------------------------------------------- *)
 (* Calling Convention                                                   *)
 
-Definition is_ABReg r :=
+Definition is_ABReg r := 
   match r with
   | ABReg _ => true
   | _ => false
   end.
 
-Class calling_convention :=
+Class calling_convention := 
   { callee_saved   : seq asm_typed_reg
   ; callee_saved_not_bool : all (fun r => ~~is_ABReg r) callee_saved
   ; call_reg_args  : seq reg_t
   ; call_xreg_args : seq xreg_t
-  ; call_reg_ret   : seq reg_t
+  ; call_reg_ret   : seq reg_t 
   ; call_xreg_ret  : seq xreg_t
   ; call_reg_ret_uniq : uniq (T:= @ceqT_eqType _ _) call_reg_ret
   }.
 
-Definition get_ARReg (a:asm_typed_reg) :=
+Definition get_ARReg (a:asm_typed_reg) := 
   match a with
   | ARReg r => Some r
   | _ => None
   end.
 
-Definition get_ARegX (a:asm_typed_reg) :=
+Definition get_ARegX (a:asm_typed_reg) := 
   match a with
   | ARegX r => Some r
   | _ => None
   end.
 
-Definition get_AXReg (a:asm_typed_reg) :=
+Definition get_AXReg (a:asm_typed_reg) := 
   match a with
   | AXReg r => Some r
   | _ => None
   end.
 
-Definition check_list {T} {eqc : eqTypeC T} (get : asm_typed_reg -> option T) (l:asm_typed_regs) (expected:seq T) :=
+Definition check_list {T} {eqc : eqTypeC T} (get : asm_typed_reg -> option T) (l:asm_typed_regs) (expected:seq T) := 
   let r := pmap get l in
   (r : seq (@ceqT_eqType T eqc)) == take (size r) expected.
 
 Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
-  implb fd.(asm_fd_export)
+  implb fd.(asm_fd_export) 
     [&& check_list get_ARReg fd.(asm_fd_arg) call_reg_args,
         check_list get_AXReg fd.(asm_fd_arg) call_xreg_args,
         check_list get_ARReg fd.(asm_fd_res) call_reg_ret &
