@@ -26,12 +26,12 @@
   ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517)).
 
 - Add the instruction `MULX_hi`,
-     `hi = #MULX(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
+     `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
   but no extra register is used for the low half of the result.
 	
 ## Bug fixes
 
-- Fix semantics of the `MULX` instructions
+- Fix semantics of the `MULX` instruction
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
   fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
 

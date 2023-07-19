@@ -123,8 +123,7 @@ Definition Ox86MULX_instr sz :=
 
 Definition x86_MULX_hi sz (v1 v2: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_32_64 sz in
-  let '(hi,lo) := wumul v1 v2 in
-  ok hi.
+  ok (wmulhu v1 v2). 
 
 Definition Ox86MULX_hi_instr sz :=
    let name := "MULX_hi"%string in
