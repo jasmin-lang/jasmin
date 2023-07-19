@@ -790,7 +790,7 @@ Proof.
        write_lexprs [:: LLvar lo; LLvar hi] [:: Vword whilo.2; Vword whilo.1] m =
        ok (with_vm m ((evm m).[lo <- Vword whilo.2]).[hi <- Vword whilo.1]).
     + by rewrite /= /set_var hdb1 htr1 hdb2 htr2 /= with_vm_idem.
-    have [s' {hw' hex hca hcd hidc} /=] := 
+    have [s' {hw' hex hca hcd hidc} /=] :=
       compile_asm_opn_aux eval_assemble_cond hargs hex hw' hca hcd hidc hlow.
     rewrite /eval_op /= => -> /= hlow'.
     exists s' => //; apply: lom_eqv_ext hlow' => /= z.
