@@ -466,7 +466,7 @@ Definition x86_ADCX sz (v1 v2: word sz) (c:bool) : ex_tpl (bw_ty sz) :=
 
 Definition x86_MULX_lo_hi sz (v1 v2: word sz) : ex_tpl (w2_ty sz sz) :=
   Let _ := check_size_32_64 sz in
-  let '(hi,lo) := wumul v1 v2 in
+  let: (hi, lo) := wumul v1 v2 in
   ok (lo, hi).
 
 Definition sub_borrow sz (x y c: Z) : word sz :=
