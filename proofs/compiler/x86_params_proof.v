@@ -812,7 +812,7 @@ Proof.
        write_lexprs [:: LLvar hi; LLvar hi] [:: Vword wlo; Vword whi] m =
        ok (with_vm m ((evm m).[hi <- Vword wlo]).[hi <- Vword whi]).
     + by rewrite /= /set_var hdb1 htr1 /=; move: htr1 => /=; case: vtype.
-    have [s' {hw' hex hca hcd hidc} /=] := 
+    have [s' {hw' hex hca hcd hidc} /=] :=
       compile_asm_opn_aux eval_assemble_cond hargs hex hw' hca hcd hidc hlow.
     rewrite /eval_op /= => -> /= hlow'.
     exists s' => //; apply: lom_eqv_ext hlow' => /= z.
