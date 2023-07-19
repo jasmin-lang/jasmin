@@ -307,9 +307,9 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * re
   | Ox86MULX sz => 
     Let outx := 
       match outx with 
-      | [:: LLvar hi; LLvar lo] => 
+      | [:: LLvar hi as h; LLvar lo as l ] => 
           Let _ := assert (v_var lo != v_var hi) (E.error ii "Ox86MULX: lo = hi") in
-          ok [:: LLvar lo; LLvar hi]
+          ok [:: l; h]
       | _ => Error (E.error ii "Ox86MULX: assert false")
       end in
     ok [:: outx ::= (MULX_lo_hi sz) inx]
