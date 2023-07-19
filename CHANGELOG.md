@@ -12,7 +12,9 @@
    [PR #514](https://github.com/jasmin-lang/jasmin/pull/514)).
 
 - Notation for string literals; there is no implicit zero terminator;
-  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517)).
+  escaping follows the lexical conventions of OCaml
+  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517),
+   [PR #532](https://github.com/jasmin-lang/jasmin/pull/532)).
 
 ## Bug fixes
 
