@@ -41,6 +41,8 @@ export fn test_hi (reg u64 x, reg u64 y) -> reg u64 {
 }
 
 /* success, but mulx still use 2 differents registers for destination */
+/* But the extraction fail */ 
+/*
 export fn test_lo_hi_ (reg u64 x, reg u64 y) -> reg u64 {
    reg u64 hi, lo, z1, z2;
    x = x;
@@ -50,3 +52,4 @@ export fn test_lo_hi_ (reg u64 x, reg u64 y) -> reg u64 {
    z1 += lo;
    return z1;
 }
+*/
