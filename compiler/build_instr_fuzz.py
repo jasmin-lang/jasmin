@@ -60,6 +60,10 @@ ops_two_args["XOR"]     = "xor"
 ops_two_args["POPCNT"]  = "popcnt"
 ops_two_args["CMP"]     = "cmp"
 ops_two_args["TEST"]    = "test"
+ops_two_args["MOV"]     = "mov"
+# ops_two_args["MOVSX"]   = "movsx"
+# ops_two_args["MOVZX"]   = "movzx"
+# ops_two_args["CMOVcc"]  = "cmov"
 
 ops_three_args                  = {}
 ops_three_args["ANDN"]          = "andn"
