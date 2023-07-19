@@ -30,9 +30,10 @@
   but the compiler do not needs an extra register for the "_".
 	
 ## Bug fixes
+
 - Fix semantics of the `MULX` instructions
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
-  fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525).
+  fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
 
 - Fix semantics of the `IMUL`, `IMULr`, and `IMULri` instructions
   ([PR #528](https://github.com/jasmin-lang/jasmin/pull/528);
