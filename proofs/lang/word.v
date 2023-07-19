@@ -382,14 +382,14 @@ Definition wsar sz (x: word sz) (n: Z) : word sz :=
   mkword sz (Z.shiftr (wsigned x) n).
 
 Definition wmulhu sz (x y: word sz) : word sz :=
-  wrepr sz ((wunsigned x * wunsigned y) / wbase sz).
+  wrepr sz (Z.shiftr (wunsigned x * wunsigned y) (wsize_bits sz)).
 
 Definition wmulhs sz (x y: word sz) : word sz :=
-  wrepr sz ((wsigned x * wsigned y) / wbase sz).
+  wrepr sz (Z.shiftr (wsigned x * wsigned y) (wsize_bits sz)).
 
 Lemma wmulhuE sz (x y: word sz) : wmulhu x y = wrepr sz (wunsigned x * wunsigned y ÷ wbase sz).
 Proof.
-    rewrite /wmulhu Zquot.Zquot_Zdiv_pos //.
+    rewrite /wmulhu Z.shiftr_div_pow2 // -?wbaseE Zquot.Zquot_Zdiv_pos //.
     apply: Z.mul_nonneg_nonneg; apply: (proj1 (wunsigned_range _)).
 Qed.
 
