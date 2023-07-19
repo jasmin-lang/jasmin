@@ -1,0 +1,25 @@
+inline
+fn test () -> reg u32[2] {
+  inline int i;
+  inline u32[2] t;
+  reg u32 x;
+  reg u32[2] z;
+
+  t[0] = 1;
+  t[1] = 2;
+
+  for i = 0 to 2 {
+    z[i] = t[i] + 1;
+  }
+
+  return z;
+}
+
+export
+fn main() -> reg u32 {
+  reg u32[2] t;
+  reg u32 r;
+  t = test();
+  r = t[0] ^ t[1];
+  return r;
+}

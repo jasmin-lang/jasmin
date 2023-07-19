@@ -1,3 +1,4 @@
+export
 fn foo (reg u64 x) -> reg u64 {
    stack u64[1] t;
    ArrayInit(t);

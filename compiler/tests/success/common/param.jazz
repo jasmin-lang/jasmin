@@ -1,0 +1,21 @@
+param int n = 4;
+
+inline
+fn f(reg u32[n] x) -> reg u32[n] {
+reg u32[n] y;
+inline int i;
+for i = 0 to n { y[i] = x[i]; }
+return y;
+}
+
+export
+fn main(reg u32 a) -> reg u32 {
+  reg u32[n] r;
+  inline int j;
+  for j = 0 to n { r[j] = a; }
+  r = f(r);
+  reg u32 f;
+  f = r[0];
+  for j = 1 to n { f ^= r[j]; }
+  return f;
+}

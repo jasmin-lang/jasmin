@@ -1,5 +1,5 @@
 require "file1.jazz"
-require "../arm-m4/file1.jazz"
+require "../common/file1.jazz"
 
 export fn main(reg u32 x y) -> reg u32 {
    reg u32 r1 r2;

@@ -1,0 +1,17 @@
+inline
+fn test() -> inline int
+{
+    inline int i j;
+    i = 0;
+    j = 1 << i;
+    return j;
+}
+
+export
+fn main() -> reg u32 {
+  reg u32 n;
+  inline int k;
+  k = test();
+  n = k;
+  return n;
+}

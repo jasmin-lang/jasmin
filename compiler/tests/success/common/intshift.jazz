@@ -1,0 +1,8 @@
+export fn test_int_shift(reg u32 x) -> reg u32 {
+  inline int i;
+  x = x;
+  for i = 0 to 4 {
+    x += 1 << i;
+  }
+  return x;
+}
