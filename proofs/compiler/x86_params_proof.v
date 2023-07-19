@@ -785,7 +785,7 @@ Proof.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) xs = ok [:: Vword whilo.2; Vword whilo.1].
     + rewrite /exec_sopn /sopn_sem /=.
       case: (xs) hwhilo => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // w1 -> w2 ->.
-      by rewrite /x86_MULX /x86_MULX_lo_hi; t_xrbindP => -> /= <- /=. 
+      by rewrite /x86_MULX /x86_MULX_lo_hi; t_xrbindP => -> /= <- /=.
     have hw' :
        write_lexprs [:: LLvar lo; LLvar hi] [:: Vword whilo.2; Vword whilo.1] m =
        ok (with_vm m ((evm m).[lo <- Vword whilo.2]).[hi <- Vword whilo.1]).
