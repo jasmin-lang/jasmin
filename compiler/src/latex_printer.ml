@@ -347,7 +347,11 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
   F.fprintf fmt eol
 
 let pp_string fmt s =
-  F.fprintf fmt "%S " (L.unloc s)
+  s |> L.unloc |> F.asprintf "%S" |> String.iter @@ function
+  | '\\' -> F.fprintf fmt "\\textbackslash{}"
+  | '\'' -> F.fprintf fmt "\\textquotesingle{}"
+  | '"' -> F.fprintf fmt "\\textquotedbl{}"
+  | c -> F.fprintf fmt "%c" c
 
 let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
   F.fprintf fmt "%a %a %a = %a;"
@@ -373,6 +377,9 @@ let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
     pp_pgexpr pgd_val;
   F.fprintf fmt eol
 
+let pp_path fmt s =
+  F.fprintf fmt "%S " (L.unloc s)
+
 let pp_pitem fmt pi =
   match L.unloc pi with
   | PFundef f -> pp_fundef fmt f
@@ -384,7 +391,7 @@ let pp_pitem fmt pi =
       Option.may (fun name ->
           F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
       F.fprintf fmt "%a%a " pp_from from kw "require";
-      List.iter (pp_string fmt) s;
+      List.iter (pp_path fmt) s;
       F.fprintf fmt eol
 
 let pp_prog fmt =

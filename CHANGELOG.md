@@ -24,7 +24,9 @@
   ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452)).
 
 - Notation for string literals; there is no implicit zero terminator;
-  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517)).
+  escaping follows the lexical conventions of OCaml
+  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517),
+   [PR #532](https://github.com/jasmin-lang/jasmin/pull/532)).
 
 - Add the instruction `MULX_hi`,
      `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
