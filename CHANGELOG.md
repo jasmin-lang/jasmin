@@ -25,9 +25,9 @@
 - Notation for string literals; there is no implicit zero terminator;
   ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517)).
 
-- Add the instruction MULX_hi,
-     hi = #MULX(x, y); is equivalent to (hi, _) = #MULX(x, y);
-  but the compiler do not needs an extra register for the "_".
+- Add the instruction `MULX_hi`,
+     `hi = #MULX(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
+  but no extra register is used for the low half of the result.
 	
 ## Bug fixes
 
