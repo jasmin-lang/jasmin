@@ -804,7 +804,7 @@ Proof.
     t_xrbindP => -[op' asm_args] hass <- hlow /=.
     assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
     case: xs hargs hwhi => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hargs w1 hv1 w2 hv2.
-    rewrite /x86_MULX_hi; t_xrbindP => hsz. 
+    rewrite /x86_MULX_hi; t_xrbindP => hsz.
     case heq :(wumul) => [whi' wlo] [?]; subst whi'.
     have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) [:: v1; v2] = ok [:: Vword wlo; Vword whi].
     + by rewrite /exec_sopn /sopn_sem /= hv1 hv2 /= /x86_MULX_lo_hi hsz heq.
