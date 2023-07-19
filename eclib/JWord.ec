@@ -1585,6 +1585,8 @@ op ADCX_XX (v1 v2: t) (c:bool) = addc v1 v2 c.
 op ADOX_XX (v1 v2: t) (c:bool) = addc v1 v2 c.
 
 op MULX_XX (v1 v2: t) = mulu v1 v2.
+op MULX_lo_hi_XX (v1 v2: t) = let (hi,lo) = mulu v1 v2 in (lo, hi).
+op MULX_hi_XX (v1 v2: t) = (mulu v1 v2).`1.
 
 op sub_borrow (x y c: int) : t =
   of_int (x - y - c).

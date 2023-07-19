@@ -1,0 +1,29 @@
+export fn test (reg u64 x, reg u64 y) -> reg u64 {
+   reg u64 hi, lo, z1, z2;
+   x = x;
+   (hi,lo) = #MULX(x, y);
+   z1 = hi << 1;
+   z1 += lo;
+   return z1;
+   
+}
+
+export fn test_lo_hi (reg u64 x, reg u64 y) -> reg u64 {
+   reg u64 hi, lo, z1, z2;
+   x = x;
+   (lo,hi) = #MULX_lo_hi(x, y);
+   z1 = hi << 1;
+   z1 += lo;
+   return z1;
+   
+}
+
+export fn test_hi (reg u64 x, reg u64 y) -> reg u64 {
+   reg u64 hi, lo, z1, z2;
+   x = x;
+   hi = #MULX_hi(x, y);
+   z1 = hi << 1;
+   return z1;
+   
+}
+

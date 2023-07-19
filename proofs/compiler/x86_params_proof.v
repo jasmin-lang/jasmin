@@ -775,6 +775,48 @@ Proof.
     apply: (lom_eqv_write_reg _ _ hlow).
     by right.
 
+  (* Ox86MULX *)
+  + move=> sz. rewrite /exec_sopn /sopn_sem /=.
+    case lvs => // -[] // hi [] // [] // lo [] //.
+    t_xrbindP => hargs whilo hwhilo <- /=.
+    t_xrbindP => _ _ /set_varP [hdb1 htr1 ->] <- _ _ /set_varP [hdb2 htr2 ->] <- <- _ hne <- <- /=.
+    t_xrbindP => -[op' asm_args] hass <- hlow /=.
+    assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
+    have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) xs = ok [:: Vword whilo.2; Vword whilo.1].
+    + rewrite /exec_sopn /sopn_sem /=.
+      case: (xs) hwhilo => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // w1 -> w2 ->.
+      by rewrite /x86_MULX /x86_MULX_lo_hi; t_xrbindP => -> /= <- /=.
+    have hw' :
+       write_lexprs [:: LLvar lo; LLvar hi] [:: Vword whilo.2; Vword whilo.1] m =
+       ok (with_vm m ((evm m).[lo <- Vword whilo.2]).[hi <- Vword whilo.1]).
+    + by rewrite /= /set_var hdb1 htr1 hdb2 htr2 /= with_vm_idem.
+    have [s' {hw' hex hca hcd hidc} /=] :=
+      compile_asm_opn_aux eval_assemble_cond hargs hex hw' hca hcd hidc hlow.
+    rewrite /eval_op /= => -> /= hlow'.
+    exists s' => //; apply: lom_eqv_ext hlow' => /= z.
+    by rewrite !Vm.setP; case eqP => [<- | //]; rewrite (negbTE hne).
+
+  (* Ox86MULX_hi *)
+  + move=> sz. rewrite /exec_sopn /sopn_sem /=.
+    case lvs => // -[] // hi [] //.
+    t_xrbindP => hargs whi hwhi <- /=.
+    t_xrbindP => _ _ /set_varP [hdb1 htr1 ->] <- <- _ <- <- /=.
+    t_xrbindP => -[op' asm_args] hass <- hlow /=.
+    assert (h1 := assemble_asm_opI hass); case: h1 => hca hcd hidc -> /= {hass}.
+    case: xs hargs hwhi => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hargs w1 hv1 w2 hv2.
+    rewrite /x86_MULX_hi; t_xrbindP => hsz hwhi; pose wlo := (wumul w1 w2).2.
+    have hex: exec_sopn (Oasm (BaseOp (None, MULX_lo_hi sz))) [:: v1; v2] = ok [:: Vword wlo; Vword whi].
+    + by rewrite /exec_sopn /sopn_sem /= hv1 hv2 /= /x86_MULX_lo_hi hsz /= -hwhi /wlo wmulhuE /wumul /=.
+    have hw' :
+       write_lexprs [:: LLvar hi; LLvar hi] [:: Vword wlo; Vword whi] m =
+       ok (with_vm m ((evm m).[hi <- Vword wlo]).[hi <- Vword whi]).
+    + by rewrite /= /set_var hdb1 htr1 /=; move: htr1 => /=; case: vtype.
+    have [s' {hw' hex hca hcd hidc} /=] :=
+      compile_asm_opn_aux eval_assemble_cond hargs hex hw' hca hcd hidc hlow.
+    rewrite /eval_op /= => -> /= hlow'.
+    exists s' => //; apply: lom_eqv_ext hlow' => /= z.
+    by rewrite !Vm.setP; case eqP.
+
   (* SLHinit *)
   + rewrite /exec_sopn /= /sopn_sem /assemble_slh_init /=; t_xrbindP.
     case: xs => // hargs _ [<-] <-.
