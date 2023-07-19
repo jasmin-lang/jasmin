@@ -59,11 +59,11 @@ ops_two_args["OR"]      = "or"
 ops_two_args["XOR"]     = "xor"
 ops_two_args["POPCNT"]  = "popcnt"
 
-ops_three_args          = {}
-ops_three_args["ANDN"]  = "andn"
-ops_three_args["PEXT"]  = "pext"
-ops_three_args["PDEP"]  = "pdep"
-ops_three_args["MULX"]  = "mulx"
+ops_three_args                  = {}
+ops_three_args["ANDN"]          = "andn"
+ops_three_args["PEXT"]          = "pext"
+ops_three_args["PDEP"]          = "pdep"
+ops_three_args["MULX_lo_hi"]    = "mulx"
 
 size_variations     = {}
 size_variations[8]  = ["_8", "b"]
