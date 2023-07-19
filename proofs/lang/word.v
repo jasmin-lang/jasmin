@@ -746,8 +746,7 @@ Proof.
   { subst p; case: sz x y x_range y_range => x y;
     rewrite /wmin_signed /wmax_signed /=;
     nia. }
-  replace (2 ^ wsize_bits sz) with (wbase sz); last first.
-  - by case: (sz); vm_compute.
+  rewrite -wbaseE.
   have hi_range : wmin_signed sz <= p / wbase sz <= wmax_signed sz.
   { move: sz {x y x_range y_range} p p_range => sz p p_range.
     elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.
