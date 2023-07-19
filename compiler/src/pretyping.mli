@@ -85,3 +85,5 @@ val tt_file :
   Location.t option ->
   string ->
   ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env * Syntax.pprogram
+
+val tt_prim : 'a Sopn.asmOp -> Annotations.symbol Location.located -> 'b -> 'a * 'b
