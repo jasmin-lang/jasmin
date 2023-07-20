@@ -148,7 +148,7 @@ module Impl (A : Arch') = struct
   let flags_of_val l =
     List.map2 (fun f v -> (arch_decl.toS_f.to_string f, v)) arch_decl.toS_f._finC.cenum l
 
-let parse_and_exec op args reg regs regxs xregs flag flags =
+let parse_and_exec op args regs regxs xregs flags =
 (*  let module A =
     Arch_from_Core_arch'
       ((val match arch with
@@ -165,24 +165,16 @@ let parse_and_exec op args reg regs regxs xregs flag flags =
   | _ -> ()
   end; *)
 
-  if (reg <> [] && (regs <> [] || regxs <> [] || xregs <> [])) then (Format.eprintf "Options \"--reg\" and {\"--regs\",\"--regxs\",\"--xregs\"} must not be used at the same time.@."; exit 1);
-  if (flag <> [] && flags <> []) then (Format.eprintf "Options \"--flag\" and \"--flags\" must not be used at the same time.@."; exit 1);
-
   let reg_values =
-    if reg <> [] then List.map (fun (r, v) -> (J.Conv.cstring_of_string r, J.Conv.cz_of_z (Z.of_int64 v))) reg
-    else
       try
-        let l1 = if regs <> [] then regs_of_val regs else [] in
-        let l2 = if regxs <> [] then regxs_of_val regxs else [] in
-        let l3 = if xregs <> [] then xregs_of_val xregs else [] in
+        let l1 = regs_of_val regs in
+        let l2 = regxs_of_val regxs in
+        let l3 = xregs_of_val xregs in
         l1 @ l2 @ l3
       with Invalid_argument _ -> Format.eprintf "Not the right number of regs/regxs/xregs.@."; exit 1
   in
 
   let flag_values =
-    if flag <> [] then List.map (fun (f, v) -> (J.Conv.cstring_of_string f, v)) flag
-    else if flags = [] then []
-    else
       try
         flags_of_val flags
       with Invalid_argument _ -> Format.eprintf "Not the right number of flags.@."; exit 1
@@ -210,96 +202,37 @@ module A =
         ~use_set0:false J.Glob_options.Linux) let pp_instr = J.Ppasm.pp_instr "name" end)
 module ImplA = Impl(A)
 
-let parse_and_exec arch call_conv op args reg regs regxs xregs flag flags =
+let parse_and_exec arch call_conv op args regs regxs xregs flags =
   (* we need to sync with glob_options for [tt_prim] to work, this is ugly *)
   begin match arch with
   | CortexM -> J.Glob_options.target_arch := ARM_M4
   | _ -> ()
   end;
-  ImplA.parse_and_exec op args reg regs regxs xregs flag flags
-
-open Cmdliner
-
-let arch =
-  let alts = [ ("x86-64", Amd64); ("arm-m4", CortexM) ] in
-  let doc =
-    Format.asprintf "The target architecture (%s)" (Arg.doc_alts_enum alts)
-  in
-  let arch = Arg.enum alts in
-  Arg.(value & opt arch Amd64 & info [ "arch" ] ~doc)
-
-let call_conv =
-  let alts =
-    [ ("linux", J.Glob_options.Linux); ("windows", J.Glob_options.Windows) ]
-  in
-  let doc = Format.asprintf "Undocumented (%s)" (Arg.doc_alts_enum alts) in
-  let call_conv = Arg.enum alts in
-  Arg.(
-    value
-    & opt call_conv J.Glob_options.Linux
-    & info [ "call-conv"; "cc" ] ~docv:"OS" ~doc)
-
-let op =
-  Arg.(required & pos 0 (some string) None & info [] ~docv:"OP")
-let args =
-  Arg.(value & pos_right 0 string [] & info [] ~docv:"ARG")
-
-let reg =
-  Arg.(value & opt_all (t2 ~sep:'=' string int) [] & info ["reg"] ~docv:"REG")
-
-let regs =
-  Arg.(value & opt (list int) [] & info ["regs"] ~docv:"REGS")
-
-let regxs =
-  Arg.(value & opt (list int) [] & info ["regxs"] ~docv:"REGXS")
-
-let xregs =
-  Arg.(value & opt (list int) [] & info ["xregs"] ~docv:"XREGS")
-
-let flag_arg =
-  let open J.Arch_decl in
-  let parse s =
-    if s = "1" then Ok (Def true)
-    else if s = "0" then Ok (Def false)
-    else if s = "x" then Ok Undef
-    else Error (`Msg "unable to parse flag")
-  in
-  let print ppf f =
-    match f with
-    | Def b -> Format.fprintf ppf "%b" b
-    | Undef -> Format.fprintf ppf "undef"
-  in
-  Cmdliner.Arg.conv ~docv:"FLAG" (parse, print)
-
-let flag =
-  Arg.(value & opt_all (t2 ~sep:'=' string flag_arg) [] & info ["flag"] ~docv:"FLAG")
-
-let flags =
-  Arg.(value & opt (list flag_arg) [] & info ["flags"] ~docv:"FLAGS")
+  ImplA.parse_and_exec op args regs regxs xregs flags
 
 open Ctypes
 open Foreign
 
 type asm_state
 let asm_state : asm_state structure typ = structure "asm_state"
-let rax = field asm_state "rax" int64_t
-let rcx = field asm_state "rcx" int64_t
-let rdx = field asm_state "rdx" int64_t
-let rbx = field asm_state "rbx" int64_t
-let rsp = field asm_state "rsp" int64_t
-let rbp = field asm_state "rbp" int64_t
-let rsi = field asm_state "rsi" int64_t
-let rdi = field asm_state "rdi" int64_t
-let r8 = field asm_state "r8" int64_t
-let r9 = field asm_state "r9" int64_t
-let r10 = field asm_state "r10" int64_t
-let r11 = field asm_state "r11" int64_t
-let r12 = field asm_state "r12" int64_t
-let r13 = field asm_state "r13" int64_t
-let r14 = field asm_state "r14" int64_t
-let r15 = field asm_state "r15" int64_t
-let rflags = field asm_state "rflags" int64_t
-let () = seal asm_state
+let rax     = field asm_state "rax" int64_t
+let rcx     = field asm_state "rcx" int64_t
+let rdx     = field asm_state "rdx" int64_t
+let rbx     = field asm_state "rbx" int64_t
+let rsp     = field asm_state "rsp" int64_t
+let rbp     = field asm_state "rbp" int64_t
+let rsi     = field asm_state "rsi" int64_t
+let rdi     = field asm_state "rdi" int64_t
+let r8      = field asm_state "r8" int64_t
+let r9      = field asm_state "r9" int64_t
+let r10     = field asm_state "r10" int64_t
+let r11     = field asm_state "r11" int64_t
+let r12     = field asm_state "r12" int64_t
+let r13     = field asm_state "r13" int64_t
+let r14     = field asm_state "r14" int64_t
+let r15     = field asm_state "r15" int64_t
+let rflags  = field asm_state "rflags" int64_t
+let ()      = seal asm_state
 
 (* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
 let set_execute_get = foreign "set_execute_get_wrapper" (ptr asm_state @-> returning void)
@@ -330,12 +263,10 @@ let is_correct asm_arr =
   let check state asm_arr  =
     let arch = Amd64 in
     let call_conv = !(J.Glob_options.call_conv) in
-    let reg = [] in
     let regs = [asm_arr.(0); asm_arr.(1); asm_arr.(2); asm_arr.(3); asm_arr.(4); asm_arr.(5); asm_arr.(6); asm_arr.(7);
                 asm_arr.(8); asm_arr.(9); asm_arr.(10); asm_arr.(11); asm_arr.(12); asm_arr.(13); asm_arr.(14); asm_arr.(15)] in
     let regxs = [0L;0L;0L;0L;0L;0L;0L;0L] in
     let xregs = [0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L;0L] in
-    let flag = [] in
     let flags_ref =
       let open A in
       let num = Z.of_int64_unsigned(asm_arr.(16)) in
@@ -351,7 +282,7 @@ let is_correct asm_arr =
     let flags = !flags_ref in
 
     set_execute_get (addr state);
-    let new_state = parse_and_exec arch call_conv !op_ref !args_ref reg regs regxs xregs flag flags in
+    let new_state = parse_and_exec arch call_conv !op_ref !args_ref regs regxs xregs flags in
     (* TODO: do we need jregs? *)
     let jregs: A.reg array = [|RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15|] in
     let jasm =
@@ -377,7 +308,7 @@ let is_correct asm_arr =
     done;
 
     (* Checking the 5 flags  *)
-    let my_rflagv r =
+    let j_rflagv_encoding r =
       let open A in
       match r with
       | J.Arch_decl.Def b -> if b = true then 1 else 0
@@ -387,7 +318,7 @@ let is_correct asm_arr =
     let jflags_vals =
       let temp = Array.make 5 2 in
       for i = 0 to 4 do
-        temp.(i) <- my_rflagv (J.Exec.read_flag J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jflags.(i))
+        temp.(i) <- j_rflagv_encoding (J.Exec.read_flag J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jflags.(i))
       done;
       temp
     in
@@ -418,28 +349,29 @@ let is_correct asm_arr =
   Crowbar.check(check state asm_arr)
 
 let () =
-  let my_arg_array = Stdlib.Arg.read_arg "op_args.txt" in
+  let op_args_file = "op_args.txt" in 
+  let my_arg_array = Stdlib.Arg.read_arg op_args_file in
   op_ref := my_arg_array.(0);                               (* ADD *)
   if Array.length my_arg_array > 1 then
     args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
 
   let asm_arr =
-    let crax = Crowbar.int64 in
-    let crcx = Crowbar.int64 in
-    let crdx = Crowbar.int64 in
-    let crbx = Crowbar.int64 in
-    let crsp = Crowbar.int64 in
-    let crbp = Crowbar.int64 in
-    let crsi = Crowbar.int64 in
-    let crdi = Crowbar.int64 in
-    let cr8 = Crowbar.int64 in
-    let cr9 = Crowbar.int64 in
-    let cr10 = Crowbar.int64 in
-    let cr11 = Crowbar.int64 in
-    let cr12 = Crowbar.int64 in
-    let cr13 = Crowbar.int64 in
-    let cr14 = Crowbar.int64 in
-    let cr15 = Crowbar.int64 in
+    let crax    = Crowbar.int64 in
+    let crcx    = Crowbar.int64 in
+    let crdx    = Crowbar.int64 in
+    let crbx    = Crowbar.int64 in
+    let crsp    = Crowbar.int64 in
+    let crbp    = Crowbar.int64 in
+    let crsi    = Crowbar.int64 in
+    let crdi    = Crowbar.int64 in
+    let cr8     = Crowbar.int64 in
+    let cr9     = Crowbar.int64 in
+    let cr10    = Crowbar.int64 in
+    let cr11    = Crowbar.int64 in
+    let cr12    = Crowbar.int64 in
+    let cr13    = Crowbar.int64 in
+    let cr14    = Crowbar.int64 in
+    let cr15    = Crowbar.int64 in
     let crflags = Crowbar.int64 in
 
     Crowbar.map [crax; crcx; crdx; crbx; crsp; crbp; crsi; crdi;cr8; cr9; cr10; cr11; cr12; cr13; cr14; cr15; crflags] (

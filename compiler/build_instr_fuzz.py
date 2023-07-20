@@ -340,8 +340,8 @@ def gen_cmovcc_instrs():
 
 if __name__ == "__main__":
     gen_zero_arg_instrs()
-    # gen_one_arg_instrs()
-    # gen_two_arg_instrs()
-    # gen_three_arg_instrs()
-    # gen_cmovcc_instrs()
-    # gen_setcc_instrs()
+    gen_one_arg_instrs()
+    gen_two_arg_instrs()
+    gen_three_arg_instrs()
+    gen_cmovcc_instrs()
+    gen_setcc_instrs()
