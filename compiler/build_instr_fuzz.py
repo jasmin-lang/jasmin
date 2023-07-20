@@ -28,6 +28,24 @@ regs["R13"] = {8: "%r13b", 16: "%r13w", 32 : "%r13d", 64 : "%r13"}
 regs["R14"] = {8: "%r14b", 16: "%r14w", 32 : "%r14d", 64 : "%r14"}
 regs["R15"] = {8: "%r15b", 16: "%r15w", 32 : "%r15d", 64 : "%r15"}
 
+x86_conds           = {}
+x86_conds["O_ct"]   = "o"
+x86_conds["NO_ct"]  = "no"
+x86_conds["B_ct"]   = "b"
+x86_conds["NB_ct"]  = "nb"
+x86_conds["E_ct"]   = "e"
+x86_conds["NE_ct"]  = "ne"
+x86_conds["BE_ct"]  = "be"
+x86_conds["NBE_ct"] = "nbe"
+x86_conds["S_ct"]   = "s"
+x86_conds["NS_ct"]  = "ns"
+x86_conds["P_ct"]   = "p"
+x86_conds["NP_ct"]  = "np"
+x86_conds["L_ct"]   = "l"
+x86_conds["NL_ct"]  = "nl"
+x86_conds["LE_ct"]  = "le"
+x86_conds["NLE_ct"] = "nle"
+
 ops_zero_arg            = {}
 ops_zero_arg["CQO"]     = "cqo"
 ops_zero_arg["LFENCE"]  = "lfence"
@@ -248,8 +266,47 @@ def gen_three_arg_instrs():
                 os.system(make_build_cmd)
                 os.system(mv_to_folder)
 
+def gen_cmovcc_instrs():
+    cmov_map = {"CMOVcc" : "cmov"}
+    op = "CMOVcc"
+    for size in size_variations:
+        if size == 8:
+            continue
+
+        for cond in x86_conds:
+            for num in range(2):
+                reg1 = get_usable_reg(regs_list)
+                reg2 = get_usable_reg(regs_list)
+                if num == 1:
+                    reg2 = reg1             # uses the same register as both operands
+                folder_name = op + size_variations[size][0] + "_" + cond + "_" + reg1 + "_" + reg2
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                jazz_instr = "{}{}\t{} {} {}".format(op, size_variations[size][0], cond, reg1, reg2)
+                print(jazz_instr)
+                asm_instr = "{}{}\t{}, {}".format(cmov_map[op], x86_conds[cond], regs[reg2][size], regs[reg1][size])
+                print(asm_instr)
+
+                # TODO: improve this later
+                with open(my_asm_orig, "r") as reader:
+                    with open(my_asm_final, "w") as writer:
+                        line = reader.read()
+                        final_line = line.replace("replace_me", asm_instr)
+                        writer.write(final_line)
+                with open(op_args_file, "w") as writer:
+                    j_op = "{}{}".format(op, size_variations[size][0])
+                    j_args = cond + " " + reg1 + " " + reg2
+                    writer.write(j_op + "\n" + j_args)
+                os.system(make_clean_cmd)
+                os.system(make_build_cmd)
+                os.system(mv_to_folder)
+
+
 if __name__ == "__main__":
-    gen_zero_arg_instrs()
-    gen_one_arg_instrs()
-    gen_two_arg_instrs()
-    gen_three_arg_instrs()
+    # gen_zero_arg_instrs()
+    # gen_one_arg_instrs()
+    # gen_two_arg_instrs()
+    # gen_three_arg_instrs()
+    gen_cmovcc_instrs()
