@@ -81,7 +81,6 @@ ops_two_args["TEST"]    = "test"
 ops_two_args["MOV"]     = "mov"
 # ops_two_args["MOVSX"]   = "movsx"
 # ops_two_args["MOVZX"]   = "movzx"
-# ops_two_args["CMOVcc"]  = "cmov"
 
 ops_three_args                  = {}
 ops_three_args["ANDN"]          = "andn"
@@ -266,6 +265,38 @@ def gen_three_arg_instrs():
                 os.system(make_build_cmd)
                 os.system(mv_to_folder)
 
+def gen_setcc_instrs():
+    set_map = {"SETcc" : "set"}
+    op = "SETcc"
+    size = 8
+    for cond in x86_conds:
+        for _ in range(2):
+            reg1 = get_usable_reg(regs_list)
+           # uses the same register as both operands
+            folder_name = op + size_variations[size][0] + "_" + cond + "_" + reg1
+            mv_to_folder = move_build_to_out_dir + "/" + folder_name
+            if mv_to_folder in test_folders:
+                continue
+            test_folders.add(mv_to_folder)
+            jazz_instr = "{}{}\t{} {}".format(op, size_variations[size][0], cond, reg1)
+            print(jazz_instr)
+            asm_instr = "{}{}\t{}".format(set_map[op], x86_conds[cond], regs[reg1][size])
+            print(asm_instr)
+
+            # TODO: improve this later
+            with open(my_asm_orig, "r") as reader:
+                with open(my_asm_final, "w") as writer:
+                    line = reader.read()
+                    final_line = line.replace("replace_me", asm_instr)
+                    writer.write(final_line)
+            with open(op_args_file, "w") as writer:
+                j_op = "{}".format(op)
+                j_args = cond + " " + reg1
+                writer.write(j_op + "\n" + j_args)
+            os.system(make_clean_cmd)
+            os.system(make_build_cmd)
+            os.system(mv_to_folder)
+
 def gen_cmovcc_instrs():
     cmov_map = {"CMOVcc" : "cmov"}
     op = "CMOVcc"
@@ -309,4 +340,5 @@ if __name__ == "__main__":
     # gen_one_arg_instrs()
     # gen_two_arg_instrs()
     # gen_three_arg_instrs()
-    gen_cmovcc_instrs()
+    # gen_cmovcc_instrs()
+    gen_setcc_instrs()
