@@ -1239,7 +1239,7 @@ let default_suffix =
   | x :: _ -> x
   | [] -> Sopn.PVp U8
 
-let tt_prim asmOp id args =
+let tt_prim asmOp id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   let c =
@@ -1261,7 +1261,7 @@ let tt_prim asmOp id args =
         oget
           ~exn:(tyerror ~loc (UnknownPrim s))
           (Tt_arm_m4.tt_prim (prim_string asmOp) name sz)
-  in (c, args)
+  in c
 
 let prim_of_op exn loc o =
   (* TODO: use context typing information when the operator is not annotated *)
@@ -1625,7 +1625,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p, args = tt_prim asmOp f args in
+      let p = tt_prim asmOp f in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1636,7 +1636,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let ws, s = ct in
       let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
-      let p, args = tt_prim asmOp f args in
+      let p = tt_prim asmOp f in
       let id = Sopn.asm_op_instr asmOp p in
       let p = cast_opn ~loc:(L.loc pi) id ws p in
       let tlvs, tes, arguments = prim_sig asmOp p in
