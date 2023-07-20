@@ -51,6 +51,8 @@ ops_zero_arg["CQO"]     = "cqo"
 ops_zero_arg["LFENCE"]  = "lfence"
 ops_zero_arg["MFENCE"]  = "mfence"
 ops_zero_arg["SFENCE"]  = "sfence"
+ops_zero_arg["CLC"]     = "clc"
+ops_zero_arg["STC"]     = "stc"
 
 ops_one_arg             = {}
 ops_one_arg["NEG"]      = "neg"
@@ -68,6 +70,7 @@ ops_two_args["ADD"]     = "add"
 ops_two_args["ADC"]     = "adc"
 ops_two_args["ADCX"]    = "adcx"
 ops_two_args["ADOX"]    = "adox"
+ops_two_args["BT"]      = "bt"
 ops_two_args["SUB"]     = "sub"
 ops_two_args["SBB"]     = "sbb"
 ops_two_args["IMULr"]   = "imul"
@@ -184,7 +187,7 @@ def gen_two_arg_instrs():
     for op in ops_two_args:
         for size in size_variations:
 
-            if size == 8 and (op == "IMULr" or op == "LZCNT" or op == "POPCNT"):
+            if size == 8 and (op == "IMULr" or op == "LZCNT" or op == "POPCNT" or op == "BT"):
                 continue
 
             if (op == "ADCX" or op == "ADOX") and (size == 8 or size == 16):
@@ -336,9 +339,9 @@ def gen_cmovcc_instrs():
 
 
 if __name__ == "__main__":
-    # gen_zero_arg_instrs()
+    gen_zero_arg_instrs()
     # gen_one_arg_instrs()
     # gen_two_arg_instrs()
     # gen_three_arg_instrs()
     # gen_cmovcc_instrs()
-    gen_setcc_instrs()
+    # gen_setcc_instrs()
