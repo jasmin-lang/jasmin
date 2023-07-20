@@ -47,7 +47,7 @@ set_execute_get:
     movq    56(%rdi), %rdi
 
     # Execute the instruction here
-    nop
+    cmovo   %rbx, %rax
 
     # post execution
     pushq   %rdi                    # save the post-exec rdi

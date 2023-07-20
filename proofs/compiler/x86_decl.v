@@ -208,13 +208,42 @@ Canonical rflag_finType :=
   Eval hnf in FinType rflag rflag_finMixin.
 
 (* -------------------------------------------------------------------- *)
+Definition condts :=
+   [:: O_ct; NO_ct; B_ct; NB_ct; E_ct; NE_ct; BE_ct; NBE_ct; S_ct; NS_ct; P_ct; NP_ct; L_ct; NL_ct; LE_ct; NLE_ct].
+
+ #[ local ]
+ Lemma condts_fin_axiom : Finite.axiom condts.
+ Proof. by case. Qed.
+
+ #[ local ]
+ Definition condt_choiceMixin :=
+   PcanChoiceMixin (FinIsCount.pickleK condts_fin_axiom).
+ #[ local ]
+ Canonical condt_choiceType :=
+   Eval hnf in ChoiceType condt condt_choiceMixin.
+
+ #[ local ]
+ Definition condt_countMixin :=
+   PcanCountMixin (FinIsCount.pickleK condts_fin_axiom).
+ #[ local ]
+ Canonical condt_countType :=
+   Eval hnf in CountType condt condt_countMixin.
+
+ #[ local ]
+ Definition condt_finMixin :=
+   FinMixin condts_fin_axiom.
+ #[ local ]
+ Canonical condt_finType :=
+   Eval hnf in FinType condt condt_finMixin.
+
+(* -------------------------------------------------------------------- *)
 
 #[global]
 Instance eqTC_register : eqTypeC register :=
   { ceqP := reg_eq_axiom }.
 
 #[global]
-Instance finC_register : finTypeC register := 
+Instance finC_register : finTypeC register :=
   { cenumP := registers_fin_axiom }.
 
 Definition register_to_string r : string :=
@@ -249,7 +278,7 @@ Instance eqTC_regx : eqTypeC register_ext :=
   { ceqP := regx_eq_axiom }.
 
 #[global]
-Instance finC_regx : finTypeC register_ext := 
+Instance finC_regx : finTypeC register_ext :=
   { cenumP := regxs_fin_axiom }.
 
 Definition regx_to_string r : string:=
@@ -276,7 +305,7 @@ Instance eqTC_xmm_register : eqTypeC xmm_register :=
   { ceqP := xreg_eq_axiom }.
 
 #[global]
-Instance finC_xmm_register : finTypeC xmm_register := 
+Instance finC_xmm_register : finTypeC xmm_register :=
   { cenumP := xmm_registers_fin_axiom }.
 
 Definition xreg_to_string r : string :=
@@ -336,6 +365,36 @@ Instance x86_rflag_toS : ToString sbool rflag :=
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
 
+#[global]
+Instance finC_condt : finTypeC condt :=
+  { cenumP := condts_fin_axiom}.
+
+Definition condt_to_string c : string :=
+  match c with
+  | O_ct    => "O_ct"
+  | NO_ct   => "NO_ct"
+  | B_ct    => "B_ct"
+  | NB_ct   => "NB_ct"
+  | E_ct    => "E_ct"
+  | NE_ct   => "NE_ct"
+  | BE_ct   => "BE_ct"
+  | NBE_ct  => "NBE_ct"
+  | S_ct    => "S_ct"
+  | NS_ct   => "NS_ct"
+  | P_ct    => "P_ct"
+  | NP_ct   => "NP_ct"
+  | L_ct    => "L_ct"
+  | NL_ct   => "NL_ct"
+  | LE_ct   => "LE_ct"
+  | NLE_ct  => "NLE_ct"
+  end.
+
+#[global]
+Instance x86_condt_toS : ToString sbool condt :=
+  { category  := "condt"
+  ; to_string := condt_to_string
+  }.
+
 (* -------------------------------------------------------------------- *)
 
 Definition x86_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
@@ -366,6 +425,7 @@ Instance x86_fcp : FlagCombinationParams :=
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   { reg_size := U64
   ; xreg_size := U256
+  ; toS_c := x86_condt_toS
   ; toS_r := x86_reg_toS
   ; toS_rx:= x86_regx_toS
   ; toS_x := x86_xreg_toS
@@ -375,7 +435,7 @@ Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   ; ad_fcp := x86_fcp
   }.
 
-Definition x86_linux_call_conv : calling_convention := 
+Definition x86_linux_call_conv : calling_convention :=
   {| callee_saved   := map ARReg [:: RBX; RBP; RSP; R12; R13; R14; R15 ]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: RDI; RSI; RDX; RCX; R8; R9 ]
@@ -385,13 +445,13 @@ Definition x86_linux_call_conv : calling_convention :=
    ; call_reg_ret_uniq := erefl true;
   |}.
 
-Definition x86_windows_call_conv : calling_convention := 
-  {| callee_saved   := map ARReg [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ] ++ 
+Definition x86_windows_call_conv : calling_convention :=
+  {| callee_saved   := map ARReg [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ] ++
                        map AXReg [:: XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: RCX; RDX; R8; R9 ]
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3 ]
    ; call_reg_ret   := [:: RAX ]
    ; call_xreg_ret  := [:: XMM0 ]
-   ; call_reg_ret_uniq := erefl true;                    
+   ; call_reg_ret_uniq := erefl true;
   |}.

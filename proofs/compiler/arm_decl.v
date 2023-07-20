@@ -197,6 +197,11 @@ Definition string_of_condt (c : condt) : string :=
   | LE_ct => "le"
   end.
 
+#[ export ]
+Instance condt_toS : ToString sbool condt :=
+  { category  := "condt"
+  ; to_string := string_of_condt
+  }.
 
 (* -------------------------------------------------------------------- *)
 (* Register shifts.
@@ -299,6 +304,7 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := arm_decl_core.arm_reg_size
   ; xreg_size := U64
   ; cond_eqC  := eqTC_condt
+  ; toS_c     := condt_toS
   ; toS_r     := reg_toS
   ; toS_rx    := empty_toS sword32
   ; toS_x     := empty_toS sword64
