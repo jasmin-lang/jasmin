@@ -75,11 +75,6 @@ module Impl (A : Arch') = struct
         (fun r -> (Conv.string_of_cstring (arch_decl.toS_x.to_string r), r))
         arch_decl.toS_x._finC.cenum
     in
-    let cond_names =
-      List.map
-        (fun c -> (Conv.string_of_cstring (arch_decl.toS_c.to_string c), c))
-        arch_decl.toS_c._finC.cenum
-    in
     fun arg ->
       try
         Arch_decl.Reg (List.assoc arg reg_names)
@@ -89,9 +84,6 @@ module Impl (A : Arch') = struct
       with Not_found ->
       try
         Arch_decl.XReg (List.assoc arg xreg_names)
-      with Not_found ->
-        try
-          Arch_decl.Condt (List.assoc arg cond_names )
       with Not_found -> Format.eprintf "\"%s\" is not a valid register.@." arg; exit 1
 
   let pp_rflagv fmt r =
