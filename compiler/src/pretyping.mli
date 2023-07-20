@@ -34,6 +34,7 @@ module Env : sig
 end
 
 val tt_ws : Annotations.wsize -> Wsize.wsize
+val tt_prim : 'op Sopn.asmOp -> Annotations.symbol Location.located -> 'op
 
 val tt_item :
   Wsize.wsize ->
