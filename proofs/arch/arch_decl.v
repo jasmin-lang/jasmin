@@ -48,6 +48,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   { reg_size : wsize     (* Register size. Also used as pointer size. *)
   ; xreg_size : wsize    (* Extended registers size. *)
   ; cond_eqC :> eqTypeC cond
+  ; toS_c :> ToString sbool cond
   ; toS_r :> ToString (sword reg_size) reg
   ; toS_rx :> ToString (sword reg_size) regx
   ; toS_x :> ToString (sword xreg_size) xreg

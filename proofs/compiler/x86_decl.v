@@ -208,6 +208,35 @@ Canonical rflag_finType :=
   Eval hnf in FinType rflag rflag_finMixin.
 
 (* -------------------------------------------------------------------- *)
+Definition condts :=
+  [:: O_ct; NO_ct; B_ct; NB_ct; E_ct; NE_ct; BE_ct; NBE_ct; S_ct; NS_ct; P_ct; NP_ct; L_ct; NL_ct; LE_ct; NLE_ct].
+
+#[ local ]
+Lemma condts_fin_axiom : Finite.axiom condts.
+Proof. by case. Qed.
+
+#[ local ]
+Definition condt_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK condts_fin_axiom).
+#[ local ]
+Canonical condt_choiceType :=
+  Eval hnf in ChoiceType condt condt_choiceMixin.
+
+#[ local ]
+Definition condt_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK condts_fin_axiom).
+#[ local ]
+Canonical condt_countType :=
+  Eval hnf in CountType condt condt_countMixin.
+
+#[ local ]
+Definition condt_finMixin :=
+  FinMixin condts_fin_axiom.
+#[ local ]
+Canonical condt_finType :=
+  Eval hnf in FinType condt condt_finMixin.
+
+(* -------------------------------------------------------------------- *)
 
 #[global]
 Instance eqTC_register : eqTypeC register :=
@@ -336,6 +365,36 @@ Instance x86_rflag_toS : ToString sbool rflag :=
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
 
+#[global]
+Instance finC_condt : finTypeC condt :=
+  { cenumP := condts_fin_axiom}.
+
+Definition condt_to_string c : string :=
+  match c with
+  | O_ct    => "O_ct"
+  | NO_ct   => "NO_ct"
+  | B_ct    => "B_ct"
+  | NB_ct   => "NB_ct"
+  | E_ct    => "E_ct"
+  | NE_ct   => "NE_ct"
+  | BE_ct   => "BE_ct"
+  | NBE_ct  => "NBE_ct"
+  | S_ct    => "S_ct"
+  | NS_ct   => "NS_ct"
+  | P_ct    => "P_ct"
+  | NP_ct   => "NP_ct"
+  | L_ct    => "L_ct"
+  | NL_ct   => "NL_ct"
+  | LE_ct   => "LE_ct"
+  | NLE_ct  => "NLE_ct"
+  end.
+
+#[global]
+Instance x86_condt_toS : ToString sbool condt :=
+  { category  := "condt"
+  ; to_string := condt_to_string
+  }.
+
 (* -------------------------------------------------------------------- *)
 
 Definition x86_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
@@ -366,6 +425,7 @@ Instance x86_fcp : FlagCombinationParams :=
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   { reg_size := U64
   ; xreg_size := U256
+  ; toS_c := x86_condt_toS
   ; toS_r := x86_reg_toS
   ; toS_rx:= x86_regx_toS
   ; toS_x := x86_xreg_toS
