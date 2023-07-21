@@ -383,15 +383,101 @@ Canonical  align_eqType      := Eval hnf in EqType align align_eqMixin.
 
 (* ----------------------------------------------------------------------------- *)
 
+Module Type TAG0.
+  Parameter t : Type.
+End TAG0.
+
+Module AssertLabel : TAG0.
+  Definition t := positive.
+End AssertLabel.
+
+Module Prover : TAG0.
+  Definition t := positive.
+End Prover.
+
+Definition assert_label := AssertLabel.t.
+
+Definition prover := Prover.t.
+
+(* Add in extraction 
+Extract Constant expr.assert_label => "string".
+Same for prover 
+*)
+
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
+
+(*  Do a section like for expr 
+Inductive atype : Type := 
+  | Stype of stype 
+  | Spol.
+
+Inductive aexpr : Type :=
+| Pconst :> Z -> aexpr
+| Pbool  :> bool -> aexpr
+| Parr_init : positive → aexpr
+| Pvar   :> gvar -> aexpr
+| Pget   : arr_access -> wsize -> gvar -> aexpr -> aexpr
+| Psub   : arr_access -> wsize -> positive -> gvar -> aexpr -> aexpr 
+| Pload  : wsize -> var_i -> aexpr -> aexpr
+| Papp1  : sop1 -> aexpr -> aexpr
+| Papp2  : sop2 -> aexpr -> aexpr -> aexpr
+| PappN of opN & seq aexpr
+| Pif    : stype -> aexpr -> aexpr -> aexpr -> aexpr
+| Ppol   : seq aexpr   (* aexpr should have type int *)
+| Plimbs : wsize -> seq aexpr -> aexpr (* aexpr of type sword ws *)  
+| Peqmod  : aexpr -> aexpr -> seq aexpr -> aexpr (* all of type int *)
+| Peqmod_pol :  aexpr -> aexpr -> seq aexpr -> aexpr (* all of type pol *)
+(* | Pforall    :  local -> aexpr (* int *) -> aexpr (* int *) -> aexpr (* bool may depend of local *) -> aexpr *)
+.
+
+
+Definition annotation_kind := 
+  | Assume  
+  | Assert 
+  | Cut 
+
+Record assert := 
+  { akind : annotation_kind;
+    aexpr : apexpr; (* this should change at some point *)
+    alabel : option assert_label;  (* Optional name for the current assert *)
+    aprover : prover;              (* prover for the current assert *)
+    aprove_with : option assert_label; 
+    aassume : list prover;         (* assume for the provers *)
+  }  
+*)
+
+(* 
+
+0/ 
+| Cassert  : pexpr -> instr_r
+
+| Cassert  : prover -> annotation_kind -> pexpr -> instr_r
+
+fix coq part 
+
+fix pretyping using annotations 
+
+@[prover = cas; kind = assume]
+
+
+1/ Define the evaluation of aexpr in psem (* more or less the same that pexpr  *)
+
+for expr eval_expr : state -> pexpr -> value
+
+for expr eval_aexpr : state -> aexpr -> value_pol
+
+2/ Fix the compiler 
+   
+3/ Fix the proof 
+*)
 
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
 | Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
 | Csyscall : lvals -> syscall_t -> pexprs -> instr_r
-| Cassert  : pexpr -> instr_r
+| Cassert  : (*replace aexpr*)pexpr -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
