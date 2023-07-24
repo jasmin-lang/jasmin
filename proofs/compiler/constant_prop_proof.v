@@ -623,7 +623,10 @@ Proof.
   have := Hv z n.
   case: ({| vtype := sword szx; vname := xn |} =P z).
   + move=> <- /=; rewrite Mvar.setP_eq=> ? -[] <-; rewrite /get_var Fv.setP_eq /=.
-    by f_equal; case: Sumbool.sumbool_of_bool => h;rewrite h.
+    f_equal; elim/cmp_minP: (cmp_min szw szx); first by move => h; rewrite (sumbool_of_boolET h).
+    case/dup => /(@cmp_lt_le _ _ _ _ _) hle'.
+    rewrite -cmp_nle_lt => /negbTE h; rewrite (sumbool_of_boolEF h).
+    by rewrite zero_extend_wrepr.
   by move=> /eqP Hneq;rewrite Mvar.setP_neq.
 Qed.
 
