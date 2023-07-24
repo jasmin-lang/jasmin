@@ -1,0 +1,22 @@
+u8[10] rcon = { 1, 2, 4, 8, 16, 32, 64, 128, 27, 54 };
+
+inline
+fn RCON(inline int i) -> inline int {
+  inline int c;
+  c = rcon[i - 1];
+  return c;
+}
+
+export
+fn test(reg u32 x) -> reg u32 {
+  inline int j v;
+  reg u32 r;
+  r = x;
+  for j = 1 to 11 {
+    v = RCON(j);
+    r += v;
+    v = RCON((rcon[j % 10] % 10) + 1);
+    r += v;
+  }
+  return r;
+}

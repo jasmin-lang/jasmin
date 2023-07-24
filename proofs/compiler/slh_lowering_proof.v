@@ -141,6 +141,8 @@ Section CONST_PROP.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
+    - by move => sz [] x [].
+
     - rewrite use_mem_s_op1. exact: (hinde h).
 
     - move: h => /norP [] /hinde0 h0 /hinde1 h1.

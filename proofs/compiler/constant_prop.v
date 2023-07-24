@@ -356,6 +356,13 @@ Section GLOBALS.
 
 Context (globs: globals).
 
+Let pget_global aa sz x e : pexpr :=
+  if globs is Some f then if f x.(gv) is Some (Garr len a) then if e is Pconst i then if WArray.get aa sz a i is Ok w then wconst w
+  else Pget aa sz x e
+  else Pget aa sz x e
+  else Pget aa sz x e
+  else Pget aa sz x e.
+
 Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _
@@ -367,7 +374,11 @@ Fixpoint const_prop_e (m:cpm) e :=
       | Slocal => if Mvar.get m x is Some n then const n else e
       | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
       end
-  | Pget aa sz x e => Pget aa sz x (const_prop_e m e)
+  | Pget aa sz x e =>
+      let e := const_prop_e m e in
+      if is_glob x
+      then pget_global aa sz x e
+      else Pget aa sz x e
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
   | Pload sz x e  => Pload sz x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
