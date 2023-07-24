@@ -623,7 +623,11 @@ Proof.
   rewrite Mvar.setP /=; case: eqP => [<- [<-]| hne]; last by apply hv.
   rewrite hwdb in hw *.
   have [_ /vm_truncate_valE [ws' [-> _ -> /=]] /get_varP [<-]] := write_get_varP_eq hw.
-  by case: ifPn.
+  move => _ _.
+  elim/cmp_minP: (cmp_min szw ws'); first by move => ->.
+  case/dup => /(@cmp_lt_le _ _ _ _ _) hle'.
+  rewrite -cmp_nle_lt => /negbTE ->.
+  by rewrite zero_extend_wrepr.
 Qed.
 
 Lemma merge_cpmP rho m1 m2 :
