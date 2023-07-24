@@ -406,14 +406,11 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
       match e with
       | Pbool b  => Mvar.set m x (Cbool b)
       | Pconst z =>  Mvar.set m x (Cint z)
-      | Papp1 (Oword_of_int sz') (Pconst z) =>
+      | Papp1 (Oword_of_int _) (Pconst z) =>
         let szty := wsize_of_stype ty in
-        let w := zero_extend szty (wrepr sz' z) in
-        let w :=
-            let szx := wsize_of_stype (vtype x) in
-            if (szty ≤ szx)%CMP
-            then Cword w
-            else Cword (zero_extend szx w) in
+        let szx := wsize_of_stype (vtype x) in
+        let sz := cmp_min szty szx in
+        let w := Cword (wrepr sz z) in
         Mvar.set m x w
       | _ => m
       end
