@@ -346,16 +346,27 @@ Definition const v :=
   | Cword sz z => wconst z
   end.
 
+Definition globals : Type := option (var → option glob_value).
+
+Let without_globals : globals := None.
+Let with_globals (gd: glob_decls) (tag: assgn_tag) : globals :=
+  if tag is AT_inline then Some (assoc gd) else None.
+
+Section GLOBALS.
+
+Context (globs: globals).
+
 Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _
   | Pbool  _
   | Parr_init _
     => e
-  | Pvar  x       => 
-    if is_lvar x then
-      if Mvar.get m x.(gv) is Some n then const n else e      
-    else e
+  | Pvar {| gs := scope ; gv := x |} =>
+      match scope with
+      | Slocal => if Mvar.get m x is Some n then const n else e
+      | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
+      end
   | Pget aa sz x e => Pget aa sz x (const_prop_e m e)
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
   | Pload sz x e  => Pload sz x (const_prop_e m e)
@@ -364,6 +375,8 @@ Fixpoint const_prop_e (m:cpm) e :=
   | PappN op es   => s_opN op (map (const_prop_e m) es)
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
+
+End GLOBALS.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
 
@@ -379,21 +392,21 @@ Definition merge_cpm : cpm -> cpm -> cpm :=
 Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
-Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval :=
+Definition const_prop_rv globs (m:cpm) (rv:lval) : cpm * lval :=
   match rv with
   | Lnone _ _       => (m, rv)
   | Lvar  x         => (Mvar.remove m x, rv)
-  | Lmem  sz x e    => (m, Lmem sz x (const_prop_e m e))
-  | Laset aa sz x e => (Mvar.remove m x, Laset aa sz x (const_prop_e m e))
-  | Lasub aa sz len x e => (Mvar.remove m x, Lasub aa sz len x (const_prop_e m e))
+  | Lmem  sz x e    => (m, Lmem sz x (const_prop_e globs m e))
+  | Laset aa sz x e => (Mvar.remove m x, Laset aa sz x (const_prop_e globs m e))
+  | Lasub aa sz len x e => (Mvar.remove m x, Lasub aa sz len x (const_prop_e globs m e))
   end.
 
-Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals :=
+Fixpoint const_prop_rvs globs (m:cpm) (rvs:lvals) : cpm * lvals :=
   match rvs with
   | [::] => (m, [::])
   | rv::rvs =>
-    let (m,rv)  := const_prop_rv m rv in
-    let (m,rvs) := const_prop_rvs m rvs in
+    let (m,rv)  := const_prop_rv globs m rv in
+    let (m,rvs) := const_prop_rvs globs m rvs in
     (m, rv::rvs)
   end.
 
@@ -442,18 +455,23 @@ Definition is_update_imm (xs:lvals) o es :=
   | _, _, _=> None
   end.
 
+Section GLOBALS.
+
+Context (gd: glob_decls).
+
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
   | Cassgn x tag ty e =>
-    let e := const_prop_e m e in
-    let (m,x) := const_prop_rv m x in
+    let globs := with_globals gd tag in
+    let e := const_prop_e globs m e in
+    let (m,x) := const_prop_rv globs m x in
     let m := add_cpm m x tag ty e in
     (m, [:: MkI ii (Cassgn x tag ty e)])
 
   | Copn xs t o es =>
     (* TODO: Improve this *)
-    let es := map (const_prop_e m) es in
-    let (m,xs) := const_prop_rvs m xs in
+    let es := map (const_prop_e without_globals m) es in
+    let (m,xs) := const_prop_rvs without_globals m xs in
     let ir :=
       if is_update_imm xs o es is Some (x, b, e) then
         if b then Copn [:: x ] AT_none (Oslh SLHmove) [:: e ]
@@ -463,12 +481,12 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     (m, [:: MkI ii ir ])
 
   | Csyscall xs o es =>
-    let es := map (const_prop_e m) es in
-    let (m,xs) := const_prop_rvs m xs in
+    let es := map (const_prop_e without_globals m) es in
+    let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Csyscall xs o es) ])
 
   | Cif b c1 c2 =>
-    let b := const_prop_e m b in
+    let b := const_prop_e without_globals m b in
     match is_bool b with
     | Some b =>
       let c := if b then c1 else c2 in
@@ -480,8 +498,8 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     end
 
   | Cfor x (dir, e1, e2) c =>
-    let e1 := const_prop_e m e1 in
-    let e2 := const_prop_e m e2 in
+    let e1 := const_prop_e without_globals m e1 in
+    let e2 := const_prop_e without_globals m e2 in
     let m := remove_cpm m (write_i ir) in
     let (_,c) := const_prop const_prop_i m c in
     (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
@@ -489,7 +507,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   | Cwhile a c e c' =>
     let m := remove_cpm m (write_i ir) in
     let (m',c) := const_prop const_prop_i m c in
-    let e := const_prop_e m' e in
+    let e := const_prop_e without_globals m' e in
     let (_,c') := const_prop const_prop_i m' c' in
     let cw :=
       match is_bool e with
@@ -499,8 +517,8 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     (m', cw)
 
   | Ccall fi xs f es =>
-    let es := map (const_prop_e m) es in
-    let (m,xs) := const_prop_rvs m xs in
+    let es := map (const_prop_e without_globals m) es in
+    let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Ccall fi xs f es) ])
 
   end
@@ -509,16 +527,18 @@ with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
   const_prop_ir m ii ir.
 
+End GLOBALS.
+
 Section Section.
 
 Context {T} {pT:progT T}.
 
-Definition const_prop_fun (f:fundef) :=
+Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
   let 'MkFun ii si p c so r ev := f in
-  let (_, c) := const_prop const_prop_i empty_cpm c in
+  let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
   MkFun ii si p c so r ev.
 
-Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
+Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 
 End Section.
 

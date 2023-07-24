@@ -129,7 +129,7 @@ Section CONST_PROP.
   #[local]
   Lemma use_mem_const_prop_e {_ : FlagCombinationParams} cpm e :
     ~~ use_mem e ->
-    ~~ use_mem (const_prop_e cpm e).
+    ~~ use_mem (const_prop_e None cpm e).
   Proof.
     elim: e =>
       [||| x
@@ -139,7 +139,7 @@ Section CONST_PROP.
       | ty e hinde e0 hinde0 e1 hinde1
       ] //= h.
 
-    - case: is_lvar; last done. by case: Mvar.get => [[]|].
+    - by case: x => x [] //; case: Mvar.get => // - [].
 
     - rewrite use_mem_s_op1. exact: (hinde h).
 
@@ -182,7 +182,7 @@ Section CONST_PROP.
       sem_pexpr true gd s (enot e) = ok (Vbool (~~ b)).
     - by rewrite /= h.
 
-    move=> /(const_prop_eP (valid_cpm_empty _)) [v' [? /value_uinclE ?]].
+    move=> /(const_prop_eP (valid_cpm_empty _) (I: valid_globs _ None)) [v' [? /value_uinclE ?]].
     by subst v'.
   Qed.
 

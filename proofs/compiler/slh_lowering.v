@@ -383,7 +383,7 @@ Section CHECK_WHILE.
     (check_c0 check_c1 : Env.t -> cexec Env.t).
 
   Definition neg_const_prop (e : pexpr) : pexpr :=
-    constant_prop.const_prop_e constant_prop.empty_cpm (enot e).
+    constant_prop.const_prop_e None constant_prop.empty_cpm (enot e).
 
   (* Similarly to the for loop case, we use the argument [env] as an initial
      guess for [env*], and if it is not a fixed point we guess the intersection
