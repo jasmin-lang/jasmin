@@ -555,10 +555,22 @@ Section CONST_PROP_EP.
       by case: n => [ b | n | sz w ]; rewrite /sem_sop1 /= ?wrepr_unsigned;
            eexists;(split;first reflexivity) => //=; rewrite wrepr_unsigned.
     - move => aa sz x e He v.
-      apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
-      t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
-      move => a ha ?; subst; rewrite /= ha.
-      by eexists; (split; first reflexivity) => /=.
+      apply: on_arr_gvarP => n t wt ok_x.
+      t_xrbindP => z w /(He _) {He} [v'] [] ok_v' /[swap] /to_intI ? /value_uinclE; subst => ?; subst.
+      move => a ha ?; subst.
+      have default : ∃ v' : value, sem_pexpr wdb gd s (Pget aa sz x (const_prop_e globs m e)) = ok v' ∧ value_uincl (Vword a) v'.
+      + by rewrite /= /on_arr_var ok_x /= ok_v' /= ha /=; eexists; split; [ reflexivity | simpl ].
+      case x_glob: is_glob; last exact: default.
+      case: globs default Gvalid ok_v'; last by [].
+      move => f + /(_ x.(gv)).
+      case: (f _); last by [].
+      case; first by [].
+      move => len arr.
+      rewrite (get_gvar_glob _ _ _ x_glob) in ok_x.
+      case: (const_prop_e _) => // i _ /(_ _ _ erefl ok_x) /= /Varr_inj[] ??; subst => /= /ok_inj[] ?; subst.
+      rewrite ha /=.
+      eexists; split; first reflexivity.
+      by rewrite /= wrepr_unsigned.
     - move => aa sz len x e He v.
       apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
       t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
