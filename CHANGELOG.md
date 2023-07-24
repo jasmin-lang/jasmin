@@ -34,6 +34,10 @@
 	
 ## Bug fixes
 
+- Constant propagation handles global variables assigned to inline variables
+  ([PR #541](https://github.com/jasmin-lang/jasmin/pull/541);
+  fixes [#540](https://github.com/jasmin-lang/jasmin/issues/540)).
+
 - Fix semantics of the `MULX` instruction
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
   fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
