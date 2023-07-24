@@ -849,7 +849,7 @@ Lemma is_wconstP wdb gd s sz e w:
 Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.
-  by rewrite /= truncate_word_le.
+  by rewrite /= truncate_word_le // zero_extend_wrepr.
 Qed.
 
 Lemma is_wconstI ws e w :
