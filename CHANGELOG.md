@@ -5,7 +5,9 @@
 
 - More arm instructions are available:
   `MLA`, `MLS`
-  ([PR #480](https://github.com/jasmin-lang/jasmin/pull/480)), 
+  ([PR #480](https://github.com/jasmin-lang/jasmin/pull/480)),
+  `UMAAL`
+  ([PR #543](https://github.com/jasmin-lang/jasmin/pull/543)),
   `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
   ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481),
    [PR #492](https://github.com/jasmin-lang/jasmin/pull/492),
