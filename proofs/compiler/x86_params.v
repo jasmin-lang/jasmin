@@ -88,9 +88,8 @@ Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
 Definition x86_set_up_sp_register
   (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : seq fopn_args :=
   let i0 := x86_lassign (LLvar r) Uptr (Rexpr (Fvar rspi)) in
-  let i1 := x86_allocate_stack_frame rspi sf_sz in
   let i2 := x86_op_align rspi Uptr al in
-  [:: i0; i1; i2 ].
+  i0 :: rcons (if sf_sz != 0 then [:: x86_allocate_stack_frame rspi sf_sz ] else [::]) i2.
 
 Definition x86_set_up_sp_stack
   (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq fopn_args :=
