@@ -1,0 +1,1 @@
+mulxq	%rax, %rax, %rax

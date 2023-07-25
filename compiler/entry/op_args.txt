@@ -1,2 +1,2 @@
-CMOVcc
-O_ct RAX RBX
+MULX_lo_hi_64
+RAX RAX RAX

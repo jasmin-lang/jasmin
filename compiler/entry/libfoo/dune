@@ -3,7 +3,7 @@
  (foreign_archives foo))
 
  (rule
- (deps Makefile foo.c myasm.s (source_tree inputs) ../op_args.txt)
+ (deps Makefile foo.c myasm.s (source_tree inputs) ../op_args.txt ../asm_instr.txt)
  (targets libfoo.a libfoo.so dllfoo.so)
  (action
  (no-infer

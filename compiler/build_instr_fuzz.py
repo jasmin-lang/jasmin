@@ -8,6 +8,7 @@ import x86_isa
 test_folders = set()
 # TODO: Need to make it general later
 op_args_file = "entry/op_args.txt"
+asm_instr_file = "entry/asm_instr.txt"
 my_asm_orig = "entry/libfoo/myasm_orig.s"
 my_asm_final = "entry/libfoo/myasm.s"
 
@@ -44,6 +45,8 @@ def gen_build_dir(mv_to_folder, j_instr, asm_instr):
                 writer.write(final_line)
     with open(op_args_file, "w") as writer:
         writer.write(j_instr)
+    with open(asm_instr_file, "w") as writer:
+        writer.write(asm_instr)
     os.system(make_clean_cmd)
     os.system(make_build_cmd)
     os.system(mv_to_folder)

@@ -236,6 +236,7 @@ let ()      = seal asm_state
 
 (* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
 let set_execute_get = foreign "set_execute_get_wrapper" (ptr asm_state @-> returning void)
+let set_execute_get_emulator = foreign "set_execute_get_emulator" (ptr asm_state @-> returning void)
 
 let op_ref = ref ""
 let args_ref = ref []
@@ -281,7 +282,8 @@ let is_correct asm_arr =
     in
     let flags = !flags_ref in
 
-    set_execute_get (addr state);
+    (* set_execute_get (addr state); *)
+    set_execute_get_emulator (addr state);
     let new_state = parse_and_exec arch call_conv !op_ref !args_ref regs regxs xregs flags in
     (* TODO: do we need jregs? *)
     let jregs: A.reg array = [|RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15|] in
