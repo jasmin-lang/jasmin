@@ -135,51 +135,51 @@ let expr_of_cexprs es = List.map (expr_of_cexpr) es
 
 (* ------------------------------------------------------------------------ *)
 
-let rec cinstr_of_instr i c =
+let rec cinstr_of_instr i =
   let n = i.i_loc, i.i_annot in
-  cinstr_r_of_instr_r n i.i_desc c
+  cinstr_r_of_instr_r n i.i_desc
 
-and cinstr_r_of_instr_r p i tl =
+and cinstr_r_of_instr_r p i =
   match i with
   | Cassgn(x,t, ty,e) ->
     let ir  =
       C.Cassgn(clval_of_lval x, t, cty_of_ty ty, cexpr_of_expr e) in
-    C.MkI(p, ir) :: tl
+    C.MkI(p, ir)
 
   | Copn(x,t,o,e) ->
     let ir =
       C.Copn(clval_of_lvals x, t, o, cexpr_of_exprs e) in
-    C.MkI(p, ir) :: tl
+    C.MkI(p, ir)
 
   | Csyscall(x,o,e) ->
     let ir =
       C.Csyscall(clval_of_lvals x, o, cexpr_of_exprs e) in
-    C.MkI(p, ir) :: tl
+    C.MkI(p, ir)
 
   | Cif(e,c1,c2) ->
-    let c1 = cstmt_of_stmt c1 [] in
-    let c2 = cstmt_of_stmt c2 [] in
+    let c1 = cstmt_of_stmt c1 in
+    let c2 = cstmt_of_stmt c2 in
     let ir = C.Cif(cexpr_of_expr e, c1, c2) in
-    C.MkI(p, ir) :: tl
+    C.MkI(p, ir)
 
   | Cfor(x, (d,e1,e2), c) ->
     let d = ((d, cexpr_of_expr e1), cexpr_of_expr e2) in
     let x = cvari_of_vari x in
-    let c = cstmt_of_stmt c [] in
+    let c = cstmt_of_stmt c in
     let ir = C.Cfor(x,d,c) in
-    C.MkI(p, ir) :: tl
+    C.MkI(p, ir)
   | Cwhile(a, c, e, c') ->
-    let ir = C.Cwhile(a, cstmt_of_stmt c [], cexpr_of_expr e,
-                      cstmt_of_stmt c' []) in
-    C.MkI(p,ir) :: tl
+    let ir = C.Cwhile(a, cstmt_of_stmt c, cexpr_of_expr e,
+                      cstmt_of_stmt c') in
+    C.MkI(p,ir)
   | Ccall(ii, x, f, e) ->
     let ir =
       C.Ccall(ii, clval_of_lvals x, f, cexpr_of_exprs e)
     in
-    C.MkI(p,ir) :: tl
+    C.MkI(p,ir)
 
-and cstmt_of_stmt c tl =
-  List.fold_right (cinstr_of_instr) c tl
+and cstmt_of_stmt c =
+  List.map cinstr_of_instr c
 
 let rec instr_of_cinstr i =
   match i with
@@ -216,7 +216,7 @@ and instr_r_of_cinstr_r = function
     Ccall(ii, lval_of_clvals x, f, expr_of_cexprs e)
 
 and stmt_of_cstmt c =
-  List.map (instr_of_cinstr) c
+  List.map instr_of_cinstr c
 
 
 (* ------------------------------------------------------------------------ *)
@@ -225,8 +225,8 @@ let cufdef_of_fdef fd =
   let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_outannot in
   let f_params =
     List.map (fun x -> cvari_of_vari (L.mk_loc L._dummy x)) fd.f_args in
-  let f_body = cstmt_of_stmt fd.f_body [] in
-  let f_res = List.map (cvari_of_vari) fd.f_ret in
+  let f_body = cstmt_of_stmt fd.f_body in
+  let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
