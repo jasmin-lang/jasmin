@@ -287,17 +287,18 @@ Proof.
 
   move: hbody.
   set i_mov_r := _ _ (x86_lassign (LLvar r) _ _).
-  set i_sub_rsp := _ _ (x86_allocate_stack_frame vrspi _).
-  set i_align_rsp := _ _ (x86_op_align vrspi _ _).
+  set i_sub_rsp := x86_allocate_stack_frame vrspi _.
+  set i_align_rsp := x86_op_align vrspi _ _.
   move=> hbody.
 
   set vm0 := (evm s).[v_var r <- Vword ts].
-  set vm2 := vm0.[vrsp <- Vword (ts - wrepr Uptr sz)].
+  set vm2 := if sz != 0 then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
+  set vm3 := vm2.[to_var OF <- false].[to_var CF <- false].[to_var SF <- SF_of_word ts'].[to_var PF <- PF_of_word ts'].[to_var ZF <- ZF_of_word ts'].[vid sp_rsp <- Vword ts'].
 
-  eexists.
+  exists vm3.
   split.
 
-  - apply: lsem_step3; rewrite /lsem1 /step.
+  - apply: lsem_step; rewrite /lsem1 /step.
 
     (* R[r] := R[rsp]; *)
     + rewrite -{1}(addn0 (size P)).
@@ -309,30 +310,42 @@ Proof.
         rewrite /with_vm -/vm0.
         reflexivity.
 
+    + rewrite size_map size_rcons -addn2.
+      apply: (lsem_trans (s2 := of_estate (with_vm s vm2) fn (size P + (Nat.b2n (sz != 0)).+1))).
+      rewrite /vm2; case: eqP hbody => /= sz_nz hbody.
+      * by subst; once (econstructor; fail).
+
     (* R[rsp] := R[rsp] - sz; *)
-    + rewrite (find_instr_skip hbody) /=.
+    + apply: LSem_step; rewrite /lsem1 /step.
+      rewrite (find_instr_skip hbody) /=.
+      replace (size P + 2) with ((size P + 1).+1); last by rewrite addn1 addn2.
       apply: x86_spec_lip_allocate_stack_frame.
       rewrite Vm.setP_neq; last by apply/eqP.
       move /get_varP: hgetrsp => [<- _ _].
       reflexivity.
 
     (* R[rsp] := R[rsp] & alignment; *)
-    rewrite addn1 -addn2.
+    apply: LSem_step; rewrite /lsem1 /step.
     rewrite (find_instr_skip hbody) /=.
-    rewrite -(addn1 2) addnA.
-    rewrite -/vm2.
+    replace (oseq.onth _ _) with (Some (li_of_copn_args dummy_instr_info i_align_rsp)); last by case: eqP.
+    replace (size P + (_ + 2)) with ((size P + (Nat.b2n (sz != 0%Z)).+1) + 1); last by case: eqP; rewrite -!addnA.
     apply:
       (x86_op_align_eval_instr
          (w := ts - wrepr Uptr sz)
          _ _ _
          (cmp_le_refl _)).
-    by rewrite /get_var /= /vm2 Vm.setP_eq vm_truncate_val_eq //.
+    rewrite /get_var /= /vm2; case: eqP => ?; last first.
+    + by rewrite Vm.setP_eq vm_truncate_val_eq.
+    rewrite Vm.setP_neq; last exact/eqP.
+    case/get_varP: hgetrsp => /= <- _ _.
+    by subst; rewrite GRing.subr0.
 
-  - move=> x. t_notin_add. by t_vm_get.
+  - move=> x. t_notin_add.
+    by t_vm_get; rewrite /vm2; case: ifP; t_vm_get.
 
   - by t_get_var.
 
-  - by t_get_var.
+  - by t_get_var; rewrite /vm2; case: ifP; t_get_var.
 
   rewrite /= -/ts'.
   move=> x /sv_of_listP /mapP [f _ ->].
@@ -366,9 +379,7 @@ Proof.
   move=> hbody _ hneq_tmp_rsp hgetrsp hwrite.
 
   move: hbody.
-  rewrite /=.
-  rewrite -[[:: _, _, _, _ & Q]]/([:: _; _; _ ] ++ [:: _ & Q]).
-  rewrite -[[:: _; _; _]]/(map _ (x86_set_up_sp_register vrspi sz al vtmpi)).
+  rewrite /set_up_sp_stack /lip_set_up_sp_stack /x86_liparams map_cat -catA.
   move=> hbody.
 
   have [vm0 [hsem hvm0 hgetrsp0 hgettmp0 hflags]] :=
@@ -389,6 +400,9 @@ Proof.
     apply: LSem_step.
     rewrite /lsem1 /step /=.
     rewrite (find_instr_skip hbody) /=.
+    set j := _ _ (x86_lassign _ _ _).
+    replace (oseq.onth _ _) with (Some j); last by case: eqP.
+    subst j.
     rewrite
       (x86_lassign_eval_instr
          _
@@ -396,7 +410,7 @@ Proof.
          _ _ _
          (w := ts)
          (w' := ts)).
-    + by rewrite -addnA addn1.
+    + by rewrite size_cat size_map /= -addnA !addn1.
     + exact: hgettmp0.
     + exact: truncate_word_u.
     + rewrite /=.
