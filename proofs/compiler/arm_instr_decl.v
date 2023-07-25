@@ -107,6 +107,7 @@ Variant arm_mnemonic : Type :=
 | UDIV                           (* Unsigned division *)
 | UMULL                          (* Multiply and split the result in two
                                     registers *)
+| UMAAL                          (* Multiply and add twice *)
 | UMLAL                          (* Multiply and split the result to add it 
                                     to the two destinations*)
 | SMULL                          (* Signed version of UMULL*)
@@ -170,7 +171,7 @@ Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
 Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
-  [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
+  [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR
     ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
@@ -254,6 +255,7 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | RSB => "RSB"
   | UDIV => "UDIV"
   | UMULL => "UMULL"
+  | UMAAL => "UMAAL"
   | UMLAL => "UMLAL"
   | SMULL => "SMULL"
   | SMLAL => "SMLAL"
@@ -878,6 +880,30 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_tout := [:: sreg; sreg ];
     id_out := [:: E 1; E 0 ];
     id_semi := arm_UMULL_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_UMAAL_semi (wa wb wn wm : ty_r) : exec ty_rr :=
+  let r := (wunsigned wa + wunsigned wb + wunsigned wn * wunsigned wm)%Z in
+  ok (wrepr reg_size r, wrepr reg_size (Z.shiftr r (wsize_bits reg_size))).
+
+Definition arm_UMAAL_instr : instr_desc_t :=
+  let mn := UMAAL in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg; sreg; sreg ];
+    id_in := [:: E 0; E 1; E 2; E 3 ];
+    id_tout := [:: sreg; sreg ];
+    id_out := [:: E 0; E 1 ];
+    id_semi := arm_UMAAL_semi;
     id_nargs := 4;
     id_args_kinds := ak_reg_reg_reg_reg;
     id_eq_size := refl_equal;
@@ -1635,6 +1661,7 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | RSB => arm_RSB_instr
   | UDIV => arm_UDIV_instr
   | UMULL => arm_UMULL_instr
+  | UMAAL => arm_UMAAL_instr
   | UMLAL => arm_UMLAL_instr
   | SMULL => arm_SMULL_instr
   | SMLAL => arm_SMLAL_instr

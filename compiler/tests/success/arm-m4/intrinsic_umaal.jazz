@@ -1,0 +1,9 @@
+export
+fn umaal(reg u32 a b c d) -> reg u32 {
+  reg bool f;
+  f = c > d;
+  a, b = #UMAAL(a, b, c, d);
+  a, b = #UMAALcc(a, b, c, d, f, a, b);
+  a ^= b;
+  return a;
+}
