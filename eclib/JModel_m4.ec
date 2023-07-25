@@ -182,6 +182,11 @@ op UMULL (x y: W32.t) : W32.t * W32.t =
   (lo, hi).
 op UMULLcc x y g o h = if g then UMULL x y else (o, h).
 
+op UMAAL (a b x y: W32.t) : W32.t * W32.t =
+  let r = to_uint a + to_uint b + to_uint x * to_uint y in
+  (of_int r, of_int (IntDiv.(%/) r modulus))%W32.
+op UMAALcc a b x y g o h = if g then UMAAL a b x y else (o, h).
+
 op UMLAL (u v x y: W32.t) : W32.t * W32.t =
   let n = wdwordu (mulhi x y) (x*y) in
   let m = wdwordu v u in
