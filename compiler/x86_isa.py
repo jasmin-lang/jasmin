@@ -70,8 +70,10 @@ ops_two_args["POPCNT"]  = "popcnt"
 ops_two_args["CMP"]     = "cmp"
 ops_two_args["TEST"]    = "test"
 ops_two_args["MOV"]     = "mov"
-# ops_two_args["MOVSX"]   = "movsx"
-# ops_two_args["MOVZX"]   = "movzx"
+
+ops_two_args_two_sizes = {}
+ops_two_args_two_sizes["MOVSX"]   = "movs"
+ops_two_args_two_sizes["MOVZX"]   = "movz"
 
 ops_three_args                  = {}
 ops_three_args["ANDN"]          = "andn"
@@ -80,7 +82,7 @@ ops_three_args["PDEP"]          = "pdep"
 ops_three_args["MULX_lo_hi"]    = "mulx"
 
 size_variations     = {}
-size_variations[8]  = ["_8", "b"]
-size_variations[16] = ["_16", "w"]
-size_variations[32] = ["_32", "l"]
-size_variations[64] = ["_64", "q"]
+size_variations[8]  = ["8", "b"]
+size_variations[16] = ["16", "w"]
+size_variations[32] = ["32", "l"]
+size_variations[64] = ["64", "q"]

@@ -71,13 +71,13 @@ def gen_one_arg_instrs():
 
             for _ in range(1):
                 reg = get_usable_reg(regs_list)
-                folder_name = op + x86_isa.size_variations[size][0] + "_" + reg
+                folder_name = op + "_" + x86_isa.size_variations[size][0] + "_" + reg
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
                 if mv_to_folder in test_folders:
                     continue
                 test_folders.add(mv_to_folder)
                 asm_instr = "{}{}\t{}".format(x86_isa.ops_one_arg[op], x86_isa.size_variations[size][1], x86_isa.regs[reg][size])
-                j_op = "{}{}".format(op, x86_isa.size_variations[size][0])
+                j_op = "{}_{}".format(op, x86_isa.size_variations[size][0])
                 j_args = reg
                 j_instr = j_op + "\n" + j_args
                 gen_build_dir(mv_to_folder, j_instr, asm_instr)
@@ -96,13 +96,33 @@ def gen_two_arg_instrs():
                 reg2 = get_usable_reg(regs_list)
                 if num == 1:
                     reg2 = reg1             # uses the same register as both operands
-                folder_name = op + x86_isa.size_variations[size][0] + "_" + reg1 + "_" + reg2
+                folder_name = op + "_" + x86_isa.size_variations[size][0] + "_" + reg1 + "_" + reg2
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
                 if mv_to_folder in test_folders:
                     continue
                 test_folders.add(mv_to_folder)
                 asm_instr = "{}{}\t{}, {}".format(x86_isa.ops_two_args[op], x86_isa.size_variations[size][1], x86_isa.regs[reg2][size], x86_isa.regs[reg1][size])
-                j_op = "{}{}".format(op, x86_isa.size_variations[size][0])
+                j_op = "{}_{}".format(op, x86_isa.size_variations[size][0])
+                j_args = reg1 + " " + reg2
+                j_instr = j_op + "\n" + j_args
+                gen_build_dir(mv_to_folder, j_instr, asm_instr)
+
+def gen_two_arg_two_size_instrs():
+    sizes = [(16, 8), (32, 8), (64, 8), (32, 16), (64, 16)]
+    for op in x86_isa.ops_two_args_two_sizes:
+        for (size1, size2) in sizes:
+            for num in range(2):
+                reg1 = get_usable_reg(regs_list)
+                reg2 = get_usable_reg(regs_list)
+                if num == 1:
+                    reg2 = reg1
+                folder_name = op + "_u" + x86_isa.size_variations[size1][0] + "u" + x86_isa.size_variations[size2][0] + "_" + reg1 + "_" + reg2
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                asm_instr = "{}{}{}\t{}, {}".format(x86_isa.ops_two_args_two_sizes[op], x86_isa.size_variations[size2][1], x86_isa.size_variations[size1][1], x86_isa.regs[reg2][size2], x86_isa.regs[reg1][size1])
+                j_op = "{}_u{}u{}".format(op, x86_isa.size_variations[size1][0], x86_isa.size_variations[size2][0])
                 j_args = reg1 + " " + reg2
                 j_instr = j_op + "\n" + j_args
                 gen_build_dir(mv_to_folder, j_instr, asm_instr)
@@ -129,13 +149,13 @@ def gen_three_arg_instrs():
                 if num == 4:
                     reg2 = reg1
                     reg3 = reg1
-                folder_name = op + x86_isa.size_variations[size][0] + "_" + reg1 + "_" + reg2 + "_" + reg3
+                folder_name = op + "_" + x86_isa.size_variations[size][0] + "_" + reg1 + "_" + reg2 + "_" + reg3
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
                 if mv_to_folder in test_folders:
                     continue
                 test_folders.add(mv_to_folder)
                 asm_instr = "{}{}\t{}, {}, {}".format(x86_isa.ops_three_args[op], x86_isa.size_variations[size][1], x86_isa.regs[reg3][size], x86_isa.regs[reg2][size], x86_isa.regs[reg1][size])
-                j_op = "{}{}".format(op, x86_isa.size_variations[size][0])
+                j_op = "{}_{}".format(op, x86_isa.size_variations[size][0])
                 j_args = reg1 + " " + reg2 + " " + reg3
                 j_instr = j_op + "\n" + j_args
                 gen_build_dir(mv_to_folder, j_instr, asm_instr)
@@ -148,7 +168,7 @@ def gen_setcc_instrs():
         for _ in range(2):
             reg1 = get_usable_reg(regs_list)
            # uses the same register as both operands
-            folder_name = op + x86_isa.size_variations[size][0] + "_" + cond + "_" + reg1
+            folder_name = op + "_" + x86_isa.size_variations[size][0] + "_" + cond + "_" + reg1
             mv_to_folder = move_build_to_out_dir + "/" + folder_name
             if mv_to_folder in test_folders:
                 continue
@@ -172,13 +192,13 @@ def gen_cmovcc_instrs():
                 reg2 = get_usable_reg(regs_list)
                 if num == 1:
                     reg2 = reg1             # uses the same register as both operands
-                folder_name = op + x86_isa.size_variations[size][0] + "_" + cond + "_" + reg1 + "_" + reg2
+                folder_name = op + "_" + x86_isa.size_variations[size][0] + "_" + cond + "_" + reg1 + "_" + reg2
                 mv_to_folder = move_build_to_out_dir + "/" + folder_name
                 if mv_to_folder in test_folders:
                     continue
                 test_folders.add(mv_to_folder)
                 asm_instr = "{}{}\t{}, {}".format(cmov_map[op], x86_isa.x86_conds[cond], x86_isa.regs[reg2][size], x86_isa.regs[reg1][size])
-                j_op = "{}{}".format(op, x86_isa.size_variations[size][0])
+                j_op = "{}_{}".format(op, x86_isa.size_variations[size][0])
                 j_args = cond + " " + reg1 + " " + reg2
                 j_instr = j_op + "\n" + j_args
                 gen_build_dir(mv_to_folder, j_instr, asm_instr)
@@ -191,3 +211,4 @@ if __name__ == "__main__":
     gen_three_arg_instrs()
     gen_cmovcc_instrs()
     gen_setcc_instrs()
+    gen_two_arg_two_size_instrs()
