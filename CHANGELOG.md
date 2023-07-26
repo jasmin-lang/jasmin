@@ -9,7 +9,8 @@
   `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
   ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481),
    [PR #492](https://github.com/jasmin-lang/jasmin/pull/492),
-   [PR #514](https://github.com/jasmin-lang/jasmin/pull/514)).
+   [PR #514](https://github.com/jasmin-lang/jasmin/pull/514),
+   [PR #545](https://github.com/jasmin-lang/jasmin/pull/545)).
 
 - Notation for string literals; there is no implicit zero terminator;
   escaping follows the lexical conventions of OCaml

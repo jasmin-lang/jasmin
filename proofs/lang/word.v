@@ -638,7 +638,7 @@ Definition wdaddu sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
 
 Definition wdadds sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
   let n := (wdwords hi_1 lo_1) + (wdwords hi_2 lo_2) in
-  (wrepr sz n, wrepr sz (Z.quot n (wbase sz))).
+  (wrepr sz n, wrepr sz (Z.shiftr n (wsize_bits sz))).
 
 Definition wsubcarry sz (x y: word sz) (c: bool) :=
   let n := wunsigned x - wunsigned y - Z.b2z c in
