@@ -16,7 +16,8 @@
   `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
   ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481),
    [PR #492](https://github.com/jasmin-lang/jasmin/pull/492),
-   [PR #514](https://github.com/jasmin-lang/jasmin/pull/514)).
+   [PR #514](https://github.com/jasmin-lang/jasmin/pull/514),
+   [PR #545](https://github.com/jasmin-lang/jasmin/pull/545)).
 
 - Register arrays can appear as arguments and return values of local functions;
   the “make-reference-arguments” pass is now run before expansion of register
