@@ -2207,7 +2207,7 @@ abstract theory W_WS.
      case.
      + by move => ->; rewrite /= to_uintK.
      rewrite /= => /mem_range h.
-     have -> /= : (i = 0) = false; first smt().
+     have -> /= : i <> 0; first smt().
      rewrite divz_small; last by [].
      have [-> /= /ltr_le_trans ] := WS.to_uint_cmp x.
      apply.
