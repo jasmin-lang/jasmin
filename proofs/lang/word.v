@@ -381,17 +381,18 @@ Definition wshl sz (x: word sz) (n: Z) : word sz :=
 Definition wsar sz (x: word sz) (n: Z) : word sz :=
   mkword sz (Z.shiftr (wsigned x) n).
 
+Definition high_bits sz (n : Z) : word sz :=
+  wrepr sz (Z.shiftr n (wsize_bits sz)).
+
+Lemma high_bits_wbase sz n :
+  high_bits sz n = wrepr sz (n / wbase sz).
+Proof. by rewrite /high_bits Z.shiftr_div_pow2 // -wbaseE. Qed.
+
 Definition wmulhu sz (x y: word sz) : word sz :=
-  wrepr sz (Z.shiftr (wunsigned x * wunsigned y) (wsize_bits sz)).
+  high_bits sz (wunsigned x * wunsigned y).
 
 Definition wmulhs sz (x y: word sz) : word sz :=
-  wrepr sz (Z.shiftr (wsigned x * wsigned y) (wsize_bits sz)).
-
-Lemma wmulhuE sz (x y: word sz) : wmulhu x y = wrepr sz (wunsigned x * wunsigned y ÷ wbase sz).
-Proof.
-    rewrite /wmulhu Z.shiftr_div_pow2 // -?wbaseE Zquot.Zquot_Zdiv_pos //.
-    apply: Z.mul_nonneg_nonneg; apply: (proj1 (wunsigned_range _)).
-Qed.
+  high_bits sz (wsigned x * wsigned y).
 
 Definition wmulhrs sz (x y: word sz) : word sz :=
   let: p := Z.shiftr (wsigned x * wsigned y) (wsize_size_minus_1 sz).-1 + 1 in
@@ -634,11 +635,11 @@ Definition waddcarry sz (x y: word sz) (c: bool) :=
 
 Definition wdaddu sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
   let n := (wdwordu hi_1 lo_1) + (wdwordu hi_2 lo_2) in
-  (wrepr sz n, wrepr sz (Z.quot n (wbase sz))).
+  (wrepr sz n, high_bits sz n).
 
 Definition wdadds sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
   let n := (wdwords hi_1 lo_1) + (wdwords hi_2 lo_2) in
-  (wrepr sz n, wrepr sz (Z.shiftr n (wsize_bits sz))).
+  (wrepr sz n, high_bits sz n).
 
 Definition wsubcarry sz (x y: word sz) (c: bool) :=
   let n := wunsigned x - wunsigned y - Z.b2z c in
@@ -646,11 +647,11 @@ Definition wsubcarry sz (x y: word sz) (c: bool) :=
 
 Definition wumul sz (x y: word sz) :=
   let n := wunsigned x * wunsigned y in
-  (wrepr sz (Z.quot n (wbase sz)), wrepr sz n).
+  (high_bits sz n, wrepr sz n).
 
 Definition wsmul sz (x y: word sz) :=
   let n := wsigned x * wsigned y in
-  (wrepr sz (Z.shiftr n (wsize_bits sz)), wrepr sz n).
+  (high_bits sz n, wrepr sz n).
 
 Definition wdiv {sz} (p q : word sz) : word sz :=
   let p := wunsigned p in
@@ -740,13 +741,12 @@ Lemma wsmulP sz (x y: word sz) :
 Proof.
   have x_range := wsigned_range x.
   have y_range := wsigned_range y.
-  rewrite /wsmul /wdwords Z.shiftr_div_pow2 //.
+  rewrite /wsmul /wdwords high_bits_wbase.
   set p := _ * wsigned _.
   have p_range : wmin_signed sz * wmax_signed sz <= p <= wmin_signed sz * wmin_signed sz.
   { subst p; case: sz x y x_range y_range => x y;
     rewrite /wmin_signed /wmax_signed /=;
     nia. }
-  rewrite -wbaseE.
   have hi_range : wmin_signed sz <= p / wbase sz <= wmax_signed sz.
   { move: sz {x y x_range y_range} p p_range => sz p p_range.
     elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.

@@ -1678,7 +1678,7 @@ Section PROOF.
             rewrite /= /read_es /= in Hdisje.
             rewrite /sem_sopn /sem_pexprs /= He2' /=.
             rewrite /get_gvar get_var_eq /= cmp_le_refl orbT //=.
-            rewrite /exec_sopn /sopn_sem /= !truncate_word_le // {hsz2} /x86_MUL hsz /= zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE.
+            rewrite /exec_sopn /sopn_sem /= !truncate_word_le // {hsz2} /x86_MUL hsz /= zero_extend_u /wmulhu Z.mul_comm GRing.mulrC wmulE.
             exact Hw''.
         + exact: (eeq_excT Hs3'' Hs2').
       have! := (is_wconstP true gd s1' (sz := sz) (e := e2)).
@@ -1704,12 +1704,12 @@ Section PROOF.
             rewrite /= /read_es /= in Hdisje.
             rewrite /sem_sopn /sem_pexprs /= He1' /=.
             rewrite /get_gvar get_var_eq /= cmp_le_refl orbT //.
-            rewrite /exec_sopn /sopn_sem /= !truncate_word_le // /x86_MUL hsz /= zero_extend_u wmulhuE wmulE.
+            rewrite /exec_sopn /sopn_sem /= !truncate_word_le // /x86_MUL hsz /= zero_extend_u /wmulhu wmulE.
             exact: Hw''.
         + exact: (eeq_excT Hs3'' Hs2').
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       rewrite /sem_sopn Hx' /= /exec_sopn /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_MUL hsz /=.
-      by rewrite /wumul -wmulhuE in Hw'.
+      by rewrite /wumul -/wmulhu in Hw'.
     (* Oaddcarry *)
     + case: (lower_addcarry_correct ii t (sub:= false) Hs1' Hdisjl Hdisje Hx' Hv Hw').
       exact: (aux_eq_exc_trans Hs2').
