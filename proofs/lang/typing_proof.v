@@ -10,7 +10,12 @@ Require Export
 Section Supporting_lemmas.
 
 Context
-  {wsw : WithSubWord}.
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {wsw : WithSubWord}
+  (wdb : bool)
+  (gd : glob_decls).
 
 (*Lemma get_var_undef_sub vm x v ty h :
 get_var false vm x = ok v -> v <> Vundef ty h.
@@ -146,6 +151,41 @@ case: b ht hb=> //= t ht hb; subst; rewrite /undef_error.
 by move=> [] hv; subst.
 Qed.
 
+Lemma to_int_not_tyerr : forall i v,
+type_of_val i = sint ->
+to_int i = Error v ->
+v <> ErrType.
+Proof.
+move=> i v ht hi. rewrite /to_int /= in hi.
+case: i ht hi=> //= t ht hi; subst; rewrite /undef_error.
+by move=> [] hv; subst.
+Qed.
+
+Lemma to_arr_not_tyerr : forall i p v,
+type_of_val i = (sarr p) ->
+to_arr p i = Error v ->
+v <> ErrType.
+Proof.
+move=> i p v ht hi. rewrite /to_arr /= in hi. 
+case: i ht hi=> //= t ht [] hi; subst. 
++ rewrite /WArray.cast /=. by case: ifP=> //= /eqP //=. 
+rewrite /type_error. move=> [] hv; subst.
+rewrite /is_undef_t /= in ht. move: ht. by move=> /eqP.
+Qed.
+
+Lemma to_word_not_tyerr : forall sz sz' ev v,
+(sz' <= sz)%CMP -> 
+type_of_val ev = (sword sz) ->
+to_word sz' ev = Error v ->
+v <> ErrType.
+Proof.
+move=> sz sz' ev v hsz hte. rewrite /to_word /=.
+case: ev hte=> //=.
++ move=> sz'' w [] heq ht; subst. have [h1 h2] := truncate_word_errP ht.
+  by rewrite -cmp_nle_lt hsz in h2.
+move=> t ht heq; subst. rewrite /undef_error. by move=> [] hv; subst.
+Qed.
+
 Lemma sem_sop1_not_tyerr : forall pd e s tin tout ty ev op ov,
 type_of_op1 op = (tin, tout) ->
 subtype tin ty ->
@@ -154,10 +194,24 @@ sem_pexpr (wsw:= nosubword) false gd s e = ok ev ->
 sem_sop1 op ev = Error ov ->
 ov <> ErrType.
 Proof.
-move=> pd e s tin tout ty ev op er /= hty husb hte he hop.
-Admitted.
+move=> pd e s tin tout ty ev op er /= hty hsub hte he hop.
+rewrite /sem_sop1 /= in hop. move: hop.
+case hof : of_val=> [ov | oerr] //=. move=> [] hv; subst.
+rewrite hty /= in hof. 
+case: tin hty hsub hof=> //=.
++ move=> hty /eqP ht hb; subst. 
+  have heb := sem_pexpr_well_typed pd sbool e s ev hte he.
+  by have := to_bool_not_tyerr ev er heb hb. 
++ move=> hty /eqP ht hi; subst. have hei := sem_pexpr_well_typed pd sint e s ev hte he.
+  by have := to_int_not_tyerr ev er hei hi.
++ move=> p /= hty /eqP ht ha; subst. have hai := sem_pexpr_well_typed pd (sarr p) e s ev hte he.
+  by have := to_arr_not_tyerr ev p er hai ha.
++ move=> w hty. case: ty hte=> //= w' hte hsz hw.
+  have hev := sem_pexpr_well_typed pd (sword w') e s ev hte he.
+  by have := to_word_not_tyerr w' w ev er hsz hev hw.
+Qed.
 
-Lemma sem_sop2_not_tyerr : forall pd op te1 te2 gd s e1 ev1 e2 ev2 er,
+Lemma sem_sop2_not_tyerr : forall pd op te1 te2 s e1 ev1 e2 ev2 er,
 subtype (type_of_op2 op).1.1 te1 ->
 subtype (type_of_op2 op).1.2 te2 ->
 ty_pexpr pd e1 = ok te1 ->
@@ -167,7 +221,20 @@ sem_pexpr (wsw:= nosubword) false gd s e2 = ok ev2 ->
 sem_sop2 op ev1 ev2 = Error er ->
 er <> ErrType.
 Proof.
-Admitted.
+move=> i p v te2 s e1 ev1 e2 ev2 er hsub hsub' hte1 hte2 he1 he2. 
+rewrite /sem_sop2 /=. 
+case hv2 : of_val=> [v2 | err2] //=.
+(* of_val of second argument evaluates to ok *)
++ case hv1 : of_val=> [v1 | err1] //=.
+  (* of_val of first argument evaluates to ok *)
+  + case ho : sem_sop2_typed=> [vo | erro] //=.
+    move=> [] hv; subst. have hsub1 := of_val_subtype hv1.
+    have hsub2 := of_val_subtype hv2. 
+    have htev1 := sem_pexpr_well_typed i v e1 s ev1 hte1 he1.
+    have htev2 := sem_pexpr_well_typed i te2 e2 s ev2 hte2 he2.
+    rewrite htev1 /= in hsub1. rewrite htev2 /= in hsub2.
+    subst.
+Admitted.  
 
 Lemma sem_sopN_not_tyerr : forall pd e te es tys tes ev mv er op s,
 ty_pexpr pd e = ok te ->
@@ -207,13 +274,18 @@ type_of_val ev = sword we ->
 to_pointer ev = Error er ->
 er <> ErrType.
 Proof.
+move=> s e ev we er he ht hp.
 Admitted.
 
-Lemma to_pointer_not_tyerr_var : forall (s : @estate nosubword syscall_state ep) vi ptr er,
+Lemma to_pointer_not_tyerr_var : 
+forall (s : @estate nosubword syscall_state ep) vi ptr er,
 vtype vi = sword ptr -> 
 to_pointer (evm s).[vi] = Error er ->
 er <> ErrType.
 Proof.
+move=> s vi ptr er hty hptr. have hc := Vm.getP (evm s) vi.
+rewrite /to_pointer /= in hptr. case: ((evm s).[vi]) hc hptr=> //=.
++ move=> b hc [] hv; subst.
 Admitted.
 
 Theorem sem_pexpr_type_error : forall pd ty e s er,
@@ -313,7 +385,7 @@ move=> pd ty e. move: ty. elim: e.
   + case he1 : sem_pexpr=> [ev1 | eer1] //=.
     (* sem_pexpr of e1 evaluates to ok *)
     + move=> hop. 
-      by have := sem_sop2_not_tyerr pd op te1 te2' gd s e1 ev1 e2 ev2 er hsub hsub' hte1 hte2 he1 he2 hop.
+      by have := sem_sop2_not_tyerr pd op te1 te2' s e1 ev1 e2 ev2 er hsub hsub' hte1 hte2 he1 he2 hop.
     (* sem_pexpr of e1 evaluates to error *)
     move=> [] hv; subst. by move: (hind1 te1 s er hte1 he1).
   (* sem_pexpr of e2 evaluates to error *)
@@ -399,3 +471,5 @@ case he : sem_pexpr=> [ev | eerr] //=.
 (* sem_pexpr of e evaluates to error state *)
 move=> [] hv; subst. by move: (hinde sbool s er hte he).
 Admitted. 
+
+End TYPING_PEXPR.

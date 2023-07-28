@@ -117,6 +117,7 @@ lang/psem_of_sem_proof.v
 lang/pseudo_operator.v
 lang/psem_facts.v
 lang/typing.v
+lang/safety.v
 lang/sem_one_varmap.v
 lang/sem_op_typed.v
 lang/sem_one_varmap_facts.v
