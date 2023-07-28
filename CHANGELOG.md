@@ -10,6 +10,38 @@
   We also provide a speculative CCT checker, via the compiler flag `-checkSCT`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447)).
 
+- Register arrays can appear as arguments and return values of local functions;
+  the “make-reference-arguments” pass is now run before expansion of register
+  arrays;
+  ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452)).
+
+- Add the instruction `MULX_hi`,
+     `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
+  but no extra register is used for the low half of the result.
+
+## Bug fixes
+
+- Type-checking rejects wrongly casted primitive operators
+  ([PR #489](https://github.com/jasmin-lang/jasmin/pull/489);
+  fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
+
+- Constant propagation handles global variables assigned to inline variables
+  ([PR #541](https://github.com/jasmin-lang/jasmin/pull/541);
+  fixes [#540](https://github.com/jasmin-lang/jasmin/issues/540)).
+
+## Other changes
+
+- Pretty-printing of Jasmin programs is more precise
+  ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).
+
+- Fix semantics of the `MULX` instruction
+  ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
+  fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
+
+# Jasmin 2023.06.1 — 2023-07-31
+
+## New features
+
 - More arm instructions are available:
   `MLA`, `MLS`
   ([PR #480](https://github.com/jasmin-lang/jasmin/pull/480)),
@@ -21,29 +53,12 @@
    [PR #514](https://github.com/jasmin-lang/jasmin/pull/514),
    [PR #545](https://github.com/jasmin-lang/jasmin/pull/545)).
 
-- Register arrays can appear as arguments and return values of local functions;
-  the “make-reference-arguments” pass is now run before expansion of register
-  arrays;
-  ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452)).
-
 - Notation for string literals; there is no implicit zero terminator;
   escaping follows the lexical conventions of OCaml
   ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517),
    [PR #532](https://github.com/jasmin-lang/jasmin/pull/532)).
 
-- Add the instruction `MULX_hi`,
-     `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
-  but no extra register is used for the low half of the result.
-	
 ## Bug fixes
-
-- Constant propagation handles global variables assigned to inline variables
-  ([PR #541](https://github.com/jasmin-lang/jasmin/pull/541);
-  fixes [#540](https://github.com/jasmin-lang/jasmin/issues/540)).
-
-- Fix semantics of the `MULX` instruction
-  ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
-  fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
 
 - Fix semantics of the `IMUL`, `IMULr`, and `IMULri` instructions
   ([PR #528](https://github.com/jasmin-lang/jasmin/pull/528);
@@ -56,19 +71,12 @@
   ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
   fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
 
-- Type-checking rejects wrongly casted primitive operators
-  ([PR #489](https://github.com/jasmin-lang/jasmin/pull/488);
-  fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
-
 ## Other changes
 
 - Various improvements related to ARMv7
   ([PR #476](https://github.com/jasmin-lang/jasmin/pull/476),
    [PR #477](https://github.com/jasmin-lang/jasmin/pull/477),
    [PR #479](https://github.com/jasmin-lang/jasmin/pull/479)).
-
-- Pretty-printing of Jasmin programs is more precise
-  ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).
 
 # Jasmin 2023.06.0 — Villers-lès-Nancy, 2023-06-09
 
