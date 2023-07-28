@@ -893,7 +893,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
 
 Definition arm_UMAAL_semi (wa wb wn wm : ty_r) : exec ty_rr :=
   let r := (wunsigned wa + wunsigned wb + wunsigned wn * wunsigned wm)%Z in
-  ok (wrepr reg_size r, wrepr reg_size (Z.shiftr r (wsize_bits reg_size))).
+  ok (wrepr reg_size r, high_bits reg_size r).
 
 Definition arm_UMAAL_instr : instr_desc_t :=
   let mn := UMAAL in
@@ -1012,7 +1012,7 @@ Definition arm_SMMUL_instr : instr_desc_t :=
 
 
 Definition arm_SMMULR_semi (wn wm : ty_r) : exec ty_r :=
-  ok (wrepr U32 (Z.shiftr (wsigned wn * wsigned wm + 0x80000000) 32)).
+  ok (high_bits reg_size (wsigned wn * wsigned wm + 0x80000000)).
 
 Definition arm_SMMULR_instr : instr_desc_t :=
   let mn := SMMULR in
