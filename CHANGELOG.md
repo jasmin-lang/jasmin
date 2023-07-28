@@ -1,5 +1,5 @@
 
-# [unreleased]
+# Jasmin 2023.06.1 — 2023-07-31
 
 ## New features
 
