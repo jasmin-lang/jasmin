@@ -92,6 +92,9 @@ module Impl (A : Arch') = struct
       with Not_found ->
         try
           Arch_decl.Condt (List.assoc arg cond_names)
+      with Not_found ->
+        try
+          Arch_decl.Imm (U8, Word0.wrepr U8 (Conv.cz_of_z (Z.of_int64_unsigned (Int64.of_string arg))))
       with Not_found -> Format.eprintf "\"%s\" is not a valid asm_arg.@." arg; exit 1
 
   let pp_rflagv fmt r =
@@ -242,6 +245,12 @@ let op_ref = ref ""
 let args_ref = ref []
 
 let is_correct asm_arr =
+  let op_args_file = "op_args.txt" in
+  let my_arg_array = Stdlib.Arg.read_arg op_args_file in
+  op_ref := my_arg_array.(0);                               (* ADD *)
+  if Array.length my_arg_array > 1 then
+  args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
+
   let state = make asm_state in
     setf state rax asm_arr.(0);
     setf state rcx asm_arr.(1);
@@ -282,8 +291,8 @@ let is_correct asm_arr =
     in
     let flags = !flags_ref in
 
-    (* set_execute_get (addr state); *)
-    set_execute_get_emulator (addr state);
+    set_execute_get (addr state);
+    (* set_execute_get_emulator (addr state); *)
     let new_state = parse_and_exec arch call_conv !op_ref !args_ref regs regxs xregs flags in
     (* TODO: do we need jregs? *)
     let jregs: A.reg array = [|RAX; RCX; RDX; RBX; RSP; RBP; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15|] in
@@ -351,12 +360,6 @@ let is_correct asm_arr =
   Crowbar.check(check state asm_arr)
 
 let () =
-  let op_args_file = "op_args.txt" in 
-  let my_arg_array = Stdlib.Arg.read_arg op_args_file in
-  op_ref := my_arg_array.(0);                               (* ADD *)
-  if Array.length my_arg_array > 1 then
-    args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
-
   let asm_arr =
     let crax    = Crowbar.int64 in
     let crcx    = Crowbar.int64 in

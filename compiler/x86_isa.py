@@ -81,6 +81,16 @@ ops_three_args["PEXT"]          = "pext"
 ops_three_args["PDEP"]          = "pdep"
 ops_three_args["MULX_lo_hi"]    = "mulx"
 
+ops_one_arg_imm8 = {}
+ops_one_arg_imm8["RCL"] = "rcl"
+ops_one_arg_imm8["RCR"] = "rcr"
+ops_one_arg_imm8["ROL"] = "rol"
+ops_one_arg_imm8["ROR"] = "ror"
+ops_one_arg_imm8["SAL"] = "sal"
+ops_one_arg_imm8["SAR"] = "sar"
+ops_one_arg_imm8["SHL"] = "shl"
+ops_one_arg_imm8["SHR"] = "shr"
+
 size_variations     = {}
 size_variations[8]  = ["8", "b"]
 size_variations[16] = ["16", "w"]

@@ -85,6 +85,27 @@ def gen_one_arg_instrs():
                 j_instr = j_op + "\n" + j_args
                 gen_build_dir(mv_to_folder, j_instr, asm_instr)
 
+def gen_one_arg_imm8_instrs():
+    # this is very boring and need to reduce it later to make the
+    # immediate dynamic
+    imm8_list = range(256)
+    for op in x86_isa.ops_one_arg_imm8:
+        for size in x86_isa.size_variations:
+            for _ in range(1):
+                for _ in range(10):
+                    i = random.choice(imm8_list)
+                    reg = get_usable_reg(regs_list)
+                    folder_name = op + "_" + x86_isa.size_variations[size][0] + "_" + reg + "_" + str(i)
+                    mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                    if mv_to_folder in test_folders:
+                        continue
+                    test_folders.add(mv_to_folder)
+                    asm_instr = "{}{}\t${}, {}".format(x86_isa.ops_one_arg_imm8[op], x86_isa.size_variations[size][1], str(i), x86_isa.regs[reg][size])
+                    j_op = "{}_{}".format(op, x86_isa.size_variations[size][0])
+                    j_args = reg + " " + str(i)
+                    j_instr = j_op + "\n" + j_args
+                    gen_build_dir(mv_to_folder, j_instr, asm_instr)
+
 def gen_two_arg_instrs():
     for op in x86_isa.ops_two_args:
         for size in x86_isa.size_variations:
@@ -215,3 +236,4 @@ if __name__ == "__main__":
     gen_cmovcc_instrs()
     gen_setcc_instrs()
     gen_two_arg_two_size_instrs()
+    gen_one_arg_imm8_instrs()
