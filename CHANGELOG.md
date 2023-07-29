@@ -25,6 +25,10 @@
   ([PR #489](https://github.com/jasmin-lang/jasmin/pull/489);
   fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
 
+- Type-checking rejects invalid variants of primitive operators
+  ([PR #490](https://github.com/jasmin-lang/jasmin/pull/490);
+  fixes [#488](https://github.com/jasmin-lang/jasmin/pull/488)).
+
 - Constant propagation handles global variables assigned to inline variables
   ([PR #541](https://github.com/jasmin-lang/jasmin/pull/541);
   fixes [#540](https://github.com/jasmin-lang/jasmin/issues/540)).

@@ -1,0 +1,4 @@
+export fn test(reg u256 x) -> reg u256 {
+  x = #VPMULH_4u64(x, x);
+  return x;
+}
