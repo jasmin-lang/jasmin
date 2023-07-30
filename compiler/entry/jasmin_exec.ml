@@ -94,7 +94,7 @@ module Impl (A : Arch') = struct
           Arch_decl.Condt (List.assoc arg cond_names)
       with Not_found ->
         try
-          Arch_decl.Imm (U8, Word0.wrepr U8 (Conv.cz_of_z (Z.of_int64_unsigned (Int64.of_string arg))))
+          Arch_decl.Imm (U8, Word0.wrepr U8 (Conv.cz_of_z (Z.of_string arg)))
       with Not_found -> Format.eprintf "\"%s\" is not a valid asm_arg.@." arg; exit 1
 
   let pp_rflagv fmt r =
@@ -245,12 +245,6 @@ let op_ref = ref ""
 let args_ref = ref []
 
 let is_correct asm_arr =
-  let op_args_file = "op_args.txt" in
-  let my_arg_array = Stdlib.Arg.read_arg op_args_file in
-  op_ref := my_arg_array.(0);                               (* ADD *)
-  if Array.length my_arg_array > 1 then
-  args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
-
   let state = make asm_state in
     setf state rax asm_arr.(0);
     setf state rcx asm_arr.(1);
@@ -344,15 +338,15 @@ let is_correct asm_arr =
       result := !result && (Z.testbit cflags_vals 2 = (jflags_vals.(1) = 1));
 
     (* checking ZF flag  *)
-    if jflags_vals.(1) <> 2 then
+    if jflags_vals.(2) <> 2 then
       result := !result && (Z.testbit cflags_vals 6 = (jflags_vals.(2) = 1));
 
     (* checking SF flag  *)
-    if jflags_vals.(1) <> 2 then
+    if jflags_vals.(3) <> 2 then
       result := !result && (Z.testbit cflags_vals 7 = (jflags_vals.(3) = 1));
 
     (* checking OF flag  *)
-    if jflags_vals.(1) <> 2 then
+    if jflags_vals.(4) <> 2 then
       result := !result && (Z.testbit cflags_vals 11 = (jflags_vals.(4) = 1));
 
     !result
@@ -360,6 +354,12 @@ let is_correct asm_arr =
   Crowbar.check(check state asm_arr)
 
 let () =
+  let op_args_file = "op_args.txt" in
+  let my_arg_array = Stdlib.Arg.read_arg op_args_file in
+  op_ref := my_arg_array.(0);                               (* ADD *)
+  if Array.length my_arg_array > 1 then
+    args_ref := String.split_on_char ' ' my_arg_array.(1);    (* RAX RBX *)
+
   let asm_arr =
     let crax    = Crowbar.int64 in
     let crcx    = Crowbar.int64 in
