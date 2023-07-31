@@ -153,6 +153,8 @@ Proof.
   + rewrite /ipre; case: ifPn => hxy.
     + exists vm1; last by constructor; econstructor.
       split => //.
+      case/orP: hxy => hxy; last first.
+      * by have /compat_valEl := Vm.getP vm1 x.
       case/andP: hxy => /= /eqP hl /eqP /= heq; subst vx.
       move: hv1; rewrite /= /get_gvar /is_lvar hl eqxx /get_var; t_xrbindP => _.
       rewrite -heq; eauto.
@@ -160,7 +162,7 @@ Proof.
     + split; last by rewrite Vm.setP_eq /= eqxx; eauto.
       move=> z hz; rewrite Vm.setP_neq //; apply /eqP => heq; subst z.
       have : Sv.In x (read_e y) by SvD.fsetdec.
-      by move: hxy; rewrite read_e_var /eq_gvar /= /read_gvar; case: (y) => /= vy [/= /eqP | /=]; SvD.fsetdec.
+      by case/norP: hxy; rewrite read_e_var /eq_gvar /= /read_gvar; case: (y) => /= vy [/= /eqP | /=]; SvD.fsetdec.
     constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
     by rewrite write_var_eq_type.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl)) 
