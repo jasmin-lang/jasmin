@@ -97,8 +97,15 @@ void set_execute_get_emulator(struct asm_state *state) {
 
         // cleanup KS
         ks_close(ks);
-
         return;
+    } else {
+        size_t i;
+        printf("assembled code in hex is \n");
+        for(i = 0; i < size; i++) {
+            printf("%02x ", encode[i]);
+        }
+        printf("\n");
+        printf("Compiled: %lu bytes, statements: %lu\n", size, count);
     }
 
     // below code is imp
@@ -200,6 +207,7 @@ void set_execute_get_emulator(struct asm_state *state) {
     printf("UC_R13 = 0x%" PRIx64 "\n", state->r13);
     printf("UC_R14 = 0x%" PRIx64 "\n", state->r14);
     printf("UC_R15 = 0x%" PRIx64 "\n", state->r15);
+    printf("UC_RFLAGS = 0x%" PRIx64 "\n", state->rflags);
 
     // cleanup UC
     uc_close(uc);

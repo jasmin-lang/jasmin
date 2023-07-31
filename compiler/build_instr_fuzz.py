@@ -92,7 +92,7 @@ def gen_one_arg_imm8_instrs():
     for op in x86_isa.ops_one_arg_imm8:
         for size in x86_isa.size_variations:
             for _ in range(1):
-                for _ in range(10):
+                for _ in range(5):
                     i = random.choice(imm8_list)
                     reg = get_usable_reg(regs_list)
                     folder_name = op + "_" + x86_isa.size_variations[size][0] + "_" + reg + "_" + str(i)
@@ -100,7 +100,7 @@ def gen_one_arg_imm8_instrs():
                     if mv_to_folder in test_folders:
                         continue
                     test_folders.add(mv_to_folder)
-                    asm_instr = "{}{}\t${}, {}".format(x86_isa.ops_one_arg_imm8[op], x86_isa.size_variations[size][1], str(i), x86_isa.regs[reg][size])
+                    asm_instr = "{}{}\t${}, {}".format(x86_isa.ops_one_arg_imm8[op], x86_isa.size_variations[size][1], str(hex(i)), x86_isa.regs[reg][size])
                     j_op = "{}_{}".format(op, x86_isa.size_variations[size][0])
                     j_args = reg + " " + str(i)
                     j_instr = j_op + "\n" + j_args
