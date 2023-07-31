@@ -39,6 +39,10 @@
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`
   ([PR #554](https://github.com/jasmin-lang/jasmin/pull/554)).
 
+- Fix expansion of `#copy` operators when target is marked as `ptr`
+  ([PR #550](https://github.com/jasmin-lang/jasmin/pull/550);
+  fixes [#499](https://github.com/jasmin-lang/jasmin/pull/499)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
