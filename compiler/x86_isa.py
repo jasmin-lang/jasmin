@@ -91,6 +91,10 @@ ops_one_arg_imm8["SAR"] = "sar"
 ops_one_arg_imm8["SHL"] = "shl"
 ops_one_arg_imm8["SHR"] = "shr"
 
+ops_two_arg_imm8 = {}
+ops_two_arg_imm8["SHLD"] = "shld"
+ops_two_arg_imm8["SHRD"] = "shrd"
+
 size_variations     = {}
 size_variations[8]  = ["8", "b"]
 size_variations[16] = ["16", "w"]
