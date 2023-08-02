@@ -240,10 +240,22 @@ Inductive safe_expr : @estate nosubword syscall_state ep -> pexpr -> Prop :=
 | SappN s o es:
    safe_exprs s es ->
    safe_expr s (PappN o es)
-| Sif s ty b et ef:
+| Sif s ty b et ef vt vf vb:
    safe_expr s b ->
    safe_expr s et ->
    safe_expr s ef ->
+   sem_pexpr false gd s b = ok vb ->
+   sem_pexpr false gd s et = ok vt ->
+   sem_pexpr false gd s ef = ok vf ->
+   ((forall t, (vb <> (Vundef sint t))) 
+    /\ (forall t, (vb <> (Vundef sbool t))) /\ 
+    (forall w t, (vb <> (Vundef (sword w) t)))) ->
+   ((forall t, (vt <> (Vundef sint t))) 
+    /\ (forall t, (vt <> (Vundef sbool t))) /\ 
+    (forall w t, (vt <> (Vundef (sword w) t)))) ->
+   ((forall t, (vf <> (Vundef sint t))) 
+    /\ (forall t, (vf <> (Vundef sbool t))) /\ 
+    (forall w t, (vf <> (Vundef (sword w) t)))) ->
    safe_expr s (Pif ty b et ef) 
 
 with safe_exprs : @estate nosubword syscall_state ep -> pexprs -> Prop :=
@@ -496,6 +508,74 @@ is_ok r \/ r = Error ErrType.
 Proof.
 Admitted.
 
+Lemma safe_truncate_val_typeerror : forall t s e ve er, 
+safe_expr s e ->
+sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
+(forall t, (ve <> (Vundef sint t))) 
+    /\ (forall t, (ve <> (Vundef sbool t))) /\ 
+(forall w t, (ve <> (Vundef (sword w) t))) ->
+truncate_val t ve = Error er ->
+er = ErrType.
+Proof.
+move=> t s e ve er hs he [] hse1 [] hse2 hse3. rewrite /truncate_val /=.
+case hv: of_val=> [v | ev] //=. move=> [] hr; subst.
+rewrite /of_val /= in hv. case: t hv=> //=.
++ rewrite /to_bool /=. case hb : (ve)=> [b | i | l arr | wo woo | t ut] //=; subst.
+  + rewrite /type_error. by move=> [] <-.
+  + rewrite /type_error. by move=> [] <-.
+  + rewrite /type_error. by move=> [] <-.
+  case: t ut hse3 hse2 hse1 he=> //=.
+  + move=> i hse3 hse2 hse1 he hr. by move: (hse2 i)=> //=.
+  + move=> i hse3 hse2 hse1 he hr. by move: (hse1 i)=> //=.
+  move=> w i hse3 hse2 hse1 he hr. by move: (hse3 w i)=> //=. 
++ rewrite /to_int /=. case hb : (ve)=> [b | i | l arr | wo woo | t ut] //=; subst.
+  + rewrite /type_error. by move=> [] <-.
+  + rewrite /type_error. by move=> [] <-.
+  + rewrite /type_error. by move=> [] <-.
+  case: t ut hse3 hse2 hse1 he=> //=.
+  + move=> i hse3 hse2 hse1 he hr. by move: (hse2 i)=> //=.
+  + move=> i hse3 hse2 hse1 he hr. by move: (hse1 i)=> //=.
+  move=> w i hse3 hse2 hse1 he hr. by move: (hse3 w i)=> //=.  
++ rewrite /to_arr. case hb : (ve)=> [b | i | l arr | wo woo | t ut] //=; subst.
+  + rewrite /type_error. by move=> p [] <-.
+  + rewrite /type_error. by move=> p [] <-.
+  + move=> p. rewrite /WArray.cast /=. case: ifP=> //=.
+    move=> /eqP hp. rewrite /type_error. by move=> [] <-.
+  + rewrite /type_error. by move=> p [] <-.
+  rewrite /type_error. by move=> p [] <-.
+move=> w. rewrite /to_word. 
+case hb : (ve)=> [b | i | l arr | wo woo | t ut] //=; subst.
++ rewrite /type_error. by move=> [] <-.
++ rewrite /type_error. by move=> [] <-.
++ rewrite /type_error. by move=> [] <-.
++ move=> ht. by have [-> h2]:= truncate_word_errP ht.
+case: t ut hse3 hse2 hse1 he=> //=.
++ move=> i hse3 hse2 hse1 he hr. by move: (hse2 i)=> //=.
++ move=> i hse3 hse2 hse1 he hr. by move: (hse1 i)=> //=.
+move=> ws i hse3 hse2 hse1 he hr. by move: (hse3 ws i)=> //=. 
+Qed.
+
+Lemma safe_to_bool_typeerror : forall s e ve er, 
+safe_expr s e ->
+sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
+(forall t, (ve <> (Vundef sint t))) 
+    /\ (forall t, (ve <> (Vundef sbool t))) /\ 
+(forall w t, (ve <> (Vundef (sword w) t))) ->
+to_bool ve = Error er ->
+er = ErrType.
+Proof.
+move=> s e ve er hs he hse. rewrite /to_bool.
+case: ve he hse=> //=.
++ rewrite /type_error. by move=> z he hse [] <-. 
++ rewrite /type_error. by move=> len a he hse [] <-. 
++ rewrite /type_error. by move=> w sw he hse [] <-. 
+move=> t i he hse. case: t i he hse=> //=.
++ move=> t he [] h1 [] h2 h3 hr. by move: (h2 t).
++ move=> t he [] h1 [] h2 h3 hr. by move: (h1 t).
+move=> w i he [] h1 [] h2 h3 hr. by move: (h3 w i).
+Qed.
+
+
 Theorem sem_pexpr_safe : forall e s r,
 safe_expr s e ->
 sem_pexpr (wsw:= nosubword) false gd s e = r ->
@@ -579,13 +659,16 @@ move=> e s r. move: r s. elim: e.
 + admit.
 (* Pif *)
 move=> t e hei e1 hei1 e2 hei2 r s hs /=; inversion hs; subst.
-case he2 : sem_pexpr=> [ve2 | vr2] //=.
-+ case he1 : sem_pexpr=> [ve1 | vr1] //=.
-  + case he : sem_pexpr=> [ve | vr] //=.
-    + case hb : to_bool=> [vb |  br] //=.
-      + case ht : truncate_val=> [vt | tr] //=.
-        + case ht' : truncate_val => [vt' | tr'] //=.
-          + move=> <-. by left.
-          move=> hr.  
+rewrite H6 /=. case hb : to_bool=> [bv | br] //=.
++ rewrite H7 /=. case ht: truncate_val=> [tv | tr] //=.
+  + rewrite H9 /=. case ht': truncate_val=> [tv' | tr'] //=.
+    + move=> <-. by left.
+    move=> hr. 
+    have hreq := safe_truncate_val_typeerror t s e2 vf tr' H5 H9 H12 ht'.
+    rewrite hreq in hr. by right.
+  move=> hr. have hreq := safe_truncate_val_typeerror t s e1 vt tr H4 H7 H11 ht.
+  rewrite hreq in hr. by right.
+move=> hrr. have hreq:= safe_to_bool_typeerror s e vb br H3 H6 H10 hb.
+rewrite hreq in hrr. by right.
 Admitted.
 
