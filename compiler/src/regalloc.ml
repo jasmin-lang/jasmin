@@ -876,13 +876,11 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
 
     Initial 'info are preserved in the result.
    *)
-  let annot_table : Annotations.f_annot Hf.t = Hf.create 17 in
   let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
   let return_addresses : retaddr Hf.t = Hf.create 17 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
   let preprocess f =
-    Hf.add annot_table f.f_name f.f_annot;
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
     Hf.add liveness_table f.f_name (Liveness.live_fd true f);
     (* compute where will be store the return address *)
