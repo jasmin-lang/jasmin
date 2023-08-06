@@ -25,6 +25,24 @@ set_execute_get:
     push   %ax
     popf
 
+    # mov to xmm registers
+    vmovq   136(%rdi), %xmm0
+    vmovq   144(%rdi), %xmm1
+    vmovq   152(%rdi), %xmm2
+    vmovq   160(%rdi), %xmm3
+    vmovq   168(%rdi), %xmm4
+    vmovq   176(%rdi), %xmm5
+    vmovq   184(%rdi), %xmm6
+    vmovq   192(%rdi), %xmm7
+    vmovq   200(%rdi), %xmm8
+    vmovq   208(%rdi), %xmm9
+    vmovq   216(%rdi), %xmm10
+    vmovq   224(%rdi), %xmm11
+    vmovq   232(%rdi), %xmm12
+    vmovq   240(%rdi), %xmm13
+    vmovq   248(%rdi), %xmm14
+    vmovq   256(%rdi), %xmm15
+
     # start moving to registers
     movq    (%rdi), %rax
     movq    8(%rdi), %rcx
@@ -70,6 +88,24 @@ set_execute_get:
     movq    %r13, 104(%rdi)
     movq    %r14, 112(%rdi)
     movq    %r15, 120(%rdi)
+
+    # move from xmm registers
+    vmovq   %xmm0, 136(%rdi)
+    vmovq   %xmm1, 144(%rdi)
+    vmovq   %xmm2, 152(%rdi)
+    vmovq   %xmm3, 160(%rdi)
+    vmovq   %xmm4, 168(%rdi)
+    vmovq   %xmm5, 176(%rdi)
+    vmovq   %xmm6, 184(%rdi)
+    vmovq   %xmm7, 192(%rdi)
+    vmovq   %xmm8, 200(%rdi)
+    vmovq   %xmm9, 208(%rdi)
+    vmovq   %xmm10, 216(%rdi)
+    vmovq   %xmm11, 224(%rdi)
+    vmovq   %xmm12, 232(%rdi)
+    vmovq   %xmm13, 240(%rdi)
+    vmovq   %xmm14, 248(%rdi)
+    vmovq   %xmm15, 256(%rdi)
 
     # get flag value
     pushfq

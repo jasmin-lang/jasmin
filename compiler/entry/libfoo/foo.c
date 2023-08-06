@@ -25,6 +25,25 @@ struct asm_state {
     int64_t r15;
     // RFLAGS
     int64_t rflags;
+
+    // XMM registers (TODO: should change from 64 bit to 128/256 bits
+    // later)
+    int64_t xmm0;
+    int64_t xmm1;
+    int64_t xmm2;
+    int64_t xmm3;
+    int64_t xmm4;
+    int64_t xmm5;
+    int64_t xmm6;
+    int64_t xmm7;
+    int64_t xmm8;
+    int64_t xmm9;
+    int64_t xmm10;
+    int64_t xmm11;
+    int64_t xmm12;
+    int64_t xmm13;
+    int64_t xmm14;
+    int64_t xmm15;
 };
 
 extern void set_execute_get(struct asm_state *);
