@@ -346,7 +346,10 @@ let is_correct asm_arr =
     let jxasm =
       let jxarr = Array.make 16 Z.zero in
       for i = 0 to 15 do
-        jxarr.(i) <- (J.Conv.z_of_cz (J.Exec.read_xreg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jxregs.(i)))
+        let temp = J.Conv.z_of_int64 (J.Conv.int64_of_z (J.Conv.z_of_cz (J.Exec.read_xreg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jxregs.(i)))) in
+        (* jxarr.(i) <- (J.Conv.z_of_cz (J.Exec.read_xreg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jxregs.(i))); *)
+        jxarr.(i) <- temp;
+        (* Printf.printf "The JXasm is %s\n" (Z.to_string jxarr.(i)); *)
       done;
       jxarr
     in
@@ -354,7 +357,8 @@ let is_correct asm_arr =
     let cxasm =
       let cxarr = Array.make 16 Z.zero in
       for i = 0 to 15 do
-        cxarr.(i) <- Z.of_int64_unsigned (getf state cxregs.(i))
+        cxarr.(i) <- Z.of_int64 (getf state cxregs.(i));
+        (* Printf.printf "The CXasm is %s\n" (Z.to_string cxarr.(i)); *)
       done;
       cxarr
     in

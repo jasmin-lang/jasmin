@@ -26,22 +26,22 @@ set_execute_get:
     popf
 
     # mov to xmm registers
-    vmovq   136(%rdi), %xmm0
-    vmovq   144(%rdi), %xmm1
-    vmovq   152(%rdi), %xmm2
-    vmovq   160(%rdi), %xmm3
-    vmovq   168(%rdi), %xmm4
-    vmovq   176(%rdi), %xmm5
-    vmovq   184(%rdi), %xmm6
-    vmovq   192(%rdi), %xmm7
-    vmovq   200(%rdi), %xmm8
-    vmovq   208(%rdi), %xmm9
-    vmovq   216(%rdi), %xmm10
-    vmovq   224(%rdi), %xmm11
-    vmovq   232(%rdi), %xmm12
-    vmovq   240(%rdi), %xmm13
-    vmovq   248(%rdi), %xmm14
-    vmovq   256(%rdi), %xmm15
+    movq   136(%rdi), %xmm0
+    movq   144(%rdi), %xmm1
+    movq   152(%rdi), %xmm2
+    movq   160(%rdi), %xmm3
+    movq   168(%rdi), %xmm4
+    movq   176(%rdi), %xmm5
+    movq   184(%rdi), %xmm6
+    movq   192(%rdi), %xmm7
+    movq   200(%rdi), %xmm8
+    movq   208(%rdi), %xmm9
+    movq   216(%rdi), %xmm10
+    movq   224(%rdi), %xmm11
+    movq   232(%rdi), %xmm12
+    movq   240(%rdi), %xmm13
+    movq   248(%rdi), %xmm14
+    movq   256(%rdi), %xmm15
 
     # start moving to registers
     movq    (%rdi), %rax
@@ -65,7 +65,7 @@ set_execute_get:
     movq    56(%rdi), %rdi
 
     # Execute the instruction here
-    mulxq	%rax, %rax, %rax
+    vpand   %xmm3, %xmm2, %xmm1
 
     # post execution
     pushq   %rdi                    # save the post-exec rdi
@@ -90,22 +90,22 @@ set_execute_get:
     movq    %r15, 120(%rdi)
 
     # move from xmm registers
-    vmovq   %xmm0, 136(%rdi)
-    vmovq   %xmm1, 144(%rdi)
-    vmovq   %xmm2, 152(%rdi)
-    vmovq   %xmm3, 160(%rdi)
-    vmovq   %xmm4, 168(%rdi)
-    vmovq   %xmm5, 176(%rdi)
-    vmovq   %xmm6, 184(%rdi)
-    vmovq   %xmm7, 192(%rdi)
-    vmovq   %xmm8, 200(%rdi)
-    vmovq   %xmm9, 208(%rdi)
-    vmovq   %xmm10, 216(%rdi)
-    vmovq   %xmm11, 224(%rdi)
-    vmovq   %xmm12, 232(%rdi)
-    vmovq   %xmm13, 240(%rdi)
-    vmovq   %xmm14, 248(%rdi)
-    vmovq   %xmm15, 256(%rdi)
+    movq   %xmm0, 136(%rdi)
+    movq   %xmm1, 144(%rdi)
+    movq   %xmm2, 152(%rdi)
+    movq   %xmm3, 160(%rdi)
+    movq   %xmm4, 168(%rdi)
+    movq   %xmm5, 176(%rdi)
+    movq   %xmm6, 184(%rdi)
+    movq   %xmm7, 192(%rdi)
+    movq   %xmm8, 200(%rdi)
+    movq   %xmm9, 208(%rdi)
+    movq   %xmm10, 216(%rdi)
+    movq   %xmm11, 224(%rdi)
+    movq   %xmm12, 232(%rdi)
+    movq   %xmm13, 240(%rdi)
+    movq   %xmm14, 248(%rdi)
+    movq   %xmm15, 256(%rdi)
 
     # get flag value
     pushfq

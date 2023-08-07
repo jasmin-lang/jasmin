@@ -68,6 +68,22 @@ void set_execute_get_wrapper(struct asm_state *state) {
     printf("r14 = %lx\n", state->r14);
     printf("r15 = %lx\n", state->r15);
     printf("rflags = %lx\n", state->rflags);
+    printf("xmm0 = %lx\n", state->xmm0);
+    printf("xmm1 = %lx\n", state->xmm1);
+    printf("xmm2 = %lx\n", state->xmm2);
+    printf("xmm3 = %lx\n", state->xmm3);
+    printf("xmm4 = %lx\n", state->xmm4);
+    printf("xmm5 = %lx\n", state->xmm5);
+    printf("xmm6 = %lx\n", state->xmm6);
+    printf("xmm7 = %lx\n", state->xmm7);
+    printf("xmm8 = %lx\n", state->xmm8);
+    printf("xmm9 = %lx\n", state->xmm9);
+    printf("xmm10 = %lx\n", state->xmm10);
+    printf("xmm11 = %lx\n", state->xmm11);
+    printf("xmm12 = %lx\n", state->xmm12);
+    printf("xmm13 = %lx\n", state->xmm13);
+    printf("xmm14 = %lx\n", state->xmm14);
+    printf("xmm15 = %lx\n", state->xmm15);
 }
 
 void set_execute_get_emulator(struct asm_state *state) {
