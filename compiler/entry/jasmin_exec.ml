@@ -143,11 +143,11 @@ module Impl (A : Arch') = struct
       pp_flags asm_state
 
   let regs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_r.to_string r, J.Conv.cz_of_z (Z.of_int64 v))) arch_decl.toS_r._finC.cenum l
+    List.map2 (fun r v -> (arch_decl.toS_r.to_string r, J.Conv.cz_of_z (Z.of_int64_unsigned v))) arch_decl.toS_r._finC.cenum l
   let regxs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_rx.to_string r, J.Conv.cz_of_z (Z.of_int64 v))) arch_decl.toS_rx._finC.cenum l
+    List.map2 (fun r v -> (arch_decl.toS_rx.to_string r, J.Conv.cz_of_z (Z.of_int64_unsigned v))) arch_decl.toS_rx._finC.cenum l
   let xregs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, J.Conv.cz_of_z (Z.of_int64 v))) arch_decl.toS_x._finC.cenum l
+    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, J.Conv.cz_of_z (Z.of_int64_unsigned v))) arch_decl.toS_x._finC.cenum l
   let flags_of_val l =
     List.map2 (fun f v -> (arch_decl.toS_f.to_string f, v)) arch_decl.toS_f._finC.cenum l
 
