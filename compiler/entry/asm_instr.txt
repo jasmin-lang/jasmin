@@ -1,1 +1,1 @@
-mulxq	%rax, %rax, %rax
+vpmaddwd	%xmm0, %xmm0, %xmm0

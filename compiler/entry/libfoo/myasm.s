@@ -65,7 +65,7 @@ set_execute_get:
     movq    56(%rdi), %rdi
 
     # Execute the instruction here
-    vpand   %xmm3, %xmm2, %xmm1
+    vpmaddwd	%xmm0, %xmm0, %xmm0
 
     # post execution
     pushq   %rdi                    # save the post-exec rdi

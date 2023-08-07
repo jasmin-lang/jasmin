@@ -35,6 +35,7 @@ def get_usable_reg (rlist):
     return choice
 
 regs_list = list(x86_isa.regs.keys())
+xregs_list = list(x86_isa.xregs.keys())
 
 def gen_build_dir(mv_to_folder, j_instr, asm_instr):
     print("Building Instruction: ", asm_instr)
@@ -253,14 +254,43 @@ def gen_cmovcc_instrs():
                 j_instr = j_op + "\n" + j_args
                 gen_build_dir(mv_to_folder, j_instr, asm_instr)
 
+def gen_three_arg_vec_instrs():
+    for op in x86_isa.ops_three_args_vec:
+        for size in [128]:                  # TODO: handle 256 later
+            for num in range(5):
+                xreg1 = get_usable_reg(xregs_list)
+                xreg2 = get_usable_reg(xregs_list)
+                xreg3 = get_usable_reg(xregs_list)
+                #create some variations
+                if num == 1:
+                    xreg2 = xreg1
+                if num == 2:
+                    xreg3 = xreg1
+                if num == 3:
+                    xreg3 = xreg2
+                if num == 4:
+                    xreg2 = xreg1
+                    xreg3 = xreg1
+                folder_name = op + "_" + str(size) + "_" + xreg1 + "_" + xreg2 + "_" + xreg3
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                asm_instr = "{}\t{}, {}, {}".format(x86_isa.ops_three_args_vec[op], x86_isa.xregs[xreg3][size], x86_isa.xregs[xreg2][size], x86_isa.xregs[xreg1][size])
+                j_op = "{}_{}".format(op, size)
+                j_args = xreg1 + " " + xreg2 + " " + xreg3
+                j_instr = j_op + "\n" + j_args
+                gen_build_dir(mv_to_folder, j_instr, asm_instr)
+
 
 if __name__ == "__main__":
-    gen_zero_arg_instrs()
-    gen_one_arg_instrs()
-    gen_two_arg_instrs()
-    gen_three_arg_instrs()
-    gen_cmovcc_instrs()
-    gen_setcc_instrs()
-    gen_two_arg_two_size_instrs()
-    gen_one_arg_imm8_instrs()
-    gen_two_arg_imm8_instrs()
+    # gen_zero_arg_instrs()
+    # gen_one_arg_instrs()
+    # gen_two_arg_instrs()
+    # gen_three_arg_instrs()
+    # gen_cmovcc_instrs()
+    # gen_setcc_instrs()
+    # gen_two_arg_two_size_instrs()
+    # gen_one_arg_imm8_instrs()
+    # gen_two_arg_imm8_instrs()
+    gen_three_arg_vec_instrs()
