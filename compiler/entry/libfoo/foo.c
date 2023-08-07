@@ -191,6 +191,22 @@ void set_execute_get_emulator(struct asm_state *state) {
     uc_reg_write(uc, UC_X86_REG_R14, &state->r14);
     uc_reg_write(uc, UC_X86_REG_R15, &state->r15);
     uc_reg_write(uc, UC_X86_REG_RFLAGS, &state->rflags);
+    uc_reg_write(uc, UC_X86_REG_XMM0, &state->xmm0);
+    uc_reg_write(uc, UC_X86_REG_XMM1, &state->xmm1);
+    uc_reg_write(uc, UC_X86_REG_XMM2, &state->xmm2);
+    uc_reg_write(uc, UC_X86_REG_XMM3, &state->xmm3);
+    uc_reg_write(uc, UC_X86_REG_XMM4, &state->xmm4);
+    uc_reg_write(uc, UC_X86_REG_XMM5, &state->xmm5);
+    uc_reg_write(uc, UC_X86_REG_XMM6, &state->xmm6);
+    uc_reg_write(uc, UC_X86_REG_XMM7, &state->xmm7);
+    uc_reg_write(uc, UC_X86_REG_XMM8, &state->xmm8);
+    uc_reg_write(uc, UC_X86_REG_XMM9, &state->xmm9);
+    uc_reg_write(uc, UC_X86_REG_XMM10, &state->xmm10);
+    uc_reg_write(uc, UC_X86_REG_XMM11, &state->xmm11);
+    uc_reg_write(uc, UC_X86_REG_XMM12, &state->xmm12);
+    uc_reg_write(uc, UC_X86_REG_XMM13, &state->xmm13);
+    uc_reg_write(uc, UC_X86_REG_XMM14, &state->xmm14);
+    uc_reg_write(uc, UC_X86_REG_XMM15, &state->xmm15);
 
     // emulate machine code in infinite time (last param = 0), or when
     // finishing all the code.
@@ -227,6 +243,22 @@ void set_execute_get_emulator(struct asm_state *state) {
     uc_reg_read(uc, UC_X86_REG_R14, &state->r14);
     uc_reg_read(uc, UC_X86_REG_R15, &state->r15);
     uc_reg_read(uc, UC_X86_REG_RFLAGS, &state->rflags);
+    uc_reg_read(uc, UC_X86_REG_XMM0, &state->xmm0);
+    uc_reg_read(uc, UC_X86_REG_XMM1, &state->xmm1);
+    uc_reg_read(uc, UC_X86_REG_XMM2, &state->xmm2);
+    uc_reg_read(uc, UC_X86_REG_XMM3, &state->xmm3);
+    uc_reg_read(uc, UC_X86_REG_XMM4, &state->xmm4);
+    uc_reg_read(uc, UC_X86_REG_XMM5, &state->xmm5);
+    uc_reg_read(uc, UC_X86_REG_XMM6, &state->xmm6);
+    uc_reg_read(uc, UC_X86_REG_XMM7, &state->xmm7);
+    uc_reg_read(uc, UC_X86_REG_XMM8, &state->xmm8);
+    uc_reg_read(uc, UC_X86_REG_XMM9, &state->xmm9);
+    uc_reg_read(uc, UC_X86_REG_XMM10, &state->xmm10);
+    uc_reg_read(uc, UC_X86_REG_XMM11, &state->xmm11);
+    uc_reg_read(uc, UC_X86_REG_XMM12, &state->xmm12);
+    uc_reg_read(uc, UC_X86_REG_XMM13, &state->xmm13);
+    uc_reg_read(uc, UC_X86_REG_XMM14, &state->xmm14);
+    uc_reg_read(uc, UC_X86_REG_XMM15, &state->xmm15);
 
     printf("UC_RAX = 0x%" PRIx64 "\n", state->rax);
     printf("UC_RBX = 0x%" PRIx64 "\n", state->rbx);
@@ -243,6 +275,22 @@ void set_execute_get_emulator(struct asm_state *state) {
     printf("UC_R14 = 0x%" PRIx64 "\n", state->r14);
     printf("UC_R15 = 0x%" PRIx64 "\n", state->r15);
     printf("UC_RFLAGS = 0x%" PRIx64 "\n", state->rflags);
+    printf("UC_XMM0 = 0x%" PRIx64 "\n", state->xmm0);
+    printf("UC_XMM1 = 0x%" PRIx64 "\n", state->xmm1);
+    printf("UC_XMM2 = 0x%" PRIx64 "\n", state->xmm2);
+    printf("UC_XMM3 = 0x%" PRIx64 "\n", state->xmm3);
+    printf("UC_XMM4 = 0x%" PRIx64 "\n", state->xmm4);
+    printf("UC_XMM5 = 0x%" PRIx64 "\n", state->xmm5);
+    printf("UC_XMM6 = 0x%" PRIx64 "\n", state->xmm6);
+    printf("UC_XMM7 = 0x%" PRIx64 "\n", state->xmm7);
+    printf("UC_XMM8 = 0x%" PRIx64 "\n", state->xmm8);
+    printf("UC_XMM9 = 0x%" PRIx64 "\n", state->xmm9);
+    printf("UC_XMM10 = 0x%" PRIx64 "\n", state->xmm10);
+    printf("UC_XMM11 = 0x%" PRIx64 "\n", state->xmm11);
+    printf("UC_XMM12 = 0x%" PRIx64 "\n", state->xmm12);
+    printf("UC_XMM13 = 0x%" PRIx64 "\n", state->xmm13);
+    printf("UC_XMM14 = 0x%" PRIx64 "\n", state->xmm14);
+    printf("UC_XMM15 = 0x%" PRIx64 "\n", state->xmm15);
 
     // cleanup UC
     uc_close(uc);
