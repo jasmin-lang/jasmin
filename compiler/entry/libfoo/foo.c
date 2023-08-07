@@ -86,6 +86,7 @@ void set_execute_get_wrapper(struct asm_state *state) {
     printf("xmm15 = %lx\n", state->xmm15);
 }
 
+/*
 void set_execute_get_emulator(struct asm_state *state) {
 
     // NOT the best.. please forgive
@@ -299,3 +300,4 @@ void set_execute_get_emulator(struct asm_state *state) {
     ks_free(encode);
     ks_close(ks);
 }
+*/

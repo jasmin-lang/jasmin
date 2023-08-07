@@ -257,7 +257,7 @@ let ()      = seal asm_state
 
 (* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
 let set_execute_get = foreign "set_execute_get_wrapper" (ptr asm_state @-> returning void)
-let set_execute_get_emulator = foreign "set_execute_get_emulator" (ptr asm_state @-> returning void)
+(* let set_execute_get_emulator = foreign "set_execute_get_emulator" (ptr asm_state @-> returning void) *)
 
 let op_ref = ref ""
 let args_ref = ref []
