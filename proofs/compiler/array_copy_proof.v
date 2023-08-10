@@ -86,10 +86,9 @@ Proof. move=> s hsub c2 [] <- vm1 hvm1; exists vm1 => //; constructor. Qed.
 Local Lemma Hcons : sem_Ind_cons p1 ev Pc Pi.
 Proof.
   move=> s1 s2 s3 i1 c1 _ Hi _ Hc /=; rewrite /Pc vars_c_cons => hsub c.
-  rewrite /array_copy_c /=; t_xrbindP => _ i2 hi1 c2 hc2 <- <- /=.
+  move=> /conc_mapM_consI [i2 [c2 [hi1 hc2 ?]]]; subst c.
   move=> vm1 /Hi -/(_ _ _ hi1) []; first by SvD.fsetdec.
-  move=> vm2 /Hc -/(_ _ (flatten c2)) []; first by SvD.fsetdec.
-  + by rewrite /array_copy_c hc2.
+  move=> vm2 /Hc -/(_ _ c2) [] //; first by SvD.fsetdec.
   by move=> vm3 ? hc hi; exists vm3 => //; apply: sem_app hi hc.
 Qed.
 

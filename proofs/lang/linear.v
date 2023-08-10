@@ -57,6 +57,20 @@ Record lfundef := LFundef {
  lfd_total_stack: Z; (* total amount of stack memory needed by this function (and all functions called by this one *)
 }.
 
+Definition with_lbody (lfd : lfundef) (lbody : lcmd) : lfundef :=
+  {|
+    lfd_info := lfd_info lfd;
+    lfd_align := lfd_align lfd;
+    lfd_tyin := lfd_tyin lfd;
+    lfd_arg := lfd_arg lfd;
+    lfd_body := lbody;
+    lfd_tyout := lfd_tyout lfd;
+    lfd_res := lfd_res lfd;
+    lfd_export := lfd_export lfd;
+    lfd_callee_saved := lfd_callee_saved lfd;
+    lfd_total_stack := lfd_total_stack lfd;
+  |}.
+
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
   (lfd_tyin lfd, lfd_tyout lfd).
 
@@ -66,14 +80,29 @@ Record lprog :=
     lp_globs : seq u8;
     lp_funcs : seq (funname * lfundef) }.
 
+Definition with_lfds (lp : lprog) (lfds : seq (funname * lfundef)) : lprog :=
+  {|
+    lp_rip := lp_rip lp;
+    lp_rsp := lp_rsp lp;
+    lp_globs := lp_globs lp;
+    lp_funcs := lfds;
+  |}.
+
 End ASM_OP.
 
-Notation fopn_args := (lexprs * sopn * rexprs)%type.
+Notation fopn_args := (seq lexpr * sopn * seq rexpr)%type (only parsing).
+
+Definition lir_of_fopn_args
+  {asm_op : Type}
+  {asmop : asmOp asm_op}
+  (args : fopn_args)
+  : linstr_r :=
+  Lopn args.1.1 args.1.2 args.2.
 
 Definition li_of_fopn_args
   {asm_op : Type}
   {asmop : asmOp asm_op}
   (ii : instr_info)
-  (p : fopn_args) :
+  (args : fopn_args) :
   linstr :=
-  MkLI ii (Lopn p.1.1 p.1.2 p.2).
+  MkLI ii (lir_of_fopn_args args).

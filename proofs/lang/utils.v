@@ -278,6 +278,10 @@ Proof.
   by simpl; t_xrbindP => y0 -> h0 -> -> ->.
 Qed.
 
+Lemma mapM_cons_not_nil eT xT yT (f : xT -> result eT yT) x xs :
+  mapM f (x :: xs) <> ok [::].
+Proof. rewrite /mapM -/(mapM _ xs). case: (f x) => //=. by case: mapM. Qed.
+
 Lemma map_ext aT bT f g m :
   (forall a, List.In a m -> f a = g a) ->
   @map aT bT f m = map g m.
@@ -1087,6 +1091,25 @@ Qed.
 
 Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
   flatten (map f l).
+
+Definition conc_mapM eT aT bT (f : aT -> result eT (seq bT)) (l : seq aT) :=
+  Let x := mapM f l in ok (flatten x).
+
+Lemma conc_mapM_consI {eT xT yT x xs ys} {f : xT -> result eT (seq yT)} :
+  conc_mapM f (x :: xs) = ok ys ->
+  exists ys0 yss,
+    [/\ f x = ok ys0
+      , conc_mapM f xs = ok yss
+      & ys = ys0 ++ yss
+    ].
+Proof.
+  rewrite /conc_mapM.
+  t_xrbindP=> -[|ys0 yss] hyss ?; subst ys.
+  - by move: (mapM_cons_not_nil hyss).
+  move: hyss => /mapM_cons [-> ->].
+  eexists; by eexists.
+Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)

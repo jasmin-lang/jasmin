@@ -314,21 +314,18 @@ Lemma in_add_singleton x y :
   Sv.In x (Sv.add y (Sv.singleton x)).
 Proof. apply: SvD.F.add_2. exact: SvD.F.singleton_2. Qed.
 
+(* We need these two to force typeclass inference in some lemmas. *)
 Lemma disjoint_equal_l xs ys zs:
   Sv.Equal xs ys
   -> disjoint xs zs
   -> disjoint ys zs.
-Proof.
-  move=> heq /Sv.is_empty_spec h. apply/Sv.is_empty_spec. SvD.fsetdec.
-Qed.
+Proof. by move=> ->. Qed.
 
 Lemma disjoint_equal_r xs ys zs:
   Sv.Equal xs ys
   -> disjoint ys zs
   -> disjoint xs zs.
-Proof.
-  move=> heq /Sv.is_empty_spec h. apply/Sv.is_empty_spec. SvD.fsetdec.
-Qed.
+Proof. by move=> ->. Qed.
 
 Lemma disjoint_union xs ys zs :
   disjoint (Sv.union xs ys) zs

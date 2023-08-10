@@ -53,8 +53,7 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
     ].
 
 Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd := 
-  Let cs := mapM array_copy_i c in 
-  ok (flatten cs).
+  conc_mapM array_copy_i c.
 
 Definition is_copy o := 
   match o with 

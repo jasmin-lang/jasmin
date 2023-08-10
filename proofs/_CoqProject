@@ -105,6 +105,7 @@ lang/gen_map.v
 lang/global.v
 lang/ident.v
 lang/linear.v
+lang/linear_facts.v
 lang/linear_sem.v
 lang/low_memory.v
 lang/lowering_lemmas.v
