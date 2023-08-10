@@ -150,14 +150,14 @@ End CALL_SITE_TABLE.
 
 Section LOAD_TAG_INFO.
   (* Generate a map from function names to how they load the return tag.
-     Remove [Ouse_vars IRpc_load_reg] and [Ouse_vars IRpc_load_msf] from the
+     Remove [Ouse_vars IRpc_load_scratch] and [Ouse_vars IRpc_load_msf] from the
      code.
 
      Subroutines end in either one of two instructions:
      1. [Lret], and they expect the return tag on the stack (so they need a
      scratch register and an MSF).
      2. [Ligoto], and they expect the return tag in a register (general purpose
-     or extra). If there is an internal [Ouse_vars IRpc_load_reg] before then
+     or extra). If there is an internal [Ouse_vars IRpc_load_scratch] before then
      it carries the scratch register and it means that the return tag is in an
      extra register. *)
 
@@ -215,7 +215,7 @@ Section LOAD_TAG_INFO.
         Let lti := ltist_get_lti st lir in
         ok (lti, lc)
 
-    | MkLI _ (Lopn les (Ointernal (Ouse_vars IRpc_load_reg _ _)) _) :: lc =>
+    | MkLI _ (Lopn les (Ointernal (Ouse_vars IRpc_load_scratch _ _)) _) :: lc =>
         Let st' := ltist_set_scratch st les in
         lti_lcmd st' lc
 

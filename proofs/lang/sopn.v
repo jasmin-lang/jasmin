@@ -89,7 +89,7 @@ Context
 
 Variant internal_reason :=
   (* Register to load the tag to. *)
-  | IRpc_load_reg
+  | IRpc_load_scratch
 
   (* MSF to protect the tag. *)
   | IRpc_load_msf
@@ -114,7 +114,7 @@ Canonical internal_reason_eqType :=
 
 Definition string_of_internal_reason (ir : internal_reason) : string :=
   match ir with
-  | IRpc_load_reg => "pc_load_reg"
+  | IRpc_load_scratch => "pc_load_scratch"
   | IRpc_load_msf => "pc_load_msf"
   | IRpc_save_scratch => "pc_save_scratch"
   end.

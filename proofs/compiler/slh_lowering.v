@@ -607,14 +607,14 @@ Definition protected_ret
   | RAKstack =>
       Let msf := o2r (E.cant_find_msf fn) (Env.choose_msf env) in
       let irs :=
-        [:: use_vars_get_reg IRpc_load_reg
+        [:: use_vars_get_reg IRpc_load_scratch
           ; use_vars_use_one IRpc_load_msf msf
         ]
       in
       ok [seq MkI dummy_instr_info ir | ir <- irs ]
   | RAKregister => ok [::]
   | RAKextra_register =>
-      ok [:: MkI dummy_instr_info (use_vars_get_reg IRpc_load_reg) ]
+      ok [:: MkI dummy_instr_info (use_vars_get_reg IRpc_load_scratch) ]
   end.
 
 Definition lower_fd (fn : funname) (fd : fundef) : cexec fundef :=
