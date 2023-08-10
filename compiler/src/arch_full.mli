@@ -2,10 +2,20 @@ open Arch_decl
 open Arch_extra
 open Prog
 
-type 'a callstyle =
+type 'a return_address_location =
   | StackDirect           (* call instruction push the return address on top of the stack *)
-  | ByReg of 'a option    (* call instruction store the return address on a register, 
+  | ByReg of 'a option    (* call instruction store the return address on a register,
                                (Some r) neams that the register is forced to be r *)
+  | ByExtraReg            (* The return address is on an extra register. *)
+
+type 'a callstyle =
+  (* [Exclusive] means that only this location is possible. *)
+  | Exclusive of 'a return_address_location
+  (* [Preferred] means that any location is possible, and there is a preferred
+     one. *)
+  | Preferred of 'a return_address_location
+
+
 (* x86    : StackDirect 
    arm v7 : ByReg (Some ra)
    riscV  : ByReg (can it be StackDirect too ?)

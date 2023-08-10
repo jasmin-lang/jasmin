@@ -20,7 +20,9 @@ From mathcomp Require Import
   all_ssreflect
   all_algebra.
 
-Require Import expr.
+Require Import
+  expr
+  return_address_kind.
 Require constant_prop flag_combination.
 Require Import compiler_util.
 
@@ -92,6 +94,31 @@ Definition lowering_failed (ii : instr_info) : pp_error_loc :=
 Definition invalid_type_for_msf (ii : instr_info) : pp_error_loc :=
   pp_user_error (Some ii) None (pp_s "Invalid type for msf variable").
 
+Definition update_after_call_failed
+  (ii : instr_info) (omsg : option string) : pp_error_loc :=
+  let reason := if omsg is Some msg then [:: "("; msg; ")" ]%string else [::] in
+  let msg := "Could not introduce MSF update after return"%string in
+  {|
+    pel_msg := pp_box (map pp_s (msg :: reason));
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := Some ii;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := true;
+  |}.
+
+Definition cant_find_msf (fn : funname) : pp_error_loc :=
+  {|
+    pel_msg := compiler_util.pp_s "can't find MSF to protect return address";
+    pel_fn := Some fn;
+    pel_fi := None;
+    pel_ii := None;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := true;
+  |}.
+
 Notation internal_error_ s :=
   (pp_internal_error_s pass s).
 
@@ -145,6 +172,9 @@ Module Env.
 
   Definition update_cond (env : t) (c : pexpr) : t :=
     {| cond := Some c; msf_vars := msf_vars env; |}.
+
+  Definition choose_msf (env : t) : option Sv.elt :=
+    Sv.choose (msf_vars env).
 
   Definition meet (env0 env1 : t) : t :=
     let c :=
@@ -204,6 +234,7 @@ Section CHECK.
 Context
   {asm_op : Type}
   {asmop : asmOp asm_op}
+  {pd : PointerData}
   {msfsz : MSFsize}
   {pT : progT}.
 
@@ -274,10 +305,6 @@ Section CHECK_SLHO.
     | SLHprotect_ptr_fail _ => (* fail should not be used at this point *)
       ok (Env.after_assign_vars env (vrv (get_lv lvs 0)))
     end.
-
-  Variant slh_t :=
-    | Slh_None
-    | Slh_msf.
 
   Definition check_f_arg ii env (e:pexpr) (ty:slh_t) :=
     if ty is Slh_msf then check_e_msf ii env e
@@ -414,12 +441,28 @@ Record sh_params :=
   {
     (* Lower a speculative operator. *)
     shp_lower : seq lval -> slh_op -> seq pexpr -> option copn_args;
+
+    (* Update at least one MSF after returning from a function call.
+       This is mapped to
+         [shp_lower ... SLHupdate ...; shp_lower ... SLHmove_msf ...; ...]
+       after linearization.  *)
+    shp_update_after_call :
+      (option string -> pp_error_loc) -> var_i -> seq var_i -> cexec copn_args;
+  }.
+
+Record slh_function_info :=
+  {
+    slhfi_tin : seq slh_t;
+    slhfi_tout : seq slh_t;
+    slhfi_rak : return_address_kind;
   }.
 
 Context
   {fcparams : flag_combination.FlagCombinationParams}
   (shparams : sh_params)
-  (fun_info : funname -> seq slh_t * seq slh_t).
+  (slh_fun_info : funname -> slh_function_info)
+  (protect_calls : bool)
+.
 
 (* We need to ensure that conditions don't depend on memory, since this makes it
    impossible to tell whether their value is still true after branching.
@@ -451,21 +494,22 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       check_while ii cond (check_cmd c0) (check_cmd c1) Loop.nb env
 
   | Ccall _ xs fn es =>
-      let '(in_t, out_t) := fun_info fn in
-      Let _ := check_f_args ii env es in_t in
-      check_f_lvs ii env xs out_t
+      let slhfi := slh_fun_info fn in
+      Let _ := check_f_args ii env es (slhfi_tin slhfi) in
+      check_f_lvs ii env xs (slhfi_tout slhfi)
   end.
 
 Definition check_cmd (env : Env.t) (c : cmd) : cexec Env.t :=
   rec_check_cmd check_i c env.
 
-Definition check_fd
-   (fn:funname) (fd : fundef) : cexec unit :=
-  let '(in_t, out_t) := fun_info fn in
-  Let env := init_fun_env Env.empty (f_params fd) (f_tyin fd) in_t in
+Definition check_fd (fn : funname) (fd : fundef) : cexec Env.t :=
+  let slhfi := slh_fun_info fn in
+  Let env :=
+    init_fun_env Env.empty (f_params fd) (f_tyin fd) (slhfi_tin slhfi)
+  in
   Let env := check_cmd env (f_body fd) in
-  Let _ := check_res env (f_res fd) (f_tyout fd) out_t in
-  ok tt.
+  Let _ := check_res env (f_res fd) (f_tyout fd) (slhfi_tout slhfi) in
+  ok env.
 
 Definition is_protect_ptr (slho : slh_op) :=
   if slho is SLHprotect_ptr p then Some p
@@ -484,63 +528,120 @@ Definition lower_slho
        ok (instr_of_copn_args tg args)
   else Error (E.lowering_failed ii).
 
-Notation rec_cmd lower_i c := (mapM lower_i c).
-
-Fixpoint lower_i (i : instr) : cexec instr :=
-  let lower_cmd c := rec_cmd lower_i c in
-  let '(MkI ii ir) := i in
-  Let i :=
-    match ir with
-    | Cassgn _ _ _ _ =>
-      ok ir
-
-    | Copn lvs tg op es =>
-      if op is Oslh slho
-      then lower_slho ii lvs tg slho es
-      else ok ir
-
-    | Csyscall _ _ _ =>
-        ok ir
-
-    | Cif b c0 c1 =>
-      Let c0' := lower_cmd c0 in
-      Let c1' := lower_cmd c1 in
-      ok (Cif b c0' c1')
-
-    | Cfor x r c =>
-      Let c' := lower_cmd c in
-      ok (Cfor x r c')
-
-    | Cwhile al c0 b c1 =>
-      Let c0' := lower_cmd c0 in
-      Let c1' := lower_cmd c1 in
-      ok (Cwhile al c0' b c1')
-
-    | Ccall _ _ _ _ =>
-        ok ir
+Definition output_msfs (fn : funname) (lvs : seq lval) : seq var_i :=
+  let get_msf '(lv, t) :=
+    match lv, t with
+    | Lvar x, Slh_msf => Some x
+    | _, _ => None
     end
   in
-  ok (MkI ii i).
+  pmap get_msf (zip lvs (slhfi_tout (slh_fun_info fn))).
 
-Definition lower_cmd (c : cmd) : cexec cmd := rec_cmd lower_i c.
+Definition update_msfs
+  (ii : instr_info) (fn : funname) (lvs : seq lval) : cexec (seq instr_r) :=
+  if output_msfs fn lvs is msf :: msfs
+  then
+    let on_err := E.update_after_call_failed ii in
+    Let args := shp_update_after_call shparams on_err msf msfs in
+    ok [:: instr_of_copn_args AT_keep args ]
+  else ok [::].
 
-Definition lower_fd (fn:funname) (fd:fundef) :=
-  Let _ := check_fd fn fd in
+Fixpoint lower_i (i : instr) : cexec cmd :=
+  let lower_cmd c := conc_mapM lower_i c in
+  let '(MkI ii ir) := i in
+  Let irs :=
+    match ir with
+    | Cassgn _ _ _ _ =>
+        ok [:: ir ]
+
+    | Copn lvs tg op es =>
+        Let ir' :=
+          if op is Oslh slho
+          then lower_slho ii lvs tg slho es
+          else ok ir
+        in
+        ok [:: ir' ]
+
+    | Csyscall _ _ _ =>
+        ok [:: ir ]
+
+    | Cif b c0 c1 =>
+        Let c0' := lower_cmd c0 in
+        Let c1' := lower_cmd c1 in
+        ok [:: Cif b c0' c1' ]
+
+    | Cfor x r c =>
+        Let c' := lower_cmd c in
+        ok [:: Cfor x r c' ]
+
+    | Cwhile al c0 b c1 =>
+        Let c0' := lower_cmd c0 in
+        Let c1' := lower_cmd c1 in
+        ok [:: Cwhile al c0' b c1' ]
+
+    | Ccall _ lvs callee _ =>
+        if protect_calls
+        then
+          let pre :=
+            if slhfi_rak (slh_fun_info callee) is RAKextra_register
+            then [:: use_vars_get_reg IRpc_save_scratch ]
+            else [::]
+          in
+          Let updates := update_msfs ii callee lvs in
+          ok (pre ++ ir :: updates)
+        else
+          ok [:: ir ]
+
+    end
+  in
+  ok (map (MkI ii) irs).
+
+Definition lower_cmd (c : cmd) : cexec cmd := conc_mapM lower_i c.
+
+(* TODO: If [fn] has only one caller then there is no need to protect its
+   return (and no need to require a live MSF). *)
+Definition protected_ret
+  (env : Env.t) (fn : funname) (fd : fundef) : cexec cmd :=
+  match slhfi_rak (slh_fun_info fn) with
+  | RAKnone => ok [::]
+  | RAKstack =>
+      Let msf := o2r (E.cant_find_msf fn) (Env.choose_msf env) in
+      let irs :=
+        [:: use_vars_get_reg IRpc_load_reg
+          ; use_vars_use_one IRpc_load_msf msf
+        ]
+      in
+      ok [seq MkI dummy_instr_info ir | ir <- irs ]
+  | RAKregister => ok [::]
+  | RAKextra_register =>
+      ok [:: MkI dummy_instr_info (use_vars_get_reg IRpc_load_reg) ]
+  end.
+
+Definition lower_fd (fn : funname) (fd : fundef) : cexec fundef :=
+  Let env := check_fd fn fd in
   let 'MkFun ii si p c so r ev := fd in
   Let c := lower_cmd c in
-  ok (MkFun ii si p c so r ev).
-
-Definition is_shl_none ty :=
-  if ty is Slh_None then true
-  else false.
+  Let p_ret_args :=
+    if protect_calls then protected_ret env fn fd else ok [::]
+  in
+  ok (MkFun ii si p (c ++ p_ret_args) so r ev).
 
 Definition lower_slh_prog (entries : seq funname) (p : prog) : cexec prog :=
-   Let _ := assert (all (fun f => all is_shl_none (fst (fun_info f))) entries)
-                   (E.pp_user_error None None (pp_s "exported function should not take an miss-speculation flag as input")) in
-   Let p_funcs := map_cfprog_name lower_fd (p_funcs p) in
-   ok  {| p_funcs  := p_funcs;
-          p_globs := p_globs p;
-          p_extra := p_extra p;
-        |}.
+  Let _ :=
+    let msg :=
+      "exported function should not take an miss-speculation flag as \
+       input"%string
+    in
+    assert
+      (all (fun f => all is_shl_none (slhfi_tin (slh_fun_info f))) entries)
+      (E.pp_user_error None None (pp_s msg))
+      in
+  Let p_funcs := map_cfprog_name lower_fd (p_funcs p) in
+  ok
+    {|
+      p_funcs := p_funcs;
+      p_globs := p_globs p;
+      p_extra := p_extra p;
+    |}.
 
 End CHECK.

@@ -6,7 +6,8 @@ Require Import
   arch_params
   compiler_util
   expr
-  flag_combination.
+  flag_combination
+  return_address_kind.
 Require Import
   arch_decl
   arch_extra
@@ -31,7 +32,8 @@ Require Import
   unrolling
   wsize.
 Require
-  merge_varmaps.
+  merge_varmaps
+  protect_calls.
 
 
 Set Implicit Arguments.
@@ -98,6 +100,7 @@ Variant compiler_step :=
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
   | Linearization               : compiler_step
+  | ProtectCalls                : compiler_step
   | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
 
@@ -128,6 +131,7 @@ Definition compiler_step_list := [::
   ; RegAllocation
   ; DeadCode_RegAllocation
   ; Linearization
+  ; ProtectCalls
   ; Tunneling
   ; Assembly
 ].
@@ -176,7 +180,8 @@ Record compiler_params
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
-  slh_info         : _uprog → funname → seq slh_t * seq slh_t
+  slh_info         : _uprog -> funname -> slh_function_info;
+  protect_calls    : bool;
 }.
 
 Context
@@ -194,6 +199,7 @@ Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
 Notation loparams := (ap_lop aparams).
 Notation shparams := (ap_shp aparams).
+Notation pcparams := (ap_pcp aparams).
 Notation agparams := (ap_agp aparams).
 
 #[local]
@@ -293,7 +299,14 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
-  Let pl := lower_slh_prog shparams (cparams.(slh_info) pl) to_keep pl in
+  Let pl :=
+    lower_slh_prog
+      shparams
+      (cparams.(slh_info) pl)
+      cparams.(protect_calls)
+      to_keep
+      pl
+  in
   let pl := cparams.(print_uprog) SLHLowering pl in
 
   Let pp := propagate_inline.pi_prog pl in
@@ -358,6 +371,16 @@ Definition compiler_back_end entries (pd: sprog) :=
   Let _ := merge_varmaps.check pd var_tmp in
   Let pl := linear_prog liparams pd in
   let pl := cparams.(print_linear) Linearization pl in
+
+  Let pl :=
+    protect_calls.pc_lprog
+      pcparams
+      entries
+      cparams.(protect_calls)
+      pl
+  in
+  let pl := cparams.(print_linear) ProtectCalls pl in
+
   (* tunneling                         *)
   Let pl := tunnel_program pl in
   let pl := cparams.(print_linear) Tunneling pl in

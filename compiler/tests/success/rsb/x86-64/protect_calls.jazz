@@ -1,0 +1,52 @@
+#returnaddress=stack
+fn g0(reg u64 x msf) -> reg u64, #msf reg u64 {
+    msf = #mov_msf(msf);
+    return x, msf;
+}
+
+#returnaddress=reg
+fn g1(reg u64 x msf) -> reg u64, #msf reg u64 {
+    msf = #mov_msf(msf);
+    return x, msf;
+}
+
+#returnaddress=mmx
+fn g2(reg u64 x msf) -> reg u64, #msf reg u64 {
+    msf = #mov_msf(msf);
+    return x, msf;
+}
+
+fn g3(reg u64 x msf) -> reg u64, #msf reg u64 {
+    msf = #mov_msf(msf);
+    return x, msf;
+}
+
+export
+fn f0() -> reg u64 {
+    reg u64 x msf;
+    x = 0;
+    msf = #init_msf();
+    x, msf = g0(x, msf); // tag: 7
+    x = #protect(x, msf);
+    x, msf = g1(x, msf); // tag: 5
+    x = #protect(x, msf);
+    x, msf = g2(x, msf); // tag: 4
+    x = #protect(x, msf);
+    x, msf = g3(x, msf); // single caller
+    return x;
+}
+
+export
+fn f1() -> reg u64 {
+    reg u64 x msf;
+    x = 0;
+    msf = #init_msf();
+    x, msf = g0(x, msf); // tag: 3
+    x = #protect(x, msf);
+    x, msf = g1(x, msf); // tag: 2
+    x = #protect(x, msf);
+    x, msf = g2(x, msf); // tag: 2
+    x = #protect(x, msf);
+    x, msf = g2(x, msf); // tag: 0
+    return x;
+}

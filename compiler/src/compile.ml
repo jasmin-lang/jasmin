@@ -203,11 +203,45 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       List.iter (warn_extra_fd Arch.pointer_data Arch.asmOp) fds
   in
 
+  (* TODO: Share this with regalloc. *)
+  let get_rak f =
+    let open Return_address_kind in
+    match f.f_cc with
+    | Export -> RAKnone
+    | Internal -> RAKnone
+    | Subroutine _ ->
+        let ral =
+          match Arch.callstyle with
+          | Exclusive ral -> ral
+          | Preferred ral -> begin
+              match f.f_annot.retaddr_kind with
+              | None -> ral
+              | Some RAKnone -> assert false (* Impossible. *)
+              | Some RAKstack -> StackDirect
+              | Some RAKregister -> ByReg None
+              | Some RAKextra_register -> ByExtraReg
+              end
+        in
+        match ral with
+        | StackDirect -> RAKstack
+        | ByReg oreg -> RAKregister
+        | ByExtraReg -> RAKextra_register
+  in
+
   let slh_info up =
     let p = Conv.prog_of_cuprog up in
-    let ttbl = Sct_checker_forward.compile_infer_msf p in
+    let ty_tbl = Sct_checker_forward.compile_infer_msf p in
+    let rak_tbl = Hf.create 17 in
+    List.iter (fun f -> Hf.add rak_tbl f.f_name (get_rak f)) (snd p);
     fun fn ->
-      try Hf.find ttbl fn with Not_found -> assert false
+      let (tin, tout) = try Hf.find ty_tbl fn with Not_found -> assert false in
+      let rak = try Hf.find rak_tbl fn with Not_found -> assert false in
+      let open Slh_lowering in
+      {
+        slhfi_tin = tin;
+        slhfi_tout = tout;
+        slhfi_rak = rak;
+      }
   in
 
   let cparams =
@@ -245,6 +279,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
+      Compiler.protect_calls = !Glob_options.protect_calls;
     }
   in
 

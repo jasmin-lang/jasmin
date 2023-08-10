@@ -116,8 +116,7 @@ Definition make_epilogue ii (X:Sv.t) xtys rs :=
   swapable ii pis.
 
 Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
-  Let ls := mapM update_i c in
-  ok (flatten ls).
+  conc_mapM update_i c.
 
 Definition mk_info (x:var_i) (ty:stype) :=
   (is_reg_ptr x, Ident.id_name x.(vname), ty).

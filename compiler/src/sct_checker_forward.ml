@@ -53,7 +53,7 @@ type special_op =
 
 let is_special o =
   match o with
-  | Sopn.Opseudo_op _ | Oasm _ -> Other
+  | Sopn.Opseudo_op _ | Oasm _ | Sopn.Ointernal _ -> Other
   | Oslh o ->
     match o with
     | SLHinit   -> Init_msf
@@ -1436,8 +1436,8 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
   List.iter infer_fun (List.rev prog);
 
   let do_t = function
-     | IsNormal _ -> Slh_lowering.Slh_None
-     | IsMsf      -> Slh_msf
+     | IsNormal _ -> Slh_ops.Slh_None
+     | IsMsf      -> Slh_ops.Slh_msf
   in
 
   let do_f fn fty =

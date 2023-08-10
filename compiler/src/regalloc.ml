@@ -648,7 +648,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
   if f.f_cc = Export then alloc_ret loc L.unloc f.f_ret;
   alloc_stmt f.f_body;
   match Hf.find return_addresses f.f_name, Arch.callstyle with
-  | (StackByReg ra | ByReg ra), Arch_full.ByReg (Some r) ->
+  | (StackByReg ra | ByReg ra), Exclusive (ByReg (Some r)) ->
       let i = Hv.find vars ra in 
       allocate_one nv vars (Location.i_loc f.f_loc []) cnf ra i r a
   | _ -> () 
@@ -884,22 +884,40 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
     Hf.add liveness_table f.f_name (Liveness.live_fd true f);
     (* compute where will be store the return address *)
-    let ra = 
+    let ra =
        match f.f_cc with
        | Export -> StackDirect
-       | Internal -> assert false 
-       | Subroutine _ ->  
-         match Arch.callstyle with 
-         | Arch_full.StackDirect -> StackDirect
-         | Arch_full.ByReg oreg ->
-           let dfl = oreg <> None && has_call_or_syscall f.f_body in
-           let r = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
-           let rastack = 
-             match f.f_annot.retaddr_kind with
-             | None -> dfl
-             | Some k -> dfl || k = OnStack in
-           if rastack then StackByReg r
-           else ByReg r in
+       | Internal -> assert false
+       | Subroutine _ ->
+           let ral =
+             match Arch.callstyle with
+             | Exclusive ral -> ral
+             | Preferred ral -> begin
+                 match f.f_annot.retaddr_kind with
+                 | None -> ral
+                 | Some RAKnone -> assert false (* Subroutines need a return
+                                                   address. *)
+                 | Some RAKstack -> StackDirect
+                 | Some RAKregister -> ByReg None
+                 | Some RAKextra_register -> ByExtraReg
+                 end
+           in
+           let get_r rk =
+             V.mk
+               ("ra_" ^ f.f_name.fn_name)
+               (Reg (rk, Direct))
+               (tu Arch.reg_size)
+               f.f_loc
+               []
+           in
+           match ral with
+           | StackDirect -> StackDirect
+           | ByReg oreg ->
+               let need_stack = oreg <> None && has_call_or_syscall f.f_body in
+               let r = get_r Normal in
+               if need_stack then StackByReg r else ByReg r
+           | ByExtraReg -> ByReg (get_r Extra)
+    in
     Hf.add return_addresses f.f_name ra;
     let written =
       let written, cg = written_vars_fc f in

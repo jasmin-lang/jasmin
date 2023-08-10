@@ -371,30 +371,39 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
     match fd.f_cc with 
     | Internal -> assert false 
     | Export -> 
-        if fd.f_annot.retaddr_kind = Some OnReg then 
+        if fd.f_annot.retaddr_kind = Some RAKregister then
              Utils.warning Always (L.i_loc fd.f_loc [])
               "for function %s, return address by reg not allowed for export function, annotation is ignored"
               fd.f_name.fn_name;
         false (* For export function ra is not counted in the frame *)
     | Subroutine _ -> 
       match callstyle with 
-      | Arch_full.StackDirect -> 
-        if fd.f_annot.retaddr_kind = Some OnReg then 
+      | Arch_full.Exclusive StackDirect ->
+        if fd.f_annot.retaddr_kind = Some RAKregister then
           Utils.warning Always (L.i_loc fd.f_loc [])
             "for function %s, return address by reg not allowed for that architecture, annotation is ignored"
             fd.f_name.fn_name;
         true
-      | Arch_full.ByReg oreg ->  (* oreg = Some r implies that all call use r,
-                                    so if the function performs some call r will be overwritten,
-                                    so ra need to be saved on stack *)
+      | Arch_full.Exclusive (ByReg oreg) -> begin
+          (* oreg = Some r implies that all call use r,
+          so if the function performs some call r will be overwritten,
+          so ra need to be saved on stack *)
         let dfl = oreg <> None && has_call_or_syscall fd.f_body in
         match fd.f_annot.retaddr_kind with
         | None -> dfl
         | Some k -> 
-            if k = OnReg && dfl then 
+            if k = RAKregister && dfl then
               Utils.warning Always (L.i_loc fd.f_loc []) 
                 "for function %s, return address by reg not possible, annotation is ignored" fd.f_name.fn_name;
-            dfl || k = OnStack in
+            dfl || k = RAKstack
+        end
+      | Arch_full.Exclusive ByExtraReg -> false
+      | Arch_full.Preferred ral -> begin
+          match fd.f_annot.retaddr_kind with
+          | None -> ral = Arch_full.StackDirect
+          | Some rak -> rak = RAKstack
+          end
+  in
 
   let sao_align, sao_slots, sao_size =
     alloc_local_stack

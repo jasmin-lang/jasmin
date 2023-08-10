@@ -44,6 +44,12 @@ Definition se_protect_arguments (ii : instr_info) : pp_error_loc :=
 Definition se_protect_ptr (ii : instr_info) : pp_error_loc :=
   compiler_util.pp_internal_error_s_at pass_name ii "Found protect_ptr.".
 
+Definition slh_update_after_call (ii : instr_info) : pp_error_loc :=
+  compiler_util.pp_internal_error_s_at
+    pass_name
+    ii
+    "found update_after_call.".
+
 End E.
 
 
@@ -61,6 +67,12 @@ Variant x86_extra_op : Type :=
 | Ox86SLHmove
 | Ox86SLHprotect of wsize
 
+(* This takes a list of MSFs to update. It will be compiled down to
+   msf0 = update(cond, msf0);
+   msf1 = mov_msf(msf0);
+   ...
+   msfn = mov_msf(msf0); *)
+| Ox86SLHupdate_after_call of nat
 .
 
 Scheme Equality for x86_extra_op.
@@ -199,6 +211,36 @@ Definition Ox86SLHprotect_instr :=
                   (@se_protect_large_sem ws)
                   [::].
 
+Definition Ox86SLHupdate_after_call_str : string :=
+  "Ox86_update_after_call".
+
+Fixpoint Ox86SLHupdate_after_call_semi_aux
+  (n : nat) (x : sem_t ty_msf) : sem_tuple (nseq n ty_msf) :=
+  match n return sem_tuple (nseq n ty_msf) with
+  | 0 => tt
+  | 1 => x
+  | S (S n') =>
+      let rest := Ox86SLHupdate_after_call_semi_aux n' x in
+      let rest := merge_tuple (l1 := [:: sem_ot ty_msf ]) x rest in
+      (:: x & rest )
+  end.
+
+Definition Ox86SLHupdate_after_call_semi
+  (n : nat) (x : wmsf) : sem_tuple (sreg :: nseq n.+1 ty_msf) :=
+  let rest := Ox86SLHupdate_after_call_semi_aux n x in
+  let rest := merge_tuple (l1 := [:: sem_ot ty_msf ]) x rest in
+  (:: (-1)%R & rest).
+
+Definition Ox86SLHupdate_after_call_instr (n : nat) : instruction_desc :=
+  mk_instr_desc
+    (pp_s Ox86SLHupdate_after_call_str)
+    [:: ty_msf ]
+    [:: E 0 ]
+    (sreg :: nseq n.+1 ty_msf) (* A scratch register and MSFs. *)
+    (E n.+1 :: map (fun i => E i) (iota 0 n.+1))
+    (fun x => ok (Ox86SLHupdate_after_call_semi n x))
+    [::].
+
 Definition get_instr_desc o :=
   match o with
   | Oset0 ws         => Oset0_instr ws
@@ -211,6 +253,7 @@ Definition get_instr_desc o :=
   | Ox86SLHupdate     => Ox86SLHupdate_instr
   | Ox86SLHmove       => Ox86SLHmove_instr
   | Ox86SLHprotect ws => Ox86SLHprotect_instr ws
+  | Ox86SLHupdate_after_call n => Ox86SLHupdate_after_call_instr n
   end.
 
 Definition prim_string :=
@@ -334,6 +377,7 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * re
   | Ox86SLHupdate => assemble_slh_update ii outx inx
   | Ox86SLHmove => assemble_slh_move outx inx
   | Ox86SLHprotect ws => assemble_slh_protect ii ws outx inx
+  | Ox86SLHupdate_after_call _ => Error (E.slh_update_after_call ii)
   end.
 
 #[global]

@@ -132,6 +132,13 @@ let set_cc cc =
     | _ -> assert false
   in call_conv := cc
 
+let protect_calls = ref false
+
+let return_address_kind = ref None
+let set_return_address_kind s =
+  let ral = List.assoc s return_address_kind_strings in
+  return_address_kind := Some ral
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -156,6 +163,7 @@ let print_strings = function
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
   | Compiler.Linearization               -> "linear"   , "linearization"
+  | Compiler.ProtectCalls                -> "pcalls"   , "protect calls"
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 
@@ -228,6 +236,11 @@ let options = [
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
     "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
+    "-protect-calls", Arg.Set protect_calls, ": protect CALL/RET instructions";
+    "-return-address-kind",
+      Arg.Symbol
+        (List.map fst return_address_kind_strings, set_return_address_kind),
+      ": overwrite return address kind"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

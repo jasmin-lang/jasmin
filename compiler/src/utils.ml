@@ -432,3 +432,13 @@ let warning (w:warning) loc =
       Format.eprintf "@[<v>%a%t: %t@]@."
         pp_iloc loc
         pp_warning pp)
+
+
+(* -------------------------------------------------------------------- *)
+
+let return_address_kind_strings =
+  let open Return_address_kind in
+  [ "stack", RAKstack
+  ; "reg", RAKregister
+  ; "mmx", RAKextra_register
+  ]

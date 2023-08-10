@@ -904,11 +904,27 @@ Definition is_zero sz (e: pexpr) : bool :=
 
 Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
 
-Definition instr_of_copn_args
+Section WITH_PARAMS.
+
+Context
   {asm_op : Type}
   {asmop : asmOp asm_op}
-  (tg : assgn_tag)
-  (args : copn_args)
-  : instr_r :=
+  {pd : PointerData}.
+
+Definition instr_of_copn_args (tg : assgn_tag) (args : copn_args) : instr_r :=
   Copn args.1.1 tg args.1.2 args.2.
 
+Definition gen_use_vars
+  (ir : internal_reason) (vs : seq var) (tout : seq stype) : instr_r :=
+  let les := [seq Lnone dummy_var_info t | t <- tout ] in
+  let op := Ouse_vars ir (map vtype vs) tout in
+  let res := [seq Pvar (mk_lvar (mk_var_i v)) | v <- vs ] in
+  Copn les AT_keep (Ointernal op) res.
+
+Definition use_vars_get_reg (ir : internal_reason) : instr_r :=
+  gen_use_vars ir [::] [:: sword Uptr ].
+
+Definition use_vars_use_one (ir : internal_reason) (x : var) : instr_r :=
+  gen_use_vars ir [:: x ] [::].
+
+End WITH_PARAMS.

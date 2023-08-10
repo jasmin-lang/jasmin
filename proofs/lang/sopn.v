@@ -87,16 +87,74 @@ Context
   {msfsz : MSFsize}
   {asmop : asmOp asm_op}.
 
+Variant internal_reason :=
+  (* Register to load the tag to. *)
+  | IRpc_load_reg
+
+  (* MSF to protect the tag. *)
+  | IRpc_load_msf
+
+  (* Scratch register to spill the tag to an extra register. *)
+  | IRpc_save_scratch
+.
+
+Scheme Equality for internal_reason.
+
+Lemma internal_reason_eq_axiom : Equality.axiom internal_reason_beq.
+Proof.
+  exact:
+    (eq_axiom_of_scheme
+       internal_internal_reason_dec_bl
+       internal_internal_reason_dec_lb).
+Qed.
+
+Definition internal_reason_eqMixin := Equality.Mixin internal_reason_eq_axiom.
+Canonical internal_reason_eqType :=
+  Eval hnf in EqType internal_reason internal_reason_eqMixin.
+
+Definition string_of_internal_reason (ir : internal_reason) : string :=
+  match ir with
+  | IRpc_load_reg => "pc_load_reg"
+  | IRpc_load_msf => "pc_load_msf"
+  | IRpc_save_scratch => "pc_save_scratch"
+  end.
+
+Variant internal_op :=
+| Ouse_vars of internal_reason & seq stype & seq stype.
+
+Definition internal_op_beq (io0 io1 : internal_op) : bool :=
+  match io0, io1 with
+  | Ouse_vars ir0 tin0 tout0, Ouse_vars ir1 tin1 tout1 =>
+      [&& ir0 == ir1, tin0 == tin1 & tout0 == tout1 ]
+  end.
+
+Lemma internal_op_eq_axiom : Equality.axiom internal_op_beq.
+Proof.
+  move=> [???] [???].
+  rewrite /internal_op_beq.
+  apply: (iffP idP).
+  - by move=> /and3P [] /eqP -> /eqP -> /eqP ->.
+  move=> [-> -> ->].
+  by rewrite !eqxx.
+Qed.
+
+Definition internal_op_eqMixin := Equality.Mixin internal_op_eq_axiom.
+Canonical internal_op_eqType :=
+  Eval hnf in EqType internal_op internal_op_eqMixin.
+
 Variant sopn :=
 | Opseudo_op of pseudo_operator
 | Oslh of slh_op
-| Oasm of asm_op_t.
+| Oasm of asm_op_t
+| Ointernal of internal_op
+.
 
 Definition sopn_beq (o1 o2:sopn) :=
   match o1, o2 with
   | Opseudo_op o1, Opseudo_op o2 => o1 == o2
   | Oslh o1, Oslh o2 => o1 == o2
   | Oasm o1, Oasm o2 => o1 == o2 ::>
+  | Ointernal o1, Ointernal o2 => o1 == o2
   | _, _ => false
   end.
 
@@ -307,11 +365,90 @@ Definition slh_op_instruction_desc  (o : slh_op) : instruction_desc :=
 
 (* ---------------------------------------------------------------------- *)
 
+Fixpoint mk_ltuple
+  (get : forall ty, sem_ot ty) (tout : seq stype) : sem_tuple tout :=
+  match tout with
+  | [::] => tt
+  | [:: t0 ] => get t0
+  | t0 :: t1 :: tout1 =>
+    let rest := mk_ltuple get tout1 in
+    let rest := @merge_tuple [:: sem_ot t1 ] (map sem_ot tout1) (get t1) rest in
+    (:: get t0 & rest)
+  end.
+
+Definition default_value (t : stype) : sem_ot t :=
+  match t with
+  | sbool => None
+  | sint => 0%Z
+  | sword ws => 0%R
+  | sarr n => WArray.empty n
+  end.
+
+Fixpoint use_vars_semi
+  (tin tout : seq stype) : sem_prod tin (exec (sem_tuple tout)) :=
+  match tin with
+  | [::] => ok (mk_ltuple default_value tout)
+  | _ :: tin => fun _ => use_vars_semi tin tout
+  end.
+
+Lemma use_vars_semu tin tout vargs vargs' vres :
+  List.Forall2 value_uincl vargs vargs' ->
+  app_sopn_v (use_vars_semi tin tout) vargs = ok vres ->
+  exists2 vres',
+    app_sopn_v (use_vars_semi tin tout) vargs' = ok vres'
+    & List.Forall2 value_uincl vres vres'.
+Proof.
+  elim: tin vargs vargs' => [|tin0 tin hind] vargs vargs'.
+  - case: vargs => //.
+    move=> /List_Forall2_inv_l ?; subst vargs'.
+    case: tout => [|tout0 tout].
+    + move=> [?]; subst vres. rewrite /app_sopn_v /=. by eexists.
+    move=> ->. eexists; first done. exact: List_Forall2_refl.
+
+  case: vargs => // v vargs.
+  move=> /List_Forall2_inv_l [v' [vargs'' [? [hvv' hvargs]]]];
+    subst vargs'.
+  rewrite /app_sopn_v /=.
+  t_xrbindP=> vres0 v0 hv0 h ?; subst vres.
+  have [? -> ?] /= := val_uincl_of_val hvv' hv0.
+  move: (hind _ _ hvargs) => [].
+  - by rewrite /app_sopn_v h /=.
+  move=> vres.
+  rewrite /app_sopn_v.
+  t_xrbindP=> vres1 -> ? ?; subst vres.
+  by eexists.
+Qed.
+
+Arguments use_vars_semu _ _ : clear implicits.
+
+(* The concrete indexes we use for [i_in] are irrelevant, as long as there is
+   one per type and they don't overlap with [i_out]. *)
+Definition use_vars_instr
+  (ir : internal_reason) (tin tout : seq stype) : instruction_desc :=
+  {|
+    str := pp_s (append "use_vars." (string_of_internal_reason ir));
+    tin := tin;
+    i_in := map (fun n => ADExplicit n None) (iota 0 (size tin));
+    tout := tout;
+    i_out := map (fun n => ADExplicit n None) (iota (size tin) (size tout));
+    semi := use_vars_semi tin tout;
+    semu := use_vars_semu tin tout;
+    i_safe := [::];
+  |}.
+
+Definition internal_op_instr_desc (o : internal_op) : instruction_desc :=
+  match o with
+  | Ouse_vars ir tin tout => use_vars_instr ir tin tout
+  end.
+
+(* ---------------------------------------------------------------------- *)
+
 Definition get_instr_desc o :=
   match o with
   | Opseudo_op o => pseudo_op_get_instr_desc o
   | Oslh o => slh_op_instruction_desc o
   | Oasm o       => asm_op_instr o
+  | Ointernal o => internal_op_instr_desc o
   end.
 
 Definition string_of_sopn o : string := str (get_instr_desc o) tt.

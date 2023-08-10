@@ -310,13 +310,11 @@ Context
 
   Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c _ hi _ hc X c'; rewrite /update_c /=.
-    t_xrbindP => lc ci {}/hi hi cc hcc <- <-.
+    move=> s1 s2 s3 i c _ hi _ hc X c'.
+    move=> /conc_mapM_consI => -[ci [cc [{}/hi hi hcc ?]]]; subst c'.
     rewrite read_c_cons write_c_cons => hsub vm1 hvm1.
     have [|vm2 hvm2 hs2]:= hi _ vm1 hvm1; first by SvD.fsetdec.
-    have /hc : update_c (update_i fresh_id p X) c = ok (flatten cc).
-    + by rewrite /update_c hcc.
-    move=> /(_ _ vm2 hvm2) [|vm3 hvm3 hs3]; first by SvD.fsetdec.
+    move: hcc => /hc /(_ _ vm2 hvm2) [|vm3 hvm3 hs3]; first by SvD.fsetdec.
     by exists vm3 => //=; apply: sem_app hs2 hs3.
   Qed.
 

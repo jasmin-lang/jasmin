@@ -19,12 +19,8 @@ and annotation = pident * attribute option
 
 and annotations = annotation list
 
-type returnaddress_kind =
-  | OnStack
-  | OnReg
-
 type f_annot = {
-    retaddr_kind          : returnaddress_kind option;
+    retaddr_kind          : Return_address_kind.return_address_kind option;
     stack_allocation_size : Z.t option;
     stack_size            : Z.t option;
     stack_align           : wsize option;

@@ -3,10 +3,18 @@ open Arch_decl
 open Arch_extra
 open Prog
 
-type 'a callstyle =
+type 'a return_address_location =
   | StackDirect           (* call instruction push the return address on top of the stack *)
-  | ByReg of 'a option    (* call instruction store the return address on a register, 
+  | ByReg of 'a option    (* call instruction store the return address on a register,
                                (Some r) neams that the register is forced to be r *)
+  | ByExtraReg            (* The return address is on an extra register. *)
+
+type 'a callstyle =
+  (* [Exclusive] means that only this location is possible. *)
+  | Exclusive of 'a return_address_location
+  (* [Preferred] means that any location is possible, and there is a preferred
+     one. *)
+  | Preferred of 'a return_address_location
 
 (* TODO: check that we cannot use sth already defined on the Coq side *)
 
@@ -181,9 +189,15 @@ module Arch_from_Core_arch (A : Core_arch) :
   let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
 
   let callstyle = 
+    let f ral =
+      match ral with
+      | StackDirect -> StackDirect
+      | ByReg o -> ByReg (Option.map var_of_reg o)
+      | ByExtraReg -> ByExtraReg
+    in
     match A.callstyle with
-    | StackDirect -> StackDirect
-    | ByReg o -> ByReg (Option.map var_of_reg o)
+    | Exclusive ral -> Exclusive (f ral)
+    | Preferred ral -> Preferred (f ral)
 
   let arch_info = Pretyping.{
       pd = reg_size;

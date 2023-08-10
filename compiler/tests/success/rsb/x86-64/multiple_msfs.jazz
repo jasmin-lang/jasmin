@@ -1,0 +1,19 @@
+#returnaddress=reg
+fn g(reg u64 x msf0 msf1) -> reg u64, #msf reg u64, #msf reg u64 {
+    return x, msf0, msf1;
+}
+
+export
+fn f() -> reg u64 {
+    reg u64 x msf0 msf1;
+    x = 0;
+    msf0 = #init_msf();
+    msf1 = #mov_msf(msf0);
+    x, msf0, msf1 = g(x, msf0, msf1);
+    x = #protect(x, msf0);
+    x = #protect(x, msf1);
+    x, msf0, msf1 = g(x, msf0, msf1);
+    x = #protect(x, msf0);
+    x = #protect(x, msf1);
+    return x;
+}

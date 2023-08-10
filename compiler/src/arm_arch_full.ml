@@ -41,5 +41,5 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
 
   let pp_asm = Pp_arm_m4.print_prog
 
-  let callstyle = Arch_full.ByReg (Some LR)
+  let callstyle = Arch_full.Exclusive (Arch_full.ByReg (Some LR))
 end

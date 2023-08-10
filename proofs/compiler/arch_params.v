@@ -6,11 +6,12 @@ Require Import
   arch_decl
   arch_extra.
 Require
+  asm_gen
   linearization
   lowering
-  stack_alloc
+  protect_calls
   slh_lowering
-  asm_gen.
+  stack_alloc.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -53,6 +54,9 @@ Record architecture_params
     (* Speculative execution operator lowering parameters. See
        slh_lowering.v. *)
     ap_shp : slh_lowering.sh_params;
+
+    (* Protect calls parameters. See protect_calls.v. *)
+    ap_pcp : protect_calls.protect_calls_params;
 
     (* Assembly generation parameters. See asm_gen.v. *)
     ap_agp : asm_gen.asm_gen_params;

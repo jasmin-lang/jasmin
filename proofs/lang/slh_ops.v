@@ -35,3 +35,10 @@ Qed.
 
 Definition slh_op_eqMixin := Equality.Mixin slh_op_eq_axiom.
 Canonical slh_op_eqType := Eval hnf in EqType slh_op slh_op_eqMixin.
+
+Variant slh_t :=
+| Slh_None
+| Slh_msf.
+
+Definition is_shl_none (ty : slh_t) : bool :=
+  if ty is Slh_None then true else false.

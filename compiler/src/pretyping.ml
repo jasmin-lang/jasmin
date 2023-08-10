@@ -1809,9 +1809,15 @@ let tt_call_conv loc params returns cc =
 let process_f_annot annot =
   let open A in
 
-  let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
- 
-  { retaddr_kind          = Annot.ensure_uniq1 "returnaddress"  mk_ra                annot;
+  let rak =
+    let mk_ra = Annot.filter_string_list None return_address_kind_strings in
+    let rak0 = Annot.ensure_uniq1 "returnaddress" mk_ra annot in
+    match !Glob_options.return_address_kind with
+    | Some rak1 -> Some rak1
+    | None -> rak0
+  in
+
+  { retaddr_kind          = rak;
     stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot;
     stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot;
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
