@@ -113,7 +113,10 @@ ops_two_arg_imm8 = {}
 ops_two_arg_imm8["SHLD"] = "shld"
 ops_two_arg_imm8["SHRD"] = "shrd"
 
-ops_three_args_vec              = {}
+ops_two_args_vec                    = {}
+ops_two_args_vec["VPTEST"]          = "vptest"
+
+ops_three_args_vec                  = {}
 ops_three_args_vec["VPAND"]         = "vpand"
 ops_three_args_vec["VPANDN"]        = "vpandn"
 ops_three_args_vec["VPOR"]          = "vpor"
@@ -126,34 +129,75 @@ ops_three_args_vec["VPMADDWD"]      = "vpmaddwd"
 
 # TODO: automate this size variation later
 ops_three_args_vec128_size                  = {}
+ops_three_args_vec128_size["VPMULL_8u16"]   = "vpmullw"
 ops_three_args_vec128_size["VPMULH_8u16"]   = "vpmulhw"
 ops_three_args_vec128_size["VPMULHU_8u16"]  = "vpmulhuw"
 ops_three_args_vec128_size["VPMULHRS_8u16"] = "vpmulhrsw"
+
 ops_three_args_vec128_size["VPACKUS_8u16"]  = "vpackuswb"
 ops_three_args_vec128_size["VPACKUS_4u32"]  = "vpackusdw"
+
 ops_three_args_vec128_size["VPACKSS_8u16"]  = "vpacksswb"
 ops_three_args_vec128_size["VPACKSS_4u32"]  = "vpackssdw"
+
 ops_three_args_vec128_size["VPUNPCKH_16u8"] = "vpunpckhbw"
 ops_three_args_vec128_size["VPUNPCKH_8u16"] = "vpunpckhwd"
 ops_three_args_vec128_size["VPUNPCKH_4u32"] = "vpunpckhdq"
 ops_three_args_vec128_size["VPUNPCKH_2u64"] = "vpunpckhqdq"
+
 ops_three_args_vec128_size["VPUNPCKL_16u8"] = "vpunpcklbw"
 ops_three_args_vec128_size["VPUNPCKL_8u16"] = "vpunpcklwd"
 ops_three_args_vec128_size["VPUNPCKL_4u32"] = "vpunpckldq"
 ops_three_args_vec128_size["VPUNPCKL_2u64"] = "vpunpcklqdq"
-ops_three_args_vec128_size["VPMINU_16u8"] = "vpminub"
-ops_three_args_vec128_size["VPMINU_8u16"] = "vpminuw"
-ops_three_args_vec128_size["VPMINU_4u32"] = "vpminud"
-ops_three_args_vec128_size["VPMINS_16u8"] = "vpminsb"
-ops_three_args_vec128_size["VPMINS_8u16"] = "vpminsw"
-ops_three_args_vec128_size["VPMINS_4u32"] = "vpminsd"
-ops_three_args_vec128_size["VPMAXU_16u8"] = "vpmaxub"
-ops_three_args_vec128_size["VPMAXU_8u16"] = "vpmaxuw"
-ops_three_args_vec128_size["VPMAXU_4u32"] = "vpmaxud"
-ops_three_args_vec128_size["VPMAXS_16u8"] = "vpmaxsb"
-ops_three_args_vec128_size["VPMAXS_8u16"] = "vpmaxsw"
-ops_three_args_vec128_size["VPMAXS_4u32"] = "vpmaxsd"
 
+ops_three_args_vec128_size["VPMINU_16u8"]   = "vpminub"
+ops_three_args_vec128_size["VPMINU_8u16"]   = "vpminuw"
+ops_three_args_vec128_size["VPMINU_4u32"]   = "vpminud"
+
+ops_three_args_vec128_size["VPMINS_16u8"]   = "vpminsb"
+ops_three_args_vec128_size["VPMINS_8u16"]   = "vpminsw"
+ops_three_args_vec128_size["VPMINS_4u32"]   = "vpminsd"
+
+ops_three_args_vec128_size["VPMAXU_16u8"]   = "vpmaxub"
+ops_three_args_vec128_size["VPMAXU_8u16"]   = "vpmaxuw"
+ops_three_args_vec128_size["VPMAXU_4u32"]   = "vpmaxud"
+
+ops_three_args_vec128_size["VPMAXS_16u8"]   = "vpmaxsb"
+ops_three_args_vec128_size["VPMAXS_8u16"]   = "vpmaxsw"
+ops_three_args_vec128_size["VPMAXS_4u32"]   = "vpmaxsd"
+
+ops_three_args_vec128_size["VPADD_16u8"]    = "vpaddb"
+ops_three_args_vec128_size["VPADD_8u16"]    = "vpaddw"
+ops_three_args_vec128_size["VPADD_4u32"]    = "vpaddd"
+ops_three_args_vec128_size["VPADD_2u64"]    = "vpaddq"
+
+ops_three_args_vec128_size["VPSUB_16u8"]    = "vpsubb"
+ops_three_args_vec128_size["VPSUB_8u16"]    = "vpsubw"
+ops_three_args_vec128_size["VPSUB_4u32"]    = "vpsubd"
+ops_three_args_vec128_size["VPSUB_2u64"]    = "vpsubq"
+
+ops_three_args_vec128_size["VPAVG_16u8"]    = "vpavgb"
+ops_three_args_vec128_size["VPAVG_8u16"]    = "vpavgw"
+ops_three_args_vec128_size["VPAVG_4u32"]    = "vpavgd"
+ops_three_args_vec128_size["VPAVG_2u64"]    = "vpavgq"
+
+ops_three_args_vec128_size["VPSLLV_8u16"]    = "vpsllvw"
+ops_three_args_vec128_size["VPSLLV_4u32"]    = "vpsllvd"
+ops_three_args_vec128_size["VPSLLV_2u64"]    = "vpsllvq"
+
+ops_three_args_vec128_size["VPSRLV_8u16"]    = "vpsrlvw"
+ops_three_args_vec128_size["VPSRLV_4u32"]    = "vpsrlvd"
+ops_three_args_vec128_size["VPSRLV_2u64"]    = "vpsrlvq"
+
+ops_three_args_vec128_size["VPCMPEQ_16u8"]      = "vpcmpeqb"
+ops_three_args_vec128_size["VPCMPEQ_8u16"]      = "vpcmpeqw"
+ops_three_args_vec128_size["VPCMPEQ_4u32"]      = "vpcmpeqd"
+ops_three_args_vec128_size["VPCMPEQ_2u64"]      = "vpcmpeqq"
+
+ops_three_args_vec128_size["VPCMPGT_16u8"]      = "vpcmpgtb"
+ops_three_args_vec128_size["VPCMPGT_8u16"]      = "vpcmpgtw"
+ops_three_args_vec128_size["VPCMPGT_4u32"]      = "vpcmpgtd"
+ops_three_args_vec128_size["VPCMPGT_2u64"]      = "vpcmpgtq"
 
 size_variations     = {}
 size_variations[8]  = ["8", "b"]
