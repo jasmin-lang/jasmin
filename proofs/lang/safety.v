@@ -68,44 +68,58 @@ Inductive safe_sop2 : sop2 -> Prop :=
    safe_sop2 (Omod (Cmp_w u sz))
 (* Fix me *)
 | Soland sz:
+   (forall v w t, v <> (Vundef (sword w) t)) -> 
    safe_sop2 (Oland sz)
 | Solor sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    (sz ≤ U64)%CMP || ((U128 ≤ sz) && (sz ≤ U256))%CMP ->
    safe_sop2 (Olor sz)
 | Solxor sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    (sz ≤ U64)%CMP || ((U128 ≤ sz) && (sz ≤ U256))%CMP ->
    safe_sop2 (Olxor sz)
 | Solsr sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    (sz ≤ U64)%CMP ->
    safe_sop2 (Olsr sz)
 | Solsl sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    (sz ≤ U64)%CMP ->
    safe_sop2 (Olsl (Op_w sz))
 | Soasr sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    (sz ≤ U64)%CMP ->
    safe_sop2 (Oasr (Op_w sz))
 | Soror sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    (sz ≤ U64)%CMP ->
    safe_sop2 (Oror sz)
 | Sorol sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    (sz ≤ U64)%CMP ->
    safe_sop2 (Orol sz)
 | Svadd ve sz:
+    (forall v w t, v <> (Vundef (sword w) t)) ->
    ((U128 ≤ sz) && (sz ≤ U256))%CMP ->
    safe_sop2 (Ovadd ve sz)
 | Svsub ve sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    ((U128 ≤ sz) && (sz ≤ U256))%CMP ->
    safe_sop2 (Ovsub ve sz)
 | Svmul ve sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    ((U16 ≤ sz) && (sz ≤ U32))%CMP ->
    safe_sop2 (Ovmul ve sz)
 | Svlsr ve sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    ((U128 ≤ sz) && (sz ≤ U256))%CMP ->
    safe_sop2 (Ovlsr ve sz)
 | Svlsl ve sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    ((U128 ≤ sz) && (sz ≤ U256))%CMP ->
    safe_sop2 (Ovlsl ve sz)
 | Svasr ve sz:
+   (forall v w t, v <> (Vundef (sword w) t)) ->
    ((U128 ≤ sz) && (sz ≤ U256))%CMP ->
    safe_sop2 (Ovasr ve sz).
 
@@ -607,7 +621,258 @@ move=> s op e1 ve1 e2 ve2 r hs he1 he2. rewrite /sem_sop2 /=; inversion hs; subs
   move: (H ve1)=> {H} H.
   move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
 (* Oland *)
-Admitted.
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver sz he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Olor *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver sz he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Olxor *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver sz he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Olsr *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Olsl *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Oasr *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Oror *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Orol *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Ovadd *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver sz he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Ovsub *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver sz he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Ovmul *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver sz he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Ovlsr *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Ovlsl *)
++ case hv : of_val=> [vv | ver] //=.
+  (* ok *)
+  + case hw : to_word=> [wv | wr] //=.
+    (* ok *)
+    + move=> <-. by left.
+    (* error *)
+    move=> hr; subst. move: (H  ve1)=> {H} H. right.
+    by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+  (* error *)
+  have hr : ver = ErrType. rewrite /of_val /= in hv.  
+  move: (H ve2)=> {H} H.
+  by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
+  + rewrite /of_val /= in hv. 
+  case hw : to_word=> [wv | wr] //=.
+  + move=> hreq; subst. by right.
+  move: (H ve1)=> {H} H.
+  move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* Ovasr *)
+case hv : of_val=> [vv | ver] //=.
+(* ok *)
++ case hw : to_word=> [wv | wr] //=.
+  (* ok *)
+  + move=> <-. by left.
+  (* error *)
+  move=> hr; subst. move: (H  ve1)=> {H} H. right.
+  by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+(* error *)
+have hr : ver = ErrType. rewrite /of_val /= in hv.  
+move: (H ve2)=> {H} H.
+by have := to_word_not_undef s e2 ve2 ver U8 he2 H hv.
++ rewrite /of_val /= in hv. 
+case hw : to_word=> [wv | wr] //=.
++ move=> hreq; subst. by right.
+move: (H ve1)=> {H} H.
+move=> hreq; subst. right. by have -> := to_word_not_undef s e1 ve1 wr sz he1 H hw.
+Qed.
 
 Lemma safe_truncate_val_typeerror : forall t s e ve er, 
 safe_expr s e ->
