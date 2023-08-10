@@ -1,1 +1,1 @@
-vpmaddwd	%xmm0, %xmm0, %xmm0
+vpcmpgtq	%xmm9, %xmm9, %xmm9

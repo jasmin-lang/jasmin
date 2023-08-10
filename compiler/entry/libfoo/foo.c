@@ -23,27 +23,92 @@ struct asm_state {
     int64_t r13;
     int64_t r14;
     int64_t r15;
-    // RFLAGS
-    int64_t rflags;
 
     // XMM registers (TODO: should change from 64 bit to 128/256 bits
     // later)
-    int64_t xmm0;
-    int64_t xmm1;
-    int64_t xmm2;
-    int64_t xmm3;
-    int64_t xmm4;
-    int64_t xmm5;
-    int64_t xmm6;
-    int64_t xmm7;
-    int64_t xmm8;
-    int64_t xmm9;
-    int64_t xmm10;
-    int64_t xmm11;
-    int64_t xmm12;
-    int64_t xmm13;
-    int64_t xmm14;
-    int64_t xmm15;
+    int64_t xmm0_0;
+    int64_t xmm0_1;
+    int64_t xmm0_2;
+    int64_t xmm0_3;
+
+    int64_t xmm1_0;
+    int64_t xmm1_1;
+    int64_t xmm1_2;
+    int64_t xmm1_3;
+
+    int64_t xmm2_0;
+    int64_t xmm2_1;
+    int64_t xmm2_2;
+    int64_t xmm2_3;
+
+    int64_t xmm3_0;
+    int64_t xmm3_1;
+    int64_t xmm3_2;
+    int64_t xmm3_3;
+
+    int64_t xmm4_0;
+    int64_t xmm4_1;
+    int64_t xmm4_2;
+    int64_t xmm4_3;
+
+    int64_t xmm5_0;
+    int64_t xmm5_1;
+    int64_t xmm5_2;
+    int64_t xmm5_3;
+
+    int64_t xmm6_0;
+    int64_t xmm6_1;
+    int64_t xmm6_2;
+    int64_t xmm6_3;
+
+    int64_t xmm7_0;
+    int64_t xmm7_1;
+    int64_t xmm7_2;
+    int64_t xmm7_3;
+
+    int64_t xmm8_0;
+    int64_t xmm8_1;
+    int64_t xmm8_2;
+    int64_t xmm8_3;
+
+
+    int64_t xmm9_0;
+    int64_t xmm9_1;
+    int64_t xmm9_2;
+    int64_t xmm9_3;
+
+    int64_t xmm10_0;
+    int64_t xmm10_1;
+    int64_t xmm10_2;
+    int64_t xmm10_3;
+
+    int64_t xmm11_0;
+    int64_t xmm11_1;
+    int64_t xmm11_2;
+    int64_t xmm11_3;
+
+    int64_t xmm12_0;
+    int64_t xmm12_1;
+    int64_t xmm12_2;
+    int64_t xmm12_3;
+
+    int64_t xmm13_0;
+    int64_t xmm13_1;
+    int64_t xmm13_2;
+    int64_t xmm13_3;
+
+    int64_t xmm14_0;
+    int64_t xmm14_1;
+    int64_t xmm14_2;
+    int64_t xmm14_3;
+
+    int64_t xmm15_0;
+    int64_t xmm15_1;
+    int64_t xmm15_2;
+    int64_t xmm15_3;
+
+    // RFLAGS
+    int64_t rflags;
 };
 
 extern void set_execute_get(struct asm_state *);
@@ -67,23 +132,23 @@ void set_execute_get_wrapper(struct asm_state *state) {
     printf("r13 = %lx\n", state->r13);
     printf("r14 = %lx\n", state->r14);
     printf("r15 = %lx\n", state->r15);
+    printf("xmm0 = %lx %lx %lx %lx \n", state->xmm0_3, state->xmm0_2, state->xmm0_1, state->xmm0_0);
+    printf("xmm1 = %lx %lx %lx %lx \n", state->xmm1_3, state->xmm1_2, state->xmm1_1, state->xmm1_0);
+    printf("xmm2 = %lx %lx %lx %lx \n", state->xmm2_3, state->xmm2_2, state->xmm2_1, state->xmm2_0);
+    printf("xmm3 = %lx %lx %lx %lx \n", state->xmm3_3, state->xmm3_2, state->xmm3_1, state->xmm3_0);
+    printf("xmm4 = %lx %lx %lx %lx \n", state->xmm4_3, state->xmm4_2, state->xmm4_1, state->xmm4_0);
+    printf("xmm5 = %lx %lx %lx %lx \n", state->xmm5_3, state->xmm5_2, state->xmm5_1, state->xmm5_0);
+    printf("xmm6 = %lx %lx %lx %lx \n", state->xmm6_3, state->xmm6_2, state->xmm6_1, state->xmm6_0);
+    printf("xmm7 = %lx %lx %lx %lx \n", state->xmm7_3, state->xmm7_2, state->xmm7_1, state->xmm7_0);
+    printf("xmm8 = %lx %lx %lx %lx \n", state->xmm8_3, state->xmm8_2, state->xmm8_1, state->xmm8_0);
+    printf("xmm9 = %lx %lx %lx %lx \n", state->xmm9_3, state->xmm9_2, state->xmm9_1, state->xmm9_0);
+    printf("xmm10 = %lx %lx %lx %lx \n", state->xmm10_3, state->xmm10_2, state->xmm10_1, state->xmm10_0);
+    printf("xmm11 = %lx %lx %lx %lx \n", state->xmm11_3, state->xmm11_2, state->xmm11_1, state->xmm11_0);
+    printf("xmm12 = %lx %lx %lx %lx \n", state->xmm12_3, state->xmm12_2, state->xmm12_1, state->xmm12_0);
+    printf("xmm13 = %lx %lx %lx %lx \n", state->xmm13_3, state->xmm13_2, state->xmm13_1, state->xmm13_0);
+    printf("xmm14 = %lx %lx %lx %lx \n", state->xmm14_3, state->xmm14_2, state->xmm14_1, state->xmm14_0);
+    printf("xmm15 = %lx %lx %lx %lx \n", state->xmm15_3, state->xmm15_2, state->xmm15_1, state->xmm15_0);
     printf("rflags = %lx\n", state->rflags);
-    printf("xmm0 = %lx\n", state->xmm0);
-    printf("xmm1 = %lx\n", state->xmm1);
-    printf("xmm2 = %lx\n", state->xmm2);
-    printf("xmm3 = %lx\n", state->xmm3);
-    printf("xmm4 = %lx\n", state->xmm4);
-    printf("xmm5 = %lx\n", state->xmm5);
-    printf("xmm6 = %lx\n", state->xmm6);
-    printf("xmm7 = %lx\n", state->xmm7);
-    printf("xmm8 = %lx\n", state->xmm8);
-    printf("xmm9 = %lx\n", state->xmm9);
-    printf("xmm10 = %lx\n", state->xmm10);
-    printf("xmm11 = %lx\n", state->xmm11);
-    printf("xmm12 = %lx\n", state->xmm12);
-    printf("xmm13 = %lx\n", state->xmm13);
-    printf("xmm14 = %lx\n", state->xmm14);
-    printf("xmm15 = %lx\n", state->xmm15);
 }
 
 /*

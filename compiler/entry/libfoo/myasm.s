@@ -19,29 +19,29 @@ set_execute_get:
     pushf
     pop    %ax
     andw    $0x7b3a, %ax
-    movq    128(%rdi), %rbx                 # move the generated flag value
+    movq    640(%rdi), %rbx                 # move the generated flag value
     andw    $0x8c5, %bx                     # get only the required 5 bits
     orw     %bx, %ax                        # set the flags using OR
     push   %ax
     popf
 
     # mov to xmm registers
-    movq   136(%rdi), %xmm0
-    movq   144(%rdi), %xmm1
-    movq   152(%rdi), %xmm2
-    movq   160(%rdi), %xmm3
-    movq   168(%rdi), %xmm4
-    movq   176(%rdi), %xmm5
-    movq   184(%rdi), %xmm6
-    movq   192(%rdi), %xmm7
-    movq   200(%rdi), %xmm8
-    movq   208(%rdi), %xmm9
-    movq   216(%rdi), %xmm10
-    movq   224(%rdi), %xmm11
-    movq   232(%rdi), %xmm12
-    movq   240(%rdi), %xmm13
-    movq   248(%rdi), %xmm14
-    movq   256(%rdi), %xmm15
+    vmovdqu   128(%rdi), %ymm0
+    vmovdqu   160(%rdi), %ymm1
+    vmovdqu   192(%rdi), %ymm2
+    vmovdqu   224(%rdi), %ymm3
+    vmovdqu   256(%rdi), %ymm4
+    vmovdqu   288(%rdi), %ymm5
+    vmovdqu   320(%rdi), %ymm6
+    vmovdqu   352(%rdi), %ymm7
+    vmovdqu   384(%rdi), %ymm8
+    vmovdqu   416(%rdi), %ymm9
+    vmovdqu   448(%rdi), %ymm10
+    vmovdqu   480(%rdi), %ymm11
+    vmovdqu   512(%rdi), %ymm12
+    vmovdqu   544(%rdi), %ymm13
+    vmovdqu   576(%rdi), %ymm14
+    vmovdqu   608(%rdi), %ymm15
 
     # start moving to registers
     movq    (%rdi), %rax
@@ -65,7 +65,7 @@ set_execute_get:
     movq    56(%rdi), %rdi
 
     # Execute the instruction here
-    vpmaddwd	%xmm0, %xmm0, %xmm0
+    vpcmpgtq	%xmm9, %xmm9, %xmm9
 
     # post execution
     pushq   %rdi                    # save the post-exec rdi
@@ -90,27 +90,27 @@ set_execute_get:
     movq    %r15, 120(%rdi)
 
     # move from xmm registers
-    movq   %xmm0, 136(%rdi)
-    movq   %xmm1, 144(%rdi)
-    movq   %xmm2, 152(%rdi)
-    movq   %xmm3, 160(%rdi)
-    movq   %xmm4, 168(%rdi)
-    movq   %xmm5, 176(%rdi)
-    movq   %xmm6, 184(%rdi)
-    movq   %xmm7, 192(%rdi)
-    movq   %xmm8, 200(%rdi)
-    movq   %xmm9, 208(%rdi)
-    movq   %xmm10, 216(%rdi)
-    movq   %xmm11, 224(%rdi)
-    movq   %xmm12, 232(%rdi)
-    movq   %xmm13, 240(%rdi)
-    movq   %xmm14, 248(%rdi)
-    movq   %xmm15, 256(%rdi)
+    vmovdqu   %ymm0, 128(%rdi)
+    vmovdqu   %ymm1, 160(%rdi)
+    vmovdqu   %ymm2, 192(%rdi)
+    vmovdqu   %ymm3, 224(%rdi)
+    vmovdqu   %ymm4, 256(%rdi)
+    vmovdqu   %ymm5, 288(%rdi)
+    vmovdqu   %ymm6, 320(%rdi)
+    vmovdqu   %ymm7, 352(%rdi)
+    vmovdqu   %ymm8, 384(%rdi)
+    vmovdqu   %ymm9, 416(%rdi)
+    vmovdqu   %ymm10, 448(%rdi)
+    vmovdqu   %ymm11, 480(%rdi)
+    vmovdqu   %ymm12, 512(%rdi)
+    vmovdqu   %ymm13, 544(%rdi)
+    vmovdqu   %ymm14, 576(%rdi)
+    vmovdqu   %ymm15, 608(%rdi)
 
     # get flag value
     pushfq
     popq    %rax                    # get rflags
-    movq    %rax, 128(%rdi)
+    movq    %rax, 640(%rdi)
 
     #recover the post-exec rdi
     popq    %rax

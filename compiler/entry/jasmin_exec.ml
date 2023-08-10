@@ -35,6 +35,24 @@ module Impl (A : Arch') = struct
 
   open Jasmin
 
+  type int256 = int64 * int64 * int64 * int64;;
+  let int256_to_z = fun (v : int256) ->
+    let (a, b, c, d) = v in
+    let p = Z.of_int64_unsigned(d) in
+    let q = Z.of_int64_unsigned(c) in
+    let r = Z.of_int64_unsigned(b) in
+    let s = Z.of_int64_unsigned(a) in
+    let result = Z.add (Z.add (Z.shift_left p 192) (Z.shift_left q 128)) (Z.add (Z.shift_left r 64) (Z.shift_left s 0)) in
+    result
+
+  let z_to_int256 = fun  (v : Z.t) ->
+    let bitmask64 = 0xFFFFFFFFFFFFFFFFL in
+    let a = Z.to_int64_unsigned (Z.logand (Z.shift_right v 192) (Z.of_int64_unsigned bitmask64)) in
+    let b = Z.to_int64_unsigned (Z.logand (Z.shift_right v 128) (Z.of_int64_unsigned bitmask64)) in
+    let c = Z.to_int64_unsigned (Z.logand (Z.shift_right v 64) (Z.of_int64_unsigned bitmask64)) in
+    let d = Z.to_int64_unsigned (Z.logand (Z.shift_right v 0) (Z.of_int64_unsigned bitmask64)) in
+    ( d, c, b, a)
+
   let init_memory =
     match Evaluator.initial_memory A.reg_size (Z.of_int 1024) [] with
     | Utils0.Error _err -> assert false
@@ -147,7 +165,7 @@ module Impl (A : Arch') = struct
   let regxs_of_val l =
     List.map2 (fun r v -> (arch_decl.toS_rx.to_string r, J.Conv.cz_of_z (Z.of_int64_unsigned v))) arch_decl.toS_rx._finC.cenum l
   let xregs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, J.Conv.cz_of_z (Z.of_int64_unsigned v))) arch_decl.toS_x._finC.cenum l
+    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, J.Conv.cz_of_z (int256_to_z v))) arch_decl.toS_x._finC.cenum l
   let flags_of_val l =
     List.map2 (fun f v -> (arch_decl.toS_f.to_string f, v)) arch_decl.toS_f._finC.cenum l
 
@@ -234,25 +252,93 @@ let r12     = field asm_state "r12" int64_t
 let r13     = field asm_state "r13" int64_t
 let r14     = field asm_state "r14" int64_t
 let r15     = field asm_state "r15" int64_t
-let rflags  = field asm_state "rflags" int64_t
 
 (* XMM registers.. bad way just looking at 64 bit values *)
-let xmm0    = field asm_state "xmm0" int64_t
-let xmm1    = field asm_state "xmm1" int64_t
-let xmm2    = field asm_state "xmm2" int64_t
-let xmm3    = field asm_state "xmm3" int64_t
-let xmm4    = field asm_state "xmm4" int64_t
-let xmm5    = field asm_state "xmm5" int64_t
-let xmm6    = field asm_state "xmm6" int64_t
-let xmm7    = field asm_state "xmm7" int64_t
-let xmm8    = field asm_state "xmm8" int64_t
-let xmm9    = field asm_state "xmm9" int64_t
-let xmm10   = field asm_state "xmm10" int64_t
-let xmm11   = field asm_state "xmm11" int64_t
-let xmm12   = field asm_state "xmm12" int64_t
-let xmm13   = field asm_state "xmm13" int64_t
-let xmm14   = field asm_state "xmm14" int64_t
-let xmm15   = field asm_state "xmm15" int64_t
+let xmm0_0    = field asm_state "xmm0_0" int64_t
+let xmm0_1    = field asm_state "xmm0_1" int64_t
+let xmm0_2    = field asm_state "xmm0_2" int64_t
+let xmm0_3    = field asm_state "xmm0_3" int64_t
+
+let xmm1_0    = field asm_state "xmm1_0" int64_t
+let xmm1_1    = field asm_state "xmm1_1" int64_t
+let xmm1_2    = field asm_state "xmm1_2" int64_t
+let xmm1_3    = field asm_state "xmm1_3" int64_t
+
+let xmm2_0    = field asm_state "xmm2_0" int64_t
+let xmm2_1   = field asm_state "xmm2_1" int64_t
+let xmm2_2    = field asm_state "xmm2_2" int64_t
+let xmm2_3    = field asm_state "xmm2_3" int64_t
+
+
+let xmm3_0    = field asm_state "xmm3_0" int64_t
+let xmm3_1    = field asm_state "xmm3_1" int64_t
+let xmm3_2    = field asm_state "xmm3_2" int64_t
+let xmm3_3    = field asm_state "xmm3_3" int64_t
+
+
+let xmm4_0     = field asm_state "xmm4_0" int64_t
+let xmm4_1    = field asm_state "xmm4_1" int64_t
+let xmm4_2    = field asm_state "xmm4_2" int64_t
+let xmm4_3    = field asm_state "xmm4_3" int64_t
+
+
+let xmm5_0    = field asm_state "xmm5_0" int64_t
+let xmm5_1   = field asm_state "xmm5_1" int64_t
+let xmm5_2    = field asm_state "xmm5_2" int64_t
+let xmm5_3    = field asm_state "xmm5_3" int64_t
+
+let xmm6_0    = field asm_state "xmm6_0" int64_t
+let xmm6_1    = field asm_state "xmm6_1" int64_t
+let xmm6_2    = field asm_state "xmm6_2" int64_t
+let xmm6_3    = field asm_state "xmm6_3" int64_t
+
+let xmm7_0    = field asm_state "xmm7_0" int64_t
+let xmm7_1    = field asm_state "xmm7_1" int64_t
+let xmm7_2    = field asm_state "xmm7_2" int64_t
+let xmm7_3    = field asm_state "xmm7_3" int64_t
+
+let xmm8_0    = field asm_state "xmm8_0" int64_t
+let xmm8_1    = field asm_state "xmm8_1" int64_t
+let xmm8_2    = field asm_state "xmm8_2" int64_t
+let xmm8_3    = field asm_state "xmm8_3" int64_t
+
+let xmm9_0    = field asm_state "xmm9_0" int64_t
+let xmm9_1    = field asm_state "xmm9_1" int64_t
+let xmm9_2    = field asm_state "xmm9_2" int64_t
+let xmm9_3    = field asm_state "xmm9_3" int64_t
+
+let xmm10_0   = field asm_state "xmm10_0" int64_t
+let xmm10_1   = field asm_state "xmm10_1" int64_t
+let xmm10_2   = field asm_state "xmm10_2" int64_t
+let xmm10_3   = field asm_state "xmm10_3" int64_t
+
+let xmm11_0   = field asm_state "xmm11_0" int64_t
+let xmm11_1   = field asm_state "xmm11_1" int64_t
+let xmm11_2   = field asm_state "xmm11_2" int64_t
+let xmm11_3   = field asm_state "xmm11_3" int64_t
+
+let xmm12_0   = field asm_state "xmm12_0" int64_t
+let xmm12_1   = field asm_state "xmm12_1" int64_t
+let xmm12_2   = field asm_state "xmm12_2" int64_t
+let xmm12_3   = field asm_state "xmm12_3" int64_t
+
+let xmm13_0   = field asm_state "xmm13_0" int64_t
+let xmm13_1   = field asm_state "xmm13_1" int64_t
+let xmm13_2   = field asm_state "xmm13_2" int64_t
+let xmm13_3   = field asm_state "xmm13_3" int64_t
+
+let xmm14_0   = field asm_state "xmm14_0" int64_t
+let xmm14_1   = field asm_state "xmm14_1" int64_t
+let xmm14_2   = field asm_state "xmm14_2" int64_t
+let xmm14_3   = field asm_state "xmm14_3" int64_t
+
+let xmm15_0   = field asm_state "xmm15_0" int64_t
+let xmm15_1   = field asm_state "xmm15_1" int64_t
+let xmm15_2   = field asm_state "xmm15_2" int64_t
+let xmm15_3   = field asm_state "xmm15_3" int64_t
+
+let rflags  = field asm_state "rflags" int64_t
+
 let ()      = seal asm_state
 
 (* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
@@ -280,24 +366,104 @@ let is_correct asm_arr =
     setf state r13 asm_arr.(13);
     setf state r14 asm_arr.(14);
     setf state r15 asm_arr.(15);
-    setf state rflags asm_arr.(16);
 
-    setf state xmm0 asm_arr.(17);
-    setf state xmm1 asm_arr.(18);
-    setf state xmm2 asm_arr.(19);
-    setf state xmm3 asm_arr.(20);
-    setf state xmm4 asm_arr.(21);
-    setf state xmm5 asm_arr.(22);
-    setf state xmm6 asm_arr.(23);
-    setf state xmm7 asm_arr.(24);
-    setf state xmm8 asm_arr.(25);
-    setf state xmm9 asm_arr.(26);
-    setf state xmm10 asm_arr.(27);
-    setf state xmm11 asm_arr.(28);
-    setf state xmm12 asm_arr.(29);
-    setf state xmm13 asm_arr.(30);
-    setf state xmm14 asm_arr.(31);
-    setf state xmm15 asm_arr.(32);
+    (* XMM0  *)
+    setf state xmm0_0 asm_arr.(16);
+    setf state xmm0_1 asm_arr.(17);
+    setf state xmm0_2 asm_arr.(18);
+    setf state xmm0_3 asm_arr.(19);
+
+    (* XMM1  *)
+    setf state xmm1_0 asm_arr.(20);
+    setf state xmm1_1 asm_arr.(21);
+    setf state xmm1_2 asm_arr.(22);
+    setf state xmm1_3 asm_arr.(23);
+
+    (* XMM2  *)
+    setf state xmm2_0 asm_arr.(24);
+    setf state xmm2_1 asm_arr.(25);
+    setf state xmm2_2 asm_arr.(26);
+    setf state xmm2_3 asm_arr.(27);
+
+    (* XMM3  *)
+    setf state xmm3_0 asm_arr.(28);
+    setf state xmm3_1 asm_arr.(29);
+    setf state xmm3_2 asm_arr.(30);
+    setf state xmm3_3 asm_arr.(31);
+
+    (* XMM4  *)
+    setf state xmm4_0 asm_arr.(32);
+    setf state xmm4_1 asm_arr.(33);
+    setf state xmm4_2 asm_arr.(34);
+    setf state xmm4_3 asm_arr.(35);
+
+    (* XMM5  *)
+    setf state xmm5_0 asm_arr.(36);
+    setf state xmm5_1 asm_arr.(37);
+    setf state xmm5_2 asm_arr.(38);
+    setf state xmm5_3 asm_arr.(39);
+
+    (* XMM6  *)
+    setf state xmm6_0 asm_arr.(40);
+    setf state xmm6_1 asm_arr.(41);
+    setf state xmm6_2 asm_arr.(42);
+    setf state xmm6_3 asm_arr.(43);
+
+    (* XMM7  *)
+    setf state xmm7_0 asm_arr.(44);
+    setf state xmm7_1 asm_arr.(45);
+    setf state xmm7_2 asm_arr.(46);
+    setf state xmm7_3 asm_arr.(47);
+
+    (* XMM8  *)
+    setf state xmm8_0 asm_arr.(48);
+    setf state xmm8_1 asm_arr.(49);
+    setf state xmm8_2 asm_arr.(50);
+    setf state xmm8_3 asm_arr.(51);
+
+    (* XMM9  *)
+    setf state xmm9_0 asm_arr.(52);
+    setf state xmm9_1 asm_arr.(53);
+    setf state xmm9_2 asm_arr.(54);
+    setf state xmm9_3 asm_arr.(55);
+
+    (* XMM10  *)
+    setf state xmm10_0 asm_arr.(56);
+    setf state xmm10_1 asm_arr.(57);
+    setf state xmm10_2 asm_arr.(58);
+    setf state xmm10_3 asm_arr.(59);
+
+    (* XMM11  *)
+    setf state xmm11_0 asm_arr.(60);
+    setf state xmm11_1 asm_arr.(61);
+    setf state xmm11_2 asm_arr.(62);
+    setf state xmm11_3 asm_arr.(63);
+
+    (* XMM12  *)
+    setf state xmm12_0 asm_arr.(64);
+    setf state xmm12_1 asm_arr.(65);
+    setf state xmm12_2 asm_arr.(66);
+    setf state xmm12_3 asm_arr.(67);
+
+    (* XMM13  *)
+    setf state xmm13_0 asm_arr.(68);
+    setf state xmm13_1 asm_arr.(69);
+    setf state xmm13_2 asm_arr.(70);
+    setf state xmm13_3 asm_arr.(71);
+
+    (* XMM14  *)
+    setf state xmm14_0 asm_arr.(72);
+    setf state xmm14_1 asm_arr.(73);
+    setf state xmm14_2 asm_arr.(74);
+    setf state xmm14_3 asm_arr.(75);
+
+    (* XMM15  *)
+    setf state xmm15_0 asm_arr.(76);
+    setf state xmm15_1 asm_arr.(77);
+    setf state xmm15_2 asm_arr.(78);
+    setf state xmm15_3 asm_arr.(79);
+
+    setf state rflags asm_arr.(80);
 
   let check state asm_arr  =
     let arch = Amd64 in
@@ -305,11 +471,27 @@ let is_correct asm_arr =
     let regs = [asm_arr.(0); asm_arr.(1); asm_arr.(2); asm_arr.(3); asm_arr.(4); asm_arr.(5); asm_arr.(6); asm_arr.(7);
                 asm_arr.(8); asm_arr.(9); asm_arr.(10); asm_arr.(11); asm_arr.(12); asm_arr.(13); asm_arr.(14); asm_arr.(15)] in
     let regxs = [0L;0L;0L;0L;0L;0L;0L;0L] in
-    let xregs = [asm_arr.(17); asm_arr.(18); asm_arr.(19); asm_arr.(20); asm_arr.(21); asm_arr.(22); asm_arr.(23); asm_arr.(24);
-    asm_arr.(25); asm_arr.(26); asm_arr.(27); asm_arr.(28); asm_arr.(29); asm_arr.(30); asm_arr.(31); asm_arr.(32)] in
+    let xregs = [
+                    (asm_arr.(16), asm_arr.(17), asm_arr.(18), asm_arr.(19));
+                    (asm_arr.(20), asm_arr.(21), asm_arr.(22), asm_arr.(23));
+                    (asm_arr.(24), asm_arr.(25), asm_arr.(26), asm_arr.(27));
+                    (asm_arr.(28), asm_arr.(29), asm_arr.(30), asm_arr.(31));
+                    (asm_arr.(32), asm_arr.(33), asm_arr.(34), asm_arr.(35));
+                    (asm_arr.(36), asm_arr.(37), asm_arr.(38), asm_arr.(39));
+                    (asm_arr.(40), asm_arr.(41), asm_arr.(42), asm_arr.(43));
+                    (asm_arr.(44), asm_arr.(45), asm_arr.(46), asm_arr.(47));
+                    (asm_arr.(48), asm_arr.(49), asm_arr.(50), asm_arr.(51));
+                    (asm_arr.(52), asm_arr.(53), asm_arr.(54), asm_arr.(55));
+                    (asm_arr.(56), asm_arr.(57), asm_arr.(58), asm_arr.(59));
+                    (asm_arr.(60), asm_arr.(61), asm_arr.(62), asm_arr.(63));
+                    (asm_arr.(64), asm_arr.(65), asm_arr.(66), asm_arr.(67));
+                    (asm_arr.(68), asm_arr.(69), asm_arr.(70), asm_arr.(71));
+                    (asm_arr.(72), asm_arr.(73), asm_arr.(74), asm_arr.(75));
+                    (asm_arr.(76), asm_arr.(77), asm_arr.(78), asm_arr.(79));
+                ] in
     let flags_ref =
       let open A in
-      let num = Z.of_int64_unsigned(asm_arr.(16)) in
+      let num = Z.of_int64_unsigned(asm_arr.(80)) in
       let my_list = ref [] in
       (* CF; PF; ZF; SF; OF *)
       if Z.testbit num 0 then my_list := !my_list @ [J.Arch_decl.Def true] else my_list := !my_list @ [J.Arch_decl.Def false] ;
@@ -346,18 +528,40 @@ let is_correct asm_arr =
     let jxasm =
       let jxarr = Array.make 16 Z.zero in
       for i = 0 to 15 do
-        let temp = J.Conv.z_of_int64 (J.Conv.int64_of_z (J.Conv.z_of_cz (J.Exec.read_xreg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jxregs.(i)))) in
+        let temp = J.Conv.z_of_cz (J.Exec.read_xreg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jxregs.(i)) in
         (* jxarr.(i) <- (J.Conv.z_of_cz (J.Exec.read_xreg J.Syscall_ocaml.sc_sem A.asm_e._asm new_state jxregs.(i))); *)
         jxarr.(i) <- temp;
         (* Printf.printf "The JXasm is %s\n" (Z.to_string jxarr.(i)); *)
       done;
       jxarr
     in
-    let cxregs = [|xmm0; xmm1; xmm2; xmm3; xmm4; xmm5; xmm6; xmm7; xmm8; xmm9; xmm10; xmm11; xmm12; xmm13; xmm14; xmm15|] in
+    let cxregs = [|
+                    xmm0_0; xmm0_1; xmm0_2; xmm0_3;
+                    xmm1_0; xmm1_1; xmm1_2; xmm1_3;
+                    xmm2_0; xmm2_1; xmm2_2; xmm2_3;
+                    xmm3_0; xmm3_1; xmm3_2; xmm3_3;
+                    xmm4_0; xmm4_1; xmm4_2; xmm4_3;
+                    xmm5_0; xmm5_1; xmm5_2; xmm5_3;
+                    xmm6_0; xmm6_1; xmm6_2; xmm6_3;
+                    xmm7_0; xmm7_1; xmm7_2; xmm7_3;
+                    xmm8_0; xmm8_1; xmm8_2; xmm8_3;
+                    xmm9_0; xmm9_1; xmm9_2; xmm9_3;
+                    xmm10_0; xmm10_1; xmm10_2; xmm10_3;
+                    xmm11_0; xmm11_1; xmm11_2; xmm11_3;
+                    xmm12_0; xmm12_1; xmm12_2; xmm12_3;
+                    xmm13_0; xmm13_1; xmm13_2; xmm13_3;
+                    xmm14_0; xmm14_1; xmm14_2; xmm14_3;
+                    xmm15_0; xmm15_1; xmm15_2; xmm15_3;
+                  |] in
     let cxasm =
       let cxarr = Array.make 16 Z.zero in
       for i = 0 to 15 do
-        cxarr.(i) <- Z.of_int64 (getf state cxregs.(i));
+        let a = getf state cxregs.(i * 4 + 0) in
+        let b = getf state cxregs.(i * 4 + 1) in
+        let c = getf state cxregs.(i * 4 + 2) in
+        let d = getf state cxregs.(i * 4 + 3) in
+
+        cxarr.(i) <- ImplA.int256_to_z (a, b, c, d);
         (* Printf.printf "The CXasm is %s\n" (Z.to_string cxarr.(i)); *)
       done;
       cxarr
@@ -439,37 +643,134 @@ let () =
     let cr13    = Crowbar.int64 in
     let cr14    = Crowbar.int64 in
     let cr15    = Crowbar.int64 in
+
+    (* let cxmm0_0 = Crowbar.int64 in
+    let cxmm0_1 = Crowbar.int64 in
+    let cxmm0_2 = Crowbar.int64 in
+    let cxmm0_3 = Crowbar.int64 in
+
+    let cxmm1_0 = Crowbar.int64 in
+    let cxmm1_1 = Crowbar.int64 in
+    let cxmm1_2 = Crowbar.int64 in
+    let cxmm1_3 = Crowbar.int64 in
+
+    let cxmm2_0 = Crowbar.int64 in
+    let cxmm2_1 = Crowbar.int64 in
+    let cxmm2_2 = Crowbar.int64 in
+    let cxmm2_3 = Crowbar.int64 in
+
+    let cxmm3_0 = Crowbar.int64 in
+    let cxmm3_1 = Crowbar.int64 in
+    let cxmm3_2 = Crowbar.int64 in
+    let cxmm3_3 = Crowbar.int64 in
+
+    let cxmm4_0 = Crowbar.int64 in
+    let cxmm4_1 = Crowbar.int64 in
+    let cxmm4_2 = Crowbar.int64 in
+    let cxmm4_3 = Crowbar.int64 in
+
+    let cxmm5_0 = Crowbar.int64 in
+    let cxmm5_1 = Crowbar.int64 in
+    let cxmm5_2 = Crowbar.int64 in
+    let cxmm5_3 = Crowbar.int64 in
+
+    let cxmm6_0 = Crowbar.int64 in
+    let cxmm6_1 = Crowbar.int64 in
+    let cxmm6_2 = Crowbar.int64 in
+    let cxmm6_3 = Crowbar.int64 in
+
+    let cxmm7_0 = Crowbar.int64 in
+    let cxmm7_1 = Crowbar.int64 in
+    let cxmm7_2 = Crowbar.int64 in
+    let cxmm7_3 = Crowbar.int64 in
+
+    let cxmm8_0 = Crowbar.int64 in
+    let cxmm8_1 = Crowbar.int64 in
+    let cxmm8_2 = Crowbar.int64 in
+    let cxmm8_3 = Crowbar.int64 in
+
+    let cxmm9_0 = Crowbar.int64 in
+    let cxmm9_1 = Crowbar.int64 in
+    let cxmm9_2 = Crowbar.int64 in
+    let cxmm9_3 = Crowbar.int64 in
+
+    let cxmm10_0 = Crowbar.int64 in
+    let cxmm10_1 = Crowbar.int64 in
+    let cxmm10_2 = Crowbar.int64 in
+    let cxmm10_3 = Crowbar.int64 in
+
+    let cxmm11_0 = Crowbar.int64 in
+    let cxmm11_1 = Crowbar.int64 in
+    let cxmm11_2 = Crowbar.int64 in
+    let cxmm11_3 = Crowbar.int64 in
+
+    let cxmm12_0 = Crowbar.int64 in
+    let cxmm12_1 = Crowbar.int64 in
+    let cxmm12_2 = Crowbar.int64 in
+    let cxmm12_3 = Crowbar.int64 in
+
+    let cxmm13_0 = Crowbar.int64 in
+    let cxmm13_1 = Crowbar.int64 in
+    let cxmm13_2 = Crowbar.int64 in
+    let cxmm13_3 = Crowbar.int64 in
+
+    let cxmm14_0 = Crowbar.int64 in
+    let cxmm14_1 = Crowbar.int64 in
+    let cxmm14_2 = Crowbar.int64 in
+    let cxmm14_3 = Crowbar.int64 in
+
+    let cxmm15_0 = Crowbar.int64 in
+    let cxmm15_1 = Crowbar.int64 in
+    let cxmm15_2 = Crowbar.int64 in
+    let cxmm15_3 = Crowbar.int64 in *)
+
+    (* shifting rflags to last to maintain the struct packing *)
     let crflags = Crowbar.int64 in
 
-    let cxmm0 = Crowbar.int64 in
-    let cxmm1 = Crowbar.int64 in
-    let cxmm2 = Crowbar.int64 in
-    let cxmm3 = Crowbar.int64 in
-    let cxmm4 = Crowbar.int64 in
-    let cxmm5 = Crowbar.int64 in
-    let cxmm6 = Crowbar.int64 in
-    let cxmm7 = Crowbar.int64 in
-    let cxmm8 = Crowbar.int64 in
-    let cxmm9 = Crowbar.int64 in
-    let cxmm10 = Crowbar.int64 in
-    let cxmm11 = Crowbar.int64 in
-    let cxmm12 = Crowbar.int64 in
-    let cxmm13 = Crowbar.int64 in
-    let cxmm14 = Crowbar.int64 in
-    let cxmm15 = Crowbar.int64 in
-
-    Crowbar.map [crax; crcx; crdx; crbx; crsp; crbp; crsi; crdi;
-                  cr8; cr9; cr10; cr11; cr12; cr13; cr14; cr15; crflags;
-                  cxmm0; cxmm1; cxmm2; cxmm3; cxmm4; cxmm5; cxmm6; cxmm7;
-                  cxmm8; cxmm9; cxmm10; cxmm11; cxmm12; cxmm13; cxmm14; cxmm15] (
-      fun rax rcx rdx rbx rsp rbp rsi rdi r8 r9 r10 r11 r12 r13 r14 r15 rflags
-          xmm0 xmm1 xmm2 xmm3 xmm4 xmm5 xmm6 xmm7 xmm8 xmm9 xmm10 xmm11 xmm12 xmm13 xmm14 xmm15 ->
+    Crowbar.map [
+                  crax;     crcx;     crdx;     crbx;     crsp;     crbp;     crsi;     crdi;
+                  cr8;      cr9;      cr10;     cr11;     cr12;     cr13;     cr14;     cr15;
+                  (* cxmm0_0;  cxmm0_1;  cxmm0_2;  cxmm0_3;  cxmm1_0;  cxmm1_1;  cxmm1_2;  cxmm1_3;
+                  cxmm2_0;  cxmm2_1;  cxmm2_2;  cxmm2_3;  cxmm3_0;  cxmm3_1;  cxmm3_2;  cxmm3_3;
+                  cxmm4_0;  cxmm4_1;  cxmm4_2;  cxmm4_3;  cxmm5_0;  cxmm5_1;  cxmm5_2;  cxmm5_3;
+                  cxmm6_0;  cxmm6_1;  cxmm6_2;  cxmm6_3;  cxmm7_0;  cxmm7_1;  cxmm7_2;  cxmm7_3;
+                  cxmm8_0;  cxmm8_1;  cxmm8_2;  cxmm8_3;  cxmm9_0;  cxmm9_1;  cxmm9_2;  cxmm9_3;
+                  cxmm10_0; cxmm10_1; cxmm10_2; cxmm10_3; cxmm11_0; cxmm11_1; cxmm11_2; cxmm11_3;
+                  cxmm12_0; cxmm12_1; cxmm12_2; cxmm12_3; cxmm13_0; cxmm13_1; cxmm13_2; cxmm13_3;
+                  cxmm14_0; cxmm14_1; cxmm14_2; cxmm14_3; cxmm15_0; cxmm15_1; cxmm15_2; cxmm15_3; *)
+                  crflags;
+                ] (
+      fun rax rcx rdx rbx rsp rbp rsi rdi r8 r9 r10 r11 r12 r13 r14 r15
+          (* xmm0_0 xmm0_1 xmm0_2 xmm0_3 xmm1_0 xmm1_1 xmm1_2 xmm1_3
+          xmm2_0 xmm2_1 xmm2_2 xmm2_3 xmm3_0 xmm3_1 xmm3_2 xmm3_3
+          xmm4_0 xmm4_1 xmm4_2 xmm4_3 xmm5_0 xmm5_1 xmm5_2 xmm5_3
+          xmm6_0 xmm6_1 xmm6_2 xmm6_3 xmm7_0 xmm7_1 xmm7_2 xmm7_3
+          xmm8_0 xmm8_1 xmm8_2 xmm8_3 xmm9_0 xmm9_1 xmm9_2 xmm9_3
+          xmm10_0 xmm10_1 xmm10_2 xmm10_3 xmm11_0 xmm11_1 xmm11_2 xmm11_3
+          xmm12_0 xmm12_1 xmm12_2 xmm12_3 xmm13_0 xmm13_1 xmm13_2 xmm13_3
+          xmm14_0 xmm14_1 xmm14_2 xmm14_3 xmm15_0 xmm15_1 xmm15_2 xmm15_3 *)
+          rflags ->
         let my_array = [|rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi;
-                          r8; r9; r10; r11; r12; r13; r14; r15; rflags;
-                          xmm0; xmm1; xmm2; xmm3; xmm4; xmm5; xmm6; xmm7;
-                          xmm8; xmm9; xmm10; xmm11; xmm12; xmm13; xmm14; xmm15|] in
+                          r8; r9; r10; r11; r12; r13; r14; r15;
+                          rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi;
+                          r8; r9; r10; r11; r12; r13; r14; r15;
+                          rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi;
+                          r8; r9; r10; r11; r12; r13; r14; r15;
+                          rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi;
+                          r8; r9; r10; r11; r12; r13; r14; r15;
+                          rax; rcx; rdx; rbx; rsp; rbp; rsi; rdi;
+                          r8; r9; r10; r11; r12; r13; r14; r15;
+                          (* xmm0_0; xmm0_1; xmm0_2; xmm0_3; xmm1_0; xmm1_1; xmm1_2; xmm1_3;
+                          xmm2_0; xmm2_1; xmm2_2; xmm2_3; xmm3_0; xmm3_1; xmm3_2; xmm3_3;
+                          xmm4_0; xmm4_1; xmm4_2; xmm4_3; xmm5_0; xmm5_1; xmm5_2; xmm5_3;
+                          xmm6_0; xmm6_1; xmm6_2; xmm6_3; xmm7_0; xmm7_1; xmm7_2; xmm7_3;
+                          xmm8_0; xmm8_1; xmm8_2; xmm8_3; xmm9_0; xmm9_1; xmm9_2; xmm9_3;
+                          xmm10_0; xmm10_1; xmm10_2; xmm10_3; xmm11_0; xmm11_1; xmm11_2; xmm11_3;
+                          xmm12_0; xmm12_1; xmm12_2; xmm12_3; xmm13_0; xmm13_1; xmm13_2; xmm13_3;
+                          xmm14_0; xmm14_1; xmm14_2; xmm14_3; xmm15_0; xmm15_1; xmm15_2; xmm15_3; *)
+                          rflags|] in
         my_array
     )
   in
 
-  Crowbar.add_test ~name:"check increment" [ asm_arr]  (fun asm_arr -> is_correct asm_arr)
+  Crowbar.add_test ~name:"Differential Testing " [ asm_arr]  (fun asm_arr -> is_correct asm_arr)
