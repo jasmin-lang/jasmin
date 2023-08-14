@@ -405,6 +405,7 @@ module Printer (BP:BPrinter) = struct
   let pp_syscall (o : 'a Syscall_t.syscall_t) =
     match o with
     | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
+    | Syscall_t.Open _ -> "__jasmin_syscall_open__"
 
   (* -------------------------------------------------------------------- *)
   let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
@@ -436,7 +437,7 @@ module Printer (BP:BPrinter) = struct
 
     | SysCall(op) ->
       let name = "call" in
-      let args = [pp_syscall op] in
+      let args = [pp_syscall (Conv.syscall_of_csyscall op)] in
       `Instr(name, args)
 
     | AsmOp(op, args) ->

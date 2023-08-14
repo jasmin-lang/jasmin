@@ -104,7 +104,7 @@ let small_step1 ep spp sip s =
     | Csyscall(xs,o, es) ->
       let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
       let ((scs, m), vs) =
-        exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
+        exn_exec ii (syscall_sem__ ep._pd sip._sc_sem s1.escs s1.emem o ves) in
       let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 

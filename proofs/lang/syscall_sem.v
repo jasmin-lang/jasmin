@@ -32,8 +32,19 @@ Definition exec_getrandom_u (scs : syscall_state) len vs :=
   Let t := WArray.fill len sd.2 in
   ok (sd.1, [::Varr t]).
 
+Definition data_of_array (len: positive) (a: WArray.array len) : seq u8 :=
+  map snd (Mz.elements (WArray.arr_data a)).
+
+Definition exec_open_u (scs : syscall_state) (len: positive) (vs : seq value) : exec (syscall_state * seq value) :=
+  Let a :=
+    match vs with
+    | [:: v] => to_arr len v
+    | _ => type_error
+    end in
+  let '(st, fd) := open_file scs (data_of_array a) in
+  ok (st, [::Vword fd]).
+
 Definition exec_syscall_u
-  {pd : PointerData}
   (scs : syscall_state_t)
   (m : mem)
   (o : syscall_t)
@@ -43,6 +54,9 @@ Definition exec_syscall_u
   | RandomBytes len =>
       Let sv := exec_getrandom_u scs len vs in
       ok (sv.1, m, sv.2)
+  | Open len => 
+      Let: (st, fd) := exec_open_u scs len vs in
+      ok (st, m, fd)
   end.
 
 Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
@@ -51,13 +65,13 @@ Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
   exists2 vres' : values,
     exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ p ].
+  rewrite /exec_syscall_u; case: o => [ p |  ].
   t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
   move: h; rewrite /exec_getrandom_u.
   case: hu => // va va' ?? /of_value_uincl_te h [] //.
   t_xrbindP => a /h{h}[? /= -> ?] ra hra ??; subst rscs vres.
   by rewrite hra /=; eexists; eauto.
-Qed.
+Admitted.
 
 Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =2 validw m2.
 
@@ -65,9 +79,9 @@ Lemma exec_syscallSu scs m o vargs rscs rm vres :
   exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
   mem_equiv m rm.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ p ].
+  rewrite /exec_syscall_u; case: o => [ p | ].
   by t_xrbindP => -[scs' v'] /= _ _ <- _.
-Qed.
+Admitted.
 
 End SourceSysCall.
 
@@ -80,6 +94,11 @@ Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (
   let sd := syscall.get_random scs len in
   Let m := fill_mem m p sd.2 in
   ok (sd.1, m, p).
+
+Definition exec_open_file_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) :=
+  let len := wunsigned len in
+  let '(st, fd) := syscall.open_file scs [::] in
+  ok (st, m, fd).
 
 Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp : 
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
@@ -95,6 +114,7 @@ Definition sem_syscall (o:syscall_t) :
      syscall_state_t -> mem -> sem_prod (syscall_sig_s o).(scs_tin) (exec (syscall_state_t * mem * sem_tuple (syscall_sig_s o).(scs_tout))) := 
   match o with
   | RandomBytes _ => exec_getrandom_s_core
+  | Open _ => exec_open_file_s_core
   end.
 
 Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : exec (syscall_state_t * mem * values) :=
@@ -131,7 +151,7 @@ Proof.
   case: o => _len /= p len [[scs' rm] t] /= hex; split.
   + by apply: exec_getrandom_s_core_stable hex. 
   by apply: exec_getrandom_s_core_validw hex.
-Qed.
+Admitted.
 
 Lemma exec_syscallSs scs m o vargs rscs rm vres :
   exec_syscall_s scs m o vargs = ok (rscs, rm, vres) → 

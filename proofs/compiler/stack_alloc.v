@@ -1182,6 +1182,18 @@ Definition alloc_syscall ii rmap rs o es :=
     | _, _ =>
       Error (stk_ierror_no_var "randombytes: invalid args or result")
     end
+  | Open len => 
+    match es with
+    | [::Pvar xe] =>
+      let xe := xe.(gv) in
+      let xlen := with_var xe (vxlen pmap) in
+      Let p  := get_regptr xe in
+      ok (rmap,
+          [:: MkI ii (sap_immediate saparams xlen (Zpos len));
+              MkI ii (Csyscall rs o [:: Plvar p; Plvar xlen])])
+    | _ =>
+      Error (stk_ierror_no_var "open: invalid args or result")
+    end
   end.
 
 Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=

@@ -1,3 +1,5 @@
+open Ssralg
+
 type state = unit
 
 (* FIXME syscall : I don't think that this implementation is a good one.
@@ -19,4 +21,12 @@ let get_random (s : state) (z:BinNums.coq_Z) =
   assert (0 <= n);
   s, List.init n random_char
 
-let sc_sem : state Syscall.syscall_sem = get_random
+
+(** FIXME: Reurn actual fd *)
+let open_file (s : state) (filename: GRing.ComRing.sort list) =
+  s, (Word0.wrepr Wsize.U32 (CoreConv.cz_of_int 1))
+
+let sc_sem : state Syscall.syscall_sem = {
+  get_random = get_random;
+  open_file =  open_file
+}

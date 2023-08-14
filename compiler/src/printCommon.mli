@@ -6,7 +6,7 @@ val string_of_op1 : Expr.sop1 -> string
 val string_of_op2 : Expr.sop2 -> string
 val pp_opn :
   Wsize.wsize -> 'asm Sopn.asmOp -> Format.formatter -> 'asm Sopn.sopn -> unit
-val pp_syscall : BinNums.positive Syscall_t.syscall_t -> string
+val pp_syscall : Syscall.syscall_t -> string
 val pp_bool : Format.formatter -> bool -> unit
 val pp_kind : Format.formatter -> Wsize.v_kind -> unit
 val pp_btype : Format.formatter -> Prog.base_ty -> unit

@@ -45,6 +45,9 @@ val lval_of_clval :  Expr.lval -> Prog.lval
 val cexpr_of_expr :  expr -> Expr.pexpr
 val expr_of_cexpr :  Expr.pexpr -> expr
 
+val csyscall_of_syscall : BinNums.positive Syscall_t.syscall_t -> Syscall.syscall_t
+val syscall_of_csyscall : Syscall.syscall_t -> BinNums.positive Syscall_t.syscall_t
+
 val cufdef_of_fdef :  (unit, 'asm) func -> Var0.funname * 'asm Expr._ufundef
 val fdef_of_cufdef :  Var0.funname * 'asm Expr._ufundef -> (unit, 'asm) func
 

@@ -70,7 +70,8 @@ let write_mem_lvals = List.exists write_mem_lval
 let rec read_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
-  | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
+  | Copn (xs, _, _, es) 
+  | Csyscall (xs, _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
   | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
@@ -83,7 +84,8 @@ let read_mem_f s f = read_mem_c s f.f_body
 let rec write_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, _)  -> write_mem_lval x 
-  | Copn (xs, _, _, _) | Csyscall(xs, Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
+  | Copn (xs, _, _, _) 
+  | Csyscall(xs, _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
   | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
@@ -331,6 +333,13 @@ let pp_syscall env fmt o =
     let n = (Conv.int_of_pos p) in
     env.randombytes := Sint.add n !(env.randombytes);
     Format.fprintf fmt "%s.randombytes_%i" syscall_mod_arg n
+  | Syscall_t.Open p ->
+    let n = (Conv.int_of_pos p) in
+    Format.fprintf fmt "%s.open_%i" syscall_mod_arg n
+    (** FIXME : Add open to the environment *)
+
+let syscall_sig_u pd o =
+  Syscall.syscall_sig_u pd (Conv.csyscall_of_syscall o)
 
 let ty_lval = function
   | Lnone (_, ty) -> ty
@@ -823,7 +832,7 @@ module Normal = struct
     | Csyscall(lvs, o, _) ->
       if lvs = [] then env
       else
-        let tys = List.map Conv.ty_of_cty (Syscall.syscall_sig_u o).scs_tout in
+        let tys = List.map Conv.ty_of_cty (syscall_sig_u pd o).scs_tout in
         let ltys = List.map ty_lval lvs in
         if (check_lvals lvs && ltys = tys) then env
         else add_aux env tys
@@ -893,7 +902,7 @@ module Normal = struct
         pp_call pd env fmt lvs otys otys pp es
 
     | Csyscall(lvs, o, es) ->
-      let s = Syscall.syscall_sig_u o in
+      let s = syscall_sig_u pd o in
       let otys = List.map Conv.ty_of_cty s.scs_tout in
       let itys =  List.map Conv.ty_of_cty s.scs_tin in
       let pp_args fmt es =
@@ -1107,7 +1116,7 @@ module Leak = struct
        let env = add_aux env tys in
        add_aux env (List.map ty_lval lvs)
     | Csyscall(lvs, o, _)->
-      let s = Syscall.syscall_sig_u o in
+      let s = syscall_sig_u pd o in
       let otys = List.map Conv.ty_of_cty s.scs_tout in
       let env = add_aux env otys in
       add_aux env (List.map ty_lval lvs)
@@ -1201,7 +1210,7 @@ module Leak = struct
         pp_call pd env fmt lvs otys otys pp es
 
     | Csyscall(lvs, o, es) ->
-      let s = Syscall.syscall_sig_u o in
+      let s = syscall_sig_u pd o in
       let otys = List.map Conv.ty_of_cty s.scs_tout in
       let itys =  List.map Conv.ty_of_cty s.scs_tin in
 
