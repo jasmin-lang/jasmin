@@ -44,6 +44,15 @@ Definition exec_open_u (scs : syscall_state) (len: positive) (vs : seq value) : 
   let '(st, fd) := open_file scs (data_of_array a) in
   ok (st, [::Vword fd]).
 
+Definition exec_close_u (scs : syscall_state) (vs : seq value) := 
+  Let a :=
+    match vs with
+    | [:: v] => to_word Uptr v
+    | _ => type_error
+    end in
+  let '(st, success) := close_file scs a in
+  ok (st, [::Vbool success]).
+
 Definition exec_syscall_u
   (scs : syscall_state_t)
   (m : mem)
@@ -57,6 +66,9 @@ Definition exec_syscall_u
   | Open len => 
       Let: (st, fd) := exec_open_u scs len vs in
       ok (st, m, fd)
+  | Close =>
+      Let: (st, ret) := exec_close_u scs vs in
+      ok (st, m, ret)
   end.
 
 Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
@@ -65,7 +77,7 @@ Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
   exists2 vres' : values,
     exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ p |  ].
+  rewrite /exec_syscall_u; case: o => [ p | |  ].
   t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
   move: h; rewrite /exec_getrandom_u.
   case: hu => // va va' ?? /of_value_uincl_te h [] //.
@@ -79,7 +91,7 @@ Lemma exec_syscallSu scs m o vargs rscs rm vres :
   exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
   mem_equiv m rm.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ p | ].
+  rewrite /exec_syscall_u; case: o => [ p | | ].
   by t_xrbindP => -[scs' v'] /= _ _ <- _.
 Admitted.
 
@@ -95,10 +107,14 @@ Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (
   Let m := fill_mem m p sd.2 in
   ok (sd.1, m, p).
 
-Definition exec_open_file_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) :=
+Definition exec_open_file_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) := 
   let len := wunsigned len in
-  let '(st, fd) := syscall.open_file scs [::] in
+  let '(st, fd) := syscall.open_file scs [::] in (** FIXME: ??? *)
   ok (st, m, fd).
+
+Definition exec_close_file_s_core (scs : syscall_state_t) (m : mem) (p:word Uptr) : exec (syscall_state_t * mem * bool) :=
+  let '(st, success) := syscall.close_file scs p in
+  ok (st, m, success). (** FIXME: ??? *)
 
 Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp : 
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
@@ -115,6 +131,7 @@ Definition sem_syscall (o:syscall_t) :
   match o with
   | RandomBytes _ => exec_getrandom_s_core
   | Open _ => exec_open_file_s_core
+  | Close => exec_close_file_s_core
   end.
 
 Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : exec (syscall_state_t * mem * values) :=
