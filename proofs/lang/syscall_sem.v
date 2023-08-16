@@ -47,11 +47,11 @@ Definition exec_open_u (scs : syscall_state) (len: positive) (vs : seq value) : 
 Definition exec_close_u (scs : syscall_state) (vs : seq value) := 
   Let a :=
     match vs with
-    | [:: v] => to_word Uptr v
+    | [:: v] => to_word U64 v
     | _ => type_error
     end in
   let '(st, success) := close_file scs a in
-  ok (st, [::Vbool success]).
+  ok (st, [::Vword success]).
 
 Definition exec_syscall_u
   (scs : syscall_state_t)
@@ -77,7 +77,7 @@ Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
   exists2 vres' : values,
     exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ p | |  ].
+  rewrite /exec_syscall_u; case: o => [ p | p | p ].
   t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
   move: h; rewrite /exec_getrandom_u.
   case: hu => // va va' ?? /of_value_uincl_te h [] //.
@@ -107,12 +107,12 @@ Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (
   Let m := fill_mem m p sd.2 in
   ok (sd.1, m, p).
 
-Definition exec_open_file_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) := 
+Definition exec_open_file_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * word U64) := 
   let len := wunsigned len in
   let '(st, fd) := syscall.open_file scs [::] in (** FIXME: ??? *)
   ok (st, m, fd).
 
-Definition exec_close_file_s_core (scs : syscall_state_t) (m : mem) (p:word Uptr) : exec (syscall_state_t * mem * bool) :=
+Definition exec_close_file_s_core (scs : syscall_state_t) (m : mem) (p:word U64) : exec (syscall_state_t * mem * word U8) :=
   let '(st, success) := syscall.close_file scs p in
   ok (st, m, success). (** FIXME: ??? *)
 
@@ -165,10 +165,11 @@ Lemma sem_syscall_equiv o scs m :
   mk_forall (fun (rm: (syscall_state_t * mem * _)) => mem_equiv m rm.1.2)
             (sem_syscall o scs m).
 Proof.
-  case: o => _len /= p len [[scs' rm] t] /= hex; split.
+Admitted.
+(**  case: o => _len /= p len [[scs' rm] t] /= hex; split.
   + by apply: exec_getrandom_s_core_stable hex. 
   by apply: exec_getrandom_s_core_validw hex.
-Admitted.
+Admitted. **)
 
 Lemma exec_syscallSs scs m o vargs rscs rm vres :
   exec_syscall_s scs m o vargs = ok (rscs, rm, vres) → 

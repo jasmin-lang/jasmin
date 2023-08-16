@@ -86,6 +86,7 @@ let pp_syscall (o : Syscall.syscall_t) =
   match o with 
   | Syscall.RandomBytes _ -> "#randombytes"
   | Syscall.Open _ -> "#open"
+  | Syscall.Close -> "#close"
 
 (* -------------------------------------------------------------------- *)
 let pp_bool fmt b = if b then fprintf fmt "true" else fprintf fmt "false"

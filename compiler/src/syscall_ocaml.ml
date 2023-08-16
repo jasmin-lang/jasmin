@@ -24,9 +24,14 @@ let get_random (s : state) (z:BinNums.coq_Z) =
 
 (** FIXME: Reurn actual fd *)
 let open_file (s : state) (filename: GRing.ComRing.sort list) =
-  s, (Word0.wrepr Wsize.U32 (CoreConv.cz_of_int 1))
+  s, (Word0.wrepr Wsize.U64 (CoreConv.cz_of_int 1))
+
+(** FIXME: actually close file *)
+let close_file (s : state) fd =
+  s, (Word0.wrepr Wsize.U64 (CoreConv.cz_of_int 1))
 
 let sc_sem : state Syscall.syscall_sem = {
   get_random = get_random;
-  open_file =  open_file
+  open_file =  open_file;
+  close_file = close_file;
 }

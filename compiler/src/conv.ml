@@ -140,6 +140,7 @@ let csyscall_of_syscall sc =
   match sc with
   | Syscall_t.RandomBytes n -> Csys.RandomBytes n
   | Syscall_t.Open n -> Csys.Open n
+  | Syscall_t.Close -> Csys.Close
 
 let rec cinstr_of_instr i c =
   let n = i.i_loc, i.i_annot in
@@ -191,6 +192,7 @@ let syscall_of_csyscall sc =
   match sc with
   | Csys.RandomBytes n -> Syscall_t.RandomBytes n
   | Csys.Open n -> Syscall_t.Open n
+  | Csys.Close -> Syscall_t.Close
 
 let rec instr_of_cinstr i =
   match i with

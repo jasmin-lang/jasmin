@@ -1647,8 +1647,32 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
         in
         (** FIXME: Pass an actual location *)
         let _ = tt_as_array (L._dummy, ty) in
-        Format.printf "Open";
         env, [mk_i (P.Csyscall([x], Syscall_t.Open (Conv.pos_of_int 1), [e]))]
+      | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "close" ->
+        (* FIXME syscall *)
+        (* This is dirty but ... *)
+        if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "close expects no implicit arguments");
+        let loc, x, ty =
+          match xs with
+          | [x] ->
+            let loc, x, oty = tt_lvalue pd env x in
+            let ty =
+              match oty with
+              | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+              | Some ty -> ty in
+            loc, x ty, ty
+          | _ ->
+            rs_tyerror ~loc:(L.loc pi)
+              (string_error "only a single variable is allowed as destination of close") in
+        let _ = tt_as_word (loc, ty) in
+        let e, ty = 
+          match args with
+          | [e] -> tt_expr pd env e
+          | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "only a single variable is allowed as input of open")
+        in
+        (** FIXME: Pass an actual location *)
+        let _ = tt_as_word (L._dummy, ty) in
+        env, [mk_i (P.Csyscall([x], Syscall_t.Close, [e]))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim asmOp f in

@@ -40,16 +40,16 @@ Record syscall_sig_t := {
 Definition syscall_sig_u {pd:PointerData} (o : syscall_t) : syscall_sig_t := 
   match o with
   | RandomBytes len => {| scs_tin := [:: sarr len]; scs_tout := [:: sarr len] |}
-  | Open len => {| scs_tin := [:: sarr len]; scs_tout := [:: sword Uptr] |}
-  | Close => {| scs_tin := [:: sword Uptr]; scs_tout := [:: sbool] |}
+  | Open len => {| scs_tin := [:: sarr len]; scs_tout := [:: sword U64] |}
+  | Close => {| scs_tin := [:: sword U64]; scs_tout := [:: sword U8] |}
   end.
 
 (* After stack alloc ie sprog *)
 Definition syscall_sig_s {pd:PointerData} (o:syscall_t) : syscall_sig_t := 
   match o with
   | RandomBytes _ => {| scs_tin := [::sword Uptr; sword Uptr]; scs_tout := [::sword Uptr] |}
-  | Open _ => {| scs_tin := [::sword Uptr; sword Uptr]; scs_tout := [::sword Uptr] |}
-  | Close => {| scs_tin := [::sword Uptr]; scs_tout := [::sbool] |}
+  | Open _ => {| scs_tin := [::sword Uptr; sword Uptr]; scs_tout := [::sword U64] |}
+  | Close => {| scs_tin := [::sword U64]; scs_tout := [::sword U8] |}
   end.
 
 
@@ -57,8 +57,8 @@ Definition syscall_sig_s {pd:PointerData} (o:syscall_t) : syscall_sig_t :=
 (* For the semantic                                                     *)
 Class syscall_sem {pd:PointerData} (syscall_state : Type) := {
   get_random : syscall_state -> Z -> syscall_state * seq u8;
-  open_file : syscall_state -> seq u8 -> syscall_state * word Uptr;
-  close_file : syscall_state -> word Uptr -> syscall_state * bool;
+  open_file : syscall_state -> seq u8 -> syscall_state * word U64;
+  close_file : syscall_state -> word U64 -> syscall_state * word U8;
 }.
 
 
