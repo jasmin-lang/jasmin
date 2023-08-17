@@ -190,8 +190,9 @@ let rec check_instr pd asmOp env i =
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
-  | Cassert  e ->
-    check_expr pd loc e tbool;
+  | Cassert(t, e) ->
+     check_expr pd loc e tbool;
+  (*TODO: check for something ?? *)
 
   | Cif(e,c1,c2) -> 
     check_expr pd loc e tbool;

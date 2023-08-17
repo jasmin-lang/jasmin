@@ -74,9 +74,9 @@ let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit
       let m, ys = rename_lvals allvars m xs in
       m, Ccall (ii, ys, n, es)
     | Cfor _ -> assert false
-    | Cassert e ->
+    | Cassert (t, e) ->
       let e = rename_expr m e in
-      m, Cassert e
+      m, Cassert (t, e)
     | Cif (e, s1, s2) ->
       let os = written_vars_stmt allvars (written_vars_stmt allvars Sv.empty s1) s2 in
       let e = rename_expr m e in

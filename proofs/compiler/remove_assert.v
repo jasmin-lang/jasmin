@@ -18,7 +18,7 @@ Context `{asmop : asmOp}.
 Fixpoint remove_assert_i (i:instr) {struct i} : cmd :=
   let (ii,ir) := i in
   match ir with
-  | Cassert e => [::]
+  | Cassert t e => [::]
 
   | Cassgn _ _ _ _
   | Copn _ _ _ _

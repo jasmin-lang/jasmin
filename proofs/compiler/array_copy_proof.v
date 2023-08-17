@@ -244,7 +244,7 @@ Qed.
 
 Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
 Proof.
-  move => s e he ii. rewrite /Pi vars_I_assert => hsub c /=.
+  move => s t e he ii. rewrite /Pi vars_I_assert => hsub c /=.
   t_xrbindP =>  hc vm1 hvm1.
   have [|v hv /value_uinclE ?]:= sem_pexpr_uincl_on (vmap_uincl_onI _ hvm1) he; first by SvD.fsetdec.
   subst c v.
@@ -254,7 +254,7 @@ Qed.
 
 Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
 Proof.
-  move => s e he ii. rewrite /Pi vars_I_assert => hsub c /=.
+  move => s t e he ii. rewrite /Pi vars_I_assert => hsub c /=.
   t_xrbindP =>  hc vm1 hvm1.
   have [|v hv /value_uinclE ?]:= sem_pexpr_uincl_on (vmap_uincl_onI _ hvm1) he; first by SvD.fsetdec.
   subst c v.

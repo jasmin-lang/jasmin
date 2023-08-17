@@ -38,3 +38,13 @@ let f_annot_empty = {
     stack_align           = None;
     max_call_depth        = None;
   }
+
+(* CHECKME: could be useful *)
+(* type assert_kind = *)
+(*   | Assert *)
+(*   | Assume *)
+(*   | Cut *)
+
+(* type a_annot = { *)
+(*     aty: assert_kind; *)
+(*   } *)

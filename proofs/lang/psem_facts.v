@@ -559,13 +559,13 @@ Qed.
 
 Local Lemma sem_deter_assert_true : sem_Ind_assert_true p Pi_r.
 Proof.
-  intros s e eval_e s2 h.
+  intros s t e eval_e s2 h.
   inversion h;eauto.
 Qed.
 
 Local Lemma sem_deter_assert_false : sem_Ind_assert_false p Pi_r.
 Proof.
-  intros s e eval_e s2 h.
+  intros s t e eval_e s2 h.
   inversion h;eauto.
 Qed.
 

@@ -239,9 +239,9 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let es := add_iinfo ii (expand_es m es) in
     ok (MkI ii (Csyscall xs o es))
 
-  | Cassert b =>
+  | Cassert t b =>
     Let b  := add_iinfo ii (expand_e m b) in
-    ok (MkI ii (Cassert b))
+    ok (MkI ii (Cassert t b))
 
   | Cif b c1 c2 =>
     Let b  := add_iinfo ii (expand_e m b) in

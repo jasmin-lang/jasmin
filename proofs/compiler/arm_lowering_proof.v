@@ -1470,7 +1470,7 @@ Qed.
 #[ local ]
 Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
 Proof.
-  move => s e he.
+  move => s t e he.
   move => ii hfv s0' hs0'.
   move: hfv => /disj_fvars_vars_I_Cassert [hfve].
   rewrite /=.
@@ -1486,7 +1486,7 @@ Qed.
 #[ local ]
 Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
 Proof.
-  move => s e he.
+  move => s t e he.
   move => ii hfv s0' hs0'.
   move: hfv => /disj_fvars_vars_I_Cassert [hfve].
   rewrite /=.

@@ -596,13 +596,13 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     write_lvals gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
     sem_i s1 (Csyscall xs o es) s2
 
-| Eassert_true s e:
+| Eassert_true s t e:
       sem_pexpr gd s e = ok (Vbool true) ->
-      sem_i s (Cassert e) s
+      sem_i s (Cassert t e) s
 
-| Eassert_false s e:
+| Eassert_false s t e:
       sem_pexpr gd s e = ok (Vbool false) ->
-      sem_i s (Cassert e) s
+      sem_i s (Cassert t e) s
 
 | Eif_true s1 s2 e c1 c2 :
     sem_pexpr gd s1 e = ok (Vbool true) ->
@@ -687,7 +687,7 @@ Lemma sem_iE s i s' :
     [/\ sem_pexprs gd s es = ok ves, 
         exec_syscall s.(escs) s.(emem) o ves = ok (scs, m, vs) & 
         write_lvals gd (with_scs (with_mem s m) scs) xs vs = ok s']
-  | Cassert e =>
+  | Cassert t e =>
     ∃ b, sem_pexpr gd s e = ok (Vbool b)
   | Cif e th el =>
     ∃ b, sem_pexpr gd s e = ok (Vbool b) ∧ sem s (if b then th else el) s'
@@ -801,14 +801,14 @@ Section SEM_IND.
       Pi_r s1 (Csyscall xs o es) s2.
 
   Definition sem_Ind_assert_true : Prop :=
-    forall (s : estate) (e : pexpr),
+    forall (s : estate) (t : annotation_kind) (e : pexpr),
       sem_pexpr gd s e = ok (Vbool true) ->
-      Pi_r s (Cassert e) s.
+      Pi_r s (Cassert t e) s.
 
   Definition sem_Ind_assert_false : Prop :=
-    forall (s : estate) (e : pexpr),
+    forall (s : estate) (t: annotation_kind) (e : pexpr),
       sem_pexpr gd s e = ok (Vbool false) ->
-      Pi_r s (Cassert e) s.
+      Pi_r s (Cassert t e) s.
 
   Definition sem_Ind_if_true : Prop :=
     forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
@@ -914,8 +914,8 @@ Section SEM_IND.
     | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
     | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
     | @Esyscall s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall s1 scs m s2 o xs es ves vs h1 h2 h3
-    | @Eassert_true s e h => @Hassert_true s e h
-    | @Eassert_false s e h => @Hassert_false s e h
+    | @Eassert_true s t e h => @Hassert_true s t e h
+    | @Eassert_false s t e h => @Hassert_false s t e h
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
     | @Eif_false s1 s2 e1 c1 c2 e2 s0 =>
@@ -2399,7 +2399,7 @@ Qed.
 
 Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
 Proof.
-  move=> s e H vm1 Hvm1.
+  move=> s t e H vm1 Hvm1.
   have [v' H1 /value_uinclE ?]:= sem_pexpr_uincl Hvm1 H;subst v'.
   exists vm1. split.
   by apply Eassert_true. eauto.
@@ -2407,7 +2407,7 @@ Qed.
 
 Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
 Proof.
-  move=> s e H vm1 Hvm1.
+  move=> s t e H vm1 Hvm1.
   have [v' H1 /value_uinclE ?]:= sem_pexpr_uincl Hvm1 H;subst v'.
   exists vm1. split.
   by apply Eassert_false. eauto.
@@ -2886,7 +2886,7 @@ Section WF.
     + move=> xs t o es s1 s2 /sem_iE.
       by apply:rbindP => ?? Hw ?;apply: wf_write_lvals Hw.
     + by move=> xs o es s1 s2 /sem_iE [scs [m [ves [vs [_ _ hw]]]]] hu; apply: wf_write_lvals hw.
-    + intros e s1 s2 H H1.
+    + intros t e s1 s2 H H1.
       inversion H;subst;eauto.
     + move=> e c1 c2 Hc1 Hc2 s1 s2 /sem_iE [b] [_]; case: b ; [apply Hc1 | apply Hc2].
     + move=> i dir lo hi c Hc s1 s2 /sem_iE [vlo] [vhi] [hlo hhi hfor].

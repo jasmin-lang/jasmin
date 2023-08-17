@@ -349,8 +349,7 @@ pinstr_r:
     { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, args)), c) }
 
-| ASSERT e=pexpr SEMICOLON
-   { PIAssert e }
+| ASSERT e=pexpr SEMICOLON { PIAssert e }
 
 | s=pif { s }
 

@@ -106,14 +106,14 @@ Section REMOVE_ASSERT.
 
     Local Lemma Rassert_true : sem_Ind_assert_true p Pi_r.
     Proof.
-      move => s e he ii vm1 hvm1.
+      move => s t e he ii vm1 hvm1.
       have [v' H1 /value_uinclE ?] := sem_pexpr_uincl hvm1 he;subst => Hwf.
       exists vm1;split => //;constructor.
     Qed.
 
     Local Lemma Rassert_false : sem_Ind_assert_false p Pi_r.
     Proof.
-      move => s e he ii vm1 hvm1.
+      move => s t e he ii vm1 hvm1.
       have [v' H1 /value_uinclE ?] := sem_pexpr_uincl hvm1 he;subst => Hwf.
       exists vm1;split => //;constructor.
     Qed.

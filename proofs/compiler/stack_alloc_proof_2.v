@@ -2005,7 +2005,7 @@ Qed.
 
 Local Lemma Hassert_true : sem_Ind_assert_true P Pi_r.
 Proof.
-  move=> s1 e Hse pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
+  move=> s1 t e Hse pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
   t_xrbindP=> e' he ?? m0 s1' hv hext hsao; subst rmap2 c.
   have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse.
   rewrite -P'_globs => he'.
@@ -2016,7 +2016,7 @@ Qed.
 
 Local Lemma Hassert_false : sem_Ind_assert_false P Pi_r.
 Proof.
-  move=> s1 e Hse pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
+  move=> s1 t e Hse pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
   t_xrbindP=> e' he ?? m0 s1' hv hext hsao; subst rmap2 c.
   have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse.
   rewrite -P'_globs => he'.

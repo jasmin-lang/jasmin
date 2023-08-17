@@ -85,8 +85,8 @@ end = struct
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
     | Csyscall (lvls, o, exprs) ->
       Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
-    | Cassert e ->
-      Cassert (mk_expr fn e)
+    | Cassert (t,e) ->
+      Cassert (t, mk_expr fn e)
     | Cif (e, st, st') ->
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
@@ -353,7 +353,7 @@ end = struct
     | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
 
-    | Cassert b ->
+    | Cassert (t, b) ->
       let _vs,st = expr_vars st b in
       st
 
@@ -522,7 +522,7 @@ end = struct
     | Cassgn (lv, _, _, e) ->
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
-    | Cassert e ->
+    | Cassert (_, e) ->
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
 

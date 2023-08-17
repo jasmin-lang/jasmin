@@ -379,14 +379,14 @@ Qed.
 
 Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
 Proof.
-  move => s e he ? m ii i2 s1' hwf heqa /=; t_xrbindP => e' he' es' hes.
+  move => s t e he ? m ii i2 s1' hwf heqa /=; t_xrbindP => e' he' es' hes.
   have := expand_eP hwf heqa he' he;rewrite -eq_globs => hse'.
   by exists s1';split => //; subst; apply Eassert_true.
 Qed.
 
 Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
 Proof.
-  move => s e he ? m ii i2 s1' hwf heqa /=; t_xrbindP => e' he' es' hes.
+  move => s t e he ? m ii i2 s1' hwf heqa /=; t_xrbindP => e' he' es' hes.
   have := expand_eP hwf heqa he' he;rewrite -eq_globs => hse'.
   by exists s1';split => //; subst; apply Eassert_false.
 Qed.

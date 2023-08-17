@@ -33,7 +33,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
-    | Cassert e -> Cassert e
+    | Cassert (t, e) -> Cassert (t, e)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
@@ -403,7 +403,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let iter_exprs es = vars_es es |> iter_sv in
   let rec iter_instr_r =
     function
-    | Cassert e -> iter_expr e
+    | Cassert(t, e) -> iter_expr e
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
     | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
