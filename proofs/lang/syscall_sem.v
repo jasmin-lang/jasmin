@@ -53,6 +53,16 @@ Definition exec_close_u (scs : syscall_state) (vs : seq value) :=
   let '(st, success) := close_file scs a in
   ok (st, [::Vword success]).
 
+Definition exec_write_u (scs : syscall_state) (len: positive) (vs : seq value) : exec (syscall_state * seq value) :=
+  Let a :=
+    match vs with
+    | [:: v; fd] => (to_arr len v, to_word U64 fd)
+    | _ => type_error
+    end in
+  let '(st, ret) := write_to_file scs (data_of_array a.1) a.2 in
+  Let t := WArray.fill len ret in
+  ok (st, [:: Varr t]).
+
 Definition exec_syscall_u
   (scs : syscall_state_t)
   (m : mem)
