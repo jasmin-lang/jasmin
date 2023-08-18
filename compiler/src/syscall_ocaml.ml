@@ -30,8 +30,14 @@ let open_file (s : state) (filename: GRing.ComRing.sort list) =
 let close_file (s : state) fd =
   s, (Word0.wrepr Wsize.U64 (CoreConv.cz_of_int 1))
 
+
+(** FIXME: actually write to file*)
+let write_to_file (s: state) data fd =
+  s, data
+
 let sc_sem : state Syscall.syscall_sem = {
   get_random = get_random;
   open_file =  open_file;
   close_file = close_file;
+  write_to_file = write_to_file;
 }

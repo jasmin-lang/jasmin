@@ -88,6 +88,14 @@ and iac_instr_r pd loc ir =
       Csyscall(xs, Syscall_t.Open p, es)
     | Syscall_t.Close ->
       Csyscall (xs, Syscall_t.Close, es)
+    | Syscall_t.Write _ ->
+      (* Fix the size it is dummy for the moment *)
+      let ty =
+        match es with
+        | [e; _] -> Typing.ty_expr pd loc e
+        | _ -> assert false in
+      let p = Conv.pos_of_int (Prog.size_of ty) in
+      Csyscall(xs, Syscall_t.Write p, es)
     end
 
   | Ccall _ -> ir

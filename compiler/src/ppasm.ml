@@ -407,6 +407,7 @@ module Printer (BP:BPrinter) = struct
     | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
     | Syscall_t.Open _ -> "__jasmin_syscall_open__"
     | Syscall_t.Close -> "__jasmin_syscall_close__"
+    | Syscall_t.Write _ -> "__jasmin_syscall_write__"
 
   (* -------------------------------------------------------------------- *)
   let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
