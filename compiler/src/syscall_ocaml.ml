@@ -35,9 +35,13 @@ let close_file (s : state) fd =
 let write_to_file (s: state) data fd =
   s, data
 
+let read_from_file (s: state) data fd =
+  s, data
+
 let sc_sem : state Syscall.syscall_sem = {
   get_random = get_random;
   open_file =  open_file;
   close_file = close_file;
   write_to_file = write_to_file;
+  read_from_file = read_from_file;
 }

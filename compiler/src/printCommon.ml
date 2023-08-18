@@ -88,6 +88,7 @@ let pp_syscall (o : Syscall.syscall_t) =
   | Syscall.Open _ -> "#open"
   | Syscall.Close -> "#close"
   | Syscall.Write _ -> "#write"
+  | Syscall.Read _ -> "#read"
 
 (* -------------------------------------------------------------------- *)
 let pp_bool fmt b = if b then fprintf fmt "true" else fprintf fmt "false"

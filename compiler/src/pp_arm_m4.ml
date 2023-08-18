@@ -170,6 +170,7 @@ let pp_syscall (o : _ Syscall_t.syscall_t) =
   | Syscall_t.Open _ -> "__jasmin_syscall_open__"
   | Syscall_t.Close -> "__jasmin_syscall_close__"
   | Syscall_t.Write _ -> "__jasmin_syscall_write__"
+  | Syscall_t.Read _ -> "__jasmin_syscall_read__"
 
 (* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
    must be introduced *in addition* to conditional suffixes. *)

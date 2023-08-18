@@ -142,6 +142,7 @@ let csyscall_of_syscall sc =
   | Syscall_t.Open n -> Csys.Open n
   | Syscall_t.Close -> Csys.Close
   | Syscall_t.Write n -> Csys.Write n
+  | Syscall_t.Read n -> Csys.Read n
 
 let rec cinstr_of_instr i c =
   let n = i.i_loc, i.i_annot in
@@ -195,6 +196,7 @@ let syscall_of_csyscall sc =
   | Csys.Open n -> Syscall_t.Open n
   | Csys.Close -> Syscall_t.Close
   | Csys.Write n -> Syscall_t.Write n
+  | Csys.Read n -> Syscall_t.Read n
 
 let rec instr_of_cinstr i =
   match i with

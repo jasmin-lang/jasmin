@@ -15,7 +15,8 @@ Variant syscall_t : Type :=
   | RandomBytes of positive
   | Open of positive
   | Close
-  | Write of positive.
+  | Write of positive
+  | Read of positive.
 
 Scheme Equality for syscall_t.
 
@@ -44,6 +45,7 @@ Definition syscall_sig_u {pd:PointerData} (o : syscall_t) : syscall_sig_t :=
   | Open len => {| scs_tin := [:: sarr len]; scs_tout := [:: sword U64] |}
   | Close => {| scs_tin := [:: sword U64]; scs_tout := [:: sword U8] |}
   | Write len => {| scs_tin := [:: sarr len; sword U64]; scs_tout := [:: sarr len] |}
+  | Read len => {| scs_tin := [:: sarr len; sword U64]; scs_tout := [:: sarr len] |}
   end.
 
 (* After stack alloc ie sprog *)
@@ -53,6 +55,7 @@ Definition syscall_sig_s {pd:PointerData} (o:syscall_t) : syscall_sig_t :=
   | Open _ => {| scs_tin := [::sword Uptr; sword Uptr]; scs_tout := [::sword U64] |}
   | Close => {| scs_tin := [::sword U64]; scs_tout := [::sword U8] |}
   | Write _ => {| scs_tin := [::sword Uptr; sword Uptr; sword U64]; scs_tout := [::sword Uptr] |}
+  | Read _ => {| scs_tin := [::sword Uptr; sword Uptr; sword U64]; scs_tout := [::sword Uptr] |}
   end.
 
 
@@ -63,6 +66,7 @@ Class syscall_sem {pd:PointerData} (syscall_state : Type) := {
   open_file : syscall_state -> seq u8 -> syscall_state * word U64;
   close_file : syscall_state -> word U64 -> syscall_state * word U8;
   write_to_file : syscall_state -> seq u8 -> word U64 -> syscall_state * seq u8;
+  read_from_file : syscall_state -> seq u8 -> word U64 -> syscall_state * seq u8;
 }.
 
 

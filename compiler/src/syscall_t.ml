@@ -3,3 +3,4 @@ type 'a syscall_t =
   | Open of 'a
   | Close
   | Write of 'a
+  | Read of 'a

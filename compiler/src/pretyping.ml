@@ -1700,6 +1700,33 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "write expects two variables as input")
     in
     env, [mk_i (P.Csyscall([x], Syscall_t.Write (Conv.pos_of_int 1), e))]
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "read" ->
+      (* FIXME syscall *)
+      (* This is dirty but ... *)
+      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "read expects no implicit arguments");
+      let loc, x, ty =
+        match xs with
+        | [x] ->
+          let loc, x, oty = tt_lvalue pd env x in
+          let ty =
+            match oty with
+            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+            | Some ty -> ty in
+          loc, x ty, ty
+        | _ ->
+          rs_tyerror ~loc:(L.loc pi)
+            (string_error "only a single variable is allowed as destination of read") in
+      let e = 
+        match args with
+        | [e; f] -> 
+            let e, ty = tt_expr pd env e in
+            let _ = tt_as_array (L._dummy, ty) in
+            let e2, ty2 = tt_expr pd env f in
+            let _ = tt_as_word (L._dummy, ty2) in
+            [e; e2]
+        | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "read expects two variables as input")
+      in
+      env, [mk_i (P.Csyscall([x], Syscall_t.Read (Conv.pos_of_int 1), e))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim asmOp f in

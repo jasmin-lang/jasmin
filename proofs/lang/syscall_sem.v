@@ -53,7 +53,7 @@ Definition exec_close_u (scs : syscall_state) (vs : seq value) :=
   let '(st, success) := close_file scs a in
   ok (st, [::Vword success]).
 
-Definition get_write_args len vs :=
+Definition get_args len vs :=
   if vs is [:: v; fd ] then
     Let a := to_arr len v in
     Let fd := to_word U64 fd in
@@ -61,10 +61,16 @@ Definition get_write_args len vs :=
   else type_error.
 
 Definition exec_write_u (scs : syscall_state) (len: positive) (vs : seq value) : exec (syscall_state * seq value) :=
-  Let: (a, fd) := get_write_args len vs in
+  Let: (a, fd) := get_args len vs in
   let: (st, ret) := write_to_file scs (data_of_array a) fd in
   Let t := WArray.fill len ret in
   ok (st, [:: Varr t]).
+
+Definition exec_read_u (scs : syscall_state) (len: positive) (vs : seq value) : exec (syscall_state * seq value) :=
+  Let: (a, fd) := get_args len vs in
+  let: (st, ret) := read_from_file scs (data_of_array a) fd in
+  Let t := WArray.fill len ret in
+  ok (st, [:: Varr t]). 
 
 Definition exec_syscall_u
   (scs : syscall_state_t)
@@ -85,6 +91,9 @@ Definition exec_syscall_u
   | Write len =>
       Let: (st, data) := exec_write_u scs len vs in
       ok (st, m, data)
+  | Read len =>
+      Let: (st, data) := exec_read_u scs len vs in
+      ok (st, m, data)
   end.
 
 Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
@@ -93,7 +102,7 @@ Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
   exists2 vres' : values,
     exec_syscall_u scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ p | p | p | p].
+  rewrite /exec_syscall_u; case: o => [ p | p | p | p | p].
   t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'.
   move: h; rewrite /exec_getrandom_u.
   case: hu => // va va' ?? /of_value_uincl_te h [] //.
@@ -107,7 +116,7 @@ Lemma exec_syscallSu scs m o vargs rscs rm vres :
   exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
   mem_equiv m rm.
 Proof.
-  rewrite /exec_syscall_u; case: o => [ p | | | ].
+  rewrite /exec_syscall_u; case: o => [ p | | | | ].
   by t_xrbindP => -[scs' v'] /= _ _ <- _.
 Admitted.
 
@@ -138,6 +147,12 @@ Definition exec_write_to_file_s_core (scs : syscall_state_t) (m : mem) (p:pointe
   Let m := fill_mem m p data in
   ok (st, m, p).
 
+  Definition exec_read_from_file_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) (fd:word U64) : exec (syscall_state_t * mem * pointer) := 
+    let len := wunsigned len in
+    let '(st, data) := syscall.read_from_file scs [::] fd in
+    Let m := fill_mem m p data in
+    ok (st, m, p).
+
 Lemma exec_getrandom_s_core_stable scs m p len rscs rm rp : 
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
   stack_stable m rm.
@@ -155,6 +170,7 @@ Definition sem_syscall (o:syscall_t) :
   | Open _ => exec_open_file_s_core
   | Close => exec_close_file_s_core
   | Write _ => exec_write_to_file_s_core
+  | Read _ => exec_read_from_file_s_core
   end.
 
 Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : exec (syscall_state_t * mem * values) :=
