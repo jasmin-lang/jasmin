@@ -115,6 +115,31 @@ ops_two_arg_imm8["SHRD"] = "shrd"
 
 ops_two_args_vec                    = {}
 ops_two_args_vec["VPTEST"]          = "vptest"
+ops_two_args_vec["VMOVSLDUP"]       = "vmovsldup"
+ops_two_args_vec["VMOVSHDUP"]       = "vmovshdup"
+
+ops_two_arg_imm8_vec = {}
+ops_two_arg_imm8_vec["VPERMQ"]      = "vpermq"
+ops_two_arg_imm8_vec["VPSHUFLW"]    = "vpshuflw"
+ops_two_arg_imm8_vec["VPSHUFHW"]    = "vpshufhw"
+
+ops_two_arg256_one_arg128_imm8_vec                 = {}
+ops_two_arg256_one_arg128_imm8_vec["VINSERTI128"]  = "vinserti128"
+
+ops_one_arg128_one_arg256_imm8_vec                  = {}
+ops_one_arg128_one_arg256_imm8_vec["VEXTRACTI128"]  = "vextracti128"
+
+ops_two_args_vec128_size                        = {}
+ops_two_args_vec128_size["VPBROADCAST_16u8"]    = "vpbroadcastb"
+ops_two_args_vec128_size["VPBROADCAST_8u16"]    = "vpbroadcastw"
+ops_two_args_vec128_size["VPBROADCAST_4u32"]    = "vpbroadcastd"
+ops_two_args_vec128_size["VPBROADCAST_2u64"]    = "vpbroadcastq"
+
+ops_one_arg256_one_arg256_vec_size                        = {}
+ops_one_arg256_one_arg256_vec_size["VPBROADCAST_32u8"]    = "vpbroadcastb"
+ops_one_arg256_one_arg256_vec_size["VPBROADCAST_16u16"]   = "vpbroadcastw"
+ops_one_arg256_one_arg256_vec_size["VPBROADCAST_8u32"]    = "vpbroadcastd"
+ops_one_arg256_one_arg256_vec_size["VPBROADCAST_4u64"]    = "vpbroadcastq"
 
 ops_three_args_vec                  = {}
 ops_three_args_vec["VPAND"]         = "vpand"
@@ -126,6 +151,12 @@ ops_three_args_vec["VPMULU"]        = "vpmuludq"
 ops_three_args_vec["VPSHUFB"]       = "vpshufb"
 ops_three_args_vec["VPMADDUBSW"]    = "vpmaddubsw"
 ops_three_args_vec["VPMADDWD"]      = "vpmaddwd"
+ops_three_args_vec["VPERMD"]        = "vpermd"
+
+ops_three_args_imm8_vec                 = {}
+ops_three_args_imm8_vec["VPERM2I128"]   = "vperm2i128"
+ops_three_args_imm8_vec["VPALIGNR"]     = "vpalignr"
+ops_three_args_imm8_vec["VSHUFPS"]      = "vshufps"
 
 # TODO: automate this size variation later
 ops_three_args_vec128_size                  = {}
@@ -178,8 +209,6 @@ ops_three_args_vec128_size["VPSUB_2u64"]    = "vpsubq"
 
 ops_three_args_vec128_size["VPAVG_16u8"]    = "vpavgb"
 ops_three_args_vec128_size["VPAVG_8u16"]    = "vpavgw"
-ops_three_args_vec128_size["VPAVG_4u32"]    = "vpavgd"
-ops_three_args_vec128_size["VPAVG_2u64"]    = "vpavgq"
 
 ops_three_args_vec128_size["VPSLLV_8u16"]    = "vpsllvw"
 ops_three_args_vec128_size["VPSLLV_4u32"]    = "vpsllvd"
@@ -198,6 +227,9 @@ ops_three_args_vec128_size["VPCMPGT_16u8"]      = "vpcmpgtb"
 ops_three_args_vec128_size["VPCMPGT_8u16"]      = "vpcmpgtw"
 ops_three_args_vec128_size["VPCMPGT_4u32"]      = "vpcmpgtd"
 ops_three_args_vec128_size["VPCMPGT_2u64"]      = "vpcmpgtq"
+
+ops_four_args_vec                   = {}
+ops_four_args_vec["VPBLENDVB"]      = "vpblendvb"
 
 size_variations     = {}
 size_variations[8]  = ["8", "b"]
