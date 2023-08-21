@@ -872,12 +872,12 @@ Definition alloc_protect_ptr rmap ii r t e msf :=
       | Some _ => Error (stk_error_no_var "argument of protect_ptr cannot be a sub array" )
       end in
     match vk with
-    | None => Error (stk_error_no_var "argument of protect_ptr should be a reg ptr1")
+    | None => Error (stk_error_no_var "argument of protect_ptr should be a reg ptr")
     | Some vpk =>
       Let _ := assert (if vpk is VKptr (Pregptr _) then true else false)
-                      (stk_error_no_var "argument of protect_ptr should be a reg ptr2") in
+                      (stk_error_no_var "argument of protect_ptr should be a reg ptr") in
       Let _ := assert (if r is Lvar _ then true else false)
-                      (stk_error_no_var "destination of protect_ptr should be a reg ptr3") in
+                      (stk_error_no_var "destination of protect_ptr should be a reg ptr") in
       Let srs := check_vpk rmap vy vpk (Some ofs) len in
       let sry := srs.2 in
       Let: (e, _ofs) := mk_addr_pexpr rmap vy vpk in (* ofs is ensured to be 0 *)
@@ -1049,7 +1049,7 @@ Definition alloc_call_arg_aux rmap0 rmap (sao_param: option param_info) (e:pexpr
     Let rmap := if pi.(pp_writable) then set_clear rmap xv sr (Some 0%Z) (size_slot xv) else ok rmap in
     Let _  := check_align xv sr pi.(pp_align) in
     ok (rmap, (Some (pi.(pp_writable),sr), Pvar (mk_lvar (with_var xv p))))
-  | Some _, _ => Error (stk_ierror_basic xv "the argument should be a reg ptr4")
+  | Some _, _ => Error (stk_ierror_basic xv "the argument should be a reg ptr")
   end.
 
 Definition alloc_call_args_aux rmap sao_params es :=
@@ -1095,7 +1095,7 @@ Definition check_lval_reg_call (r:lval) :=
 Definition get_regptr (x:var_i) := 
   match get_local x with
   | Some (Pregptr p) => ok (with_var x p)
-  | _ => Error (stk_ierror x (pp_box [:: pp_s "variable"; pp_var x; pp_s "should be a reg ptr5"]))
+  | _ => Error (stk_ierror x (pp_box [:: pp_s "variable"; pp_var x; pp_s "should be a reg ptr"]))
   end.
 
 Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (r: lval) (i:option nat) :=
