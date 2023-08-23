@@ -267,7 +267,6 @@ Context
     move=> hsem;move: hsem vm1 X.
     apply : (sem_Ind (Pc := Pc) (Pi := Pi) (Pi_r := Pi_r) (Pfor := Pfor) (Pfun := Pfun)) => {s1 c s2}.
     + by move=> s vm1 X hsub heq; exists vm1; split => //;constructor.
-      Admitted. (* FIXME:
     + move=> s1 s2 s3 i c _ ihi _ ihc vm1 X; rewrite read_c_cons => hsub heq1.
       case: (ihi vm1 X _ heq1); first by SvD.fsetdec.
       move=> vm2 [hi heq2].
@@ -302,12 +301,12 @@ Context
       + by move=> z;rewrite read_esE => hz;apply heq1; SvD.fsetdec.
       by apply: eq_onI heq2; SvD.fsetdec.
       (* Focus 3. *)
-    + move => s1 e he vm X hsub heq.
+    + move => s1 t e he vm X hsub heq.
       exists vm; split => //.
       apply Eassert_true.
       rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) //.
       by rewrite read_eE; apply: eq_onI heq; SvD.fsetdec.
-    + move => s1 e he vm X hsub heq.
+    + move => s1 t e he vm X hsub heq.
       exists vm; split => //.
       apply Eassert_false.
       rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) //.
@@ -367,7 +366,7 @@ Context
         apply: eq_onI heq1;
         SvD.fsetdec.
     done.
-  Qed.*)
+  Qed.
 
   Lemma sem_eqv s1 c s2 vm1:
     sem p' ev s1 c s2 ->
@@ -563,7 +562,6 @@ Context
   Proof.
     move=> s1 s2 s3 i c _ hi _ hc X c'; rewrite /update_c /=.
     t_xrbindP => lc ci {}/hi hi cc hcc <- <-.
-    Admitted. (* FIXME
     rewrite read_c_cons write_c_cons => hsub vm1 hvm1.
     have [|vm2 hvm2 hs2]:= hi _ vm1 hvm1; first by SvD.fsetdec.
     have /hc : update_c (update_i is_reg_ptr fresh_id p X) c = ok (flatten cc).
@@ -571,7 +569,7 @@ Context
     move=> /(_ _ vm2 hvm2) [|vm3 hvm3 hs3]; first by SvD.fsetdec.
     by exists vm3 => //=; apply: sem_app hs2 hs3.
   Qed.
-  *)
+
   Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
   Proof. by move=> ii i s1 s2 _ Hi X c' /Hi. Qed.
 
@@ -632,7 +630,6 @@ Context
   Proof.
     move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.
     t_xrbindP => i_then i_thenE i_else i_elseE {c'}<-.
-    Admitted. (* FIXME
     rewrite !(read_Ii, write_Ii) !(read_i_if, write_i_if) => le_X.
     move=> vm1 eq_s1_vm1; case: (Hc X _ i_thenE _ vm1 eq_s1_vm1).
     + by SvD.fsetdec.
@@ -642,13 +639,11 @@ Context
     rewrite -read_e_eq_on_empty // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
-  *)
   
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.
     t_xrbindP => i_then i_thenE i_else i_elseE {c'}<-.
-    Admitted. (* FIXME
     rewrite !(read_Ii, write_Ii) !(read_i_if, write_i_if) => le_X.
     move=> vm1 eq_s1_vm1; case: (Hc X _ i_elseE _ vm1 eq_s1_vm1).
     + by SvD.fsetdec.
@@ -658,14 +653,12 @@ Context
     rewrite -read_e_eq_on_empty // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
-  *)
   
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 s3 s4 a c e c' sem_s1_s2 H_s1_s2.
     move=> sem_s2_e sem_s2_s3 H_s2_s3 sem_s3_s4 H_s3_s4.
     move=> ii X c'' /=; t_xrbindP=> d dE d' d'E {c''}<-.
-    Admitted. (* FIXME
     rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
     move=> le_X vm1 eq_s1_vm1.
     case: (H_s1_s2 X _ dE _ _ eq_s1_vm1); first by SvD.fsetdec.
@@ -683,12 +676,11 @@ Context
       by apply: (eq_onI _ eq_s2_vm2); SvD.fsetdec.
     by elim/sem_seq1I: sem_vm3_vm4 => /sem_IE.
   Qed.
-*)
+
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
    move=> s1 s2 a c e c' He Hc eq_s_e ii X c'' /=.
    t_xrbindP => while_false while_falseE c''' eq_c' <-.
-   Admitted. (* FIXME
    rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
    move => le_X vm1 eq_s1_vm1.
    case: (Hc X _ while_falseE _ vm1 eq_s1_vm1).
@@ -700,7 +692,7 @@ Context
    rewrite -read_e_eq_on_empty // -/(read_e _).
    by apply: (eq_onI _ eq_s2_vm2) ; SvD.fsetdec.
   Qed.
-  *)
+
   
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
@@ -727,7 +719,6 @@ Context
   Proof.
     move=> s1 s2 x d lo hi c vlo vhi cpl_lo cpl_hi cpl_for sem_s1_s2.
     move=> ii X c' /=; t_xrbindP=> {c'} c' c'E <-.
-    Admitted. (* FIXME
     rewrite !(read_Ii, write_Ii) !(read_i_for, write_i_for).
     move=> le_X vm1 eq_s1_vm1.
     case: (sem_s1_s2 X _ c'E _ _ eq_s1_vm1); first by SvD.fsetdec.
@@ -740,7 +731,7 @@ Context
     rewrite -read_e_eq_on_empty // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
-*)
+
 
   Lemma is_reg_ptr_expr_ty b x ty lv y:
      is_reg_ptr_expr is_reg_ptr fresh_id b x ty lv = Some y -> vtype y = ty.

@@ -219,14 +219,13 @@ Let Pc c := forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)).
 
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
-  Admitted. (* FIXME *)
-  (* apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s} *)
-  (*   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e | e c1 c2 Hc1 Hc2 *)
-  (*   | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s; *)
-  (*   rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /= *)
-  (*     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //; *)
-  (*   by clear; SvD.fsetdec. *)
-(* Qed. *)
+  apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t e | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
+    rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
+      ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
+    by clear; SvD.fsetdec.
+Qed.
 
 Lemma write_I_recE s i : Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
 Proof. by apply (write_c_recE s [:: i]). Qed.
@@ -343,14 +342,13 @@ Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
 
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
-  Admitted. (* FIXME *)
-(*   apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s} *)
-(*    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e| e c1 c2 Hc1 Hc2 *)
-(*     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s; *)
-(*     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /= *)
-(*      ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //; *)
-(*   by clear; SvD.fsetdec. *)
-(* Qed. *)
+  apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
+   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t e | e c1 c2 Hc1 Hc2
+    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
+    rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
+     ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
+  by clear; SvD.fsetdec.
+Qed.
 
 Lemma read_IE s i : Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
 Proof. by apply (read_cE s [:: i]). Qed.
