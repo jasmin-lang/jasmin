@@ -52,7 +52,7 @@ let incr_liverange r x d : liverange =
   let g = Mv.add x i g in
   Mint.add s g r
 
-let live_ranges_stmt pd (alias: Alias.alias) (ptr_classes: Sv.t) d c =
+let live_ranges_stmt pd (alias: Alias.alias) (ptr_classes: var -> bool) d c =
 
 let stack_pointers = Hv.create 117 in
 
@@ -70,7 +70,7 @@ let preprocess_liveset (s: Sv.t) : Sv.t =
       then
         let s =
           let r = Alias.((normalize_var alias x).in_var) in
-          if Sv.mem r ptr_classes
+          if ptr_classes r
           then s
           else Sv.add r s
         in
@@ -113,7 +113,7 @@ in live_ranges_stmt d c, stack_pointers
 (* --------------------------------------------------- *)
 let check_class f_name f_loc ptr_classes args x s =
   let s = Sv.add x s in
-  if not (Sv.disjoint args s) && not (Sv.mem x ptr_classes) then
+  if not (Sv.disjoint args s) && not (ptr_classes x) then
     hierror ~loc:(Lone f_loc) ~funname:f_name "cannot put a reg ptr argument into the local stack"
 
 (* --------------------------------------------------- *)
@@ -338,11 +338,12 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   let ptr_args = 
     List.fold_left (fun s x -> if is_reg_ptr_kind x.v_kind then Sv.add x s else s) 
       Sv.empty fd.f_args in
-  (* Comprend pas ce code *)
-  let ptr_classes = 
-    Mv.fold (fun x s acc -> 
-        if Sv.for_all (fun y -> is_ptr y.v_kind) (Sv.add x s) then Sv.add x acc else acc) 
-      classes Sv.empty in
+  (* True if z is a pointer aliasing only other pointers *)
+  let ptr_classes z =
+    match Mv.find z classes with
+    | exception Not_found -> is_ptr z.v_kind
+    | cls -> Sv.for_all (fun y -> is_ptr y.v_kind) (Sv.add z cls)
+  in
   Mv.iter (check_class fd.f_name.fn_name fd.f_loc ptr_classes ptr_args) classes;
 
   let fd = Live.live_fd false fd in
