@@ -36,6 +36,9 @@
  - More precise detection of speculative safe loads in the SCT checker
   ([PR #556](https://github.com/jasmin-lang/jasmin/pull/556)).
 
+- Fix printing to EasyCrypt of ARMv7 instruction `bic`
+  ([PR #554](https://github.com/jasmin-lang/jasmin/pull/554)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise

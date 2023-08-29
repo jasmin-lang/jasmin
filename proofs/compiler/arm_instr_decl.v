@@ -562,7 +562,7 @@ Arguments mk_shifted : clear implicits.
 Definition pp_arm_op
   (mn : arm_mnemonic) (opts : arm_options) (args : seq asm_arg) : pp_asm_op :=
   {|
-    pp_aop_name := string_of_arm_mnemonic mn; (* TODO_ARM: This is not used. *)
+    pp_aop_name := string_of_arm_mnemonic mn;
     pp_aop_ext := PP_name;
     pp_aop_args := map (fun a => (reg_size, a)) args;
   |}.
@@ -1079,7 +1079,7 @@ Definition arm_AND_instr : instr_desc_t :=
   else drop_nzc x.
 
 Definition arm_BIC_instr : instr_desc_t :=
-  let mn := AND in
+  let mn := BIC in
   let x :=
     {|
       id_msb_flag := MSB_MERGE;
