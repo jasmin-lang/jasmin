@@ -1,6 +1,11 @@
 
 # [unreleased]
 
+## Bug fixes
+
+- Fix printing to EasyCrypt of ARMv7 instruction `bic`
+  ([PR #554](https://github.com/jasmin-lang/jasmin/pull/554)).
+
 # Jasmin 2023.06.1 — 2023-07-31
 
 ## New features
