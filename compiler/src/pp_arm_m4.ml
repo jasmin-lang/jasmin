@@ -154,15 +154,10 @@ let pp_shift (ARM_op (_, opts)) args =
       let sh = pp_shift_kind sk in
       List.modify_last (Printf.sprintf "%s %s" sh) args
 
-let pp_arm_mnemonic =
-  let to_string mn =
-    let mn = Conv.string_of_cstring (string_of_arm_mnemonic mn) in
-    String.lowercase_ascii mn in
-  hash_to_string_core to_string
-
-let pp_mnemonic_ext (ARM_op (mn, opts)) suff args =
-  let mn = pp_arm_mnemonic mn in
-  Printf.sprintf "%s%s%s%s" mn suff (pp_set_flags opts) (pp_conditional args)
+let pp_mnemonic_ext (ARM_op (mn, opts) as op) suff args =
+  let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
+  let pp = id.id_pp_asm args in
+  Format.asprintf "%s%s%s%s" (Conv.string_of_cstring pp.pp_aop_name) suff (pp_set_flags opts) (pp_conditional args)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =
   match o with
