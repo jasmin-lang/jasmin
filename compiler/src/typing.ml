@@ -187,11 +187,6 @@ let rec check_instr pd asmOp env i =
     let s = Syscall.syscall_sig_u pd (Conv.csyscall_of_syscall o) in
     let tins = List.map Conv.ty_of_cty s.scs_tin in
     let tout = List.map Conv.ty_of_cty s.scs_tout in
-    Format.printf "%s %d %d %d %d\n" (PrintCommon.pp_syscall (Conv.csyscall_of_syscall o)) (List.length xs) (List.length es) (List.length tins) (List.length tout);
-    List.iter (Format.printf "%a " PrintCommon.pp_ty) tins;
-    Format.printf "---\n";
-    List.iter (Format.printf "%a " PrintCommon.pp_ty) tout;
-    Format.printf "---\n";
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
