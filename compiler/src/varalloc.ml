@@ -196,10 +196,10 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
 let err_var_not_initialized x =
   hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Location.pp_loc x.v_dloc
 
-let get_slot coloring x =
+let get_slot ?var coloring x =
   let sz = size_of x.v_ty in
   try Mv.find x (Mint.find sz coloring)
-  with Not_found -> err_var_not_initialized x
+  with Not_found -> err_var_not_initialized (Option.default x var)
 
 let get_stack_pointer stack_pointers x =
   try Hv.find stack_pointers x
@@ -234,10 +234,7 @@ let init_slots pd stack_pointers alias coloring fv =
 
     | Stack (Pointer _) ->
       let xp = get_stack_pointer stack_pointers v in
-      let sz = size_of xp.v_ty in
-      let slot =
-        try Mv.find xp (Mint.find sz coloring)
-        with Not_found -> err_var_not_initialized v in
+      let slot = get_slot ~var:v coloring xp in
       add_slot slot;
       add_local v (StackPtr slot)
     | Reg (k, Pointer _) ->
