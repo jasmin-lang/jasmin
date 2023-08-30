@@ -329,6 +329,21 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size
 
 (* --------------------------------------------------- *)
+(* Array parameters that are live at the first instruction are live at position -1 *)
+let expand_param_range ranges x =
+  match x.v_ty with
+  | Bty (Bool | Int) -> ranges
+  | ty ->
+  let sx = size_of ty in
+  match Mint.find sx ranges with
+  | exception Not_found -> ranges
+  | rng ->
+  match Mv.find x rng with
+  | exception Not_found -> ranges
+  | (0, hi) -> Mint.add sx (Mv.add x (-1, hi) rng) ranges
+  | _ -> ranges
+
+(* --------------------------------------------------- *)
 let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   if !Glob_options.debug then Format.eprintf "ALLOC STACK %s@." fd.f_name.fn_name;
   let alias =
@@ -350,6 +365,8 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   let fd = Live.live_fd false fd in
   let (_, ranges), stack_pointers =
     live_ranges_stmt pd alias ptr_classes (0, Mint.empty) fd.f_body in
+
+  let ranges = List.fold_left expand_param_range ranges fd.f_args in
 
   let coloring = Mint.mapi G.solve ranges in
 

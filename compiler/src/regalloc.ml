@@ -611,7 +611,27 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
       vs
     |> (ignore : var list * var list -> unit)
   in
-  let alloc_args loc get = alloc_from_list loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars get in
+  let alloc_from_list_args loc ~ctxt rs xs q vs : unit =
+    let f x = Hv.find vars x in
+    let doit p d =
+      match f p with
+      | i -> allocate_one nv vars loc cnf p i d a
+      | exception Not_found -> ()
+    in
+    List.fold_left (fun (rs, xs) p ->
+        let p = q p in
+        match kind_of_type Arch.reg_size p.v_ty with
+        | Word -> begin match rs with [] -> (rs, xs) | d :: rs -> doit p d; (rs, xs) end
+        | Vector -> begin match xs with [] -> (rs, xs) | d :: xs -> doit p d; (rs, xs) end
+        | Flag ->
+           hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" (Printer.pp_var ~debug:true) p
+        | Unknown ty ->
+           hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
+             PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
+      ) (rs, xs) vs
+    |> (ignore : var list * var list -> unit)
+  in
+  let alloc_args loc get = alloc_from_list_args loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars get in
   let alloc_ret loc get = alloc_from_list loc ~ctxt:"return values" Arch.ret_vars Arch.xmm_ret_vars get in
   let rec alloc_instr_r loc =
     function

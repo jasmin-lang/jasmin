@@ -1403,7 +1403,7 @@ Definition init_params mglob stack disj lmap rmap sao_params params :=
     (init_param mglob stack) (disj, lmap, rmap) sao_params params.
 
 Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : 
-  cexec _ufundef :=
+  cexec (pos_map * _ufundef) :=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg (Ident.name_of_string "__len__") (sword Uptr) |} in
@@ -1442,18 +1442,33 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.
   let: (rmap, body) := rbody in
   Let res :=
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
-  ok {|
+  ok (pmap, {|
     f_info := f_info fd;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin); 
     f_params := params;
     f_body := flatten body;
     f_tyout := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_return) fd.(f_tyout);
     f_res := res;
-    f_extra := f_extra fd |}.
+    f_extra := f_extra fd |}).
+
+Definition offset_of_param pmap (x: var_i) acc :=
+  let error := Error (stk_ierror_basic x "offset_of_param") in
+  match get_local pmap x with
+  | None => ok acc
+  | Some pk =>
+      if is_word_type (vtype x) is Some ws then
+        Let: (_, ofs) := mk_addr pmap x AAdirect ws (VKptr pk) (Pconst 0) in
+        if is_const ofs is Some z then ok ((x : var, z) :: acc) else error
+      else error
+  end.
+
+Definition get_stack_params pmap :=
+  foldM (offset_of_param pmap) [::].
 
 Definition alloc_fd p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
   let: sao := local_alloc fn in
-  Let fd := alloc_fd_aux p_extra mglob fresh_reg local_alloc sao fd in
+  Let: (pmap, fd) := alloc_fd_aux p_extra mglob fresh_reg local_alloc sao fd in
+  Let stack_params := get_stack_params pmap fd.(f_params) in
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
@@ -1464,6 +1479,7 @@ Definition alloc_fd p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.iden
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
+        sf_stack_params := stack_params;
       |} in
   ok (swith_extra fd f_extra).
 

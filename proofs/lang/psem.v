@@ -232,6 +232,7 @@ with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_
     get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' = ok vargs ->
     init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 ->
+    (* FIXME stack params *)
     write_vars (~~direct_call) f.(f_params) vargs s0 = ok s1 ->
     sem s1 f.(f_body) s2 ->
     mapM (fun (x:var_i) => get_var (~~direct_call) s2.(evm) x) f.(f_res) = ok vres ->
