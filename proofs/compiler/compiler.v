@@ -353,7 +353,7 @@ Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd var_tmp in
-  Let pl := linear_prog liparams pd in
+  Let pl := linear_prog liparams pd (map to_var call_reg_args) (map to_var call_xreg_args) in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in

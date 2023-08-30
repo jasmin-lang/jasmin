@@ -1,0 +1,8 @@
+export
+fn main(stack u64 x y z) -> reg u64 {
+  reg u64 r;
+  r = x;
+  r += y;
+  r += z;
+  return r;
+}

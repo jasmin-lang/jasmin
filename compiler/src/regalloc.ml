@@ -418,16 +418,29 @@ let collect_variables_cb ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) 
       let n = fresh () in
       Hv.add tbl v n
 
-let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (extra: var option) (f: ('info, 'asm) func) : unit =
-  let get v = collect_variables_cb ~allvars excluded fresh tbl v in
-  iter_variables get f;
-  match extra with Some x -> get x | None -> ()
+let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (extra: var list) (f: ('info, 'asm) func) : unit =
+  let get ~allvars v = collect_variables_cb ~allvars excluded fresh tbl v in
+  iter_variables (get ~allvars) f;
+  List.iter (get ~allvars:true) extra
 
 let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: ('info, 'asm) func) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
-  collect_variables_aux ~allvars excluded fresh tbl None f;
+  collect_variables_aux ~allvars excluded fresh tbl [] f;
   tbl, total ()
+
+let reg_stack_params reg_size argument_vars xmm_argument_vars params extra : var list =
+  let (_, _, extra) =
+    List.fold_left (fun (rs, xs, extra) p ->
+        match kind_of_type reg_size p.v_ty with
+        | Word -> begin match rs with [] -> (rs, xs, extra) | _ :: rs -> (rs, xs, p :: extra) end
+        | Vector -> begin match xs with [] -> (rs, xs, extra) | _ :: xs -> (rs, xs, p :: extra) end
+        | Flag
+        | Unknown _ -> (rs, xs, extra) (* will fail later *)
+      )
+      (argument_vars, xmm_argument_vars, extra)
+      params
+  in extra
 
 type retaddr = 
   | StackDirect
@@ -435,6 +448,9 @@ type retaddr =
   | ByReg of var
 
 let collect_variables_in_prog
+      (reg_size: wsize)
+      (argument_vars: var list)
+      (xmm_argument_vars: var list)
       ~(allvars: bool)
       (excluded: Sv.t)
       (return_adresses: retaddr Hf.t)
@@ -442,12 +458,14 @@ let collect_variables_in_prog
       (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
-  List.iter (fun f -> 
-      let extra = 
+  List.iter (fun f ->
+      let extra =
         match Hf.find return_adresses f.f_name with
-        | StackByReg v | ByReg v -> Some v
-        | StackDirect -> None in
-        collect_variables_aux ~allvars excluded fresh tbl extra f) f;
+        | StackByReg v | ByReg v -> [ v ]
+        | StackDirect -> [] in
+      let extra = reg_stack_params reg_size argument_vars xmm_argument_vars f.f_args extra in
+      Format.eprintf "Extra: %a@." (Utils.pp_list ", " (Printer.pp_var ~debug: true)) extra;
+      collect_variables_aux ~allvars excluded fresh tbl extra f) f;
   List.iter (collect_variables_cb ~allvars excluded fresh tbl) all_reg;
   tbl, total ()
 
@@ -523,10 +541,12 @@ module type Regalloc = sig
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
   val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
 
+  open Expr
+
   val alloc_prog :
-    (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
-    ('a * (unit, extended_op) func) list ->
-    ('a * reg_oracle_t * (unit, extended_op) func) list
+    (Var0.Var.var -> var) -> ((unit, extended_op) func -> stk_fun_extra -> bool) ->
+    (stk_fun_extra * (unit, extended_op) func) list ->
+    (stk_fun_extra * reg_oracle_t * (unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch)
@@ -788,6 +808,8 @@ let greedy_allocation
     | exception Not_found -> Hashtbl.add tbl i [ v ]
   in
   Hv.iter (fun v i ->
+      (* Skip variables already allocated *)
+      if A.mem i a then () else
       match kind_of_type Arch.reg_size v.v_ty with
       | Word -> 
           if reg_kind v.v_kind = Normal then push_var scalars i v
@@ -966,7 +988,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     (fun fn -> Hf.find_default live fn Sv.empty), slive
   in
   let excluded = Sv.of_list [Arch.rip; Arch.rsp_var] in
-  let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses Arch.all_registers funcs in
+  let vars, nv = collect_variables_in_prog Arch.reg_size Arch.argument_vars Arch.xmm_argument_vars
+                   ~allvars:false excluded return_addresses Arch.all_registers funcs in
   let eqc, tr, fr =
     collect_equality_constraints_in_prog
       Arch.asmOp
@@ -1034,14 +1057,17 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   , killed
   , return_addresses
 
-let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfuncs: ('a * ('info, 'asm) func) list)
-    : ('a * reg_oracle_t * (unit, 'asm) func) list =
+let subst_stack_params subst (e: Expr.stk_fun_extra) : Expr.stk_fun_extra =
+  { e with sf_stack_params = List.map (fun (x, o) -> x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var, o) e.sf_stack_params }
+
+let alloc_prog translate_var (has_stack: ('info, 'asm) func -> Expr.stk_fun_extra -> bool) (dfuncs: (Expr.stk_fun_extra * ('info, 'asm) func) list)
+    : (Expr.stk_fun_extra * reg_oracle_t * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
     List.map (fun (a,f) -> a, Prog.refresh_i_loc_f f) dfuncs in
 
-  let extra : 'a Hf.t = Hf.create 17 in
+  let extra : Expr.stk_fun_extra Hf.t = Hf.create 17 in
   let allocatable_vars = Sv.of_list Arch.allocatable_vars in
   let callee_save_vars = Sv.of_list Arch.callee_save_vars in
   let not_saved_stack =
@@ -1073,6 +1099,7 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
         | StackByReg r -> StackByReg (subst r)
         | ByReg r -> ByReg (subst r) in
       let ro_to_save = if f.f_cc = Export then Sv.elements to_save else [] in
+      let e = subst_stack_params subst e in
       e, { ro_to_save ; ro_rsp ; ro_return_address }, f
     )
 

@@ -1458,7 +1458,7 @@ Definition offset_of_param pmap (x: var_i) acc :=
   | Some pk =>
       if is_word_type (vtype x) is Some ws then
         Let: (_, ofs) := mk_addr pmap x AAdirect ws (VKptr pk) (Pconst 0) in
-        if is_const ofs is Some z then ok ((x : var, z) :: acc) else error
+        if is_wconst ws ofs is Some z then ok ((x : var, wunsigned z) :: acc) else error
       else error
   end.
 

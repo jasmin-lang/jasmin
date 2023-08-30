@@ -389,7 +389,7 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra = 
-    Format.fprintf fmt "(* @[<v>alignment = %s; stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
+    Format.fprintf fmt "(* @[<v>alignment = %s; stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a;@ stack params = @[%a@]@] *)"
       (string_of_ws f_extra.Expr.sf_align)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_sz)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_extra_sz)
@@ -398,6 +398,7 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
       (pp_list ",@ " (pp_to_save ~debug)) (f_extra.Expr.sf_to_save)
       (pp_saved_stack ~debug) (f_extra.Expr.sf_save_stack)
       (pp_return_address ~debug)  (f_extra.Expr.sf_return_address)
+      (pp_list ",@ " (pp_to_save ~debug)) f_extra.Expr.sf_stack_params
   in
   let pp_fun fmt (f_extra,f) =
     Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun pp_opn pp_var) f in

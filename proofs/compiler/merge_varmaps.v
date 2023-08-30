@@ -213,6 +213,9 @@ Section CHECK.
       assert (~~ Sv.mem r W) (E.gen_error true None (pp_box [::pp_s "the function writes its"; pp_s name; pp_var r])) in
     assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
 
+  (* DI is the set of variables that are live at the beginning and will be
+  “corrupted” by injected code: where to save the stack pointer, a temporary
+  variable used when allocating the stack frame. *)
   Definition check_fd (fn:funname) (fd: sfundef) :=
     let params := sv_of_list v_var fd.(f_params) in
     let DI := Sv.inter params (ra_undef fd var_tmp) in

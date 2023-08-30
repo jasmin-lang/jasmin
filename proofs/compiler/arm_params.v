@@ -169,7 +169,7 @@ Definition arm_set_up_sp_register
     None.
 
 Definition arm_set_up_sp_stack
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : option (seq fopn_args) :=
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) (vtmpi : var_i) : option (seq fopn_args) :=
   if (0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z
   then
     let load_imm := arm_cmd_large_subi vtmpi rspi sf_sz in

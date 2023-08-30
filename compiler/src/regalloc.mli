@@ -1,4 +1,5 @@
 open Prog
+open Expr
 
 val fill_in_missing_names : ('info, 'asm) Prog.func -> ('info, 'asm) Prog.func
 
@@ -31,9 +32,9 @@ module type Regalloc = sig
 
    *)
   val alloc_prog :
-    (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
-    ('a * (unit, extended_op) func) list ->
-    ('a * reg_oracle_t * (unit, extended_op) func) list
+    (Var0.Var.var -> var) -> ((unit, extended_op) func -> stk_fun_extra -> bool) ->
+    (stk_fun_extra * (unit, extended_op) func) list ->
+    (stk_fun_extra * reg_oracle_t * (unit, extended_op) func) list
 end
 
 module Regalloc (Arch : Arch_full.Arch) :

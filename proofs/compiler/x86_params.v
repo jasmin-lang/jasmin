@@ -92,7 +92,7 @@ Definition x86_set_up_sp_register
   i0 :: rcons (if sf_sz != 0 then [:: x86_allocate_stack_frame rspi sf_sz ] else [::]) i2.
 
 Definition x86_set_up_sp_stack
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq fopn_args :=
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) (vtmpi: var_i) : seq fopn_args :=
   let vtmpg := Fvar vtmpi in
   let i := x86_lassign (Store Uptr rspi (fconst Uptr off)) Uptr (Rexpr vtmpg) in
   x86_set_up_sp_register rspi sf_sz al vtmpi ++ [:: i ].
@@ -106,7 +106,7 @@ Definition x86_liparams : linearization_params :=
     lip_set_up_sp_register :=
       fun rspi sf_sz al r => Some (x86_set_up_sp_register rspi sf_sz al r);
     lip_set_up_sp_stack :=
-      fun rspi sf_sz al off => Some (x86_set_up_sp_stack rspi sf_sz al off);
+      fun rspi sf_sz al off tmp => Some (x86_set_up_sp_stack rspi sf_sz al off tmp);
     lip_lassign := fun x ws e => Some (x86_lassign x ws e);
   |}.
 
