@@ -78,12 +78,8 @@ Module MvMake (I:IDENT).
 
 End MvMake.
 
-(* ** Types for idents
- * -------------------------------------------------------------------- *)
-
-
 Module Var := MvMake Ident.
-Export Var. 
+Export Var.
 Notation var   := Var.var.
 Notation vtype := Var.vtype.
 Notation vname := Var.vname.
@@ -120,14 +116,6 @@ Definition is_reg_ptr (x: var) : bool :=
 Definition is_regx (x: var) : bool :=
   if Ident.id_kind x.(vname) is Reg(Extra, _) then true else false.
 
-(* ** Variables function: to be not used if computation is needed,
- *                       but extentianality is permited
- * -------------------------------------------------------------------- *)
-
-(* Deduce inequalities from [~ Sv.In x (Sv.add y0 (... (Sv.add yn s)))]. *)
-Ltac t_notin_add :=
-  repeat (move=> /Sv.add_spec /Decidable.not_or [] ?);
-  move=> ?.
 
 (* ** Finite set of variables (computable)
  *
@@ -383,6 +371,11 @@ Proof. SvD.fsetdec. Qed.
 Lemma Sv_subset_remove s x :
   Sv.subset (Sv.remove x s) s.
 Proof. apply/Sv.subset_spec. by apply: SvP.MP.subset_remove_3. Qed.
+
+(* Deduce inequalities from [~ Sv.In x (Sv.add y0 (... (Sv.add yn s)))]. *)
+Ltac t_notin_add :=
+  repeat (move=> /Sv.add_spec /Decidable.not_or [] ?);
+  move=> ?.
 
 End SExtra.
 
