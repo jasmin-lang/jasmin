@@ -554,7 +554,7 @@ let ssafe_test x i =
   match x.v_kind, x.v_ty, i with
   | Reg (_, Direct), _, _ -> true
   | _, Arr (_ (* word size. should be used ? *), len), Pconst v ->
-      let v = Conv.int_of_pos (Conv.pos_of_z v) in v < len
+      Z.(leq zero v && lt v (of_int len))
   | _ -> false
 
 let content_ty = function

@@ -33,6 +33,9 @@
   ([PR #541](https://github.com/jasmin-lang/jasmin/pull/541);
   fixes [#540](https://github.com/jasmin-lang/jasmin/issues/540)).
 
+ - More precise detection of speculative safe loads in the SCT checker
+  ([PR #556](https://github.com/jasmin-lang/jasmin/pull/556)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
