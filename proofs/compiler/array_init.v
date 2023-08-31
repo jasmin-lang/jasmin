@@ -20,12 +20,6 @@ Section Section.
 
 Context (is_reg_array : var -> bool).
 
-Definition is_array_init e :=
-  match e with
-  | Parr_init _ => true
-  | _           => false
-  end.
-
 Fixpoint remove_init_i i :=
   match i with
   | MkI ii ir =>

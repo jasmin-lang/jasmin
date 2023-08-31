@@ -2605,12 +2605,6 @@ Proof.
   by rewrite (wfr_rtype hlocal) cmp_le_refl orbT.
 Qed.
 
-Lemma is_array_initP e : reflect (exists n, e = Parr_init n) (is_array_init e).
-Proof.
-  case: e => /=; constructor; try by move => -[].
-  by eexists.
-Qed.
-
 Lemma alloc_array_move_initP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   valid_state rmap1 m0 s1 s2 ->
   sem_pexpr true gd s1 e = ok v ->

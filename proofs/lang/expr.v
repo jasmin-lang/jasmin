@@ -673,6 +673,12 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
+Definition is_array_init e :=
+  match e with
+  | Parr_init _ => true
+  | _           => false
+  end.
+
 Fixpoint cast_w ws (e: pexpr) : pexpr :=
   match e with
   | Papp2 (Oadd Op_int) e1 e2 =>

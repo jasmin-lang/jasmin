@@ -160,6 +160,9 @@ Proof. by case e=> *;constructor. Qed.
 Lemma is_constP e : is_reflect Pconst e (is_const e).
 Proof. by case: e=>*;constructor. Qed.
 
+Lemma is_array_initP e : reflect (exists n, e = Parr_init n) (is_array_init e).
+Proof. by case: e => * /=; constructor; try (by move=> []); eexists. Qed.
+
 Lemma is_reflect_some_inv {A P e a} (H: @is_reflect A P e (Some a)) : e = P a.
 Proof.
   set (d e m := match m with None => True | Some a => e = P a end).

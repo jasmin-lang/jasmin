@@ -72,9 +72,6 @@ Section REMOVE_INIT.
   Local Lemma RmkI : sem_Ind_mkI p ev Pi_r Pi.
   Proof. by move=> ii i s1 s2 _ Hi vm1 /(Hi ii) [vm2] ??;exists vm2. Qed.
 
-  Lemma is_array_initP e : is_array_init e -> exists n, e = Parr_init n.
-  Proof. by case: e => // n _; eauto. Qed.
-
   Lemma assgn_uincl s1 s2 e v ty v' vm1 x ii tag:  
     sem_pexpr true gd s1 e = ok v ->
     truncate_val ty v = ok v' -> 

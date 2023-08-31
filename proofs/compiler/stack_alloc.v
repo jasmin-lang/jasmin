@@ -903,15 +903,6 @@ Definition alloc_protect_ptr rmap ii r t e msf :=
   | Some _ => Error (stk_error_no_var "cannot assign protect_ptr in a sub array" )
   end.
 
-
-(* This function is also defined in array_init.v *)
-(* TODO: clean *)
-Definition is_array_init e := 
-  match e with
-  | Parr_init _ => true
-  | _ => false
-  end.
-
 (* We do not update the [var_region] part *)
 (* there seems to be an invariant: all Pdirect are in the rmap *)
 (* long-term TODO: we can avoid putting PDirect in the rmap (look in pmap instead) *)
