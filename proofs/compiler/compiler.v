@@ -176,7 +176,6 @@ Record compiler_params
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
-  is_reg_array     : var -> bool;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t
 }.
 
@@ -257,7 +256,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let pv := live_range_splitting p in
 
-  let pr := remove_init_prog cparams.(is_reg_array) pv in
+  let pr := remove_init_prog is_reg_array pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in

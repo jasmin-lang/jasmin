@@ -197,8 +197,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     tokeep
   in
 
-  let is_reg_array x = is_reg_arr (Conv.var_of_cvar x) in
-
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
       let fds, _ = Conv.prog_of_csprog p in
@@ -246,7 +244,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
-      Compiler.is_reg_array;
       Compiler.slh_info;
     }
   in
