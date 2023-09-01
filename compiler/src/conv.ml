@@ -6,6 +6,7 @@ include CoreConv
 module W = Wsize
 module T = Type
 module C = Expr
+module Csys = Syscall
 
 let z_of_nat n =
   z_of_cz (BinInt.Z.of_nat n)
@@ -135,6 +136,14 @@ let expr_of_cexprs es = List.map (expr_of_cexpr) es
 
 (* ------------------------------------------------------------------------ *)
 
+let csyscall_of_syscall sc = 
+  match sc with
+  | Syscall_t.RandomBytes n -> Csys.RandomBytes n
+  | Syscall_t.Open n -> Csys.Open n
+  | Syscall_t.Close -> Csys.Close
+  | Syscall_t.Write n -> Csys.Write n
+  | Syscall_t.Read n -> Csys.Read n
+
 let rec cinstr_of_instr i c =
   let n = i.i_loc, i.i_annot in
   cinstr_r_of_instr_r n i.i_desc c
@@ -153,7 +162,7 @@ and cinstr_r_of_instr_r p i tl =
 
   | Csyscall(x,o,e) ->
     let ir =
-      C.Csyscall(clval_of_lvals x, o, cexpr_of_exprs e) in
+      C.Csyscall(clval_of_lvals x, csyscall_of_syscall o, cexpr_of_exprs e) in
     C.MkI(p, ir) :: tl
 
   | Cif(e,c1,c2) ->
@@ -181,12 +190,21 @@ and cinstr_r_of_instr_r p i tl =
 and cstmt_of_stmt c tl =
   List.fold_right (cinstr_of_instr) c tl
 
+let syscall_of_csyscall sc = 
+  match sc with
+  | Csys.RandomBytes n -> Syscall_t.RandomBytes n
+  | Csys.Open n -> Syscall_t.Open n
+  | Csys.Close -> Syscall_t.Close
+  | Csys.Write n -> Syscall_t.Write n
+  | Csys.Read n -> Syscall_t.Read n
+
 let rec instr_of_cinstr i =
   match i with
   | C.MkI(p, ir) ->
     let i_loc, i_annot = p in
     let i_desc = instr_r_of_cinstr_r ir in
     { i_desc; i_loc; i_info = (); i_annot }
+
 
 and instr_r_of_cinstr_r = function
   | C.Cassgn(x,t, ty,e) ->
@@ -196,7 +214,7 @@ and instr_r_of_cinstr_r = function
     Copn(lval_of_clvals x, t, o, expr_of_cexprs e)
 
   | C.Csyscall(x,o,e) ->
-    Csyscall(lval_of_clvals x, o, expr_of_cexprs e)
+    Csyscall(lval_of_clvals x, syscall_of_csyscall o, expr_of_cexprs e)
 
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt c1 in

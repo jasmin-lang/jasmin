@@ -78,6 +78,32 @@ and iac_instr_r pd loc ir =
         | _ -> assert false in
       let p = Conv.pos_of_int (Prog.size_of ty) in
       Csyscall(xs, Syscall_t.RandomBytes p, es)
+    | Syscall_t.Open _ ->
+      (* Fix the size it is dummy for the moment *)
+      let ty =
+        match es with
+        | [e] -> Typing.ty_expr pd loc e
+        | _ -> assert false in
+      let p = Conv.pos_of_int (Prog.size_of ty) in
+      Csyscall(xs, Syscall_t.Open p, es)
+    | Syscall_t.Close ->
+      Csyscall (xs, Syscall_t.Close, es)
+    | Syscall_t.Write _ ->
+      (* Fix the size it is dummy for the moment *)
+      let ty =
+        match es with
+        | [e; _] -> Typing.ty_expr pd loc e
+        | _ -> assert false in
+      let p = Conv.pos_of_int (Prog.size_of ty) in
+      Csyscall(xs, Syscall_t.Write p, es)
+      | Syscall_t.Read _ ->
+        (* Fix the size it is dummy for the moment *)
+        let ty =
+          match es with
+          | [e; _] -> Typing.ty_expr pd loc e
+          | _ -> assert false in
+        let p = Conv.pos_of_int (Prog.size_of ty) in
+        Csyscall(xs, Syscall_t.Read p, es)
     end
 
   | Ccall _ -> ir

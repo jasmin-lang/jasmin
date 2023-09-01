@@ -18,7 +18,9 @@ Module Import E.
 End E.
 
 Section Section.
-Context `{asmop:asmOp}.
+Context 
+  `{asmop:asmOp}
+  {pd: PointerData}.
 Context (fresh_reg_ptr : instr_info -> Ident.name -> stype -> Ident.ident).
 Context (p : uprog).
 
@@ -128,7 +130,7 @@ Definition get_sig fn :=
          map2 mk_info fd.(f_res) fd.(f_tyout))
   else ([::], [::]).
 
-Definition get_syscall_sig o :=
+Definition get_syscall_sig {pd:PointerData} o :=
   let: s := syscall.syscall_sig_u o in
   (map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tin),
    map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tout)).
