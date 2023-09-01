@@ -117,7 +117,7 @@ Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
   | None =>
   match to_rflag x with
   | Some f => ok (ABReg f)
-  | None =>  Error (E.gen_error true None None (pp_s "can not map variable to a register"))
+  | None =>  Error (E.gen_error true None None (pp_s "cannot map variable to a register"))
   end end end end.
 
 Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
@@ -556,15 +556,38 @@ Definition is_typed_reg x :=
 Definition typed_reg_of_vari xi :=
   let '{| v_var := x; |} := xi in asm_typed_reg_of_var x.
 
+Definition to_asm_arg_pos x :=
+  match x with
+  | RtoR x => 
+    Let x := asm_typed_reg_of_var x in 
+    ok (AAP_RtoR x) 
+  | RtoS x ws z =>
+    Let x := asm_typed_reg_of_var x in 
+    ok (AAP_RtoS x ws z)
+  | StoS z1 ws z2 => 
+    ok (AAP_StoS z1 ws z2)
+  | StoR z ws x => 
+    Let x := asm_typed_reg_of_var x in 
+    ok (AAP_StoR z ws x)
+  end.
+
+Definition not_rsp_in_arg rsp x := 
+  match x with
+  | RtoR x => x != rsp
+  | RtoS x _ _ => x != rsp
+  | StoS _ _ _ => true
+  | StoR _ _ x => x != rsp
+  end.
+             
 Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
   Let fd' := assemble_c rip (lfd_body fd) in
   Let _ := assert
-    (rsp \notin map v_var fd.(lfd_arg))
+    (all (not_rsp_in_arg rsp) fd.(lfd_arg))
     (E.gen_error true None None (pp_s "Stack pointer is an argument")) in
   Let _ := assert
     (all is_typed_reg fd.(lfd_callee_saved))
     (E.gen_error true None None (pp_s "Saved variable is not a register")) in 
-  Let arg := mapM typed_reg_of_vari fd.(lfd_arg) in
+  Let arg := mapM to_asm_arg_pos fd.(lfd_arg) in
   Let res := mapM typed_reg_of_vari fd.(lfd_res) in
   let fd := 
     {| asm_fd_align := lfd_align fd

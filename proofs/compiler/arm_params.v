@@ -114,6 +114,7 @@ Definition arm_saparams : stack_alloc_params :=
 Section LINEARIZATION.
 
 Notation vtmpi := {| v_var := to_var R12; v_info := dummy_var_info; |}.
+Notation vauxi := {| v_var := to_var R04; v_info := dummy_var_info; |}.
 
 (* TODO_ARM: This assumes 0 <= sz < 4096. *)
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
@@ -181,10 +182,12 @@ Definition arm_set_up_sp_stack
     None.
 
 Definition arm_tmp : Ident.ident := vname (v_var vtmpi).
+Definition arm_aux : Ident.ident := vname (v_var vauxi).
 
 Definition arm_liparams : linearization_params :=
   {|
     lip_tmp := arm_tmp;
+    lip_aux := arm_aux;
     lip_not_saved_stack := [:: arm_tmp ];
     lip_allocate_stack_frame := arm_allocate_stack_frame;
     lip_free_stack_frame := arm_free_stack_frame;

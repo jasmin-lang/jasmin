@@ -574,6 +574,7 @@ Variant asm_typed_reg :=
   | ARegX of regx_t
   | AXReg of xreg_t
   | ABReg of rflag_t.
+
 Notation asm_typed_regs := (seq asm_typed_reg).
 
 Definition asm_typed_reg_beq r1 r2 := 
@@ -591,12 +592,30 @@ Proof. case => r1 [] r2 /=; try by (constructor || apply: reflect_inj eqP => ?? 
 Definition asm_typed_reg_eqMixin := Equality.Mixin asm_typed_reg_eq_axiom.
 Canonical asm_typed_reg_eqType := EqType asm_typed_reg asm_typed_reg_eqMixin.
 
+Variant asm_arg_pos :=
+  (* Argument is passed by a register and remain in the register*)
+  | AAP_RtoR of asm_typed_reg
+  (* Argument is passed by a regiter and immediately spill to the stack. 
+     The offset is the position in the stack relative to the stack pointer of the function (i.e, where it is stored) *)
+  | AAP_RtoS of asm_typed_reg & wsize & Z   
+  (* Argument is passed by the stack and move to the stack frame of the function.
+     The first offset is relative to the stack pointer just after the call, the second is relative to the
+     stack pointer after its decrement (i.e the stack pointer of the function) *)
+  | AAP_StoS of Z & wsize & Z
+  (* Argument is passed by the stack and immediately unspill into a register.
+     The offset correspond to the initial position of the argument in the stack relative to the 
+     initial stack pointer *) 
+  | AAP_StoR of Z & wsize & asm_typed_reg.  
+
+Definition asm_args_pos := seq asm_arg_pos.
+
+
 (* -------------------------------------------------------------------- *)
 (* Function declaration                                                 *)
 
 Record asm_fundef := XFundef
   { asm_fd_align : wsize
-  ; asm_fd_arg   : asm_typed_regs
+  ; asm_fd_arg   : asm_args_pos
   ; asm_fd_body  : asm_code
   ; asm_fd_res   : asm_typed_regs
   ; asm_fd_export: bool
@@ -651,11 +670,12 @@ Definition check_list {T} {eqc : eqTypeC T} (get : asm_typed_reg -> option T) (l
 
 Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
   implb fd.(asm_fd_export) 
-    [&& check_list get_ARReg fd.(asm_fd_arg) call_reg_args,
-        check_list get_AXReg fd.(asm_fd_arg) call_xreg_args,
+    [&& 
+      (* FIXME call conv for arguments *)
+      (* check_list get_ARReg fd.(asm_fd_arg) call_reg_args,
+          check_list get_AXReg fd.(asm_fd_arg) call_xreg_args, *)
         check_list get_ARReg fd.(asm_fd_res) call_reg_ret &
         check_list get_AXReg fd.(asm_fd_res) call_xreg_ret].
-
 End DECL.
 
 Section ENUM.

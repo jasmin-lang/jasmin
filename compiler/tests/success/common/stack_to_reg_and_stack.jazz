@@ -1,5 +1,6 @@
 export
-fn stack_to_reg(reg u32 a b c d e f g h i j k l m n) -> reg u32 {
+fn stack_to_reg(reg u32 a b c d e f g h i j k l m n,
+                stack u32 p q) -> reg u32 {
   reg u32 r;
   r = a;
   r += b;
@@ -15,5 +16,8 @@ fn stack_to_reg(reg u32 a b c d e f g h i j k l m n) -> reg u32 {
   r += l;
   r += m;
   r += n;
+  r += p;
+  r += q;
+  
   return r; 
 }

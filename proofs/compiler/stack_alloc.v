@@ -1451,24 +1451,58 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.
     f_res := res;
     f_extra := f_extra fd |}).
 
-Definition offset_of_param pmap (x: var_i) acc :=
-  let error := Error (stk_ierror_basic x "offset_of_param") in
-  match get_local pmap x with
-  | None => ok acc
-  | Some pk =>
-      if is_word_type (vtype x) is Some ws then
-        Let: (_, ofs) := mk_addr pmap x AAdirect ws (VKptr pk) (Pconst 0) in
-        if is_wconst ws ofs is Some z then ok ((x : var, wunsigned z) :: acc) else error
-      else error
-  end.
+Definition error_sf_sp {A} x := Error (A:=A) (stk_ierror_basic x "mk_sf_stack_params").
 
-Definition get_stack_params pmap :=
-  foldM (offset_of_param pmap) [::].
-
-Definition alloc_fd p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
+Fixpoint mk_sf_stack_params_aux pmap max_nreg ofs (args: seq var_i) :=
+  match args with
+  | [::] => ok [::]
+  | x :: args =>
+    if is_word_type (vtype x) is Some ws then
+      Let: (max_nreg, ofs, sp) :=
+        match get_local pmap x with
+        | None => (* the argument should be in a register *)
+          ok (
+            if (ws <= Uptr)%CMP then 
+              if max_nreg == 0%Z then (* No more argument in register take it from the stack *)
+                (max_nreg, ofs + wsize_size Uptr, StoR ofs ws x)%Z
+              else 
+                (max_nreg - 1, ofs, RtoR x)%Z
+            else (* Large registers are only passed by register *)
+              (max_nreg, ofs, RtoR x))
+        | Some pk =>
+          Let: (_, eofs) := mk_addr pmap x AAdirect ws (VKptr pk) (Pconst 0) in
+          if is_wconst ws eofs is Some dofs then
+            let dofs := wunsigned dofs in
+            if (ws <= Uptr)%CMP then 
+              if max_nreg == 0%Z then (* No more argument in register take it from the stack *)
+                ok (max_nreg, ofs + wsize_size Uptr, StoS ofs ws dofs)%Z
+              else 
+                ok (max_nreg - 1, ofs, RtoS x ws dofs)%Z
+            else (* Large registers are only passed by register *)
+              error_sf_sp x 
+          else error_sf_sp x
+        end in
+      Let sps := mk_sf_stack_params_aux pmap max_nreg ofs args in
+      ok (sp::sps)     
+    else Error (stk_ierror_basic x "mk_sf_stack_params, bad type for argument")
+  end.      
+      
+Definition mk_sf_stack_params pmap max_nreg initial_ofs ra (fd : ufundef) :=
+  match ra with
+  | RAnone =>
+    mk_sf_stack_params_aux pmap max_nreg initial_ofs fd.(f_params)
+  | _ => (* internal function do nothing *) 
+    ok (List.map (fun x => RtoR (v_var x)) fd.(f_params))  
+  end.    
+  
+Definition alloc_fd p_extra mglob 
+           (fresh_reg : Ident.name -> stype -> Ident.ident) (local_alloc: funname -> stk_alloc_oracle_t) 
+           max_nreg initial_ofs 
+           fn fd :=
   let: sao := local_alloc fn in
   Let: (pmap, fd) := alloc_fd_aux p_extra mglob fresh_reg local_alloc sao fd in
-  Let stack_params := get_stack_params pmap fd.(f_params) in
+  Let stack_params := mk_sf_stack_params pmap max_nreg initial_ofs sao.(sao_return_address) fd in
+   
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
@@ -1560,7 +1594,7 @@ Definition init_map (l:list (var * wsize * Z)) data (gd:glob_decls) : cexec (Mva
   ok mvar.
 
 Definition alloc_prog (fresh_reg : Ident.name -> stype -> Ident.ident)
-    rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
+    rip rsp global_data global_alloc local_alloc (max_nreg initial_ofs:Z) (P:_uprog) : cexec _sprog :=
   Let mglob := init_map  global_alloc global_data P.(p_globs) in
   let p_extra :=  {|
     sp_rip   := rip;
@@ -1568,7 +1602,7 @@ Definition alloc_prog (fresh_reg : Ident.name -> stype -> Ident.ident)
     sp_globs := global_data;
   |} in
   Let _ := assert (rip != rsp) (stk_ierror_no_var "rip and rsp clash") in
-  Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
+  Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc max_nreg initial_ofs) P.(p_funcs) in
   ok  {| p_funcs  := p_funs;
          p_globs := [::];
          p_extra := p_extra;

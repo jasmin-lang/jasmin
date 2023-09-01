@@ -332,6 +332,8 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
       (ao_globals ao)
       (ao_global_alloc ao)
       (ao_stack_alloc ao)
+      (Z.of_nat (size call_reg_args))
+      (wsize_size Uptr) (* FIXME ARM, where is the return address ? *)
       pl
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
@@ -353,7 +355,7 @@ Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd var_tmp in
-  Let pl := linear_prog liparams pd (map to_var call_reg_args) (map to_var call_xreg_args) in
+  Let pl := linear_prog liparams pd in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in

@@ -140,7 +140,7 @@ let memory_analysis pp_err ~debug up =
         sao_alloc  = List.map conv_alloc (Hv.to_list sao.sao_alloc); 
         sao_to_save = [];
         sao_rsp     = SavedStackNone; 
-        sao_return_address = RAnone;
+        sao_return_address = (if sao.sao_is_export then RAnone else RAinternal);
         } in 
     sao in
   
@@ -181,6 +181,8 @@ let memory_analysis pp_err ~debug up =
         gao.gao_data
         cglobs
         get_sao
+        (Conv.cz_of_int (List.length Arch.reg_vars))
+        (Conv.cz_of_int (size_of_ws Arch.reg_size)) (* FIXME arm see compiler.v *)
         up
     with
     | Utils0.Ok sp -> sp 

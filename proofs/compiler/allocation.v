@@ -597,7 +597,7 @@ Section PROG.
 Context {T:eqType} {pT:progT T}.
 
 Variable (init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t).
-Variable (check_f_extra: M.t → extra_fun_t → extra_fun_t → cexec M.t).
+Variable (check_f_extra: M.t → extra_fun_t → extra_fun_t → seq var_i -> seq var_i -> cexec M.t).
 
 Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Datatypes.unit) :=
   let (f1,fd1) := f1 in
@@ -606,8 +606,7 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
     Let _ := assert [&& f1 == f2, fd1.(f_tyin) == fd2.(f_tyin) & fd1.(f_tyout) == fd2.(f_tyout) ]
                         (E.error "functions not equal") in
     Let r := init_alloc fd1.(f_extra) ep1 ep2 in
-    Let r := check_vars fd1.(f_params) fd2.(f_params) r in
-    Let r := check_f_extra r fd1.(f_extra) fd2.(f_extra) in
+    Let r := check_f_extra r fd1.(f_extra) fd2.(f_extra) fd1.(f_params) fd2.(f_params) in
     Let r := check_cmd fd1.(f_body) fd2.(f_body) r in
     let es1 := map Plvar fd1.(f_res) in
     let es2 := map Plvar fd2.(f_res) in
@@ -629,8 +628,9 @@ Existing Instance progUnit.
 Definition init_alloc_uprog (_: extra_fun_t) (_ _: extra_prog_t) : cexec M.t :=
   ok M.empty.
 
-Definition check_f_extra_u (r: M.t) (e1 e2: extra_fun_t) :=
-  Let _ := assert (e1 == e2) (E.error "extra not equal") in ok r.
+Definition check_f_extra_u (r: M.t) (e1 e2: extra_fun_t) p1 p2 :=
+  Let _ := assert (e1 == e2) (E.error "extra not equal") in 
+  check_vars p1 p2 r.
 
 Definition check_ufundef := check_fundef init_alloc_uprog check_f_extra_u.
 Definition check_uprog := check_prog init_alloc_uprog check_f_extra_u.
@@ -648,13 +648,24 @@ Definition init_alloc_sprog (ef: extra_fun_t) (ep1 ep2: extra_prog_t) : cexec M.
   check_vars [:: vid ep1.(sp_rsp); vid ep1.(sp_rip)]
              [:: vid ep2.(sp_rsp); vid ep2.(sp_rip)] M.empty.
 
-Definition valid_stack_params (r: M.t) (e1 e2: seq (var * Z)) :=
-  fold2 E.fold2 (λ '(x1, o1) '(x2, o2) r,
-      Let _ := assert (o1 == o2) (E.error "stack param offsets do not match") in
-      check_v x1 x2 r)
+Definition valid_stack_params (r: M.t) (e1 e2: seq export_arg_pos) :=
+  fold2 E.fold2 (λ a1 a2 r,
+     match a1, a2 with
+     | RtoR x1, RtoR x2 => check_v x1 x2 r
+     | RtoS x1 ws1 ofs1, RtoS x2 ws2 ofs2 => 
+       Let _ := assert [&& ofs1 == ofs2 & ws1 == ws2] (E.error "stack param offsets do not match") in
+       check_v x1 x2 r
+     | StoR ofs1 ws1 x1, StoR ofs2 ws2 x2 => 
+       Let _ := assert [&& ofs1 == ofs2 & ws1 == ws2] (E.error "stack param offsets do not match") in
+       check_v x1 x2 r
+     | StoS sofs1 ws1 dofs1, StoS sofs2 ws2 dofs2 => 
+       Let _ := assert [&& sofs1 == sofs2, ws1 == ws2 & dofs1 == dofs2] (E.error "stack param offsets do not match") in
+       ok r
+     | _, _ => Error (E.error "stack param do not match") 
+     end)
     e1 e2 r.
 
-Definition check_f_extra_s (r: M.t) (e1 e2: extra_fun_t) : cexec M.t :=
+Definition check_f_extra_s (r: M.t) (e1 e2: extra_fun_t) p1 p2 : cexec M.t :=
   Let _ :=
     assert [&&
   (e1.(sf_align) == e2.(sf_align)),
@@ -667,7 +678,10 @@ Definition check_f_extra_s (r: M.t) (e1 e2: extra_fun_t) : cexec M.t :=
   (e1.(sf_save_stack) == e2.(sf_save_stack)) &
   (e1.(sf_return_address) == e2.(sf_return_address)) ]
     (E.error "extra not equal") in
-  valid_stack_params r e1.(sf_stack_params) e2.(sf_stack_params).
+  if e1.(sf_return_address) == RAnone then
+    valid_stack_params r e1.(sf_stack_params) e2.(sf_stack_params)
+  else 
+    check_vars p1 p2 r.
 
 Definition check_sfundef := check_fundef init_alloc_sprog check_f_extra_s.
 Definition check_sprog := check_prog init_alloc_sprog check_f_extra_s.

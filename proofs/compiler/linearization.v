@@ -62,6 +62,8 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
     (* Scratch register used to set up stack. *)
     lip_tmp : Ident.ident;
+    (* Scratch register used to set up stack to stack argument. *)
+    lip_aux : Ident.ident;
 
     (* Variables that can't be used to save the stack pointer. *)
     lip_not_saved_stack : seq Ident.ident;
@@ -299,6 +301,7 @@ Notation rsp := {| vtype := sword Uptr; vname := sp_rsp (p_extra p); |}.
 Notation rspi := {| v_var := rsp; v_info := dummy_var_info; |}.
 
 Notation var_tmp := {| vtype := sword Uptr; vname := lip_tmp liparams; |}.
+Notation var_aux := {| vtype := sword Uptr; vname := lip_aux liparams; |}.
 
 (** Total size of a stack frame: local variables, extra and padding. *)
 Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
@@ -438,9 +441,6 @@ Definition add_align ii a (lc:lcmd) :=
 Definition align ii a (p:label * lcmd) : label * lcmd :=
   (p.1, add_align ii a p.2).
 
-(** Calling convention: registers & wide registers used for parameter passing. *)
-Context (call_reg_args call_xreg_args: seq var).
-
 Section FUN.
 
 Context
@@ -456,6 +456,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
                   (E.error "bad stack size") in
   Let _ := assert match sf_return_address e with
                   | RAnone => true
+                  | RAinternal => false
                   | RAreg ra => vtype ra == sword Uptr
                   | RAstack ora ofs => 
                       (if ora is Some ra then (vtype ra == sword Uptr) && isSome (lstore rspi ofs Uptr (mk_var_i ra)) else true) &&
@@ -635,7 +636,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     if get_fundef (p_funcs p) fn' is Some fd then
       let e := f_extra fd in
       let ra := sf_return_address e in
-      if ra == RAnone then (lbl, lc)
+      if (ra == RAnone) || (ra == RAinternal) then (lbl, lc)
       else
         let sz := stack_frame_allocation_size e in
         let before := allocate_stack_frame false ii sz (is_rastack_none ra) in
@@ -651,7 +652,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            match sf_return_address e with
           | RAreg ra => Some (mk_var_i ra)
           | RAstack ra _ => mk_ovar_i ra
-          | RAnone => None (* absurd case *)
+          | RAnone | RAinternal => None (* absurd case *)
           end in
         (* * 1. Allocate stack frame.
            * 2. Call callee
@@ -669,61 +670,42 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-(* FIXME: move*)
-Variant bank := Short | Long.
-Definition bank_of_type (ty: stype) :=
-  if ty is sword sz then
-    (if (sz ≤ Uptr)%CMP then Short else Long, sz)
-  else (Short, U8) (* absurd case *).
+(* Move register argument to the stack *)
+Definition reg_to_stack (sf_stack_params: seq export_arg_pos) : lcmd :=
+  foldl
+    (λ cmd a,
+      match a with
+      | RtoS r ws ofs =>
+        let i := of_olinstr_r dummy_instr_info (lstore rspi ofs ws (VarI r dummy_var_info)) in
+        i::cmd
+      | _ => cmd
+      end) [::] sf_stack_params.
 
-Definition reg_to_stack (sf_stack_params: seq (var * Z)) (params: seq var_i) : lcmd :=
-  let: (_, _, cmd) :=
-  List.fold_left
-    (λ '(rs, xs, cmd) a,
-      let: (bank, ws) := bank_of_type (vtype (v_var a)) in
-      match bank with
-      | Short =>
-          match rs with
-          | [::] => (* a is passed on the stack *) (rs, xs, cmd)
-          | r :: rs =>
-              match assoc sf_stack_params (v_var a) with
-              | None => (* a is already in the right register *) (rs, xs, cmd)
-              | Some ofs =>
-                  let cmd := of_olinstr_r dummy_instr_info (lstore rspi ofs ws a) :: cmd in
-                  (rs, xs, cmd)
-              end
-          end
-      | Long => (rs, xs, cmd) (* TODO *)
-      end)
-    params
-    (call_reg_args, call_xreg_args, [::])
-    in cmd.
+(* Move a stack argument to a register *)
+(* FIXME: ensure/check that load to RAX (aka tmpi) is done last (i.e first StoR in the list)
+   FIXME ensure that ws <= Uptr ? *)
+Definition stack_to_reg (old_sp: var_i) (sf_stack_params: seq export_arg_pos) : lcmd :=
+  foldl
+    (λ cmd a,
+      match a with
+      | StoR ofs ws r =>
+        let i := of_olinstr_r dummy_instr_info (lload (VarI r dummy_var_info) ws old_sp ofs) in
+        i :: cmd
+      | _ => cmd
+      end) [::] sf_stack_params.
 
-(* FIXME: ensure/check that load to RAX (aka tmpi) is done last *)
-Definition stack_to_reg (old_sp: var_i) (sf_stack_params: seq (var * Z)) (params: seq var_i) : lcmd :=
-  let: (_, _, _, cmd) :=
-  List.fold_left
-    (λ '(rs, xs, ofs, cmd) a,
-      let: (bank, ws) := bank_of_type (vtype (v_var a)) in
-      match bank with
-      | Short =>
-          match rs with
-          | r :: rs => (* a is passed by a register *) (rs, xs, ofs, cmd)
-          | [::] => (* a is passed on the stack *)
-              let next_ofs := (wsize_size Uptr + ofs)%Z in
-              match assoc sf_stack_params (v_var a) with
-              | Some _ => (* a must be moved to the local stack frame *) (rs, xs, next_ofs, cmd)
-              | None =>
-                  let cmd := of_olinstr_r dummy_instr_info (lload a ws old_sp ofs) :: cmd in
-                  (rs, xs, next_ofs, cmd)
-              end
-          end
-      | Long => (rs, xs, ofs, cmd) (* TODO *)
-      end)
-    params
-    (call_reg_args, call_xreg_args, wsize_size Uptr, [::]) (* FIXME: initial offset depends on arch: 0 on ARM, 8 on x86_64 *)
-    in cmd.
-
+(* FIXME: ensure that ws <= Uptr *)
+Definition stack_to_stack (old_sp aux : var_i) (sf_stack_params : seq export_arg_pos) : lcmd :=
+  foldl
+    (λ cmd a,
+      match a with
+      | StoS sofs ws dofs =>
+        let i1 := of_olinstr_r dummy_instr_info (lload aux ws old_sp sofs) in
+        let i2 := of_olinstr_r dummy_instr_info (lstore rspi dofs ws aux) in
+        i1 :: i2 :: cmd
+      | _ => cmd
+      end) [::] sf_stack_params.
+    
 Definition linear_body (e: stk_fun_extra) (params: seq var_i) (body: cmd) : label * lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
@@ -740,21 +722,25 @@ Definition linear_body (e: stk_fun_extra) (params: seq var_i) (body: cmd) : labe
           else [::])
        , 2%positive
        )
+     | RAinternal => ([::], [::], 1%positive) (* absurd case *)
      | RAnone =>
        let sf_sz := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
        match sf_save_stack e with
        | SavedStackNone =>
-         ([::], stack_to_reg rspi e.(sf_stack_params) params, 1%positive)
+         ([::], stack_to_reg rspi e.(sf_stack_params), 1%positive)
        | SavedStackReg x =>
          (* Tail: R[rsp] := R[x]
           * Head: R[x] := R[rsp]
           *       Setup stack.
           *)
          let r := VarI x dummy_var_info in
+         let aux := VarI var_aux dummy_var_info in
          ( [:: of_olinstr_r dummy_instr_info (lmove rspi Uptr r) ]
          , set_up_sp_register rspi sf_sz (sf_align e) r
-             ++ reg_to_stack e.(sf_stack_params) params
-             ++ stack_to_reg r e.(sf_stack_params) params
+             ++ reg_to_stack e.(sf_stack_params) 
+             ++ stack_to_stack r aux e.(sf_stack_params) 
+             ++ stack_to_reg r e.(sf_stack_params) 
+                (* FIXME ensure that r is not a destination in sf_stack_params *)
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -766,12 +752,14 @@ Definition linear_body (e: stk_fun_extra) (params: seq var_i) (body: cmd) : labe
           *       Push registers to save to the stack.
           *)
          let r := VarI var_tmp dummy_var_info in
+         let aux := VarI var_aux dummy_var_info in
          ( pop_to_save dummy_instr_info e.(sf_to_save)
              ++ [:: of_olinstr_r dummy_instr_info (lload rspi Uptr rspi ofs) ]
          , set_up_sp_stack rspi sf_sz (sf_align e) ofs r
              ++ push_to_save dummy_instr_info e.(sf_to_save)
-             ++ reg_to_stack e.(sf_stack_params) params
-             ++ stack_to_reg r e.(sf_stack_params) params
+             ++ reg_to_stack e.(sf_stack_params) 
+             ++ stack_to_stack r aux e.(sf_stack_params) 
+             ++ stack_to_reg r e.(sf_stack_params)
          , 1%positive)
        end
      end
@@ -788,7 +776,7 @@ Definition linear_fd (fd: sfundef) :=
     {| lfd_info := f_info fd
     ; lfd_align := sf_align e
     ; lfd_tyin := f_tyin fd
-    ; lfd_arg := f_params fd
+    ; lfd_arg := fd.(f_extra).(sf_stack_params)
     ; lfd_tyout := f_tyout fd
     ; lfd_total_stack := sf_stk_max e
     ; lfd_res := res

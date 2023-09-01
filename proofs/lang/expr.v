@@ -551,6 +551,7 @@ Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_e
 
 Variant return_address_location :=
 | RAnone
+| RAinternal                 (* temporary info used to indicate to stack alloc that the function is internal *)
 | RAreg of var               (* The return address is pass by a register and 
                                 keeped in this register during function call *)
 | RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack 
@@ -560,19 +561,55 @@ Variant return_address_location :=
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
+  | RAinternal => if r2 is RAinternal then true else false 
   | RAreg x1 => if r2 is RAreg x2 then x1 == x2 else false
   | RAstack lr1 z1 => if r2 is RAstack lr2 z2 then (lr1 == lr2) && (z1 == z2) else false
   end.
 
 Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
 Proof.
-  case => [ | x1 | lr1 z1 ] [ | x2 | lr2 z2 ] /=; try by constructor.
+  case => [ | | x1 | lr1 z1 ] [ | | x2 | lr2 z2 ] /=; try by constructor.
   + by apply (iffP eqP); congruence.
   by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
 Qed.
 
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
 Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_location return_address_location_eqMixin.
+
+Variant export_arg_pos :=
+  (* Argument is passed by a register and remain in the register*)
+  | RtoR of var
+  (* Argument is passed by a regiter and immediately spill to the stack. 
+     The offset is the position in the stack relative to the stack pointer of the function (i.e, where it is stored) *)
+  | RtoS of var & wsize & Z   
+  (* Argument is passed by the stack and move to the stack frame of the function.
+     The first offset is relative to the stack pointer just after the call, the second is relative to the
+     stack pointer after its decrement (i.e the stack pointer of the function) *)
+  | StoS of Z & wsize & Z
+  (* Argument is passed by the stack and immediately unspill into a register.
+     The offset correspond to the initial position of the argument in the stack relative to the 
+     initial stack pointer *) 
+  | StoR of Z & wsize & var.  
+
+Definition export_arg_pos_beq (a1 a2: export_arg_pos) : bool :=
+  match a1 with
+  | RtoR r1 => if a2 is RtoR r2 then r1 == r2 else false
+  | RtoS r1 ws1 dofs1 => if a2 is RtoS r2 ws2 dofs2 then [&& r1 == r2, ws1 == ws2 & dofs1 == dofs2] else false
+  | StoS sofs1 ws1 dofs1 => 
+      if a2 is StoS sofs2 ws2 dofs2 then [&& sofs1 == sofs2, ws1 == ws2 & dofs1 == dofs2] else false
+  | StoR sofs1 ws1 r1 => if a2 is StoR sofs2 ws2 r2 then [&& sofs1 == sofs2, ws1 == ws2 & r1 == r2] else false
+  end.
+
+Lemma export_arg_pos_eq_axiom : Equality.axiom export_arg_pos_beq.
+Proof.
+  case => [ r1 | r1 ws1 dofs1 | sofs1 ws1 dofs1 | sofs1 ws1 r1 ] 
+          [ r2 | r2 ws2 dofs2 | sofs2 ws2 dofs2 | sofs2 ws2 r2 ] /=; try by constructor.
+  + by apply (iffP eqP); congruence.
+  1-3: by apply (iffP and3P) => [ []/eqP-> /eqP-> /eqP-> | []-> -> ->].
+Qed.
+
+Definition export_arg_pos_eqMixin := Equality.Mixin export_arg_pos_eq_axiom.
+Canonical  export_arg_pos_eqType  := Eval hnf in EqType export_arg_pos export_arg_pos_eqMixin.
 
 Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
@@ -584,7 +621,7 @@ Record stk_fun_extra := MkSFun {
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
-  sf_stack_params   : seq (var * Z);
+  sf_stack_params   : seq export_arg_pos;
 }.
 
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=

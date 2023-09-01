@@ -1,0 +1,17 @@
+export
+fn stack_to_stack(reg u32 a b c d e, stack u32 f g) -> reg u32 {
+  // stack
+  reg u32 r;
+  r = a;
+  r += b;
+  r += c;
+  r += d;
+  r += e;
+  r += f;
+  r += g;
+  return r; /*
+  reg u32 x;
+  x = r;
+  return x;
+  */
+}

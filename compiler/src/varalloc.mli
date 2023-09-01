@@ -21,6 +21,7 @@ type stk_alloc_oracle_t =
   ; sao_size  : int               (* Not normalized with respect to sao_local_align *)
   ; sao_alloc : ptr_kind Hv.t
   ; sao_modify_rsp : bool
+  ; sao_is_export : bool
   }
 
 type glob_alloc_oracle_t = 

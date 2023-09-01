@@ -30,6 +30,7 @@ type stk_alloc_oracle_t =
   ; sao_size  : int               (* Not normalized with respect to sao_local_align *)
   ; sao_alloc : ptr_kind Hv.t
   ; sao_modify_rsp : bool
+  ; sao_is_export : bool
   }
 
 type glob_alloc_oracle_t = 
@@ -434,6 +435,9 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   let sao_modify_rsp = 
     sao_size <> 0 || ra_on_stack ||
       Sf.exists (fun fn -> (get_info fn).sao_modify_rsp) sao_calls in
+
+  let sao_is_export = fd.f_cc = Export in
+
   let sao = {
     sao_calls;
     sao_params;
@@ -443,6 +447,7 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
     sao_size;
     sao_alloc; 
     sao_modify_rsp;
+    sao_is_export;
   } in
   sao
 

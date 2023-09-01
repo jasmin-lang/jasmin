@@ -69,6 +69,7 @@ Definition x86_saparams : stack_alloc_params :=
 Section LINEARIZATION.
 
 Notation vtmpi := {| v_var := to_var RAX; v_info := dummy_var_info; |}.
+Notation vauxi := {| v_var := to_var RBX; v_info := dummy_var_info; |}.
 
 Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
   let p := Fapp2 (Osub (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
@@ -100,6 +101,7 @@ Definition x86_set_up_sp_stack
 Definition x86_liparams : linearization_params :=
   {|
     lip_tmp := vname (v_var vtmpi);
+    lip_aux := vname (v_var vauxi);
     lip_not_saved_stack := [::];
     lip_allocate_stack_frame := x86_allocate_stack_frame;
     lip_free_stack_frame := x86_free_stack_frame;

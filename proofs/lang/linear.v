@@ -48,7 +48,7 @@ Record lfundef := LFundef {
  lfd_info : fun_info;
  lfd_align : wsize;
  lfd_tyin : seq stype;
- lfd_arg  : seq var_i;
+ lfd_arg  : seq export_arg_pos;
  lfd_body : lcmd;
  lfd_tyout : seq stype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)

@@ -1057,8 +1057,17 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   , killed
   , return_addresses
 
+let subst_cvar subst x = 
+  x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var
+
 let subst_stack_params subst (e: Expr.stk_fun_extra) : Expr.stk_fun_extra =
-  { e with sf_stack_params = List.map (fun (x, o) -> x |> Conv.var_of_cvar |> subst |> Conv.cvar_of_var, o) e.sf_stack_params }
+  let doit = function 
+    | Expr.RtoR x -> Expr.RtoR (subst_cvar subst x)
+    | Expr.RtoS(x,ws,ofs) -> Expr.RtoS(subst_cvar subst x, ws, ofs)
+    | Expr.StoR(ofs,ws,x) -> Expr.StoR(ofs, ws, subst_cvar subst x)
+    | Expr.StoS (_,_,_) as a -> a in
+
+  { e with sf_stack_params = List.map doit e.sf_stack_params }
 
 let alloc_prog translate_var (has_stack: ('info, 'asm) func -> Expr.stk_fun_extra -> bool) (dfuncs: (Expr.stk_fun_extra * ('info, 'asm) func) list)
     : (Expr.stk_fun_extra * reg_oracle_t * (unit, 'asm) func) list =

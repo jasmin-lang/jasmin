@@ -56,8 +56,22 @@ let pp_instr pd asmOp fmt i =
   | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" pp_fexpr e pp_label lbl
 
 let pp_param fmt x =
-  let y = Conv.var_of_cvar x.E.v_var in
-  F.fprintf fmt "%a %a %s" pp_ty y.P.v_ty pp_kind y.P.v_kind y.P.v_name
+  match x with
+  | Expr.RtoR x ->
+    let y = Conv.var_of_cvar x in
+    F.fprintf fmt "%a %a %s" pp_kind y.P.v_kind pp_ty y.P.v_ty y.P.v_name
+  | Expr.RtoS (x, ws, ofs) ->
+    let y = Conv.var_of_cvar x in
+    F.fprintf fmt "stack %a %s/%a" pp_wsize ws y.P.v_name 
+      Z.pp_print (Conv.z_of_cz ofs)
+  | Expr.StoR (ofs, ws, x) -> 
+    let y = Conv.var_of_cvar x in
+    F.fprintf fmt "%a %a %s/%a" pp_kind y.P.v_kind pp_wsize ws y.P.v_name 
+      Z.pp_print (Conv.z_of_cz ofs)
+  | Expr.StoS (sofs, ws, dofs) ->
+    F.fprintf fmt "stack %a %a/%a" pp_wsize ws 
+      Z.pp_print (Conv.z_of_cz sofs)
+      Z.pp_print (Conv.z_of_cz dofs)
 
 let pp_stackframe fmt (sz, ws) =
   F.fprintf fmt "maximal stack usage: %a, alignment = %s"

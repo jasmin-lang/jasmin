@@ -49,6 +49,7 @@ Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
     if ra is Some ra then Sv.singleton ra else Sv.empty
   | RAnone => 
    Sv.add x vflags
+  | RAinternal => Sv.empty (* absurd case *)
   end.
 
 Definition ra_undef fd (x: var) :=

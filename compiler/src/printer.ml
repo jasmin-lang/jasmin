@@ -372,6 +372,23 @@ let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
 let pp_to_save ~debug fmt (x, ofs) =
   Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz ofs)
 
+let pp_stack_param ~debug fmt = function
+  | Expr.RtoR s -> 
+    Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar s) 
+
+  | RtoS(s,ws,d) -> 
+    Format.fprintf fmt "%a/%a/%a" (pp_var ~debug) (Conv.var_of_cvar s) 
+                                  pp_wsize ws
+                                  Z.pp_print (Conv.z_of_cz d)
+  | StoR(s,ws,d) -> 
+    Format.fprintf fmt "%a/%a/%a" Z.pp_print (Conv.z_of_cz s)
+                                  pp_wsize ws
+                                  (pp_var ~debug) (Conv.var_of_cvar d) 
+  | StoS(s,ws,d) -> 
+    Format.fprintf fmt "%a/%a/%a" Z.pp_print (Conv.z_of_cz s)
+                                  pp_wsize ws
+                                  Z.pp_print (Conv.z_of_cz d)
+
 let pp_saved_stack ~debug fmt = function
   | Expr.SavedStackNone  -> Format.fprintf fmt "none"
   | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar x)
@@ -398,7 +415,7 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
       (pp_list ",@ " (pp_to_save ~debug)) (f_extra.Expr.sf_to_save)
       (pp_saved_stack ~debug) (f_extra.Expr.sf_save_stack)
       (pp_return_address ~debug)  (f_extra.Expr.sf_return_address)
-      (pp_list ",@ " (pp_to_save ~debug)) f_extra.Expr.sf_stack_params
+      (pp_list ",@ " (pp_stack_param ~debug)) f_extra.Expr.sf_stack_params
   in
   let pp_fun fmt (f_extra,f) =
     Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun pp_opn pp_var) f in
