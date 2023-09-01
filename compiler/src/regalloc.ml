@@ -464,7 +464,7 @@ let collect_variables_in_prog
         | StackByReg v | ByReg v -> [ v ]
         | StackDirect -> [] in
       let extra = reg_stack_params reg_size argument_vars xmm_argument_vars f.f_args extra in
-      Format.eprintf "Extra: %a@." (Utils.pp_list ", " (Printer.pp_var ~debug: true)) extra;
+(*      Format.eprintf "Extra: %a@." (Utils.pp_list ", " (Printer.pp_var ~debug: true)) extra; *)
       collect_variables_aux ~allvars excluded fresh tbl extra f) f;
   List.iter (collect_variables_cb ~allvars excluded fresh tbl) all_reg;
   tbl, total ()
