@@ -1575,7 +1575,7 @@ Section PROOF.
       exists2_5 m2 vm2,
         pfun_preserved lret fn (size body) (escs s1) m1 vm1 (escs s2) m2 vm2
         & vm1 =[\ killed_on_exit ra k ssaved ] vm2
-        & s2.[vrsp <- Vword sp'] <=[\ ssaved ] vm2
+        & (kill_vars ssaved s2).[vrsp <- Vword sp'] <=1 vm2
         & preserved_metadata s1 m1 m2
         & match_mem s2 m2.
 
@@ -2667,8 +2667,7 @@ Section PROOF.
     set vm2'_b := if sz_after == 0%Z then vm2' else vm2'.[vrsp <- Vword ts].
     have vm2'_rsp: 
        vm2'.[vrsp] = Vword (s + wrepr Uptr (if rastack_after then wsize_size Uptr else 0%Z)).
-    + have /hsub_vm': ¬ Sv.In vrsp (sv_of_list id [::]).
-      + by rewrite /sv_of_list /=; SvD.fsetdec.
+    + move: (hsub_vm' vrsp); rewrite /kill_vars /=.
       rewrite Vm.setP_eq /= cmp_le_refl => /get_word_uincl_eq -/(_ (subtype_refl _)).
       rewrite /rastack_after /ra.
       by case sf_return_address => //= *; rewrite wrepr0 GRing.addr0.
@@ -3062,8 +3061,11 @@ Section PROOF.
           exact: Sv_Subset_union_left.
         have S : stack_stable m1' s2'.
         + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
-        move => x; move: (X2 x); rewrite /set_RSP !Vm.setP; case: eqP => // ?; subst.
-        by rewrite valid_rsp' -(ss_top_stack S) top_stack_preserved vm_truncate_val_eq.
+        move => x; move: (X2 x); rewrite /set_RSP !Vm.setP kill_varsE Vm.setP.
+        case: eqP => ?; subst.
+        + by rewrite valid_rsp' -(ss_top_stack S) top_stack_preserved vm_truncate_val_eq.
+        case: Sv.mem => // _.
+        by apply compat_value_uincl_undef; apply Vm.getP.
       }
       + (* RSP is saved into register “saved_rsp” *)
       { have {ih} := ih fn xH.
@@ -3170,10 +3172,12 @@ Section PROOF.
           rewrite hvm; first done.
           repeat (move=> /Sv.add_spec [] //).
           by apply: nesym.
-        + move => x; rewrite Vm.setP; case: eqP => ?.
+        + move => x; rewrite Vm.setP kill_varsE; case: eqP => ?.
           * by subst; rewrite Vm.setP_eq.
-          rewrite Vm.setP_neq; last by apply/eqP.
-          by rewrite /set_RSP Vm.setP_neq //; apply/eqP.
+          rewrite Vm.setP_neq; last by apply /eqP.
+          rewrite /set_RSP Vm.setP_neq; last by apply/eqP.
+          case: Sv.mem => //.
+          by apply compat_value_uincl_undef; apply Vm.getP.
         + move => a [] a_lo a_hi /negbTE nv.
           have A := alloc_stackP ok_m1'.
           have [L H] := ass_above_limit A.
@@ -3668,10 +3672,10 @@ Section PROOF.
           rewrite ok_vm5; case: ifP => // _.
           rewrite K4 //.
           exact/Sv_memP.
-        + move => x; rewrite !Vm.setP; case: eqP => x_rsp; first by subst.
-          move => /sv_of_listP; rewrite map_id => /negbTE x_not_to_save.
-          apply: (value_uincl_trans (X4 x)).
-          by rewrite ok_vm5 x_not_to_save.
+        + move => x; rewrite !Vm.setP kill_varsE Vm.setP; case: eqP => x_rsp; first by subst.
+          rewrite sv_of_listE map_id ok_vm5.
+          case: ifP => // _.
+          by apply compat_value_uincl_undef; apply Vm.getP.
         + etransitivity; first exact: H2.
           etransitivity; first exact: H3.
           exact: preserved_metadata_alloc ok_m1' H4.
@@ -3730,6 +3734,7 @@ Section PROOF.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: eq_exI K2.
         exact: SvP.MP.union_subset_1.
+      subst callee_saved; rewrite /kill_vars /=.
       move => ?; rewrite /set_RSP !Vm.setP; case: eqP => // ?; subst.
       move: (ok_vm2 vrsp).
       have S : stack_stable m1' s2'.
@@ -3851,7 +3856,8 @@ Section PROOF.
         + apply eq_exT with vm2.
           + by apply: eq_exI K2; SvD.fsetdec.
           by move=> ? hx; rewrite Vm.setP_neq //; apply/eqP; SvD.fsetdec.
-        + by move => ?; rewrite /set_RSP !Vm.setP; case: eqP => // ?; subst.
+        + subst callee_saved; rewrite /kill_vars /=.
+          by move => ?; rewrite /set_RSP !Vm.setP; case: eqP => // ?; subst.
         etransitivity. 
         + apply: (preserved_meta_store_top_stack ok_m1') => //.
           by rewrite top_stack_after_aligned_alloc // wrepr_opp; apply: ok_m1s.
@@ -3942,7 +3948,8 @@ Section PROOF.
       + apply eq_exT with vm2.
         + by apply: eq_exI K2; SvD.fsetdec.
         by move=> x hx; rewrite Vm.setP_neq //; apply/eqP; SvD.fsetdec.
-      + by move => ?; rewrite /set_RSP !Vm.setP; case: eqP => // ?; subst.
+      + subst callee_saved; rewrite /kill_vars /=.
+        by move => ?; rewrite /set_RSP !Vm.setP; case: eqP => // ?; subst.
       move => a [] a_lo a_hi /negbTE nv.
       have A := alloc_stackP ok_m1'.
       have [L H] := ass_above_limit A.
@@ -3995,6 +4002,7 @@ Section PROOF.
         ∃ vm' lm' res',
           [/\
             lsem_exportcall p' scs lm fn vm scs' lm' vm',
+            vm'.[vid (lp_rsp p')] = Vword (top_stack m),
             match_mem m' lm',
             get_var_is false vm' fd.(lfd_res) = ok res' &
             List.Forall2 value_uincl res res'
@@ -4052,11 +4060,12 @@ Section PROOF.
         rewrite sv_of_listE map_id -sv_of_listE; apply/Sv_memP => K.
         move/disjointP: to_save_not_result => /(_ _ K).
         by apply; apply/Sv_memP; rewrite sv_of_listE; apply/in_map; exists r.
-      apply: value_uincl_trans (s2_vmo r r_not_saved).
+      apply: value_uincl_trans (s2_vmo r).
       have r_not_rsp : vrsp != r.
       + apply/eqP => K.
         by move: RSP_not_result; rewrite sv_of_listE; apply/negP/negPn/in_map; exists r.
-      by rewrite !Vm.setP_neq.
+      rewrite Vm.setP_neq // kill_varsE Vm.setP_neq //.
+      by move /Sv_memP: r_not_saved => /negbTE ->.
     have : ∃ lres : values,
         [/\ get_var_is false vmo (f_res fd) = ok lres & List.Forall2 value_uincl res lres ].
     {
@@ -4089,6 +4098,8 @@ Section PROOF.
       rewrite sv_of_list_map Sv.diff_spec => S hrC [] hrX; apply.
       apply: S.
       by rewrite Sv.inter_spec.
+    - have := s2_vmo vrsp; rewrite Vm.setP_eq /= cmp_le_refl => ?.
+      by apply get_word_uincl_eq.
     - exact: M'.
     - move/eqP: Export => /= -> //=.
     exact: res_lres.

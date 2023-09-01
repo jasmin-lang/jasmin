@@ -282,6 +282,7 @@ Proof.
     (dead_code_prog_tokeep_get_fundef ok_pc get_fdb).
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
+  rewrite /sf_total_stack.
   have [ <- <- <- ] := @check_fundef_meta _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb.
   have [_ _ ->]:= dead_code_fd_meta ok_fda.
   done.
@@ -534,7 +535,7 @@ Proof.
   have H2 := get_var_is_allow_undefined vm (lfd_arg fd).
   have {lp_call} := lp_call lm vm _ _ H1 H2 H3 _ H5.
   have! [-> [-> _]] := (tunnel_program_invariants ok_tp).
-  move => /(_ H0 H4) [] vm' [] lm' [] res' [] lp_call M'.
+  move => /(_ H0 H4) [] vm' [] lm' [] res' [] lp_call ok_rsp' M'.
   rewrite get_var_is_allow_undefined => -[] <- res_res'.
   exists vm', lm'; split; cycle 1.
   - exact: M'.
