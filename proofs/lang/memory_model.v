@@ -826,7 +826,8 @@ Proof.
   have [hle hlt] := wunsigned_range (p - wrepr Uptr sz).
   have := Z.mod_le _ _ hle (wsize_size_pos ws).
   have := Z_mod_lt (wunsigned (p - wrepr Uptr sz)) (wsize_size ws) ltac:(done).
-  by Psatz.lia.
+  rewrite -[(_ : zmodType -> nmodType) (word Uptr)]/(word Uptr : nmodType).
+  Psatz.lia.
 Qed.
 
 Lemma top_stack_after_alloc_bounded p ws sz :

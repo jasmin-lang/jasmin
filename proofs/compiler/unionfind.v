@@ -301,7 +301,7 @@ End NaiveUnionFind.
 
 
 Module LblEqType <: EqType.
-  Definition T := [eqType of label].
+  Definition T : eqType := label.
 End LblEqType.
 
 
