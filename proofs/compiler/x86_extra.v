@@ -1,4 +1,5 @@
 (* -------------------------------------------------------------------- *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import Utf8.
@@ -73,8 +74,7 @@ Proof.
        internal_x86_extra_op_dec_lb).
 Qed.
 
-Definition x86_extra_op_eqMixin     := Equality.Mixin x86_extra_op_eq_axiom.
-Canonical  x86_extra_op_eqType      := Eval hnf in EqType x86_extra_op x86_extra_op_eqMixin.
+HB.instance Definition _ := hasDecEq.Build x86_extra_op x86_extra_op_eq_axiom.
 
 Local Notation E n := (ADExplicit n None).
 

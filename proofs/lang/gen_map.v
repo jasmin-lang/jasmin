@@ -692,7 +692,7 @@ Require Import ZArith.
 
 Module CmpPos.
 
-  Definition t := [eqType of positive].
+  Definition t : eqType := positive.
 
   Definition cmp : t -> t -> comparison := Pos.compare.
 
@@ -709,7 +709,7 @@ Module Mp := Mmake CmpPos.
 From mathcomp Require Import word_ssrZ.
 Module CmpZ.
 
-  Definition t := [eqType of Z].
+  Definition t : eqType := Z.
 
   Definition cmp : t -> t -> comparison := Z.compare.
 

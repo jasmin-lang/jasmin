@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 
 Require Import
@@ -111,8 +112,7 @@ Proof.
   all: by [ constructor | apply: reflect_inj eqP => ?? [] ].
 Qed.
 
-Definition sopn_eqMixin := Equality.Mixin sopn_eq_axiom.
-Canonical  sopn_eqType  := EqType sopn sopn_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sopn sopn_eq_axiom.
 
 Definition sopn_copy (ws : wsize) (p : positive) : sopn :=
   Opseudo_op (Ocopy ws p).

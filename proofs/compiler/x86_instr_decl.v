@@ -1,3 +1,4 @@
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype tuple.
 From mathcomp Require Import ssralg word word_ssrZ.
 Require Import utils strings word waes sem_type global oseq sopn.
@@ -192,8 +193,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_x86_op_dec_bl internal_x86_op_dec_lb).
 Qed.
 
-Definition x86_op_eqMixin := Equality.Mixin x86_op_eq_axiom.
-Canonical x86_op_eqType := EqType x86_op x86_op_eqMixin.
+HB.instance Definition _ := hasDecEq.Build x86_op x86_op_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 Definition b_ty             := [:: sbool].
@@ -876,7 +876,7 @@ Definition wpblendw (m : u8) (w1 w2 : word U128) :=
   let v1 := split_vec U16 w1 in
   let v2 := split_vec U16 w2 in
   let b := split_vec 1 m in
-  let r := map3 (λ (b0 : word.word_ringType 0) (v3 v4 : mathcomp.word.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
+  let r := map3 (λ (b0 : (mathcomp.word.word.word 1 : ringType)) (v3 v4 : mathcomp.word.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
   make_vec U128 r.
 
 Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=

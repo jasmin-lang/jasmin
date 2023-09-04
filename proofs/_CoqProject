@@ -9,6 +9,8 @@
 -arg "-w -hiding-delimiting-key"
 -arg "-w +deprecated-since-mathcomp-1.17.0"
 -arg "-w -argument-scope-delimiter"
+-arg "-w -redundant-canonical-projection"
+-arg "-w -projection-no-head-constant"
 
 -R 3rdparty Jasmin
 -R arch Jasmin

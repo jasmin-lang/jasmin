@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq div eqtype.
 From mathcomp Require Import ssralg word_ssrZ.
 Require Import strings word utils.
@@ -124,8 +125,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_aligned_dec_bl internal_aligned_dec_lb).
 Qed.
 
-Definition aligned_eqMixin     := Equality.Mixin aligned_eq_axiom.
-Canonical  aligned_eqType      := Eval hnf in EqType aligned aligned_eqMixin.
+HB.instance Definition _ := hasDecEq.Build aligned aligned_eq_axiom.
 
 Definition aligned_le (x y: aligned) : bool :=
   (x == Unaligned) || (y == Aligned).
@@ -913,7 +913,8 @@ Proof.
   have [hle hlt] := wunsigned_range (p - wrepr Uptr sz).
   have := Z.mod_le _ _ hle (wsize_size_pos ws).
   have := Z_mod_lt (wunsigned (p - wrepr Uptr sz)) (wsize_size ws) ltac:(done).
-  by lia.
+  rewrite -[(_ : zmodType -> nmodType) (word Uptr)]/(word Uptr : nmodType).
+  lia.
 Qed.
 
 Lemma top_stack_after_alloc_bounded p ws sz :

@@ -3923,10 +3923,10 @@ Section PROOF.
             have hgetr2 : get_var true vm2 (vid saved_stack) = ok (Vword (top_stack (emem s1))).
             + rewrite  -(get_var_eq_ex _ saved_stack_not_written K2).
               exact: hgetr.
-            rewrite (spec_lmove
-                 hliparams (lp:= p')
-                 (x:= (vid (sp_rsp (p_extra p)))) (y:= vid saved_stack)
-                 (ls := (setpc (lset_estate ls1 (escs s2') m2 vm2) (size P + size lbody)))
+            rewrite (@spec_lmove _
+                 hliparams p'
+                 (setpc (lset_estate ls1 (escs s2') m2 vm2) (size P + size lbody))
+                 (vid (sp_rsp (p_extra p))) (vid saved_stack) _
                  erefl erefl hgetr2) addnS; reflexivity.
 
         + rewrite to_save_empty Sv_diff_empty. clear - ok_rsp K2 hvm.
@@ -4147,7 +4147,7 @@ Section PROOF.
         have [read_in_m3 read_spilled] := read_after_spill top_no_overflow1 stk_sz_pos ok_to_save1 ok_m3.
         set to_restore := (sf_to_save (f_extra fd)) ++ [:: (vrsp, stack_saved_rsp)].
         have read_in_spilled :
-          ∀ (x : var_eqType) (ofs : Z_eqType),
+          ∀ (x : var) (ofs : Z),
              (x, ofs) \in to_restore ->
              exists2 ws, vtype x = sword ws /\ lip_check_ws liparams ws &
              exists2 w: word ws, read m3 Aligned (top + wrepr Uptr ofs)%R ws = ok w &

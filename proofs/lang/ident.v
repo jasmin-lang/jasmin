@@ -48,7 +48,7 @@ End WrapIdent.
 
 Module Type IDENT.
   Definition ident := WrapIdent.t.
-  Declare Module Mid : MAP with Definition K.t := [eqType of ident].
+  Declare Module Mid : MAP with Definition K.t := (ident : eqType).
 End IDENT.
 
 Module Ident <: IDENT.
