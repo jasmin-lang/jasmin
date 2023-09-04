@@ -1,3 +1,4 @@
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat div eqtype ssralg.
 
 Require Import
@@ -31,5 +32,4 @@ Proof.
   exact: (eq_axiom_of_scheme internal_slh_op_dec_bl internal_slh_op_dec_lb).
 Qed.
 
-Definition slh_op_eqMixin := Equality.Mixin slh_op_eq_axiom.
-Canonical slh_op_eqType := Eval hnf in EqType slh_op slh_op_eqMixin.
+HB.instance Definition _ := hasDecEq.Build slh_op slh_op_eq_axiom.

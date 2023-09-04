@@ -5,6 +5,7 @@
  * -------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------- *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq.
 From mathcomp Require Import choice ssralg bigop.
 From mathcomp Require Export word_ssrZ.
@@ -277,7 +278,8 @@ Proof.
   by move=> z1 z2 /=; rewrite addm oppm.
 Qed.
 
-Canonical R_of_Z_additive (R : ringType) := Additive (R_of_Z_is_additive R).
+HB.instance Definition _ (R : ringType) :=
+  GRing.isAdditive.Build _ _ (R_of_Z (R:=R)) (R_of_Z_is_additive R).
 
 Lemma R_of_Z_is_multiplicative (R : ringType): multiplicative (R_of_Z (R := R)).
 Proof.
@@ -286,7 +288,8 @@ Proof.
     by rewrite nat_of_P_mult_morphism natrM.
 Qed.
 
-Canonical R_of_Z_rmorphism (R : ringType) := AddRMorphism (R_of_Z_is_multiplicative R).
+HB.instance Definition _ (R : ringType) :=
+  GRing.isMultiplicative.Build _ _ (R_of_Z (R:=R)) (R_of_Z_is_multiplicative R).
 
 Local Notation REeval :=
   (@PEeval _ 0 +%R *%R (fun x y => x - y) -%R Z R_of_Z nat nat_of_N (@GRing.exp _)).

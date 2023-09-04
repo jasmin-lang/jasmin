@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 Require Import utils Wellfounded.
 Import Lexicographic_Product Relation_Operators.
@@ -174,7 +175,7 @@ Proof. case: t => //=; rewrite andbT; symmetry; apply/ZltP; lia. Qed.
 Record Bytes := mkBytes { tobytes :> bytes; _wf : wf tobytes; }.
 Definition t := Bytes.
 
-Canonical Bytes_subType := Eval hnf in [subType for tobytes].
+HB.instance Definition _ := [isSub for tobytes].
 
 (* ----------------------------------------- *)
 Fixpoint _memi (t: bytes) i :=

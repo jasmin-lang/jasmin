@@ -189,8 +189,7 @@ Coercion nat_of_pelem (pe: pelem) : nat :=
   | PE128 => nat_of_wsize U128
   end.
 
-Definition word := fun sz =>
-  [comRingType of (wsize_size_minus_1 sz).+1.-word].
+Definition word sz : comRingType := (wsize_size_minus_1 sz).+1.-word.
 
 Global Opaque word.
 
@@ -2150,6 +2149,7 @@ Proof.
 
   rewrite Z.shiftl_mul_pow2; last done.
   split; first lia.
-  rewrite /wbase (modulusD 64 64) modulusE -expZE /=.
-  exact: Zmult_lt_compat_r.
+  move: hwn; rewrite !wbaseE /=.
+  change (Z.pow_pos 2 128) with (Z.pow_pos 2 64 * Z.pow_pos 2 64).
+  lia.
 Qed.

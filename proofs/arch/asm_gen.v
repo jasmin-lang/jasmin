@@ -594,13 +594,13 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
   let rsp := mk_ptr (lp_rsp p) in
   Let _ :=
     assert
-      ((to_reg  rip == None :> option_eqType ceqT_eqType) && 
-       (to_regx rip == None :> option_eqType ceqT_eqType))  
+      ((to_reg  rip == None :> option ceqT_eqType) &&
+       (to_regx rip == None :> option ceqT_eqType))
       (E.gen_error true None None (pp_s "Invalid RIP"))
   in
   Let _ :=
     assert
-      (of_ident (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
+      (of_ident (lp_rsp p) == Some ad_rsp :> option ceqT_eqType)
       (E.gen_error true None None (pp_s "Invalid RSP"))
   in
   Let fds :=

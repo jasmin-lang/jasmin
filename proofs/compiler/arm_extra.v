@@ -1,3 +1,4 @@
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
 Require Import
@@ -37,10 +38,7 @@ Proof.
        internal_arm_extra_op_dec_lb).
 Qed.
 
-Definition arm_extra_op_eqMixin :=
-  Equality.Mixin arm_extra_op_eq_axiom.
-Canonical arm_extra_op_eqType :=
-  Eval hnf in EqType arm_extra_op arm_extra_op_eqMixin.
+HB.instance Definition _ := hasDecEq.Build arm_extra_op arm_extra_op_eq_axiom.
 
 #[ export ]
 Instance eqTC_arm_extra_op : eqTypeC arm_extra_op :=

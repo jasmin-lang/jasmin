@@ -19,6 +19,8 @@ let coqPackages =
   if coqMaster then
     pkgs.coqPackages.overrideScope (self: super: {
       coq = super.coq.override { version = "master"; };
+      coq-elpi = super.coq-elpi.override { version = "coq-master"; };
+      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.0"; };
     })
   else coqPackages_8_19
 ; in

@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
@@ -100,8 +101,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_sop1_dec_bl internal_sop1_dec_lb).
 Qed.
 
-Definition sop1_eqMixin     := Equality.Mixin sop1_eq_axiom.
-Canonical  sop1_eqType      := Eval hnf in EqType sop1 sop1_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sop1 sop1_eq_axiom.
 
 Scheme Equality for sop2.
 (* Definition sop2_beq : sop2 -> sop2 -> bool *)
@@ -111,8 +111,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_sop2_dec_bl internal_sop2_dec_lb).
 Qed.
 
-Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
-Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
 
 Scheme Equality for opN.
 
@@ -121,8 +120,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_opN_dec_bl internal_opN_dec_lb).
 Qed.
 
-Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
-Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
+HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -224,8 +222,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_v_scope_dec_bl internal_v_scope_dec_lb).
 Qed.
 
-Definition v_scope_eqMixin     := Equality.Mixin v_scope_eq_axiom.
-Canonical  v_scope_eqType      := Eval hnf in EqType v_scope v_scope_eqMixin.
+HB.instance Definition _ := hasDecEq.Build v_scope v_scope_eq_axiom.
 
 Record gvar := Gvar { gv : var_i; gs : v_scope }.
 
@@ -314,8 +311,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_dir_dec_bl internal_dir_dec_lb).
 Qed.
 
-Definition dir_eqMixin     := Equality.Mixin dir_eq_axiom.
-Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
+HB.instance Definition _ := hasDecEq.Build dir dir_eq_axiom.
 
 Definition range := (dir * pexpr * pexpr)%type.
 
@@ -366,8 +362,7 @@ Proof.
     (eq_axiom_of_scheme internal_assgn_tag_dec_bl internal_assgn_tag_dec_lb).
 Qed.
 
-Definition assgn_tag_eqMixin     := Equality.Mixin assgn_tag_eq_axiom.
-Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMixin.
+HB.instance Definition _ := hasDecEq.Build assgn_tag assgn_tag_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -540,7 +535,7 @@ Variant saved_stack :=
 Definition saved_stack_beq (x y : saved_stack) :=
   match x, y with
   | SavedStackNone, SavedStackNone => true
-  | SavedStackReg v1, SavedStackReg v2 => v1 == v2
+  | (SavedStackReg v1), SavedStackReg v2 => v1 == v2
   | SavedStackStk z1, SavedStackStk z2 => z1 == z2
   | _, _ => false
   end.
@@ -552,8 +547,7 @@ Proof.
   by apply (iffP eqP); congruence.
 Qed.
 
-Definition saved_stack_eqMixin   := Equality.Mixin saved_stack_eq_axiom.
-Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_eqMixin.
+HB.instance Definition _ := hasDecEq.Build saved_stack saved_stack_eq_axiom.
 
 Variant return_address_location :=
 | RAnone
@@ -589,8 +583,8 @@ Proof.
   by apply (iffP and3P) => [ []/eqP-> /eqP-> /eqP-> | []-> -> ->].
 Qed.
 
-Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
-Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_location return_address_location_eqMixin.
+HB.instance Definition _ := hasDecEq.Build return_address_location
+  return_address_location_eq_axiom.
 
 Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
