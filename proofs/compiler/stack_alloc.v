@@ -509,7 +509,7 @@ Definition with_var xi x :=
 Definition base_ptr sc :=
   match sc with
   | Slocal => pmap.(vrsp)
-  | Sglobal => pmap.(vrip)
+  | Sglob => pmap.(vrip)
   end.
 
 Definition addr_from_pk (x:var_i) (pk:ptr_kind) :=
