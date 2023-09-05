@@ -429,7 +429,7 @@ Definition x86_DIV sz (hi lo dv: word sz) : ex_tpl (b5w2_ty sz) :=
   let r  := (dd mod dv)%Z in
   let ov := (q >? wmax_unsigned sz)%Z in
 
-  if (dv == 0)%Z || ov then type_error else
+  if (dv == 0)%Z || ov then Error ErrArith else
   ok (flags_w2 (rflags_of_div) (:: (wrepr sz q) & (wrepr sz r))).
 
 Definition x86_IDIV sz (hi lo dv: word sz) : ex_tpl (b5w2_ty sz) :=
@@ -440,7 +440,7 @@ Definition x86_IDIV sz (hi lo dv: word sz) : ex_tpl (b5w2_ty sz) :=
   let r  := (Z.rem  dd dv)%Z in
   let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
 
-  if (dv == 0)%Z || ov then type_error else
+  if (dv == 0)%Z || ov then Error ErrArith else
   ok (flags_w2 (rflags_of_div) (:: (wrepr sz q) & (wrepr sz r))).
 
 Definition x86_CQO sz (w:word sz) : exec (word sz) :=
