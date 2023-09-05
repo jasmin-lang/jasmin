@@ -283,7 +283,7 @@ Definition lower_Papp2_op
         Some (SUB, e0, [:: e1 ])
     | Odiv (Cmp_w Signed U32) =>
         Some (SDIV, e0, [:: e1 ])
-    | Odiv (Cmp_w Unigned U32) =>
+    | Odiv (Cmp_w Unsigned U32) =>
         Some (UDIV, e0, [:: e1 ])
     | Oland _ =>
         Some (AND, e0, [:: e1 ])
