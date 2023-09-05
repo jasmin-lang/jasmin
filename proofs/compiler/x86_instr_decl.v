@@ -604,8 +604,8 @@ Definition x86_rotate_with_carry (sz: wsize)
   let i := wand i (x86_shift_mask sz) in
   let i :=
     match sz with
-    | U8 => Zmod (wunsigned i) 9
-    | U16 => Zmod (wunsigned i) 17
+    | U8 => Z.modulo (wunsigned i) 9
+    | U16 => Z.modulo (wunsigned i) 17
     | _  => wunsigned i
     end in
   let r := mathcomp.word.word.t2w [tuple of cf::mathcomp.word.word.w2t v] in
