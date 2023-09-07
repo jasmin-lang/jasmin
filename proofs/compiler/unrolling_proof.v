@@ -96,14 +96,14 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e He H.
+    move => s t pt e He H.
     rewrite /Pc /Pi_r /=.
     by apply: sem_seq1; apply: EmkI; apply: Eassert_true; rewrite ?p'_globs.
   Qed.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e He H.
+    move => s t pt e He H.
     rewrite /Pc /Pi_r /=.
     by apply: sem_seq1; apply: EmkI; apply: Eassert_false; rewrite ?p'_globs.
   Qed.

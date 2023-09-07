@@ -659,8 +659,8 @@ Qed.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
   Proof.
-    move=> s t e.
-    case: s => scs sm svm Hve r1 [] //= t' e' r2 vm1 Hvm1.
+    move=> s t p e.
+    case: s => scs sm svm Hve r1 [] //= t' p' e' r2 vm1 Hvm1.
     rewrite /check_i.
     t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.
@@ -672,8 +672,8 @@ Qed.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
   Proof.
-    move=> s t e.
-    case: s => scs sm svm Hve r1 [] //= t' e' r2 vm1 Hvm1.
+    move=> s t p e.
+    case: s => scs sm svm Hve r1 [] //= t' p' e' r2 vm1 Hvm1.
     rewrite /check_i.
     t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.

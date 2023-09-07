@@ -116,7 +116,7 @@ let small_step1 ep spp sip s =
         let s2 = exn_exec ii (write_lvals ep spp gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
       { s with s_cmd = c; s_estate = s2 }
 
-    | Cassert(t, e) ->
+    | Cassert(t, p, e) ->
       (* let v = exn_exec ii (sem_pexpr ep spp gd s1 e) in *)
       (* let b = of_val_b ii v in *)
       (* if not b then raise (Eval_error(ii, Aerror e)); *)

@@ -518,7 +518,7 @@ let rec ty_instr fenv env i =
     let env, _ = ty_exprs_max ~public:true env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot Secret)
 
-  | Cassert (t,e) ->
+  | Cassert (t,p,e) ->
     let env, _ = ty_expr ~public:true env e in
     env
 

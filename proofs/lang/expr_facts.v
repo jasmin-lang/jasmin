@@ -220,7 +220,7 @@ Let Pc c := forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)).
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
   apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
-    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t e | e c1 c2 Hc1 Hc2
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t p e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
       ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
@@ -343,7 +343,7 @@ Let Pc c := forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c)).
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
   apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
-   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t e | e c1 c2 Hc1 Hc2
+   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | t p e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
@@ -374,8 +374,8 @@ Lemma read_i_syscall xs o es:
   Sv.Equal (read_i (Csyscall xs o es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. rewrite /read_i /write_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
-Lemma read_i_assert t e :
-  Sv.Equal (read_i (Cassert t e)) (read_e e).
+Lemma read_i_assert t p e :
+  Sv.Equal (read_i (Cassert t p e)) (read_e e).
 Proof.
   rewrite /read_i /read_i_rec read_eE;SvD.fsetdec.
 Qed.
@@ -438,8 +438,8 @@ Lemma vars_I_syscall ii xs o es:
   Sv.Equal (vars_I (MkI ii (Csyscall xs o es))) (Sv.union (vars_lvals xs) (read_es es)).
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall /vars_lvals; clear; SvD.fsetdec. Qed.
 
-Lemma vars_I_assert ii t e:
-  Sv.Equal (vars_I (MkI ii (Cassert t e))) (read_e e).
+Lemma vars_I_assert ii t p e:
+  Sv.Equal (vars_I (MkI ii (Cassert t p e))) (read_e e).
 Proof.
   rewrite /vars_I read_Ii write_Ii //=.
   rewrite /read_i /read_i_rec  - /read_c_rec read_eE.

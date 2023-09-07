@@ -1813,13 +1813,19 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
 
   | PIAssert cp ->
      let c  = tt_expr_bool pd env cp in
-     let mk_aty = Annot.filter_string_list None ["Assert", P.E.Assert; "Assume", P.E.Assume; "Cut", P.E.Cut] in
-     let aty =
-       match Annot.ensure_uniq1 "atype" mk_aty annot with
+     let mk_aprover = Annot.filter_string_list None ["cas", P.E.Cas ; "smt", P.E.Smt ] in
+     let mk_akind = Annot.filter_string_list None ["Assert", P.E.Assert; "Assume", P.E.Assume; "Cut", P.E.Cut] in
+     let akind =
+       match Annot.ensure_uniq1 "kind" mk_akind annot with
        | None -> P.E.Assert
        | Some aty -> aty
      in
-    env, [mk_i (P.Cassert (aty, c)) ]
+     let aprover =
+       match Annot.ensure_uniq1 "prover" mk_aprover annot with
+       | None -> P.E.Smt
+       | Some aty -> aty
+     in
+    env, [mk_i (P.Cassert (akind, aprover, c)) ]
 
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool pd env cp in

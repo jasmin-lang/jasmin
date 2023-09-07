@@ -504,11 +504,15 @@ let pp_sopn fmt xs o es =
 
 let pp_i asmOp fmt i = 
   match i.i_desc with
-  | Cassert (t, e) ->
+  | Cassert (t, p, e) ->
+     let efmt = (match p with
+                 | Expr.Cas -> format_of_string "%s true && %a"
+                 | Expr.Smt -> format_of_string "%s %a && true"
+                ) in
      (match t with
-      | Expr.Assert -> Format.fprintf fmt "assert true && %a" pp_pred e
-      | Expr.Assume -> Format.fprintf fmt "assume true && %a" pp_pred e (* FIXME: check syntax *)
-      | Expr.Cut -> Format.fprintf fmt "cut true && %a" pp_pred e (* FIXME: check syntax *)
+      | Expr.Assert -> Format.fprintf fmt efmt "assert" pp_pred e
+      | Expr.Assume -> Format.fprintf fmt efmt "assume" pp_pred e (* FIXME: check syntax *)
+      | Expr.Cut -> Format.fprintf fmt efmt "cut" pp_pred e (* FIXME: check syntax *)
      )
   | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ -> assert false
   | Cassgn (x, _, _, e) -> 

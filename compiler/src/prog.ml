@@ -147,7 +147,7 @@ type ('len,'info,'asm) ginstr_r =
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
-  | Cassert of E.annotation_kind * 'len gexpr
+  | Cassert of E.annotation_kind * E.assertion_prover * 'len gexpr
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
@@ -343,7 +343,7 @@ let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
   | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
-  | Cassert(t, e) -> rvars_e f s e
+  | Cassert(t, p, e) -> rvars_e f s e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
@@ -387,7 +387,7 @@ let rec written_vars_i ((v, f) as acc) i =
     -> List.fold_left written_lv v xs, f
   | Ccall(_, xs, fn, _) ->
     List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
-  | Cassert(_, _) -> v, f
+  | Cassert(_, _, _) -> v, f
   | Cif(_, s1, s2)
   | Cwhile(_, s1, _, s2)
     -> written_vars_stmt (written_vars_stmt acc s1) s2

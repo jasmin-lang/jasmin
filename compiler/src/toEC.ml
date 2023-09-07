@@ -71,7 +71,7 @@ let rec read_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
   | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
-  | Cassert (_, e) -> read_mem_e e
+  | Cassert (_, _, e) -> read_mem_e e
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
   | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es

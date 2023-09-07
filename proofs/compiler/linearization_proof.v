@@ -171,10 +171,10 @@ Section CAT.
   Let Hsyscall : forall xs o es, Pr (Csyscall xs o es).
   Proof. by []. Qed.
 
-  Let Hassert_true : forall t e, Pr (Cassert t e).
+  Let Hassert_true : forall t p e, Pr (Cassert t p e).
   Proof. by []. Qed.
 
-  Let Hassert : forall t e, Pr (Cassert t e).
+  Let Hassert : forall t p e, Pr (Cassert t p e).
   Proof. by []. Qed.
 
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
@@ -610,7 +610,7 @@ Section VALIDITY.
   Let Hsyscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
   Proof. move => ?; exact: default. Qed.
 
-  Let Hassert (t: annotation_kind) (e : pexpr) : Pr (Cassert t e).
+  Let Hassert (t: annotation_kind) (pt: assertion_prover) (e : pexpr) : Pr (Cassert t pt e).
   Proof.
     split => //;exact: Pos.le_refl.
   Qed.
@@ -785,7 +785,7 @@ Section NUMBER_OF_LABELS.
   Let Hsyscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
   Proof. by move=> ii fn lbl /=; apply Z.le_refl. Qed.
 
-  Let Hassert (t: annotation_kind) (e : pexpr) : Pr (Cassert t e).
+  Let Hassert (t: annotation_kind) (pt: assertion_prover) (e : pexpr) : Pr (Cassert t pt e).
   Proof.
     move => ii fn lbl /=.
     apply Z.le_refl.
@@ -1897,7 +1897,7 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => ii k s t e he fn lbs /checked_iE [] fd ok_fd chk.
+    move => ii k s t pt e he fn lbs /checked_iE [] fd ok_fd chk.
     move => fr_undef m1 vm1 P Q W M X D C.
     exists m1 vm1 => //.
     apply: LSem_step.
@@ -1908,7 +1908,7 @@ Section PROOF.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => ii k s t e he fn lbs /checked_iE [] fd ok_fd chk.
+    move => ii k s t pt e he fn lbs /checked_iE [] fd ok_fd chk.
     move => fr_undef m1 vm1 P Q W M X D C.
     exists m1 vm1 => //.
     apply: LSem_step.

@@ -163,7 +163,7 @@ Section REMOVE_INIT.
 
   Local Lemma Rassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e he ii vm1 hvm1.
+    move => s t pt e he ii vm1 hvm1.
     have [v' H1 /value_uinclE ?] := sem_pexpr_uincl hvm1 he;subst => Hwf.
     exists vm1;split => //.
     apply sem_seq1;constructor;apply Eassert_true. eauto.
@@ -171,7 +171,7 @@ Section REMOVE_INIT.
 
   Local Lemma Rassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e he ii vm1 hvm1.
+    move => s t pt e he ii vm1 hvm1.
     have [v' H1 /value_uinclE ?] := sem_pexpr_uincl hvm1 he;subst => Hwf.
     exists vm1;split => //.
     apply sem_seq1;constructor;apply Eassert_false. eauto.
@@ -513,7 +513,7 @@ Section ADD_INIT.
 
   Local Lemma RAassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e he ii /=.
+    move => s t pt e he ii /=.
     apply aux => //.
     - by constructor; constructor.
     - move => vm1 heq1.
@@ -524,7 +524,7 @@ Section ADD_INIT.
 
   Local Lemma RAassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e he ii /=.
+    move => s t pt e he ii /=.
     apply aux => //.
     - by constructor; constructor.
     - move => vm1 heq1.

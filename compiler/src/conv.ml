@@ -224,8 +224,8 @@ and cinstr_r_of_instr_r tbl p i tl =
       C.Csyscall(clval_of_lvals tbl x, o, cexpr_of_exprs tbl e) in
     C.MkI(p, ir) :: tl
 
-  | Cassert(t, e) ->
-    let ir = C.Cassert(t, cexpr_of_expr tbl e) in
+  | Cassert(t, pt, e) ->
+    let ir = C.Cassert(t, pt, cexpr_of_expr tbl e) in
     C.MkI(p, ir) :: tl
 
   | Cif(e,c1,c2) ->
@@ -270,8 +270,8 @@ and instr_r_of_cinstr_r tbl = function
   | C.Csyscall(x,o,e) ->
     Csyscall(lval_of_clvals tbl x, o, expr_of_cexprs tbl e)
 
-  | C.Cassert(t, e) ->
-    Cassert(t, expr_of_cexpr tbl e)
+  | C.Cassert(t, p, e) ->
+    Cassert(t, p, expr_of_cexpr tbl e)
 
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt tbl c1 in

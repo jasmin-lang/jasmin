@@ -1660,7 +1660,7 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e Hz ii /= Hdisj s' Hs'/=.
+    move => s t pt e Hz ii /= Hdisj s' Hs'/=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assert => Hdisje.
     set x := lower_condition fv dummy_var_info e.
     have Hcond: x = lower_condition fv dummy_var_info e by [].
@@ -1672,7 +1672,7 @@ Section PROOF.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e Hz ii /= Hdisj s' Hs'/=.
+    move => s t pt e Hz ii /= Hdisj s' Hs'/=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assert => Hdisje.
     set x := lower_condition fv dummy_var_info e.
     have Hcond: x = lower_condition fv dummy_var_info e by [].

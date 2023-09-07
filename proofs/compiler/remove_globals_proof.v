@@ -136,12 +136,12 @@ Module INCL. Section INCL.
 
   Local Lemma Hassert_true : sem_Ind_assert_true P1 Pi_r.
   Proof.
-    by move=> s1 t e he; apply Eassert_true; apply (gd_incl_e hincl).
+    by move=> s1 t p e he; apply Eassert_true; apply (gd_incl_e hincl).
   Qed.
 
   Local Lemma Hassert_false : sem_Ind_assert_false P1 Pi_r.
   Proof.
-    by move=> s1 t e he; apply Eassert_false; apply (gd_incl_e hincl).
+    by move=> s1 t p e he; apply Eassert_false; apply (gd_incl_e hincl).
   Qed.
 
   Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
@@ -288,9 +288,9 @@ Section PROOFS.
     by t_xrbindP => gd3 /hc1 h1 /hc2; apply: gd_inclT.
   Qed.
 
-  Local Lemma Hassert  : forall t e, Pr (Cassert t e).
+  Local Lemma Hassert  : forall t p e, Pr (Cassert t p e).
   Proof.
-    move=> t e ii gd1 gd2 /=.
+    move=> t p e ii gd1 gd2 /=.
     t_xrbindP => gd3 h1 v h.
     by rewrite <- gd3.
   Qed.
@@ -650,7 +650,7 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hassert_true : sem_Ind_assert_true P Pi_r.
   Proof.
-    move => s1 t e he ii m m' c' /= hrm s1' hval.
+    move => s1 t p e he ii m m' c' /= hrm s1' hval.
     move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he' => hm hc'.
     subst.
     exists s1';split.
@@ -660,7 +660,7 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hassert_false : sem_Ind_assert_false P Pi_r.
   Proof.
-    move => s1 t e he ii m m' c' /= hrm s1' hval.
+    move => s1 t p e he ii m m' c' /= hrm s1' hval.
     move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he' => hm hc'.
     subst.
     exists s1';split.

@@ -43,7 +43,7 @@ Fixpoint remove_init_i i :=
       else [::i]
     | Copn _ _ _ _   => [::i]
     | Csyscall _ _ _ => [::i]
-    | Cassert _ _ => [::i]
+    | Cassert _ _ _ => [::i]
     | Cif e c1 c2  =>
       let c1 := foldr (fun i c => remove_init_i i ++ c) [::] c1 in
       let c2 := foldr (fun i c => remove_init_i i ++ c) [::] c2 in

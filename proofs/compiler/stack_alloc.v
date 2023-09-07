@@ -1137,9 +1137,9 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
     | Csyscall rs o es =>
         alloc_syscall ii rmap rs o es
 
-    | Cassert t e =>
+    | Cassert t p e =>
         Let e := add_iinfo ii (alloc_e rmap e) in
-        ok (rmap, [:: MkI ii (Cassert t e)])
+        ok (rmap, [:: MkI ii (Cassert t p e)])
 
     | Cif e c1 c2 => 
       Let e := add_iinfo ii (alloc_e rmap e) in

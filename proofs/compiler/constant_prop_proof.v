@@ -848,7 +848,7 @@ Section PROPER.
     by do 3 f_equal; apply: map_ext => z _; rewrite Heq.
   Qed.
 
-  Local Lemma Wassert t e: Pr (Cassert t e).
+  Local Lemma Wassert t p e: Pr (Cassert t p e).
   Proof.
     move=> ii m1 m2 Heq /=.
     rewrite /const_prop_ir.
@@ -1055,7 +1055,7 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move=> s t e /= he. split=>// vm1 hu1.
+    move=> s t pt e /= he. split=>// vm1 hu1.
     have  [v' [] ] /= := const_prop_eP H he.
     case: v' => // b {he} he ?;subst.
     exists vm1; split => //.
@@ -1065,7 +1065,7 @@ Section PROOF.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move=> s t e /= he. split=>// vm1 hu1.
+    move=> s t pt e /= he. split=>// vm1 hu1.
     have  [v' [] ] /= := const_prop_eP H he.
     case: v' => // b {he} he ?;subst.
     exists vm1; split => //.

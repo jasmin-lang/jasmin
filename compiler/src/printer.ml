@@ -157,7 +157,7 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
         (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
 
-  | Cassert(t, e) ->
+  | Cassert(t, p, e) ->
     F.fprintf fmt "@[<hov 2>assert@ %a;@]" (pp_ge pp_len pp_var) e
 
   | Cif(e, c, []) ->

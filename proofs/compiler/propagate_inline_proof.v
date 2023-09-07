@@ -620,14 +620,14 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p1 Pi_r.
   Proof.
-    move => s t e he ? pi pi2 vm1  [<-] hu hv .
+    move => s t p e he ? pi pi2 vm1  [<-] hu hv .
     exists vm1; split => //; do 2 constructor;rewrite -eq_globs.
     by have [b' -> /value_uinclE ->]:= pi_eP_uincl hv hu he.
   Qed.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p1 Pi_r.
   Proof.
-    move => s t e he ? pi pi2 vm1  [<-] hu hv .
+    move => s t p e he ? pi pi2 vm1  [<-] hu hv .
     exists vm1; split => //; constructor; apply Eassert_false;rewrite -eq_globs.
     by have [b' -> /value_uinclE ->]:= pi_eP_uincl hv hu he.
   Qed.

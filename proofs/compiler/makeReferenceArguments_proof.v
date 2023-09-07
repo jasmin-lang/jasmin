@@ -301,12 +301,12 @@ Context
       + by move=> z;rewrite read_esE => hz;apply heq1; SvD.fsetdec.
       by apply: eq_onI heq2; SvD.fsetdec.
       (* Focus 3. *)
-    + move => s1 t e he vm X hsub heq.
+    + move => s1 t pt e he vm X hsub heq.
       exists vm; split => //.
       apply Eassert_true.
       rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) //.
       by rewrite read_eE; apply: eq_onI heq; SvD.fsetdec.
-    + move => s1 t e he vm X hsub heq.
+    + move => s1 t pt e he vm X hsub heq.
       exists vm; split => //.
       apply Eassert_false.
       rewrite -(@read_e_eq_on _ _ _ _ Sv.empty) //.
@@ -603,7 +603,7 @@ Context
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e He Hs ii c' [<-].
+    move => s t pt e He Hs ii c' [<-].
     move => H vm Hvm.
     exists vm => //.
     apply/sem_seq1/EmkI. apply Eassert_true.
@@ -614,7 +614,7 @@ Context
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e He Hs ii c' [<-].
+    move => s t pt e He Hs ii c' [<-].
     move => H vm Hvm.
     exists vm => //.
     apply/sem_seq1/EmkI. apply Eassert_false.

@@ -55,7 +55,7 @@ let rec gsubst_i flen f i =
     | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_ty flen ty, gsubst_e flen f e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
-    | Cassert(t, e) -> Cassert (t, (gsubst_e flen f e))
+    | Cassert(t, p, e) -> Cassert (t, p, (gsubst_e flen f e))
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)

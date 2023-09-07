@@ -333,7 +333,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
         ok tt
-    | Cassert t b =>
+    | Cassert t p b =>
         ok tt
     | Cif b c1 c2 =>
       check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
@@ -587,7 +587,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 
   | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
 
-  | Cassert t e => (lbl, MkLI ii (Lassert e) :: lc)
+  | Cassert t p e => (lbl, MkLI ii (Lassert e) :: lc)
 
   | Cif e [::] c2 =>
     let L1 := lbl in

@@ -74,8 +74,8 @@ Section WRITE1.
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
-    | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
-    | Cassert _ _      => s
+    | Csyscall xs o _ => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
+    | Cassert _ _ _   => s
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -188,7 +188,7 @@ Section CHECK.
         (E.internal_error ii "bad syscall dests") in
       let W := syscall_kill in
       ok (Sv.diff (Sv.union D W) (vrvs (to_lvals (syscall_sig o).(scs_vout))))
-    | Cassert t b =>
+    | Cassert t p b =>
       Let _ := check_e ii D b in
       ok D
     | Cif b c1 c2 =>

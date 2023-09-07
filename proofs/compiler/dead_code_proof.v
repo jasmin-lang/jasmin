@@ -298,7 +298,7 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e He ii sv0 /= Hwf vm Hvm.
+    move => s t pt e He ii sv0 /= Hwf vm Hvm.
     rewrite (surj_estate s) in He.
     have := sem_pexpr_uincl_on' Hvm He.
     move=> [v] He' Hv.
@@ -312,7 +312,7 @@ Section PROOF.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e He ii sv0 /= Hwf vm Hvm.
+    move => s t pt e He ii sv0 /= Hwf vm Hvm.
     rewrite (surj_estate s) in He.
     have := sem_pexpr_uincl_on' Hvm He.
     move=> [v] He' Hv.

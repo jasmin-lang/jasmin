@@ -566,7 +566,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
       check_es arg1 arg2 r >>= check_lvals x1 x2
     else Error (alloc_error "functions not equals")
 
-  | Cassert t1 e1, Cassert t2 e2 =>
+  | Cassert t1 p1 e1, Cassert t2 p2 e2 =>
     Let re := check_e e1 e2 r in
     ok (re)
 

@@ -32,7 +32,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sp.t :=
   | Cassgn _ _ _ _
   | Copn   _ _ _ _
   | Csyscall _ _ _
-  | Cassert _ _
+  | Cassert _ _ _
     => Sp.empty
   | Cif    _  c1 c2   => Sp.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
@@ -60,8 +60,8 @@ Lemma i_Calls_syscall lv op es :
   i_Calls_r (Csyscall lv op es) = Sp.empty.
 Proof. by []. Qed.
 
-Lemma i_Calls_assert t e :
-  i_Calls_r (Cassert t e) = Sp.empty.
+Lemma i_Calls_assert t p e :
+  i_Calls_r (Cassert t p e) = Sp.empty.
 Proof. by []. Qed.
 
 Lemma i_Calls_if e c1 c2 :
@@ -105,7 +105,7 @@ Lemma c_callsE c i : Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)).
 Proof.
 move: c.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
-  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | t e | e c1 c2 Hc1 Hc2
+  [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | t p e | e c1 c2 Hc1 Hc2
     | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es ] c /=.
 + by apply Hi.
 + rewrite CallsE; SpD.fsetdec.
@@ -258,13 +258,13 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e he hincl.
+    move => s t pt e he hincl.
     by apply: Eassert_true; eauto.
   Qed.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e he hincl.
+    move => s t pt e he hincl.
     by apply: Eassert_false; eauto.
   Qed.
 

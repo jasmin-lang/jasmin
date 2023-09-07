@@ -52,9 +52,9 @@ and live_d is_move_op weak d (s_o: Sv.t) =
      else s_o in
     s_i, s_o, Copn(xs,t,o,es)
 
-  | Cassert(t, e) ->
+  | Cassert(t, p, e) ->
     let s_i = Sv.union (vars_e e) s_o in
-    s_i, s_o, Cassert(t, e)
+    s_i, s_o, Cassert(t, p, e)
 
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c is_move_op weak c1 s_o in

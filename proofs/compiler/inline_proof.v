@@ -170,9 +170,9 @@ Section SUBSET.
     rewrite read_Ii read_i_if read_eE;SvD.fsetdec.
   Qed.
 
-  Local Lemma Sassert : forall t e, Pr(Cassert t e).
+  Local Lemma Sassert : forall t pt e, Pr(Cassert t pt e).
   Proof.
-    move => t e ii X Xc /= [<-].
+    move => t pt e ii X Xc /= [<-].
     rewrite read_Ii.
     rewrite /read_i.
     rewrite /read_i_rec.
@@ -381,7 +381,7 @@ Section PROOF.
 
   Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
   Proof.
-    move => s t e he ii X1 X2 c [<- <-] vm1 hwf.
+    move => s t pt e he ii X1 X2 c [<- <-] vm1 hwf.
     rewrite /read_i /read_i_rec read_eE => //=.
     exists vm1;split => //=.
     + apply vmap_uincl_onI with (s2:= Sv.union (Sv.union (read_e e) Sv.empty) X2).
@@ -400,7 +400,7 @@ Section PROOF.
 
   Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
   Proof.
-    move => s t e he ii X1 X2 c [<- <-] vm1 hwf.
+    move => s t pt e he ii X1 X2 c [<- <-] vm1 hwf.
     rewrite /read_i /read_i_rec read_eE => //=.
     exists vm1;split => //=.
     + apply vmap_uincl_onI with (s2:= Sv.union (Sv.union (read_e e) Sv.empty) X2).
