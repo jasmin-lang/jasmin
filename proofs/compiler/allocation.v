@@ -332,7 +332,7 @@ Section PROOF.
   Proof.
     rewrite -eq_globs;case: s => sm svm.
     rewrite /check_es; elim: e1 e2 r re [::] lte => [ | e1 es1 Hrec] [ | e2 es2] r re lte1 lte2 //=.
-    + move=> [] <- <- Hvm. split=> // -[] //= ?; exists [::]. split. auto. split=> //.
+    + move=> [] <- <- Hvm. split=> // -[] //= ?; exists [::]. split. auto. split.
       rewrite /=. constructor. rewrite /=. case: lte1. constructor. constructor.
     t_xrbindP. move=> [re' lte'] /(check_eP gd) /= He [rh lth] Hce <- <- Hvm /=.
     move: (He svm vm stk Hvm). move=> {He} [] Hvm2 He. split.
@@ -2254,14 +2254,14 @@ End CHECKE.
           apply: on_vuP Happ=> //.
           move=> v2'' hv2'' hhg; subst.
           have ?:= truncate_pto_val htr;subst v2.
-          rewrite pof_val_pto_val /=;eexists;split;rewrite -h3 /=;first reflexivity.
+          rewrite pof_val_pto_val /=;eexists; rewrite -h3 /=; split;first reflexivity.
           have /= := @eq_alloc_add x1 (ok v1') r1 x2 (evm s1) vm1 ht Hvm1.
           rewrite hv2'' /= /pval_uincl => H;apply H;last by eauto.
           by apply (value_uincl_pof_val Hv1 Hv).
         move=> /= hniw hv1 hh;subst; rewrite hniw /=.
         apply: on_vuP Happ => //.
         move=> v2'' heq hhg;subst;have ?:= truncate_pto_val htr;subst v2.
-        rewrite pof_val_pto_val /=;eexists;split; rewrite -h3;first reflexivity.
+        rewrite pof_val_pto_val /=;eexists; rewrite -h3; split; first reflexivity.
         have /= := @eq_alloc_add x1 (pundef_addr xt2) r1 x2 (evm s1) vm1 ht Hvm1.
         rewrite heq /= apply_undef_pundef_addr=> H;apply H.
         + by apply eval_uincl_undef.

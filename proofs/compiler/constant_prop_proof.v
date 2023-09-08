@@ -1340,8 +1340,7 @@ Section CONST_PROP_EP.
 
 Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
 Proof.
-apply: pexprs_ind_pair; subst P Q; split => /=;
-try (intros; clarify; eauto; fail).
+apply: pexprs_ind_pair; subst P Q; split => /=.
 - move=> vs [] <-. exists [::]. split. auto. split. by rewrite /=; auto. auto.
 - move=> e H es Hs. t_xrbindP. move=> hh [yv1 yl1] He h1 Hes <-.
   move: (H yv1 yl1 He). move=> [] x [] -> Hv /=.
@@ -1359,6 +1358,7 @@ try (intros; clarify; eauto; fail).
   + by exists b. + by exists n.
   exists (Vword (wrepr sz (wunsigned w))). split.
   auto. by rewrite wrepr_unsigned.
+- by eauto.
 - move=> sz x e He. move=> v l.
   apply: on_arr_varP => n t Hsub; rewrite /on_arr_var => Hg.
   t_xrbindP. move=> [yv yl] He' /=. move: (He yv yl He').
