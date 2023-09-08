@@ -1828,7 +1828,7 @@ Lemma sem_pexpr_rec_uincl gd s1 vm2 es vs1:
     /\ unzip2 vs1 = unzip2 vs2.
 Proof.
   move=> hvm; elim: es vs1.
-  + move=> vs1 Hm He. case: Hm => <-. exists [::]; auto. split. by constructor. auto.
+  + move=> vs1 Hm He. case: Hm => <-. exists [::]. auto. split. by constructor. auto.
   move=> e es ih vs1 /=. t_xrbindP.
   move=> [v l] ok_v vs ok_vs <-{vs1} rec.
   move: ih => /(_ _ ok_vs) [].
