@@ -15,6 +15,7 @@ Require Import
   array_copy_proof
   array_init_proof
   unrolling_proof
+  inline_single_calls_proof
   constant_prop_proof
   propagate_inline_proof
   dead_code_proof
@@ -167,7 +168,7 @@ Proof.
   rewrite print_uprogP => ok_pa0 pa.
   rewrite print_uprogP => ok_pa pb.
   rewrite print_uprogP => ok_pb pc.
-  rewrite print_uprogP => ok_pc.
+  rewrite !print_uprogP => ok_pc ? ?.
   rewrite !print_uprogP => pd ok_pd.
   rewrite !print_uprogP => pe ok_pe.
   rewrite !print_uprogP => pf ok_pf.
@@ -203,6 +204,8 @@ Proof.
   apply: compose_pass_uincl'.
   - move => vr' Hvr'.
     apply: (live_range_splittingP ok_pd); exact: Hvr'.
+  apply: compose_pass_uincl'.
+  - move=> vr'. apply: isc_prog_sem_call; eassumption.
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
   apply: compose_pass.
   - by move => vr'; exact: (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).

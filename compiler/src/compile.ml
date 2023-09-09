@@ -221,6 +221,30 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       else None
   in
 
+  let get_single_calls up =
+    if not !Glob_options.inline_single_calls
+    then []
+    else
+      let tbl = Hf.create 17 in
+      let rec do_cmd c = List.iter do_i c
+      and do_i i =
+        match i.i_desc with
+        | Cassgn _ -> ()
+        | Copn _ -> ()
+        | Csyscall _ -> ()
+        | Cif (_, c0, c1) -> do_cmd c0; do_cmd c1
+        | Cfor (_, _, c) -> do_cmd c
+        | Cwhile (_, c0, _, c1) -> do_cmd c0; do_cmd c1
+        | Ccall (_, callee, _) -> Hf.modify_def 0 callee BatInt.succ tbl
+      in
+      let (_, funcs) = Conv.prog_of_cuprog up in
+      List.iter (fun fd -> do_cmd fd.f_body) funcs;
+      Hf.fold
+        (fun callee count acc -> if count = 1 then callee :: acc else acc)
+        tbl
+        []
+  in
+
   let cparams =
     {
       Compiler.rename_fd;
@@ -257,6 +281,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
       Compiler.is_inline;
+      Compiler.get_single_calls;
     }
   in
 

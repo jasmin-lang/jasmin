@@ -31,6 +31,7 @@ Require Import
   unrolling
   wsize.
 Require
+  inline_single_calls
   merge_varmaps.
 
 
@@ -82,6 +83,7 @@ Variant compiler_step :=
   | Inlining                    : compiler_step
   | RemoveUnusedFunction        : compiler_step
   | Unrolling                   : compiler_step
+  | InlineSingleCalls           : compiler_step
   | Splitting                   : compiler_step
   | Renaming                    : compiler_step
   | RemovePhiNodes              : compiler_step
@@ -112,6 +114,7 @@ Definition compiler_step_list := [::
   ; Inlining
   ; RemoveUnusedFunction
   ; Unrolling
+  ; InlineSingleCalls
   ; Splitting
   ; Renaming
   ; RemovePhiNodes
@@ -178,6 +181,7 @@ Record compiler_params
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   is_inline        : _uprog -> instr_info -> funname -> option instr_info;
+  get_single_calls : _uprog -> seq funname;
 }.
 
 Context
@@ -260,6 +264,16 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
   let p := cparams.(print_uprog) Unrolling p in
+
+  Let p :=
+    inline_single_calls.isc_prog
+      (wsw := withsubword)
+      (get_single_calls cparams p)
+      cparams.(rename_fd)
+      to_keep
+      p
+  in
+  let p := cparams.(print_uprog) InlineSingleCalls p in
 
   Let pv := live_range_splitting p in
 

@@ -1,0 +1,50 @@
+fn f0() -> reg u32 { reg u32 r; r = 0; return r; }
+fn f1() -> reg u32 { reg u32 r; r = 1; return r; }
+fn f2() -> reg u32 { reg u32 r; r = 2; return r; }
+fn f3() -> reg u32 { reg u32 r; r = 3; return r; }
+fn f4() -> reg u32 { reg u32 r; r = 4; return r; }
+fn f5() -> reg u32 { reg u32 r; r = 5; return r; }
+fn f6() -> reg u32 { reg u32 r; r = 6; return r; }
+
+
+export
+fn main() -> reg u32 {
+    reg u32 p tmp;
+
+    p = f0(); // Gets inlined.
+
+    tmp = f1(); // Does not get inlined.
+    p += tmp;
+
+    tmp = f1();
+    p += tmp;
+
+    inline int i;
+    for i = 0 to 1 {
+        tmp = f2(); // Gets inlined.
+        p += tmp;
+    }
+
+    for i = 0 to 2 {
+        tmp = f3(); // Does not get inlined.
+        p += tmp;
+    }
+
+    while (p == 0) {
+        tmp = f4(); // Gets inlined.
+        p += tmp;
+    }
+
+    if (p == 0) {
+        tmp = f5(); // Gets inlined.
+        p += tmp;
+    }
+
+    if (p == 0) {
+        p = 1;
+    } else {
+        tmp = f6(); // Gets inlined.
+        p += tmp;
+    }
+    return p;
+}

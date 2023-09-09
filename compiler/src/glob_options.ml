@@ -140,6 +140,7 @@ let print_strings = function
   | Compiler.Inlining                    -> "inline"   , "inlining"
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
   | Compiler.Unrolling                   -> "unroll"   , "unrolling"
+  | Compiler.InlineSingleCalls           -> "inlinesinglecalls", "inline single calls"
   | Compiler.Splitting                   -> "splitting", "liverange splitting"
   | Compiler.Renaming                    -> "renaming" , "variable renaming to remove copies"
   | Compiler.RemovePhiNodes              -> "rmphi"    , "remove phi nodes introduced by splitting"
@@ -169,6 +170,8 @@ let symbol2pass =
 
 let set_sct_comp_pass s =
  sct_comp_pass := symbol2pass s
+
+let inline_single_calls = ref false
 
 let print_option p =
   let s, msg = print_strings p in
@@ -228,6 +231,9 @@ let options = [
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
     "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
+    "-inline-single-calls",
+       Arg.Set inline_single_calls,
+       ": inline functions that are called only once"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
