@@ -535,7 +535,7 @@ Context
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs m s2 ii lv fn args vargs aout eval_args h1 h2 h3.
+    move=> s1 scs m s2 lv fn args vargs aout eval_args h1 h2 h3.
     move=> ii' X c' hupd; rewrite !(read_Ii, write_Ii).
     rewrite !(read_i_call, write_i_call) => le_X vm1 eq_s1_vm1.
     case: (sem_callE h1) hupd => fnd [fnE] [vs] [s1'] [s2'] [s3'] [vres] [vsE] [_ hwrinit] _ [hgetout aoutE] _.

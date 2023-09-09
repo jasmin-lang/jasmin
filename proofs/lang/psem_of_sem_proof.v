@@ -295,7 +295,8 @@ apply:
   case: (ih' _ hss'3) => s4' [hss'4 hf].
   exists s4'; split; first exact: hss'4.
   econstructor; eauto.
-- move => s1 scs2 m2 s2 ii xs fn args vargs vs /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hscs hm hvm].
+- move=> s1 scs2 m2 s2 xs fn args vargs vs
+    /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hscs hm hvm].
   rewrite hscs hm in ih.
   case: (hres (with_scs (with_mem s1' m2) scs2) (And3 erefl erefl hvm)) => s2' [hss'2 hw].
   exists s2'; split; first exact: hss'2.

@@ -36,7 +36,7 @@ and inspect_instr_r k = function
   | Cif (g, a, b) | Cwhile (_, a, g, b) ->
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s
-  | Ccall (_, xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
+  | Ccall (xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
 
 let slice fs (gd, fds) =
   let funs =

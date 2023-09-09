@@ -169,11 +169,11 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_pexpr true gd s2 e = ok (Vbool false) →
     sem_i ii k s1 (Cwhile a c e c') s2
 
-| Ecall ii k s1 s2 ini res f args xargs xres :
+| Ecall ii k s1 s2 res f args xargs xres :
     mapM get_pvar args = ok xargs →
     mapM get_lvar res = ok xres →
     sem_call ii k s1 f s2 →
-    sem_i ii k s1 (Ccall ini res f args) s2
+    sem_i ii k s1 (Ccall res f args) s2
 
 with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :=
 | EcallRun ii k s1 s2 fn f (* args *) m1 s2' (* res *) :
@@ -273,7 +273,7 @@ Lemma sem_iE ii k s i s' :
     ∃ kc si b,
        [/\ sem kc s c si, sem_pexpr true gd si e = ok (Vbool b) &
                        if b then ex3_3 (λ k' krec _, k = Sv.union (Sv.union kc k') krec) (λ k' _ sj, sem k' si c' sj) (λ _ krec sj, sem_I krec sj (MkI ii (Cwhile a c e c')) s') else si = s' ∧ kc = k ]
-  | Ccall ini res f args =>
+  | Ccall res f args =>
     exists2 xargs,
     mapM get_pvar args = ok xargs &
     exists2 xres,
@@ -405,12 +405,12 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_call : Prop :=
-    ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) ini res fn args xargs xres,
+    ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) res fn args xargs xres,
       mapM get_pvar args = ok xargs →
       mapM get_lvar res = ok xres →
       sem_call ii k s1 fn s2 →
       Pfun ii k s1 fn s2 →
-      Pi_r ii k s1 (Ccall ini res fn args) s2.
+      Pi_r ii k s1 (Ccall res fn args) s2.
 
   Definition sem_Ind_proc : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) (fn: funname) fd m1 s2',
@@ -457,8 +457,8 @@ Section SEM_IND.
           (@sem_I_Ind krec s3 (MkI ii (Cwhile a c e1 c')) s4 s6)
     | @Ewhile_false ii k s1 s2 a c e1 c' s0 e2 =>
       @Hwhile_false ii k s1 s2 a c e1 c' s0 (@sem_Ind k s1 c s2 s0) e2
-    | @Ecall ii k s1 s2 ini res fn args xargs xres hargs hres exec =>
-      @Hcall ii k s1 s2 ini res fn args xargs xres hargs hres exec (@sem_call_Ind ii k s1 fn s2 exec)
+    | @Ecall ii k s1 s2 res fn args xargs xres hargs hres exec =>
+      @Hcall ii k s1 s2 res fn args xargs xres hargs hres exec (@sem_call_Ind ii k s1 fn s2 exec)
     end
 
   with sem_I_Ind (k: Sv.t) (s1 : estate) (i : instr) (s2 : estate) (s : sem_I k s1 i s2) {struct s} : Pi k s1 i s2 :=

@@ -178,7 +178,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     | Cif(e,c1,c2) | Cwhile (_,c1,e,c2) -> 
       add_e e; add_c c1; add_c c2
     | Cfor _ -> assert false 
-    | Ccall(_, xs, fn, es) -> 
+    | Ccall(xs, fn, es) ->
       add_lvs xs;
       calls := Sf.add fn !calls; 
       List.iter2 add_p (onfun fn) es 

@@ -474,7 +474,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hexpr Hcall Hfun Hw ii' sv0 /=.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hexpr Hcall Hfun Hw ii sv0 /=.
     set sxs := (X in Let sxs := X in _).
     case heq: sxs => [ [I xs'] | ] //= => vm1' Hvm.
     rewrite (surj_estate s1) in Hexpr.
