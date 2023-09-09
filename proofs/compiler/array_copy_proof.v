@@ -308,7 +308,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs he _ hfun hw ii'.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs he _ hfun hw ii.
   rewrite /Pi vars_I_call /vars_lvals => hsub _ [<-] vm1 hvm1.
   have [|vargs' he' uvars]:= sem_pexprs_uincl_on (uincl_onI _ hvm1) he; first by SvD.fsetdec.
   have [vs' hfun' uvs']:= hfun _ uvars.

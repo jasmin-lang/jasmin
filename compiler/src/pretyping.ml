@@ -1526,12 +1526,15 @@ let check_lval_pointer loc x =
   | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
   | _ -> rs_tyerror ~loc (NotAPointer x)
 
-let mk_call loc is_inline lvs f es =
+let mk_call loc inline lvs f es =
   let open P in
   begin match f.f_cc with
   | Internal -> ()
-  | Export -> if is_inline <> E.InlineFun then rs_tyerror ~loc (string_error "call to export function needs to be inlined")
-  | Subroutine _ when is_inline <> E.InlineFun ->
+  | Export ->
+    if not inline then
+      let err = string_error "call to export function needs to be inlined" in
+      rs_tyerror ~loc err
+  | Subroutine _ when not inline ->
     let check_lval = function
       | Lnone _ | Lvar _ | Lasub _ -> ()
       | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
@@ -1561,7 +1564,7 @@ let mk_call loc is_inline lvs f es =
       aux e in
   List.iter2 check_w f.f_args es;
 
-  P.Ccall (is_inline, lvs, f.P.f_name, es)
+  P.Ccall (lvs, f.P.f_name, es)
 
 let tt_annot_vardecls dfl_writable pd env (annot, (ty,vs)) = 
   let aty = annot, ty in
@@ -1594,14 +1597,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let lvs, is = tt_lvalues pd env (L.loc pi) ls None tlvs in
       assert (is = []);
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
-      let is_inline = 
-        match Annot.ensure_uniq1 "inline" Annot.none annot with
-        | Some () -> E.InlineFun
-        | None -> 
-          match f.P.f_cc with 
-          | FInfo.Internal -> E.InlineFun
-          | FInfo.Export | FInfo.Subroutine _ -> E.DoNotInline in
-      let annot = Annot.consume "inline" annot in
+      let is_inline = P.is_inline annot f.P.f_cc in
       env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->

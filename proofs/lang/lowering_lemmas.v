@@ -270,11 +270,11 @@ Proof.
   exact: SvP.MP.add_union_singleton.
 Qed.
 
-Lemma disj_fvars_vars_I_Ccall ii inli lvs fn args :
-  disj_fvars (vars_I (MkI ii (Ccall inli lvs fn args)))
+Lemma disj_fvars_vars_I_Ccall ii lvs fn args :
+  disj_fvars (vars_I (MkI ii (Ccall lvs fn args)))
   -> disj_fvars (vars_lvals lvs) /\ disj_fvars (read_es args).
 Proof.
-  move=> /(disjoint_equal_l (vars_I_call ii inli lvs fn args)).
+  move=> /(disjoint_equal_l (vars_I_call ii lvs fn args)).
   by move=> /disjoint_union.
 Qed.
 

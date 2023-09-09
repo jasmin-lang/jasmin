@@ -220,7 +220,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call (dc:=indirect_c) p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs hargs _ hrec hws vm1 hle.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs hargs _ hrec hws vm1 hle.
   have [vargs' /(sem_pexprs_weak false) hargs1 /hrec[vres' hc hu]]:= sem_pexprs_uincl hle hargs.
   have [vm2 /(write_lvals_weak false)hws2 hle2]:= writes_uincl (s1 := with_scs (with_mem s1 m2) scs2) hle hu hws.
   exists vm2 => //; econstructor; eauto.

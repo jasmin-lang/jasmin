@@ -73,7 +73,7 @@ let rec read_mem_i s i =
   | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
-  | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
+  | Ccall (xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
   | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
 
 and read_mem_c s = List.exists (read_mem_i s)
@@ -86,7 +86,7 @@ let rec write_mem_i s i =
   | Copn (xs, _, _, _) | Csyscall(xs, Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
-  | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
+  | Ccall (xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s
   | Cfor (_, _, c)       -> write_mem_c s c 
 
 and write_mem_c s = List.exists (write_mem_i s)
@@ -813,7 +813,7 @@ module Normal = struct
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
-    | Ccall(_, lvs, f, _) ->      
+    | Ccall(lvs, f, _) ->
       if lvs = [] then env 
       else 
         let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
@@ -881,7 +881,7 @@ module Normal = struct
           Format.fprintf fmt "<- %a" pp_e (op,es) in
         pp_call pd env fmt lvs otys otys' pp (op,es)
         
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -1111,7 +1111,7 @@ module Leak = struct
       let otys = List.map Conv.ty_of_cty s.scs_tout in
       let env = add_aux env otys in
       add_aux env (List.map ty_lval lvs)
-    | Ccall(_, lvs, _, _) ->
+    | Ccall(lvs, _, _) ->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
@@ -1188,7 +1188,7 @@ module Leak = struct
       pp_leaks_opn pd asmOp env fmt op' es;
       pp_call pd env fmt lvs otys otys' pp (op, es)
       
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -1447,7 +1447,7 @@ and used_func_i used i =
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
-  | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
+  | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
 let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.map Regalloc.fill_in_missing_names funcs in

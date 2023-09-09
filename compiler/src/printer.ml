@@ -189,12 +189,11 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       (pp_cblock pp_info pp_len pp_opn pp_var) c (pp_ge pp_len pp_var) e
       (pp_cblock pp_info pp_len pp_opn pp_var) c'
 
-  | Ccall(ii, x, f, e) ->
+  | Ccall(x, f, e) ->
     let pp_x fmt = function
       | [] -> ()
       | x -> F.fprintf fmt "%a =@ " (pp_glvs pp_len pp_var) x in
-    F.fprintf fmt "@[<hov 2>%s%a%s(%a);@]"
-      (match ii with | E.InlineFun -> "#inline " | E.DoNotInline -> "")
+    F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
       pp_x x f.fn_name (pp_ges pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)

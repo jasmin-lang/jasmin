@@ -33,7 +33,10 @@ Section INLINE.
 Context
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
-  {asmop:asmOp asm_op}.
+  {asmop:asmOp asm_op}
+  (is_inline : instr_info -> funname -> option instr_info)
+  (rename_fd : instr_info -> funname -> ufundef -> ufundef)
+.
 
 Definition get_flag (x:lval) flag :=
   match x with
@@ -75,40 +78,40 @@ Definition get_fun (p:ufun_decls) (f:funname) :=
   | None    => Error (inline_error (pp_box [::pp_s "Unknown function"; PPEfunname f]))
   end.
 
-Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
-
 Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
-  match i with
-  | MkI iinfo ir =>
-    match ir with
-    | Cassgn _ _ _ _
-    | Copn _ _ _ _
-    | Csyscall _ _ _
-      => ok (Sv.union (read_i ir) X, [::i])
-    | Cif e c1 c2  =>
-      Let c1 := inline_c (inline_i p) c1 X in
-      Let c2 := inline_c (inline_i p) c2 X in
-      ok (read_e_rec (Sv.union c1.1 c2.1) e, [::MkI iinfo (Cif e c1.2 c2.2)])
-    | Cfor x (d,lo,hi) c =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      ok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
-    | Cwhile a c e c' =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      Let c' := inline_c (inline_i p) c' X in
-      ok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
-    | Ccall inline xs f es =>
-      let X := Sv.union (read_i ir) X in
-      if inline is InlineFun then
-        Let fd := add_iinfo iinfo (get_fun p f) in
-        let fd' := rename_fd iinfo f fd in
-        Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
-        ok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
-                  (fd'.(f_body) ++
-                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
-      else ok (X, [::i])
-    end
+  let '(MkI iinfo ir) := i in
+  match ir with
+  | Cassgn _ _ _ _
+  | Copn _ _ _ _
+  | Csyscall _ _ _
+    => ok (Sv.union (read_i ir) X, [::i])
+  | Cif e c1 c2  =>
+    Let c1 := inline_c (inline_i p) c1 X in
+    Let c2 := inline_c (inline_i p) c2 X in
+    ok (read_e_rec (Sv.union c1.1 c2.1) e, [::MkI iinfo (Cif e c1.2 c2.2)])
+  | Cfor x (d,lo,hi) c =>
+    let X := Sv.union (read_i ir) X in
+    Let c := inline_c (inline_i p) c X in
+    ok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
+  | Cwhile a c e c' =>
+    let X := Sv.union (read_i ir) X in
+    Let c := inline_c (inline_i p) c X in
+    Let c' := inline_c (inline_i p) c' X in
+    ok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
+  | Ccall xs f es =>
+    let X := Sv.union (read_i ir) X in
+    if is_inline iinfo f is Some iinfo then
+      Let fd := add_iinfo iinfo (get_fun p f) in
+      let fd' := rename_fd iinfo f fd in
+      Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
+      let rename_args :=
+        assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es
+      in
+      let rename_res :=
+        assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))
+      in
+      ok (X, rename_args ++ fd'.(f_body) ++ rename_res)
+    else ok (X, [::i])
   end.
 
 Definition inline_fd (p:ufun_decls) (fd:ufundef) :=

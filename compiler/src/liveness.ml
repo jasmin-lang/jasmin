@@ -61,9 +61,9 @@ and live_d weak d (s_o: Sv.t) =
     let s_i, (c,c') = loop s_o in
     s_i, s_o, Cwhile(a, c, e, c')
 
-  | Ccall(ii,xs,f,es) ->
+  | Ccall(xs,f,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(ii,xs,f,es)
+    s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(xs,f,es)
 
   | Csyscall(xs,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
@@ -94,7 +94,7 @@ let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
     | (Cassgn _ | Copn _) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
-    | Ccall (_, xs, fn, _) ->
+    | Ccall (xs, fn, _) ->
        cbf loc fn xs ii
     | Csyscall (xs, op, _) ->
        cbs loc op xs ii

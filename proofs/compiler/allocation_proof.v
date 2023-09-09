@@ -606,7 +606,8 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw r1 [] //= ii2 xs2 fn2 args2 r2 vm1 Hr1.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hes Hsc Hfun Hw r1
+      [] //= xs2 fn2 args2 r2 vm1 Hr1.
     rewrite /check_i -/check_I; t_xrbindP => r1' /eqP ? Hca Hcxs; subst fn2.
     have [Hr1' /(_ _ Hes) [vargs2 [Hargs2 Hvargs]]] := check_esP (~~direct_call) Hca Hr1.
     have [v' Hs2 Hvs]:= Hfun _ Hvargs.

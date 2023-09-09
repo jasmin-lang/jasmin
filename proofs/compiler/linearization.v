@@ -337,7 +337,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
       | Some true => check_c check_i c >> check_c check_i c'
       | None => check_fexpr ii e >> check_c check_i c >> check_c check_i c'
       end
-    | Ccall _ xs fn es =>
+    | Ccall xs fn es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
         let e := f_extra fd in
@@ -626,7 +626,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       end
     end
 
-  | Ccall _ xs fn' es =>
+  | Ccall xs fn' es =>
     if get_fundef (p_funcs p) fn' is Some fd then
       let e := f_extra fd in
       let ra := sf_return_address e in
