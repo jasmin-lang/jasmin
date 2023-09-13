@@ -24,7 +24,7 @@ let pp_gen (fmt : Format.formatter) = function
   | `Label lbl ->
       Format.fprintf fmt "%s:" lbl
   | `Instr (s, []) ->
-      Format.fprintf fmt "\t%-*s" iwidth s
+      Format.fprintf fmt "\t%s" s
   | `Instr (s, args) ->
       Format.fprintf fmt "\t%-*s\t%s"
         iwidth s (String.join ", " args)
