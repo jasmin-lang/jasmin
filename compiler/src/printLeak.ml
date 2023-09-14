@@ -64,12 +64,11 @@ let pp_i tbl fmt =
   | LT_iopn es -> fprintf fmt "iopn(%a)" (pp_list ";" pp_e_tr) es
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_icond_eval (b, a) -> fprintf fmt "icond_eval(%a, %a)" pp_bool b (pp_list ";" pp_i) a
-  | LT_iwhile (a, b, c) -> fprintf fmt "iwhile(%a, %a, %a)" (pp_list ";" pp_i) a pp_e_tr b  (pp_list ";" pp_i) c
+  | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_ifor (a, b) -> fprintf fmt "ifor(%a, %a)" pp_e_tr a (pp_list ";" pp_i) b
   | LT_ifor_unroll (n, a) -> fprintf fmt "ifor_unroll(%a, %a)" pp_nat n (pp_list ";" pp_i) a
   | LT_icall (n, a, b) -> fprintf fmt "icall(%s, (%a), (%a))" (Conv.fun_of_cfun tbl n).Prog.fn_name (pp_list "," pp_e_tr) a (pp_list "," pp_e_tr) b
   | LT_icall_inline (a, n, i, r) -> fprintf fmt "icall_inline(%a, %s, %a, %a)" pp_nat a (Conv.fun_of_cfun tbl n).Prog.fn_name pp_nat i pp_nat r
-  | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_iremove -> p "iremove"
   in pp_i fmt
 

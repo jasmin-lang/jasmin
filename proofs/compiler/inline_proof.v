@@ -555,6 +555,7 @@ Section PROOF.
     have [Hwf''' [vm4 [Hwf4 Hvm4 Hsw]]]:= Hw _ _ _ _ _ Hi _ Hwf3 Hvm3.
     split. constructor. apply Hwf'. apply Hwf''. apply Hwf'''.
     exists vm4;split => //; apply sem_seq1;constructor.
+    rewrite cats0.
     case/semE: Hsw => si [] li0 [] lc'0 [] /sem_IE Hsw /semE [] h1' h2' ->; subst si.
     apply: (Ewhile_true Hsc1) Hsc2 Hsw.
     have /sem_pexpr_uincl_on : (evm s2) <=[read_e e] vm2.
@@ -574,6 +575,7 @@ Section PROOF.
     split. constructor. apply Hwf'.
     exists vm2;split=>//.
     + by apply: vm_uincl_onI Hvm2;rewrite /X3;SvD.fsetdec.
+    rewrite cats0.
     apply sem_seq1;constructor;apply Ewhile_false => //.
     have /sem_pexpr_uincl_on : svm2 <=[read_e e] vm2.
     + by apply: vm_uincl_onI Hvm2;rewrite /X3 read_i_while;SvD.fsetdec.
@@ -1015,7 +1017,7 @@ Section REMOVE_INIT.
     move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 H2;subst.
     have [vm3 [H4 Hvm3 ]]:= Hc' _ Hvm2 Hwf2.
     move=> /(Hw ii _ Hvm3)  [vm4 [Hsem ??]]; exists vm4;split => //=.
-    apply sem_seq1;constructor;eapply Ewhile_true;eauto; rewrite ?eq_glob //.
+    apply sem_seq1;constructor;eapply Ewhile_true;eauto; rewrite ?cats0 ?eq_glob //.
     by case/semE: Hsem=> si [] li [] lc'0 [] /sem_IE h /semE [] -> -> /= -> /=.
   Qed.
 
@@ -1024,7 +1026,10 @@ Section REMOVE_INIT.
     move=> s1 s2 a c e c' lc le Hsc Hc H ii vm1 Hvm1 Hwf; move: H.
     have [vm2 [Hs2 Hvm2 Hwf2]] := Hc _ Hvm1 Hwf.
     move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 ?;subst.
-    by exists vm2;split=> //=;apply sem_seq1;constructor;apply: Ewhile_false=> //;rewrite eq_glob H1.
+    exists vm2; split=> //=.
+    apply sem_seq1; constructor; apply: Ewhile_false=> //.
+    - by rewrite cats0.
+    by rewrite eq_glob H1.
   Qed.
 
   Local Lemma Rfor : sem_Ind_for p Pi_r Pfor.

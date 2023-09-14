@@ -742,7 +742,8 @@ Qed.
     move=> [Hwf''' [s4' [hs4 hw']]]. move=> h. split.
     constructor. apply Hwf. apply Hwf'. apply Hwf'''.
     exists s4';split => //.
-    apply sem_seq1; constructor; apply: Ewhile_true;eauto.
+    apply sem_seq1; constructor; apply: Ewhile_true; eauto.
+    + rewrite cats0; exact: hc1.
     by case/semE: hw' => s [] lk [] _ [] /sem_IE hw' /semE[] -> -> -> /=.
   Qed.
 
@@ -757,7 +758,8 @@ Qed.
     have /h1' [Hwf [s2' [hs2 hc1]]]: valid m3 s1 s1' by apply: valid_Mincl hval.
     split. constructor. apply Hwf.
     exists s2';split => //.
-    apply sem_seq1;constructor;apply: Ewhile_false => //.
+    apply sem_seq1;constructor;apply: Ewhile_false.
+    + by rewrite cats0.
     move: remove_glob_eP. move=> H. by move: (H m4 ii s2 s2' e e1 false hs2 le lte1 he1 he).
   Qed.
 
