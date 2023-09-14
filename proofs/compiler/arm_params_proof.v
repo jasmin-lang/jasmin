@@ -955,137 +955,80 @@ Definition arm_hloparams { dc : DirectCall } : h_lowering_params (ap_lop arm_par
 
 Section ASM_GEN.
 
-(* FIXME: the following line fixes type inference with Coq 8.16 *)
-Local Instance the_asm : asm _ _ _ _ _ _ := _.
+Import arch_sem.
 
-Lemma condt_of_rflagP rf r :
-  eval_cond (get_rf rf) (condt_of_rflag r) = to_bool (of_rbool (rf r)).
-Proof.
-  rewrite -get_rf_to_bool_of_rbool. by case: r.
-Qed.
+Let evalc xm c := eval_cond (get_typed_reg_value xm) c.
+Let evalf xm f := evalc xm (condt_of_rflag f).
 
-Lemma condt_notP rf c b :
-  eval_cond rf c = ok b
-  -> eval_cond rf (condt_not c) = ok (negb b).
-Proof.
-  case: c => /=.
+Lemma condt_notP get c b :
+  eval_cond get c = ok b
+  -> eval_cond get (condt_not c) = ok (negb b).
+Proof. case: c => /=; t_eval_cond. Qed.
 
-  (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
-     Rewrite all equalities, simplify and case all booleans. *)
-  all: t_xrbindP=> *.
-  all: subst=> /=.
-  all:
-    repeat
-      match goal with
-      | [ H : _ _ = ok _ |- _ ] => rewrite H {H} /=
-      end.
-  all:
-    by repeat
-      match goal with
-      | [ b : bool |- _ ] => case: b
-      end.
-Qed.
-
-Lemma condt_andP rf c0 c1 c b0 b1 :
+Lemma condt_andP get c0 c1 c b0 b1 :
   condt_and c0 c1 = Some c
-  -> eval_cond rf c0 = ok b0
-  -> eval_cond rf c1 = ok b1
-  -> eval_cond rf c = ok (b0 && b1).
+  -> eval_cond get c0 = ok b0
+  -> eval_cond get c1 = ok b1
+  -> eval_cond get c = ok (b0 && b1).
 Proof.
-  move: c0 c1 => [] [] //.
-  all: move=> [?]; subst c.
-  all: rewrite /eval_cond /=.
-
-  (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
-     Rewrite all equalities, simplify and case all booleans. *)
-  all: t_xrbindP=> *.
-  all: subst=> /=.
-  all:
-    repeat
-      match goal with
-      | [ H : _ _ = ok _ |- _ ] => rewrite H {H} /=
-      end.
-  all:
-    by repeat
-      match goal with
-      | [ b : bool |- _ ] => case: b
-      end.
+  case: c0 => //; case: c1 => // -[]; rewrite /= /arm.eval_cond; t_eval_cond.
 Qed.
 
-Lemma condt_orP rf c0 c1 c b0 b1 :
+Lemma condt_orP get c0 c1 c b0 b1 :
   condt_or c0 c1 = Some c
-  -> eval_cond rf c0 = ok b0
-  -> eval_cond rf c1 = ok b1
-  -> eval_cond rf c = ok (b0 || b1).
+  -> eval_cond get c0 = ok b0
+  -> eval_cond get c1 = ok b1
+  -> eval_cond get c = ok (b0 || b1).
 Proof.
-  move: c0 c1 => [] [] //.
-  all: move=> [?]; subst c.
-  all: rewrite /eval_cond /=.
-
-  (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
-     Rewrite all equalities, simplify and case all booleans. *)
-  all: t_xrbindP=> *.
-  all: subst=> /=.
-  all:
-    repeat
-      match goal with
-      | [ H : _ _ = ok _ |- _ ] => rewrite H {H} /=
-      end.
-  all:
-    by repeat
-      match goal with
-      | [ b : bool |- _ ] => case: b
-      end.
+  case: c0 => //; case: c1 => // -[]; rewrite /= /arm.eval_cond; t_eval_cond.
 Qed.
 
-Lemma eval_assemble_cond_Pvar ii m rf x r v :
-  eqflags m rf
-  -> of_var_e ii x = ok r
+Lemma condt_of_rflagP xm f :
+  evalf xm f = to_bool (of_rbool (asm_flag xm f)).
+Proof. by case: f. Qed.
+
+Lemma eval_assemble_cond_Pvar ii m xm x f v :
+  eqflags m (asm_flag xm)
+  -> of_var_e ii x = ok f
   -> get_var true (evm m) x = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
+       value_of_bool (evalf xm f) = ok v'
        & value_uincl v v'.
 Proof.
   move=> eqf hr hv.
   have hincl := xgetflag_ex eqf hr hv.
   clear ii x m eqf hr hv.
-
-  rewrite condt_of_rflagP.
-
-  eexists; last exact: hincl.
-  clear v hincl.
-  exact: value_of_bool_to_bool_of_rbool.
+  rewrite condt_of_rflagP value_of_bool_to_bool_of_rbool.
+  by eexists.
 Qed.
 
-Lemma eval_assemble_cond_Onot rf c v v0 v1 :
-  value_of_bool (eval_cond (get_rf rf) c) = ok v1
+Lemma eval_assemble_cond_Onot xm c v v0 v1 :
+  value_of_bool (evalc xm c) = ok v1
   -> value_uincl v0 v1
   -> sem_sop1 Onot v0 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) (condt_not c)) = ok v'
+       value_of_bool (evalc xm (condt_not c)) = ok v'
        & value_uincl v v'.
 Proof.
   move=> hv1 hincl.
   move=> /sem_sop1I /= [b hb ?]; subst v.
-
   have hc := value_uincl_to_bool_value_of_bool hincl hb hv1.
   clear v0 v1 hincl hb hv1.
-
-  change arm.eval_cond with eval_cond.
-  rewrite (condt_notP hc) {hc}.
+  rewrite /evalc (condt_notP hc).
   by eexists.
 Qed.
 
-Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
+Lemma eval_assemble_cond_Obeq ii m xm v x0 x1 r0 r1 v0 v1 :
   is_rflags_GE r0 r1 = true
-  -> eqflags m rf
+  -> eqflags m (asm_flag xm)
   -> of_var_e ii x0 = ok r0
   -> get_var true (evm m) x0 = ok v0
   -> of_var_e ii x1 = ok r1
   -> get_var true (evm m) x1 = ok v1
   -> sem_sop2 Obeq v0 v1 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
+       value_of_bool (evalc xm GE_ct) = ok v'
+       & value_uincl v v'.
 Proof.
   move=> hGE eqf hr0 hv0 hr1 hv1.
 
@@ -1102,23 +1045,22 @@ Proof.
   have ? := to_boolI hb1; subst v1.
   clear hb0 hb1.
 
-  move: r0 r1 hincl0 hincl1 hGE.
-  move=> [] [] // hincl0 hincl1 _.
-  all: rewrite 2!get_rf_to_bool_of_rbool.
-  all: rewrite (value_uinclE hincl0) {hincl0} /=.
-  all: rewrite (value_uinclE hincl1) {hincl1} /=.
-  all: by eexists.
+  rewrite /evalc /= /get_flag /=;
+  case: r0 hincl0 hGE => //;
+    case: r1 hincl1 => // /value_uinclE -> /value_uinclE ->;
+    by eexists.
 Qed.
 
-Lemma eval_assemble_cond_Oand rf c c0 c1 v v0 v1 v0' v1' :
+Lemma eval_assemble_cond_Oand xm c c0 c1 v v0 v1 v0' v1' :
   condt_and c0 c1 = Some c
-  -> value_of_bool (eval_cond (get_rf rf) c0) = ok v0'
+  -> value_of_bool (evalc xm c0) = ok v0'
   -> value_uincl v0 v0'
-  -> value_of_bool (eval_cond (get_rf rf) c1) = ok v1'
+  -> value_of_bool (evalc xm c1) = ok v1'
   -> value_uincl v1 v1'
   -> sem_sop2 Oand v0 v1 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+       value_of_bool (evalc xm c) = ok v'
+       & value_uincl v v'.
 Proof.
   move=> hand hv0' hincl0 hv1' hincl1.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
@@ -1131,20 +1073,20 @@ Proof.
   have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
   clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
 
-  change arm.eval_cond with eval_cond.
-  rewrite (condt_andP hand hc0 hc1) {hand hc0 hc1} /=.
+  rewrite /evalc (condt_andP hand hc0 hc1).
   by eexists.
 Qed.
 
-Lemma eval_assemble_cond_Oor rf c c0 c1 v v0 v1 v0' v1' :
+Lemma eval_assemble_cond_Oor xm c c0 c1 v v0 v1 v0' v1' :
   condt_or c0 c1 = Some c
-  -> value_of_bool (eval_cond (get_rf rf) c0) = ok v0'
+  -> value_of_bool (evalc xm c0) = ok v0'
   -> value_uincl v0 v0'
-  -> value_of_bool (eval_cond (get_rf rf) c1) = ok v1'
+  -> value_of_bool (evalc xm c1) = ok v1'
   -> value_uincl v1 v1'
   -> sem_sop2 Oor v0 v1 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+       value_of_bool (evalc xm c) = ok v'
+       & value_uincl v v'.
 Proof.
   move=> hor hv0' hincl0 hv1' hincl1.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
@@ -1157,19 +1099,13 @@ Proof.
   have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
   clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
 
-  change arm.eval_cond with eval_cond.
-  rewrite (condt_orP hor hc0 hc1) {hor hc0 hc1} /=.
+  rewrite /evalc (condt_orP hor hc0 hc1).
   by eexists.
 Qed.
 
-Lemma arm_eval_assemble_cond ii m rf e c v :
-  eqflags m rf
-  -> agp_assemble_cond arm_agparams ii e = ok c
-  -> sem_fexpr (evm m) e = ok v
-  -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+Lemma arm_eval_assemble_cond : assemble_cond_spec arm_agparams.
 Proof.
-  rewrite /=.
+  move=> ii m xm e c v.
   elim: e c v => [| x | op1 e hind | op2 e0 hind0 e1 hind1 |] //= c v eqf.
 
   - t_xrbindP=> r hr hc; subst c.
@@ -1207,9 +1143,6 @@ Proof.
   clear eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
   exact: (eval_assemble_cond_Oor hor hv0' hincl0 hv1' hincl1 hsem).
 Qed.
-
-(* TODO_ARM: Is there a way of avoiding importing here? *)
-Import arch_sem.
 
 Lemma arm_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops' :
   sem_rexprs m args = ok xs
