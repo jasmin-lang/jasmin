@@ -500,8 +500,8 @@ Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
   let im :=
     match sz with
-    | U8 => Zmod (wunsigned i) 9
-    | U16 => Zmod (wunsigned i) 17
+    | U8 => Z.modulo (wunsigned i) 9
+    | U16 => Z.modulo (wunsigned i) 17
     | _  => wunsigned i
     end in
   let r := mathcomp.word.word.t2w [tuple of cf::mathcomp.word.word.w2t v] in
@@ -516,8 +516,8 @@ Definition x86_RCR sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
   let i := wand i (x86_shift_mask sz) in
   let im :=
     match sz with
-    | U8 => Zmod (wunsigned i) 9
-    | U16 => Zmod (wunsigned i) 17
+    | U8 => Z.modulo (wunsigned i) 9
+    | U16 => Z.modulo (wunsigned i) 17
     | _  => wunsigned i
     end in
   let OF := if i == 1%R then Some (msb v != cf) else None in
