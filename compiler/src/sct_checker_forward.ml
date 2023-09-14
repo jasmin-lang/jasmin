@@ -194,7 +194,7 @@ let reg_expr ~direct loc e =
         (if direct then "" else " (ptr)")
 
 
-let rec infer_msf_i fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
+let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
   let loc = i.i_loc.L.base_loc in
 
   let check_x ms x =
@@ -212,19 +212,20 @@ let rec infer_msf_i fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
 
   match i.i_desc with
   | Csyscall _ ->
-      if not (Sv.is_empty ms) then
+      if not (Sv.is_empty ms) && withcheck then
         error ~loc "syscalls destroy msf variables, %a are required" pp_vset ms;
-      Sv.empty
+      (* withcheck => is_empty ms *)
+      ms
 
   | Cif (_, c1, c2) ->
-    let ms1 = infer_msf_c fenv tbl c1 ms in
-    let ms2 = infer_msf_c fenv tbl c2 ms in
+    let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
+    let ms2 = infer_msf_c ~withcheck fenv tbl c2 ms in
     Sv.union ms1 ms2
 
   | Cfor(x, _, c) ->
     check_x ms x;
     let rec loop ms =
-      let ms' = infer_msf_c fenv tbl c ms in
+      let ms' = infer_msf_c ~withcheck fenv tbl c ms in
       if Sv.subset ms' ms then (Hashtbl.add tbl i.i_loc ms'; ms')
       else loop (Sv.union ms' ms) in
     loop ms
@@ -232,8 +233,8 @@ let rec infer_msf_i fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
   | Cwhile (_, c1, _, c2) ->
     (* c1; while e do c2; c1 *)
     let rec loop ms =
-      let ms1 = infer_msf_c fenv tbl c1 ms in
-      let ms2 = infer_msf_c fenv tbl c2 ms1 in
+      let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
+      let ms2 = infer_msf_c ~withcheck fenv tbl c2 ms1 in
       if Sv.subset ms2 ms then (Hashtbl.add tbl i.i_loc ms1; ms1)
       else loop (Sv.union ms2 ms) in
     loop ms
@@ -252,7 +253,7 @@ let rec infer_msf_i fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         | IsMsf -> let x = reg_lval ~direct:true loc x in Sv.remove (L.unloc x) ms
         | _ -> ms in
       let ms = List.fold_left2 doout ms fty.tyout xs in
-      if fty.modmsf && not (Sv.is_empty ms) then
+      if fty.modmsf && not (Sv.is_empty ms) && withcheck then
         error ~loc "calls destroy msf variables, %a are required" pp_vset ms;
       ms in
     let doin ms vfty e =
@@ -294,8 +295,8 @@ let rec infer_msf_i fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
 
     | Other, xs, _ -> checks ms xs; ms
 
-and infer_msf_c fenv tbl c ms =
-  List.fold_right (infer_msf_i fenv tbl) c ms
+and infer_msf_c ~withcheck fenv tbl c ms =
+  List.fold_right (infer_msf_i ~withcheck fenv tbl) c ms
 
 
 (* --------------------------------------------------------- *)
@@ -1224,7 +1225,7 @@ let init_constraint fenv f =
 
   (* infer msf_oracle info *)
   let msfs =
-    infer_msf_c fenv (Env.get_msf_oracle env) f.f_body
+    infer_msf_c ~withcheck:true fenv (Env.get_msf_oracle env) f.f_body
       (List.fold_left2 (fun s x (msf, _) ->
            if Option.default false msf then Sv.add (L.unloc x) s else s)
          Sv.empty f.f_ret tyout) in
@@ -1410,7 +1411,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
 
     (* infer the set of input variables that need to be msf *)
     let msfin =
-      infer_msf_c fenv (Hashtbl.create 13) f.f_body
+      infer_msf_c ~withcheck:false fenv (Hashtbl.create 13) f.f_body
         (List.fold_left2 (fun s x msf ->
            if msf then Sv.add (L.unloc x) s else s)
          Sv.empty f.f_ret tyout)
