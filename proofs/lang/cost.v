@@ -1042,7 +1042,7 @@ Context (P: leak_i_tr → Prop)
         (Hcons         : ∀ lti lt, P lti -> Q lt -> Q (lti::lt))
         (Hikeep        : P LT_ikeep)
         (Hiopn         : ∀ ltes, P (LT_iopn ltes))
-        (Hicond        : ∀ lte lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icond lte lt1 lt2))
+        (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
         (Hiwhile       : ∀ lt1 lte lt2, Q lt1 -> Q lt2 -> P (LT_iwhile lt1 lte lt2))
         (Hifor         : ∀ lte lt, Q lt -> P (LT_ifor lte lt))
         (Hicall        : ∀ f lte1 lte2, P (LT_icall f lte1 lte2))
@@ -1050,7 +1050,6 @@ Context (P: leak_i_tr → Prop)
         (Hicond_eval   : ∀ b lt, Q lt -> P (LT_icond_eval b lt))
         (Hifor_unroll  : ∀ n lt, Q lt -> P (LT_ifor_unroll n lt)) 
         (Hicall_inline : ∀ nargs f ninit nres, P (LT_icall_inline nargs f ninit nres))
-        (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
         (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
 .
 
@@ -1068,8 +1067,8 @@ Context (P: leak_i_tr → Prop)
     | LT_ikeep   => Hikeep             
     | LT_iopn lte => Hiopn lte
 
-    | LT_icond lte lt1 lt2 => 
-      Hicond lte (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)        
+    | LT_icondl lei le lt1 lt2 =>
+      Hicondl lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
 
     | LT_iwhile lt1 lte lt2 => 
       Hiwhile lte (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)      
@@ -1081,9 +1080,6 @@ Context (P: leak_i_tr → Prop)
     | LT_ifor_unroll n lt  => Hifor_unroll n (leak_c_tr_ind_aux leak_i_tr_ind lt)
 
     | LT_icall_inline nargs f ninit nres => Hicall_inline  nargs f ninit nres
-
-    | LT_icondl lei le lt1 lt2 => 
-      Hicondl lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
 
     | LT_iwhilel lei le lt1 lt2 => 
       Hiwhilel lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
@@ -1143,12 +1139,13 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
   | LT_iopn ltes =>
     (Sm.empty, size ltes)
 
-  | LT_icond _ lt1 lt2 =>
-    (* sl: if e then c1 else c2  ---> tl: (if e' then c1' else c2'); *)
+    (* sl: if e then c1 else c2 ---> tl:b = e'; tl': if {b} then c1' else c2' *)
+  | LT_icondl lei lte lt1 lt2 =>
     let mn1 := enter_transform_cost_C transform_cost_I lt1 in
     let mn2 := enter_transform_cost_C transform_cost_I lt2 in
-    (Sm.merge (Sm.prefix pre_t0 (Sm.sprefix pre_t0 mn1.1)) 
-              (Sm.prefix pre_f0 (Sm.sprefix pre_f0 mn2.1)), 1)
+    (Sm.incr (size lei)
+       (Sm.merge (Sm.prefix pre_t0 (Sm.sprefix pre_t0 mn1.1))
+                 (Sm.prefix pre_f0 (Sm.sprefix pre_f0 mn2.1))), size lei + 1)
 
   | LT_iwhile lt1 _ lt2 =>
     let mn1 := enter_transform_cost_C transform_cost_I lt1 in
@@ -1180,15 +1177,6 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     let mf := Sm.incr (nargs + ninit) mf in
     (mf, nargs + ninit + mnf.2 + nres)
 
-    (* sl: if e then c1 else c2 ---> tl:b = e'; tl': if {b} then c1' else c2' *)
-    (* we can remove lei from the leak transformer because its LT_id *)
-  | LT_icondl lei lte lt1 lt2 => 
-    let mn1 := enter_transform_cost_C transform_cost_I lt1 in
-    let mn2 := enter_transform_cost_C transform_cost_I lt2 in
-    (Sm.incr (size lei)
-       (Sm.merge (Sm.prefix pre_t0 (Sm.sprefix pre_t0 mn1.1))
-                 (Sm.prefix pre_f0 (Sm.sprefix pre_f0 mn2.1))), size lei + 1)
-   
     (*sl : while c1 {e} c2 ---> tl: while c1'; b = e' {b} c2' *)
   | LT_iwhilel lei lte lt1 lt2 =>
     let mn1 := enter_transform_cost_C transform_cost_I lt1 in
@@ -1396,7 +1384,7 @@ Proof.
   + move=> lti lc hreci hrecc; apply bounded_merge.
     + apply: bounded_m_le hreci; apply leq_addr.
     by apply/bounded_incr/bounded_sincr.
-  + by move=> *; apply bounded_merge; apply bounded_prefix.
+  + by move=> *; apply/bounded_incr/bounded_merge; apply bounded_prefix.
   + by move=> *; apply bounded_merge; apply bounded_prefix.
   + by move=> *; apply bounded_prefix.
   + by move=> *; apply bounded_prefix.
@@ -1406,10 +1394,9 @@ Proof.
     by apply/bounded_sprefix; apply: bounded_m_le hrec; apply leq_addr.
   + move=> na f ni nr; rewrite -addnA; apply/bounded_incr/bounded_sprefix.
     by apply/bounded_m_le/hrec_bounded; apply leq_addr.
-  + by move=> *; apply/bounded_incr/bounded_merge; apply bounded_prefix.
   by move=> *; apply bounded_merge; apply bounded_prefix.
 Qed.
-     
+
 Lemma sbounded_transform:
   (forall lt, sbounded_m (transform_cost_I lt).1 1) /\
   (forall lt, sbounded_m (transform_cost_C lt).1 (size lt)).
@@ -1418,7 +1405,7 @@ Proof.
   + move=> lti lt hreci hrec; apply sbounded_merge.
     + by apply/sbounded_m_le/hreci.
     by rewrite -(add1n (size _)); apply/sbounded_incr/sbounded_sincr.
-  + by move=> *; apply sbounded_merge; apply/sbounded_prefix/sbounded_sprefix.
+  + by move=> *;apply/sbounded_incr/sbounded_merge;apply/sbounded_prefix/sbounded_sprefix.
   + by move=> *; apply sbounded_merge; apply/sbounded_prefix/sbounded_sprefix.
   + by move=> *; apply/sbounded_prefix/sbounded_sprefix.
   + by move=> *; apply/sbounded_prefix/sbounded_sprefix.
@@ -1428,7 +1415,6 @@ Proof.
     + by apply/sbounded_sprefix.
     by apply/sbounded_incr.
   + by move=> *;apply/sbounded_incr/sbounded_sprefix.
-  + by move=> *;apply/sbounded_incr/sbounded_merge;apply/sbounded_prefix/sbounded_sprefix.
   by move=>*; apply/sbounded_merge;apply/sbounded_prefix/sbounded_sprefix.
 Qed.
 
@@ -1531,11 +1517,11 @@ Proof.
           size (flatten [seq leak_assgn :: l0 | l0 <- leak_Iss (leak_I ftr) w lt lcs]) =
             (transform_cost_C_unroll transform_cost_I lt (size lcs)).2)) => {lt lc} //=.
   + move => ??; exact: size_map.
+  + by move => *; rewrite size_cat /= leak_EI_sizeE.
+  + by move => *; rewrite size_cat /= leak_EI_sizeE.
   + by case.
   + move => ninit les f lts les' _ hrec /=.
     by rewrite !size_cat !size_map size_nseq hrec !addnA hrec_fun.
-  + by move=> lei lte lt _ le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
-  + by move=> ltei lte _ lt le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move=> li lc lti ltc _ hreci _ hrec; rewrite /leak_Is /= size_cat hreci hrec.
   by move=> lc lcs lt _ hrec _ hrecn; rewrite size_cat hrec hrecn.
 Qed.
@@ -1595,12 +1581,20 @@ Proof.
       => {lt lc} //.
   + move => le ltes; elim: ltes path0 => //= lt ltes ih path /=; rewrite merge0c.
     exact: ih.
-  + move=> lte ltt ltf le lci _ hrec /=.
-    rewrite mergec0 Sm.interp_merge; auto with disjoint.
-    by apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix mergec0.
-  + move=> lte ltt ltf le lci _ hrec /=.
-    rewrite mergec0 Sm.interp_merge; auto with disjoint.
-    by apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix merge0c.
+  + move=> ltei lte ltt ltf le lc _ hrec /=.
+    rewrite cost_C_cat cost_C_Lopn /=; last exact: is_lopns_leak_EI.
+    rewrite add0n merge0c mergec0 Sm.interp_incr Sm.interp_merge; auto with disjoint.
+    apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix mergec0 leak_EI_sizeE.
+    rewrite enter_cost_c_pre (enter_cost_c_pre (bpath_b true path0)).
+    rewrite !Sm.interp_prefix !interp_prefix_cost.
+    by rewrite (incr_prefix_cost _ [::] (LblB true,0)) /= addn0.
+  + move=> ltei lte ltt ltf le lc _ hrec /=.
+    rewrite cost_C_cat cost_C_Lopn /=; last exact: is_lopns_leak_EI.
+    rewrite add0n merge0c mergec0 Sm.interp_incr Sm.interp_merge; auto with disjoint.
+    apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix merge0c leak_EI_sizeE.
+    rewrite enter_cost_c_pre (enter_cost_c_pre (bpath_b false path0)).
+    rewrite !Sm.interp_prefix !interp_prefix_cost.
+    by rewrite (incr_prefix_cost _ [::] (LblB false,0)) /= addn0.
   + move=> ltis lte ltis' lts le lts' lw _ hrec1 _ hrec2 /WF_leak_while -/(_ w) -> /=.
     rewrite !mergec0 => hrec3; rewrite Sm.interp_merge; auto with disjoint.
     rewrite Sm.interp_merge_c mergeA.
@@ -1645,20 +1639,6 @@ Proof.
       last by rewrite /is_lopns all_map all_predT.
     rewrite merge0c Sm.interp_incr cost_prefix_incr /= prefix0_cost.
     by setoid_rewrite hrec_fun; rewrite enter_skip_ok; setoid_rewrite hrec.
-  + move=> ltei lte ltt ltf le lc _ hrec /=.
-    rewrite cost_C_cat cost_C_Lopn /=; last exact: is_lopns_leak_EI.
-    rewrite add0n merge0c mergec0 Sm.interp_incr Sm.interp_merge; auto with disjoint.
-    apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix mergec0 leak_EI_sizeE.
-    rewrite enter_cost_c_pre (enter_cost_c_pre (bpath_b true path0)).
-    rewrite !Sm.interp_prefix !interp_prefix_cost.
-    by rewrite (incr_prefix_cost _ [::] (LblB true,0)) /= addn0.
-  + move=> ltei lte ltt ltf le lc _ hrec /=.
-    rewrite cost_C_cat cost_C_Lopn /=; last exact: is_lopns_leak_EI.
-    rewrite add0n merge0c mergec0 Sm.interp_incr Sm.interp_merge; auto with disjoint.
-    apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix merge0c leak_EI_sizeE.
-    rewrite enter_cost_c_pre (enter_cost_c_pre (bpath_b false path0)).
-    rewrite !Sm.interp_prefix !interp_prefix_cost.
-    by rewrite (incr_prefix_cost _ [::] (LblB false,0)) /= addn0.
   + move=> ltei lte lt1 lt2 lc1 le lc2 li _ hrec1 _ hrec2 /WF_leak_whilel -/(_ w) -> /=.
     rewrite !mergec0 => hreci.
     rewrite Sm.interp_merge_c; apply merge_cost_leq.
@@ -1709,8 +1689,8 @@ Definition is_Some (A:Type) (o:option A) :=
   if o is Some _ then true else false.
 
 Fixpoint wf_lti (lF : list (funname * leak_c_tr)) (lt:leak_i_tr) : bool :=
-  match lt with 
-  | LT_icond _ lt1 lt2 | LT_iwhile lt1 _ lt2 | LT_icondl _ _ lt1 lt2 | LT_iwhilel _ _ lt1 lt2 =>
+  match lt with
+  | LT_iwhile lt1 _ lt2 | LT_icondl _ _ lt1 lt2 | LT_iwhilel _ _ lt1 lt2 =>
     all (wf_lti lF) lt1 && all (wf_lti lF) lt2
 
   | LT_ifor _ lt | LT_icond_eval _ lt | LT_ifor_unroll _ lt =>
@@ -1743,14 +1723,13 @@ Proof.
     (Q := fun lt => all (wf_lti lF) lt ->  
       transform_cost_C (transform_cost_I tcf1) lt = transform_cost_C (transform_cost_I tcf2) lt)) => //= {lt}.
   + by move=> ?? h1 h2 /andP [] /h1 -> /h2 ->.
-  + by move=> _ ?? h1 h2 /andP [] /h1 -> /h2 ->.
+  + by move=> ? _ ?? h1 h2 /andP [] /h1 -> /h2 ->.
   + by move=> ? _ ? h1 h2 /andP [] /h1 -> /h2 ->.
   + by move=> _ ? h /h ->.
   + by move=> ? _ _ /tcf_eq ->.
   + by move=> ?? h /h ->.
   + by move=> n lt h /h{h}hrec; elim: n => //= n ->; rewrite hrec.
   + by move=> ???? /tcf_eq ->.
-  + by move=> ? _ ?? h1 h2 /andP [] /h1 -> /h2 ->.
   by move=> _ _ ?? h1 h2 /andP [] /h1 -> /h2 ->.
 Qed.
 
@@ -1768,11 +1747,10 @@ Proof.
     (P := fun lt => wf_lti lF1 lt -> wf_lti lF2 lt)
     (Q := fun lt => all (wf_lti lF1) lt -> all (wf_lti lF2) lt)) => {lt} //=.
   + by move=> ?? hreci hrec /andP[] /hreci -> /hrec ->.
-  + by move=> ??? h1 h2 /andP[] /h1 -> /h2 ->.
+  + by move=> ???? h1 h2 /andP[] /h1 -> /h2 ->.
   + by move=> ??? h1 h2 /andP[] /h1 -> /h2 ->.
   + by move=> ???; apply hlF.
   + by move=> ????; apply hlF.
-  + by move=> ???? h1 h2 /andP[] /h1 -> /h2 ->.
   by move=> ???? h1 h2 /andP[] /h1 -> /h2 ->.
 Qed.
 

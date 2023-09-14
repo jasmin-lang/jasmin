@@ -62,7 +62,7 @@ let pp_i tbl fmt =
   | LT_ikeep -> p "ikeep"
   | LT_iopn [ LT_map [ lhs ; rhs ] ] -> fprintf fmt "%a := %a" pp_e_tr rhs pp_e_tr lhs
   | LT_iopn es -> fprintf fmt "iopn(%a)" (pp_list ";" pp_e_tr) es
-  | LT_icond (b, t, e) -> fprintf fmt "icond(%a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) t (pp_list ";" pp_i) e
+  | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_icond_eval (b, a) -> fprintf fmt "icond_eval(%a, %a)" pp_bool b (pp_list ";" pp_i) a
   | LT_iwhile (a, b, c) -> fprintf fmt "iwhile(%a, %a, %a)" (pp_list ";" pp_i) a pp_e_tr b  (pp_list ";" pp_i) c
   | LT_ifor (a, b) -> fprintf fmt "ifor(%a, %a)" pp_e_tr a (pp_list ";" pp_i) b
@@ -71,7 +71,6 @@ let pp_i tbl fmt =
   | LT_icall_inline (a, n, i, r) -> fprintf fmt "icall_inline(%a, %s, %a, %a)" pp_nat a (Conv.fun_of_cfun tbl n).Prog.fn_name pp_nat i pp_nat r
   | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_iremove -> p "iremove"
-  | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   in pp_i fmt
 
 let pp_funs pp_one tbl fmt =
