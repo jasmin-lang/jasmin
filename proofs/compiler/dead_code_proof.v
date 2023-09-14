@@ -364,6 +364,7 @@ Section PROOF.
     have /= := Hw ii sv0;rewrite Hloop /= => /(_ Hwf3 _ Hvm3'1) [vm4' [Hvm4'1 /semE Hvm4'2]].
     exists vm4';split => //.
     case: Hvm4'2 => si [] li [] lc0' [/sem_IE Hvm4'2 /semE Hq] Hf. subst.
+    rewrite cats0.
     apply sem_seq1;constructor.
     apply Ewhile_true with {| emem := emem s2; evm := vm2' |} {| emem := emem s3; evm := vm3' |}.
     by case: x => <- _.
@@ -389,6 +390,7 @@ Section PROOF.
     exists vm2';split.
     + apply: eq_onI Hvm2'1;rewrite /sv4 read_eE;SvD.fsetdec.
     apply sem_seq1;constructor. constructor.
+    rewrite cats0.
     case: Ha => _ <- _. by case: x => <- _.
     have Hvm': vm2' =[read_e_rec sv0 e] (evm s2).
     + by apply: eq_onS; apply: eq_onI Hvm2'1;rewrite /sv4 !read_eE; SvD.fsetdec.

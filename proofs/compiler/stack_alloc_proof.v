@@ -1074,6 +1074,7 @@ Section PROOF.
      LT_iwhile (unzip2 c1') lte' (unzip2 c2'))). + auto.
     move=> {H} H. move: (H (Heq _)). move=> [] s3' [] Hsem Hv'.
     exists s3'; split=> //.
+    rewrite cats0.
     apply: S.sem_seq1; apply: S.EmkI; apply: S.Ewhile_true; eauto.
     + have [v' [-> ]]:= alloc_eP Hvalid' he Hv.
       by move=> /value_uincl_bool /= -/(_ _ erefl) [_ ->].
@@ -1088,6 +1089,7 @@ Section PROOF.
     have [s2' [Hsem' Hvalid']]:= Hc _ hc1 _ hs1.
     have [v' [] he' hv']:= alloc_eP Hvalid' he Hv.
     exists s2'; split=> //.
+    rewrite cats0.
     apply: S.sem_seq1; apply: S.EmkI; apply: S.Ewhile_false; eauto; last first.
     + move: value_uincl_bool. move=> Hb. move: (Hb false v' false hv'). rewrite /=.
       move=> []. auto. by move=> Hf <-.

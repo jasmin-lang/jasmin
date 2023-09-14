@@ -2172,6 +2172,7 @@ Section PROOF.
     move: (hvm2)=> /Hc0' [] vm3 [] hs23 /Hrec [] vm4 [] hs34 hvm4.
     exists vm4; split => //.
     apply:sem_seq1;constructor.
+    rewrite cats0.
     apply Ewhile_true with {| emem := emem s2; evm := vm2 |} {| emem := emem s3; evm := vm3 |} => //. 
     + have := const_prop_eP stk Hm'' He.
       rewrite -heq1 heq => -[] v' [] hv' /value_uincl_bool1 ?; subst v'.
@@ -2208,6 +2209,7 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     case: v' Hv' => // b' Hv' Hvv. rewrite -Hvv in Hv'.
     move=> {Hvv} {b'}. rewrite heq in Hv'.
     case:is_boolP Hv' => [ ?[->] //| e0 /= He0]. auto.
+    rewrite cats0.
     apply: sem_seq1;constructor;apply: Ewhile_false => //.
     have /(_ LO) Hee := sem_pexpr_uincl.
     move: (Hee gd s2 vm2 e0 (Vbool false) (leak_E stk le' le) h He0).

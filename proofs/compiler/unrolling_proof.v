@@ -89,7 +89,8 @@ Section PROOF.
   Proof.
     move=> s1 s2 s3 s4 a c e c' lc le lc' li Hsc Hc Hb Hsc' Hc' Hsi Hi ii /=.
     apply: sem_seq1; apply: EmkI; apply: Ewhile_true=> //; eauto=> /=.
-    replace (p_globs p') with gd. auto. by rewrite p'_def.
+    * by rewrite cats0.
+    by replace (p_globs p') with gd by by rewrite p'_def.
     rewrite /Pi_r in Hi. rewrite /Pc in Hc'.
     move: Hi. move=> /(_ ii) /= /semE [] s [] li' [] lc'' [] /= /sem_IE Hi /semE [] -> -> Hl /=.
     by rewrite Hl /=.
@@ -99,7 +100,8 @@ Section PROOF.
   Proof.
    move=> s1 s2 a c e c' lc le Hsc Hc Hb ii /=.
    apply: sem_seq1; apply: EmkI; apply: Ewhile_false.
-   by rewrite /Pc in Hc. replace (p_globs p') with gd. auto. by rewrite p'_def.
+   * by rewrite cats0.
+   replace (p_globs p') with gd. auto. by rewrite p'_def.
   Qed.
 
   Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.

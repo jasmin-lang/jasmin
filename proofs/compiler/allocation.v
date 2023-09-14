@@ -432,7 +432,8 @@ Section PROOF.
       rewrite hi' /=. auto. move=> Hw'. rewrite /Pi_r in Hw.
     move: (Hw ii r1' (Cwhile a2 c2 e1 c2') re (LT_iwhile ltci lte' ltci') vm3 Hvm4 Hw').
     move=> [] vm4 [] Hvm5 /= Hc1''. exists vm4. split=> //. apply sem_seq1. econstructor.
-    econstructor. rewrite hl in Hc1. apply Hc1.
+    econstructor. rewrite hl in Hc1.
+    rewrite cats0; exact: Hc1.
     move: (He' sm2 true le Hse). move=> {He'} [] v [] Hse' /value_uincl_bool1.
     move=> <- /=. rewrite -hl1. by replace (p_globs p2) with gd.
     rewrite hl2 in Hc1'. apply Hc1'. rewrite hl hl1 hl2 /= in Hc1''. inversion Hc1''. subst.
@@ -454,7 +455,8 @@ Section PROOF.
     move=> [] vm2 [] Hvm2 /= Hc1 {Hc}.
     move: (@check_eP LO). move=> Hce. move: (Hce gd e e1 ri re lte' svm2 vm2 stk He Hvm2). 
     move=> {Hce} [] Hvme He'. exists vm2.
-    split=> //. apply sem_seq1. constructor. econstructor. rewrite hl in Hc1. auto.
+    split=> //. apply sem_seq1. constructor. econstructor. rewrite hl in Hc1.
+    by rewrite cats0.
     move: (He' sm2 false le Hse). move=> {He'} [] v [] Hse' /value_uincl_bool1.
     move=> <- /=. replace (p_globs p2) with gd. by rewrite -hl1.
   Qed.
@@ -1057,7 +1059,7 @@ Proof.
    rewrite Hm'. by move=>//. 
  move=> Hw. rewrite /Pc in Hsc.
  rewrite /check_cmd in Hsc. move: (Hsc ii c1 r3 (r1', ltr1') Hc1). move=> /= ->.
- rewrite /Pc in Hsc'. rewrite /check_cmd in Hsc'. 
+ rewrite /Pc in Hsc'. rewrite /check_cmd in Hsc'. rewrite cats0.
  move: (Hsc' ii c2 r2' (r3', lt3') Hc2). move=> /= ->. move: he. move=> /check_eP_id he. 
  move: (he stk le). move=> -> /=. move: (Hi' ii (Cwhile a' c1 e' c2) r3 (r2', LT_iwhile ltr1' ltr2' lt3') Hw).
  by move=> -> /=.
@@ -1073,7 +1075,7 @@ Proof.
  move=> He [ri' ltci'] Hi' /= <- <- /= <- <- <- h h' h'' <-.
  move: He. move=> /check_eP_id He. move: (He stk le). move=> ->.
  rewrite /Pc in Hc. rewrite /check_cmd in Hc. move: (Hc ii c2 r1' (ri, ltci) Hi).
- by move=> ->.
+ by rewrite cats0 => ->.
 Qed.
 
 Local Lemma Ifor : sem_Ind_for p Pi_r Pfor.
