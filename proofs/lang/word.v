@@ -22,7 +22,7 @@ Local Open Scope Z_scope.
 
 (* -------------------------------------------------------------- *)
 Ltac elim_div :=
-   unfold Z.div, Zmod;
+   unfold Z.div, Z.modulo;
      match goal with
        |  H : context[ Z.div_eucl ?X ?Y ] |-  _ =>
           generalize (Z_div_mod_full X Y) ; case: (Z.div_eucl X Y)
