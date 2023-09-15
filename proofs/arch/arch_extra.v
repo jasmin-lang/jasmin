@@ -103,11 +103,14 @@ End ARCH.
  * replace by real asm instructions during the asmgen pass.
  *)
 Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
-  { _asm   :> asm reg regx xreg rflag cond asm_op
-  ; _extra :> asmOp extra_op (* description of extra ops *)
+  { _asm   : asm reg regx xreg rflag cond asm_op
+  ; _extra : asmOp extra_op (* description of extra ops *)
   ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
       (* how to compile extra ops into asm op *)
   }.
+
+#[global]
+Existing Instances _asm _extra.
 
 Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
 

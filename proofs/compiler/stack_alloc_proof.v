@@ -346,7 +346,7 @@ Class valid_state (rmap : region_map) (m0 : mem) (s1 s2 : estate) := {
   vs_eq_vm       : eq_vm s1.(evm) s2.(evm);
     (* registers already present in the source program store the same values
        in the source and in the target *)
-  vs_wf_region   :> wf_rmap rmap s1 s2;
+  vs_wf_region   : wf_rmap rmap s1 s2;
     (* cf. [wf_rmap) definition *)
   vs_eq_mem      : eq_mem_source s1.(emem) s2.(emem);
     (* the memory that is already valid in the source is the same in the target *)
@@ -355,6 +355,8 @@ Class valid_state (rmap : region_map) (m0 : mem) (s1 s2 : estate) := {
   vs_top_stack   : rsp = top_stack (emem s2);
     (* [rsp] is the stack pointer, it points to the top of the stack *)
 }.
+
+Existing Instance vs_wf_region.
 
 (* We extend some predicates with the global case. *)
 (* -------------------------------------------------------------------------- *)

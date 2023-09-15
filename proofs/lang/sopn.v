@@ -57,10 +57,13 @@ Variant prim_constructor (asm_op:Type) :=
   .
 
 Class asmOp (asm_op : Type) := {
-  _eqT           :> eqTypeC asm_op
+  _eqT           : eqTypeC asm_op
   ; asm_op_instr : asm_op -> instruction_desc
   ; prim_string   : list (string * prim_constructor asm_op)
 }.
+
+#[global]
+Existing Instance _eqT.
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 
