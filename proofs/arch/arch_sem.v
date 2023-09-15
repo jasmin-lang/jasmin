@@ -130,13 +130,23 @@ Notation asm_result := (result error asmmem).
 Notation asm_result_state := (result error asm_state).
 
 (* -------------------------------------------------------------------- *)
+
 Definition st_get_rflag (s : asmmem) (rf : rflag_t) :=
   if s.(asm_flag) rf is Def b then ok b else undef_error.
 
-(* -------------------------------------------------------------------- *)
+Definition of_rbool (v : rflagv) : value :=
+  if v is Def b then Vbool b else undef_b.
+
+Definition get_typed_reg_value (xm : asmmem) (tr : asm_typed_reg) : value :=
+  match tr with
+  | ARReg r => Vword (asm_reg xm r)
+  | ARegX rx => Vword (asm_regx xm rx)
+  | AXReg xr => Vword (asm_xreg xm xr)
+  | ABReg f => of_rbool (asm_flag xm f)
+  end.
 
 Definition eval_cond_mem (s : asmmem) (c : cond_t) :=
-  eval_cond (st_get_rflag s) c.
+  eval_cond (get_typed_reg_value s) c.
 
 (* -------------------------------------------------------------------- *)
 Definition st_write_ip (ip : nat) (s : asm_state) :=
