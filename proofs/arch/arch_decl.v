@@ -10,12 +10,15 @@ Unset Printing Implicit Defensive.
 (* ==================================================================== *)
 Class ToString (t:stype) (T:Type) := 
   { category      : string          (* name of the "register" used to print error *) 
-  ; _finC         :> finTypeC T
+  ; _finC         : finTypeC T
   ; to_string     : T -> string
   ; strings       : list (string * T)
   ; inj_to_string : injective to_string
   ; stringsE      : strings = [seq (to_string x, x) | x <- enum cfinT_finType]
   }.
+
+#[global]
+Existing Instance _finC.
 
 Definition rtype {t T} `{ToString t T} := t.
 
@@ -24,12 +27,16 @@ Definition rtype {t T} `{ToString t T} := t.
 Class arch_decl (reg xreg rflag cond : Type) := 
   { reg_size  : wsize (* [reg_size] is also used as the size of pointers *)
   ; xreg_size : wsize
-  ; cond_eqC  :> eqTypeC cond
-  ; toS_r     :> ToString (sword reg_size) reg
-  ; toS_x     :> ToString (sword xreg_size) xreg
-  ; toS_f     :> ToString sbool rflag
+  ; cond_eqC  : eqTypeC cond
+  ; toS_r     : ToString (sword reg_size) reg
+  ; toS_x     : ToString (sword xreg_size) xreg
+  ; toS_f     : ToString sbool rflag
 }.
 
+#[global]
+Existing Instances cond_eqC toS_r toS_x toS_f.
+
+#[global]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
 
 (* FIXME ARM : Try to not use this projection *)
@@ -315,9 +322,12 @@ Variant prim_constructor (asm_op:Type) :=
   .
 
 Class asm_op_decl (asm_op : Type) := 
-  { _eqT          :> eqTypeC asm_op
+  { _eqT          : eqTypeC asm_op
   ; instr_desc_op : asm_op -> instr_desc_t
   ; prim_string   : list (string * prim_constructor asm_op) }.
+
+#[global]
+Existing Instance _eqT.
 
 Definition asm_op_t' {asm_op} {asm_op_d : asm_op_decl asm_op} := asm_op.
 (* We extend [asm_op] in order to deal with msb flags *)
@@ -482,8 +492,11 @@ Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
 Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
 Class asm (reg xreg rflag cond asm_op: Type) :=
-  { _arch_decl   :> arch_decl reg xreg rflag cond
-  ; _asm_op_decl :> asm_op_decl asm_op
+  { _arch_decl   : arch_decl reg xreg rflag cond
+  ; _asm_op_decl : asm_op_decl asm_op
   ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool
   ; stack_pointer_register : reg_t
   }.
+
+#[global]
+Existing Instances _arch_decl _asm_op_decl.

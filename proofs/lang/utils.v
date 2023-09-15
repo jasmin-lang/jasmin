@@ -50,11 +50,14 @@ Notation "x == y ::> T" := (eq_op (T:= @ceqT_eqType T _) x y)
 Notation "x == y ::>" := (eq_op (T:= @ceqT_eqType _ _) x y)
   (at level 70, y at next level) : bool_scope.
 
-Class finTypeC (T:Type) := 
-  { _eqC   :> eqTypeC T
+Class finTypeC (T:Type) :=
+  { _eqC   : eqTypeC T
   ; cenum  : seq T
   ; cenumP : @Finite.axiom ceqT_eqType cenum
   }.
+
+#[global]
+Existing Instance _eqC.
 
 Section FinType.
 
