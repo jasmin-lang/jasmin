@@ -159,12 +159,15 @@ Section ARCH.
 Context `{arch : arch_decl}.
 
 Class arch_toIdent :=
-  { toI_r  :> ToIdent reg
-  ; toI_rx :> ToIdent regx
-  ; toI_x  :> ToIdent xreg
-  ; toI_f  :> ToIdent rflag
+  { toI_r  : ToIdent reg
+  ; toI_rx : ToIdent regx
+  ; toI_x  : ToIdent xreg
+  ; toI_f  : ToIdent rflag
   ; inj_toI_reg_regx : forall (r:reg) (rx:regx), to_ident r <> to_ident rx
   }.
+
+#[global]
+Existing Instances toI_r toI_rx toI_x toI_f.
 
 End ARCH.
 
@@ -255,12 +258,15 @@ End ARCH.
  * replace by real asm instructions during the asmgen pass.
  *)
 Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
-  { _asm   :> asm reg regx xreg rflag cond asm_op
-  ; _atoI  :> arch_toIdent
-  ; _extra :> asmOp extra_op (* description of extra ops *)
+  { _asm   : asm reg regx xreg rflag cond asm_op
+  ; _atoI  : arch_toIdent
+  ; _extra : asmOp extra_op (* description of extra ops *)
   ; to_asm : instr_info -> extra_op -> lexprs -> rexprs -> cexec (asm_op_msb_t * lexprs * rexprs)
       (* how to compile extra ops into asm op *)
   }.
+
+#[global]
+Existing Instances _asm _atoI _extra.
 
 Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
 

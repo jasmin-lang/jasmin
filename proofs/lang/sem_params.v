@@ -21,16 +21,22 @@ Require Import
    [syscall_state] as a parameter instead of a record field. *)
 Class EstateParams (syscall_state : Type) := mk_ep
   {
-    _pd :> PointerData | 1000;
+    _pd : PointerData;
   }.
+
+#[global]
+Existing Instances _pd | 1000.
 
 Arguments mk_ep {_ _}.
 
 (* Parameters needed to evaluate expressions. *)
 Class SemPexprParams := mk_spp
   {
-    _fcp :> FlagCombinationParams | 1000;
+    _fcp : FlagCombinationParams;
   }.
+
+#[global]
+Existing Instance _fcp | 1000.
 
 Arguments mk_spp {_}.
 
@@ -40,8 +46,11 @@ Arguments mk_spp {_}.
    [syscall_state] are parameters instead of record fields. *)
 Class SemInstrParams (asm_op syscall_state : Type) := mk_sip
   {
-    _asmop :> asmOp asm_op | 1000;
-    _sc_sem :> syscall_sem syscall_state | 1000;
+    _asmop : asmOp asm_op;
+    _sc_sem : syscall_sem syscall_state;
   }.
+
+#[global]
+Existing Instances _asmop _sc_sem | 1000.
 
 Arguments mk_sip {_ _ _ _}.
