@@ -1011,8 +1011,11 @@ module Leak = struct
     let id = Sopn.get_instr_desc pd asmOp opn in
     List.pmap (fun c ->
         match c with
-        | Wsize.NotZero(sz, i) ->
-          Some (NotZero(sz, List.nth es (Conv.int_of_nat i)))
+        | Wsize.X86Division(sz, sg) ->
+          Some (NotZero(sz, List.nth es 2))
+        (* FIXME: there are more properties to check *)
+        | Wsize.InRange _ -> None
+        (* FIXME: there are properties to check *)
         | Wsize.AllInit (ws, p, i) ->
           let e = List.nth es (Conv.int_of_nat i) in
           let y = match e with Pvar y -> y | _ -> assert false in

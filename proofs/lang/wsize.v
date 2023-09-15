@@ -198,7 +198,7 @@ Variant v_kind :=
 
 (* -------------------------------------------------------------------- *)
 Variant safe_cond :=
-  | NotZero of wsize & nat  (* the nth argument of size sz is not zero *)
+  | X86Division of wsize & signedness (* this is a division instruction, two words by one word; result must fit in an single word *)
   | InRange of wsize & Z & Z & nat (* the nth argument must be in the given range *)
   | AllInit of wsize & positive & nat.         (* the nth argument of is an array ws[p] where all ceil are initialized *)
 

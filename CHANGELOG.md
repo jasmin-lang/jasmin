@@ -43,6 +43,10 @@
   ([PR #550](https://github.com/jasmin-lang/jasmin/pull/550);
   fixes [#499](https://github.com/jasmin-lang/jasmin/pull/499)).
 
+- Improve the safety checking for `(I)DIV` x86 instructions
+  ([PR #574](https://github.com/jasmin-lang/jasmin/pull/574);
+  fixes [#561](https://github.com/jasmin-lang/jasmin/issues/561)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
