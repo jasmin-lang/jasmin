@@ -219,12 +219,15 @@ Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
  *)
 Variant implicit_arg : Type :=
 | IArflag of rflag_t  (* Implicit flag. *)
-| IAreg   of reg_t.   (* Implicit register. *)
+| IAreg   of reg_t    (* Implicit register. *)
+| IAxreg  of xreg_t   (* Implicit extra register. *)
+.
 
 Definition implicit_arg_beq (i1 i2 : implicit_arg) :=
   match i1, i2 with
   | IArflag f1, IArflag f2 => f1 == f2 ::>
   | IAreg r1, IAreg r2 => r1 == r2 ::>
+  | IAxreg xr1, IAxreg xr2 => xr1 == xr2 ::>
   | _, _ => false
   end.
 
