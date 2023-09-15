@@ -206,7 +206,7 @@ Proof.
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
   apply: compose_pass.
   - by move => vr'; exact: (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
-  apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
+  apply: compose_pass_uincl'; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
   apply: compose_pass_uincl.
   - by move=> vr'; apply:(array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl).
