@@ -102,7 +102,7 @@ type safe_cond =
       
   | Initai  of arr_slice
   | InBound of int * arr_slice
-  | InRange of Z.t * Z.t * expr
+  | InRange of expr * expr * expr (* InRange a b c ≡ c ∈ [a; b] *)
 
   | Valid       of wsize * var * expr (* allocated memory region *)
   | AlignedPtr  of wsize * var * expr (* aligned pointer *)                   
@@ -147,7 +147,7 @@ let pp_safety_cond fmt = function
       pp_arr_slice slice
       
   | NotZero(sz,e) -> Format.fprintf fmt "%a <>%a zero" pp_expr e pp_ws sz
-  | InRange(lo, hi, e) -> Format.fprintf fmt "%a ∈ [%a; %a]" pp_expr e Z.pp_print lo Z.pp_print hi
+  | InRange(lo, hi, e) -> Format.fprintf fmt "%a ∈ [%a; %a]" pp_expr e pp_expr lo pp_expr hi
   | InBound(n,slice)  ->
     Format.fprintf fmt "in_bound: %a (length %i U8)"      
       pp_arr_slice slice n
@@ -334,6 +334,27 @@ let safe_lval = function
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
+let pow2 = Z.pow (Z.of_int 2)
+let half_modulus ws = pow2 (int_of_ws ws - 1)
+let modulus ws = pow2 (int_of_ws ws)
+
+let int_of_word sg ws e =
+  match sg with
+  | Unsigned -> Papp1 (E.Oint_of_word ws, e)
+  | Signed ->
+     let m = Pconst (half_modulus ws) in
+     Papp2 (E.Osub Op_int,
+            Papp1 (E.Oint_of_word ws, Papp2 (E.Oadd (E.Op_w ws), e, Papp1 (E.Oword_of_int ws, m))),
+            m)
+
+let int_of_words sg ws hi lo =
+  Papp2 (E.Oadd E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus ws), int_of_word sg ws hi), int_of_word Unsigned ws lo)
+
+let split_div sg ws es =
+  let hi, lo, d = as_seq3 es in
+  int_of_words sg ws hi lo,
+  int_of_word sg ws d
+
 let safe_opn safe opn es = 
   let id =
     Sopn.get_instr_desc
@@ -343,10 +364,17 @@ let safe_opn safe opn es =
   in
   List.flatten (List.map (fun c ->
       match c with
-      | Wsize.NotZero(sz, i) ->
-        [ NotZero(sz, List.nth es (Conv.int_of_nat i))]
+      | Wsize.X86Division(sz, sg) ->
+         let n, d = split_div sg sz es in
+         [ NotZero(sz, List.nth es 2)
+         ; match sg with
+           | Unsigned ->
+             InRange(Pconst Z.zero, Papp2 (E.Osub E.Op_int, Papp2 (E.Omul E.Op_int, Pconst (modulus sz), d), Pconst Z.one), n)
+          | Signed ->
+             InRange (Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), Papp2 (E.Odiv E.Cmp_int, n, d))
+        ]
       | Wsize.InRange(sz, lo, hi, n) ->
-         [ InRange(Conv.z_of_cz lo, Conv.z_of_cz hi, Papp1 (Oint_of_word sz, List.nth es (Conv.int_of_nat n)))]
+         [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), Papp1 (Oint_of_word sz, List.nth es (Conv.int_of_nat n)))]
       | Wsize.AllInit(ws, p, i) -> 
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
@@ -645,8 +673,8 @@ end = struct
        begin
          let out_of_range =
            Papp2(Oor,
-                 Papp2 (Olt E.Cmp_int, e, Pconst lo),
-                 Papp2 (Olt E.Cmp_int, Pconst hi, e)) in
+                 Papp2 (Olt E.Cmp_int, e, lo),
+                 Papp2 (Olt E.Cmp_int, hi, e)) in
          let s = state.abs in
          match AbsExpr.bexpr_to_btcons out_of_range s with
          | None -> false
@@ -1193,16 +1221,16 @@ end = struct
     (* div unsigned *)
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.DIV ws)) ->
       assert (x = None);
-      let el,er = as_seq2 es in
-      let w = Papp2 (E.Odiv (E.Cmp_w (Unsigned, ws)), el, er) in
+      let n, d = split_div Unsigned ws es in
+      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv E.Cmp_int, n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
     (* div signed *)
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.IDIV ws)) ->
-      assert (x = None);
-      let el,er = as_seq2 es in
-      let w = Papp2 (E.Odiv (E.Cmp_w (Signed, ws)), el, er) in
+       assert (x = None);
+       let n, d = split_div Signed ws es in
+      let w = Papp1 (E.Oword_of_int ws, Papp2 (E.Odiv E.Cmp_int, n, d)) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 

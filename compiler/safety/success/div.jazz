@@ -1,0 +1,12 @@
+export
+fn test_large_div(reg u64 x y) -> reg u64 {
+  x = x;
+  y = y;
+  reg u64 a b c q r;
+  a = x & 0xff;
+  b = y;
+  c = 0x400;
+  ?{RAX=q, RDX=r} = #DIV(a, b, c);
+  q ^= r;
+  return q;
+}
