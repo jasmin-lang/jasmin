@@ -475,44 +475,27 @@ Defined.
 (* FIXME: Is there a way of avoiding this import? *)
 Import arch_sem.
 
-Lemma not_condtP (c : cond_t) rf b :
-  eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
-Proof.
-  case: c => /=.
-  1,3,5,9,11: by case: (rf _) => //= ? [->].
-  1,2,3,6,7: by case: (rf _) => //= ? [<-]; rewrite negbK.
-  + by case: (rf CF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negb_or.
-  + by case: (rf CF) => //= ?; case: (rf _) => //= ? [<-]; rewrite -negb_or negbK.
-  + by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negbK.
-  + by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-].
-  + by case: (rf ZF) => //= ?; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negb_or negbK.
-  by case: (rf ZF) => //= ?; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negb_and negbK.
-Qed.
+Lemma not_condtP (c : cond_t) get b :
+  eval_cond get c = ok b ->
+  eval_cond get (not_condt c) = ok (negb b).
+Proof. case: c => /=; t_eval_cond. Qed.
 
-Lemma or_condtP ii e c1 c2 c rf b1 b2:
+Lemma or_condtP ii e c1 c2 c get b1 b2:
   or_condt ii e c1 c2 = ok c ->
-  eval_cond rf c1 = ok b1 ->
-  eval_cond rf c2 = ok b2 ->
-  eval_cond rf c  = ok (b1 || b2).
+  eval_cond get c1 = ok b1 ->
+  eval_cond get c2 = ok b2 ->
+  eval_cond get c  = ok (b1 || b2).
 Proof.
-  case: c1 => //; case: c2 => //= -[<-] /=.
-  + by case: (rf _) => // ? [->]; case: (rf _) => // ? [->].
-  + by case: (rf _) => // ? [->]; case: (rf _) => // ? [->] /=; rewrite orbC.
-  + by case: (rf ZF) => // ? [->]; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-].
-  by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; case: (rf _) => //= ? [->]; rewrite orbC.
+  case: c1 => //; case: c2 => //; rewrite /= /x86.x86_eval_cond; t_eval_cond.
 Qed.
 
-Lemma and_condtP ii e c1 c2 c rf b1 b2:
+Lemma and_condtP ii e c1 c2 c get b1 b2:
   and_condt ii e c1 c2 = ok c ->
-  eval_cond rf c1 = ok b1 ->
-  eval_cond rf c2 = ok b2 ->
-  eval_cond rf c  = ok (b1 && b2).
+  eval_cond get c1 = ok b1 ->
+  eval_cond get c2 = ok b2 ->
+  eval_cond get c  = ok (b1 && b2).
 Proof.
-  case: c1 => //; case: c2 => //= -[<-] /=.
-  + by case: (rf _) => // ? [<-]; case: (rf _) => // ? [<-].
-  + by case: (rf _) => // ? [<-]; case: (rf _) => // ? [<-] /=; rewrite andbC.
-  + by case: (rf ZF) => // ? [<-]; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-].
-  by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; case: (rf _) => //= ? [->]; rewrite andbC.
+  case: c1 => //; case: c2 => //; rewrite /= /x86.x86_eval_cond; t_eval_cond.
 Qed.
 
 Lemma of_var_e_boolP ii x f :
@@ -522,14 +505,13 @@ Proof. by rewrite /of_var_e_bool /of_var_e; case: of_var. Qed.
 
 Lemma eval_assemble_cond : assemble_cond_spec x86_agparams.
 Proof.
-  move=> ii m rf e c v; rewrite /x86_agparams /eval_cond /get_rf /=.
+  move=> ii m xm e c v.
   move=> eqv; elim: e c v => //.
   + move=> x c v /=; t_xrbindP=> r /of_var_e_boolP ok_r ok_ct ok_v.
     have := xgetflag_ex eqv ok_r ok_v.
     case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h;
-      eexists;
-      eauto;
-      by case: (rf _).
+      rewrite /= value_of_bool_to_bool_of_rbool;
+      by eexists.
   + case => //= e hrec; t_xrbindP => c v ce hce <- ve hve.
     rewrite /sem_sop1 /=; t_xrbindP => b hb <-.
     have := hrec _ _ hce hve.
@@ -544,7 +526,9 @@ Proof.
     move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
     move: (hv1 _ hb1) (hv2 _ hb2) => hfb1 hfb2.
     exists (b1 == b2); last done.
-    by case: hor => /andP [] /eqP ? /eqP ?; subst f1 f2; rewrite hfb1 hfb2 //= eq_sym.
+    case: hor => /andP [] /eqP ? /eqP ?;
+      subst f1 f2;
+      by rewrite /get_flag /= hfb1 hfb2 //= eq_sym.
   + move=> e1 hrec1 e2 hrec2 c v; t_xrbindP => c1 hc1 c2 hc2 hand v1 hv1 v2 hv2.
     move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
     have /(value_of_bool_uincl hb1) hec1 := hrec1 _ _ hc1 hv1.
