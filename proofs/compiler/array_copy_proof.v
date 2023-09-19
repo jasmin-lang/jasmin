@@ -152,12 +152,8 @@ Proof.
     sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
   + rewrite /ipre; case: ifPn => hxy.
     + exists vm1; last by constructor; econstructor.
-      split => //.
-      case/orP: hxy => hxy; last first.
-      * by have /compat_valEl := Vm.getP vm1 x.
-      case/andP: hxy => /= /eqP hl /eqP /= heq; subst vx.
-      move: hv1; rewrite /= /get_gvar /is_lvar hl eqxx /get_var; t_xrbindP => _.
-      rewrite -heq; eauto.
+      split; first by [].
+      by have /compat_valEl := Vm.getP vm1 x.
     exists (vm1.[x <- Varr (WArray.empty len)]).
     + split; last by rewrite Vm.setP_eq /= eqxx; eauto.
       move=> z hz; rewrite Vm.setP_neq //; apply /eqP => heq; subst z.
