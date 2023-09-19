@@ -258,7 +258,6 @@ Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
 (* Flag combinations.
    The ARM terminology is different from Intel's (chapter A7.3 from the
    ARMv7-M reference manual).
-   - [CFC_O] is Overflow.
    - [CFC_B] is Carry clear (unsigned lower).
    - [CFC_E] is Equal.
    - [CFC_S] is Minus (negative).
@@ -272,7 +271,6 @@ Definition arm_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
   let vcf := FCVar2 in
   let vvf := FCVar3 in
   match cfc with
-  | CFC_O => vvf
   | CFC_B => FCNot vcf
   | CFC_E => vzf
   | CFC_S => vnf

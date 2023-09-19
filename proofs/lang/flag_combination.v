@@ -9,15 +9,14 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-(* We distinguish 7 different conditions that can potentially be expressed with
+(* We distinguish 6 different conditions that can potentially be expressed with
    flags, these are [combine_flags_core], but provide the user with these and
-   their negations, [combine_flags]. Their correspondence is specified by
-   [cf_tbl].
+   their negations, [combine_flags].
+   Their correspondence is specified by [cf_tbl].
    The correspondence between these conditions and flags is
    architecture-specific. *)
 
 Variant combine_flags_core :=
-| CFC_O      (* Overflow. *)
 | CFC_B      (* Below (not above or equal). *)
 | CFC_E      (* Equal (zero). *)
 | CFC_S      (* Sign (negative). *)
