@@ -168,19 +168,12 @@ Lemma getflag wdb rip f v s xs :
   value_uincl v (of_rbool (asm_flag xs f)).
 Proof. by case => _ _ _ _ _ _ _ eqf /get_varP [-> _ _]. Qed.
 
-Lemma ofgetflag wdb rip x f v s xs :
-  lom_eqv rip s xs →
-  of_var x = Some f →
-  get_var wdb (evm s) x = ok v →
-  value_uincl v (of_rbool (asm_flag xs f)).
-Proof. move=> lom h; have <- := of_varI h; apply: getflag lom. Qed.
-
 Lemma xgetflag_ex wdb ii m rf x f v :
   eqflags m rf →
   of_var_e ii x = ok f →
   get_var wdb (evm m) x = ok v →
   value_uincl v (of_rbool (rf f)).
-Proof. move => eqm /of_var_eP h; have <- := of_varI h => /get_varP [-> _ _]; apply eqm. Qed.
+Proof. by move => eqm /of_var_eI <- /get_varP [ -> _ _ ]. Qed.
 
 Corollary xgetflag wdb ii m rf x f v b :
   eqflags m rf →
@@ -1926,16 +1919,6 @@ Section VMAP_SET_VARS.
   Qed.
 
 End VMAP_SET_VARS.
-
-Lemma all_xpredT {A} (xs : seq A) : all xpredT xs.
-Proof.
-  elim: xs => [// | x xs IH].
-  rewrite /all.
-  apply/andP.
-  split.
-  + done.
-  + exact: IH.
-Qed.
 
 Definition vmap_of_asm_mem
   (sp : word Uptr) (rip rsp : Ident.ident) (s : asmmem) :=
