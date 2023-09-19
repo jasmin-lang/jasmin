@@ -79,11 +79,9 @@ Section SEM.
     | FCEq fc0 fc1 => xeq (fc_sem fc0) (fc_sem fc1)
     end.
 
-  Definition cfc_xsem (cfc : combine_flags_core) : X :=
-    fc_sem (fc_of_cfc cfc).
-
   Definition cf_xsem (cf : combine_flags) : X :=
     let '(n, cfc) := cf_tbl cf in
     let x := fc_sem (fc_of_cfc cfc) in
     if n then xnot x else x.
+
 End SEM.

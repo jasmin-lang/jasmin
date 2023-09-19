@@ -18,7 +18,6 @@ Require Import
   linearization
   linearization_proof
   lowering
-  propagate_inline_proof
   stack_alloc
   stack_alloc_proof.
 Require
@@ -49,39 +48,7 @@ Context
   {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
-(* ------------------------------------------------------------------------ *)
-(* Flag combination hypotheses. *)
 #[local] Existing Instance withsubword.
-
-Lemma arm_cf_xsemP wdb gd s e0 e1 e2 e3 cf v :
-  let: e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
-  let: e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
-  sem_pexpr wdb gd s e = ok v
-  -> sem_pexpr wdb gd s e' = ok v.
-Proof.
-  rewrite /=.
-
-  t_xrbindP=> vs0 v0 hv0 vs1 v1 hv1 vs2 v2 hv2 vs3 v3 hv3 ? ? ? ?;
-    subst vs0 vs1 vs2 vs3.
-  rewrite /sem_opN /=.
-  t_xrbindP=> b b0 hb0 b1 hb1 b2 hb2 b3 hb3 hb ?; subst v.
-  move: hb0 => /to_boolI ?; subst v0.
-  move: hb1 => /to_boolI ?; subst v1.
-  move: hb2 => /to_boolI ?; subst v2.
-  move: hb3 => /to_boolI ?; subst v3.
-
-  move: hb.
-  rewrite /sem_combine_flags.
-  rewrite /cf_xsem.
-
-  case: cf_tbl => -[] [] [?] /=; subst b.
-  all: by rewrite ?hv0 ?hv1 ?hv2 ?hv3.
-Qed.
-
-Definition arm_hpiparams {dc : DirectCall} : h_propagate_inline_params :=
-  {|
-    pip_cf_xsemP := arm_cf_xsemP;
-  |}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
@@ -1261,7 +1228,6 @@ Proof. by constructor; move=> ???? []. Qed.
 
 Definition arm_h_params {dc : DirectCall} : h_architecture_params arm_params :=
   {|
-    hap_hpip := arm_hpiparams;
     hap_hsap := arm_hsaparams;
     hap_hlip := arm_hliparams;
     ok_lip_tmp := arm_ok_lip_tmp;
