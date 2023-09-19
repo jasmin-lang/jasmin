@@ -245,17 +245,6 @@ Variant addr_kind : Type :=
 | AK_compute (* Only compute the address. *)
 | AK_mem.    (* Compute the address and load from memory. *)
 
-Scheme Equality for addr_kind.
-
-Lemma addr_kind_eq_axiom : Equality.axiom addr_kind_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme internal_addr_kind_dec_bl internal_addr_kind_dec_lb).
-Qed.
-
-Definition addr_kind_eqMixin := Equality.Mixin addr_kind_eq_axiom.
-Canonical addr_kind_eqType := EqType _ addr_kind_eqMixin.
-
 (* -------------------------------------------------------------------- *)
 (* Argument description.
  * An argument may be either implicit or explicit.
@@ -266,24 +255,6 @@ Variant arg_desc :=
     of addr_kind      (* If argument is an address, should it be loaded? *)
      & nat            (* Position of the argument in assembly syntax. *)
      & option reg_t.  (* Set if there is only one valid register. *)
-
-Definition arg_desc_beq (d1 d2 : arg_desc) :=
-  match d1, d2 with
-  | ADImplicit i1, ADImplicit i2 => i1 == i2
-  | ADExplicit k1 n1 or1, ADExplicit k2 n2 or2 =>
-    (k1 == k2) && (n1 == n2) && (or1 == or2 :> option_eqType ceqT_eqType)
-  | _, _ => false
-  end.
-
-Lemma arg_desc_eq_axiom : Equality.axiom arg_desc_beq.
-Proof.
-  case=> [i1|k1 n1 or1] [i2|k2 n2 or2] /=;
-    try by (constructor || apply: reflect_inj eqP => ?? []).
-  do! (case: eqP; try by constructor; congruence).
-Qed.
-
-Definition arg_desc_eqMixin := Equality.Mixin arg_desc_eq_axiom.
-Canonical  arg_desc_eqType  := EqType arg_desc arg_desc_eqMixin.
 
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).

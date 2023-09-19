@@ -357,16 +357,6 @@ Variant align :=
   | Align
   | NoAlign.
 
-Scheme Equality for align.
-
-Lemma align_eq_axiom : Equality.axiom align_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_align_dec_bl internal_align_dec_lb).
-Qed.
-
-Definition align_eqMixin     := Equality.Mixin align_eq_axiom.
-Canonical  align_eqType      := Eval hnf in EqType align align_eqMixin.
-
 (* -------------------------------------------------------------------- *)
 
 (* ----------------------------------------------------------------------------- *)
