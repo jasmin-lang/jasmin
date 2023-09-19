@@ -193,7 +193,7 @@ Proof.
 
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: compose_pass_uincl.
-  - move=> vr'; apply: (pi_callP (sCP := sCP_unit) (hpip := hap_hpip haparams) ok_pp va_refl).
+  - move=> vr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl).
    apply: compose_pass.
   - move=> vr'.
     assert (h := lower_slh_prog_sem_call (dc:=direct_c) (hap_hshp haparams) (ev:= tt) ok_pi).

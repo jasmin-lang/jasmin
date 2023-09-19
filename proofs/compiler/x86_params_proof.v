@@ -16,7 +16,6 @@ Require Import
   linearization
   linearization_proof
   lowering
-  propagate_inline_proof
   slh_lowering
   slh_lowering_proof
   stack_alloc
@@ -46,39 +45,6 @@ Unset Printing Implicit Defensive.
 Section Section.
 Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 
-
-(* ------------------------------------------------------------------------ *)
-(* Flag combination hypotheses. *)
-
-Lemma x86_cf_xsemP wdb gd s e0 e1 e2 e3 cf v :
-  let e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
-  let e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
-  sem_pexpr wdb gd s e = ok v
-  -> sem_pexpr wdb gd s e' = ok v.
-Proof.
-  rewrite /=.
-
-  t_xrbindP=> vs0 v0 hv0 vs1 v1 hv1 vs2 v2 hv2 vs3 v3 hv3 ? ? ? ?;
-    subst vs0 vs1 vs2 vs3.
-  rewrite /sem_opN /=.
-  t_xrbindP=> b b0 hb0 b1 hb1 b2 hb2 b3 hb3 hb ?; subst v.
-  move: hb0 => /to_boolI ?; subst v0.
-  move: hb1 => /to_boolI ?; subst v1.
-  move: hb2 => /to_boolI ?; subst v2.
-  move: hb3 => /to_boolI ?; subst v3.
-
-  move: hb.
-  rewrite /sem_combine_flags.
-  rewrite /cf_xsem.
-
-  case: cf_tbl => -[] [] [?] /=; subst b.
-  all: by rewrite ?hv0 ?hv1 ?hv2 ?hv3.
-Qed.
-
-Definition x86_hpiparams {dc: DirectCall} : h_propagate_inline_params :=
-  {|
-    pip_cf_xsemP := x86_cf_xsemP;
-  |}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
@@ -1060,7 +1026,6 @@ Qed.
 
 Definition x86_h_params {dc : DirectCall} {call_conv : calling_convention} : h_architecture_params x86_params :=
   {|
-    hap_hpip := x86_hpiparams;
     hap_hsap := x86_hsaparams;
     hap_hlip := x86_hliparams;
     ok_lip_tmp := x86_ok_lip_tmp;
