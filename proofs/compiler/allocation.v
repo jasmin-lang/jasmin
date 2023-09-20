@@ -599,15 +599,16 @@ Section PROG.
 Context {T:eqType} {pT:progT T}.
 
 Variable (init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t).
+Variable (check_f_extra: M.t → extra_fun_t → extra_fun_t → seq var_i → seq var_i → cexec M.t).
 
 Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Datatypes.unit) :=
   let (f1,fd1) := f1 in
   let (f2,fd2) := f2 in
   add_funname f1 (add_finfo fd1.(f_info) (
-    Let _ := assert [&& f1 == f2, fd1.(f_tyin) == fd2.(f_tyin), fd1.(f_tyout) == fd2.(f_tyout) &
-                        fd1.(f_extra) == fd2.(f_extra)] (E.error "functions not equal") in
+    Let _ := assert [&& f1 == f2, fd1.(f_tyin) == fd2.(f_tyin) & fd1.(f_tyout) == fd2.(f_tyout) ]
+                        (E.error "functions not equal") in
     Let r := init_alloc fd1.(f_extra) ep1 ep2 in
-    Let r := check_vars fd1.(f_params) fd2.(f_params) r in
+    Let r := check_f_extra r fd1.(f_extra) fd2.(f_extra) fd1.(f_params) fd2.(f_params) in
     Let r := check_cmd fd1.(f_body) fd2.(f_body) r in
     let es1 := map Plvar fd1.(f_res) in
     let es2 := map Plvar fd2.(f_res) in
@@ -626,10 +627,15 @@ Section UPROG.
 #[local]
 Existing Instance progUnit.
 
-Definition init_alloc_uprog (ef: extra_fun_t) (ep1 ep2: extra_prog_t) : cexec M.t :=
+Definition init_alloc_uprog (_: extra_fun_t) (_ _: extra_prog_t) : cexec M.t :=
   ok M.empty.
-Definition check_ufundef := check_fundef init_alloc_uprog.
-Definition check_uprog := check_prog init_alloc_uprog.
+
+Definition check_f_extra_u (r: M.t) (e1 e2: extra_fun_t) p1 p2 :=
+  Let _ := assert (e1 == e2) (E.error "extra not equal") in
+  check_vars p1 p2 r.
+
+Definition check_ufundef := check_fundef init_alloc_uprog check_f_extra_u.
+Definition check_uprog := check_prog init_alloc_uprog check_f_extra_u.
 
 End UPROG.
 
@@ -643,8 +649,27 @@ Existing Instance progStack.
 Definition init_alloc_sprog (ef: extra_fun_t) (ep1 ep2: extra_prog_t) : cexec M.t :=
   check_vars [:: vid ep1.(sp_rsp); vid ep1.(sp_rip)]
              [:: vid ep2.(sp_rsp); vid ep2.(sp_rip)] M.empty.
-Definition check_sfundef := check_fundef init_alloc_sprog.
-Definition check_sprog := check_prog init_alloc_sprog.
+
+Definition check_f_extra_s (r: M.t) (e1 e2: extra_fun_t) p1 p2 : cexec M.t :=
+  Let _ :=
+    assert [&&
+  (e1.(sf_align) == e2.(sf_align)),
+  (e1.(sf_stk_sz) == e2.(sf_stk_sz)),
+  (e1.(sf_stk_ioff) == e2.(sf_stk_ioff)),
+  (e1.(sf_stk_max) == e2.(sf_stk_max)),
+  (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)),
+  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)),
+  (e1.(sf_to_save) == e2.(sf_to_save)),
+  (e1.(sf_save_stack) == e2.(sf_save_stack)) &
+  (e1.(sf_return_address) == e2.(sf_return_address)) ]
+      (E.error "extra not equal") in
+  if e1.(sf_return_address) == RAnone then
+    check_vars p1 p2 r
+  else
+    check_vars p1 p2 r.
+
+Definition check_sfundef := check_fundef init_alloc_sprog check_f_extra_s.
+Definition check_sprog := check_prog init_alloc_sprog check_f_extra_s.
 
 End SPROG.
 

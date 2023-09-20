@@ -279,7 +279,7 @@ Proof.
     (dead_code_prog_tokeep_get_fundef ok_pc get_fdb).
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
-  have /=[_ _ _ <-] := check_fundef_meta ok_fdb.
+  have [ <- <- <- ] := @check_fundef_meta _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb.
   have [_ _ ->]:= dead_code_fd_meta ok_fda.
   done.
 Qed.
