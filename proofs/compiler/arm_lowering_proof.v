@@ -304,59 +304,33 @@ Proof.
   - by rewrite wsub_wnot1 -GRing.Theory.subr_eq0.
 
   (* Case [w0 <s w1]. *)
-  - rewrite /sem_sop1 /NF_of_word /=.
-    rewrite wsub_wnot1 wsigned_wsub_wnot1.
-    by rewrite -wltsE.
+  - by rewrite /sem_sop1 /NF_of_word /= wsub_wnot1 wsigned_wsub_wnot1 wltsE.
 
   (* Case [w0 <u w1]. *)
-  - rewrite /sem_sop1 /=.
-    rewrite wsub_wnot1.
-    rewrite nzcv_of_aluop_CF_sub.
-    rewrite -wleuE.
-    by rewrite ltNge.
+  - by rewrite /sem_sop1 /= wsub_wnot1 nzcv_of_aluop_CF_sub wleuE ltNge.
 
   (* Case [w0 <=s w1]. *)
   - rewrite /sem_sop2 /NF_of_word /ZF_of_word /=.
-    rewrite wsub_wnot1 wsigned_wsub_wnot1.
-    rewrite GRing.subr_eq0.
-    rewrite -wltsE.
-    by rewrite le_eqVlt eqtype.inj_eq; last exact: word.srepr_inj.
+    by rewrite wsub_wnot1 wsigned_wsub_wnot1 GRing.subr_eq0 wlesE'.
 
   (* Case [w0 <=u w1]. *)
   - rewrite /sem_sop2 /ZF_of_word /=.
-    rewrite wsub_wnot1.
-    rewrite nzcv_of_aluop_CF_sub.
-    rewrite -wleuE.
-    rewrite GRing.subr_eq0.
-    by rewrite le_eqVlt ltNge orbC.
+    by rewrite wsub_wnot1 nzcv_of_aluop_CF_sub GRing.subr_eq0 wleuE'.
 
   (* Case [w0 >s w1]. *)
   - rewrite /sem_sop2 /NF_of_word /ZF_of_word /=.
-    rewrite wsub_wnot1 wsigned_wsub_wnot1.
-    rewrite GRing.subr_eq0.
-    rewrite -(Bool.negb_involutive (_ && _)) negb_and Bool.negb_involutive.
-    rewrite -wltsE.
-    by rewrite ltNge le_eqVlt eqtype.inj_eq; last exact: word.srepr_inj.
+    by rewrite wsub_wnot1 wsigned_wsub_wnot1 GRing.subr_eq0 wltsE'.
 
   (* Case [w0 >u w1]. *)
   - rewrite /sem_sop2 /ZF_of_word /=.
-    rewrite wsub_wnot1.
-    rewrite nzcv_of_aluop_CF_sub.
-    rewrite GRing.subr_eq0.
-    rewrite -wleuE.
-    by rewrite lt_def andbC.
+    by rewrite wsub_wnot1 nzcv_of_aluop_CF_sub GRing.subr_eq0 -wltuE'.
 
   (* Case [w0 >=s w1]. *)
   - rewrite /sem_sop2 /NF_of_word /=.
-    rewrite wsub_wnot1 wsigned_wsub_wnot1.
-    rewrite -(Bool.negb_involutive (_ == _)).
-    rewrite -wltsE.
-    by rewrite leNgt.
+    by rewrite wsub_wnot1 wsigned_wsub_wnot1 wlesE.
 
   (* Case [w0 >=u w1]. *)
-  - rewrite wsub_wnot1.
-    rewrite nzcv_of_aluop_CF_sub.
-    by rewrite -wleuE.
+  by rewrite wsub_wnot1 nzcv_of_aluop_CF_sub wleuE.
 Qed.
 
 Lemma sem_lower_condition_pexpr tag s0 s0' ii e v lvs aop es c :
