@@ -290,12 +290,10 @@ Context
   (p : sprog).
 (*  (extra_free_registers : instr_info -> option var) *)
 
-Definition mk_var_i (x:var) := {| v_var := x; v_info := dummy_var_info; |}.
-
 Definition mk_ovar_i := omap mk_var_i.
 
 Notation rsp := {| vtype := sword Uptr; vname := sp_rsp (p_extra p); |}.
-Notation rspi := {| v_var := rsp; v_info := dummy_var_info; |}.
+Notation rspi := (mk_var_i rsp).
 
 Notation var_tmp := {| vtype := sword Uptr; vname := lip_tmp liparams; |}.
 
@@ -380,7 +378,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
     let '(x, ofs) := p in
     if is_word_type (vtype x) is Some ws
     then
-      let xi := {| v_var := x; v_info := dummy_var_info; |} in
+      let xi := mk_var_i x in
       Let _ :=
         assert
           (isSome (lload xi ws rspi ofs) && isSome (lstore rspi ofs ws xi))
@@ -469,7 +467,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
         ]
 
     | SavedStackReg x =>
-        let xi := {| v_var := x; v_info := dummy_var_info; |} in
+        let xi := mk_var_i x in
         [&& vtype x == sword Uptr
           , sf_to_save e == [::]
           , vname x \notin (lip_not_saved_stack liparams)
@@ -522,7 +520,7 @@ Definition push_to_save
   let mkli '(x, ofs) :=
     if is_word_type x.(vtype) is Some ws
     then
-      let xi := {| v_var := x; v_info := dummy_var_info; |} in
+      let xi := mk_var_i x in
       of_olinstr_r ii (lstore rspi ofs ws xi)
     else
       dummy_linstr (* Never happens. *)
@@ -544,7 +542,7 @@ Definition pop_to_save
   let mkli '(x, ofs) :=
     if is_word_type x.(vtype) is Some ws
     then
-      let xi := {| v_var := x; v_info := dummy_var_info; |} in
+      let xi := mk_var_i x in
       of_olinstr_r ii (lload xi ws rspi ofs)
     else
       dummy_linstr (* Never happens. *)
@@ -668,7 +666,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r =>
-       ( [:: MkLI dummy_instr_info (Ligoto (Rexpr (Fvar (VarI r dummy_var_info)))) ]
+       ( [:: MkLI dummy_instr_info (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
        , [:: MkLI dummy_instr_info (Llabel 1) ]
        , 2%positive
        )
@@ -690,7 +688,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
           * Head: R[x] := R[rsp]
           *       Setup stack.
           *)
-         let r := VarI x dummy_var_info in
+         let r := mk_var_i x in
          ( [:: of_olinstr_r dummy_instr_info (lmove rspi Uptr r) ]
          , set_up_sp_register rspi sf_sz (sf_align e) r
          , 1%positive

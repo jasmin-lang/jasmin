@@ -113,7 +113,7 @@ Definition arm_saparams : stack_alloc_params :=
 
 Section LINEARIZATION.
 
-Notation vtmpi := {| v_var := to_var R12; v_info := dummy_var_info; |}.
+Notation vtmpi := (mk_var_i (to_var R12)).
 
 (* TODO_ARM: This assumes 0 <= sz < 4096. *)
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=

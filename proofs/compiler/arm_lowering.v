@@ -31,8 +31,6 @@ Context {atoI : arch_toIdent}.
 (* This pass is parameterized by four variable names that will be used to create
    variables for the processor flags. *)
 
-Definition fresh_vars : Type := Ident.name -> stype -> Ident.ident.
-
 Definition fv_NF (fv: fresh_vars) := fv (Ident.name_of_string "__n__") sbool.
 Definition fv_ZF (fv: fresh_vars) := fv (Ident.name_of_string "__z__") sbool.
 Definition fv_CF (fv: fresh_vars) := fv (Ident.name_of_string "__c__") sbool.
@@ -63,10 +61,7 @@ Context
 (* Lowering of conditions. *)
 
 #[ local ]
-Definition mk_fv_vari x := {| v_var := x; v_info := dummy_var_info; |}.
-
-#[ local ]
-Definition mk_fv_gvar x := {| gv := mk_fv_vari x; gs := Slocal; |}.
+Definition mk_fv_gvar x := {| gv := mk_var_i x; gs := Slocal; |}.
 
 Definition lflags_of_mn (mn : arm_mnemonic) : seq lval :=
   let ids :=
@@ -76,7 +71,7 @@ Definition lflags_of_mn (mn : arm_mnemonic) : seq lval :=
     | _ => [::]
     end
   in
-  map (fun x => Lvar (mk_fv_vari (vbool (x fv)))) ids.
+  map (fun x => Lvar (mk_var_i (vbool (x fv)))) ids.
 
 Definition lower_TST (e0 e1 : pexpr) : option (seq pexpr) :=
   match e0, e1 with

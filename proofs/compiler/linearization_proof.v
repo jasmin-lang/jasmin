@@ -924,7 +924,7 @@ Section PROOF.
 
   Let vgd : var := Var (sword Uptr) (sp_rip (p_extra p)).
   Let vrsp : var := Var (sword Uptr) (sp_rsp (p_extra p)).
-  Let vrspi : var_i := {| v_var := vrsp; v_info := dummy_var_info; |}.
+  Let vrspi : var_i := mk_var_i vrsp.
   Let vrspg : gvar := {| gv := vrspi; gs := Slocal; |}.
 
   Let var_tmp : var_i := vid (lip_tmp liparams).
@@ -1692,7 +1692,7 @@ Section PROOF.
       mapM (get_var true vm2) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
   Proof.
     move=> h1 h2;
-    have := get_vars_uincl (wdb:=true) (xs := map (fun x => {| v_var := x; v_info := dummy_var_info |}) xs) h1.
+    have := get_vars_uincl (wdb:=true) (xs := map mk_var_i xs) h1.
     by rewrite !mapM_map => /(_ _ h2).
   Qed.
 
@@ -2779,7 +2779,7 @@ Section PROOF.
 
   Lemma check_to_save_slotP x ofs ofs' ws :
     check_to_save_slot liparams p (x, ofs) = ok (ofs', ws)
-    -> let: xi := {| v_var := x; v_info := dummy_var_info; |} in
+    -> let: xi := mk_var_i x in
        exists xname,
          [/\ x = {| vtype := sword ws; vname := xname; |}
            , isSome (lload liparams xi ws vrspi ofs)

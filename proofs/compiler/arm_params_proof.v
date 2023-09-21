@@ -314,7 +314,7 @@ Qed.
 
 Lemma arm_cmd_load_large_imm_lsem lp fn s ii P Q xname imm :
   let: x := {| vname := xname; vtype := sword reg_size; |} in
-  let: xi := {| v_var := x; v_info := dummy_var_info; |} in
+  let: xi := mk_var_i x in
   let: lcmd := map (li_of_copn_args ii) (arm_cmd_load_large_imm xi imm) in
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> (0 <= imm < wbase reg_size)%Z
@@ -334,7 +334,7 @@ Lemma arm_cmd_load_large_imm_lsem lp fn s ii P Q xname imm :
          & get_var true vm' x = ok (Vword (wrepr reg_size imm))
        ].
 Proof.
-  set x := {| v_var := _; |}.
+  set x := {| vname := _; |}.
   rewrite /arm_cmd_load_large_imm /=.
 
   case hdivmod: Z.div_eucl => [hbs lbs] /=.
@@ -367,7 +367,7 @@ Qed.
 
 Lemma arm_cmd_large_subi_lsem lp fn s ii P Q xname y imm wy :
   let: x := {| vname := xname; vtype := sword Uptr; |} in
-  let: xi := {| v_var := x; v_info := dummy_var_info; |} in
+  let: xi := mk_var_i x in
   let: lcmd := map (li_of_copn_args ii) (arm_cmd_large_subi xi y imm) in
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> x <> v_var y
@@ -389,7 +389,7 @@ Lemma arm_cmd_large_subi_lsem lp fn s ii P Q xname y imm wy :
          & get_var true vm' x = ok (Vword (wy - wrepr reg_size imm)%R)
        ].
 Proof.
-  set x := {| v_var := _; |}.
+  set x := {| vname := _; |}.
   move=> hbody hxy hgety himm.
 
   move: hbody.
@@ -443,9 +443,9 @@ Context
   (fn : funname).
 
 Let vrsp : var := mk_ptr sp_rsp.
-Let vrspi : var_i := VarI vrsp dummy_var_info.
+Let vrspi : var_i := mk_var_i vrsp.
 Let vtmp : var := mk_ptr (lip_tmp arm_liparams).
-Let vtmpi : var_i := VarI vtmp dummy_var_info.
+Let vtmpi : var_i := mk_var_i vtmp.
 
 Lemma arm_spec_lip_allocate_stack_frame s pc ii ts sz :
   let args := lip_allocate_stack_frame arm_liparams vrspi sz in

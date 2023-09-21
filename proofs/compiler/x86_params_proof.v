@@ -187,9 +187,9 @@ Context
   (fn : funname).
 
 Let vrsp : var := mk_ptr sp_rsp.
-Let vrspi : var_i := VarI vrsp dummy_var_info.
+Let vrspi : var_i := mk_var_i vrsp.
 Let vtmp : var := mk_ptr (lip_tmp x86_liparams).
-Let vtmpi : var_i := VarI vtmp dummy_var_info.
+Let vtmpi : var_i := mk_var_i vtmp.
 
 Definition x86_spec_lip_allocate_stack_frame s pc ii ts sz :
   let: args := lip_allocate_stack_frame x86_liparams vrspi sz in
@@ -591,14 +591,14 @@ Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n k ws:
   n < size xs ->
   exists (r: xreg_t),
    exists2 vi,
-    nth (LLvar {| v_var := rip; v_info := dummy_var_info|}) xs n =
+    nth (LLvar (mk_var_i rip)) xs n =
        LLvar {| v_var := to_var r;  v_info := vi |} &
     oseq.onth oargs k = Some (XReg r).
 Proof.
   rewrite /= orbF => hca hc hE hxmm hn.
   have /(_ n):= all2_nth (Rexpr (Fconst 0)) (E 0, sword8) _ hca.
   rewrite size_map hn => /(_ erefl).
-  rewrite (nth_map (LLvar {| v_var := rip; v_info := dummy_var_info |})) //.
+  rewrite (nth_map (LLvar (mk_var_i rip))) //.
   set e := nth (LLvar _) _ _.
   rewrite /check_sopn_dest hE /=.
   case H : oseq.onth => [a | //].

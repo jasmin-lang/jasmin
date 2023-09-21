@@ -30,7 +30,7 @@ Context {atoI : arch_toIdent}.
 
 (* Used to set up stack. *)
 Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=
-  let f_to_lvar x := LLvar (VarI (to_var x) dummy_var_info) in
+  let f_to_lvar x := LLvar (mk_var_i (to_var x)) in
   let eflags := map f_to_lvar [:: OF; CF; SF; PF; ZF ] in
   let ex := Rexpr (Fvar x) in
   let emask := fconst ws (- wsize_size al) in
@@ -68,7 +68,7 @@ Definition x86_saparams : stack_alloc_params :=
 
 Section LINEARIZATION.
 
-Notation vtmpi := {| v_var := to_var RAX; v_info := dummy_var_info; |}.
+Notation vtmpi := (mk_var_i (to_var RAX)).
 
 Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
   let p := Fapp2 (Osub (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
