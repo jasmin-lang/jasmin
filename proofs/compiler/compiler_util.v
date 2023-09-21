@@ -163,7 +163,7 @@ Proof. by case: e. Qed.
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
-Context {eft} {pT:progT eft}.
+Context {pT: progT}.
 
 Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) :prog :=
   {| p_funcs := map (fun f => (f.1, F f.1 f.2)) (p_funcs p);

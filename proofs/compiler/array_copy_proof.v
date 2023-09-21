@@ -21,8 +21,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}.
 
 Context (fresh_counter: Ident.ident) (p1 p2: prog) (ev: extra_val_t).

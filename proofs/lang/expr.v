@@ -438,12 +438,11 @@ Context `{asmop:asmOp}.
 
 Definition fun_info := FunInfo.t.
 
-Class progT (eft:eqType) := {
+Class progT := {
+  extra_fun_t : Type;
   extra_prog_t : Type;
   extra_val_t  : Type;
 }.
-
-Definition extra_fun_t {eft} {pT: progT eft} := eft.
 
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
@@ -465,7 +464,7 @@ Record _prog (extra_fun_t: Type) (extra_prog_t: Type):= {
 
 Section PROG.
 
-Context {eft} {pT:progT eft}.
+Context {pT: progT}.
 
 Definition fundef := _fundef extra_fun_t.
 
@@ -495,21 +494,22 @@ Context `{asmop:asmOp}.
 (* ** Programs before stack/memory allocation 
  * -------------------------------------------------------------------- *)
 
-Definition progUnit : progT [eqType of unit] :=
-  {| extra_val_t := unit;
+Definition progUnit : progT :=
+  {| extra_fun_t := unit;
+     extra_val_t := unit;
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ _ _ progUnit.
-Definition ufun_decl   := @fun_decl _ _ _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ _ _ progUnit).
-Definition uprog       := @prog _ _ _ progUnit.
+Definition ufundef     := @fundef _ _ progUnit.
+Definition ufun_decl   := @fun_decl _ _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ _ progUnit).
+Definition uprog       := @prog _ _ progUnit.
 
 (* For extraction *)
-Definition _ufundef    := _fundef unit. 
+Definition _ufundef    := _fundef unit.
 Definition _ufun_decl  := _fun_decl unit.
 Definition _ufun_decls :=  seq (_fun_decl unit).
-Definition _uprog      := _prog unit unit. 
+Definition _uprog      := _prog unit unit.
 Definition to_uprog (p:_uprog) : uprog := p.
 
 (* ** Programs after stack/memory allocation 
@@ -602,19 +602,20 @@ Record sprog_extra := {
   sp_globs : seq u8;
 }.
 
-Definition progStack : progT [eqType of stk_fun_extra] := 
-  {| extra_val_t := pointer;
+Definition progStack : progT :=
+  {| extra_fun_t := stk_fun_extra;
+     extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef _ _ _ progStack.
-Definition sfun_decl   := @fun_decl _ _ _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ _ _ progStack).
-Definition sprog       := @prog _ _ _ progStack.
+Definition sfundef     := @fundef _ _ progStack.
+Definition sfun_decl   := @fun_decl _ _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ _ progStack).
+Definition sprog       := @prog _ _ progStack.
 
 (* For extraction *)
 
 Definition _sfundef    := _fundef stk_fun_extra.
-Definition _sfun_decl  := _fun_decl stk_fun_extra. 
+Definition _sfun_decl  := _fun_decl stk_fun_extra.
 Definition _sfun_decls := seq (_fun_decl stk_fun_extra).
 Definition _sprog      := _prog stk_fun_extra sprog_extra.
 Definition to_sprog (p:_sprog) : sprog := p.
@@ -645,7 +646,7 @@ End ASM_OP.
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
-Context {eft} {pT : progT eft}.
+Context {pT: progT}.
 
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)

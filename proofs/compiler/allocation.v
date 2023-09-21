@@ -596,7 +596,7 @@ Definition check_cmd := fold2 E.fold2 check_I.
 
 Section PROG.
 
-Context {T:eqType} {pT:progT T}.
+Context {pT: progT}.
 
 Variable (init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t).
 Variable (check_f_extra: M.t → extra_fun_t → extra_fun_t → seq var_i → seq var_i → cexec M.t).

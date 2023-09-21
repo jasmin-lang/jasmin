@@ -172,7 +172,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * option instr)
 
 Section Section.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
@@ -190,7 +190,7 @@ End Section.
 
 End ONFUN.
 
-Definition dead_code_prog {T} {pT:progT T} (p:prog) do_nop :=
-  @dead_code_prog_tokeep do_nop (fun _ => None) T pT p.
+Definition dead_code_prog {pT:progT} (p:prog) do_nop :=
+  @dead_code_prog_tokeep do_nop (fun _ => None) pT p.
 
 End ASM_OP.

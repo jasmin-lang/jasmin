@@ -542,7 +542,7 @@ End GLOBALS.
 
 Section Section.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
   let 'MkFun ii si p c so r ev := f in

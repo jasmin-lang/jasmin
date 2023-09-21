@@ -257,7 +257,7 @@ Definition eq_sub_region_val ty m2 sr bytes v :=
   *)
   type_of_val v = ty.
 
-Variable (P: uprog) (ev: @extra_val_t _ progUnit).
+Variable (P: uprog) (ev: @extra_val_t progUnit).
 Notation gd := (p_globs P).
 
 (* TODO: could we have this in stack_alloc.v ?

@@ -115,7 +115,7 @@ Fixpoint array_copy_i (i:instr) : cexec cmd :=
   | Ccall _ _ _ _ => ok [:: i]
   end.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition array_copy_fd (f:fundef) :=
   let 'MkFun fi tyin params c tyout res ev := f in

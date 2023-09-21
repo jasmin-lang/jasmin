@@ -29,7 +29,7 @@ Section PROOF.
     {dc : DirectCall}
     {atoI : arch_toIdent}
     {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-    {T:eqType} {pT:progT T} {sCP: semCallParams}.
+    {pT: progT} {sCP: semCallParams}.
 
   Variable p : prog.
   Variable ev : extra_val_t.

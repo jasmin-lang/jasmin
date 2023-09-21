@@ -101,8 +101,7 @@ Class semCallParams
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {scs : syscall_sem syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   := SemCallParams
   {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
@@ -139,8 +138,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {scP : semCallParams}
   (P : prog)
   (ev : extra_val_t).
@@ -569,8 +567,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {scP : semCallParams}
   (P : prog)
   (ev : extra_val_t).
@@ -942,8 +939,7 @@ Section Write.
 Context
   {dc:DirectCall}
   {sip : SemInstrParams asm_op syscall_state}
-  {T}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}.
 
 Variable P : prog.
@@ -1786,8 +1782,7 @@ Section Sem_eqv.
 Context
   {dc:DirectCall}
   {sip : SemInstrParams asm_op syscall_state}
-  {T}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}
   (p:prog) (ev : extra_val_t).
 
@@ -1931,8 +1926,7 @@ Section UNDEFINCL.
 Context
   {dc:DirectCall}
   {sip : SemInstrParams asm_op syscall_state}
-  {T}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.

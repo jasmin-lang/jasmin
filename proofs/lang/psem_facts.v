@@ -150,7 +150,7 @@ Qed.
 
 Section MEM_EQUIV.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context {pT: progT} {sCP: semCallParams}.
 
 Variable P : prog.
 Variable ev : extra_val_t.
@@ -492,8 +492,7 @@ Qed.
 Section DETERMINISM.
 
 Context
-  {T}
-  {pT:progT T}
+  {pT: progT}
   {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.

@@ -35,8 +35,7 @@ Record h_lowering_params
   {
     hlop_lower_callP :
       forall
-        (eft : eqType)
-        (pT : progT eft)
+        (pT : progT)
         (sCP : semCallParams)
         (p : prog)
         (ev : extra_val_t)

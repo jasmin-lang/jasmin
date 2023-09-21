@@ -22,7 +22,7 @@ Context
 
 Section Section.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context {pT: progT} {sCP: semCallParams}.
 
 Section REMOVE_INIT.
   

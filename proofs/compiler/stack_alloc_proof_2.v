@@ -45,7 +45,7 @@ Context
   (rip : pointer)
   (no_overflow_glob_size : no_overflow rip glob_size)
   (mglob : Mvar.t (Z * wsize))
-  (P : uprog) (ev: @extra_val_t _ progUnit)
+  (P : uprog) (ev: @extra_val_t progUnit)
   (hmap : init_map global_alloc global_data (p_globs P) = ok mglob).
 
 Notation gd := (p_globs P).

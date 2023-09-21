@@ -187,8 +187,7 @@ End LINEARIZATION.
 #[ local ]
 Definition arm_fvars_correct
   (fv : fresh_vars)
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   (fds : seq fun_decl) :
   bool :=
   fvars_correct (all_fresh_vars fv) (fvars fv) fds.

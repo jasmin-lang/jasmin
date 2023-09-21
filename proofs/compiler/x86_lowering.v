@@ -58,7 +58,7 @@ Definition fvars :=
 
 Definition disj_fvars v := disjoint v fvars.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition fvars_correct p :=
   [&& disj_fvars (vars_p p),
