@@ -44,7 +44,7 @@ Definition c_calls (c : Sf.t) (cmd : cmd) :=
 
 Section Section.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition live_calls (s: Sf.t) (p: fun_decls) : Sf.t :=
   foldl (λ c x, let '(n, d) := x in if Sf.mem n c then c_calls c (f_body d) else c) s p.

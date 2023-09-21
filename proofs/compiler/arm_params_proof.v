@@ -886,8 +886,7 @@ Qed.
 
 Lemma arm_lower_callP
   { dc : DirectCall }
-  (eft : eqType)
-  (pT : progT eft)
+  (pT : progT)
   (sCP : semCallParams)
   (p : prog)
   (ev : extra_val_t)

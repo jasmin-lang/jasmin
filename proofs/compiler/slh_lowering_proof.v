@@ -474,8 +474,7 @@ Qed.
 Section CHECK_PROOF.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {dc: DirectCall}
   {sCP : semCallParams}
   (shparams : sh_params)
@@ -791,8 +790,7 @@ End CHECK_PROOF.
 Section PASS_PROOF.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {sCP : semCallParams}
   {dc : DirectCall}
   (shparams : sh_params)

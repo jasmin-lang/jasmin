@@ -122,7 +122,7 @@ End CALLS.
 
 Section Section.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context {pT: progT} {sCP: semCallParams}.
 
 #[local]
 Instance live_calls_m : Proper (Sf.Equal ==> eq ==> Sf.Equal) live_calls.

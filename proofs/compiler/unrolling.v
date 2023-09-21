@@ -81,7 +81,7 @@ Fixpoint unroll_i (i: instr) : cmd * bool :=
 
 Section Section.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition unroll_fun (f: fun_decl) :=
   let: (fn, MkFun ii si p c so r ev) := f in

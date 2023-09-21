@@ -328,7 +328,7 @@ Qed.
 Section PROG.
 
 Context
-  {T:eqType} {pT:progT T}
+  {pT: progT}
   {sCP : semCallParams}.
 
 Variable init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t.

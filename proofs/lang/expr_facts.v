@@ -103,9 +103,9 @@ End PEXPRS_IND.
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
-Context {eft} {pT : progT eft}.
+Context {pT: progT}.
 
-Lemma surj_prog (p:prog) : 
+Lemma surj_prog (p:prog) :
   {| p_globs := p_globs p; p_funcs := p_funcs p; p_extra := p_extra p |} = p.
 Proof. by case: p. Qed.
 

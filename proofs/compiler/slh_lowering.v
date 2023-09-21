@@ -205,7 +205,7 @@ Context
   {asm_op : Type}
   {asmop : asmOp asm_op}
   {msfsz : MSFsize}
-  {eft : eqType} {pT : progT eft}.
+  {pT : progT}.
 
 Section CHECK_SLHO.
 

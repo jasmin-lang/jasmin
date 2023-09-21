@@ -29,8 +29,7 @@ Context
 Section Section.
 
 Context
-  {T:eqType}
-  {pT:progT T}
+  {pT: progT}
   {sCP: semCallParams}.
 
 Section PROOF.

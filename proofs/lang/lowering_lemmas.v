@@ -169,8 +169,7 @@ End ESTATE_EQ_EXCEPT.
 Section DISJ_FVARS.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {asmop : Type}
   {asm_op : asmOp asmop}
   (all_fresh_vars : seq Ident.ident)

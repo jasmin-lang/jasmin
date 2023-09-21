@@ -202,7 +202,7 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
 
 Section Section.
 
-Context {T} {pT:progT T}.
+Context {pT:progT}.
 
 Definition pi_fun  (f:fundef) :=
   let 'MkFun ii si p c so r ev := f in
