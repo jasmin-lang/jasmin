@@ -204,15 +204,14 @@ Record var_i := VarI {
   v_info : var_info
 }.
 
-Notation vid ident :=
+Definition mk_var_i (x : var) :=
   {|
-    v_var :=
-      {|
-        vtype := sword Uptr;
-        vname := ident%string;
-      |};
+    v_var := x;
     v_info := dummy_var_info;
   |}.
+
+Notation vid ident :=
+  (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
 
 Variant v_scope := 
   | Slocal 
@@ -898,7 +897,7 @@ Fixpoint eq_expr e e' :=
 
 (* ------------------------------------------------------------------- *)
 Definition to_lvals (l:seq var) : seq lval := 
-  map (fun x => Lvar {|v_var := x; v_info := dummy_var_info |}) l.
+  map (fun x => Lvar (mk_var_i x)) l.
 
 (* ------------------------------------------------------------------- *)
 Definition is_false (e: pexpr) : bool :=
