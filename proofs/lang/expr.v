@@ -586,27 +586,6 @@ Record stk_fun_extra := MkSFun {
   sf_return_address : return_address_location;
 }.
 
-Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
-  (e1.(sf_align) == e2.(sf_align)) &&
-  (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
-  (e1.(sf_stk_ioff) == e2.(sf_stk_ioff)) &&
-  (e1.(sf_stk_max) == e2.(sf_stk_max)) &&
-  (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)) &&
-  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
-  (e1.(sf_to_save) == e2.(sf_to_save)) &&
-  (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
-  (e1.(sf_return_address) == e2.(sf_return_address)).
-
-Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
-Proof.
-  case => a b c d e f g h i [] a' b' c' d' e' f' g' h' i'; apply: (equivP andP) => /=; split.
-  + by case => /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
-  by case => <- <- <- <- <- <- <- <- <-; rewrite !eqxx.
-Qed.
-
-Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
-Canonical  sfe_eqType    := Eval hnf in EqType stk_fun_extra sfe_eqMixin.
-
 Record sprog_extra := {
   sp_rsp   : Ident.ident;
   sp_rip   : Ident.ident;
