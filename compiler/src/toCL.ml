@@ -45,7 +45,7 @@ let pp_bool fmt () =
 let pp_uint fmt ws =
   Format.fprintf fmt "@@uint%i" (int_of_ws ws)
 
-let pp_int fmt ws =
+let pp_sint fmt ws =
   Format.fprintf fmt "@@sint%i" (int_of_ws ws)
 
 let pp_bw fmt t =
@@ -55,6 +55,9 @@ let pp_sign t =
   match t with
   | Wsize.Signed -> "s"
   | Unsigned -> "u"
+
+let pp_int fmt s ws =
+  Format.fprintf fmt "@@%sint%i" (pp_sign s) (int_of_ws ws)
 
 let rec pp_op1 fmt o e = 
   match o with 
@@ -141,81 +144,100 @@ and pp_expr fmt e =
   | Papp1(o, e) -> pp_op1 fmt o e
   | Papp2(o, e1, e2) -> pp_op2 fmt o e1 e2
   | PappN(o, es) -> pp_opn fmt o es
-  | Parr_init _ | Pget _ | Psub _ | Pload _ -> assert false 
+  | Parr_init _ -> assert false
+  | Pget _ -> assert false
+  | Psub _ -> assert false
+  | Pload _ -> assert false 
   | Pif _ -> assert false
 
 and pp_pred fmt e =
   pp_rexpr fmt (e, None)
 
+and pp_cast fmt (ws_d, e) =
+  let ws_s = (match e with
+              | Pvar x -> ws_of_ty (L.unloc x.gv).v_ty
+              | Pconst z -> ws_d
+              | _ -> ws_d (* FIXME: fail?? *)
+             ) in  
+  if ws_d != ws_s then
+    Format.fprintf fmt "cast %a%a %a;\n"
+    pp_expr e pp_uint ws_d
+    pp_expr e
+  else Format.fprintf fmt ""
+
 exception NoTranslation
 
-let pp_baseop fmt xs o es = 
+let pp_baseop fmt xs o es =
   match o with
   | X86_instr_decl.MOV ws ->
      (match (List.nth es 0) with
       | Pvar x ->
          let ws_x = ws_of_ty (L.unloc x.gv).v_ty in
          if ws_x != ws (* implicit cast *)
-         then Format.fprintf fmt "cast %a%a %a%a"
+         then Format.fprintf fmt "cast %a%a %a"
                 pp_lval (List.nth xs 0)
                 pp_uint ws
                 pp_expr (List.nth es 0)
-                pp_uint ws_x
-         else Format.fprintf fmt "mov %a%a %a%a"
+         else Format.fprintf fmt "mov %a %a"
                pp_lval (List.nth xs 0)
-               pp_uint ws
                pp_expr (List.nth es 0)
-               pp_uint ws
-      | _ -> Format.fprintf fmt "mov %a%a %a%a"
+      | _ -> Format.fprintf fmt "mov %a %a"
                pp_lval (List.nth xs 0)
-               pp_uint ws
                pp_expr (List.nth es 0)
-               pp_uint ws
      )
-  (* | MOVSX of wsize * wsize *)
+
+  | MOVSX (ws1, ws2) ->
+     Format.fprintf fmt "cast %a%a %a"
+       pp_lval (List.nth xs 0)
+       pp_uint ws1
+       pp_expr (List.nth es 0)
+
   | MOVZX (ws1, ws2) -> 
-    Format.fprintf fmt "cast %a%a %a%a"
+    Format.fprintf fmt "cast %a%a %a"
       pp_lval (List.nth xs 0)
       pp_uint ws1
       pp_expr (List.nth es 0)
-      pp_uint ws2
 
   | CMOVcc ws ->
-     Format.fprintf fmt "cmov %a%a %a%a %a%a %a%a"
-       pp_lval (List.nth xs 0) pp_uint ws
-       pp_expr (List.nth es 0) pp_bool ()
-       pp_expr (List.nth es 1) pp_uint ws
-       pp_expr (List.nth es 2) pp_uint ws
+     Format.fprintf fmt "cmov %a %a %a %a"
+       pp_lval (List.nth xs 0)
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
+       pp_expr (List.nth es 2)
 
   | ADD ws ->
-      Format.fprintf fmt "adds %a%a %a%a %a%a %a%a"
-         pp_lval (List.nth xs 1) pp_bool ()
-         pp_lval (List.nth xs 5) pp_uint ws
-         pp_expr (List.nth es 0) pp_uint ws
-         pp_expr (List.nth es 1) pp_uint ws
-      
-(*
-  | SUB ws ->
-     Format.fprintf fmt "subb %a%a %a%a %a%a %a%a"
+     Format.fprintf fmt "%a%aadds %a%a %a %a %a"
+       pp_cast (ws, (List.nth es 0))
+       pp_cast (ws, (List.nth es 1))
        pp_lval (List.nth xs 1) pp_bool ()
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_expr (List.nth es 1) pp_uint ws
+       pp_lval (List.nth xs 5)
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
+
+  | SUB ws ->
+     Format.fprintf fmt "%a%asubb %a%a %a %a %a"
+       pp_cast (ws, (List.nth es 0))
+       pp_cast (ws, (List.nth es 1))
+       pp_lval (List.nth xs 1) pp_bool ()
+       pp_lval (List.nth xs 5)
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
+(*
   | MUL ws ->
      Format.fprintf fmt "umull"
   | IMUL of wsize
 *)
   | IMULr ws ->
-     Format.fprintf fmt "mull dontcare %a%a %a%a %a%a"
-         pp_lval (List.nth xs 5) pp_uint ws
-         pp_expr (List.nth es 0) pp_uint ws
-         pp_expr (List.nth es 1) pp_uint ws
+     Format.fprintf fmt "mull dontcare %a%a %a %a"
+       pp_lval (List.nth xs 5) pp_uint ws
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
   
   | IMULri ws ->
-     Format.fprintf fmt "mull dontcare %a%a %a%a %a%a"
-         pp_lval (List.nth xs 5) pp_uint ws
-         pp_expr (List.nth es 0) pp_uint ws
-         pp_expr (List.nth es 1) pp_uint ws
+     Format.fprintf fmt "mull dontcare %a%a %a %a%a"
+       pp_lval (List.nth xs 5) pp_uint ws
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1) pp_uint ws
 
   (*
   | DIV of wsize
@@ -223,26 +245,26 @@ let pp_baseop fmt xs o es =
   | CQO of wsize
    *)
   | ADC ws ->
-    Format.fprintf fmt "adcs %a%a %a%a %a%a %a%a %a%a"
+    Format.fprintf fmt "adcs %a%a %a %a %a %a%a"
       pp_lval (List.nth xs 1) pp_bool ()
-      pp_lval (List.nth xs 5) pp_uint ws
-      pp_expr (List.nth es 0) pp_uint ws
-      pp_expr (List.nth es 1) pp_uint ws
+      pp_lval (List.nth xs 5)
+      pp_expr (List.nth es 0)
+      pp_expr (List.nth es 1)
       pp_expr (List.nth es 2) pp_bool ()
 
   | SBB ws ->
-    Format.fprintf fmt "sbbs %a%a %a%a %a%a %a%a %a%a"
+    Format.fprintf fmt "sbbs %a%a %a %a %a %a%a"
       pp_lval (List.nth xs 1) pp_bool ()
-      pp_lval (List.nth xs 5) pp_uint ws
-      pp_expr (List.nth es 0) pp_uint ws
-      pp_expr (List.nth es 1) pp_uint ws
+      pp_lval (List.nth xs 5)
+      pp_expr (List.nth es 0)
+      pp_expr (List.nth es 1)
       pp_expr (List.nth es 2) pp_bool ()
 
   | NEG ws ->
-     Format.fprintf fmt "sub %a%a %a%a %a%a"
-       pp_lval (List.nth xs 4) pp_int ws
-       pp_print_i (Z.of_int 0) pp_int ws
-       pp_expr (List.nth es 0) pp_int ws
+     Format.fprintf fmt "sub %a %a %a"
+       pp_lval (List.nth xs 4)
+       pp_print_i (Z.of_int 0)
+       pp_expr (List.nth es 0)
 
   | INC ws ->
      Format.fprintf fmt "add %a%a %a%a %a%a"
@@ -266,35 +288,35 @@ let pp_baseop fmt xs o es =
   | CMP of wsize
 *)
   | AND ws ->
-    Format.fprintf fmt "and %a%a %a%a %a%a"
-      pp_lval (List.nth xs 5) pp_uint ws
-      pp_expr (List.nth es 0) pp_uint ws
-      pp_expr (List.nth es 1) pp_uint ws
+    Format.fprintf fmt "and %a %a %a"
+      pp_lval (List.nth xs 5)
+      pp_expr (List.nth es 0)
+      pp_expr (List.nth es 1)
       
   | ANDN ws ->
-     Format.fprintf fmt "not %a%a %a%a;\nand %a%a %a%a %a%a"
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 1) pp_uint ws
+     Format.fprintf fmt "not %a %a;\nand %a %a %a"
+       pp_lval (List.nth xs 5)
+       pp_expr (List.nth es 0)
+       pp_lval (List.nth xs 5)
+       pp_lval (List.nth xs 5)
+       pp_expr (List.nth es 1)
 
   | OR ws ->
-     Format.fprintf fmt "or %a%a %a%a %a%a"
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_expr (List.nth es 1) pp_uint ws
+     Format.fprintf fmt "or %a %a %a"
+       pp_lval (List.nth xs 5)
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
 
   | XOR ws ->
-     Format.fprintf fmt "xor %a%a %a%a %a%a"
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_expr (List.nth es 1) pp_uint ws
+     Format.fprintf fmt "xor %a %a %a"
+       pp_lval (List.nth xs 5)
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
 
   | NOT ws ->
-     Format.fprintf fmt "not %a%a %a%a"
+     Format.fprintf fmt "not %a%a %a"
        pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
+       pp_expr (List.nth es 0)
 
   (* | ROR ws -> *)
   (*    Format.fprintf fmt "ror %a%a %a%a %a@@uint8" *)
@@ -313,44 +335,38 @@ let pp_baseop fmt xs o es =
  *)
 
   | SHL ws ->
-     Format.fprintf fmt "shl %a%a %a%a %a"
+     Format.fprintf fmt "shl %a %a %a"
        pp_lval (List.nth xs 5)
-       pp_uint ws
        pp_expr (List.nth es 0)
-       pp_uint ws
        pp_expr (List.nth es 1)
 
   | SHR ws ->
-     Format.fprintf fmt "shr %a%a %a%a %a"
+     Format.fprintf fmt "shr %a %a %a"
        pp_lval (List.nth xs 5)
-       pp_uint ws
        pp_expr (List.nth es 0)
-       pp_uint ws
        pp_expr (List.nth es 1)
 
   | SAL ws ->
-     Format.fprintf fmt "shl %a%a %a%a %a"
+     Format.fprintf fmt "shl %a %a %a"
        pp_lval (List.nth xs 5)
-       pp_uint ws
        pp_expr (List.nth es 0)
-       pp_uint ws
        pp_expr (List.nth es 1)
 
   | SAR ws ->
-     Format.fprintf fmt "sar %a%a %a%a %a"
-       pp_lval (List.nth xs 5) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
+     Format.fprintf fmt "sar %a %a %a"
+       pp_lval (List.nth xs 5)
+       pp_expr (List.nth es 0)
        pp_expr (List.nth es 1)
 (*
   | SHLD of wsize
   | SHRD of wsize
  *)
   | MULX ws ->
-     Format.fprintf fmt "mull %a%a %a%a %a%a %a%a"
+     Format.fprintf fmt "mull %a%a %a%a %a %a"
        pp_lval (List.nth xs 0) pp_uint ws
        pp_lval (List.nth xs 1) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_expr (List.nth es 1) pp_uint ws
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
 (*
   | ADCX of wsize
   | ADOX of wsize
@@ -368,10 +384,10 @@ let pp_baseop fmt xs o es =
   | VPMOVZX of velem * wsize * velem * wsize
  *)
   | VPAND ws ->
-     Format.fprintf fmt "and %a%a %a%a %a%a"
+     Format.fprintf fmt "and %a%a %a %a"
        pp_lval (List.nth xs 0) pp_uint ws
-       pp_expr (List.nth es 0) pp_uint ws
-       pp_expr (List.nth es 1) pp_uint ws
+       pp_expr (List.nth es 0)
+       pp_expr (List.nth es 1)
 
   | VPANDN ws ->
      Format.fprintf fmt "not %a%a %a%a;\nand %a%a %a%a %a%a"
