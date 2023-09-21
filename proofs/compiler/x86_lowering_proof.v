@@ -226,34 +226,6 @@ Section PROOF.
     (a <= b < c)%Z.
   Proof. by case/andP => /word_ssrZ.lezP ? /word_ssrZ.ltzP. Qed.
 
-  Lemma wleuE' sz (α β: word sz) :
-    wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
-  Proof.
-  case: (β =P α).
-  + by move => <-; rewrite orbT /= lexx.
-  rewrite orbF /wunsigned /=.
-  case: α β => α hα [] β hβ ne'.
-  Transparent word.
-  repeat rewrite /mathcomp.word.word.urepr /=.
-  Opaque word.
-  have ne : α ≠ β.
-  - move => ?; subst; apply: ne'.
-    by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec hα).
-  case/between_ZR: hα hβ {ne'} => hα hα' /between_ZR [hβ hβ'].
-  elim_div => z a [] //.
-  elim_div => z1 b [] //.
-  set m := (wsize_size_minus_1 sz).+1.
-  have /word_ssrZ.ltzP := mathcomp.word.word.modulus_gt0 m.
-  match goal with |- (?x < _)%Z → _ => have hz : x = 0%Z by [] end.
-  rewrite hz in hα, hβ |- * => {hz}.
-  move => hm /Z.eq_opp_r ?; subst α => - []; last Psatz.lia.
-  case => ??? []; last Psatz.lia.
-  case => ??.
-  symmetry; case: word_ssrZ.lezP => h; apply/eqP; first Psatz.nia.
-  fold m in hα', hβ'.
-  suff: z = (- z1)%Z; Psatz.nia.
-  Qed.
-
   Lemma lower_condition_corr ii ii' i e e' s1 cond:
     (i, e') = lower_condition fv ii' e ->
     forall s1', eq_exc_fresh s1' s1 ->
@@ -338,31 +310,28 @@ Section PROOF.
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
       + move: hof hsf => /= -> -> /=; rewrite /sem_sop1 /= /SF_of_word.
-        by rewrite eq_sym -wltsE.
-      by move: hcf => /= -> /=; rewrite -wleuE /= ltNge.
+        by rewrite eq_sym wltsE.
+      by move: hcf => /= -> /=; rewrite wleuE /= ltNge.
     + case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
       + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word.
-        rewrite eq_sym -wltsE GRing.subr_eq0 le_eqVlt orbC eqtype.inj_eq //.
-        by apply word.srepr_inj.
+        by rewrite neq_sym GRing.subr_eq0 orbC wlesE'.
       move: hcf hzf => /= -> -> /=; rewrite /sem_sop2 /= /ZF_of_word.
-      by rewrite GRing.subr_eq0 -wleuE'.
+      by rewrite GRing.subr_eq0 wleuE'.
     + case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
       + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word.
-        rewrite ltNge -(negbK (_ == msb _)).
-        rewrite -negb_or (eq_sym _ (msb _)) -wltsE GRing.subr_eq0 orbC /= le_eqVlt.
-        by rewrite eqtype.inj_eq //; apply word.srepr_inj.
+        by rewrite GRing.subr_eq0 andbC (eq_sym _ (msb _)) wltsE'.
       move: hcf hzf => /= -> -> /=; rewrite /sem_sop2 /= /ZF_of_word.
-      by rewrite -negb_or GRing.subr_eq0 ltNge -wleuE'.
+      by rewrite negbK GRing.subr_eq0 -wltuE'.
     case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
     have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
     exists s2'; split => //; split => //; case: hs => <-.
     + move: hof hsf => /= -> -> /=; rewrite /sem_sop2 /= /SF_of_word.
-      by rewrite eq_sym -(negbK (_ == _)) -wltsE /= leNgt.
-    by move: hcf => /= -> /=; rewrite /sem_sop1 /= -wleuE negbK.
+      by rewrite eq_sym wlesE.
+    by move: hcf => /= -> /=; rewrite /sem_sop1 /= wleuE negbK.
   Qed.
 
   Lemma read_es_swap x y : Sv.Equal (read_es [:: x ; y ]) (read_es [:: y ; x ]).
@@ -1484,7 +1453,7 @@ Section PROOF.
            ~~(wunsigned w2 <=? wunsigned w1)%Z.
     + apply Bool.eq_true_iff_eq.
       rewrite hn /is_true Z.ltb_lt Z.leb_le; lia.
-    by f_equal; rewrite -wleuE.
+    by rewrite wleuE.
   Qed.
 
   Lemma sub_borrow_underflow sz (w1 w2: word sz) (b:bool) :
