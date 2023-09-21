@@ -1,4 +1,4 @@
-
+From Coq Require Btauto.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import
   compiler_util
@@ -98,3 +98,13 @@ Record h_architecture_params
         -> exec_sopn (Oasm op) [:: vx ] = ok v
         -> List.Forall2 value_uincl v [:: vx ];
   }.
+
+
+(* -------------------------------------------------------------------------- *)
+(* Utils. *)
+
+Ltac t_eval_cond :=
+  t_xrbindP=> *;
+  t_eq_rewrites=> /=;
+  f_equal;
+  Btauto.btauto.

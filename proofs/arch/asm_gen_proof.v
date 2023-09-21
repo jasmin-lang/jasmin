@@ -49,10 +49,6 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition of_rbool (v : rflagv) :=
-  if v is Def b then Vbool b else undef_b.
-
-(* -------------------------------------------------------------------- *)
 Definition eqflags (m: estate) (rf: rflagmap) : Prop :=
   ∀ (f: rflag), value_uincl (evm m).[to_var f] (of_rbool (rf f)).
 
@@ -338,22 +334,14 @@ Proof. by case: e => //- [] // [] x vi //= /eqP ->; exists vi. Qed.
 
 Section EVAL_ASSEMBLE_COND.
 
-Definition get_rf (rf : rflagmap) (x : rflag) : exec bool :=
-  if rf x is Def b then ok b else undef_error.
-
-Definition get_rf_to_bool_of_rbool rf x :
-  get_rf rf x = to_bool (of_rbool (rf x)).
-Proof.
-  rewrite /get_rf. by case: (rf x).
-Qed.
-
 Definition assemble_cond_spec :=
-  forall ii m rf e c v,
-    eqflags m rf
+  forall ii m xm e c v,
+    eqflags m (asm_flag xm)
     -> agp_assemble_cond agparams ii e = ok c
     -> sem_fexpr m.(evm) e = ok v
     -> exists2 v',
-         value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+         value_of_bool (eval_cond (get_typed_reg_value xm) c) = ok v'
+         & value_uincl v v'.
 
 Context
   (eval_assemble_cond : assemble_cond_spec).
@@ -2007,14 +1995,6 @@ Definition vmap_of_asm_mem
   let vm := vmap_set_vars pword_of_xreg vm xregisters in
   let vm := vmap_set_vars (t := sbool) pbool_of_flag vm rflags in
   vm.
-
-Definition get_typed_reg_value (st : asmmem) (r : asm_typed_reg) : value :=
-  match r with
-  | ARReg r => Vword (asm_reg  st r)
-  | ARegX r => Vword (asm_regx st r)
-  | AXReg r => Vword (asm_xreg st r)
-  | ABReg r => of_rbool (asm_flag st r)
-  end.
 
 Definition get_typed_reg_values st rs : values :=
   map (get_typed_reg_value st) rs.

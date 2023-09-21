@@ -325,3 +325,7 @@ Global Instance asm_opI : asmOp extended_op :=
     sopn.prim_string := get_prime_op }.
 
 End AsmOpI.
+
+Definition get_flag
+  `{arch_decl} (get : asm_typed_reg -> value) (f : rflag) : exec bool :=
+  to_bool (get (ABReg f)).

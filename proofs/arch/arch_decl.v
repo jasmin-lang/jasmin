@@ -15,6 +15,7 @@ Require Import
   syscall
   utils
   word.
+Require values.
 Require Import
   sopn
   flag_combination
@@ -660,7 +661,7 @@ Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 Class asm (reg regx xreg rflag cond asm_op: Type) :=
   { _arch_decl   : arch_decl reg regx xreg rflag cond
   ; _asm_op_decl : asm_op_decl asm_op
-  ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool
+  ; eval_cond    : (asm_typed_reg -> values.value) -> cond_t -> exec bool
   }.
 
 #[global]
