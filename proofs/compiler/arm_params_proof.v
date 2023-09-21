@@ -515,9 +515,7 @@ Proof.
     hbody hset_up ? hneq_tmp_rsp hnot_saved_stack hneq_r_rsp hgetrsp;
     subst rtype.
 
-  move: hset_up.
-  rewrite /arm_set_up_sp_register.
-  case: ifP => // hset_up _.
+  move: hset_up => /oassertP_isSome [hset_up _].
 
   have hneq_r_tmp :
     v_var r <> vtmp.
@@ -686,9 +684,7 @@ Proof.
   set ts' := align_word _ _.
   move=> hbody hset_up hneq_tmp_rsp hgetrsp hwrite.
 
-  move: hset_up.
-  rewrite /= /arm_set_up_sp_stack.
-  case: ifP => // hset_up _.
+  move: hset_up => /oassertP_isSome [hset_up _].
 
   move: hbody.
   rewrite /set_up_sp_stack /= /arm_set_up_sp_stack hset_up /= -/vtmpi.

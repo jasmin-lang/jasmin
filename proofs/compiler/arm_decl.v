@@ -246,12 +246,13 @@ Definition shift_op (sk: shift_kind) :
   end.
 
 Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
-  match ws, op with
-  | U32, Olsl (Op_w U32) => Some SLSL
-  | U32, Olsr U32 => Some SLSR
-  | U32, Oasr (Op_w U32) => Some SASR
-  | U32, Oror U32 => Some SROR
-  | _, _ => None
+  let%opt _ := oassert (ws == U32) in
+  match op with
+  | Olsl (Op_w U32) => Some SLSL
+  | Olsr U32 => Some SLSR
+  | Oasr (Op_w U32) => Some SASR
+  | Oror U32 => Some SROR
+  | _ => None
   end.
 
 (* -------------------------------------------------------------------- *)

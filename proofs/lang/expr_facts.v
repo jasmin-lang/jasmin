@@ -163,6 +163,11 @@ Proof. by case: e=>*;constructor. Qed.
 Lemma is_array_initP e : reflect (exists n, e = Parr_init n) (is_array_init e).
 Proof. by case: e => * /=; constructor; try (by move=> []); eexists. Qed.
 
+Lemma is_Papp2P e op e0 e1 :
+  is_Papp2 e = Some (op, e0, e1) ->
+  e = Papp2 op e0 e1.
+Proof. by case: e => // ??? [-> -> ->]. Qed.
+
 Lemma is_reflect_some_inv {A P e a} (H: @is_reflect A P e (Some a)) : e = P a.
 Proof.
   set (d e m := match m with None => True | Some a => e = P a end).
