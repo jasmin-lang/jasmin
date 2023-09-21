@@ -1871,6 +1871,33 @@ Proof. by case: u; constructor. Qed.
 
 End Option.
 
+Notation "'let%opt' x ':=' ox 'in' body" :=
+  (if ox is Some x then body else None)
+  (x strict pattern, at level 25).
+
+Notation "'let%opt '_' ':=' ox 'in' body" :=
+  (if ox is Some tt then body else None)
+  (at level 25).
+
+Lemma obindP aT bT oa (f : aT -> option bT) a (P : Type) :
+  (forall z, oa = Some z -> f z = Some a -> P) ->
+  (let%opt a' := oa in f a') = Some a ->
+  P.
+Proof. case: oa => // a' h h'. exact: (h _ _ h'). Qed.
+
+Definition oassert (b : bool) : option unit :=
+  if b then Some tt else None.
+
+Lemma oassertP {A b a} {oa : option A} :
+  (let%opt _ := oassert b in oa) = Some a ->
+  b /\ oa = Some a.
+Proof. by case: b. Qed.
+
+Lemma oassertP_isSome {A b} {oa : option A} :
+  isSome (let%opt _ := oassert b in oa) ->
+  b /\ isSome oa.
+Proof. by case: b. Qed.
+
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
 Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
 

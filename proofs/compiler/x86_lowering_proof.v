@@ -270,6 +270,7 @@ Section PROOF.
     + by move=> _ [ -> ->]; exists s1' => /=; split => //; constructor.
     move=> hws [??]; subst i e'.
     case: e He heq => // o e1 e2 /=; t_xrbindP => v1 hv1 v2 hv2.
+    rewrite /lower_cond_classify.
     set Of := {| v_var := fv_of _ |}.
     set Cf := {| v_var := fv_cf _ |}.
     set Sf := {| v_var := fv_sf _ |}.
@@ -375,10 +376,11 @@ Section PROOF.
          Sv.Subset (read_lea l) (read_e e),
          mk_lea sz e = Some l & check_scale l.(lea_scale)].
   Proof.
-    rewrite /is_lea; case: ifP => // /andP [-> _].
+    rewrite /is_lea.
+    move=> /oassertP [] /and3P [-> -> _].
     case h: mk_lea => [[d b sc o]|] //.
     move /mk_lea_read in h.
-    by case: ifP => // /andP [] /andP [] heq _ _ [<-].
+    by move=> /oassertP [] /and3P [? _ _] [<-].
   Qed.
 
   Lemma zquot_bound m x y :

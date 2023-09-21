@@ -672,6 +672,9 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
+Definition is_Papp2 (e : pexpr) : option (sop2 * pexpr * pexpr) :=
+  if e is Papp2 op e0 e1 then Some (op, e0, e1) else None.
+
 Definition is_array_init e :=
   match e with
   | Parr_init _ => true
