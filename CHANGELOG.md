@@ -6,6 +6,11 @@
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`
   ([PR #554](https://github.com/jasmin-lang/jasmin/pull/554)).
 
+## Other changes
+
+- Unsigned division on x86 emits a xor instead of “mov 0“
+  ([PR #582](https://github.com/jasmin-lang/jasmin/pull/582)).
+
 # Jasmin 2023.06.1 — 2023-07-31
 
 ## New features

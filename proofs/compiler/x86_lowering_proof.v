@@ -1418,9 +1418,9 @@ Section PROOF.
               /check_size_16_64 hle1 hle2 /= sumbool_of_boolET;eauto.
         + by rewrite /get_var Fv.setP_eq.
         + by split => //; apply vmap_eq_except_set; apply multiplicand_in_fv.
-        + by apply: EmkI;  apply: Eopn; rewrite /sem_sopn /exec_sopn /sopn_sem /= truncate_word_u /=
-               /x86_MOV /check_size_8_64 hle2 /=;eauto.
-        + by rewrite /= sumbool_of_boolET /get_var /= Fv.setP_eq /= wrepr0.
+        + by apply: EmkI; apply: Eopn; rewrite /sem_sopn /exec_sopn /sopn_sem /=
+                                         /Oset0_instr hle2 /=; eauto.
+        + by rewrite /= sumbool_of_boolET /get_var /= Fv.setP_eq.
         rewrite sumbool_of_boolET; split => //.
         by apply vmap_eq_except_set; apply multiplicand_in_fv.
       have [hwa1 [s3 [hsem heqe] {hdiv}]]:= hdiv _ heq1 Hdisjl Hdisje.

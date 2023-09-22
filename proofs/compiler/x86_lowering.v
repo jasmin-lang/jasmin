@@ -532,7 +532,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
     let i1 :=
       match s with
       | Signed => Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a]
-      | Unsigned => Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)]
+      | Unsigned => Copn [:: f ; f ; f ; f ; f ; Lvar c ] tg (Oasm (ExtOp (Oset0 sz))) [::]
       end in
 
     [::MkI ii i1; MkI ii (Copn lv tg op [::Plvar c; a; b]) ]
