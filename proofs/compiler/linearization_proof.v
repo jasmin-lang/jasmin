@@ -520,16 +520,6 @@ Section HLIPARAMS.
     exact: truncate_word_u.
   Qed.
 
-  Lemma valid_lassign fn lbl0 lbl1 ii x w e :
-    valid fn lbl0 lbl1 [:: of_olinstr_r ii (lassign' liparams x w e) ].
-  Proof.
-    rewrite /lassign'.
-    case: lexpr_of_lval => // d.
-    case: rexpr_of_pexpr => // r.
-    rewrite /lassign /=.
-    by case: lip_lassign => [[[? ?] ?]|].
-  Qed.
-
 End HLIPARAMS.
 
 End LINEARIZATION_PARAMS.

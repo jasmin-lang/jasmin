@@ -57,13 +57,6 @@ Proof.
   by case: eqP => //= ->; case: ifP => // _; case: vm.[_] => // _; case: pundef_addr.
 Qed.
 
-Lemma kill_vars_uincl vm xs :
-  kill_vars xs vm <=1 vm.
-Proof.
-  move => x; rewrite kill_varsE.
-  case: ifP => // _; apply/subtype_value_uincl_undef/subtype_undef_get.
-Qed.
-
 Section SEM.
 
 Context

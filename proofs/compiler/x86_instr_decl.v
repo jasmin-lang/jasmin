@@ -203,10 +203,7 @@ Definition b5w2_ty  sz      := [:: sbool; sbool; sbool; sbool; sbool; sword sz; 
 Definition w_ty     sz      := [:: sword sz].
 Definition w2_ty    sz sz'  := [:: sword sz; sword sz'].
 Definition w3_ty    sz      := [:: sword sz; sword sz; sword sz].
-Definition w4_ty    sz      := [:: sword sz; sword sz; sword sz; sword sz].
 Definition w8_ty            := [:: sword8].
-Definition w32_ty           := [:: sword32].
-Definition w64_ty           := [:: sword64].
 Definition w128_ty          := [:: sword128].
 Definition w256_ty          := [:: sword256].
 

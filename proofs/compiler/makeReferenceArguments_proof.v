@@ -145,12 +145,6 @@ Context
    by move => y _ <-.
   Qed.
 
-  Lemma eq_funcs : map_cfprog (update_fd fresh_id p) (p_funcs p) = ok (p_funcs p').
-  Proof.
-    move : Hp; rewrite /makereference_prog.
-    by t_xrbindP => fdecls Hmap_cfprog <- /=.
-  Qed.
-
   Lemma is_reg_ptr_lval_ty b ii sfx x ty lv y:
      is_reg_ptr_lval fresh_id ii sfx b x ty lv = Some y -> vtype y = ty.
   Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
