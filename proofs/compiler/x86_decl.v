@@ -347,7 +347,6 @@ Definition x86_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
   match cfc with
   | CFC_B => vcf
   | CFC_E => vzf
-  | CFC_S => vsf
   | CFC_L => FCNot (FCEq vof vsf)
   | CFC_BE => FCOr vcf vzf
   | CFC_LE => FCOr (FCNot (FCEq vof vsf)) vzf
