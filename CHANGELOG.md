@@ -56,6 +56,9 @@
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
   fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
 
+- Unsigned division on x86 emits a xor instead of “mov 0“
+  ([PR #582](https://github.com/jasmin-lang/jasmin/pull/582)).
+
 # Jasmin 2023.06.1 — 2023-07-31
 
 ## New features
