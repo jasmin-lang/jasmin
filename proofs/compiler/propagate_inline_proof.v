@@ -178,10 +178,8 @@ Proof.
   t_xrbindP=> b ? /to_boolI ?? /to_boolI ?? /to_boolI ?? /to_boolI ? hb ?;
     subst.
 
-  move: hb.
   rewrite /sem_combine_flags /cf_xsem.
-  case: cf_tbl => -[] ? [?];
-    subst b;
+  case: cf_tbl => -[] ?;
     by auto using snotE, sandE, sorE, sbeqE, sem_pexpr_fc_sem.
 Qed.
 

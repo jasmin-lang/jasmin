@@ -96,48 +96,22 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   end.
 
 Definition lower_cond_classify vi (e: pexpr) :=
-  let nil := Lnone vi sbool in
   let fr n := {| v_var := n ; v_info := vi |} in
   let vof := fr fv_of in
   let vcf := fr fv_cf in
   let vsf := fr fv_sf in
   let vzf := fr fv_zf in
+  let vflags := map v_var [:: vof; vcf; vsf; vzf ] in
 
   let lof := Lvar vof in
   let lcf := Lvar vcf in
   let lsf := Lvar vsf in
   let lzf := Lvar vzf in
+  let lflags := [:: lof; lcf; lsf; Lnone_b vi; lzf ] in
 
-  let eof := Plvar vof in
-  let ecf := Plvar vcf in
-  let esf := Plvar vsf in
-  let ezf := Plvar vzf in
-
-  let l := [:: lof ; lcf ; lsf ; nil ; lzf ] in
-  let%opt (op, x, y) := is_Papp2 e in
-  match op with
-  | Oeq (Op_w sz) =>
-    Some (l, sz, ezf, x, y)
-  | Oneq (Op_w sz) =>
-    Some (l, sz, enot ezf, x, y)
-  | Olt (Cmp_w Signed sz) =>
-    Some (l, sz, eneq eof esf, x, y)
-  | Olt (Cmp_w Unsigned sz) =>
-    Some (l, sz, ecf, x, y)
-  | Ole (Cmp_w Signed sz) =>
-    Some (l, sz, eor (eneq eof esf) ezf, x, y)
-  | Ole (Cmp_w Unsigned sz) =>
-    Some (l, sz, eor ecf ezf, x, y)
-  | Ogt (Cmp_w Signed sz) =>
-    Some (l, sz, eand (eeq eof esf) (enot ezf), x, y)
-  | Ogt (Cmp_w Unsigned sz) =>
-    Some (l, sz, eand (enot ecf) (enot ezf), x, y)
-  | Oge (Cmp_w Signed sz) =>
-    Some (l, sz, eeq eof esf, x, y)
-  | Oge (Cmp_w Unsigned sz) =>
-    Some (l, sz, enot ecf, x, y)
-  | _ => None
-  end.
+  let%opt (op, e0, e1) := is_Papp2 e in
+  let%opt (cf, ws) := cf_of_condition op in
+  Some (lflags, ws, pexpr_of_cf cf vflags, e0, e1).
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   match lower_cond_classify vi pe with
@@ -397,8 +371,6 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
 
   | _ => LowerAssgn
   end.
-
-Definition Lnone_b vi := Lnone vi sbool.
 
 (* TODO: other sizes than U64 *)
 Variant opn_5flags_cases_t : Type :=

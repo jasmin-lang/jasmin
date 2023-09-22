@@ -258,6 +258,22 @@ Definition eand e1 e2 := Papp2 Oand e1 e2.
 Definition eeq e1 e2 := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 := enot (eeq e1 e2).
 
+Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
+  match op with
+  | Oeq (Op_w ws) => Some (CF_EQ, ws)
+  | Oneq (Op_w ws) => Some (CF_NEQ, ws)
+  | Olt (Cmp_w s ws) => Some (CF_LT s, ws)
+  | Ole (Cmp_w s ws) => Some (CF_LE s, ws)
+  | Ogt (Cmp_w s ws) => Some (CF_GT s, ws)
+  | Oge (Cmp_w s ws) => Some (CF_GE s, ws)
+  | _ => None
+  end.
+
+Definition pexpr_of_cf (cf : combine_flags) (flags : seq var) : pexpr :=
+  let eflags := [seq Plvar (mk_var_i x) | x <- flags ] in
+  PappN (Ocombine_flags cf) eflags.
+
+
 (* ** Left values
  * -------------------------------------------------------------------- *)
 
@@ -277,6 +293,8 @@ Definition get_pvar (e: pexpr) : exec var :=
 
 Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
+
+Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
