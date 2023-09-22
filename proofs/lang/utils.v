@@ -151,28 +151,6 @@ Proof.
   by move=> [].
 Qed.
 
-Section ResultEqType.
-
-Variable E A : eqType.
-
-Definition result_eq (r1 r2: result E A): bool :=
-  match r1, r2 with
-  | Ok a1, Ok a2 => a1 == a2
-  | Error e1, Error e2 => e1 == e2
-  | _, _ => false
-  end.
-
-Lemma result_eqP : Equality.axiom result_eq.
-Proof.
-  case=> [a1|e1] [a2|e2] /=; try (by apply: ReflectF);
-  by apply: (equivP eqP);split=>[|[]] ->.
-Qed.
-
-Canonical result_eqMixin := EqMixin result_eqP.
-Canonical result_eqType := Eval hnf in EqType (result E A) result_eqMixin.
-
-End ResultEqType.
-
 Module Result.
 
 Definition apply eT aT rT (f : aT -> rT) (x : rT) (u : result eT aT) :=
@@ -231,16 +209,6 @@ Arguments assertP {E b e u} _.
 
 Variant error :=
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith.
-
-Scheme Equality for error.
-
-Lemma error_beqP : Equality.axiom error_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_error_dec_bl internal_error_dec_lb).
-Qed.
-
-Canonical error_eqMixin := EqMixin error_beqP.
-Canonical error_eqType := Eval hnf in EqType error error_eqMixin.
 
 Definition exec t := result error t.
 

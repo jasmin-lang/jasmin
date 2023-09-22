@@ -337,19 +337,6 @@ Variant inline_info :=
   | InlineFun
   | DoNotInline.
 
-Scheme Equality for inline_info.
-
-Lemma inline_info_eq_axiom : Equality.axiom inline_info_beq.
-Proof.
-  exact:
-    (eq_axiom_of_scheme
-       internal_inline_info_dec_bl
-       internal_inline_info_dec_lb).
-Qed.
-
-Definition inline_info_eqMixin     := Equality.Mixin inline_info_eq_axiom.
-Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info_eqMixin.
-
 (* -------------------------------------------------------------------- *)
 
 Variant align :=
