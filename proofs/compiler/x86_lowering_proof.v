@@ -1380,8 +1380,8 @@ Section PROOF.
               /check_size_16_64 hle1 hle2 /= write_var_eq_type //.
         + by rewrite get_var_eq //= cmp_le_refl orbT.
         + by split => //; apply vmap_eq_except_set; apply multiplicand_in_fv.
-        + by apply: EmkI;  apply: Eopn; rewrite /sem_sopn /exec_sopn /sopn_sem /= truncate_word_u /=
-               /x86_MOV /check_size_8_64 hle2 /= write_var_eq_type.
+        + by apply: EmkI; apply: Eopn; rewrite /sem_sopn /exec_sopn /sopn_sem /=
+                                         /Oset0_instr hle2 /= write_var_eq_type.
         + by rewrite /= get_var_eq /= cmp_le_refl orbT ?wrepr0.
         split => //.
         by apply vmap_eq_except_set; apply multiplicand_in_fv.
