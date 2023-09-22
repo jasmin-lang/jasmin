@@ -236,7 +236,9 @@ Proof.
     | [ |- forall (_ : cmp_kind), _ -> _ ] => move=> [|[] []] //=
     end.
 
-  1: case hTST: lower_TST => [es'|] //.
+  - rewrite /lower_condition_Papp2.
+    case hTST: lower_TST => [es'|] //.
+
   all: move=> [? ? ?] hsemop; subst mn e es.
 
   all: move: hsemop => /sem_sop2I /= [w0 [w1 [b [hw0 hw1 hop]]]].
@@ -277,7 +279,7 @@ Proof.
       first reflexivity.
     clear hws00 hws01.
 
-    rewrite /get_gvar /=.
+    rewrite /pexpr_of_cf /= /get_gvar /=.
     repeat t_get_var => //.
 
     rewrite wrepr0 zero_extend0.
@@ -296,40 +298,40 @@ Proof.
   all: rewrite /get_gvar /=.
   all: repeat t_get_var => //.
 
-  (* Case [w0 == w1]. *)
-  - by rewrite wsub_wnot1 -GRing.Theory.subr_eq0.
-
-  (* Case [w0 != w1]. *)
-  - by rewrite wsub_wnot1 -GRing.Theory.subr_eq0.
+  all: rewrite
+    /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+    1?wsub_wnot1
+    1?nzcv_of_aluop_CF_sub
+    1?wsigned_wsub_wnot1
+    ?GRing.Theory.subr_eq0
+    //.
+  all: clear.
+  all: set w0 := zero_extend _ w0'.
+  all: set w1 := zero_extend _ w1'.
 
   (* Case [w0 <s w1]. *)
-  - by rewrite /sem_sop1 /NF_of_word /= wsub_wnot1 wsigned_wsub_wnot1 wltsE.
+  - by rewrite wltsE.
 
   (* Case [w0 <u w1]. *)
-  - by rewrite /sem_sop1 /= wsub_wnot1 nzcv_of_aluop_CF_sub wleuE ltNge.
+  - by rewrite wleuE ltNge.
 
   (* Case [w0 <=s w1]. *)
-  - rewrite /sem_sop2 /NF_of_word /ZF_of_word /=.
-    by rewrite wsub_wnot1 wsigned_wsub_wnot1 GRing.subr_eq0 wlesE'.
+  - by rewrite wlesE'.
 
   (* Case [w0 <=u w1]. *)
-  - rewrite /sem_sop2 /ZF_of_word /=.
-    by rewrite wsub_wnot1 nzcv_of_aluop_CF_sub GRing.subr_eq0 wleuE'.
+  - by rewrite wleuE'.
 
   (* Case [w0 >s w1]. *)
-  - rewrite /sem_sop2 /NF_of_word /ZF_of_word /=.
-    by rewrite wsub_wnot1 wsigned_wsub_wnot1 GRing.subr_eq0 wltsE'.
+  - by rewrite wlesE' ltNge.
 
   (* Case [w0 >u w1]. *)
-  - rewrite /sem_sop2 /ZF_of_word /=.
-    by rewrite wsub_wnot1 nzcv_of_aluop_CF_sub GRing.subr_eq0 -wltuE'.
+  - by rewrite wleuE' ltNge.
 
   (* Case [w0 >=s w1]. *)
-  - rewrite /sem_sop2 /NF_of_word /=.
-    by rewrite wsub_wnot1 wsigned_wsub_wnot1 wlesE.
+  - by rewrite wltsE leNgt.
 
   (* Case [w0 >=u w1]. *)
-  by rewrite wsub_wnot1 nzcv_of_aluop_CF_sub wleuE.
+  by rewrite -word.wltuE leNgt.
 Qed.
 
 Lemma sem_lower_condition_pexpr tag s0 s0' ii e v lvs aop es c :

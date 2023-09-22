@@ -21,8 +21,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Notation lowered_pexpr := (option (arm_op * seq pexpr)) (only parsing).
-
 Section Section.
 Context {atoI : arch_toIdent}.
 
@@ -57,21 +55,27 @@ Section ARM_LOWERING.
 Context
   (fv : fresh_vars).
 
+Notation lowered_pexpr := (option (arm_op * seq pexpr)) (only parsing).
+
+Definition chk_ws_reg (ws : wsize) : option unit :=
+  oassert (ws == reg_size)%CMP.
+
+
 (* -------------------------------------------------------------------- *)
 (* Lowering of conditions. *)
 
-#[ local ]
-Definition mk_fv_gvar x := {| gv := mk_var_i x; gs := Slocal; |}.
-
-Definition lflags_of_mn (mn : arm_mnemonic) : seq lval :=
+Definition flags_of_mn (mn : arm_mnemonic) : seq var :=
   let ids :=
     match mn with
-    | CMP => [:: fv_NF; fv_ZF; fv_CF; fv_VF ]
-    | TST => [:: fv_NF; fv_ZF; fv_CF ]
+    | CMP => [:: fvNF; fvZF; fvCF; fvVF ]
+    | TST => [:: fvNF; fvZF; fvCF ]
     | _ => [::]
     end
   in
-  map (fun x => Lvar (mk_var_i (vbool (x fv)))) ids.
+  map (fun x => x fv) ids.
+
+Definition lflags_of_mn (mn : arm_mnemonic) : seq lval :=
+  to_lvals (flags_of_mn mn).
 
 Definition lower_TST (e0 e1 : pexpr) : option (seq pexpr) :=
   match e0, e1 with
@@ -81,37 +85,23 @@ Definition lower_TST (e0 e1 : pexpr) : option (seq pexpr) :=
       None
   end.
 
+(* TODO_ARM: CMP and TST take register shifts. *)
 Definition lower_condition_Papp2
   (op : sop2) (e0 e1 : pexpr) : option (arm_mnemonic * pexpr * seq pexpr) :=
-  let eNF := Pvar (mk_fv_gvar (fvNF fv)) in
-  let eZF := Pvar (mk_fv_gvar (fvZF fv)) in
-  let eCF := Pvar (mk_fv_gvar (fvCF fv)) in
-  let eVF := Pvar (mk_fv_gvar (fvVF fv)) in
-  (* TODO_ARM: CMP and TST take register shifts. *)
-  let cmp e := Some (CMP, e, [:: e0; e1 ]) in
+  let%opt (cf, ws) := cf_of_condition op in
+  let%opt _ := chk_ws_reg ws in
+  let cmp := (CMP, pexpr_of_cf cf (fresh_flags fv), [:: e0; e1 ]) in
   match op with
-  | Oeq (Op_w U32) =>
-      if lower_TST e0 e1 is Some es then Some (TST, eZF, es) else cmp eZF
-  | Oneq (Op_w U32) =>
-      cmp (enot eZF)
-  | Olt (Cmp_w Signed U32) =>
-      cmp (eneq eNF eVF)
-  | Olt (Cmp_w Unsigned U32) =>
-      cmp (enot eCF)
-  | Ole (Cmp_w Signed U32) =>
-      cmp (eor eZF (eneq eNF eVF))
-  | Ole (Cmp_w Unsigned U32) =>
-      cmp (eor (enot eCF) eZF)
-  | Ogt (Cmp_w Signed U32) =>
-      cmp (eand (enot eZF) (eeq eNF eVF))
-  | Ogt (Cmp_w Unsigned U32) =>
-      cmp (eand eCF (enot eZF))
-  | Oge (Cmp_w Signed U32) =>
-      cmp (eeq eNF eVF)
-  | Oge (Cmp_w Unsigned U32) =>
-      cmp eCF
-  | _ =>
-      None
+  | Oeq (Op_w _) =>
+      let eZF := Pvar (mk_lvar (mk_var_i (fvZF fv))) in
+      Some (if lower_TST e0 e1 is Some es then (TST, eZF, es) else cmp)
+  | Oneq (Op_w _)
+  | Olt (Cmp_w _ _)
+  | Ole (Cmp_w _ _)
+  | Ogt (Cmp_w _ _)
+  | Oge (Cmp_w _ _)
+      => Some cmp
+  | _ => None
   end.
 
 Definition lower_condition_pexpr
@@ -128,9 +118,6 @@ Definition lower_condition (e : pexpr) : seq instr_r * pexpr :=
 
 (* -------------------------------------------------------------------- *)
 (* Lowering of assignments. *)
-
-Definition chk_ws_reg (ws : wsize) : option unit :=
-  oassert (ws == reg_size)%CMP.
 
 Definition get_arg_shift
   (ws : wsize) (e : pexprs) : option (pexpr * shift_kind * pexpr) :=

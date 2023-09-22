@@ -1142,24 +1142,14 @@ Qed.
 
 (* -------------------------------------------------------------------*)
 
-Lemma wltuE' sz (α β: word sz) :
-  wlt Unsigned α β = (wunsigned (β - α) == (wunsigned β - wunsigned α)%Z) && (β != α).
-Proof.
-  by rewrite -[X in X && _]negbK -wltuE /= -leNgt andbC eq_sym -lt_neqAle.
-Qed.
-
 Lemma wleuE sz (w1 w2: word sz) :
  (wunsigned (w2 - w1) == (wunsigned w2 - wunsigned w1))%Z = wle Unsigned w1 w2.
-Proof.
-  rewrite /= le_eqVlt -/(wlt Unsigned _ _) wltuE'.
-  rewrite orb_andr /= [w2 == w1]eq_sym orbN andbT.
-  by rewrite orb_idl // => /eqP /val_inj ->; rewrite subZE !subrr.
-Qed.
+Proof. by rewrite /= leNgt wltuE negbK. Qed.
 
 Lemma wleuE' sz (w1 w2 : word sz) :
   (wunsigned (w1 - w2) != (wunsigned w1 - wunsigned w2)%Z) || (w1 == w2)
   = wle Unsigned w1 w2.
-Proof. by rewrite /wle le_eqVlt wleuE ltNge orbC. Qed.
+Proof. by rewrite -wltuE /= le_eqVlt orbC. Qed.
 
 Lemma wltsE_aux sz (α β: word sz) : α ≠ β →
   wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
