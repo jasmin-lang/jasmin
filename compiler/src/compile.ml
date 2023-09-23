@@ -210,8 +210,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       try Hf.find ttbl fn with Not_found -> assert false
   in
 
-  let is_inline (_, annot) = Annotations.has_symbol "inline" annot in
-
   let cparams =
     {
       Compiler.rename_fd;
@@ -247,7 +245,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
-      Compiler.is_inline;
     }
   in
 

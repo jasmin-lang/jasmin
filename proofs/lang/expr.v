@@ -323,18 +323,21 @@ Definition wrange d (n1 n2 : Z) :=
 Module Type InstrInfoT <: TAG.
   Include TAG.
   Parameter with_location : t -> t.
+  Parameter is_inline : t -> bool.
 End InstrInfoT.
 
 Module InstrInfo : InstrInfoT.
   Definition t := positive.
   Definition witness : t := 1%positive.
   Definition with_location (ii : t) := ii.
+  Definition is_inline (_ : t) : bool := false.
 End InstrInfo.
 
 Definition instr_info := InstrInfo.t.
 Definition dummy_instr_info : instr_info := InstrInfo.witness.
 Definition ii_with_location (ii : instr_info) : instr_info :=
   InstrInfo.with_location ii.
+Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)

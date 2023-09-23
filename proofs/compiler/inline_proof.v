@@ -18,16 +18,15 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  (is_inline : instr_info -> bool)
   (rename_fd : instr_info -> funname -> ufundef -> ufundef).
 
 Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Notation inline_i' := (inline_i is_inline rename_fd).
-Notation inline_fd' := (inline_fd is_inline rename_fd).
-Notation inline_prog' := (inline_prog is_inline rename_fd).
+Notation inline_i' := (inline_i rename_fd).
+Notation inline_fd' := (inline_fd rename_fd).
+Notation inline_prog' := (inline_prog rename_fd).
 
 #[local] Existing Instance indirect_c.
 
@@ -64,7 +63,7 @@ Section INCL.
     + move=> a c e c' Hc Hc' ii X1 c0 X2 /=.
       by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
     move=> xs f es ii X1 c' X2 /=.
-    case: is_inline => [|//].
+    case: ii_is_inline => [|//].
     t_xrbindP=> fd /get_funP -/Incl.
     by rewrite /get_fun => -> h <- <- /=; rewrite h.
   Qed.
@@ -180,7 +179,7 @@ Section SUBSET.
   Local Lemma Scall : forall xs f es, Pr (Ccall xs f es).
   Proof.
     move=> xs f es ii X2 Xc /=.
-    case: is_inline => [| [<-] //].
+    case: ii_is_inline => [|[<-] //].
     by apply:rbindP => fd _;apply: rbindP => ?? [<-].
   Qed.
 
@@ -463,7 +462,7 @@ Section PROOF.
   Proof.
     move=> s1 scs2 m2 s2 xs fn args vargs vs.
     case: s1 => scs1 sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' /=.
-    case: is_inline; last first.
+    case: ii_is_inline; last first.
     + move=> [<- <-] vm1 Hvm1.
       have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
       + by apply: uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
@@ -586,7 +585,7 @@ Section PROOF.
 End PROOF.
 
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
-  inline_prog_err is_inline rename_fd p = ok p' ->
+  inline_prog_err rename_fd p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem f va scs' mem' vr ->
   exists2 vr',

@@ -34,7 +34,6 @@ Context
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}
-  (is_inline : instr_info -> bool)
   (rename_fd : instr_info -> funname -> ufundef -> ufundef)
 .
 
@@ -100,7 +99,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     ok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
   | Ccall xs f es =>
     let X := Sv.union (read_i ir) X in
-    if is_inline iinfo then
+    if ii_is_inline iinfo then
       Let fd := add_iinfo iinfo (get_fun p f) in
       let fd' := rename_fd iinfo f fd in
       Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
