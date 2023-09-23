@@ -177,7 +177,7 @@ Record compiler_params
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
-  is_inline        : _uprog -> instr_info -> funname -> bool;
+  is_inline        : instr_info -> bool;
 }.
 
 Context
@@ -242,7 +242,7 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
   Let p :=
     inline_prog_err
       (wsw := withsubword)
-      (is_inline cparams p)
+      cparams.(is_inline)
       cparams.(rename_fd)
       p
   in

@@ -210,14 +210,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       try Hf.find ttbl fn with Not_found -> assert false
   in
 
-  let is_inline up =
-    let tbl = Hf.create 17 in
-    let _, fs = Conv.prog_of_cuprog up in
-    List.iter (fun f -> Hf.add tbl f.f_name f.f_cc) fs;
-    fun (loc, annot) fn ->
-      let cc = try Hf.find tbl fn with Not_found -> assert false in
-      is_inline annot cc
-  in
+  let is_inline (_, annot) = Annotations.has_symbol "inline" annot in
 
   let cparams =
     {

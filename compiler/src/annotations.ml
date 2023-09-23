@@ -40,3 +40,11 @@ let f_annot_empty = {
     max_call_depth        = None;
     f_user_annot          = [];
   }
+
+let has_symbol s annot =
+  List.exists (fun (k, _) -> String.equal (Location.unloc k) s) annot
+
+let add_symbol ~loc s annot =
+  if has_symbol s annot
+  then annot
+  else (Location.mk_loc loc s, None) :: annot

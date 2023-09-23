@@ -1606,6 +1606,11 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       assert (is = []);
       let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
       let is_inline = P.is_inline annot f.P.f_cc in
+      let annot =
+        if is_inline
+        then Annotations.add_symbol ~loc:el "inline" annot
+        else annot
+      in
       env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->

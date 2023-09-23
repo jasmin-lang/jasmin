@@ -18,7 +18,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  (is_inline : instr_info -> funname -> bool)
+  (is_inline : instr_info -> bool)
   (rename_fd : instr_info -> funname -> ufundef -> ufundef).
 
 Lemma get_funP p f fd :
