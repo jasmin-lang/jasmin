@@ -154,9 +154,18 @@ ops_three_args_vec["VPMADDWD"]      = "vpmaddwd"
 ops_three_args_vec["VPERMD"]        = "vpermd"
 
 ops_three_args_imm8_vec                 = {}
-ops_three_args_imm8_vec["VPERM2I128"]   = "vperm2i128"
 ops_three_args_imm8_vec["VPALIGNR"]     = "vpalignr"
 ops_three_args_imm8_vec["VSHUFPS"]      = "vshufps"
+
+ops_three_args128_imm8_vec                 = {}
+ops_three_args128_imm8_vec["VPBLEND_8u16"]      = "vpblendw"
+ops_three_args128_imm8_vec["VPBLEND_4u32"]      = "vpblendd"
+
+ops_three_args256_imm8_vec                  = {}
+ops_three_args256_imm8_vec["VPERM2I128"]    = "vperm2i128"
+ops_three_args256_imm8_vec["VPBLEND_16u16"] = "vpblendw"
+ops_three_args256_imm8_vec["VPBLEND_8u32"]  = "vpblendd"
+
 
 # TODO: automate this size variation later
 ops_three_args_vec128_size                  = {}

@@ -331,6 +331,99 @@ def gen_three_arg_vec_instrs():
                 j_instr = j_op + "\n" + j_args
                 gen_build_dir(mv_to_folder, j_instr, asm_instr)
 
+def gen_three_args_imm8_vec_instrs():
+    imm8_list = range(256)
+    for op in x86_isa.ops_three_args_imm8_vec:
+        for size in [128, 256]:                  # TODO: handle 256 later
+            for num in range(5):
+                xreg1 = get_usable_xreg(xregs_list)
+                xreg2 = get_usable_xreg(xregs_list)
+                xreg3 = get_usable_xreg(xregs_list)
+                im = random.choice(imm8_list)
+                #create some variations
+                if num == 1:
+                    xreg2 = xreg1
+                if num == 2:
+                    xreg3 = xreg1
+                if num == 3:
+                    xreg3 = xreg2
+                if num == 4:
+                    xreg2 = xreg1
+                    xreg3 = xreg1
+                folder_name = op + "_" + str(size) + "_" + xreg1 + "_" + xreg2 + "_" + xreg3 + "_" + str(im)
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                asm_instr = "{}\t${}, {}, {}, {}".format(x86_isa.ops_three_args_imm8_vec[op], str(im), x86_isa.xregs[xreg3][size], x86_isa.xregs[xreg2][size], x86_isa.xregs[xreg1][size])
+                j_op = "{}_{}".format(op, size)
+                j_args = xreg1 + " " + xreg2 + " " + xreg3 + " " + str(im)
+                j_instr = j_op + "\n" + j_args
+                gen_build_dir(mv_to_folder, j_instr, asm_instr)
+
+def gen_three_args128_imm8_vec_instrs():
+    imm8_list = range(256)
+    for op in x86_isa.ops_three_args128_imm8_vec:
+        for size in [128]:                  # TODO: handle 256 later
+            if size == 128 and op == "VPERM2I128":
+                continue
+            for num in range(5):
+                xreg1 = get_usable_xreg(xregs_list)
+                xreg2 = get_usable_xreg(xregs_list)
+                xreg3 = get_usable_xreg(xregs_list)
+                im = random.choice(imm8_list)
+
+                #create some variations
+                if num == 1:
+                    xreg2 = xreg1
+                if num == 2:
+                    xreg3 = xreg1
+                if num == 3:
+                    xreg3 = xreg2
+                if num == 4:
+                    xreg2 = xreg1
+                    xreg3 = xreg1
+                folder_name = op + "_" + str(size) + "_" + xreg1 + "_" + xreg2 + "_" + xreg3 + "_" + str(im)
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                asm_instr = "{}\t${}, {}, {}, {}".format(x86_isa.ops_three_args128_imm8_vec[op], str(im), x86_isa.xregs[xreg3][size], x86_isa.xregs[xreg2][size], x86_isa.xregs[xreg1][size])
+                j_op = "{}".format(op)
+                j_args = xreg1 + " " + xreg2 + " " + xreg3 + " " + str(im)
+                j_instr = j_op + "\n" + j_args
+                gen_build_dir(mv_to_folder, j_instr, asm_instr)
+
+def gen_three_args256_imm8_vec_instrs():
+    imm8_list = range(256)
+    for op in x86_isa.ops_three_args256_imm8_vec:
+        for size in [256]:                  # TODO: handle 256 later
+            for num in range(5):
+                xreg1 = get_usable_xreg(xregs_list)
+                xreg2 = get_usable_xreg(xregs_list)
+                xreg3 = get_usable_xreg(xregs_list)
+                im = random.choice(imm8_list)
+
+                #create some variations
+                if num == 1:
+                    xreg2 = xreg1
+                if num == 2:
+                    xreg3 = xreg1
+                if num == 3:
+                    xreg3 = xreg2
+                if num == 4:
+                    xreg2 = xreg1
+                    xreg3 = xreg1
+                folder_name = op + "_" + str(size) + "_" + xreg1 + "_" + xreg2 + "_" + xreg3 + "_" + str(im)
+                mv_to_folder = move_build_to_out_dir + "/" + folder_name
+                if mv_to_folder in test_folders:
+                    continue
+                test_folders.add(mv_to_folder)
+                asm_instr = "{}\t${}, {}, {}, {}".format(x86_isa.ops_three_args256_imm8_vec[op], str(im), x86_isa.xregs[xreg3][size], x86_isa.xregs[xreg2][size], x86_isa.xregs[xreg1][size])
+                j_op = "{}".format(op)
+                j_args = xreg1 + " " + xreg2 + " " + xreg3 + " " + str(im)
+                j_instr = j_op + "\n" + j_args
+                gen_build_dir(mv_to_folder, j_instr, asm_instr)
 
 def gen_three_arg128_vec_size_instrs():
     for op in x86_isa.ops_three_args_vec128_size:
@@ -408,4 +501,7 @@ if __name__ == "__main__":
     # gen_two_args_vec_instrs()
     # gen_two_arg_imm8_vec_instrs()
     # gen_three_arg128_vec_size_instrs()
-    gen_four_arg_vec_instrs()
+    # gen_four_arg_vec_instrs()
+    gen_three_args_imm8_vec_instrs()
+    # gen_three_args128_imm8_vec_instrs()
+    # gen_three_args256_imm8_vec_instrs()
