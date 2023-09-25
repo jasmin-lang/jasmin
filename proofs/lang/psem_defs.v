@@ -158,6 +158,9 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
 
+Definition sem_pexpr_int (s : estate) (e : pexpr) : exec Z :=
+  Let v := sem_pexpr s e in to_int v.
+
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var wdb s.(evm) x v in
   ok (with_vm s vm).
@@ -217,6 +220,42 @@ Definition sem_sopn gd o m lvs args :=
   sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
 
 End EXEC_ASM.
+
+Section FOR_ITERATION.
+
+  Context
+    {syscall_state : Type}
+    {ep : EstateParams syscall_state}
+    {spp : SemPexprParams}
+    (wdb : bool)
+    (gd : glob_decls)
+  .
+
+  Definition eval_fi (s : estate) (fi : for_iteration) : exec (seq Z) :=
+    match fi with
+    | FIunroll _ (dir, elo, ehi) =>
+        Let zlo := sem_pexpr_int wdb gd s elo in
+        Let zhi := sem_pexpr_int wdb gd s ehi in
+        ok (wrange dir zlo zhi)
+    | FIinstruction e =>
+        Let z := sem_pexpr_int wdb gd s e in
+        ok (ziota 0 z)
+    end.
+
+  Definition init_iteration
+    (s : estate) (oi : option var_i) (z : Z) : exec estate :=
+    if oi is Some i then write_var wdb i (Vint z) s else ok s.
+
+  Definition iterator_of_fi (fi : for_iteration) : option var_i :=
+    match fi with
+    | FIunroll i _ => Some i
+    | FIinstruction _ => None
+    end.
+
+  Definition sv_of_ovar_i (oi : option var_i) : Sv.t :=
+    if oi is Some i then Sv.singleton (v_var i) else Sv.empty.
+
+End FOR_ITERATION.
 
 End WSW.
 

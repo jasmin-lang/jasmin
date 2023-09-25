@@ -64,15 +64,19 @@ Fixpoint unroll_i (i: instr) : cmd * bool :=
       let: (c1', b1) := unroll_cmd unroll_i c1 in
       let: (c2', b2) := unroll_cmd unroll_i c2 in
       ([:: MkI ii (Cif b c1' c2') ], b1 || b2)
-  | Cfor i (dir, low, hi) c =>
+  | Cfor fi c =>
     let: (c', b) := unroll_cmd unroll_i c in
-    match is_const low, is_const hi with
-    | Some vlo, Some vhi =>
-      let l := wrange dir vlo vhi in
-      let cs := map (fun n => assgn ii i (Pconst n) :: c') l in
-      (flatten cs, true)
-    | _, _       => ([:: MkI ii (Cfor i (dir, low, hi) c') ], b)
-    end
+    let: skip := ([:: MkI ii (Cfor fi c') ], b) in
+    if fi is FIunroll i (dir, low, hi)
+    then
+      match is_const low, is_const hi with
+      | Some vlo, Some vhi =>
+          let l := wrange dir vlo vhi in
+          let cs := map (fun n => assgn ii i (Pconst n) :: c') l in
+          (flatten cs, true)
+      | _, _ => skip
+      end
+    else skip
   | Cwhile a c1 e c2  =>
       let: (c1', b1) := unroll_cmd unroll_i c1 in
       let: (c2', b2) := unroll_cmd unroll_i c2 in

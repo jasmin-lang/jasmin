@@ -543,6 +543,30 @@ Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}.
 
+Definition check_fi
+  (fi1 fi2 : for_iteration)
+  (rhi : M.t) :
+  cexec (option var_i * option var_i * M.t) :=
+  match fi1, fi2 with
+  | FIunroll x1 (d1, lo1, hi1), FIunroll x2 (d2, lo2, hi2) =>
+      Let _ := assert (d1 == d2) (alloc_error "loop directions not equals") in
+      Let rhi := check_e lo1 lo2 rhi in
+      Let rhi := check_e hi1 hi2 rhi in
+      ok (Some x1, Some x2, rhi)
+  | FIinstruction e1, FIinstruction e2 =>
+      Let rhi := check_e e1 e2 rhi in
+      ok (None, None, rhi)
+  | _, _ => Error (alloc_error "different loop iteration modes")
+  end.
+
+Definition check_iteration_var
+  (oi1 oi2 : option var_i) (rhi : M.t) : cexec M.t :=
+  match oi1, oi2 with
+  | Some i1, Some i2 => check_var i1 i2 rhi
+  | None, None => ok rhi
+  | _, _ => Error (alloc_error "different loop iteration variables")
+  end.
+
 Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
@@ -567,11 +591,10 @@ Fixpoint check_i (i1 i2:instr_r) r :=
     Let r2 := fold2 E.fold2 check_I c12 c22 re in
     ok (M.merge r1 r2)
 
-  | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
-    Let _ := assert (d1 == d2) (alloc_error "loop directions not equals") in
-    Let rhi := check_e lo1 lo2 r >>=check_e hi1 hi2 in
+  | Cfor fi1 c1, Cfor fi2 c2 =>
+    Let: (oi1, oi2, rhi) := check_fi fi1 fi2 r in
     let check_c r :=
-      check_var x1 x2 r >>=
+      check_iteration_var oi1 oi2 r >>=
       fold2 E.fold2 check_I c1 c2 in
     loop check_c Loop.nb rhi
 

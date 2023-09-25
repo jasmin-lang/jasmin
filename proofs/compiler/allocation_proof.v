@@ -400,12 +400,12 @@ Section PROOF.
     exists2 vm2, eq_alloc r2 (evm s2) vm2 &
       sem p2 ev (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
-  Let Pfor (i1:var_i) vs s1 c1 s2 :=
-    forall i2 r1 r1' c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_var i1 i2 r1 = ok r1' ->
+  Let Pfor oi1 vs s1 c1 s2 :=
+    forall oi2 r1 r1' c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
+    check_iteration_var oi1 oi2 r1 = ok r1' ->
     check_cmd c1 c2 r1' = ok r2 -> M.incl r1 r2 ->
     exists2 vm2, eq_alloc r1 (evm s2) vm2 &
-      sem_for p2 ev i2 vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
+      sem_for p2 ev oi2 vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
   Let Pfun scs m fn vargs1 scs' m' vres :=
     forall vargs2, List.Forall2 value_uincl vargs1 vargs2 ->
@@ -572,20 +572,60 @@ Section PROOF.
     apply: (M.incl_trans H2); apply M.merge_incl_l.
   Qed.
 
+
+  #[local]
+  Lemma check_fiP wdb gd fi1 fi2 oi1 oi2 rhi rhi' vm1 vm2 :
+    check_fi fi1 fi2 rhi = ok (oi1, oi2, rhi') ->
+    eq_alloc rhi vm1 vm2 ->
+    [/\ eq_alloc rhi' vm1 vm2
+      , forall scs m rn1,
+          let: s1 := {| escs := scs; emem := m; evm := vm1; |} in
+          let: s2 := {| escs := scs; emem := m; evm := vm2; |} in
+          eval_fi wdb gd s1 fi1 = ok rn1 ->
+          eval_fi wdb gd s2 fi2 = ok rn1
+      , iterator_of_fi fi1 = oi1
+      & iterator_of_fi fi2 = oi2
+    ].
+  Proof.
+    rewrite {2}/eval_fi /sem_pexpr_int.
+    Opaque eval_fi.
+    case: fi1 => [i1 [[d1 elo1] ehi1] | e1];
+      case: fi2 => [i2 [[d2 elo2] ehi2] | e2] //=;
+      t_xrbindP.
+    - move=> /eqP ? rhi0 hchklo rhi1 hchkhi ??? heq; subst oi1 oi2 d1 rhi1.
+      have [heq0 h0] := check_eP wdb gd hchklo heq.
+      have [heq1 h1] := check_eP wdb gd hchkhi heq0.
+      split=> //.
+      move=> scs m rn1 /eval_fiI [lo1 [hi1 [hlo1 hhi1 ?]]].
+      subst rn1.
+      move: hlo1 => /h0 [_ [-> /value_uinclE ->]].
+      by move: hhi1 => /h1 [_ [-> /value_uinclE ->]].
+
+    move=> rhi0 hchk ??? heq; subst oi1 oi2 rhi0.
+    have [heq' h] := check_eP wdb gd hchk heq.
+    split=> //.
+    move=> scs m rn1 /eval_fiI [z hz ?]; subst rn1.
+    by move: hz => /h [_ [-> /value_uinclE ->]].
+  Qed.
+
   Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
   Proof.
-    move => s1 s2 i d lo hi c vlo vhi.
-    case: s1 => scs1 sm1 svm1 Hlo Hhi Hc Hfor r1 [] //= i2 [[d2 lo2] hi2] c2 r2 vm1 Hvm1.
+    move=> s1 s2 fi1 rn c.
+    case: s1 => scs1 sm1 svm1 hfi1 Hc Hfor r1 [] //= fi2 c2 r2 vm1 Hvm1.
     rewrite /check_i -/check_I.
-    case: eqP => //= ?;subst d2.
-    t_xrbindP => r1' r1'' /check_eP -/(_ true gd _ _ Hvm1) [Hr1'' Heqlo].
-    have [vlo'' [Hlo2 /value_uinclE Hvlo']] := Heqlo _ _ _ Hlo.
-    subst vlo'' => /check_eP -/(_ true gd _ _ Hr1'') [Hr1' Heqhi].
-    have [vhi'' [Hhi2 /value_uinclE Hhi']] := Heqhi _ _ _ Hhi.
-    subst vhi'' => /loopP [r2'] []; t_xrbindP=> r2'' Hcv Hcc Hr2r1 Hr2r2.
-    have := Hfor _ _ _ _ _ _ (eq_alloc_incl Hr2r1 Hr1') Hcv Hcc Hr2r2.
-    move=> [vm2 Hvm2 Hsem2];exists vm2 => //.
-    econstructor; rewrite -?eq_globs ?Hlo2 ?Hhi2 /= ;eauto.
+    t_xrbindP=>
+      -[[oi1' oi2'] r1']
+      /(check_fiP true gd) /(_ Hvm1) []
+      Hr1' /(_ _ _ _ hfi1) hfi2 ??
+      /loopP [r2' []].
+    subst oi1' oi2'.
+    t_xrbindP=> r2'' Hcv Hcc Hr2r1 Hr2r2.
+    have [vm2 Hvm2 Hsem2] :=
+      Hfor _ _ _ _ _ _ (eq_alloc_incl Hr2r1 Hr1') Hcv Hcc Hr2r2.
+    eexists; first eassumption.
+    econstructor; last eassumption.
+    rewrite -eq_globs.
+    by eauto.
   Qed.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
@@ -593,11 +633,20 @@ Section PROOF.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p1 ev Pc Pfor.
   Proof.
-    move=> s1 s1' s2 s3 i w ws c Hwi _ Hc _ Hfor i2 r1 r1' c2 r2 vm2 Heq Hr1' Hcc Hincl.
-    have [//|vm3 Hwi2 Hvm3] := check_lvalP (gd := gd) Hr1' Heq (value_uincl_refl _) _ Hwi.
-    have [vm4 Hvm4 Hsc] := Hc _ _ _ _ Hvm3 Hcc.
-    have [vm5 Hvm5 Hsf] := Hfor _ _ _ _ _ _ (eq_alloc_incl Hincl Hvm4) Hr1' Hcc Hincl.
-    by exists vm5 => //; econstructor; eauto.
+    move=> s1 s1' s2 s3 [i1|] w ws c Hwi _ Hc _ Hfor [i2|] r1 r1' c2 r2 vm2
+      //= Heq Hr1' Hcc Hincl.
+    - have [//|vm3 Hwi2 Hvm3] := check_lvalP (gd := gd) Hr1' Heq (value_uincl_refl _) _ Hwi.
+      have [vm4 Hvm4 Hsc] := Hc _ _ _ _ Hvm3 Hcc.
+      have [vm5 Hvm5 Hsf] :=
+        Hfor (Some i2) _ _ _ _ _ (eq_alloc_incl Hincl Hvm4) Hr1' Hcc Hincl.
+      by exists vm5 => //; econstructor; eauto.
+
+    move: Hr1' => [?]; subst r1'.
+    move: Hwi => [?]; subst s1'.
+    have [vm3 Hvm3 Hsc] := Hc _ _ _ _ Heq Hcc.
+    have [vm4 Hvm4 Hsf] :=
+      Hfor None _ _ _ _ _ (eq_alloc_incl Hincl Hvm3) erefl Hcc Hincl.
+    by exists vm4 => //; econstructor; eauto.
   Qed.
 
   Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.

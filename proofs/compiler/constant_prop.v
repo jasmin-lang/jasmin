@@ -470,6 +470,17 @@ Section GLOBALS.
 
 Context (gd: glob_decls).
 
+Definition const_prop_fi (m : cpm) (fi : for_iteration) : for_iteration :=
+  match fi with
+  | FIunroll x (d, e1, e2) =>
+      let e1 := const_prop_e without_globals m e1 in
+      let e2 := const_prop_e without_globals m e2 in
+      FIunroll x (d, e1, e2)
+  | FIinstruction e =>
+      let e := const_prop_e without_globals m e in
+      FIinstruction e
+  end.
+
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
   match ir with
   | Cassgn x tag ty e =>
@@ -508,12 +519,11 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
       (merge_cpm m1 m2, [:: MkI ii (Cif b c1 c2) ])
     end
 
-  | Cfor x (dir, e1, e2) c =>
-    let e1 := const_prop_e without_globals m e1 in
-    let e2 := const_prop_e without_globals m e2 in
+  | Cfor fi c =>
+    let fi := const_prop_fi m fi in
     let m := remove_cpm m (write_i ir) in
     let (_,c) := const_prop const_prop_i m c in
-    (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
+    (m, [:: MkI ii (Cfor fi c) ])
 
   | Cwhile a c e c' =>
     let m := remove_cpm m (write_i ir) in
