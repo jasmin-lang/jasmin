@@ -19,6 +19,10 @@
      `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
   but no extra register is used for the low half of the result.
 
+- Instruction selection for arm-m4 turns `x = (y << n) - z`
+  into `x = #RSB(z, y << n)`
+  ([PR #585](https://github.com/jasmin-lang/jasmin/pull/585)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators

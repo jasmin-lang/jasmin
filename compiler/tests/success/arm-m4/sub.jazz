@@ -49,6 +49,16 @@ fn sub(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x -= arg0 >>r 31;
     [x] = x;
 
+    // RSB
+    x = (arg0 << 0) - arg1;
+    [x] = x;
+    x = (arg0 >>r 1) - arg1;
+    [x] = x;
+    x = (arg0 >>s 2) - arg1;
+    [x] = x;
+    x = (arg0 >> 3) - arg1;
+    [x] = x;
+
     // Conditionals.
     nf, zf, cf, vf, _ = #SUBS(x, 0);
 
