@@ -15,6 +15,10 @@ let load_file name =
     |> tt_file Arch.reg_size Arch.asmOp_sopn Env.empty None None
     |> fst |> Env.decls
     |> Compile.preprocess Arch.reg_size Arch.asmOp
-  with TyError (loc, e) ->
-    Format.eprintf "%a: %a@." Location.pp_loc loc pp_tyerror e;
-    assert false
+  with
+  | TyError (loc, e) ->
+      Format.eprintf "%a: %a@." Location.pp_loc loc pp_tyerror e;
+      assert false
+  | Syntax.ParseError (loc, None) ->
+      Format.eprintf "Parse error: %a@." Location.pp_loc loc;
+      assert false

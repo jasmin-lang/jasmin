@@ -17,8 +17,9 @@
 (tests
   (libraries jasmin.jasmin common)
   (deps
-    annot.jazz)
+    (glob_files success/*)
+    (glob_files fail/*))
   (flags -rectypes)
-  (modules annot)
+  (modules accept reject)
   (names
-    annot))
+    accept reject))
