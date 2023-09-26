@@ -1152,6 +1152,7 @@ let init_constraint fenv f =
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
   Hashtbl.add tbl spublic    (Env.public2 env);
+  Hashtbl.add tbl stransient (Env.transient env);
   Hashtbl.add tbl ssecret    (Env.secret2 env);
   (* export function: all input type should be at most transient and msf is not allowed *)
   (* the new version does not take that into accout, does it? *)

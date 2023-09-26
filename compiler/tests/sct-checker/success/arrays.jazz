@@ -1,0 +1,25 @@
+param int N = 2;
+
+#[constraints="t <= transient"]
+fn transient_read(
+  #[poly = t, poly = d] reg ptr u64[N] p,
+  #[poly = t] reg u64 i
+) -> #[poly = d] reg u64 {
+  reg u64 x;
+  x = #init_msf();
+  x = i if i < N;
+  x = p[(int) x];
+  return x;
+}
+
+fn safe_access(
+  #public reg u64 c,
+  #[poly = d] reg u64 x
+) -> #[poly = d] reg u64 {
+  stack u64[1] s;
+  if c != 0 {
+    s[0] = x;
+    x = s[0];
+  }
+  return x;
+}

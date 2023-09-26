@@ -1,0 +1,223 @@
+/* These examples are the one featured in the S&P 2023 paper,
+    “Typing High-Speed Cryptography against Spectre v1”
+*/
+param int N = 20;
+
+// TODO: this is a workaround, parsing of annotations being certainly buggy
+#[constraints="p <= public, t <= transient, secret <= s"]
+fn fig3a(
+  #[poly = t, poly = t] reg const ptr u64[N] p,
+  #[poly = t, poly = s] reg mut ptr u64[N] w,
+  #transient reg u64 i)
+  ->  #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = i < N;
+  if b {
+    ms = #update_msf(b, ms);
+    x = p[(int) i];
+    x = #protect(x, ms);
+  } else {
+    ms = #update_msf(! b, ms);
+  }
+  w[(int) x] = 0;
+  return w;
+}
+
+#[constraints="p <= public, t <= transient"]
+fn fig3b(
+  #[poly = t, poly = t] reg const ptr u64[N] p,
+  #[poly = t, poly = w] reg mut ptr u64[N] w,
+  #[poly = t, poly = s] reg mut ptr u64[N] s,
+  #transient reg u64 i,
+  #secret reg u64 secret)
+  -> #[poly = p, poly = w] reg mut ptr u64[N], #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = i < N;
+  if b {
+    ms = #update_msf(b, ms);
+    s[(int) i] = secret;
+  } else {
+    ms = #update_msf(! b, ms);
+  }
+  x = p[0];
+  x = #protect(x, ms);
+  w[(int) x] = 0;
+  return w, s;
+}
+
+#[constraints="p <= public, secret <= s"]
+fn fig4a(
+  #[poly = p, poly = d] reg mut ptr u64[N] msg,
+  #[poly = p, poly = s] reg const ptr u64[N] key
+) -> #[poly = p, poly = d] reg mut ptr u64[N] {
+  reg u64 i t1 t2;
+  i = 0;
+  while (i < N) {
+    t1 = msg[(int) i];
+    t2 = key[(int) i];
+    t1 ^= t2;
+    msg[(int) i] = t1;
+    i += 1;
+  }
+  return msg;
+}
+
+#[constraints="p <= public, t <= transient, secret <= s"]
+fn fig4b(
+  #[poly = t, poly = d] reg mut ptr u64[N] msg,
+  #[poly = t, poly = s] reg const ptr u64[N] key
+) -> #[poly = p, poly = d] reg mut ptr u64[N] {
+  reg u64 ms i t1 t2;
+  ms = #init_msf();
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t1 = msg[(int) i];
+    t1 = #protect(t1, ms);
+    t2 = key[(int) i];
+    t2 = #protect(t2, ms);
+    t1 ^= t2;
+    msg[(int) i] = t1;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  return msg;
+}
+
+#[constraints="p <= public, t <= transient, secret <= s"]
+fn fig4c(
+  #[poly = t, poly = d] reg mut ptr u64[N] msg,
+  #[poly = t, poly = s] reg const ptr u64[N] key
+) -> #[poly = p, poly = d] reg mut ptr u64[N] {
+  reg u64 ms i t1 t2;
+  ms = #init_msf();
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t1 = msg[(int) i];
+    t2 = key[(int) i];
+    t1 ^= t2;
+    msg[(int) i] = t1;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  return msg;
+}
+
+// FIXME: It should be explicit that “d” is secret on speculative executions
+#[constraints="t <= transient"]
+fn fig5a(
+  #[poly = t, poly = d] reg const ptr u64[N] p
+) -> #[poly = d] reg u64 {
+  reg u64 i s t;
+  s = 0;
+  i = 0;
+  while (i < N) {
+    t = p[(int) i];
+    s += t;
+    i += 1;
+  }
+  return s;
+}
+
+#[constraints="t <= transient"]
+fn fig5b(
+  #[poly = t, poly = d] reg const ptr u64[N] p
+) -> #[poly = d] reg u64 {
+  reg u64 ms i s t;
+  ms = #init_msf();
+  s = 0;
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t = p[(int) i];
+    t = #protect(t, ms);
+    s += t;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  return s;
+}
+
+#[constraints="t <= transient"]
+fn fig5c(
+  #[poly = t, poly = d] reg const ptr u64[N] p
+) -> #[poly = d] reg u64 {
+  reg u64 ms i s t;
+  ms = #init_msf();
+  s = 0;
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t = p[(int) i];
+    s += t;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  s = #protect(s, ms);
+  return s;
+}
+
+/* This is too challenging for an automated low-level checker
+fn fig5d(
+  reg const ptr u64[N] p
+) -> reg u64 {
+  reg u64 ms i s t;
+  ms = #init_msf();
+  s = 0;
+  i = 0;
+  while (i < N) {
+    t = p[(int) i];
+    s += t;
+    i += 1;
+  }
+  ms = #update_msf(i == N, ms);
+  s = #protect(s, ms);
+  return s;
+}
+*/
+
+#[constraints="p <= public, t <= transient, secret <= s"]
+fn fig6a(
+  #[poly = t, poly = s] reg mut ptr u64[N] s,
+  #[poly = t, poly = t] reg const ptr u64[N] p,
+  #transient reg u64 i pub_v
+) -> #public reg u64, #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = i < N;
+  if b {
+    ms = #update_msf(b, ms);
+    s[(int) i] = pub_v;
+  } else {
+    ms = #update_msf(!b, ms);
+  }
+  x = p[5];
+  return x, s;
+}
+
+#[constraints="p <= public, t <= transient, secret <= s"]
+fn fig6b(
+  #[poly = t, poly = s] reg mut ptr u64[N] s,
+  #[poly = t, poly = t] reg const ptr u64[N] p,
+  #transient reg u64 cond,
+  #secret reg u64 sec_v
+) -> #public reg u64, #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = cond != 0;
+  if b {
+    ms = #update_msf(b, ms);
+    s[3] = sec_v;
+  } else {
+    ms = #update_msf(!b, ms);
+  }
+  x = p[5];
+  return x, s;
+}
