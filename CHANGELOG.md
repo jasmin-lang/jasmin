@@ -1,6 +1,12 @@
 
 # [unreleased]
 
+## New features
+
+- Instruction selection for arm-m4 turns `x = (y << n) - z`
+  into `x = #RSB(z, y << n)`
+  ([PR #585](https://github.com/jasmin-lang/jasmin/pull/585)).
+
 ## Bug fixes
 
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`

@@ -150,6 +150,9 @@ Definition get_arg_shift
   else
     None.
 
+Definition is_shift (ws : wsize) (e : pexpr) :=
+  if get_arg_shift ws [::e] is None then true else false.
+
 Definition arg_shift
   (mn : arm_mnemonic) (ws : wsize) (e : pexprs) : arm_op * seq pexpr :=
   let '(osh, es) :=
@@ -279,6 +282,9 @@ Definition lower_Papp2_op
     | Osub (Op_w _) =>
         if is_mul e1 is Some (x, y)
         then Some (MLS, x, [:: y; e0 ])
+        else
+        if is_shift ws e1 && ~~ (is_shift ws e0) then
+          Some (RSB, e1, [:: e0])
         else
         Some (SUB, e0, [:: e1 ])
     | Odiv (Cmp_w Signed U32) =>
