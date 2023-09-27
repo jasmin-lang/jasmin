@@ -803,7 +803,7 @@ Proof.
           match goal with
           | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
           end.
-
+      6: case: ifP => _.
       all: move=> [? ? ?] hsemop; subst mn e0' e1'.
       all: discriminate hhas_shift || clear hhas_shift.
 
@@ -818,10 +818,24 @@ Proof.
       all: have {hws0} hws0 := cmp_le_trans hws hws0.
       all: have {hws1} hws1 := cmp_le_trans hws hws1.
 
+      2:{
+        have [ws2 [wbase [wsham [hws2 hbase hsham hw1 [hfvbase hfvsham]]]]] :=
+          get_arg_shiftP hget_arg_shift hfve0 hseme0.
+        have hfves := disj_fvars_read_es3 hfve1 hfvbase hfvsham.
+        split; last done.
+        clear hfve1 hfvbase hfvsham hfves.
+        case/truncate_wordP: hw1 => _ hw1.
+        rewrite /= hseme1 hbase hsham {hseme1 hbase hsham} /=.
+        eexists; first reflexivity.
+        rewrite /exec_sopn /= /sopn_sem /= !truncate_word_le // {hws1 hws2} /=.
+        rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
+        rewrite !(zero_extend_idem _ hws).
+        by rewrite zero_extend_u hw1.
+      }
       all:
         have [ws2 [wbase [wsham [hws2 hbase hsham hw1 [hfvbase hfvsham]]]]] :=
           get_arg_shiftP hget_arg_shift hfve1 hseme1.
-      all: clear hfve1 hseme1 hget_arg_shift.
+    
       all: have hfves := disj_fvars_read_es3 hfve0 hfvbase hfvsham.
       all: split; last done.
       all: clear hfve0 hfvbase hfvsham hfves.
@@ -887,6 +901,11 @@ Proof.
       match goal with
       | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
       end.
+  all:
+    repeat 
+      match goal with 
+      | [ |- context[ if _ then _ else _] ] => case: ifP => _
+      end.
 
   all: move=> [? ? ?] hsemop; subst mn e0' e1'.
   all: discriminate hhas_shift || clear hhas_shift.
@@ -909,16 +928,19 @@ Proof.
   all: move=> /= ?; subst w.
 
   all: have hfves := disj_fvars_read_es2 hfve0 hfve1.
-  6: have hfves' := disj_fvars_read_es2_app2 hfve1 hfve0.
-  7, 9: have hfves' := disj_fvars_read_es2_app2 hfve0 hfve1.
+  2: have hfves' := disj_fvars_read_es2 hfve1 hfve0.
+  7: have hfves' := disj_fvars_read_es2_app2 hfve1 hfve0.
+  8, 10: have hfves' := disj_fvars_read_es2_app2 hfve0 hfve1.
   all: split; last done.
+
   all: clear hfve0 hfve1 hfves.
 
   all: rewrite /=.
-  6: move: hseme0 => /=; t_xrbindP => ? -> ? -> /= hseme0.
-  7, 8: move: hseme1 => /=; t_xrbindP => ? -> ? -> /= hseme1.
+  7: move: hseme0 => /=; t_xrbindP => ? -> ? -> /= hseme0.
+  8, 9: move: hseme1 => /=; t_xrbindP => ? -> ? -> /= hseme1.
   all: try rewrite hseme0 {hseme0} /=.
   all: try rewrite hseme1 {hseme1} /=.
+
   all: eexists; first reflexivity.
 
   all: rewrite /exec_sopn /=.
@@ -940,12 +962,12 @@ Proof.
   all: rewrite /=.
 
   1: rewrite (wadd_zero_extend _ _ hws).
-  2: rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
-  3: rewrite -(wand_zero_extend _ _ hws).
-  4: rewrite -(wor_zero_extend _ _ hws).
-  5: rewrite -(wxor_zero_extend _ _ hws).
-  9: rewrite (wmul_zero_extend _ _ hws).
-  1-5, 9: by rewrite !(zero_extend_idem _ hws).
+  2,3: rewrite (wsub_zero_extend _ _ hws) wsub_wnot1.
+  4: rewrite -(wand_zero_extend _ _ hws).
+  5: rewrite -(wor_zero_extend _ _ hws).
+  6: rewrite -(wxor_zero_extend _ _ hws).
+  10: rewrite (wmul_zero_extend _ _ hws).
+  1-6, 10: by rewrite !(zero_extend_idem _ hws).
 
   1: move: hseme0.
   2, 3: move: hseme1.
