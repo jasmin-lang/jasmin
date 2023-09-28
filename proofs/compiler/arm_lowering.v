@@ -130,9 +130,6 @@ Definition get_arg_shift
   else
     None.
 
-Definition is_shift (ws : wsize) (e : pexpr) := 
-  if get_arg_shift ws [::e] is None then true else false. 
-           
 Definition arg_shift
   (mn : arm_mnemonic) (ws : wsize) (e : pexprs) : arm_op * seq pexpr :=
   let '(osh, es) :=
@@ -225,6 +222,13 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
 Definition is_mul (e: pexpr) : option (pexpr * pexpr) :=
   if e is Papp2 (Omul (Op_w U32)) x y then Some (x, y) else None.
 
+Definition is_rsb (ws : wsize) (e0 e1: pexpr) :=
+  match get_arg_shift ws [:: e0 ], get_arg_shift ws [:: e1 ], is_wconst ws e0 with
+  | Some _, None, _
+  | None, None, Some _ => true
+  | _, _, _ => false
+  end.
+
 Definition lower_Papp2_op
   (ws : wsize) (op : sop2) (e0 e1 : pexpr) :
   option (arm_mnemonic * pexpr * pexprs) :=
@@ -243,8 +247,8 @@ Definition lower_Papp2_op
       if is_mul e1 is Some (x, y)
       then Some (MLS, x, [:: y; e0 ])
       else
-      if is_shift ws e1 && ~~ (is_shift ws e0) then 
-        Some (RSB, e1, [:: e0])
+      if is_rsb ws e0 e1
+      then Some (RSB, e1, [:: e0])
       else
         Some (SUB, e0, [:: e1 ])
   | Odiv (Cmp_w Signed U32) =>
