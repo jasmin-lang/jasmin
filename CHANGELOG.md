@@ -13,6 +13,10 @@
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`
   ([PR #554](https://github.com/jasmin-lang/jasmin/pull/554)).
 
+- Add alignment during global datas for arm-m4
+  ([PR #590](https://github.com/jasmin-lang/jasmin/pull/590);
+  fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
+
 ## Other changes
 
 - Unsigned division on x86 emits a xor instead of “mov 0“
