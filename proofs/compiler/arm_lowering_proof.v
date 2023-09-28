@@ -942,8 +942,8 @@ Proof.
       | [ |- context[ is_mul ] ] => case: is_mulP => [???|]; subst
       end.
   all:
-    repeat 
-      match goal with 
+    repeat
+      match goal with
       | [ |- context[ if _ then _ else _] ] => case: ifP => _
       end.
 
