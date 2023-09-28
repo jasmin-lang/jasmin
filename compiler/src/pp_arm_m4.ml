@@ -322,7 +322,7 @@ let pp_funcs fmt funs = List.concat_map (pp_fun fmt) funs
 
 let pp_data globs =
   if not (List.is_empty globs) then
-    LInstr (".align", ["5"]) ::
+    LInstr (".p2align", ["5"]) ::
     LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
   else []
 
