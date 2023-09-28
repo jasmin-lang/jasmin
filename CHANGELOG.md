@@ -52,6 +52,11 @@
   ([PR #574](https://github.com/jasmin-lang/jasmin/pull/574);
   fixes [#561](https://github.com/jasmin-lang/jasmin/issues/561)).
 
+- Add alignment during global datas for arm-m4
+  ([PR #590](https://github.com/jasmin-lang/jasmin/pull/590);
+  fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
+
+	
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
