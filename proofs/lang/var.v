@@ -376,6 +376,10 @@ Lemma Sv_subset_remove s x :
   Sv.subset (Sv.remove x s) s.
 Proof. apply/Sv.subset_spec. by apply: SvP.MP.subset_remove_3. Qed.
 
+Lemma Sv_diff_empty s :
+  Sv.Equal (Sv.diff s Sv.empty) s.
+Proof. SvD.fsetdec. Qed.
+
 (* Deduce inequalities from [~ Sv.In x (Sv.add y0 (... (Sv.add yn s)))]. *)
 Ltac t_notin_add :=
   repeat (move=> /Sv.add_spec /Decidable.not_or [] ?);

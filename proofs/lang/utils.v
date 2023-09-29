@@ -1866,6 +1866,11 @@ Lemma oassertP_isSome {A b} {oa : option A} :
   b /\ isSome oa.
 Proof. by case: b. Qed.
 
+Lemma isSomeP {A : Type} {oa : option A} :
+  isSome oa ->
+  exists a, oa = Some a.
+Proof. case: oa; by [|eexists]. Qed.
+
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
 Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
 
