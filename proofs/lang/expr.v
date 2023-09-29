@@ -320,13 +320,21 @@ Definition wrange d (n1 n2 : Z) :=
   | DownTo => [seq (Z.sub n2 (Z.of_nat i)) | i <- iota 0 n]
   end.
 
-Module InstrInfo : TAG.
+Module Type InstrInfoT <: TAG.
+  Include TAG.
+  Parameter with_location : t -> t.
+End InstrInfoT.
+
+Module InstrInfo : InstrInfoT.
   Definition t := positive.
   Definition witness : t := 1%positive.
+  Definition with_location (ii : t) := ii.
 End InstrInfo.
 
 Definition instr_info := InstrInfo.t.
 Definition dummy_instr_info : instr_info := InstrInfo.witness.
+Definition ii_with_location (ii : instr_info) : instr_info :=
+  InstrInfo.with_location ii.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
