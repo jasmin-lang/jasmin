@@ -463,7 +463,7 @@ let rec has_call_or_syscall_i i =
 
 and has_call_or_syscall c = List.exists has_call_or_syscall_i c
 
-let has_annot a { i_annot } = Annotations.has_symbol a i_annot
+let has_annot a { i_annot; _ } = Annotations.has_symbol a i_annot
 
 let is_inline annot cc =
   Annotations.has_symbol "inline" annot || cc = FInfo.Internal
