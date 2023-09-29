@@ -270,29 +270,38 @@ Section ADD_INIT.
   Definition undef_except (X:Sv.t) vm :=
     forall x, ~Sv.In x X ->  vm.[x] = undef_addr (vtype x).
 
-  Let Pi s1 (i:instr) s2 :=
-    (forall vm1, evm s1 =1 vm1 ->
-       exists2 vm2, evm s2 =1 vm2 & sem_I p' ev (with_vm s1 vm1) i (with_vm s2 vm2)) /\
-    forall I, undef_except I (evm s1) ->
-      undef_except (add_init_i I i).2 (evm s2) /\
-      forall vm1, evm s1 =1 vm1 ->
-        exists2 vm2, evm s2 =1 vm2 &
-          sem p' ev (with_vm s1 vm1) (add_init_i I i).1 (with_vm s2 vm2).
+  Notation lift_vm sem s1 s2 :=
+    (forall vm1,
+       evm s1 =1 vm1 ->
+       exists2 vm2,
+         evm s2 =1 vm2
+         & sem (with_vm s1 vm1) (with_vm s2 vm2))
+    (only parsing).
+
+  Definition lift_semI s1 i s2 :=
+    lift_vm (fun s s' => sem_I p' ev s i s') s1 s2.
+
+  Definition lift_sem s1 c s2 :=
+    lift_vm (fun s s' => sem p' ev s c s') s1 s2.
+
+  Let Pi s1 i s2 :=
+    lift_semI s1 i s2
+    /\ forall I,
+         undef_except I (evm s1) ->
+         let: iI := add_init_i I i in
+         undef_except iI.2 (evm s2) /\ lift_sem s1 iI.1 s2.
 
   Let Pi_r s1 (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
 
-  Let Pc s1 (c:cmd) s2 :=
-    (forall vm1, evm s1 =1 vm1 ->
-         exists2 vm2, evm s2 =1 vm2 & sem p' ev (with_vm s1 vm1) c (with_vm s2 vm2)) /\
-    forall I, undef_except I (evm s1) ->
-      undef_except (add_init_c add_init_i I c).2 (evm s2) /\
-      forall vm1, evm s1 =1 vm1 ->
-        exists2 vm2, evm s2 =1 vm2 &
-         sem p' ev (with_vm s1 vm1) (add_init_c add_init_i I c).1 (with_vm s2 vm2).
+   Let Pc s1 c s2 :=
+     lift_sem s1 c s2
+     /\ forall I,
+          undef_except I (evm s1) ->
+          let: cI := add_init_c add_init_i I c in
+          undef_except cI.2 (evm s2) /\ lift_sem s1 cI.1 s2.
 
-  Let Pfor (i:var_i) vs s1 c s2 :=
-    forall vm1, evm s1 =1 vm1 ->
-       exists2 vm2, evm s2 =1 vm2 & sem_for p' ev i vs (with_vm s1 vm1) c (with_vm s2 vm2).
+ Let Pfor i vs s1 c s2 :=
+   lift_vm (fun s s' => sem_for p' ev i vs s c s') s1 s2.
 
   Let Pfun scs m fn vargs scs' m' vres :=
     sem_call p' ev scs m fn vargs scs' m' vres.
@@ -315,20 +324,17 @@ Section ADD_INIT.
   Local Lemma RAmkI : sem_Ind_mkI p ev Pi_r Pi.
   Proof. by move=> ii i s1 s2 _ /(_ ii). Qed.
 
-  Lemma add_initP ii i s1 s2 I X: 
-    undef_except I (evm s1) → 
-    (∀ vm1, evm s1 =1 vm1 → exists2 vm2, evm s2 =1 vm2 & sem_I p' ev (with_vm s1 vm1) (MkI ii i) (with_vm s2 vm2)) →
-    ∀ vm1, evm s1 =1 vm1 →
-    exists2 vm2,
-        evm s2 =1 vm2 & sem p' ev (with_vm s1 vm1) (add_init ii I X (MkI ii i)) (with_vm s2 vm2).
+  Lemma add_initP ii0 ii1 i s1 s2 I X :
+    undef_except I (evm s1) ->
+    lift_semI s1 (MkI ii0 i) s2 ->
+    lift_sem s1 (add_init ii1 I X (MkI ii0 i)) s2.
   Proof.
     move=> hu hs; rewrite /add_init Sv.fold_spec.
     have : forall x:var, x \in Sv.elements (Sv.diff X I) -> (evm s1).[x] = undef_addr (vtype x).
     + by move=> x /Sv_elemsP hx; rewrite hu //; SvD.fsetdec.
-    have : ∀ vm1, evm s1 =1 vm1 →
-      exists2 vm2, evm s2 =1 vm2 & sem p' ev (with_vm s1 vm1) [:: MkI ii i] (with_vm s2 vm2).
+    have : lift_sem s1 [:: MkI ii0 i] s2.
     + by move=> vm1 /hs [vm2] ??; exists vm2 => //;apply sem_seq1.
-    clear; elim: Sv.elements s1 [:: MkI ii i] => [ | x xs ih] //= s1 l hl hu.
+    clear; elim: Sv.elements s1 [:: MkI ii0 i] => [ | x xs ih] //= s1 l hl hu.
     apply ih; last by move=> y hy; apply hu; rewrite in_cons hy orbT.
     move=> vm1 hu1; rewrite /add_init_aux.
     have hl1 := hl _ hu1.
@@ -346,19 +352,14 @@ Section ADD_INIT.
     by have [vm3 ? hc']:= hl _ heq2; exists vm3 => //; apply: Eseq hc'.
   Qed.
 
-  Local Lemma aux ii i s1 s2 :
-    sem_I p ev s1 (MkI ii i) s2 →
-    (∀ vm1, evm s1 =1 vm1 →
-       exists2 vm2, evm s2 =1 vm2 & sem_I p' ev (with_vm s1 vm1) (MkI ii i) (with_vm s2 vm2)) →
-    (∀ vm1,  evm s1 =1 vm1 →
-          exists2 vm2, evm s2 =1 vm2 & sem_I p' ev (with_vm s1 vm1) (MkI ii i) (with_vm s2 vm2)) /\
+  Local Lemma aux ii0 ii1 i s1 s2 :
+    sem_I p ev s1 (MkI ii0 i) s2 →
+    lift_semI s1 (MkI ii0 i) s2 →
+    lift_semI s1 (MkI ii0 i) s2 /\
     forall I, undef_except I (evm s1) →
       undef_except (Sv.union I (write_i i)) (evm s2) /\
-      ∀ vm1, evm s1 =1 vm1 →
-        exists2 vm2,
-          evm s2 =1 vm2 &
-          sem p' ev (with_vm s1 vm1)
-            (add_init ii I (Sv.union (write_i i) (read_i i)) (MkI ii i)) (with_vm s2 vm2).
+      let: i' := add_init ii1 I (Sv.union (write_i i) (read_i i)) (MkI ii0 i) in
+      lift_sem s1 i' s2.
   Proof.
     move=> hs hs'; split => //.
     move=> I hu; split.

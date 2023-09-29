@@ -113,7 +113,7 @@ Fixpoint add_init_i I (i:instr) :=
     let Wi := write_i ir in
     let Ri := read_i ir in
     let extra := Sv.union Wi Ri in
-    (add_init ii I extra i, Sv.union I Wi)
+    (add_init (ii_with_location ii) I extra i, Sv.union I Wi)
   end.
 
 Context {pT: progT}.
