@@ -292,6 +292,16 @@ Lemma sv_of_list_cons T (f : T -> _) x l :
   Sv.Equal (sv_of_list f (x::l)) (Sv.add (f x) (sv_of_list f l)).
 Proof. rewrite /sv_of_list /= sv_of_list_fold; SvD.fsetdec. Qed.
 
+Lemma sv_of_list_eq_ext {X} f g (xs : seq X) :
+  (forall x, List.In x xs -> f x = g x) ->
+  Sv.Equal (sv_of_list f xs) (sv_of_list g xs).
+Proof.
+  move=> /map_ext h.
+  split; move=> /sv_of_listP ?; apply: sv_of_listP.
+  - by rewrite -h.
+  by rewrite h.
+Qed.
+
 Lemma disjoint_subset_diff xs ys :
   disjoint xs ys
   -> Sv.Subset xs (Sv.diff xs ys).

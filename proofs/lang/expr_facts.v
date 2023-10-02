@@ -508,6 +508,10 @@ Proof.
   SvD.fsetdec.
 Qed.
 
+Lemma get_lvar_to_lvals xs :
+  mapM get_lvar (to_lvals xs) = ok xs.
+Proof. by elim: xs => //= ?? ->. Qed.
+
 End ASM_OP.
 
 (* --------------------------------------------------------------------- *)
