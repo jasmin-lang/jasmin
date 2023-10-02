@@ -38,6 +38,9 @@ module X86_core = struct
 
   let pp_asm = Ppasm.pp_prog
   let callstyle = Arch_full.StackDirect
+
+  let known_implicits = ["OF","_of_"; "CF", "_cf_"; "SF", "_sf_"; "ZF", "_zf_"]
+
 end
 
 

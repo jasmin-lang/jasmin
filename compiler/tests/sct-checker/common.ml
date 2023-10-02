@@ -12,7 +12,7 @@ let load_file name =
   let open Pretyping in
   try
     name
-    |> tt_file Arch.reg_size Arch.asmOp_sopn Env.empty None None
+    |> tt_file Arch.arch_info Env.empty None None
     |> fst |> Env.decls
     |> Compile.preprocess Arch.reg_size Arch.asmOp
   with

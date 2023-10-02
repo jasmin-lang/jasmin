@@ -56,7 +56,10 @@
   ([PR #590](https://github.com/jasmin-lang/jasmin/pull/590);
   fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
 
-	
+- Fix combine flag notation for arm
+  ([PR 594]((https://github.com/jasmin-lang/jasmin/pull/594);
+  fixes [#593](https://github.com/jasmin-lang/jasmin/issues/593)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
