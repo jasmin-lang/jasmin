@@ -1,15 +1,15 @@
 param int n = 8;
 
 export
-fn test_cmp(reg u64 x, reg u64 y) -> reg u64 {
+fn test_cmp(reg u32 x, reg u32 y) -> reg u32 {
 inline int i;
-reg u64[n] t;
-reg u64 r;
-reg bool e b be l nle of;
+reg u32[n] t;
+reg u32 r;
+reg bool e b be l nle vf;
 
 for i = 0 to n { t[i] = i; }
 
-?{ of, "==" = e, "<u" = b, "<=u" = be, "<s" = l, ">s" = nle} = #CMP(x, y);
+?{ vf, "==" = e, "<u" = b, "<=u" = be, "<s" = l, ">s" = nle} = #CMP(x, y);
 
 // r not initialized
 r = 0;
@@ -21,7 +21,7 @@ r = t[4] if l;   // L. y <s x
 r = t[5] if !l;  // NL. y >=s x
 r = t[6] if l || e; // LE. y <=s x
 r = t[7] if nle; // NLE. y >s x
-r = t[0] if of;
+r = t[0] if vf;
 
 return r;
 }

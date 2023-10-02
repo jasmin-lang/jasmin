@@ -31,6 +31,8 @@ module type Core_arch = sig
 
   val callstyle : reg callstyle
 
+  val known_implicits : (Name.t * string) list
+
 end
 
 module type Arch = sig
@@ -62,6 +64,8 @@ module type Arch = sig
   val syscall_kill : Sv.t
 
   val callstyle : var callstyle
+
+  val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
 end
 
 module Arch_from_Core_arch (A : Core_arch) :
@@ -180,5 +184,12 @@ module Arch_from_Core_arch (A : Core_arch) :
     match A.callstyle with
     | StackDirect -> StackDirect
     | ByReg o -> ByReg (Option.map var_of_reg o)
-    
+
+  let arch_info = Pretyping.{
+      pd = reg_size;
+      asmOp = asmOp_sopn;
+      known_implicits = known_implicits;
+      flagnames = List.map fst known_implicits;
+    }
+
 end
