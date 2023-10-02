@@ -1895,7 +1895,7 @@ let tt_fundef arch_info (env : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env
 (* -------------------------------------------------------------------- *)
 let tt_global_def pd env (gd:S.gpexpr) =
   let f e = 
-    let pe,ety = tt_expr ~mode:`OnlyParam pd env e in
+    let pe,ety = tt_expr ~mode:`AllVar pd env e in
     (L.mk_loc e.pl_loc pe, ety) in
   let array_of_string s =
     L.unloc s |> String.to_list |> List.map @@ fun c ->

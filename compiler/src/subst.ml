@@ -284,58 +284,46 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
   | Pconst z ->
       z
 
-  | Papp1 (Oneg k, e) ->
-      clamp_k k (Z.neg (clamp_k k (constant_of_expr e)))
-
-  | Papp2 (Oadd k, e1, e2) ->
-      let e1 = clamp_k k (constant_of_expr e1) in
-      let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Z.add e1 e2)
-
-  | Papp2 (Osub k, e1, e2) ->
-      let e1 = clamp_k k (constant_of_expr e1) in
-      let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Z.sub e1 e2)
-
-  | Papp2 (Omul k, e1, e2) ->
-      let e1 = clamp_k k (constant_of_expr e1) in
-      let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Z.mul e1 e2)
-
-  | PappN(Opack(ws,pe), es) ->
-      let es = List.map constant_of_expr es in
-      let k = int_of_pe pe in
-      let e = 
-        List.fold_left (fun n e -> 
-            Z.add (Z.shift_left n k) (clamp_pe pe e)) Z.zero es in
-      clamp ws e
-
   | _ -> raise NotAConstantExpr
 
 
 let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
+
+  let global_tbl = Hv.create 101 in
+  let add_glob x gv = Hv.add global_tbl x gv in
+  let get_glob x = Hv.find_option global_tbl (Conv.var_of_cvar x) in
+
   let mk_word ws e =
-    Word0.wrepr ws (Conv.cz_of_z (clamp ws (constant_of_expr e))) in
+    let open Constant_prop in
+    let e = Conv.cexpr_of_expr e in
+    let c = const_prop_e (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
+    let z = constant_of_expr (Conv.expr_of_cexpr c) in
+    Word0.wrepr ws (Conv.cz_of_z (clamp ws z)) in
+
+
   let doglob (x, e) =
-    match x.v_ty, e with
-    | Bty (U ws), GEword e ->
-      x, Global.Gword (ws, mk_word ws e)
-    | Arr (_ws, n), GEarray es when List.length es <> n ->
-       let m = List.length es in
-       hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
-         (Printer.pp_var ~debug:false) x
-         (List.length es)
-         (if m > 1 then "values" else "value")
-         n
-    | Arr (ws, n), GEarray es ->
-      let p = Conv.pos_of_int (n * size_of_ws ws) in
-      let t = Warray_.WArray.of_list ws (List.map (mk_word ws) es) in
-      x, Global.Garr(p, t)
-    | _, _ -> assert false
+    let gv =
+      match x.v_ty, e with
+      | Bty (U ws), GEword e ->
+        Global.Gword (ws, mk_word ws e)
+      | Arr (_ws, n), GEarray es when List.length es <> n ->
+         let m = List.length es in
+         hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
+           (Printer.pp_var ~debug:false) x
+           (List.length es)
+           (if m > 1 then "values" else "value")
+           n
+      | Arr (ws, n), GEarray es ->
+        let p = Conv.pos_of_int (n * size_of_ws ws) in
+        let t = Warray_.WArray.of_list ws (List.map (mk_word ws) es) in
+        Global.Garr(p, t)
+      | _, _ -> assert false in
+    add_glob x gv;
+    x, gv
   in
-  let globals = List.map doglob globals in
+  let globals = List.rev_map doglob (List.rev globals) in
   globals, prog
 
 
