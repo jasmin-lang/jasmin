@@ -21,6 +21,10 @@
   ([PR #489](https://github.com/jasmin-lang/jasmin/pull/488);
   fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
 
+- Fix combine flag notation for arm
+  ([PR 594]((https://github.com/jasmin-lang/jasmin/pull/594);
+  fixes [#593](https://github.com/jasmin-lang/jasmin/issues/593)).
+
 ## Other changes
 
 - Unsigned division on x86 emits a xor instead of “mov 0“

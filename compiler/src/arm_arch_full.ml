@@ -24,6 +24,9 @@ module Arm_core = struct
 
   let asm_e = Arm_extra.arm_extra atoI
   let aparams = Arm_params.arm_params atoI
+
+  let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
+
 end
 
 module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct

@@ -11,12 +11,12 @@ let preprocess reg_size asmOp p =
 
 (* -------------------------------------------------------------------- *)
 
-let parse_file reg_size asmOp_sopn fname =
+let parse_file arch_info fname =
   let env =
     List.fold_left Pretyping.Env.add_from Pretyping.Env.empty
       !Glob_options.idirs
   in
-  Pretyping.tt_program reg_size asmOp_sopn env fname
+  Pretyping.tt_program arch_info env fname
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i asmOp i =
