@@ -33,6 +33,12 @@ Lemma vrvs_Lvar xs :
   vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
 Proof. rewrite /vrvs /sv_of_list; elim: xs Sv.empty => //=. Qed.
 
+Lemma vrvs_to_lvals X (xs : seq X) f :
+  Sv.Equal (vrvs (to_lvals (map f xs))) (sv_of_list f xs).
+Proof.
+  by rewrite /to_lvals map_comp vrvs_Lvar 2!sv_of_list_map sv_of_list_eq_ext.
+Qed.
+
 Lemma write_vars_eq_ex wdb xs vs s s' :
   write_vars wdb xs vs s = ok s' →
   evm s =[\ sv_of_list v_var xs] evm s' .
