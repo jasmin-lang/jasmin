@@ -24,6 +24,10 @@
   ([PR #585](https://github.com/jasmin-lang/jasmin/pull/585),
   [PR #589](https://github.com/jasmin-lang/jasmin/pull/589)).
 
+- Definition of parameters can now use arbritrary expressions and depend on
+  other parameters. See `tests/success/common/test_globals.jazz`.
+  ([PR #595](https://github.com/jasmin-lang/jasmin/pull/595)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
