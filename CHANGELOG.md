@@ -28,6 +28,12 @@
   other parameters. See `tests/success/common/test_globals.jazz`.
   ([PR #595](https://github.com/jasmin-lang/jasmin/pull/595)).
 
+- The generated code for allocating and freeing stack frames in ARM has been
+  slightly optimized: small constants are used as immediates, 16-bit or
+  Thumb-expandable constants loaded with `MOV`, and bigger ones constructed
+  with `MOV` and `MOVT`.
+  ([PR #597](https://github.com/jasmin-lang/jasmin/pull/597)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
