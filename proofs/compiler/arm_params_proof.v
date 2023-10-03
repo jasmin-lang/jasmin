@@ -152,7 +152,7 @@ Lemma arm_op_subi_eval_instr lp ls ii y imm wy :
      let: wx' := Vword (wy - wrepr reg_size imm)in
      let: vm' := (lvm ls).[v_var x <- wx'] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite wsub_wnot1. Qed.
+Proof. move=> ?. t_arm_op. by rewrite wsub_wnot1. Qed.
 
 Lemma arm_op_align_eval_instr lp ls ii y al (wy:word Uptr) :
   get_var true (lvm ls) (v_var y) = ok (Vword wy)
@@ -174,6 +174,13 @@ Lemma arm_op_mov_eval_instr lp ls ii y (wy: word Uptr) :
      let: vm' := (lvm ls).[v_var x <- Vword wy] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof. move=> hgety. by t_arm_op. Qed.
+
+Lemma arm_op_movi_eval_instr lp ls ii imm :
+  (is_expandable imm \/ is_w16_encoding imm) ->
+  let: li := li_of_fopn_args ii (arm_op_movi x imm) in
+  let: vm' := (lvm ls).[v_var x <- Vword (wrepr U32 imm)] in
+  eval_instr lp li ls = ok (next_vm_ls ls vm').
+Proof. move=> _. by t_arm_op. Qed.
 
 Lemma arm_op_str_off_eval_instr lp ls m' ii y off wx (wy : word reg_size) :
   get_var true (lvm ls) (v_var x) = ok (Vword wx)
@@ -345,11 +352,19 @@ Proof.
   set x := {| vname := _; |}.
   rewrite /arm_cmd_load_large_imm /=.
 
+  case: orP => [himm | _].
+  - move=> hbody _.
+    eexists; split.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step (find_instr_skip hbody) /=.
+      exact: arm_op_movi_eval_instr.
+    + move=> v /Sv.singleton_spec ?. by t_vm_get.
+    by t_get_var.
+
   case hdivmod: Z.div_eucl => [hbs lbs] /=.
   move=> hbody himm.
 
-  eexists.
-  split.
+  eexists; split.
   - apply: lsem_step2; rewrite /lsem1 /step /of_estate.
     + rewrite -(addn0 (size P)).
       rewrite (find_instr_skip hbody) /=.
@@ -368,7 +383,7 @@ Proof.
     rewrite addn1 -addn2.
     reflexivity.
 
-  - move=> v hv. move: hv => /Sv.singleton_spec ?. by t_vm_get.
+  - move=> v /Sv.singleton_spec ?. by t_vm_get.
 
   by t_get_var.
 Qed.
@@ -399,10 +414,32 @@ Lemma arm_cmd_large_subi_lsem lp fn s ii P Q xname y imm wy :
 Proof.
   set x := {| vname := _; |}.
   move=> hbody hxy hgety himm.
-
   move: hbody.
-  rewrite /arm_cmd_large_subi /=.
-  rewrite /arm_cmd_large_arith_imm /=.
+  rewrite /arm_cmd_large_subi /arm_cmd_large_arith_imm /=.
+
+  case: ZeqbP => [? | _].
+  - subst imm.
+    move=> hbody.
+    eexists; split.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step (find_instr_skip hbody) /=.
+      apply: arm_op_mov_eval_instr.
+      exact: hgety.
+    + move=> v /Sv.singleton_spec ?. by t_vm_get.
+    rewrite wrepr0 GRing.subr0 /=.
+    by t_get_var.
+
+  case hexp: is_expandable.
+  - move=> hbody.
+    eexists; split.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step (find_instr_skip hbody) /=.
+      apply: arm_op_subi_eval_instr.
+      exact: hgety.
+    + move=> v /Sv.singleton_spec ?. by t_vm_get.
+    by t_get_var.
+
+  clear hexp.
   rewrite map_cat.
   rewrite -(catA _ _ Q).
   move=> hbody.
