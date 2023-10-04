@@ -1272,7 +1272,7 @@ Section PROOF.
     have [vargs1' htr hu1]:= mapM2_dc_truncate_val Hargs hargs'.
     have [vm3 /= hw hu3]:= write_vars_uincl (vm_uincl_refl _) hu1 Hw.
     have [vm4 /= []hc hu4]:= hc' _ hu3.
-    have [vres1 hvres1 hu5]:= get_vars_uincl hu4 Hres.
+    have [vres1 hvres1 hu5] := get_var_is_uincl hu4 Hres.
     have [vres1' ??]:= mapM2_dc_truncate_val Hfull hu5.
     exists vres1';split => //.
     econstructor;eauto => /=.

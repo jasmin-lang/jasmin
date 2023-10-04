@@ -141,7 +141,7 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_i ii (vrvs xs) s1 (Copn xs t o es) s2
 
 | Esyscall ii s1 scs m s2 o xs es ves vs:
-    mapM (get_var true s1.(evm)) (syscall_sig o).(scs_vin) = ok ves ->
+    get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
     exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
     write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
        (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →
@@ -208,7 +208,7 @@ Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef)
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
     sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
-    mapM (λ x : var_i, get_var false vm2 x) fd.(f_res) = ok res' &
+    get_var_is false vm2 fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)
     valid_RSP m2 vm2 &
@@ -221,7 +221,7 @@ Variant sem_export_call (gd: @extra_val_t progStack)  (scs: syscall_state_t) (m:
       disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res)) &
       ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res)) &
     ∀ vm args',
-      mapM (λ x : var_i, get_var false vm x) fd.(f_params) = ok args' →
+      get_var_is false vm fd.(f_params) = ok args' →
       List.Forall2 value_uincl args args' →
       valid_RSP m vm →
       vm.[vgd] = Vword gd →
@@ -263,7 +263,7 @@ Lemma sem_iE ii k s i s' :
   | Csyscall xs o es => 
     k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  
     ∃ scs m ves vs,
-     [/\ mapM (get_var true s.(evm)) (syscall_sig o).(scs_vin) = ok ves,
+     [/\ get_vars true s.(evm) (syscall_sig o).(scs_vin) = ok ves,
          exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
          write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
            (to_lvals (syscall_sig o).(scs_vout)) vs = ok s']
@@ -362,7 +362,7 @@ Section SEM_IND.
 
   Definition sem_Ind_syscall : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
-      mapM (get_var true s1.(evm)) (syscall_sig o).(scs_vin) = ok ves ->
+      get_vars true s1.(evm) (syscall_sig o).(scs_vin) = ok ves ->
       exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
       write_lvals true gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |}
         (to_lvals (syscall_sig o).(scs_vout)) vs = ok s2 →

@@ -722,7 +722,7 @@ Section LOWER_SLHO.
   Lemma check_resP wdb env xs ttys tys vs vs' s t:
     wf_env env (p_globs p') s ->
     check_res env xs ttys tys = ok t ->
-    mapM (fun x : var_i => get_var wdb (evm s) x) xs = ok vs ->
+    get_var_is wdb (evm s) xs = ok vs ->
     mapM2 ErrType dc_truncate_val ttys vs = ok vs' ->
     List.Forall2 slh_t_spec vs' tys.
   Proof.

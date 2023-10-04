@@ -699,7 +699,7 @@ Section PROOF.
     have [vargs1' {htr} htr hua] := mapM2_dc_truncate_val htr hvargs1.
     have [{hua hwr} vm1 hwr hu] := write_vars_uincl (vm_uincl_refl _) hua hwr. 
     have [{hc hc_ hu}vm2 [hu' hv' hs]] := hc _ _ _ hc_ hu (valid_pi_empty _ _).
-    have [{hres hu'} vs hvs huvs] := get_vars_uincl hu' hres.
+    have [{hres hu'} vs hvs huvs] := get_var_is_uincl hu' hres.
     have [{hrtr huvs} vs' hrtr huvs] := mapM2_dc_truncate_val hrtr huvs.
     exists vs' => //; econstructor; eauto => /=.
     by case: (s0) hinit => emem evm /=; rewrite eq_p_extra.

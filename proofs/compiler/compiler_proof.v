@@ -470,11 +470,6 @@ Qed.
 
 Import sem_one_varmap.
 
-(* FIXME : move this *)
-Lemma mapM_get_false vm xs :
-  mapM (λ x : var_i, get_var false vm x) xs = ok (map (λ x : var_i, vm.[x]) xs).
-Proof. by rewrite /get_var /=; elim xs => //= ?? -> /=. Qed.
-
 Lemma compiler_back_endP
   entries
   (p : @sprog _pd _ _asmop)
@@ -531,11 +526,11 @@ Proof.
   - exact: get_fundef_tunnel_program ok_tp ok_fd.
   - exact: Export.
   move=> lm vm H0 H1 H3 H4 H5.
-  have H2 := mapM_get_false vm (lfd_arg fd).
+  have H2 := get_var_is_allow_undefined vm (lfd_arg fd).
   have {lp_call} := lp_call lm vm _ _ H1 H2 H3 _ H5.
   have! [-> [-> _]] := (tunnel_program_invariants ok_tp).
   move => /(_ H0 H4) [] vm' [] lm' [] res' [] lp_call M'.
-  rewrite mapM_get_false => -[] <- res_res'.
+  rewrite get_var_is_allow_undefined => -[] <- res_res'.
   exists vm', lm'; split; cycle 1.
   - exact: M'.
   - exact: res_res'.

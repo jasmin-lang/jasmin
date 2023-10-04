@@ -228,7 +228,7 @@ Qed.
 Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
   let es := map Plvar rxs in
   disjoint (vrvs xs) (read_es es) ->
-  mapM (fun x : var_i => get_var true (evm s) x) rxs = ok vs ->
+  get_var_is true (evm s) rxs = ok vs ->
   mapM2 ErrType dc_truncate_val tys vs = ok vs' ->
   write_lvals true (p_globs p) s xs vs' = ok s' ->
   sem p ev s (assgn_tuple ii xs flag tys es) s'.
@@ -492,7 +492,7 @@ Section PROOF.
     + apply vm_uincl_init. + by apply List_Forall2_refl.
     have Uvmi : evm (with_vm s1 vm1_) <=1 vm1' by done.
     have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvmi Hbody.
-    have [/=vs2' Hvs' Uvs']:= get_vars_uincl Uvm3 Hvs.
+    have [/=vs2' Hvs' Uvs'] := get_var_is_uincl Uvm3 Hvs.
     have [vs' Htout' Uvs]:= mapM2_truncate_val Htout Uvs'.
     have Heqvm : svm1 <=[Sv.union (read_rvs xs) X2] vm3.
     + apply: uincl_onT;first by apply: uincl_onI Hvm1;SvD.fsetdec.

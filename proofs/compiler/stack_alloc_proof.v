@@ -3841,9 +3841,9 @@ Lemma check_resultsP wdb rmap m0 s1 s2 srs params sao_returns res1 res2 vargs1 v
   List.Forall2 (fun osr varg2 => forall sr, osr = Some sr -> varg2 = Vword (sub_region_addr sr)) srs vargs2 ->
   check_results pmap rmap srs params sao_returns res1 = ok res2 ->
   forall vres1,
-  mapM (λ x : var_i, get_var wdb (evm s1) x) res1 = ok vres1 ->
+  get_var_is wdb (evm s1) res1 = ok vres1 ->
   exists vres2,
-    mapM (λ x : var_i, get_var wdb (evm s2) x) res2 = ok vres2 /\
+    get_var_is wdb (evm s2) res2 = ok vres2 /\
     Forall3 (wf_result (emem s2) vargs1 vargs2) sao_returns vres1 vres2.
 Proof.
   move=> hvs hsize haddr.

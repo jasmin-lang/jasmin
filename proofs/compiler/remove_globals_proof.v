@@ -755,7 +755,7 @@ Module RGP. Section PROOFS.
     have hval: valid (Mvar.empty var) s1 s1 by split.
     have [s2' [hs2' ws2]] := hc _ _ _ hrm _ hval.
     subst m2; case: (hs2') => /= hscse hmem hm _ _.
-    have hres2 : mapM (fun x : var_i => get_var (~~ direct_call) (evm s2') x) (f_res f) = ok vres.
+    have hres2 : get_var_is (~~ direct_call) (evm s2') (f_res f) = ok vres.
     + elim: (f_res f) (vres) res1 hres1 hres => //= x xs hrec vres0 res1.
       t_xrbindP; case: ifPn => hglob // _ ? /hrec hres1 ? v.
       by rewrite /get_var hm // => -> vs /hres1 hxs <-; rewrite /= hxs.

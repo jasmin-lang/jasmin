@@ -206,7 +206,7 @@ Section REMOVE_INIT.
     have [vm1 /= ]:= write_vars_uincl (vm_uincl_refl _) Uargs1 Hargs.
     rewrite with_vm_same => Hargs' Hvm1.
     have [vm2' /= Hsem' Uvm2]:= Hrec _ Hvm1.
-    have [vres1 Hvres Hsub] := get_vars_uincl Uvm2 Hmap.
+    have [vres1 Hvres Hsub] := get_var_is_uincl Uvm2 Hmap.
     have [vres1' Htout1 Ures1]:= mapM2_dc_truncate_val Htout Hsub.
     exists vres1'; split => //.
     apply: (EcallRun (f:=remove_init_fd is_reg_array fd)); eauto.

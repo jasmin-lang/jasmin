@@ -232,7 +232,7 @@ with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_
     init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 ->
     write_vars (~~direct_call) f.(f_params) vargs s0 = ok s1 ->
     sem s1 f.(f_body) s2 ->
-    mapM (fun (x:var_i) => get_var (~~direct_call) s2.(evm) x) f.(f_res) = ok vres ->
+    get_var_is (~~ direct_call) s2.(evm) f.(f_res) = ok vres ->
     mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
     scs2 = s2.(escs) -> 
     m2 = finalize f.(f_extra) s2.(emem)  ->
@@ -360,7 +360,7 @@ Section SEM_IND.
       write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
       sem s1 (f_body f) s2 ->
       Pc s1 (f_body f) s2 ->
-      mapM (fun x : var_i => get_var (~~direct_call) s2.(evm) x) (f_res f) = ok vres ->
+      get_var_is (~~ direct_call) s2.(evm) (f_res f) = ok vres ->
       mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
       scs2 = s2.(escs) -> 
       m2 = finalize f.(f_extra) s2.(emem) ->
@@ -657,7 +657,7 @@ Lemma sem_callE scs1 m1 fn vargs' scs2 m2 vres' :
     init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 /\
     write_vars (~~direct_call) f.(f_params) vargs s0 = ok s1,
     sem s1 f.(f_body) s2,
-    mapM (fun (x:var_i) => get_var (~~direct_call) s2.(evm) x) f.(f_res) = ok vres /\
+    get_var_is (~~ direct_call) s2.(evm) f.(f_res) = ok vres /\
     mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' &
     scs2 = s2.(escs) /\ m2 = finalize f.(f_extra) s2.(emem) ].
 Proof.
@@ -1613,19 +1613,19 @@ Qed.
 
 Lemma sem_pexprs_get_var wdb gd s xs :
   sem_pexprs wdb gd s [seq Pvar (mk_lvar i) | i <- xs] =
-  mapM (fun x : var_i => get_var wdb (evm s) x) xs.
+  get_var_is wdb (evm s) xs.
 Proof.
   rewrite /sem_pexprs;elim: xs=> //= x xs Hrec.
   rewrite /get_gvar /=.
   by case: get_var => //= v;rewrite Hrec.
 Qed.
 
-Lemma  get_vars_uincl_on wdb dom (xs: seq var_i) vm1 vm2 vs1:
+Lemma get_var_is_uincl_on wdb dom (xs: seq var_i) vm1 vm2 vs1:
   vm1 <=[dom] vm2 ->
   (∀ x, List.In x xs → Sv.mem x dom) →
-  mapM (fun x => get_var wdb vm1 (v_var x)) xs = ok vs1 ->
+  get_var_is wdb vm1 xs = ok vs1 ->
   exists2 vs2,
-    mapM (fun x => get_var wdb vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+    get_var_is wdb vm2 xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
 Proof.
   move => hvm; elim: xs vs1 => [ | x xs Hrec] /= ? hdom.
   + by move=> [<-]; exists [::].
@@ -1638,16 +1638,29 @@ Proof.
   by constructor.
 Qed.
 
-Lemma get_vars_uincl wdb (xs:seq var_i) vm1 vm2 vs1:
+Lemma get_var_is_uincl wdb xs vm1 vm2 vs1 :
   vm1 <=1 vm2 ->
-  mapM (fun x => get_var wdb vm1 (v_var x)) xs = ok vs1 ->
+  get_var_is wdb vm1 xs = ok vs1 ->
   exists2 vs2,
-    mapM (fun x => get_var wdb vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+    get_var_is wdb vm2 xs = ok vs2
+    & List.Forall2 value_uincl vs1 vs2.
 Proof.
-  move => hvm; apply: (@get_vars_uincl_on _ (sv_of_list v_var xs)).
+  move => hvm; apply: (get_var_is_uincl_on (dom := sv_of_list v_var xs)).
   + exact: vm_uincl_uincl_on hvm.
   move => /= y hy; rewrite sv_of_listE; apply/in_map.
   by exists y.
+Qed.
+
+Lemma get_vars_uincl wdb xs vm1 vm2 vs1 :
+  vm1 <=1 vm2 ->
+  get_vars wdb vm1 xs = ok vs1 ->
+  exists2 vs2,
+    get_vars wdb vm2 xs = ok vs2
+    & List.Forall2 value_uincl vs1 vs2.
+Proof.
+  move=> /(get_var_is_uincl (wdb := wdb) (xs := map mk_var_i xs)).
+  rewrite /get_var_is !mapM_map.
+  exact.
 Qed.
 
 Lemma write_lval_uincl_on wdb gd X x v1 v2 s1 s2 vm1 :
@@ -2118,7 +2131,7 @@ Proof.
   have := write_vars_uincl (vm_uincl_refl _) Uargs' Hargs.
   rewrite with_vm_same => -[vm1 Hargs' Hvm1].
   have [vm2' /= [] Hsem' Uvm2]:= Hrec _ Hvm1.
-  have [vs2 Hvs2 Hsub] := get_vars_uincl Uvm2 Hmap.
+  have [vs2 Hvs2 Hsub] := get_var_is_uincl Uvm2 Hmap.
   have [vres2' hmr2 Ures']:= mapM2_dc_truncate_val Hcr Hsub.
   by exists vres2';split=>//;econstructor;eauto.
 Qed.
@@ -2293,6 +2306,10 @@ Proof.
   move=> /get_globalI [gv [_ -> _]].
   by case: gv.
 Qed.
+
+Lemma get_var_is_allow_undefined vm xs :
+  get_var_is false vm xs = ok [seq vm.[v_var x] | x <- xs ].
+Proof. by elim: xs => //= ?? ->. Qed.
 
 (* ------------------------------------------------------------------------------ *)
 
