@@ -104,6 +104,8 @@ end = struct
   let ssecret = "secret"
   let spoly   = "poly"
   let spublic = "public"
+  let stransient = "transient"
+  let smsf = "msf"
 
   let sflexible = "flex"
   let sstrict   = "strict"
@@ -134,6 +136,8 @@ end = struct
     let poly arg = A.on_attribute ~on_id ~on_struct error arg in
     let filters =
       [spublic, (fun a -> A.none a; Public);
+       stransient, (fun a -> A.none a; Public);
+       smsf, (fun a -> A.none a; Public);
        ssecret, (fun a -> A.none a; Secret);
        spoly  , poly] in
     let lvl = A.ensure_uniq filters annot in
