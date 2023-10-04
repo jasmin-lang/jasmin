@@ -1392,7 +1392,8 @@ let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
         ; "<u" , E.CF_LT Wsize.Unsigned
         ; "<=s", E.CF_LE Wsize.Signed
         ; "<=u", E.CF_LE Wsize.Unsigned
-        ; "==" , E.CF_EQ 
+        ; "==" , E.CF_EQ
+        ; "!=" , E.CF_NEQ
         ; ">=s", E.CF_GE Wsize.Signed
         ; ">=u", E.CF_GE Wsize.Unsigned
         ; ">s" , E.CF_GT Wsize.Signed

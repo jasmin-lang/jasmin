@@ -70,6 +70,10 @@
   ([PR 594]((https://github.com/jasmin-lang/jasmin/pull/594);
   fixes [#593](https://github.com/jasmin-lang/jasmin/issues/593)).
 
+- Flag combination support `"!="` as the negation of `"=="`
+  ([PR 600]((https://github.com/jasmin-lang/jasmin/pull/600);
+  fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise

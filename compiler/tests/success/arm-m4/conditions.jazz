@@ -1,0 +1,13 @@
+export
+fn test_conditions(reg u32 x y) -> reg u32 {
+  reg bool eq neq;
+  ?{ "==" = eq, "!=" = neq } = #CMP(x, y);
+
+  reg u32 r;
+  r = 0;
+  r = x if eq;
+  r = y if neq;
+
+  r = r;
+  return r;
+}
