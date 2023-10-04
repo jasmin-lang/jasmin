@@ -1359,6 +1359,23 @@ Section PROOF.
     by rewrite -e.
   Qed.
 
+  Lemma in_stack_invalid_read m m' w w0 off ws (w' w'' : word ws) m1 m2 :
+    write m  (w0 + off)%R w' = ok m' ->
+    write m1 (w0 + off)%R w'' = ok m2 ->
+    (wunsigned (top_stack m) <= wunsigned w < wunsigned (stack_root m))%Z ->
+    ~~ validw m w U8 ->
+    read m1 w U8 = read m2 w U8.
+  Proof.
+    move=> hm' hm2 hrange /negP hinvalid.
+    rewrite (CoreMem.writeP_neq hm2); first reflexivity.
+    apply: disjoint_range_U8 => i i_range ?; subst w.
+    apply: hinvalid.
+    rewrite -valid8_validw.
+    have /andP[ _ /allP ] := write_validw hm'.
+    apply.
+    rewrite in_ziota !zify; Lia.lia.
+  Qed.
+
   Lemma write_lval_preserves_metadata x v v' s s' t t' :
     write_lval true [::] x v s = ok s' →
     write_lval true [::] x v' t = ok t' →
@@ -1380,15 +1397,8 @@ Section PROOF.
       have /(_ _ X) := sem_pexpr_uincl _ ok_ev'.
       case => ev' -> /of_value_uincl_te h /=.
       have {h} /= -> /= := (h (sword _) _ ok_ofs).
-      t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
-      move => ptr ptr_range /negP ptr_not_valid.
-      rewrite (CoreMem.writeP_neq ok_tm'); first reflexivity.
-      apply: disjoint_range_U8 => i i_range ?; subst ptr.
-      apply: ptr_not_valid.
-      rewrite -valid8_validw.
-      have /andP[ _ /allP ] := write_validw ok_m'.
-      apply.
-      rewrite in_ziota !zify; Lia.lia.
+      t_xrbindP=> w' ok_w' tm' ok_tm' <-{t'} /= ???.
+      exact: (in_stack_invalid_read ok_m' ok_tm').
     - move => aa sz x e; apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
       apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
       subst; reflexivity.
@@ -1755,16 +1765,12 @@ Section PROOF.
     rewrite /fill_mem; t_xrbindP => -[z m2'] /= hf ? -[z' m2''] /= hf' ?; subst m2' m2''.
     elim: bytes 0%Z m0 m1 hf hf' => [ | b bytes ih] z1 m0 m1 /=.
     + by move=> [_ <-] [_ <-].
-    t_xrbindP=> _ m4 hw1 <- /ih{ih}ih _ m5 hw2 <- /ih{ih}ih /ih h ptr'.
-    (* FIXME: this is a subcase of write_lval_preserves_metadata *)
-    have eqv : validw m0 =2 validw m4 by move=> ??; rewrite (write_validw_eq hw1).
-    have h1 := preserved_metadataE (write_mem_stable hw1) eqv h.
-    move=> /(h1 ptr') h2 h3; rewrite -(h2 h3).
-    rewrite (CoreMem.writeP_neq hw2) //.
-    apply: disjoint_range_U8 => i i_range ?; subst ptr'.
-    case /negP: h3; rewrite -valid8_validw.
-    have /andP[ _ /allP ] := write_validw hw1.
-    apply; rewrite in_ziota !zify; Lia.lia.
+    t_xrbindP=> _ m4 hw1 <- /ih{ih}ih _ m5 hw2 <- /ih{ih}ih /ih h ptr' hrange.
+    have eqv : validw m0 =2 validw m4.
+    + by move=> ??; rewrite (write_validw_eq hw1).
+    move: (hrange) => /(preserved_metadataE (write_mem_stable hw1) eqv h) h2 h3.
+    rewrite -(h2 h3).
+    exact: (in_stack_invalid_read hw1 hw2).
   Qed.
 
   Lemma preserved_metadata_syscall m0 m1 m2 m m' scs scs' o ves ves' vs vs' :
