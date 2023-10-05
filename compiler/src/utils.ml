@@ -402,6 +402,8 @@ type warning =
   | IntroduceNone 
   | IntroduceArrayCopy
   | SimplifyVectorSuffix
+  | DuplicateVar 
+  | UnusedVar 
   | Deprecated
   | Experimental
   | Always

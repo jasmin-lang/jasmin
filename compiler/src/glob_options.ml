@@ -216,6 +216,8 @@ let options = [
     "-w_"  , Arg.Unit (add_warning IntroduceNone), ": print warning when extra _ is introduced";
     "-wea", Arg.Unit (add_warning ExtraAssignment), ": print warning when extra assignment is introduced";
     "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), ": print warning when array copy is introduced";
+    "-wduplicatevar", Arg.Unit (add_warning DuplicateVar), ": print warning when two variable share the same name";
+    "-wunusedvar", Arg.Unit (add_warning UnusedVar), ": print warning when a variable is not used";
     "-noinsertarraycopy", Arg.Clear introduce_array_copy, ": do not automatically insert array copy";
     "-nowarning", Arg.Unit (nowarning), ": do no print warning";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), ": print messages with color";
