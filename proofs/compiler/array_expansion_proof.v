@@ -154,7 +154,7 @@ Proof. by move=> /Sv_memP hin -[] [] heq _ _; rewrite /get_var /= heq. Qed.
 Lemma check_var_gets s1 s2 xs : 
   all (fun (x:var_i) => Sv.mem x (svars m)) xs ->
   eq_alloc m s1 s2 ->
-  mapM (fun (x:var_i) => get_var wdb (evm s1) x) xs = mapM (fun (x:var_i) => get_var wdb (evm s2) x) xs.
+  get_var_is wdb (evm s1) xs = get_var_is wdb (evm s2) xs.
 Proof. 
   move=> hall heqa; elim: xs hall => //= x xs hrec /andP [].
   by move=> /(check_var_get) -/(_ _ _ heqa) -> /hrec ->.

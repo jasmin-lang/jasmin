@@ -79,6 +79,8 @@ Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
   if is_lvar x then get_var wdb vm x.(gv)
   else get_global gd x.(gv).
 
+Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
+
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   Let v := v  in
   match v with

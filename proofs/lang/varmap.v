@@ -541,6 +541,8 @@ Definition get_var wdb vm x :=
   Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in
   ok v.
 
+Definition get_vars wdb vm := mapM (get_var wdb vm).
+
 Definition vm_initialized_on vm : seq var → Prop :=
   all (λ x, is_ok (get_var true vm x >>= of_val (vtype x))).
 

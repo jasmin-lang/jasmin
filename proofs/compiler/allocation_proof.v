@@ -621,7 +621,7 @@ Section PROOF.
       write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
       sem p1 ev s1 (f_body f) s2 ->
       Pc s1 (f_body f) s2 ->
-      mapM (fun x : var_i => get_var (~~direct_call) s2.(evm) x) (f_res f) = ok vres ->
+      get_var_is (~~ direct_call) s2.(evm) (f_res f) = ok vres ->
       mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
       scs2 = s2.(escs) ->
       m2 = finalize f.(f_extra) s2.(emem) ->
@@ -638,7 +638,7 @@ Section PROOF.
       init_state f.(f_extra) (p_extra p1) ev (Estate scs1 m1 Vm.init) = ok s0 ->
       write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
       sem p1 ev s1 (f_body f) s2 ->
-      mapM (fun x : var_i => get_var (~~direct_call) (evm s2) x) (f_res f) = ok vres ->
+      get_var_is (~~ direct_call) (evm s2) (f_res f) = ok vres ->
       mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
       scs2 = s2.(escs) ->
       m2 = finalize f.(f_extra) s2.(emem) ->
@@ -647,7 +647,7 @@ Section PROOF.
             init_state f'.(f_extra) (p_extra p2) ev (Estate scs1 m1 Vm.init) = ok (with_vm s0 vm0') /\
             write_vars (~~direct_call) (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
             sem p2 ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-            [ /\ mapM (fun x : var_i => get_var (~~direct_call) (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1,
+            [ /\ get_var_is (~~ direct_call) (evm (with_vm s2 vm2')) (f_res f') = ok vres1,
                  List.Forall2 value_uincl vres' vres1' &
                 mapM2 ErrType dc_truncate_val f'.(f_tyout) vres1 = ok vres1'] &
             scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
@@ -741,7 +741,7 @@ Lemma alloc_funP_eq p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s0 s1 s
   init_state (f_extra f) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok s0 ->
   write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
   sem p ev s1 (f_body f) s2 ->
-  mapM (fun x : var_i => get_var (~~direct_call) (evm s2) x) (f_res f) = ok vres ->
+  get_var_is (~~ direct_call) (evm s2) (f_res f) = ok vres ->
   mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
   scs2 = s2.(escs) ->
   m2 = finalize f.(f_extra) s2.(emem) ->
@@ -750,7 +750,7 @@ Lemma alloc_funP_eq p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s0 s1 s
             init_state f'.(f_extra) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok (with_vm s0 vm0') /\
             write_vars (~~direct_call) (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
             sem p ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-            [ /\ mapM (fun x : var_i => get_var (~~direct_call) (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1,
+            [ /\ get_var_is (~~ direct_call) (evm (with_vm s2 vm2')) (f_res f') = ok vres1,
                  List.Forall2 value_uincl vres' vres1' &
                 mapM2 ErrType dc_truncate_val f'.(f_tyout) vres1 = ok vres1'] &
             scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
@@ -791,7 +791,7 @@ Lemma alloc_fun_uprogP_eq p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s
   init_state (f_extra f) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok s0 ->
   write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
   sem p ev s1 (f_body f) s2 ->
-  mapM (fun x : var_i => get_var (~~direct_call) (evm s2) x) (f_res f) = ok vres ->
+  get_var_is (~~ direct_call) (evm s2) (f_res f) = ok vres ->
   mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
   scs2 = s2.(escs) ->
   m2 = finalize f.(f_extra) s2.(emem) ->
@@ -800,7 +800,7 @@ Lemma alloc_fun_uprogP_eq p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s
             init_state f'.(f_extra) (p_extra p) ev (Estate scs1 m1 Vm.init) = ok (with_vm s0 vm0') /\
             write_vars (~~direct_call) (f_params f') vargs (with_vm s0 vm0') = ok (with_vm s1 vm1'),
             sem p ev (with_vm s1 vm1') (f_body f') (with_vm s2 vm2'),
-            [ /\ mapM (fun x : var_i => get_var (~~direct_call) (evm (with_vm s2 vm2')) x) (f_res f') = ok vres1,
+            [ /\ get_var_is (~~ direct_call) (evm (with_vm s2 vm2')) (f_res f') = ok vres1,
                  List.Forall2 value_uincl vres' vres1' &
                 mapM2 ErrType dc_truncate_val f'.(f_tyout) vres1 = ok vres1'] &
             scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].

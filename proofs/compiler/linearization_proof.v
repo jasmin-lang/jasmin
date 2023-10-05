@@ -1359,6 +1359,23 @@ Section PROOF.
     by rewrite -e.
   Qed.
 
+  Lemma in_stack_invalid_read m m' w w0 off ws (w' w'' : word ws) m1 m2 :
+    write m  (w0 + off)%R w' = ok m' ->
+    write m1 (w0 + off)%R w'' = ok m2 ->
+    (wunsigned (top_stack m) <= wunsigned w < wunsigned (stack_root m))%Z ->
+    ~~ validw m w U8 ->
+    read m1 w U8 = read m2 w U8.
+  Proof.
+    move=> hm' hm2 hrange /negP hinvalid.
+    rewrite (CoreMem.writeP_neq hm2); first reflexivity.
+    apply: disjoint_range_U8 => i i_range ?; subst w.
+    apply: hinvalid.
+    rewrite -valid8_validw.
+    have /andP[ _ /allP ] := write_validw hm'.
+    apply.
+    rewrite in_ziota !zify; Lia.lia.
+  Qed.
+
   Lemma write_lval_preserves_metadata x v v' s s' t t' :
     write_lval true [::] x v s = ok s' →
     write_lval true [::] x v' t = ok t' →
@@ -1380,15 +1397,8 @@ Section PROOF.
       have /(_ _ X) := sem_pexpr_uincl _ ok_ev'.
       case => ev' -> /of_value_uincl_te h /=.
       have {h} /= -> /= := (h (sword _) _ ok_ofs).
-      t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
-      move => ptr ptr_range /negP ptr_not_valid.
-      rewrite (CoreMem.writeP_neq ok_tm'); first reflexivity.
-      apply: disjoint_range_U8 => i i_range ?; subst ptr.
-      apply: ptr_not_valid.
-      rewrite -valid8_validw.
-      have /andP[ _ /allP ] := write_validw ok_m'.
-      apply.
-      rewrite in_ziota !zify; Lia.lia.
+      t_xrbindP=> w' ok_w' tm' ok_tm' <-{t'} /= ???.
+      exact: (in_stack_invalid_read ok_m' ok_tm').
     - move => aa sz x e; apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
       apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
       subst; reflexivity.
@@ -1700,21 +1710,6 @@ Section PROOF.
     by rewrite ok_vs' /= ok_rs' /= ok_s2' /= size_cat addn0 addn1.
   Qed.
 
-  (* FIXME syscall: move this, rename get_vars_uincl -> get_vars_i_uincl
-                                      get_vars_uincl_ -> get_vars_uincl
-     introduce get_vars and get_vars_i
-  *)
-  Lemma get_vars_uincl_ (xs : seq var) (vm1 vm2 : Vm.t) (vs1 : seq value) :
-    vm1 <=1 vm2 →
-    mapM (get_var true vm1) xs = ok vs1 →
-    exists2 vs2 : seq value,
-      mapM (get_var true vm2) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
-  Proof.
-    move=> h1 h2;
-    have := get_vars_uincl (wdb:=true) (xs := map mk_var_i xs) h1.
-    by rewrite !mapM_map => /(_ _ h2).
-  Qed.
-
   Lemma vm_after_syscall_uincl vm1 vm2 :
     vm1 <=1 vm2 ->
     vm_after_syscall vm1 <=1 vm_after_syscall vm2.
@@ -1755,16 +1750,12 @@ Section PROOF.
     rewrite /fill_mem; t_xrbindP => -[z m2'] /= hf ? -[z' m2''] /= hf' ?; subst m2' m2''.
     elim: bytes 0%Z m0 m1 hf hf' => [ | b bytes ih] z1 m0 m1 /=.
     + by move=> [_ <-] [_ <-].
-    t_xrbindP=> _ m4 hw1 <- /ih{ih}ih _ m5 hw2 <- /ih{ih}ih /ih h ptr'.
-    (* FIXME: this is a subcase of write_lval_preserves_metadata *)
-    have eqv : validw m0 =2 validw m4 by move=> ??; rewrite (write_validw_eq hw1).
-    have h1 := preserved_metadataE (write_mem_stable hw1) eqv h.
-    move=> /(h1 ptr') h2 h3; rewrite -(h2 h3).
-    rewrite (CoreMem.writeP_neq hw2) //.
-    apply: disjoint_range_U8 => i i_range ?; subst ptr'.
-    case /negP: h3; rewrite -valid8_validw.
-    have /andP[ _ /allP ] := write_validw hw1.
-    apply; rewrite in_ziota !zify; Lia.lia.
+    t_xrbindP=> _ m4 hw1 <- /ih{ih}ih _ m5 hw2 <- /ih{ih}ih /ih h ptr' hrange.
+    have eqv : validw m0 =2 validw m4.
+    + by move=> ??; rewrite (write_validw_eq hw1).
+    move: (hrange) => /(preserved_metadataE (write_mem_stable hw1) eqv h) h2 h3.
+    rewrite -(h2 h3).
+    exact: (in_stack_invalid_read hw1 hw2).
   Qed.
 
   Lemma preserved_metadata_syscall m0 m1 m2 m m' scs scs' o ves ves' vs vs' :
@@ -1788,7 +1779,7 @@ Section PROOF.
   Proof.
     move=> ii s1 s2 o xs es scs m ves vs hes ho hw fn lbl /checked_iE [] fd ok_fd chk.
     move => m1 vm1 P Q M1 X1 D1 C1.
-    have [ves' hes' uves]:= get_vars_uincl_ X1 hes.
+    have [ves' hes' uves] := get_vars_uincl X1 hes.
     have [vs' /= ho' uvs]:= exec_syscallP ho uves.
     have [m' {ho'}ho' mm]:= match_mem_exec_syscall M1 ho'.
     have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl _ uvs hw.
@@ -3996,7 +3987,7 @@ Section PROOF.
       ∀ lm vm args',
         vm.[vid (lp_rsp p')] = Vword (top_stack m) →
         match_mem m lm →
-        mapM (λ x : var_i, get_var false vm x) fd.(lfd_arg) = ok args' →
+        get_var_is false vm fd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid p'.(lp_rip)] = Vword gd →
         vm_initialized_on vm ((var_tmp : var) :: lfd_callee_saved fd) →
@@ -4004,7 +3995,7 @@ Section PROOF.
           [/\
             lsem_exportcall p' scs lm fn vm scs' lm' vm',
             match_mem m' lm',
-            mapM (λ x : var_i, get_var false vm' x) fd.(lfd_res) = ok res' &
+            get_var_is false vm' fd.(lfd_res) = ok res' &
             List.Forall2 value_uincl res res'
           ]
       ].
@@ -4066,7 +4057,7 @@ Section PROOF.
         by move: RSP_not_result; rewrite sv_of_listE; apply/negP/negPn/in_map; exists r.
       by rewrite !Vm.setP_neq.
     have : ∃ lres : values,
-        [/\ mapM (λ x : var_i, get_var false vmo x) (f_res fd) = ok lres & List.Forall2 value_uincl res lres ].
+        [/\ get_var_is false vmo (f_res fd) = ok lres & List.Forall2 value_uincl res lres ].
     {
       move/mapM_Forall2: ok_res' res_res' vm2_vmo.
       move: res' res (f_res fd).

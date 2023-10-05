@@ -304,7 +304,8 @@ apply:
 move => scs1 m scs2 m2 fn fd va va' s0 s1 s2 vr vr' hfn htyin /hinitstate [s0' hinit hsim].
 move=> /(write_vars_sim hsim) [s1' [hss'1 hargs]].
 move=> _ /(_ _ hss'1) [[scs2' m2' vm2']] [] [] /= <- <- {scs2' m2'} hvm ih.
-rewrite (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal => hres htyout -> ->.
+rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal
+  => hres htyout -> ->.
 econstructor; eauto.
 Qed.
 

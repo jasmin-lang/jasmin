@@ -551,12 +551,12 @@ Section LEMMA.
       (fd.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack m) fd.(f_extra).(sf_align) →
       tvm1.[vrsp] = Vword (top_stack m) →
       tvm1.[ vgd ] = Vword global_data →
-      mapM (λ x : var_i, get_var false tvm1 x) fd.(f_params) = ok args' →
+      get_var_is false tvm1 fd.(f_params) = ok args' →
       List.Forall2 value_uincl args args' →
       ∃ (k: Sv.t) tvm2 res',
         [/\ sem_call ii k {| escs := scs; emem := m ; evm := tvm1 |} fn {| escs := scs'; emem := m' ; evm := tvm2 |},
          Sv.Subset k (writefun_ra p var_tmp wrf fn),
-         mapM (λ x : var_i, get_var false tvm2 x) fd.(f_res) = ok res' &
+         get_var_is false tvm2 fd.(f_res) = ok res' &
          List.Forall2 value_uincl res res'
         ].
 
@@ -632,7 +632,7 @@ Section LEMMA.
     move=> s1 scs m s2 o xs es ves vs hes ho hw sz ii I O t1.
     rewrite /check_instr_r; t_xrbindP => hces hargs hres <- pre sim.
     have [ves' hves' uves]:= check_esP hces sim hes.
-    have hes' : mapM (get_var true (evm t1)) (syscall_sig o).(scs_vin) = ok ves'.
+    have hes' : get_vars true (evm t1) (syscall_sig o).(scs_vin) = ok ves'.
     + elim: (es) (syscall_sig o).(scs_vin) (ves') hargs hves' => [ | e es' hrec] [ |y ys] // vs'.
       move=> /= /andP []; case: e => //= -[] x [] // /eqP hxy hall2.
       by rewrite /get_gvar /= hxy; t_xrbindP => ? -> /= ? /hrec -> // <-.
@@ -799,9 +799,11 @@ Section LEMMA.
          -(sem_stack_stable_sprog sexec).(ss_frames) -(write_vars_memP ok_s1) ok_alloc.(ass_root) ok_alloc.(ass_frames).
 
     have [ t2 [ k texec hk ] sim2 ] := ih _ _ _ t1' checked_body pre1 sim1.
-    have [ tres ok_tres res_uincl ] : exists2 tres,
-       mapM (λ x : var_i, get_var false (set_RSP p (free_stack (emem t2)) (evm t2)) x) (f_res fd) = ok tres
-       & List.Forall2 value_uincl vres' tres.
+    have [tres ok_tres res_uincl] :
+      let: vm := set_RSP p (free_stack (emem t2)) (evm t2) in
+      exists2 tres,
+        get_var_is false vm (f_res fd) = ok tres
+        & List.Forall2 value_uincl vres' tres.
     - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~Sv.In x D.
       + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
         by move /Sv.is_empty_spec: hdisj; SvD.fsetdec.
