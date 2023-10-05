@@ -595,19 +595,40 @@ Proof.
   by rewrite (@subword0 U128 U256) zero_extend_idem.
 Qed.
 
+Definition assemble_extra_correct (op : x86_extra_op) :=
+  forall rip ii les res m xs ys m' s ops ops',
+    let: assemble :=
+      fun '(op0, ls, rs) => assemble_asm_op x86_agparams rip ii op0 ls rs
+    in
+    sem_rexprs m res = ok xs ->
+    exec_sopn (Oasm (ExtOp op)) xs = ok ys ->
+    write_lexprs les ys m = ok m' ->
+    to_asm ii op les res = ok ops ->
+    mapM assemble ops = ok ops' ->
+    lom_eqv rip m s ->
+    exists2 s',
+      foldM (fun '(op'', asm_args) => eval_op op'' asm_args) s ops' = ok s'
+      & lom_eqv rip m' s'.
 
-
-Lemma assemble_extra_op rip ii op lvs args m xs ys m' s ops ops':
-  sem_rexprs m args = ok xs ->
-  exec_sopn (Oasm (ExtOp op)) xs = ok ys ->
-  write_lexprs lvs ys m = ok m' ->
-  to_asm ii op lvs args = ok ops ->
-  mapM (fun '(op0, ls, rs) => assemble_asm_op x86_agparams rip ii op0 ls rs) ops = ok ops' ->
-  lom_eqv rip m s ->
-  exists2 s' : asmmem,
-    foldM (fun '(op'', asm_args) => eval_op op'' asm_args) s ops' = ok s' &
-    lom_eqv rip m' s'.
+Lemma assemble_slh_move_correct : assemble_extra_correct Ox86SLHmove.
 Proof.
+  move=> rip ii les res m xs ys m' s ops ops' hes hexec hwrite [?] hmap hlo;
+    subst ops.
+  apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
+  clear hmap hlo.
+
+  move: hexec.
+  rewrite /= hes /exec_sopn /= /sopn_sem /=.
+  clear hes.
+
+  case: xs => //.
+  t_xrbindP=> vx [|//] w w' hw [?] ?; subst w' ys.
+  case: ifP => _; by rewrite /= hw /= hwrite.
+Qed.
+
+Lemma assemble_extra_op op : assemble_extra_correct op.
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops'.
   case: op => //.
   (* Oset0 *)
   + move=> sz; rewrite /exec_sopn /sopn_sem /=.
@@ -770,14 +791,9 @@ Proof.
     + by rewrite /exec_sopn /= hw /sopn_sem /= /x86_CMOVcc /= truncate_word_u; case: ifP.
     by rewrite /eval_op => s' -> ?; exists s'.
 
-  (* SLHmove *)
-  + move=> hes hex hw [] <- hmap hlo.
-    apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
-    move: hex; rewrite /= hes /exec_sopn /= /sopn_sem /= /se_move_sem.
-    by case: (xs) => //; t_xrbindP => vx [] // _ _ -> [->] /= ->; rewrite hw.
+  - exact: assemble_slh_move_correct.
 
   (* SLHprotect *)
-
 Opaque cat.
   rewrite /exec_sopn /= /sopn_sem /= /Ox86SLHprotect_instr /Uptr /assemble_slh_protect /= => ws.
   case: ifP => /= Hws; t_xrbindP.
@@ -902,7 +918,8 @@ Qed.
 Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
   {|
     hagp_eval_assemble_cond := eval_assemble_cond;
-    hagp_assemble_extra_op := assemble_extra_op;
+    hagp_assemble_extra_op :=
+      fun rip ii op => assemble_extra_op (op := op) (rip := rip) (ii := ii);
   |}.
 
 (* ------------------------------------------------------------------------ *)
