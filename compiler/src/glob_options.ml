@@ -23,10 +23,26 @@ let help_intrinsics = ref false
 type color = | Auto | Always | Never
 let color = ref Auto
 
-let ct_list = ref None
-let infer   = ref false 
+let check_ct       = ref false
+let check_sct      = ref false
+let check_sectypes = ref false
+let infer          = ref false
+let s_ct_comp_pass = ref Compiler.ParamsExpansion
+type print_sectypes = PSTlist | PSTfull
 
-let sct_list = ref None
+let print_sectypes = ref (Some PSTfull)
+
+let set_checksec = function
+  | "CT" -> check_ct := true
+  | "SCT" -> check_sct := true
+  | "sectypes" -> check_sectypes := true
+  | _ -> assert false
+
+let set_print_sectypes = function
+  | "list" -> print_sectypes := Some PSTlist
+  | "full" -> print_sectypes := Some PSTfull
+  | "no"   -> print_sectypes := None
+  | _ -> assert false
 
 let lea = ref false
 let set0 = ref false
@@ -89,26 +105,6 @@ let set_color c =
   in
   color := assoc c
 
-let set_ct () =  
-  if !ct_list = None then ct_list := Some []
-
-let set_ct_on s = 
-  ct_list := 
-    Some (match !ct_list with
-          | None -> [s]
-          | Some l -> s::l)
-
-let set_sct () =
-  if !sct_list = None then sct_list := Some []
-
-let set_sct_on s =
-  sct_list :=
-    Some (match !sct_list with
-          | None -> [s]
-          | Some l -> s::l)
-
-let sct_comp_pass = ref Compiler.ParamsExpansion
-
 let parse_jasmin_path s =
   s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
 
@@ -168,7 +164,7 @@ let symbol2pass =
   fun s -> Hashtbl.find tbl s
 
 let set_sct_comp_pass s =
- sct_comp_pass := symbol2pass s
+ s_ct_comp_pass := symbol2pass s
 
 let print_option p =
   let s, msg = print_strings p in
@@ -193,12 +189,20 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-oecarray" , Arg.String set_ec_array_path, "[dir]: output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
-    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
-    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
-    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
-    "-checkSCT", Arg.Unit set_sct       , ": checks that the full program is speculative constant time (using a type system)";
-    "-checkSCTon", Arg.String set_sct_on, "[f]: checks that the function [f] is speculative constant time (using a type system)";
-    "-checkSCTafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), "start sct checker after given pass";
+    "-check", Arg.Symbol (["CT"; "SCT"; "sectypes"], set_checksec),
+    ": check security\n\
+     CT: check constant time\n\
+     SCT: check speculative constant time\n\
+     sectypes: check (speculative) constant time of all functions annotated with #CT or #SCT";
+    "-infer"    , Arg.Set infer         ,
+    "infers security types of export functions\n\
+     WARNING the result need to be interpreted and checked";
+    "-checkafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), "start (s)ct checker after given pass";
+    "-print-sectypes", Arg.Symbol (["list"; "full"; "no"], set_print_sectypes),
+    "print security types verified using option -check\n\
+     list: simply print the function names that has been verified\n\
+     full: print the full types\n\
+     no:   print nothing";
     "-slice"    , Arg.String set_slice  , "[f]: keep function [f] and all what it needs";
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";

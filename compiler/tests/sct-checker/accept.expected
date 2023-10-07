@@ -1,190 +1,192 @@
 File annot.jazz:
-modmsf f : #transient ->
+modmsf f : #transient x ->
 #secret
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf id : #poly = { n = k, s = k} ->
+modmsf id : #poly = { n = k, s = k} arg ->
 #poly = { n = k, s = k}
 output corruption: #public
- constraints:
+constraints:
 k <= k, 
 
-nomodmsf id1 : #poly = { n = k, s = k} ->
+nomodmsf id1 : #poly = { n = k, s = k} arg ->
 #poly = { n = k, s = k}
 output corruption: #public
- constraints:
+constraints:
 
 
-nomodmsf id2 : #[ptr = { n = p, s = p}, val = { n = v, s = v}] ->
+nomodmsf id2 : #[ptr = { n = p, s = p}, val = { n = v, s = v}] arg ->
 #[ptr = { n = p, s = p}, val = { n = v, s = v}]
 output corruption: #public
- constraints:
+constraints:
 
 
-nomodmsf id3 : #public ->
+nomodmsf id3 : #public arg ->
 #public
 output corruption: #public
- constraints:
+constraints:
 
 
-nomodmsf id4 : #transient ->
+nomodmsf id4 : #transient arg ->
 #transient
 output corruption: #public
- constraints:
+constraints:
 
 
-nomodmsf id5 : #secret ->
+nomodmsf id5 : #secret arg ->
 #secret
 output corruption: #public
- constraints:
+constraints:
 
 
 File arrays.jazz:
-modmsf transient_read : #[ptr = transient, val = { n = d, s = secret}] *
-                        #transient ->
+modmsf transient_read : #[ptr = transient, val = { n = d, s = secret}] p *
+                        #transient i ->
 #poly = { n = d, s = secret}
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf safe_access : #public * #poly = { n = d, s = d} ->
+modmsf safe_access : #public c * #poly = { n = d, s = d} x ->
 #poly = { n = d, s = d}
 output corruption: #public
- constraints:
+constraints:
 
 
 File basic.jazz:
-modmsf nothing : #transient ->
+modmsf nothing : #transient a ->
 #public
 output corruption: #public
- constraints:
+constraints:
 
 
-nomodmsf secret : #secret ->
+nomodmsf secret : #secret a ->
 #secret
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf branch : #transient * #secret * #secret ->
+modmsf branch : #transient a * #secret b * #secret c ->
 #secret
 output corruption: #public
- constraints:
+constraints:
 
 
-nomodmsf branchless : #transient * #secret * #secret ->
+nomodmsf branchless : #transient a * #secret b * #secret c ->
 #secret
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf forloop : #transient ->
+modmsf forloop : #transient a ->
 #public
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf whileloop : #transient ->
+modmsf whileloop : #transient a ->
 #public
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf archetype : #transient ->
+modmsf archetype : #transient i ->
 #transient
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf load : #transient * #transient ->
+modmsf load : #transient p * #transient i ->
 #public
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf store : #transient * #transient * #transient * #secret ->
+modmsf store : #transient p * #transient i * #transient q * #secret v ->
 
 output corruption: #transient
- constraints:
+constraints:
 
 
 File local-stack-array.jazz:
-modmsf main : #transient ->
+modmsf main : #transient io ->
 #public
 output corruption: #public
- constraints:
+constraints:
 
 
 File paper.jazz:
-modmsf fig3a : #[ptr = transient, val = transient] *
-               #[ptr = transient, val = secret] * #transient ->
+modmsf fig3a : #[ptr = transient, val = transient] p *
+               #[ptr = transient, val = secret] w * #transient i ->
 #[ptr = public, val = secret]
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf fig3b : #[ptr = transient, val = transient] *
-               #[ptr = transient, val = { n = w, s = w}] *
-               #[ptr = transient, val = { n = s, s = s}] * #transient *
-               #secret ->
+modmsf fig3b : #[ptr = transient, val = transient] p *
+               #[ptr = transient, val = { n = w, s = w}] w *
+               #[ptr = transient, val = { n = s, s = s}] s * #transient i *
+               #secret secret ->
 #[ptr = public, val = { n = w, s = w}] *
 #[ptr = public, val = { n = s, s = s}]
 output corruption: #transient
- constraints:
+constraints:
 s <= s, w <= w, 
 
-modmsf fig4a : #[ptr = public, val = { n = d, s = d}] *
-               #[ptr = public, val = secret] ->
+modmsf fig4a : #[ptr = public, val = { n = d, s = d}] msg *
+               #[ptr = public, val = secret] key ->
 #[ptr = public, val = { n = d, s = d}]
 output corruption: #transient
- constraints:
+constraints:
 
 
-modmsf fig4b : #[ptr = transient, val = { n = d, s = d}] *
-               #[ptr = transient, val = secret] ->
+modmsf fig4b : #[ptr = transient, val = { n = d, s = d}] msg *
+               #[ptr = transient, val = secret] key ->
 #[ptr = public, val = { n = d, s = d}]
 output corruption: #transient
- constraints:
+constraints:
 d <= d, 
 
-modmsf fig4c : #[ptr = transient, val = { n = d, s = d}] *
-               #[ptr = transient, val = secret] ->
+modmsf fig4c : #[ptr = transient, val = { n = d, s = d}] msg *
+               #[ptr = transient, val = secret] key ->
 #[ptr = public, val = { n = d, s = d}]
 output corruption: #transient
- constraints:
+constraints:
 d <= d, 
 
-modmsf fig5a : #[ptr = public, val = { n = d, s = secret}] ->
+modmsf fig5a : #[ptr = public, val = { n = d, s = secret}] p ->
 #poly = { n = d, s = secret}
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf fig5b : #[ptr = transient, val = { n = d, s = d}] ->
+modmsf fig5b : #[ptr = transient, val = { n = d, s = d}] p ->
 #poly = { n = d, s = d}
 output corruption: #public
- constraints:
+constraints:
 d <= d, 
 
-modmsf fig5c : #[ptr = transient, val = { n = d, s = d}] ->
+modmsf fig5c : #[ptr = transient, val = { n = d, s = d}] p ->
 #poly = { n = d, s = d}
 output corruption: #public
- constraints:
+constraints:
 d <= d, 
 
-modmsf fig6a : #[ptr = transient, val = secret] *
-               #[ptr = transient, val = transient] * #transient * #transient ->
+modmsf fig6a : #[ptr = transient, val = secret] s *
+               #[ptr = transient, val = transient] p * #transient i *
+               #transient pub_v ->
 #public * #[ptr = public, val = secret]
 output corruption: #public
- constraints:
+constraints:
 
 
-modmsf fig6b : #[ptr = transient, val = secret] *
-               #[ptr = transient, val = transient] * #transient * #secret ->
+modmsf fig6b : #[ptr = transient, val = secret] s *
+               #[ptr = transient, val = transient] p * #transient cond *
+               #secret sec_v ->
 #public * #[ptr = public, val = secret]
 output corruption: #public
- constraints:
+constraints:
 
 

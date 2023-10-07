@@ -269,6 +269,10 @@ val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
 val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
 
 (* -------------------------------------------------------------------- *)
+val get_fun : ('info,'asm) prog -> funname -> ('info,'asm) func
+val get_fun_s : ('info,'asm) prog -> string -> ('info,'asm) func
+
+(* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
 val clamp_pe : pelem -> Z.t -> Z.t
 

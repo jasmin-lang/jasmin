@@ -22,3 +22,11 @@ let load_file name =
   | Syntax.ParseError (loc, None) ->
       Format.eprintf "Parse error: %a@." Location.pp_loc loc;
       assert false
+
+let ty_prog p fl =
+  let sigs, status = Sct_checker_forward.ty_prog ~infer:true p fl in
+  match status with
+  | None ->
+      List.iter (Format.printf "%a@." (Sct_checker_forward.pp_signature p)) sigs
+  | Some (loc, msg) ->
+      Utils.hierror ~loc:(Lone loc) ~kind:"SCT checker" "%t" msg

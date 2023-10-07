@@ -60,8 +60,108 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
-let check_sct _s p _source_p =
-  Sct_checker_forward.ty_prog p (oget !sct_list)
+
+exception StopCompile
+
+let stop_compile () = raise StopCompile
+
+
+module type CheckSecInput =
+  sig
+    val kind  : string
+    type signature
+    val pp_signature : _ prog -> Format.formatter -> funname * signature -> unit
+    val ty_prog :
+      infer:bool -> _ prog -> Name.t list ->
+      (funname * signature) list * (L.t * (Format.formatter -> unit)) option
+  end
+
+module MkCheckSec (I:CheckSecInput) =
+  struct
+
+    let pp_pass pass =
+      fst (Glob_options.print_strings pass)
+
+    let error_kind =
+      I.kind ^ "CT checker"
+
+    let check pass prog todo =
+      let pp_sigs sigs =
+        match !Glob_options.print_sectypes with
+        | None -> ()
+        | Some PSTlist ->
+            let l =
+              if todo = [] then List.map (fun (fn, _) -> fn.fn_name) sigs
+              else todo in
+            Format.printf "/* After %s [%a] are %sCT*/@.."
+                (pp_pass pass)
+                (pp_list ", " pp_string) l
+                I.kind
+
+        | Some PSTfull ->
+            Format.printf "/* %sCT types after %s:\n@[<v>%a@]*/@."
+              I.kind (pp_pass pass)
+              (pp_list "@ " (I.pp_signature prog)) sigs
+      in
+
+      let on_err (loc, msg) =
+        hierror ~loc:(Lone loc) ~kind:error_kind "%t" msg in
+
+      let sigs, status = I.ty_prog ~infer:!Glob_options.infer prog todo in
+      pp_sigs sigs;
+      Stdlib.Option.iter on_err status
+
+    let check_on_tbl tbl pass prog =
+      if !Glob_options.check_sectypes then
+        let todo = Hash.find_default tbl pass Ss.empty in
+        if not (Ss.is_empty todo) then check pass prog (Ss.elements todo)
+
+    let check_on_opt opt pass prog =
+      if pass = !Glob_options.s_ct_comp_pass && !opt then begin
+        check pass prog [];
+        stop_compile ()
+      end
+
+    let get_ct ct annot =
+      let error loc ct =
+        hierror ~loc:(Lone loc) ~kind:"typing error" "invalid annotation for %s" ct in
+      let on_string loc ct s =
+        try Glob_options.symbol2pass s
+        with Not_found ->
+          hierror ~loc:(Lone loc) ~kind:"typing error" "invalid annotation %s for %s" s ct in
+      let on_id = on_string in
+
+      Annot.process_annot ~case_sensitive:false
+        [ct,
+          Annot.on_attribute
+            ~on_empty:(fun _loc _CT () -> Compiler.ParamsExpansion)
+            ~on_string ~on_id
+            error]
+        annot
+
+    let build_tbl ct p =
+      let tbl = Hash.create 17 in
+      let add f (_, pass) =
+        Hash.modify_def Ss.empty pass (fun s -> Ss.add f.f_name.fn_name s) tbl in
+      let dof f =
+        let passes = get_ct ct f.f_annot.f_user_annot in
+        List.iter (add f) passes in
+      if !Glob_options.check_sectypes then List.iter dof (snd p);
+      tbl
+
+  end
+
+module SCtChecker = MkCheckSec (struct
+  let kind = "S"
+  include Sct_checker_forward
+end)
+
+module CtChecker = MkCheckSec (struct
+  let kind = ""
+  include Ct_checker_forward
+end)
+
+
 
 (* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
@@ -158,17 +258,20 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
-    let do_compile = ref true in
-    let donotcompile () = do_compile := false in
+    let ct_tbl = CtChecker.build_tbl "CT" prog in
+    let sct_tbl = SCtChecker.build_tbl "SCT" prog in
 
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
         - Pretty-print the program
         - Add your own checker here!
     *)
-    (* FIXME: I think this donotcompile stuff does not work anymore,
-       At least the compilation will not be stopped if the passes are after Compiler.ParamsExpansion *)
     let visit_prog_after_pass ~debug s p =
+      CtChecker.check_on_tbl ct_tbl s p;
+      SCtChecker.check_on_tbl sct_tbl s p;
+      CtChecker.check_on_opt Glob_options.check_ct s p;
+      SCtChecker.check_on_opt Glob_options.check_sct s p;
+
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_p
           Arch.reg_size
@@ -177,17 +280,12 @@ let main () =
           s
           p
           source_prog
-        |> donotcompile
-      else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
-        check_sct s p source_prog
-        |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
-        |> donotcompile
-      else
-      (
-        if s == Unrolling then CheckAnnot.check_no_for_loop p;
-        if s == Unrolling then CheckAnnot.check_no_inline_instr p;
-        eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
-      ) in
+        |> stop_compile;
+
+      if s == Unrolling then CheckAnnot.check_no_for_loop p;
+      if s == Unrolling then CheckAnnot.check_no_inline_instr p;
+      eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
+    in
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
@@ -211,21 +309,10 @@ let main () =
         BatPervasives.ignore_exceptions
           (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
         raise e end;
-      donotcompile()
+      stop_compile()
     end;
 
-    if !ct_list <> None then begin
-        let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
-           Format.printf "/* Security types:\n@[<v>%a@]*/@."
-              (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
-           let on_err (loc, msg) =
-             hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
-           in
-           Stdlib.Option.iter on_err status;
-        donotcompile()
-    end;
-
-    if !do_compile then begin
+    begin
   
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
@@ -279,6 +366,7 @@ let main () =
     end
     end
   with
+  | StopCompile -> exit 0
   | Utils.HiError e ->
     Format.eprintf "%a@." pp_hierror e;
     exit 1

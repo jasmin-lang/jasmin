@@ -164,7 +164,7 @@ type signature = {
 type ('info, 'asm) fenv = {
     ensure_annot : bool;
     env_ty       : signature Hf.t;
-    env_def      : ('info, 'asm) func list;
+    env_prog     : ('info, 'asm) prog;
   }
 
 (* -----------------------------------------------------------*)
@@ -177,8 +177,8 @@ let pp_arg fmt (x, (k, lvl)) =
 let pp_signature prog fmt (fn, { tyin ; tyout }) =
   Format.fprintf fmt "@[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
     fn.fn_name
-    (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) (snd prog)).f_args tyin)
-    (pp_list ",@ " Lvl.pp) tyout
+    (pp_list " *@ " pp_arg) (List.combine (get_fun prog fn).f_args tyin)
+    (pp_list " *@ " Lvl.pp) tyout
 
 (* -----------------------------------------------------------*)
 exception CtTypeError of Location.t * (Format.formatter -> unit)
@@ -419,7 +419,7 @@ let get_annot ensure_annot f =
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
       error ~loc:f.f_loc
-           "export functions should be fully annotated, missing some security annotations on %s.@ User option “-infer” to infer them."
+           "export functions should be fully annotated, missing some security annotations on %s.@ Use option “-infer” to infer them."
            msg in
   if ensure_annot && f.f_cc = Export then
     (check_defined "result types" aout;
@@ -576,7 +576,7 @@ and get_fun fenv f =
 
 and ty_fun fenv fn =
   (* TODO: we should have this defined *)
-  let f = List.find (fun f -> F.equal f.f_name fn) fenv.env_def in
+  let f = Prog.get_fun fenv.env_prog fn in
   let tyin, aout, ldecls = get_annot fenv.ensure_annot f in
   let env = List.fold_left2 Env.add Env.empty f.f_args tyin in
   let env = List.fold_left (fun env (x,lvl) -> Env.add env x (Strict, lvl)) env ldecls in
@@ -609,19 +609,20 @@ and ty_fun fenv fn =
   { tyin ; tyout }
 
 let ty_prog ~infer (prog: ('info, 'asm) prog) fl =
-  let prog = snd prog in
   let fenv =
     { ensure_annot = not infer
     ; env_ty       = Hf.create 101
-    ; env_def      = prog } in
+    ; env_prog     = prog } in
+
   let fl =
     if fl = [] then
-      List.rev_map (fun f -> f.f_name) prog
+      List.rev_map (fun f -> f.f_name) (snd prog)
     else
       let get fn =
-        try (List.find (fun f -> f.f_name.fn_name = fn) prog).f_name
+        try (get_fun_s prog fn).f_name
         with Not_found -> hierror ~loc:Lnone ~kind:"constant type checker" "unknown function %s" fn in
       List.map get fl in
+
   let status =
     match List.iter (fun fn -> ignore (get_fun fenv fn : signature)) fl with
     | () -> None
@@ -629,4 +630,7 @@ let ty_prog ~infer (prog: ('info, 'asm) prog) fl =
     | exception CtTypeError (loc, msg)
       -> Some (loc, msg)
   in
-  Hf.to_list fenv.env_ty, status
+  let get f = Option.map (fun s -> f.f_name, s) (Hf.find_option fenv.env_ty f.f_name) in
+  let signs = List.filter_map get (List.rev (snd prog)) in
+  signs, status
+
