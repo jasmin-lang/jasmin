@@ -34,13 +34,15 @@ all: build
 build: native
 
 define do-build
-	$(RM) jasminc jazz2tex jasmin_exec
+	$(RM) jasminc jazz2tex jasmin_exec jasmin_exec_arm
 	# dune build entry/jasminc.$(1)
 	# dune build entry/jazz2tex.$(1)
 	dune build entry/jasmin_exec.$(1)
+	dune build entry/jasmin_exec_arm.$(1)
 	# ln -sf "_build/default/entry/jasminc.$(1)" jasminc
 	# ln -sf "_build/default/entry/jazz2tex.$(1)" jazz2tex
 	ln -sf "_build/default/entry/jasmin_exec.$(1)" jasmin_exec
+	ln -sf "_build/default/entry/jasmin_exec_arm.$(1)" jasmin_exec_arm
 endef
 
 byte:
@@ -64,18 +66,20 @@ check-ci:
 clean:
 	dune clean
 	rm -rf _c_build
-	rm -f jasminc jazz2tex jasmin_exec lib*.a
+	rm -f jasminc jazz2tex jasmin_exec jasmin_exec_arm lib*.a
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	# $(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
 	# $(INSTALL) -m 0755 -T jazz2tex $(DESTDIR)$(BINDIR)/jazz2tex
 	$(INSTALL) -m 0755 -T jasmin_exec $(DESTDIR)$(BINDIR)/jasmin_exec
+	$(INSTALL) -m 0755 -T jasmin_exec_arm $(DESTDIR)$(BINDIR)/jasmin_exec_arm
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
 	$(RM) $(DESTDIR)$(BINDIR)/jazz2tex
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin_exec
+	$(RM) $(DESTDIR)$(BINDIR)/jasmin_exec_arm
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz

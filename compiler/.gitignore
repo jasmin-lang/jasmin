@@ -9,6 +9,7 @@ report.log
 /jasminc
 /jazz2tex
 /jasmin_exec
+/jasmin_exec_arm
 /fuzz_test
 /new_fuzz_test
 /uc_fuzz_test

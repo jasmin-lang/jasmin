@@ -28,4 +28,12 @@
  (flags -rectypes)
  (modes byte exe)
  (libraries cmdliner jasmin bar ctypes ctypes.foreign crowbar))
+
+(executable
+ (public_name jasmin_exec_arm)
+ (name jasmin_exec_arm)
+ (modules jasmin_exec_arm)
+ (flags -rectypes)
+ (modes byte exe)
+ (libraries cmdliner jasmin bar ctypes ctypes.foreign crowbar))
 )
