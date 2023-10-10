@@ -74,6 +74,10 @@
   ([PR 600]((https://github.com/jasmin-lang/jasmin/pull/600);
   fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
 
+- Remove dead functions after loop unrolling
+  ([PR 611](https://github.com/jasmin-lang/jasmin/pull/611);
+  fixes [#607](https://github.com/jasmin-lang/jasmin/issues/607)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise

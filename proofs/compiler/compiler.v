@@ -258,6 +258,9 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := unroll_loop (ap_is_move_op aparams) p in
   let p := cparams.(print_uprog) Unrolling p in
 
+  Let p := dead_calls_err_seq to_keep p in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+
   Let pv := live_range_splitting p in
 
   let pr := remove_init_prog is_reg_array pv in

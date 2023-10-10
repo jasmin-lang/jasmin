@@ -187,8 +187,9 @@ Proof.
   rewrite !print_uprogP => pd ok_pd.
   rewrite !print_uprogP => pe ok_pe.
   rewrite !print_uprogP => pf ok_pf.
-  rewrite !print_uprogP => pg ok_pg ph ok_ph.
-  rewrite !print_uprogP => ok_fvars pi ok_pi pp.
+  rewrite !print_uprogP => pg ok_pg.
+  rewrite !print_uprogP => ph ok_ph pi ok_pi.
+  rewrite !print_uprogP => ok_fvars pj ok_pj pp.
   rewrite !print_uprogP => ok_pp <- {p'} ok_fn exec_p.
 
   have va_refl := List_Forall2_refl va value_uincl_refl.
@@ -196,7 +197,7 @@ Proof.
   - move=> vr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl).
    apply: compose_pass.
   - move=> vr'.
-    assert (h := lower_slh_prog_sem_call (dc:=direct_c) (hap_hshp haparams) (ev:= tt) ok_pi).
+    assert (h := lower_slh_prog_sem_call (dc:=direct_c) (hap_hshp haparams) (ev:= tt) ok_pj).
     apply h => //.
   apply: compose_pass.
   - move => vr'.
@@ -206,19 +207,21 @@ Proof.
          (lowering_opt cparams)
          (warning cparams)
          ok_fvars).
-  apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_ph).
+  apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pi).
   apply: compose_pass_uincl'.
-  - move => vr'; apply: (live_range_splittingP ok_pg).
+  - move => vr'; apply: (live_range_splittingP ok_ph).
   apply: compose_pass.
-  - move=> vr' hvr'. assert (h := expand_callP (sip := sip_of_asm_e) ok_pf); apply h => //; apply hvr'.
+  - move=> vr' hvr'. assert (h := expand_callP (sip := sip_of_asm_e) ok_pg); apply h => //; apply hvr'.
   apply: compose_pass_uincl'.
   - by move=>  vr'; apply: indirect_to_direct.
   apply: compose_pass.
-  - by move=> vr'; apply: (makeReferenceArguments_callP (siparams := sip_of_asm_e) ok_pe).
+  - by move=> vr'; apply: (makeReferenceArguments_callP (siparams := sip_of_asm_e) ok_pf).
   apply: compose_pass_uincl; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
   apply: compose_pass_uincl'.
   - move => vr' Hvr'.
-    apply: (live_range_splittingP ok_pd); exact: Hvr'.
+    apply: (live_range_splittingP ok_pe); exact: Hvr'.
+  apply: compose_pass.
+  - by move => vr'; exact: (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pd).
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
   apply: compose_pass_uincl'; first by move => vr' Hvr'; apply: (inliningP ok_pa ok_fn); exact: Hvr'.
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
