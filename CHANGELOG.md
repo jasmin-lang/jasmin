@@ -79,7 +79,8 @@
   fixes [#607](https://github.com/jasmin-lang/jasmin/issues/607)).
 
 - Fix extraction to easycrypt on "for loop" that modifies the loop counter
-	
+  ([PR 616](https://github.com/jasmin-lang/jasmin/pull/616).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
