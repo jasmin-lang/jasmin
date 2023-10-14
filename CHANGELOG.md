@@ -29,6 +29,9 @@
   ([PR 600]((https://github.com/jasmin-lang/jasmin/pull/600);
   fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
 
+- Fix extraction to easycrypt of for loops that modify the loop counter
+  ([PR 616](https://github.com/jasmin-lang/jasmin/pull/616)).
+
 ## Other changes
 
 - Unsigned division on x86 emits a xor instead of “mov 0“
