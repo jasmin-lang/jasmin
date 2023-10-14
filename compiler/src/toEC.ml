@@ -790,6 +790,48 @@ let ty_sopn pd asmOp op =
     List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
     List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
 
+(* This code replaces for loop that modify the loop counter by while loop,
+   it would be nice to prove in Coq the validity of the transformation *) 
+
+let is_write_lv x = function
+  | Lnone _ | Lmem _ -> false 
+  | Lvar x' | Laset(_, _, x', _) | Lasub (_, _, _, x', _) -> 
+    V.equal x x'.L.pl_desc 
+
+let is_write_lvs x = List.exists (is_write_lv x)
+
+let rec is_write_i x i = 
+  match i.i_desc with
+  | Cassgn (lv,_,_,_) ->
+    is_write_lv x lv
+  | Copn(lvs,_,_,_) | Ccall(_,lvs,_, _) | Csyscall(lvs,_,_) -> 
+    is_write_lvs x lvs
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> 
+    is_write_c x c1 || is_write_c x c2 
+  | Cfor(x',_,c) -> 
+    V.equal x x'.L.pl_desc || is_write_c x c
+
+and is_write_c x c = List.exists (is_write_i x) c
+  
+let rec remove_for_i i =
+  let i_desc = 
+    match i.i_desc with
+    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
+    | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
+    | Cwhile(a, c1, e, c2) -> Cwhile(a, remove_for c1, e, remove_for c2)
+    | Cfor(j,r,c) -> 
+      let jd = j.pl_desc in
+      if not (is_write_c jd c) then Cfor(j, r, remove_for c)
+      else 
+        let jd' = V.clone jd in
+        let j' = { j with pl_desc = jd' } in
+        let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
+        let ii' = { i with i_desc = ii' } in
+        Cfor (j', r, ii' :: remove_for c)
+  in
+  { i with i_desc }   
+and remove_for c = List.map remove_for_i c
+
 module Normal = struct  
 
   let all_vars lvs = 
@@ -1276,6 +1318,7 @@ let pp_safe_ret pd env fmt xs =
     Leak.pp_safe_cond pd env fmt (Leak.safe_es pd env es)
 
 let pp_fun pd asmOp env fmt f =
+  let f = { f with f_body = remove_for f.f_body } in
   let locals = Sv.elements (locals f) in
   (* initialize the env *)
   let env = List.fold_left (add_var false) env f.f_args in
@@ -1314,8 +1357,6 @@ let pp_glob_decl env fmt (x,d) =
     Format.fprintf fmt "@[abbrev %a = %a.of_list witness [%a].@]@ "
        (pp_var env) x (pp_Array env) (Array.length t) 
        (pp_list ";@ " pp_elem) (Array.to_list t)
-
-
 
 let add_arrsz env f = 
   let add_sz x sz = 
