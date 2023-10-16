@@ -1369,7 +1369,7 @@ end = struct
     | None -> raise Heuristic_failed
     | Some heur ->     
       let s = Bvar.var_name bv in
-      let s = String.lowercase s in
+      let s = String.lowercase_ascii s in
       if String.starts_with s "v_cf"
       then Utils.oget ~exn:Heuristic_failed heur.fh_cf
       else if String.starts_with s "v_zf"
