@@ -7,7 +7,7 @@
   We now support operators SLH operators as in [Typing High-Speed Cryptography
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
-  We also provide a speculative CCT checker, via the compiler flag `-checkSCT`.
+  We also provide a speculative CCT checker, via the compiler flag `-check SCT`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447)).
 
 - Register arrays can appear as arguments and return values of local functions;
@@ -33,6 +33,25 @@
   Thumb-expandable constants loaded with `MOV`, and bigger ones constructed
   with `MOV` and `MOVT`.
   ([PR #597](https://github.com/jasmin-lang/jasmin/pull/597)).
+
+- The option `-checkCT` has been removed, use `-check CT` instead.
+
+- The option `-checkCTon` has been removed, use `-slice` instead.
+
+- The option `-check sectypes` has been added, this allows to check
+  (speculative) constant time on all functions annotated with `#CT` or `#SCT`.
+  Both annotations accept as option argument a compilation pass, for example:
+	`#CT = unroll` or `#SCT = inline`.
+  In this case the checking will be performed after this compilation pass.
+  It is possible to specify meany compilation passes:
+	`#[CT, CT=inline, CT=unroll]`.
+
+- The option `-checkafter` has been added, this allows to check (speculative) constant time
+  after a given compilation pass.
+
+- The option `-print-sectypes [list | full | no]` has been added.
+
+
 
 ## Bug fixes
 

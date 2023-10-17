@@ -38,11 +38,11 @@ and inspect_instr_r k = function
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s
   | Ccall (_, xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
 
-let slice fs (gd, fds) =
+let slice fs (gd, fds as prog) =
   let funs =
     List.fold_left
       (fun s n ->
-        match List.find (fun fd -> String.equal n fd.f_name.fn_name) fds with
+        match get_fun_s prog n with
         | exception Not_found ->
             warning Always L.i_dummy "slicing: function “%s” not found" n;
             s

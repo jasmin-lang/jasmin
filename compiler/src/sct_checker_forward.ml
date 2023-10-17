@@ -93,7 +93,7 @@ let pp_vfty fmt = function
   | IsMsf -> Format.fprintf fmt "#%s" smsf
   | IsNormal ty -> pp_vty fmt ty
 
-type ty_fun = {
+type signature = {
     modmsf               : bool;
     tyin                 : vfty list;
     tyout                : vfty list;
@@ -102,12 +102,13 @@ type ty_fun = {
   }
 
 type ('info,'asm) fenv = {
-    env_ty     : ty_fun Hf.t;
-    env_def    : ('info,'asm) func list;
+    ensure_annot : bool;
+    env_ty   : signature Hf.t;
+    env_prog : ('info,'asm) prog;
   }
 
 module FEnv = struct
-  let get_fun_def fenv fn = List.find (fun f -> F.equal f.f_name fn) fenv.env_def
+  let get_fun_def fenv fn = Prog.get_fun fenv.env_prog fn
 
   let get_fty fenv fn =
     try Hf.find fenv.env_ty fn with Not_found -> assert false
@@ -117,14 +118,17 @@ end
 let pp_modmsf fmt modmsf =
   Format.fprintf fmt "%s" (if modmsf then "modmsf" else "nomodmsf")
 
-let pp_funty fmt (fname, tyfun) =
+let pp_arg fmt (x, vfty) =
+  Format.fprintf fmt "%a %a" pp_vfty vfty (Printer.pp_var ~debug:false) x
+
+let pp_signature prog fmt (fname, tyfun) =
   Format.fprintf fmt
     "@[<v>%a %s : @[%a@] ->@ @[%a@]@ \
-      output corruption: %a@.\
-      @ constraints:@ @[%a@]@]@."
+      output corruption: %a@ \
+      constraints:@ @[%a@]@]@."
     pp_modmsf tyfun.modmsf
-    fname
-    (pp_list " *@ " pp_vfty) tyfun.tyin
+    fname.fn_name
+    (pp_list " *@ " pp_arg) (List.combine (get_fun prog fname).f_args tyfun.tyin)
     (pp_list " *@ " pp_vfty) tyfun.tyout
     pp_vty (Direct (tyfun.resulting_corruption))
     C.pp tyfun.constraints
@@ -155,8 +159,11 @@ let rec modmsf_i fenv i =
 and modmsf_c fenv c =
   List.exists (modmsf_i fenv) c
 
+exception SCtTypeError of Location.t * (Format.formatter -> unit)
+
 let error ~loc =
-  hierror ~loc:(Lone loc) ~kind:"speculative constant type checker"
+  Format.kdprintf (fun msg ->
+      raise (SCtTypeError (loc, msg)))
 
 (* --------------------------------------------------------- *)
 (* Inference of the variables that need to contain msf       *)
@@ -341,7 +348,7 @@ module Env : sig
 
   val freshen : ?min:Constraints.VlPairs.t -> env -> venv -> venv
   val ensure_le : L.t -> venv -> venv -> unit
-  val clone_for_call : env -> ty_fun -> vfty list * vfty list * VlPairs.t
+  val clone_for_call : env -> signature -> vfty list * vfty list * VlPairs.t
           (* output type, input type, output corruption *)
 
   val corruption : env -> venv -> VlPairs.t -> venv
@@ -521,7 +528,7 @@ end = struct
     with Lvl.Unsat _unsat ->
       error ~loc "constraints caused by the loop cannot be satisfied"
 
-  let clone_for_call (env:env) (tyfun:ty_fun) =
+  let clone_for_call (env:env) (tyfun:signature) =
     let subst1 = C.clone tyfun.constraints env.constraints in
     let subst (n, s) = (subst1 n, subst1 s) in
     let subst_ty = function
@@ -1176,7 +1183,7 @@ let init_constraint fenv f =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  let mk_vty loc ~(msf:bool) x ls =
+  let mk_vty infer loc ~(msf:bool) x ls =
     let msf, ovty =
       match ls with
       | [] -> None, None
@@ -1192,6 +1199,13 @@ let init_constraint fenv f =
     let vty =
       match ovty with
       | None ->
+        begin match infer with
+        | Some msg ->
+          error ~loc:loc
+           "export functions should be fully annotated, missing some security annotations on %s.@ Use option “-infer” to infer them."
+           msg
+        | None -> ()
+        end;
         begin match x.v_kind with
         | Const -> Env.dpublic env
         | Stack Direct -> Direct (Env.fresh2 env)
@@ -1216,10 +1230,11 @@ let init_constraint fenv f =
         end; ty in
     msf, vty in
 
+  let infer = if fenv.ensure_annot && export then Some "return types" else None in
   let process_return x annot =
     let loc = L.loc x and x = L.unloc x in
     let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
-    mk_vty loc ~msf:(not export) x ls in
+    mk_vty infer loc ~msf:(not export) x ls in
 
   (* process function outputs *)
   let tyout = List.map2 process_return f.f_ret f.f_outannot in
@@ -1236,9 +1251,10 @@ let init_constraint fenv f =
       "%a need to be a msf, this is not allowed in export function" pp_vset msfs;
 
   (* process function inputs *)
+  let infer = if fenv.ensure_annot && export then Some "parameter" else None in
   let process_param venv x =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
-    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls in
+    let msf, vty = mk_vty infer x.v_dloc ~msf:(not export) x ls in
     let msf =
       match msf with
       | None -> Sv.mem x msfs
@@ -1281,7 +1297,7 @@ let init_constraint fenv f =
   (* init type for local *)
   let do_local venv x =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
-    let _, vty = mk_vty x.v_dloc ~msf:false x ls in
+    let _, vty = mk_vty None x.v_dloc ~msf:false x ls in
     Env.add_var env venv x vk vty in
 
   let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
@@ -1365,34 +1381,41 @@ and ty_fun_infer fenv fn =
   if !Glob_options.debug then
     Format.eprintf
       "Before optimization:@.%a@.After optimization:@."
-      pp_funty
-      (f.f_name.fn_name, fty);
+      (pp_signature fenv.env_prog)
+      (f.f_name, fty);
   let tomax = List.fold_left add [] tyin in
   let tomin = List.fold_left add [n1; s1] tyout in
   C.optimize constraints ~tomin ~tomax;
   fty
 
 
-let ty_prog (prog:('info, 'asm) prog) fl =
-  let prog = snd prog in
-  let fenv = { env_ty = Hf.create 101; env_def = prog } in
+let ty_prog ~infer (prog:('info, 'asm) prog) fl =
+(*  let prog = snd prog in *)
+  let fenv = { ensure_annot = not infer; env_ty = Hf.create 101; env_prog = prog } in
   let fl =
     if fl = [] then
-      List.rev_map (fun f -> f.f_name) prog
+      List.rev_map (fun f -> f.f_name) (snd prog)
     else
       let get fn =
-        try (List.find (fun f -> f.f_name.fn_name = fn) prog).f_name
+        try (Prog.get_fun_s prog fn).f_name
         with Not_found ->
-          hierror ~loc:Lnone ~kind:"speculative constant type checker" "unknown function %s" fn in
+          hierror ~loc:Lnone ~kind:"SCT checker" "unknown function %s" fn in
       List.map get fl in
-  List.map (fun fn -> fn.fn_name, ty_fun fenv fn) fl
+  let status =
+    match List.iter (fun fn -> ignore (ty_fun fenv fn : signature)) fl with
+    | () -> None
+    | exception Annot.AnnotationError (loc, msg)
+    | exception SCtTypeError (loc, msg)
+      -> Some (loc, msg) in
+  let get f = Option.map (fun s -> f.f_name, s) (Hf.find_option fenv.env_ty f.f_name) in
+  let signs = List.filter_map get (List.rev (snd prog)) in
+  signs, status
 
 (* ------------------------------------------------------------------------------- *)
 (* Inference of msf_info needed by the compiler                                    *)
 
 let compile_infer_msf (prog:('info, 'asm) prog) =
-  let prog = snd prog in
-  let fenv = { env_ty = Hf.create 101; env_def = prog } in
+  let fenv = { ensure_annot = false; env_ty = Hf.create 101; env_prog = prog } in
 
   let env = Env.init () in
   (* dummy infos *)
@@ -1433,7 +1456,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
      }  in
    Hf.add fenv.env_ty f.f_name fty
   in
-  List.iter infer_fun (List.rev prog);
+  List.iter infer_fun (List.rev (snd prog));
 
   let do_t = function
      | IsNormal _ -> Slh_lowering.Slh_None

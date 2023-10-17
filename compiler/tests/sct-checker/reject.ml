@@ -1,6 +1,5 @@
 open Jasmin
 open Common
-open Sct_checker_forward
 
 let path = "fail"
 
@@ -11,12 +10,12 @@ let load_and_check name =
     (fun fd ->
       if fd.Prog.f_cc <> Internal then
         let f = fd.Prog.f_name.fn_name in
-        match ty_prog p [ f ] with
-        | exception Utils.HiError e ->
-            Format.printf "Failed as expected %s: %a@." f Utils.pp_hierror e
-        | _ ->
-            Format.eprintf "Did not fail: %s.@." f;
-            assert false)
+        try
+          ty_prog p [ f ];
+          Format.eprintf "Did not fail: %s.@." f;
+          assert false
+        with Utils.HiError e ->
+          Format.printf "Failed as expected %s: %a@." f Utils.pp_hierror e)
     fds
 
 let () =
