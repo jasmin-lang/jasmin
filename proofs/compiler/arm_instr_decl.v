@@ -128,6 +128,9 @@ Variant arm_mnemonic : Type :=
 | LSL                            (* Logical shift left *)
 | LSR                            (* Logical shift right *)
 | ROR                            (* Rotate right *)
+| REV                            (* Byte-Reverse Word reverses the byte order in a 32-bit register. *)
+| REV16                          (* Byte-Reverse Packed Halfword reverses the byte order in each 16-bit halfword of a 32-bit register. *)
+| REVSH                          (* Byte-Reverse Signed Halfword reverses the byte order in the lower 16-bit halfword of a 32-bit register, and sign extends the result to 32 bits. *)
 
 (* Other data processing instructions *)
 | ADR                            (* Adds immediate to PC *)
@@ -173,7 +176,7 @@ Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 Definition arm_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
     ; AND; BIC; EOR; MVN; ORR
-    ; ASR; LSL; LSR; ROR
+    ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
     ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
     ; CMP; TST
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
@@ -270,6 +273,9 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | LSL => "LSL"
   | LSR => "LSR"
   | ROR => "ROR"
+  | REV => "REV"
+  | REV16 => "REV16"
+  | REVSH => "REVSH"
   | ADR => "ADR"
   | MOV => "MOV"
   | MOVT => "MOVT"
@@ -1346,6 +1352,37 @@ Definition arm_ROR_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+Definition mk_rev_instr mn semi :=
+  {| id_msb_flag := MSB_MERGE
+   ; id_tin := [:: sreg ]
+   ; id_in := [:: E 1 ]
+   ; id_tout := [:: sreg]
+   ; id_out := [:: E 0 ]
+   ; id_semi := semi
+   ; id_nargs := 2
+   ; id_args_kinds := ak_reg_reg
+   ; id_eq_size := refl_equal
+   ; id_tin_narr := refl_equal
+   ; id_tout_narr := refl_equal
+   ; id_check_dest := refl_equal
+   ; id_str_jas := pp_s (string_of_arm_mnemonic mn)
+   ; id_safe := [::]
+   ; id_pp_asm := pp_arm_op mn opts
+  |}.
+
+Definition arm_REV_semi (w : ty_r) : exec ty_r :=
+  ok (wbswap w).
+
+Definition arm_REV16_semi (w : ty_r) : exec ty_r :=
+  ok (lift1_vec U16 (@wbswap U16) U32 w).
+
+Definition arm_REVSH_semi (w : ty_r) : exec ty_r :=
+  ok (sign_extend U32 (wbswap (zero_extend U16 w))).
+
+Definition arm_REV_instr   := mk_rev_instr REV   arm_REV_semi.
+Definition arm_REV16_instr := mk_rev_instr REV16 arm_REV16_semi.
+Definition arm_REVSH_instr := mk_rev_instr REVSH arm_REVSH_semi.
+
 Definition arm_ADR_semi (wn: ty_r) : exec ty_r :=
   ok wn.
 
@@ -1676,6 +1713,9 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | LSL => arm_LSL_instr
   | LSR => arm_LSR_instr
   | ROR => arm_ROR_instr
+  | REV => arm_REV_instr
+  | REV16 => arm_REV16_instr
+  | REVSH => arm_REVSH_instr
   | ADR => arm_ADR_instr
   | MOV => arm_MOV_instr
   | MOVT => arm_MOVT_instr

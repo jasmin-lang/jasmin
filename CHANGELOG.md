@@ -34,6 +34,10 @@
   with `MOV` and `MOVT`.
   ([PR #597](https://github.com/jasmin-lang/jasmin/pull/597)).
 
+- Add instructions `REV`, `REV16`, and `REVSH` to arm-m4;
+  ([PR #620](https://github.com/jasmin-lang/jasmin/pull/620);
+  fixes [#618](https://github.com/jasmin-lang/jasmin/issues/618)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
