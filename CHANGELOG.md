@@ -8,6 +8,10 @@
   ([PR #585](https://github.com/jasmin-lang/jasmin/pull/585),
   [PR #589](https://github.com/jasmin-lang/jasmin/pull/589)).
 
+- Add instructions `REV`, `REV16`, and `REVSH` to arm-m4;
+  ([PR #620](https://github.com/jasmin-lang/jasmin/pull/620);
+  fixes [#618](https://github.com/jasmin-lang/jasmin/issues/618)).
+
 ## Bug fixes
 
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`

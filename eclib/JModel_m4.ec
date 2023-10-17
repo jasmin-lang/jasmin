@@ -140,6 +140,16 @@ op ROR x i = let (_n, _z, _c, r) = RORS x i in r.
 op RORScc x i g n z c o = if g then RORS x i else (n, z, c, o).
 op RORcc x i g o = if g then ROR x i else o.
 
+op REV (x : W32.t) : W32.t = W4u8.pack4 (rev (W4u8.to_list x)).
+op REVcc (x:W32.t) g o = if g then REV x else o.
+
+op REV_16 (x:W16.t) : W16.t = W2u8.pack2 (rev (W2u8.to_list x)).
+op REV16 (x : W32.t) : W32.t = W2u16.map REV_16 x.
+op REV16cc (x:W32.t) g o = if g then REV16 x else o.
+
+op REVSH (x: W32.t) = sigextu32 (REV_16 (x \bits16 0)).
+op REVSHcc (x:W32.t) g o = if g then REVSH x else o.
+
 op RSBS (x y: W32.t) : bool * bool * bool * bool * W32.t =
   ADCS (invw x) y true.
 op RSB x y = let (_n, _z, _c, _v, r) = RSBS x y in r.
