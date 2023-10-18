@@ -35,7 +35,7 @@ let parse_and_print print arch call_conv =
                                       and  type extra_op = X86_extra.x86_extra_op )
            (* | CortexM ->
                 (module CoreArchFactory.Core_arch_ARM : Arch_full.Core_arch) *))) in
-  fun output file funname ->
+  fun ecoutput joutput output file funname ->
   try
     let _, pprog, _ = 
       (* FIXME: This code is a cut and paste of main_compiler *)
@@ -71,17 +71,40 @@ let parse_and_print print arch call_conv =
        Conv.cuprog_of_prog all_vars prog in
        
      let prog = Compile.compile_CL (module A) (* visit_prog_after_pass *) tbl cprog funname in
+     let prog = Conv.prog_of_cuprog tbl ((* FIXME *) Obj.magic prog) in
+        Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
+
+     begin match joutput with
+     | None -> () 
+     | Some file ->   
+         let out, close = open_out file, close_out in
+         let fmt = Format.formatter_of_out_channel out in
+         Format.fprintf fmt "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
+         close out
+     end;
+
+     begin match ecoutput with
+     | None -> () 
+     | Some file ->   
+         let out, close = open_out file, close_out in
+         let fmt = Format.formatter_of_out_channel out in
+         let fnames = [funname.fn_name] in
+         BatPervasives.finally
+          (fun () -> close out)
+          (fun () -> ToEC.extract A.reg_size A.asmOp fmt Normal prog fnames)
+          ()
+     end;
+
+
+ 
      let out, close =
        match output with
        | None -> (stdout, ignore)
        | Some file -> (open_out file, close_out)
      in
      let fmt = Format.formatter_of_out_channel out in
-     let prog = Conv.prog_of_cuprog tbl ((* FIXME *) Obj.magic prog) in
-     Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
-     Format.fprintf fmt "%a@." (ToCL.pp_fun A.asmOp) (List.nth (snd prog) 0);
+        Format.fprintf fmt "%a@." (ToCL.pp_fun A.asmOp) (List.nth (snd prog) 0);
      close out
-
   with
   | Utils.HiError e ->
     Format.eprintf "%a@." pp_hierror e;
@@ -101,6 +124,18 @@ let output =
   in
   Arg.(value & opt (some string) None & info [ "o"; "output" ] ~docv:"CL" ~doc) 
 
+let joutput =
+  let doc =
+    "Print the program before extraction to cryptoline to the file JAZZFILE"
+  in
+  Arg.(value & opt (some string) None & info [ "j"; "joutput" ] ~docv:"JAZZFILE" ~doc) 
+
+let ecoutput = 
+ let doc =
+    "Extract (to EC) the program before extraction to cryptoline to the file ECFILE"
+  in
+  Arg.(value & opt (some string) None & info [ "e"; "ecoutput" ] ~docv:"ECFILE" ~doc) 
+  
 (*
 let print = 
   let alts = 
@@ -161,5 +196,5 @@ let () =
   let info =
     Cmd.info "jazz2tex" ~version:J.Glob_options.version_string ~doc ~man
   in
-  Cmd.v info Term.(const parse_and_print $ print $ arch $ call_conv $ output $ file $ funname)
+  Cmd.v info Term.(const parse_and_print $ print $ arch $ call_conv $ ecoutput $ joutput $ output $ file $ funname)
   |> Cmd.eval |> exit
