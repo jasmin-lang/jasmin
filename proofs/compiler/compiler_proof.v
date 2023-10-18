@@ -460,7 +460,7 @@ Proof.
   t_xrbindP => ? /allMP ok_export _ lp ok_lp tp.
   rewrite !print_linearP => ok_tp <- ok_xp /InP ok_fn M S.
   move => fd ok_fd.
-  move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
+  move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP export.
   split; last by rewrite export.
   have! h0 := (get_fundef_p' ok_lp ok_fd).
   have! h1 := (get_fundef_tunnel_program ok_tp h0).
@@ -501,6 +501,7 @@ Lemma compiler_back_endP
         List.Forall2 value_uincl args (map (λ x : var_i, vm.[x]) fd.(lfd_arg)) →
         vm.[vid tp.(lp_rip)] = Vword rip →
         vm_initialized_on vm (var_tmp aparams :: lfd_callee_saved fd) →
+        allocatable_stack m (lfd_total_stack fd) ->
         ∃ vm' lm',
           [/\
             lsem_exportcall tp scs lm fn vm scs' lm' vm',
@@ -519,7 +520,7 @@ Proof.
   - apply: (merge_varmaps_export_callP checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
-    case: get_fundef => // fd /assertP /eqP Export.
+    case: get_fundef => // fd /assertP /is_RAnoneP Export.
     by exists fd.
   have :=
     linear_exportcallP
@@ -527,15 +528,21 @@ Proof.
       vtmp_not_magic
       ok_lp
       p_call.
-  case => fd [] ok_fd Export lp_call.
-  exists (tunneling.tunnel_lfundef fn fd); split.
-  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+  case => fd [] lfd [] ok_fd ok_lfd Export lp_call.
+  exists (tunneling.tunnel_lfundef fn lfd); split.
+  - exact: get_fundef_tunnel_program ok_tp ok_lfd.
   - exact: Export.
-  move=> lm vm H0 H1 H3 H4 H5.
-  have H2 := get_var_is_allow_undefined vm (lfd_arg fd).
+  move=> lm vm H0 H1 H3 H4 H5 H6.
+  have H2 := get_var_is_allow_undefined vm (lfd_arg lfd).
   have {lp_call} := lp_call lm vm _ _ H1 H2 H3 _ H5.
   have! [-> [-> _]] := (tunnel_program_invariants ok_tp).
-  move => /(_ H0 H4) [] vm' [] lm' [] res' [] lp_call ok_rsp' M'.
+  have H6': (sf_stk_max (f_extra fd) + wsize_size (sf_align (f_extra fd)) - 1 <= wunsigned (top_stack m))%Z.
+  + move: H6; rewrite /allocatable_stack /lfd_total_stack /= Export.
+    have := [elaborate (get_fundef_p' ok_lp ok_fd)].
+    rewrite ok_lfd => -[->] /=.
+    have /= := [elaborate (wunsigned_range (stack_limit m))].
+    by Lia.lia.
+  move => /(_ H0 H4 H6') [] vm' [] lm' [] res' [] lp_call ok_rsp' M' U'.
   rewrite get_var_is_allow_undefined => -[] <- res_res'.
   exists vm', lm'; split; cycle 1.
   - exact: M'.
@@ -574,6 +581,7 @@ Lemma compiler_back_end_to_asmP
             -> asm_reg xm ad_rsp = top_stack m
             -> match_mem m xm.(asm_mem)
             -> List.Forall2 value_uincl args (get_typed_reg_values xm xd.(asm_fd_arg))
+            -> allocatable_stack m xd.(asm_fd_total_stack)
             -> exists xm',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , match_mem m' xm'.(asm_mem), xm'.(asm_scs) = scs'
@@ -596,7 +604,7 @@ Proof.
     -> {xd}.
   eexists; split; first reflexivity.
   - by rewrite fd_export.
-  move=> xm ok_scs ok_rip ok_rsp M /= ok_args.
+  move=> xm ok_scs ok_rip ok_rsp M /= ok_args hallocatable.
 
   set s :=
     estate_of_asm_mem
@@ -644,6 +652,7 @@ Proof.
     + by move/andP: hin => [->] /is_okP [] r /asm_typed_reg_of_varI ->; exists r.
     rewrite /get_var XM /=.
     by case: r => //= ?; rewrite truncate_word_u.
+  - exact: hallocatable.
   move=>
       vm'
       [] lm'
@@ -721,16 +730,19 @@ Lemma compile_prog_to_asmP
 Proof.
   rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
   have -> := compiler_back_end_to_asm_meta ok_xp.
-  case=> mi1 mi2 mi3 mi4.
+  case=> /= mi1 mi2 mi3 mi4.
   rewrite (ss_top_stack mi3).
-  move=> /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
+  move=> /dup[] henough /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
   have := compiler_front_endP ok_sp ok_fn p_call mi1 ok_mi.
   case => vr' [] mi' [] vr_vr' sp_call m1.
   have := compiler_back_end_to_asmP ok_xp ok_fn sp_call.
   case => xd [] ok_xd export /(_ _ _ erefl _ mi2) xp_call.
   exists xd; split => //.
   move=> ok_scs ok_rsp va_args'.
-  have := xp_call ok_scs ok_rsp va_args'.
+  have hallocatable: allocatable_stack mi (asm_fd_total_stack xd).
+  + rewrite /allocatable_stack.
+    by have /= := henough _ ok_xd; Lia.lia.
+  have := xp_call ok_scs ok_rsp va_args' hallocatable.
   case => xm' [] {} xp_call m2 ok_scs' vr'_res'.
   exists xm'; split => //;
     last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.

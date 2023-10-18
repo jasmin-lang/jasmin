@@ -347,7 +347,7 @@ Definition check_export entries (p: sprog) : cexec unit :=
   allM (λ fn,
           if get_fundef (p_funcs p) fn is Some fd then
             assert
-              (fd.(f_extra).(sf_return_address) == RAnone)
+              (is_RAnone fd.(f_extra).(sf_return_address))
               (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address")))
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.

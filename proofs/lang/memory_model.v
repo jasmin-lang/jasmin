@@ -362,11 +362,29 @@ Proof.
   move: (wunsigned_range b); Psatz.lia.
 Qed.
 
+Lemma zbetween_0 p1 p2 sz2 :
+  (0 < sz2)%Z ->
+  ~~ zbetween p1 0 p2 sz2.
+Proof. by move=> ?; apply /idP; rewrite /zbetween !zify; Psatz.lia. Qed.
+
 Lemma zbetween_not_disjoint_zrange p1 s1 p2 s2 :
   zbetween p1 s1 p2 s2 ->
   0 < s2 ->
   ~ disjoint_zrange p1 s1 p2 s2.
 Proof. by rewrite /zbetween !zify => hb hlt [_ _ ?]; Psatz.lia. Qed.
+
+Lemma not_between_U8_disjoint_zrange p1 sz1 p2 :
+  no_overflow p1 sz1 ->
+  ~ between p1 sz1 p2 U8 ->
+  disjoint_zrange p1 sz1 p2 (wsize_size U8).
+Proof.
+  move=> hnover.
+  rewrite /between /zbetween wsize8 !zify => hnb.
+  split=> //; last by Psatz.lia.
+  rewrite /no_overflow zify.
+  have := wunsigned_range p2.
+  by Psatz.lia.
+Qed.
 
 Lemma disjoint_zrange_sym p1 sz1 p2 sz2 :
   disjoint_zrange p1 sz1 p2 sz2 ->
@@ -446,6 +464,19 @@ Qed.
 
 Definition pointer_range (lo hi: pointer) : pred pointer :=
   λ p, (wunsigned lo <=? wunsigned p) && (wunsigned p <? wunsigned hi).
+
+Lemma pointer_range_incl_l lo lo' hi pr :
+  (wunsigned lo' <= wunsigned lo)%Z ->
+  pointer_range lo hi pr ->
+  pointer_range lo' hi pr.
+Proof. by rewrite /pointer_range !zify; Psatz.lia. Qed.
+
+Lemma pointer_range_between lo hi pr :
+  pointer_range lo hi pr = between lo (wunsigned hi - wunsigned lo) pr U8.
+Proof.
+  rewrite /pointer_range /between /zbetween wsize8.
+  by apply /idP/idP; rewrite !zify; Psatz.lia.
+Qed.
 
 (* -------------------------------------------------- *)
 (** Pointer arithmetic *)
@@ -684,6 +715,7 @@ Section SPEC.
     by rewrite -/(top_stack _); Psatz.lia.
   Qed.
 
+  (* TODO: we could also prove [no_overflow pstk (sz + Z.max 0 sz')] *)
   Lemma ass_no_overflow (ass:alloc_stack_spec) :
     no_overflow pstk sz.
   Proof.
@@ -691,6 +723,36 @@ Section SPEC.
     assert (hover := wunsigned_range (top_stack m)).
     have := ass.(ass_above_limit).
     by Psatz.lia.
+  Qed.
+
+  (* ass_fresh using disjoint_zrange *)
+  Lemma ass_fresh_disjoint_zrange (ass:alloc_stack_spec) p s :
+    validw m p s ->
+    disjoint_zrange p (wsize_size s) pstk sz.
+  Proof.
+    move=> /dup[] /ass.(ass_fresh) hfresh hvalid.
+    split=> //.
+    + apply is_align_no_overflow.
+      by move: hvalid => /validwP [? _].
+    by apply (ass_no_overflow ass).
+  Qed.
+
+  (* part of ass_above_limit using disjoint_zrange *)
+  (* the new frame is disjoint from the rest of the stack *)
+  Lemma ass_above_limit_disjoint_zrange (ass:alloc_stack_spec) :
+    disjoint_zrange
+      pstk (sz + Z.max 0 sz')
+      (top_stack m) (wunsigned (stack_root m) - wunsigned (top_stack m)).
+  Proof.
+    split.
+    - rewrite /no_overflow zify.
+      have := ass.(ass_above_limit).
+      have := [elaborate wunsigned_range (top_stack m)].
+      by Psatz.lia.
+    - rewrite /no_overflow zify.
+      have := [elaborate wunsigned_range (stack_root m)].
+      by Psatz.lia.
+    by left; have := ass.(ass_above_limit); Psatz.lia.
   Qed.
 
 End SPEC.
