@@ -557,6 +557,12 @@ Variant return_address_location :=
 Definition is_RAnone ra :=
   if ra is RAnone then true else false.
 
+Definition is_RAstack ra :=
+  if ra is RAstack _ _ then true else false.
+
+Definition is_RAstack_None ra :=
+  if ra is RAstack None _ then true else false.
+
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false

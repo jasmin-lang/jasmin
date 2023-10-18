@@ -99,9 +99,9 @@ Definition saved_stack_valid fd (k: Sv.t) : bool :=
   then [&& (r != vgd), (r != vrsp) & (~~ Sv.mem r k) ]
   else true.
 
-Definition top_stack_aligned fd st : bool :=
-  (fd.(f_extra).(sf_return_address) == RAnone)
-  || is_align (top_stack st.(emem)) fd.(f_extra).(sf_align).
+Definition top_stack_aligned fd m : bool :=
+  is_RAnone (fd.(f_extra).(sf_return_address))
+  || is_align (top_stack m) fd.(f_extra).(sf_align).
 
 Definition set_RSP m vm : Vm.t :=
   vm.[vrsp <- Vword (top_stack m)].
@@ -180,7 +180,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     get_fundef (p_funcs p) fn = Some f →
     ra_valid f ii k var_tmp →
     saved_stack_valid f k →
-    top_stack_aligned f s1 →
+    top_stack_aligned f s1.(emem) →
     valid_RSP s1.(emem) s1.(evm) →
     alloc_stack
       s1.(emem)
@@ -217,7 +217,7 @@ Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef)
 Variant sem_export_call (gd: @extra_val_t progStack)  (scs: syscall_state_t) (m: mem) (fn: funname) (args: values)  (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
   | SemExportCall (fd: sfundef) of
                   get_fundef p.(p_funcs) fn = Some fd &
-      fd.(f_extra).(sf_return_address) == RAnone &
+      is_RAnone fd.(f_extra).(sf_return_address) &
       disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res)) &
       ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res)) &
     ∀ vm args',
@@ -295,7 +295,7 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ _, get_fundef (p_funcs p) fn = Some f)
     (λ f _ _ k', ra_valid f ii k' var_tmp)
     (λ f _ _ k', saved_stack_valid f k')
-    (λ f _ _ _, top_stack_aligned f s)
+    (λ f _ _ _, top_stack_aligned f s.(emem))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_ioff) f.(f_extra).(sf_stk_extra_sz) = ok m1)
 (*    (λ f _ _ _ args _, mapM (λ x : var_i, get_var s.(evm) x) f.(f_params) = ok args)
@@ -417,7 +417,7 @@ Section SEM_IND.
       get_fundef (p_funcs p) fn = Some fd →
       ra_valid fd ii k var_tmp →
       saved_stack_valid fd k →
-      top_stack_aligned fd s1 →
+      top_stack_aligned fd s1.(emem) →
       valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
       let vm1 := ra_undef_vm fd s1.(evm) var_tmp in
