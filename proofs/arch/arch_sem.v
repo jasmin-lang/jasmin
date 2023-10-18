@@ -448,7 +448,7 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
     else type_error
   | JMP lbl   => eval_JMP p lbl s
   | JMPI d =>
-    Let v := eval_asm_arg AK_mem s d (sword Uptr) >>= to_pointer in
+    Let v := eval_asm_arg (AK_mem MAKreg) s d (sword Uptr) >>= to_pointer in
     if decode_label labels v is Some lbl then
       eval_JMP p lbl s
     else type_error

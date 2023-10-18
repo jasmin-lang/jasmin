@@ -1871,6 +1871,11 @@ Lemma isSomeP {A : Type} {oa : option A} :
   exists a, oa = Some a.
 Proof. case: oa; by [|eexists]. Qed.
 
+Lemma o2rP {eT A} {err : eT} {oa : option A} {a} :
+  o2r err oa = ok a ->
+  oa = Some a.
+Proof. by case: oa => //= ? [->]. Qed.
+
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
 Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
 

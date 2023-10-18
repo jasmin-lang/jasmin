@@ -64,6 +64,15 @@ Definition werror ii e msg :=
   gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "invalid rexpr for oprd"; pp_re e];
                                              pp_s msg]).
 
+Definition rip_addr_not_allowed ii :=
+  error ii (pp_s "relative address argument not allowed").
+
+Definition reg_addr_not_allowed ii :=
+  error ii (pp_s "absolute address argument not allowed").
+
+Definition rip_addr_offset ii fe :=
+  error ii (pp_box [:: pp_s "Invalid global address :"; pp_fe fe ]).
+
 End E.
 
 Definition fail ii (msg: string) :=
@@ -201,26 +210,43 @@ Definition assemble_lea ii lea :=
 Let is_none {A: Type} (m: option A) : bool :=
       if m is None then true else false.
 
-Definition addr_of_fexpr (rip: var) ii sz (e: fexpr) :=
-  Let _ := assert (sz <= Uptr)%CMP
-                  (E.error ii (pp_s "Bad type for address")) in
-  match mk_lea_rec sz e with
-  | Some lea =>
-     match lea.(lea_base) with
-     | Some r =>
-        if r.(v_var) == rip then
-          Let _ := assert (is_none lea.(lea_offset))
-                          (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_fe e])) in
-          ok (Arip (wrepr Uptr lea.(lea_disp)))
-        else assemble_lea ii lea
-      | None =>
-        assemble_lea ii lea
-      end
-  | None => Error (E.error ii (pp_box [::pp_s "not able to assemble address :"; pp_fe e]))
+Definition allows_rip (mak : memory_access_kind) : bool :=
+  match mak with
+  | MAKrip | MAKeither => true
+  | MAKreg => false
   end.
 
-Definition addr_of_xpexpr rip ii sz v e :=
-  addr_of_fexpr rip ii sz (Fapp2 (Oadd (Op_w sz)) (Fvar v) e).
+Definition allows_reg (mak : memory_access_kind) : bool :=
+  match mak with
+  | MAKreg | MAKeither => true
+  | MAKrip => false
+  end.
+
+Definition mk_lea (ii : instr_info) (sz : wsize) (fe : fexpr) : cexec lea :=
+  let msg := "not able to assemble address :"%string in
+  let err := E.error ii (pp_box [:: pp_s msg; pp_fe fe ]) in
+  o2r err (mk_lea_rec sz fe).
+
+Definition addr_of_fexpr (rip: var) ii mak sz (e: fexpr) :=
+  Let _ := assert (sz <= Uptr)%CMP
+                  (E.error ii (pp_s "Bad type for address")) in
+  Let lea := mk_lea ii sz e in
+  match lea_base lea with
+  | Some r =>
+     if r.(v_var) == rip then
+       Let _ := assert (is_none lea.(lea_offset)) (E.rip_addr_offset ii e) in
+       Let _ := assert (allows_rip mak) (E.rip_addr_not_allowed ii) in
+       ok (Arip (wrepr Uptr lea.(lea_disp)))
+     else
+       Let _ := assert (allows_reg mak) (E.reg_addr_not_allowed ii) in
+       assemble_lea ii lea
+   | None =>
+     Let _ := assert (allows_reg mak) (E.reg_addr_not_allowed ii) in
+     assemble_lea ii lea
+   end.
+
+Definition addr_of_xpexpr rip ii mak sz v e :=
+  addr_of_fexpr rip ii mak sz (Fapp2 (Oadd (Op_w sz)) (Fvar v) e).
 
 Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   if to_xreg x is Some r then ok (XReg r)
@@ -228,7 +254,7 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
-Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
+Definition assemble_word_load rip ii mak (sz: wsize) (e: rexpr) :=
   match e with
   | Rexpr (Fapp1 (Oword_of_int sz') (Fconst z)) =>
     let w := wrepr sz' z in
@@ -243,17 +269,17 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
   | Load sz' v e' =>
     Let _ := assert (sz == sz')
                     (E.werror ii e "invalid Load size") in
-    Let w := addr_of_xpexpr rip ii Uptr v e' in
+    Let w := addr_of_xpexpr rip ii mak Uptr v e' in
     ok (Addr w)
   | _ => Error (E.werror ii e "invalid rexpr for word")
   end.
 
 Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
   match k with
-  | AK_mem => assemble_word_load rip ii sz e
+  | AK_mem mak => assemble_word_load rip ii mak sz e
   | AK_compute =>
     Let f := if e is Rexpr f then ok f else Error (E.werror ii e "invalid rexpr for LEA") in
-    Let w := addr_of_fexpr rip ii sz f in
+    Let w := addr_of_fexpr rip ii MAKeither sz f in
     ok (Addr w)
   end.
 
@@ -340,8 +366,9 @@ Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_
   | ADExplicit _ n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_rexpr AK_mem rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
-      else false
+        if arg_of_rexpr (AK_mem MAKreg) rip ii adt.2 x is Ok a'
+        then (a == a') && check_oreg o a
+        else false
     | None => false
     end
   end.
@@ -513,7 +540,7 @@ Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
 
   | Ligoto e =>
       Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
-      Let arg := assemble_word AK_mem rip ii Uptr e in
+      Let arg := assemble_word (AK_mem MAKreg) rip ii Uptr e in
       ok [:: JMPI arg ]
 
   | LstoreLabel x lbl =>

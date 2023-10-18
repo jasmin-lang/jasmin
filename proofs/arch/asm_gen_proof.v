@@ -249,28 +249,29 @@ Proof.
   by have [? [? [-> /word_uincl_truncate h2 /h2 /truncate_wordP []]]] := to_wordI h1.
 Qed.
 
-Lemma addr_of_fexprP rip ii sz sz' (w: word sz') e adr m s:
+Lemma addr_of_fexprP rip ii mak sz sz' (w: word sz') e adr m s:
   (sz ≤ sz')%CMP →
   lom_eqv rip m s →
   sem_fexpr m.(evm) e = ok (Vword w) ->
-  addr_of_fexpr rip ii sz e = ok adr ->
+  addr_of_fexpr rip ii mak sz e = ok adr ->
   zero_extend sz (decode_addr s adr) = zero_extend sz w.
 Proof.
   rewrite /addr_of_fexpr => hsz lom he.
-  t_xrbindP => hsz64.
-  case heq: mk_lea_rec => [lea | //].
+  t_xrbindP=> hsz64 lea /o2rP heq.
   assert (hsemlea := mk_lea_recP hsz64 hsz heq he).
-  case hb: lea_base => [b | ]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
-  case: eqP => [ | _]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
-  t_xrbindP => hbrip.
-  case ho: lea_offset => [ // | ] _ <- /=.
+  case hb: lea_base => [b|]; first last.
+  - t_xrbindP=> _. exact: (assemble_leaP hsz64 hsz lom hsemlea).
+  case: eqP => [| _]; first last.
+  - t_xrbindP=> _. exact: (assemble_leaP hsz64 hsz lom hsemlea).
+  t_xrbindP=> hbrip.
+  case ho: lea_offset => [ // | ] _ _ <- /=.
   move: hsemlea; rewrite /sem_lea ho hb /= hbrip (lom_rip _ lom) /= truncate_word_le //= => /ok_inj <-.
   by rewrite GRing.mulr0 GRing.addr0 GRing.addrC wadd_zero_extend // zero_extend_wrepr.
 Qed.
 
-Lemma addr_of_xpexprP rip m s ii x p r vx wx vp wp:
+Lemma addr_of_xpexprP rip m s ii mak x p r vx wx vp wp:
   lom_eqv rip m s →
-  addr_of_xpexpr rip ii Uptr x p = ok r ->
+  addr_of_xpexpr rip ii mak Uptr x p = ok r ->
   get_var true (evm m) x = ok vx ->
   to_pointer vx = ok wx ->
   sem_fexpr m.(evm) p = ok vp ->
@@ -393,13 +394,13 @@ Proof.
     rewrite (addr_of_fexprP hws eqm he hadr); eexists; first reflexivity.
     by rewrite /= truncate_word_u.
   case: e => //=.
-  + move=> sz x p; t_xrbindP => /eqP <- r hr ?; subst a'.
+  + move=> sz x p mak; t_xrbindP => /eqP <- r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
     by case: eqm => ? <- ?????; rewrite hwr /=; eauto.
   case => //.
-  + move=> x.
+  + move=> x mak.
     move=> /xreg_of_varI; case: a' hcomp => // r;
       rewrite /compat_imm orbF => /eqP <- {a} h; have /= <- := of_varI h =>
       w ok_v /to_wordI[? [? [? ok_w]]];
@@ -407,7 +408,7 @@ Proof.
     + exact: getreg eqm ok_v.
     + exact: getregx eqm ok_v.
     exact: getxreg eqm ok_v.
-  case => //= w' [] //= z.
+  case => //= w' [] //= z mak.
   t_xrbindP => /eqP _ h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
     eexists; first reflexivity.
@@ -1275,13 +1276,13 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Assembling machine words. *)
 
-Lemma eval_assemble_word ii sz e a s xs v :
+Lemma eval_assemble_word ii mak sz e a s xs v :
   lom_eqv rip s xs
   -> is_not_app1 e
-  -> assemble_word_load rip ii sz e = ok a
+  -> assemble_word_load rip ii mak sz e = ok a
   -> sem_rexpr s.(emem) s.(evm) e = ok v
   -> exists2 v',
-       eval_asm_arg AK_mem xs a (sword sz) = ok v'
+       eval_asm_arg (AK_mem mak) xs a (sword sz) = ok v'
        & value_uincl v v'.
 Proof.
   rewrite /assemble_word /eval_asm_arg => eqm.

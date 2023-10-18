@@ -240,14 +240,23 @@ Definition implicit_arg_eqMixin := Equality.Mixin implicit_arg_eq_axiom.
 Canonical implicit_arg_eqType := EqType _ implicit_arg_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-(* Address kinds.
- * An address argument may be used in two ways:
- * - To compute the effective address (such as in LEA in x86, or ADR in ARMv7).
- * - To load data from memory.
- *)
+(* Address kinds. *)
+
+(* Addresses may be relative to the IP or to a general purpose register.
+   Arguments may be restricted to only one of these, or use either. *)
+Variant memory_access_kind :=
+  | MAKrip
+  | MAKreg
+  | MAKeither
+.
+
+(* An address argument may be used in two ways:
+   - To compute the effective address (such as in LEA in x86, or ADR in ARMv7).
+   - To load data from memory. *)
 Variant addr_kind : Type :=
-| AK_compute (* Only compute the address. *)
-| AK_mem.    (* Compute the address and load from memory. *)
+  | AK_compute                   (* Only compute the address. *)
+  | AK_mem of memory_access_kind (* Compute the address and load from memory. *)
+.
 
 (* -------------------------------------------------------------------- *)
 (* Argument description.
@@ -262,9 +271,9 @@ Variant arg_desc :=
 
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).
-Definition E  n   := ADExplicit AK_mem n None.
+Definition E  n   := ADExplicit (AK_mem MAKeither) n None.
 Definition Ec n   := ADExplicit AK_compute n None.
-Definition Ef n r := ADExplicit AK_mem n (Some  r).
+Definition Ef n r := ADExplicit (AK_mem MAKeither) n (Some  r).
 
 Definition check_oreg or ai :=
   match or, ai with
