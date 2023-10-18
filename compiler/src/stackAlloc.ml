@@ -57,12 +57,21 @@ let pp_return fmt n =
 
 let pp_sao fmt sao =
   let open Stack_alloc in
-  Format.fprintf fmt "alignment = %s; size = %a; ioff = %a; extra size = %a; max size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
+  let max_size = Conv.z_of_cz sao.sao_max_size in
+  let total_size =
+    (* if the function is export, we must take into account the alignment
+       of the stack *)
+    match sao.sao_return_address with
+    | RAnone -> Z.add max_size (Z.of_int (size_of_ws sao.sao_align - 1))
+    | _ -> max_size
+  in
+  Format.fprintf fmt "alignment = %s@;size = %a; ioff = %a; extra size = %a@;max size = %a; total size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
     (string_of_ws sao.sao_align)
     Z.pp_print (Conv.z_of_cz sao.sao_size)
     Z.pp_print (Conv.z_of_cz sao.sao_ioff)
     Z.pp_print (Conv.z_of_cz sao.sao_extra_size)
-    Z.pp_print (Conv.z_of_cz sao.sao_max_size)
+    Z.pp_print max_size
+    Z.pp_print total_size
     Z.pp_print (Conv.z_of_cz sao.sao_max_call_depth)
     (pp_list "@;" pp_param_info) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
