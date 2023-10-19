@@ -21,6 +21,213 @@ open Prog
 open Glob_options
 open Utils
 
+
+
+(* Jasmin arch -- compile_CL --> Jasmin arch  -- compile_low -->  Jasmin low --> cryptoline
+                                                                    |
+                                                                    |
+                                                                  bit dependency 
+
+- Semantique en Coq.
+- Semantique en EC.
+- Semantique en cryptoline.
+- Semantique en bit dep
+
+
+low: 
+  | Map2 of nat * wsize * wsize 
+  | Add of wsize 
+  | Var of name 
+  | App of low * low list
+  | Fun of name * ty * expr 
+ 
+VPADD -> Fun "x" u64 (Fun "y" u64  (App (Map2 4 u64 u64, [:: Add u64; Var x; Var y])))
+
+x y 
+(xh,xl) = split x;
+(xhh,xhl) = split xh;
+(xlh,xll) = split xl;
+(yh,yl) = split y;
+(yhh,yhl) = split yh;
+(ylh,yll) = split yl;
+zhh = + ;
+...
+merge
+merge
+
+section.
+
+big_rec [m..n[ (add: t-> t-> t) (f : int -> t) (x:t) : t 
+
+big_rec [m..m[ add f x = x 
+big_rec [m..n[ add f x = big [m+1 ..n[ add (add x (f m)) f
+
+
+sum 
+all and 
+exists or 
+
+
+
+big (add, zero) mn f = big_rec mn add f zero.
+
+Inductive aexpr : Type :=
+| Pconst :> Z -> aexpr
+| Pbool  :> bool -> aexpr
+| Pvar   :> gvar -> aexpr
+| Pget   : arr_access -> wsize -> gvar -> aexpr -> aexpr
+| Psub   : arr_access -> wsize -> positive -> gvar -> aexpr -> aexpr 
+| Papp1  : sop1 -> aexpr -> aexpr
+| Papp2  : sop2 -> aexpr -> aexpr -> aexpr
+| PappN of opN & seq aexpr
+| Pif    : stype -> aexpr -> aexpr -> aexpr -> aexpr
+(* *)
+| Pfvar : fvar -> aexpr
+| Big_rec of (n:eassert) (m:eassert) binop (i:fvar) (fbody:eassert) (x:eassert)
+
+
+
+
+to_aexpr : pexpr -> aexpr
+sem_pexpr 
+
+
+forall e, sem_pexpr e = sem_aexpr (to_aexpr e) [::]
+
+
+
+   sem_pexpr rho 
+
+   [::]
+
+
+
+
+x = y + z;
+x = ADD(y, z);
+
+
+
+
+
+
+sem_pexpr : state -> pexpr -> exec value
+sem_aexpr : state -> list (fvar * value) -> aexpr -> exec value
+
+
+  
+
+
+
+
+
+
+
+
+
+sum i in [0..] 0 (fun i -> ...)
+
+
+
+
+
+
+wt low type 
+
+semi_low low rho (wt low type) : semi_type type =
+  | Fun n ty low' => fun (x: ty) => semi_low low ([n, x]) 
+  | Var n => rho n
+
+
+  | Map2 
+
+wt_low : e 
+
+
+
+  map2 4 u64 u64 (add sv) x y)
+
+
+
+
+
+low : Inductif 
+      datatype
+
+
+arm_ADD_semi : w32 -> w32 -> w32
+
+arm_ADD_low : low 
+
+semi_low arm_ADD_low ... : w32 -> w32 -> w32
+
+
+
+ {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := snzcv_r;
+      id_out := ad_nzcv ++ [:: E 0 ];
+      id_semi := arm_ADD_semi;   // low  
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+    |}
+
+
+id_semi instr ~ semi_low (id_low instr)
+
+
+
+
+op -> 
+      64 256
+VPADD sv sr x y -> 
+   map2 4 u64 u64 (add sv) x y)
+
+
+
+
+   map2 4 u64 u32 (addsv) x y)
+   
+
+
+
++ - mull mulh mul mod div xor and 
+pack  
+unpack 
+map 
+map2 
+ 
+
+
+
+low:  -> cryptoline
+      -> Coq 
+      -> EC
+  
+   
+
+
+
+
+
+
+x = y +4u64 z;   --> x = #VPADD_4_64(y, z);
+x = #VPADD_4_64(y, z);
+
+ *)
+
+
+
+
 let unsharp = String.map (fun c -> if c = '#' then '_' else c) 
 
 let pp_var fmt x = 
