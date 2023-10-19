@@ -85,6 +85,10 @@
 - Fix extraction to easycrypt on "for loop" that modifies the loop counter
   ([PR 616](https://github.com/jasmin-lang/jasmin/pull/616).
 
+- Fix instruction selection for stack-allocation on ARM
+  ([PR 623](https://github.com/jasmin-lang/jasmin/pull/623);
+  fixes [#622](https://github.com/jasmin-lang/jasmin/issues/622)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
