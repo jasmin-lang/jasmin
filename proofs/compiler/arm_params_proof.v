@@ -118,9 +118,24 @@ Lemma arm_mov_ofsP (P': sprog) s1 e i x tag ofs w vpk s2 ins :
 Proof.
   rewrite /sap_mov_ofs /= /arm_mov_ofs => P'_globs.
   t_xrbindP => z ok_z ok_i.
-  case: (mk_mov vpk) => /Some_inj <-{ins} hx.
-  all: constructor.
-  all: by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+  case: (mk_mov vpk).
+  + move => /Some_inj <-{ins} hx; constructor.
+    rewrite /sem_sopn /= P'_globs /exec_sopn.
+    case: eqP hx.
+    - by move => -> {ofs}; rewrite wrepr0 GRing.addr0 ok_z /= ok_i /= => ->.
+    by move => _ hx; rewrite /= /sem_sop2 ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+  case: x => //.
+  + move=> x_; move: (Lvar x_) => x.
+    case: ifP; case: eqP => [-> | _ ] _ // /Some_inj <-{ins} hx; constructor.
+    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
+      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
+    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /=.
+      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
+    by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+  move=> ws_ x_ e_; move: (Lmem ws_ x_ e_) => {ws_ x_ e_} x.
+  case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; constructor.
+  rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
+  by move: hx; rewrite wrepr0 GRing.addr0 => ->.
 Qed.
 
 Lemma arm_immediateP (P': sprog) w s (x: var_i) z :

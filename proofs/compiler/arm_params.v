@@ -2,6 +2,8 @@ From mathcomp Require Import
   all_ssreflect
   all_algebra.
 
+From mathcomp Require Import word_ssrZ.
+
 Require Import
   arch_params
   compiler_util
@@ -86,16 +88,29 @@ Definition arm_cmd_large_subi (x y : var_i) (imm : Z) : seq fopn_args :=
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
 
+Definition is_load e :=
+  if e is Pload _ _ _ then true else false.
+
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
   option instr_r :=
-  let ofs := eword_of_int reg_size ofs in
-  let: (op, args) :=
-    match mk_mov vpk with
-    | MK_LEA => (ADR, [:: add y ofs ])
-    | MK_MOV => (ADD, [:: y; ofs ])
-    end in
-  Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args).
+  let mk oa :=
+    let: (op, args) := oa in
+     Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args) in
+  match mk_mov vpk with
+  | MK_LEA => mk (ADR, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
+  | MK_MOV =>
+    match x with
+    | Lvar _ =>
+      if is_load y then
+        if ofs == Z0 then mk (LDR, [:: y]) else None
+      else
+        if ofs == Z0 then mk (MOV, [:: y]) else mk (ADD, [::y; eword_of_int reg_size ofs ])
+    | Lmem _ _ _ =>
+      if ofs == Z0 then mk (STR, [:: y]) else None
+    | _ => None
+    end
+  end.
 
 Definition arm_immediate (x: var_i) z :=
   Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [:: cast_const z ].

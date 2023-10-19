@@ -36,6 +36,10 @@
 - Fix extraction to easycrypt of for loops that modify the loop counter
   ([PR 616](https://github.com/jasmin-lang/jasmin/pull/616)).
 
+- Fix instruction selection for stack-allocation on ARM
+  ([PR 623](https://github.com/jasmin-lang/jasmin/pull/623);
+  fixes [#622](https://github.com/jasmin-lang/jasmin/issues/622)).
+
 ## Other changes
 
 - Unsigned division on x86 emits a xor instead of “mov 0“
