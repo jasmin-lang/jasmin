@@ -38,8 +38,40 @@ let pp_reg_address_aux base disp off scal =
 
 let global_datas = "glob_data"
 
-let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
-  Format.asprintf "%s+%a" global_datas Z.pp_print (Conv.z_of_int32 p)
+let max_block_size = 1024
+
+module GL : 
+sig
+  type global_label
+  val dfl : global_label
+  val fresh : string -> global_label
+  val pp : global_label -> string
+
+  val new_label : string -> string
+  
+end = 
+  struct 
+    type global_label = string
+
+    let dfl = global_datas
+
+    let rgl = ref (-1)
+    let fresh fn = 
+      incr rgl; 
+      Format.sprintf ".L%s_%s_%i" fn global_datas !rgl
+
+    let pp gl = gl
+
+    let rlabel = ref (-1)
+    let new_label name = 
+      incr rlabel; 
+      Printf.sprintf ".L%s$%d" name !rlabel
+
+end
+
+
+let pp_rip_address gl (p : Ssralg.GRing.ComRing.sort) : string =
+  Format.asprintf "%s+%a" (GL.pp gl) Z.pp_print (Conv.z_of_int32 p)
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -64,7 +96,7 @@ let print_asm_line fmt ln =
 
 let print_asm_lines fmt lns =
   List.iter (Format.fprintf fmt "%a\n%!" print_asm_line) lns
-
+      
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
 
@@ -114,18 +146,18 @@ let pp_reg_address addr =
       in
       pp_reg_address_aux base disp off scal
 
-let pp_address addr =
+let pp_address gl addr =
   match addr with
   | Areg ra -> pp_reg_address ra
-  | Arip r -> pp_rip_address r
+  | Arip r -> pp_rip_address gl r
 
-let pp_asm_arg arg =
+let pp_asm_arg gl arg =
   match arg with
   | Condt _ -> None
   | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx r -> Some (pp_register_ext r)
-  | Addr addr -> Some (pp_address addr)
+  | Addr addr -> Some (pp_address gl addr)
   | XReg r -> Some (pp_xregister r)
 
 (* -------------------------------------------------------------------- *)
@@ -243,7 +275,8 @@ end = struct
     | _ -> ""
 end
 
-let pp_instr fn _ i =
+
+let pp_instr fn gl i =
   match i with
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
@@ -287,14 +320,80 @@ let pp_instr fn _ i =
       let pp = id.id_pp_asm args in
       let suff = ArgChecker.check_args op pp.pp_aop_args in
       let name = pp_mnemonic_ext op suff args in
-      let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
+      let args = List.filter_map (fun (_, a) -> pp_asm_arg gl a) pp.pp_aop_args in
       let args = pp_shift op args in
       get_IT i @ [ LInstr (name, args) ]
 
 
 (* -------------------------------------------------------------------- *)
+type 'a asm_block = 
+  | Bl of 'a list 
+  | Cat of 'a asm_block * 'a asm_block
 
-let pp_body fn fmt cmd = List.concat_map (pp_instr fn fmt) cmd
+let (@) b1 b2 = Cat(b1, b2)
+
+let rec print_asm_block fmt = function
+  | Bl lns     -> print_asm_lines fmt lns
+  | Cat(b1,b2) -> print_asm_block fmt b1; print_asm_block fmt b2
+
+let is_label = function
+  | LABEL _ -> true
+  | _ -> false 
+
+let pp_bl_instr fn gl i = Bl(pp_instr fn gl i)
+  
+let pp_body fn = 
+  let rec aux rc gl size_c cont = 
+    match rc with
+    | i :: rc -> 
+      let dfl () =
+        let size_c = if is_label i then size_c else size_c + 1 in
+        aux rc gl size_c ( pp_bl_instr fn gl i @ cont)
+      in
+
+      begin match i with
+      | AsmOp(ARM_op(o, opt), args) ->
+        if Arm_instr_decl.wsize_of_load_mn o <> None || o = ADR then
+          begin match args with
+          | ar:: Addr (Arip w) :: other ->
+            let opt = 
+              if opt.is_conditional then set_is_conditional default_opts 
+              else default_opts in 
+            let r = match ar with Reg r -> r | _ -> assert false in
+            let i1 = 
+              AsmOp(ARM_op(ADR, opt), ar::Addr (Arip (Conv.word_of_z U32 Z.zero))::other) in
+            let i2 = 
+              if o = ADR then 
+                AsmOp(ARM_op(ADD, opt), ar :: ar :: Imm(U32, w) :: other)
+              else 
+                let a2 = 
+                  Areg {ad_disp = w; ad_base = Some r; ad_scale = O; ad_offset = None} in
+                AsmOp(ARM_op(o, opt), ar :: Addr a2 :: other) 
+            in
+            if size_c + 1 (* i2 *) < max_block_size then 
+              aux rc gl (size_c + 2) (pp_bl_instr fn gl i1 @ pp_bl_instr fn gl i2 @ cont)
+            else 
+              let gl' = GL.fresh fn in
+              let lbl = GL.new_label fn in 
+
+              aux rc gl' 2 
+                (     pp_bl_instr fn gl' i1 @
+                 Bl [ LInstr ("b", [ lbl ]);
+                      LLabel (GL.pp gl');
+                      LInstr (".word", [global_datas]);
+                      LLabel lbl ] @
+                      pp_bl_instr fn gl i2 @
+                      cont)
+          | _ -> dfl () 
+          end
+        else dfl ()
+      | _ -> dfl ()
+      end
+
+    | [] -> cont 
+  in
+  aux
+
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -303,7 +402,7 @@ let mangle x = Printf.sprintf "_%s" x
 
 let pp_brace s = Format.sprintf "{%s}" s
 
-let pp_fun fmt (fn, fd) =
+let pp_fun (fn, fd) =
   let fn = fn.fn_name in
   let head =
     if fd.asm_fd_export then
@@ -313,12 +412,20 @@ let pp_fun fmt (fn, fd) =
   let pre =
     if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
-  let body = pp_body fn fmt fd.asm_fd_body in
-  (* TODO_ARM: Review. *)
-  let pos = if fd.asm_fd_export then pp_instr fn fmt POPPC else [] in
-  head @ pre @ body @ pos
 
-let pp_funcs fmt funs = List.concat_map (pp_fun fmt) funs
+  (* TODO_ARM: Review. *)
+  let pos = if fd.asm_fd_export then [LInstr ("pop", [ "{pc}" ])] else [] in
+
+  let gl = GL.fresh fn in
+  let body = 
+    pp_body fn (List.rev fd.asm_fd_body) gl (List.length pos)
+      (Bl pos @
+       Bl [ LLabel (GL.pp gl);
+            LInstr (".word", [global_datas])]) in
+  Bl head @ Bl pre @ body 
+
+let pp_funcs funs = 
+  List.fold_right (fun f cont -> pp_fun f @ cont) funs (Bl [])
 
 let pp_data globs =
   if not (List.is_empty globs) then
@@ -326,10 +433,10 @@ let pp_data globs =
     LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
   else []
 
-let pp_prog fmt p =
-  let code = pp_funcs fmt p.asm_funcs in
-  let data = pp_data p.asm_globs in
-  headers @ code @ data
+let pp_prog p =
+  let code = pp_funcs p.asm_funcs in 
+  let data = pp_data p.asm_globs in 
+  Bl headers @ code @ Bl data
 
-let print_instr s fmt i = print_asm_lines fmt (pp_instr s fmt i)
-let print_prog fmt p = print_asm_lines fmt (pp_prog fmt p)
+let print_instr s fmt i = print_asm_lines fmt (pp_instr s GL.dfl i)
+let print_prog fmt p = print_asm_block fmt (pp_prog p)
