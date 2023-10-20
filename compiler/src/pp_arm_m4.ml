@@ -361,7 +361,7 @@ let pp_body fn =
               else default_opts in 
             let r = match ar with Reg r -> r | _ -> assert false in
             let i1 = 
-              AsmOp(ARM_op(ADR, opt), ar::Addr (Arip (Conv.word_of_z U32 Z.zero))::other) in
+              AsmOp(ARM_op(LDR, opt), ar::Addr (Arip (Conv.word_of_z U32 Z.zero))::other) in
             let i2 = 
               if o = ADR then 
                 AsmOp(ARM_op(ADD, opt), ar :: ar :: Imm(U32, w) :: other)
