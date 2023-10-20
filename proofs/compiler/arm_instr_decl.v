@@ -1746,19 +1746,11 @@ Definition arm_instr_desc (o : arm_op) : instr_desc_t :=
 
 Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
   Eval compute in
-
-  let mk_prim mn sf ic hs :=
-    let hs :=
-      if xseq.assoc always_has_shift_mnemonics mn is Some sk
-      then Some sk
-      else hs
-    in
-    let opts :=
-      {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
-    in
+  let mk_prim mn sf ic :=
+    let hs := xseq.assoc always_has_shift_mnemonics mn in
+    let opts := {| set_flags := sf; is_conditional := ic; has_shift := hs; |} in
     ARM_op mn opts
   in
-
   map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 
 #[ export ]
