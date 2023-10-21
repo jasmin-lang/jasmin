@@ -23,7 +23,11 @@ open Utils
 
 
 
-(* Jasmin arch -- compile_CL --> Jasmin arch  -- compile_low -->  Jasmin low --> cryptoline
+(* Language intermédiaire pour jasin: permet de d'écrire le comportement de chaque instruction et de générer
+   des instruction pour une nouvelle cible
+
+
+Jasmin arch -- compile_CL --> Jasmin arch  -- compile_low -->  Jasmin low --> cryptoline
                                                                     |
                                                                     |
                                                                   bit dependency 
@@ -34,6 +38,9 @@ open Utils
 - Semantique en bit dep
 
 
+   Défintion soit par type dépendent/ soit par une fonction de type checking pour vérifier que l'on une
+   expression low bien définie
+   
 low: 
   | Map2 of nat * wsize * wsize 
   | Add of wsize 
@@ -53,10 +60,84 @@ x y
 zhh = + ;
 ...
 merge
-merge
+   merge
 
-section.
+wt low type 
 
+semi_low low rho (wt low type) : semi_type type =
+  | Fun n ty low' => fun (x: ty) => semi_low low ([n, x]) 
+  | Var n => rho n
+
+
+  | Map2 
+
+wt_low : e 
+
+  map2 4 u64 u64 (add sv) x y)
+
+low : Inductif 
+      datatype
+
+
+arm_ADD_semi : w32 -> w32 -> w32
+
+arm_ADD_low : low 
+
+semi_low arm_ADD_low ... : w32 -> w32 -> w32
+
+ {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := snzcv_r;
+      id_out := ad_nzcv ++ [:: E 0 ];
+      id_semi := arm_ADD_semi;   // low  
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+    |}
+
+
+id_semi instr ~ semi_low (id_low instr)
+
+op -> 
+      64 256
+VPADD sv sr x y -> 
+   map2 4 u64 u64 (add sv) x y)
+
+   map2 4 u64 u32 (addsv) x y)
+   
++ - mull mulh mul mod div xor and 
+pack  
+unpack 
+map 
+map2 
+ 
+
+low:  -> cryptoline
+      -> Coq 
+      -> EC
+ 
+x = y +4u64 z;   --> x = #VPADD_4_64(y, z);
+x = #VPADD_4_64(y, z);
+
+   
+*)
+
+
+
+
+
+
+(*
+ Add to pexp contifier
+   
 big_rec [m..n[ (add: t-> t-> t) (f : int -> t) (x:t) : t 
 
 big_rec [m..m[ add f x = x 
@@ -82,150 +163,28 @@ Inductive aexpr : Type :=
 | PappN of opN & seq aexpr
 | Pif    : stype -> aexpr -> aexpr -> aexpr -> aexpr
 (* *)
-| Pfvar : fvar -> aexpr
+| Pfvar : fvar (peut-être gvar)-> aexpr
 | Big_rec of (n:eassert) (m:eassert) binop (i:fvar) (fbody:eassert) (x:eassert)
-
-
-
 
 to_aexpr : pexpr -> aexpr
 sem_pexpr 
 
-
 forall e, sem_pexpr e = sem_aexpr (to_aexpr e) [::]
 
-
-
-   sem_pexpr rho 
+sem_pexpr rho
 
    [::]
 
-
-
-
 x = y + z;
 x = ADD(y, z);
-
-
-
-
-
 
 sem_pexpr : state -> pexpr -> exec value
 sem_aexpr : state -> list (fvar * value) -> aexpr -> exec value
 
 
-  
-
-
-
-
-
-
-
-
-
 sum i in [0..] 0 (fun i -> ...)
 
-
-
-
-
-
-wt low type 
-
-semi_low low rho (wt low type) : semi_type type =
-  | Fun n ty low' => fun (x: ty) => semi_low low ([n, x]) 
-  | Var n => rho n
-
-
-  | Map2 
-
-wt_low : e 
-
-
-
-  map2 4 u64 u64 (add sv) x y)
-
-
-
-
-
-low : Inductif 
-      datatype
-
-
-arm_ADD_semi : w32 -> w32 -> w32
-
-arm_ADD_low : low 
-
-semi_low arm_ADD_low ... : w32 -> w32 -> w32
-
-
-
- {|
-      id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg; sreg ];
-      id_in := [:: E 1; E 2 ];
-      id_tout := snzcv_r;
-      id_out := ad_nzcv ++ [:: E 0 ];
-      id_semi := arm_ADD_semi;   // low  
-      id_nargs := 3;
-      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
-      id_eq_size := refl_equal;
-      id_tin_narr := refl_equal;
-      id_tout_narr := refl_equal;
-      id_check_dest := refl_equal;
-      id_str_jas := pp_s (string_of_arm_mnemonic mn);
-      id_safe := [::]; (* TODO_ARM: Complete. *)
-      id_pp_asm := pp_arm_op mn opts;
-    |}
-
-
-id_semi instr ~ semi_low (id_low instr)
-
-
-
-
-op -> 
-      64 256
-VPADD sv sr x y -> 
-   map2 4 u64 u64 (add sv) x y)
-
-
-
-
-   map2 4 u64 u32 (addsv) x y)
-   
-
-
-
-+ - mull mulh mul mod div xor and 
-pack  
-unpack 
-map 
-map2 
- 
-
-
-
-low:  -> cryptoline
-      -> Coq 
-      -> EC
-  
-   
-
-
-
-
-
-
-x = y +4u64 z;   --> x = #VPADD_4_64(y, z);
-x = #VPADD_4_64(y, z);
-
- *)
-
-
+*)
 
 
 let unsharp = String.map (fun c -> if c = '#' then '_' else c) 
@@ -780,202 +739,6 @@ let pp_fun asmOp fmt fd =
     pp_pre ()
     (pp_c asmOp) fd.f_body
     pp_post ()
-
-
-(*========================================================================*)
-
-let compiler_first_part asm_e aparams cparams to_keep p =
-  match array_copy_prog (asm_opI asm_e) cparams.fresh_counter
-          (Equality.clone unit_eqType (Obj.magic unit_eqMixin) (fun x -> x))
-          progUnit p with
-  | Ok x ->
-    let p0 = cparams.print_uprog ArrayCopy (Obj.magic x) in
-    let p1 =
-      add_init_prog (asm_opI asm_e) cparams.is_ptr
-        (Equality.clone unit_eqType (Obj.magic unit_eqMixin) (fun x0 -> x0))
-        progUnit (Obj.magic p0)
-    in
-    let p2 = cparams.print_uprog AddArrInit (Obj.magic p1) in
-    (match inline_prog_err (Arch_extra.asm_opI asm_e) cparams.inline_var
-             (Obj.magic cparams.rename_fd) (Obj.magic p2) with
-     | Ok x0 ->
-       let p3 = cparams.print_uprog Inlining (Obj.magic x0) in
-       (match dead_calls_err_seq (asm_opI asm_e)
-                (Equality.clone unit_eqType (Obj.magic unit_eqMixin)
-                  (fun x1 -> x1)) progUnit to_keep (Obj.magic p3) with
-        | Ok x1 ->
-          let p4 = cparams.print_uprog RemoveUnusedFunction (Obj.magic x1) in
-          (match unroll_loop (asm_opI asm_e) asm_e._asm._arch_decl.ad_fcp
-                   aparams.ap_is_move_op (Obj.magic p4) with
-           | Ok x2 ->
-             let p5 = cparams.print_uprog Unrolling (Obj.magic x2) in
-             let pv = split_live_ranges_prog asm_e cparams p5 in
-             let pv0 = cparams.print_uprog Splitting pv in
-             let pv1 = renaming_prog asm_e cparams pv0 in
-             let pv2 = cparams.print_uprog Renaming pv1 in
-             let pv3 = remove_phi_nodes_prog asm_e cparams pv2 in
-             let pv4 = cparams.print_uprog RemovePhiNodes pv3 in
-             (match check_uprog (asm_opI asm_e) (Obj.magic p5).p_extra
-                      (Obj.magic p5).p_funcs (Obj.magic pv4).p_extra
-                      (Obj.magic pv4).p_funcs with
-              | Ok _ ->
-                (match dead_code_prog (asm_opI asm_e) aparams.ap_is_move_op
-                         (Equality.clone unit_eqType (Obj.magic unit_eqMixin)
-                           (fun x3 -> x3)) progUnit (Obj.magic pv4) false with
-                 | Ok x3 ->
-                   let pv5 =
-                     cparams.print_uprog DeadCode_Renaming (Obj.magic x3)
-                   in
-                   let pr =
-                     remove_init_prog (asm_opI asm_e) cparams.is_reg_array
-                       (Equality.clone unit_eqType (Obj.magic unit_eqMixin)
-                         (fun x4 -> x4)) progUnit (Obj.magic pv5)
-                   in
-                   let pr0 = cparams.print_uprog RemoveArrInit (Obj.magic pr)
-                   in
-                   (match expand_prog (asm_opI asm_e)
-                            (Obj.magic cparams.expand_fd) (Obj.magic pr0) with
-                    | Ok x4 ->
-                      let pe =
-                        cparams.print_uprog RegArrayExpansion (Obj.magic x4)
-                      in
-                      (match remove_glob_prog (asm_opI asm_e) cparams.is_glob
-                               cparams.fresh_id (Obj.magic pe) with
-                       | Ok x5 ->
-                         let pg =
-                           cparams.print_uprog RemoveGlobal (Obj.magic x5)
-                         in
-                         (match makereference_prog (asm_opI asm_e)
-                                  cparams.is_reg_ptr
-                                  (Obj.magic cparams.fresh_reg_ptr)
-                                  (Obj.magic pg) with
-                          | Ok x6 ->
-                            let pa =
-                              cparams.print_uprog MakeRefArguments
-                                (Obj.magic x6)
-                            in
-                            if aparams.ap_lop.lop_fvars_correct
-                                 cparams.lowering_vars
-                                 (Obj.magic unit_eqMixin) progUnit
-                                 (Obj.magic pa).p_funcs
-                            then let pl =
-                                    lower_prog (asm_opI asm_e)
-                                     (aparams.ap_lop.lop_lower_i
-                                       cparams.is_regx) cparams.lowering_opt
-                                     cparams.warning cparams.lowering_vars
-                                     (Equality.clone unit_eqType
-                                       (Obj.magic unit_eqMixin) (fun x8 ->
-                                       x8)) progUnit cparams.is_var_in_memory
-                                     (Obj.magic pa)
-                                in
-                                 let pl0 =
-                                   cparams.print_uprog LowerInstruction
-                                     (Obj.magic pl)
-                                 in
-                                 begin
-                                   match pi_prog (Arch_extra.asm_opI asm_e)
-                                          asm_e._asm._arch_decl.ad_fcp
-                                          (Equality.clone unit_eqType
-                                            (Obj.magic unit_eqMixin)
-                                            (fun x7 -> x7)) progUnit
-                                            (Obj.magic pl0) with
-                                   | Ok x7 ->
-                                     let pp =
-                                       cparams.print_uprog PropagateInline
-                                         (Obj.magic x7)
-                                     in
-                                     Ok pp
-                                   | Error s -> Error s
-                                 end
-                            else let s =
-                                   pp_internal_error_s
-                                     ('l'::('o'::('w'::('e'::('r'::('i'::('n'::('g'::[]))))))))
-                                     ('l'::('o'::('w'::('e'::('r'::('i'::('n'::('g'::(' '::('c'::('h'::('e'::('c'::('k'::(' '::('f'::('a'::('i'::('l'::('s'::[]))))))))))))))))))))
-                                 in
-                                 Error s
-                          | Error s -> Error s)
-                       | Error s -> Error s)
-                    | Error s -> Error s)
-                 | Error s -> Error s)
-              | Error s -> Error s)
-           | Error s -> Error s)
-        | Error s -> Error s)
-     | Error s -> Error s)
-  | Error s -> Error s
-
-
-let compiler_third_part asm_e aparams cparams entries ps =
-  let rminfo = cparams.removereturn (Obj.magic ps) in
-  (match check_removereturn entries rminfo with
-   | Ok _ ->
-     (match dead_code_prog_tokeep (asm_opI asm_e) aparams.ap_is_move_op false
-              rminfo
-              (Equality.clone sfe_eqType (Obj.magic sfe_eqMixin) (fun x -> x))
-              (progStack (Arch_decl.arch_pd asm_e._asm._arch_decl)) ps with
-      | Ok x ->
-        let pr = cparams.print_sprog RemoveReturn (Obj.magic x) in
-        let pa = { p_funcs = (cparams.regalloc pr.p_funcs); p_globs =
-          pr.p_globs; p_extra = pr.p_extra }
-        in
-        let pa0 = cparams.print_sprog RegAllocation pa in
-        (match Allocation.check_sprog (Arch_extra.asm_opI asm_e)
-                 (Arch_decl.arch_pd asm_e._asm._arch_decl)
-                 (Obj.magic pr).p_extra (Obj.magic pr).p_funcs
-                 (Obj.magic pa0).p_extra (Obj.magic pa0).p_funcs  with
-         | Ok _ ->
-           (match dead_code_prog (asm_opI asm_e) aparams.ap_is_move_op
-                    (Equality.clone sfe_eqType (Obj.magic sfe_eqMixin)
-                      (fun x0 -> x0))
-                    (progStack (Arch_decl.arch_pd asm_e._asm._arch_decl))
-                    (Obj.magic pa0) true with
-            | Ok x0 ->
-              let pd =
-                cparams.print_sprog DeadCode_RegAllocation (Obj.magic x0)
-              in
-              Ok (Obj.magic pd)
-            | Error s -> Error s)
-         | Error s -> Error s)
-      | Error s -> Error s)
-   | Error s -> Error s)
-
-let check_export _ entries p =
-  allM (fun fn ->
-    match get_fundef p.p_funcs (Obj.magic fn) with
-    | Some fd ->
-      if eq_op return_address_location_eqType
-           (Obj.magic (Obj.magic fd).f_extra.sf_return_address)
-           (Obj.magic RAnone)
-      then Ok ()
-      else Error
-             (pp_at_fn (Obj.magic fn)
-               (Merge_varmaps.E.gen_error true None
-                 (pp_s
-                   ('e'::('x'::('p'::('o'::('r'::('t'::(' '::('f'::('u'::('n'::('c'::('t'::('i'::('o'::('n'::(' '::('e'::('x'::('p'::('e'::('c'::('t'::('s'::(' '::('a'::(' '::('r'::('e'::('t'::('u'::('r'::('n'::(' '::('a'::('d'::('d'::('r'::('e'::('s'::('s'::[])))))))))))))))))))))))))))))))))))))))))))
-    | None ->
-      Error
-        (pp_at_fn (Obj.magic fn)
-          (Merge_varmaps.E.gen_error true None
-            (pp_s
-              ('u'::('n'::('k'::('n'::('o'::('w'::('n'::(' '::('e'::('x'::('p'::('o'::('r'::('t'::(' '::('f'::('u'::('n'::('c'::('t'::('i'::('o'::('n'::[])))))))))))))))))))))))))))
-    entries
-
-let compiler_back_end asm_e call_conv aparams cparams entries pd =
-  match check_export asm_e entries pd with
-  | Ok _ ->
-    (match Merge_varmaps.check (Arch_decl.arch_pd asm_e._asm._arch_decl) (asm_opI asm_e)
-             (Asm_gen.ovm_i asm_e._asm._arch_decl call_conv) pd
-             cparams.extra_free_registers (var_tmp asm_e aparams) with
-     | Ok _ ->
-       (match Linearization.linear_prog (Arch_decl.arch_pd asm_e._asm._arch_decl) (asm_opI asm_e)
-                aparams.ap_lip pd with
-        | Ok x ->
-          let pl = cparams.print_linear Linearization x in
-          (match Tunneling.tunnel_program (asm_opI asm_e) pl with
-           | Ok x0 -> let pl0 = cparams.print_linear Tunneling x0 in Ok pl0
-           | Error s -> Error s)
-        | Error s -> Error s)
-     | Error s -> Error s)
-  | Error s -> Error s
 
 
 module Scmp = struct

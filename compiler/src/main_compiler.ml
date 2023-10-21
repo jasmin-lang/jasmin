@@ -259,38 +259,11 @@ let main () =
             Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
             let i_loc, _ = ii in
-            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" 
-              (Evaluator.pp_error tbl) err
+            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" (Evaluator.pp_error tbl) err
         in
         List.iter exec to_exec
       end;
 
-    if !cl_list <> [] then
-      begin
-        let fmt, close = Format.std_formatter, fun () -> () in
-
-        match
-          BatPervasives.finally
-            (fun () -> close ())
-            (fun () ->
-               ToCL.extract
-                 (module Arch)
-                 visit_prog_after_pass
-                 fmt
-                 prog
-                 tbl
-                 cprog
-                 !cl_list
-            )
-            ()
-        with
-        | Utils0.Error e ->
-          let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
-          raise (HiError e)
-        | Utils0.Ok _ -> ()
-        | exception e -> BatPervasives.ignore_exceptions (fun () -> ()) (); raise e
-      end
-    else
       begin match Compile.compile (module Arch) visit_prog_after_pass prog tbl cprog with
         | Utils0.Error e ->
           let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
