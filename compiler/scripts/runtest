@@ -194,7 +194,7 @@ def _dump_report(config, results, out):
 
 # --------------------------------------------------------------------
 def _run_test(config, options):
-    logging.info("running ec on `%s' [valid: %s]" % \
+    logging.info("running jasmin on `%s' [valid: %s]" % \
                      (config.filename, config.isvalid))
 
     timestamp = time.time()
@@ -206,6 +206,7 @@ def _run_test(config, options):
         command.extend([config.filename])
 
         logging.info('command: %r' % (command,))
+        config.command = command
         process = sp.Popen(command, stdout = sp.PIPE, stderr = sp.PIPE)
 
         try:
@@ -222,7 +223,7 @@ def _run_test(config, options):
 
 
     logging.info("result for `%s': success: %s" % \
-                     (config.filename, rcolor(success, success)))
+                     (config.command, rcolor(success, success)))
 
     return Object(success = success  ,
                   config  = config   ,
