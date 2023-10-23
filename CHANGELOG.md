@@ -26,11 +26,11 @@
   fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
 
 - Fix combine flag notation for arm
-  ([PR 594]((https://github.com/jasmin-lang/jasmin/pull/594);
+  ([PR 594](https://github.com/jasmin-lang/jasmin/pull/594);
   fixes [#593](https://github.com/jasmin-lang/jasmin/issues/593)).
 
 - Flag combination support `"!="` as the negation of `"=="`
-  ([PR 600]((https://github.com/jasmin-lang/jasmin/pull/600);
+  ([PR 600](https://github.com/jasmin-lang/jasmin/pull/600);
   fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
 
 - Fix extraction to easycrypt of for loops that modify the loop counter
