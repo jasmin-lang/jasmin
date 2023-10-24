@@ -419,6 +419,7 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
   let rec pp_err fmt pp_e =
     match pp_e with
     | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
+    | Compiler_util.PPEz z -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
     | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
     | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc

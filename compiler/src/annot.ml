@@ -88,13 +88,13 @@ let pos_int dfl ((id, _) as arg) =
 
 let string_of_ws ws = Prog.string_of_ws (Printer.ws_of_ws ws)
 
+let ws_strings =
+  List.map
+    (fun ws -> (string_of_ws ws, ws))
+    [ `W8; `W16; `W32; `W64; `W128; `W256 ]
+
 let ws_of_string =
-  let l =
-    List.map
-      (fun ws -> (string_of_ws ws, ws))
-      [ `W8; `W16; `W32; `W64; `W128; `W256 ]
-  in
-  fun s -> List.assoc s l
+  fun s -> List.assoc s ws_strings
 
 let wsize dfl arg =
   let error loc nid =

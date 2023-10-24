@@ -19,7 +19,8 @@ Require Import
   slh_lowering
   slh_lowering_proof
   stack_alloc
-  stack_alloc_proof.
+  stack_alloc_proof
+  stack_zeroization_proof.
 Require
   arch_sem.
 Require Import
@@ -950,6 +951,19 @@ Definition x86_hshparams : h_sh_params (ap_shp x86_params) :=
 
 
 (* ------------------------------------------------------------------------ *)
+(* Stack zeroization. *)
+
+Section STACK_ZEROIZATION.
+
+Context {call_conv : calling_convention}.
+
+Lemma x86_hszparams : h_stack_zeroization_params (ap_szp x86_params).
+Proof. done. Qed.
+
+End STACK_ZEROIZATION.
+
+
+(* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
 Definition x86_is_move_opP op vx v :
@@ -985,6 +999,7 @@ Definition x86_h_params {dc : DirectCall} {call_conv : calling_convention} : h_a
     hap_hlop := x86_hloparams;
     hap_hagp := x86_hagparams;
     hap_hshp := x86_hshparams;
+    hap_hszp := x86_hszparams;
     hap_is_move_opP := x86_is_move_opP;
   |}.
 

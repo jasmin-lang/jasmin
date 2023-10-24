@@ -55,6 +55,7 @@ Record lfundef := LFundef {
  lfd_export: bool;
  lfd_callee_saved: seq var; (* A list of variables that must be initialized before calling this function *)
  lfd_stk_max : Z; (* max amount of stack memory used by this function (and all functions called by this one *)
+ lfd_frame_size : Z; (* needed for stack zeroization *)
 }.
 
 (* takes into account the padding due to the alignment of the stack of export functions *)

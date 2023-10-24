@@ -362,10 +362,11 @@ Proof.
   move: (wunsigned_range b); Psatz.lia.
 Qed.
 
-Lemma zbetween_0 p1 p2 sz2 :
+Lemma not_zbetween_neg p1 p2 sz1 sz2 :
+  (sz1 <= 0)%Z ->
   (0 < sz2)%Z ->
-  ~~ zbetween p1 0 p2 sz2.
-Proof. by move=> ?; apply /idP; rewrite /zbetween !zify; Psatz.lia. Qed.
+  ~~ zbetween p1 sz1 p2 sz2.
+Proof. by move=> ??; apply /idP; rewrite /zbetween !zify; Psatz.lia. Qed.
 
 Lemma zbetween_not_disjoint_zrange p1 s1 p2 s2 :
   zbetween p1 s1 p2 s2 ->
@@ -465,10 +466,20 @@ Qed.
 Definition pointer_range (lo hi: pointer) : pred pointer :=
   λ p, (wunsigned lo <=? wunsigned p) && (wunsigned p <? wunsigned hi).
 
+Lemma pointer_rangeP lo hi pr :
+  reflect (wunsigned lo <= wunsigned pr < wunsigned hi) (pointer_range lo hi pr).
+Proof. by apply: (iffP idP); rewrite /pointer_range !zify. Qed.
+
 Lemma pointer_range_incl_l lo lo' hi pr :
   (wunsigned lo' <= wunsigned lo)%Z ->
   pointer_range lo hi pr ->
   pointer_range lo' hi pr.
+Proof. by rewrite /pointer_range !zify; Psatz.lia. Qed.
+
+Lemma pointer_range_incl_r lo hi hi' pr :
+  (wunsigned hi <= wunsigned hi')%Z ->
+  pointer_range lo hi pr ->
+  pointer_range lo hi' pr.
 Proof. by rewrite /pointer_range !zify; Psatz.lia. Qed.
 
 Lemma pointer_range_between lo hi pr :

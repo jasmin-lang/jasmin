@@ -256,17 +256,62 @@ let memory_analysis pp_err ~debug up =
           let max_call_depth = Z.max max_call_depth fn_max_call_depth in
           align, max_stk, max_call_depth
         ) sao.sao_calls (align, Z.zero, Z.zero) in
+    (* if we zeroize the stack, we may have to increase the alignment *)
+    let align =
+      match fd.f_cc, fd.f_annot.stack_zero_strategy with
+      | Export, Some (_, Some ws) ->
+          if Z.equal max_stk Z.zero
+            && Z.equal (Conv.z_of_cz csao.Stack_alloc.sao_size) Z.zero
+            && extra_size = 0
+          then
+            (* no stack to clear, we don't change the alignment *)
+            align
+          else
+            let ws = Pretyping.tt_ws ws in
+            if wsize_lt align ws then ws else align
+      | _, _ -> align
+    in
+    (* if we zeroize the stack, we ensure that the stack size of the export
+       function is a multiple of the alignment (this is what we systematically
+       do for subroutines). The difference is that, here, this is reflected
+       by increasing extra_size. *)
+    let extra_size =
+      let stk_size = 
+        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                   (Z.of_int extra_size) in
+      match fd.f_annot.stack_zero_strategy with
+      | Some _ ->
+          let round =
+              Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
+          in
+          Z.to_int (Z.sub round (Conv.z_of_cz csao.Stack_alloc.sao_size))
+      | None -> extra_size
+    in
+    (* if we zeroize the stack, we ensure that the max size is a multiple of the
+       size of the clear step. We use [fd.f_annot.stack_zero_strategy] and not
+       [align], this is on purpose! We know that the first one divides the
+       second one. *)
     let max_size = 
       let stk_size = 
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
                    (Z.of_int extra_size) in
       let stk_size = 
         match fd.f_cc with
-        | Export       -> stk_size
-        | Subroutine _ -> 
+        | Export -> stk_size
+        | Subroutine _ ->
           Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
-      Z.add max_stk stk_size in
+      let max_size = Z.add max_stk stk_size in
+      match fd.f_cc, fd.f_annot.stack_zero_strategy with
+      | Export, Some (_, ows) ->
+          let ws =
+            match ows with
+            | Some ws -> Pretyping.tt_ws ws
+            | None -> align (* the default clear step is the alignment *)
+          in
+          Conv.z_of_cz (Memory_model.round_ws ws (Conv.cz_of_z max_size))
+      | _, _ -> max_size
+    in
     let max_call_depth = Z.succ max_call_depth in
     let saved_stack = 
       if has_stack then
