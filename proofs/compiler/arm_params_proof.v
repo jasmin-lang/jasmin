@@ -19,7 +19,8 @@ Require Import
   linearization_proof
   lowering
   stack_alloc
-  stack_alloc_proof.
+  stack_alloc_proof
+  stack_zeroization_proof.
 Require
   arch_sem.
 Require Import
@@ -1169,6 +1170,26 @@ End ASM_GEN.
 
 
 (* ------------------------------------------------------------------------ *)
+(* Speculative execution. *)
+
+Lemma arm_hshp: slh_lowering_proof.h_sh_params (ap_shp arm_params).
+Proof. by constructor; move=> ???? []. Qed.
+
+
+(* ------------------------------------------------------------------------ *)
+(* Stack zeroization. *)
+
+Section STACK_ZEROIZATION.
+
+Context {ovm_i : one_varmap_info}.
+
+Lemma arm_hszparams : h_stack_zeroization_params (ap_szp arm_params).
+Proof. done. Qed.
+
+End STACK_ZEROIZATION.
+
+
+(* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
 
 Definition arm_is_move_opP op vx v :
@@ -1189,9 +1210,6 @@ Proof.
   exact: (word_uincl_zero_ext w' hws').
 Qed.
 
-(* ------------------------------------------------------------------------ *)
-Lemma arm_hshp: slh_lowering_proof.h_sh_params (ap_shp arm_params).
-Proof. by constructor; move=> ???? []. Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -1203,6 +1221,7 @@ Definition arm_h_params {dc : DirectCall} : h_architecture_params arm_params :=
     hap_hlop := arm_hloparams;
     hap_hagp := arm_hagparams;
     hap_hshp := arm_hshp;
+    hap_hszp := arm_hszparams;
     hap_is_move_opP := arm_is_move_opP;
   |}.
 

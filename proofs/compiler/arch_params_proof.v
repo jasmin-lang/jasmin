@@ -12,11 +12,10 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 Require
-  linearization
   linearization_proof
   lowering
-  stack_alloc
   stack_alloc_proof
+  stack_zeroization_proof
   slh_lowering_proof.
 Require Export arch_params.
 
@@ -88,6 +87,10 @@ Record h_architecture_params
 
     (* Speculative execution lowering hypothesis *)
     hap_hshp : slh_lowering_proof.h_sh_params (ap_shp aparams);
+
+    (* Stack zeroization hypotheses. See [stack_zeroization_proof.v]. *)
+    hap_hszp :
+      stack_zeroization_proof.h_stack_zeroization_params (ap_szp aparams);
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

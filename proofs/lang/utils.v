@@ -1790,9 +1790,27 @@ Ltac t_elim_uniq :=
 
 Variant and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
   And6 of P1 & P2 & P3 & P4 & P5 & P6.
+Variant and7 (P1 P2 P3 P4 P5 P6 P7 : Prop) : Prop :=
+  And7 of P1 & P2 & P3 & P4 & P5 & P6 & P7.
+Variant and8 (P1 P2 P3 P4 P5 P6 P7 P8 : Prop) : Prop :=
+  And8 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8.
+Variant and9 (P1 P2 P3 P4 P5 P6 P7 P8 P9 : Prop) : Prop :=
+  And9 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9.
+Variant and10 (P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 : Prop) : Prop :=
+  And10 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 & P10.
 
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
   (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
+  (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 & P7 ]" :=
+  (and7 P1 P2 P3 P4 P5 P6 P7) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 & P8 ]" :=
+  (and8 P1 P2 P3 P4 P5 P6 P7 P8) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 & P9 ]" :=
+  (and9 P1 P2 P3 P4 P5 P6 P7 P8 P9) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 , P9 & P10 ]" :=
+  (and10 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10) : type_scope.
 
 Tactic Notation "have!" ":= " constr(x) :=
   let h := fresh "h" in

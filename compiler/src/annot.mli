@@ -52,6 +52,7 @@ val pos_int :
   string Location.located * Annotations.simple_attribute Location.located option ->
   Z.t
 
+val ws_strings : (string * Annotations.wsize) list
 val ws_of_string : string -> Annotations.wsize
 
 val wsize :

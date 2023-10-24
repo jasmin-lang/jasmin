@@ -79,6 +79,8 @@ compiler/slh_lowering_proof.v
 compiler/stack_alloc.v
 compiler/stack_alloc_proof.v
 compiler/stack_alloc_proof_2.v
+compiler/stack_zeroization.v
+compiler/stack_zeroization_proof.v
 compiler/tunneling.v
 compiler/tunneling_proof.v
 compiler/unionfind.v
@@ -106,6 +108,7 @@ lang/gen_map.v
 lang/global.v
 lang/ident.v
 lang/linear.v
+lang/linear_facts.v
 lang/linear_sem.v
 lang/low_memory.v
 lang/lowering_lemmas.v
@@ -125,6 +128,7 @@ lang/sem_type.v
 lang/shift_kind.v
 lang/sopn.v
 lang/slh_ops.v
+lang/stack_zero_strategy.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v

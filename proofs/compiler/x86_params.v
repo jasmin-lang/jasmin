@@ -10,6 +10,7 @@ Require Import
   linearization
   lowering
   stack_alloc
+  stack_zeroization
   slh_lowering.
 Require Import
   arch_decl
@@ -244,6 +245,14 @@ Definition x86_agparams : asm_gen_params :=
     agp_assemble_cond := assemble_cond;
   |}.
 
+(* ------------------------------------------------------------------------ *)
+(* Stack zeroization parameters. *)
+
+Definition x86_szparams : stack_zeroization_params :=
+  {|
+    szp_cmd := fun _ _ _ _ _ _ =>
+      Error (stack_zeroization.E.error (compiler_util.pp_s "x86 not supported"))
+  |}.
 
 (* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
@@ -265,6 +274,7 @@ Definition x86_params : architecture_params lowering_options :=
     ap_lip := x86_liparams;
     ap_lop := x86_loparams;
     ap_agp := x86_agparams;
+    ap_szp := x86_szparams;
     ap_shp := x86_shparams;
     ap_is_move_op := x86_is_move_op;
   |}.

@@ -13,6 +13,7 @@ Require Import
   linearization
   lowering
   stack_alloc
+  stack_zeroization
   slh_lowering.
 Require Import
   arch_decl
@@ -329,6 +330,15 @@ Definition arm_agparams : asm_gen_params :=
   |}.
 
 (* ------------------------------------------------------------------------ *)
+(* Stack zeroization parameters. *)
+
+Definition arm_szparams : stack_zeroization_params :=
+  {|
+    szp_cmd := fun _ _ _ _ _ _ =>
+      Error (stack_zeroization.E.error (compiler_util.pp_s "arm not supported"))
+  |}.
+
+(* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
 
 Definition arm_is_move_op (o : asm_op_t) : bool :=
@@ -349,6 +359,7 @@ Definition arm_params : architecture_params lowering_options :=
     ap_lip := arm_liparams;
     ap_lop := arm_loparams;
     ap_agp := arm_agparams;
+    ap_szp := arm_szparams;
     ap_shp := arm_shparams;
     ap_is_move_op := arm_is_move_op;
   |}.

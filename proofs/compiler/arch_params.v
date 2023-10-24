@@ -9,6 +9,7 @@ Require
   linearization
   lowering
   stack_alloc
+  stack_zeroization
   slh_lowering
   asm_gen.
 
@@ -56,6 +57,9 @@ Record architecture_params
 
     (* Assembly generation parameters. See asm_gen.v. *)
     ap_agp : asm_gen.asm_gen_params;
+
+    (* Stack zeroization parameters. See stack_zeroization.v *)
+    ap_szp : stack_zeroization.stack_zeroization_params;
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

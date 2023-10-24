@@ -1,4 +1,4 @@
-(* * Syntax and semantics of the linear language *)
+(* * Semantics of the linear language *)
 
 (* ** Imports and settings *)
 

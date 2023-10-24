@@ -65,6 +65,7 @@ Separate Extraction
   sem_type
   sopn
   expr
+  stack_zero_strategy
   psem_defs
   sem_params_of_arch_extra
   arch_decl

@@ -720,12 +720,13 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_align := sf_align e
     ; lfd_tyin := f_tyin fd
     ; lfd_arg := f_params fd
+    ; lfd_body := body.2
     ; lfd_tyout := f_tyout fd
-    ; lfd_stk_max := sf_stk_max e
     ; lfd_res := res
     ; lfd_export := is_export
     ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
-    ; lfd_body := body.2
+    ; lfd_stk_max := sf_stk_max e
+    ; lfd_frame_size := frame_size e
     |}).
 
 End FUN.

@@ -1,5 +1,3 @@
-(* * Syntax and semantics of the linear language *)
-
 (* ** Imports and settings *)
 From Coq
 Require Import Setoid Morphisms Lia.
@@ -12,9 +10,10 @@ Require sem_one_varmap_facts label.
 Import word_ssrZ.
 Import ssrring.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts low_memory.
+Require Import seq_extra.
 Require Import constant_prop constant_prop_proof.
 Require Import fexpr fexpr_sem fexpr_facts.
-Require Export linearization linear_sem.
+Require Export linearization linear_sem linear_facts.
 Import Memory.
 
 Set Implicit Arguments.
@@ -107,17 +106,6 @@ Proof.
   rewrite /set_up_sp_stack.
   case: lip_set_up_sp_stack => // ?.
   by rewrite map_li_of_fopn_args_has_label.
-Qed.
-
-Lemma all_has {T} (p q: pred T) (s: seq T) :
-  all p s →
-  has q s →
-  exists2 t, List.In t s & p t && q t.
-Proof.
-  elim: s => // t s ih /= /andP[] pt ps /orP[] r.
-  - exists t; first by left.
-    by rewrite pt.
-  by case: (ih ps r) => y Y Z; exists y; first right.
 Qed.
 
 Lemma align_bind ii a p1 l :
@@ -385,11 +373,6 @@ Qed.
 
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
 Proof. by case: a. Qed.
-
-Definition is_linear_of (p : lprog) (fn : funname) (c : lcmd) : Prop :=
-  exists2 fd,
-    get_fundef (lp_funcs p) fn = Some fd
-    & lfd_body fd = c.
 
 
 Section LINEARIZATION_PARAMS.
@@ -699,10 +682,6 @@ Section NUMBER_OF_LABELS.
       let: (lblc, lc) :=
          linear_c (linear_i liparams p fn) c lbl [::] in
       (Z.of_nat (size (label_in_lcmd lc)) + lbl <= lblc)%Z.
-
-  Lemma label_in_lcmd_cat lc1 lc2 :
-    label_in_lcmd (lc1 ++ lc2) = label_in_lcmd lc1 ++ label_in_lcmd lc2.
-  Proof. by rewrite /label_in_lcmd pmap_cat. Qed.
 
   Let HMkI i ii : Pr i → Pi (MkI ii i).
   Proof. exact. Qed.
@@ -1489,6 +1468,30 @@ Section PROOF.
   Definition align_top_stack top e :=
     align_top top e.(sf_align) (e.(sf_stk_sz) + e.(sf_stk_extra_sz)).
 
+  (* One interesting property of [align_top] is that, if [sz] is [ws]-aligned,
+     it is the same as just performing a [ws]-alignment. *)
+  Lemma align_top_aligned top ws sz :
+    (0 <= sz)%Z ->
+    (0 <= wunsigned top - sz < wbase Uptr)%Z ->
+    is_align sz ws ->
+    align_top top ws sz = align_word ws top.
+  Proof.
+    move=> hpos hb hal.
+    rewrite /align_top /top_stack_after_alloc.
+    apply wunsigned_inj.
+    rewrite wunsigned_add; last first.
+    + have := align_word_range ws (top + wrepr Uptr (- sz)).
+      rewrite wrepr_opp wunsigned_sub //.
+      have := wunsigned_range top.
+      have := wunsigned_range (align_word ws (top - wrepr Uptr sz)).
+      by lia.
+    rewrite !align_wordE wrepr_opp wunsigned_sub //.
+    rewrite Zminus_mod.
+    move/eqP: hal; rewrite WArray.p_to_zE => ->.
+    rewrite Z.sub_0_r Zmod_mod.
+    by lia.
+  Qed.
+
   (* If [fn] is the export function, [sp0] is [sp] after allocating + aligning.
      Otherwise, we know only that [sp] is smaller than [sp0]. *)
   Definition max_bound fn (sp:pointer) :=
@@ -1655,20 +1658,6 @@ Section PROOF.
         & preserved_metadata s1 m1 m2
         & match_mem s2 m2
         & target_mem_unchanged m1 m2.
-
-  Lemma label_in_lfundef fn body (lbl: label) :
-    lbl \in label_in_lcmd body →
-    is_linear_of fn body →
-    (fn, lbl) \in label_in_lprog p'.
-  Proof.
-    clear.
-    rewrite /label_in_lprog => X [] fd ok_fd ?; subst body.
-    apply/flattenP => /=.
-    exists [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd) ];
-      last by apply/map_f: X.
-    apply/in_map.
-    by exists (fn, fd); first exact: get_fundef_in'.
-  Qed.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
   Proof.
@@ -2661,7 +2650,7 @@ Section PROOF.
     apply (not_between_U8_disjoint_zrange no_overflow_max0).
     move: hnpr; rewrite pointer_range_between.
     rewrite wunsigned_sub; last by have := wunsigned_range sp0; lia.
-    by ring_simplify (wunsigned sp0 - (wunsigned sp0 - max0))%Z.
+    by rewrite Z.sub_add_distr Z.sub_diag Z.sub_0_l Z.opp_involutive.
   Qed.
 
   Notation sv_of_ra := (fun ra => sv_of_option (ovar_of_ra ra)) (only parsing).
@@ -3255,7 +3244,7 @@ Section PROOF.
           + have := A.(ass_ioff).
             rewrite stk_sz_0.
             by lia.
-          rewrite /between (negbTE (zbetween_0 _ _ _)) // orbF.
+          rewrite /between (negbTE (not_zbetween_neg _ _ _ _)) // orbF.
           exact: S.
         have MAX': max_bound_sub fn (top_stack m1').
         + move=> fd''; rewrite ok_fd => -[?]; subst fd''.
