@@ -14,3 +14,7 @@ File functions.jazz:
 Failed as expected call_kills_msf: "fail/functions.jazz", line 9 (2-10):
                                    speculative constant type checker: calls destroy msf variables, {
                                     m } are required
+File inline-if-modmsf.jazz:
+Failed as expected inline_if_modmsf: "fail/inline-if-modmsf.jazz", line 18 (2-11):
+                                     speculative constant type checker: calls destroy msf variables, {
+                                      ms } are required

@@ -141,7 +141,7 @@ let is_inline i =
 let rec modmsf_i fenv i =
   match i.i_desc with
   | Csyscall _ | Cwhile _ -> true
-  | Cif _ -> not (is_inline i)
+  | Cif(_, c0, c1) -> not (is_inline i) || modmsf_c fenv c0 || modmsf_c fenv c1
   | Cassgn _ -> false
   | Copn (_, _, o, _) ->
     begin match is_special o with
