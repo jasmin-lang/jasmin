@@ -219,7 +219,7 @@ libjade-compile-to-asm:
   artifacts:
     when: always
     paths:
-    - libjade-main/src/check.tar.gz
+    - libjade/src/check.tar.gz
 
 libjade-extract-to-ec:
   stage: test
@@ -238,7 +238,7 @@ libjade-extract-to-ec:
   artifacts:
     when: always
     paths:
-    - libjade-main/proof/check.tar.gz
+    - libjade/proof/check.tar.gz
 
 test-extract-to-ec:
   stage: test
