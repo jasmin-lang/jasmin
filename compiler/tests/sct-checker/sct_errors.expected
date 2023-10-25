@@ -42,8 +42,10 @@ Failed as expected call_bad_nomodmsf2: "error_messages.jazz", line 111 (0) to li
 Failed as expected call_bad_nomodmsf3: "error_messages.jazz", line 127 (0) to line 136 (1):
                                        speculative constant type checker: annotation nomodmsf should be modmsf
 Failed as expected call_modmsf_destroys: "error_messages.jazz", line 153 (2-25):
-                                         speculative constant type checker: calls destroy msf variables, {
-                                          msf } are required
+                                         speculative constant type checker: 
+                                         this function call destroys MSFs and { msf } are required.
+                                         Trace:
+                                           the function modmsf_destroys destroys MSFs at "error_messages.jazz", line 145 (2) to line 147 (3)
 Failed as expected ret_high: "error_messages.jazz", line 160 (9-10):
                              speculative constant type checker: return type for p is #secret it should be less than #public
 Failed as expected ret_transient: "error_messages.jazz", line 164 (9-10):

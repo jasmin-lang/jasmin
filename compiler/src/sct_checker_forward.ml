@@ -93,8 +93,20 @@ let pp_vfty fmt = function
   | IsMsf -> Format.fprintf fmt "#%s" smsf
   | IsNormal ty -> pp_vty fmt ty
 
+(* Either a function does not modify the MSF, or it does at a certain location,
+   and if that location is a function call we add the trace of calls until the
+   offending instruction. *)
+type modmsf =
+  | Modified of L.i_loc * (L.i_loc * funname) list
+  | NotModified
+
+let is_Modified m =
+  match m with
+  | Modified _ -> true
+  | NotModified -> false
+
 type ty_fun = {
-    modmsf               : bool;
+    modmsf               : modmsf;
     tyin                 : vfty list;
     tyout                : vfty list;
     constraints          : C.constraints;
@@ -115,7 +127,12 @@ module FEnv = struct
 end
 
 let pp_modmsf fmt modmsf =
-  Format.fprintf fmt "%s" (if modmsf then "modmsf" else "nomodmsf")
+  let s =
+    match modmsf with
+    | Modified _ -> "modmsf"
+    | NotModified -> "nomodmsf"
+  in
+  Format.fprintf fmt "%s" s
 
 let pp_funty fmt (fname, tyfun) =
   Format.fprintf fmt
@@ -139,21 +156,32 @@ let is_inline i =
   | None   -> false
 
 let rec modmsf_i fenv i =
+  let modified_here = Modified(i.i_loc, []) in
   match i.i_desc with
-  | Csyscall _ | Cwhile _ -> true
-  | Cif(_, c0, c1) -> not (is_inline i) || modmsf_c fenv c0 || modmsf_c fenv c1
-  | Cassgn _ -> false
+  | Csyscall _ | Cwhile _ -> modified_here
+  | Cif(_, c0, c1) ->
+    if is_inline i
+    then
+      let r = modmsf_c fenv c0 in
+      if is_Modified r then r else modmsf_c fenv c1
+    else modified_here
+  | Cassgn _ -> NotModified
   | Copn (_, _, o, _) ->
     begin match is_special o with
-    | Init_msf -> true (* Lfence modify msf *)
-    | Update_msf  -> true (* not sure it is needed *)
-    | Mov_msf | Protect | Other -> false
+    | Init_msf -> modified_here (* LFENCE modifies msf *)
+    | Update_msf -> modified_here (* not sure it is needed *)
+    | Mov_msf | Protect | Other -> NotModified
     end
   | Cfor(_, _, c) -> modmsf_c fenv c
-  | Ccall (_, _, f, _) -> (FEnv.get_fty fenv f).modmsf
+  | Ccall (_, _, f, _) ->
+    match (FEnv.get_fty fenv f).modmsf with
+    | Modified (l, tr) -> Modified(i.i_loc, (l, f) :: tr)
+    | NotModified -> NotModified
 
 and modmsf_c fenv c =
-  List.exists (modmsf_i fenv) c
+  List.map (modmsf_i fenv) c
+  |> List.find_opt is_Modified
+  |> Option.default NotModified
 
 let error ~loc =
   hierror ~loc:(Lone loc) ~kind:"speculative constant type checker"
@@ -210,6 +238,27 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
 
   let checks ms xs = List.iter (check ms) xs in
 
+  let pp_modmsf_trace fmt tr =
+    let pp_item fmt (l, fn) =
+      Format.fprintf fmt
+        "@[<h>the function %s destroys MSFs at %a@]"
+        fn.fn_name
+        L.pp_iloc l
+    in
+    Format.fprintf fmt "Trace:@;<0 2>@[<v>%a@]" (pp_list "" pp_item) tr
+  in
+
+  let check_call ~loc fn modmsf ms =
+    match modmsf with
+    | Modified(l, tr) ->
+      if not (Sv.is_empty ms) && withcheck then
+        error ~loc
+          "@[<h>this function call destroys MSFs and %a are required.@]@;%a"
+          pp_vset ms
+          pp_modmsf_trace ((l, fn) :: tr)
+    | NotModified -> ()
+  in
+
   match i.i_desc with
   | Csyscall _ ->
       if not (Sv.is_empty ms) && withcheck then
@@ -253,9 +302,9 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         | IsMsf -> let x = reg_lval ~direct:true loc x in Sv.remove (L.unloc x) ms
         | _ -> ms in
       let ms = List.fold_left2 doout ms fty.tyout xs in
-      if fty.modmsf && not (Sv.is_empty ms) && withcheck then
-        error ~loc "calls destroy msf variables, %a are required" pp_vset ms;
-      ms in
+      check_call ~loc f fty.modmsf ms;
+      ms
+    in
     let doin ms vfty e =
       match vfty with
       | IsMsf -> let x = reg_expr ~direct:true loc e in Sv.add (L.unloc x) ms
@@ -1019,7 +1068,8 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let (msf, venv) = ty_lval env msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in
-    List.fold_left2 output_ty ((if modmsf then MSF.toinit else msf), venv) xs tyout
+    let msf = if is_Modified modmsf then MSF.toinit else msf in
+    List.fold_left2 output_ty (msf, venv) xs tyout
 
 and ty_cmd fenv env msf_e c =
   List.fold_left (ty_instr fenv env) msf_e c
@@ -1294,10 +1344,10 @@ let init_constraint fenv f =
         "nomodmsf", (fun a -> Annot.none a; false)] f.f_annot.f_user_annot in
   begin match umodmsf with
   | None -> ()
-  | Some umodmsf ->
-    if umodmsf <> modmsf then
-      error ~loc:f.f_loc
-        "annotation %a should be %a" pp_modmsf umodmsf pp_modmsf modmsf
+  | Some annot ->
+      if annot <> is_Modified modmsf then
+        let sannot = if annot then "modmsf" else "nomodmsf" in
+        error ~loc:f.f_loc "annotation %s should be %a" sannot pp_modmsf modmsf
   end;
 
   env, venv, tyin, tyout, modmsf
