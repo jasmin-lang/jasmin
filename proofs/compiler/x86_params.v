@@ -20,7 +20,8 @@ Require Import
   x86_decl
   x86_extra
   x86_instr_decl
-  x86_lowering.
+  x86_lowering
+  x86_stack_zeroization.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -250,8 +251,7 @@ Definition x86_agparams : asm_gen_params :=
 
 Definition x86_szparams : stack_zeroization_params :=
   {|
-    szp_cmd := fun _ _ _ _ _ _ =>
-      Error (stack_zeroization.E.error (compiler_util.pp_s "x86 not supported"))
+    szp_cmd := x86_stack_zero_cmd;
   |}.
 
 (* ------------------------------------------------------------------------ *)

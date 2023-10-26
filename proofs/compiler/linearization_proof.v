@@ -269,30 +269,6 @@ Proof.
   all: by case/andP => -> /h.
 Qed.
 
-Lemma find_labelE lbl c :
-  find_label lbl c =
-  if c is i :: c'
-  then
-    if is_label lbl i
-    then ok O
-    else Let r := find_label lbl c' in ok r.+1
-  else type_error.
-Proof.
-  case: c => // i c; rewrite /find_label /=.
-  case: (is_label lbl i) => //.
-  rewrite ltnS.
-  by case: ifP.
-Qed.
-
-Lemma find_label_cat_hd lbl c1 c2:
-  ~~ has (is_label lbl) c1 ->
-  find_label lbl (c1 ++ c2) =
-  (Let pc := find_label lbl c2 in ok (size c1 + pc)).
-Proof.
-  rewrite /find_label find_cat size_cat => /negbTE ->.
-  by rewrite ltn_add2l;case:ifP.
-Qed.
-
 (** Disjoint labels: all labels in “c” are below “lo” or above “hi”. *)
 Definition disjoint_labels (lo hi: label) (c: lcmd) : Prop :=
   ∀ lbl, (lo <= lbl < hi)%positive → ~~ has (is_label lbl) c.
@@ -344,9 +320,6 @@ Lemma valid_has_not_label fn A B P lbl :
 Proof.
   move => /(valid_disjoint_labels) - /(_ lbl (lbl + 1)%positive) V R; apply: V; lia.
 Qed.
-
-Definition LSem_step p s1 s2 :
-  lsem1 p s1 s2 -> lsem p s1 s2 := rt_step _ _ s1 s2.
 
 Lemma snot_spec gd s e b :
   sem_pexpr true gd s e = ok (Vbool b) →
@@ -1723,22 +1696,6 @@ Section PROOF.
     - exact: preserved_metadataE H.
     - exact: M.
     - exact: U.
-  Qed.
-
-  Lemma find_instrE fn body :
-    is_linear_of fn body →
-    ∀ scs m vm n,
-    find_instr p' (Lstate scs m vm fn n) = oseq.onth body n.
-  Proof. by rewrite /find_instr => - [] fd /= -> ->. Qed.
-
-  Lemma find_instr_skip fn P Q :
-    is_linear_of fn (P ++ Q) →
-    ∀ scs m vm n,
-    find_instr p' (Lstate scs m vm fn (size P + n)) = oseq.onth Q n.
-  Proof.
-    move => h scs m vm n; rewrite (find_instrE h).
-    rewrite !oseq.onth_nth map_cat nth_cat size_map.
-    rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; lia.
   Qed.
 
   Local Lemma Hasgn : sem_Ind_assgn p Pi_r.
