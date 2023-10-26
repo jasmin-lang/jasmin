@@ -95,6 +95,8 @@ compiler/x86_lowering.v
 compiler/x86_lowering_proof.v
 compiler/x86_params.v
 compiler/x86_params_proof.v
+compiler/x86_stack_zeroization.v
+compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
 lang/array.v
 lang/expr.v

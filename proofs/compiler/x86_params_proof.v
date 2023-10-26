@@ -34,7 +34,8 @@ Require Import
   x86_extra
   x86_instr_decl
   x86_lowering
-  x86_lowering_proof.
+  x86_lowering_proof
+  x86_stack_zeroization_proof.
 Require Export x86_params.
 
 Set Implicit Arguments.
@@ -958,7 +959,11 @@ Section STACK_ZEROIZATION.
 Context {call_conv : calling_convention}.
 
 Lemma x86_hszparams : h_stack_zeroization_params (ap_szp x86_params).
-Proof. done. Qed.
+Proof.
+  split.
+  + exact: x86_stack_zero_cmd_not_ext_lbl.
+  exact: x86_stack_zero_cmdP.
+Qed.
 
 End STACK_ZEROIZATION.
 

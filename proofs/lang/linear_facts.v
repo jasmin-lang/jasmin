@@ -1,4 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
+Require Import Lia Relations.
 Require Import
   utils
   psem
@@ -45,6 +46,51 @@ Proof.
   apply/in_map.
   by exists (fn, fd); first exact: get_fundef_in'.
 Qed.
+
+Lemma find_instrE p fn body :
+  is_linear_of p fn body ->
+  forall scs m vm n,
+  find_instr p (Lstate scs m vm fn n) = oseq.onth body n.
+Proof. by rewrite /find_instr => - [] fd /= -> ->. Qed.
+
+Lemma find_instr_skip p fn P Q :
+  is_linear_of p fn (P ++ Q) ->
+  forall scs m vm n,
+  find_instr p (Lstate scs m vm fn (size P + n)) = oseq.onth Q n.
+Proof.
+  move => h scs m vm n; rewrite (find_instrE h).
+  rewrite !oseq.onth_nth map_cat nth_cat size_map.
+  rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; lia.
+Qed.
+
+Definition LSem_step p s1 s2 :
+  lsem1 p s1 s2 -> lsem p s1 s2 := rt_step _ _ s1 s2.
+
+Lemma find_labelE lbl c :
+  find_label lbl c =
+  if c is i :: c'
+  then
+    if is_label lbl i
+    then ok O
+    else Let r := find_label lbl c' in ok r.+1
+  else type_error.
+Proof.
+  case: c => // i c; rewrite /find_label /=.
+  case: (is_label lbl i) => //.
+  rewrite ltnS.
+  by case: ifP.
+Qed.
+
+Lemma find_label_cat_hd lbl c1 c2:
+  ~~ has (is_label lbl) c1 ->
+  find_label lbl (c1 ++ c2) =
+  (Let pc := find_label lbl c2 in ok (size c1 + pc)).
+Proof.
+  rewrite /find_label find_cat size_cat => /negbTE ->.
+  by rewrite ltn_add2l;case:ifP.
+Qed.
+
+Section MEM_EQUIV.
 
 Lemma eval_jump_mem_eq lp r s1 s2 :
   eval_jump lp r s1 = ok s2 ->
@@ -117,5 +163,7 @@ Proof.
   move: s1 s2; apply lsem_ind => // s1 s2 s3 /lsem1_mem_equiv heq1 _ heq2.
   exact: mem_equiv_trans heq1 heq2.
 Qed.
+
+End MEM_EQUIV.
 
 End WITH_PARAMS.
