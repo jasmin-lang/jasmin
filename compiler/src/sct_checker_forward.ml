@@ -971,7 +971,6 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
        --------------------------------------------------------------------------------
        env, msf |- while c1 e c2 : enter_if e msf1
      *)
-    ensure_public env venv loc e;
     let msf1 = MSF.loop env i.i_loc msf in
     (* let w, _ = written_vars [i] in *)
     (* NOTE cannot restrict refreshed variables to local modified vars
@@ -981,6 +980,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
 
     let venv1 = Env.freshen env venv in (* venv <= venv1 *)
     let (msf2, venv2) = ty_cmd fenv env (msf1, venv1) c1 in
+    ensure_public env venv2 loc e;
     let (msf', venv') = ty_cmd fenv env (MSF.enter_if msf2 e, venv2) c2 in
     let msf' = MSF.end_loop loc msf1 msf' in
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)

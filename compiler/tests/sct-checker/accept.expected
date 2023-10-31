@@ -188,3 +188,10 @@ output corruption: #public
  constraints:
 
 
+File while.jazz:
+modmsf while_first_branch : #public * #secret ->
+#public
+output corruption: #public
+ constraints:
+
+
