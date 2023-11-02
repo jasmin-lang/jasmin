@@ -1,0 +1,13 @@
+export
+fn foo () -> reg u32 {
+  reg    u32[5] x;
+  reg    u32    z;
+  inline int _i;
+  x[0] = 0;
+  x[1] = 0;
+  x[2] = 0;
+  x[3] = 0;
+  x[4] = 0;
+  z = x[0];
+  return z;
+}

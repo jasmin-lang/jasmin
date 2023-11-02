@@ -13,26 +13,26 @@ type 'a callstyle =
 
 module type Core_arch = sig
   type reg
-  type regx 
+  type regx
   type xreg
   type rflag
   type cond
   type asm_op
   type extra_op
-  type fresh_vars
   type lowering_options
 
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
-  val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, fresh_vars, lowering_options) Arch_params.architecture_params
+  val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
 
-  val lowering_vars : Conv.coq_tbl -> fresh_vars
   val lowering_opt : lowering_options
-  val not_saved_stack : Name.t list
+  val not_saved_stack : var list
 
-  val pp_asm : Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
+  val pp_asm : Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
 
   val callstyle : reg callstyle
+
+  val known_implicits : (Name.t * string) list
 
 end
 
@@ -40,12 +40,14 @@ module type Arch = sig
   include Core_arch
 
   val reg_size : Wsize.wsize
+  val pointer_data : Wsize.wsize
+  val msf_size : Wsize.wsize
   val rip : var
 
   val asmOp      : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.asmOp
   val asmOp_sopn : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.sopn Sopn.asmOp
 
-  val reg_vars : var list
+  val reg_vars  : var list
   val regx_vars : var list
   val xreg_vars : var list
   val flag_vars : var list
@@ -64,6 +66,7 @@ module type Arch = sig
 
   val callstyle : var callstyle 
   
+  val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch

@@ -1,0 +1,15 @@
+export fn main () -> reg u64 {
+  reg u64 res;
+  reg u64 rot1 rot2;
+
+  res = 0;
+  rot1 = 0;
+  rot2 = 0;
+  res <<r= rot1 & 63;
+  res <<r= rot2 & 63;
+
+  res += rot1;
+  res += rot2;
+
+  return res;
+}

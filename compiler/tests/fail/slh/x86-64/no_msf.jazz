@@ -1,0 +1,8 @@
+export
+fn main(reg u64 x) {
+    reg u64 msf;
+
+    msf = 0;
+    x = #protect(x, msf);
+    [x] = 0;
+}

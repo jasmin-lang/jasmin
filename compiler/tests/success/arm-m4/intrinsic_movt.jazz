@@ -8,7 +8,7 @@ fn movt() -> reg u32 {
     x = #MOVT(x, 0xffff);
 
     reg bool n, z, v, c;
-    n, z, c, v, _ = #MOVS(x);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     x = #MOVTcc(x, 3, z, x);            // EQ

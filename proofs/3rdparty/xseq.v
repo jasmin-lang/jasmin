@@ -26,25 +26,11 @@ Lemma assoc_cat (s1 s2: seq (T * U)) x :
 Proof. by elim: s1 => [|[t u] s1 ih] //=; case: eqP. Qed.
 End Assoc.
 
-Lemma assocE (T: eqType) U (s : seq (T * U)) (x : T) : assoc s x =
-  nth None [seq Some v.2 | v <- s] (seq.index x [seq v.1 | v <- s]).
-Proof.
-by elim: s => // [[/= u v] s ih]; rewrite [x==u]eq_sym; case: eqP.
-Qed.
-
 Lemma assoc_mem' (T: eqType) U (s: seq (T * U)) x w :
   assoc s x = Some w → List.In (x, w) s.
 Proof.
   elim: s => // [ [t u] s ] ih /=; case: eqP; last by auto.
   by move => a /Some_inj; left; f_equal.
-Qed.
-
-Lemma mem_assoc (T: eqType) U (s: seq (T * U)) x w :
-  List.In (x, w) s → ∃ w', assoc s x = Some w'.
-Proof.
-  elim: s => // [ [t u] s] ih [ /pair_inj [] -> -> | rec ] /=.
-  by rewrite eq_refl; eauto.
-  case: (_ == _); eauto.
 Qed.
 
 Lemma InP (T: eqType) (s: seq T) m :
@@ -116,20 +102,6 @@ Qed.
 End AssocInj.
 
 (* -------------------------------------------------------------------- *)
-Section InjAssoc.
-Variables (T U : eqType) (f : T -> U).
-
-Lemma inj_assoc (s : seq T) x y w :
-     uniq s
-  -> assoc [seq (f v, v) | v <- s] x = Some w
-  -> assoc [seq (f v, v) | v <- s] y = Some w
-  -> x = y.
-Proof.
-by move=> uq_s; apply: assoc_inj; rewrite -map_comp map_inj_uniq.
-Qed.
-End InjAssoc.
-
-(* -------------------------------------------------------------------- *)
 Section AssocMap.
 Context (T: eqType) (U V: Type) (f: U → V) (g: T → U → V) (h: T * U → T * V).
 
@@ -143,16 +115,6 @@ Proof.
   case: eqP => //= ->.
   by rewrite htu.
 Qed.
-
-Lemma assoc_map m (n: T) :
-  assoc [seq (x.1, f x.2) | x <- m] n = omap f (assoc m n).
-Proof.
-  by elim: m n => // [[q r] m] ih n /=; case: eqP.
-Qed.
-
-Lemma assoc_map2 m (n: T) :
-  assoc [seq (let: (k, v) := e in (k, g k v)) | e <- m ] n = omap (g n) (assoc m n).
-Proof. by elim: m n => // - [k v] m ih n /=; case: eqP => // ->. Qed.
 
 End AssocMap.
 

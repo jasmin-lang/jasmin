@@ -6,9 +6,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
-Local Open Scope seq_scope.
-
 Section ASM_OP.
 
 Section Section.
@@ -45,7 +42,7 @@ Definition remove_assert_c  c :  cmd :=
   foldr (fun i r => remove_assert_i i ++r ) [::] c.
 
 
-Context {T} {pT:progT T}.
+Context {pT:progT}.
 
 Definition remove_assert_fd (fd:fundef) :=
   {| f_info   := fd.(f_info);
@@ -56,7 +53,6 @@ Definition remove_assert_fd (fd:fundef) :=
      f_res    := fd.(f_res);
      f_extra  := fd.(f_extra);
   |}.
-
 
 Definition remove_assert_prog (p: prog) : prog :=
   map_prog remove_assert_fd p.

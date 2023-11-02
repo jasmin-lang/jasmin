@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 # --------------------------------------------------------------------
-import sys, os, errno, re, glob, shutil, itertools, logging
+import sys, os, re, glob, itertools, logging
 import subprocess as sp, time, datetime, socket, yaml
 import collections as cl, configparser as cp
 
@@ -104,7 +104,7 @@ def _options():
             parser.error('timeout must be positive')
 
     if cmdopt.jobs <= 0:
-        parse.error('jobs must be positive')
+        parser.error('jobs must be positive')
 
     options = Object(scenarios = dict())
     options.timeout  = cmdopt.timeout
@@ -113,7 +113,7 @@ def _options():
 
     defaults = dict(args = '', exclude = '', okdirs = '', kodirs = '', bin = '')
 
-    config = cp.SafeConfigParser(defaults)
+    config = cp.ConfigParser(defaults)
     config.read(args[0])
 
     def resolve_targets(names):
@@ -133,12 +133,6 @@ def _options():
     if cmdopt.bin_args:
         options.args.extend(itertools.chain.from_iterable( \
           x.split() for x in cmdopt.bin_args))
-
-    def _parse_timeout(x):
-        m = re.search(r'^(.*):(\d+)$', x)
-        if m is None:
-            parse.parseerror('invalid timeout: %s' % (x,))
-        return (m.group(1), int(m.group(2)))
 
     for test in [x for x in config.sections() if x.startswith('test-')]:
         scenario = Object()
@@ -165,7 +159,6 @@ def _dump_report(config, results, out):
         grouped.setdefault(result.config.group, []).append(result)
 
     for gname, group in grouped.items():
-        ok   = [x for x in group if     x.success]
         ko   = [x for x in group if not x.success]
         node = cl.OrderedDict()
 
@@ -201,7 +194,7 @@ def _dump_report(config, results, out):
 
 # --------------------------------------------------------------------
 def _run_test(config, options):
-    logging.info("running ec on `%s' [valid: %s]" % \
+    logging.info("running jasmin on `%s' [valid: %s]" % \
                      (config.filename, config.isvalid))
 
     timestamp = time.time()
@@ -213,13 +206,14 @@ def _run_test(config, options):
         command.extend([config.filename])
 
         logging.info('command: %r' % (command,))
+        config.command = command
         process = sp.Popen(command, stdout = sp.PIPE, stderr = sp.PIPE)
 
         try:
-            out, err = process.communicate()
+            _, err = process.communicate()
             status   = process.poll()
         finally:
-            try   : sp.kill()
+            try   : process.kill()
             except: pass
     except OSError as e:
         logging.error("cannot run `%s': %s" % (binary, e))
@@ -227,8 +221,9 @@ def _run_test(config, options):
     timestamp = time.time() - timestamp
     success   = (bool(status) != bool(config.isvalid))
 
+
     logging.info("result for `%s': success: %s" % \
-                     (config.filename, rcolor(success, success)))
+                     (config.command, rcolor(success, success)))
 
     return Object(success = success  ,
                   config  = config   ,
@@ -250,7 +245,7 @@ def _main():
         format = logfmt)
 
     # ------------------------------------------------------------------
-    def gather(obj, scenario):
+    def gather(obj):
         logging.debug("gathering scripts in `%s'" % (obj.src,))
         try:
             scripts = os.listdir(obj.src)
@@ -293,12 +288,12 @@ def _main():
         dirs.extend([Object(src = x, valid = False, **data) \
                          for x in expand(scenario.kodirs)])
         dirs = [x for x in dirs if x.src not in expand(scenario.exclude)]
-        dirs = map(lambda x : gather(x, scenario), dirs)
+        dirs = map(gather, dirs)
         return list(itertools.chain.from_iterable(dirs))
 
     def gatherall():
         dirs = [options.scenarios[x] for x in options.targets]
-        dirs = map(lambda x : gather_for_scenario(x), dirs)
+        dirs = map(gather_for_scenario, dirs)
         return list(itertools.chain.from_iterable(dirs))
 
     allscripts = gatherall()

@@ -11,33 +11,37 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #ADD(arg0, 1);
     [x] = x;
     x = #ADD(arg0, -1);
+    x = #ADD(x, 0xcacacaca); // `bbbb` pattern.
+    x = #ADD(x, 0xca00ca00); // `b0b0` pattern.
+    x = #ADD(x, 0x00ca00ca); // `0b0b` pattern.
+    x = #ADD(x, 0x000cb000); // Shifted.
+    x = #ADD(x, 0x00000aca); // W-encoding of 12-bits.
     [x] = x;
 
     // Shifts.
-    x = #ADD(arg0, arg1, #LSL(0));
+    x = #ADD(arg0, arg1 << 0);
     [x] = x;
-    x = #ADD(arg0, arg1, #LSL(1));
+    x = #ADD(arg0, arg1 << 1);
     [x] = x;
-    x = #ADD(arg0, arg1, #LSL(31));
+    x = #ADD(arg0, arg1 << 31);
     [x] = x;
-    x = #ADD(arg0, arg1, #LSR(1));
+    x = #ADD(arg0, arg1 >> 1);
     [x] = x;
-    x = #ADD(arg0, arg1, #LSR(31));
+    x = #ADD(arg0, arg1 >> 31);
     [x] = x;
-    x = #ADD(arg0, arg1, #ASR(1));
+    x = #ADD(arg0, arg1 >>s 1);
     [x] = x;
-    x = #ADD(arg0, arg1, #ASR(31));
+    x = #ADD(arg0, arg1 >>s 31);
     [x] = x;
-    x = #ADD(arg0, arg1, #ROR(1));
+    x = #ADD(arg0, arg1 >>r 1);
     [x] = x;
-    x = #ADD(arg0, arg1, #ROR(31));
+    x = #ADD(arg0, arg1 >>r 31);
     [x] = x;
 
     // Set flags.
     nf, zf, cf, vf, x = #ADDS(x, arg0);
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
 
     // EQ
     x = #ADDcc(arg0, arg1, zf, x);
@@ -71,24 +75,28 @@ fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
     // Combinations.
     nf, zf, cf, vf, x = #ADDScc(x, arg0, nf == vf, nf, zf, cf, vf, x);
     nf, zf, cf, vf, x = #ADDS(x, 2);
-    nf, zf, cf, vf, x = #ADDS(x, arg0, #LSL(3));
-    nf, zf, cf, vf, x = #ADDS(x, arg0, #LSR(3));
-    nf, zf, cf, vf, x = #ADDS(x, arg0, #ASR(3));
-    nf, zf, cf, vf, x = #ADDS(x, arg0, #ROR(3));
+    ?{}, x = #ADDS(x, 0xcacacaca);
+    ?{}, x = #ADDS(x, 0xca00ca00);
+    ?{}, x = #ADDS(x, 0x00ca00ca);
+    ?{}, x = #ADDS(x, 0x00cb0000);
+    nf, zf, cf, vf, x = #ADDS(x, arg0 << 3);
+    nf, zf, cf, vf, x = #ADDS(x, arg0 >> 3);
+    nf, zf, cf, vf, x = #ADDS(x, arg0 >>s 3);
+    nf, zf, cf, vf, x = #ADDS(x, arg0 >>r 3);
     nf, zf, cf, vf, x = #ADDScc(x, 2, nf == vf, nf, zf, cf, vf, x);
-    nf, zf, cf, vf, x = #ADDScc(x, arg0, #LSL(3), nf == vf, nf, zf, cf, vf, x);
-    nf, zf, cf, vf, x = #ADDScc(x, arg0, #LSL(3), !!(nf == vf), nf, zf, cf, vf, x);
-    nf, zf, cf, vf, x = #ADDScc(x, arg0, #LSR(3), nf == vf, nf, zf, cf, vf, x);
-    nf, zf, cf, vf, x = #ADDScc(x, arg0, #ASR(3), nf == vf, nf, zf, cf, vf, x);
-    nf, zf, cf, vf, x = #ADDScc(x, arg0, #ROR(3), nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #ADDScc(x, arg0 << 3, nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #ADDScc(x, arg0 << 3, !!(nf == vf), nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #ADDScc(x, arg0 >> 3, nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #ADDScc(x, arg0 >>s 3, nf == vf, nf, zf, cf, vf, x);
+    nf, zf, cf, vf, x = #ADDScc(x, arg0 >>r 3, nf == vf, nf, zf, cf, vf, x);
     x = #ADDcc(x, arg0, !!!!zf, x);
     x = #ADDcc(x, 2, zf, x);
     x = #ADDcc(x, 2, !!zf, x);
-    x = #ADDcc(x, arg0, #LSL(3), zf, x);
-    x = #ADDcc(x, arg0, #LSL(3), !!zf, x);
-    x = #ADDcc(x, arg0, #LSR(3), zf, x);
-    x = #ADDcc(x, arg0, #ASR(3), zf, x);
-    x = #ADDcc(x, arg0, #ROR(3), zf, x);
+    x = #ADDcc(x, arg0 << 3, zf, x);
+    x = #ADDcc(x, arg0 << 3, !!zf, x);
+    x = #ADDcc(x, arg0 >> 3, zf, x);
+    x = #ADDcc(x, arg0 >>s 3, zf, x);
+    x = #ADDcc(x, arg0 >>r 3, zf, x);
 
     reg u32 res;
     res = x;

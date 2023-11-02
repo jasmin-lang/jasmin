@@ -487,7 +487,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
   (* We compute the dependency heuristic graph *)
   let pa_res = Pa.pa_make PW.main (Some PW.prog)
 
-  (* We compute the reflexive and transitive clojure of dp *)
+  (* We compute the reflexive and transitive closure of dp *)
   let dp = trans_closure pa_res.pa_dp
 
   (* We are relational on a variable v iff:
@@ -578,11 +578,8 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
      must be uniquely characterized by their names. *)
   let ssa_main, pa_res =
     (* FIXME: code duplication! dirty hack *)
-    let is_move_op =
-      X86_params.x86_params.ap_is_move_op
-    in
-    let asmOp = Arch_extra.asm_opI X86_extra.x86_extra in
-    FSPa.fs_pa_make asmOp is_move_op PW.main
+    let asmOp = Arch_extra.asm_opI X86_arch_full.X86_core.asm_e in
+    FSPa.fs_pa_make X86_decl.x86_decl.reg_size asmOp PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp

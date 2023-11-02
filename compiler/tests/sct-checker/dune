@@ -1,0 +1,25 @@
+(library
+  (name common)
+  (wrapped false)
+  (libraries jasmin.jasmin)
+  (flags -rectypes)
+  (modules common))
+
+(tests
+  (libraries jasmin.jasmin common)
+  (deps
+    error_messages.jazz)
+  (flags -rectypes)
+  (modules sct_errors)
+  (names
+    sct_errors))
+
+(tests
+  (libraries jasmin.jasmin common)
+  (deps
+    (glob_files success/*)
+    (glob_files fail/*))
+  (flags -rectypes)
+  (modules accept reject)
+  (names
+    accept reject))

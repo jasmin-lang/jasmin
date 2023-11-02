@@ -1,0 +1,24 @@
+/* This `if` will be removed by constant propagation, and the `update_msf`
+   changed appropriately.
+   This pattern can happen when we need to convince the type-checker that some
+   code is SCT, but the condition depends on a parameter that will be resolved
+   at compile time. */
+
+export
+fn foo(reg u64 x) -> reg u64 {
+    reg u64 msf;
+    msf = #init_msf();
+
+    inline bool b;
+    b = (x == x);
+    if (b) {
+      msf = #update_msf(b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+    reg u64 r;
+    r = x;
+    r = #protect(r, msf);
+    return r;
+}

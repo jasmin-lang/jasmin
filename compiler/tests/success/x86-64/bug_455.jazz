@@ -1,0 +1,11 @@
+export
+fn main(reg u64 y) {
+    reg u64 x;
+
+    // Commenting either of the following two lines makes compilation succeed.
+    x = #MOV(y);  // Using x = y; makes compilation succeed.
+    x = 1;
+
+    x = y if x == 0;
+    [x] = x;
+}

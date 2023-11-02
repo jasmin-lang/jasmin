@@ -18,7 +18,6 @@ Require Import
   linearization
   linearization_proof
   lowering
-  propagate_inline_proof
   stack_alloc
   stack_alloc_proof.
 Require
@@ -41,61 +40,15 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
-Lemma vmap_eq_except_wf_vm vm vm' x v :
-  wf_vm vm
-  -> vm' = vm [\ Sv.singleton x ]
-  -> get_var vm' x = ok v
-  -> wf_vm vm'.
-Proof.
-  move=> hwf_vm hvm' hgetx.
-  move=> y.
-  case: (x =P y) => hy.
-  - subst y. move: hgetx. rewrite /get_var. by case: vm'.[x]%vmap => [|[]].
-  rewrite hvm'; first by apply: hwf_vm.
-  exact: (Sv_neq_not_in_singleton hy).
-Qed.
-
-
 Section Section.
 
 Context
+  {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
-(* ------------------------------------------------------------------------ *)
-(* Flag combination hypotheses. *)
-
-Lemma arm_cf_xsemP gd s e0 e1 e2 e3 cf v :
-  let: e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
-  let: e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
-  sem_pexpr gd s e = ok v
-  -> sem_pexpr gd s e' = ok v.
-Proof.
-  rewrite /=.
-
-  t_xrbindP=> vs0 v0 hv0 vs1 v1 hv1 vs2 v2 hv2 vs3 v3 hv3 ? ? ? ?;
-    subst vs0 vs1 vs2 vs3.
-  rewrite /sem_opN /=.
-  t_xrbindP=> b b0 hb0 b1 hb1 b2 hb2 b3 hb3 hb ?; subst v.
-  move: hb0 => /to_boolI ?; subst v0.
-  move: hb1 => /to_boolI ?; subst v1.
-  move: hb2 => /to_boolI ?; subst v2.
-  move: hb3 => /to_boolI ?; subst v3.
-
-  move: hb.
-  rewrite /sem_combine_flags.
-  rewrite /cf_xsem.
-
-  case: cf_tbl => -[] [] [?] /=; subst b.
-  all: by rewrite ?hv0 ?hv1 ?hv2 ?hv3.
-Qed.
-
-Definition arm_hpiparams : h_propagate_inline_params :=
-  {|
-    pip_cf_xsemP := arm_cf_xsemP;
-  |}.
+#[local] Existing Instance withsubword.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
@@ -108,30 +61,50 @@ Context
 
 End STACK_ALLOC.
 
-Lemma arm_mov_ofsP (P': sprog) s1 e i x tag ofs w vpk s2 ins :
+Lemma arm_mov_ofsP {dc : DirectCall} (P': sprog) s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
-  -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs arm_saparams x tag vpk e ofs = Some ins
-  -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+  -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
   -> psem.sem_i (pT := progStack) P' w s1 ins s2.
 Proof.
-  move=> P'_globs he [?] hx; subst ins.
-  constructor.
-  rewrite /sem_sopn /=.
-  rewrite P'_globs.
-  rewrite /exec_sopn /=.
-  move: he.
-  t_xrbindP=> ? -> /= -> /=.
-  rewrite zero_extend_u.
-  by rewrite hx.
+  rewrite /sap_mov_ofs /= /arm_mov_ofs => P'_globs.
+  t_xrbindP => z ok_z ok_i.
+  case: (mk_mov vpk).
+  + move => /Some_inj <-{ins} hx; constructor.
+    rewrite /sem_sopn /= P'_globs /exec_sopn.
+    case: eqP hx.
+    - by move => -> {ofs}; rewrite wrepr0 GRing.addr0 ok_z /= ok_i /= => ->.
+    by move => _ hx; rewrite /= /sem_sop2 ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+  case: x => //.
+  + move=> x_; move: (Lvar x_) => x.
+    case: ifP; case: eqP => [-> | _ ] _ // /Some_inj <-{ins} hx; constructor.
+    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
+      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
+    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /=.
+      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
+    by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+  move=> ws_ x_ e_; move: (Lmem ws_ x_ e_) => {ws_ x_ e_} x.
+  case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; constructor.
+  rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
+  by move: hx; rewrite wrepr0 GRing.addr0 => ->.
 Qed.
 
-Definition arm_hsaparams is_regx :
-  h_stack_alloc_params (ap_sap arm_params is_regx) :=
+Lemma arm_immediateP {dc : DirectCall} (P': sprog) w s (x: var_i) z :
+  vtype x = sword Uptr
+  -> psem.sem_i (pT := progStack) P' w s (arm_immediate x z) (with_vm s (evm s).[x <- Vword (wrepr Uptr z)]).
+Proof.
+  case: x => - [] [] // [] // x xi _ /=.
+  constructor.
+  by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
+Qed.
+
+Definition arm_hsaparams {dc : DirectCall} :
+  h_stack_alloc_params (ap_sap arm_params)  :=
   {|
     mov_ofsP := arm_mov_ofsP;
+    sap_immediateP := arm_immediateP;
   |}.
-
 
 (* ------------------------------------------------------------------------ *)
 (* Linearization hypotheses. *)
@@ -164,13 +137,6 @@ Notation x :=
     v_info := vi;
   |}.
 
-(* Try to rewrite and clear all equalities in the context. *)
-Ltac t_rewrite_eqs :=
-  repeat
-    match goal with
-    | [ h : _ = _ |- _ ] => rewrite !h /=; clear h
-    end.
-
 (* Most ARM instructions with default options are executed as follows:
    1. Unfold instruction execution definitions, e.g. [eval_instr].
    2. Rewrite argument hypotheses, i.e. [sem_pexpr].
@@ -178,43 +144,66 @@ Ltac t_rewrite_eqs :=
       [pword_of_word].
    4. Rewrite result hypotheses, i.e. [write_lval].
  *)
+
 Ltac t_arm_op :=
-  rewrite /eval_instr /= /sem_sopn /= /get_gvar /=;
-  t_rewrite_eqs;
+  rewrite /eval_instr /= /sem_sopn /= /exec_sopn /get_gvar /=;
+  t_simpl_rewrites;
   rewrite /of_estate /= /with_vm /=;
-  rewrite ?zero_extend_u ?pword_of_wordE;
-  t_rewrite_eqs.
+  repeat rewrite truncate_word_u /=;
+  rewrite ?zero_extend_u addn1;
+  t_simpl_rewrites.
+
+Lemma arm_op_addi_eval_instr lp ls ii y imm wy :
+  get_var true (lvm ls) (v_var y) = ok (Vword wy)
+  -> let: li := li_of_fopn_args ii (arm_op_addi x y imm) in
+     let: wx' := Vword (wy + wrepr reg_size imm)in
+     let: vm' := (lvm ls).[v_var x <- wx'] in
+     eval_instr lp li ls = ok (next_vm_ls ls vm').
+Proof. move=> ?. by t_arm_op. Qed.
 
 Lemma arm_op_subi_eval_instr lp ls ii y imm wy :
-  get_var (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_copn_args ii (arm_op_subi x y imm) in
-     let: wx' := (wy - wrepr reg_size imm)%R in
-     let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wx')]%vmap in
+  get_var true (lvm ls) (v_var y) = ok (Vword wy)
+  -> let: li := li_of_fopn_args ii (arm_op_subi x y imm) in
+     let: wx' := Vword (wy - wrepr reg_size imm)in
+     let: vm' := (lvm ls).[v_var x <- wx'] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite wsub_wnot1 addn1. Qed.
+Proof. move=> ?. t_arm_op. by rewrite wsub_wnot1. Qed.
 
-Lemma arm_op_align_eval_instr lp ls ii y al wy :
-  get_var (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_copn_args ii (arm_op_align x y al) in
-     let: wx' := align_word al wy in
-     let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wx')]%vmap in
+Lemma arm_op_align_eval_instr lp ls ii y al (wy:word Uptr) :
+  get_var true (lvm ls) (v_var y) = ok (Vword wy)
+  -> let: li := li_of_fopn_args ii (arm_op_align x y al) in
+     let: wx' := Vword (align_word al wy) in
+     let: vm' := (lvm ls).[v_var x <- wx'] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite addn1. Qed.
+Proof.
+  move=> hgety.
+  Opaque wsize_size.
+  t_arm_op.
+  Transparent wsize_size.
+  by rewrite wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
+Qed.
 
-Lemma arm_op_mov_eval_instr lp ls ii y wy :
-  get_var (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_copn_args ii (arm_op_mov x y) in
-     let: vm' := (lvm ls).[v_var x <- ok (pword_of_word wy)]%vmap in
+Lemma arm_op_mov_eval_instr lp ls ii y (wy: word Uptr) :
+  get_var true (lvm ls) (v_var y) = ok (Vword wy)
+  -> let: li := li_of_fopn_args ii (arm_op_mov x y) in
+     let: vm' := (lvm ls).[v_var x <- Vword wy] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
-Proof. move=> hgety. t_arm_op. by rewrite addn1. Qed.
+Proof. move=> hgety. by t_arm_op. Qed.
+
+Lemma arm_op_movi_eval_instr lp ls ii imm :
+  (is_expandable imm \/ is_w16_encoding imm) ->
+  let: li := li_of_fopn_args ii (arm_op_movi x imm) in
+  let: vm' := (lvm ls).[v_var x <- Vword (wrepr U32 imm)] in
+  eval_instr lp li ls = ok (next_vm_ls ls vm').
+Proof. move=> _. by t_arm_op. Qed.
 
 Lemma arm_op_str_off_eval_instr lp ls m' ii y off wx (wy : word reg_size) :
-  get_var (lvm ls) (v_var x) = ok (Vword wx)
-  -> get_var (lvm ls) (v_var y) = ok (Vword wy)
+  get_var true (lvm ls) (v_var x) = ok (Vword wx)
+  -> get_var true (lvm ls) (v_var y) = ok (Vword wy)
   -> write (lmem ls) (wx + wrepr Uptr off)%R wy = ok m'
-  -> let: li := li_of_copn_args ii (arm_op_str_off y x off) in
+  -> let: li := li_of_fopn_args ii (arm_op_str_off y x off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
-Proof. move=> hgety hgetx hwrite. t_arm_op. by rewrite addn1. Qed.
+Proof. move=> hgety hgetx hwrite. by t_arm_op. Qed.
 
 End ARM_OP.
 
@@ -336,7 +325,7 @@ Proof.
 
   - rewrite wbit_lower_bits_0 /=; first done.
     + by have := Zle_0_nat i.
-    rewrite wbaseE /= in hn.
+    rewrite wbaseE /= /arm_reg_size in hn.
     lia.
 
   rewrite (wbit_higher_bits_0 (n := 16) _ hlbs); first last.
@@ -355,8 +344,8 @@ Qed.
 
 Lemma arm_cmd_load_large_imm_lsem lp fn s ii P Q xname imm :
   let: x := {| vname := xname; vtype := sword reg_size; |} in
-  let: xi := {| v_var := x; v_info := dummy_var_info; |} in
-  let: lcmd := map (li_of_copn_args ii) (arm_cmd_load_large_imm xi imm) in
+  let: xi := mk_var_i x in
+  let: lcmd := map (li_of_fopn_args ii) (arm_cmd_load_large_imm xi imm) in
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> (0 <= imm < wbase reg_size)%Z
   -> exists vm',
@@ -371,49 +360,56 @@ Lemma arm_cmd_load_large_imm_lsem lp fn s ii P Q xname imm :
          |}
        in
        [/\ lsem lp ls ls'
-         , vm' = lvm ls [\ Sv.singleton x ]
-         & get_var vm' x = ok (Vword (wrepr reg_size imm))
+         , vm' =[\ Sv.singleton x ] lvm ls
+         & get_var true vm' x = ok (Vword (wrepr reg_size imm))
        ].
 Proof.
-  set x := {| v_var := _; |}.
+  set x := {| vname := _; |}.
   rewrite /arm_cmd_load_large_imm /=.
+
+  case: orP => [himm | _].
+  - move=> hbody _.
+    eexists; split.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step (find_instr_skip hbody) /=.
+      exact: arm_op_movi_eval_instr.
+    + move=> v /Sv.singleton_spec ?. by t_vm_get.
+    by t_get_var.
 
   case hdivmod: Z.div_eucl => [hbs lbs] /=.
   move=> hbody himm.
 
-  eexists.
-  split.
+  eexists; split.
   - apply: lsem_step2; rewrite /lsem1 /step /of_estate.
     + rewrite -(addn0 (size P)).
       rewrite (find_instr_skip hbody) /=.
       rewrite /eval_instr /= /with_vm /= /of_estate /=.
-      rewrite zero_extend_u pword_of_wordE addn0.
+      rewrite /exec_sopn /= truncate_word_u /= addn0.
       reflexivity.
 
     rewrite -addn1.
     rewrite (find_instr_skip hbody) /=.
     rewrite /eval_instr /=.
     rewrite /sem_sopn /= /get_gvar /=.
-    rewrite get_var_eq /=.
+    rewrite get_var_eq //=.
     rewrite /with_vm /= /of_estate /=.
-    rewrite !zero_extend_u.
+    rewrite /exec_sopn /= !truncate_word_u /=.
     rewrite (mov_movt himm hdivmod).
-    rewrite pword_of_wordE.
     rewrite addn1 -addn2.
     reflexivity.
 
-  - move=> v hv. move: hv => /Sv.singleton_spec ?. by t_vm_get.
+  - move=> v /Sv.singleton_spec ?. by t_vm_get.
 
   by t_get_var.
 Qed.
 
 Lemma arm_cmd_large_subi_lsem lp fn s ii P Q xname y imm wy :
   let: x := {| vname := xname; vtype := sword Uptr; |} in
-  let: xi := {| v_var := x; v_info := dummy_var_info; |} in
-  let: lcmd := map (li_of_copn_args ii) (arm_cmd_large_subi xi y imm) in
+  let: xi := mk_var_i x in
+  let: lcmd := map (li_of_fopn_args ii) (arm_cmd_large_subi xi y imm) in
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> x <> v_var y
-  -> get_var (evm s) (v_var y) = ok (Vword wy)
+  -> get_var true (evm s) (v_var y) = ok (Vword wy)
   -> (0 <= imm < wbase reg_size)%Z
   -> exists vm',
        let: ls := of_estate s fn (size P) in
@@ -427,16 +423,38 @@ Lemma arm_cmd_large_subi_lsem lp fn s ii P Q xname y imm wy :
          |}
        in
        [/\ lsem lp ls ls'
-         , vm' = evm s [\ Sv.singleton x ]
-         & get_var vm' x = ok (Vword (wy - wrepr reg_size imm)%R)
+         , vm' =[\ Sv.singleton x ] evm s
+         & get_var true vm' x = ok (Vword (wy - wrepr reg_size imm)%R)
        ].
 Proof.
-  set x := {| v_var := _; |}.
+  set x := {| vname := _; |}.
   move=> hbody hxy hgety himm.
-
   move: hbody.
-  rewrite /arm_cmd_large_subi /=.
-  rewrite /arm_cmd_large_arith_imm /=.
+  rewrite /arm_cmd_large_subi /arm_cmd_large_arith_imm /=.
+
+  case: ZeqbP => [? | _].
+  - subst imm.
+    move=> hbody.
+    eexists; split.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step (find_instr_skip hbody) /=.
+      apply: arm_op_mov_eval_instr.
+      exact: hgety.
+    + move=> v /Sv.singleton_spec ?. by t_vm_get.
+    rewrite wrepr0 GRing.subr0 /=.
+    by t_get_var.
+
+  case hexp: is_expandable.
+  - move=> hbody.
+    eexists; split.
+    + apply: LSem_step.
+      rewrite -(addn0 (size P)) /lsem1 /step (find_instr_skip hbody) /=.
+      apply: arm_op_subi_eval_instr.
+      exact: hgety.
+    + move=> v /Sv.singleton_spec ?. by t_vm_get.
+    by t_get_var.
+
+  clear hexp.
   rewrite map_cat.
   rewrite -(catA _ _ Q).
   move=> hbody.
@@ -456,22 +474,22 @@ Proof.
     rewrite (find_instr_skip hbody) /=.
 
     have {hgety} hgety :
-      get_var vm' y = ok (Vword wy).
-    + rewrite (get_var_eq_except _ hvm) /=; first exact: hgety.
+      get_var true vm' y = ok (Vword wy).
+    + rewrite (get_var_eq_ex _ _ hvm) /=; first exact: hgety.
       exact: (Sv_neq_not_in_singleton hxy).
 
     rewrite /eval_instr /=.
     rewrite /sem_sopn /=.
     rewrite /get_gvar /=.
     rewrite hgetx hgety {hgetx hgety} /=.
-    rewrite pword_of_wordE !zero_extend_u.
+    rewrite /exec_sopn /= !truncate_word_u /=.
     rewrite /of_estate /with_vm /=.
     rewrite wsub_wnot1.
     rewrite !size_cat addn0 -addn1 addnA /=.
     reflexivity.
 
   - move=> z hz.
-    rewrite Fv.setP_neq.
+    rewrite Vm.setP_neq.
     + rewrite -(hvm z hz) /=; first done.
     apply/eqP.
     SvD.fsetdec.
@@ -479,95 +497,43 @@ Proof.
   by t_get_var.
 Qed.
 
-Context
-  (lp : lprog)
-  (sp_rsp : Ident.ident)
-  (fn : funname).
-
-Let vrsp : var := mk_ptr sp_rsp.
-Let vrspi : var_i := VarI vrsp dummy_var_info.
-Let vtmp : var := mk_ptr (lip_tmp arm_liparams).
-Let vtmpi : var_i := VarI vtmp dummy_var_info.
-
-Lemma arm_spec_lip_allocate_stack_frame s pc ii ts sz :
-  let args := lip_allocate_stack_frame arm_liparams vrspi sz in
-  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let ts' := pword_of_word (ts - wrepr Uptr sz) in
-  let s' := with_vm s (evm s).[vrsp <- ok ts']%vmap in
-  (evm s).[vrsp]%vmap = ok (pword_of_word ts)
-  -> eval_instr lp i (of_estate s fn pc)
-     = ok (of_estate s' fn pc.+1).
+Lemma arm_spec_lip_allocate_stack_frame :
+  allocate_stack_frame_correct arm_liparams.
 Proof.
-  move=> /= hvm.
-  rewrite /eval_instr /=.
-  rewrite /sem_sopn /=.
-  rewrite /get_gvar /get_var /on_vu /=.
-  rewrite hvm /=.
-  rewrite pword_of_wordE.
-  rewrite wsub_wnot1.
-  by rewrite zero_extend_u zero_extend_wrepr.
+  move=> lp sp_rsp fn s pc ii ts sz hvm.
+  rewrite -addn1.
+  apply: arm_op_subi_eval_instr.
+  by rewrite /get_var hvm.
 Qed.
 
-Lemma arm_spec_lip_free_stack_frame s pc ii ts sz :
-  let args := lip_free_stack_frame arm_liparams vrspi sz in
-  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  let ts' := pword_of_word (ts + wrepr Uptr sz) in
-  let s' := with_vm s (evm s).[vrsp <- ok ts']%vmap in
-  (evm s).[vrsp]%vmap = ok (pword_of_word ts)
-  -> eval_instr lp i (of_estate s fn pc)
-     = ok (of_estate s' fn pc.+1).
+Lemma arm_spec_lip_free_stack_frame :
+  free_stack_frame_correct arm_liparams.
 Proof.
-  move=> /= hvm.
-  rewrite /eval_instr /=.
-  rewrite /sem_sopn /=.
-  rewrite /get_gvar /get_var /on_vu /=.
-  rewrite hvm /=.
-  rewrite pword_of_wordE.
-  by rewrite zero_extend_u zero_extend_wrepr.
+  move=> lp sp_rsp fn s pc ii ts sz hvm.
+  rewrite -addn1.
+  apply: arm_op_addi_eval_instr.
+  by rewrite /get_var hvm.
 Qed.
 
-Lemma arm_spec_lip_set_up_sp_register s r ts al sz P Q :
-  let: ts' := align_word al (ts - wrepr Uptr sz) in
-  let: lcmd := set_up_sp_register arm_liparams vrspi sz al r in
-  is_linear_of lp fn (P ++ lcmd ++ Q)
-  -> isSome (lip_set_up_sp_register arm_liparams vrspi sz al r)
-  -> vtype r = sword reg_size
-  -> vtmp <> vrsp
-  -> vname (v_var r) \notin (lip_not_saved_stack arm_liparams)
-  -> v_var r <> vrsp
-  -> get_var (evm s) vrspi = ok (Vword ts)
-  -> wf_vm (evm s)
-  -> exists vm',
-       let: ls := of_estate s fn (size P) in
-       let: s' := with_vm s vm' in
-       let: ls' := of_estate s' fn (size P + size lcmd) in
-       let: vars := Sv.add (v_var r) (Sv.add vtmp (Sv.add vrsp vflags)) in
-       [/\ lsem lp ls ls'
-         , wf_vm vm'
-         , vm' = (evm s) [\ vars ]
-         , get_var vm' vrspi = ok (Vword ts')
-         , get_var vm' r = ok (Vword ts)
-         & forall x,
-             Sv.In x vflags
-             -> ~ is_ok (vm'.[x]%vmap)
-             -> (evm s).[x]%vmap = vm'.[x]%vmap
-       ].
+Lemma arm_spec_lip_set_up_sp_register :
+  set_up_sp_register_correct arm_liparams.
 Proof.
+  move=> lp sp_rsp fn  s r ts al sz P Q .
   set ts' := align_word _ _.
   move: r => [[rtype rname] rinfo] /=.
   set r := {| v_info := rinfo; |}.
-
+  set vtmp := {| vname := arm_tmp; |}.
+  set vtmpi := mk_var_i vtmp.
+  set vrsp := {| vname := sp_rsp; |}.
+  set vrspi := mk_var_i vrsp.
   move=>
-    hbody hset_up ? hneq_tmp_rsp hnot_saved_stack hneq_r_rsp hgetrsp hwf_vm;
+    /oassertP_isSome [hset_up _]
+    hbody hneq_tmp_rsp hgetrsp ? hnot_saved_stack hneq_r_rsp;
     subst rtype.
-
-  move: hset_up.
-  rewrite /arm_set_up_sp_register.
-  case: ifP => // hset_up _.
 
   have hneq_r_tmp :
     v_var r <> vtmp.
-  - move=> [h]. move: hnot_saved_stack. by rewrite mem_seq1 h.
+  - move=> [h]. move: hnot_saved_stack. by rewrite mem_seq1 h eqxx.
   clear hnot_saved_stack.
 
   move: hbody.
@@ -583,14 +549,14 @@ Proof.
   move=> hbody.
 
   (* We need [vm1] before [eexists]. *)
-  set vm0 := (evm s).[v_var r <- ok (pword_of_word ts)]%vmap.
+  set vm0 := (evm s).[v_var r <- Vword ts].
 
   have hsz : (0 <= sz < wbase reg_size)%Z.
   - by move: hset_up => /andP [] /ZleP hlo /ZltP hhi.
   clear hset_up.
 
   have hgetrsp0 :
-    get_var vm0 vrsp = ok (Vword ts).
+    get_var true vm0 vrsp = ok (Vword ts).
   + rewrite get_var_neq; first exact: hgetrsp.
     exact: hneq_r_rsp.
 
@@ -602,8 +568,8 @@ Proof.
       hgetrsp0
       hsz.
 
-  set vm2 := vm1.[vtmp <- ok (pword_of_word ts')]%vmap.
-  set vm3 := vm2.[vrsp <- ok (pword_of_word ts')]%vmap.
+  set vm2 := vm1.[vtmp <- Vword ts'].
+  set vm3 := vm2.[vrsp <- Vword ts'].
 
   exists vm3; split.
 
@@ -615,7 +581,6 @@ Proof.
       rewrite -catA in hbody.
       rewrite -{1}(addn0 (size P)).
       rewrite (find_instr_skip hbody) /=.
-
       exact:
         (arm_op_mov_eval_instr
            _
@@ -657,16 +622,12 @@ Proof.
       rewrite onth_cat lt_nm_n sub_nmn /=.
 
       have hgettmp2 :
-        get_var vm2 vtmp = ok (Vword ts').
+        get_var true vm2 vtmp = ok (Vword ts').
       * by rewrite get_var_eq.
 
      rewrite !size_cat /=.
-     rewrite
-       -(addn1 1)
-       (addnA _ 1 1)
-       (addn1 (_ + 1))
-       (addnS (_ + _) _)
-       -(addn1 (_ + _ + _)).
+     have -> : forall m n, m + 1 + (n + 2) = m + 1 + (n + 1) + 1.
+     - move=> ??. by rewrite -!addnA.
      exact:
         (arm_op_mov_eval_instr
            _
@@ -674,10 +635,6 @@ Proof.
            _ _ _
            (y := vtmpi)
            hgettmp2).
-
-  - repeat apply: wf_vm_set.
-    apply: (vmap_eq_except_wf_vm _ hvm1 hgettmp1).
-    exact: (wf_vm_set _ hwf_vm).
 
   - move=> x.
     t_notin_add.
@@ -689,7 +646,7 @@ Proof.
   - by t_get_var.
 
   - t_get_var.
-    rewrite (get_var_eq_except _ hvm1); first by t_get_var.
+    rewrite (get_var_eq_ex _ _ hvm1); first by t_get_var.
     apply: Sv_neq_not_in_singleton.
     by apply/nesym.
 
@@ -711,44 +668,24 @@ Proof.
   by apply: Sv_neq_not_in_singleton.
 Qed.
 
-Lemma arm_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
-  let: ts' := align_word al (ts - wrepr Uptr sz) in
-  let: lcmd := set_up_sp_stack arm_liparams vrspi sz al off in
-  is_linear_of lp fn (P ++ lcmd ++ Q)
-  -> isSome (lip_set_up_sp_stack arm_liparams vrspi sz al off)
-  -> vtmp <> vrsp
-  -> get_var (evm s) vrspi = ok (Vword ts)
-  -> wf_vm (evm s)
-  -> write (emem s) (ts' + wrepr Uptr off)%R ts = ok m'
-  -> exists vm',
-       let: ls := of_estate s fn (size P) in
-       let: s' := {| escs := escs s; evm := vm'; emem := m'; |} in
-       let: ls' := of_estate s' fn (size P + size lcmd) in
-       let: vars := Sv.add vtmpi (Sv.add vrspi vflags) in
-       [/\ lsem lp ls ls'
-         , wf_vm vm'
-         , vm' = (evm s) [\ vars ]
-         , get_var vm' vrspi = ok (Vword ts')
-         & forall x,
-             Sv.In x vflags
-             -> ~ is_ok (vm'.[x]%vmap)
-             -> (evm s).[x]%vmap = vm'.[x]%vmap
-       ].
+Lemma arm_spec_lip_set_up_sp_stack :
+  set_up_sp_stack_correct arm_liparams.
 Proof.
+  move=> lp sp_rsp fn s ts m' al sz off P Q.
   set ts' := align_word _ _.
-  move=> hbody hset_up hneq_tmp_rsp hgetrsp hwf_vm hwrite.
-
-  move: hset_up.
-  rewrite /= /arm_set_up_sp_stack.
-  case: ifP => // hset_up _.
+  move=> /oassertP_isSome [hset_up _] hbody hneq_tmp_rsp hgetrsp hwrite.
 
   move: hbody.
+  set vtmp := {| vname := arm_tmp; |}.
+  set vtmpi := mk_var_i vtmp.
+  set vrsp := {| vname := sp_rsp; |}.
+  set vrspi := mk_var_i vrsp.
   rewrite /set_up_sp_stack /= /arm_set_up_sp_stack hset_up /= -/vtmpi.
   rewrite map_cat /=.
   set cmd_large_subi := map _ (arm_cmd_large_subi _ _ _).
-  set i_align_tmp := li_of_copn_args _ (arm_op_align _ _ _).
-  set i_str_rsp := li_of_copn_args _ (arm_op_str_off _ _ _).
-  set i_mov_rsp := li_of_copn_args _ (arm_op_mov _ _).
+  set i_align_tmp := li_of_fopn_args _ (arm_op_align _ _ _).
+  set i_str_rsp := li_of_fopn_args _ (arm_op_str_off _ _ _).
+  set i_mov_rsp := li_of_fopn_args _ (arm_op_mov _ _).
   rewrite -catA.
   move=> hbody.
 
@@ -760,17 +697,17 @@ Proof.
 
   have [vm0 [hsem hvm0 hgettmp0]] :=
     arm_cmd_large_subi_lsem (s := s) hbody hneq_tmp_rsp hgetrsp hsz.
-  set vm1 := vm0.[vtmp <- ok (pword_of_word ts')]%vmap.
-  set vm2 := vm1.[vrsp <- ok (pword_of_word ts')]%vmap.
+  set vm1 := vm0.[vtmp <- Vword ts'].
+  set vm2 := vm1.[vrsp <- Vword ts'].
 
   have hgetrsp1 :
-    get_var vm1 vrsp = ok (Vword ts).
+    get_var true vm1 vrsp = ok (Vword ts).
   * rewrite get_var_neq; last exact: hneq_tmp_rsp.
-    rewrite (get_var_eq_except _ hvm0); first exact: hgetrsp.
+    rewrite (get_var_eq_ex _ _ hvm0); first exact: hgetrsp.
     exact: (Sv_neq_not_in_singleton hneq_tmp_rsp).
 
   have hgettmp1 :
-    get_var vm1 vtmp = ok (Vword ts').
+    get_var true vm1 vtmp = ok (Vword ts').
   * by rewrite get_var_eq.
 
   eexists.
@@ -821,9 +758,6 @@ Proof.
            (y := vtmpi)
            hgettmp1).
 
-  - repeat apply: wf_vm_set.
-    exact: (vmap_eq_except_wf_vm hwf_vm hvm0 hgettmp0).
-
   - move=> x.
     t_notin_add.
     t_vm_get.
@@ -871,48 +805,29 @@ Proof.
   all: by move=> -> /=.
 Qed.
 
-Lemma arm_hlip_lassign
-  (s1 s2 : estate) pc ii x e ws li ws' (w : word ws) (w' : word ws') :
-  lassign arm_liparams x ws e = Some li
-  -> sem_rexpr (emem s1) (evm s1) e = ok (Vword w')
-  -> truncate_word ws w' = ok w
-  -> write_lexpr x (Vword w) s1 = ok s2
-  -> eval_instr lp (MkLI ii li) (of_estate s1 fn pc)
-     = ok (of_estate s2 fn pc.+1).
+Lemma arm_hlip_lassign :
+  lassign_correct arm_liparams.
 Proof.
-  move=> hlassign hseme htrunc hwrite.
+  move=> lp fn s1 s2 pc ii x e args ws ws' w w' hlassign hseme htrunc hwrite.
+  move: hlassign => /=.
+  apply: obindP => -[mn' re].
+  case: x hwrite => [??? | x] /= hwrite.
 
-  move: hlassign.
-  rewrite /lassign /= /arm_lassign.
-  case: x hwrite => [ ? ? ? | x ] hwrite /=.
-  {
-    case hmn: store_mn_of_wsize => [mn|] // [?]; subst li.
-    rewrite /eval_instr /= /sem_sopn /=.
-    rewrite to_estate_of_estate.
-    rewrite hseme {hseme} /=.
-    rewrite (store_mn_of_wsizeP hmn htrunc) {hmn htrunc}.
-    by move: hwrite; rewrite /= => ->.
-  }
+  - apply: obindP => mn hmn [??] [?]; subst mn' re args.
+    rewrite /eval_instr /= /sem_sopn /= to_estate_of_estate hseme {hseme} /=.
+    by rewrite (store_mn_of_wsizeP hmn htrunc) /= hwrite.
 
-  case: ws w htrunc hwrite => //= w htrunc hwrite.
+  move=> /oassertP [/eqP ?]; subst ws.
   case: e hseme => [ ??? | ]; last case => //; last case => // - [] // [] // z.
-  2: move => e.
-  all: move => /= hseme /Some_inj <-{li}.
-  all: rewrite /eval_instr /= /sem_sopn /= to_estate_of_estate.
-  - rewrite hseme {hseme} /=.
-    rewrite /exec_sopn /=.
-    rewrite htrunc {htrunc} /=.
-    rewrite zero_extend_u.
-    by rewrite hwrite {hwrite} /=.
-
-  - rewrite hseme {hseme} /=.
-    rewrite /exec_sopn /=.
-    rewrite htrunc {htrunc} /=.
-    by rewrite hwrite {hwrite} /=.
+  2: move=> e.
+  all: move=> /= hseme [??] [?]; subst mn' re args.
+  all: rewrite /eval_instr /= /sem_sopn /= /exec_sopn to_estate_of_estate.
+  - by rewrite hseme /= htrunc /= zero_extend_u hwrite.
+  - by rewrite hseme /= htrunc /= hwrite.
 
   case/ok_inj/Vword_inj: hseme => ?; subst => /= ?; subst.
   move: htrunc; rewrite truncate_word_u => /ok_inj ?; subst.
-  by rewrite zero_extend_u {} hwrite.
+  by rewrite /= hwrite.
 Qed.
 
 End LINEARIZATION.
@@ -928,28 +843,26 @@ Definition arm_hliparams :
   |}.
 
 Lemma arm_ok_lip_tmp :
-  exists r : reg_t, of_string (lip_tmp (ap_lip arm_params)) = Some r.
+  exists r : reg_t, of_ident (lip_tmp (ap_lip arm_params)) = Some r.
 Proof.
   exists R12.
   rewrite /=.
-  change "r12"%string with (to_string R12).
-  exact: to_stringK.
+  change arm_tmp with (to_ident R12).
+  exact: to_identK.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering hypotheses. *)
 
 Lemma arm_lower_callP
-  (eft : eqType)
-  (pT : progT eft)
+  { dc : DirectCall }
+  (pT : progT)
   (sCP : semCallParams)
   (p : prog)
   (ev : extra_val_t)
-  (is_regx : var -> bool)
   (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
-  (is_var_in_memory : var_i -> bool)
   (_ : lop_fvars_correct arm_loparams fv (p_funcs p))
   (f : funname)
   scs mem scs' mem'
@@ -957,11 +870,10 @@ Lemma arm_lower_callP
   psem.sem_call p ev scs mem f va scs' mem' vr
   -> let lprog :=
        lowering.lower_prog
-         (lop_lower_i arm_loparams is_regx)
+         (lop_lower_i arm_loparams)
          options
          warning
          fv
-         is_var_in_memory
          p
      in
      psem.sem_call lprog ev scs mem f va scs' mem' vr.
@@ -969,11 +881,10 @@ Proof.
   exact: lower_callP.
 Qed.
 
-Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
+Definition arm_hloparams { dc : DirectCall } : h_lowering_params (ap_lop arm_params) :=
   {|
     hlop_lower_callP := arm_lower_callP;
   |}.
-
 
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
@@ -1066,7 +977,7 @@ Qed.
 Lemma eval_assemble_cond_Pvar ii m rf x r v :
   eqflags m rf
   -> of_var_e ii x = ok r
-  -> get_var (evm m) x = ok v
+  -> get_var true (evm m) x = ok v
   -> exists2 v',
        value_of_bool (eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
        & value_uincl v v'.
@@ -1105,9 +1016,9 @@ Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   is_rflags_GE r0 r1 = true
   -> eqflags m rf
   -> of_var_e ii x0 = ok r0
-  -> get_var (evm m) x0 = ok v0
+  -> get_var true (evm m) x0 = ok v0
   -> of_var_e ii x1 = ok r1
-  -> get_var (evm m) x1 = ok v1
+  -> get_var true (evm m) x1 = ok v1
   -> sem_sop2 Obeq v0 v1 = ok v
   -> exists2 v',
        value_of_bool (eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
@@ -1236,16 +1147,16 @@ Qed.
 (* TODO_ARM: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
-Lemma arm_assemble_extra_op
-  rip ii op lvs args op' lvs' args' op'' asm_args m xs ys m' s :
+Lemma arm_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops' :
   sem_rexprs m args = ok xs
   -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
   -> write_lexprs lvs ys m = ok m'
-  -> to_asm ii op lvs args = ok (op', lvs', args')
-  -> assemble_asm_op arm_agparams rip ii op' lvs' args'
-     = ok (op'', asm_args)
+  -> to_asm ii op lvs args = ok ops
+  -> mapM (fun '(op0, ls, rs) => assemble_asm_op arm_agparams rip ii op0 ls rs) ops = ok ops'
   -> lom_eqv rip m s
-  -> exists2 s', eval_op op'' asm_args s = ok s' & lom_eqv rip m' s'.
+  -> exists2 s' : asmmem,
+       foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s ops' = ok s' &
+       lom_eqv rip m' s'.
 Proof. by case: op. Qed.
 
 Definition arm_hagparams : h_asm_gen_params (ap_agp arm_params) :=
@@ -1273,24 +1184,25 @@ Proof.
   rewrite /exec_sopn /=.
   t_xrbindP=> w w'' hvx.
   have [ws' [w' [-> /truncate_wordP [hws' ->]]]] := to_wordI hvx.
-  rewrite /sopn_sem /=.
-  rewrite /drop_semi_nzcv /=.
   move=> [<-] <-.
   apply: List.Forall2_cons; last done.
   exact: (word_uincl_zero_ext w' hws').
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+Lemma arm_hshp: slh_lowering_proof.h_sh_params (ap_shp arm_params).
+Proof. by constructor; move=> ???? []. Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-Definition arm_h_params : h_architecture_params arm_params :=
+Definition arm_h_params {dc : DirectCall} : h_architecture_params arm_params :=
   {|
-    hap_hpip := arm_hpiparams;
     hap_hsap := arm_hsaparams;
     hap_hlip := arm_hliparams;
     ok_lip_tmp := arm_ok_lip_tmp;
     hap_hlop := arm_hloparams;
     hap_hagp := arm_hagparams;
+    hap_hshp := arm_hshp;
     hap_is_move_opP := arm_is_move_opP;
   |}.
 

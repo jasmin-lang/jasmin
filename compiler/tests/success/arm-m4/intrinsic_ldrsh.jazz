@@ -12,7 +12,7 @@ fn ldrsh(reg u32 arg) -> reg u32 {
     x = #LDRSH((u16)[x + (arg * 8)]);
 
     reg bool n, z, v, c;
-    n, z, c, v, x = #MOVS(x);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     x = #LDRSHcc((u16)[x], z, x);            // EQ

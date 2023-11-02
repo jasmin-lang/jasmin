@@ -1,11 +1,14 @@
-let rec pos_of_z z =
+let pos_of_z z =
   let open Z.Compare in
-  if z <= Z.one then BinNums.Coq_xH
-  else
-    let p = pos_of_z (Z.shift_right z 1) in
-    if (Z.erem z (Z.of_int 2)) = Z.one
-    then BinNums.Coq_xI p
-    else BinNums.Coq_xO p
+  assert (Z.one <= z);
+  let rec pos_of_z z =
+    if z <= Z.one then BinNums.Coq_xH
+    else
+      let p = pos_of_z (Z.shift_right z 1) in
+      if (Z.erem z (Z.of_int 2)) = Z.one
+      then BinNums.Coq_xI p
+      else BinNums.Coq_xO p
+  in pos_of_z z
 
 let rec z_of_pos pos =
   let open Z in
@@ -28,3 +31,9 @@ let z_of_cz z =
 
 let cz_of_int i = cz_of_z (Z.of_int i)
 let int_of_cz z = Z.to_int (z_of_cz z)
+
+let cstring_of_string (s:string) : char list =
+  Utils.String.to_list s
+
+let string_of_cstring (s0:char list) : string =
+  Utils.String.of_list s0

@@ -1,0 +1,22 @@
+fn vpsllv_4u32(reg u128 x y) -> reg u128 {
+  reg u128 z;
+  z = #VPSLLV_4u32(x, y);
+  return z;
+}
+
+fn vpsllv_8u32(reg u256 x y) -> reg u256 {
+  reg u256 z;
+  z = #VPSLLV_8u32(x, y);
+  return z;
+}
+
+fn vpsllv_4u64(reg u256 x y) -> reg u256 {
+  reg u256 z;
+  z = #VPSLLV_4u64(x, y);
+  return z;
+}
+
+fn shrd_16(reg u16 x y, reg u8 c) -> reg u16 {
+  ?{}, x = #SHRD_16(x, y, c);
+  return x;
+}

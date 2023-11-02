@@ -1,12 +1,12 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
-Require Import gen_map expr compiler_util ZArith.
+From Coq Require Import HexadecimalString ZArith.
+Require Import gen_map expr compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -19,44 +19,43 @@ End E.
 
 Section Section.
 Context `{asmop:asmOp}.
-Context (is_reg_ptr : var -> bool)
-        (fresh_reg_ptr : Ident.ident -> stype -> Ident.ident).
+Context (fresh_reg_ptr : instr_info -> Ident.name -> stype -> Ident.ident).
 Context (p : uprog).
 
-Definition with_id vi id ty :=
-  {| v_var := {| vtype := ty; vname := fresh_reg_ptr id ty |};
+Definition with_id ii sfx vi id ty :=
+  let id := Ident.name_of_string (Ident.string_of_name id ++ NilEmpty.string_of_uint sfx) in
+  {| v_var := {| vtype := ty; vname := fresh_reg_ptr ii id ty |};
      v_info := vi |}.
 
-
-Definition is_reg_ptr_expr doit id ty e :=
+Definition is_reg_ptr_expr ii sfx doit id ty e :=
   match e with
   | Pvar x' =>
     if doit && (is_glob x' || ~~is_reg_ptr x'.(gv)) then
-      Some (with_id x'.(gv).(v_info) id ty)
+      Some (with_id ii sfx x'.(gv).(v_info) id ty)
     else None
-  | Psub _ _ _ x' _ =>  Some (with_id x'.(gv).(v_info) id ty)
-  | _      => None 
+  | Psub _ _ _ x' _ =>  Some (with_id ii sfx x'.(gv).(v_info) id ty)
+  | _      => None
   end.
 
-Definition is_reg_ptr_lval doit id ty r :=
+Definition is_reg_ptr_lval ii sfx doit id ty r :=
   match r with
-  | Lvar x' => if doit && ~~is_reg_ptr x' then Some (with_id x'.(v_info) id ty) else None
-  | Lasub _ _ _ x' _ => Some (with_id x'.(v_info) id ty)
-  | _      => None 
+  | Lvar x' => if doit && ~~is_reg_ptr x' then Some (with_id ii sfx x'.(v_info) id ty) else None
+  | Lasub _ _ _ x' _ => Some (with_id ii sfx x'.(v_info) id ty)
+  | _      => None
   end.
 
-Fixpoint make_prologue ii (X:Sv.t) xtys es :=
+Fixpoint make_prologue ii (X:Sv.t) ctr xtys es :=
   match xtys, es with
   | [::], [::] => ok ([::], [::])
   | (doit, id, ty)::xtys, e::es =>
-    match is_reg_ptr_expr doit id ty e with
-    | Some y => 
+    match is_reg_ptr_expr ii ctr doit id ty e with
+    | Some y =>
       Let _ := assert (~~Sv.mem y X) (make_ref_error ii "bad fresh id (prologue)") in
-      Let pes := make_prologue ii (Sv.add y X) xtys es in
+      Let pes := make_prologue ii (Sv.add y X) (Hexadecimal.Little.succ ctr) xtys es in
       let: (p,es') := pes in 
       ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
     | None =>
-      Let pes := make_prologue ii X xtys es in
+      Let pes := make_prologue ii X ctr xtys es in
       let: (p,es') := pes in
       ok (p, e::es')
     end
@@ -67,18 +66,18 @@ Variant pseudo_instr :=
   | PI_lv of lval
   | PI_i  of lval & stype & var_i.
 
-Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xtys rs :=
+Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) ctr xtys rs :=
   match xtys, rs with
   | [::], [::] => ok ([::])
   | (doit, id, ty)::xtys, r::rs =>
-     match is_reg_ptr_lval doit id ty r with
+     match is_reg_ptr_lval ii ctr doit id ty r with
      | Some y => 
        Let _ := assert (~~Sv.mem y X)
                        (make_ref_error ii "bad fresh id (epilogue)") in
-       Let pis := make_pseudo_epilogue ii X xtys rs in
+       Let pis := make_pseudo_epilogue ii X (Hexadecimal.Little.succ ctr) xtys rs in
        ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
      | None =>
-       Let pis :=  make_pseudo_epilogue ii X xtys rs in
+       Let pis :=  make_pseudo_epilogue ii X ctr xtys rs in
        ok (PI_lv r :: pis) 
      end
    | _, _ => Error (make_ref_error ii "assert false (epilogue)")
@@ -86,21 +85,11 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xtys rs :=
 
 Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
 
-Fixpoint noload (e:pexpr) := 
-  match e with
-  | Pload _ _ _ => false 
-  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => true
-  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => noload e
-  | Papp2 _ e1 e2 => noload e1 && noload e2 
-  | PappN _ es => all noload es 
-  | Pif _ e1 e2 e3 => [&& noload e1, noload e2 & noload e3]
-  end.
-
 Definition wf_lv (lv:lval) :=
   match lv with
   | Lnone _ _ | Lmem _ _ _ | Laset _ _ _ _ => false 
   | Lvar _ => true 
-  | Lasub _ _ _ _ e => noload e
+  | Lasub _ _ _ _ e => ~~use_mem e
   end.
 
 Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) := 
@@ -123,7 +112,7 @@ Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) :=
   end.
 
 Definition make_epilogue ii (X:Sv.t) xtys rs :=
-  Let pis := make_pseudo_epilogue ii X xtys rs in
+  Let pis := make_pseudo_epilogue ii X Hexadecimal.Nil xtys rs in
   swapable ii pis.
 
 Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
@@ -131,7 +120,7 @@ Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
   ok (flatten ls).
 
 Definition mk_info (x:var_i) (ty:stype) :=
-  (is_reg_ptr x, x.(vname), ty).
+  (is_reg_ptr x, Ident.id_name x.(vname), ty).
 
 Definition get_sig fn :=
   if get_fundef p.(p_funcs) fn is Some fd then
@@ -141,8 +130,8 @@ Definition get_sig fn :=
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u o in
-  (map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tin),
-   map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tout)).
+  (map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tin),
+   map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tout)).
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
@@ -161,14 +150,14 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     ok [::MkI ii (Cwhile a c e c')]
   | Ccall ini xs fn es =>
     let: (params,returns) := get_sig fn in
-    Let pres := make_prologue ii X params es in
+    Let pres := make_prologue ii X Hexadecimal.Nil params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in 
     ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in
-    Let: (prologue, es) := make_prologue ii X params es in
+    Let: (prologue, es) := make_prologue ii X Hexadecimal.Nil params es in
     Let: (xs, epilogue) := make_epilogue ii X returns xs in
     ok (prologue ++ MkI ii (Csyscall xs o es) :: epilogue)
   end.

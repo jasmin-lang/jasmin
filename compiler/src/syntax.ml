@@ -147,7 +147,9 @@ let string_of_peop2 : peop2 -> string =
   | `Le s -> f s "<="
   | `Gt s -> f s ">"
   | `Ge s -> f s ">="
- 
+
+(* -------------------------------------------------------------------- *)
+module W = Wsize
 
 (* -------------------------------------------------------------------- *)
 
@@ -262,6 +264,7 @@ type pfundef = {
 type gpexpr = 
   | GEword  of pexpr
   | GEarray of pexpr list 
+  | GEstring of string L.located
 
 type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
 

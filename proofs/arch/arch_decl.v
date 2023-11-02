@@ -1,8 +1,22 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import word_ssrZ.
-Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
+From Coq Require Import
+  Relation_Operators
+  Utf8.
+
 Require Import
+  global
+  label
+  memory_model
+  oseq
+  sem_type
+  strings
+  syscall
+  utils
+  word.
+Require Import
+  sopn
   flag_combination
   shift_kind.
 
@@ -19,12 +33,12 @@ Unset Printing Implicit Defensive.
  *)
 Class ToString (t: stype) (T: Type) :=
   { category      : string    (* Name of the "register" used to print errors. *)
-  ; _finC         :> finTypeC T
+  ; _finC         : finTypeC T
   ; to_string     : T -> string
-  ; strings       : list (string * T)
-  ; inj_to_string : injective to_string
-  ; stringsE      : strings = [seq (to_string x, x) | x <- enum cfinT_finType]
   }.
+
+#[global]
+Existing Instance _finC.
 
 Definition rtype {t T} `{ToString t T} := t.
 
@@ -36,19 +50,24 @@ Definition rtype {t T} `{ToString t T} := t.
 Class arch_decl (reg regx xreg rflag cond : Type) :=
   { reg_size : wsize     (* Register size. Also used as pointer size. *)
   ; xreg_size : wsize    (* Extended registers size. *)
-  ; cond_eqC :> eqTypeC cond
-  ; toS_r :> ToString (sword reg_size) reg
-  ; toS_rx :> ToString (sword reg_size) regx
-  ; toS_x :> ToString (sword xreg_size) xreg
-  ; toS_f :> ToString sbool rflag
+  ; cond_eqC : eqTypeC cond
+  ; toS_r : ToString (sword reg_size) reg
+  ; toS_rx : ToString (sword reg_size) regx
+  ; toS_x : ToString (sword xreg_size) xreg
+  ; toS_f : ToString sbool rflag
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
-  ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
-  ; ad_fcp :> FlagCombinationParams
+  ; ad_fcp : FlagCombinationParams
   }.
 
 #[global]
+Existing Instances cond_eqC toS_r toS_rx toS_x toS_f ad_fcp.
+
+#[export]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+
+#[export]
+Instance arch_msfsz `{arch_decl} : MSFsize := { msf_size := reg_size }.
 
 Definition mk_ptr `{arch_decl} name :=
   {| vtype := sword Uptr; vname := name; |}.
@@ -186,9 +205,7 @@ Scheme Equality for msb_flag.
 
 Lemma msb_flag_eq_axiom : Equality.axiom msb_flag_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_msb_flag_dec_bl.
-  by apply: internal_msb_flag_dec_lb.
+  exact: (eq_axiom_of_scheme internal_msb_flag_dec_bl internal_msb_flag_dec_lb).
 Qed.
 
 Definition msb_flag_eqMixin := Equality.Mixin msb_flag_eq_axiom.
@@ -228,18 +245,6 @@ Variant addr_kind : Type :=
 | AK_compute (* Only compute the address. *)
 | AK_mem.    (* Compute the address and load from memory. *)
 
-Scheme Equality for addr_kind.
-
-Lemma addr_kind_eq_axiom : Equality.axiom addr_kind_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_addr_kind_dec_bl.
-  by apply: internal_addr_kind_dec_lb.
-Qed.
-
-Definition addr_kind_eqMixin := Equality.Mixin addr_kind_eq_axiom.
-Canonical addr_kind_eqType := EqType _ addr_kind_eqMixin.
-
 (* -------------------------------------------------------------------- *)
 (* Argument description.
  * An argument may be either implicit or explicit.
@@ -250,24 +255,6 @@ Variant arg_desc :=
     of addr_kind      (* If argument is an address, should it be loaded? *)
      & nat            (* Position of the argument in assembly syntax. *)
      & option reg_t.  (* Set if there is only one valid register. *)
-
-Definition arg_desc_beq (d1 d2 : arg_desc) :=
-  match d1, d2 with
-  | ADImplicit i1, ADImplicit i2 => i1 == i2
-  | ADExplicit k1 n1 or1, ADExplicit k2 n2 or2 =>
-    (k1 == k2) && (n1 == n2) && (or1 == or2 :> option_eqType ceqT_eqType)
-  | _, _ => false
-  end.
-
-Lemma arg_desc_eq_axiom : Equality.axiom arg_desc_beq.
-Proof.
-  case=> [i1|k1 n1 or1] [i2|k2 n2 or2] /=;
-    try by (constructor || apply: reflect_inj eqP => ?? []).
-  do! (case: eqP; try by constructor; congruence).
-Qed.
-
-Definition arg_desc_eqMixin := Equality.Mixin arg_desc_eq_axiom.
-Canonical  arg_desc_eqType  := EqType arg_desc arg_desc_eqMixin.
 
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).
@@ -299,9 +286,7 @@ Scheme Equality for arg_kind.
 
 Lemma arg_kind_eq_axiom : Equality.axiom arg_kind_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_arg_kind_dec_bl.
-  by apply: internal_arg_kind_dec_lb.
+  exact: (eq_axiom_of_scheme internal_arg_kind_dec_bl internal_arg_kind_dec_lb).
 Qed.
 
 Definition arg_kind_eqMixin := Equality.Mixin arg_kind_eq_axiom.
@@ -405,28 +390,15 @@ Record instr_desc_t := {
 
 
 (* -------------------------------------------------------------------- *)
-
-Variant prim_constructor (asm_op:Type) :=
-  | PrimP of wsize & (wsize -> asm_op)
-  | PrimM of asm_op
-  | PrimV of (velem -> wsize -> asm_op)
-  | PrimSV of (signedness -> velem -> wsize -> asm_op)
-  | PrimX of (wsize -> wsize -> asm_op)
-  | PrimVV of (velem → wsize → velem → wsize → asm_op)
-  | PrimARM of
-    (bool                 (* set_flags *)
-     -> bool              (* is_conditional *)
-     -> option shift_kind (* has_shift *)
-     -> asm_op).
-
-
-(* -------------------------------------------------------------------- *)
 (* Architecture operand declaration. *)
 Class asm_op_decl (asm_op: Type) :=
-  { _eqT          :> eqTypeC asm_op
+  { _eqT          : eqTypeC asm_op
   ; instr_desc_op : asm_op -> instr_desc_t
   ; prim_string   : list (string * prim_constructor asm_op)
   }.
+
+#[global]
+Existing Instance _eqT.
 
 Definition asm_op_t' {asm_op} {asm_op_d : asm_op_decl asm_op} := asm_op.
 (* We extend [asm_op] in order to deal with msb flags *)
@@ -676,9 +648,7 @@ Scheme Equality for rflagv.
 
 Lemma rflagv_eq_axiom : Equality.axiom rflagv_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_rflagv_dec_bl.
-  by apply: internal_rflagv_dec_lb.
+  exact: (eq_axiom_of_scheme internal_rflagv_dec_bl internal_rflagv_dec_lb).
 Qed.
 
 Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
@@ -688,7 +658,10 @@ Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 (* Assembly declaration. *)
 
 Class asm (reg regx xreg rflag cond asm_op: Type) :=
-  { _arch_decl   :> arch_decl reg regx xreg rflag cond
-  ; _asm_op_decl :> asm_op_decl asm_op
+  { _arch_decl   : arch_decl reg regx xreg rflag cond
+  ; _asm_op_decl : asm_op_decl asm_op
   ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool
   }.
+
+#[global]
+Existing Instances _arch_decl _asm_op_decl.

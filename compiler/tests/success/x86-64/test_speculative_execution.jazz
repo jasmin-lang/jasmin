@@ -1,0 +1,35 @@
+export
+fn main() {
+    reg u64 msf0 msf1;
+    reg bool f;
+    reg u8 p8;
+    reg u16 p16;
+    reg u32 p32;
+    reg u64 p64;
+    reg u128 p128;
+    reg u256 p256;
+
+    _, _, _, _, _, p8 = #set0_8();
+    _, _, _, _, _, p16 = #set0_16();
+    _, _, _, _, _, p32 = #set0_32();
+    _, _, _, _, _, p64 = #set0_64();
+    p128 = #set0_128();
+    p256 = #set0_256();
+
+    msf0 = #init_msf();
+
+    f, _, _, _, _ = #CMP(p64, p64);
+
+    if (f) {
+        msf0 = #update_msf(f, msf0);
+    }
+
+    msf1 = #mov_msf(msf0);
+
+    p8 = #protect_8(p8, msf1);
+    p16 = #protect_16(p16, msf1);
+    p32 = #protect_32(p32, msf1);
+    p64 = #protect(p64, msf1);
+    p128 = #protect_128(p128, msf1);
+    p256 = #protect_256(p256, msf1);
+}

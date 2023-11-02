@@ -33,7 +33,7 @@ Definition zasr (x i : Z) : Z :=
   zlsl x (-i).
 
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
-  let i :=  wunsigned (wand i (x86_shift_mask s)) in
+  let i :=  wunsigned i in
   shift v i.
 
 Definition sem_shr {s} := @sem_shift (@wshr) s.
@@ -62,7 +62,7 @@ Definition signed {A:Type} (fu fs:A) s :=
   end.
 
 Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
-  if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then type_error
+  if ((w2 == 0) || ((wsigned w1 == wmin_signed sz) && (w2 == -1)))%R then Error ErrArith
   else ok (o w1 w2).
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
@@ -127,18 +127,16 @@ Section WITH_PARAMS.
 
 Context {cfcd : FlagCombinationParams}.
 
-Definition sem_combine_flags
-  (o : combine_flags) (bof bcf bsf bzf : bool) : exec bool :=
-  let '(n, cfc) := cf_tbl o in
-  let b := cfc_xsem negb andb orb (fun x y => x == y) bof bcf bsf bzf cfc in
-  ok (if n then ~~ b else b).
+Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
+  cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
 
 Definition sem_opN_typed (o: opN) :
   let t := type_of_opN o in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
-  | Ocombine_flags o => sem_combine_flags o
+  | Ocombine_flags cf =>
+      fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.
 
 End WITH_PARAMS.

@@ -1,0 +1,19 @@
+fn f(reg ptr u64[1] a, reg u64 x) -> stack u64[1], reg u64 {
+    stack ptr u64[1] s;
+    s = a;
+    a = s;
+    return a, x;
+}
+
+export
+fn main() {
+    reg u64 x;
+    x = 0;
+
+    stack u64[1] a;
+    a[0] = 0;
+
+    if (false) {
+        _, _ = f(a, x);
+    }
+}

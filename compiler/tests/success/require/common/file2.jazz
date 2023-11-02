@@ -1,0 +1,10 @@
+require "file1.jazz"
+require "../common/file1.jazz"
+
+export fn main(reg u32 x y) -> reg u32 {
+   reg u32 r1 r2;
+   r1 = add(x,y);
+   r2 = r1;
+   return r2;
+}
+

@@ -1,0 +1,63 @@
+fn test1 (reg u64[2] t, reg ptr u64[2] p) -> reg ptr u64[2], reg u64[2] {
+   inline int i;
+   for i = 0 to 2 {
+     t[i] += 1;
+     p[i] += 1;
+   }
+
+   return p, t;
+}
+
+fn test2 (reg u64[2] t, reg ptr u64[2] p) -> reg u64[2], reg ptr u64[2] {
+   inline int i;
+   for i = 0 to 2 {
+     t[i] += 1;
+     p[i] += 1;
+   }
+
+   return t, p;
+}
+
+fn test3 (reg ptr u64[2] p, reg u64[2] t) -> reg ptr u64[2], reg u64[2] {
+   inline int i;
+   for i = 0 to 2 {
+     t[i] += 1;
+     p[i] += 1;
+   }
+
+   return p, t;
+}
+
+fn test4 (reg ptr u64[2] p, reg u64[2] t) -> reg u64[2], reg ptr u64[2] {
+   inline int i;
+   for i = 0 to 2 {
+     t[i] += 1;
+     p[i] += 1;
+   }
+
+   return t, p;
+}
+
+
+
+export fn main () -> reg u64 {
+  stack u64[2] s;
+  reg u64[2] t;
+  reg ptr u64[2] p;
+  reg u64 r;
+  inline int i;
+  p = s;
+  for i = 0 to 2 {
+    t[i] = i;
+    p[i] = i;
+  }
+  p,t = test1(t,p);
+  t,p = test2(t,p);
+  p,t = test3(p,t);
+  t,p = test4(p,t);
+  t[0] += t[1];
+  t[0] += p[0];
+  t[0] += p[1];
+  r = t[0];
+  return r;
+}

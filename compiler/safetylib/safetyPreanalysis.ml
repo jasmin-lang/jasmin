@@ -39,7 +39,7 @@ end = struct
       f_ret = List.map (mk_v_loc f_decl.f_name.fn_name) f_decl.f_ret }
 
   and mk_v fn v =
-    let short_name v = v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id)) in
+    let short_name v = v.v_name ^ "." ^ (string_of_uid v.v_id) in
     let long_name v =
       if Config.sc_var_append_fun_name ()
       then (short_name v) ^ "#" ^ fn
@@ -271,7 +271,7 @@ end = struct
       cfg = mcfg st1.cfg st2.cfg;
       while_vars = Sv.union st1.while_vars st2.while_vars;
       f_done = Ss.union st1.f_done st2.f_done;
-      if_conds = st1.if_conds @ st2.if_conds;
+      if_conds = List.rev_append st1.if_conds st2.if_conds;
       ct = ct }
 
   let set_ct ct st = { st with ct = ct }
@@ -341,7 +341,7 @@ end = struct
       pa_flag_setfrom v (List.rev c)
 
     | Cwhile (_, c1, _, c2) ->
-      pa_flag_setfrom v ((List.rev c1) @ (List.rev c2))
+      pa_flag_setfrom v (List.rev_append c1 (List.rev c2))
         
     | Ccall (_, lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
@@ -387,7 +387,7 @@ end = struct
           { st with ct = Sv.union st.ct (Sv.of_list vs) }
         else st in
 
-      let bdy_rev = (List.rev c1) @ (List.rev c2) in
+      let bdy_rev = List.rev_append c1 (List.rev c2) in
       let flags_setfrom = List.fold_left (fun flags_setfrom v -> match v.v_ty with
           | Bty Bool ->
             let new_f =
@@ -407,7 +407,7 @@ end = struct
       let st' = { st' with while_vars = while_vars } in
 
       (* Again, we reset the context after the merge *)
-      pa_stmt fn prog st' (c1 @ c2)
+      pa_stmt fn prog st' (List.append c1 c2)
       |> set_ct st.ct
 
     | Ccall (_, lvs, fn', es) ->   
@@ -479,7 +479,7 @@ end
 
 (* Flow-sensitive Pre-Analysis *)
 module FSPa : sig    
-  val fs_pa_make : X86_extra.x86_extended_op Sopn.asmOp -> (X86_extra.x86_extended_op -> bool) -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
+  val fs_pa_make : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
   let rec collect_vars_e sv = function
@@ -533,7 +533,7 @@ end = struct
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
     
-  let fs_pa_make asmOp is_move_op (f : ('info, 'asm) func) =
+  let fs_pa_make pd asmOp (f : ('info, 'asm) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->
@@ -544,11 +544,11 @@ end = struct
     (* We make sure that variable are uniquely defined by their names. *)
     assert (check_uniq_names vars);
      
-    let ssa_f = Ssa.split_live_ranges is_move_op false f in
+    let ssa_f = Ssa.split_live_ranges false f in
     debug (fun () ->
         Format.eprintf "SSA transform of %s:@;%a"
           f.f_name.fn_name
-          (Printer.pp_func ~debug:true asmOp) ssa_f);
+          (Printer.pp_func ~debug:true pd asmOp) ssa_f);
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in

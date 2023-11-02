@@ -1,0 +1,17 @@
+export
+fn rev(reg u32 x) -> reg u32 {
+  reg u32 y;
+  reg bool nf, zf, vf, cf;
+
+  y = #REV(x);
+  x = #REV16(y);
+  y = #REVSH(x);
+
+  (nf, zf, vf, cf) = #CMP(x,y);
+
+  y = #REVcc(x, cf, y);
+  x = #REV16cc(y, cf, x);
+  y = #REVSHcc(x, cf, y);
+
+  return y;
+}

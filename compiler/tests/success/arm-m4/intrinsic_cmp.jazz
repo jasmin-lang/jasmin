@@ -10,8 +10,15 @@ fn cmp(reg u32 arg0 arg1 p) {
 
     // Immediates.
     n, z, c, v = #CMP(arg0, 3);
-    x = 1 if n;
-    [p] = x;
+    [x] = x if z;
+    n, z, c, v = #CMP(x, 0xcacacaca); // `bbbb` pattern.
+    [x] = x if z;
+    n, z, c, v = #CMP(x, 0xca00ca00); // `b0b0` pattern.
+    [x] = x if z;
+    n, z, c, v = #CMP(x, 0x00ca00ca); // `0b0b` pattern.
+    [x] = x if z;
+    n, z, c, v = #CMP(x, 0x00cb0000); // Shifted.
+    [x] = x if z;
 
     // Conditions.
     n, z, c, v = #CMPcc(arg0, arg1, z, n, z, c, v);            // EQ

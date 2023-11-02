@@ -1,0 +1,6 @@
+export
+fn main(reg u32 x) {
+    reg bool n, z, c, v;
+    n, z, c, v = #TST(x, 0x0000caca);
+    [x] = x if z;
+}

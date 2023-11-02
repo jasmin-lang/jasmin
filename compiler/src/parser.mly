@@ -1,13 +1,11 @@
 %{
-  module L = Location
-  module S = Syntax
 
   open Syntax
   open Annotations
 
   let setsign c s = 
     match c with
-    | None -> Some (L.mk_loc (L.loc s) (CSS(None, L.unloc s)))
+    | None -> Some (Location.mk_loc (Location.loc s) (CSS(None, Location.unloc s)))
     | _    -> c
 
 %}
@@ -135,7 +133,7 @@ simple_attribute:
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
-  | EQ s=loc(braces(struct_annot)) { L.mk_loc (L.loc s) (Astruct (L.unloc s)) }
+  | EQ s=loc(braces(struct_annot)) { Location.mk_loc (Location.loc s) (Astruct (Location.unloc s)) }
 
 annotation:
   | k=annotationlabel v=attribute? { k, v }
@@ -346,8 +344,8 @@ pinstr_r:
 
 | fc=loc(f=var args=parens_tuple(pexpr) { (f, args) })
     c=prefix(IF, pexpr)? SEMICOLON
-    { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
-      PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, args)), c) }
+    { let { Location.pl_loc = loc; Location.pl_desc = (f, args) } = fc in
+      PIAssign ((None, []), `Raw, Location.mk_loc loc (PECall (f, args)), c) }
 
 | ASSERT e=pexpr SEMICOLON { PIAssert e }
 
@@ -462,6 +460,7 @@ pparam:
 pgexpr:
 | e=pexpr { GEword e }
 | LBRACE es = rtuple1(pexpr) RBRACE { GEarray es } 
+| e=loc(STRING) { GEstring e }
 
 pglobal:
 | pgd_type=ptype pgd_name=ident EQ pgd_val=pgexpr SEMICOLON
@@ -486,18 +485,18 @@ prequire:
 
 (* -------------------------------------------------------------------- *)
 top:
-| x=pfundef  { S.PFundef x }
-| x=pparam   { S.PParam  x }
-| x=pglobal  { S.PGlobal x }
-| x=pexec    { S.Pexec   x }
-| x=prequire { S.Prequire x}
+| x=pfundef  { Syntax.PFundef x }
+| x=pparam   { Syntax.PParam  x }
+| x=pglobal  { Syntax.PGlobal x }
+| x=pexec    { Syntax.Pexec   x }
+| x=prequire { Syntax.Prequire x}
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF
     { pfs }
 
 | error
-   { S.parse_error (L.make $startpos $endpos) }
+   { Syntax.parse_error (Location.make $startpos $endpos) }
 
 (* -------------------------------------------------------------------- *)
 %inline empty:
@@ -507,7 +506,7 @@ module_:
 | s=separated_nonempty_list(S, X) { s }
 
 %inline loc(X):
-| x=X { L.mk_loc (L.make $startpos $endpos) x }
+| x=X { Location.mk_loc (Location.make $startpos $endpos) x }
 
 %inline prefix(S, X):
 | S x=X { x }

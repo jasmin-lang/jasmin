@@ -1,0 +1,27 @@
+u32 g = 42;
+
+export
+fn fourtytwo() -> reg u32 {
+  reg u32 r;
+  r = g;
+  return r;
+}
+
+u8[4] t = { 1, 2, 3, 4 };
+
+export
+fn two () -> reg u32 {
+  reg u32 r;
+  r = (32u)t[1];
+  return r;
+}
+
+export
+fn mod4p1(reg u32 i) -> reg u32 {
+  reg u32 r;
+  reg ptr u8[4] p;
+  p = t;
+  i &= 3;
+  r = (32u)p[(int) i];
+  return r;
+}

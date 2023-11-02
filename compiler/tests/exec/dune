@@ -1,0 +1,22 @@
+(tests
+  (libraries jasmin.jasmin)
+  (deps
+    basic.jazz
+    ../success/x86-64/clc-stc.jazz
+    poly1305.jazz ../success/x86-64/eval_poly1305_u32.jazz
+    return-undef.jazz
+    cmoveptr.jazz ../pending/x86-64/cmoveptr.jazz
+    ../success/subroutines/x86-64/literal-argument.jazz
+    for.jazz ../success/x86-64/eval_for.jazz
+    inline-call.jazz ../success/x86-64/inline_call_to_export.jazz
+    ../success/x86-64/lzcnt.jazz
+    ../success/x86-64/test_parity.jazz
+    ../success/x86-64/test_ptr_fn_inline.jazz
+    vpsxldq.jazz ../success/x86-64/vpsxldq.jazz
+    sem_unit.jazz
+    ../success/x86-64/test_global_string_literal.jazz
+  )
+  (flags -rectypes)
+  (names
+    exec
+    sem_unit))

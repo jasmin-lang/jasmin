@@ -5,6 +5,7 @@ open Annotations
 open Syntax
 
 module F = Format
+module L = Location
 
 type ('a, 'b, 'c, 'd) str = ('a, 'b, 'c, 'd, 'd, 'a) CamlinternalFormatBasics.format6
 
@@ -346,6 +347,13 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
     (pp_inbraces 0 pp_funbody) pdf_body;
   F.fprintf fmt eol
 
+let pp_string fmt s =
+  s |> L.unloc |> F.asprintf "%S" |> String.iter @@ function
+  | '\\' -> F.fprintf fmt "\\textbackslash{}"
+  | '\'' -> F.fprintf fmt "\\textquotesingle{}"
+  | '"' -> F.fprintf fmt "\\textquotedbl{}"
+  | c -> F.fprintf fmt "%c" c
+
 let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
   F.fprintf fmt "%a %a %a = %a;"
     kw "param"
@@ -361,6 +369,7 @@ let pp_pgexpr fmt = function
       openbrace ()
       (pp_list ",@ " pp_expr) es
       closebrace ()
+  | GEstring e -> pp_string fmt e
 
 let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"
@@ -368,6 +377,9 @@ let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
     dname (L.unloc pgd_name)
     pp_pgexpr pgd_val;
   F.fprintf fmt eol
+
+let pp_path fmt s =
+  F.fprintf fmt "%S " (L.unloc s)
 
 let pp_pitem fmt pi =
   match L.unloc pi with
@@ -380,7 +392,7 @@ let pp_pitem fmt pi =
       Option.may (fun name ->
           F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
       F.fprintf fmt "%a%a " pp_from from kw "require";
-      List.iter (fun s -> F.fprintf fmt "%S " (L.unloc s)) s;
+      List.iter (pp_path fmt) s;
       F.fprintf fmt eol
 
 let pp_prog fmt =

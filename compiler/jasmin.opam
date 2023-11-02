@@ -16,11 +16,14 @@ install: [
   cp "_build/default/entry/jasminc.exe" "%{prefix}%/bin/jasminc"
   cp "_build/default/entry/jazz2tex.exe" "%{prefix}%/bin/jazz2tex"
   cp "_build/default/entry/jazz2cl.exe" "%{prefix}%/bin/jazz2cl"
+  mkdir -p "%{prefix}%/lib/jasmin/easycrypt"
+  sh -c "cp ../eclib/*.ec \"%{prefix}%/lib/jasmin/easycrypt/\""
 ]
 depends: [
-  "ocaml" { >= "4.10" & build }
+  "ocaml" { >= "4.11" & build }
   "batteries" {>= "3.4"}
-  "cmdliner" { build }
+  "cmdliner" {>= "1.1" & build }
+  "dune" {>= "3.2"}
   "menhir" {>= "20160825" & build }
   "menhirLib"
   "camlidl"

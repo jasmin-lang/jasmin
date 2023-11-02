@@ -4,18 +4,23 @@
  (modules lexer))
 
 (menhir
- (flags "--table" "--explain")
+ (flags "--table" "--explain" "--inspection")
  (modules parser))
 
 (library
  (name jasmin)
  (public_name jasmin.jasmin)
  (flags -rectypes)
- (modules :standard \ main_compiler x86_safety)
- (libraries batteries zarith menhirLib))
+ (modules :standard \ arch main_compiler x86_safety uint63_63 uint63_31)
+ (libraries batteries.unthreaded zarith menhirLib))
 
 (library
  (name jasminc)
  (flags -rectypes)
- (modules main_compiler x86_safety)
+ (modules arch main_compiler x86_safety)
  (libraries jasmin jasmin_checksafety))
+
+(rule
+ (targets uint63.ml)
+ (deps (:gen-file uint63_%{ocaml-config:int_size}.ml))
+ (action (copy# %{gen-file} %{targets})))

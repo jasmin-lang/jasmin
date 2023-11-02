@@ -44,20 +44,13 @@ End E.
 
 Section PROG.
 Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
-Context (p: sprog) (extra_free_registers: instr_info → option var).
+Context (p: sprog).
 Context (var_tmp : var).
-
-(** Set of variables written by a function (including RA and extra registers),
-      assuming this information is known for the called functions. *)
-
-Definition add_extra_free_registers ii (D:Sv.t) :=
-  if extra_free_registers ii is Some r then Sv.add r D
-  else D.
-
-Local Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
 
 Let magic_variables : Sv.t := magic_variables p.
 
+(** Set of variables written by a function (including RA and extra registers),
+      assuming this information is known for the called functions. *)
 Section WRITE1.
 
   Context (writefun: funname → Sv.t).
@@ -83,7 +76,7 @@ Section WRITE1.
     end
   with write_I_rec s i :=
     match i with
-    | MkI ii i => add_extra_free_registers ii (write_i_rec s i)
+    | MkI ii i => write_i_rec s i
     end.
 
   Definition write_I := write_I_rec Sv.empty.
@@ -96,16 +89,16 @@ Section WRITE1.
 
 End WRITE1.
 
-Definition get_wmap (wmap: Mp.t Sv.t) (fn: funname) : Sv.t :=
-  odflt Sv.empty (Mp.get wmap fn).
+Definition get_wmap (wmap: Mf.t Sv.t) (fn: funname) : Sv.t :=
+  odflt Sv.empty (Mf.get wmap fn).
 
 Definition mk_wmap :=
   foldr (λ '(f, fd) wmap,
          let w := write_fd (get_wmap wmap) fd in
-         Mp.set wmap f w)
-        (Mp.empty _) p.(p_funcs).
+         Mf.set wmap f w)
+        (Mf.empty _) p.(p_funcs).
 
-Definition check_wmap (wmap: Mp.t Sv.t) : bool :=
+Definition check_wmap (wmap: Mf.t Sv.t) : bool :=
   all (λ '(f, fd), Sv.subset (write_fd (get_wmap wmap) fd) (get_wmap wmap f)) (p_funcs p).
 
 Definition check_fv (ii:instr_info) (D R : Sv.t) :=
@@ -159,13 +152,7 @@ Section CHECK.
 
   Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : cexec Sv.t :=
     let: MkI ii ir := i in
-    Let _ :=
-      if extra_free_registers ii is Some r
-      then
-        assert (vtype r == sword Uptr) (E.internal_error ii "bad type for extra free register") >>
-        assert (if ir is Cwhile _ _ _ _ then false else true) (E.internal_error ii "loops need no extra register")
-      else ok tt in
-    check_ir sz ii (add_extra_free_registers ii D) ir
+    check_ir sz ii D ir
 
   with check_ir sz ii D ir :=
     match ir with

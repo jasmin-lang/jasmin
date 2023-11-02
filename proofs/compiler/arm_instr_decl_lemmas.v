@@ -6,7 +6,9 @@ From mathcomp Require Import word_ssrZ.
 Require Import
   psem
   shift_kind.
-Require Import sem_params_of_arch_extra.
+Require Import
+  arch_utils
+  sem_params_of_arch_extra.
 Require Import
   arm_decl
   arm_extra
@@ -16,27 +18,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Lemma mn_desc_is_conditional mn sf ic hs ic' :
-  let opts :=
-    {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
-  in
-  let opts' :=
-    {| set_flags := sf; is_conditional := ic'; has_shift := hs; |}
-  in
-  mn_desc mn opts = mn_desc mn opts'.
-Proof. by case: mn. Qed.
-
-Lemma ignore_set_flags mn sf ic hs sf' :
-  mn \notin set_flags_mnemonics
-  -> let opts :=
-       {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
-     in
-     let opts' :=
-       {| set_flags := sf'; is_conditional := ic; has_shift := hs; |}
-     in
-     mn_desc mn opts = mn_desc mn opts'.
-Proof. by case: mn. Qed.
-
 Lemma ignore_has_shift mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=
@@ -45,7 +26,7 @@ Lemma ignore_has_shift mn sf ic hs hs' :
      let opts' :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs'; |}
      in
-     mn_desc mn opts = mn_desc mn opts'.
+     mn_desc opts mn = mn_desc opts' mn.
 Proof. by case: mn. Qed.
 
 (* TODO_ARM: It seems like we need to characterize conditional execution,
@@ -55,10 +36,11 @@ Proof. by case: mn. Qed.
 Section WITH_PARAMS.
 
 Context
+  {wsw : WithSubWord}
+  {atoI : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {sCP : semCallParams}.
 
 Definition truncate_args
@@ -117,28 +99,26 @@ Proof.
     ).
 
   all: move: hsemop.
-  all: rewrite /sopn_sem /=.
-  all: rewrite /drop_semi_nzcv /=.
   all: move=> [?]; subst v.
   all: by case: b.
 Qed.
 
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)
 Lemma sem_i_conditional
-  (p : prog)
+  {dc : DirectCall} (p : prog)
   ev s0 s1 mn sf osk lvs tag args c prev vargs b vprev vprev' vres :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}
   in
   let aop := Oarm (ARM_op mn opts) in
-  sem_pexprs (p_globs p) s0 args = ok vargs
-  -> sem_pexpr (p_globs p) s0 c = ok (Vbool b)
-  -> sem_pexprs (p_globs p) s0 prev = ok vprev
+  sem_pexprs true (p_globs p) s0 args = ok vargs
+  -> sem_pexpr true (p_globs p) s0 c = ok (Vbool b)
+  -> sem_pexprs true (p_globs p) s0 prev = ok vprev
   -> truncate_args aop vprev = ok vprev'
   -> exec_sopn aop vargs = ok vres
   -> (if b
-      then write_lvals (p_globs p) s0 lvs vres = ok s1
-      else write_lvals (p_globs p) s0 lvs vprev' = ok s1)
+      then write_lvals true (p_globs p) s0 lvs vres = ok s1
+      else write_lvals true (p_globs p) s0 lvs vprev' = ok s1)
   -> let aop' := Oarm (ARM_op mn (set_is_conditional opts)) in
      let ir := Copn lvs tag aop' (args ++ c :: prev) in
      sem_i p ev s0 ir s1.
@@ -147,7 +127,7 @@ Proof.
 
   apply: Eopn.
   rewrite /sem_sopn /=.
-  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _).
+  rewrite /sem_pexprs mapM_cat /= -2![mapM _ _]/(sem_pexprs _ _ _ _).
   rewrite hsemargs hsemc hsemprev {hsemargs hsemc hsemprev} /=.
 
   case: b hwrite => hwrite.

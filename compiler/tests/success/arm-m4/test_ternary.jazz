@@ -1,0 +1,27 @@
+param int n = 8;
+
+export
+fn test_cmp(reg u32 x, reg u32 y) -> reg u32 {
+inline int i;
+reg u32[n] t;
+reg u32 r;
+reg bool e b be l nle vf;
+
+for i = 0 to n { t[i] = i; }
+
+?{ vf, "==" = e, "<u" = b, "<=u" = be, "<s" = l, ">s" = nle} = #CMP(x, y);
+
+// r not initialized
+r = 0;
+r = t[0] if e;   // E. x = y
+r = t[1] if b;   // B. y <u x
+r = t[2] if be;  // BE. y <=u x
+r = t[3] if !be; // NBE. y >u x
+r = t[4] if l;   // L. y <s x
+r = t[5] if !l;  // NL. y >=s x
+r = t[6] if l || e; // LE. y <=s x
+r = t[7] if nle; // NLE. y >s x
+r = t[0] if vf;
+
+return r;
+}

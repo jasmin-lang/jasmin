@@ -1,0 +1,29 @@
+export
+fn umlal(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x, y;
+    x, y = #UMLAL(x, y, arg0, arg1);
+
+    // Set flags.
+    reg bool n, z, c, v;
+    n, z, c, v = #CMP(x, 0);
+
+    // Conditions.
+    x, y = #UMLALcc(x, y, x, arg0, z, x, y);            // EQ
+    x, y = #UMLALcc(x, y, x, arg0, !z, x, y);           // NE
+    x, y = #UMLALcc(x, y, x, arg0, c, x, y);            // CS
+    x, y = #UMLALcc(x, y, x, arg0, !c, x, y);           // CC
+    x, y = #UMLALcc(x, y, x, arg0, n, x, y);            // MI
+    x, y = #UMLALcc(x, y, x,arg0, !n, x, y);           // PL
+    x, y = #UMLALcc(x, y, x,arg0, v, x, y);            // VS
+    x, y = #UMLALcc(x, y, x, arg0, !v, x, y);           // VC
+    x, y = #UMLALcc(x, y, x, arg0, c && !z, x, y);      // HI
+    x, y = #UMLALcc(x, y, x, arg0, !c || z, x, y);      // LS
+    x, y = #UMLALcc(x, y, x, arg0, n == v, x, y);       // GE
+    x, y = #UMLALcc(x, y, x, arg0, n != v, x, y);       // LT
+    x, y = #UMLALcc(x, y, x, arg0, !z && n == v, x, y); // GT
+    x, y = #UMLALcc(x, y, x, arg0, z || n != v, x, y);  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}

@@ -20,9 +20,8 @@ Scheme Equality for arr_access.
 
 Lemma arr_access_eq_axiom : Equality.axiom arr_access_beq.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_arr_access_dec_bl.
-  by apply: internal_arr_access_dec_lb.
+  exact:
+    (eq_axiom_of_scheme internal_arr_access_dec_bl internal_arr_access_dec_lb).
 Qed.
 
 Definition arr_access_eqMixin     := Equality.Mixin arr_access_eq_axiom.
@@ -214,7 +213,7 @@ Module WArray.
     else Error ErrOob.
 
   Definition cast len len' (a:array len) : result error (array len') :=
-    if (len' <=? len)%Z then ok {| arr_data := a.(arr_data) |}
+    if len' == len then ok {| arr_data := a.(arr_data) |}
     else type_error.
 
   Definition of_list {ws} (l:list (word ws)) : array (Z.to_pos (Z.of_nat (size l) * wsize_size ws)) :=
@@ -228,11 +227,11 @@ Module WArray.
     {| arr_data := m |}.
 
   Definition uincl {len1 len2} (a1 : array len1) (a2 : array len2) :=
-    (len1 <= len2)%Z /\
+    (len1 = len2)%Z /\
     ∀ i w, read a1 i U8 = ok w -> read a2 i U8 = ok w.
 
   Lemma uincl_refl len (a: array len) : uincl a a.
-  Proof. by split => //; reflexivity. Qed.
+  Proof. done. Qed.
 
   Lemma uincl_trans {len1 len2 len3} 
     (a2: array len2) (a1: array len1) (a3: array len3) :
@@ -242,21 +241,25 @@ Module WArray.
     by move=> ?? /h1 /h2.
   Qed.
 
+  Lemma uincl_len {len1 len2}  (a1: array len1) (a2: array len2) :
+    uincl a1 a2 -> len1 = len2.
+  Proof. by case. Qed.
+
   End WITH_POINTER_DATA.
 
   Lemma castK len (a:array len) : WArray.cast len a = ok a.
-  Proof. by rewrite /cast Z.leb_refl; case: a. Qed.
+  Proof. by rewrite /cast eqxx; case: a. Qed.
 
-  Lemma cast_len len1 len2 (t2:WArray.array len2) t1: WArray.cast len1 t2 = ok t1 -> len1 <= len2.
-  Proof. by rewrite /cast; case: ZleP. Qed.
+  Lemma cast_len len1 len2 (t2:WArray.array len2) t1: WArray.cast len1 t2 = ok t1 -> len1 = len2.
+  Proof. by rewrite /cast; case: eqP. Qed. 
 
   Lemma cast_empty len1 len2 : 
-    WArray.cast len1 (empty len2) = if len1 <=? len2 then ok (empty len1) else type_error.
-  Proof. by rewrite /WArray.cast. Qed.
+    WArray.cast len1 (empty len2) = if len1 == len2 then ok (empty len1) else type_error.
+  Proof. done. Qed.
 
   Lemma cast_empty_ok len1 len2 t: 
     WArray.cast len1 (empty len2) = ok t -> t = empty len1.
-  Proof. by move=> /dup[]/cast_len/ZleP; rewrite cast_empty => -> [<-]. Qed.
+  Proof. by move=> /dup[]/cast_len/eqP; rewrite cast_empty => -> [<-]. Qed.
 
   Lemma cast_get8 len1 len2 (m : array len2) m' :
     cast len1 m = ok m' ->
@@ -264,7 +267,7 @@ Module WArray.
       read m' k U8 = 
         if k <? len1 then read m k U8 else Error ErrOob.
   Proof.
-    rewrite /cast; case: ZleP => // hle [<-] k.
+    rewrite /cast; case: eqP => // hle [<-] k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound /=.
     by case: ZleP => /=; case: ZltP => //=; case: ZltP => //; lia.
   Qed.
@@ -272,22 +275,17 @@ Module WArray.
   Lemma cast_uincl len1 len2 (t2 : WArray.array len2) t1 : 
     cast len1 t2 = ok t1 -> uincl t1 t2.
   Proof.
-    move=> hc; split; first by apply: cast_len hc.
-    by move=> i w; rewrite (cast_get8 hc); case: ifP.
+    move=> hc; have ?:= cast_len hc; subst len2.
+    by move: hc; rewrite castK => -[<-].
   Qed.
 
   Lemma uincl_cast len1 len2 (a1: array len1) (a2:array len2) len a1' : 
     uincl a1 a2 ->
     cast len a1 = ok a1' ->
-    exists a2', cast len a2 = ok a2' /\ uincl a1' a2'.
+    exists2 a2', cast len a2 = ok a2' & uincl a1' a2'.
   Proof.
-    move=> [hle hu] hc.
-    have:= (cast_get8 hc). have:= @cast_get8 len len2 a2.
-    move: hc; rewrite /cast; case: ZleP => // hle1 _. 
-    case: ZleP => hle2 hg2 hg1; last lia.
-    eexists;split; first by eauto.
-    split; first by lia.
-    by move=> ??; rewrite hg1 hg2 //; case: ifP => // _ /hu.
+    move=> /dup [] /uincl_len ? hu /dup [] /cast_len ?; subst len1 len2.
+    rewrite castK => -[<-]; exists a2 => //; apply castK.
   Qed.
 
   Lemma mk_scale_U8 aa : mk_scale aa U8 = 1%Z.
@@ -359,9 +357,9 @@ Module WArray.
   Proof. by rewrite get_empty => -[/ZleP -> /ZltP ->]. Qed.
 
   Lemma uincl_empty len len' (t:array len') : 
-    Zpos len <= len' -> uincl (empty len) t.
-  Proof.  
-    split; first Psatz.lia.
+    len = len' -> uincl (empty len) t.
+  Proof. 
+    move=> ?; subst len'; split => //.
     by move=> i w; rewrite get_empty; case: ifP.
   Qed.
 
@@ -497,6 +495,40 @@ Module WArray.
     0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= lena.
   Proof. by rewrite /set_sub; case: ifP => //; rewrite !zify. Qed.
 
+  Transparent arr_size. Opaque Z.mul ziota.
+  Lemma set_sub_get lena ws len (t: array lena) i (s: array (Z.to_pos (arr_size ws len))) t':
+    set_sub AAscale t i s = ok t' ->
+    forall j,
+    get AAscale ws t' j =
+      if ((i <=? j) && (j <? i + len))%Z then get AAscale ws s (j - i)%Z
+      else get AAscale ws t j.
+  Proof.
+    move=> hget j.
+    have ht':= set_sub_get8 hget.
+    have := set_sub_bound hget.
+    have ltws := wsize_size_pos ws; rewrite /arr_size /mk_scale => hb.
+    have [{hb} h0i hilen'] : (0 <= i /\ i + len <= lena)%Z by Psatz.nia.
+    rewrite /get !readE !is_align_scale /=.
+    case: ifPn.
+    + move=> /andP[]/ZleP ? /ZltP ?.
+      have -> // :
+        mapM (λ k : Z, read t' (add ( j      * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read s  (add ((j - i) * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+      apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+      rewrite ht' /= !WArray.addE.
+      case: ifPn => [ _ | /negP]; first by f_equal; ring.
+      elim; apply/andP; split; [apply/ZleP|apply/ZltP; rewrite /arr_size]; Psatz.nia.
+    move=> /negP hij.
+    have -> // :
+        mapM (λ k : Z, read t' (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+        mapM (λ k : Z, read t  (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+    apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite ht' /= !WArray.addE /arr_size.
+    case: ifPn => // /andP [] /ZleP ? /ZltP ?; elim hij.
+    apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.nia.
+  Qed.
+  Transparent Z.mul ziota. Opaque arr_size.
+
   Lemma get_sub_data_get8 aa ws a len p k: 
     Mz.get (get_sub_data aa ws len a p) k = 
       let start := (p * mk_scale aa ws)%Z in
@@ -565,6 +597,27 @@ Module WArray.
     by move=> k w; rewrite hr1 hr2; case: ifP => // [ ? /hget2| ? /hget1].
   Qed.
 
+  Transparent arr_size.
+  Lemma get_sub_get ws lena len (t:WArray.array lena) i st:
+    WArray.get_sub AAscale ws len t i = ok st ->
+    forall j, (0 <= j < len)%Z ->
+    WArray.get AAscale ws st j = WArray.get AAscale ws t (i + j)%Z.
+  Proof.
+    move=> /WArray.get_sub_get8 => hr j hj.
+    rewrite /WArray.get !readE !WArray.is_align_scale.
+    have -> // :
+      mapM (λ k : Z, read st (add (j * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
+      mapM (λ k : Z, read t (add ((i + j) * mk_scale AAscale ws)%Z k) U8) (ziota 0 (wsize_size ws)).
+    apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
+    rewrite hr /= !WArray.addE.
+    have ? := wsize_size_pos ws.
+    have -> /= : (0 <=? j * wsize_size ws + k)%Z.
+    + by apply/ZleP; Psatz.lia.
+    have -> /= : (j * wsize_size ws + k <? arr_size ws len)%Z.
+    + by apply /ZltP; rewrite /arr_size; Psatz.nia.
+    f_equal; ring.
+  Qed.
+  Opaque arr_size.
 End WArray.
 
 #[global]

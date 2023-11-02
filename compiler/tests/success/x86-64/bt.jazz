@@ -1,0 +1,19 @@
+export
+fn test_bt(reg u64 x y) -> reg u64 {
+  reg u64 r;
+  reg bool c;
+  r = x;
+  c = #BT_16(x, y);
+  r = y if c;
+  c = #BT_32(x, y);
+  r = y if c;
+  c = #BT_64(x, y);
+  r = y if c;
+  c = #BT_16(x, 5);
+  r = y if c;
+  c = #BT_32(x, 15);
+  r = y if c;
+  c = #BT_64(x, 15);
+  r = y if c;
+  return r;
+}

@@ -1,0 +1,25 @@
+f() = 0X5; 0X6
+ft() = [0X1; 0X0; 0X0; 0X0; 0XF; 0X0; 0X0; 0X0]
+mem() = 0XFF
+mem1() = 0XFF
+test_stc() = 0X1
+test_clc() = 0X0
+test_poly1305() = [0XA8; 0X6; 0X1D; 0XC1; 0X30; 0X51; 0X36; 0XC6; 0XC2; 0X2B;
+                  0X8B; 0XAF; 0XC; 0X1; 0X27; 0XA9]
+f() failed with undefined address
+zero() = 0X0
+one() = 0X1
+one() = 0X1
+test_for() = 0X42
+test_param() = 12
+test() = 0X42
+foo() = 0X1
+test_parity() = 0X9
+foo() = 0X3
+etest() = [0X12; 0X90; 0X78; 0X56; 0X34; 0X12; 0X90; 0X78; 0X56; 0X34; 0X12;
+          0X90; 0X78; 0X56; 0X34; 0X12; 0X90; 0X78; 0X56; 0X34; 0X12; 0X90;
+          0X78; 0X56; 0X34; 0X12; 0X90; 0X78; 0X56; 0X34; 0X0; 0X0; 0X90;
+          0X78; 0X56; 0X34; 0X12; 0X90; 0X78; 0X56; 0X34; 0X12; 0X90; 0X78;
+          0X0; 0X0; 0X0; 0X0; 0X78; 0X56; 0X34; 0X12; 0X90; 0X78; 0X56; 0X34;
+          0X12; 0X90; 0X78; 0X56; 0X0; 0X0; 0X0; 0X0]
+main() = 0X0

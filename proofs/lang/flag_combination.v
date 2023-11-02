@@ -9,18 +9,16 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-(* We distinguish 7 different conditions that can potentially be expressed with
+(* We distinguish 5 different conditions that can potentially be expressed with
    flags, these are [combine_flags_core], but provide the user with these and
-   their negations, [combine_flags]. Their correspondence is specified by
-   [cf_tbl].
+   their negations, [combine_flags].
+   Their correspondence is specified by [cf_tbl].
    The correspondence between these conditions and flags is
    architecture-specific. *)
 
 Variant combine_flags_core :=
-| CFC_O      (* Overflow. *)
 | CFC_B      (* Below (not above or equal). *)
 | CFC_E      (* Equal (zero). *)
-| CFC_S      (* Sign (negative). *)
 | CFC_L      (* Less than (not greater than or equal to). *)
 | CFC_BE     (* Below or equal (not above). *)
 | CFC_LE.    (* Less than or equal to (not greater than). *)
@@ -79,11 +77,9 @@ Section SEM.
     | FCEq fc0 fc1 => xeq (fc_sem fc0) (fc_sem fc1)
     end.
 
-  Definition cfc_xsem (cfc : combine_flags_core) : X :=
-    fc_sem (fc_of_cfc cfc).
-
   Definition cf_xsem (cf : combine_flags) : X :=
     let '(n, cfc) := cf_tbl cf in
     let x := fc_sem (fc_of_cfc cfc) in
     if n then xnot x else x.
+
 End SEM.

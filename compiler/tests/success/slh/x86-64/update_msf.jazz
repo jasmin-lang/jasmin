@@ -1,0 +1,141 @@
+fn test_if(reg u64 msf, reg u64 x) -> reg u64 {
+    inline bool b;
+
+    b = x == 0;
+
+    if (b) {
+      msf = #update_msf(!!b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+    if (b) {
+      msf = #update_msf(b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+    if (!b) {
+      msf = #update_msf(!b, msf);
+    } else {
+      msf = #update_msf(b, msf);
+    }
+
+    if (!b) {
+      msf = #update_msf(!b, msf);
+    } else {
+      msf = #update_msf(!!b, msf);
+    }
+
+    b = x != 0;
+
+    if (b) {
+      msf = #update_msf(!!b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+    if (b) {
+      msf = #update_msf(b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+    if (!b) {
+      msf = #update_msf(!b, msf);
+    } else {
+      msf = #update_msf(b, msf);
+    }
+
+    if (!b) {
+      msf = #update_msf(!b, msf);
+    } else {
+      msf = #update_msf(!!b, msf);
+    }
+
+    if (true && b) {
+      msf = #update_msf(b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+    if (b && true) {
+      msf = #update_msf(b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+    if (b) {
+      msf = #update_msf(b || false, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+
+   return msf;
+}
+
+
+fn test_while(reg u64 msf, reg u64 x) -> reg u64 {
+    inline bool b;
+
+    b = x == 0;
+
+    while (b) {
+      msf = #update_msf(!!b, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+    while (b) {
+      msf = #update_msf(b, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+    while (!b) {
+      msf = #update_msf(!b, msf);
+    }
+    msf = #update_msf(b, msf);
+
+    while (!b) {
+      msf = #update_msf(!b, msf);
+    }
+    msf = #update_msf(!!b, msf);
+
+    b = x != 0;
+
+    while (b) {
+      msf = #update_msf(!!b, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+    while (b) {
+      msf = #update_msf(b, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+    while (!b) {
+      msf = #update_msf(!b, msf);
+    }
+    msf = #update_msf(b, msf);
+
+    while (!b) {
+      msf = #update_msf(!b, msf);
+    }
+    msf = #update_msf(!!b, msf);
+
+    while (true && b) {
+      msf = #update_msf(b, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+    while (b && true) {
+      msf = #update_msf(b, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+    while (b) {
+      msf = #update_msf(b || false, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+   return msf;
+}

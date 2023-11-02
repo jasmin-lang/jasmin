@@ -22,7 +22,7 @@ Local Open Scope Z_scope.
 
 (* -------------------------------------------------------------- *)
 Ltac elim_div :=
-   unfold Z.div, Zmod;
+   unfold Z.div, Z.modulo;
      match goal with
        |  H : context[ Z.div_eucl ?X ?Y ] |-  _ =>
           generalize (Z_div_mod_full X Y) ; case: (Z.div_eucl X Y)
@@ -128,6 +128,11 @@ Proof. done. Qed.
 
 Lemma wsize_size_wbase s : wsize_size s < wbase U8.
 Proof. by apply /ZltP; case: s; vm_compute. Qed.
+
+Lemma wbase_div_wbase ws0 ws1 :
+  (ws0 <= ws1)%CMP ->
+  (wbase ws0 | wbase ws1).
+Proof. move=> h. exists (wbase ws1 / wbase ws0). case: ws0 h; by case: ws1. Qed.
 
 Lemma wsize_size_div_wbase sz sz' : (wsize_size sz | wbase sz').
 Proof.
@@ -368,25 +373,26 @@ Lemma wle_refl sz sg (w: word sz) :
 Proof. case: sg; exact: Z.leb_refl. Qed.
 
 Definition wshr sz (x: word sz) (n: Z) : word sz :=
-  lsr x (Z.to_nat n).
+  mkword sz (Z.shiftr (wunsigned x) n).
 
 Definition wshl sz (x: word sz) (n: Z) : word sz :=
-  lsl x (Z.to_nat n).
+  mkword sz (Z.shiftl (wunsigned x) n).
 
 Definition wsar sz (x: word sz) (n: Z) : word sz :=
-  asr x (Z.to_nat n).
+  mkword sz (Z.shiftr (wsigned x) n).
+
+Definition high_bits sz (n : Z) : word sz :=
+  wrepr sz (Z.shiftr n (wsize_bits sz)).
+
+Lemma high_bits_wbase sz n :
+  high_bits sz n = wrepr sz (n / wbase sz).
+Proof. by rewrite /high_bits Z.shiftr_div_pow2 // -wbaseE. Qed.
 
 Definition wmulhu sz (x y: word sz) : word sz :=
-  wrepr sz ((wunsigned x * wunsigned y) / wbase sz).
+  high_bits sz (wunsigned x * wunsigned y).
 
 Definition wmulhs sz (x y: word sz) : word sz :=
-  wrepr sz ((wsigned x * wsigned y) / wbase sz).
-
-Lemma wmulhuE sz (x y: word sz) : wmulhu x y = wrepr sz (wunsigned x * wunsigned y ÷ wbase sz).
-Proof.
-    rewrite /wmulhu Zquot.Zquot_Zdiv_pos //.
-    apply: Z.mul_nonneg_nonneg; apply: (proj1 (wunsigned_range _)).
-Qed.
+  high_bits sz (wsigned x * wsigned y).
 
 Definition wmulhrs sz (x y: word sz) : word sz :=
   let: p := Z.shiftr (wsigned x * wsigned y) (wsize_size_minus_1 sz).-1 + 1 in
@@ -419,17 +425,6 @@ Notation u32  := (word U32).
 Notation u64  := (word U64).
 Notation u128 := (word U128).
 Notation u256 := (word U256).
-
-Definition x86_shift_mask (s:wsize) : u8 :=
-  match s with
-  | U8 | U16 | U32 => wrepr U8 31
-  | U64  => wrepr U8 63
-  | U128 => wrepr U8 127
-  | U256 => wrepr U8 255
-  end%Z.
-
-Definition x86_nelem_mask (sze szc:wsize) : u8 :=
-  wrepr U8 (2 ^ (wsize_log2 szc - wsize_log2 sze) - 1).
 
 Definition wbit_n sz (w:word sz) (n:nat) : bool :=
    wbit (wunsigned w) n.
@@ -524,8 +519,12 @@ Proof.
 Qed.
 
 Lemma wshrE sz (x: word sz) c i :
+  0 <= c →
   wbit_n (wshr x c) i = wbit_n x (Z.to_nat c + i).
-Proof. exact: wbit_lsr. Qed.
+Proof.
+  move/Z2Nat.id => {1}<-.
+  exact: wbit_lsr.
+Qed.
 
 Lemma wunsigned_wshr sz (x: word sz) c :
   wunsigned (wshr x (Z.of_nat c)) = wunsigned x / 2 ^ Z.of_nat c.
@@ -542,7 +541,7 @@ Proof.
   rewrite -wunsigned_repr.
   congr wunsigned.
   apply/eqP/eq_from_wbit_n => i.
-  rewrite /wshr Nat2Z.id /wbit_n wbit_lsr wunsigned_repr /wbit.
+  rewrite /wbit_n wbit_lsr wunsigned_repr /wbit.
   rewrite Z.mod_small //.
   rewrite Z.div_pow2_bits.
   2-3: lia.
@@ -550,8 +549,10 @@ Proof.
 Qed.
 
 Lemma wshlE sz (w: word sz) c i :
+  0 <= c →
   wbit_n (wshl w c) i = (Z.to_nat c <= i <= wsize_size_minus_1 sz)%nat && wbit_n w (i - Z.to_nat c).
 Proof.
+  move/Z2Nat.id => {1}<-.
   rewrite /wbit_n /wshl /=.
   case: leP => hic /=;
     last (rewrite wbit_lsl_lo //; apply/leP; lia).
@@ -567,7 +568,6 @@ Local Ltac lia :=
 Lemma wunsigned_wshl sz (x: word sz) c :
   wunsigned (wshl x (Z.of_nat c)) = (wunsigned x * 2 ^ Z.of_nat c) mod wbase sz.
 Proof.
-  rewrite /wshl Nat2Z.id.
   rewrite -wunsigned_repr.
   congr wunsigned.
   apply/eqP/eq_from_wbit_n => i.
@@ -606,11 +606,12 @@ Proof.
 Qed.
 
 Lemma wshl_ovf sz (w: word sz) c :
+  0 <= c →
   (wsize_size_minus_1 sz < Z.to_nat c)%coq_nat →
   wshl w c = 0%R.
 Proof.
-  move => hc; apply/eqP/eq_from_wbit_n => i.
-  rewrite wshlE {2}/wbit_n wbit0.
+  move => c_not_neg hc; apply/eqP/eq_from_wbit_n => i.
+  rewrite wshlE // {2}/wbit_n wbit0.
   case: i => i /= /leP /le_S_n hi.
   have /leP -> := hi.
   case: leP => //; lia.
@@ -632,13 +633,25 @@ Definition waddcarry sz (x y: word sz) (c: bool) :=
   let n := wunsigned x + wunsigned y + Z.b2z c in
   (wbase sz <=? n, wrepr sz n).
 
+Definition wdaddu sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
+  let n := (wdwordu hi_1 lo_1) + (wdwordu hi_2 lo_2) in
+  (wrepr sz n, high_bits sz n).
+
+Definition wdadds sz (hi_1 lo_1 hi_2 lo_2: word sz) :=
+  let n := (wdwords hi_1 lo_1) + (wdwords hi_2 lo_2) in
+  (wrepr sz n, high_bits sz n).
+
 Definition wsubcarry sz (x y: word sz) (c: bool) :=
   let n := wunsigned x - wunsigned y - Z.b2z c in
   (n <? 0, wrepr sz n).
 
 Definition wumul sz (x y: word sz) :=
   let n := wunsigned x * wunsigned y in
-  (wrepr sz (Z.quot n (wbase sz)), wrepr sz n).
+  (high_bits sz n, wrepr sz n).
+
+Definition wsmul sz (x y: word sz) :=
+  let n := wsigned x * wsigned y in
+  (high_bits sz n, wrepr sz n).
 
 Definition wdiv {sz} (p q : word sz) : word sz :=
   let p := wunsigned p in
@@ -666,8 +679,30 @@ Definition zero_extend sz sz' (w: word sz') : word sz :=
 Definition sign_extend sz sz' (w: word sz') : word sz :=
   wrepr sz (wsigned w).
 
-Definition truncate_word s s' (w:word s') :=
-   if (s <= s')%CMP then ok (zero_extend s w) else type_error.
+Definition truncate_word s s' (w:word s') : exec (word s) :=
+  match gcmp s s' as c return gcmp s s' = c → exec (word s) with
+  | Eq => λ h, ok (ecast s (word s) (esym (cmp_eq h)) w)
+  | Lt => λ _, ok (zero_extend s w)
+  | Gt => λ _, type_error
+  end erefl.
+
+Variant truncate_word_spec s s' (w: word s') : exec (word s) → Type :=
+  | TruncateWordEq (h: s' = s) : truncate_word_spec w (ok (ecast s (word s) h w))
+  | TruncateWordLt (h: (s < s')%CMP) : truncate_word_spec w (ok (zero_extend s w))
+  | TruncateWordGt : (s' < s)%CMP → truncate_word_spec w type_error
+  .
+
+Lemma truncate_wordP' s s' (w: word s') : truncate_word_spec w (truncate_word s w).
+Proof.
+  rewrite /truncate_word/gcmp.
+  case: {2 3} (wsize_cmp s s') erefl.
+  - move => /cmp_eq ?; exact: TruncateWordEq.
+  - move => h; apply: TruncateWordLt.
+    by rewrite /cmp_lt /gcmp h.
+  rewrite -/(gcmp s s') => h.
+  apply: TruncateWordGt.
+  by rewrite /cmp_lt cmp_sym h.
+Qed.
 
 Definition wbit sz (w i: word sz) : bool :=
   wbit_n w (Z.to_nat (wunsigned i mod wsize_bits sz)).
@@ -685,6 +720,47 @@ Lemma wsignedE sz (w: word sz) :
   wsigned w = if msb w then wunsigned w - wbase sz else wunsigned w.
 Proof. done. Qed.
 
+Lemma wsigned_repr sz z :
+  wmin_signed sz <= z <= wmax_signed sz →
+  wsigned (wrepr sz z) = z.
+Proof.
+  rewrite wsignedE msb_wordE msbE /= wunsigned_repr -/(wbase _) => z_range.
+  elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.
+  subst z.
+  case: ifP => /ZleP.
+  all: move: sz z_range b_range.
+  all: move: {-2} Z.mul (erefl Z.mul) => K ?.
+  all: rewrite /wmin_signed /wmax_signed /wbase /modulus /two_power_nat.
+  all: case => /=; subst K; lia.
+Qed.
+
+(* -------------------------------------------------------------------*)
+Lemma wsmulP sz (x y: word sz) :
+  let: (hi, lo) := wsmul x y in
+  wdwords hi lo = wsigned x * wsigned y.
+Proof.
+  have x_range := wsigned_range x.
+  have y_range := wsigned_range y.
+  rewrite /wsmul /wdwords high_bits_wbase.
+  set p := _ * wsigned _.
+  have p_range : wmin_signed sz * wmax_signed sz <= p <= wmin_signed sz * wmin_signed sz.
+  { subst p; case: sz x y x_range y_range => x y;
+    rewrite /wmin_signed /wmax_signed /=;
+    nia. }
+  have hi_range : wmin_signed sz <= p / wbase sz <= wmax_signed sz.
+  { move: sz {x y x_range y_range} p p_range => sz p p_range.
+    elim_div => a b [] // ? [] b_range; last by have := wbase_pos sz; lia.
+    subst p.
+    move: sz p_range b_range.
+    move: {-2} Z.mul (erefl Z.mul) => K ?.
+    rewrite /wmin_signed /wmax_signed /wbase /modulus /two_power_nat.
+    case => /=; subst K; lia. }
+  rewrite wsigned_repr; last exact: hi_range.
+  rewrite wunsigned_repr -/(wbase _).
+  have := Z_div_mod_eq_full p (wbase sz).
+  lia.
+Qed.
+
 (* -------------------------------------------------------------------*)
 Lemma msb0 sz : @msb sz 0 = false.
 Proof. by case: sz. Qed.
@@ -697,7 +773,7 @@ Proof.
   apply/eqP/eq_from_wbit_n.
   move=> i.
   rewrite w0E.
-  rewrite wshrE.
+  rewrite wshrE //.
   rewrite /wsize_bits /=.
   rewrite SuccNat2Pos.id_succ.
   rewrite /wbit_n.
@@ -713,7 +789,7 @@ Lemma wshl_full sz (w : word sz) : wshl w (wsize_bits sz) = 0%R.
 Proof.
   apply/eqP/eq_from_wbit_n.
   move=> i.
-  rewrite wshlE.
+  rewrite wshlE; last by [].
   rewrite /wsize_bits /=.
   rewrite SuccNat2Pos.id_succ.
   case hi: (_ <= _ <= _)%N; last by rewrite w0E.
@@ -722,92 +798,6 @@ Qed.
 
 Lemma wsar0 sz (w: word sz) : wsar w 0 = w.
 Proof. by rewrite /wsar /asr Z.shiftr_0_r sreprK. Qed.
-
-(* -------------------------------------------------------------------*)
-Lemma wltuE' sz (α β: word sz) :
-  wlt Unsigned α β = (wunsigned (β - α) == (wunsigned β - wunsigned α)%Z) && (β != α).
-Proof.
-by rewrite -[X in X && _]negbK -wltuE /= -leNgt andbC eq_sym -lt_neqAle.
-Qed.
-
-Lemma wleuE sz (w1 w2: word sz) :
-  wle Unsigned w1 w2 = (wunsigned (w2 - w1) == (wunsigned w2 - wunsigned w1))%Z.
-Proof.
-rewrite /= le_eqVlt -/(wlt Unsigned _ _) wltuE'.
-rewrite orb_andr /= [w2 == w1]eq_sym orbN andbT.
-by rewrite orb_idl // => /eqP /val_inj ->; rewrite subZE !subrr.
-Qed.
-
-Lemma wltsE_aux sz (α β: word sz) : α ≠ β →
-  wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof.
-move=> ne_ab; rewrite /= !msb_wordE /wsigned /srepr.
-rewrite !mathcomp.word.word.msbE /= !subZE; set w := (_ sz);
-  case: (lerP (modulus _) (val α)) => ha;
-  case: (lerP (modulus _) (val β)) => hb;
-  case: (lerP (modulus _) (val _)) => hab.
-+ rewrite ltr_add2r eq_sym eqb_id negbK opprB !addrA subrK.
-  rewrite [val (α - β)%R]subw_modE /urepr /= -/w.
-  case: ltrP; first by rewrite addrK eqxx.
-  by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
-+ rewrite ltr_add2r opprB !addrA subrK eq_sym eqbF_neg negbK.
-  rewrite [val (α - β)%R]subw_modE /urepr -/w /=; case: ltrP.
-  + by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
-  + by rewrite addr0 eqxx.
-+ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
-    by rewrite ler_addr urepr_ge0.
-  rewrite eq_sym eqb_id negbK; apply/esym.
-  rewrite [val _]subw_modE /urepr -/w /= ltNge ltW /=.
-  * by rewrite addr0 addrAC eqxx.
-  * by rewrite (lt_le_trans hb).
-+ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
-    by rewrite ler_addr urepr_ge0.
-  rewrite eq_sym eqbF_neg negbK [val _]subw_modE /urepr -/w /=.
-  rewrite ltNge ltW ?addr0; last first.
-    by rewrite (lt_le_trans hb).
-  by rewrite addrAC gt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
-+ rewrite ltr_subr_addl ltNge ltW /=; last first.
-    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
-  apply/esym/negbTE; rewrite negbK; apply/eqP/esym.
-  rewrite [val _]subw_modE /urepr /= -/w; have ->/=: (val α < val β)%R.
-    by have := ltr_le_add ha hb; rewrite addrC ltr_add2l.
-  rewrite mulr1n addrK opprD addrA lt_eqF //= opprK.
-  by rewrite ltr_addl modulus_gt0.
-+ rewrite ltr_subr_addl ltNge ltW /=; last first.
-    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
-  apply/esym/negbTE; rewrite negbK eq_sym eqbF_neg negbK.
-  rewrite [val _]subw_modE /urepr -/w /= opprD addrA opprK.
-  by have ->//: (val α < val β)%R; apply/(lt_le_trans ha).
-+ rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
-  rewrite eq_sym eqb_id negbK; case: ltrP.
-  * by rewrite mulr1n addrK eqxx.
-  * by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
-+ rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
-  rewrite eq_sym eqbF_neg negbK; case: ltrP.
-  * by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
-  * by rewrite addr0 eqxx.
-Qed.
-
-Lemma wlesE' sz (α β: word sz) : α ≠ β →
-  wle Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof.
-move=> ne_ab; suff ->: wle Signed α β = wlt Signed α β by rewrite wltsE_aux.
-by move=> /=; rewrite le_eqVlt orb_idl // => /eqP /srepr_inj.
-Qed.
-
-Lemma wltsE' sz (α β: word sz) : α ≠ β →
-  wlt Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof.
-have ->: wlt Signed β α = ~~ (wle Signed α β) by rewrite /= ltNge.
-by move=> ne_ab; rewrite wlesE' // negbK.
-Qed.
-
-Lemma wlesE sz (α β: word sz) : α ≠ β →
-  wle Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-Proof.
-move=> ne_ab; suff ->: wle Signed β α = wlt Signed β α by rewrite wltsE'.
-by move=> /=; rewrite le_eqVlt orb_idl // => /eqP /srepr_inj /esym.
-Qed.
 
 (* -------------------------------------------------------------------*)
 Lemma zero_extend0 sz sz' :
@@ -893,18 +883,31 @@ Qed.
 Lemma sign_extend_u sz (w: word sz) : sign_extend sz w = w.
 Proof. exact: sreprK. Qed.
 
-Lemma truncate_word_u s (a : word s) : truncate_word s a = ok a.
-Proof. by rewrite /truncate_word cmp_le_refl zero_extend_u. Qed.
+Lemma truncate_word_le s s' (w: word s') :
+  (s ≤ s')%CMP →
+  truncate_word s w = ok (zero_extend s w).
+  case: truncate_wordP' => //.
+  - by move => ?; subst; rewrite zero_extend_u.
+  by rewrite -cmp_nle_lt => /negbTE ->.
+Qed.
 
 Lemma truncate_wordP s1 s2 (w1:word s1) (w2:word s2) :
   truncate_word s1 w2 = ok w1 → (s1 <= s2)%CMP /\ w1 = zero_extend s1 w2.
-Proof. by rewrite /truncate_word; case: ifP => // ? []. Qed.
+Proof.
+  case: truncate_wordP'; last by [].
+  - move => ?; subst => /ok_inj ->{w2}.
+    by rewrite cmp_le_refl zero_extend_u.
+  by move => /(@cmp_lt_le _ _ _ _ _) -> /ok_inj ->.
+Qed.
 
 Lemma truncate_word_errP s1 s2 (w: word s2) e :
   truncate_word s1 w = Error e → e = ErrType ∧ (s2 < s1)%CMP.
-Proof.
-  by rewrite /truncate_word; case: ifP => // /negbT; rewrite cmp_nle_lt => ? [].
-Qed.
+Proof. by case: truncate_wordP' => // -> [] <-. Qed.
+
+Global Opaque truncate_word.
+
+Lemma truncate_word_u s (a : word s) : truncate_word s a = ok a.
+Proof. by rewrite truncate_word_le ?zero_extend_u ?cmp_refl. Qed.
 
 Lemma wbase_n0 sz : wbase sz <> 0%Z.
 Proof. by case sz. Qed.
@@ -936,6 +939,9 @@ Qed.
 
 Lemma wand0 sz (x: word sz) : wand 0 x = 0%R.
 Proof. by apply/eqP. Qed.
+
+Lemma wand_xx sz (x: word sz) : wand x x = x.
+Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.land_diag. Qed.
 
 Lemma wandN1 sz (x: word sz) : wand (-1) x = x.
 Proof.
@@ -1064,10 +1070,11 @@ Qed.
 
 Lemma zero_extend_wshl sz sz' (x: word sz') c :
   (sz ≤ sz')%CMP →
+  0 <= c →
   zero_extend sz (wshl x c) = wshl (zero_extend sz x) c.
 Proof.
-move => hle; apply/eqP/eq_from_wbit_n => i.
-rewrite !(wbit_zero_extend, wshlE).
+move => hle hc; apply/eqP/eq_from_wbit_n => i.
+rewrite !(wbit_zero_extend, wshlE) //.
 have := wsize_size_m hle.
 move: i.
 set m := wsize_size_minus_1 _.
@@ -1131,6 +1138,101 @@ rewrite him /=.
 have hi' : (i < m'.+1)%nat. apply /ltP. lia.
 by have /= -> := @wnotE sz' x (Ordinal hi') .
 Qed.
+
+
+(* -------------------------------------------------------------------*)
+
+Lemma wleuE sz (w1 w2: word sz) :
+ (wunsigned (w2 - w1) == (wunsigned w2 - wunsigned w1))%Z = wle Unsigned w1 w2.
+Proof. by rewrite /= leNgt wltuE negbK. Qed.
+
+Lemma wleuE' sz (w1 w2 : word sz) :
+  (wunsigned (w1 - w2) != (wunsigned w1 - wunsigned w2)%Z) || (w1 == w2)
+  = wle Unsigned w1 w2.
+Proof. by rewrite -wltuE /= le_eqVlt orbC. Qed.
+
+Lemma wltsE_aux sz (α β: word sz) : α ≠ β →
+  wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
+Proof.
+move=> ne_ab; rewrite /= !msb_wordE /wsigned /srepr.
+rewrite !mathcomp.word.word.msbE /= !subZE; set w := (_ sz);
+  case: (lerP (modulus _) (val α)) => ha;
+  case: (lerP (modulus _) (val β)) => hb;
+  case: (lerP (modulus _) (val _)) => hab.
++ rewrite ltr_add2r eq_sym eqb_id negbK opprB !addrA subrK.
+  rewrite [val (α - β)%R]subw_modE /urepr /= -/w.
+  case: ltrP; first by rewrite addrK eqxx.
+  by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
++ rewrite ltr_add2r opprB !addrA subrK eq_sym eqbF_neg negbK.
+  rewrite [val (α - β)%R]subw_modE /urepr -/w /=; case: ltrP.
+  + by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
+  + by rewrite addr0 eqxx.
++ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
+    by rewrite ler_addr urepr_ge0.
+  rewrite eq_sym eqb_id negbK; apply/esym.
+  rewrite [val _]subw_modE /urepr -/w /= ltNge ltW /=.
+  * by rewrite addr0 addrAC eqxx.
+  * by rewrite (lt_le_trans hb).
++ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
+    by rewrite ler_addr urepr_ge0.
+  rewrite eq_sym eqbF_neg negbK [val _]subw_modE /urepr -/w /=.
+  rewrite ltNge ltW ?addr0; last first.
+    by rewrite (lt_le_trans hb).
+  by rewrite addrAC gt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
++ rewrite ltr_subr_addl ltNge ltW /=; last first.
+    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
+  apply/esym/negbTE; rewrite negbK; apply/eqP/esym.
+  rewrite [val _]subw_modE /urepr /= -/w; have ->/=: (val α < val β)%R.
+    by have := ltr_le_add ha hb; rewrite addrC ltr_add2l.
+  rewrite mulr1n addrK opprD addrA lt_eqF //= opprK.
+  by rewrite ltr_addl modulus_gt0.
++ rewrite ltr_subr_addl ltNge ltW /=; last first.
+    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
+  apply/esym/negbTE; rewrite negbK eq_sym eqbF_neg negbK.
+  rewrite [val _]subw_modE /urepr -/w /= opprD addrA opprK.
+  by have ->//: (val α < val β)%R; apply/(lt_le_trans ha).
++ rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
+  rewrite eq_sym eqb_id negbK; case: ltrP.
+  * by rewrite mulr1n addrK eqxx.
+  * by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
++ rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
+  rewrite eq_sym eqbF_neg negbK; case: ltrP.
+  * by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
+  * by rewrite addr0 eqxx.
+Qed.
+
+Section WCMPE.
+
+#[local]
+Notation wle_msb x y :=
+  (msb (x - y) == (wsigned (x - y) != (wsigned x - wsigned y)%Z))
+  (only parsing, x in scope ring_scope, y in scope ring_scope).
+
+#[local]
+Notation wlt_msb x y := (~~ wle_msb x y) (only parsing).
+
+Lemma wltsE ws (x y : word ws) :
+  wlt_msb x y = wlt Signed x y.
+Proof.
+  case: (x =P y) => [<- | ?]; last by rewrite wltsE_aux.
+  by rewrite /= ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
+Qed.
+
+Lemma wlesE ws (x y : word ws) :
+  wle_msb x y = wle Signed y x.
+Proof. by rewrite -[_ == _]negbK wltsE /= leNgt. Qed.
+
+Lemma wltsE' ws (x y : word ws):
+  ((x != y) && wle_msb x y) = wlt Signed y x.
+Proof.
+  by rewrite wlesE /= lt_def eqtype.inj_eq; last exact: word.srepr_inj.
+Qed.
+
+Lemma wlesE' ws (x y : word ws) :
+  ((x == y) || wlt_msb x y) = wle Signed x y.
+Proof. by rewrite -[_ || _]negbK negb_or negbK wltsE' /= leNgt. Qed.
+
+End WCMPE.
 
 (* -------------------------------------------------------------------*)
 Ltac wring :=
@@ -1500,8 +1602,8 @@ Definition wpermd1 (v: seq u32) (idx: u32) :=
   let off := wunsigned idx mod 8 in
   (v`_(Z.to_nat off))%R.
 
-Definition wpermd sz (w1 idx: word sz) : word sz :=
-  let v := split_vec U32 w1 in
+Definition wpermd sz (idx w: word sz) : word sz :=
+  let v := split_vec U32 w in
   let i := split_vec U32 idx in
   make_vec sz (map (wpermd1 v) i).
 
@@ -1520,15 +1622,15 @@ Definition wpslldq := wpsxldq (@wshl _).
 Definition wpsrldq := wpsxldq (@wshr _).
 
 (* -------------------------------------------------------------------*)
-Definition wpcmpu1 (cmp: Z → Z → bool) ve (x y: word ve) : word ve :=
-  if cmp (wunsigned x) (wunsigned y) then (-1)%R else 0%R.
-Arguments wpcmpu1 cmp {ve} _ _.
+Definition wpcmps1 (cmp: Z → Z → bool) ve (x y: word ve) : word ve :=
+  if cmp (wsigned x) (wsigned y) then (-1)%R else 0%R.
+Arguments wpcmps1 cmp {ve} _ _.
 
 Definition wpcmpeq ve sz (w1 w2: word sz) : word sz :=
-  lift2_vec ve (wpcmpu1 Z.eqb) sz w1 w2.
+  lift2_vec ve (wpcmps1 Z.eqb) sz w1 w2.
 
 Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
-  lift2_vec ve (wpcmpu1 Z.gtb) sz w1 w2.
+  lift2_vec ve (wpcmps1 Z.gtb) sz w1 w2.
 
 (* -------------------------------------------------------------------*)
 Definition wminmax1 ve (cmp : word ve -> word ve -> bool) (x y : word ve) : word ve :=
@@ -1552,15 +1654,15 @@ Fixpoint add_pairs (m: seq Z) : seq Z :=
   else [::].
 
 Definition wpmaddubsw sz (v1 v2: word sz) : word sz :=
-  let w1 := map wunsigned (split_vec VE8 v1) in
-  let w2 := map wsigned (split_vec VE8 v2) in
-  let result := [seq wrepr_saturated_signed sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  let w1 := map wunsigned (split_vec U8 v1) in
+  let w2 := map wsigned (split_vec U8 v2) in
+  let result := [seq wrepr_saturated_signed U16 z | z <- add_pairs (map2 *%R w1 w2) ] in
   make_vec sz result.
 
 Definition wpmaddwd sz (v1 v2: word sz) : word sz :=
-  let w1 := map wsigned (split_vec VE16 v1) in
-  let w2 := map wsigned (split_vec VE16 v2) in
-  let result := [seq wrepr sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  let w1 := map wsigned (split_vec U16 v1) in
+  let w2 := map wsigned (split_vec U16 v2) in
+  let result := [seq wrepr U32 z | z <- add_pairs (map2 *%R w1 w2) ] in
   make_vec sz result.
 
 (* Test case from the documentation: VPMADDWD wraps when all inputs are min-signed *)
@@ -1616,8 +1718,9 @@ Lemma wand_pow2nm1 sz (x: word sz) n :
   wand x (wrepr sz (2 ^ Z.of_nat n - 1)) = wshr (wshl x (Z.of_nat k)) (Z.of_nat k).
 Proof.
   set k := (_ - _)%nat.
+  have k_ge0 := Nat2Z.is_nonneg k.
   apply/eqP/eq_from_wbit_n => i.
-  rewrite wandE wshrE wshlE wbit_n_pow2m1.
+  rewrite wandE wshrE // wshlE // wbit_n_pow2m1.
   have := ltn_ord i.
   move: (nat_of_ord i) => {i} i i_bounded.
   replace (i < _)%nat with (i < n)%nat; last first.
@@ -1696,7 +1799,8 @@ Lemma wand_Npow2n sz (x: word sz) n :
   wand x (wrepr sz (- 2 ^ Z.of_nat n)) = wshl (wshr x (Z.of_nat n)) (Z.of_nat n).
 Proof.
   apply/eqP/eq_from_wbit_n => i.
-  rewrite wandE wshlE wshrE Nat2Z.id wbit_n_Npow2n.
+  have n_ge0 := Nat2Z.is_nonneg n.
+  rewrite wandE wshlE // wshrE // Nat2Z.id wbit_n_Npow2n.
   move: (nat_of_ord i) (ltn_ord i) => {i} i.
   rewrite ltnS => i_bounded.
   rewrite i_bounded andbT andbC.
@@ -1790,6 +1894,29 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
+Lemma wror_opp sz (x: word sz) c :
+  wror x (wsize_bits sz - c) = wrol x c.
+Proof.
+  rewrite /wror /wrol.
+  have : 0 < wsize_bits sz by [].
+  move: (wsize_bits _) (wshr_full x) (wshl_full x) => n R L n_pos.
+  have nnz : n ≠ 0 by lia.
+  rewrite Zminus_mod Z_mod_same_full Z.sub_0_l.
+  have : c mod n = 0 ∨ 0 < c mod n < n.
+  - move: (Z.mod_pos_bound c n n_pos); lia.
+  case => c_mod_n.
+  - by rewrite c_mod_n Z.sub_0_r Zmod_0_l wshr0 wshl0 R L.
+  rewrite !Z.mod_opp_l_nz // Zmod_mod; last lia.
+  rewrite worC; do 2 f_equal.
+  lia.
+Qed.
+
+Lemma wror_m sz (x: word sz) y y' :
+  y mod wsize_bits sz = y' mod wsize_bits sz →
+  wror x y = wror x y'.
+Proof. by rewrite /wror => ->. Qed.
+
+(* ------------------------------------------------------------------------- *)
 
 Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
   (sz1 <= sz2)%CMP && (w1 == zero_extend sz1 w2).
@@ -1829,7 +1956,7 @@ Lemma word_uincl_truncate sz1 (w1: word sz1) sz2 (w2: word sz2) sz w:
   word_uincl w1 w2 -> truncate_word sz w1 = ok w -> truncate_word sz w2 = ok w.
 Proof.
   rewrite /word_uincl => /andP[hc1 /eqP ->] /truncate_wordP[hc2 ->].
-  rewrite (zero_extend_idem _ hc2) /truncate_word ifT //.
+  rewrite (zero_extend_idem _ hc2) truncate_word_le //.
   exact: (cmp_le_trans hc2 hc1).
 Qed.
 
@@ -1857,6 +1984,8 @@ Proof.
   by rewrite 3!(Z.mod_pow2_bits_high _ _ _ hrange).
 Qed.
 
+(* -------------------------------------------------------------------- *)
+
 Lemma wrepr_xor ws (x y : Z) :
   wxor (wrepr ws x) (wrepr ws y) = wrepr ws (Z.lxor x y).
 Proof.
@@ -1868,19 +1997,21 @@ Proof.
   by rewrite Zlxor_mod.
 Qed.
 
-Lemma msb_wnot ws (x : word ws) :
-  msb (wnot x) = ~~ msb x.
-Proof. rewrite /msb. by have /= -> := wnotE x (Ordinal (ltnSn _)). Qed.
+Lemma wrepr_wnot ws z :
+  wnot (wrepr ws z) = wrepr ws (Z.lnot z).
+Proof. by rewrite /wnot wrepr_xor Z.lxor_m1_r. Qed.
+
+Lemma wnot_wnot ws (x : word ws) :
+  wnot (wnot x) = x.
+Proof. by rewrite -(wrepr_unsigned x) 2!wrepr_wnot Z.lnot_involutive. Qed.
 
 Lemma wnotP ws (x : word ws) :
   wnot x = wrepr ws (Z.lnot (wunsigned x)).
-Proof.
-  rewrite /wnot.
-  rewrite -Z.lxor_m1_r.
-  rewrite -wrepr_xor.
-  rewrite wrepr_unsigned.
-  by rewrite wrepr_m1.
-Qed.
+Proof. by rewrite -{1}(wrepr_unsigned x) wrepr_wnot. Qed.
+
+Lemma msb_wnot ws (x : word ws) :
+  msb (wnot x) = ~~ msb x.
+Proof. rewrite /msb. by have /= -> := wnotE x (Ordinal (ltnSn _)). Qed.
 
 Lemma wnot1_wopp ws (x : word ws) :
   (wnot x + 1)%R = (- x)%R.
@@ -1923,14 +2054,6 @@ Lemma wsigned_wsub_wnot1 ws (x y : word ws) :
   (wsigned x + wsigned (wnot y) + 1)%Z = (wsigned x - wsigned y)%Z.
 Proof. rewrite -Z.add_assoc wsigned_wnot. lia. Qed.
 
-Lemma wltsE ws (x y : word ws) :
-  wlt Signed x y
-  = (msb (x - y) != (wsigned (x - y) != (wsigned x - wsigned y)%Z)).
-Proof.
-  case: (x =P y); last by apply wltsE_aux.
-  by move=> <-; rewrite /= ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
-Qed.
-
 Lemma unsigned_overflow sz (z: Z):
   (0 <= z)%Z ->
   (wunsigned (wrepr sz z) != z) = (wbase sz <=? z)%Z.
@@ -1960,6 +2083,60 @@ Proof.
   move=> h0n hrange.
   rewrite wrepr_mul.
   rewrite -(wshl_sem _ h0n).
-  rewrite wshlE.
+  rewrite wshlE //.
   by rewrite hrange.
+Qed.
+
+Notation pointer := (word Uptr) (only parsing).
+
+Lemma subword_make_vec_bits_low (n m : nat) x y :
+  (n < m)%Z ->
+  word.subword 0 n (word.mkword m (wcat_r [:: x; y ])) = x.
+Proof.
+  move=> h.
+  apply/eqP/word.eq_from_wbit => i.
+  rewrite subwordE wbit_t2wE /word.word.wbit /=.
+  rewrite (nth_map i); last by rewrite size_enum_ord.
+  rewrite addn0 nth_ord_enum modulusZE.
+  rewrite Z.shiftl_0_l Z.lor_0_r.
+  rewrite Z.mod_pow2_bits_low.
+  - rewrite Z.lor_spec Z.shiftl_spec_low; first by rewrite orbF.
+    by apply/ZNltP.
+  apply: (Z.lt_trans _ _ _ _ h).
+  by apply/ZNltP.
+Qed.
+
+Lemma Z_lor_le x y ws :
+  (0 <= x < wbase ws)%Z ->
+  (0 <= y < wbase ws)%Z ->
+  (0 <= Z.lor x y < wbase ws)%Z.
+Proof.
+  move=> /iswordZP hx /iswordZP hy.
+  rewrite -[x]/(urepr (mkWord hx)) -[y]/(urepr (mkWord hy)).
+  apply/iswordZP.
+  exact: word.wor_subproof.
+Qed.
+
+Lemma make_vec_4x64 (w : word.word U64) :
+  make_vec U256 [:: make_vec U128 [:: w; w ]; make_vec U128 [:: w; w ]]
+  = make_vec U256 [:: w; w; w; w ].
+Proof.
+  rewrite /make_vec /wcat_r.
+  rewrite !Z.shiftl_0_l !Z.lor_0_r.
+  f_equal.
+  rewrite Z.shiftl_lor.
+  rewrite Z.lor_assoc.
+  rewrite Z.shiftl_shiftl; last done.
+  rewrite -![urepr _]/(wunsigned _).
+  rewrite wunsigned_repr_small; first done.
+
+  have [hw0 hwn] := wunsigned_range w.
+
+  apply: Z_lor_le.
+  - have := @wbase_m U64 U128 refl_equal. Psatz.lia.
+
+  rewrite Z.shiftl_mul_pow2; last done.
+  split; first Psatz.lia.
+  rewrite /wbase (modulusD 64 64) modulusE -expZE /=.
+  exact: Zmult_lt_compat_r.
 Qed.

@@ -13,6 +13,9 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
     [x] = x;
     x = arg0 & -1;
     x &= -1;
+    x &= 0xcacacaca; // `bbbb` pattern.
+    x &= 0xca00ca00; // `b0b0` pattern.
+    x &= 0x00ca00ca; // `0b0b` pattern.
     [x] = x;
 
     // Shifts.
@@ -45,7 +48,7 @@ fn and(reg u32 arg0, reg u32 arg1) -> reg u32 {
     [x] = x;
 
     // Conditionals.
-    nf, zf, cf, vf, _ = #MOVS(x);
+    nf, zf, cf, vf = #CMP(x, 0);
 
     // EQ
     x = arg0 & arg1 if zf;

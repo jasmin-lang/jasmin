@@ -10,7 +10,7 @@ fn str(reg u32 arg0, reg u32 arg1) {
     [arg0 + (arg1 * 8)] = #STR(arg0);
 
     reg bool n, z, v, c;
-    n, z, c, v, _ = #MOVS(arg0);
+    n, z, c, v = #CMP(arg0, 0);
 
     // Conditionals.
     [arg0] = #STRcc(arg0, z, [arg0]);            // EQ

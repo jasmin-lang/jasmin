@@ -1,0 +1,8 @@
+u32 MINUS_Q = -8380417;
+
+export fn __montgomery_reduce_8380417(reg u32 a) -> reg u32
+{
+  a = (a << 3) - a;
+  a = 2 - a;
+  return a;
+}

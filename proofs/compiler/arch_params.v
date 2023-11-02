@@ -9,6 +9,7 @@ Require
   linearization
   lowering
   stack_alloc
+  slh_lowering
   asm_gen.
 
 Set Implicit Arguments.
@@ -17,39 +18,41 @@ Unset Printing Implicit Defensive.
 
 
 Record lowering_params
-  `{asmop : asmOp} (fresh_vars lowering_options : Type) :=
+  `{asmop : asmOp} (lowering_options : Type) :=
   {
     (* Lower an instruction to architecture-specific instructions. *)
     lop_lower_i :
-      (var -> bool) (* Whether the variable is a register from the extra bank. *)
-      -> lowering_options      (* Lowering options depend on the architecture. *)
+      lowering_options      (* Lowering options depend on the architecture. *)
       -> (instr_info -> warning_msg -> instr_info)
-      -> fresh_vars
-      -> (var_i -> bool)    (* Whether the variable is in memory. *)
+      -> lowering.fresh_vars
       -> instr              (* Source instruction. *)
       -> cmd;
 
     (* Whether all fresh vars are different from each other and
      from those in a list of function declarations. *)
     lop_fvars_correct :
-      fresh_vars
-      -> forall (eft : eqType) (pT : progT eft),
+      lowering.fresh_vars
+      -> forall (pT : progT),
            seq fun_decl
            -> bool;
   }.
 
 Record architecture_params
   `{asm_e : asm_extra}
-  (fresh_vars lowering_options : Type) :=
+  (lowering_options : Type) :=
   {
     (* Stack alloc parameters. See stack_alloc.v. *)
-    ap_sap : (var -> bool) -> stack_alloc.stack_alloc_params;
+    ap_sap : stack_alloc.stack_alloc_params;
 
     (* Linearization parameters. See linearization.v. *)
     ap_lip : linearization.linearization_params;
 
     (* Lowering parameters. Defined above. *)
-    ap_lop : lowering_params fresh_vars lowering_options;
+    ap_lop : lowering_params lowering_options;
+
+    (* Speculative execution operator lowering parameters. See
+       slh_lowering.v. *)
+    ap_shp : slh_lowering.sh_params;
 
     (* Assembly generation parameters. See asm_gen.v. *)
     ap_agp : asm_gen.asm_gen_params;

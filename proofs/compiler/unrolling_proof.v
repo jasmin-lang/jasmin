@@ -7,18 +7,18 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap_scope.
 Local Open Scope seq_scope.
 
 Section PROOF.
 
   Context
+    {wsw : WithSubWord}
+    {dc:DirectCall}
     {asm_op syscall_state : Type}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
-    {T : eqType}
-    {pT : progT T}
+    {pT : progT}
     {sCP : semCallParams}.
 
   Variable (p : prog) (ev:extra_val_t).
@@ -169,7 +169,7 @@ Section PROOF.
   Qed.
 
   Lemma write_var_Z i (z: Z) s s' :
-    write_var i z s = ok s' ->
+    write_var true i z s = ok s' ->
     vtype i = sint.
   Proof. by case: i => - [[] x]. Qed.
 

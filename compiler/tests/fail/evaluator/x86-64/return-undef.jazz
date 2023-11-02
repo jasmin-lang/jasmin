@@ -1,8 +1,0 @@
-inline
-fn f() -> reg u64 {
-  reg u64 x;
-  return x;
-}
-
-exec f(
-)

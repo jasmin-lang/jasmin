@@ -13,10 +13,22 @@ val preprocess : wsize -> 'asm asmOp -> (unit, 'asm) pprog -> (unit, 'asm) prog
  *)
 
 val parse_file :
-  wsize ->
-  'a sopn asmOp ->
+  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping.arch_info ->
   string ->
-  'a Pretyping.Env.env * (unit, 'a) pmod_item list * Syntax.pprogram
+  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
+  Pretyping.Env.env
+  * ( unit,
+      ( 'reg,
+        'regx,
+        'xreg,
+        'rflag,
+        'cond,
+        'asm_op,
+        'extra_op )
+      Arch_extra.extended_op )
+    pmod_item
+    list
+  * Syntax.pprogram
 (** Parsing and pre-typing of a complete file.
 
   Raises `Pretyping.TyError` and `Syntax.ParseError`.
@@ -46,7 +58,6 @@ val compile :
   prog ->
   unit) ->
   _ prog ->
-  Conv.coq_tbl ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
   Expr._uprog ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op) Arch_decl.asm_prog
@@ -75,7 +86,6 @@ val compile_CL :
     Sopn.asm_op_t )
   prog ->
   unit) -> *)
-  Conv.coq_tbl ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
   Expr._uprog -> Prog.funname ->
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op

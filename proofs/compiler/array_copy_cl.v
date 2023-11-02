@@ -49,7 +49,7 @@ Definition array_copy ii (x: var_i * option pexpr) (ws: wsize) (n: positive) (y:
   let yei := add ey ei in
   let sz := Z.to_pos (wsize_size ws * n) in
   let pre := 
-    if eq_gvar (mk_lvar x) y then Copn [::] AT_none Onop [::]
+    if eq_gvar (mk_lvar x) y then Copn [::] AT_none sopn_nop [::]
     else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init sz) in
   [:: MkI ii pre;
       MkI ii 
@@ -63,7 +63,7 @@ Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd 
 
 Definition is_copy o := 
   match o with 
-  | Ocopy ws p => Some (ws, p) 
+  |  Opseudo_op (pseudo_operator.Ocopy ws p) => Some (ws, p) 
   | _ => None 
   end.
 
@@ -131,7 +131,7 @@ Fixpoint array_copy_i (i:instr) : cexec cmd :=
   | Ccall _ _ _ _ => ok [:: i]
   end.
 
-Context {T} {pT:progT T}.
+Context {pT:progT}.
 
 Definition array_copy_fd (f:fundef) :=
   let 'MkFun fi tyin params c tyout res ev := f in

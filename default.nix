@@ -14,7 +14,7 @@ with pkgs;
 
 let inherit (lib) optionals; in
 
-let coqPackages = coqPackages_8_16; in
+let coqPackages = coqPackages_8_17; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
@@ -41,8 +41,8 @@ let oP =
   else ocamlPackages
 ; in
 
-if !lib.versionAtLeast oP.ocaml.version "4.08"
-then throw "Jasmin requires OCaml ≥ 4.08"
+if !lib.versionAtLeast oP.ocaml.version "4.11"
+then throw "Jasmin requires OCaml ≥ 4.11"
 else
 
 let ecDeps = ecRef != ""; in
@@ -60,6 +60,8 @@ stdenv.mkDerivation {
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
-    ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
+    # Apron as packaged in opam is broken with gnumake ≥ 4.4
+    # Bringing gnumake 4.2 in scope works around this issue
+    ++ optionals opamDeps [ gnumake42 rsync git pkg-config perl ppl mpfr opam ]
     ;
 }

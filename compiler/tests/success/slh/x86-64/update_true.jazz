@@ -1,0 +1,14 @@
+/* This might happen when the condition is inlined but the type-checker needs
+   the `update_msf` to succeed (it is replaced by a `mov_msf` and then removed
+   as dead code by the compiler). */
+export
+fn main(reg u64 x) -> reg u64 {
+    reg u64 msf;
+    msf = #init_msf();
+    msf = #update_msf(true, msf);
+
+    reg u64 y;
+    y = x;
+    y = #protect(y, msf);
+    return y;
+}

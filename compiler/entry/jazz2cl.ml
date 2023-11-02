@@ -39,8 +39,8 @@ let parse_and_print print arch call_conv =
   try
     let _, pprog, _ = 
       (* FIXME: This code is a cut and paste of main_compiler *)
-      try Compile.parse_file A.reg_size A.asmOp_sopn file
-      with
+      try Compile.parse_file A.arch_info file with
+      | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =
@@ -50,6 +50,7 @@ let parse_and_print print arch call_conv =
           in
           hierror ~loc:(Lone loc) ~kind:"parse error" "%s" msg
     in
+
     let prog =
       (* FIXME: same here, maybe the solution will be to add the version that catch the error *)
       try Compile.preprocess A.reg_size A.asmOp pprog
@@ -66,20 +67,18 @@ let parse_and_print print arch call_conv =
 
      (* First step: annot all call site with inline *)
      let prog = (fst prog, List.map add_inline (snd prog)) in
-     let tbl, cprog =
-       let all_vars = A.rip :: A.all_registers in
-       Conv.cuprog_of_prog all_vars prog in
+     let cprog = Conv.cuprog_of_prog prog in
        
-     let prog = Compile.compile_CL (module A) (* visit_prog_after_pass *) tbl cprog funname in
-     let prog = Conv.prog_of_cuprog tbl ((* FIXME *) Obj.magic prog) in
-        Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
+     let prog = Compile.compile_CL (module A) cprog funname in
+     let prog = Conv.prog_of_cuprog ((* FIXME *) Obj.magic prog) in
+        Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.reg_size A.asmOp) prog;
 
      begin match joutput with
      | None -> () 
      | Some file ->   
          let out, close = open_out file, close_out in
          let fmt = Format.formatter_of_out_channel out in
-         Format.fprintf fmt "%a@." (Printer.pp_prog ~debug:true A.asmOp) prog;
+         Format.fprintf fmt "%a@." (Printer.pp_prog ~debug:true A.reg_size A.asmOp) prog;
          close out
      end;
 
@@ -103,7 +102,7 @@ let parse_and_print print arch call_conv =
        | Some file -> (open_out file, close_out)
      in
      let fmt = Format.formatter_of_out_channel out in
-        Format.fprintf fmt "%a@." (ToCL.pp_fun A.asmOp) (List.nth (snd prog) 0);
+        Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp) (List.nth (snd prog) 0);
      close out
   with
   | Utils.HiError e ->

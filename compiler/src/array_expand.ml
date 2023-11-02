@@ -6,7 +6,7 @@ let init_tbl ?(onlyreg=true) fc =
   let is_arr = if onlyreg then is_reg_arr else is_arr in
   let reg_kind = 
     if onlyreg then reg_kind else fun _ -> Normal in
-  let init_var v =
+  let init_var (v:var) =
     let ws, sz = array_kind v.v_ty in
     let ty = Bty (U ws) in
     let vi i =

@@ -16,21 +16,17 @@ Unset Printing Implicit Defensive.
 Section ESTATE_EQ_EXCEPT.
 
 Context
+  {wsw : WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}.
 
 (* State equality up to a set of variables. *)
 Definition estate_eq_except ys s1 s2 :=
-  [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem) & s1.(evm) = s2.(evm) [\ ys]].
+  [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem) & s1.(evm) =[\ ys] s2.(evm)].
 
 (* FIXME syscall : why it is needed to redeclare it here *)
 (* note that in utils, it is CMorphisms.Proper, here it is Morpisms.Proper *)
-#[global]
-Instance and3_impl_morphism :
-  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and3 | 1.
-Proof. apply and3_impl_morphism. Qed.
-
 #[global]
 Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
@@ -63,32 +59,32 @@ Proof.
   SvD.fsetdec.
 Qed.
 
-Lemma eeq_exc_sem_pexprs gd xs es v s0 s1 :
+Lemma eeq_exc_sem_pexprs wdb gd xs es v s0 s1 :
   disjoint (read_es es) xs
   -> estate_eq_except xs s1 s0
-  -> sem_pexprs gd s0 es = ok v
-  -> sem_pexprs gd s1 es = ok v.
+  -> sem_pexprs wdb gd s0 es = ok v
+  -> sem_pexprs wdb gd s1 es = ok v.
 Proof.
   move=> hdisj heq.
   have [hscs hmem hvm] := eeq_exc_disjoint hdisj heq.
-  rewrite (read_es_eq_on gd hvm).
+  rewrite (read_es_eq_on wdb gd hvm).
   rewrite /with_vm.
   rewrite hscs hmem.
   by rewrite -(surj_estate s0).
 Qed.
 
-Lemma eeq_exc_sem_pexpr gd xs e v s0 s1 :
+Lemma eeq_exc_sem_pexpr wdb gd xs e v s0 s1 :
   disjoint (read_e e) xs
   -> estate_eq_except xs s1 s0
-  -> sem_pexpr gd s0 e = ok v
-  -> sem_pexpr gd s1 e = ok v.
+  -> sem_pexpr wdb gd s0 e = ok v
+  -> sem_pexpr wdb gd s1 e = ok v.
 Proof.
   move=> hdisj heq hsem.
 
   have hdisj' : disjoint (read_es [:: e ]) xs.
   - done.
 
-  have hsem' : sem_pexprs gd s0 [:: e ] = ok [:: v ].
+  have hsem' : sem_pexprs wdb gd s0 [:: e ] = ok [:: v ].
   - by rewrite /= hsem.
 
   have := eeq_exc_sem_pexprs hdisj' heq hsem'.
@@ -96,12 +92,12 @@ Proof.
   by t_xrbindP => ? ? <-.
 Qed.
 
-Lemma eeq_exc_write_lvals gd xs s0 s1 s0' ls vs :
+Lemma eeq_exc_write_lvals wdb gd xs s0 s1 s0' ls vs :
   disjoint (vars_lvals ls) xs
   -> estate_eq_except xs s0' s0
-  -> write_lvals gd s0 ls vs = ok s1
+  -> write_lvals wdb gd s0 ls vs = ok s1
   -> exists2 s1',
-       write_lvals gd s0' ls vs = ok s1' & estate_eq_except xs s1' s1.
+       write_lvals wdb gd s0' ls vs = ok s1' & estate_eq_except xs s1' s1.
 Proof.
   move=> hdisj.
   move: s0 s0' => [scs0 mem0 vm0] [scs0' mem0' vm0'].
@@ -115,9 +111,9 @@ Proof.
   clear hdisj.
 
   have hvm' : vm0 =[Sv.diff (read_rvs ls) xs] vm0'.
-  - move=> x hx. apply: vmap_eq_exceptS. apply: hvm. SvD.fsetdec.
+  - move=> x hx. apply: eq_exS. apply: hvm. SvD.fsetdec.
 
-  have [vm1' [hvm1' hwrite']] := write_lvals_eq_on hsub hwrite hvm'.
+  have [vm1' hwrite' hvm1'] := write_lvals_eq_on hsub hwrite hvm'.
   clear hsub hvm'.
 
   eexists; first exact: hwrite'.
@@ -132,19 +128,19 @@ Proof.
     exact: hvm.
 Qed.
 
-Lemma eeq_exc_write_lval gd xs s0 s1 s0' l v :
+Lemma eeq_exc_write_lval wdb gd xs s0 s1 s0' l v :
   disjoint (vars_lval l) xs
   -> estate_eq_except xs s0' s0
-  -> write_lval gd l v s0 = ok s1
+  -> write_lval wdb gd l v s0 = ok s1
   -> exists2 s1',
-       write_lval gd l v s0' = ok s1' & estate_eq_except xs s1' s1.
+       write_lval wdb gd l v s0' = ok s1' & estate_eq_except xs s1' s1.
 Proof.
   move=> hdisj heq hwrite.
 
   have hdisj' : disjoint (vars_lvals [:: l ]) xs.
   - done.
 
-  have hwrite' : write_lvals gd s0 [:: l ] [:: v ] = ok s1.
+  have hwrite' : write_lvals wdb gd s0 [:: l ] [:: v ] = ok s1.
   - by rewrite /= hwrite.
 
   have [s1' hwrite1 heq1] := eeq_exc_write_lvals hdisj' heq hwrite'.
@@ -155,10 +151,10 @@ Proof.
   by t_xrbindP => ? ? <-.
 Qed.
 
-Lemma eeq_exc_get_gvar gd s0 s1 (x : gvar) vs :
+Lemma eeq_exc_get_gvar wdb gd s0 s1 (x : gvar) vs :
   ~~ Sv.mem (gv x) vs
   -> estate_eq_except vs s0 s1
-  -> get_gvar gd (evm s0) x = get_gvar gd (evm s1) x.
+  -> get_gvar wdb gd (evm s0) x = get_gvar wdb gd (evm s1) x.
 Proof.
   move=> /Sv_memP hx [hscs hmem hvm].
   rewrite /get_gvar /=.
@@ -173,8 +169,7 @@ End ESTATE_EQ_EXCEPT.
 Section DISJ_FVARS.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {asmop : Type}
   {asm_op : asmOp asmop}
   (all_fresh_vars : seq Ident.ident)

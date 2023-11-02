@@ -7,7 +7,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -32,13 +31,13 @@ End E.
 Section INLINE.
 
 Context
+  {wsw : WithSubWord}
   {asm_op syscall_state : Type}
-  {asmop:asmOp asm_op}
-  (inline_var : var -> bool).
+  {asmop:asmOp asm_op}.
 
 Definition get_flag (x:lval) flag :=
   match x with
-  | Lvar x => if inline_var x then AT_inline else flag
+  | Lvar x => if is_inline_var x then AT_inline else flag
   | _      => flag
   end.
 
@@ -103,12 +102,13 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     | Ccall inline xs f es =>
       let X := Sv.union (read_i ir) X in
       if inline is InlineFun then
+        let ii := ii_with_location iinfo in
         Let fd := add_iinfo iinfo (get_fun p f) in
         let fd' := rename_fd iinfo f fd in
         Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
-        ok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
+        ok (X,  assgn_tuple ii (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
                   (fd'.(f_body) ++
-                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
+                  assgn_tuple ii xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
       else ok (X, [::i])
     end
   end.

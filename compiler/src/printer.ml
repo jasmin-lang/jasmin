@@ -277,8 +277,8 @@ let pp_ptype = pp_gtype pp_pexpr
 
 let pp_plval = pp_glv pp_pexpr pp_pvar 
 
-let pp_pprog asmOp fmt p =
-  let pp_opn = pp_opn asmOp in
+let pp_pprog pd asmOp fmt p =
+  let pp_opn = pp_opn pd asmOp in
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
@@ -302,9 +302,15 @@ let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
 
 let pp_var ~debug =
     if debug then
-      fun fmt x -> F.fprintf fmt "%s.%i" x.v_name (int_of_uid x.v_id)
+      fun fmt x -> F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
     else
       fun fmt x -> F.fprintf fmt "%s" x.v_name
+
+let pp_dvar ~debug fmt x =
+  let pp_dloc fmt d =
+    if not (L.isdummy d) then F.fprintf fmt " (defined at %a)" L.pp_loc d
+  in
+  F.fprintf fmt "%a%a" (pp_var ~debug) x pp_dloc x.v_dloc
 
 let pp_expr ~debug fmt e =
   let pp_var = pp_var ~debug in
@@ -313,23 +319,23 @@ let pp_expr ~debug fmt e =
 let pp_lval ~debug fmt x = 
   pp_glv pp_len (pp_var ~debug) fmt x
 
-let pp_instr ~debug asmOp fmt i =
-  let pp_opn = pp_opn asmOp in
+let pp_instr ~debug pd asmOp fmt i =
+  let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   pp_gi pp_noinfo pp_len pp_opn pp_var fmt i
 
-let pp_stmt ~debug asmOp fmt i =
-  let pp_opn = pp_opn asmOp in
+let pp_stmt ~debug pd asmOp fmt i =
+  let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   pp_gc pp_noinfo pp_len pp_opn pp_var fmt i
 
-let pp_ifunc ~debug pp_info asmOp fmt fd =
-  let pp_opn = pp_opn asmOp in
+let pp_ifunc ~debug pp_info pd asmOp fmt fd =
+  let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   pp_fun ~pp_info pp_opn pp_var fmt fd
 
-let pp_func ~debug asmOp fmt fd =
-  let pp_opn = pp_opn asmOp in
+let pp_func ~debug pd asmOp fmt fd =
+  let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   pp_fun pp_opn pp_var fmt fd
 
@@ -352,38 +358,38 @@ let pp_globs pp_var fmt gds =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
 
-let pp_iprog ~debug pp_info asmOp fmt (gd, funcs) =
-  let pp_opn = pp_opn asmOp in
+let pp_iprog ~debug pp_info pd asmOp fmt (gd, funcs) =
+  let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun ~pp_info pp_opn pp_var)) (List.rev funcs)
 
-let pp_prog ~debug asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
-  let pp_opn = pp_opn asmOp in
+let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
+  let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun pp_opn pp_var)) (List.rev funcs)
 
-let pp_to_save ~debug tbl fmt (x, ofs) =
-  Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar tbl x) Z.pp_print (Conv.z_of_cz ofs)
+let pp_to_save ~debug fmt (x, ofs) =
+  Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz ofs)
 
-let pp_saved_stack ~debug tbl fmt = function
+let pp_saved_stack ~debug fmt = function
   | Expr.SavedStackNone  -> Format.fprintf fmt "none"
-  | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar tbl x) 
+  | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar x)
   | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" Z.pp_print (Conv.z_of_cz z)
 
-let pp_return_address ~debug tbl fmt = function
-  | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar tbl x)
+let pp_return_address ~debug fmt = function
+  | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar x)
   | Expr.RAstack(Some x, z) -> 
-    Format.fprintf fmt "%a, RSP + %a" (pp_var ~debug) (Conv.var_of_cvar tbl x) Z.pp_print (Conv.z_of_cz z)
+    Format.fprintf fmt "%a, RSP + %a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz z)
   | Expr.RAstack(None, z) -> 
     Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz z)
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
-let pp_sprog ~debug tbl asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
-  let pp_opn = pp_opn asmOp in
+let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
+  let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra = 
     Format.fprintf fmt "(* @[<v>alignment = %s; stack size = %a + %a; max stack size = %a;@ max call depth = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
@@ -392,9 +398,9 @@ let pp_sprog ~debug tbl asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_extra_sz)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_max)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_max_call_depth)
-      (pp_list ",@ " (pp_to_save ~debug tbl)) (f_extra.Expr.sf_to_save)
-      (pp_saved_stack ~debug tbl) (f_extra.Expr.sf_save_stack)
-      (pp_return_address ~debug tbl)  (f_extra.Expr.sf_return_address)
+      (pp_list ",@ " (pp_to_save ~debug)) (f_extra.Expr.sf_to_save)
+      (pp_saved_stack ~debug) (f_extra.Expr.sf_save_stack)
+      (pp_return_address ~debug)  (f_extra.Expr.sf_return_address)
   in
   let pp_fun fmt (f_extra,f) =
     Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun pp_opn pp_var) f in
@@ -409,18 +415,18 @@ let pp_sprog ~debug tbl asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
 let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
 
-let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
-  let pp_var tbl fmt v =
-    let v = Conv.var_of_cvar tbl v in
-    Format.fprintf fmt "%a (defined at %a)" (pp_var ~debug) v L.pp_loc v.v_dloc
+let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
+  let pp_var fmt v =
+    let v = Conv.var_of_cvar v in
+    Format.fprintf fmt "%a" (pp_dvar ~debug) v
   in
   let rec pp_err fmt pp_e =
     match pp_e with
     | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
-    | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
+    | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
     | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc
-    | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
+    | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" fn.fn_name
     | Compiler_util.PPEiinfo ii ->
       let i_loc, _ = ii in
       Format.fprintf fmt "%a" L.pp_iloc i_loc
@@ -428,12 +434,12 @@ let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
       let (f_loc, _, _, _) = fi in
       Format.fprintf fmt "%a" L.pp_sloc f_loc
     | Compiler_util.PPEexpr e ->
-      let e = Conv.expr_of_cexpr tbl e in
+      let e = Conv.expr_of_cexpr e in
       pp_expr ~debug fmt e
     | Compiler_util.PPErexpr e ->
-       PrintFexpr.pp_rexpr tbl fmt e
+       PrintFexpr.pp_rexpr fmt e
     | Compiler_util.PPEfexpr e ->
-       PrintFexpr.pp_fexpr tbl fmt e
+       PrintFexpr.pp_fexpr fmt e
     | Compiler_util.PPEbox (box, pp_e) ->
       begin match box with
       | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ " pp_err) pp_e

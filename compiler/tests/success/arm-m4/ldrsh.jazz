@@ -14,7 +14,7 @@ fn ldrsh(reg u32 arg) -> reg u32 {
 
     // Set flags.
     reg bool n, z, v, c;
-    n, z, c, v, _ = #MOVS(x);
+    n, z, c, v = #CMP(x, 0);
 
     // Conditions.
     x = (32s)(u16)[x] if z;            // EQ
