@@ -725,14 +725,23 @@ let two_phase_coloring
       | [] ->
          let pv = Printer.pp_dvar ~debug:true in
          let ppvl fmt = List.iter @@ Format.fprintf fmt "\n    %a" pv in
-         let pp_conflicts fmt =
-           IntSet.iter @@ fun i ->
-           match A.find i a with
-           | Some r ->
-              Format.fprintf fmt " - register %a%a\n"
-                (Printer.pp_var ~debug:false) r
-                ppvl (Hashtbl.find variables i)
-           | None -> assert false
+         let pp_conflicts fmt c =
+           let unallocated =
+             IntSet.fold (fun i xs ->
+                 match A.find i a with
+                 | Some r ->
+                   Format.fprintf fmt " - register %a%a\n"
+                     (Printer.pp_var ~debug:false) r
+                     ppvl (Hashtbl.find variables i);
+                   xs
+                 | None -> i :: xs)
+               c
+               []
+           in
+           if unallocated <> [] then begin
+             Format.fprintf fmt " - variables not allocated yet";
+             List.iter (fun i -> ppvl fmt (Hashtbl.find variables i)) unallocated
+           end
          in
          let c = get_conflicts i cnf in
          hierror_reg ~loc:Lnone "no more free register to allocate variable:%a\nConflicts with:\n%a"
