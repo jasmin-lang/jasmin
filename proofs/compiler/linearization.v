@@ -51,6 +51,12 @@ Definition error (msg:string) :=
 Definition internal_error (msg:string) :=
   gen_error true None msg.
 
+Definition assign_remains (ii : instr_info) :=
+  let msg :=
+    "this assignment does not correspond to any known instruction"%string
+  in
+  ii_error ii (append msg ", try using the intrinsic").
+
 End E.
 
 
@@ -305,7 +311,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
     match ir with
-    | Cassgn x tag ty e => Error (E.ii_error ii "assign remains")
+    | Cassgn _ _ _ _ => Error (E.assign_remains ii)
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
