@@ -191,12 +191,6 @@ Definition lassign
   let%opt (lvs, op, es) := lip_lassign liparams le ws re in
   Some (Lopn lvs op es).
 
-Definition lassign'
-  (lv : lval) (ws : wsize) (e : pexpr) : option linstr_r :=
-  let%opt le := lexpr_of_lval lv in
-  let%opt re := rexpr_of_pexpr e in
-  lassign le ws re.
-
 (* Return a linear instruction that corresponds to copying a register.
    The linear instruction [lmove ii rd ws r0] corresponds to
            R[rd] := (ws)R[r0]
