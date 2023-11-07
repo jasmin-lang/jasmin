@@ -89,6 +89,10 @@
   ([PR 623](https://github.com/jasmin-lang/jasmin/pull/623);
   fixes [#622](https://github.com/jasmin-lang/jasmin/issues/622)).
 
+- Fix handling of “condition” registers in register-allocation
+  ([PR 639](https://github.com/jasmin-lang/jasmin/pull/639);
+  fixes [#615](https://github.com/jasmin-lang/jasmin/issues/615)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise

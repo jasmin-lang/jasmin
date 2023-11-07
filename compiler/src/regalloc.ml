@@ -227,7 +227,7 @@ let collect_equality_constraints_in_func
           op
           es
     | Csyscall (_lvs, _op, _es) -> ()
-    | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
+    | Cassgn (Lvar x, (AT_phinode | AT_inline), _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
     | Cassgn (Lvar x, AT_rename, _, Pvar y) when
