@@ -120,7 +120,7 @@ Context
   (wdb : bool)
   (gd : glob_decls).
 
-Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
+Fixpoint sem_pexpr_aux (s:estate) (m : Vm.t) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
@@ -128,37 +128,53 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
-      Let i := sem_pexpr s e >>= to_int in
+      Let i := sem_pexpr_aux s m e >>= to_int in
       Let w := WArray.get aa ws t i in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
-    Let i := sem_pexpr s e >>= to_int in
+    Let i := sem_pexpr_aux s m e >>= to_int in
     Let t' := WArray.get_sub aa ws len t i in
     ok (Varr t')
   | Pload sz x e =>
     Let w1 := get_var wdb s.(evm) x >>= to_pointer in
-    Let w2 := sem_pexpr s e >>= to_pointer in
+    Let w2 := sem_pexpr_aux s m e >>= to_pointer in
     Let w  := read s.(emem) (w1 + w2)%R sz in
     ok (@to_val (sword sz) w)
   | Papp1 o e1 =>
-    Let v1 := sem_pexpr s e1 in
+    Let v1 := sem_pexpr_aux s m e1 in
     sem_sop1 o v1
   | Papp2 o e1 e2 =>
-    Let v1 := sem_pexpr s e1 in
-    Let v2 := sem_pexpr s e2 in
+    Let v1 := sem_pexpr_aux s m e1 in
+    Let v2 := sem_pexpr_aux s m e2 in
     sem_sop2 o v1 v2
   | PappN op es =>
-    Let vs := mapM (sem_pexpr s) es in
+    Let vs := mapM (sem_pexpr_aux s m) es in
     sem_opN op vs
   | Pif t e e1 e2 =>
-    Let b := sem_pexpr s e >>= to_bool in
-    Let v1 := sem_pexpr s e1 >>= truncate_val t in
-    Let v2 := sem_pexpr s e2 >>= truncate_val t in
-    ok (if b then v1 else v2)
+    Let b := sem_pexpr_aux s m e >>= to_bool in
+    Let v1 := sem_pexpr_aux s m e1 >>= truncate_val t in
+    Let v2 := sem_pexpr_aux s m e2 >>= truncate_val t in
+                                    ok (if b then v1 else v2)
+  | Pfvar v => get_var wdb m v
+  | Pbig e1 e2 sop v e3 e4 =>
+    Let v1 := sem_pexpr_aux s m e1 >>= to_int in
+    Let v2 := sem_pexpr_aux s m e2 >>= to_int in
+    Let v3 := sem_pexpr_aux s m e3 in
+    let l := ziota v1 v2 in
+    Let l := mapM (fun x => ok (Vint x)) l in
+    foldM (fun i acc =>
+               Let m := set_var wdb m v i in
+               Let v4 := sem_pexpr_aux s m e4 in
+               sem_sop2 sop acc v4)
+      v3 l
   end.
 
-Definition sem_pexprs s := mapM (sem_pexpr s).
+Definition sem_pexprs_aux s m := mapM (sem_pexpr_aux s m).
+
+Definition sem_pexpr s e : exec value := sem_pexpr_aux s (Vm.init) e.
+
+Definition sem_pexprs s := sem_pexprs_aux s (Vm.init).
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var wdb s.(evm) x v in

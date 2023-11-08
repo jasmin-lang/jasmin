@@ -513,6 +513,14 @@ Section FOLDM.
 
 End FOLDM.
 
+Lemma foldM_ext [eT aT bT : Type]: forall  (f g: aT -> bT -> result eT bT) s v,
+    (f =2 g) -> foldM f v s = foldM g v s.
+Proof.
+  move => f g s.
+  induction s => v H //=.
+  rewrite H; case (g a v) => //=; auto.
+Qed.
+
 Section FOLD2.
 
   Variable A B E R:Type.

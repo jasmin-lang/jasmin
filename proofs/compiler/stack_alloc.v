@@ -631,7 +631,7 @@ Fixpoint alloc_e (e:pexpr) :=
     Let e2 := alloc_e e2 in
     ok (Papp2 o e1 e2)
 
-  | PappN o es => 
+  | PappN o es =>
     Let es := mapM alloc_e es in
     ok (PappN o es)
 
@@ -640,6 +640,10 @@ Fixpoint alloc_e (e:pexpr) :=
     Let e1 := alloc_e e1 in
     Let e2 := alloc_e e2 in
     ok (Pif t e e1 e2)
+
+ | Pfvar v => Error (stk_ierror_no_var "Pfvar is not supported in stack_alloc")
+ | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig not a word variable in stack_alloc")
+
   end.
 
   Definition alloc_es := mapM alloc_e.

@@ -385,6 +385,9 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
   | PappN op es   => s_opN op (map (const_prop_e m) es)
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
+  | Pfvar v       => e
+  | Pbig e1 e2 sop v e3 e4 => Pbig (const_prop_e m e1) (const_prop_e m e2) sop v
+                                   (const_prop_e m e3) (const_prop_e m e4)
   end.
 
 End GLOBALS.

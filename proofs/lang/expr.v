@@ -235,18 +235,73 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
+Definition fvar : Type := var.
+
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
 | Parr_init : positive → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr 
+| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
 | Pload  : wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
-| Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
+| Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
+| Pfvar : fvar -> pexpr
+| Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
+.
+
+(*
+Inductive ltype : Type :=
+  | Int
+  | Real.
+
+Record lvar : Type := Lvar (lvtype : ltype; vname : Equality.sort Ident.ident }.
+
+Inductive op2 : Type :=
+  | Add : op2
+  | Min : op2
+  | Mult : op2
+  | Div : op2
+  | Custome : string -> op2
+
+Inductive aterm : Type :=
+  | tvar : lvar -> aterm
+  | tpexpr : pexpr -> aterm
+  | tcoerse : aterm -> ltype -> aterm
+  | tapp1 : op1 -> aterm -> aterm
+  | tapp2 : op2 -> aterm -> aterm -> arerm.
+
+Inductive apred : Type :=
+| PTrue : apred
+| PFalse : apred
+| PNot : apred -> apred
+| PImplies : apred -> apred -> apred
+| PAnd : apred -> apred -> apred
+| Por : apred -> apred -> apred
+| Pforall : lvar list -> apred -> apred
+| Papp : predicate -> apred list -> apred
+
+Definition annotation_kind :=
+  | Ensures
+  | Requires
+  | Invariant
+  | Assume
+  | Assert
+  | Cut        ???????
+
+Record annotatio, :=
+  { akind : annotation_kind;
+    apred : apred;
+    alabel : option assert_label;  (* Optional name for the current assert *)
+    aprover : prover;              (* prover for the current assert *)
+    aprove_with : option assert_label;
+    aassume : list prover;         (* assume for the provers *)
+  }
+*)
+
 
 Notation pexprs := (seq pexpr).
 
@@ -397,71 +452,6 @@ Same for prover
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
-
-(*  Do a section like for expr 
-Inductive atype : Type := 
-  | Stype of stype 
-  | Spol.
-
-Inductive aexpr : Type :=
-| Pconst :> Z -> aexpr
-| Pbool  :> bool -> aexpr
-| Parr_init : positive → aexpr
-| Pvar   :> gvar -> aexpr
-| Pget   : arr_access -> wsize -> gvar -> aexpr -> aexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> aexpr -> aexpr 
-| Pload  : wsize -> var_i -> aexpr -> aexpr
-| Papp1  : sop1 -> aexpr -> aexpr
-| Papp2  : sop2 -> aexpr -> aexpr -> aexpr
-| PappN of opN & seq aexpr
-| Pif    : stype -> aexpr -> aexpr -> aexpr -> aexpr
-| Ppol   : seq aexpr   (* aexpr should have type int *)
-| Plimbs : wsize -> seq aexpr -> aexpr (* aexpr of type sword ws *)  
-| Peqmod  : aexpr -> aexpr -> seq aexpr -> aexpr (* all of type int *)
-| Peqmod_pol :  aexpr -> aexpr -> seq aexpr -> aexpr (* all of type pol *)
-(* | Pforall    :  local -> aexpr (* int *) -> aexpr (* int *) -> aexpr (* bool may depend of local *) -> aexpr *)
-.
-
-
-Definition annotation_kind := 
-  | Assume  
-  | Assert 
-  | Cut 
-
-Record assert := 
-  { akind : annotation_kind;
-    aexpr : apexpr; (* this should change at some point *)
-    alabel : option assert_label;  (* Optional name for the current assert *)
-    aprover : prover;              (* prover for the current assert *)
-    aprove_with : option assert_label; 
-    aassume : list prover;         (* assume for the provers *)
-  }  
-*)
-
-(* 
-
-0/ 
-| Cassert  : pexpr -> instr_r
-
-| Cassert  : prover -> annotation_kind -> pexpr -> instr_r
-
-fix coq part 
-
-fix pretyping using annotations 
-
-@[prover = cas; kind = assume]
-
-
-1/ Define the evaluation of aexpr in psem (* more or less the same that pexpr  *)
-
-for expr eval_expr : state -> pexpr -> value
-
-for expr eval_aexpr : state -> aexpr -> value_pol
-
-2/ Fix the compiler 
-   
-3/ Fix the proof 
- *)
 
 Variant annotation_kind :=
   | Assert
@@ -870,12 +860,14 @@ Fixpoint use_mem (e : pexpr) :=
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
+  | Pfvar _ => false
+  | Pbig e1 e2 _ _ e3 e4 => use_mem e1 || use_mem e2 || use_mem e3 || use_mem e4
   end.
 
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
-Definition read_gvar (x:gvar) := 
+Definition read_gvar (x:gvar) :=
   if is_lvar x then Sv.singleton x.(gv)
   else Sv.empty.
 
@@ -892,6 +884,8 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
+  | Pfvar _ => s
+  | Pbig e1 e2 _ _ e3 e4 => read_e_rec (read_e_rec (read_e_rec (read_e_rec s e4) e3) e2) e1
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -988,6 +982,10 @@ Fixpoint eq_expr e e' :=
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
+  | Pfvar v       , Pfvar v'            => v == v'
+  | Pbig e1 e2 sop v e3 e4     , Pbig e1' e2' sop' v' e3' e4'=> (sop == sop') && (v == v') &&
+                                                           eq_expr e1 e1' && eq_expr e2 e2' &&
+                                                           eq_expr e3 e3' && eq_expr e4 e4'
   | _             , _                 => false
   end.
 
