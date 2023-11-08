@@ -24,6 +24,7 @@ module type Core_arch = sig
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
+  val kernel_call_conv : (reg, regx, xreg, rflag, cond) calling_convention
 
   val lowering_opt : lowering_options
   val not_saved_stack : var list
@@ -55,6 +56,10 @@ module type Arch = sig
   val xmm_argument_vars : var list
   val ret_vars : var list
   val xmm_ret_vars : var list
+  val kernel_argument_vars : var list
+  val kernel_xmm_argument_vars : var list
+  val kernel_ret_vars : var list
+  val kernel_xmm_ret_vars : var list
   val allocatable_vars : var list
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
@@ -63,6 +68,7 @@ module type Arch = sig
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
+  val newsyscall_kill : Sv.t
 
   val callstyle : var callstyle 
   

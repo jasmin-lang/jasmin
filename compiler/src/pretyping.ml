@@ -1,4 +1,35 @@
 (* -------------------------------------------------------------------- *)
+
+(*
+#ADD
+~SUB
+
+# pre: size(a) <= n
+getrandom (reg u64 n, reg ptr u64[n] a) -> reg ptr u64[n] {
+  #syscall(GETRANDOM, a, n, 0):q
+}
+
+param int FCLOSE = 32;
+
+file = RBX
+fn fclose (reg uptr file) {
+  () = #syscall(FCLOSE, file); 
+
+  RAX <- FCLOSE;
+//  RBX <- FILE;
+  syscall
+
+  r = FCLOSE;
+  () = #fclose(r, 
+}
+
+
+
+res = #chown(arg);
+
+x = y + z;
+*)
+
 open Utils
 module Path = BatPathGen.OfString
 module F = Format
@@ -1611,6 +1642,16 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
           | FInfo.Export | FInfo.Subroutine _ -> E.DoNotInline in
       let annot = Annot.consume "inline" annot in
       env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
+
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "newsyscall" ->
+      (* no typecheck performed, this is highly unsafe!! *)
+      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "newsyscall expects no implicit arguments");
+      let xs = List.map (tt_lvalue arch_info.pd env) xs in
+      let xs = List.map (fun (_, x, _) -> x (P.Bty (P.U U64))) xs in
+      let es = tt_exprs arch_info.pd env args in
+      let es = List.map (fun (e, _) -> e) es in
+      env, [mk_i (P.Cnewsyscall(xs, es))]
+
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
       (* FIXME syscall *)

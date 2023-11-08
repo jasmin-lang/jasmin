@@ -160,6 +160,12 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let: (prologue, es) := make_prologue ii X Hexadecimal.Nil params es in
     Let: (xs, epilogue) := make_epilogue ii X returns xs in
     ok (prologue ++ MkI ii (Csyscall xs o es) :: epilogue)
+  | Cnewsyscall xs es =>
+    let elt := (false, Ident.name_of_string "", sword U64) in
+    let: (params,returns) := (List.repeat elt (size es), List.repeat elt (size xs)) in (* fix this *)
+    Let: (prologue, es) := make_prologue ii X Hexadecimal.Nil params es in
+    Let: (xs, epilogue) := make_epilogue ii X returns xs in
+    ok (prologue ++ MkI ii (Cnewsyscall xs es) :: epilogue)
   end.
 
 Definition update_fd (fd: ufundef) :=

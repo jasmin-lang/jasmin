@@ -535,7 +535,8 @@ Variant asm_i : Type :=
   | POPPC (* Pop a destination from the stack and jump there, arm : POP PC, x86 : RET *)
   (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args
-  | SysCall of syscall_t.
+  | SysCall of syscall_t
+  | NewSysCall.
 
 Definition asm_code := seq asm_i.
 

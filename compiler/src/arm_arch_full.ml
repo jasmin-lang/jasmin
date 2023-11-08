@@ -6,6 +6,7 @@ open Arm_decl
 
 module type Arm_input = sig
   val call_conv : (register, Arm_decl.__, Arm_decl.__, rflag, condt) calling_convention
+  val kernel_call_conv : (register, Arm_decl.__, Arm_decl.__, rflag, condt) calling_convention
 
 end
 

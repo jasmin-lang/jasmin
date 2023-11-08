@@ -394,3 +394,14 @@ Definition x86_windows_call_conv : calling_convention :=
    ; call_xreg_ret  := [:: XMM0 ]
    ; call_reg_ret_uniq := erefl true;                    
   |}.
+
+(* https://stackoverflow.com/questions/2535989/what-are-the-calling-conventions-for-unix-linux-system-calls-and-user-space-f *)
+Definition x86_linux_kernel_call_conv : calling_convention :=
+  {| callee_saved   := map ARReg [:: RBX; RBP; RSP; R12; R13; R14; R15 ] (* is this correct ? *)
+   ; callee_saved_not_bool := erefl true
+   ; call_reg_args  := [:: RAX; RDI; RSI; RDX; R10; R8; R9 ]
+   ; call_xreg_args := [::]
+   ; call_reg_ret   := [:: RAX ] (* is this correct? *)
+   ; call_xreg_ret  := [::]
+   ; call_reg_ret_uniq := erefl true;
+  |}.

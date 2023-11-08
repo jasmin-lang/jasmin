@@ -454,6 +454,8 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       let '(in_t, out_t) := fun_info fn in
       Let _ := check_f_args ii env es in_t in
       check_f_lvs ii env xs out_t
+
+  | Cnewsyscall _ _ => ok Env.empty (* I don't know what I'm doing *)
   end.
 
 Definition check_cmd (env : Env.t) (c : cmd) : cexec Env.t :=
@@ -517,6 +519,9 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       ok (Cwhile al c0' b c1')
 
     | Ccall _ _ _ _ =>
+        ok ir
+
+    | Cnewsyscall _ _ =>
         ok ir
     end
   in

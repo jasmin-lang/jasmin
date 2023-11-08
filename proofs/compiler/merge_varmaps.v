@@ -72,6 +72,7 @@ Section WRITE1.
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
     | Ccall _ _ fn _  => Sv.union s (writefun_ra fn)
+    | Cnewsyscall xs _ => vrvs_rec (Sv.union s syscall_kill) (to_lvals (take (size xs) newsyscall_ret))
     end
   with write_I_rec s i :=
     match i with
@@ -199,6 +200,18 @@ Section CHECK.
         let W := writefun_ra writefun fn in
         ok (Sv.diff (Sv.union D W) (sv_of_list v_var (f_res fd)))
       else Error (E.internal_error ii "call to unknown function")
+   | Cnewsyscall xs es =>
+      let o_params := take (size es) newsyscall_args in
+      let o_res := take (size xs) newsyscall_ret in
+      Let _ := check_es ii D es in
+      Let _ := assert
+        (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == a else false) es o_params)
+        (E.internal_error ii "bad newsyscall args") in
+      Let _ := assert
+        (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs o_res)
+        (E.internal_error ii "bad newsyscall dests") in
+      let W := syscall_kill in
+      ok (Sv.diff (Sv.union D W) (vrvs (to_lvals o_res)))
 
     end.
 

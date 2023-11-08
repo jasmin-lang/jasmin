@@ -1,0 +1,9 @@
+param int NF_MKDIR = 83;
+
+// we need unbounded array to support strings of arbitrary size
+fn mkdir (reg ptr u8[10] name, reg u64 mode) -> reg u64 {
+  reg u64 rax;
+  rax = NF_MKDIR;
+  rax = #newsyscall (rax, name, mode);
+  return rax;
+}

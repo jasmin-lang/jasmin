@@ -40,7 +40,7 @@ let rec warn_extra_i pd asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ -> ()
+  | Ccall _ | Csyscall _ | Cnewsyscall _ -> ()
 
 let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 
@@ -258,6 +258,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       (snd prog) []
   in
 
-  Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams cparams
+  Compiler.compile_prog_to_asm Arch.asm_e Arch.kernel_call_conv Arch.call_conv Arch.aparams cparams
     export_functions
     (Expr.to_uprog Arch.asmOp cprog)

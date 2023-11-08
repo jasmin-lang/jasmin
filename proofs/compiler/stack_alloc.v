@@ -1115,6 +1115,7 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
 Definition alloc_call_res rmap srs ret_pos rs := 
   fmapM2 bad_lval_number (alloc_lval_call srs) rmap rs ret_pos.
 
+(* TODO: remove? *)
 Definition is_RAnone ral :=
   if ral is RAnone then true else false.
 
@@ -1175,6 +1176,39 @@ Definition alloc_syscall ii rmap rs o es :=
     end
   end.
 
+Definition alloc_newsyscall_arg rmap0 rmap e :=
+  Let x := get_Pvar e in
+  Let _ := assert (~~is_glob x)
+                  (stk_ierror_basic x.(gv) "global variable in argument of a call") in
+  let xv := gv x in
+  match get_local xv with
+  | None => Let _ := check_diff xv in ok (rmap, e)
+  | Some (Pregptr p) => 
+    Let srs := Region.check_valid rmap0 xv (Some 0%Z) (size_slot xv) in
+    let sr := srs.1 in
+    (* if xv is writable, we clear the map, else not *)
+    (* not sure this is a proper solution, for standard calls, we rely on param_info instead *)
+    Let rmap :=
+      match Ident.id_kind (Var.vname xv) with
+      | Reg (_, wsize.Pointer Writable) =>
+        set_clear rmap xv sr (Some 0%Z) (size_slot xv)
+      | _ => ok rmap
+      end
+    in
+    ok (rmap, Pvar (mk_lvar (with_var xv p)))
+  | Some _ => Error (stk_ierror_basic xv "the argument should be a reg ptr")
+  end.
+
+Definition alloc_newsyscall_args rmap es :=
+  fmapM (alloc_newsyscall_arg rmap) rmap es.
+
+(* We should maybe check that region are disjoint and do sth for results.
+  Or not, since this is always RAX?? We could enforce return type = reg u64.
+Overall, this is really hacky. *)
+Definition alloc_newsyscall ii rmap rs es :=
+  Let: (rmap, es) := alloc_newsyscall_args rmap es in
+  ok (rmap, [:: MkI ii (Cnewsyscall rs es)]).
+
 Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
   let (ii, ir) := i in
 
@@ -1219,7 +1253,10 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
 
     | Ccall ini rs fn es =>
       Let ri := add_iinfo ii (alloc_call sao rmap ini rs fn es) in
-      ok (ri.1, [::MkI ii ri.2])                            
+      ok (ri.1, [::MkI ii ri.2])
+
+    | Cnewsyscall rs es =>
+      alloc_newsyscall ii rmap rs es
 
     | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
 

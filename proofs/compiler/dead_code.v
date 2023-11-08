@@ -131,7 +131,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * option instr)
       else ok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, Some i)
     else   ok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, Some i)
 
-  | Csyscall xs o es =>
+  | Csyscall xs _ es | Cnewsyscall xs es =>
     ok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, Some i)
 
   | Cif b c1 c2 =>

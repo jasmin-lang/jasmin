@@ -282,6 +282,8 @@ let pp_instr fn _ i =
   | SysCall op ->
       [LInstr ("bl", [ pp_syscall op ])]
 
+  | NewSysCall -> assert false
+
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
       let pp = id.id_pp_asm args in

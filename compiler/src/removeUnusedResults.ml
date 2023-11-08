@@ -19,8 +19,9 @@ let analyse funcs =
       let r = used_results s xs in
        Hf.modify_def Sint.empty fn (Sint.union r) live in
     let cbs _loc _fn _xs _ = () in
+    let cbns _loc _xs _ = () in
 
-    Hf.iter (fun _fn -> Liveness.iter_call_sites cbf cbs) liveness_table;
+    Hf.iter (fun _fn -> Liveness.iter_call_sites cbf cbs cbns) liveness_table;
     fun fn -> Hf.find_default live fn Sint.empty
   in
   let live = Hf.create 17 in

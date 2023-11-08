@@ -65,6 +65,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
   | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
+  | Cnewsyscall of 'len glvals * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
   i_desc : ('len,'info,'asm) ginstr_r;
@@ -265,7 +266,8 @@ val expr_of_lval : 'len glval -> 'len gexpr option
 (* Functions over instruction                                           *)
 
 val has_syscall : ('len, 'info, 'asm) gstmt -> bool
-val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
+val has_newsyscall : ('len, 'info, 'asm) gstmt -> bool
+val has_call_or_syscall_or_newsyscall : ('len, 'info, 'asm) gstmt -> bool
 val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
 
 (* -------------------------------------------------------------------- *)

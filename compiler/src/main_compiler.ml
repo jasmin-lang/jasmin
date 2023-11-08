@@ -178,10 +178,10 @@ let main () =
           p
           source_prog
         |> donotcompile
-      else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
+      else if s = !Glob_options.sct_comp_pass && !sct_list <> None then (
         check_sct s p source_prog
         |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
-        |> donotcompile
+        |> donotcompile )
       else
       (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;

@@ -38,6 +38,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
     | Ccall (i, lvs, f, es) -> Ccall (i, fill_lvs lvs, f, es)
+    | Cnewsyscall (lvs, es) -> Cnewsyscall (fill_lvs lvs, es)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
   let f_body = fill_stmt f.f_body in
@@ -227,6 +228,7 @@ let collect_equality_constraints_in_func
           op
           es
     | Csyscall (_lvs, _op, _es) -> ()
+    | Cnewsyscall (_lvs, _es) -> ()
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
@@ -382,6 +384,7 @@ let collect_conflicts pd reg_size asmOp
     | Cassgn _
     | Copn _
     | Csyscall _
+    | Cnewsyscall _
     | Ccall _
       -> c
     | Cwhile (_, s1, _, s2)
@@ -401,7 +404,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let rec iter_instr_r =
     function
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) | Cnewsyscall (lvs, es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -613,6 +616,8 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
   in
   let alloc_args loc get = alloc_from_list loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars get in
   let alloc_ret loc get = alloc_from_list loc ~ctxt:"return values" Arch.ret_vars Arch.xmm_ret_vars get in
+  let new_alloc_args loc get = alloc_from_list loc ~ctxt:"parameters" Arch.kernel_argument_vars Arch.kernel_xmm_argument_vars get in
+  let new_alloc_ret loc get = alloc_from_list loc ~ctxt:"return values" Arch.kernel_ret_vars Arch.kernel_xmm_ret_vars get in
   let rec alloc_instr_r loc =
     function
     | Cfor (_, _, s)
@@ -623,6 +628,11 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
        let get_r = function Lvar gv -> L.unloc gv | _ -> assert false in
        alloc_args loc get_a es;
        alloc_ret loc get_r lvs
+    | Cnewsyscall (lvs, es) ->
+       let get_a = function Pvar { gv ; gs = Slocal } -> L.unloc gv | _ -> assert false in
+       let get_r = function Lvar gv -> L.unloc gv | _ -> assert false in
+       new_alloc_args loc get_a es;
+       new_alloc_ret loc get_r lvs
 
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
@@ -892,7 +902,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
          match Arch.callstyle with 
          | Arch_full.StackDirect -> StackDirect
          | Arch_full.ByReg oreg ->
-           let dfl = oreg <> None && has_call_or_syscall f.f_body in
+           let dfl = oreg <> None && has_call_or_syscall_or_newsyscall f.f_body in
            let r = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
            let rastack = 
              match f.f_annot.retaddr_kind with
@@ -915,7 +925,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
         Mf.fold (fun fn _locs acc -> Sv.union (killed fn) acc)
           cg Sv.empty in
       let killed_by_syscalls = if has_syscall f.f_body then Arch.syscall_kill else Sv.empty in
-      Sv.union (Sv.union written killed_by_calls) killed_by_syscalls
+      let killed_by_newsyscalls = if has_newsyscall f.f_body then Arch.newsyscall_kill else Sv.empty in
+      Sv.union (Sv.union (Sv.union written killed_by_calls) killed_by_syscalls) killed_by_newsyscalls
     in
     Hf.add killed_map f.f_name written;
     f
@@ -925,9 +936,10 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     Format.printf "Before REGALLOC:@.%a@."
       Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.reg_size Arch.asmOp)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
-  let get_liveness, slive =
+  let get_liveness, slive, nslive =
     let live : Sv.t Hf.t = Hf.create 17 in
     let slive : (BinNums.positive Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
+    let nslive = ref Sv.empty in
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in
@@ -940,10 +952,15 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
             match Hashtbl.find slive o with
             | s0 -> Hashtbl.replace slive o (Sv.union s s0)
             | exception Not_found -> Hashtbl.add slive o s in
+        let cbns _loc xs (_, s) =
+          let s = Liveness.dep_lvs s xs in
+          nslive := Sv.union s !nslive
+        in
 
-        Liveness.iter_call_sites cbf cbs f_with_liveness
+
+        Liveness.iter_call_sites cbf cbs cbns f_with_liveness
       ) funcs;
-    (fun fn -> Hf.find_default live fn Sv.empty), slive
+    (fun fn -> Hf.find_default live fn Sv.empty), slive, !nslive
   in
   let excluded = Sv.of_list [Arch.rip; Arch.rsp_var] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses Arch.all_registers funcs in
@@ -993,6 +1010,11 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   let conflicts =
     let add_conflicts x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
     Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
+
+  (* syscall conflicts *)
+  let conflicts =
+    let add_conflicts x = Sv.fold (conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone x) Arch.newsyscall_kill in
+    conflicts |> Sv.fold add_conflicts nslive in
 
   let a = A.empty nv in
 

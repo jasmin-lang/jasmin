@@ -527,6 +527,9 @@ Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
   | Lsyscall o =>
       ok [:: SysCall o ]
 
+  | Lnewsyscall =>
+      ok [:: NewSysCall ]
+
   | Lcall None l =>
       ok [:: CALL l ]
 
@@ -620,14 +623,20 @@ Definition all_vars :=
    (Sv.union (sv_of_list to_var xregisters)
              vflags)).
 
+(* should we have one calling_convention with both call_conv and kernel_call_conv or 2 like we do here ? *)
+Context {kernel_call_conv : calling_convention}.
+
 #[global] Instance ovm_i : one_varmap.one_varmap_info := {
   syscall_sig  :=
     fun o =>
       let sig := syscall_sig_s o in
-      {| scs_vin  := map to_var (take (size sig.(scs_tin)) call_reg_args);
-         scs_vout := map to_var (take (size sig.(scs_tout)) call_reg_ret) |};
+      {| scs_vin  := map to_var (take (size sig.(scs_tin)) call_conv.(call_reg_args));
+         scs_vout := map to_var (take (size sig.(scs_tout)) call_conv.(call_reg_ret)) |};
+  newsyscall_args := map to_var kernel_call_conv.(call_reg_args);
+  newsyscall_ret := map to_var kernel_call_conv.(call_reg_ret);
+  kernel_callee_saved := sv_of_list var_of_asm_typed_reg kernel_call_conv.(callee_saved);
   all_vars     := all_vars; 
-  callee_saved := sv_of_list var_of_asm_typed_reg callee_saved;
+  callee_saved := sv_of_list var_of_asm_typed_reg call_conv.(callee_saved);
   vflags       := vflags;
   vflagsP      := vflagsP;
 }.

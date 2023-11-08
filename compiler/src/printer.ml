@@ -157,6 +157,10 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
         (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
 
+  | Cnewsyscall(x, e) ->
+      F.fprintf fmt "@[<hov 2>%a =@ newsyscall(%a);@]"
+        (pp_glvs pp_len pp_var) x (pp_ges pp_len pp_var) e
+
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
       (pp_ge pp_len pp_var) e (pp_cblock pp_info pp_len pp_opn pp_var) c

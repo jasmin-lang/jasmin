@@ -1,0 +1,20 @@
+// System call: "mkdir" example, no C involved!
+// The "mkdir" system call is wrapped in a Jasmin function also called "mkdir",
+// similarly to what libc does.
+// The main function calls "mkdir" to create a dir named "a" with permissions 644.
+// Next step is to have the jasmin compiler generates the starting code, and no
+// need to depend on a libc anymore!
+require "mkdir.jazz"
+
+param int m644 = 256 + 128 + 64+ 32 + 8 + 4 + 1; // 111101101
+u8[10] fname = "Léä@é_\x00";
+
+export fn main () -> reg u64 {
+  reg u64 res;
+  reg ptr u8[10] name;
+  reg u64 mode;
+  name = fname;
+  mode = m644;
+  res = mkdir (name, mode);
+  return res;
+}

@@ -315,6 +315,12 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
       Let es := add_iinfo ii (rmap flatten (mapM2 length_mismatch (expand_param m) expdin es)) in
       ok (MkI ii (Ccall ini xs fn es))
     else Error (reg_ierror_no_var "function not found")
+
+  | Cnewsyscall xs es =>
+    Let xs := add_iinfo ii (expand_lvs m xs) in
+    Let es := add_iinfo ii (expand_es m es) in
+    ok (MkI ii (Cnewsyscall xs es))
+
   end.
 
 Definition expand_tyv m b ty v :=

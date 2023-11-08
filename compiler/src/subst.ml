@@ -60,7 +60,8 @@ let rec gsubst_i flen f i =
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
     | Cwhile(a, c, e, c') -> 
       Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, gsubst_c flen f c')
-    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals flen f x, fn, gsubst_es flen f e) in
+    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals flen f x, fn, gsubst_es flen f e)
+    | Cnewsyscall(x,e) -> Cnewsyscall(gsubst_lvals flen f x, gsubst_es flen f e) in
   { i with i_desc }
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
@@ -354,7 +355,7 @@ let clone_func fc =
 let rec extend_iinfo_i pre i =
   let i_desc = 
     match i.i_desc with
-    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cnewsyscall _ -> i.i_desc
     | Cif(e,c1,c2) -> 
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
     | Cfor(x,r,c) -> 

@@ -155,6 +155,10 @@ and cinstr_r_of_instr_r p i =
     let ir =
       C.Csyscall(clval_of_lvals x, o, cexpr_of_exprs e) in
     C.MkI(p, ir)
+  | Cnewsyscall(x,e) ->
+    let ir =
+      C.Cnewsyscall(clval_of_lvals x, cexpr_of_exprs e) in
+    C.MkI(p, ir)
 
   | Cif(e,c1,c2) ->
     let c1 = cstmt_of_stmt c1 in
@@ -198,6 +202,8 @@ and instr_r_of_cinstr_r = function
   | C.Csyscall(x,o,e) ->
     Csyscall(lval_of_clvals x, o, expr_of_cexprs e)
 
+  | C.Cnewsyscall(x,e) ->
+    Cnewsyscall(lval_of_clvals x, expr_of_cexprs e)
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt c1 in
     let c2 = stmt_of_cstmt c2 in

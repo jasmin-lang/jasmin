@@ -185,11 +185,13 @@ Context
   {syscall_state : Type}.
 
 Context
+  {kernel_call_conv : calling_convention}
   {call_conv: calling_convention}
   {lowering_options : Type}
   (aparams : architecture_params lowering_options)
   (cparams : compiler_params lowering_options).
-
+Definition ovm_i := ovm_i (call_conv:=call_conv) (kernel_call_conv:=kernel_call_conv).
+Existing Instance ovm_i.
 Notation saparams := (ap_sap aparams).
 Notation liparams := (ap_lip aparams).
 Notation loparams := (ap_lop aparams).

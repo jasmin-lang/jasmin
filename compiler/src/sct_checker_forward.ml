@@ -140,7 +140,7 @@ let is_inline i =
 
 let rec modmsf_i fenv i =
   match i.i_desc with
-  | Csyscall _ | Cwhile _ -> true
+  | Csyscall _ | Cwhile _ | Cnewsyscall _ -> true
   | Cif(_, c0, c1) -> not (is_inline i) || modmsf_c fenv c0 || modmsf_c fenv c1
   | Cassgn _ -> false
   | Copn (_, _, o, _) ->
@@ -214,6 +214,11 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
   | Csyscall _ ->
       if not (Sv.is_empty ms) && withcheck then
         error ~loc "syscalls destroy msf variables, %a are required" pp_vset ms;
+      (* withcheck => is_empty ms *)
+      ms
+  | Cnewsyscall _ ->
+      if not (Sv.is_empty ms) && withcheck then
+        error ~loc "newsyscalls destroy msf variables, %a are required" pp_vset ms;
       (* withcheck => is_empty ms *)
       ms
 
@@ -881,6 +886,10 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     (* TODO: generalize to other syscalls *)
     assert (match o with Syscall_t.RandomBytes _ -> true);
     List.iter (ensure_public_address_expr env venv loc) es;
+    (* We don't known what happen to MSF after external function call *)
+    ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)
+  | Cnewsyscall (xs, es) ->
+      (* don't known what to do here! *)
     (* We don't known what happen to MSF after external function call *)
     ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)
 

@@ -101,6 +101,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
   | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
+  | Cnewsyscall of 'len glvals * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
     i_desc : ('len,'info,'asm) ginstr_r;
@@ -257,6 +258,7 @@ let rec rvars_i f s i =
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
   | Cwhile(_,c,e,c')    -> rvars_c f (rvars_e f (rvars_c f s c') e) c
   | Ccall(_,x,_,e) -> rvars_es f (rvars_lvs f s x) e
+  | Cnewsyscall(x,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
@@ -291,7 +293,7 @@ let written_lv s =
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
-  | Copn(xs, _, _, _) | Csyscall(xs, _, _)
+  | Copn(xs, _, _, _) | Csyscall(xs, _, _) | Cnewsyscall(xs,_)
     -> List.fold_left written_lv v xs, f
   | Ccall(_, xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
@@ -311,7 +313,7 @@ let written_vars_fc fc =
 let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr = 
   let i_desc = 
     match i.i_desc with
-    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cnewsyscall _ -> i.i_desc
     | Cif(e, c1, c2) ->
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->
@@ -448,20 +450,29 @@ let expr_of_lval = function
 let rec has_syscall_i i =
   match i.i_desc with
   | Csyscall _ -> true
-  | Cassgn _ | Copn _ | Ccall _ -> false
+  | Cassgn _ | Copn _ | Ccall _ | Cnewsyscall _ -> false
   | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_syscall c1 || has_syscall c2
   | Cfor (_, _, c) -> has_syscall c
 
 and has_syscall c = List.exists has_syscall_i c
 
-let rec has_call_or_syscall_i i =
+let rec has_newsyscall_i i =
+  match i.i_desc with
+  | Cnewsyscall _ -> true
+  | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> false
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_newsyscall c1 || has_newsyscall c2
+  | Cfor (_, _, c) -> has_newsyscall c
+
+and has_newsyscall c = List.exists has_newsyscall_i c
+
+let rec has_call_or_syscall_or_newsyscall_i i =
   match i.i_desc with
   | Csyscall _ | Ccall _ -> true
-  | Cassgn _ | Copn _ -> false
-  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
-  | Cfor (_, _, c) -> has_call_or_syscall c
+  | Cassgn _ | Copn _ | Cnewsyscall _ -> false
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_call_or_syscall_or_newsyscall c1 || has_call_or_syscall_or_newsyscall c2
+  | Cfor (_, _, c) -> has_call_or_syscall_or_newsyscall c
 
-and has_call_or_syscall c = List.exists has_call_or_syscall_i c
+and has_call_or_syscall_or_newsyscall c = List.exists has_call_or_syscall_or_newsyscall_i c
 
 let has_annot a { i_annot ; _ } =
   List.exists (fun (k, _) -> String.equal (L.unloc k) a) i_annot

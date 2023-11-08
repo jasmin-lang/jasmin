@@ -23,6 +23,7 @@ module type Core_arch = sig
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
+  val kernel_call_conv : (reg, regx, xreg, rflag, cond) calling_convention
 
   val lowering_opt : lowering_options
   val not_saved_stack : var list
@@ -54,6 +55,10 @@ module type Arch = sig
   val xmm_argument_vars : var list
   val ret_vars : var list
   val xmm_ret_vars : var list
+  val kernel_argument_vars : var list
+  val kernel_xmm_argument_vars : var list
+  val kernel_ret_vars : var list
+  val kernel_xmm_ret_vars : var list
   val allocatable_vars : var list
   val extra_allocatable_vars : var list
   val xmm_allocatable_vars : var list
@@ -62,6 +67,7 @@ module type Arch = sig
   val rsp_var : var
   val all_registers : var list
   val syscall_kill : Sv.t
+  val newsyscall_kill : Sv.t
 
   val callstyle : var callstyle
 
@@ -144,6 +150,13 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let xmm_ret = call_conv.call_xreg_ret
 
+  let kernel_arguments = kernel_call_conv.call_reg_args
+
+  let kernel_xmm_arguments = kernel_call_conv.call_xreg_args
+
+  let kernel_ret = kernel_call_conv.call_reg_ret
+
+  let kernel_xmm_ret = kernel_call_conv.call_xreg_ret
 
   let argument_vars =
     List.map var_of_reg arguments
@@ -156,6 +169,18 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let xmm_ret_vars =
     List.map var_of_xreg xmm_ret
+
+  let kernel_argument_vars =
+    List.map var_of_reg kernel_arguments
+
+  let kernel_xmm_argument_vars =
+    List.map var_of_xreg kernel_xmm_arguments
+
+  let kernel_ret_vars =
+    List.map var_of_reg kernel_ret
+
+  let kernel_xmm_ret_vars =
+    List.map var_of_xreg kernel_xmm_ret
 
   let allocatable_vars =
     List.map var_of_reg allocatable
@@ -179,6 +204,17 @@ module Arch_from_Core_arch (A : Core_arch) :
   let all_registers = reg_vars @ regx_vars @ xreg_vars @ flag_vars
 
   let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
+  let newsyscall_kill =
+    let kernel_callee_save = kernel_call_conv.callee_saved in
+    let kernel_callee_save_vars =
+      let var_of_typed = function 
+        | ARReg r -> var_of_reg  r
+        | ARegX r -> var_of_regx r
+        | AXReg r -> var_of_xreg r
+        | ABReg r -> var_of_flag r in
+      List.map var_of_typed kernel_callee_save
+    in
+    Sv.diff (Sv.of_list all_registers) (Sv.of_list kernel_callee_save_vars)
 
   let callstyle = 
     match A.callstyle with

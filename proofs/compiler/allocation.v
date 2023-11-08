@@ -584,6 +584,9 @@ Fixpoint check_i (i1 i2:instr_r) r :=
     Let r := loop2 check_c Loop.nb r in
     ok r
 
+  | Cnewsyscall xs1 es1, Cnewsyscall xs2 es2 =>
+    check_es es1 es2 r >>= check_lvals xs1 xs2
+
   | _, _ => Error (alloc_error "instructions not equals")
   end
 

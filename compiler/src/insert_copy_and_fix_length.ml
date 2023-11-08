@@ -81,6 +81,7 @@ and iac_instr_r pd loc ir =
     end
 
   | Ccall _ -> ir
+  | Cnewsyscall _ -> ir
 
 let iac_func pd f =
   { f with f_body = iac_stmt pd f.f_body }

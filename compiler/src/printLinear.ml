@@ -54,6 +54,7 @@ let pp_instr pd asmOp fmt i =
   | Ligoto e -> F.fprintf fmt "IGoto %a" pp_rexpr e
   | LstoreLabel (x, lbl) -> F.fprintf fmt "%a = Label %a" pp_var x pp_label lbl
   | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" pp_fexpr e pp_label lbl
+  | Lnewsyscall -> F.fprintf fmt "newsyscall"
 
 let pp_param fmt x =
   let y = Conv.var_of_cvar x.E.v_var in

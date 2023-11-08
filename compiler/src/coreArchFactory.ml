@@ -5,6 +5,7 @@ open X86_decl
 
 module Core_arch_ARM : Arch_full.Core_arch = Arm_arch_full.Arm (struct
   let call_conv = Arm_decl.arm_linux_call_conv
+  let kernel_call_conv = Arm_decl.arm_linux_call_conv (* FIXME *)
 end)
 
 let core_arch_x86 ~use_lea ~use_set0 call_conv :
@@ -17,6 +18,11 @@ let core_arch_x86 ~use_lea ~use_set0 call_conv :
         and type asm_op = X86_instr_decl.x86_op
         and type extra_op = X86_extra.x86_extra_op) =
   let module Lowering_params = struct
+    let kernel_call_conv =
+      match call_conv with
+      | Linux -> x86_linux_kernel_call_conv
+      | Windows -> assert false
+
     let call_conv =
       match call_conv with
       | Linux -> x86_linux_call_conv

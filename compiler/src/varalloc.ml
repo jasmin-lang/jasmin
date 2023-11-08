@@ -94,7 +94,7 @@ in
 
 let rec live_ranges_instr_r d_acc =
   function
-  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _) -> d_acc
+  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cnewsyscall _) -> d_acc
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, s2) ->
      let d_acc = live_ranges_stmt d_acc s1 in
@@ -174,7 +174,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
   let rec add_ir i_desc =
     match i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
-    | Copn(xs,_,_,es) | Csyscall(xs,_,es) -> add_lvs xs; add_es es
+    | Copn(xs,_,_,es) | Csyscall(xs,_,es) | Cnewsyscall (xs, es)-> add_lvs xs; add_es es
     | Cif(e,c1,c2) | Cwhile (_,c1,e,c2) -> 
       add_e e; add_c c1; add_c c2
     | Cfor _ -> assert false 
@@ -387,7 +387,7 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
       | Arch_full.ByReg oreg ->  (* oreg = Some r implies that all call use r,
                                     so if the function performs some call r will be overwritten,
                                     so ra need to be saved on stack *)
-        let dfl = oreg <> None && has_call_or_syscall fd.f_body in
+        let dfl = oreg <> None && has_call_or_syscall_or_newsyscall fd.f_body in
         match fd.f_annot.retaddr_kind with
         | None -> dfl
         | Some k -> 

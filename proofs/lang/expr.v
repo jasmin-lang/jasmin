@@ -385,6 +385,7 @@ Inductive instr_r :=
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
 | Ccall    : inline_info -> lvals -> funname -> pexprs -> instr_r
+| Cnewsyscall : lvals -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -407,6 +408,7 @@ Section CMD_RECT.
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
   Hypothesis Hcall: forall i xs f es, Pr (Ccall i xs f es).
+  Hypothesis Hnewsyscall: forall xs es, Pr (Cnewsyscall xs es).
 
   Section C.
   Variable instr_rect : forall i, Pi i.
@@ -431,6 +433,7 @@ Section CMD_RECT.
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
     | Ccall ii xs f es => @Hcall ii xs f es
+    | Cnewsyscall xs es => @Hnewsyscall xs es
     end.
 
   Definition cmd_rect := cmd_rect_aux instr_Rect.
@@ -746,6 +749,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall _ x _ _   => vrvs_rec s x
+  | Cnewsyscall xs _ => vrvs_rec s xs
   end
 with write_I_rec s i :=
   match i with
@@ -829,6 +833,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
     let s := foldl read_I_rec s c' in
     read_e_rec s e
   | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Cnewsyscall xs es => read_es_rec (read_rvs_rec s xs) es
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
   match i with

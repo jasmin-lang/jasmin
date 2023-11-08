@@ -211,6 +211,8 @@ let rec check_instr pd asmOp env i =
     check_exprs pd loc es fd.f_tyin;
     check_lvals pd loc xs fd.f_tyout
 
+  | Cnewsyscall(xs, es) -> () (* we don't check anything *)
+
 and check_cmd pd asmOp env c = 
   List.iter (check_instr pd asmOp env) c
 

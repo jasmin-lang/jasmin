@@ -198,6 +198,14 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let (pi, xs) := pi_lvs (remove_m pi) xs in
     ok (pi, MkI ii (Ccall inline xs f es))
 
+(* I don't know what I'm doing *)
+  | Cnewsyscall xs es =>
+    let es := pi_es pi es in
+    (* Remark: for uprog it is not necessary *)
+    let pi := remove_m pi in
+    let (pi, xs) := pi_lvs pi xs in
+    ok (pi, MkI ii (Cnewsyscall xs es))
+
   end.
 
 Section Section.

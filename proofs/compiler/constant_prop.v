@@ -532,6 +532,11 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let (m,xs) := const_prop_rvs without_globals m xs in
     (m, [:: MkI ii (Ccall fi xs f es) ])
 
+  | Cnewsyscall xs es =>
+    let es := map (const_prop_e without_globals m) es in
+    let (m,xs) := const_prop_rvs without_globals m xs in
+    (m, [:: MkI ii (Cnewsyscall xs es) ])
+
   end
 
 with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
