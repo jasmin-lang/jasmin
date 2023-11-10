@@ -418,6 +418,15 @@ Definition check_v xi1 xi2 (m:M.t) : cexec M.t :=
     end
   else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
+Definition check_lv xi1 xi2 (lm:M.t) : cexec unit :=
+  let x1 := xi1.(v_var) in
+  let x2 := xi2.(v_var) in
+  match M.get lm x1 with
+  | None     => Error (cerr_varalloc xi1 xi2 "logical variable mismatch 1")
+  | Some x2' =>
+      Let _ := assert (x2 == x2') (cerr_varalloc xi1 xi2 "logical variable mismatch 2") in ok tt
+  end.
+
 Definition error_e := pp_internal_error_s "allocation" "expression are not equal".
 
 Definition check_gv x1 x2 (m:M.t) : cexec M.t :=
@@ -426,7 +435,16 @@ Definition check_gv x1 x2 (m:M.t) : cexec M.t :=
   else
     Let _ := assert (x1.(gv).(v_var) == x2.(gv).(v_var)) error_e in ok m.
 
-Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
+Definition check_var_aux (x1 x2:var) m (h:M.v_compat_type x1 x2): cexec M.t :=
+  ok (M.set m x1 x2 h).
+
+Definition check_varc (xi1 xi2:var_i) m : cexec M.t :=
+  let x1 := xi1.(v_var) in
+  let x2 := xi2.(v_var) in
+  if M.v_compat_typeP x1 x2 is left h then check_var_aux m h
+  else Error (cerr_varalloc xi1 xi2 "type mismatch").
+
+Fixpoint check_e_aux (lm:M.t) (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   match e1, e2 with
   | Pconst n1, Pconst n2 =>
     Let _ := assert (n1 == n2) error_e in ok m
@@ -437,34 +455,32 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget aa1 w1 x1 e1, Pget aa2 w2 x2 e2 =>
     Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_e in
-    check_gv x1 x2 m >>= check_e e1 e2
+    check_gv x1 x2 m >>= check_e_aux lm e1 e2
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
     Let _ := assert ([&& aa1 == aa2, w1 == w2 & len1 == len2]) error_e in
-    check_gv x1 x2 m >>= check_e e1 e2
+    check_gv x1 x2 m >>= check_e_aux lm e1 e2
   | Pload w1 x1 e1, Pload w2 x2 e2 =>
     Let _ := assert (w1 == w2) error_e in
-    check_v x1 x2 m >>= check_e e1 e2
+    check_v x1 x2 m >>= check_e_aux lm e1 e2
   | Papp1 o1 e1, Papp1 o2 e2 =>
-    Let _ := assert (o1 == o2) error_e in check_e e1 e2 m
+    Let _ := assert (o1 == o2) error_e in check_e_aux lm e1 e2 m
    | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
-    Let _ := assert (o1 == o2) error_e in check_e e11 e21 m >>= check_e e12 e22
+    Let _ := assert (o1 == o2) error_e in check_e_aux lm e11 e21 m >>= check_e_aux lm e12 e22
   | PappN o1 es1, PappN o2 es2 =>
     Let _ := assert (o1 == o2) error_e in
-    fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
+    fold2 (alloc_error "check_e (appN)") (check_e_aux lm) es1 es2 m
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     Let _ := assert (t == t') error_e in
-    check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
+    check_e_aux lm e e' m >>= check_e_aux lm e1 e1' >>= check_e_aux lm e2 e2'
+  | Pfvar x1, Pfvar x2 => Let _ := check_lv x1 x2 lm in ok m
+  | Pbig s1 len1 o1 x1 e1 b1, Pbig s2 len2 o2 x2 e2 b2 =>
+    Let lmb := check_varc x1 x2 lm in
+    Let _ := assert (o1 == o2) error_e in
+    check_e_aux lm s1 s2 m >>= check_e_aux lm len1 len2 >>= check_e_aux lm e1 e2  >>= check_e_aux lmb b1 b2
   | _, _ => Error error_e
   end.
 
-Definition check_var_aux (x1 x2:var) m (h:M.v_compat_type x1 x2): cexec M.t :=
-  ok (M.set m x1 x2 h).
-
-Definition check_varc (xi1 xi2:var_i) m : cexec M.t :=
-  let x1 := xi1.(v_var) in
-  let x2 := xi2.(v_var) in
-  if M.v_compat_typeP x1 x2 is left h then check_var_aux m h
-  else Error (cerr_varalloc xi1 xi2 "type mismatch").
+Definition check_e := check_e_aux M.empty.
 
 Definition is_Pvar (e:option (stype * pexpr)) :=
   match e with

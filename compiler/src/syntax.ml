@@ -166,11 +166,18 @@ type pexpr_r =
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
-  | PEIf of pexpr * pexpr * pexpr
-
+  | PEIf     of pexpr * pexpr * pexpr
+  | PEbig    of pbig * pexpr * pexpr * pident * pexpr
+  
 and pexpr = pexpr_r L.located
 
 and mem_access = wsize option * pident * ([`Add | `Sub] * pexpr) option
+
+and pbig = 
+  | PEAll 
+  | PEExists 
+  | PESum
+  | PEBop of peop2 * pexpr
 
 (* -------------------------------------------------------------------- *)
 and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
@@ -216,6 +223,11 @@ type align = [`Align | `NoAlign]
 type plvals = annotations L.located option * plvalue list
 
 type vardecls = pstotype * pident list
+
+type assert_kind =
+  [ `Assert | `Assume | `Cut ]
+
+type assert_prover = pident
 
 type pinstr_r =
   | PIArrayInit of pident

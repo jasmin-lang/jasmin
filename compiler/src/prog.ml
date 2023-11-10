@@ -27,8 +27,10 @@ type 'len gexpr =
   | Pload  of wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
-  | PappN of E.opN * 'len gexpr list
+  | PappN  of E.opN * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pfvar  of 'len gvar_i
+  | Pbig   of 'len gexpr * 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr 
 
 type 'len gexprs = 'len gexpr list
 
@@ -237,6 +239,8 @@ let rec rvars_e f s = function
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
+  | Pfvar _ -> s
+  | Pbig(e1, e2, _, _, e0, body) -> List.fold_left (rvars_e f) s [e1; e2; e0; body]
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es
 

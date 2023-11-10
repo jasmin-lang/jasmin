@@ -57,6 +57,16 @@
 
   let keywords = Hash.of_enum (List.enum _keywords)
 
+  let _big = [ 
+    "all"   , ALL    ;
+    "big"   , BIG    ; 
+    "exists", EXISTS ;
+    "in"    , IN     ;
+    "sum"   , SUM    ;
+  ]
+
+  let big = Hash.of_enum (List.enum _big)
+
   let sign_of_char =
   function
   | 'u' -> `Unsigned
@@ -143,6 +153,8 @@ rule main = parse
   | ident as s
       { Option.default (NID s) (Hash.find_option keywords s) }
 
+  | "\\" (ident as s) 
+      { Option.get_exn (Hash.find_option big s) (S.ParseError (L.of_lexbuf lexbuf, Some "invalid big ops")) }
   | (size as sw) (signletter as s)                { SWSIZE(mksizesign sw s)  }
   | (vsize as r) (signletter as s) (gensize as g) { SVSIZE(mkvsizesign r s g)}
   | "#"     { SHARP      }

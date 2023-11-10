@@ -155,6 +155,14 @@ Section REMOVE.
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
         ok (Pif t e e1 e2)
+      | Pfvar x => ok (Pfvar x)     
+      | Pbig e1 e2 op2 x e0 body => 
+        Let e1   := remove_glob_e ii env e1 in
+        Let e2   := remove_glob_e ii env e2 in
+        Let e0   := remove_glob_e ii env e0 in
+        Let body := remove_glob_e ii env body in
+        ok (Pbig e1 e2 op2 x e0 body) 
+
       end.
 
     Definition remove_glob_lv ii (env:venv) (lv:lval) :=

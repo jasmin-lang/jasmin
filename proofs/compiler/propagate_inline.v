@@ -98,6 +98,16 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
     | Ocombine_flags c => scfc c es
     end
   | Pif t e e1 e2      => Pif t (pi_e pi e) (pi_e pi e1) (pi_e pi e2)
+ 
+  | Pfvar v => Pfvar v
+
+  | Pbig e1 e2 op2 x e0 body => 
+    let e1   := pi_e pi e1 in
+    let e2   := pi_e pi e2 in
+    let e0   := pi_e pi e0 in
+    let body := pi_e pi body in
+    Pbig e1 e2 op2 x e0 body
+ 
   end.
 
 Definition pi_es (pi:pimap) (es:pexprs) := 

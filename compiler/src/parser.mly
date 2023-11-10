@@ -26,8 +26,10 @@
 %token AMP
 %token AMPAMP
 %token ASSERT
+%token ALL
 %token BANG
 %token BANGEQ
+%token BIG
 %token COLON
 %token COMMA
 %token CONSTANT
@@ -37,6 +39,7 @@
 %token EQ
 %token EQEQ
 %token EXEC
+%token EXISTS
 %token FALSE
 %token FN
 %token FOR
@@ -47,6 +50,7 @@
 %token <Syntax.sign>GTGT
 %token HAT
 %token IF
+%token IN
 %token INLINE
 %token <Syntax.sign> LE
 %token <Syntax.sign> LT
@@ -67,6 +71,7 @@
 %token ROR
 %token ROL
 %token SEMICOLON
+%token SUM
 %token <Syntax.swsize>SWSIZE
 %token <Syntax.svsize> SVSIZE
 %token SLASH
@@ -286,8 +291,18 @@ pexpr_r:
 | e1=pexpr QUESTIONMARK e2=pexpr COLON e3=pexpr
     { PEIf(e1, e2, e3) }
 
+| bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
+    { PEbig (bo, e1, e2, v, b) }
+
 pexpr:
 | e=loc(pexpr_r) { e }
+
+%inline big:
+| BIG LBRACKET o=peop2 SLASH e0=pexpr RBRACKET   { PEBop(o,e0) }
+| SUM                                            { PESum }
+| ALL                                            { PEAll }
+| EXISTS                                         { PEExists }
+
 
 (* -------------------------------------------------------------------- *)
 peqop:
@@ -333,7 +348,7 @@ plvalues:
 | LPAREN RPAREN { None, [] }
 | s=implicites { Some s, [] }
 | s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
-
+  
 pinstr_r:
 
 | ARRAYINIT x=parens(var) SEMICOLON

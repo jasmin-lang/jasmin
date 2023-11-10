@@ -65,6 +65,15 @@ let pp_ge pp_len pp_var =
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
+  | Pfvar x -> pp_var_i fmt x
+  | Pbig(e1, e2, op, x, e0, b) -> 
+    F.fprintf fmt "@[(\\big[%s/%a]@ (%a \\in %a:%a)@ (%a))@]"
+      (string_of_op2 op) 
+      pp_expr e0
+      pp_var_i x
+      pp_expr e1
+      pp_expr e2
+      pp_expr b
   in
   pp_expr
 
@@ -125,6 +134,15 @@ let pp_align fmt = function
   | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
+let pp_assert_kind fmt = function
+  | E.Assert   -> Format.fprintf fmt "Assert" 
+  | Assume   -> Format.fprintf fmt "Assume"
+  | Cut      -> Format.fprintf fmt "Cut"
+
+let pp_prover fmt = function
+  | E.Cas -> Format.fprintf fmt "cas"
+  | Smt -> Format.fprintf fmt "smt"
+
 let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   F.fprintf fmt "%a" pp_annotations i.i_annot;
@@ -158,7 +176,10 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
         (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
 
   | Cassert(t, p, e) ->
-    F.fprintf fmt "@[<hov 2>assert@ %a;@]" (pp_ge pp_len pp_var) e
+    F.fprintf fmt "@[<hov 2>#[%a, %a]assert@ %a;@]" 
+     pp_assert_kind t
+     pp_prover p
+     (pp_ge pp_len pp_var) e
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"

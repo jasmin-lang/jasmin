@@ -27,6 +27,8 @@ type 'len gexpr =
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
+  | Pfvar  of 'len gvar_i
+  | Pbig   of 'len gexpr * 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr 
 
 type 'len gexprs = 'len gexpr list
 

@@ -91,6 +91,10 @@ let rec cexpr_of_expr = function
                                 cexpr_of_expr e1,
                                 cexpr_of_expr e2)
 
+  | Pfvar x -> C.Pfvar (cvari_of_vari x)
+  | Pbig(e1,e2, o, x, e0, b) -> 
+      C.Pbig(cexpr_of_expr e1, cexpr_of_expr e2, o, cvari_of_vari x, cexpr_of_expr e0, cexpr_of_expr b)
+
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
@@ -105,6 +109,9 @@ let rec expr_of_cexpr = function
   | C.Pif (ty, e, e1, e2) -> Pif(ty_of_cty ty, expr_of_cexpr e,
                                expr_of_cexpr e1,
                                expr_of_cexpr e2)
+  | C.Pfvar x -> Pfvar (vari_of_cvari x)
+  | C.Pbig(e1,e2, o, x, e0, b) -> 
+      Pbig(expr_of_cexpr e1, expr_of_cexpr e2, o, vari_of_cvari x, expr_of_cexpr e0, expr_of_cexpr b)
 
 
 (* ------------------------------------------------------------------------ *)

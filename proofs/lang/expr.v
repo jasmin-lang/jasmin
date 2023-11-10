@@ -235,7 +235,7 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
-Definition fvar : Type := var.
+Definition fvar : Type := var_i.
 
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
@@ -982,8 +982,8 @@ Fixpoint eq_expr e e' :=
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
-  | Pfvar v       , Pfvar v'            => v == v'
-  | Pbig e1 e2 sop v e3 e4     , Pbig e1' e2' sop' v' e3' e4'=> (sop == sop') && (v == v') &&
+  | Pfvar v       , Pfvar v'            =>  v_var v == v_var v' 
+  | Pbig e1 e2 sop v e3 e4     , Pbig e1' e2' sop' v' e3' e4'=> (sop == sop') && (v_var v == v_var v') &&
                                                            eq_expr e1 e1' && eq_expr e2 e2' &&
                                                            eq_expr e3 e3' && eq_expr e4 e4'
   | _             , _                 => false
