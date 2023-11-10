@@ -394,6 +394,7 @@ Definition compiler_CL_first_part (to_keep: seq funname) (p: prog) : cexec uprog
 Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p := array_copy_cl.array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
+
   let p := cparams.(print_uprog) ArrayCopy p in
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
@@ -404,7 +405,7 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
   let pr := remove_init_prog is_reg_array pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  Let pe := expand_prog cparams.(expand_fd) to_keep pr in
+  Let pe := expand_prog cparams.(expand_fd) [::] pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
@@ -412,12 +413,12 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
   Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
+  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pg))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pa))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 

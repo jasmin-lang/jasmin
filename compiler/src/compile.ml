@@ -284,6 +284,65 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
 
   let cparams = CP.cparams ~onlyreg:false visit_prog_after_pass in
 
+  let expand_fd fn cfd =
+    let fd = Conv.fdef_of_cufdef (fn, cfd) in
+    let vars, harrs = Array_expand.init_tbl ~onlyreg:true fd in
+    let cvar = Conv.cvar_of_var in
+    let vars = List.map cvar (Sv.elements vars) in
+    let arrs = ref [] in
+    let doarr x (ws, xs) =
+      arrs :=
+        Array_expansion.
+          {
+            vi_v = cvar x;
+            vi_s = ws;
+            vi_n =
+              List.map (fun x -> (cvar x).Var0.Var.vname) (Array.to_list xs);
+          }
+        :: !arrs
+    in
+    Hv.iter doarr harrs;
+
+    let f_cc =
+      match fd.f_cc with
+      | Subroutine si ->
+          (* Since some arguments/returns are expended we need to fix the info *)
+          let tbl = Hashtbl.create 17 in
+          let newpos = ref 0 in
+          let mk_n x =
+            match x.v_ty with
+            | Arr (_, n) -> n
+            | _ -> 1
+          in
+          let doarg i x =
+            Hashtbl.add tbl i !newpos;
+            newpos := !newpos + mk_n x
+          in
+          List.iteri doarg fd.f_args;
+          let doret o x =
+            match o with
+            | Some i -> [Some (Hashtbl.find tbl i)]
+            | None -> List.init (mk_n (L.unloc x)) (fun _ -> None)
+          in
+          let returned_params =
+            List.flatten (List.map2 doret si.returned_params fd.f_ret) in
+          FInfo.Subroutine { returned_params }
+
+      | _ -> fd.f_cc
+    in
+    let do_outannot x a =
+      try
+        let (_, va) = Hv.find harrs (L.unloc x) in
+        List.init (Array.length va) (fun _ -> [])
+      with Not_found -> [a] in
+    let f_outannot = List.flatten (List.map2 do_outannot fd.f_ret fd.f_outannot) in
+    let finfo = fd.f_loc, fd.f_annot, f_cc, f_outannot in
+    { Array_expansion.vars; arrs = !arrs; finfo } in
+
+  let cparams = { cparams with  
+                  Compiler.expand_fd = expand_fd; } in
+
+
   (* Add array copy after inlining every where *)
   let is_array_init e = 
     match e with
