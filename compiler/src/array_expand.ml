@@ -7,7 +7,6 @@ let init_tbl ?(onlyreg=true) fc =
   let reg_kind = 
     if onlyreg then reg_kind else fun _ -> Normal in
   let init_var (v:var) =
-    Format.eprintf "init_var %a@." (Printer.pp_var ~debug:true) v;
     let ws, sz = array_kind v.v_ty in
     let ty = Bty (U ws) in
     let vi i =

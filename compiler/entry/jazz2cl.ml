@@ -71,7 +71,9 @@ let parse_and_print print arch call_conv =
        
      let prog = Compile.compile_CL (module A) cprog funname in
      let prog = Conv.prog_of_cuprog ((* FIXME *) Obj.magic prog) in
+(*
         Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.reg_size A.asmOp) prog;
+*)
 
      begin match joutput with
      | None -> () 
@@ -193,7 +195,7 @@ let () =
     ]
   in
   let info =
-    Cmd.info "jazz2tex" ~version:J.Glob_options.version_string ~doc ~man
+    Cmd.info "jazz2cl" ~version:J.Glob_options.version_string ~doc ~man
   in
   Cmd.v info Term.(const parse_and_print $ print $ arch $ call_conv $ ecoutput $ joutput $ output $ file $ funname)
   |> Cmd.eval |> exit
