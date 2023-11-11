@@ -38,6 +38,9 @@
   ([PR #620](https://github.com/jasmin-lang/jasmin/pull/620);
   fixes [#618](https://github.com/jasmin-lang/jasmin/issues/618)).
 
+- Add instruction `CLZ` to arm-m4:
+  ([PR #641](https://github.com/jasmin-lang/jasmin/pull/641).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
