@@ -139,6 +139,7 @@ Variant arm_mnemonic : Type :=
 | UXTB                           (* Extract a byte and zero extend *)
 | UXTH                           (* Extract a halfword and zero extend *)
 | SBFX                           (* Extract a sub-word and sign extend *)
+| CLZ                            (* Count leading zeros. *)
 
 (* Comparison *)
 | CMP                            (* Compare *)
@@ -176,7 +177,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
-    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
+    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; CLZ
     ; CMP; TST
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
@@ -282,6 +283,7 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | UXTB => "UXTB"
   | UXTH => "UXTH"
   | SBFX => "SBFX"
+  | CLZ => "CLZ"
   | CMP => "CMP"
   | TST => "TST"
   | LDR => "LDR"
@@ -1681,6 +1683,26 @@ Definition arm_store_instr mn : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
+Definition arm_CLZ_instr :=
+  let mn := CLZ in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg ];
+    id_in := [:: E 1 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := fun w => ok (leading_zero w);
+    id_nargs := 2;
+    id_args_kinds := ak_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
 
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
@@ -1722,6 +1744,7 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | UXTB => arm_UXTB_instr
   | UXTH => arm_UXTH_instr
   | SBFX => arm_SBFX_instr
+  | CLZ => arm_CLZ_instr
   | CMP => arm_CMP_instr
   | TST => arm_TST_instr
   | LDR => arm_load_instr LDR
