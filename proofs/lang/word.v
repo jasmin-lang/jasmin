@@ -1377,6 +1377,20 @@ Definition pdep sz (w1 w2: word sz) :=
  wrepr sz (t2w (in_tuple (bitpdep w1 0 (w2t w2)))).
 
 (* -------------------------------------------------------------------*)
+
+Fixpoint leading_zero_aux (n : Z) (res sz : nat) : nat :=
+  if (n <? 2 ^ (sz - res))%Z
+  then res
+  else
+    match res with
+    | O => O
+    | S res' => leading_zero_aux n res' sz
+    end.
+
+Definition leading_zero (sz : wsize) (w : word sz) : word sz :=
+  wrepr sz (leading_zero_aux (wunsigned w) sz sz).
+
+(* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
 

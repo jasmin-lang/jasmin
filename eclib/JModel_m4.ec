@@ -60,6 +60,9 @@ op ASR x s = let (_n, _z, _c, r) = ASRS x s in r.
 op ASRScc x s g n z c o = if g then ASRS x s else (n, z, c, o).
 op ASRcc x s g o = if g then ASR x s else o.
 
+op CLZ (x: W32.t) : W32.t =
+  W32.of_int (lzcnt (rev (w2bits x))).
+
 op CMP (x y: W32.t) : bool * bool * bool * bool =
   let r = x - y in
   nzcv r (to_uint x - to_uint y) (to_sint x - to_sint y).
