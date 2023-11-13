@@ -169,4 +169,10 @@ Definition idt_drop2 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop2.
 Definition idt_drop3 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop3.
 Definition idt_drop4 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop4.
 
+Definition rtuple_drop5th
+  {t0 t1 t2 t3 t4 : stype}
+  (xs : exec (sem_tuple [:: t0; t1; t2; t3; t4 ])) :=
+  Let: (:: x0, x1, x2, x3 & x4 ) := xs in
+  ok (:: x0, x1, x2 & x3 ).
+
 End WITH_ARCH.

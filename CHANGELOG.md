@@ -41,6 +41,9 @@
 - Add instruction `CLZ` to arm-m4:
   ([PR #641](https://github.com/jasmin-lang/jasmin/pull/641).
 
+- Add instruction `CMN` to arm-m4:
+  ([PR #642](https://github.com/jasmin-lang/jasmin/pull/642)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
