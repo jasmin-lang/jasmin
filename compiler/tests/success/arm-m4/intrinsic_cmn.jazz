@@ -1,0 +1,43 @@
+export
+fn cmn(reg u32 arg0 arg1 p) {
+    reg bool n, z, c, v;
+    reg u32 x;
+    x = 0;
+
+    n, z, c, v = #CMN(arg0, arg1);
+    x = 1 if n;
+    [p] = x;
+
+    // Immediates.
+    n, z, c, v = #CMN(arg0, 3);
+    [x] = x if z;
+    n, z, c, v = #CMN(x, 0xcacacaca); // `bbbb` pattern.
+    [x] = x if z;
+    n, z, c, v = #CMN(x, 0xca00ca00); // `b0b0` pattern.
+    [x] = x if z;
+    n, z, c, v = #CMN(x, 0x00ca00ca); // `0b0b` pattern.
+    [x] = x if z;
+    n, z, c, v = #CMN(x, 0x00cb0000); // Shifted.
+    [x] = x if z;
+
+    // Conditions.
+    n, z, c, v = #CMNcc(arg0, arg1, z, n, z, c, v);            // EQ
+    n, z, c, v = #CMNcc(arg0, arg1, !z, n, z, c, v);           // NE
+    n, z, c, v = #CMNcc(arg0, arg1, c, n, z, c, v);            // CS
+    n, z, c, v = #CMNcc(arg0, arg1, !c, n, z, c, v);           // CC
+    n, z, c, v = #CMNcc(arg0, arg1, n, n, z, c, v);            // MI
+    n, z, c, v = #CMNcc(arg0, arg1, !n, n, z, c, v);           // PL
+    n, z, c, v = #CMNcc(arg0, arg1, v, n, z, c, v);            // VS
+    n, z, c, v = #CMNcc(arg0, arg1, !v, n, z, c, v);           // VC
+    n, z, c, v = #CMNcc(arg0, arg1, c && !z, n, z, c, v);      // HI
+    n, z, c, v = #CMNcc(arg0, arg1, !c || z, n, z, c, v);      // LS
+    n, z, c, v = #CMNcc(arg0, arg1, n == v, n, z, c, v);       // GE
+    n, z, c, v = #CMNcc(arg0, arg1, n != v, n, z, c, v);       // LT
+    n, z, c, v = #CMNcc(arg0, arg1, !z && n == v, n, z, c, v); // GT
+    n, z, c, v = #CMNcc(arg0, arg1, z || n != v, n, z, c, v);  // LE
+
+    n, z, c, v = #CMNcc(arg0, 3, z, n, z, c, v);
+
+    x = 1 if n;
+    [p] = x;
+}

@@ -144,6 +144,7 @@ Variant arm_mnemonic : Type :=
 (* Comparison *)
 | CMP                            (* Compare *)
 | TST                            (* Test *)
+| CMN                            (* Compare negative *)
 
 (* Loads *)
 | LDR                            (* Load a 32-bit word *)
@@ -178,7 +179,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
     ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; CLZ
-    ; CMP; TST
+    ; CMP; TST; CMN
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
   ].
@@ -205,7 +206,7 @@ Definition set_flags_mnemonics : seq arm_mnemonic :=
 Definition has_shift_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; SUB; RSB
     ; AND; BIC; EOR; MVN; ORR
-    ; CMP; TST
+    ; CMP; TST; CMN
   ].
 
 Definition condition_mnemonics : seq arm_mnemonic :=
@@ -294,6 +295,7 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | STR => "STR"
   | STRB => "STRB"
   | STRH => "STRH"
+  | CMN => "CMN"
   end.
 
 
@@ -1628,6 +1630,31 @@ Definition arm_TST_instr : instr_desc_t :=
   then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
   else x.
 
+Definition arm_CMN_instr : instr_desc_t :=
+  let mn := CMN in
+  let x :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 0; E 1 ];
+      id_tout := snzcv;
+      id_out := ad_nzcv;
+      id_semi := fun wn wm => rtuple_drop5th (arm_ADD_semi wn wm);
+      id_nargs := 2;
+      id_args_kinds := ak_reg_reg ++ ak_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_safe := [::];
+      id_pp_asm := pp_arm_op mn opts;
+    |}
+  in
+  if has_shift opts is Some sk
+  then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
+  else x.
+
 Definition arm_extend_semi
   {ws : wsize} (sign : bool) (ws' : wsize) (wn : word ws) : exec (word ws') :=
   let f := if sign then sign_extend else zero_extend in
@@ -1755,6 +1782,7 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | STR => arm_store_instr STR
   | STRB => arm_store_instr STRB
   | STRH => arm_store_instr STRH
+  | CMN => arm_CMN_instr
   end.
 
 End ARM_INSTR.

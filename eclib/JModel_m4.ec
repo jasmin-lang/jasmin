@@ -62,6 +62,12 @@ op ASRcc x s g o = if g then ASR x s else o.
 
 op CLZ (x: W32.t) : W32.t =
   W32.of_int (lzcnt (rev (w2bits x))).
+op CLZcc x g o = if g then CLZ x else o.
+
+op CMN (x y: W32.t) : bool * bool * bool * bool =
+let r = x + y in
+  nzcv r (to_uint x + to_uint y) (to_sint x + to_sint y).
+op CMNcc x y g n z c v = if g then CMN x y else (n, z, c, v).
 
 op CMP (x y: W32.t) : bool * bool * bool * bool =
   let r = x - y in
