@@ -25,6 +25,11 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
+Module E.
+  Definition no_semantics : error := ErrType.
+End E.
+
+
 (* -------------------------------------------------------------------- *)
 (* ARM instruction options. *)
 
@@ -117,6 +122,8 @@ Variant arm_mnemonic : Type :=
 
 (* Logical *)
 | AND                            (* Bitwise AND *)
+| BFC                            (* Bit Field Clear *)
+| BFI                            (* Bit Field Insert *)
 | BIC                            (* Bitwise AND with bitwise NOT *)
 | EOR                            (* Bitwise XOR *)
 | MVN                            (* Bitwise NOT *)
@@ -176,7 +183,7 @@ Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
-    ; AND; BIC; EOR; MVN; ORR
+    ; AND; BFC; BFI; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
     ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; CLZ
     ; CMP; TST; CMN
@@ -266,6 +273,8 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | SMMUL => "SMMUL"
   | SMMULR => "SMMULR" 
   | AND => "AND"
+  | BFC => "BFC"
+  | BFI => "BFI"
   | BIC => "BIC"
   | EOR => "EOR"
   | MVN => "MVN"
@@ -1087,6 +1096,74 @@ Definition arm_AND_instr : instr_desc_t :=
   then x
   else drop_nzc x.
 
+Definition arm_BFC_semi (x : wreg) (lsb width : word U8) : exec wreg :=
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  Let _ := assert (lsbit <? 32)%Z E.no_semantics in
+  Let _ := assert (1 <=? nbits)%Z E.no_semantics in
+  Let _ := assert (nbits <=? 32 - lsbit)%Z E.no_semantics in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then false
+    else wbit_n x i
+  in
+  ok (winit reg_size mk).
+
+Definition arm_BFC_instr : instr_desc_t :=
+  let mn := BFC in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sword8; sword8 ];
+    id_in := [:: E 0; E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_BFC_semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_imm8_imm8;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_BFI_semi (x y : wreg) (lsb width : word U8) : exec wreg :=
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  Let _ := assert (lsbit <? 32)%Z E.no_semantics in
+  Let _ := assert (1 <=? nbits)%Z E.no_semantics in
+  Let _ := assert (nbits <=? 32 - lsbit)%Z E.no_semantics in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then wbit_n y (i - Z.to_nat lsbit)
+    else wbit_n x i
+  in
+  ok (winit reg_size mk).
+
+Definition arm_BFI_instr : instr_desc_t :=
+  let mn := BFI in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg; sword8; sword8 ];
+    id_in := [:: E 0; E 1; E 2; E 3 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_BFI_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_imm8_imm8;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
 Definition arm_BIC_instr : instr_desc_t :=
   let mn := BIC in
   let x :=
@@ -1753,6 +1830,8 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | SMMUL => arm_SMMUL_instr
   | SMMULR => arm_SMMULR_instr
   | AND => arm_AND_instr
+  | BFC => arm_BFC_instr
+  | BFI => arm_BFI_instr
   | BIC => arm_BIC_instr
   | EOR => arm_EOR_instr
   | MVN => arm_MVN_instr

@@ -66,6 +66,7 @@ Proof.
   all: case: mn.
   all: rewrite /truncate_args /truncate_val.
 
+  (* Destruct [vprev]. *)
   all:
     repeat (
       case: vprev => [| ? vprev ] //=;
@@ -81,6 +82,7 @@ Proof.
   all: try move=> <-.
   all: subst.
 
+  (* Destruct [vargs]. *)
   all: rewrite /exec_sopn /=.
   all: case: vargs => [| ? vargs ] //; t_xrbindP => // v.
   all:
@@ -100,8 +102,15 @@ Proof.
       end
     ).
 
+  (* Introduce and rewrite all semantic checks. *)
   all: move: hsemop.
-  all: move=> [?]; subst v.
+  all: match goal with
+         | |- context[ BFC ] => cbn; rewrite /arm_BFC_semi
+         | |- context[ BFI ] => cbn; rewrite /arm_BFI_semi
+         | _ => case=> ?; subst v
+       end; t_xrbindP.
+  all: repeat move=> ->.
+
   all: by case: b.
 Qed.
 

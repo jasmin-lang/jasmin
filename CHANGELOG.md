@@ -12,9 +12,10 @@
   ([PR #620](https://github.com/jasmin-lang/jasmin/pull/620);
   fixes [#618](https://github.com/jasmin-lang/jasmin/issues/618)).
 
-- Add instructions `CLZ` and `CMN` to arm-m4:
+- Add instructions `CLZ`, `CMN`, `BFC`, and `BFI` to arm-m4:
   ([PR #641](https://github.com/jasmin-lang/jasmin/pull/641),
-  [PR #642](https://github.com/jasmin-lang/jasmin/pull/642)).
+  [PR #642](https://github.com/jasmin-lang/jasmin/pull/642),
+  [PR #643](https://github.com/jasmin-lang/jasmin/pull/643)).
 
 ## Bug fixes
 
