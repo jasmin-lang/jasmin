@@ -64,6 +64,7 @@ Proof.
   all: case: mn.
   all: rewrite /truncate_args /truncate_val.
 
+  (* Destruct [vprev]. *)
   all:
     repeat (
       case: vprev => [| ? vprev ] //=;
@@ -79,6 +80,7 @@ Proof.
   all: try move=> <-.
   all: subst.
 
+  (* Destruct [vargs]. *)
   all: rewrite /exec_sopn /=.
   all: case: vargs => [| ? vargs ] //; t_xrbindP => // v.
   all:
@@ -98,8 +100,15 @@ Proof.
       end
     ).
 
+  (* Introduce and rewrite all semantic checks. *)
   all: move: hsemop.
-  all: move=> [?]; subst v.
+  all: cbn.
+  all:
+    try match goal with
+    | [ |- ?f _ = ok _ -> _ ] => rewrite /f
+    end.
+  all: t_xrbindP=> *; subst v; t_eq_rewrites.
+
   all: by case: b.
 Qed.
 

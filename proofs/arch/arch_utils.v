@@ -63,6 +63,8 @@ Definition ak_reg_imm16 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAimm U16 ] ] ].
 Definition ak_reg_addr : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
+Definition ak_reg_imm8_imm8 : i_args_kinds :=
+  [:: [:: [:: CAreg ]; [:: CAimm U8 ]; [:: CAimm U8 ] ] ].
 
 Definition ak_reg_reg_reg : i_args_kinds :=
     [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ] ].
@@ -72,6 +74,8 @@ Definition ak_reg_reg_imm8 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U8 ] ] ].
 Definition ak_reg_reg_imm16 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U16 ] ] ].
+Definition ak_reg_reg_imm8_imm8 : i_args_kinds :=
+  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U8 ]; [:: CAimm U8 ] ] ].
 
 Definition ak_reg_reg_reg_reg : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ; [:: CAreg ] ] ].
