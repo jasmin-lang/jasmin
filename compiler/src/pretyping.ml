@@ -405,7 +405,7 @@ end  = struct
       env.e_declared := P.Spv.add v !(env.e_declared);
       push_core env v Slocal
 
-    let push_implicit (env : 'asm env) (v : P.pvar) = 
+    let push_implicit (env : 'asm env) (v : P.pvar) =
       assert (not (Map.mem v.P.v_name env.e_vars));
       push_core env v Slocal
 
