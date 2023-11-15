@@ -1,0 +1,10 @@
+export fn update_msf_not_msf() {
+    reg u64 x;
+    inline int i;
+    for i = 0 to 1 {
+            x = #init_msf();
+        }
+    if x == 0 {
+            x = #update_msf(x == 0, x);
+        }
+}

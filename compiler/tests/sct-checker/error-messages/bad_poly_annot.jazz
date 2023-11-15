@@ -1,0 +1,1 @@
+export fn bad_poly_annot(#poly=public reg u64 x) {}

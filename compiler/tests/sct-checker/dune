@@ -8,18 +8,9 @@
 (tests
   (libraries jasmin.jasmin common)
   (deps
-    error_messages.jazz)
-  (flags -rectypes)
-  (modules sct_errors)
-  (names
-    sct_errors))
-
-(tests
-  (libraries jasmin.jasmin common)
-  (deps
     (glob_files success/*)
-    (glob_files fail/*))
+    (glob_files fail/*)
+    (glob_files error-messages/*))
   (flags -rectypes)
-  (modules accept reject)
-  (names
-    accept reject))
+  (modules accept reject sct_errors)
+  (names accept reject sct_errors))

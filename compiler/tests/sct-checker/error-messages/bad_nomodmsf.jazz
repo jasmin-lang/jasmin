@@ -1,0 +1,4 @@
+#nomodmsf
+export fn bad_nomodmsf() {
+    _ = #init_msf();
+}

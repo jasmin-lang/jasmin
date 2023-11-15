@@ -1,0 +1,5 @@
+export fn assign_msf() {
+    reg u64 x;
+    x = 0;
+    x = #protect(x, x);
+}

@@ -1,0 +1,16 @@
+#nomodmsf
+fn another_bad_nomodmsf3(reg u64 x, reg u64 msf) -> reg u64 , reg u64 {
+    reg bool b;
+    while{b = x > 0;}(b) {
+        msf = #update_msf(b, msf);
+        x -= 1;
+    }
+    msf = #update_msf(!b, msf);
+    return x, msf;
+}
+export fn call_bad_nomodmsf3(reg u64 x) {
+    reg u64 msf;
+    msf = #init_msf();
+    x, msf = another_bad_nomodmsf3(x, msf);
+    x = #protect(x, msf);
+}

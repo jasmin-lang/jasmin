@@ -1,0 +1,7 @@
+export fn syscall() {
+    stack u8[1] t;
+    reg u64 x;
+    x = #init_msf();
+    t = #randombytes(t);
+    x = #protect(x, x);
+}

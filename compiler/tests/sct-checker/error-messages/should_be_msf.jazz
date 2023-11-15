@@ -1,0 +1,6 @@
+fn should_be_msf_aux(#public reg u64 p) {
+    p = #protect(p, p);
+}
+export fn should_be_msf(reg u64 p) {
+    should_be_msf_aux(p);
+}

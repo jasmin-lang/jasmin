@@ -1,0 +1,6 @@
+#constraints="hello <= public"
+export fn unbound_level() -> reg u64 {
+    reg u64 r;
+    r = 0;
+    return r;
+}

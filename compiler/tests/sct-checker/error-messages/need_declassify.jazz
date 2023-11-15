@@ -1,0 +1,7 @@
+export fn need_declassify(#transient reg u64 p) -> #public reg u64 {
+    reg u64 x msf;
+    msf = #init_msf();
+    x = [p];                // need #declassify here
+    x = #protect(x, msf);
+    return x;
+}

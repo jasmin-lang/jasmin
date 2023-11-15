@@ -1,0 +1,5 @@
+export fn ret_high(reg u64 p) -> #public reg u64 {
+    _ = #init_msf();
+    p = [p];
+    return p;
+}

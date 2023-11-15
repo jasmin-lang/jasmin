@@ -1,4 +1,6 @@
-inline fn leak(#public reg u64 c) { if c != 0 {} }
+#[test=nosct]
+inline
+fn leak(#public reg u64 c) { if c != 0 {} }
 
 u8[6] g = "jasmin";
 

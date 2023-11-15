@@ -1,0 +1,5 @@
+fn must_not_be_msf_aux(#msf reg u64 p) {}
+
+export fn must_not_be_msf(#public reg u64 p) {
+    must_not_be_msf_aux(p);
+}

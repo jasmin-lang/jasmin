@@ -9,7 +9,7 @@ let load_and_check name =
   let ((_, fds) as p) = load_file (Filename.concat path name) in
   List.iter
     (fun fd ->
-      if fd.Prog.f_cc <> Internal then
+      if should_check fd then
         let f = fd.Prog.f_name.fn_name in
         match ty_prog p [ f ] with
         | exception Utils.HiError e ->

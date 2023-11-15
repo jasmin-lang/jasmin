@@ -1,0 +1,5 @@
+export fn update_msf_not_trans() {
+    reg u64 x;
+    x = #init_msf();
+    x = #update_msf(false, x);
+}

@@ -1,0 +1,7 @@
+export fn update_msf_wrong_expr() {
+    reg u64 x;
+    x = #init_msf();
+    if x == 0 {
+            x = #update_msf(false, x);
+        }
+}

@@ -1,0 +1,7 @@
+export fn msf_trans() {
+    reg u64 x;
+    x = #init_msf();
+    if (x == 0) {
+        x = #protect(x, x);
+    }
+}

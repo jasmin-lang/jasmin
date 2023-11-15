@@ -13,3 +13,5 @@ val load_file :
       Arch.extra_op )
     Arch_extra.extended_op )
   Prog.prog
+
+val should_check : ('a, 'b, 'c) Prog.gfunc -> bool

@@ -1,0 +1,3 @@
+export fn ret_transient(#transient reg u64 p) -> #public reg u64 {
+    return p;
+}

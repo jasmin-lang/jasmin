@@ -1,0 +1,5 @@
+export fn ret_msf() -> #public reg u64 {
+    reg u64 msf;
+    msf = #init_msf();
+    return msf;
+}

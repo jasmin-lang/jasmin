@@ -22,3 +22,8 @@ let load_file name =
   | Syntax.ParseError (loc, None) ->
       Format.eprintf "Parse error: %a@." Location.pp_loc loc;
       assert false
+
+let should_check fd =
+  let annot = fd.Prog.f_annot.f_user_annot in
+  let annot_filter = Annot.filter_string_list None [("nosct", ())] in
+  Annot.ensure_uniq1 "test" annot_filter annot = None

@@ -1,0 +1,8 @@
+export fn not_known_as_msf() {
+    reg u64 x;
+    inline int i;
+    for i = 0 to 1 {
+            x = #init_msf();
+        }
+    x = #mov_msf(x);
+}

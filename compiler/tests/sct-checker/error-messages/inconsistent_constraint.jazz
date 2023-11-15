@@ -1,0 +1,2 @@
+#constraints="secret <= public"
+export fn inconsistent_constraint() {}
