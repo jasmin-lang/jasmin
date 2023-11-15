@@ -2176,4 +2176,4 @@ Instance x86_op_decl : asm_op_decl x86_op := {
    prim_string    := x86_prim_string;
 }.
 
-Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
+Definition x86_prog := @asm_prog _ _ _ _ _ _ _ _ x86_op_decl.

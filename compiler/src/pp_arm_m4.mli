@@ -7,6 +7,7 @@ val print_instr :
   -> ( Arm_decl_core.register
      , Arm_decl.__
      , Arm_decl.__
+     , Arm_decl.__
      , Arm_decl_core.rflag
      , Arm_decl.condt
      , Arm_instr_decl.arm_op )

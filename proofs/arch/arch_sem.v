@@ -58,6 +58,14 @@ Module XRegMap. Section Section.
 
 End Section. End XRegMap.
 
+Module XRegXMap. Section Section.
+  Context `{arch : arch_decl}.
+
+  Definition map := FinMap.map (T := xregx_t) wxreg.
+  Definition set (m : map) (x : xregx_t) (y : wxreg) : map := FinMap.set m x y.
+
+End Section. End XRegXMap.
+
 (* -------------------------------------------------------------------- *)
 
 Module RflagMap. Section Section.
@@ -75,6 +83,7 @@ End Section. End RflagMap.
 Notation regmap   := RegMap.map.
 Notation regxmap  := RegXMap.map.
 Notation xregmap  := XRegMap.map.
+Notation xregxmap  := XRegXMap.map.
 Notation rflagmap := RflagMap.map.
 
 (* -------------------------------------------------------------------- *)
@@ -89,6 +98,7 @@ Record asmmem : Type := AsmMem {
   asm_reg  : regmap;
   asm_regx : regxmap;
   asm_xreg : xregmap;
+  asm_xregx : xregxmap;
   asm_flag : rflagmap;
 }.
 
@@ -104,6 +114,7 @@ Definition preserved_register (r : asm_typed_reg) (m0 m1 : asmmem) :=
   | ARReg r => (asm_reg  m0) r = (asm_reg  m1) r
   | ARegX r => (asm_regx m0) r = (asm_regx m1) r
   | AXReg r => (asm_xreg m0) r = (asm_xreg m1) r
+  | AXRegX r => (asm_xregx m0) r = (asm_xregx m1) r
   | ABReg r => (asm_flag m0) r = (asm_flag m1) r
   end.
 
@@ -142,6 +153,7 @@ Definition get_typed_reg_value (xm : asmmem) (tr : asm_typed_reg) : value :=
   | ARReg r => Vword (asm_reg xm r)
   | ARegX rx => Vword (asm_regx xm rx)
   | AXReg xr => Vword (asm_xreg xm xr)
+  | AXRegX xrx => Vword (asm_xregx xm xrx)
   | ABReg f => of_rbool (asm_flag xm f)
   end.
 
@@ -227,6 +239,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     end
   | Reg r     => ok (Vword (s.(asm_reg) r))
   | Regx r    => ok (Vword (s.(asm_regx) r))
+  | Xregx r => ok (Vword (s.(asm_xregx) r))
   | Addr addr =>
     let a := decode_addr s addr in
     match ty with
@@ -243,7 +256,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
 Definition eval_iarg_in_v (s : asmmem) (ia : implicit_arg) : exec value :=
   match ia with
   | IAreg r => ok (Vword (s.(asm_reg) r))
-  | IAxreg xr => ok (Vword (s.(asm_xreg) xr))
+  | IAxregx xrx => ok (Vword (s.(asm_xregx) xrx))
   | IArflag f => Let b := st_get_rflag s f in ok (Vbool b)
   end.
 
@@ -278,6 +291,7 @@ Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
      asm_regx := s.(asm_regx);
+     asm_xregx := s.(asm_xregx);
      asm_rip  := s.(asm_rip); 
      asm_xreg := s.(asm_xreg);
      asm_flag := RflagMap.set s.(asm_flag) f (o2rflagv b);
@@ -290,6 +304,7 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : asmmem) :=
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
      asm_regx := s.(asm_regx);
+     asm_xregx := s.(asm_xregx);
      asm_rip  := s.(asm_rip); 
      asm_xreg := s.(asm_xreg);
      asm_flag := s.(asm_flag);
@@ -313,6 +328,7 @@ Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
     asm_scs  := m.(asm_scs);
     asm_reg  := RegMap.set m.(asm_reg) r (word_extend f (m.(asm_reg) r) w);
     asm_regx := m.(asm_regx);
+    asm_xregx := m.(asm_xregx);
     asm_rip  := m.(asm_rip); 
     asm_xreg := m.(asm_xreg);
     asm_flag := m.(asm_flag);
@@ -327,6 +343,7 @@ Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) 
     asm_regx := RegXMap.set m.(asm_regx) r (word_extend f (m.(asm_regx) r) w);
     asm_rip  := m.(asm_rip); 
     asm_xreg := m.(asm_xreg);
+    asm_xregx := m.(asm_xregx);
     asm_flag := m.(asm_flag);
   |}.
 
@@ -337,8 +354,23 @@ Definition mem_write_xreg (f: msb_flag) (r: xreg_t) sz (w: word sz) (m: asmmem) 
     asm_scs  := m.(asm_scs);
     asm_reg  := m.(asm_reg);
     asm_regx := m.(asm_regx);
+    asm_xregx := m.(asm_xregx);
     asm_rip  := m.(asm_rip);
     asm_xreg := XRegMap.set m.(asm_xreg) r (word_extend f (m.(asm_xreg) r) w);
+    asm_flag := m.(asm_flag);
+  |}.
+
+Definition mem_write_xregx
+  (f : msb_flag) (r : xregx_t) sz (w : word sz) (m : asmmem) : asmmem :=
+  let w' := word_extend f (m.(asm_xregx) r) w in
+  {|
+    asm_rip  := m.(asm_rip);
+    asm_scs  := m.(asm_scs);
+    asm_mem  := m.(asm_mem);
+    asm_reg  := m.(asm_reg);
+    asm_regx := m.(asm_regx);
+    asm_xreg := m.(asm_xreg);
+    asm_xregx := XRegXMap.set m.(asm_xregx) r w';
     asm_flag := m.(asm_flag);
   |}.
 
@@ -346,7 +378,7 @@ Definition mem_write_xreg (f: msb_flag) (r: xreg_t) sz (w: word sz) (m: asmmem) 
 Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (sz:wsize) (w: word sz) : exec asmmem :=
   match ad with
   | ADImplicit (IAreg r)   => ok (mem_write_reg f r w s)
-  | ADImplicit (IAxreg xr) => ok (mem_write_xreg f xr w s)
+  | ADImplicit (IAxregx xrx) => ok (mem_write_xregx f xrx w s)
   | ADImplicit (IArflag f) => type_error
   | ADExplicit _ i or    =>
     match onth args i with
@@ -357,8 +389,9 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
       | Reg r   => ok (mem_write_reg  f r w s)
       | Regx r  => ok (mem_write_regx  f r w s)
       | XReg x  => ok (mem_write_xreg f x w s)
+      | Xregx x => ok (mem_write_xregx f x w s)
       | Addr addr => mem_write_mem (decode_addr s addr) w s
-      | _       => type_error
+      | Condt _ | Imm _ _ => type_error
       end
     end
   end.
@@ -531,11 +564,10 @@ Proof.
   - by move => ? _; case: d.1 => // - [] // ? /ok_inj <-.
   move => ? ? _; case: d.1 => [ [] | ] //=.
   1,2: by move => ? /ok_inj <-.
-  move => _ ? ?; case: onth => //; t_xrbindP => - [] // ? _.
-  - by move=> /ok_inj <-.
-  - by move=> /ok_inj <-.
-  - by exact: mem_write_mem_invariant.
-  by move => /ok_inj <-.
+  move=> _ ??.
+  case: onth => //.
+  t_xrbindP=> -[] // ? _;
+    by [ move=> /ok_inj <- | exact: mem_write_mem_invariant ].
 Qed.
 
 Lemma mem_write_vals_invariant f xs ys tys zs (s s': asmmem) :

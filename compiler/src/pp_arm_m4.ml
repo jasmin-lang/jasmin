@@ -127,6 +127,7 @@ let pp_asm_arg arg =
   | Regx r -> Some (pp_register_ext r)
   | Addr addr -> Some (pp_address addr)
   | XReg r -> Some (pp_xregister r)
+  | Xregx _ -> None
 
 (* -------------------------------------------------------------------- *)
 
@@ -181,7 +182,7 @@ module ArgChecker : sig
      Raise an error if the arguments are invalid. *)
   val check_args :
     arm_op ->
-    (Wsize.wsize * (register, Arm_decl.__, Arm_decl.__, rflag, condt) asm_arg)
+    (Wsize.wsize * (register, Arm_decl.__, Arm_decl.__, Arm_decl.__, rflag, condt) asm_arg)
     list ->
     string
 end = struct

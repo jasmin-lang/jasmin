@@ -37,7 +37,7 @@ Instance finTC_empty : finTypeC empty :=
   }.
 
 #[export]
-Instance empty_toS t : ToString t empty :=
+Instance empty_toS {t : stype} : ToString t empty :=
   {
     category := "empty";
     to_string := of_empty _;
@@ -50,8 +50,8 @@ Instance empty_toS t : ToString t empty :=
 Section WITH_ARCH.
 
 Context
-  {reg regx xreg rflag cond : Type}
-  {ad : arch_decl reg regx xreg rflag cond}.
+  {reg regx xreg xregx rflag cond : Type}
+  {ad : arch_decl reg regx xreg xregx rflag cond}.
 
 Definition ak_reg_reg : i_args_kinds :=
     [:: [:: [:: CAreg ]; [:: CAreg ] ] ].
@@ -145,8 +145,8 @@ Proof. move=> /andP [-> hsize]. exact: size_beheadn. Qed.
 Section WITH_ARCH.
 
 Context
-  {reg regx xreg rflag cond : Type}
-  {ad : arch_decl reg regx xreg rflag cond}.
+  {reg regx xreg xregx rflag cond : Type}
+  {ad : arch_decl reg regx xreg xregx rflag cond}.
 
 Notation idt_dropn semi_dropn :=
   (fun idt =>

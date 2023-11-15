@@ -236,7 +236,7 @@ module type BPrinter = sig
   val imm_pre         : string
   val reg_pre         : string
   val indirect_pre    : string
-  val pp_address      : W.wsize -> (register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
+  val pp_address      : W.wsize -> (register, 'a, 'b, 'c, 'd, 'e) Arch_decl.address -> string
   val rev_args        : 'a list -> 'a list
   val pp_iname_ext    : W.wsize -> string
   val pp_iname2_ext   : char list -> W.wsize -> W.wsize -> string
@@ -256,7 +256,7 @@ module ATT : BPrinter = struct
   let indirect_pre = "*"
 
   (* -------------------------------------------------------------------- *)
-  let pp_reg_address (addr : (_, _, _, _, _) Arch_decl.reg_address) =
+  let pp_reg_address (addr : (_, _, _, _, _, _) Arch_decl.reg_address) =
     let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
@@ -279,7 +279,7 @@ module ATT : BPrinter = struct
           Printf.sprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
     end
   
-  let pp_address _ws (addr : (_, _, _, _, _) Arch_decl.address) =
+  let pp_address _ws (addr : (_, _, _, _, _, _) Arch_decl.address) =
     match addr with
     | Areg ra -> pp_reg_address ra
     | Arip d ->
@@ -316,7 +316,7 @@ module Intel : BPrinter = struct
   let pp_register = pp_register 
 
   (* -------------------------------------------------------------------- *)
-  let pp_reg_address (addr : (_, _, _, _, _) Arch_decl.reg_address) =
+  let pp_reg_address (addr : (_, _, _, _, _, _) Arch_decl.reg_address) =
     let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
@@ -344,7 +344,7 @@ module Intel : BPrinter = struct
     | U128 -> "xmmword"
     | U256 -> "ymmword"
 
-  let pp_address ws (addr : (_, _, _, _, _) Arch_decl.address) =
+  let pp_address ws (addr : (_, _, _, _, _, _) Arch_decl.address) =
     match addr with
     | Areg ra -> Printf.sprintf "%s ptr[%s]" (pp_address_size ws) (pp_reg_address ra)
     | Arip d ->
@@ -373,7 +373,7 @@ module Printer (BP:BPrinter) = struct
     Format.sprintf "%s%s" imm_pre (Z.to_string imm)
 
   (* -------------------------------------------------------------------- *)
-  let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _, _) Arch_decl.asm_arg)) =
+  let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _, _, _) Arch_decl.asm_arg)) =
     match op with
     | Condt  _   -> assert false
     | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
@@ -381,6 +381,7 @@ module Printer (BP:BPrinter) = struct
     | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> BP.pp_address ws addr
     | XReg r     -> pp_xmm_register ~reg_pre ws r
+    | Xregx _    -> assert false
   
   let pp_asm_args args = List.map pp_asm_arg (BP.rev_args args)
 
@@ -407,7 +408,7 @@ module Printer (BP:BPrinter) = struct
     | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 
   (* -------------------------------------------------------------------- *)
-  let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+  let pp_instr name (i : (_, _, _, _, _, _, _) Arch_decl.asm_i) =
     match i with
     | ALIGN ->
       `Instr (".p2align", ["5"])
@@ -447,11 +448,11 @@ module Printer (BP:BPrinter) = struct
       `Instr(name, args)
   
   (* -------------------------------------------------------------------- *)
-  let pp_instr name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+  let pp_instr name (fmt : Format.formatter) (i : (_, _, _, _, _, _, _) Arch_decl.asm_i) =
     pp_gen fmt (pp_instr name i)
   
   (* -------------------------------------------------------------------- *)
-  let pp_instrs name (fmt : Format.formatter) (is : (_, _, _, _, _, _) Arch_decl.asm_i list) =
+  let pp_instrs name (fmt : Format.formatter) (is : (_, _, _, _, _, _, _) Arch_decl.asm_i list) =
     List.iter (Format.fprintf fmt "%a\n%!" (pp_instr name)) is
     
   (* -------------------------------------------------------------------- *)  

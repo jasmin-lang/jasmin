@@ -98,11 +98,15 @@ End TOIDENT.
 
 Section OF_TO.
 
-Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent}.
+Context
+  {reg regx xreg xregx rflag cond}
+  {arch : arch_decl reg regx xreg xregx rflag cond}
+  {atoI : arch_toIdent}.
 
 Definition to_reg   : var -> option reg_t   := of_var.
 Definition to_regx  : var -> option regx_t  := of_var.
 Definition to_xreg  : var -> option xreg_t  := of_var.
+Definition to_xregx : var -> option xregx_t := of_var.
 Definition to_rflag : var -> option rflag_t := of_var.
 
 Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
@@ -111,36 +115,33 @@ Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
   | None =>
   match to_regx x with
   | Some r => ok (ARegX r)
-  | None => 
+  | None =>
   match to_xreg x with
   | Some r => ok (AXReg r)
+  | None =>
+  match to_xregx x with
+  | Some r => ok (AXRegX r)
   | None =>
   match to_rflag x with
   | Some f => ok (ABReg f)
   | None =>  Error (E.gen_error true None None (pp_s "can not map variable to a register"))
-  end end end end.
+  end end end end end.
 
 Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
   match x with
-  | ARReg r => to_var r
-  | ARegX r => to_var r
-  | AXReg r => to_var r
-  | ABReg r => to_var r
+  | ARReg r | ARegX r | AXReg r | AXRegX r | ABReg r => to_var r
   end.
 
 Lemma asm_typed_reg_of_varI x r :
   asm_typed_reg_of_var x = ok r
   -> x = var_of_asm_typed_reg r:> var.
 Proof.
-  move=> h;apply/sym_eq; move:h;rewrite /asm_typed_reg_of_var.
-  case heqr: (to_reg x) => [ ? | ].
-  + by move=> [<-]; apply:of_varI.
-  case heqrx: (to_regx x) => [ ? | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqx: (to_xreg x) => [ ? | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqf: (to_rflag x) => [ ? | //].
-  by move=> [<-]; apply: of_varI.
+  rewrite /asm_typed_reg_of_var.
+  by repeat (
+    let h := fresh in
+    case h: (_ x) => [?|];
+      first by move=> [<-]; symmetry; apply: of_varI
+  ).
 Qed.
 
 End OF_TO.
@@ -607,7 +608,11 @@ End ASM_EXTRA.
 
 Section OVM_I.
 
-Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {atoI : arch_toIdent} {call_conv: calling_convention}.
+Context
+  {reg regx xreg xregx rflag cond : Type}
+  {ad : arch_decl reg regx xreg xregx rflag cond}
+  {atoI : arch_toIdent}
+  {call_conv: calling_convention}.
 
 Definition vflags := sv_of_list to_var rflags.
 
@@ -618,7 +623,8 @@ Definition all_vars :=
     Sv.union (sv_of_list to_var registers)
    (Sv.union (sv_of_list to_var registerxs)
    (Sv.union (sv_of_list to_var xregisters)
-             vflags)).
+   (Sv.union (sv_of_list to_var xregisterxs)
+             vflags))).
 
 #[global] Instance ovm_i : one_varmap.one_varmap_info := {
   syscall_sig  :=

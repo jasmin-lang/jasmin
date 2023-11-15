@@ -44,29 +44,29 @@ end
 val tt_ws : Annotations.wsize -> Wsize.wsize
 val tt_prim : 'op Sopn.asmOp -> Annotations.symbol Location.located -> 'op
 
-type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
+type ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) arch_info = {
   pd : Wsize.wsize;
   asmOp :
-    ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
+    ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
   known_implicits : (CoreIdent.Name.t * string) list;
   flagnames : CoreIdent.Name.t list;
 }
 
 val tt_item :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) arch_info ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env ->
   Syntax.pitem Location.located ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env
 
 val tt_param :
   Wsize.wsize -> 'asm Env.env -> 'a -> Syntax.pparam -> 'asm Env.env
 
 val tt_fundef :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) arch_info ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env ->
   Location.t ->
   Syntax.pfundef ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env
 
 val tt_global :
   Wsize.wsize -> 'asm Env.env -> 'a -> Syntax.pglobal -> 'asm Env.env
@@ -77,18 +77,18 @@ val tt_fun :
   (unit, 'asm) Prog.pfunc * Prog.pty list
 
 val tt_program :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) arch_info ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env ->
   string ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env
-  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Prog.pmod_item
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env
+  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op) Prog.pmod_item
     list
   * Syntax.pprogram
 
 val tt_file :
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) arch_info ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env ->
   Annotations.pident option ->
   Location.t option ->
   string ->
-  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Env.env * Syntax.pprogram
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g, 'h) Arch_extra.extended_op Env.env * Syntax.pprogram

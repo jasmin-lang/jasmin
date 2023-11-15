@@ -12,6 +12,7 @@ let core_arch_x86 ~use_lea ~use_set0 call_conv :
        with type reg = register
         and type regx = register_ext
         and type xreg = xmm_register
+        and type xregx = X86_decl.__
         and type rflag = rflag
         and type cond = condt
         and type asm_op = X86_instr_decl.x86_op

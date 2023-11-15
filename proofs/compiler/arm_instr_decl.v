@@ -1890,4 +1890,4 @@ Instance arm_op_decl : asm_op_decl arm_op :=
     prim_string := arm_prim_string;
   |}.
 
-Definition arm_prog := @asm_prog _ _ _ _ _ _ _ arm_op_decl.
+Definition arm_prog := @asm_prog _ _ _ _ _ _ _ _ arm_op_decl.

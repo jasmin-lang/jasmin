@@ -46,11 +46,12 @@ let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 
 (*--------------------------------------------------------------------- *)
 
-let compile (type reg regx xreg rflag cond asm_op extra_op)
+let compile (type reg regx xreg xregx rflag cond asm_op extra_op)
     (module Arch : Arch_full.Arch
       with type reg = reg
        and type regx = regx
        and type xreg = xreg
+       and type xregx = xregx
        and type rflag = rflag
        and type cond = cond
        and type asm_op = asm_op

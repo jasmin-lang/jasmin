@@ -290,15 +290,18 @@ Instance arm_fcp : FlagCombinationParams :=
 
 Notation register_ext := empty.
 Notation xregister := empty.
+Notation xregister_ext := empty.
 
 #[ export ]
-Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
+Instance arm_decl :
+  arch_decl register register_ext xregister xregister_ext rflag condt :=
   { reg_size  := arm_decl_core.arm_reg_size
   ; xreg_size := U64
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
-  ; toS_rx    := empty_toS sword32
-  ; toS_x     := empty_toS sword64
+  ; toS_rx    := empty_toS
+  ; toS_x     := empty_toS
+  ; toS_xrx   := empty_toS
   ; toS_f     := rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP

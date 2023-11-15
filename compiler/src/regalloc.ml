@@ -530,7 +530,7 @@ module type Regalloc = sig
 end
 
 module Regalloc (Arch : Arch_full.Arch)
-  : Regalloc with type extended_op := (Arch.reg, Arch.regx, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
+  : Regalloc with type extended_op := (Arch.reg, Arch.regx, Arch.xreg, Arch.xregx, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs)

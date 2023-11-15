@@ -361,13 +361,17 @@ Instance x86_fcp : FlagCombinationParams :=
 
 (* -------------------------------------------------------------------- *)
 
+Notation xregister_ext := empty.
+
 #[global]
-Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
+Instance x86_decl :
+  arch_decl register register_ext xmm_register xregister_ext rflag condt :=
   { reg_size := U64
   ; xreg_size := U256
   ; toS_r := x86_reg_toS
   ; toS_rx:= x86_regx_toS
   ; toS_x := x86_xreg_toS
+  ; toS_xrx := empty_toS
   ; toS_f := x86_rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := RSP

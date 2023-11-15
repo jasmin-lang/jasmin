@@ -152,16 +152,25 @@ Section ARCH.
 
 Context `{arch : arch_decl}.
 
+Definition disjoint_image {aT bT cT} (f : aT -> cT) (g : bT -> cT) : Prop :=
+  forall (a : aT) (b : bT), f a <> g b.
+
+Notation disjoint_image_to_ident aT bT :=
+  (disjoint_image (to_ident (T := aT)) (to_ident (T := bT)))
+  (only parsing).
+
 Class arch_toIdent :=
   { toI_r  : ToIdent reg
   ; toI_rx : ToIdent regx
   ; toI_x  : ToIdent xreg
+  ; toI_xrx : ToIdent xregx
   ; toI_f  : ToIdent rflag
-  ; inj_toI_reg_regx : forall (r:reg) (rx:regx), to_ident r <> to_ident rx
+  ; inj_toI_reg_regx : disjoint_image_to_ident reg regx
+  ; inj_toI_xreg_xregx : disjoint_image_to_ident xreg xregx
   }.
 
 #[global]
-Existing Instances toI_r toI_rx toI_x toI_f.
+Existing Instances toI_r toI_rx toI_x toI_xrx toI_f.
 
 End ARCH.
 
@@ -175,44 +184,64 @@ End AToIdent_T.
 
 Module MkAToIdent : AToIdent_T.
 
+  Section CHECK_DISJOINT_IMAGE.
+
+    Context
+      {aT bT : Type}
+      {cT : eqType}
+      {fta : finTypeC aT}
+      {ftb : finTypeC bT}
+    .
+
+    Definition check_disjoint_image (f g : _ -> cT) : bool :=
+      all (fun (a : aT) => all (fun (b : bT) => f a != g b) cenum) cenum.
+
+    Let a_eqType := ceqT_eqType (T := aT). Canonical a_eqType.
+    Let b_eqType := ceqT_eqType (T := bT). Canonical b_eqType.
+
+    Lemma check_disjoint_imageP f g :
+      check_disjoint_image f g ->
+      disjoint_image f g.
+    Proof.
+      rewrite /check_disjoint_image => /allP ha a b.
+      have := ha a.
+      rewrite mem_cenum /= => /(_ erefl) /allP /(_ b).
+      by rewrite mem_cenum /= => /(_ erefl) /eqP.
+    Qed.
+
+  End CHECK_DISJOINT_IMAGE.
+
   Section Section.
-  Context `{arch : arch_decl}.
+  Context
+    {reg regx xreg xregx rflag cond}
+    {arch : arch_decl reg regx xreg xregx rflag cond}.
 
-  Section AUX.
+  Notation check aT bT :=
+    (check_disjoint_image (to_ident (T := aT)) (to_ident (T := bT)))
+    (only parsing).
 
-  Context {rtI : ToIdent reg} {rxtI : ToIdent regx}.
-
-  Definition _inj_toI_reg_regx :=
-     all (fun r:reg => all (fun rx:regx => to_ident r != to_ident rx) cenum) cenum.
-
-  Let r_eqType  := ceqT_eqType (T:= reg).  Canonical r_eqType.
-  Let rx_eqType := ceqT_eqType (T:= regx). Canonical rx_eqType.
-
-  Lemma inj_toI_reg_regxP : _inj_toI_reg_regx ->
-    forall (r:reg) (rx:regx), to_ident r <> to_ident rx.
-  Proof.
-    rewrite /_inj_toI_reg_regx => /allP h r rx.
-    have := h r; rewrite mem_cenum /= => /(_ erefl) /allP hx.
-    by have := hx rx; rewrite mem_cenum /= => /(_ erefl) /eqP.
-  Qed.
-
-  End AUX.
+  Definition get_is_true (err : pp_error_loc) (b : bool) : cexec (is_true b) :=
+    if @idP b is ReflectT h then ok h else Error err.
 
   Definition mk (toid : reg_kind -> stype -> string -> Ident.ident) :=
     Let toI_r  := MkToIdent.mk (T:= reg) (toid Normal (sword reg_size)) in
     Let toI_rx := MkToIdent.mk (T:= regx) (toid Extra (sword reg_size)) in
     Let toI_x  := MkToIdent.mk (T:= xreg) (toid Normal (sword xreg_size)) in
+    Let toI_xrx := MkToIdent.mk (T := xregx) (toid Extra (sword xreg_size)) in
     Let toI_f  := MkToIdent.mk (T:= rflag) (toid Normal sbool) in
-    match @idP _inj_toI_reg_regx with
-    | ReflectT h =>
-        ok {| toI_r := toI_r
-            ; toI_rx := toI_rx
-            ; toI_x  := toI_x
-            ; toI_f  := toI_f
-            ; inj_toI_reg_regx := inj_toI_reg_regxP h
-           |}
-    | _ => Error (pp_internal_error_s "arch_to_ident generation" "inj_toI_reg_regx")
-    end.
+    let gen_err := pp_internal_error_s "arch_to_ident generation" in
+    let err_reg := gen_err "inj_toI_reg_regx"%string in
+    let err_xreg := gen_err "inj_toI_xreg_xregx"%string in
+    Let hreg := get_is_true err_reg (check reg regx) in
+    Let hxreg := get_is_true err_xreg (check xreg xregx) in
+    ok {| toI_r := toI_r
+        ; toI_rx := toI_rx
+        ; toI_x  := toI_x
+        ; toI_xrx := toI_xrx
+        ; toI_f  := toI_f
+        ; inj_toI_reg_regx := check_disjoint_imageP hreg
+        ; inj_toI_xreg_xregx := check_disjoint_imageP hxreg
+       |}.
 
   End Section.
 
@@ -220,7 +249,10 @@ End MkAToIdent.
 
 Section ARCH.
 
-Context `{arch : arch_decl} {atoI : arch_toIdent}.
+Context
+  {reg regx xreg xregx rflag cond : Type}
+  {arch : arch_decl reg regx xreg xregx rflag cond}
+  {atoI : arch_toIdent}.
 
 Lemma to_var_reg_neq_regx (r : reg_t) (x : regx_t) :
   to_var r <> to_var x.
@@ -230,15 +262,27 @@ Lemma to_var_reg_neq_xreg (r : reg_t) (x : xreg_t) :
   to_var r <> to_var x.
 Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
 
+Lemma to_var_reg_neq_xregx (r : reg_t) (x : xregx_t) :
+  to_var r <> to_var x.
+Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
+
 Lemma to_var_regx_neq_xreg (r : regx_t) (x : xreg_t) :
   to_var r <> to_var x.
 Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
+
+Lemma to_var_regx_neq_xregx (r : regx_t) (x : xregx_t) :
+  to_var r <> to_var x.
+Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
+
+Lemma to_var_xreg_neq_xregx (r : xreg_t) (x : xregx_t) :
+  to_var r <> to_var x.
+Proof. rewrite /to_var => -[]; apply: inj_toI_xreg_xregx. Qed.
 
 Definition var_of_implicit_arg (i : implicit_arg) : var :=
   match i with
   | IArflag r
   | IAreg r
-  | IAxreg r
+  | IAxregx r
       => to_var r
   end.
 
@@ -253,8 +297,8 @@ End ARCH.
 (* Extra ops are non-existing architecture-specific asm instructions that we
  * replace by real asm instructions during the asmgen pass.
  *)
-Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
-  { _asm   : asm reg regx xreg rflag cond asm_op
+Class asm_extra (reg regx xreg xregx rflag cond asm_op extra_op : Type) :=
+  { _asm   : asm reg regx xreg xregx rflag cond asm_op
   ; _atoI  : arch_toIdent
   ; _extra : asmOp extra_op (* description of extra ops *)
   (* How to compile extra ops into a assembly instructions. *)
@@ -269,7 +313,11 @@ Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
 #[global]
 Existing Instances _asm _atoI _extra.
 
-Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
+Definition extra_op_t
+  {reg regx xreg xregx rflag cond asm_op extra_op}
+  {asm_e : asm_extra reg regx xreg xregx rflag cond asm_op extra_op} :
+  Type :=
+  extra_op.
 
 Section AsmOpI.
 

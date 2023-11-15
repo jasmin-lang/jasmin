@@ -634,11 +634,20 @@ Proof.
       rewrite truncate_word_le // /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc_op (XOR sz).
       rewrite /SF_of_word msb0.
-      by have [s' -> /= ?]:= (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
-             rip ii m lvs m' s [:: Reg r; Reg r]
-             id.(id_out) id.(id_tout)
-             (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
-             (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)); eauto.
+      set vt :=
+        let vf := Some false in
+        let: vt := Some true in
+        (:: vf, vf, vf, vt, vt & 0%R : word sz).
+      have [s' -> /= ?]:=
+        compile_lvals
+          (loargs := [:: Reg r; Reg r ])
+          (id_out := id_out id)
+          (id_tout := id_tout id)
+          (vt := vt)
+          (reg_msb_flag sz)
+          (refl_equal _)
+          hw hlo hcd id.(id_check_dest).
+      by eauto.
     case: xs => // ok_xs /ok_inj <-{ys} hw.
     case: rev => [ // | [ // | d ] ds ] /ok_inj <-{ops} /=.
     t_xrbindP => -[op' asm_args] hass <- hlo /=.
@@ -658,11 +667,17 @@ Proof.
     rewrite /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz).
-    by have [s' -> /= ?] := (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
-               rip ii m lvs m' s [:: a0; XReg r; XReg r]
-               id.(id_out) id.(id_tout)
-               (0%R: word sz)
-               (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)); eauto.
+    have [s' -> /= ?] :=
+      compile_lvals
+        (asm_e := x86_extra)
+        (loargs := [:: a0; XReg r; XReg r ])
+        (id_out := id_out id)
+        (id_tout := id_tout id)
+        (vt := 0%R: word sz)
+        (reg_msb_flag sz)
+        (refl_equal _)
+        hw hlo hcd id.(id_check_dest).
+    by eauto.
   (* Oconcat128 *)
   + by apply assemble_extra_concat128.
 
@@ -691,7 +706,6 @@ Proof.
     rewrite /mem_write_vals.
     eexists.
     * by rewrite /mem_write_val /= truncate_word_u /=.
-    move: (hlow) => [h0 h1 hrip hd h2 h2x h3 h4].
     move: hwx; rewrite /write_var /set_var.
     rewrite -xr => -[<-]{m1}.
     apply: (lom_eqv_write_reg _ _ hlow).

@@ -54,8 +54,9 @@ Definition eval_cond
       ok (zf || (nf != vf))
   end.
 
-#[ export ]
-Instance arm : asm register register_ext xregister rflag condt arm_op :=
+#[export]
+Instance arm :
+  asm register register_ext xregister xregister_ext rflag condt arm_op :=
   {
     eval_cond := eval_cond;
   }.
