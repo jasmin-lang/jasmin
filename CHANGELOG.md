@@ -67,11 +67,11 @@
   fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
 
 - Fix combine flag notation for arm
-  ([PR 594]((https://github.com/jasmin-lang/jasmin/pull/594);
+  ([PR 594](https://github.com/jasmin-lang/jasmin/pull/594);
   fixes [#593](https://github.com/jasmin-lang/jasmin/issues/593)).
 
 - Flag combination support `"!="` as the negation of `"=="`
-  ([PR 600]((https://github.com/jasmin-lang/jasmin/pull/600);
+  ([PR 600](https://github.com/jasmin-lang/jasmin/pull/600);
   fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
 
 ## Other changes
@@ -85,6 +85,11 @@
 
 - Unsigned division on x86 emits a xor instead of “mov 0“
   ([PR #582](https://github.com/jasmin-lang/jasmin/pull/582)).
+
+- Add more warning option :
+	-wduplicatevar : print warning when two variables share the same name
+	-wunusedvar   : print warning when a declared variable is not used
+  ([PR #605] (https://github.com/jasmin-lang/jasmin/pull/605)).
 
 # Jasmin 2023.06.1 — 2023-07-31
 
