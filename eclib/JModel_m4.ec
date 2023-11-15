@@ -48,6 +48,18 @@ op AND x y = let (_n, _z, _c, r) = ANDS x y in r.
 op ANDScc x y g n z c o = if g then ANDS x y else (n, z, c, o).
 op ANDcc x y g o = if g then AND x y else o.
 
+op BFC (x: W32.t) (lsb width: W8.t) : W32.t =
+  let lsbit = to_uint lsb in
+  let msbit = lsbit + to_uint width - 1 in
+  W32.init (fun i => if lsbit <= i <= msbit then false else x.[i]).
+op BFCcc x lsb width g o = if g then BFC x lsb width else o.
+
+op BFI (x y: W32.t) (lsb width: W8.t) : W32.t =
+  let lsbit = to_uint lsb in
+  let msbit = lsbit + to_uint width - 1 in
+  W32.init (fun i => if lsbit <= i <= msbit then y.[i - lsbit] else x.[i]).
+op BFIcc x y lsb width g o = if g then BFI x y lsb width else o.
+
 op BICS (x y: W32.t) : bool * bool * bool * W32.t =
   with_nzc (andw x (invw y)).
 op BIC x y = let (_n, _z, _c, r) = BICS x y in r.

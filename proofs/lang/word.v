@@ -195,6 +195,10 @@ Definition word := fun sz =>
 
 Global Opaque word.
 
+Definition winit (ws : wsize) (f : nat -> bool) : word ws :=
+  let bits := map f (iota 0 (wsize_size_minus_1 ws).+1) in
+  t2w (Tuple (tval := bits) ltac:(by rewrite size_map size_iota)).
+
 Definition wand {s} (x y: word s) : word s := wand x y.
 Definition wor {s} (x y: word s) : word s := wor x y.
 Definition wxor {s} (x y: word s) : word s := wxor x y.

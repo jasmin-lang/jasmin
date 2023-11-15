@@ -44,6 +44,9 @@
 - Add instruction `CMN` to arm-m4:
   ([PR #642](https://github.com/jasmin-lang/jasmin/pull/642)).
 
+- Add instructions `BFC` and `BFI` to arm-m4
+  ([PR #643](https://github.com/jasmin-lang/jasmin/pull/643)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
