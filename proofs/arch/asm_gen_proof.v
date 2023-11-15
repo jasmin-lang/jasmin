@@ -1338,36 +1338,16 @@ Variant match_state
   `(asm_pos rip (lpc ls) lc = asm_ip xs).
 
 Lemma reg_in_all (r:reg_t): Sv.In (to_var r) all_vars.
-Proof.
-  move: r; rewrite /reg_t => /= => r.
-  rewrite /all_vars /= !Sv.union_spec; left.
-  apply/sv_of_listP/(map_f (T1:= @ceqT_eqType _ _)).
-  by rewrite mem_cenum.
-Qed.
+Proof. apply: enum_in_Sv => ??. rewrite /all_vars !Sv.union_spec. by auto. Qed.
 
 Lemma regx_in_all (r:regx_t): Sv.In (to_var r) all_vars.
-Proof.
-  move: r; rewrite /reg_t => /= => r.
-  rewrite /all_vars /= !Sv.union_spec; right; left.
-  apply/sv_of_listP /(map_f (T1:= @ceqT_eqType _ _)).
-  by rewrite mem_cenum.
-Qed.
+Proof. apply: enum_in_Sv => ??. rewrite /all_vars !Sv.union_spec. by auto. Qed.
 
 Lemma xreg_in_all (r:xreg_t): Sv.In (to_var r) all_vars.
-Proof.
-  move: r; rewrite /xreg_t => /= => r.
-  rewrite /all_vars /= !Sv.union_spec; right; right; left.
-  apply/sv_of_listP /(map_f (T1:= @ceqT_eqType _ _)).
-  by rewrite mem_cenum.
-Qed.
+Proof. apply: enum_in_Sv => ??. rewrite /all_vars !Sv.union_spec. by auto. Qed.
 
 Lemma flag_in_all (r:rflag_t): Sv.In (to_var r) all_vars.
-Proof.
-  move: r; rewrite /rflag_t => /= => r.
-  rewrite /all_vars /= !Sv.union_spec; right; right; right.
-  apply/sv_of_listP /(map_f (T1:= @ceqT_eqType _ _)).
-  by rewrite mem_cenum.
-Qed.
+Proof. apply: enum_in_Sv => ??. rewrite /all_vars !Sv.union_spec. by auto. Qed.
 
 Lemma to_var_typed_reg r x : to_var r = var_of_asm_typed_reg x -> x = ARReg r.
 Proof.
