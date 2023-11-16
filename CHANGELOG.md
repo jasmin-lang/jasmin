@@ -43,6 +43,13 @@
 - Expansion of `#copy` operators uses an intermediate register when needed
   ([PR #735](https://github.com/jasmin-lang/jasmin/pull/735)).
 
+- Add more warning options:
+    - `-wduplicatevar`: warns when two variables share the same name;
+    - `-wunusedvar`: warns when a declared variable is not used.
+
+  ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
+  Warning this is a **breaking change**.
+
 # Jasmin 2023.06.2 — 2023-12-22
 
 ## New features
