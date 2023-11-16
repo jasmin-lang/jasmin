@@ -89,7 +89,8 @@
 - Add more warning option :
 	-wduplicatevar : print warning when two variables share the same name
 	-wunusedvar   : print warning when a declared variable is not used
-  ([PR #605] (https://github.com/jasmin-lang/jasmin/pull/605)).
+  ([PR #605] (https://github.com/jasmin-lang/jasmin/pull/605));
+  Warning this is a breacking change.
 
 # Jasmin 2023.06.1 — 2023-07-31
 
