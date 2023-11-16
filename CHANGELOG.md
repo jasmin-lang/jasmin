@@ -86,11 +86,12 @@
 - Unsigned division on x86 emits a xor instead of “mov 0“
   ([PR #582](https://github.com/jasmin-lang/jasmin/pull/582)).
 
-- Add more warning option :
-	-wduplicatevar : print warning when two variables share the same name
-	-wunusedvar   : print warning when a declared variable is not used
-  ([PR #605] (https://github.com/jasmin-lang/jasmin/pull/605));
-  Warning this is a breacking change.
+- Add more warning options:
+    - `-wduplicatevar`: warns when two variables share the same name;
+    - `-wunusedvar`: warns when a declared variable is not used.
+
+  ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
+  Warning this is a **breaking change**.
 
 # Jasmin 2023.06.1 — 2023-07-31
 
