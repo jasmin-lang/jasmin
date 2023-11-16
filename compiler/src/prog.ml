@@ -223,6 +223,7 @@ let ident_of_var (x:var) : CoreIdent.var = x
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
+
 let rvars_v f x s =
   if is_gkvar x then f (L.unloc x.gv) s
   else s 
@@ -269,6 +270,7 @@ let vars_e e = rvars_e Sv.add Sv.empty e
 let vars_es es = rvars_es Sv.add Sv.empty es
 let vars_i i = rvars_i Sv.add Sv.empty i
 let vars_c c = rvars_c Sv.add Sv.empty c
+let pvars_c c = rvars_c Spv.add Spv.empty c
 
 let params fc =
   List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args

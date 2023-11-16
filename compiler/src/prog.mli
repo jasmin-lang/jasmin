@@ -202,6 +202,7 @@ val vars_e  : expr -> Sv.t
 val vars_es : expr list -> Sv.t
 val vars_i  : ('info,'asm) instr -> Sv.t
 val vars_c  : ('info,'asm) stmt  -> Sv.t
+val pvars_c  : ('info,'asm) pstmt  -> Spv.t
 val vars_fc : ('info,'asm) func  -> Sv.t
 
 val locals  : ('info,'asm) func -> Sv.t
