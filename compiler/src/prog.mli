@@ -64,7 +64,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
-  | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
   i_desc : ('len,'info,'asm) ginstr_r;
@@ -269,13 +269,12 @@ val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
 val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
 
 (* -------------------------------------------------------------------- *)
+val is_inline : Annotations.annotations -> FInfo.call_conv -> bool
+
+(* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
 val clamp_pe : pelem -> Z.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
 type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
 type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra
-
-
-
-

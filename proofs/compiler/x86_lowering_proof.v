@@ -1846,7 +1846,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs m2 s2 ii xs fn args vargs vs Harg _ Hfun Hret ii' Hdisj s1' Hs1'; move: Hdisj.
+    move=> s1 scs m2 s2 xs fn args vargs vs Harg _ Hfun Hret ii' Hdisj s1' Hs1'; move: Hdisj.
     rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_call=> /disjoint_union [Hxs Hargs].
     have Heq: eq_exc_fresh (with_scs (with_mem s1' m2) scs) (with_scs (with_mem s1 m2) scs).
     + by case: Hs1' => * /=.

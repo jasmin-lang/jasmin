@@ -89,8 +89,8 @@ end = struct
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
       Cfor (mk_v_loc fn v, mk_range fn r, mk_stmt fn st)
-    | Ccall (inlinf, lvs, c_fn, es) ->
-      Ccall (inlinf, mk_lvals fn lvs, c_fn, mk_exprs fn es)
+    | Ccall (lvs, c_fn, es) ->
+      Ccall (mk_lvals fn lvs, c_fn, mk_exprs fn es)
     | Cwhile (a, st1, e, st2) ->
       Cwhile (a, mk_stmt fn st1, mk_expr fn e, mk_stmt fn st2)
 
@@ -341,7 +341,7 @@ end = struct
     | Cwhile (_, c1, _, c2) ->
       pa_flag_setfrom v (List.rev_append c1 (List.rev c2))
         
-    | Ccall (_, lvs, _, _) | Csyscall(lvs, _, _) ->
+    | Ccall (lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
       
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
@@ -404,7 +404,7 @@ end = struct
       pa_stmt fn prog st' (List.append c1 c2)
       |> set_ct st.ct
 
-    | Ccall (_, lvs, fn', es) ->   
+    | Ccall (lvs, fn', es) ->   
       let st = { st with cfg = add_call st.cfg fn fn' } in
       let f_decl = get_fun_def (oget prog) fn' |> oget in
 

@@ -193,10 +193,10 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let:(pi, c1, e, c2) := pic in
     ok (pi, MkI ii (Cwhile a c1 e c2))
 
-  | Ccall inline xs f es =>
+  | Ccall xs f es =>
     let es := pi_es pi es in
     let (pi, xs) := pi_lvs (remove_m pi) xs in
-    ok (pi, MkI ii (Ccall inline xs f es))
+    ok (pi, MkI ii (Ccall xs f es))
 
   end.
 

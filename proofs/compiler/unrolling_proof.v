@@ -171,7 +171,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hexpr _ Hfun Hw ii' /=.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hexpr _ Hfun Hw ii' /=.
     by apply: sem_seq1; apply: EmkI; apply: Ecall; rewrite ?p'_globs; eassumption.
   Qed.
 

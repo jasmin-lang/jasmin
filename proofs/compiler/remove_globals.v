@@ -86,7 +86,7 @@ Section REMOVE.
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ _ => ok gd
+    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -306,10 +306,10 @@ Section REMOVE.
             Let envc := loop check_c Loop.nb env in
             let: (env, c) := envc in
             ok (env, [::MkI ii (Cfor xi (d,e1,e2) c)])
-        | Ccall i lvs fn es =>
+        | Ccall lvs fn es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
-          ok (env, [::MkI ii (Ccall i lvs fn es)])
+          ok (env, [::MkI ii (Ccall lvs fn es)])
         end
       end.
 

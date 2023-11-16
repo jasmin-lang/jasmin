@@ -309,11 +309,11 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let c' := mapM (expand_i m) c' in 
     ok (MkI ii (Cwhile a c e c'))
 
-  | Ccall ini xs fn es =>
+  | Ccall xs fn es =>
     if Mf.get fsigs fn is Some (expdin, expdout) then
       Let xs := add_iinfo ii (rmap flatten (mapM2 length_mismatch (expand_return m) expdout xs)) in
       Let es := add_iinfo ii (rmap flatten (mapM2 length_mismatch (expand_param m) expdin es)) in
-      ok (MkI ii (Ccall ini xs fn es))
+      ok (MkI ii (Ccall xs fn es))
     else Error (reg_ierror_no_var "function not found")
   end.
 

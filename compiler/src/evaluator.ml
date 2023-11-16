@@ -124,7 +124,7 @@ let small_step1 ep spp sip s =
     | Cwhile (_, c1, e, c2) ->
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
-    | Ccall(_,xs,fn,es) ->
+    | Ccall(xs,fn,es) ->
       let vargs' = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
       let f = 
         match get_fundef s.s_prog.p_funcs fn with

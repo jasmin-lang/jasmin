@@ -209,11 +209,11 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_for i (wrange d vlo vhi) s1 c s2 ->
     sem_i s1 (Cfor i (d, lo, hi) c) s2
 
-| Ecall s1 scs2 m2 s2 ii xs f args vargs vs :
+| Ecall s1 scs2 m2 s2 xs f args vargs vs :
     sem_pexprs (~~direct_call) gd s1 args = ok vargs ->
     sem_call s1.(escs) s1.(emem) f vargs scs2 m2 vs ->
     write_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 ->
-    sem_i s1 (Ccall ii xs f args) s2
+    sem_i s1 (Ccall xs f args) s2
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
 | EForDone s i c :
@@ -342,13 +342,12 @@ Section SEM_IND.
 
   Definition sem_Ind_call : Prop :=
     forall (s1 : estate) (scs2 : syscall_state_t) (m2 : mem) (s2 : estate) 
-           (ii : inline_info) (xs : lvals)
-           (fn : funname) (args : pexprs) (vargs vs : seq value),
+           (xs : lvals) (fn : funname) (args : pexprs) (vargs vs : seq value),
       sem_pexprs (~~direct_call) gd s1 args = ok vargs →
       sem_call (escs s1) (emem s1) fn vargs scs2 m2 vs → 
       Pfun (escs s1) (emem s1) fn vargs scs2 m2 vs →
       write_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 →
-      Pi_r s1 (Ccall ii xs fn args) s2.
+      Pi_r s1 (Ccall xs fn args) s2.
 
   Definition sem_Ind_proc : Prop :=
     forall (scs1 : syscall_state_t) (m1 : mem) (scs2 : syscall_state_t) (m2 : mem)
@@ -400,8 +399,8 @@ Section SEM_IND.
     | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
       @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
         (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
-    | @Ecall s1 scs2 m2 s2 ii xs f13 args vargs vs e2 s0 e3 =>
-      @Hcall s1 scs2 m2 s2 ii xs f13 args vargs vs e2 s0
+    | @Ecall s1 scs2 m2 s2 xs f13 args vargs vs e2 s0 e3 =>
+      @Hcall s1 scs2 m2 s2 xs f13 args vargs vs e2 s0
         (@sem_call_Ind (escs s1) (emem s1) f13 vargs scs2 m2 vs s0) e3
     end
 
@@ -615,7 +614,7 @@ Lemma sem_iE s i s' :
     ∃ si b,
        [/\ sem s c si, sem_pexpr true gd si e = ok (Vbool b) &
                        if b then ∃ sj, sem si c' sj ∧ sem_i sj (Cwhile a c e c') s' else si = s' ]
-  | Ccall _ xs f es =>
+  | Ccall xs f es =>
     ∃ vs scs2 m2 rs,
     [/\ sem_pexprs (~~direct_call) gd s es = ok vs,
         sem_call s.(escs) s.(emem) f vs scs2 m2 rs &
@@ -630,7 +629,7 @@ Proof.
   - by move => s si sj s' c e c' hc he hc' hrec; exists si, true; constructor => //; exists sj.
   - by move => s s' c e c' hc he; exists s', false.
   - by move => s s' i d lo hi c vlo vhi hlo hhi hc; exists vlo, vhi.
-  by move => s scs m s' _ xs f es vs rs hvs h hrs; exists vs, scs, m, rs.
+  by move=> s scs m s' xs f es vs rs hvs h hrs; exists vs, scs, m, rs.
 Qed.
 
 Lemma sem_forE i ws s c s' :
@@ -993,7 +992,7 @@ Proof.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
   + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
     by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs _ _ _ Hw z.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs _ _ _ Hw z.
   rewrite write_i_call. apply (vrvsP Hw).
 Qed.
 
@@ -1904,7 +1903,7 @@ Proof.
     have [|vm3 ? heq3] := ihc vm2 X hsub; first by apply: eq_onI heq2; SvD.fsetdec.
     have [vm4 ? heq4] := ihf vm3 X hsub heq3; exists vm4 => //.
     by econstructor; eauto.
-  + move=> s1 scs2 m2 s2 ii xs fn args vargs vs hargs hcall _ hw vm1 X.
+  + move=> s1 scs2 m2 s2 xs fn args vargs vs hargs hcall _ hw vm1 X.
     rewrite read_i_call => hsub heq1.
     case: (write_lvals_eq_on _ hw heq1); first by SvD.fsetdec.
     move=> vm2 hw2 heq2; exists vm2; last by apply: eq_onI heq2; SvD.fsetdec.
@@ -2076,7 +2075,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs vm1 Hvm1.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfd Hxs vm1 Hvm1.
   have [vargs' Hsa /Hfd [vs' [Hc Hvres]]]:= sem_pexprs_uincl Hvm1 Hargs.
   have Hvm1' : vm_uincl (evm (with_scs (with_mem s1 m2) scs2)) vm1 by done.
   have [vm2' ??] := writes_uincl Hvm1' Hvres Hxs.

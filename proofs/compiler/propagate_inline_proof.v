@@ -679,7 +679,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
   Proof.
-    move=> s1 scs m2 s2 iif xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
+    move=> s1 scs m2 s2 xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
     case heq : pi_lvs => [pi' xs'] [<-] hu hv.
     have [vargs' hargs' hus]:= pi_esP_uincl hv hu hargs.
     have [vs' hvs' hc]:= hf _ hus.

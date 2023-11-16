@@ -281,8 +281,8 @@ Proof.
     clear; SvD.fsetdec.
 Qed.
 
-Lemma write_i_call ii xs f es :
-  write_i (Ccall ii xs f es) = vrvs xs.
+Lemma write_i_call xs f es :
+  write_i (Ccall xs f es) = vrvs xs.
 Proof. done. Qed.
 
 Lemma write_Ii ii i: write_I (MkI ii i) = write_i i.
@@ -432,8 +432,8 @@ Proof.
   rewrite /read_i /read_i_rec -/read_c_rec !read_eE read_cE; clear; SvD.fsetdec.
 Qed.
 
-Lemma read_i_call ii xs f es :
-  Sv.Equal (read_i (Ccall ii xs f es)) (Sv.union (read_rvs xs) (read_es es)).
+Lemma read_i_call xs f es :
+  Sv.Equal (read_i (Ccall xs f es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. rewrite /read_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
 Lemma read_Ii ii i: read_I (MkI ii i) = read_i i.
@@ -491,8 +491,8 @@ Lemma vars_I_for ii i d lo hi c:
            (Sv.union (Sv.union (vars_c c) (Sv.singleton i)) (Sv.union (read_e lo) (read_e hi))).
 Proof. rewrite /vars_I read_Ii write_Ii read_i_for write_i_for /vars_c; clear; SvD.fsetdec. Qed.
 
-Lemma vars_I_call ii ii' xs fn args:
-  Sv.Equal (vars_I (MkI ii (Ccall ii' xs fn args))) (Sv.union (vars_lvals xs) (read_es args)).
+Lemma vars_I_call ii xs fn args:
+  Sv.Equal (vars_I (MkI ii (Ccall xs fn args))) (Sv.union (vars_lvals xs) (read_es args)).
 Proof. rewrite /vars_I read_Ii write_Ii read_i_call write_i_call /vars_lvals; clear; SvD.fsetdec. Qed.
 
 Lemma vars_pP p fn fd : get_fundef p fn = Some fd -> Sv.Subset (vars_fd fd) (vars_p p).

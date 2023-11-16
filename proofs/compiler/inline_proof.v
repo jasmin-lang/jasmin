@@ -24,9 +24,9 @@ Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Local Notation inline_i' := (inline_i rename_fd).
-Local Notation inline_fd' := (inline_fd rename_fd).
-Local Notation inline_prog' := (inline_prog rename_fd).
+Notation inline_i' := (inline_i rename_fd).
+Notation inline_fd' := (inline_fd rename_fd).
+Notation inline_prog' := (inline_prog rename_fd).
 
 #[local] Existing Instance indirect_c.
 
@@ -62,8 +62,9 @@ Section INCL.
       by t_xrbindP => -[Xc c'] /Hc -> /= <- <-.
     + move=> a c e c' Hc Hc' ii X1 c0 X2 /=.
       by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
-    move=> i xs f es ii X1 c' X2 /=.
-    case: i => //; t_xrbindP => fd /get_funP -/Incl.
+    move=> xs f es ii X1 c' X2 /=.
+    case: ii_is_inline => [|//].
+    t_xrbindP=> fd /get_funP -/Incl.
     by rewrite /get_fun => -> h <- <- /=; rewrite h.
   Qed.
 
@@ -175,9 +176,10 @@ Section SUBSET.
     by apply: rbindP=> Hc'' /Hc' ? [<-].
   Qed.
 
-  Local Lemma Scall  : forall i xs f es, Pr (Ccall i xs f es).
+  Local Lemma Scall : forall xs f es, Pr (Ccall xs f es).
   Proof.
-    move=> i xs f es ii X2 Xc /=;case: i => [ | [<-] //].
+    move=> xs f es ii X2 Xc /=.
+    case: ii_is_inline => [|[<-] //].
     by apply:rbindP => fd _;apply: rbindP => ?? [<-].
   Qed.
 
@@ -458,8 +460,9 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move => s1 scs2 m2 s2 ii xs fn args vargs vs.
-    case:s1 => scs1 sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' /=;case:ii;last first.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs.
+    case: s1 => scs1 sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' /=.
+    case: ii_is_inline; last first.
     + move=> [<- <-] vm1 Hvm1.
       have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
       + by apply: uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
