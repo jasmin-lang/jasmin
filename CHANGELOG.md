@@ -17,6 +17,10 @@
   [PR #642](https://github.com/jasmin-lang/jasmin/pull/642),
   [PR #643](https://github.com/jasmin-lang/jasmin/pull/643)).
 
+- Add signed multiply halfwords instructions `SMULBB`, `SMULBT`, `SMULTB`,
+  `SMULTT`, `SMLABB`, `SMLABT`, `SMLATB`, `SMLATT`, `SMULWB`, and `SMULWT`
+  ([PR #644](https://github.com/jasmin-lang/jasmin/pull/644)).
+
 ## Bug fixes
 
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`
