@@ -98,6 +98,11 @@ Definition unset_is_conditional (ao : arm_options) : arm_options :=
 (* -------------------------------------------------------------------- *)
 (* ARM instruction mnemonics. *)
 
+Variant halfword : Type :=
+| HWB
+| HWT
+.
+
 Variant arm_mnemonic : Type :=
 (* Arithmetic *)
 | ADD                            (* Add without carry *)
@@ -120,6 +125,10 @@ Variant arm_mnemonic : Type :=
 | SMMUL                          (* Signed multiplication, writes the most significant
                                     32 bits of the result *)
 | SMMULR                         (* Rounding version of SMMUL *)
+
+| SMUL_hw of halfword & halfword (* Signed Multiply halfwords. *)
+| SMLA_hw of halfword & halfword (* Signed Multiply Accumulate halfwords. *)
+| SMULW_hw of halfword           (* Signed Multiply word by halfword. *)
 
 (* Logical *)
 | AND                            (* Bitwise AND *)
@@ -184,6 +193,9 @@ Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
+    ; SMUL_hw HWB HWB; SMUL_hw HWB HWT; SMUL_hw HWT HWB; SMUL_hw HWT HWT
+    ; SMLA_hw HWB HWB; SMLA_hw HWB HWT; SMLA_hw HWT HWB; SMLA_hw HWT HWT
+    ; SMULW_hw HWB; SMULW_hw HWT
     ; AND; BFC; BFI; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
     ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; CLZ
@@ -193,7 +205,7 @@ Definition arm_mnemonics : seq arm_mnemonic :=
   ].
 
 Lemma arm_mnemonic_fin_axiom : Finite.axiom arm_mnemonics.
-Proof. by case. Qed.
+Proof. by repeat case. Qed.
 
 #[ export ]
 Instance finTC_arm_mnemonic : finTypeC arm_mnemonic :=
@@ -255,7 +267,14 @@ Definition store_mn_of_wsize (ws : wsize) : option arm_mnemonic :=
 Definition wsize_of_store_mn (mn : arm_mnemonic) : option wsize :=
   xseq.assoc ([seq (x.2, x.1) | x <- wsize_store_mn]) mn.
 
+Definition string_of_hw (hw : halfword) : string :=
+  match hw with
+  | HWB => "B"
+  | HWT => "T"
+  end.
+
 Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
+  let with_hw s hw := append s (string_of_hw hw) in
   match mn with
   | ADD => "ADD"
   | ADC => "ADC"
@@ -272,7 +291,10 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | SMULL => "SMULL"
   | SMLAL => "SMLAL"
   | SMMUL => "SMMUL"
-  | SMMULR => "SMMULR" 
+  | SMMULR => "SMMULR"
+  | SMUL_hw hw0 hw1 => with_hw (with_hw "SMUL" hw0) hw1
+  | SMLA_hw hw0 hw1 => with_hw (with_hw "SMLA" hw0) hw1
+  | SMULW_hw hw => with_hw "SMULW" hw
   | AND => "AND"
   | BFC => "BFC"
   | BFI => "BFI"
@@ -306,7 +328,7 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | STRB => "STRB"
   | STRH => "STRH"
   | CMN => "CMN"
-  end.
+  end%string.
 
 
 (* -------------------------------------------------------------------- *)
@@ -1053,6 +1075,89 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
+Definition get_hw (hw : halfword) (x : wreg) : u16 :=
+  if split_vec 16 x is [:: lo; hi ]
+  then if hw is HWT then hi else lo
+  else 0%R. (* Never happens. *)
+
+Definition arm_smul_hw_semi (hwn hwm : halfword) (wn wm : wreg) : exec wreg :=
+  let n := get_hw hwn wn in
+  let m := get_hw hwm wm in
+  let r := (wsigned n * wsigned m)%Z in
+  ok (wrepr U32 r)%R.
+
+Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
+  let mn := SMUL_hw hwn hwm in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg ];
+    id_in := [:: E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_smul_hw_semi hwn hwm;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_smla_hw_semi
+  (hwn hwm : halfword) (wn wm acc : wreg) : exec wreg :=
+  let n := get_hw hwn wn in
+  let m := get_hw hwm wm in
+  let r := (wsigned n * wsigned m + wsigned acc)%Z in
+  ok (wrepr U32 r)%R.
+
+Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
+  let mn := SMLA_hw hwn hwm in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg; sreg ];
+    id_in := [:: E 1; E 2; E 3 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_smla_hw_semi hwn hwm;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_smulw_hw_semi (hw : halfword) (wn wm : wreg) : exec wreg :=
+  let m := get_hw hw wm in
+  let res := (wsigned wn * wsigned m)%Z in
+  let w := wrepr U64 res in
+  ok (winit U32 (fun i => wbit_n w (i + 16))).
+
+Definition arm_smulw_hw_instr hw : instr_desc_t :=
+  let mn := SMULW_hw hw in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg ];
+    id_in := [:: E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_smulw_hw_semi hw;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
 
 Definition arm_bitwise_semi
   {ws : wsize}
@@ -1830,6 +1935,9 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | SMLAL => arm_SMLAL_instr
   | SMMUL => arm_SMMUL_instr
   | SMMULR => arm_SMMULR_instr
+  | SMUL_hw hw0 hw1 => arm_smul_hw_instr hw0 hw1
+  | SMLA_hw hw0 hw1 => arm_smla_hw_instr hw0 hw1
+  | SMULW_hw hw => arm_smulw_hw_instr hw
   | AND => arm_AND_instr
   | BFC => arm_BFC_instr
   | BFI => arm_BFI_instr
