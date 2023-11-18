@@ -47,6 +47,10 @@
 - Add instructions `BFC` and `BFI` to arm-m4
   ([PR #643](https://github.com/jasmin-lang/jasmin/pull/643)).
 
+- Add signed multiply halfwords instructions `SMULBB`, `SMULBT`, `SMULTB`,
+  `SMULTT`, `SMLABB`, `SMLABT`, `SMLATB`, `SMLATT`, `SMULWB`, and `SMULWT`
+  ([PR #644](https://github.com/jasmin-lang/jasmin/pull/644)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators

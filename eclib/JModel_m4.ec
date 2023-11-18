@@ -250,6 +250,58 @@ op SMMULR (x y: W32.t) : W32.t =
   W32.of_int (IntDiv.(%/) (to_sint x * to_sint y + 2 ^ 31) (2 ^ 32)).
 op SMMULRcc x y g o = if g then SMMULR x y else o.
 
+op get_hw (is_hi: bool) (x: W32.t) : W16.t =
+  W2u16.\bits16 x (if is_hi then 1 else 0).
+
+op smul_hw (hwx hwy: bool) (x y: W32.t) : W32.t =
+  let x = to_sint (get_hw hwx x) in
+  let y = to_sint (get_hw hwy y) in
+  W32.of_int (x * y).
+op smul_hwcc hwx hwy x y g o = if g then smul_hw hwx hwy x y else o.
+
+abbrev SMULBB = smul_hw false false.
+abbrev SMULBBcc = smul_hwcc false false.
+
+abbrev SMULBT = smul_hw false true.
+abbrev SMULBTcc = smul_hwcc false true.
+
+abbrev SMULTB = smul_hw true false.
+abbrev SMULTBcc = smul_hwcc true false.
+
+abbrev SMULTT = smul_hw true true.
+abbrev SMULTTcc = smul_hwcc true true.
+
+op smla_hw (hwx hwy: bool) (x y acc: W32.t) : W32.t =
+  let x = to_sint (get_hw hwx x) in
+  let y = to_sint (get_hw hwy y) in
+  W32.of_int (x * y + to_sint acc).
+op smla_hwcc hwx hwy x y acc g o = if g then smla_hw hwx hwy x y acc else o.
+
+abbrev SMLABB = smla_hw false false.
+abbrev SMLABBcc = smla_hwcc false false.
+
+abbrev SMLABT = smla_hw false true.
+abbrev SMLABTcc = smla_hwcc false true.
+
+abbrev SMLATB = smla_hw true false.
+abbrev SMLATBcc = smla_hwcc true false.
+
+abbrev SMLATT = smla_hw true true.
+abbrev SMLATTcc = smla_hwcc true true.
+
+op smulw_hw (is_hi: bool) (x y: W32.t) : W32.t =
+  let x = to_sint x in
+  let y = to_sint (get_hw is_hi y) in
+  let r = W64.of_int (x * y) in
+  W32.init (fun i => r.[i + 16]).
+op smulw_hwcc is_hi x y g o = if g then smulw_hw is_hi x y else o.
+
+abbrev SMULWB = smulw_hw false.
+abbrev SMULWBcc = smulw_hwcc false.
+
+abbrev SMULWT = smulw_hw true.
+abbrev SMULWTcc = smulw_hwcc true.
+
 op UXTB (x: W32.t) (n: W8.t) : W32.t =
   andw (ror x (to_uint n)) (W32.of_int 255).
 op UXTBcc x n g o = if g then UXTB x n else o.

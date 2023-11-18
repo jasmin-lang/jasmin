@@ -61,7 +61,7 @@ Lemma exec_sopn_conditional mn sf osk b vargs vprev vres0 vres1 :
 Proof.
   all: case: sf.
   all: case: osk => [sk|].
-  all: case: mn.
+  all: case: mn => [||||||||||||||||??|??|?|||||||||||||||||||||||||||||||||].
   all: rewrite /truncate_args /truncate_val.
 
   (* Destruct [vprev]. *)
