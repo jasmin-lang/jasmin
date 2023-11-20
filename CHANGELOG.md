@@ -51,6 +51,16 @@
   `SMULTT`, `SMLABB`, `SMLABT`, `SMLATB`, `SMLATT`, `SMULWB`, and `SMULWT`
   ([PR #644](https://github.com/jasmin-lang/jasmin/pull/644)).
 
+- Support stack zeroization.
+  The compiler can introduce code that zeroizes the stack at the end of export
+  functions. The user can enable this feature using either annotations
+  (`stackzero` and `stackzerosize`), or compiler flags (`-stack-zero` and
+  `-stack-zero-size`). Three strategies are currently supported: `unrolled`
+  (the code is a sequence of writes as long as needed), `loop` (the code is
+  a loop) and `loopSCT` (same as `loop` but with a `LFENCE` at the end to defend
+  against Spectre).
+  ([PR #631](https://github.com/jasmin-lang/jasmin/pull/631)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
