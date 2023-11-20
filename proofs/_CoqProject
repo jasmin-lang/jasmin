@@ -39,6 +39,10 @@ compiler/arm_lowering.v
 compiler/arm_lowering_proof.v
 compiler/arm_params.v
 compiler/arm_params_proof.v
+compiler/arm_params_common.v
+compiler/arm_params_common_proof.v
+compiler/arm_stack_zeroization.v
+compiler/arm_stack_zeroization_proof.v
 compiler/arm.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v

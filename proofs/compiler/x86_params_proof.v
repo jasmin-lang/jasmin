@@ -961,7 +961,7 @@ Context {call_conv : calling_convention}.
 Lemma x86_hszparams : h_stack_zeroization_params (ap_szp x86_params).
 Proof.
   split.
-  + exact: x86_stack_zero_cmd_not_ext_lbl.
+  + exact: x86_stack_zero_cmd_no_ext_lbl.
   exact: x86_stack_zero_cmdP.
 Qed.
 
