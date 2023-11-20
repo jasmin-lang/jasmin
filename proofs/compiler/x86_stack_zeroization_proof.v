@@ -12,11 +12,11 @@ Require Import
   linear_facts
   psem
   psem_facts
-  low_memory
-  sem_params_of_arch_extra.
+  low_memory.
 Require Import
   arch_decl
-  arch_extra.
+  arch_extra
+  sem_params_of_arch_extra.
 Require Import
   x86_decl
   x86_extra
@@ -1381,7 +1381,7 @@ End UNROLLED.
 
 End RSP.
 
-Lemma x86_stack_zero_cmd_not_ext_lbl szs rspn lbl ws_align ws stk_max cmd vars :
+Lemma x86_stack_zero_cmd_no_ext_lbl szs rspn lbl ws_align ws stk_max cmd vars :
   x86_stack_zero_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   label_in_lcmd cmd = [::].
 Proof.

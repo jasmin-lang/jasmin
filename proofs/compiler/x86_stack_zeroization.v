@@ -31,7 +31,7 @@ Let rspi := vid rspn.
 
 Let vlocal {t T} {_ : ToString t T} {_ : ToIdent T} (x : T) : gvar :=
   mk_lvar (mk_var_i (to_var x)).
-
+(* TODO: the gvar versions are not used, we should define only the var_i *)
 Let tmp : gvar := vlocal RSI.
 Let off : gvar := vlocal RDI.
 Let vlr : gvar := vlocal XMM2.
