@@ -1875,11 +1875,10 @@ let process_f_annot loc funname f_cc annot =
     match strategy, size with
     | None, None -> None
     | None, Some _ ->
-        hierror
-          ~loc:(Lone loc)
-          ~funname
-          ~kind:"unexpected annotation"
-          "\"stackzerosize\" cannot be used alone, you need to specify a strategy with attribute \"stackzero\""
+        warning Always
+          (L.i_loc0 loc)
+          "\"stackzerosize\" is ignored, since you did not specify a strategy with attribute \"stackzero\"";
+        None
     | Some szs, _ -> Some (szs, size)
   in
 
