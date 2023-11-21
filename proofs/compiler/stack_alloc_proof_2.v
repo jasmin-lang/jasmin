@@ -45,7 +45,7 @@ Context
   (rip : pointer)
   (no_overflow_glob_size : no_overflow rip glob_size)
   (mglob : Mvar.t (Z * wsize))
-  (P : uprog) (ev: @extra_val_t _ progUnit)
+  (P : uprog) (ev: @extra_val_t progUnit)
   (hmap : init_map global_alloc global_data (p_globs P) = ok mglob).
 
 Notation gd := (p_globs P).
@@ -2090,7 +2090,7 @@ Proof. by case. Qed.
 (* TODO: in [vundef_type], we could maybe change the [sarr] case, now [is_sarr t = false] is an argument of Vundef *)
 Local Lemma Hcall : sem_Ind_call P ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m1 s1' ii rs fn args vargs1 vres1 hvargs1 hsem1 Hf hs1'.
+  move=> s1 scs2 m1 s1' rs fn args vargs1 vres1 hvargs1 hsem1 Hf hs1'.
   move=> pmap rsp Slots Addr Writable Align rmap0 rmap2 ii1 c hpmap hwfsl sao /=.
   t_xrbindP => -[rmap2' i2'] /= halloc ?? m0 s2 hvs hext hsao; subst rmap2' c.
   move: halloc; rewrite /alloc_call /assert_check.

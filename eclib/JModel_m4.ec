@@ -48,11 +48,38 @@ op AND x y = let (_n, _z, _c, r) = ANDS x y in r.
 op ANDScc x y g n z c o = if g then ANDS x y else (n, z, c, o).
 op ANDcc x y g o = if g then AND x y else o.
 
+op BFC (x: W32.t) (lsb width: W8.t) : W32.t =
+  let lsbit = to_uint lsb in
+  let msbit = lsbit + to_uint width - 1 in
+  W32.init (fun i => if lsbit <= i <= msbit then false else x.[i]).
+op BFCcc x lsb width g o = if g then BFC x lsb width else o.
+
+op BFI (x y: W32.t) (lsb width: W8.t) : W32.t =
+  let lsbit = to_uint lsb in
+  let msbit = lsbit + to_uint width - 1 in
+  W32.init (fun i => if lsbit <= i <= msbit then y.[i - lsbit] else x.[i]).
+op BFIcc x y lsb width g o = if g then BFI x y lsb width else o.
+
+op BICS (x y: W32.t) : bool * bool * bool * W32.t =
+  with_nzc (andw x (invw y)).
+op BIC x y = let (_n, _z, _c, r) = BICS x y in r.
+op BICScc x y g n z c o = if g then BICS x y else (n, z, c, o).
+op BICcc x y g o = if g then BIC x y else o.
+
 op ASRS (x: W32.t) (s: W8.t) : bool * bool * bool * W32.t =
   with_nzc (sar x (to_uint s)).
 op ASR x s = let (_n, _z, _c, r) = ASRS x s in r.
 op ASRScc x s g n z c o = if g then ASRS x s else (n, z, c, o).
 op ASRcc x s g o = if g then ASR x s else o.
+
+op CLZ (x: W32.t) : W32.t =
+  W32.of_int (lzcnt (rev (w2bits x))).
+op CLZcc x g o = if g then CLZ x else o.
+
+op CMN (x y: W32.t) : bool * bool * bool * bool =
+let r = x + y in
+  nzcv r (to_uint x + to_uint y) (to_sint x + to_sint y).
+op CMNcc x y g n z c v = if g then CMN x y else (n, z, c, v).
 
 op CMP (x y: W32.t) : bool * bool * bool * bool =
   let r = x - y in
@@ -134,6 +161,16 @@ op ROR x i = let (_n, _z, _c, r) = RORS x i in r.
 op RORScc x i g n z c o = if g then RORS x i else (n, z, c, o).
 op RORcc x i g o = if g then ROR x i else o.
 
+op REV (x : W32.t) : W32.t = W4u8.pack4 (rev (W4u8.to_list x)).
+op REVcc (x:W32.t) g o = if g then REV x else o.
+
+op REV_16 (x:W16.t) : W16.t = W2u8.pack2 (rev (W2u8.to_list x)).
+op REV16 (x : W32.t) : W32.t = W2u16.map REV_16 x.
+op REV16cc (x:W32.t) g o = if g then REV16 x else o.
+
+op REVSH (x: W32.t) = sigextu32 (REV_16 (x \bits16 0)).
+op REVSHcc (x:W32.t) g o = if g then REVSH x else o.
+
 op RSBS (x y: W32.t) : bool * bool * bool * bool * W32.t =
   ADCS (invw x) y true.
 op RSB x y = let (_n, _z, _c, _v, r) = RSBS x y in r.
@@ -182,6 +219,11 @@ op UMULL (x y: W32.t) : W32.t * W32.t =
   (lo, hi).
 op UMULLcc x y g o h = if g then UMULL x y else (o, h).
 
+op UMAAL (a b x y: W32.t) : W32.t * W32.t =
+  let r = to_uint a + to_uint b + to_uint x * to_uint y in
+  (of_int r, of_int (IntDiv.(%/) r modulus))%W32.
+op UMAALcc a b x y g o h = if g then UMAAL a b x y else (o, h).
+
 op UMLAL (u v x y: W32.t) : W32.t * W32.t =
   let n = wdwordu (mulhi x y) (x*y) in
   let m = wdwordu v u in
@@ -207,6 +249,58 @@ op SMMULcc x y g o = if g then SMMUL x y else o.
 op SMMULR (x y: W32.t) : W32.t =
   W32.of_int (IntDiv.(%/) (to_sint x * to_sint y + 2 ^ 31) (2 ^ 32)).
 op SMMULRcc x y g o = if g then SMMULR x y else o.
+
+op get_hw (is_hi: bool) (x: W32.t) : W16.t =
+  W2u16.\bits16 x (if is_hi then 1 else 0).
+
+op smul_hw (hwx hwy: bool) (x y: W32.t) : W32.t =
+  let x = to_sint (get_hw hwx x) in
+  let y = to_sint (get_hw hwy y) in
+  W32.of_int (x * y).
+op smul_hwcc hwx hwy x y g o = if g then smul_hw hwx hwy x y else o.
+
+abbrev SMULBB = smul_hw false false.
+abbrev SMULBBcc = smul_hwcc false false.
+
+abbrev SMULBT = smul_hw false true.
+abbrev SMULBTcc = smul_hwcc false true.
+
+abbrev SMULTB = smul_hw true false.
+abbrev SMULTBcc = smul_hwcc true false.
+
+abbrev SMULTT = smul_hw true true.
+abbrev SMULTTcc = smul_hwcc true true.
+
+op smla_hw (hwx hwy: bool) (x y acc: W32.t) : W32.t =
+  let x = to_sint (get_hw hwx x) in
+  let y = to_sint (get_hw hwy y) in
+  W32.of_int (x * y + to_sint acc).
+op smla_hwcc hwx hwy x y acc g o = if g then smla_hw hwx hwy x y acc else o.
+
+abbrev SMLABB = smla_hw false false.
+abbrev SMLABBcc = smla_hwcc false false.
+
+abbrev SMLABT = smla_hw false true.
+abbrev SMLABTcc = smla_hwcc false true.
+
+abbrev SMLATB = smla_hw true false.
+abbrev SMLATBcc = smla_hwcc true false.
+
+abbrev SMLATT = smla_hw true true.
+abbrev SMLATTcc = smla_hwcc true true.
+
+op smulw_hw (is_hi: bool) (x y: W32.t) : W32.t =
+  let x = to_sint x in
+  let y = to_sint (get_hw is_hi y) in
+  let r = W64.of_int (x * y) in
+  W32.init (fun i => r.[i + 16]).
+op smulw_hwcc is_hi x y g o = if g then smulw_hw is_hi x y else o.
+
+abbrev SMULWB = smulw_hw false.
+abbrev SMULWBcc = smulw_hwcc false.
+
+abbrev SMULWT = smulw_hw true.
+abbrev SMULWTcc = smulw_hwcc true.
 
 op UXTB (x: W32.t) (n: W8.t) : W32.t =
   andw (ror x (to_uint n)) (W32.of_int 255).

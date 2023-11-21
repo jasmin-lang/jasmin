@@ -58,7 +58,7 @@ Definition fvars :=
 
 Definition disj_fvars v := disjoint v fvars.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition fvars_correct p :=
   [&& disj_fvars (vars_p p),
@@ -96,51 +96,22 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   end.
 
 Definition lower_cond_classify vi (e: pexpr) :=
-  let nil := Lnone vi sbool in
   let fr n := {| v_var := n ; v_info := vi |} in
   let vof := fr fv_of in
   let vcf := fr fv_cf in
   let vsf := fr fv_sf in
   let vzf := fr fv_zf in
+  let vflags := map v_var [:: vof; vcf; vsf; vzf ] in
 
   let lof := Lvar vof in
   let lcf := Lvar vcf in
   let lsf := Lvar vsf in
   let lzf := Lvar vzf in
+  let lflags := [:: lof; lcf; lsf; Lnone_b vi; lzf ] in
 
-  let eof := Plvar vof in
-  let ecf := Plvar vcf in
-  let esf := Plvar vsf in
-  let ezf := Plvar vzf in
-
-  let l := [:: lof ; lcf ; lsf ; nil ; lzf ] in
-  match e with
-  | Papp2 op x y =>
-    match op with
-    | Oeq (Op_w sz) =>
-      Some (l, sz, ezf, x, y)
-    | Oneq (Op_w sz) =>
-      Some (l, sz, enot ezf, x, y)
-    | Olt (Cmp_w Signed sz) =>
-      Some (l, sz, eneq eof esf, x, y)
-    | Olt (Cmp_w Unsigned sz) =>
-      Some (l, sz, ecf, x, y)
-    | Ole (Cmp_w Signed sz) =>
-      Some (l, sz, eor (eneq eof esf) ezf, x, y)
-    | Ole (Cmp_w Unsigned sz) =>
-      Some (l, sz, eor ecf ezf, x, y)
-    | Ogt (Cmp_w Signed sz) =>
-      Some (l, sz, eand (eeq eof esf) (enot ezf), x, y)
-    | Ogt (Cmp_w Unsigned sz) =>
-      Some (l, sz, eand (enot ecf) (enot ezf), x, y)
-    | Oge (Cmp_w Signed sz) =>
-      Some (l, sz, eeq eof esf, x, y)
-    | Oge (Cmp_w Unsigned sz) =>
-      Some (l, sz, enot ecf, x, y)
-    | _ => None
-    end
-  | _ => None
-  end.
+  let%opt (op, e0, e1) := is_Papp2 e in
+  let%opt (cf, ws) := cf_of_condition op in
+  Some (lflags, ws, pexpr_of_cf cf vflags, e0, e1).
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   match lower_cond_classify vi pe with
@@ -200,16 +171,14 @@ Variant lower_cassgn_t : Type :=
 (* -------------------------------------------------------------------- *)
 
 Definition is_lea sz x e :=
-  if ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP) && ~~ is_lval_in_memory x then
-    match mk_lea sz e with
-    | Some (MkLea d b sc o) =>
-      let check o := match o with Some x => ~~(is_var_in_memory x.(v_var)) | None => true end in
-      (* FIXME: check that d is not to big *)
-      if check_scale sc && check b && check o then  Some (MkLea d b sc o)
-      else None
-    | None => None
-    end
-  else None.
+  let%opt _ :=
+    oassert [&& (U16 ≤ sz)%CMP, (sz ≤ U64)%CMP & ~~ is_lval_in_memory x ]
+  in
+  let%opt MkLea d b sc o := mk_lea sz e in
+  let check o := if o is Some x then ~~ is_var_in_memory x.(v_var) else true in
+  (* FIXME: check that d is not to big *)
+  let%opt _ := oassert [&& check_scale sc, check b & check o ] in
+  Some (MkLea d b sc o).
 
 (* -------------------------------------------------------------------- *)
 
@@ -403,8 +372,6 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   | _ => LowerAssgn
   end.
 
-Definition Lnone_b vi := Lnone vi sbool.
-
 (* TODO: other sizes than U64 *)
 Variant opn_5flags_cases_t : Type :=
 | Opn5f_large_immed : pexpr -> pexpr -> pexprs -> opn_5flags_cases_t
@@ -537,7 +504,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
     let i1 :=
       match s with
       | Signed => Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a]
-      | Unsigned => Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)]
+      | Unsigned => Copn [:: f ; f ; f ; f ; f ; Lvar c ] tg (Oasm (ExtOp (Oset0 sz))) [::]
       end in
 
     [::MkI ii i1; MkI ii (Copn lv tg op [::Plvar c; a; b]) ]

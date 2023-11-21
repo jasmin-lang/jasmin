@@ -71,7 +71,7 @@ Section WRITE1.
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-    | Ccall _ _ fn _  => Sv.union s (writefun_ra fn)
+    | Ccall _ fn _  => Sv.union s (writefun_ra fn)
     end
   with write_I_rec s i :=
     match i with
@@ -185,7 +185,7 @@ Section CHECK.
       if is_false e then check_c (check_i sz) D c
       else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
 
-    | Ccall _ xs fn es =>
+    | Ccall xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then
         Let _ := check_es ii D es in
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP

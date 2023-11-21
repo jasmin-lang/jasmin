@@ -1,0 +1,10 @@
+u32 g = 540;
+
+export fn bug_540() -> reg u32 {
+  inline int i;
+  reg u32 r;
+  r = 0;
+  i = g;
+  r += i;
+  return r;
+}

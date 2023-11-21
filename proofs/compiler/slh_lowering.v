@@ -205,7 +205,7 @@ Context
   {asm_op : Type}
   {asmop : asmOp asm_op}
   {msfsz : MSFsize}
-  {eft : eqType} {pT : progT eft}.
+  {pT : progT}.
 
 Section CHECK_SLHO.
 
@@ -383,7 +383,7 @@ Section CHECK_WHILE.
     (check_c0 check_c1 : Env.t -> cexec Env.t).
 
   Definition neg_const_prop (e : pexpr) : pexpr :=
-    constant_prop.const_prop_e constant_prop.empty_cpm (enot e).
+    constant_prop.const_prop_e None constant_prop.empty_cpm (enot e).
 
   (* Similarly to the for loop case, we use the argument [env] as an initial
      guess for [env*], and if it is not a fixed point we guess the intersection
@@ -450,7 +450,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       Let _ := chk_mem ii cond in
       check_while ii cond (check_cmd c0) (check_cmd c1) Loop.nb env
 
-  | Ccall _ xs fn es =>
+  | Ccall xs fn es =>
       let '(in_t, out_t) := fun_info fn in
       Let _ := check_f_args ii env es in_t in
       check_f_lvs ii env xs out_t
@@ -516,7 +516,7 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       Let c1' := lower_cmd c1 in
       ok (Cwhile al c0' b c1')
 
-    | Ccall _ _ _ _ =>
+    | Ccall _ _ _ =>
         ok ir
     end
   in

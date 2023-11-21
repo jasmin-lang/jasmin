@@ -89,8 +89,8 @@ end = struct
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
       Cfor (mk_v_loc fn v, mk_range fn r, mk_stmt fn st)
-    | Ccall (inlinf, lvs, c_fn, es) ->
-      Ccall (inlinf, mk_lvals fn lvs, c_fn, mk_exprs fn es)
+    | Ccall (lvs, c_fn, es) ->
+      Ccall (mk_lvals fn lvs, c_fn, mk_exprs fn es)
     | Cwhile (a, st1, e, st2) ->
       Cwhile (a, mk_stmt fn st1, mk_expr fn e, mk_stmt fn st2)
 
@@ -269,7 +269,7 @@ end = struct
       cfg = mcfg st1.cfg st2.cfg;
       while_vars = Sv.union st1.while_vars st2.while_vars;
       f_done = Ss.union st1.f_done st2.f_done;
-      if_conds = st1.if_conds @ st2.if_conds;
+      if_conds = List.rev_append st1.if_conds st2.if_conds;
       ct = ct }
 
   let set_ct ct st = { st with ct = ct }
@@ -339,9 +339,9 @@ end = struct
       pa_flag_setfrom v (List.rev c)
 
     | Cwhile (_, c1, _, c2) ->
-      pa_flag_setfrom v ((List.rev c1) @ (List.rev c2))
+      pa_flag_setfrom v (List.rev_append c1 (List.rev c2))
         
-    | Ccall (_, lvs, _, _) | Csyscall(lvs, _, _) ->
+    | Ccall (lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
       
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
@@ -381,7 +381,7 @@ end = struct
           { st with ct = Sv.union st.ct (Sv.of_list vs) }
         else st in
 
-      let bdy_rev = (List.rev c1) @ (List.rev c2) in
+      let bdy_rev = List.rev_append c1 (List.rev c2) in
       let flags_setfrom = List.fold_left (fun flags_setfrom v -> match v.v_ty with
           | Bty Bool ->
             let new_f =
@@ -401,10 +401,10 @@ end = struct
       let st' = { st' with while_vars = while_vars } in
 
       (* Again, we reset the context after the merge *)
-      pa_stmt fn prog st' (c1 @ c2)
+      pa_stmt fn prog st' (List.append c1 c2)
       |> set_ct st.ct
 
-    | Ccall (_, lvs, fn', es) ->   
+    | Ccall (lvs, fn', es) ->   
       let st = { st with cfg = add_call st.cfg fn fn' } in
       let f_decl = get_fun_def (oget prog) fn' |> oget in
 

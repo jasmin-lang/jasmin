@@ -257,7 +257,7 @@ Definition eq_sub_region_val ty m2 sr bytes v :=
   *)
   type_of_val v = ty.
 
-Variable (P: uprog) (ev: @extra_val_t _ progUnit).
+Variable (P: uprog) (ev: @extra_val_t progUnit).
 Notation gd := (p_globs P).
 
 (* TODO: could we have this in stack_alloc.v ?
@@ -350,7 +350,7 @@ Class valid_state (rmap : region_map) (m0 : mem) (s1 s2 : estate) := {
   vs_eq_vm       : eq_vm s1.(evm) s2.(evm);
     (* registers already present in the source program store the same values
        in the source and in the target *)
-  vs_wf_region   :> wf_rmap rmap s1 s2;
+  vs_wf_region   : wf_rmap rmap s1 s2;
     (* cf. [wf_rmap) definition *)
   vs_eq_mem      : eq_mem_source s1.(emem) s2.(emem);
     (* the memory that is already valid in the source is the same in the target *)
@@ -359,6 +359,8 @@ Class valid_state (rmap : region_map) (m0 : mem) (s1 s2 : estate) := {
   vs_top_stack   : rsp = top_stack (emem s2);
     (* [rsp] is the stack pointer, it points to the top of the stack *)
 }.
+
+Existing Instance vs_wf_region.
 
 (* We extend some predicates with the global case. *)
 (* -------------------------------------------------------------------------- *)
@@ -2605,12 +2607,6 @@ Proof.
   by rewrite (wfr_rtype hlocal) cmp_le_refl orbT.
 Qed.
 
-Lemma is_array_initP e : reflect (exists n, e = Parr_init n) (is_array_init e).
-Proof.
-  case: e => /=; constructor; try by move => -[].
-  by eexists.
-Qed.
-
 Lemma alloc_array_move_initP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   valid_state rmap1 m0 s1 s2 ->
   sem_pexpr true gd s1 e = ok v ->
@@ -3845,9 +3841,9 @@ Lemma check_resultsP wdb rmap m0 s1 s2 srs params sao_returns res1 res2 vargs1 v
   List.Forall2 (fun osr varg2 => forall sr, osr = Some sr -> varg2 = Vword (sub_region_addr sr)) srs vargs2 ->
   check_results pmap rmap srs params sao_returns res1 = ok res2 ->
   forall vres1,
-  mapM (λ x : var_i, get_var wdb (evm s1) x) res1 = ok vres1 ->
+  get_var_is wdb (evm s1) res1 = ok vres1 ->
   exists vres2,
-    mapM (λ x : var_i, get_var wdb (evm s2) x) res2 = ok vres2 /\
+    get_var_is wdb (evm s2) res2 = ok vres2 /\
     Forall3 (wf_result (emem s2) vargs1 vargs2) sao_returns vres1 vres2.
 Proof.
   move=> hvs hsize haddr.

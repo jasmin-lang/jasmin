@@ -18,8 +18,7 @@ Context
   (options : lowering_options)
   (warning : instr_info -> warning_msg -> instr_info)
   (fv : fresh_vars)
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   (all_fresh_vars : seq Ident.ident)
   (fvars : Sv.t).
 

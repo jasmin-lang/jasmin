@@ -21,8 +21,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}.
 
 Context (fresh_counter: Ident.ident) (p1 p2: prog) (ev: extra_val_t).
@@ -152,15 +151,13 @@ Proof.
     sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
   + rewrite /ipre; case: ifPn => hxy.
     + exists vm1; last by constructor; econstructor.
-      split => //.
-      case/andP: hxy => /= /eqP hl /eqP /= heq; subst vx.
-      move: hv1; rewrite /= /get_gvar /is_lvar hl eqxx /get_var; t_xrbindP => _.
-      rewrite -heq; eauto.
+      split; first by [].
+      by have /compat_valEl := Vm.getP vm1 x.
     exists (vm1.[x <- Varr (WArray.empty len)]).
     + split; last by rewrite Vm.setP_eq /= eqxx; eauto.
       move=> z hz; rewrite Vm.setP_neq //; apply /eqP => heq; subst z.
       have : Sv.In x (read_e y) by SvD.fsetdec.
-      by move: hxy; rewrite read_e_var /eq_gvar /= /read_gvar; case: (y) => /= vy [/= /eqP | /=]; SvD.fsetdec.
+      by case/norP: hxy; rewrite read_e_var /eq_gvar /= /read_gvar; case: (y) => /= vy [/= /eqP | /=]; SvD.fsetdec.
     constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
     by rewrite write_var_eq_type.
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl)) 
@@ -306,7 +303,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs he _ hfun hw ii'.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs he _ hfun hw ii.
   rewrite /Pi vars_I_call /vars_lvals => hsub _ [<-] vm1 hvm1.
   have [|vargs' he' uvars]:= sem_pexprs_uincl_on (uincl_onI _ hvm1) he; first by SvD.fsetdec.
   have [vs' hfun' uvs']:= hfun _ uvars.

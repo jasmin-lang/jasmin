@@ -552,7 +552,7 @@ let rec ty_instr fenv env i =
       else loop (Env.max env2 env) in
     loop env
 
-  | Ccall (_, xs, f, es) ->
+  | Ccall (xs, f, es) ->
     let fty = get_fun fenv f in
     (* Check the arguments *)
     let do_e env e (_,lvl) = ty_expr ~public:(lvl=Public) env e in

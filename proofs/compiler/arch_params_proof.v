@@ -15,7 +15,6 @@ Require
   linearization
   linearization_proof
   lowering
-  propagate_inline_proof
   stack_alloc
   stack_alloc_proof
   slh_lowering_proof.
@@ -36,8 +35,7 @@ Record h_lowering_params
   {
     hlop_lower_callP :
       forall
-        (eft : eqType)
-        (pT : progT eft)
+        (pT : progT)
         (sCP : semCallParams)
         (p : prog)
         (ev : extra_val_t)
@@ -67,9 +65,6 @@ Record h_architecture_params
   (lowering_options : Type)
   (aparams : architecture_params lowering_options) :=
   {
-    (* Propagate inline hypotheses. See [propagate_inline_proof.v]. *)
-    hap_hpip : propagate_inline_proof.h_propagate_inline_params;
-
     (* Stack alloc hypotheses. See [stack_alloc_proof.v]. *)
     hap_hsap :
         stack_alloc_proof.h_stack_alloc_params (ap_sap aparams);

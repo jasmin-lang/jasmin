@@ -13,7 +13,7 @@ let parse_and_print arch call_conv =
             | CortexM ->
                 (module J.CoreArchFactory.Core_arch_ARM : J.Arch_full.Core_arch))) in
   fun output file ->
-    let _, _, ast = J.Compile.parse_file A.reg_size A.asmOp_sopn file in
+    let _, _, ast = J.Compile.parse_file A.arch_info file in
     let out, close =
       match output with
       | None -> (stdout, ignore)

@@ -73,7 +73,7 @@ let rec read_mem_i s i =
   | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
-  | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
+  | Ccall (xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
   | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
 
 and read_mem_c s = List.exists (read_mem_i s)
@@ -86,7 +86,7 @@ let rec write_mem_i s i =
   | Copn (xs, _, _, _) | Csyscall(xs, Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
-  | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
+  | Ccall (xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s
   | Cfor (_, _, c)       -> write_mem_c s c 
 
 and write_mem_c s = List.exists (write_mem_i s)
@@ -790,6 +790,48 @@ let ty_sopn pd asmOp op =
     List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
     List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
 
+(* This code replaces for loop that modify the loop counter by while loop,
+   it would be nice to prove in Coq the validity of the transformation *) 
+
+let is_write_lv x = function
+  | Lnone _ | Lmem _ -> false 
+  | Lvar x' | Laset(_, _, x', _) | Lasub (_, _, _, x', _) -> 
+    V.equal x x'.L.pl_desc 
+
+let is_write_lvs x = List.exists (is_write_lv x)
+
+let rec is_write_i x i = 
+  match i.i_desc with
+  | Cassgn (lv,_,_,_) ->
+    is_write_lv x lv
+  | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
+    is_write_lvs x lvs
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> 
+    is_write_c x c1 || is_write_c x c2 
+  | Cfor(x',_,c) -> 
+    V.equal x x'.L.pl_desc || is_write_c x c
+
+and is_write_c x c = List.exists (is_write_i x) c
+  
+let rec remove_for_i i =
+  let i_desc = 
+    match i.i_desc with
+    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
+    | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
+    | Cwhile(a, c1, e, c2) -> Cwhile(a, remove_for c1, e, remove_for c2)
+    | Cfor(j,r,c) -> 
+      let jd = j.pl_desc in
+      if not (is_write_c jd c) then Cfor(j, r, remove_for c)
+      else 
+        let jd' = V.clone jd in
+        let j' = { j with pl_desc = jd' } in
+        let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
+        let ii' = { i with i_desc = ii' } in
+        Cfor (j', r, ii' :: remove_for c)
+  in
+  { i with i_desc }   
+and remove_for c = List.map remove_for_i c
+
 module Normal = struct  
 
   let all_vars lvs = 
@@ -813,7 +855,7 @@ module Normal = struct
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
-    | Ccall(_, lvs, f, _) ->      
+    | Ccall(lvs, f, _) ->
       if lvs = [] then env 
       else 
         let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
@@ -881,7 +923,7 @@ module Normal = struct
           Format.fprintf fmt "<- %a" pp_e (op,es) in
         pp_call pd env fmt lvs otys otys' pp (op,es)
         
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -974,7 +1016,7 @@ module Leak = struct
     let (_s,option) = Mv.find (L.unloc x) env.vars in
     if option then Initv (L.unloc x) :: safe
     else safe
-    
+   
   let rec safe_e_rec pd env safe = function
     | Pconst _ | Pbool _ | Parr_init _ -> safe
     | Pvar x -> 
@@ -1011,8 +1053,11 @@ module Leak = struct
     let id = Sopn.get_instr_desc pd asmOp opn in
     List.pmap (fun c ->
         match c with
-        | Wsize.NotZero(sz, i) ->
-          Some (NotZero(sz, List.nth es (Conv.int_of_nat i)))
+        | Wsize.X86Division(sz, sg) ->
+          Some (NotZero(sz, List.nth es 2))
+        (* FIXME: there are more properties to check *)
+        | Wsize.InRange _ -> None
+        (* FIXME: there are properties to check *)
         | Wsize.AllInit (ws, p, i) ->
           let e = List.nth es (Conv.int_of_nat i) in
           let y = match e with Pvar y -> y | _ -> assert false in
@@ -1111,7 +1156,7 @@ module Leak = struct
       let otys = List.map Conv.ty_of_cty s.scs_tout in
       let env = add_aux env otys in
       add_aux env (List.map ty_lval lvs)
-    | Ccall(_, lvs, _, _) ->
+    | Ccall(lvs, _, _) ->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
@@ -1188,7 +1233,7 @@ module Leak = struct
       pp_leaks_opn pd asmOp env fmt op' es;
       pp_call pd env fmt lvs otys otys' pp (op, es)
       
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -1273,6 +1318,7 @@ let pp_safe_ret pd env fmt xs =
     Leak.pp_safe_cond pd env fmt (Leak.safe_es pd env es)
 
 let pp_fun pd asmOp env fmt f =
+  let f = { f with f_body = remove_for f.f_body } in
   let locals = Sv.elements (locals f) in
   (* initialize the env *)
   let env = List.fold_left (add_var false) env f.f_args in
@@ -1311,8 +1357,6 @@ let pp_glob_decl env fmt (x,d) =
     Format.fprintf fmt "@[abbrev %a = %a.of_list witness [%a].@]@ "
        (pp_var env) x (pp_Array env) (Array.length t) 
        (pp_list ";@ " pp_elem) (Array.to_list t)
-
-
 
 let add_arrsz env f = 
   let add_sz x sz = 
@@ -1447,7 +1491,7 @@ and used_func_i used i =
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
-  | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
+  | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
 let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.map Regalloc.fill_in_missing_names funcs in

@@ -1,0 +1,15 @@
+u32[1] C = {1};
+
+export
+fn main() -> reg u32
+{
+  reg ptr u32[1] Cp;
+  stack ptr u32[1] Cps;
+  reg u32 c;
+
+  Cp = C;
+  Cps = Cp;
+  Cp = Cps;
+  c = Cp[0];
+  return c;
+}

@@ -101,8 +101,7 @@ Class semCallParams
   {syscall_state : Type}
   {ep : EstateParams syscall_state}
   {scs : syscall_sem syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   := SemCallParams
   {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
@@ -139,8 +138,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {scP : semCallParams}
   (P : prog)
   (ev : extra_val_t).
@@ -211,11 +209,11 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_for i (wrange d vlo vhi) s1 c s2 ->
     sem_i s1 (Cfor i (d, lo, hi) c) s2
 
-| Ecall s1 scs2 m2 s2 ii xs f args vargs vs :
+| Ecall s1 scs2 m2 s2 xs f args vargs vs :
     sem_pexprs (~~direct_call) gd s1 args = ok vargs ->
     sem_call s1.(escs) s1.(emem) f vargs scs2 m2 vs ->
     write_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 ->
-    sem_i s1 (Ccall ii xs f args) s2
+    sem_i s1 (Ccall xs f args) s2
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
 | EForDone s i c :
@@ -234,7 +232,7 @@ with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_
     init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 ->
     write_vars (~~direct_call) f.(f_params) vargs s0 = ok s1 ->
     sem s1 f.(f_body) s2 ->
-    mapM (fun (x:var_i) => get_var (~~direct_call) s2.(evm) x) f.(f_res) = ok vres ->
+    get_var_is (~~ direct_call) s2.(evm) f.(f_res) = ok vres ->
     mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
     scs2 = s2.(escs) -> 
     m2 = finalize f.(f_extra) s2.(emem)  ->
@@ -344,13 +342,12 @@ Section SEM_IND.
 
   Definition sem_Ind_call : Prop :=
     forall (s1 : estate) (scs2 : syscall_state_t) (m2 : mem) (s2 : estate) 
-           (ii : inline_info) (xs : lvals)
-           (fn : funname) (args : pexprs) (vargs vs : seq value),
+           (xs : lvals) (fn : funname) (args : pexprs) (vargs vs : seq value),
       sem_pexprs (~~direct_call) gd s1 args = ok vargs →
       sem_call (escs s1) (emem s1) fn vargs scs2 m2 vs → 
       Pfun (escs s1) (emem s1) fn vargs scs2 m2 vs →
       write_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 →
-      Pi_r s1 (Ccall ii xs fn args) s2.
+      Pi_r s1 (Ccall xs fn args) s2.
 
   Definition sem_Ind_proc : Prop :=
     forall (scs1 : syscall_state_t) (m1 : mem) (scs2 : syscall_state_t) (m2 : mem)
@@ -362,7 +359,7 @@ Section SEM_IND.
       write_vars (~~direct_call) (f_params f) vargs s0 = ok s1 ->
       sem s1 (f_body f) s2 ->
       Pc s1 (f_body f) s2 ->
-      mapM (fun x : var_i => get_var (~~direct_call) s2.(evm) x) (f_res f) = ok vres ->
+      get_var_is (~~ direct_call) s2.(evm) (f_res f) = ok vres ->
       mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
       scs2 = s2.(escs) -> 
       m2 = finalize f.(f_extra) s2.(emem) ->
@@ -402,8 +399,8 @@ Section SEM_IND.
     | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
       @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
         (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
-    | @Ecall s1 scs2 m2 s2 ii xs f13 args vargs vs e2 s0 e3 =>
-      @Hcall s1 scs2 m2 s2 ii xs f13 args vargs vs e2 s0
+    | @Ecall s1 scs2 m2 s2 xs f13 args vargs vs e2 s0 e3 =>
+      @Hcall s1 scs2 m2 s2 xs f13 args vargs vs e2 s0
         (@sem_call_Ind (escs s1) (emem s1) f13 vargs scs2 m2 vs s0) e3
     end
 
@@ -569,8 +566,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {scP : semCallParams}
   (P : prog)
   (ev : extra_val_t).
@@ -618,7 +614,7 @@ Lemma sem_iE s i s' :
     ∃ si b,
        [/\ sem s c si, sem_pexpr true gd si e = ok (Vbool b) &
                        if b then ∃ sj, sem si c' sj ∧ sem_i sj (Cwhile a c e c') s' else si = s' ]
-  | Ccall _ xs f es =>
+  | Ccall xs f es =>
     ∃ vs scs2 m2 rs,
     [/\ sem_pexprs (~~direct_call) gd s es = ok vs,
         sem_call s.(escs) s.(emem) f vs scs2 m2 rs &
@@ -633,7 +629,7 @@ Proof.
   - by move => s si sj s' c e c' hc he hc' hrec; exists si, true; constructor => //; exists sj.
   - by move => s s' c e c' hc he; exists s', false.
   - by move => s s' i d lo hi c vlo vhi hlo hhi hc; exists vlo, vhi.
-  by move => s scs m s' _ xs f es vs rs hvs h hrs; exists vs, scs, m, rs.
+  by move=> s scs m s' xs f es vs rs hvs h hrs; exists vs, scs, m, rs.
 Qed.
 
 Lemma sem_forE i ws s c s' :
@@ -660,7 +656,7 @@ Lemma sem_callE scs1 m1 fn vargs' scs2 m2 vres' :
     init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 Vm.init) = ok s0 /\
     write_vars (~~direct_call) f.(f_params) vargs s0 = ok s1,
     sem s1 f.(f_body) s2,
-    mapM (fun (x:var_i) => get_var (~~direct_call) s2.(evm) x) f.(f_res) = ok vres /\
+    get_var_is (~~ direct_call) s2.(evm) f.(f_res) = ok vres /\
     mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' &
     scs2 = s2.(escs) /\ m2 = finalize f.(f_extra) s2.(emem) ].
 Proof.
@@ -849,7 +845,7 @@ Lemma is_wconstP wdb gd s sz e w:
 Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.
-  by rewrite /= truncate_word_le.
+  by rewrite /= truncate_word_le // zero_extend_wrepr.
 Qed.
 
 Lemma is_wconstI ws e w :
@@ -942,8 +938,7 @@ Section Write.
 Context
   {dc:DirectCall}
   {sip : SemInstrParams asm_op syscall_state}
-  {T}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}.
 
 Variable P : prog.
@@ -997,7 +992,7 @@ Proof.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
   + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
     by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs _ _ _ Hw z.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs _ _ _ Hw z.
   rewrite write_i_call. apply (vrvsP Hw).
 Qed.
 
@@ -1617,19 +1612,19 @@ Qed.
 
 Lemma sem_pexprs_get_var wdb gd s xs :
   sem_pexprs wdb gd s [seq Pvar (mk_lvar i) | i <- xs] =
-  mapM (fun x : var_i => get_var wdb (evm s) x) xs.
+  get_var_is wdb (evm s) xs.
 Proof.
   rewrite /sem_pexprs;elim: xs=> //= x xs Hrec.
   rewrite /get_gvar /=.
   by case: get_var => //= v;rewrite Hrec.
 Qed.
 
-Lemma  get_vars_uincl_on wdb dom (xs: seq var_i) vm1 vm2 vs1:
+Lemma get_var_is_uincl_on wdb dom (xs: seq var_i) vm1 vm2 vs1:
   vm1 <=[dom] vm2 ->
   (∀ x, List.In x xs → Sv.mem x dom) →
-  mapM (fun x => get_var wdb vm1 (v_var x)) xs = ok vs1 ->
+  get_var_is wdb vm1 xs = ok vs1 ->
   exists2 vs2,
-    mapM (fun x => get_var wdb vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+    get_var_is wdb vm2 xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
 Proof.
   move => hvm; elim: xs vs1 => [ | x xs Hrec] /= ? hdom.
   + by move=> [<-]; exists [::].
@@ -1642,16 +1637,29 @@ Proof.
   by constructor.
 Qed.
 
-Lemma get_vars_uincl wdb (xs:seq var_i) vm1 vm2 vs1:
+Lemma get_var_is_uincl wdb xs vm1 vm2 vs1 :
   vm1 <=1 vm2 ->
-  mapM (fun x => get_var wdb vm1 (v_var x)) xs = ok vs1 ->
+  get_var_is wdb vm1 xs = ok vs1 ->
   exists2 vs2,
-    mapM (fun x => get_var wdb vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+    get_var_is wdb vm2 xs = ok vs2
+    & List.Forall2 value_uincl vs1 vs2.
 Proof.
-  move => hvm; apply: (@get_vars_uincl_on _ (sv_of_list v_var xs)).
+  move => hvm; apply: (get_var_is_uincl_on (dom := sv_of_list v_var xs)).
   + exact: vm_uincl_uincl_on hvm.
   move => /= y hy; rewrite sv_of_listE; apply/in_map.
   by exists y.
+Qed.
+
+Lemma get_vars_uincl wdb xs vm1 vm2 vs1 :
+  vm1 <=1 vm2 ->
+  get_vars wdb vm1 xs = ok vs1 ->
+  exists2 vs2,
+    get_vars wdb vm2 xs = ok vs2
+    & List.Forall2 value_uincl vs1 vs2.
+Proof.
+  move=> /(get_var_is_uincl (wdb := wdb) (xs := map mk_var_i xs)).
+  rewrite /get_var_is !mapM_map.
+  exact.
 Qed.
 
 Lemma write_lval_uincl_on wdb gd X x v1 v2 s1 s2 vm1 :
@@ -1786,8 +1794,7 @@ Section Sem_eqv.
 Context
   {dc:DirectCall}
   {sip : SemInstrParams asm_op syscall_state}
-  {T}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}
   (p:prog) (ev : extra_val_t).
 
@@ -1896,7 +1903,7 @@ Proof.
     have [|vm3 ? heq3] := ihc vm2 X hsub; first by apply: eq_onI heq2; SvD.fsetdec.
     have [vm4 ? heq4] := ihf vm3 X hsub heq3; exists vm4 => //.
     by econstructor; eauto.
-  + move=> s1 scs2 m2 s2 ii xs fn args vargs vs hargs hcall _ hw vm1 X.
+  + move=> s1 scs2 m2 s2 xs fn args vargs vs hargs hcall _ hw vm1 X.
     rewrite read_i_call => hsub heq1.
     case: (write_lvals_eq_on _ hw heq1); first by SvD.fsetdec.
     move=> vm2 hw2 heq2; exists vm2; last by apply: eq_onI heq2; SvD.fsetdec.
@@ -1931,8 +1938,7 @@ Section UNDEFINCL.
 Context
   {dc:DirectCall}
   {sip : SemInstrParams asm_op syscall_state}
-  {T}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.
@@ -2069,7 +2075,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs vm1 Hvm1.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfd Hxs vm1 Hvm1.
   have [vargs' Hsa /Hfd [vs' [Hc Hvres]]]:= sem_pexprs_uincl Hvm1 Hargs.
   have Hvm1' : vm_uincl (evm (with_scs (with_mem s1 m2) scs2)) vm1 by done.
   have [vm2' ??] := writes_uincl Hvm1' Hvres Hxs.
@@ -2124,7 +2130,7 @@ Proof.
   have := write_vars_uincl (vm_uincl_refl _) Uargs' Hargs.
   rewrite with_vm_same => -[vm1 Hargs' Hvm1].
   have [vm2' /= [] Hsem' Uvm2]:= Hrec _ Hvm1.
-  have [vs2 Hvs2 Hsub] := get_vars_uincl Uvm2 Hmap.
+  have [vs2 Hvs2 Hsub] := get_var_is_uincl Uvm2 Hmap.
   have [vres2' hmr2 Ures']:= mapM2_dc_truncate_val Hcr Hsub.
   by exists vres2';split=>//;econstructor;eauto.
 Qed.
@@ -2299,6 +2305,10 @@ Proof.
   move=> /get_globalI [gv [_ -> _]].
   by case: gv.
 Qed.
+
+Lemma get_var_is_allow_undefined vm xs :
+  get_var_is false vm xs = ok [seq vm.[v_var x] | x <- xs ].
+Proof. by elim: xs => //= ?? ->. Qed.
 
 (* ------------------------------------------------------------------------------ *)
 

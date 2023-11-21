@@ -14,8 +14,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {sCP : forall {wsw : WithSubWord}, semCallParams}.
 
 Variable (p:prog) (ev:extra_val_t).
@@ -296,7 +295,8 @@ apply:
   case: (ih' _ hss'3) => s4' [hss'4 hf].
   exists s4'; split; first exact: hss'4.
   econstructor; eauto.
-- move => s1 scs2 m2 s2 ii xs fn args vargs vs /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hscs hm hvm].
+- move=> s1 scs2 m2 s2 xs fn args vargs vs
+    /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hscs hm hvm].
   rewrite hscs hm in ih.
   case: (hres (with_scs (with_mem s1' m2) scs2) (And3 erefl erefl hvm)) => s2' [hss'2 hw].
   exists s2'; split; first exact: hss'2.
@@ -305,7 +305,8 @@ apply:
 move => scs1 m scs2 m2 fn fd va va' s0 s1 s2 vr vr' hfn htyin /hinitstate [s0' hinit hsim].
 move=> /(write_vars_sim hsim) [s1' [hss'1 hargs]].
 move=> _ /(_ _ hss'1) [[scs2' m2' vm2']] [] [] /= <- <- {scs2' m2'} hvm ih.
-rewrite (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal => hres htyout -> ->.
+rewrite /get_var_is (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) hfinal
+  => hres htyout -> ->.
 econstructor; eauto.
 Qed.
 

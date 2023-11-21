@@ -176,8 +176,7 @@ Record compiler_params
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
-  is_reg_array     : var -> bool;
-  slh_info         : _uprog → funname → seq slh_t * seq slh_t
+  slh_info         : _uprog → funname → seq slh_t * seq slh_t;
 }.
 
 Context
@@ -238,6 +237,14 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   let p := cparams.(print_uprog) DeadCode_Renaming pv in
   ok p.
 
+Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
+  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) p in
+  let p := cparams.(print_uprog) Inlining p in
+
+  Let p := dead_calls_err_seq to_keep p in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+  ok p.
+
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p := array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
@@ -246,18 +253,17 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
 
-  Let p := inline_prog_err (wsw:= withsubword) cparams.(rename_fd) p in
-  let p := cparams.(print_uprog) Inlining p in
-
-  Let p := dead_calls_err_seq to_keep p in
-  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+  Let p := inlining to_keep p in
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
   let p := cparams.(print_uprog) Unrolling p in
 
+  Let p := dead_calls_err_seq to_keep p in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+
   Let pv := live_range_splitting p in
 
-  let pr := remove_init_prog cparams.(is_reg_array) pv in
+  let pr := remove_init_prog is_reg_array pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in

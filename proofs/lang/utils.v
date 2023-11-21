@@ -55,11 +55,14 @@ Notation "x == y ::> T" := (eq_op (T:= @ceqT_eqType T _) x y)
 Notation "x == y ::>" := (eq_op (T:= @ceqT_eqType _ _) x y)
   (at level 70, y at next level) : bool_scope.
 
-Class finTypeC (T:Type) := 
-  { _eqC   :> eqTypeC T
+Class finTypeC (T:Type) :=
+  { _eqC   : eqTypeC T
   ; cenum  : seq T
   ; cenumP : @Finite.axiom ceqT_eqType cenum
   }.
+
+#[global]
+Existing Instance _eqC.
 
 Section FinType.
 
@@ -148,28 +151,6 @@ Proof.
   by move=> [].
 Qed.
 
-Section ResultEqType.
-
-Variable E A : eqType.
-
-Definition result_eq (r1 r2: result E A): bool :=
-  match r1, r2 with
-  | Ok a1, Ok a2 => a1 == a2
-  | Error e1, Error e2 => e1 == e2
-  | _, _ => false
-  end.
-
-Lemma result_eqP : Equality.axiom result_eq.
-Proof.
-  case=> [a1|e1] [a2|e2] /=; try (by apply: ReflectF);
-  by apply: (equivP eqP);split=>[|[]] ->.
-Qed.
-
-Canonical result_eqMixin := EqMixin result_eqP.
-Canonical result_eqType := Eval hnf in EqType (result E A) result_eqMixin.
-
-End ResultEqType.
-
 Module Result.
 
 Definition apply eT aT rT (f : aT -> rT) (x : rT) (u : result eT aT) :=
@@ -228,16 +209,6 @@ Arguments assertP {E b e u} _.
 
 Variant error :=
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith.
-
-Scheme Equality for error.
-
-Lemma error_beqP : Equality.axiom error_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_error_dec_bl internal_error_dec_lb).
-Qed.
-
-Canonical error_eqMixin := EqMixin error_beqP.
-Canonical error_eqType := Eval hnf in EqType error error_eqMixin.
 
 Definition exec t := result error t.
 
@@ -1809,6 +1780,7 @@ Ltac t_do_rewrites tac :=
     match goal with
     | [ h : ?lhs = ?rhs |- _ ] => tac h lhs rhs
     | [ h : is_true (?lhs == ?rhs) |- _ ] => move: h => /eqP h; tac h lhs rhs
+    | [ h : is_true ?lhs |- _ ] => tac h lhs true
     end.
 
 #[local]
@@ -1867,6 +1839,38 @@ Lemma omapP A R (f : A -> R) u :
 Proof. by case: u; constructor. Qed.
 
 End Option.
+
+Notation "'let%opt' x ':=' ox 'in' body" :=
+  (if ox is Some x then body else None)
+  (x strict pattern, at level 25).
+
+Notation "'let%opt '_' ':=' ox 'in' body" :=
+  (if ox is Some tt then body else None)
+  (at level 25).
+
+Lemma obindP aT bT oa (f : aT -> option bT) a (P : Type) :
+  (forall z, oa = Some z -> f z = Some a -> P) ->
+  (let%opt a' := oa in f a') = Some a ->
+  P.
+Proof. case: oa => // a' h h'. exact: (h _ _ h'). Qed.
+
+Definition oassert (b : bool) : option unit :=
+  if b then Some tt else None.
+
+Lemma oassertP {A b a} {oa : option A} :
+  (let%opt _ := oassert b in oa) = Some a ->
+  b /\ oa = Some a.
+Proof. by case: b. Qed.
+
+Lemma oassertP_isSome {A b} {oa : option A} :
+  isSome (let%opt _ := oassert b in oa) ->
+  b /\ isSome oa.
+Proof. by case: b. Qed.
+
+Lemma isSomeP {A : Type} {oa : option A} :
+  isSome oa ->
+  exists a, oa = Some a.
+Proof. case: oa; by [|eexists]. Qed.
 
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
 Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.

@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import Psatz xseq.
-Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem.
+Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap low_memory syscall_sem.
 Require Export
   flag_combination
   sem_params.
@@ -78,6 +78,8 @@ Arguments Estate {syscall_state}%type_scope {ep} _ _ _%vm_scope.
 Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
   if is_lvar x then get_var wdb vm x.(gv)
   else get_global gd x.(gv).
+
+Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
 
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   Let v := v  in

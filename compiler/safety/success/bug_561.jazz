@@ -1,0 +1,31 @@
+export fn divEx1(reg u64 hi) -> reg u64 {
+  reg u64 lo, divisor, res;
+  hi = hi;
+  hi = hi & 0x1;
+  lo = 20;
+  divisor = 5;
+  ?{ RAX = res } = #IDIV (hi, lo, divisor);
+  return res;
+}
+
+export fn divEx2(reg u64 hi) -> reg u64 {
+  reg u64 lo, divisor, res;
+  hi = hi;
+  hi = hi & 0x3;
+  lo = 20;
+  divisor = 5;
+  ?{ RAX = res } = #DIV (hi, lo, divisor);
+  return res;
+}
+
+inline fn test() -> reg u64 {
+  reg u64 x;
+  x = 0;
+  #inline
+  x = divEx1(x);
+  #inline
+  x = divEx2(x);
+  return x;
+}
+
+exec test ()

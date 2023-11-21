@@ -19,8 +19,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  (T : eqType)
-  (pT : progT T)
+  (pT : progT)
   (cs : semCallParams)
   (p : prog)
   (ev : extra_val_t).
@@ -144,12 +143,6 @@ Context
    rewrite /makereference_prog.
    t_xrbindP => /=.
    by move => y _ <-.
-  Qed.
-
-  Lemma eq_funcs : map_cfprog (update_fd fresh_id p) (p_funcs p) = ok (p_funcs p').
-  Proof.
-    move : Hp; rewrite /makereference_prog.
-    by t_xrbindP => fdecls Hmap_cfprog <- /=.
   Qed.
 
   Lemma is_reg_ptr_lval_ty b ii sfx x ty lv y:
@@ -542,7 +535,7 @@ Context
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs m s2 ii lv fn args vargs aout eval_args h1 h2 h3.
+    move=> s1 scs m s2 lv fn args vargs aout eval_args h1 h2 h3.
     move=> ii' X c' hupd; rewrite !(read_Ii, write_Ii).
     rewrite !(read_i_call, write_i_call) => le_X vm1 eq_s1_vm1.
     case: (sem_callE h1) hupd => fnd [fnE] [vs] [s1'] [s2'] [s3'] [vres] [vsE] [_ hwrinit] _ [hgetout aoutE] _.

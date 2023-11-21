@@ -25,9 +25,6 @@ Lemma compat_type_refl b ty : compat_type b ty ty.
 Proof. by rewrite /compat_type; case: b. Qed.
 #[global]Hint Resolve compat_type_refl : core.
 
-Lemma compat_type_eq_refl b ty1 ty2 : ty1 = ty2 -> compat_type b ty1 ty2.
-Proof. by move=> ->. Qed.
-
 Lemma compat_type_subtype b t1 t2:
   compat_type b t1 t2 -> subtype t1 t2.
 Proof. by case: b => //= /eqP ->. Qed.

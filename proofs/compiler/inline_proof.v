@@ -24,9 +24,9 @@ Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Local Notation inline_i' := (inline_i rename_fd).
-Local Notation inline_fd' := (inline_fd rename_fd).
-Local Notation inline_prog' := (inline_prog rename_fd).
+Notation inline_i' := (inline_i rename_fd).
+Notation inline_fd' := (inline_fd rename_fd).
+Notation inline_prog' := (inline_prog rename_fd).
 
 #[local] Existing Instance indirect_c.
 
@@ -62,8 +62,9 @@ Section INCL.
       by t_xrbindP => -[Xc c'] /Hc -> /= <- <-.
     + move=> a c e c' Hc Hc' ii X1 c0 X2 /=.
       by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
-    move=> i xs f es ii X1 c' X2 /=.
-    case: i => //; t_xrbindP => fd /get_funP -/Incl.
+    move=> xs f es ii X1 c' X2 /=.
+    case: ii_is_inline => [|//].
+    t_xrbindP=> fd /get_funP -/Incl.
     by rewrite /get_fun => -> h <- <- /=; rewrite h.
   Qed.
 
@@ -175,9 +176,10 @@ Section SUBSET.
     by apply: rbindP=> Hc'' /Hc' ? [<-].
   Qed.
 
-  Local Lemma Scall  : forall i xs f es, Pr (Ccall i xs f es).
+  Local Lemma Scall : forall xs f es, Pr (Ccall xs f es).
   Proof.
-    move=> i xs f es ii X2 Xc /=;case: i => [ | [<-] //].
+    move=> xs f es ii X2 Xc /=.
+    case: ii_is_inline => [|[<-] //].
     by apply:rbindP => fd _;apply: rbindP => ?? [<-].
   Qed.
 
@@ -228,7 +230,7 @@ Qed.
 Lemma assgn_tuple_Pvar (p:uprog) ev ii xs flag tys rxs vs vs' s s' :
   let es := map Plvar rxs in
   disjoint (vrvs xs) (read_es es) ->
-  mapM (fun x : var_i => get_var true (evm s) x) rxs = ok vs ->
+  get_var_is true (evm s) rxs = ok vs ->
   mapM2 ErrType dc_truncate_val tys vs = ok vs' ->
   write_lvals true (p_globs p) s xs vs' = ok s' ->
   sem p ev s (assgn_tuple ii xs flag tys es) s'.
@@ -293,9 +295,9 @@ Section PROOF.
 
   Let Pfun scs m fn vargs scs' m' vres :=
     forall vargs', List.Forall2 value_uincl vargs vargs' ->
-    exists vres',
-       sem_call p' ev scs m fn vargs' scs' m' vres' /\
-       List.Forall2 value_uincl vres vres'.
+    exists2 vres',
+       List.Forall2 value_uincl vres vres' &
+       sem_call p' ev scs m fn vargs' scs' m' vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. move=> s X1 X2 c' [<- <-] vm1 Hvm1; exists vm1 => //; constructor. Qed.
@@ -458,12 +460,13 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move => s1 scs2 m2 s2 ii xs fn args vargs vs.
-    case:s1 => scs1 sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' /=;case:ii;last first.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs.
+    case: s1 => scs1 sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' /=.
+    case: ii_is_inline; last first.
     + move=> [<- <-] vm1 Hvm1.
       have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
       + by apply: uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
-      have [vres' [Hscall Hvres]]:= Hfun _ Huargs.
+      have [vres' Hvres Hscall]:= Hfun _ Huargs.
       have [|vm2 /= Hvm2 Hxs] := write_lvals_uincl_on _ Hvres Hw Hvm1.
       + by rewrite read_i_call;SvD.fsetdec.
       exists vm2.
@@ -475,7 +478,7 @@ Section PROOF.
     case:ifP => // Hdisj _ ??;subst X1 c' => vm1 Hvm1.
     have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
     + by apply: uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
-    have [vres1 [Hscall Hvres]]:= Hfun _ Huargs.
+    have [vres1 Hvres Hscall]:= Hfun _ Huargs.
     case: (sem_callE Hscall) => f [].
     rewrite Hfd' => /Some_inj <- {f}.
     case => vargs0 [s0] [s1] [svm2] [vres] [hvs' [hs0 hs1] hsvm2 [hvres hvres1] [hscs2 hm2]].
@@ -492,7 +495,7 @@ Section PROOF.
     + apply vm_uincl_init. + by apply List_Forall2_refl.
     have Uvmi : evm (with_vm s1 vm1_) <=1 vm1' by done.
     have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvmi Hbody.
-    have [/=vs2' Hvs' Uvs']:= get_vars_uincl Uvm3 Hvs.
+    have [/=vs2' Hvs' Uvs'] := get_var_is_uincl Uvm3 Hvs.
     have [vs' Htout' Uvs]:= mapM2_truncate_val Htout Uvs'.
     have Heqvm : svm1 <=[Sv.union (read_rvs xs) X2] vm3.
     + apply: uincl_onT;first by apply: uincl_onI Hvm1;SvD.fsetdec.
@@ -541,7 +544,7 @@ Section PROOF.
     case: svm2 Hsem Hscs Hfi Hc hsvm2 hsem Hres => escs2 emem2 evm2 Hsem Hscs Hfi Hc hsvm2 hsem Hres.
     have [vres1 hvres1 Hall1]:= sem_pexprs_uincl_on hsvm2 Hres.
     have [vres1' hvres1' Hall1'] := mapM2_truncate_val Htout Hall1.
-    exists vres1';split=> //;econstructor;eauto => /=.
+    exists vres1' => //; econstructor; eauto => /=.
     + by move: Hvm1; rewrite (write_vars_lvals _ gd) with_vm_same.
     by rewrite
        -(sem_pexprs_get_var _
@@ -552,8 +555,9 @@ Section PROOF.
   Lemma inline_callP f scs mem scs' mem' va va' vr :
     List.Forall2 value_uincl va va' ->
     sem_call p ev scs mem f va scs' mem' vr ->
-    exists vr',
-      sem_call p' ev scs mem f va' scs' mem' vr' /\  List.Forall2 value_uincl vr vr'.
+    exists2 vr',
+      List.Forall2 value_uincl vr vr' &
+      sem_call p' ev scs mem f va' scs' mem' vr'.
   Proof.
     move=> Hall Hsem.
     exact:
@@ -584,8 +588,9 @@ Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
   inline_prog_err rename_fd p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem f va scs' mem' vr ->
-  exists vr',
-      sem_call p' ev scs mem f va' scs' mem' vr' /\  List.Forall2 value_uincl vr vr'.
+  exists2 vr',
+    List.Forall2 value_uincl vr vr' &
+    sem_call p' ev scs mem f va' scs' mem' vr'.
 Proof.
   rewrite /inline_prog_err;case:ifP => //= Hu.
   t_xrbindP => fds Hi <-.

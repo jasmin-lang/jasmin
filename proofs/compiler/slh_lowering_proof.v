@@ -129,7 +129,7 @@ Section CONST_PROP.
   #[local]
   Lemma use_mem_const_prop_e {_ : FlagCombinationParams} cpm e :
     ~~ use_mem e ->
-    ~~ use_mem (const_prop_e cpm e).
+    ~~ use_mem (const_prop_e None cpm e).
   Proof.
     elim: e =>
       [||| x
@@ -139,7 +139,9 @@ Section CONST_PROP.
       | ty e hinde e0 hinde0 e1 hinde1
       ] //= h.
 
-    - case: is_lvar; last done. by case: Mvar.get => [[]|].
+    - by case: x => x [] //; case: Mvar.get => // - [].
+
+    - by move => sz [] x [].
 
     - rewrite use_mem_s_op1. exact: (hinde h).
 
@@ -182,7 +184,7 @@ Section CONST_PROP.
       sem_pexpr true gd s (enot e) = ok (Vbool (~~ b)).
     - by rewrite /= h.
 
-    move=> /(const_prop_eP (valid_cpm_empty _)) [v' [? /value_uinclE ?]].
+    move=> /(const_prop_eP (valid_cpm_empty _) (I: valid_globs _ None)) [v' [? /value_uinclE ?]].
     by subst v'.
   Qed.
 
@@ -472,8 +474,7 @@ Qed.
 Section CHECK_PROOF.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {dc: DirectCall}
   {sCP : semCallParams}
   (shparams : sh_params)
@@ -721,7 +722,7 @@ Section LOWER_SLHO.
   Lemma check_resP wdb env xs ttys tys vs vs' s t:
     wf_env env (p_globs p') s ->
     check_res env xs ttys tys = ok t ->
-    mapM (fun x : var_i => get_var wdb (evm s) x) xs = ok vs ->
+    get_var_is wdb (evm s) xs = ok vs ->
     mapM2 ErrType dc_truncate_val ttys vs = ok vs' ->
     List.Forall2 slh_t_spec vs' tys.
   Proof.
@@ -789,8 +790,7 @@ End CHECK_PROOF.
 Section PASS_PROOF.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {sCP : semCallParams}
   {dc : DirectCall}
   (shparams : sh_params)
@@ -1128,7 +1128,7 @@ Qed.
 
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s scs2 m2 s' ? lvs fn args vargs vargs' hsemargs _ hrec hwrite.
+  move=> s scs2 m2 s' lvs fn args vargs vargs' hsemargs _ hrec hwrite.
   move=> ? env env' c hwf /=.
   case heq: fun_info => [tin tout]; t_xrbindP => t hargs hres <-.
   move: hrec; rewrite /Pfun heq => /(_ (check_f_argsP hwf hargs hsemargs)) [h1 h2].

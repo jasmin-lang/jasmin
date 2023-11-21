@@ -1,0 +1,13 @@
+/* This example saves a return address on the stack, therefore it needs to save
+and align the original stack pointer. However, as it does not use the stack
+otherwise, there is no need for an instruction to allocate a stack frame. */
+
+#[returnaddress=stack]
+fn id(reg u32 x) -> reg u32 { return x; }
+
+export fn main(reg u32 a) -> reg u32 {
+  reg u32 r;
+  r = a;
+  r = id(r);
+  return r;
+}

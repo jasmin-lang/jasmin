@@ -12,22 +12,6 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 
 
-Record h_propagate_inline_params
-  {wsw : WithSubWord}
-  {dc:DirectCall}
-  {asm_op syscall_state : Type}
-  {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state} :=
-  {
-    pip_cf_xsemP :
-      forall wdb gd s e0 e1 e2 e3 cf v,
-        let e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
-        let e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
-        sem_pexpr wdb gd s e = ok v
-        -> sem_pexpr wdb gd s e' = ok v;
-  }.
-
 Section WITH_PARAMS.
 
 Context
@@ -37,11 +21,9 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}
-  {hpip : h_propagate_inline_params}.
-
+.
 
 Definition dfl_cel := 
   {| pi_def := Pconst 0; pi_fv := Sv.empty; pi_m := false; pi_fv_ok := erefl _; pi_m_ok := erefl _|}.
@@ -165,49 +147,40 @@ Proof.
   by move=> /sandP [v] [-> /value_uinclE ->]. 
 Qed.
 
-Lemma fc_esem_ssem wdb e0 e1 e2 e3 fc b :
-  let esem := fc_sem enot eand eor expr.eeq  in
-  let ssem := fc_sem snot sand sor sbeq in
-  sem_pexpr wdb gd s (esem e0 e1 e2 e3 fc) = ok (Vbool b)
-  -> sem_pexpr wdb gd s (ssem e0 e1 e2 e3 fc) = ok (Vbool b).
+(* Interpreting the flag combination as an expression and evaluating it
+   coincides with interpreting as a boolean. *)
+Lemma sem_pexpr_fc_sem wsb b0 b1 b2 b3 e0 e1 e2 e3 fc :
+  sem_pexpr wsb gd s e0 = ok (Vbool b0) ->
+  sem_pexpr wsb gd s e1 = ok (Vbool b1) ->
+  sem_pexpr wsb gd s e2 = ok (Vbool b2) ->
+  sem_pexpr wsb gd s e3 = ok (Vbool b3) ->
+  let: e := fc_sem snot sand sor sbeq e0 e1 e2 e3 fc in
+  let: b := fc_sem negb andb orb (fun x y => x == y) b0 b1 b2 b3 fc in
+  sem_pexpr wsb gd s e = ok (Vbool b).
 Proof.
-  rewrite /=.
-  elim: fc b
-    => //= [fc ih | fc0 ih0 fc1 ih1 | fc0 ih0 fc1 ih1 | fc0 ih0 fc1 ih1] b.
-  all: t_xrbindP.
-
-  - move=> v hv hnot.
-    move: hnot => /sem_sop1I /= [nb hnb [?]]; subst b.
-    move: hnb => /to_boolI ?; subst v.
-    apply: snotE.
-    exact: (ih nb hv).
-
-  all: move=> v0 hv0 v1 hv1 h.
-  all: move: h => /sem_sop2I /= [b0 [b1 [b' [hb0 hb1 hb [?]]]]]; subst b'.
-  all: move: hb0 => /to_boolI ?; subst v0.
-  all: move: hb1 => /to_boolI ?; subst v1.
-  all: move: hb => [?]; subst b.
-  all: have h0 := ih0 b0 hv0.
-  all: have h1 := ih1 b1 hv1.
-  all:
-    solve
-      [ exact: (sandE h0 h1) | exact: (sorE h0 h1) | exact: (sbeqE h0 h1) ].
+  move=> ????.
+  elim: fc => * /=;
+    t_simpl_rewrites;
+    by [| exact: snotE | exact: sandE | exact: sorE | exact: sbeqE ].
 Qed.
 
-Lemma cf_esem_ssem wdb e0 e1 e2 e3 cf b :
-  let esem := cf_xsem enot eand eor expr.eeq  in
-  let ssem := cf_xsem snot sand sor sbeq in
-  sem_pexpr wdb gd s (esem e0 e1 e2 e3 cf) = ok (Vbool b)
-  -> sem_pexpr wdb gd s (ssem e0 e1 e2 e3 cf) = ok (Vbool b).
+Lemma sem_pexpr_cf_xsem wdb e0 e1 e2 e3 cf v :
+  let: e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
+  let: e' := cf_xsem snot sand sor sbeq e0 e1 e2 e3 cf in
+  sem_pexpr wdb gd s e = ok v ->
+  sem_pexpr wdb gd s e' = ok v.
 Proof.
-  rewrite /cf_xsem.
-  case: cf_tbl => -[] cfc; last exact: fc_esem_ssem.
   rewrite /=.
-  t_xrbindP=> v hv hnot.
-  move: hnot => /sem_sop1I /= [nb hnb [?]]; subst b.
-  move: hnb => /to_boolI ?; subst v.
-  apply: snotE.
-  exact: (fc_esem_ssem hv).
+  t_xrbindP=> vs0 v0 hv0 vs1 v1 hv1 vs2 v2 hv2 vs3 v3 hv3 ? ? ? ?;
+    subst.
+
+  rewrite /sem_opN /=.
+  t_xrbindP=> b ? /to_boolI ?? /to_boolI ?? /to_boolI ?? /to_boolI ? hb ?;
+    subst.
+
+  rewrite /sem_combine_flags /cf_xsem.
+  case: cf_tbl => -[] ?;
+    by auto using snotE, sandE, sorE, sbeqE, sem_pexpr_fc_sem.
 Qed.
 
 Lemma scfcP wdb c es vs v :
@@ -215,34 +188,19 @@ Lemma scfcP wdb c es vs v :
   -> sem_opN (Ocombine_flags c) vs = ok v
   -> sem_pexpr wdb gd s (scfc c es) = ok v.
 Proof.
-  rewrite /scfc.
-  case: es => /= [[<-] | eof es]; first done.
-  t_xrbindP=> vof hvof {vs} vs h <-.
-  case: es h => /= [[<-] | ecf es]; first by rewrite hvof.
-  t_xrbindP=> vcf hvcf {vs} vs h <-.
-  case: es h => /= [[<-] | esf es]; first by rewrite hvof hvcf.
-  t_xrbindP=> vsf hvsf {vs} vs h <-.
-  case: es h => /= [[<-] | ezf es]; first by rewrite hvof hvcf hvsf.
-  t_xrbindP=> vzf hvzf {vs} vs h <-.
+  move=> h.
+  repeat (
+    case: es h => /= [[<-] | ? es];
+      first (by t_simpl_rewrites);
+      t_xrbindP=> ?? {vs} vs h <-
+  ).
 
-  case: es h => /= [[<-] | ? ?]; first last.
+  case: es h => /= [[<-] | ??]; first last.
   - t_xrbindP=> ???? <-. rewrite /sem_opN /=. by t_xrbindP.
 
   move=> h.
-  have hv := h.
-  move: h.
-  rewrite /sem_opN /=.
-  t_xrbindP=> b bof hof bcf hcf bsf hsf bzf hzf hb ?; subst v.
-  move: hof => /to_boolI ?; subst vof.
-  move: hcf => /to_boolI ?; subst vcf.
-  move: hsf => /to_boolI ?; subst vsf.
-  move: hzf => /to_boolI ?; subst vzf.
-
-  apply: cf_esem_ssem.
-  apply: (pip_cf_xsemP hpip).
-  rewrite /=.
-  rewrite hvof hvcf hvsf hvzf {hvof hvcf hvsf hvzf} /=.
-  exact: hv.
+  apply: sem_pexpr_cf_xsem => /=.
+  by t_simpl_rewrites.
 Qed.
 
 End SCFC.
@@ -721,7 +679,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
   Proof.
-    move=> s1 scs m2 s2 iif xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
+    move=> s1 scs m2 s2 xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
     case heq : pi_lvs => [pi' xs'] [<-] hu hv.
     have [vargs' hargs' hus]:= pi_esP_uincl hv hu hargs.
     have [vs' hvs' hc]:= hf _ hus.
@@ -741,7 +699,7 @@ Section PROOF.
     have [vargs1' {htr} htr hua] := mapM2_dc_truncate_val htr hvargs1.
     have [{hua hwr} vm1 hwr hu] := write_vars_uincl (vm_uincl_refl _) hua hwr. 
     have [{hc hc_ hu}vm2 [hu' hv' hs]] := hc _ _ _ hc_ hu (valid_pi_empty _ _).
-    have [{hres hu'} vs hvs huvs] := get_vars_uincl hu' hres.
+    have [{hres hu'} vs hvs huvs] := get_var_is_uincl hu' hres.
     have [{hrtr huvs} vs' hrtr huvs] := mapM2_dc_truncate_val hrtr huvs.
     exists vs' => //; econstructor; eauto => /=.
     by case: (s0) hinit => emem evm /=; rewrite eq_p_extra.

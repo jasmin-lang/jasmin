@@ -32,7 +32,7 @@ Record lowering_params
      from those in a list of function declarations. *)
     lop_fvars_correct :
       lowering.fresh_vars
-      -> forall (eft : eqType) (pT : progT eft),
+      -> forall (pT : progT),
            seq fun_decl
            -> bool;
   }.

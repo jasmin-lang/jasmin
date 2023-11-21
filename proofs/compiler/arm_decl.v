@@ -251,22 +251,21 @@ Definition shift_op (sk: shift_kind) :
   end.
 
 Definition shift_of_sop2 (ws : wsize) (op : sop2) : option shift_kind :=
-  match ws, op with
-  | U32, Olsl (Op_w U32) => Some SLSL
-  | U32, Olsr U32 => Some SLSR
-  | U32, Oasr (Op_w U32) => Some SASR
-  | U32, Oror U32 => Some SROR
-  | _, _ => None
+  let%opt _ := oassert (ws == U32) in
+  match op with
+  | Olsl (Op_w U32) => Some SLSL
+  | Olsr U32 => Some SLSR
+  | Oasr (Op_w U32) => Some SASR
+  | Oror U32 => Some SROR
+  | _ => None
   end.
 
 (* -------------------------------------------------------------------- *)
 (* Flag combinations.
    The ARM terminology is different from Intel's (chapter A7.3 from the
    ARMv7-M reference manual).
-   - [CFC_O] is Overflow.
    - [CFC_B] is Carry clear (unsigned lower).
    - [CFC_E] is Equal.
-   - [CFC_S] is Minus (negative).
    - [CFC_L] is Signed less than.
    - [CFC_BE] is Unsigned lower or same.
    - [CFC_LE] is Signed less than or equal. *)
@@ -277,10 +276,8 @@ Definition arm_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
   let vcf := FCVar2 in
   let vvf := FCVar3 in
   match cfc with
-  | CFC_O => vvf
   | CFC_B => FCNot vcf
   | CFC_E => vzf
-  | CFC_S => vnf
   | CFC_L => FCNot (FCEq vnf vvf)
   | CFC_BE => FCOr (FCNot vcf) vzf
   | CFC_LE => FCOr vzf (FCNot (FCEq vnf vvf))

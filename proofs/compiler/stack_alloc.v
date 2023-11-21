@@ -517,7 +517,7 @@ Definition with_var xi x :=
 Definition base_ptr sc :=
   match sc with
   | Slocal => pmap.(vrsp)
-  | Sglobal => pmap.(vrip)
+  | Sglob => pmap.(vrip)
   end.
 
 Definition addr_from_pk (x:var_i) (pk:ptr_kind) :=
@@ -903,15 +903,6 @@ Definition alloc_protect_ptr rmap ii r t e msf :=
   | Some _ => Error (stk_error_no_var "cannot assign protect_ptr in a sub array" )
   end.
 
-
-(* This function is also defined in array_init.v *)
-(* TODO: clean *)
-Definition is_array_init e := 
-  match e with
-  | Parr_init _ => true
-  | _ => false
-  end.
-
 (* We do not update the [var_region] part *)
 (* there seems to be an invariant: all Pdirect are in the rmap *)
 (* long-term TODO: we can avoid putting PDirect in the rmap (look in pmap instead) *)
@@ -1127,7 +1118,7 @@ Definition alloc_call_res rmap srs ret_pos rs :=
 Definition is_RAnone ral :=
   if ral is RAnone then true else false.
 
-Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es := 
+Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn es :=
   let sao_callee := local_alloc fn in
   Let es  := alloc_call_args rmap sao_callee.(sao_params) es in
   let '(rmap, es) := es in
@@ -1149,7 +1140,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
                           (stk_ierror_no_var "non aligned function call")
   in
   let es  := map snd es in
-  ok (rs.1, Ccall ini rs.2 fn es).
+  ok (rs.1, Ccall rs.2 fn es).
 
 (* Before stack_alloc :
      Csyscall [::x] (getrandom len) [::t] 
@@ -1226,8 +1217,8 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       Let r := loop2 ii check_c Loop.nb rmap in
       ok (r.1, [:: MkI ii (Cwhile a (flatten r.2.2.1) r.2.1 (flatten r.2.2.2))])
 
-    | Ccall ini rs fn es =>
-      Let ri := add_iinfo ii (alloc_call sao rmap ini rs fn es) in
+    | Ccall rs fn es =>
+      Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
       ok (ri.1, [::MkI ii ri.2])                            
 
     | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))

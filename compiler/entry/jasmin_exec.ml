@@ -70,7 +70,7 @@ module Impl (A : Arch') = struct
 
   let parse_op (op:string) =
     let id = Location.mk_loc Location._dummy op in
-    let op, _ = Pretyping.tt_prim (Arch_extra.asm_opI A.asm_e) id [] in
+    let op = Pretyping.tt_prim (Arch_extra.asm_opI A.asm_e) id in
     match op with
     | BaseOp (_, op) -> op
     | ExtOp _ -> failwith "extop"

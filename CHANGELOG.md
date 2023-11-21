@@ -10,31 +10,138 @@
   We also provide a speculative CCT checker, via the compiler flag `-checkSCT`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447)).
 
-- More arm instructions are available:
-  `MLA`, `MLS`
-  ([PR #480](https://github.com/jasmin-lang/jasmin/pull/480)), 
-  `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
-  ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481),
-   [PR #492](https://github.com/jasmin-lang/jasmin/pull/492),
-   [PR #514](https://github.com/jasmin-lang/jasmin/pull/514)).
-
 - Register arrays can appear as arguments and return values of local functions;
   the “make-reference-arguments” pass is now run before expansion of register
   arrays;
   ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452)).
 
-- Notation for string literals; there is no implicit zero terminator;
-  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517)).
-
 - Add the instruction `MULX_hi`,
      `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
   but no extra register is used for the low half of the result.
-	
+
+- Instruction selection for arm-m4 turns `x = (y << n) - z` into
+  `x = #RSB(z, y << n)` and `x = n - y` into `x = #RSB(y, n)` where `n` is a constant.
+  ([PR #585](https://github.com/jasmin-lang/jasmin/pull/585),
+  [PR #589](https://github.com/jasmin-lang/jasmin/pull/589)).
+
+- Definition of parameters can now use arbritrary expressions and depend on
+  other parameters. See `tests/success/common/test_globals.jazz`.
+  ([PR #595](https://github.com/jasmin-lang/jasmin/pull/595)).
+
+- The generated code for allocating and freeing stack frames in ARM has been
+  slightly optimized: small constants are used as immediates, 16-bit or
+  Thumb-expandable constants loaded with `MOV`, and bigger ones constructed
+  with `MOV` and `MOVT`.
+  ([PR #597](https://github.com/jasmin-lang/jasmin/pull/597)).
+
+- Add instructions `REV`, `REV16`, and `REVSH` to arm-m4;
+  ([PR #620](https://github.com/jasmin-lang/jasmin/pull/620);
+  fixes [#618](https://github.com/jasmin-lang/jasmin/issues/618)).
+
+- Add instruction `CLZ` to arm-m4:
+  ([PR #641](https://github.com/jasmin-lang/jasmin/pull/641).
+
+- Add instruction `CMN` to arm-m4:
+  ([PR #642](https://github.com/jasmin-lang/jasmin/pull/642)).
+
+- Add instructions `BFC` and `BFI` to arm-m4
+  ([PR #643](https://github.com/jasmin-lang/jasmin/pull/643)).
+
+- Add signed multiply halfwords instructions `SMULBB`, `SMULBT`, `SMULTB`,
+  `SMULTT`, `SMLABB`, `SMLABT`, `SMLATB`, `SMLATT`, `SMULWB`, and `SMULWT`
+  ([PR #644](https://github.com/jasmin-lang/jasmin/pull/644)).
+
 ## Bug fixes
+
+- Type-checking rejects wrongly casted primitive operators
+  ([PR #489](https://github.com/jasmin-lang/jasmin/pull/489);
+  fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
+
+- Type-checking rejects invalid variants of primitive operators
+  ([PR #490](https://github.com/jasmin-lang/jasmin/pull/490);
+  fixes [#488](https://github.com/jasmin-lang/jasmin/pull/488)).
+
+- Constant propagation handles global variables assigned to inline variables
+  ([PR #541](https://github.com/jasmin-lang/jasmin/pull/541);
+  fixes [#540](https://github.com/jasmin-lang/jasmin/issues/540)).
+
+ - More precise detection of speculative safe loads in the SCT checker
+  ([PR #556](https://github.com/jasmin-lang/jasmin/pull/556)).
+
+- Fix printing to EasyCrypt of ARMv7 instruction `bic`
+  ([PR #554](https://github.com/jasmin-lang/jasmin/pull/554)).
+
+- Fix expansion of `#copy` operators when target is marked as `ptr`
+  ([PR #550](https://github.com/jasmin-lang/jasmin/pull/550);
+  fixes [#499](https://github.com/jasmin-lang/jasmin/pull/499)).
+
+- Improve the safety checking for `(I)DIV` x86 instructions
+  ([PR #574](https://github.com/jasmin-lang/jasmin/pull/574);
+  fixes [#561](https://github.com/jasmin-lang/jasmin/issues/561)).
+
+- Add alignment during global datas for arm-m4
+  ([PR #590](https://github.com/jasmin-lang/jasmin/pull/590);
+  fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
+
+- Fix combine flag notation for arm
+  ([PR 594](https://github.com/jasmin-lang/jasmin/pull/594);
+  fixes [#593](https://github.com/jasmin-lang/jasmin/issues/593)).
+
+- Flag combination support `"!="` as the negation of `"=="`
+  ([PR 600](https://github.com/jasmin-lang/jasmin/pull/600);
+  fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
+
+- Remove dead functions after loop unrolling
+  ([PR 611](https://github.com/jasmin-lang/jasmin/pull/611);
+  fixes [#607](https://github.com/jasmin-lang/jasmin/issues/607)).
+
+- Fix extraction to easycrypt on "for loop" that modifies the loop counter
+  ([PR 616](https://github.com/jasmin-lang/jasmin/pull/616).
+
+- Fix instruction selection for stack-allocation on ARM
+  ([PR 623](https://github.com/jasmin-lang/jasmin/pull/623);
+  fixes [#622](https://github.com/jasmin-lang/jasmin/issues/622)).
+
+## Other changes
+
+- Pretty-printing of Jasmin programs is more precise
+  ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).
 
 - Fix semantics of the `MULX` instruction
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
   fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
+
+- Unsigned division on x86 emits a xor instead of “mov 0“
+  ([PR #582](https://github.com/jasmin-lang/jasmin/pull/582)).
+
+- Add more warning options:
+    - `-wduplicatevar`: warns when two variables share the same name;
+    - `-wunusedvar`: warns when a declared variable is not used.
+
+  ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
+  Warning this is a **breaking change**.
+
+# Jasmin 2023.06.1 — 2023-07-31
+
+## New features
+
+- More arm instructions are available:
+  `MLA`, `MLS`
+  ([PR #480](https://github.com/jasmin-lang/jasmin/pull/480)),
+  `UMAAL`
+  ([PR #543](https://github.com/jasmin-lang/jasmin/pull/543)),
+  `UMLAL`, `SMULL`, `SMLAL`, `SMMUL`, `SMMULR`
+  ([PR #481](https://github.com/jasmin-lang/jasmin/pull/481),
+   [PR #492](https://github.com/jasmin-lang/jasmin/pull/492),
+   [PR #514](https://github.com/jasmin-lang/jasmin/pull/514),
+   [PR #545](https://github.com/jasmin-lang/jasmin/pull/545)).
+
+- Notation for string literals; there is no implicit zero terminator;
+  escaping follows the lexical conventions of OCaml
+  ([PR #517](https://github.com/jasmin-lang/jasmin/pull/517),
+   [PR #532](https://github.com/jasmin-lang/jasmin/pull/532)).
+
+## Bug fixes
 
 - Fix semantics of the `IMUL`, `IMULr`, and `IMULri` instructions
   ([PR #528](https://github.com/jasmin-lang/jasmin/pull/528);
@@ -47,19 +154,12 @@
   ([PR #516](https://github.com/jasmin-lang/jasmin/pull/516);
   fixes [#515](https://github.com/jasmin-lang/jasmin/issues/515)).
 
-- Type-checking rejects wrongly casted primitive operators
-  ([PR #489](https://github.com/jasmin-lang/jasmin/pull/488);
-  fixes [#69](https://github.com/jasmin-lang/jasmin/issues/69)).
-
 ## Other changes
 
 - Various improvements related to ARMv7
   ([PR #476](https://github.com/jasmin-lang/jasmin/pull/476),
    [PR #477](https://github.com/jasmin-lang/jasmin/pull/477),
    [PR #479](https://github.com/jasmin-lang/jasmin/pull/479)).
-
-- Pretty-printing of Jasmin programs is more precise
-  ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).
 
 # Jasmin 2023.06.0 — Villers-lès-Nancy, 2023-06-09
 

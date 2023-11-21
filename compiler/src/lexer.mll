@@ -12,6 +12,11 @@
     let msg = Printf.sprintf "invalid char: `%c'" c in
     raise (S.ParseError (loc, Some msg))
 
+  let unescape loc (s: string) =
+    try Scanf.unescaped s with
+    | Scanf.Scan_failure msg ->
+      raise (Syntax.ParseError (loc, Some (Format.asprintf "ill-formed string (%s)" msg)))
+
   let _keywords = [
     "u8"    , T_U8   ;
     "u16"   , T_U16  ;
@@ -125,7 +130,7 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
-  | '"' ([^'"']* as s) '"' { STRING s } (* TODO: escape sequences *)
+  | '"' (([^'"' '\\']|'\\' _)* as s) '"' { STRING (unescape (L.of_lexbuf lexbuf) s) }
 
   (* Why this is needed *)
   | ((*'-'?*) digit+) as s   

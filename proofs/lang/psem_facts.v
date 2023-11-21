@@ -33,6 +33,12 @@ Lemma vrvs_Lvar xs :
   vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
 Proof. rewrite /vrvs /sv_of_list; elim: xs Sv.empty => //=. Qed.
 
+Lemma vrvs_to_lvals X (xs : seq X) f :
+  Sv.Equal (vrvs (to_lvals (map f xs))) (sv_of_list f xs).
+Proof.
+  by rewrite /to_lvals map_comp vrvs_Lvar 2!sv_of_list_map sv_of_list_eq_ext.
+Qed.
+
 Lemma write_vars_eq_ex wdb xs vs s s' :
   write_vars wdb xs vs s = ok s' →
   evm s =[\ sv_of_list v_var xs] evm s' .
@@ -150,7 +156,7 @@ Qed.
 
 Section MEM_EQUIV.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context {pT: progT} {sCP: semCallParams}.
 
 Variable P : prog.
 Variable ev : extra_val_t.
@@ -228,7 +234,11 @@ Proof.
 Qed.
 
 Lemma mem_equiv_call : sem_Ind_call P ev Pi_r Pfun.
-Proof. move=> s1 scs2 m2 s2 ii xs fn args vargs vres _ _ ? /dup[] /write_lvals_validw ? /write_lvals_stack_stable ?; red; etransitivity; [|split]; eassumption. Qed.
+Proof.
+  move=> s1 scs2 m2 s2 xs fn args vargs vres _ _
+    ? /dup[] /write_lvals_validw ? /write_lvals_stack_stable ?.
+  red. etransitivity; by eauto.
+Qed.
 
 Lemma mem_equiv_proc : sem_Ind_proc P ev Pc Pfun.
 Proof.
@@ -492,8 +502,7 @@ Qed.
 Section DETERMINISM.
 
 Context
-  {T}
-  {pT:progT T}
+  {pT: progT}
   {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.
@@ -590,7 +599,8 @@ Qed.
 
 Local Lemma sem_deter_call : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  red => s1 scs2 m2 s2 ii xs fn args vargs vs ok_vargs _ ih ok_s2 s2' /sem_iE[] ? [] ? [] ? [] ?[].
+  red=> s1 scs2 m2 s2 xs fn args vargs vs ok_vargs _
+    ih ok_s2 s2' /sem_iE[] ? [] ? [] ? [] ?[].
   rewrite ok_vargs => /ok_inj <- /ih[] <- <- <-.
   rewrite ok_s2.
   exact: ok_inj.

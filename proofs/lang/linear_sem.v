@@ -98,7 +98,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let s2 := write_lexprs xs res s in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
   | Lsyscall o =>
-    Let ves := mapM (get_var true s1.(lvm)) (syscall_sig o).(scs_vin) in
+    Let ves := get_vars true s1.(lvm) (syscall_sig o).(scs_vin) in
     Let: (scs, m, vs) := exec_syscall (semCallParams:= sCP_stack) s1.(lscs) s1.(lmem) o ves in 
     Let s2 := write_lvals true [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
                 (to_lvals (syscall_sig o).(scs_vout)) vs in
