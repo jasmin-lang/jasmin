@@ -4,15 +4,15 @@ Failed as expected syscall: speculative constant type checker: syscalls destroy 
 Failed as expected update_msf_not_trans: speculative constant type checker: MSF is not Trans
 Failed as expected update_msf_wrong_expr: speculative constant type checker: the expression false need to be equal to
                                           (x ==64u ((64u) 0))
-Failed as expected update_msf_not_msf: speculative constant type checker: the variable x is not known to be a msf, only {
-                                         } are
+Failed as expected update_msf_not_msf: speculative constant type checker: 
+                                       the variables { x } need to be MSFs.
 Failed as expected msf_trans: speculative constant type checker: MSF is Trans
                               (x ==64u ((64u) 0))
-Failed as expected not_known_as_msf: speculative constant type checker: the variable x is not known to be a msf, only {
-                                       } are
+Failed as expected not_known_as_msf: speculative constant type checker: 
+                                     the variables { x } need to be MSFs.
 Annotation error in bad_poly_annot: public not allowed as argument of poly
-Failed as expected msf_in_export: speculative constant type checker: {
-                                   p } need to be a msf, this is not allowed in export function
+Failed as expected msf_in_export: speculative constant type checker: 
+                                  the arguments { p } need to be MSFs, this is not allowed for export functions.
 Failed as expected must_not_be_a_msf: speculative constant type checker: p must not be a msf
 Failed as expected should_be_a_msf: speculative constant type checker: p should be a msf
 Failed as expected at_least_transient: speculative constant type checker: security annotation for p should be at least transient
