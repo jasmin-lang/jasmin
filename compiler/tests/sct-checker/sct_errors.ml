@@ -6,10 +6,10 @@ let () =
   let check_fails f =
     match Sct_checker_forward.ty_prog p [ f ] with
     | exception Annot.AnnotationError (loc, msg) ->
-        Format.printf "Annotation error in %s: %a %t@." f Location.pp_loc loc
-          msg
+        Format.printf "Annotation error in %s: %t@." f msg
     | exception Utils.HiError e ->
-        Format.printf "Failed as expected %s: %a@." f Utils.pp_hierror e
+        Format.printf "Failed as expected %s: %a@." f Utils.pp_hierror
+          { e with err_loc = Lnone }
     | _ -> assert false
   in
   List.iter check_fails
