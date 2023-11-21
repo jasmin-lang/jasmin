@@ -110,6 +110,19 @@ output corruption: #transient
  constraints:
 
 
+File for_loop.jazz:
+modmsf for_inference_bug1 : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+modmsf for_inference_bug2 : #transient ->
+#public
+output corruption: #public
+ constraints:
+
+
 File local-stack-array.jazz:
 modmsf main : #transient ->
 #public

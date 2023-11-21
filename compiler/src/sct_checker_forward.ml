@@ -275,7 +275,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
     check_x ms x;
     let rec loop ms =
       let ms' = infer_msf_c ~withcheck fenv tbl c ms in
-      if Sv.subset ms' ms then (Hashtbl.add tbl i.i_loc ms'; ms')
+      if Sv.subset ms' ms then (Hashtbl.add tbl i.i_loc ms; ms)
       else loop (Sv.union ms' ms) in
     loop ms
 
@@ -1281,9 +1281,19 @@ let init_constraint fenv f =
            if Option.default false msf then Sv.add (L.unloc x) s else s)
          Sv.empty f.f_ret tyout) in
 
-  if export && not (Sv.is_empty msfs) then
-    error ~loc:f.f_loc
-      "%a need to be a msf, this is not allowed in export function" pp_vset msfs;
+  if export && not (Sv.is_empty msfs) then begin
+    let vars_kind, pos =
+      if Sv.subset msfs (Sv.of_list f.f_args)
+      then "arguments", ", this is not allowed for export functions"
+      else "variables", ""
+    in
+    error
+      ~loc:f.f_loc
+      "@[<h>the %s %a need to be MSFs%s.@]"
+      vars_kind
+      pp_vset msfs
+      pos
+  end;
 
   (* process function inputs *)
   let process_param venv x =
