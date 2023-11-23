@@ -86,17 +86,34 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "or (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
-  | _ -> raise NoTranslation
+  | Papp2(Omod (Cmp_w (Signed,_)), e1, e2) ->
+    Format.fprintf fmt "smod (%a) (%a)"
+      pp_rexp e1
+      pp_rexp e2
+  | Papp2(Omod (Cmp_w (Unsigned,_)), e1, e2) ->
+    Format.fprintf fmt "umod (%a) (%a)"
+      pp_rexp e1
+      pp_rexp e2
+  | _ ->
+    Format.eprintf "No Translation for pexpr in rexp: %a@." Printer.pp_pexpr e;
+    raise NoTranslation
 
 let rec pp_rpred fmt e =
   match e with
   | Pbool (true) -> Format.fprintf fmt "true"
   | Papp1(Onot, e) ->
     Format.fprintf fmt "~(%a)" pp_rpred e
+
+  | Papp2(Oeq _, e1, e2)  ->
+    Format.fprintf fmt "eq (%a) (%a)"
+      pp_rexp e1
+      pp_rexp e2
+
   | Papp2(Obeq, e1, e2)  ->
     Format.fprintf fmt "eq (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
+
   | Papp2(Oand, e1, e2)  ->
     Format.fprintf fmt "(%a) /\\ (%a)"
       pp_rpred e1
@@ -144,7 +161,7 @@ let rec pp_rpred fmt e =
       pp_rpred e1
       pp_rpred e3
   | _ ->
-    (* Format.eprintf "No Translation for opn: %a@." Printer.pp_pexpr e; *)
+    Format.eprintf "No Translation for pexp in rpred: %a@." Printer.pp_pexpr e;
     raise NoTranslation
 
 let rec pp_eexp fmt e =
@@ -174,7 +191,7 @@ let rec pp_eexp fmt e =
 let rec  pp_epred fmt e =
   match e with
   | Pbool (true) -> Format.fprintf fmt "true"
-  | Papp2(Obeq, e1, e2)  ->
+  | Papp2(Oeq _, e1, e2)  ->
     Format.fprintf fmt "eq (%a) (%a)"
       pp_eexp e1
       pp_eexp e2
@@ -366,7 +383,40 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 0, int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
 
-    | _ -> raise NoTranslation
+
+(*     -  | MOVSX (ws1, ws2) -> *)
+(* -    Format.fprintf fmt "cast %a%a %a" *)
+(* -      pp_lval (List.nth xs 0) *)
+(* -      pp_uint ws1 *)
+(* -      pp_expr (List.nth es 0) *)
+(* - *)
+  | MOVZX (ws1, ws2) ->
+    Format.fprintf fmt "cast %a %a %a"
+      pp_uint (int_of_ws ws1)
+      pp_lval (List.nth xs 0, int_of_ws ws1)
+      pp_atome (List.nth es 0, int_of_ws ws2)
+
+(*     -  | VPAND ws -> *)
+(* -    Format.fprintf fmt "and %a%a %a %a" *)
+(* -      pp_lval (List.nth xs 0) pp_uint ws *)
+(* -      pp_expr (List.nth es 0) *)
+(* -      pp_expr (List.nth es 1) *)
+(* - *)
+(* -  | VPANDN ws -> *)
+(* -    Format.fprintf fmt "not %a%a %a%a;\nand %a%a %a%a %a%a" *)
+(* -      pp_lval (List.nth xs 5) pp_uint ws *)
+(* -      pp_expr (List.nth es 0) pp_uint ws *)
+(* -      pp_lval (List.nth xs 5) pp_uint ws *)
+(* -      pp_lval (List.nth xs 5) pp_uint ws *)
+(* -      pp_expr (List.nth es 1) pp_uint ws *)
+(* - *)
+(* -  | VPOR ws -> *)
+(* -    Format.fprintf fmt "or %a%a %a%a %a%a" *)
+(* -      pp_lval (List.nth xs 0) pp_uint ws *)
+(* -      pp_expr (List.nth es 0) pp_uint ws *)
+(* -      pp_expr (List.nth es 1) pp_uint ws *)
+
+  | _ -> raise NoTranslation
 
 
 let pp_extop fmt xs o es =
@@ -410,12 +460,10 @@ let pp_i pd asmOp fmt i =
     begin
       try
         match t with
-        | Expr.Assert -> Format.fprintf fmt efmt "assert" pp_pred e (* (Obj.magic e) *)
-        | Expr.Assume -> Format.fprintf fmt efmt "assume" pp_pred e (* (Obj.magic e) *)
+        | Expr.Assert -> Format.fprintf fmt efmt "assert" pp_pred (* e *) (Obj.magic e)
+        | Expr.Assume -> Format.fprintf fmt efmt "assume" pp_pred (* e *) (Obj.magic e)
         | Expr.Cut -> assert false
-      with NoTranslation ->
-        Format.eprintf "No Translation for assert: %a@."
-          (Printer.pp_instr ~debug:true pd asmOp) i
+      with NoTranslation -> ()
     end
   | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ -> assert false
   | Cassgn (a, _, _, e) ->
