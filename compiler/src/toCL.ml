@@ -59,7 +59,7 @@ let rec pp_rexp fmt e =
   | Papp1 (Oword_of_int ws, x) ->
     Format.fprintf fmt "limbs %i [%a@%i]" (int_of_ws ws) pp_rexp x (int_of_ws ws)
   | Papp1(Oneg _, e) ->
-    Format.fprintf fmt "neg (%a)" pp_rexp e
+    Format.fprintf fmt "-(%a)" pp_rexp e
   | Papp1(Olnot _, e) ->
     Format.fprintf fmt "not (%a)" pp_rexp e
   | Papp2(Oadd _, e1, e2) ->
@@ -90,8 +90,8 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "smod (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
-  | Papp2(Omod (Cmp_w (Unsigned,_)), e1, e2) ->
-    Format.fprintf fmt "umod (%a) (%a)"
+  | Papp2(Olsl _, e1, e2) ->
+    Format.fprintf fmt "shl (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
   | _ ->
@@ -103,17 +103,14 @@ let rec pp_rpred fmt e =
   | Pbool (true) -> Format.fprintf fmt "true"
   | Papp1(Onot, e) ->
     Format.fprintf fmt "~(%a)" pp_rpred e
-
   | Papp2(Oeq _, e1, e2)  ->
     Format.fprintf fmt "eq (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
-
   | Papp2(Obeq, e1, e2)  ->
     Format.fprintf fmt "eq (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
-
   | Papp2(Oand, e1, e2)  ->
     Format.fprintf fmt "(%a) /\\ (%a)"
       pp_rpred e1
@@ -242,8 +239,7 @@ let pp_baseop fmt xs o es =
       | Pvar x ->
         let ws_x = ws_of_ty (L.unloc x.gv).v_ty in
         if ws_x != ws (* implicit cast *)
-        then Format.fprintf fmt "cast %a %a %a"
-            pp_uint (int_of_ws ws)
+        then Format.fprintf fmt "cast %a %a"
             pp_lval (List.nth xs 0, int_of_ws ws)
             pp_atome (List.nth es 0, int_of_ws ws_x)
         else Format.fprintf fmt "mov %a %a"
@@ -391,8 +387,7 @@ let pp_baseop fmt xs o es =
 (* -      pp_expr (List.nth es 0) *)
 (* - *)
   | MOVZX (ws1, ws2) ->
-    Format.fprintf fmt "cast %a %a %a"
-      pp_uint (int_of_ws ws1)
+    Format.fprintf fmt "cast %a %a"
       pp_lval (List.nth xs 0, int_of_ws ws1)
       pp_atome (List.nth es 0, int_of_ws ws2)
 
