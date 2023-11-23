@@ -86,6 +86,10 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "or (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
+  | Papp2(Omod (Cmp_w (Unsigned,_)), e1, e2) ->
+    Format.fprintf fmt "umod (%a) (%a)"
+      pp_rexp e1
+      pp_rexp e2
   | Papp2(Omod (Cmp_w (Signed,_)), e1, e2) ->
     Format.fprintf fmt "smod (%a) (%a)"
       pp_rexp e1
