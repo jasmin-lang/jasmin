@@ -98,6 +98,10 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "shl (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
+ | Papp2(Olsr _, e1, e2) ->
+    Format.fprintf fmt "shr (%a) (%a)"
+      pp_rexp e1
+      pp_rexp e2
   | _ ->
     Format.eprintf "No Translation for pexpr in rexp: %a@." Printer.pp_pexpr e;
     raise NoTranslation
