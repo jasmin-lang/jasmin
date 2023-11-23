@@ -35,24 +35,6 @@ module Impl (A : Arch') = struct
 
   open Jasmin
 
-  type int256 = int64 * int64 * int64 * int64;;
-  let int256_to_z = fun (v : int256) ->
-    let (a, b, c, d) = v in
-    let p = Z.of_int64_unsigned(d) in
-    let q = Z.of_int64_unsigned(c) in
-    let r = Z.of_int64_unsigned(b) in
-    let s = Z.of_int64_unsigned(a) in
-    let result = Z.add (Z.add (Z.shift_left p 192) (Z.shift_left q 128)) (Z.add (Z.shift_left r 64) (Z.shift_left s 0)) in
-    result
-
-  let z_to_int256 = fun  (v : Z.t) ->
-    let bitmask64 = 0xFFFFFFFFFFFFFFFFL in
-    let a = Z.to_int64_unsigned (Z.logand (Z.shift_right v 192) (Z.of_int64_unsigned bitmask64)) in
-    let b = Z.to_int64_unsigned (Z.logand (Z.shift_right v 128) (Z.of_int64_unsigned bitmask64)) in
-    let c = Z.to_int64_unsigned (Z.logand (Z.shift_right v 64) (Z.of_int64_unsigned bitmask64)) in
-    let d = Z.to_int64_unsigned (Z.logand (Z.shift_right v 0) (Z.of_int64_unsigned bitmask64)) in
-    ( d, c, b, a)
-
   let init_memory =
     match Evaluator.initial_memory A.reg_size (Z.of_int 1024) [] with
     | Utils0.Error _err -> assert false
@@ -83,16 +65,6 @@ module Impl (A : Arch') = struct
         (fun r -> (Conv.string_of_cstring (arch_decl.toS_r.to_string r), r))
         arch_decl.toS_r._finC.cenum
     in
-    let regx_names =
-      List.map
-        (fun r -> (Conv.string_of_cstring (arch_decl.toS_rx.to_string r), r))
-        arch_decl.toS_rx._finC.cenum
-    in
-    let xreg_names =
-      List.map
-        (fun r -> (Conv.string_of_cstring (arch_decl.toS_x.to_string r), r))
-        arch_decl.toS_x._finC.cenum
-    in
     let cond_names =
       List.map
         (fun c -> (Conv.string_of_cstring (arch_decl.toS_c.to_string c), c))
@@ -101,12 +73,6 @@ module Impl (A : Arch') = struct
     fun arg ->
       try
         Arch_decl.Reg (List.assoc arg reg_names)
-      with Not_found ->
-      try
-        Arch_decl.Regx (List.assoc arg regx_names)
-      with Not_found ->
-      try
-        Arch_decl.XReg (List.assoc arg xreg_names)
       with Not_found ->
         try
           Arch_decl.Condt (List.assoc arg cond_names)
@@ -131,20 +97,6 @@ module Impl (A : Arch') = struct
         Z.pp_print (Conv.z_of_cz (Exec.read_reg Syscall_ocaml.sc_sem A.asm_e._asm asm_state r)))
       arch_decl.toS_r._finC.cenum
 
-  let pp_regxs fmt asm_state =
-    List.iter (fun rx ->
-      Format.fprintf fmt "%a: %a@;"
-        PrintCommon.pp_string0 (arch_decl.toS_rx.to_string rx)
-        Z.pp_print (Conv.z_of_cz (Exec.read_regx Syscall_ocaml.sc_sem A.asm_e._asm asm_state rx)))
-      arch_decl.toS_rx._finC.cenum
-
-  let pp_xregs fmt asm_state =
-    List.iter (fun rx ->
-      Format.fprintf fmt "%a: %a@;"
-        PrintCommon.pp_string0 (arch_decl.toS_x.to_string rx)
-        Z.pp_print (Conv.z_of_cz (Exec.read_xreg Syscall_ocaml.sc_sem A.asm_e._asm asm_state rx)))
-      arch_decl.toS_x._finC.cenum
-
   let pp_flags fmt asm_state =
     List.iter (fun f ->
       Format.fprintf fmt "%a: %a@;"
@@ -153,46 +105,22 @@ module Impl (A : Arch') = struct
       arch_decl.toS_f._finC.cenum
 
   let pp_asm_state fmt asm_state =
-    Format.fprintf fmt "@[<v>%a@;%a%a%a%a@]"
+    Format.fprintf fmt "@[<v>%a@;%a%a@]"
       pp_ip asm_state
       pp_regs asm_state
-      pp_regxs asm_state
-      pp_xregs asm_state
       pp_flags asm_state
 
   let regs_of_val l =
     List.map2 (fun r v -> (arch_decl.toS_r.to_string r, J.Conv.cz_of_z (Z.of_int32_unsigned v))) arch_decl.toS_r._finC.cenum l
-  let regxs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_rx.to_string r, J.Conv.cz_of_z (Z.of_int32_unsigned v))) arch_decl.toS_rx._finC.cenum l
-  let xregs_of_val l =
-    List.map2 (fun r v -> (arch_decl.toS_x.to_string r, J.Conv.cz_of_z (Z.of_int64_unsigned v))) arch_decl.toS_x._finC.cenum l
   let flags_of_val l =
     List.map2 (fun f v -> (arch_decl.toS_f.to_string f, v)) arch_decl.toS_f._finC.cenum l
 
 let parse_and_exec op args regs regxs xregs flags =
-(*  let module A =
-    Arch_from_Core_arch'
-      ((val match arch with
-            | Amd64 ->
-                (module (struct include (val J.CoreArchFactory.core_arch_x86 ~use_lea:false
-                               ~use_set0:false call_conv) let pp_instr = J.Ppasm.pp_instr "name" end)
-                : Core_arch')
-            | CortexM ->
-                (module struct include J.CoreArchFactory.Core_arch_ARM let pp_instr = J.Pp_arm_m4.print_instr "name" end : Core_arch'))) in
-  let module Impl = Impl(A) in
-  (* we need to sync with glob_options for [tt_prim] to work, this is ugly *)
-  begin match arch with
-  | CortexM -> J.Glob_options.target_arch := ARM_M4
-  | _ -> ()
-  end; *)
-
   let reg_values =
       try
         let l1 = regs_of_val regs in
-        let l2 = regxs_of_val regxs in
-        let l3 = xregs_of_val xregs in
-        l1 @ l2 @ l3
-      with Invalid_argument _ -> Format.eprintf "Not the right number of regs/regxs/xregs.@."; exit 1
+        l1
+      with Invalid_argument _ -> Format.eprintf "Not the right number of regs.@."; exit 1
   in
 
   let flag_values =
@@ -336,8 +264,6 @@ let is_correct asm_arr =
       result := !result && (jasm.(i) = casm.(i))
     done;
 
-    (* check xmm registers  *)
-
     (* Checking the 4 flags  *)
     let j_rflagv_encoding r =
       let open A in
@@ -399,131 +325,19 @@ let () =
     let clr    = Crowbar.int32 in
     let csp    = Crowbar.int32 in
 
-    (* let cxmm0_0 = Crowbar.int64 in
-    let cxmm0_1 = Crowbar.int64 in
-    let cxmm0_2 = Crowbar.int64 in
-    let cxmm0_3 = Crowbar.int64 in
-
-    let cxmm1_0 = Crowbar.int64 in
-    let cxmm1_1 = Crowbar.int64 in
-    let cxmm1_2 = Crowbar.int64 in
-    let cxmm1_3 = Crowbar.int64 in
-
-    let cxmm2_0 = Crowbar.int64 in
-    let cxmm2_1 = Crowbar.int64 in
-    let cxmm2_2 = Crowbar.int64 in
-    let cxmm2_3 = Crowbar.int64 in
-
-    let cxmm3_0 = Crowbar.int64 in
-    let cxmm3_1 = Crowbar.int64 in
-    let cxmm3_2 = Crowbar.int64 in
-    let cxmm3_3 = Crowbar.int64 in
-
-    let cxmm4_0 = Crowbar.int64 in
-    let cxmm4_1 = Crowbar.int64 in
-    let cxmm4_2 = Crowbar.int64 in
-    let cxmm4_3 = Crowbar.int64 in
-
-    let cxmm5_0 = Crowbar.int64 in
-    let cxmm5_1 = Crowbar.int64 in
-    let cxmm5_2 = Crowbar.int64 in
-    let cxmm5_3 = Crowbar.int64 in
-
-    let cxmm6_0 = Crowbar.int64 in
-    let cxmm6_1 = Crowbar.int64 in
-    let cxmm6_2 = Crowbar.int64 in
-    let cxmm6_3 = Crowbar.int64 in
-
-    let cxmm7_0 = Crowbar.int64 in
-    let cxmm7_1 = Crowbar.int64 in
-    let cxmm7_2 = Crowbar.int64 in
-    let cxmm7_3 = Crowbar.int64 in
-
-    let cxmm8_0 = Crowbar.int64 in
-    let cxmm8_1 = Crowbar.int64 in
-    let cxmm8_2 = Crowbar.int64 in
-    let cxmm8_3 = Crowbar.int64 in
-
-    let cxmm9_0 = Crowbar.int64 in
-    let cxmm9_1 = Crowbar.int64 in
-    let cxmm9_2 = Crowbar.int64 in
-    let cxmm9_3 = Crowbar.int64 in
-
-    let cxmm10_0 = Crowbar.int64 in
-    let cxmm10_1 = Crowbar.int64 in
-    let cxmm10_2 = Crowbar.int64 in
-    let cxmm10_3 = Crowbar.int64 in
-
-    let cxmm11_0 = Crowbar.int64 in
-    let cxmm11_1 = Crowbar.int64 in
-    let cxmm11_2 = Crowbar.int64 in
-    let cxmm11_3 = Crowbar.int64 in
-
-    let cxmm12_0 = Crowbar.int64 in
-    let cxmm12_1 = Crowbar.int64 in
-    let cxmm12_2 = Crowbar.int64 in
-    let cxmm12_3 = Crowbar.int64 in
-
-    let cxmm13_0 = Crowbar.int64 in
-    let cxmm13_1 = Crowbar.int64 in
-    let cxmm13_2 = Crowbar.int64 in
-    let cxmm13_3 = Crowbar.int64 in
-
-    let cxmm14_0 = Crowbar.int64 in
-    let cxmm14_1 = Crowbar.int64 in
-    let cxmm14_2 = Crowbar.int64 in
-    let cxmm14_3 = Crowbar.int64 in
-
-    let cxmm15_0 = Crowbar.int64 in
-    let cxmm15_1 = Crowbar.int64 in
-    let cxmm15_2 = Crowbar.int64 in
-    let cxmm15_3 = Crowbar.int64 in *)
-
     (* shifting rflags to last to maintain the struct packing *)
     let crflags = Crowbar.int32 in
 
     Crowbar.map [
-                  cr0;     cr1;     cr2;     cr3;     cr4;     cr5;     cr6;     cr7;
-                  cr8;      cr9;      cr10;     cr11;     cr12;     clr;     csp;
-                  (* cxmm0_0;  cxmm0_1;  cxmm0_2;  cxmm0_3;  cxmm1_0;  cxmm1_1;  cxmm1_2;  cxmm1_3;
-                  cxmm2_0;  cxmm2_1;  cxmm2_2;  cxmm2_3;  cxmm3_0;  cxmm3_1;  cxmm3_2;  cxmm3_3;
-                  cxmm4_0;  cxmm4_1;  cxmm4_2;  cxmm4_3;  cxmm5_0;  cxmm5_1;  cxmm5_2;  cxmm5_3;
-                  cxmm6_0;  cxmm6_1;  cxmm6_2;  cxmm6_3;  cxmm7_0;  cxmm7_1;  cxmm7_2;  cxmm7_3;
-                  cxmm8_0;  cxmm8_1;  cxmm8_2;  cxmm8_3;  cxmm9_0;  cxmm9_1;  cxmm9_2;  cxmm9_3;
-                  cxmm10_0; cxmm10_1; cxmm10_2; cxmm10_3; cxmm11_0; cxmm11_1; cxmm11_2; cxmm11_3;
-                  cxmm12_0; cxmm12_1; cxmm12_2; cxmm12_3; cxmm13_0; cxmm13_1; cxmm13_2; cxmm13_3;
-                  cxmm14_0; cxmm14_1; cxmm14_2; cxmm14_3; cxmm15_0; cxmm15_1; cxmm15_2; cxmm15_3; *)
-                  crflags;
+                  cr0;  cr1;  cr2;  cr3;  cr4;  cr5;  cr6;  cr7;
+                  cr8;  cr9;  cr10; cr11; cr12; clr;  csp;  crflags;
                 ] (
       fun r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 lr sp
-          (* xmm0_0 xmm0_1 xmm0_2 xmm0_3 xmm1_0 xmm1_1 xmm1_2 xmm1_3
-          xmm2_0 xmm2_1 xmm2_2 xmm2_3 xmm3_0 xmm3_1 xmm3_2 xmm3_3
-          xmm4_0 xmm4_1 xmm4_2 xmm4_3 xmm5_0 xmm5_1 xmm5_2 xmm5_3
-          xmm6_0 xmm6_1 xmm6_2 xmm6_3 xmm7_0 xmm7_1 xmm7_2 xmm7_3
-          xmm8_0 xmm8_1 xmm8_2 xmm8_3 xmm9_0 xmm9_1 xmm9_2 xmm9_3
-          xmm10_0 xmm10_1 xmm10_2 xmm10_3 xmm11_0 xmm11_1 xmm11_2 xmm11_3
-          xmm12_0 xmm12_1 xmm12_2 xmm12_3 xmm13_0 xmm13_1 xmm13_2 xmm13_3
-          xmm14_0 xmm14_1 xmm14_2 xmm14_3 xmm15_0 xmm15_1 xmm15_2 xmm15_3 *)
           rflags ->
-          let my_array = [|r0; r1; r2; r3; r4; r5; r6; r7;
-                          r8; r9; r10; r11; r12; lr; sp;
-                          r0; r1; r2; r3; r4; r5; r6; r7;
-                          r8; r9; r10; r11; r12; lr; sp;
-                          r0; r1; r2; r3; r4; r5; r6; r7;
-                          r8; r9; r10; r11; r12; lr; sp;
-                          r0; r1; r2; r3; r4; r5; r6; r7;
-                          r8; r9; r10; r11; r12; lr; sp;
-                          r0; r1; r2; r3; r4; r5; r6; r7;
-                          r8; r9; r10; r11; r12; lr; sp;
-                          (* xmm0_0; xmm0_1; xmm0_2; xmm0_3; xmm1_0; xmm1_1; xmm1_2; xmm1_3;
-                          xmm2_0; xmm2_1; xmm2_2; xmm2_3; xmm3_0; xmm3_1; xmm3_2; xmm3_3;
-                          xmm4_0; xmm4_1; xmm4_2; xmm4_3; xmm5_0; xmm5_1; xmm5_2; xmm5_3;
-                          xmm6_0; xmm6_1; xmm6_2; xmm6_3; xmm7_0; xmm7_1; xmm7_2; xmm7_3;
-                          xmm8_0; xmm8_1; xmm8_2; xmm8_3; xmm9_0; xmm9_1; xmm9_2; xmm9_3;
-                          xmm10_0; xmm10_1; xmm10_2; xmm10_3; xmm11_0; xmm11_1; xmm11_2; xmm11_3;
-                          xmm12_0; xmm12_1; xmm12_2; xmm12_3; xmm13_0; xmm13_1; xmm13_2; xmm13_3;
-                          xmm14_0; xmm14_1; xmm14_2; xmm14_3; xmm15_0; xmm15_1; xmm15_2; xmm15_3; *)
-                          rflags|] in
+          let my_array = [|
+                            r0;  r1;  r2;   r3;   r4;   r5;   r6;   r7;
+                            r8;  r9;  r10;  r11;  r12;  lr;   sp;   rflags
+                          |] in
         my_array
     )
   in
