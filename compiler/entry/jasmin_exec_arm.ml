@@ -186,9 +186,7 @@ let rflags  = field asm_state "rflags" int32_t
 
 let ()      = seal asm_state
 
-(* let increment_rax = foreign "increment_rax" (ptr asm_state @-> returning void) *)
-let set_execute_get = foreign "set_execute_get_wrapper" (ptr asm_state @-> returning void)
-(* let set_execute_get_emulator = foreign "set_execute_get_emulator" (ptr asm_state @-> returning void) *)
+let set_execute_get_arm_emulator = foreign "set_execute_get_arm_emulator" (ptr asm_state @-> returning void)
 
 let op_ref = ref ""
 let args_ref = ref []
@@ -235,8 +233,7 @@ let is_correct asm_arr =
     in
     let flags = !flags_ref in
 
-    set_execute_get (addr state);
-    (* set_execute_get_emulator (addr state); *)
+    set_execute_get_arm_emulator (addr state);
     let new_state = parse_and_exec arch call_conv !op_ref !args_ref regs regxs xregs flags in
     (* TODO: do we need jregs? *)
     let jregs: A.reg array = [|R00; R01; R02; R03; R04; R05; R06; R07; R08; R09; R10; R11; R12; LR; SP|] in
@@ -257,10 +254,7 @@ let is_correct asm_arr =
     in
 
     let result = ref true in
-    for i = 0 to 14 do
-      (* FIXME: the condition was copied from x86, change it to ignore the right registers *)
-      (* Skip checking rsp and rbp values *)
-      if i <> 4 && i <> 5 then
+    for i = 0 to 13 do
       result := !result && (jasm.(i) = casm.(i))
     done;
 
@@ -302,7 +296,7 @@ let is_correct asm_arr =
   Crowbar.check(check state asm_arr)
 
 let () =
-  let op_args_file = "op_args.txt" in
+  let op_args_file = "op_args_arm.txt" in
   let my_arg_array = Stdlib.Arg.read_arg op_args_file in
   op_ref := my_arg_array.(0);                               (* ADD *)
   if Array.length my_arg_array > 1 then

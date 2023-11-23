@@ -1,7 +1,7 @@
 CC=clang
 AR=llvm-ar
 # KS_UC_FLAGS=-lkeystone -lunicorn -L${HOME}/myapps/lib
-KS_UC_FLAGS=
+KS_UC_FLAGS=-lkeystone -lunicorn
 
 all: libfoo.so libfoo.a dllfoo.so
 

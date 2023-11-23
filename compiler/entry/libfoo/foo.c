@@ -111,6 +111,182 @@ struct asm_state {
     int64_t rflags;
 };
 
+struct asm_state_arm {
+    int32_t r0;
+    int32_t r1;
+    int32_t r2;
+    int32_t r3;
+    int32_t r4;
+    int32_t r5;
+    int32_t r6;
+    int32_t r7;
+    int32_t r8;
+    int32_t r9;
+    int32_t r10;
+    int32_t r11;
+    int32_t r12;
+    int32_t lr;
+    int32_t sp;
+    int32_t rflags;
+};
+
+void set_execute_get_arm_emulator(struct asm_state_arm *state) {
+    FILE* fd = NULL;
+    char asm_instr[32] = {0};
+
+    // Keystone Stuff
+    ks_engine *ks;
+    ks_err k_err;
+    size_t count;
+    size_t size;
+    unsigned char *encode;
+
+    // Unicorn Stuff
+    uc_engine *uc;
+    uc_err err;
+
+    fd = fopen("asm_instr_arm.txt", "r");
+    if (NULL == fd) {
+        printf("File asm_instr.txt cannot be opened\n");
+        return;
+    } else {
+        if (fgets(asm_instr, 32, fd) == NULL) {
+            printf("Couldn't read the asm_instr in the file\n");
+            return;
+        }
+        fclose(fd);
+    }
+    printf("The asm string to emulate: %s\n", asm_instr);
+
+    // Keystone Ops
+    // TODO: fix this
+    k_err = ks_open(KS_ARCH_ARM, KS_MODE_ARM, &ks);
+    if (k_err != KS_ERR_OK) {
+        printf("ERROR: failed on ks_open(), quit\n");
+        return;
+    }
+
+    k_err = ks_asm(ks, asm_instr, 0, &encode, &size, &count);
+    if( k_err != KS_ERR_OK) {
+        printf("ERROR: ks_asm() failed & count = %lu, error = %u\n", count, ks_errno(ks));
+
+        // cleanup KS
+        ks_close(ks);
+        return;
+    } else {
+        size_t i;
+        printf("assembled code in hex is \n");
+        for(i = 0; i < size; i++) {
+            printf("%02x ", encode[i]);
+        }
+        printf("\n");
+        printf("Compiled: %lu bytes, statements: %lu\n", size, count);
+    }
+
+    // below code is imp
+    int32_t sp = ADDRESS + 0x200000;
+
+    printf("Emulate x86_64 code\n");
+
+    // Initialize emulator in X86-64bit mode
+    err = uc_open(UC_ARCH_ARM, UC_MODE_ARM, &uc);
+    if (err) {
+        printf("Failed on uc_open() with error returned: %u\n", err);
+        return;
+    }
+
+    // map 2MB memory for this emulation
+    uc_mem_map(uc, ADDRESS, 2 * 1024 * 1024, UC_PROT_ALL);
+
+    // write machine code to be emulated to memory
+    if (uc_mem_write(uc, ADDRESS, encode, size)) {
+        printf("Failed to write emulation code to memory, quit!\n");
+
+        // cleanup UC
+        uc_close(uc);
+
+        // cleanup KS
+        ks_free(encode);
+        ks_close(ks);
+
+        return;
+    }
+
+    // initialize machine registers
+    uc_reg_write(uc, UC_ARM_REG_SP, &sp);
+
+    uc_reg_write(uc, UC_ARM_REG_R0, &state->r0);
+    uc_reg_write(uc, UC_ARM_REG_R1, &state->r1);
+    uc_reg_write(uc, UC_ARM_REG_R2, &state->r2);
+    uc_reg_write(uc, UC_ARM_REG_R3, &state->r3);
+    uc_reg_write(uc, UC_ARM_REG_R4, &state->r4);
+    uc_reg_write(uc, UC_ARM_REG_R5, &state->r5);
+    uc_reg_write(uc, UC_ARM_REG_R6, &state->r6);
+    uc_reg_write(uc, UC_ARM_REG_R7, &state->r7);
+    uc_reg_write(uc, UC_ARM_REG_R8, &state->r8);
+    uc_reg_write(uc, UC_ARM_REG_R9, &state->r9);
+    uc_reg_write(uc, UC_ARM_REG_R10, &state->r10);
+    uc_reg_write(uc, UC_ARM_REG_R11, &state->r11);
+    uc_reg_write(uc, UC_ARM_REG_R12, &state->r12);
+    uc_reg_write(uc, UC_ARM_REG_LR, &state->lr);
+
+
+    err = uc_emu_start(uc, ADDRESS, ADDRESS + size, 0, 0);
+    if (err) {
+        printf("Failed on uc_emu_start() with error returned %u: %s\n", err,
+               uc_strerror(err));
+
+        // cleanup UC
+        uc_close(uc);
+
+        // cleanup KS
+        ks_free(encode);
+        ks_close(ks);
+
+        return;
+    }
+
+    // now print out some registers
+    printf("Emulation done. Below is the CPU context\n");
+
+    uc_reg_read(uc, UC_ARM_REG_R0, &state->r0);
+    uc_reg_read(uc, UC_ARM_REG_R1, &state->r1);
+    uc_reg_read(uc, UC_ARM_REG_R2, &state->r2);
+    uc_reg_read(uc, UC_ARM_REG_R3, &state->r3);
+    uc_reg_read(uc, UC_ARM_REG_R4, &state->r4);
+    uc_reg_read(uc, UC_ARM_REG_R5, &state->r5);
+    uc_reg_read(uc, UC_ARM_REG_R6, &state->r6);
+    uc_reg_read(uc, UC_ARM_REG_R7, &state->r7);
+    uc_reg_read(uc, UC_ARM_REG_R8, &state->r8);
+    uc_reg_read(uc, UC_ARM_REG_R9, &state->r9);
+    uc_reg_read(uc, UC_ARM_REG_R10, &state->r10);
+    uc_reg_read(uc, UC_ARM_REG_R11, &state->r11);
+    uc_reg_read(uc, UC_ARM_REG_R12, &state->r12);
+    uc_reg_read(uc, UC_ARM_REG_LR, &state->lr);
+
+    printf("UC_R0 = 0x%" PRIx32 "\n", state->r0);
+    printf("UC_R1 = 0x%" PRIx32 "\n", state->r1);
+    printf("UC_R2 = 0x%" PRIx32 "\n", state->r2);
+    printf("UC_R3 = 0x%" PRIx32 "\n", state->r3);
+    printf("UC_R4 = 0x%" PRIx32 "\n", state->r4);
+    printf("UC_R5 = 0x%" PRIx32 "\n", state->r5);
+    printf("UC_R6 = 0x%" PRIx32 "\n", state->r6);
+    printf("UC_R7 = 0x%" PRIx32 "\n", state->r7);
+    printf("UC_R8 = 0x%" PRIx32 "\n", state->r8);
+    printf("UC_R9 = 0x%" PRIx32 "\n", state->r9);
+    printf("UC_R10 = 0x%" PRIx32 "\n", state->r10);
+    printf("UC_R11 = 0x%" PRIx32 "\n", state->r11);
+    printf("UC_R12 = 0x%" PRIx32 "\n", state->r12);
+    printf("UC_FLAGS = 0x%" PRIx32 "\n", state->rflags);
+
+    // Cleanup UC
+    uc_close(uc);
+
+    // cleanup KS
+    ks_free(encode);
+    ks_close(ks);
+}
+
 extern void set_execute_get(struct asm_state *);
 
 void set_execute_get_wrapper(struct asm_state *state) {
