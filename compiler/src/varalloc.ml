@@ -362,8 +362,7 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   in
   let sao_return =
     match fd.f_cc with
-    | Export -> List.map (fun _ -> None) fd.f_ret
-    | Subroutine {returned_params} -> returned_params
+    | Export {returned_params} | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
 
   let sao_params, atbl = all_alignment pd ctbl alias sao_return fd.f_args lalloc in
@@ -371,7 +370,7 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   let ra_on_stack =
     match fd.f_cc with 
     | Internal -> assert false 
-    | Export -> 
+    | Export _ ->
         if fd.f_annot.retaddr_kind = Some OnReg then 
              Utils.warning Always (L.i_loc fd.f_loc [])
               "for function %s, return address by reg not allowed for export function, annotation is ignored"

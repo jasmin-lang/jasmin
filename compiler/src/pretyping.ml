@@ -1561,7 +1561,7 @@ let mk_call loc inline lvs f es =
   let open P in
   begin match f.f_cc with
   | Internal -> ()
-  | Export ->
+  | Export _ ->
     if not inline then
       let err = string_error "call to export function needs to be inlined" in
       rs_tyerror ~loc err
@@ -1813,20 +1813,7 @@ let tt_call_conv loc params returns cc =
   match cc with
   | Some `Inline -> FInfo.Internal
 
-  | Some `Export ->
-    let check s x = 
-      if (L.unloc x).P.v_kind <> Reg(Normal, Direct) then 
-        rs_tyerror ~loc:(L.loc x) 
-          (string_error "%a has kind %a, only reg are allowed in %s of export function"
-            Printer.pp_pvar (L.unloc x)
-            PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
-    List.iter (check "parameter") params;
-    List.iter (check "result") returns;
-    if 2 < List.length returns then
-      rs_tyerror ~loc (string_error "export function should return at most two arguments");
-    FInfo.Export
-
-  | None         -> 
+  | Some `Export | None ->
     let check s x =
       if not (P.is_reg_kind (L.unloc x).P.v_kind) then 
         rs_tyerror ~loc:(L.loc x) 
@@ -1864,7 +1851,10 @@ let tt_call_conv loc params returns cc =
           rs_tyerror ~loc (string_error "%a is mutable, it should be returned"
                              Printer.pp_pvar x) in
     List.iteri check_writable_param params;
-    FInfo.Subroutine { returned_params }
+    if cc = None then
+      FInfo.Subroutine { returned_params }
+    else
+      FInfo.Export { returned_params }
 
 (* -------------------------------------------------------------------- *)
 
@@ -1889,7 +1879,7 @@ let process_f_annot loc funname f_cc annot =
     let strategy =
       let mk_szs = Annot.filter_string_list None Glob_options.stack_zero_strategies in
       let strategy = Annot.ensure_uniq1 "stackzero" mk_szs annot in
-      if strategy <> None && f_cc <> Export then
+      if strategy <> None && not (FInfo.is_export f_cc) then
         hierror
           ~loc:(Lone loc)
           ~funname
