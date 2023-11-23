@@ -241,7 +241,7 @@ let analyze_prog fds =
   List.fold_right (fun fd () ->
       begin match fd.f_cc with
       | Subroutine si -> Hf.add cc fd.f_name si.returned_params
-      | Export -> ()
+      | Export _ -> ()
       | Internal -> assert false
       end;
       analyze_fd_ignore get_cc fd)

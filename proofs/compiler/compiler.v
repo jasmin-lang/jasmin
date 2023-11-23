@@ -216,21 +216,6 @@ Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
 Definition var_tmp : var :=
   {| vname := lip_tmp liparams; vtype := sword Uptr; |}.
 
-(* Ensure that export functions are preserved *)
-Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
-  assert (pmap remove_return entries == [::]) (pp_internal_error_s "remove return" "Signature of some export functions are modified").
-
-(** Export functions (entry points) shall not have ptr arguments or return values. *)
-Definition allNone {A: Type} (m: seq (option A)) : bool :=
-  all (fun a => if a is None then true else false) m.
-
-Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
-  allM (λ fn,
-       let: sao := ao fn in
-       assert (allNone sao.(sao_params)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” arguments")) >>
-       assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
-    entries.
-
 Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := split_live_ranges_prog p in
   let pv := cparams.(print_uprog) Splitting pv in
@@ -314,7 +299,6 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
-  Let _ := check_removereturn entries rminfo in
   Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
@@ -333,7 +317,6 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
-  Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
   Let ps :=
     stack_alloc.alloc_prog
       true
