@@ -219,21 +219,6 @@ Definition var_tmp2 : var :=
   {| vname := lip_tmp2 liparams; vtype := sword Uptr; |}.
 Definition var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
-(* Ensure that export functions are preserved *)
-Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
-  assert (pmap remove_return entries == [::]) (pp_internal_error_s "remove return" "Signature of some export functions are modified").
-
-(** Export functions (entry points) shall not have ptr arguments or return values. *)
-Definition allNone {A: Type} (m: seq (option A)) : bool :=
-  all (fun a => if a is None then true else false) m.
-
-Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
-  allM (λ fn,
-       let: sao := ao fn in
-       assert (allNone sao.(sao_params)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” arguments")) >>
-       assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
-    entries.
-
 Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := split_live_ranges_prog p in
   let pv := cparams.(print_uprog) Splitting pv in
@@ -318,10 +303,17 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   ok pp.
 
-Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
+Definition compiler_third_part (returned_params: funname -> option (seq (option nat))) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
-  Let _ := check_removereturn entries rminfo in
+  let rminfo fn :=
+    match returned_params fn with
+    | Some l =>
+      let l' := List.map (fun i => if i is None then true else false) l in
+      if all (fun b => b) l' then None else Some l' (* do we want that? *)
+    | None => rminfo fn
+    end
+  in
   Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
@@ -334,13 +326,60 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   ok pd.
 
+(* returns None if not reg ptr, Some false if reg const ptr, Some true if reg mut ptr *)
+Definition wptr_status (x : var_i) :=
+  match Ident.id_kind x.(vname) with
+  | Reg (_, Pointer writable) =>
+    Some match writable with | Writable => true | Constant => false end
+  | _ => None
+  end.
+
+Definition allNone {A: Type} (m: seq (option A)) : bool :=
+  all (fun a => if a is None then true else false) m.
+
+(** Export functions (entry points) have restrictions on ptr arguments and returns.
+    Namely, the reg mut ptr should be the first arguments and returned at the same
+    positions in the return values.
+    This is not a constraint coming from the implementation, it is just meant to give
+    a readable correctness theorem. *)
+Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
+  Let _ :=
+    allM (fun fn =>
+      match get_fundef p.(p_funcs) fn with
+      | None => ok tt
+      | Some fd =>
+        assert
+          (all2
+            (fun (x:var_i) pi => wptr_status x == omap pp_writable pi)
+            fd.(f_params) (ao fn).(sao_params))
+          (pp_at_fi fd.(f_info) (pp_at_fn fn
+            (stack_alloc.E.stk_ierror_no_var "inconsistent wptr_status")))
+      end) entries
+  in
+    allM (fun fn =>
+      match get_fundef p.(p_funcs) fn with
+      | None => ok tt
+      | Some fd =>
+        let n := find (fun x => wptr_status x != Some true) fd.(f_params) in
+        assert
+          ((take n (ao fn).(sao_return) == map Some (iota 0 n)) &&
+            allNone (drop n (ao fn).(sao_return)))
+          (pp_at_fi fd.(f_info) (pp_at_fn fn
+            (stack_alloc.E.stk_error_no_var_gen false
+              (pp_nobox [::
+                pp_s "the ordering of the arguments or the results is not correct.";
+                PPEbreak;
+                pp_s "The reg mut ptr must come first in the arguments";
+                pp_s " and be returned first, in the same order, in the results."]))))
+      end) entries.
+
 Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
-  Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
+  Let _ := check_wf_ptr entries p ao.(ao_stack_alloc) in
   Let ps :=
     stack_alloc.alloc_prog
       true
@@ -356,7 +395,10 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
-  Let pd := compiler_third_part entries ps in
+  let returned_params fn :=
+    if fn \in entries then Some (ao_stack_alloc ao fn).(sao_return) else None
+  in
+  Let pd := compiler_third_part returned_params ps in
 
   ok pd.
 

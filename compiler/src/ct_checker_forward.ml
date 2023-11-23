@@ -442,7 +442,7 @@ let get_annot ensure_annot f =
       error ~loc:f.f_loc
            "export functions should be fully annotated, missing some security annotations on %s.@ User option “-infer” to infer them."
            msg in
-  if ensure_annot && f.f_cc = Export then
+  if ensure_annot && FInfo.is_export f.f_cc then
     (check_defined "result types" aout;
      check_defined "function parameters" ainlevels);
   (* fill the missing input type *)

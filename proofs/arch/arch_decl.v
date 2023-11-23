@@ -577,6 +577,7 @@ Record asm_fundef := XFundef
   ; asm_fd_res   : asm_typed_regs
   ; asm_fd_export: bool
   ; asm_fd_total_stack: Z
+  ; asm_fd_align_args : seq wsize
   }.
 
 Record asm_prog : Type :=

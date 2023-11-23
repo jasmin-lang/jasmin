@@ -239,7 +239,7 @@ Proof. SvD.fsetdec. Qed.
 (* ---------------------------------------------------------------- *)
 
 Definition sv_of_option (oa : option Sv.elt) : Sv.t :=
-  omap_dflt Sv.empty Sv.singleton oa.
+  oapp Sv.singleton Sv.empty oa.
 
 (* ---------------------------------------------------------------- *)
 Definition sv_of_list T (f: T → Sv.elt) : seq T → Sv.t :=

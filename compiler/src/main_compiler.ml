@@ -48,7 +48,7 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 
   let () =
     List.iter (fun f_decl ->
-        if f_decl.f_cc = Export then
+        if FInfo.is_export f_decl.f_cc then
           let () = Format.eprintf "@[<v>Analyzing function %s@]@."
               f_decl.f_name.fn_name in
 

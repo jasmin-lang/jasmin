@@ -1240,7 +1240,7 @@ let init_constraint fenv f =
   Hashtbl.add tbl ssecret    (Env.secret2 env);
   (* export function: all input type should be at most transient and msf is not allowed *)
   (* the new version does not take that into accout, does it? *)
-  let export = f.f_cc = Export in
+  let export = FInfo.is_export f.f_cc in
 
   let add_lvl s =
     try Hashtbl.find tbl s

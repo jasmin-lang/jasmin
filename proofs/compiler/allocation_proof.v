@@ -819,16 +819,17 @@ Lemma check_fundef_meta ep1 ep2 ffd1 ffd2 u u' :
   let fd1 := ffd1.2 in
   let fd2 := ffd2.2 in
   [/\
+     sf_align fd1.(f_extra) = sf_align fd2.(f_extra),
      sf_stk_max fd1.(f_extra) = sf_stk_max fd2.(f_extra),
      sf_return_address fd1.(f_extra) = sf_return_address fd2.(f_extra) &
-     sf_align fd1.(f_extra) = sf_align fd2.(f_extra)
+     sf_align_args fd1.(f_extra) = sf_align_args fd2.(f_extra)
   ].
 Proof.
   case: ffd1 ffd2 => f1 fd1 [] f2 fd2.
   rewrite /check_fundef; t_xrbindP => _ r _ r'.
   rewrite /check_f_extra_s; t_xrbindP => /and4P[] /eqP -> _ _.
-  case/and4P => /eqP -> _ _.
-  case/and3P => _ _ /eqP ->.
+  case/and4P => _ /eqP -> _.
+  case/and4P => _ _ /eqP -> /eqP ->.
   done.
 Qed.
 
@@ -860,7 +861,7 @@ Proof.
   split; last by []; first by case: ifP c2.
   rewrite /= /init_stk_state => a b c d.
   case/and4P: c1 => /eqP -> /eqP -> /eqP ->.
-  by case/and4P => _ _ /eqP ->.
+  by case/and4P => /eqP ->.
 Qed.
 
 End SPROG.
