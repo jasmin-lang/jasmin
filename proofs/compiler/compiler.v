@@ -296,9 +296,17 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   ok pp.
 
-Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
+Definition compiler_third_part (returned_params: funname -> option (seq (option nat))) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
+  let rminfo fn :=
+    match returned_params fn with
+    | Some l =>
+      let l' := List.map (fun i => if i is None then true else false) l in
+      if all (fun b => b) l' then None else Some l' (* do we want that? *)
+    | None => rminfo fn
+    end
+  in
   Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
@@ -332,7 +340,14 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
-  Let pd := compiler_third_part entries ps in
+  let returned_params fn :=
+    let sao := ao_stack_alloc ao fn in
+    match sao.(sao_return_address) with
+    | RAnone => Some sao.(sao_return)
+    | _ => None
+    end
+  in
+  Let pd := compiler_third_part returned_params ps in
 
   ok pd.
 

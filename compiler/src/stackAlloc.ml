@@ -205,7 +205,20 @@ let memory_analysis pp_err ~debug up =
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse fds in
-  let tokeep fn = tokeep fn in
+  (* FIXME: the code is duplicated between here and compiler.v, this is horrible *)
+  let returned_params fn =
+    let sao = get_sao fn in
+    match sao.sao_return_address with
+    | RAnone -> Some sao.sao_return
+    | _ -> None
+  in
+  let tokeep fn =
+    match returned_params fn with
+    | Some l ->
+        let l' = List.map ((=) None) l in
+        if List.for_all (fun x -> x) l' then None else Some l'
+    | None -> tokeep fn
+  in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 

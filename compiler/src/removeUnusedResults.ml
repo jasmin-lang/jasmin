@@ -26,12 +26,8 @@ let analyse funcs =
   let live = Hf.create 17 in
   let add (_,fd) =
     let info =
-      match fd.f_cc with
-      | Export {returned_params} ->
-          let keep = List.map ((=) None) returned_params in
-          if List.for_all (fun x -> x) keep then None
-          else Some keep
-      | _ ->
+      if FInfo.is_export fd.f_cc then None
+      else
         let keep = live_results fd.f_name in
         let keep = List.mapi (fun i _ -> Sint.mem i keep) fd.f_ret in
         if List.for_all (fun x -> x) keep then None
