@@ -185,6 +185,7 @@ void set_execute_get_arm_emulator(struct asm_state_arm *state) {
 
     // below code is imp
     int32_t sp = ADDRESS + 0x200000;
+    state->rflags = state->rflags & 0xF0000000; // TODO: check about other non-flag bits
 
     printf("Emulate x86_64 code\n");
 
@@ -229,6 +230,7 @@ void set_execute_get_arm_emulator(struct asm_state_arm *state) {
     uc_reg_write(uc, UC_ARM_REG_R11, &state->r11);
     uc_reg_write(uc, UC_ARM_REG_R12, &state->r12);
     uc_reg_write(uc, UC_ARM_REG_LR, &state->lr);
+    uc_reg_write(uc, UC_ARM_REG_CPSR, &state->rflags);
 
 
     err = uc_emu_start(uc, ADDRESS, ADDRESS + size, 0, 0);
@@ -263,6 +265,7 @@ void set_execute_get_arm_emulator(struct asm_state_arm *state) {
     uc_reg_read(uc, UC_ARM_REG_R11, &state->r11);
     uc_reg_read(uc, UC_ARM_REG_R12, &state->r12);
     uc_reg_read(uc, UC_ARM_REG_LR, &state->lr);
+    uc_reg_read(uc, UC_ARM_REG_CPSR, &state->rflags);
 
     printf("UC_R0 = 0x%" PRIx32 "\n", state->r0);
     printf("UC_R1 = 0x%" PRIx32 "\n", state->r1);
