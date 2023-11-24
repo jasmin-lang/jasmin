@@ -261,6 +261,10 @@ let all_alignment pd ctbl alias ret params lalloc =
         | _ | exception Not_found -> assert false in
       let pi_writable = List.mem (Some i) ret in
       let pi_align = get_align c in 
+      assert (
+        match x.v_ty with
+        | Arr (ws, _) -> Format.eprintf "%a vs %a@." PrintCommon.pp_wsize pi_align PrintCommon.pp_wsize ws; pi_align = ws
+        | _ -> Format.eprintf "blabla@."; false);
       Some { pi_ptr; pi_writable; pi_align } 
     | _ -> assert false in
   let params = List.mapi doparam params in
