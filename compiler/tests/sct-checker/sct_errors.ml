@@ -23,7 +23,6 @@ let () =
       "not_known_as_msf";
       "bad_poly_annot";
       "msf_in_export";
-      "must_not_be_a_msf";
       "should_be_a_msf";
       "at_least_transient";
       "unbound_level";
