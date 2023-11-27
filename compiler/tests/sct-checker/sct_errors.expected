@@ -13,8 +13,7 @@ Failed as expected not_known_as_msf: speculative constant type checker:
 Annotation error in bad_poly_annot: public not allowed as argument of poly
 Failed as expected msf_in_export: speculative constant type checker: 
                                   the arguments { p } need to be MSFs, this is not allowed for export functions.
-Failed as expected must_not_be_a_msf: speculative constant type checker: p must not be a msf
-Failed as expected should_be_a_msf: speculative constant type checker: p should be a msf
+Failed as expected should_be_a_msf: speculative constant type checker: p should be an MSF
 Failed as expected at_least_transient: speculative constant type checker: security annotation for p should be at least transient
 Failed as expected unbound_level: speculative constant type checker: unbound security level hello
 Failed as expected inconsistent_constraint: speculative constant type checker: cannot add constraint secret <= public, it is inconsistent
@@ -26,7 +25,7 @@ Failed as expected call_bad_nomodmsf3: speculative constant type checker: annota
 Failed as expected call_modmsf_destroys: speculative constant type checker: 
                                          this function call destroys MSFs and { msf } are required.
                                          Trace:
-                                           the function modmsf_destroys destroys MSFs at "error_messages.jazz", line 145 (2) to line 147 (3)
+                                           the function modmsf_destroys destroys MSFs at "error_messages.jazz", line 142 (2) to line 144 (3)
 Failed as expected ret_high: speculative constant type checker: return type for p is #secret it should be less than #public
 Failed as expected ret_transient: speculative constant type checker: return type for p is #transient it should be less than #public
 Failed as expected ret_msf: speculative constant type checker: return annotation for msf should be msf

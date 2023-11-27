@@ -186,6 +186,8 @@ and modmsf_c fenv c =
 let error ~loc =
   hierror ~loc:(Lone loc) ~kind:"speculative constant type checker"
 
+let warn ~loc = warning SCTchecker loc
+
 (* --------------------------------------------------------- *)
 (* Inference of the variables that need to contain msf       *)
 (* This code does not need to be trusted it is simply        *)
@@ -1303,9 +1305,12 @@ let init_constraint fenv f =
       match msf with
       | None -> Sv.mem x msfs
       | Some b ->
-        if b <> Sv.mem x msfs then
-          error ~loc:x.v_dloc
-            "%a %s be a msf" pp_var x (if b then "must not" else "should");
+        if b <> Sv.mem x msfs then begin
+          let loc = x.v_dloc in
+          if b
+          then warn ~loc:(L.i_loc0 loc) "%a does not need to be an MSF" pp_var x
+          else error ~loc "%a should be an MSF" pp_var x
+        end;
         b in
     if export then
       begin match vty with
