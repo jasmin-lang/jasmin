@@ -9,9 +9,12 @@ Class SemPexprParams (asm_op syscall_state : Type) :=
   {
     _pd : PointerData;
     _asmop : asmOp asm_op;
-    _fcp :> FlagCombinationParams;
-    _sc_sem :> syscall_sem syscall_state;
+    _fcp : FlagCombinationParams;
+    _sc_sem : syscall_sem syscall_state;
   }.
+
+#[ global ]
+Existing Instances _fcp _sc_sem.
 
 Section SEM_PEXPR_PARAMS.
 
