@@ -43,6 +43,7 @@ Lemma valid_align m p ws :
   is_align p ws.
 Proof. by case/Memory.valid_pointerP. Qed.
 
+#[ local ]
 Hint Resolve is_align_no_overflow valid_align : core.
 
 Section PROOF.

@@ -64,8 +64,11 @@ Proof. by []. Qed.
 Lemma c_Calls_cons i c : c_Calls (i :: c) = Sp.union (i_Calls i) (c_Calls c).
 Proof. by []. Qed.
 
+#[ local ]
 Hint Rewrite i_Calls_MkI  i_Calls_asgn i_Calls_opn   : calls.
+#[ local ]
 Hint Rewrite i_Calls_if   i_Calls_for  i_Calls_while : calls.
+#[ local ]
 Hint Rewrite i_Calls_call c_Calls_nil  c_Calls_cons  : calls.
 
 Definition CallsE :=

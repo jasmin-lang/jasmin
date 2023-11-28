@@ -348,4 +348,5 @@ Module WArray.
 
 End WArray.
 
+#[global]
 Hint Resolve WArray.uincl_refl : core.
