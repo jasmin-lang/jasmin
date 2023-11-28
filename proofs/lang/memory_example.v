@@ -91,6 +91,7 @@ Qed.
 Lemma is_align8 (ptr:pointer) : is_align ptr U8.
 Proof. by rewrite wsize8 /= Z.mod_1_r. Qed.
 
+#[ global ]
 Instance A : alignment :=
   Alignment is_align8 is_align_array is_align_no_overflow.
 
@@ -113,6 +114,7 @@ Proof. rewrite /add /sub wrepr_sub !wrepr_unsigned; ssring. Qed.
 (** An example instance of the memory *)
 Module MemoryI : MemoryT.
 
+  #[ global ]
   Instance A : alignment := Align.A.
 
   Lemma addP p k: add p k = (p + wrepr U64 k)%R.
@@ -217,6 +219,7 @@ Module MemoryI : MemoryT.
     by rewrite /uget /uset /= Mz.setP (eqtype.inj_eq (@wunsigned_inj _)); case: eqP.
   Qed.
 
+  #[ global ]
   Instance CM : coreMem mem pointer :=
     CoreMem add_sub sub_add add_0 validw_uset validrP validw_validr setP.
 
@@ -469,6 +472,7 @@ Module MemoryI : MemoryT.
         |}
     end end.
 
+  #[ global ]
   Instance M : memory mem :=
     Memory read_mem write_mem valid_pointer
            stk_root stack_frames alloc_stack free_stack init_mem.

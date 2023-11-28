@@ -1282,6 +1282,7 @@ Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
 
 Lemma word_uincl_refl s (w : word s): word_uincl w w.
 Proof. by rewrite /word_uincl zero_extend_u cmp_le_refl eqxx. Qed.
+#[ export ]
 Hint Resolve word_uincl_refl : core.
 
 Lemma word_uincl_eq s (w w': word s):
@@ -1400,6 +1401,7 @@ Proof. by case: v. Qed.
 Lemma value_uincl_refl v: @value_uincl v v.
 Proof. by case: v => //=; apply compat_type_undef. Qed.
 
+#[ export ]
 Hint Resolve value_uincl_refl : core.
 
 Lemma value_uincl_trans v2 v1 v3 :
@@ -1569,14 +1571,17 @@ Definition vm_uincl (vm1 vm2:vmap) :=
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
+#[ export ]
 Hint Resolve val_uincl_refl : core.
 
 Lemma pval_uincl_refl t v: @pval_uincl t t v v.
 Proof.  by rewrite /pval_uincl. Qed.
+#[ export ]
 Hint Resolve pval_uincl_refl : core.
 
 Lemma eval_uincl_refl t v: @eval_uincl t t v v.
 Proof. by case: v=> //= -[]. Qed.
+#[ export ]
 Hint Resolve eval_uincl_refl : core.
 
 Lemma eval_uincl_trans t1 t2 t3
@@ -1591,6 +1596,7 @@ Qed.
 
 Lemma vm_uincl_refl vm: @vm_uincl vm vm.
 Proof. by done. Qed.
+#[ export ]
 Hint Resolve vm_uincl_refl : core.
 
 Lemma vm_uincl_trans vm2 vm1 vm3 :

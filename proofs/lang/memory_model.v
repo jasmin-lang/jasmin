@@ -357,11 +357,14 @@ Arguments free_stack_spec {_ _} _ _ _.
 
 Module Type MemoryT.
 
+#[ global ]
 Declare Instance A : alignment.
 
 Parameter mem : Type.
 
+#[ global ]
 Declare Instance CM : coreMem mem pointer.
+#[ global ]
 Declare Instance M : memory mem.
 
 Parameter addP : forall p k, add p k = (p + wrepr U64 k)%R.

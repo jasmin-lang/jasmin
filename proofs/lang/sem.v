@@ -144,6 +144,7 @@ Qed.
 
 Lemma subtype_refl x : subtype x x.
 Proof. case: x => //= ?;apply Z.leb_refl. Qed.
+#[ export ]
 Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.

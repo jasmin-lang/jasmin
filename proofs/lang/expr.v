@@ -968,6 +968,7 @@ Definition write_c_rec s c := foldl write_I_rec s c.
 
 Definition write_c c := write_c_rec Sv.empty c.
 
+#[ local ]
 Instance vrv_rec_m : Proper (Sv.Equal ==> eq ==> Sv.Equal) vrv_rec.
 Proof.
   move=> s1 s2 Hs x r ->;case:r => //= [v | _ v _];SvD.fsetdec.
@@ -1060,9 +1061,13 @@ Lemma write_i_call ii xs f es :
 Proof. done. Qed.
 
 (* -------------------------------------------------------------------- *)
+#[ global ]
 Hint Rewrite write_c_nil write_c_cons : write_c.
+#[ global ]
 Hint Rewrite write_i_assgn write_i_opn write_i_if : write_i.
+#[ global ]
 Hint Rewrite write_i_while write_i_for write_i_call : write_i.
+#[ global ]
 Hint Rewrite vrv_none vrv_var : vrv.
 
 Ltac writeN := autorewrite with write_c write_i vrv.
