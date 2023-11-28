@@ -76,6 +76,7 @@ Fixpoint lcost (pc:nat) (lis:seq leak_il) :=
     (merge_lcost ci.1 cs.1, cs.2)
   end.
 
+#[ local ]
 Polymorphic Instance equiv_eqfun A B : Equivalence (@eqfun A B).
 Proof.
   constructor => //.
@@ -112,6 +113,7 @@ Module CmpNat.
 
   Definition cmp : t → t → comparison := Nat.compare.
 
+  #[ local ]
   Instance cmpO : Cmp cmp :=  natO.
 
 End CmpNat.

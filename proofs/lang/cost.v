@@ -347,6 +347,7 @@ end.
 
 Notation cost_C := (cost_c cost_i).
 
+#[ export ]
 Polymorphic Instance equiv_eqfun A B : Equivalence (@eqfun A B).
 Proof.
   constructor => //.
@@ -652,6 +653,7 @@ Module CmpLbl.
     | LblB b1, LblB b2 => gcmp b1 b2
     end.
 
+  #[ local ]
   Instance Pelem_O : Cmp cmp_pelem_.
   Proof.
     constructor.
@@ -667,6 +669,7 @@ Module CmpLbl.
   Definition cmp_pelem (l1 l2:pelem) := 
     lex cmp_pelem_ Nat.compare l1 l2.
 
+  #[ local ]
   Instance PelemO : Cmp cmp_pelem.
   Proof. apply LexO; [apply Pelem_O | apply natO]. Qed.
    
@@ -675,6 +678,7 @@ Module CmpLbl.
   Definition cmp (l1 l2: t) : comparison :=
     cmp_list cmp_pelem l1 l2.
 
+  #[ local ]
   Instance cmpO : Cmp cmp.
   Proof. apply ListO; apply PelemO. Qed.
 

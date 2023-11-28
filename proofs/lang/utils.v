@@ -894,6 +894,7 @@ Proof.
   apply Pos.compare_eq.
 Qed.
 
+#[ local ]
 Instance natO : Cmp Nat.compare.
 Proof.
   constructor.
