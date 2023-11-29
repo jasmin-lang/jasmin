@@ -51,6 +51,11 @@
   `SMULTT`, `SMLABB`, `SMLABT`, `SMLATB`, `SMLATT`, `SMULWB`, and `SMULWT`
   ([PR #644](https://github.com/jasmin-lang/jasmin/pull/644)).
 
+- The results of the stack allocation oracle can now be printed in JSON.
+  The command line option is `-json-stack-alloc filename`.
+  This adds package yojson as a dependency of the compiler.
+  ([PR #656](https://github.com/jasmin-lang/jasmin/pull/656)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
@@ -65,7 +70,7 @@
   ([PR #541](https://github.com/jasmin-lang/jasmin/pull/541);
   fixes [#540](https://github.com/jasmin-lang/jasmin/issues/540)).
 
- - More precise detection of speculative safe loads in the SCT checker
+- More precise detection of speculative safe loads in the SCT checker
   ([PR #556](https://github.com/jasmin-lang/jasmin/pull/556)).
 
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`
