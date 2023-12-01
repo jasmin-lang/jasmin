@@ -829,8 +829,13 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
       f
   in
   let vars = normalize_variables vars eqc in
-  let a = reverse_varmap nv vars |> subst_of_allocation vars in
-  Subst.subst_func a f
+  let a = reverse_varmap nv vars in
+  (* The variable that is added last is the representative of its class.
+     This makes sure that each argument is the representative of its class,
+     meaning that it will be preserved. *)
+  List.iter (fun arg -> A.set (Hv.find vars arg) arg a) f.f_args;
+  let subst = subst_of_allocation vars a in
+  Subst.subst_func subst f
 
 let remove_phi_nodes (f: ('info, 'asm) func) : (unit, 'asm) func =
   Ssa.remove_phi_nodes f
