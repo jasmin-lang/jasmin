@@ -103,7 +103,7 @@ qed.
 
 lemma to_sint_cmp (x : t) : min_sint <= to_sint x <= max_sint.
 proof.
- by rewrite /to_sint /= /smod /=; smt.
+  smt(powS_minus gt0_size to_uint_cmp).
 qed.
 
 lemma of_uintK (x : int) : to_uint (of_int x) = x %% modulus.
