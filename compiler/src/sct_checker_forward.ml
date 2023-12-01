@@ -194,8 +194,7 @@ let warn ~loc = warning SCTchecker loc
 (* used as an oracle                                         *)
 
 let is_register ~direct x =
-  is_reg_kind x.v_kind && (* direct => is_reg_direct_kind *)
-    (not direct || is_reg_direct_kind x.v_kind)
+  is_reg_kind x.v_kind && (not direct || is_reg_direct_kind x.v_kind)
 
 let ensure_register ~direct x =
   if not (is_register ~direct (L.unloc x)) then
@@ -216,11 +215,17 @@ let reg_lval_opt ~direct loc =
   | Lnone _ -> None
   | x -> Some (reg_lval ~direct loc x)
 
+let reg_expr_opt ~direct loc = function
+  | Pget (_, _, x, _) | Pvar x ->
+      if is_gkvar x && is_register ~direct (L.unloc x.gv)
+      then Some x.gv
+      else None
+  | _ -> None
+
 let reg_expr ~direct loc e =
-  match e with
-  | Pget (_, _, x, _)
-  | Pvar x when is_gkvar x -> ensure_register ~direct x.gv; x.gv
-  | _ -> error ~loc "value %a must be a reg%s" pp_expr e
+  match reg_expr_opt ~direct loc e with
+  | Some x -> x
+  | None -> error ~loc "expression %a must be a reg%s" pp_expr e
         (if direct then "" else " (ptr)")
 
 
@@ -290,8 +295,19 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
       else loop (Sv.union ms2 ms) in
     loop ms
 
-  | Cassgn(Lvar x, _, _, _) when Sv.mem (L.unloc x) ms ->
-    error ~loc "assignment operation not permitted on a msf variable: %a" pp_var_i x;
+  | Cassgn(Lvar x, tag, _, e) when Sv.mem (L.unloc x) ms ->
+      (* We need to allow assignments to MSF if the compiler introduces them,
+         to be able to use the checker after inlining. *)
+      let gets_removed =
+        match tag with
+        | AT_none | AT_keep -> false
+        | AT_rename | AT_inline | AT_phinode -> true
+      in
+      begin match reg_expr_opt ~direct:true loc e with
+      | Some x' when gets_removed ->
+          Sv.add (L.unloc x') (Sv.remove (L.unloc x) ms)
+      | _ -> error ~loc "assignment to MSF variable %a not allowed" pp_var_i x
+      end
 
   | Cassgn _ ->
     ms
