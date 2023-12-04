@@ -32,6 +32,7 @@ let lea = ref false
 let set0 = ref false
 let model = ref Normal
 let print_stack_alloc = ref false
+let json_stack_alloc_file = ref ""
 let introduce_array_copy = ref true
 let print_dependencies = ref false 
 let lazy_regalloc = ref false
@@ -223,6 +224,7 @@ let options = [
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), ": print messages with color";
     "-help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
+    "-json-stack-alloc", Arg.Set_string json_stack_alloc_file, "[filename]: print the results of the stack allocation OCaml oracle as JSON in file [filename]";
     "-lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
     "-print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";

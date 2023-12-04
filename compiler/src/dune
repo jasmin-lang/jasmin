@@ -12,7 +12,7 @@
  (public_name jasmin.jasmin)
  (flags -rectypes)
  (modules :standard \ arch main_compiler x86_safety uint63_63 uint63_31)
- (libraries batteries.unthreaded zarith menhirLib))
+ (libraries batteries.unthreaded zarith menhirLib yojson))
 
 (library
  (name jasminc)

@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set -e
+
+DIR=$(mktemp -d jasminXXXXXX)
+JSON=${DIR}/stack-alloc.json
+PLAIN_TXT=${DIR}/plain.txt
+JSON_TXT=${DIR}/json.txt
+
+trap "rm -r ${DIR}" EXIT
+
+if [ "$1" = "arm" ]
+then
+    shift
+    ARCH="-arch arm-m4"
+else
+    ARCH="-arch x86-64"
+fi
+
+set -x
+
+# Print the plain version of stack alloc info
+$(dirname $0)/../jasminc ${ARCH} -nowarning -until_stkalloc -print-stack-alloc "$@" 2>${PLAIN_TXT}
+# Print the JSON version of stack alloc info
+$(dirname $0)/../jasminc ${ARCH} -nowarning -until_stkalloc -json-stack-alloc ${JSON} "$@"
+# Parse the JSON version and print as plain text
+ocaml $(ocamlfind query -i-format yojson) yojson.cma $(dirname $0)/print_json_stack_alloc.ml ${JSON} >${JSON_TXT}
+# Compare both plain outputs (the direct one and the JSON one)
+diff -q ${PLAIN_TXT} ${JSON_TXT}

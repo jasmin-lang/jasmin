@@ -57,7 +57,7 @@ let pp_return fmt n =
 
 let pp_sao fmt sao =
   let open Stack_alloc in
-  Format.fprintf fmt "alignment = %s; size = %a; ioff = %a; extra size = %a; max size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
+  Format.fprintf fmt "alignment = %s; size = %a; ioff = %a; extra size = %a; max size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc = @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
     (string_of_ws sao.sao_align)
     Z.pp_print (Conv.z_of_cz sao.sao_size)
     Z.pp_print (Conv.z_of_cz sao.sao_ioff)
@@ -87,6 +87,127 @@ let pp_oracle up fmt saos =
     (pp_list "@;" pp_global) ao_globals
     (pp_list "@;" pp_slot) ao_global_alloc
     (pp_list "@;" pp_stack_alloc) fs
+
+let json_of_param_info pi =
+  let open Stack_alloc in
+  match pi with
+  | None -> `Null
+  | Some pi ->
+    `Assoc [
+      "writable", `Bool pi.pp_writable;
+      "var", `String (Format.asprintf "%a" pp_var_ty (Conv.var_of_cvar pi.pp_ptr));
+      "alignment", `String (string_of_ws pi.pp_align)
+    ]
+
+let json_of_return n =
+  match n with
+  | None -> `Null
+  | Some n -> `Int (Conv.int_of_nat n)
+
+let json_of_slot ((x, ws), ofs) =
+  `Assoc [
+    "offset", `Int (Z.to_int (Conv.z_of_cz ofs));
+    "var", `String (Format.asprintf "%a" pp_var_ty (Conv.var_of_cvar x));
+    "alignment", `String (string_of_ws ws);
+  ]
+
+let json_of_alloc (x, pki) =
+  let json_of_pki pki =
+    let open Stack_alloc in
+    match pki with
+    | PIdirect (v, z, sc) ->
+      "direct",
+      `Assoc [
+        "scope", `String (if sc = Sglob then "global" else "stack");
+        "var", `String (Format.asprintf "%a" pp_var (Conv.var_of_cvar v));
+        "zone", `String (Format.asprintf "%a" pp_zone z);
+      ]
+    | PIregptr v ->
+      "reg ptr",
+      `Assoc [
+        "var", `String (Format.asprintf "%a" pp_var (Conv.var_of_cvar v))
+      ]
+    | PIstkptr (v, z, x) ->
+      "stack ptr",
+      `Assoc [
+        "var", `String (Format.asprintf "%a" pp_var_ty (Conv.var_of_cvar v));
+        "zone", `String (Format.asprintf "%a" pp_zone z);
+        "pseudo-reg", `String (Format.asprintf "%a" pp_var_ty (Conv.var_of_cvar x))
+      ]
+  in
+  `Assoc [
+    "var", `String (Format.asprintf "%a" pp_var (Conv.var_of_cvar x));
+    json_of_pki pki
+  ]
+
+let json_of_to_save (x, ofs) =
+  `Assoc [
+    "var", `String (Format.asprintf "%a" pp_var (Conv.var_of_cvar x));
+    "offset", `Int (Z.to_int (Conv.z_of_cz ofs));
+  ]
+
+let json_of_saved_stack ss =
+  let open Expr in
+  match ss with
+  | SavedStackNone -> `Null
+  | SavedStackReg x ->
+    `Assoc ["reg", `String (Format.asprintf "%a" pp_var (Conv.var_of_cvar x))]
+  | SavedStackStk z ->
+    `Assoc ["stack", `Int (Z.to_int (Conv.z_of_cz z))]
+
+let json_of_return_address ra =
+  let open Expr in
+  match ra with
+  | RAnone -> `Null
+  | RAreg x ->
+    `Assoc ["reg", `String (Format.asprintf "%a" pp_var (Conv.var_of_cvar x))]
+  | RAstack (x, z) ->
+    `Assoc ["stack",
+      `Assoc [
+        "var",
+          begin match x with
+          | None -> `Null
+          | Some x -> `String (Format.asprintf "%a" pp_var (Conv.var_of_cvar x))
+          end;
+        "offset", `Int (Z.to_int (Conv.z_of_cz z))
+      ]
+    ]
+
+let json_of_sao fn sao : Yojson.Basic.t =
+  let open Stack_alloc in
+  `Assoc [
+    "function name", `String fn.fn_name;
+    "alignment", `String (string_of_ws sao.sao_align);
+    "size", `Int (Z.to_int (Conv.z_of_cz sao.sao_size));
+    "ioff", `Int (Z.to_int (Conv.z_of_cz sao.sao_ioff));
+    "extra size", `Int (Z.to_int (Conv.z_of_cz sao.sao_extra_size));
+    "max size", `Int (Z.to_int (Conv.z_of_cz sao.sao_max_size));
+    "max call depth", `Int (Z.to_int (Conv.z_of_cz sao.sao_max_call_depth));
+    "params", `List (List.map json_of_param_info sao.sao_params);
+    "return", `List (List.map json_of_return sao.sao_return);
+    "slots", `List (List.map json_of_slot sao.sao_slots);
+    "alloc", `List (List.map json_of_alloc sao.sao_alloc);
+    "saved register", `List (List.map json_of_to_save sao.sao_to_save);
+    "saved stack", json_of_saved_stack sao.sao_rsp;
+    "return address", json_of_return_address sao.sao_return_address;
+  ]
+
+let json_of_oracle up saos =
+  let Compiler.{ ao_globals; ao_global_alloc; ao_stack_alloc } = saos in
+  let json_of_globals global =
+    `Int (Z.to_int (Conv.z_of_word U8 global))
+  in
+  let json_of_stack_alloc f =
+    let fn = f.f_name in
+    json_of_sao fn (ao_stack_alloc fn)
+  in
+  let _, fs = Conv.prog_of_cuprog up in
+  `Assoc [
+    ("global data", `List (List.map json_of_globals ao_globals));
+    ("global slots", `List (List.map json_of_slot ao_global_alloc));
+    ("stack alloc", `List (List.map json_of_stack_alloc fs));
+  ]
+
 
 module StackAlloc (Arch: Arch_full.Arch) = struct
 
@@ -315,6 +436,12 @@ let memory_analysis pp_err ~debug up =
 "(* -------------------------------------------------------------------- *)@.";
     Format.eprintf "(* Final results of the stack allocation oracle *)@.@.";
     Format.eprintf "%a@.@.@." (pp_oracle up) saos
+  end;
+  let outfile = !Glob_options.json_stack_alloc_file in
+  if outfile <> "" then begin
+    BatFile.with_file_out outfile (fun out ->
+      let fmt = BatFormat.formatter_of_out_channel out in
+      Format.fprintf fmt "%a@." (Yojson.Basic.pretty_print ~std:true) (json_of_oracle up saos));
   end;
 
   saos
