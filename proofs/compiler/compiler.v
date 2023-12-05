@@ -74,6 +74,34 @@ Definition unroll_loop (p: uprog) :=
 
 End IS_MOVE_OP.
 
+Definition cmp_args fn (args1 args2 : seq var_i) :=
+  let b := all2 (fun a1 a2 => a1.(v_var) == a2.(v_var)) args1 args2 in
+  assert b (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address"))).
+
+Section PROG.
+
+Context {pT: progT}.
+Context {asm_op : Type}
+  {asmop : asmOp asm_op}.
+
+Definition check_fundef pass (funcs1:seq(funname*fundef)) (f2: funname * fundef) (_:Datatypes.unit) :=
+  let (f2,fd2) := f2 in
+  add_funname f2 (add_finfo fd2.(f_info) (
+    Let fd1 :=
+      match get_fundef funcs1 f2 with
+      | Some fd1 => ok fd1
+      | None => Error (E.error "function created out of thin air")
+      end
+    in
+    Let _ := assert [&& fd1.(f_tyin) == fd2.(f_tyin) & fd1.(f_tyout) == fd2.(f_tyout) ]
+                        (E.error (pass ++ ": functions not equal")) in
+    ok tt)).
+
+Definition cmp_args_prog pass p_funcs1 p_funcs2 :=
+  foldM (check_fundef pass p_funcs1) tt p_funcs2.
+
+End PROG.
+
 Section COMPILER.
 
 Variant compiler_step :=
@@ -218,58 +246,73 @@ Definition var_tmp : var :=
 
 Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := split_live_ranges_prog p in
+  Let _ := cmp_args_prog "split" p.(p_funcs) pv.(p_funcs) in
   let pv := cparams.(print_uprog) Splitting pv in
-  let pv := renaming_prog pv in
-  let pv := cparams.(print_uprog) Renaming pv in
-  let pv := remove_phi_nodes_prog pv in
-  let pv := cparams.(print_uprog) RemovePhiNodes pv in
-  let pv := map_prog_name (refresh_instr_info cparams) pv in
-  Let _ := check_uprog (wsw:= withsubword) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
-  let p := cparams.(print_uprog) DeadCode_Renaming pv in
+  let pv1 := renaming_prog pv in
+  Let _ := cmp_args_prog "renaming" pv.(p_funcs) pv1.(p_funcs) in
+  let pv := cparams.(print_uprog) Renaming pv1 in
+  let pv1 := remove_phi_nodes_prog pv in
+  Let _ := cmp_args_prog "remove_phi" pv.(p_funcs) pv1.(p_funcs) in
+  let pv := cparams.(print_uprog) RemovePhiNodes pv1 in
+  let pv1 := map_prog_name (refresh_instr_info cparams) pv in
+  Let _ := cmp_args_prog "refresh" pv.(p_funcs) pv1.(p_funcs) in
+  Let _ := check_uprog (wsw:= withsubword) p.(p_extra) p.(p_funcs) pv1.(p_extra) pv1.(p_funcs) in
+  Let pv2 := dead_code_prog (ap_is_move_op aparams) pv1 false in
+  Let _ := cmp_args_prog "dead code" pv1.(p_funcs) pv2.(p_funcs) in
+  let p := cparams.(print_uprog) DeadCode_Renaming pv2 in
   ok p.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) p in
-  let p := cparams.(print_uprog) Inlining p in
+  Let p1 := inline_prog_err (wsw := withsubword) cparams.(rename_fd) p in
+  Let _ := cmp_args_prog "inline" p.(p_funcs) p1.(p_funcs) in
+  let p := cparams.(print_uprog) Inlining p1 in
 
-  Let p := dead_calls_err_seq to_keep p in
-  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+  Let p1 := dead_calls_err_seq to_keep p in
+  Let _ := cmp_args_prog "dead calls" p.(p_funcs) p1.(p_funcs) in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p1 in
   ok p.
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
-  Let p := array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
-  let p := cparams.(print_uprog) ArrayCopy p in
+  Let p1 := array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
+  Let _ := cmp_args_prog "array copy" p.(p_funcs) p1.(p_funcs) in
+  let p := cparams.(print_uprog) ArrayCopy p1 in
 
-  let p := add_init_prog p in
-  let p := cparams.(print_uprog) AddArrInit p in
+  let p1 := add_init_prog p in
+  Let _ := cmp_args_prog "add init" p.(p_funcs) p1.(p_funcs) in
+  let p := cparams.(print_uprog) AddArrInit p1 in
 
   Let p := spill_prog cparams.(fresh_var_ident) p in
   let p := cparams.(print_uprog) LowerSpill p in
 
   Let p := inlining to_keep p in
 
-  Let p := unroll_loop (ap_is_move_op aparams) p in
-  let p := cparams.(print_uprog) Unrolling p in
+  Let p1 := unroll_loop (ap_is_move_op aparams) p in
+  Let _ := cmp_args_prog "unroll" p.(p_funcs) p1.(p_funcs) in
+  let p := cparams.(print_uprog) Unrolling p1 in
 
-  Let p := dead_calls_err_seq to_keep p in
-  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+  Let p1 := dead_calls_err_seq to_keep p in
+  Let _ := cmp_args_prog "dead calls" p.(p_funcs) p1.(p_funcs) in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p1 in
 
   Let pv := live_range_splitting p in
 
   let pr := remove_init_prog is_reg_array pv in
+  Let _ := cmp_args_prog "remove init" pv.(p_funcs) pr.(p_funcs) in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
+  Let _ := cmp_args_prog "make ref" pr.(p_funcs) pa.(p_funcs) in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let pe := expand_prog cparams.(expand_fd) to_keep pa in
+  Let _ := cmp_args_prog "expand prog" pa.(p_funcs) pe.(p_funcs) in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
 
   Let pg := remove_glob_prog cparams.(fresh_id) pe in
+  Let _ := cmp_args_prog "remove glob" pe.(p_funcs) pg.(p_funcs) in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
   Let _ :=
@@ -325,6 +368,19 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
+  Let _ :=
+    assert (
+      all (fun '(fn, fd) =>
+        all2
+          (fun (x:var_i) pi =>
+            match Ident.id_kind x.(vname) with
+            | Reg (_, Pointer Writable) => oapp pp_writable false pi
+            | _ => true
+            end)
+          (fd.(f_params)) (ao_stack_alloc ao fn).(sao_params))
+        pl.(p_funcs))
+      (merge_varmaps.E.gen_error true None (pp_s "unknown export function"))
+  in
   Let ps :=
     stack_alloc.alloc_prog
       true
