@@ -208,23 +208,34 @@ let memory_analysis pp_err ~debug up =
   (* FIXME: the code is duplicated between here and compiler.v, this is horrible *)
   let returned_params fn =
     let sao = get_sao fn in
-    match sao.sao_return_address with
-    | RAnone -> Some sao.sao_return
+    let _, fd = List.find (fun (_, fd) -> fd.f_name = fn) fds in
+    match fd.f_cc with
+    | Export _ -> Some sao.sao_return
     | _ -> None
   in
   let tokeep fn =
-    match returned_params fn with
-    | Some l ->
-        let l' = List.map ((=) None) l in
-        if List.for_all (fun x -> x) l' then None else Some l'
-    | None -> tokeep fn
+    let res =
+      match returned_params fn with
+      | Some l ->
+          Format.printf "returned_params %s@." fn.fn_name;
+          let l' = List.map ((=) None) l in
+          if List.for_all (fun x -> x) l' then None else Some l'
+      | None -> tokeep fn
+    in
+    Format.eprintf "function %s: @[<h>%a@]@."
+      fn.fn_name
+      (Format.pp_print_option (Format.pp_print_list Format.pp_print_bool)) res;
+    res
   in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
       match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
-      | Utils0.Error _ -> assert false in 
+      | Utils0.Error e ->
+        let e = Conv.error_of_cerror (Printer.pp_err ~debug:true) e in
+        Format.eprintf "%a" Utils.pp_hierror e; assert false
+    in
     (extra,fd) in
   let fds = List.map deadcode fds in
   if debug then
