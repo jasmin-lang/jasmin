@@ -272,9 +272,9 @@ Section ADD_INIT.
 
   Notation lift_vm sem s1 s2 :=
     (forall vm1,
-       evm s1 =1 vm1 ->
+       (evm s1 =1 vm1)%vm ->
        exists2 vm2,
-         evm s2 =1 vm2
+         (evm s2 =1 vm2)%vm
          & sem (with_vm s1 vm1) (with_vm s2 vm2))
     (only parsing).
 
@@ -474,7 +474,7 @@ Section ADD_INIT.
     apply aux.
     + constructor; econstructor;eauto.
     move=> vm1 heq1.
-    have heq1' : evm (with_mem s1 m2) =1 vm1 := heq1.
+    have heq1' : (evm (with_mem s1 m2) =1 vm1)%vm := heq1.
     have [vm2 heq2 hwr2 ]:= write_lvars_ext_eq (s1 := (with_scs (with_mem s1 m2) scs2)) heq1 Hxs.
     exists vm2 => //; constructor; econstructor; eauto.
     by rewrite -(sem_pexprs_ext_eq _ _ args).

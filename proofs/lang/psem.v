@@ -1746,17 +1746,17 @@ Lemma sem_pexprs_wdb e : Q e.
 Proof. by case: sem_pexpr_wdb_and. Qed.
 
 Lemma sem_pexpr_ext_eq e vm :
-  evm s =1 vm ->
+  (evm s =1 vm)%vm ->
   sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
 Proof. by move=> heq; apply/read_e_eq_on_empty/vm_eq_eq_on. Qed.
 
 Lemma sem_pexprs_ext_eq es vm :
-  evm s =1 vm ->
+  (evm s =1 vm)%vm ->
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. by move=> heq; apply/read_es_eq_on_empty/vm_eq_eq_on. Qed.
 
 Lemma write_lvar_ext_eq x v s1 s2 vm1 :
-  evm s1 =1 vm1 ->
+  (evm s1 =1 vm1)%vm ->
   write_lval wdb gd x v s1 = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2).
 Proof.
@@ -1772,7 +1772,7 @@ Proof.
 Qed.
 
 Lemma write_lvars_ext_eq xs vs s1 s2 vm1 :
-  evm s1 =1 vm1 ->
+  (evm s1 =1 vm1)%vm ->
   write_lvals wdb gd s1 xs vs = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2).
 Proof.
@@ -1916,7 +1916,7 @@ Qed.
 
 Lemma sem_vm_eq s1 c s2 vm1:
   sem p ev s1 c s2 ->
-  evm s1 =1 vm1 ->
+  (evm s1 =1 vm1)%vm ->
   exists2 vm2, sem p ev (with_vm s1 vm1) c (with_vm s2 vm2) & evm s2 =1 vm2.
 Proof.
   move=> hsem heq1.

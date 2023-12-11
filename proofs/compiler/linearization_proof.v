@@ -2686,7 +2686,7 @@ Section PROOF.
     set o := Some ((fn, lbl), P', (size P + size before).+1).
     set s := (top_stack (emem s1) - wrepr Uptr sz)%R.
 
-    have vm2_b_upd : vm2_b =1 vm2.[vrsp <- Vword (top_stack (emem s1) -  wrepr Uptr sz_before)].
+    have vm2_b_upd : (vm2_b =1 vm2.[vrsp <- Vword (top_stack (emem s1) -  wrepr Uptr sz_before)])%vm.
     + move=> x; rewrite /vm2_b Vm.setP; case: (vrsp =P x) => [ | /eqP] *.
       + subst x; case: eqP => [-> | ?]; last by rewrite Vm.setP_eq.
         by rewrite wrepr0 GRing.subr0 vm_truncate_val_eq //.
@@ -2827,7 +2827,7 @@ Section PROOF.
       rewrite Vm.setP_eq /= cmp_le_refl => /get_word_uincl_eq -/(_ (subtype_refl _)).
       rewrite /rastack_after /ra.
       by case sf_return_address => //= *; rewrite wrepr0 GRing.addr0.
-    have vm2'_b_upd : vm2'_b =1 vm2'.[vrsp <- Vword ts].
+    have vm2'_b_upd : (vm2'_b =1 vm2'.[vrsp <- Vword ts])%vm.
     + move=> y; rewrite Vm.setP; case: eqP => [ | /eqP] heq;
         last by rewrite /vm2'_b; case: eqP => // _; rewrite Vm.setP_neq.
       subst y; rewrite /vm2'_b; case: eqP => heq; last by rewrite Vm.setP_eq.

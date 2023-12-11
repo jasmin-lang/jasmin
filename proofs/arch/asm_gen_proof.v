@@ -2042,7 +2042,7 @@ Qed.
 End PROG.
 
 Lemma lom_eqv_ext rip s xs vm :
-  (evm s) =1 vm ->
+  (evm s =1 vm)%vm ->
   lom_eqv rip s xs ->
   lom_eqv rip (with_vm s vm) xs.
 Proof.
