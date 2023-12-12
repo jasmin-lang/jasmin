@@ -6,6 +6,7 @@
 -arg "-w +deprecated-hint-without-locality"
 -arg "-w +deprecated-hint-rewrite-without-locality"
 -arg "-w +deprecated-instance-without-locality"
+-arg "-w -hiding-delimiting-key"
 
 -R 3rdparty Jasmin
 -R compiler Jasmin
