@@ -147,31 +147,38 @@ Section CAT.
 
   Let Pf (fd:sfundef) := True.
 
-  Let HmkI: forall i ii, Pr i -> Pi (MkI ii i).
+  #[ local ]
+  Lemma cat_mkI: forall i ii, Pr i -> Pi (MkI ii i).
   Proof. by []. Qed.
 
-  Let Hskip : Pc [::].
+  #[ local ]
+  Lemma cat_skip : Pc [::].
   Proof. by []. Qed.
 
-  Let Hseq : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  #[ local ]
+  Lemma cat_seq : forall i c,  Pi i -> Pc c -> Pc (i::c).
   Proof.
     move=> i c Hi Hc fn lbl l /=.
     by rewrite Hc; case: linear_c => lbl1 lc1; rewrite Hi (Hi _ lbl1 lc1); case: linear_i => ??; rewrite catA.
   Qed.
 
-  Let Hassgn : forall x tg ty e, Pr (Cassgn x tg ty e).
+  #[ local ]
+  Lemma cat_assgn : forall x tg ty e, Pr (Cassgn x tg ty e).
   Proof. by move => x tg [] // sz e ii lbl c /=; case: assert. Qed.
 
-  Let Hopn : forall xs t o es, Pr (Copn xs t o es).
+  #[ local ]
+  Lemma cat_opn : forall xs t o es, Pr (Copn xs t o es).
   Proof.
     move => xs tg op es ii fn lbl tl /=.
     by do 2 (case: oseq.omap => // ?).
   Qed.
 
-  Let Hsyscall : forall xs o es, Pr (Csyscall xs o es).
+  #[ local ]
+  Lemma cat_syscall : forall xs o es, Pr (Csyscall xs o es).
   Proof. by []. Qed.
 
-  Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+  #[ local ]
+  Lemma cat_if   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii fn lbl l /=.
     case Heq1: (c1)=> [|i1 l1].
@@ -184,10 +191,12 @@ Section CAT.
     by rewrite /= !cats1 /= -!cat_rcons catA.
   Qed.
 
-  Let Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir, lo, hi) c).
+  #[ local ]
+  Lemma cat_for : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
 
-  Let Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
+  #[ local ]
+  Lemma cat_while : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
   Proof.
     move=> a c e c' Hc Hc' ii fn lbl l /=.
     case: is_bool => [ [] | ].
@@ -203,7 +212,8 @@ Section CAT.
     by case: a; rewrite /= cats1 -catA /= cat_rcons.
   Qed.
 
-  Let Hcall : forall i xs f es, Pr (Ccall i xs f es).
+  #[ local ]
+  Lemma cat_call : forall i xs f es, Pr (Ccall i xs f es).
   Proof.
     move => ini xs fn es ii fn' lbl tail /=.
     case: get_fundef => // fd; case: ifP => //.
@@ -215,7 +225,7 @@ Section CAT.
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (instr_Rect HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
@@ -223,7 +233,7 @@ Section CAT.
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (cmd_rect HmkI Hskip Hseq Hassgn Hopn Hsyscall Hif Hfor Hwhile Hcall).
+      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
   Qed.
 
 End CAT.
@@ -565,17 +575,21 @@ Section VALIDITY.
          linear_c (linear_i liparams p fn) c lbl [::] in
       (lbl <= lblc)%positive ∧ valid fn lbl lblc lc.
 
-  Let HMkI i ii : Pr i → Pi (MkI ii i).
+  #[ local ]
+  Lemma valid_labels_MkI i ii : Pr i → Pi (MkI ii i).
   Proof. exact. Qed.
 
-  Let default fn lbl :
+  #[ local ]
+  Lemma default fn lbl :
     (lbl <= lbl)%positive ∧ valid fn lbl lbl [::].
   Proof. split; reflexivity. Qed.
 
-  Let Hnil : Pc [::].
+  #[ local ]
+  Lemma valid_labels_nil : Pc [::].
   Proof. exact: default. Qed.
 
-  Let Hcons (i : instr) (c : cmd) : Pi i → Pc c → Pc (i :: c).
+  #[ local ]
+  Lemma valid_labels_cons (i : instr) (c : cmd) : Pi i → Pc c → Pc (i :: c).
   Proof.
     move => hi hc fn lbl /=.
     case: linear_c (hc fn lbl) => lblc lc [Lc Vc]; rewrite linear_i_nil.
@@ -585,20 +599,24 @@ Section VALIDITY.
     apply: valid_le_max _ Vc; apply/Pos.leb_le; lia.
   Qed.
 
-  Let Hassign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
+  #[ local ]
+  Lemma valid_labels_assign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
   Proof. move => ???; exact: default. Qed.
 
-  Let Hopn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
+  #[ local ]
+  Lemma valid_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
   Proof.
     move => ii fn lbl /=.
     case: oseq.omap => [ ls | ]; last exact: default.
     case: oseq.omap => [ rs | ] ; exact: default.
   Qed.
 
-  Let Hsyscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
+  #[ local ]
+  Lemma valid_labels_syscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
   Proof. move => ?; exact: default. Qed.
 
-  Let Hif (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
+  #[ local ]
+  Lemma valid_labels_if (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
   Proof.
     move => hc1 hc2 ii fn lbl /=.
     case: c1 hc1 => [ | i1 c1 ] hc1.
@@ -627,10 +645,12 @@ Section VALIDITY.
     all: apply/Pos.leb_le; lia.
   Qed.
 
-  Let Hfor (v : var_i) (d: dir) (lo hi : pexpr) (c : cmd) : Pc c → Pr (Cfor v (d, lo, hi) c).
+  #[ local ]
+  Lemma valid_labels_for (v : var_i) (d: dir) (lo hi : pexpr) (c : cmd) : Pc c → Pr (Cfor v (d, lo, hi) c).
   Proof. move => ? ?; exact: default. Qed.
 
-  Let Hwhile (a : expr.align) (c : cmd) (e : pexpr) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e c').
+  #[ local ]
+  Lemma valid_labels_while (a : expr.align) (c : cmd) (e : pexpr) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e c').
   Proof.
     move => hc hc' ii fn lbl /=.
     case: is_boolP => [ [] | {e} e ].
@@ -668,7 +688,8 @@ Section VALIDITY.
     valid fn lbl (lbl + 1)%positive (allocate_stack_frame liparams p b ii z rastack).
   Proof. by rewrite /allocate_stack_frame; case: eqP. Qed.
 
-  Let Hcall (i : inline_info) (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall i xs f es).
+  #[ local ]
+  Lemma valid_labels_call (i : inline_info) (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall i xs f es).
   Proof.
     move => ii fn lbl /=.
     case: get_fundef => [ fd | ]; last by split => //; lia.
@@ -681,10 +702,10 @@ Section VALIDITY.
   Qed.
 
   Definition linear_has_valid_labels : ∀ c, Pc c :=
-    cmd_rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    cmd_rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
 
   Definition linear_has_valid_labels_instr : ∀ i, Pi i :=
-    instr_Rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    instr_Rect valid_labels_MkI valid_labels_nil valid_labels_cons valid_labels_assign valid_labels_opn valid_labels_syscall valid_labels_if valid_labels_for valid_labels_while valid_labels_call.
 
 End VALIDITY.
 
@@ -718,13 +739,16 @@ Section NUMBER_OF_LABELS.
     label_in_lcmd (lc1 ++ lc2) = label_in_lcmd lc1 ++ label_in_lcmd lc2.
   Proof. by rewrite /label_in_lcmd pmap_cat. Qed.
 
-  Let HMkI i ii : Pr i → Pi (MkI ii i).
+  #[ local ]
+  Lemma nb_labels_MkI i ii : Pr i → Pi (MkI ii i).
   Proof. exact. Qed.
 
-  Let Hnil : Pc [::].
+  #[ local ]
+  Lemma nb_labels_nil : Pc [::].
   Proof. by move => fn lbl; apply Z.le_refl. Qed.
 
-  Let Hcons (i : instr) (c : cmd) : Pi i → Pc c → Pc (i :: c).
+  #[ local ]
+  Lemma nb_labels_cons (i : instr) (c : cmd) : Pi i → Pc c → Pc (i :: c).
   Proof.
     move => hi hc fn lbl /=.
     case: linear_c (hc fn lbl) => lblc lc Lc; rewrite linear_i_nil.
@@ -749,10 +773,12 @@ Section NUMBER_OF_LABELS.
     exact: get_label_lassign.
   Qed.
 
-  Let Hassign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
+  #[ local ]
+  Lemma nb_labels_assign (x : lval) (tg : assgn_tag) (ty : stype) (e : pexpr) : Pr (Cassgn x tg ty e).
   Proof. move => ???; exact: Z.le_refl. Qed.
 
-  Let Hopn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
+  #[ local ]
+  Lemma nb_labels_opn (xs : lvals) (t : assgn_tag) (o : sopn) (es : pexprs) : Pr (Copn xs t o es).
   Proof.
     move=> ii fn lbl /=.
     case: oseq.omap => [ ? | /= ].
@@ -760,10 +786,12 @@ Section NUMBER_OF_LABELS.
     all: apply Z.le_refl.
   Qed.
 
-  Let Hsyscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
+  #[ local ]
+  Lemma nb_labels_syscall (xs : lvals) (o : syscall_t) (es : pexprs) : Pr (Csyscall xs o es).
   Proof. by move=> ii fn lbl /=; apply Z.le_refl. Qed.
 
-  Let Hif (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
+  #[ local ]
+  Lemma nb_labels_if (e : pexpr) (c1 c2 : cmd) : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
   Proof.
     move=> hc1 hc2 ii fn lbl /=.
     case: c1 hc1 => [ | i1 c1 ] hc1.
@@ -785,14 +813,16 @@ Section NUMBER_OF_LABELS.
     lia.
   Qed.
 
-  Let Hfor (v : var_i) (d: dir) (lo hi : pexpr) (c : cmd) : Pc c → Pr (Cfor v (d, lo, hi) c).
+  #[ local ]
+  Lemma nb_labels_for (v : var_i) (d: dir) (lo hi : pexpr) (c : cmd) : Pc c → Pr (Cfor v (d, lo, hi) c).
   Proof. by move=> hc ii fn lbl /=; apply Z.le_refl. Qed.
 
   Lemma label_in_lcmd_add_align ii al lc :
     label_in_lcmd (add_align ii al lc) = label_in_lcmd lc.
   Proof. by case: al. Qed.
 
-  Let Hwhile (a : expr.align) (c : cmd) (e : pexpr) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e c').
+  #[ local ]
+  Lemma nb_labels_while (a : expr.align) (c : cmd) (e : pexpr) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e c').
   Proof.
     move => hc hc' ii fn lbl /=.
     case: is_boolP => [ [] | {e} e ].
@@ -841,7 +871,8 @@ Section NUMBER_OF_LABELS.
     by rewrite /lload get_label_lassign /=.
   Qed.
 
-  Let Hcall (i : inline_info) (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall i xs f es).
+  #[ local ]
+  Lemma nb_labels_call (i : inline_info) (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall i xs f es).
   Proof.
     move => ii fn lbl /=.
     case: get_fundef => [ fd | ]; last by apply Z.le_refl.
@@ -853,10 +884,10 @@ Section NUMBER_OF_LABELS.
   Qed.
 
   Definition linear_c_nb_labels : ∀ c, Pc c :=
-    cmd_rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    cmd_rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
 
   Definition linear_i_nb_labels : ∀ i, Pi i :=
-    instr_Rect HMkI Hnil Hcons Hassign Hopn Hsyscall Hif Hfor Hwhile Hcall.
+    instr_Rect nb_labels_MkI nb_labels_nil nb_labels_cons nb_labels_assign nb_labels_opn nb_labels_syscall nb_labels_if nb_labels_for nb_labels_while nb_labels_call.
 
   Lemma linear_body_nb_labels fn e body :
     let: (lbl, lc) := linear_body liparams p fn e body in
