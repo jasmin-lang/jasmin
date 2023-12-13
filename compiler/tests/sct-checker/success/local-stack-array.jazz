@@ -1,5 +1,5 @@
 export
-fn main(#transient reg u64 io) -> #public reg u64 {
+fn main() -> #public reg u64 {
   _ = #init_msf();
   stack u64[1] local;
   local[0] = 42;
