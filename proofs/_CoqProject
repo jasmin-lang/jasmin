@@ -7,6 +7,7 @@
 -arg "-w +deprecated-hint-rewrite-without-locality"
 -arg "-w +deprecated-instance-without-locality"
 -arg "-w -hiding-delimiting-key"
+-arg "-w +deprecated-since-mathcomp-1.17.0"
 
 -R 3rdparty Jasmin
 -R arch Jasmin

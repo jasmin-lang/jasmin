@@ -827,45 +827,45 @@ rewrite !mathcomp.word.word.msbE /= !subZE; set w := (_ sz);
   case: (lerP (modulus _) (val α)) => ha;
   case: (lerP (modulus _) (val β)) => hb;
   case: (lerP (modulus _) (val _)) => hab.
-+ rewrite ltr_add2r eq_sym eqb_id negbK opprB !addrA subrK.
++ rewrite ltrD2r eq_sym eqb_id negbK opprB !addrA subrK.
   rewrite [val (α - β)%R]subw_modE /urepr /= -/w.
   case: ltrP; first by rewrite addrK eqxx.
-  by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
-+ rewrite ltr_add2r opprB !addrA subrK eq_sym eqbF_neg negbK.
+  by rewrite addr0 lt_eqF // ltrBlDr ltrDl modulus_gt0.
++ rewrite ltrD2r opprB !addrA subrK eq_sym eqbF_neg negbK.
   rewrite [val (α - β)%R]subw_modE /urepr -/w /=; case: ltrP.
-  + by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
+  + by rewrite mulr1n gt_eqF // ltrDl modulus_gt0.
   + by rewrite addr0 eqxx.
-+ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
-    by rewrite ler_addr urepr_ge0.
++ rewrite ltrBlDr (lt_le_trans (urepr_ltmod _)); last first.
+    by rewrite lerDr urepr_ge0.
   rewrite eq_sym eqb_id negbK; apply/esym.
   rewrite [val _]subw_modE /urepr -/w /= ltNge ltW /=.
   * by rewrite addr0 addrAC eqxx.
   * by rewrite (lt_le_trans hb).
-+ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
-    by rewrite ler_addr urepr_ge0.
++ rewrite ltrBlDr (lt_le_trans (urepr_ltmod _)); last first.
+    by rewrite lerDr urepr_ge0.
   rewrite eq_sym eqbF_neg negbK [val _]subw_modE /urepr -/w /=.
   rewrite ltNge ltW ?addr0; last first.
     by rewrite (lt_le_trans hb).
-  by rewrite addrAC gt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
-+ rewrite ltr_subr_addl ltNge ltW /=; last first.
-    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
+  by rewrite addrAC gt_eqF // ltrBlDr ltrDl modulus_gt0.
++ rewrite ltrBrDl ltNge ltW /=; last first.
+    by rewrite (lt_le_trans (urepr_ltmod _)) // lerDl urepr_ge0.
   apply/esym/negbTE; rewrite negbK; apply/eqP/esym.
   rewrite [val _]subw_modE /urepr /= -/w; have ->/=: (val α < val β)%R.
-    by have := ltr_le_add ha hb; rewrite addrC ltr_add2l.
+    by have := ltr_leD ha hb; rewrite addrC ltrD2l.
   rewrite mulr1n addrK opprD addrA lt_eqF //= opprK.
-  by rewrite ltr_addl modulus_gt0.
-+ rewrite ltr_subr_addl ltNge ltW /=; last first.
-    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
+  by rewrite ltrDl modulus_gt0.
++ rewrite ltrBrDl ltNge ltW /=; last first.
+    by rewrite (lt_le_trans (urepr_ltmod _)) // lerDl urepr_ge0.
   apply/esym/negbTE; rewrite negbK eq_sym eqbF_neg negbK.
   rewrite [val _]subw_modE /urepr -/w /= opprD addrA opprK.
   by have ->//: (val α < val β)%R; apply/(lt_le_trans ha).
 + rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
   rewrite eq_sym eqb_id negbK; case: ltrP.
   * by rewrite mulr1n addrK eqxx.
-  * by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
+  * by rewrite addr0 lt_eqF // ltrBlDr ltrDl modulus_gt0.
 + rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
   rewrite eq_sym eqbF_neg negbK; case: ltrP.
-  * by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
+  * by rewrite mulr1n gt_eqF // ltrDl modulus_gt0.
   * by rewrite addr0 eqxx.
 Qed.
 
