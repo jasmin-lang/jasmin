@@ -130,7 +130,7 @@ output corruption: #public
 
 
 File local-stack-array.jazz:
-modmsf main : #transient ->
+modmsf main :  ->
 #public
 output corruption: #public
  constraints:
