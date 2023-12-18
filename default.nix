@@ -55,7 +55,7 @@ stdenv.mkDerivation {
          batteries
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
-    ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
+    ++ optionals ecDeps [ easycrypt alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
 }
