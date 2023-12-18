@@ -10,7 +10,7 @@ CHECKS   ?= jasmin
 
 ifeq ($(ECCHECK),)
 ifeq ($(ECROOT),)
-ECCHECK := ec-runtest
+ECCHECK := easycrypt runtest
 else
 PATH    := ${ECROOT}:${PATH}
 ECCHECK := $(ECROOT)/scripts/testing/runtest
@@ -34,10 +34,10 @@ usage:
 	@echo "Usage: make <target> where <target> in [check|check-xunit]" >&2
 
 check:
-	$(ECCHECK) --bin-args="$(ECARGS)" $(ECCONF) $(CHECKS)
+	$(ECCHECK) $(ECARGS) $(ECCONF) $(CHECKS)
 
 check-xunit:
-	$(ECCHECK) --bin-args="$(ECARGS)" --report=$(XUNITOUT) $(ECCONF) $(CHECKS)
+	$(ECCHECK) $(ECARGS) --report=$(XUNITOUT) $(ECCONF) $(CHECKS)
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(LIBDIR)/jasmin/easycrypt
