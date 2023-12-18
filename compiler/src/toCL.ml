@@ -54,10 +54,12 @@ let rec pp_rexp fmt e =
   | Pconst z ->
     Format.fprintf fmt "%a" pp_print_i z
   | Pvar x ->
-    let ws = ws_of_ty (L.unloc x.gv).v_ty in
-    Format.fprintf fmt "limbs %i [%a]" (int_of_ws ws) pp_gvar_i x.gv
+    (* let ws = ws_of_ty (L.unloc x.gv).v_ty in
+       Format.fprintf fmt "limbs %i [%a]" (int_of_ws ws) pp_gvar_i x.gv *)
+    Format.fprintf fmt "%a" pp_gvar_i x.gv
   | Papp1 (Oword_of_int ws, x) ->
-    Format.fprintf fmt "limbs %i [%a@%i]" (int_of_ws ws) pp_rexp x (int_of_ws ws)
+    (* Format.fprintf fmt "limbs %i [%a@%i]" (int_of_ws ws) pp_rexp x (int_of_ws ws) *)
+    Format.fprintf fmt "%a@%i" pp_rexp x (int_of_ws ws)
   | Papp1(Oneg _, e) ->
     Format.fprintf fmt "-(%a)" pp_rexp e
   | Papp1(Olnot _, e) ->
@@ -72,6 +74,10 @@ let rec pp_rexp fmt e =
       pp_rexp e2
   | Papp2(Omul _, e1, e2) ->
     Format.fprintf fmt "(%a) * (%a)"
+      pp_rexp e1
+      pp_rexp e2
+  | Papp2(Odiv _, e1, e2) ->
+    Format.fprintf fmt "(%a) / (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Olxor _, e1, e2) ->
@@ -102,9 +108,13 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "shr (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
-  | _ ->
+ | Papp1(Ozeroext (osz,isz), e1) -> 
+      Format.fprintf fmt "(uext %a %i)"
+      pp_rexp e1
+      (int_of_ws osz- int_of_ws isz)
+ | _ ->
     Format.eprintf "No Translation for pexpr in rexp: %a@." Printer.pp_pexpr e;
-    raise NoTranslation
+    raise NoTranslation 
 
 let rec pp_rpred fmt e =
   match e with
@@ -112,7 +122,7 @@ let rec pp_rpred fmt e =
   | Papp1(Onot, e) ->
     Format.fprintf fmt "~(%a)" pp_rpred e
   | Papp2(Oeq _, e1, e2)  ->
-    Format.fprintf fmt "eq (%a) (%a)"
+    Format.fprintf fmt "(%a) = (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Obeq, e1, e2)  ->
@@ -128,39 +138,39 @@ let rec pp_rpred fmt e =
       pp_rpred e1
       pp_rpred e2
   | Papp2(Ole (Cmp_w (Signed,_)), e1, e2)  ->
-    Format.fprintf fmt "sle (%a) (%a)"
+    Format.fprintf fmt "(%a) <=s (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Ole (Cmp_w (Unsigned,_)), e1, e2)  ->
-    Format.fprintf fmt "ule (%a) (%a)"
+    Format.fprintf fmt "(%a) <= (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Olt (Cmp_w (Signed,_)), e1, e2)  ->
-    Format.fprintf fmt "slt (%a) (%a)"
+    Format.fprintf fmt "(%a) <s (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Olt (Cmp_w (Unsigned,_)), e1, e2)  ->
-    Format.fprintf fmt "ult (%a) (%a)"
+    Format.fprintf fmt "(%a) < (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Oge (Cmp_w (Signed,_)), e1, e2)  ->
-    Format.fprintf fmt "sge (%a) (%a)"
+    Format.fprintf fmt "(%a) >=s (%a)"
       pp_rexp e1
       pp_rpred e2
   | Papp2(Oge (Cmp_w (Unsigned,_)), e1, e2)  ->
-    Format.fprintf fmt "uge (%a) (%a)"
+    Format.fprintf fmt "(%a) >= (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Ogt (Cmp_w (Signed,_)), e1, e2)  ->
-    Format.fprintf fmt "sgt (%a) (%a)"
+    Format.fprintf fmt "(%a) >s (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Ogt (Cmp_w (Unsigned,_)), e1, e2)  ->
-    Format.fprintf fmt "ugt (%a) (%a)"
+    Format.fprintf fmt "(%a) > (%a)"
       pp_rexp e1
       pp_rexp e2
   | Pif(_, e1, e2, e3)  ->
-    Format.fprintf fmt "((~(%a))\\/ (%a)) /\ ((%a) \\/ (%a))"
+    Format.fprintf fmt "((~(%a))\\/ (%a)) /\\ ((%a) \\/ (%a))"
       pp_rpred e1
       pp_rpred e2
       pp_rpred e1
@@ -363,10 +373,18 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SHR ws ->
-    Format.fprintf fmt "shr %a %a %a"
+     let fmt_ = 
+      match (List.nth es 1) with
+       Papp1 (Oword_of_int _, Pconst x) -> 
+         Format.fprintf fmt "split %a __TMP %a %a"
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+          pp_print_i x
+        | _ ->
+      Format.fprintf fmt "shr %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
+      pp_atome (List.nth es 1, int_of_ws ws) in fmt_
 
   | SAL ws ->
     Format.fprintf fmt "shl %a %a %a"
@@ -375,11 +393,25 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SAR ws ->
-    Format.fprintf fmt "sar %a %a %a"
-      pp_lval (List.nth xs 5, int_of_ws ws)
-      pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
-
+     let fmt_ =
+       match (List.nth es 1) with
+       Papp1 (Oword_of_int _, Pconst x) -> 
+         if Z.to_int x == int_of_ws ws - 1
+         then Format.fprintf fmt "split sign TMP__ %a %a;subc carry2__ %a 0@uint%i sign"
+          pp_atome (List.nth es 0, int_of_ws ws)
+          pp_print_i x
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          (int_of_ws ws)
+        else 
+         Format.fprintf fmt "split %a TMP__ %a %a"
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+          pp_print_i x
+     | _ ->
+        Format.fprintf fmt "sar %a %a %a"
+         pp_lval (List.nth xs 5, int_of_ws ws)
+         pp_atome (List.nth es 0, int_of_ws ws)
+         pp_atome (List.nth es 1, int_of_ws ws) in fmt_
   | MULX_lo_hi ws ->
     Format.fprintf fmt "mull %a %a %a %a"
       pp_lval (List.nth xs 1, int_of_ws ws)
