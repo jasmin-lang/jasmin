@@ -111,13 +111,13 @@ Section CHECK_EP.
 
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
-    apply: pexprs_ind_pair; split; subst P Q => /=.
+    apply: pexprs_ind_pair; split; subst P Q; rewrite /sem_pexpr => //=.
     - case => // r _ vm1 _ [<-] h; split => // scs m _ [<-] /=; eauto.
-    - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
+    - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err ; t_xrbindP => r'  ok_r' ok_re h.
       move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.
       move: hes1 => /(_ es2 r' re vm1 err ok_re h') [] hre hes1.
       apply: (conj hre) => scs m vs1'; t_xrbindP => v1 ok_v1 vs1 ok_vs1 <- {vs1'} /=.
-      move: he1 => /(_ _ _ _ ok_v1) [] v2 [] -> hv.
+      move: he1 => /(_ _ _ _ ok_v1) [] v2 [] ->  hv.
       move: hes1 => /(_ _ _ _ ok_vs1) [] vs2 [] -> hvs.
       eexists; split; first reflexivity. by constructor.
     - by move => z1 [] // z2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists z1.
@@ -164,13 +164,14 @@ Section CHECK_EP.
       t_xrbindP => /eqP <- ok_re hr.
       move: Hes1 => /(_ _ _ _ _ _  ok_re hr) [] hre h.
       split => //= scs m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
-      rewrite -/(sem_pexprs _ _ _).
+      rewrite -/(sem_pexprs_aux _ _ _ _).
+      rewrite -/(sem_pexprs _ _ _ _).
       move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
       by have [] := vuincl_sem_opN ok_v1 hs; eauto.
     move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
     t_xrbindP => r1 r' /eqP <- /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
-    t_xrbindP=> b > /Hs [_] /= [->] /= /[swap] /to_boolI -> /value_uinclE ->.
+    t_xrbindP=> b > /Hs [?] /= [->] /= /[swap] /to_boolI -> /value_uinclE ->.
     move=> ?? /Hs1 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?].
     move=> ?? /Hs2 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?] <- /=.
     by eexists;split;eauto;case: (b).
@@ -264,7 +265,8 @@ Lemma check_lvalP wdb gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
     eq_alloc r1' s1'.(evm) vm1'.
 Proof.
   case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
-                    [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
+                  [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2];
+                rewrite /sem_pexpr //=.
   + t_xrbindP => hs <- ? Hv _ H.
     have [ -> htr hdb]:= write_noneP H; rewrite /write_none.
     have [ -> hu' -> /=]:= compat_truncate_uincl hs htr Hv hdb; eauto.

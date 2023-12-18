@@ -214,6 +214,9 @@ let rec  pp_epred fmt e =
     Format.fprintf fmt "and (%a) (%a)"
       pp_epred e1
       pp_epred e2
+
+(*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
+
   | _ -> raise NoTranslation
 
 let pp_lval fmt (x,ws) =
@@ -419,13 +422,11 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 0, int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
 
+  | MOVSX (ws1, ws2) ->
+    Format.fprintf fmt "cast %a %a"
+      pp_lval (List.nth xs 0, int_of_ws ws1)
+      pp_atome (List.nth es 0, int_of_ws ws2)
 
-(*     -  | MOVSX (ws1, ws2) -> *)
-(* -    Format.fprintf fmt "cast %a%a %a" *)
-(* -      pp_lval (List.nth xs 0) *)
-(* -      pp_uint ws1 *)
-(* -      pp_expr (List.nth es 0) *)
-(* - *)
   | MOVZX (ws1, ws2) ->
     Format.fprintf fmt "cast %a %a"
       pp_lval (List.nth xs 0, int_of_ws ws1)

@@ -79,7 +79,7 @@ Variant sop2 :=
 
 (* N-ary operators *)
 Variant combine_flags :=
-| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
+| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *)
 | CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
 | CF_EQ                    (* Alias : E                              *)
 | CF_NEQ                   (* Alias : !E                             *)
@@ -253,54 +253,54 @@ Inductive pexpr : Type :=
 | Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
 .
 
-(*
-Inductive ltype : Type :=
-  | Int
-  | Real.
+(* Inductive ltype : Type := *)
+(*   | List : pexpr list -> ltype *)
+(*   | Real. *)
 
-Record lvar : Type := Lvar (lvtype : ltype; vname : Equality.sort Ident.ident }.
+(* Record lvar : Type := Lvar (lvtype : ltype; vname : Equality.sort Ident.ident }. *)
 
-Inductive op2 : Type :=
-  | Add : op2
-  | Min : op2
-  | Mult : op2
-  | Div : op2
-  | Custome : string -> op2
+(* Inductive op2 : Type := *)
+(*   | Add : op2 *)
+(*   | Min : op2 *)
+(*   | Mult : op2 *)
+(*   | Div : op2 *)
+(*   | Custome : string -> op2 *)
 
-Inductive aterm : Type :=
-  | tvar : lvar -> aterm
-  | tpexpr : pexpr -> aterm
-  | tcoerse : aterm -> ltype -> aterm
-  | tapp1 : op1 -> aterm -> aterm
-  | tapp2 : op2 -> aterm -> aterm -> arerm.
+(* Inductive aterm : Type := *)
+(*   | tvar : lvar -> aterm *)
+(*   | tpexpr : pexpr -> aterm *)
+(*   | tcoerse : aterm -> ltype -> aterm *)
+(*   | tat : label -> aterm -> aterm *)
+(*   | tapp1 : op1 -> aterm -> aterm *)
+(*   | tapp2 : op2 -> aterm -> aterm -> arerm *)
+(*   | tappN : function -> aterm list -> aterm. *)
 
-Inductive apred : Type :=
-| PTrue : apred
-| PFalse : apred
-| PNot : apred -> apred
-| PImplies : apred -> apred -> apred
-| PAnd : apred -> apred -> apred
-| Por : apred -> apred -> apred
-| Pforall : lvar list -> apred -> apred
-| Papp : predicate -> apred list -> apred
+(* Inductive apred : Type := *)
+(* | PTrue : apred *)
+(* | PFalse : apred *)
+(* | PNot : apred -> apred *)
+(* | PImplies : apred -> apred -> apred *)
+(* | PAnd : apred -> apred -> apred *)
+(* | Por : apred -> apred -> apred *)
+(* | Pforall : lvar list -> apred -> apred *)
+(* | Pexist : lvar list -> apred *)
+(* | Papp : label list -> predicate -> aterm list -> apred *)
 
-Definition annotation_kind :=
-  | Ensures
-  | Requires
-  | Invariant
-  | Assume
-  | Assert
-  | Cut        ???????
-
-Record annotatio, :=
-  { akind : annotation_kind;
-    apred : apred;
-    alabel : option assert_label;  (* Optional name for the current assert *)
-    aprover : prover;              (* prover for the current assert *)
-    aprove_with : option assert_label;
-    aassume : list prover;         (* assume for the provers *)
-  }
-*)
+(* Definition annotation_kind := *)
+(*   | Assume *)
+(*   | Assert *)
+(*   | Ensures *)
+(*   | Requires *)
+(*   | Invariant *)
+(*     | Cut *)
+(* Record annotation := *)
+(*   { akind : annotation_kind; *)
+(*     apred : apred; *)
+(*     alabel : option assert_label;  (* Optional name for the current assert *) *)
+(*     aprover : prover;              (* prover for the current assert *) *)
+(*     aprove_with : option assert_label; *)
+(*     aassume : list prover;         (* assume for the provers *) *)
+(*   } *)
 
 
 Notation pexprs := (seq pexpr).
