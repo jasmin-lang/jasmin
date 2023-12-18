@@ -20,12 +20,7 @@ let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages;
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
-  why3 = pkgs.why3.overrideAttrs (o: rec {
-      version = "1.6.0";
-      src = pkgs.fetchurl {
-        url = "https://why3.gitlabpages.inria.fr/releases/${o.pname}-${version}.tar.gz";
-        hash = "sha256-hFvM6kHScaCtcHCc6Vezl9CR7BFbiKPoTEh7kj0ZJxw=";
-      };
+  why3 = pkgs.why3.overrideAttrs (o: {
       configureFlags = o.configureFlags ++ [ "--disable-ide" ];
     });
 }; in
