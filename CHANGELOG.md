@@ -131,6 +131,9 @@
   ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
   Warning this is a **breaking change**.
 
+- The safety checker uses less list concatenations
+  ([PR #669](https://github.com/jasmin-lang/jasmin/pull/669)).
+
 # Jasmin 2023.06.1 — 2023-07-31
 
 ## New features
