@@ -32,27 +32,29 @@ let lcons env v i vneg iminus =
   e
 
 (* Makes the bounds 'v >= 0' and 'v <= 2^N-1' for 'N' in {8;16;32;64;128;256} *)
-let thresholds_uint env v =
-  let acc = 
-    [Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ] in
+let thresholds_uint env v tl =
+  let acc =
+    Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ
+    :: tl
+  in
   List.fold_left (fun acc i ->
       let lc = lcons env v i in
       Lincons1.make (lc true false) Lincons0.SUPEQ :: acc
     ) acc int_thresholds
 
 (* FIXME: rename *)
-let thresholds_zero env =
+let thresholds_zero env tl =
   let vars = Environment.vars env
              |> fst
              |> Array.to_list in
-    List.fold_left (fun thrs v -> thresholds_uint env v @ thrs
-    ) [] vars
+    List.fold_left (fun thrs v -> thresholds_uint env v thrs
+    ) tl vars
 
   (* List.map (fun v ->
    *     Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ
    *   ) vars *)
     
-let thresholds_vars env =
+let thresholds_vars env tl =
   let vars = Environment.vars env
              |> fst
              |> Array.to_list in
@@ -65,10 +67,10 @@ let thresholds_vars env =
           :: (Lincons1.make (lc false true) Lincons0.SUPEQ)
           :: (Lincons1.make (lc false false) Lincons0.SUPEQ)
           :: acc) acc int_thresholds)
-    [] vars
+    tl vars
 
 
-let thresholds_param env param =
+let thresholds_param env param tl =
   let param_pts  = Option.default [] param.pointers
   and param_rels = Option.default [] param.relationals  in
 
@@ -80,23 +82,24 @@ let thresholds_param env param =
         if List.mem gv.v_name param_rels then Some v else None
       | _ -> None) vars in
   
-  let thrs_v v =
-    List.map (fun inv ->
+  let thrs_v v tl =
+    List.fold_left (fun acc inv ->
         let e = Linexpr1.make env in
         let cv, cinv = Coeff.s_of_int (-1), Coeff.s_of_int 1 in
         let c0 = Coeff.s_of_int 0 in
         let () = Linexpr1.set_list e [(cv,v);(cinv,inv)] (Some c0) in
         Lincons1.make e Lincons0.SUPEQ
-      ) param_rels in
-                
+        :: acc
+      ) tl param_rels in
+
   List.fold_left (fun thrs v ->
       match mvar_of_avar v with
       | MmemRange (MemLoc gv) ->
         if List.mem gv.v_name param_pts
-        then thrs_v v @ thrs
+        then thrs_v v thrs
         else thrs
       | _ -> thrs
-    ) [] vars
+    ) tl vars
 
 
 (*------------------------------------------------------------*)
@@ -338,22 +341,22 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     let vars = Option.map_default (fun c ->
         Mtexpr.get_var (Mtcons.get_expr c)
       ) [] oc in
-    let thrs_vars = 
-      List.map (fun v -> thresholds_uint env (avar_of_mvar v)) vars 
-      |> List.flatten in
+    let thrs_vars tl =
+      List.fold_left (fun acc v -> thresholds_uint env (avar_of_mvar v) acc) tl vars
+    in
     let thrs_oc = thrs_of_oc oc env in
-    let thrs = thrs_oc @ thrs_vars in
+    let thrs = thrs_vars thrs_oc in
     let thrs =
       if Config.sc_more_threshold ()
-      then thresholds_vars env @ thrs
+      then thresholds_vars env thrs
       else thrs in
     let thrs =
       if Config.sc_zero_threshold ()
-      then thresholds_zero env @ thrs
+      then thresholds_zero env thrs
       else thrs in
     let thrs =
       if Config.sc_param_threshold ()
-      then thresholds_param env PW.param @ thrs
+      then thresholds_param env PW.param thrs
       else thrs in
 
     if is_relational () then
