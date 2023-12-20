@@ -36,6 +36,10 @@ Definition arm_op_movt (x : var_i) (imm : Z) : fopn_args :=
   let e := fconst U16 imm in
   ([:: LLvar x ], Oarm (ARM_op MOVT default_opts), [:: Rexpr (Fvar x); Rexpr e ]).
 
+Definition arm_op_add (x y z : var_i) : fopn_args :=
+  let f v := Rexpr (Fvar v) in
+  ([:: LLvar x ], Oarm (ARM_op ADD default_opts), map f [:: y; z ]).
+
 Definition arm_op_sub (x y z : var_i) : fopn_args :=
   let f v := Rexpr (Fvar v) in
   ([:: LLvar x ], Oarm (ARM_op SUB default_opts), map f [:: y; z ]).
@@ -93,5 +97,36 @@ Definition arm_cmd_large_arith_imm
 (* Precondition: if [imm] is large, [x <> y]. *)
 Definition arm_cmd_large_subi :=
   arm_cmd_large_arith_imm arm_op_sub arm_op_subi (Some 0%Z).
+
+
+(* Return a command that performs an operation with an immediate argument,
+   loading it into a register if needed.
+   In symbols,
+       R[x] := R[x] <+> imm
+   Precondition: if [imm] is large, [x <> y].
+
+   We use [is_expandable] but this is an more restrictive than necessary, for
+   some mnemonics we could use [is_wXX_encoding]. *)
+Definition arm_cmd_large_arith_imm_tmp
+  (on_reg : var_i -> var_i -> var_i -> fopn_args)
+  (on_imm : var_i -> var_i -> Z -> fopn_args)
+  (neutral : option Z)
+  (x y : var_i)
+  (imm : Z) :
+  seq fopn_args :=
+  let is_mov := if neutral is Some x then (imm =? x)%Z else false in
+  if is_mov
+  then [:: ] 
+  else
+    if is_expandable imm
+    then [:: on_imm x x imm ]
+    else arm_cmd_load_large_imm y imm ++ [:: on_reg x x y ].
+
+(* Precondition: if [imm] is large, [x <> y]. *)
+Definition arm_cmd_large_subi_tmp :=
+  arm_cmd_large_arith_imm_tmp arm_op_sub arm_op_subi (Some 0%Z).
+
+Definition arm_cmd_large_addi_tmp :=
+  arm_cmd_large_arith_imm_tmp arm_op_add arm_op_addi (Some 0%Z).
 
 End Section.
