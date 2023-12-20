@@ -89,7 +89,7 @@ Module ARMOpn (Args : OpnArgs).
       then [:: on_imm x y imm ]
       else rcons (li tmp imm) (on_reg x y tmp).
 
-  Let is_arith_small imm := is_expandable imm || is_w12_encoding imm.
+  Definition is_arith_small imm := is_expandable imm || is_w12_encoding imm.
 
   (* Precondition: if [imm] is large, [x <> y]. *)
   Definition smart_addi x y :=
@@ -98,6 +98,36 @@ Module ARMOpn (Args : OpnArgs).
   (* Precondition: if [imm] is large, [x <> y]. *)
   Definition smart_subi x y :=
     gen_smart_opi sub subi is_arith_small (Some 0%Z) x x y.
+
+  (* Return a command that performs an operation with an immediate argument,
+     loading it into a register if needed.
+     In symbols,
+         R[x] := R[x] <+> imm
+     Precondition: if [imm] is large, [x <> y].
+  *)
+  Definition gen_smart_opi_tmp
+    (on_reg : var_i -> var_i -> var_i -> opn_args)
+    (on_imm : var_i -> var_i -> Z -> opn_args)
+    (is_small : Z -> bool)
+    (neutral : option Z)
+    (x y : var_i)
+    (imm : Z) :
+    seq opn_args :=
+    let imm := (imm mod (wbase U32))%Z in
+    let is_mov := if neutral is Some x then (imm =? x)%Z else false in
+    if is_mov
+    then [:: ]
+    else
+      if is_small imm
+      then [:: on_imm x x imm ]
+      else li y imm ++ [:: on_reg x x y ].
+
+  (* Precondition: if [imm] is large, [x <> y]. *)
+  Definition smart_subi_tmp :=
+    gen_smart_opi_tmp sub subi is_arith_small (Some 0%Z).
+
+  Definition smart_addi_tmp :=
+    gen_smart_opi_tmp add addi is_arith_small (Some 0%Z).
 
   End WITH_PARAMS.
 

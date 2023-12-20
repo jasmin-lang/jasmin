@@ -77,10 +77,10 @@ Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 Definition ra_valid fd (ii:instr_info) (k: Sv.t) (x: var) : bool :=
   match fd.(f_extra).(sf_return_address) with
-  | RAstack ra _ =>
+  | RAstack ra _ _ =>
     if ra is Some ra then (ra != vgd) && (ra != vrsp)
     else true
-  | RAreg ra =>
+  | RAreg ra _ =>
     [&& (ra != vgd), (ra != vrsp) & (~~ Sv.mem ra k) ]
   | RAnone => true
   end.
@@ -113,6 +113,9 @@ Definition valid_RSP m (vm: Vm.t) : Prop :=
 Remark valid_set_RSP m vm :
   valid_RSP m (set_RSP m vm).
 Proof. by rewrite /valid_RSP Vm.setP_eq vm_truncate_val_eq. Qed.
+
+Definition kill_tmp_call f s :=
+  with_vm s (kill_vars (fd_tmp_call p f) (evm s)).
 
 Inductive sem : Sv.t → estate → cmd → estate → Prop :=
 | Eskip s :
@@ -169,11 +172,12 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_pexpr true gd s2 e = ok (Vbool false) →
     sem_i ii k s1 (Cwhile a c e c') s2
 
-| Ecall ii k s1 s2 res f args xargs xres :
+| Ecall ii k s1 s2 s2' res f args xargs xres :
     mapM get_pvar args = ok xargs →
     mapM get_lvar res = ok xres →
-    sem_call ii k s1 f s2 →
-    sem_i ii k s1 (Ccall res f args) s2
+    sem_call ii k (kill_tmp_call f s1) f s2 →
+    s2' = kill_tmp_call f s2 ->
+    sem_i ii (Sv.union k (fd_tmp_call p f)) s1 (Ccall res f args) s2'
 
 with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :=
 | EcallRun ii k s1 s2 fn f (* args *) m1 s2' (* res *) :
@@ -189,12 +193,8 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
       f.(f_extra).(sf_stk_ioff)
       f.(f_extra).(sf_stk_extra_sz)
       = ok m1 →
-(*    mapM (λ x : var_i, get_var false s1.(evm) x) f.(f_params) = ok args →
-    all2 check_ty_val f.(f_tyin) args → *)
     let vm1 := ra_undef_vm f s1.(evm) var_tmp in
     sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} f.(f_body) s2' →
-(*   mapM (λ x : var_i, get_var false s2'.(evm) x) f.(f_res) = ok res →
-     all2 check_ty_val f.(f_tyout) res → *)
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
@@ -278,7 +278,11 @@ Lemma sem_iE ii k s i s' :
     mapM get_pvar args = ok xargs &
     exists2 xres,
     mapM get_lvar res = ok xres &
-    sem_call ii k s f s'
+    exists2 s2,
+    s' = (kill_tmp_call f s2) &
+    exists2 k',
+    k = Sv.union k' (fd_tmp_call p f) &
+    sem_call ii k' (kill_tmp_call f s) f s2
   | Cfor _ _ _ => false
   end.
 Proof.
@@ -298,13 +302,9 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ _, top_stack_aligned f s.(emem))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_ioff) f.(f_extra).(sf_stk_extra_sz) = ok m1)
-(*    (λ f _ _ _ args _, mapM (λ x : var_i, get_var s.(evm) x) f.(f_params) = ok args)
-    (λ f _ _ _ args _, all2 check_ty_val f.(f_tyin) args) *)
     (λ f m1 s2' k',
      let vm := ra_undef_vm f s.(evm) var_tmp in
      sem k' {| escs := s.(escs); emem := m1 ; evm := set_RSP m1 vm; |} f.(f_body) s2')
-(*    (λ f _ s2' _ _ res, mapM (λ x : var_i, get_var s2'.(evm) x) f.(f_res) = ok res)
-      (λ f _ _ _ _ res, all2 check_ty_val f.(f_tyout) res) *)
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
       let m2 := free_stack s2'.(emem) in
@@ -408,9 +408,9 @@ Section SEM_IND.
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) res fn args xargs xres,
       mapM get_pvar args = ok xargs →
       mapM get_lvar res = ok xres →
-      sem_call ii k s1 fn s2 →
-      Pfun ii k s1 fn s2 →
-      Pi_r ii k s1 (Ccall res fn args) s2.
+      sem_call ii k (kill_tmp_call fn s1) fn s2 →
+      Pfun ii k (kill_tmp_call fn s1) fn s2 →
+      Pi_r ii (Sv.union k (fd_tmp_call p fn)) s1 (Ccall res fn args) (kill_tmp_call fn s2).
 
   Definition sem_Ind_proc : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) (fn: funname) fd m1 s2',
@@ -431,8 +431,16 @@ Section SEM_IND.
 
   Hypotheses
     (Hcall: sem_Ind_call)
-    (Hproc: sem_Ind_proc)
-  .
+    (Hproc: sem_Ind_proc).
+
+  #[local] Lemma sem_Ind_call' (ii: instr_info) (k: Sv.t) (s1 s2 s2': estate) res fn args xargs xres :
+      mapM get_pvar args = ok xargs →
+      mapM get_lvar res = ok xres →
+      sem_call ii k (kill_tmp_call fn s1) fn s2 →
+      s2' = kill_tmp_call fn s2 ->
+      Pfun ii k (kill_tmp_call fn s1) fn s2 →
+      Pi_r ii (Sv.union k (fd_tmp_call p fn)) s1 (Ccall res fn args) s2'.
+  Proof. move=> h1 h2 h3 -> h4; apply: Hcall h1 h2 h3 h4. Qed.
 
   Fixpoint sem_Ind (k: Sv.t) (s1 : estate) (c : cmd) (s2 : estate) (s: sem k s1 c s2) {struct s} :
     Pc k s1 c s2 :=
@@ -457,8 +465,9 @@ Section SEM_IND.
           (@sem_I_Ind krec s3 (MkI ii (Cwhile a c e1 c')) s4 s6)
     | @Ewhile_false ii k s1 s2 a c e1 c' s0 e2 =>
       @Hwhile_false ii k s1 s2 a c e1 c' s0 (@sem_Ind k s1 c s2 s0) e2
-    | @Ecall ii k s1 s2 res fn args xargs xres hargs hres exec =>
-      @Hcall ii k s1 s2 res fn args xargs xres hargs hres exec (@sem_call_Ind ii k s1 fn s2 exec)
+    | @Ecall ii k s1 s2 s2' res fn args xargs xres hargs hres exec heq =>
+      @sem_Ind_call' ii k s1 s2 s2' res fn args xargs xres hargs hres exec heq
+         (@sem_call_Ind ii k (kill_tmp_call fn s1) fn s2 exec)
     end
 
   with sem_I_Ind (k: Sv.t) (s1 : estate) (i : instr) (s2 : estate) (s : sem_I k s1 i s2) {struct s} : Pi k s1 i s2 :=
@@ -469,6 +478,7 @@ Section SEM_IND.
   with sem_call_Ind (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii k s1 fn s2) {struct s} : Pfun ii k s1 fn s2 :=
     match s with
     | @EcallRun ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 exec ok_rsp' ok_s2 =>
+
       @Hproc ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 exec (@sem_Ind k _ _ _ exec) ok_rsp' ok_s2
     end.
 

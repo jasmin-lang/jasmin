@@ -63,15 +63,18 @@ Section WRITE1.
       end in
     Sv.union (writefun fn) ra.
 
+  Definition writefun_ra_call (fn: funname) :=
+    Sv.union (writefun_ra fn) (fd_tmp_call p fn).
+
   Fixpoint write_i_rec s (i:instr_r) :=
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
-    | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
+    | Csyscall xs o _ => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-    | Ccall _ fn _  => Sv.union s (writefun_ra fn)
+    | Ccall _ fn _    => Sv.union s (writefun_ra_call fn)
     end
   with write_I_rec s i :=
     match i with
@@ -187,7 +190,8 @@ Section CHECK.
 
     | Ccall xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then
-        Let _ := check_es ii D es in
+        let tmp := tmp_call (f_extra fd) in
+        Let _ := check_es ii (Sv.union D tmp) es in
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
           (E.internal_error ii "alignment constraints error") in
         Let _ := assert
@@ -197,7 +201,11 @@ Section CHECK.
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
           (E.internal_error ii "bad call dests") in
         let W := writefun_ra writefun fn in
-        ok (Sv.diff (Sv.union D W) (sv_of_list v_var (f_res fd)))
+        let res := sv_of_list v_var (f_res fd) in
+        Let _ := assert
+          (disjoint tmp res)
+          (E.internal_error ii "tmp call write dests") in
+        ok (Sv.union (Sv.diff (Sv.union D W) res) tmp)
       else Error (E.internal_error ii "call to unknown function")
 
     end.
@@ -234,9 +242,11 @@ Section CHECK.
       if sf_save_stack e is SavedStackReg r then
          check_preserved_register W J "saved stack pointer" r
       else ok tt in
+    Let _ := assert (disjoint magic_variables (tmp_call e))
+                    (E.gen_error true None (pp_s "not (disjoint magic_variables tmp_call)")) in
     match sf_return_address e with
-    | RAreg ra => check_preserved_register W J "return address" ra
-    | RAstack ra _ => 
+    | RAreg ra _ => check_preserved_register W J "return address" ra
+    | RAstack ra _ _ =>
          if ra is Some r then 
             assert (vtype r == sword Uptr) 
              (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s "return address"; pp_var r]))

@@ -254,4 +254,21 @@ Qed.
 
 End MEM_EQUIV.
 
+Lemma sem_fopns_args_lsem lp fn P Q ii lc s1 s2 :
+  sem_fopns_args s1 lc = ok s2 ->
+  is_linear_of lp fn (P ++ map (li_of_fopn_args ii) lc ++ Q) ->
+  lsem lp (of_estate s1 fn (size P)) (of_estate s2 fn (size P + size lc)).
+Proof.
+  elim: lc P s1 => /= [ | [[xs o] es] lc hrec] P s1.
+  + by move=> [<-] _; rewrite addn0; apply rt_refl.
+  rewrite /sem_fopn_args; t_xrbindP=> s1' evs hes rvs hex hw hsem hlin.
+  apply: lsem_step.
+  + rewrite /lsem1/step -{1}(addn0 (size P)).
+    have  /(_ (of_estate s1 fn (size P + 0)) 0) := find_instr_skip hlin.
+    rewrite /of_estate /setpc /= /eval_instr => -> //=.
+    by rewrite to_estate_of_estate hes /= hex /= hw /=; reflexivity.
+  move: hlin; rewrite -addSnnS -cat_rcons => hlin.
+  by have := hrec _ _ hsem hlin; rewrite size_rcons; apply.
+Qed.
+
 End WITH_PARAMS.

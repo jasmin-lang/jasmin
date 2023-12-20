@@ -548,33 +548,36 @@ Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_e
 
 Variant return_address_location :=
 | RAnone
-| RAreg of var               (* The return address is pass by a register and 
-                                keeped in this register during function call *)
-| RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack 
+| RAreg of var & option var  (* The return address is pass by a register and
+                                keeped in this register during function call,
+                                the option is for incrementing the large stack in arm *)
+| RAstack of option var & Z & option var.
+                             (* None means that the call instruction directly store ra on the stack
                                 Some r means that the call instruction directly store ra on r and 
-                                the function should store r on the stack *)
+                                the function should store r on the stack,
+                                The second option is for incrementing the large stack in arm *)
 
 Definition is_RAnone ra :=
   if ra is RAnone then true else false.
 
 Definition is_RAstack ra :=
-  if ra is RAstack _ _ then true else false.
+  if ra is RAstack _ _ _ then true else false.
 
 Definition is_RAstack_None ra :=
-  if ra is RAstack None _ then true else false.
+  if ra is RAstack None _ _ then true else false.
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
-  | RAreg x1 => if r2 is RAreg x2 then x1 == x2 else false
-  | RAstack lr1 z1 => if r2 is RAstack lr2 z2 then (lr1 == lr2) && (z1 == z2) else false
+  | RAreg x1 o1 => if r2 is RAreg x2 o2 then (x1 == x2) && (o1 == o2) else false
+  | RAstack lr1 z1 o1 => if r2 is RAstack lr2 z2 o2 then [&& lr1 == lr2, z1 == z2 & o1 == o2] else false
   end.
 
 Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
 Proof.
-  case => [ | x1 | lr1 z1 ] [ | x2 | lr2 z2 ] /=; try by constructor.
-  + by apply (iffP eqP); congruence.
-  by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
+  case => [ | x1 o1 | lr1 z1 o1 ] [ | x2 o2 | lr2 z2 o2 ] /=; try by constructor.
+  + by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
+  by apply (iffP and3P) => [ []/eqP-> /eqP-> /eqP-> | []-> -> ->].
 Qed.
 
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.

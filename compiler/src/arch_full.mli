@@ -24,6 +24,7 @@ module type Core_arch = sig
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
+  val alloc_stack_need_extra : Z.t -> bool
 
   val lowering_opt : lowering_options
   val not_saved_stack : var list
