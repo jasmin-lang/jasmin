@@ -77,6 +77,7 @@ stdenv.mkDerivation rec {
   installPhase = ''
     runHook preInstall
     dune install --prefix $out -p $pname
+    rm -rf $out/lib/easycrypt/ecLib
     rm $out/bin/ec-runtest
     runHook postInstall
   '';
