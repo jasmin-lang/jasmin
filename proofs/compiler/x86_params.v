@@ -72,13 +72,13 @@ Section LINEARIZATION.
 
 Notation vtmpi := (mk_var_i (to_var RAX)).
 
-Definition x86_allocate_stack_frame (rspi: var_i) (tmp: option var_i) (sz: Z) :=
+Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
   let p := Fapp2 (Osub (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
-  [:: ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ])].
+  ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ]).
 
-Definition x86_free_stack_frame (rspi: var_i) (tmp: option var_i) (sz: Z) :=
+Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
   let p := Fapp2 (Oadd (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
-  [:: ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ])].
+  ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ]).
 
 (* TODO: consider using VMOVDQA when the address is known to be aligned *)
 Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
@@ -91,7 +91,7 @@ Definition x86_set_up_sp_register
   (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : seq fopn_args :=
   let i0 := x86_lassign (LLvar r) Uptr (Rexpr (Fvar rspi)) in
   let i2 := x86_op_align rspi Uptr al in
-  i0 :: rcons (if sf_sz != 0 then x86_allocate_stack_frame rspi None sf_sz else [::]) i2.
+  i0 :: rcons (if sf_sz != 0 then [:: x86_allocate_stack_frame rspi sf_sz ] else [::]) i2.
 
 Definition x86_set_up_sp_stack
   (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq fopn_args :=

@@ -81,9 +81,8 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
      *)
     lip_allocate_stack_frame :
       var_i    (* Variable with stack pointer register. *)
-      -> option var_i (* An auxiliary variable *)
       -> Z     (* Amount of space to allocate. *)
-      -> seq fopn_args;
+      -> fopn_args;
 
     (* Return the arguments for a linear instruction that frees a stack frame.
        The linear instruction derived from [lip_free_stack_frame rspi sz]
@@ -93,9 +92,8 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
      *)
     lip_free_stack_frame :
       var_i    (* Variable with stack pointer register. *)
-      -> option var_i (* An auxiliary variable *)
       -> Z     (* Amount of space to free. *)
-      -> seq fopn_args;
+      -> fopn_args;
 
     (* Return the arguments for a linear command that saves the value of the
        stack pointer to a register, allocates a stack frame and aligns the stack
@@ -280,16 +278,6 @@ Section EXPR.
   Definition check_lexpr := check_Some error lexpr_of_lval "check_lexpr".
 
 End EXPR.
-
-Definition ovar_of_ra (ra : return_address_location) : option var :=
-  match ra with
-  | RAreg ra => Some ra
-  | RAstack ra _ => ra
-  | RAnone => None
-  end.
-
-Definition ovari_of_ra (ra : return_address_location) : option var_i :=
-  omap mk_var_i (ovar_of_ra ra).
 
 Section PROG.
 
@@ -510,16 +498,15 @@ Definition check_prog :=
   Let _ := map_cfprog_name check_fd (p_funcs p) in
   ok tt.
 
-Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (tmp: option var_i) 
-(rastack: bool) : lcmd :=
+Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (rastack: bool) : lcmd :=
   let sz := if rastack then (sz - wsize_size Uptr)%Z else sz in
   if sz == 0%Z
   then [::]
   else
     let args := if free
-                   then (lip_free_stack_frame liparams) rspi tmp sz
-                   else (lip_allocate_stack_frame liparams) rspi tmp sz in
-     map (li_of_fopn_args ii) args.
+                   then (lip_free_stack_frame liparams) rspi sz
+                   else (lip_allocate_stack_frame liparams) rspi sz
+       in [:: li_of_fopn_args ii args ].
 
 (* Return a linear command that pushes variables to the stack.
  * The linear command `lp_push_to_save ii to_save` pushes each
@@ -567,6 +554,16 @@ Definition pop_to_save
 
 Let ReturnTarget := Llabel ExternalLabel.
 Let Llabel := linear.Llabel InternalLabel.
+
+Definition ovar_of_ra (ra : return_address_location) : option var :=
+  match ra with
+  | RAreg ra => Some ra
+  | RAstack ra _ => ra
+  | RAnone => None
+  end.
+
+Definition ovari_of_ra (ra : return_address_location) : option var_i :=
+  omap mk_var_i (ovar_of_ra ra).
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
@@ -638,9 +635,8 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       if is_RAnone ra then (lbl, lc)
       else
         let sz := stack_frame_allocation_size e in
-        let tmp := ovari_of_ra ra in
-        let before := allocate_stack_frame false ii sz tmp (is_RAstack_None ra) in
-        let after := allocate_stack_frame true ii sz tmp (is_RAstack ra) in
+        let before := allocate_stack_frame false ii sz (is_RAstack_None ra) in
+        let after := allocate_stack_frame true ii sz (is_RAstack ra) in
         let lret := lbl in
         let lbl := next_lbl lbl in
         (* The test is used for the proof of linear_has_valid_labels *) 

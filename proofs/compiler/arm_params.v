@@ -79,18 +79,12 @@ Section LINEARIZATION.
 Notation vtmpi := (mk_var_i (to_var R12)).
 
 (* TODO_ARM: This assumes 0 <= sz < 4096. *)
-Definition arm_allocate_stack_frame (rspi : var_i) (tmp: option var_i) (sz : Z) :=
-  if tmp is Some aux then
-    arm_cmd_large_subi_tmp rspi aux sz 
-  else
-    [:: arm_op_subi rspi rspi sz].
+Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
+  arm_op_subi rspi rspi sz.
 
 (* TODO_ARM: This assumes 0 <= sz < 4096. *)
-Definition arm_free_stack_frame (rspi : var_i) (tmp : option var_i) (sz : Z) :=
-  if tmp is Some aux then
-    arm_cmd_large_addi_tmp rspi aux sz 
-  else
-    [:: arm_op_addi rspi rspi sz].
+Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
+  arm_op_addi rspi rspi sz.
 
 (* TODO_ARM: Review. This seems unnecessary. *)
 Definition arm_lassign
