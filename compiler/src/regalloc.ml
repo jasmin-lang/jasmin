@@ -429,10 +429,10 @@ let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: ('info, 'asm) func) :
   collect_variables_aux ~allvars excluded fresh tbl None f;
   tbl, total ()
 
-type retaddr = 
+type retaddr =
   | StackDirect
-  | StackByReg of var
-  | ByReg of var
+  | StackByReg of var * var option
+  | ByReg of var * var option
 
 let collect_variables_in_prog
       ~(allvars: bool)
@@ -442,12 +442,13 @@ let collect_variables_in_prog
       (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
-  List.iter (fun f -> 
-      let extra = 
+  List.iter (fun f ->
+      let extra, tmp =
         match Hf.find return_adresses f.f_name with
-        | StackByReg v | ByReg v -> Some v
-        | StackDirect -> None in
-        collect_variables_aux ~allvars excluded fresh tbl extra f) f;
+        | StackByReg (v, tmp) | ByReg (v, tmp) -> Some v, tmp
+        | StackDirect -> None, None in
+        collect_variables_aux ~allvars excluded fresh tbl extra f;
+        Option.may (collect_variables_cb ~allvars excluded fresh tbl) tmp) f;
   List.iter (collect_variables_cb ~allvars excluded fresh tbl) all_reg;
   tbl, total ()
 
@@ -511,8 +512,12 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
          other
 
 type reg_oracle_t = {
+    (* The list of callee save registers that are modified by
+      a call to the export function *)
     ro_to_save: var list;
+    (* A register that can be used to save the rsp of export function *)
     ro_rsp: var option;
+    (* How the return address is pass to the function *)
     ro_return_address: retaddr;
   }
 
@@ -523,8 +528,12 @@ module type Regalloc = sig
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
   val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
 
+  val subroutine_ra_by_stack : (unit, extended_op) func -> bool
+
   val alloc_prog :
-    (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
+    (Var0.Var.var -> var) ->
+    ((unit, extended_op) func -> 'a -> bool) ->
+    ((unit, extended_op) func -> 'a -> Z.t) ->
     ('a * (unit, extended_op) func) list ->
     ('a * reg_oracle_t * (unit, extended_op) func) list
 end
@@ -648,7 +657,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
   if f.f_cc = Export then alloc_ret loc L.unloc f.f_ret;
   alloc_stmt f.f_body;
   match Hf.find return_addresses f.f_name, Arch.callstyle with
-  | (StackByReg ra | ByReg ra), Arch_full.ByReg (Some r) ->
+  | (StackByReg (ra,_) | ByReg (ra, _)), Arch_full.ByReg (Some r) ->
       let i = Hv.find vars ra in 
       allocate_one nv vars (Location.i_loc f.f_loc []) cnf ra i r a
   | _ -> () 
@@ -880,7 +889,20 @@ let post_process
        else to_save, None
      end
 
-let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
+let subroutine_ra_by_stack f =
+  match f.f_cc with
+  | Export | Internal -> assert false
+  | Subroutine _ ->
+      match Arch.callstyle with
+      | Arch_full.StackDirect -> true
+      | Arch_full.ByReg oreg ->
+        let dfl = oreg <> None && has_call_or_syscall f.f_body in
+        match f.f_annot.retaddr_kind with
+        | None -> dfl
+        | Some k -> dfl || k = OnStack
+
+let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func list) :
+  (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -908,12 +930,19 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
          | Arch_full.ByReg oreg ->
            let dfl = oreg <> None && has_call_or_syscall f.f_body in
            let r = V.mk ("ra_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
+           (* Fixme: Add an option in Arch to say when the tmp reg is needed *)
+           let tmp_needed = Arch.alloc_stack_need_extra (get_internal_size f) in
+           let tmp =
+             if tmp_needed then
+               let tmp = V.mk ("tmp_"^f.f_name.fn_name) (Reg(Normal,Direct)) (tu Arch.reg_size) f.f_loc [] in
+               Some tmp
+             else None in
            let rastack = 
              match f.f_annot.retaddr_kind with
              | None -> dfl
              | Some k -> dfl || k = OnStack in
-           if rastack then StackByReg r
-           else ByReg r in
+           if rastack then StackByReg (r, tmp)
+           else ByReg (r, tmp) in
     Hf.add return_addresses f.f_name ra;
     let written =
       let written, cg = written_vars_fc f in
@@ -923,7 +952,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
         | Subroutine _ ->
           match ra with 
           | StackDirect -> written 
-          | StackByReg r | ByReg r -> Sv.add r written 
+          | StackByReg (r, None) | ByReg (r, None) -> Sv.add r written
+          | StackByReg (r, Some t) | ByReg (r, Some t) -> Sv.add t (Sv.add r written)
       in
       let killed_by_calls =
         Mf.fold (fun fn _locs acc -> Sv.union (killed fn) acc)
@@ -983,10 +1013,17 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
  
   (* In-register return address conflicts with function arguments *)
   let conflicts =
+    let doit ra =
+      List.fold_left (fun cnf x -> conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone ra x cnf) in
     List.fold_left (fun a f ->
         match Hf.find return_addresses f.f_name with
-        | ByReg ra | StackByReg ra ->
-           List.fold_left (fun cnf x -> conflicts_add_one Arch.pointer_data Arch.reg_size Arch.asmOp vars tr Lnone ra x cnf) a f.f_args
+        | ByReg (ra, None) | StackByReg(ra,None) ->
+           doit ra a f.f_args
+        | ByReg (ra, Some tmp) | StackByReg(ra,Some tmp) ->
+          let a = doit ra a f.f_args in
+          (* tmp register used to increment the stack conflicts with function arguments and results *)
+          let a = doit tmp a f.f_args in
+          doit tmp a (List.map L.unloc f.f_ret)
         | StackDirect -> a) 
       conflicts funcs in
   (* Inter-procedural conflicts *)
@@ -997,7 +1034,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
         let vars = killed f.f_name in
         let cnf =
           match Hf.find return_addresses f.f_name with
-          | ByReg ra -> cnf |> add_conflicts (Sv.remove ra vars) ra
+          | ByReg (ra, _) -> cnf |> add_conflicts (Sv.remove ra vars) ra
           | StackDirect | StackByReg _ -> cnf
         in
         cnf |> Sv.fold (add_conflicts vars) live
@@ -1028,7 +1065,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   , killed
   , return_addresses
 
-let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfuncs: ('a * ('info, 'asm) func) list)
+let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) get_internal_size (dfuncs: ('a * ('info, 'asm) func) list)
     : ('a * reg_oracle_t * (unit, 'asm) func) list =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
@@ -1045,7 +1082,7 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
   let funcs, get_liveness, subst, killed, return_addresses =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
-    |> global_allocation translate_var
+    |> global_allocation translate_var (fun f -> get_internal_size f (Hf.find extra f.f_name))
   in
   funcs |>
   List.map (fun f ->
@@ -1064,8 +1101,8 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfun
       let ro_return_address = 
         match Hf.find return_addresses f.f_name with 
         | StackDirect -> StackDirect 
-        | StackByReg r -> StackByReg (subst r)
-        | ByReg r -> ByReg (subst r) in
+        | StackByReg(r, tmp) -> StackByReg (subst r, Option.map subst tmp)
+        | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
       let ro_to_save = if f.f_cc = Export then Sv.elements to_save else [] in
       e, { ro_to_save ; ro_rsp ; ro_return_address }, f
     )

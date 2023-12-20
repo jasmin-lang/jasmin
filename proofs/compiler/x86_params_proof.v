@@ -159,20 +159,24 @@ Qed.
 
 Context {call_conv : calling_convention}.
 
-Definition x86_spec_lip_allocate_stack_frame :
+Lemma x86_spec_lip_allocate_stack_frame :
   allocate_stack_frame_correct x86_liparams.
 Proof.
-  move=> lp sp_rsp ls ii ts sz Hvm.
-  rewrite /eval_instr /= /sem_sopn /get_var Hvm /=.
-  by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u.
+  move=> sp_rsp tmp s ts sz _ Hvm.
+  rewrite /= Hvm /= /eval_instr /= /sem_sopn /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /=.
+  eexists; split; first reflexivity.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 
-Definition x86_spec_lip_free_stack_frame :
+Lemma x86_spec_lip_free_stack_frame :
   free_stack_frame_correct x86_liparams.
 Proof.
-  move=> lp sp_rsp ls ii ts sz Hvm.
-  rewrite /eval_instr /= /sem_sopn /get_var Hvm /=.
-  by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u.
+  move=> sp_rsp tmp s ts sz _ Hvm.
+  rewrite /= Hvm /= /eval_instr /= /sem_sopn /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /=.
+  eexists; split; first reflexivity.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 
 Lemma x86_spec_lip_set_up_sp_register :
@@ -211,16 +215,17 @@ Proof.
         reflexivity.
 
     (* R[rsp] := R[rsp] - sz; *)
-    + subst ls2.
+    + subst ls2; rewrite /vm2.
       case: (sz =P 0) hbody => [? | /eqP hneq] /= hbody.
       * subst sz. rewrite addn0 -hpc. by constructor.
       rewrite -cat1s catA in hbody.
       apply: (eval_lsem_step1 hbody) => //;
         first by rewrite size_cat addn1 -hpc.
-      rewrite (x86_spec_lip_allocate_stack_frame _ _ (ts := ts)).
-      * by rewrite /vm2 addn1 -hpc hneq.
+      rewrite /eval_instr /= /sem_sopn /= /vm0 /get_var /=.
       rewrite Vm.setP_neq; last by apply/eqP.
-      by move: hgetrsp => /get_varP [].
+      move /get_varP: hgetrsp => [<- _ _] /=.
+      rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u /=.
+      by rewrite /lnext_pc /lset_estate' /= /setpc /lset_vm /= addn1 hpc.
 
     (* R[rsp] := R[rsp] & alignment; *)
     rewrite map_rcons -cat1s catA cat_rcons catA in hbody.

@@ -117,19 +117,27 @@ Section LINEARIZATION.
 Lemma arm_spec_lip_allocate_stack_frame :
   allocate_stack_frame_correct arm_liparams.
 Proof.
-  move=> *.
-  apply: ARMFopnP.subi_eval_instr.
-  rewrite /get_var.
-  by t_simpl_rewrites.
+  move=> sp_rsp tmp s ts sz htmp hget /=.
+  rewrite /arm_allocate_stack_frame.
+  case: tmp htmp => [tmp [h1 h2]| _].
+  + by apply ARMFopnP.smart_subi_tmp_lsem.
+  rewrite /= hget /=; t_arm_op.
+  eexists; split; first reflexivity.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  by rewrite Vm.setP_eq wsub_wnot1 vm_truncate_val_eq.
 Qed.
 
 Lemma arm_spec_lip_free_stack_frame :
   free_stack_frame_correct arm_liparams.
 Proof.
-  move=> *.
-  apply: ARMFopnP.addi_eval_instr.
-  rewrite /get_var.
-  by t_simpl_rewrites.
+  move=> sp_rsp tmp s ts sz htmp hget /=.
+  rewrite /arm_free_stack_frame.
+  case: tmp htmp => [tmp [h1 h2]| _].
+  + by apply ARMFopnP.smart_addi_tmp_lsem.
+  rewrite /= hget /=; t_arm_op.
+  eexists; split; first reflexivity.
+  + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
+  by rewrite Vm.setP_eq vm_truncate_val_eq.
 Qed.
 
 Lemma arm_spec_lip_set_up_sp_register :

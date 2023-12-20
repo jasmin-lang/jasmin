@@ -81,8 +81,9 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
      *)
     lip_allocate_stack_frame :
       var_i    (* Variable with stack pointer register. *)
+      -> option var_i (* An auxiliary variable *)
       -> Z     (* Amount of space to allocate. *)
-      -> fopn_args;
+      -> seq fopn_args;
 
     (* Return the arguments for a linear instruction that frees a stack frame.
        The linear instruction derived from [lip_free_stack_frame rspi sz]
@@ -92,8 +93,9 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
      *)
     lip_free_stack_frame :
       var_i    (* Variable with stack pointer register. *)
+      -> option var_i (* An auxiliary variable *)
       -> Z     (* Amount of space to free. *)
-      -> fopn_args;
+      -> seq fopn_args;
 
     (* Return the arguments for a linear command that saves the value of the
        stack pointer to a register, allocates a stack frame and aligns the stack
@@ -279,6 +281,26 @@ Section EXPR.
 
 End EXPR.
 
+Definition ovar_of_ra (ra : return_address_location) : option var :=
+  match ra with
+  | RAreg ra _ => Some ra
+  | RAstack ra _ _ => ra
+  | RAnone => None
+  end.
+
+Definition ovari_of_ra (ra : return_address_location) : option var_i :=
+  omap mk_var_i (ovar_of_ra ra).
+
+Definition tmp_of_ra (ra : return_address_location) : option var :=
+  match ra with
+  | RAreg _ o => o
+  | RAstack _ _ o => o
+  | RAnone => None
+  end.
+
+Definition tmpi_of_ra (ra : return_address_location) : option var_i :=
+  omap mk_var_i (tmp_of_ra ra).
+
 Section PROG.
 
 Context
@@ -440,6 +462,9 @@ Section FUN.
 Context
   (fn : funname).
 
+Definition ov_type_ptr (o: option var) :=
+   if o is Some r then vtype r == sword Uptr else true.
+
 Definition check_fd (fn: funname) (fd:sfundef) :=
   let e := fd.(f_extra) in
   let stack_align := e.(sf_align) in
@@ -453,10 +478,13 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
                   (E.error "bad stack size") in
   Let _ := assert match sf_return_address e with
                   | RAnone => true
-                  | RAreg ra => vtype ra == sword Uptr
-                  | RAstack ora ofs => 
-                      (if ora is Some ra then (vtype ra == sword Uptr) && isSome (lstore rspi ofs Uptr (mk_var_i ra)) else true) &&
-                      check_stack_ofs_internal_call e ofs Uptr
+                  | RAreg ra tmp => (vtype ra == sword Uptr) && ov_type_ptr tmp
+                  | RAstack ora ofs tmp =>
+                      [&& ov_type_ptr tmp,
+                      (if ora is Some ra then
+                         (vtype ra == sword Uptr) && isSome (lstore rspi ofs Uptr (mk_var_i ra))
+                       else true) &
+                      check_stack_ofs_internal_call e ofs Uptr]
                   end
                   (E.error "bad return-address") in
   let ok_save_stack :=
@@ -498,15 +526,16 @@ Definition check_prog :=
   Let _ := map_cfprog_name check_fd (p_funcs p) in
   ok tt.
 
-Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (rastack: bool) : lcmd :=
+Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (tmp: option var_i)
+(rastack: bool) : lcmd :=
   let sz := if rastack then (sz - wsize_size Uptr)%Z else sz in
   if sz == 0%Z
   then [::]
   else
     let args := if free
-                   then (lip_free_stack_frame liparams) rspi sz
-                   else (lip_allocate_stack_frame liparams) rspi sz
-       in [:: li_of_fopn_args ii args ].
+                   then (lip_free_stack_frame liparams) rspi tmp sz
+                   else (lip_allocate_stack_frame liparams) rspi tmp sz in
+     map (li_of_fopn_args ii) args.
 
 (* Return a linear command that pushes variables to the stack.
  * The linear command `lp_push_to_save ii to_save` pushes each
@@ -554,16 +583,6 @@ Definition pop_to_save
 
 Let ReturnTarget := Llabel ExternalLabel.
 Let Llabel := linear.Llabel InternalLabel.
-
-Definition ovar_of_ra (ra : return_address_location) : option var :=
-  match ra with
-  | RAreg ra => Some ra
-  | RAstack ra _ => ra
-  | RAnone => None
-  end.
-
-Definition ovari_of_ra (ra : return_address_location) : option var_i :=
-  omap mk_var_i (ovar_of_ra ra).
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
@@ -635,8 +654,9 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       if is_RAnone ra then (lbl, lc)
       else
         let sz := stack_frame_allocation_size e in
-        let before := allocate_stack_frame false ii sz (is_RAstack_None ra) in
-        let after := allocate_stack_frame true ii sz (is_RAstack ra) in
+        let tmp := tmpi_of_ra ra in
+        let before := allocate_stack_frame false ii sz tmp (is_RAstack_None ra) in
+        let after := allocate_stack_frame true ii sz tmp (is_RAstack ra) in
         let lret := lbl in
         let lbl := next_lbl lbl in
         (* The test is used for the proof of linear_has_valid_labels *) 
@@ -663,12 +683,12 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
-     | RAreg r =>
+     | RAreg r _ =>
        ( [:: MkLI dummy_instr_info (Ligoto (Rexpr (Fvar (mk_var_i r)))) ]
        , [:: MkLI dummy_instr_info (Llabel 1) ]
        , 2%positive
        )
-     | RAstack ra z =>
+     | RAstack ra z _ =>
        ( [:: MkLI dummy_instr_info Lret ]
        , MkLI dummy_instr_info (Llabel 1) ::
          (if ra is Some ra

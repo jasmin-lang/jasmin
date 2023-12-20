@@ -663,7 +663,7 @@ Lemma sz_init_no_lbl : ~~ has (is_label lbl) (sz_init rspi ws_align stk_max).
 Proof.
   rewrite /= has_map has_cat /= /ARMFopn.li.
   case: ifP => // _.
-  by case: Z.div_eucl.
+  by case: Z.div_eucl => ??.
 Qed.
 
 Lemma stack_zero_loopP (s1 : estate) :
@@ -771,8 +771,7 @@ Lemma sz_init_no_ext_lbl rsp ws_align stk_max :
   label_in_lcmd (sz_init rsp ws_align stk_max) = [::].
 Proof.
   rewrite /= map_cat label_in_lcmd_cat /= cats0 /ARMFopn.li.
-  case: ifP => // _.
-  by case: Z.div_eucl.
+  by case: ifP => // _; case: Z.div_eucl => ??.
 Qed.
 
 Lemma store_zero_no_ext_lbl ii rsp ws off :

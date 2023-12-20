@@ -376,12 +376,18 @@ let pp_saved_stack ~debug fmt = function
   | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar x)
   | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" Z.pp_print (Conv.z_of_cz z)
 
+
+let pp_tmp_option ~debug =
+   Format.pp_print_option (fun fmt x -> Format.fprintf fmt " [tmp = %a]" (pp_var ~debug) (Conv.var_of_cvar x))
+
 let pp_return_address ~debug fmt = function
-  | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar x)
-  | Expr.RAstack(Some x, z) -> 
-    Format.fprintf fmt "%a, RSP + %a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz z)
-  | Expr.RAstack(None, z) -> 
-    Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz z)
+  | Expr.RAreg (x, o) ->
+    Format.fprintf fmt "%a%a" (pp_var ~debug) (Conv.var_of_cvar x) (pp_tmp_option ~debug) o
+
+  | Expr.RAstack(Some x, z, o) ->
+    Format.fprintf fmt "%a, RSP + %a%a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz z) (pp_tmp_option ~debug) o
+  | Expr.RAstack(None, z, o) ->
+    Format.fprintf fmt "RSP + %a%a" Z.pp_print (Conv.z_of_cz z) (pp_tmp_option ~debug) o
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
 let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =

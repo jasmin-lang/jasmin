@@ -105,6 +105,14 @@ Definition get_label_after_pc (s:lstate) :=
     else type_error
   else type_error.
 
+Definition sem_fopn_args (p : fopn_args) (s: estate) :=
+  let: (xs,o,es) := p in
+  Let args := sem_rexprs s es in
+  Let res := exec_sopn o args in
+  write_lexprs xs res s.
+
+Definition sem_fopns_args := foldM sem_fopn_args.
+
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
