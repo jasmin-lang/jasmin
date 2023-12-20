@@ -61,6 +61,11 @@
   against Spectre).
   ([PR #631](https://github.com/jasmin-lang/jasmin/pull/631)).
 
+- Array indexing expressions are automatically and silently casted from word to
+  int during pretyping
+  ([PR #673](https://github.com/jasmin-lang/jasmin/pull/673);
+  fixes [#672](https://github.com/jasmin-lang/jasmin/issues/672)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators

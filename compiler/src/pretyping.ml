@@ -943,7 +943,13 @@ let combine_flags =
 
 let is_combine_flags id =
   List.mem_assoc (L.unloc id) combine_flags
-  
+
+let ensure_int loc i ty =
+  match ty with
+  | P.Bty Int -> i
+  | P.Bty (P.U ws) -> P.Papp1(E.Oint_of_word ws,i)
+  | _ -> rs_tyerror ~loc (TypeMismatch (ty, P.tint))
+
 (* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
@@ -970,7 +976,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
-    check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
+    let i = ensure_int (L.loc pi) i ity in
     begin match olen with
     | None -> P.Pget (aa, ws, x, i), ty
     | Some plen ->
@@ -1147,7 +1153,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
-    check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
+    let i = ensure_int (L.loc pi) i ity in
     begin match olen with
     | None -> 
       loc, (fun _ -> P.Laset (aa, ws, L.mk_loc xlc x, i)), Some ty
