@@ -26,6 +26,7 @@ let easycrypt = callPackage scripts/easycrypt.nix {
         url = "https://why3.gitlabpages.inria.fr/releases/${o.pname}-${version}.tar.gz";
         hash = "sha256-hFvM6kHScaCtcHCc6Vezl9CR7BFbiKPoTEh7kj0ZJxw=";
       };
+      configureFlags = o.configureFlags ++ [ "--disable-ide" ];
     });
 }; in
 
@@ -56,7 +57,7 @@ stdenv.mkDerivation {
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
          cmdliner
-         (batteries.overrideAttrs (o: { doCheck = false; }))
+         batteries
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
