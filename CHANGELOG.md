@@ -21,6 +21,11 @@
   `SMULTT`, `SMLABB`, `SMLABT`, `SMLATB`, `SMLATT`, `SMULWB`, and `SMULWT`
   ([PR #644](https://github.com/jasmin-lang/jasmin/pull/644)).
 
+- Array indexing expressions are automatically and silently casted from word to
+  int during pretyping
+  ([PR #673](https://github.com/jasmin-lang/jasmin/pull/673);
+  fixes [#672](https://github.com/jasmin-lang/jasmin/issues/672)).
+
 ## Bug fixes
 
 - Fix printing to EasyCrypt of ARMv7 instruction `bic`
