@@ -1918,6 +1918,11 @@ Lemma isSomeP {A : Type} {oa : option A} :
   exists a, oa = Some a.
 Proof. case: oa; by [|eexists]. Qed.
 
+Lemma o2rP {eT A} {err : eT} {oa : option A} {a} :
+  o2r err oa = ok a ->
+  oa = Some a.
+Proof. by case: oa => //= ? [->]. Qed.
+
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
 Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
 
@@ -1930,3 +1935,93 @@ Qed.
 Lemma map_const_nseq A B (l : list A) (c : B) : map (fun=> c) l = nseq (size l) c.
 Proof. by elim: l => // > ? /=; f_equal. Qed.
 
+
+Section RT_TRANSN.
+
+Context
+  {A : Type}
+  {R Rstep : A -> A -> Prop}
+.
+
+Fixpoint transn_spec_aux (a0 an : A) (l : list A) : Prop :=
+  match l with
+  | [::] => R a0 an
+  | an1 :: l => Rstep an an1 -> transn_spec_aux a0 an1 l
+  end.
+
+Definition transn_spec (l : list A) : Prop :=
+  match l with
+  | [::] => True
+  | a0 :: l => transn_spec_aux a0 a0 l
+  end.
+
+  Section SPEC.
+
+  Context
+    (htrans : forall x y z, R x y -> R y z -> R x z)
+    (hstep : forall x y, Rstep x y -> R x y)
+    (hrefl : forall x, R x x)
+  .
+
+  Lemma transn_spec_auxP a0 an l :
+    R a0 an ->
+    transn_spec_aux a0 an l.
+  Proof.
+    elim: l an => //= an1 l hrec an h0n hnn1.
+    apply: hrec.
+    apply: (htrans h0n).
+    exact: hstep.
+  Qed.
+
+  Lemma transn_specP l : transn_spec l.
+  Proof.
+    case: l => [// | a0 [// | a1 l ?]].
+    apply: transn_spec_auxP.
+    exact: hstep.
+  Qed.
+
+  End SPEC.
+
+Context (hspec : forall l, transn_spec l).
+
+Lemma transn2 a0 a1 a2 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  R a0 a2.
+Proof. exact: (hspec [:: _; _; _ ]). Qed.
+
+Lemma transn3 a0 a1 a2 a3 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  R a0 a3.
+Proof. exact: (hspec [:: _; _; _; _ ]). Qed.
+
+Lemma transn4 a0 a1 a3 a2 a4 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  R a0 a4.
+Proof. exact: (hspec [:: _; _; _; _; _ ]). Qed.
+
+Lemma transn5 a0 a1 a3 a2 a4 a5 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  Rstep a4 a5 ->
+  R a0 a5.
+Proof. exact: (hspec [:: _; _; _; _; _; _ ]). Qed.
+
+Lemma transn6 a0 a1 a3 a2 a4 a5 a6 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  Rstep a4 a5 ->
+  Rstep a5 a6 ->
+  R a0 a6.
+Proof. exact: (hspec [:: _; _; _; _; _; _; _ ]). Qed.
+
+End RT_TRANSN.

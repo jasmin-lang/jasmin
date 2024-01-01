@@ -681,7 +681,7 @@ Proof.
   have! [|] := (lsem_run_tunnel_program ok_tp zp_exec).
   - by exists zfd.
   - move => tp_exec _.
-    rewrite /lfd_body size_tunnel_lcmd.
+    rewrite /ls_export_final size_tunnel_lcmd.
     exact: tp_exec.
   exact: ok_callee_saved.
 Qed.

@@ -1746,8 +1746,7 @@ Proof.
   - move=> [xlr | ] r ok_i.
     + case heqlr: to_reg => [lr /= | //] [?]; subst aci.
       rewrite /linear_sem.eval_instr => /=; t_xrbindP => l hgetpc.
-      case ptr_eq: encode_label => [ ptr | ] //.
-      t_xrbindP => vm hset hjump.
+      t_xrbindP=> ptr /o2rP ptr_eq vm hset hjump.
       apply (match_state_step1 (ls' := ls') hnth) => /=.
       rewrite /return_address_from.
       have /= := assemble_get_label_after_pc hass ok_i _ heqf hip _ hgetpc.
@@ -1761,8 +1760,8 @@ Proof.
       by move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ _ heqlr).
     move=> [?]; subst aci.
     rewrite /linear_sem.eval_instr => /=; t_xrbindP=> wsp vsp hsp htow_sp l hgetpc.
-    rewrite heqf; case ptr_eq: encode_label => [ ptr | ] //.
-    t_xrbindP => m1 hm1 /= => hjump.
+    rewrite heqf.
+    t_xrbindP=> ptr /o2rP ptr_eq m1 hm1 /= => hjump.
     apply (match_state_step1 (ls' := ls') hnth) => /=.
     rewrite /return_address_from.
     have /= := assemble_get_label_after_pc hass ok_i _ heqf hip _ hgetpc.
@@ -1781,8 +1780,7 @@ Proof.
     move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ ad_rsp erefl).
     by case=> *; constructor => //.
   - move=> hok_i [?]; subst aci; rewrite /linear_sem.eval_instr /=.
-    t_xrbindP => wsp vsp hsp htow_sp ptr ok_ptr.
-    case ptr_eq: decode_label => [ r | // ] /= hjump.
+    t_xrbindP=> wsp vsp hsp htow_sp ptr ok_ptr r /o2rP ptr_eq hjump.
     apply (match_state_step1 (ls' := ls') hnth) => /=.
     rewrite /eval_POP truncate_word_u /=.
     rewrite to_var_rsp in hsp.
@@ -1816,11 +1814,11 @@ Proof.
     by apply (match_state_step1 (ls' := ls') hnth) => /=; apply: eval_jumpP; last by apply hi.
   - rewrite /linear_sem.eval_instr /=; t_xrbindP=> e hok_i ok_e.
     move => d ok_d ? ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
+    move=> r /o2rP ptr_eq.
     change reg_size with Uptr in ptr => hdec.
     apply (match_state_step1 (ls' := ls') hnth) => /=; move: hdec.
     have [v' -> /value_uinclE /= [? [? [-> /hptr /= ->]]]] := eval_assemble_word hloeq ok_e ok_d ok_v.
-    case ptr_eq: decode_label => [ r | // ] /=.
-    rewrite -assemble_prog_labels ptr_eq.
+    rewrite -assemble_prog_labels /= ptr_eq.
     by apply eval_jumpP.
   - move => x lbl hok_i.
     case ok_r_x': (of_var x) => [r|//]; have ok_r_x := of_varI ok_r_x'.
@@ -1828,10 +1826,8 @@ Proof.
     apply (match_state_step1 (ls' := ls') hnth) => /=.
     move: hev; rewrite /linear_sem.eval_instr /=.
     rewrite heqf -assemble_prog_labels.
-    case ptr_eq: encode_label => [ ptr | ] //.
-    t_xrbindP => vm ok_vm <-{ls'}.
+    t_xrbindP=> ptr /o2rP -> vm ok_vm <-{ls'}.
     eexists; first reflexivity.
-    rewrite /= -heqf.
     rewrite ok_fd /=; eexists; first by eauto.
     constructor => //=.
     + move: ok_r_x; change x with (v_var (VarI x dummy_var_info)).

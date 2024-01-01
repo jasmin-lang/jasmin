@@ -117,25 +117,25 @@ Section LINEARIZATION.
 Lemma arm_spec_lip_allocate_stack_frame :
   allocate_stack_frame_correct arm_liparams.
 Proof.
-  move=> lp sp_rsp fn s pc ii ts sz hvm.
-  rewrite -addn1.
+  move=> *.
   apply: arm_op_subi_eval_instr.
-  by rewrite /get_var hvm.
+  rewrite /get_var.
+  by t_simpl_rewrites.
 Qed.
 
 Lemma arm_spec_lip_free_stack_frame :
   free_stack_frame_correct arm_liparams.
 Proof.
-  move=> lp sp_rsp fn s pc ii ts sz hvm.
-  rewrite -addn1.
+  move=> *.
   apply: arm_op_addi_eval_instr.
-  by rewrite /get_var hvm.
+  rewrite /get_var.
+  by t_simpl_rewrites.
 Qed.
 
 Lemma arm_spec_lip_set_up_sp_register :
   set_up_sp_register_correct arm_liparams.
 Proof.
-  move=> lp sp_rsp fn  s r ts al sz P Q .
+  move=> lp sp_rsp ls r ts al sz P Q.
   set ts' := align_word _ _.
   move: r => [[rtype rname] rinfo] /=.
   set r := {| v_info := rinfo; |}.
@@ -145,7 +145,7 @@ Proof.
   set vrspi := mk_var_i vrsp.
   move=>
     /oassertP_isSome [hset_up _]
-    hbody hneq_tmp_rsp hgetrsp ? hnot_saved_stack hneq_r_rsp;
+    hbody hpc hneq_tmp_rsp hgetrsp ? hnot_saved_stack hneq_r_rsp;
     subst rtype.
 
   have hneq_r_tmp :
@@ -166,7 +166,7 @@ Proof.
   move=> hbody.
 
   (* We need [vm1] before [eexists]. *)
-  set vm0 := (evm s).[v_var r <- Vword ts].
+  set vm0 := (lvm ls).[v_var r <- Vword ts].
 
   have hsz : (0 <= sz < wbase reg_size)%Z.
   - by move: hset_up => /andP [] /ZleP hlo /ZltP hhi.
@@ -174,16 +174,12 @@ Proof.
 
   have hgetrsp0 :
     get_var true vm0 vrsp = ok (Vword ts).
-  + rewrite get_var_neq; first exact: hgetrsp.
-    exact: hneq_r_rsp.
+  - rewrite get_var_neq; first exact: hgetrsp. exact: hneq_r_rsp.
 
-  have [vm1 [hsem hvm1 hgettmp1]] :=
-    arm_cmd_large_subi_lsem
-      (s := with_vm s vm0)
-      hbody
-      hneq_tmp_rsp
-      hgetrsp0
-      hsz.
+  set ls0 := lnext_pc (lset_vm ls vm0).
+  have [|vm1 [hsem hvm1 hgettmp1]] :=
+    arm_cmd_large_subi_lsem (ls := ls0) hbody _ erefl hneq_tmp_rsp hgetrsp0 hsz.
+  - by rewrite size_cat addn1 -hpc.
 
   set vm2 := vm1.[vtmp <- Vword ts'].
   set vm3 := vm2.[vrsp <- Vword ts'].
@@ -193,65 +189,36 @@ Proof.
   - apply: lsem_step.
 
     (* R[r] := R[rsp]; *)
-    + rewrite /lsem1 /step.
-      rewrite /of_estate.
-      rewrite -catA in hbody.
-      rewrite -{1}(addn0 (size P)).
-      rewrite (find_instr_skip hbody) /=.
-      exact:
-        (arm_op_mov_eval_instr
-           _
-           (ls := {| lvm := evm s; |})
-           _ _ _
-           (y := vrspi)
-           hgetrsp).
+    + rewrite -catA in hbody.
+      apply: (eval_lsem1 hbody) => //.
+      exact: (arm_op_mov_eval_instr (y := vrspi) hgetrsp).
 
     (* R[tmp] := R[rsp] - off; *)
-    rewrite /=.
-
-    have -> :
-      size P + 1 = size (P ++ [:: i_mov_r ]).
-    - by rewrite size_cat.
-
-    rewrite -(add1n (size _)) addnA.
     apply: (lsem_trans hsem).
     clear hsem.
-    rewrite /of_estate /=.
-    apply: lsem_step2; rewrite /lsem1 /step.
 
+    apply: lsem_step2.
     (* R[tmp] := R[tmp] & alignment; *)
-    + rewrite (find_instr_skip hbody) /=.
-      clear hbody.
-      rewrite onth_cat -/cmd_large_subi ltnn subnn /=.
-      exact:
-        (arm_op_align_eval_instr
-           _
-           (ls := {| lvm := vm1; |})
-           _ _ _
-           (y := vtmpi)
-           _
-           hgettmp1).
+    + rewrite catA in hbody.
+      apply: (eval_lsem1 hbody) => //;
+        first by rewrite !size_cat.
+      set ls1 := setpc (lset_vm _ _) _.
+      exact: (arm_op_align_eval_instr (ls := ls1) (y := vtmpi) hgettmp1).
 
     (* R[rsp] := R[tmp]; *)
-    + rewrite /= -addnA.
-      rewrite (find_instr_skip hbody) /=.
-      clear hbody.
-      rewrite onth_cat lt_nm_n sub_nmn /=.
+    + rewrite -(cat1s i_align_tmp) 2!catA in hbody.
+      apply: (eval_lsem1 hbody) => //;
+        first by rewrite !size_cat !addn1 /=.
 
       have hgettmp2 :
         get_var true vm2 vtmp = ok (Vword ts').
       * by rewrite get_var_eq.
 
-     rewrite !size_cat /=.
-     have -> : forall m n, m + 1 + (n + 2) = m + 1 + (n + 1) + 1.
-     - move=> ??. by rewrite -!addnA.
-     exact:
-        (arm_op_mov_eval_instr
-           _
-           (ls := {| lvm := vm2; |})
-           _ _ _
-           (y := vtmpi)
-           hgettmp2).
+      set ls2 := lnext_pc (lset_vm _ _).
+      rewrite (arm_op_mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp2).
+      rewrite /lnext_pc /setpc /= !size_cat /= !size_map /addn /addn_rec.
+      repeat f_equal.
+      lia.
 
   - move=> x.
     t_notin_add.
@@ -288,9 +255,9 @@ Qed.
 Lemma arm_spec_lip_set_up_sp_stack :
   set_up_sp_stack_correct arm_liparams.
 Proof.
-  move=> lp sp_rsp fn s ts m' al sz off P Q.
+  move=> lp sp_rsp ls ts m' al sz off P Q.
   set ts' := align_word _ _.
-  move=> /oassertP_isSome [hset_up _] hbody hneq_tmp_rsp hgetrsp hwrite.
+  move=> /oassertP_isSome [hset_up _] hbody hpc hneq_tmp_rsp hgetrsp hwrite.
 
   move: hbody.
   set vtmp := {| vname := arm_tmp; |}.
@@ -306,14 +273,13 @@ Proof.
   rewrite -catA.
   move=> hbody.
 
-  (* We need [vm0] before [eexists]. *)
-
   have hsz : (0 <= sz < wbase reg_size)%Z.
   - by move: hset_up => /andP [] /ZleP hlo /ZltP hhi.
   clear hset_up.
 
+  (* We need [vm0] before [eexists]. *)
   have [vm0 [hsem hvm0 hgettmp0]] :=
-    arm_cmd_large_subi_lsem (s := s) hbody hneq_tmp_rsp hgetrsp hsz.
+    arm_cmd_large_subi_lsem hbody hpc erefl hneq_tmp_rsp hgetrsp hsz.
   set vm1 := vm0.[vtmp <- Vword ts'].
   set vm2 := vm1.[vrsp <- Vword ts'].
 
@@ -327,53 +293,36 @@ Proof.
     get_var true vm1 vtmp = ok (Vword ts').
   * by rewrite get_var_eq.
 
-  eexists.
-  split.
+  eexists; split.
 
   (* R[tmp] := R[rsp] - off; *)
   - apply: (lsem_trans hsem).
-    apply: lsem_step3; rewrite /lsem1 /step /=.
+    apply: lsem_step3.
 
     (* R[tmp] := R[tmp] & alignment; *)
-    + rewrite (find_instr_skip hbody) /=.
-      rewrite onth_cat -/cmd_large_subi ltnn subnn /=.
-      exact:
-        (arm_op_align_eval_instr
-           _
-           (ls := {| lvm := vm0; |})
-           _ _ _
-           (y := vtmpi)
-           _
-           hgettmp0).
+    + rewrite catA in hbody.
+      apply: (eval_lsem1 hbody) => //;
+        first by rewrite size_cat.
+      set ls0 := setpc (lset_vm _ _) _.
+      exact: (arm_op_align_eval_instr (ls := ls0) (y := vtmpi) hgettmp0).
 
     (* M[R[rsp]] := R[tmp]; *)
-    + rewrite /= -addnA.
-      rewrite (find_instr_skip hbody) /=.
-      rewrite onth_cat lt_nm_n sub_nmn /=.
-      exact:
-        (arm_op_str_off_eval_instr
-           _
-           (ls := {| lvm := vm1; |})
-           _
-           (y := vrspi)
-           hgettmp1
-           hgetrsp1
-           hwrite).
+    + rewrite -(cat1s i_align_tmp) -!catA 2!catA in hbody.
+      apply: (eval_lsem1 hbody) => //;
+        first by rewrite !size_cat /= addn1.
+      set ls1 := lnext_pc (lset_vm _ _).
+      apply:
+        (arm_op_str_off_eval_instr (ls := ls1) (y := vrspi) hgettmp1 hgetrsp1).
+      exact: hwrite.
 
     (* R[rsp] := R[tmp]; *)
-    + rewrite /= -!addnA addn1.
-      rewrite (find_instr_skip hbody) /=.
-      rewrite onth_cat lt_nm_n sub_nmn /=.
-      rewrite /of_estate /=.
-      rewrite !size_cat /=.
-      rewrite -(addn1 2) (addnS _ 2) (addnS (size P) _) -(addn1 (_ + _)).
-      exact:
-        (arm_op_mov_eval_instr
-           _
-           (ls := {| lvm := vm1; |})
-           _ _ _
-           (y := vtmpi)
-           hgettmp1).
+    + rewrite -(cat1s i_align_tmp) -(cat1s i_str_rsp) -!catA 3!catA in hbody.
+      apply: (eval_lsem1 hbody) => //;
+        first by rewrite !size_cat /= !addn1.
+      set ls2 := lnext_pc (lset_mem _ _).
+      rewrite (arm_op_mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp1).
+      rewrite /ls2 !size_cat /= !addnS addn0.
+      reflexivity.
 
   - move=> x.
     t_notin_add.
@@ -413,20 +362,20 @@ Qed.
 Lemma arm_hlip_lassign :
   lassign_correct arm_liparams.
 Proof.
-  move=> lp fn s1 s2 pc ii x e args ws ws' w w' hlassign hseme htrunc hwrite.
-  move: hlassign => /=.
+  move=> lp fn s1 s2 x e args ws ws' w w' hlassign hseme htrunc hwrite.
+  move: hlassign.
   apply: obindP => -[mn' re].
   case: x hwrite => [??? | x] /= hwrite.
 
   - apply: obindP => mn hmn [??] [?]; subst mn' re args.
-    rewrite /eval_instr /= /sem_sopn /= to_estate_of_estate hseme {hseme} /=.
+    rewrite /eval_instr /= /sem_sopn /= hseme {hseme} /=.
     by rewrite (store_mn_of_wsizeP hmn htrunc) /= hwrite.
 
   move=> /oassertP [/eqP ?]; subst ws.
   case: e hseme => [ ??? | ]; last case => //; last case => // - [] // [] // z.
   2: move=> e.
   all: move=> /= hseme [??] [?]; subst mn' re args.
-  all: rewrite /eval_instr /= /sem_sopn /= /exec_sopn to_estate_of_estate.
+  all: rewrite /eval_instr /= /sem_sopn /= /exec_sopn.
   - by rewrite hseme /= htrunc /= zero_extend_u hwrite.
   - by rewrite hseme /= htrunc /= hwrite.
 

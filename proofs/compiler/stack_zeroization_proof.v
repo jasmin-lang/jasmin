@@ -28,35 +28,41 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}.
 
+Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
+  ~ Sv.In (vid rspn) vars ->
+  (0 < stk_max)%Z ->
+  is_align stk_max ws ->
+  (ws <= ws_align)%CMP ->
+  forall (lp : lprog) fn lfd lc,
+  ~ has (is_label lbl) lc ->
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  lfd.(lfd_body) = lc ++ cmd ->
+  forall ls ptr,
+  lfn ls = fn ->
+  lpc ls = size lc ->
+  (stk_max <= wunsigned (align_word ws_align ptr))%Z ->
+  (lvm ls).[vid rspn] = Vword ptr ->
+  let top := (align_word ws_align ptr - wrepr Uptr stk_max)%R in
+  valid_between (lmem ls) top stk_max ->
+  exists m' vm',
+    [/\ let: ls' := setpc (lset_mem_vm ls m' vm') (size lc + size cmd) in
+        lsem lp ls ls'
+      , lvm ls =[\ vars ] vm'
+      , validw (lmem ls) =2 validw m'
+      , zero_between m' top stk_max
+      & eq_mem_ex (lmem ls) m' top stk_max
+    ].
+
 Record h_stack_zeroization_params (szp : stack_zeroization_params) :=
   {
     hszp_cmd_no_ext_lbl : forall szs rspn lbl ws_align ws stk_max cmd vars,
       szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
       label_in_lcmd cmd = [::];
 
-    hszp_cmdP : forall szs rspn lbl ws_align ws stk_max cmd vars,
-      szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
-      ~ Sv.In (vid rspn) vars ->
-      (0 < stk_max)%Z ->
-      is_align stk_max ws ->
-      (ws <= ws_align)%CMP ->
-      forall (lp : lprog) fn lfd lc,
-      ~ has (is_label lbl) lc ->
-      get_fundef lp.(lp_funcs) fn = Some lfd ->
-      lfd.(lfd_body) = lc ++ cmd ->
-      forall scs m vm ptr,
-      (stk_max <= wunsigned (align_word ws_align ptr))%Z ->
-      vm.[vid rspn] = Vword ptr ->
-      let top := (align_word ws_align ptr - wrepr Uptr stk_max)%R in
-      (forall p, between top stk_max p U8 -> validw m p U8) ->
-      exists m' vm', [/\
-        lsem lp (Lstate scs m vm fn (size lc))
-                (Lstate scs m' vm' fn (size lc+size cmd)),
-        vm =[\ vars ] vm',
-        validw m =2 validw m',
-        (forall p, between top stk_max p U8 -> read m' p U8 = ok 0%R) &
-        (forall p, disjoint_zrange top stk_max p (wsize_size U8) ->
-          read m p U8 = read m' p U8)]
+    hszp_cmdP :
+      forall szs rspn lbl ws_align ws stk_max cmd vars,
+        szp.(szp_cmd) szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
+        sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars;
   }.
 
 Section STACK_ZEROIZATION.
@@ -176,17 +182,6 @@ Proof.
   by t_xrbindP=> _ _ fd' /label_in_lcmdP <- <- lp_funcs' /ih <- <- /=.
 Qed.
 
-(* TODO: MOVE *)
-Lemma onth_In T (s : seq T) n x :
-  oseq.onth s n = Some x ->
-  List.In x s.
-Proof.
-  elim: s n x => [|a s ih] n x //=.
-  case: n => [|n].
-  + by move=> [<-]; left.
-  by move=> /ih{}ih; right.
-Qed.
-
 Lemma get_label_after_pc_in_label_in_lprog lp s lbl :
   get_label_after_pc lp s = ok lbl ->
   (s.(lfn), lbl) \in label_in_lprog lp.
@@ -240,31 +235,24 @@ Proof.
   rewrite /eval_instr.
   case: i => [ii []] //=.
   + case=> [p|].
-    * t_xrbindP=> r lbl /(get_label_after_pcP hzerolp) -> /=.
-      rewrite (label_in_lprogP hzerolp).
-      case: encode_label => [w'|//].
-      t_xrbindP=> vm -> /=.
-      by apply eval_jumpP.
+    * rewrite (label_in_lprogP hzerolp).
+      t_xrbindP=> r lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= vm ->.
+      exact: eval_jumpP.
     t_xrbindP=> r w v.
     have [_ <- _] := stack_zeroization_lprog_invariants hzerolp.
-    move=> -> /= -> /= lbl /(get_label_after_pcP hzerolp) -> /=.
     rewrite (label_in_lprogP hzerolp).
-    case: encode_label => [w'|//].
-    t_xrbindP=> m -> /=.
-    by apply eval_jumpP.
+    move=> -> /= -> /= lbl /(get_label_after_pcP hzerolp) -> /= w' -> /= m ->.
+    exact: eval_jumpP.
   + t_xrbindP=> w v.
     have [_ <- _] := stack_zeroization_lprog_invariants hzerolp.
-    move=> -> /= -> /= w' -> /=.
     rewrite (label_in_lprogP hzerolp).
-    case: decode_label => [r|//].
-    by apply eval_jumpP.
+    move=> -> /= -> /= w' -> /= r ->.
+    exact: eval_jumpP.
   + by move=> r; apply eval_jumpP.
-  + t_xrbindP=> e w v -> /= -> /=.
-    rewrite (label_in_lprogP hzerolp).
-    case: decode_label => [r|//].
-    by apply eval_jumpP.
-  + move=> v lbl.
-    by rewrite (label_in_lprogP hzerolp).
+  + rewrite (label_in_lprogP hzerolp).
+    t_xrbindP=> e w v -> /= -> /= r ->.
+    exact: eval_jumpP.
+  + move=> v lbl. by rewrite (label_in_lprogP hzerolp).
   t_xrbindP=> e lbl b v -> /= -> /=.
   case: b => //.
   case hlfd: get_fundef => [lfd|//] /=.
@@ -309,9 +297,7 @@ Qed.
 
 Record match_mem_zero (m m': mem) (bottom : pointer) stk_max : Prop :=
   MMZ {
-      read_zero : forall p,
-        between bottom stk_max p U8 ->
-        read m' p U8 = ok 0%R
+      read_zero : zero_between m' bottom stk_max
     ; read_untouched : forall p,
         disjoint_zrange bottom stk_max p (wsize_size U8) ->
         read m p U8 = read m' p U8
@@ -331,7 +317,7 @@ Lemma stack_zeroization_lprogP lp lp' scs m fn vm scs' m' vm' ptr lfd :
   get_fundef lp.(lp_funcs) fn = Some lfd ->
   (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1 <= wunsigned ptr)%Z ->
   let bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in
-  (forall p, between bottom lfd.(lfd_stk_max) p U8 -> validw m p U8) ->
+  valid_between m bottom (lfd_stk_max lfd) ->
   exists m'' vm'', [/\
     lsem_exportcall lp' scs m fn vm scs' m'' vm'',
     vm' =[sv_of_list v_var lfd.(lfd_res)] vm'' &
@@ -370,23 +356,24 @@ Proof.
   move: hrsp.
   have [_ <- _] := (stack_zeroization_lprog_invariants hzerolp).
   move=> hrsp.
-  have hvalid': forall p : word Uptr,
-    between
-      (align_word (lfd_align lfd) ptr - wrepr Uptr (lfd_stk_max lfd)) (lfd_stk_max lfd)
-      p U8 ->
-    validw m' p U8.
+  have hvalid':
+    let: n := lfd_stk_max lfd in
+    let: p := (align_word (lfd_align lfd) ptr - wrepr Uptr n)%R in
+    valid_between m' p n.
   + move=> p hb.
     have [_ /= <-] := lsem_mem_equiv hsem.
     by apply hvalid.
+
   have [m'' [vm'' [hsem' heqvm' hvalid'' hzero huntouched]]] :=
-    hszparams.(hszp_cmdP)
-      hcmd rsp_nin hlt halign2 hle (@next_lfd_lblP _ _ _) hlfd' hbody scs' enough_stk'
-      hrsp hvalid'.
+    hszp_cmdP
+      hszparams hcmd rsp_nin hlt halign2 hle (next_lfd_lblP (lfd := lfd)) hlfd'
+      hbody (ls := {| lscs := scs'; |}) erefl erefl enough_stk' hrsp hvalid'.
+
   exists m'', vm''; split=> //.
   + econstructor; eauto.
     + by rewrite -hmap.
-    + apply (lsem_trans (stack_zeroization_lprog_lsem hzerolp hsem)).
-      by rewrite hbody size_cat.
+    + apply: (lsem_trans (stack_zeroization_lprog_lsem hzerolp hsem)).
+      by rewrite /ls_export_final hbody size_cat.
     apply (eq_onT heqvm).
     apply (eq_ex_disjoint_eq_on heqvm').
     by have [/disjoint_sym ? _] := disjoint_union (disjoint_sym hdisj).

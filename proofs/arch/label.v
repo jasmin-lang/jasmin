@@ -78,4 +78,12 @@ Proof.
   by case: encode_label.
 Qed.
 
+Definition rencode_label
+  (lbls : seq remote_label) (lbl : remote_label) : exec (word Uptr) :=
+  o2r ErrType (encode_label lbls lbl).
+
+Definition rdecode_label
+  (lbls : seq remote_label) (w : word Uptr) : exec remote_label :=
+  o2r ErrType (decode_label lbls w).
+
 End WITH_POINTER_DATA.
