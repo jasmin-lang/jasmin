@@ -55,6 +55,21 @@ Module LE.
     by rewrite (nth_map 0%Z) ?size_ziota // nth_ziota // Z.add_0_l /wread8 Nat2Z.id.
   Qed.
 
+  Lemma read0 ws x :
+    wread8 (ws := ws) 0 x = 0%R.
+  Proof.
+    rewrite /LE.wread8 /LE.encode /split_vec.
+    case: (Nat.le_gt_cases (ws %/ U8 + ws %% U8) (Z.to_nat x)) => h0.
+    - rewrite nth_default; first done.
+      rewrite size_map size_iota.
+      by apply/leP.
+    rewrite (nth_map O); first last.
+    - rewrite size_iota.
+      by apply/ltP.
+    rewrite /word.subword /= Z.shiftr_0_l Zmod_0_l.
+    by apply/(@eqP (word U8)).
+  Qed.
+
 End LE.
 
 Section POINTER.

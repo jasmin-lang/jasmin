@@ -230,7 +230,7 @@ Definition lstore
   (rd : var_i)      (* Base register. *)
   (ofs : Z)         (* Offset. *)
   (ws : wsize)      (* Size of the value to copy. *)
-  (r0 : var_i)       (* Source register. *)
+  (r0 : var_i)      (* Source register. *)
   : option linstr_r :=
   lassign (Store ws rd (fconst Uptr ofs)) ws (Rexpr (Fvar r0)).
 

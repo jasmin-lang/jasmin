@@ -109,27 +109,17 @@ Section LINEARIZATION.
 
 Definition x86_lassign_eval_instr
   {call_conv : calling_convention}
-  (lp : lprog)
-  s0 s1 fn pc ii x e ws ws' w (w' : word ws') :
-  sem_rexpr (emem s0) (evm s0) e = ok (Vword w')
+  {lp ls s1 ii x e ws ws' w} {w' : word ws'} :
+  sem_rexpr (lmem ls) (lvm ls) e = ok (Vword w')
   -> truncate_word ws w' = ok w
-  -> write_lexpr x (Vword w) s0 = ok s1
+  -> write_lexpr x (Vword w) (to_estate ls) = ok s1
   -> let: li := li_of_fopn_args ii (x86_lassign x ws e) in
-     let: ls0 := of_estate s0 fn pc in
-     let: ls1 := of_estate s1 fn (pc + 1) in
-     eval_instr lp li ls0 = ok ls1.
+     let: ls' := lnext_pc (lset_estate' ls s1) in
+     eval_instr lp li ls = ok ls'.
 Proof.
   move=> hseme hw hwritex.
-  rewrite /eval_instr /=.
-  rewrite /sem_sopn /=.
-  rewrite to_estate_of_estate.
-  rewrite hseme {hseme} /=.
-
-  case: ws w hw hwritex => /= w hw hwritex.
-  all: rewrite /exec_sopn /=.
-  all: rewrite hw {hw} /=.
-  all: rewrite hwritex {hwritex} /=.
-  all: by rewrite addn1.
+  rewrite /eval_instr /sem_sopn /exec_sopn /= hseme {hseme} /=.
+  by case: ws w hw hwritex => /= ? -> /= ->.
 Qed.
 
 Definition vm_op_align
@@ -144,8 +134,8 @@ Definition vm_op_align
 
 Definition x86_op_align_eval_instr
   {call_conv : calling_convention}
-  (lp : lprog)
-  ls ii xname vi ws al w :
+  {lp : lprog}
+  {ls ii xname vi ws al w} :
   let: x :=
     {|
       v_var := {| vname := xname; vtype := sword ws; |};
@@ -156,31 +146,15 @@ Definition x86_op_align_eval_instr
   -> get_var true (lvm ls) (v_var x) = ok (@Vword ws w)
   -> let: li := li_of_fopn_args ii (x86_op_align x ws al) in
      let w' := align_word al w in
-     let: ls' :=
-       {|
-         lscs := lscs ls;
-         lmem := lmem ls;
-         lvm := vm_op_align (lvm ls) (v_var x) w';
-         lfn := lfn ls;
-         lpc := lpc ls + 1;
-       |}
-     in
+     let: ls' := lnext_pc (lset_vm ls (vm_op_align (lvm ls) (v_var x) w')) in
      eval_instr lp li ls = ok ls'.
 Proof.
   set x := {| vname := xname; |}.
   set xi := {| v_var := x; |}.
   set w' := align_word _ _.
   move=> hws hgetx.
-  rewrite /eval_instr /=.
-  rewrite /sem_sopn /=.
-  rewrite /get_gvar /=.
-  rewrite hgetx {hgetx} /=.
-  rewrite /exec_sopn /=.
-  rewrite !truncate_word_u /=.
-  rewrite /sopn_sem /=.
-  rewrite /x86_AND /check_size_8_64.
-  rewrite hws {hws} /=.
-  by rewrite /with_vm /of_estate /= -/(align_word al w) /= addn1.
+  rewrite /eval_instr /sem_sopn /exec_sopn /= hgetx /= !truncate_word_u /=.
+  by rewrite /sopn_sem /= /x86_AND /check_size_8_64 hws /=.
 Qed.
 
 Context {call_conv : calling_convention}.
@@ -188,23 +162,23 @@ Context {call_conv : calling_convention}.
 Definition x86_spec_lip_allocate_stack_frame :
   allocate_stack_frame_correct x86_liparams.
 Proof.
-  move=> lp sp_rsp fn s pc ii ts sz Hvm.
-  rewrite /eval_instr /= /sem_sopn /= /get_gvar /get_var /= Hvm /=.
+  move=> lp sp_rsp ls ii ts sz Hvm.
+  rewrite /eval_instr /= /sem_sopn /get_var Hvm /=.
   by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u.
 Qed.
 
 Definition x86_spec_lip_free_stack_frame :
   free_stack_frame_correct x86_liparams.
 Proof.
-  move=> lp sp_rsp fn s pc ii ts sz Hvm.
-  rewrite /eval_instr /= /sem_sopn /= /get_gvar /get_var /= Hvm /=.
+  move=> lp sp_rsp ls ii ts sz Hvm.
+  rewrite /eval_instr /= /sem_sopn /get_var Hvm /=.
   by rewrite /sem_sop2 /exec_sopn /= !truncate_word_u /= truncate_word_u.
 Qed.
 
 Lemma x86_spec_lip_set_up_sp_register :
   set_up_sp_register_correct x86_liparams.
 Proof.
-  move=> lp sp_rsp fn s r ts al sz P Q.
+  move=> lp sp_rsp ls r ts al sz P Q.
   set ts' := align_word _ _.
   move: r => [[rtype rname] rinfo] /= _.
   set r := {| v_info := rinfo; |}.
@@ -215,20 +189,20 @@ Proof.
   set i_mov_r := _ _ (x86_lassign (LLvar r) _ _).
   set i_sub_rsp := x86_allocate_stack_frame vrspi _.
   set i_align_rsp := x86_op_align vrspi _ _.
-  move=> hbody hneq_tmp_rsp hgetrsp ? _ hneq_r_rsp; subst rtype.
+  move=> hbody hpc hneq_tmp_rsp hgetrsp ? _ hneq_r_rsp; subst rtype.
 
-  set vm0 := (evm s).[v_var r <- Vword ts].
+  set vm0 := (lvm ls).[v_var r <- Vword ts].
+  set ls0 := lnext_pc (lset_vm ls vm0).
   set vm2 := if sz != 0 then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
+  set ls2 := setpc (lset_vm ls0 vm2) (size P + Nat.b2n (sz != 0)).+1.
   set vm3 := vm_op_align vm2 vrsp ts'.
 
-  exists vm3.
-  split.
+  exists vm3; split.
 
-  - apply: lsem_step; rewrite /lsem1 /step.
+  - apply: (lsem_trans3 (a2 := ls2)).
 
     (* R[r] := R[rsp]; *)
-    + rewrite -{1}(addn0 (size P)).
-      rewrite (find_instr_skip hbody) /=.
+    + apply: (eval_lsem_step1 hbody) => //.
       apply: x86_lassign_eval_instr.
       * exact: hgetrsp.
       * exact: truncate_word_u.
@@ -236,31 +210,24 @@ Proof.
         rewrite /with_vm -/vm0.
         reflexivity.
 
-    + rewrite size_map size_rcons -addn2.
-      apply: (lsem_trans (s2 := of_estate (with_vm s vm2) fn (size P + (Nat.b2n (sz != 0)).+1))).
-      rewrite /vm2; case: eqP hbody => /= sz_nz hbody.
-      * by subst; once (econstructor; fail).
-
     (* R[rsp] := R[rsp] - sz; *)
-    + apply: LSem_step; rewrite /lsem1 /step.
-      rewrite (find_instr_skip hbody) /=.
-      have -> : size P + 2 = (size P + 1).+1.
-      * by rewrite addn1 addn2.
-      apply: x86_spec_lip_allocate_stack_frame.
+    + subst ls2.
+      case: (sz =P 0) hbody => [? | /eqP hneq] /= hbody.
+      * subst sz. rewrite addn0 -hpc. by constructor.
+      rewrite -cat1s catA in hbody.
+      apply: (eval_lsem_step1 hbody) => //;
+        first by rewrite size_cat addn1 -hpc.
+      rewrite (x86_spec_lip_allocate_stack_frame _ _ (ts := ts)).
+      * by rewrite /vm2 addn1 -hpc hneq.
       rewrite Vm.setP_neq; last by apply/eqP.
-      move /get_varP: hgetrsp => [<- _ _].
-      reflexivity.
+      by move: hgetrsp => /get_varP [].
 
     (* R[rsp] := R[rsp] & alignment; *)
-    apply: LSem_step; rewrite /lsem1 /step.
-    rewrite (find_instr_skip hbody) /=.
-    replace (oseq.onth _ _) with (Some (li_of_fopn_args dummy_instr_info i_align_rsp)); last by case: eqP.
-    replace (size P + (_ + 2)) with ((size P + (Nat.b2n (sz != 0%Z)).+1) + 1); last by case: eqP; rewrite -!addnA.
-    apply:
-      (x86_op_align_eval_instr
-         (w := ts - wrepr Uptr sz)
-         _ _ _
-         (cmp_le_refl _)).
+    rewrite map_rcons -cat1s catA cat_rcons catA in hbody.
+    apply: (eval_lsem_step1 hbody) => //.
+    + rewrite !size_cat /=. case: (sz != 0); by rewrite ?addn0 ?addn1.
+    rewrite (x86_op_align_eval_instr (w := ts - wrepr Uptr sz) (cmp_le_refl _)).
+    + rewrite /ls2. case: (sz != 0); by rewrite ?addn0 ?addn1 ?addn2 ?addn3.
     rewrite /get_var /= /vm2; case: eqP => ?; last first.
     + by rewrite Vm.setP_eq vm_truncate_val_eq.
     rewrite Vm.setP_neq; last exact/eqP.
@@ -284,51 +251,43 @@ Qed.
 Lemma x86_spec_lip_set_up_sp_stack :
   set_up_sp_stack_correct x86_liparams.
 Proof.
-  move=> lp sp_rsp fn s ts m' al sz off P Q.
+  move=> lp sp_rsp ls ts m' al sz off P Q.
   set ts' := align_word _ _.
-  rewrite /set_up_sp_stack /lip_set_up_sp_stack /x86_liparams map_cat -catA /=.
+  rewrite /set_up_sp_stack /lip_set_up_sp_stack /x86_liparams map_cat.
   set vtmp := {| vname := to_ident RAX; |}.
   set vtmpi := mk_var_i vtmp.
   set vrsp := {| vname := sp_rsp; |}.
   set vrspi := mk_var_i vrsp.
-  move=> _ hbody hneq_tmp_rsp hgetrsp hwrite.
+  move=> _ hbody hpc hneq_tmp_rsp hgetrsp hwrite.
 
+  rewrite -catA in hbody.
   have [vm0 [hsem hvm0 hgetrsp0 hgettmp0 hflags]] :=
     x86_spec_lip_set_up_sp_register
       (r := vtmpi)
       erefl
       hbody
+      hpc
       hneq_tmp_rsp
       hgetrsp
       erefl
       erefl
       hneq_tmp_rsp.
 
-  exists vm0.
-  split.
+  exists vm0; split.
 
-  - apply: (lsem_trans hsem).
-    apply: LSem_step.
-    rewrite /lsem1 /step /=.
-    rewrite (find_instr_skip hbody) /=.
-    set j := _ _ (x86_lassign _ _ _).
-    replace (oseq.onth _ _) with (Some j); last by case: eqP.
-    subst j.
+  - apply: (lsem_step_end hsem).
+    rewrite catA in hbody.
+    apply: (eval_lsem1 hbody) => //;
+      first by rewrite size_cat.
     rewrite
-      (x86_lassign_eval_instr
-         _
-         (s1 := {| escs := escs s; emem := m'; evm := vm0; |})
-         _ _ _
+      (x86_lassign_eval_instr _ _
+         (s1 := {| escs := lscs ls; emem := m'; evm := vm0; |})
          (w := ts)
          (w' := ts)).
-    + by rewrite size_cat size_map /= -addnA !addn1.
+    + by rewrite size_cat /= addn1 !addnS.
     + exact: hgettmp0.
     + exact: truncate_word_u.
-    + rewrite /=.
-      rewrite hgetrsp0 {hgetrsp0} /=.
-      rewrite !truncate_word_u.
-      rewrite -/ts'.
-      by rewrite /= hwrite {hwrite}.
+    by rewrite /= hgetrsp0 {hgetrsp0} /= !truncate_word_u -/ts' /= hwrite.
 
   - move=> x hx.
     rewrite hvm0; first done.
@@ -343,9 +302,8 @@ Qed.
 Definition x86_hlip_lassign :
   lassign_correct x86_liparams.
 Proof.
-  move=> lp fn s1 s2 pc ii x e args ws ws' w w' [<-] hseme hw hwritex.
-  rewrite (x86_lassign_eval_instr _ _ _ _ hseme hw hwritex).
-  by rewrite addn1.
+  move=> lp fn s1 ii x e args ws ws' w w' [<-] hseme hw hwritex.
+  by rewrite (x86_lassign_eval_instr hseme hw hwritex).
 Qed.
 
 End LINEARIZATION.

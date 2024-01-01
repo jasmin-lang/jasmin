@@ -39,6 +39,19 @@ Lemma eq_mem_trans m2 m1 m3 :
   eq_mem m1 m3.
 Proof. move => p q x y; rewrite (p x y); exact: (q x y). Qed.
 
+Definition eq_mem_ex (m m' : mem) (top : word Uptr) (stk_max : Z) : Prop :=
+  forall p,
+    disjoint_zrange top stk_max p (wsize_size U8) ->
+    read m p U8 = read m' p U8.
+
+(* -------------------------------------------------------------- *)
+
+Definition valid_between (m : mem) (top : word Uptr) (stk_max : Z) : Prop :=
+  forall p, between top stk_max p U8 -> validw m p U8.
+
+Definition zero_between (m : mem) (top : word Uptr) (stk_max : Z) : Prop :=
+  forall p, between top stk_max p U8 -> read m p U8 = ok 0%R.
+
 (* -------------------------------------------------------------- *)
 #[ global ]
 Instance stack_stable_equiv : Equivalence stack_stable.
