@@ -76,8 +76,12 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "(%a) * (%a)"
       pp_rexp e1
       pp_rexp e2
-  | Papp2(Odiv _, e1, e2) ->
-    Format.fprintf fmt "(%a) / (%a)"
+  | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) ->
+    Format.fprintf fmt "udiv (%a) (%a)"
+      pp_rexp e1
+      pp_rexp e2
+  | Papp2(Odiv (Cmp_w (Signed,_)), e1, e2) ->
+    Format.fprintf fmt "sdiv (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
   | Papp2(Olxor _, e1, e2) ->
@@ -270,7 +274,12 @@ let pp_baseop fmt xs o es =
         Format.fprintf fmt "mov %a %a"
           pp_lval (List.nth xs 0, int_of_ws ws)
           pp_atome (List.nth es 0, int_of_ws ws)
-      | _ -> raise NoTranslation
+      | Papp1 (Oword_of_int ws, Pconst x) ->
+        Format.fprintf fmt "mov %a %a@uint%i"
+          pp_lval (List.nth xs 0, int_of_ws ws)
+          pp_print_i x
+          (int_of_ws ws)
+      | _ ->   raise NoTranslation 
     end
 
   | ADD ws ->
@@ -515,11 +524,11 @@ let pp_i pd asmOp fmt i =
           (Printer.pp_instr ~debug:true pd asmOp) i
   end
   | Copn(xs, _, o, es) ->
-    try
+    (* try *)
       pp_sopn fmt xs o es
-    with NoTranslation ->
+    (* with NoTranslation ->
       Format.eprintf "No Translation for opn: %a@."
-        (Printer.pp_instr ~debug:true pd asmOp) i
+        (Printer.pp_instr ~debug:true pd asmOp) i *)
 
 let pp_c pd asmOp fmt c =
   Format.fprintf fmt "@[<v>%a;@]"
