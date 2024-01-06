@@ -39,9 +39,9 @@ is_align (i * mk_scale aa ws)%Z ws /\
 
 (* checks if the address is valid or not *)
 Definition addr_check (x : var_i) (ws : wsize) (e : pexpr) (s : @estate nosubword syscall_state ep) :=
-forall vx ve w1 w2, get_var wdb s.(evm) x = ok vx ->
+forall vx ve w1 w2, defined_var vx s ->
               sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
-              to_pointer vx = ok w1 ->
+              to_pointer (evm s).[vx] = ok w1 ->
               to_pointer ve = ok w2 ->
 validw (emem s) (w1 + w2)%R ws.
 
@@ -78,7 +78,7 @@ match e with
  | Pvar x => defined_var (gv x) s
  | Pget aa ws x e => defined_var (gv x) s /\ safe_pexpr s e /\ alignment_range_check aa ws x e s
  | Psub aa ws p x e => defined_var (gv x) s /\ safe_pexpr s e /\ alignment_sub_range_check aa ws p x e s
- | Pload ws x e => defined_var x s /\ addr_check x ws e s
+ | Pload ws x e => safe_pexpr s e /\ defined_var x s /\ addr_check x ws e s
  | Papp1 op e => safe_pexpr s e
  | Papp2 op e1 e2 => safe_pexpr s e1 /\ safe_pexpr s e2 /\ safe_op2 op e2 s
  | PappN op es => safe_pexprs (safe_pexpr) s es
@@ -104,6 +104,13 @@ read arr (vi * mk_scale aa sz)%Z sz = Error ver ->
 ver = ErrType.
 Proof.
 move=> vi aa sz l arr ver ha hw hr. 
+Admitted.
+
+Lemma read_mem_ty_error : forall vp vp' sz (s: @estate nosubword syscall_state ep) er,
+is_align (vp + vp')%R sz ->
+read (emem s) (vp + vp')%R sz = Error er ->
+er = ErrType.
+Proof.
 Admitted.
 
 Lemma to_int_ty_error : forall s e ve er,
@@ -163,6 +170,30 @@ er = ErrType.
 Proof.
 Admitted.
 
+Lemma to_pointer_ty_error : forall s e ve er,
+sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
+safe_pexpr s e ->
+to_pointer ve = Error er ->
+er = ErrType.
+Proof.
+Admitted.
+
+Lemma to_pointer_ty_error' : forall (s: @estate nosubword syscall_state ep) z er,
+defined_var z s ->
+to_pointer (evm s).[z] = Error er ->
+er = ErrType.
+Proof.
+Admitted.
+
+Lemma of_val_ty_error : forall t s e ve er,
+sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
+safe_pexpr s e ->
+of_val t ve = Error er ->
+er = ErrType.
+Proof.
+Admitted.
+
+
 Theorem sem_pexpr_safe : forall e s r,
 safe_pexpr s e ->
 sem_pexpr (wsw:= nosubword) false gd s e = r ->
@@ -207,26 +238,80 @@ move=> e s r. move: r s. elim: e.
     * by right.
   have -> := get_gvar_ty_error s x er hv hg. move=> <- /=. by right.
 (* Psub *)
-- admit.
+- move=> aa sz len x e /= hin r s [] hd [] hs ha. rewrite /on_arr_var /=. 
+  case hg : get_gvar=> [vg | vgr] //=.
+  + case hg': vg hg=> [ v1 | v2 | l arr | ws w | t ut ] //=; subst; move=> hg ht; subst.
+    * by right.
+    * by right.
+    * case he': sem_pexpr=> [ve | ver] //=.
+      + case hi: to_int=> [vi | vir] //=. case hwa : WArray.get_sub=> [wa | war] //=.
+        + by left.
+        rewrite /WArray.get_sub in hwa. move: hwa. case: ifP=> //= h.
+        rewrite /alignment_sub_range_check in ha. move: (ha ve vi l he' hi)=> [] hal hc.
+        by rewrite hc in h.
+      have -> := to_int_ty_error s e ve vir he' hs hi. by right.
+    by move: (hin (Error ver) s hs he') => /=.
+    * by right.
+    * by right.
+  have -> := get_gvar_ty_error s x vgr hd hg. move=> <- /=. by right.   
 (* Pload *)
-- admit.
+- move=> sz z e hin r s /= [] hs [] hd ha.
+  case hp: to_pointer=> [vp | vpr] //=.
+  + case he: sem_pexpr=> [ve | ver] //=.
+    + case hp': to_pointer=> [vp' | vpr']//=.
+      + case hr: read=> [vr | vre] //=.
+        + move=> <-. by left.
+        move=> h; subst. rewrite /addr_check in ha.
+        move: (ha z ve vp vp' hd he hp hp')=> hw. 
+        rewrite /validw in hw. move: hw. move=> /andP [] hal hall. 
+        have -> := read_mem_ty_error vp vp' sz s vre hal hr. by right.
+       move=> h; subst. have -> := to_pointer_ty_error s e ve vpr' he hs hp'. by right.
+     move=> hr; subst. by move: (hin (Error ver) s hs he).
+  move=> h; subst. have -> := to_pointer_ty_error' s z vpr hd hp. by right.
 (* Papp1 *)
-- move=> op e hin r s /= hs /=. admit.
+- move=> op e hin r s /= hs /=.
+  case he: sem_pexpr=> [ve | ver] //=.
+  + rewrite /sem_sop1 /=. case hv: of_val=> [vv | vvr] //=.
+    + move=> <-. by left.
+    move=> h; subst. have -> := of_val_ty_error (type_of_op1 op).1 s e ve vvr he hs hv.
+    by right.
+  move=> h; subst. by move: (hin (Error ver) s hs he).
 (* Papp2 *)
 - admit.
 (* PappN *)
 - admit.
 move=> t e hie e1 hie1 e2 hie2 r s /= [] hse [] hse1 hse2.
-case he2: sem_pexpr=> [ve2 | ver2] /=. (* e2 evaluates to ok or error *)
-+ case he1: sem_pexpr=> [ve1 | ver1] /=. (* e1 evaluates to ok or error *)
-  + case he: sem_pexpr=> [ve | ver] /=. (* e evaluates to ok or error *)
-    + case hb: to_bool=> [vb | vbr] /=. (* to_bool evaluates to ok or error *)
-      + case ht: truncate_val=> [vt | vtr] /=. (* truncate_val evaluates to ok or error *)
-        + case ht': truncate_val=> [vt' | vtr'] /=. (* truncate_val evaluates to ok or error *)
+case he2: sem_pexpr=> [ve2 | ver2] /=. 
++ case he1: sem_pexpr=> [ve1 | ver1] /=. 
+  + case he: sem_pexpr=> [ve | ver] /=. 
+    + case hb: to_bool=> [vb | vbr] /=. 
+      + case ht: truncate_val=> [vt | vtr] /=. 
+        + case ht': truncate_val=> [vt' | vtr'] /=. 
           + move=> <- /=. by left.
           have -> := truncate_val_ty_error s e1 ve1 vtr' t he1 hse1 ht'. move=> <-. by right.
         case ht'': truncate_val=> [vt'' | vtr''] /= hr; subst.
         + have -> := truncate_val_ty_error s e2 ve2 vtr t he2 hse2 ht. by right.
+        have -> := truncate_val_ty_error s e1 ve1 vtr'' t he1 hse1 ht''. by right.
+      move=> h; subst. have -> := to_bool_ty_error s e ve vbr he hse hb. by right.
+    move=> h; subst. by move: (hie (Error ver) s hse he).  
+  case he: sem_pexpr=> [ve | ver] //=.
+  + case hb: to_bool=> [vb | vbr] //=.
+    + move=> h; subst. by move: (hie1 (Error ver1) s hse1 he1). 
+    move=> h; subst. have -> := to_bool_ty_error s e ve vbr he hse hb. by right.
+  move=> h; subst. by move: (hie (Error ver) s hse he).
+case he1: sem_pexpr=> [ve1 | ver1] //=.
++ case he: sem_pexpr=> [ve | ver] //=.
+  + case hb: to_bool=> [vb | vbr] //=.
+    + case ht: truncate_val=> [vt | vtr] //=.
+      + move=> h; subst. by move: (hie2 (Error ver2) s hse2 he2).
+      move=> h; subst. have -> := truncate_val_ty_error s e1 ve1 vtr t he1 hse1 ht. by right.
+    move=> h; subst. have -> := to_bool_ty_error s e ve vbr he hse hb. by right.
+  move=> h; subst. by move: (hie (Error ver) s hse he).
+case he: sem_pexpr=> [ve | ver] //=.
++ case hb: to_bool=> [vb | vbr] //=.
+  + move=> h; subst. by move: (hie1 (Error ver1) s hse1 he1).
+  have -> := to_bool_ty_error s e ve vbr he hse hb. move=> <-. by right.
+move=> h; subst. by move: (hie (Error ver) s hse he).
 Admitted.
           
           
