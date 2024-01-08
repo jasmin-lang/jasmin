@@ -193,6 +193,30 @@ er = ErrType.
 Proof.
 Admitted.
 
+Lemma sem_sop2_safe : forall s op e1 ve1 e2 ve2 r,
+safe_op2 op e2 s ->
+sem_pexpr (wsw:= nosubword) false gd s e1 = ok ve1 ->
+sem_pexpr (wsw:= nosubword) false gd s e2 = ok ve2 ->
+sem_sop2 op ve1 ve2 = r -> 
+is_ok r \/ r = Error ErrType.
+Proof.
+Admitted.
+
+Lemma sem_pexprs_ty_error: forall s es er,
+safe_pexprs safe_pexpr s es ->
+mapM (sem_pexpr false gd s) es = Error er ->
+er = ErrType.
+Proof.
+Admitted.
+
+Lemma sem_opN_safe : forall s es vm r op,
+safe_pexpr s (PappN op es) ->
+mapM (sem_pexpr false gd s) es = ok vm ->
+sem_opN op vm = Error r ->
+r = ErrType.
+Proof.
+Admitted.
+
 
 Theorem sem_pexpr_safe : forall e s r,
 safe_pexpr s e ->
@@ -277,9 +301,27 @@ move=> e s r. move: r s. elim: e.
     by right.
   move=> h; subst. by move: (hin (Error ver) s hs he).
 (* Papp2 *)
-- admit.
+- move=> op e1 hin e2 hin' r s /= [] hs1 [] hs2 hs3.
+  case he2: sem_pexpr=> [ve2 | ver2] //=.
+  + case he1: sem_pexpr=> [ve1 | ver1] //=.
+    + move=> ho. by have := sem_sop2_safe s op e1 ve1 e2 ve2 r hs3 he1 he2 ho.
+    move=> h; subst. by move: (hin (Error ver1) s hs1 he1).
+  case he1: sem_pexpr=> [ve1 | ver1] //=. 
+  + move=> h; subst. by move: (hin' (Error ver2) s hs2 he2).
+  move=>h; subst. by move: (hin (Error ver1) s hs1 he1). 
 (* PappN *)
-- admit.
+- move=> op es hin r s hs /=. 
+  case hm: mapM=> [vm | vmr] //= ho. 
+  + case hr: r ho=> [vo | vor] //=.
+    + subst. by left.
+    move=> ho. have -> := sem_opN_safe s es vm vor op hs hm ho. by right.
+  subst. case: es hin hs hm=> //= e es hin [] hse hses.
+  case h: sem_pexpr=> [ve | ver] //=.
+  + case hm: mapM=> [vs | vsr] //=.
+    + move=> [] heq; subst. have heq : e = e \/ List.In e es. + by left.
+      have -> := sem_pexprs_ty_error s es vmr hses hm. by right.
+    have heq : e = e \/ List.In e es. + by left.
+    move=> [] h'; subst. by move: (hin e heq (Error vmr) s hse h)=> /=.
 move=> t e hie e1 hie1 e2 hie2 r s /= [] hse [] hse1 hse2.
 case he2: sem_pexpr=> [ve2 | ver2] /=. 
 + case he1: sem_pexpr=> [ve1 | ver1] /=. 
@@ -312,7 +354,7 @@ case he: sem_pexpr=> [ve | ver] //=.
   + move=> h; subst. by move: (hie1 (Error ver1) s hse1 he1).
   have -> := to_bool_ty_error s e ve vbr he hse hb. move=> <-. by right.
 move=> h; subst. by move: (hie (Error ver) s hse he).
-Admitted.
+Qed.
           
           
 End Safety_conditions.
