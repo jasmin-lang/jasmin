@@ -29,7 +29,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Section.
+Module ARMFopnP.
+
+Section WITH_PARAMS.
 
 Context
   {atoI  : arch_toIdent}
@@ -71,25 +73,25 @@ Ltac t_arm_op :=
   rewrite ?zero_extend_u;
   t_simpl_rewrites.
 
-Lemma arm_op_addi_eval_instr {lp ls ii y imm wy} :
+Lemma addi_eval_instr {lp ls ii y imm wy} :
   get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_fopn_args ii (arm_op_addi x y imm) in
+  -> let: li := li_of_fopn_args ii (ARMFopn.addi x y imm) in
      let: wx' := Vword (wy + wrepr reg_size imm)in
      let: vm' := (lvm ls).[v_var x <- wx'] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof. move=> ?. by t_arm_op. Qed.
 
-Lemma arm_op_subi_eval_instr {lp ls ii y imm wy} :
+Lemma subi_eval_instr {lp ls ii y imm wy} :
   get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_fopn_args ii (arm_op_subi x y imm) in
+  -> let: li := li_of_fopn_args ii (ARMFopn.subi x y imm) in
      let: wx' := Vword (wy - wrepr reg_size imm)in
      let: vm' := (lvm ls).[v_var x <- wx'] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof. move=> ?. t_arm_op. by rewrite wsub_wnot1. Qed.
 
-Lemma arm_op_align_eval_instr {lp ls ii y al} {wy : word Uptr} :
+Lemma align_eval_instr {lp ls ii y al} {wy : word Uptr} :
   get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_fopn_args ii (arm_op_align x y al) in
+  -> let: li := li_of_fopn_args ii (ARMFopn.align x y al) in
      let: wx' := Vword (align_word al wy) in
      let: vm' := (lvm ls).[v_var x <- wx'] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
@@ -101,36 +103,36 @@ Proof.
   by rewrite wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
 Qed.
 
-Lemma arm_op_sub_eval_instr lp ls ii y (wy : word Uptr) z (wz : word Uptr) :
+Lemma sub_eval_instr lp ls ii y (wy : word Uptr) z (wz : word Uptr) :
   get_var true (lvm ls) (v_var y) = ok (Vword wy)
   -> get_var true (lvm ls) (v_var z) = ok (Vword wz)
-  -> let: li := li_of_fopn_args ii (arm_op_sub x y z) in
+  -> let: li := li_of_fopn_args ii (ARMFopn.sub x y z) in
      let: wx' := Vword (wy - wz)in
      let: vm' := (lvm ls).[v_var x <- wx'] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof. move=> ??. t_arm_op. by rewrite wsub_wnot1. Qed.
 
-Lemma arm_op_mov_eval_instr {lp ls ii y} {wy : word Uptr} :
+Lemma mov_eval_instr {lp ls ii y} {wy : word Uptr} :
   get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_fopn_args ii (arm_op_mov x y) in
+  -> let: li := li_of_fopn_args ii (ARMFopn.mov x y) in
      let: vm' := (lvm ls).[v_var x <- Vword wy] in
      eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof. move=> hgety. by t_arm_op. Qed.
 
-Lemma arm_op_movi_eval_instr {lp ls ii imm} :
+Lemma movi_eval_instr {lp ls ii imm} :
   (is_expandable imm \/ is_w16_encoding imm) ->
-  let: li := li_of_fopn_args ii (arm_op_movi x imm) in
+  let: li := li_of_fopn_args ii (ARMFopn.movi x imm) in
   let: vm' := (lvm ls).[v_var x <- Vword (wrepr U32 imm)] in
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof. move=> _. by t_arm_op. Qed.
 
-Lemma arm_op_str_off_eval_instr {lp ls m' ii y off wx} {wy : word reg_size} :
+Lemma str_eval_instr {lp ls m' ii y off wx} {wy : word reg_size} :
   get_var true (lvm ls) (v_var x) = ok (Vword wx)
   -> get_var true (lvm ls) (v_var y) = ok (Vword wy)
   -> write (lmem ls) (wx + wrepr Uptr off)%R wy = ok m'
-  -> let: li := li_of_fopn_args ii (arm_op_str_off y x off) in
+  -> let: li := li_of_fopn_args ii (ARMFopn.str y x off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
-Proof. move=> hgety hgetx hwrite. by t_arm_op. Qed.
+Proof. move=> ???. by t_arm_op. Qed.
 
 End ARM_OP.
 
@@ -269,10 +271,10 @@ Proof.
   by apply: ltnSE.
 Qed.
 
-Lemma arm_cmd_load_large_imm_lsem lp fn ls ii P Q xname imm :
+Lemma li_lsem lp fn ls ii P Q xname imm :
   let: x := {| vname := xname; vtype := sword reg_size; |} in
   let: xi := mk_var_i x in
-  let: lcmd := map (li_of_fopn_args ii) (arm_cmd_load_large_imm xi imm) in
+  let: lcmd := map (li_of_fopn_args ii) (ARMFopn.li xi imm) in
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> lpc ls = size P
   -> lfn ls = fn
@@ -285,14 +287,14 @@ Lemma arm_cmd_load_large_imm_lsem lp fn ls ii P Q xname imm :
        ].
 Proof.
   set x := {| vname := _; |}.
-  rewrite /arm_cmd_load_large_imm /=.
+  rewrite /ARMFopn.li /=.
 
   case: orP => [himm | _].
   - move=> hbody hpc hfn _.
     eexists; split.
     + apply: (eval_lsem_step1 hbody) => //.
       rewrite addn1 -hpc.
-      exact: arm_op_movi_eval_instr.
+      exact: movi_eval_instr.
     + move=> v /Sv.singleton_spec ?. by t_vm_get.
     by t_get_var.
 
@@ -301,7 +303,7 @@ Proof.
   move=> hbody hpc hfn himm.
   eexists; split.
   - apply: lsem_step2.
-    + apply: (eval_lsem1 hbody _ _ (arm_op_movi_eval_instr _)) => //.
+    + apply: (eval_lsem1 hbody _ _ (movi_eval_instr _)) => //.
       right.
       apply/ZltP.
       have := Z_div_mod imm (wbase U16) erefl.
@@ -322,10 +324,10 @@ Proof.
   by t_get_var.
 Qed.
 
-Lemma arm_cmd_large_subi_lsem lp fn ls ii P Q xname y imm wy :
+Lemma smart_subi_lsem lp fn ls ii P Q xname y imm wy :
   let: x := {| vname := xname; vtype := sword Uptr; |} in
   let: xi := mk_var_i x in
-  let: lcmd := map (li_of_fopn_args ii) (arm_cmd_large_subi xi y imm) in
+  let: lcmd := map (li_of_fopn_args ii) (ARMFopn.smart_subi xi y imm) in
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> lpc ls = size P
   -> lfn ls = fn
@@ -342,7 +344,7 @@ Proof.
   set x := {| vname := _; |}.
   move=> hbody hpc hfn hxy hgety himm.
   move: hbody.
-  rewrite /arm_cmd_large_subi /arm_cmd_large_arith_imm /=.
+  rewrite /ARMFopn.smart_subi /=.
 
   case: ZeqbP => [? | _].
   - subst imm.
@@ -350,26 +352,24 @@ Proof.
     eexists; split.
     + apply: (eval_lsem_step1 hbody) => //.
       rewrite -hpc addn1.
-      exact: (arm_op_mov_eval_instr hgety).
+      exact: (mov_eval_instr hgety).
     + move=> v /Sv.singleton_spec ?. by t_vm_get.
     rewrite wrepr0 GRing.subr0 /=.
     by t_get_var.
 
-  case hexp: is_expandable.
+  case: ifP => _.
   - move=> hbody.
     eexists; split.
     + apply: (eval_lsem_step1 hbody) => //.
       rewrite -hpc addn1.
-      exact: (arm_op_subi_eval_instr hgety).
+      exact: (subi_eval_instr hgety).
     + move=> v /Sv.singleton_spec ?. by t_vm_get.
     by t_get_var.
 
-  clear hexp.
-  rewrite map_cat.
-  rewrite -(catA _ _ Q).
+  rewrite -cats1 map_cat -(catA _ _ Q).
   move=> hbody.
 
-  have [vm' [hsem hvm hgetx]] := arm_cmd_load_large_imm_lsem hbody hpc hfn himm.
+  have [vm' [hsem hvm hgetx]] := li_lsem hbody hpc hfn himm.
   eexists; split.
   - apply: (lsem_step_end hsem).
     rewrite catA in hbody.
@@ -396,6 +396,21 @@ Proof.
   by t_get_var.
 Qed.
 
+End WITH_PARAMS.
+
+End ARMFopnP.
+
+Section WITH_PARAMS.
+
+Context
+  {atoI  : arch_toIdent}
+  {syscall_state : Type}
+  {sc_sem : syscall_sem syscall_state}
+  {call_conv : calling_convention}
+.
+
+#[local] Existing Instance withsubword.
+
 Lemma store_mn_of_wsizeP ws ws' mn (w : word ws) (w' : word ws') :
   store_mn_of_wsize ws = Some mn
   -> truncate_word ws w' = ok w
@@ -408,4 +423,4 @@ Proof.
   all: by rewrite zero_extend_u.
 Qed.
 
-End Section.
+End WITH_PARAMS.

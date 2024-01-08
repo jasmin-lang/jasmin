@@ -80,3 +80,15 @@ Definition free_vars_r (r:rexpr) : Sv.t :=
   | Load _ x e => free_vars_rec (Sv.singleton x) e
   | Rexpr e    => free_vars e
   end.
+
+Definition rvar (x : var_i) : rexpr := Rexpr (Fvar x).
+Definition rconst (ws : wsize) (z : Z) : rexpr := Rexpr (fconst ws z).
+
+Module FopnArgs.
+  Definition lval := lexpr.
+  Definition rval := rexpr.
+  Definition lvar := LLvar.
+  Definition lmem {_ : PointerData} ws x z := Store ws x (fconst Uptr z).
+  Definition rvar := rvar.
+  Definition rconst := rconst.
+End FopnArgs.

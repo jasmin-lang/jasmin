@@ -80,11 +80,11 @@ Notation vtmpi := (mk_var_i (to_var R12)).
 
 (* TODO_ARM: This assumes 0 <= sz < 4096. *)
 Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
-  arm_op_subi rspi rspi sz.
+  ARMFopn.subi rspi rspi sz.
 
 (* TODO_ARM: This assumes 0 <= sz < 4096. *)
 Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
-  arm_op_addi rspi rspi sz.
+  ARMFopn.addi rspi rspi sz.
 
 (* TODO_ARM: Review. This seems unnecessary. *)
 Definition arm_lassign
@@ -113,19 +113,19 @@ Definition arm_set_up_sp_register
   (r : var_i) :
   option (seq fopn_args) :=
   let%opt _ := oassert ((0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z) in
-  let i0 := arm_op_mov r rspi in
-  let load_imm := arm_cmd_large_subi vtmpi rspi sf_sz in
-  let i1 := arm_op_align vtmpi vtmpi al in
-  let i2 := arm_op_mov rspi vtmpi in
+  let i0 := ARMFopn.mov r rspi in
+  let load_imm := ARMFopn.smart_subi vtmpi rspi sf_sz in
+  let i1 := ARMFopn.align vtmpi vtmpi al in
+  let i2 := ARMFopn.mov rspi vtmpi in
   Some (i0 :: load_imm ++ [:: i1; i2 ]).
 
 Definition arm_set_up_sp_stack
   (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : option (seq fopn_args) :=
   let%opt _ := oassert ((0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z) in
-  let load_imm := arm_cmd_large_subi vtmpi rspi sf_sz in
-  let i0 := arm_op_align vtmpi vtmpi al in
-  let i1 := arm_op_str_off rspi vtmpi off in
-  let i2 := arm_op_mov rspi vtmpi in
+  let load_imm := ARMFopn.smart_subi vtmpi rspi sf_sz in
+  let i0 := ARMFopn.align vtmpi vtmpi al in
+  let i1 := ARMFopn.str rspi vtmpi off in
+  let i2 := ARMFopn.mov rspi vtmpi in
   Some (load_imm ++ [:: i0; i1; i2 ]).
 
 Definition arm_tmp : Ident.ident := vname (v_var vtmpi).
