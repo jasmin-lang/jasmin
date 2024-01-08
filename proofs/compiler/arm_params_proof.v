@@ -118,7 +118,7 @@ Lemma arm_spec_lip_allocate_stack_frame :
   allocate_stack_frame_correct arm_liparams.
 Proof.
   move=> *.
-  apply: arm_op_subi_eval_instr.
+  apply: ARMFopnP.subi_eval_instr.
   rewrite /get_var.
   by t_simpl_rewrites.
 Qed.
@@ -127,7 +127,7 @@ Lemma arm_spec_lip_free_stack_frame :
   free_stack_frame_correct arm_liparams.
 Proof.
   move=> *.
-  apply: arm_op_addi_eval_instr.
+  apply: ARMFopnP.addi_eval_instr.
   rewrite /get_var.
   by t_simpl_rewrites.
 Qed.
@@ -157,10 +157,10 @@ Proof.
   rewrite /set_up_sp_register /= /arm_set_up_sp_register hset_up /= -/vtmpi.
   rewrite map_cat.
   rewrite -catA /=.
-  set cmd_large_subi := _ _ (arm_cmd_large_subi _ _ _).
-  set i_mov_r := _ _ (arm_op_mov _ _).
-  set i_align_tmp := _ _ (arm_op_align _ _ _).
-  set i_mov_rsp := _ _ (arm_op_mov _ _).
+  set cmd_large_subi := _ _ (ARMFopn.smart_subi _ _ _).
+  set i_mov_r := _ _ (ARMFopn.mov _ _).
+  set i_align_tmp := _ _ (ARMFopn.align _ _ _).
+  set i_mov_rsp := _ _ (ARMFopn.mov _ _).
   rewrite -[i_mov_r :: _]/([:: i_mov_r ] ++ _).
   rewrite catA.
   move=> hbody.
@@ -178,7 +178,7 @@ Proof.
 
   set ls0 := lnext_pc (lset_vm ls vm0).
   have [|vm1 [hsem hvm1 hgettmp1]] :=
-    arm_cmd_large_subi_lsem (ls := ls0) hbody _ erefl hneq_tmp_rsp hgetrsp0 hsz.
+    ARMFopnP.smart_subi_lsem (ls := ls0) hbody _ erefl hneq_tmp_rsp hgetrsp0 hsz.
   - by rewrite size_cat addn1 -hpc.
 
   set vm2 := vm1.[vtmp <- Vword ts'].
@@ -191,7 +191,7 @@ Proof.
     (* R[r] := R[rsp]; *)
     + rewrite -catA in hbody.
       apply: (eval_lsem1 hbody) => //.
-      exact: (arm_op_mov_eval_instr (y := vrspi) hgetrsp).
+      exact: (ARMFopnP.mov_eval_instr (y := vrspi) hgetrsp).
 
     (* R[tmp] := R[rsp] - off; *)
     apply: (lsem_trans hsem).
@@ -203,7 +203,7 @@ Proof.
       apply: (eval_lsem1 hbody) => //;
         first by rewrite !size_cat.
       set ls1 := setpc (lset_vm _ _) _.
-      exact: (arm_op_align_eval_instr (ls := ls1) (y := vtmpi) hgettmp1).
+      exact: (ARMFopnP.align_eval_instr (ls := ls1) (y := vtmpi) hgettmp1).
 
     (* R[rsp] := R[tmp]; *)
     + rewrite -(cat1s i_align_tmp) 2!catA in hbody.
@@ -215,7 +215,7 @@ Proof.
       * by rewrite get_var_eq.
 
       set ls2 := lnext_pc (lset_vm _ _).
-      rewrite (arm_op_mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp2).
+      rewrite (ARMFopnP.mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp2).
       rewrite /lnext_pc /setpc /= !size_cat /= !size_map /addn /addn_rec.
       repeat f_equal.
       lia.
@@ -266,10 +266,10 @@ Proof.
   set vrspi := mk_var_i vrsp.
   rewrite /set_up_sp_stack /= /arm_set_up_sp_stack hset_up /= -/vtmpi.
   rewrite map_cat /=.
-  set cmd_large_subi := map _ (arm_cmd_large_subi _ _ _).
-  set i_align_tmp := li_of_fopn_args _ (arm_op_align _ _ _).
-  set i_str_rsp := li_of_fopn_args _ (arm_op_str_off _ _ _).
-  set i_mov_rsp := li_of_fopn_args _ (arm_op_mov _ _).
+  set cmd_large_subi := map _ (ARMFopn.smart_subi _ _ _).
+  set i_align_tmp := li_of_fopn_args _ (ARMFopn.align _ _ _).
+  set i_str_rsp := li_of_fopn_args _ (ARMFopn.str _ _ _).
+  set i_mov_rsp := li_of_fopn_args _ (ARMFopn.mov _ _).
   rewrite -catA.
   move=> hbody.
 
@@ -279,7 +279,7 @@ Proof.
 
   (* We need [vm0] before [eexists]. *)
   have [vm0 [hsem hvm0 hgettmp0]] :=
-    arm_cmd_large_subi_lsem hbody hpc erefl hneq_tmp_rsp hgetrsp hsz.
+    ARMFopnP.smart_subi_lsem hbody hpc erefl hneq_tmp_rsp hgetrsp hsz.
   set vm1 := vm0.[vtmp <- Vword ts'].
   set vm2 := vm1.[vrsp <- Vword ts'].
 
@@ -304,7 +304,7 @@ Proof.
       apply: (eval_lsem1 hbody) => //;
         first by rewrite size_cat.
       set ls0 := setpc (lset_vm _ _) _.
-      exact: (arm_op_align_eval_instr (ls := ls0) (y := vtmpi) hgettmp0).
+      exact: (ARMFopnP.align_eval_instr (ls := ls0) (y := vtmpi) hgettmp0).
 
     (* M[R[rsp]] := R[tmp]; *)
     + rewrite -(cat1s i_align_tmp) -!catA 2!catA in hbody.
@@ -312,7 +312,7 @@ Proof.
         first by rewrite !size_cat /= addn1.
       set ls1 := lnext_pc (lset_vm _ _).
       apply:
-        (arm_op_str_off_eval_instr (ls := ls1) (y := vrspi) hgettmp1 hgetrsp1).
+        (ARMFopnP.str_eval_instr (ls := ls1) (y := vrspi) hgettmp1 hgetrsp1).
       exact: hwrite.
 
     (* R[rsp] := R[tmp]; *)
@@ -320,7 +320,7 @@ Proof.
       apply: (eval_lsem1 hbody) => //;
         first by rewrite !size_cat /= !addn1.
       set ls2 := lnext_pc (lset_mem _ _).
-      rewrite (arm_op_mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp1).
+      rewrite (ARMFopnP.mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp1).
       rewrite /ls2 !size_cat /= !addnS addn0.
       reflexivity.
 

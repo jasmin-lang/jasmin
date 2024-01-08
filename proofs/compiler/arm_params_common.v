@@ -22,76 +22,86 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Section.
-Context {atoI : arch_toIdent}.
+Module ARMOpn (Args : OpnArgs).
 
-Definition arm_op_mov (x y : var_i) : fopn_args :=
-  ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar y) ]).
+  Import Args.
 
-Definition arm_op_movi (x : var_i) (imm : Z) : fopn_args :=
-  let e := fconst reg_size imm in
-  ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr e ]).
+  #[local]
+  Open Scope Z.
 
-Definition arm_op_movt (x : var_i) (imm : Z) : fopn_args :=
-  let e := fconst U16 imm in
-  ([:: LLvar x ], Oarm (ARM_op MOVT default_opts), [:: Rexpr (Fvar x); Rexpr e ]).
+  Section WITH_PARAMS.
 
-Definition arm_op_sub (x y z : var_i) : fopn_args :=
-  let f v := Rexpr (Fvar v) in
-  ([:: LLvar x ], Oarm (ARM_op SUB default_opts), map f [:: y; z ]).
+  Context {atoI : arch_toIdent}.
 
-Definition arm_op_str_off (x y : var_i) (off : Z) : fopn_args :=
-  let lv := Store reg_size y (fconst Uptr off) in
-  ([:: lv ], Oarm (ARM_op STR default_opts), [:: Rexpr (Fvar x) ]).
+  Notation opn_args := (seq lval * sopn * seq rval)%type.
 
-Definition arm_op_arith_imm
-  (op : arm_mnemonic) (x y : var_i) (imm : Z) : fopn_args :=
-  let ey := Rexpr (Fvar y) in
-  let eimm := fconst reg_size imm in
-  ([:: LLvar x ], Oarm (ARM_op op default_opts), [:: ey; Rexpr eimm ]).
+  Let op_gen mn x res : opn_args :=
+    ([:: lvar x ], Oarm (ARM_op mn default_opts), res).
+  Let op_un_reg mn x y := op_gen mn x [:: rvar y ].
+  Let op_un_imm mn x imm := op_gen mn x [:: rconst reg_size imm ].
+  Let op_bin_reg mn x y z := op_gen mn x [:: rvar y; rvar z ].
+  Let op_bin_imm mn x y imm := op_gen mn x [:: rvar y; rconst reg_size imm ].
 
-Definition arm_op_addi (x y : var_i) (imm : Z) : fopn_args :=
-  arm_op_arith_imm ADD x y imm.
+  Definition mov := op_un_reg MOV.
+  Definition add := op_bin_reg ADD.
+  Definition sub := op_bin_reg SUB.
 
-Definition arm_op_subi (x y : var_i) (imm : Z) : fopn_args :=
-  arm_op_arith_imm SUB x y imm.
+  Definition movi := op_un_imm MOV.
+  Definition movt x imm := op_gen MOVT x [:: rvar x; rconst U16 imm ].
+  Definition addi := op_bin_imm ADD.
+  Definition subi := op_bin_imm SUB.
+  Definition bici := op_bin_imm BIC.
 
-Definition arm_op_align (x y : var_i) (al : wsize) :=
-  arm_op_arith_imm BIC x y (wsize_size al - 1).
+  Definition str x y off :=
+    let lv := lmem reg_size y off in
+    ([:: lv ], Oarm (ARM_op STR default_opts), [:: rvar x ]).
 
-(* Precondition: [0 <= imm < wbase reg_size]. *)
-Definition arm_cmd_load_large_imm (x : var_i) (imm : Z) : seq fopn_args :=
-  if is_expandable imm || is_w16_encoding imm
-  then [:: arm_op_movi x imm ]
-  else
-    let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
-    [:: arm_op_movi x lbs; arm_op_movt x hbs ].
+  Definition align x y al := bici x y (wsize_size al - 1).
 
-(* Return a command that performs an operation with an immediate argument,
-   loading it into a register if needed.
-   In symbols,
-       R[x] := R[y] <+> imm
-   Precondition: if [imm] is large, [x <> y].
+  (* Load an immediate to a register.
+     Precondition: [0 <= imm < wbase reg_size]. *)
+  Definition li x imm :=
+    if is_expandable imm || is_w16_encoding imm
+    then [:: movi x imm ]
+    else
+      let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
+      [:: movi x lbs; movt x hbs ].
 
-   We use [is_expandable] but this is an more restrictive than necessary, for
-   some mnemonics we could use [is_wXX_encoding]. *)
-Definition arm_cmd_large_arith_imm
-  (on_reg : var_i -> var_i -> var_i -> fopn_args)
-  (on_imm : var_i -> var_i -> Z -> fopn_args)
-  (neutral : option Z)
-  (x y : var_i)
-  (imm : Z) :
-  seq fopn_args :=
-  let is_mov := if neutral is Some x then (imm =? x)%Z else false in
-  if is_mov
-  then [:: arm_op_mov x y ]
-  else
-    if is_expandable imm
-    then [:: on_imm x y imm ]
-    else arm_cmd_load_large_imm x imm ++ [:: on_reg x y x ].
+  (* Return a command that performs an operation with an immediate argument,
+     loading it into a register if needed.
+     In symbols
+         R[x] := R[y] <+> imm
+     Precondition: if [imm] is not small, [tmp] can't be an argument, since it
+     will be overwritten. *)
+  Let gen_smart_opi
+    (on_reg : var_i -> var_i -> var_i -> opn_args)
+    (on_imm : var_i -> var_i -> Z -> opn_args)
+    (is_small : Z -> bool)
+    (neutral : option Z)
+    (tmp x y : var_i)
+    (imm : Z) :
+    seq opn_args :=
+    let is_mov := if neutral is Some n then (imm =? n)%Z else false in
+    if is_mov
+    then [:: mov x y ]
+    else
+      if is_small imm
+      then [:: on_imm x y imm ]
+      else rcons (li tmp imm) (on_reg x y tmp).
 
-(* Precondition: if [imm] is large, [x <> y]. *)
-Definition arm_cmd_large_subi :=
-  arm_cmd_large_arith_imm arm_op_sub arm_op_subi (Some 0%Z).
+  Let is_arith_small imm := is_expandable imm || is_w12_encoding imm.
 
-End Section.
+  (* Precondition: if [imm] is large, [x <> y]. *)
+  Definition smart_addi x y :=
+    gen_smart_opi add addi is_arith_small (Some 0%Z) x x y.
+
+  (* Precondition: if [imm] is large, [x <> y]. *)
+  Definition smart_subi x y :=
+    gen_smart_opi sub subi is_arith_small (Some 0%Z) x x y.
+
+  End WITH_PARAMS.
+
+End ARMOpn.
+
+Module ARMCopn := ARMOpn(CopnArgs).
+Module ARMFopn := ARMOpn(FopnArgs).
