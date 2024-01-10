@@ -13,8 +13,8 @@ Context
   (gd : glob_decls).
 
 (* can be used to check that an expression does not evaluate to 0 *)
-Definition not_zero_pexpr (e : pexpr) (s : @estate nosubword syscall_state ep) :=
-forall v n, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
+Definition not_zero_pexpr (e1 e2 : pexpr) (s : @estate nosubword syscall_state ep) :=
+forall v n, sem_pexpr (wsw:= nosubword) false gd s e2 = ok v -> 
             to_int v = ok n -> 
 n <> 0.
 
@@ -22,20 +22,28 @@ n <> 0.
 Definition defined_var (x : var_i) (s : @estate nosubword syscall_state ep) : bool :=
 is_defined (evm s).[x].
 
-(* Here len is the array length which is obtained from get_gvar *)
-Definition alignment_range_check (aa : arr_access) (ws : wsize) (x : gvar) (e : pexpr) 
-(s : @estate nosubword syscall_state ep) :=
-forall v i len, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
-                to_int v = ok i -> 
-is_align (i * mk_scale aa ws)%Z ws /\ WArray.in_range len (i * mk_scale aa ws)%Z ws. 
+Definition get_len_stype (t : stype) : positive :=
+match t with 
+| sbool => xH
+| sint => xH 
+| sarr n => n
+| sword w => xH
+end.
 
 (* Here len is the array length which is obtained from get_gvar *)
-Definition alignment_sub_range_check (aa : arr_access) (ws : wsize) (slen : positive) (x : gvar) (e : pexpr) 
+Definition alignment_range_check (aa : arr_access) (ws : wsize) (x : var_i) (e : pexpr) 
 (s : @estate nosubword syscall_state ep) :=
-forall v i len, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
+forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
+            to_int v = ok i -> 
+is_align (i * mk_scale aa ws)%Z ws /\ WArray.in_range (get_len_stype x.(v_var).(vtype)) (i * mk_scale aa ws)%Z ws. 
+
+(* Here len is the array length which is obtained from get_gvar *)
+Definition alignment_sub_range_check (aa : arr_access) (ws : wsize) (slen : positive) (x : var_i) (e : pexpr) 
+(s : @estate nosubword syscall_state ep) :=
+forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
                 to_int v = ok i -> 
 is_align (i * mk_scale aa ws)%Z ws /\
-((0 <=? (i * mk_scale aa ws))%Z && ((i * mk_scale aa ws + arr_size ws slen) <=? len)%Z).
+((0 <=? (i * mk_scale aa ws))%Z && ((i * mk_scale aa ws + arr_size ws slen) <=? (get_len_stype x.(v_var).(vtype)))%Z).
 
 (* checks if the address is valid or not *)
 Definition addr_check (x : var_i) (ws : wsize) (e : pexpr) (s : @estate nosubword syscall_state ep) :=
@@ -45,43 +53,86 @@ forall vx ve w1 w2, defined_var vx s ->
               to_pointer ve = ok w2 ->
 validw (emem s) (w1 + w2)%R ws.
 
+Inductive safe_cond : Type :=
+| Defined_var : var_i -> safe_cond
+| Not_zero : pexpr -> pexpr -> safe_cond
+| Is_align : pexpr -> arr_access -> wsize -> safe_cond
+| In_range : pexpr -> arr_access -> wsize -> var_i -> safe_cond
+| In_sub_range : pexpr -> arr_access -> positive -> var_i -> safe_cond
+| Is_valid_addr : pexpr -> var_i -> wsize -> safe_cond.
+
+
 (* checks the safety condition for operations: except division and modulo, rest of the operations are safe without any 
    explicit condition *)
-Definition safe_op2 (op : sop2) (e : pexpr) (s : @estate nosubword syscall_state ep) :=
+Definition gen_safe_cond_op2 (op : sop2) (e1 e2 : pexpr) : seq safe_cond :=
 match op with 
 | Odiv ck => match ck with 
-             | Cmp_w u sz => not_zero_pexpr e s
-             | Cmp_int => True
+             | Cmp_w u sz => [:: Not_zero e1 e2]
+             | Cmp_int => [::]
              end
 | Omod ck => match ck with 
-             | Cmp_w u sz => not_zero_pexpr e s
-             | Cmp_int => True
+             | Cmp_w u sz => [:: Not_zero e1 e2]
+             | Cmp_int => [::]
              end
+| _ => [::]
+end.
+
+Definition interp_safe_cond_op2 (s : @estate nosubword syscall_state ep) (op : sop2) (e1 e2 : pexpr) (sc: seq safe_cond) :=
+match sc with 
+| [::] => True 
+| [:: sc] => not_zero_pexpr e1 e2 s
 | _ => True
-end.  
+end. 
+
+Section gen_safe_conds. 
+
+Variable gen_safe_cond : pexpr -> seq safe_cond.
+
+Fixpoint gen_safe_conds (es : seq pexpr) : seq (seq safe_cond) := 
+match es with
+| [::] => [::]
+| e :: es => gen_safe_cond e :: gen_safe_conds es
+end. 
+
+End gen_safe_conds.    
+
+Fixpoint gen_safe_cond (e : pexpr) : seq safe_cond :=
+match e with   
+| Pconst _ | Pbool _ | Parr_init _ => [::] 
+| Pvar x => [:: Defined_var (gv x)]
+| Pget aa ws x e => gen_safe_cond e ++ [:: Defined_var (gv x); Is_align e aa ws; In_range e aa ws (gv x)] 
+| Psub aa ws p x e => gen_safe_cond e ++
+                     [:: Defined_var (gv x); Is_align e aa ws; In_sub_range e aa p (gv x)] ++ gen_safe_cond e
+| Pload ws x e => gen_safe_cond e ++ [:: Defined_var x; Is_valid_addr e x ws] 
+| Papp1 op e => gen_safe_cond e
+| Papp2 op e1 e2 => gen_safe_cond e1 ++ gen_safe_cond e2 ++ gen_safe_cond_op2 op e1 e2
+| PappN op es => flatten (gen_safe_conds (gen_safe_cond) es)
+| Pif t e1 e2 e3 => gen_safe_cond e1 ++ gen_safe_cond e2 ++ gen_safe_cond e3
+end.
 
 Section safe_pexprs.
 
-Variable safe_pexpr : @estate nosubword syscall_state ep -> pexpr -> Prop.
-
-Fixpoint safe_pexprs (s : @estate nosubword syscall_state ep) (es : seq pexpr) : Prop :=
-match es with 
-| [::] => True 
-| e :: es => safe_pexpr s e /\ safe_pexprs s es
-end.
+Variable safe_pexpr : @estate nosubword syscall_state ep -> pexpr -> seq safe_cond -> Prop.
 
 End safe_pexprs. 
 
-Fixpoint safe_pexpr (s : @estate nosubword syscall_state ep) (e: pexpr)  := 
+(*Fixpoint interp_safe_cond (sc : safe_cond) (s : @estate nosubword syscall_state ep) (e : pexpr) : Prop :=
+match sc with 
+| Defined_var x => defined_var x s
+| 
+| _ => True
+end.
+
+Fixpoint safe_pexpr (s : @estate nosubword syscall_state ep) (e: pexpr) (sc : seq safe_cond)  := 
 match e with 
  | Pconst _ | Pbool _ | Parr_init _ => True 
  | Pvar x => defined_var (gv x) s
- | Pget aa ws x e => defined_var (gv x) s /\ safe_pexpr s e /\ alignment_range_check aa ws x e s
- | Psub aa ws p x e => defined_var (gv x) s /\ safe_pexpr s e /\ alignment_sub_range_check aa ws p x e s
- | Pload ws x e => safe_pexpr s e /\ defined_var x s /\ addr_check x ws e s
- | Papp1 op e => safe_pexpr s e
- | Papp2 op e1 e2 => safe_pexpr s e1 /\ safe_pexpr s e2 /\ safe_op2 op e2 s
- | PappN op es => safe_pexprs (safe_pexpr) s es
+ | Pget aa ws x e => defined_var (gv x) s /\ safe_pexpr s e sc /\ alignment_range_check aa ws (gv x) e s
+ | Psub aa ws p x e => defined_var (gv x) s /\ safe_pexpr s e sc /\ alignment_sub_range_check aa ws p (gv x) e s
+ | Pload ws x e => safe_pexpr s e sc /\ defined_var x s /\ addr_check x ws e s
+ | Papp1 op e => safe_pexpr s e sc
+ | Papp2 op e1 e2 => safe_pexpr s e1 sc /\ safe_pexpr s e2 sc /\ interp_safe_cond_op2 s op e1 e2 sc
+ | PappN op es => safe_pexprs (safe_pexpr) s es sc
  | Pif t e1 e2 e3 => safe_pexpr s e1 /\ safe_pexpr s e2 /\ safe_pexpr s e3
 end.
 
@@ -113,6 +164,56 @@ er = ErrType.
 Proof.
 Admitted.
 
+Lemma not_undef: forall t i e s,
+safe_pexpr s e ->
+sem_pexpr false gd s e = ok (Vundef t i) ->
+t <> sbool.
+Proof.
+move=> t i e s. elim: e=> //=.
++ rewrite /defined_var /is_defined /get_gvar. 
+  move=> x h. case: ifP=> //= hl.
+  + rewrite /get_var /=. move=> [] heq; subst. by rewrite heq in h.
+  admit.
++ move=> aa sz x e hin [] hd [] hs ha. rewrite /on_arr_var /=. 
+  t_xrbindP=> vg hg. 
+Admitted.
+
+Lemma to_bool_ty_error : forall s e ve er,
+sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
+safe_pexpr s e ->
+to_bool ve = Error er ->
+er = ErrType.
+Proof.
+move=> s e ve er he hs. rewrite /to_bool. case: ve he=> //=.
++ by move=> z he [] <-.
++ by move=> len a he [] <-.
++ by move=> sz w he [] <-.
+move=> t i he. case: t i he=> //=.
+(* undef condition *)
++ move=> i he hu. case: e hs he=> //=.
+  + move=> g hd hg. rewrite /defined_var /= in hd. rewrite /get_gvar in hg.
+    move: hg. 
+Admitted.
+
+Lemma of_val_ty_error : forall t s e ve er,
+sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
+safe_pexpr s e ->
+of_val t ve = Error er ->
+er = ErrType.
+Proof.
+Admitted.
+
+Lemma truncate_val_ty_error : forall s e ve er t,
+sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
+safe_pexpr s e ->
+truncate_val t ve = Error er ->
+er = ErrType.
+Proof.
+move=> s e ve er t he hs. rewrite /truncate_val /=.
+case hv: of_val=> [v | ver] //=.
+move=> [] <-. by have -> := of_val_ty_error t s e ve ver he hs hv.
+Qed.
+
 Lemma to_int_ty_error : forall s e ve er,
 sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
 safe_pexpr s e ->
@@ -143,31 +244,19 @@ move=> s e. elim: e=> //=; rewrite /to_int /=.
   t_xrbindP=> z zv he hv zw hw hv1 [] hd [] hs ha hm. case: ve hin hv1 hm=> //=.
   by move=> sz' ws hin [] hsz h1 [] <-.
 + move=> sz x e hin ve er. t_xrbindP=> pt hp w z he hp' w' hr hv [] hd ha; subst. by move=> [] <-.
-+ move=> op e hin ve er. t_xrbindP=> z he hop hs.
-  case: ve hop=> //=.
-  + by move=> b hop [] <-.
-  + by move=> len a hop [] <-.
-  + by move=> sz ws hop [] <-.
-  move=> t i hop ht. apply hin with z. 
-  + apply he.
-  + apply hs.
-  case: z he hop=> //=.
-Admitted.
-
-Lemma to_bool_ty_error : forall s e ve er,
-sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
-safe_pexpr s e ->
-to_bool ve = Error er ->
-er = ErrType.
-Proof.
-Admitted.
-
-Lemma truncate_val_ty_error : forall s e ve er t,
-sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
-safe_pexpr s e ->
-truncate_val t ve = Error er ->
-er = ErrType.
-Proof.
++ admit.
++ admit.
++ admit.
+move=> t e hein e1 hein1 e2 hein2 ve er. 
+t_xrbindP=> b v he hb v1 v2 he1 ht v3 v4 he2 ht1 h; subst.
+move=> [] hse [] hse1 hse2. case: b hb=> //= hb.
++ case: v1 ht=> //=.
+  + by move=> b ht [] <-.
+  + by move=> len a ht [] <-.
+  + by move=> sz w ht [] <-.
+  move=> st i ht. case: st i ht=> //=.
+  + by move=> i ht [] <-.
+  move=> i ht [] hr. case: e1 hein1 he1 hse1=> //=.
 Admitted.
 
 Lemma to_pointer_ty_error : forall s e ve er,
@@ -181,14 +270,6 @@ Admitted.
 Lemma to_pointer_ty_error' : forall (s: @estate nosubword syscall_state ep) z er,
 defined_var z s ->
 to_pointer (evm s).[z] = Error er ->
-er = ErrType.
-Proof.
-Admitted.
-
-Lemma of_val_ty_error : forall t s e ve er,
-sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
-safe_pexpr s e ->
-of_val t ve = Error er ->
 er = ErrType.
 Proof.
 Admitted.
@@ -354,7 +435,7 @@ case he: sem_pexpr=> [ve | ver] //=.
   + move=> h; subst. by move: (hie1 (Error ver1) s hse1 he1).
   have -> := to_bool_ty_error s e ve vbr he hse hb. move=> <-. by right.
 move=> h; subst. by move: (hie (Error ver) s hse he).
-Qed.
+Qed.*)
           
           
 End Safety_conditions.
