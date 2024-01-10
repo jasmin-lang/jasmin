@@ -42,3 +42,4 @@ abbrev [-printing] sbb_64  = W64.subc.
 abbrev [-printing] sbb_128 = W128.subc.
 abbrev [-printing] sbb_256 = W256.subc.
 
+op swap_ ['a] (x y : 'a) = (y, x).

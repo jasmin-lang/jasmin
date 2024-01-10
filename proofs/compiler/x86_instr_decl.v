@@ -18,6 +18,7 @@ Variant x86_op : Type :=
 | MOVSX  of wsize & wsize      (* sign-extend *)
 | MOVZX  of wsize & wsize      (* zero-extend *)
 | CMOVcc of wsize              (* conditional copy *)
+| XCHG   of wsize              (* exchanges the contents of two operands *)
 
   (* Arithmetic *)
 | ADD    of wsize                  (* add unsigned / signed *)
@@ -373,6 +374,10 @@ Definition x86_MOVZX szi szo (x: word szi) : ex_tpl (w_ty szo) :=
     | _ => type_error
     end in
   ok (zero_extend szo x).
+
+Definition x86_XCHG sz (v1 v2: word sz) : ex_tpl (w2_ty sz sz) :=
+  Let _ := check_size_8_64 sz in
+  ok (v2, v1).
 
 Definition x86_ADD sz (v1 v2 : word sz) : ex_tpl (b5w_ty sz) :=
   Let _ := check_size_8_64 sz in
@@ -1239,9 +1244,12 @@ Definition rm b := [:: CAreg; CAmem b].
 
 Definition rmi sz := [:: CAreg; CAmem true; CAimm sz].
 Definition ri  sz := [:: CAreg; CAimm sz].
+
+Definition m_r := [:: m false; r].
+Definition r_rm_false := [:: r; rm false].
+
 Definition r_rm := [:: r; rm true].
 Definition r_rmi sz := [:: r; rmi sz].
-
 Definition m_ri sz := [:: m false; ri sz].
 
 Definition xmm := [:: CAxmm ].
@@ -1290,6 +1298,11 @@ Definition pp_movzx szs szd args :=
 
 Definition Ox86_MOVZX_instr             :=
   mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movsx (prim_movzx MOVZX) pp_movzx.
+
+Definition check_xchg := [:: m_r; r_rm].
+Definition Ox86_XCHG_instr :=
+  let name := "XCHG"%string in
+  ( (fun sz => mk_instr (pp_sz name sz) (w2_ty sz sz) (w2_ty sz sz) [:: E 0; E 1] [:: E 0; E 1] (reg_msb_flag sz) (@x86_XCHG sz) check_xchg 2 [::] (pp_name "xchg" sz)), (name, primP XCHG)).
 
 Definition c_r_rm := [:: c; r; rm true].
 Definition Ox86_CMOVcc_instr            :=
@@ -1894,6 +1907,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | MOVSX sz sz'       => Ox86_MOVSX_instr.1 sz sz'
   | MOVZX sz sz'       => Ox86_MOVZX_instr.1 sz sz'
   | CMOVcc sz          => Ox86_CMOVcc_instr.1 sz
+  | XCHG sz            => Ox86_XCHG_instr.1 sz
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
   | PEXT sz            => Ox86_PEXT_instr.1 sz
@@ -2031,6 +2045,7 @@ Definition x86_prim_string :=
    Ox86_MOVSX_instr.2;
    Ox86_MOVZX_instr.2;
    Ox86_CMOVcc_instr.2;
+   Ox86_XCHG_instr.2;
    Ox86_BSWAP_instr.2;
    Ox86_POPCNT_instr.2;
    Ox86_PEXT_instr.2;
