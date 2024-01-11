@@ -466,6 +466,10 @@ Record stack_alloc_params :=
       -> option instr_r;
     (* Build an instruction that assigns an immediate value *)
     sap_immediate : var_i -> Z -> instr_r;
+    (* Build an instruction that swap two registers *)
+    (* [sap_swap t d1 d2 s1 s2] is equivalent to d1,d2 = s2, s1 *) 
+    sap_swap : assgn_tag -> var_i -> var_i -> var_i -> var_i -> instr_r;
+
   }.
 
 Variant mov_kind :=
@@ -1173,6 +1177,32 @@ Definition alloc_syscall ii rmap rs o es :=
     end
   end.
 
+Definition is_swap_array o := 
+  match o with
+  | Opseudo_op (pseudo_operator.Oswap ty) => is_sarr ty
+  | _ => false 
+  end.
+
+Definition alloc_array_swap rmap rs t es :=
+  match rs, es with
+  | [:: Lvar x; Lvar y], [::Pvar z'; Pvar w'] =>
+    let z := z'.(gv) in
+    Let pz  := get_regptr z in
+    Let: (_, srz) := check_valid rmap z (Some 0%Z) (size_of z.(vtype)) in
+    let w := w'.(gv) in
+    Let pw := get_regptr w in
+    Let: (_, srw) := check_valid rmap w (Some 0%Z) (size_of w.(vtype)) in
+    let rmap := Region.set_move rmap x srw in
+    let rmap := Region.set_move rmap y srz in
+    Let px := get_regptr x in
+    Let py := get_regptr y in
+    Let _ := assert ((is_lvar z') && (is_lvar w'))  
+              (stk_ierror_no_var "global reg ptr ...") in
+    ok (rmap, saparams.(sap_swap) t px py pz pw)
+  | _, _ => 
+    Error (stk_error_no_var "swap: invalid args or result, only reg ptr are accepted")
+  end.
+
 Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
   let (ii, ir) := i in
 
@@ -1190,6 +1220,10 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       if is_protect_ptr_fail rs o e is Some (r, e, msf) then
          Let rs := alloc_protect_ptr rmap ii r t e msf in
          ok (rs.1, [:: MkI ii rs.2])
+      else
+      if is_swap_array o then 
+        Let rs := add_iinfo ii (alloc_array_swap rmap rs t e) in
+        ok (rs.1, [:: MkI ii rs.2]) 
       else
       Let e  := add_iinfo ii (alloc_es rmap e) in
       Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in

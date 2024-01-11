@@ -43,7 +43,9 @@ Variant pseudo_operator :=
 | Onop
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Osubcarry of wsize.  (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Oswap     of stype   (* [ty; ty] -> [ty; ty] *)
+.
 
 (* Scheme Equality for pseudo_operator. *)
 
@@ -55,13 +57,14 @@ Definition pseudo_operator_beq (o1 o2 : pseudo_operator) : bool :=
   | Omulu w1, Omulu w2 => w1 == w2
   | Oaddcarry w1, Oaddcarry w2 => w1 == w2
   | Osubcarry w1, Osubcarry w2 => w1 == w2
+  | Oswap t1, Oswap t2 => t1 == t2
   | _, _ => false
   end.
 
 Lemma pseudo_operator_eq_axiom : Equality.axiom pseudo_operator_beq.
 Proof.
-  case => [o1 l1 | w1 p1 | | w1 | w1 | w1];
-  case => [o2 l2 | w2 p2 | | w2 | w2 | w2] => /=; try by constructor.
+  case => [o1 l1 | w1 p1 | | w1 | w1 | w1 | t1 ];
+  case => [o2 l2 | w2 p2 | | w2 | w2 | w2 | t2 ] => /=; try by constructor.
   1,2: by apply (equivP andP);split => [ [/eqP -> /eqP ->]| [-> ->]].
   all: by apply (equivP eqP); split => [ -> | [->]].
 Qed.
@@ -81,5 +84,6 @@ Definition string_of_pseudo_operator (o : pseudo_operator) : string :=
   | Omulu ws => pp_sz "mulu" ws tt
   | Oaddcarry ws => pp_sz "adc" ws tt
   | Osubcarry ws => pp_sz "sbb" ws tt
+  | Oswap _ => "swap"
   end.
 

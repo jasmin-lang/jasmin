@@ -1580,49 +1580,50 @@ Section PROOF.
     ∃ so',
       sem p' ev si' (map (MkI ii) (lower_addcarry fv sz sub xs t es)) so' ∧
       eq_exc_fresh so' so.
-    Proof.
-      move=> hi dxs des hx hv ho.
-      rewrite/lower_addcarry /=.
-      set default := [:: Copn _ _ _ _ ].
-      have hdefault : ∃ so', sem p' ev si' [seq MkI ii i | i <- default] so' ∧ eq_exc_fresh so' so.
-      + by repeat econstructor; rewrite /sem_sopn hx /= hv.
-      case: ifP => // hsz64.
-      generalize (lower_addcarry_classifyP sub xs es); case: lower_addcarry_classify => //.
-      move => [[[[vi op] es'] cf] r] [? [x' [y' [b [?]]]]] C; subst.
-      assert (
-          disj_fvars (read_es es') ∧
-            ∃ x',
-            sem_pexprs true gd si' es' = ok x' ∧
-            ∃ v',
-            exec_sopn (Ox86 (op sz)) x' = ok v' ∧
-            let f := Lnone_b vi in
-            write_lvals true gd si' [:: f ; cf ; f ; f ; f ; r ] v' = ok so) as D.
-      {
-        clear - hsz64 des hx hv C ho.
-        case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
-        + move: hv hx; rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
-           have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;subst x y v =>
-            /sem_pexprs_dec3 [hx] [hy] [?]; subst b;
-          (exists [:: Vword w1; Vword w2]; split; [by rewrite /sem_pexprs /= hx /= hy|]);
-          rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SUB /x86_ADD /check_size_8_64 hsz64; eexists; split; first reflexivity.
-          + by rewrite /= Z.sub_0_r sub_underflow wrepr_sub !wrepr_unsigned in ho.
-          + by [].
-          by rewrite /= Z.add_0_r add_overflow wrepr_add !wrepr_unsigned in ho.
-        exists x; split; [ exact hx |]; clear hx.
-        move: hv;rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
-         have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;
-        subst x y v; rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SBB /x86_ADC /check_size_8_64 hsz64;
-        eexists; split; first reflexivity;
-        rewrite //=.
-        + by rewrite /= sub_borrow_underflow in ho.
-        by rewrite /= add_carry_overflow in ho.
-      }
-      clear C.
-      case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
-      case: (opn_5flags_correct ii t (Some U32) sz des' dxs hxs' hv' ho') => {hv' ho'} so'.
-      intuition eauto using eeq_excT.
-    Qed.
-    Opaque lower_addcarry.
+  Proof.
+    move=> hi dxs des hx hv ho.
+    rewrite/lower_addcarry /=.
+    set default := [:: Copn _ _ _ _ ].
+    have hdefault : ∃ so', sem p' ev si' [seq MkI ii i | i <- default] so' ∧ eq_exc_fresh so' so.
+    + by repeat econstructor; rewrite /sem_sopn hx /= hv.
+    case: ifP => // hsz64.
+    generalize (lower_addcarry_classifyP sub xs es); case: lower_addcarry_classify => //.
+    move => [[[[vi op] es'] cf] r] [? [x' [y' [b [?]]]]] C; subst.
+    assert (
+        disj_fvars (read_es es') ∧
+          ∃ x',
+          sem_pexprs true gd si' es' = ok x' ∧
+          ∃ v',
+          exec_sopn (Ox86 (op sz)) x' = ok v' ∧
+          let f := Lnone_b vi in
+          write_lvals true gd si' [:: f ; cf ; f ; f ; f ; r ] v' = ok so) as D.
+    {
+      clear - hsz64 des hx hv C ho.
+      case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
+      + move: hv hx; rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
+         have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;subst x y v =>
+          /sem_pexprs_dec3 [hx] [hy] [?]; subst b;
+        (exists [:: Vword w1; Vword w2]; split; [by rewrite /sem_pexprs /= hx /= hy|]);
+        rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SUB /x86_ADD /check_size_8_64 hsz64; eexists; split; first reflexivity.
+        + by rewrite /= Z.sub_0_r sub_underflow wrepr_sub !wrepr_unsigned in ho.
+        + by [].
+        by rewrite /= Z.add_0_r add_overflow wrepr_add !wrepr_unsigned in ho.
+      exists x; split; [ exact hx |]; clear hx.
+      move: hv;rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
+       have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;
+      subst x y v; rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SBB /x86_ADC /check_size_8_64 hsz64;
+      eexists; split; first reflexivity;
+      rewrite //=.
+      + by rewrite /= sub_borrow_underflow in ho.
+      by rewrite /= add_carry_overflow in ho.
+    }
+    clear C.
+    case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
+    case: (opn_5flags_correct ii t (Some U32) sz des' dxs hxs' hv' ho') => {hv' ho'} so'.
+    intuition eauto using eeq_excT.
+  Qed.
+  Opaque lower_addcarry.
+
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
@@ -1714,6 +1715,17 @@ Section PROOF.
     (* Osubcarry *)
     + case: (lower_addcarry_correct ii t (sub:= true) Hs1' Hdisjl Hdisje Hx' Hv Hw').
       exact: (aux_eq_exc_trans Hs2').
+    
+    (* Oswap *)
+    rewrite /= /lower_swap.
+    case heq: is_word_type => [ ws | ] //.
+    case: ifP => // hle; have ? := is_word_typeP heq; subst sz.
+    exists s2'; split => //.
+    apply: sem_seq_ir; econstructor; eauto.
+    rewrite /exec_sopn /sem_sopn /= Hx' /=.
+    have <- : exec_sopn (Opseudo_op (pseudo_operator.Oswap (sword ws))) x = exec_sopn (Ox86 (XCHG ws)) x.
+    + by rewrite /exec_sopn /sopn_sem /= /x86_XCHG /check_size_8_64 hle.
+    by rewrite Hv /= Hw'.
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.

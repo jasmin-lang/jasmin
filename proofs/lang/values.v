@@ -736,6 +736,28 @@ Proof.
   by exists v => //; exact: List_Forall2_refl.
 Qed.
 
+Lemma value_uincl_oto_val ty (z z' : sem_t ty) :
+  val_uincl z z' ->
+  value_uincl (oto_val (sem_prod_id z)) (oto_val (sem_prod_id z')).
+Proof. by case: ty z z'. Qed.
+
+Definition swap_semi ty (x y: sem_t ty) : exec (sem_tuple [:: ty; ty]):= ok (sem_prod_id y, sem_prod_id x).
+
+Lemma swap_semu ty (vs vs' : seq value) (v : values):
+  List.Forall2 value_uincl vs vs' ->
+  @app_sopn_v [::ty; ty] [::ty; ty] (@swap_semi ty) vs = ok v ->
+  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (@swap_semi ty) vs' = ok v' & List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v.
+  case => //= v1 v1' ?? hu1; t_xrbindP.
+  case => //= v2 v2' ?? hu2; t_xrbindP.
+  case => // _ z1 hv1 z2 hv2 [] <- <- /=.
+  have [z1' -> hu1']:= val_uincl_of_val hu1 hv1.
+  have [z2' -> hu2' /=]:= val_uincl_of_val hu2 hv2.
+  eexists; first by eauto.
+  by repeat constructor; apply: value_uincl_oto_val.
+Qed.
+ 
 Section FORALL.
   Context  (T:Type) (P:T -> Prop).
 

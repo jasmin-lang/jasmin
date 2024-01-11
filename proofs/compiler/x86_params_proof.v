@@ -52,7 +52,7 @@ Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem sysca
 (* Stack alloc hypotheses. *)
 
 Section STACK_ALLOC.
-Context {dc : DirectCall} (is_regx : var -> bool) (P' : sprog).
+Context {dc : DirectCall} (P' : sprog).
 
 Lemma lea_ptrP s1 e i x tag ofs w s2 :
   P'.(p_globs) = [::]
@@ -94,12 +94,27 @@ Proof.
   by rewrite /= truncate_word_u.
 Qed.
 
+Lemma x86_swapP rip s tag (x y z w : var_i) (pz pw: pointer): 
+  vtype x = spointer -> vtype y = spointer -> 
+  vtype z = spointer -> vtype w = spointer -> 
+  (evm s).[z] = Vword pz ->
+  (evm s).[w] = Vword pw -> 
+  psem.sem_i (pT := progStack) P' rip s (x86_swap tag x y z w)
+       (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz]).
+Proof.
+  move=> hxty hyty hzty hwty hz hw.
+  constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=. 
+  rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
+  rewrite hxty hyty //=. 
+Qed.
+   
 End STACK_ALLOC.
 
 Definition x86_hsaparams {dc : DirectCall} : h_stack_alloc_params (ap_sap x86_params) :=
   {|
     mov_ofsP := x86_mov_ofsP;
     sap_immediateP := x86_immediateP;
+    sap_swapP := x86_swapP;
   |}.
 
 (* ------------------------------------------------------------------------ *)

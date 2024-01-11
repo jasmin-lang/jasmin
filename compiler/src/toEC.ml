@@ -830,11 +830,14 @@ let base_op = function
   | Sopn.Oasm (Arch_extra.BaseOp (_, o)) -> Sopn.Oasm (Arch_extra.BaseOp(None,o))
   | o -> o
 
-let ty_sopn pd asmOp op =
+let ty_sopn pd asmOp op es =
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
   | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
     let l = [Arr(ws, Conv.int_of_pos p)] in
+    l, l
+  | Sopn.Opseudo_op (Pseudo_operator.Oswap _) -> 
+    let l = List.map ty_expr es in
     l, l
   | _ ->
     List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
@@ -881,6 +884,11 @@ let rec remove_for_i i =
   in
   { i with i_desc }   
 and remove_for c = List.map remove_for_i c
+
+let pp_opn pd asmOp fmt o = 
+  match o with
+  | Sopn.Opseudo_op (Pseudo_operator.Oswap _) -> Format.fprintf fmt "swap_"
+  | _ -> pp_opn pd asmOp fmt o
 
 module Normal = struct  
 
@@ -958,8 +966,8 @@ module Normal = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn pd asmOp op in
-      let otys', _ = ty_sopn pd asmOp op' in
+      let otys,itys = ty_sopn pd asmOp op es in
+      let otys', _ = ty_sopn pd asmOp op' es in
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" (pp_opn pd asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
@@ -1275,8 +1283,8 @@ module Leak = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn pd asmOp op in
-      let otys', _ = ty_sopn pd asmOp op' in
+      let otys,itys = ty_sopn pd asmOp op es in
+      let otys', _ = ty_sopn pd asmOp op' es in
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" (pp_opn pd asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
