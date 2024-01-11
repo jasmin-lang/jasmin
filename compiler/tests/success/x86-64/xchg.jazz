@@ -23,25 +23,18 @@ export fn main (reg u64 a64 b64) -> reg u8 {
   sa64, a64 = #XCHG_64(sa64, a64);
   a32 = a64; sa32 = a32;
 
-/* FIXME this create error with 
-  variable allocation: ... may not be initialized
-
   a32, sa32 = #XCHG_32(a32, sa32);
-  sa32, a32 = #XCHG_32(sa32, a32);
-*/
-  a16 = a32; sa16 = a16;
+  sa32, _ = #XCHG_32(sa32, a32);
+  a32 = sa32; sa16 = a32;
 
-/* Same   
-  a16, sa16 = #XCHG_16(a16, sa16);
-  sa16, a16 = #XCHG_16(sa16, a16); */
-  a8 = a16; sa8 = a8;
+  a16, sa16 = #XCHG_16(a32, sa16);
+  sa16, _ = #XCHG_16(sa16, a16);
+  a16 = sa16; sa8 = a16;
 
-/* Same  
-  a8, sa8 = #XCHG_8(a8, sa8);
-  sa8, a8 = #XCHG_8(sa8, a8);
-*/
+  a8, sa8 = #XCHG_8(a16, sa8);
+  sa8, _ = #XCHG_8(sa8, a8);
 
-  b8 ^= a8;
+  b8 ^= sa8;
 
   // same with array
 
