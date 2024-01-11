@@ -1,0 +1,61 @@
+export fn main (reg u64 a64 b64) -> reg u8 {
+  reg u8  a8 b8;
+  reg u16 a16 b16;
+  reg u32 a32 b32;
+  stack u64 sa64;
+  stack u32 sa32;
+  stack u16 sa16;
+  stack u8 sa8;
+
+  sa64 = a64;
+  // reg/reg
+  a64, b64 = #XCHG_64(a64, b64);
+  a32 = a64; b32 = b64;
+  a32, b32 = #XCHG_32(a32, b32);
+  a16 = a32; b16 = b32;
+  a16, b16 = #XCHG_16(a16, b16);
+  a8 = a16; b8 = b16;
+  a8, b8 = #XCHG_8(a8, b8);
+
+  // reg/mem mem/reg
+  a64 = sa64;
+  a64, sa64 = #XCHG_64(a64, sa64);
+  sa64, a64 = #XCHG_64(sa64, a64);
+  a32 = a64; sa32 = a32;
+
+  a32, sa32 = #XCHG_32(a32, sa32);
+  sa32, _ = #XCHG_32(sa32, a32);
+  a32 = sa32; sa16 = a32;
+
+  a16, sa16 = #XCHG_16(a32, sa16);
+  sa16, _ = #XCHG_16(sa16, a16);
+  a16 = sa16; sa8 = a16;
+
+  a8, sa8 = #XCHG_8(a16, sa8);
+  sa8, _ = #XCHG_8(sa8, a8);
+
+  b8 ^= sa8;
+
+  // same with array
+
+  stack u64[1] t;
+  a64 = sa64;
+  t[0] = a64;
+  a64, t[0] = #XCHG_64(a64, t[0]);
+  t[0], a64 = #XCHG_64(t[0], a64);
+  a32 = a64;
+  a32, t[u32 0] = #XCHG_32(a32, t[u32 0]);
+  t[u32 0], a32 = #XCHG_32(t[u32 0], a32);
+  a16 = a32;
+
+  a16, t[u16 0] = #XCHG_16(a16, t[u16 0]);
+  t[u16 0], a16 = #XCHG_16(t[u16 0], a16);
+  a8 = a16;
+
+  a8, t[u8 0] = #XCHG_8(a8, t[u8 0]);
+  t[u8 0], a8 = #XCHG_8(t[u8 0], a8);
+
+  b8 ^= a8;
+
+  return b8;
+}

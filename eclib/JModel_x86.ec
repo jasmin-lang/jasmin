@@ -95,6 +95,7 @@ abbrev MOVZX32 (x : W32.t) = W64.of_int (W32.to_uint x).
 | MOVSX  of wsize & wsize      (* sign-extend *)
 | MOVZX  of wsize & wsize      (* zero-extend *)
 | CMOVcc of wsize              (* conditional copy *)
+| XCHG   of wsize              (* exchanges the contents of two operands *)
 *)
 
 op MOV_8   (x:W8.t)  = x.
@@ -121,6 +122,11 @@ op MOVZX_u32u16 (x:W16.t) = W32.of_int (W16.to_uint x).
 op MOVZX_u64u16 (x:W16.t) = W64.of_int (W16.to_uint x).
 
 op MOVZX_u64u32 (x:W32.t) = W64.of_int (W32.to_uint x).
+
+abbrev [-printing] XCHG_8  (x y:W8.t)  = swap_ x y.
+abbrev [-printing] XCHG_16 (x y:W16.t) = swap_ x y.
+abbrev [-printing] XCHG_32 (x y:W32.t) = swap_ x y.
+abbrev [-printing] XCHG_64 (x y:W64.t) = swap_ x y.
 
 (* ------------------------------------------------------------------- *)
 

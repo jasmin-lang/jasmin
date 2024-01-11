@@ -1,3 +1,10 @@
+# [unreleased]
+
+## New features
+
+- Add the x86_64 instruction `XCHG`,
+    `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
+  ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
 
 # Jasmin 2023.06.2 — 2023-12-22
 
