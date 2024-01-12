@@ -120,7 +120,11 @@ Proof.
   move=> sp_rsp tmp s ts sz htmp hget /=.
   rewrite /arm_allocate_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
-  + by apply ARMFopnP.smart_subi_tmp_lsem.
+  + have [? [-> ? hget']] := [elaborate
+      ARMFopnP.smart_subi_tmp_lsem dummy_var_info sz h1 h2 hget
+    ].
+    move: hget' => /get_varP [-> _ _].
+    by eexists.
   rewrite /= hget /=; t_arm_op.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
@@ -133,7 +137,11 @@ Proof.
   move=> sp_rsp tmp s ts sz htmp hget /=.
   rewrite /arm_free_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
-  + by apply ARMFopnP.smart_addi_tmp_lsem.
+  + have [? [-> ? hget']] := [elaborate
+      ARMFopnP.smart_addi_tmp_lsem dummy_var_info sz h1 h2 hget
+    ].
+    move: hget' => /get_varP [-> _ _].
+    by eexists.
   rewrite /= hget /=; t_arm_op.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
@@ -185,9 +193,10 @@ Proof.
   - rewrite get_var_neq; first exact: hgetrsp. exact: hneq_r_rsp.
 
   set ls0 := lnext_pc (lset_vm ls vm0).
-  have [|vm1 [hsem hvm1 hgettmp1]] :=
-    ARMFopnP.smart_subi_lsem (ls := ls0) hbody _ erefl hneq_tmp_rsp hgetrsp0 hsz.
+  have [||vm1 [hsem hvm1 hgettmp1]] :=
+    ARMFopnP.smart_subi_lsem (ls := ls0) hbody _ erefl _ hgetrsp0 hsz.
   - by rewrite size_cat addn1 -hpc.
+  - by right.
 
   set vm2 := vm1.[vtmp <- Vword ts'].
   set vm3 := vm2.[vrsp <- Vword ts'].
@@ -286,8 +295,9 @@ Proof.
   clear hset_up.
 
   (* We need [vm0] before [eexists]. *)
-  have [vm0 [hsem hvm0 hgettmp0]] :=
-    ARMFopnP.smart_subi_lsem hbody hpc erefl hneq_tmp_rsp hgetrsp hsz.
+  have [|vm0 [hsem hvm0 hgettmp0]] :=
+    ARMFopnP.smart_subi_lsem hbody hpc erefl _ hgetrsp hsz.
+  - by right.
   set vm1 := vm0.[vtmp <- Vword ts'].
   set vm2 := vm1.[vrsp <- Vword ts'].
 
