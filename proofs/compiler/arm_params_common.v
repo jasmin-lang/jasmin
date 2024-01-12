@@ -67,6 +67,9 @@ Module ARMOpn (Args : OpnArgs).
       let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
       [:: movi x lbs; movt x hbs ].
 
+  Definition smart_mov x y :=
+    if v_var x == v_var y then [::] else [:: mov x y ].
+
   (* Return a command that performs an operation with an immediate argument,
      loading it into a register if needed.
      In symbols
@@ -83,7 +86,7 @@ Module ARMOpn (Args : OpnArgs).
     seq opn_args :=
     let is_mov := if neutral is Some n then (imm =? n)%Z else false in
     if is_mov
-    then [:: mov x y ]
+    then smart_mov x y
     else
       if is_small imm
       then [:: on_imm x y imm ]
@@ -99,35 +102,16 @@ Module ARMOpn (Args : OpnArgs).
   Definition smart_subi x y :=
     gen_smart_opi sub subi is_arith_small (Some 0%Z) x x y.
 
-  (* Return a command that performs an operation with an immediate argument,
-     loading it into a register if needed.
-     In symbols,
-         R[x] := R[x] <+> imm
-     Precondition: if [imm] is large, [x <> y].
-  *)
-  Definition gen_smart_opi_tmp
-    (on_reg : var_i -> var_i -> var_i -> opn_args)
-    (on_imm : var_i -> var_i -> Z -> opn_args)
-    (is_small : Z -> bool)
-    (neutral : option Z)
-    (x y : var_i)
-    (imm : Z) :
-    seq opn_args :=
-    let imm := (imm mod (wbase U32))%Z in
-    let is_mov := if neutral is Some x then (imm =? x)%Z else false in
-    if is_mov
-    then [:: ]
-    else
-      if is_small imm
-      then [:: on_imm x x imm ]
-      else li y imm ++ [:: on_reg x x y ].
-
-  (* Precondition: if [imm] is large, [x <> y]. *)
-  Definition smart_subi_tmp :=
-    gen_smart_opi_tmp sub subi is_arith_small (Some 0%Z).
+  (* Compute [R[x] := R[x] <+> imm % 2^32].
+     Precondition: if [imm] is large, [x <> tmp]. *)
+  Let gen_smart_opi_tmp on_reg on_imm is_small neutral x tmp imm :=
+    gen_smart_opi on_reg on_imm is_small neutral tmp x x (imm mod (wbase U32)).
 
   Definition smart_addi_tmp :=
     gen_smart_opi_tmp add addi is_arith_small (Some 0%Z).
+
+  Definition smart_subi_tmp :=
+    gen_smart_opi_tmp sub subi is_arith_small (Some 0%Z).
 
   End WITH_PARAMS.
 

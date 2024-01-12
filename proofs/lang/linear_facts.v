@@ -254,6 +254,17 @@ Qed.
 
 End MEM_EQUIV.
 
+Lemma sem_fopn_args_eval_instr ls s s' lp a ii :
+  sem_fopn_args a s = ok s' ->
+  let: ls := lset_estate' ls s in
+  let: ls' := lnext_pc (lset_estate' ls s') in
+  eval_instr lp (li_of_fopn_args ii a) ls = ok ls'.
+Proof.
+  move: a => [[les op] res].
+  rewrite /sem_fopn_args /eval_instr /= /to_estate /= -surj_estate.
+  by t_xrbindP=> ? -> /= ? -> /= ->.
+Qed.
+
 Lemma sem_fopns_args_lsem lp fn P Q ii lc s1 s2 :
   sem_fopns_args s1 lc = ok s2 ->
   is_linear_of lp fn (P ++ map (li_of_fopn_args ii) lc ++ Q) ->
