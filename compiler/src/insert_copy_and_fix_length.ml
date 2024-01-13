@@ -46,6 +46,10 @@ and iac_instr_r pd loc ir =
   | Copn (xs,t,o,es) ->
 
     begin match o, xs with
+    | Sopn.Opseudo_op(Pseudo_operator.Ospill(o,_)), _ ->
+      let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in  
+      Copn(xs,t, Sopn.Opseudo_op(Pseudo_operator.Ospill(o, tys)), es)
+                 
     | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in

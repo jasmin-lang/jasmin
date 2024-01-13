@@ -1,0 +1,15 @@
+export fn main(reg u32 x, reg u32 y) -> reg u32 
+{
+  reg u32 z;
+  stack u32[2] t;
+  reg ptr u32[2] p;
+  p = t;
+  p[0] = 0; p[1] = 1;
+  spill(p, y);
+  x = x + y;
+  unspill(p, y);
+  z = p[0]; x += z;
+  z += p[1]; x += z;
+  x = x;
+  return x;
+}

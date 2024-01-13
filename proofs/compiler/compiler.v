@@ -18,6 +18,7 @@ Require Import
   array_init
   constant_prop
   dead_calls
+  lower_spill
   dead_code
   inline
   linearization
@@ -80,6 +81,7 @@ Variant compiler_step :=
   | ParamsExpansion             : compiler_step
   | ArrayCopy                   : compiler_step
   | AddArrInit                  : compiler_step
+  | LowerSpill                  : compiler_step
   | Inlining                    : compiler_step
   | RemoveUnusedFunction        : compiler_step
   | Unrolling                   : compiler_step
@@ -111,6 +113,7 @@ Definition compiler_step_list := [::
   ; ParamsExpansion
   ; ArrayCopy
   ; AddArrInit
+  ; LowerSpill
   ; Inlining
   ; RemoveUnusedFunction
   ; Unrolling
@@ -256,6 +259,9 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
+
+  Let p := spill_prog cparams.(fresh_var_ident) p in
+  let p := cparams.(print_uprog) LowerSpill p in
 
   Let p := inlining to_keep p in
 

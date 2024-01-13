@@ -8,6 +8,7 @@ Require Import
   psem_facts.
 Require Import
   allocation_proof
+  lower_spill_proof
   inline_proof
   dead_calls_proof
   makeReferenceArguments_proof
@@ -183,7 +184,8 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr 
     sem_call (dc:=direct_c) p' tt scs m fn va scs' m' vr'.
 Proof.
   rewrite /compiler_first_part; t_xrbindP => pa0.
-  rewrite print_uprogP => ok_pa0 pa.
+  rewrite print_uprogP => ok_pa0 pb.
+  rewrite print_uprogP => ok_pb pa.
   rewrite print_uprogP => ok_pa pc ok_pc.
   rewrite !print_uprogP => pd ok_pd.
   rewrite !print_uprogP => pe ok_pe.
@@ -225,6 +227,8 @@ Proof.
   - by move => vr'; exact: (dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pd).
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
   apply: compose_pass_uincl'; first by move => vr' Hvr'; apply: (inliningP ok_pa ok_fn); exact: Hvr'.
+  apply: compose_pass.
+  - by move=> vr'; apply: (lower_spill_fdP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_pb).
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
   apply: compose_pass_uincl.
   - by move=> vr'; apply:(array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl).
