@@ -66,6 +66,7 @@ Definition incl (pi1 pi2:pimap) :=
 
 Section WITH_PARAMS.
 
+Context {A: Tabstract}.
 Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}

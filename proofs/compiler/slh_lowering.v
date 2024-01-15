@@ -201,6 +201,7 @@ End Env.
 
 Section CHECK.
 
+Context {A: Tabstract}.
 Context
   {asm_op : Type}
   {asmop : asmOp asm_op}

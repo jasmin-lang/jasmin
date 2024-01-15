@@ -63,6 +63,8 @@ End E.
 
 
 (* --------------------------------------------------------------------------- *)
+Section LINEARIZATION_PARAMS.
+Context {A: Tabstract}.
 
 Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
@@ -139,6 +141,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
       -> option fopn_args;
   }.
 
+End LINEARIZATION_PARAMS.
 
 (* Note on function calls: 
   
@@ -188,6 +191,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
 
 Section WITH_PARAMS.
 
+Context {AC: Tabstract}.
 Context
   {asm_op : Type}
   {pd : PointerData}
@@ -430,6 +434,7 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 
 Section FUN.
 
+Context {A: Tabstract}.
 Context
   (fn : funname)
   (fn_align : wsize).

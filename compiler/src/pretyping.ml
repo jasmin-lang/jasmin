@@ -244,6 +244,9 @@ module Env : sig
   val add_reserved : 'asm env -> string -> 'asm env
   val is_reserved : 'asm env -> string -> bool
 
+  val add_abstract_typ : 'asm env -> string -> 'asm env
+  val is_abstract_typ : 'asm env -> string -> bool
+
   val set_known_implicits : 'asm env -> (string * string) list -> 'asm env
   val get_known_implicits : 'asm env -> (string * string) list 
 
@@ -287,7 +290,8 @@ end  = struct
     e_declared : P.Spv.t ref; (* Set of local variables declared somewhere in the function *)
     e_reserved : Ss.t;     (* Set of string (variable name) declared by the user, 
                               fresh variables introduced by the compiler 
-                              should be disjoint from this set *) 
+                              should be disjoint from this set *)
+    e_abstract_typ : Ss.t;     (* Set of abstract types declared by the user *)
     e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
@@ -306,6 +310,7 @@ end  = struct
     ; e_loader  = empty_loader
     ; e_declared = ref P.Spv.empty
     ; e_reserved = Ss.empty
+    ; e_abstract_typ = Ss.empty
     ; e_known_implicits = [];
     }
 
@@ -314,6 +319,12 @@ end  = struct
 
   let is_reserved env s = 
     Ss.mem s env.e_reserved
+
+  let add_abstract_typ env s =
+    {env with e_abstract_typ = Ss.add s env.e_abstract_typ }
+
+  let is_abstract_typ env s =
+    Ss.mem s env.e_abstract_typ
 
   let set_known_implicits env known_implicits = { env with e_known_implicits = known_implicits }
   let get_known_implicits env = env.e_known_implicits
@@ -857,10 +868,11 @@ let cast_int loc e ety =
 
 (* -------------------------------------------------------------------- *)
 let conv_ty = function
-    | T.Coq_sbool    -> P.tbool
-    | T.Coq_sint     -> P.tint
-    | T.Coq_sword ws -> P.Bty (P.U ws)
-    | T.Coq_sarr p   -> P.Arr (U8, P.icnst (Conv.int_of_pos p))
+    | T.Coq_sbool       -> P.tbool
+    | T.Coq_sint        -> P.tint
+    | T.Coq_sword ws    -> P.Bty (P.U ws)
+    | T.Coq_sarr p      -> P.Arr (U8, P.icnst (Conv.int_of_pos p))
+    | T.Coq_sabstract s -> P.Bty (P.Abstract s)
 
 let type_of_op2 op = 
   let (ty1, ty2), tyo = E.type_of_op2 op in
@@ -1081,7 +1093,8 @@ and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
   | S.TInt      -> P.tint
   | S.TWord  ws -> P.Bty (P.U (tt_ws ws))
   | S.TArray (ws, e) ->
-      P.Arr (tt_ws ws, fst (tt_expr ~mode:`OnlyParam pd env e))
+    P.Arr (tt_ws ws, fst (tt_expr ~mode:`OnlyParam pd env e))
+  | S.Tabstract s -> P.Bty (P.Abstract s)
 
 (* -------------------------------------------------------------------- *)
 let tt_exprs pd (env : 'asm Env.env) es = List.map (tt_expr ~mode:`AllVar pd env) es
@@ -1169,7 +1182,7 @@ let f_sig f =
 
 let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   let f = conv_ty in
-  let o = Sopn.asm_op_instr asmOp p in
+  let o = Sopn.asm_op_instr Build_Tabstract asmOp p in
   List.map f o.tout,
   List.map f o.tin,
   o.i_out
@@ -1670,7 +1683,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
       let p = tt_prim arch_info.asmOp f in
-      let id = Sopn.asm_op_instr arch_info.asmOp p in
+      let id = Sopn.asm_op_instr Build_Tabstract arch_info.asmOp p in
       let p = cast_opn ~loc:(L.loc pi) id ws p in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env (L.loc pi) ls (Some arguments) tlvs in
@@ -1977,6 +1990,10 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
   Env.Vars.push_global env (x,d)
 
 (* -------------------------------------------------------------------- *)
+let tt_abstract_typ env _loc (t: S.pabstract_ty) : 'asm Env.env =
+  Env.add_abstract_typ env (L.unloc t.pat_name)
+
+(* -------------------------------------------------------------------- *)
 let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
   | S.PParam  pp -> tt_param  arch_info.pd env (L.loc pt) pp
@@ -1986,6 +2003,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
     Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
+  | S.Pabstract_ty pat -> tt_abstract_typ env (L.loc pt) pat
 
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))

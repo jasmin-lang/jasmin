@@ -25,6 +25,7 @@ Definition syscall_kill {ovm_i : one_varmap_info} :=
 
 Section Section.
 
+Context {A: Tabstract}.
 Context {pd: PointerData} {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
   (p: sprog)
 .

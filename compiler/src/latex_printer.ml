@@ -111,6 +111,9 @@ let pp_svsize fmt (vs,s,ve) =
   Format.fprintf fmt "%d%s%d"
     (int_of_vsize vs) (suffix_of_sign s) (bits_of_vesize ve)
 
+let pp_abstract_ty fmt str =
+  F.fprintf fmt "%a" (pp_list "" F.pp_print_char) str
+
 let pp_space fmt _ =
   F.fprintf fmt " "
 
@@ -187,6 +190,7 @@ and pp_type fmt ty =
   | TInt -> F.fprintf fmt "%a" ptype "int"
   | TWord w -> pp_ws fmt w
   | TArray (w, e) -> F.fprintf fmt "%a[%a]" ptype (string_of_wsize w) pp_expr e
+  | Tabstract s -> F.fprintf fmt "%a[%a]" ptype "abstract" pp_abstract_ty s
 
 and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
 and pp_expr fmt e = pp_expr_rec Pmin fmt e
@@ -393,6 +397,7 @@ let pp_pitem fmt pi =
       F.fprintf fmt "%a%a " pp_from from kw "require";
       List.iter (pp_path fmt) s;
       F.fprintf fmt eol
+  | Pabstract_ty t ->  pp_abstract_ty fmt (String.to_list (L.unloc t.pat_name))
 
 let pp_prog fmt =
   List.iter (F.fprintf fmt "%a" pp_pitem)

@@ -298,7 +298,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
   let mk_word ws e =
     let open Constant_prop in
     let e = Conv.cexpr_of_expr e in
-    let c = const_prop_e (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
+    let c = const_prop_e Build_Tabstract (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
     let z = constant_of_expr (Conv.expr_of_cexpr c) in
     Word0.wrepr ws (Conv.cz_of_z (clamp ws z)) in
 

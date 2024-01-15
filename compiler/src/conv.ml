@@ -38,12 +38,14 @@ let cty_of_ty = function
   | Bty Int       -> T.Coq_sint
   | Bty (U sz)   -> T.Coq_sword(sz)
   | Arr (sz, len) -> T.Coq_sarr (pos_of_int (size_of_ws sz * len))
+  | Bty Abstract s -> T.Coq_sabstract s
 
 let ty_of_cty = function
   | T.Coq_sbool  ->  Bty Bool
   | T.Coq_sint   ->  Bty Int
   | T.Coq_sword sz -> Bty (U sz)
   | T.Coq_sarr p -> Arr (U8, int_of_pos p)
+  | T.Coq_sabstract s -> Bty (Abstract s)
 
 (* ------------------------------------------------------------------------ *)
 

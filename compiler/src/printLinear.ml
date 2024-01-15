@@ -19,6 +19,7 @@ let pp_stype fmt =
   | T.Coq_sint   -> F.fprintf fmt "int"
   | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
   | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
+  | T.Coq_sabstract s -> F.fprintf fmt "abstract %a" pp_string0 s
 
 (* ---------------------------------------------------------------- *)
 let pp_label fmt lbl =

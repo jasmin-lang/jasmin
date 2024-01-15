@@ -69,6 +69,9 @@ Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
 #[export]
 Instance arch_msfsz `{arch_decl} : MSFsize := { msf_size := reg_size }.
 
+#[export]
+Instance iabstract_unit : Tabstract | 1000 := { iabstract := fun _ => unit}.
+
 Definition mk_ptr `{arch_decl} name :=
   {| vtype := sword Uptr; vname := name; |}.
 
@@ -84,7 +87,7 @@ Section DECL.
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
 Definition sreg := sword reg_size.
-Definition wreg := sem_t sreg.
+Definition wreg := @sem_t iabstract_unit sreg.
 Definition sxreg := sword xreg_size.
 Definition wxreg := sem_t sxreg.
 
@@ -382,6 +385,8 @@ Record instr_desc_t := {
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_tin_narr   : all is_not_sarr id_tin;
   id_tout_narr  : all is_not_sarr id_tout;
+  id_tin_nabst   : all is_not_sabstract id_tin;
+  id_tout_nabst  : all is_not_sabstract id_tout;
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
@@ -493,6 +498,17 @@ Proof.
   by case: (ws' <= ws)%CMP.
 Qed.
 
+Lemma instr_desc_tout_nabsract ws xs :
+  all is_not_sabstract xs -> all is_not_sabstract (map (extend_size ws) xs).
+Proof.
+  move=> h.
+  rewrite all_map.
+  apply: (sub_all _ h).
+  move=> [] //= ws'.
+  by case: (ws' <= ws)%CMP.
+Qed.
+
+
 (* An extension of [instr_desc] that deals with msb flags *)
 Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
@@ -511,6 +527,8 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
        id_tin_narr   := d.(id_tin_narr);
        id_tout_narr  := instr_desc_tout_narr _ d.(id_tout_narr);
+       id_tin_nabst   := d.(id_tin_nabst);
+       id_tout_nabst  := instr_desc_tout_nabsract _ d.(id_tout_nabst);
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);
@@ -656,12 +674,15 @@ Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
 (* -------------------------------------------------------------------- *)
 (* Assembly declaration. *)
+Section ASM.
 
 Class asm (reg regx xreg rflag cond asm_op: Type) :=
   { _arch_decl   : arch_decl reg regx xreg rflag cond
   ; _asm_op_decl : asm_op_decl asm_op
   ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool
   }.
+
+End ASM.
 
 #[global]
 Existing Instances _arch_decl _asm_op_decl.

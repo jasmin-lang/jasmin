@@ -6,6 +6,7 @@ Section LOWERING.
 
 Definition fresh_vars : Type := Ident.name -> stype -> Ident.ident.
 
+Context {A: Tabstract}.
 Context
   {asm_op lowering_options : Type}
   {asmop : asmOp asm_op}

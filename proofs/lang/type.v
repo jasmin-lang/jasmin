@@ -15,7 +15,9 @@ Variant stype : Set :=
 | sbool
 | sint
 | sarr  of positive
-| sword of wsize.
+| sword of wsize
+(* | sdefine of string & stype *)
+| sabstract of string.
 
 (* -------------------------------------------------------------------- *)
 (*
@@ -56,6 +58,9 @@ Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 
 Definition stype_cmp t t' :=
   match t, t' with
+  (* | _   , sdefine _ st' => stype_cmp t st' *)
+  (* | sdefine _ st , _ => stype_cmp st t' *)
+
   | sbool   , sbool         => Eq
   | sbool   , _             => Lt
 
@@ -63,24 +68,32 @@ Definition stype_cmp t t' :=
   | sint    , sint          => Eq
   | sint    , _             => Lt
 
-  | sword _ , sarr _        => Lt
+  | sword _ , sbool         => Gt
+  | sword _ , sint          => Gt
   | sword w , sword w'      => wsize_cmp w w'
-  | sword _ , _             => Gt
+  | sword _ , _             => Lt
 
+  | sarr _  , sbool          => Gt
+  | sarr _  , sint           => Gt
+  | sarr _  , sword _        => Gt
   | sarr n  , sarr n'        => Pos.compare n n'
-  | sarr _  , _             => Gt
+  | sarr _  , _              => Lt
+
+  | sabstract s, sabstract s' => string_cmp s s'
+  | sabstract _ , _ => Gt
   end.
 
 #[global]
 Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
-  + by case => [||n|w] [||n'|w'] //=; apply cmp_sym.
-  + by move=> y x; case: x y=> [||n|w] [||n'|w'] [||n''|w''] c//=;
+  +  case => [||n|w|s] [||n'|w'|s'] //=;  apply cmp_sym.
+  + by move=> y x; case: x y=> [||n|w|s] [||n'|w'|s'] [||n''|w''|s''] c//=;
        try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
-  case=> [||n|w] [||n'|w'] //= h.
+  case=> [||n|w|s] [||n'|w'|s'] //= h.
   + by rewrite (@cmp_eq _ _ positiveO _ _ h).
-  by rewrite (@cmp_eq _ _ wsizeO _ _ h).
+    by rewrite (@cmp_eq _ _ wsizeO _ _ h).
+    by rewrite (@cmp_eq _ _ stringO _ _ h).
 Qed.
 
 Module CmpStype.
@@ -156,6 +169,15 @@ Module CEDecStype.
         end
       | _     => right I
       end
+    | sabstract s1 =>
+        match t2 as t0 return {sabstract s1 = t0} + {True} with
+        | sabstract s2 =>
+            match string_eq_dec s1 s2 with
+            | left eqw => left (f_equal sabstract eqw)
+            | right _ => right I
+            end
+        | _     => right I
+        end
     end.
 
   Lemma pos_dec_r n1 n2 tt: pos_dec n1 n2 = right tt -> n1 != n2.
@@ -168,11 +190,13 @@ Module CEDecStype.
 
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
-    case: tt;case:t1 t2=> [||n|w] [||n'|w'] //=.
+    case: tt;case:t1 t2=> [||n|w|s] [||n'|w'|s'] //=.
     + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
       move => _; apply/eqP => -[].
       by move/eqP: (neq erefl).
-    case: wsize_eq_dec => // eqw.
+    + case: wsize_eq_dec => // eqw.
+      by move=> _;apply /eqP;congruence.
+      case: string_eq_dec => // eqw.
     by move=> _;apply /eqP;congruence.
   Qed.
 
@@ -199,6 +223,10 @@ Definition is_sarr t := if t is sarr _ then true else false.
 
 Definition is_not_sarr t := ~~is_sarr t.
 
+Definition is_sabstract t := if t is sabstract _ then true else false.
+
+Definition is_not_sabstract t := ~~is_sabstract t.
+
 Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
 Proof. by case: ty; constructor; eauto => [[]]. Qed.
 
@@ -223,7 +251,7 @@ Lemma subtypeE ty ty' :
   | _         => ty = ty'
 end.
 Proof.
-  destruct ty; try by move/eqP => <-.
+  destruct ty ; try by move /eqP => <-.
   by case: ty' => //; eauto.
 Qed.
 
@@ -239,19 +267,19 @@ Proof.
 Qed.
 
 Lemma subtype_refl x : subtype x x.
-Proof. case: x => //=. Qed.
+Proof. case: x => //=.
+Qed.
 #[global]
 Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
 Proof.
-  case: x => //= [/eqP<-|/eqP<-|n1|sx] //.
+  case: x => //= [/eqP<-|/eqP<-|n1|sx|s/eqP<-] //.
   + by case: y => //= n2 /eqP ->.
-  case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
+  + case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
 Qed.
 
 Lemma is_sword_subtype t1 t2 : subtype t1 t2 -> is_sword t1 = is_sword t2.
 Proof.
-  by case: t1 => //= [/eqP <-|/eqP <-|?|?] //;case:t2.
+  case: t1 => //= [/eqP <-|/eqP <-|?|?|s] // ;case:t2 => //=.
 Qed.
-

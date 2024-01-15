@@ -119,7 +119,7 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
-    let id = get_instr_desc pd asmOp op in
+    let id = get_instr_desc Build_Tabstract pd asmOp op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -558,7 +558,7 @@ module Regalloc (Arch : Arch_full.Arch)
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
-    let id = get_instr_desc Arch.reg_size Arch.asmOp op in
+    let id = get_instr_desc Build_Tabstract Arch.reg_size Arch.asmOp op in
     List.iter2 (fun ad lv ->
         match ad with
         | ADImplicit v ->

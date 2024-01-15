@@ -173,7 +173,7 @@ and pexpr = pexpr_r L.located
 and mem_access = wsize option * pident * ([`Add | `Sub] * pexpr) option
 
 (* -------------------------------------------------------------------- *)
-and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
+and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr | Tabstract of char list
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -277,12 +277,19 @@ type pexec = {
 type prequire = string L.located
 
 (* -------------------------------------------------------------------- *)
+type pabstract_ty = {
+  pat_name : string L.located;
+  pat_annot : annotations;
+}
+
+(* -------------------------------------------------------------------- *)
 type pitem =
   | PFundef of pfundef
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
+  | Pabstract_ty of pabstract_ty
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

@@ -20,7 +20,8 @@
 %token RPAREN
 
 %token T_BOOL
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
+%token T_TYPE
 
 %token SHARP
 %token AMP
@@ -29,6 +30,7 @@
 %token BANGEQ
 %token COLON
 %token COMMA
+%token ABSTRACT
 %token CONSTANT
 %token DOT
 %token DOWNTO
@@ -479,6 +481,10 @@ from:
 prequire:
 | f=from? REQUIRE x=nonempty_list(prequire1) { f, x }
 
+pabstract_ty:
+| ABSTRACT T_TYPE pat_name=loc(STRING) pat_annot=annotations SEMICOLON
+  { {pat_name;   pat_annot } }
+
 (* -------------------------------------------------------------------- *)
 top:
 | x=pfundef  { Syntax.PFundef x }
@@ -486,6 +492,7 @@ top:
 | x=pglobal  { Syntax.PGlobal x }
 | x=pexec    { Syntax.Pexec   x }
 | x=prequire { Syntax.Prequire x}
+| x=pabstract_ty { Syntax.Pabstract_ty x}
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

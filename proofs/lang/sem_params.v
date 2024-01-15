@@ -13,6 +13,7 @@ Require Import
   flag_combination
   sopn
   type
+  values
   syscall
   wsize.
 
@@ -48,6 +49,7 @@ Arguments mk_spp {_}.
    [syscall_state] are parameters instead of record fields. *)
 Class SemInstrParams (asm_op syscall_state : Type) := mk_sip
   {
+    _abst : Tabstract;
     _asmop : asmOp asm_op;
     _sc_sem : syscall_sem syscall_state;
   }.

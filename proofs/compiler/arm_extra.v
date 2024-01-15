@@ -75,4 +75,4 @@ Instance arm_extra {atoI : arch_toIdent} :
 Definition arm_extended_op {atoI : arch_toIdent} :=
   @extended_op _ _ _ _ _ _ _ arm_extra.
 
-Definition Oarm {atoI : arch_toIdent} o : @sopn arm_extended_op _ := Oasm (BaseOp (None, o)).
+Definition Oarm {atoI : arch_toIdent} o : @sopn _ arm_extended_op _ := Oasm (BaseOp (None, o)).

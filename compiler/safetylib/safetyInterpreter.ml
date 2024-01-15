@@ -357,7 +357,7 @@ let split_div sg ws es =
 
 let safe_opn safe opn es = 
   let id =
-    Sopn.get_instr_desc
+    Sopn.get_instr_desc Build_Tabstract
       X86_decl.x86_decl.reg_size
       (Arch_extra.asm_opI X86_arch_full.X86_core.asm_e)
       opn

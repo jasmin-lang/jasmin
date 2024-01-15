@@ -360,6 +360,7 @@ let pp_ty env fmt ty =
   | Bty Int  -> Format.fprintf fmt "int"
   | Bty (U ws) -> pp_sz_t fmt ws
   | Arr(ws,n) -> Format.fprintf fmt "%a %a.t" pp_sz_t ws (pp_Array env) n
+  | Bty Abstract _ -> Format.fprintf fmt "TODO"
 
 let add_aux env tys = 
   let tbl = Hashtbl.create 10 in
@@ -787,8 +788,8 @@ let ty_sopn pd asmOp op =
     let l = [Arr(ws, Conv.int_of_pos p)] in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
-    List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin Build_Tabstract pd asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
    it would be nice to prove in Coq the validity of the transformation *) 
@@ -851,7 +852,7 @@ module Normal = struct
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
-        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
+        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op) in
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
@@ -1050,7 +1051,7 @@ module Leak = struct
   let safe_es pd env = List.fold_left (safe_e_rec pd env) []
 
   let safe_opn pd asmOp env safe opn es =
-    let id = Sopn.get_instr_desc pd asmOp opn in
+    let id = Sopn.get_instr_desc Build_Tabstract pd asmOp opn in
     List.pmap (fun c ->
         match c with
         | Wsize.X86Division(sz, sg) ->
@@ -1148,7 +1149,7 @@ module Leak = struct
     | Cassgn (lv, _, _, e) -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
     | Copn (lvs, _, op, _) ->
        let op = base_op op in
-       let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
+       let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op) in
        let env = add_aux env tys in
        add_aux env (List.map ty_lval lvs)
     | Csyscall(lvs, o, _)->

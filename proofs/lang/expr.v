@@ -439,6 +439,7 @@ End FunInfo.
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context `{asmop:asmOp}.
 
 (* ** Functions
@@ -496,6 +497,7 @@ Notation fun_decls  := (seq fun_decl).
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
@@ -508,10 +510,10 @@ Definition progUnit : progT :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ _ progUnit.
-Definition ufun_decl   := @fun_decl _ _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ _ progUnit).
-Definition uprog       := @prog _ _ progUnit.
+Definition ufundef     := @fundef _ _ _ progUnit.
+Definition ufun_decl   := @fun_decl  _ _ _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ _ _ progUnit).
+Definition uprog       := @prog _ _ _ progUnit.
 
 (* For extraction *)
 Definition _ufundef    := _fundef unit.
@@ -594,10 +596,10 @@ Definition progStack : progT :=
      extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef _ _ progStack.
-Definition sfun_decl   := @fun_decl _ _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ _ progStack).
-Definition sprog       := @prog _ _ progStack.
+Definition sfundef     := @fundef _ _ _ progStack.
+Definition sfun_decl   := @fun_decl _ _ _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ _ _ progStack).
+Definition sprog       := @prog _ _ _ progStack.
 
 (* For extraction *)
 
@@ -899,6 +901,10 @@ Definition is_zero sz (e: pexpr) : bool :=
 
 Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
 
+Section INSTR_COPN.
+
+Context {A: Tabstract}.
+
 Definition instr_of_copn_args
   {asm_op : Type}
   {asmop : asmOp asm_op}
@@ -906,3 +912,5 @@ Definition instr_of_copn_args
   (args : copn_args)
   : instr_r :=
   Copn args.1.1 tg args.1.2 args.2.
+
+End INSTR_COPN.

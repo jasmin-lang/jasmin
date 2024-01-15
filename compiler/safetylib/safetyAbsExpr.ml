@@ -61,13 +61,14 @@ let pcast ws e = match ty_expr e with
     if ws = ws' then e
     else Papp1 (E.Ozeroext (ws,ws'), e)
 
-  | Bty Bool | Arr _ -> assert false
+  | Bty Bool | Arr _ | Bty Abstract _-> assert false
 
 let wsize_of_ty ty = match ty with
   | Bty Bool -> assert false
   | Bty Int -> -1
   | Bty (U sz) -> int_of_ws sz
   | Arr (sz, _) -> int_of_ws sz
+  | Bty Abstract _ -> assert false
 
 
 (****************************)
@@ -884,6 +885,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Bty Bool -> assert false
     | Arr _ -> assert false
+    | Bty Abstract _ -> assert false
 
 
   let set_zeros f_args abs =
