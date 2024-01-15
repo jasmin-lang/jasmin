@@ -798,4 +798,17 @@ Module RGP. Section PROOFS.
     apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq hf).
   Qed.
 
+  Lemma remove_glob_prog_get_fundef P P' fn fd :
+    remove_glob_prog fresh_id P = ok P' ->
+    get_fundef P.(p_funcs) fn = Some fd ->
+    exists fd',
+      get_fundef P'.(p_funcs) fn = Some fd'.
+  Proof.
+    rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
+    case: ifP => // huniq; t_xrbindP => fds hfds <- get_fd /=.
+    have /= [fd' [hfd' _]] :=
+      get_fundefP (P := {|p_globs := gd'; p_funcs := p_funcs P; p_extra := tt|}) hfds get_fd.
+    by exists fd'.
+  Qed.
+
 End PROOFS. End RGP.

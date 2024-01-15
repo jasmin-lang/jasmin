@@ -2232,6 +2232,7 @@ Qed.
 Lemma wbit_subword (ws ws' : wsize) i (w : word ws) k :
   wbit_n (word.subword i ws' w) k = (k < ws')%nat && wbit_n w (k + i).
 Proof.
+  clear.
   rewrite /wbit_n.
   case: ltP.
   + move=> /ltP hlt.
@@ -2248,6 +2249,7 @@ Lemma zero_extend_wread8 (ws ws' : wsize) (w : word ws) :
     0 <= off < wsize_size ws' ->
     LE.wread8 (zero_extend ws' w) off = LE.wread8 w off.
 Proof.
+  clear.
   move=> /wsize_size_le /(Z.divide_pos_le _ _ (wsize_size_pos _)) hle off hoff.
   rewrite /LE.wread8 /LE.encode /split_vec.
   have hmod: forall (ws:wsize), ws %% U8 = 0%nat.
@@ -2285,6 +2287,7 @@ Lemma value_uincl_get_val_byte v1 v2 :
     get_val_byte v1 off = ok w ->
     get_val_byte v2 off = ok w.
 Proof.
+  clear.
   move=> /value_uinclE; case: v1 => //= >.
   + by move=> [? -> H] > /=; case: H => _; apply.
   move=> [? [? [-> H]]] >.
@@ -2861,7 +2864,7 @@ Proof.
   by apply: get_map_cfprog_name_gen hmap.
 Qed.
 
-(* [m2] is exactly [m1] augmented with data [data] at address [rip]. *)
+(* [m2] is *exactly* [m1] augmented with data [data] at address [rip]. *)
 Record extend_mem_eq (m1 m2:mem) (rip:pointer) (data:seq u8) := {
   eme_no_overflow : no_overflow rip (Z.of_nat (size data));
     (* [rip] is able to store a block large enough *)
@@ -2905,17 +2908,17 @@ Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
   forall ev scs1 m1 vargs1 scs1' m1' vres1,
     sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
     forall rip m2 vargs2,
-      extend_mem_eq m1 m2 rip data ->
+      extend_mem m1 m2 rip data ->
       wf_args data rip oracle m1 m2 fn vargs1 vargs2 ->
       disjoint_values (oracle fn).(sao_params) vargs1 vargs2 ->
       alloc_ok SP fn m2 ->
       exists m2' vres2,
         sem_call SP rip scs1 m2 fn vargs2 scs1' m2' vres2 /\
-        extend_mem_eq m1' m2' rip data /\
+        extend_mem m1' m2' rip data /\
         wf_results oracle m2' vargs1 vargs2 fn vres1 vres2 /\
         mem_unchanged_params oracle fn m1 m2 m2' vargs1 vargs2.
 Proof.
-  move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 hsem1 rip m2 vargs2 hexteq hargs hdisj halloc.
+  move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 hsem1 rip m2 vargs2 hext hargs hdisj halloc.
   move: hprog; rewrite /alloc_prog.
   t_xrbindP=> mglob hmap /eqP hneq.
   t_xrbindP=> fds hfds.
@@ -2924,10 +2927,6 @@ Proof.
   have [fd1 hfd1]: exists fd, get_fundef (p_funcs P) fn = Some fd.
   + have [fd1 [hfd1 _]] := sem_callE hsem1.
     by exists fd1.
-  have hext: extend_mem m1 m2 rip data.
-  + case: hexteq => hover halign hold hfresh hvalid hnew.
-    split=> //.
-    by move=> p; rewrite hvalid.
   have [m2' [vres' [hcall [hext' [hwf hunchanged]]]]] :=
     (check_cP
       hext.(em_no_overflow)
@@ -2944,12 +2943,6 @@ Proof.
       hdisj
       halloc).
   exists m2', vres'; split=> //; split=> //.
-  case: hext' => hover halign hold hfresh hvalid hnew.
-  split=> //.
-  move=> p.
-  rewrite -(sem_call_validw_stable_uprog hsem1).
-  rewrite -(sem_call_validw_stable_sprog hcall).
-  by apply hexteq.(eme_valid).
 Qed.
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :

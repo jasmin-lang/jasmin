@@ -656,12 +656,13 @@ Definition check_f_extra_s (r: M.t) (e1 e2: extra_fun_t) p1 p2 : cexec M.t :=
   (e1.(sf_align) == e2.(sf_align)),
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)),
   (e1.(sf_stk_ioff) == e2.(sf_stk_ioff)),
+  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)),
   (e1.(sf_stk_max) == e2.(sf_stk_max)),
   (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)),
-  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)),
   (e1.(sf_to_save) == e2.(sf_to_save)),
-  (e1.(sf_save_stack) == e2.(sf_save_stack)) &
-  (e1.(sf_return_address) == e2.(sf_return_address)) ]
+  (e1.(sf_save_stack) == e2.(sf_save_stack)),
+  (e1.(sf_return_address) == e2.(sf_return_address)) &
+  (e1.(sf_align_args) == e2.(sf_align_args))]
       (E.error "extra not equal") in
   if e1.(sf_return_address) == RAnone then
     check_vars p1 p2 r
