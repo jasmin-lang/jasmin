@@ -123,7 +123,11 @@ Definition with_scs (s:estate) scs :=
 
 End ESTATE_UTILS.
 
+Class Prabstract := { iabstract : opA -> (list value  -> exec value) }.
+
 Section SEM_PEXPR.
+
+Context {absp: Prabstract}.
 
 Context
   {asm_op syscall_state : Type}
@@ -163,6 +167,9 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
     sem_opN op vs
+  | Pabstract opa es =>
+    Let vs := mapM (sem_pexpr s) es in
+    iabstract opa vs
   | Pif t e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in
@@ -215,6 +222,8 @@ Definition write_lvals (s : estate) xs vs :=
 End SEM_PEXPR.
 
 Section EXEC_ASM.
+
+Context {absp: Prabstract}.
 
 Context
   {asm_op syscall_state : Type}

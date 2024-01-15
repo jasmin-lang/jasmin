@@ -179,8 +179,18 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
-  | Ocombine_flags c => (tin_combine_flags, sbool) 
+  | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
+
+(* Abstract n-ary operators *)
+
+Record opA := MkAbstP {
+  pa_name   : string;
+  pa_tyin   : seq stype;
+  pa_tyout  : stype;
+}.
+
+Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -246,6 +256,7 @@ Inductive pexpr : Type :=
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
+| Pabstract : opA -> seq pexpr -> pexpr
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
@@ -767,6 +778,7 @@ Fixpoint use_mem (e : pexpr) :=
   | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
+  | Pabstract _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   end.
 
@@ -789,6 +801,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
+  | Pabstract _ es => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   end.
 

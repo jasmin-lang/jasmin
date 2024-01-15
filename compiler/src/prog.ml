@@ -17,6 +17,12 @@ type 'len ggvar = {
   gs : E.v_scope;
 }
 
+type 'len opA = {
+  name : Name.t;
+  tyin : 'len gty list;
+  tyout : 'len gty;
+}
+
 type 'len gexpr =
   | Pconst of Z.t
   | Pbool  of bool
@@ -28,6 +34,7 @@ type 'len gexpr =
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
+  | Pabstract of 'len opA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
@@ -236,6 +243,7 @@ let rec rvars_e f s = function
   | Papp1(_, e)    -> rvars_e f s e
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
+  | Pabstract (_, es) -> rvars_es f s es
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es

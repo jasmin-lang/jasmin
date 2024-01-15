@@ -29,6 +29,8 @@
     "int"   , T_INT  ;
     "type"  , T_TYPE ;
 
+    "predicate" , PREDICATE;
+
     "abstract", ABSTRACT;
     "const" , CONSTANT;
     "downto", DOWNTO ;

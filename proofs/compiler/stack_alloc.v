@@ -638,6 +638,10 @@ Fixpoint alloc_e (e:pexpr) :=
     Let es := mapM alloc_e es in
     ok (PappN o es)
 
+  | Pabstract s es =>
+    Let es := mapM alloc_e es in
+    ok (Pabstract s es)
+
   | Pif t e e1 e2 =>
     Let e := alloc_e e in
     Let e1 := alloc_e e1 in

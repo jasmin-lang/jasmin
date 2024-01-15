@@ -82,6 +82,9 @@ let string_of_op2 = function
 let pp_opn pd asmOp fmt o = pp_string0 fmt (Sopn.string_of_sopn Build_Tabstract pd asmOp o)
 
 (* -------------------------------------------------------------------- *)
+let pp_opA fmt (op: E.opA) = pp_string0 fmt op.pa_name
+
+(* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =
   match o with Syscall_t.RandomBytes _ -> "#randombytes"
 

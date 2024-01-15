@@ -15,6 +15,12 @@ type 'len ggvar = {
   gs : E.v_scope;
 }
 
+type 'len opA = {
+  name : Name.t;
+  tyin : 'len gty list;
+  tyout : 'len gty;
+}
+
 type 'len gexpr =
   | Pconst of Z.t
   | Pbool  of bool
@@ -26,6 +32,7 @@ type 'len gexpr =
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
+  | Pabstract of 'len opA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list

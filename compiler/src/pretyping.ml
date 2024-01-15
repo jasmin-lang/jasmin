@@ -22,6 +22,7 @@ type sop = [ `Op2 of S.peop2 | `Op1 of S.peop1]
 type tyerror =
   | UnknownVar          of A.symbol
   | UnknownFun          of A.symbol
+  | UnknownPred         of string
   | InvalidType         of P.pty * typattern
   | TypeMismatch        of P.pty pair
   | NoOperator          of sop * P.pty list
@@ -97,6 +98,9 @@ let pp_tyerror fmt (code : tyerror) =
 
   | UnknownFun x ->
       F.fprintf fmt "unknown function: `%s'" x
+
+  | UnknownPred x ->
+      F.fprintf fmt "unknown predicate: `%s'" x
 
   | InvalidType (ty, p) ->
     F.fprintf fmt "the expression as type %a instead of %a"
@@ -247,6 +251,10 @@ module Env : sig
   val add_abstract_typ : 'asm env -> string -> 'asm env
   val is_abstract_typ : 'asm env -> string -> bool
 
+  val add_abstract_pre : 'asm env -> A.symbol -> S.ptype list -> S.ptype -> 'asm env
+  val is_abstract_pre : 'asm env -> A.symbol -> bool
+  val get_abstract_pre : 'asm env -> A.symbol -> S.ptype list * S.ptype
+
   val set_known_implicits : 'asm env -> (string * string) list -> 'asm env
   val get_known_implicits : 'asm env -> (string * string) list 
 
@@ -292,6 +300,8 @@ end  = struct
                               fresh variables introduced by the compiler 
                               should be disjoint from this set *)
     e_abstract_typ : Ss.t;     (* Set of abstract types declared by the user *)
+    e_abstract_pre : (A.symbol, S.ptype list * S.ptype) Map.t;
+                            (* Set of abstract predicates declared by the user *)
     e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
@@ -311,6 +321,7 @@ end  = struct
     ; e_declared = ref P.Spv.empty
     ; e_reserved = Ss.empty
     ; e_abstract_typ = Ss.empty
+    ; e_abstract_pre = Map.empty
     ; e_known_implicits = [];
     }
 
@@ -325,6 +336,15 @@ end  = struct
 
   let is_abstract_typ env s =
     Ss.mem s env.e_abstract_typ
+
+  let add_abstract_pre env s ty_in ty_out =
+    {env with e_abstract_pre = Map.add s (ty_in,ty_out) env.e_abstract_pre }
+
+  let is_abstract_pre env s =
+    Map.mem s env.e_abstract_pre
+
+  let get_abstract_pre env s =
+    Map.find s env.e_abstract_pre
 
   let set_known_implicits env known_implicits = { env with e_known_implicits = known_implicits }
   let get_known_implicits env = env.e_known_implicits
@@ -1042,8 +1062,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PECall (id, args) when is_combine_flags id ->
     tt_expr ~mode pd env (L.mk_loc (L.loc pe) (S.PECombF(id,args)))
 
-  | S.PECall _ ->
-    rs_tyerror ~loc:(L.loc pe) CallNotAllowed
+  | S.PECall (id, args) ->
+    tt_expr pd  env (L.mk_loc (L.loc pe) (S.PEAbstract(id,args)))
 
   | S.PEPrim _ ->
     rs_tyerror ~loc:(L.loc pe) PrimNotAllowed
@@ -1057,6 +1077,26 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let alen = List.length args in
     if alen <> len then rs_tyerror ~loc (PackWrongLength (len, alen));
     P.PappN (E.Opack (sz, pz), args), P.Bty (P.U sz)
+
+  | S.PEAbstract (id, args) ->
+    let loc = L.loc pe in
+    let id = L.unloc id in
+    if Env.is_abstract_pre env id then
+      begin
+        let tt_expr pe ty =
+          let e, ety = tt_expr ~mode pd env pe in
+          check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:ty;
+          e
+        in
+        let tyin,tyout = Env.get_abstract_pre env id in
+        let tyin = List.map (tt_type pd env) tyin in
+        let args = List.map2 tt_expr args tyin in
+        let tyout = tt_type pd env tyout in
+        let opA = P.{name = id;  tyin; tyout; } in
+        P.Pabstract(opA ,args),tyout
+      end
+    else
+      rs_tyerror ~loc (UnknownPred id)
 
   | S.PEIf (pe1, pe2, pe3) ->
     let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -1094,7 +1134,7 @@ and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
   | S.TWord  ws -> P.Bty (P.U (tt_ws ws))
   | S.TArray (ws, e) ->
     P.Arr (tt_ws ws, fst (tt_expr ~mode:`OnlyParam pd env e))
-  | S.Tabstract s -> P.Bty (P.Abstract s)
+  | S.Tabstract s -> P.Bty (P.Abstract (String.to_list (L.unloc s)))
 
 (* -------------------------------------------------------------------- *)
 let tt_exprs pd (env : 'asm Env.env) es = List.map (tt_expr ~mode:`AllVar pd env) es
@@ -1563,6 +1603,7 @@ let rec is_constant e =
   | P.Papp1 (_, e) -> is_constant e
   | P.Papp2 (_, e1, e2) -> is_constant e1 && is_constant e2
   | P.PappN (_, es) -> List.for_all is_constant es
+  | P.Pabstract (_, es) -> List.for_all is_constant es
   | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
 
 
@@ -1994,6 +2035,10 @@ let tt_abstract_typ env _loc (t: S.pabstract_ty) : 'asm Env.env =
   Env.add_abstract_typ env (L.unloc t.pat_name)
 
 (* -------------------------------------------------------------------- *)
+let tt_abstract_pre env _loc (p: S.pabstract_pred) : 'asm Env.env =
+  Env.add_abstract_pre env (L.unloc p.pap_name) (List.map snd p.pap_args) (snd p.pap_rty)
+
+(* -------------------------------------------------------------------- *)
 let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
   | S.PParam  pp -> tt_param  arch_info.pd env (L.loc pt) pp
@@ -2004,6 +2049,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
   | S.Pabstract_ty pat -> tt_abstract_typ env (L.loc pt) pat
+  | S.Pabstract_pre pap -> tt_abstract_pre env (L.loc pt) pap
 
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))

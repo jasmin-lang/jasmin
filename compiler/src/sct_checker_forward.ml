@@ -644,6 +644,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | Papp1(_, e)      -> ty_expr env venv loc e
   | Papp2(_, e1, e2) -> ty_exprs_max env venv loc [e1; e2]
   | PappN(_, es)     -> ty_exprs_max env venv loc es
+  | Pabstract(_, es) -> ty_exprs_max env venv loc es
 
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in

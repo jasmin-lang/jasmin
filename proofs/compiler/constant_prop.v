@@ -387,6 +387,7 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
   | PappN op es   => s_opN op (map (const_prop_e m) es)
+  | Pabstract s es => Pabstract s ((map (const_prop_e m) es))
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
 

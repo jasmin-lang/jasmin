@@ -347,7 +347,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Papp1 _ | Papp2 _ | Pbool _
     | Parr_init _ | Pget _ | Psub _
-    | Pload _ | PappN _ | Pif _ -> None
+    | Pload _ | PappN _ | Pif _ | Pabstract _ -> None
 
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
@@ -424,6 +424,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         
       | Papp1 (_, e1) -> aux acc e1
       | PappN (_, es) -> List.fold_left aux acc es
+      | Pabstract (_, es) -> List.fold_left aux acc es
 
       | Pload _ -> raise Expr_contain_load
 
@@ -671,12 +672,27 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           | None -> f_expl (i + 1) r_es
           | Some _ as r -> (i,r) in
 
-      match f_expl 0 es with
+      begin
+        match f_expl 0 es with
       | _,None -> None
       | i,Some (ty, b, el, er) ->
         let repi ex = List.mapi (fun j x -> if j = i then ex else x) es in
         Some (ty, b, PappN (opn, repi el), PappN (opn, repi er))
+      end
 
+    | Pabstract (opn, es) ->
+      let rec f_expl i es =
+        match es with
+        | [] -> (-1,None)
+        | e :: r_es -> match remove_if_expr_aux e with
+          | None -> f_expl (i + 1) r_es
+          | Some _ as r -> (i,r)
+      in
+      match f_expl 0 es with
+      | _,None -> None
+      | i,Some (ty, b, el, er) ->
+        let repi ex = List.mapi (fun j x -> if j = i then ex else x) es in
+        Some (ty, b, Pabstract (opn, repi el), Pabstract (opn, repi er))
 
   let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with
     | Some (_,b,el,er) ->

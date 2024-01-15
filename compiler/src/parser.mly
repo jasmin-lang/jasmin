@@ -23,6 +23,8 @@
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 %token T_TYPE
 
+%token PREDICATE
+
 %token SHARP
 %token AMP
 %token AMPAMP
@@ -174,6 +176,9 @@ ptype_r:
 | ut=utype d=brackets(pexpr)
     { TArray (ut, d) }
 
+| id=ident
+    { Tabstract id }
+
 ptype:
 | x=loc(ptype_r) { x }
 
@@ -190,7 +195,7 @@ castop1:
 castop:
 | c=loc(castop1)? { c }
 
-cast: 
+cast:
 | T_INT    { `ToInt }
 | s=swsize { `ToWord s }
 
@@ -395,6 +400,9 @@ stor_type:
 annot_stor_type:
 | a=annotations stoty=stor_type { (a,stoty) }
 
+annot_type:
+| a=annotations ty=ptype { (a,ty) }
+
 writable:
 | CONSTANT    {`Constant }
 | MUTABLE     {`Writable } 
@@ -482,8 +490,16 @@ prequire:
 | f=from? REQUIRE x=nonempty_list(prequire1) { f, x }
 
 pabstract_ty:
-| ABSTRACT T_TYPE pat_name=loc(STRING) pat_annot=annotations SEMICOLON
+| ABSTRACT T_TYPE pat_name=ident pat_annot=annotations SEMICOLON
   { {pat_name;   pat_annot } }
+
+pabstract_pa:
+  | ABSTRACT PREDICATE
+    pap_rty = annot_type
+    pap_name = ident
+    pap_args = parens_tuple(annot_type)
+    pap_annot = annotations SEMICOLON
+  { {pap_name; pap_args; pap_rty;  pap_annot } }
 
 (* -------------------------------------------------------------------- *)
 top:
@@ -493,6 +509,7 @@ top:
 | x=pexec    { Syntax.Pexec   x }
 | x=prequire { Syntax.Prequire x}
 | x=pabstract_ty { Syntax.Pabstract_ty x}
+| x=pabstract_pa { Syntax.Pabstract_pre x}
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

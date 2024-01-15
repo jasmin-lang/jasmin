@@ -50,6 +50,7 @@ let rec read_mem_e = function
   | Papp1 (_, e) | Pget (_, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
+  | Pabstract (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
 
 and read_mem_es es = List.exists read_mem_e es
@@ -114,6 +115,7 @@ let rec leaks_e_rec pd leaks e =
   | Papp1 (_, e) -> leaks_e_rec pd leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
   | PappN (_, es) -> leaks_es_rec pd leaks es
+  | Pabstract (_, es) -> leaks_es_rec pd leaks es
   | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
 and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
@@ -508,6 +510,7 @@ let ty_expr = function
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
   | PappN (op, _)  -> out_ty_opN op
+  | Pabstract (op, _)  -> op.tyout
   | Pif (ty,_,_,_) -> ty
 
 let check_array env x = 
@@ -631,6 +634,8 @@ let rec pp_expr pd env fmt (e:expr) =
         (Printer.string_of_combine_flags c) 
         (pp_list "@ " (pp_expr pd env)) es
     end
+
+  | Pabstract _ -> assert false
 
   | Pif(_,e1,et,ef) -> 
     let ty = ty_expr e in
@@ -1043,6 +1048,7 @@ module Leak = struct
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e1 e2 op
     | PappN (_op, _es) -> assert false (* TODO: nary *)
+    | Pabstract _ -> assert false
     | Pif  (_,e1, e2, e3) -> 
       safe_e_rec pd env (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e3
 
