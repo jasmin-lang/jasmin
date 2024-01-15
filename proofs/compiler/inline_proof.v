@@ -584,6 +584,18 @@ Section PROOF.
 
 End PROOF.
 
+Lemma inline_prog_err_get_fundef p p' fn fd :
+  inline_prog_err rename_fd p = ok p' ->
+  get_fundef p.(p_funcs) fn = Some fd ->
+  exists fd',
+    get_fundef p'.(p_funcs) fn = Some fd'
+    /\ inline_fd' p'.(p_funcs) fd = ok fd'.
+Proof.
+  rewrite /inline_prog_err; case: ifP => //= Hu.
+  t_xrbindP => fds Hi <-{p'} /= get_fd.
+  exact: (inline_progP' Hu Hi get_fd).
+Qed.
+
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
   inline_prog_err rename_fd p = ok p' ->
   List.Forall2 value_uincl va va' ->

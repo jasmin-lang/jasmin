@@ -634,7 +634,7 @@ Proof.
   by rewrite /dead_code_prog_tokeep; t_xrbindP => _ _ <- /=.
 Qed.
 
-Lemma dead_code_prog_tokeep_get_fundef (p p': sprog) do_nop onfun fn f :
+Lemma dead_code_prog_tokeep_get_fundef {pT:progT} (p p': prog) do_nop onfun fn f :
   dead_code_prog_tokeep is_move_op do_nop onfun p = ok p' →
   get_fundef (p_funcs p) fn = Some f →
   exists2 f', dead_code_fd is_move_op do_nop onfun fn f = ok f' & get_fundef (p_funcs p') fn = Some f'.

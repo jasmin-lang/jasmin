@@ -217,7 +217,7 @@ let memory_analysis pp_err ~debug up =
     let res =
       match returned_params fn with
       | Some l ->
-          Format.printf "returned_params %s@." fn.fn_name;
+          Format.eprintf "returned_params %s@." fn.fn_name;
           let l' = List.map ((=) None) l in
           if List.for_all (fun x -> x) l' then None else Some l'
       | None -> tokeep fn
@@ -470,7 +470,7 @@ let memory_analysis pp_err ~debug up =
       ao_stack_alloc  =
         fun fn ->
         try Hf.find atbl fn
-        with Not_found -> assert false
+        with Not_found -> (Format.printf "function %s is missing@." fn.fn_name; assert false)
     })
   in
 

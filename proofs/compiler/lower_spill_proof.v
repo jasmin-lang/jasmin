@@ -671,4 +671,15 @@ Proof.
        Hsem).
 Qed.
 
+Lemma spill_get_fundef fn fd :
+  get_fundef p.(p_funcs) fn = Some fd ->
+  exists fd', get_fundef p'.(p_funcs) fn = Some fd'
+  /\ spill_fd fresh_var_ident fn fd = ok fd'.
+Proof.
+  move: spill_prog_ok; rewrite /spill_prog.
+  t_xrbindP=> fds ok_fds <- /= get_fd.
+  have [fd' ok_fd' get_fd'] := get_map_cfprog_name_gen ok_fds get_fd.
+  by exists fd'.
+Qed.
+
 End WITH_PARAMS.
