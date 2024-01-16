@@ -294,7 +294,10 @@ let pp_instr fn _ i =
 
 (* -------------------------------------------------------------------- *)
 
-let pp_body fn fmt cmd = List.concat_map (pp_instr fn fmt) cmd
+let pp_body fn fmt =
+  let open List in
+  concat_map @@ fun { asmi_i = i ; _ } ->
+  pp_instr fn fmt i
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)

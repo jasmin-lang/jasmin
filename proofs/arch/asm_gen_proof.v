@@ -1213,7 +1213,7 @@ Proof.
   rewrite -(cat1s i1) flatten_cat find_cat.
   rewrite -(cat1s i) find_cat /= cats0 -(assemble_i_is_label lbl hi1).
   case heq: linear.is_label => /=.
-  + by case: i hi1 heq => [? []] //= lk l [<-]; rewrite /linear.is_label /= => ->.
+  + by case: i hi1 heq => [? []] //= lk l [<-]; rewrite /linear.is_label /is_label /= => ->.
   rewrite /assemble_c /= hi1 /=.
   have heq1 := mapM_take (find (linear.is_label lbl) lc) hlc.
   by have := hrec _ hlc; rewrite /assemble_c heq1 /= size_cat => ->.
@@ -1445,7 +1445,8 @@ Lemma assemble_get_label_after_pc i ai lc xs ls l:
   → lfn ls = asm_f xs
   → asm_pos rip (lpc ls) lc = asm_ip xs
   → ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
-  → get_label_after_pc p ls = ok l → onth (asm_c xs) (asm_ip xs).+1 = Some (LABEL ExternalLabel l).
+  → get_label_after_pc p ls = ok l
+  → ∃ ii, onth (asm_c xs) (asm_ip xs).+1 = Some {| asmi_i := LABEL ExternalLabel l ; asmi_ii := ii |}.
 Proof.
   move=> eqc honth hassi eqfn eqpc omap_lc; rewrite /get_label_after_pc /find_instr /= -eqpc.
   case: get_fundef omap_lc => // _ [->] {eqpc}; move: eqc.
@@ -1455,12 +1456,12 @@ Proof.
   case: (ltnP (lpc ls) (size lc)) honth => [hn ok_i| /onth_default -> //].
   rewrite !ltnn !subnn take0 cats0 hc1 /= -cat_rcons flatten_cat onth_cat.
   rewrite flatten_rcons size_cat /= addn1 ltnn subnn.
-  by case: drop hc2 => //= -[ii []//=] []// lbl c2'; t_xrbindP => ? _ <- <-.
+  by case: drop hc2 => //= -[ii []//=] []// lbl c2'; t_xrbindP => ? _ <- <-; eexists.
 Qed.
 
 Lemma match_state_step1 xs ls' i:
   onth (asm_c xs) (asm_ip xs) = Some i ->
-  (exists2 xs', arch_sem.eval_instr p' i xs = ok xs'
+  (exists2 xs', arch_sem.eval_instr p' i.(asmi_i) xs = ok xs'
      & exists2 lc', ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc'
          & match_state rip ls' lc' xs') ->
   (exists2 xs', asmsem p' xs xs'
@@ -1487,9 +1488,9 @@ Proof.
     by rewrite cats0 flatten_cat /= cats0 size_cat size_map.
 Qed.
 
-Lemma step_AsmOp fd ac0 ac1 c c' ls s xm xm' :
+Lemma step_AsmOp fd ii ac0 ac1 c c' ls s xm xm' :
   let: xbody :=
-    flatten ac0 ++ [seq AsmOp x.1 x.2 | x <- c' ++ c] ++ flatten ac1
+    flatten ac0 ++ [seq {| asmi_ii := ii ; asmi_i := AsmOp x.1 x.2 |} | x <- c' ++ c] ++ flatten ac1
   in
   let: pc := (size (flatten ac0) + size c')%nat in
   let: xs :=
@@ -1545,9 +1546,9 @@ Lemma match_state_SysCall fd ls ls' ii sc ac0 ac1 xs :
   lfn ls = asm_f xs ->
   assemble_c agparams rip (lfd_body fd) = ok (asm_c xs) ->
   mapM (assemble_i agparams rip) (take (lpc ls) (lfd_body fd)) = ok ac0 ->
-  flatten ac0 ++ [:: SysCall sc ] ++ flatten ac1 = asm_c xs ->
+  flatten ac0 ++ [:: {| asmi_ii := ii ; asmi_i := SysCall sc |} ] ++ flatten ac1 = asm_c xs ->
   asm_pos rip (lpc ls) (lfd_body fd) = asm_ip xs ->
-  onth (asm_c xs) (asm_ip xs) = onth (SysCall sc :: flatten ac1) 0 ->
+  onth (asm_c xs) (asm_ip xs) = onth ({| asmi_ii := ii ; asmi_i := SysCall sc |} :: flatten ac1) 0 ->
   onth (lfd_body fd) (lpc ls) = Some li ->
   linear_sem.eval_instr p li ls = ok ls' ->
   exists2 xs',
@@ -1750,7 +1751,7 @@ Proof.
       apply (match_state_step1 (ls' := ls') hnth) => /=.
       rewrite /return_address_from.
       have /= := assemble_get_label_after_pc hass ok_i _ heqf hip _ hgetpc.
-      rewrite heqlr ok_fd /= => /(_ _ erefl erefl) ->.
+      rewrite heqlr ok_fd /= => /(_ _ erefl erefl) [] _ ->.
       rewrite -assemble_prog_labels -heqf ptr_eq.
       apply: eval_jumpP; last by apply hjump.
       rewrite /st_update_next /=.
@@ -1765,7 +1766,7 @@ Proof.
     apply (match_state_step1 (ls' := ls') hnth) => /=.
     rewrite /return_address_from.
     have /= := assemble_get_label_after_pc hass ok_i _ heqf hip _ hgetpc.
-    rewrite ok_fd /= => /(_ _ erefl erefl) ->.
+    rewrite ok_fd /= => /(_ _ erefl erefl) [] _ ->.
     rewrite -assemble_prog_labels ptr_eq.
     rewrite /eval_PUSH truncate_word_u /=.
     rewrite to_var_rsp in hsp.

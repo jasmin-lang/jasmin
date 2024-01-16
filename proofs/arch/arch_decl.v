@@ -14,6 +14,7 @@ Require Import
   strings
   syscall
   utils
+  expr
   word.
 Require Import
   sopn
@@ -521,7 +522,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
 
 (* -------------------------------------------------------------------- *)
 (* Assembly language. *)
-Variant asm_i : Type :=
+Variant asm_i_r : Type :=
   | ALIGN
   | LABEL of label_kind & label
   | STORELABEL of reg_t & label (* Store the address of a local label *)
@@ -536,6 +537,8 @@ Variant asm_i : Type :=
   (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args
   | SysCall of syscall_t.
+
+Record asm_i : Type := MkAI { asmi_ii : instr_info; asmi_i : asm_i_r }.
 
 Definition asm_code := seq asm_i.
 
