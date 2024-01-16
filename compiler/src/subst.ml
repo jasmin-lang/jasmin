@@ -307,7 +307,11 @@ let remove_params (prog : ('info, 'asm) pprog) =
     let gv =
       match x.v_ty, e with
       | Bty (U ws), GEword e ->
-        Global.Gword (ws, mk_word ws e)
+        begin try Global.Gword (ws, mk_word ws e)
+        with NotAConstantExpr ->
+          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant"
+            (Printer.pp_var ~debug:false) x
+        end
       | Arr (_ws, n), GEarray es when List.length es <> n ->
          let m = List.length es in
          hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
@@ -317,7 +321,14 @@ let remove_params (prog : ('info, 'asm) pprog) =
            n
       | Arr (ws, n), GEarray es ->
         let p = Conv.pos_of_int (n * size_of_ws ws) in
-        let t = Warray_.WArray.of_list ws (List.map (mk_word ws) es) in
+        let mk_word_i i e =
+          try mk_word ws e
+          with NotAConstantExpr ->
+            hierror ~loc:x.v_dloc "in the list assigned to global variable %a, the expression at position %d must evaluate to a constant"
+              (Printer.pp_var ~debug:false) x
+              i
+        in
+        let t = Warray_.WArray.of_list ws (List.mapi mk_word_i es) in
         Global.Garr(p, t)
       | _, _ -> assert false in
     add_glob x gv;
