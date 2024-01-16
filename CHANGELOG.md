@@ -43,6 +43,10 @@
   against Spectre).
   ([PR #631](https://github.com/jasmin-lang/jasmin/pull/631)).
 
+- Interleave references to source-code positions within the assembly listings
+  when the `-g` command-line flag is given (off by default).
+  ([PR #684](https://github.com/jasmin-lang/jasmin/pull/684)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators
