@@ -4,6 +4,7 @@ let version_string = "Jasmin Compiler @VERSION@"
 (*--------------------------------------------------------------------- *)
 let outfile = ref ""
 let latexfile = ref ""
+let dwarf = ref false
 let debug = ref false
 let timings = ref false
 let print_list = ref []
@@ -196,6 +197,7 @@ let stop_after_option p =
 let options = [
     "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
+    "-g"       , Arg.Set dwarf         , "emit DWARF2 line number information";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-timings" , Arg.Set timings       , ": print a timestamp and elapsed time after each pass";
     "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
