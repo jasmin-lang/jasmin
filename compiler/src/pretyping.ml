@@ -383,7 +383,7 @@ end  = struct
       try 
         let v', _ = Map.find v.P.v_name map in
         warning DuplicateVar (L.i_loc0 v.v_dloc) 
-          "the variable %s is already declare at %a"
+          "the variable %s is already declared at %a"
           v.v_name L.pp_loc v'.P.v_dloc 
       with Not_found -> ()
 
