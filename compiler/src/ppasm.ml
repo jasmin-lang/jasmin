@@ -34,7 +34,7 @@ let pp_gens (fmt : Format.formatter) xs =
 
 (* -------------------------------------------------------------------- *)
 let string_of_label name (p : label) =
-  Format.sprintf "L%s$%d" name (Conv.int_of_pos p)
+  Format.asprintf "L%s$%a" name Z.pp_print (Conv.z_of_pos p)
 
 (* -------------------------------------------------------------------- *)
 type lreg =

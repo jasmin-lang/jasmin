@@ -181,7 +181,7 @@ let rec int_of_expr ?loc e =
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
-let isubst_len ?loc e = Z.to_int (int_of_expr ?loc e)
+let isubst_len ?loc e = int_of_expr ?loc e
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty
@@ -312,15 +312,15 @@ let remove_params (prog : ('info, 'asm) pprog) =
           hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant"
             (Printer.pp_var ~debug:false) x
         end
-      | Arr (_ws, n), GEarray es when List.length es <> n ->
+      | Arr (_ws, n), GEarray es when Z.of_int (List.length es) <> n ->
          let m = List.length es in
-         hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
+         hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%a expected)"
            (Printer.pp_var ~debug:false) x
            (List.length es)
            (if m > 1 then "values" else "value")
-           n
+           Z.pp_print n
       | Arr (ws, n), GEarray es ->
-        let p = Conv.pos_of_int (n * size_of_ws ws) in
+        let p = Conv.pos_of_z (arr_size ws n) in
         let mk_word_i i e =
           try mk_word ws e
           with NotAConstantExpr ->

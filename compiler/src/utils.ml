@@ -5,6 +5,7 @@ module Hash   = BatHashtbl
 
 module Sint = Set.Make (BatInt)
 module Mint = Map.Make (BatInt)
+module Mz = Map.Make (Z)
 
 (* -------------------------------------------------------------------- *)
 module Ss = Set.Make(String)

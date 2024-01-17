@@ -223,7 +223,7 @@ let add64 x e = Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e)
 let in_bound x access ws e len =
   let ux = L.unloc x in
   match ux.v_ty with
-  | Arr(ws',n) -> [InBound ( n * size_of_ws ws',
+  | Arr(ws',n) -> [InBound ( Z.to_int n * size_of_ws ws',
                              { as_arr = ux;
                                as_len = len;
                                as_wsize = ws;
@@ -294,7 +294,7 @@ let rec safe_e_rec safe = function
     safe
 
   | Psub (access, ws, len, x, e) ->
-    in_bound    x.gv access ws e len @
+    in_bound    x.gv access ws e (Z.to_int len) @
     (* Remark that we do not have to check initialization for sub-arrays. *)
     (* Note that the length is scaled with the word-size, so we only
        need to check that the offset w.r.t. the base is aligned. *)
@@ -328,7 +328,7 @@ let safe_lval = function
     safe_e_rec [] e
 
   | Lasub(access,ws,len,x,e) ->
-    in_bound x access ws e len @
+    in_bound x access ws e (Z.to_int len) @
     arr_aligned (* x  *) access ws e @
     safe_e_rec [] e
 
@@ -379,7 +379,7 @@ let safe_opn safe opn es =
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
         List.flatten 
-          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1)))
+          (List.init (Z.to_int (Conv.z_of_pos p)) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1)))
      id.i_safe) @ safe
 
 let safe_instr ginstr = match ginstr.i_desc with
@@ -632,7 +632,7 @@ end = struct
         AbsExpr.abs_sub_arr_range
           state.abs
           (slice.as_arr,Expr.Slocal) slice.as_access
-          slice.as_wsize slice.as_len slice.as_offset in
+          slice.as_wsize (Z.of_int slice.as_len) slice.as_offset in
       let is = List.map (function Mlocal at -> at | _ -> assert false) is in
       List.for_all (AbsDom.check_init state.abs) is
 
@@ -1617,7 +1617,7 @@ end = struct
 
   let cells_of_array x ofs n =
     let x = L.unloc x in
-    List.init (Conv.int_of_pos n) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
+    List.init (Z.to_int (Conv.z_of_pos n)) (fun i -> SafetyVar.AarraySlice (x, U8, ofs + i))
 
   let aeval_syscall state sc lvs _es =
     match sc with
@@ -1627,7 +1627,7 @@ end = struct
          | [ Lvar x ] -> cells_of_array x 0 n
          | [ Lasub(aa, ws, _len, x, ofs) ] ->
             begin match AbsExpr.aeval_cst_int state.abs ofs with
-            | Some j -> cells_of_array x (access_offset aa ws j) n
+            | Some j -> cells_of_array x (Z.to_int (access_offset aa ws (Z.of_int j))) n
             | None ->
                debug (fun () ->
                    Format.eprintf "Warning: cannot compute the offset of the destination of #randombytes@.");

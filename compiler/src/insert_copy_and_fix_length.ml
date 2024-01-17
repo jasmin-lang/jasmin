@@ -16,7 +16,7 @@ let is_array_copy (x:lval) (e:expr) =
            (* Ignore ill-typed copies: they are later rejected by “typing”. *)
            if arr_size yws yn < arr_size xws xn then None else
            if x.v_kind = Reg(Normal, Direct) then Some (xws, xn)
-           else if y.v_kind = Reg(Normal, Direct) then Some (yws, arr_size xws xn / size_of_ws yws)
+           else if y.v_kind = Reg(Normal, Direct) then Some (yws, Z.(arr_size xws xn / of_int (size_of_ws yws)))
            else None
         | _ -> None
         end
@@ -37,7 +37,7 @@ and iac_instr_r pd loc ir =
       | Some (ws, n) -> 
           warning IntroduceArrayCopy 
             loc "an array copy is introduced";
-          let op = Pseudo_operator.Ocopy(ws, Conv.pos_of_int n) in
+          let op = Pseudo_operator.Ocopy(ws, Conv.pos_of_z n) in
           Copn([x], t, Sopn.Opseudo_op op, [e])
     else ir
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
@@ -54,14 +54,14 @@ and iac_instr_r pd loc ir =
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in
       let wsn = size_of_ws ws in
-      if xn mod wsn <> 0 then 
+      if Z.(mod) xn (Z.of_int wsn) <> Z.zero then 
         Typing.error loc 
-          "the variable %a has type %a, its size (%i) should be a multiple of %i"
+          "the variable %a has type %a, its size (%a) should be a multiple of %i"
           (Printer.pp_var ~debug:false) (L.unloc x)
           PrintCommon.pp_ty (L.unloc x).v_ty
-          xn wsn
+          Z.pp_print xn wsn
       else
-        let op = Pseudo_operator.Ocopy (ws, Conv.pos_of_int (xn / wsn)) in
+        let op = Pseudo_operator.Ocopy (ws, Conv.pos_of_z Z.(xn / of_int wsn)) in
         Copn(xs,t,Sopn.Opseudo_op op, es)
     | Sopn.Opseudo_op(Pseudo_operator.Oswap _), x::_ ->
       (* Fix the type it is dummy for the moment *)
@@ -70,7 +70,7 @@ and iac_instr_r pd loc ir =
     | Sopn.Oslh (SLHprotect_ptr _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in
-      let op = Slh_ops.SLHprotect_ptr (Conv.pos_of_int xn) in
+      let op = Slh_ops.SLHprotect_ptr (Conv.pos_of_z xn) in
       Copn(xs,t, Sopn.Oslh op, es)
     | (Sopn.Opseudo_op(Pseudo_operator.Ocopy _) | Sopn.Oslh (SLHprotect_ptr _)), _ -> assert false
     | _ -> ir
@@ -84,7 +84,7 @@ and iac_instr_r pd loc ir =
         match xs with
         | [x] -> Typing.ty_lval pd loc x
         | _ -> assert false in
-      let p = Conv.pos_of_int (Prog.size_of ty) in
+      let p = Conv.pos_of_z (Prog.size_of ty) in
       Csyscall(xs, Syscall_t.RandomBytes p, es)
     end
 

@@ -21,7 +21,7 @@ let ty_var (x:var_i) =
   let ty = (L.unloc x).v_ty in
   begin match ty with
   | Arr(_, n) -> 
-      if (n < 1) then 
+      if (Z.lt n Z.one) then 
         error (L.i_loc0 (L.unloc x).v_dloc)
           "the variable %a has type %a, its array size should be positive"
           (Printer.pp_var ~debug:false) (L.unloc x) PrintCommon.pp_ty ty
@@ -30,7 +30,7 @@ let ty_var (x:var_i) =
   ty
 
 
-let ty_gvar (x:int ggvar) = ty_var x.gv
+let ty_gvar (x:Z.t ggvar) = ty_var x.gv
 
 (* -------------------------------------------------------------------- *)
 
@@ -46,7 +46,7 @@ let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
   | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 == arr_size ws2 len2
+  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 = arr_size ws2 len2
   | _, _ -> false 
 
 let check_type loc e te ty = 

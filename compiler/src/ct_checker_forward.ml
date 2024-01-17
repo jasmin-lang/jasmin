@@ -202,7 +202,7 @@ module Env : sig
   val le  : env -> env -> bool
 
   val get : public:bool -> env -> var_i -> env * Lvl.t
-  val gget : public:bool -> env -> int ggvar -> env * Lvl.t
+  val gget : public:bool -> env -> Z.t ggvar -> env * Lvl.t
 
   val pp : Format.formatter -> env -> unit
 end = struct

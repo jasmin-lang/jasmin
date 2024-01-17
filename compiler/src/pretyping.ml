@@ -860,7 +860,7 @@ let conv_ty = function
     | T.Coq_sbool    -> P.tbool
     | T.Coq_sint     -> P.tint
     | T.Coq_sword ws -> P.Bty (P.U ws)
-    | T.Coq_sarr p   -> P.Arr (U8, P.icnst (Conv.int_of_pos p))
+    | T.Coq_sarr p   -> P.Arr (U8, P.cnst (Conv.z_of_pos p))
 
 let type_of_op2 op = 
   let (ty1, ty2), tyo = E.type_of_op2 op in
@@ -1669,7 +1669,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty] in
-      env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
+      env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_z Z.one), es))]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "swap" ->
       if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");

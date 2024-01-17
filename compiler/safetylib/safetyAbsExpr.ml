@@ -27,7 +27,7 @@ type msub = int gmsub
 let check_msub ms =
   let gv = ms.ms_v in
   (* array size, in bytes   *)
-  let arr_size = arr_range gv * (size_of_ws (arr_size gv)) in 
+  let arr_size = Z.to_int (arr_range gv) * (size_of_ws (arr_size gv)) in 
   (* sub-array size, in bytes * *)
   let sub_size = ms.ms_len * (size_of_ws ms.ms_ws) in
   let offset = ms.ms_offset in
@@ -42,7 +42,7 @@ let msub_of_arr gv sc =
   let msub = { ms_v      = gv;
                ms_sc     = sc;
                ms_ws     = arr_size gv;
-               ms_len    = arr_range gv;
+               ms_len    = Z.to_int (arr_range gv);
                ms_offset = Some 0; } in
   check_msubo msub;
   msub
@@ -374,7 +374,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   (*-------------------------------------------------------------------------*)
   let arr_full_range x =
     List.init
-      (arr_range x * size_of_ws (arr_size x))
+      (Z.to_int (arr_range x) * size_of_ws (arr_size x))
       (fun i -> AarraySlice (x, U8, i))
 
   (* let abs_arr_range_at abs x acc ws ei = match aeval_cst_int abs ei with
@@ -391,10 +391,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let sub_arr_range x acc ws len i =
     let init_offset = access_offset acc ws i in
     let wss = size_of_ws ws in
-    List.init len (fun j -> AarraySlice (x, ws, init_offset + wss * j))
+    List.init (Z.to_int len) (fun j -> AarraySlice (x, ws, Z.to_int init_offset + wss * j))
 
   let abs_sub_arr_range_at abs x acc ws len ei =
-    match Option.map Z.to_int (aeval_cst_zint abs ei) with
+    match aeval_cst_zint abs ei with
     | Some i ->
       sub_arr_range x acc ws len i
     | None -> arr_full_range x
@@ -417,7 +417,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | Pvar x -> mvar_of_var x :: acc
 
       | Pget(access,ws,x,ei) ->
-        abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
+        abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws Z.one  ei @ acc
       | Psub (access, ws, len, x, ei) -> 
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws len ei @ acc
         
@@ -608,7 +608,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Pget(access,ws,x,ei) ->
       begin
-        match abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1 ei with
+        match abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws Z.one ei with
         | [] -> assert false
         | [mv] ->
           let lin = Mtexpr.var mv in
@@ -989,8 +989,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           let ws, arr = Conv.to_array v.v_ty p t in
           List.mapi (fun j w ->
               let sexpr = sexpr_from_simple_expr (mtexpr_of_z w) in
-              let offset = access_offset Warray_.AAscale ws j in
-              let mv = Mglobal (AarraySlice (v, ws, offset)) in
+              let offset = access_offset Warray_.AAscale ws (Z.of_int j) in
+              let mv = Mglobal (AarraySlice (v, ws, Z.to_int offset)) in
               (mv,sexpr)
             ) (Array.to_list arr)
       ) globs)
@@ -1014,25 +1014,25 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Laset (acc, ws, x, ei) ->
       begin
-        match abs_sub_arr_range abs (L.unloc x,Expr.Slocal) acc ws 1 ei with
+        match abs_sub_arr_range abs (L.unloc x,Expr.Slocal) acc ws Z.one ei with
         | [] -> assert false
         | [mv] -> MLvar (loc, mv)
         | _ as mvs -> MLvars (loc, mvs)
       end
 
     | Lasub (acc, ws, len, x, ei) ->
-      let offset = match aeval_cst_int abs ei with
+      let offset = match aeval_cst_zint abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
       let msub = { ms_v      = L.unloc x;
                    ms_sc     = Expr.Slocal;
                    ms_ws     = ws;
-                   ms_len    = len;
-                   ms_offset = offset; } in
+                   ms_len    = Z.to_int len;
+                   ms_offset = Option.map Z.to_int offset; } in
 
       MLasub (loc, msub)
 
-  let apply_offset_expr abs outv info (inv : int ggvar) offset_expr =
+  let apply_offset_expr abs outv info (inv : Z.t ggvar) offset_expr =
     (* Global variable cannot alias to a input pointer. *)
     assert (inv.gs = Expr.Slocal);
     let inv = L.unloc inv.gv in
@@ -1099,14 +1099,14 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   let msub_of_sub_expr abs = function
     | Psub (acc, ws, len, ggv, ei) ->
-      let offset = match aeval_cst_int abs ei with
+      let offset = match aeval_cst_zint abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
       { ms_v      = L.unloc ggv.gv;
         ms_sc     = ggv.gs;
         ms_ws     = ws;
-        ms_len    = len;
-        ms_offset = offset; }
+        ms_len    = Z.to_int len;
+        ms_offset = Option.map Z.to_int offset; }
 
     | _ -> assert false
 
@@ -1121,11 +1121,11 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     (* We do the copy *)
     let vevs = List.map (fun i ->
         let i = access_offset Warray_.AAscale ws i in
-        let vi  = Mlocal (AarraySlice (lgv,ws,lhs.ms_offset + i))  in
+        let vi  = Mlocal (AarraySlice (lgv,ws,lhs.ms_offset + Z.to_int i))  in
         (* [rhs.ms_offset] is not to be scaled on the word size. *)
-        let eiv = Mlocal (AarraySlice (rgv,ws,rhs.ms_offset + i)) in
+        let eiv = Mlocal (AarraySlice (rgv,ws,rhs.ms_offset + Z.to_int i)) in
         (vi, eiv)
-      ) (List.init len (fun i -> i)) in
+      ) (List.init len (fun i -> Z.of_int i)) in
 
     let ves = List.map (fun (v,eiv) ->
         let ei = sexpr_from_simple_expr (Mtexpr.var eiv) in

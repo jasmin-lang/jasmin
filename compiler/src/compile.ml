@@ -150,7 +150,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
           let newpos = ref 0 in
           let mk_n x =
             match x.v_kind, x.v_ty with
-            | Reg (_, Direct), Arr (_, n) -> n
+            (* FIXME Z *)
+            | Reg (_, Direct), Arr (_, n) -> Z.to_int n
             | _, _ -> 1
           in
           let doarg i x =

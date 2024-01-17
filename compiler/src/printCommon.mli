@@ -29,7 +29,7 @@ val pp_arr_access :
   'c option ->
   unit
 
-val pp_len : Format.formatter -> int -> unit
+val pp_len : Format.formatter -> Z.t -> unit
 val pp_ty : Format.formatter -> Prog.ty -> unit
 val pp_datas : Format.formatter -> Ssralg.GRing.ComRing.sort list -> unit
 val pp_var : Format.formatter -> Var0.Var.var -> unit

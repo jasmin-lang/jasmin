@@ -327,7 +327,7 @@ let pp_func ~debug pd asmOp fmt fd =
   pp_fun pp_opn pp_var fmt fd
 
 let pp_glob pp_var fmt (x, gd) = 
-  let pp_size fmt i = F.fprintf fmt "%i" i in
+  let pp_size fmt i = F.fprintf fmt "%a" Z.pp_print i in
   let pp_vd =  pp_var_decl pp_var pp_size in
   let pp_gd fmt gd = 
     match gd with

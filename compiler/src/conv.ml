@@ -13,9 +13,6 @@ let z_of_nat n =
 let int_of_nat n = Z.to_int (z_of_nat n)
 let nat_of_int i = BinInt.Z.to_nat (cz_of_int i)
 
-let pos_of_int i = pos_of_z (Z.of_int i)
-let int_of_pos p = Z.to_int (z_of_pos p)
-
 let word_of_z sz z = Word0.wrepr sz (cz_of_z z)
 let int64_of_z z = word_of_z W.U64 z
 let int32_of_z z = word_of_z W.U32 z
@@ -37,13 +34,13 @@ let cty_of_ty = function
   | Bty Bool      -> T.Coq_sbool
   | Bty Int       -> T.Coq_sint
   | Bty (U sz)   -> T.Coq_sword(sz)
-  | Arr (sz, len) -> T.Coq_sarr (pos_of_int (size_of_ws sz * len))
+  | Arr (sz, len) -> T.Coq_sarr (pos_of_z (arr_size sz len))
 
 let ty_of_cty = function
   | T.Coq_sbool  ->  Bty Bool
   | T.Coq_sint   ->  Bty Int
   | T.Coq_sword sz -> Bty (U sz)
-  | T.Coq_sarr p -> Arr (U8, int_of_pos p)
+  | T.Coq_sarr p -> Arr (U8, z_of_pos p)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -77,11 +74,11 @@ let gvari_of_cgvari v =
 let rec cexpr_of_expr = function
   | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
-  | Parr_init n       -> C.Parr_init (pos_of_int n)
+  | Parr_init n       -> C.Parr_init (pos_of_z n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
   | Pget (aa,ws, x,e) -> C.Pget (aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) -> 
-    C.Psub (aa, ws, pos_of_int len, cgvari_of_gvari x, cexpr_of_expr e)
+    C.Psub (aa, ws, pos_of_z len, cgvari_of_gvari x, cexpr_of_expr e)
   | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari x, cexpr_of_expr e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr e1, cexpr_of_expr e2)
@@ -94,10 +91,10 @@ let rec cexpr_of_expr = function
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
-  | C.Parr_init n       -> Parr_init (int_of_pos n)
+  | C.Parr_init n       -> Parr_init (z_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
   | C.Pget (aa,ws, x,e) -> Pget (aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
-  | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)
+  | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, z_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr e1, expr_of_cexpr e2)
@@ -115,7 +112,7 @@ let clval_of_lval = function
   | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari x, cexpr_of_expr e)
   | Laset(aa,ws,x,e)-> C.Laset (aa, ws, cvari_of_vari x, cexpr_of_expr e)
   | Lasub(aa,ws,len,x,e)-> 
-    C.Lasub (aa, ws, pos_of_int len, cvari_of_vari x, cexpr_of_expr e)
+    C.Lasub (aa, ws, pos_of_z len, cvari_of_vari x, cexpr_of_expr e)
 
 let lval_of_clval = function
   | C.Lnone(p, ty)  -> Lnone (p, ty_of_cty ty)
@@ -123,7 +120,7 @@ let lval_of_clval = function
   | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Laset(aa,ws,x,e) -> Laset (aa,ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Lasub(aa,ws,len,x,e) -> 
-    Lasub (aa,ws, int_of_pos len, vari_of_cvari x, expr_of_cexpr e)
+    Lasub (aa,ws, z_of_pos len, vari_of_cvari x, expr_of_cexpr e)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -285,7 +282,8 @@ let to_array ty p t =
     match Warray_.WArray.get p Warray_.AAscale ws t (cz_of_int i) with
     | Utils0.Ok w -> z_of_word ws w
     | _    -> assert false in
-  ws, Array.init n get
+  (* FIXME Z *)
+  ws, Array.init (Z.to_int n) get
 
 (* ---------------------------------------------------------------------------- *)
 

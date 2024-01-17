@@ -198,7 +198,8 @@ let pp_val fmt v =
   | Vbool b -> Format.fprintf fmt "%b" b
   | Vint z  -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
   | Varr(p,t) ->
-    let ip = Conv.int_of_pos p in
+    (* FIXME Z *)
+    let ip = Z.to_int (Conv.z_of_pos p) in
     let pp_res fmt = function 
       | Ok w               -> pp_word fmt U8 w
       | Error ErrAddrUndef -> pp_undef fmt (Coq_sword U8)

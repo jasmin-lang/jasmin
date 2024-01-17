@@ -70,8 +70,8 @@ end
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized variable                                                *)
 
-type ty    = int gty
-type var   = int gvar
+type ty    = Z.t gty
+type var   = Z.t gvar
 
 module V = struct
   type t = var

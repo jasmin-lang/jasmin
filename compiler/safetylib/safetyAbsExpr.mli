@@ -14,7 +14,7 @@ val pcast : wsize -> expr -> expr
 
 val wsize_of_ty : 'a gty -> int
                 
-val check_is_word : int ggvar -> unit
+val check_is_word : Z.t ggvar -> unit
 
 (*---------------------------------------------------------------*)
 type 'a gmsub = { ms_v      : var;
@@ -53,7 +53,7 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
 
   val abs_sub_arr_range :
     AbsDom.t -> (var * Expr.v_scope) ->
-    Warray_.arr_access -> wsize -> int -> expr ->
+    Warray_.arr_access -> wsize -> Z.t -> expr ->
     mvar list
           
   val linearize_smpl_iexpr : AbsDom.t -> expr     -> Mtexpr.t option

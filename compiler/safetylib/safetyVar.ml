@@ -103,7 +103,7 @@ let mvar_ignore = function
   | _ -> false
     
 (*---------------------------------------------------------------*)
-let arr_range (v : var) : int = match v.v_ty with
+let arr_range (v : var) : Z.t = match v.v_ty with
   | Arr (_,i) -> i
   | _ -> assert false
 
@@ -169,7 +169,7 @@ let mvar_of_scoped_var (s : Expr.v_scope) (uv : var) =
 
   of_scope s at
 
-let mvar_of_var (v : int Prog.ggvar) =
+let mvar_of_var (v : Z.t Prog.ggvar) =
   mvar_of_scoped_var v.gs (L.unloc v.gv)
 
 (*---------------------------------------------------------------*)
@@ -179,7 +179,8 @@ let u8_blast_at ~blast_arrays scope at =
     | Aarray v ->
       if blast_arrays then
         let iws = size_of_ws (arr_size v) in
-        let r = arr_range v in
+        (* FIXME Z *)
+        let r = Z.to_int (arr_range v) in
         let vi i = AarraySlice (v,U8,i) in
         List.init (r * iws) vi
       else [at]
@@ -212,7 +213,8 @@ let rec expand_arr_vars = function
       | Bty _ -> assert false
       | Arr (ws, n) ->
         let wsz = size_of_ws ws in
-        List.init n (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
+        (* FIXME Z *)
+        List.init (Z.to_int n) (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
         @ expand_arr_vars t
     end
   | v :: t -> v :: expand_arr_vars t

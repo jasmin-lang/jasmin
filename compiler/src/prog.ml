@@ -198,19 +198,19 @@ and pexpr_equal e1 e2 =
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ty    = Z.t gty
+type var   = Z.t gvar
+type var_i = Z.t gvar_i
+type lval  = Z.t glval
+type lvals = Z.t glval list
+type expr  = Z.t gexpr
+type exprs = Z.t gexpr list
 
-type ('info,'asm) instr = (int,'info,'asm) ginstr
-type ('info,'asm) stmt  = (int,'info,'asm) gstmt
+type ('info,'asm) instr = (Z.t,'info,'asm) ginstr
+type ('info,'asm) stmt  = (Z.t,'info,'asm) gstmt
 
-type ('info,'asm) func     = (int,'info,'asm) gfunc
-type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type ('info,'asm) func     = (Z.t,'info,'asm) gfunc
+type ('info,'asm) mod_item = (Z.t,'info,'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list * ('info,'asm) func list
 
@@ -377,11 +377,11 @@ let ws_of_ty = function
   | Bty (U ws) -> ws
   | _ -> assert false
 
-let arr_size ws i = size_of_ws ws * i
+let arr_size ws i = Z.(of_int (size_of_ws ws) * i)
 
 let size_of t = 
   match t with
-  | Bty (U ws) -> size_of_ws ws
+  | Bty (U ws) -> Z.of_int (size_of_ws ws)
   | Arr (ws', n) -> arr_size ws' n 
   | _ -> assert false 
 
@@ -420,12 +420,12 @@ let is_var = function
 
 let access_offset aa ws i =
   match aa with
-  | Warray_.AAscale -> size_of_ws ws * i
+  | Warray_.AAscale -> Z.(of_int (size_of_ws ws) * i)
   | Warray_.AAdirect -> i
 
 let get_ofs aa ws e =
   match e with
-  | Pconst i -> Some (access_offset aa ws (Z.to_int i))
+  | Pconst i -> Some (access_offset aa ws i)
   | _ -> None
 
 (* -------------------------------------------------------------------- *)

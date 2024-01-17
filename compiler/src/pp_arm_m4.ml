@@ -68,7 +68,7 @@ let print_asm_lines fmt lns =
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
 
-let string_of_label name p = Printf.sprintf "L%s$%d" name (Conv.int_of_pos p)
+let string_of_label name p = Format.asprintf "L%s$%a" name Z.pp_print (Conv.z_of_pos p)
 
 let pp_label n lbl = string_of_label n lbl
 

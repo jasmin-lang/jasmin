@@ -8,7 +8,8 @@ let init_tbl fc =
     let ty = Bty (U ws) in
     let vi i =
       V.mk (v.v_name ^ "#" ^ string_of_int i) (Reg(reg_kind v.v_kind, Direct)) ty v.v_dloc v.v_annot in
-    let t = Array.init sz vi in
+    (* FIXME Z *)
+    let t = Array.init (Z.to_int sz) vi in
     Hv.add tbl v (ws, t) in
   let fv = vars_fc fc in
   let arrs = Sv.filter is_reg_arr (vars_fc fc) in

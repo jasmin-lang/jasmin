@@ -5,6 +5,7 @@ module Hash : sig include module type of BatHashtbl end
 
 module Sint : Set.S with type elt = int 
 module Mint : Map.S with type key = int 
+module Mz : Map.S with type key = Z.t
 
 module Ss   : Set.S with type elt = string
 module Ms   : Map.S with type key = string

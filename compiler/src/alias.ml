@@ -2,13 +2,15 @@ open Utils
 open Printer
 open Prog
 
+open Z
+
 let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 (* Most of the errors have no location initially, but they are added later
    by catching the exception and reemiting it with more information. *)
 let hierror_no_loc ?funname = hierror ~loc:Lnone ?funname
 
 (* Interval within a variable; [lo; hi[ *)
-type slice = { in_var : var ; scope : E.v_scope ; range : int * int }
+type slice = { in_var : var ; scope : E.v_scope ; range : Z.t * Z.t }
 
 type alias = slice Mv.t
 
@@ -19,7 +21,7 @@ let pp_scope fmt s =
   Format.fprintf fmt "%s" (if s = E.Slocal then "" else "#g:")
 
 let pp_range fmt (lo, hi) =
-  Format.fprintf fmt "%d; %d" lo hi
+  Format.fprintf fmt "%a; %a" Z.pp_print lo Z.pp_print hi
 
 let pp_slice fmt s =
   Format.fprintf fmt "%a%a[%a[" pp_scope s.scope pp_var s.in_var pp_range s.range
@@ -44,7 +46,7 @@ let range_in_slice (lo, hi) s =
   else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
 
 let range_of_var x =
-  0, size_of x.v_ty
+  Z.zero, size_of x.v_ty
 
 let slice_of_var ?(scope=E.Slocal) in_var =
   let range = range_of_var in_var in
@@ -91,8 +93,9 @@ let incl a1 a2 =
 (* Partial order on variables, by scope and size *)
 let compare_gvar params x gx y gy =
   let check_size x1 s1 x2 s2 =
-    if not (s1 <= s2) then hierror_no_loc "cannot merge variables %a (of size %i) and %a (of size %i): %a is too large" pp_var x1 s1 pp_var x2 s2 pp_var x1 in
-      
+    if not (Z.leq s1 s2) then
+      hierror_no_loc "cannot merge variables %a (of size %a) and %a (of size %a): %a is too large" pp_var x1 Z.pp_print s1 pp_var x2 Z.pp_print s2 pp_var x1
+  in
   if V.equal x y
   then (assert (gx = gy); 0)
   else
@@ -116,7 +119,7 @@ let compare_gvar params x gx y gy =
       | true, false -> check_size y sy x sx; 1
       | false, true -> check_size x sx y sy; -1
       | false, false ->
-        let c = Stdlib.Int.compare sx sy in
+        let c = Z.compare sx sy in
         if c = 0 then V.compare x y
         else c
 
@@ -135,7 +138,7 @@ let merge_slices params a s1 s2 =
     let y = s2.in_var in
     let lo = fst s2.range - fst s1.range in
     let hi = lo + size_of x.v_ty in
-    if lo < 0 || size_of y.v_ty < hi
+    if Z.lt lo Z.zero || Z.lt (size_of y.v_ty) hi
     then hierror_no_loc "merging slices %a and %a may introduce invalid accesses; consider declaring variable %a smaller" pp_slice s1 pp_slice s2 pp_var x;
     Mv.add x { s2 with range = lo, hi } a
 

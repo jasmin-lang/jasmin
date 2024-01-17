@@ -1,0 +1,4 @@
+export
+fn main(reg u64[0x10000000000000000] a) -> reg u64[0x10000000000000000] {
+    return a;
+}

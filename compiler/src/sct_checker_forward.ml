@@ -392,7 +392,7 @@ module Env : sig
 
   val get   : venv -> var -> vty
   val get_i : venv -> var_i -> vty
-  val gget  : venv -> int ggvar -> vty
+  val gget  : venv -> Z.t ggvar -> vty
 
   val fresh  : ?name:string -> env -> Lvl.t
   val fresh2 : ?name:string -> env -> VlPairs.t
@@ -622,7 +622,7 @@ let ssafe_test x i =
   match x.v_kind, x.v_ty, i with
   | Reg (_, Direct), _, _ -> true
   | _, Arr (_ (* word size. should be used ? *), len), Pconst v ->
-      Z.(leq zero v && lt v (of_int len))
+      Z.(leq zero v && lt v len)
   | _ -> false
 
 let content_ty = function

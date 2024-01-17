@@ -9,9 +9,7 @@ val z_of_nat  : Datatypes.nat -> Z.t
 val int_of_nat : Datatypes.nat -> int
 val nat_of_int : int -> Datatypes.nat
 
-val pos_of_int : int -> BinNums.positive
 val cz_of_int   : int -> BinNums.coq_Z
-val int_of_pos : BinNums.positive -> int
 
 val pos_of_z : Z.t -> BinNums.positive
 val z_of_pos : BinNums.positive -> Z.t

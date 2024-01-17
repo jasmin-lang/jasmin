@@ -127,7 +127,7 @@ let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
     pp_btype (U ws) pp_expr e pp_len olen
 
 (* -------------------------------------------------------------------- *)
-let pp_len fmt len = fprintf fmt "%i" len
+let pp_len fmt len = fprintf fmt "%a" Z.pp_print len
 let pp_ty fmt = pp_gtype pp_len fmt
 
 (* -------------------------------------------------------------------- *)
