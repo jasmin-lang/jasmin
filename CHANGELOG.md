@@ -52,6 +52,9 @@
   when the `-g` command-line flag is given (off by default).
   ([PR #684](https://github.com/jasmin-lang/jasmin/pull/684)).
 
+- Extraction as EasyCrypt code targets version 2024.01
+  ([PR #690](https://github.com/jasmin-lang/jasmin/pull/690)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators
