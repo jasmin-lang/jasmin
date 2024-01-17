@@ -1991,8 +1991,7 @@ abstract theory W_WS.
      w \bits'S i = WS.of_int 0.
   proof.
     move=> hi;apply WS.wordP => k hk.
-    rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint.
-    smt(gt0_r WS.gt0_size sizeBrS).
+    rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint sizeBrS /#.
   qed.
 
   lemma get_zero i : WB.of_int 0 \bits'S i = WS.of_int 0.
