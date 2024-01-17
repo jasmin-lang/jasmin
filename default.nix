@@ -61,8 +61,6 @@ stdenv.mkDerivation {
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
-    # Apron as packaged in opam is broken with gnumake ≥ 4.4
-    # Bringing gnumake 4.2 in scope works around this issue
-    ++ optionals opamDeps [ gnumake42 rsync git pkg-config perl ppl mpfr opam ]
+    ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
 }
