@@ -47,6 +47,7 @@ Section INCL.
     inline_c (inline_i' p)  c X2 = ok (X1, c') ->
     inline_c (inline_i' p') c X2 = ok (X1, c').
 
+
   Lemma inline_c_incl c : Pc c.
   Proof.
     apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => // {c}.

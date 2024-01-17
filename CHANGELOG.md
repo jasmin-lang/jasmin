@@ -2,6 +2,7 @@
 # [unreleased]
 
 ## New features
+
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
   See compiler/tests/success/common/spill.jazz.
