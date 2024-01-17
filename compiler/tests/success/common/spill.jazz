@@ -8,9 +8,9 @@ export fn main(reg u32 x, reg u32 y) -> reg u32
   p[0] = z;
   z += 1;
   p[1] = z;
-  spill(p, y);
+  () = #spill(p, y);
   x = x + y;
-  unspill(p, y);
+  () = #unspill(p, y);
   z = p[0];
   x += z;
   z = p[1];
