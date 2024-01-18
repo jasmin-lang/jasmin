@@ -3,6 +3,11 @@
 
 ## New features
 
+- Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
+  to/from the stack without need to declare the corresponding stack variable.
+  See compiler/tests/success/common/spill.jazz.
+  ([PR #687](https://github.com/jasmin-lang/jasmin/pull/687)).
+
 - Add the x86_64 instruction `XCHG`,
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).

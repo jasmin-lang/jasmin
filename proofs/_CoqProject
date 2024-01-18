@@ -72,6 +72,8 @@ compiler/linear_util.v
 compiler/linearization.v
 compiler/linearization_proof.v
 compiler/lowering.v
+compiler/lower_spill.v
+compiler/lower_spill_proof.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v

@@ -1643,6 +1643,21 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       in
       env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
 
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) 
+        when L.unloc f = "spill" || L.unloc f = "unspill"  ->
+    let op = L.unloc f in
+    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no implicit result" op);
+    if xs <> [] then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no result" op);
+    let es = tt_exprs arch_info.pd env args in
+    let doit (e, _) = 
+      match e with 
+      | P.Pvar x when P.is_reg_kind (P.kind_i x.gv) -> e
+      | _ ->  rs_tyerror ~loc:(L.loc pi) (string_error "%s expects only reg/reg ptr as arguments" op) in
+    let es = List.map doit es in
+    let op = if op = "spill" then Pseudo_operator.Spill else Pseudo_operator.Unspill in
+    let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in 
+    env, [mk_i ~annot (P.Copn([], AT_keep, p, es))]
+
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
       (* FIXME syscall *)
       (* This is dirty but ... *)

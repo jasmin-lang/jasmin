@@ -152,6 +152,7 @@ let print_strings = function
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
   | Compiler.ArrayCopy                   -> "arraycopy", "array copy"
   | Compiler.AddArrInit                  -> "addarrinit", "add array initialisation"
+  | Compiler.LowerSpill                  -> "lowerspill", "lower spill/unspill instructions"
   | Compiler.Inlining                    -> "inline"   , "inlining"
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
   | Compiler.Unrolling                   -> "unroll"   , "unrolling"
