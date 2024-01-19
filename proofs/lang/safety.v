@@ -248,15 +248,15 @@ Proof.
 Admitted.
 
 
-Lemma wt_safe_get_gvar_not_error : forall x p s err,
-vtype (gv x) = sarr p ->
+Lemma wt_safe_get_gvar_not_error : forall x s ty err,
+vtype (gv x) = ty ->
 interp_safe_conds [:: Defined_var (gv x)] s ->
 get_gvar false gd (evm s) x <> Error err.
 Proof.
 Admitted.
 
-Lemma wt_safe_get_gvar_not_undef : forall x p s t i,
-vtype (gv x) = sarr p ->
+Lemma wt_safe_get_gvar_not_undef : forall x s t i ty,
+vtype (gv x) = ty ->
 interp_safe_conds [:: Defined_var (gv x)] s ->
 get_gvar false gd (evm s) x <> ok (Vundef t i).
 Proof.
@@ -305,6 +305,26 @@ to_int ve <> Error err.
 Proof.
 Admitted.
 
+Lemma wt_safe_sem_opN_not_error : forall pd es op vm vma s err,
+mapM2 ErrType (check_expr ty_pexpr pd) es (type_of_opN op).1 = ok vm ->
+interp_safe_conds (flatten (gen_safe_conds gen_safe_cond es)) s ->
+mapM (sem_pexpr false gd s) es = ok vma ->
+sem_opN op vma <> Error err.
+Proof.
+Admitted.
+
+Lemma wt_safe_mapM_not_error : forall pd es op vm s err,
+mapM2 ErrType (check_expr ty_pexpr pd) es (type_of_opN op).1 = ok vm ->
+interp_safe_conds (flatten (gen_safe_conds gen_safe_cond es)) s ->
+mapM (sem_pexpr false gd s) es <> Error err.
+Proof.
+Admitted.
+
+Lemma type_of_get_gvar_sub': forall x (vm : @Vm.t nosubword) v,
+get_gvar false gd vm x = ok v ->
+(type_of_val v) = (vtype x.(gv)).
+Proof. Admitted.
+
 Theorem sem_pexpr_safe : forall pd e s ty,
 ty_pexpr pd e = ok ty ->
 interp_safe_conds (gen_safe_cond e) s ->
@@ -318,7 +338,12 @@ move=> pd e s. elim: e=> //=.
 (* Parr_init *)
 + move=> n ty [] ht _; subst. by exists (Varr (WArray.empty n)).
 (* Pvar *)
-+ admit.
++ move=> x ty [] ht [] hd _. case hg: get_gvar=> [vg | vgr] //=.
+  + exists vg. split=> //=. have hsub := type_of_get_gvar_sub' x (evm s) vg hg.
+    by rewrite ht /= in hsub. 
+  have hs : interp_safe_conds [:: Defined_var (gv x)] s.
+  + rewrite /interp_safe_conds /=. by split=> //=.
+  by have := wt_safe_get_gvar_not_error x s ty vgr ht hs hg.
 (* Pget *)
 + move=> aa sz x e hin ty. rewrite /ty_get_set /check_array /=. 
   t_xrbindP=> t hte t'. case ht: (vtype (gv x))=> [  | | p |] //= [] heq; subst.
@@ -339,16 +364,16 @@ move=> pd e s. elim: e=> //=.
     + by have := wt_arr_ty_not_word x p s w wsz ht.
     have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
                              [:: Is_align e aa sz] [:: In_range e aa sz (gv x)] s hs2.
-    by have := wt_safe_get_gvar_not_undef x p s t i ht hs1'.
+    by have := wt_safe_get_gvar_not_undef x s t i (sarr p) ht hs1'.
   have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
                              [:: Is_align e aa sz] [:: In_range e aa sz (gv x)] s hs2.
-  by have := wt_safe_get_gvar_not_error x p s vgr ht hs1'.
+  by have := wt_safe_get_gvar_not_error x s (sarr p) vgr ht hs1'.
 (* Psub *)
 + move=> aa sz len x e hin ty. rewrite /ty_get_set_sub /check_array /= /check_int /= /check_type /=.
-  t_xrbindP => t hte t'. case ht: (vtype (gv x))=> [  | | p |] //= [] heq; subst.
+  t_xrbindP => t hte t'. case ht: (vtype (gv x))=> [  | | p|] //= [] heq; subst.
   move=>ti. case: ifP=> //= /eqP hteq [] hteq' hteq''; subst. move=> hs.
   have [hs1 [hs2 hs3]] := interp_safe_concat (gen_safe_cond e) [:: Defined_var (gv x); Is_align e aa sz;
-         In_sub_range e aa sz len (gv x)] [::] s hs.
+         In_sub_range e aa sz len (gv x)] [::] s hs.   
   rewrite /on_arr_var /=. case hg: get_gvar=> [vg | vgr] //=.
   + case hvg: vg=> [b | z | p' arr| w wsz| t i] //=; subst.
     + by have := wt_arr_ty_not_bool x p s b ht.
@@ -361,15 +386,16 @@ move=> pd e s. elim: e=> //=.
         have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
                              [:: Is_align e aa sz] [:: In_sub_range e aa sz len (gv x)] s hs2.
         rewrite /interp_safe_conds /= /in_sub_range_check /= ht /= in hs3'. case: hs3'=> hs3' hs3''.
-        move: (hs3' ve vi he hi)=> /andP. admit.
+        move: (hs3' ve vi he hi)=> /andP. have hsub' := type_of_get_gvar_sub' x (evm s) (Varr arr) hg. 
+        rewrite ht /= in hsub'. by move: hsub'=> [] heq'; subst.
       by have := wt_safe_to_int_not_error pd e s ve vr hte he. 
     + by have := wt_arr_ty_not_word x p s w wsz ht.
     have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
                              [:: Is_align e aa sz] [:: In_sub_range e aa sz len (gv x)] s hs2.
-    by have := wt_safe_get_gvar_not_undef x p s t i ht hs1'.
+    by have := wt_safe_get_gvar_not_undef x s t i (sarr p) ht hs1'.
   have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
                              [:: Is_align e aa sz] [:: In_sub_range e aa sz len (gv x)] s hs2.
-  by have := wt_safe_get_gvar_not_error x p s vgr ht hs1'.
+  by have := wt_safe_get_gvar_not_error x s (sarr p) vgr ht hs1'.
 (* Pload *)
 + move=> w x e hin ty. rewrite /ty_load_store /= /check_ptr /check_type.
   t_xrbindP=> te hte t1. case: ifP=> //= hsub heq t2; subst. 
@@ -409,7 +435,14 @@ move=> pd e s. elim: e=> //=.
   by have := wt_safe_sem_sop2_not_error pd op t1 e1 t2 e2 s ve1 ve2 
              vor hsub ht1 hsub' ht2 hs1 hs2 hs3 he1 hte1 he2 hte2 ho.
 (* PappN *)
-+ move=>op es hin t. admit.
++ move=>op es hin t. rewrite /check_pexprs /=. case hm: mapM2=> [vm | vmr] //=.
+  move=> [] heq hs; subst. case hma: mapM=> [vma | vmar] //=.
+  + case ho: sem_opN=> [vo | vor] //=.
+    + exists vo. split=> //=. 
+      + rewrite /sem_opN /= in ho. move: ho. t_xrbindP=> tso happ htv.
+        have := type_of_to_val tso. by rewrite htv. 
+      by have := wt_safe_sem_opN_not_error pd es op vm vma s vor hm hs hma.
+    by have := wt_safe_mapM_not_error pd es op vm s vmar hm hs.
 (* Pif *)
 move=> t e hin e1 hin1 e2 hin2 ty hty hs. move: hty.
 rewrite /check_expr /= /check_type /=. t_xrbindP=> te te' hte. 
@@ -432,7 +465,7 @@ case: b he hbt=> //= b he hbt /=.
     by have //= := wt_safe_truncate_not_error e1 s v1 t1 ty vtr' hs2 he1 ht1 hsub.
   by have //= := wt_safe_truncate_not_error e2 s v2 t2 ty vtr hs3 he2 ht2 hsub'.
 move=> hbeq; subst. by have //= := safe_not_undef e s he hs1 hbt. 
-Admitted.
+Qed.
 
 
 (*Theorem sem_pexpr_safe : forall e s r,
