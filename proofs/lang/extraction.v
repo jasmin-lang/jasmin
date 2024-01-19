@@ -53,7 +53,7 @@ Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 
 Extract Constant ident.Cident.name_of_string => "CoreIdent.Cident.name_of_string".
 Extract Constant ident.Cident.string_of_name => "CoreIdent.Cident.string_of_name".
-
+Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
 
 Cd  "lang/ocaml".
 
