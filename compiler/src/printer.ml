@@ -8,15 +8,6 @@ module E = Expr
 module F = Format
 
 (* -------------------------------------------------------------------- *)
-let ws_of_ws = function
-    | `W8   -> W.U8
-    | `W16  -> W.U16
-    | `W32  -> W.U32
-    | `W64  -> W.U64
-    | `W128 -> W.U128
-    | `W256 -> W.U256
-
-(* -------------------------------------------------------------------- *)
 let pp_print_X fmt z =
   Format.fprintf fmt "%s" (Z.format "#X" z)
 
@@ -97,7 +88,7 @@ let rec pp_simple_attribute fmt =
   function
   | Annotations.Aint z -> Z.pp_print fmt z
   | Aid s | Astring s -> F.fprintf fmt "%S" s
-  | Aws ws -> F.fprintf fmt "%s" (string_of_ws (ws_of_ws ws))
+  | Aws ws -> F.fprintf fmt "%s" (string_of_ws ws)
   | Astruct a -> F.fprintf fmt "(%a)" pp_annotations a
 
 and pp_attribute fmt = function

@@ -23,14 +23,7 @@ type svsize  = vsize * sign * vesize
 type castop1 = CSS of sowsize | CVS of svsize 
 type castop = castop1 L.located option
 
-let bits_of_wsize : wsize -> int =
-  function
-  | `W8   -> 8
-  | `W16  -> 16
-  | `W32  -> 32
-  | `W64  -> 64
-  | `W128 -> 128
-  | `W256 -> 256
+let bits_of_wsize : wsize -> int = Annotations.int_of_ws 
 
 let suffix_of_sign : sign -> string =
   function

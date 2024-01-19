@@ -114,7 +114,7 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 (* ------------------------------------------------------------------------ *)
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot: Annotations.f_annot;
+    f_annot: FInfo.f_annot;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -336,13 +336,7 @@ let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog =
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 
-let int_of_ws = function
-  | U8   -> 8
-  | U16  -> 16
-  | U32  -> 32
-  | U64  -> 64
-  | U128 -> 128
-  | U256 -> 256
+let int_of_ws = Annotations.int_of_ws 
 
 let size_of_ws = function
   | U8   -> 1
@@ -352,7 +346,7 @@ let size_of_ws = function
   | U128 -> 16
   | U256 -> 32
 
-let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
+let string_of_ws = Annotations.string_of_ws 
 
 let wsize_lt ws1 ws2 = Wsize.wsize_cmp ws1 ws2 = Datatypes.Lt
 let wsize_le ws1 ws2 = Wsize.wsize_cmp ws1 ws2 <> Datatypes.Gt

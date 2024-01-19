@@ -1,7 +1,5 @@
 open Prog
 
-val ws_of_ws : Annotations.wsize -> Wsize.wsize
-
 val pp_warning_msg :  Format.formatter -> Compiler_util.warning_msg -> unit
 val pp_err : debug:bool -> Format.formatter -> Compiler_util.pp_error -> unit
 
