@@ -192,13 +192,16 @@ Context {pT: progT}.
 
 Definition init_map (s:Sv.t) :=
   Sv.fold (fun (x:var) m =>
+    let n := vname x in         
     let k :=
-      match Ident.id_kind (vname x) with
-      | Reg (_, r) => Stack r
-      | _ => Stack Direct
+      match Ident.id_kind n with
+      | Reg (_, r) => 
+          if Ident.spill_to_mmx n then Reg(Extra, r)
+          else Stack r
+      | _ => Stack Direct (* This is a dummy value, pretyping ensure this never appen *)
       end in
     let ty := vtype x in
-    let n := Ident.id_name (vname x) in
+    let n := Ident.id_name n in
     Mvar.set m x {| vname := fresh_var_ident k dummy_instr_info n ty; vtype := ty |})
     s (Mvar.empty var).
 

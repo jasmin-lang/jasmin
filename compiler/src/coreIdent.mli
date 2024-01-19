@@ -103,6 +103,7 @@ module Cident : sig
   val name_of_string : char list -> name
   val string_of_name : name -> char list
 
+  val spill_to_mmx : t -> bool
 end
 
 (* -------------------------------------------------------------------- *)
