@@ -440,7 +440,7 @@ end  = struct
 end
 
 (* -------------------------------------------------------------------- *)
-let tt_ws (ws : A.wsize) = Printer.ws_of_ws ws
+let tt_ws (ws : A.wsize) = ws
 
 (* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : W.reference =
@@ -1301,14 +1301,7 @@ let prim_of_op exn loc o =
     | Some({L.pl_desc = S.CVS _} ) -> raise exn
     | Some({L.pl_desc = S.CSS(None, _)}) -> None
     | Some({L.pl_desc = S.CSS(Some sz, _)}) ->  
-      Some (match sz with
-      | `W8 -> 8
-      | `W16 -> 16
-      | `W32 -> 32
-      | `W64 -> 64
-      | `W128 -> 128
-      | `W256 -> 256
-        )
+      Some (Annotations.int_of_ws sz)
   in
   let p =
     let f s n =
@@ -1876,7 +1869,7 @@ let tt_call_conv loc params returns cc =
 (* -------------------------------------------------------------------- *)
 
 let process_f_annot loc funname f_cc annot =
-  let open A in
+  let open FInfo in
 
   let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
 
