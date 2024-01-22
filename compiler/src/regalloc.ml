@@ -45,6 +45,14 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
 
 type kind = Word | Extra | Vector | Flag | Unknown of ty
 
+let string_of_kind =
+  function
+  | Word -> "general purpose"
+  | Extra -> "extra (aka mmx)"
+  | Vector -> "vector"
+  | Flag -> "flag"
+  | Unknown ty -> Format.asprintf "(unknown of type %a)" PrintCommon.pp_ty ty
+
 let kind_of_type reg_size k =
   function
   | Bty (U sz) ->
@@ -104,9 +112,11 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
   let assert_compatible_types x y =
     let x = L.unloc x and y = L.unloc y in
     if types_cannot_conflict reg_size x.v_kind x.v_ty y.v_kind y.v_ty then
-      hierror_reg ~loc "Variables %a and %a must be merged due to architectural constraints but have incompatible types"
+      hierror_reg ~loc "Variables %a and %a must be merged due to architectural constraints but must be allocated to incompatible banks “%s” and “%s” (respectively)"
         (Printer.pp_var ~debug:true) x
         (Printer.pp_var ~debug:true) y
+        (string_of_kind (kind_of_type reg_size x.v_kind x.v_ty))
+        (string_of_kind (kind_of_type reg_size y.v_kind y.v_ty))
   in
   let merge k v w =
     assert_compatible_types v w;
