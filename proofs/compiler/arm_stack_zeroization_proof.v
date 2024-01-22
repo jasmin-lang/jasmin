@@ -661,7 +661,7 @@ Context (hlabel : ~~ has (is_label lbl) pre).
 
 Lemma sz_init_no_lbl : ~~ has (is_label lbl) (sz_init rspi ws_align stk_max).
 Proof.
-  rewrite /= has_map has_cat /= /ARMFopn.li.
+  rewrite /= has_map has_cat /= /ARMFopn.li /ARMFopn.Core.li.
   case: ifP => // _.
   by case: Z.div_eucl => ??.
 Qed.
@@ -770,7 +770,7 @@ End RSP.
 Lemma sz_init_no_ext_lbl rsp ws_align stk_max :
   label_in_lcmd (sz_init rsp ws_align stk_max) = [::].
 Proof.
-  rewrite /= map_cat label_in_lcmd_cat /= cats0 /ARMFopn.li.
+  rewrite /= map_cat label_in_lcmd_cat /= cats0 /ARMFopn.li /ARMFopn.Core.li.
   by case: ifP => // _; case: Z.div_eucl => ??.
 Qed.
 

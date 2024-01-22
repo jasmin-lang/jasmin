@@ -23,6 +23,7 @@ Require Import
   arm_decl
   arm_extra
   arm_instr_decl
+  arm_params_core
   arm_params_common
   arm_lowering
   arm_stack_zeroization.
@@ -50,11 +51,20 @@ Definition arm_mov_ofs
   | MK_LEA => mk (ADR, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
   | MK_MOV =>
     match x with
-    | Lvar _ =>
+    | Lvar x_ =>
       if is_load y then
         if ofs == Z0 then mk (LDR, [:: y]) else None
       else
-        if ofs == Z0 then mk (MOV, [:: y]) else mk (ADD, [::y; eword_of_int reg_size ofs ])
+        if ofs == Z0 then mk (MOV, [:: y])
+        else
+          (* This allows to remove constraint in register allocation *)
+          if is_arith_small ofs then mk (ADD, [::y; eword_of_int reg_size ofs ])
+          else
+            if y is Pvar y_ then
+              if [&& v_var x_ != v_var y_.(gv), is_lvar y_, vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
+                Some (Copn [::x; Lvar y_.(gv)] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
+              else None
+            else None
     | Lmem _ _ _ =>
       if ofs == Z0 then mk (STR, [:: y]) else None
     | _ => None
@@ -64,7 +74,7 @@ Definition arm_mov_ofs
 Definition arm_immediate (x: var_i) z :=
   Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [:: cast_const z ].
 
-Definition arm_swap t (x y z w : var_i) := 
+Definition arm_swap t (x y z w : var_i) :=
   Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarm_swap reg_size))) [:: Plvar z; Plvar w].
 
 Definition arm_saparams : stack_alloc_params :=
