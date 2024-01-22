@@ -297,9 +297,12 @@ let pp_instr fn _ i =
 let pp_body fn fmt =
   let open List in
   concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
+  let i = 
+    try pp_instr fn fmt i 
+    with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
   append
     (map (fun i -> LInstr (i, [])) (DebugInfo.source_positions ii.base_loc))
-    (pp_instr fn fmt i)
+    i
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
