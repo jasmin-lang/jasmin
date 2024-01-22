@@ -886,7 +886,7 @@ let rec remove_for_i i =
 and remove_for c = List.map remove_for_i c
 
 let pp_opn pd asmOp fmt o = 
-  let s = Conv.string_of_cstring (Sopn.string_of_sopn pd asmOp o) in
+  let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
   let s = if Ss.mem s keywords then s^"_" else s in
   Format.fprintf fmt "%s" s
 
