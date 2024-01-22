@@ -43,18 +43,20 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
   let f_body = fill_stmt f.f_body in
   { f with f_body }
 
-type kind = Word | Vector | Flag | Unknown of ty
+type kind = Word | Extra | Vector | Flag | Unknown of ty
 
-let kind_of_type reg_size =
+let kind_of_type reg_size k =
   function
-  | Bty (U sz) -> if Wsize.wsize_cmp sz reg_size = Datatypes.Gt then Vector else Word
+  | Bty (U sz) ->
+     if Wsize.wsize_cmp sz reg_size = Datatypes.Gt then Vector
+     else if reg_kind k = Normal then Word else Extra
   | Bty Bool -> Flag
   | ty -> Unknown ty
 
 (* Only variables that will be allocated to the same “bank” may conflict. *)
-let types_cannot_conflict reg_size x y : bool =
-  match kind_of_type reg_size x, kind_of_type reg_size y with
-  | Word, Word | Vector, Vector | Flag, Flag -> false
+let types_cannot_conflict reg_size kx x ky y : bool =
+  match kind_of_type reg_size kx x, kind_of_type reg_size ky y with
+  | Word, Word | Extra, Extra | Vector, Vector | Flag, Flag -> false
   | _, _ -> true
 
 type arg_position = APout of int | APin of int
@@ -100,10 +102,11 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs) : unit =
   let assert_compatible_types x y =
-    if types_cannot_conflict reg_size (L.unloc x).v_ty (L.unloc y).v_ty then
+    let x = L.unloc x and y = L.unloc y in
+    if types_cannot_conflict reg_size x.v_kind x.v_ty y.v_kind y.v_ty then
       hierror_reg ~loc "Variables %a and %a must be merged due to architectural constraints but have incompatible types"
-        (Printer.pp_var ~debug:true) (L.unloc x)
-        (Printer.pp_var ~debug:true) (L.unloc y)
+        (Printer.pp_var ~debug:true) x
+        (Printer.pp_var ~debug:true) y
   in
   let merge k v w =
     assert_compatible_types v w;
@@ -356,7 +359,7 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   fun a -> loop a e
 
 let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
-  if types_cannot_conflict reg_size v.v_ty w.v_ty then c else
+  if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
@@ -546,7 +549,7 @@ module Regalloc (Arch : Arch_full.Arch)
       (a: A.allocation) : unit =
     let allocate_one x y a =
       let x = L.unloc x in
-      if types_cannot_conflict Arch.reg_size x.v_ty y.v_ty
+      if types_cannot_conflict Arch.reg_size x.v_kind x.v_ty y.v_kind y.v_ty
       then hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a with type “%a”) must be allocated to register %a from an incompatible bank"
           (Printer.pp_var ~debug:true) x
           L.pp_sloc x.v_dloc
@@ -602,11 +605,13 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
         match f p with
         | i ->
           let d, rs, xs =
-            match kind_of_type Arch.reg_size p.v_ty with
+            match kind_of_type Arch.reg_size p.v_kind p.v_ty with
             | Word -> let d, rs = split ~ctxt ~num:num_rs rs in d, rs, xs
             | Vector ->
                 let ctxt = "large " ^ ctxt in
                 let d, xs = split ~ctxt ~num:num_xs xs in d, rs, xs
+            | Extra ->
+               hierror_reg ~loc:(Lmore loc) "unexpected extra register %a" (Printer.pp_var ~debug:true) p
             | Flag ->
                hierror_reg ~loc:(Lmore loc) "unexpected flag register %a" (Printer.pp_var ~debug:true) p
             | Unknown ty ->
@@ -786,10 +791,9 @@ let greedy_allocation
     | exception Not_found -> Hashtbl.add tbl i [ v ]
   in
   Hv.iter (fun v i ->
-      match kind_of_type Arch.reg_size v.v_ty with
-      | Word -> 
-          if reg_kind v.v_kind = Normal then push_var scalars i v
-          else push_var extra_scalars i v
+      match kind_of_type Arch.reg_size v.v_kind v.v_ty with
+      | Word -> push_var scalars i v
+      | Extra -> push_var extra_scalars i v
       | Vector -> push_var vectors i v
       | Flag -> push_var flags i v
       | Unknown ty ->
