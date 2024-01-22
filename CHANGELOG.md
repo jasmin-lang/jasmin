@@ -8,6 +8,16 @@
   See compiler/tests/success/common/spill.jazz.
   ([PR #687](https://github.com/jasmin-lang/jasmin/pull/687)).
 
+- Add a swap primitive,
+    `x, y = #swap(x, y)`
+  to allow swapping the contents of two operands.
+  The x and y can be reg or reg ptr.
+  The swap is performed without the need of extra register or memory access.
+  On arm-m4, this is compiled using 3 xor instructions.
+  See `compiler/tests/success/common/swap.jazz` and
+      `compiler/tests/success/common/swap_word.jazz` for usage.
+  ([PR #691](https://github.com/jasmin-lang/jasmin/pull/691)).
+
 - Add the x86_64 instruction `XCHG`,
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).

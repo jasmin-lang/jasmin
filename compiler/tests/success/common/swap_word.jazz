@@ -1,0 +1,5 @@
+export fn main (reg u32 x y) -> reg u32 {
+  x, y = #swap(x, y);
+  x = x;
+  return x;
+}

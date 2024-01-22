@@ -64,10 +64,14 @@ Definition arm_mov_ofs
 Definition arm_immediate (x: var_i) z :=
   Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [:: cast_const z ].
 
+Definition arm_swap t (x y z w : var_i) := 
+  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarm_swap reg_size))) [:: Plvar z; Plvar w].
+
 Definition arm_saparams : stack_alloc_params :=
   {|
     sap_mov_ofs := arm_mov_ofs;
     sap_immediate := arm_immediate;
+    sap_swap := arm_swap;
   |}.
 
 

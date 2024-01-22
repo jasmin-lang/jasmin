@@ -59,10 +59,14 @@ Definition x86_mov_ofs x tag vpk y ofs :=
 Definition x86_immediate x z :=
   mov_ws Uptr (Lvar x) (cast_const z) AT_none.
 
+Definition x86_swap t (x y z w : var_i) := 
+  Copn [:: Lvar x; Lvar y] t (Ox86 (XCHG reg_size)) [:: Plvar z; Plvar w].
+
 Definition x86_saparams : stack_alloc_params :=
   {|
     sap_mov_ofs := x86_mov_ofs;
     sap_immediate := x86_immediate;
+    sap_swap := x86_swap;
   |}.
 
 (* ------------------------------------------------------------------------ *)

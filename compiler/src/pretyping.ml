@@ -1678,6 +1678,29 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty] in
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "swap" ->
+      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");
+      let loc, lvs, ty =
+        match xs with
+        | [x; y] ->
+          let loc, x, oxty = tt_lvalue arch_info.pd env x in
+          let yloc, y, oytu = tt_lvalue arch_info.pd env y in  
+          let ty =
+            match oxty with
+            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+            | Some ty -> ty in
+          let _ = 
+             match oxty with
+            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+            | Some yty -> check_ty_eq ~loc:yloc ~from:yty ~to_:ty in
+          loc, [x ty; y ty], ty
+        | _ ->
+          rs_tyerror ~loc:(L.loc pi)
+            (string_error "a pair of destination is expected for swap") in
+      let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty; ty] in
+      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
+      env, [mk_i (P.Copn(lvs, AT_keep, p, es))]
+
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim arch_info.asmOp f in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in

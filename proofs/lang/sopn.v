@@ -201,6 +201,17 @@ Definition Ospill_instr o tys :=
      i_safe   := [:: ];
   |}.
 
+Definition Oswap_instr ty := 
+  {| str    := (fun _ => "swap"%string);
+     tin    := [:: ty; ty];
+     i_in   := [:: E 0; E 1]; (* this info is relevant *)
+     tout   := [:: ty; ty];
+     i_out  := [:: E 0; E 1]; (* this info is relevant *)
+     semi   := @swap_semi ty;
+     semu   := @swap_semu ty;
+     i_safe := [::];
+  |}.
+           
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   match o with
   | Ospill o tys => Ospill_instr o tys
@@ -209,6 +220,7 @@ Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   | Omulu     sz => Omulu_instr sz
   | Oaddcarry sz => Oaddcarry_instr sz
   | Osubcarry sz => Osubcarry_instr sz
+  | Oswap     ty => Oswap_instr ty
   end.
 
 (* ------------------------------------------------------------- *)
@@ -367,6 +379,7 @@ Definition primP {A: Type} (f: wsize -> A) :=
 Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
   [::
     ("copy", primP (fun sz => Opseudo_op (Ocopy sz xH)));  (* The size is fixed later *)
+    ("swap", primM (Opseudo_op (Oswap sbool))); (* The type is fixed later *)
     (* "NOP" is ignored on purpose *)
     ("mulu", primP (fun sz => Opseudo_op (Omulu sz)));
     ("adc", primP (fun sz => Opseudo_op (Oaddcarry sz)));

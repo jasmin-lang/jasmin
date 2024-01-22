@@ -1,0 +1,40 @@
+export fn main (reg u32 x y) -> reg u32 {
+  stack u32[2] t1 t2;
+  reg ptr u32[2] pt1 pt2;
+  pt1 = t1;
+  pt2 = t2;
+  pt1, pt2 = #swap(pt1, pt2);
+  reg u32 aux;
+  aux = 0;
+  pt1[0] = aux;
+  aux = 1;
+  pt1[1] = aux;
+  aux = 0;
+  pt2[0] = aux;
+  aux = 1;
+  pt2[1] = aux;
+  pt1, pt2 = #swap(pt1, pt2);
+
+  x,y = #swap(x,y);
+  aux = pt1[0];
+  x += aux; 
+  aux = pt1[1];
+  x += aux; 
+  aux = pt2[0];
+  x += aux; 
+  aux = pt2[1];
+  x += aux;
+  t1 = pt1;
+  t2 = pt2;
+
+  aux = t1[0];
+  x += aux; 
+  aux = t1[1];
+  x += aux;
+  aux = t2[0]; 
+  x += aux; 
+  aux = t2[1];
+  x += aux;
+  x = x;
+  return x;
+}

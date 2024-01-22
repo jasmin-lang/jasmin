@@ -414,11 +414,23 @@ Definition lower_base_op
       | _ => None end
     else None.
 
+Definition lower_swap ty lvs es : option copn_args := 
+  match ty with
+  | sword sz => 
+    if (sz <= U32)%CMP then 
+      Some (lvs, Oasm (ExtOp (Oarm_swap sz)), es)
+    else None
+  | sarr _ => 
+      Some (lvs, Opseudo_op (Oswap ty), es)
+  | _ => None
+  end.
+
 Definition lower_pseudo_operator
   (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option copn_args :=
   match op with
   | Oaddcarry U32 => lower_add_carry lvs es
   | Omulu U32 => lower_mulu lvs es
+  | Oswap ty => lower_swap ty lvs es
   | _ => None
   end.
 

@@ -16,7 +16,7 @@ module Arm_core = struct
   type nonrec rflag = rflag
   type cond = condt
   type asm_op = Arm_instr_decl.arm_op
-  type extra_op = Arm_extra.__
+  type extra_op = Arm_extra.arm_extra_op
   type lowering_options = Arm_lowering.lowering_options
 
   let atoI = X86_arch_full.atoI arm_decl

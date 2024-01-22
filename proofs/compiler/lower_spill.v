@@ -33,7 +33,7 @@ Context (fresh_var_ident: v_kind -> instr_info -> Ident.name -> stype -> Ident.i
 
 Definition is_spill_op o :=
   match o with
-  | Opseudo_op (Ospill o tys) => Some (o, tys)
+  | Opseudo_op (pseudo_operator.Ospill o tys) => Some (o, tys)
   | _ => None
   end.
 

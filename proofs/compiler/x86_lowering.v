@@ -564,6 +564,13 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
   end
   else [:: Copn xs tg (sopn_mulu sz) es ].
 
+
+Definition lower_swap ty (xs: lvals) tg (es: pexprs) : seq instr_r :=
+  if is_word_type ty is Some sz then
+    if (sz <= U64)%CMP then [:: Copn xs tg (Ox86 (XCHG sz)) es]
+    else [:: Copn xs tg (Opseudo_op (Oswap ty)) es]
+  else [:: Copn xs tg (Opseudo_op (Oswap ty)) es].
+
 Definition lower_pseudo_operator
   (xs : lvals)
   (tg : assgn_tag)
@@ -574,6 +581,7 @@ Definition lower_pseudo_operator
   | Oaddcarry sz => lower_addcarry sz false xs tg es
   | Osubcarry sz => lower_addcarry sz true xs tg es
   | Omulu sz     => lower_mulu sz xs tg es
+  | Oswap ty     => lower_swap ty xs tg es
   | _            => [:: Copn xs tg (Opseudo_op op) es]
   end.
 
