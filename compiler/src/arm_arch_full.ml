@@ -26,7 +26,7 @@ module Arm_core = struct
   let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
 
   let alloc_stack_need_extra sz =
-    not (Arm_params_common.ARMFopn.is_arith_small (Conv.cz_of_z sz))
+    not (Arm_params_core.is_arith_small (Conv.cz_of_z sz))
 
 end
 

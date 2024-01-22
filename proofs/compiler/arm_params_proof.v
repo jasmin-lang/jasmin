@@ -66,28 +66,61 @@ Lemma arm_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs arm_saparams x tag vpk e ofs = Some ins
   -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
-  -> psem.sem_i (pT := progStack) P' w s1 ins s2.
+  -> exists2 vm2, psem.sem_i (pT := progStack) P' w s1 ins (with_vm s2 vm2) & evm s2 =1 vm2.
 Proof.
   rewrite /sap_mov_ofs /= /arm_mov_ofs => P'_globs.
   t_xrbindP => z ok_z ok_i.
   case: (mk_mov vpk).
-  + move => /Some_inj <-{ins} hx; constructor.
-    rewrite /sem_sopn /= P'_globs /exec_sopn.
+  + move => /Some_inj <-{ins} hx /=; exists (evm s2) => //.
+    constructor.
+    rewrite /sem_sopn /= P'_globs /exec_sopn with_vm_same.
     case: eqP hx.
     - by move => -> {ofs}; rewrite wrepr0 GRing.addr0 ok_z /= ok_i /= => ->.
     by move => _ hx; rewrite /= /sem_sop2 ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
   case: x => //.
-  + move=> x_; move: (Lvar x_) => x.
-    case: ifP; case: eqP => [-> | _ ] _ // /Some_inj <-{ins} hx; constructor.
-    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
-      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
-    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /=.
-      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
-    by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+  + move=> x_; set x := Lvar x_.
+    case: ifP.
+    + case: eqP => [-> | _ ] _ // /Some_inj <-{ins} hx; exists (evm s2) => //.
+      constructor.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u with_vm_same.
+      by move: hx; rewrite /= wrepr0 GRing.addr0 => ->.
+    case: eqP => [-> | _] _ .
+    + move=> [<-] hx; exists (evm s2) => //.
+      constructor.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= with_vm_same.
+      by move: hx; rewrite /= wrepr0 GRing.addr0 => ->.
+    case: ifP => _.
+    + move=> [<-] /= hx; exists (evm s2) => //.
+      constructor.
+      by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx with_vm_same.
+    case: e ok_z => // y_.
+    case: and4P => // -[] /=; rewrite /x => {x}.
+    case: x_ => -[] xty x_ xi /=.
+    case: y_ => y_ -[] //= /eqP hxy _ /eqP ? /eqP hyty.
+    rewrite /get_gvar /= => hget -[<-] hw.
+    have [? _ hcomp]:= get_varP hget; subst z.
+    move /to_wordI' : ok_i => [sz' [w' [hle heq ?]]]; subst i.
+    move: hcomp; rewrite heq hyty /= => /compat_valE -[_ [<-] hsub].
+    have ? : sz' = U32; last subst sz' xty.
+    + case: sw_allowed hsub => // hle'.
+      by apply: cmp_le_antisym hle.
+    set x := {| v_var := _ |}.
+    exists ((evm s1).[ x <- Vword (w' + wrepr _ ofs)].[y_ <- Vword w']).
+    constructor.
+    + rewrite /sem_sopn /= P'_globs /exec_sopn /get_gvar hget heq/= !truncate_word_u /=.
+      rewrite write_var_eq_type /= -?hyty // /with_vm.
+      by move/write_varP : hw => [-> _ _].
+    move=> z; rewrite !Vm.setP hyty /=.
+    case: eqP => hyz.
+    + by subst z; rewrite (write_getP_neq _ hw) //; apply/eqP.
+    case: eqP => hxz.
+    + by subst z; have /write_getP_eq [_ _ ->] /= := hw; rewrite zero_extend_u.
+    by rewrite (write_getP_neq _ hw) //; apply/eqP.
   move=> ws_ x_ e_; move: (Lmem ws_ x_ e_) => {ws_ x_ e_} x.
-  case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; constructor.
+  case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; exists (evm s2) => //.
+  constructor.
   rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
-  by move: hx; rewrite wrepr0 GRing.addr0 => ->.
+  by move: hx; rewrite wrepr0 GRing.addr0 with_vm_same => ->.
 Qed.
 
 Lemma arm_immediateP w s (x: var_i) z :
@@ -99,20 +132,20 @@ Proof.
   by rewrite /sem_sopn /= /exec_sopn /= truncate_word_u.
 Qed.
 
-Lemma arm_swapP rip s tag (x y z w : var_i) (pz pw: pointer): 
-  vtype x = spointer -> vtype y = spointer -> 
-  vtype z = spointer -> vtype w = spointer -> 
+Lemma arm_swapP rip s tag (x y z w : var_i) (pz pw: pointer):
+  vtype x = spointer -> vtype y = spointer ->
+  vtype z = spointer -> vtype w = spointer ->
   (evm s).[z] = Vword pz ->
-  (evm s).[w] = Vword pw -> 
+  (evm s).[w] = Vword pw ->
   psem.sem_i (pT := progStack) P' rip s (arm_swap tag x y z w)
        (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz]).
 Proof.
   move=> hxty hyty hzty hwty hz hw.
-  constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=. 
+  constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
-  rewrite hxty hyty //=. 
+  rewrite hxty hyty //=.
 Qed.
- 
+
 End STACK_ALLOC.
 
 Definition arm_hsaparams {dc : DirectCall} :
@@ -135,7 +168,7 @@ Proof.
   rewrite /arm_allocate_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
   + have [? [-> ? hget']] := [elaborate
-      ARMFopnP.smart_subi_tmp_lsem dummy_var_info sz h1 h2 hget
+      ARMFopnP.smart_subi_tmp_sem_fopn_args dummy_var_info sz h1 h2 hget
     ].
     move: hget' => /get_varP [-> _ _].
     by eexists.
@@ -152,7 +185,7 @@ Proof.
   rewrite /arm_free_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
   + have [? [-> ? hget']] := [elaborate
-      ARMFopnP.smart_addi_tmp_lsem dummy_var_info sz h1 h2 hget
+      ARMFopnP.smart_addi_tmp_sem_fopn_args dummy_var_info sz h1 h2 hget
     ].
     move: hget' => /get_varP [-> _ _].
     by eexists.
@@ -248,7 +281,7 @@ Proof.
       set ls2 := lnext_pc (lset_vm _ _).
       rewrite (ARMFopnP.mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp2).
       rewrite /lnext_pc /setpc /= !size_cat /= !size_map /addn /addn_rec.
-      repeat f_equal.
+      repeat f_equal; move: (size _) (size _).
       lia.
 
   - move=> x.
@@ -726,6 +759,15 @@ Qed.
 (* TODO_ARM: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
+Lemma sem_sopns_fopns_args s lc :
+  sem_sopns s [seq (None, o, d, e) | '(d, o, e) <- lc] =
+  sem_fopns_args s (map ARMFopn.to_opn lc).
+Proof.
+  elim: lc s => //= -[[xs o] es ] lc ih s.
+  rewrite /sem_fopn_args /sem_sopn_t /=; case: sem_rexprs => //= >.
+  by rewrite /exec_sopn /= /Oarm; case : app_sopn => //= >; case write_lexprs.
+Qed.
+
 Lemma arm_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops' :
   sem_rexprs m args = ok xs
   -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
@@ -737,29 +779,59 @@ Lemma arm_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops' :
        foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s ops' = ok s' &
        lom_eqv rip m' s'.
 Proof.
-  case: op => /= w; case: eqP => // -> {w}.
-  case: lvs => // -[] // x [] // -[] // y [] //.
-  case: args => // -[] // [] // z [] // [] // [] // w [] //=. 
-  t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /sopn_sem /= /swap_semi.
-  t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
-  t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx 
-    /and4P [/eqP hxt /eqP hyt /eqP hzt /eqP hwt] <-.
-  move=> hmap hlom.
-  have h := (assemble_opsP arm_eval_assemble_cond hmap erefl _ hlom).
-  set m1 := (with_vm m (((evm m).[x <- Vword (wxor wz ww)]).[y <- Vword (wxor (wxor wz ww) ww)])
-                                .[x <- Vword (wxor (wxor wz ww) (wxor (wxor wz ww) ww))]).
-  case: (h m1) => {h}.
-  + rewrite /= hz /= hw /= /exec_sopn /= hvz hvw /=.
-    rewrite set_var_truncate //= !get_var_eq //= hxt /=.
-    rewrite get_var_neq // hw /= truncate_word_u /= hvw /=.
-    rewrite set_var_truncate //= !get_var_eq //= hyt /=.
-    rewrite get_var_neq // get_var_eq //= hxt /= !truncate_word_u /=. 
-    rewrite set_var_truncate //= !with_vm_idem. 
-  move=> s' hfold hlom'; exists s' => //; apply: lom_eqv_ext hlom'.
-  move=> i /=; rewrite !Vm.setP; case: eqP => [<- | ?].
-  + by move/eqP/negbTE: hyx => -> /=; rewrite hxt /= wxorA wxor_xx wxor0.
-  by case: eqP => // _; rewrite -wxorA wxor_xx wxorC wxor0.
+  case: op => /=.
+  + move=> w; case: eqP => // -> {w}.
+    case: lvs => // -[] // x [] // -[] // y [] //.
+    case: args => // -[] // [] // z [] // [] // [] // w [] //=.
+    t_xrbindP => vz hz _ vw hw <- <-.
+    rewrite /exec_sopn /= /sopn_sem /= /swap_semi.
+    t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
+    t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
+      /and4P [/eqP hxt /eqP hyt /eqP hzt /eqP hwt] <-.
+    move=> hmap hlom.
+    have h := (assemble_opsP arm_eval_assemble_cond hmap erefl _ hlom).
+    set m1 := (with_vm m (((evm m).[x <- Vword (wxor wz ww)]).[y <- Vword (wxor (wxor wz ww) ww)])
+                                  .[x <- Vword (wxor (wxor wz ww) (wxor (wxor wz ww) ww))]).
+    case: (h m1) => {h}.
+    + rewrite /= hz /= hw /= /exec_sopn /= hvz hvw /=.
+      rewrite set_var_truncate //= !get_var_eq //= hxt /=.
+      rewrite get_var_neq // hw /= truncate_word_u /= hvw /=.
+      rewrite set_var_truncate //= !get_var_eq //= hyt /=.
+      rewrite get_var_neq // get_var_eq //= hxt /= !truncate_word_u /=.
+      rewrite set_var_truncate //= !with_vm_idem.
+    move=> s' hfold hlom'; exists s' => //; apply: lom_eqv_ext hlom'.
+    move=> i /=; rewrite !Vm.setP; case: eqP => [<- | ?].
+    + by move/eqP/negbTE: hyx => -> /=; rewrite hxt /= wxorA wxor_xx wxor0.
+    by case: eqP => // _; rewrite -wxorA wxor_xx wxorC wxor0.
+  case: lvs => // -[] // [[xt xn] xi] [] // [] // [[yt yn] yi] [] //.
+  set y := {|v_info := yi|}.
+  case: args => // -[] // [] // y' [] // [] // [] // [] // w [] // imm [] //=.
+  t_xrbindP => vy hvy <-.
+  rewrite /exec_sopn /= /sopn_sem /=; t_xrbindP => /= -[ n1 n2] w1 hw1 w2 hw2 [??] <- /=; subst n1 n2.
+  t_xrbindP => _ vm1 hsetx <- /= _ vm2 hsety <- <- /andP[] /eqP hne /eqP heq.
+  move=> /andP []/eqP ? /andP [] /eqP ? _ <- hmap hlom; subst xt yt.
+  rewrite -heq in hvy.
+  move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
+  move/get_varP: (hvy) => [_ _ /compat_valE] /= [_ [] <- hle2].
+  have ? := cmp_le_antisym hle1 hle2; subst ws => {hle1 hle2}.
+  have := ARMFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) _ hvy.
+  move=> /(_ _ (imm mod wbase U32)%Z) [].
+  + by apply Z.mod_pos_bound.
+  move=> vm []; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
+  have [] := (assemble_opsP arm_eval_assemble_cond hmap _ hsem hlom).
+  + by rewrite all_map; apply/allT => -[[]].
+  move=> s' -> hlo; exists s' => //.
+  apply: lom_eqv_ext hlo => z /=.
+  move/get_varP: hvy => -[hvmy _ _].
+  move: hsety hsetx; rewrite !set_var_eq_type // => -[<-] [<-].
+  rewrite !Vm.setP; case: eqP => heqy.
+  + subst z; rewrite /= heqex /arm_reg_size; last by SvD.fsetdec.
+    by rewrite -hvmy zero_extend_u.
+  case: eqP => heqx.
+  + rewrite -heqx -hvmx wrepr_mod zero_extend_u /=.
+    move: hw2 => /truncate_wordP [? ].
+    by rewrite zero_extend_wrepr // => ->.
+  by apply heqex; rewrite /arm_reg_size; SvD.fsetdec.
 Qed.
 
 Definition arm_hagparams : h_asm_gen_params (ap_agp arm_params) :=

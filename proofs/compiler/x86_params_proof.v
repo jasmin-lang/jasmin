@@ -68,7 +68,7 @@ Proof.
   by rewrite /exec_sopn truncate_word_u /= truncate_word_u /= hx.
 Qed.
 
-Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
+Lemma x86_mov_ofsP_aux s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
@@ -76,12 +76,25 @@ Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
   -> psem.sem_i (pT := progStack) P' w s1 ins s2.
 Proof.
   move=> P'_globs he.
-  rewrite /x86_saparams /= /x86_mov_ofs.
+  rewrite /x86_saparams /= /x86_mov_ofs => -[<-] /=.
   case: (mk_mov vpk).
-  - move=> [<-]. exact: lea_ptrP.
-  case: eqP => [-> | _] [<-].
-  + by rewrite wrepr0 GRing.addr0 -P'_globs; apply mov_wsP; rewrite // P'_globs.
+  - exact: lea_ptrP.
+  case: eqP => [-> | _].
+  + rewrite wrepr0 GRing.addr0 -P'_globs.
+    by apply :(mov_wsP (sCP := sCP_stack)); rewrite // P'_globs.
   exact: lea_ptrP.
+Qed.
+
+Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
+  p_globs P' = [::]
+  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
+  -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
+  -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+  -> exists2 vm2, psem.sem_i (pT := progStack) P' w s1 ins (with_vm s2 vm2) & evm s2 =1 vm2.
+Proof.
+  move=> heq he hmov hw; exists (evm s2) => //.
+  rewrite with_vm_same.
+  apply: x86_mov_ofsP_aux heq he hmov hw.
 Qed.
 
 Lemma x86_immediateP w s (x: var_i) z :
@@ -95,20 +108,20 @@ Proof.
   by rewrite /= truncate_word_u.
 Qed.
 
-Lemma x86_swapP rip s tag (x y z w : var_i) (pz pw: pointer): 
-  vtype x = spointer -> vtype y = spointer -> 
-  vtype z = spointer -> vtype w = spointer -> 
+Lemma x86_swapP rip s tag (x y z w : var_i) (pz pw: pointer):
+  vtype x = spointer -> vtype y = spointer ->
+  vtype z = spointer -> vtype w = spointer ->
   (evm s).[z] = Vword pz ->
-  (evm s).[w] = Vword pw -> 
+  (evm s).[w] = Vword pw ->
   psem.sem_i (pT := progStack) P' rip s (x86_swap tag x y z w)
        (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz]).
 Proof.
   move=> hxty hyty hzty hwty hz hw.
-  constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=. 
+  constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
   rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
-  rewrite hxty hyty //=. 
+  rewrite hxty hyty //=.
 Qed.
-   
+
 End STACK_ALLOC.
 
 Definition x86_hsaparams {dc : DirectCall} : h_stack_alloc_params (ap_sap x86_params) :=

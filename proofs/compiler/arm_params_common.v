@@ -26,6 +26,8 @@ Module ARMOpn (Args : OpnArgs).
 
   Import Args.
 
+  Module Core := ARMOpn_core(Args).
+
   #[local]
   Open Scope Z.
 
@@ -42,14 +44,17 @@ Module ARMOpn (Args : OpnArgs).
   Let op_bin_reg mn x y z := op_gen mn x [:: rvar y; rvar z ].
   Let op_bin_imm mn x y imm := op_gen mn x [:: rvar y; rconst reg_size imm ].
 
-  Definition mov := op_un_reg MOV.
-  Definition add := op_bin_reg ADD.
-  Definition sub := op_bin_reg SUB.
+  Definition to_opn '(d, o, e) : opn_args := (d, Oarm o, e).
 
-  Definition movi := op_un_imm MOV.
-  Definition movt x imm := op_gen MOVT x [:: rvar x; rconst U16 imm ].
-  Definition addi := op_bin_imm ADD.
-  Definition subi := op_bin_imm SUB.
+  Definition mov x y   := to_opn (Core.mov x y).
+  Definition add x y z := to_opn (Core.add x y z).
+  Definition sub x y z := to_opn (Core.sub x y z).
+
+  Definition movi x   imm := to_opn (Core.movi x imm).
+  Definition movt x   imm := to_opn (Core.movt x imm).
+  Definition addi x y imm := to_opn (Core.addi x y imm).
+  Definition subi x y imm := to_opn (Core.subi x y imm).
+
   Definition bici := op_bin_imm BIC.
 
   Definition str x y off :=
@@ -58,60 +63,27 @@ Module ARMOpn (Args : OpnArgs).
 
   Definition align x y al := bici x y (wsize_size al - 1).
 
-  (* Load an immediate to a register.
-     Precondition: [0 <= imm < wbase reg_size]. *)
-  Definition li x imm :=
-    if is_expandable_or_shift imm || is_w16_encoding imm
-    then [:: movi x imm ]
-    else
-      let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
-      [:: movi x lbs; movt x hbs ].
+  (* Load an immediate to a register. *)
+  Definition li x imm := map to_opn (Core.li x imm).
 
-  Definition smart_mov x y :=
-    if v_var x == v_var y then [::] else [:: mov x y ].
+  Definition smart_mov x y := map to_opn (Core.smart_mov x y).
 
-  (* Return a command that performs an operation with an immediate argument,
-     loading it into a register if needed.
-     In symbols
-         R[x] := R[y] <+> imm
-     Precondition: if [imm] is not small, [tmp] can't be an argument, since it
-     will be overwritten. *)
-  Let gen_smart_opi
-    (on_reg : var_i -> var_i -> var_i -> opn_args)
-    (on_imm : var_i -> var_i -> Z -> opn_args)
-    (is_small : Z -> bool)
-    (neutral : option Z)
-    (tmp x y : var_i)
-    (imm : Z) :
-    seq opn_args :=
-    let is_mov := if neutral is Some n then (imm =? n)%Z else false in
-    if is_mov
-    then smart_mov x y
-    else
-      if is_small imm
-      then [:: on_imm x y imm ]
-      else rcons (li tmp imm) (on_reg x y tmp).
+  (* Compute [R[x] := R[y] + imm % 2^32
+     Precondition: if [imm] is large, [x <> y]. *)
+  Definition smart_addi x y imm := map to_opn (Core.smart_addi x y imm).
 
-  Definition is_arith_small imm := is_expandable_or_shift imm || is_w12_encoding imm.
+  (* Compute [R[x] := R[y] - imm % 2^32
+     Precondition: if [imm] is large, [x <> y]. *)
+  Definition smart_subi x y imm := map to_opn (Core.smart_subi x y imm).
 
-  (* Precondition: if [imm] is large, [x <> y]. *)
-  Definition smart_addi x y :=
-    gen_smart_opi add addi is_arith_small (Some 0%Z) x x y.
-
-  (* Precondition: if [imm] is large, [x <> y]. *)
-  Definition smart_subi x y :=
-    gen_smart_opi sub subi is_arith_small (Some 0%Z) x x y.
-
-  (* Compute [R[x] := R[x] <+> imm % 2^32].
+  (* Compute [R[x] := R[x] + imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Let gen_smart_opi_tmp on_reg on_imm is_small neutral x tmp imm :=
-    gen_smart_opi on_reg on_imm is_small neutral tmp x x (imm mod (wbase U32)).
+  Definition smart_addi_tmp x tmp imm := map to_opn (Core.smart_addi_tmp x tmp imm).
 
-  Definition smart_addi_tmp :=
-    gen_smart_opi_tmp add addi is_arith_small (Some 0%Z).
+  (* Compute [R[x] := R[x] - imm % 2^32].
+     Precondition: if [imm] is large, [x <> tmp]. *)
+  Definition smart_subi_tmp x tmp imm := map to_opn (Core.smart_subi_tmp x tmp imm).
 
-  Definition smart_subi_tmp :=
-    gen_smart_opi_tmp sub subi is_arith_small (Some 0%Z).
 
   End WITH_PARAMS.
 
