@@ -463,7 +463,7 @@ Record stack_alloc_params :=
       -> vptr_kind    (* The kind of address to compute. *)
       -> pexpr        (* Variable with base address. *)
       -> Z            (* Offset. *)
-      -> option instr_r;
+      -> option (seq instr_r);
     (* Build an instruction that assigns an immediate value *)
     sap_immediate : var_i -> Z -> instr_r;
     (* Build an instruction that swap two registers *)
@@ -719,7 +719,7 @@ Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
 (* TODO: better error message *)
 Definition get_addr is_spilling rmap x dx tag sry vpk y ofs :=
   let ir := if is_nop is_spilling rmap x sry
-            then Some nop
+            then Some [::nop]
             else sap_mov_ofs saparams dx tag vpk y ofs in
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
@@ -816,7 +816,7 @@ Definition alloc_array_move rmap r tag e :=
                       pp_s "cannot be turned into a nop: source and destination regions are not equal"]))
         in
         let rmap := Region.set_move rmap x sry in
-        ok (rmap, nop)
+        ok (rmap, [::nop])
       | Pregptr p =>
         let (rmap, oir) :=
             get_addr None rmap x (Lvar (with_var x p)) tag sry vpk ey ofs in
@@ -846,7 +846,7 @@ Definition alloc_array_move rmap r tag e :=
     | None   => Error (stk_ierror_basic x "register array remains")
     | Some _ => 
       Let rmap := Region.set_arr_sub rmap x ofs len sry in
-      ok (rmap, nop)
+      ok (rmap, [::nop])
     end
   end.
 
@@ -935,7 +935,7 @@ Definition alloc_array_move_init rmap r tag e :=
       end in
     let sr := sub_region_at_ofs sr (Some ofs) len in
     let rmap := Region.set_move_sub rmap x sr in
-    ok (rmap, nop)
+    ok (rmap, [:: nop] )
   else alloc_array_move rmap r tag e.
 
 Definition bad_lval_number := stk_ierror_no_var "invalid number of lval".
@@ -1210,7 +1210,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
     | Cassgn r t ty e => 
       if is_sarr ty then 
         Let ri := add_iinfo ii (alloc_array_move_init rmap r t e) in
-        ok (ri.1, [:: MkI ii ri.2]) 
+        ok (ri.1, map (MkI ii) ri.2) 
       else
         Let e := add_iinfo ii (alloc_e rmap e) in
         Let r := add_iinfo ii (alloc_lval rmap r ty) in

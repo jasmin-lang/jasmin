@@ -54,7 +54,7 @@ Definition x86_mov_ofs x tag vpk y ofs :=
       then mov_ws Uptr x y tag
       else lea_ptr x y tag ofs
   in
-  Some addr.
+  Some [:: addr].
 
 Definition x86_immediate x z :=
   mov_ws Uptr (Lvar x) (cast_const z) AT_none.

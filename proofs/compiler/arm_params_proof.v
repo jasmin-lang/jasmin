@@ -60,33 +60,72 @@ Section STACK_ALLOC.
 
 Context {dc : DirectCall} (P': sprog).
 
-Lemma arm_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
+Lemma arm_mov_ofsP ii s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs arm_saparams x tag vpk e ofs = Some ins
   -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
-  -> psem.sem_i (pT := progStack) P' w s1 ins s2.
+  -> exists2 vm2, psem.sem (pT := progStack) P' w s1 (map (MkI ii) ins) (with_vm s2 vm2) & evm s2 =1 vm2.
 Proof.
   rewrite /sap_mov_ofs /= /arm_mov_ofs => P'_globs.
   t_xrbindP => z ok_z ok_i.
   case: (mk_mov vpk).
-  + move => /Some_inj <-{ins} hx; constructor.
-    rewrite /sem_sopn /= P'_globs /exec_sopn.
+  + move => /Some_inj <-{ins} hx /=; exists (evm s2) => //.
+    econstructor; do 2!constructor.
+    rewrite /sem_sopn /= P'_globs /exec_sopn with_vm_same.
     case: eqP hx.
     - by move => -> {ofs}; rewrite wrepr0 GRing.addr0 ok_z /= ok_i /= => ->.
     by move => _ hx; rewrite /= /sem_sop2 ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
   case: x => //.
-  + move=> x_; move: (Lvar x_) => x.
-    case: ifP; case: eqP => [-> | _ ] _ // /Some_inj <-{ins} hx; constructor.
-    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
-      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
-    + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /=.
-      by move: hx; rewrite wrepr0 GRing.addr0 => ->.
-    by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
+  + move=> x_; set x := Lvar x_.
+    case: ifP.
+    + case: eqP => [-> | _ ] _ // /Some_inj <-{ins} hx; exists (evm s2) => //.
+      econstructor; do 2!constructor.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u with_vm_same.
+      by move: hx; rewrite /= wrepr0 GRing.addr0 => ->.
+    case: eqP => [-> | _] _ .
+    + move=> [<-] hx; exists (evm s2) => //.
+      econstructor; do 2!constructor.
+      rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= with_vm_same.
+      by move: hx; rewrite /= wrepr0 GRing.addr0 => ->.
+    case: ifP => _.
+    + move=> [<-] /= hx; exists (evm s2) => //.
+      econstructor; do 2!constructor.
+      by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx with_vm_same.
+    case: e ok_z => // y_.
+    case: and4P => // -[] /= {x}.
+    case: x_ => -[] xty x_ xi /=.
+    case: y_ => y_ -[] //= /eqP hxy _ /eqP ? /eqP hyty.
+    rewrite /get_gvar /= => hget -[<-] hw.
+    have [? _ hcomp]:= get_varP hget; subst z.
+    move /to_wordI' : ok_i => [sz' [w' [hle heq ?]]].
+    move: hcomp; rewrite heq hyty /= => /compat_valE -[_ [<-] hsub].
+    have ? : sz' = U32; last subst sz' xty.
+    + case: sw_allowed hsub => // hle'.
+      by apply: cmp_le_antisym hle.
+    rewrite heq in hget.
+    have := ARMFopnP.smart_addi_sem_fopn_args xi _ _ hget.    
+    move=> /(_ arm_linux_call_conv x_ (ofs mod wbase U32)%Z) [].
+    + by right. + by apply Z_mod_lt.
+    move=> vm2 [hsem heqvm hgetx].
+    exists vm2.
+    + assert (h := sem_fopns_sopn P' w ii tag hsem).
+      have -> // : with_vm s2 vm2 = with_vm s1 vm2.
+      case: (s1) hw => scs1 mem1 vm1 hw /=.
+      have /= -> := write_var_scsP hw.
+      by have /= -> := write_var_memP hw.
+    move=> z. 
+    case: ({| vtype := sword arm_reg_size; vname := x_ |} =P z) => heqz.
+    + subst z; move: hgetx hw => /get_varP [<-] _ _ /write_getP_eq [_ _ ->].
+      by subst i; rewrite vm_truncate_val_eq // wrepr_mod zero_extend_u.
+    rewrite heqvm; last by SvD.fsetdec.
+    by rewrite (write_getP_neq _ hw) //; apply /eqP.
+
   move=> ws_ x_ e_; move: (Lmem ws_ x_ e_) => {ws_ x_ e_} x.
-  case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; constructor.
+  case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; exists (evm s2) => //.
+  econstructor; do 2!constructor.
   rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
-  by move: hx; rewrite wrepr0 GRing.addr0 => ->.
+  by move: hx; rewrite wrepr0 GRing.addr0 with_vm_same => ->.
 Qed.
 
 Lemma arm_immediateP w s (x: var_i) z :

@@ -91,7 +91,9 @@
   fixes [#607](https://github.com/jasmin-lang/jasmin/issues/607)).
 
 - Fix code generation for ARMv7 when stack frames are large
-  ([PR 677](https://github.com/jasmin-lang/jasmin/pull/677)).
+  ([PR 677](https://github.com/jasmin-lang/jasmin/pull/677))
+  ([PR 697](https://github.com/jasmin-lang/jasmin/pull/697));
+  fixes [#696](https://github.com/jasmin-lang/jasmin/issues/696).
 
 ## Other changes
 

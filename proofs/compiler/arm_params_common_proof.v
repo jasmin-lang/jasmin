@@ -533,6 +533,45 @@ Proof.
   by rewrite -hfn -hpc of_estate_to_estate size_map.
 Qed.
 
+Lemma smart_addi_sem_fopn_args xname vi y imm s (w : wreg) :
+  let: (xi, x) := mkv xname vi in
+  let: lc := ARMFopn.smart_addi xi y imm in
+  ARMFopn.is_arith_small imm \/ x <> v_var y
+  -> (0 <= imm < wbase reg_size)%Z
+  -> get_var true (evm s) (v_var y) = ok (Vword w)
+  -> exists vm',
+       [/\ sem_fopns_args s lc = ok (with_vm s vm')
+         , vm' =[\ Sv.singleton x ] evm s
+         & get_var true vm' x = ok (Vword (w + wrepr reg_size imm)%R)
+       ].
+Proof.
+  rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
+  move=> hcond himm hgety.
+  rewrite /ARMFopn.smart_addi.
+  case: ZeqbP => [? | _].
+  - subst imm.
+    have [vm [-> hvm hgetx]] := smart_mov_sem_fopns_args xname vi hgety.
+    eexists; split; first reflexivity; first done.
+    by rewrite hgetx wrepr0 GRing.addr0.
+
+  case: ifP hcond => [_ _ | _ [_|hxy]] //=.
+  - rewrite (addi_sem_fopn_args hgety) /=.
+    eexists; split; first reflexivity; last by t_get_var.
+    move=> ? /Sv.singleton_spec ?.
+    by t_vm_get.
+
+  have [vm [hsem hvm hgetx]] := li_lsem_1 s xname vi himm.
+  rewrite /sem_fopns_args -cats1 foldM_cat -!/sem_fopns_args hsem /=.
+  rewrite -(get_var_eq_ex _ _ hvm) in hgety; last SvD.fsetdec.
+  rewrite
+    (add_sem_fopn_args (s := with_vm s vm) (z := xi) hgety hgetx) /with_vm /=.
+  eexists; split; first reflexivity; last by t_get_var.
+  move=> ? /Sv.singleton_spec ?.
+  t_vm_get.
+  rewrite hvm; first done.
+  by apply/Sv.singleton_spec.
+Qed.
+
 Lemma smart_subi_tmp_lsem s (tmp : var_i) xname vi imm w :
   let: (xi, x) := mkv xname vi in
   let: lcmd := ARMFopn.smart_subi_tmp xi tmp imm in

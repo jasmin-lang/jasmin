@@ -67,20 +67,37 @@ Proof.
   by rewrite /exec_sopn truncate_word_u /= truncate_word_u /= hx.
 Qed.
 
-Lemma x86_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
+Lemma x86_mov_ofsP_aux ii s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
   -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
-  -> psem.sem_i (pT := progStack) P' w s1 ins s2.
+  -> psem.sem (pT := progStack) P' w s1 (map (MkI ii) ins) s2.
 Proof.
   move=> P'_globs he.
-  rewrite /x86_saparams /= /x86_mov_ofs.
+  rewrite /x86_saparams /= /x86_mov_ofs => -[<-] /=.
   case: (mk_mov vpk).
-  - move=> [<-]. exact: lea_ptrP.
-  case: eqP => [-> | _] [<-].
-  + by rewrite wrepr0 GRing.addr0 -P'_globs; apply mov_wsP; rewrite // P'_globs.
-  exact: lea_ptrP.
+  - move=> h. 
+    econstructor; last by constructor.
+    by constructor; apply: lea_ptrP h.
+  case: eqP => [-> | _].
+  + rewrite wrepr0 GRing.addr0 -P'_globs => h.
+    econstructor; last by constructor.
+    by constructor;  apply :(mov_wsP (sCP := sCP_stack)) h; rewrite // P'_globs.
+  move=> h; econstructor; last by constructor.
+  constructor; exact: lea_ptrP h.
+Qed.
+
+Lemma x86_mov_ofsP ii s1 e i x tag ofs w vpk s2 ins :
+  p_globs P' = [::]
+  -> (Let i' := sem_pexpr true [::] s1 e in to_pointer i') = ok i
+  -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
+  -> write_lval true [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+  -> exists2 vm2, psem.sem (pT := progStack) P' w s1 (map (MkI ii) ins) (with_vm s2 vm2) & evm s2 =1 vm2.
+Proof.
+  move=> heq he hmov hw; exists (evm s2) => //.
+  rewrite with_vm_same.
+  apply: x86_mov_ofsP_aux heq he hmov hw.
 Qed.
 
 Lemma x86_immediateP w s (x: var_i) z :

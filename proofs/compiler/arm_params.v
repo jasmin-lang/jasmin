@@ -42,19 +42,27 @@ Definition is_load e :=
 
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
-  option instr_r :=
+  option (seq instr_r) :=
   let mk oa :=
     let: (op, args) := oa in
-     Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args) in
+     Some ([:: Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args]) in
   match mk_mov vpk with
   | MK_LEA => mk (ADR, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
   | MK_MOV =>
     match x with
-    | Lvar _ =>
+    | Lvar x_ =>
       if is_load y then
         if ofs == Z0 then mk (LDR, [:: y]) else None
       else
-        if ofs == Z0 then mk (MOV, [:: y]) else mk (ADD, [::y; eword_of_int reg_size ofs ])
+        if ofs == Z0 then mk (MOV, [:: y]) 
+        else 
+          if ARMCopn.is_arith_small ofs then mk (ADD, [::y; eword_of_int reg_size ofs ])
+          else
+            if y is Pvar y_ then 
+              if [&& v_var x_ != v_var y_.(gv), is_lvar y_, vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then  
+                  Some (map (ir_of_fopn_args tag) (ARMFopn.smart_addi x_ y_.(gv) (ofs mod wbase U32)))
+              else None
+            else None 
     | Lmem _ _ _ =>
       if ofs == Z0 then mk (STR, [:: y]) else None
     | _ => None
