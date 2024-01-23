@@ -185,15 +185,12 @@ Definition Z_mod_lnot (z : Z) (ws : wsize) : Z :=
 Definition mov_imm_mnemonic (e : pexpr) : option (arm_mnemonic * pexpr) :=
   if is_const e is Some z
   then
-    if is_expandable z
-    then Some (MOV, e)
+    if is_expandable_or_shift z || is_w16_encoding z then
+      Some (MOV, e)
     else
-      if is_w16_encoding z
-      then Some (MOV, e)
-      else
-        let nz := Z_mod_lnot z reg_size in
-        let%opt _ := oassert (is_expandable nz) in
-        Some (MVN, Pconst nz)
+      let nz := Z_mod_lnot z reg_size in
+      let%opt _ := oassert (is_expandable_or_shift nz) in
+      Some (MVN, Pconst nz)
   else Some (MOV, e).
 
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=

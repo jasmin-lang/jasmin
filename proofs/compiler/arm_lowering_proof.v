@@ -587,9 +587,10 @@ Lemma mov_imm_mnemonicP e mn e' :
 Proof.
   rewrite /mov_imm_mnemonic.
   case: is_constP => [] ?.
-  all: repeat case: ifP => _.
-  3: move=> /oassertP [_ ].
-  all: move=> [<- <-]; econstructor; by econstructor.
+  + case: ifP => _.
+    + by move=> [<- <-]; auto.
+    by move=> /oassertP [_ [<- <-]]; right; econstructor; eauto.
+  by move=> [<- <-]; auto.
 Qed.
 
 Lemma lower_Papp1P op e:
