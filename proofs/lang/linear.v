@@ -85,3 +85,12 @@ Definition li_of_fopn_args
   (p : fopn_args) :
   linstr :=
   MkLI ii (Lopn p.1.1 p.1.2 p.2).
+
+Definition ir_of_fopn_args 
+  {asm_op : Type}
+  {asmop : asmOp asm_op}
+  (tag : assgn_tag)
+  (p : fopn_args) :
+  instr_r := 
+  Copn (lval_of_lexprs p.1.1) tag p.1.2 (pexpr_of_rexprs p.2).
+

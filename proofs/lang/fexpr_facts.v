@@ -46,23 +46,33 @@ Context
   (wdb : bool)
   (gd : glob_decls).
 
+Lemma pexpr_of_fexprK : pcancel pexpr_of_fexpr fexpr_of_pexpr.
+Proof.
+  elim => //=.
+  + by move=> > ->.
+  + by move=> > -> > ->.
+  by move=> > -> > -> > ->.
+Qed.
+
+Lemma fexpr_of_pexprE s e f :
+  fexpr_of_pexpr e = Some f →
+  sem_pexpr true gd s e = sem_fexpr (evm s) f.
+Proof.
+  elim: e f => //=.
+  - by move => > /Some_inj <-. 
+  - by case => x [] // > /Some_inj <-.
+  - by move => op e ih ? /obindI[] f [] /ih -> /Some_inj <-.
+  - by move => op e1 ih1 e2 ih2 f /obindI[] f1 [] /ih1 -> /obindI[] f2 [] /ih2 -> /Some_inj <-.
+  case => // e1 ih1 e2 ih2 e3 ih3 f /obindI[] f1 [] /ih1 -> /obindI[] f2 [] /ih2 -> /obindI[] f3 [] /ih3-> /Some_inj <- /=.
+  rewrite /truncate_val /=.
+  by do 3! (case: sem_fexpr => //= >); do 3! (case: to_bool => //= >); case: ifP.
+Qed.
+
 Lemma fexpr_of_pexprP s e f v :
   fexpr_of_pexpr e = Some f →
   sem_pexpr true gd s e = ok v →
   sem_fexpr (evm s) f = ok v.
-Proof.
-  elim: e f v => //=.
-  - by move => > /Some_inj <- /ok_inj <-.
-  - by case => x [] // > /Some_inj <-.
-  - move => op e ih ? v /obindI[] f [] /ih{}ih /Some_inj <- /=.
-    by t_xrbindP => > /ih ->.
-  - move => op e1 ih1 e2 ih2 f v /obindI[] f1 [] /ih1{}ih1 /obindI[] f2 [] /ih2{}ih2 /Some_inj <- /=.
-    by t_xrbindP => > /ih1 -> > /ih2 ->.
-  case => // e1 ih1 e2 ih2 e3 ih3 f v /obindI[] f1 [] /ih1{}ih1 /obindI[] f2 [] /ih2{}ih2 /obindI[] f3 [] /ih3{}ih3 /Some_inj <- /=.
-  rewrite /truncate_val /=.
-  t_xrbindP => b > /ih1 -> /= -> > /ih2 -> /= > -> <- > /ih3 -> /= > -> <- <- /=.
-  by case: b.
-Qed.
+Proof. by move=> /fexpr_of_pexprE ->. Qed.
 
 Lemma rexpr_of_pexpr_ind (P: option rexpr → Prop) e :
   (∀ ws p f, e = Pload ws p f → P (omap (Load ws p) (fexpr_of_pexpr f))) →
@@ -74,27 +84,75 @@ Proof.
   all: exact: B.
 Qed.
 
+Lemma pexpr_of_rexprK : pcancel pexpr_of_rexpr rexpr_of_pexpr.
+Proof.
+  case => //=.
+  + by move=> >; rewrite pexpr_of_fexprK.
+  by case => //= >; rewrite !pexpr_of_fexprK.
+Qed.
+
+Lemma pexpr_of_rexprsK : pcancel pexpr_of_rexprs (oseq.omap rexpr_of_pexpr).
+Proof. by elim => //= r rs ->; rewrite pexpr_of_rexprK. Qed.
+
+Lemma rexpr_of_pexprE s e r :
+  rexpr_of_pexpr e = Some r →
+  sem_pexpr true gd s e = sem_rexpr (emem s) (evm s) r.
+Proof.
+  elim/rexpr_of_pexpr_ind: (rexpr_of_pexpr e).
+  - by move => ws p f -> {e} /obindI[] a [] /fexpr_of_pexprE h /Some_inj <- /=; rewrite h.
+  by move => _ /obindI[] f [] /fexpr_of_pexprE h /Some_inj <-.
+Qed.
+
+Lemma rexpr_of_pexprsE s e r :
+  oseq.omap rexpr_of_pexpr e = Some r →
+  sem_pexprs true gd s e = sem_rexprs s r.
+Proof.
+  elim: e r s => /= [ r s [<-] //| e es hrec] r s.
+  case heq: rexpr_of_pexpr => //.
+  case heq': [oseq rexpr_of_pexpr i | i <- es] => // -[<-] /=.
+  by rewrite (rexpr_of_pexprE _ heq) (hrec _ _ heq').  
+Qed.
+
 Lemma rexpr_of_pexprP s e r v :
   rexpr_of_pexpr e = Some r →
   sem_pexpr true gd s e = ok v →
   sem_rexpr (emem s) (evm s) r = ok v.
+Proof. by move=> /rexpr_of_pexprE ->. Qed.
+
+Lemma lval_of_lexprK : pcancel lval_of_lexpr lexpr_of_lval.
+Proof. by move=> x; case: x => > //=; rewrite pexpr_of_fexprK. Qed.
+
+Lemma lval_of_lexprsK : pcancel lval_of_lexprs (oseq.omap lexpr_of_lval).
+Proof. by elim => //= l ls ->; rewrite lval_of_lexprK. Qed.
+
+Lemma lexpr_of_lvalE x d s v :
+  lexpr_of_lval x = Some d →
+  write_lval true gd x v s = write_lexpr d v s.
 Proof.
-  elim/rexpr_of_pexpr_ind: (rexpr_of_pexpr e).
-  - move => ws p f -> {e} /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <-{r} /=.
-    by t_xrbindP => > -> /= -> > /ok_a -> /= -> /= > -> <-.
-  by move => _ /obindI[] f [] /fexpr_of_pexprP ok_f /Some_inj <-{r} /ok_f.
+  case: x => //.
+  - by move => x /Some_inj <-.
+  by move => ws x e /obindI[] a [] /fexpr_of_pexprE h /Some_inj <- /=; rewrite h.
+Qed.
+
+Lemma lexpr_of_lvalsE x d s v : 
+  oseq.omap lexpr_of_lval x = Some d →
+  write_lvals true gd s x v = write_lexprs d v s.
+Proof.
+  elim: x d s v => /= [ | x xs hrec] d s.
+  + by move=> v [<-]; case: v.
+  move=> v'.
+  case heq: lexpr_of_lval => //.
+  case heq': [oseq lexpr_of_lval i | i <- xs] => // -[<-] /=.
+  case: v' => // v vs.
+  rewrite (lexpr_of_lvalE _ _ heq) /=. 
+  by case: write_lexpr => //= >; apply: hrec.
 Qed.
 
 Lemma lexpr_of_lvalP x d s v s' :
   lexpr_of_lval x = Some d →
   write_lval true gd x v s = ok s' →
   write_lexpr d v s = ok s'.
-Proof.
-  case: x => //.
-  - by move => x /Some_inj <-.
-  move => ws x e /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <- {d} /=.
-  by t_xrbindP => > -> /= -> > /ok_a -> /= -> /= > -> /= > -> <-.
-Qed.
+Proof. by move=> /lexpr_of_lvalE ->. Qed.
 
 Lemma free_vars_recP vm2 vm1 s f :
   vm1 =[free_vars_rec s f] vm2 ->

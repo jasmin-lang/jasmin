@@ -62,6 +62,31 @@ Definition lexpr_of_lval (e: lval) : option lexpr :=
   | _ => None
   end.
 
+Fixpoint pexpr_of_fexpr (e: fexpr) : pexpr :=
+  match e with
+  | Fconst z => Pconst z
+  | Fvar x => Pvar (Plvar x)
+  | Fapp1 op a => Papp1 op (pexpr_of_fexpr a)
+  | Fapp2 op a b => Papp2 op (pexpr_of_fexpr a) (pexpr_of_fexpr b)
+  | Fif a b c => Pif sbool (pexpr_of_fexpr a) (pexpr_of_fexpr b) (pexpr_of_fexpr c)
+  end.
+
+Definition pexpr_of_rexpr (e: rexpr) := 
+  match e with
+  | Load ws p e => Pload ws p (pexpr_of_fexpr e)
+  | Rexpr e => pexpr_of_fexpr e
+  end.
+
+Definition pexpr_of_rexprs := map pexpr_of_rexpr.
+
+Definition lval_of_lexpr (e:lexpr) := 
+  match e with
+  | LLvar x => Lvar x
+  | Store ws p e => Lmem ws p (pexpr_of_fexpr e)
+  end.
+
+Definition lval_of_lexprs := map lval_of_lexpr.
+
 (* -------------------------------------------------------------------------- *)
 Fixpoint free_vars_rec (s: Sv.t) (e: fexpr) : Sv.t :=
   match e with

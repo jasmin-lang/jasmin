@@ -4,6 +4,7 @@ From mathcomp Require Import
   all_algebra.
 
 Require Import
+  fexpr
   fexpr_facts
   label
   linear
@@ -282,4 +283,25 @@ Proof.
   by have := hrec _ _ hsem hlin; rewrite size_rcons; apply.
 Qed.
 
+Lemma sem_fopn_sopn gd a s :   
+  sem_fopn_args a s = sem_sopn gd a.1.2 s (lval_of_lexprs a.1.1) (pexpr_of_rexprs a.2).
+Proof.
+  case: a => -[ls o] rs /=; rewrite /sem_sopn.
+  have /rexpr_of_pexprsE -> := pexpr_of_rexprsK rs.
+  case: fexpr_sem.sem_rexprs => //= >.
+  case: exec_sopn => //= >.
+  by have /lexpr_of_lvalsE -> := lval_of_lexprsK ls.
+Qed.
+
+Lemma sem_fopns_sopn {dc : DirectCall} (P: sprog) w ii tag ins s1 s2 :
+  sem_fopns_args s1 ins = ok s2 ->
+  psem.sem P w s1 [seq MkI ii i | i <- [seq ir_of_fopn_args tag i | i <- ins]] s2.
+Proof.
+  elim: ins s1 => /= [ | ins inss hrec] s1.
+  + by move=> [<-]; constructor.
+  t_xrbindP => s1'; rewrite (sem_fopn_sopn (p_globs P)) => ho /hrec ?.
+  econstructor; eauto.
+  by do 2!constructor.
+Qed.
+  
 End WITH_PARAMS.
