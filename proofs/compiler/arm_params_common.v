@@ -61,7 +61,7 @@ Module ARMOpn (Args : OpnArgs).
   (* Load an immediate to a register.
      Precondition: [0 <= imm < wbase reg_size]. *)
   Definition li x imm :=
-    if is_expandable imm || is_w16_encoding imm
+    if is_expandable_or_shift imm || is_w16_encoding imm
     then [:: movi x imm ]
     else
       let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
@@ -92,7 +92,7 @@ Module ARMOpn (Args : OpnArgs).
       then [:: on_imm x y imm ]
       else rcons (li tmp imm) (on_reg x y tmp).
 
-  Definition is_arith_small imm := is_expandable imm || is_w12_encoding imm.
+  Definition is_arith_small imm := is_expandable_or_shift imm || is_w12_encoding imm.
 
   (* Precondition: if [imm] is large, [x <> y]. *)
   Definition smart_addi x y :=

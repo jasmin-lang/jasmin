@@ -111,7 +111,7 @@ Proof. move=> ?. by t_arm_op. Qed.
 
 Lemma movi_sem_fopn_args {s imm xname vi} :
   let: (xi, x) := mkv xname vi in
-  (is_expandable imm \/ is_w16_encoding imm)
+  (is_expandable_or_shift imm \/ is_w16_encoding imm)
   -> let: vm' := (evm s).[x <- Vword (wrepr U32 imm)] in
      sem_fopn_args (ARMFopn.movi xi imm) s = ok (with_vm s vm').
 Proof. by t_arm_op. Qed.
@@ -208,7 +208,7 @@ Qed.
 
 Lemma movi_eval_instr {lp ls ii imm xname vi} :
   let: (xi, x) := mkv xname vi in
-  (is_expandable imm \/ is_w16_encoding imm) ->
+  (is_expandable_or_shift imm \/ is_w16_encoding imm) ->
   let: li := li_of_fopn_args ii (ARMFopn.movi xi imm) in
   let: vm' := (lvm ls).[x <- Vword (wrepr U32 imm)] in
   eval_instr lp li ls = ok (next_vm_ls ls vm').
