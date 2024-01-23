@@ -893,8 +893,12 @@ Lemma compiler_back_endP
             lsem_exportcall tp scs lm fn vm scs' lm' vm',
             match_mem m' lm',
             (cparams.(stack_zero_info) fn <> None ->
-              forall p, ~ validw m p U8 ->
-                read lm' p U8 = read lm p U8 \/ read lm' p U8 = ok 0%R) &
+              (forall p, ~ validw m p U8 ->
+                read lm' p U8 = read lm p U8 \/ read lm' p U8 = ok 0%R)
+              /\
+              (forall p,
+                (wunsigned (stack_limit m) <= wunsigned p < wunsigned (stack_root m))%Z ->
+                read lm' p U8 = read lm p U8 \/ read lm' p U8 = ok 0%R)) &
             List.Forall2 value_uincl res (map (λ x : var_i, vm'.[x]) fd.(lfd_res))
           ]
       ].
@@ -993,8 +997,18 @@ Proof.
     + by move=> <-.
     move=> hmm.
     split.
-    + move=> pr w ok_w.
-      have := M'.(read_incl) ok_w.
+    + move=> /= pr hb hval.
+      have := M'.(read_incl_mem) hb hval.
+      rewrite hmm.(read_untouched) //.
+      apply not_between_U8_disjoint_zrange => //.
+      move=> /(zbetween_trans bottom_instack).
+      rewrite -/(between _ _ _ _) -pointer_range_between => /pointer_rangeP.
+      have ss := sem_call_stack_stable_sprog exec_p.
+      rewrite ss.(ss_limit) (ss_top_stack ss).
+      have := [elaborate top_stack_below_root _ m']; rewrite -/(top_stack _) /=.
+      by Lia.lia.
+    + move=> pr w hb ok_w.
+      have := M'.(read_incl_stk) hb ok_w.
       rewrite hmm.(read_untouched) //.
       apply not_between_U8_disjoint_zrange => //.
       move=> /(zbetween_trans bottom_instack).
@@ -1008,43 +1022,61 @@ Proof.
     by apply M'.(valid_stk).
   - move: hmm.
     case hszs: stack_zero_info => [[szs ows]|] //= hmm _.
-    move=> pr hnvalid.
+    split.
+    + move=> pr hnvalid.
+      case hb: (between bottom (lfd_stk_max lfd) pr U8).
+      + by right; rewrite (hmm.(read_zero) hb).
+      left.
+      rewrite -hmm.(read_untouched); last first.
+      + apply not_between_U8_disjoint_zrange => //.
+        by apply /negP /negPf.
+      rewrite (U' _ hnvalid) //.
+      have! := (linearization_proof.checked_prog ok_lp get_fd).
+      rewrite /check_fd /=; t_xrbindP=> _ _ ok_stk_sz _ _ _.
+      case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
+      rewrite /align_top_stack align_top_aligned; cycle 1.
+      + by Lia.lia.
+      + have := frame_size_bound stk_sz_pos stk_extra_sz_pos.
+        have! := (wunsigned_range (top_stack m)).
+        have /= := wsize_size_pos (sf_align (f_extra fd)).
+        by Lia.lia.
+      + move: ok_zfd; rewrite /stack_zeroization_lfd hszs Export /=.
+        case: ZltP => [_|hle0].
+        + rewrite /stack_zeroization_lfd_body; t_xrbindP=> halign _ _ _ _ _.
+          move: Export halign.
+          have := [elaborate (get_fundef_p' ok_lp get_fd)].
+          rewrite get_lfd => -[->] /=.
+          by rewrite /frame_size => ->.
+        move=> _.
+        have -> //: (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) = 0)%Z.
+        move: Export stk_frame_le_max hle0.
+        have := [elaborate (get_fundef_p' ok_lp get_fd)].
+        rewrite get_lfd => -[->] /=.
+        rewrite /frame_size => ->.
+        by Lia.lia.
+      rewrite pointer_range_between.
+      move/negP: hb H6'''; rewrite /bottom.
+      have := [elaborate (get_fundef_p' ok_lp get_fd)].
+      rewrite get_lfd => -[->] /= hb H6'''.
+      rewrite wunsigned_sub //.
+      by rewrite Z.sub_add_distr Z.sub_diag Z.sub_0_l Z.opp_involutive.
+    move=> pr hstk.
     case hb: (between bottom (lfd_stk_max lfd) pr U8).
     + by right; rewrite (hmm.(read_zero) hb).
     left.
     rewrite -hmm.(read_untouched); last first.
     + apply not_between_U8_disjoint_zrange => //.
       by apply /negP /negPf.
-    rewrite (U' _ hnvalid) //.
-    have! := (linearization_proof.checked_prog ok_lp get_fd).
-    rewrite /check_fd /=; t_xrbindP=> _ _ ok_stk_sz _ _ _.
-    case/and4P: ok_stk_sz => /ZleP stk_sz_pos /ZleP stk_extra_sz_pos _ /ZleP stk_frame_le_max.
-    rewrite /align_top_stack align_top_aligned; cycle 1.
-    + by Lia.lia.
-    + have := frame_size_bound stk_sz_pos stk_extra_sz_pos.
-      have! := (wunsigned_range (top_stack m)).
-      have /= := wsize_size_pos (sf_align (f_extra fd)).
-      by Lia.lia.
-    + move: ok_zfd; rewrite /stack_zeroization_lfd hszs Export /=.
-      case: ZltP => [_|hle0].
-      + rewrite /stack_zeroization_lfd_body; t_xrbindP=> halign _ _ _ _ _.
-        move: Export halign.
-        have := [elaborate (get_fundef_p' ok_lp get_fd)].
-        rewrite get_lfd => -[->] /=.
-        by rewrite /frame_size => ->.
-      move=> _.
-      have -> //: (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd) = 0)%Z.
-      move: Export stk_frame_le_max hle0.
-      have := [elaborate (get_fundef_p' ok_lp get_fd)].
-      rewrite get_lfd => -[->] /=.
-      rewrite /frame_size => ->.
-      by Lia.lia.
-    rewrite pointer_range_between.
-    move/negP: hb H6'''; rewrite /bottom.
-    have := [elaborate (get_fundef_p' ok_lp get_fd)].
-    rewrite get_lfd => -[->] /= hb H6'''.
-    rewrite wunsigned_sub //.
-    by rewrite Z.sub_add_distr Z.sub_diag Z.sub_0_l Z.opp_involutive.
+    rewrite -U' //.
+    + apply /negP. apply stack_region_is_free. rewrite -/(top_stack _).
+      move: hb; rewrite /bottom.
+      rewrite /between /zbetween.
+      rewrite wunsigned_sub. 2:done. move=> /negP. rewrite !zify wsize8.
+      have /= := [elaborate (align_word_range (lfd_align lfd) (top_stack m))].
+      simpl in *. split. Lia.lia.
+      have := align_word_range
+      split. simpl in *. Lia.lia.
+    tm
   - have <- //: [seq vm'.[x.(v_var)] | x <- lfd_res lfd]
                 = [seq zvm'.[x.(v_var)] | x <- lfd_res lfd].
     apply map_ext.
@@ -1349,6 +1381,35 @@ Proof.
   by split.
 Qed.
 
+Lemma read_error m p ws e :
+  validw m p ws ->
+  read m p ws = Error e ->
+  e = ErrAddrInvalid.
+Proof.
+Local Opaque wsize_size.
+  rewrite /validw /read.
+  move=> /andP [-> _] /=.
+  apply ziota_ind => //= i l _ ih.
+  case h1: get => [w|e'] /=.
+  + by move: ih; case: mapM.
+  move=> [<-].
+  exact: (Memory.get_error h1).
+Local Transparent wsize_size.
+Qed.
+
+Lemma test m1 m2 :
+  (forall p, validw m1 p U8 -> read m1 p U8 = read m2 p U8) ->
+  forall p w, read m1 p U8 = ok w -> read m2 p U8 = ok w.
+Proof. by move=> h p w /dup[] /(@readV _ _ _ _ _) /h <-. Qed.
+
+Lemma test' m1 m2 :
+  (forall p w, read m1 p U8 = ok w -> read m2 p U8 = ok w) ->
+  (forall p, validw m1 p U8 -> read m1 p U8 = read m2 p U8).
+Proof.
+  (* semble faux en toute généralité *)
+  (* si une valeur est initialisée dans m2 mais pas dans m1 *)
+Abort.
+
 Lemma compile_prog_to_asmP
   entries
   (p : prog)
@@ -1361,7 +1422,8 @@ Lemma compile_prog_to_asmP
   compile_prog_to_asm aparams cparams entries p = ok xp
   -> fn \in entries
   -> psem.sem_call (dc:= indirect_c) (wsw:=nosubword) p tt scs m fn va scs' m' vr
-  -> mem_agreement m (asm_mem xm) (asm_rip xm) (asm_globs xp)
+  -> forall mi,
+     mem_agreement_with_ghost m (asm_mem xm) (asm_rip xm) (asm_globs xp) mi
   -> enough_stack_space xp fn (top_stack m) (asm_mem xm)
   -> exists xd : asm_fundef,
       [/\
@@ -1370,20 +1432,21 @@ Lemma compile_prog_to_asmP
         &   asm_scs xm = scs
             -> asm_reg xm ad_rsp = top_stack m
 (*             -> List.Forall2 value_uincl va (get_typed_reg_values xm (asm_fd_arg xd)) *)
-            -> wf_args_asm (asm_globs xp) (asm_rip xm) m (asm_mem xm) p xp fn va (get_typed_reg_values xm (asm_fd_arg xd))
+            -> wf_args_asm (asm_globs xp) (asm_rip xm) m mi p xp fn va (get_typed_reg_values xm (asm_fd_arg xd))
             -> disjoint_values'' p fn va (get_typed_reg_values xm (asm_fd_arg xd))
             -> exists xm',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp), asm_scs xm' = scs'
                   , (cparams.(stack_zero_info) fn <> None ->
-                      forall p, ~ validw m p U8 ->
-                        read xm'.(asm_mem) p U8 = read xm.(asm_mem) p U8
-                        \/ read xm'.(asm_mem) p U8 = ok 0%R)
+                      forall pr, ~ validw m pr U8 ->
+                        disjoint_from_writable_params' p fn pr va (get_typed_reg_values xm (asm_fd_arg xd)) ->
+                        read xm'.(asm_mem) pr U8 = read xm.(asm_mem) pr U8
+                        \/ read xm'.(asm_mem) pr U8 = ok 0%R)
                   & List.Forall2 value_uincl vr (get_typed_reg_values xm' (asm_fd_res xd))
                 ]
       ].
 Proof.
-  rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
+  rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn p_call mi.
   have -> := compiler_back_end_to_asm_meta ok_xp.
   case=> /= mi1 mi2 mi3 mi4.
   rewrite (ss_top_stack mi3).
@@ -1392,37 +1455,23 @@ Proof.
     compiler_back_end_to_asm_get_fundef ok_xp ok_fn.
   exists xd; split=> //.
   move=> ok_scs ok_rsp va_wf va_disjoint.
-  have h: wf_args' (sp_globs (p_extra sp)) (asm_rip xm) m (asm_mem xm) p sp fn va (get_typed_reg_values xm (asm_fd_arg xd)).
+  have h: wf_args' (sp_globs (p_extra sp)) (asm_rip xm) m mi p sp fn va (get_typed_reg_values xm (asm_fd_arg xd)).
   + move=> fd get_fd. rewrite get_sfd. move=> _ [<-].
     move: va_wf; rewrite /wf_args_asm.
     move=> /(_ fd get_fd xd get_xd).
     by rewrite align_args_eq.
-  have mi1': [elaborate extend_mem m (asm_mem xm) (asm_rip xm) (sp_globs (p_extra sp))].
-  + case: mi1 => h1 h2 h3 h4 h5 h6. split=> //.
-    + move=> pr hvalid. Search extend_mem match_mem.
-      (* the two definitions are probably equivalent; TODO *) admit.
-    + move=> pr hvalid. apply mi2.(valid_incl). by apply h5.
-    move=> i hi.
-    by rewrite (mi2.(read_incl) (h6 i hi)).
-  have mi4': [elaborate alloc_ok sp fn (asm_mem xm)].
-  + move=> fd get_fd. split.
-    + rewrite /allocatable_stack.
-      move: henough. rewrite /enough_stack_space. move=> /(_ _ get_xd).
-      admit.
-    admit.
-  have := compiler_front_endP ok_sp ok_fn p_call mi1' h va_disjoint mi4'.
-  case => vr' [] mi' [] vr_vr' sp_call m1.
+  have := compiler_front_endP ok_sp ok_fn p_call mi1 h va_disjoint
+    (enough_stack_space_alloc_ok ok_xp ok_fn mi4 henough).
+  case => vr' [] mi' [] vr_vr' sp_call m1 U.
   have := compiler_back_end_to_asmP ok_xp ok_fn sp_call.
-  case => xd' [] ok_xd export /(_ _ _ erefl _ mi2) xp_call.
-  exists xd; split => //.
-  move=> ok_scs ok_rsp va_args'.
+  rewrite get_xd.
+  case => _ [] [<-] _ /(_ _ _ erefl _ mi2) xp_call.
   have hallocatable: allocatable_stack mi (asm_fd_total_stack xd).
   + rewrite /allocatable_stack.
-    by have /= := henough _ ok_xd; Lia.lia.
-  have := xp_call ok_scs ok_rsp va_args' hallocatable.
+    by have /= := henough _ get_xd; Lia.lia.
+  have := xp_call ok_scs ok_rsp (List_Forall2_refl _ value_uincl_refl) hallocatable.
   case => xm' [] {} xp_call m2 ok_scs' hzero vr'_res'.
-  exists xm'; split => //;
-    last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
+  exists xm'; split => //.
   + case: xp_call => _ _ _ /= _ /asmsem_invariantP /= xm_xm' _.
     exists mi'; split.
     - rewrite -(asmsem_invariant_rip xm_xm').
@@ -1436,24 +1485,75 @@ Proof.
       -(ss_limit (sem_call_stack_stable_sprog sp_call))
       -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
     exact: mi4.
-  move=> hszs pr hnvalid.
-  have := mi1.(eme_valid) pr.
-  case: (@idP (between _ _ _ _)) => [hb|_].
-  + move=> _; left.
-    have [i [hi ->]]:
-      exists i,
-        (0 <= i < (Z.of_nat (size (sp_globs (p_extra sp)))))%Z
-        /\ (pr = asm_rip xm + wrepr _ i)%R.
-    + exists (wunsigned pr - wunsigned (asm_rip xm))%Z; split; last first.
-      + rewrite wrepr_sub !wrepr_unsigned.
-        by rewrite GRing.addrC GRing.subrK.
-      move: hb; rewrite /between /zbetween wsize8 !zify /=.
-      by Lia.lia.
-    have /mi2.(read_incl) -> := mi1.(eme_read_new) hi.
-    by have /m2.(read_incl) -> := m1.(eme_read_new) hi.
-  rewrite orbF => hvalideq.
-  apply (hzero hszs pr).
-  by rewrite -hvalideq.
+  + move=> hszs pr hnvalid hdisj.
+    change reg_size with Uptr in pr.
+    case: (@idP (validw mi pr U8)).
+    + move=> hvalid.
+      have := U _ hvalid hnvalid hdisj.
+      case:
+        (boolP
+          ((wunsigned (stack_limit mi) <=? wunsigned pr)
+          && (wunsigned pr <? wunsigned (stack_root mi)))%Z);
+        rewrite !zify => hb.
+      + have := m2.(read_incl_stk).
+        have [<- <- _] := sem_call_stack_stable_sprog sp_call.
+        move=> /(_ _ _ hb).
+        read (asm_mem xm') pr U8 = read (asm_mem xm) pr U8 \/
+          read () pr U8 = match_mem memory
+      have := mi2.(read_incl_mem) hb hvalid.
+      have := m2.(read_incl_mem).
+      have [<- <- _] := sem_call_stack_stable_sprog sp_call.
+      move=> /(_ _ hb).
+      have <- := sem_call_validw_stable_sprog sp_call.
+      move=> /(_ hvalid).
+      move=> -> -> ?.
+      by left.
+    move=> hnvalid'.
+    by apply hzero.
+      hzero
+        rewrite mi3.( hb hvalid.
+        admit.
+      hzero
+        
+      have: disjoint_from_writable_params' p fn pr va (get_typed_reg_values xm (asm_fd_arg xd))
+       \/ ~ disjoint_from_writable_params' p fn pr va (get_typed_reg_values xm (asm_fd_arg xd)).
+      + admit.
+      move=> [hdisj|hndisj].
+      + have := U _ hvalid hnvalid hdisj.
+        case hread: (read mi pr U8) => [w|e].
+        + move=> /esym hread'.
+          rewrite (mi2.(read_incl) hread).
+          rewrite (m2.(read_incl) hread').
+          by left.
+        admit. (* ? *)
+      va
+        match_mem
+        match_mem
+      Search read validw. Search get. Print Instances coreMem. Search Memory.CM read inside low_memory. memory_model.addE
+      read ErrOob
+      rewrite {1}/read /=. rewrite is_align8 /=. rewrite /get /=.
+      read
+    have := mi2.(read_incl). -> := mi1.(em_read_new) hi.
+      by have /m2.(read_incl) -> := m1.(em_read_new) hi.
+    case h: (validw mi pr U8).
+    have := mi1.(em_valid). move=> /(_ pr).
+    case: (@idP (between _ _ _ _)) => [hb|_].
+    + move=> _; left.
+      have [i [hi ->]]:
+        exists i,
+          (0 <= i < (Z.of_nat (size (sp_globs (p_extra sp)))))%Z
+          /\ (pr = asm_rip xm + wrepr _ i)%R.
+      + exists (wunsigned pr - wunsigned (asm_rip xm))%Z; split; last first.
+        + rewrite wrepr_sub !wrepr_unsigned.
+          by rewrite GRing.addrC GRing.subrK.
+        move: hb; rewrite /between /zbetween wsize8 !zify /=.
+        by Lia.lia.
+      have /mi2.(read_incl) -> := mi1.(em_read_new) hi.
+      by have /m2.(read_incl) -> := m1.(em_read_new) hi.
+    rewrite orbF => hvalideq.
+    apply (hzero hszs pr).
+    admit.
+  
 Qed.
 
 End PROOF.

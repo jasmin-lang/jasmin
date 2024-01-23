@@ -1134,7 +1134,12 @@ Section PROOF.
    *)
   Record match_mem (m m': mem) : Prop :=
     MM {
-       read_incl  : ∀ p w, read m p U8 = ok w → read m' p U8 = ok w
+       read_incl_mem : ∀ p,
+         ~ (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z ->
+         validw m p U8 -> read m p U8 = read m' p U8
+     ; read_incl_stk : ∀ p w,
+         (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z ->
+         read m p U8 = ok w -> read m' p U8 = ok w
      ; valid_incl : ∀ p, validw m p U8 → validw m' p U8
      ; valid_stk  : ∀ p,
          (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z
@@ -1145,63 +1150,83 @@ Section PROOF.
     match_mem m1 m1' →
     match_mem (free_stack m1) m1'.
   Proof.
-  case => Hrm Hvm Hsm; split.
-  (* read *)
-  + move=> p1 w1 Hr.
-    apply: Hrm. rewrite -Hr. apply: fss_read_old; [ exact: free_stackP | exact: readV Hr ].
-  (* valid *)
-  + move=> p1 Hv.
+    case => Hrm Hrstk Hvm Hsm; split.
+    (* read mem *)
+    + move=> p1 hb Hv.
+      rewrite -(free_stackP _).(fss_read_old8) //.
+      apply Hrm.
+      + by move: hb; rewrite (free_stackP _).(fss_limit) (free_stackP _).(fss_root).
+      by move: Hv; rewrite (free_stackP _).(fss_valid) => /andP [+ _].
+    (* read stk *)
+    + move=> p1 w1 hb Hr.
+      apply: Hrstk.
+      + by move: hb; rewrite (free_stackP _).(fss_limit) (free_stackP _).(fss_root).
+      rewrite -Hr. apply: fss_read_old; [ exact: free_stackP | exact: readV Hr ].
+    (* valid *)
+    + move=> p1 Hv.
+      assert (Hs := free_stackP). move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
+      have Heq := (fss_valid Hm1). have Heq' := (fss_valid Hm1').
+      apply Hvm. rewrite Heq in Hv. move: Hv. move=>/andP [] Hv1 Hv2.
+      apply Hv1.
+    (* stack *)
     assert (Hs := free_stackP). move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
-    have Heq := (fss_valid Hm1). have Heq' := (fss_valid Hm1').
-    apply Hvm. rewrite Heq in Hv. move: Hv. move=>/andP [] Hv1 Hv2.
-    apply Hv1.
-  (* stack *)
-  assert (Hs := free_stackP). move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
-  have Heq := (fss_valid Hm1).
-  move=> p1 Hs'. apply Hsm. have <- := fss_root Hm1. by have <- := fss_limit Hm1.
+    have Heq := (fss_valid Hm1).
+    move=> p1 Hs'. apply Hsm. have <- := fss_root Hm1. by have <- := fss_limit Hm1.
   Qed.
 
   Lemma mm_read_ok : ∀ m m' a s v,
-  match_mem m m' →
-  read m a s = ok v →
-  read m' a s = ok v.
+    match_mem m m' →
+    read m a s = ok v →
+    read m' a s = ok v.
   Proof.
-  move=> m m' p'' s v [] Hrm Hvm Hsm Hr.
-  have := read_read8 Hr. move=> [] Ha Hi.
-  have : validw m' p'' s. apply /validwP.
-  split=>//. move=> i Hi'. apply Hvm. move: (Hi i Hi')=> Hr'.
-  by have Hv := readV Hr'. move=> Hv. rewrite -Hr.
-  apply eq_read. move=> i Hi'. move: (Hi i Hi')=> Hr'.
-  move: (Hrm (add p'' i) (LE.wread8 v i) Hr'). move=> Hr''.
-  by rewrite Hr' Hr''.
+    move=> m m' p'' s v [] Hrm Hrstk Hvm Hsm Hr.
+    have [Ha Hread] := read_read8 Hr.
+    rewrite -Hr; apply eq_read => i Hi.
+    have {}Hread := Hread i Hi.
+    case:
+      (boolP
+        ((wunsigned (stack_limit m) <=? wunsigned (add p'' i))
+        && (wunsigned (add p'' i) <? wunsigned (stack_root m)))%Z);
+      rewrite !zify => hb.
+    + by rewrite Hread; apply Hrstk.
+    by symmetry; apply (Hrm _ hb (readV Hread)).
   Qed.
 
   Lemma mm_write : ∀ m1 m1' p s (w:word s) m2,
-  match_mem m1 m1' →
-  write m1 p w = ok m2 →
-  exists2 m2', write m1' p w = ok m2' & match_mem m2 m2'.
+    match_mem m1 m1' →
+    write m1 p w = ok m2 →
+    exists2 m2', write m1' p w = ok m2' & match_mem m2 m2'.
   Proof.
-  move=> m1 m1' p'' sz w m2 Hm Hw.
-  case: Hm=> H1 H2 H3. have /validwP := (write_validw Hw).
-  move=> [] Ha Hi.
-  have /writeV : validw m1' p'' sz. apply /validwP. split=> //. move=> i Hi'.
-  move: (Hi i Hi')=> Hv. by move: (H2 (add p'' i) Hv). move=> Hw'.
-  move: (Hw' w). move=> [] m2' Hw''. exists m2'.
-  + by apply Hw''.
-  constructor.
-  (* read *)
-  + move=> p1 w1 Hr2. have hr1:= write_read8 Hw p1.
-    have hr2 := write_read8 Hw'' p1. move: Hr2. rewrite hr2 hr1 /=.
-    case: ifP=> // _. by apply H1.
-  (* valid *)
-  + move=> p1 Hv. have Hv1 := (CoreMem.write_validw_eq Hw).
-    have Hv2 := (CoreMem.write_validw_eq Hw''). rewrite Hv2.
-    apply H2. by rewrite -Hv1.
-  (* stack *)
-  move=> p1 H. have Hv1 := (CoreMem.write_validw_eq Hw).
-  have Hv2 := (CoreMem.write_validw_eq Hw''). rewrite Hv2.
-  apply H3. have Hst := write_mem_stable Hw. case: Hst.
-  by move=> -> -> _.
+    move=> m1 m1' p'' sz w m2 Hm Hw.
+    case: Hm=> Hrm Hrstk Hvm Hsm.
+    have /(writeV w) [m2' Hw']: validw m1' p'' sz.
+    + have /validwP [Ha Hvalid] := (write_validw Hw).
+      by apply /validwP; split=> // i Hi; apply Hvm; apply Hvalid.
+    exists m2' => //.
+    constructor.
+    (* read mem *)
+    + move=> p1 hb Hv.
+      apply: (read_write_any_mem _ Hw Hw').
+      apply Hrm.
+      + by have [-> -> _] := (write_mem_stable Hw).
+      by rewrite -(write_validw_eq Hw).
+    (* read stk *)
+    + move=> p1 w1 hb.
+      have -> := write_read8 Hw p1.
+      have -> /= := write_read8 Hw' p1.
+      case: ifP=> // _.
+      apply Hrstk.
+      by have [-> -> _] := (write_mem_stable Hw).
+    (* valid *)
+    + move=> p1 Hv.
+      rewrite (write_validw_eq Hw').
+      apply Hvm.
+      by rewrite -(write_validw_eq Hw).
+    (* stack *)
+    move=> p1 H.
+    rewrite (write_validw_eq Hw').
+    apply Hsm.
+    by have [-> -> _] := (write_mem_stable Hw).
   Qed.
 
   Lemma mm_alloc m1 m1' al sz ioff es' m2 :
@@ -1209,18 +1234,28 @@ Section PROOF.
     alloc_stack m1 al sz ioff es' = ok m2 →
     match_mem m2 m1'.
   Proof.
-    case => Hvm Hrm Hs /alloc_stackP ass.
-    have ? := ass_add_ioff ass; case: ass => Hvr Hve Hveq Ha Hs' hioff Hs'' Hsr Hsl Hf.
+    case => Hrm Hrstk Hvm Hs /alloc_stackP ass.
+    have heq := ass_add_ioff ass; case: ass => Hvr Hve Hveq Ha Hs' hioff Hs'' Hsr Hsl Hf.
     constructor.
-    (* read *)
-    + move=> p1 w1 /dup[] Hr1.
+    (* read mem *)
+    + move=> p1 hb.
+      rewrite Hveq => /orP [Hv|hb'].
+      + rewrite -(Hvr p1 Hv).
+        apply: Hrm Hv.
+        by rewrite -Hsr -Hsl.
+      exfalso; apply hb; move: hb'; rewrite /between /zbetween !zify wsize8.
+      rewrite heq Hsr Hsl.
+      have := [elaborate top_stack_below_root _ m1]; rewrite -/(top_stack _).
+      by lia.
+    (* read stk *)
+    + move=> p1 w1 hb /dup[] Hr1.
       move: (Hve p1) (Hvr p1).
       have -> := readV Hr1.
       case: validw.
-      * by move => _ <- // /Hvm.
+      * by move => _ <- //; apply Hrstk; rewrite -Hsr -Hsl.
       by move => ->.
     (* valid *)
-    + move => p1; rewrite Hveq => /orP[]; first exact: Hrm.
+    + move => p1; rewrite Hveq => /orP[]; first exact: Hvm.
       move => range; apply: Hs; move: range; rewrite !zify => - [] lo.
       change (wsize_size U8) with 1%Z.
       generalize (top_stack_below_root _ m1); rewrite -/(top_stack m1).
@@ -1235,28 +1270,41 @@ Section PROOF.
     is_align a s →
     exists2 m2', write m1' a w = ok m2' & match_mem m m2'.
   Proof.
-    case => Hrm Hvm Hs Hs' al.
-    have /writeV : validw m1' a s.
+    case => Hrm Hrstk Hvm Hs Hs' al.
+    have /(writeV w) [m' ok_m']: validw m1' a s.
     - apply/validwP; split; first exact: al.
       move => k [] klo khi; apply: Hs.
       have a_range := wunsigned_range a.
       assert (r_range := wunsigned_range (stack_root m)).
       generalize (top_stack_below_root _ m); rewrite -/(top_stack m) => R.
-      rewrite wunsigned_add; lia.
-    move => /(_ w) [] m' ok_m'; exists m'; first exact: ok_m'.
+      by rewrite wunsigned_add; lia.
+    exists m'; first exact: ok_m'.
     split.
-    - move => x y ok_y.
+    (* read mem *)
+    - move => p1 hb Hv.
       rewrite (CoreMem.writeP_neq ok_m'); first exact: Hrm.
       move => i j [] i_low i_hi; change (wsize_size U8) with 1%Z => j_range.
       have ? : j = 0%Z by lia.
       subst j => { j_range }.
-      rewrite add_0 => ?; subst x.
-      apply/negP: (readV ok_y).
+      rewrite add_0 => ?; subst p1.
+      apply hb.
+      have a_range := wunsigned_range a.
+      assert (r_range := wunsigned_range (stack_root m)).
+      generalize (top_stack_below_root _ m); rewrite -/(top_stack m) => R.
+      by rewrite wunsigned_add; lia.
+    (* read stk *)
+    - move => p1 w1 hb Hr.
+      rewrite (CoreMem.writeP_neq ok_m'); first exact: Hrstk.
+      move => i j [] i_low i_hi; change (wsize_size U8) with 1%Z => j_range.
+      have ? : j = 0%Z by lia.
+      subst j => { j_range }.
+      rewrite add_0 => ?; subst p1.
+      apply/negP: (readV Hr).
       apply: stack_region_is_free.
       rewrite -/(top_stack m) wunsigned_add; first lia.
       have := wunsigned_range a.
       generalize (wunsigned_range (top_stack m)).
-      lia.
+      by lia.
     1-2: move => b; rewrite (CoreMem.write_validw_eq ok_m').
     - exact/Hvm.
     exact/Hs.

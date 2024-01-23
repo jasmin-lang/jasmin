@@ -858,6 +858,10 @@ Parameter alloc_stack_complete : forall m ws sz ioff sz',
 Parameter write_mem_stable : forall m m' p s (v:word s),
   write m p v = ok m' -> stack_stable m m'.
 
+(* a bit hacky *)
+Parameter get_error : forall m p e,
+  get m p = Error e -> e = ErrAddrInvalid.
+
 Parameter free_stackP : forall m,
   free_stack_spec m (free_stack m).
 

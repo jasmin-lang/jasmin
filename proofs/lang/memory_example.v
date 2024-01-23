@@ -542,6 +542,13 @@ Module MemoryI : MemoryT.
     write m p v = ok m' -> stack_stable m m'.
   Proof. by move => ok_m'; split => /=; exact: write_mem_invariant ok_m'. Qed.
 
+  Lemma get_error m p e :
+    get m p = Error e -> e = ErrAddrInvalid.
+  Proof.
+    rewrite /get.
+    by case: andb => //= -[].
+  Qed.
+
   (** Allocation *)
   Lemma footprint_of_stack_pos (m: mem) :
     0 <= footprint_of_stack m.(frames).
