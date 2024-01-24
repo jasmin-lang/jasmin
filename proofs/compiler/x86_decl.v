@@ -3,7 +3,7 @@ From mathcomp Require Import word_ssrZ.
 Require oseq.
 Require Import ZArith
 utils
-strings wsize ident
+strings wsize
 memory_model
 (* word *)
 global
@@ -16,11 +16,33 @@ Require Import
   arch_decl
   arch_utils.
 
-Require Export x86_decl_core.
-
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+(* --------------------------------------------- *)
+Definition x86_reg_size  := U64.
+Definition x86_xreg_size := U256.
+
+(* -------------------------------------------------------------------- *)
+Variant register : Type :=
+  | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
+  | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
+
+(* -------------------------------------------------------------------- *)
+Variant register_ext : Type :=
+  | MM0 | MM1 | MM2 | MM3 | MM4 | MM5 | MM6 | MM7.
+
+(* -------------------------------------------------------------------- *)
+Variant xmm_register : Type :=
+  | XMM0 | XMM1 | XMM2 | XMM3
+  | XMM4 | XMM5 | XMM6 | XMM7
+  | XMM8 | XMM9 | XMM10 | XMM11
+  | XMM12 | XMM13 | XMM14 | XMM15.
+
+(* -------------------------------------------------------------------- *)
+Variant rflag : Type :=
+  | CF | PF | ZF | SF | OF.
 
 (* -------------------------------------------------------------------- *)
 Variant condt : Type :=
@@ -363,8 +385,8 @@ Instance x86_fcp : FlagCombinationParams :=
 
 #[global]
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
-  { reg_size := U64
-  ; xreg_size := U256
+  { reg_size := x86_reg_size
+  ; xreg_size := x86_xreg_size
   ; toS_r := x86_reg_toS
   ; toS_rx:= x86_regx_toS
   ; toS_x := x86_xreg_toS

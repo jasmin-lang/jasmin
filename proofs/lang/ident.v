@@ -1,13 +1,11 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import Sint63 strings utils gen_map tagged.
+Require Import Sint63 strings utils gen_map tagged wsize.
 Require Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Require x86_decl_core arm_decl_core.
 
 Module Type CORE_IDENT.
 

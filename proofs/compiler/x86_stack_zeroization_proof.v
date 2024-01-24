@@ -225,7 +225,7 @@ Proof.
     + by rewrite LE.read0.
     apply hzero.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
-    change U64 with Uptr.
+    change x86_reg_size with Uptr.
     rewrite -wrepr_sub -wrepr_opp -!GRing.addrA -!wrepr_add.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
@@ -533,7 +533,7 @@ Proof.
     + by rewrite LE.read0.
     apply hzero.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
-    change U64 with Uptr.
+    change x86_reg_size with Uptr.
     rewrite -wrepr_sub -wrepr_opp -!GRing.addrA -!wrepr_add.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
@@ -898,7 +898,7 @@ Local Opaque wsize_size Z.of_nat.
     + by rewrite LE.read0.
     apply hzero.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
-    change U64 with Uptr.
+    change x86_reg_size with Uptr.
     rewrite -wrepr_opp -!GRing.addrA -!wrepr_add.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
@@ -1151,7 +1151,7 @@ Local Opaque wsize_size Z.of_nat.
     + by rewrite LE.read0.
     apply hzero.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
-    change U64 with Uptr.
+    change x86_reg_size with Uptr.
     rewrite -wrepr_opp -!GRing.addrA -!wrepr_add.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
