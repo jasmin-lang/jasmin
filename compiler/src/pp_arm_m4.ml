@@ -8,7 +8,6 @@ open Arch_decl
 open Utils
 open Prog
 open Var0
-open Arm_decl_core
 open Arm_decl
 open Arm_instr_decl
 

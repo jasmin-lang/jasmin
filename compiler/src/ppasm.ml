@@ -3,7 +3,6 @@ open Utils
 open Prog
 open Arch_decl
 open Label
-open X86_decl_core
 open X86_decl
 (* -------------------------------------------------------------------- *)
 module W = Wsize

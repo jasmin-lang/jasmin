@@ -1,5 +1,4 @@
 open Arch_decl
-open X86_decl_core
 open X86_decl
 
 module type X86_input = sig

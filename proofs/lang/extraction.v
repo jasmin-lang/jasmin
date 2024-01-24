@@ -70,12 +70,10 @@ Separate Extraction
   sem_params_of_arch_extra
   arch_decl
   arch_extra
-  x86_decl_core
   x86_decl
   x86_instr_decl
   x86_extra
   x86_params
-  arm_decl_core
   arm_decl
   arm_instr_decl
   arm_extra

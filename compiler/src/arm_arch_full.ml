@@ -1,6 +1,5 @@
 open Arch_decl
 open Prog
-open Arm_decl_core
 open Arm_decl
 
 
