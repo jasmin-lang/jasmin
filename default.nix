@@ -51,6 +51,14 @@ stdenv.mkDerivation {
          ocaml findlib dune_3
          cmdliner
          batteries
+         ppxlib
+         ppx_import
+         ppx_sexp_conv
+         ppx_yojson_conv
+         ppx_deriving
+         sel
+         lsp
+         sexplib
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
     ++ optionals ecDeps [ easycrypt alt-ergo z3.out ]
