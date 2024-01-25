@@ -12,7 +12,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition eval_cond (get: rflag -> result error bool) (c: condt) :
+Definition arm_eval_cond (get: rflag -> result error bool) (c: condt) :
   result error bool :=
   match c with
   | EQ_ct =>
@@ -62,6 +62,6 @@ Definition eval_cond (get: rflag -> result error bool) (c: condt) :
 #[ export ]
 Instance arm : asm register register_ext xregister rflag condt arm_op :=
   {
-    eval_cond := eval_cond;
+    eval_cond := fun _ => arm_eval_cond;
   }.
 
