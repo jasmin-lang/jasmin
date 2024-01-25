@@ -24,7 +24,8 @@ We additionally maintain two invariants:
 Require memory_model array type.
 
 Import Utf8.
-Import all_ssreflect all_algebra.
+Import all_ssreflect .
+Require Import algebra.
 Import ZArith.
 Import word_ssrZ.
 Import type word utils gen_map.

@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From Coq Require Import Relation_Operators.
 Require Import
   oseq

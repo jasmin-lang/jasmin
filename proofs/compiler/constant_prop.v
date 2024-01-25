@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import word_ssrZ.
 Require Import expr ZArith sem_op_typed compiler_util.
-Import all_ssreflect all_algebra.
+Import all_ssreflect .
+Require Import algebra.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.

@@ -2,7 +2,8 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 Require Import strings ZArith utils.
 Import Utf8.
 Import word_ssrZ.

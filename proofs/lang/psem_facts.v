@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 Require Import psem.
 Import Utf8.
 Import Memory low_memory.

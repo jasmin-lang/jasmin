@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 Require Import FMaps FMapAVL FSetAVL.
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 Require Import utils.
 
 Set Implicit Arguments.

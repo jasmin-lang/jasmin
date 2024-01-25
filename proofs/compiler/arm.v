@@ -1,6 +1,7 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  .
+Require Import algebra.
 
 Require Import utils.
 Require Import arch_decl.

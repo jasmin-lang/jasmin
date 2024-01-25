@@ -2,7 +2,8 @@
 
 (* ** Imports and settings *)
 Require Export ZArith Setoid Morphisms.
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import Psatz xseq.
 Require Export utils array gen_map type word memory_model.

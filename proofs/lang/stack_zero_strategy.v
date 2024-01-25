@@ -12,7 +12,8 @@ circular dependency. *)
 
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  .
+Require Import algebra.
 Require Import utils.
 
 Set Implicit Arguments.

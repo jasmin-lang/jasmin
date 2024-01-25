@@ -1,5 +1,6 @@
 (* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import Utf8.
 Require Import compiler_util.

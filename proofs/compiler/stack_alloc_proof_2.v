@@ -3,7 +3,8 @@
 *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.
@@ -2235,7 +2236,9 @@ Proof.
   rewrite /wbit_n.
   case: ltP.
   + move=> /ltP hlt.
-    by rewrite word.subwordE word.wbit_t2wE (nth_map 0%R) ?size_enum_ord // nth_enum_ord.
+    (* FIXME: ord0 to avoid depending on Zmodp, but 0%R is clearly better *)
+    (* this lemma should not be here anyway *)
+    by rewrite word.subwordE word.wbit_t2wE (nth_map ord0) ?size_enum_ord // nth_enum_ord.
   rewrite /nat_of_wsize => hle.
   rewrite word.wbit_word_ovf //.
   by apply /ltP; lia.

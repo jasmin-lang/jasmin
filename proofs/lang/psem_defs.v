@@ -1,7 +1,8 @@
 (* * Jasmin semantics with “partial values”. *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 Require Import Psatz xseq.
 Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap low_memory syscall_sem.
 Require Export

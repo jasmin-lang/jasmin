@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import utils strings word waes sem_type global oseq sopn.
 Import Utf8 Relation_Operators ZArith.
@@ -712,7 +713,7 @@ Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
 (* How many elements of size ve in a vector of size ws *)
 Definition vector_size (ve: velem) (ws: wsize) : option Z :=
   let: (q, r) := Z.div_eucl (wsize_size ws) (wsize_size ve) in
-  if r == 0 then Some q else None.
+  if r == 0%Z then Some q else None.
 
 Definition same_vector_length ve sz ve' sz' :=
   match vector_size ve sz, vector_size ve' sz' with
@@ -776,7 +777,7 @@ Definition x86_VPMULHRS sz v1 v2 :=
 
 (* ---------------------------------------------------------------- *)
 Definition x86_nelem_mask (sze szc:wsize) : u8 :=
-  wrepr U8 (2 ^ (wsize_log2 szc - wsize_log2 sze) - 1).
+  wrepr U8 (2 ^ Z.of_nat (wsize_log2 szc - wsize_log2 sze) - 1).
 
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
   Let _ := check_size_8_64 ve in
@@ -917,9 +918,11 @@ Definition x86_VMOVSLDUP sz (v: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (wdup_lo VE32 v).
 
+(* FIXME: check coercions. Should nat_of_wsize be a coercion ? *)
+(* wsize_of_velem just local ? *)
 (* ---------------------------------------------------------------- *)
 Definition x86_VEXTRACTI128 (v: u256) (i: u8) : ex_tpl (w_ty U128) :=
-  let r := if lsb i then wshr v U128 else v in
+  let r := if lsb i then wshr v 128 else v in
   ok (zero_extend U128 r).
 
 Definition x86_VINSERTI128 (v1: u256) (v2: u128) (m: u8) : ex_tpl (w_ty U256) :=

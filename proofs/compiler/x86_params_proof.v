@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -212,8 +213,8 @@ Proof.
 
   set vm0 := (lvm ls).[v_var r <- Vword ts].
   set ls0 := lnext_pc (lset_vm ls vm0).
-  set vm2 := if sz != 0 then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
-  set ls2 := setpc (lset_vm ls0 vm2) (size P + Nat.b2n (sz != 0)).+1.
+  set vm2 := if sz != 0%Z then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
+  set ls2 := setpc (lset_vm ls0 vm2) (size P + Nat.b2n (sz != 0%Z)).+1.
   set vm3 := vm_op_align vm2 vrsp ts'.
 
   exists vm3; split.
@@ -231,7 +232,7 @@ Proof.
 
     (* R[rsp] := R[rsp] - sz; *)
     + subst ls2; rewrite /vm2.
-      case: (sz =P 0) hbody => [? | /eqP hneq] /= hbody.
+      case: (sz =P 0%Z) hbody => [? | /eqP hneq] /= hbody.
       * subst sz. rewrite addn0 -hpc. by constructor.
       rewrite -cat1s catA in hbody.
       apply: (eval_lsem_step1 hbody) => //;
@@ -245,9 +246,9 @@ Proof.
     (* R[rsp] := R[rsp] & alignment; *)
     rewrite map_rcons -cat1s catA cat_rcons catA in hbody.
     apply: (eval_lsem_step1 hbody) => //.
-    + rewrite !size_cat /=. case: (sz != 0); by rewrite ?addn0 ?addn1.
+    + rewrite !size_cat /=. case: (sz != 0%Z); by rewrite ?addn0 ?addn1.
     rewrite (x86_op_align_eval_instr (w := ts - wrepr Uptr sz) (cmp_le_refl _)).
-    + rewrite /ls2. case: (sz != 0); by rewrite ?addn0 ?addn1 ?addn2 ?addn3.
+    + rewrite /ls2. case: (sz != 0%Z); by rewrite ?addn0 ?addn1 ?addn2 ?addn3.
     rewrite /get_var /= /vm2; case: eqP => ?; last first.
     + by rewrite Vm.setP_eq vm_truncate_val_eq.
     rewrite Vm.setP_neq; last exact/eqP.

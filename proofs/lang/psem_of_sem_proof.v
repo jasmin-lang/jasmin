@@ -1,6 +1,7 @@
 Require Import psem psem_facts.
 Import Utf8.
-Import all_ssreflect all_algebra.
+Import all_ssreflect .
+Require Import algebra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

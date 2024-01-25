@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 Require oseq.
 Require Import ZArith
@@ -189,7 +190,8 @@ Definition eval_Jcc lbl ct (s : asm_state) : asm_result_state :=
     ok (st_write_ip s.(asm_ip).+1 s).
 
 (* -------------------------------------------------------------------- *)
-Definition word_of_scale (n:nat) : pointer := wrepr Uptr (2%Z^n)%R.
+(* FIXME: is this correct? *)
+Definition word_of_scale (n:nat) : pointer := wrepr Uptr (2 ^ Z.of_nat n)%Z.
 
 (* -------------------------------------------------------------------- *)
 Definition decode_reg_addr (s : asmmem) (a : reg_address) : pointer := nosimpl (

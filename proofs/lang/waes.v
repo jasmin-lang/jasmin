@@ -3,7 +3,8 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ word.
 Require Import word.
 Require Import Psatz ZArith utils.

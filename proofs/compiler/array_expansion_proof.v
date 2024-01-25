@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import psem array_expansion compiler_util ZArith.
 Import Utf8.
@@ -788,9 +789,9 @@ Proof.
   case heq : WArray.get => [w | /=]; last first.
   + by rewrite /undef_v (undef_x_vundef (_ _)).
   have []:= WArray.get_bound heq; rewrite /mk_scale => ???.
-  have h : ((0 <= 0%N)%Z ∧ (0%N < wsize_size (ai_ty ai)))%Z.
+  have h : ((0 <= 0 < wsize_size (ai_ty ai)))%Z.
   + by move=> /=; have := wsize_size_pos (ai_ty ai); Psatz.lia.
-  have [_ /(_ 0 h)] := read_read8 heq.
+  have [_ /(_ 0%Z h)] := read_read8 heq.
   by rewrite WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); Psatz.lia.
 Qed.
 

@@ -104,6 +104,7 @@ compiler/x86_params_proof.v
 compiler/x86_stack_zeroization.v
 compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
+lang/algebra.v
 lang/array.v
 lang/expr.v
 lang/expr_facts.v

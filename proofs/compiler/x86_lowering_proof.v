@@ -2,7 +2,8 @@
 (* * Correctness proof of the lowering pass *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 From mathcomp Require Import word_ssrZ.
 Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import

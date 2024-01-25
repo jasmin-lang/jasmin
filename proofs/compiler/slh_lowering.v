@@ -18,7 +18,8 @@
 
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  .
+Require Import algebra.
 
 Require Import expr.
 Require constant_prop flag_combination.

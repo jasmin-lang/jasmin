@@ -1,6 +1,7 @@
 (* * Syntax of the linear language *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect .
+Require Import algebra.
 Require Import expr fexpr label sopn.
 
 Set Implicit Arguments.
