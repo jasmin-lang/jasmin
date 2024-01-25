@@ -33,6 +33,7 @@ Require Import
   x86_decl
   x86_extra
   x86_instr_decl
+  x86
   x86_lowering
   x86_lowering_proof
   x86_stack_zeroization_proof.
@@ -359,7 +360,7 @@ Defined.
 Import arch_sem.
 
 Lemma not_condtP (c : cond_t) rf b :
-  eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
+  x86_eval_cond rf c = ok b -> x86_eval_cond rf (not_condt c) = ok (negb b).
 Proof.
   case: c => /=.
   1,3,5,9,11: by case: (rf _) => //= ? [->].
@@ -374,9 +375,9 @@ Qed.
 
 Lemma or_condtP ii e c1 c2 c rf b1 b2:
   or_condt ii e c1 c2 = ok c ->
-  eval_cond rf c1 = ok b1 ->
-  eval_cond rf c2 = ok b2 ->
-  eval_cond rf c  = ok (b1 || b2).
+  x86_eval_cond rf c1 = ok b1 ->
+  x86_eval_cond rf c2 = ok b2 ->
+  x86_eval_cond rf c  = ok (b1 || b2).
 Proof.
   case: c1 => //; case: c2 => //= -[<-] /=.
   + by case: (rf _) => // ? [->]; case: (rf _) => // ? [->].
@@ -387,9 +388,9 @@ Qed.
 
 Lemma and_condtP ii e c1 c2 c rf b1 b2:
   and_condt ii e c1 c2 = ok c ->
-  eval_cond rf c1 = ok b1 ->
-  eval_cond rf c2 = ok b2 ->
-  eval_cond rf c  = ok (b1 && b2).
+  x86_eval_cond rf c1 = ok b1 ->
+  x86_eval_cond rf c2 = ok b2 ->
+  x86_eval_cond rf c  = ok (b1 && b2).
 Proof.
   case: c1 => //; case: c2 => //= -[<-] /=.
   + by case: (rf _) => // ? [<-]; case: (rf _) => // ? [<-].
@@ -405,8 +406,8 @@ Proof. by rewrite /of_var_e_bool /of_var_e; case: of_var. Qed.
 
 Lemma eval_assemble_cond : assemble_cond_spec x86_agparams.
 Proof.
-  move=> ii m rf e c v; rewrite /x86_agparams /eval_cond /get_rf /=.
-  move=> eqv; elim: e c v => //.
+  move=> ii m rr rf e c v; rewrite /x86_agparams /x86_eval_cond /get_rf /=.
+  move=> eqr eqv; elim: e c v => //.
   + move=> x c v /=; t_xrbindP=> r /of_var_e_boolP ok_r ok_ct ok_v.
     have := xgetflag_ex eqv ok_r ok_v.
     case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h;

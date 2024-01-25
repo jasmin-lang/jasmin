@@ -33,6 +33,7 @@ Require Import
   arm_decl
   arm_extra
   arm_instr_decl
+  arm
   arm_params_common_proof
   arm_lowering
   arm_lowering_proof
@@ -480,14 +481,14 @@ Section ASM_GEN.
 Local Instance the_asm : asm _ _ _ _ _ _ := _.
 
 Lemma condt_of_rflagP rf r :
-  eval_cond (get_rf rf) (condt_of_rflag r) = to_bool (of_rbool (rf r)).
+  arm_eval_cond (get_rf rf) (condt_of_rflag r) = to_bool (of_rbool (rf r)).
 Proof.
   rewrite -get_rf_to_bool_of_rbool. by case: r.
 Qed.
 
 Lemma condt_notP rf c b :
-  eval_cond rf c = ok b
-  -> eval_cond rf (condt_not c) = ok (negb b).
+  arm_eval_cond rf c = ok b
+  -> arm_eval_cond rf (condt_not c) = ok (negb b).
 Proof.
   case: c => /=.
 
@@ -509,13 +510,13 @@ Qed.
 
 Lemma condt_andP rf c0 c1 c b0 b1 :
   condt_and c0 c1 = Some c
-  -> eval_cond rf c0 = ok b0
-  -> eval_cond rf c1 = ok b1
-  -> eval_cond rf c = ok (b0 && b1).
+  -> arm_eval_cond rf c0 = ok b0
+  -> arm_eval_cond rf c1 = ok b1
+  -> arm_eval_cond rf c = ok (b0 && b1).
 Proof.
   move: c0 c1 => [] [] //.
   all: move=> [?]; subst c.
-  all: rewrite /eval_cond /=.
+  all: rewrite /arm_eval_cond /=.
 
   (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
      Rewrite all equalities, simplify and case all booleans. *)
@@ -535,13 +536,13 @@ Qed.
 
 Lemma condt_orP rf c0 c1 c b0 b1 :
   condt_or c0 c1 = Some c
-  -> eval_cond rf c0 = ok b0
-  -> eval_cond rf c1 = ok b1
-  -> eval_cond rf c = ok (b0 || b1).
+  -> arm_eval_cond rf c0 = ok b0
+  -> arm_eval_cond rf c1 = ok b1
+  -> arm_eval_cond rf c = ok (b0 || b1).
 Proof.
   move: c0 c1 => [] [] //.
   all: move=> [?]; subst c.
-  all: rewrite /eval_cond /=.
+  all: rewrite /arm_eval_cond /=.
 
   (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
      Rewrite all equalities, simplify and case all booleans. *)
@@ -564,7 +565,7 @@ Lemma eval_assemble_cond_Pvar ii m rf x r v :
   -> of_var_e ii x = ok r
   -> get_var true (evm m) x = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
+       value_of_bool (arm_eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
        & value_uincl v v'.
 Proof.
   move=> eqf hr hv.
@@ -579,11 +580,11 @@ Proof.
 Qed.
 
 Lemma eval_assemble_cond_Onot rf c v v0 v1 :
-  value_of_bool (eval_cond (get_rf rf) c) = ok v1
+  value_of_bool (arm_eval_cond (get_rf rf) c) = ok v1
   -> value_uincl v0 v1
   -> sem_sop1 Onot v0 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) (condt_not c)) = ok v'
+       value_of_bool (arm_eval_cond (get_rf rf) (condt_not c)) = ok v'
        & value_uincl v v'.
 Proof.
   move=> hv1 hincl.
@@ -592,7 +593,6 @@ Proof.
   have hc := value_uincl_to_bool_value_of_bool hincl hb hv1.
   clear v0 v1 hincl hb hv1.
 
-  change arm.eval_cond with eval_cond.
   rewrite (condt_notP hc) {hc}.
   by eexists.
 Qed.
@@ -606,7 +606,7 @@ Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   -> get_var true (evm m) x1 = ok v1
   -> sem_sop2 Obeq v0 v1 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
+       value_of_bool (arm_eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
 Proof.
   move=> hGE eqf hr0 hv0 hr1 hv1.
 
@@ -633,13 +633,13 @@ Qed.
 
 Lemma eval_assemble_cond_Oand rf c c0 c1 v v0 v1 v0' v1' :
   condt_and c0 c1 = Some c
-  -> value_of_bool (eval_cond (get_rf rf) c0) = ok v0'
+  -> value_of_bool (arm_eval_cond (get_rf rf) c0) = ok v0'
   -> value_uincl v0 v0'
-  -> value_of_bool (eval_cond (get_rf rf) c1) = ok v1'
+  -> value_of_bool (arm_eval_cond (get_rf rf) c1) = ok v1'
   -> value_uincl v1 v1'
   -> sem_sop2 Oand v0 v1 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+       value_of_bool (arm_eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   move=> hand hv0' hincl0 hv1' hincl1.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
@@ -652,20 +652,19 @@ Proof.
   have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
   clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
 
-  change arm.eval_cond with eval_cond.
   rewrite (condt_andP hand hc0 hc1) {hand hc0 hc1} /=.
   by eexists.
 Qed.
 
 Lemma eval_assemble_cond_Oor rf c c0 c1 v v0 v1 v0' v1' :
   condt_or c0 c1 = Some c
-  -> value_of_bool (eval_cond (get_rf rf) c0) = ok v0'
+  -> value_of_bool (arm_eval_cond (get_rf rf) c0) = ok v0'
   -> value_uincl v0 v0'
-  -> value_of_bool (eval_cond (get_rf rf) c1) = ok v1'
+  -> value_of_bool (arm_eval_cond (get_rf rf) c1) = ok v1'
   -> value_uincl v1 v1'
   -> sem_sop2 Oor v0 v1 = ok v
   -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+       value_of_bool (arm_eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
   move=> hor hv0' hincl0 hv1' hincl1.
   move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
@@ -678,20 +677,15 @@ Proof.
   have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
   clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
 
-  change arm.eval_cond with eval_cond.
   rewrite (condt_orP hor hc0 hc1) {hor hc0 hc1} /=.
   by eexists.
 Qed.
 
-Lemma arm_eval_assemble_cond ii m rf e c v :
-  eqflags m rf
-  -> agp_assemble_cond arm_agparams ii e = ok c
-  -> sem_fexpr (evm m) e = ok v
-  -> exists2 v',
-       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+Lemma arm_eval_assemble_cond : assemble_cond_spec arm_agparams.
 Proof.
-  rewrite /=.
-  elim: e c v => [| x | op1 e hind | op2 e0 hind0 e1 hind1 |] //= c v eqf.
+  move=> ii m rr rf e c v; rewrite /arm_agparams /arm_eval_cond /get_rf /=.
+  move=> eqr eqf.
+  elim: e c v => [| x | op1 e hind | op2 e0 hind0 e1 hind1 |] //= c v.
 
   - t_xrbindP=> r hr hc; subst c.
     move=> hv.
@@ -700,8 +694,8 @@ Proof.
   - case: op1 => //.
     t_xrbindP=> c' hc' hc; subst c.
     move=> v0 hv0 hsem.
-    have [v1 hv1 hincl1] := hind _ _ eqf hc' hv0.
-    clear ii m e eqf hc' hv0 hind.
+    have [v1 hv1 hincl1] := hind _ _ hc' hv0.
+    clear ii m e eqr eqf hc' hv0 hind.
     exact: (eval_assemble_cond_Onot hv1 hincl1 hsem).
 
   case: op2 => //.
@@ -715,17 +709,17 @@ Proof.
   - t_xrbindP=> c0 hass0 c1 hass1.
     case hand: condt_and => [c'|] // [?]; subst c'.
     move=> v0 hsem0 v1 hsem1 hsem.
-    have [v0' hv0' hincl0] := hind0 _ _ eqf hass0 hsem0.
-    have [v1' hv1' hincl1] := hind1 _ _ eqf hass1 hsem1.
-    clear eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
+    have [v0' hv0' hincl0] := hind0 _ _ hass0 hsem0.
+    have [v1' hv1' hincl1] := hind1 _ _ hass1 hsem1.
+    clear eqr eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
     exact: (eval_assemble_cond_Oand hand hv0' hincl0 hv1' hincl1 hsem).
 
   t_xrbindP=> c0 hass0 c1 hass1.
   case hor: condt_or => [c'|] // [?]; subst c'.
   move=> v0 hsem0 v1 hsem1 hsem.
-  have [v0' hv0' hincl0] := hind0 _ _ eqf hass0 hsem0.
-  have [v1' hv1' hincl1] := hind1 _ _ eqf hass1 hsem1.
-  clear eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
+  have [v0' hv0' hincl0] := hind0 _ _ hass0 hsem0.
+  have [v1' hv1' hincl1] := hind1 _ _ hass1 hsem1.
+  clear eqr eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
   exact: (eval_assemble_cond_Oor hor hv0' hincl0 hv1' hincl1 hsem).
 Qed.
 

@@ -136,7 +136,7 @@ Definition st_get_rflag (s : asmmem) (rf : rflag_t) :=
 (* -------------------------------------------------------------------- *)
 
 Definition eval_cond_mem (s : asmmem) (c : cond_t) :=
-  eval_cond (st_get_rflag s) c.
+  eval_cond s.(asm_reg) (st_get_rflag s) c.
 
 (* -------------------------------------------------------------------- *)
 Definition st_write_ip (ip : nat) (s : asm_state) :=

@@ -348,12 +348,13 @@ Proof.
 Qed.
 
 Definition assemble_cond_spec :=
-  forall ii m rf e c v,
+  forall ii m rr rf e c v,
+    (∀ r, value_uincl (evm m).[to_var r] (Vword (rr r))) ->
     eqflags m rf
     -> agp_assemble_cond agparams ii e = ok c
     -> sem_fexpr m.(evm) e = ok v
     -> exists2 v',
-         value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+         value_of_bool (eval_cond rr (get_rf rf) c) = ok v' & value_uincl v v'.
 
 Context
   (eval_assemble_cond : assemble_cond_spec).
@@ -375,8 +376,8 @@ Proof.
   + case: e; first by [].
     t_xrbindP => e _ <- c hac <-.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
-    case: eqm => ??????? eqf.
-    have [v'] := eval_assemble_cond eqf hac hb.
+    case: eqm => ???? eqr ?? eqf.
+    have [v'] := eval_assemble_cond eqr eqf hac hb.
     rewrite /eval_cond_mem; case: eval_cond => /=;
       last by case=> // [[<-]] /[swap] /to_boolI ->.
     move=> b' [<-] {hb}; case: v => // [b1 | [] //] -> ?.
@@ -1838,7 +1839,7 @@ Proof.
   - rewrite /linear_sem.eval_instr => /=.
     t_xrbindP => cnd lbl hok_i cndt ok_c ? b v ok_v ok_b; subst aci.
     case: hloeq => eqscs eqm hrip hd eqr eqrx eqx eqf.
-    have [v' ok_v' hvv'] := hagp_eval_assemble_cond hagparams eqf ok_c ok_v.
+    have [v' ok_v' hvv'] := hagp_eval_assemble_cond hagparams eqr eqf ok_c ok_v.
     case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
     rewrite ok_fd /=; case: v' ok_v' => // b1 ok_v' ? h; subst b1.
     apply (match_state_step1 (ls' := ls') hnth) => /=; move: h.
