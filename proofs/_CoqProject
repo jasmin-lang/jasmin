@@ -79,6 +79,9 @@ compiler/merge_varmaps.v
 compiler/merge_varmaps_proof.v
 compiler/propagate_inline.v
 compiler/propagate_inline_proof.v
+compiler/riscv.v
+compiler/riscv_decl.v
+compiler/riscv_instr_decl.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/slh_lowering.v
