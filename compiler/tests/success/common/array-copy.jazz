@@ -1,0 +1,5 @@
+export
+fn copy384(reg ptr u32[12] dst src) -> reg ptr u32[12] {
+  dst = #copy(src);
+  return dst;
+}
