@@ -21,7 +21,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}
   (p : sprog)
-  (var_tmp : var).
+  (var_tmp : Sv.t).
 
 Section STACK_STABLE.
 
@@ -335,7 +335,7 @@ Qed.
 (* The contents of RSP and GD registers are preserved. *)
 Section PRESERVED_RSP_GD.
 
-Hypothesis var_tmp_not_magic : ~~ Sv.mem var_tmp (magic_variables p).
+Hypothesis var_tmp_not_magic : disjoint var_tmp (magic_variables p).
 
 Let Pc (k: Sv.t) (_: estate) (_: cmd) (_: estate) : Prop := disjoint k (magic_variables p).
 Let Pi (k: Sv.t) (_: estate) (_: instr) (_: estate) : Prop := disjoint k (magic_variables p).
@@ -403,9 +403,8 @@ Proof.
     move=> /= r /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
     by rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=; SvD.fsetdec.
   case: sf_return_address ok_ra => //.
-  + rewrite SvP.MP.add_union_singleton disjoint_unionE => rax_not_magic.
-    apply/andP; split; last exact: flags_not_magic.
-    by rewrite disjoint_singletonE.
+  + rewrite disjoint_unionE => rax_not_magic.
+    by apply/andP; split => //; apply: flags_not_magic.
   1: move=> r _ /= /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
   2: move=> [] //= r _ _ /andP[] /eqP r_neq_gd /eqP r_neq_rsp.
   all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=; SvD.fsetdec.

@@ -84,13 +84,13 @@ Definition arm_saparams : stack_alloc_params :=
     sap_swap := arm_swap;
   |}.
 
-
 (* ------------------------------------------------------------------------ *)
 (* Linearization parameters. *)
 
 Section LINEARIZATION.
 
-Notation vtmpi := (mk_var_i (to_var R12)).
+Notation vtmpi  := (mk_var_i (to_var R12)).
+Notation vtmp2i := (mk_var_i (to_var LR)).
 
 Definition arm_allocate_stack_frame (rspi : var_i) (tmp: option var_i) (sz : Z) :=
   if tmp is Some aux then
@@ -104,59 +104,50 @@ Definition arm_free_stack_frame (rspi : var_i) (tmp : option var_i) (sz : Z) :=
   else
     [:: ARMFopn.addi rspi rspi sz].
 
-(* TODO_ARM: Review. This seems unnecessary. *)
-Definition arm_lassign
-  (lv : lexpr) (ws : wsize) (e : rexpr) : option _ :=
-  let%opt (mn, e') :=
-    match lv with
-    | LLvar _ =>
-        let%opt _ := chk_ws_reg ws in
-        match e with
-        | Rexpr (Fapp1 (Oword_of_int U32) (Fconst _))
-        | Rexpr (Fvar _) => Some (MOV, e)
-        | Load _ _ _ => Some (LDR, e)
-        | _ => None
-        end
-    | Store _ _ _ =>
-        let%opt mn := store_mn_of_wsize ws in
-        Some (mn, e)
-    end
-  in
-  Some ([:: lv ], Oarm (ARM_op mn default_opts), [:: e' ]).
-
 Definition arm_set_up_sp_register
   (rspi : var_i)
   (sf_sz : Z)
   (al : wsize)
-  (r : var_i) :
-  option (seq fopn_args) :=
-  let%opt _ := oassert ((0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z) in
-  let i0 := ARMFopn.mov r rspi in
-  let load_imm := ARMFopn.smart_subi vtmpi rspi sf_sz in
-  let i1 := ARMFopn.align vtmpi vtmpi al in
-  let i2 := ARMFopn.mov rspi vtmpi in
-  Some (i0 :: load_imm ++ [:: i1; i2 ]).
+  (r : var_i)
+  (tmp : var_i) :
+  seq fopn_args :=
+  let load_imm := ARMFopn.smart_subi tmp rspi sf_sz in
+  let i0 := ARMFopn.align tmp tmp al in
+  let i1 := ARMFopn.mov r rspi in
+  let i2 := ARMFopn.mov rspi tmp in
+  load_imm ++ [:: i0; i1; i2 ].
 
-Definition arm_set_up_sp_stack
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : option (seq fopn_args) :=
-  let%opt _ := oassert ((0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z) in
-  let load_imm := ARMFopn.smart_subi vtmpi rspi sf_sz in
-  let i0 := ARMFopn.align vtmpi vtmpi al in
-  let i1 := ARMFopn.str rspi vtmpi off in
-  let i2 := ARMFopn.mov rspi vtmpi in
-  Some (load_imm ++ [:: i0; i1; i2 ]).
+Definition arm_tmp  : Ident.ident := vname (v_var vtmpi).
+Definition arm_tmp2 : Ident.ident := vname (v_var vtmp2i).
 
-Definition arm_tmp : Ident.ident := vname (v_var vtmpi).
+Definition arm_lmove (xd xs : var_i) :=
+  ([:: LLvar xd], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar xs)]).
+
+Definition arm_check_ws ws := ws == reg_size.
+
+Definition arm_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
+  let ws := reg_size in
+  let mn := STR in
+  ([:: Store ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]).
+
+Definition arm_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
+  let ws := reg_size in
+  let mn := LDR in
+  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load ws xs (fconst ws ofs)]).
 
 Definition arm_liparams : linearization_params :=
   {|
-    lip_tmp := arm_tmp;
+    lip_tmp  := arm_tmp;
+    lip_tmp2 := arm_tmp2;
     lip_not_saved_stack := [:: arm_tmp ];
     lip_allocate_stack_frame := arm_allocate_stack_frame;
     lip_free_stack_frame := arm_free_stack_frame;
     lip_set_up_sp_register := arm_set_up_sp_register;
-    lip_set_up_sp_stack := arm_set_up_sp_stack;
-    lip_lassign := arm_lassign;
+    lip_lmove := arm_lmove;
+    lip_check_ws := arm_check_ws;
+    lip_lstore  := arm_lstore;
+    lip_lstores := lstores_imm_dfl arm_tmp2 arm_lstore ARMFopn.smart_addi is_arith_small;
+    lip_lloads  := lloads_imm_dfl arm_tmp2 arm_lload  ARMFopn.smart_addi is_arith_small;
   |}.
 
 End LINEARIZATION.
