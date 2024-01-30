@@ -143,7 +143,7 @@ Definition assemble_extra
          (E.internal_error ii "bad arm_add_large_imm: invalid register") in
       Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y])
           (E.error ii "arm swap only valid for register of type u32") in
-      ok (map (fun '(d, o, e) => ((None, o), d, e)) (ARMFopn_core.smart_addi x y (imm mod wbase arm_reg_size)%Z))
+      ok (map (fun '(d, o, e) => ((None, o), d, e)) (ARMFopn_core.smart_addi x y imm))
     | _, _ =>
       Error (E.internal_error ii "bad arm_add_large_imm: invalid args or dests")
     end

@@ -73,11 +73,15 @@ Record h_architecture_params
       linearization_proof.h_linearization_params
         (ap_lip aparams);
 
-    (* The scratch register in linearize_params must be a register.
+    (* The scratch registers in linearize_params must be a register.
        Needed for the compiler proof. *)
     ok_lip_tmp :
       exists r : reg_t,
         of_ident (linearization.lip_tmp (ap_lip aparams)) = Some r;
+
+    ok_lip_tmp2 :
+      exists r : reg_t,
+        of_ident (linearization.lip_tmp2 (ap_lip aparams)) = Some r;
 
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);

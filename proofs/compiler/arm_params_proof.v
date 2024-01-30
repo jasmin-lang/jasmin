@@ -167,10 +167,9 @@ Proof.
   move=> sp_rsp tmp s ts sz htmp hget /=.
   rewrite /arm_allocate_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
-  + have [? [-> ? hget']] := [elaborate
-      ARMFopnP.smart_subi_tmp_sem_fopn_args dummy_var_info sz h1 h2 hget
+  + have [? [-> ? /get_varP [-> _ _]]] := [elaborate
+      ARMFopnP.smart_subi_tmp_sem_fopn_args dummy_var_info sz h1 h2 (to_word_get_var hget)
     ].
-    move: hget' => /get_varP [-> _ _].
     by eexists.
   rewrite /= hget /=; t_arm_op.
   eexists; split; first reflexivity.
@@ -184,10 +183,9 @@ Proof.
   move=> sp_rsp tmp s ts sz htmp hget /=.
   rewrite /arm_free_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
-  + have [? [-> ? hget']] := [elaborate
-      ARMFopnP.smart_addi_tmp_sem_fopn_args dummy_var_info sz h1 h2 hget
+  + have [? [-> ? /get_varP [-> _ _]]] := [elaborate
+      ARMFopnP.smart_addi_tmp_sem_fopn_args dummy_var_info sz h1 h2 (to_word_get_var hget)
     ].
-    move: hget' => /get_varP [-> _ _].
     by eexists.
   rewrite /= hget /=; t_arm_op.
   eexists; split; first reflexivity.
@@ -198,218 +196,44 @@ Qed.
 Lemma arm_spec_lip_set_up_sp_register :
   set_up_sp_register_correct arm_liparams.
 Proof.
-  move=> lp sp_rsp ls r ts al sz P Q.
+  Opaque sem_fopn_args.
+  move=> [[? nrsp] vi1] [[? nr] vi2] [[? ntmp] vi3] ts al sz s hget /= ??? hne hne1 hne2; subst.
+  rewrite /arm_set_up_sp_register sem_fopns_args_cat /=.
+  set vr := {|vname := nr|}; set r := {|v_var := vr|}.
+  set vtmp := {|vname := ntmp|}; set tmp := {|v_var := vtmp|}.
+  set vrsp := {|vname := nrsp|}; set rsp := {|v_var := vrsp|}.
   set ts' := align_word _ _.
-  move: r => [[rtype rname] rinfo] /=.
-  set r := {| v_info := rinfo; |}.
-  set vtmp := {| vname := arm_tmp; |}.
-  set vtmpi := mk_var_i vtmp.
-  set vrsp := {| vname := sp_rsp; |}.
-  set vrspi := mk_var_i vrsp.
-  move=>
-    /oassertP_isSome [hset_up _]
-    hbody hpc hneq_tmp_rsp hgetrsp ? hnot_saved_stack hneq_r_rsp;
-    subst rtype.
+  have := ARMFopnP.smart_subi_sem_fopn_args vi3 (y:= rsp) _ (to_word_get_var hget).
+  move=> /(_ arm_linux_call_conv ntmp sz) [].
+  + by right => /= -[?]; subst ntmp.
+  move=> vm1 [] -> heq1 hget1 /=.
+  set s1 := with_vm _ _.
+  have -> /= := ARMFopnP.align_sem_fopn_args ntmp vi3 al
+                 (y:= tmp) (s:= s1) (to_word_get_var hget1).
+  set s2 := with_vm _ _.
+  have hget2 : get_var true (evm s2) rsp = ok (Vword ts).
+  + by t_get_var; rewrite (get_var_eq_ex _ _ heq1) //; apply/Sv_neq_not_in_singleton.
+  have -> /= := ARMFopnP.mov_sem_fopn_args (to_word_get_var hget2).
+  set s3 := with_vm _ _.
+  have hget3 : get_var true (evm s3) tmp = ok (Vword ts').
+  + by t_get_var.
+  have -> /= := ARMFopnP.mov_sem_fopn_args (to_word_get_var hget3).
+  set s4 := with_vm _ _.
+  Transparent sem_fopn_args.
+  eexists; split => //.
 
-  have hneq_r_tmp :
-    v_var r <> vtmp.
-  - move=> [h]. move: hnot_saved_stack. by rewrite mem_seq1 h eqxx.
-  clear hnot_saved_stack.
+  - move=> x; t_notin_add; t_vm_get; rewrite heq1; first by t_vm_get.
+    by apply/Sv_neq_not_in_singleton/nesym.
 
-  move: hbody.
-  rewrite /set_up_sp_register /= /arm_set_up_sp_register hset_up /= -/vtmpi.
-  rewrite map_cat.
-  rewrite -catA /=.
-  set cmd_large_subi := _ _ (ARMFopn.smart_subi _ _ _).
-  set i_mov_r := _ _ (ARMFopn.mov _ _).
-  set i_align_tmp := _ _ (ARMFopn.align _ _ _).
-  set i_mov_rsp := _ _ (ARMFopn.mov _ _).
-  rewrite -[i_mov_r :: _]/([:: i_mov_r ] ++ _).
-  rewrite catA.
-  move=> hbody.
-
-  (* We need [vm1] before [eexists]. *)
-  set vm0 := (lvm ls).[v_var r <- Vword ts].
-
-  have hsz : (0 <= sz < wbase reg_size)%Z.
-  - by move: hset_up => /andP [] /ZleP hlo /ZltP hhi.
-  clear hset_up.
-
-  have hgetrsp0 :
-    get_var true vm0 vrsp = ok (Vword ts).
-  - rewrite get_var_neq; first exact: hgetrsp. exact: hneq_r_rsp.
-
-  set ls0 := lnext_pc (lset_vm ls vm0).
-  have [||vm1 [hsem hvm1 hgettmp1]] :=
-    ARMFopnP.smart_subi_lsem (ls := ls0) hbody _ erefl _ hgetrsp0 hsz.
-  - by rewrite size_cat addn1 -hpc.
-  - by right.
-
-  set vm2 := vm1.[vtmp <- Vword ts'].
-  set vm3 := vm2.[vrsp <- Vword ts'].
-
-  exists vm3; split.
-
-  - apply: lsem_step.
-
-    (* R[r] := R[rsp]; *)
-    + rewrite -catA in hbody.
-      apply: (eval_lsem1 hbody) => //.
-      exact: (ARMFopnP.mov_eval_instr (y := vrspi) hgetrsp).
-
-    (* R[tmp] := R[rsp] - off; *)
-    apply: (lsem_trans hsem).
-    clear hsem.
-
-    apply: lsem_step2.
-    (* R[tmp] := R[tmp] & alignment; *)
-    + rewrite catA in hbody.
-      apply: (eval_lsem1 hbody) => //;
-        first by rewrite !size_cat.
-      set ls1 := setpc (lset_vm _ _) _.
-      exact: (ARMFopnP.align_eval_instr (ls := ls1) (y := vtmpi) hgettmp1).
-
-    (* R[rsp] := R[tmp]; *)
-    + rewrite -(cat1s i_align_tmp) 2!catA in hbody.
-      apply: (eval_lsem1 hbody) => //;
-        first by rewrite !size_cat !addn1 /=.
-
-      have hgettmp2 :
-        get_var true vm2 vtmp = ok (Vword ts').
-      * by rewrite get_var_eq.
-
-      set ls2 := lnext_pc (lset_vm _ _).
-      rewrite (ARMFopnP.mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp2).
-      rewrite /lnext_pc /setpc /= !size_cat /= !size_map /addn /addn_rec.
-      repeat f_equal; move: (size _) (size _).
-      lia.
-
-  - move=> x.
-    t_notin_add.
-    t_vm_get.
-    rewrite hvm1; first by t_vm_get.
-    apply: Sv_neq_not_in_singleton.
-    by apply/nesym.
+  - by t_get_var => //=; rewrite wrepr_mod.
 
   - by t_get_var.
 
-  - t_get_var.
-    rewrite (get_var_eq_ex _ _ hvm1); first by t_get_var.
-    apply: Sv_neq_not_in_singleton.
-    by apply/nesym.
-
-  rewrite /= -/vm3.
   move=> x hx _.
   move: hx => /vflagsP hxtype.
-
-  have ? : v_var r <> x.
-  - apply/eqP. apply: vtype_diff. by rewrite hxtype.
-
-  have ? : vrsp <> x.
-  - apply/eqP. apply: vtype_diff. by rewrite hxtype.
-
-  have ? : vtmp <> x.
-  - apply/eqP. apply: vtype_diff. by rewrite hxtype.
-
-  t_vm_get.
-  rewrite hvm1 /=; first by t_vm_get.
-  by apply: Sv_neq_not_in_singleton.
-Qed.
-
-Lemma arm_spec_lip_set_up_sp_stack :
-  set_up_sp_stack_correct arm_liparams.
-Proof.
-  move=> lp sp_rsp ls ts m' al sz off P Q.
-  set ts' := align_word _ _.
-  move=> /oassertP_isSome [hset_up _] hbody hpc hneq_tmp_rsp hgetrsp hwrite.
-
-  move: hbody.
-  set vtmp := {| vname := arm_tmp; |}.
-  set vtmpi := mk_var_i vtmp.
-  set vrsp := {| vname := sp_rsp; |}.
-  set vrspi := mk_var_i vrsp.
-  rewrite /set_up_sp_stack /= /arm_set_up_sp_stack hset_up /= -/vtmpi.
-  rewrite map_cat /=.
-  set cmd_large_subi := map _ (ARMFopn.smart_subi _ _ _).
-  set i_align_tmp := li_of_fopn_args _ (ARMFopn.align _ _ _).
-  set i_str_rsp := li_of_fopn_args _ (ARMFopn.str _ _ _).
-  set i_mov_rsp := li_of_fopn_args _ (ARMFopn.mov _ _).
-  rewrite -catA.
-  move=> hbody.
-
-  have hsz : (0 <= sz < wbase reg_size)%Z.
-  - by move: hset_up => /andP [] /ZleP hlo /ZltP hhi.
-  clear hset_up.
-
-  (* We need [vm0] before [eexists]. *)
-  have [|vm0 [hsem hvm0 hgettmp0]] :=
-    ARMFopnP.smart_subi_lsem hbody hpc erefl _ hgetrsp hsz.
-  - by right.
-  set vm1 := vm0.[vtmp <- Vword ts'].
-  set vm2 := vm1.[vrsp <- Vword ts'].
-
-  have hgetrsp1 :
-    get_var true vm1 vrsp = ok (Vword ts).
-  * rewrite get_var_neq; last exact: hneq_tmp_rsp.
-    rewrite (get_var_eq_ex _ _ hvm0); first exact: hgetrsp.
-    exact: (Sv_neq_not_in_singleton hneq_tmp_rsp).
-
-  have hgettmp1 :
-    get_var true vm1 vtmp = ok (Vword ts').
-  * by rewrite get_var_eq.
-
-  eexists; split.
-
-  (* R[tmp] := R[rsp] - off; *)
-  - apply: (lsem_trans hsem).
-    apply: lsem_step3.
-
-    (* R[tmp] := R[tmp] & alignment; *)
-    + rewrite catA in hbody.
-      apply: (eval_lsem1 hbody) => //;
-        first by rewrite size_cat.
-      set ls0 := setpc (lset_vm _ _) _.
-      exact: (ARMFopnP.align_eval_instr (ls := ls0) (y := vtmpi) hgettmp0).
-
-    (* M[R[rsp]] := R[tmp]; *)
-    + rewrite -(cat1s i_align_tmp) -!catA 2!catA in hbody.
-      apply: (eval_lsem1 hbody) => //;
-        first by rewrite !size_cat /= addn1.
-      set ls1 := lnext_pc (lset_vm _ _).
-      apply:
-        (ARMFopnP.str_eval_instr (ls := ls1) (y := vrspi) hgettmp1 hgetrsp1).
-      exact: hwrite.
-
-    (* R[rsp] := R[tmp]; *)
-    + rewrite -(cat1s i_align_tmp) -(cat1s i_str_rsp) -!catA 3!catA in hbody.
-      apply: (eval_lsem1 hbody) => //;
-        first by rewrite !size_cat /= !addn1.
-      set ls2 := lnext_pc (lset_mem _ _).
-      rewrite (ARMFopnP.mov_eval_instr (ls := ls2) (y := vtmpi) hgettmp1).
-      rewrite /ls2 !size_cat /= !addnS addn0.
-      reflexivity.
-
-  - move=> x.
-    t_notin_add.
-    t_vm_get.
-    rewrite hvm0; first done.
-    apply: Sv_neq_not_in_singleton.
-    by apply/nesym.
-
-  - by t_get_var.
-
-  rewrite /= -/vm2.
-  move=> x hx _.
-  move: hx => /vflagsP hxtype.
-
-  have ? : vrsp <> x.
-  - apply/eqP. apply: vtype_diff. by rewrite hxtype.
-
-  have ? : vtmp <> x.
-  - apply/eqP. apply: vtype_diff. by rewrite hxtype.
-
-  t_vm_get.
-  rewrite hvm0 /=; first done.
+  have [*] : [/\ vrsp <> x,  vtmp <> x & vr <> x].
+  - by split; apply/eqP/vtype_diff; rewrite hxtype.
+  t_vm_get; rewrite heq1 //.
   by apply: Sv_neq_not_in_singleton.
 Qed.
 
@@ -424,30 +248,56 @@ Proof.
   all: by move=> -> /=.
 Qed.
 
-Lemma arm_hlip_lassign :
-  lassign_correct arm_liparams.
+Lemma arm_lmove_correct : lmove_correct arm_liparams.
 Proof.
-  move=> lp fn s1 s2 x e args ws ws' w w' hlassign hseme htrunc hwrite.
-  move: hlassign.
-  apply: obindP => -[mn' re].
-  case: x hwrite => [??? | x] /= hwrite.
-
-  - apply: obindP => mn hmn [??] [?]; subst mn' re args.
-    rewrite /eval_instr /= /sem_sopn /= hseme {hseme} /=.
-    by rewrite (store_mn_of_wsizeP hmn htrunc) /= hwrite.
-
-  move=> /oassertP [/eqP ?]; subst ws.
-  case: e hseme => [ ??? | ]; last case => //; last case => // - [] // [] // z.
-  2: move=> e.
-  all: move=> /= hseme [??] [?]; subst mn' re args.
-  all: rewrite /eval_instr /= /sem_sopn /= /exec_sopn.
-  - by rewrite hseme /= htrunc /= zero_extend_u hwrite.
-  - by rewrite hseme /= htrunc /= hwrite.
-
-  case/ok_inj/Vword_inj: hseme => ?; subst => /= ?; subst.
-  move: htrunc; rewrite truncate_word_u => /ok_inj ?; subst.
-  by rewrite /= hwrite.
+  move=> xd xs w ws w' s htxd htxs hget htr.
+  rewrite /arm_liparams /lip_lmove /arm_lmove /= hget /=.
+  rewrite /exec_sopn /= htr /=.
+  by rewrite set_var_eq_type ?htxd.
 Qed.
+
+Lemma arm_lstore_correct : lstore_correct_aux arm_check_ws arm_lstore.
+Proof.
+  move=> xd xs ofs ws w wp s m htxs /eqP hchk; t_xrbindP; subst ws.
+  move=> vd hgetd htrd vs hgets htrs hwr.
+  rewrite /arm_lstore /= hgets hgetd /= /exec_sopn /= htrs htrd /= !truncate_word_u /=.
+  by rewrite zero_extend_u hwr.
+Qed.
+
+Lemma arm_smart_addi_correct : ladd_imm_correct_aux ARMFopn.smart_addi.
+Proof.
+  move=> [[_ xn1] xi] x2 s w ofs /= -> hne hget.
+  by apply: ARMFopnP.smart_addi_sem_fopn_args hget; right.
+Qed.
+
+Lemma arm_lstores_correct : lstores_correct arm_liparams.
+Proof.
+  apply/lstores_imm_dfl_correct.
+  + by apply arm_lstore_correct.
+  apply arm_smart_addi_correct.
+Qed.
+
+Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
+Proof.
+  move=> xd xs ofs s vm top hgets.
+  case heq: vtype => [|||ws] //; t_xrbindP.
+  move=> _ <- /eqP ? w hread hset; subst ws.
+  rewrite /arm_lload /= hgets /= truncate_word_u /= hread /=.
+  by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
+Qed.
+
+Lemma arm_lloads_correct : lloads_correct arm_liparams.
+Proof.
+  apply/lloads_imm_dfl_correct.
+  + by apply arm_lload_correct.
+  apply arm_smart_addi_correct.
+Qed.
+
+Lemma arm_tmp_correct : lip_tmp arm_liparams <> lip_tmp2 arm_liparams.
+Proof. by move=> h; assert (h1 := inj_to_ident h). Qed.
+
+Lemma arm_check_ws_correct : lip_check_ws arm_liparams Uptr.
+Proof. done. Qed.
 
 End LINEARIZATION.
 
@@ -455,10 +305,14 @@ Definition arm_hliparams :
   h_linearization_params (ap_lip arm_params) :=
   {|
     spec_lip_allocate_stack_frame := arm_spec_lip_allocate_stack_frame;
-    spec_lip_free_stack_frame := arm_spec_lip_free_stack_frame;
-    spec_lip_set_up_sp_register := arm_spec_lip_set_up_sp_register;
-    spec_lip_set_up_sp_stack := arm_spec_lip_set_up_sp_stack;
-    hlip_lassign := arm_hlip_lassign;
+    spec_lip_free_stack_frame     := arm_spec_lip_free_stack_frame;
+    spec_lip_set_up_sp_register   := arm_spec_lip_set_up_sp_register;
+    spec_lip_lmove                := arm_lmove_correct;
+    spec_lip_lstore               := arm_lstore_correct;
+    spec_lip_lstores              := arm_lstores_correct;
+    spec_lip_lloads               := arm_lloads_correct;
+    spec_lip_tmp                  := arm_tmp_correct;
+    spec_lip_check_ws             := arm_check_ws_correct;
   |}.
 
 Lemma arm_ok_lip_tmp :
@@ -467,6 +321,15 @@ Proof.
   exists R12.
   rewrite /=.
   change arm_tmp with (to_ident R12).
+  exact: to_identK.
+Qed.
+
+Lemma arm_ok_lip_tmp2 :
+  exists r : reg_t, of_ident (lip_tmp2 (ap_lip arm_params)) = Some r.
+Proof.
+  exists LR.
+  rewrite /=.
+  change arm_tmp with (to_ident LR).
   exact: to_identK.
 Qed.
 
@@ -814,10 +677,8 @@ Proof.
   move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
   move/get_varP: (hvy) => [_ _ /compat_valE] /= [_ [] <- hle2].
   have ? := cmp_le_antisym hle1 hle2; subst ws => {hle1 hle2}.
-  have := ARMFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) _ hvy.
-  move=> /(_ _ (imm mod wbase U32)%Z) [].
-  + by apply Z.mod_pos_bound.
-  move=> vm []; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
+  have := ARMFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) (to_word_get_var hvy).
+  move=> /(_ _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
   have [] := (assemble_opsP arm_eval_assemble_cond hmap _ hsem hlom).
   + by rewrite all_map; apply/allT => -[[]].
   move=> s' -> hlo; exists s' => //.
@@ -828,7 +689,7 @@ Proof.
   + subst z; rewrite /= heqex /arm_reg_size; last by SvD.fsetdec.
     by rewrite -hvmy zero_extend_u.
   case: eqP => heqx.
-  + rewrite -heqx -hvmx wrepr_mod zero_extend_u /=.
+  + rewrite -heqx -hvmx zero_extend_u /=.
     move: hw2 => /truncate_wordP [? ].
     by rewrite zero_extend_wrepr // => ->.
   by apply heqex; rewrite /arm_reg_size; SvD.fsetdec.
@@ -891,13 +752,14 @@ Qed.
 
 Definition arm_h_params {dc : DirectCall} : h_architecture_params arm_params :=
   {|
-    hap_hsap := arm_hsaparams;
-    hap_hlip := arm_hliparams;
-    ok_lip_tmp := arm_ok_lip_tmp;
-    hap_hlop := arm_hloparams;
-    hap_hagp := arm_hagparams;
-    hap_hshp := arm_hshp;
-    hap_hszp := arm_hszparams;
+    hap_hsap        := arm_hsaparams;
+    hap_hlip        := arm_hliparams;
+    ok_lip_tmp      := arm_ok_lip_tmp;
+    ok_lip_tmp2     := arm_ok_lip_tmp2;
+    hap_hlop        := arm_hloparams;
+    hap_hagp        := arm_hagparams;
+    hap_hshp        := arm_hshp;
+    hap_hszp        := arm_hszparams;
     hap_is_move_opP := arm_is_move_opP;
   |}.
 

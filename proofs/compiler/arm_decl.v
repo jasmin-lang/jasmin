@@ -329,7 +329,6 @@ Definition arm_linux_call_conv : calling_convention :=
    ; call_reg_ret_uniq := erefl true;
   |}.
 
-
 (* -------------------------------------------------------------------- *)
 (* Valid immediates checks. *)
 

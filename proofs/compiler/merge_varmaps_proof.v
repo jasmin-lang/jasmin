@@ -57,34 +57,36 @@ Section PROG.
 Context
   {ovm_i : one_varmap_info}
   (p : sprog)
-  (id_tmp : Ident.ident)
+  (id_tmp id_tmp2: Ident.ident)
   (global_data : pointer).
 
-Let var_tmp : var := vid id_tmp.
+Let var_tmp  : var := vid id_tmp.
+Let var_tmp2 : var := vid id_tmp2.
+Let var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
 Definition valid_writefun (w: funname → Sv.t) (f: sfun_decl) : bool :=
-  Sv.subset (write_fd p var_tmp w f.2) (w f.1).
+  Sv.subset (write_fd p var_tmps w f.2) (w f.1).
 
 Lemma check_wmapP (wm: Mf.t Sv.t) (fn: funname) (fd: sfundef) :
   get_fundef (p_funcs p) fn = Some fd →
-  check_wmap p var_tmp wm →
+  check_wmap p var_tmps wm →
   valid_writefun (get_wmap wm) (fn, fd).
 Proof. by move /get_fundef_in' => h /allE/List.Forall_forall /(_ _ h). Qed.
 
-Let wmap := mk_wmap p var_tmp.
+Let wmap := mk_wmap p var_tmps.
 Notation wrf := (get_wmap wmap).
 
 Lemma checkP u (fn: funname) (fd: sfundef) :
-  check p var_tmp = ok u →
+  check p var_tmps = ok u →
   get_fundef (p_funcs p) fn = Some fd →
-  valid_writefun wrf (fn, fd) ∧ check_fd p var_tmp wrf fn fd = ok tt.
+  valid_writefun wrf (fn, fd) ∧ check_fd p var_tmps wrf fn fd = ok tt.
 Proof.
   rewrite /check; t_xrbindP => ok_wmap _ _ ? ok_prog _ ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
   by have [ [] ] := get_map_cfprog_name_gen ok_prog ok_fd.
 Qed.
 
-Hypothesis ok_p : check p var_tmp = ok tt.
+Hypothesis ok_p : check p var_tmps = ok tt.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
@@ -100,8 +102,8 @@ Proof.
 Qed.
 
 Lemma var_tmp_not_magic :
-  ¬ Sv.In var_tmp (magic_variables p).
-Proof. by move: ok_p; rewrite /check; t_xrbindP => _ _ /Sv_memP. Qed.
+  disjoint var_tmps (magic_variables p).
+Proof. by move: ok_p; rewrite /check; t_xrbindP. Qed.
 
 Record merged_vmap_precondition (W: Sv.t) (sz: wsize) (m: mem) (vm: Vm.t) : Prop :=
   MVP {
@@ -154,12 +156,12 @@ Qed.
 
 Section LEMMA.
 
-  Notation write_c_rec := (merge_varmaps.write_c_rec p var_tmp wrf).
-  Notation write_c := (merge_varmaps.write_c p var_tmp wrf).
-  Notation write_I_rec := (merge_varmaps.write_I_rec p var_tmp wrf).
-  Notation write_I := (merge_varmaps.write_I p var_tmp wrf).
-  Notation write_i_rec := (merge_varmaps.write_i_rec p var_tmp wrf).
-  Notation write_i := (merge_varmaps.write_i p var_tmp wrf).
+  Notation write_c_rec := (merge_varmaps.write_c_rec p var_tmps wrf).
+  Notation write_c := (merge_varmaps.write_c p var_tmps wrf).
+  Notation write_I_rec := (merge_varmaps.write_I_rec p var_tmps wrf).
+  Notation write_I := (merge_varmaps.write_I p var_tmps wrf).
+  Notation write_i_rec := (merge_varmaps.write_i_rec p var_tmps wrf).
+  Notation write_i := (merge_varmaps.write_i p var_tmps wrf).
 
   Section WRITE.
 
@@ -205,8 +207,8 @@ Section LEMMA.
 
   End WRITE.
 
-  Notation check_instr := (check_i p var_tmp wrf).
-  Notation check_instr_r := (check_ir p var_tmp wrf).
+  Notation check_instr := (check_i p var_tmps wrf).
+  Notation check_instr_r := (check_ir p var_tmps wrf).
   Notation check_cmd sz := (check_c (check_instr sz)).
 
   Lemma check_instr_r_CwhileP sz ii aa c e c' D D' :
@@ -246,10 +248,10 @@ Section LEMMA.
     exact: ih ok_xs.
   Qed.
 
-  Notation sem_I := (sem_one_varmap.sem_I p var_tmp).
-  Notation sem_i := (sem_one_varmap.sem_i p var_tmp).
-  Notation sem_c := (sem_one_varmap.sem p var_tmp).
-  Notation sem_call := (sem_one_varmap.sem_call p var_tmp).
+  Notation sem_I := (sem_one_varmap.sem_I p var_tmps).
+  Notation sem_i := (sem_one_varmap.sem_i p var_tmps).
+  Notation sem_c := (sem_one_varmap.sem p var_tmps).
+  Notation sem_call := (sem_one_varmap.sem_call p var_tmps).
 
   Record match_estate (D: Sv.t) (s t: estate) : Prop :=
     MVM {
@@ -582,7 +584,7 @@ Section LEMMA.
       List.Forall2 value_uincl args args' →
       ∃ (k: Sv.t) tvm2 res',
         [/\ sem_call ii k {| escs := scs; emem := m ; evm := tvm1 |} fn {| escs := scs'; emem := m' ; evm := tvm2 |},
-         Sv.Subset k (writefun_ra p var_tmp wrf fn),
+         Sv.Subset k (writefun_ra p var_tmps wrf fn),
          get_var_is false tvm2 fd.(f_res) = ok res' &
          List.Forall2 value_uincl res res'
         ].
@@ -743,7 +745,7 @@ Section LEMMA.
       | RAnone =>
           let to_save := sv_of_list fst (sf_to_save (f_extra fd)) in
         [/\ disjoint to_save res,
-         Sv.subset (Sv.inter callee_saved (writefun_ra p var_tmp wrf fn)) to_save &
+         Sv.subset (Sv.inter callee_saved (writefun_ra p var_tmps wrf fn)) to_save &
          all
            (λ x : var_i, if vtype x is sword _ then true else false)
            (f_params fd)
@@ -769,7 +771,7 @@ Section LEMMA.
       rewrite /magic_variables -/vgd -/vrsp /= => -[].
       rewrite Sv.add_spec  Sv.singleton_spec => ->.
       by case/Decidable.not_or => /eqP -> /eqP ->.
-    set t1' := with_vm s0 (set_RSP p (emem s0) (ra_undef_vm fd tvm1 var_tmp)).
+    set t1' := with_vm s0 (set_RSP p (emem s0) (ra_undef_vm fd tvm1 var_tmps)).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (sf_align (f_extra fd)) (emem s1) (evm t1').
     - split.
       + apply: disjoint_w; last exact: preserved_magic.
@@ -826,7 +828,8 @@ Section LEMMA.
       have z_not_arr : ~~ is_sarr (vtype z).
       + move: hin ra_neq_magic checked_save_stack; clear => /SvD.F.union_1[].
         * rewrite /ra_vm; case: sf_return_address => [ | ra _ | ra rastack _ ].
-          - by case/SvD.F.add_iff => [<- | /vflagsP ->].
+          - case/SvD.F.union_iff => [ | /vflagsP ->] //.
+            by case/SvD.F.add_iff => [<- | /Sv.singleton_spec ->].
           - by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
           case: ra; last by SvD.fsetdec.  
           by move => r /Sv.singleton_spec -> /and3P [] _ _ /eqP ->.
@@ -863,7 +866,7 @@ Section LEMMA.
       + by rewrite /set_RSP Vm.setP_neq //; apply: hvm; apply h; rewrite inE eqxx.
       by eexists; first reflexivity; constructor.
     exists
-       (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd))),
+       (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmps) (saved_stack_vm fd))),
        (set_RSP p (free_stack (emem t2)) (evm t2)), tres; split.
     - econstructor.
       + exact: ok_fd.
@@ -929,7 +932,7 @@ End LEMMA.
 Lemma merge_varmaps_export_callP scs m fn args scs' m' res :
   is_export p fn →
   psem.sem_call p global_data scs m fn args scs' m' res →
-  sem_one_varmap.sem_export_call p var_tmp global_data scs m fn args scs' m' res.
+  sem_one_varmap.sem_export_call p var_tmps global_data scs m fn args scs' m' res.
 Proof.
   case => fd ok_fd Export.
   move => /merge_varmaps_callP /(_ dummy_instr_info fd _ _ ok_fd).

@@ -59,7 +59,7 @@ Definition x86_mov_ofs x tag vpk y ofs :=
 Definition x86_immediate x z :=
   mov_ws Uptr (Lvar x) (cast_const z) AT_none.
 
-Definition x86_swap t (x y z w : var_i) := 
+Definition x86_swap t (x y z w : var_i) :=
   Copn [:: Lvar x; Lvar y] t (Ox86 (XCHG reg_size)) [:: Plvar z; Plvar w].
 
 Definition x86_saparams : stack_alloc_params :=
@@ -75,6 +75,7 @@ Definition x86_saparams : stack_alloc_params :=
 Section LINEARIZATION.
 
 Notation vtmpi := (mk_var_i (to_var RAX)).
+Notation vtmp2i := (mk_var_i (to_var R10)).
 
 Definition x86_allocate_stack_frame (rspi: var_i) (tmp: option var_i) (sz: Z) :=
   let p := Fapp2 (Osub (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
@@ -92,28 +93,37 @@ Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
   in ([:: x ], Ox86 op, [:: e ]).
 
 Definition x86_set_up_sp_register
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : seq fopn_args :=
+  (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) (tmp : var_i) : seq fopn_args :=
   let i0 := x86_lassign (LLvar r) Uptr (Rexpr (Fvar rspi)) in
   let i2 := x86_op_align rspi Uptr al in
   i0 :: rcons (if sf_sz != 0 then x86_allocate_stack_frame rspi None sf_sz else [::]) i2.
 
-Definition x86_set_up_sp_stack
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq fopn_args :=
-  let vtmpg := Fvar vtmpi in
-  let i := x86_lassign (Store Uptr rspi (fconst Uptr off)) Uptr (Rexpr vtmpg) in
-  x86_set_up_sp_register rspi sf_sz al vtmpi ++ [:: i ].
+Definition x86_lmove (xd xs: var_i) :=
+  x86_lassign (LLvar xd) (wsize_of_stype (vtype xd)) (Rexpr (Fvar xs)).
+
+Definition x86_check_ws (_: wsize) := true.
+
+Definition x86_lstore (xd : var_i) (ofs : Z) (xs :  var_i) :=
+  let ws := wsize_of_stype (vtype xs) in
+  x86_lassign (Store ws xd (fconst Uptr ofs)) ws (Rexpr (Fvar xs)).
+
+Definition x86_lload (xd xs: var_i) (ofs : Z) :=
+  let ws := wsize_of_stype (vtype xd) in
+  x86_lassign (LLvar xd) ws (Load ws xs (fconst Uptr ofs)).
 
 Definition x86_liparams : linearization_params :=
   {|
     lip_tmp := vname (v_var vtmpi);
+    lip_tmp2 := vname (v_var vtmp2i);
     lip_not_saved_stack := [::];
     lip_allocate_stack_frame := x86_allocate_stack_frame;
     lip_free_stack_frame := x86_free_stack_frame;
-    lip_set_up_sp_register :=
-      fun rspi sf_sz al r => Some (x86_set_up_sp_register rspi sf_sz al r);
-    lip_set_up_sp_stack :=
-      fun rspi sf_sz al off => Some (x86_set_up_sp_stack rspi sf_sz al off);
-    lip_lassign := fun x ws e => Some (x86_lassign x ws e);
+    lip_set_up_sp_register := x86_set_up_sp_register;
+    lip_lmove := x86_lmove;
+    lip_check_ws := x86_check_ws;
+    lip_lstore := x86_lstore;
+    lip_lstores := lstores_dfl x86_lstore;
+    lip_lloads := lloads_dfl x86_lload;
   |}.
 
 End LINEARIZATION.

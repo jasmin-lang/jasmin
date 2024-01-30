@@ -188,14 +188,10 @@ Proof.
       vm2 =[\Sv.singleton voff] (evm s1).[vsaved_sp <- Vword ptr] &
       vm2.[voff] = Vword (wrepr Uptr stk_max)]].
   + move: hbody'; rewrite -cat_rcons => hbody'.
-    have hmax: (0 <= stk_max < wbase reg_size)%Z.
-    + move: hstack.
-      have /= := wunsigned_range (align_word ws_align ptr).
-      by lia.
     have /= := [elaborate
       let: s1 := with_vm s1 (evm s1).[vsaved_sp <- Vword ptr] in
       let: ls1 := of_estate s1 _ _ in
-      ARMFopnP.li_lsem (ls := ls1) hbody' erefl erefl hmax
+      ARMFopnP.li_lsem (ls := ls1) hbody' erefl erefl
     ].
     rewrite -/iload_off size_rcons -{1}addn1 => -[vm2 [hsem2 hvm2 hgetoff]].
     exists vm2; split=> //.

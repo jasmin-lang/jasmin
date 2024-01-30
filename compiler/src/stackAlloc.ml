@@ -333,7 +333,8 @@ let memory_analysis pp_err ~debug up =
 
     let rsp = V.clone Arch.rsp_var in
     let extra =
-      let extra = to_save in
+      (* FIXME: how to make this more generic? *)
+      let extra = List.rev to_save in
       if has_stack && ro.ro_rsp = None then extra @ [rsp]
       else extra in
       

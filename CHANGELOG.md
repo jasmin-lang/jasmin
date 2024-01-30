@@ -99,6 +99,10 @@
   [PR 712](https://github.com/jasmin-lang/jasmin/pull/697);
   fixes [#696](https://github.com/jasmin-lang/jasmin/issues/696)).
 
+- Fix code generation for ARMv7 when export function have large stack frames
+  ([PR #710](https://github.com/jasmin-lang/jasmin/pull/710);
+   fixes [#709](https://github.com/jasmin-lang/jasmin/issues/709)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise

@@ -26,7 +26,7 @@ The semantics also ensures some properties:
  - Calls to “rastack” functions are annotated with free variables
  - The sp_rsp local variable always hold the pointer to the top of the stack
  - The sp_rip local variable is assumed to hold the pointer to the static global data
- - The var_tmp local variable is free at the beginning of export functions
+ - The var_tmp a set of local variables free at the beginning of export functions
 
 The semantic predicates are indexed by a set of variables which is *precisely* the set of variables that are written during the execution.
  *)
@@ -66,7 +66,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}
   (p : sprog)
-  (var_tmp : var).
+  (var_tmp : Sv.t).
 
 Local Notation gd := (p_globs p).
 
@@ -75,7 +75,7 @@ Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 #[local] Notation magic_variables := (magic_variables p).
 
-Definition ra_valid fd (ii:instr_info) (k: Sv.t) (x: var) : bool :=
+Definition ra_valid fd (ii:instr_info) (k: Sv.t) : bool :=
   match fd.(f_extra).(sf_return_address) with
   | RAstack ra _ _ =>
     if ra is Some ra then (ra != vgd) && (ra != vrsp)
@@ -85,14 +85,14 @@ Definition ra_valid fd (ii:instr_info) (k: Sv.t) (x: var) : bool :=
   | RAnone => true
   end.
 
-Definition ra_undef_none (ss: saved_stack) (x: var) :=
-  Sv.union (Sv.add x vflags) (savedstackreg ss).
+Definition ra_undef_none (ss: saved_stack) (tmp: Sv.t) :=
+  Sv.union (Sv.union tmp vflags) (savedstackreg ss).
 
-Definition ra_undef_vm_none (ss: saved_stack) (x: var) vm : Vm.t :=
-  kill_vars (ra_undef_none ss x) vm.
+Definition ra_undef_vm_none (ss: saved_stack) (tmp: Sv.t) vm : Vm.t :=
+  kill_vars (ra_undef_none ss tmp) vm.
 
-Definition ra_undef_vm fd vm (x: var) : Vm.t :=
-  kill_vars (ra_undef fd x) vm.
+Definition ra_undef_vm fd vm (tmp: Sv.t) : Vm.t :=
+  kill_vars (ra_undef fd tmp) vm.
 
 Definition saved_stack_valid fd (k: Sv.t) : bool :=
   if fd.(f_extra).(sf_save_stack) is SavedStackReg r
@@ -180,9 +180,9 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_i ii (Sv.union k (fd_tmp_call p f)) s1 (Ccall res f args) s2'
 
 with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :=
-| EcallRun ii k s1 s2 fn f (* args *) m1 s2' (* res *) :
+| EcallRun ii k s1 s2 fn f m1 s2' :
     get_fundef (p_funcs p) fn = Some f →
-    ra_valid f ii k var_tmp →
+    ra_valid f ii k →
     saved_stack_valid f k →
     top_stack_aligned f s1.(emem) →
     valid_RSP s1.(emem) s1.(evm) →
@@ -297,7 +297,7 @@ Lemma sem_callE ii k s fn s' :
   sem_call ii k s fn s' →
   ex4_10
     (λ f _ _ _, get_fundef (p_funcs p) fn = Some f)
-    (λ f _ _ k', ra_valid f ii k' var_tmp)
+    (λ f _ _ k', ra_valid f ii k')
     (λ f _ _ k', saved_stack_valid f k')
     (λ f _ _ _, top_stack_aligned f s.(emem))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
@@ -308,7 +308,7 @@ Lemma sem_callE ii k s fn s' :
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
       let m2 := free_stack s2'.(emem) in
-      s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm) |})
+      s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 (evm s2') |})
     (λ f _ _ k',
      k = Sv.union k' (Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f))).
 Proof.
@@ -415,7 +415,7 @@ Section SEM_IND.
   Definition sem_Ind_proc : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2: estate) (fn: funname) fd m1 s2',
       get_fundef (p_funcs p) fn = Some fd →
-      ra_valid fd ii k var_tmp →
+      ra_valid fd ii k →
       saved_stack_valid fd k →
       top_stack_aligned fd s1.(emem) →
       valid_RSP s1.(emem) s1.(evm) →
@@ -425,7 +425,7 @@ Section SEM_IND.
       Pc  k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
-      s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
+      s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 (evm s2') |} →
       let vm := Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)) in
       Pfun ii vm s1 fn s2.
 
