@@ -91,8 +91,8 @@ end = struct
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
       Cfor (mk_v_loc fn v, mk_range fn r, mk_stmt fn st)
-    | Ccall (inlinf, lvs, c_fn, es) ->
-      Ccall (inlinf, mk_lvals fn lvs, c_fn, mk_exprs fn es)
+    | Ccall (lvs, c_fn, es) ->
+      Ccall (mk_lvals fn lvs, c_fn, mk_exprs fn es)
     | Cwhile (a, st1, e, st2) ->
       Cwhile (a, mk_stmt fn st1, mk_expr fn e, mk_stmt fn st2)
 
@@ -110,6 +110,9 @@ end = struct
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
+    | Pfvar _ -> expr
+    | Pbig (e1, e2, op, v, e3, e4) ->
+      Pbig(mk_expr fn e1, mk_expr fn e2, op, v, mk_expr fn e3, mk_expr fn e4)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -195,6 +198,9 @@ end = struct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
+    | Pfvar _ -> dp
+    | Pbig (e1, e2, _, _, e3, e4) ->
+      app_expr (app_expr (app_expr (app_expr dp v e1 ct) v e2 ct) v e3 ct) v e4 ct
 
   (* State while building the dependency graph:
      - dp : dependency graph
@@ -232,7 +238,10 @@ end = struct
       | Papp1 (_,e1) -> aux (acc,st) e1
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
-      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
+      | Pfvar _ -> acc, st
+      | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux (acc,st) e1) e2) e3) e4
+    in
 
     aux ([],st) e
 
@@ -256,7 +265,10 @@ end = struct
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
-      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b in
+      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
+      | Pfvar _ -> acc
+      | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux acc e1) e2) e3) e4
+    in
 
     aux acc e
 
@@ -343,7 +355,7 @@ end = struct
     | Cwhile (_, c1, _, c2) ->
       pa_flag_setfrom v (List.rev_append c1 (List.rev c2))
         
-    | Ccall (_, lvs, _, _) | Csyscall(lvs, _, _) ->
+    | Ccall (lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
       
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
@@ -410,7 +422,7 @@ end = struct
       pa_stmt fn prog st' (List.append c1 c2)
       |> set_ct st.ct
 
-    | Ccall (_, lvs, fn', es) ->   
+    | Ccall (lvs, fn', es) ->   
       let st = { st with cfg = add_call st.cfg fn fn' } in
       let f_decl = get_fun_def (oget prog) fn' |> oget in
 
@@ -497,6 +509,9 @@ end = struct
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
+    | Pfvar _ -> sv
+    | Pbig (e1, e2, _, _, e3, e4) -> collect_vars_es sv [e1;e2;e3;e4]
+
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 
   let collect_vars_lv sv = function

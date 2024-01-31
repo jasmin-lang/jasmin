@@ -93,8 +93,20 @@ let pp_vfty fmt = function
   | IsMsf -> Format.fprintf fmt "#%s" smsf
   | IsNormal ty -> pp_vty fmt ty
 
+(* Either a function does not modify the MSF, or it does at a certain location,
+   and if that location is a function call we add the trace of calls until the
+   offending instruction. *)
+type modmsf =
+  | Modified of L.i_loc * (L.i_loc * funname) list
+  | NotModified
+
+let is_Modified m =
+  match m with
+  | Modified _ -> true
+  | NotModified -> false
+
 type ty_fun = {
-    modmsf               : bool;
+    modmsf               : modmsf;
     tyin                 : vfty list;
     tyout                : vfty list;
     constraints          : C.constraints;
@@ -115,7 +127,12 @@ module FEnv = struct
 end
 
 let pp_modmsf fmt modmsf =
-  Format.fprintf fmt "%s" (if modmsf then "modmsf" else "nomodmsf")
+  let s =
+    match modmsf with
+    | Modified _ -> "modmsf"
+    | NotModified -> "nomodmsf"
+  in
+  Format.fprintf fmt "%s" s
 
 let pp_funty fmt (fname, tyfun) =
   Format.fprintf fmt
@@ -139,24 +156,38 @@ let is_inline i =
   | None   -> false
 
 let rec modmsf_i fenv i =
+  let modified_here = Modified(i.i_loc, []) in
   match i.i_desc with
-  | Csyscall _ | Cwhile _ -> true
-  | Cif _ -> not (is_inline i)
-  | Cassgn _ -> false
+  | Csyscall _ | Cwhile _ -> modified_here
+  | Cassert _ -> NotModified
+  | Cif(_, c0, c1) ->
+    if is_inline i
+    then
+      let r = modmsf_c fenv c0 in
+      if is_Modified r then r else modmsf_c fenv c1
+    else modified_here
+  | Cassgn _ -> NotModified
   | Copn (_, _, o, _) ->
     begin match is_special o with
-    | Init_msf -> true (* Lfence modify msf *)
-    | Update_msf  -> true (* not sure it is needed *)
-    | Mov_msf | Protect | Other -> false
+    | Init_msf -> modified_here (* LFENCE modifies msf *)
+    | Update_msf -> modified_here (* not sure it is needed *)
+    | Mov_msf | Protect | Other -> NotModified
     end
   | Cfor(_, _, c) -> modmsf_c fenv c
-  | Ccall (_, _, f, _) -> (FEnv.get_fty fenv f).modmsf
+  | Ccall (_, f, _) ->
+    match (FEnv.get_fty fenv f).modmsf with
+    | Modified (l, tr) -> Modified(i.i_loc, (l, f) :: tr)
+    | NotModified -> NotModified
 
 and modmsf_c fenv c =
-  List.exists (modmsf_i fenv) c
+  List.map (modmsf_i fenv) c
+  |> List.find_opt is_Modified
+  |> Option.default NotModified
 
 let error ~loc =
   hierror ~loc:(Lone loc) ~kind:"speculative constant type checker"
+
+let warn ~loc = warning SCTchecker loc
 
 (* --------------------------------------------------------- *)
 (* Inference of the variables that need to contain msf       *)
@@ -210,12 +241,35 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
 
   let checks ms xs = List.iter (check ms) xs in
 
+  let pp_modmsf_trace fmt tr =
+    let pp_item fmt (l, fn) =
+      Format.fprintf fmt
+        "@[<h>the function %s destroys MSFs at %a@]"
+        fn.fn_name
+        L.pp_iloc l
+    in
+    Format.fprintf fmt "Trace:@;<0 2>@[<v>%a@]" (pp_list "" pp_item) tr
+  in
+
+  let check_call ~loc fn modmsf ms =
+    match modmsf with
+    | Modified(l, tr) ->
+      if not (Sv.is_empty ms) && withcheck then
+        error ~loc
+          "@[<h>this function call destroys MSFs and %a are required.@]@;%a"
+          pp_vset ms
+          pp_modmsf_trace ((l, fn) :: tr)
+    | NotModified -> ()
+  in
+
   match i.i_desc with
   | Csyscall _ ->
       if not (Sv.is_empty ms) && withcheck then
         error ~loc "syscalls destroy msf variables, %a are required" pp_vset ms;
       (* withcheck => is_empty ms *)
       ms
+
+  | Cassert _ -> ms
 
   | Cif (_, c1, c2) ->
     let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
@@ -226,7 +280,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
     check_x ms x;
     let rec loop ms =
       let ms' = infer_msf_c ~withcheck fenv tbl c ms in
-      if Sv.subset ms' ms then (Hashtbl.add tbl i.i_loc ms'; ms')
+      if Sv.subset ms' ms then (Hashtbl.add tbl i.i_loc ms; ms)
       else loop (Sv.union ms' ms) in
     loop ms
 
@@ -245,7 +299,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
   | Cassgn _ ->
     ms
 
-  | Ccall(_, xs, f, es) ->
+  | Ccall(xs, f, es) ->
     let fty = FEnv.get_fty fenv f in
     let ms =
       let doout ms vfty x =
@@ -253,9 +307,9 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         | IsMsf -> let x = reg_lval ~direct:true loc x in Sv.remove (L.unloc x) ms
         | _ -> ms in
       let ms = List.fold_left2 doout ms fty.tyout xs in
-      if fty.modmsf && not (Sv.is_empty ms) && withcheck then
-        error ~loc "calls destroy msf variables, %a are required" pp_vset ms;
-      ms in
+      check_call ~loc f fty.modmsf ms;
+      ms
+    in
     let doin ms vfty e =
       match vfty with
       | IsMsf -> let x = reg_expr ~direct:true loc e in Sv.add (L.unloc x) ms
@@ -593,7 +647,8 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | Papp1(_, e)      -> ty_expr env venv loc e
   | Papp2(_, e1, e2) -> ty_exprs_max env venv loc [e1; e2]
   | PappN(_, es)     -> ty_exprs_max env venv loc es
-
+  | Pfvar _         -> assert false
+  | Pbig _           -> assert false
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
       let ty2 = ty_expr env venv loc e2 in
@@ -938,6 +993,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
         ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
     end
 
+  | Cassert _ -> assert false
   | Cif(e, c1, c2) ->
     if is_inline i then
       let msf1, venv1 = ty_cmd fenv env (msf, venv) c1 in
@@ -971,7 +1027,6 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
        --------------------------------------------------------------------------------
        env, msf |- while c1 e c2 : enter_if e msf1
      *)
-    ensure_public env venv loc e;
     let msf1 = MSF.loop env i.i_loc msf in
     (* let w, _ = written_vars [i] in *)
     (* NOTE cannot restrict refreshed variables to local modified vars
@@ -981,12 +1036,13 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
 
     let venv1 = Env.freshen env venv in (* venv <= venv1 *)
     let (msf2, venv2) = ty_cmd fenv env (msf1, venv1) c1 in
+    ensure_public env venv2 loc e;
     let (msf', venv') = ty_cmd fenv env (MSF.enter_if msf2 e, venv2) c2 in
     let msf' = MSF.end_loop loc msf1 msf' in
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
     MSF.enter_if msf' (Papp1(Onot, e)), venv1
 
-  | Ccall (_, xs, f, es) ->
+  | Ccall (xs, f, es) ->
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
     let tyout, tyin, resulting_corruption = Env.clone_for_call env fty in
@@ -1019,7 +1075,8 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let (msf, venv) = ty_lval env msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in
-    List.fold_left2 output_ty ((if modmsf then MSF.toinit else msf), venv) xs tyout
+    let msf = if is_Modified modmsf then MSF.toinit else msf in
+    List.fold_left2 output_ty (msf, venv) xs tyout
 
 and ty_cmd fenv env msf_e c =
   List.fold_left (ty_instr fenv env) msf_e c
@@ -1231,9 +1288,19 @@ let init_constraint fenv f =
            if Option.default false msf then Sv.add (L.unloc x) s else s)
          Sv.empty f.f_ret tyout) in
 
-  if export && not (Sv.is_empty msfs) then
-    error ~loc:f.f_loc
-      "%a need to be a msf, this is not allowed in export function" pp_vset msfs;
+  if export && not (Sv.is_empty msfs) then begin
+    let vars_kind, pos =
+      if Sv.subset msfs (Sv.of_list f.f_args)
+      then "arguments", ", this is not allowed for export functions"
+      else "variables", ""
+    in
+    error
+      ~loc:f.f_loc
+      "@[<h>the %s %a need to be MSFs%s.@]"
+      vars_kind
+      pp_vset msfs
+      pos
+  end;
 
   (* process function inputs *)
   let process_param venv x =
@@ -1243,9 +1310,12 @@ let init_constraint fenv f =
       match msf with
       | None -> Sv.mem x msfs
       | Some b ->
-        if b <> Sv.mem x msfs then
-          error ~loc:x.v_dloc
-            "%a %s be a msf" pp_var x (if b then "must not" else "should");
+        if b <> Sv.mem x msfs then begin
+          let loc = x.v_dloc in
+          if b
+          then warn ~loc:(L.i_loc0 loc) "%a does not need to be an MSF" pp_var x
+          else error ~loc "%a should be an MSF" pp_var x
+        end;
         b in
     if export then
       begin match vty with
@@ -1294,10 +1364,10 @@ let init_constraint fenv f =
         "nomodmsf", (fun a -> Annot.none a; false)] f.f_annot.f_user_annot in
   begin match umodmsf with
   | None -> ()
-  | Some umodmsf ->
-    if umodmsf <> modmsf then
-      error ~loc:f.f_loc
-        "annotation %a should be %a" pp_modmsf umodmsf pp_modmsf modmsf
+  | Some annot ->
+      if annot <> is_Modified modmsf then
+        let sannot = if annot then "modmsf" else "nomodmsf" in
+        error ~loc:f.f_loc "annotation %s should be %a" sannot pp_modmsf modmsf
   end;
 
   env, venv, tyin, tyout, modmsf

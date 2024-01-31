@@ -573,7 +573,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
     Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
     check_es es1 es2 r >>= check_lvals xs1 xs2
 
-  | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 =>
+  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
     Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
     check_es arg1 arg2 r >>= check_lvals x1 x2
 

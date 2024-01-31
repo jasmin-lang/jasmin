@@ -209,7 +209,7 @@ Section REMOVE_INIT.
 
   Local Lemma Rcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs ii' vm1 Hvm1.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfd Hxs ii' vm1 Hvm1.
     have [vargs' Hsa /Hfd [vres' [Hc Hvres]]]:= sem_pexprs_uincl Hvm1 Hargs.
     have /(_ _ Hvm1) [vm2' Hw ?] := writes_uincl _ Hvres Hxs.
     exists vm2' => //=; apply: sem_seq1; constructor; econstructor; eauto.
@@ -511,7 +511,7 @@ Section ADD_INIT.
 
   Local Lemma RAcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs ii'.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfd Hxs ii'.
     apply aux.
     + constructor; econstructor;eauto.
     move=> vm1 heq1.

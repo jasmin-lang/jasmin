@@ -221,7 +221,7 @@ let rec check_instr pd asmOp env i =
     check_cmd pd asmOp env c1;
     check_cmd pd asmOp env c2
 
-  | Ccall(_,xs,fn,es) -> 
+  | Ccall(xs,fn,es) ->
     let fd = getfun env fn in
     check_exprs pd loc es fd.f_tyin;
     check_lvals pd loc xs fd.f_tyout

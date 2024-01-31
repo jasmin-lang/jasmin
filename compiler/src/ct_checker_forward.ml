@@ -379,6 +379,8 @@ let rec ty_expr ~(public:bool) env (e:expr) =
   | Papp2(_, e1, e2)   -> ty_exprs_max ~public env [e1; e2]
   | PappN(_, es)       -> ty_exprs_max ~public env es
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
+  | Pfvar _ -> assert false
+  | Pbig _ -> assert false
 
 and ty_exprs ~public env es =
   List.map_fold (ty_expr ~public) env es
@@ -556,7 +558,7 @@ let rec ty_instr fenv env i =
       else loop (Env.max env2 env) in
     loop env
 
-  | Ccall (_, xs, f, es) ->
+  | Ccall (xs, f, es) ->
     let fty = get_fun fenv f in
     (* Check the arguments *)
     let do_e env e (_,lvl) = ty_expr ~public:(lvl=Public) env e in

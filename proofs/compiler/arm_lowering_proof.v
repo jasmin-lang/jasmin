@@ -1926,7 +1926,7 @@ Qed.
 #[ local ]
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s0 scs0 m0 s1 inli lvs fn args vargs vs hsemargs _ hfun hwrite.
+  move=> s0 scs0 m0 s1 lvs fn args vargs vs hsemargs _ hfun hwrite.
   move=> ii hfv s0' hs0'.
   rewrite /=.
 

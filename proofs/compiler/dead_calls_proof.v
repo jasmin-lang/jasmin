@@ -39,7 +39,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sf.t :=
   | Cif    _  c1 c2   => Sf.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
   | Cwhile _ c1 _  c2 => Sf.union (c_Calls c1) (c_Calls c2)
-  | Ccall  _  _  f  _ => Sf.singleton f
+  | Ccall _ f _ => Sf.singleton f
   end.
 
 Definition c_Calls (cmd : cmd) :=
@@ -78,8 +78,8 @@ Lemma i_Calls_while a c1 e c2 :
   i_Calls_r (Cwhile a c1 e c2) = Sf.union (c_Calls c1) (c_Calls c2).
 Proof. by []. Qed.
 
-Lemma i_Calls_call ii lv f es :
-  i_Calls_r (Ccall ii lv f es) = Sf.singleton f.
+Lemma i_Calls_call lv f es :
+  i_Calls_r (Ccall lv f es) = Sf.singleton f.
 Proof. by []. Qed.
 
 Lemma c_Calls_nil : c_Calls [::] = Sf.empty.
@@ -325,7 +325,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfun Hres Hincl.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfun Hres Hincl.
     econstructor; eauto.
   Qed.
 

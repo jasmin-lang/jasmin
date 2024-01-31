@@ -48,7 +48,7 @@ Fixpoint remove_init_i i :=
       let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
       let c' := foldr (fun i c => remove_init_i i ++ c) [::] c' in
       [:: MkI ii (Cwhile a c e c') ]
-    | Ccall _ _ _ _  => [::i]
+    | Ccall _ _ _  => [::i]
     end
   end.
 

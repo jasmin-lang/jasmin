@@ -61,9 +61,6 @@ export fn msf_in_export(reg u64 p) {
 
 fn must_not_be_a_msf_aux(#msf reg u64 p) {
 }
-export fn must_not_be_a_msf(#public reg u64 p) {
-  must_not_be_a_msf_aux(p);
-}
 
 fn should_be_a_msf_aux(#public reg u64 p) {
   p = #protect(p, p);

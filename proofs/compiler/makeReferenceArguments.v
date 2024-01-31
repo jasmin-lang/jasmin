@@ -148,13 +148,13 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c  := update_c (update_i X) c in
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e c')]
-  | Ccall ini xs fn es =>
+  | Ccall xs fn es =>
     let: (params,returns) := get_sig fn in
     Let pres := make_prologue ii X Hexadecimal.Nil params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in 
-    ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
+    ok (prologue ++ MkI ii (Ccall xs fn es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in
     Let: (prologue, es) := make_prologue ii X Hexadecimal.Nil params es in

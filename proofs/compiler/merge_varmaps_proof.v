@@ -153,7 +153,7 @@ Section LEMMA.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
-    by move => i xs fn es s; rewrite /write_i /write_i_rec; SvD.fsetdec.
+    by move=> xs fn es s; rewrite /write_i /write_i_rec; SvD.fsetdec.
   Qed.
 
   Lemma write_I_recE ii i s :
@@ -610,7 +610,8 @@ Section LEMMA.
 
   Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
   Proof.
-    move => s1 scs2 m2 s2 jj xs fn args vargs vs ok_vargs sexec ih ok_s2 sz ii I O t1.
+    move=>
+      s1 scs2 m2 s2 xs fn args vargs vs ok_vargs sexec ih ok_s2 sz ii I O t1.
     rewrite /check_instr_r /=; case heq : get_fundef => [ fd | //].
     t_xrbindP => hces hal hargs hres hxs pre sim.
     have [vargs' hvargs' hincl]:= check_esP hces sim ok_vargs.

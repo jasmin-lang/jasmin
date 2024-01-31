@@ -172,6 +172,7 @@ let rec pp_expr_rec prio fmt pe =
     optparent fmt prio p "(";
     F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
     optparent fmt prio p ")"
+  | PEbig _ -> assert false
 
 and pp_mem_access fmt (ty,x,e) = 
   let pp_e fmt e = 

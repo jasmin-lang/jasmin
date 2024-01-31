@@ -32,7 +32,7 @@ Inductive pp_error :=
 (*   | PPEopN     `(opN) *)
 (*   | PPEsopn    `(sopn) *)
 (*   | PPEexpr    `(pexpr) *)
-(*   | PPElval    `(lval) *)
+  | PPElval  of lval
   | PPEfunname `(funname)
   | PPEfuninfo `(fun_info)
 (*   | PPEinstr   `(instr_r) *)
@@ -67,6 +67,7 @@ Notation pp_e    := PPEexpr.
 Notation pp_re   := PPErexpr.
 Notation pp_fe   := PPEfexpr.
 Notation pp_fn   := PPEfunname.
+Notation pp_lv   := PPElval.
 
 Fixpoint pp_list {A} sep (pp : A -> pp_error) xs : pp_error :=
   match xs with

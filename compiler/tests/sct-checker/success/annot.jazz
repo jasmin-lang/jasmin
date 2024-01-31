@@ -32,3 +32,5 @@ fn id4(#transient reg u64 arg) -> #transient reg u64 {
 fn id5(#secret reg u64 arg) -> #secret reg u64 {
   return arg;
 }
+
+fn unused_msf(#msf reg u64 msf) {}

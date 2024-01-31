@@ -185,7 +185,7 @@ Module INCL. Section INCL.
 
   Local Lemma Hcall : sem_Ind_call P1 ev Pi_r Pfun.
   Proof.
-    move=> ?????????? /(gd_incl_es hincl) h1 ? h2 /(gd_incl_wls hincl) h3.
+    move=> ????????? /(gd_incl_es hincl) h1 ? h2 /(gd_incl_wls hincl) h3.
     econstructor;eauto.
   Qed.
 
@@ -305,8 +305,8 @@ Section PROOFS.
     by t_xrbindP => gd3 /hc h1 /hc'; apply gd_inclT.
   Qed.
 
-  Local Lemma Hcall: forall i xs f es, Pr (Ccall i xs f es).
-  Proof. by move=> i xs f es ii gd1 gd2 /= [<-]. Qed.
+  Local Lemma Hcall: forall xs f es, Pr (Ccall xs f es).
+  Proof. by move=> xs f es ii gd1 gd2 /= [<-]. Qed.
 
   Local Lemma extend_glob_cP c gd1 gd2 :
     foldM (extend_glob_i fresh_id) gd1 c = ok gd2 ->
@@ -764,7 +764,8 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hcall : sem_Ind_call P ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 fii xs fn args vargs rvs hargs _ hfun hres ii m m' c' /= hrm s1' hval.
+    move=> s1 scs2 m2 s2 xs fn args vargs rvs hargs _ hfun hres ii m m' c' /=
+      hrm s1' hval.
     move: hrm; t_xrbindP => xs' hxs es' hes ??;subst m' c'.
     have hes' := remove_glob_esP hval hes hargs.
     have hval' : valid m (with_scs (with_mem s1 m2) scs2) (with_scs (with_mem s1' m2) scs2).

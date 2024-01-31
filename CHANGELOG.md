@@ -38,6 +38,19 @@
   ([PR #620](https://github.com/jasmin-lang/jasmin/pull/620);
   fixes [#618](https://github.com/jasmin-lang/jasmin/issues/618)).
 
+- Add instruction `CLZ` to arm-m4:
+  ([PR #641](https://github.com/jasmin-lang/jasmin/pull/641).
+
+- Add instruction `CMN` to arm-m4:
+  ([PR #642](https://github.com/jasmin-lang/jasmin/pull/642)).
+
+- Add instructions `BFC` and `BFI` to arm-m4
+  ([PR #643](https://github.com/jasmin-lang/jasmin/pull/643)).
+
+- Add signed multiply halfwords instructions `SMULBB`, `SMULBT`, `SMULTB`,
+  `SMULTT`, `SMLABB`, `SMLABT`, `SMLATB`, `SMLATT`, `SMULWB`, and `SMULWT`
+  ([PR #644](https://github.com/jasmin-lang/jasmin/pull/644)).
+
 ## Bug fixes
 
 - Type-checking rejects wrongly casted primitive operators
@@ -71,11 +84,11 @@
   fixes [#587](https://github.com/jasmin-lang/jasmin/issues/587)).
 
 - Fix combine flag notation for arm
-  ([PR 594]((https://github.com/jasmin-lang/jasmin/pull/594);
+  ([PR 594](https://github.com/jasmin-lang/jasmin/pull/594);
   fixes [#593](https://github.com/jasmin-lang/jasmin/issues/593)).
 
 - Flag combination support `"!="` as the negation of `"=="`
-  ([PR 600]((https://github.com/jasmin-lang/jasmin/pull/600);
+  ([PR 600](https://github.com/jasmin-lang/jasmin/pull/600);
   fixes [#599](https://github.com/jasmin-lang/jasmin/issues/599)).
 
 - Remove dead functions after loop unrolling
@@ -100,6 +113,13 @@
 
 - Unsigned division on x86 emits a xor instead of “mov 0“
   ([PR #582](https://github.com/jasmin-lang/jasmin/pull/582)).
+
+- Add more warning options:
+    - `-wduplicatevar`: warns when two variables share the same name;
+    - `-wunusedvar`: warns when a declared variable is not used.
+
+  ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
+  Warning this is a **breaking change**.
 
 # Jasmin 2023.06.1 — 2023-07-31
 

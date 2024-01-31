@@ -1,57 +1,34 @@
-Failed as expected assign_msf: "error_messages.jazz", line 3 (2-8):
-                               speculative constant type checker: assignment operation not permitted on a msf variable: x
-Failed as expected syscall: "error_messages.jazz", line 11 (2-22):
-                            speculative constant type checker: syscalls destroy msf variables, {
+Failed as expected assign_msf: speculative constant type checker: assignment operation not permitted on a msf variable: x
+Failed as expected syscall: speculative constant type checker: syscalls destroy msf variables, {
                              x } are required
-Failed as expected update_msf_not_trans: "error_messages.jazz", line 17 (25-26):
-                                         speculative constant type checker: MSF is not Trans
-Failed as expected update_msf_wrong_expr: "error_messages.jazz", line 24 (27-28):
-                                          speculative constant type checker: the expression false need to be equal to
+Failed as expected update_msf_not_trans: speculative constant type checker: MSF is not Trans
+Failed as expected update_msf_wrong_expr: speculative constant type checker: the expression false need to be equal to
                                           (x ==64u ((64u) 0))
-Failed as expected update_msf_not_msf: "error_messages.jazz", line 35 (28-29):
-                                       speculative constant type checker: the variable x is not known to be a msf, only {
-                                         } are
-Failed as expected msf_trans: "error_messages.jazz", line 43 (20-21):
-                              speculative constant type checker: MSF is Trans
+Failed as expected update_msf_not_msf: speculative constant type checker: 
+                                       the variables { x } need to be MSFs.
+Failed as expected msf_trans: speculative constant type checker: MSF is Trans
                               (x ==64u ((64u) 0))
-Failed as expected not_known_as_msf: "error_messages.jazz", line 53 (15-16):
-                                     speculative constant type checker: the variable x is not known to be a msf, only {
-                                       } are
-Annotation error in bad_poly_annot: "error_messages.jazz", line 56 (31-37) public not allowed as argument of poly
-Failed as expected msf_in_export: "error_messages.jazz", line 56 (51) to line 60 (1):
-                                  speculative constant type checker: {
-                                   p } need to be a msf, this is not allowed in export function
-Failed as expected must_not_be_a_msf: "error_messages.jazz", line 62 (38-39):
-                                      speculative constant type checker: p must not be a msf
-Failed as expected should_be_a_msf: "error_messages.jazz", line 68 (39-40):
-                                    speculative constant type checker: p should be a msf
-Failed as expected at_least_transient: "error_messages.jazz", line 75 (45-46):
-                                       speculative constant type checker: security annotation for p should be at least transient
-Failed as expected unbound_level: "error_messages.jazz", line 79 (0) to line 84 (1):
-                                  speculative constant type checker: unbound security level hello
-Failed as expected inconsistent_constraint: "error_messages.jazz", line 86 (0) to line 87 (38):
-                                            speculative constant type checker: cannot add constraint secret <= public, it is inconsistent
-Failed as expected bad_modmsf: "error_messages.jazz", line 89 (0) to line 90 (25):
-                               speculative constant type checker: annotation modmsf should be nomodmsf
-Failed as expected bad_nomodmsf: "error_messages.jazz", line 92 (0) to line 95 (1):
-                                 speculative constant type checker: annotation nomodmsf should be modmsf
-Failed as expected call_bad_nomodmsf: "error_messages.jazz", line 97 (0) to line 103 (1):
-                                      speculative constant type checker: annotation nomodmsf should be modmsf
-Failed as expected call_bad_nomodmsf2: "error_messages.jazz", line 111 (0) to line 119 (1):
-                                       speculative constant type checker: annotation nomodmsf should be modmsf
-Failed as expected call_bad_nomodmsf3: "error_messages.jazz", line 127 (0) to line 136 (1):
-                                       speculative constant type checker: annotation nomodmsf should be modmsf
-Failed as expected call_modmsf_destroys: "error_messages.jazz", line 153 (2-25):
-                                         speculative constant type checker: calls destroy msf variables, {
-                                          msf } are required
-Failed as expected ret_high: "error_messages.jazz", line 160 (9-10):
-                             speculative constant type checker: return type for p is #secret it should be less than #public
-Failed as expected ret_transient: "error_messages.jazz", line 164 (9-10):
-                                  speculative constant type checker: return type for p is #transient it should be less than #public
-Failed as expected ret_msf: "error_messages.jazz", line 170 (9-12):
-                            speculative constant type checker: return annotation for msf should be msf
-Failed as expected public_arg: "error_messages.jazz", line 173 (37-38):
-                               speculative constant type checker: security annotation for x should be at least transient
+Failed as expected not_known_as_msf: speculative constant type checker: 
+                                     the variables { x } need to be MSFs.
+Annotation error in bad_poly_annot: public not allowed as argument of poly
+Failed as expected msf_in_export: speculative constant type checker: 
+                                  the arguments { p } need to be MSFs, this is not allowed for export functions.
+Failed as expected should_be_a_msf: speculative constant type checker: p should be an MSF
+Failed as expected at_least_transient: speculative constant type checker: security annotation for p should be at least transient
+Failed as expected unbound_level: speculative constant type checker: unbound security level hello
+Failed as expected inconsistent_constraint: speculative constant type checker: cannot add constraint secret <= public, it is inconsistent
+Failed as expected bad_modmsf: speculative constant type checker: annotation modmsf should be nomodmsf
+Failed as expected bad_nomodmsf: speculative constant type checker: annotation nomodmsf should be modmsf
+Failed as expected call_bad_nomodmsf: speculative constant type checker: annotation nomodmsf should be modmsf
+Failed as expected call_bad_nomodmsf2: speculative constant type checker: annotation nomodmsf should be modmsf
+Failed as expected call_bad_nomodmsf3: speculative constant type checker: annotation nomodmsf should be modmsf
+Failed as expected call_modmsf_destroys: speculative constant type checker: 
+                                         this function call destroys MSFs and { msf } are required.
+                                         Trace:
+                                           the function modmsf_destroys destroys MSFs at "error_messages.jazz", line 142 (2) to line 144 (3)
+Failed as expected ret_high: speculative constant type checker: return type for p is #secret it should be less than #public
+Failed as expected ret_transient: speculative constant type checker: return type for p is #transient it should be less than #public
+Failed as expected ret_msf: speculative constant type checker: return annotation for msf should be msf
+Failed as expected public_arg: speculative constant type checker: security annotation for x should be at least transient
 Failed as expected unknown function: speculative constant type checker: unknown function unknown function
-Failed as expected need_declassify: "error_messages.jazz", line 180 (9-10):
-                                    speculative constant type checker: return type for x is #secret it should be less than #public
+Failed as expected need_declassify: speculative constant type checker: return type for x is #secret it should be less than #public
