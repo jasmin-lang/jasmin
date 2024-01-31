@@ -272,9 +272,9 @@ Section ADD_INIT.
 
   Notation lift_vm sem s1 s2 :=
     (forall vm1,
-       evm s1 =1 vm1 ->
+       vm_eq (evm s1) vm1 ->
        exists2 vm2,
-         evm s2 =1 vm2
+         vm_eq (evm s2) vm2
          & sem (with_vm s1 vm1) (with_vm s2 vm2))%vm
     (only parsing).
 
