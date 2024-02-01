@@ -20,9 +20,7 @@ let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages;
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
-  why3 = pkgs.why3.overrideAttrs (o: {
-      configureFlags = o.configureFlags ++ [ "--disable-ide" ];
-    });
+  why3 = pkgs.why3.override { ideSupport = false; };
 }; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
