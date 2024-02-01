@@ -201,6 +201,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
 
 *)
 
+(* The following functions are defined here, so that they can be shared between the architectures. The proofs are shared too (see linearization_proof.v). An architecture can define its own functions when there is something more efficient to do, and rely on one of these implementations in the default case. *)
 Section DEFAULT.
 Context {asm_op : Type} {pd : PointerData} {asmop : asmOp asm_op}.
 Context (lip_tmp2 : Ident.ident).
