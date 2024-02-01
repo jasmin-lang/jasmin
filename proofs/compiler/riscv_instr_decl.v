@@ -122,7 +122,7 @@ Definition riscv_ADD_instr : instr_desc_t :=
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_riscv_op mn);
-      id_safe := [::]; (* TODO_RISCV: Complete. *)
+      id_safe := [::];
       id_pp_asm := pp_riscv_op mn;
     |}.
 
