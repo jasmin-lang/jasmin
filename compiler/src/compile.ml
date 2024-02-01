@@ -263,8 +263,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     (cparams ~onlyreg:true visit_prog_after_pass)
     export_functions
     (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
-
-
 (*--------------------------------------------------------------------- *)
 
 
@@ -335,4 +333,3 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
     cp in      
   doit (Compiler.compiler_CL_second_part Arch.asm_e Arch.aparams cparams [toextract])
       (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
-

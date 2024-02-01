@@ -191,8 +191,7 @@ let rec int_of_expr ?loc e =
   | Papp2 (o, e1, e2) ->
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _ 
-
+  | Pbool _ | Parr_init _ | Pvar _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ | Pfvar _ | Pbig _ | Pabstract _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 

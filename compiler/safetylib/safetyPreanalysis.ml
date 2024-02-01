@@ -273,7 +273,6 @@ end = struct
       | Pfvar _ -> acc
       | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux acc e1) e2) e3) e4
     in
-
     aux acc e
 
   let st_merge st1 st2 ct =

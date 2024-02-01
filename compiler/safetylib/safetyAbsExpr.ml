@@ -350,7 +350,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Pload _ | PappN _ | Pabstract _ | Pif _
     | Pfvar _ | Pbig _ -> None
 
-
   (* Try to evaluate e to a constant expression (of type word) in abs.
      Superficial checks only. *)
   let rec aeval_cst_w abs e = match e with
@@ -687,7 +686,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Pfvar _ -> assert false
     | Pbig _-> assert false
-  
     | Pabstract (opn, es) ->
       let rec f_expl i es =
         match es with
