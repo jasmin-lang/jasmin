@@ -66,9 +66,9 @@ stdenv.mkDerivation rec {
 
   buildInputs = with ocamlPackages; [
     ocaml findlib dune_3
-    batteries camlp-streams dune-build-info inifiles menhir menhirLib yojson zarith
+    batteries camlp-streams dune-build-info inifiles menhir menhirLib why3 yojson zarith
   ];
-  propagatedBuildInputs = [ why3 ];
+  propagatedBuildInputs = [ why3.out ];
 
   preConfigure = ''
     substituteInPlace dune-project --replace '(name easycrypt)' '(name easycrypt)(version ${rev})'
