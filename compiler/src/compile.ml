@@ -262,7 +262,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams 
     (cparams ~onlyreg:true visit_prog_after_pass)
     export_functions
-    (Expr.to_uprog Arch.asmOp cprog)
+    (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
+
 
 (*--------------------------------------------------------------------- *)
 
@@ -323,7 +324,7 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
     doit 
       (Compiler.compiler_CL_first_part Arch.asm_e Arch.aparams cparams
          [toextract])
-      (Expr.to_uprog Arch.asmOp cprog) in
+      (Expr.to_uprog Build_Tabstract Arch.asmOp cprog) in
      
   let cprog = 
     let p = Conv.prog_of_cuprog (Obj.magic cprog) in
@@ -333,6 +334,5 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
     let cp = Conv.cuprog_of_prog p in
     cp in      
   doit (Compiler.compiler_CL_second_part Arch.asm_e Arch.aparams cparams [toextract])
-      (Expr.to_uprog Arch.asmOp cprog)
-
+      (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
 

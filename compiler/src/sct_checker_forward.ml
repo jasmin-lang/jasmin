@@ -649,6 +649,8 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | PappN(_, es)     -> ty_exprs_max env venv loc es
   | Pfvar _         -> assert false
   | Pbig _           -> assert false
+  | Pabstract(_, es) -> ty_exprs_max env venv loc es
+
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
       let ty2 = ty_expr env venv loc e2 in
@@ -705,7 +707,7 @@ let expr_equal a b =
     | X86_64 -> X86_decl.x86_fcp
     | ARM_M4 -> Arm_decl.arm_fcp in
   let normalize e =
-    e |> Conv.cexpr_of_expr |> Constant_prop.(const_prop_e fcp None empty_cpm) in
+    e |> Conv.cexpr_of_expr |> Constant_prop.(const_prop_e Build_Tabstract fcp None empty_cpm) in
   Expr.eq_expr (normalize a) (normalize b)
 
 (* ------------------------------------------------------------- *)

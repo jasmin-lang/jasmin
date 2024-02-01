@@ -40,10 +40,10 @@ let exn_exec (ii:instr_info) (r: 't exec) =
   | Error e -> raise (Eval_error(ii, Uerror e))
 
 let of_val_z ii v : coq_Z = 
-  Obj.magic (exn_exec ii (of_val Coq_sint v))
+  Obj.magic (exn_exec ii (of_val Build_Tabstract Coq_sint v))
 
 let of_val_b ii v : bool = 
-  Obj.magic (exn_exec ii (of_val Coq_sbool v))
+  Obj.magic (exn_exec ii (of_val Build_Tabstract Coq_sbool v))
 
 (* ----------------------------------------------------------------- *)
 type 'asm stack = 
@@ -61,6 +61,8 @@ type ('syscall_state, 'asm) state =
 
 exception Final of Memory.mem * values
 
+let prasbstract = (fun _ _ -> assert false)
+
 let return ep spp s =
   assert (s.s_cmd = []);
   match s.s_stk with
@@ -68,17 +70,21 @@ let return ep spp s =
     let s2 = s.s_estate in
     let m2 = s2.emem and vm2 = s2.evm in
     let vres = 
-      exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
+      exn_exec ii (mapM (fun (x:var_i) -> get_var Build_Tabstract nosubword true vm2 x.v_var) f.f_res) in
+    let vres' = exn_exec ii (mapM2 ErrType (truncate_val Build_Tabstract) f.f_tyout vres) in
     raise (Final(m2, vres'))
     
   | Scall(ii,f,xs,vm1,c,stk) ->
     let gd = s.s_prog.p_globs in
     let {escs = scs2; emem = m2; evm = vm2} = s.s_estate in
     let vres = 
-      exn_exec ii (mapM (fun (x:var_i) -> get_var nosubword true vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
-    let s1 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
+      exn_exec ii (mapM (fun (x:var_i) -> get_var Build_Tabstract nosubword true vm2 x.v_var) f.f_res) in
+    let vres' = exn_exec ii (mapM2 ErrType (truncate_val Build_Tabstract) f.f_tyout vres) in
+    let s1 =
+      exn_exec ii
+        (write_lvals Build_Tabstract nosubword prasbstract
+           ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres')
+    in
     { s with 
       s_cmd = c;
       s_estate = s1;
@@ -88,7 +94,7 @@ let return ep spp s =
     match ws with
     | [] -> { s with s_cmd = c; s_stk = stk }
     | w::ws ->
-      let s1 = exn_exec ii (write_var nosubword ep true i (Vint w) s.s_estate) in
+      let s1 = exn_exec ii (write_var Build_Tabstract nosubword ep true i (Vint w) s.s_estate) in
       { s with s_cmd = body;
                s_estate = s1;
                s_stk = Sfor(ii, i, ws, body, c, stk) }
@@ -102,20 +108,28 @@ let small_step1 ep spp sip s =
     let s1 = s.s_estate in
     match ir with
     | Cassgn(x,_,ty,e) ->
-      let v  = exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e) in
-      let v' = exn_exec ii (truncate_val ty v) in
-      let s2 = exn_exec ii (write_lval nosubword ep spp true gd x v' s1) in
+      let v  = exn_exec ii (sem_pexpr Build_Tabstract nosubword prasbstract ep spp true gd s1 e) in
+      let v' = exn_exec ii (truncate_val Build_Tabstract ty v) in
+      let s2 =
+        exn_exec ii (write_lval Build_Tabstract nosubword prasbstract ep spp true gd x v' s1)
+      in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn nosubword ep spp sip._asmop gd op s1 xs es) in
+      let s2 =
+        exn_exec ii (sem_sopn Build_Tabstract nosubword prasbstract ep spp sip._asmop gd op s1 xs es)
+      in
       { s with s_cmd = c; s_estate = s2 }
 
     | Csyscall(xs,o, es) ->
-      let ves = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
+      let ves =
+        exn_exec ii (sem_pexprs Build_Tabstract nosubword prasbstract ep spp true gd s1 es)
+      in
       let ((scs, m), vs) =
-        exn_exec ii (syscall_sem__ sip._sc_sem ep._pd s1.escs s1.emem o ves) in
-      let s2 = exn_exec ii (write_lvals nosubword ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+        exn_exec ii (syscall_sem__ Build_Tabstract sip._sc_sem ep._pd s1.escs s1.emem o ves) in
+      let s2 =
+        exn_exec ii (write_lvals Build_Tabstract nosubword prasbstract ep spp true gd {escs = scs; emem = m; evm = s1.evm} xs vs)
+      in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cassert(t, p, e) ->
@@ -125,13 +139,19 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c }
 
     | Cif(e,c1,c2) ->
-      let b = of_val_b ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 e)) in
+      let b =
+        of_val_b ii (exn_exec ii (sem_pexpr Build_Tabstract nosubword prasbstract ep spp true gd s1 e))
+      in
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
     | Cfor (i,((d,lo),hi), body) ->
-      let vlo = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 lo)) in
-      let vhi = of_val_z ii (exn_exec ii (sem_pexpr nosubword ep spp true gd s1 hi)) in
+      let vlo =
+        of_val_z ii (exn_exec ii (sem_pexpr Build_Tabstract nosubword prasbstract ep spp true gd s1 lo))
+      in
+      let vhi =
+        of_val_z ii (exn_exec ii (sem_pexpr Build_Tabstract nosubword prasbstract ep spp true gd s1 hi))
+      in
       let rng = wrange d vlo vhi in
       let s =
         {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
@@ -141,16 +161,19 @@ let small_step1 ep spp sip s =
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
     | Ccall(xs,fn,es) ->
-      let vargs' = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
+      let vargs' =
+        exn_exec ii (sem_pexprs Build_Tabstract nosubword prasbstract ep spp true gd s1 es)
+      in
       let f = 
         match get_fundef s.s_prog.p_funcs fn with
         | Some f -> f
         | None -> assert false in
-      let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin vargs') in
+      let vargs = exn_exec ii (mapM2 ErrType (truncate_val Build_Tabstract) f.f_tyin vargs') in
       let {escs; emem = m1; evm = vm1}  = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
       let sf = 
-        exn_exec ii (write_vars nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init nosubword}) in
+        exn_exec ii (write_vars Build_Tabstract nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init Build_Tabstract nosubword})
+      in
       {s with s_cmd = f.f_body;
               s_estate = sf;
               s_stk = stk }
@@ -161,9 +184,9 @@ let rec small_step ep spp sip s =
 
 let init_state ep scs0 p ii fn args m =
   let f = BatOption.get (get_fundef p.p_funcs fn) in
-  let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin args) in
-  let s_estate = { escs = scs0; emem = m; evm = Vm.init nosubword} in
-  let s_estate = exn_exec ii (write_vars nosubword ep true f.f_params vargs s_estate) in
+  let vargs = exn_exec ii (mapM2 ErrType (truncate_val Build_Tabstract) f.f_tyin args) in
+  let s_estate = { escs = scs0; emem = m; evm = Vm.init Build_Tabstract nosubword} in
+  let s_estate = exn_exec ii (write_vars Build_Tabstract nosubword ep true f.f_params vargs s_estate) in
   { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f) }
 
 
@@ -208,7 +231,10 @@ let pp_word fmt ws w =
   let z = Word0.wunsigned ws w in
   let z = Conv.z_of_cz z in
   Printer.pp_print_X fmt z
-  
+
+let pp_abstract fmt s = 
+  Format.fprintf fmt "abstract<%a>" PrintCommon.pp_string0 s
+
 let pp_val fmt v = 
   match v with
   | Vbool b -> Format.fprintf fmt "%b" b
@@ -229,6 +255,7 @@ let pp_val fmt v =
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty
+  | Vabstract (s, _) -> pp_abstract fmt s
 
 
  

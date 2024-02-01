@@ -251,7 +251,7 @@ let main () =
                | Utils0.Error err -> raise (Evaluator.Eval_error (ii, Evaluator.Uerror err)))
               |> Evaluator.run
                    (module Arch)
-                   (Expr.to_uprog Arch.asmOp cprog)
+                   (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
                    ii f []
             in
 

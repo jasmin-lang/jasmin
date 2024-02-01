@@ -50,6 +50,7 @@ let rec read_mem_e = function
   | Papp1 (_, e) | Pget (_, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
+  | Pabstract (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
@@ -118,6 +119,7 @@ let rec leaks_e_rec pd leaks e =
   | Papp1 (_, e) -> leaks_e_rec pd leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
   | PappN (_, es) -> leaks_es_rec pd leaks es
+  | Pabstract (_, es) -> leaks_es_rec pd leaks es
   | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
@@ -367,6 +369,7 @@ let pp_ty env fmt ty =
   | Bty Int  -> Format.fprintf fmt "int"
   | Bty (U ws) -> pp_sz_t fmt ws
   | Arr(ws,n) -> Format.fprintf fmt "%a %a.t" pp_sz_t ws (pp_Array env) n
+  | Bty Abstract _ -> Format.fprintf fmt "TODO"
 
 let add_aux env tys = 
   let tbl = Hashtbl.create 10 in
@@ -514,6 +517,7 @@ let ty_expr = function
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
   | PappN (op, _)  -> out_ty_opN op
+  | Pabstract (op, _)  -> op.tyout
   | Pif (ty,_,_,_) -> ty
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
@@ -639,6 +643,8 @@ let rec pp_expr pd env fmt (e:expr) =
         (Printer.string_of_combine_flags c) 
         (pp_list "@ " (pp_expr pd env)) es
     end
+
+  | Pabstract _ -> assert false
 
   | Pif(_,e1,et,ef) -> 
     let ty = ty_expr e in
@@ -799,8 +805,8 @@ let ty_sopn pd asmOp op =
     let l = [Arr(ws, Conv.int_of_pos p)] in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
-    List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin Build_Tabstract pd asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
    it would be nice to prove in Coq the validity of the transformation *) 
@@ -865,7 +871,7 @@ module Normal = struct
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
-        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
+        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op) in
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
@@ -1058,6 +1064,7 @@ module Leak = struct
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e1 e2 op
     | PappN (_op, _es) -> assert false (* TODO: nary *)
+    | Pabstract _ -> assert false
     | Pif  (_,e1, e2, e3) -> 
       safe_e_rec pd env (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e3
     | Pfvar _ -> assert false
@@ -1068,7 +1075,7 @@ module Leak = struct
   let safe_es pd env = List.fold_left (safe_e_rec pd env) []
 
   let safe_opn pd asmOp env safe opn es =
-    let id = Sopn.get_instr_desc pd asmOp opn in
+    let id = Sopn.get_instr_desc Build_Tabstract pd asmOp opn in
     List.pmap (fun c ->
         match c with
         | Wsize.X86Division(sz, sg) ->
@@ -1166,7 +1173,7 @@ module Leak = struct
     | Cassgn (lv, _, _, e) -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
     | Copn (lvs, _, op, _) ->
        let op = base_op op in
-       let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
+       let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op) in
        let env = add_aux env tys in
        add_aux env (List.map ty_lval lvs)
     | Csyscall(lvs, o, _)->

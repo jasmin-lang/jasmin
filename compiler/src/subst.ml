@@ -26,6 +26,14 @@ let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e flen f e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
+  | Pabstract (o, es) ->
+    let o = {
+      name = o.name;
+      tyin = List.map (gsubst_ty flen) o.tyin;
+      tyout = (gsubst_ty flen) o.tyout;
+    }
+    in
+    Pabstract (o, List.map (gsubst_e flen f) es)
   | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty flen ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
   | Pfvar x -> Pfvar (gsubst_vdest f x)
   | Pbig (e1, e2, o, x, e0, b) -> 
@@ -184,7 +192,8 @@ let rec int_of_expr ?loc e =
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
   | Pbool _ | Parr_init _ | Pvar _ 
-  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ | Pfvar _ | Pbig _ ->
+
+  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ | Pfvar _ | Pbig _ | Pabstract _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
@@ -305,7 +314,7 @@ let remove_params (prog : ('info, 'asm) pprog) =
   let mk_word ws e =
     let open Constant_prop in
     let e = Conv.cexpr_of_expr e in
-    let c = const_prop_e (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
+    let c = const_prop_e Build_Tabstract (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
     let z = constant_of_expr (Conv.expr_of_cexpr c) in
     Word0.wrepr ws (Conv.cz_of_z (clamp ws z)) in
 

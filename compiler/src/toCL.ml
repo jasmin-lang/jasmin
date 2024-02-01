@@ -220,7 +220,7 @@ let rec  pp_epred fmt e =
       pp_epred e2
 
 (*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
-
+  | Pabstract (_,_) -> assert false
   | _ -> raise NoTranslation
 
 let pp_lval fmt (x,ws) =
@@ -246,6 +246,7 @@ let rec pp_atome fmt (x,ws) =
   | Papp1 (_, _) -> assert false
   | Papp2 (_, _, _) -> assert false
   | PappN (_, _) -> assert false
+  | Pabstract (_,_) -> assert false
   | Pif (_, _, _, _) -> assert false
   | Pfvar _ -> assert false
   | Pbig (_, _, _, _, _, _) -> assert false
@@ -544,6 +545,7 @@ let pp_ty fmt ty =
   | Bty Bool -> Format.fprintf fmt "uint1"
   | Bty Int -> assert false
   | Bty (U ws) -> Format.fprintf fmt "uint%i" (int_of_ws ws)
+  | Bty (Abstract _) -> assert false
   | Arr _ -> assert false
 
 let pp_args fmt xs =

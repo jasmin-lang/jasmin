@@ -179,8 +179,18 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
-  | Ocombine_flags c => (tin_combine_flags, sbool) 
+  | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
+
+(* Abstract n-ary operators *)
+
+Record opA := MkAbstP {
+  pa_name   : string;
+  pa_tyin   : seq stype;
+  pa_tyout  : stype;
+}.
+
+Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -251,6 +261,7 @@ Inductive pexpr : Type :=
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
 | Pfvar : fvar -> pexpr
 | Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
+| Pabstract : opA -> seq pexpr -> pexpr
 .
 
 (* Inductive ltype : Type := *)
@@ -301,7 +312,6 @@ Inductive pexpr : Type :=
 (*     aprove_with : option assert_label; *)
 (*     aassume : list prover;         (* assume for the provers *) *)
 (*   } *)
-
 
 Notation pexprs := (seq pexpr).
 
@@ -506,6 +516,7 @@ End FunInfo.
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context `{asmop:asmOp}.
 
 (* ** Functions
@@ -563,6 +574,7 @@ Notation fun_decls  := (seq fun_decl).
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
@@ -575,10 +587,10 @@ Definition progUnit : progT :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ _ progUnit.
-Definition ufun_decl   := @fun_decl _ _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ _ progUnit).
-Definition uprog       := @prog _ _ progUnit.
+Definition ufundef     := @fundef _ _ _ progUnit.
+Definition ufun_decl   := @fun_decl  _ _ _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ _ _ progUnit).
+Definition uprog       := @prog _ _ _ progUnit.
 
 (* For extraction *)
 Definition _ufundef    := _fundef unit.
@@ -661,10 +673,10 @@ Definition progStack : progT :=
      extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef _ _ progStack.
-Definition sfun_decl   := @fun_decl _ _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ _ progStack).
-Definition sprog       := @prog _ _ progStack.
+Definition sfundef     := @fundef _ _ _ progStack.
+Definition sfun_decl   := @fun_decl _ _ _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ _ _ progStack).
+Definition sprog       := @prog _ _ _ progStack.
 
 (* For extraction *)
 
@@ -833,6 +845,7 @@ Fixpoint use_mem (e : pexpr) :=
   | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
+  | Pabstract _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   | Pfvar _ => false
   | Pbig e1 e2 _ _ e3 e4 => use_mem e1 || use_mem e2 || use_mem e3 || use_mem e4
@@ -857,6 +870,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
+  | Pabstract _ es => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   | Pfvar _ => s
   | Pbig e1 e2 _ _ e3 e4 => read_e_rec (read_e_rec (read_e_rec (read_e_rec s e4) e3) e2) e1
@@ -976,6 +990,10 @@ Definition is_zero sz (e: pexpr) : bool :=
 
 Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
 
+Section INSTR_COPN.
+
+Context {A: Tabstract}.
+
 Definition instr_of_copn_args
   {asm_op : Type}
   {asmop : asmOp asm_op}
@@ -983,3 +1001,5 @@ Definition instr_of_copn_args
   (args : copn_args)
   : instr_r :=
   Copn args.1.1 tg args.1.2 args.2.
+
+End INSTR_COPN.

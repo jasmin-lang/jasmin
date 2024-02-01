@@ -169,6 +169,7 @@ let memory_analysis pp_err ~debug up =
   let sp' =
     match
       Stack_alloc.alloc_prog
+        Build_Tabstract
         Arch.pointer_data
         Arch.msf_size
         Arch.asmOp
@@ -200,7 +201,7 @@ let memory_analysis pp_err ~debug up =
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
-      match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
+      match Dead_code.dead_code_fd Build_Tabstract Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef (fn, cfd)
       | Utils0.Error _ -> assert false in 
     (extra,fd) in

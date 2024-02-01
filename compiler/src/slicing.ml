@@ -16,6 +16,7 @@ let rec inspect_e k = function
   | Pload (_, _, e) | Papp1 (_, e) -> inspect_e k e
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
+  | Pabstract (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
   | Pfvar _ -> k
   | Pbig(e1, e2, op2, x, e0, body) -> 

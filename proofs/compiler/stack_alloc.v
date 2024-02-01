@@ -50,11 +50,13 @@ End E.
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
+
 Definition size_of (t:stype) :=
   match t with
   | sword sz => wsize_size sz
   | sarr n   => Zpos n
   | sbool | sint => 1%Z
+  | sabstract _ => (1)%Z
   end.
 
 Definition slot := var.
@@ -404,6 +406,7 @@ Import Region.
 Section WITH_PARAMS.
 
 Context
+  {A: Tabstract}
   {asm_op : Type}
   {pd : PointerData}
   {msfsz : MSFsize}
@@ -634,6 +637,10 @@ Fixpoint alloc_e (e:pexpr) :=
   | PappN o es =>
     Let es := mapM alloc_e es in
     ok (PappN o es)
+
+  | Pabstract s es =>
+    Let es := mapM alloc_e es in
+    ok (Pabstract s es)
 
   | Pif t e e1 e2 =>
     Let e := alloc_e e in

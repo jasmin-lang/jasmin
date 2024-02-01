@@ -9,6 +9,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section SEM_OP_TYPED.
+Context {A : Tabstract}.
+
 Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
   sem_t t.1 → sem_t t.2 :=
@@ -22,8 +25,6 @@ Definition sem_sop1_typed (o: sop1) :
   | Oneg Op_int => Z.opp
   | Oneg (Op_w sz) => (-%R)%R
   end.
-
-Arguments sem_sop1_typed : clear implicits.
 
 Definition zlsl (x i : Z) : Z :=
   if (0 <=? i)%Z then (x * 2^i)%Z
@@ -121,8 +122,6 @@ Definition sem_sop2_typed (o: sop2) :
   | Ovasr ve ws     => mk_sem_sop2 (sem_vsar ve)
   end.
 
-Arguments sem_sop2_typed : clear implicits.
-
 Section WITH_PARAMS.
 
 Context {cfcd : FlagCombinationParams}.
@@ -140,3 +139,8 @@ Definition sem_opN_typed (o: opN) :
   end.
 
 End WITH_PARAMS.
+
+End SEM_OP_TYPED.
+
+Arguments sem_sop1_typed : clear implicits.
+Arguments sem_sop2_typed : clear implicits.

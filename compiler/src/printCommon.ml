@@ -79,7 +79,10 @@ let string_of_op2 = function
   | Ovlsl (ve, ws) -> asprintf "<<%s" (string_of_velem Signed ws ve)
 
 (* -------------------------------------------------------------------- *)
-let pp_opn pd asmOp fmt o = pp_string0 fmt (Sopn.string_of_sopn pd asmOp o)
+let pp_opn pd asmOp fmt o = pp_string0 fmt (Sopn.string_of_sopn Build_Tabstract pd asmOp o)
+
+(* -------------------------------------------------------------------- *)
+let pp_opA fmt (op: E.opA) = pp_string0 fmt op.pa_name
 
 (* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =
@@ -110,6 +113,7 @@ let pp_btype fmt = function
   | Bool -> fprintf fmt "bool"
   | U i -> fprintf fmt "u%i" (int_of_ws i)
   | Int -> fprintf fmt "int"
+  | Abstract s -> fprintf fmt "Abstract %a" pp_string0 s
 
 (* -------------------------------------------------------------------- *)
 let pp_gtype (pp_size : formatter -> 'size -> unit) fmt = function

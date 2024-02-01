@@ -38,12 +38,14 @@ let cty_of_ty = function
   | Bty Int       -> T.Coq_sint
   | Bty (U sz)   -> T.Coq_sword(sz)
   | Arr (sz, len) -> T.Coq_sarr (pos_of_int (size_of_ws sz * len))
+  | Bty Abstract s -> T.Coq_sabstract s
 
 let ty_of_cty = function
   | T.Coq_sbool  ->  Bty Bool
   | T.Coq_sint   ->  Bty Int
   | T.Coq_sword sz -> Bty (U sz)
   | T.Coq_sarr p -> Arr (U8, int_of_pos p)
+  | T.Coq_sabstract s -> Bty (Abstract s)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -86,6 +88,14 @@ let rec cexpr_of_expr = function
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr e1, cexpr_of_expr e2)
   | PappN (o, es) -> C.PappN (o, List.map (cexpr_of_expr) es)
+  | Pabstract (o, es) ->
+    let o = C.{
+        pa_name = String.to_list o.name;
+        pa_tyin = List.map cty_of_ty o.tyin;
+        pa_tyout = cty_of_ty o.tyout;
+      }
+    in
+    C.Pabstract (o, List.map (cexpr_of_expr) es)
   | Pif   (ty, e, e1, e2) -> C.Pif(cty_of_ty ty, 
                                 cexpr_of_expr e,
                                 cexpr_of_expr e1,
@@ -106,6 +116,14 @@ let rec expr_of_cexpr = function
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr e1, expr_of_cexpr e2)
   | C.PappN (o, es) -> PappN (o, List.map (expr_of_cexpr) es)
+  | C.Pabstract (o, es) ->
+    let o = {
+        name = String.of_list o.pa_name;
+        tyin = List.map ty_of_cty o.pa_tyin;
+        tyout = ty_of_cty o.pa_tyout;
+      }
+    in
+    Pabstract (o, List.map (expr_of_cexpr) es)
   | C.Pif (ty, e, e1, e2) -> Pif(ty_of_cty ty, expr_of_cexpr e,
                                expr_of_cexpr e1,
                                expr_of_cexpr e2)

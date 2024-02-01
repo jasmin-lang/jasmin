@@ -73,9 +73,14 @@ let type_of_opN op =
   let tins, tout = E.type_of_opN op in
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
+let type_of_opA op =
+  let tins = op.tyin in
+  let tout = op.tyout in
+   tins, tout
+
 let type_of_sopn pd asmOp op =
-  List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op),
-  List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op)
+  List.map Conv.ty_of_cty (Sopn.sopn_tin Build_Tabstract pd asmOp op),
+  List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op)
 
 (* -------------------------------------------------------------------- *)
 
@@ -103,6 +108,10 @@ let rec ty_expr pd loc (e:expr) =
     tout
   | PappN(op,es) -> 
     let tins, tout = type_of_opN op in
+    check_exprs pd loc es tins;
+    tout
+  | Pabstract(op,es) ->
+    let tins, tout = type_of_opA op in
     check_exprs pd loc es tins;
     tout
   | Pif(ty,b,e1,e2) ->

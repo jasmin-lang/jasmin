@@ -378,6 +378,7 @@ let rec ty_expr ~(public:bool) env (e:expr) =
   | Papp1(_, e)        -> ty_expr ~public env e
   | Papp2(_, e1, e2)   -> ty_exprs_max ~public env [e1; e2]
   | PappN(_, es)       -> ty_exprs_max ~public env es
+  | Pabstract(_, es)   -> ty_exprs_max ~public env es
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
