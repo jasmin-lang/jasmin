@@ -426,6 +426,12 @@ Definition check_gv x1 x2 (m:M.t) : cexec M.t :=
   else
     Let _ := assert (x1.(gv).(v_var) == x2.(gv).(v_var)) error_e in ok m.
 
+Definition check_opa (opa1 opa2: opA) (m:M.t) :=
+  Let _ := assert (pa_name opa1  == pa_name opa2) error_e in
+  Let _ := assert (pa_tyin opa1 == pa_tyin opa2) error_e in
+  Let _ := assert (pa_tyout opa1 == pa_tyout opa2) error_e in
+  ok m.
+
 Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   match e1, e2 with
   | Pconst n1, Pconst n2 =>
@@ -454,6 +460,9 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     Let _ := assert (t == t') error_e in
     check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
+  | Pabstract o1 es1, Pabstract o2 es2 =>
+    Let _ := check_opa o1 o2 m in
+    fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
   | _, _ => Error error_e
   end.
 
