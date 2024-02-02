@@ -112,17 +112,21 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "shr (%a) (%a)"
       pp_rexp e1
       pp_rexp e2
- | Papp1(Ozeroext (osz,isz), e1) -> 
+ | Papp1(Ozeroext (osz,isz), e1) ->
       Format.fprintf fmt "(uext %a %i)"
       pp_rexp e1
       (int_of_ws osz- int_of_ws isz)
- | _ ->
-    Format.eprintf "No Translation for pexpr in rexp: %a@." Printer.pp_pexpr e;
-    raise NoTranslation 
+
+ | Pabstract (opa, es) ->
+   Format.fprintf fmt "%s (%a)"
+     opa.name
+     (pp_list ",@ " pp_rexp) es
+ | _ ->  raise NoTranslation
 
 let rec pp_rpred fmt e =
   match e with
   | Pbool (true) -> Format.fprintf fmt "true"
+  | Pbool (false) -> Format.fprintf fmt "false"
   | Papp1(Onot, e) ->
     Format.fprintf fmt "~(%a)" pp_rpred e
   | Papp2(Oeq _, e1, e2)  ->
@@ -179,9 +183,11 @@ let rec pp_rpred fmt e =
       pp_rpred e2
       pp_rpred e1
       pp_rpred e3
-  | _ ->
-    Format.eprintf "No Translation for pexp in rpred: %a@." Printer.pp_pexpr e;
-    raise NoTranslation
+  | Pabstract (opa, es) ->
+    Format.fprintf fmt "%s (%a)"
+      opa.name
+      (pp_list ",@ " pp_rexp) es
+  | _ ->  raise NoTranslation
 
 let rec pp_eexp fmt e =
   match e with
@@ -205,6 +211,10 @@ let rec pp_eexp fmt e =
     Format.fprintf fmt "(%a) * (%a)"
       pp_eexp e1
       pp_eexp e2
+  | Pabstract (opa, es) ->
+    Format.fprintf fmt "%s (%a)"
+      opa.name
+      (pp_list ",@ " pp_rexp) es
   | _ -> raise NoTranslation
 
 let rec  pp_epred fmt e =
@@ -506,8 +516,8 @@ let pp_i pd asmOp fmt i =
     begin
       try
         match t with
-        | Expr.Assert -> Format.fprintf fmt efmt "assert" pp_pred (* e *) (Obj.magic e)
-        | Expr.Assume -> Format.fprintf fmt efmt "assume" pp_pred (* e *) (Obj.magic e)
+        | Expr.Assert -> Format.fprintf fmt efmt "assert" pp_pred e
+        | Expr.Assume -> Format.fprintf fmt efmt "assume" pp_pred e
         | Expr.Cut -> assert false
       with NoTranslation -> ()
     end
