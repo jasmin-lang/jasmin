@@ -246,24 +246,24 @@ let init_slots pd stack_pointers alias coloring fv =
   !slots, lalloc
 
 (* --------------------------------------------------- *)
-let all_alignment pd ctbl alias ret params lalloc =
+let all_alignment pd ctbl alias params lalloc =
 
   let get_align c = try Hv.find ctbl c.Alias.in_var with Not_found -> U8 in
-  let doparam i x =
+  let doparam x =
     match x.v_kind with
     | Reg (_, Direct) -> None
-    | Reg (_, Pointer _) ->
+    | Reg (_, Pointer writable) ->
       let c = Alias.normalize_var alias x in
       assert (V.equal x c.in_var && c.scope = E.Slocal);
       let pi_ptr = 
         match Hv.find lalloc x with
         | RegPtr p -> p
         | _ | exception Not_found -> assert false in
-      let pi_writable = List.mem (Some i) ret in
+      let pi_writable = writable = Writable in
       let pi_align = get_align c in 
       Some { pi_ptr; pi_writable; pi_align } 
     | _ -> assert false in
-  let params = List.mapi doparam params in
+  let params = List.map doparam params in
 
   let atbl = Hv.create 1007 in
   let set slot ws = 
@@ -362,16 +362,15 @@ let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
   in
   let sao_return =
     match fd.f_cc with
-    | Export -> List.map (fun _ -> None) fd.f_ret
-    | Subroutine {returned_params} -> returned_params
+    | Export {returned_params} | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
 
-  let sao_params, atbl = all_alignment pd ctbl alias sao_return fd.f_args lalloc in
+  let sao_params, atbl = all_alignment pd ctbl alias fd.f_args lalloc in
 
   let ra_on_stack =
     match fd.f_cc with 
     | Internal -> assert false 
-    | Export -> 
+    | Export _ ->
         if fd.f_annot.retaddr_kind = Some OnReg then 
              Utils.warning Always (L.i_loc fd.f_loc [])
               "for function %s, return address by reg not allowed for export function, annotation is ignored"

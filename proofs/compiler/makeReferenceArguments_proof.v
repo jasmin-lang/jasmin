@@ -658,4 +658,16 @@ Context
          hget).
   Qed.
 
+  Lemma makereference_prog_get_fundef fn fd :
+    get_fundef p.(p_funcs) fn = Some fd ->
+    exists fd', get_fundef p'.(p_funcs) fn = Some fd' /\ update_fd fresh_id p fd = ok fd'.
+  Proof.
+    move=> get_fd.
+    move: Hp; rewrite /makereference_prog.
+    t_xrbindP=> fds ok_fds <- /=.
+    have := get_map_cfprog_gen ok_fds get_fd.
+    move=> [fd' ??].
+    by exists fd'.
+  Qed.
+
 End WITH_PARAMS.

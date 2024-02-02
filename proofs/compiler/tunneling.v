@@ -46,6 +46,7 @@ Section LprogSem.
       fd.(lfd_callee_saved)
       fd.(lfd_stk_max)
       fd.(lfd_frame_size)
+      fd.(lfd_align_args)
   .
 
   Definition setfuncs p lf :=

@@ -100,6 +100,7 @@ Let Pc i := forall c, Sf.Equal (c_calls c i) (Sf.union c (c_Calls i)).
 
 Lemma c_callsE c i : Sf.Equal (c_calls c i) (Sf.union c (c_Calls i)).
 Proof.
+clear -Pr Pi Pc.
 move: c.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
   [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | e c1 c2 Hc1 Hc2
@@ -127,6 +128,7 @@ Context {pT: progT} {sCP: semCallParams}.
 #[local]
 Instance live_calls_m : Proper (Sf.Equal ==> eq ==> Sf.Equal) live_calls.
 Proof.
+  clear.
   move=> x y le p p' <- {p'}.
   elim: p x y le => // [[n d] p] ih x y le /=.
   rewrite <- le.
@@ -138,6 +140,7 @@ Qed.
 #[local]
 Instance live_calls_mono : Proper (Sf.Subset ==> eq ==> Sf.Subset) live_calls.
 Proof.
+  clear.
   move=> x y le p p' <- {p'}.
   elim: p x y le => // [[n d] p] ih x y le /=.
   case hm: Sf.mem. apply Sf.mem_spec in hm.
@@ -149,6 +152,7 @@ Qed.
 Lemma live_calls_subset c p :
   Sf.Subset c (live_calls c p).
 Proof.
+  clear.
   elim: p c => /=. SfD.fsetdec.
   move=> [n d] p ih c.
   case: Sf.mem => //.
@@ -161,6 +165,7 @@ Lemma live_calls_in K p fn fd :
   get_fundef p fn = Some fd →
   Sf.Subset (c_Calls (f_body fd)) (live_calls K p).
 Proof.
+  clear.
   elim: p K fn fd => // [[n d] p] ih K fn fd hn /=.
   case: eqP.
   - move <- => {n} /Some_inj ->.
@@ -355,6 +360,7 @@ Lemma foldl_compat x y l (x_eq_y: Sf.Equal x y):
   Sf.Equal (foldl (fun f c => Sf.add c f) x l)
            (foldl (fun f c => Sf.add c f) y l).
 Proof.
+clear -x_eq_y.
 elim: l x y x_eq_y=> // a l IH /= x y x_eq_y.
 by apply: IH; SfD.fsetdec.
 Qed.
@@ -363,6 +369,7 @@ Lemma foldlE a l x:
   Sf.Equal (foldl (fun f c => Sf.add c f) x (a :: l))
            (Sf.add a (foldl (fun f c => Sf.add c f) x l)).
 Proof.
+clear.
 elim: l a x=> // a0 l IH a x.
 rewrite /= in IH.
 rewrite /=.
@@ -404,6 +411,32 @@ rewrite /dead_calls_err; case: ifP => // _ [<- {p'}].
 move: (live_calls s (p_funcs p)) => {s} s.
 rewrite /get_fundef /dead_calls (assoc_filterI (λ q, Sf.mem q s)).
 by case: ifP.
+Qed.
+
+(* TODO: which one should be get_fundef and get_fundef' *)
+Lemma dead_calls_err_get_fundef' s p p' fn fd :
+  dead_calls_err s p = ok p' ->
+  Sf.In fn s ->
+  get_fundef p.(p_funcs) fn = Some fd ->
+  get_fundef p'.(p_funcs) fn = Some fd.
+Proof.
+  rewrite /dead_calls_err; case: ifP => // _ [<- {p'}] /= fins.
+  apply get_dead_calls.
+  exact: live_calls_subset fins.
+Qed.
+
+Lemma dead_calls_err_seq_get_fundef' s p p' fn fd :
+  dead_calls_err_seq s p = ok p' →
+  fn \in s ->
+  get_fundef (p_funcs p) fn = Some fd →
+  get_fundef (p_funcs p') fn = Some fd.
+Proof.
+  move=> ok_p' fins.
+  apply: (dead_calls_err_get_fundef' ok_p').
+  clear -ok_p' fins.
+  elim: {ok_p'} s fins=> // a l IH Hin.
+  rewrite foldlE.
+  rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SfD.fsetdec.
 Qed.
 
 End Section.

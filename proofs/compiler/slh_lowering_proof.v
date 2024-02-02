@@ -1192,6 +1192,19 @@ Proof.
    by constructor => //; apply: hrec; eauto.
 Qed.
 
+Lemma lower_slh_prog_get_fundef fn fd :
+  get_fundef p.(p_funcs) fn = Some fd ->
+  exists fd',
+    get_fundef p'.(p_funcs) fn = Some fd'
+    /\ lower_fd shparams fun_info fn fd = ok fd'.
+Proof.
+  move=> get_fd.
+  move: hp; rewrite /lower_slh_prog.
+  t_xrbindP=> _ fds ok_fds <- /=.
+  have [fd' ok_fd' get_fd'] := get_map_cfprog_name_gen ok_fds get_fd.
+  by exists fd'.
+Qed.
+
 End PASS_PROOF.
 
 End WITH_PARAMS.

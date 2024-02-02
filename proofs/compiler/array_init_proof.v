@@ -259,6 +259,11 @@ Lemma remove_init_fdPs is_reg_array (p : sprog) ev f scs mem scs' mem' va va' vr
      sem_call (remove_init_prog is_reg_array p) ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof. apply remove_init_fdP; apply wf_inits. Qed.
 
+Lemma remove_init_get_fundef {pT:progT} p fn fd :
+  get_fundef p.(p_funcs) fn = Some fd ->
+  get_fundef (remove_init_prog is_reg_array p).(p_funcs) fn = Some (remove_init_fd is_reg_array fd).
+Proof. by move=> get_fd; rewrite /remove_init_prog get_map_prog get_fd /=. Qed.
+
 Section ADD_INIT.
 
   Context (p : uprog) (ev:unit).
@@ -522,5 +527,10 @@ Section ADD_INIT.
   Qed.
 
 End ADD_INIT.
+
+Lemma add_init_prog_get_fundef (p:uprog) fn fd :
+  get_fundef p.(p_funcs) fn = Some fd ->
+  get_fundef (add_init_prog p).(p_funcs) fn = Some (add_init_fd fd).
+Proof. by move=> get_fd; rewrite /add_init_prog get_map_prog get_fd /=. Qed.
 
 End WITH_PARAMS.

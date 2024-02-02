@@ -1490,6 +1490,7 @@ Definition alloc_fd p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.iden
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
+        sf_align_args := map (oapp pp_align U8) sao.(sao_params)
       |} in
   ok (swith_extra fd f_extra).
 

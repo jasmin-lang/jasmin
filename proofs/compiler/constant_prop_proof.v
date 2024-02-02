@@ -1305,6 +1305,11 @@ Section PROOF.
          h).
   Qed.
 
+  Lemma const_prop_prog_get_fundef fn fd :
+    get_fundef p.(p_funcs) fn = Some fd ->
+    get_fundef p'.(p_funcs) fn = Some (const_prop_fun p.(p_globs) fd).
+  Proof. by move=> get_fd; rewrite /const_prop_prog get_map_prog get_fd /=. Qed.
+
 End PROOF.
 
 End WITH_PARAMS.

@@ -914,4 +914,15 @@ Proof.
   by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
 Qed.
 
+Lemma expand_prog_get_fundef fn fd1 :
+  get_fundef p1.(p_funcs) fn = Some fd1 ->
+  exists fd2, get_fundef p2.(p_funcs) fn = Some fd2.
+Proof.
+  move=> get_fd1.
+  move: Hcomp; rewrite /expand_prog.
+  t_xrbindP=> s1 hsig _ _ _.
+  have [fd2 [_ [_ [_ [get_fd2 _ _ _]]]]] := all_checked hsig get_fd1.
+  by exists fd2.
+Qed.
+
 End WITH_PARAMS.
