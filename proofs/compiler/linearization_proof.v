@@ -1907,6 +1907,8 @@ Section PROOF.
     | RAstack or _ _ => sv_of_option or
     end.
 
+  (* The set of variable killed/written by the execution of the function,
+     for export function saved are removed since those variables are restored *)
   Definition killed_on_exit
     (ra : return_address_location) (killed saved : Sv.t) : Sv.t :=
     match ra with
@@ -1915,6 +1917,7 @@ Section PROOF.
     | RAstack _ _ _ => Sv.add vrsp killed
     end.
 
+  (* The set of variable written by the execution of the exit code of function *)
   Definition killed_by_exit
     (ra : return_address_location) (saved : Sv.t) : Sv.t :=
     match ra with
@@ -3890,7 +3893,7 @@ Section PROOF.
 
         move: ok_to_save; t_xrbindP => /ZleP hle_rsp ok_to_save.
 
-        move: ok_save_stack => /and5P [h tmp_not_saved tmp2_not_saved rsp_not_saved /eqP hspntmp2 ].
+        move: ok_save_stack => /and4P [h tmp_not_saved tmp2_not_saved rsp_not_saved].
         move: h =>
           /and4P []
           /lezP rsp_slot_lo

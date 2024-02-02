@@ -123,9 +123,13 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
                d := (Uptr)s
      *)
     lip_lmove :
-      var_i       (* Value to overwrite. *)
-      -> var_i    (* Value to assign. *)
+      var_i       (* Destination variable. *)
+      -> var_i    (* Source variable. *)
       -> fopn_args;
+
+    (* Check it the give size can be write/read to/from memory,
+       i.e if an operation exists for that size. *)
+    lip_check_ws : wsize -> bool;
 
     (* Return the arguments for a linear instruction that corresponds to
        an assignment.
@@ -133,8 +137,6 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
        corresponds to:
                [b + ofs] := (Uptr) s
      *)
-    lip_check_ws : wsize -> bool;
-
     lip_lstore :
       var_i        (* Base register. *)
       -> Z         (* Offset. *)
@@ -553,8 +555,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
         [&& check_stack_ofs e ofs Uptr
           , ~~ Sv.mem var_tmp  (sv_of_list fst (sf_to_save e))
           , ~~ Sv.mem var_tmp2 (sv_of_list fst (sf_to_save e))
-          , ~~ Sv.mem rsp (sv_of_list fst (sf_to_save e))
-          & rsp != var_tmp2
+          & ~~ Sv.mem rsp (sv_of_list fst (sf_to_save e))
           ]
     end
   in

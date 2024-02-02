@@ -317,21 +317,11 @@ Definition arm_hliparams :
 
 Lemma arm_ok_lip_tmp :
   exists r : reg_t, of_ident (lip_tmp (ap_lip arm_params)) = Some r.
-Proof.
-  exists R12.
-  rewrite /=.
-  change arm_tmp with (to_ident R12).
-  exact: to_identK.
-Qed.
+Proof. exists R12; exact: to_identK. Qed.
 
 Lemma arm_ok_lip_tmp2 :
   exists r : reg_t, of_ident (lip_tmp2 (ap_lip arm_params)) = Some r.
-Proof.
-  exists LR.
-  rewrite /=.
-  change arm_tmp with (to_ident LR).
-  exact: to_identK.
-Qed.
+Proof. exists LR; exact: to_identK. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering hypotheses. *)
