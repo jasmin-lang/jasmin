@@ -3454,8 +3454,9 @@ Section PROOF.
     value_uincl (kill_vars X2 vm1).[z] vm2.[z].
   Proof.
     move=> S;
-    rewrite !kill_varsE; case:Sv_memP => hin1; case: Sv_memP => hin2 // _; first by SvD.fsetdec.
-    apply/compat_value_uincl_undef/Vm.getP.
+    rewrite !kill_varsE; case:Sv_memP => hin1; case: Sv_memP => hin2 // _;
+      first by clear -S hin1 hin2; SvD.fsetdec.
+    by apply/compat_value_uincl_undef/Vm.getP.
   Qed.
 
   Lemma vm_uincl_kill_vars_set_incl X1 X2 vm1 vm2 x v1 v2:
@@ -3468,6 +3469,14 @@ Section PROOF.
     case: (x =P z) (huvm z) => [<- | /eqP ?].
     + by rewrite !Vm.setP_eq; apply: value_uincl_trans; apply value_uincl_vm_truncate.
     by rewrite !Vm.setP_neq //; apply eval_uincl_kill_vars_incl.
+  Qed.
+
+  Lemma vm_uincl_kill_vars X1 vm1 :
+    kill_vars X1 vm1 <=1 vm1.
+  Proof.
+    move=> x; rewrite kill_varsE.
+    case: (Sv.mem _) => //.
+    by apply/compat_value_uincl_undef/Vm.getP.
   Qed.
 
   Lemma vm_uincl_after_alloc_stack fd m m' vm0 vm1 vm2 :
@@ -4607,7 +4616,7 @@ Section PROOF.
         get_var_is false vm lfd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid p'.(lp_rip)] = Vword gd →
-        vm_initialized_on vm ( (var_tmp : var) :: (var_tmp2 : var) :: lfd_callee_saved lfd) →
+        vm_initialized_on vm (lfd_callee_saved lfd) →
         (fd.(f_extra).(sf_stk_max) + wsize_size fd.(f_extra).(sf_align) - 1 <= wunsigned (top_stack m))%Z ->
         ∃ vm' lm' res',
           [/\
@@ -4688,13 +4697,7 @@ Section PROOF.
       by lia.
     - move => x; rewrite !Vm.setP vm_truncate_val_eq //.
       case: eqP => ? /=; first by subst; rewrite vm_rsp.
-      rewrite kill_varsE.
-      case: Sv_memP => //; rewrite /var_tmps => hin.
-      move/allP: safe_registers => /(_ x); rewrite !in_cons orbA.
-      have hin' : (x == var_tmp) || (x == var_tmp2).
-      + by apply /orP; rewrite !(rwR1 (@eqP _ _)); SvD.fsetdec.
-      rewrite hin'; move=> /(_ erefl); rewrite /get_var.
-      by case: _.[_] => //= - []; case/orP: hin' => /eqP ->.
+      by apply vm_uincl_kill_vars.
     - by eexists; first exact: get_fundef_p' ok_fd.
     - eexists; first exact: ok_fd.
       by apply/is_RAnoneP: Export.
@@ -4703,7 +4706,7 @@ Section PROOF.
       by rewrite /= Export.
     - eexists; first exact: ok_fd.
       by rewrite /= Export.
-    - by move: safe_registers; rewrite /= Export {1}/vm_initialized_on /= => /andP[] _ /andP[].
+    - by move: safe_registers; rewrite /= Export.
     - by move=> pr ->.
     - move=> fd'; rewrite ok_fd => -[?]; subst fd'.
       rewrite /= Export /max0 /sp0.

@@ -511,8 +511,7 @@ Lemma compiler_back_endP
         match_mem m lm →
         List.Forall2 value_uincl args (map (λ x : var_i, vm.[x]) fd.(lfd_arg)) →
         vm.[vid tp.(lp_rip)] = Vword rip →
-        (* FIXME : why var_tmp and var_tmp2 are needed ? *)
-        vm_initialized_on vm (var_tmp aparams :: var_tmp2 aparams :: lfd_callee_saved fd) →
+        vm_initialized_on vm (lfd_callee_saved fd) →
         allocatable_stack m (lfd_total_stack fd) ->
         ∃ vm' lm',
           [/\
@@ -776,16 +775,6 @@ Proof.
   - case: LM => _ _ Y _ _ _ _.
     by move: Y => /= ->; rewrite ok_rip.
   - move => /=.
-    apply/andP; split.
-    + rewrite /var_tmp.
-      have [tmp_r htmp] := ok_lip_tmp haparams.
-      rewrite -(of_identI htmp) /get_var (XM (ARReg _)).
-      by rewrite /get_typed_reg_value /= truncate_word_u.
-    apply/andP; split.
-    + rewrite /var_tmp2.
-      have [tmp_r htmp] := ok_lip_tmp2 haparams.
-      rewrite -(of_identI htmp) /get_var (XM (ARReg _)).
-      by rewrite /get_typed_reg_value /= truncate_word_u.
     apply/allP => x /ok_callee_saved hin.
     have [r ->]: exists2 r, x = (var_of_asm_typed_reg r) & vtype x != sbool.
     + by move/andP: hin => [->] /is_okP [] r /asm_typed_reg_of_varI ->; exists r.
