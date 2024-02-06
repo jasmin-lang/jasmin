@@ -13,7 +13,7 @@ let parse () =
   let infiles = ref [] in
   let set_in s = infiles := s :: !infiles in
   (* Set default option values *)
-  if Arch.os = Some `Windows then set_cc "windows";
+  if Sys.win32 then set_cc "windows";
   (* Parse command-line arguments *)
   Arg.parse options set_in usage_msg;
   let c =
