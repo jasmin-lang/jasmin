@@ -13,8 +13,8 @@ Context
   (gd : glob_decls).
 
 (* can be used to check that an expression does not evaluate to 0 *)
-Definition not_zero_pexpr (e1 e2 : pexpr) (s : @estate nosubword syscall_state ep) :=
-forall v n, sem_pexpr (wsw:= nosubword) false gd s e2 = ok v -> 
+Definition not_zero_pexpr (e : pexpr) (s : @estate nosubword syscall_state ep) :=
+forall v n, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
             to_int v = ok n -> 
 n <> 0.
 
@@ -31,11 +31,51 @@ match t with
 end.
 
 (* Here len is the array length which is obtained from get_gvar *)
-Definition is_align_check (aa : arr_access) (ws : wsize) (e : pexpr) 
+(*Definition is_align_check (aa : arr_access) (ws : wsize) (e : pexpr) 
 (s : @estate nosubword syscall_state ep) :=
 forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
             to_int v = ok i -> 
-is_align (i * mk_scale aa ws)%Z ws. 
+is_align (i * mk_scale aa ws)%Z ws. *)
+
+Definition is_align_check (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) :=
+forall v vp, sem_pexpr (wsw:= nosubword) false gd s e = ok v ->  
+to_pointer v = ok vp ->
+is_align vp ws.
+
+
+(*Definition is_align_check' (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) : Prop :=
+match e with  
+| Pget aa ws x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
+                    to_int v = ok i ->
+                    is_align (i * mk_scale aa ws)%Z ws
+| Psub aa ws len x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
+                        to_int v = ok i ->
+                        is_align (i * mk_scale aa ws)%Z ws
+| Pload sz x e => forall ve w1 w2, defined_var x s ->
+                  sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
+                  to_pointer (evm s).[x] = ok w1 ->
+                  to_pointer ve = ok w2 ->
+                  is_align (w1 + w2)%R ws
+| _ => True
+end. 
+
+Definition is_align_check'' (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) : Prop :=
+match e with  
+| Pget aa ws x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
+                    to_int v = ok i ->
+                    is_align (i * mk_scale aa ws)%Z ws
+| Psub aa ws len x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
+                        to_int v = ok i ->
+                        is_align (i * mk_scale aa ws)%Z ws
+| Pload sz x e => forall ve w1 w2, defined_var x s ->
+                  sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
+                  to_pointer (evm s).[x] = ok w1 ->
+                  to_pointer ve = ok w2 ->
+                  is_align (w1 + w2)%R ws
+| _ => True
+end. *)
+
+
 
 Definition in_range_check (aa : arr_access) (ws : wsize) (x : var_i) (e : pexpr) 
 (s : @estate nosubword syscall_state ep) :=
@@ -52,16 +92,16 @@ forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v ->
 
 (* checks if the address is valid or not *)
 Definition addr_check (x : var_i) (ws : wsize) (e : pexpr) (s : @estate nosubword syscall_state ep) :=
-forall vx ve w1 w2, defined_var vx s ->
+forall ve w1 w2, defined_var x s ->
               sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
-              to_pointer (evm s).[vx] = ok w1 ->
+              to_pointer (evm s).[x] = ok w1 ->
               to_pointer ve = ok w2 ->
 validw (emem s) (w1 + w2)%R ws.
 
 Inductive safe_cond : Type :=
 | Defined_var : var_i -> safe_cond
 | Not_zero : pexpr -> pexpr -> safe_cond
-| Is_align : pexpr -> arr_access -> wsize -> safe_cond
+| Is_align : pexpr -> wsize -> safe_cond
 | In_range : pexpr -> arr_access -> wsize -> var_i -> safe_cond
 | In_sub_range : pexpr -> arr_access -> wsize -> positive -> var_i -> safe_cond
 | Is_valid_addr : pexpr -> var_i -> wsize -> safe_cond.
@@ -82,10 +122,10 @@ match op with
 | _ => [::]
 end.
 
-Definition interp_safe_cond_op2 (s : @estate nosubword syscall_state ep) (op : sop2) (e1 e2 : pexpr) (sc: seq safe_cond) :=
+Definition interp_safe_cond_op2 (s : @estate nosubword syscall_state ep) (op : sop2) (e : pexpr) (sc: seq safe_cond) :=
 match sc with 
 | [::] => True 
-| [:: sc] => not_zero_pexpr e1 e2 s
+| [:: sc] => not_zero_pexpr e s
 | _ => True
 end. 
 
@@ -101,35 +141,49 @@ end.
 
 End gen_safe_conds.    
 
+Definition Pmul := Papp2 (Omul (Op_w Uptr)).
+Definition Padd := Papp2 (Oadd (Op_w Uptr)).
+
 Fixpoint gen_safe_cond (e : pexpr) : seq safe_cond :=
 match e with   
 | Pconst _ | Pbool _ | Parr_init _ => [::] 
 | Pvar x => [:: Defined_var (gv x)]
-| Pget aa ws x e => gen_safe_cond e ++ [:: Defined_var (gv x); Is_align e aa ws; In_range e aa ws (gv x)] 
-| Psub aa ws p x e => gen_safe_cond e ++
-                     [:: Defined_var (gv x); Is_align e aa ws; In_sub_range e aa ws p (gv x)]
-| Pload ws x e => gen_safe_cond e ++ [:: Defined_var x; Is_valid_addr e x ws] 
+| Pget aa ws x e => [:: Defined_var (gv x); 
+                        Is_align (Pmul (Pconst (mk_scale aa ws)) e) ws; 
+                        In_range e aa ws (gv x)] 
+                     ++ gen_safe_cond e 
+| Psub aa ws p x e => [:: Defined_var (gv x);
+                          Is_align (Pmul (Pconst (mk_scale aa ws)) e) ws; 
+                          In_sub_range e aa ws p (gv x)] 
+                       ++ gen_safe_cond e 
+| Pload ws x e => [:: Defined_var x;
+                      Is_align (Padd (Pconst 0) (* need to fix *) (cast_ptr e)) ws;
+                      Is_valid_addr e x ws] 
+                   ++ gen_safe_cond e 
 | Papp1 op e => gen_safe_cond e
 | Papp2 op e1 e2 => gen_safe_cond e1 ++ gen_safe_cond e2 ++ gen_safe_cond_op2 op e1 e2
 | PappN op es => flatten (gen_safe_conds (gen_safe_cond) es)
 | Pif t e1 e2 e3 => gen_safe_cond e1 ++ gen_safe_cond e2 ++ gen_safe_cond e3
 end.
 
+
 Section safe_pexprs.
 
 Variable safe_pexpr : @estate nosubword syscall_state ep -> pexpr -> seq safe_cond -> Prop.
 
-End safe_pexprs. 
+End safe_pexprs. Print arr_access.
 
 Fixpoint interp_safe_cond (sc : safe_cond) (s : @estate nosubword syscall_state ep) : Prop :=
 match sc with 
 | Defined_var x => defined_var x s
-| Not_zero e1 e2 => not_zero_pexpr e1 e2 s
-| Is_align e aa ws => is_align_check aa ws e s
+| Not_zero e1 e2 => not_zero_pexpr e2 s
+| Is_align e ws => is_align_check e ws s 
 | In_range e aa ws x => in_range_check aa ws x e s
 | In_sub_range e aa ws len x => in_sub_range_check aa ws len x e s
 | Is_valid_addr e x ws => addr_check x ws e s
 end.
+
+Search read.
 
 Fixpoint interp_safe_conds (sc : seq safe_cond) (s : @estate nosubword syscall_state ep) : Prop :=
 match sc with 
