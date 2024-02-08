@@ -33,10 +33,12 @@
   We also provide a speculative CCT checker, via the compiler flag `-checkSCT`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447)).
 
-- Register arrays can appear as arguments and return values of local functions;
+- Register arrays and sub-arrays can appear as arguments and return values of
+  local functions;
   the “make-reference-arguments” pass is now run before expansion of register
-  arrays;
-  ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452)).
+  arrays
+  ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452),
+  [PR #720](https://github.com/jasmin-lang/jasmin/pull/720)).
 
 - Add the instruction `MULX_hi`,
      `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`

@@ -147,7 +147,7 @@ Context
 
   Lemma is_reg_ptr_lval_ty b ii sfx x ty lv y:
      is_reg_ptr_lval fresh_id ii sfx b x ty lv = Some y -> vtype y = ty.
-  Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
+  Proof. by case: lv => //= [? | _ _ _ ? _]; case: ifP => // _ [<-]. Qed.
 
   Lemma make_pseudo_codeP ii sfx X xtys lvs pis s1 s2 vm1 vs vst:
     make_pseudo_epilogue fresh_id ii X sfx xtys lvs = ok pis ->
@@ -461,7 +461,7 @@ Context
 
   Lemma is_reg_ptr_expr_ty ii ctr b x ty lv y:
      is_reg_ptr_expr fresh_id ii ctr b x ty lv = Some y -> vtype y = ty.
-  Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
+  Proof. by case: lv => //= [? | _ _ _ ? _]; case: ifP => // _ [<-]. Qed.
 
   Lemma make_prologueP X ii s:
      forall xfty ctr args Y pl args',
