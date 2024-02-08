@@ -1,0 +1,13 @@
+export fn main () -> reg u64 {
+  reg u64[4] r;
+  reg u64 res;
+
+  inline int i;
+  for i = 0 to 4 {
+    r[i] = 0;
+  }
+
+  res = r.[0];
+
+  return res;
+}

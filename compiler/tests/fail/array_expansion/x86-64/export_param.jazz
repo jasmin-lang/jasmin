@@ -1,0 +1,5 @@
+export fn main (reg u64[3] x) -> reg u64 {
+  reg u64 res;
+  res = x[0];
+  return res;
+}
