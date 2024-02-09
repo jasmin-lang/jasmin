@@ -568,19 +568,23 @@ end = struct
   (* freshen all variables in environment env, venv, with
      possibly a minimum (typically memory corruption) *)
   let freshen ?min env venv =
-    let fresh kind le =
+    let fresh ~in_memory le =
       let l = fresh2 env in
-      begin match kind, min with
-      | Wsize.Global, Some ty (* likely unused as global variables are not in venv.vars *)
-      | Stack _, Some ty -> VlPairs.add_le ty l; VlPairs.add_le le l
-      | _ -> VlPairs.add_le le l
-      end; l in
+      if in_memory && min != None then VlPairs.add_le (oget min) l;
+      VlPairs.add_le le l;
+      l
+    in
     { venv with vtype = Sv.fold (fun x vtype ->
+        let in_memory = match x.v_kind with
+          | Wsize.Global (* likely unused as global variables are not in venv.vars *)
+          | Stack _ -> true
+          | Const | Inline | Reg _ -> false
+        in
         let ty =
-          let fresh = fresh x.v_kind in
           match Mv.find x vtype with
-          | Direct le -> Direct (fresh le)
-          | Indirect(lp, le) -> Indirect(fresh lp, fresh le)
+          | Direct le -> Direct (fresh ~in_memory le)
+          | Indirect(lp, le) ->
+             Indirect(fresh ~in_memory lp, fresh ~in_memory:true le) (* the pointed values are in memory *)
         in
         Mv.add x ty vtype) venv.vars venv.vtype }
 
@@ -605,7 +609,7 @@ end = struct
 
   let corruption env venv ty =
     VlPairs.add_le ty venv.resulting_corruption; (* update corruption level *)
-    freshen ?min:(Some ty) env venv
+    freshen ~min:ty env venv
 
   let corruption_speculative env venv (_, s) = corruption env venv (public env, s)
 
@@ -619,12 +623,15 @@ let error_unsat loc (_ : Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
     "%a has type %a but should be at most %a"
     pp e pp_vty ety pp_vty ety'
 
-let ssafe_test x i =
+let ssafe_test x aa ws i =
   let x = L.unloc x in
   match x.v_kind, x.v_ty, i with
   | Reg (_, Direct), _, _ -> true
-  | _, Arr (_ (* word size. should be used ? *), len), Pconst v ->
-      Z.(leq zero v && lt v (of_int len))
+  | _, Arr (ws1, len), Pconst v ->
+      let len = Z.of_int (arr_size ws1 len) in
+      let v = Z.of_int (access_offset aa ws (Z.to_int v)) in
+      let v_max = Z.add v (Z.of_int (size_of_ws ws - 1)) in
+      Z.(leq zero v && lt v_max len)
   | _ -> false
 
 let content_ty = function
@@ -639,12 +646,12 @@ let rec ty_expr env venv loc (e:expr) : vty =
 
   | Pvar x -> Env.gget venv x
 
-  | Pget (_, _, x, i) ->
+  | Pget (aa, ws, x, i) ->
       ensure_public_address env venv loc x.gv;
       ensure_public env venv loc i;
       let ty = Env.fresh2 env
       and xty = Env.gget venv x in
-      if not (ssafe_test x.gv i) then VlPairs.add_le_speculative (Env.secret env) ty;
+      if not (ssafe_test x.gv aa ws i) then VlPairs.add_le_speculative (Env.secret env) ty;
       VlPairs.add_le (content_ty xty) ty;
       Direct ty
 
@@ -877,11 +884,11 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
            with [x + i] is speculative only *)
       msf, Env.corruption_speculative env venv (content_ty ety)
 
-  | Laset(_, _, x, i) ->
+  | Laset(aa, ws, x, i) ->
       ensure_public_address env venv (L.loc x) x;
       ensure_public env venv (L.loc x) i;
       let le = content_ty ety in
-      if ssafe_test x i then
+      let venv =
         let l = Env.fresh2 env in
         let xty =
           match Env.get_i venv x with
@@ -889,7 +896,10 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
           | Indirect (lp, lx) -> VlPairs.add_le lx l; VlPairs.add_le le l;
               Indirect (lp, l)
         in
-        msf, Env.set_ty env venv x xty
+        Env.set_ty env venv x xty in
+
+      if ssafe_test x aa ws i then
+        msf, venv
       else (* mispeculation has necessarily occured *)
         msf, Env.corruption_speculative env venv le
 
@@ -1454,7 +1464,7 @@ and ty_fun_infer is_ct_asm fenv fn =
   let fty = { modmsf; tyin; tyout; constraints; resulting_corruption; } in
   if !Glob_options.debug then
     Format.eprintf
-      "Before optimization:@.%a@.After optimization:@."
+      "Before optimization:@.%a@."
       pp_funty
       (f.f_name.fn_name, fty);
   let tomax = List.fold_left add [] tyin in
