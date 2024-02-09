@@ -91,3 +91,17 @@ export fn store(#transient reg u64 p i q, #secret reg u64 v) {
     [q + 8 * j] = v;
   }
 }
+
+#[constraints="p <= public, t <= transient, secret <= s"]
+fn xof_init(
+  #public reg u64 j,
+  #[poly = p, poly = t] reg ptr u64[25] state,
+  #[poly = p, poly = s] reg ptr u8[32] rho)
+  ->
+  #[poly = p, poly = s] reg ptr u64[25]
+{
+  reg u64 t;
+  t = rho[u64 j];
+  state[j] = t;
+  return state;
+}

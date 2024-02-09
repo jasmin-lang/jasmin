@@ -37,7 +37,8 @@
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
   We also provide a speculative CCT checker, via the compiler flag `-checkSCT`.
-  ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447)).
+  ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
+   [PR #723](https://github.com/jasmin-lang/jasmin/pull/723)).
 
 - Register arrays and sub-arrays can appear as arguments and return values of
   local functions;

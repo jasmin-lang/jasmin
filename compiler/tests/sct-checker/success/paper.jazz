@@ -25,27 +25,28 @@ fn fig3a(
   return w;
 }
 
-#[constraints="p <= public, t <= transient"]
+#[constraints="p <= public, t <= transient, secret <= s"]
 fn fig3b(
   #[poly = t, poly = t] reg const ptr u64[N] p,
   #[poly = t, poly = w] reg mut ptr u64[N] w,
-  #[poly = t, poly = s] reg mut ptr u64[N] s,
+  #[poly = t, poly = i] reg mut ptr u64[N] s,
   #transient reg u64 i,
   #secret reg u64 secret)
-  -> #[poly = p, poly = w] reg mut ptr u64[N], #[poly = p, poly = s] reg mut ptr u64[N] {
+  -> #[poly = p, poly = w] reg mut ptr u64[N]
+    , #[poly = p, poly = s] reg mut ptr u64[N] {
   reg u64 ms x;
   reg bool b;
   ms = #init_msf();
   b = i < N;
   if b {
     ms = #update_msf(b, ms);
-    s[(int) i] = secret;
+    s[i] = secret;
   } else {
     ms = #update_msf(! b, ms);
   }
   x = p[0];
   x = #protect(x, ms);
-  w[(int) x] = 0;
+  w[x] = 0;
   return w, s;
 }
 
