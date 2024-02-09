@@ -27,6 +27,14 @@ module Arm_core = struct
 
   let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
 
+  let is_ct_asm_op (o : asm_op) =
+    match o with
+    | ARM_op( (SDIV  | UDIV), _) -> false
+    | _ -> true
+
+
+  let is_ct_asm_extra (o : extra_op) = true
+
 end
 
 module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct

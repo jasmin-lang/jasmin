@@ -2,6 +2,10 @@
 
 ## New features
 
+- The type system for constant time now ensures that division and modulo
+  operators may only be used with public arguments.
+  ([PR #722](https://github.com/jasmin-lang/jasmin/pull/722)).
+
 - Add the x86_64 instruction `XCHG`,
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).

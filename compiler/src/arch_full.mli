@@ -34,6 +34,9 @@ module type Core_arch = sig
 
   val known_implicits : (Name.t * string) list
 
+  val is_ct_asm_op : asm_op -> bool
+  val is_ct_asm_extra : extra_op -> bool
+
 end
 
 module type Arch = sig
@@ -65,6 +68,8 @@ module type Arch = sig
   val callstyle : var callstyle 
   
   val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
+
+  val is_ct_sopn : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op -> bool
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch
