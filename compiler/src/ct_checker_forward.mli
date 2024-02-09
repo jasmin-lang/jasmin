@@ -7,8 +7,9 @@ val pp_signature : _ prog -> Format.formatter -> funname * signature -> unit
 (** Human-readable form of a signature *)
 
 val ty_prog :
+  ('asm -> bool) ->
   infer:bool ->
-  _ prog ->
+  (_, 'asm) prog ->
   Name.t list ->
   (funname * signature) list * (L.t * (Format.formatter -> unit)) option
 (** Type-check (for constant-time) a list of functions in the given program

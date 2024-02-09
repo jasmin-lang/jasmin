@@ -215,7 +215,7 @@ let main () =
     end;
 
     if !ct_list <> None then begin
-        let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
+        let sigs, status = Ct_checker_forward.ty_prog Arch.is_ct_sopn ~infer:!infer source_prog (oget !ct_list) in
            Format.printf "/* Security types:\n@[<v>%a@]*/@."
               (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
            let on_err (loc, msg) =
