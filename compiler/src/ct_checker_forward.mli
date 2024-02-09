@@ -1,5 +1,11 @@
 open Prog
 
+val is_ct_op1 : Expr.sop1 -> bool
+val is_ct_op2 : Expr.sop2 -> bool
+val is_ct_opN : Expr.opN -> bool
+val is_ct_sopn : ('asm -> bool) -> 'asm Sopn.sopn -> bool
+
+
 type signature
 (** Security type of a function *)
 

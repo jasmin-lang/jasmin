@@ -4,7 +4,7 @@ open Common
 let () =
   let p = load_file "error_messages.jazz" in
   let check_fails f =
-    match Sct_checker_forward.ty_prog p [ f ] with
+    match Sct_checker_forward.ty_prog Arch.is_ct_sopn p [ f ] with
     | exception Annot.AnnotationError (loc, msg) ->
         Format.printf "Annotation error in %s: %t@." f msg
     | exception Utils.HiError e ->
