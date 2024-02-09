@@ -3,6 +3,8 @@ open Annotations
 open Prog
 open Constraints
 
+module CT = Ct_checker_forward
+
 module S = Syntax
 
 (* ----------------------------------------------------------- *)
@@ -657,9 +659,15 @@ let rec ty_expr env venv loc (e:expr) : vty =
       ensure_public env venv loc i;
       Env.dsecret env
 
-  | Papp1(_, e)      -> ty_expr env venv loc e
-  | Papp2(_, e1, e2) -> ty_exprs_max env venv loc [e1; e2]
-  | PappN(_, es)     -> ty_exprs_max env venv loc es
+  | Papp1(o, e)      ->
+    let public = not (CT.is_ct_op1 o) in
+    ty_exprs_max ~public env venv loc [e]
+  | Papp2(o, e1, e2) ->
+    let public = not (CT.is_ct_op2 o) in
+    ty_exprs_max ~public env venv loc [e1; e2]
+  | PappN(o, es)     ->
+    let public = not (CT.is_ct_opN o) in
+    ty_exprs_max ~public env venv loc es
 
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
@@ -690,8 +698,9 @@ let rec ty_expr env venv loc (e:expr) : vty =
 and ensure_smaller env venv loc e l =
   let ety = ty_expr env venv loc e in
   match ety with
-  | Direct le | Indirect (le, _) -> try VlPairs.add_le le l
-      with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l)
+  | Direct le | Indirect (le, _) ->
+    try VlPairs.add_le le l
+    with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l)
 
 and ensure_public env venv loc e = ensure_smaller env venv loc e (Env.public2 env)
 
@@ -702,8 +711,8 @@ and ensure_public_address env venv loc x =
   | Indirect (le, _) -> try VlPairs.add_le le (Env.public2 env)
       with Lvl.Unsat unsat -> error_unsat loc unsat pp_var_i x ety (Direct (Env.public2 env))
 
-and ty_exprs_max env venv loc es : vty =
-  let l = Env.fresh2 env in
+and ty_exprs_max ~(public:bool) env venv loc es : vty =
+  let l = if public then Env.public2 env else Env.fresh2 env in
   List.iter (fun e -> ensure_smaller env venv loc e l) es;
   Direct l
 
@@ -941,7 +950,7 @@ let ensure_public_address_expr env venv loc e =
 (* --------------------------------------------------------------- *)
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
 
-let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
+let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
   let loc = i.i_loc.L.base_loc in
   match i.i_desc with
   | Csyscall (xs, o, es) ->
@@ -1000,20 +1009,20 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     | Protect, _, _ -> assert false
 
     | Other, _, _  ->
-        (* FIXME allows to add more constraints on es depending on the operators, like for div *)
-        let ety = ty_exprs_max env venv loc es in
-        ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
+      let public = not (CT.is_ct_sopn is_ct_asm o) in
+      let ety = ty_exprs_max ~public env venv loc es in
+      ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
     end
 
   | Cif(e, c1, c2) ->
     if is_inline i then
-      let msf1, venv1 = ty_cmd fenv env (msf, venv) c1 in
-      let msf2, venv2 = ty_cmd fenv env (msf, venv) c2 in
+      let msf1, venv1 = ty_cmd is_ct_asm fenv env (msf, venv) c1 in
+      let msf2, venv2 = ty_cmd is_ct_asm fenv env (msf, venv) c2 in
       MSF.max msf1 msf2, Env.max env venv1 venv2
     else begin
       ensure_public env venv loc e;
-      let msf1, venv1 = ty_cmd fenv env (MSF.enter_if msf e, venv) c1 in
-      let msf2, venv2 = ty_cmd fenv env (MSF.enter_if msf (Papp1(Onot, e)), venv) c2 in
+      let msf1, venv1 = ty_cmd is_ct_asm fenv env (MSF.enter_if msf e, venv) c1 in
+      let msf2, venv2 = ty_cmd is_ct_asm fenv env (MSF.enter_if msf (Papp1(Onot, e)), venv) c2 in
       MSF.max msf1 msf2, Env.max env venv1 venv2
     end
 
@@ -1025,7 +1034,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       (* let w, _ = written_vars [i] in *)
       let venv1 = Env.freshen env venv in (* venv <= venv1 *)
       let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
-      let (msf', venv') = ty_cmd fenv env msf_e c in
+      let (msf', venv') = ty_cmd is_ct_asm fenv env msf_e c in
       let msf' = MSF.end_loop loc msf msf' in
       Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
       msf', venv1
@@ -1046,9 +1055,9 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
        as secret is sufficient *)
 
     let venv1 = Env.freshen env venv in (* venv <= venv1 *)
-    let (msf2, venv2) = ty_cmd fenv env (msf1, venv1) c1 in
+    let (msf2, venv2) = ty_cmd is_ct_asm fenv env (msf1, venv1) c1 in
     ensure_public env venv2 loc e;
-    let (msf', venv') = ty_cmd fenv env (MSF.enter_if msf2 e, venv2) c2 in
+    let (msf', venv') = ty_cmd is_ct_asm fenv env (MSF.enter_if msf2 e, venv2) c2 in
     let msf' = MSF.end_loop loc msf1 msf' in
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
     MSF.enter_if msf' (Papp1(Onot, e)), venv1
@@ -1089,8 +1098,8 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     let msf = if is_Modified modmsf then MSF.toinit else msf in
     List.fold_left2 output_ty (msf, venv) xs tyout
 
-and ty_cmd fenv env msf_e c =
-  List.fold_left (ty_instr fenv env) msf_e c
+and ty_cmd is_ct_asm fenv env msf_e c =
+  List.fold_left (ty_instr is_ct_asm fenv env) msf_e c
 
 
 (* ------------------------------------------------------------------- *)
@@ -1384,18 +1393,18 @@ let init_constraint fenv f =
   env, venv, tyin, tyout, modmsf
 
 
-let rec ty_fun fenv fn =
+let rec ty_fun is_ct_asm fenv fn =
   try Hf.find fenv.env_ty fn
   with Not_found ->
-    let fty = ty_fun_infer fenv fn in
+    let fty = ty_fun_infer is_ct_asm fenv fn in
     Hf.add fenv.env_ty fn fty;
     fty
 
-and ty_fun_infer fenv fn =
+and ty_fun_infer is_ct_asm fenv fn =
   let f = FEnv.get_fun_def fenv fn in
   (* First compute all function call by f and recurse *)
   let _, called = written_vars_fc f in
-  Mf.iter (fun fn _ -> ignore (ty_fun fenv fn)) called;
+  Mf.iter (fun fn _ -> ignore (ty_fun is_ct_asm fenv fn)) called;
   let env, venv, tyin, tyout, modmsf = init_constraint fenv f in
   (* init msf status *)
   let msf =
@@ -1403,7 +1412,7 @@ and ty_fun_infer fenv fn =
         if ty = IsMsf then MSF.add (L.mk_loc x.v_dloc x) msf else msf)
       MSF.toinit f.f_args tyin in
   (* start type checking of the body *)
-  let msf, venv = ty_cmd fenv env (msf, venv) f.f_body in
+  let msf, venv = ty_cmd is_ct_asm fenv env (msf, venv) f.f_body in
   (* build the resulting type *)
   let doout x (omsf, ty) =
     let le_ty ty1 ty2 =
@@ -1454,7 +1463,7 @@ and ty_fun_infer fenv fn =
   fty
 
 
-let ty_prog (prog:('info, 'asm) prog) fl =
+let ty_prog is_ct_asm (prog:('info, 'asm) prog) fl =
   let prog = snd prog in
   let fenv = { env_ty = Hf.create 101; env_def = prog } in
   let fl =
@@ -1466,7 +1475,7 @@ let ty_prog (prog:('info, 'asm) prog) fl =
         with Not_found ->
           hierror ~loc:Lnone ~kind:"speculative constant type checker" "unknown function %s" fn in
       List.map get fl in
-  List.map (fun fn -> fn.fn_name, ty_fun fenv fn) fl
+  List.map (fun fn -> fn.fn_name, ty_fun is_ct_asm fenv fn) fl
 
 (* ------------------------------------------------------------------------------- *)
 (* Inference of msf_info needed by the compiler                                    *)

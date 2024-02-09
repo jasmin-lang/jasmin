@@ -3,8 +3,10 @@
 
 ## New features
 
-- The type system for constant time now ensures that division and modulo
-  operators may only be used with public arguments.
+- The type systems for constant time and speculative constant time now ensure
+  that division and modulo operators may only be used with public arguments.
+  This ensures that problems like KyberSlash (https://kyberslash.cr.yp.to/) do
+  not occur.
   ([PR #722](https://github.com/jasmin-lang/jasmin/pull/722)).
 
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr

@@ -60,8 +60,8 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
-let check_sct _s p _source_p =
-  Sct_checker_forward.ty_prog p (oget !sct_list)
+let check_sct is_ct_asm _s p _source_p =
+  Sct_checker_forward.ty_prog is_ct_asm p (oget !sct_list)
 
 (* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
@@ -179,7 +179,7 @@ let main () =
           source_prog
         |> donotcompile
       else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
-        check_sct s p source_prog
+        check_sct Arch.is_ct_sopn s p source_prog
         |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
         |> donotcompile
       else
