@@ -28,6 +28,14 @@ module Arm_core = struct
   let alloc_stack_need_extra sz =
     not (Arm_params_core.is_arith_small (Conv.cz_of_z sz))
 
+  let is_ct_asm_op (o : asm_op) =
+    match o with
+    | ARM_op( (SDIV  | UDIV), _) -> false
+    | _ -> true
+
+
+  let is_ct_asm_extra (o : extra_op) = true
+
 end
 
 module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct

@@ -3,6 +3,10 @@
 
 ## New features
 
+- The type system for constant time now ensures that division and modulo
+  operators may only be used with public arguments.
+  ([PR #722](https://github.com/jasmin-lang/jasmin/pull/722)).
+
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
   If the annotation #spill_to_mmx is used at the variable declaration the variable
