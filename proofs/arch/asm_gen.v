@@ -35,7 +35,7 @@ Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info
 Definition internal_error ii msg := 
   gen_error true (Some ii) None (pp_s msg).
 
-Definition unexpected_sopn `{PointerData} `{MSFsize} `{asmOp} ii msg op :=
+Definition unexpected_sopn `{MSFsize} `{asmOp} ii msg op :=
   let err :=
     pp_box [:: pp_s msg; pp_s "unexpected operator"; pp_s (string_of_sopn op) ]
   in
