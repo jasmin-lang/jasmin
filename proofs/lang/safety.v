@@ -37,45 +37,15 @@ forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v ->
             to_int v = ok i -> 
 is_align (i * mk_scale aa ws)%Z ws. *)
 
-Definition is_align_check (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) :=
+Definition is_align_check_array (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) :=
+forall v vp, sem_pexpr (wsw:= nosubword) false gd s e = ok v ->  
+to_int v = ok vp ->
+is_align vp ws.
+
+Definition is_align_check_memory (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) :=
 forall v vp, sem_pexpr (wsw:= nosubword) false gd s e = ok v ->  
 to_pointer v = ok vp ->
 is_align vp ws.
-
-
-(*Definition is_align_check' (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) : Prop :=
-match e with  
-| Pget aa ws x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
-                    to_int v = ok i ->
-                    is_align (i * mk_scale aa ws)%Z ws
-| Psub aa ws len x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
-                        to_int v = ok i ->
-                        is_align (i * mk_scale aa ws)%Z ws
-| Pload sz x e => forall ve w1 w2, defined_var x s ->
-                  sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
-                  to_pointer (evm s).[x] = ok w1 ->
-                  to_pointer ve = ok w2 ->
-                  is_align (w1 + w2)%R ws
-| _ => True
-end. 
-
-Definition is_align_check'' (e : pexpr) (ws : wsize) (s : @estate nosubword syscall_state ep) : Prop :=
-match e with  
-| Pget aa ws x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
-                    to_int v = ok i ->
-                    is_align (i * mk_scale aa ws)%Z ws
-| Psub aa ws len x e => forall v i, sem_pexpr (wsw := nosubword) false gd s e = ok v ->
-                        to_int v = ok i ->
-                        is_align (i * mk_scale aa ws)%Z ws
-| Pload sz x e => forall ve w1 w2, defined_var x s ->
-                  sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
-                  to_pointer (evm s).[x] = ok w1 ->
-                  to_pointer ve = ok w2 ->
-                  is_align (w1 + w2)%R ws
-| _ => True
-end. *)
-
-
 
 Definition in_range_check (aa : arr_access) (ws : wsize) (x : var_i) (e : pexpr) 
 (s : @estate nosubword syscall_state ep) :=
@@ -90,18 +60,18 @@ forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v ->
                 to_int v = ok i -> 
 ((0 <=? (i * mk_scale aa ws))%Z && ((i * mk_scale aa ws + arr_size ws slen) <=? (get_len_stype x.(v_var).(vtype)))%Z).
 
-(* checks if the address is valid or not *)
+(* checks if the address is valid or not *) (* the index are initialized *) 
 Definition addr_check (x : var_i) (ws : wsize) (e : pexpr) (s : @estate nosubword syscall_state ep) :=
 forall ve w1 w2, defined_var x s ->
               sem_pexpr (wsw:= nosubword) false gd s e = ok ve ->
               to_pointer (evm s).[x] = ok w1 ->
               to_pointer ve = ok w2 ->
-validw (emem s) (w1 + w2)%R ws.
+validw (emem s) (w1 + w2)%R ws. 
 
 Inductive safe_cond : Type :=
 | Defined_var : var_i -> safe_cond
 | Not_zero : pexpr -> pexpr -> safe_cond
-| Is_align : pexpr -> wsize -> safe_cond
+| Is_align : bool -> pexpr -> wsize -> safe_cond
 | In_range : pexpr -> arr_access -> wsize -> var_i -> safe_cond
 | In_sub_range : pexpr -> arr_access -> wsize -> positive -> var_i -> safe_cond
 | Is_valid_addr : pexpr -> var_i -> wsize -> safe_cond.
@@ -139,25 +109,26 @@ match es with
 | e :: es => gen_safe_cond e :: gen_safe_conds es
 end. 
 
-End gen_safe_conds.    
+End gen_safe_conds. 
 
-Definition Pmul := Papp2 (Omul (Op_w Uptr)).
+
+Definition Pmul := Papp2 (Omul Op_int).
 Definition Padd := Papp2 (Oadd (Op_w Uptr)).
-
+ 
 Fixpoint gen_safe_cond (e : pexpr) : seq safe_cond :=
 match e with   
 | Pconst _ | Pbool _ | Parr_init _ => [::] 
 | Pvar x => [:: Defined_var (gv x)]
 | Pget aa ws x e => [:: Defined_var (gv x); 
-                        Is_align (Pmul (Pconst (mk_scale aa ws)) e) ws; 
+                        Is_align true (Pmul (Pconst (mk_scale aa ws)) e) ws; 
                         In_range e aa ws (gv x)] 
                      ++ gen_safe_cond e 
 | Psub aa ws p x e => [:: Defined_var (gv x);
-                          Is_align (Pmul (Pconst (mk_scale aa ws)) e) ws; 
+                          Is_align true (Pmul (Pconst (mk_scale aa ws)) e) ws; 
                           In_sub_range e aa ws p (gv x)] 
                        ++ gen_safe_cond e 
 | Pload ws x e => [:: Defined_var x;
-                      Is_align (Padd (Pconst 0) (* need to fix *) (cast_ptr e)) ws;
+                      Is_align false (Padd (Pvar (mk_lvar x)) e) ws;
                       Is_valid_addr e x ws] 
                    ++ gen_safe_cond e 
 | Papp1 op e => gen_safe_cond e
@@ -165,7 +136,6 @@ match e with
 | PappN op es => flatten (gen_safe_conds (gen_safe_cond) es)
 | Pif t e1 e2 e3 => gen_safe_cond e1 ++ gen_safe_cond e2 ++ gen_safe_cond e3
 end.
-
 
 Section safe_pexprs.
 
@@ -177,32 +147,17 @@ Fixpoint interp_safe_cond (sc : safe_cond) (s : @estate nosubword syscall_state 
 match sc with 
 | Defined_var x => defined_var x s
 | Not_zero e1 e2 => not_zero_pexpr e2 s
-| Is_align e ws => is_align_check e ws s 
+| Is_align b e ws => if b then is_align_check_array e ws s else is_align_check_memory e ws s
 | In_range e aa ws x => in_range_check aa ws x e s
 | In_sub_range e aa ws len x => in_sub_range_check aa ws len x e s
 | Is_valid_addr e x ws => addr_check x ws e s
 end.
-
-Search read.
 
 Fixpoint interp_safe_conds (sc : seq safe_cond) (s : @estate nosubword syscall_state ep) : Prop :=
 match sc with 
 | [::] => True 
 | sc1 :: sc2 => interp_safe_cond sc1 s /\ interp_safe_conds sc2 s
 end.
-
-(*Fixpoint safe_pexpr (s : @estate nosubword syscall_state ep) (e: pexpr) (sc : seq safe_cond)  := 
-match e with 
- | Pconst _ | Pbool _ | Parr_init _ => True 
- | Pvar x => defined_var (gv x) s
- | Pget aa ws x e => defined_var (gv x) s /\ safe_pexpr s e sc /\ alignment_range_check aa ws (gv x) e s
- | Psub aa ws p x e => defined_var (gv x) s /\ safe_pexpr s e sc /\ alignment_sub_range_check aa ws p (gv x) e s
- | Pload ws x e => safe_pexpr s e sc /\ defined_var x s /\ addr_check x ws e s
- | Papp1 op e => safe_pexpr s e sc
- | Papp2 op e1 e2 => safe_pexpr s e1 sc /\ safe_pexpr s e2 sc /\ interp_safe_cond_op2 s op e1 e2 sc
- | PappN op es => safe_pexprs (safe_pexpr) s es sc
- | Pif t e1 e2 e3 => safe_pexpr s e1 /\ safe_pexpr s e2 /\ safe_pexpr s e3
-end.*)
 
 Lemma interp_safe_concat : forall sc1 sc2 sc3 s,
 interp_safe_conds (sc1 ++ sc2 ++ sc3) s ->
@@ -273,18 +228,20 @@ Lemma wt_safe_read_not_error : forall pd e t (x:var_i) s w ve vp vp' err,
 subtype (sword pd) t ->
 ty_pexpr pd e = ok t ->
 subtype (sword pd) (vtype x) ->
+defined_var x s ->
+is_align_check_memory (Padd (mk_lvar x) e) w s ->
+addr_check x w e s ->
 interp_safe_conds (gen_safe_cond e) s ->
-interp_safe_conds [:: Defined_var x; Is_valid_addr e x w] s ->
 sem_pexpr false gd s e = ok ve ->
-type_of_val ve = t ->
 to_pointer ve = ok vp ->
 to_pointer (evm s).[x] = ok vp' ->
 read (emem s) (vp' + vp)%R w <> Error err.
 Proof.
 Admitted.
 
+
 Lemma wt_safe_to_pointer_error : forall x s err,
-interp_safe_conds [:: (Defined_var x)] s ->
+defined_var x s ->
 to_pointer (evm s).[x] <> Error err.
 Proof.
 Admitted.
@@ -315,32 +272,25 @@ Admitted.
 
 Lemma wt_safe_get_gvar_not_error : forall x s ty err,
 vtype (gv x) = ty ->
-interp_safe_conds [:: Defined_var (gv x)] s ->
+defined_var (gv x) s ->
 get_gvar false gd (evm s) x <> Error err.
-Proof.
-move=> x s ty err ht /= [] hs _. 
-rewrite /defined_var /is_defined in hs.
-rewrite /get_gvar /=. case: ifP=> //= hl. 
+Proof. 
 Admitted.
 
 Lemma wt_safe_get_gvar_not_undef : forall x s t i ty,
 vtype (gv x) = ty ->
-interp_safe_conds [:: Defined_var (gv x)] s ->
+defined_var (gv x) s ->
 get_gvar false gd (evm s) x <> ok (Vundef t i).
 Proof.
-move=> x s t i ty ht /= [] hs _. rewrite /get_gvar /=.
-case: ifP=> //= hl.
-+ rewrite /get_var /=. rewrite /defined_var /is_defined in hs.
-  by case: ((evm s).[gv x]) hs=> //=. 
-admit.
 Admitted.
 
 Lemma wt_safe_read_arr_not_error : forall pd e x p aa sz s arr (p':WArray.array arr) ve vi err,
 ty_pexpr pd e = ok sint ->
 vtype (gv x) = sarr p ->
-interp_safe_conds (gen_safe_cond e ++
-          [:: Defined_var (gv x); Is_align e aa sz;
-              In_range e aa sz (gv x)]) s ->
+defined_var (gv x) s ->
+is_align_check_array (Pmul (mk_scale aa sz) e) sz s ->
+in_range_check aa sz (gv x) e s ->
+interp_safe_conds (gen_safe_cond e) s ->
 get_gvar false gd (evm s) x = ok (Varr p') ->
 sem_pexpr false gd s e = ok ve ->
 read p' (vi * mk_scale aa sz)%Z sz <> Error err.
@@ -403,91 +353,71 @@ move=> pd e s. elim: e=> //=.
 + move=> x ty [] ht [] hd _. case hg: get_gvar=> [vg | vgr] //=.
   + exists vg. split=> //=. have hvg : is_defined vg. 
     + rewrite /is_defined /=. 
-      case: vg hg=> //= t i hg. have hs : interp_safe_conds [:: Defined_var (gv x)] s.
-      + rewrite /interp_safe_conds /=. by split=> //=. 
-      by have := wt_safe_get_gvar_not_undef x s t i ty ht hs.
+      case: vg hg=> //= t i hg. 
+      by have := wt_safe_get_gvar_not_undef x s t i ty ht hd. 
     have hsub := type_of_get_gvar_eq x (evm s) vg hvg hg.
     by rewrite ht /= in hsub. 
-  have hs : interp_safe_conds [:: Defined_var (gv x)] s.
-  + rewrite /interp_safe_conds /=. by split=> //=.
-  by have := wt_safe_get_gvar_not_error x s ty vgr ht hs hg.
+  by have := wt_safe_get_gvar_not_error x s ty vgr ht hd hg.
 (* Pget *)
 + move=> aa sz x e hin ty. rewrite /ty_get_set /check_array /=. 
   t_xrbindP=> t hte t'. case ht: (vtype (gv x))=> [  | | p |] //= [] heq; subst.
-  rewrite /check_int /check_type /=. case: ifP=> //= /eqP hteq t2 [] hteq' hteq''; subst. move=> hs.
-  have [hs1 [hs2 hs3]] := interp_safe_concat (gen_safe_cond e) [:: Defined_var (gv x); Is_align e aa sz;
-         In_range e aa sz (gv x)] [::] s hs.
+  rewrite /check_int /check_type /=. case: ifP=> //= /eqP hteq t2 [] hteq' hteq''; subst. 
+  move=> [] hs1 [] hs2 [] hs3 hs4.
   rewrite /on_arr_var /=. case hg: get_gvar=> [vg | vgr] //=.
   + case hvg: vg=> [b | z | p' arr| w wsz| t i] //=; subst.
     + have hdb : is_defined b. + by rewrite /is_defined. 
       have ht' := type_of_get_gvar_eq x (evm s) b hdb hg. by rewrite ht /= in ht'.
     + have hdb : is_defined z. + by rewrite /is_defined. 
       have ht' := type_of_get_gvar_eq x (evm s) z hdb hg. by rewrite ht /= in ht'.
-    + move: (hin sint hte hs1) => [] ve [] he htve. rewrite he /=. 
+    + move: (hin sint hte hs4) => [] ve [] he htve. rewrite he /=. 
       case hi : to_int=> [vi | vr] //=.
       + case hw : WArray.get=> [vw | vwr] //=.
         + exists (Vword (s:=sz) vw). by split=> //=.
         rewrite /WArray.get /= in hw.
-        by have := wt_safe_read_arr_not_error pd e x p aa sz s p' arr ve vi vwr hte ht hs hg he.
-      by have := wt_safe_to_int_not_error pd e s ve vr hte hs1 he. 
+        by have := wt_safe_read_arr_not_error pd e x p aa sz s p' arr ve vi vwr hte ht hs1 hs2 hs3 hs4 hg he.
+      by have := wt_safe_to_int_not_error pd e s ve vr hte hs4 he. 
     + have hdb : is_defined (Vword (s:=w) wsz). + by rewrite /is_defined. 
       have ht' := type_of_get_gvar_eq x (evm s) (Vword (s:=w) wsz) hdb hg. by rewrite ht /= in ht'.
-    have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
-                             [:: Is_align e aa sz] [:: In_range e aa sz (gv x)] s hs2.
-    by have := wt_safe_get_gvar_not_undef x s t i (sarr p) ht hs1'.
-  have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
-                             [:: Is_align e aa sz] [:: In_range e aa sz (gv x)] s hs2.
-  by have := wt_safe_get_gvar_not_error x s (sarr p) vgr ht hs1'.
+    by have := wt_safe_get_gvar_not_undef x s t i (sarr p) ht hs1. 
+  by have := wt_safe_get_gvar_not_error x s (sarr p) vgr ht hs1.
 (* Psub *)
 + move=> aa sz len x e hin ty. rewrite /ty_get_set_sub /check_array /= /check_int /= /check_type /=.
   t_xrbindP => t hte t'. case ht: (vtype (gv x))=> [  | | p|] //= [] heq; subst.
-  move=>ti. case: ifP=> //= /eqP hteq [] hteq' hteq''; subst. move=> hs.
-  have [hs1 [hs2 hs3]] := interp_safe_concat (gen_safe_cond e) [:: Defined_var (gv x); Is_align e aa sz;
-         In_sub_range e aa sz len (gv x)] [::] s hs.   
+  move=>ti. case: ifP=> //= /eqP hteq [] hteq' hteq''; subst. move=> [] hs1 [] hs2 [] hs3 hs4.   
   rewrite /on_arr_var /=. case hg: get_gvar=> [vg | vgr] //=.
   + case hvg: vg=> [b | z | p' arr| w wsz| t i] //=; subst.
     + have hdb : is_defined b. + by rewrite /is_defined. 
       have ht' := type_of_get_gvar_eq x (evm s) b hdb hg. by rewrite ht /= in ht'.
     + have hdb : is_defined z. + by rewrite /is_defined. 
       have ht' := type_of_get_gvar_eq x (evm s) z hdb hg. by rewrite ht /= in ht'.
-    + move: (hin sint hte hs1) => [] ve [] he htve. rewrite he /=. 
+    + move: (hin sint hte hs4) => [] ve [] he htve. rewrite he /=. 
       case hi : to_int=> [vi | vr] //=.
       + case hw : WArray.get_sub=> [vw | vwr] //=.
         + exists (Varr vw). by split=> //=.
         rewrite /WArray.get_sub /= in hw. move: hw. case: ifP=> //= /andP [].
-        have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
-                             [:: Is_align e aa sz] [:: In_sub_range e aa sz len (gv x)] s hs2.
-        rewrite /interp_safe_conds /= /in_sub_range_check /= ht /= in hs3'. case: hs3'=> hs3' hs3''.
+        rewrite /in_sub_range_check /= ht /= in hs3.
         have hd : is_defined (Varr arr).
         + by rewrite /is_defined.
-        move: (hs3' ve vi he hi)=> /andP. have hsub' := type_of_get_gvar_eq x (evm s) (Varr arr) hd hg. 
+        move: (hs3 ve vi he hi)=> /andP. have hsub' := type_of_get_gvar_eq x (evm s) (Varr arr) hd hg. 
         rewrite ht /= in hsub'. by move: hsub'=> [] heq'; subst.
-      by have := wt_safe_to_int_not_error pd e s ve vr hte hs1 he. 
+      by have := wt_safe_to_int_not_error pd e s ve vr hte hs4 he. 
     + have hdb : is_defined (Vword (s:=w) wsz). + by rewrite /is_defined. 
       have ht' := type_of_get_gvar_eq x (evm s) (Vword (s:=w) wsz) hdb hg. by rewrite ht /= in ht'.
-    have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
-                             [:: Is_align e aa sz] [:: In_sub_range e aa sz len (gv x)] s hs2.
-    by have := wt_safe_get_gvar_not_undef x s t i (sarr p) ht hs1'.
-  have [hs1' [hs2' hs3']] := interp_safe_concat [:: Defined_var (gv x)] 
-                             [:: Is_align e aa sz] [:: In_sub_range e aa sz len (gv x)] s hs2.
-  by have := wt_safe_get_gvar_not_error x s (sarr p) vgr ht hs1'.
+    by have := wt_safe_get_gvar_not_undef x s t i (sarr p) ht hs1.
+  by have := wt_safe_get_gvar_not_error x s (sarr p) vgr ht hs1.
 (* Pload *)
 + move=> w x e hin ty. rewrite /ty_load_store /= /check_ptr /check_type.
   t_xrbindP=> te hte t1. case: ifP=> //= hsub heq t2; subst. 
   case: ifP=> //= hsub' heq' t3 hs; subst. case: heq'=> heq'; subst.
-  have [hs1 [hs2 hs3]] := interp_safe_concat (gen_safe_cond e) 
-                          ([:: Defined_var x; Is_valid_addr e x w]) [::] s hs.
-  move: (hin t2 hte hs1)=> [] ve [] he htve. rewrite he /=.
+  move:hs=> [] hs1 [] hs2 [] hs3 hs4.
+  move: (hin t2 hte hs4)=> [] ve [] he htve. rewrite he /=.
   case hp: to_pointer=> [vp | vpr] //=.
   + case hp': to_pointer=> [vp' | vpr'] //=.
     + case hr: read=> [vr | vrr] //=.
       + exists (Vword (s:=w) vr). by split=> //=.
-      by have /= := wt_safe_read_not_error pd e t2 x s w ve vp vp' vrr hsub' hte hsub hs1 hs2 he htve hp hp'.
-    rewrite -cat1s in hs2. 
-    have [hs2' [hs2'' hs2''']] := interp_safe_concat ([:: Defined_var x]) ([:: Is_valid_addr e x w]) [::] s hs2.
-    by have //= := wt_safe_to_pointer_error x s vpr' hs2'.
-  have [hs2' [hs2'' hs2''']] := interp_safe_concat ([:: Defined_var x]) ([:: Is_valid_addr e x w]) [::] s hs2.
-  by have //= := wt_safe_exp_to_pointer_error pd e t2 x s ve vpr hte hsub' hs1 he.
+      by have /= := wt_safe_read_not_error pd e t2 x s w ve vp vp' vrr hsub' hte hsub hs1 hs2 hs3 hs4 he hp hp'.
+    by have //= := wt_safe_to_pointer_error x s vpr' hs1.
+  by have //= := wt_safe_exp_to_pointer_error pd e t2 x s ve vpr hte hsub' hs4 he.
 (* Papp1 *)
 + move=> op e hin ty. case hto: type_of_op1=> [tin tout]. rewrite /check_expr /= /check_type.
   t_xrbindP=> t1 t2 hte. case: ifP=> //= hsub [] heq heq'; subst. 
