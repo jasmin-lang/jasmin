@@ -31,11 +31,27 @@ arm_conds["LT_ct"] = "lt"
 arm_conds["GT_ct"] = "gt"
 arm_conds["LE_ct"] = "le"
 
+
+ops_two_args                = {}
+ops_two_args["CLZ"]         = "CLZ"
+ops_two_args["CMP"]         = "CMP"
+ops_two_args["CMN"]         = "CMN"
+ops_two_args["MOV"]         = "MOV"
+ops_two_args["MVN"]         = "MVN"
+ops_two_args["REV"]         = "REV"
+ops_two_args["REV16"]       = "REV16"
+ops_two_args["REVSH"]       = "REVSH"
+ops_two_args["TST"]         = "TST"
+ops_two_args["UXTB"]        = "UXTB"
+ops_two_args["UXTH"]        = "UXTH"
+
 ops_three_args              = {}
 # Arithmetic
 ops_three_args["ADD"]       = "ADD"
 ops_three_args["ADC"]       = "ADC"
 ops_three_args["MUL"]       = "MUL"
+# ops_three_args["SDIV"]      = "SDIV"
+# ops_three_args["UDIV"]      = "UDIV"
 ops_three_args["SUB"]       = "SUB"
 ops_three_args["RSB"]       = "RSB"
 ops_three_args["SMMUL"]     = "SMMUL"
@@ -56,3 +72,8 @@ ops_three_args["ASR"]       = "ASR"
 ops_three_args["LSL"]       = "LSL"
 ops_three_args["LSR"]       = "LSR"
 ops_three_args["ROR"]       = "ROR"
+
+ops_four_args               = {}
+ops_four_args["UMAAL"]      = "UMAAL"
+ops_four_args["UMLAL"]      = "UMLAL"
+ops_four_args["UMULL"]      = "UMULL"
