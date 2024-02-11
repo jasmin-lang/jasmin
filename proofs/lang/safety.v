@@ -159,14 +159,78 @@ match sc with
 | sc1 :: sc2 => interp_safe_cond sc1 s /\ interp_safe_conds sc2 s
 end.
 
-Lemma interp_safe_concat : forall sc1 sc2 sc3 s,
-interp_safe_conds (sc1 ++ sc2 ++ sc3) s ->
-interp_safe_conds sc1 s /\ interp_safe_conds sc2 s /\ interp_safe_conds sc3 s.
+Lemma interp_safe_concat : forall sc1 sc2 s,
+interp_safe_conds (sc1 ++ sc2) s ->
+interp_safe_conds sc1 s /\ interp_safe_conds sc2 s.
 Proof.
-move=> sc1 sc2 sc3 s /=. elim : (sc1 ++ sc2 ++ sc3)=> [h | s1 s2] //=.
-+ admit.
-move=> hin [] hs1 hs2. by move: (hin hs2)=> [] h1 [] h2 h3.
-Admitted.
+move=> sc1 sc2 s /=. elim: sc1=> [h | s1 s2] //=.
+move=> ht [] hs1 hs2. move: (ht hs2)=> [] hs3 hs4.
+by split=> //=.
+Qed.
+
+Lemma safe_not_undef : forall e s t he,
+interp_safe_conds (gen_safe_cond e) s ->
+sem_pexpr false gd s e <> ok (Vundef t he).
+Proof.
+move=> e s t u. elim: e=> //=.
+(* Pvar *)
++ move=> x [] hd _ hg. rewrite /defined_var /is_defined in hd.
+  rewrite /get_gvar /= in hg. move: hg. case: ifP=> //= hl.
+  + rewrite /get_var /=. move=> [] hg. by rewrite hg in hd.
+  move=> /get_globalI [gv [hg hg'' hg']]. by case: gv hg hd hg''=> //=.
+(* Pget *)
++ move=> aa sz x e hin [] hs1 [] hs2 [] hs3 hs4. rewrite /on_arr_var /=.
+  case hg: get_gvar=> [vg | er] //=. case: vg hg=> //= len a hg /=.
+  move: (hin hs4)=> he. case he': sem_pexpr=> [ve | err] //=.
+  case hi: to_int=> [vi | vrr] //=. by case ha : WArray.get=> [va | err] //=.
+(* Psub *)
++ move=> aa sz len x e hin [] hs1 [] hs2 [] hs3 hs4. rewrite /on_arr_var /=.
+  case hg: get_gvar=> [vg | er] //=. case: vg hg=> //= len' a hg /=.
+  move: (hin hs4)=> he. case he': sem_pexpr=> [ve | err] //=.
+  case hi: to_int=> [vi | vrr] //=. by case ha : WArray.get_sub=> [va | err] //=.
+(* Pload *)
++ move=> sz x e hin [] hs1 [] hs2 [] hs3 hs4. case hp: to_pointer=> [vp | verr] //=.
+  move: (hin hs4)=> he. case he': sem_pexpr=> [ve | verr] //=.
+  case hp': to_pointer=> [vp' | verr'] //=. by case hr: read=> [vr | verr] //=.
+(* Papp1 *)
++ move=> op e hin hs. move: (hin hs)=> he. case he': sem_pexpr=> [ve | verr] //=.
+  rewrite /sem_sop1 /=. case hv: of_val=> [vv | verr] //=. case ht: to_val=> //= [t' ti].
+  by have := to_valI ht.
+(* Papp2 *)
++ move=> op e1 hin e2 hin' hs. 
+  have [hs1 {hs} hs] := interp_safe_concat (gen_safe_cond e1) 
+                        (gen_safe_cond e2 ++ gen_safe_cond_op2 op e1 e2) s hs.
+  have [hs2 hs3] := interp_safe_concat (gen_safe_cond e2) (gen_safe_cond_op2 op e1 e2) s hs.
+  move: (hin hs1)=> her1. move: (hin' hs2)=> her2. case he1 : sem_pexpr=> [ve1| ver1] //=.
+  + case he2 : sem_pexpr=> [ve2| ver2] //=. rewrite /sem_sop2 /=. case hv : of_val=> [vv | ver] //=.
+    + case hv' : of_val=> [vv' | ver'] //=. case ho: sem_sop2_typed=> [vo | vor] //=.
+      case ht: to_val=> //= [t' ti]. by have := to_valI ht.
+    by case hv' : of_val=> [vv | vvr] //=.
+  by case he1': sem_pexpr=> [ve | ver] //=.
+(* PappN *)
++ move=> op es hin hs. case hm: mapM=> [vm | vmr] //=. rewrite /sem_opN /=.
+  case ha: app_sopn=> [va | var] //=. case ht: to_val=> //= [t' ti]. by have := to_valI ht.
+(* Pif *)
+move=> ty e hin e1 hin1 e2 hin2 hs.
+have [hs1 hs2] := interp_safe_concat (gen_safe_cond e) (gen_safe_cond e1 ++ gen_safe_cond e2) s hs.
+have [hs3 hs4] := interp_safe_concat (gen_safe_cond e1) (gen_safe_cond e2) s hs2.
+move: (hin hs1)=> he1. move: (hin1 hs3)=> he2. move: (hin2 hs4)=> he3.
+case h1: sem_pexpr=> [ve | ver] //=.
++ case h2: sem_pexpr=> [ve1 | ver1] //=.
+  + case h3: sem_pexpr=> [ve2 | ver2] //=. case hb : to_bool=> [vb | vbr] //=.
+    case ht: truncate_val=> [vt | vtr] //=.
+    + case ht': truncate_val=> [vt' | vtr'] //=. case: ifP=> //= h; subst.
+      + move: ht'. rewrite /truncate_val /=. case hv: of_val=> [vv | vvr] //=.
+        move=> [] hv'. have := to_valI hv'. by case: vt' hv hv'=> //=.
+      move: ht. rewrite /truncate_val /=. case hv: of_val=> [vv | vvr] //=.
+      move=> [] hv'. have := to_valI hv'. by case: vt hv hv'=> //=.
+    by case ht': truncate_val=> [vee | vtr1] //=.
+  case he: sem_pexpr=> [vee | ver] //=. by case hb: to_bool=> [vb | vbr] //=.
+case he1': sem_pexpr=> [ve1 | veer1] //=.  
++ case he': sem_pexpr=> [ve | vee] //=. case hb: to_bool=> [vb | vbr] //=.
+  by case ht: truncate_val=> [vt | vtr] //=.  
+case he' : sem_pexpr=> [ve | veer] //=. by case hb: to_bool=> [vb | vbr] //=.  
+Qed.
 
 Lemma wt_safe_truncate_not_error : forall e s v t ty err,
 interp_safe_conds (gen_safe_cond e) s ->
@@ -174,12 +238,6 @@ sem_pexpr false gd s e = ok v ->
 type_of_val v = t ->
 subtype ty t ->
 truncate_val ty v <> Error err.
-Proof.
-Admitted.
-
-Lemma safe_not_undef : forall e s t he,
-interp_safe_conds (gen_safe_cond e) s ->
-sem_pexpr false gd s e <> ok (Vundef t he).
 Proof.
 Admitted.
 
@@ -430,15 +488,16 @@ move=> pd e s. elim: e=> //=.
 + move=> op e1 hin1 e2 hin2 ty. rewrite /check_expr /check_type /=.
   t_xrbindP=> t1 t1' ht1. case: ifP=> //= hsub [] hteq t2 t2' ht2; subst.
   case: ifP=> //= hsub' [] hteq' hteq hs; subst.
-  have [hs1 [hs2 hs3]]:= interp_safe_concat (gen_safe_cond e1) 
-                         (gen_safe_cond e2) (gen_safe_cond_op2 op e1 e2) s hs.
+  have [hs1 hs2] := interp_safe_concat (gen_safe_cond e1) 
+                         ((gen_safe_cond e2) ++ (gen_safe_cond_op2 op e1 e2)) s hs.
+  have [hs3 hs4] := interp_safe_concat (gen_safe_cond e2) (gen_safe_cond_op2 op e1 e2) s hs2.
   move: (hin1 t1 ht1 hs1)=> [] ve1 [] he1 hte1.
-  move: (hin2 t2 ht2 hs2)=> [] ve2 [] he2 hte2. rewrite he1 /= he2 /=.
+  move: (hin2 t2 ht2 hs3)=> [] ve2 [] he2 hte2. rewrite he1 /= he2 /=.
   case ho: sem_sop2=> [vo | vor] //=.
   + exists vo. split=> //=. rewrite /sem_sop2 /= in ho.
     move: ho. t_xrbindP=> z h1 z' h2 z1 h3 h4 /=. rewrite -h4 /=. by apply type_of_to_val. 
   by have := wt_safe_sem_sop2_not_error pd op t1 e1 t2 e2 s ve1 ve2 
-             vor hsub ht1 hsub' ht2 hs1 hs2 hs3 he1 hte1 he2 hte2 ho.
+             vor hsub ht1 hsub' ht2 hs1 hs3 hs4 he1 hte1 he2 hte2 ho.
 (* PappN *)
 + move=>op es hin t. rewrite /check_pexprs /=. case hm: mapM2=> [vm | vmr] //=.
   move=> [] heq hs; subst. case hma: mapM=> [vma | vmar] //=.
@@ -454,11 +513,12 @@ rewrite /check_expr /= /check_type /=. t_xrbindP=> te te' hte.
 case: ifP=> //= /eqP hte' [] heq; subst.
 move=> t1 t2 hte1. case: ifP=> //= hsub [] heq; subst.
 move=> t2 t3 hte2. case: ifP=> //= hsub' [] heq' heq''; subst.
-have [ hs1 [hs2 hs3]]:= interp_safe_concat (gen_safe_cond e) 
-                        (gen_safe_cond e1) (gen_safe_cond e2) s hs.
+have [hs1 hs2]:= interp_safe_concat (gen_safe_cond e) 
+                        ((gen_safe_cond e1) ++ (gen_safe_cond e2)) s hs.
+have [hs3 hs4]:= interp_safe_concat (gen_safe_cond e1) (gen_safe_cond e2) s hs2.
 move: (hin sbool hte hs1)=> [] b [] he hbt.
-move: (hin1 t1 hte1 hs2)=> [] v1 [] he1 ht1.
-move: (hin2 t2 hte2 hs3)=> [] v2 [] he2 ht2.
+move: (hin1 t1 hte1 hs3)=> [] v1 [] he1 ht1.
+move: (hin2 t2 hte2 hs4)=> [] v2 [] he2 ht2.
 rewrite he /= he1 /= he2 /=. 
 case: b he hbt=> //= b he hbt /=. 
 + case ht: truncate_val=> [vt | vtr] //=.
@@ -467,8 +527,8 @@ case: b he hbt=> //= b he hbt /=.
       case hb: b he=> //= he.
       + by have := truncate_val_has_type ht'.
       by have := truncate_val_has_type ht.
-    by have //= := wt_safe_truncate_not_error e1 s v1 t1 ty vtr' hs2 he1 ht1 hsub.
-  by have //= := wt_safe_truncate_not_error e2 s v2 t2 ty vtr hs3 he2 ht2 hsub'.
+    by have //= := wt_safe_truncate_not_error e1 s v1 t1 ty vtr' hs3 he1 ht1 hsub.
+  by have //= := wt_safe_truncate_not_error e2 s v2 t2 ty vtr hs4 he2 ht2 hsub'.
 move=> hbeq; subst. by have //= := safe_not_undef e s sbool he hs1 hbt. 
 Qed.
 
