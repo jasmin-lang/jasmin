@@ -28,3 +28,6 @@ depends: [
   "ocamlbuild" { build }
   "ocamlfind" { build }
 ]
+conflicts: [
+  "ez-conf-lib"
+]
