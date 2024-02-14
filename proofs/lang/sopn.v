@@ -367,7 +367,7 @@ Instance eqC_sopn : eqTypeC sopn :=
 
 Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : prim_constructor B :=
   match p with
-  | PrimX86 a k => PrimX86 a (fun x => Option.bind (olift f) (k x))
+  | PrimX86 a k => PrimX86 a (fun x => omap f (k x))
   | PrimARM x => PrimARM (fun sf ic => f (x sf ic))
   end.
 
