@@ -10,6 +10,13 @@
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
 
+## Other changes
+
+- Instruction selection for x86-64, when storing a large immediate value in
+  memory, introduces a copy through an intermediate register rather that
+  emitting invalid code
+  ([PR #730](https://github.com/jasmin-lang/jasmin/pull/730)).
+
 # Jasmin 2023.06.2 — 2023-12-22
 
 ## New features
