@@ -112,6 +112,11 @@
   ([PR #710](https://github.com/jasmin-lang/jasmin/pull/710);
    fixes [#709](https://github.com/jasmin-lang/jasmin/issues/709)).
 
+- Type-checking warns about calls to export functions that are not explicitly
+  inlined; export functions called from Jasmin code are inlined at call sites
+  ([PR #731](https://github.com/jasmin-lang/jasmin/pull/731);
+  fixes [#729](https://github.com/jasmin-lang/jasmin/issues/729)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise

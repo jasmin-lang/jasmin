@@ -1563,8 +1563,7 @@ let mk_call loc inline lvs f es =
   | Internal -> ()
   | Export ->
     if not inline then
-      let err = string_error "call to export function needs to be inlined" in
-      rs_tyerror ~loc err
+      warning Always (L.i_loc0 loc) "export function will be inlined"
   | Subroutine _ when not inline ->
     let check_lval = function
       | Lnone _ | Lvar _ | Lasub _ -> ()
@@ -1630,7 +1629,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
       let is_inline = P.is_inline annot f.P.f_cc in
       let annot =
-        if is_inline
+        if is_inline || f.P.f_cc = FInfo.Export
         then Annotations.add_symbol ~loc:el "inline" annot
         else annot
       in
