@@ -215,6 +215,13 @@ Definition mulr sz a b :=
         else None
     | _ => None end.
 
+Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
+  if m is Some ws then (
+      let z := wsigned (wrepr sz' n) in
+      let h := wmin_signed ws in
+      if h <=? z then z <? -h else false)%Z
+  else false.
+
 (* x =(ty) e *)
 Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
@@ -237,7 +244,11 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
       then LowerMov (is_lval_in_memory x)
       else kb true sz (LowerCopn (Ox86 (VMOVDQU sz)) [:: e ])
 
-  | Papp1 (Oword_of_int sz) (Pconst _) => chk (if ty is sword sz' then sz' ≤ U64 else false)%CMP (LowerMov false)
+  | Papp1 (Oword_of_int sz) (Pconst z) =>
+      if ty is sword sz' then
+        chk (sz' ≤ U64)%CMP
+          (LowerMov (~~ check_signed_range (Some (cmp_min U32 sz')) sz z))
+      else LowerAssgn
   | Papp1 (Olnot sz) a => k8 sz (LowerCopn (Ox86 (NOT sz)) [:: a ])
   | Papp1 (Oneg (Op_w sz)) a => k8 sz (LowerFopn sz (Ox86 (NEG sz)) [:: a] None)
   | Papp1 (Osignext szo szi) a =>
@@ -376,13 +387,6 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
 Variant opn_5flags_cases_t : Type :=
 | Opn5f_large_immed : pexpr -> pexpr -> pexprs -> opn_5flags_cases_t
 | Opn5f_other : opn_5flags_cases_t.
-
-Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
-  if m is Some ws then (
-      let z := wsigned (wrepr sz' n) in
-      let h := (wbase ws) / 2 in
-      if -h <=? z then z <? h else false)%Z
-  else false.
 
 Definition opn_5flags_cases (a: pexprs) (m: option wsize) (sz: wsize) : opn_5flags_cases_t :=
   match a with

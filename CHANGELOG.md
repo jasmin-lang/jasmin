@@ -133,6 +133,11 @@
   ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
   Warning this is a **breaking change**.
 
+- Instruction selection for x86-64, when storing a large immediate value in
+  memory, introduces a copy through an intermediate register rather that
+  emitting invalid code
+  ([PR #730](https://github.com/jasmin-lang/jasmin/pull/730)).
+
 # Jasmin 2023.06.2 — 2023-12-22
 
 ## New features
