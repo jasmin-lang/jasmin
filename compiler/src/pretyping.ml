@@ -99,7 +99,7 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt "unknown function: `%s'" x
 
   | InvalidType (ty, p) ->
-    F.fprintf fmt "the expression as type %a instead of %a"
+    F.fprintf fmt "the expression has type %a instead of %a"
        Printer.pp_ptype ty pp_typat p
 
   | TypeMismatch (t1,t2) ->
