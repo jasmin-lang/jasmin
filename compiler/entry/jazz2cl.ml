@@ -91,7 +91,7 @@ let parse_and_print print arch call_conv =
        | Some file -> (open_out file, close_out)
      in
      let fmt = Format.formatter_of_out_channel out in
-        Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp) (List.nth (snd prog) 0);
+        Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp (snd prog)) (List.nth (snd prog) 0);
      close out
   with
   | Utils.HiError e ->
@@ -172,7 +172,7 @@ let call_conv =
 
 
 let () =
-  let doc = "Pretty-print Jasmin source programs into LATEX" in
+  let doc = "Pretty-print Jasmin source programs into Cryptoline" in
   let man =
     [
       `S Manpage.s_environment;

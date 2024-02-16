@@ -80,10 +80,20 @@ let rec gsubst_i flen f i =
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
+let gsubst_cf_contra flen f c =
+  let aux =
+    List.map (fun (prover,clause) -> prover, gsubst_e flen f clause)
+  in
+  {
+    f_pre = aux c.f_pre;
+    f_post = aux c.f_post;
+  }
+
 let gsubst_func flen f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
     f_tyin = List.map (gsubst_ty flen) fc.f_tyin;
+    f_contra = gsubst_cf_contra flen f fc.f_contra;
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c flen f fc.f_body;
     f_tyout = List.map (gsubst_ty flen) fc.f_tyout;
@@ -165,6 +175,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
         let fc = {
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
+            f_contra = gsubst_cf_contra (psubst_e subst_v) subst_v fc.f_contra;
             f_args = List.map dov fc.f_args;
             f_body = gsubst_c (psubst_e subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
@@ -204,7 +215,6 @@ let isubst_ty ?loc = function
 
 
 let isubst_prog glob prog =
-
   let isubst_v subst =
     let aux v0 =
       let k = v0.gs in
@@ -256,9 +266,11 @@ let isubst_prog glob prog =
        We use let-in to enforce the right order *)
     let f_args = List.map dov fc.f_args in
     let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
+    let f_contra = gsubst_cf_contra isubst_len subst_v fc.f_contra in
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
+        f_contra;
         f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;

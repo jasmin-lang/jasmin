@@ -223,9 +223,18 @@ Section Section.
 Context {pT:progT}.
 
 Definition pi_fun  (f:fundef) :=
-  let 'MkFun ii si p c so r ev := f in
-  Let pic := pi_c pi_i piempty c in 
-  ok (MkFun ii si p pic.2 so r ev).
+  let 'MkFun ii ci si p c so r ev := f in
+  let ci_pre := map (fun c =>
+                        let truc := pi_e piempty (snd c) in
+                        (fst c, truc)) ci.(f_pre)
+  in
+  Let pic := pi_c pi_i piempty c in
+  let ci_post := map (fun c =>
+                        let truc := pi_e pic.1 (snd c) in
+                        (fst c, truc)) ci.(f_post)
+  in
+  let ci := MkContra ci_pre ci_post in
+  ok (MkFun ii ci si p pic.2 so r ev).
 
 Definition pi_prog (p:prog) := 
   Let funcs := map_cfprog pi_fun (p_funcs p) in

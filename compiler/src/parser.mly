@@ -36,6 +36,8 @@
 %token COLON
 %token COMMA
 %token ABSTRACT
+%token REQUIRES
+%token ENSURES
 %token CONSTANT
 %token DOT
 %token DOWNTO
@@ -460,6 +462,18 @@ call_conv :
 | EXPORT { `Export }
 | INLINE { `Inline }
 
+requires:
+| REQUIRES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+
+ensures:
+| ENSURES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
+
+requiress:
+| pres=requires* { pres }
+
+ensuress:
+| posts=ensures* { posts }
+
 pfundef:
 |  pdf_annot = annotations
     cc=call_conv?
@@ -467,9 +481,12 @@ pfundef:
     name = ident
     args = parens_tuple(annot_pvardecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
+    pre = requiress
+    post = ensuress
     body = pfunbody
 
   { { pdf_annot;
+      pdf_contra = {pdc_pre=pre; pdc_post=post};
       pdf_cc   = cc;
       pdf_name = name;
       pdf_args = args;

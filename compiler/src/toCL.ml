@@ -116,11 +116,6 @@ let rec pp_rexp fmt e =
       Format.fprintf fmt "(uext %a %i)"
       pp_rexp e1
       (int_of_ws osz- int_of_ws isz)
-
- | Pabstract (opa, es) ->
-   Format.fprintf fmt "%s (%a)"
-     opa.name
-     (pp_list ",@ " pp_rexp) es
  | _ ->  raise NoTranslation
 
 let rec pp_rpred fmt e =
@@ -183,11 +178,13 @@ let rec pp_rpred fmt e =
       pp_rpred e2
       pp_rpred e1
       pp_rpred e3
-  | Pabstract (opa, es) ->
-    Format.fprintf fmt "%s (%a)"
-      opa.name
-      (pp_list ",@ " pp_rexp) es
   | _ ->  raise NoTranslation
+
+let rec extract_list e aux =
+  match e with
+  | Pabstract ({name="word_nil"}, []) -> List.rev aux
+  | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
+  | _ -> assert false
 
 let rec pp_eexp fmt e =
   match e with
@@ -211,10 +208,10 @@ let rec pp_eexp fmt e =
     Format.fprintf fmt "(%a) * (%a)"
       pp_eexp e1
       pp_eexp e2
-  | Pabstract (opa, es) ->
-    Format.fprintf fmt "%s (%a)"
-      opa.name
-      (pp_list ",@ " pp_rexp) es
+  | Pabstract ({name="limbs"}, [h;q]) ->
+    Format.fprintf fmt "limbs %a [%a])"
+      pp_eexp h
+      (pp_list ", "  pp_eexp) (extract_list q [])
   | _ -> raise NoTranslation
 
 let rec  pp_epred fmt e =
@@ -228,9 +225,12 @@ let rec  pp_epred fmt e =
     Format.fprintf fmt "and (%a) (%a)"
       pp_epred e1
       pp_epred e2
+  | Pabstract ({name="eqmod"} as opa, es) ->
+    Format.fprintf fmt "%s (%a)"
+      opa.name
+      (pp_list ", " pp_eexp) es
 
 (*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
-  | Pabstract (_,_) -> assert false
   | _ -> raise NoTranslation
 
 let pp_lval fmt (x,ws) =
@@ -475,6 +475,12 @@ let pp_baseop fmt xs o es =
   | _ -> raise NoTranslation
 
 
+let rec filter_clause cs (cas,smt) =
+  match cs with
+  | [] -> cas,smt
+  | (Expr.Cas,c)::q -> filter_clause q (c::cas,smt)
+  | (Expr.Smt,c)::q -> filter_clause q (cas,c::smt)
+
 let pp_extop fmt xs o es =
   match o with
   | X86_extra.Oset0 ws ->
@@ -505,13 +511,35 @@ let pp_sopn fmt xs o es =
   | Sopn.Oslh _ -> assert false
   | Sopn.Oasm o -> pp_ext_op fmt xs o es
 
-let pp_i pd asmOp fmt i =
+let rec filter_clause cs (cas,smt) =
+  match cs with
+  | [] -> cas,smt
+  | (Expr.Cas,c)::q -> filter_clause q (c::cas,smt)
+  | (Expr.Smt,c)::q -> filter_clause q (cas,c::smt)
+
+let pp_clause fmt f_pre =
+  let cas,smt = filter_clause f_pre ([],[]) in
+  match cas,smt with
+  | [],[] ->
+  Format.fprintf fmt "true@ &&@ true"
+  | [],smt ->
+  Format.fprintf fmt "true@ &&@ and [%a]"
+    (pp_list ", " pp_rpred) smt
+  | cas,[] ->
+  Format.fprintf fmt "and [%a]@ &&@ true"
+    (pp_list ", " pp_epred) cas
+  | _,_ ->
+  Format.fprintf fmt "and [%a]@ &&@ and [%a]"
+    (pp_list ", " pp_epred) cas
+    (pp_list ", " pp_rpred) smt
+
+let pp_i pd asmOp fds fmt i =
   match i.i_desc with
   | Cassert (t, p, e) ->
     let efmt, pp_pred  =
       match p with
-      | Expr.Cas -> format_of_string "%s %a && true",pp_epred
-      | Expr.Smt -> format_of_string "%s true && %a",pp_rpred
+      | Expr.Cas -> format_of_string "@[<v>%s %a && true@]",pp_epred
+      | Expr.Smt -> format_of_string "@[<v>%s true && %a@]",pp_rpred
     in
     begin
       try
@@ -521,7 +549,37 @@ let pp_i pd asmOp fmt i =
         | Expr.Cut -> assert false
       with NoTranslation -> ()
     end
-  | Csyscall _ | Cif _ | Cfor _ | Cwhile _ | Ccall _ -> assert false
+  | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
+  | Ccall (r,f,params) ->
+    let fd = List.find (fun fd -> fd.f_name.fn_id = f.fn_id) fds in
+    let aux f =
+      List.map (fun (prover,clause) -> prover, f clause)
+    in
+    let aux1 v =
+      match List.findi (fun _ vi -> (L.unloc v.gv).v_name = vi.v_name ) fd.f_args with
+      | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) params in
+        e
+      | exception _ ->
+        begin
+          match List.findi (fun _ vi -> (L.unloc v.gv).v_name = (L.unloc vi).v_name ) fd.f_ret with
+          | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) r in
+            begin
+              match e with
+              | Lvar v ->  Pvar({gv = v; gs = Expr.Slocal})
+              | _ ->  Pvar v
+            end
+          | exception _ ->  Pvar v
+        end
+    in
+    let aux2 = Subst.gsubst_e (fun x -> x) aux1 in
+    let pre = fd.f_contra.f_pre in
+    let post = fd.f_contra.f_post in
+    let pre = aux aux2 pre in
+    let post = aux aux2 post in
+    Format.fprintf fmt "assert @[<v>%a@]; @ assume @[<v>%a@]"
+    pp_clause pre
+    pp_clause post
+
   | Cassgn (a, _, _, e) ->
     begin
     match a with
@@ -530,9 +588,9 @@ let pp_i pd asmOp fmt i =
         Format.fprintf fmt "@[<h>mov %a %a@]"
           pp_lval (a, int_of_ws ws_x)
           pp_atome (e, int_of_ws ws_x)
-      | _ ->
-        Format.eprintf "No Translation for assignement: %a@."
-          (Printer.pp_instr ~debug:true pd asmOp) i
+      | _ -> assert false
+        (* Format.eprintf "No Translation for assignement: %a@." *)
+        (*   (Printer.pp_instr ~debug:true pd asmOp) i *)
   end
   | Copn(xs, _, o, es) ->
     (* try *)
@@ -541,14 +599,9 @@ let pp_i pd asmOp fmt i =
       Format.eprintf "No Translation for opn: %a@."
         (Printer.pp_instr ~debug:true pd asmOp) i *)
 
-let pp_c pd asmOp fmt c =
+let pp_c pd asmOp fds fmt c =
   Format.fprintf fmt "@[<v>%a;@]"
-    (pp_list ";@ " (pp_i pd asmOp)) c
-
-let pp_pre fmt fd =
-  Format.fprintf fmt "@[<v>{@   true@   &&@   true@ }@]"
-
-let pp_post fmt fd = pp_pre fmt fd
+    (pp_list ";@ " (pp_i pd asmOp fds)) c
 
 let pp_ty fmt ty =
   match ty with
@@ -566,13 +619,14 @@ let pp_args fmt xs =
 let pp_res fmt xs =
   pp_args fmt (List.map L.unloc xs)
 
-let pp_fun pd asmOp fmt fd =
-  Format.fprintf fmt "@[<v>proc main(@[<hov>%a;@ %a@]) = @ %a@ @ %a@ @ %a@]"
+let pp_fun pd asmOp fds fmt fd =
+  Format.fprintf fmt
+    "@[<v>proc main(@[<hov>%a;@ %a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@] @ }@ @]"
     pp_args fd.f_args
     pp_res  fd.f_ret
-    pp_pre ()
-    (pp_c pd asmOp) fd.f_body
-    pp_post ()
+    pp_clause fd.f_contra.f_pre
+    (pp_c pd asmOp fds) fd.f_body
+    pp_clause fd.f_contra.f_post
 
 (*
 let extract (type reg regx xreg rflag cond asm_op extra_op)

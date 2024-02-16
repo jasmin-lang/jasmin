@@ -58,6 +58,7 @@ Context {pT: progT}.
 
 Definition remove_init_fd (fd:fundef) :=
   {| f_info   := fd.(f_info);
+     f_contra := fd.(f_contra);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := remove_init_c fd.(f_body);
@@ -123,6 +124,7 @@ Definition add_init_fd (fd:fundef) :=
   let I := vrvs [seq (Lvar i) | i <- f_params fd] in
   let f_body  := (add_init_c add_init_i I fd.(f_body)).1 in
   {| f_info   := fd.(f_info);
+     f_contra := fd.(f_contra);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := f_body;

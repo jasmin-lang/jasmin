@@ -264,8 +264,14 @@ type pcall_conv = [
   | `Inline
 ]
 
+type pfcontract = {
+  pdc_pre : (annotations * pexpr) list;
+  pdc_post : (annotations * pexpr) list;
+}
+
 type pfundef = {
   pdf_annot : annotations;
+  pdf_contra : pfcontract;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
   pdf_args : (annotations * vardecls) list;

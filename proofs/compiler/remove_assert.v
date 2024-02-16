@@ -46,6 +46,7 @@ Context {pT:progT}.
 
 Definition remove_assert_fd (fd:fundef) :=
   {| f_info   := fd.(f_info);
+     f_contra := fd.(f_contra);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := remove_assert_c fd.(f_body);

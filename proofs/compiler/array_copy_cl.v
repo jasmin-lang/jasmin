@@ -134,9 +134,9 @@ Fixpoint array_copy_i (i:instr) : cexec cmd :=
 Context {pT:progT}.
 
 Definition array_copy_fd (f:fundef) :=
-  let 'MkFun fi tyin params c tyout res ev := f in
+  let 'MkFun fi ci tyin params c tyout res ev := f in
   Let c := array_copy_c array_copy_i c in
-  ok (MkFun fi tyin params c tyout res ev).
+  ok (MkFun fi ci tyin params c tyout res ev).
 
 Definition array_copy_prog (p:prog) := 
   let V := vars_p (p_funcs p) in 

@@ -338,6 +338,7 @@ Section REMOVE.
       Let envc := remove_glob remove_glob_i env f.(f_body) in
       ok
         {| f_info   := f.(f_info);
+           f_contra := f.(f_contra);
            f_tyin   := f.(f_tyin);
            f_params := f.(f_params);
            f_body   := envc.2;

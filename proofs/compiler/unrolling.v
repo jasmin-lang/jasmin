@@ -85,9 +85,9 @@ Section Section.
 Context {pT: progT}.
 
 Definition unroll_fun (f: fun_decl) :=
-  let: (fn, MkFun ii si p c so r ev) := f in
+  let: (fn, MkFun ii ci si p c so r ev) := f in
   let: (c', b) := unroll_cmd unroll_i c in
-  ((fn, MkFun ii si p c' so r ev), b).
+  ((fn, MkFun ii ci si p c' so r ev), b).
 
 Definition unroll_prog (p: prog) : prog * bool :=
   let: (fds, b) := map_repeat unroll_fun (p_funcs p) in

@@ -46,6 +46,7 @@ Definition lower_cmd  (c : cmd) : cmd :=
 Definition lower_fd (fd : fundef) : fundef :=
   {|
     f_info := f_info fd;
+    f_contra := f_contra fd;
     f_tyin := f_tyin fd;
     f_params := f_params fd;
     f_body := lower_cmd (f_body fd);

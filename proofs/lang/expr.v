@@ -264,55 +264,6 @@ Inductive pexpr : Type :=
 | Pabstract : opA -> seq pexpr -> pexpr
 .
 
-(* Inductive ltype : Type := *)
-(*   | List : pexpr list -> ltype *)
-(*   | Real. *)
-
-(* Record lvar : Type := Lvar (lvtype : ltype; vname : Equality.sort Ident.ident }. *)
-
-(* Inductive op2 : Type := *)
-(*   | Add : op2 *)
-(*   | Min : op2 *)
-(*   | Mult : op2 *)
-(*   | Div : op2 *)
-(*   | Custome : string -> op2 *)
-
-(* Inductive aterm : Type := *)
-(*   | tvar : lvar -> aterm *)
-(*   | tpexpr : pexpr -> aterm *)
-(*   | tcoerse : aterm -> ltype -> aterm *)
-(*   | tat : label -> aterm -> aterm *)
-(*   | tapp1 : op1 -> aterm -> aterm *)
-(*   | tapp2 : op2 -> aterm -> aterm -> arerm *)
-(*   | tappN : function -> aterm list -> aterm. *)
-
-(* Inductive apred : Type := *)
-(* | PTrue : apred *)
-(* | PFalse : apred *)
-(* | PNot : apred -> apred *)
-(* | PImplies : apred -> apred -> apred *)
-(* | PAnd : apred -> apred -> apred *)
-(* | Por : apred -> apred -> apred *)
-(* | Pforall : lvar list -> apred -> apred *)
-(* | Pexist : lvar list -> apred *)
-(* | Papp : label list -> predicate -> aterm list -> apred *)
-
-(* Definition annotation_kind := *)
-(*   | Assume *)
-(*   | Assert *)
-(*   | Ensures *)
-(*   | Requires *)
-(*   | Invariant *)
-(*     | Cut *)
-(* Record annotation := *)
-(*   { akind : annotation_kind; *)
-(*     apred : apred; *)
-(*     alabel : option assert_label;  (* Optional name for the current assert *) *)
-(*     aprover : prover;              (* prover for the current assert *) *)
-(*     aprove_with : option assert_label; *)
-(*     aassume : list prover;         (* assume for the provers *) *)
-(*   } *)
-
 Notation pexprs := (seq pexpr).
 
 Definition Plvar x := Pvar (mk_lvar x).
@@ -524,6 +475,11 @@ Context `{asmop:asmOp}.
 
 Definition fun_info := FunInfo.t.
 
+Record fun_contract := MkContra {
+    f_pre : list (assertion_prover * pexpr);
+    f_post : list (assertion_prover * pexpr);
+  }.
+
 Class progT := {
   extra_fun_t : Type;
   extra_prog_t : Type;
@@ -532,6 +488,7 @@ Class progT := {
 
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
+  f_contra : fun_contract;
   f_tyin   : seq stype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -689,6 +646,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) body := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := body;
@@ -699,6 +657,7 @@ Definition with_body eft (fd:_fundef eft) body := {|
 
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := fd.(f_body);

@@ -86,9 +86,16 @@ and ('len,'info,'asm) ginstr = {
 and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
+
+type 'len gfcontract = {
+  f_pre : (E.assertion_prover * 'len gexpr) list;
+  f_post : (E.assertion_prover * 'len gexpr) list;
+}
+
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: Annotations.f_annot;
+    f_contra: 'len gfcontract;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;

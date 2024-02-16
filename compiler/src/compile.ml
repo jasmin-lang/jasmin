@@ -4,7 +4,7 @@ open Glob_options
 
 let preprocess reg_size asmOp p =
   let p =
-    p |> Subst.remove_params |> Insert_copy_and_fix_length.doit reg_size
+    p |> Subst.remove_params |>Insert_copy_and_fix_length.doit reg_size
   in
   Typing.check_prog reg_size asmOp p;
   p

@@ -2064,9 +2064,27 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let body, xret = tt_funbody arch_info envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in
+  let mk_aprover = Annot.filter_string_list None ["cas", P.E.Cas ; "smt", P.E.Smt ] in
+  let aprover annot =
+    match Annot.ensure_uniq1 "prover" mk_aprover annot with
+    | None -> P.E.Smt
+    | Some aty -> aty
+  in
+  let get_clause env clause  =
+    match clause with
+    | [] -> []
+    | l ->
+      List.map (fun (annot,c) ->
+          aprover annot, tt_expr_bool ~mode:`AllVarLogical arch_info.pd env c) l
+  in
+  let f_pre = get_clause envb pf.pdf_contra.pdc_pre in
+  let envr = List.fold_left (fun env x -> Env.Vars.push_local env (L.unloc x)) envb xret in
+  let f_post = get_clause envr pf.pdf_contra.pdc_post in
+
   let fdef =
     { P.f_loc   = loc;
       P.f_annot = process_f_annot pf.pdf_annot;
+      P.f_contra = {f_pre;f_post};
       P.f_cc    = f_cc;
       P.f_name  = P.F.mk (L.unloc pf.pdf_name);
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;

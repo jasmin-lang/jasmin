@@ -248,16 +248,27 @@ and instr_r_of_cinstr_r = function
 and stmt_of_cstmt c =
   List.map instr_of_cinstr c
 
-
 (* ------------------------------------------------------------------------ *)
+
+let contra_of_ccontra c =
+  let aux =
+    List.map (fun (prover,clause) -> prover,cexpr_of_expr clause)
+  in
+  {
+    C.f_pre = aux c.f_pre;
+    C.f_post = aux c.f_post;
+  }
+
 let cufdef_of_fdef fd =
   let fn = fd.f_name in
   let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_outannot in
+  (* let f_contra = fd. *)
   let f_params =
     List.map (fun x -> cvari_of_vari (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt fd.f_body in
   let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
+        C.f_contra = contra_of_ccontra fd.f_contra;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -266,11 +277,20 @@ let cufdef_of_fdef fd =
         C.f_extra  = ();
       }
 
+let ccontra_of_contra c =
+  let aux =
+    List.map (fun (prover,clause) -> prover,expr_of_cexpr clause)
+  in
+  {
+    f_pre = aux C.(c.f_pre);
+    f_post = aux C.(c.f_post);
+  }
 
 let fdef_of_cufdef (fn, fd) =
   let f_loc, f_annot, f_cc, f_outannot = fd.C.f_info in
   { f_loc;
     f_annot;
+    f_contra = ccontra_of_contra fd.f_contra;
     f_cc;
     f_name = fn;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;

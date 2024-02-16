@@ -33,6 +33,8 @@
     "type"  , T_TYPE ;
 
     "predicate" , PREDICATE;
+    "requires" , REQUIRES;
+    "ensures", ENSURES;
 
     "abstract", ABSTRACT;
     "const" , CONSTANT;

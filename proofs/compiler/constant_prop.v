@@ -572,9 +572,18 @@ Section Section.
 Context {pT: progT}.
 
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
-  let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+  let 'MkFun ii ci si p c so r ev := f in
+  let ci_pre := map (fun c =>
+                        let truc := const_prop_e without_globals empty_cpm (snd c) in
+                        (fst c, truc)) ci.(f_pre)
+  in
+  let (m, c) := const_prop (const_prop_i gd) empty_cpm c in
+  let ci_post := map (fun c =>
+                        let truc := const_prop_e without_globals m (snd c) in
+                        (fst c, truc)) ci.(f_post)
+  in
+  let ci := MkContra ci_pre ci_post in
+  MkFun ii ci si p c so r ev.
 
 Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 
