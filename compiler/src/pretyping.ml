@@ -2097,7 +2097,12 @@ and tt_file arch_info env from loc fname =
   | None -> env, []
   | Some(env, fname) ->
     let ast   = Parseio.parse_program ~name:fname in
-    let ast   = BatFile.with_file_in fname ast in
+    let ast =
+      try BatFile.with_file_in fname ast
+      with Sys_error(err) ->
+        let loc = Option.map_default (fun l -> Lone l) Lnone loc in
+        hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
+    in
     let env   = List.fold_left (tt_item arch_info) env ast in
     Env.exit_file env, ast
 

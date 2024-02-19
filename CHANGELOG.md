@@ -10,6 +10,12 @@
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
 
+## Bug fixes
+
+- The compiler no longer throws an exception when a required file does not exist
+  ([PR #733](https://github.com/jasmin-lang/jasmin/pull/733);
+  fixes [#383](https://github.com/jasmin-lang/jasmin/issues/383)).
+
 ## Other changes
 
 - Instruction selection for x86-64, when storing a large immediate value in
