@@ -117,6 +117,9 @@
   ([PR #731](https://github.com/jasmin-lang/jasmin/pull/731);
   fixes [#729](https://github.com/jasmin-lang/jasmin/issues/729)).
 
+- The compiler no longer throws an exception when a required file does not exist
+  ([PR #733](https://github.com/jasmin-lang/jasmin/pull/733)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
