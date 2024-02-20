@@ -542,7 +542,7 @@ let pp_post fmt fd = pp_pre fmt fd
 let pp_ty fmt ty =
   match ty with
   | Bty Bool -> Format.fprintf fmt "uint1"
-  | Bty Int -> assert false
+  | Bty Int -> Format.fprintf fmt "uint64"
   | Bty (U ws) -> Format.fprintf fmt "uint%i" (int_of_ws ws)
   | Arr _ -> assert false
 
