@@ -201,6 +201,7 @@ End Env.
 
 Section CHECK.
 
+Context {A: Tabstract}.
 Context
   {asm_op : Type}
   {asmop : asmOp asm_op}
@@ -452,7 +453,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       Let _ := chk_mem ii cond in
       check_while ii cond (check_cmd c0) (check_cmd c1) Loop.nb env
 
-  | Ccall _ xs fn es =>
+  | Ccall xs fn es =>
       let '(in_t, out_t) := fun_info fn in
       Let _ := check_f_args ii env es in_t in
       check_f_lvs ii env xs out_t
@@ -521,7 +522,7 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       Let c1' := lower_cmd c1 in
       ok (Cwhile al c0' b c1')
 
-    | Ccall _ _ _ _ =>
+    | Ccall _ _ _ =>
         ok ir
     end
   in
@@ -531,9 +532,9 @@ Definition lower_cmd (c : cmd) : cexec cmd := rec_cmd lower_i c.
 
 Definition lower_fd (fn:funname) (fd:fundef) :=
   Let _ := check_fd fn fd in
-  let 'MkFun ii si p c so r ev := fd in
+  let 'MkFun ii ci si p c so r ev := fd in
   Let c := lower_cmd c in
-  ok (MkFun ii si p c so r ev).
+  ok (MkFun ii ci si p c so r ev).
 
 Definition is_shl_none ty :=
   if ty is Slh_None then true

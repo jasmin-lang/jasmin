@@ -1032,7 +1032,7 @@ Section PROPER.
     by case: is_bool => //= ?; case:ifP.
   Qed.
 
-  Local Lemma Wcall i xs f es: Pr (Ccall i xs f es).
+  Local Lemma Wcall xs f es: Pr (Ccall xs f es).
   Proof.
     move=> ii m1 m2 Heq /=;have := const_prop_rvs_m (erefl None) Heq (refl_equal xs).
     rewrite /const_prop_ir.
@@ -1382,7 +1382,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfun Hvs m ii' Hm.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfun Hvs m ii' Hm.
     rewrite /const_prop_ir -/const_prop_i.
     have [vargs' Hargs' Hall] := const_prop_esP Hm valid_without_globals Hargs.
     have /(_ _ Hm) [] /=:= const_prop_rvsP _ valid_without_globals Hvs.

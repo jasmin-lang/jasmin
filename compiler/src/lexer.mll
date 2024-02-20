@@ -27,9 +27,17 @@
 
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
-    
+
     "assert", ASSERT ;
-    "const" , CONSTANT; 
+
+    "type"  , T_TYPE ;
+
+    "predicate" , PREDICATE;
+    "requires" , REQUIRES;
+    "ensures", ENSURES;
+
+    "abstract", ABSTRACT;
+    "const" , CONSTANT;
     "downto", DOWNTO ;
     "else"  , ELSE   ;
     "exec"  , EXEC   ;

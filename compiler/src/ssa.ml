@@ -38,7 +38,7 @@ let rec written_vars_instr_r allvars w =
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _, _)
   | Csyscall(xs,_,_)
-  | Ccall (_, xs, _, _)
+  | Ccall (xs, _, _)
     -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, s2)
@@ -69,10 +69,10 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
       m, Csyscall(ys, op, es)
-    | Ccall (ii, xs, n, es) ->
+    | Ccall (xs, n, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
-      m, Ccall (ii, ys, n, es)
+      m, Ccall (ys, n, es)
     | Cfor _ -> assert false
     | Cassert (t, p, e) ->
       let e = rename_expr m e in
@@ -115,7 +115,10 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
   in
   let m, f_body = stmt Mv.empty f.f_body in
   let f_ret = List.map (Subst.vsubst_vi m) f.f_ret in
-  { f with f_body ; f_ret }
+  let m = Mv.filter (fun k a -> List.exists (fun x -> L.unloc x = a) f_ret) m in
+  let f_post = List.map (fun (a,c) -> a,Subst.vsubst_e m c) f.f_contra.f_post in
+  let f_contra = {f.f_contra with f_post} in
+  { f with f_body ; f_ret ;f_contra}
 
 let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
   let rec instr_r =

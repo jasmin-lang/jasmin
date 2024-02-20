@@ -41,6 +41,12 @@ output corruption: #public
  constraints:
 
 
+nomodmsf unused_msf : #msf ->
+
+output corruption: #public
+ constraints:
+
+
 File arrays.jazz:
 modmsf transient_read : #[ptr = transient, val = { n = d, s = secret}] *
                         #transient ->
@@ -107,6 +113,19 @@ output corruption: #public
 modmsf store : #transient * #transient * #transient * #secret ->
 
 output corruption: #transient
+ constraints:
+
+
+File for_loop.jazz:
+modmsf for_inference_bug1 : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+modmsf for_inference_bug2 : #transient ->
+#public
+output corruption: #public
  constraints:
 
 
@@ -184,6 +203,13 @@ output corruption: #public
 modmsf fig6b : #[ptr = transient, val = secret] *
                #[ptr = transient, val = transient] * #transient * #secret ->
 #public * #[ptr = public, val = secret]
+output corruption: #public
+ constraints:
+
+
+File while.jazz:
+modmsf while_first_branch : #public * #secret ->
+#public
 output corruption: #public
  constraints:
 

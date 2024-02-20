@@ -19,6 +19,9 @@ Local Unset Elimination Schemes.
 
 (* ----------------------------------------------------------------------------- *)
 
+Section SOPN.
+Context {A : Tabstract}.
+
 Variant arg_desc :=
 | ADImplicit  of var
 | ADExplicit  of nat & option var.
@@ -38,17 +41,6 @@ Record instruction_desc := mkInstruction {
 }.
 
 Arguments semu _ [vs vs' v] _ _.
-
-Notation mk_instr_desc str tin i_in tout i_out semi safe :=
-  {| str      := str;
-     tin      := tin;
-     i_in     := i_in;
-     tout     := tout;
-     i_out    := i_out;
-     semi     := semi;
-     semu     := @vuincl_app_sopn_v tin tout semi refl_equal;
-     i_safe   := safe;
-  |}.
 
 (* -------------------------------------------------------------------- *)
 
@@ -78,9 +70,23 @@ Existing Instance _eqT.
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 
+End SOPN.
+
+Notation mk_instr_desc str tin i_in tout i_out semi safe :=
+  {| str      := str;
+     tin      := tin;
+     i_in     := i_in;
+     tout     := tout;
+     i_out    := i_out;
+     semi     := semi;
+     semu     := @vuincl_app_sopn_v _ tin tout semi refl_equal;
+     i_safe   := safe;
+  |}.
+
 Section WITH_PARAMS.
 
 Context
+  {A : Tabstract}
   {asm_op : Type}
   {pd : PointerData}
   {msfsz : MSFsize}
@@ -134,7 +140,7 @@ Definition Ocopy_instr ws p :=
      tout     := [:: sarr sz];
      i_out    := [:: E 0];
      semi     := @WArray.copy ws p;
-     semu     := @vuincl_copy ws p;
+     semu     := @vuincl_copy _ ws p;
      i_safe   := [:: AllInit ws p 0];
   |}.
 
@@ -244,9 +250,9 @@ Definition SLHprotect_instr ws :=
 
 Lemma protect_ptr_semu p vs vs' v:
   List.Forall2 value_uincl vs vs' ->
-  @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_sem p) vs = ok v ->
+  @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_sem p) vs = ok v ->
   exists2 v' : values,
-   @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_sem p) vs' = ok v' &
+   @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_sem p) vs' = ok v' &
    List.Forall2 value_uincl v v'.
 Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (sarr p)) /= hu.
@@ -270,9 +276,9 @@ Definition SLHprotect_ptr_instr p :=
 
 Lemma protect_ptr_fail_semu p vs vs' v:
   List.Forall2 value_uincl vs vs' ->
-  @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs = ok v ->
+  @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs = ok v ->
   exists2 v' : values,
-   @app_sopn_v [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs' = ok v' &
+   @app_sopn_v _ [::sarr p; ty_msf] [::sarr p] (@se_protect_ptr_fail_sem p) vs' = ok v' &
    List.Forall2 value_uincl v v'.
 Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (sarr p)) /= hu.

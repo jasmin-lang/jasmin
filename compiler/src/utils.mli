@@ -174,6 +174,9 @@ type warning =
   | IntroduceNone
   | IntroduceArrayCopy
   | SimplifyVectorSuffix
+  | DuplicateVar 
+  | UnusedVar 
+  | SCTchecker
   | Deprecated
   | Experimental
   | Always

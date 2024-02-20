@@ -1,0 +1,15 @@
+fn while_first_branch(
+    #public reg u64 pub,
+    #secret reg u64 sec
+) ->
+    #public reg u64
+{
+    reg bool b;
+    b = 0 < sec;
+    while {
+        b = 0 < pub;
+    } (b) {
+        pub -= 1;
+    }
+    return pub;
+}

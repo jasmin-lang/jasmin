@@ -240,7 +240,11 @@ Proof.
 Qed.
 
 Lemma mem_equiv_call : sem_Ind_call P ev Pi_r Pfun.
-Proof. move=> s1 scs2 m2 s2 ii xs fn args vargs vres _ _ ? /dup[] /write_lvals_validw ? /write_lvals_stack_stable ?; red; etransitivity; [|split]; eassumption. Qed.
+Proof.
+  move=> s1 scs2 m2 s2 xs fn args vargs vres _ _
+    ? /dup[] /write_lvals_validw ? /write_lvals_stack_stable ?.
+  red. etransitivity; by eauto.
+Qed.
 
 Lemma mem_equiv_proc : sem_Ind_proc P ev Pc Pfun.
 Proof.
@@ -621,7 +625,8 @@ Qed.
 
 Local Lemma sem_deter_call : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  red => s1 scs2 m2 s2 ii xs fn args vargs vs ok_vargs _ ih ok_s2 s2' /sem_iE[] ? [] ? [] ? [] ?[].
+  red=> s1 scs2 m2 s2 xs fn args vargs vs ok_vargs _
+    ih ok_s2 s2' /sem_iE[] ? [] ? [] ? [] ?[].
   rewrite ok_vargs => /ok_inj <- /ih[] <- <- <-.
   rewrite ok_s2.
   exact: ok_inj.

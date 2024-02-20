@@ -179,8 +179,18 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
-  | Ocombine_flags c => (tin_combine_flags, sbool) 
+  | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
+
+(* Abstract n-ary operators *)
+
+Record opA := MkAbstP {
+  pa_name   : string;
+  pa_tyin   : seq stype;
+  pa_tyout  : stype;
+}.
+
+Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -251,57 +261,8 @@ Inductive pexpr : Type :=
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
 | Pfvar : fvar -> pexpr
 | Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
+| Pabstract : opA -> seq pexpr -> pexpr
 .
-
-(* Inductive ltype : Type := *)
-(*   | List : pexpr list -> ltype *)
-(*   | Real. *)
-
-(* Record lvar : Type := Lvar (lvtype : ltype; vname : Equality.sort Ident.ident }. *)
-
-(* Inductive op2 : Type := *)
-(*   | Add : op2 *)
-(*   | Min : op2 *)
-(*   | Mult : op2 *)
-(*   | Div : op2 *)
-(*   | Custome : string -> op2 *)
-
-(* Inductive aterm : Type := *)
-(*   | tvar : lvar -> aterm *)
-(*   | tpexpr : pexpr -> aterm *)
-(*   | tcoerse : aterm -> ltype -> aterm *)
-(*   | tat : label -> aterm -> aterm *)
-(*   | tapp1 : op1 -> aterm -> aterm *)
-(*   | tapp2 : op2 -> aterm -> aterm -> arerm *)
-(*   | tappN : function -> aterm list -> aterm. *)
-
-(* Inductive apred : Type := *)
-(* | PTrue : apred *)
-(* | PFalse : apred *)
-(* | PNot : apred -> apred *)
-(* | PImplies : apred -> apred -> apred *)
-(* | PAnd : apred -> apred -> apred *)
-(* | Por : apred -> apred -> apred *)
-(* | Pforall : lvar list -> apred -> apred *)
-(* | Pexist : lvar list -> apred *)
-(* | Papp : label list -> predicate -> aterm list -> apred *)
-
-(* Definition annotation_kind := *)
-(*   | Assume *)
-(*   | Assert *)
-(*   | Ensures *)
-(*   | Requires *)
-(*   | Invariant *)
-(*     | Cut *)
-(* Record annotation := *)
-(*   { akind : annotation_kind; *)
-(*     apred : apred; *)
-(*     alabel : option assert_label;  (* Optional name for the current assert *) *)
-(*     aprover : prover;              (* prover for the current assert *) *)
-(*     aprove_with : option assert_label; *)
-(*     aassume : list prover;         (* assume for the provers *) *)
-(*   } *)
-
 
 Notation pexprs := (seq pexpr).
 
@@ -378,18 +339,21 @@ Definition wrange d (n1 n2 : Z) :=
 Module Type InstrInfoT <: TAG.
   Include TAG.
   Parameter with_location : t -> t.
+  Parameter is_inline : t -> bool.
 End InstrInfoT.
 
 Module InstrInfo : InstrInfoT.
   Definition t := positive.
   Definition witness : t := 1%positive.
   Definition with_location (ii : t) := ii.
+  Definition is_inline (_ : t) : bool := false.
 End InstrInfo.
 
 Definition instr_info := InstrInfo.t.
 Definition dummy_instr_info : instr_info := InstrInfo.witness.
 Definition ii_with_location (ii : instr_info) : instr_info :=
   InstrInfo.with_location ii.
+Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
@@ -414,40 +378,11 @@ Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMix
 
 (* -------------------------------------------------------------------- *)
 
-Variant inline_info :=
-  | InlineFun
-  | DoNotInline.
-
-(* -------------------------------------------------------------------- *)
-
 Variant align :=
   | Align
   | NoAlign.
 
 (* -------------------------------------------------------------------- *)
-
-(* ----------------------------------------------------------------------------- *)
-
-Module Type TAG0.
-  Parameter t : Type.
-End TAG0.
-
-Module AssertLabel : TAG0.
-  Definition t := positive.
-End AssertLabel.
-
-Module Prover : TAG0.
-  Definition t := positive.
-End Prover.
-
-Definition assert_label := AssertLabel.t.
-
-Definition prover := Prover.t.
-
-(* Add in extraction 
-Extract Constant expr.assert_label => "string".
-Same for prover 
-*)
 
 Section ASM_OP.
 
@@ -470,7 +405,7 @@ Inductive instr_r :=
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
-| Ccall    : inline_info -> lvals -> funname -> pexprs -> instr_r
+| Ccall    : lvals -> funname -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -493,7 +428,7 @@ Section CMD_RECT.
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
-  Hypothesis Hcall: forall i xs f es, Pr (Ccall i xs f es).
+  Hypothesis Hcall: forall xs f es, Pr (Ccall xs f es).
 
   Section C.
   Variable instr_rect : forall i, Pi i.
@@ -518,7 +453,7 @@ Section CMD_RECT.
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
-    | Ccall ii xs f es => @Hcall ii xs f es
+    | Ccall xs f es => @Hcall xs f es
     end.
 
   Definition cmd_rect := cmd_rect_aux instr_Rect.
@@ -532,12 +467,18 @@ End FunInfo.
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context `{asmop:asmOp}.
 
 (* ** Functions
  * -------------------------------------------------------------------- *)
 
 Definition fun_info := FunInfo.t.
+
+Record fun_contract := MkContra {
+    f_pre : list (assertion_prover * pexpr);
+    f_post : list (assertion_prover * pexpr);
+  }.
 
 Class progT := {
   extra_fun_t : Type;
@@ -547,6 +488,7 @@ Class progT := {
 
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
+  f_contra : fun_contract;
   f_tyin   : seq stype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -589,6 +531,7 @@ Notation fun_decls  := (seq fun_decl).
 
 Section ASM_OP.
 
+Context {A: Tabstract}.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
@@ -601,10 +544,10 @@ Definition progUnit : progT :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ _ progUnit.
-Definition ufun_decl   := @fun_decl _ _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ _ progUnit).
-Definition uprog       := @prog _ _ progUnit.
+Definition ufundef     := @fundef _ _ _ progUnit.
+Definition ufun_decl   := @fun_decl  _ _ _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ _ _ progUnit).
+Definition uprog       := @prog _ _ _ progUnit.
 
 (* For extraction *)
 Definition _ufundef    := _fundef unit.
@@ -687,10 +630,10 @@ Definition progStack : progT :=
      extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef _ _ progStack.
-Definition sfun_decl   := @fun_decl _ _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ _ progStack).
-Definition sprog       := @prog _ _ progStack.
+Definition sfundef     := @fundef _ _ _ progStack.
+Definition sfun_decl   := @fun_decl _ _ _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ _ _ progStack).
+Definition sprog       := @prog _ _ _ progStack.
 
 (* For extraction *)
 
@@ -703,6 +646,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) body := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := body;
@@ -713,6 +657,7 @@ Definition with_body eft (fd:_fundef eft) body := {|
 
 Definition swith_extra {_: PointerData} (fd:ufundef) f_extra : sfundef := {|
   f_info   := fd.(f_info);
+  f_contra := fd.(f_contra);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := fd.(f_body);
@@ -834,7 +779,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-  | Ccall _ x _ _   => vrvs_rec s x
+  | Ccall x _ _   => vrvs_rec s x
   end
 with write_I_rec s i :=
   match i with
@@ -859,6 +804,7 @@ Fixpoint use_mem (e : pexpr) :=
   | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
+  | Pabstract _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   | Pfvar _ => false
   | Pbig e1 e2 _ _ e3 e4 => use_mem e1 || use_mem e2 || use_mem e3 || use_mem e4
@@ -883,6 +829,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
+  | Pabstract _ es => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   | Pfvar _ => s
   | Pbig e1 e2 _ _ e3 e4 => read_e_rec (read_e_rec (read_e_rec (read_e_rec s e4) e3) e2) e1
@@ -922,7 +869,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
     let s := foldl read_I_rec s c in
     let s := foldl read_I_rec s c' in
     read_e_rec s e
-  | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Ccall xs _ es => read_es_rec (read_rvs_rec s xs) es
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
   match i with
@@ -1002,6 +949,10 @@ Definition is_zero sz (e: pexpr) : bool :=
 
 Notation copn_args := (seq lval * sopn * seq pexpr)%type (only parsing).
 
+Section INSTR_COPN.
+
+Context {A: Tabstract}.
+
 Definition instr_of_copn_args
   {asm_op : Type}
   {asmop : asmOp asm_op}
@@ -1010,3 +961,4 @@ Definition instr_of_copn_args
   : instr_r :=
   Copn args.1.1 tg args.1.2 args.2.
 
+End INSTR_COPN.

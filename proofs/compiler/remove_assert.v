@@ -20,7 +20,7 @@ Fixpoint remove_assert_i (i:instr) {struct i} : cmd :=
   | Cassgn _ _ _ _
   | Copn _ _ _ _
   | Csyscall _ _ _
-  | Ccall _ _ _ _ => [:: i]
+  | Ccall _ _ _ => [:: i]
 
   | Cif b c1 c2 =>
       let c1 := foldr (fun i c => remove_assert_i i ++ c) [::] c1 in
@@ -46,6 +46,7 @@ Context {pT:progT}.
 
 Definition remove_assert_fd (fd:fundef) :=
   {| f_info   := fd.(f_info);
+     f_contra := fd.(f_contra);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := remove_assert_c fd.(f_body);

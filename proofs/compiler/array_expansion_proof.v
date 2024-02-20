@@ -725,7 +725,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
-  move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw ii1 m ii2 i2 s1' hwf heqa /=.
+  move=> s1 scs2 m2 s2 xs fn args vargs vs Hes Hsc Hfun Hw ii1 m ii2 i2 s1' hwf heqa /=.
   case hgfn: Mf.get => [[ei eo]|//].
   t_xrbindP=> xs' sxs' hxs <- es' ses' hes <- _.
   have [? heva]:= expand_paramsP hwf heqa hes Hes.
@@ -929,4 +929,3 @@ Proof.
 Qed.
 
 End WITH_PARAMS.
-

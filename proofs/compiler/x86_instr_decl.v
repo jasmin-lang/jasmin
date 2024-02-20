@@ -497,17 +497,6 @@ Definition x86_DEC sz (w: word sz) : ex_tpl (b4w_ty sz) :=
     (w - 1)
     (wsigned w - 1)%Z).
 
-
-Fixpoint leading_zero_aux (n: Z) (k : nat) (sz : nat) :=
-  if (n <? 2^(sz - k))%Z then k 
-  else match k with 
-  | 0 => 0
-  | S k' => leading_zero_aux n k' sz
-  end.
-      
-Definition leading_zero sz (w: word sz) : word sz := 
-  wrepr sz (leading_zero_aux (wunsigned w) sz sz).
-
 Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) := 
    Let _ := check_size_16_64 sz in
    let v := leading_zero w in 
@@ -1089,6 +1078,8 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs safe_cond 
   id_eq_size    := refl_equal;
   id_tin_narr   := refl_equal;
   id_tout_narr  := refl_equal;
+  id_tin_nabst := refl_equal;
+  id_tout_nabst := refl_equal;
   id_check_dest := refl_equal;
   id_str_jas    := str_jas;
   id_safe       := safe_cond;

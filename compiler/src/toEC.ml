@@ -50,7 +50,10 @@ let rec read_mem_e = function
   | Papp1 (_, e) | Pget (_, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
+  | Pabstract (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
+  | Pfvar _ -> assert false
+  | Pbig _ -> assert false
 
 and read_mem_es es = List.exists read_mem_e es
 
@@ -74,7 +77,7 @@ let rec read_mem_i s i =
   | Cassert (_, _, e) -> read_mem_e e
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
-  | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
+  | Ccall (xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
   | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
 
 and read_mem_c s = List.exists (read_mem_i s)
@@ -88,7 +91,7 @@ let rec write_mem_i s i =
   | Cassert _ -> false
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
-  | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
+  | Ccall (xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s
   | Cfor (_, _, c)       -> write_mem_c s c 
 
 and write_mem_c s = List.exists (write_mem_i s)
@@ -116,7 +119,11 @@ let rec leaks_e_rec pd leaks e =
   | Papp1 (_, e) -> leaks_e_rec pd leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
   | PappN (_, es) -> leaks_es_rec pd leaks es
+  | Pabstract (_, es) -> leaks_es_rec pd leaks es
   | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
+  | Pfvar _ -> assert false
+  | Pbig _ -> assert false
+
 and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
 let leaks_e pd e = leaks_e_rec pd [] e
@@ -362,6 +369,7 @@ let pp_ty env fmt ty =
   | Bty Int  -> Format.fprintf fmt "int"
   | Bty (U ws) -> pp_sz_t fmt ws
   | Arr(ws,n) -> Format.fprintf fmt "%a %a.t" pp_sz_t ws (pp_Array env) n
+  | Bty Abstract _ -> Format.fprintf fmt "TODO"
 
 let add_aux env tys = 
   let tbl = Hashtbl.create 10 in
@@ -509,7 +517,10 @@ let ty_expr = function
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
   | PappN (op, _)  -> out_ty_opN op
+  | Pabstract (op, _)  -> op.tyout
   | Pif (ty,_,_,_) -> ty
+  | Pfvar _ -> assert false
+  | Pbig _ -> assert false
 
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -633,10 +644,15 @@ let rec pp_expr pd env fmt (e:expr) =
         (pp_list "@ " (pp_expr pd env)) es
     end
 
+  | Pabstract _ -> assert false
+
   | Pif(_,e1,et,ef) -> 
     let ty = ty_expr e in
     Format.fprintf fmt "(%a ? %a : %a)"
       (pp_expr pd env) e1 (pp_wcast pd env) (ty,et) (pp_wcast pd env) (ty,ef)
+
+  | Pfvar _ -> assert false
+  | Pbig _ -> assert false
 
 and pp_wcast pd env fmt (ty, e) = 
   pp_cast env (pp_expr pd env) fmt (ty, ty_expr e, e)
@@ -789,8 +805,8 @@ let ty_sopn pd asmOp op =
     let l = [Arr(ws, Conv.int_of_pos p)] in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
-    List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin Build_Tabstract pd asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
    it would be nice to prove in Coq the validity of the transformation *) 
@@ -806,12 +822,13 @@ let rec is_write_i x i =
   match i.i_desc with
   | Cassgn (lv,_,_,_) ->
     is_write_lv x lv
-  | Copn(lvs,_,_,_) | Ccall(_,lvs,_, _) | Csyscall(lvs,_,_) -> 
+  | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
   | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> 
     is_write_c x c1 || is_write_c x c2 
   | Cfor(x',_,c) -> 
     V.equal x x'.L.pl_desc || is_write_c x c
+  | Cassert _ -> assert false
 
 and is_write_c x c = List.exists (is_write_i x) c
   
@@ -830,6 +847,7 @@ let rec remove_for_i i =
         let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
         let ii' = { i with i_desc = ii' } in
         Cfor (j', r, ii' :: remove_for c)
+    | Cassert _ -> assert false
   in
   { i with i_desc }   
 and remove_for c = List.map remove_for_i c
@@ -853,11 +871,11 @@ module Normal = struct
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
-        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
+        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op) in
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
-    | Ccall(_, lvs, f, _) ->      
+    | Ccall(lvs, f, _) ->
       if lvs = [] then env 
       else 
         let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
@@ -925,7 +943,7 @@ module Normal = struct
           Format.fprintf fmt "<- %a" pp_e (op,es) in
         pp_call pd env fmt lvs otys otys' pp (op,es)
         
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -1020,7 +1038,7 @@ module Leak = struct
     let (_s,option) = Mv.find (L.unloc x) env.vars in
     if option then Initv (L.unloc x) :: safe
     else safe
-    
+   
   let rec safe_e_rec pd env safe = function
     | Pconst _ | Pbool _ | Parr_init _ -> safe
     | Pvar x -> 
@@ -1046,15 +1064,18 @@ module Leak = struct
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e1 e2 op
     | PappN (_op, _es) -> assert false (* TODO: nary *)
+    | Pabstract _ -> assert false
     | Pif  (_,e1, e2, e3) -> 
       safe_e_rec pd env (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e3
+    | Pfvar _ -> assert false
+    | Pbig _ -> assert false
 
   let safe_e pd env = safe_e_rec pd env [] 
 
   let safe_es pd env = List.fold_left (safe_e_rec pd env) []
 
   let safe_opn pd asmOp env safe opn es =
-    let id = Sopn.get_instr_desc pd asmOp opn in
+    let id = Sopn.get_instr_desc Build_Tabstract pd asmOp opn in
     List.pmap (fun c ->
         match c with
         | Wsize.X86Division(sz, sg) ->
@@ -1152,7 +1173,7 @@ module Leak = struct
     | Cassgn (lv, _, _, e) -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
     | Copn (lvs, _, op, _) ->
        let op = base_op op in
-       let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
+       let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op) in
        let env = add_aux env tys in
        add_aux env (List.map ty_lval lvs)
     | Csyscall(lvs, o, _)->
@@ -1160,7 +1181,7 @@ module Leak = struct
       let otys = List.map Conv.ty_of_cty s.scs_tout in
       let env = add_aux env otys in
       add_aux env (List.map ty_lval lvs)
-    | Ccall(_, lvs, _, _) ->
+    | Ccall(lvs, _, _) ->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cassert _ -> env
@@ -1238,7 +1259,7 @@ module Leak = struct
       pp_leaks_opn pd asmOp env fmt op' es;
       pp_call pd env fmt lvs otys otys' pp (op, es)
       
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -1498,7 +1519,7 @@ and used_func_i used i =
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
-  | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
+  | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
 let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.map Regalloc.fill_in_missing_names funcs in

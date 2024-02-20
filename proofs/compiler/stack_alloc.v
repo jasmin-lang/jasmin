@@ -50,11 +50,13 @@ End E.
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
+
 Definition size_of (t:stype) :=
   match t with
   | sword sz => wsize_size sz
   | sarr n   => Zpos n
   | sbool | sint => 1%Z
+  | sabstract _ => (1)%Z
   end.
 
 Definition slot := var.
@@ -404,6 +406,7 @@ Import Region.
 Section WITH_PARAMS.
 
 Context
+  {A: Tabstract}
   {asm_op : Type}
   {pd : PointerData}
   {msfsz : MSFsize}
@@ -634,6 +637,10 @@ Fixpoint alloc_e (e:pexpr) :=
   | PappN o es =>
     Let es := mapM alloc_e es in
     ok (PappN o es)
+
+  | Pabstract s es =>
+    Let es := mapM alloc_e es in
+    ok (Pabstract s es)
 
   | Pif t e e1 e2 =>
     Let e := alloc_e e in
@@ -1122,7 +1129,7 @@ Definition alloc_call_res rmap srs ret_pos rs :=
 Definition is_RAnone ral :=
   if ral is RAnone then true else false.
 
-Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es := 
+Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap rs fn es :=
   let sao_callee := local_alloc fn in
   Let es  := alloc_call_args rmap sao_callee.(sao_params) es in
   let '(rmap, es) := es in
@@ -1144,7 +1151,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
                           (stk_ierror_no_var "non aligned function call")
   in
   let es  := map snd es in
-  ok (rs.1, Ccall ini rs.2 fn es).
+  ok (rs.1, Ccall rs.2 fn es).
 
 (* Before stack_alloc :
      Csyscall [::x] (getrandom len) [::t] 
@@ -1225,8 +1232,8 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       Let r := loop2 ii check_c Loop.nb rmap in
       ok (r.1, [:: MkI ii (Cwhile a (flatten r.2.2.1) r.2.1 (flatten r.2.2.2))])
 
-    | Ccall ini rs fn es =>
-      Let ri := add_iinfo ii (alloc_call sao rmap ini rs fn es) in
+    | Ccall rs fn es =>
+      Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
       ok (ri.1, [::MkI ii ri.2])                            
 
     | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
@@ -1451,6 +1458,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
+    f_contra := f_contra fd;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin); 
     f_params := params;
     f_body := flatten body;

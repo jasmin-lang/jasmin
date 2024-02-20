@@ -1,5 +1,8 @@
 open Prog
 
+(* apply a substitution within a expression *)
+val gsubst_e: ('len1 -> 'len2) -> ('len1 ggvar -> 'len2 gexpr) -> 'len1 gexpr -> 'len2 gexpr
+
 (* apply a substitution within a function *)
 val gsubst_func : ('ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('ty1, 'info, 'asm) gfunc -> ('ty2, 'info, 'asm) gfunc
 

@@ -61,13 +61,14 @@ let pcast ws e = match ty_expr e with
     if ws = ws' then e
     else Papp1 (E.Ozeroext (ws,ws'), e)
 
-  | Bty Bool | Arr _ -> assert false
+  | Bty Bool | Arr _ | Bty Abstract _-> assert false
 
 let wsize_of_ty ty = match ty with
   | Bty Bool -> assert false
   | Bty Int -> -1
   | Bty (U sz) -> int_of_ws sz
   | Arr (sz, _) -> int_of_ws sz
+  | Bty Abstract _ -> assert false
 
 
 (****************************)
@@ -346,8 +347,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Papp1 _ | Papp2 _ | Pbool _
     | Parr_init _ | Pget _ | Psub _
-    | Pload _ | PappN _ | Pif _ -> None
-
+    | Pload _ | PappN _ | Pabstract _ | Pif _
+    | Pfvar _ | Pbig _ -> None
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
      Superficial checks only. *)
@@ -423,10 +424,15 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         
       | Papp1 (_, e1) -> aux acc e1
       | PappN (_, es) -> List.fold_left aux acc es
+      | Pabstract (_, es) -> List.fold_left aux acc es
 
       | Pload _ -> raise Expr_contain_load
 
-      | Pif (_,_,e1,e2) | Papp2 (_, e1, e2) -> aux (aux acc e1) e2 in
+      | Pif (_,_,e1,e2) | Papp2 (_, e1, e2) -> aux (aux acc e1) e2
+      | Pfvar _ -> acc
+      | Pbig (e1, e2, _, _, e3, e4) ->
+        aux (aux (aux (aux acc e1) e2) e3) e4
+    in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
 
@@ -670,12 +676,29 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           | None -> f_expl (i + 1) r_es
           | Some _ as r -> (i,r) in
 
-      match f_expl 0 es with
+      begin
+        match f_expl 0 es with
       | _,None -> None
       | i,Some (ty, b, el, er) ->
         let repi ex = List.mapi (fun j x -> if j = i then ex else x) es in
         Some (ty, b, PappN (opn, repi el), PappN (opn, repi er))
+      end
 
+    | Pfvar _ -> assert false
+    | Pbig _-> assert false
+    | Pabstract (opn, es) ->
+      let rec f_expl i es =
+        match es with
+        | [] -> (-1,None)
+        | e :: r_es -> match remove_if_expr_aux e with
+          | None -> f_expl (i + 1) r_es
+          | Some _ as r -> (i,r)
+      in
+      match f_expl 0 es with
+      | _,None -> None
+      | i,Some (ty, b, el, er) ->
+        let repi ex = List.mapi (fun j x -> if j = i then ex else x) es in
+        Some (ty, b, Pabstract (opn, repi el), Pabstract (opn, repi er))
 
   let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with
     | Some (_,b,el,er) ->
@@ -884,6 +907,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Bty Bool -> assert false
     | Arr _ -> assert false
+    | Bty Abstract _ -> assert false
 
 
   let set_zeros f_args abs =

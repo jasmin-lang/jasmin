@@ -66,6 +66,7 @@ Definition incl (pi1 pi2:pimap) :=
 
 Section WITH_PARAMS.
 
+Context {A: Tabstract}.
 Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}
@@ -97,6 +98,9 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
     | Opack _ _ => PappN o es
     | Ocombine_flags c => scfc c es
     end
+  | Pabstract s es      =>
+    let es := (map (pi_e pi) es) in
+    Pabstract s es
   | Pif t e e1 e2      => Pif t (pi_e pi e) (pi_e pi e1) (pi_e pi e2)
  
   | Pfvar v => Pfvar v
@@ -207,10 +211,10 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let:(pi, c1, e, c2) := pic in
     ok (pi, MkI ii (Cwhile a c1 e c2))
 
-  | Ccall inline xs f es =>
+  | Ccall xs f es =>
     let es := pi_es pi es in
     let (pi, xs) := pi_lvs (remove_m pi) xs in
-    ok (pi, MkI ii (Ccall inline xs f es))
+    ok (pi, MkI ii (Ccall xs f es))
 
   end.
 
@@ -219,9 +223,18 @@ Section Section.
 Context {pT:progT}.
 
 Definition pi_fun  (f:fundef) :=
-  let 'MkFun ii si p c so r ev := f in
-  Let pic := pi_c pi_i piempty c in 
-  ok (MkFun ii si p pic.2 so r ev).
+  let 'MkFun ii ci si p c so r ev := f in
+  let ci_pre := map (fun c =>
+                        let truc := pi_e piempty (snd c) in
+                        (fst c, truc)) ci.(f_pre)
+  in
+  Let pic := pi_c pi_i piempty c in
+  let ci_post := map (fun c =>
+                        let truc := pi_e pic.1 (snd c) in
+                        (fst c, truc)) ci.(f_post)
+  in
+  let ci := MkContra ci_pre ci_post in
+  ok (MkFun ii ci si p pic.2 so r ev).
 
 Definition pi_prog (p:prog) := 
   Let funcs := map_cfprog pi_fun (p_funcs p) in

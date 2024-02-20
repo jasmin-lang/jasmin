@@ -210,9 +210,9 @@ Section CAT.
     by case: a; rewrite /= cats1 -catA /= cat_rcons.
   Qed.
 
-  Let Hcall : forall i xs f es, Pr (Ccall i xs f es).
+  Let Hcall : forall xs f es, Pr (Ccall xs f es).
   Proof.
-    move => ini xs fn es ii fn' lbl tail /=.
+    move=> xs fn es ii fn' lbl tail /=.
     case: get_fundef => // fd; case: ifP => //.
     by case: sf_return_address => // [ ra | ra ra_ofs ] _; rewrite cats0 -catA.
   Qed.
@@ -666,7 +666,7 @@ Section VALIDITY.
     valid fn lbl (lbl + 1)%positive (allocate_stack_frame liparams p b ii z rastack).
   Proof. by rewrite /allocate_stack_frame; case: eqP. Qed.
 
-  Let Hcall (i : inline_info) (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall i xs f es).
+  Let Hcall (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall xs f es).
   Proof.
     move => ii fn lbl /=.
     case: get_fundef => [ fd | ]; last by split => //; lia.
@@ -835,7 +835,7 @@ Section NUMBER_OF_LABELS.
     by rewrite /lload get_label_lassign /=.
   Qed.
 
-  Let Hcall (i : inline_info) (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall i xs f es).
+  Let Hcall (xs : lvals) (f : funname) (es : pexprs) : Pr (Ccall xs f es).
   Proof.
     move => ii fn lbl /=.
     case: get_fundef => [ fd | ]; last by apply Z.le_refl.
@@ -2526,7 +2526,8 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p var_tmp Pi_r Pfun.
   Proof.
-    move => ii k s1 s2 ini res fn' args xargs xres ok_xargs ok_xres exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
+    move=> ii k s1 s2 res fn' args xargs xres
+      ok_xargs ok_xres exec_call ih fn lbl /checked_iE[] fd ok_fd chk_call.
     case linear_eq: linear_i => [lbli li].
     move => m1 vm2 P Q M X D C.
     move: chk_call => /=.

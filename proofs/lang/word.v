@@ -195,6 +195,10 @@ Definition word := fun sz =>
 
 Global Opaque word.
 
+Definition winit (ws : wsize) (f : nat -> bool) : word ws :=
+  let bits := map f (iota 0 (wsize_size_minus_1 ws).+1) in
+  t2w (Tuple (tval := bits) ltac:(by rewrite size_map size_iota)).
+
 Definition wand {s} (x y: word s) : word s := wand x y.
 Definition wor {s} (x y: word s) : word s := wor x y.
 Definition wxor {s} (x y: word s) : word s := wxor x y.
@@ -1375,6 +1379,20 @@ Fixpoint bitpdep sz (w:word sz) (i:nat) (mask:bitseq) :=
 
 Definition pdep sz (w1 w2: word sz) :=
  wrepr sz (t2w (in_tuple (bitpdep w1 0 (w2t w2)))).
+
+(* -------------------------------------------------------------------*)
+
+Fixpoint leading_zero_aux (n : Z) (res sz : nat) : nat :=
+  if (n <? 2 ^ (sz - res))%Z
+  then res
+  else
+    match res with
+    | O => O
+    | S res' => leading_zero_aux n res' sz
+    end.
+
+Definition leading_zero (sz : wsize) (w : word sz) : word sz :=
+  wrepr sz (leading_zero_aux (wunsigned w) sz sz).
 
 (* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=

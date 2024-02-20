@@ -168,7 +168,8 @@ type pexpr_r =
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf     of pexpr * pexpr * pexpr
   | PEbig    of pbig * pexpr * pexpr * pident * pexpr
-  
+  | PEAbstract of pident * pexpr list
+
 and pexpr = pexpr_r L.located
 
 and mem_access = wsize option * pident * ([`Add | `Sub] * pexpr) option
@@ -180,7 +181,7 @@ and pbig =
   | PEBop of peop2 * pexpr
 
 (* -------------------------------------------------------------------- *)
-and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
+and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr | Tabstract of pident
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -263,8 +264,14 @@ type pcall_conv = [
   | `Inline
 ]
 
+type pfcontract = {
+  pdc_pre : (annotations * pexpr) list;
+  pdc_post : (annotations * pexpr) list;
+}
+
 type pfundef = {
   pdf_annot : annotations;
+  pdf_contra : pfcontract;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
   pdf_args : (annotations * vardecls) list;
@@ -290,12 +297,29 @@ type pexec = {
 type prequire = string L.located
 
 (* -------------------------------------------------------------------- *)
+type pabstract_ty = {
+  pat_name : pident;
+  pat_annot : annotations;
+}
+
+(* -------------------------------------------------------------------- *)
+
+type pabstract_pred = {
+  pap_name : pident;
+  pap_args : (annotations * ptype) list;
+  pap_rty  : annotations * ptype;
+  pap_annot : annotations;
+}
+
+(* -------------------------------------------------------------------- *)
 type pitem =
   | PFundef of pfundef
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
+  | Pabstract_ty of pabstract_ty
+  | Pabstract_pre of pabstract_pred
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

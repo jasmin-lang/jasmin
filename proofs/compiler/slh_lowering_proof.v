@@ -1142,7 +1142,7 @@ Qed.
 
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s scs2 m2 s' ? lvs fn args vargs vargs' hsemargs _ hrec hwrite.
+  move=> s scs2 m2 s' lvs fn args vargs vargs' hsemargs _ hrec hwrite.
   move=> ? env env' c hwf /=.
   case heq: fun_info => [tin tout]; t_xrbindP => t hargs hres <-.
   move: hrec; rewrite /Pfun heq => /(_ (check_f_argsP hwf hargs hsemargs)) [h1 h2].

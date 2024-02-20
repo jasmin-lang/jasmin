@@ -180,7 +180,7 @@ Record compiler_params
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
-  slh_info         : _uprog → funname → seq slh_t * seq slh_t
+  slh_info         : _uprog → funname → seq slh_t * seq slh_t;
 }.
 
 Context
@@ -242,7 +242,7 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   ok p.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err (wsw:= withsubword) cparams.(rename_fd) p in
+  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in

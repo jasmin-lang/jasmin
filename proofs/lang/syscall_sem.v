@@ -17,6 +17,7 @@ Local Open Scope Z_scope.
 
 Section SourceSysCall.
 
+Context {abst: Tabstract}.
 Context
   {pd: PointerData}
   {syscall_state : Type}
@@ -73,6 +74,7 @@ End SourceSysCall.
 
 Section Section.
 
+Context {abst: Tabstract}.
 Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 
 Definition exec_getrandom_s_core (scs : syscall_state_t) (m : mem) (p:pointer) (len:pointer) : exec (syscall_state_t * mem * pointer) := 
@@ -99,7 +101,7 @@ Definition sem_syscall (o:syscall_t) :
 
 Definition exec_syscall_s (scs : syscall_state_t) (m : mem) (o:syscall_t) vs : exec (syscall_state_t * mem * values) :=
   let semi := sem_syscall o in
-  Let: (scs', m', t) := app_sopn _ (semi scs m) vs in
+  Let: (scs', m', t) := app_sopn (semi scs m) vs in
   ok (scs', m', list_ltuple t).
   
 Lemma syscall_sig_s_noarr o : all is_not_sarr (syscall_sig_s o).(scs_tin).

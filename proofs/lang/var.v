@@ -390,6 +390,15 @@ Lemma Sv_diff_empty s :
   Sv.Equal (Sv.diff s Sv.empty) s.
 Proof. SvD.fsetdec. Qed.
 
+Lemma enum_in_Sv X (_ : finTypeC X) to_var s x :
+  Sv.Subset (sv_of_list to_var cenum) s ->
+  Sv.In (to_var x) s.
+Proof.
+  apply; apply/sv_of_listP.
+  apply: (@map_f (@ceqT_eqType X _eqC)).
+  exact: mem_cenum.
+Qed.
+
 (* Deduce inequalities from [~ Sv.In x (Sv.add y0 (... (Sv.add yn s)))]. *)
 Ltac t_notin_add :=
   repeat (move=> /Sv.add_spec /Decidable.not_or [] ?);

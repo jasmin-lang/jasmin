@@ -32,7 +32,7 @@ Inductive pp_error :=
 (*   | PPEopN     `(opN) *)
 (*   | PPEsopn    `(sopn) *)
 (*   | PPEexpr    `(pexpr) *)
-(*   | PPElval    `(lval) *)
+  | PPElval  of lval
   | PPEfunname `(funname)
   | PPEfuninfo `(fun_info)
 (*   | PPEinstr   `(instr_r) *)
@@ -67,6 +67,7 @@ Notation pp_e    := PPEexpr.
 Notation pp_re   := PPErexpr.
 Notation pp_fe   := PPEfexpr.
 Notation pp_fn   := PPEfunname.
+Notation pp_lv   := PPElval.
 
 Fixpoint pp_list {A} sep (pp : A -> pp_error) xs : pp_error :=
   match xs with
@@ -203,8 +204,8 @@ Definition map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) :=
   map_cfprog_name_gen info (fun _ t1 => F t1).
 
 (* Some notations to use in the common case where we manipulate [_fundef ?eft]. *)
-Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _)).
-Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _)).
+Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _ _)).
+Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _ _)).
 
 Lemma get_map_cfprog_name_gen {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f:
   map_cfprog_name_gen info F p = ok p' ->

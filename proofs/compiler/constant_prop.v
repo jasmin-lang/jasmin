@@ -16,6 +16,7 @@ Local Open Scope Z_scope.
 
 Section WITH_PARAMS.
 
+Context {A: Tabstract}.
 Context {fcp : FlagCombinationParams}.
 
 Definition e2bool (e:pexpr) : exec bool := 
@@ -35,13 +36,14 @@ Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   | Some w => ok w
   | None   => type_error
   end.
- 
+
 Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
   | sbool   => e2bool
   | sint    => e2int
   | sarr n  => fun _ => type_error 
   | sword sz => e2word sz
+  | sabstract _ => fun _ => type_error
   end.
 
 Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
@@ -50,12 +52,13 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   | sint  => fun z => ok (Pconst z)
   | sarr _ => fun _ => type_error
   | sword sz => fun w => ok (wconst w)
+  | sabstract _ => fun _ => type_error
   end.
 
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
   let r := 
     Let x := of_expr _ e in
-    to_expr (sem_sop1_typed o x) in
+    to_expr (sem_sop1_typed _ o x) in
   match r with 
   | Ok e => e
   | _ => Papp1 o e
@@ -65,7 +68,7 @@ Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
   let r := 
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
-    Let v  := sem_sop2_typed o x1 x2 in
+    Let v  := sem_sop2_typed _ o x1 x2 in
     to_expr v in 
   match r with 
   | Ok e => e
@@ -401,6 +404,7 @@ Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
      | _, _ => 
          Pbig s len sop x e0 (const_prop_e_aux lm m body)
      end
+  | Pabstract s es => Pabstract s ((map (const_prop_e_aux lm m) es))
   end.
 
 Definition const_prop_e := const_prop_e_aux (Mvar.empty _).
@@ -550,10 +554,10 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
       end in
     (m', cw)
 
-  | Ccall fi xs f es =>
+  | Ccall xs f es =>
     let es := map (const_prop_e without_globals m) es in
     let (m,xs) := const_prop_rvs without_globals m xs in
-    (m, [:: MkI ii (Ccall fi xs f es) ])
+    (m, [:: MkI ii (Ccall xs f es) ])
 
   end
 
@@ -568,9 +572,18 @@ Section Section.
 Context {pT: progT}.
 
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  let 'MkFun ii si p c so r ev := f in
-  let (_, c) := const_prop (const_prop_i gd) empty_cpm c in
-  MkFun ii si p c so r ev.
+  let 'MkFun ii ci si p c so r ev := f in
+  let ci_pre := map (fun c =>
+                        let truc := const_prop_e without_globals empty_cpm (snd c) in
+                        (fst c, truc)) ci.(f_pre)
+  in
+  let (m, c) := const_prop (const_prop_i gd) empty_cpm c in
+  let ci_post := map (fun c =>
+                        let truc := const_prop_e without_globals m (snd c) in
+                        (fst c, truc)) ci.(f_post)
+  in
+  let ci := MkContra ci_pre ci_post in
+  MkFun ii ci si p c so r ev.
 
 Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
 

@@ -6,10 +6,10 @@ let () =
   let check_fails f =
     match Sct_checker_forward.ty_prog p [ f ] with
     | exception Annot.AnnotationError (loc, msg) ->
-        Format.printf "Annotation error in %s: %a %t@." f Location.pp_loc loc
-          msg
+        Format.printf "Annotation error in %s: %t@." f msg
     | exception Utils.HiError e ->
-        Format.printf "Failed as expected %s: %a@." f Utils.pp_hierror e
+        Format.printf "Failed as expected %s: %a@." f Utils.pp_hierror
+          { e with err_loc = Lnone }
     | _ -> assert false
   in
   List.iter check_fails
@@ -23,7 +23,6 @@ let () =
       "not_known_as_msf";
       "bad_poly_annot";
       "msf_in_export";
-      "must_not_be_a_msf";
       "should_be_a_msf";
       "at_least_transient";
       "unbound_level";

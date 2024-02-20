@@ -161,8 +161,11 @@ let slice_of_pexpr a =
   | Parr_init _ -> None
   | Pvar x -> Some (normalize_gvar a x)
   | Psub (aa, ws, len, x, i) -> Some (normalize_asub a aa ws len x i)
-  | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ ) -> assert false
+  | Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _
+  | PappN _ | Pabstract _  -> assert false
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
+  | Pfvar _ -> None
+  | Pbig _ -> None
 
 let slice_of_lval a =
   function
@@ -195,7 +198,7 @@ let opn_cc o =
 let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
-  | Ccall (_, xs, fn, es) -> link_array_return params a xs es (cc fn)
+  | Ccall (xs, fn, es) -> link_array_return params a xs es (cc fn)
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
   | Cassert _ -> a

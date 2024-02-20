@@ -1788,6 +1788,7 @@ Ltac t_do_rewrites tac :=
     match goal with
     | [ h : ?lhs = ?rhs |- _ ] => tac h lhs rhs
     | [ h : is_true (?lhs == ?rhs) |- _ ] => move: h => /eqP h; tac h lhs rhs
+    | [ h : is_true ?lhs |- _ ] => tac h lhs true
     end.
 
 #[local]

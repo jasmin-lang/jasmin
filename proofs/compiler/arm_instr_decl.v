@@ -26,6 +26,11 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
+Module E.
+  Definition no_semantics : error := ErrType.
+End E.
+
+
 (* -------------------------------------------------------------------- *)
 (* ARM instruction options. *)
 
@@ -93,6 +98,11 @@ Definition unset_is_conditional (ao : arm_options) : arm_options :=
 (* -------------------------------------------------------------------- *)
 (* ARM instruction mnemonics. *)
 
+Variant halfword : Type :=
+| HWB
+| HWT
+.
+
 Variant arm_mnemonic : Type :=
 (* Arithmetic *)
 | ADD                            (* Add without carry *)
@@ -116,8 +126,14 @@ Variant arm_mnemonic : Type :=
                                     32 bits of the result *)
 | SMMULR                         (* Rounding version of SMMUL *)
 
+| SMUL_hw of halfword & halfword (* Signed Multiply halfwords. *)
+| SMLA_hw of halfword & halfword (* Signed Multiply Accumulate halfwords. *)
+| SMULW_hw of halfword           (* Signed Multiply word by halfword. *)
+
 (* Logical *)
 | AND                            (* Bitwise AND *)
+| BFC                            (* Bit Field Clear *)
+| BFI                            (* Bit Field Insert *)
 | BIC                            (* Bitwise AND with bitwise NOT *)
 | EOR                            (* Bitwise XOR *)
 | MVN                            (* Bitwise NOT *)
@@ -140,10 +156,12 @@ Variant arm_mnemonic : Type :=
 | UXTB                           (* Extract a byte and zero extend *)
 | UXTH                           (* Extract a halfword and zero extend *)
 | SBFX                           (* Extract a sub-word and sign extend *)
+| CLZ                            (* Count leading zeros. *)
 
 (* Comparison *)
 | CMP                            (* Compare *)
 | TST                            (* Test *)
+| CMN                            (* Compare negative *)
 
 (* Loads *)
 | LDR                            (* Load a 32-bit word *)
@@ -175,16 +193,19 @@ Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
-    ; AND; BIC; EOR; MVN; ORR
+    ; SMUL_hw HWB HWB; SMUL_hw HWB HWT; SMUL_hw HWT HWB; SMUL_hw HWT HWT
+    ; SMLA_hw HWB HWB; SMLA_hw HWB HWT; SMLA_hw HWT HWB; SMLA_hw HWT HWT
+    ; SMULW_hw HWB; SMULW_hw HWT
+    ; AND; BFC; BFI; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR; REV; REV16; REVSH
-    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
-    ; CMP; TST
+    ; ADR; MOV; MOVT; UBFX; UXTB; UXTH; SBFX; CLZ
+    ; CMP; TST; CMN
     ; LDR; LDRB; LDRH; LDRSB; LDRSH
     ; STR; STRB; STRH
   ].
 
 Lemma arm_mnemonic_fin_axiom : Finite.axiom arm_mnemonics.
-Proof. by case. Qed.
+Proof. by repeat case. Qed.
 
 #[ export ]
 Instance finTC_arm_mnemonic : finTypeC arm_mnemonic :=
@@ -205,7 +226,7 @@ Definition set_flags_mnemonics : seq arm_mnemonic :=
 Definition has_shift_mnemonics : seq arm_mnemonic :=
   [:: ADD; ADC; SUB; RSB
     ; AND; BIC; EOR; MVN; ORR
-    ; CMP; TST
+    ; CMP; TST; CMN
   ].
 
 Definition condition_mnemonics : seq arm_mnemonic :=
@@ -246,7 +267,14 @@ Definition store_mn_of_wsize (ws : wsize) : option arm_mnemonic :=
 Definition wsize_of_store_mn (mn : arm_mnemonic) : option wsize :=
   xseq.assoc ([seq (x.2, x.1) | x <- wsize_store_mn]) mn.
 
+Definition string_of_hw (hw : halfword) : string :=
+  match hw with
+  | HWB => "B"
+  | HWT => "T"
+  end.
+
 Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
+  let with_hw s hw := append s (string_of_hw hw) in
   match mn with
   | ADD => "ADD"
   | ADC => "ADC"
@@ -263,8 +291,13 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | SMULL => "SMULL"
   | SMLAL => "SMLAL"
   | SMMUL => "SMMUL"
-  | SMMULR => "SMMULR" 
+  | SMMULR => "SMMULR"
+  | SMUL_hw hw0 hw1 => with_hw (with_hw "SMUL" hw0) hw1
+  | SMLA_hw hw0 hw1 => with_hw (with_hw "SMLA" hw0) hw1
+  | SMULW_hw hw => with_hw "SMULW" hw
   | AND => "AND"
+  | BFC => "BFC"
+  | BFI => "BFI"
   | BIC => "BIC"
   | EOR => "EOR"
   | MVN => "MVN"
@@ -283,6 +316,7 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | UXTB => "UXTB"
   | UXTH => "UXTH"
   | SBFX => "SBFX"
+  | CLZ => "CLZ"
   | CMP => "CMP"
   | TST => "TST"
   | LDR => "LDR"
@@ -293,7 +327,8 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | STR => "STR"
   | STRB => "STRB"
   | STRH => "STRH"
-  end.
+  | CMN => "CMN"
+  end%string.
 
 
 (* -------------------------------------------------------------------- *)
@@ -474,6 +509,12 @@ Definition mk_cond (idt : instr_desc_t) : instr_desc_t :=
         (id_tin_narr idt)
         (id_tout_narr idt);
     id_tout_narr := id_tout_narr idt;
+    id_tin_nabst   :=
+      mk_cond_tin_narr
+        (is_true_true: is_not_sabstract sbool)
+        (id_tin_nabst idt)
+        (id_tout_nabst idt);
+    id_tout_nabst  := id_tout_nabst idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     id_safe := id_safe idt;
@@ -536,6 +577,20 @@ Proof.
   exact: hx.
 Qed.
 
+#[ local ]
+Lemma mk_shifted_tin_nabstr {A} {p : A -> bool} {x} {xs : seq A} :
+  p x
+  -> all p xs
+  -> all p (xs ++ [:: x ]).
+Proof.
+  move=> hx hxs.
+  rewrite all_cat.
+  apply/andP.
+  split; first exact: hxs.
+  rewrite /= andbT.
+  exact: hx.
+Qed.
+
 Definition mk_shifted
   (sk : shift_kind) (idt : instr_desc_t) semi' : instr_desc_t :=
   {|
@@ -554,6 +609,11 @@ Definition mk_shifted
         (is_true_true: is_not_sarr sword8)
         (id_tin_narr idt);
     id_tout_narr := id_tout_narr idt;
+    id_tin_nabst :=
+      mk_shifted_tin_nabstr
+        (is_true_true: is_not_sabstract sword8)
+        (id_tin_nabst idt);
+    id_tout_nabst := id_tout_nabst idt;
     id_check_dest := id_check_dest idt;
     id_str_jas := id_str_jas idt;
     id_safe := id_safe idt;
@@ -626,6 +686,8 @@ Definition arm_ADD_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -666,6 +728,8 @@ Definition arm_ADC_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -701,6 +765,8 @@ Definition arm_MUL_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -728,6 +794,8 @@ Definition arm_MLA_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -751,6 +819,8 @@ Definition arm_MLS_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -774,6 +844,8 @@ Definition arm_SDIV_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -806,6 +878,8 @@ Definition arm_SUB_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
       id_pp_asm := pp_arm_op mn opts;
@@ -836,6 +910,8 @@ Definition arm_RSB_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -868,6 +944,8 @@ Definition arm_UDIV_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -891,6 +969,8 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -915,6 +995,8 @@ Definition arm_UMAAL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -939,6 +1021,8 @@ Definition arm_UMLAL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -962,6 +1046,8 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -987,6 +1073,8 @@ Definition arm_SMLAL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1010,6 +1098,8 @@ Definition arm_SMMUL_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1034,12 +1124,103 @@ Definition arm_SMMULR_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
+Definition get_hw (hw : halfword) (x : wreg) : u16 :=
+  if split_vec 16 x is [:: lo; hi ]
+  then if hw is HWT then hi else lo
+  else 0%R. (* Never happens. *)
+
+Definition arm_smul_hw_semi (hwn hwm : halfword) (wn wm : wreg) : exec wreg :=
+  let n := get_hw hwn wn in
+  let m := get_hw hwm wm in
+  let r := (wsigned n * wsigned m)%Z in
+  ok (wrepr U32 r)%R.
+
+Definition arm_smul_hw_instr hwn hwm : instr_desc_t :=
+  let mn := SMUL_hw hwn hwm in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg ];
+    id_in := [:: E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_smul_hw_semi hwn hwm;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_smla_hw_semi
+  (hwn hwm : halfword) (wn wm acc : wreg) : exec wreg :=
+  let n := get_hw hwn wn in
+  let m := get_hw hwm wm in
+  let r := (wsigned n * wsigned m + wsigned acc)%Z in
+  ok (wrepr U32 r)%R.
+
+Definition arm_smla_hw_instr hwn hwm : instr_desc_t :=
+  let mn := SMLA_hw hwn hwm in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg; sreg ];
+    id_in := [:: E 1; E 2; E 3 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_smla_hw_semi hwn hwm;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_smulw_hw_semi (hw : halfword) (wn wm : wreg) : exec wreg :=
+  let m := get_hw hw wm in
+  let res := (wsigned wn * wsigned m)%Z in
+  let w := wrepr U64 res in
+  ok (winit U32 (fun i => wbit_n w (i + 16))).
+
+Definition arm_smulw_hw_instr hw : instr_desc_t :=
+  let mn := SMULW_hw hw in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg ];
+    id_in := [:: E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_smulw_hw_semi hw;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
 
 Definition arm_bitwise_semi
   {ws : wsize}
@@ -1069,6 +1250,8 @@ Definition arm_AND_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1083,6 +1266,78 @@ Definition arm_AND_instr : instr_desc_t :=
   if set_flags opts
   then x
   else drop_nzc x.
+
+Definition arm_BFC_semi (x : wreg) (lsb width : word U8) : exec wreg :=
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  Let _ := assert (lsbit <? 32)%Z E.no_semantics in
+  Let _ := assert (1 <=? nbits)%Z E.no_semantics in
+  Let _ := assert (nbits <=? 32 - lsbit)%Z E.no_semantics in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then false
+    else wbit_n x i
+  in
+  ok (winit reg_size mk).
+
+Definition arm_BFC_instr : instr_desc_t :=
+  let mn := BFC in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sword8; sword8 ];
+    id_in := [:: E 0; E 1; E 2 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_BFC_semi;
+    id_nargs := 3;
+    id_args_kinds := ak_reg_imm8_imm8;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_BFI_semi (x y : wreg) (lsb width : word U8) : exec wreg :=
+  let lsbit := wunsigned lsb in
+  let nbits := wunsigned width in
+  Let _ := assert (lsbit <? 32)%Z E.no_semantics in
+  Let _ := assert (1 <=? nbits)%Z E.no_semantics in
+  Let _ := assert (nbits <=? 32 - lsbit)%Z E.no_semantics in
+  let msbit := (lsbit + nbits - 1)%Z in
+  let mk i :=
+    if [&& Z.to_nat lsbit <=? i & i <=? Z.to_nat msbit ]
+    then wbit_n y (i - Z.to_nat lsbit)
+    else wbit_n x i
+  in
+  ok (winit reg_size mk).
+
+Definition arm_BFI_instr : instr_desc_t :=
+  let mn := BFI in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg; sreg; sword8; sword8 ];
+    id_in := [:: E 0; E 1; E 2; E 3 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := arm_BFI_semi;
+    id_nargs := 4;
+    id_args_kinds := ak_reg_reg_imm8_imm8;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
 
 Definition arm_BIC_instr : instr_desc_t :=
   let mn := BIC in
@@ -1099,6 +1354,8 @@ Definition arm_BIC_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1129,6 +1386,8 @@ Definition arm_EOR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1167,6 +1426,8 @@ Definition arm_MVN_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1197,6 +1458,8 @@ Definition arm_ORR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1240,6 +1503,8 @@ Definition arm_ASR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1274,6 +1539,8 @@ Definition arm_LSL_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1308,6 +1575,8 @@ Definition arm_LSR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1342,6 +1611,8 @@ Definition arm_ROR_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1364,6 +1635,8 @@ Definition mk_rev_instr mn semi :=
    ; id_eq_size := refl_equal
    ; id_tin_narr := refl_equal
    ; id_tout_narr := refl_equal
+   ; id_tin_nabst := refl_equal
+   ; id_tout_nabst := refl_equal
    ; id_check_dest := refl_equal
    ; id_str_jas := pp_s (string_of_arm_mnemonic mn)
    ; id_safe := [::]
@@ -1400,6 +1673,8 @@ Definition arm_ADR_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1424,6 +1699,8 @@ Definition arm_MOV_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1453,6 +1730,8 @@ Definition arm_MOVT_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1482,6 +1761,8 @@ Definition arm_UBFX_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1509,6 +1790,8 @@ Definition arm_UXTB_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1530,6 +1813,8 @@ Definition arm_UXTH_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1553,6 +1838,8 @@ Definition arm_SBFX_instr : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1584,6 +1871,8 @@ Definition arm_CMP_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1617,9 +1906,38 @@ Definition arm_TST_instr : instr_desc_t :=
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
       id_check_dest := refl_equal;
       id_str_jas := pp_s (string_of_arm_mnemonic mn);
       id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+    |}
+  in
+  if has_shift opts is Some sk
+  then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
+  else x.
+
+Definition arm_CMN_instr : instr_desc_t :=
+  let mn := CMN in
+  let x :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 0; E 1 ];
+      id_tout := snzcv;
+      id_out := ad_nzcv;
+      id_semi := fun wn wm => rtuple_drop5th (arm_ADD_semi wn wm);
+      id_nargs := 2;
+      id_args_kinds := ak_reg_reg ++ ak_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_tin_nabst := refl_equal;
+      id_tout_nabst := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_safe := [::];
       id_pp_asm := pp_arm_op mn opts;
     |}
   in
@@ -1650,6 +1968,8 @@ Definition arm_load_instr mn : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
@@ -1676,9 +1996,33 @@ Definition arm_store_instr mn : instr_desc_t :=
     id_eq_size := refl_equal;
     id_tin_narr := refl_equal;
     id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
     id_check_dest := refl_equal;
     id_str_jas := pp_s (string_of_arm_mnemonic mn);
     id_safe := [::]; (* TODO_ARM: Complete. *)
+    id_pp_asm := pp_arm_op mn opts;
+  |}.
+
+Definition arm_CLZ_instr :=
+  let mn := CLZ in
+  {|
+    id_msb_flag := MSB_MERGE;
+    id_tin := [:: sreg ];
+    id_in := [:: E 1 ];
+    id_tout := [:: sreg ];
+    id_out := [:: E 0 ];
+    id_semi := fun w => ok (leading_zero w);
+    id_nargs := 2;
+    id_args_kinds := ak_reg_reg;
+    id_eq_size := refl_equal;
+    id_tin_narr := refl_equal;
+    id_tout_narr := refl_equal;
+    id_tin_nabst := refl_equal;
+    id_tout_nabst := refl_equal;
+    id_check_dest := refl_equal;
+    id_str_jas := pp_s (string_of_arm_mnemonic mn);
+    id_safe := [::];
     id_pp_asm := pp_arm_op mn opts;
   |}.
 
@@ -1704,7 +2048,12 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | SMLAL => arm_SMLAL_instr
   | SMMUL => arm_SMMUL_instr
   | SMMULR => arm_SMMULR_instr
+  | SMUL_hw hw0 hw1 => arm_smul_hw_instr hw0 hw1
+  | SMLA_hw hw0 hw1 => arm_smla_hw_instr hw0 hw1
+  | SMULW_hw hw => arm_smulw_hw_instr hw
   | AND => arm_AND_instr
+  | BFC => arm_BFC_instr
+  | BFI => arm_BFI_instr
   | BIC => arm_BIC_instr
   | EOR => arm_EOR_instr
   | MVN => arm_MVN_instr
@@ -1723,6 +2072,7 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | UXTB => arm_UXTB_instr
   | UXTH => arm_UXTH_instr
   | SBFX => arm_SBFX_instr
+  | CLZ => arm_CLZ_instr
   | CMP => arm_CMP_instr
   | TST => arm_TST_instr
   | LDR => arm_load_instr LDR
@@ -1733,6 +2083,7 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | STR => arm_store_instr STR
   | STRB => arm_store_instr STRB
   | STRH => arm_store_instr STRH
+  | CMN => arm_CMN_instr
   end.
 
 End ARM_INSTR.

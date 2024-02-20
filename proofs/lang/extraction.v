@@ -28,6 +28,7 @@ Extract Constant expr.var_info => "Location.t".
 Extract Constant expr.InstrInfo.t => "IInfo.t".
 Extract Constant expr.InstrInfo.witness => "IInfo.dummy".
 Extract Constant expr.InstrInfo.with_location => "IInfo.with_location".
+Extract Constant expr.InstrInfo.is_inline => "IInfo.is_inline".
 Extract Constant expr.instr_info => "IInfo.t".
 Extract Constant expr.fun_info => "FInfo.t".
 Extract Constant waes.MixColumns => "(fun _ -> failwith ""MixColumns is not implemented"")".

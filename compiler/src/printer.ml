@@ -61,7 +61,9 @@ let pp_ge pp_len pp_var =
   | PappN (E.Opack(_sz, pe), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
   | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es  
+    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
+  | Pabstract(opA,es) ->
+    F.fprintf fmt "@[%s(%a)@]" opA.name (pp_list ",@ " pp_expr) es
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
@@ -213,12 +215,11 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       (pp_cblock pp_info pp_len pp_opn pp_var) c (pp_ge pp_len pp_var) e
       (pp_cblock pp_info pp_len pp_opn pp_var) c'
 
-  | Ccall(ii, x, f, e) ->
+  | Ccall(x, f, e) ->
     let pp_x fmt = function
       | [] -> ()
       | x -> F.fprintf fmt "%a =@ " (pp_glvs pp_len pp_var) x in
-    F.fprintf fmt "@[<hov 2>%s%a%s(%a);@]"
-      (match ii with | E.InlineFun -> "#inline " | E.DoNotInline -> "")
+    F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
       pp_x x f.fn_name (pp_ges pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)
@@ -447,6 +448,9 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
     | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
     | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc
+    | Compiler_util.PPElval x ->
+       x |> Conv.lval_of_clval |>
+       pp_glv pp_len (pp_dvar ~debug) fmt
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" fn.fn_name
     | Compiler_util.PPEiinfo ii ->
       let i_loc, _ = ii in

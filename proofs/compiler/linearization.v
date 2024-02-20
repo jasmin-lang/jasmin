@@ -32,8 +32,8 @@ Definition my_error (msg:pp_error) :=
   |}.
 
 (* FIXME: are there internal errors? *)
-Definition gen_error (internal:bool) (ii:option instr_info) (msg:string) :=
-  {| pel_msg      := pp_s msg
+Definition gen_error (internal: bool) (ii: option instr_info) (msg: pp_error) :=
+  {| pel_msg      := msg
    ; pel_fn       := None
    ; pel_fi       := None
    ; pel_ii       := ii
@@ -42,19 +42,29 @@ Definition gen_error (internal:bool) (ii:option instr_info) (msg:string) :=
    ; pel_internal := internal
   |}.
 
-Definition ii_error (ii:instr_info) (msg:string) :=
-  gen_error false (Some ii) msg.
+Definition ii_error (ii: instr_info) (msg: string) :=
+  gen_error false (Some ii) (pp_s msg).
 
-Definition error (msg:string) :=
-  gen_error false None msg.
+Definition error (msg: string) :=
+  gen_error false None (pp_s msg).
 
-Definition internal_error (msg:string) :=
-  gen_error true None msg.
+Definition internal_error (msg: string) :=
+  gen_error true None (pp_s msg).
+
+Definition assign_remains (ii : instr_info) (lv: lval) (e: pexpr) :=
+  gen_error false (Some ii)
+    (pp_nobox [:: pp_s "The following assignment remains:"; PPEbreak;
+      pp_lv lv; pp_s " = "; pp_e e; PPEbreak;
+      pp_s "Is there an instruction in the target architecture that can implement it?"; PPEbreak;
+      pp_s "More information may be found online: https://github.com/jasmin-lang/jasmin/wiki/FAQ"
+  ]).
 
 End E.
 
 
 (* --------------------------------------------------------------------------- *)
+Section LINEARIZATION_PARAMS.
+Context {A: Tabstract}.
 
 Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
   {
@@ -131,6 +141,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
       -> option fopn_args;
   }.
 
+End LINEARIZATION_PARAMS.
 
 (* Note on function calls: 
   
@@ -180,6 +191,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
 
 Section WITH_PARAMS.
 
+Context {AC: Tabstract}.
 Context
   {asm_op : Type}
   {pd : PointerData}
@@ -190,12 +202,6 @@ Definition lassign
   (le : lexpr) (ws : wsize) (re : rexpr) : option linstr_r :=
   let%opt (lvs, op, es) := lip_lassign liparams le ws re in
   Some (Lopn lvs op es).
-
-Definition lassign'
-  (lv : lval) (ws : wsize) (e : pexpr) : option linstr_r :=
-  let%opt le := lexpr_of_lval lv in
-  let%opt re := rexpr_of_pexpr e in
-  lassign le ws re.
 
 (* Return a linear instruction that corresponds to copying a register.
    The linear instruction [lmove ii rd ws r0] corresponds to
@@ -267,7 +273,7 @@ Section EXPR.
   Definition to_fexpr (e: pexpr) : fexpr :=
     if fexpr_of_pexpr e is Some r then r else Fconst 0.
 
-  Let error msg := E.gen_error true (Some ii) msg.
+  Let error msg := E.gen_error true (Some ii) (pp_s msg).
 
   Definition check_fexpr := check_Some error fexpr_of_pexpr "check_fexpr".
 
@@ -311,7 +317,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
     match ir with
-    | Cassgn x tag ty e => Error (E.ii_error ii "assign remains")
+    | Cassgn lv _ _ e => Error (E.assign_remains ii lv e)
     | Copn xs tag o es =>
       allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Csyscall xs o es =>
@@ -328,7 +334,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
       | Some true => check_c check_i c >> check_c check_i c'
       | None => check_fexpr ii e >> check_c check_i c >> check_c check_i c'
       end
-    | Ccall _ xs fn es =>
+    | Ccall xs fn es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
         let e := f_extra fd in
@@ -430,6 +436,7 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 
 Section FUN.
 
+Context {A: Tabstract}.
 Context
   (fn : funname)
   (fn_align : wsize).
@@ -629,7 +636,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       end
     end
 
-  | Ccall _ xs fn' es =>
+  | Ccall xs fn' es =>
     if get_fundef (p_funcs p) fn' is Some fd then
       let e := f_extra fd in
       let ra := sf_return_address e in

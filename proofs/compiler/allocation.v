@@ -435,6 +435,12 @@ Definition check_gv x1 x2 (m:M.t) : cexec M.t :=
   else
     Let _ := assert (x1.(gv).(v_var) == x2.(gv).(v_var)) error_e in ok m.
 
+Definition check_opa (opa1 opa2: opA) (m:M.t) :=
+  Let _ := assert (pa_name opa1  == pa_name opa2) error_e in
+  Let _ := assert (pa_tyin opa1 == pa_tyin opa2) error_e in
+  Let _ := assert (pa_tyout opa1 == pa_tyout opa2) error_e in
+  ok m.
+
 Definition check_var_aux (x1 x2:var) m (h:M.v_compat_type x1 x2): cexec M.t :=
   ok (M.set m x1 x2 h).
 
@@ -477,6 +483,9 @@ Fixpoint check_e_aux (lm:M.t) (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let lmb := check_varc x1 x2 lm in
     Let _ := assert (o1 == o2) error_e in
     check_e_aux lm s1 s2 m >>= check_e_aux lm len1 len2 >>= check_e_aux lm e1 e2  >>= check_e_aux lmb b1 b2
+  | Pabstract o1 es1, Pabstract o2 es2 =>
+    Let _ := check_opa o1 o2 m in
+    fold2 (alloc_error "check_e (appN)") (check_e_aux lm) es1 es2 m
   | _, _ => Error error_e
   end.
 
@@ -555,6 +564,7 @@ Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
 
 Section WITH_PARAMS.
 
+Context {A: Tabstract}.
 Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}.
@@ -573,7 +583,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
     Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
     check_es es1 es2 r >>= check_lvals xs1 xs2
 
-  | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 =>
+  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
     Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
     check_es arg1 arg2 r >>= check_lvals x1 x2
 

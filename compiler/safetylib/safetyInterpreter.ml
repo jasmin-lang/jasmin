@@ -304,11 +304,13 @@ let rec safe_e_rec safe = function
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (_,es) -> List.fold_left safe_e_rec safe es
-
+  | Pabstract (_, es) -> List.fold_left safe_e_rec safe es
   | Pif  (_,e1, e2, e3) ->
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
+  | Pfvar _ -> assert false
+  | Pbig (e1, e2, op2, v, e3, e4) -> assert false
 
 let safe_e = safe_e_rec []
 
@@ -357,7 +359,7 @@ let split_div sg ws es =
 
 let safe_opn safe opn es = 
   let id =
-    Sopn.get_instr_desc
+    Sopn.get_instr_desc Build_Tabstract
       X86_decl.x86_decl.reg_size
       (Arch_extra.asm_opI X86_arch_full.X86_core.asm_e)
       opn
@@ -387,7 +389,7 @@ let safe_instr ginstr = match ginstr.i_desc with
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
   | Cif(e, _, _) | Cassert (_, _, e) -> safe_e e
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
-  | Ccall(_, lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
+  | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
 
 let safe_return main_decl =
@@ -1490,7 +1492,7 @@ end = struct
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
       | Cwhile (_, st1, e, st2) -> 
         nm_e vs_for e && nm_stmt vs_for st1 && nm_stmt vs_for st2
-      | Ccall (_, lvs, fn, es)  -> 
+      | Ccall (lvs, fn, es)  -> 
         let f' = get_fun_def prog fn |> oget in
         nm_lvs vs_for lvs && nm_es vs_for es && nm_fdecl f'
 
@@ -1506,7 +1508,10 @@ end = struct
       | Papp1 (_, e)       -> nm_e vs_for e
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
+      | Pabstract (_,es)   -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
+      | Pfvar _ -> assert false
+      | Pbig _ -> assert false
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es
 
@@ -1922,7 +1927,7 @@ end = struct
         { state with abs = abs; } 
 
 
-      | Ccall(_, lvs, f, es) ->
+      | Ccall(lvs, f, es) ->
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 

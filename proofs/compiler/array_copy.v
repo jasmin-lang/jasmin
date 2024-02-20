@@ -112,15 +112,15 @@ Fixpoint array_copy_i (i:instr) : cexec cmd :=
       Let c1 := array_copy_c array_copy_i c1 in
       Let c2 := array_copy_c array_copy_i c2 in
       ok [:: MkI ii (Cwhile a c1 e c2)]
-  | Ccall _ _ _ _ => ok [:: i]
+  | Ccall _ _ _ => ok [:: i]
   end.
 
 Context {pT: progT}.
 
 Definition array_copy_fd (f:fundef) :=
-  let 'MkFun fi tyin params c tyout res ev := f in
+  let 'MkFun fi ci tyin params c tyout res ev := f in
   Let c := array_copy_c array_copy_i c in
-  ok (MkFun fi tyin params c tyout res ev).
+  ok (MkFun fi ci tyin params c tyout res ev).
 
 Definition array_copy_prog (p:prog) := 
   let V := vars_p (p_funcs p) in 

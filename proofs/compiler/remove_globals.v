@@ -86,7 +86,7 @@ Section REMOVE.
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ _ | Cassert _ _ _ => ok gd
+    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ | Cassert _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -150,6 +150,9 @@ Section REMOVE.
       | PappN op es =>
         Let es := mapM (remove_glob_e ii env) es in
         ok (PappN op es)
+      | Pabstract s es =>
+        Let es := mapM (remove_glob_e ii env) es in
+        ok (Pabstract s es)
       | Pif t e e1 e2 =>
         Let e := remove_glob_e ii env e in
         Let e1 := remove_glob_e ii env e1 in
@@ -317,10 +320,10 @@ Section REMOVE.
             Let envc := loop check_c Loop.nb env in
             let: (env, c) := envc in
             ok (env, [::MkI ii (Cfor xi (d,e1,e2) c)])
-        | Ccall i lvs fn es =>
+        | Ccall lvs fn es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
-          ok (env, [::MkI ii (Ccall i lvs fn es)])
+          ok (env, [::MkI ii (Ccall lvs fn es)])
         end
       end.
 
@@ -335,6 +338,7 @@ Section REMOVE.
       Let envc := remove_glob remove_glob_i env f.(f_body) in
       ok
         {| f_info   := f.(f_info);
+           f_contra := f.(f_contra);
            f_tyin   := f.(f_tyin);
            f_params := f.(f_params);
            f_body   := envc.2;

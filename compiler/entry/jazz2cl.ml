@@ -5,22 +5,9 @@ open Prog
 
 type arch = Amd64 | CortexM
 
-let rec add_inline_i i = 
-  { i with i_desc = add_inline_id i.i_desc }
-
-and add_inline_id i = 
-  match i with
-  | Cif(e,c1,c2) -> Cif(e, add_inline_c c1, add_inline_c c2)
-  | Cfor(x,r,c)  -> Cfor(x,r, add_inline_c c)
-  | Cwhile(a,c1,e,c2) -> Cwhile(a, add_inline_c c1, e, add_inline_c c2)
-  | Ccall (_, xs, f, es) -> Ccall(InlineFun, xs, f, es)
-  | Cassert _ | Cassgn _ | Copn _ | Csyscall _ -> i
-
-and add_inline_c c = 
-  List.map add_inline_i c
 
 let add_inline f = 
-  { f with f_body = add_inline_c f.f_body }
+  { f with f_cc = Internal}
 
 let parse_and_print print arch call_conv =
   let _ = if print then Glob_options.set_all_print () in
@@ -104,7 +91,7 @@ let parse_and_print print arch call_conv =
        | Some file -> (open_out file, close_out)
      in
      let fmt = Format.formatter_of_out_channel out in
-        Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp) (List.nth (snd prog) 0);
+        Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp (snd prog)) (List.nth (snd prog) 0);
      close out
   with
   | Utils.HiError e ->
@@ -185,7 +172,7 @@ let call_conv =
 
 
 let () =
-  let doc = "Pretty-print Jasmin source programs into LATEX" in
+  let doc = "Pretty-print Jasmin source programs into Cryptoline" in
   let man =
     [
       `S Manpage.s_environment;

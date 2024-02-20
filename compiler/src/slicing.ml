@@ -16,6 +16,7 @@ let rec inspect_e k = function
   | Pload (_, _, e) | Papp1 (_, e) -> inspect_e k e
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
+  | Pabstract (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
   | Pfvar _ -> k
   | Pbig(e1, e2, op2, x, e0, body) -> 
@@ -35,11 +36,12 @@ and inspect_instr k i = inspect_instr_r k i.i_desc
 and inspect_instr_r k = function
   | Cassgn (x, _, _, e) -> inspect_lv (inspect_e k e) x
   | Copn (xs, _, _, es) | Csyscall (xs, _, es) ->
-      inspect_lvs (inspect_es k es) xs
+    inspect_lvs (inspect_es k es) xs
+  | Cassert (_, _, e) -> inspect_e k e
   | Cif (g, a, b) | Cwhile (_, a, g, b) ->
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s
-  | Ccall (_, xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
+  | Ccall (xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
 
 let slice fs (gd, fds) =
   let funs =
