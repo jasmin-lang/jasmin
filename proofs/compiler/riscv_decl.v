@@ -109,13 +109,18 @@ Instance reg_toS : ToString (sword riscv_reg_size) register :=
 (* -------------------------------------------------------------------- *)
 (* Conditions. *)
 
-Variant condt : Type :=
-| EQ_ct : register -> register -> condt    (* Equal. *)
-| NE_ct : register -> register -> condt    (* Not equal. *)
-| LT_ct : register -> register -> condt    (* Signed less than. *)
-| LTU_ct : register -> register -> condt   (* Unsigned Less than. *)
-| GE_ct : register -> register -> condt    (* Signed Greater than or equal to. *)
-| GEU_ct : register -> register -> condt.  (* Unsigned Greater than or equal to. *)
+Variant condition_kind :=
+| EQ               (* Equal. *)
+| NE               (* Not equal. *)
+| LT of signedness (* Signed / Unsigned less than. *)
+| GE of signedness (* Signed / Unsigned greater than or equal to. *)
+.
+
+Record condt := {
+  cond_kind : condition_kind;
+  cond_fst : register;
+  cond_snd : register;
+}.
 
 Scheme Equality for condt.
 
@@ -132,6 +137,8 @@ Canonical condt_eqType := @ceqT_eqType _ eqTC_condt.
 
 (* -------------------------------------------------------------------- *)
 (* Dummy Flag combinations. *)
+
+(* TODO: should we fail/return None instead of this dummy? *)
 Definition riscv_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
   FCVar0 .
 
@@ -139,7 +146,8 @@ Definition riscv_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
 Instance riscv_fcp : FlagCombinationParams :=
   {
     fc_of_cfc := riscv_fc_of_cfc;
-  }. 
+  }.
+
 (* -------------------------------------------------------------------- *)
 (* Architecture declaration. *)
 

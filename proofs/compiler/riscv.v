@@ -15,27 +15,21 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
 Definition riscv_eval_cond (get: register -> word riscv_reg_size) (c: condt) :
   result error bool :=
-  match c with
-  | EQ_ct r1 r2 =>
-    ok(get r1 == get r2)
-  | NE_ct r1 r2 =>
-    ok(get r1 != get r2)
-  | LT_ct r1 r2 =>
-    ok(wsigned (get r1) <? wsigned (get r2))
-  | LTU_ct r1 r2 =>
-    ok(wunsigned (get r1) <? wunsigned (get r2))
-  | GE_ct r1 r2 =>
-    ok(wsigned (get r1) >=? wsigned (get r2))
-  | GEU_ct r1 r2 =>
-    ok(wunsigned (get r1) >=? wunsigned (get r2))
-  end%Z.
+  let repr sg := if sg is Signed then wsigned else wunsigned in
+  let binop x y :=
+    match c.(cond_kind) with
+    | EQ => x == y
+    | NE => x != y
+    | LT sg => repr sg x <? repr sg y
+    | GE sg => repr sg x >=? repr sg y
+    end%Z
+  in
+  ok (binop (get c.(cond_fst)) (get c.(cond_snd))).
 
 #[ export ]
 Instance riscv : asm register register_ext xregister rflag condt riscv_op :=
   {
     eval_cond := fun r _ => riscv_eval_cond r;
   }.
-
