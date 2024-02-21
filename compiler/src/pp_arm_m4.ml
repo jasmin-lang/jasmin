@@ -6,6 +6,7 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 
 open Arch_decl
 open Utils
+open PrintCommon
 open Prog
 open Var0
 open Arm_decl
@@ -67,7 +68,8 @@ let print_asm_lines fmt lns =
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
 
-let string_of_label name p = Printf.sprintf "L%s$%d" name (Conv.int_of_pos p)
+let string_of_label name p =
+  Format.asprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
 
 let pp_label n lbl = string_of_label n lbl
 
@@ -313,11 +315,13 @@ let pp_brace s = Format.sprintf "{%s}" s
 let pp_fun (fn, fd) =
   let fn = fn.fn_name in
   let head =
+    let fn = escape fn in
     if fd.asm_fd_export then
       [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
     else []
   in
   let pre =
+    let fn = escape fn in
     if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
   let body = pp_body fn fd.asm_fd_body in
