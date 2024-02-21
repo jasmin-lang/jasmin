@@ -1,0 +1,13 @@
+/* Parameters
+  fn f(reg u32) -> reg u32
+*/
+fn map(reg ptr u32[4] p) -> reg ptr u32[4] {
+  inline int i;
+  for i = 0 to 4 {
+    reg u32 t;
+    t = p[i];
+    t = f(t);
+    p[i] = t;
+  }
+  return p;
+}

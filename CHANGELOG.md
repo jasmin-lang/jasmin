@@ -89,6 +89,10 @@
 - Relaxed alignment constraints for memory and array accesses
   ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748)).
 
+- Namespaces can be used to structure source code and require the same file
+  more than once (in different contexts)
+  ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators

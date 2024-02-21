@@ -29,6 +29,7 @@
 %token BANG
 %token BANGEQ
 %token COLON
+%token COLONCOLON
 %token COMMA
 %token CONSTANT
 %token DOT
@@ -53,6 +54,7 @@
 %token               LTLT
 %token MINUS
 %token MUTABLE
+%token NAMESPACE
 %token PARAM
 %token PERCENT
 %token PIPE
@@ -101,8 +103,11 @@
 
 %%
 
+%inline qident:
+| x = separated_nonempty_list(COLONCOLON, NID) { String.concat "::" x }
+
 %inline ident:
-| x=loc(NID) { x }
+| x=loc(qident) { x }
 
 var:
 | x=ident { x }
@@ -492,6 +497,8 @@ top:
 | x=pglobal  { Syntax.PGlobal x }
 | x=pexec    { Syntax.Pexec   x }
 | x=prequire { Syntax.Prequire x}
+| NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
+    { Syntax.PNamespace (name, pfs) }
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

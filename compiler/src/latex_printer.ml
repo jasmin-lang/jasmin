@@ -386,7 +386,7 @@ let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
 let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
 
-let pp_pitem fmt pi =
+let rec pp_pitem fmt pi =
   match L.unloc pi with
   | PFundef f -> pp_fundef fmt f
   | PParam p  -> pp_param fmt p
@@ -399,6 +399,15 @@ let pp_pitem fmt pi =
       F.fprintf fmt "%a%a " pp_from from kw "require";
       List.iter (pp_path fmt) s;
       F.fprintf fmt eol
+  | PNamespace (ns, pis) ->
+     (* TODO: ident within namespaces? *)
+     F.fprintf fmt "%a %s " kw "namespace" (L.unloc ns);
+     openbrace fmt ();
+     F.fprintf fmt eol;
+     List.iter (pp_pitem fmt) pis;
+     F.fprintf fmt eol;
+     closebrace fmt ();
+     F.fprintf fmt eol
 
 let pp_prog fmt =
   List.iter (F.fprintf fmt "%a" pp_pitem)
