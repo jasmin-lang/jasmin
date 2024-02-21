@@ -22,6 +22,10 @@
   ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748),
   [PR #772](https://github.com/jasmin-lang/jasmin/pull/772)).
 
+- Namespaces can be used to structure source code and require the same file
+  more than once (in different contexts)
+  ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734)).
+
 ## Bug fixes
 
 - The compiler no longer throws an exception when a required file does not exist

@@ -1,3 +1,6 @@
+val escape : string -> string
+(** replace dots & columns by underscores *)
+
 val pp_string0 : Format.formatter -> char list -> unit
 val pp_wsize : Format.formatter -> Wsize.wsize -> unit
 val pp_aligned : Format.formatter -> Memory_model.aligned -> unit

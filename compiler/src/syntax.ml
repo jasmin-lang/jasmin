@@ -290,6 +290,7 @@ type pitem =
   | PGlobal of pglobal
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
+  | PNamespace of pident * pitem L.located list
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

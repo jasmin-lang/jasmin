@@ -1,5 +1,6 @@
 (* -------------------------------------------------------------------- *)
 open Utils
+open PrintCommon
 open Prog
 open Arch_decl
 open Label
@@ -34,7 +35,7 @@ let pp_gens (fmt : Format.formatter) xs =
 
 (* -------------------------------------------------------------------- *)
 let string_of_label name (p : label) =
-  Format.sprintf "L%s$%d" name (Conv.int_of_pos p)
+  Format.asprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
 type lreg =
@@ -463,15 +464,18 @@ module Printer (BP:BPrinter) = struct
        `Instr (".p2align", ["5"])];
   
     List.iter (fun (n, d) ->
-        if d.asm_fd_export then pp_gens fmt
-      [`Instr (".globl", [mangle n.fn_name]);
-       `Instr (".globl", [n.fn_name])])
+        if d.asm_fd_export then
+          let fn = escape n.fn_name in
+          pp_gens fmt
+      [`Instr (".globl", [mangle fn]);
+       `Instr (".globl", [fn])])
       asm.asm_funcs;
   
     List.iter (fun (n, d) ->
         let name = n.fn_name in
         let export = d.asm_fd_export in
         if export then
+          let name = escape name in
         pp_gens fmt [
           `Label (mangle name);
           `Label name

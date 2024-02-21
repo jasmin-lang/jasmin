@@ -216,6 +216,13 @@ let pp_tyerror fmt (code : tyerror) =
     F.fprintf fmt "%s" s
 
 (* -------------------------------------------------------------------- *)
+(* Utility functions related to name spaces *)
+let qualify ns n = Format.asprintf "%s::%s" ns n
+
+let fully_qualified (stack: (A.symbol * 'a) list) n =
+  List.fold_left (fun n (ns, _) -> qualify ns n) n stack
+
+(* -------------------------------------------------------------------- *)
 module Env : sig
   type 'asm env
 
@@ -234,7 +241,10 @@ module Env : sig
   val is_reserved : 'asm env -> string -> bool
 
   val set_known_implicits : 'asm env -> (string * string) list -> 'asm env
-  val get_known_implicits : 'asm env -> (string * string) list 
+  val get_known_implicits : 'asm env -> (string * string) list
+
+  val enter_namespace : 'asm env -> A.pident -> 'asm env
+  val exit_namespace : 'asm env -> 'asm env
 
   module Vars : sig
     val push_global   : 'asm env -> (P.pvar * P.pexpr P.ggexpr) -> 'asm env
@@ -249,7 +259,7 @@ module Env : sig
   end
 
   module Funs : sig
-    val push : 'asm env -> (unit, 'asm) P.pfunc -> P.pty list -> 'asm env 
+    val push : 'asm env -> (unit, 'asm) P.pfunc -> P.pty list -> 'asm env
     val find : A.symbol -> 'asm env -> ((unit, 'asm) P.pfunc * P.pty list) option
   end
 
@@ -261,15 +271,19 @@ module Env : sig
 end  = struct
 
   type loader = 
-    { loaded : Path.t list (* absolute path *)
+    { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
     ; idir   : Path.t      (* absolute initial path *)
     ; dirs   : Path.t list 
     ; from   : (A.symbol, Path.t) Map.t
     } 
 
+  type 'asm global_bindings = {
+      gb_vars : (A.symbol, P.pvar * E.v_scope) Map.t;
+      gb_funs : (A.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
+    }
+
   type 'asm env = {
-    e_vars    : (A.symbol, P.pvar * E.v_scope) Map.t;
-    e_funs    : (A.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
+    e_bindings : (A.symbol * 'asm global_bindings) list * 'asm global_bindings;
     e_decls   : (unit, 'asm) P.pmod_item list;
     e_exec    : (P.funname * (Z.t * Z.t) list) L.located list;
     e_loader  : loader;
@@ -281,15 +295,16 @@ end  = struct
   }
 
   let empty_loader =
-    { loaded = []
+    { loaded = Map.empty
     ; idir = Path.of_string (Sys.getcwd ())
     ; dirs = [[]]
     ; from = Map.empty
     }
 
+  let empty_gb = { gb_vars = Map.empty ; gb_funs = Map.empty }
+
   let empty : 'asm env =
-    { e_vars    = Map.empty
-    ; e_funs    = Map.empty
+    { e_bindings = [], empty_gb
     ; e_decls   = []
     ; e_exec    = []
     ; e_loader  = empty_loader
@@ -306,6 +321,41 @@ end  = struct
 
   let set_known_implicits env known_implicits = { env with e_known_implicits = known_implicits }
   let get_known_implicits env = env.e_known_implicits
+
+  let enter_namespace env ns =
+    let stack, bot = env.e_bindings in
+    { env with e_bindings = (L.unloc ns, empty_gb) :: stack, bot }
+
+  let merge_bindings on_duplicate ns =
+    Map.foldi (fun n v dst ->
+        let n = qualify ns n in
+        begin match Map.find n dst with
+        | exception Not_found -> ()
+        | (k, _) -> on_duplicate n (fst v) k end;
+        Map.add n v dst)
+
+  let warn_duplicate_var name v v' =
+    warning DuplicateVar (L.i_loc0 v.P.v_dloc)
+      "the variable %s is already declared at %a"
+      name L.pp_loc v'.P.v_dloc
+
+  let err_duplicate_fun name v fd =
+    rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
+
+  let merge_bindings (ns, src) dst =
+    { gb_vars = merge_bindings warn_duplicate_var ns src.gb_vars dst.gb_vars
+    ; gb_funs = merge_bindings err_duplicate_fun ns src.gb_funs dst.gb_funs
+    }
+
+  let exit_namespace env =
+    match env.e_bindings with
+    | [], _ -> assert false
+    | top :: [], bot ->
+       let merged = merge_bindings top bot in
+       { env with e_bindings = [], merged }
+    | top :: (ns, next) :: stack, bot ->
+       let merged = merge_bindings top next in
+       { env with e_bindings = (ns, merged) :: stack, bot }
 
   let add_from env (name, filename) = 
     let p = Path.of_string filename in 
@@ -345,11 +395,12 @@ end  = struct
       if Path.is_absolute p then p
       else Path.concat loader.idir p in
     let ap = Path.normalize_in_tree ap in
-    if List.mem ap loader.loaded then None
+    let namespace = fully_qualified (fst env.e_bindings) "<>" in
+    if List.mem ap (Map.find_default [] namespace loader.loaded) then None
     else
-      let e_loader = 
+      let e_loader =
         { loader with
-          loaded = ap :: loader.loaded;
+          loaded = Map.modify_def [] namespace (List.cons ap) loader.loaded;
           dirs = List.tl p :: loader.dirs } in
       Some({ env with e_loader }, Path.to_string p)
 
@@ -359,44 +410,71 @@ end  = struct
     
   let decls env = env.e_decls 
 
-  let dependencies env = env.e_loader.loaded
-    
+  let dependencies env =
+    Map.fold ( @ ) env.e_loader.loaded []
+
+  let find (proj: 'asm global_bindings -> (A.symbol, 'a) Map.t) (x: A.symbol) (env: 'asm env) : 'a option =
+    let stack, bot = env.e_bindings in
+    let rec loop x =
+      function
+      | [] -> None
+      | (_, top) :: stack ->
+         match Map.find x (proj top) with
+         | exception Not_found -> loop x stack
+         | v -> Some v
+    in match loop x stack with
+       | None -> Map.Exceptionless.find x (proj bot)
+       | r -> r
+
   (* Local variables *)
 
   module Vars = struct
 
-    let find (x : A.symbol) (env : 'asm env) = 
-      Map.Exceptionless.find x env.e_vars
+    let find (x : A.symbol) (env : 'asm env) =
+      find (fun b -> b.gb_vars) x env
 
-    let warn_double_decl v map = 
-      try 
-        let v', _ = Map.find v.P.v_name map in
-        warning DuplicateVar (L.i_loc0 v.v_dloc) 
-          "the variable %s is already declared at %a"
-          v.v_name L.pp_loc v'.P.v_dloc 
-      with Not_found -> ()
+    let warn_double_decl v map =
+      let name = v.P.v_name in
+      match Map.find name map with
+      | exception Not_found -> ()
+      | v', _ -> warn_duplicate_var name v v'
 
-    let push_core (env : 'asm env) (v : P.pvar) (s : E.v_scope) = 
-      warn_double_decl v env.e_vars; 
-      { env with e_vars = Map.add v.P.v_name (v, s) env.e_vars;
-                 e_reserved = Ss.add v.P.v_name env.e_reserved;
-      }
+    let push_core (env : 'asm env) (name: P.Name.t) (v : P.pvar) (s : E.v_scope) =
+      let doit m =
+        warn_double_decl v m.gb_vars;
+        { m with gb_vars = Map.add name (v, s) m.gb_vars }
+      in
+      let e_bindings =
+        match env.e_bindings with
+        | [], bot -> [], doit bot
+        | (ns, top) :: stack, bot ->
+           (ns, doit top) :: stack, bot
+      in
+      { env with e_bindings; e_reserved = Ss.add name env.e_reserved;}
 
-    let push_global env (x, _ as d) = 
-      let env = push_core env x Sglob in
-      { env with e_decls = P.MIglobal d :: env.e_decls }
-      
-    let push_param env (x,_ as d) = 
-      let env = push_core env x Slocal in
-      { env with e_decls = P.MIparam d :: env.e_decls } 
-    
+    let rename_var name x =
+      P.GV.mk name x.P.v_kind x.P.v_ty x.P.v_dloc x.P.v_annot
+
+    let push_global env (x, e) =
+      let name = x.P.v_name in
+      let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
+      let env = push_core env name x Sglob in
+      { env with e_decls = P.MIglobal (x, e) :: env.e_decls }
+
+    let push_param env (x, e) =
+      let name = x.P.v_name in
+      let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
+      let env = push_core env name x Slocal in
+      { env with e_decls = P.MIparam (x, e) :: env.e_decls }
+
     let push_local (env : 'asm env) (v : P.pvar) =
       env.e_declared := P.Spv.add v !(env.e_declared);
-      push_core env v Slocal
+      push_core env v.P.v_name v Slocal
 
     let push_implicit (env : 'asm env) (v : P.pvar) =
-      assert (not (Map.mem v.P.v_name env.e_vars));
-      push_core env v Slocal
+      let vars = match env.e_bindings with (_, b) :: _, _ | [], b -> b.gb_vars in
+      assert (not (Map.mem v.P.v_name vars));
+      push_core env v.P.v_name v Slocal
 
     
     let iter_locals f (env : 'asm env) = 
@@ -409,15 +487,25 @@ end  = struct
 
   module Funs = struct
     let find (x : A.symbol) (env : 'asm env) =
-      Map.Exceptionless.find x env.e_funs
+      find (fun b -> b.gb_funs) x env
 
     let push env (v : (unit, 'asm) P.pfunc) rty =
       let name = v.P.f_name.P.fn_name in
+      let v = { v with P.f_name = P.F.mk (fully_qualified (fst env.e_bindings) name) } in
       match find name env with
-      | None -> { env with e_funs = Map.add name (v,rty) env.e_funs;
-                           e_decls = P.MIfun v :: env.e_decls }
-      | Some (fd,_) -> 
-        rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
+      | None ->
+         let doit m =
+           { m with gb_funs = Map.add name (v, rty) m.gb_funs }
+         in
+         let e_bindings =
+           match env.e_bindings with
+           | [], bot -> [], doit bot
+           | (ns, top) :: stack, bot ->
+              (ns, doit top) :: stack, bot
+      in
+      { env with e_bindings; e_decls = P.MIfun v :: env.e_decls }
+      | Some (fd,_) ->
+         err_duplicate_fun name v fd
 
   end
 
@@ -2127,6 +2215,11 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
     Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
+  | S.PNamespace (ns, items) ->
+     let env = Env.enter_namespace env ns in
+     let env = List.fold_left (tt_item arch_info) env items in
+     let env = Env.exit_namespace env in
+     env
 
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))

@@ -40,6 +40,7 @@
     "if"    , IF     ;
     "inline", INLINE ;
     "mut"   , MUTABLE;
+    "namespace", NAMESPACE;
     "param" , PARAM  ;
     "ptr"   , POINTER;
     "reg"   , REG    ;
@@ -156,6 +157,7 @@ rule main = parse
   | ";"     { SEMICOLON  }
   | "?"     { QUESTIONMARK  }
   | ":"     { COLON  }
+  | "::"    { COLONCOLON  }
 
   | ">>r"                   { ROR              }
   | "<<r"                   { ROL              }
