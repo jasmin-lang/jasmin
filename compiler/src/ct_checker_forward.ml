@@ -34,7 +34,6 @@ end = struct
 end
 
 module Svl : Set.S with type elt = Vl.t = Set.Make(Vl)
-module Mvl : Map.S with type key = Vl.t = Map.Make(Vl)
 
 type level =
   | Secret
