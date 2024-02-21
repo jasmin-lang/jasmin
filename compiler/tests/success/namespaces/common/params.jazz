@@ -1,0 +1,27 @@
+namespace Short {
+  param int N = 1;
+  require "sum.jinc"
+}
+
+namespace Long {
+  param int N = 8;
+  require "sum.jinc"
+}
+
+export
+fn test(reg u32 a) -> reg u32 {
+  reg u32[Short::N] x;
+  reg u32[Long::N] y;
+  reg u32 r t;
+  inline int i;
+
+  for i = 0 to Short::N { x[i] = a; }
+  for i = 0 to Long::N { y[i] = a; }
+
+  r = 0;
+  t = Short::sum(x);
+  r += t;
+  t = Long::sum(y);
+  r += t;
+  return r;
+}

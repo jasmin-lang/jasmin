@@ -336,17 +336,12 @@ let create_name env s =
       if Ss.mem s env.alls then aux (i+1)
       else s in
     aux 0
- 
-let mkfunname env fn = 
-  let s = fn.fn_name in
-  let s = 
-    let c0 = s.[0] in
-    let l0 = Char.lowercase_ascii c0 in
-    if c0 = l0 then s
-    else 
-      String.init (String.length s) (fun i -> if i = 0 then l0 else s.[i]) 
-  in
-  create_name env s
+
+let normalize_name n =
+  n |> String.uncapitalize_ascii |> escape
+
+let mkfunname env fn =
+  fn.fn_name |> normalize_name |> create_name env
 
 let empty_env model fds arrsz warrsz randombytes =
 
@@ -440,13 +435,13 @@ let set_var env x option s =
     vars = Mv.add x (s,option) env.vars }
 
 let add_var option env x = 
-  let s = String.uncapitalize_ascii x.v_name in
+  let s = normalize_name x.v_name in
   let s = create_name env s in
   set_var env x option s
 
-let add_glob env x = 
-  let s = create_name env x.v_name in
-  set_var env x false s 
+let add_glob env x =
+  let s = create_name env (normalize_name x.v_name) in
+  set_var env x false s
 
 let pp_oget option pp = 
   pp_maybe option (pp_enclose ~pre:"(oget " ~post:")") pp
