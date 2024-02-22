@@ -116,7 +116,16 @@ let rec pp_rexp fmt e =
       Format.fprintf fmt "(uext %a %i)"
       pp_rexp e1
       (int_of_ws osz- int_of_ws isz)
- | _ ->  raise NoTranslation
+| Pabstract ({name="se_16_64"}, [v]) ->
+    Format.fprintf fmt "sext %a 48"
+      pp_rexp v
+| Pabstract ({name="se_32_64"}, [v]) ->
+    Format.fprintf fmt "sext %a 32"
+      pp_rexp v
+| Pabstract ({name="ze_16_64"}, [v]) ->
+    Format.fprintf fmt "uext %a 48"
+      pp_rexp v
+ | _ ->  assert false
 
 let rec pp_rpred fmt e =
   match e with
@@ -178,7 +187,7 @@ let rec pp_rpred fmt e =
       pp_rpred e2
       pp_rpred e1
       pp_rpred e3
-  | _ ->  raise NoTranslation
+  | _ ->  assert false
 
 let rec extract_list e aux =
   match e with
@@ -236,9 +245,13 @@ let rec  pp_epred fmt e =
 let pp_lval fmt (x,ws) =
   match x with
   | Lvar x -> Format.fprintf fmt "%a@@%a" pp_gvar_i x pp_uint ws
-  | Lnone _ -> Format.fprintf fmt "NONE____"
-  | Lmem _ | Laset _ | Lasub _ -> raise NoTranslation
+  (* MANUEL: NEVER REACHED FOR ASSIGNMENTS *)
+  | Lnone _  -> Format.fprintf fmt "NONE____" 
+  | Lmem _ | Laset _ | Lasub _ -> assert false
 
+(* Manuel: We translate some atomic expressions based on a size
+   which is not theirs. See consts and word_of_ints below. 
+   Does this make sense everywhere? *)
 let rec pp_atome fmt (x,ws) =
   match x with
   | Pconst z ->
@@ -266,15 +279,17 @@ let pp_baseop fmt xs o es =
     match x with
     | Pvar x ->
       Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint ws
-    | _ -> raise NoTranslation
+    | _ -> assert false (* MANUEL: WHAT IS THIS CASE? *)
   in
   match o with
+   (* MANUEL: SPECIAL CASE NOT HANDLED IN ASSIGNMENTS?
+      WHY IS THIS DIFFERENT? *)
   | X86_instr_decl.MOV ws ->
     begin
       match (List.nth es 0) with
       | Pvar x ->
         let ws_x = ws_of_ty (L.unloc x.gv).v_ty in
-        if ws_x != ws (* implicit cast *)
+        if ws_x != ws (* implicit cast is never signed in Jasmin *)
         then Format.fprintf fmt "cast %a %a"
             pp_lval (List.nth xs 0, int_of_ws ws)
             pp_atome (List.nth es 0, int_of_ws ws_x)
@@ -290,8 +305,19 @@ let pp_baseop fmt xs o es =
           pp_lval (List.nth xs 0, int_of_ws ws)
           pp_print_i x
           (int_of_ws ws)
-      | _ ->   raise NoTranslation 
-    end
+      | Pbool _ -> assert false
+      | Parr_init _ -> assert false
+      | Pget (_, _, _, _) -> assert false
+      | Psub (_, _, _, _, _) -> assert false
+      | Pload (_, _, _) -> assert false
+      | Papp1 (_, _) -> assert false
+      | Papp2 (_, _, _) -> assert false
+      | PappN (_, _) -> assert false
+      | Pabstract (_,_) -> assert false
+      | Pif (_, _, _, _) -> assert false
+      | Pfvar _ -> assert false
+      | Pbig (_, _, _, _, _, _) -> assert false
+      end
 
   | ADD ws ->
 
@@ -306,11 +332,12 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SUB ws ->
-    Format.fprintf fmt "subb %a %a %a %a"
+    Format.fprintf fmt "cast __UNUSED@uint%i %a;@ subb %a %a %a __UNUSED"
+      (int_of_ws ws)
+      pp_atome (List.nth es 1, int_of_ws ws)
       pp_lval (List.nth xs 1, 1)
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
 
   | IMULr ws ->
     Format.fprintf fmt "mull dontcare %a %a %a"
@@ -416,8 +443,8 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SAR ws ->
-     let fmt_ =
-       match (List.nth es 1) with
+    let fmt_ =
+(*       match (List.nth es 1) with
        Papp1 (Oword_of_int _, Pconst x) -> 
          if Z.to_int x == int_of_ws ws - 1
          then Format.fprintf fmt "split sign TMP__ %a %a;subc carry2__ %a 0@uint%i sign"
@@ -429,8 +456,8 @@ let pp_baseop fmt xs o es =
          Format.fprintf fmt "split %a TMP__ %a %a"
           pp_lval (List.nth xs 5, int_of_ws ws)
           pp_atome (List.nth es 0, int_of_ws ws)
-          pp_print_i x
-     | _ ->
+          pp_print_i x 
+     | _ -> *)
         Format.fprintf fmt "sar %a %a %a"
          pp_lval (List.nth xs 5, int_of_ws ws)
          pp_atome (List.nth es 0, int_of_ws ws)
@@ -443,9 +470,15 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | MOVSX (ws1, ws2) ->
-    Format.fprintf fmt "cast %a %a"
-      pp_lval (List.nth xs 0, int_of_ws ws1)
+    Format.fprintf fmt "cast dada__@@sint%d %a;
+                        cast dada1__@@sint%d dada__@@sint%d;
+                        cast %a dada1__@@sint%d"
+      (int_of_ws ws2)
       pp_atome (List.nth es 0, int_of_ws ws2)
+      (int_of_ws ws1)
+      (int_of_ws ws2)
+      pp_lval (List.nth xs 0, int_of_ws ws1)
+      (int_of_ws ws1)
 
   | MOVZX (ws1, ws2) ->
     Format.fprintf fmt "cast %a %a"
@@ -482,6 +515,8 @@ let rec filter_clause cs (cas,smt) =
   | (Expr.Smt,c)::q -> filter_clause q (cas,c::smt)
 
 let pp_extop fmt xs o es =
+  assert false
+(* 
   match o with
   | X86_extra.Oset0 ws ->
     (* FIXME this work for size less than 64 *)
@@ -499,6 +534,7 @@ let pp_extop fmt xs o es =
       pp_atome (List.nth es 0, int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
   | _ -> assert false
+*)
 
 let pp_ext_op fmt xs o es =
   match o with
@@ -584,20 +620,16 @@ let pp_i pd asmOp fds fmt i =
     begin
     match a with
       | Lvar x ->
+        (* MANUEL: WE KEEP WORD SIZES IN ASSIGNMENTS *)
         let ws_x = ws_of_ty (L.unloc x).v_ty in
         Format.fprintf fmt "@[<h>mov %a %a@]"
           pp_lval (a, int_of_ws ws_x)
           pp_atome (e, int_of_ws ws_x)
-      | _ -> assert false
-        (* Format.eprintf "No Translation for assignement: %a@." *)
-        (*   (Printer.pp_instr ~debug:true pd asmOp) i *)
+      (* No memory array or subarray assignments *)
+      | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
   end
-  | Copn(xs, _, o, es) ->
-    (* try *)
-      pp_sopn fmt xs o es
-    (* with NoTranslation ->
-      Format.eprintf "No Translation for opn: %a@."
-        (Printer.pp_instr ~debug:true pd asmOp) i *)
+  (* MANUEL: WE ARE SENDING MOVs HERE *)
+  | Copn(xs, _, o, es) -> pp_sopn fmt xs o es
 
 let pp_c pd asmOp fds fmt c =
   Format.fprintf fmt "@[<v>%a;@]"
@@ -606,7 +638,9 @@ let pp_c pd asmOp fds fmt c =
 let pp_ty fmt ty =
   match ty with
   | Bty Bool -> Format.fprintf fmt "uint1"
-  | Bty Int -> Format.fprintf fmt "uint64"
+  (* MANUEL: FIXME SET DEFAULT WIDTH FOR MODELLING INTEGERS WORDS. 
+     CAN WE BE SURE THAT THIS IS SUFFICIENT FOR ALL USES IN PROGRAM? *)
+  | Bty Int -> Format.fprintf fmt "uint64" 
   | Bty (U ws) -> Format.fprintf fmt "uint%i" (int_of_ws ws)
   | Bty (Abstract _) -> assert false
   | Arr _ -> assert false

@@ -1109,7 +1109,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     if Env.is_abstract_pre env id then
       begin
         let tt_expr pe ty =
-          let e, ety = tt_expr ~mode pd env pe in
+          let e, ety = tt_expr ~mode:`AllVarLogical pd env pe in
           check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:ty;
           e
         in
