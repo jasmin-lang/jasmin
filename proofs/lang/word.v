@@ -628,10 +628,10 @@ Lemma msb_wordE {s} (w : word s) : msb w = mathcomp.word.word.msb w.
 Proof. by []. Qed.
 
 Definition wdwordu sz (hi lo: word sz) : Z :=
-  wunsigned hi * wbase sz + wunsigned lo.
+  wbase sz * wunsigned hi + wunsigned lo.
 
 Definition wdwords sz (hi lo: word sz) : Z :=
-  wsigned hi * wbase sz + wunsigned lo.
+  wbase sz * wsigned hi + wunsigned lo.
 
 Definition waddcarry sz (x y: word sz) (c: bool) :=
   let n := wunsigned x + wunsigned y + Z.b2z c in
@@ -746,7 +746,7 @@ Proof.
   have x_range := wsigned_range x.
   have y_range := wsigned_range y.
   rewrite /wsmul /wdwords high_bits_wbase.
-  set p := _ * wsigned _.
+  set p := _ * wsigned y.
   have p_range : wmin_signed sz * wmax_signed sz <= p <= wmin_signed sz * wmin_signed sz.
   { subst p; case: sz x y x_range y_range => x y;
     rewrite /wmin_signed /wmax_signed /=;
