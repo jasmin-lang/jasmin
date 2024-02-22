@@ -168,6 +168,31 @@ move=> ht [] hs1 hs2. move: (ht hs2)=> [] hs3 hs4.
 by split=> //=.
 Qed.
 
+Lemma wt_safe_get_gvar_not_undef : forall x s t i ty,
+vtype (gv x) = ty ->
+defined_var (gv x) s ->
+get_gvar false gd (evm s) x <> ok (Vundef t i).
+Proof.
+move=> x s t i ty ht hd hg.
+rewrite /defined_var /is_defined in hd.
+rewrite /get_gvar /= in hg. move: hg. case: ifP=> //= hl.
++ rewrite /get_var /=. move=> [] hg. by rewrite hg in hd.
+move=> /get_globalI [gv [hg hg'' hg']]. by case: gv hg hd hg''=> //=.
+Qed.
+
+Lemma wt_safe_get_gvar_not_error : forall x s ty err,
+vtype (gv x) = ty ->
+defined_var (gv x) s ->
+get_gvar false gd (evm s) x <> Error err.
+Proof.
+move=> x s ty err ht hd hg.
+have hter := @get_gvar_not_tyerr asm_op syscall_state ep spp wsw wdb gd x ty s err ht hg.
+rewrite /get_gvar in hg. move: hg. case: ifP=> //= hl.
+rewrite /get_global. case hv: (get_global_value gd (gv x)) ht=> [a | ] //=.
++ case: ifP=> //= /eqP hty ht [] h. by rewrite h in hter.
+move=> ht [] h. by rewrite h in hter.
+Qed.
+
 Lemma safe_not_undef : forall e s t he,
 interp_safe_conds (gen_safe_cond e) s ->
 sem_pexpr false gd s e <> ok (Vundef t he).
@@ -232,10 +257,10 @@ case he1': sem_pexpr=> [ve1 | veer1] //=.
 case he' : sem_pexpr=> [ve | veer] //=. by case hb: to_bool=> [vb | vbr] //=.  
 Qed.
 
-Lemma wt_safe_truncate_not_error : forall e s v t ty err,
+Lemma wt_safe_truncate_not_error : forall pd e s v t ty err,
 interp_safe_conds (gen_safe_cond e) s ->
+ty_pexpr pd e = ok t ->
 sem_pexpr false gd s e = ok v ->
-type_of_val v = t ->
 subtype ty t ->
 truncate_val ty v <> Error err.
 Proof.
@@ -255,15 +280,69 @@ t_xrbindP=> z h1 h2. have := to_valI h2. case: vo h2=> //=.
 move=> w w' hw [] wt heq; subst. by rewrite -wt /= ht /=.
 Qed.
 
+Lemma of_val_equal_not_error : forall t1 t2 ve1 ve2 err,
+value_uincl ve2 ve1 ->
+subtype t2 t1 ->
+of_val t1 ve1 <> Error err ->
+of_val t2 ve2 <> Error err.
+Proof. 
+Admitted.
+
+Lemma wt_safe_of_val_not_error : forall pd s e t ty ve err,
+ty_pexpr pd e = ok t ->
+subtype ty t ->
+interp_safe_conds (gen_safe_cond e) s ->
+sem_pexpr false gd s e = ok ve ->
+of_val ty ve <> Error err.
+Proof.
+move=> pd s e. elim: e=> //=.
++ move=> z t ty ve err [] h hsub hs [] he; subst. rewrite /of_val /=.
+  by case: ty hsub=> //=.
++ move=> b t ty ve err [] h hsub hs [] he; subst. rewrite /of_val /=.
+  by case: ty hsub=> //=.
++ admit.
++ admit.
++ admit.
++ admit.
++ admit.
++ move=> op e hin t ty ve err. case hto: type_of_op1=> [tin tout] //=. 
+  rewrite /check_expr /= /check_type.
+  t_xrbindP=> t1 t2 hte. case: ifP=> //= hsub [] heq heq'; subst. 
+  move=> hsub' hs vz he ho hof. have htve := sem_op1_val_ty tin t op vz ve hto ho.
+  rewrite /sem_sop1 in ho. admit.
++ admit.
++ admit.
+move=> t e hin1 e1 hin2 e2 hin3 t1 t2 v err hc hsub2 hs. 
+have [hs1 {hs} hs] := interp_safe_concat (gen_safe_cond e) (gen_safe_cond e1 ++ gen_safe_cond e2) s hs.
+have [hs2 {hs} hs3] := interp_safe_concat (gen_safe_cond e1) (gen_safe_cond e2) s hs.
+move: hc. rewrite /check_expr /check_type. 
+case hte2: ty_pexpr=> [te2 | ter2] //=. 
++ case hte1: ty_pexpr=> [te1 | ter1] //=.
+  + case hte: ty_pexpr=> [te | ter] //=. case: ifP=> //=.
+    + move=> hsub2'. case: ifP=> //=.
+      + move=> hsub1. case: ifP=> //=. move=> /eqP hb [] hteq; subst.
+        case he2: sem_pexpr=> [ve2 | ver2] //=.
+        + case he1: sem_pexpr=> [ve1 | ver1] //=.
+          + case he: sem_pexpr=> [ve | ver] //=. case hb: to_bool=> [vb | vbr] //=.
+            case htr: truncate_val=> [vt | vtr] //=.
+            + case htr': truncate_val=> [vt' | vtr'] //=. move=> [] hv; subst. 
+              case: ifP=> /=.
+              + move=> hvb. move: (hin2 te1 t1 ve1 err hte1 hsub1 hs2 he1)=> hvr.
+                have hveq := truncate_value_uincl htr'. 
+Admitted.              
+  
+
 Lemma wt_safe_sem_op1_not_error : forall pd op tin tout t1 e s v err,
 type_of_op1 op = (tin, tout) ->
 subtype tin t1 ->
 ty_pexpr pd e = ok t1 ->
 interp_safe_conds (gen_safe_cond e) s ->
 sem_pexpr false gd s e = ok v ->
-type_of_val v = t1 ->
 sem_sop1 op v <> Error err.
 Proof.
+move=> pd op tin tout t e s ve err htop hsub hte hse hs. 
+rewrite /sem_sop1 /=.
+case hvo: of_val=> [vo | vor] //=. rewrite htop /= in hvo.
 Admitted.
 
 Lemma wt_safe_sem_sop2_not_error : forall pd op t1 e1 t2 e2 s ve1 ve2 err,
@@ -326,20 +405,6 @@ move: ht hs he htve. elim: e=> //=.
   + move=> len a hg htve; subst. by rewrite /subtype -htve in hsub.
   + move=> wsz w hg htve; subst. rewrite /subtype -htve in hsub.
     case htt : (truncate_word Uptr (s':=wsz) w)=> //= [etr].
-Admitted.
-
-Lemma wt_safe_get_gvar_not_error : forall x s ty err,
-vtype (gv x) = ty ->
-defined_var (gv x) s ->
-get_gvar false gd (evm s) x <> Error err.
-Proof. 
-Admitted.
-
-Lemma wt_safe_get_gvar_not_undef : forall x s t i ty,
-vtype (gv x) = ty ->
-defined_var (gv x) s ->
-get_gvar false gd (evm s) x <> ok (Vundef t i).
-Proof.
 Admitted.
 
 Lemma wt_safe_read_arr_not_error : forall pd e x p aa sz s arr (p':WArray.array arr) ve vi err,
@@ -483,7 +548,7 @@ move=> pd e s. elim: e=> //=.
   case ho: sem_sop1=> [ vo | vor] //=.
   + exists vo. split=> //=.
     by have := sem_op1_val_ty tin ty op v vo hto ho.
-  by have //= := wt_safe_sem_op1_not_error pd op tin ty t1 e s v vor hto hsub hte hs he ht.
+  by have //= := wt_safe_sem_op1_not_error pd op tin ty t1 e s v vor hto hsub hte hs he.
 (* Papp2 *)
 + move=> op e1 hin1 e2 hin2 ty. rewrite /check_expr /check_type /=.
   t_xrbindP=> t1 t1' ht1. case: ifP=> //= hsub [] hteq t2 t2' ht2; subst.
@@ -527,8 +592,8 @@ case: b he hbt=> //= b he hbt /=.
       case hb: b he=> //= he.
       + by have := truncate_val_has_type ht'.
       by have := truncate_val_has_type ht.
-    by have //= := wt_safe_truncate_not_error e1 s v1 t1 ty vtr' hs3 he1 ht1 hsub.
-  by have //= := wt_safe_truncate_not_error e2 s v2 t2 ty vtr hs4 he2 ht2 hsub'.
+    by have //= := wt_safe_truncate_not_error pd e1 s v1 t1 ty vtr' hs3 hte1 he1 hsub.
+  by have //= := wt_safe_truncate_not_error pd e2 s v2 t2 ty vtr hs4 hte2 he2 hsub'.
 move=> hbeq; subst. by have //= := safe_not_undef e s sbool he hs1 hbt. 
 Qed.
 
