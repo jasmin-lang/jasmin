@@ -243,7 +243,7 @@ let rec  pp_epred fmt e =
 let pp_lval fmt (x,ws) =
   match x with
   | Lvar x -> Format.fprintf fmt "%a@@%a" pp_gvar_i x pp_uint ws
-  (* MANUEL: NEVER REACHED FOR ASSIGNMENTS *)
+  (* Manuel: Never reached for assignments. *)
   | Lnone _  -> Format.fprintf fmt "NONE____" 
   | Lmem _ | Laset _ | Lasub _ -> assert false
 
@@ -277,11 +277,10 @@ let pp_baseop fmt xs o es =
     match x with
     | Pvar x ->
       Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint ws
-    | _ -> assert false (* MANUEL: WHAT IS THIS CASE? *)
+    | _ -> assert false (* Manuel: What is this case? *)
   in
   match o with
-   (* MANUEL: SPECIAL CASE NOT HANDLED IN ASSIGNMENTS?
-      WHY IS THIS DIFFERENT? *)
+   (* Manuel: Special case not handled in assignments? *)
   | X86_instr_decl.MOV ws ->
     begin
       match (List.nth es 0) with
@@ -617,7 +616,7 @@ let pp_i pd asmOp fds fmt i =
     begin
     match a with
       | Lvar x ->
-        (* MANUEL: WE KEEP WORD SIZES IN ASSIGNMENTS *)
+        (* Manuel: we keep word sizes in assignments. *)
         let ws_x = ws_of_ty (L.unloc x).v_ty in
         Format.fprintf fmt "@[<h>mov %a %a@]"
           pp_lval (a, int_of_ws ws_x)
@@ -625,7 +624,7 @@ let pp_i pd asmOp fds fmt i =
       (* No memory array or subarray assignments *)
       | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
   end
-  (* MANUEL: WE ARE SENDING MOVs HERE *)
+  (* Manuel: we are sending MOVs here *)
   | Copn(xs, _, o, es) -> pp_sopn fmt xs o es
 
 let pp_c pd asmOp fds fmt c =
@@ -635,8 +634,8 @@ let pp_c pd asmOp fds fmt c =
 let pp_ty fmt ty =
   match ty with
   | Bty Bool -> Format.fprintf fmt "uint1"
-  (* MANUEL: FIXME SET DEFAULT WIDTH FOR MODELLING INTEGERS WORDS. 
-     CAN WE BE SURE THAT THIS IS SUFFICIENT FOR ALL USES IN PROGRAM? *)
+  (* Manuel: We should have a way to set default width for smt words. 
+     For example, why are we mapping int to uint64? *)
   | Bty Int -> Format.fprintf fmt "uint64" 
   | Bty (U ws) -> Format.fprintf fmt "uint%i" (int_of_ws ws)
   | Bty (Abstract _) -> assert false
