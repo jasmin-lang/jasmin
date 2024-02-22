@@ -24,14 +24,36 @@ End E.
 Section Section.
 
 Context `{asmop:asmOp}.
-Context (fresh_counter: Ident.ident).
+Context
+  (fresh_counter: Ident.ident)
+  (fresh_temporary: wsize → Ident.ident)
+.
 
-(*
+(** Replaces each x = #copy(y) with the following:
+
   x = ArrayInit();
   for i = 0 to n {
     x[i] = y[i];
   }
+
+  The “x = ArrayInit()” part is not introduced when x and y are the same local variable.
+
+  Each copied value goes through a temporary variable when both x and y are in memory (stack or global).
 *)
+
+Definition direct_copy ws x y i :=
+  [:: Cassgn (Laset AAscale ws x i) AT_none (sword ws) (Pget AAscale ws y i) ].
+
+Definition tmp_var ws :=
+  {| vtype := sword ws; vname := fresh_temporary ws |}.
+
+Definition indirect_copy ws x y i :=
+  let tmp := {| v_var := tmp_var ws ; v_info := v_info x |} in
+  [:: Cassgn (Lvar tmp) AT_none (sword ws) (Pget AAscale ws y i);
+   Cassgn (Laset AAscale ws x i) AT_none (sword ws) (Pvar (mk_lvar tmp)) ].
+
+Definition needs_temporary x y : bool :=
+  is_var_in_memory x && is_var_in_memory y.
 
 Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   let i_name := fresh_counter in
@@ -44,7 +66,7 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   [:: MkI ii pre;
       MkI ii
         (Cfor i (UpTo, Pconst 0, Pconst n)
-           [:: MkI ii (Cassgn (Laset AAscale ws x ei) AT_none (sword ws) (Pget AAscale ws y ei))])
+           [seq MkI ii i | i <- (if needs_temporary x y.(gv) then indirect_copy else direct_copy) ws x y ei ])
     ].
 
 Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd :=
@@ -119,9 +141,8 @@ Definition array_copy_fd (f:fundef) :=
 
 Definition array_copy_prog (p:prog) :=
   let V := vars_p (p_funcs p) in
-  Let _ :=
-    assert (~~ Sv.mem {| vtype := sint ; vname := fresh_counter |} V) E.error
-  in
+  let fresh := Sv.add {| vtype := sint ; vname := fresh_counter |} (sv_of_list tmp_var wsizes) in
+  Let _ := assert (disjoint fresh V) E.error in
   Let fds := map_cfprog array_copy_fd (p_funcs p) in
   ok {| p_funcs := fds;
         p_globs := p_globs p;

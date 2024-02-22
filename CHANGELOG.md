@@ -23,6 +23,9 @@
   emitting invalid code
   ([PR #730](https://github.com/jasmin-lang/jasmin/pull/730)).
 
+- Expansion of `#copy` operators uses an intermediate register when needed
+  ([PR #735](https://github.com/jasmin-lang/jasmin/pull/735)).
+
 # Jasmin 2023.06.2 — 2023-12-22
 
 ## New features

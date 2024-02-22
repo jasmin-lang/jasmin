@@ -25,13 +25,18 @@ Context
   {sCP : semCallParams}
   (wf_init : wf_init sCP).
 
-Context (fresh_counter: Ident.ident) (p1 p2: prog) (ev: extra_val_t).
+Context
+  (fresh_counter: Ident.ident)
+  (fresh_temporary: wsize → Ident.ident)
+.
+
+Context (p1 p2: prog) (ev: extra_val_t).
 
 Notation gd := (p_globs p1).
 
-Hypothesis Hp : array_copy_prog fresh_counter p1 = ok p2.
+Hypothesis Hp : array_copy_prog fresh_counter fresh_temporary p1 = ok p2.
 
-Local Definition vi := 
+Local Definition vi :=
   {| vtype := sint ; vname := fresh_counter |}.
 
 Lemma eq_globs : gd = p_globs p2.
@@ -40,7 +45,7 @@ Proof. by move: Hp; rewrite /array_copy_prog; t_xrbindP => ??? <-. Qed.
 Lemma all_checked fn fd1 :
   get_fundef (p_funcs p1) fn = Some fd1 ->
   exists2 fd2, 
-    array_copy_fd fresh_counter fd1 = ok fd2 & 
+    array_copy_fd fresh_counter fresh_temporary fd1 = ok fd2 &
     get_fundef (p_funcs p2) fn = Some fd2.
 Proof.
   move: Hp; rewrite /array_copy_prog; t_xrbindP => h fds h1 <- hf.
@@ -49,14 +54,22 @@ Qed.
 
 Let X := vars_p (p_funcs p1).
 
-Lemma viX : ~Sv.In vi X.
+Lemma freshX : ~ Sv.In vi X ∧ ∀ ws, ~ Sv.In (tmp_var fresh_temporary ws) X.
 Proof.
-  by move: Hp; rewrite /array_copy_prog; t_xrbindP => /Sv_memP.
+  move: Hp; rewrite /array_copy_prog; t_xrbindP => /disjointP H _ _ _; split => [ | ws ]; apply: H.
+  - exact: SvD.F.add_1.
+ apply: SvD.F.add_2.
+ apply/sv_of_listP/mapP.
+ exists ws => //.
+ by case: ws.
 Qed.
 
-Let Pi s1 (i1:instr) s2 := 
+Lemma viX : ~Sv.In vi X.
+Proof. by have [] := freshX. Qed.
+
+Let Pi s1 (i1:instr) s2 :=
   Sv.Subset (vars_I i1) X ->
-  forall i2, array_copy_i fresh_counter i1 = ok i2 ->
+  forall i2, array_copy_i fresh_counter fresh_temporary i1 = ok i2 ->
   forall vm1, evm s1 <=[X] vm1 ->
   exists2 vm2, evm s2 <=[X] vm2 & 
       sem p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
@@ -65,14 +78,14 @@ Let Pi_r s1 (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
 
 Let Pc s1 (c1:cmd) s2 :=
   Sv.Subset (vars_c c1) X ->
-  forall c2, array_copy_c (array_copy_i fresh_counter) c1 = ok c2 ->
+  forall c2, array_copy_c (array_copy_i fresh_counter fresh_temporary) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1 ->
   exists2 vm2, evm s2 <=[X] vm2  & 
     sem p2 ev (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
 Let Pfor (i:var_i) vs s1 c1 s2 :=
   Sv.Subset (Sv.add i (vars_c c1)) X ->
-  forall c2, array_copy_c (array_copy_i fresh_counter) c1 = ok c2 ->
+  forall c2, array_copy_c (array_copy_i fresh_counter fresh_temporary) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1  ->
   exists2 vm2, evm s2 <=[X] vm2 & 
     sem_for p2 ev i vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
@@ -146,7 +159,9 @@ Proof.
   + by apply: vmap_uincl_onI hvm1;SvD.fsetdec.
   have ? := to_arrI hty; subst vy.
   case: uv1 => [ty1 ? ut]; subst v1.
-  set ipre := if _ then _ else _; set c := [:: MkI _ (Cassgn _ _ _ _) ].
+  set ipre := if _ then _ else _.
+  set cond := needs_temporary _ _.
+  set c := map (MkI ii) _.
   have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1', 
     vm1 <=[Sv.union (read_e y) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = ok tx & 
     sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
@@ -179,7 +194,9 @@ Proof.
     Opaque Z.sub.
     rewrite /WArray.fcopy ziotaS_cons //=; have -> : n - Z.succ j + 1 = n - j by ring.
     t_xrbindP => tx1 w hget hset hcopy.
-    have [] := hrec _ (vm1'.[i <- ok (n - Z.succ j)].[x <- ok tx1]) tx1 => //.
+    set vm2' := vm1'.[i <- ok (n - Z.succ j)].
+    set tmp := {| vtype := sword ws; vname := fresh_temporary ws |}.
+    have [] := hrec _ ((if cond then vm2'.[tmp <- ok (pword_of_word w)] else vm2').[x <- ok tx1]) tx1 => //.
     + by Psatz.lia.
     + rewrite read_e_var; move=> z hz.
       case: (v_var x =P z) => hxz.
@@ -197,19 +214,37 @@ Proof.
         have [_ htxy] := WArray.uincl_trans ut hu.
         have [ _ /(_ _ hb) -/htxy <-] := read_read8 hget.
         by rewrite -hw8  WArray.addE /mk_scale; f_equal; ring.
-      rewrite Fv.setP_neq; last by apply /eqP. 
-      rewrite Fv.setP_neq; first by apply: hvm1'; rewrite read_e_var.
-      by apply /eqP; move: viX hsub hz; rewrite /vi read_e_var /=; SvD.fsetdec.
+      rewrite Fv.setP_neq; last by apply /eqP.
+      have i_neq_z : v_var i != z.
+      + by apply /eqP; move: viX hsub hz; rewrite /vi read_e_var /=; SvD.fsetdec.
+      have ? : eval_uincl vm1.[z] vm1'.[z] by apply: hvm1'; rewrite read_e_var.
+      case: {c hrec} cond; rewrite !Fv.setP_neq //.
+      apply/eqP => ?; move: (proj2 freshX ws) hsub hz; subst z.
+      clear; rewrite read_e_var /tmp_var /=; SvD.fsetdec.
     + by rewrite Fv.setP_eq.
     move=> vm2 h1 h2; exists vm2 => //.
     apply: (EForOne (s1' := with_vm s1 vm1'.[i <- ok (n - Z.succ j)])) h2 => //.
+    have fresh_not_y : {| vtype := sint; vname := fresh_counter |} ≠ gv y.
+    + by move=> heqy; move: hv1 => /= /type_of_get_gvar; rewrite -heqy.
+    case: (sem_pexpr_uincl_on (vm2 := vm1') _ hv1).
+    + by apply: vmap_uincl_onI hvm1'; SvD.fsetdec.
+    move=> _v hv /value_uinclE [? ? hty']; subst _v.
+    subst c; case: {hrec} cond.
+    { apply: Eseq; last apply: sem_seq1; constructor; apply: Eassgn.
+      + rewrite /= get_gvar_neq //.
+        rewrite -eq_globs; move: hv => /= => -> /=.
+        by rewrite (@get_gvar_eq _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
+      + by rewrite /truncate_val /= truncate_word_u.
+      + by rewrite /= /write_var /set_var /= sumbool_of_boolET.
+      + by rewrite /mk_lvar /= /get_gvar get_var_eq.
+      + by rewrite /truncate_val /= truncate_word_u.
+      rewrite /= !get_var_neq // /get_var /= hx /= get_gvar_neq //.
+      rewrite /get_gvar /= get_var_eq // truncate_word_u /= hset /=.
+      by rewrite /write_var /set_var /= WArray.castK. }
     apply sem_seq1; constructor.
     apply: Eassgn.
     + rewrite /= get_gvar_neq; last first.
       + by move=> _ heqy; move: hv1 => /= /type_of_get_gvar; rewrite -heqy.
-      case: (sem_pexpr_uincl_on (vm2 := vm1') _ hv1).
-      + by apply: vmap_uincl_onI hvm1'; SvD.fsetdec.
-      move=> _v hv /value_uinclE [? ? hty']; subst _v.
       rewrite -eq_globs; move: hv => /= => -> /=.
       by rewrite (@get_gvar_eq _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
     + by rewrite /truncate_val /= truncate_word_u. 
