@@ -47,8 +47,6 @@ let pp_uint fmt ws =
 (*   | Wsize.Signed -> "s" *)
 (*   | Unsigned -> "u" *)
 
-exception NoTranslation
-
 let rec pp_rexp fmt e =
   match e with
   | Pconst z ->
@@ -61,7 +59,7 @@ let rec pp_rexp fmt e =
     (* Format.fprintf fmt "limbs %i [%a@%i]" (int_of_ws ws) pp_rexp x (int_of_ws ws) *)
     Format.fprintf fmt "%a@%i" pp_rexp x (int_of_ws ws)
   | Papp1(Oneg _, e) ->
-    Format.fprintf fmt "-(%a)" pp_rexp e
+    Format.fprintf fmt "(-1) * (%a)" pp_rexp e
   | Papp1(Olnot _, e) ->
     Format.fprintf fmt "not (%a)" pp_rexp e
   | Papp2(Oadd _, e1, e2) ->
@@ -221,7 +219,7 @@ let rec pp_eexp fmt e =
     Format.fprintf fmt "limbs %a [%a])"
       pp_eexp h
       (pp_list ", "  pp_eexp) (extract_list q [])
-  | _ -> raise NoTranslation
+  | _ -> assert false
 
 let rec  pp_epred fmt e =
   match e with
@@ -240,7 +238,7 @@ let rec  pp_epred fmt e =
       (pp_list ", " pp_eexp) es
 
 (*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
-  | _ -> raise NoTranslation
+  | _ -> assert false
 
 let pp_lval fmt (x,ws) =
   match x with
@@ -317,7 +315,7 @@ let pp_baseop fmt xs o es =
       | Pif (_, _, _, _) -> assert false
       | Pfvar _ -> assert false
       | Pbig (_, _, _, _, _, _) -> assert false
-      end
+    end
 
   | ADD ws ->
 
@@ -332,6 +330,7 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SUB ws ->
+    (*FIXME: Cast the parameter to the word size sw if they do not match*)
     Format.fprintf fmt "cast __UNUSED@uint%i %a;@ subb %a %a %a __UNUSED"
       (int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
@@ -340,13 +339,13 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 0, int_of_ws ws)
 
   | IMULr ws ->
-    Format.fprintf fmt "mull dontcare %a %a %a"
+    Format.fprintf fmt "mull TMP__ %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | IMULri ws ->
-    Format.fprintf fmt "mull dontcare %a %a %a"
+    Format.fprintf fmt "mull TMP__ %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
@@ -426,7 +425,7 @@ let pp_baseop fmt xs o es =
      let fmt_ = 
       match (List.nth es 1) with
        Papp1 (Oword_of_int _, Pconst x) -> 
-         Format.fprintf fmt "split %a __TMP %a %a"
+         Format.fprintf fmt "split %a TMP__ %a %a"
           pp_lval (List.nth xs 5, int_of_ws ws)
           pp_atome (List.nth es 0, int_of_ws ws)
           pp_print_i x
@@ -505,7 +504,7 @@ let pp_baseop fmt xs o es =
 (* -      pp_expr (List.nth es 0) pp_uint ws *)
 (* -      pp_expr (List.nth es 1) pp_uint ws *)
 
-  | _ -> raise NoTranslation
+  | _ -> assert false
 
 
 let rec filter_clause cs (cas,smt) =
@@ -578,12 +577,10 @@ let pp_i pd asmOp fds fmt i =
       | Expr.Smt -> format_of_string "@[<v>%s true && %a@]",pp_rpred
     in
     begin
-      try
         match t with
         | Expr.Assert -> Format.fprintf fmt efmt "assert" pp_pred e
         | Expr.Assume -> Format.fprintf fmt efmt "assume" pp_pred e
         | Expr.Cut -> assert false
-      with NoTranslation -> ()
     end
   | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
   | Ccall (r,f,params) ->
@@ -650,14 +647,17 @@ let pp_args fmt xs =
      (fun fmt x -> Format.fprintf fmt "%a %a"
          pp_ty x.v_ty pp_var x)) fmt xs
 
-let pp_res fmt xs =
-  pp_args fmt (List.map L.unloc xs)
-
 let pp_fun pd asmOp fds fmt fd =
+  let ret = List.map L.unloc fd.f_ret in
+  let args = List.fold_left (
+      fun l a ->
+        if List.exists (fun x -> (x.v_name = a.v_name) && (x.v_id = a.v_id)) l
+        then l else a :: l
+    ) fd.f_args ret
+  in
   Format.fprintf fmt
-    "@[<v>proc main(@[<hov>%a;@ %a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@] @ }@ @]"
-    pp_args fd.f_args
-    pp_res  fd.f_ret
+    "@[<v>proc main(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@] @ }@ @]"
+    pp_args args
     pp_clause fd.f_contra.f_pre
     (pp_c pd asmOp fds) fd.f_body
     pp_clause fd.f_contra.f_post

@@ -171,7 +171,6 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let e0 := expand_e m e0 in
     Let body := expand_e m body in
     ok (Pbig e1 e2 op2 x e0 body) 
-      
   end.
 
 Definition expand_lv (m : t) (x : lval)  :=

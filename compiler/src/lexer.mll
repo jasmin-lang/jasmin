@@ -35,6 +35,7 @@
     "predicate" , PREDICATE;
     "requires" , REQUIRES;
     "ensures", ENSURES;
+    "result", RESULT;
 
     "abstract", ABSTRACT;
     "const" , CONSTANT;

@@ -23,6 +23,7 @@ type tyerror =
   | UnknownVar          of A.symbol
   | UnknownFun          of A.symbol
   | UnknownPred         of string
+  | UnknownResult       of int
   | InvalidType         of P.pty * typattern
   | TypeMismatch        of P.pty pair
   | NoOperator          of sop * P.pty list
@@ -101,6 +102,9 @@ let pp_tyerror fmt (code : tyerror) =
 
   | UnknownPred x ->
       F.fprintf fmt "unknown predicate: `%s'" x
+
+  | UnknownResult i ->
+      F.fprintf fmt "unknown result: `%i'" i
 
   | InvalidType (ty, p) ->
     F.fprintf fmt "the expression as type %a instead of %a"
@@ -236,6 +240,8 @@ module Env : sig
 
   val empty : 'asm env
 
+  val copy : 'asm env -> 'asm env
+
   val decls : 'asm env -> (unit, 'asm) P.pmod_item list
     
   val add_from : 'asm env -> string * string -> 'asm env
@@ -254,6 +260,9 @@ module Env : sig
   val add_abstract_pre : 'asm env -> A.symbol -> S.ptype list -> S.ptype -> 'asm env
   val is_abstract_pre : 'asm env -> A.symbol -> bool
   val get_abstract_pre : 'asm env -> A.symbol -> S.ptype list * S.ptype
+
+  val add_f_result : 'asm env -> (A.pident * P.pvar) list -> 'asm env
+  val get_f_result : 'asm env -> int -> (A.pident * P.pvar)
 
   val set_known_implicits : 'asm env -> (string * string) list -> 'asm env
   val get_known_implicits : 'asm env -> (string * string) list 
@@ -308,7 +317,8 @@ end  = struct
                               should be disjoint from this set *)
     e_abstract_typ : Ss.t;     (* Set of abstract types declared by the user *)
     e_abstract_pre : (A.symbol, S.ptype list * S.ptype) Map.t;
-                            (* Set of abstract predicates declared by the user *)
+          (* Set of abstract predicates declared by the user *)
+    e_fresult : (A.pident * P.pvar ) list;
     e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
@@ -330,9 +340,25 @@ end  = struct
     ; e_reserved = Ss.empty
     ; e_abstract_typ = Ss.empty
     ; e_abstract_pre = Map.empty
+    ; e_fresult = []
     ; e_known_implicits = [];
     }
 
+  let copy env =
+    { e_vars    = env.e_vars
+    ; e_fvars   = env.e_fvars
+    ; e_funs    = env.e_funs
+    ; e_decls   = env.e_decls
+    ; e_exec    = env.e_exec
+    ; e_loader  = env.e_loader
+    ; e_declared = env.e_declared
+    ; e_reserved = env.e_reserved
+    ; e_abstract_typ = env.e_abstract_typ
+    ; e_abstract_pre = env.e_abstract_pre
+    ; e_fresult = env.e_fresult
+    ; e_known_implicits = env.e_known_implicits;
+    }
+  
   let add_reserved env s = 
     { env with e_reserved = Ss.add s env.e_reserved }
 
@@ -353,6 +379,12 @@ end  = struct
 
   let get_abstract_pre env s =
     Map.find s env.e_abstract_pre
+
+  let add_f_result env s =
+    {env with e_fresult = s}
+
+  let get_f_result env i =
+    List.at env.e_fresult i
 
   let set_known_implicits env known_implicits = { env with e_known_implicits = known_implicits }
   let get_known_implicits env = env.e_known_implicits
@@ -930,7 +962,7 @@ let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
   match pop with
   | `Eq None when ety1 = P.tbool && ety2 = P.tbool ->
     P.Papp2(E.Obeq, e1, e2), P.tbool
-  | `Neq None when ety1 = P.tbool && ety1 = P.tbool ->
+ | `Neq None when ety1 = P.tbool && ety1 = P.tbool ->
     P.Papp1 (E.Onot, P.Papp2(E.Obeq, e1, e2)), P.tbool
   | _ -> 
     let exn = tyerror ~loc (NoOperator (`Op2 pop, [ety1; ety2])) in
@@ -1088,7 +1120,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     tt_expr ~mode pd env (L.mk_loc (L.loc pe) (S.PECombF(id,args)))
 
   | S.PECall (id, args) ->
-    tt_expr pd  env (L.mk_loc (L.loc pe) (S.PEAbstract(id,args)))
+    tt_expr ~mode pd env (L.mk_loc (L.loc pe) (S.PEAbstract(id,args)))
 
   | S.PEPrim _ ->
     rs_tyerror ~loc:(L.loc pe) PrimNotAllowed
@@ -1188,7 +1220,15 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
         | Bty (U w)  -> P.E.Oadd (P.E.Op_w w), P.Papp1 (P.E.Oword_of_int w, P.Pconst Z.zero)
         | _ -> raise (tyerror ~loc:(L.loc pe) (StringError "the expression should have type int or uXX")) in
       P.Pbig(e1, e2, o, L.mk_loc (L.loc px) x, e0, b), ty
+  | S.PEResult i ->
+       let sv,pv =
+         try Env.get_f_result env i with
+         | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult i)
+       in
+       let new_env = Env.copy env in
+       let new_env = Env.Vars.push_local new_env pv in
 
+       tt_expr ~mode pd new_env (L.mk_loc (L.loc pe) (S.PEVar sv))
 
 and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   let e, ety = tt_expr ~mode pd env pe in
@@ -2077,8 +2117,10 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       List.map (fun (annot,c) ->
           aprover annot, tt_expr_bool ~mode:`AllVarLogical arch_info.pd env c) l
   in
+  let envb = Env.add_f_result envb (Option.default [] None) in
   let f_pre = get_clause envb pf.pdf_contra.pdc_pre in
-  let envr = List.fold_left (fun env x -> Env.Vars.push_local env (L.unloc x)) envb xret in
+  let ret = List.map2 (fun a b -> (a, L.unloc b)) (Option.default [] pf.pdf_body.pdb_ret)  xret in
+  let envr = Env.add_f_result envb ret in
   let f_post = get_clause envr pf.pdf_contra.pdc_post in
 
   let fdef =
