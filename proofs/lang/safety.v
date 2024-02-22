@@ -12,11 +12,11 @@ Context
   (wdb : bool)
   (gd : glob_decls).
 
-(* can be used to check that an expression does not evaluate to 0 *)
+(* can be used to check that an expression does not evaluate to 0 *) 
 Definition not_zero_pexpr (e : pexpr) (s : @estate nosubword syscall_state ep) :=
-forall v n, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
-            to_int v = ok n -> 
-n <> 0.
+forall v sz n (n' : word sz), sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
+            to_word sz v = ok n -> 
+((n == 0%R) = false) /\ ((wsigned n' == wmin_signed sz) && (n == (-1)%R) = false).
 
 (* checks that a variable is defined in the memory *)
 Definition defined_var (x : var_i) (s : @estate nosubword syscall_state ep) : bool :=
@@ -257,6 +257,57 @@ case he1': sem_pexpr=> [ve1 | veer1] //=.
 case he' : sem_pexpr=> [ve | veer] //=. by case hb: to_bool=> [vb | vbr] //=.  
 Qed.
 
+Lemma wt_safe_to_bool_not_error : forall pd e (s: @estate nosubword syscall_state ep) ve err,
+ty_pexpr pd e = ok sbool ->
+interp_safe_conds (gen_safe_cond e) s ->
+sem_pexpr false gd s e = ok ve ->
+to_bool ve <> Error err.
+Proof.
+move=> pd e s ve err ht hs he. 
+have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd sbool e s ve ht he.
+rewrite /to_bool /=. case: ve he htve=> //= t i he hte; subst.
+by have := safe_not_undef e s sbool i hs he.
+Qed.
+
+Lemma wt_safe_to_int_not_error : forall pd e (s: @estate nosubword syscall_state ep) ve err,
+ty_pexpr pd e = ok sint ->
+interp_safe_conds (gen_safe_cond e) s ->
+sem_pexpr false gd s e = ok ve ->
+to_int ve <> Error err.
+Proof.
+move=> pd e s ve err ht hs he. 
+have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd sint e s ve ht he.
+rewrite /to_int /=. case: ve he htve=> //= t i he hte; subst.
+by have := safe_not_undef e s sint i hs he.
+Qed.
+
+Lemma wt_safe_to_arr_not_error : forall pd e (s: @estate nosubword syscall_state ep) p ve err,
+ty_pexpr pd e = ok (sarr p) ->
+interp_safe_conds (gen_safe_cond e) s ->
+sem_pexpr false gd s e = ok ve ->
+to_arr p ve <> Error err.
+Proof.
+move=> pd e s p ve err ht hs he. 
+have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd (sarr p) e s ve ht he.
+rewrite /to_arr /=. case: ve he htve=> //= t i he [] hte; subst.
++ rewrite /WArray.cast /=. by case: ifP=> //= /eqP.
+by have := safe_not_undef e s (sarr p) i hs he.
+Qed.
+
+Lemma wt_safe_to_word_not_error : forall pd e (s: @estate nosubword syscall_state ep) sz sz' ve err,
+ty_pexpr pd e = ok (sword sz') ->
+(sz <= sz')%CMP ->
+interp_safe_conds (gen_safe_cond e) s ->
+sem_pexpr false gd s e = ok ve ->
+to_word sz ve <> Error err.
+Proof.
+move=> pd e s sz sz' ve err ht hcmp hs he. 
+have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd (sword sz') e s ve ht he.
+rewrite /to_word /=. case: ve he htve=> //= t i he [] hte; subst.
++ have htr := truncate_word_le i hcmp. move=> htr'. by rewrite htr' in htr.
+by have := safe_not_undef e s (sword sz') i hs he.
+Qed.
+
 Lemma wt_safe_truncate_not_error : forall pd e s v t ty err,
 interp_safe_conds (gen_safe_cond e) s ->
 ty_pexpr pd e = ok t ->
@@ -264,7 +315,18 @@ sem_pexpr false gd s e = ok v ->
 subtype ty t ->
 truncate_val ty v <> Error err.
 Proof.
-Admitted.
+move=> pd e s v t ty err hs hte he hsub. rewrite /truncate_val /=.
+case hv : of_val=> [vo | vor] //=.
+case: ty hsub hv=> //=.
++ move=> /eqP hb hbv; subst. 
+  by have hbv' := wt_safe_to_bool_not_error pd e s v vor hte hs he.
++ move=> /eqP hi hiv; subst.
+  by have hbv' := wt_safe_to_int_not_error pd e s v vor hte hs he.
++ move=> p /eqP ht; subst.
+  by have hbv' := wt_safe_to_arr_not_error pd e s p v vor hte hs he.
+move=> sz. case: t hte=> //= sz' hte hcmp hw.
+by have hw' := wt_safe_to_word_not_error pd e s sz sz' v vor hte hcmp hs he.
+Qed.
 
 Lemma sem_op1_val_ty : forall tin tout op v vo,
 type_of_op1 op = (tin, tout) ->
@@ -280,14 +342,6 @@ t_xrbindP=> z h1 h2. have := to_valI h2. case: vo h2=> //=.
 move=> w w' hw [] wt heq; subst. by rewrite -wt /= ht /=.
 Qed.
 
-Lemma of_val_equal_not_error : forall t1 t2 ve1 ve2 err,
-value_uincl ve2 ve1 ->
-subtype t2 t1 ->
-of_val t1 ve1 <> Error err ->
-of_val t2 ve2 <> Error err.
-Proof. 
-Admitted.
-
 Lemma wt_safe_of_val_not_error : forall pd s e t ty ve err,
 ty_pexpr pd e = ok t ->
 subtype ty t ->
@@ -295,43 +349,18 @@ interp_safe_conds (gen_safe_cond e) s ->
 sem_pexpr false gd s e = ok ve ->
 of_val ty ve <> Error err.
 Proof.
-move=> pd s e. elim: e=> //=.
-+ move=> z t ty ve err [] h hsub hs [] he; subst. rewrite /of_val /=.
-  by case: ty hsub=> //=.
-+ move=> b t ty ve err [] h hsub hs [] he; subst. rewrite /of_val /=.
-  by case: ty hsub=> //=.
-+ admit.
-+ admit.
-+ admit.
-+ admit.
-+ admit.
-+ move=> op e hin t ty ve err. case hto: type_of_op1=> [tin tout] //=. 
-  rewrite /check_expr /= /check_type.
-  t_xrbindP=> t1 t2 hte. case: ifP=> //= hsub [] heq heq'; subst. 
-  move=> hsub' hs vz he ho hof. have htve := sem_op1_val_ty tin t op vz ve hto ho.
-  rewrite /sem_sop1 in ho. admit.
-+ admit.
-+ admit.
-move=> t e hin1 e1 hin2 e2 hin3 t1 t2 v err hc hsub2 hs. 
-have [hs1 {hs} hs] := interp_safe_concat (gen_safe_cond e) (gen_safe_cond e1 ++ gen_safe_cond e2) s hs.
-have [hs2 {hs} hs3] := interp_safe_concat (gen_safe_cond e1) (gen_safe_cond e2) s hs.
-move: hc. rewrite /check_expr /check_type. 
-case hte2: ty_pexpr=> [te2 | ter2] //=. 
-+ case hte1: ty_pexpr=> [te1 | ter1] //=.
-  + case hte: ty_pexpr=> [te | ter] //=. case: ifP=> //=.
-    + move=> hsub2'. case: ifP=> //=.
-      + move=> hsub1. case: ifP=> //=. move=> /eqP hb [] hteq; subst.
-        case he2: sem_pexpr=> [ve2 | ver2] //=.
-        + case he1: sem_pexpr=> [ve1 | ver1] //=.
-          + case he: sem_pexpr=> [ve | ver] //=. case hb: to_bool=> [vb | vbr] //=.
-            case htr: truncate_val=> [vt | vtr] //=.
-            + case htr': truncate_val=> [vt' | vtr'] //=. move=> [] hv; subst. 
-              case: ifP=> /=.
-              + move=> hvb. move: (hin2 te1 t1 ve1 err hte1 hsub1 hs2 he1)=> hvr.
-                have hveq := truncate_value_uincl htr'. 
-Admitted.              
-  
-
+move=> pd s e t ty v err hte hsub hs he.
+case: ty hsub=> //=.
++ move=> /eqP hb hbv; subst. 
+  by have hbv' := wt_safe_to_bool_not_error pd e s v err hte hs he.
++ move=> /eqP hi hiv; subst.
+  by have hbv' := wt_safe_to_int_not_error pd e s v err hte hs he.
++ move=> p /eqP ht; subst.
+  by have hbv' := wt_safe_to_arr_not_error pd e s p v err hte hs he.
+move=> sz. case: t hte=> //= sz' hte hcmp hw.
+by have hw' := wt_safe_to_word_not_error pd e s sz sz' v err hte hcmp hs he.
+Qed.
+           
 Lemma wt_safe_sem_op1_not_error : forall pd op tin tout t1 e s v err,
 type_of_op1 op = (tin, tout) ->
 subtype tin t1 ->
@@ -342,8 +371,9 @@ sem_sop1 op v <> Error err.
 Proof.
 move=> pd op tin tout t e s ve err htop hsub hte hse hs. 
 rewrite /sem_sop1 /=.
-case hvo: of_val=> [vo | vor] //=. rewrite htop /= in hvo.
-Admitted.
+case hvo: of_val=> [vo | vor] //=.  rewrite htop /= in hvo.
+by have := wt_safe_of_val_not_error pd s e t tin ve vor hte hsub hse hs.
+Qed.
 
 Lemma wt_safe_sem_sop2_not_error : forall pd op t1 e1 t2 e2 s ve1 ve2 err,
 subtype (type_of_op2 op).1.1 t1 ->
@@ -354,12 +384,40 @@ interp_safe_conds (gen_safe_cond e1) s ->
 interp_safe_conds (gen_safe_cond e2) s ->
 interp_safe_conds (gen_safe_cond_op2 op e1 e2) s ->
 sem_pexpr false gd s e1 = ok ve1 ->
-type_of_val ve1 = t1 ->
 sem_pexpr false gd s e2 = ok ve2 ->
-type_of_val ve2 = t2 ->
 sem_sop2 op ve1 ve2 <> Error err.
 Proof.
-Admitted.
+move=> pd op t1 e1 t2 e2 s ve1 ve2 err hsub1 ht1 hsub2 ht2 hs1 hs2 hs3 he1 he2.
+rewrite /sem_sop2 /=. case hvo : of_val=> [vo | vor] //=.
++ case hvo': of_val=> [vo' | vor'] //=.
+  + case hso : sem_sop2_typed=> [so | sor] //=. rewrite /gen_safe_cond_op2 in hs3.
+    case: op hsub1 hsub2 hs3 vo hvo vo' hvo' hso=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. case: o=> //= sig sz.
+      case: t1 ht1=> //= sz' ht1 hcmp. case: t2 ht2=> //= sz'' ht2 hcmp' [] hnz _ w hw w' hw' /=.
+      rewrite /mk_sem_divmod /=. case: ifP=> //=. rewrite /not_zero_pexpr in hnz.
+      move: (hnz ve2 sz w w' he2 hw)=> [] hnw hnw' heq [] h'; subst. case: err=> //= h'.
+      have heq' := Bool.orb_false_intro (w == 0%R) ((wsigned w' == wmin_signed sz) && (w == (-1)%R)) hnw hnw'.
+      by rewrite heq' in heq. 
+    + move=> o. case: o=> //= sig sz.
+      case: t1 ht1=> //= sz' ht1 hcmp. case: t2 ht2=> //= sz'' ht2 hcmp' [] hnz _ w hw w' hw' /=.
+      rewrite /mk_sem_divmod /=. case: ifP=> //=. rewrite /not_zero_pexpr in hnz.
+      move: (hnz ve2 sz w w' he2 hw)=> [] hnw hnw' heq [] h'; subst. case: err=> //= h'.
+      have heq' := Bool.orb_false_intro (w == 0%R) ((wsigned w' == wmin_signed sz) && (w == (-1)%R)) hnw hnw'.
+      by rewrite heq' in heq. 
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    + move=> o. by case: o=> //=.
+    move=> o. by case: o=> //=.
+  by have hvo'':= wt_safe_of_val_not_error pd s e1 t1 (type_of_op2 op).1.1 ve1 vor' ht1 hsub1 hs1 he1.
+by have hvo':= wt_safe_of_val_not_error pd s e2 t2 (type_of_op2 op).1.2 ve2 vor ht2 hsub2 hs2 he2.
+Qed.
 
 Lemma wt_safe_read_not_error : forall pd e t (x:var_i) s w ve vp vp' err,
 subtype (sword pd) t ->
@@ -377,34 +435,47 @@ Proof.
 Admitted.
 
 
-Lemma wt_safe_to_pointer_error : forall x s err,
+Lemma wt_safe_to_pointer_error : forall pd wr (x: var_i) s err,
+vtype x = sword wr ->
+(pd ≤ wr)%CMP ->
 defined_var x s ->
 to_pointer (evm s).[x] <> Error err.
 Proof.
+move=> pd wr x s err ht hsub hd hp. 
+case hv : ((evm s).[x]) hd hp=> [ b | z| arr a| w sz| i u] //=.
++ move=> hd [] hr. have hg : get_var false (evm s) x = ok (Vbool b).
+  + by rewrite /get_var /= hv. 
+  have /= /eqP hsub' := type_of_get_var hg. by rewrite -hsub' in ht.
++ move=> hd [] hr. have hg : get_var false (evm s) x = ok (Vint z).
+  + by rewrite /get_var /= hv. 
+  have /= /eqP hsub' := type_of_get_var hg. by rewrite -hsub' in ht.
++ move=> hd [] hr. have hg : get_var false (evm s) x = ok (Varr a).
+  + by rewrite /get_var /= hv. 
+  have /= /eqP hsub' := type_of_get_var hg. by rewrite -hsub' in ht.
++ move=> hd [] hr. have hg : get_var false (evm s) x = ok (Vword (s:=w) sz).
+  + by rewrite /get_var /= hv. 
+  have /= /eqP hsub' := type_of_get_var hg. rewrite ht /eqP in hsub'. 
+  move: hsub'. move=> /eqP hsub'. admit.
+by rewrite /defined_var /is_defined hv /=.
 Admitted.
 
-Lemma wt_safe_exp_to_pointer_error : forall pd e t (x:var_i) s (*w*) ve err,
+Lemma wt_safe_exp_to_pointer_error : forall pd e t (x:var_i) s ve err,
 ty_pexpr pd e = ok t ->
 subtype (sword pd) t ->
 interp_safe_conds (gen_safe_cond e) s ->
-(*interp_safe_conds [:: Is_valid_addr e x w] s ->*)
 sem_pexpr false gd s e = ok ve ->
-(*type_of_val ve = t ->*)
 to_pointer ve <> Error err.
 Proof.
 move=> pd e t x s ve err ht hsub hs he. 
 have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd t e s ve ht he.
-move: ht hs he htve. elim: e=> //=.
-+ move=> z [] ht _ [] hve htve; subst. by rewrite /subtype in hsub.
-+ move=> b [] ht _ [] hve htve; subst. by rewrite /subtype in hsub.
-+ move=> n [] ht _ [] hve htve; subst. by rewrite /subtype in hsub.
-+ move=> x' [] ht [] hd _ hg htve; subst. rewrite /to_pointer /=.
-  case: ve hg htve=> //=.
-  + move=> b hg htve; subst. by rewrite /subtype -htve in hsub.
-  + move=> z hg htve; subst. by rewrite /subtype -htve in hsub.
-  + move=> len a hg htve; subst. by rewrite /subtype -htve in hsub.
-  + move=> wsz w hg htve; subst. rewrite /subtype -htve in hsub.
-    case htt : (truncate_word Uptr (s':=wsz) w)=> //= [etr].
+rewrite /to_pointer /=. case hve: ve he htve=> [ b | z | arr a | sz wsz | u i ] //=; subst.
++ move=> he htve; subst. by rewrite /subtype in hsub.
++ move=> he htve; subst. by rewrite /subtype in hsub.
++ move=> he htve; subst. by rewrite /subtype in hsub.
++ move=> he htve; subst. rewrite /subtype in hsub.
+  have htr := truncate_word_le wsz hsub. move=> htr'. admit.
+move=> he htve; subst. case hu: t ht hsub i he=> //= [w ] w' hsub i he; subst.
+by have := safe_not_undef e s (sword w) i hs he.
 Admitted.
 
 Lemma wt_safe_read_arr_not_error : forall pd e x p aa sz s arr (p':WArray.array arr) ve vi err,
@@ -419,18 +490,6 @@ sem_pexpr false gd s e = ok ve ->
 read p' (vi * mk_scale aa sz)%Z sz <> Error err.
 Proof.
 Admitted.
-
-Lemma wt_safe_to_int_not_error : forall pd e (s: @estate nosubword syscall_state ep) ve err,
-ty_pexpr pd e = ok sint ->
-interp_safe_conds (gen_safe_cond e) s ->
-sem_pexpr false gd s e = ok ve ->
-to_int ve <> Error err.
-Proof.
-move=> pd e s ve err ht hs he. 
-have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd sint e s ve ht he.
-rewrite /to_int /=. case: ve he htve=> //= t i he hte; subst.
-by have := safe_not_undef e s sint i hs he.
-Qed.
 
 Lemma wt_safe_sem_opN_not_error : forall pd es op vm vma s err,
 mapM2 ErrType (check_expr ty_pexpr pd) es (type_of_opN op).1 = ok vm ->
@@ -530,7 +589,7 @@ move=> pd e s. elim: e=> //=.
   by have := wt_safe_get_gvar_not_error x s (sarr p) vgr ht hs1.
 (* Pload *)
 + move=> w x e hin ty. rewrite /ty_load_store /= /check_ptr /check_type.
-  t_xrbindP=> te hte t1. case: ifP=> //= hsub heq t2; subst. 
+  t_xrbindP=> te hte t1. case: ifP=> //= hsub [] heq t2; subst. 
   case: ifP=> //= hsub' heq' t3 hs; subst. case: heq'=> heq'; subst.
   move:hs=> [] hs1 [] hs2 [] hs3 hs4.
   move: (hin t2 hte hs4)=> [] ve [] he htve. rewrite he /=.
@@ -539,7 +598,8 @@ move=> pd e s. elim: e=> //=.
     + case hr: read=> [vr | vrr] //=.
       + exists (Vword (s:=w) vr). by split=> //=.
       by have /= := wt_safe_read_not_error pd e t2 x s w ve vp vp' vrr hsub' hte hsub hs1 hs2 hs3 hs4 he hp hp'.
-    by have //= := wt_safe_to_pointer_error x s vpr' hs1.
+    case hsub : (vtype x) hsub=> //= [wr] hsub''.
+    by have //= := wt_safe_to_pointer_error pd wr x s vpr' hsub hsub'' hs1. 
   by have //= := wt_safe_exp_to_pointer_error pd e t2 x s ve vpr hte hsub' hs4 he.
 (* Papp1 *)
 + move=> op e hin ty. case hto: type_of_op1=> [tin tout]. rewrite /check_expr /= /check_type.
@@ -562,7 +622,7 @@ move=> pd e s. elim: e=> //=.
   + exists vo. split=> //=. rewrite /sem_sop2 /= in ho.
     move: ho. t_xrbindP=> z h1 z' h2 z1 h3 h4 /=. rewrite -h4 /=. by apply type_of_to_val. 
   by have := wt_safe_sem_sop2_not_error pd op t1 e1 t2 e2 s ve1 ve2 
-             vor hsub ht1 hsub' ht2 hs1 hs3 hs4 he1 hte1 he2 hte2 ho.
+             vor hsub ht1 hsub' ht2 hs1 hs3 hs4 he1 he2 ho.
 (* PappN *)
 + move=>op es hin t. rewrite /check_pexprs /=. case hm: mapM2=> [vm | vmr] //=.
   move=> [] heq hs; subst. case hma: mapM=> [vma | vmar] //=.
