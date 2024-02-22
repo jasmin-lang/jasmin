@@ -170,6 +170,7 @@ type pexpr_r =
   | PEbig    of pbig * pexpr * pexpr * pident * pexpr
   | PEAbstract of pident * pexpr list
   | PEResult of int
+  | PEResultGet of arr_access * wsize option * int * pexpr * pexpr option
 
 and pexpr = pexpr_r L.located
 

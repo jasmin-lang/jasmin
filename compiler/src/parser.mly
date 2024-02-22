@@ -307,6 +307,10 @@ pexpr_r:
 | RESULT DOT i=INT
     { PEResult (Z.to_int i)}
 
+| RESULT DOT index=INT i=arr_access
+    { let aa, (ws, e, len) = i in PEResultGet (aa, ws, Z.to_int index, e, len) }
+
+
 pexpr:
 | e=loc(pexpr_r) { e }
 

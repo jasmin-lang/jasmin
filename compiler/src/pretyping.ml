@@ -1227,8 +1227,15 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
        in
        let new_env = Env.copy env in
        let new_env = Env.Vars.push_local new_env pv in
-
        tt_expr ~mode pd new_env (L.mk_loc (L.loc pe) (S.PEVar sv))
+  | S.PEResultGet (aa, ws, i, pi, olen) ->
+       let sv,pv =
+         try Env.get_f_result env i with
+         | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult i)
+       in
+       let new_env = Env.copy env in
+       let new_env = Env.Vars.push_local new_env pv in
+       tt_expr ~mode pd new_env (L.mk_loc (L.loc pe) (S.PEGet (aa, ws, sv, pi, olen)))
 
 and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   let e, ety = tt_expr ~mode pd env pe in
