@@ -169,6 +169,7 @@ type pexpr_r =
   | PEIf     of pexpr * pexpr * pexpr
   | PEbig    of pbig * pexpr * pexpr * pident * pexpr
   | PEAbstract of pident * pexpr list
+  | PEResult of int
 
 and pexpr = pexpr_r L.located
 

@@ -38,6 +38,7 @@
 %token ABSTRACT
 %token REQUIRES
 %token ENSURES
+%token RESULT
 %token CONSTANT
 %token DOT
 %token DOWNTO
@@ -303,6 +304,9 @@ pexpr_r:
 | bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
     { PEbig (bo, e1, e2, v, b) }
 
+| RESULT DOT i=INT
+    { PEResult (Z.to_int i)}
+
 pexpr:
 | e=loc(pexpr_r) { e }
 
@@ -468,12 +472,6 @@ requires:
 ensures:
 | ENSURES a=annotations LBRACE pe=pexpr RBRACE { (a,pe) }
 
-requiress:
-| pres=requires* { pres }
-
-ensuress:
-| posts=ensures* { posts }
-
 pfundef:
 |  pdf_annot = annotations
     cc=call_conv?
@@ -481,8 +479,8 @@ pfundef:
     name = ident
     args = parens_tuple(annot_pvardecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
-    pre = requiress
-    post = ensuress
+    pre = requires*
+    post = ensures*
     body = pfunbody
 
   { { pdf_annot;
