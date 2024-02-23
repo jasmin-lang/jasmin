@@ -8,6 +8,7 @@ CHECK     += config/tests.config
 CHECKCATS ?= \
 	safety \
 	CCT \
+	CCT-DOIT \
 	x86-64-ATT \
 	x86-64-Intel \
 	x86-64-print \

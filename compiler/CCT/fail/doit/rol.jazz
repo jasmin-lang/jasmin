@@ -1,0 +1,5 @@
+// This is CT in the ordinary sense, but not DOIT as ROL is not DOIT.
+export fn rol(#secret reg u32 x) -> #secret reg u32 {
+  _, _, x = #ROL_32(x, 5);
+  return x;
+}
