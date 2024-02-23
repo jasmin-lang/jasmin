@@ -15,7 +15,7 @@ let parse () =
   (* Set default option values *)
   if Sys.win32 then set_cc "windows";
   (* Parse command-line arguments *)
-  Arg.parse options set_in usage_msg;
+  Arg.parse (Arg.align options) set_in usage_msg;
   let c =
     match !color with
     | Auto -> Unix.isatty (Unix.descr_of_out_channel stderr)
@@ -284,7 +284,7 @@ let main () =
     exit 1
 
   | UsageError ->
-    Arg.usage options usage_msg;
+    Arg.usage (Arg.align options) usage_msg;
     exit 1
 
   | CLIerror e ->
