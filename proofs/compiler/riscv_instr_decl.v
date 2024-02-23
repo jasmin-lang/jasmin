@@ -34,6 +34,13 @@ End E.
 Variant riscv_op : Type :=
 (* Arithmetic *)
 | ADD                            (* Add without carry *)
+| SUB                            (* Sub without carry *)
+
+(* Logical *)
+| AND                            (* Bitwise AND *)
+
+(* Other data processing instructions *)
+| MV                             (* Copy operand to destination *)
 .
 
 Scheme Equality for riscv_op.
@@ -53,7 +60,7 @@ Instance eqTC_riscv_op : eqTypeC riscv_op :=
 Canonical riscv_op_eqType := @ceqT_eqType _ eqTC_riscv_op.
 
 Definition riscv_ops : seq riscv_op :=
-  [:: ADD
+  [:: ADD; SUB; AND; MV
   ].
 
 Lemma riscv_op_fin_axiom : Finite.axiom riscv_ops.
@@ -71,6 +78,9 @@ Canonical riscv_op_finType := @cfinT_finType _ finTC_riscv_op.
 Definition string_of_riscv_op (mn : riscv_op) : string :=
   match mn with
   | ADD => "ADD"
+  | SUB => "SUB"
+  | AND => "AND"
+  | MV => "MV"
   end%string.
 
 
@@ -126,6 +136,77 @@ Definition riscv_ADD_instr : instr_desc_t :=
       id_pp_asm := pp_riscv_op mn;
     |}.
 
+Definition riscv_SUB_semi (wn wm : ty_r) : exec ty_r :=
+  let x :=
+      (wn - wm)%R
+  in
+  ok x.
+
+Definition riscv_SUB_instr : instr_desc_t :=
+  let mn := SUB in
+  {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := [:: sreg];
+      id_out := [:: E 0 ];
+      id_semi := riscv_SUB_semi;
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_riscv_op mn);
+      id_safe := [::];
+      id_pp_asm := pp_riscv_op mn;
+    |}.
+
+Definition riscv_AND_semi (wn wm : ty_r) : exec ty_r :=
+  ok (wand wn wm).
+
+Definition riscv_AND_instr : instr_desc_t :=
+  let mn := AND in
+  {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := [:: sreg];
+      id_out := [:: E 0 ];
+      id_semi := riscv_AND_semi;
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_riscv_op mn);
+      id_safe := [::];
+      id_pp_asm := pp_riscv_op mn;
+    |}.
+
+Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
+  ok wn.
+
+Definition riscv_MV_instr : instr_desc_t :=
+  let mn := MV in
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg ];
+      id_in := [:: E 1 ];
+      id_tout := [:: sreg ];
+      id_out := [:: E 0 ];
+      id_semi := riscv_MV_semi;
+      id_nargs := 2;
+      id_args_kinds := ak_reg_reg ++ ak_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_riscv_op mn);
+      id_safe := [::];
+      id_pp_asm := pp_riscv_op mn;
+    |}.
 
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
@@ -133,6 +214,9 @@ Definition riscv_ADD_instr : instr_desc_t :=
 Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   match mn with
   | ADD => riscv_ADD_instr
+  | SUB => riscv_SUB_instr
+  | AND => riscv_AND_instr
+  | MV => riscv_MV_instr
   end.
 
 Definition riscv_prim_string : seq (string * prim_constructor riscv_op) :=
