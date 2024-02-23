@@ -85,6 +85,7 @@ let pp_suffix fmt =
   let open PrintCommon in
   function
   | PVp sz -> F.fprintf fmt "_%a" pp_wsize sz
+  | PVs (sg, sz) -> F.fprintf fmt "_%s%a" (string_of_signess sg) pp_wsize sz
   | PVv (ve, sz) -> F.fprintf fmt "_%s" (string_of_velem Unsigned sz ve)
   | PVsv (sg, ve, sz) -> F.fprintf fmt "_%s" (string_of_velem sg sz ve)
   | PVx (szo, szi) -> F.fprintf fmt "_u%a_u%a" pp_wsize szo pp_wsize szi

@@ -41,6 +41,12 @@ Variant riscv_op : Type :=
 
 (* Other data processing instructions *)
 | MV                             (* Copy operand to destination *)
+
+(* Loads *)
+| LOAD of signedness & wsize     (* Load 8 / 16 or 32-bit & signed / unsigned *)
+
+(* Stores *)
+| STORE of wsize                 (* Store 8 / 16 or 32-bit values from the low bits of register to memory *)
 .
 
 Scheme Equality for riscv_op.
@@ -59,30 +65,6 @@ Instance eqTC_riscv_op : eqTypeC riscv_op :=
 
 Canonical riscv_op_eqType := @ceqT_eqType _ eqTC_riscv_op.
 
-Definition riscv_ops : seq riscv_op :=
-  [:: ADD; SUB; AND; MV
-  ].
-
-Lemma riscv_op_fin_axiom : Finite.axiom riscv_ops.
-Proof. by repeat case. Qed.
-
-#[ export ]
-Instance finTC_riscv_op : finTypeC riscv_op :=
-  {
-    cenum := riscv_ops;
-    cenumP := riscv_op_fin_axiom;
-  }.
-
-Canonical riscv_op_finType := @cfinT_finType _ finTC_riscv_op.
-
-Definition string_of_riscv_op (mn : riscv_op) : string :=
-  match mn with
-  | ADD => "ADD"
-  | SUB => "SUB"
-  | AND => "AND"
-  | MV => "MV"
-  end%string.
-
 
 (* -------------------------------------------------------------------- *)
 (* Common semantic types. *)
@@ -90,13 +72,13 @@ Definition string_of_riscv_op (mn : riscv_op) : string :=
 Notation ty_r := (sem_tuple [:: sreg ]) (only parsing).
 Notation ty_rr := (sem_tuple [:: sreg; sreg ]) (only parsing).
 
+
 (* -------------------------------------------------------------------- *)
 (* Printing. *)
 
-Definition pp_riscv_op
-  (mn : riscv_op) (args : seq asm_arg) : pp_asm_op :=
+Definition pp_name name args :=
   {|
-    pp_aop_name := string_of_riscv_op mn;
+    pp_aop_name := name;
     pp_aop_ext := PP_name;
     pp_aop_args := map (fun a => (reg_size, a)) args;
   |}.
@@ -104,20 +86,15 @@ Definition pp_riscv_op
 
 (* -------------------------------------------------------------------- *)
 (* Instruction semantics and description. *)
-(* All instruction descriptions are made conditional in [riscv_instr_desc] with
-   [mk_cond].
 
-   All descriptions have [id_msb_flag] as [MSB_MERGE], but since all
+(* TODO: is this comment true? *)
+(* All descriptions have [id_msb_flag] as [MSB_MERGE], but since all
    instructions have a 32-bit output, this is irrelevant. *)
 
 Definition riscv_ADD_semi (wn wm : ty_r) : exec ty_r :=
-  let x :=
-      (wn + wm)%R
-  in
-  ok x.
+  ok (wn + wm)%R.
 
 Definition riscv_ADD_instr : instr_desc_t :=
-  let mn := ADD in
   {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
@@ -126,24 +103,24 @@ Definition riscv_ADD_instr : instr_desc_t :=
       id_out := [:: E 0 ];
       id_semi := riscv_ADD_semi;
       id_nargs := 3;
+      (* TODO: [r; r]++[r; i] could be [r; ri]*)
+      (* TODO: imm are on 12 bits, not 32! *)
       id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
-      id_str_jas := pp_s (string_of_riscv_op mn);
+      id_str_jas := pp_s "ADD"; (* how to print it in Jasmin *)
       id_safe := [::];
-      id_pp_asm := pp_riscv_op mn;
+      id_pp_asm := pp_name "add"; (* how to print it in asm *)
     |}.
 
+Definition prim_ADD := ("ADD"%string, primM ADD). (* how to parse it in Jasmin *)
+
 Definition riscv_SUB_semi (wn wm : ty_r) : exec ty_r :=
-  let x :=
-      (wn - wm)%R
-  in
-  ok x.
+  ok (wn - wm)%R.
 
 Definition riscv_SUB_instr : instr_desc_t :=
-  let mn := SUB in
   {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
@@ -157,16 +134,17 @@ Definition riscv_SUB_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
-      id_str_jas := pp_s (string_of_riscv_op mn);
+      id_str_jas := pp_s "SUB";
       id_safe := [::];
-      id_pp_asm := pp_riscv_op mn;
+      id_pp_asm := pp_name "sub";
     |}.
+
+Definition prim_SUB := ("SUB"%string, primM SUB).
 
 Definition riscv_AND_semi (wn wm : ty_r) : exec ty_r :=
   ok (wand wn wm).
 
 Definition riscv_AND_instr : instr_desc_t :=
-  let mn := AND in
   {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
@@ -180,16 +158,17 @@ Definition riscv_AND_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
-      id_str_jas := pp_s (string_of_riscv_op mn);
+      id_str_jas := pp_s "AND";
       id_safe := [::];
-      id_pp_asm := pp_riscv_op mn;
+      id_pp_asm := pp_name "and";
     |}.
+
+Definition prim_AND := ("AND"%string, primM AND).
 
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
   ok wn.
 
 Definition riscv_MV_instr : instr_desc_t :=
-  let mn := MV in
     {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg ];
@@ -203,10 +182,80 @@ Definition riscv_MV_instr : instr_desc_t :=
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
       id_check_dest := refl_equal;
-      id_str_jas := pp_s (string_of_riscv_op mn);
+      id_str_jas := pp_s "MV";
       id_safe := [::];
-      id_pp_asm := pp_riscv_op mn;
+      id_pp_asm := pp_name "mv";
     |}.
+
+Definition prim_MV := ("MV"%string, primM MV).
+
+Definition string_of_sign s : string :=
+  match s with
+  | Signed => ""
+  | Unsigned => "u"
+  end.
+
+Definition string_of_size ws : string :=
+  match ws with
+  | U8 => "b"
+  | U16 => "h"
+  | U32 => "w"
+  | _ => "" (* does not apply *)
+  end.
+
+Definition pp_sign_sz (s: string) (sign:signedness) (sz : wsize) (_: unit) : string :=
+  s ++ "_" ++ (if sign is Signed then "s" else "u")%string ++ string_of_wsize sz.
+
+Definition riscv_extend_semi s ws' ws (w : word ws) : exec (word ws') :=
+  let extend := if s is Signed then sign_extend else zero_extend in
+  ok (extend ws' ws w).
+
+Definition riscv_LOAD_instr s ws : instr_desc_t :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sword ws ];
+      id_in := [:: E 1 ];
+      id_tout := [:: sreg ];
+      id_out := [:: E 0 ];
+      id_semi := @riscv_extend_semi s reg_size ws;
+      id_nargs := 2;
+      id_args_kinds := ak_reg_reg ++ ak_reg_addr; (* TODO: are globs allowed? *)
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_sign_sz "LOAD" s ws;
+      id_safe := [::];
+      id_pp_asm := pp_name ("l" ++ string_of_sign s ++ string_of_size ws);
+    |}.
+
+Definition primS (f: signedness -> wsize -> riscv_op) :=
+  PrimX86
+    [seq PVs sg ws | sg <- [:: Signed; Unsigned], ws <- [:: U8; U16; U32]]
+    (fun s => if s is PVs sg ws then (Some (f sg ws)) else None).
+
+Definition prim_LOAD := ("LOAD"%string, primS LOAD).
+
+Definition riscv_STORE_instr ws : instr_desc_t :=
+    {|
+      id_msb_flag := MSB_MERGE; (* ? *)
+      id_tin := [:: sreg ];
+      id_in := [:: E 1 ];
+      id_tout := [:: sword ws ];
+      id_out := [:: E 0 ];
+      id_semi := @riscv_extend_semi Unsigned ws reg_size;
+      id_nargs := 2;
+      id_args_kinds := ak_reg_reg ++ ak_reg_addr; (* TODO: are globs allowed? *)
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_sz "STORE" ws;
+      id_safe := [::];
+      id_pp_asm := pp_name ("s" ++ string_of_size ws);
+    |}.
+
+Definition prim_STORE := ("STORE"%string, primP STORE).
 
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
@@ -217,10 +266,18 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | SUB => riscv_SUB_instr
   | AND => riscv_AND_instr
   | MV => riscv_MV_instr
+  | LOAD s ws => riscv_LOAD_instr s ws
+  | STORE ws => riscv_STORE_instr ws
   end.
 
-Definition riscv_prim_string : seq (string * prim_constructor riscv_op) :=
-  map (fun mn => (string_of_riscv_op mn, PrimRISCV mn)) cenum.
+Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
+  prim_ADD;
+  prim_SUB;
+  prim_AND;
+  prim_MV;
+  prim_LOAD;
+  prim_STORE
+].
 
 #[ export ]
 Instance riscv_op_decl : asm_op_decl riscv_op :=
