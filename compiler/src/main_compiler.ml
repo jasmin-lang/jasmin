@@ -25,7 +25,7 @@ let parse () =
   if c then enable_colors ();
   match !infiles with
   | [] ->
-    if !help_intrinsics || !safety_makeconfigdoc <> None || !help_version
+    if !help_intrinsics || !help_instructions || !safety_makeconfigdoc <> None || !help_version
     then ""
     else error()
   | [ infile ] ->
@@ -100,6 +100,10 @@ let main () =
       let dir = oget !safety_makeconfigdoc in
       SafetyConfig.mk_config_doc dir;
       exit 0);
+
+    
+    if !help_instructions
+    then (Help.show_instructions (); exit 0);
 
     if !help_intrinsics
     then (Help.show_intrinsics Arch.asmOp_sopn (); exit 0);

@@ -35,6 +35,7 @@ module type Core_arch = sig
   val known_implicits : (Name.t * string) list
 
   val is_ct_asm_op : asm_op -> bool
+  val is_doit_asm_op : asm_op -> bool
   val is_ct_asm_extra : extra_op -> bool
 
 end
