@@ -115,6 +115,8 @@ let set_ct_on s =
           | None -> [s]
           | Some l -> s::l)
 
+let ct_comp_pass = ref Compiler.ParamsExpansion
+
 let set_sct () =
   if !sct_list = None then sct_list := Some []
 
@@ -186,6 +188,9 @@ let symbol2pass =
   List.iter (fun s -> Hashtbl.add tbl (fst (print_strings s)) s) Compiler.compiler_step_list;
   fun s -> Hashtbl.find tbl s
 
+let set_ct_comp_pass s =
+  ct_comp_pass := symbol2pass s
+
 let set_sct_comp_pass s =
  sct_comp_pass := symbol2pass s
 
@@ -215,6 +220,7 @@ let options = [
     "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification";
     "-checkCT", Arg.Unit set_ct         , " Check that the full program is constant time (using a type system)";
     "-checkCTon", Arg.String set_ct_on  , "[f] Check that the function [f] is constant time (using a type system)";
+    "-checkCTafter", Arg.Symbol(compiler_step_symbol, set_ct_comp_pass), " Run CT checker after the given pass";
     "-infer"    , Arg.Set infer         , " Infer security level annotations of the constant time type system";
     "-doit"     , Arg.Set doit         , " Allow only DOIT instructions on secrets in CT checker";
     "-checkSCT", Arg.Unit set_sct       , " Check that the full program is speculative constant time (using a type system)";

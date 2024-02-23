@@ -62,6 +62,9 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 (* -------------------------------------------------------------------- *)
 let check_sct is_ct_asm _s p _source_p =
   Sct_checker_forward.ty_prog is_ct_asm p (oget !sct_list)
+let check_ct is_ct_asm _s p _source_p =
+  Ct_checker_forward.ty_prog is_ct_asm ~infer:!infer p (oget !ct_list)
+
 
 (* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
@@ -186,6 +189,15 @@ let main () =
         check_sct Arch.is_ct_sopn s p source_prog
         |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
         |> donotcompile
+      else if s = !Glob_options.ct_comp_pass && !ct_list <> None then
+        let sigs, status = check_ct Arch.is_ct_sopn s p source_prog in
+          Format.printf "/* Security types:\n@[<v>%a@]*/@."
+            (pp_list "@ " (Ct_checker_forward.pp_signature p)) sigs;
+          let on_err (loc, msg) =
+            hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
+          in
+          Stdlib.Option.iter on_err status;
+        donotcompile();
       else
       (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;
@@ -216,17 +228,6 @@ let main () =
           (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
         raise e end;
       donotcompile()
-    end;
-
-    if !ct_list <> None then begin
-        let sigs, status = Ct_checker_forward.ty_prog Arch.is_ct_sopn ~infer:!infer source_prog (oget !ct_list) in
-           Format.printf "/* Security types:\n@[<v>%a@]*/@."
-              (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
-           let on_err (loc, msg) =
-             hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
-           in
-           Stdlib.Option.iter on_err status;
-        donotcompile()
     end;
 
     if !do_compile then begin
