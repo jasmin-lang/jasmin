@@ -216,7 +216,7 @@ let rec pp_eexp fmt e =
       pp_eexp e1
       pp_eexp e2
   | Pabstract ({name="limbs"}, [h;q]) ->
-    Format.fprintf fmt "limbs %a [%a])"
+    Format.fprintf fmt "(limbs %a [%a])"
       pp_eexp h
       (pp_list ", "  pp_eexp) (extract_list q [])
   | _ -> assert false
@@ -233,9 +233,9 @@ let rec  pp_epred fmt e =
       pp_epred e1
       pp_epred e2
   | Pabstract ({name="eqmod"} as opa, es) ->
-    Format.fprintf fmt "%s (%a)"
+    Format.fprintf fmt "%s %a"
       opa.name
-      (pp_list ", " pp_eexp) es
+      (pp_list " " pp_eexp) es
 
 (*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
   | _ -> assert false
@@ -272,7 +272,7 @@ let rec pp_atome fmt (x,ws) =
   | Pfvar _ -> assert false
   | Pbig (_, _, _, _, _, _) -> assert false
 
-let pp_baseop fmt xs o es =
+let pp_baseop fmt xs o es tcas =
   let pp_var fmt (x,ws) =
     match x with
     | Pvar x ->
@@ -322,6 +322,13 @@ let pp_baseop fmt xs o es =
 
     (* flags, Z = ADD_32 (X:64) (Y:32) *)
 
+    if tcas 
+    then 
+    Format.fprintf fmt "add %a %a %a"
+      pp_lval (List.nth xs 5, int_of_ws ws)
+      pp_atome (List.nth es 0, int_of_ws ws)
+      pp_atome (List.nth es 1, int_of_ws ws)
+    else
     Format.fprintf fmt "adds %a %a %a %a"
       pp_lval (List.nth xs 1, 1)
       pp_lval (List.nth xs 5, int_of_ws ws)
@@ -329,7 +336,7 @@ let pp_baseop fmt xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SUB ws ->
-    (*FIXME: Cast the parameter to the word size sw if they do not match*)
+    (*FIXME: Cast the parameter to the word size sw only if they do not match*)
     Format.fprintf fmt "cast __UNUSED@uint%i %a;@ subb %a %a %a __UNUSED"
       (int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
@@ -506,13 +513,7 @@ let pp_baseop fmt xs o es =
   | _ -> assert false
 
 
-let rec filter_clause cs (cas,smt) =
-  match cs with
-  | [] -> cas,smt
-  | (Expr.Cas,c)::q -> filter_clause q (c::cas,smt)
-  | (Expr.Smt,c)::q -> filter_clause q (cas,c::smt)
-
-let pp_extop fmt xs o es =
+let pp_extop fmt xs o es tcas =
   assert false
 (* 
   match o with
@@ -534,16 +535,16 @@ let pp_extop fmt xs o es =
   | _ -> assert false
 *)
 
-let pp_ext_op fmt xs o es =
+let pp_ext_op fmt xs o es tcas =
   match o with
-  | Arch_extra.BaseOp (_, o) -> pp_baseop fmt xs o es
-  | Arch_extra.ExtOp o -> pp_extop fmt xs o es
+  | Arch_extra.BaseOp (_, o) -> pp_baseop fmt xs o es tcas
+  | Arch_extra.ExtOp o -> pp_extop fmt xs o es tcas
 
-let pp_sopn fmt xs o es =
+let pp_sopn fmt xs o es tcas =
   match o with
   | Sopn.Opseudo_op _ -> assert false
   | Sopn.Oslh _ -> assert false
-  | Sopn.Oasm o -> pp_ext_op fmt xs o es
+  | Sopn.Oasm o -> pp_ext_op fmt xs o es tcas
 
 let rec filter_clause cs (cas,smt) =
   match cs with
@@ -567,7 +568,7 @@ let pp_clause fmt f_pre =
     (pp_list ", " pp_epred) cas
     (pp_list ", " pp_rpred) smt
 
-let pp_i pd asmOp fds fmt i =
+let pp_i tcas pd asmOp fds fmt i =
   match i.i_desc with
   | Cassert (t, p, e) ->
     let efmt, pp_pred  =
@@ -625,11 +626,11 @@ let pp_i pd asmOp fds fmt i =
       | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
   end
   (* Manuel: we are sending MOVs here *)
-  | Copn(xs, _, o, es) -> pp_sopn fmt xs o es
+  | Copn(xs, _, o, es) -> pp_sopn fmt xs o es tcas
 
-let pp_c pd asmOp fds fmt c =
+let pp_c tcas pd asmOp fds fmt c =
   Format.fprintf fmt "@[<v>%a;@]"
-    (pp_list ";@ " (pp_i pd asmOp fds)) c
+    (pp_list ";@ " (pp_i tcas pd asmOp fds)) c
 
 let pp_ty fmt ty =
   match ty with
@@ -652,13 +653,13 @@ let pp_fun pd asmOp fds fmt fd =
       fun l a ->
         if List.exists (fun x -> (x.v_name = a.v_name) && (x.v_id = a.v_id)) l
         then l else a :: l
-    ) fd.f_args ret
-  in
+    ) fd.f_args ret in
+  let cas,smt = filter_clause fd.f_contra.f_post ([],[]) in
   Format.fprintf fmt
     "@[<v>proc main(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@] @ }@ @]"
     pp_args args
     pp_clause fd.f_contra.f_pre
-    (pp_c pd asmOp fds) fd.f_body
+    (pp_c (List.length cas > 0) pd asmOp fds) fd.f_body
     pp_clause fd.f_contra.f_post
 
 (*
