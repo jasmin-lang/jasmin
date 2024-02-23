@@ -54,6 +54,7 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe :=
 
 Variant prim_x86_suffix :=
   | PVp of wsize
+  | PVs of signedness & wsize
   | PVv of velem & wsize
   | PVsv of signedness & velem & wsize
   | PVx of wsize & wsize
@@ -65,8 +66,7 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimARM of
     (bool                 (* set_flags *)
      -> bool              (* is_conditional *)
-     -> asm_op)
-   | PrimRISCV of asm_op. 
+     -> asm_op).
 
 Class asmOp (asm_op : Type) := {
   _eqT           : eqTypeC asm_op
@@ -370,7 +370,6 @@ Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : pri
   match p with
   | PrimX86 a k => PrimX86 a (fun x => Option.bind (olift f) (k x))
   | PrimARM x => PrimARM (fun sf ic => f (x sf ic))
-  | PrimRISCV x => PrimRISCV (f x)
   end.
 
 Definition primM {A: Type} f  := @PrimX86 A [::] (fun _ => Some f).
