@@ -337,7 +337,7 @@ let pp_baseop fmt xs o es tcas =
 
   | SUB ws ->
     (*FIXME: Cast the parameter to the word size sw only if they do not match*)
-    Format.fprintf fmt "cast __UNUSED@uint%i %a;@ subb %a %a %a __UNUSED"
+    Format.fprintf fmt "cast TMP__@uint%i %a;@ subb %a %a %a TMP__"
       (int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
       pp_lval (List.nth xs 1, 1)
@@ -429,13 +429,14 @@ let pp_baseop fmt xs o es tcas =
 
   | SHR ws ->
      let fmt_ = 
+     (* 
       match (List.nth es 1) with
        Papp1 (Oword_of_int _, Pconst x) -> 
          Format.fprintf fmt "split %a TMP__ %a %a"
           pp_lval (List.nth xs 5, int_of_ws ws)
           pp_atome (List.nth es 0, int_of_ws ws)
           pp_print_i x
-        | _ ->
+        | _ -> *)
       Format.fprintf fmt "shr %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
@@ -463,10 +464,22 @@ let pp_baseop fmt xs o es tcas =
           pp_atome (List.nth es 0, int_of_ws ws)
           pp_print_i x 
      | _ -> *)
+     if tcas
+     then
+        Format.fprintf fmt "cast TMP__@@sint%d %a;@ ssplit TMP1__@@sint%d dontcare TMP__@@sint%d %a;@ cast %a TMP1__@@sint%d"
+                 (int_of_ws ws)
+                 pp_atome (List.nth es 0, int_of_ws ws)
+                 (int_of_ws ws)
+                 (int_of_ws ws)
+                 pp_eexp (List.nth es 1)
+                 pp_lval (List.nth xs 5, int_of_ws ws)
+                 (int_of_ws ws)
+     else
         Format.fprintf fmt "sar %a %a %a"
-         pp_lval (List.nth xs 5, int_of_ws ws)
-         pp_atome (List.nth es 0, int_of_ws ws)
-         pp_atome (List.nth es 1, int_of_ws ws) in fmt_
+                 pp_lval (List.nth xs 5, int_of_ws ws)
+                 pp_atome (List.nth es 0, int_of_ws ws)
+                 pp_atome (List.nth es 1, int_of_ws ws) in fmt_
+
   | MULX_lo_hi ws ->
     Format.fprintf fmt "mull %a %a %a %a"
       pp_lval (List.nth xs 1, int_of_ws ws)
@@ -475,9 +488,7 @@ let pp_baseop fmt xs o es tcas =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | MOVSX (ws1, ws2) ->
-    Format.fprintf fmt "cast dada__@@sint%d %a;
-                        cast dada1__@@sint%d dada__@@sint%d;
-                        cast %a dada1__@@sint%d"
+    Format.fprintf fmt "cast TMP__@@sint%d %a;@ cast TMP1__@@sint%d TMP__@@sint%d;@ cast %a TMP1__@@sint%d"
       (int_of_ws ws2)
       pp_atome (List.nth es 0, int_of_ws ws2)
       (int_of_ws ws1)
