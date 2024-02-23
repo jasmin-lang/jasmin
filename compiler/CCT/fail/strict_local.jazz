@@ -1,4 +1,4 @@
-fn add(#public reg u64 p, #secret reg u64 s) -> reg u64 {
+export fn add(#public reg u64 p, #secret reg u64 s) -> reg u64 {
    #public reg u64 p1; 
    p1 = p + s;
    return p1;
