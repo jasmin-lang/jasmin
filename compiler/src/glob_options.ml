@@ -27,6 +27,7 @@ let color = ref Auto
 
 let ct_list = ref None
 let infer   = ref false
+let doit = ref false
 
 let sct_list = ref None
 
@@ -215,6 +216,7 @@ let options = [
     "-checkCT", Arg.Unit set_ct         , " Check that the full program is constant time (using a type system)";
     "-checkCTon", Arg.String set_ct_on  , "[f] Check that the function [f] is constant time (using a type system)";
     "-infer"    , Arg.Set infer         , " Infer security level annotations of the constant time type system";
+    "-doit"     , Arg.Set doit         , " Allow only DOIT instructions on secrets in CT checker";
     "-checkSCT", Arg.Unit set_sct       , " Check that the full program is speculative constant time (using a type system)";
     "-checkSCTon", Arg.String set_sct_on, "[f] Check that the function [f] is speculative constant time (using a type system)";
     "-checkSCTafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), " Run SCT checker after the given pass";

@@ -2,6 +2,7 @@ open Utils
 open Arch_decl
 open Arch_extra
 open Prog
+open Glob_options
 
 type 'a callstyle =
   | StackDirect           (* call instruction push the return address on top of the stack *)
@@ -201,7 +202,7 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let is_ct_sopn (o : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) =
    match o with
-   | BaseOp (_, o) -> is_ct_asm_op o
-   | ExtOp o -> is_ct_asm_extra o
+   | BaseOp (_, o) -> (if !Glob_options.doit then is_doit_asm_op else is_ct_asm_op) o
+   | ExtOp o -> (if !Glob_options.doit then is_doit_asm_extra else is_ct_asm_extra) o
 
 end
