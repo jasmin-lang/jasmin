@@ -14,9 +14,19 @@ Context
 
 (* can be used to check that an expression does not evaluate to 0 *) 
 Definition not_zero_pexpr (e : pexpr) (s : @estate nosubword syscall_state ep) :=
-forall v sz n (n' : word sz), sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
-            to_word sz v = ok n -> 
-((n == 0%R) = false) /\ ((wsigned n' == wmin_signed sz) && (n == (-1)%R) = false).
+forall v sz n, 
+sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
+to_word sz v = ok n -> 
+(n == 0%R) = false.
+
+(* -128/-1 = 128 which will lead to overflow *)
+Definition not_overflow_pexpr (e1 e2: pexpr) (s : @estate nosubword syscall_state ep) :=
+forall v1 v2 sz n n',
+sem_pexpr (wsw:= nosubword) false gd s e1 = ok v1 -> 
+sem_pexpr (wsw:= nosubword) false gd s e2 = ok v2 -> 
+to_word sz v1 = ok n ->
+to_word sz v2 = ok n' ->
+(wsigned n == wmin_signed sz) && (n' == (-1)%R) = false.
 
 (* checks that a variable is defined in the memory *)
 Definition defined_var (x : var_i) (s : @estate nosubword syscall_state ep) : bool :=
@@ -54,6 +64,7 @@ forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v ->
 WArray.in_range (get_len_stype x.(v_var).(vtype)) (i * mk_scale aa ws)%Z ws. 
 
 (* Here len is the array length which is obtained from get_gvar *)
+
 Definition in_sub_range_check (aa : arr_access) (ws : wsize) (slen : positive) (x : var_i) (e : pexpr) 
 (s : @estate nosubword syscall_state ep) :=
 forall v i, sem_pexpr (wsw:= nosubword) false gd s e = ok v -> 
@@ -68,9 +79,12 @@ forall ve w1 w2, defined_var x s ->
               to_pointer ve = ok w2 ->
 validw (emem s) (w1 + w2)%R ws. 
 
+Print validw.
+
 Inductive safe_cond : Type :=
 | Defined_var : var_i -> safe_cond
 | Not_zero : pexpr -> pexpr -> safe_cond
+| No_overflow : pexpr -> pexpr -> safe_cond
 | Is_align : bool -> pexpr -> wsize -> safe_cond
 | In_range : pexpr -> arr_access -> wsize -> var_i -> safe_cond
 | In_sub_range : pexpr -> arr_access -> wsize -> positive -> var_i -> safe_cond
@@ -82,21 +96,21 @@ Inductive safe_cond : Type :=
 Definition gen_safe_cond_op2 (op : sop2) (e1 e2 : pexpr) : seq safe_cond :=
 match op with 
 | Odiv ck => match ck with 
-             | Cmp_w u sz => [:: Not_zero e1 e2]
+             | Cmp_w u sz => [:: Not_zero e1 e2; No_overflow e1 e2]
              | Cmp_int => [::]
              end
 | Omod ck => match ck with 
-             | Cmp_w u sz => [:: Not_zero e1 e2]
+             | Cmp_w u sz => [:: Not_zero e1 e2; No_overflow e1 e2]
              | Cmp_int => [::]
              end
 | _ => [::]
 end.
 
-Definition interp_safe_cond_op2 (s : @estate nosubword syscall_state ep) (op : sop2) (e : pexpr) (sc: seq safe_cond) :=
+Definition interp_safe_cond_op2 (s : @estate nosubword syscall_state ep) (op : sop2) (e1 e2 : pexpr) (sc: seq safe_cond) :=
 match sc with 
 | [::] => True 
-| [:: sc] => not_zero_pexpr e s
-| _ => True
+| [:: sc1; sc2] => not_zero_pexpr e2 s /\ not_overflow_pexpr e1 e2 s
+| _ => False
 end. 
 
 Section gen_safe_conds. 
@@ -147,6 +161,7 @@ Fixpoint interp_safe_cond (sc : safe_cond) (s : @estate nosubword syscall_state 
 match sc with 
 | Defined_var x => defined_var x s
 | Not_zero e1 e2 => not_zero_pexpr e2 s
+| No_overflow e1 e2 => not_overflow_pexpr e1 e2 s
 | Is_align b e ws => if b then is_align_check_array e ws s else is_align_check_memory e ws s
 | In_range e aa ws x => in_range_check aa ws x e s
 | In_sub_range e aa ws len x => in_sub_range_check aa ws len x e s
@@ -396,17 +411,19 @@ rewrite /sem_sop2 /=. case hvo : of_val=> [vo | vor] //=.
     + move=> o. by case: o=> //=.
     + move=> o. by case: o=> //=.
     + move=> o. case: o=> //= sig sz.
-      case: t1 ht1=> //= sz' ht1 hcmp. case: t2 ht2=> //= sz'' ht2 hcmp' [] hnz _ w hw w' hw' /=.
+      case: t1 ht1=> //= sz' ht1 hcmp. case: t2 ht2=> //= sz'' ht2 hcmp' [] hnz [] hnz' _ w' hw' w hw /=.
       rewrite /mk_sem_divmod /=. case: ifP=> //=. rewrite /not_zero_pexpr in hnz.
-      move: (hnz ve2 sz w w' he2 hw)=> [] hnw hnw' heq [] h'; subst. case: err=> //= h'.
-      have heq' := Bool.orb_false_intro (w == 0%R) ((wsigned w' == wmin_signed sz) && (w == (-1)%R)) hnw hnw'.
-      by rewrite heq' in heq. 
+      move: (hnz ve2 sz w' he2 hw')=> hnw heq [] h'; subst. rewrite /not_overflow_pexpr in hnz'.
+      move: (hnz' ve1 ve2 sz w w' he1 he2 hw hw') => hnw'. 
+      have heq'' := Bool.orb_false_intro (w' == 0%R) ((wsigned w == wmin_signed sz) && (w' == (-1)%R)) hnw hnw'.
+      by rewrite heq'' in heq. 
     + move=> o. case: o=> //= sig sz.
-      case: t1 ht1=> //= sz' ht1 hcmp. case: t2 ht2=> //= sz'' ht2 hcmp' [] hnz _ w hw w' hw' /=.
+      case: t1 ht1=> //= sz' ht1 hcmp. case: t2 ht2=> //= sz'' ht2 hcmp' [] hnz [] hnz' _ w' hw' w hw /=.
       rewrite /mk_sem_divmod /=. case: ifP=> //=. rewrite /not_zero_pexpr in hnz.
-      move: (hnz ve2 sz w w' he2 hw)=> [] hnw hnw' heq [] h'; subst. case: err=> //= h'.
-      have heq' := Bool.orb_false_intro (w == 0%R) ((wsigned w' == wmin_signed sz) && (w == (-1)%R)) hnw hnw'.
-      by rewrite heq' in heq. 
+      move: (hnz ve2 sz w' he2 hw')=> hnw heq [] h'; subst. rewrite /not_overflow_pexpr in hnz'.
+      move: (hnz' ve1 ve2 sz w w' he1 he2 hw hw') => hnw'. 
+      have heq'' := Bool.orb_false_intro (w' == 0%R) ((wsigned w == wmin_signed sz) && (w' == (-1)%R)) hnw hnw'.
+      by rewrite heq'' in heq.  
     + move=> o. by case: o=> //=.
     + move=> o. by case: o=> //=.
     + move=> o. by case: o=> //=.
