@@ -123,6 +123,10 @@ let rec pp_rexp fmt e =
 | Pabstract ({name="ze_16_64"}, [v]) ->
     Format.fprintf fmt "uext %a 48"
       pp_rexp v
+| Pabstract ({name="smod64"}, [v1;v2]) ->
+    Format.fprintf fmt "smod (%a) (%a)"
+      pp_rexp v1
+      pp_rexp v2
  | _ ->  assert false
 
 let rec pp_rpred fmt e =
