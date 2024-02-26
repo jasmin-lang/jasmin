@@ -537,11 +537,11 @@ Definition addr_from_vpk x (vpk:vptr_kind) :=
 
 Definition mk_addr_ptr x aa ws (pk:ptr_kind) (e1:pexpr) :=
   Let xofs := addr_from_pk x pk in
-  ok (xofs.1, mk_ofs aa ws e1 xofs.2).
+  ok (eaddp (Pvar (mk_lvar xofs.1)) (mk_ofs aa ws e1 xofs.2)).
 
 Definition mk_addr x aa ws (vpk:vptr_kind) (e1:pexpr) :=
   Let xofs := addr_from_vpk x vpk in
-  ok (xofs.1, mk_ofs aa ws e1 xofs.2).
+  ok (eaddp (Pvar (mk_lvar xofs.1)) (mk_ofs aa ws e1 xofs.2)).
 
 Definition get_var_kind x :=
   let xv := x.(gv) in
@@ -596,7 +596,7 @@ Fixpoint alloc_e (e:pexpr) :=
       if is_word_type (vtype xv) is Some ws then
         Let _ := check_vpk_word rmap xv vpk (Some 0%Z) ws in
         Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
-        ok (Pload ws pofs.1 pofs.2)
+        ok (Pload ws pofs)
       else Error (stk_ierror_basic xv "not a word variable in expression")
     end
 
@@ -610,17 +610,15 @@ Fixpoint alloc_e (e:pexpr) :=
       let ofs := mk_ofsi aa ws e1 in
       Let _ := check_vpk_word rmap xv vpk ofs ws in
       Let pofs := mk_addr xv aa ws vpk e1 in
-      ok (Pload ws pofs.1 pofs.2)
+      ok (Pload ws pofs)
     end
 
   | Psub aa ws len x e1 =>
     Error (stk_ierror_basic x.(gv) "Psub")
 
-  | Pload ws x e1 =>
-    Let _ := check_var x in
-    Let _ := check_diff x in
+  | Pload ws e1 =>
     Let e1 := alloc_e e1 in
-    ok (Pload ws x e1)
+    ok (Pload ws e1)
 
   | Papp1 o e1 =>
     Let e1 := alloc_e e1 in
@@ -672,7 +670,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
         if subtype (sword ws) ty then 
           Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
           Let sr   := sub_region_pk x pk in
-          let r := Lmem ws pofs.1 pofs.2 in
+          let r := Lmem ws pofs in
           Let rmap := Region.set_word rmap x sr ws in
           ok (rmap, r)
         else Error (stk_ierror_basic x "invalid type for assignment")
@@ -688,18 +686,16 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
       let ofs := mk_ofsi aa ws e1 in 
       Let rmap := set_arr_word rmap x ofs ws in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
-      let r := Lmem ws pofs.1 pofs.2 in
+      let r := Lmem ws pofs in
       ok (rmap, r)
     end
 
   | Lasub aa ws len x e1 =>
     Error (stk_ierror_basic x "Lasub")
 
-  | Lmem ws x e1 =>
-    Let _ := check_var x in
-    Let _ := check_diff x in
+  | Lmem ws e1 =>
     Let e1 := alloc_e rmap e1 in
-    ok (rmap, Lmem ws x e1)
+    ok (rmap, Lmem ws e1)
   end.
 
 Definition nop := Copn [::] AT_none sopn_nop [::].
@@ -758,7 +754,7 @@ Definition mk_addr_pexpr rmap x vpk :=
   if is_stack_ptr vpk is Some (s, ofs, ws, z, f) then
     Let _   := assert (check_stack_ptr rmap s ws z f)
                       (stk_error x (pp_box [:: pp_s "the stack pointer"; pp_var x; pp_s "is no longer valid"])) in
-    ok (Pload Uptr (with_var x pmap.(vrsp)) (cast_const (ofs + z.(z_ofs))), 0%Z)
+    ok (Pload Uptr (eaddp (mk_lvar (with_var x pmap.(vrsp))) (cast_const (ofs + z.(z_ofs)))), 0%Z)
   else
     Let xofs := addr_from_vpk x vpk in
     ok (Plvar xofs.1, xofs.2).
@@ -826,7 +822,7 @@ Definition alloc_array_move rmap r tag e :=
       | Pstkptr slot ofsx ws z x' =>
         let is_spilling := Some (slot, ws, z, x') in
         let dx_ofs := cast_const (ofsx + z.(z_ofs)) in
-        let dx := Lmem Uptr (with_var x pmap.(vrsp)) dx_ofs in
+        let dx := Lmem Uptr (eaddp (mk_lvar (with_var x pmap.(vrsp))) dx_ofs) in
         let (rmap, oir) := get_addr is_spilling rmap x dx tag sry vpk ey ofs in
         match oir with
         | None =>
@@ -1078,9 +1074,9 @@ Definition check_lval_reg_call (r:lval) :=
     | None   => Let _ := check_diff x in ok tt
     | Some _ => Error (stk_ierror_basic x "call result should be stored in reg")
     end
-  | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
+  | Laset aa ws x e1     => Error (stk_ierror_basic x "array assignement in lval of a call")
   | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
-  | Lmem ws x e1     => Error (stk_ierror_basic x "call result should be stored in reg")
+  | Lmem ws e1           => Error (stk_ierror_no_var "call result should be stored in reg")
   end.
 
 Definition get_regptr (x:var_i) := 
@@ -1106,7 +1102,7 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
         ok (rmap, Lvar p)
       | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
       | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
-      | Lmem ws x e1     => Error (stk_ierror_basic x "call result should be stored in reg ptr")
+      | Lmem ws e1     => Error (stk_ierror_no_var "call result should be stored in reg ptr")
       end
     | (None, _) => Error (stk_ierror_no_var "alloc_lval_call")
     end

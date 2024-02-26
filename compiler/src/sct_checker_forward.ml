@@ -585,8 +585,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
       ensure_public env venv loc i;
       Env.gget venv x
 
-  | Pload (_, x, i) ->
-      ensure_public env venv loc (Pvar (gkvar x));
+  | Pload (_, i) ->
       ensure_public env venv loc i;
       Env.dsecret env
 
@@ -773,7 +772,7 @@ end
 (* Type checking of lvalue                                   *)
 type msf_e = MSF.t * Env.venv
 
-let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
+let ty_lval env loc ((msf, venv) as msf_e : msf_e) x ety : msf_e =
   (* First path the type ety to make it consistant with the variable info *)
   match x with
   | Lnone _ -> msf_e
@@ -794,9 +793,8 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
       let venv = Env.set_ty env venv x xty in
       msf, venv
 
-  | Lmem(_, x, i) ->
-      ensure_public env venv (L.loc x) (Pvar (gkvar x));
-      ensure_public env venv (L.loc x) i;
+  | Lmem(_, i) ->
+      ensure_public env venv loc i;
         (* programmes are assumed to be safe, thus corruption from memory store
            with [x + i] is speculative only *)
       msf, Env.corruption_speculative env venv (content_ty ety)
@@ -830,11 +828,11 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
       in
       msf, Env.set_ty env venv x xty
 
-let ty_lvals1 env (msf_e : msf_e) xs ety : msf_e =
-  List.fold_left (fun msf_e x -> ty_lval env msf_e x ety) msf_e xs
+let ty_lvals1 env loc (msf_e : msf_e) xs ety : msf_e =
+  List.fold_left (fun msf_e x -> ty_lval env loc msf_e x ety) msf_e xs
 
-let ty_lvals env (msf_e : msf_e) xs tys : msf_e =
-  List.fold_left2 (ty_lval env) msf_e xs tys
+let ty_lvals env loc (msf_e : msf_e) xs tys : msf_e =
+  List.fold_left2 (ty_lval loc env) msf_e xs tys
 
 
 (* -------------------------------------------------------------- *)
@@ -882,7 +880,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     assert (match o with Syscall_t.RandomBytes _ -> true);
     List.iter (ensure_public_address_expr env venv loc) es;
     (* We don't known what happen to MSF after external function call *)
-    ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)
+    ty_lvals1 env loc (MSF.toinit, venv) xs (Env.dsecret env)
 
   | Cassgn(mso, _, _, (Pvar x as msi)) when MSF.is_msf_exact msf x.gv ->
     let mso = reg_lval ~direct:true loc mso and msi = reg_expr ~direct:true loc msi in
@@ -891,7 +889,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
 
   | Cassgn(x, _, _, e) ->
     let ety = ty_expr env venv loc e in
-    ty_lval env msf_e x (declassify_ty env i.i_annot ety)
+    ty_lval env loc msf_e x (declassify_ty env i.i_annot ety)
 
   | Copn(xs, _, o, es) ->
     begin match is_special o, xs, es with
@@ -907,7 +905,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let mso = reg_lval ~direct:true loc mso and msi = reg_expr ~direct:true loc msi in
       (* do not check b, if check_msf_trans succeed then b is public *)
       MSF.check_msf_trans msf msi b;
-      let _, venv = ty_lvals1 env (msf, venv) xs (Env.dpublic env) in
+      let _, venv = ty_lvals1 env loc (msf, venv) xs (Env.dpublic env) in
       MSF.exact1 mso, venv
 
     | Update_msf, _, _ -> assert false
@@ -928,14 +926,14 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
         | Direct (n, _) -> Direct (n, n)
         | Indirect ((n, _), le) -> Indirect ((n, n), le) in
 
-      ty_lval env msf_e x xty
+      ty_lval env loc msf_e x xty
 
     | Protect, _, _ -> assert false
 
     | Other, _, _  ->
         (* FIXME allows to add more constraints on es depending on the operators, like for div *)
         let ety = ty_exprs_max env venv loc es in
-        ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
+        ty_lvals1 env loc msf_e xs (declassify_ty env i.i_annot ety)
     end
 
   | Cif(e, c1, c2) ->
@@ -957,7 +955,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let msf = MSF.loop env i.i_loc msf in
       (* let w, _ = written_vars [i] in *)
       let venv1 = Env.freshen env venv in (* venv <= venv1 *)
-      let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
+      let msf_e = ty_lval env loc (msf, venv1) (Lvar x) (Env.dpublic env) in
       let (msf', venv') = ty_cmd fenv env msf_e c in
       let msf' = MSF.end_loop loc msf msf' in
       Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
@@ -1016,7 +1014,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
         match vfty with
         | IsMsf -> Env.dpublic env
         | IsNormal ty -> declassify_ty env i.i_annot ty in
-      let (msf, venv) = ty_lval env msf_e x ty in
+      let (msf, venv) = ty_lval env loc msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in
     List.fold_left2 output_ty ((if modmsf then MSF.toinit else msf), venv) xs tyout

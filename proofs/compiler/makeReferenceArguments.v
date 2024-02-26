@@ -52,7 +52,7 @@ Fixpoint make_prologue ii (X:Sv.t) ctr xtys es :=
     | Some y =>
       Let _ := assert (~~Sv.mem y X) (make_ref_error ii "bad fresh id (prologue)") in
       Let pes := make_prologue ii (Sv.add y X) (Hexadecimal.Little.succ ctr) xtys es in
-      let: (p,es') := pes in 
+      let: (p,es') := pes in
       ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
     | None =>
       Let pes := make_prologue ii X ctr xtys es in
@@ -71,14 +71,14 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) ctr xtys rs :=
   | [::], [::] => ok ([::])
   | (doit, id, ty)::xtys, r::rs =>
      match is_reg_ptr_lval ii ctr doit id ty r with
-     | Some y => 
+     | Some y =>
        Let _ := assert (~~Sv.mem y X)
                        (make_ref_error ii "bad fresh id (epilogue)") in
        Let pis := make_pseudo_epilogue ii X (Hexadecimal.Little.succ ctr) xtys rs in
        ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
      | None =>
        Let pis :=  make_pseudo_epilogue ii X ctr xtys rs in
-       ok (PI_lv r :: pis) 
+       ok (PI_lv r :: pis)
      end
    | _, _ => Error (make_ref_error ii "assert false (epilogue)")
    end.
@@ -87,15 +87,15 @@ Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
 
 Definition wf_lv (lv:lval) :=
   match lv with
-  | Lnone _ _ | Lmem _ _ _ | Laset _ _ _ _ => false 
-  | Lvar _ => true 
+  | Lnone _ _ | Lmem _ _ | Laset _ _ _ _ => false
+  | Lvar _ => true
   | Lasub _ _ _ _ e => ~~use_mem e
   end.
 
-Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) := 
+Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) :=
   match pis with
   | [::] => ok ([::], [::])
-  | PI_lv lv :: pis => 
+  | PI_lv lv :: pis =>
     Let lvep := swapable ii pis in
     let '(lvs,ep) := lvep in
     ok (lv::lvs, ep)
@@ -153,7 +153,7 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let pres := make_prologue ii X Hexadecimal.Nil params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
-    let: (xs, epilogue) := xsep in 
+    let: (xs, epilogue) := xsep in
     ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in

@@ -47,7 +47,7 @@ Definition arm_op_sub (x y z : var_i) : fopn_args :=
   ([:: LLvar x ], Oarm (ARM_op SUB default_opts), map f [:: y; z ]).
 
 Definition arm_op_str_off (x y : var_i) (off : Z) : fopn_args :=
-  let lv := Store reg_size y (fconst Uptr off) in
+  let lv := Store reg_size (faddrc y off) in
   ([:: lv ], Oarm (ARM_op STR default_opts), [:: Rexpr (Fvar x) ]).
 
 Definition arm_op_arith_imm
@@ -104,7 +104,7 @@ Definition arm_cmd_large_subi :=
 (* Stack alloc parameters. *)
 
 Definition is_load e :=
-  if e is Pload _ _ _ then true else false.
+  if e is Pload _ _ then true else false.
 
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
@@ -121,7 +121,7 @@ Definition arm_mov_ofs
         if ofs == Z0 then mk (LDR, [:: y]) else None
       else
         if ofs == Z0 then mk (MOV, [:: y]) else mk (ADD, [::y; eword_of_int reg_size ofs ])
-    | Lmem _ _ _ =>
+    | Lmem _ _ =>
       if ofs == Z0 then mk (STR, [:: y]) else None
     | _ => None
     end
@@ -162,10 +162,10 @@ Definition arm_lassign
         match e with
         | Rexpr (Fapp1 (Oword_of_int U32) (Fconst _))
         | Rexpr (Fvar _) => Some (MOV, e)
-        | Load _ _ _ => Some (LDR, e)
+        | Load _ _ => Some (LDR, e)
         | _ => None
         end
-    | Store _ _ _ =>
+    | Store _ _ =>
         let%opt mn := store_mn_of_wsize ws in
         Some (mn, e)
     end

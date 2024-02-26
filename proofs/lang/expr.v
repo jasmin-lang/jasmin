@@ -55,7 +55,7 @@ Variant sop2 :=
 | Oland of wsize
 | Olor  of wsize
 | Olxor of wsize
-| Olsr  of wsize 
+| Olsr  of wsize
 | Olsl  of op_kind
 | Oasr  of op_kind
 | Oror  of wsize
@@ -79,7 +79,7 @@ Variant sop2 :=
 
 (* N-ary operators *)
 Variant combine_flags :=
-| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
+| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *)
 | CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
 | CF_EQ                    (* Alias : E                              *)
 | CF_NEQ                   (* Alias : !E                             *)
@@ -179,7 +179,7 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
-  | Ocombine_flags c => (tin_combine_flags, sbool) 
+  | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
 
 (* ** Expressions
@@ -213,8 +213,8 @@ Definition mk_var_i (x : var) :=
 Notation vid ident :=
   (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
 
-Variant v_scope := 
-  | Slocal 
+Variant v_scope :=
+  | Slocal
   | Sglob.
 
 Scheme Equality for v_scope.
@@ -241,8 +241,8 @@ Inductive pexpr : Type :=
 | Parr_init : positive → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr 
-| Pload  : wsize -> var_i -> pexpr -> pexpr
+| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
+| Pload  : wsize -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
@@ -257,6 +257,11 @@ Definition eor e1 e2 := Papp2 Oor e1 e2.
 Definition eand e1 e2 := Papp2 Oand e1 e2.
 Definition eeq e1 e2 := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 := enot (eeq e1 e2).
+
+Definition eaddk k e1 e2 := Papp2 (Oadd k) e1 e2.
+Definition eaddi   := eaddk Op_int.
+Definition eaddw w := eaddk (Op_w w).
+Definition eaddp {pd: PointerData} := eaddw Uptr.
 
 Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   match op with
@@ -280,7 +285,7 @@ Definition pexpr_of_cf (cf : combine_flags) (flags : seq var) : pexpr :=
 Variant lval : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar  `(var_i)
-| Lmem  `(wsize) `(var_i) `(pexpr)
+| Lmem  `(wsize) `(pexpr)
 | Laset `(arr_access) `(wsize) `(var_i) `(pexpr)
 | Lasub `(arr_access) `(wsize) `(positive) `(var_i) `(pexpr).
 
@@ -380,7 +385,7 @@ Context `{asmop:asmOp}.
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
 | Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
-| Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
+| Csyscall : lvals -> syscall_t -> pexprs -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
@@ -504,7 +509,7 @@ Section ASM_OP.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
-(* ** Programs before stack/memory allocation 
+(* ** Programs before stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Definition progUnit : progT :=
@@ -525,7 +530,7 @@ Definition _ufun_decls :=  seq (_fun_decl unit).
 Definition _uprog      := _prog unit unit.
 Definition to_uprog (p:_uprog) : uprog := p.
 
-(* ** Programs after stack/memory allocation 
+(* ** Programs after stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Variant saved_stack :=
@@ -553,10 +558,10 @@ Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_e
 
 Variant return_address_location :=
 | RAnone
-| RAreg of var               (* The return address is pass by a register and 
+| RAreg of var               (* The return address is pass by a register and
                                 keeped in this register during function call *)
-| RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack 
-                                Some r means that the call instruction directly store ra on r and 
+| RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack
+                                Some r means that the call instruction directly store ra on r and
                                 the function should store r on the stack *)
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
@@ -724,7 +729,7 @@ Definition vrv_rec (s:Sv.t) (rv:lval) :=
   match rv with
   | Lnone _ _  => s
   | Lvar  x    => Sv.add x s
-  | Lmem _ _ _  => s
+  | Lmem _ _  => s
   | Laset _ _ x _  => Sv.add x s
   | Lasub _ _ _ x _ => Sv.add x s
   end.
@@ -735,13 +740,13 @@ Definition vrv := (vrv_rec Sv.empty).
 Definition vrvs := (vrvs_rec Sv.empty).
 
 Definition lv_write_mem (r:lval) : bool :=
-  if r is Lmem _ _ _ then true else false.
+  if r is Lmem _ _ then true else false.
 
 Fixpoint write_i_rec s (i:instr_r) :=
   match i with
   | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
-  | Csyscall xs _ _ => vrvs_rec s xs 
+  | Csyscall xs _ _ => vrvs_rec s xs
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -766,7 +771,7 @@ Definition write_c c := write_c_rec Sv.empty c.
 Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
-  | Pload _ _ _ => true
+  | Pload _ _ => true
   | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
@@ -776,7 +781,7 @@ Fixpoint use_mem (e : pexpr) :=
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
-Definition read_gvar (x:gvar) := 
+Definition read_gvar (x:gvar) :=
   if is_lvar x then Sv.singleton x.(gv)
   else Sv.empty.
 
@@ -788,7 +793,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pvar   x       => Sv.union (read_gvar x) s
   | Pget _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
-  | Pload _ x e    => read_e_rec (Sv.add x s) e
+  | Pload _ e      => read_e_rec s e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
@@ -801,10 +806,10 @@ Definition read_es := read_es_rec Sv.empty.
 
 Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
-  | Lnone _ _     => s
-  | Lvar  _       => s
-  | Lmem _ x e    => read_e_rec (Sv.add x s) e
-  | Laset _ _ x e => read_e_rec (Sv.add x s) e
+  | Lnone _ _       => s
+  | Lvar  _         => s
+  | Lmem _ e        => read_e_rec s e
+  | Laset _ _ x e   => read_e_rec (Sv.add x s) e
   | Lasub _ _ _ x e => read_e_rec (Sv.add x s) e
   end.
 
@@ -871,7 +876,7 @@ End ASM_OP.
 (* --------------------------------------------------------------------- *)
 (* Test the equality of two expressions modulo variable info             *)
 
-Definition eq_gvar x x' := 
+Definition eq_gvar x x' :=
   (x.(gs) == x'.(gs)) && (v_var x.(gv) == v_var x'.(gv)).
 
 Fixpoint eq_expr e e' :=
@@ -882,7 +887,7 @@ Fixpoint eq_expr e e' :=
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
   | Pget aa w x e , Pget aa' w' x' e' => (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'
-  | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
+  | Pload w e, Pload w' e' => (w == w') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
@@ -892,7 +897,7 @@ Fixpoint eq_expr e e' :=
   end.
 
 (* ------------------------------------------------------------------- *)
-Definition to_lvals (l:seq var) : seq lval := 
+Definition to_lvals (l:seq var) : seq lval :=
   map (fun x => Lvar (mk_var_i x)) l.
 
 (* ------------------------------------------------------------------- *)

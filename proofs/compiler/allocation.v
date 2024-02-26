@@ -441,9 +441,9 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
     Let _ := assert ([&& aa1 == aa2, w1 == w2 & len1 == len2]) error_e in
     check_gv x1 x2 m >>= check_e e1 e2
-  | Pload w1 x1 e1, Pload w2 x2 e2 =>
+  | Pload w1 e1, Pload w2 e2 =>
     Let _ := assert (w1 == w2) error_e in
-    check_v x1 x2 m >>= check_e e1 e2
+    check_e e1 e2 m
   | Papp1 o1 e1, Papp1 o2 e2 =>
     Let _ := assert (o1 == o2) error_e in check_e e1 e2 m
    | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
@@ -491,9 +491,9 @@ Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
       else Error (cerr_varalloc x1 x2 "type mismatch")
     | _               => check_varc x1 x2 m
     end
-  | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
+  | Lmem w1 e1, Lmem w2 e2  =>
     Let _ := assert (w1 == w2) error_lv in
-    check_v x1 x2 m >>= check_e e1 e2
+    check_e e1 e2 m
   | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 =>
     Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_lv in
     check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2

@@ -3,7 +3,7 @@
   open Syntax
   open Annotations
 
-  let setsign c s = 
+  let setsign c s =
     match c with
     | None -> Some (Location.mk_loc (Location.loc s) (CSS(None, Location.unloc s)))
     | _    -> c
@@ -20,7 +20,7 @@
 %token RPAREN
 
 %token T_BOOL
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 
 %token SHARP
 %token AMP
@@ -91,7 +91,7 @@
 %left LTLT GTGT ROR ROL
 %left PLUS MINUS
 %left STAR SLASH PERCENT
-%nonassoc BANG 
+%nonassoc BANG
 
 %type <Syntax.pprogram> module_
 
@@ -119,9 +119,9 @@ annotationlabel:
   | id=loc(keyword) { id }
   | s=loc(STRING) { s }
 
-int: 
+int:
   | i=INT       { i }
-  | MINUS i=INT { Z.neg i } 
+  | MINUS i=INT { Z.neg i }
 
 simple_attribute:
   | i=int          { Aint i    }
@@ -139,14 +139,14 @@ annotation:
 
 struct_annot:
   | a=separated_list(COMMA, annotation) { a }
-  
+
 top_annotation:
   | SHARP a=annotation    { [a] }
   | SHARP LBRACKET a=struct_annot RBRACKET { a }
 
 annotations:
   | l=list(top_annotation) { List.concat l }
-  
+
 
 (* ** Type expressions
  * -------------------------------------------------------------------- *)
@@ -188,7 +188,7 @@ castop1:
 castop:
 | c=loc(castop1)? { c }
 
-cast: 
+cast:
 | T_INT    { `ToInt }
 | s=swsize { `ToWord s }
 
@@ -209,7 +209,7 @@ cast:
 | AMP         c=castop { `BAnd c}
 | PIPE        c=castop { `BOr  c}
 | HAT         c=castop { `BXOr c}
-| LTLT        c=castop { `ShL  c} 
+| LTLT        c=castop { `ShL  c}
 | s=loc(GTGT) c=castop { `ShR (setsign c s)}
 | ROR         c=castop { `ROR  c}
 | ROL         c=castop { `ROL  c}
@@ -223,19 +223,15 @@ cast:
 prim:
 | SHARP x=ident { x }
 
-%inline mem_ofs:
-| PLUS e=pexpr { `Add, e }
-| MINUS e=pexpr { `Sub, e }
-
 %inline mem_access:
-| ct=parens(utype)? LBRACKET v=var e=mem_ofs? RBRACKET 
-  { ct, v, e }
-  
-arr_access_len: 
+| ct=parens(utype)? LBRACKET e=pexpr RBRACKET
+  { ct, e }
+
+arr_access_len:
 | COLON e=pexpr { e }
 
 arr_access_i:
-| ws=utype? e=pexpr len=arr_access_len? {ws, e, len} 
+| ws=utype? e=pexpr len=arr_access_len? {ws, e, len}
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {
@@ -246,7 +242,7 @@ pexpr_r:
 | v=var
     { PEVar v }
 
-| v=var i=arr_access 
+| v=var i=arr_access
     { let aa, (ws, e, len) = i in PEGet (aa, ws, v, e, len) }
 
 | TRUE
@@ -258,8 +254,8 @@ pexpr_r:
 | i=INT
     { PEInt i }
 
-| ma=mem_access 
-    { let ct,v,e = ma in PEFetch (ct, v, e) }
+| ma=mem_access
+    { let ct,e = ma in PEFetch (ct, e) }
 
 | ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
     { PEpack(ct,es) }
@@ -313,11 +309,11 @@ plvalue_r:
 | x=var
     { PLVar x }
 
-| x=var i=arr_access 
+| x=var i=arr_access
     { let a,(ws,e,len) = i in PLArray (a, ws, x, e, len) }
 
-| ma=mem_access 
-    { let ct,v,e = ma in PLMem (ct, v, e) }
+| ma=mem_access
+    { let ct,e = ma in PLMem (ct, e) }
 
 plvalue:
 | x=loc(plvalue_r) { x }
@@ -353,12 +349,12 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN 
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN
     { PIWhile (is1, b, None) }
 
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock
     { PIWhile (is1, b, Some is2) }
-| vd=postfix(pvardecl(COMMA?), SEMICOLON) 
+| vd=postfix(pvardecl(COMMA?), SEMICOLON)
     { PIdecl vd }
 
 pif:
@@ -395,17 +391,17 @@ annot_stor_type:
 
 writable:
 | CONSTANT    {`Constant }
-| MUTABLE     {`Writable } 
+| MUTABLE     {`Writable }
 
 pointer:
 | o=writable? POINTER { o }
 
 ptr:
-| o=pointer? { 
-   match o with 
+| o=pointer? {
+   match o with
    | Some w -> `Pointer w
-   | None   -> `Direct 
-   } 
+   | None   -> `Direct
+   }
 
 storage:
 | REG    ptr=ptr { `Reg ptr }
@@ -416,7 +412,7 @@ storage:
 %inline pvardecl(S):
 | ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
-annot_pvardecl: 
+annot_pvardecl:
 | a=annotations vd=pvardecl(empty) { (a,vd) }
 
 pfunbody :
@@ -455,7 +451,7 @@ pparam:
 (* -------------------------------------------------------------------- *)
 pgexpr:
 | e=pexpr { GEword e }
-| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es } 
+| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es }
 | e=loc(STRING) { GEstring e }
 
 pglobal:

@@ -6,7 +6,7 @@ open SafetyUtils
 
 (*---------------------------------------------------------------*)
 (* Unique Variable Names *)
-      
+
 (* Information attached to instructions. *)
 type minfo = { i_instr_number : int; }
 
@@ -21,7 +21,7 @@ end = struct
       let r = !cpt in
       incr cpt;
       r)
-  
+
   let ht_uniq = Hashtbl.create ~random:false 16
 
   let htv = Hashtbl.create ~random:false 16
@@ -64,7 +64,7 @@ end = struct
   and mk_lval fn lv = match lv with
     | Lnone _ -> lv
     | Lvar v -> Lvar (mk_v_loc fn v)
-    | Lmem (ws,ty,e) -> Lmem (ws, mk_v_loc fn ty, mk_expr fn e)
+    | Lmem (ws,e) -> Lmem (ws, mk_expr fn e)
     | Laset (acc,ws,v,e) -> Laset (acc,ws, mk_v_loc fn v, mk_expr fn e)
     | Lasub (acc,ws,len,v,e) -> Lasub (acc,ws,len, mk_v_loc fn v, mk_expr fn e)
 
@@ -102,7 +102,7 @@ end = struct
     | Pget (acc, ws, v, e) -> Pget (acc, ws, mk_gvar fn v, mk_expr fn e)
     | Psub (acc, ws, len, v, e) ->
       Psub (acc, ws, len, mk_gvar fn v, mk_expr fn e)
-    | Pload (ws, v, e) -> Pload (ws, mk_v_loc fn v, mk_expr fn e)
+    | Pload (ws, e) -> Pload (ws, mk_expr fn e)
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
     | Papp2 (op, e1, e2) -> Papp2 (op, mk_expr fn e1, mk_expr fn e2)
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
@@ -136,7 +136,7 @@ module Pa : sig
 
   (* - pa_dp: for each variable, contains the set of variables that can modify
               it. Some dependencies are ignored depending on some heuristic.
-     - pa_cfg: control-flow graph, where an entry f -> [f1;...;fn] means that 
+     - pa_cfg: control-flow graph, where an entry f -> [f1;...;fn] means that
      f calls f1, ..., fn *)
   type pa_res = { pa_dp : dp;
                   pa_cfg : cfg;
@@ -186,7 +186,7 @@ end = struct
     | Psub _ -> dp  (* We ignore sub-array copies  *)
 
     (* We ignore loads for v, but we compute dependencies of v' in ei *)
-    | Pload (_,v',ei) -> app_expr dp (L.unloc v') ei ct
+    | Pload (_,_e1) -> dp
 
     | Papp1 (_,e1) -> app_expr dp v e1 ct
     | Papp2  (_,e1,e2) -> app_expr (app_expr dp v e1 ct) v e2 ct
@@ -196,7 +196,7 @@ end = struct
 
   (* State while building the dependency graph:
      - dp : dependency graph
-     - cfg : control-flow graph: 
+     - cfg : control-flow graph:
              f -> [f1;...;fn] means that f calls f1, ..., fn
      - f_done : already analized functions
      - ct : variables in the context (for an example, look at the Cif case) *)
@@ -223,9 +223,8 @@ end = struct
         end
 
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
-      | Pload (_,v',ei) ->
-        let dp = app_expr st.dp (L.unloc v') ei st.ct in
-        acc, { st with dp = dp }
+      | Pload (_,_ei) ->
+        acc, st
 
       | Papp1 (_,e1) -> aux (acc,st) e1
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
@@ -239,17 +238,17 @@ end = struct
     let aux_v acc v = match (L.unloc v).v_ty with
         | Bty _ -> (L.unloc v) :: acc
         | Arr _ -> acc in
-    
+
     let aux_gv acc v = match v.gs with
       | Expr.Sglob -> acc
       | Expr.Slocal -> aux_v acc v.gv in
-    
+
     let rec aux acc = function
       | Pconst _ | Pbool _ | Parr_init _ | Pget _ | Psub _ -> acc
 
       | Pvar v' -> aux_gv acc v'
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
-      | Pload (_,v',ei) -> aux (aux_v acc v') ei
+      | Pload (_,ei) -> aux acc ei
 
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
@@ -262,7 +261,7 @@ end = struct
     let mdp = Mv.merge (fun _ osv1 osv2 ->
         let sv1,sv2 = Option.default Sv.empty osv1, Option.default Sv.empty osv2 in
         Sv.union sv1 sv2 |> Option.some) in
-    let mcfg = Mf.merge (fun _ osf1 osf2 -> 
+    let mcfg = Mf.merge (fun _ osf1 osf2 ->
         let sf1,sf2 = Option.default Sf.empty osf1, Option.default Sf.empty osf2 in
         Sf.union sf1 sf2 |> Option.some) in
     { dp = mdp st1.dp st2.dp;
@@ -285,7 +284,7 @@ end = struct
     | Lvar v -> pa_expr st (L.unloc v) e
 
     (* For memory stores, we are only interested in v and ei *)
-    | Lmem (_, v, ei) -> pa_expr st (L.unloc v) ei
+    | Lmem (_, _ei) -> st
 
 
   let rec flag_mem_lvs v = function
@@ -298,15 +297,15 @@ end = struct
              (Printer.pp_var ~debug:false) v
              (pp_list (Printer.pp_var ~debug:false)) r
              L.pp_sloc loc)
-       
+
   exception Flag_set_from_failure
-  (* Try to find the left variable of the last assignment(s) where the flag 
+  (* Try to find the left variable of the last assignment(s) where the flag
      v was set. *)
   let rec pa_flag_setfrom v = function
     | [] -> None
     | i :: t -> let i_opt = pa_flag_setfrom_i v i in
       if Option.is_none i_opt then pa_flag_setfrom v t else i_opt
-  
+
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
 
@@ -340,10 +339,10 @@ end = struct
 
     | Cwhile (_, c1, _, c2) ->
       pa_flag_setfrom v (List.rev_append c1 (List.rev c2))
-        
+
     | Ccall (_, lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
-      
+
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
     match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
@@ -352,7 +351,7 @@ end = struct
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
 
     | Cif (b, c1, c2) ->
-      let vs,st = expr_vars st b in 
+      let vs,st = expr_vars st b in
       let st = { st with if_conds = b :: st.if_conds } in
 
       let st' =
@@ -388,23 +387,23 @@ end = struct
               match pa_flag_setfrom v bdy_rev with
               | exception Flag_set_from_failure | None -> Sv.empty
               | Some r -> Sv.of_list r in
-            Sv.union flags_setfrom new_f             
+            Sv.union flags_setfrom new_f
           | _ -> flags_setfrom) Sv.empty vs
       in
 
       let while_vars = Sv.union st'.while_vars (Sv.of_list vs) in
-      let while_vars = 
+      let while_vars =
         if Config.sc_while_flags_setfrom_dep ()
         then Sv.union while_vars flags_setfrom
         else while_vars in
-      
+
       let st' = { st' with while_vars = while_vars } in
 
       (* Again, we reset the context after the merge *)
       pa_stmt fn prog st' (List.append c1 c2)
       |> set_ct st.ct
 
-    | Ccall (_, lvs, fn', es) ->   
+    | Ccall (_, lvs, fn', es) ->
       let st = { st with cfg = add_call st.cfg fn fn' } in
       let f_decl = get_fun_def (oget prog) fn' |> oget in
 
@@ -416,7 +415,7 @@ end = struct
           pa_lv st lv (Pvar { gv = ret; gs = Expr.Slocal; } ))
           st lvs f_decl.f_ret in
 
-      List.fold_left2 pa_expr st f_decl.f_args es 
+      List.fold_left2 pa_expr st f_decl.f_args es
 
   and pa_func (prog : ('info, 'asm) prog option) st fn =
     let f_decl = get_fun_def (oget prog) fn |> oget in
@@ -425,7 +424,7 @@ end = struct
 
   and pa_stmt fn (prog : ('info, 'asm) prog option) st instrs =
     List.fold_left (pa_instr fn prog) st instrs
-                                  
+
   let print_dp fmt dp =
     Format.fprintf fmt "@[<v 2>Dependency heuristic graph:@;%a@]@."
       (pp_list (fun fmt (v, sv) -> Format.fprintf fmt "@[<hov 4>%a <-- %a@]"
@@ -438,11 +437,11 @@ end = struct
   let print_while_vars fmt while_vars =
     Format.fprintf fmt "@[<v 2>While variables:@;%a@]@."
       (pp_list (fun fmt v -> Format.fprintf fmt "@[<hov 4>%a@]"
-                   (Printer.pp_var ~debug:true) v))        
+                   (Printer.pp_var ~debug:true) v))
       (List.sort (fun v v' -> V.compare v v')
          (Sv.to_list while_vars))
 
-  
+
   let print_cfg fmt cfg =
     Format.fprintf fmt "@[<v 2>Control-flow graph:@;%a@]@."
       (pp_list (fun fmt (f, fs) -> Format.fprintf fmt "@[<hov 4>%a --> %a@]"
@@ -472,7 +471,7 @@ end
 
 
 (* Flow-sensitive Pre-Analysis *)
-module FSPa : sig    
+module FSPa : sig
   val fs_pa_make : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end = struct
   exception Fcall
@@ -486,7 +485,7 @@ end = struct
       end
     | Pget (_,_, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
     | Psub (_,_,_, v, e) -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
-    | Pload (_, v, e) -> collect_vars_e (Sv.add (L.unloc v) sv) e
+    | Pload (_, e) -> collect_vars_e sv e
     | Papp1 (_,e) -> collect_vars_e sv e
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
@@ -496,11 +495,12 @@ end = struct
   let collect_vars_lv sv = function
     | Lnone _ -> sv
     | Lvar v -> Sv.add (L.unloc v) sv
-    | Laset (_,_, v, e) | Lasub (_,_,_, v, e) | Lmem (_, v, e) ->
+    | Laset (_,_, v, e) | Lasub (_,_,_, v, e) ->
       collect_vars_e (Sv.add (L.unloc v) sv) e
+    | Lmem (_, e) -> collect_vars_e sv e
 
   let collect_vars_lvs sv = List.fold_left collect_vars_lv sv
-      
+
   let rec collect_vars_i sv i = match i.i_desc with
     | Cif (e, st1, st2)
     | Cwhile (_,st1,e,st2) ->
@@ -524,7 +524,7 @@ end = struct
   let check_uniq_names sv =
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
-    
+
   let fs_pa_make pd asmOp (f : ('info, 'asm) func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
@@ -535,7 +535,7 @@ end = struct
     in
     (* We make sure that variable are uniquely defined by their names. *)
     assert (check_uniq_names vars);
-     
+
     let ssa_f = Ssa.split_live_ranges false f in
     debug (fun () ->
         Format.eprintf "SSA transform of %s:@;%a"
@@ -560,7 +560,7 @@ let trans_closure (dp : Pa.dp) =
         Sv.fold (fun v' s ->
             Sv.union s (Pa.dp_v dp v'))
           sv sv) dp in
-  
+
   fpt f (Mv.equal Sv.equal) dp
 
 (* Add variables where [sv_ini] flows to. *)

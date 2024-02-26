@@ -13,7 +13,7 @@ let rec inspect_e k = function
   | Pconst _ | Pbool _ | Parr_init _ -> k
   | Pvar x -> inspect_gvar k x
   | Pget (_, _, x, e) | Psub (_, _, _, x, e) -> inspect_gvar (inspect_e k e) x
-  | Pload (_, _, e) | Papp1 (_, e) -> inspect_e k e
+  | Pload (_, e) | Papp1 (_, e) -> inspect_e k e
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
@@ -22,7 +22,7 @@ and inspect_es k es = List.fold_left inspect_e k es
 
 let inspect_lv k = function
   | Lnone _ | Lvar _ -> k
-  | Lmem (_, _, e) | Laset (_, _, _, e) | Lasub (_, _, _, _, e) -> inspect_e k e
+  | Lmem (_, e) | Laset (_, _, _, e) | Lasub (_, _, _, _, e) -> inspect_e k e
 
 let inspect_lvs k xs = List.fold_left inspect_lv k xs
 

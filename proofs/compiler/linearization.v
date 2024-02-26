@@ -218,7 +218,7 @@ Definition lload
   (r0 : var_i)      (* Base register. *)
   (ofs : Z)         (* Offset. *)
   : option linstr_r :=
-  lassign (LLvar rd) ws (Load ws r0 (fconst Uptr ofs)).
+  lassign (LLvar rd) ws (Load ws (faddrc rd ofs)).
 
 (* Return a linear instruction that corresponds to storing to memory.
    The linear instruction [lstore ii rd ofs ws r0] corresponds to
@@ -230,7 +230,7 @@ Definition lstore
   (ws : wsize)      (* Size of the value to copy. *)
   (r0 : var_i)       (* Source register. *)
   : option linstr_r :=
-  lassign (Store ws rd (fconst Uptr ofs)) ws (Rexpr (Fvar r0)).
+  lassign (Store ws (faddrc rd ofs)) ws (Rexpr (Fvar r0)).
 
 Definition set_up_sp_register
   (vrspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) : lcmd :=

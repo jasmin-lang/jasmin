@@ -92,12 +92,12 @@ Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
              (reg_ierror_no_var "init_array_info") in
   ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_len := len; ai_elems := vars |}).
 
-Definition init_map (fi : expand_info) := 
+Definition init_map (fi : expand_info) :=
   let svars := sv_of_list (fun x => x) fi.(vars) in
   Let sarrs := foldM init_array_info (svars, Mvar.empty _) fi.(arrs) in
   ok ({| svars := svars; sarrs := sarrs.2 |}, finfo fi).
 
-Definition check_gvar (m : t) (x: gvar) := 
+Definition check_gvar (m : t) (x: gvar) :=
   ~~ is_lvar x || Sv.mem (gv x) m.(svars).
 
 Definition nelem (ty: stype) (ws: wsize) : Z :=
@@ -106,7 +106,7 @@ Definition nelem (ty: stype) (ws: wsize) : Z :=
   else 0.
 
 (* FIXME: improve error messages *)
-Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr := 
+Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
 
@@ -114,11 +114,11 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e
 
-  | Pget aa ws x e1 => 
-    if check_gvar m x then 
+  | Pget aa ws x e1 =>
+    if check_gvar m x then
       Let e1 := expand_e m e1 in
       ok (Pget aa ws x e1)
-    else 
+    else
       let x := gv x in
       match Mvar.get m.(sarrs) x, is_const e1 with
       | Some ai, Some i =>
@@ -129,27 +129,26 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
         ok (Pvar (mk_lvar {| v_var := v; v_info := v_info x |}))
       | _, _ => Error (reg_error x "(the index is not a constant)")
       end
-  
-  | Psub aa ws len x e1 => 
+
+  | Psub aa ws len x e1 =>
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(sub-reg arrays are not allowed)") in
     Let e1 := expand_e m e1 in
     ok (Psub aa ws len x e1)
 
-  | Pload ws x e1 =>
-    Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
+  | Pload ws e1 =>
     Let e1 := expand_e m e1 in
-    ok (Pload ws x e1)
+    ok (Pload ws e1)
 
-  | Papp1 o e1 => 
+  | Papp1 o e1 =>
     Let e1 := expand_e m e1 in
     ok (Papp1 o e1)
 
   | Papp2 o e1 e2 =>
     Let e1 := expand_e m e1 in
     Let e2 := expand_e m e2 in
-    ok (Papp2 o e1 e2) 
+    ok (Papp2 o e1 e2)
 
-  | PappN o es => 
+  | PappN o es =>
     Let es := mapM (expand_e m) es in
     ok (PappN o es)
 
@@ -157,7 +156,7 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let e1 := expand_e m e1 in
     Let e2 := expand_e m e2 in
     Let e3 := expand_e m e3 in
-    ok (Pif ty e1 e2 e3) 
+    ok (Pif ty e1 e2 e3)
 
   end.
 
@@ -165,20 +164,19 @@ Definition expand_lv (m : t) (x : lval)  :=
   match x with
   | Lnone _ _ => ok x
 
-  | Lvar x => 
+  | Lvar x =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok (Lvar x)
 
-  | Lmem ws x e => 
-    Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
+  | Lmem ws e =>
     Let e := expand_e m e in
-    ok (Lmem ws x e)
+    ok (Lmem ws e)
 
   | Laset aa ws x e =>
-    if Sv.mem x m.(svars) then 
+    if Sv.mem x m.(svars) then
       Let e := expand_e m e in
       ok (Laset aa ws x e)
-    else 
+    else
       match Mvar.get m.(sarrs) x, is_const e with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
@@ -188,7 +186,7 @@ Definition expand_lv (m : t) (x : lval)  :=
         ok (Lvar {| v_var := v; v_info := v_info x |})
       | _, _ => Error (reg_error x "(the index is not a constant)")
       end
-  
+
   | Lasub aa ws len x e =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(sub-reg arrays are not allowed)") in
     Let e := expand_e m e in
@@ -292,21 +290,21 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
 
   | Cif b c1 c2 =>
     Let b  := add_iinfo ii (expand_e m b) in
-    Let c1 := mapM (expand_i m) c1 in 
-    Let c2 := mapM (expand_i m) c2 in 
+    Let c1 := mapM (expand_i m) c1 in
+    Let c2 := mapM (expand_i m) c2 in
     ok (MkI ii (Cif b c1 c2))
 
   | Cfor x (dir, e1, e2) c =>
     Let _  := add_iinfo ii (assert (Sv.mem x m.(svars)) (reg_ierror x "reg array as a variable of a for loop")) in
     Let e1 := add_iinfo ii (expand_e m e1) in
     Let e2 := add_iinfo ii (expand_e m e2) in
-    Let c  := mapM (expand_i m) c in 
+    Let c  := mapM (expand_i m) c in
     ok (MkI ii (Cfor x (dir, e1, e2) c))
 
   | Cwhile a c e c' =>
     Let e  := add_iinfo ii (expand_e m e) in
-    Let c  := mapM (expand_i m) c in 
-    Let c' := mapM (expand_i m) c' in 
+    Let c  := mapM (expand_i m) c in
+    Let c' := mapM (expand_i m) c' in
     ok (MkI ii (Cwhile a c e c'))
 
   | Ccall ini xs fn es =>
