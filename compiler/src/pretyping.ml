@@ -1958,7 +1958,7 @@ let tt_funbody arch_info env (pb : S.pfunbody) =
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (Option.default [] pb.pdb_ret) in
-  (bdy, ret)
+  (bdy, ret, env)
 
 
 (* -------------------------------------------------------------------- *)
@@ -2093,13 +2093,13 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let inret = Option.map_default (List.map L.unloc) [] pf.pdf_body.pdb_ret in
   let dfl_mut x = List.mem x inret in
   
-  let envb, args = 
+  let env_pre, args =
     let env, args = List.map_fold (tt_annot_vardecls dfl_mut arch_info.pd) env pf.pdf_args in
     let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
     env, List.flatten args in
   let rty  = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
   let oannot = Option.map_default (List.map fst) [] pf.pdf_rty in
-  let body, xret = tt_funbody arch_info envb pf.pdf_body in
+  let body, xret, env_post = tt_funbody arch_info env_pre pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in
   let mk_aprover = Annot.filter_string_list None ["cas", P.E.Cas ; "smt", P.E.Smt ] in
@@ -2115,10 +2115,10 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       List.map (fun (annot,c) ->
           aprover annot, tt_expr_bool ~mode:`AllVarLogical arch_info.pd env c) l
   in
-  let env_pre = Env.add_f_result envb (Option.default [] None) in
+  let env_pre = Env.add_f_result env_pre (Option.default [] None) in
   let f_pre = get_clause env_pre pf.pdf_contra.pdc_pre in
   let ret = (Option.default [] pf.pdf_body.pdb_ret) in
-  let env_post = Env.add_f_result env_pre ret in
+  let env_post = Env.add_f_result env_post ret in
   let f_post = get_clause env_post pf.pdf_contra.pdc_post in
 
   let fdef =
@@ -2137,7 +2137,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   check_return_statement ~loc fdef.P.f_name rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
   
-  warn_unused_variables envb fdef;
+  warn_unused_variables env_pre fdef;
 
   Env.Funs.push env0 fdef rty
 
