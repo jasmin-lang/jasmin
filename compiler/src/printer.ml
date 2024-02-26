@@ -76,6 +76,9 @@ let pp_ge pp_len pp_var =
       pp_expr e1
       pp_expr e2
       pp_expr b
+  | Presult v      -> pp_gvar fmt v
+  | Presultget (aa,ws,x,e) ->
+    pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None
   in
   pp_expr
 

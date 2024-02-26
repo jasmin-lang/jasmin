@@ -348,7 +348,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Papp1 _ | Papp2 _ | Pbool _
     | Parr_init _ | Pget _ | Psub _
     | Pload _ | PappN _ | Pabstract _ | Pif _
-    | Pfvar _ | Pbig _ -> None
+    | Pfvar _ | Pbig _ | Presult _ | Presultget _ -> None
 
   (* Try to evaluate e to a constant expression (of type word) in abs.
      Superficial checks only. *)
@@ -432,6 +432,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | Pfvar _ -> acc
       | Pbig (e1, e2, _, _, e3, e4) ->
         aux (aux (aux (aux acc e1) e2) e3) e4
+      | Presult x -> mvar_of_var x :: acc
+
+      | Presultget(access,ws,x,ei) ->
+        abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
     in
 
     try PtVars (aux [] e) with Expr_contain_load -> PtTopExpr
@@ -685,7 +689,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       end
 
     | Pfvar _ -> assert false
-    | Pbig _-> assert false
+    | Pbig _ -> assert false
+    | Presult _ -> assert  false
+    | Presultget _ -> assert false
     | Pabstract (opn, es) ->
       let rec f_expl i es =
         match es with

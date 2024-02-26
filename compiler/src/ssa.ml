@@ -115,8 +115,7 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
   in
   let m, f_body = stmt Mv.empty f.f_body in
   let f_ret = List.map (Subst.vsubst_vi m) f.f_ret in
-  let m = Mv.filter (fun k a -> List.exists (fun x -> L.unloc x = a) f_ret) m in
-  let f_post = List.map (fun (a,c) -> a,Subst.vsubst_e m c) f.f_contra.f_post in
+  let f_post = List.map (fun (a,c) -> a,Subst.gsubst_result m c) f.f_contra.f_post in
   let f_contra = {f.f_contra with f_post} in
   { f with f_body ; f_ret ;f_contra}
 

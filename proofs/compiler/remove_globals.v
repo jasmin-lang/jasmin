@@ -165,6 +165,14 @@ Section REMOVE.
         Let e0   := remove_glob_e ii env e0 in
         Let body := remove_glob_e ii env body in
         ok (Pbig e1 e2 op2 x e0 body) 
+      | Presult xi =>
+        Let xi := get_var_ ii env xi in
+        ok (Presult xi)
+
+      | Presultget aa ws xi e =>
+        Let e  := remove_glob_e ii env e in
+        Let xi := get_var_ ii env xi in
+        ok (Presultget aa ws xi e)
 
       end.
 

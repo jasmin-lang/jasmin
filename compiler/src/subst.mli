@@ -35,3 +35,5 @@ val vsubst_i : vsubst -> ('info, 'asm) instr -> ('info, 'asm) instr
 val vsubst_c : vsubst -> ('info, 'asm) stmt  -> ('info, 'asm) stmt
 
 val vsubst_func : vsubst -> ('info, 'asm) func -> ('info, 'asm) func
+
+val gsubst_result: vsubst -> expr  -> expr

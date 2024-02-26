@@ -127,7 +127,9 @@ let rec pp_rexp fmt e =
     Format.fprintf fmt "smod (%a) (%a)"
       pp_rexp v1
       pp_rexp v2
- | _ ->  assert false
+| Presult x ->
+    Format.fprintf fmt "%a" pp_gvar_i x.gv
+| _ ->  assert false
 
 let rec pp_rpred fmt e =
   match e with
@@ -206,7 +208,7 @@ let rec pp_eexp fmt e =
   | Papp1 (Oword_of_int _ws, x) ->
     Format.fprintf fmt "%a" pp_eexp x
   | Papp1(Oneg _, e) ->
-    Format.fprintf fmt "-(%a)" pp_eexp e
+    Format.fprintf fmt "(-1)*(%a)" pp_eexp e
   | Papp2(Oadd _, e1, e2) ->
     Format.fprintf fmt "(%a) + (%a)"
       pp_eexp e1
@@ -223,6 +225,8 @@ let rec pp_eexp fmt e =
     Format.fprintf fmt "(limbs %a [%a])"
       pp_eexp h
       (pp_list ", "  pp_eexp) (extract_list q [])
+  | Presult x ->
+    Format.fprintf fmt "%a" pp_gvar_i x.gv
   | _ -> assert false
 
 let rec  pp_epred fmt e =
@@ -275,6 +279,8 @@ let rec pp_atome fmt (x,ws) =
   | Pif (_, _, _, _) -> assert false
   | Pfvar _ -> assert false
   | Pbig (_, _, _, _, _, _) -> assert false
+  | Presult _ -> assert false
+  | Presultget _ -> assert false
 
 let pp_baseop fmt xs o es tcas =
   let pp_var fmt (x,ws) =
@@ -318,6 +324,8 @@ let pp_baseop fmt xs o es tcas =
       | Pif (_, _, _, _) -> assert false
       | Pfvar _ -> assert false
       | Pbig (_, _, _, _, _, _) -> assert false
+      | Presult _ -> assert false
+      | Presultget _ -> assert false
     end
 
   | ADD ws ->
@@ -573,15 +581,15 @@ let pp_clause fmt f_pre =
   | [],[] ->
   Format.fprintf fmt "true@ &&@ true"
   | [],smt ->
-  Format.fprintf fmt "true@ &&@ and [%a]"
-    (pp_list ", " pp_rpred) smt
+  Format.fprintf fmt "true@ &&@ and [@[<v>%a@]]"
+    (pp_list ",@ " pp_rpred) smt
   | cas,[] ->
-  Format.fprintf fmt "and [%a]@ &&@ true"
-    (pp_list ", " pp_epred) cas
+  Format.fprintf fmt "and [@[<v>%a@]] @ &&@ true"
+    (pp_list ",@ " pp_epred) cas
   | _,_ ->
-  Format.fprintf fmt "and [%a]@ &&@ and [%a]"
-    (pp_list ", " pp_epred) cas
-    (pp_list ", " pp_rpred) smt
+  Format.fprintf fmt "and [@[<v>%a@]] @ &&@ and [@[<v>%a@]]"
+    (pp_list ",@ " pp_epred) cas
+    (pp_list ",@ " pp_rpred) smt
 
 let pp_i tcas pd asmOp fds fmt i =
   match i.i_desc with
