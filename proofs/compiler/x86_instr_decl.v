@@ -692,11 +692,11 @@ Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
 
 (* ---------------------------------------------------------------- *)
 Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
-  let _ := check_size_32_64 sz in
+  Let _ := check_size_32_64 sz in
   ok (@pextr sz v1 v2).
 
 Definition x86_PDEP sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
-  let _ := check_size_32_64 sz in
+  Let _ := check_size_32_64 sz in
   ok (@pdep sz v1 v2).
 
 Definition x86_MOVX sz (x: word sz) : exec (word sz) :=
@@ -1054,7 +1054,7 @@ Definition wVPCLMULDQD sz (w1 w2: word sz) (k: u8): word sz :=
  make_vec sz (map2 f (split_vec U128 w1) (split_vec U128 w2)).
 
 Definition x86_VPCLMULQDQ sz (v1 v2: word sz) (k: u8): ex_tpl (w_ty sz) :=
- let _ := check_size_128_256 sz in
+ Let _ := check_size_128_256 sz in
  ok (wVPCLMULDQD v1 v2 k).
 
 (* ----------------------------------------------------------------------------- *)
