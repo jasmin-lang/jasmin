@@ -40,7 +40,9 @@ let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
     Pbig(gsubst_e flen f e1, gsubst_e flen f e2, o, 
          gsubst_vdest f x,
          gsubst_e flen f e0, 
-         gsubst_e flen f b) 
+         gsubst_e flen f b)
+  | Presult v -> Presult (gsubst_gvar f v)
+  | Presultget (aa, ws, v, e) -> Presultget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
 
 and gsubst_gvar f v = 
   match f v with
@@ -203,7 +205,8 @@ let rec int_of_expr ?loc e =
       let op = int_of_op2 ?loc o in
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
   | Pbool _ | Parr_init _ | Pvar _
-  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ | Pfvar _ | Pbig _ | Pabstract _ ->
+  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ | Pfvar _ | Pbig _ | Pabstract _
+  | Presult _ | Presultget _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
@@ -421,3 +424,24 @@ let vsubst_c s = gsubst_c (fun ty -> ty) (vsubst_ve s)
 
 let vsubst_func s = gsubst_func (fun ty -> ty) (vsubst_ve s)
 
+let rec gsubst_result m e =
+  match e with
+  | Pconst c -> Pconst c
+  | Pbool b  -> Pbool b
+  | Parr_init n -> Parr_init n
+  | Pvar v ->  Pvar v
+  | Pget (aa, ws, v, e) -> Pget(aa, ws, v, gsubst_result m e)
+  | Psub (aa, ws, len, v, e) -> Psub(aa,ws, len, v, gsubst_result m e)
+  | Pload (ws, v, e) -> Pload (ws, v, gsubst_result m e)
+  | Papp1 (o, e)     -> Papp1 (o, gsubst_result m e)
+  | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_result m e1, gsubst_result m e2)
+  | PappN (o, es) -> PappN (o, List.map (gsubst_result m) es)
+  | Pabstract (o, es) -> Pabstract (o, List.map (gsubst_result m) es)
+  | Pif   (ty, e, e1, e2)-> Pif(ty, gsubst_result m e, gsubst_result m e1, gsubst_result m e2)
+  | Pfvar x -> Pfvar x
+  | Pbig (e1, e2, o, x, e0, b) ->
+    Pbig(gsubst_result m e1, gsubst_result m e2, o, x,
+         gsubst_result m e0,
+         gsubst_result m b)
+  | Presult v -> Presult(vsubst_gv m v)
+  | Presultget (aa, ws, v, e) -> Presultget(aa, ws, vsubst_gv m v, gsubst_result m e)

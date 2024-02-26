@@ -405,6 +405,10 @@ Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
          Pbig s len sop x e0 (const_prop_e_aux lm m body)
      end
   | Pabstract s es => Pabstract s ((map (const_prop_e_aux lm m) es))
+  | Presult x       => e
+  | Presultget aa sz x e =>
+      let e := const_prop_e_aux lm m e in
+      Presultget aa sz x e
   end.
 
 Definition const_prop_e := const_prop_e_aux (Mvar.empty _).

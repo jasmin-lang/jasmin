@@ -240,8 +240,6 @@ module Env : sig
 
   val empty : 'asm env
 
-  val copy : 'asm env -> 'asm env
-
   val decls : 'asm env -> (unit, 'asm) P.pmod_item list
     
   val add_from : 'asm env -> string * string -> 'asm env
@@ -261,8 +259,8 @@ module Env : sig
   val is_abstract_pre : 'asm env -> A.symbol -> bool
   val get_abstract_pre : 'asm env -> A.symbol -> S.ptype list * S.ptype
 
-  val add_f_result : 'asm env -> (A.pident * P.pvar) list -> 'asm env
-  val get_f_result : 'asm env -> int -> (A.pident * P.pvar)
+  val add_f_result : 'asm env -> A.pident list -> 'asm env
+  val get_f_result : 'asm env -> int -> A.pident
 
   val set_known_implicits : 'asm env -> (string * string) list -> 'asm env
   val get_known_implicits : 'asm env -> (string * string) list 
@@ -318,7 +316,7 @@ end  = struct
     e_abstract_typ : Ss.t;     (* Set of abstract types declared by the user *)
     e_abstract_pre : (A.symbol, S.ptype list * S.ptype) Map.t;
           (* Set of abstract predicates declared by the user *)
-    e_fresult : (A.pident * P.pvar ) list;
+    e_fresult : A.pident list;
     e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
@@ -344,21 +342,6 @@ end  = struct
     ; e_known_implicits = [];
     }
 
-  let copy env =
-    { e_vars    = env.e_vars
-    ; e_fvars   = env.e_fvars
-    ; e_funs    = env.e_funs
-    ; e_decls   = env.e_decls
-    ; e_exec    = env.e_exec
-    ; e_loader  = env.e_loader
-    ; e_declared = env.e_declared
-    ; e_reserved = env.e_reserved
-    ; e_abstract_typ = env.e_abstract_typ
-    ; e_abstract_pre = env.e_abstract_pre
-    ; e_fresult = env.e_fresult
-    ; e_known_implicits = env.e_known_implicits;
-    }
-  
   let add_reserved env s = 
     { env with e_reserved = Ss.add s env.e_reserved }
 
@@ -583,8 +566,8 @@ let tt_fvar_global (mode:tt_mode) (env : 'asm Env.env) v =
   match Env.Fvars.find (L.unloc v) env with
   | Some x when mode = `AllVarLogical -> P.Pfvar (L.mk_loc (L.loc v) x), x.P.v_ty 
   | _ -> 
-      let x, ty = tt_var_global mode env v in
-      P.Pvar x, ty
+    let x, ty = tt_var_global mode env v in
+    P.Pvar x, ty
 
 
 (* -------------------------------------------------------------------- *)
@@ -1035,7 +1018,7 @@ let is_combine_flags id =
   List.mem_assoc (L.unloc id) combine_flags
   
 (* -------------------------------------------------------------------- *)
-let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
+let rec tt_expr pd  ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
   | S.PEParens pe ->
     tt_expr ~mode pd env pe
@@ -1047,7 +1030,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     P.Pconst i, P.tint
 
   | S.PEVar x ->
-    tt_fvar_global mode env x 
+    tt_fvar_global mode env x
 
   | S.PEFetch me ->
     let ct, x, e = tt_mem_access ~mode pd env me in
@@ -1141,7 +1124,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     if Env.is_abstract_pre env id then
       begin
         let tt_expr pe ty =
-          let e, ety = tt_expr ~mode:`AllVarLogical pd env pe in
+          let e, ety = tt_expr ~mode pd env pe in
           check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:ty;
           e
         in
@@ -1221,21 +1204,28 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
         | _ -> raise (tyerror ~loc:(L.loc pe) (StringError "the expression should have type int or uXX")) in
       P.Pbig(e1, e2, o, L.mk_loc (L.loc px) x, e0, b), ty
   | S.PEResult i ->
-       let sv,pv =
+       let si =
          try Env.get_f_result env i with
          | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult i)
        in
-       let new_env = Env.copy env in
-       let new_env = Env.Vars.push_local new_env pv in
-       tt_expr ~mode pd new_env (L.mk_loc (L.loc pe) (S.PEVar sv))
-  | S.PEResultGet (aa, ws, i, pi, olen) ->
-       let sv,pv =
-         try Env.get_f_result env i with
-         | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult i)
+       let x, ty = tt_var_global mode env si in
+       P.Presult x, ty
+
+  | S.PEResultGet (aa, ws, v, pi, olen) ->
+       let si =
+         try Env.get_f_result env v with
+         | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult v)
        in
-       let new_env = Env.copy env in
-       let new_env = Env.Vars.push_local new_env pv in
-       tt_expr ~mode pd new_env (L.mk_loc (L.loc pe) (S.PEGet (aa, ws, sv, pi, olen)))
+       let x, ty = tt_var_global mode env si in
+       let ty, _ = tt_as_array (L.loc pe, ty) in
+       let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
+       let ty = P.tu ws in
+       let i,ity  = tt_expr ~mode pd env pi in
+       check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
+       begin match olen with
+         | None -> P.Presultget (aa, ws, x, i), ty
+         | Some plen -> assert false
+       end
 
 and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   let e, ety = tt_expr ~mode pd env pe in
@@ -1736,6 +1726,7 @@ let rec is_constant e =
   | P.Pabstract (_, es) -> List.for_all is_constant es
   | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
   | P.Pfvar _ | P.Pbig _ -> false
+  | P.Presult _ | P.Presultget _ -> false
 
 let check_lval_pointer loc x =  
   match x with
@@ -2124,11 +2115,11 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       List.map (fun (annot,c) ->
           aprover annot, tt_expr_bool ~mode:`AllVarLogical arch_info.pd env c) l
   in
-  let envb = Env.add_f_result envb (Option.default [] None) in
-  let f_pre = get_clause envb pf.pdf_contra.pdc_pre in
-  let ret = List.map2 (fun a b -> (a, L.unloc b)) (Option.default [] pf.pdf_body.pdb_ret)  xret in
-  let envr = Env.add_f_result envb ret in
-  let f_post = get_clause envr pf.pdf_contra.pdc_post in
+  let env_pre = Env.add_f_result envb (Option.default [] None) in
+  let f_pre = get_clause env_pre pf.pdf_contra.pdc_pre in
+  let ret = (Option.default [] pf.pdf_body.pdb_ret) in
+  let env_post = Env.add_f_result env_pre ret in
+  let f_post = get_clause env_post pf.pdf_contra.pdc_post in
 
   let fdef =
     { P.f_loc   = loc;
