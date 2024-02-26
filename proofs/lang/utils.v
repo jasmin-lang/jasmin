@@ -593,19 +593,6 @@ Section MAP2.
     by Lia.lia.
   Qed.
 
-  Lemma mapM2_Forall2 (P: R → B → Prop) ma mb mr :
-    (∀ a b r, List.In (a, b) (zip ma mb) → f a b = ok r → P r b) →
-    mapM2 ma mb = ok mr →
-    List.Forall2 P mr mb.
-  Proof.
-    elim: ma mb mr.
-    + move => [] // mr _ [<-]; constructor.
-    move => a ma ih [] // b mb mr' h /=; t_xrbindP => r ok_r mr rec <- {mr'}.
-    constructor.
-    + by apply: (h _ _ _ _ ok_r); left.
-    by apply: ih => // a' b' r' h' ok_r'; apply: (h a' b' r' _ ok_r'); right.
-  Qed.
-
   Lemma mapM2_Forall3 ma mb mr :
     mapM2 ma mb = ok mr ->
     Forall3 (fun a b r => f a b = ok r) ma mb mr.
@@ -615,6 +602,16 @@ Section MAP2.
     move=> a ma ih [//|b mb] /=.
     t_xrbindP=> _ r h mr /ih{ih}ih <-.
     by constructor.
+  Qed.
+
+  Lemma mapM2_nth ma mb mr :
+    mapM2 ma mb = ok mr ->
+    forall a b r i,
+      (i < size ma)%nat ->
+      f (nth a ma i) (nth b mb i) = ok (nth r mr i).
+  Proof.
+    move=> H; elim: {H ma mb mr}(mapM2_Forall3 H) => //= a b r ma mb mr ok_r _ ih.
+    by move=> a' b' r' [//|i]; apply ih.
   Qed.
 
   Lemma cat_mapM2 ha ta hb tb hl tl :
