@@ -2893,6 +2893,7 @@ Section PROOF.
   Proof.
     move=> ok_m1' ok_m2' hioff a ha _.
     symmetry; apply (writeP_neq ok_m2').
+    apply: disjoint_range_alt.
     have A := alloc_stackP ok_m1'.
     have: pointer_range (top_stack m1) (stack_root m1) a.
     + rewrite /pointer_range !zify; lia.
@@ -2937,6 +2938,7 @@ Section PROOF.
     move=> hb1 hb2 ok_m2.
     move=> pr' hnv hnpr.
     symmetry; apply (writeP_neq ok_m2).
+    apply: disjoint_range_alt.
     apply (disjoint_zrange_incl_l hb2).
     apply (disjoint_zrange_incl_l hb1).
     apply (not_between_U8_disjoint_zrange no_overflow_max0).
@@ -3437,7 +3439,8 @@ Section PROOF.
       have n_pos := wsize_size_pos ws.
       have n_pos' := wsize_size_pos ws'.
       have [top_lo _] := wunsigned_range top.
-      rewrite (writeP_neq ok_m1) //; split.
+      rewrite (writeP_neq ok_m1) //.
+      apply: disjoint_range_alt; split.
       1-2: rewrite !zify !wunsigned_add; lia.
       rewrite !wunsigned_add; lia.
     move => y ofs_y; rewrite inE; case: eqP.

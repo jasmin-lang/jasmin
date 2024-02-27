@@ -306,6 +306,22 @@ Section CoreMem.
     elim: (hd (sub (add p' k) p) k) => //; by rewrite add_sub.
   Qed.
 
+  Lemma disjoint_range_valid_not_valid_U8 m p1 ws1 p2 :
+    validw m p1 ws1 ->
+    ~ validw m p2 U8 ->
+    disjoint_range p1 ws1 p2 U8.
+  Proof.
+    move=> /validwP [hal1 hval1] hnval.
+    red; rewrite wsize8 => i i' i_range ?.
+    have ? : i' = 0 by Lia.lia.
+    subst; rewrite add_0.
+    move => ?; subst; apply: hnval; apply/validwP; split.
+    + by apply is_align8.
+    move=> k; rewrite wsize8 => hk; have ->: k = 0%Z by Lia.lia.
+    rewrite add_0.
+    exact: hval1.
+  Qed.
+
   Lemma read_write_any_mem m1 m1' pr pw szw (vw:word szw) m2 m2':
     read m1 pr U8 = read m1' pr U8 ->
     write m1 pw vw = ok m2 ->
