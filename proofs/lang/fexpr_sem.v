@@ -19,7 +19,7 @@ Section SEM_EXPR.
 
   Definition sem_rexpr (e: rexpr) : exec value :=
     match e with
-    | Load ws x a => Let p := get_var true vm x >>= to_pointer in Let off := sem_fexpr a >>= to_pointer in Let v := read m (p + off)%R ws in ok (@to_val (sword ws) v)
+    | Load ws x a => Let p := get_var true vm x >>= to_pointer in Let off := sem_fexpr a >>= to_pointer in Let v := read m Aligned (p + off)%R ws in ok (@to_val (sword ws) v) (* TODO: alignment *)
     | Rexpr a => sem_fexpr a
     end.
 
@@ -37,7 +37,7 @@ Definition write_lexpr e v (s: estate) : exec estate :=
       Let p := get_var true (evm s) x >>= to_pointer in
       Let off := sem_fexpr (evm s) a >>= to_pointer in
       Let w := to_word ws v in
-      Let m := write (emem s) (p + off)%R w in
+      Let m := write (emem s) Aligned (p + off)%R w in (* TODO: alignment *)
       ok (with_mem s m)
   | LLvar x =>
       Let vm := set_var true (evm s) x v in

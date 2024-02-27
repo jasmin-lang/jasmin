@@ -147,23 +147,23 @@ Qed.
 
 Lemma write_lexpr_validw e v s1 s2 :
   write_lexpr e v s1 = ok s2 ->
-  validw (emem s1) =2 validw (emem s2).
+  validw (emem s1) =3 validw (emem s2).
 Proof.
   case: e => [ws x e|x] /=.
   + t_xrbindP=> ?? _ _ ?? _ _ ? _ ? hw <- /=.
-    by move=> ??; rewrite (write_validw_eq hw).
+    by move=> ???; rewrite (write_validw_eq hw).
   t_xrbindP=> ? _ <- /=.
   by move=> ??; reflexivity.
 Qed.
 
 Lemma write_lexprs_validw es vs s1 s2 :
   write_lexprs es vs s1 = ok s2 ->
-  validw (emem s1) =2 validw (emem s2).
+  validw (emem s1) =3 validw (emem s2).
 Proof.
   elim: es vs s1 => [|e es ih] [|v vs] s1 //=.
   + by move=> [<-].
   t_xrbindP=> s1' /write_lexpr_validw hvalid1 /ih hvalid2.
-  by move=> ??; rewrite hvalid1 hvalid2.
+  by move=> ???; rewrite hvalid1 hvalid2.
 Qed.
 
 End Section.

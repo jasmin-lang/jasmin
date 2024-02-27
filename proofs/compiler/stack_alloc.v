@@ -1525,7 +1525,7 @@ Definition check_glob data gv :=
   | @Gword ws w => assert (LE.decode ws data == w) (stk_ierror_no_var "bad decode")
   | @Garr p t =>
     Let _ := foldM (fun wd i =>
-             match read t i U8 with
+             match read t Aligned i U8 with
              | Ok w =>
                if wd == w then ok (i+1)%Z
                else Error (stk_ierror_no_var "bad decode array eq")

@@ -221,10 +221,12 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     let a := decode_addr s addr in
     match ty with
     | sword sz =>
-      if k is AK_compute then ok (Vword (zero_extend sz a))
-      else
-        Let w := read s.(asm_mem) a sz in
+      match k with
+      | AK_compute => ok (Vword (zero_extend sz a))
+      | AK_mem =>
+        Let w := read s.(asm_mem) Aligned a sz in (* TODO: alignment *)
         ok (Vword w)
+      end
     | _        => type_error
     end
   | XReg x     => ok (Vword (s.(asm_xreg) x))
@@ -268,8 +270,8 @@ Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
    |}.
 
 (* -------------------------------------------------------------------- *)
-Definition mem_write_mem (l : pointer) sz (w : word sz) (s : asmmem) :=
-  Let m := write s.(asm_mem) l w in ok
+Definition mem_write_mem al (l : pointer) sz (w : word sz) (s : asmmem) :=
+  Let m := write s.(asm_mem) al l w in ok
   {| asm_mem  := m;
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
@@ -340,7 +342,7 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
       | Reg r   => ok (mem_write_reg  f r w s)
       | Regx r  => ok (mem_write_regx  f r w s)
       | XReg x  => ok (mem_write_xreg f x w s)
-      | Addr addr => mem_write_mem (decode_addr s addr) w s
+      | Addr addr => mem_write_mem Aligned (decode_addr s addr) w s (* TODO: alignement *)
       | _       => type_error
       end
     end
@@ -390,13 +392,13 @@ Definition eval_op o args m :=
 (* -------------------------------------------------------------------- *)
 Definition eval_POP (s: asm_state) : exec (asm_state * wreg) :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
-  Let v := read s.(asm_m).(asm_mem) sp reg_size in
+  Let v := read s.(asm_m).(asm_mem) Aligned sp reg_size in (* TODO: alignment *)
   let m := mem_write_reg MSB_CLEAR ad_rsp (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v).
 
 Definition eval_PUSH (w: wreg) (s: asm_state) : exec asm_state :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
-  Let m := mem_write_mem (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in
+  Let m := mem_write_mem Aligned (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in (* TODO: alignment *)
   let m := mem_write_reg MSB_CLEAR ad_rsp (sp - wrepr Uptr (wsize_size Uptr))%R m in
   ok {| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}.
 
@@ -501,8 +503,8 @@ Lemma mem_write_reg_invariant f r sz (w: word sz) (s: asmmem) :
   mem_write_reg f r w s ≡ s.
 Proof. by []. Qed.
 
-Lemma mem_write_mem_invariant a sz (w: word sz) (s s': asmmem) :
-  mem_write_mem a w s = ok s' → s ≡ s'.
+Lemma mem_write_mem_invariant al a sz (w: word sz) (s s': asmmem) :
+  mem_write_mem al a w s = ok s' → s ≡ s'.
 Proof. by rewrite /mem_write_mem; t_xrbindP => ? /Memory.write_mem_stable ? <-. Qed.
 
 Lemma mem_write_val_invariant f xs d v (s s': asmmem) :

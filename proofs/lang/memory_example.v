@@ -479,10 +479,10 @@ Module MemoryI : MemoryT.
 
   Lemma stack_region_is_free (m: mem) (p: pointer) :
     wunsigned (stk_limit m) <= wunsigned p < wunsigned (head (stk_root m) (stack_frames m)) →
-    ~~ validw m p U8.
+    ~~ validw m Aligned p U8.
   Proof.
     rewrite _top_stackE => - [] p_lo p_hi.
-    rewrite /validw is_align8 /= add_0 andbT /is_alloc (stk_freeP m) //; split.
+    rewrite /validw is_aligned_if_is_align ?is_align8 // /= add_0 andbT /is_alloc (stk_freeP m) //; split.
     + by have [] := wunsigned_range p.
     move: p_hi; rewrite /top_stack.
     rewrite wunsigned_add //.
@@ -524,22 +524,22 @@ Module MemoryI : MemoryT.
            framesP := framesP m;
            stk_allocP := stk_allocP m;
            stk_freeP := stk_freeP m |} = P m) →
-    ∀ m p s (v: word s) m',
-      write m p v = ok m' →
+    ∀ m al p s (v: word s) m',
+      write m al p v = ok m' →
       P m  = P m'.
   Proof.
-    move => K m p s v m'; rewrite /write; t_xrbindP => _.
+    move => K m al p s v m'; rewrite /write; t_xrbindP => _.
     elim: ziota m => //=; first by move=> ? [->].
     by move=> ?? hrec; rewrite {2}/set; t_xrbindP => ?? /K h <- /hrec <-.
   Qed.
 
-  Lemma top_stack_write_mem m p s (v: word s) m' :
-    write m p v = ok m' →
+  Lemma top_stack_write_mem m al p s (v: word s) m' :
+    write m al p v = ok m' →
     top_stack m = top_stack m'.
   Proof. by apply write_mem_invariant. Qed.
 
-  Lemma write_mem_stable m m' p s (v:word s) :
-    write m p v = ok m' -> stack_stable m m'.
+  Lemma write_mem_stable m m' al p s (v:word s) :
+    write m al p v = ok m' -> stack_stable m m'.
   Proof. by move => ok_m'; split => /=; exact: write_mem_invariant ok_m'. Qed.
 
   (** Allocation *)
@@ -589,8 +589,8 @@ Module MemoryI : MemoryT.
   Lemma ass_valid m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
     ∀ p,
-    validw m' p U8 =
-    validw m p U8 || between (top_stack m' + wrepr _ ioff) (sz - ioff) p U8.
+    validw m' Aligned p U8 =
+    validw m Aligned p U8 || between (top_stack m' + wrepr _ ioff) (sz - ioff) p U8.
   Proof.
     move=> h p.
     have [h1 h2] := alloc_stack_ioff h.
@@ -616,12 +616,12 @@ Module MemoryI : MemoryT.
 
   Lemma ass_fresh m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
-    ∀ p s,
-      validw m p s →
+    ∀ al p s,
+      validw m al p s →
       (wunsigned p + wsize_size s <= wunsigned (top_stack m') ∨ wunsigned (top_stack m') + sz <= wunsigned p).
   Proof.
     move => X; have := m.(stk_freeP); move: X.
-    rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /= stk_fresh p s /andP[] p_align p_alloc.
+    rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /= stk_fresh al p s /andP[] p_align p_alloc.
     rewrite /top_stack /=.
     right. apply/lezP; case: lezP => // /Z.nle_gt X.
     rewrite -(stk_fresh (wunsigned p)).
@@ -664,11 +664,11 @@ Module MemoryI : MemoryT.
   Lemma ass_read_old8 m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
     ∀ p,
-    validw m p U8 →
-    read m p U8 = read m' p U8.
+    validw m Aligned p U8 →
+    read m Aligned p U8 = read m' Aligned p U8.
   Proof.
     move => ok_m' p ok_m_p.
-    have : validw m' p U8 by rewrite (ass_valid ok_m') ok_m_p.
+    have : validw m' Aligned p U8 by rewrite (ass_valid ok_m') ok_m_p.
     have := ass_fresh ok_m' ok_m_p.
     move: ok_m_p; rewrite -!valid8_validw -!get_read8 /memory_model.get /= /get wsize8.
     move=> -> hfresh ->; rewrite (ass_init ok_m').
@@ -697,8 +697,8 @@ Module MemoryI : MemoryT.
   Lemma ass_read_new m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
     ∀ p,
-    ~validw m p U8 → validw m' p U8 →
-    read m' p U8 = Error ErrAddrInvalid.
+    ~validw m Aligned p U8 → validw m' Aligned p U8 →
+    read m' Aligned p U8 = Error ErrAddrInvalid.
   Proof.
     move=> ha p.
     rewrite (ass_valid ha) => /negP /negbTE -> /=.
@@ -794,7 +794,7 @@ Module MemoryI : MemoryT.
   Qed.
 
   Lemma fss_valid m p :
-    validw (free_stack m) p U8 = validw m p U8 && ~~ pointer_range (top_stack m) (top_stack (free_stack m)) p.
+    validw (free_stack m) Aligned p U8 = validw m Aligned p U8 && ~~ pointer_range (top_stack m) (top_stack (free_stack m)) p.
   Proof.
     rewrite -!valid8_validw /valid8 /=.
     rewrite /is_alloc /= set_allocP.
@@ -812,8 +812,8 @@ Module MemoryI : MemoryT.
   Qed.
 
   Lemma fss_read_old8 m p :
-    validw (free_stack m) p U8 →
-    read m p U8 = read (free_stack m) p U8.
+    validw (free_stack m) Aligned p U8 →
+    read m Aligned p U8 = read (free_stack m) Aligned p U8.
   Proof.
     move => /dup [] hv'; rewrite (fss_valid m) => /andP[] hv hp.
     by move: hv' hv; rewrite -!valid8_validw -!get_read8 /memory_model.get /= /get => -> ->.  
