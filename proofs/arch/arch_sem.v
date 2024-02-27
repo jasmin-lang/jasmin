@@ -223,8 +223,8 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     | sword sz =>
       match k with
       | AK_compute => ok (Vword (zero_extend sz a))
-      | AK_mem =>
-        Let w := read s.(asm_mem) Aligned a sz in (* TODO: alignment *)
+      | AK_mem al =>
+        Let w := read s.(asm_mem) al a sz in
         ok (Vword w)
       end
     | _        => type_error
@@ -433,7 +433,7 @@ Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
     else type_error
   | JMP lbl   => eval_JMP p lbl s
   | JMPI d =>
-    Let v := eval_asm_arg AK_mem s d (sword Uptr) >>= to_pointer in
+    Let v := eval_asm_arg (AK_mem Aligned) s d (sword Uptr) >>= to_pointer in
     if decode_label labels v is Some lbl then
       eval_JMP p lbl s
     else type_error

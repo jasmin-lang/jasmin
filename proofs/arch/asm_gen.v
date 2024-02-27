@@ -250,7 +250,7 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
 
 Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
   match k with
-  | AK_mem => assemble_word_load rip ii sz e
+  | AK_mem _ => assemble_word_load rip ii sz e
   | AK_compute =>
     Let f := if e is Rexpr f then ok f else Error (E.werror ii e "invalid rexpr for LEA") in
     Let w := addr_of_fexpr rip ii sz f in
@@ -340,7 +340,7 @@ Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_
   | ADExplicit _ n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_rexpr AK_mem rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      if arg_of_rexpr (AK_mem Aligned) rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
       else false
     | None => false
     end
@@ -514,7 +514,7 @@ Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
 
   | Ligoto e =>
       Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
-      Let arg := assemble_word AK_mem rip ii Uptr e in
+      Let arg := assemble_word (AK_mem Aligned) rip ii Uptr e in
       ok [:: mk (JMPI arg) ]
 
   | LstoreLabel x lbl =>

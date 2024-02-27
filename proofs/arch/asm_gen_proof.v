@@ -359,6 +359,15 @@ Definition assemble_cond_spec :=
 Context
   (eval_assemble_cond : assemble_cond_spec).
 
+(* TODO: move *)
+Lemma read_relax_aligned m p sz v al :
+  read m Aligned p sz = ok v →
+  read m al p sz = ok v.
+Proof.
+  rewrite /read {1}/is_aligned_if; t_xrbindP => ?.
+  by rewrite is_aligned_if_is_align // => ? -> /= ->.
+Qed.
+
 Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
   lom_eqv rip m s
   -> check_sopn_arg agparams rip ii args e (ad,ty)
@@ -391,13 +400,13 @@ Proof.
     rewrite (addr_of_fexprP hws eqm he hadr); eexists; first reflexivity.
     by rewrite /= truncate_word_u.
   case: e => //=.
-  + move=> sz x p; t_xrbindP => /eqP <- r hr ?; subst a'.
+  + move=> sz x p al; t_xrbindP => /eqP <- r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
-    by case: eqm => ? <- ?????; rewrite hwr /=; eauto.
+    by case: eqm => ? <- ?????; rewrite (read_relax_aligned _ hwr) /=; eauto.
   case => //.
-  + move=> x.
+  + move=> x al.
     move=> /xreg_of_varI; case: a' hcomp => // r;
       rewrite /compat_imm orbF => /eqP <- {a} h; have /= <- := of_varI h =>
       w ok_v /to_wordI[? [? [? ok_w]]];
@@ -405,7 +414,7 @@ Proof.
     + exact: getreg eqm ok_v.
     + exact: getregx eqm ok_v.
     exact: getxreg eqm ok_v.
-  case => //= w' [] //= z.
+  case => //= w' [] //= z al.
   t_xrbindP => /eqP _ h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
     eexists; first reflexivity.
@@ -1245,7 +1254,7 @@ Lemma eval_assemble_word ii sz e a s xs v :
   -> assemble_word_load rip ii sz e = ok a
   -> sem_rexpr s.(emem) s.(evm) e = ok v
   -> exists2 v',
-       eval_asm_arg AK_mem xs a (sword sz) = ok v'
+       eval_asm_arg (AK_mem Aligned) xs a (sword sz) = ok v'
        & value_uincl v v'.
 Proof.
   rewrite /assemble_word /eval_asm_arg => eqm.
