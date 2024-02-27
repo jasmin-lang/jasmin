@@ -2963,8 +2963,9 @@ Section PROOF.
       have n_pos := wsize_size_pos ws.
       have n_pos' := wsize_size_pos ws'.
       have [top_lo _] := wunsigned_range top.
-      rewrite (writeP_neq ok_m1) //; split.
-      1-2: rewrite !zify !wunsigned_add; lia. 
+      rewrite (writeP_neq ok_m1) //.
+      apply: disjoint_range_alt; split.
+      1-2: rewrite !zify !wunsigned_add; lia.
       rewrite !wunsigned_add; lia.
     move => y ofs_y; rewrite inE; case: eqP.
     - case => ->{y} ->{ofs_y} _ /=.

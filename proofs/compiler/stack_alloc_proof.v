@@ -1732,7 +1732,7 @@ Proof.
     + by apply (Memory.write_mem_stable hmem2).
     + by move=> ??; apply (write_validw_eq hmem2).
     + move=> p ws''.
-      rewrite -sub_region_addr_offset.
+      rewrite -sub_region_addr_offset => /disjoint_range_alt.
       by apply (writeP_neq hmem2).
     split => //.
     move=> off hmem w hget.
@@ -1764,7 +1764,7 @@ Proof.
     + case: (hwfr) => hwfsr hval hptr; split=> //.
       + move=> y sry bytes vy hgvalid hgy.
         assert (hwfy := check_gvalid_wf hwfsr hgvalid).
-        have hreadeq := writeP_neq hmem2.
+        have hreadeq := writeP_neq hmem2 (disjoint_range_alt _).
         apply: (eq_sub_region_val_disjoint_zrange hreadeq _ (hval _ _ _ _ hgvalid hgy)).
         apply disjoint_zrange_sym.
         apply (disjoint_zrange_incl_l (zbetween_sub_region_addr hwfy)).
@@ -1773,6 +1773,7 @@ Proof.
       have [pk [hgpk hvpk]] := hptr _ _ hgy; exists pk; split => //.
       case: pk hgpk hvpk => //= s ofs ws' z f hgpk hread /hread <-.
       apply: (writeP_neq hmem2).
+      apply: disjoint_range_alt.
       assert (hwf' := sub_region_stkptr_wf (wf_locals hgpk)).
       apply disjoint_zrange_sym.
       apply: (disjoint_zrange_incl_l (zbetween_sub_region_addr hwf')).
@@ -1822,6 +1823,7 @@ Proof.
   + by apply (Memory.write_mem_stable hmem2).
   + move=> p ws' hdisj.
     apply (writeP_neq hmem2).
+    apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hdisj.
     by apply: (zbetween_sub_region_at_ofs_option hwf _ (mk_ofsiP he1)).
   split=> //.
@@ -2550,7 +2552,7 @@ Proof.
         by rewrite -(sub_region_addr_stkptr hlocal) hmem2.
       + by apply (Memory.write_mem_stable hmem2).
       + by move=> ??; apply (write_validw_eq hmem2).
-      + by move=> ??; apply (writeP_neq hmem2).
+      + by move=> ?? /disjoint_range_alt; apply (writeP_neq hmem2).
       rewrite (writeP_eq hmem2).
       by rewrite wrepr_add GRing.addrA -haddr -sub_region_addr_offset.
 
