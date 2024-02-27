@@ -228,7 +228,11 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
-Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
+(* TODO: move *)
+Definition aligned_le (x y: aligned) : bool :=
+  (x == Unaligned) || (y == Aligned).
+
+Definition assemble_word_load rip ii al (sz: wsize) (e: rexpr) :=
   match e with
   | Rexpr (Fapp1 (Oword_of_int sz') (Fconst z)) =>
     let w := wrepr sz' z in
@@ -240,9 +244,11 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
     ok (Imm w)
   | Rexpr (Fvar x) =>
     xreg_of_var ii x
-  | Load sz' v e' =>
+  | Load al' sz' v e' =>
     Let _ := assert (sz == sz')
                     (E.werror ii e "invalid Load size") in
+    Let _ := assert (aligned_le al al')
+                    (E.werror ii e "invalid Load alignment constraint") in
     Let w := addr_of_xpexpr rip ii Uptr v e' in
     ok (Addr w)
   | _ => Error (E.werror ii e "invalid rexpr for word")
@@ -250,7 +256,7 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
 
 Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
   match k with
-  | AK_mem _ => assemble_word_load rip ii sz e
+  | AK_mem al => assemble_word_load rip ii al sz e
   | AK_compute =>
     Let f := if e is Rexpr f then ok f else Error (E.werror ii e "invalid rexpr for LEA") in
     Let w := addr_of_fexpr rip ii sz f in
@@ -270,7 +276,7 @@ Definition arg_of_rexpr k rip ii (ty: stype) (e: rexpr) :=
 Definition rexpr_of_lexpr (lv: lexpr) : rexpr :=
   match lv with
   | LLvar x => Rexpr (Fvar x)
-  | Store s x e => Load s x e
+  | Store a s x e => Load a s x e
   end.
 
 Definition nmap (T:Type) := nat -> option T.

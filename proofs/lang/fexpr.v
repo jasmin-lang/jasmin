@@ -21,12 +21,12 @@ Definition fconst (ws: wsize) (z: Z) : fexpr :=
 (* --------------------------------------------------------------------------- *)
 (* Right-expressions *)
 Variant rexpr :=
-  | Load of wsize & var_i & fexpr
+  | Load of aligned & wsize & var_i & fexpr
   | Rexpr of fexpr.
 
 (* Left-expressions *)
 Variant lexpr :=
-  | Store of wsize & var_i & fexpr
+  | Store of aligned & wsize & var_i & fexpr
   | LLvar of var_i.
 
 Notation rexprs := (seq rexpr).
@@ -51,14 +51,15 @@ Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
   | _ => None
   end.
 
+(* TODO: alignment *)
 Definition rexpr_of_pexpr (e: pexpr) : option rexpr :=
-  if e is Pload ws p e then omap (Load ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
+  if e is Pload ws p e then omap (Load Aligned ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
 
 Definition lexpr_of_lval (e: lval) : option lexpr :=
   match e with
   | Lvar x => Some (LLvar x)
   | Lmem ws p e =>
-      omap (Store ws p) (fexpr_of_pexpr e)
+      omap (Store Aligned ws p) (fexpr_of_pexpr e) (* TODO: alignment *)
   | _ => None
   end.
 
@@ -77,7 +78,7 @@ Definition free_vars (e: fexpr) : Sv.t :=
 
 Definition free_vars_r (r:rexpr) : Sv.t :=
   match r with
-  | Load _ x e => free_vars_rec (Sv.singleton x) e
+  | Load _ _ x e => free_vars_rec (Sv.singleton x) e
   | Rexpr e    => free_vars e
   end.
 
@@ -88,7 +89,7 @@ Module FopnArgs.
   Definition lval := lexpr.
   Definition rval := rexpr.
   Definition lvar := LLvar.
-  Definition lmem {_ : PointerData} ws x z := Store ws x (fconst Uptr z).
+  Definition lmem {_ : PointerData} ws x z := Store Aligned ws x (fconst Uptr z). (* TODO: alignment *)
   Definition rvar := rvar.
   Definition rconst := rconst.
 End FopnArgs.

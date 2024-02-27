@@ -65,7 +65,7 @@ Proof.
 Qed.
 
 Lemma rexpr_of_pexpr_ind (P: option rexpr → Prop) e :
-  (∀ ws p f, e = Pload ws p f → P (omap (Load ws p) (fexpr_of_pexpr f))) →
+  (∀ ws p f, e = Pload ws p f → P (omap (Load Aligned ws p) (fexpr_of_pexpr f))) → (* TODO: alignment *)
   ((∀ ws p f, e ≠ Pload ws p f) → P (omap Rexpr (fexpr_of_pexpr e))) →
   P (rexpr_of_pexpr e).
 Proof.
@@ -120,7 +120,7 @@ Lemma free_vars_rP vm2 vm1 r m:
   vm1 =[free_vars_r r] vm2 ->
   sem_rexpr m vm1 r = sem_rexpr m vm2 r.
 Proof.
-  case: r => [w v f | f] /= heq; last by apply free_varsP.
+  case: r => [al w v f | f] /= heq; last by apply free_varsP.
   rewrite (free_vars_recP heq) (get_var_eq_on _ _ heq) // free_varsE; SvD.fsetdec.
 Qed.
 
@@ -129,7 +129,7 @@ Lemma write_lexpr_stack_stable e v s1 s2 :
   write_lexpr e v s1 = ok s2 ->
   stack_stable (emem s1) (emem s2).
 Proof.
-  case: e => [ws x e|x] /=.
+  case: e => [al ws x e|x] /=.
   + t_xrbindP=> ?? _ _ ?? _ _ ? _ ? hw <- /=.
     exact: Memory.write_mem_stable hw.
   t_xrbindP=> ? _ <- /=.
@@ -149,7 +149,7 @@ Lemma write_lexpr_validw e v s1 s2 :
   write_lexpr e v s1 = ok s2 ->
   validw (emem s1) =3 validw (emem s2).
 Proof.
-  case: e => [ws x e|x] /=.
+  case: e => [al ws x e|x] /=.
   + t_xrbindP=> ?? _ _ ?? _ _ ? _ ? hw <- /=.
     by move=> ???; rewrite (write_validw_eq hw).
   t_xrbindP=> ? _ <- /=.
