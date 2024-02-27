@@ -611,13 +611,16 @@ let pp_i tcas pd asmOp fds fmt i =
     let aux f =
       List.map (fun (prover,clause) -> prover, f clause)
     in
+    let check v vi=
+      (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
+    in
     let aux1 v =
-      match List.findi (fun _ vi -> (L.unloc v.gv).v_name = vi.v_name ) fd.f_args with
+      match List.findi (fun _ vi -> check v vi) fd.f_args with
       | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) params in
         e
       | exception _ ->
         begin
-          match List.findi (fun _ vi -> (L.unloc v.gv).v_name = (L.unloc vi).v_name ) fd.f_ret with
+          match List.findi (fun _ vi -> check v (L.unloc vi)) fd.f_ret with
           | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) r in
             begin
               match e with
@@ -628,10 +631,8 @@ let pp_i tcas pd asmOp fds fmt i =
         end
     in
     let aux2 = Subst.gsubst_e (fun x -> x) aux1 in
-    let pre = fd.f_contra.f_pre in
-    let post = fd.f_contra.f_post in
-    let pre = aux aux2 pre in
-    let post = aux aux2 post in
+    let pre = aux aux2 fd.f_contra.f_pre in
+    let post = aux aux2  fd.f_contra.f_post in
     Format.fprintf fmt "assert @[<v>%a@]; @ assume @[<v>%a@]"
     pp_clause pre
     pp_clause post
