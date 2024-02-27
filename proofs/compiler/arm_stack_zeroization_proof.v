@@ -361,6 +361,7 @@ Proof.
     by apply hvalid.
   + move=> p hp.
     rewrite (writeP_neq hm'); first by apply hdisj.
+    apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify -wrepr_sub.
     assert (h := wunsigned_range (align_word ws_align ptr)).
@@ -585,6 +586,7 @@ Local Opaque wsize_size Z.of_nat.
     by apply hvalid.
   + move=> p hp.
     rewrite (writeP_neq hm'); first by apply hdisj.
+    apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.
     assert (h := wunsigned_range (align_word ws_align ptr)).
