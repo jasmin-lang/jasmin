@@ -951,7 +951,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
 
   | S.PEFetch me ->
     let ct, x, e = tt_mem_access ~mode pd env me in
-    P.Pload (ct, x, e), P.Bty (P.U ct)
+    P.Pload (Aligned, ct, x, e), P.Bty (P.U ct) (* TODO: alignment *)
 
   | S.PEGet (aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
@@ -1149,7 +1149,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 
   | S.PLMem me ->
     let ct, x, e = tt_mem_access ~mode:`AllVar pd env me in
-    loc, (fun _ -> P.Lmem (ct, x, e)), Some (P.Bty (P.U ct))
+    loc, (fun _ -> P.Lmem (Aligned, ct, x, e)), Some (P.Bty (P.U ct)) (* TODO: alignment *)
 
 (* -------------------------------------------------------------------- *)
 

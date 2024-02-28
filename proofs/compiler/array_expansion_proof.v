@@ -212,7 +212,7 @@ Proof.
     rewrite (check_gvar_get he h) => v.
     apply on_arr_gvarP => n t hty -> /=.
     by t_xrbindP => i vi /hrec1 -> /= -> t' /= -> <-.
-  + move=> sz x e hrec e2 hin e1 /hrec hrec1 <- /=.
+  + move=> al sz x e hrec e2 hin e1 /hrec hrec1 <- /=.
     move=> v p vp; rewrite (check_var_get hin h) => -> /= -> /= i vi /hrec1 -> /= -> /=.
     by rewrite (eq_alloc_mem h) => ? -> <-.
   + by move=> o e1 hrec e2 e1' /hrec he1 <- /= ?? /he1 -> /= ->.
@@ -260,7 +260,7 @@ Proof.
   + move=> ii ty _ [<-] /= ?? /dup [] /write_noneP [-> _ _] hn.
     by exists s2; split => //; apply: uincl_write_none hn.
   + by move=> x; t_xrbindP => _ ? <- /= v1 s1'; apply eq_alloc_write_var.
-  + move=> ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
+  + move=> al ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
     rewrite (check_var_get hin h) => -> /= -> /= pe ve.
     move=> /(expand_eP h he) -> /= -> /= ? -> /= mem.
     by rewrite -hmem => -> /= <-; exists (with_mem s2 mem).

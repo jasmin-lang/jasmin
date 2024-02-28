@@ -24,7 +24,7 @@ type 'len gexpr =
   | Pvar   of 'len ggvar
   | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr 
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr 
-  | Pload  of wsize * 'len gvar_i * 'len gexpr
+  | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
@@ -81,7 +81,7 @@ let is_regx x =
 type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
- | Lmem  of wsize * 'len gvar_i * 'len gexpr
+ | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
  | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
  | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
  (* Lasub(acc,sz,len,v,e) is the sub-array of v:
@@ -189,7 +189,7 @@ and pexpr_equal e1 e2 =
  | Pget(a1,b1,v1,e1), Pget(a2, b2,v2,e2) -> a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
    a1 = a2 && b1 = b2 && pexpr_equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
- | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
+ | Pload(al1, b1,v1,e1), Pload(al2, b2,v2,e2) -> al1 = al2 &&b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
  | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
  | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23 
@@ -232,7 +232,7 @@ let rec rvars_e f s = function
   | Pconst _ | Pbool _ | Parr_init _ -> s
   | Pvar x         -> rvars_v f x s
   | Pget(_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
-  | Pload(_,x,e)   -> rvars_e f (f (L.unloc x) s) e
+  | Pload(_,_,x,e)   -> rvars_e f (f (L.unloc x) s) e
   | Papp1(_, e)    -> rvars_e f s e
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
@@ -243,7 +243,7 @@ and rvars_es f s es = List.fold_left (rvars_e f) s es
 let rvars_lv f s = function
  | Lnone _       -> s
  | Lvar x        -> f (L.unloc x) s
- | Lmem (_,x,e)
+ | Lmem (_,_,x,e)
  | Laset (_,_,x,e)
  | Lasub (_,_,_,x,e) -> rvars_e f (f (L.unloc x) s) e
 
@@ -434,7 +434,7 @@ let get_ofs aa ws e =
 let expr_of_lval = function
   | Lnone _         -> None
   | Lvar x          -> Some (Pvar (gkvar x))
-  | Lmem (ws, x, e) -> Some (Pload(ws,x,e))
+  | Lmem (al, ws, x, e) -> Some (Pload(al,ws,x,e))
   | Laset(a, ws, x, e) -> Some (Pget(a,ws,gkvar x,e))
   | Lasub(a, ws, l, x, e) -> Some (Psub(a,ws,l,gkvar x, e))
 

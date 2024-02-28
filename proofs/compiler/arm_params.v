@@ -39,7 +39,7 @@ Context {atoI : arch_toIdent}.
 (* Stack alloc parameters. *)
 
 Definition is_load e :=
-  if e is Pload _ _ _ then true else false.
+  if e is Pload _ _ _ _ then true else false.
 
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
@@ -65,7 +65,7 @@ Definition arm_mov_ofs
                 Some (Copn [::x; Lvar y_.(gv)] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
               else None
             else None
-    | Lmem _ _ _ =>
+    | Lmem _ _ _ _ =>
       if ofs == Z0 then mk (STR, [:: y]) else None
     | _ => None
     end

@@ -649,9 +649,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       remove_if_expr_aux e1
       |> map_f (fun ex -> Psub(acc,ws,x,len,ex))
       
-    | Pload (sz, x, e1) ->
+    | Pload (al, sz, x, e1) ->
       remove_if_expr_aux e1
-      |> map_f (fun ex -> Pload (sz,x,ex))
+      |> map_f (fun ex -> Pload (al,sz,x,ex))
 
     | Papp1 (op1, e1) ->
       remove_if_expr_aux e1

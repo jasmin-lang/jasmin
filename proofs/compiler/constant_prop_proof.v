@@ -575,7 +575,7 @@ Section CONST_PROP_EP.
       t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.
-    - move => sz x e He v.
+    - move => al sz x e He v.
       t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] /[swap]
         /to_wordI[? [? [-> /word_uincl_truncate h]]]
         /value_uinclE[? [? [-> /h{h}h]]] ? h' <- /=.
@@ -671,7 +671,7 @@ Lemma const_prop_rvP globs s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv globs m x).1 /\
   write_lval wdb gd (const_prop_rv globs m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | sz x p | aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
+  case:x => [ii t | x | al sz x p | aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + by move=> > -> /to_wordI [? [? [-> /= ->]]]
@@ -753,7 +753,7 @@ Proof.
   + by case => ? [] //; rewrite Hm.
   + by move=> ???? ->.
   + by move=> ????? ->.
-  + by move=> ??? ->.
+  + by move=> ???? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
   + move => op es h; f_equal.
@@ -768,7 +768,7 @@ Instance const_prop_rv_m :
   Proper (eq ==> @Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> g _ <- m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => [ v | v | sz v p | aa sz v p | aa sz len v p] //=;rewrite Hm.
+  by case: rv => [ v | v | al sz v p | aa sz v p | aa sz len v p] //=;rewrite Hm.
 Qed.
 
 #[local]

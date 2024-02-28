@@ -89,8 +89,8 @@ Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
 
 Definition wf_lv (lv:lval) :=
   match lv with
-  | Lnone _ _ | Lmem _ _ _ | Laset _ _ _ _ => false 
-  | Lvar _ => true 
+  | Lnone _ _ | Lmem _ _ _ _ | Laset _ _ _ _ => false
+  | Lvar _ => true
   | Lasub _ _ _ _ e => ~~use_mem e
   end.
 

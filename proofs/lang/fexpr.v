@@ -51,15 +51,14 @@ Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
   | _ => None
   end.
 
-(* TODO: alignment *)
 Definition rexpr_of_pexpr (e: pexpr) : option rexpr :=
-  if e is Pload ws p e then omap (Load Aligned ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
+  if e is Pload al ws p e then omap (Load al ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
 
 Definition lexpr_of_lval (e: lval) : option lexpr :=
   match e with
   | Lvar x => Some (LLvar x)
-  | Lmem ws p e =>
-      omap (Store Aligned ws p) (fexpr_of_pexpr e) (* TODO: alignment *)
+  | Lmem al ws p e =>
+      omap (Store al ws p) (fexpr_of_pexpr e)
   | _ => None
   end.
 
@@ -85,11 +84,11 @@ Definition free_vars_r (r:rexpr) : Sv.t :=
 Definition rvar (x : var_i) : rexpr := Rexpr (Fvar x).
 Definition rconst (ws : wsize) (z : Z) : rexpr := Rexpr (fconst ws z).
 
-Module FopnArgs.
+Module FopnArgs <: OpnArgs.
   Definition lval := lexpr.
   Definition rval := rexpr.
   Definition lvar := LLvar.
-  Definition lmem {_ : PointerData} ws x z := Store Aligned ws x (fconst Uptr z). (* TODO: alignment *)
+  Definition lmem {_ : PointerData} al ws x z := Store al ws x (fconst Uptr z).
   Definition rvar := rvar.
   Definition rconst := rconst.
 End FopnArgs.

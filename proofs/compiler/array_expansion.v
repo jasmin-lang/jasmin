@@ -145,10 +145,10 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let e1 := expand_e m e1 in
     ok (Psub aa ws len x e1)
 
-  | Pload ws x e1 =>
+  | Pload al ws x e1 =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e1 := expand_e m e1 in
-    ok (Pload ws x e1)
+    ok (Pload al ws x e1)
 
   | Papp1 o e1 => 
     Let e1 := expand_e m e1 in
@@ -179,10 +179,10 @@ Definition expand_lv (m : t) (x : lval)  :=
     Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok (Lvar x)
 
-  | Lmem ws x e => 
+  | Lmem al ws x e =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e := expand_e m e in
-    ok (Lmem ws x e)
+    ok (Lmem al ws x e)
 
   | Laset aa ws x e =>
     if Sv.mem x m.(svars) then 

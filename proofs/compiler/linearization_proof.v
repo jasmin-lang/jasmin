@@ -1479,7 +1479,7 @@ Section PROOF.
         by apply: on_arr_gvarP => ??? -> /=; t_xrbindP => ?? /ihe -> /= -> /= ? -> /= ->.
       - move => aa sz len x e ihe v /=.
         by apply: on_arr_gvarP => ??? -> /=; t_xrbindP => ?? /ihe -> /= -> /= ? -> /= ->.
-      - by move => sz x e ihe v /=; t_xrbindP => ?? -> /= -> /= ?? /ihe -> /= -> /= ? /(mm_read_ok M) -> /= ->.
+      - by move => al sz x e ihe v /=; t_xrbindP => ?? -> /= -> /= ?? /ihe -> /= -> /= ? /(mm_read_ok M) -> /= ->.
       - by move => op e ihe v /=; t_xrbindP => ? /ihe ->.
       - by move => op e1 ih1 e2 ih2 v /=; t_xrbindP => ? /ih1 -> ? /ih2 ->.
       - by move => op es ih vs /=; t_xrbindP => ? /ih; rewrite -/(sem_pexprs _ [::] _ es) => ->.
@@ -1501,7 +1501,7 @@ Section PROOF.
     write_lval true [::] x v {| escs := scs1; emem := m1' ; evm := vm1 |} = ok {| escs := scs2; emem := m2' ; evm := vm2 |} &
     match_mem m2 m2'.
   Proof.
-    move => M; case: x => /= [ _ ty | x | ws x e | aa ws x e | aa ws n x e ].
+    move => M; case: x => /= [ _ ty | x | al ws x e | aa ws x e | aa ws n x e ].
     - by case/write_noneP; rewrite /write_none => -[-> -> ->] -> ->; exists m1'.
     - rewrite /write_var /=; t_xrbindP =>_ -> -> <- -> /=.
       by exists m1'.
@@ -1617,9 +1617,9 @@ Section PROOF.
     by rewrite -e.
   Qed.
 
-  Lemma write_mem_unchanged m1 m2 m1' m2' ptr sz (w w' : word sz) :
-    write m1 Aligned ptr w = ok m1' ->
-    write m2 Aligned ptr w' = ok m2' ->
+  Lemma write_mem_unchanged m1 m2 m1' m2' al ptr sz (w w' : word sz) :
+    write m1 al ptr w = ok m1' ->
+    write m2 al ptr w' = ok m2' ->
     forall p, ~~ validw m1 Aligned p U8 -> read m2 Aligned p U8 = read m2' Aligned p U8.
   Proof.
     move=> hw1 hw2 pr hnv.
@@ -1640,7 +1640,7 @@ Section PROOF.
     - move => /= _ ty /write_noneP[] <- _ _ /write_noneP[] -> _ _; reflexivity.
     - move => x /write_var_memP -> /write_var_memP ->; reflexivity.
     - case: s t => scs m vm [] tscs tv tvm /=.
-      move => sz x e ok_s' ok_t' E X M; subst tscs.
+      move => al sz x e ok_s' ok_t' E X M; subst tscs.
       move: ok_s' => /=; t_xrbindP => a xv ok_xv ok_a ofs ev ok_ev ok_ofs w ok_w m' ok_m' _{s'}.
       move: ok_t' => /=.
       have [ xv' -> /= /of_value_uincl_te h ] := get_var_uincl X ok_xv.

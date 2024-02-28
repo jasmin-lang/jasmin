@@ -82,7 +82,7 @@ let rec cexpr_of_expr = function
   | Pget (aa,ws, x,e) -> C.Pget (aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) -> 
     C.Psub (aa, ws, pos_of_int len, cgvari_of_gvari x, cexpr_of_expr e)
-  | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari x, cexpr_of_expr e)
+  | Pload (al, ws, x, e)  -> C.Pload(al, ws, cvari_of_vari x, cexpr_of_expr e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr e1, cexpr_of_expr e2)
   | PappN (o, es) -> C.PappN (o, List.map (cexpr_of_expr) es)
@@ -98,7 +98,7 @@ let rec expr_of_cexpr = function
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
   | C.Pget (aa,ws, x,e) -> Pget (aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)
-  | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari x, expr_of_cexpr e)
+  | C.Pload (al, ws, x, e)  -> Pload(al, ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr e1, expr_of_cexpr e2)
   | C.PappN (o, es) -> PappN (o, List.map (expr_of_cexpr) es)
@@ -112,7 +112,7 @@ let rec expr_of_cexpr = function
 let clval_of_lval = function
   | Lnone(loc, ty)  -> C.Lnone (loc, cty_of_ty ty)
   | Lvar x          -> C.Lvar  (cvari_of_vari x)
-  | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari x, cexpr_of_expr e)
+  | Lmem (al, ws, x, e) -> C.Lmem (al, ws, cvari_of_vari x, cexpr_of_expr e)
   | Laset(aa,ws,x,e)-> C.Laset (aa, ws, cvari_of_vari x, cexpr_of_expr e)
   | Lasub(aa,ws,len,x,e)-> 
     C.Lasub (aa, ws, pos_of_int len, cvari_of_vari x, cexpr_of_expr e)
@@ -120,7 +120,7 @@ let clval_of_lval = function
 let lval_of_clval = function
   | C.Lnone(p, ty)  -> Lnone (p, ty_of_cty ty)
   | C.Lvar x        -> Lvar (vari_of_cvari x)
-  | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari x, expr_of_cexpr e)
+  | C.Lmem(al,ws,x,e)  -> Lmem (al, ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Laset(aa,ws,x,e) -> Laset (aa,ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Lasub(aa,ws,len,x,e) -> 
     Lasub (aa,ws, int_of_pos len, vari_of_cvari x, expr_of_cexpr e)

@@ -18,7 +18,7 @@ Section PEXPR_IND.
     (Hvar: ∀ x, P (Pvar x))
     (Hget: ∀ aa sz x e, P e → P (Pget aa sz x e))
     (Hsub:  ∀ aa sz len x e, P e  → P (Psub aa sz len x e))
-    (Hload: ∀ sz x e, P e → P (Pload sz x e))
+    (Hload: ∀ al sz x e, P e → P (Pload al sz x e))
     (Happ1: ∀ op e, P e → P (Papp1 op e))
     (Happ2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2))
     (HappN: ∀ op es, (∀ e, List.In e es → P e) → P (PappN op es))
@@ -40,7 +40,7 @@ Section PEXPR_IND.
     | Pvar x => Hvar x
     | Pget aa sz x e => Hget aa sz x (pexpr_ind e)
     | Psub aa sz len x e => Hsub aa sz len x (pexpr_ind e)
-    | Pload sz x e => Hload sz x (pexpr_ind e)
+    | Pload al sz x e => Hload al sz x (pexpr_ind e)
     | Papp1 op e => Happ1 op (pexpr_ind e)
     | Papp2 op e1 e2 => Happ2 op (pexpr_ind e1) (pexpr_ind e2)
     | PappN op es => HappN op (@pexpr_ind_rec pexpr_ind es)
@@ -65,7 +65,7 @@ Section PEXPRS_IND.
     pexprs_var: ∀ x, P (Pvar x);
     pexprs_get: ∀ aa sz x e, P e → P (Pget aa sz x e);
     pexprs_sub: ∀ aa sz len x e, P e → P (Psub aa sz len x e);
-    pexprs_load: ∀ sz x e, P e → P (Pload sz x e);
+    pexprs_load: ∀ al sz x e, P e → P (Pload al sz x e);
     pexprs_app1: ∀ op e, P e → P (Papp1 op e);
     pexprs_app2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2);
     pexprs_appN: ∀ op es, Q es → P (PappN op es);
@@ -88,7 +88,7 @@ Section PEXPRS_IND.
     | Pvar x => pexprs_var h x
     | Pget aa sz x e => pexprs_get h aa sz x (pexpr_mut_ind e)
     | Psub aa sz len x e => pexprs_sub h aa sz len x (pexpr_mut_ind e)
-    | Pload sz x e => pexprs_load h sz x (pexpr_mut_ind e)
+    | Pload al sz x e => pexprs_load h al sz x (pexpr_mut_ind e)
     | Papp1 op e => pexprs_app1 h op (pexpr_mut_ind e)
     | Papp2 op e1 e2 => pexprs_app2 h op (pexpr_mut_ind e1) (pexpr_mut_ind e2)
     | PappN op es => pexprs_appN h op (pexprs_ind pexpr_mut_ind es)
@@ -222,7 +222,7 @@ Proof. by []. Qed.
 Lemma vrv_var x: Sv.Equal (vrv (Lvar x)) (Sv.singleton x).
 Proof. rewrite /=; clear; SvD.fsetdec. Qed.
 
-Lemma vrv_mem w x e : vrv (Lmem w x e) = Sv.empty.
+Lemma vrv_mem al w x e : vrv (Lmem al w x e) = Sv.empty.
 Proof. by []. Qed.
 
 Lemma vrv_aset aa w x e : Sv.Equal (vrv (Laset aa w x e)) (Sv.singleton x).
@@ -318,7 +318,7 @@ Section READ.
 
 Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
 Proof.
-  elim: e s => //= [v | aa w v e He | aa w len v e He | w v e He | o e1 He1 e2 He2 | o es Hes | t e He e1 He1 e2 He2] s;
+  elim: e s => //= [v | aa w v e He | aa w len v e He | al w v e He | o e1 He1 e2 He2 | o es Hes | t e He e1 He1 e2 He2] s;
    rewrite /read_e /= ?He ?He1 ?He2; try (clear; SvD.fsetdec).
   rewrite -/read_es_rec -/read_es.
   elim: es Hes s.
@@ -355,8 +355,8 @@ Lemma read_e_Psub aa ws len x e :
   Sv.Equal (read_e (Psub aa ws len x e)) (Sv.union (read_gvar x) (read_e e)).
 Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
 
-Lemma read_e_Pload ws x e :
-  Sv.Equal (read_e (Pload ws x e)) (Sv.add (v_var x) (read_e e)).
+Lemma read_e_Pload al ws x e :
+  Sv.Equal (read_e (Pload al ws x e)) (Sv.add (v_var x) (read_e e)).
 Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
 
 Lemma read_e_Papp1 op e :
@@ -543,7 +543,7 @@ Proof. by rewrite /eq_gvar ?eqxx. Qed.
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
-elim: e => //= [ ? | ???? -> | ????? -> |??? -> | ?? -> | ?? -> ? -> | ? es ih | ??-> ? -> ? -> ] //=;
+elim: e => //= [ ? | ???? -> | ????? -> |???? -> | ?? -> | ?? -> ? -> | ? es ih | ??-> ? -> ? -> ] //=;
   rewrite ?eqxx ?eq_gvar_refl //=.
 elim: es ih => // e es ih h /=; rewrite h.
 + by apply: ih => e' he'; apply: h; right.
@@ -558,8 +558,8 @@ Lemma eq_expr_symm e0 e1 :
   eq_expr e0 e1 -> eq_expr e1 e0.
 Proof.
   elim: e1 e0 =>
-    [? | ? | ? | ? | ????? | ?????? | ???? | ??? | ????? | ? es1 hind | ???????]
-    [? | ? | ? | ? | ????  | ?????  | ???  | ??  | ???   | ? es0 h | ????]
+    [? | ? | ? | ? | ????? | ?????? | ????? | ??? | ????? | ? es1 hind | ???????]
+    [? | ? | ? | ? | ????  | ?????  | ????  | ??  | ???   | ? es0 h | ????]
     //= *.
 
   all:
@@ -614,9 +614,9 @@ Proof.
     move=> /andP[]/andP[]/andP[]/andP[]/eqP -> /eqP -> /eqP -> hx1 /hrec h1.
     move=> /andP[]/andP[]/andP[]/andP[]/eqP -> /eqP -> /eqP -> hx2 /h1 ->.
     by rewrite !eqxx (eq_gvar_trans hx1 hx2).
-  + move=> ??? hrec [] //= ??? [] //= ???.
-    move=> /andP[]/andP[]/eqP-> /eqP-> /hrec h1.
-    by move=> /andP[]/andP[]/eqP-> /eqP-> /h1 ->; rewrite !eqxx.
+  + move=> ???? hrec [] //= ???? [] //= ????.
+    move=> /andP[]/andP[]/andP[] /eqP-> /eqP-> /eqP -> /hrec h1.
+    by move=> /andP[]/andP[]/andP[] /eqP-> /eqP-> /eqP-> /h1 ->; rewrite !eqxx.
   + move=> ?? hrec [] //= ?? [] //= ??.
     move=> /andP[] /eqP-> /hrec h1.
     by move=> /andP[] /eqP-> /h1 ->; rewrite eqxx.
@@ -649,8 +649,8 @@ Definition eq_expr_use_mem e0 e1 :
   -> use_mem e0 = use_mem e1.
 Proof.
   elim: e0 e1 =>
-    [? | ? | ? | ? | ????? | ?????? | ???? | ??? | ????? | ? es0 hind | ???????]
-    [? | ? | ? | ? | ????  | ?????  | ???  | ??  | ???   | ? es1 h | ????]
+    [? | ? | ? | ? | ????? | ?????? | ????? | ??? | ????? | ? es0 hind | ???????]
+    [? | ? | ? | ? | ????  | ?????  | ????  | ??  | ???   | ? es1 h | ????]
     //= *.
 
   all:
@@ -737,7 +737,7 @@ Section EQ_EXPR_READ_E.
       | [??]
       | ??? e0 hinde0
       | ???? e0 hinde0
-      | ?? e0 hinde0
+      | ??? e0 hinde0
       | ? e0 hinde0
       | ? e00 hinde00 e01 hinde01
       | ? es0 hindes0
@@ -749,7 +749,7 @@ Section EQ_EXPR_READ_E.
       | [??]
       | ??? e1
       | ???? e1
-      | ?? e1
+      | ??? e1
       | ? e1
       | ? e10 e11
       | ? es1

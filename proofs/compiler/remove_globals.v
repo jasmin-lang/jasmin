@@ -134,12 +134,12 @@ Section REMOVE.
         Let xi := get_var_ ii env xi in
         ok (Psub aa ws len xi e)
 
-      | Pload ws xi e =>
+      | Pload al ws xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Pload ws xi e)
+          ok (Pload al ws xi e)
       | Papp1 o e =>
         Let e := remove_glob_e ii env e in
         ok (Papp1 o e)
@@ -164,12 +164,12 @@ Section REMOVE.
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else ok lv
-      | Lmem ws xi e =>
+      | Lmem al ws xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Lmem ws xi e)
+          ok (Lmem al ws xi e)
       | Laset aa ws xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)

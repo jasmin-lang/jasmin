@@ -111,6 +111,8 @@ Class coreMem (core_mem: Type) := CoreMem {
 
 End POINTER.
 
+(* -------------------------------------------------------------------- *)
+
 (** This type describes whether a memory access must check for alignment.
   With Unaligned, there are no particular constraints.
   With Aligned, the pointer must be a multiple of the size of the access. *)
@@ -126,6 +128,7 @@ Qed.
 Definition aligned_eqMixin     := Equality.Mixin aligned_eq_axiom.
 Canonical  aligned_eqType      := Eval hnf in EqType aligned aligned_eqMixin.
 
+(* -------------------------------------------------------------------- *)
 Module Export CoreMem.
 Section CoreMem.
 
@@ -362,6 +365,9 @@ Section CoreMem.
     by rewrite (write_read8 hw) (write_read8 hw') /=; case: andP.
  Qed.
 
+ Definition disjoint_range_ovf p s p' s' : Prop :=
+   ∀ i i' : Z, 0 <= i < s → 0 <= i' < s' → add p i ≠ add p' i'.
+
 End CoreMem.
 End CoreMem.
 
@@ -584,6 +590,31 @@ Lemma p_to_zE p : p_to_z p = wunsigned p.
 Proof. done. Qed.
 
 Global Opaque Pointer.
+
+Lemma disjoint_zrange_alt a m b n :
+  disjoint_zrange a m b n →
+  disjoint_range_ovf a m b n.
+Proof.
+  case => /ZleP ha /ZleP hb D i j hi hj.
+  rewrite !addE => K.
+  suff : wunsigned a + i = wunsigned b + j by Lia.lia.
+  have a_range := wunsigned_range a.
+  have b_range := wunsigned_range b.
+  do 2 rewrite <-wunsigned_add by Lia.lia.
+  by rewrite K.
+Qed.
+
+Lemma zbetween_disjoint_range_ovf a b p m n s :
+  zbetween a n b m → disjoint_range_ovf p s a n → disjoint_range_ovf p s b m.
+Proof.
+  rewrite /zbetween /disjoint_range_ovf !zify => - [] hlo hhi D i i' hi hi' K.
+  set ofs := wunsigned b - wunsigned a.
+  have hofs : 0 <= ofs + i' < n by Lia.lia.
+  apply: (D _ _ hi hofs).
+  rewrite K /ofs !addE wrepr_add wrepr_sub !wrepr_unsigned GRing.addrA.
+  f_equal.
+  by rewrite GRing.addrC GRing.subrK.
+Qed.
 
 Lemma disjoint_range_alt p1 ws1 p2 ws2 :
   disjoint_range p1 ws1 p2 ws2 ->

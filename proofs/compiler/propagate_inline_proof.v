@@ -243,7 +243,7 @@ Proof.
   + move=> ??? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
     t_xrbindP => i vi /= /hrec [v' -> /= /of_value_uincl_te h] /(h sint) /= -> st hget <-.
     by rewrite /= hget /=; (eexists; first reflexivity) => /=.
-  + move=> ??? hrec ?; t_xrbindP => ?? -> /= -> ??
+  + move=> ???? hrec ?; t_xrbindP => ?? -> /= -> ??
       /hrec [ve -> /of_value_uincl_te h] /(h (sword _)) /= -> ? /= -> /= ->.
     by (eexists; first reflexivity).
   + move=> op e hrec v; t_xrbindP => ve /hrec [ve' -> hu] /= hs.
@@ -335,7 +335,7 @@ Proof.
   move=> hvalid; case: x => /=.
   + by move=> vi ty /write_noneP; rewrite /write_none => -[-> -> ->].
   + by move=> x; apply write_var_valid_pi.
-  + move=> ws x e; t_xrbindP => px vx gx hpx pe ve he hpe w hw m hwr <-.
+  + move=> al ws x e; t_xrbindP => px vx gx hpx pe ve he hpe w hw m hwr <-.
     split; first by apply valid_pi_remove_m.
     have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] := pi_eP hvalid.
     have /= -> := hu (sword _) _ hpe.

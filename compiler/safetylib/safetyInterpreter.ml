@@ -277,15 +277,21 @@ let safe_var x = match (L.unloc x).v_ty with
 let safe_gvar x = match x.gs with
   | Expr.Sglob  -> []
   | Expr.Slocal -> safe_var x.gv
-         
+
+let optional_alignment_check al ws x e acc =
+  match al with
+  | Memory_model.Unaligned -> acc
+  | _ -> AlignedPtr (ws, x, e) :: acc
+
 let rec safe_e_rec safe = function
   | Pconst _ | Pbool _ | Parr_init _ -> safe
   | Pvar x -> safe_gvar x @ safe
 
-  | Pload (ws,x,e) ->
-    Valid      (ws, L.unloc x, e) ::
-    AlignedPtr (ws, L.unloc x, e) ::
-    safe_e_rec safe e
+  | Pload (al, ws,x,e) ->
+     let x = L.unloc x in
+    Valid (ws, x, e) ::
+    optional_alignment_check al ws x e
+    (safe_e_rec safe e)
       
   | Pget (access, ws, x, e) ->
     in_bound    x.gv access ws e 1 @
@@ -317,10 +323,11 @@ let safe_es = List.fold_left safe_e_rec []
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
 
-  | Lmem(ws, x, e) ->
-    Valid (ws, L.unloc x, e) ::
-    AlignedPtr (ws, L.unloc x, e) ::
-    safe_e_rec [] e
+  | Lmem(al, ws, x, e) ->
+    let x = L.unloc x in
+    Valid (ws, x, e) ::
+    optional_alignment_check al ws x e
+    (safe_e_rec [] e)
 
   | Laset(access,ws, x,e) ->
     in_bound x access ws e 1 @

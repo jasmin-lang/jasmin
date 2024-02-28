@@ -141,8 +141,8 @@ Section CHECK_EP.
       rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get_sub Ht.
       t_xrbindP => w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE -> ? /= /Ht [? -> ?] <- /=.
       by eauto.
-    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
-      t_xrbindP => r' /eqP -> Hcv Hce Hea.
+    - move => al1 sz1 x1 e1 He1 [] // al2 sz2 x2 e2 r re vm1.
+      t_xrbindP => r' /andP[] /eqP -> /eqP -> Hcv Hce Hea.
       have [Hea' Hget]:= check_vP wdb Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
       t_xrbindP => w1 ve1 /Hget [ve1' [->]] /[swap] /to_wordI [? [? [-> ]]]
@@ -263,8 +263,8 @@ Lemma check_lvalP wdb gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
     write_lval wdb gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') &
     eq_alloc r1' s1'.(evm) vm1'.
 Proof.
-  case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
-                    [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
+  case: x1 x2 => /= [ii1 t1 | x1 | al1 sz1 x1 p1 | aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
+                    [ii2 t2 | x2 | al2 sz2 x2 p2 | aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
   + t_xrbindP => hs <- ? Hv _ H.
     have [ -> htr hdb]:= write_noneP H; rewrite /write_none.
     have [ -> hu' -> /=]:= compat_truncate_uincl hs htr Hv hdb; eauto.
@@ -290,7 +290,7 @@ Proof.
     exists vm1.[x2 <- vm1.[x2]] => //.
     apply: eq_alloc_add ht Hvm1 hu'.
 
-  + t_xrbindP => r2 /eqP -> Hcv Hce Hvm1 Hv Happ wx vx.
+  + t_xrbindP => r2 /andP[] /eqP -> /eqP -> Hcv Hce Hvm1 Hv Happ wx vx.
     have [Hr2 H/H{H} [vx' [-> ]]]:= check_vP wdb Hcv Hvm1.
     move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> >.
     case: (s1) Hvm1 Hr2 => scs1 sm1 svm1 /= Hvm1 Hr2.

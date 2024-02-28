@@ -14,6 +14,14 @@ let pp_wsize fmt sz = fprintf fmt "%a" pp_string0 (string_of_wsize sz)
 
 (* -------------------------------------------------------------------- *)
 
+let pp_aligned fmt =
+  function
+  | Memory_model.Aligned -> ()
+  | Unaligned ->
+     Format.fprintf fmt " ߸"
+
+(* -------------------------------------------------------------------- *)
+
 let string_of_signess s = if s = Unsigned then "u" else "s"
 
 let string_of_velem s ws ve =

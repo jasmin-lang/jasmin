@@ -657,7 +657,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
       ensure_public env venv loc i;
       Env.gget venv x
 
-  | Pload (_, x, i) ->
+  | Pload (_, _, x, i) ->
       ensure_public env venv loc (Pvar (gkvar x));
       ensure_public env venv loc i;
       Env.dsecret env
@@ -873,7 +873,7 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
       let venv = Env.set_ty env venv x xty in
       msf, venv
 
-  | Lmem(_, x, i) ->
+  | Lmem(_, _, x, i) ->
       ensure_public env venv (L.loc x) (Pvar (gkvar x));
       ensure_public env venv (L.loc x) i;
         (* programmes are assumed to be safe, thus corruption from memory store

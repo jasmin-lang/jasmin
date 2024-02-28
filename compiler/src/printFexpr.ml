@@ -1,13 +1,6 @@
 open Fexpr
 open PrintCommon
 
-(* TODO: move *)
-let pp_aligned fmt =
-  function
-  | Memory_model.Aligned -> ()
-  | Unaligned ->
-     Format.fprintf fmt " ߸"
-
 let rec pp_fexpr fmt =
   let pp_fexpr = pp_fexpr in
   function

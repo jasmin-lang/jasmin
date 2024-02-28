@@ -241,8 +241,8 @@ Inductive pexpr : Type :=
 | Parr_init : positive → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr 
-| Pload  : wsize -> var_i -> pexpr -> pexpr
+| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
+| Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
@@ -280,7 +280,7 @@ Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : 
 Variant lval : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar  `(var_i)
-| Lmem  `(wsize) `(var_i) `(pexpr)
+| Lmem  of aligned & wsize & var_i & pexpr
 | Laset `(arr_access) `(wsize) `(var_i) `(pexpr)
 | Lasub `(arr_access) `(wsize) `(positive) `(var_i) `(pexpr).
 
@@ -299,7 +299,7 @@ Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with
   | Lnone i t => i
-  | Lvar x | Lmem _ x _ | Laset _ _ x _ | Lasub _ _ _ x _ => v_info x
+  | Lvar x | Lmem _ _ x _ | Laset _ _ x _ | Lasub _ _ _ x _ => v_info x
   end.
 
 (* ** Instructions
@@ -740,7 +740,7 @@ Definition vrv_rec (s:Sv.t) (rv:lval) :=
   match rv with
   | Lnone _ _  => s
   | Lvar  x    => Sv.add x s
-  | Lmem _ _ _  => s
+  | Lmem _ _ _ _  => s
   | Laset _ _ x _  => Sv.add x s
   | Lasub _ _ _ x _ => Sv.add x s
   end.
@@ -751,7 +751,7 @@ Definition vrv := (vrv_rec Sv.empty).
 Definition vrvs := (vrvs_rec Sv.empty).
 
 Definition lv_write_mem (r:lval) : bool :=
-  if r is Lmem _ _ _ then true else false.
+  if r is Lmem _ _ _ _ then true else false.
 
 Fixpoint write_i_rec s (i:instr_r) :=
   match i with
@@ -782,7 +782,7 @@ Definition write_c c := write_c_rec Sv.empty c.
 Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
-  | Pload _ _ _ => true
+  | Pload _ _ _ _ => true
   | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
@@ -804,7 +804,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pvar   x       => Sv.union (read_gvar x) s
   | Pget _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
-  | Pload _ x e    => read_e_rec (Sv.add x s) e
+  | Pload _ _ x e  => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
@@ -819,7 +819,7 @@ Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
   | Lnone _ _     => s
   | Lvar  _       => s
-  | Lmem _ x e    => read_e_rec (Sv.add x s) e
+  | Lmem _ _ x e  => read_e_rec (Sv.add x s) e
   | Laset _ _ x e => read_e_rec (Sv.add x s) e
   | Lasub _ _ _ x e => read_e_rec (Sv.add x s) e
   end.
@@ -898,7 +898,7 @@ Fixpoint eq_expr e e' :=
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
   | Pget aa w x e , Pget aa' w' x' e' => (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'
-  | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
+  | Pload al w x e, Pload al' w' x' e' => (al == al') && (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
@@ -934,16 +934,16 @@ Definition instr_of_copn_args
 Module Type OpnArgs.
   Parameter lval rval : Type.
   Parameter lvar : var_i -> lval.
-  Parameter lmem : forall {_ : PointerData}, wsize -> var_i -> Z -> lval.
+  Parameter lmem : forall {_ : PointerData}, aligned -> wsize -> var_i -> Z -> lval.
   Parameter rvar : var_i -> rval.
   Parameter rconst : wsize -> Z -> rval.
 End OpnArgs.
 
-Module CopnArgs.
+Module CopnArgs <: OpnArgs.
   Definition lval := lval.
   Definition rval := pexpr.
   Definition lvar := Lvar.
-  Definition lmem {_ : PointerData} ws x z := Lmem ws x (cast_const z).
+  Definition lmem {_ : PointerData} al ws x z := Lmem al ws x (cast_const z).
   Definition rvar x := Pvar (mk_lvar x).
   Definition rconst ws z := cast_w ws (Pconst z).
 End CopnArgs.

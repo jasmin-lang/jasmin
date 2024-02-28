@@ -65,8 +65,8 @@ Proof.
 Qed.
 
 Lemma rexpr_of_pexpr_ind (P: option rexpr → Prop) e :
-  (∀ ws p f, e = Pload ws p f → P (omap (Load Aligned ws p) (fexpr_of_pexpr f))) → (* TODO: alignment *)
-  ((∀ ws p f, e ≠ Pload ws p f) → P (omap Rexpr (fexpr_of_pexpr e))) →
+  (∀ al ws p f, e = Pload al ws p f → P (omap (Load al ws p) (fexpr_of_pexpr f))) →
+  ((∀ al ws p f, e ≠ Pload al ws p f) → P (omap Rexpr (fexpr_of_pexpr e))) →
   P (rexpr_of_pexpr e).
 Proof.
   case: e => > A B.
@@ -80,7 +80,7 @@ Lemma rexpr_of_pexprP s e r v :
   sem_rexpr (emem s) (evm s) r = ok v.
 Proof.
   elim/rexpr_of_pexpr_ind: (rexpr_of_pexpr e).
-  - move => ws p f -> {e} /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <-{r} /=.
+  - move => al ws p f -> {e} /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <-{r} /=.
     by t_xrbindP => > -> /= -> > /ok_a -> /= -> /= > -> <-.
   by move => _ /obindI[] f [] /fexpr_of_pexprP ok_f /Some_inj <-{r} /ok_f.
 Qed.
@@ -92,7 +92,7 @@ Lemma lexpr_of_lvalP x d s v s' :
 Proof.
   case: x => //.
   - by move => x /Some_inj <-.
-  move => ws x e /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <- {d} /=.
+  move => al ws x e /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <- {d} /=.
   by t_xrbindP => > -> /= -> > /ok_a -> /= -> /= > -> /= > -> <-.
 Qed.
 
