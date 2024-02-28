@@ -348,13 +348,23 @@ let pp_baseop fmt trans xs o es =
     (*FIXME: Cast the parameter to the word size sw only if they do not match*)
 
     (*Is subb the right instruction ?????????; in the easycrypt translation a sub is used*)
-    
-    Format.fprintf fmt "cast TMP__@uint%i %a;@ subb %a %a %a TMP__"
-      (int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
-      pp_lval (List.nth xs 1, 1)
-      pp_lval (List.nth xs 5, int_of_ws ws)
-      pp_atome (List.nth es 0, int_of_ws ws)
+    begin
+      match trans with
+      | 0 ->
+        Format.fprintf fmt "cast TMP__@uint%i %a;@ subb %a %a %a TMP__"
+          (int_of_ws ws)
+          pp_atome (List.nth es 1, int_of_ws ws)
+          pp_lval (List.nth xs 1, 1)
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+      | 1 ->
+        Format.fprintf fmt "cast TMP__@uint%i %a;@ sub %a %a TMP__"
+          (int_of_ws ws)
+          pp_atome (List.nth es 1, int_of_ws ws)
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+      | _ -> assert false
+    end
 
   | IMULr ws ->
     Format.fprintf fmt "mull TMP__ %a %a %a"
@@ -440,7 +450,6 @@ let pp_baseop fmt trans xs o es =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SHR ws ->
-     let fmt_ = 
      (* 
       match (List.nth es 1) with
        Papp1 (Oword_of_int _, Pconst x) -> 
@@ -449,10 +458,11 @@ let pp_baseop fmt trans xs o es =
           pp_atome (List.nth es 0, int_of_ws ws)
           pp_print_i x
         | _ -> *)
+    
       Format.fprintf fmt "shr %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws) in fmt_
+      pp_atome (List.nth es 1, int_of_ws ws)
 
   | SAL ws ->
     Format.fprintf fmt "shl %a %a %a"
@@ -477,7 +487,7 @@ let pp_baseop fmt trans xs o es =
          | _ -> *)
     begin
       match trans with
-      | 1 ->
+      | 0 ->
         Format.fprintf fmt "cast TMP__@@sint%d %a;@ ssplit TMP1__@@sint%d dontcare TMP__@@sint%d %a;@ cast %a TMP1__@@sint%d"
           (int_of_ws ws)
           pp_atome (List.nth es 0, int_of_ws ws)
@@ -486,20 +496,18 @@ let pp_baseop fmt trans xs o es =
           pp_eexp (List.nth es 1)
           pp_lval (List.nth xs 5, int_of_ws ws)
           (int_of_ws ws)
-      | 0 ->
-        Format.fprintf fmt "sar %a %a %a"
+      | 1 ->
+        Format.fprintf fmt "sars %a TMP__@uint%i %a %a"
+
+          (* sars t_188@uint32 TMP4__@uint26 t_187@uint32 26; safe :: open issue because cannot specify type on last param like for sar
+            sar t_188@uint32 t_187@uint32 26@uint32; unsafe *)
+
           pp_lval (List.nth xs 5, int_of_ws ws)
+          (int_of_ws ws)  (*shift size*)
           pp_atome (List.nth es 0, int_of_ws ws)
           pp_atome (List.nth es 1, int_of_ws ws)
       | _ -> assert false
     end
-
-  | MULX_lo_hi ws ->
-    Format.fprintf fmt "mull %a %a %a %a"
-      pp_lval (List.nth xs 1, int_of_ws ws)
-      pp_lval (List.nth xs 0, int_of_ws ws)
-      pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
 
   | MOVSX (ws1, ws2) ->
     Format.fprintf fmt "cast TMP__@@sint%d %a;@ cast TMP1__@@sint%d TMP__@@sint%d;@ cast %a TMP1__@@sint%d"
@@ -509,31 +517,6 @@ let pp_baseop fmt trans xs o es =
       (int_of_ws ws2)
       pp_lval (List.nth xs 0, int_of_ws ws1)
       (int_of_ws ws1)
-
-  | MOVZX (ws1, ws2) ->
-    Format.fprintf fmt "cast %a %a"
-      pp_lval (List.nth xs 0, int_of_ws ws1)
-      pp_atome (List.nth es 0, int_of_ws ws2)
-
-(*     -  | VPAND ws -> *)
-(* -    Format.fprintf fmt "and %a%a %a %a" *)
-(* -      pp_lval (List.nth xs 0) pp_uint ws *)
-(* -      pp_expr (List.nth es 0) *)
-(* -      pp_expr (List.nth es 1) *)
-(* - *)
-(* -  | VPANDN ws -> *)
-(* -    Format.fprintf fmt "not %a%a %a%a;\nand %a%a %a%a %a%a" *)
-(* -      pp_lval (List.nth xs 5) pp_uint ws *)
-(* -      pp_expr (List.nth es 0) pp_uint ws *)
-(* -      pp_lval (List.nth xs 5) pp_uint ws *)
-(* -      pp_lval (List.nth xs 5) pp_uint ws *)
-(* -      pp_expr (List.nth es 1) pp_uint ws *)
-(* - *)
-(* -  | VPOR ws -> *)
-(* -    Format.fprintf fmt "or %a%a %a%a %a%a" *)
-(* -      pp_lval (List.nth xs 0) pp_uint ws *)
-(* -      pp_expr (List.nth es 0) pp_uint ws *)
-(* -      pp_expr (List.nth es 1) pp_uint ws *)
 
   | _ -> assert false
 
