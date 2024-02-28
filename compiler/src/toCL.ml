@@ -282,7 +282,7 @@ let rec pp_atome fmt (x,ws) =
   | Presult _ -> assert false
   | Presultget _ -> assert false
 
-let pp_baseop fmt xs o es tcas =
+let pp_baseop fmt trans xs o es =
   let pp_var fmt (x,ws) =
     match x with
     | Pvar x ->
@@ -329,26 +329,26 @@ let pp_baseop fmt xs o es tcas =
     end
 
   | ADD ws ->
-
-    (* flags, Z = ADD_32 (X:32) (Y:32) *)
-
-    (* flags, Z = ADD_32 (X:64) (Y:32) *)
-
-    if tcas 
-    then 
-    Format.fprintf fmt "add %a %a %a"
-      pp_lval (List.nth xs 5, int_of_ws ws)
-      pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
-    else
-    Format.fprintf fmt "adds %a %a %a %a"
-      pp_lval (List.nth xs 1, 1)
-      pp_lval (List.nth xs 5, int_of_ws ws)
-      pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
-
+    begin
+      match trans with
+      | 0 ->
+        Format.fprintf fmt "add %a %a %a"
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+          pp_atome (List.nth es 1, int_of_ws ws)
+      | 1 ->
+        Format.fprintf fmt "adds %a %a %a %a"
+          pp_lval (List.nth xs 1, 1)
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+          pp_atome (List.nth es 1, int_of_ws ws)
+      | _ -> assert false
+    end
   | SUB ws ->
     (*FIXME: Cast the parameter to the word size sw only if they do not match*)
+
+    (*Is subb the right instruction ?????????; in the easycrypt translation a sub is used*)
+    
     Format.fprintf fmt "cast TMP__@uint%i %a;@ subb %a %a %a TMP__"
       (int_of_ws ws)
       pp_atome (List.nth es 1, int_of_ws ws)
@@ -461,7 +461,6 @@ let pp_baseop fmt xs o es tcas =
       pp_atome (List.nth es 1, int_of_ws ws)
 
   | SAR ws ->
-    let fmt_ =
 (*       match (List.nth es 1) with
        Papp1 (Oword_of_int _, Pconst x) -> 
          if Z.to_int x == int_of_ws ws - 1
@@ -475,22 +474,25 @@ let pp_baseop fmt xs o es tcas =
           pp_lval (List.nth xs 5, int_of_ws ws)
           pp_atome (List.nth es 0, int_of_ws ws)
           pp_print_i x 
-     | _ -> *)
-     if tcas
-     then
+         | _ -> *)
+    begin
+      match trans with
+      | 1 ->
         Format.fprintf fmt "cast TMP__@@sint%d %a;@ ssplit TMP1__@@sint%d dontcare TMP__@@sint%d %a;@ cast %a TMP1__@@sint%d"
-                 (int_of_ws ws)
-                 pp_atome (List.nth es 0, int_of_ws ws)
-                 (int_of_ws ws)
-                 (int_of_ws ws)
-                 pp_eexp (List.nth es 1)
-                 pp_lval (List.nth xs 5, int_of_ws ws)
-                 (int_of_ws ws)
-     else
+          (int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+          (int_of_ws ws)
+          (int_of_ws ws)
+          pp_eexp (List.nth es 1)
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          (int_of_ws ws)
+      | 0 ->
         Format.fprintf fmt "sar %a %a %a"
-                 pp_lval (List.nth xs 5, int_of_ws ws)
-                 pp_atome (List.nth es 0, int_of_ws ws)
-                 pp_atome (List.nth es 1, int_of_ws ws) in fmt_
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws)
+          pp_atome (List.nth es 1, int_of_ws ws)
+      | _ -> assert false
+    end
 
   | MULX_lo_hi ws ->
     Format.fprintf fmt "mull %a %a %a %a"
@@ -536,32 +538,12 @@ let pp_baseop fmt xs o es tcas =
   | _ -> assert false
 
 
-let pp_extop fmt xs o es tcas =
-  assert false
-(* 
-  match o with
-  | X86_extra.Oset0 ws ->
-    (* FIXME this work for size less than 64 *)
-    Format.fprintf fmt "mov %a %a"
-      pp_lval (List.nth xs 5, int_of_ws ws)
-      pp_atome (Pconst (Z.of_int 0), int_of_ws ws)
-  | Ox86MOVZX32 ->
-    Format.fprintf fmt "cast %a %a"
-      pp_lval (List.nth xs 0, 64)
-      pp_atome (List.nth es 0, 32)
-  | Ox86MULX ws ->
-    Format.fprintf fmt "mull %a %a %a %a"
-      pp_lval (List.nth xs 0, int_of_ws ws)
-      pp_lval (List.nth xs 1, int_of_ws ws)
-      pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
-  | _ -> assert false
-*)
+let pp_extop fmt xs o es tcas = assert false
 
-let pp_ext_op fmt xs o es tcas =
+let pp_ext_op fmt xs o es trans =
   match o with
-  | Arch_extra.BaseOp (_, o) -> pp_baseop fmt xs o es tcas
-  | Arch_extra.ExtOp o -> pp_extop fmt xs o es tcas
+  | Arch_extra.BaseOp (_, o) -> pp_baseop fmt trans xs o es
+  | Arch_extra.ExtOp o -> pp_extop fmt xs o es trans
 
 let pp_sopn fmt xs o es tcas =
   match o with
@@ -591,7 +573,14 @@ let pp_clause fmt f_pre =
     (pp_list ",@ " pp_epred) cas
     (pp_list ",@ " pp_rpred) smt
 
-let pp_i tcas pd asmOp fds fmt i =
+let pp_i pd asmOp fds fmt i =
+  let mk_trans = Annot.filter_string_list None ["smt", 0 ; "cas", 1 ] in
+  let atran annot =
+    match Annot.ensure_uniq1 "tran" mk_trans annot with
+    | None -> 0
+    | Some aty -> aty
+  in
+  let trans = atran i.i_annot in
   match i.i_desc with
   | Cassert (t, p, e) ->
     let efmt, pp_pred  =
@@ -650,18 +639,18 @@ let pp_i tcas pd asmOp fds fmt i =
       | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
   end
   (* Manuel: we are sending MOVs here *)
-  | Copn(xs, _, o, es) -> pp_sopn fmt xs o es tcas
+  | Copn(xs, _, o, es) -> pp_sopn fmt xs o es trans
 
-let pp_c tcas pd asmOp fds fmt c =
+let pp_c pd asmOp fds fmt c =
   Format.fprintf fmt "@[<v>%a;@]"
-    (pp_list ";@ " (pp_i tcas pd asmOp fds)) c
+    (pp_list ";@ " (pp_i pd asmOp fds)) c
 
 let pp_ty fmt ty =
   match ty with
   | Bty Bool -> Format.fprintf fmt "uint1"
-  (* Manuel: We should have a way to set default width for smt words. 
+  (* Manuel: We should have a way to set default width for smt words.
      For example, why are we mapping int to uint64? *)
-  | Bty Int -> Format.fprintf fmt "uint64" 
+  | Bty Int -> Format.fprintf fmt "uint64"
   | Bty (U ws) -> Format.fprintf fmt "uint%i" (int_of_ws ws)
   | Bty (Abstract _) -> assert false
   | Arr _ -> assert false
@@ -678,25 +667,9 @@ let pp_fun pd asmOp fds fmt fd =
         if List.exists (fun x -> (x.v_name = a.v_name) && (x.v_id = a.v_id)) l
         then l else a :: l
     ) fd.f_args ret in
-  let cas,smt = filter_clause fd.f_contra.f_post ([],[]) in
   Format.fprintf fmt
     "@[<v>proc main(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@] @ }@ @]"
     pp_args args
     pp_clause fd.f_contra.f_pre
-    (pp_c (List.length cas > 0) pd asmOp fds) fd.f_body
+    (pp_c pd asmOp fds) fd.f_body
     pp_clause fd.f_contra.f_post
-
-(*
-let extract (type reg regx xreg rflag cond asm_op extra_op)
-    (module Arch : Arch_full.Arch
-      with type reg = reg
-       and type regx = regx
-       and type xreg = xreg
-       and type rflag = rflag
-       and type cond = cond
-       and type asm_op = asm_op
-       and type extra_op = extra_op) prog cprog tokeep =
-
-  let p = Compile.compile_CL (module Arch) cprog tokeep in
-  List.iter (pp_fun Arch.reg_size Arch.asmOp
-*)
