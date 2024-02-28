@@ -434,8 +434,7 @@ Hypothesis Hargs :
     (map (oapp pp_align U8) sao.(sao_params))
     vargs1 vargs2.
 Hypothesis Huincl :
-  Forall3 (value_mem_uincl m2)
-    [seq omap pp_writable i | i <- sao.(sao_params)] vargs1 vargs2.
+  Forall3 (value_mem_uincl m2) sao.(sao_params) vargs1 vargs2.
 Hypothesis Hsub :
   Forall3
     (fun opi (x:var_i) v => opi <> None -> subtype x.(vtype) (type_of_val v))
@@ -1415,7 +1414,7 @@ Lemma valid_state_init_param wdb rmap m0 s1 s2 vnew1' locals1' sao_param (param:
   forall s1' varg1 varg2,
   write_var wdb param varg1 s1 = ok s1' ->
   (forall pi, sao_param = Some pi -> get_pi param = Some (pi, (varg1, varg2))) ->
-  value_mem_uincl (emem s2) (omap pp_writable sao_param) varg1 varg2 ->
+  value_mem_uincl (emem s2) sao_param varg1 varg2 ->
   exists s2',
   write_var wdb alloc_param.2 varg2 s2 = ok s2' /\
   valid_state (lmap locals2' vnew2') glob_size rsp rip Slots Addr Writable Align P rmap2' m0 s1' s2'.
@@ -1511,20 +1510,18 @@ Proof.
         {| escs := scs1; emem := m1; evm := vm1 |} {| escs := scs1; emem := m2; evm := vm2 |}.
   + split=> //.
     by apply init_local_map_wf_pmap.
-  elim: sao.(sao_params) vargs1 vargs2 Huincl params get_pi_Forall vnew1
+  elim: Huincl params get_pi_Forall vnew1
     locals1 rmap1 vnew2 locals2 rmap2 alloc_params hparams vm1 vm2.
-  + move=> [|??] [|??] /List_Forall3_inv //= _ [|//] _ ???????
-      [<- <- <- <-] vm1 vm2 [_ hvs] _ [<-].
+  + move=> [|//] _ ??????? [<- <- <- <-] vm1 vm2 [_ hvs] _ [<-].
     by eexists.
-  move=> opi sao_params ih [|varg1 vargs1'] [|varg2 vargs2'] /List_Forall3_inv //=
-    [hwf /ih{}ih] [//|x params'].
-  move=> /List_Forall_inv [hpi hforall].
+  move=> opi varg1 varg2 sao_params vargs1' vargs2' huincl _ ih [//|x params'].
+  move=> /= /List_Forall_inv [hpi hforall].
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params'.
   rewrite /init_params /=.
   apply: rbindP=> -[[[vnew1' locals1'] rmap1'] alloc_param] hparam.
   t_xrbindP=> -[[[??]?]?] /ih{ih}ih [<- <- <-] <- vm1 vm2 [hpmap hvs].
   move=> s1'' s1' hs1' hs1''.
-  have [//|s2' [hs2' hvs']] := valid_state_init_param hpmap hvs hparam hs1' _ hwf.
+  have [//|s2' [hs2' hvs']] := valid_state_init_param hpmap hvs hparam hs1' _ huincl.
   rewrite /= hs2'.
   move: hs1' hs2'.
   rewrite /write_var.
@@ -1919,9 +1916,9 @@ Notation wf_args m1 m2 fn vargs1 vargs2 :=
 Notation wf_results vargs1 vargs2 fn vres1 vres2 :=
   (Forall3 (wf_result vargs1 vargs2) (local_alloc fn).(sao_return) vres1 vres2).
 Notation value_mem_uincl_args m fn vargs1 vargs2 :=
-  (Forall3 (value_mem_uincl m) (map (omap pp_writable) (local_alloc fn).(sao_params)) vargs1 vargs2).
+  (Forall3 (value_mem_uincl m) (local_alloc fn).(sao_params) vargs1 vargs2).
 Notation value_mem_uincl_res m fn vres1 vres2 :=
-  (Forall3 (value_mem_uincl m) (map (omap (fun _ => true)) (local_alloc fn).(sao_return)) vres1 vres2).
+  (Forall3 (value_mem_uincl m) (local_alloc fn).(sao_return) vres1 vres2).
 
 Definition disjoint_from_writable_params fn p :=
   Forall3 (disjoint_from_writable_param p) (local_alloc fn).(sao_params).
@@ -2203,7 +2200,7 @@ Proof.
       have heqsize: size (map fst es) = size (map type_of_val vargs1).
       + rewrite 2!size_map.
         have [_ <-] := size_fmapM2 hcargsx.
-        by have := Forall3_size huincl; rewrite size_map => -[? _].
+        by have [? _] := Forall3_size huincl.
       split.
       + move=> [[[[[|//] sr']|//] ty'] hin [??]]; subst sr ty'.
         move: hin.
@@ -2237,8 +2234,8 @@ Proof.
     + move=> p hvalid1 hvalid2 hdisj'.
       symmetry; apply hunch => //.
       apply (nth_Forall3 None (Vbool true) (Vbool true)).
-      + by have := Forall3_size huincl; rewrite size_map => -[? _].
-      + by have := Forall3_size huincl; rewrite size_map => -[_ ?].
+      + by have [? _] := Forall3_size huincl.
+      + by have [_ ?] := Forall3_size huincl.
       move=> i hi pi p2 hpi hp2 hw.
       have [sr hsr] := Forall2_nth (alloc_call_args_aux_not_None hcargsx) None None hi _ hpi.
       rewrite hw in hsr.
@@ -2337,71 +2334,14 @@ Proof.
   by f_equal; symmetry; apply zero_extend_wread8.
 Qed.
 
-Lemma value_uincl_wf_arg_pointer m1 m2 reg_ws vargs1 vargs2 vargs1' vargs2' writable align varg1 varg1' p i :
-  value_uincl varg1' varg1 ->
-  List.Forall2 value_uincl vargs1' vargs1 ->
-  List.Forall2 value_uincl vargs2' vargs2 ->
-  wf_arg_pointer glob_size rip m1 m2 reg_ws vargs1 vargs2 writable align varg1 p i ->
-  wf_arg_pointer glob_size rip m1 m2 reg_ws vargs1' vargs2' writable align varg1' p i.
-Proof. (*
-  move=> hincl hincls1 hincls2.
-  move=> [halign hover hvalid hfresh hwnglob hdisj].
-  have hle := size_of_le (value_uincl_subtype hincl).
-  split=> //.
-  + by apply (no_overflow_incl (zbetween_le _ hle)).
-  + move=> w hb; apply hvalid.
-    apply: zbetween_trans hb.
-    by apply zbetween_le.
-  + move=> w /hfresh.
-    apply disjoint_zrange_incl_l.
-    by apply zbetween_le.
-  + move=> hw hgsize.
-    apply: disjoint_zrange_incl_r (hwnglob hw hgsize).
-    by apply zbetween_le.
-  move=> hw j vaj pj neq_ij reg_j ok_vaj ok_pj.
-  have hj: (j < size vargs1')%nat.
-  + admit.
-  have := Forall2_nth hincls1 (Vbool true) (Vbool true) hj.
-  rewrite ok_vaj.
-  move=> hh.
-  have hle' := size_of_le (value_uincl_subtype hh).
-  apply (disjoint_zrange_incl_r (zbetween_le _ hle')).
-  apply (disjoint_zrange_incl_l (zbetween_le _ hle)).
-  have: exists ws' (pj':word ws'), nth (Vbool true) vargs2 j = Vword pj' /\ wunsigned pj = wunsigned pj'.
-  + have hj': (j < size vargs2')%nat.
-    + admit.
-    have := Forall2_nth hincls2 (Vbool true) (Vbool true) hj'.
-    rewrite ok_pj. rewrite /=.
-    case: nth => // ws w.
-    move=> h. exists ws, w. split; first by reflexivity.
-    move: h => /andP [hle2 /eqP ->].
-    rewrite wunsigned_repr_small. reflexivity.
-    have := wbase_m hle2.
-    have := wunsigned_range w. lia.
-    rewrite wunsigned zero_extend word.urepr
-  rewrite /disjoint_zrange.
-  eapply hdisj; try eassumption. reflexivity.
-  have hj': (j < size vargs2')%nat.
-  + admit.
-  have := Forall2_nth hincls2 (Vbool true) (Vbool true) hj'.
-  rewrite ok_pj. rewrite /=.
-  
-  move=> hh.
-  have hle' := size_of_le (value_uincl_subtype hh).
-  apply (disjoint_zrange_incl_r (zbetween_le _ hle')).
-  apply (disjoint_zrange_incl_l (zbetween_le _ hle)).
-  eapply hdisj; try eassumption. reflexivity.
-*)
-Admitted.
-
 (* We don't need the hypothesis that [varg1] and [varg1'] are arrays, since
    we have the powerful [value_uincl_get_val_byte]. If we had a weaker version,
    we should probably add this hypothesis.
 *)
 (* This lemma applies both to params and results. *)
-Lemma mapM2_truncate_val_value_mem_uincl tys vargs1 vargs1' m2 {A} (f:A-> _) l vargs2 :
+Lemma mapM2_truncate_val_value_mem_uincl {A} tys vargs1 vargs1' m2 (l:seq (option A)) vargs2 :
   mapM2 ErrType dc_truncate_val tys vargs1 = ok vargs1' ->
-  Forall3 (value_mem_uincl m2) (map (omap f) l) vargs1 vargs2 ->
+  Forall3 (value_mem_uincl m2) l vargs1 vargs2 ->
   exists vargs2',
     mapM2 ErrType dc_truncate_val
       (map2 (fun o ty =>
@@ -2409,15 +2349,14 @@ Lemma mapM2_truncate_val_value_mem_uincl tys vargs1 vargs1' m2 {A} (f:A-> _) l v
         | Some _ => spointer
         | None => ty
         end) l tys) vargs2 = ok vargs2' /\
-    Forall3 (value_mem_uincl m2) (map (omap f) l) vargs1' vargs2'.
+    Forall3 (value_mem_uincl m2) l vargs1' vargs2'.
 Proof.
   move=> htr huincl.
-  elim: l vargs1 vargs2 huincl tys vargs1' htr.
-  + move=> [|??] [|??] /List_Forall3_inv //= _ [|//] _ /= [<-].
+  elim: {l vargs1 vargs2} huincl tys vargs1' htr.
+  + move=> [|//] _ /= [<-].
     eexists; split; first by reflexivity.
     by constructor.
-  move=> oa l ih [|varg1 vargs1] [|varg2 vargs2] /List_Forall3_inv //=
-    [huincl /ih{}ih] [//|ty tys] /=.
+  move=> oa varg1 varg2 vargs1 vargs2 l huincl _ ih [//|ty tys] /=.
   t_xrbindP=> _ varg1' hvarg1' vargs1' /ih{ih}[vargs2' [htr' huincl']] <-.
   rewrite htr' /=.
   case: oa huincl => [a|] /=.
@@ -2518,10 +2457,10 @@ Proof.
   + by move=> _ [<-].
   by rewrite /truncate_val /= truncate_word_u => _ [<-].
 Qed.
-(*
+
 (* If the parameter is a reg ptr, [varg2] is a pointer, and is equal to [varg2']. *)
-Lemma mapM2_truncate_val_ptr_eq m1 m2 fn vargs1 vargs2 :
-  wf_args m1 m2 fn vargs1 vargs2 ->
+Lemma mapM2_truncate_val_ptr_eq m fn vargs1 vargs2 :
+  value_mem_uincl_args m fn vargs1 vargs2 ->
   forall tyin vargs2',
   mapM2 ErrType dc_truncate_val
     (map2 (fun o ty =>
@@ -2532,52 +2471,17 @@ Lemma mapM2_truncate_val_ptr_eq m1 m2 fn vargs1 vargs2 :
   Forall3 (fun opi varg varg' => opi <> None -> varg = varg') (local_alloc fn).(sao_params) vargs2 vargs2'.
 Proof.
   elim {vargs1 vargs2}.
-  + by move=> /= _ _ [<-]; constructor.
-  move=> opi varg1 varg2 sao_params vargs1 vargs2 harg _ ih [//|ty tyin] /=.
+  + by move=> _ _ [<-]; constructor.
+  move=> opi varg1 varg2 sao_params vargs1 vargs2 huincl _ ih [//|ty tyin] /=.
   t_xrbindP=> _ varg2' hvarg2' vargs2' /ih{ih}ih <-.
   constructor=> //.
-  case: opi harg hvarg2' => [pi|//] [p [-> ?]].
+  case: opi huincl hvarg2' => [pi|//] [p [-> _]].
   rewrite /dc_truncate_val; case:ifP => [_ [] //| _].
   rewrite /truncate_val /= truncate_word_u.
   by move=> [<-].
 Qed.
 
-Lemma value_uincl_disjoint_values m1 m2 fn vargs1 vargs2 :
-  wf_args m1 m2 fn vargs1 vargs2 ->
-  disjoint_values (local_alloc fn).(sao_params) vargs1 vargs2 ->
-  forall vargs1' vargs2',
-  List.Forall2 value_uincl vargs1' vargs1 ->
-  Forall3 (fun opi varg varg' => opi <> None -> varg = varg') (local_alloc fn).(sao_params) vargs2 vargs2' ->
-  disjoint_values (local_alloc fn).(sao_params) vargs1' vargs2'.
-Proof.
-  move=> hargs hdisj vargs1' vargs2' hincl hptreq.
-  move=> i1 pi1 w1 i2 pi2 w2 hpi1 hw1 hpi2 hw2 hneq hw.
-  have := Forall3_nth hptreq None (Vbool true) (Vbool true).
-  move=> /dup[].
-  move=> /(_ _ (nth_not_default hpi1 ltac:(discriminate))); rewrite hpi1 => /(_ ltac:(discriminate)); rewrite hw1 => hw1'.
-  move=> /(_ _ (nth_not_default hpi2 ltac:(discriminate))); rewrite hpi2 => /(_ ltac:(discriminate)); rewrite hw2 => hw2'.
-  have := hdisj _ _ _ _ _ _ hpi1 hw1' hpi2 hw2' hneq hw.
-  have := Forall2_nth hincl (Vbool true) (Vbool true).
-  have -> := Forall2_size hincl.
-  have [<- _] := Forall3_size hargs.
-  move=> /dup[].
-  move=> /(_ _ (nth_not_default hpi1 ltac:(discriminate))) /value_uincl_subtype /size_of_le hle1.
-  move=> /(_ _ (nth_not_default hpi2 ltac:(discriminate))) /value_uincl_subtype /size_of_le hle2.
-  by apply disjoint_zrange_incl; apply zbetween_le.
-Qed.
-*)
-Lemma value_uincl_wf_result_pointer vargs1 vargs2 i vr1 vr1' p :
-  value_uincl vr1' vr1 ->
-  wf_result_pointer vargs1 vargs2 i vr1 p ->
-  wf_result_pointer vargs1 vargs2 i vr1' p.
-Proof.
-  move=> huincl [hargs hsub].
-  have hsub' := value_uincl_subtype huincl.
-  split=> //.
-  by apply: subtype_trans hsub.
-Qed.
-
-Lemma mapM2_truncate_val_wf_results tyout vres1 vres1' vres2 vres2' vargs1 vargs2 fn :
+Lemma mapM2_truncate_val_wf_results tyout vres1 vres1' vres2 vres2' m fn vargs1 vargs2 :
   mapM2 ErrType dc_truncate_val tyout vres1 = ok vres1' ->
   mapM2 ErrType dc_truncate_val
     (map2 (fun o ty =>
@@ -2585,24 +2489,26 @@ Lemma mapM2_truncate_val_wf_results tyout vres1 vres1' vres2 vres2' vargs1 vargs
       | Some _ => spointer
       | None => ty
       end) (sao_return (local_alloc fn)) tyout) vres2 = ok vres2' ->
+  value_mem_uincl_res m fn vres1 vres2 ->
   wf_results vargs1 vargs2 fn vres1 vres2 ->
   wf_results vargs1 vargs2 fn vres1' vres2'.
 Proof.
-  move=> htr1 htr2 hresults.
-  elim: {vres1 vres2} hresults tyout vres1' vres2' htr1 htr2.
-  + by move=> [|//] _ _ /= [<-] [<-]; constructor.
-  move=> oi vr1 vr2 sao_returns vres1 vres2 hresult _ ih [//|ty tyout] /=.
+  move=> htr1 htr2 huincl hresults.
+  elim: {vres1 vres2} hresults huincl tyout vres1' vres2' htr1 htr2.
+  + by move=> _ [|//] _ _ /= [<-] [<-]; constructor.
+  move=> oi vr1 vr2 sao_returns vres1 vres2 hresult _ ih /List_Forall3_inv /=
+    [huincl /ih{}ih] [//|ty tyout] /=.
   t_xrbindP=> ?? vr1' hvr1' vres1' /ih{}ih <- vr2' hvr2' vres2' /ih{}ih <-.
   constructor=> //.
-  case: oi hresult hvr2' => [i|//] /=.
-  move=> [p [-> hresultp]].
-  have -> : dc_truncate_val (sword Uptr) (Vword p) = ok (Vword p).
+  case: oi huincl hresult hvr2' => [i|//] /= [p [-> _]] hresultp.
+  have ->: dc_truncate_val (sword Uptr) (Vword p) = ok (Vword p).
   + rewrite /dc_truncate_val; case: ifP => // _.
     by rewrite /truncate_val /= truncate_word_u.
   move=> [<-].
-  eexists; split; first by constructor.
-  apply: value_uincl_wf_result_pointer hresultp.
-  exact: (dc_truncate_value_uincl hvr1').
+  case: hresultp => hsub hargs.
+  split=> //.
+  apply: subtype_trans hsub.
+  by apply (value_uincl_subtype (dc_truncate_value_uincl hvr1')).
 Qed.
 
 Hypothesis rip_rsp_neq : P'.(p_extra).(sp_rip) <> P'.(p_extra).(sp_rsp).
@@ -2641,7 +2547,17 @@ Proof.
   by move=> w hb; apply (hincl _ (hvalid _ hb)).
 Qed.
 
-Lemma read_incl_value_mem_uincl m1 m2 l vs1 vs2 :
+Corollary alloc_stack_spec_wf_args m1 m2 fn vargs1 vargs2 ws sz ioff sz' m3 :
+  wf_args m1 m2 fn vargs1 vargs2 ->
+  alloc_stack_spec m2 ws sz ioff sz' m3 ->
+  wf_args m1 m3 fn vargs1 vargs2.
+Proof.
+  move=> hargs hass.
+  apply: valid_incl_wf_args hargs.
+  by move=> p hp; rewrite hass.(ass_valid) hp.
+Qed.
+
+Lemma read_incl_value_mem_uincl {A} m1 m2 (l:seq (option A)) vs1 vs2 :
   (forall p w, read m1 p U8 = ok w -> read m2 p U8 = ok w) ->
   Forall3 (value_mem_uincl m1) l vs1 vs2 ->
   Forall3 (value_mem_uincl m2) l vs1 vs2.
@@ -2652,6 +2568,16 @@ Proof.
   move=> [p [-> hread]].
   eexists; split; first by reflexivity.
   by move=> off w /hread; apply hincl.
+Qed.
+
+Corollary alloc_stack_spec_value_mem_uincl m2 fn vargs1 vargs2 ws sz ioff sz' m3 :
+  value_mem_uincl_args m2 fn vargs1 vargs2 ->
+  alloc_stack_spec m2 ws sz ioff sz' m3 ->
+  value_mem_uincl_args m3 fn vargs1 vargs2.
+Proof.
+  move=> huincl hass.
+  apply: read_incl_value_mem_uincl huincl.
+  by move=> p w ok_w; rewrite -(hass.(ass_read_old8) (readV ok_w)).
 Qed.
 
 Lemma alloc_stack_spec_extend_mem m1 m2 ws sz ioff sz' m3 :
@@ -2697,48 +2623,61 @@ Proof.
 Qed.
 
 Lemma value_uincl_wf_results fn vargs1 vargs2 vargs1' vargs2' vres1 vres2 :
-(*   wf_args m1 m2 fn vargs1 vargs2 -> *)
+  size vargs1 = size (local_alloc fn).(sao_params) ->
   List.Forall2 value_uincl vargs1' vargs1 ->
   Forall3 (fun opi varg varg' => opi <> None -> varg = varg') (local_alloc fn).(sao_params) vargs2 vargs2' ->
   List.Forall (fun oi => forall i, oi = Some i -> nth None (local_alloc fn).(sao_params) i <> None) (local_alloc fn).(sao_return) ->
   wf_results vargs1' vargs2' fn vres1 vres2 ->
   wf_results vargs1 vargs2 fn vres1 vres2.
 Proof.
-  move=> hincl hptreq hnnone.
+  move=> hsize hincl hptreq hnnone.
   apply Forall3_impl_in.
-  move=> [i|//] vr1 vr2 hoi _ _ [p [-> hresultp]].
-  exists p; split; first by reflexivity. wf_arg wf_result
-  have /List.Forall_forall -/(_ _ hoi _ refl_equal) := hnnone.
+  move=> [i|//] /= vr1 vr2 hini _ _ hresultp.
+  have /List.Forall_forall -/(_ _ hini _ refl_equal) := hnnone.
   case hpi: nth => [pi|//] _.
-  case: (hresultp) => hrargs hsub hread.
-  split=> //.
+  have hi := nth_not_default hpi ltac:(discriminate).
+  case: hresultp => hsub hargs.
+  split; last first.
   + by rewrite (Forall3_nth hptreq None (Vbool true) (Vbool true)
-      (nth_not_default hpi ltac:(discriminate)) ltac:(congruence)).
+      hi ltac:(congruence)).
   have := Forall2_nth hincl (Vbool true) (Vbool true).
-  have -> := Forall2_size hincl.
-  have [<- _] := Forall3_size hargs.
-  move=> /(_ _ (nth_not_default hpi ltac:(discriminate))).
-  move=> /value_uincl_subtype.
-  by apply subtype_trans.
-
-  move=> hargs hincl hptreq hnnone.
-  apply Forall3_impl_in.
-  move=> [i|//] vr1 vr2 hoi _ _ [p [-> hresultp]].
-  exists p; split; first by reflexivity.
-  have /List.Forall_forall -/(_ _ hoi _ refl_equal) := hnnone.
-  case hpi: nth => [pi|//] _.
-  case: (hresultp) => hrargs hsub hread.
-  split=> //.
-  + by rewrite (Forall3_nth hptreq None (Vbool true) (Vbool true)
-      (nth_not_default hpi ltac:(discriminate)) ltac:(congruence)).
-  have := Forall2_nth hincl (Vbool true) (Vbool true).
-  have -> := Forall2_size hincl.
-  have [<- _] := Forall3_size hargs.
-  move=> /(_ _ (nth_not_default hpi ltac:(discriminate))).
-  move=> /value_uincl_subtype.
+  rewrite (Forall2_size hincl) hsize => /(_ _ hi) /value_uincl_subtype.
   by apply subtype_trans.
 Qed.
-*)
+
+Lemma free_stack_spec_value_mem_uincl m1 m2 m3 m3' fn vargs1 vargs2 vres1 vres2 :
+  wf_args m1 m3 fn vargs1 vargs2 ->
+  validw m3 =2 validw m3' ->
+  free_stack_spec m2 m3' ->
+  List.Forall (fun oi => forall i, oi = Some i -> nth None (local_alloc fn).(sao_params) i <> None) (local_alloc fn).(sao_return) ->
+  wf_results vargs1 vargs2 fn vres1 vres2 ->
+  value_mem_uincl_res m2 fn vres1 vres2 ->
+  value_mem_uincl_res m3' fn vres1 vres2.
+Proof.
+  move=> hargs hvalideq hfss hforall hresults huincl.
+  have [hsize1 hsize2] := Forall3_size huincl.
+  apply (nth_Forall3 None (Vbool true) (Vbool true) hsize1 hsize2) => i hi.
+  have := Forall3_nth hresults None (Vbool true) (Vbool true) hi.
+  have := Forall3_nth huincl None (Vbool true) (Vbool true) hi.
+  have := Forall_nth hforall None hi.
+  case: nth => [j|//].
+  move=> /(_ _ erefl).
+  case hpi: nth => [pi|//] _.
+  have hj := nth_not_default hpi ltac:(discriminate).
+  move=> /= [p [-> hread]] hresultp.
+  exists p; split; first by reflexivity.
+  move=> off w /dup[] /get_val_byte_bound hoff.
+  rewrite -hfss.(fss_read_old8); first by apply hread.
+  move: (hargs j); rewrite /wf_arg (nth_map None) //.
+  rewrite hpi /= -hresultp.(wrp_args).
+  move=> [_ [[<-] hargp]].
+  rewrite -hvalideq.
+  apply hargp.(wap_valid).
+  have hsub := hresultp.(wrp_subtype).
+  apply: between_byte hoff.
+  + by apply (no_overflow_incl (zbetween_le _ (size_of_le hsub)) hargp.(wap_no_overflow)).
+  by apply: zbetween_le (size_of_le hsub).
+Qed.
 
 Lemma value_uincl_disjoint_from_writable_params fn vargs1 vargs1' vargs2 vargs2' p :
   List.Forall2 value_uincl vargs1' vargs1 ->
@@ -2786,10 +2725,9 @@ Proof.
   (* truncate_val of args *)
   have [vargs2' [hvargs2' huincl_args']] :=
     mapM2_truncate_val_value_mem_uincl hvargs1' huincl_args.
-  have hargs' := mapM2_truncate_val_wf_args hvargs1' hvargs2' hargs. (*
-  have huincl2 := mapM2_dc_truncate_value_uincl hvargs1'.
-  have hptreq := mapM2_truncate_val_ptr_eq hargs hvargs2'.
-  have hdisjv' := value_uincl_disjoint_values hargs hdisjv huincl hptreq. *)
+  have hargs' := mapM2_truncate_val_wf_args hvargs1' hvargs2' hargs.
+  have huincl_args1 := mapM2_dc_truncate_value_uincl hvargs1'.
+  have hptreq := mapM2_truncate_val_ptr_eq huincl_args hvargs2'.
 
   (* init_state *)
   have [m2' halloc_stk]: exists m2',
@@ -2824,12 +2762,8 @@ Proof.
       |}.
   + by rewrite /init_stk_state halloc_stk /= write_var_eq_type //= write_var_eq_type.
   have hover := ass_no_overflow hass.
-  have hargs'': wf_args m1 m2' fn vargs1' vargs2'.
-  + apply: valid_incl_wf_args hargs'.
-    by move=> p hp; rewrite hass.(ass_valid) hp.
-  have huincl_args'': value_mem_uincl_args m2' fn vargs1' vargs2'.
-  + apply: read_incl_value_mem_uincl huincl_args'.
-    by move=> p w ok_w; rewrite -(hass.(ass_read_old8) (readV ok_w)).
+  have hargs'' := alloc_stack_spec_wf_args hargs' hass.
+  have huincl_args'' := alloc_stack_spec_value_mem_uincl huincl_args' hass.
   have hext' := alloc_stack_spec_extend_mem hext hass.
 
   have hdisj_glob_locals: 0 < glob_size -> 0 < (local_alloc fn).(sao_size) ->
@@ -2853,8 +2787,8 @@ Proof.
       forall (p:pointer), varg2 = Vword p -> 0 < (local_alloc fn).(sao_size) -> disjoint_zrange rsp (local_alloc fn).(sao_size) p (size_val varg1))
     (sao_params (local_alloc fn)) vargs1' vargs2'.
   + apply (nth_Forall3 None (Vbool true) (Vbool true)).
-    + by have [+ _] := Forall3_size huincl_args'; rewrite size_map.
-    + by have [_ +] := Forall3_size huincl_args'; rewrite size_map.
+    + by have [? _] := Forall3_size huincl_args'.
+    + by have [_ ?] := Forall3_size huincl_args'.
     move=> i hi pi hpi p hp hlt.
     move: (hargs' i); rewrite /wf_arg.
     rewrite (nth_map None) // hpi /=.
@@ -2928,7 +2862,7 @@ Proof.
   (* truncate_val of results *)
   have [vres2' [hvres2' huincl_res']] :=
     mapM2_truncate_val_value_mem_uincl hvres1' huincl_res.
-  have hresults' := mapM2_truncate_val_wf_results hvres1' hvres2' hresults. (*
+  have hresults' := mapM2_truncate_val_wf_results hvres1' hvres2' huincl_res hresults. 
   have hnnone: List.Forall (fun oi => forall i, oi = Some i -> nth None (sao_params (local_alloc fn)) i <> None)
                            (sao_return (local_alloc fn)).
   + apply: List.Forall_impl (check_results_alloc_params_not_None hcresults).
@@ -2937,10 +2871,9 @@ Proof.
     case hsr: nth => [sr|//] _.
     apply (Forall2_nth (init_params_alloc_params_not_None hparams) None None (nth_not_default hsr ltac:(discriminate))).
     by rewrite hsr.
-  have hresults'' := value_uincl_wf_results hargs huincl hptreq hnnone hresults'. *)
-  have: value_mem_uincl_res (emem s2') fn vres1' vres2'.
-  + apply: read_incl_value_mem_uincl huincl_res'.
-    move=> p w ok_w. rewrite hfss.(fss_read_old8). (readV ok_w)).
+  have [/esym hsize _] := Forall3_size huincl_args.
+  have hresults'' :=
+    value_uincl_wf_results hsize huincl_args1 hptreq hnnone hresults'.
 
   (* finalize *)
   have hfss := Memory.free_stackP (emem s2').
@@ -2952,11 +2885,8 @@ Proof.
       have /= -> := write_vars_memP hs2.
     + by apply (sem_stack_stable_sprog hsem2).
     by apply (sem_validw_stable_sprog hsem2).
-  have: value_mem_uincl_res (emem s2') fn vres1' vres2'.
-  + apply: read_incl_value_mem_uincl huincl_res'.
-    move=> p w ok_w. rewrite hfss.(fss_read_old8). (readV ok_w)).
-  
-(*   have hresults''' := free_stack_spec_wf_results hargs hvalideq2 hfss hnnone hresults''. *)
+  have huincl_res'' :=
+    free_stack_spec_value_mem_uincl hargs hvalideq2 hfss hnnone hresults'' huincl_res'.
 
   exists (free_stack (emem s2')), vres2'.
   split.
@@ -2966,14 +2896,14 @@ Proof.
     move=> p.
     rewrite -hvalideq1 -hvalideq2.
     by apply hext.(em_valid).
-  split=> //.
+  split=> //; split=> //.
   rewrite /mem_unchanged_params.
   move=> p hvalid1 hvalid2 hdisjp.
   rewrite -hfss.(fss_read_old8) -?hvalideq2 //.
   have /vs_unchanged := hvs'''; apply => //.
   + by rewrite -hvalideq1.
   apply (disjoint_from_writable_params_all_slots hlayout hover hargs'' hsub hparams).
-  + by apply (value_uincl_disjoint_from_writable_params huincl hptreq hdisjp).
+  + by apply (value_uincl_disjoint_from_writable_params huincl_args1 hptreq hdisjp).
   have ? := hass.(ass_fresh) hvalid1.
   split.
   + by apply hover.
@@ -3079,16 +3009,19 @@ Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
     sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
     forall rip m2 vargs2,
       extend_mem m1 m2 rip data ->
-      wf_args data rip oracle m1 m2 fn vargs1 vargs2 ->
-      disjoint_values (oracle fn).(sao_params) vargs1 vargs2 ->
+      wf_args (Z.of_nat (size data)) rip m1 m2
+        (map (omap pp_writable) (oracle fn).(sao_params))
+        (map (oapp pp_align U8) (oracle fn).(sao_params)) vargs1 vargs2 ->
+      Forall3 (value_mem_uincl m2) (oracle fn).(sao_params) vargs1 vargs2 ->
       alloc_ok SP fn m2 ->
       exists m2' vres2,
         sem_call SP rip scs1 m2 fn vargs2 scs1' m2' vres2 /\
         extend_mem m1' m2' rip data /\
-        wf_results oracle m2' vargs1 vargs2 fn vres1 vres2 /\
+        Forall3 (wf_result vargs1 vargs2) (oracle fn).(sao_return) vres1 vres2 /\
+        Forall3 (value_mem_uincl m2') (oracle fn).(sao_return) vres1 vres2 /\
         mem_unchanged_params oracle fn m1 m2 m2' vargs1 vargs2.
 Proof.
-  move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 hsem1 rip m2 vargs2 hext hargs hdisj halloc.
+  move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 hsem1 rip m2 vargs2 hext hargs huincl halloc.
   move: hprog; rewrite /alloc_prog.
   t_xrbindP=> mglob hmap /eqP hneq.
   t_xrbindP=> fds hfds.
@@ -3097,7 +3030,7 @@ Proof.
   have [fd1 hfd1]: exists fd, get_fundef (p_funcs P) fn = Some fd.
   + have [fd1 [hfd1 _]] := sem_callE hsem1.
     by exists fd1.
-  have [m2' [vres' [hcall [hext' [hwf hunchanged]]]]] :=
+  have [m2' [vres' [hcall [hext' [hresults hunchanged]]]]] :=
     (check_cP
       hext.(em_no_overflow)
       hmap
@@ -3110,7 +3043,7 @@ Proof.
       hsem1
       hext
       hargs
-      hdisj
+      huincl
       halloc).
   exists m2', vres'; split=> //; split=> //.
 Qed.

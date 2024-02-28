@@ -2789,7 +2789,7 @@ Definition wf_args m1 m2 (reg_ws:seq (option bool)) aligns vargs vargs' :=
   forall i, wf_arg m1 m2 reg_ws aligns vargs vargs' i.
 
 (* use Forall3 *)
-Definition value_mem_uincl m2 (reg_w:option bool) v v' :=
+Definition value_mem_uincl {A} m2 (reg_w:option A) v v' :=
   match reg_w with
   | None => v' = v (* no reg ptr : both values are equal *)
   | Some _ => (* reg ptr : [va] is compiled to a pointer [p] that satisfies [wf_arg_pointer] *)
@@ -2798,27 +2798,25 @@ Definition value_mem_uincl m2 (reg_w:option bool) v v' :=
       forall off w, get_val_byte v off = ok w -> read m2 (p + wrepr _ off)%R U8 = ok w
   end.
 
-(* Link between a reg ptr result value [vr] in the source and the corresponding pointer
-   [p] in the target. [m1] is the source memory. The reg ptr is associated to
+(* Link between a reg ptr result value [vr1] in the source and the corresponding
+   value [vr2] in the target. The reg ptr is associated to
    the [i]-th elements of [vargs1] and [vargs2] (the arguments in the source and
    the target).
 *)
-(* FIXME: maybe nth (Vbool true) vargs2 i = vr' is maybe enough? *)
-Record wf_result_pointer vargs1 vargs2 i vr p := {
-  wrp_args    : nth (Vbool true) vargs2 i = @Vword Uptr p;
-    (* the pointer [p] that is returned is the same that was taken as argument (in the target) *)
-  wrp_subtype : subtype (type_of_val vr) (type_of_val (nth (Vbool true) vargs1 i));
-    (* [vr] is smaller than the value taken as argument (in the source) *)
-    (* actually, size_of_val vr <= size_of_val (nth (Vbool true) vargs1 i) is enough to do the proofs,
+Record wf_result_pointer vargs1 vargs2 i vr1 vr2 := {
+  wrp_subtype : subtype (type_of_val vr1) (type_of_val (nth (Vbool true) vargs1 i));
+    (* [vr1] is smaller than the value taken as an argument (in the source) *)
+    (* actually, size_of_val vr1 <= size_of_val (nth (Vbool true) vargs1 i) is enough to do the proofs,
        but this is true and we have lemmas about [subtype] (e.g. [wf_sub_region_subtype] *)
+  wrp_args    : vr2 = nth (Vbool true) vargs2 i;
+    (* [vr2] is the same pointer as the corresponding argument (in the target) *)
 }.
 
 (* Link between the values returned by the function in the source and the target. *)
-Definition wf_result vargs1 vargs2 (i : option nat) vr vr' :=
+Definition wf_result vargs1 vargs2 (i : option nat) vr1 vr2 :=
   match i with
   | None => True
-  | Some i =>
-    exists p, vr' = Vword p /\ wf_result_pointer vargs1 vargs2 i vr p
+  | Some i => wf_result_pointer vargs1 vargs2 i vr1 vr2
   end.
 
 Lemma get_PvarP e x : get_Pvar e = ok x -> e = Pvar x.
@@ -3317,7 +3315,7 @@ Lemma alloc_call_arg_aux_uincl wdb m0 rmap0 rmap s1 s2 opi e1 rmap2 bsr e2 v1 :
   sem_pexpr wdb gd s1 e1 = ok v1 ->
   exists v2,
     sem_pexpr wdb [::] s2 e2 = ok v2 /\
-    value_mem_uincl (emem s2) (omap pp_writable opi) v1 v2.
+    value_mem_uincl (emem s2) opi v1 v2.
 Proof.
   move=> hvs.
   rewrite /alloc_call_arg_aux.
@@ -3359,7 +3357,7 @@ Lemma alloc_call_args_aux_uincl wdb rmap m0 s1 s2 sao_params args rmap2 l vargs1
   sem_pexprs wdb gd s1 args = ok vargs1 ->
   exists vargs2,
     sem_pexprs wdb [::] s2 (map snd l) = ok vargs2 /\
-    Forall3 (value_mem_uincl (emem s2)) (map (omap pp_writable) sao_params) vargs1 vargs2.
+    Forall3 (value_mem_uincl (emem s2)) sao_params vargs1 vargs2.
 Proof.
   move=> hvs.
   rewrite /alloc_call_args_aux.
@@ -3761,7 +3759,7 @@ Lemma alloc_call_argsP wdb rmap m0 s1 s2 sao_params args rmap2 l vargs1 :
     wf_args (emem s1) (emem s2)
       (map (omap pp_writable) sao_params)
       (map (oapp pp_align U8) sao_params) vargs1 vargs2,
-    Forall3 (value_mem_uincl (emem s2)) [seq omap pp_writable i | i <- sao_params] vargs1 vargs2,
+    Forall3 (value_mem_uincl (emem s2)) sao_params vargs1 vargs2,
     Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
       varg2 = Vword (sub_region_addr sr) /\ wf_sub_region sr (type_of_val varg1)) (map fst l) vargs1 vargs2 &
     List.Forall2 (fun bsr varg1 => forall sr, bsr = Some (true, sr) ->
@@ -4011,7 +4009,7 @@ Lemma alloc_lval_callP wdb rmap m0 s1 s2 srs r oi rmap2 r2 vargs1 vargs2 vres1 v
   Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
     varg2 = Vword (sub_region_addr sr) /\ wf_sub_region sr (type_of_val varg1)) (map fst srs) vargs1 vargs2 ->
   wf_result vargs1 vargs2 oi vres1 vres2 ->
-  value_mem_uincl (emem s2) (omap (fun _ => true) oi) vres1 vres2 ->
+  value_mem_uincl (emem s2) oi vres1 vres2 ->
   write_lval wdb gd r vres1 s1 = ok s1' ->
   exists s2', [/\
     write_lval wdb [::] r2 vres2 s2 = ok s2' &
@@ -4029,7 +4027,7 @@ Proof.
     move /write_varP: hs1' => [-> hdb h] /=.
     rewrite (write_var_truncate hdb h) //.
     by eexists;(split;first by reflexivity) => //; apply valid_state_set_var.
-  move=> [w [-> hresp]] [_ [[<-] hread]].
+  move=> /= hresp [w [? hread]]; subst vres2.
   case hnth: nth => [[[b sr]|//] ?].
   have {hnth}hnth: nth None (map fst srs) i = Some (b, sr).
   + rewrite (nth_map (None, Pconst 0)) ?hnth //.
@@ -4043,7 +4041,7 @@ Proof.
   have /is_sarrP [nx hty] := hlocal.(wfr_type).
   have :=
     Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hnth ltac:(discriminate)) _ _ hnth.
-  rewrite hresp.(wrp_args) => -[[?] hwf]; subst w.
+  rewrite -hresp.(wrp_args) => -[[?] hwf]; subst w.
   set vp := Vword (sub_region_addr sr).
   exists (with_vm s2 (evm s2).[p <- vp]).
   have : type_of_val vp = vtype p by rewrite hlocal.(wfr_rtype).
@@ -4082,7 +4080,7 @@ Lemma alloc_call_resP wdb rmap m0 s1 s2 srs ret_pos rs rmap2 rs2 vargs1 vargs2 v
   Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
     varg2 = Vword (sub_region_addr sr) /\ wf_sub_region sr (type_of_val varg1)) (map fst srs) vargs1 vargs2 ->
   Forall3 (wf_result vargs1 vargs2) ret_pos vres1 vres2 ->
-  Forall3 (value_mem_uincl (emem s2)) (map (omap (fun _ => true)) ret_pos) vres1 vres2 ->
+  Forall3 (value_mem_uincl (emem s2)) ret_pos vres1 vres2 ->
   write_lvals wdb gd s1 rs vres1 = ok s1' ->
   exists s2',
     write_lvals wdb [::] s2 rs2 vres2 = ok s2' /\
@@ -4112,7 +4110,7 @@ Lemma check_resultP wdb rmap m0 s1 s2 srs params (sao_return:option nat) res1 re
   exists vres2, [/\
     get_var wdb (evm s2) res2 = ok vres2,
     wf_result vargs1 vargs2 sao_return vres1 vres2 &
-    value_mem_uincl (emem s2) (omap (fun _ => true) sao_return) vres1 vres2].
+    value_mem_uincl (emem s2) sao_return vres1 vres2].
 Proof.
   move=> hvs hsize haddr hresult hget.
   move: hresult; rewrite /check_result.
@@ -4123,9 +4121,9 @@ Proof.
     have /wfr_gptr := hgvalid.
     rewrite /get_var_kind /= /get_var /get_local hlres1 => -[? [[<-] /= ->]] /=; rewrite orbT /=.
     eexists; split; first by reflexivity.
-    + eexists; split; first by reflexivity.
-      split.
-      + by apply (Forall2_nth haddr None (Vbool true) (nth_not_default heq ltac:(discriminate))).
+    + split; last first.
+      + by symmetry;
+          apply (Forall2_nth haddr None (Vbool true) (nth_not_default heq ltac:(discriminate))).
       apply (subtype_trans (type_of_get_var hget)).
       rewrite heqty.
       apply (Forall3_nth hsize None res1 (Vbool true) (nth_not_default heq ltac:(discriminate))).
@@ -4159,7 +4157,7 @@ Lemma check_resultsP wdb rmap m0 s1 s2 srs params sao_returns res1 res2 vargs1 v
   exists vres2, [/\
     get_var_is wdb (evm s2) res2 = ok vres2,
     Forall3 (wf_result vargs1 vargs2) sao_returns vres1 vres2 &
-    Forall3 (value_mem_uincl (emem s2)) (map (omap (fun _ => true)) sao_returns) vres1 vres2].
+    Forall3 (value_mem_uincl (emem s2)) sao_returns vres1 vres2].
 Proof.
   move=> hvs hsize haddr.
   rewrite /check_results.
