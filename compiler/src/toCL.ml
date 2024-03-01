@@ -263,31 +263,46 @@ let rec pp_atome fmt (x,ws) =
   | Pconst z ->
     Format.fprintf fmt "%a@@%a" pp_print_i z pp_uint ws
   | Pvar x ->
-    let ws = ws_of_ty (L.unloc x.gv).v_ty in
-    Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint (int_of_ws ws)
+    let ws_x = ws_of_ty (L.unloc x.gv).v_ty in
+    Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint (int_of_ws ws_x)
   | Papp1 (Oword_of_int _ws, x) ->
     Format.fprintf fmt "%a" pp_atome (x, ws)
-  | Pbool _ -> assert false
-  | Parr_init _ -> assert false
-  | Pget (_, _, _, _) -> assert false
-  | Psub (_, _, _, _, _) -> assert false
-  | Pload (_, _, _) -> assert false
-  | Papp1 (_, _) -> assert false
-  | Papp2 (_, _, _) -> assert false
-  | PappN (_, _) -> assert false
-  | Pabstract (_,_) -> assert false
-  | Pif (_, _, _, _) -> assert false
-  | Pfvar _ -> assert false
-  | Pbig (_, _, _, _, _, _) -> assert false
-  | Presult _ -> assert false
-  | Presultget _ -> assert false
+  | _ -> assert false
 
-let pp_baseop fmt trans xs o es =
+let rec pp_cast fmt trans (x,ws) =
+    match x with
+  | Pconst z -> x
+  | Pvar va ->
+    let ws_x = ws_of_ty (L.unloc va.gv).v_ty in
+    if ws = ws_x then x
+    else
+      let v = va.gv in
+      let k = va.gs in
+      let v_ = v.L.pl_desc in
+      let v1 = V.mk "TMP" v_.v_kind (CoreIdent.tu ws) v_.v_dloc v_.v_annot in
+      let pp fmt trans =
+        pp_baseop fmt trans [(Lvar (L.mk_loc v.pl_loc v1))] (X86_instr_decl.MOV ws) [x]
+      in
+      Format.fprintf fmt "%a;@ " pp trans;
+      let v  = { v with L.pl_desc = v1 } in
+      let v0 = { gv = v; gs = k } in
+      Pvar v0
+  | _ -> assert false
+
+and pp_baseop fmt trans xs o es =
   let pp_var fmt (x,ws) =
     match x with
     | Pvar x ->
       Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint ws
     | _ -> assert false (* Manuel: What is this case? *)
+  in
+  let rec pp_const fmt (x,ws) =
+  match x with
+  | Pconst z ->
+    Format.fprintf fmt "%a" pp_print_i z
+  | Papp1 (Oword_of_int _ws, x) ->
+    Format.fprintf fmt "%a" pp_const (x, ws)
+  | _ -> assert false
   in
   match o with
    (* Manuel: Special case not handled in assignments? *)
@@ -312,59 +327,24 @@ let pp_baseop fmt trans xs o es =
           pp_lval (List.nth xs 0, int_of_ws ws)
           pp_print_i x
           (int_of_ws ws)
-      | Pbool _ -> assert false
-      | Parr_init _ -> assert false
-      | Pget (_, _, _, _) -> assert false
-      | Psub (_, _, _, _, _) -> assert false
-      | Pload (_, _, _) -> assert false
-      | Papp1 (_, _) -> assert false
-      | Papp2 (_, _, _) -> assert false
-      | PappN (_, _) -> assert false
-      | Pabstract (_,_) -> assert false
-      | Pif (_, _, _, _) -> assert false
-      | Pfvar _ -> assert false
-      | Pbig (_, _, _, _, _, _) -> assert false
-      | Presult _ -> assert false
-      | Presultget _ -> assert false
+      | _ -> assert false
     end
 
   | ADD ws ->
-    begin
-      match trans with
-      | 0 ->
-        Format.fprintf fmt "add %a %a %a"
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          pp_atome (List.nth es 0, int_of_ws ws)
-          pp_atome (List.nth es 1, int_of_ws ws)
-      | 1 ->
-        Format.fprintf fmt "adds %a %a %a %a"
-          pp_lval (List.nth xs 1, 1)
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          pp_atome (List.nth es 0, int_of_ws ws)
-          pp_atome (List.nth es 1, int_of_ws ws)
-      | _ -> assert false
-    end
-  | SUB ws ->
-    (*FIXME: Cast the parameter to the word size sw only if they do not match*)
+    let v1 = pp_cast fmt trans (List.nth es 0, ws) in
+    let v2 = pp_cast fmt trans (List.nth es 1, ws) in
+    Format.fprintf fmt "add %a %a %a"
+        pp_lval (List.nth xs 5, int_of_ws ws)
+        pp_atome (v1, int_of_ws ws)
+        pp_atome (v2, int_of_ws ws)
 
-    (*Is subb the right instruction ?????????; in the easycrypt translation a sub is used*)
-    begin
-      match trans with
-      | 0 ->
-        Format.fprintf fmt "cast TMP__@uint%i %a;@ subb %a %a %a TMP__"
-          (int_of_ws ws)
-          pp_atome (List.nth es 1, int_of_ws ws)
-          pp_lval (List.nth xs 1, 1)
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          pp_atome (List.nth es 0, int_of_ws ws)
-      | 1 ->
-        Format.fprintf fmt "cast TMP__@uint%i %a;@ sub %a %a TMP__"
-          (int_of_ws ws)
-          pp_atome (List.nth es 1, int_of_ws ws)
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          pp_atome (List.nth es 0, int_of_ws ws)
-      | _ -> assert false
-    end
+  | SUB ws ->
+    let v1 = pp_cast fmt trans (List.nth es 0, ws) in
+    let v2 = pp_cast fmt trans (List.nth es 1, ws) in
+    Format.fprintf fmt "sub %a %a %a"
+      pp_lval (List.nth xs 5, int_of_ws ws)
+      pp_atome (v1, int_of_ws ws)
+      pp_atome (v2, int_of_ws ws)
 
   | IMULr ws ->
     Format.fprintf fmt "mull TMP__ %a %a %a"
@@ -447,44 +427,21 @@ let pp_baseop fmt trans xs o es =
     Format.fprintf fmt "shl %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
+      pp_const (List.nth es 1, int_of_ws ws)
 
   | SHR ws ->
-     (* 
-      match (List.nth es 1) with
-       Papp1 (Oword_of_int _, Pconst x) -> 
-         Format.fprintf fmt "split %a TMP__ %a %a"
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          pp_atome (List.nth es 0, int_of_ws ws)
-          pp_print_i x
-        | _ -> *)
-    
       Format.fprintf fmt "shr %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
+      pp_const (List.nth es 1, int_of_ws ws)
 
   | SAL ws ->
     Format.fprintf fmt "shl %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_atome (List.nth es 1, int_of_ws ws)
+      pp_const (List.nth es 1, int_of_ws ws)
 
   | SAR ws ->
-(*       match (List.nth es 1) with
-       Papp1 (Oword_of_int _, Pconst x) -> 
-         if Z.to_int x == int_of_ws ws - 1
-         then Format.fprintf fmt "split sign TMP__ %a %a;subc carry2__ %a 0@uint%i sign"
-          pp_atome (List.nth es 0, int_of_ws ws)
-          pp_print_i x
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          (int_of_ws ws)
-        else 
-         Format.fprintf fmt "split %a TMP__ %a %a"
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          pp_atome (List.nth es 0, int_of_ws ws)
-          pp_print_i x 
-         | _ -> *)
     begin
       match trans with
       | 0 ->
@@ -505,7 +462,7 @@ let pp_baseop fmt trans xs o es =
           pp_lval (List.nth xs 5, int_of_ws ws)
           (int_of_ws ws)  (*shift size*)
           pp_atome (List.nth es 0, int_of_ws ws)
-          pp_atome (List.nth es 1, int_of_ws ws)
+          pp_const (List.nth es 1, int_of_ws ws)
       | _ -> assert false
     end
 
