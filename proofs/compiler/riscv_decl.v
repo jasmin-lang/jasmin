@@ -27,8 +27,8 @@ Definition riscv_xreg_size := U64. (* Unused *)
 (* -------------------------------------------------------------------- *)
 (* Registers. *)
 Variant register : Type :=
-| X01 | X02 | X03 | X04 | X05 | X06 | X07 | X08 (* General-purpose registers. *)
-| X09 | X10 | X11 | X12 | X13 | X14 | X15 | X16 (* General-purpose registers. *)
+| X1  | X2  | X3  | X4  | X5  | X6  | X7  | X8  (* General-purpose registers. *)
+| X9  | X10 | X11 | X12 | X13 | X14 | X15 | X16 (* General-purpose registers. *)
 | X17 | X18 | X19 | X20 | X21 | X22 | X23 | X24 (* General-purpose registers. *)
 | X25 | X26 | X27 | X28 | X29 | X30 | X31.      (* General-purpose registers. *)
 
@@ -46,8 +46,8 @@ Instance eqTC_register : eqTypeC register :=
 Canonical arm_register_eqType := @ceqT_eqType _ eqTC_register.
 
 Definition registers :=
-  [:: X01; X02; X03; X04; X05; X06; X07; X08;
-      X09; X10; X11; X12; X13; X14; X15; X16;
+  [::  X1;  X2;  X3;  X4;  X5;  X6;  X7;  X8;
+       X9; X10; X11; X12; X13; X14; X15; X16;
       X17; X18; X19; X20; X21; X22; X23; X24;
       X25; X26; X27; X28; X29; X30; X31
   ].
@@ -66,15 +66,15 @@ Canonical register_finType := @cfinT_finType _ finTC_register.
 
 Definition register_to_string (r : register) : string :=
   match r with
-  | X01 => "x1"
-  | X02 => "x2"
-  | X03 => "x3"
-  | X04 => "x4"
-  | X05 => "x5"
-  | X06 => "x6"
-  | X07 => "x7"
-  | X08 => "x8"
-  | X09 => "x9"
+  | X1  => "x1"
+  | X2  => "x2"
+  | X3  => "x3"
+  | X4  => "x4"
+  | X5  => "x5"
+  | X6  => "x6"
+  | X7  => "x7"
+  | X8  => "x8"
+  | X9  => "x9"
   | X10 => "x10"
   | X11 => "x11"
   | X12 => "x12"
@@ -165,6 +165,17 @@ Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   ; toS_x     := empty_toS sword64
   ; toS_f     := empty_toS sbool
   ; reg_size_neq_xreg_size := refl_equal
-  ; ad_rsp := X02
+  ; ad_rsp := X2
   ; ad_fcp := riscv_fcp
   }.
+
+  Definition riscv_linux_call_conv : calling_convention :=
+  {| callee_saved :=
+      map ARReg [:: X2; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ]
+   ; callee_saved_not_bool := erefl true
+   ; call_reg_args  := [:: X10; X11; X12; X13; X14; X15; X16; X17 ]
+   ; call_xreg_args := [::]
+   ; call_reg_ret   := [:: X10; X11]
+   ; call_xreg_ret  := [::]
+   ; call_reg_ret_uniq := erefl true;
+  |}.

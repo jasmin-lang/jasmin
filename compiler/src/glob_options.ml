@@ -54,6 +54,7 @@ let set_stack_zero_size s = stack_zero_size := Some (Annot.ws_of_string s)
 type architecture =
   | X86_64
   | ARM_M4
+  | RISCV
 let target_arch = ref X86_64
 
 let set_target_arch a =
@@ -61,6 +62,7 @@ let set_target_arch a =
     match a with
     | "x86-64" -> X86_64
     | "arm-m4" -> ARM_M4
+    | "risc-v" -> RISCV
     | _ -> assert false
   in target_arch := a'
 
@@ -247,7 +249,7 @@ let options = [
     "-intel", Arg.Unit (set_syntax `Intel), "use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
-    "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
+    "-arch", Arg.Symbol (["x86-64"; "arm-m4"; "risc-v"], set_target_arch), ": select target arch (default is x86-64)";
     "-stack-zero",
       Arg.Symbol (List.map fst stack_zero_strategies, set_stack_zero_strategy),
       ": select stack zeroization strategy for export functions";

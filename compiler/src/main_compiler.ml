@@ -92,6 +92,11 @@ let main () =
             module C = CoreArchFactory.Core_arch_ARM
             let analyze _ _ _ _ _ = failwith "TODO_ARM: analyze"
           end)
+      | RISCV ->
+         (module struct
+            module C = CoreArchFactory.Core_arch_RISCV
+            let analyze _ _ _ _ _ = failwith "TODO_RISCV: analyze"
+          end)
     in
     let module Arch = Arch_full.Arch_from_Core_arch (P.C) in
 
