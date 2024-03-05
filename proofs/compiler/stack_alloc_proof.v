@@ -2788,14 +2788,15 @@ Definition wf_arg m1 m2 (wptrs:seq (option bool)) aligns vargs vargs' i :=
 Definition wf_args m1 m2 (wptrs:seq (option bool)) aligns vargs vargs' :=
   forall i, wf_arg m1 m2 wptrs aligns vargs vargs' i.
 
-(* use Forall3 *)
-Definition value_mem_uincl {A} m2 (o:option A) v v' :=
+Definition value_in_mem m v v' :=
+  exists p, v' = Vword p /\
+    forall off w, get_val_byte v off = ok w -> read m (p + wrepr _ off)%R U8 = ok w.
+
+Definition value_eq_or_in_mem {A} m (o:option A) v v' :=
   match o with
   | None => v' = v (* no reg ptr : both values are equal *)
   | Some _ => (* reg ptr : [va] is compiled to a pointer [p] that satisfies [wf_arg_pointer] *)
-    exists p,
-      v' = Vword p /\
-      forall off w, get_val_byte v off = ok w -> read m2 (p + wrepr _ off)%R U8 = ok w
+    value_in_mem m v v'
   end.
 
 (* Link between a reg ptr result value [vr1] in the source and the corresponding
@@ -3315,7 +3316,7 @@ Lemma alloc_call_arg_aux_uincl wdb m0 rmap0 rmap s1 s2 opi e1 rmap2 bsr e2 v1 :
   sem_pexpr wdb gd s1 e1 = ok v1 ->
   exists v2,
     sem_pexpr wdb [::] s2 e2 = ok v2 /\
-    value_mem_uincl (emem s2) opi v1 v2.
+    value_eq_or_in_mem (emem s2) opi v1 v2.
 Proof.
   move=> hvs.
   rewrite /alloc_call_arg_aux.
@@ -3357,7 +3358,7 @@ Lemma alloc_call_args_aux_uincl wdb rmap m0 s1 s2 sao_params args rmap2 l vargs1
   sem_pexprs wdb gd s1 args = ok vargs1 ->
   exists vargs2,
     sem_pexprs wdb [::] s2 (map snd l) = ok vargs2 /\
-    Forall3 (value_mem_uincl (emem s2)) sao_params vargs1 vargs2.
+    Forall3 (value_eq_or_in_mem (emem s2)) sao_params vargs1 vargs2.
 Proof.
   move=> hvs.
   rewrite /alloc_call_args_aux.
@@ -3368,8 +3369,8 @@ Proof.
   move=> opi sao_params ih [//|arg args] rmap0 /=.
   t_xrbindP=> _ _ _ [rmap1 [bsr e]] halloc [rmap2 l] /= /ih{}ih _ <-
     varg1 hvarg1 vargs1 hvargs1 <-.
-  have [varg2 [hvarg2 huincl]] := alloc_call_arg_aux_uincl hvs halloc hvarg1.
-  have [vargs2 [hvargs2 huincls]] := ih _ hvargs1.
+  have [varg2 [hvarg2 heqinmem]] := alloc_call_arg_aux_uincl hvs halloc hvarg1.
+  have [vargs2 [hvargs2 heqinmems]] := ih _ hvargs1.
   rewrite /= hvarg2 /= hvargs2 /=.
   eexists; split; first by reflexivity.
   by constructor.
@@ -3759,14 +3760,14 @@ Lemma alloc_call_argsP wdb rmap m0 s1 s2 sao_params args rmap2 l vargs1 :
     wf_args (emem s1) (emem s2)
       (map (omap pp_writable) sao_params)
       (map (oapp pp_align U8) sao_params) vargs1 vargs2,
-    Forall3 (value_mem_uincl (emem s2)) sao_params vargs1 vargs2,
+    Forall3 (value_eq_or_in_mem (emem s2)) sao_params vargs1 vargs2,
     Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
       varg2 = Vword (sub_region_addr sr) /\ wf_sub_region sr (type_of_val varg1)) (map fst l) vargs1 vargs2 &
     List.Forall2 (fun bsr varg1 => forall sr, bsr = Some (true, sr) ->
       incl rmap2 (set_clear_pure rmap sr (Some 0%Z) (size_val varg1))) (map fst l) vargs1].
 Proof.
   move=> hvs /alloc_call_argsE [halloc hdisj] hvargs1.
-  have [vargs2 [hvargs2 huincl]] := alloc_call_args_aux_uincl hvs halloc hvargs1.
+  have [vargs2 [hvargs2 heqinmems]] := alloc_call_args_aux_uincl hvs halloc hvargs1.
   have [haddr hclear] := alloc_call_args_aux_sub_region hvs halloc hvargs1 hvargs2.
   have [_ _ {}hdisj] := check_all_disjP hdisj.
   have {}hdisj :=
@@ -4009,15 +4010,15 @@ Lemma alloc_lval_callP wdb rmap m0 s1 s2 srs r oi rmap2 r2 vargs1 vargs2 vres1 v
   Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
     varg2 = Vword (sub_region_addr sr) /\ wf_sub_region sr (type_of_val varg1)) (map fst srs) vargs1 vargs2 ->
   wf_result vargs1 vargs2 oi vres1 vres2 ->
-  value_mem_uincl (emem s2) oi vres1 vres2 ->
+  value_eq_or_in_mem (emem s2) oi vres1 vres2 ->
   write_lval wdb gd r vres1 s1 = ok s1' ->
   exists s2', [/\
     write_lval wdb [::] r2 vres2 s2 = ok s2' &
     valid_state rmap2 m0 s1' s2'].
 Proof.
-  move=> hvs halloc haddr hresult huincl hs1'.
+  move=> hvs halloc haddr hresult heqinmem hs1'.
   move: halloc; rewrite /alloc_lval_call.
-  case: oi hresult huincl => [i|]; last first.
+  case: oi hresult heqinmem => [i|]; last first.
   + move=> _ ->.
     t_xrbindP=> /check_lval_reg_callP hcheck <- <-.
     case: hcheck.
@@ -4080,23 +4081,23 @@ Lemma alloc_call_resP wdb rmap m0 s1 s2 srs ret_pos rs rmap2 rs2 vargs1 vargs2 v
   Forall3 (fun bsr varg1 varg2 => forall (b:bool) (sr:sub_region), bsr = Some (b, sr) ->
     varg2 = Vword (sub_region_addr sr) /\ wf_sub_region sr (type_of_val varg1)) (map fst srs) vargs1 vargs2 ->
   Forall3 (wf_result vargs1 vargs2) ret_pos vres1 vres2 ->
-  Forall3 (value_mem_uincl (emem s2)) ret_pos vres1 vres2 ->
+  Forall3 (value_eq_or_in_mem (emem s2)) ret_pos vres1 vres2 ->
   write_lvals wdb gd s1 rs vres1 = ok s1' ->
   exists s2',
     write_lvals wdb [::] s2 rs2 vres2 = ok s2' /\
     valid_state rmap2 m0 s1' s2'.
 Proof.
   move=> hvs halloc haddr hresults.
-  move hmem: (emem s2) => m2 huincl.
-  elim: {ret_pos vres1 vres2} hresults huincl rmap s1 s2 hvs hmem rs rmap2 rs2 halloc s1'.
+  move hmem: (emem s2) => m2 heqinmems.
+  elim: {ret_pos vres1 vres2} hresults heqinmems rmap s1 s2 hvs hmem rs rmap2 rs2 halloc s1'.
   + move=> _ rmap s1 s2 hvs _ [|//] _ _ /= [<- <-] _ [<-].
     by eexists; split; first by reflexivity.
-  move=> oi vr1 vr2 ret_pos vres1 vres2 hresult _ ih /= /List_Forall3_inv [huincl huincls]
+  move=> oi vr1 vr2 ret_pos vres1 vres2 hresult _ ih /= /List_Forall3_inv [heqinmem heqinmems]
     rmap0 s1 s2 hvs ? [//|r rs] /=; subst m2.
   t_xrbindP=> _ _ [rmap1 r2] hlval [rmap2 rs2] /= halloc <- <- s1'' s1' hs1' hs1''.
-  have [s2' [hs2' hvs']] := alloc_lval_callP hvs hlval haddr hresult huincl hs1'.
+  have [s2' [hs2' hvs']] := alloc_lval_callP hvs hlval haddr hresult heqinmem hs1'.
   have heqmem := esym (lv_write_memP (alloc_lval_call_lv_write_mem hlval) hs2').
-  have [s2'' [hs2'' hvs'']] := ih huincls _ _ _ hvs' heqmem _ _ _ halloc _ hs1''.
+  have [s2'' [hs2'' hvs'']] := ih heqinmems _ _ _ hvs' heqmem _ _ _ halloc _ hs1''.
   rewrite /= hs2' /= hs2'' /=.
   by eexists; split; first by reflexivity.
 Qed.
@@ -4110,7 +4111,7 @@ Lemma check_resultP wdb rmap m0 s1 s2 srs params (sao_return:option nat) res1 re
   exists vres2, [/\
     get_var wdb (evm s2) res2 = ok vres2,
     wf_result vargs1 vargs2 sao_return vres1 vres2 &
-    value_mem_uincl (emem s2) sao_return vres1 vres2].
+    value_eq_or_in_mem (emem s2) sao_return vres1 vres2].
 Proof.
   move=> hvs hsize haddr hresult hget.
   move: hresult; rewrite /check_result.
@@ -4157,7 +4158,7 @@ Lemma check_resultsP wdb rmap m0 s1 s2 srs params sao_returns res1 res2 vargs1 v
   exists vres2, [/\
     get_var_is wdb (evm s2) res2 = ok vres2,
     Forall3 (wf_result vargs1 vargs2) sao_returns vres1 vres2 &
-    Forall3 (value_mem_uincl (emem s2)) sao_returns vres1 vres2].
+    Forall3 (value_eq_or_in_mem (emem s2)) sao_returns vres1 vres2].
 Proof.
   move=> hvs hsize haddr.
   rewrite /check_results.
@@ -4168,8 +4169,8 @@ Proof.
   move=> sao_return sao_returns ih [//|x1 res1] /=.
   t_xrbindP=> _ x2 hcheck res2 /ih{ih}ih <-.
   move=> _ v1 hget1 vres1 hgets1 <-.
-  have [v2 [hget2 hresult huincl]] := check_resultP hvs hsize haddr hcheck hget1.
-  have [vres2 [hgets2 hresults huincls]] := ih _ hgets1.
+  have [v2 [hget2 hresult heqinmem]] := check_resultP hvs hsize haddr hcheck hget1.
+  have [vres2 [hgets2 hresults heqinmems]] := ih _ hgets1.
   rewrite /= hget2 /= hgets2 /=.
   by eexists; (split; first by reflexivity); constructor.
 Qed.
