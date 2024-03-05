@@ -364,13 +364,13 @@ Lemma check_wf_ptrP entries p ao u fn fd :
   check_wf_ptr entries p ao = ok u ->
   fn \in entries ->
   get_fundef p.(p_funcs) fn = Some fd ->
-  all2 (λ (x : var_i) pi, reg_ptr_writable_status x == omap pp_writable pi)
+  all2 (λ (x : var_i) pi, wptr_status x == omap pp_writable pi)
     (f_params fd) (sao_params (ao fn)) /\
-  let n := count (fun x => reg_ptr_writable_status x == Some true) fd.(f_params) in
+  let n := find (fun x => wptr_status x != Some true) fd.(f_params) in
   sao_return (ao fn) = [seq Some i | i <- iota 0 n] ++ nseq (size (sao_return (ao fn)) - n) None.
 Proof.
   move=> hcheck ok_fn get_fd.
-  set n := count (fun x => reg_ptr_writable_status x == Some true) fd.(f_params).
+  set n := find (fun x => wptr_status x != Some true) fd.(f_params).
   move: hcheck; rewrite /check_wf_ptr.
   t_xrbindP=> /allP /(_ _ ok_fn); rewrite get_fd => hparams.
   move=> /allP /(_ _ ok_fn); rewrite get_fd -/n => /andP [/eqP hl hr].
@@ -401,93 +401,7 @@ Proof.
   by exists fd.
 Qed.
 
-
-(* Link between a reg ptr argument value [va] in the source and
-   the corresponding pointer [p] in the target. [m1] is the source memory,
-   [m2] is the target memory.
-*)
-Record wf_arg_pointer' (glob_size:Z) rip m1 m2 (writable:bool) align va p := {
-  wap_align             : is_align p align;
-    (* [p] is aligned *)
-  wap_no_overflow       : no_overflow p (size_val va);
-    (* [p] is able to store a block as large as [va] *)
-  wap_valid             : forall w, between p (size_val va) w U8 -> validw m2 w U8;
-    (* the bytes in [p ; p + size_val va - 1] are valid *)
-  wap_fresh             : forall w, validw m1 w U8 -> disjoint_zrange p (size_val va) w (wsize_size U8);
-    (* the bytes in [p ; p + size_val va - 1] are disjoint from the valid bytes of [m1] *)
-  wap_writable_not_glob : writable -> (0 < glob_size)%Z -> disjoint_zrange rip glob_size p (size_val va);
-    (* if the reg ptr is marked as writable, then the bytes in [p ; p + size_val va - 1] are disjoint from
-       the bytes containing the globals *)
-  wap_read              : forall off w, get_val_byte va off = ok w -> read m2 (p + wrepr _ off)%R U8 = ok w
-    (* the memory at address [p] contains [va] *)
-}.
-
-(* Link between the values given as arguments in the source and the target. *)
-Definition wf_arg' glob_size rip m1 m2 writable align va va' :=
-  match writable with
-  | None => va' = va (* no reg ptr : both values are equal *)
-  | Some writable => (* reg ptr : [va] is compiled to a pointer [p] that satisfies [wf_arg_pointer] *)
-    exists p,
-      va' = Vword p /\ wf_arg_pointer' glob_size rip m1 m2 writable align va p
-  end.
-
-Inductive Forall4 (A B C D : Type) (R : A -> B -> C -> D -> Prop) : seq A -> seq B -> seq C -> seq D -> Prop :=
-| Forall4_nil : Forall4 R [::] [::] [::] [::]
-| Forall4_cons : forall a b c d la lb lc ld, R a b c d -> Forall4 R la lb lc ld -> Forall4 R (a :: la) (b :: lb) (c :: lc) (d :: ld).
-
-Definition wf_args' (glob_data:seq u8) rip m1 m2 (p:uprog) (p':sprog) fn va va' :=
-  let glob_size := Z.of_nat (size glob_data) in
-  forall fd, get_fundef p.(p_funcs) fn = Some fd ->
-  forall fd', get_fundef p'.(p_funcs) fn = Some fd' ->
-  let l1 :=
-    map reg_ptr_writable_status fd.(f_params)
-  in
-  let l2 := fd'.(f_extra).(sf_align_args) in
-  Forall4 (wf_arg' glob_size rip m1 m2) l1 l2 va va'.
-
-(* We consider two reg ptr values in the list [va] of source values and the
-   corresponding pointers in the list [va'] of target values.
-   If one of the reg ptr is writable, the zones in the target memory pointed to
-   by the two pointers are disjoint.
-*)
-Definition disjoint_values' (writable:seq (option bool)) va va' :=
-  forall i1 w1 i2 writable2 w2,
-    nth None writable i1 = Some true ->
-    nth (Vbool true) va' i1 = @Vword Uptr w1 ->
-    nth None writable i2 = Some writable2 ->
-    nth (Vbool true) va' i2 = @Vword Uptr w2 ->
-    i1 <> i2 ->
-    disjoint_zrange w1 (size_val (nth (Vbool true) va i1)) w2 (size_val (nth (Vbool true) va i2)).
-
-Definition disjoint_values'' (p:uprog) fn va va' :=
-  forall fd, get_fundef p.(p_funcs) fn = Some fd ->
-  let l1 :=
-    map reg_ptr_writable_status fd.(f_params)
-  in
-  disjoint_values' l1 va va'.
-
-
-(* Link between a reg ptr result value [vr] in the source and the corresponding pointer
-   [p] in the target. [m1] is the source memory. The reg ptr is associated to
-   the [i]-th elements of [vargs1] and [vargs2] (the arguments in the source and
-   the target).
-*)
-Record wf_result_pointer' m1 varg2 vr p := {
-  wrp_args    : varg2 = Vword p;
-    (* the pointer [p] that is returned is the same that was taken as argument (in the target) *)
-(*   wrp_subtype : subtype (type_of_val vr) varg1; *)
-    (* [vr] is smaller than the value taken as argument (in the source) *)
-    (* actually, size_of_val vr <= size_of_val (nth (Vbool true) vargs1 i) is enough to do the proofs,
-       but this is true and we have lemmas about [subtype] (e.g. [wf_sub_region_subtype] *)
-  wrp_read    : forall off w, get_val_byte vr off = ok w -> read m1 (p + wrepr _ off)%R U8 = ok w
-    (* the memory at address [p] contains [vr] *)
-}.
-
-Definition wf_results_pointer' m vargs2 vres1 :=
-  List.Forall2 (fun va2 vr1 =>
-    exists p, va2 = Vword p /\ wf_result_pointer' m va2 vr1 p) vargs2 vres1.
-
-(* TODO: better name *)
+(* TODO: better name & move *)
 (* oseq.onth_nth_size but with no default arg to pass
    (in case there is no obvious inabitant of type [T]) *)
 Lemma onth_not_default {T} (s:seq T) i :
@@ -500,6 +414,7 @@ Proof.
   move=> /ih. done.
 Qed.
 
+(* TODO: move *)
 Lemma nth_Forall2 A B (R : A -> B -> Prop) (la : seq A) (lb : seq B) a b :
   size la = size lb ->
   (∀ i : nat, i < size la → R (nth a la i) (nth b lb i)) ->
@@ -509,37 +424,6 @@ Proof.
   constructor.
   + by apply (hnth 0 erefl).
   apply ih. move=> i; apply (hnth i.+1).
-Qed.
-
-Lemma Forall4_size A B C D R (la : seq A) (lb : seq B) (lc : seq C) (ld : seq D) :
-  Forall4 R la lb lc ld -> [/\ size la = size lb, size la = size lc & size la = size ld].
-Proof.
-  elim {la lb lc ld}.
-  - done.
-  move=> a b c d la lb lc ld _ _ /= [<- <- <-].
-  done.
-Qed.
-
-Lemma List_Forall4_inv A B C D (R : A -> B -> C -> D -> Prop) l1 l2 l3 l4 :
-  Forall4 R l1 l2 l3 l4 ->
-  match l1, l2, l3, l4 with
-  | [::], [::], [::], [::] => True
-  | a :: l1, b :: l2, c :: l3, d :: l4 => R a b c d /\ Forall4 R l1 l2 l3 l4
-  | _, _, _, _ => False
-  end.
-Proof. by case. Qed.
-
-Lemma Forall4_impl A B C D (R1 R2 : A -> B -> C -> D -> Prop) :
-  (forall a b c d, R1 a b c d -> R2 a b c d) ->
-  forall la lb lc ld,
-  Forall4 R1 la lb lc ld ->
-  Forall4 R2 la lb lc ld.
-Proof.
-  move=> himpl la lb lc ld.
-  elim {la lb lc ld}.
-  - constructor.
-  move=> a b c d la lb lc ld h _ ih.
-  by constructor; auto.
 Qed.
 
 Lemma keep_only_false {A} (l : seq A) n :
@@ -557,7 +441,7 @@ Lemma keep_only_cat {A} (l1 l2 : seq A) (tokeep1 tokeep2 : seq bool) :
   keep_only l1 tokeep1 ++ keep_only l2 tokeep2.
 Proof. by elim: tokeep1 l1 => [|b tokeep1 ih] [|a1 l1] //= [] /ih ->; case: b. Qed.
 
-
+(*
 Definition disjoint_from_writable_param' p (b:option bool) varg1 varg2 :=
   forall p2, b = Some true -> varg2 = @Vword Uptr p2 ->
   disjoint_zrange p2 (size_val varg1) p (wsize_size U8).
@@ -570,6 +454,15 @@ Definition disjoint_from_writable_params' (P:uprog) fn p va va' :=
 Definition mem_unchanged_params' P fn ms m0 m vargs1 vargs2 :=
   forall p, validw m0 p U8 -> ~ validw ms p U8 -> disjoint_from_writable_params' P fn p vargs1 vargs2 ->
   read m0 p U8 = read m p U8.
+*)
+
+Definition size_glob (p:sprog) := Z.of_nat (size (sp_globs (p_extra p))).
+Definition get_wptrs (p:uprog) fn :=
+  oapp (fun fd => map wptr_status fd.(f_params)) [::] (get_fundef p.(p_funcs) fn).
+Definition get_align_args (p:sprog) fn :=
+  oapp (fun fd => fd.(f_extra).(sf_align_args)) [::] (get_fundef p.(p_funcs) fn).
+Definition get_nb_wptr (p:uprog) fn :=
+  find (oapp negb true) (get_wptrs p fn).
 
 Lemma compiler_front_endP
   entries
@@ -582,24 +475,18 @@ Lemma compiler_front_endP
   sem_call (dc:=indirect_c) (wsw:= nosubword) p tt scs m fn va scs' m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
   forall va',
-  wf_args' (sp_globs (p_extra p')) gd m mi p p' fn va va' ->
-  disjoint_values'' p fn va va' ->
+  wf_args (size_glob p') gd m mi (get_wptrs p fn) (get_align_args p' fn) va va' ->
+(*   disjoint_values'' p fn va va' -> *)
   alloc_ok p' fn mi →
   ∃ vr' mi',
+    let n := get_nb_wptr p fn in
     [/\
-     (* on pourrait remplacer par
-     find (reg_ptr_writable_status x != Some true) fd.(f_params) *)
-     let n :=
-       match get_fundef p.(p_funcs) fn with
-       | None => 0 (* impossible *)
-       | Some fd => count (fun x => reg_ptr_writable_status x == Some true) fd.(f_params)
-       end
-     in
-     wf_results_pointer' mi' (take n va') (take n vr) /\
+     Forall3 (wf_result_pointer (take n va) (take n va')) (iota 0 n) (take n vr) (take n vr'),
+     Forall3 (value_mem_uincl mi') ? 
      List.Forall2 value_uincl (drop n vr) vr',
      sem_call (dc:=direct_c) p' gd scs mi fn va' scs' mi' vr',
      extend_mem m' mi' gd (sp_globs (p_extra p')) &
-     mem_unchanged_params' p fn m mi mi' va va'
+     mem_unchanged_params m mi mi' (get_wptrs p fn) va va'
     ].
 Proof.
   rewrite /compiler_front_end;
@@ -1388,6 +1275,7 @@ Proof.
   (* si une valeur est initialisée dans m2 mais pas dans m1 *)
 Abort.
 
+(* do we want to ensure wf_result_pointer? the only thing that matters is value_mem_uincl, no? *)
 Lemma compile_prog_to_asmP
   entries
   (p : prog)

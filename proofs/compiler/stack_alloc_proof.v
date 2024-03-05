@@ -2755,7 +2755,7 @@ Qed.
    [m2] is the target memory.
 *)
 (* FIXME: vargs -> tys ? *)
-Record wf_arg_pointer m1 m2 (reg_ws:seq (option bool)) vargs vargs' (writable:bool) align va p i := {
+Record wf_arg_pointer m1 m2 (wptrs:seq (option bool)) vargs vargs' (writable:bool) align va p i := {
   wap_align             : is_align p align;
     (* [p] is aligned *)
   wap_no_overflow       : no_overflow p (size_val va);
@@ -2769,28 +2769,28 @@ Record wf_arg_pointer m1 m2 (reg_ws:seq (option bool)) vargs vargs' (writable:bo
        the bytes containing the globals *)
   wap_writable_disjoint : writable ->
     forall j vaj pj, i <> j ->
-      isSome (nth None reg_ws j) ->
+      isSome (nth None wptrs j) ->
       nth (Vbool true) vargs j = vaj ->
       nth (Vbool true) vargs' j = @Vword Uptr pj ->
       disjoint_zrange p (size_val va) pj (size_val vaj)
 }.
 
 (* Link between the values given as arguments in the source and the target. *)
-Definition wf_arg m1 m2 (reg_ws:seq (option bool)) aligns vargs vargs' i :=
-  match nth None reg_ws i with
+Definition wf_arg m1 m2 (wptrs:seq (option bool)) aligns vargs vargs' i :=
+  match nth None wptrs i with
   | None => True
   | Some writable =>
     exists p,
       nth (Vbool true) vargs' i = Vword p /\
-      wf_arg_pointer m1 m2 reg_ws vargs vargs' writable (nth U8 aligns i) (nth (Vbool true) vargs i) p i
+      wf_arg_pointer m1 m2 wptrs vargs vargs' writable (nth U8 aligns i) (nth (Vbool true) vargs i) p i
   end.
 
-Definition wf_args m1 m2 (reg_ws:seq (option bool)) aligns vargs vargs' :=
-  forall i, wf_arg m1 m2 reg_ws aligns vargs vargs' i.
+Definition wf_args m1 m2 (wptrs:seq (option bool)) aligns vargs vargs' :=
+  forall i, wf_arg m1 m2 wptrs aligns vargs vargs' i.
 
 (* use Forall3 *)
-Definition value_mem_uincl {A} m2 (reg_w:option A) v v' :=
-  match reg_w with
+Definition value_mem_uincl {A} m2 (o:option A) v v' :=
+  match o with
   | None => v' = v (* no reg ptr : both values are equal *)
   | Some _ => (* reg ptr : [va] is compiled to a pointer [p] that satisfies [wf_arg_pointer] *)
     exists p,
@@ -3375,23 +3375,23 @@ Proof.
   by constructor.
 Qed.
 
-Lemma alloc_call_arg_aux_wf wdb m0 rmap0 rmap s1 s2 reg_ws aligns vargs vargs' opi e1 rmap2 e2 i :
+Lemma alloc_call_arg_aux_wf wdb m0 rmap0 rmap s1 s2 wptrs aligns vargs vargs' opi e1 rmap2 e2 i :
   valid_state rmap0 m0 s1 s2 ->
   alloc_call_arg_aux pmap rmap0 rmap opi e1 = ok (rmap2, e2) ->
   sem_pexpr wdb gd s1 e1 = ok (nth (Vbool true) vargs i) ->
   sem_pexpr wdb [::] s2 e2.2 = ok (nth (Vbool true) vargs' i) ->
-  nth None reg_ws i = omap pp_writable opi ->
+  nth None wptrs i = omap pp_writable opi ->
   nth U8 aligns i = oapp pp_align U8 opi ->
-  (nth None reg_ws i = Some true ->
+  (nth None wptrs i = Some true ->
     forall j vai vaj (pi pj : word Uptr),
     i <> j ->
-    isSome (nth None reg_ws j) ->
+    isSome (nth None wptrs j) ->
     nth (Vbool true) vargs i = vai ->
     nth (Vbool true) vargs j = vaj ->
     nth (Vbool true) vargs' i = Vword pi ->
     nth (Vbool true) vargs' j = Vword pj ->
     disjoint_zrange pi (size_val vai) pj (size_val vaj)) ->
-  wf_arg (emem s1) (emem s2) reg_ws aligns vargs vargs' i.
+  wf_arg (emem s1) (emem s2) wptrs aligns vargs vargs' i.
 Proof.
   move=> hvs.
   rewrite /alloc_call_arg_aux.

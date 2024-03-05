@@ -1731,15 +1731,16 @@ Qed.
    Since several proofs have been reworked since, this choice could be rethought.
    At least, it works with the current formulation.
 *)
-Definition disjoint_from_writable_param p opi varg1 varg2 :=
-  forall pi p2, opi = Some pi -> varg2 = @Vword Uptr p2 -> pi.(pp_writable) ->
+Definition disjoint_from_writable_param p wptr varg1 varg2 :=
+  forall p2, wptr = Some true -> varg2 = @Vword Uptr p2 ->
   disjoint_zrange p2 (size_val varg1) p (wsize_size U8).
 
 (* [disjoint_from_writable_params] correctly captures the notion of being
    disjoint from writable param slots
 *)
 Lemma disjoint_from_writable_params_param_slots p :
-  Forall3 (disjoint_from_writable_param p) sao.(sao_params) vargs1 vargs2 ->
+  Forall3 (disjoint_from_writable_param p)
+    (map (omap pp_writable) sao.(sao_params)) vargs1 vargs2 ->
   forall s, Sv.In s Slots_params -> Writable_params s ->
   disjoint_zrange (Addr_params s) (size_slot s) p (wsize_size U8).
 Proof.
@@ -1750,9 +1751,10 @@ Proof.
   rewrite /Writable_params /Addr_params hpi => hw.
   have [i [hnth1 hnth2 hnth3 hnth4]] := get_pi_nth hpi.
   have hi := nth_not_default hnth2 ltac:(discriminate).
-  have := Forall3_nth hdisj None (Vbool true) (Vbool true) hi.
-  move: hi; have [-> _] := size_fmapM2 hparams => hi.
-  rewrite hnth2 hnth4 => /(_ _ _ refl_equal refl_equal hw).
+  have := Forall3_nth hdisj None (Vbool true) (Vbool true);
+    rewrite size_map => /(_ _ hi).
+  rewrite (nth_map None) //.
+  rewrite hnth2 /= hw hnth4 => /(_ _ refl_equal refl_equal).
   apply disjoint_zrange_incl_l.
   rewrite eq_refl zero_extend_u.
   apply: zbetween_le.
@@ -1764,7 +1766,8 @@ Qed.
    disjoint from all writable params.
 *)
 Corollary disjoint_from_writable_params_all_slots p :
-  Forall3 (disjoint_from_writable_param p) sao.(sao_params) vargs1 vargs2 ->
+  Forall3 (disjoint_from_writable_param p)
+    (map (omap pp_writable) sao.(sao_params)) vargs1 vargs2 ->
   disjoint_zrange rsp sao.(sao_size) p (wsize_size U8) ->
   forall s, Sv.In s Slots -> Writable s ->
   disjoint_zrange (Addr s) (size_slot s) p (wsize_size U8).
@@ -1920,11 +1923,14 @@ Notation value_mem_uincl_args m fn vargs1 vargs2 :=
 Notation value_mem_uincl_res m fn vres1 vres2 :=
   (Forall3 (value_mem_uincl m) (local_alloc fn).(sao_return) vres1 vres2).
 
-Definition disjoint_from_writable_params fn p :=
-  Forall3 (disjoint_from_writable_param p) (local_alloc fn).(sao_params).
-Definition mem_unchanged_params fn ms m0 m vargs1 vargs2 :=
-  forall p, validw m0 p U8 -> ~ validw ms p U8 -> disjoint_from_writable_params fn p vargs1 vargs2 ->
+Definition mem_unchanged_params ms m0 m wptrs vargs1 vargs2 :=
+  forall p, validw m0 p U8 -> ~ validw ms p U8 ->
+  Forall3 (disjoint_from_writable_param p) wptrs vargs1 vargs2 ->
   read m0 p U8 = read m p U8.
+
+Notation mem_unchanged_params_fn ms m0 m fn vargs1 vargs2 :=
+  (mem_unchanged_params ms m0 m
+    (map (omap pp_writable) (local_alloc fn).(sao_params)) vargs1 vargs2).
 
 Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value) 
          (scs2: syscall_state) (m2: mem) (vres: seq value) :=
@@ -1938,7 +1944,7 @@ Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value)
       extend_mem m2 m2' rip global_data /\
       wf_results vargs vargs' fn vres vres' /\
       value_mem_uincl_res m2' fn vres vres' /\
-      mem_unchanged_params fn m1 m1' m2' vargs vargs'.
+      mem_unchanged_params_fn m1 m1' m2' fn vargs vargs'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof.
@@ -2234,9 +2240,10 @@ Proof.
     + move=> p hvalid1 hvalid2 hdisj'.
       symmetry; apply hunch => //.
       apply (nth_Forall3 None (Vbool true) (Vbool true)).
-      + by have [? _] := Forall3_size huincl.
-      + by have [_ ?] := Forall3_size huincl.
-      move=> i hi pi p2 hpi hp2 hw.
+      + by rewrite size_map; have [? _] := Forall3_size huincl.
+      + by rewrite size_map; have [_ ?] := Forall3_size huincl.
+      rewrite size_map.
+      move=> i hi p2; rewrite (nth_map None) //; apply: obindP => pi hpi [hw] hp2.
       have [sr hsr] := Forall2_nth (alloc_call_args_aux_not_None hcargsx) None None hi _ hpi.
       rewrite hw in hsr.
       have := Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hsr ltac:(discriminate)) _ _ hsr.
@@ -2682,22 +2689,24 @@ Qed.
 Lemma value_uincl_disjoint_from_writable_params fn vargs1 vargs1' vargs2 vargs2' p :
   List.Forall2 value_uincl vargs1' vargs1 ->
   Forall3 (fun opi varg varg' => opi <> None -> varg = varg') (local_alloc fn).(sao_params) vargs2 vargs2' ->
-  disjoint_from_writable_params fn p vargs1 vargs2 ->
-  disjoint_from_writable_params fn p vargs1' vargs2'.
+  Forall3 (disjoint_from_writable_param p)
+    (map (omap pp_writable) (local_alloc fn).(sao_params)) vargs1 vargs2 ->
+  Forall3 (disjoint_from_writable_param p)
+    (map (omap pp_writable) (local_alloc fn).(sao_params)) vargs1' vargs2'.
 Proof.
-  rewrite /disjoint_from_writable_params.
   move=> hincl hptreq hdisj.
-  elim: {vargs1 vargs2} hdisj vargs1' hincl vargs2' hptreq.
-  + move=> _ /List_Forall2_inv_r -> [|??] /List_Forall3_inv // _.
+  elim: {vargs2 vargs2'} hptreq vargs1 hdisj vargs1' hincl.
+  + move=> [|??] /List_Forall3_inv //= _ _ /List_Forall2_inv_r ->.
     by constructor.
-  move=> opi varg1 varg2 sao_params vargs1 vargs2 hdisj _ ih.
+  move=> opi varg2 varg2' sao_params vargs2 vargs2' hptreq _ ih.
+  move=> [|varg1 vargs1] /List_Forall3_inv //= [hdisj /ih{}ih].
   move=> _ /List_Forall2_inv_r [varg1' [vargs1' [-> [hincl /ih{ih}ih]]]].
-  move=> [|varg2' vargs2'] /List_Forall3_inv // [hptreq /ih{ih}ih].
   constructor=> //.
-  move=> pi p2 ?? hw; subst opi varg2'.
+  move=> p2; apply: obindP => pi ? [hw] ?; subst opi varg2'.
   apply (disjoint_zrange_incl_l (zbetween_le _ (size_of_le (value_uincl_subtype hincl)))).
-  rewrite /disjoint_from_writable_param in hdisj.
-  by apply (hdisj _ _ refl_equal (hptreq ltac:(discriminate)) hw).
+  apply hdisj.
+  + by rewrite /= hw.
+  by apply hptreq.
 Qed.
 
 (* sem_call has 7 steps that are reflected in this proof:
@@ -2964,41 +2973,30 @@ Proof.
   by apply: get_map_cfprog_name_gen hmap.
 Qed.
 
-(* [m2] is *exactly* [m1] augmented with data [data] at address [rip]. *)
-Record extend_mem_eq (m1 m2:mem) (rip:pointer) (data:seq u8) := {
-  eme_no_overflow : no_overflow rip (Z.of_nat (size data));
-    (* [rip] is able to store a block large enough *)
-  eme_align       : is_align rip U256;
-    (* [rip] is 32-bytes aligned (and thus is 1,2,4,8,16-bytes aligned) *)
-    (* could be formulated, [forall ws, is_align rip ws] *)
-  eme_read_old8   : forall p, validw m1 p U8 -> read m1 p U8 = read m2 p U8;
-    (* [m2] contains [m1] *)
-  eme_fresh       : forall p, validw m1 p U8 -> disjoint_zrange rip (Z.of_nat (size data)) p (wsize_size U8);
-   (* the bytes in [rip; rip + Z.of_nat (size data) - 1] are disjoint from the valid bytes of [m1] *)
-  eme_valid       : forall p, validw m1 p U8 || between rip (Z.of_nat (size data)) p U8 = validw m2 p U8;
-    (* [m2] contains exactly [m1] and [rip; rip + Z.of_nat (size data) - 1] *)
-  eme_read_new    : forall i, 0 <= i < Z.of_nat (size data) ->
-                     read m2 (rip + wrepr _ i)%R U8 = ok (nth 0%R data (Z.to_nat i))
-    (* the memory at address [rip] contains [data] *)
-}.
-
 (* Here are informal descriptions of the predicates used in the theorem.
 
    - extend_mem m1 m2 rip data: [m2] is a memory that contains at least [m1]
-       and (disjointly) data [data] at adress [rip];
+       and (disjointly) data [data] at address [rip];
 
-   - wf_args: link between the values taken as arguments in the source and the target
-       (complex predicate if the argument is a reg ptr, just equality otherwise);
+   - wf_args: [m2] also contains (disjointly) memory slots for reg ptr
+       arguments; writable reg ptr arguments point to memory zones disjoint
+       from any zone pointed to by another reg ptr;
 
-   - disjoint_values: the writable [reg ptr]s taken as arguments point to memory zones
-       that are pairwise disjoint and disjoint from the zones pointed to by
-       non writable [reg ptr]s;
+   - value_mem_incl: link between the values taken as arguments in the source
+       and the target (if the argument is not a reg ptr, it is just equality;
+       if the argument is a reg ptr, the array in the source can be read in
+       memory in the target);
 
    - alloc_ok: the call is possible in the target (there is enough space in the
        stack, and the top of the stack is aligned if the callee is not an export function);
 
-   - wf_results: link between the values returned in the source and the target
-       (complex predicate if the result is a reg ptr, just equality otherwise);
+   - wf_results: a returned reg ptr in the target corresponds to one of the
+       arguments (as specified in [sao_return]);
+
+   - value_mem_uincl: link between the values returned in the source
+       and the target (if the result is not a reg ptr, it is just equality;
+       if the result is a reg ptr, the array in the source can be read in
+       memory in the target);
 
    - mem_unchanged_params: the function call does not modify the stack region,
       except for the regions pointed to by the writable [reg ptr]s given as arguments.
@@ -3019,7 +3017,8 @@ Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
         extend_mem m1' m2' rip data /\
         Forall3 (wf_result vargs1 vargs2) (oracle fn).(sao_return) vres1 vres2 /\
         Forall3 (value_mem_uincl m2') (oracle fn).(sao_return) vres1 vres2 /\
-        mem_unchanged_params oracle fn m1 m2 m2' vargs1 vargs2.
+        mem_unchanged_params m1 m2 m2'
+          (map (omap pp_writable) (oracle fn).(sao_params)) vargs1 vargs2.
 Proof.
   move=> hprog ev scs1 m1 vargs1 scs1' m1' vres1 hsem1 rip m2 vargs2 hext hargs huincl halloc.
   move: hprog; rewrite /alloc_prog.

@@ -320,7 +320,7 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
   ok pd.
 
 (* returns None is not reg ptr, Some false if reg const ptr, Some true if reg mut ptr *)
-Definition reg_ptr_writable_status (x : var_i) :=
+Definition wptr_status (x : var_i) :=
   match Ident.id_kind x.(vname) with
   | Reg (_, Pointer writable) =>
     Some match writable with | Writable => true | Constant => false end
@@ -339,7 +339,7 @@ Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : c
         | None => true
         | Some fd =>
           all2
-            (fun (x:var_i) pi => reg_ptr_writable_status x == omap pp_writable pi)
+            (fun (x:var_i) pi => wptr_status x == omap pp_writable pi)
             fd.(f_params) (ao fn).(sao_params)
         end)
         entries)
@@ -350,7 +350,7 @@ Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : c
       match get_fundef p.(p_funcs) fn with
       | None => true
       | Some fd =>
-        let n := count (fun x => reg_ptr_writable_status x == Some true) fd.(f_params) in
+        let n := find (fun x => wptr_status x != Some true) fd.(f_params) in
         (take n (ao fn).(sao_return) == map Some (iota 0 n)) &&
         allNone (drop n (ao fn).(sao_return))
       end)
