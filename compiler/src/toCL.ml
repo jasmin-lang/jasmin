@@ -49,6 +49,7 @@ let pp_uint fmt ws =
 (*   | Wsize.Signed -> "s" *)
 (*   | Unsigned -> "u" *)
 
+
 let rec pp_rexp fmt e =
   match e with
   | Pconst z ->
@@ -125,13 +126,17 @@ let rec pp_rexp fmt e =
 | Pabstract ({name="ze_16_64"}, [v]) ->
     Format.fprintf fmt "uext %a 48"
       pp_rexp v
+(*
 | Pabstract ({name="smod64"}, [v1;v2]) ->
     Format.fprintf fmt "smod (%a) (%a)"
       pp_rexp v1
       pp_rexp v2
+*)
 | Presult x ->
     Format.fprintf fmt "%a" pp_gvar_i x.gv
-| _ ->  assert false
+| _ -> assert false
+
+let pp_rexp_par fmt es = Format.fprintf fmt "(%a)" pp_rexp es
 
 let rec pp_rpred fmt e =
   match e with
@@ -193,6 +198,9 @@ let rec pp_rpred fmt e =
       pp_rpred e2
       pp_rpred e1
       pp_rpred e3
+  | Pabstract ({name="eqsmod64"}, es) ->
+    Format.fprintf fmt "eqsmod %a"
+      (pp_list " " pp_rexp_par) es
   | _ ->  assert false
 
 let rec extract_list e aux =
@@ -201,7 +209,9 @@ let rec extract_list e aux =
   | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
   | _ -> assert false
 
-let rec pp_eexp fmt e =
+
+let rec pp_eexp_par fmt es = Format.fprintf fmt "(%a)" pp_eexp es
+ and pp_eexp fmt e =
   match e with
   | Pconst z ->
     Format.fprintf fmt "%a" pp_print_i z
@@ -209,6 +219,8 @@ let rec pp_eexp fmt e =
     Format.fprintf fmt "%a" pp_gvar_i x.gv
   | Papp1 (Oword_of_int _ws, x) ->
     Format.fprintf fmt "%a" pp_eexp x
+  | Papp1 (Oint_of_word _ws, x) ->
+    Format.fprintf fmt "%a" pp_eexp x  
   | Papp1(Oneg _, e) ->
     Format.fprintf fmt "(-1)*(%a)" pp_eexp e
   | Papp2(Oadd _, e1, e2) ->
@@ -223,14 +235,14 @@ let rec pp_eexp fmt e =
     Format.fprintf fmt "(%a) * (%a)"
       pp_eexp e1
       pp_eexp e2
+(*  | Papp2(Odiv _, e1, e2) ->
+    Format.fprintf fmt "(%a) / (%a)"
+      pp_eexp e1
+      pp_eexp e2     *) 
   | Pabstract ({name="limbs"}, [h;q]) ->
     Format.fprintf fmt "(limbs %a [%a])"
       pp_eexp h
-      (pp_list ", "  pp_eexp) (extract_list q [])
-  | Pabstract ({name="limb"}, [h;q]) ->
-    Format.fprintf fmt "(limbs %a [%a])"
-      pp_eexp h
-      pp_eexp q
+      (pp_list ", "  pp_eexp_par) (extract_list q [])
   | Presult x ->
     Format.fprintf fmt "%a" pp_gvar_i x.gv
   | _ -> assert false
@@ -249,7 +261,7 @@ let rec  pp_epred fmt e =
   | Pabstract ({name="eqmod"} as opa, es) ->
     Format.fprintf fmt "%s %a"
       opa.name
-      (pp_list " " pp_eexp) es
+      (pp_list " " pp_eexp_par) es
 
 (*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
   | _ -> assert false
@@ -293,6 +305,8 @@ let rec pp_cast fmt trans (x,ws) =
       let v  = { v with L.pl_desc = v1 } in
       let v0 = { gv = v; gs = k } in
       Pvar v0
+  | Papp1 (Oword_of_int _ws, x) ->
+     pp_cast fmt trans (x, ws)
   | _ -> assert false
 
 and pp_baseop fmt trans xs o es =
@@ -521,10 +535,13 @@ and pp_baseop fmt trans xs o es =
           v4
           (int_of_ws ws1 - (int_of_ws ws2) + 1)
           v2
-          (int_of_ws ws2 - 1);
+          (int_of_ws ws2 - 1)
       | _ -> assert false
   end
-
+  |MOVZX (ws1, ws2) ->
+      Format.fprintf fmt "cast %a %a"
+         pp_lval (List.nth xs 0, int_of_ws ws1)
+         pp_atome (List.nth es 0, int_of_ws ws2)
   | _ -> assert false
 
 
