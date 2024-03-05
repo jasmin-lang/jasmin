@@ -139,11 +139,6 @@ let pp_align fmt = function
   | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
-let pp_assert_kind fmt = function
-  | E.Assert   -> Format.fprintf fmt "Assert" 
-  | Assume   -> Format.fprintf fmt "Assume"
-  | Cut      -> Format.fprintf fmt "Cut"
-
 let pp_prover fmt = function
   | E.Cas -> Format.fprintf fmt "cas"
   | Smt -> Format.fprintf fmt "smt"
@@ -181,9 +176,7 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
         (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
 
   | Cassert(t, p, e) ->
-    F.fprintf fmt "@[<hov 2>#[%a, %a]assert@ %a;@]" 
-     pp_assert_kind t
-     pp_prover p
+    F.fprintf fmt "@[<hov 2>assert@ %a;@]" 
      (pp_ge pp_len pp_var) e
 
   | Cif(e, c, []) ->
@@ -307,7 +300,26 @@ let pp_pprog pd asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
-let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
+
+let pp_var ~debug =
+    if debug then
+      fun fmt x -> F.fprintf fmt "%s_id_%s" Str.(global_replace (regexp "#") "_" x.v_name) (string_of_uid x.v_id)
+    else
+      fun fmt x -> F.fprintf fmt "%s" x.v_name
+
+let pp_clause ~debug fmt f = Format.fprintf fmt "%a" (pp_ge pp_len (pp_var ~debug)) f
+
+let rec pp_clauses ~debug prepost fmt cs =
+  match cs with
+  | [] -> Format.fprintf fmt ""
+  | (Expr.Cas,c)::q -> Format.fprintf fmt "%s #[prover=cas] {%a}@ %a" prepost
+                   (pp_clause ~debug) c
+                   (pp_clauses ~debug prepost) q
+  | (Expr.Smt,c)::q -> Format.fprintf fmt "%s #[prover=smt] {%a}@ %a" prepost
+                   (pp_clause ~debug) c
+                   (pp_clauses ~debug prepost) q
+
+let pp_fun ~debug ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_locals fmt = Sv.iter (F.fprintf fmt "%a;@ " pp_vd) in
   let locals = locals fd in
@@ -316,20 +328,17 @@ let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@]@ %a@ %a@ {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_len)) ret
+    (pp_clauses ~debug "requires") fd.f_contra.f_pre
+    (pp_clauses ~debug "ensures") fd.f_contra.f_post
    pp_locals locals
    (pp_gc pp_info pp_len pp_opn pp_var) fd.f_body
    pp_ret ()
 
-let pp_var ~debug =
-    if debug then
-      fun fmt x -> F.fprintf fmt "%s.%s" x.v_name (string_of_uid x.v_id)
-    else
-      fun fmt x -> F.fprintf fmt "%s" x.v_name
 
 let pp_dvar ~debug fmt x =
   let pp_dloc fmt d =
@@ -357,12 +366,12 @@ let pp_stmt ~debug pd asmOp fmt i =
 let pp_ifunc ~debug pp_info pd asmOp fmt fd =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  pp_fun ~pp_info pp_opn pp_var fmt fd
+  pp_fun ~debug ~pp_info pp_opn pp_var fmt fd
 
 let pp_func ~debug pd asmOp fmt fd =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
-  pp_fun pp_opn pp_var fmt fd
+  pp_fun ~debug pp_opn pp_var fmt fd
 
 let pp_glob pp_var fmt (x, gd) = 
   let pp_size fmt i = F.fprintf fmt "%i" i in
@@ -388,14 +397,14 @@ let pp_iprog ~debug pp_info pd asmOp fmt (gd, funcs) =
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
-     (pp_list "@ @ " (pp_fun ~pp_info pp_opn pp_var)) (List.rev funcs)
+     (pp_list "@ @ " (pp_fun ~debug ~pp_info pp_opn pp_var)) (List.rev funcs)
 
 let pp_prog ~debug pd asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
   let pp_opn = pp_opn pd asmOp in
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
-     (pp_list "@ @ " (pp_fun pp_opn pp_var)) (List.rev funcs)
+     (pp_list "@ @ " (pp_fun ~debug pp_opn pp_var)) (List.rev funcs)
 
 let pp_to_save ~debug fmt (x, ofs) =
   Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz ofs)
@@ -427,13 +436,13 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
       (pp_saved_stack ~debug) (f_extra.Expr.sf_save_stack)
       (pp_return_address ~debug)  (f_extra.Expr.sf_return_address)
   in
-  let pp_fun fmt (f_extra,f) =
-    Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun pp_opn pp_var) f in
+  let pp_fun ~debug fmt (f_extra,f) =
+    Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun ~debug pp_opn pp_var) f in
   let pp_p_extra fmt p_extra = 
     Format.fprintf fmt "global data:@    %a" pp_datas p_extra.Expr.sp_globs in
   Format.fprintf fmt "@[<v>%a@ %a@]"
      pp_p_extra p_extra
-     (pp_list "@ @ " pp_fun) (List.rev funcs)
+     (pp_list "@ @ " (pp_fun ~debug)) (List.rev funcs)
 
 (* ----------------------------------------------------------------------- *)
 
