@@ -23,6 +23,8 @@ open Utils
 
 let unsharp = String.map (fun c -> if c = '#' then '_' else c)
 
+let fresh_name name = String.concat "_" [ name; string_of_int (Uniq.gen ())]
+
 let pp_var fmt x =
   Format.fprintf fmt "%s_%s" (unsharp x.v_name) (string_of_uid x.v_id)
 
@@ -225,6 +227,10 @@ let rec pp_eexp fmt e =
     Format.fprintf fmt "(limbs %a [%a])"
       pp_eexp h
       (pp_list ", "  pp_eexp) (extract_list q [])
+  | Pabstract ({name="limb"}, [h;q]) ->
+    Format.fprintf fmt "(limbs %a [%a])"
+      pp_eexp h
+      pp_eexp q
   | Presult x ->
     Format.fprintf fmt "%a" pp_gvar_i x.gv
   | _ -> assert false
@@ -312,9 +318,19 @@ and pp_baseop fmt trans xs o es =
       | Pvar x ->
         let ws_x = ws_of_ty (L.unloc x.gv).v_ty in
         if ws_x != ws (* implicit cast is never signed in Jasmin *)
-        then Format.fprintf fmt "cast %a %a"
-            pp_lval (List.nth xs 0, int_of_ws ws)
-            pp_atome (List.nth es 0, int_of_ws ws_x)
+        then
+          begin
+            match trans with
+            | 0 ->
+              Format.fprintf fmt "cast %a %a"
+                pp_lval (List.nth xs 0, int_of_ws ws)
+                pp_atome (List.nth es 0, int_of_ws ws_x)
+            | 1 ->
+              Format.fprintf fmt "vpc %a %a"
+                pp_lval (List.nth xs 0, int_of_ws ws)
+                pp_atome (List.nth es 0, int_of_ws ws_x)
+            | _ -> assert false
+            end
         else Format.fprintf fmt "mov %a %a"
             pp_lval (List.nth xs 0, int_of_ws ws)
             pp_atome (List.nth es 0, int_of_ws ws)
@@ -442,38 +458,72 @@ and pp_baseop fmt trans xs o es =
       pp_const (List.nth es 1, int_of_ws ws)
 
   | SAR ws ->
+    let v1 = fresh_name "TMP" in
+    let v2 = fresh_name "TMP" in
+    Format.fprintf fmt "cast %s@@sint%d %a;@ "
+      v1
+      (int_of_ws ws)
+      pp_atome (List.nth es 0, int_of_ws ws);
+    Format.fprintf fmt "ssplit %s@@sint%d dontcare %s@@sint%d %a;@ "
+      v2
+      (int_of_ws ws)
+      v1
+      (int_of_ws ws)
+      pp_eexp (List.nth es 1);
+    Format.fprintf fmt "cast %a %s@@sint%d"
+      pp_lval (List.nth xs 5, int_of_ws ws)
+      v2
+      (int_of_ws ws)
+
+  | MOVSX (ws1, ws2) ->
     begin
       match trans with
       | 0 ->
-        Format.fprintf fmt "cast TMP__@@sint%d %a;@ ssplit TMP1__@@sint%d dontcare TMP__@@sint%d %a;@ cast %a TMP1__@@sint%d"
-          (int_of_ws ws)
-          pp_atome (List.nth es 0, int_of_ws ws)
-          (int_of_ws ws)
-          (int_of_ws ws)
-          pp_eexp (List.nth es 1)
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          (int_of_ws ws)
+        let v1 = fresh_name "TMP" in
+        let v2 = fresh_name "TMP" in
+        Format.fprintf fmt "cast %s@@sint%d %a;@ "
+          v1
+          (int_of_ws ws2)
+          pp_atome (List.nth es 0, int_of_ws ws2);
+        Format.fprintf fmt "cast %s@@sint%d %s@@sint%d;@ "
+          v2
+          (int_of_ws ws1)
+          v1
+          (int_of_ws ws2);
+        Format.fprintf fmt "cast %a %s@@sint%d"
+          pp_lval (List.nth xs 0, int_of_ws ws1)
+          v2
+          (int_of_ws ws1)
       | 1 ->
-        Format.fprintf fmt "sars %a TMP__@uint%i %a %a"
-
-          (* sars t_188@uint32 TMP4__@uint26 t_187@uint32 26; safe :: open issue because cannot specify type on last param like for sar
-            sar t_188@uint32 t_187@uint32 26@uint32; unsafe *)
-
-          pp_lval (List.nth xs 5, int_of_ws ws)
-          (int_of_ws ws)  (*shift size*)
-          pp_atome (List.nth es 0, int_of_ws ws)
-          pp_const (List.nth es 1, int_of_ws ws)
+        let v1 = fresh_name "TMP" in
+        let v2 = fresh_name "TMP" in
+        let v3 = fresh_name "TMP" in
+        let v4 = fresh_name "TMP" in
+        Format.fprintf fmt "spl %s@@uint1 %s@@uint%d %a %d;@ "
+          v1
+          v2
+          (int_of_ws ws2 -1)
+          pp_atome (List.nth es 0, int_of_ws ws2)
+          (int_of_ws ws2 -1);
+        Format.fprintf fmt "join %s@@uint%d %s@@uint1 0@uint%d;@ "
+          v3
+          (int_of_ws ws1 - (int_of_ws ws2) + 1)
+          v1
+          (int_of_ws ws1 - (int_of_ws ws2));
+        Format.fprintf fmt "sar %s@@uint%d %s@@uint%d %d;@ "
+          v4
+          (int_of_ws ws1 - (int_of_ws ws2) + 1)
+          v3
+          (int_of_ws ws1 - (int_of_ws ws2) + 1)
+          (int_of_ws ws1 - (int_of_ws ws2));
+        Format.fprintf fmt "join %a %s@@uint%d %s@@uint%d"
+          pp_lval (List.nth xs 0, int_of_ws ws1)
+          v4
+          (int_of_ws ws1 - (int_of_ws ws2) + 1)
+          v2
+          (int_of_ws ws2 - 1);
       | _ -> assert false
-    end
-
-  | MOVSX (ws1, ws2) ->
-    Format.fprintf fmt "cast TMP__@@sint%d %a;@ cast TMP1__@@sint%d TMP__@@sint%d;@ cast %a TMP1__@@sint%d"
-      (int_of_ws ws2)
-      pp_atome (List.nth es 0, int_of_ws ws2)
-      (int_of_ws ws1)
-      (int_of_ws ws2)
-      pp_lval (List.nth xs 0, int_of_ws ws1)
-      (int_of_ws ws1)
+  end
 
   | _ -> assert false
 
