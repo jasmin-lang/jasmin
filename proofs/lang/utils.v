@@ -1048,6 +1048,7 @@ End FIND_MAP.
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
+(* TODO: all this section can be removed, it is in ssreflect/stdlib *)
 Definition isSome aT (o : option aT) :=
   if o is Some _ then true else false.
 

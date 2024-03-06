@@ -441,20 +441,11 @@ Lemma keep_only_cat {A} (l1 l2 : seq A) (tokeep1 tokeep2 : seq bool) :
   keep_only l1 tokeep1 ++ keep_only l2 tokeep2.
 Proof. by elim: tokeep1 l1 => [|b tokeep1 ih] [|a1 l1] //= [] /ih ->; case: b. Qed.
 
-(*
-Definition disjoint_from_writable_param' p (b:option bool) varg1 varg2 :=
-  forall p2, b = Some true -> varg2 = @Vword Uptr p2 ->
-  disjoint_zrange p2 (size_val varg1) p (wsize_size U8).
-Definition disjoint_from_writable_params' (P:uprog) fn p va va' :=
-  forall fd, get_fundef P.(p_funcs) fn = Some fd ->
-  let l1 :=
-    map reg_ptr_writable_status fd.(f_params)
-  in
-  Forall3 (disjoint_from_writable_param' p) l1 va va'.
-Definition mem_unchanged_params' P fn ms m0 m vargs1 vargs2 :=
-  forall p, validw m0 p U8 -> ~ validw ms p U8 -> disjoint_from_writable_params' P fn p vargs1 vargs2 ->
-  read m0 p U8 = read m p U8.
-*)
+Definition value_uincl_or_in_mem {A} (m : mem) (o : option A) (v v' : value) :=
+  match o with
+  | None => value_uincl v v'
+  | Some _ => value_in_mem m v v'
+  end.
 
 Definition size_glob (p:sprog) := Z.of_nat (size (sp_globs (p_extra p))).
 Definition get_wptrs (p:uprog) fn :=
@@ -462,7 +453,79 @@ Definition get_wptrs (p:uprog) fn :=
 Definition get_align_args (p:sprog) fn :=
   oapp (fun fd => fd.(f_extra).(sf_align_args)) [::] (get_fundef p.(p_funcs) fn).
 Definition get_nb_wptr (p:uprog) fn :=
-  find (oapp negb true) (get_wptrs p fn).
+  find (fun wptr => wptr != Some true) (get_wptrs p fn).
+
+  Lemma isSome_omap aT bT (f : aT -> bT) (o : option aT) :
+    isSome (omap f o) = isSome o.
+  Proof. by case: o. Qed.
+
+  (* TODO: move *)
+  Lemma all2_map S S' T T' (r:S' -> T' -> bool) (f:S->S') (g:T->T') l1 l2 :
+    all2 (fun x y => r (f x) (g y)) l1 l2 = all2 r (map f l1) (map g l2).
+  Proof.
+    elim: l1 l2 => [|x1 l1 ih] [|x2 l2] //=.
+    by rewrite ih.
+  Qed.
+
+  Lemma value_eq_or_in_mem_any_option {A B} (os1 : seq (option A)) (os2 : seq (option B)) m vs vs' :
+    List.Forall2 (fun o1 o2 => isSome o1 = isSome o2) os1 os2 ->
+    Forall3 (value_eq_or_in_mem m) os1 vs vs' ->
+    Forall3 (value_eq_or_in_mem m) os2 vs vs'.
+  Proof.
+    move=> h1 h2.
+    elim: {os1 os2} h1 vs vs' h2.
+    move=> [|??] [|??] /List_Forall3_inv //=. constructor.
+     move=> o1 o2 os1 os2 h _ ih
+    [|??] [|??] /List_Forall3_inv // [h2 /ih{}ih].
+    constructor=> //.
+    case: o1 o2 h h2 => [?|] [?|] //.
+  Qed.
+
+(* not used *)
+  Lemma value_uincl_or_in_mem_any_option {A B} (os1 : seq (option A)) (os2 : seq (option B)) m vs vs' :
+    List.Forall2 (fun o1 o2 => isSome o1 = isSome o2) os1 os2 ->
+    Forall3 (value_uincl_or_in_mem m) os1 vs vs' ->
+    Forall3 (value_uincl_or_in_mem m) os2 vs vs'.
+  Proof.
+    move=> h1 h2.
+    elim: {os1 os2} h1 vs vs' h2.
+    move=> [|??] [|??] /List_Forall3_inv //=. constructor.
+     move=> o1 o2 os1 os2 h _ ih
+    [|??] [|??] /List_Forall3_inv // [h2 /ih{}ih].
+    constructor=> //.
+    case: o1 o2 h h2 => [?|] [?|] //.
+  Qed.
+
+  Lemma map_Forall2 {A B} (f : A -> B) l :
+    List.Forall2 (fun a b => f a = b) l (map f l).
+  Proof.
+    elim: l. constructor. move=> a l h /=. constructor=> //.
+  Qed.
+
+  Lemma Forall2_sym {A B} (P : A -> B -> Prop) l1 l2 :
+    List.Forall2 P l1 l2 -> List.Forall2 (fun x y => P y x) l2 l1.
+  Proof.
+    elim. constructor. constructor; done.
+  Qed.
+
+  Lemma Forall2_take {A B} (P : A -> B -> Prop) l1 l2 n :
+    List.Forall2 P l1 l2 -> List.Forall2 P (take n l1) (take n l2).
+  Proof.
+    move=> hforall.
+    elim: {l1 l2} hforall n.
+    + by move=> n /=; constructor.
+    move=> a b l1 l2 h _ ih n.
+    case: n => [|n] /=. constructor. constructor. assumption. apply ih.
+  Qed.
+
+  Lemma Forall2_drop {A B} (P : A -> B -> Prop) l1 l2 n :
+    List.Forall2 P l1 l2 -> List.Forall2 P (drop n l1) (drop n l2).
+  Proof.
+    move=> hforall.
+    elim: {l1 l2} hforall n. constructor. move=> a b l1 l2 h _ ih n.
+    case: n => /=. constructor=> //. by move: (ih 0); rewrite !drop0.
+    done.
+  Qed.
 
 Lemma compiler_front_endP
   entries
@@ -476,23 +539,22 @@ Lemma compiler_front_endP
   extend_mem m mi gd (sp_globs (p_extra p')) →
   forall va',
   wf_args (size_glob p') gd m mi (get_wptrs p fn) (get_align_args p' fn) va va' ->
-(*   disjoint_values'' p fn va va' -> *)
+  Forall3 (value_eq_or_in_mem mi) (get_wptrs p fn) va va' ->
   alloc_ok p' fn mi →
-  ∃ vr' mi',
+  ∃ vr' mi', [/\
+    sem_call (dc:=direct_c) p' gd scs mi fn va' scs' mi' vr',
+    extend_mem m' mi' gd (sp_globs (p_extra p')),
     let n := get_nb_wptr p fn in
-    [/\
-     Forall3 (wf_result_pointer (take n va) (take n va')) (iota 0 n) (take n vr) (take n vr'),
-     Forall3 (value_mem_uincl mi') ? 
-     List.Forall2 value_uincl (drop n vr) vr',
-     sem_call (dc:=direct_c) p' gd scs mi fn va' scs' mi' vr',
-     extend_mem m' mi' gd (sp_globs (p_extra p')) &
-     mem_unchanged_params m mi mi' (get_wptrs p fn) va va'
-    ].
+      List.Forall2 (value_in_mem mi') (take n vr) (take n va') /\
+      List.Forall2 value_uincl (drop n vr) vr' &
+    mem_unchanged_params m mi mi' (get_wptrs p fn) va va'
+  ].
 Proof.
   rewrite /compiler_front_end;
   t_xrbindP => p1 ok_p1 check_p1 p2 ok_p2 p3.
   rewrite print_sprogP => ok_p3 <- {p'} ok_fn exec_p.
-  rewrite (compiler_third_part_meta ok_p3) => m_mi va' va'_wf va'_disj ok_mi.
+  rewrite /size_glob (compiler_third_part_meta ok_p3) -/(size_glob _)
+    => m_mi va' va'_wf va'_uinmem ok_mi.
   have ok_mi': [elaborate alloc_ok p2 fn mi].
   + exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
   have [vr1 vr_vr1 exec_p1] := compiler_first_partP ok_p1 ok_fn exec_p.
@@ -502,181 +564,129 @@ Proof.
   have! [mglob ok_mglob] := (alloc_prog_get_fundef ok_p2).
   move=> /(_ _ _ get_fd1)[] fd2 /dup[] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p ok_sao_r get_fd2.
   have [fd [get_fd _]] := sem_callE exec_p.
-  rewrite get_fd.
-  set n := count (fun x => reg_ptr_writable_status x == Some true) fd.(f_params).
+  rewrite /get_nb_wptr /get_wptrs get_fd /= seq.find_map /preim.
+  set n := find _ _.
   have := check_wf_ptrP check_p1 ok_fn get_fd.
   rewrite -/n /= => -[check_params check_return].
+  move: check_params; rewrite all2_map -eqseq_all => /eqP check_params.
+  rewrite check_params.
 
-  have [hargs hdisj]: [elaborate wf_args (sp_globs (p_extra p2)) gd
-     (ao_stack_alloc (stackalloc cparams p1)) m mi fn va va'
-     /\ disjoint_values (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va'].
-  + move: va'_wf; rewrite /wf_args' => /(_ _ get_fd).
+  have hargs: [elaborate
+    wf_args (size_glob p2) gd m mi
+      (map (omap pp_writable) (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)))
+      (map (oapp pp_align U8) (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)))
+      va va'].
+  + move: va'_wf; rewrite /get_wptrs get_fd /= check_params.
     have [fd3 [get_fd3 align_eq]] := compiler_third_part_invariants ok_p3 get_fd2.
-    move=> /(_ _ get_fd3). rewrite -align_eq.
-    move: (ok_fd2); rewrite /alloc_fd.
-    t_xrbindP=> _ _ <- /=.
-    move=> h1; split.
-    + move: h1 check_params.
-      rewrite /wf_args.
-      elim: sao_params (f_params fd) va va' {exec_p exec_p1 va'_disj size_params size_tyin}.
-      + move=> [|x params] [|va vas] [|va' vas'] /List_Forall4_inv //= _.
-        by constructor.
-      move=> pi sao_params ih.
-      move=> [|x params] [|va vas] [|va' vas'] /List_Forall4_inv //= [h1 h2].
-      move=> /andP [check_param check_params].
-      constructor.
-      + case: pi check_param h1 {check_params} => [pi|] /=.
-        + rewrite /wf_arg'. move=> /eqP ->.
-          move=> [pr [-> H2]]. exists pr; split; [reflexivity|].
-          case: H2=> ??????. by split.
-        move=> /eqP -> /=. done.
-      by apply (ih _ _ _ h2 check_params).
-    move=> i1 pi1 w1 i2 pi2 w2 hpi1 hw1 hpi2 hw2 i1_i2_neq hwpi1.
-    have [x _]: exists x, oseq.onth fd.(f_params) i1 = Some x.
-    + apply onth_not_default.
-      move: check_params; rewrite all2E => /andP [/eqP -> _].
-      rewrite (nth_not_default hpi1); last by discriminate. done.
-    move: va'_disj => /(_ _ get_fd). apply=> //.
-    + have /(@all2_nth _ _ _ _ _) := check_params.
-      move=> /(_ x None i1). rewrite (nth_not_default hpi1); last by discriminate.
-      rewrite orbT. move=> /(_ erefl) /eqP.
-      rewrite (nth_map x). move=> ->. rewrite hpi1 /=. congruence.
-      move: check_params; rewrite all2E => /andP [/eqP -> _].
-      rewrite (nth_not_default hpi1); last by discriminate. done.
-    have /(@all2_nth _ _ _ _ _) := check_params.
-    move=> /(_ x None i2). rewrite (nth_not_default hpi2); last by discriminate.
-    rewrite orbT. move=> /(_ erefl) /eqP.
-    rewrite (nth_map x). move=> ->. rewrite hpi2 /=. reflexivity.
-    move: check_params; rewrite all2E => /andP [/eqP -> _].
-    rewrite (nth_not_default hpi2); last by discriminate. done.
+    rewrite /get_align_args get_fd3 /= -align_eq.
+    move: ok_fd2; rewrite /alloc_fd.
+    by t_xrbindP=> _ _ <- /=.
+
+  have heqinmem:
+    Forall3 (value_eq_or_in_mem mi)
+      (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va'.
+  + move: va'_uinmem; rewrite /get_wptrs get_fd /=.
+    apply: value_eq_or_in_mem_any_option.
+    have := map_Forall2 (omap pp_writable) (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)).
+    move=> /Forall2_sym.
+    rewrite check_params.
+    apply Forall2_impl.
+    move=> _ ? <-. apply isSome_omap.
 
   have := alloc_progP _ (hap_hsap haparams) ok_p2 exec_p1 m_mi.
-  move => /(_ (hap_hshp haparams) va' hargs hdisj ok_mi').
-  case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 U.
+  move => /(_ (hap_hshp haparams) va' hargs heqinmem ok_mi').
+  case => mi' [] vr2 [] exec_p2 m'_mi' vr2_wf vr2_eqinmem U.
   have [] := compiler_third_partP ok_p3.
-  case/(_ _ _ _ _ _ _ _ _ exec_p2) => vr3 vr2_vr3 exec_p3.
+  case/(_ _ _ _ _ _ _ _ _ exec_p2).
+  set rminfo := fun fn => _.
+  move=> /= vr3 vr2_vr3 exec_p3 _.
   exists vr3, mi'; split=> //.
-  have [fd3 [get_fd3 _]] := sem_callE exec_p3.
-  have /= hle1: n <= size fd.(f_params) by apply count_size.
-  have := Forall4_size (va'_wf _ get_fd _ get_fd3);
-    rewrite size_map /= => -[heq1 heq2 heq3].
-  have /= [heq4 heq5] := Forall3_size ok_vr2.
-  have /= heq6 := Forall2_size vr_vr1.
+
+  have hle1: n <= size fd.(f_params) by apply find_size.
+  have [/esym size_vr1 /esym size_vr2] := Forall3_size vr2_wf.
+  have size_vr := Forall2_size vr_vr1.
+  have [/esym size_va /esym size_va'] := Forall3_size heqinmem.
+  have /(f_equal size) := check_params; rewrite 2!size_map => /esym size_sao_params.
   have hle2: n <= size vr.
-  + have /(f_equal size) := check_return. rewrite size_cat size_map size_iota.
-    rewrite heq6 -heq4 => ->.
+  + have /(f_equal size) := check_return.
+    rewrite size_cat size_map size_iota -size_vr1 -size_vr => ->.
     exact: leq_addr.
-  split.
-  + apply (nth_Forall2 (a:=Vbool true) (b:=Vbool true)).
-    rewrite !size_takel. done. done. congruence.
-    move=> i. rewrite size_takel; last by congruence. move=> hi.
-    rewrite (nth_take (Vbool true) hi).
-    have := Forall3_nth ok_vr2 None (Vbool true) (Vbool true).
-    have hi': i < size (sao_return (ao_stack_alloc (stackalloc cparams p1) fn)).
-    + rewrite heq4 -heq6. by apply (leq_trans hi hle2).
-    move=> /(_ _ hi').
-    rewrite -(nth_take None hi).
-    rewrite check_return; rewrite take_size_cat; last by rewrite size_map size_iota.
-    rewrite (nth_map 0 None); last by rewrite size_iota.
-    rewrite (nth_iota _ _ hi). (* bug: About nth_iota : p et m ont l'air implicites, mais en fait non *)
-    (* + bug sur elim: eer {} er {} : qu'est-ce que c'est censé vouloir dire ? *)
-    rewrite add0n.
-    simpl.
-    move=> [pr [hpr1 hpr2]].
-    exists pr; split.
-    + case: hpr2. done.
-    split.
-    + case: hpr2. done. (* redundant *)
-    case: hpr2=> _ _ h off w. rewrite nth_take; last by assumption. eauto.
-    have huincl := Forall2_nth vr_vr1 (Vbool true) (Vbool true) (leq_trans hi hle2).
-    move=> /(value_uincl_get_val_byte huincl).
-    by eauto.
-  set rminfo := λ fn : funname,
-              match
-                (if fn \in entries
-                 then Some (sao_return (ao_stack_alloc (stackalloc cparams p1) fn))
-                 else None)
-              with
-              | Some l =>
-                  let l' := [seq match i with
-                                 | Some _ => false
-                                 | None => true
-                                 end | i <- l] in
-                  if all id l' then None else Some l'
-              | None => removereturn cparams p2 fn
-              end.
-  have: fn_keep_only rminfo fn vr2 = drop n vr2.
+
+  (* [vr2_eqinmem] can be split into two thanks to [check_results]:
+     - the first [n] elements satisfy [value_in_mem];
+     - the other ones satisfy equality. *)
+  have [vr2_inmem vr2_eq]:
+    List.Forall2 (value_in_mem mi') (take n vr1) (take n vr2) /\ drop n vr1 = drop n vr2.
+  + split.
+    + apply (nth_Forall2 (a:=Vbool true) (b:=Vbool true)).
+      + rewrite size_takel; last by rewrite -size_vr.
+        rewrite size_takel; last by rewrite size_vr2 -size_vr1 -size_vr.
+        reflexivity.
+      rewrite size_takel; last by rewrite -size_vr.
+      move=> i hi.
+      rewrite nth_take // nth_take //.
+      have := Forall3_nth vr2_eqinmem None (Vbool true) (Vbool true).
+      rewrite -size_vr1 -size_vr => /(_ _ (leq_trans hi hle2)).
+      rewrite check_return nth_cat size_map size_iota hi (nth_map 0);
+        last by rewrite size_iota.
+      by rewrite nth_iota.
+    apply (eq_from_nth (x0 := Vbool true)).
+    + by rewrite 2!size_drop size_vr1 size_vr2.
+    move=> i; rewrite size_drop -size_vr ltn_subRL => hi.
+    rewrite 2!nth_drop.
+    have := Forall3_nth vr2_eqinmem None (Vbool true) (Vbool true).
+    rewrite -size_vr1 -size_vr => /(_ _ hi).
+    rewrite check_return nth_cat size_map size_iota lt_nm_n.
+    by rewrite nth_nseq (ltn_sub2rE _ (leq_addr _ _)) -size_vr1 -size_vr hi.
+
+  (* [vr2_wf] can be rewritten into an equality thanks to [check_results] *)
+  have {}vr2_wf: take n vr2 = take n va'.
+  + apply (eq_from_nth (x0 := Vbool true)).
+    + rewrite size_takel; last by rewrite size_vr2 -size_vr1 -size_vr.
+      rewrite size_takel; last by rewrite size_va' size_sao_params.
+      reflexivity.
+    rewrite size_takel; last by rewrite size_vr2 -size_vr1 -size_vr.
+    move=> i hi.
+    rewrite nth_take // nth_take //.
+    have := Forall3_nth vr2_wf None (Vbool true) (Vbool true).
+    rewrite -size_vr1 -size_vr => /(_ _ (leq_trans hi hle2)).
+    rewrite check_return nth_cat size_map size_iota hi (nth_map 0);
+      last by rewrite size_iota.
+    by rewrite nth_iota //; case.
+
+  (* [fn_keep_only rminfo fn] is just [drop] thanks to [check_results] *)
+  have rminfo_vr2: fn_keep_only rminfo fn vr2 = drop n vr2.
   + rewrite /fn_keep_only /rminfo ok_fn.
     set k := size (sao_return (ao_stack_alloc (stackalloc cparams p1) fn)).
-    have ->: [seq match i with
+    have ->:
+      [seq match i with
            | Some _ => false
            | None => true
            end
          | i <- sao_return (ao_stack_alloc (stackalloc cparams p1) fn)]
-         = nseq n false ++ nseq (k - n) true.
-    + rewrite check_return. rewrite map_cat.
+      = nseq n false ++ nseq (k - n) true.
+    + rewrite check_return map_cat.
       apply f_equal2.
-      + rewrite -map_comp.
-        rewrite (proj1 (eq_in_map _ (fun _ => false) _)) //.
-        rewrite map_const_nseq. by rewrite size_iota.
-      apply map_nseq.
+      + by rewrite -map_comp map_const_nseq size_iota.
+      by apply map_nseq.
     case heq: all.
-    + case: (n) heq => [|//]. move=> _. rewrite drop0. done.
+    + by case: (n) heq => [|//] _; rewrite drop0.
     rewrite -{1}(cat_take_drop n vr2).
     rewrite keep_only_cat; last first.
-    + rewrite size_takel; last by rewrite -heq5 heq4 -heq6.
+    + rewrite size_takel; last by rewrite size_vr2 -size_vr1 -size_vr.
       by rewrite size_nseq.
     rewrite keep_only_false; last first.
-    + rewrite size_take_min. by apply geq_minl.
-    rewrite keep_only_true. done.
-  have: drop n vr1 = drop n vr2.
-  + apply (@eq_from_nth _ (Vbool true)).
-    + rewrite !size_drop. congruence.
-    move=> i; rewrite size_drop => hi.
-    have := Forall3_nth ok_vr2 None (Vbool true) (Vbool true).
-    have hi': n + i < size (sao_return (ao_stack_alloc (stackalloc cparams p1) fn)).
-    + rewrite heq4. by rewrite -ltn_subRL.
-    move=> /(_ _ hi').
-    rewrite check_return.
-    rewrite nth_cat. rewrite size_map size_iota lt_nm_n.
-    rewrite nth_nseq.
-    rewrite (ltn_sub2rE _ (leq_addr _ _)). rewrite hi' /= !nth_drop. done.
-  move=> h1 h2.
-  have h3: List.Forall2 value_uincl (drop n vr) (drop n vr1).
-  + apply (nth_Forall2 (a:=Vbool true) (b:=Vbool true)).
-    + rewrite !size_drop. congruence.
-    move=> i; rewrite size_drop => hi.
-    rewrite !nth_drop.
-    have hi': n + i < size vr.
-    + by rewrite -ltn_subRL.
-    have := Forall2_nth vr_vr1 (Vbool true) (Vbool true) hi'. done.
-  + apply: (Forall2_trans value_uincl_trans h3).
-    rewrite h1. rewrite -h2. apply vr2_vr3.
-  rewrite /mem_unchanged_params'.
-  move=> pr hvalid hnvalid hd.
-  apply U => //.
-  apply (nth_Forall3 None (Vbool true) (Vbool true)).
-  + have [] := Forall3_size hargs. done.
-  + have [] := Forall3_size hargs. done.
-  move=> i hi.
-  rewrite /disjoint_from_writable_param.
-  move=> pi pr' ok_pi ok_pr' pi_w.
-  have := Forall3_nth (hd _ get_fd) None (Vbool true) (Vbool true).
-  rewrite size_map.
-  have := check_params; rewrite all2E => /andP [/eqP -> _].
-  move=> /(_ i hi).
-  rewrite /disjoint_from_writable_param'.
-  rewrite ok_pr'.
-  (* ugly, we want an inhabitant of var_i *)
-  have [x _]: exists x, oseq.onth fd.(f_params) i = Some x.
-  + apply onth_not_default.
-    move: check_params; rewrite all2E => /andP [/eqP -> _].
-    rewrite (nth_not_default ok_pi); last by discriminate. done.
-  have := all2_nth x None (n:=i) _ check_params.
-  rewrite hi orbT => /(_ erefl) /eqP. rewrite ok_pi /= pi_w.
-  rewrite (nth_map x); last first.
-  + by have := check_params; rewrite all2E => /andP [/eqP -> _].
-  move=> ->. move=> /(_ _ erefl erefl). done.
+    + by rewrite size_take; apply geq_minl.
+    by rewrite keep_only_true.
+
+  split.
+  + rewrite -vr2_wf.
+    apply: Forall2_trans (Forall2_take n vr_vr1) vr2_inmem.
+    move=> v2 v1 v3 huincl [pr [-> hread]].
+    exists pr; split; first by reflexivity.
+    by move=> off w /(value_uincl_get_val_byte huincl); apply hread.
+  apply: (Forall2_trans value_uincl_trans); first exact (Forall2_drop n vr_vr1).
+  by rewrite vr2_eq -rminfo_vr2.
 Qed.
 
 Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
@@ -1109,15 +1119,8 @@ Record mem_agreement_with_ghost (m m': mem) (gd: pointer) (data: seq u8) (ma_gho
 Definition mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
   ∃ ma_ghost, mem_agreement_with_ghost m m' gd data ma_ghost.
 
-Definition wf_args_asm (glob_data : seq u8) (rip : word Uptr) (m1 m2 : mem) (p : uprog) (xp : asm_prog) 
-  (fn : funname) (va va' : seq value) :=
-  ∀ (glob_size := Z.of_nat (size glob_data)) (fd : _fundef extra_fun_t),
-    get_fundef (p_funcs p) fn = Some fd
-    → ∀ xd,
-        get_fundef (asm_funcs xp) fn = Some xd
-        → let l1 := [seq reg_ptr_writable_status i | i <- f_params fd] in
-          let l2 := asm_fd_align_args xd in
-          Forall4 (wf_arg' glob_size rip m1 m2) l1 l2 va va'.
+Definition get_asm_align_args (xp:asm_prog) fn :=
+  oapp (fun xd => xd.(asm_fd_align_args)) [::] (get_fundef xp.(asm_funcs) fn).
 
 Lemma inlining_get_fundef to_keep p p' fn fd :
   inlining cparams to_keep p = ok p' ->
@@ -1297,24 +1300,19 @@ Lemma compile_prog_to_asmP
         , asm_fd_export xd
         &   asm_scs xm = scs
             -> asm_reg xm ad_rsp = top_stack m
-(*             -> List.Forall2 value_uincl va (get_typed_reg_values xm (asm_fd_arg xd)) *)
-            -> wf_args_asm (asm_globs xp) (asm_rip xm) m mi p xp fn va (get_typed_reg_values xm (asm_fd_arg xd))
-            -> disjoint_values'' p fn va (get_typed_reg_values xm (asm_fd_arg xd))
+            -> wf_args (Z.of_nat (size (asm_globs xp))) (asm_rip xm) m mi
+                (get_wptrs p fn) (get_asm_align_args xp fn) va (get_typed_reg_values xm (asm_fd_arg xd))
+            -> Forall3 (value_uincl_or_in_mem (asm_mem xm)) (get_wptrs p fn) va (get_typed_reg_values xm (asm_fd_arg xd))
             -> exists xm',
                 [/\ asmsem_exportcall xp fn xm xm'
                   , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp), asm_scs xm' = scs'
                   , (cparams.(stack_zero_info) fn <> None ->
-                      forall pr, ~ validw m pr U8 ->
-                        disjoint_from_writable_params' p fn pr va (get_typed_reg_values xm (asm_fd_arg xd)) ->
+                      forall (pr:word Uptr), ~ validw m pr U8 ->
+                        Forall3 (disjoint_from_writable_param (ep:=ep_of_asm_e) pr) (get_wptrs p fn) va (get_typed_reg_values xm (asm_fd_arg xd)) ->
                         read xm'.(asm_mem) pr U8 = read xm.(asm_mem) pr U8
                         \/ read xm'.(asm_mem) pr U8 = ok 0%R)
-                  & let n :=
-                      match get_fundef p.(p_funcs) fn with
-                      | None => 0 (* impossible *)
-                      | Some fd => count (fun x => reg_ptr_writable_status x == Some true) fd.(f_params)
-                      end
-                    in
-                    wf_results_pointer' (asm_mem xm') (take n (get_typed_reg_values xm (asm_fd_arg xd))) (take n vr) /\
+                  & let n := get_nb_wptr p fn in
+                    List.Forall2 (value_in_mem (asm_mem xm')) (take n vr) (take n (get_typed_reg_values xm (asm_fd_arg xd))) /\
                     List.Forall2 value_uincl (drop n vr) (get_typed_reg_values xm' (asm_fd_res xd))
                 ]
       ].
@@ -1328,7 +1326,9 @@ Proof.
     compiler_back_end_to_asm_get_fundef ok_xp ok_fn.
   exists xd; split=> //.
   move=> ok_scs ok_rsp va_wf va_disjoint.
-  have h: wf_args' (sp_globs (p_extra sp)) (asm_rip xm) m mi p sp fn va (get_typed_reg_values xm (asm_fd_arg xd)).
+  have h:
+    wf_args (size_glob sp) (asm_rip xm) m mi (get_wptrs p fn) (get_align_args sp fn) va (get_typed_reg_values xm (asm_fd_arg xd)).
+  wf_args' (sp_globs (p_extra sp)) (asm_rip xm) m mi p sp fn va .
   + move=> fd get_fd. rewrite get_sfd. move=> _ [<-].
     move: va_wf; rewrite /wf_args_asm.
     move=> /(_ fd get_fd xd get_xd).
