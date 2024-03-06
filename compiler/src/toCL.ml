@@ -220,7 +220,7 @@ let rec pp_eexp_par fmt es = Format.fprintf fmt "(%a)" pp_eexp es
   | Papp1 (Oword_of_int _ws, x) ->
     Format.fprintf fmt "%a" pp_eexp x
   | Papp1 (Oint_of_word _ws, x) ->
-    Format.fprintf fmt "%a" pp_eexp x  
+    Format.fprintf fmt "%a" pp_eexp x
   | Papp1(Oneg _, e) ->
     Format.fprintf fmt "(-1)*(%a)" pp_eexp e
   | Papp2(Oadd _, e1, e2) ->
@@ -238,17 +238,21 @@ let rec pp_eexp_par fmt es = Format.fprintf fmt "(%a)" pp_eexp es
 (*  | Papp2(Odiv _, e1, e2) ->
     Format.fprintf fmt "(%a) / (%a)"
       pp_eexp e1
-      pp_eexp e2     *) 
+      pp_eexp e2     *)
   | Pabstract ({name="limbs"}, [h;q]) ->
     Format.fprintf fmt "(limbs %a [%a])"
       pp_eexp h
       (pp_list ", "  pp_eexp_par) (extract_list q [])
   | Pabstract ({name="indetX"}, _) ->
-      Format.fprintf fmt "X"
+    Format.fprintf fmt "X"
   | Pabstract ({name="pow"}, [b;e]) ->
     Format.fprintf fmt "(%a**%a)"
       pp_eexp b
       pp_eexp e
+  | Pabstract ({name="couple"}, [h;q]) ->
+    Format.fprintf fmt "[%a,%a]"
+      pp_eexp h
+      pp_eexp q
   | Presult x ->
     Format.fprintf fmt "%a" pp_gvar_i x.gv
   | _ -> assert false
@@ -265,17 +269,17 @@ let rec  pp_epred fmt e =
     Format.fprintf fmt "and (%a) (%a)"
       pp_epred e1
       pp_epred e2
-  | Pabstract ({name="eqmod"} as opa, es) ->
-    Format.fprintf fmt "%s %a"
+  | Pabstract ({name="eqmod"} as opa, [h1;h2;h3]) ->
+    Format.fprintf fmt "%s %a %a"
       opa.name
-      (pp_list " " pp_eexp_par) es
+      (pp_list " " pp_eexp_par) [h1;h2]
+      pp_eexp h3
   | Pabstract ({name="eqmodpol"}, es) ->
     Format.fprintf fmt "eqmod %a %a [%a,%a]"
       pp_eexp_par (List.nth es 1)
       pp_eexp_par (List.nth es 2)
       pp_eexp_par (List.nth es 3)
       pp_eexp_par (List.nth es 4)
-
 (*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
   | _ -> assert false
 
@@ -299,6 +303,8 @@ let rec pp_atome fmt (x,ws) =
   | Papp1 (Oword_of_int _ws, x) ->
     Format.fprintf fmt "%a" pp_atome (x, ws)
   | _ -> assert false
+
+let rec power acc n = match n with | 0 -> acc | n -> power (acc * 2) (n - 1)
 
 let rec pp_cast fmt trans (x,ws) =
     match x with
@@ -329,13 +335,19 @@ and pp_baseop fmt trans xs o es =
       Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint ws
     | _ -> assert false (* Manuel: What is this case? *)
   in
-  let rec pp_const fmt (x,ws) =
+  let rec pp_const fmt x =
   match x with
   | Pconst z ->
     Format.fprintf fmt "%a" pp_print_i z
   | Papp1 (Oword_of_int _ws, x) ->
-    Format.fprintf fmt "%a" pp_const (x, ws)
+    Format.fprintf fmt "%a" pp_const x
   | _ -> assert false
+  in
+  let rec get_const x =
+    match x with
+    | Pconst z -> Z.to_int z
+    | Papp1 (Oword_of_int _ws, x) -> get_const x
+    | _ -> assert false
   in
   match o with
    (* Manuel: Special case not handled in assignments? *)
@@ -346,18 +358,9 @@ and pp_baseop fmt trans xs o es =
         let ws_x = ws_of_ty (L.unloc x.gv).v_ty in
         if ws_x != ws (* implicit cast is never signed in Jasmin *)
         then
-          begin
-            match trans with
-            | 0 ->
-              Format.fprintf fmt "cast %a %a"
-                pp_lval (List.nth xs 0, int_of_ws ws)
-                pp_atome (List.nth es 0, int_of_ws ws_x)
-            | 1 ->
-              Format.fprintf fmt "vpc %a %a"
-                pp_lval (List.nth xs 0, int_of_ws ws)
-                pp_atome (List.nth es 0, int_of_ws ws_x)
-            | _ -> assert false
-            end
+          Format.fprintf fmt "cast %a %a"
+            pp_lval (List.nth xs 0, int_of_ws ws)
+            pp_atome (List.nth es 0, int_of_ws ws_x)
         else Format.fprintf fmt "mov %a %a"
             pp_lval (List.nth xs 0, int_of_ws ws)
             pp_atome (List.nth es 0, int_of_ws ws)
@@ -370,6 +373,7 @@ and pp_baseop fmt trans xs o es =
           pp_lval (List.nth xs 0, int_of_ws ws)
           pp_print_i x
           (int_of_ws ws)
+      | _ -> assert false
     end
 
   | ADD ws ->
@@ -469,37 +473,81 @@ and pp_baseop fmt trans xs o es =
     Format.fprintf fmt "shl %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_const (List.nth es 1, int_of_ws ws)
+      pp_const (List.nth es 1)
 
   | SHR ws ->
       Format.fprintf fmt "shr %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_const (List.nth es 1, int_of_ws ws)
+      pp_const (List.nth es 1)
 
   | SAL ws ->
     Format.fprintf fmt "shl %a %a %a"
       pp_lval (List.nth xs 5, int_of_ws ws)
       pp_atome (List.nth es 0, int_of_ws ws)
-      pp_const (List.nth es 1, int_of_ws ws)
+      pp_const (List.nth es 1)
 
   | SAR ws ->
-    let v1 = fresh_name "TMP" in
-    let v2 = fresh_name "TMP" in
-    Format.fprintf fmt "cast %s@@sint%d %a;@ "
-      v1
-      (int_of_ws ws)
-      pp_atome (List.nth es 0, int_of_ws ws);
-    Format.fprintf fmt "ssplit %s@@sint%d dontcare %s@@sint%d %a;@ "
-      v2
-      (int_of_ws ws)
-      v1
-      (int_of_ws ws)
-      pp_eexp (List.nth es 1);
-    Format.fprintf fmt "cast %a %s@@sint%d"
-      pp_lval (List.nth xs 5, int_of_ws ws)
-      v2
-      (int_of_ws ws)
+    begin
+      match trans with
+      | 0 ->
+        let v1 = fresh_name "TMP" in
+        let v2 = fresh_name "TMP" in
+        Format.fprintf fmt "cast %s@@sint%d %a;@ "
+          v1
+          (int_of_ws ws)
+          pp_atome (List.nth es 0, int_of_ws ws);
+        Format.fprintf fmt "ssplit %s@@sint%d dontcare %s@@sint%d %a;@ "
+          v2
+          (int_of_ws ws)
+          v1
+          (int_of_ws ws)
+          pp_const (List.nth es 1);
+        Format.fprintf fmt "cast %a %s@@sint%d"
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          v2
+          (int_of_ws ws)
+      | 1 ->
+        let v1 = fresh_name "TMP" in
+        let v2 = fresh_name "TMP" in
+        let v3 = fresh_name "TMP" in
+        let v4 = fresh_name "TMP" in
+        let v5 = fresh_name "TMP" in
+        let v6 = fresh_name "TMP" in
+        let c = get_const (List.nth es 1) in
+        Format.fprintf fmt "spl %s@@uint1 %s@@uint%d %a %d;@ "
+          v1
+          v2
+          (int_of_ws ws - 1)
+          pp_atome (List.nth es 0, int_of_ws ws)
+          (int_of_ws ws - 1);
+        Format.fprintf fmt "join %s@@uint%d 0@@uint%d %s@@uint1;@ "
+          v3
+          c
+          (c-1)
+          v1;
+        Format.fprintf fmt "mul %s@@uint%d %s@@uint%d %d@@uint%d;@ "
+          v4
+          c
+          v3
+          c
+          (power 1 c - 1)
+          c;
+        Format.fprintf fmt "join %s@@uint%d %s@@uint%d %a;@ "
+          v5
+          (c + (int_of_ws ws))
+          v4
+          c
+          pp_atome (List.nth es 0, int_of_ws ws);
+        Format.fprintf fmt "spl %a %s@@uint%d %s@@uint%d %d"
+          pp_lval (List.nth xs 5, int_of_ws ws)
+          v6
+          c
+          v5
+          (c + (int_of_ws ws))
+          c
+      | _ -> assert false
+    end
 
   | MOVSX (ws1, ws2) ->
     begin
@@ -531,23 +579,23 @@ and pp_baseop fmt trans xs o es =
           (int_of_ws ws2 -1)
           pp_atome (List.nth es 0, int_of_ws ws2)
           (int_of_ws ws2 -1);
-        Format.fprintf fmt "join %s@@uint%d %s@@uint1 0@uint%d;@ "
+        Format.fprintf fmt "join %s@@uint%d 0@@uint%d %s@@uint1;@ "
           v3
-          (int_of_ws ws1 - (int_of_ws ws2) + 1)
-          v1
-          (int_of_ws ws1 - (int_of_ws ws2));
-        Format.fprintf fmt "sar %s@@uint%d %s@@uint%d %d;@ "
+          (int_of_ws ws2)
+          (int_of_ws ws2 -1)
+          v1;
+        Format.fprintf fmt "mul %s@@uint%d %s@@uint%d %d@uint%d;@ "
           v4
-          (int_of_ws ws1 - (int_of_ws ws2) + 1)
+          (int_of_ws ws2)
           v3
-          (int_of_ws ws1 - (int_of_ws ws2) + 1)
-          (int_of_ws ws1 - (int_of_ws ws2));
-        Format.fprintf fmt "join %a %s@@uint%d %s@@uint%d"
+          (int_of_ws ws2)
+          (power 1 (int_of_ws ws1 - (int_of_ws ws2)) - 1)
+          (int_of_ws ws2);
+        Format.fprintf fmt "join %a %s@@uint%d %a"
           pp_lval (List.nth xs 0, int_of_ws ws1)
           v4
-          (int_of_ws ws1 - (int_of_ws ws2) + 1)
-          v2
-          (int_of_ws ws2 - 1)
+          (int_of_ws ws2)
+          pp_atome (List.nth es 0, int_of_ws ws2)
       | _ -> assert false
   end
   |MOVZX (ws1, ws2) ->
