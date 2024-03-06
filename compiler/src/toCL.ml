@@ -243,9 +243,16 @@ let rec pp_eexp_par fmt es = Format.fprintf fmt "(%a)" pp_eexp es
     Format.fprintf fmt "(limbs %a [%a])"
       pp_eexp h
       (pp_list ", "  pp_eexp_par) (extract_list q [])
+  | Pabstract ({name="indetX"}, _) ->
+      Format.fprintf fmt "X"
+  | Pabstract ({name="pow"}, [b;e]) ->
+    Format.fprintf fmt "(%a**%a)"
+      pp_eexp b
+      pp_eexp e
   | Presult x ->
     Format.fprintf fmt "%a" pp_gvar_i x.gv
   | _ -> assert false
+
 
 let rec  pp_epred fmt e =
   match e with
@@ -262,6 +269,12 @@ let rec  pp_epred fmt e =
     Format.fprintf fmt "%s %a"
       opa.name
       (pp_list " " pp_eexp_par) es
+  | Pabstract ({name="eqmodpol"}, es) ->
+    Format.fprintf fmt "eqmod %a %a [%a,%a]"
+      pp_eexp_par (List.nth es 1)
+      pp_eexp_par (List.nth es 2)
+      pp_eexp_par (List.nth es 3)
+      pp_eexp_par (List.nth es 4)
 
 (*x = if b then e1 else e2 --> b*e1 + (1-b)e2*)
   | _ -> assert false
@@ -357,7 +370,6 @@ and pp_baseop fmt trans xs o es =
           pp_lval (List.nth xs 0, int_of_ws ws)
           pp_print_i x
           (int_of_ws ws)
-      | _ -> assert false
     end
 
   | ADD ws ->
@@ -675,7 +687,7 @@ let pp_fun pd asmOp fds fmt fd =
         then l else a :: l
     ) fd.f_args ret in
   Format.fprintf fmt
-    "@[<v>proc main(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@] @ }@ @]"
+    "@[<v>proc main(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ ghost X@@bit : true && true;@ {@[<v>@ %a@] @ }@ @]"
     pp_args args
     pp_clause fd.f_contra.f_pre
     (pp_c pd asmOp fds) fd.f_body
