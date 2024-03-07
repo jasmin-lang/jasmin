@@ -172,7 +172,7 @@ let pp_kind fmt k =
   if k = Flexible then Format.fprintf fmt "#%s " (string_of_lvl_kind k)
 
 let pp_arg fmt (x, (k, lvl)) =
-  Format.fprintf fmt "%a%a %a" pp_kind k  Lvl.pp lvl (Printer.pp_var ~debug:false) x
+  Format.fprintf fmt "%a%a %a" pp_kind k  Lvl.pp lvl (Printer.pp_var ~debug:!Glob_options.debug) x
 
 let pp_signature prog fmt (fn, { tyin ; tyout }) =
   Format.fprintf fmt "@[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
@@ -264,7 +264,7 @@ end = struct
       if not (Lvl.equal lvl lvlx) then
         error ~loc:(L.loc x)
              "%a has type #%s %a it cannot receive a value of type %a"
-             (Printer.pp_var ~debug:false) (L.unloc x)
+             (Printer.pp_var ~debug:!Glob_options.debug) (L.unloc x)
              Lvl.sstrict Lvl.pp lvlx
              Lvl.pp lvl
       else env
@@ -282,7 +282,7 @@ end = struct
       | Secret ->
         error ~loc
           "%a has type secret it needs to be public"
-             (Printer.pp_var ~debug:false) (L.unloc x)
+             (Printer.pp_var ~debug:!Glob_options.debug) (L.unloc x)
       | Public -> env, Public
       | Poly s ->
         let poly = Svl.filter Vl.is_poly s in
@@ -290,7 +290,7 @@ end = struct
         else
           error ~loc
                "variable %a has type %a, it should be public. Replace the polymorphic variable(s) %a by public"
-               (Printer.pp_var ~debug:false) (L.unloc x)
+               (Printer.pp_var ~debug:!Glob_options.debug) (L.unloc x)
                Lvl.pp lvl
                (pp_list ",@ " Vl.pp) (Svl.elements poly)
     else env, lvl
@@ -301,7 +301,7 @@ end = struct
 
   let pp fmt env =
     let pp_ty fmt (x, (k, lvl)) =
-      Format.fprintf fmt "@[%a : %s %a@]" (Printer.pp_var ~debug:false) x
+      Format.fprintf fmt "@[%a : %s %a@]" (Printer.pp_var ~debug:!Glob_options.debug) x
         (string_of_lvl_kind k) Lvl.pp lvl in
     Format.fprintf fmt "@[<v>type = @[%a@]@ vlevel= @[%a@]@]"
        (pp_list ";@ " pp_ty) (Mv.bindings env.env_v)
@@ -508,7 +508,7 @@ let get_annot ensure_annot f =
       begin
         warning Always (L.i_loc0 x.v_dloc)
           "%s annotation will be ignored for local variable %a"
-          Lvl.sflexible (Printer.pp_var ~debug:false) x;
+          Lvl.sflexible (Printer.pp_var ~debug:!Glob_options.debug) x;
         decls
       end
     else
@@ -647,7 +647,7 @@ and ty_fun is_ct_asm fenv fn =
         else
           error ~loc:(L.loc x)
             "the variable %a has type %a instead of %a"
-              (Printer.pp_var ~debug:false) (L.unloc x)
+              (Printer.pp_var ~debug:!Glob_options.debug) (L.unloc x)
               Lvl.pp lvl Lvl.pp alvl in
     lvl in
   let tyout = List.map2 (do_r env) f.f_ret aout in
