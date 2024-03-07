@@ -540,15 +540,15 @@ let get_annot ensure_annot f =
 (* -----------------------------------------------------------*)
 let sdeclassify = "declassify"
 
-let is_declasify annot =
+let is_declassify annot =
   Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
 
 let declassify_lvl annot lvl =
-  if is_declasify annot then Public
+  if is_declassify annot then Public
   else lvl
 
 let declassify_lvls annot lvls =
-  if is_declasify annot then List.map (fun _ -> Public) lvls
+  if is_declassify annot then List.map (fun _ -> Public) lvls
   else lvls
 
 (* [ty_instr env i] return env' such that env |- i : env' *)

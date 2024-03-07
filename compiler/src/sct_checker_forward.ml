@@ -926,7 +926,7 @@ let ty_lvals env (msf_e : msf_e) xs tys : msf_e =
 
 let sdeclassify = "declassify"
 
-let is_declasify annot =
+let is_declassify annot =
   Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
 
 let declassify_lvl env (_, s) = (Env.public env, s)
@@ -935,11 +935,11 @@ let declassify env = function
   | Direct le          -> Direct (declassify_lvl env le)
   | Indirect (lp, le)  -> Indirect (lp, declassify_lvl env le)
 
-let declassify_ty env annot ty = if is_declasify annot
+let declassify_ty env annot ty = if is_declassify annot
   then declassify env ty
   else ty
 
-let declassify_tys env annot tys = if is_declasify annot
+let declassify_tys env annot tys = if is_declassify annot
   then List.map (declassify env) tys
   else tys
 
