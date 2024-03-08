@@ -296,6 +296,12 @@ Definition get_lvar (x: lval) : exec var :=
 
 Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
 
+Definition var_info_of_lval (x: lval) : var_info :=
+  match x with
+  | Lnone i t => i
+  | Lvar x | Lmem _ x _ | Laset _ _ x _ | Lasub _ _ _ x _ => v_info x
+  end.
+
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
