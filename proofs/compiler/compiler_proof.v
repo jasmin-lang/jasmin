@@ -527,6 +527,14 @@ Definition get_nb_wptr (p:uprog) fn :=
     done.
   Qed.
 
+  Lemma value_uincl_value_in_mem {m} v2 v1 v3 :
+    value_uincl v1 v2 -> value_in_mem m v2 v3 -> value_in_mem m v1 v3.
+  Proof.
+    move=> huincl [p [-> hread]].
+    exists p; split; first by reflexivity.
+    by move=> off w /(value_uincl_get_val_byte huincl); apply hread.
+  Qed.
+
 Lemma compiler_front_endP
   entries
   (p: prog)
@@ -554,7 +562,7 @@ Proof.
   t_xrbindP => p1 ok_p1 check_p1 p2 ok_p2 p3.
   rewrite print_sprogP => ok_p3 <- {p'} ok_fn exec_p.
   rewrite /size_glob (compiler_third_part_meta ok_p3) -/(size_glob _)
-    => m_mi va' va'_wf va'_uinmem ok_mi.
+    => m_mi va' va'_wf va'_eqinmem ok_mi.
   have ok_mi': [elaborate alloc_ok p2 fn mi].
   + exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
   have [vr1 vr_vr1 exec_p1] := compiler_first_partP ok_p1 ok_fn exec_p.
@@ -585,7 +593,7 @@ Proof.
   have heqinmem:
     Forall3 (value_eq_or_in_mem mi)
       (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va'.
-  + move: va'_uinmem; rewrite /get_wptrs get_fd /=.
+  + move: va'_eqinmem; rewrite /get_wptrs get_fd /=.
     apply: value_eq_or_in_mem_any_option.
     have := map_Forall2 (omap pp_writable) (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)).
     move=> /Forall2_sym.
@@ -681,12 +689,121 @@ Proof.
 
   split.
   + rewrite -vr2_wf.
-    apply: Forall2_trans (Forall2_take n vr_vr1) vr2_inmem.
-    move=> v2 v1 v3 huincl [pr [-> hread]].
-    exists pr; split; first by reflexivity.
-    by move=> off w /(value_uincl_get_val_byte huincl); apply hread.
+    by apply (Forall2_trans value_uincl_value_in_mem (Forall2_take n vr_vr1) vr2_inmem).
   apply: (Forall2_trans value_uincl_trans); first exact (Forall2_drop n vr_vr1).
   by rewrite vr2_eq -rminfo_vr2.
+Qed.
+
+Lemma ptr_eq_wf_args glob_size gd m mi wptrs aligns va1 va2 va' :
+  Forall3 (fun o v v' => o <> None -> v = v') wptrs va1 va2 ->
+  wf_args glob_size gd m mi wptrs aligns va1 va' ->
+  wf_args glob_size gd m mi wptrs aligns va2 va'.
+Proof.
+  move=> heqs hargs.
+  move=> i; move: (hargs i); rewrite /wf_arg.
+  case ok_writable: nth => [writable|//].
+  move=> [p [-> hargp]].
+  exists p; split; first by reflexivity.
+  have hi := nth_not_default ok_writable ltac:(discriminate).
+  have := Forall3_nth heqs None (Vbool true) (Vbool true) hi;
+    rewrite ok_writable => /(_ ltac:(discriminate)) <-.
+  case: hargp => halign hover hvalid hfresh hwnglob hdisj.
+  split=> //.
+  move=> hw j vaj pj neq_ij /isSomeP [writablej ok_writablej] ok_vaj ok_pj.
+  apply: (hdisj hw _ _ _ neq_ij _ _ ok_pj).
+  + by rewrite ok_writablej.
+  have hj := nth_not_default ok_writablej ltac:(discriminate).
+  have := Forall3_nth heqs None (Vbool true) (Vbool true) hj;
+    rewrite ok_writablej => /(_ ltac:(discriminate)) ->.
+  done.
+Qed.
+
+Lemma ptr_eq_mem_unchanged_params m1 m2 m3 wptrs vs1 vs2 vs' :
+  Forall3 (fun o v v' => o <> None -> v = v') wptrs vs1 vs2 ->
+  mem_unchanged_params m1 m2 m3 wptrs vs2 vs' ->
+  mem_unchanged_params m1 m2 m3 wptrs vs1 vs'.
+Proof.
+  move=> heqs hunch p hvalid hnvalid hdisj.
+  apply (hunch p hvalid hnvalid).
+  elim: {wptrs vs1 vs'} hdisj vs2 heqs {hunch}.
+  + move=> [|??] /List_Forall3_inv // _.
+    by constructor.
+  move=> wptr v1 v' wptrs vs1 vs' hdisj _ ih [|v2 vs2]
+    /List_Forall3_inv //= [heq /ih{}ih].
+  constructor=> //.
+  case: wptr heq hdisj => [writable|//].
+  by move=> /(_ ltac:(discriminate)) <-.
+Qed.
+
+(* [compiler_front_endP] takes [value_eq_or_in_mem] as hypothesis. But to call
+   the lemma in the context of compiler [compile_prog_to_asmP], we rather need
+   [value_uincl_or_in_mem] as hypothesis. *)
+Lemma compiler_front_endP_uincl
+  entries
+  (p: prog)
+  (p': @sprog _pd _ _asmop)
+  (gd : pointer)
+  scs m mi fn va scs' m' vr :
+  compiler_front_end aparams cparams entries p = ok p' →
+  fn \in entries →
+  sem_call (dc:=indirect_c) (wsw:= nosubword) p tt scs m fn va scs' m' vr →
+  extend_mem m mi gd (sp_globs (p_extra p')) →
+  forall va',
+  wf_args (size_glob p') gd m mi (get_wptrs p fn) (get_align_args p' fn) va va' ->
+  Forall3 (value_uincl_or_in_mem mi) (get_wptrs p fn) va va' ->
+  alloc_ok p' fn mi →
+  ∃ vr' mi', [/\
+    sem_call (dc:=direct_c) p' gd scs mi fn va' scs' mi' vr',
+    extend_mem m' mi' gd (sp_globs (p_extra p')),
+    let n := get_nb_wptr p fn in
+      List.Forall2 (value_in_mem mi') (take n vr) (take n va') /\
+      List.Forall2 value_uincl (drop n vr) vr' &
+    mem_unchanged_params m mi mi' (get_wptrs p fn) va va'
+  ].
+Proof.
+  move=> ok_p' ok_fn exec_p m_mi va' va'_wf va'_uinmem ok_mi.
+
+  (* We define [va2] as [va] where non-reg ptr values are replaced by values
+     from [va']. We can prove
+     [Forall3 (value_eq_or_in_mem mi) (get_wptrs p fn) va2 va'] and thus
+     call [compiler_front_endP] on [va2] and [va']. *)
+  set va2 :=
+    map3 (fun o v v' => if o is Some _ then v else v') (get_wptrs p fn) va va'.
+  have [size_va size_va'] := Forall3_size va'_uinmem.
+
+  have huincl: List.Forall2 value_uincl va va2.
+  + elim: {va va' exec_p va'_wf size_va size_va'} va'_uinmem @va2 => /=.
+    + by constructor.
+    move=> wptr v v' wptrs va va' huinmem _ ih.
+    constructor=> //.
+    by case: wptr huinmem => [writable|] /=.
+  have [vr2 [exec2_p huincl2]] := psem.sem_call_uincl huincl exec_p.
+
+  have hptreq: Forall3 (fun o v v' => o <> None -> v = v') (get_wptrs p fn) va va2.
+  + elim: {va va' exec_p va'_wf size_va size_va'} va'_uinmem @va2 {huincl exec2_p} => /=.
+    + by constructor.
+    move=> wptr v v' wptrs va va' _ _ ih.
+    constructor=> //.
+    by case: wptr.
+  have hargs := ptr_eq_wf_args hptreq va'_wf.
+
+  have heqinmem: Forall3 (value_eq_or_in_mem mi) (get_wptrs p fn) va2 va'.
+  + elim: {va va' exec_p va'_wf size_va size_va'} va'_uinmem @va2
+      {huincl exec2_p hptreq hargs} => /=.
+    + by constructor.
+    move=> wptr v v' wptrs va va' huinmem _ ih.
+    constructor=> //.
+    by case: wptr huinmem => [writable|] /=.
+
+  have [vr' [mi' [p'_call m'_mi' vr2_vr' U]]] :=
+    compiler_front_endP ok_p' ok_fn exec2_p m_mi hargs heqinmem ok_mi.
+
+  exists vr', mi'; split=> //.
+  + case: vr2_vr' => hres1 hres2.
+    split.
+    + by apply: Forall2_trans value_uincl_value_in_mem (Forall2_take _ huincl2) hres1.
+    by apply: Forall2_trans value_uincl_trans (Forall2_drop _ huincl2) hres2.
+  by apply: (ptr_eq_mem_unchanged_params hptreq U).
 Qed.
 
 Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
@@ -1325,17 +1442,38 @@ Proof.
   have [sfd [xd [get_sfd get_xd xd_export align_args_eq]]] :=
     compiler_back_end_to_asm_get_fundef ok_xp ok_fn.
   exists xd; split=> //.
-  move=> ok_scs ok_rsp va_wf va_disjoint.
-  have h:
-    wf_args (size_glob sp) (asm_rip xm) m mi (get_wptrs p fn) (get_align_args sp fn) va (get_typed_reg_values xm (asm_fd_arg xd)).
-  wf_args' (sp_globs (p_extra sp)) (asm_rip xm) m mi p sp fn va .
-  + move=> fd get_fd. rewrite get_sfd. move=> _ [<-].
-    move: va_wf; rewrite /wf_args_asm.
-    move=> /(_ fd get_fd xd get_xd).
+  move=> ok_scs ok_rsp va_wf va_uinmem.
+  have hargs: [elaborate
+    wf_args (size_glob sp) (asm_rip xm) m mi (get_wptrs p fn)
+      (get_align_args sp fn) va (get_typed_reg_values xm (asm_fd_arg xd))].
+  + rewrite /get_align_args get_sfd /=.
+    move: va_wf.
+    rewrite /get_asm_align_args get_xd /=.
     by rewrite align_args_eq.
-  have := compiler_front_endP ok_sp ok_fn p_call mi1 h va_disjoint
+  have huinmem:
+    Forall3 (value_uincl_or_in_mem mi) (get_wptrs p fn) va
+      (get_typed_reg_values xm (asm_fd_arg xd)).
+  + have [hsize1 hsize2] := Forall3_size va_uinmem.
+    apply (nth_Forall3 None (Vbool true) (Vbool true)) => // i hi.
+    have := Forall3_nth va_uinmem None (Vbool true) (Vbool true) hi.
+    case ok_writable: nth => [writable|//].
+    move=> [pr [ok_pr hread]]; rewrite ok_pr.
+    exists pr; split; first by reflexivity.
+    move=> off w /[dup] /get_val_byte_bound hoff /hread ok_w.
+    move: (va_wf i); rewrite /wf_arg ok_writable ok_pr.
+    move=> [_ [[<-] hargp]].
+    rewrite -ok_w; apply mi2.(read_incl_mem).
+    + move=> h. have /negP := stack_region_is_free h. apply.
+      have := hargp.(wap_valid). apply.
+      apply (between_byte (sz' := size_val (nth (Vbool true) va i))). 2:apply zbetween_refl. 2:done.
+      have := hargp.(wap_no_overflow). done.
+    have := hargp.(wap_valid). apply.
+    apply (between_byte (sz' := size_val (nth (Vbool true) va i))). 2:apply zbetween_refl. 2:done.
+    have := hargp.(wap_no_overflow). done.
+
+  have := compiler_front_endP_uincl ok_sp ok_fn p_call mi1 hargs huinmem
     (enough_stack_space_alloc_ok ok_xp ok_fn mi4 henough).
-  case => vr' [] mi' [] vr_vr' sp_call m1 U.
+  case => vr' [] mi' [] sp_call m1 vr_vr' U.
   have := compiler_back_end_to_asmP ok_xp ok_fn sp_call.
   rewrite get_xd.
   case => _ [] [<-] _ /(_ _ _ erefl _ mi2) xp_call.
@@ -1376,13 +1514,11 @@ Proof.
   + apply: (Forall2_trans value_uincl_trans (proj2 vr_vr')).
     done.
   move: vr_vr'.
-  set n := match _ with | Some _ => _ | _ => _ end.
   move=> /= [vr_vr' _].
   apply: Forall2_impl vr_vr'.
-  move=> _ v2 [pr [-> /=]] [_ hoff].
-  exists pr; split=> //.
-  split=> //.
-  move=> off w /hoff.
+  move=> v1 _ [pr [-> hread]].
+  exists pr; split; first by reflexivity.
+  move=> off w /hread.
   by apply (mm_read_ok m2).
 Qed.
 
