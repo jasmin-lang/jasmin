@@ -38,6 +38,8 @@ Variant riscv_op : Type :=
 
 (* Logical *)
 | AND                            (* Bitwise AND *)
+| OR                             (* Bitwise OR *)
+| XOR                            (* Bitwise XOR *)
 
 (* Other data processing instructions *)
 | MV                             (* Copy operand to destination *)
@@ -117,6 +119,7 @@ Definition riscv_ADD_instr : instr_desc_t :=
 
 Definition prim_ADD := ("ADD"%string, primM ADD). (* how to parse it in Jasmin *)
 
+
 Definition riscv_SUB_semi (wn wm : ty_r) : exec ty_r :=
   ok (wn - wm)%R.
 
@@ -140,6 +143,7 @@ Definition riscv_SUB_instr : instr_desc_t :=
     |}.
 
 Definition prim_SUB := ("SUB"%string, primM SUB).
+
 
 Definition riscv_AND_semi (wn wm : ty_r) : exec ty_r :=
   ok (wand wn wm).
@@ -165,6 +169,7 @@ Definition riscv_AND_instr : instr_desc_t :=
 
 Definition prim_AND := ("AND"%string, primM AND).
 
+
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
   ok wn.
 
@@ -188,6 +193,57 @@ Definition riscv_MV_instr : instr_desc_t :=
     |}.
 
 Definition prim_MV := ("MV"%string, primM MV).
+
+
+Definition riscv_OR_semi (wn wm : ty_r): exec ty_r :=
+  ok (wor wn wm).
+
+Definition riscv_OR_instr : instr_desc_t :=
+  {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := [:: sreg];
+      id_out := [:: E 0 ];
+      id_semi := riscv_OR_semi;
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s "OR";
+      id_safe := [::];
+      id_pp_asm := pp_name "or";
+    |}.
+
+Definition prim_OR := ("OR"%string, primM OR).
+
+
+Definition riscv_XOR_semi (wn wm : ty_r): exec ty_r :=
+  ok (wxor wn wm).
+
+Definition riscv_XOR_instr : instr_desc_t :=
+  {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg ];
+      id_in := [:: E 1; E 2 ];
+      id_tout := [:: sreg];
+      id_out := [:: E 0 ];
+      id_semi := riscv_XOR_semi;
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s "XOR";
+      id_safe := [::];
+      id_pp_asm := pp_name "xor";
+    |}.
+
+Definition prim_XOR := ("XOR"%string, primM XOR).
+
 
 Definition string_of_sign s : string :=
   match s with
@@ -236,6 +292,7 @@ Definition primS (f: signedness -> wsize -> riscv_op) :=
 
 Definition prim_LOAD := ("LOAD"%string, primS LOAD).
 
+
 Definition riscv_STORE_instr ws : instr_desc_t :=
     {|
       id_msb_flag := MSB_MERGE; (* ? *)
@@ -257,6 +314,7 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
 
 Definition prim_STORE := ("STORE"%string, primP STORE).
 
+
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
@@ -265,6 +323,8 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | ADD => riscv_ADD_instr
   | SUB => riscv_SUB_instr
   | AND => riscv_AND_instr
+  | OR => riscv_OR_instr
+  | XOR => riscv_XOR_instr
   | MV => riscv_MV_instr
   | LOAD s ws => riscv_LOAD_instr s ws
   | STORE ws => riscv_STORE_instr ws
@@ -274,6 +334,8 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_ADD;
   prim_SUB;
   prim_AND;
+  prim_OR;
+  prim_XOR;
   prim_MV;
   prim_LOAD;
   prim_STORE
