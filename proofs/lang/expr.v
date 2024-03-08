@@ -269,8 +269,8 @@ Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   | _ => None
   end.
 
-Definition pexpr_of_cf (cf : combine_flags) (flags : seq var) : pexpr :=
-  let eflags := [seq Plvar (mk_var_i x) | x <- flags ] in
+Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : pexpr :=
+  let eflags := [seq Plvar {| v_var := x; v_info := vi |} | x <- flags ] in
   PappN (Ocombine_flags cf) eflags.
 
 
@@ -324,6 +324,7 @@ Module Type InstrInfoT <: TAG.
   Include TAG.
   Parameter with_location : t -> t.
   Parameter is_inline : t -> bool.
+  Parameter var_info_of_ii : t -> var_info.
 End InstrInfoT.
 
 Module InstrInfo : InstrInfoT.
@@ -331,6 +332,7 @@ Module InstrInfo : InstrInfoT.
   Definition witness : t := 1%positive.
   Definition with_location (ii : t) := ii.
   Definition is_inline (_ : t) : bool := false.
+  Definition var_info_of_ii (_ : t) : var_info := dummy_var_info.
 End InstrInfo.
 
 Definition instr_info := InstrInfo.t.
@@ -338,6 +340,7 @@ Definition dummy_instr_info : instr_info := InstrInfo.witness.
 Definition ii_with_location (ii : instr_info) : instr_info :=
   InstrInfo.with_location ii.
 Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
+Definition var_info_of_ii (ii : instr_info) : var_info := InstrInfo.var_info_of_ii ii.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)

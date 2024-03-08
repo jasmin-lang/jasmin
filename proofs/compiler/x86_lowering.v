@@ -111,7 +111,7 @@ Definition lower_cond_classify vi (e: pexpr) :=
 
   let%opt (op, e0, e1) := is_Papp2 e in
   let%opt (cf, ws) := cf_of_condition op in
-  Some (lflags, ws, pexpr_of_cf cf vflags, e0, e1).
+  Some (lflags, ws, pexpr_of_cf cf vi vflags, e0, e1).
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   match lower_cond_classify vi pe with
@@ -601,12 +601,12 @@ Fixpoint lower_i (i:instr) : cmd :=
   | Cassgn l tg ty e => lower_cassgn ii l tg ty e
   | Copn l t o e => map (MkI ii) (lower_copn l t o e)
   | Cif e c1 c2  =>
-     let '(pre, e) := lower_condition dummy_var_info e in
+     let '(pre, e) := lower_condition (var_info_of_ii ii) e in
        map (MkI ii) (rcons pre (Cif e (conc_map lower_i c1) (conc_map lower_i c2)))
   | Cfor v (d, lo, hi) c =>
      [:: MkI ii (Cfor v (d, lo, hi) (conc_map lower_i c))]
   | Cwhile a c e c' =>
-     let '(pre, e) := lower_condition dummy_var_info e in
+     let '(pre, e) := lower_condition (var_info_of_ii ii) e in
        map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI dummy_instr_info) pre) e (conc_map lower_i c')]
   | _ =>   map (MkI ii) [:: ir]
   end.
