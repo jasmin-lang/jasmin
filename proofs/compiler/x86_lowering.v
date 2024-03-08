@@ -69,12 +69,6 @@ Definition fvars_correct p :=
       fv_cf != fv_zf &
       fv_sf != fv_zf].
 
-Definition var_info_of_lval (x: lval) : var_info :=
-  match x with
-  | Lnone i t => i
-  | Lvar x | Lmem _ x _ | Laset _ _ x _ | Lasub _ _ _ x _ => v_info x
-  end.
-
 Definition stype_of_lval (x: lval) : stype :=
   match x with
   | Lnone _ t => t
