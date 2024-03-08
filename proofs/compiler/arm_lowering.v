@@ -74,8 +74,8 @@ Definition flags_of_mn (mn : arm_mnemonic) : seq var :=
   in
   map (fun x => x fv) ids.
 
-Definition lflags_of_mn (mn : arm_mnemonic) : seq lval :=
-  to_lvals (flags_of_mn mn).
+Definition lflags_of_mn (vi : var_info) (mn : arm_mnemonic) : seq lval :=
+  [seq Lvar {| v_var := x; v_info := vi; |} | x <- flags_of_mn mn ].
 
 Definition lower_TST (e0 e1 : pexpr) : option (seq pexpr) :=
   match e0, e1 with
@@ -87,13 +87,16 @@ Definition lower_TST (e0 e1 : pexpr) : option (seq pexpr) :=
 
 (* TODO_ARM: CMP and TST take register shifts. *)
 Definition lower_condition_Papp2
-  (vi : var_info) (op : sop2) (e0 e1 : pexpr) : option (arm_mnemonic * pexpr * seq pexpr) :=
+  (vi : var_info)
+  (op : sop2)
+  (e0 e1 : pexpr) :
+  option (arm_mnemonic * pexpr * seq pexpr) :=
   let%opt (cf, ws) := cf_of_condition op in
   let%opt _ := chk_ws_reg ws in
   let cmp := (CMP, pexpr_of_cf cf vi (fresh_flags fv), [:: e0; e1 ]) in
   match op with
   | Oeq (Op_w _) =>
-      let zf_var := {| v_var := (fvZF fv); v_info := vi |} in
+      let zf_var := {| v_var := fvZF fv; v_info := vi |} in
       let eZF := Pvar (mk_lvar zf_var) in
       Some (if lower_TST e0 e1 is Some es then (TST, eZF, es) else cmp)
   | Oneq (Op_w _)
@@ -109,7 +112,7 @@ Definition lower_condition_pexpr
   (vi : var_info) (e : pexpr) : option (seq lval * sopn * seq pexpr * pexpr) :=
   let%opt (op, e0, e1) := is_Papp2 e in
   let%opt (mn, e', es) := lower_condition_Papp2 vi op e0 e1 in
-  Some (lflags_of_mn mn, Oarm (ARM_op mn default_opts), es, e').
+  Some (lflags_of_mn vi mn, Oarm (ARM_op mn default_opts), es, e').
 
 Definition lower_condition (vi: var_info) (e : pexpr) : seq instr_r * pexpr :=
   if lower_condition_pexpr vi e is Some (lvs, op, es, c)
