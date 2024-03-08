@@ -90,7 +90,7 @@ Definition lower_condition_Papp2
   (op : sop2) (e0 e1 : pexpr) : option (arm_mnemonic * pexpr * seq pexpr) :=
   let%opt (cf, ws) := cf_of_condition op in
   let%opt _ := chk_ws_reg ws in
-  let cmp := (CMP, pexpr_of_cf cf (fresh_flags fv), [:: e0; e1 ]) in
+  let cmp := (CMP, pexpr_of_cf cf dummy_var_info (fresh_flags fv), [:: e0; e1 ]) in
   match op with
   | Oeq (Op_w _) =>
       let eZF := Pvar (mk_lvar (mk_var_i (fvZF fv))) in
