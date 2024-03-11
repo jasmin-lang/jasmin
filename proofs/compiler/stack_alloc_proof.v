@@ -1011,25 +1011,25 @@ Section EXPR.
     by rewrite Z.add_comm wrepr_add GRing.addrA.
   Qed.
 
-  Lemma validw_sub_region_addr sr ws :
+  Lemma validw_sub_region_addr sr al ws :
     wf_sub_region sr (sword ws) ->
-    is_align (sub_region_addr sr) ws ->
-    validw (emem s') Aligned (sub_region_addr sr) ws.
+    is_aligned_if al (sub_region_addr sr) ws ->
+    validw (emem s') al (sub_region_addr sr) ws.
   Proof.
     move=> hwf hal.
     have /vs_slot_valid hptr := hwf.(wfr_slot).
     apply /validwP; split=> //.
-    move=> k hk; apply hptr; move: hk.
+    move=> k hk; rewrite (validw8_alignment Aligned); apply hptr; move: hk.
     apply between_byte.
     + by apply (no_overflow_sub_region_addr hwf).
     by apply (zbetween_sub_region_addr hwf).
   Qed.
 
-  Lemma validw_sub_region_at_ofs sr ty ofs ws :
+  Lemma validw_sub_region_at_ofs sr ty ofs al ws :
     wf_sub_region sr ty ->
     0 <= ofs /\ ofs + wsize_size ws <= size_of ty ->
-    is_align (sub_region_addr sr + wrepr _ ofs)%R ws ->
-    validw (emem s') Aligned (sub_region_addr sr + wrepr _ ofs)%R ws.
+    is_aligned_if al (sub_region_addr sr + wrepr _ ofs)%R ws ->
+    validw (emem s') al (sub_region_addr sr + wrepr _ ofs)%R ws.
   Proof.
     move=> hwf hbound.
     have hofs: forall zofs : Z, Some ofs = Some zofs ->
@@ -1113,7 +1113,7 @@ Section EXPR.
       case: hty' => ?; subst ws'.
       rewrite (eq_sub_region_val_read_word _ hwf hread hmem _ h1 (get_val_byte_word w) (w:=w)) //.
       by rewrite /= wrepr0 GRing.addr0 halign.
-    + move=> aa sz x e1 he1 e' v he'; apply: on_arr_gvarP => n t hty /= hget.
+    + move=> al aa sz x e1 he1 e' v he'; apply: on_arr_gvarP => n t hty /= hget.
       t_xrbindP => i vi /he1{he1}he1 hvi w hw <-.
       move: he'; t_xrbindP => e1' /he1{he1}he1'.
       have h0 : sem_pexpr true [::] s' e1' >>= to_int = ok i.
@@ -1137,7 +1137,9 @@ Section EXPR.
       assert (hwf := check_gvalid_wf wfr_wf hgvalid).
       have [_ h6] := (read_read8 hw).
       rewrite (eq_sub_region_val_read_word _ hwf hread hmem (mk_ofsiP h0) (w:=w)) // /=.
-      by rewrite (is_align_addE halign) WArray.arr_is_align h3.
+      + case: al hw h3 h6 => //= hw h3 h6.
+        by rewrite (is_align_addE halign) WArray.arr_is_align h3.
+       by move => k hk; rewrite (read8_alignment al) -h6.
     + move=> al1 sz1 v1 e1 IH e2 v.
       t_xrbindP => /check_varP hc /check_diffP hnnew e1' /IH hrec <- wv1 vv1 /= hget hto' we1 ve1.
       move=> /hrec -> hto wr hr ?; subst v.
@@ -1711,7 +1713,8 @@ Proof.
     have hvp: validw (emem s2) Aligned (sub_region_addr sr + wrepr _ 0)%R ws.
     + rewrite wrepr0 GRing.addr0.
       have [halign _] := set_wordP hwf hsetw.
-      by apply: (validw_sub_region_addr hvs) halign; rewrite -hty.
+      move: hwf; rewrite hty => hwf.
+      exact: validw_sub_region_addr.
     have /writeV -/(_ w) [mem2 hmem2] := hvp.
     rewrite hmem2 /=; eexists;split;first by reflexivity.
     (* valid_state update word *)
@@ -1773,7 +1776,7 @@ Proof.
     by rewrite -(ss_top_stack (Memory.write_mem_stable hmem2)).
 
   (* Laset *)
-  move=> aa ws x e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1.
+  move=> al aa ws x e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1.
   move=> hr2 s1'; apply on_arr_varP => n t hty hxt.
   t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' /write_varP [? hdb htr]; subst s1'.
   case hlx: get_local hr2 => [pk | ]; last first.
@@ -1792,9 +1795,10 @@ Proof.
   rewrite hvw /=.
   have /wfr_wf hwf := hget.
   have [hge0 hlen haa] := WArray.set_bound htt'.
-  have hvp: validw (emem s2) Aligned (sub_region_addr sr + wrepr _ (i1 * mk_scale aa ws))%R ws.
+  have hvp: validw (emem s2) al (sub_region_addr sr + wrepr _ (i1 * mk_scale aa ws))%R ws.
   + have := validw_sub_region_at_ofs _ hwf; rewrite hty; apply => //.
-    apply is_align_add => //.
+    case: al {htt'} haa => //= haa.
+    apply: is_align_add; first by [].
     by rewrite WArray.arr_is_align.
   have /writeV -/(_ w) [mem2 hmem2] := hvp.
   rewrite hmem2 /=; eexists;split;first by reflexivity.
@@ -1805,7 +1809,7 @@ Proof.
   have hvalideq := write_validw_eq hmem2.
   apply: (valid_state_set_sub_region hvs hwf hlx hpk hofs' _ hvalideq _ hset htr).
   + by apply (Memory.write_mem_stable hmem2).
-  + move=> al p ws' hdisj.
+  + move=> al' p ws' hdisj.
     apply (writeP_neq _ hmem2).
     apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hdisj.
@@ -1814,11 +1818,12 @@ Proof.
   split=> //.
   move=> off hmem w0 hget'.
   have /= hoff := get_val_byte_bound hget'.
-  rewrite (write_read8_sub_region hwf hofs hmem2) /= ?hty //.
+  rewrite (read8_alignment al) (write_read8_sub_region hwf hofs hmem2) /= ?hty //.
   move: hget'; rewrite /= (write_read8 htt') WArray.subE /=.
   case: ifP => // hle.
   assert (hval := wfr_val hgvalid hxt).
   case: hval => hread _.
+  rewrite (read8_alignment Aligned).
   apply hread.
   move: hset hmem => /set_sub_regionP [_ ->] /=.
   rewrite get_var_bytes_set_pure_bytes !eq_refl /=.

@@ -124,10 +124,10 @@ Section REMOVE.
         Let xi := get_var_ ii env xi in
         ok (Pvar xi)
 
-      | Pget aa ws xi e =>
+      | Pget al aa ws xi e =>
         Let e  := remove_glob_e ii env e in
         Let xi := get_var_ ii env xi in
-        ok (Pget aa ws xi e)
+        ok (Pget al aa ws xi e)
 
       | Psub aa ws len xi e =>
         Let e  := remove_glob_e ii env e in
@@ -170,12 +170,12 @@ Section REMOVE.
         else
           Let e := remove_glob_e ii env e in
           ok (Lmem al ws xi e)
-      | Laset aa ws xi e =>
+      | Laset al aa ws xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Laset aa ws xi e)
+          ok (Laset al aa ws xi e)
       | Lasub aa ws len xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)

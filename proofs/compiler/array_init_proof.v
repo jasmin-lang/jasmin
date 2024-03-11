@@ -98,7 +98,7 @@ Section REMOVE_INIT.
     case: Hse => ?; subst v.
     move: hsub;rewrite /truncate_val;case: ty => //= nty.
     t_xrbindP => empty /WArray.cast_empty_ok ??; subst v' empty.
-    case: x hwr => [vi t | [x xi] | ws x e | aa ws x e | aa ws len [x xi] e] /=.
+    case: x hwr => [vi t | [x xi] | al ws x e | al aa ws x e | aa ws len [x xi] e] /=.
     + by move=> /write_noneP [->];exists vm1 => //;constructor.
     + move=> /write_varP_arr [/=hty _ _ ->] /= hsub.
       exists vm1; first by constructor.

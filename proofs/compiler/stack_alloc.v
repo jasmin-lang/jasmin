@@ -604,17 +604,17 @@ Fixpoint alloc_e (e:pexpr) :=
       else Error (stk_ierror_basic xv "not a word variable in expression")
     end
 
-  | Pget aa ws x e1 =>
+  | Pget al aa ws x e1 =>
     let xv := x.(gv) in
     Let e1 := alloc_e e1 in
     Let vk := get_var_kind x in
     match vk with
-    | None => Let _ := check_diff xv in ok (Pget aa ws x e1)
+    | None => Let _ := check_diff xv in ok (Pget al aa ws x e1)
     | Some vpk =>
       let ofs := mk_ofsi aa ws e1 in
       Let _ := check_vpk_word rmap xv vpk ofs ws in
       Let pofs := mk_addr xv aa ws vpk e1 in
-      ok (Pload Aligned ws pofs.1 pofs.2) (* TODO: alignment *)
+      ok (Pload al ws pofs.1 pofs.2)
     end
 
   | Psub aa ws len x e1 =>
@@ -683,16 +683,16 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
       else Error (stk_ierror_basic x "not a word variable in assignment")
     end
 
-  | Laset aa ws x e1 =>
+  | Laset al aa ws x e1 =>
     (* TODO: could we remove this [check_diff] and use an invariant in the proof instead? *)
     Let e1 := alloc_e rmap e1 in
     match get_local x with
-    | None => Let _ := check_diff x in ok (rmap, Laset aa ws x e1)
+    | None => Let _ := check_diff x in ok (rmap, Laset al aa ws x e1)
     | Some pk =>
       let ofs := mk_ofsi aa ws e1 in
       Let rmap := set_arr_word rmap x ofs ws in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
-      let r := Lmem Aligned ws pofs.1 pofs.2 in (* TODO: alignment *)
+      let r := Lmem al ws pofs.1 pofs.2 in
       ok (rmap, r)
     end
 
@@ -1088,7 +1088,7 @@ Definition check_lval_reg_call (r:lval) :=
     | None   => Let _ := check_diff x in ok tt
     | Some _ => Error (stk_ierror_basic x "call result should be stored in reg")
     end
-  | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
+  | Laset _ aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
   | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
   | Lmem al ws x e1  => Error (stk_ierror_basic x "call result should be stored in reg")
   end.
@@ -1114,7 +1114,7 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
         Let rmap := Region.set_arr_call rmap x sr in
         (* TODO: Lvar p or Lvar (with_var x p) like in alloc_call_arg? *)
         ok (rmap, Lvar p)
-      | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
+      | Laset _ aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
       | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
       | Lmem al ws x e1  => Error (stk_ierror_basic x "call result should be stored in reg ptr")
       end

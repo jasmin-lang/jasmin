@@ -22,7 +22,7 @@ type 'len gexpr =
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
-  | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr 
+  | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr 
   | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
@@ -82,7 +82,7 @@ type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
  | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
- | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
+ | Laset of Memory_model.aligned * Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
  | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
  (* Lasub(acc,sz,len,v,e) is the sub-array of v:
     - [ws/8 * e; ws/8 * e + ws/8 * len[   if acc = Scale
@@ -186,7 +186,7 @@ and pexpr_equal e1 e2 =
  | Pconst n1, Pconst n2 -> Z.equal n1 n2
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pvar v1, Pvar v2 -> PV.gequal v1 v2
- | Pget(a1,b1,v1,e1), Pget(a2, b2,v2,e2) -> a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
+ | Pget(al1, a1,b1,v1,e1), Pget(al2, a2, b2,v2,e2) -> al1 = al2 && a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
    a1 = a2 && b1 = b2 && pexpr_equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Pload(al1, b1,v1,e1), Pload(al2, b2,v2,e2) -> al1 = al2 &&b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
@@ -231,7 +231,7 @@ let rvars_v f x s =
 let rec rvars_e f s = function
   | Pconst _ | Pbool _ | Parr_init _ -> s
   | Pvar x         -> rvars_v f x s
-  | Pget(_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
+  | Pget(_,_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
   | Pload(_,_,x,e)   -> rvars_e f (f (L.unloc x) s) e
   | Papp1(_, e)    -> rvars_e f s e
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
@@ -244,7 +244,7 @@ let rvars_lv f s = function
  | Lnone _       -> s
  | Lvar x        -> f (L.unloc x) s
  | Lmem (_,_,x,e)
- | Laset (_,_,x,e)
+ | Laset (_,_,_,x,e)
  | Lasub (_,_,_,x,e) -> rvars_e f (f (L.unloc x) s) e
 
 let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
@@ -435,7 +435,7 @@ let expr_of_lval = function
   | Lnone _         -> None
   | Lvar x          -> Some (Pvar (gkvar x))
   | Lmem (al, ws, x, e) -> Some (Pload(al,ws,x,e))
-  | Laset(a, ws, x, e) -> Some (Pget(a,ws,gkvar x,e))
+  | Laset(al, a, ws, x, e) -> Some (Pget(al, a,ws,gkvar x,e))
   | Lasub(a, ws, l, x, e) -> Some (Psub(a,ws,l,gkvar x, e))
 
 (* -------------------------------------------------------------------- *)

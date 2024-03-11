@@ -435,8 +435,8 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Parr_init n1, Parr_init n2 =>
     Let _  := assert (n1 == n2) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
-  | Pget aa1 w1 x1 e1, Pget aa2 w2 x2 e2 =>
-    Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_e in
+  | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
+    Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
     check_gv x1 x2 m >>= check_e e1 e2
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
     Let _ := assert ([&& aa1 == aa2, w1 == w2 & len1 == len2]) error_e in
@@ -494,8 +494,8 @@ Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
   | Lmem al1 w1 x1 e1, Lmem al2 w2 x2 e2  =>
     Let _ := assert ((al1 == al2) && (w1 == w2)) error_lv in
     check_v x1 x2 m >>= check_e e1 e2
-  | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 =>
-    Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_lv in
+  | Laset al1 aa1 w1 x1 e1, Laset al2 aa2 w2 x2 e2 =>
+    Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_lv in
     check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
   | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 =>
     Let _ := assert [&& aa1 == aa2, w1 == w2 & len1 == len2] error_lv in

@@ -237,7 +237,7 @@ Proof.
     move=> hg; case heq : Mvar.get => [[e' fv m ??] | ]; last by eauto.
     move: hg; rewrite /get_gvar h => /get_varP [-> ??].
     have /= [v' /(sem_pexpr_wdb wdb)??]:= vpi_ok hvalid heq; eexists; eauto.
-  + move=> ?? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
+  + move=> ??? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
     t_xrbindP => i vi /= /hrec [v' -> /= /of_value_uincl_te h] /(h sint) /= -> w hget <-.
     by rewrite /= hget /=; (eexists; first reflexivity) => /=.
   + move=> ??? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
@@ -340,7 +340,7 @@ Proof.
     have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] := pi_eP hvalid.
     have /= -> := hu (sword _) _ hpe.
     by rewrite gx /= hpx hw /= hwr.
-  + move=> aa ws x e; apply on_arr_varP => n t hty hx.
+  + move=> al aa ws x e; apply on_arr_varP => n t hty hx.
     t_xrbindP => i ve he hi w hw t' ht' hwr.
     rewrite /on_arr_var hx /=.
     have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] /= := pi_eP hvalid.

@@ -71,7 +71,7 @@ Lemma write_lval_stack_stable wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
-  case: x => [ vi ty | x | al ws x e | aa ws x e | aa ws len x e ] /=.
+  case: x => [ vi ty | x | al ws x e | al aa ws x e | aa ws len x e ] /=.
   - by move=> /write_noneP [<-].
   - by move => /write_var_memP ->.
   - rewrite /=; t_xrbindP => ?????????? m' ok_m' <- /=.
@@ -91,7 +91,7 @@ Lemma write_lval_validw wdb gd x v s s' :
   write_lval wdb gd x v s = ok s' ->
   validw (emem s) =3 validw (emem s').
 Proof.
-  case: x => [ vi ty | x | al ws x e | aa ws x e | aa ws len x e ] /=.
+  case: x => [ vi ty | x | al ws x e | al aa ws x e | aa ws len x e ] /=.
   - by move => /write_noneP [] <-.
   - by move => /write_var_memP <-.
   - t_xrbindP => /= ?? ?? ?? ? ? ? ? ? h <- /=.

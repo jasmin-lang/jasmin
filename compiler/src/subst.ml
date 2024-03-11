@@ -20,7 +20,7 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init (flen n)
   | Pvar v -> f v
-  | Pget (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
+  | Pget (al, aa, ws, v, e) -> Pget(al, aa, ws, gsubst_gvar f v, gsubst_e flen f e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen ~loc:(L.loc v.gv) len, gsubst_gvar f v, gsubst_e flen f e)
   | Pload (al, ws, v, e) -> Pload (al, ws, gsubst_vdest f v, gsubst_e flen f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e flen f e)
@@ -43,7 +43,7 @@ let gsubst_lval (flen: ?loc:L.t -> 'len1 -> 'len2) f lv =
   | Lnone(i,ty)  -> Lnone(i, gsubst_ty (flen ~loc:i) ty)
   | Lvar v       -> Lvar (gsubst_vdest f v)
   | Lmem (al, w,v,e) -> Lmem(al, w, gsubst_vdest f v, gsubst_e flen f e)
-  | Laset(aa,w,v,e) -> Laset(aa, w, gsubst_vdest f v, gsubst_e flen f e)
+  | Laset(al, aa,w,v,e) -> Laset(al, aa, w, gsubst_vdest f v, gsubst_e flen f e)
   | Lasub(aa,w,len,v,e) -> Lasub(aa, w, flen ~loc:(L.loc v) len, gsubst_vdest f v, gsubst_e flen f e)
 
 let gsubst_lvals flen f  = List.map (gsubst_lval flen f)

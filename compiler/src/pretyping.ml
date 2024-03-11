@@ -961,7 +961,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     let i,ity  = tt_expr ~mode pd env pi in
     let i = ensure_int (L.loc pi) i ity in
     begin match olen with
-    | None -> P.Pget (aa, ws, x, i), ty
+    | None -> P.Pget (Aligned, aa, ws, x, i), ty (* TODO: alignment *)
     | Some plen ->
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
@@ -1139,7 +1139,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let i = ensure_int (L.loc pi) i ity in
     begin match olen with
     | None -> 
-      loc, (fun _ -> P.Laset (aa, ws, L.mk_loc xlc x, i)), Some ty
+      loc, (fun _ -> P.Laset (Aligned, aa, ws, L.mk_loc xlc x, i)), Some ty (* TODO: alignment *)
     | Some plen ->
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;

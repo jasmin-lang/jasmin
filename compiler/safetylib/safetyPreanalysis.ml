@@ -65,7 +65,7 @@ end = struct
     | Lnone _ -> lv
     | Lvar v -> Lvar (mk_v_loc fn v)
     | Lmem (al, ws,ty,e) -> Lmem (al, ws, mk_v_loc fn ty, mk_expr fn e)
-    | Laset (acc,ws,v,e) -> Laset (acc,ws, mk_v_loc fn v, mk_expr fn e)
+    | Laset (al,acc,ws,v,e) -> Laset (al,acc,ws, mk_v_loc fn v, mk_expr fn e)
     | Lasub (acc,ws,len,v,e) -> Lasub (acc,ws,len, mk_v_loc fn v, mk_expr fn e)
 
   and mk_range fn (dir, e1, e2) = (dir, mk_expr fn e1, mk_expr fn e2)
@@ -99,7 +99,7 @@ end = struct
   and mk_expr fn expr = match expr with
     | Pconst _ | Pbool _ | Parr_init _ -> expr
     | Pvar v -> Pvar (mk_gvar fn v)
-    | Pget (acc, ws, v, e) -> Pget (acc, ws, mk_gvar fn v, mk_expr fn e)
+    | Pget (al, acc, ws, v, e) -> Pget (al, acc, ws, mk_gvar fn v, mk_expr fn e)
     | Psub (acc, ws, len, v, e) ->
       Psub (acc, ws, len, mk_gvar fn v, mk_expr fn e)
     | Pload (al, ws, v, e) -> Pload (al, ws, mk_v_loc fn v, mk_expr fn e)
@@ -484,7 +484,7 @@ end = struct
         | Expr.Sglob -> sv
         | Expr.Slocal -> Sv.add (L.unloc v.gv) sv
       end
-    | Pget (_,_, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
+    | Pget (_,_, _, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
     | Psub (_,_,_, v, e) -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
     | Pload (_, _, v, e) -> collect_vars_e (Sv.add (L.unloc v) sv) e
     | Papp1 (_,e) -> collect_vars_e sv e
@@ -496,7 +496,7 @@ end = struct
   let collect_vars_lv sv = function
     | Lnone _ -> sv
     | Lvar v -> Sv.add (L.unloc v) sv
-    | Laset (_,_, v, e) | Lasub (_,_,_, v, e) | Lmem (_, _, v, e) ->
+    | Laset (_,_,_, v, e) | Lasub (_,_,_, v, e) | Lmem (_, _, v, e) ->
       collect_vars_e (Sv.add (L.unloc v) sv) e
 
   let collect_vars_lvs sv = List.fold_left collect_vars_lv sv

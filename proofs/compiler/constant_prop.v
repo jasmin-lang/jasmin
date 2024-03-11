@@ -356,12 +356,12 @@ Section GLOBALS.
 
 Context (globs: globals).
 
-Let pget_global aa sz x e : pexpr :=
-  if globs is Some f then if f x.(gv) is Some (Garr len a) then if e is Pconst i then if WArray.get aa sz a i is Ok w then wconst w
-  else Pget aa sz x e
-  else Pget aa sz x e
-  else Pget aa sz x e
-  else Pget aa sz x e.
+Let pget_global al aa sz x e : pexpr :=
+  if globs is Some f then if f x.(gv) is Some (Garr len a) then if e is Pconst i then if WArray.get al aa sz a i is Ok w then wconst w
+  else Pget al aa sz x e
+  else Pget al aa sz x e
+  else Pget al aa sz x e
+  else Pget al aa sz x e.
 
 Fixpoint const_prop_e (m:cpm) e :=
   match e with
@@ -374,11 +374,11 @@ Fixpoint const_prop_e (m:cpm) e :=
       | Slocal => if Mvar.get m x is Some n then const n else e
       | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
       end
-  | Pget aa sz x e =>
+  | Pget al aa sz x e =>
       let e := const_prop_e m e in
       if is_glob x
-      then pget_global aa sz x e
-      else Pget aa sz x e
+      then pget_global al aa sz x e
+      else Pget al aa sz x e
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
   | Pload al sz x e => Pload al sz x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
@@ -408,7 +408,7 @@ Definition const_prop_rv globs (m:cpm) (rv:lval) : cpm * lval :=
   | Lnone _ _       => (m, rv)
   | Lvar  x         => (Mvar.remove m x, rv)
   | Lmem al sz x e  => (m, Lmem al sz x (const_prop_e globs m e))
-  | Laset aa sz x e => (Mvar.remove m x, Laset aa sz x (const_prop_e globs m e))
+  | Laset al aa sz x e => (Mvar.remove m x, Laset al aa sz x (const_prop_e globs m e))
   | Lasub aa sz len x e => (Mvar.remove m x, Lasub aa sz len x (const_prop_e globs m e))
   end.
 

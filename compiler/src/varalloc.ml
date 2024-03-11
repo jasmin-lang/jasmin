@@ -143,7 +143,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
 
   let rec add_e = function
     | Pconst _ | Pbool _ | Parr_init _  | Pvar _ -> ()
-    | Pget (_,ws, x, e) -> add_ggvar x ws 0; add_e e
+    | Pget (_, _, ws, x, e) -> add_ggvar x ws 0; add_e e
     | Psub (_,_,_,_,e) | Pload (_, _, _, e) | Papp1 (_, e) -> add_e e
     | Papp2 (_, e1,e2) -> add_e e1; add_e e2
     | PappN (_, es) -> add_es es 
@@ -153,7 +153,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
   let add_lv = function
     | Lnone _ | Lvar _ -> ()
     | Lmem (_, _, _, e) | Lasub (_,_,_,_,e) -> add_e e
-    | Laset(_,ws,x,e) -> add_ggvar (gkvar x) ws 0; add_e e in
+    | Laset(_, _, ws,x,e) -> add_ggvar (gkvar x) ws 0; add_e e in
 
   let add_lvs = List.iter add_lv in
   
@@ -439,7 +439,7 @@ let alloc_mem gtbl globs =
       let ip = Conv.int_of_pos p in
       for i = 0 to ip - 1 do
         let w = 
-          match Warray_.WArray.get p Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
+          match Warray_.WArray.get p Aligned Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
           | Ok w -> w
           | _    -> assert false in
         t.(ofs + i) <- w

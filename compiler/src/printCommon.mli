@@ -23,6 +23,7 @@ val pp_arr_access :
   (Format.formatter -> 'b -> unit) ->
   (Format.formatter -> 'c -> unit) ->
   Format.formatter ->
+  Memory_model.aligned ->
   Warray_.arr_access ->
   Wsize.wsize ->
   'a ->

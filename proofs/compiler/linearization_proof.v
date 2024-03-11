@@ -1475,7 +1475,7 @@ Section PROOF.
       - by [].
       - by move => e ihe es ihes vs /=; t_xrbindP => ? /ihe -> /= ? /ihes -> /= ->.
       1-4: by rewrite /P /=.
-      - move => aa sz x e ihe vs /=.
+      - move => al aa sz x e ihe vs /=.
         by apply: on_arr_gvarP => ??? -> /=; t_xrbindP => ?? /ihe -> /= -> /= ? -> /= ->.
       - move => aa sz len x e ihe v /=.
         by apply: on_arr_gvarP => ??? -> /=; t_xrbindP => ?? /ihe -> /= -> /= ? -> /= ->.
@@ -1501,7 +1501,7 @@ Section PROOF.
     write_lval true [::] x v {| escs := scs1; emem := m1' ; evm := vm1 |} = ok {| escs := scs2; emem := m2' ; evm := vm2 |} &
     match_mem m2 m2'.
   Proof.
-    move => M; case: x => /= [ _ ty | x | al ws x e | aa ws x e | aa ws n x e ].
+    move => M; case: x => /= [ _ ty | x | al ws x e | al aa ws x e | aa ws n x e ].
     - by case/write_noneP; rewrite /write_none => -[-> -> ->] -> ->; exists m1'.
     - rewrite /write_var /=; t_xrbindP =>_ -> -> <- -> /=.
       by exists m1'.
@@ -1651,7 +1651,7 @@ Section PROOF.
       have {h} /= -> /= := (h (sword _) _ ok_ofs).
       t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
       by apply (write_mem_unchanged ok_m' ok_tm').
-    - move => aa sz x e; apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
+    - move => al aa sz x e; apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
       apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
       subst; reflexivity.
     move => aa sz k x e; apply: on_arr_varP; rewrite /write_var; t_xrbindP => ???????????????.
