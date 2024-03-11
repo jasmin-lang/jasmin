@@ -1,0 +1,14 @@
+export
+fn main(reg u64 x) -> reg u128 {
+  reg u128 r;
+  stack u128[2] a;
+  inline int i;
+  for i = 0 to 16 {
+    a[u16 i] = (u16)[x + 2 * i];
+  }
+  ?{}, r = #set0_128();
+  for i = 0 to 3 {
+    r ^= a.[i * 8߸];
+  }
+  return r;
+}

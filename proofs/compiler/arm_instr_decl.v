@@ -1852,9 +1852,9 @@ Definition arm_load_instr mn : instr_desc_t :=
   {|
     id_msb_flag := MSB_MERGE;
     id_tin := [:: sword ws ];
-    id_in := [:: E 1 ];
+    id_in := [:: Eu 1 ];
     id_tout := [:: sreg ];
-    id_out := [:: E 0 ];
+    id_out := [:: Eu 0 ];
     id_semi := arm_extend_semi (isSome (wsize_of_sload_mn mn)) reg_size;
     id_nargs := 2;
     id_args_kinds := ak_reg_addr;
