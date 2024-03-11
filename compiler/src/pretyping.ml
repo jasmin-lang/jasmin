@@ -934,6 +934,11 @@ let ensure_int loc i ty =
   | _ -> rs_tyerror ~loc (TypeMismatch (ty, P.tint))
 
 (* -------------------------------------------------------------------- *)
+let tt_al = function
+  | Some `Unaligned -> Memory_model.Unaligned
+  | None -> Memory_model.Aligned
+
+(* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
   | S.PEParens pe ->
@@ -950,18 +955,19 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     P.Pvar x, ty
 
   | S.PEFetch me ->
-    let ct, x, e = tt_mem_access ~mode pd env me in
-    P.Pload (Aligned, ct, x, e), P.Bty (P.U ct) (* TODO: alignment *)
+    let ct, x, e, al = tt_mem_access ~mode pd env me in
+    P.Pload (al, ct, x, e), P.Bty (P.U ct)
 
-  | S.PEGet (aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
+  | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
+    let al = tt_al al in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
     let i = ensure_int (L.loc pi) i ity in
     begin match olen with
-    | None -> P.Pget (Aligned, aa, ws, x, i), ty (* TODO: alignment *)
+    | None -> P.Pget (al, aa, ws, x, i), ty
     | Some plen ->
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
@@ -1049,7 +1055,7 @@ and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   cast (L.loc pe) e ety ty 
   
 and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
-           (ct, ({ L.pl_loc = xlc } as x), e) = 
+           (ct, ({ L.pl_loc = xlc } as x), e, al) =
   let x = tt_var `NoParam env x in
   check_ty_ptr pd ~loc:xlc x.P.v_ty;
   let e = 
@@ -1061,7 +1067,8 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
   let ct = ct |> Option.map_default tt_ws pd in
-  (ct,L.mk_loc xlc x,e)
+  let al = tt_al al in
+  (ct,L.mk_loc xlc x,e, al)
 
 (* -------------------------------------------------------------------- *)
 and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
@@ -1129,9 +1136,10 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x = tt_var `NoParam env x in
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
-  | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
+  | S.PLArray (al, aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
+    let al = tt_al al in
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
@@ -1139,7 +1147,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let i = ensure_int (L.loc pi) i ity in
     begin match olen with
     | None -> 
-      loc, (fun _ -> P.Laset (Aligned, aa, ws, L.mk_loc xlc x, i)), Some ty (* TODO: alignment *)
+      loc, (fun _ -> P.Laset (al, aa, ws, L.mk_loc xlc x, i)), Some ty
     | Some plen ->
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
@@ -1148,8 +1156,8 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     end
 
   | S.PLMem me ->
-    let ct, x, e = tt_mem_access ~mode:`AllVar pd env me in
-    loc, (fun _ -> P.Lmem (Aligned, ct, x, e)), Some (P.Bty (P.U ct)) (* TODO: alignment *)
+    let ct, x, e, al = tt_mem_access ~mode:`AllVar pd env me in
+    loc, (fun _ -> P.Lmem (al, ct, x, e)), Some (P.Bty (P.U ct))
 
 (* -------------------------------------------------------------------- *)
 
@@ -1369,8 +1377,8 @@ let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn
   | S.PLVar  x      -> L.mk_loc (L.loc l) (S.PEVar x)
-  | S.PLArray(aa,ws,x,e,len)  -> L.mk_loc (L.loc l) (S.PEGet(aa,ws,x,e,len))
-  | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
+  | S.PLArray(al, aa,ws,x,e,len) -> L.mk_loc (L.loc l) (S.PEGet(al, aa,ws,x,e,len))
+  | S.PLMem(ty,x,e,al) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e,al))
 
 
 type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {

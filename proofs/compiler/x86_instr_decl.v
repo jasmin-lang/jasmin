@@ -1262,7 +1262,7 @@ Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm true].
 
 Definition check_mov sz := [:: r_rmi sz; m_ri (max_32 sz)].
 Definition Ox86_MOV_instr               :=
-  mk_instr_w_w "MOV" x86_MOV [:: E 1] [:: E 0] 2
+  mk_instr_w_w "MOV" x86_MOV [:: Eu 1] [:: Eu 0] 2
                check_mov (prim_8_64 MOV) (pp_iname "mov").
 
 Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
