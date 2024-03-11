@@ -28,7 +28,10 @@ module Arm_core = struct
 
 end
 
-module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
+module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch
+  with type asm_op = Arm_instr_decl.arm_op
+  and type extra_op = Arm_extra.__
+ = struct
   include Arm_core
   include Lowering_params
 

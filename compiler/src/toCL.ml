@@ -287,11 +287,11 @@ let pp_lval fmt (x,ws) =
   match x with
   | Lvar x -> Format.fprintf fmt "%a@@%a" pp_gvar_i x pp_uint ws
   (* Manuel: Never reached for assignments. *)
-  | Lnone _  -> Format.fprintf fmt "NONE____" 
+  | Lnone _  -> Format.fprintf fmt "NONE____"
   | Lmem _ | Laset _ | Lasub _ -> assert false
 
 (* Manuel: We translate some atomic expressions based on a size
-   which is not theirs. See consts and word_of_ints below. 
+   which is not theirs. See consts and word_of_ints below.
    Does this make sense everywhere? *)
 let rec pp_atome fmt (x,ws) =
   match x with
@@ -306,6 +306,26 @@ let rec pp_atome fmt (x,ws) =
 
 let rec power acc n = match n with | 0 -> acc | n -> power (acc * 2) (n - 1)
 
+module type BaseOp = sig
+  type op
+  type extra_op
+
+  val pp_baseop :
+    Stdlib__Format.formatter ->
+    int ->
+    int Jasmin__Prog.glval list ->
+    op -> int Jasmin__Prog.gexpr list -> unit
+end
+
+module X86BaseOp : BaseOp
+  with type op = X86_instr_decl.x86_op
+  with type extra_op = X86_extra.x86_extra_op
+= struct
+
+type op = X86_instr_decl.x86_op
+type extra_op = X86_extra.x86_extra_op
+
+(* For x86 *)
 let rec pp_cast fmt trans (x,ws) =
     match x with
   | Pconst z -> x
@@ -604,12 +624,29 @@ and pp_baseop fmt trans xs o es =
          pp_atome (List.nth es 0, int_of_ws ws2)
   | _ -> assert false
 
+end
+
+module ARMBaseOp : BaseOp
+  with type op = Arm_instr_decl.arm_op
+  and  type extra_op = Arm_extra.__
+= struct
+
+type op = Arm_instr_decl.arm_op
+type extra_op = Arm_extra.__
+
+let pp_baseop fmt trans xs o es = assert false
+
+end
+
+
+
+module Mk(O:BaseOp) = struct
 
 let pp_extop fmt xs o es tcas = assert false
 
 let pp_ext_op fmt xs o es trans =
   match o with
-  | Arch_extra.BaseOp (_, o) -> pp_baseop fmt trans xs o es
+  | Arch_extra.BaseOp (_, o) -> O.pp_baseop fmt trans xs o es
   | Arch_extra.ExtOp o -> pp_extop fmt xs o es trans
 
 let pp_sopn fmt xs o es tcas =
@@ -740,3 +777,5 @@ let pp_fun pd asmOp fds fmt fd =
     pp_clause fd.f_contra.f_pre
     (pp_c pd asmOp fds) fd.f_body
     pp_clause fd.f_contra.f_post
+
+end

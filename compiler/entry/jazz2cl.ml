@@ -6,25 +6,37 @@ open Prog
 type arch = Amd64 | CortexM
 
 
-let add_inline f = 
+let add_inline f =
   { f with f_cc = Internal}
+
+module type Arch_ToCL = sig
+  module C : Arch_full.Core_arch
+  module CL : ToCL.BaseOp
+     with type op = C.asm_op
+     and type extra_op = C.extra_op
+end
 
 let parse_and_print print arch call_conv =
   let _ = if print then Glob_options.set_all_print () in
 
-  let module A =
-    Arch_full.Arch_from_Core_arch
-      ((val (*match arch with
-            | Amd64 -> *)
-                (module (val CoreArchFactory.core_arch_x86 ~use_lea:false
-                               ~use_set0:false call_conv)
-                : Arch_full.Core_arch with type asm_op = X86_instr_decl.x86_op
-                                      and  type extra_op = X86_extra.x86_extra_op )
-           (* | CortexM ->
-                (module CoreArchFactory.Core_arch_ARM : Arch_full.Core_arch) *))) in
+  let (module ACL : Arch_ToCL) =
+      match arch with
+      | Amd64 ->
+         (module struct
+            module C = (val CoreArchFactory.core_arch_x86 ~use_lea:false ~use_set0:false call_conv)
+            module CL = ToCL.X86BaseOp
+          end)
+      | CortexM ->
+         (module struct
+            module C = CoreArchFactory.Core_arch_ARM
+            module CL = ToCL.ARMBaseOp
+          end)
+  in
+  let module A = Arch_full.Arch_from_Core_arch (ACL.C) in
+  let module ToCL = ToCL.Mk(ACL.CL) in
   fun ecoutput joutput output file funname ->
   try
-    let _, pprog, _ = 
+    let _, pprog, _ =
       (* FIXME: This code is a cut and paste of main_compiler *)
       try Compile.parse_file A.arch_info file with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
@@ -45,17 +57,17 @@ let parse_and_print print arch call_conv =
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
 
-    let funname = 
-     try 
+    let funname =
+     try
        let fd = List.find (fun fd -> fd.Prog.f_name.fn_name = funname) (snd prog) in
-       fd.Prog.f_name 
-     with Not_found -> 
+       fd.Prog.f_name
+     with Not_found ->
        hierror ~loc:Lnone ~kind:"typing error" "unknow function %s" funname in
 
      (* First step: annot all call site with inline *)
      let prog = (fst prog, List.map add_inline (snd prog)) in
      let cprog = Conv.cuprog_of_prog prog in
-       
+
      let prog = Compile.compile_CL (module A) cprog funname in
      let prog = Conv.prog_of_cuprog ((* FIXME *) Obj.magic prog) in
 (*
@@ -63,8 +75,8 @@ let parse_and_print print arch call_conv =
 *)
 
      begin match joutput with
-     | None -> () 
-     | Some file ->   
+     | None -> ()
+     | Some file ->
          let out, close = open_out file, close_out in
          let fmt = Format.formatter_of_out_channel out in
          Format.fprintf fmt "%a@." (Printer.pp_prog ~debug:true A.reg_size A.asmOp) prog;
@@ -72,8 +84,8 @@ let parse_and_print print arch call_conv =
      end;
 
      begin match ecoutput with
-     | None -> () 
-     | Some file ->   
+     | None -> ()
+     | Some file ->
          let out, close = open_out file, close_out in
          let fmt = Format.formatter_of_out_channel out in
          let fnames = [funname.fn_name] in
@@ -84,14 +96,14 @@ let parse_and_print print arch call_conv =
      end;
 
 
- 
+
      let out, close =
        match output with
        | None -> (stdout, ignore)
        | Some file -> (open_out file, close_out)
      in
      let fmt = Format.formatter_of_out_channel out in
-        Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp (snd prog)) (List.nth (snd prog) 0);
+     Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp (snd prog)) (List.nth (snd prog) 0);
      close out
   with
   | Utils.HiError e ->
@@ -110,29 +122,29 @@ let output =
   let doc =
     "The file in which the result is written (instead of the standard output)"
   in
-  Arg.(value & opt (some string) None & info [ "o"; "output" ] ~docv:"CL" ~doc) 
+  Arg.(value & opt (some string) None & info [ "o"; "output" ] ~docv:"CL" ~doc)
 
 let joutput =
   let doc =
     "Print the program before extraction to cryptoline to the file JAZZFILE"
   in
-  Arg.(value & opt (some string) None & info [ "j"; "joutput" ] ~docv:"JAZZFILE" ~doc) 
+  Arg.(value & opt (some string) None & info [ "j"; "joutput" ] ~docv:"JAZZFILE" ~doc)
 
-let ecoutput = 
+let ecoutput =
  let doc =
     "Extract (to EC) the program before extraction to cryptoline to the file ECFILE"
   in
-  Arg.(value & opt (some string) None & info [ "e"; "ecoutput" ] ~docv:"ECFILE" ~doc) 
-  
+  Arg.(value & opt (some string) None & info [ "e"; "ecoutput" ] ~docv:"ECFILE" ~doc)
+
 (*
-let print = 
-  let alts = 
-    List.map 
-      (fun p -> 
+let print =
+  let alts =
+    List.map
+      (fun p ->
         let (s, _msg) = glob_options.print_string p in
-          (s, p)) 
+          (s, p))
       Compiler.compiler_step_list in
-  let doc = 
+  let doc =
     Format.asprintf "The step to print (%s)" (Arg.doc_alts_enum alts)
   in
   let print = Arg.enum alts in
@@ -140,10 +152,10 @@ let print =
 
 *)
 
-let print = 
+let print =
   let doc = "print result after each step" in
   Arg.(value & flag & info ["pall"] ~docv:"JAZZ" ~doc)
-  
+
 let funname =
   let doc =
     "The function to extract to CryptoLine"

@@ -3,7 +3,10 @@ open Prog
 open X86_decl_core
 open X86_decl
 
-module Core_arch_ARM : Arch_full.Core_arch = Arm_arch_full.Arm (struct
+module Core_arch_ARM : Arch_full.Core_arch
+  with type asm_op = Arm_instr_decl.arm_op
+  and type extra_op = Arm_extra.__
+= Arm_arch_full.Arm (struct
   let call_conv = Arm_decl.arm_linux_call_conv
 end)
 
