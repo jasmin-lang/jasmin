@@ -4,6 +4,9 @@
   (release
     (flags (:standard -w +Z+Y+28-23+32+33+34-58@8))))
 
+(alias
+ (name check))
+
 (subdir entry
 (executable
  (public_name jasminc)

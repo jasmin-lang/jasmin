@@ -2,12 +2,14 @@ open Prog
 open Wsize
 open Sopn
 
+type trans
+
 module type BaseOp = sig
   type op
   type extra_op
   val pp_baseop :
     Stdlib__Format.formatter ->
-    int ->
+    trans ->
     int Jasmin__Prog.glval list ->
     op -> int Jasmin__Prog.gexpr list -> unit
 end
