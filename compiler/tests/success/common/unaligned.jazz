@@ -6,3 +6,17 @@ fn main(reg u32 x) -> reg u32 {
   x = a.[2߸];
   return x;
 }
+
+/* This example shows that the unaligned 16-bit access is taken into account
+  * when computing the alignment for the stack variable. */
+#[stackalign=u16]
+export
+fn instack(reg u32 x) -> reg u32 {
+  reg u32 r;
+  stack u8[3] s;
+  r = 0;
+  s[0] = r;
+  s.[u16 1] = (16u)x;
+  r = (32s)s[u8 1];
+  return r;
+}
