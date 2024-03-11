@@ -24,7 +24,7 @@ module Riscv_core = struct
   let known_implicits = []
 
   let alloc_stack_need_extra sz =
-    not (Riscv_params.is_arith_small (Conv.cz_of_z sz))
+    not (Riscv_params_core.is_arith_small (Conv.cz_of_z sz))
 
 end
 

@@ -5,7 +5,7 @@ export
 fn pass(reg u32 r) -> reg u32 { return r; }
 
 export
-fn copy(reg u32 r) -> reg u32, reg u32 { 
+fn copy(reg u32 r) -> reg u32, reg u32 {
     reg u32 c;    
     c = #MV(r);
     return r, c; 
@@ -13,7 +13,14 @@ fn copy(reg u32 r) -> reg u32, reg u32 {
 
 export
 fn copy_lowering(reg u32 r) -> reg u32, reg u32 { 
-    reg u32 c;    
+    reg u32 c;
     c = r;
-    return r, c; 
+    return r, c;
+}
+
+export
+fn add_lowering(reg u32 a, reg u32 b) -> reg u32 {
+    reg u32 c;
+    c = a + b;
+    return c;
 }

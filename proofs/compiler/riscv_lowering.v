@@ -28,6 +28,21 @@ Context {atoI : arch_toIdent}.
 Definition chk_ws_reg (ws : wsize) : option unit :=
   oassert (ws == reg_size)%CMP.
 
+Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_op * pexprs) :=
+  let%opt _ := chk_ws_reg ws in
+  match op with
+  | Oword_of_int _ =>
+    if is_const e is Some _
+      then  Some(LI, [:: Papp1 (Oword_of_int U32) e])
+    else None
+(*  | Olnot U32 =>
+      Some (arg_shift MVN U32 [:: e ])
+  | Oneg (Op_w U32) =>
+      Some (ARM_op RSB default_opts, [:: e; wconst (wrepr U32 0) ]) *)
+  | _ =>
+      None
+  end.
+
 Definition lower_Papp2
   (ws : wsize) (op : sop2) (e0 e1 : pexpr) :
   option (riscv_op * pexprs) :=
@@ -92,6 +107,7 @@ Definition lower_cassgn
     | Pvar v => lower_Pvar ws v
     | Pget _ _ _ _
     | Pload _ _ _=> lower_load ws e
+    | Papp1 op e => lower_Papp1 ws op e
     | Papp2 op a b => lower_Papp2 ws op a b
     | _ => None    
     end
