@@ -10,3 +10,10 @@ fn copy(reg u32 r) -> reg u32, reg u32 {
     c = #MV(r);
     return r, c; 
 }
+
+export
+fn copy_lowering(reg u32 r) -> reg u32, reg u32 { 
+    reg u32 c;    
+    c = r;
+    return r, c; 
+}

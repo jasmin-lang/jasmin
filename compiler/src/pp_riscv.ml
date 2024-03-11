@@ -12,7 +12,7 @@ let arch = riscv_decl
 
 let imm_pre = ""
 
-(* We support the following RISCVv7-M memory accesses.
+(* We support the following RISC-V memory accesses.
    Offset addressing:
      - A base register and an immediate offset (displacement):
        [<reg>, #+/-<imm>] (where + can be omitted).
@@ -172,7 +172,7 @@ let pp_instr fn i =
       [ LInstr ("adr", [ pp_register dst; string_of_label fn lbl ]) ]
 
   | JMP lbl ->
-      [ LInstr ("b", [ pp_remote_label lbl ]) ]
+      [ LInstr ("j", [ pp_remote_label lbl ]) ]
 
   | JMPI arg ->
       (* TODO_RISCV: Review. *)
@@ -181,20 +181,19 @@ let pp_instr fn i =
         | Reg r -> pp_register r
         | _ -> failwith "TODO_RISCV: pp_instr jmpi"
       in
-      [ LInstr ("bx", [ lbl ]) ]
+      [ LInstr ("jr", [ lbl ]) ]
 
   | Jcc (lbl, ct) ->
       let iname = Printf.sprintf "b%s" (pp_condt ct) in
       [ LInstr (iname, [ pp_label fn lbl ]) ]
 
-  | JAL (X1, lbl) ->
-      [ LInstr ("bl", [ pp_remote_label lbl ]) ]
+  | CALL  lbl ->
+       [LInstr ("call", [pp_remote_label lbl])]
 
-  | CALL _
   | JAL _ -> assert false
 
   | POPPC ->
-      [ LInstr ("pop", [ "{pc}" ]) ]
+      [ LInstr ("ret", [ ]) ]
 
   | SysCall op ->
       [LInstr ("bl", [ pp_syscall op ])]
@@ -232,9 +231,8 @@ let pp_fun (fn, fd) =
     if fd.asm_fd_export then
       [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
     else []
-  in
-  let pre =
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register X5)]) ] else []
+  in let pre =
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; ] else []
   in
   let body = pp_body fn fd.asm_fd_body in
   (* TODO_RISCV: Review. *)

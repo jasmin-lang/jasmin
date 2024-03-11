@@ -85,6 +85,7 @@ compiler/riscv.v
 compiler/riscv_decl.v
 compiler/riscv_instr_decl.v
 compiler/riscv_extra.v
+compiler/riscv_lowering.v
 compiler/riscv_params.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v

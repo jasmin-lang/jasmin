@@ -22,7 +22,8 @@ Require Import
 Require Import
   riscv_decl
   riscv_extra
-  riscv_instr_decl.
+  riscv_instr_decl
+  riscv_lowering.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -30,6 +31,8 @@ Unset Printing Implicit Defensive.
 
 Section Section.
 Context {atoI : arch_toIdent}.
+
+Definition is_arith_small (imm : Z) : bool := (imm <? Z.pow 2 12)%Z.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
@@ -39,7 +42,27 @@ Definition is_load e :=
 
 Definition riscv_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
-  option instr_r := None.
+  option instr_r :=
+  let mk oa :=
+    let: (op, args) := oa in
+     Some (Copn [:: x ] tag (Oriscv op) args) in
+  match mk_mov vpk with
+  | MK_LEA => mk (LA, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
+  | MK_MOV =>
+    match x with
+    | Lvar x_ =>
+      if is_load y then
+        if ofs == Z0 then mk (LOAD Signed U32, [:: y]) else None
+      else
+        if ofs == Z0 then mk (MV, [:: y])
+        else
+          (* TODO: handle large immediates as in arm *)
+          mk (ADD, [::y; eword_of_int reg_size ofs ])
+    | Lmem _ _ _ =>
+      if ofs == Z0 then mk (STORE U32, [:: y]) else None
+    | _ => None
+    end
+  end.
 
 Definition riscv_immediate (x: var_i) z :=
   Copn [:: Lvar x ] AT_none (Oriscv MV) [:: cast_const z ].
@@ -83,11 +106,9 @@ End LINEARIZATION.
 
 (* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
-Definition lowering_options := unit.
-
 Definition riscv_loparams : lowering_params lowering_options :=
   {|
-    lop_lower_i := fun _ _ _ i => [:: i];
+    lop_lower_i _ _ _ := lower_i;
     lop_fvars_correct := fun _ _ _ => true;
   |}.
 

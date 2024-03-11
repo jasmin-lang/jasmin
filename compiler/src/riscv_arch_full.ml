@@ -15,7 +15,7 @@ module Riscv_core = struct
   type cond = condt
   type asm_op = Riscv_instr_decl.riscv_op
   type extra_op = Riscv_decl.__
-  type lowering_options = Riscv_params.lowering_options
+  type lowering_options = Riscv_lowering.lowering_options
 
   let atoI = X86_arch_full.atoI riscv_decl
 
@@ -24,7 +24,7 @@ module Riscv_core = struct
   let known_implicits = []
 
   let alloc_stack_need_extra sz =
-    failwith "TODO RISCV : alloc_stack_need_extra"
+    not (Riscv_params.is_arith_small (Conv.cz_of_z sz))
 
 end
 
