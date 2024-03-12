@@ -164,7 +164,6 @@ Module WArray.
   Definition set {len ws} (a: array len) al aa p (v: word ws) : exec (array len) :=
     CoreMem.write a al (p * mk_scale aa ws)%Z v.
 
-  (* TODO: alignment *)
   Definition fcopy ws len (a t: WArray.array len) i j :=
     foldM (fun i t =>
              Let w := get Aligned AAscale ws a i in set t Aligned AAscale i w) t
@@ -173,7 +172,6 @@ Module WArray.
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
     fcopy ws a (WArray.empty _) 0 p.
 
-  (* TODO: alignment *)
   Definition fill len (l:list u8) : exec (array len) :=
     Let _ := assert (Pos.to_nat len == size l) ErrType in 
     Let pt := 

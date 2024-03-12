@@ -415,7 +415,7 @@ Qed.
 Lemma check_sopn_args_xmm rip ii oargs es ads cond n k ws:
   check_sopn_args x86_agparams rip ii oargs es ads ->
   check_i_args_kinds [::cond] oargs ->
-  nth (E 0, sword8) ads n = (E k, sword ws) ->
+  nth (Eu 0, sword8) ads n = (Eu k, sword ws) ->
   nth xmm cond k = xmm ->
   n < size es ->
   exists (r: xreg_t),
@@ -424,7 +424,7 @@ Lemma check_sopn_args_xmm rip ii oargs es ads cond n k ws:
     oseq.onth oargs k = Some (XReg r).
 Proof.
   rewrite /= orbF => hca hc hE hxmm hn.
-  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (E 0, sword8) _ hca.
+  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Eu 0, sword8) _ hca.
   rewrite hn => /(_ erefl) ha.
   assert (hcIaux := check_sopn_argP ha).
   move: hcIaux; rewrite hE => h; inversion_clear h.
@@ -443,10 +443,10 @@ Proof.
     eauto.
 Qed.
 
-Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n k ws:
+Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n al k ws:
   check_sopn_dests x86_agparams rip ii oargs xs ads ->
   check_i_args_kinds [::cond] oargs ->
-  nth (E 0, sword8) ads n = (E k, sword ws) ->
+  nth (Ea 0, sword8) ads n = (ADExplicit (AK_mem al) k None, sword ws) ->
   nth xmm cond k = xmm ->
   n < size xs ->
   exists (r: xreg_t),
@@ -456,7 +456,7 @@ Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n k ws:
     oseq.onth oargs k = Some (XReg r).
 Proof.
   rewrite /= orbF => hca hc hE hxmm hn.
-  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (E 0, sword8) _ hca.
+  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Ea 0, sword8) _ hca.
   rewrite size_map hn => /(_ erefl).
   rewrite (nth_map (LLvar (mk_var_i rip))) //.
   set e := nth (LLvar _) _ _.
@@ -498,7 +498,7 @@ Proof.
   have [yr [vi /= ? hyr]] := check_sopn_dests_xmm (n:=0) hcd hidc erefl erefl erefl; subst y ops ops'.
   have [s' hwm hlow'] :=
     compile_lvals (asm_e:=x86_extra)
-     (id_out := [:: E 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
+     (id_out := [:: Eu 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
   exists s'; last done.
   move: hca; rewrite /check_sopn_args /= => /and4P [] _ hE2 hE3 _.
   have [vh' hev2 /= hvh']:= check_sopn_arg_sem_eval eval_assemble_cond hlow hE2 hvh hwh.

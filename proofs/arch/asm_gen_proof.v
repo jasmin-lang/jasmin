@@ -359,19 +359,6 @@ Definition assemble_cond_spec :=
 Context
   (eval_assemble_cond : assemble_cond_spec).
 
-(* TODO: move *)
-Lemma aligned_leP al al' p sz :
-  aligned_le al al' →
-  is_aligned_if al' p sz →
-  is_aligned_if al p sz.
-Proof. by case: al => // /eqP ->. Qed.
-
-Lemma read_relax_aligned m p sz v al al' :
-  aligned_le al al' →
-  read m al' p sz = ok v →
-  read m al p sz = ok v.
-Proof. by rewrite /read; t_xrbindP => h /(aligned_leP h) -> ? -> /= ->. Qed.
-
 Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
   lom_eqv rip m s
   -> check_sopn_arg agparams rip ii args e (ad,ty)
@@ -408,7 +395,7 @@ Proof.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
-    by case: eqm => ? <- ??????; rewrite (read_relax_aligned ok_al' hwr) /=; eauto.
+    by case: eqm => ? <- ??????; rewrite (aligned_le_read ok_al' hwr) /=; eauto.
   case => //.
   + move=> x al.
     move=> /xreg_of_varI; case: a' hcomp => // r;
@@ -571,6 +558,7 @@ Proof.
     have /(_ r erefl) := lom_eqv_write_var msb_flag hlom hw.
     rewrite /mem_write_val /= truncate_word_u /=; eauto.
   case heq1: onth => [a | //].
+  case heq3: k => [ // | al ].
   case heq2: arg_of_rexpr => [ a' | //] hty hw he1 /andP[] /eqP ? hc; subst a'.
   rewrite /mem_write_val /mem_write_ty.
   case: lv1 hw he1 heq2=> //=; cycle 1.
@@ -612,15 +600,15 @@ Proof.
       + by apply word_uincl_word_extend => //; apply cmp_lt_le.
       by rewrite word_extend_big //;apply /negP.
     by move=> f; rewrite Vm.setP_neq.
-  move=> al sz [x xii] /= e; t_xrbindP.
+  move=> al' sz [x xii] /= e; t_xrbindP.
   move=> wp vp hget hp wofs vofs he hofs w hw m1 hm1 ??; subst m' e1.
   case: ty hty vt hw => //= sz' _ vt hw.
-  t_xrbindP => /eqP ? /eqP ?; subst sz' al.
+  t_xrbindP => /eqP ? hal; subst sz'.
   move: hw; rewrite truncate_word_u => -[?]; subst vt.
   move => adr hadr ?; subst a => /=.
   rewrite /= heq1 hc /= /mem_write_mem -h1.
   have -> := addr_of_xpexprP hlom hadr hget hp he hofs.
-  rewrite hm1 /=; eexists; split; first by reflexivity.
+  rewrite (aligned_le_write hal hm1) /=; eexists; split; first by reflexivity.
   by constructor.
 Qed.
 
@@ -1270,7 +1258,7 @@ Proof.
     exact: (ofgetxreg eqm ok_r ok_v).
   move => al' sz' ? ? _ /=; t_xrbindP => /eqP <-{sz'} ok_al' d ok_d <- ptr w ok_w ok_ptr uptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
   case: (eqm) => _ eqmem _ _ _ _ _.
-  rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem (read_relax_aligned ok_al' ok_rd).
+  rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem (aligned_le_read ok_al' ok_rd).
   eexists; first reflexivity.
   exact: word_uincl_refl.
 Qed.

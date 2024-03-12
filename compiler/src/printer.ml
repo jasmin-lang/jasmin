@@ -40,11 +40,12 @@ let pp_ge pp_len pp_var =
   | Pget(al,aa,ws,x,e) ->
     pp_arr_access pp_gvar pp_expr pp_len fmt al aa ws x e None
   | Psub(aa,ws,len,x,e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt Aligned aa ws x e (Some len) (* TODO: alignment *)
+    pp_arr_access pp_gvar pp_expr pp_len fmt Aligned aa ws x e (Some len)
   | Pload(al,ws,x,e) ->
-    F.fprintf fmt "@[(%a)[%a@ +@ %a%a]@]"
-      pp_btype (U ws) pp_var_i x pp_expr e
+    F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
+      pp_btype (U ws)
       pp_aligned al
+      pp_var_i x pp_expr e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
@@ -65,9 +66,10 @@ let pp_glv pp_len pp_var fmt = function
   | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (al, ws, x, e) ->
-    F.fprintf fmt "@[(%a)[%a@ +@ %a%a]@]"
-     pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
+    F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
+     pp_btype (U ws)
      pp_aligned al
+     (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
   | Laset(al, aa, ws, x, e) ->
     pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt al aa ws x e None
   | Lasub(aa, ws, len, x, e) ->

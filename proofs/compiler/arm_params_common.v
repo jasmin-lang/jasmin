@@ -58,7 +58,7 @@ Module ARMOpn (Args : OpnArgs).
   Definition bici := op_bin_imm BIC.
 
   Definition str x y off :=
-    let lv := lmem Aligned reg_size y off in (* TODO: alignment *)
+    let lv := lmem Aligned reg_size y off in
     ([:: lv ], Oarm (ARM_op STR default_opts), [:: rvar x ]).
 
   Definition align x y al := bici x y (wsize_size al - 1).

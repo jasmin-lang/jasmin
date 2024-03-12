@@ -128,6 +128,9 @@ Qed.
 Definition aligned_eqMixin     := Equality.Mixin aligned_eq_axiom.
 Canonical  aligned_eqType      := Eval hnf in EqType aligned aligned_eqMixin.
 
+Definition aligned_le (x y: aligned) : bool :=
+  (x == Unaligned) || (y == Aligned).
+
 (* -------------------------------------------------------------------- *)
 Module Export CoreMem.
 Section CoreMem.
@@ -141,6 +144,12 @@ Section CoreMem.
   Lemma is_aligned_if_is_align al ptr sz :
     is_align ptr sz → is_aligned_if al ptr sz.
   Proof. by rewrite /is_aligned_if => ->; case: al. Qed.
+
+  Lemma aligned_leP al al' p sz :
+    aligned_le al al' →
+    is_aligned_if al' p sz →
+    is_aligned_if al p sz.
+  Proof. by case: al => // /eqP ->. Qed.
 
   Definition read (m: core_mem) (al: aligned) (ptr: pointer) (sz: wsize) : exec (word sz) :=
     Let _ := assert (is_aligned_if al ptr sz) ErrAddrInvalid in
@@ -312,6 +321,18 @@ Section CoreMem.
     have : wsize_size s <= wsize_size U256 by case: (s).
     Psatz.lia.
   Qed.
+
+  Lemma aligned_le_read m p sz v al al' :
+    aligned_le al al' →
+    read m al' p sz = ok v →
+    read m al p sz = ok v.
+  Proof. by rewrite /read; t_xrbindP => h /(aligned_leP h) -> ? -> /= ->. Qed.
+
+  Lemma aligned_le_write al al' m p sz (w: word sz) m' :
+    aligned_le al al' →
+    write m al' p w = ok m' →
+    write m al p w = ok m'.
+  Proof. by rewrite /write; t_xrbindP => /aligned_leP h /h -> ->. Qed.
 
   Definition disjoint_range p s p' s' :=
     forall i i', 0 <= i < wsize_size s -> 0 <= i' < wsize_size s' ->

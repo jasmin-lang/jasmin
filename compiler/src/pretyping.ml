@@ -936,7 +936,7 @@ let ensure_int loc i ty =
 (* -------------------------------------------------------------------- *)
 let tt_al = function
   | Some `Unaligned -> Memory_model.Unaligned
-  | None -> Memory_model.Aligned
+  | Some `Aligned | None -> Memory_model.Aligned
 
 (* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =

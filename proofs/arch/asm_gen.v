@@ -228,10 +228,6 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
-(* TODO: move *)
-Definition aligned_le (x y: aligned) : bool :=
-  (x == Unaligned) || (y == Aligned).
-
 Definition assemble_word_load rip ii al (sz: wsize) (e: rexpr) :=
   match e with
   | Rexpr (Fapp1 (Oword_of_int sz') (Fconst z)) =>
@@ -343,10 +339,12 @@ Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_d
 Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_desc * stype) :=
   match adt.1 with
   | ADImplicit i => is_implicit i x
-  | ADExplicit _ n o =>
+  | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_rexpr (AK_mem Aligned) rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      if k is AK_mem al then
+      if arg_of_rexpr (AK_mem al) rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      else false
       else false
     | None => false
     end

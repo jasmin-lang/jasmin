@@ -333,7 +333,7 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
   match ad with
   | ADImplicit (IAreg r)   => ok (mem_write_reg f r w s)
   | ADImplicit (IArflag f) => type_error
-  | ADExplicit _ i or    =>
+  | ADExplicit k i or    =>
     match onth args i with
     | None => type_error
     | Some a =>
@@ -342,7 +342,10 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
       | Reg r   => ok (mem_write_reg  f r w s)
       | Regx r  => ok (mem_write_regx  f r w s)
       | XReg x  => ok (mem_write_xreg f x w s)
-      | Addr addr => mem_write_mem Aligned (decode_addr s addr) w s (* TODO: alignement *)
+      | Addr addr =>
+          if k is AK_mem al
+          then mem_write_mem al (decode_addr s addr) w s
+          else type_error
       | _       => type_error
       end
     end
@@ -392,13 +395,13 @@ Definition eval_op o args m :=
 (* -------------------------------------------------------------------- *)
 Definition eval_POP (s: asm_state) : exec (asm_state * wreg) :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
-  Let v := read s.(asm_m).(asm_mem) Aligned sp reg_size in (* TODO: alignment *)
+  Let v := read s.(asm_m).(asm_mem) Aligned sp reg_size in
   let m := mem_write_reg MSB_CLEAR ad_rsp (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v).
 
 Definition eval_PUSH (w: wreg) (s: asm_state) : exec asm_state :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
-  Let m := mem_write_mem Aligned (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in (* TODO: alignment *)
+  Let m := mem_write_mem Aligned (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in
   let m := mem_write_reg MSB_CLEAR ad_rsp (sp - wrepr Uptr (wsize_size Uptr))%R m in
   ok {| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}.
 
@@ -516,10 +519,11 @@ Proof.
   - by move => ? _; case: d.1 => // - [] // ? /ok_inj <-.
   move => ? ? _; case: d.1 => [ [] | ] //=.
   - by move => ? /ok_inj <-.
-  move => _ ? ?; case: onth => //; t_xrbindP => - [] // ? _.
+  move => k ? ?; case: onth => //; t_xrbindP => - [] // ? _.
   - by move=> /ok_inj <-.
   - by move=> /ok_inj <-.
-  - by exact: mem_write_mem_invariant.
+  - case: k => // al.
+    by exact: mem_write_mem_invariant.
   by move => /ok_inj <-.
 Qed.
 

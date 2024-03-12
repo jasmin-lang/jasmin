@@ -3,7 +3,7 @@ fn main(reg u32 x) -> reg u32 {
   stack u32[2] a;
   a[0] = x;
   a[1] = x;
-  x = a.[2߸];
+  x = a.[#unaligned 2];
   return x;
 }
 

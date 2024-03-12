@@ -128,12 +128,12 @@ Definition arm_check_ws ws := ws == reg_size.
 Definition arm_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
   let ws := reg_size in
   let mn := STR in
-  ([:: Store Aligned ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]). (* TODO: alignment *)
+  ([:: Store Aligned ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]).
 
 Definition arm_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
   let ws := reg_size in
   let mn := LDR in
-  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load Aligned ws xs (fconst ws ofs)]). (* TODO: alignment *)
+  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load Aligned ws xs (fconst ws ofs)]).
 
 Definition arm_liparams : linearization_params :=
   {|

@@ -647,7 +647,7 @@ let rec pp_expr pd env fmt (e:expr) =
         i 
 
     
-  | Pload (_, sz, x, e) -> (* TODO: alignment *)
+  | Pload (_, sz, x, e) ->
     Format.fprintf fmt "(loadW%a Glob.mem (W%d.to_uint %a))"
       pp_size sz
       (int_of_ws pd)
@@ -730,7 +730,7 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
   let pp_e fmt e = pp_e fmt (lty, ety, e) in
   match lv with 
   | Lnone _ -> assert false
-  | Lmem(_, ws, x, e1) -> (* TODO: alignment *)
+  | Lmem(_, ws, x, e1) ->
     Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W%d.to_uint %a) (%a);@]" pp_size ws
       (int_of_ws pd)
       (pp_wcast pd env) (add_ptr pd (gkvar x) e1) pp_e e

@@ -23,6 +23,7 @@
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
 
 %token SHARP
+%token ALIGNED
 %token AMP
 %token AMPAMP
 %token BANG
@@ -229,17 +230,18 @@ prim:
 | MINUS e=pexpr { `Sub, e }
 
 %inline unaligned:
+| ALIGNED { `Aligned }
 | UNALIGNED { `Unaligned }
 
 %inline mem_access:
-| ct=parens(utype)? LBRACKET v=var e=mem_ofs? al=unaligned? RBRACKET
+| ct=parens(utype)? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
   { ct, v, e, al }
   
 arr_access_len: 
 | COLON e=pexpr { e }
 
 arr_access_i:
-| ws=utype? e=pexpr len=arr_access_len? al=unaligned? {ws, e, len, al }
+| al=unaligned? ws=utype? e=pexpr len=arr_access_len? {ws, e, len, al }
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {

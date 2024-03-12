@@ -260,10 +260,10 @@ Variant arg_desc :=
 
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).
-Definition E  n   := ADExplicit (AK_mem Aligned) n None. (* TODO: alignment *)
-Definition Eu n   := ADExplicit (AK_mem Unaligned) n None. (* TODO: alignment *)
+Definition Ea n   := ADExplicit (AK_mem Aligned) n None.
+Definition Eu n   := ADExplicit (AK_mem Unaligned) n None.
 Definition Ec n   := ADExplicit AK_compute n None.
-Definition Ef n r := ADExplicit (AK_mem Aligned) n (Some  r). (* TODO: alignment *)
+Definition Ef n r := ADExplicit (AK_mem Aligned) n (Some  r).
 
 Definition check_oreg or ai :=
   match or, ai with

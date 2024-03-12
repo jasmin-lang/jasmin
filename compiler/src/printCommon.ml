@@ -18,7 +18,7 @@ let pp_aligned fmt =
   function
   | Memory_model.Aligned -> ()
   | Unaligned ->
-     Format.fprintf fmt " ߸"
+     Format.fprintf fmt "#unaligned "
 
 (* -------------------------------------------------------------------- *)
 
@@ -132,8 +132,8 @@ let pp_arr_access pp_gvar pp_expr pp_len fmt al aa ws x e olen =
   in
   fprintf fmt "%a%s[%a %a %a%a]" pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
-    pp_btype (U ws) pp_expr e pp_len olen
     pp_aligned al
+    pp_btype (U ws) pp_expr e pp_len olen
 
 (* -------------------------------------------------------------------- *)
 let pp_len fmt len = fprintf fmt "%i" len

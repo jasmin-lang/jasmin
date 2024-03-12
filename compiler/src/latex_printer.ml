@@ -121,7 +121,8 @@ let pp_attribute_key fmt s =
 
 let pp_aligned fmt = function
   | None -> ()
-  | Some `Unaligned -> F.fprintf fmt "߸"
+  | Some `Aligned -> F.fprintf fmt "%aaligned" sharp ()
+  | Some `Unaligned -> F.fprintf fmt "%aunaligned" sharp ()
 
 let rec pp_simple_attribute fmt a = 
   match L.unloc a with 
@@ -183,7 +184,7 @@ and pp_mem_access fmt (ty,x,e, al) =
     | None -> ()
     | Some (`Add, e) -> Format.fprintf fmt " + %a" pp_expr e 
     | Some (`Sub, e) -> Format.fprintf fmt " - %a" pp_expr e in
-  F.fprintf fmt "%a[%a%a%a]" (pp_opt (pp_paren pp_ws)) ty pp_var x pp_e e pp_aligned al
+  F.fprintf fmt "%a[%a%a%a]" (pp_opt (pp_paren pp_ws)) ty pp_aligned al pp_var x pp_e e
   
 and pp_type fmt ty =
   match L.unloc ty with
@@ -203,8 +204,8 @@ and pp_arr_access fmt al aa ws x e len=
  F.fprintf fmt "%a%s[%a%a%a%a%a]"
     pp_var x
     (if aa = Warray_.AAdirect then "." else "")
-    (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
     pp_aligned al
+    (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
 let pp_writable = function
   | Some `Constant -> " const"
