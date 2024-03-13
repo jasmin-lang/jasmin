@@ -125,6 +125,10 @@
   ([PR #751](https://github.com/jasmin-lang/jasmin/pull/751);
   fixes [#750](https://github.com/jasmin-lang/jasmin/issues/750)).
 
+- Attach more precise meta-data to variables introduced at compile-time
+  ([PR #753](https://github.com/jasmin-lang/jasmin/pull/753);
+  fixes [#718](https://github.com/jasmin-lang/jasmin/issues/718)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
