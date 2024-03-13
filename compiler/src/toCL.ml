@@ -409,12 +409,23 @@ module X86BaseOp : BaseOp
         pp_atome (v2, int_of_ws ws)
 
     | SUB ws ->
-      let v1 = pp_cast fmt trans (List.nth es 0, ws) in
-      let v2 = pp_cast fmt trans (List.nth es 1, ws) in
-      Format.fprintf fmt "sub %a %a %a"
-        pp_lval (List.nth xs 5, int_of_ws ws)
-        pp_atome (v1, int_of_ws ws)
-        pp_atome (v2, int_of_ws ws)
+      begin
+        match trans with
+        | Smt ->
+          let v1 = pp_cast fmt trans (List.nth es 0, ws) in
+          let v2 = pp_cast fmt trans (List.nth es 1, ws) in
+          Format.fprintf fmt "sub %a %a %a"
+            pp_lval (List.nth xs 5, int_of_ws ws)
+            pp_atome (v1, int_of_ws ws)
+            pp_atome (v2, int_of_ws ws)
+        | Cas ->
+          let v1 = pp_cast fmt trans (List.nth es 0, ws) in
+          let v2 = pp_cast fmt trans (List.nth es 1, ws) in
+          Format.fprintf fmt "subs TMP__ %a %a %a"
+            pp_lval (List.nth xs 5, int_of_ws ws)
+            pp_atome (v1, int_of_ws ws)
+            pp_atome (v2, int_of_ws ws)
+      end
 
     | IMULr ws ->
       Format.fprintf fmt "mull TMP__ %a %a %a"
@@ -494,11 +505,19 @@ module X86BaseOp : BaseOp
         pp_atome (List.nth es 0, int_of_ws ws)
 
     | SHL ws ->
-      Format.fprintf fmt "shl %a %a %a"
-        pp_lval (List.nth xs 5, int_of_ws ws)
-        pp_atome (List.nth es 0, int_of_ws ws)
-        pp_const (List.nth es 1)
-
+      begin
+        match trans with
+        | Smt ->
+          Format.fprintf fmt "shl %a %a %a"
+            pp_lval (List.nth xs 5, int_of_ws ws)
+            pp_atome (List.nth es 0, int_of_ws ws)
+            pp_const (List.nth es 1)
+        | Cas ->
+          Format.fprintf fmt "shls TMP__ %a %a %a"
+            pp_lval (List.nth xs 5, int_of_ws ws)
+            pp_atome (List.nth es 0, int_of_ws ws)
+            pp_const (List.nth es 1)
+      end
     | SHR ws ->
       Format.fprintf fmt "shr %a %a %a"
         pp_lval (List.nth xs 5, int_of_ws ws)
