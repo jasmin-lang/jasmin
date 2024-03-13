@@ -326,7 +326,7 @@ def _main():
     if errors:
         logging.info("--- BEGIN FAILING SCRIPTS ---")
         for error in errors:
-            logging.info(error.config.filename)
+            logging.info(' '.join(error.config.command))
         logging.info("--- END FAILING SCRIPTS ---")
         logging.critical("some tests did NOT pass")
 
