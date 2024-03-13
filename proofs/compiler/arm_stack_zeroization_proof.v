@@ -811,7 +811,7 @@ Proof.
       have hlinear: [elaborate
         is_linear_of lp fn
           (lc
-          ++ stack_zero_loop (mk_var_i (vid rspn)) lbl ws_align ws stk_max
+          ++ stack_zero_loop (vid rspn) lbl ws_align ws stk_max
           ++ [::])].
       + by rewrite cats0; exists lfd.
         subst top.
@@ -823,7 +823,7 @@ Proof.
       have hlinear: [elaborate
         is_linear_of lp fn
           (lc
-          ++ stack_zero_unrolled (mk_var_i (vid rspn)) ws_align ws stk_max
+          ++ stack_zero_unrolled (vid rspn) ws_align ws stk_max
           ++ [::])].
       + by rewrite cats0; exists lfd.
       have := stack_zero_unrolledP
