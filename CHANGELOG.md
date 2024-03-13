@@ -120,6 +120,11 @@
 - The compiler no longer throws an exception when a required file does not exist
   ([PR #733](https://github.com/jasmin-lang/jasmin/pull/733)).
 
+- When slicing, export functions that are called from kept functions are no
+  longer spuriously kept
+  ([PR #751](https://github.com/jasmin-lang/jasmin/pull/751);
+  fixes [#750](https://github.com/jasmin-lang/jasmin/issues/750)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
