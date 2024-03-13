@@ -16,7 +16,8 @@ let pp_wsize fmt sz = fprintf fmt "%a" pp_string0 (string_of_wsize sz)
 
 let pp_aligned fmt =
   function
-  | Memory_model.Aligned -> ()
+  | Memory_model.Aligned ->
+     Format.fprintf fmt "#aligned "
   | Unaligned ->
      Format.fprintf fmt "#unaligned "
 

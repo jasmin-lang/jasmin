@@ -934,9 +934,12 @@ let ensure_int loc i ty =
   | _ -> rs_tyerror ~loc (TypeMismatch (ty, P.tint))
 
 (* -------------------------------------------------------------------- *)
-let tt_al = function
-  | Some `Unaligned -> Memory_model.Unaligned
-  | Some `Aligned | None -> Memory_model.Aligned
+let tt_al aa =
+  let open Memory_model in
+  function
+  | None -> (match aa with Warray_.AAdirect -> Unaligned | AAscale -> Aligned)
+  | Some `Unaligned -> Unaligned
+  | Some `Aligned -> Aligned
 
 (* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
@@ -961,7 +964,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
-    let al = tt_al al in
+    let al = tt_al aa al in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
@@ -1067,7 +1070,7 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
   let ct = ct |> Option.map_default tt_ws pd in
-  let al = tt_al al in
+  let al = tt_al AAdirect al in
   (ct,L.mk_loc xlc x,e, al)
 
 (* -------------------------------------------------------------------- *)
@@ -1139,7 +1142,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
   | S.PLArray (al, aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
-    let al = tt_al al in
+    let al = tt_al aa al in
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in

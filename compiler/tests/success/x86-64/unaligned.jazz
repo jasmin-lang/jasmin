@@ -18,7 +18,7 @@ fn sopndest() -> reg u64 {
   stack u128[2] a;
   reg u128 x;
   x = #set0_128();
-  a.[#unaligned 8] = x;
+  a.[#unaligned u128 8] = x;
   reg u64 r;
   r = a.[u64 8];
   return r;
