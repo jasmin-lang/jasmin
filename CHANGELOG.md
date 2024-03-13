@@ -16,6 +16,11 @@
   ([PR #733](https://github.com/jasmin-lang/jasmin/pull/733);
   fixes [#383](https://github.com/jasmin-lang/jasmin/issues/383)).
 
+- When slicing, export functions that are called from kept functions are no
+  longer spuriously kept
+  ([PR #751](https://github.com/jasmin-lang/jasmin/pull/751);
+  fixes [#750](https://github.com/jasmin-lang/jasmin/issues/750)).
+
 ## Other changes
 
 - Instruction selection for x86-64, when storing a large immediate value in
