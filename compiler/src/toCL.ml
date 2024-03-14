@@ -20,7 +20,12 @@ open Utils
 open Prog
 open Glob_options
 open Utils
-(*
+
+let unsharp = String.map (fun c -> if c = '#' then '_' else c)
+
+let pp_var fmt x =
+  Format.fprintf fmt "%s_%s" (unsharp x.v_name) (string_of_uid x.v_id)
+
 module CL = struct
 
 type ty = Uint of int | Sint of int (* Should be bigger than 1 *)
@@ -33,13 +38,15 @@ type tyvar = var * ty option
 
 type atom =
   | Aconst of const * ty
-  | Avar of var
+  | Avar of tyvar
 
 type lval = tyvar
 
 type arg =
   | Atom of atom
   | Lval of lval
+  | Const of const
+  | Ty    of ty
 
 type args = arg list
 
@@ -47,27 +54,147 @@ type instr =
   { iname : string;
     iargs : args; }
 
-let mov (d : lval) (s : atom) =
-  { iname = "mov"; iargs = [Lval d; Atom s] }
+let uint i = Uint i
+let sint i = Sint i
+
+let op1 iname (d : lval) (s : atom) =
+  { iname; iargs = [Lval d; Atom s] }
 
 let op2 iname (d : lval) (s1 : atom) (s2 : atom) =
   { iname; iargs = [Lval d; Atom s1; Atom s2] }
 
 let op2c iname (d : lval) (s1 : atom) (s2 : atom) (c : var) =
-  { iname; iargs = [Lval d; Atom s1; Atom s2; Atom (Avar c)] }
+  { iname; iargs = [Lval d; Atom s1; Atom s2; Atom (Avar (c,None))] }
 
 let op2_2 iname (d1 : lval) (d2: lval) (s1 : atom) (s2 : atom) =
-  { iname; iargs = [Lval d1; Lvar d2 Atom s1; Atom s2] }
+  { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2] }
 
+let op2_2c iname (d1 : lval) (d2: lval) (s1 : atom) (s2 : atom) (c : var) =
+  { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2; Atom (Avar (c,None))] }
+
+let shift iname (d : lval) (s : atom) (i : int) =
+  { iname; iargs = [Lval d; Atom s; Const (Z.of_int i)] }
+
+let cshift iname (d1 : lval) (d2 : lval) (s1 : atom) (s2 : atom) (i : int) =
+  { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2; Const (Z.of_int i)] }
+
+let shifts iname (d1 : lval) (d2 : lval) (s : atom) (i : int) =
+  { iname; iargs = [Lval d1; Lval d2; Atom s; Const (Z.of_int i)]
+
+let shift2s iname (d1 : lval) (d2 : lval) (d3 : lval) (1s : atom) (s2 : atom) (i : int) =
+  { iname; iargs = [Lval d1; Lval d2; Lval d3; Atom s1; Atom s2; Const (Z.of_int i)]
+
+let mov = op1 "mov"
 let add  = op2   "add"
-let adc  = op2_c "adc"
+let adc  = op2c  "adc"
 let sub  = op2   "sub"
 let subc = op2_2 "subc"
-let sbc  = op2_c "sbc"
+let sbc  = op2c  "sbc"
+let sbb  = op2c  "sbb"
+let mul  = op2   "mul"
+let mull = op2_2 "mull"
+(*
+  nondet
+  set
+*)
 
-let pp_arg fmt
+let shl  = shift "shl"
+let shr  = shift "shr"
+let sar  = shift "sar"
+let cshl = cshift "cshl"
+let cshr = cshift "cshr"
+(*
+  spl
+  join
+*)
+
+let seteq = op2 "seteq"
+let and_  = op2 "and"
+let xor  = op2 "xor"
+
+let cast ty (d : lval) (s : atom) =
+  { iname = "cast"; iargs = [Ty ty; Lval d; Atom s] }
+
+(*
+   assert
+   cut
+   rcut
+*)
+
+let cmov = op2_2  "cmov"
+let adds = op2_2  "adds"
+let adcs = op2_2c "adcs"
+let subb = op2_2  "subb"
+let sbcs = op2_2c "sbcs"
+let sbbs = op2_2c "sbbs"
+let muls = op2_2  "muls"
+let mulj = op2    "mulj"
+
+(*
+   clear
+*)
+let shls = shifts "shls"
+let shrs = shifts "shrs"
+let sars = shifts "sars"
+
+let cshls = shift2s "cshls"
+let cshrs = shift2s "cshrs"
+let split = shifts  "split"
+let setne = op2 "setne"
+let or = op2 "or"
+let not = op1 "not"
+
+let vpc ty (d : lval) (s : atom) =
+  { iname = "vpc"; iargs = [Ty ty; Lval d; Atom s] }
+
+(*
+  assume
+  ecut
+  ghost
+*)
+
+let nop = { iname = "nop"; iargs = [] }
+
+
+
+
+
+
+
+
+
+
+let pp_ty fmt ty =
+  match ty with
+  | Uint i -> Format.fprintf fmt "uint%i" i
+  | Sint i -> Format.fprintf fmt "sint%i" i
+
+let pp_cast fmt ty = Format.fprintf fmt "@@%a" pp_ty ty
+
+let pp_ocast fmt oty =
+  match oty with
+  | None -> ()
+  | Some ty -> pp_cast fmt ty
+
+let pp_tyvar fmt (x, oty) =
+  Format.fprintf fmt "%a%a" pp_var x pp_ocast oty
+
+let pp_const fmt c = Format.fprintf fmt "%s" (Z.to_string c)
+
+let pp_atom fmt a =
+  match a with
+  | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
+  | Avar tv -> pp_tyvar fmt tv
+
+let pp_arg fmt a =
+  match a with
+  | Atom a  -> pp_atom fmt a
+  | Lval tv -> pp_tyvar fmt tv
+  | Const c -> pp_const fmt c
+  | Ty ty   -> pp_ty fmt ty
+
 let pp_instr fmt (i : instr) =
-  Format.fprintf "%s %a;"
+  Format.fprintf fmt "%s %a;"
     i.iname (pp_list "@ " pp_arg) i.iargs
 
 
@@ -75,16 +202,10 @@ let pp_instr fmt (i : instr) =
 
 
 
-let adc (d : lval) (s1 : atom) (s2 : atom) (c : var) =
-  { iname = "adc"; iargs = [Lval d; Atom s1; Atom s2; Atom (Avar c)] }
 
-let adc (d : lval) (s1 : atom) (s2 : atom) (c : var) =
-  { iname = "adc"; iargs = [Lval d; Atom s1; Atom s2; Atom (Avar c)] }
+end
 
 
-end CL
-
-*)
 
 
 (*
