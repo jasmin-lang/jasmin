@@ -43,7 +43,7 @@ let ecDeps = ecRef != ""; in
 
 stdenv.mkDerivation {
   name = "jasmin-0";
-  src = null;
+  src = ./.;
   buildInputs = []
     ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
@@ -56,4 +56,17 @@ stdenv.mkDerivation {
     ++ optionals ecDeps [ easycrypt alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
+
+  buildPhase = ''
+    make -C compiler CIL
+    make -C compiler
+  '';
+
+  installPhase = ''
+    mkdir -p $out/bin
+    for p in jasminc jazz2tex
+    do
+      cp compiler/_build/default/entry/$p.exe $out/bin/$p
+    done
+  '';
 }
