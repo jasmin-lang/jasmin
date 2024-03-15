@@ -531,10 +531,10 @@ Proof.
   move=> /InP ok_fn exec_p.
   set vtmp := var_tmps aparams.
   have vtmp_not_magic : disjoint vtmp (magic_variables p).
-  - by apply: (var_tmp_not_magic checked_p).
+  - exact: (var_tmp_not_magic (sip := sip_of_asm_e) checked_p).
   have p_call :
     sem_export_call p vtmp rip scs m fn args scs' m' res.
-  - apply: (merge_varmaps_export_callP checked_p _ exec_p).
+  - apply: (merge_varmaps_export_callP (sip := sip_of_asm_e) checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
     case: get_fundef => // fd /assertP /is_RAnoneP Export.
