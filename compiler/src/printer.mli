@@ -30,7 +30,14 @@ val pp_stmt  : debug:bool ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) stmt  -> unit
 
-val pp_ifunc : debug:bool -> (Format.formatter -> 'info -> unit) ->
+val pp_fun :
+             ?pp_locals:(Sv.t Utils.pp) ->
+             ?pp_info:((Location.i_loc * 'info) Utils.pp) ->
+             (('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.sopn) Utils.pp ->
+             var Utils.pp ->
+             (('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func) Utils.pp
+
+val pp_ifunc : debug:bool -> (Location.i_loc * 'info) Utils.pp ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func -> unit
 
@@ -38,7 +45,7 @@ val pp_func  : debug:bool ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func -> unit
 
-val pp_iprog : debug:bool -> (Format.formatter -> 'info -> unit) ->
+val pp_iprog : debug:bool -> (Location.i_loc * 'info) Utils.pp ->
                ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) prog -> unit
 
