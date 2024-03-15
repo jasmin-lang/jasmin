@@ -8,6 +8,7 @@ let dwarf = ref false
 let debug = ref false
 let timings = ref false
 let print_list = ref []
+let print_liveness = ref false
 let ecfile = ref ""
 let ec_list = ref []
 let ec_array_path = ref Filename.current_dir_name
@@ -254,6 +255,7 @@ let options = [
     "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       ": select stack zeroization size for export functions";
+    "-pliveness", Arg.Set print_liveness, ": print liveness information during register allocation"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

@@ -1,0 +1,25 @@
+fn inc(reg u32 a) -> reg u32 {
+  a += 1;
+  return a;
+}
+
+export
+fn f1(reg u32 x y) -> reg u32 {
+  reg u32 t u v;
+  t = x;
+  u = inc(t);
+  v = inc(u);
+  v ^= y;
+  v ^= x;
+  return v;
+}
+
+export
+fn f2(reg u32 z) -> reg u32, reg u32 {
+  reg u32 f;
+  f = z;
+  f = inc(f);
+  f = f;
+  z = z;
+  return z, f;
+}
