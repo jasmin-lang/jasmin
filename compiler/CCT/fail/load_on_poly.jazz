@@ -1,4 +1,4 @@
-fn load(#poly=l1 reg u64 x) -> reg u64 {
+export fn load(#poly=l1 reg u64 x) -> reg u64 {
 
  reg u64 t;
   
