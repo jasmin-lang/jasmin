@@ -8,6 +8,7 @@ type cli_error =
   | FileNotFound of string
   | FileIsDirectory of string
   | FilePathNotFound of string
+  | DOITPassEarly of string
 
 let pp_cli_error ie =
   match ie with
@@ -19,6 +20,7 @@ let pp_cli_error ie =
   | FileNotFound s -> Format.asprintf "File %s not found" s
   | FileIsDirectory s -> Format.asprintf "File %s is a directory" s
   | FilePathNotFound s -> Format.asprintf "Path for file %s doesn't exist" s
+  | DOITPassEarly s -> Format.asprintf "DOIT mode enabled, %s checking needs to be done after lowering, use -check%safter option" s s
 
 exception CLIerror of cli_error
 
@@ -37,6 +39,11 @@ let chk_path_exists fname =
   if not (is_directory (BatFilename.dirname fname)) then
     raise (CLIerror (FilePathNotFound fname))
 
+let chk_doit_pass doit list pass checker =
+  let lowering_index = oget (List.index_of Compiler.LowerInstruction Compiler.compiler_step_list) in
+  let pass_index = oget (List.index_of pass Compiler.compiler_step_list) in
+  if doit && list != None && pass_index < lowering_index then raise (CLIerror (DOITPassEarly checker))
+
 let check_options () =
   let chk_out_file fref =
     let fname = !fref in
@@ -45,6 +52,9 @@ let check_options () =
       chk_path_exists fname
     end
   in
+  
+  chk_doit_pass !doit !ct_list !ct_comp_pass "CT";
+  chk_doit_pass !doit !sct_list !sct_comp_pass "SCT";
 
   if !call_conv = Windows
   then warning Experimental Location.i_dummy
