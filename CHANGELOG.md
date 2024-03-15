@@ -11,6 +11,13 @@
   returned first and in the same order in the list of results.
   ([PR #707](https://github.com/jasmin-lang/jasmin/pull/707)).
 
+- The (speculative) constant-time checker (`jazzct`) can optionally
+  (when the `-doit` flag is used) check that secrets are only used with
+  guaranteed constant time instructions (DOIT for Intel, DIT for ARM). This option
+  only makes sense when done after the lowering compiler pass, which can be ensured
+  with the new `-after` option.
+  ([PR #736](https://github.com/jasmin-lang/jasmin/pull/736)).
+
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
   If the annotation #spill_to_mmx is used at the variable declaration the variable
