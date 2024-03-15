@@ -29,4 +29,4 @@ install:
 	$(INSTALL) -m 0644 -t $(DESTDIR)$(LIBDIR)/jasmin/easycrypt *.ec
 
 uninstall:
-	rm -rf $(DESTDIR)$(LIBDIR)/jasmin
+	$(RM) -r $(DESTDIR)$(LIBDIR)/jasmin
