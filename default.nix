@@ -49,7 +49,7 @@ let ecDeps = ecRef != ""; in
 
 stdenv.mkDerivation {
   name = "jasmin-0";
-  src = null;
+  src = nix-gitignore.gitignoreSource [] ./.;
   buildInputs = []
     ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
@@ -62,4 +62,10 @@ stdenv.mkDerivation {
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
+
+  enableParallelBuilding = true;
+
+  installPhase = ''
+    make -C compiler install PREFIX=$out
+  '';
 }
