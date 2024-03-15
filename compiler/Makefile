@@ -47,8 +47,7 @@ build: native
 
 define do-build
 	$(RM) jasminc jazz2tex
-	dune build entry/jasminc.$(1)
-	dune build entry/jazz2tex.$(1)
+	dune build @check entry/jasminc.$(1) entry/jazz2tex.$(1)
 	ln -sf "_build/default/entry/jasminc.$(1)" jasminc
 	ln -sf "_build/default/entry/jazz2tex.$(1)" jazz2tex
 endef
