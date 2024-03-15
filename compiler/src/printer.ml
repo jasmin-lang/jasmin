@@ -117,7 +117,7 @@ let pp_align fmt = function
   | E.NoAlign -> ()
 
 let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
-  F.fprintf fmt "%a" pp_info i.i_info;
+  F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
   | Cassgn(x, tg, ty, Parr_init n) ->
@@ -269,9 +269,9 @@ let pp_pprog pd asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
-let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
+let pp_fun ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
-  let pp_locals fmt = Sv.iter (F.fprintf fmt "%a;@ " pp_vd) in
+  let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
   let locals = locals fd in
   let ret = List.map L.unloc fd.f_ret in
   let pp_ret fmt () =

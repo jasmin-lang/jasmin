@@ -83,6 +83,9 @@
   deprecated
   ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
 
+- Register allocation can print liveness information (enable with `-pliveness`)
+  ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators
