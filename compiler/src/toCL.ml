@@ -42,11 +42,44 @@ type atom =
 
 type lval = tyvar
 
+(* Expression over z *)
+
+type eexp =
+  | Iconst of const
+  | Ivar   of var
+  | Iunop  of string * eexp
+  | Ibinop of eexp * string * eexp
+  | Ilimbs of const * eexp list
+
+type epred =
+  | Eeq of eexp * eexp
+  | Eeqmod of eexp * eexp * eexp list
+
+(* Range expression *)
+
+type rexp =
+  | Rvar   of var
+  | Rconst of const * const
+  | Ruext  of rexp * const
+  | Rsext  of rexp * const
+  | Runop  of string * rexp
+  | Rbinop of rexp * string * rexp
+  | Rpreop of string * rexp * rexp
+  | Rlimbs of const * rexp list
+
+type rpred =
+  | RPcmp   of rexp * string * rexp
+  | RPeqmod of rexp * rexp * string * rexp
+  | RPnot   of rpred
+  | RPand   of rpred list
+  | RPor    of rpred list
+
 type arg =
   | Atom of atom
   | Lval of lval
   | Const of const
   | Ty    of ty
+  | Pred of epred list * rpred list
 
 type args = arg list
 
@@ -79,12 +112,12 @@ let cshift iname (d1 : lval) (d2 : lval) (s1 : atom) (s2 : atom) (i : int) =
   { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2; Const (Z.of_int i)] }
 
 let shifts iname (d1 : lval) (d2 : lval) (s : atom) (i : int) =
-  { iname; iargs = [Lval d1; Lval d2; Atom s; Const (Z.of_int i)]
+  { iname; iargs = [Lval d1; Lval d2; Atom s; Const (Z.of_int i)] }
 
-let shift2s iname (d1 : lval) (d2 : lval) (d3 : lval) (1s : atom) (s2 : atom) (i : int) =
-  { iname; iargs = [Lval d1; Lval d2; Lval d3; Atom s1; Atom s2; Const (Z.of_int i)]
+let shift2s iname (d1 : lval) (d2 : lval) (d3 : lval) (s1 : atom) (s2 : atom) (i : int) =
+  { iname; iargs = [Lval d1; Lval d2; Lval d3; Atom s1; Atom s2; Const (Z.of_int i)] }
 
-let mov = op1 "mov"
+let mov  = op1   "mov"
 let add  = op2   "add"
 let adc  = op2c  "adc"
 let sub  = op2   "sub"
@@ -115,9 +148,13 @@ let xor  = op2 "xor"
 let cast ty (d : lval) (s : atom) =
   { iname = "cast"; iargs = [Ty ty; Lval d; Atom s] }
 
+let assert_ ep rp =
+  { iname = "assert"; iargs = [Pred(ep, rp)] }
+
+let cut ep rp =
+  { iname = "cut"; iargs = [Pred(ep, rp)] }
+
 (*
-   assert
-   cut
    rcut
 *)
 
@@ -140,12 +177,15 @@ let sars = shifts "sars"
 let cshls = shift2s "cshls"
 let cshrs = shift2s "cshrs"
 let split = shifts  "split"
-let setne = op2 "setne"
-let or = op2 "or"
-let not = op1 "not"
+let setne = op2     "setne"
+let or_   = op2     "or"
+let not   = op1     "not"
 
 let vpc ty (d : lval) (s : atom) =
   { iname = "vpc"; iargs = [Ty ty; Lval d; Atom s] }
+
+let assume ep rp =
+  { iname = "assume"; iargs  = [Pred(ep, rp)] }
 
 (*
   assume
@@ -186,22 +226,72 @@ let pp_atom fmt a =
   | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
   | Avar tv -> pp_tyvar fmt tv
 
+let rec pp_eexp fmt e =
+  match e with
+  | Iconst c    -> pp_const fmt c
+  | Ivar   x    -> pp_var   fmt x
+  | Iunop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_eexp e
+  | Ibinop (e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_eexp e1 s pp_eexp e2
+  | Ilimbs (c, es) ->
+      Format.fprintf fmt  "(limbs %a [%a])"
+        pp_const c
+        (pp_list ",@ " pp_eexp) es
+
+
+let pp_epred fmt ep =
+  match ep with
+  | Eeq(e1, e2) -> Format.fprintf fmt "(%a = %a)" pp_eexp e1 pp_eexp e2
+  | Eeqmod(e1,e2, es) ->
+     Format.fprintf fmt "(%a = %a (mod %a))"
+       pp_eexp e1
+       pp_eexp e2
+       (pp_list ",@ " pp_eexp) es
+
+let pp_epreds fmt eps =
+  if eps = [] then Format.fprintf fmt "true"
+  else Format.fprintf fmt "/\[@[%a@]]" (pp_list ",@ " pp_epred) eps
+
+let rec pp_rexp fmt r =
+  match r with
+  | Rvar x -> pp_var fmt x
+  | Rconst (c1, c2) -> Format.fprintf fmt "(const %a %a)" pp_const c1 pp_const c2
+  | Ruext (e, c) -> Format.fprintf fmt "(uext %a %a)" pp_rexp e pp_const c
+  | Rsext (e, c) -> Format.fprintf fmt "(sext %a %a)" pp_rexp e pp_const c
+  | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
+  | Rbinop(e1, s, e2) ->  Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
+  | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2
+  | Rlimbs(c, es) ->
+      Format.fprintf fmt  "(limbs %a [%a])"
+        pp_const c
+        (pp_list ",@ " pp_rexp) es
+
+
+let rec pp_rpred fmt rp =
+  match rp with
+  | RPcmp(e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
+  | RPeqmod(e1, e2, s, e3) -> Format.fprintf fmt "(%a = %a (%s %a))" pp_rexp e1 pp_rexp e2 s pp_rexp e3
+  | RPnot e -> Format.fprintf fmt "(~ %a)" pp_rpred e
+  | RPand rps ->
+      if rps = [] then Format.fprintf fmt "true"
+      else Format.fprintf fmt "/\\[%a]" (pp_list ",@ " pp_rpred) rps
+  | RPor  rps -> Format.fprintf fmt "\\/[%a]" (pp_list ",@ " pp_rpred) rps
+
+let pp_rpreds fmt rps = pp_rpred fmt (RPand rps)
+
 let pp_arg fmt a =
   match a with
   | Atom a  -> pp_atom fmt a
   | Lval tv -> pp_tyvar fmt tv
   | Const c -> pp_const fmt c
   | Ty ty   -> pp_ty fmt ty
+  | Pred(ep, rp) ->
+    Format.fprintf fmt "@[<hov 2>@[%a@] &&@ @[%a@]@]"
+       pp_epreds ep
+       pp_rpreds rp
 
 let pp_instr fmt (i : instr) =
   Format.fprintf fmt "%s %a;"
     i.iname (pp_list "@ " pp_arg) i.iargs
-
-
-
-
-
-
 
 end
 
