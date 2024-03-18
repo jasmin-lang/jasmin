@@ -90,6 +90,29 @@ type instr =
 let uint i = Uint i
 let sint i = Sint i
 
+module R = struct
+
+  let const z1 z2 = Rconst(z1, z2)
+
+  let (-) e1 e2 = Rbinop (e1, "-", e2)
+
+  let umod e1 e2 = Rpreop ("umod", e1, e2)
+
+end
+
+module I = struct
+
+  let (!-) e1 = Iunop ("-", e1)
+  let (-) e1 e2 = Ibinop (e1, "-", e2)
+
+end
+
+
+
+
+
+
+
 let op1 iname (d : lval) (s : atom) =
   { iname; iargs = [Lval d; Atom s] }
 
@@ -188,21 +211,11 @@ let assume ep rp =
   { iname = "assume"; iargs  = [Pred(ep, rp)] }
 
 (*
-  assume
   ecut
   ghost
 *)
 
 let nop = { iname = "nop"; iargs = [] }
-
-
-
-
-
-
-
-
-
 
 let pp_ty fmt ty =
   match ty with
