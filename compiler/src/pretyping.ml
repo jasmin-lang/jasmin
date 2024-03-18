@@ -32,7 +32,6 @@ type tyerror =
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
   | InvalidCast         of P.pty pair
-  | InvalidGlobal       of A.symbol
   | InvalidTypeForGlobal of P.pty
   | NotAPointer         of P.plval
   | GlobArrayNotWord    
@@ -43,10 +42,7 @@ type tyerror =
   | Unsupported         of string
   | UnknownPrim         of A.symbol
   | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
-  | ReturnLocalStack    of A.symbol
   | PtrOnlyForArray
-  | ArgumentNotVar      
-  | BadVariableKind     of W.v_kind
   | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
@@ -110,9 +106,6 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidCast (t1,t2) ->
     F.fprintf fmt "can not implicitly cast %a into %a"
       Printer.pp_ptype t1 Printer.pp_ptype t2        
-
-  | InvalidGlobal g ->
-      F.fprintf fmt "invalid use of a global name: ‘%s’" g
 
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
@@ -189,18 +182,8 @@ let pp_tyerror fmt (code : tyerror) =
      F.fprintf fmt "primitive “%s” only accepts the following size annotations: %a" s
        (pp_list ",@ " pp_suffix) sfxs
 
-  | ReturnLocalStack v ->
-      F.fprintf fmt "can not return the local stack variable %s" v
-
   | PtrOnlyForArray -> 
     F.fprintf fmt "Pointer allowed only on array"
-
-  | ArgumentNotVar ->
-    F.fprintf fmt "the expression should be a variable"
-
-  | BadVariableKind kind ->
-    F.fprintf fmt "the variable should have kind %a"
-       PrintCommon.pp_kind kind
 
   | WriteToConstantPointer v ->
     F.fprintf fmt "Cannot write to the constant pointer %s" v
@@ -1672,11 +1655,11 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "swap" ->
       if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");
-      let loc, lvs, ty =
+      let lvs, ty =
         match xs with
         | [x; y] ->
           let loc, x, oxty = tt_lvalue arch_info.pd env x in
-          let yloc, y, oytu = tt_lvalue arch_info.pd env y in  
+          let yloc, y, _oytu = tt_lvalue arch_info.pd env y in
           let ty =
             match oxty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
@@ -1685,7 +1668,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
              match oxty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
             | Some yty -> check_ty_eq ~loc:yloc ~from:yty ~to_:ty in
-          loc, [x ty; y ty], ty
+          [x ty; y ty], ty
         | _ ->
           rs_tyerror ~loc:(L.loc pi)
             (string_error "a pair of destination is expected for swap") in

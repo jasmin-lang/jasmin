@@ -40,10 +40,6 @@ type ulevel =
   | Public
   | Msf
 
-type uconstraints = (ulevel * ulevel) list
-type unomodmsf = bool option
-
-
 (* -------------------------------------------------------------- *)
 (* Special operators to deal with msf                             *)
 type special_op =
@@ -217,7 +213,7 @@ let reg_lval_opt ~direct loc =
   | Lnone _ -> None
   | x -> Some (reg_lval ~direct loc x)
 
-let reg_expr_opt ~direct loc = function
+let reg_expr_opt ~direct = function
   | Pget (_, _, x, _) | Pvar x ->
       if is_gkvar x && is_register ~direct (L.unloc x.gv)
       then Some x.gv
@@ -225,7 +221,7 @@ let reg_expr_opt ~direct loc = function
   | _ -> None
 
 let reg_expr ~direct loc e =
-  match reg_expr_opt ~direct loc e with
+  match reg_expr_opt ~direct e with
   | Some x -> x
   | None -> error ~loc "expression %a must be a reg%s" pp_expr e
         (if direct then "" else " (ptr)")
@@ -305,7 +301,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         | AT_none | AT_keep -> false
         | AT_rename | AT_inline | AT_phinode -> true
       in
-      begin match reg_expr_opt ~direct:true loc e with
+      begin match reg_expr_opt ~direct:true e with
       | Some x' when gets_removed ->
           Sv.add (L.unloc x') (Sv.remove (L.unloc x) ms)
       | _ -> error ~loc "assignment to MSF variable %a not allowed" pp_var_i x
@@ -1540,7 +1536,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
      | IsMsf      -> Slh_msf
   in
 
-  let do_f fn fty =
+  let do_f _fn fty =
     let in_t = List.map do_t fty.tyin in
     let out_t = List.map do_t fty.tyout in
     (in_t, out_t)

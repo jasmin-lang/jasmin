@@ -352,14 +352,14 @@ let instanciate_fty fty lvls  =
   tyout
 
 (* -----------------------------------------------------------*)
-let is_ct_op1 (o: Expr.sop1) = true
+let is_ct_op1 (_: Expr.sop1) = true
 
 let is_ct_op2 (o: Expr.sop2) =
   match o with
   | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
   | _ -> true
 
-let is_ct_opN (o : Expr.opN) = true
+let is_ct_opN (_ : Expr.opN) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with

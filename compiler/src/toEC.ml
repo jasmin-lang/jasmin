@@ -960,7 +960,7 @@ module Normal = struct
       pp_lval1 pd env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn([], _, op, _es) ->
-       (** Erase opn without any return values *)
+       (* Erase opn without any return values *)
        Format.fprintf fmt "(* Erased call to %a *)" (pp_opn pd asmOp) op
 
     | Copn(lvs, _, op, es) ->
@@ -1111,7 +1111,7 @@ module Leak = struct
     let id = Sopn.get_instr_desc pd asmOp opn in
     List.pmap (fun c ->
         match c with
-        | Wsize.X86Division(sz, sg) ->
+        | Wsize.X86Division(sz, _sg) ->
           Some (NotZero(sz, List.nth es 2))
         (* FIXME: there are more properties to check *)
         | Wsize.InRange _ -> None
@@ -1275,7 +1275,7 @@ module Leak = struct
       pp_call pd env fmt [lv] tys tys pp e
 
     | Copn([], _, op, es) ->
-       (** Erase opn without return values but keep their leakage *)
+       (* Erase opn without return values but keep their leakage *)
        let op' = base_op op in
        pp_leaks_opn pd asmOp env fmt op' es;
        Format.fprintf fmt "(* Erased call to %a *)" (pp_opn pd asmOp) op
