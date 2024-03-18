@@ -34,7 +34,7 @@ module Arm_core = struct
     | _ -> true
 
 
-  let is_ct_asm_extra (o : extra_op) = true
+  let is_ct_asm_extra (_ : extra_op) = true
 
 end
 
