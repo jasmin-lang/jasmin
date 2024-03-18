@@ -331,7 +331,7 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size
 
 (* --------------------------------------------------- *)
-let alloc_stack_fd callstyle pd is_move_op get_info gtbl fd =
+let alloc_stack_fd callstyle pd get_info gtbl fd =
   if !Glob_options.debug then Format.eprintf "ALLOC STACK %s@." fd.f_name.fn_name;
   let alias =
     let get_cc fn = (get_info fn).sao_return in
@@ -449,13 +449,13 @@ let alloc_mem gtbl globs =
   List.iter doslot gao_slots;
   { gao_data = Array.to_list t; gao_align; gao_slots; gao_size }
 
-let alloc_stack_prog callstyle pd is_move_op (globs, fds) =
+let alloc_stack_prog callstyle pd (globs, fds) =
   let gtbl = Hv.create 107 in
   let ftbl = Hf.create 107 in
   let get_info fn = Hf.find ftbl fn in
   let set_info fn sao = Hf.add ftbl fn sao in
   let doit fd = 
-    let sao = alloc_stack_fd callstyle pd is_move_op get_info gtbl fd in
+    let sao = alloc_stack_fd callstyle pd get_info gtbl fd in
     set_info fd.f_name sao in
   List.iter doit (List.rev fds);
   let gao =  alloc_mem gtbl globs in

@@ -95,7 +95,7 @@ module Regalloc = Regalloc (Arch)
 let memory_analysis pp_err ~debug up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog up in
-  let gao, sao = Varalloc.alloc_stack_prog Arch.callstyle Arch.reg_size Arch.aparams.ap_is_move_op p in
+  let gao, sao = Varalloc.alloc_stack_prog Arch.callstyle Arch.reg_size p in
   
   (* build coq info *)
   let crip = Var0.Var.vname (Conv.cvar_of_var Arch.rip) in

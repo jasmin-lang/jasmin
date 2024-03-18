@@ -1,4 +1,3 @@
-open Jasmin
 open Jasmin_checksafety
 
 let analyze asmOp source_f_decl f_decl p =

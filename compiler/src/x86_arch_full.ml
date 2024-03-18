@@ -46,7 +46,7 @@ module X86_core = struct
     | DIV _ | IDIV _ -> false
     | _ -> true
 
-  let is_ct_asm_extra (o : extra_op) = true
+  let is_ct_asm_extra (_ : extra_op) = true
 
 end
 

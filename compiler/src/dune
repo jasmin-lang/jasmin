@@ -16,7 +16,7 @@
 
 (library
  (name jasminc)
- (flags -rectypes)
+ (flags (:standard -rectypes))
  (modules main_compiler x86_safety)
  (libraries jasmin jasmin_checksafety))
 

@@ -32,7 +32,6 @@ type tyerror =
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
   | InvalidCast         of P.pty pair
-  | InvalidGlobal       of A.symbol
   | InvalidTypeForGlobal of P.pty
   | NotAPointer         of P.plval
   | GlobArrayNotWord    
@@ -48,10 +47,7 @@ type tyerror =
   | PrimIsVectorVector  of A.symbol
   | PrimIsX             of A.symbol
   | PrimNotX            of A.symbol
-  | ReturnLocalStack    of A.symbol
   | PtrOnlyForArray
-  | ArgumentNotVar      
-  | BadVariableKind     of W.v_kind
   | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
@@ -105,9 +101,6 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidCast (t1,t2) ->
     F.fprintf fmt "can not implicitly cast %a into %a"
       Printer.pp_ptype t1 Printer.pp_ptype t2        
-
-  | InvalidGlobal g ->
-      F.fprintf fmt "invalid use of a global name: ‘%s’" g
 
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
@@ -195,18 +188,8 @@ let pp_tyerror fmt (code : tyerror) =
   | PrimIsX s ->
       F.fprintf fmt "primitive needs two word sizes annotations: `%s'" s
 
-  | ReturnLocalStack v ->
-      F.fprintf fmt "can not return the local stack variable %s" v
-
   | PtrOnlyForArray -> 
     F.fprintf fmt "Pointer allowed only on array"
-
-  | ArgumentNotVar ->
-    F.fprintf fmt "the expression should be a variable"
-
-  | BadVariableKind kind ->
-    F.fprintf fmt "the variable should have kind %a"
-       PrintCommon.pp_kind kind
 
   | WriteToConstantPointer v ->
     F.fprintf fmt "Cannot write to the constant pointer %s" v

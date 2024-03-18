@@ -900,7 +900,7 @@ module Normal = struct
       pp_lval1 pd env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn([], _, op, _es) ->
-       (** Erase opn without any return values *)
+       (* Erase opn without any return values *)
        Format.fprintf fmt "(* Erased call to %a *)" (pp_opn asmOp) op
 
     | Copn(lvs, _, op, es) ->
@@ -1212,7 +1212,7 @@ module Leak = struct
       pp_call pd env fmt [lv] tys tys pp e
 
     | Copn([], _, op, es) ->
-       (** Erase opn without return values but keep their leakage *)
+       (* Erase opn without return values but keep their leakage *)
        let op' = base_op op in
        pp_leaks_opn pd asmOp env fmt op' es;
        Format.fprintf fmt "(* Erased call to %a *)" (pp_opn asmOp) op
