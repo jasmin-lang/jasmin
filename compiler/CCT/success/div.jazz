@@ -1,0 +1,12 @@
+export fn add_div_mod(#public reg u32 x) -> #public reg u32 {
+  reg u32 x1 x2 d q q1 r r1;
+  x1 = x; x2 = x;
+  d = 3;
+  q = x1 / d;
+  q1 = q;
+  r = x2 % d;
+  r = r1;
+  r = r + q1;
+  r = r;
+  return r;
+}

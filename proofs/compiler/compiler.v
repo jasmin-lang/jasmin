@@ -215,6 +215,9 @@ Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
 
 Definition var_tmp : var :=
   {| vname := lip_tmp liparams; vtype := sword Uptr; |}.
+Definition var_tmp2 : var :=
+  {| vname := lip_tmp2 liparams; vtype := sword Uptr; |}.
+Definition var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -254,7 +257,11 @@ Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
-  Let p := array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
+  Let p :=
+    array_copy_prog
+      (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint)
+      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info (Ident.name_of_string "tmp") (sword ws))
+      p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog p in
@@ -365,7 +372,7 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd var_tmp in
+  Let _ := merge_varmaps.check pd var_tmps in
   Let pl := linear_prog liparams pd in
   let pl := cparams.(print_linear) Linearization pl in
   (* stack zeroization                 *)

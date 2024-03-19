@@ -100,7 +100,7 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt "unknown function: `%s'" x
 
   | InvalidType (ty, p) ->
-    F.fprintf fmt "the expression as type %a instead of %a"
+    F.fprintf fmt "the expression has type %a instead of %a"
        Printer.pp_ptype ty pp_typat p
 
   | TypeMismatch (t1,t2) ->
@@ -1564,8 +1564,7 @@ let mk_call loc inline lvs f es =
   | Internal -> ()
   | Export ->
     if not inline then
-      let err = string_error "call to export function needs to be inlined" in
-      rs_tyerror ~loc err
+      warning Always (L.i_loc0 loc) "export function will be inlined"
   | Subroutine _ when not inline ->
     let check_lval = function
       | Lnone _ | Lvar _ | Lasub _ -> ()
@@ -1631,7 +1630,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
       let is_inline = P.is_inline annot f.P.f_cc in
       let annot =
-        if is_inline
+        if is_inline || f.P.f_cc = FInfo.Export
         then Annotations.add_symbol ~loc:el "inline" annot
         else annot
       in
@@ -2081,7 +2080,12 @@ and tt_file arch_info env from loc fname =
   | None -> env, []
   | Some(env, fname) ->
     let ast   = Parseio.parse_program ~name:fname in
-    let ast   = BatFile.with_file_in fname ast in
+    let ast =
+      try BatFile.with_file_in fname ast
+      with Sys_error(err) ->
+        let loc = Option.map_default (fun l -> Lone l) Lnone loc in
+        hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
+    in
     let env   = List.fold_left (tt_item arch_info) env ast in
     Env.exit_file env, ast
 

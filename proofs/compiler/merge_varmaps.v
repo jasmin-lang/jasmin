@@ -45,7 +45,7 @@ End E.
 Section PROG.
 Context {pd: PointerData} {syscall_state : Type} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
 Context (p: sprog).
-Context (var_tmp : var).
+Context (var_tmp : Sv.t).
 
 Let magic_variables : Sv.t := magic_variables p.
 
@@ -269,7 +269,7 @@ Definition check :=
   let wmap := mk_wmap in
   Let _ := assert (check_wmap wmap) (E.gen_error true None (pp_s "invalid wmap")) in
   Let _ := assert (p.(p_extra).(sp_rip) != p.(p_extra).(sp_rsp)) (E.gen_error true None (pp_s "rip and rsp clash")) in
-  Let _ := assert (~~ Sv.mem var_tmp magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
+  Let _ := assert (disjoint var_tmp magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
   Let _ := check_prog (get_wmap wmap) in
   ok tt.
 

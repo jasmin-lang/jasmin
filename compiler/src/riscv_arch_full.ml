@@ -26,6 +26,14 @@ module Riscv_core = struct
   let alloc_stack_need_extra sz =
     not (Riscv_params_core.is_arith_small (Conv.cz_of_z sz))
 
+  (* FIXME RISCV: check if everything is ct *)
+  let is_ct_asm_op (o : asm_op) =
+    match o with
+    | _ -> true
+
+
+  let is_ct_asm_extra (o : extra_op) = true
+
 end
 
 module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch = struct
@@ -34,9 +42,9 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch = struct
 
   let lowering_opt = ()
 
-  let not_saved_stack = []
+  let not_saved_stack = (Riscv_params.riscv_liparams atoI).lip_not_saved_stack
 
   let pp_asm = Pp_riscv.print_prog
 
-  let callstyle = Arch_full.ByReg (Some Riscv_decl.X1)
+  let callstyle = Arch_full.ByReg (Some X1)
 end

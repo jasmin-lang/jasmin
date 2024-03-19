@@ -41,18 +41,18 @@ Definition savedstackreg (ss: saved_stack) :=
 Definition saved_stack_vm fd : Sv.t :=
   savedstackreg fd.(f_extra).(sf_save_stack).
 
-Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
+Definition ra_vm (e: stk_fun_extra) (tmp: Sv.t) : Sv.t :=
   match e.(sf_return_address) with
   | RAreg ra _ =>
     Sv.singleton ra
   | RAstack ra _ _ =>
     if ra is Some ra then Sv.singleton ra else Sv.empty
   | RAnone => 
-   Sv.add x vflags
+   Sv.union tmp vflags
   end.
 
-Definition ra_undef fd (x: var) :=
-  Sv.union (ra_vm fd.(f_extra) x) (saved_stack_vm fd).
+Definition ra_undef fd (tmp: Sv.t) :=
+  Sv.union (ra_vm fd.(f_extra) tmp) (saved_stack_vm fd).
 
 Definition tmp_call (e: stk_fun_extra) : Sv.t :=
   match e.(sf_return_address) with

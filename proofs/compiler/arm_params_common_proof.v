@@ -82,53 +82,89 @@ Notation next_mem_ls ls m := (lnext_pc (lset_mem ls m)) (only parsing).
 
 Lemma addi_sem_fopn_args {s xname vi y imm wy} :
   let: (xi, x) := mkv xname vi in
-  get_var true (evm s) (v_var y) = ok (Vword wy)
+  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy
   -> let: wx' := Vword (wy + wrepr reg_size imm)in
      let: vm' := (evm s).[x <- wx'] in
      sem_fopn_args (ARMFopn.addi xi y imm) s = ok (with_vm s vm').
 Proof. by move=> h; rewrite -sem_fopn_equiv; apply ARMFopn_coreP.addi_sem_fopn_args. Qed.
 
+Lemma mov_sem_fopn_args {s xname vi y} {wy : word Uptr} :
+  let: (xi, x) := mkv xname vi in
+  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  let: vm' := (evm s).[x <- Vword wy] in
+  sem_fopn_args (ARMFopn.mov xi y) s = ok (with_vm s vm').
+Proof. by move=> h; rewrite -sem_fopn_equiv; apply ARMFopn_coreP.mov_sem_fopn_args. Qed.
+
+Lemma align_sem_fopn_args xname vi y al s (wy : word Uptr) :
+  let: (xi, x) := mkv xname vi in
+  get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->
+  let: wx' := Vword (align_word al wy) in
+  let: vm' := (evm s).[x <- wx'] in
+  sem_fopn_args (ARMFopn.align xi y al) s = ok (with_vm s vm').
+Proof.
+ Opaque wsize_size.
+ rewrite /=; t_xrbindP => *; t_arm_op.
+ by rewrite /= wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
+ Transparent wsize_size.
+Qed.
+
+(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma align_eval_instr {lp ls ii xname vi y al} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_fopn_args ii (ARMFopn.align xi y al) in
-     let: wx' := Vword (align_word al wy) in
-     let: vm' := (lvm ls).[x <- wx'] in
-     eval_instr lp li ls = ok (next_vm_ls ls vm').
+  get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
+  let: li := li_of_fopn_args ii (ARMFopn.align xi y al) in
+  let: wx' := Vword (align_word al wy) in
+  let: vm' := (lvm ls).[x <- wx'] in
+  eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
-  move=> hgety.
-  Opaque wsize_size.
-  t_arm_op.
-  Transparent wsize_size.
-  by rewrite wrepr_wnot ZlnotE Z.sub_1_r Z.add_1_r Z.succ_pred.
+  move=> h1; set vm := _.[ _ <- _].
+  apply (sem_fopn_args_eval_instr (ls:= ls) (s' := with_vm (to_estate ls) vm)).
+  by apply :  align_sem_fopn_args; rewrite h1 /= truncate_word_u.
 Qed.
 
+(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma sub_eval_instr {lp ls ii xname vi y z} {wy wz : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> get_var true (lvm ls) (v_var z) = ok (Vword wz)
-  -> let: li := li_of_fopn_args ii (ARMFopn.sub xi y z) in
-     let: wx' := Vword (wy - wz)in
-     let: vm' := (lvm ls).[x <- wx'] in
-     eval_instr lp li ls = ok (next_vm_ls ls vm').
+  get_var true (lvm ls) (v_var y) = ok (Vword wy) -> 
+  get_var true (lvm ls) (v_var z) = ok (Vword wz) ->
+  let: li := li_of_fopn_args ii (ARMFopn.sub xi y z) in
+  let: wx' := Vword (wy - wz)in
+  let: vm' := (lvm ls).[x <- wx'] in
+  eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> hy hz.
-  have /(_ xname vi):= ARMFopn_coreP.sub_sem_fopn_args (s:=to_estate _) hy hz.
+  have /(_ xname vi):= ARMFopn_coreP.sub_sem_fopn_args (s:=to_estate _) (to_word_get_var hy) (to_word_get_var hz).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
+(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
+Lemma subi_eval_instr {lp ls ii xname vi y imm wy} :
+  let: (xi, x) := mkv xname vi in
+  get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
+  let: li := li_of_fopn_args ii (ARMFopn.subi xi y imm) in 
+  let: wx' := Vword (wy - wrepr reg_size imm)in
+  let: vm' := (lvm ls).[x <- wx'] in
+  eval_instr lp li ls = ok (next_vm_ls ls vm').
+Proof.
+  move=> h1; set vm := _.[ _ <- _].
+  have /(_ xname vi imm):= ARMFopn_coreP.subi_sem_fopn_args (s:=to_estate _) (to_word_get_var h1).
+  by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
+Qed.
+
+(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma mov_eval_instr {lp ls ii xname vi y} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> let: li := li_of_fopn_args ii (ARMFopn.mov xi y) in
-     let: vm' := (lvm ls).[x <- Vword wy] in
-     eval_instr lp li ls = ok (next_vm_ls ls vm').
+  get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
+  let: li := li_of_fopn_args ii (ARMFopn.mov xi y) in
+  let: vm' := (lvm ls).[x <- Vword wy] in
+  eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> hy.
-  have /(_ xname vi):= ARMFopn_coreP.mov_sem_fopn_args (s:=to_estate _) hy.
+  have /(_ xname vi):= ARMFopn_coreP.mov_sem_fopn_args (s:=to_estate _) (to_word_get_var hy).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
+(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma movi_eval_instr {lp ls ii imm xname vi} :
   let: (xi, x) := mkv xname vi in
   (is_expandable_or_shift imm \/ is_w16_encoding imm) ->
@@ -165,7 +201,6 @@ Lemma li_lsem lp fn ls ii P Q xname vi imm :
   is_linear_of lp fn (P ++ lcmd ++ Q)
   -> lpc ls = size P
   -> lfn ls = fn
-  -> (0 <= imm < wbase reg_size)%Z
   -> exists vm',
        let: ls' := setpc (lset_vm ls vm') (size P + size lcmd) in
        [/\ lsem lp ls ls'
@@ -173,8 +208,8 @@ Lemma li_lsem lp fn ls ii P Q xname vi imm :
          & get_var true vm' x = ok (Vword (wrepr reg_size imm))
        ].
 Proof.
-  move=> hlin hpc hfn himm.
-  have [vm' []] := ARMFopn_coreP.li_lsem_1 (to_estate ls) xname vi himm.
+  move=> hlin hpc hfn.
+  have [vm' []] := ARMFopn_coreP.li_lsem_1 (to_estate ls) xname vi imm.
   rewrite sem_fopns_equiv => h1 h2 h3.
   exists vm'; split => //.
   assert (h := sem_fopns_args_lsem h1 hlin); rewrite size_map.
@@ -185,17 +220,15 @@ Opaque ARMFopn.li.
 Lemma smart_addi_sem_fopn_args xname vi y imm s (w : wreg) :
   let: (xi, x) := mkv xname vi in
   let: lc := ARMFopn.smart_addi xi y imm in
-  is_arith_small imm \/ x <> v_var y
-  -> (0 <= imm < wbase reg_size)%Z
-  -> get_var true (evm s) (v_var y) = ok (Vword w)
-  -> exists vm',
-       [/\ sem_fopns_args s lc = ok (with_vm s vm')
-         , vm' =[\ Sv.singleton x ] evm s
-         & get_var true vm' x = ok (Vword (w + wrepr reg_size imm)%R)
-       ].
+  is_arith_small imm \/ x <> v_var y ->
+  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w -> 
+  exists vm',
+    [/\ sem_fopns_args s lc = ok (with_vm s vm')
+      , vm' =[\ Sv.singleton x ] evm s
+      & get_var true vm' x = ok (Vword (w + wrepr reg_size imm)%R) ].
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
-  move=> hor hbound hget; rewrite -sem_fopns_equiv.
+  move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
              (@ARMFopn_coreP.add_sem_fopn_args _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
@@ -207,17 +240,15 @@ Qed.
 Lemma smart_subi_sem_fopn_args xname vi y imm s (w : wreg) :
   let: (xi, x) := mkv xname vi in
   let: lc := ARMFopn.smart_subi xi y imm in
-  is_arith_small imm \/ x <> v_var y
-  -> (0 <= imm < wbase reg_size)%Z
-  -> get_var true (evm s) (v_var y) = ok (Vword w)
-  -> exists vm',
-       [/\ sem_fopns_args s lc = ok (with_vm s vm')
-         , vm' =[\ Sv.singleton x ] evm s
-         & get_var true vm' x = ok (Vword (w - wrepr reg_size imm)%R)
-       ].
+  is_arith_small imm \/ x <> v_var y ->
+  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w ->
+  exists vm',
+    [/\ sem_fopns_args s lc = ok (with_vm s vm')
+      , vm' =[\ Sv.singleton x ] evm s
+      & get_var true vm' x = ok (Vword (w - wrepr reg_size imm))%R ].
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
-  move=> hor hbound hget; rewrite -sem_fopns_equiv.
+  move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
               (@ARMFopn_coreP.sub_sem_fopn_args _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
@@ -229,76 +260,45 @@ Qed.
 Lemma smart_addi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
   let: (xi, x) := mkv xname vi in
   let: lcmd := ARMFopn.smart_addi_tmp xi tmp imm in
-  x <> v_var tmp
-  -> vtype tmp = sword U32
-  -> get_var true (evm s) x = ok (Vword w)
-  -> exists vm',
-       [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
-         , evm s =[\ Sv.add x (Sv.singleton tmp) ] vm'
-         & get_var true vm' x = ok (Vword (w + wrepr reg_size imm)%R)
-       ].
+  x <> v_var tmp -> 
+  vtype tmp = sword U32 ->
+  get_var true (evm s) x >>= to_word Uptr = ok w ->
+  exists vm',
+    [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
+      , evm s =[\ Sv.add x (Sv.singleton tmp) ] vm'
+      & get_var true vm' x = ok (Vword (w + wrepr reg_size imm)%R) ].
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
              (@ARMFopn_coreP.add_sem_fopn_args _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _)].
-  move=> /(_ _ xname vi tmp xi (imm mod wbase Uptr)%Z s w) [] //.
+  move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
-  + by apply Z.mod_pos_bound.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
-  + by apply: eq_exS.
-  by rewrite heqx wrepr_mod.
+  by apply: eq_exS.
 Qed.
 
 Lemma smart_subi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
   let: (xi, x) := mkv xname vi in
   let: lcmd := ARMFopn.smart_subi_tmp xi tmp imm in
-  x <> v_var tmp
-  -> vtype tmp = sword Uptr
-  -> get_var true (evm s) x = ok (Vword w)
-  -> exists vm',
-       [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
-         , evm s =[\ Sv.add x (Sv.singleton tmp) ] vm'
-         & get_var true vm' x = ok (Vword (w - wrepr reg_size imm)%R)
-       ].
+  x <> v_var tmp ->
+  vtype tmp = sword Uptr ->
+  get_var true (evm s) x >>= to_word Uptr = ok w ->
+  exists vm',
+    [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
+      , evm s =[\ Sv.add x (Sv.singleton tmp) ] vm'
+      & get_var true vm' x = ok (Vword (w - wrepr reg_size imm)%R) ].
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
               (@ARMFopn_coreP.sub_sem_fopn_args _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _)].
-  move=> /(_ _ xname vi tmp xi (imm mod wbase Uptr)%Z s w) [] //.
+  move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.
-  + by apply Z.mod_pos_bound.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
-  + by apply: eq_exS.
-  by rewrite heqx wrepr_mod.
-Qed.
-
-Lemma smart_subi_lsem lp fn ls ii P Q xname vi y imm wy :
-  let: (xi, x) := mkv xname vi in
-  let: lc := map (li_of_fopn_args ii) (ARMFopn.smart_subi xi y imm) in
-  is_linear_of lp fn (P ++ lc ++ Q)
-  -> lpc ls = size P
-  -> lfn ls = fn
-  -> is_arith_small imm \/ x <> v_var y
-  -> get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> (0 <= imm < wbase reg_size)%Z
-  -> exists vm',
-       let: ls' := setpc (lset_vm ls vm') (size P + size lc) in
-       [/\ lsem lp ls ls'
-         , vm' =[\ Sv.singleton x ] lvm ls
-         & get_var true vm' x = ok (Vword (wy - wrepr reg_size imm)%R)
-       ].
-Proof.
-  rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
-  move=> hbody hpc hfn hcond hgety himm.
-  have [vm [hsem hvm hgetx]] :=
-    smart_subi_sem_fopn_args (s := to_estate _) vi hcond himm hgety.
-  exists vm; split=> //.
-  have := [elaborate sem_fopns_args_lsem hsem hbody].
-  by rewrite -hfn -hpc of_estate_to_estate size_map.
+  by apply: eq_exS.
 Qed.
 
 End WITH_PARAMS.

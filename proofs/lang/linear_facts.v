@@ -254,14 +254,18 @@ Qed.
 
 End MEM_EQUIV.
 
-Lemma sem_fopn_args_eval_instr ls s s' lp a ii :
-  sem_fopn_args a s = ok s' ->
-  let: ls := lset_estate' ls s in
+Lemma sem_fopns_args_cat s lc1 lc2 :
+  sem_fopns_args s (lc1 ++ lc2) =
+  Let s' := sem_fopns_args s lc1 in sem_fopns_args s' lc2.
+Proof. apply foldM_cat. Qed.
+
+Lemma sem_fopn_args_eval_instr ls s' lp a ii :
+  sem_fopn_args a (to_estate ls) = ok s' ->
   let: ls' := lnext_pc (lset_estate' ls s') in
   eval_instr lp (li_of_fopn_args ii a) ls = ok ls'.
 Proof.
   move: a => [[les op] res].
-  rewrite /sem_fopn_args /eval_instr /= /to_estate /= -surj_estate.
+  rewrite /sem_fopn_args /eval_instr /= /to_estate /=.
   by t_xrbindP=> ? -> /= ? -> /= ->.
 Qed.
 

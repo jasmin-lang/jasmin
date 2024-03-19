@@ -85,61 +85,64 @@ Definition riscv_saparams : stack_alloc_params :=
 
 Section LINEARIZATION.
 
-Notation vtmpi := (mk_var_i (to_var X28)).
+(* FIXME RISCV: are these registers ok? *)
+Notation vtmpi  := (mk_var_i (to_var X28)).
+Notation vtmp2i := (mk_var_i (to_var X29)).
 
-Definition riscv_tmp : Ident.ident := vname (v_var vtmpi).
+Definition riscv_allocate_stack_frame (rspi : var_i) (tmp: option var_i) (sz : Z) :=
+  if tmp is Some aux then
+    RISCVFopn.smart_subi_tmp rspi aux sz
+  else
+    [:: RISCVFopn.subi rspi rspi sz].
 
-(* TODO_ARM: Review. This seems unnecessary. *)
-Definition riscv_lassign
-  (lv : lexpr) (ws : wsize) (e : rexpr) : option _ :=
-  let%opt (mn, e') :=
-    match lv with
-    | LLvar _ =>
-        let%opt _ := chk_ws_reg ws in
-        match e with
-        | Rexpr (Fapp1 (Oword_of_int U32) (Fconst _))
-        | Rexpr (Fvar _) => Some (MV, e)
-        | Load _ _ _ => Some (LOAD Signed U32, e)
-        | _ => None
-        end
-    | Store _ _ _ =>
-        Some (STORE ws, e)
-    end
-  in
-  Some ([:: lv ], Oriscv mn, [:: e' ]).
+Definition riscv_free_stack_frame (rspi : var_i) (tmp : option var_i) (sz : Z) :=
+  if tmp is Some aux then
+    RISCVFopn.smart_addi_tmp rspi aux sz
+  else
+    [:: RISCVFopn.addi rspi rspi sz].
 
 Definition riscv_set_up_sp_register
   (rspi : var_i)
   (sf_sz : Z)
   (al : wsize)
-  (r : var_i) :
-  option (seq fopn_args) :=
-  let%opt _ := oassert ((0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z) in
-  let i0 := RISCVFopn.mov r rspi in
-  let load_imm := RISCVFopn.smart_subi vtmpi rspi sf_sz in
-  let i1 := RISCVFopn.align vtmpi vtmpi al in
-  let i2 := RISCVFopn.mov rspi vtmpi in
-  Some (i0 :: load_imm ++ [:: i1; i2 ]).
+  (r : var_i)
+  (tmp : var_i) :
+  seq fopn_args :=
+  let load_imm := RISCVFopn.smart_subi tmp rspi sf_sz in
+  let i0 := RISCVFopn.align tmp tmp al in
+  let i1 := RISCVFopn.mov r rspi in
+  let i2 := RISCVFopn.mov rspi tmp in
+  load_imm ++ [:: i0; i1; i2 ].
 
-Definition riscv_set_up_sp_stack
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : option (seq fopn_args) :=
-  let%opt _ := oassert ((0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z) in
-  let load_imm := RISCVFopn.smart_subi vtmpi rspi sf_sz in
-  let i0 := RISCVFopn.align vtmpi vtmpi al in
-  let i1 := RISCVFopn.str rspi vtmpi off in
-  let i2 := RISCVFopn.mov rspi vtmpi in
-  Some (load_imm ++ [:: i0; i1; i2 ]).
+Definition riscv_tmp  : Ident.ident := vname (v_var vtmpi).
+Definition riscv_tmp2 : Ident.ident := vname (v_var vtmp2i).
 
+Definition riscv_lmove (xd xs : var_i) :=
+  ([:: LLvar xd], Oriscv MV, [:: Rexpr (Fvar xs)]).
+
+Definition riscv_check_ws ws := ws == reg_size.
+
+Definition riscv_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
+  let ws := reg_size in
+  ([:: Store ws xd (fconst ws ofs)], Oriscv (STORE ws), [:: Rexpr (Fvar xs)]).
+
+Definition riscv_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
+  let ws := reg_size in
+  ([:: LLvar xd], Oriscv (LOAD Signed ws), [:: Load ws xs (fconst ws ofs)]).
 
 Definition riscv_liparams : linearization_params :=
   {|
-    lip_tmp := riscv_tmp;
+    lip_tmp  := riscv_tmp;
+    lip_tmp2 := riscv_tmp2;
     lip_not_saved_stack := [:: riscv_tmp ];
-    lip_allocate_stack_frame := fun _ _ _ => [::];
-    lip_free_stack_frame := fun _ _ _ => [::];
+    lip_allocate_stack_frame := riscv_allocate_stack_frame;
+    lip_free_stack_frame := riscv_free_stack_frame;
     lip_set_up_sp_register := riscv_set_up_sp_register;
-    lip_set_up_sp_stack := riscv_set_up_sp_stack;
-    lip_lassign := riscv_lassign;
+    lip_lmove := riscv_lmove;
+    lip_check_ws := riscv_check_ws;
+    lip_lstore  := riscv_lstore;
+    lip_lstores := lstores_imm_dfl riscv_tmp2 riscv_lstore RISCVFopn.smart_addi is_arith_small;
+    lip_lloads  := lloads_imm_dfl riscv_tmp2 riscv_lload  RISCVFopn.smart_addi is_arith_small;
   |}.
 
 End LINEARIZATION.
@@ -150,7 +153,7 @@ End LINEARIZATION.
 Definition riscv_loparams : lowering_params lowering_options :=
   {|
     lop_lower_i _ _ _ := lower_i;
-    lop_fvars_correct := fun _ _ _ => true;
+    lop_fvars_correct := fun _ _ _ => true; (* FIXME RISCV: is this correct? *)
   |}.
 
 

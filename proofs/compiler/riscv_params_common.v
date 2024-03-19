@@ -59,11 +59,6 @@ Module RISCVOpn (Args : OpnArgs).
 
   Definition andi := op_bin_imm AND.
 
-(* To remove *)
-  Definition str x y off :=
-    let lv := lmem reg_size y off in
-    ([:: lv ], Oriscv (STORE U32) , [:: rvar x ]).
-
   Definition align x y al := andi x y (wsize_size al - 1).
 
   Definition smart_mov x y := map to_opn (Core.smart_mov x y).

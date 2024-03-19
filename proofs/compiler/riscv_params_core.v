@@ -76,21 +76,21 @@ Module RISCVOpn_core (Args : OpnArgs).
 
   (* Compute [R[x] := R[y] - imm % 2^32
      Precondition: if [imm] is large, [x <> y]. *)
-  Definition smart_subi x y :=
-    gen_smart_opi sub subi is_arith_small (Some 0%Z) x x y.
+  Definition smart_subi x y imm :=
+    gen_smart_opi sub subi is_arith_small (Some 0%Z) x x y imm.
 
   (* Compute [R[x] := R[x] <o> imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
   Definition gen_smart_opi_tmp on_reg on_imm x tmp imm :=
-    gen_smart_opi on_reg on_imm is_arith_small (Some 0%Z) tmp x x (imm mod (wbase U32)).
+    gen_smart_opi on_reg on_imm is_arith_small (Some 0%Z) tmp x x imm.
 
   (* Compute [R[x] := R[x] + imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition smart_addi_tmp := gen_smart_opi_tmp add addi.
+  Definition smart_addi_tmp x tmp imm := gen_smart_opi_tmp add addi x tmp imm.
 
   (* Compute [R[x] := R[x] - imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition smart_subi_tmp := gen_smart_opi_tmp sub subi.
+  Definition smart_subi_tmp x tmp imm := gen_smart_opi_tmp sub subi x tmp imm.
 
   End WITH_PARAMS.
 

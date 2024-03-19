@@ -35,5 +35,9 @@ let is_subroutine = function
   | Subroutine _ -> true
   | _            -> false
 
+let is_export = function
+  | Export -> true
+  | _ -> false
+
 type t =
   Location.t * f_annot * call_conv * Annotations.annotations list

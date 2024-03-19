@@ -3,6 +3,12 @@
 
 ## New features
 
+- The type systems for constant time and speculative constant time now ensure
+  that division and modulo operators may only be used with public arguments.
+  This ensures that problems like KyberSlash (https://kyberslash.cr.yp.to/) do
+  not occur.
+  ([PR #722](https://github.com/jasmin-lang/jasmin/pull/722)).
+
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
   If the annotation #spill_to_mmx is used at the variable declaration the variable
@@ -31,12 +37,15 @@
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
   We also provide a speculative CCT checker, via the compiler flag `-checkSCT`.
-  ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447)).
+  ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
+   [PR #723](https://github.com/jasmin-lang/jasmin/pull/723)).
 
-- Register arrays can appear as arguments and return values of local functions;
+- Register arrays and sub-arrays can appear as arguments and return values of
+  local functions;
   the “make-reference-arguments” pass is now run before expansion of register
-  arrays;
-  ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452)).
+  arrays
+  ([PR #452](https://github.com/jasmin-lang/jasmin/pull/452),
+  [PR #720](https://github.com/jasmin-lang/jasmin/pull/720)).
 
 - Add the instruction `MULX_hi`,
      `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
@@ -99,6 +108,27 @@
   [PR 712](https://github.com/jasmin-lang/jasmin/pull/697);
   fixes [#696](https://github.com/jasmin-lang/jasmin/issues/696)).
 
+- Fix code generation for ARMv7 when export function have large stack frames
+  ([PR #710](https://github.com/jasmin-lang/jasmin/pull/710);
+   fixes [#709](https://github.com/jasmin-lang/jasmin/issues/709)).
+
+- Type-checking warns about calls to export functions that are not explicitly
+  inlined; export functions called from Jasmin code are inlined at call sites
+  ([PR #731](https://github.com/jasmin-lang/jasmin/pull/731);
+  fixes [#729](https://github.com/jasmin-lang/jasmin/issues/729)).
+
+- The compiler no longer throws an exception when a required file does not exist
+  ([PR #733](https://github.com/jasmin-lang/jasmin/pull/733)).
+
+- When slicing, export functions that are called from kept functions are no
+  longer spuriously kept
+  ([PR #751](https://github.com/jasmin-lang/jasmin/pull/751);
+  fixes [#750](https://github.com/jasmin-lang/jasmin/issues/750)).
+
+- Attach more precise meta-data to variables introduced at compile-time
+  ([PR #753](https://github.com/jasmin-lang/jasmin/pull/753);
+  fixes [#718](https://github.com/jasmin-lang/jasmin/issues/718)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise
@@ -114,6 +144,14 @@
 
   ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
   Warning this is a **breaking change**.
+
+- Instruction selection for x86-64, when storing a large immediate value in
+  memory, introduces a copy through an intermediate register rather that
+  emitting invalid code
+  ([PR #730](https://github.com/jasmin-lang/jasmin/pull/730)).
+
+- Expansion of `#copy` operators uses an intermediate register when needed
+  ([PR #735](https://github.com/jasmin-lang/jasmin/pull/735)).
 
 # Jasmin 2023.06.2 — 2023-12-22
 

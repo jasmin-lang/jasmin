@@ -176,7 +176,7 @@ Proof.
   all: by move: fvars_NF fvars_ZF fvars_CF fvars_VF.
 Qed.
 
-Lemma sem_condition_mn ii tag mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1) :
+Lemma sem_condition_mn ii vi tag mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1) :
   mn \in condition_mnemonics
   -> (reg_size <= ws0)%CMP
   -> (reg_size <= ws1)%CMP
@@ -184,7 +184,7 @@ Lemma sem_condition_mn ii tag mn s es ws0 ws1 (w0 : word ws0) (w1 : word ws1) :
   -> let w0' := zero_extend reg_size w0 in
      let w1' := zero_extend reg_size w1 in
      let aop := Oarm (ARM_op mn default_opts) in
-     let i := Copn (lflags_of_mn fv mn) tag aop es in
+     let i := Copn (lflags_of_mn fv vi mn) tag aop es in
      sem p' ev s [:: MkI ii i ] (estate_of_condition_mn mn s w0' w1').
 Proof.
   move=> hmn hws0 hws1 hsemes /=.
@@ -211,8 +211,8 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma lower_condition_Papp2P s op e0 e1 mn e es v0 v1 v :
-  lower_condition_Papp2 fv op e0 e1 = Some (mn, e, es)
+Lemma lower_condition_Papp2P vi s op e0 e1 mn e es v0 v1 v :
+  lower_condition_Papp2 fv vi op e0 e1 = Some (mn, e, es)
   -> sem_pexpr true (p_globs p) s e0 = ok v0
   -> sem_pexpr true (p_globs p) s e1 = ok v1
   -> sem_sop2 op v0 v1 = ok v
@@ -334,8 +334,8 @@ Proof.
   by rewrite -word.wltuE leNgt.
 Qed.
 
-Lemma sem_lower_condition_pexpr tag s0 s0' ii e v lvs aop es c :
-  lower_condition_pexpr fv e = Some (lvs, aop, es, c)
+Lemma sem_lower_condition_pexpr vi tag s0 s0' ii e v lvs aop es c :
+  lower_condition_pexpr fv vi e = Some (lvs, aop, es, c)
   -> eq_fv s0' s0
   -> disj_fvars (read_e e)
   -> sem_pexpr true (p_globs p) s0 e = ok v
@@ -359,7 +359,7 @@ Proof.
     lower_condition_Papp2P h hsem0' hsem1' hsemop.
   clear h hsemop hsem0' hsem1'.
 
-  have /= hsem' := sem_condition_mn ii tag hmn hws0 hws1 hsemes.
+  have /= hsem' := sem_condition_mn ii vi tag hmn hws0 hws1 hsemes.
   clear hws0 hws1 hsemes.
 
   eexists;
@@ -370,8 +370,8 @@ Proof.
   exact: (estate_of_condition_mn_eq_fv s0' _ _ hmn).
 Qed.
 
-Lemma sem_lower_condition s0 s0' ii e v pre e' :
-  lower_condition fv e = (pre, e')
+Lemma sem_lower_condition vi s0 s0' ii e v pre e' :
+  lower_condition fv vi e = (pre, e')
   -> eq_fv s0' s0
   -> disj_fvars (read_e e)
   -> sem_pexpr true (p_globs p) s0 e = ok v
@@ -1048,8 +1048,8 @@ Lemma no_preP o pre aop es :
 Proof. case: o => //. by move=> [? ?] [<- <- <-]. Qed.
 
 Lemma sem_lower_pexpr
-  s0 s1 s0' ii ws ws' e pre aop es (w : word ws') lv tag :
-  lower_pexpr ws e = Some (pre, aop, es)
+  s0 s1 s0' ii vi ws ws' e pre aop es (w : word ws') lv tag :
+  lower_pexpr vi ws e = Some (pre, aop, es)
   -> eq_fv s0' s0
   -> (ws <= ws')%CMP
   -> disj_fvars (read_e e)

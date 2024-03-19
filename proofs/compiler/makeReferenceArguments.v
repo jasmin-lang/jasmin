@@ -33,14 +33,16 @@ Definition is_reg_ptr_expr ii sfx doit id ty e :=
     if doit && (is_glob x' || ~~is_reg_ptr x'.(gv)) then
       Some (with_id ii sfx x'.(gv).(v_info) id ty)
     else None
-  | Psub _ _ _ x' _ =>  Some (with_id ii sfx x'.(gv).(v_info) id ty)
+  | Psub _ _ _ x' _ =>
+    if doit then Some (with_id ii sfx x'.(gv).(v_info) id ty) else None
   | _      => None
   end.
 
 Definition is_reg_ptr_lval ii sfx doit id ty r :=
   match r with
   | Lvar x' => if doit && ~~is_reg_ptr x' then Some (with_id ii sfx x'.(v_info) id ty) else None
-  | Lasub _ _ _ x' _ => Some (with_id ii sfx x'.(v_info) id ty)
+  | Lasub _ _ _ x' _ =>
+    if doit then Some (with_id ii sfx x'.(v_info) id ty) else None
   | _      => None
   end.
 

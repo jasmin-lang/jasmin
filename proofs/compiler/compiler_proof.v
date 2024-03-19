@@ -511,7 +511,7 @@ Lemma compiler_back_endP
         match_mem m lm →
         List.Forall2 value_uincl args (map (λ x : var_i, vm.[x]) fd.(lfd_arg)) →
         vm.[vid tp.(lp_rip)] = Vword rip →
-        vm_initialized_on vm (var_tmp aparams :: lfd_callee_saved fd) →
+        vm_initialized_on vm (lfd_callee_saved fd) →
         allocatable_stack m (lfd_total_stack fd) ->
         ∃ vm' lm',
           [/\
@@ -529,9 +529,9 @@ Proof.
   rewrite print_linearP => tp' ok_tp.
   rewrite print_linearP => ?; subst tp'.
   move=> /InP ok_fn exec_p.
-  set vtmp := var_tmp aparams.
-  have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
-  - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
+  set vtmp := var_tmps aparams.
+  have vtmp_not_magic : disjoint vtmp (magic_variables p).
+  - by apply: (var_tmp_not_magic checked_p).
   have p_call :
     sem_export_call p vtmp rip scs m fn args scs' m' res.
   - apply: (merge_varmaps_export_callP checked_p _ exec_p).
@@ -775,12 +775,6 @@ Proof.
   - case: LM => _ _ Y _ _ _ _.
     by move: Y => /= ->; rewrite ok_rip.
   - move => /=.
-    apply/andP; split.
-    + rewrite /var_tmp.
-      have [tmp_r htmp] := ok_lip_tmp haparams.
-      rewrite -(of_identI htmp) /get_var (XM (ARReg _)).
-      by rewrite /get_typed_reg_value /= truncate_word_u.
-
     apply/allP => x /ok_callee_saved hin.
     have [r ->]: exists2 r, x = (var_of_asm_typed_reg r) & vtype x != sbool.
     + by move/andP: hin => [->] /is_okP [] r /asm_typed_reg_of_varI ->; exists r.

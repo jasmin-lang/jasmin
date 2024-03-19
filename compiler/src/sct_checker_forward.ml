@@ -3,6 +3,8 @@ open Annotations
 open Prog
 open Constraints
 
+module CT = Ct_checker_forward
+
 module S = Syntax
 
 (* ----------------------------------------------------------- *)
@@ -566,19 +568,23 @@ end = struct
   (* freshen all variables in environment env, venv, with
      possibly a minimum (typically memory corruption) *)
   let freshen ?min env venv =
-    let fresh kind le =
+    let fresh ~in_memory le =
       let l = fresh2 env in
-      begin match kind, min with
-      | Wsize.Global, Some ty (* likely unused as global variables are not in venv.vars *)
-      | Stack _, Some ty -> VlPairs.add_le ty l; VlPairs.add_le le l
-      | _ -> VlPairs.add_le le l
-      end; l in
+      if in_memory && min != None then VlPairs.add_le (oget min) l;
+      VlPairs.add_le le l;
+      l
+    in
     { venv with vtype = Sv.fold (fun x vtype ->
+        let in_memory = match x.v_kind with
+          | Wsize.Global (* likely unused as global variables are not in venv.vars *)
+          | Stack _ -> true
+          | Const | Inline | Reg _ -> false
+        in
         let ty =
-          let fresh = fresh x.v_kind in
           match Mv.find x vtype with
-          | Direct le -> Direct (fresh le)
-          | Indirect(lp, le) -> Indirect(fresh lp, fresh le)
+          | Direct le -> Direct (fresh ~in_memory le)
+          | Indirect(lp, le) ->
+             Indirect(fresh ~in_memory lp, fresh ~in_memory:true le) (* the pointed values are in memory *)
         in
         Mv.add x ty vtype) venv.vars venv.vtype }
 
@@ -603,7 +609,7 @@ end = struct
 
   let corruption env venv ty =
     VlPairs.add_le ty venv.resulting_corruption; (* update corruption level *)
-    freshen ?min:(Some ty) env venv
+    freshen ~min:ty env venv
 
   let corruption_speculative env venv (_, s) = corruption env venv (public env, s)
 
@@ -617,12 +623,15 @@ let error_unsat loc (_ : Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
     "%a has type %a but should be at most %a"
     pp e pp_vty ety pp_vty ety'
 
-let ssafe_test x i =
+let ssafe_test x aa ws i =
   let x = L.unloc x in
   match x.v_kind, x.v_ty, i with
   | Reg (_, Direct), _, _ -> true
-  | _, Arr (_ (* word size. should be used ? *), len), Pconst v ->
-      Z.(leq zero v && lt v (of_int len))
+  | _, Arr (ws1, len), Pconst v ->
+      let len = Z.of_int (arr_size ws1 len) in
+      let v = Z.of_int (access_offset aa ws (Z.to_int v)) in
+      let v_max = Z.add v (Z.of_int (size_of_ws ws - 1)) in
+      Z.(leq zero v && lt v_max len)
   | _ -> false
 
 let content_ty = function
@@ -637,12 +646,12 @@ let rec ty_expr env venv loc (e:expr) : vty =
 
   | Pvar x -> Env.gget venv x
 
-  | Pget (_, _, x, i) ->
+  | Pget (aa, ws, x, i) ->
       ensure_public_address env venv loc x.gv;
       ensure_public env venv loc i;
       let ty = Env.fresh2 env
       and xty = Env.gget venv x in
-      if not (ssafe_test x.gv i) then VlPairs.add_le_speculative (Env.secret env) ty;
+      if not (ssafe_test x.gv aa ws i) then VlPairs.add_le_speculative (Env.secret env) ty;
       VlPairs.add_le (content_ty xty) ty;
       Direct ty
 
@@ -657,9 +666,15 @@ let rec ty_expr env venv loc (e:expr) : vty =
       ensure_public env venv loc i;
       Env.dsecret env
 
-  | Papp1(_, e)      -> ty_expr env venv loc e
-  | Papp2(_, e1, e2) -> ty_exprs_max env venv loc [e1; e2]
-  | PappN(_, es)     -> ty_exprs_max env venv loc es
+  | Papp1(o, e)      ->
+    let public = not (CT.is_ct_op1 o) in
+    ty_exprs_max ~public env venv loc [e]
+  | Papp2(o, e1, e2) ->
+    let public = not (CT.is_ct_op2 o) in
+    ty_exprs_max ~public env venv loc [e1; e2]
+  | PappN(o, es)     ->
+    let public = not (CT.is_ct_opN o) in
+    ty_exprs_max ~public env venv loc es
 
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
@@ -690,8 +705,9 @@ let rec ty_expr env venv loc (e:expr) : vty =
 and ensure_smaller env venv loc e l =
   let ety = ty_expr env venv loc e in
   match ety with
-  | Direct le | Indirect (le, _) -> try VlPairs.add_le le l
-      with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l)
+  | Direct le | Indirect (le, _) ->
+    try VlPairs.add_le le l
+    with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l)
 
 and ensure_public env venv loc e = ensure_smaller env venv loc e (Env.public2 env)
 
@@ -702,8 +718,8 @@ and ensure_public_address env venv loc x =
   | Indirect (le, _) -> try VlPairs.add_le le (Env.public2 env)
       with Lvl.Unsat unsat -> error_unsat loc unsat pp_var_i x ety (Direct (Env.public2 env))
 
-and ty_exprs_max env venv loc es : vty =
-  let l = Env.fresh2 env in
+and ty_exprs_max ~(public:bool) env venv loc es : vty =
+  let l = if public then Env.public2 env else Env.fresh2 env in
   List.iter (fun e -> ensure_smaller env venv loc e l) es;
   Direct l
 
@@ -870,11 +886,11 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
            with [x + i] is speculative only *)
       msf, Env.corruption_speculative env venv (content_ty ety)
 
-  | Laset(_, _, x, i) ->
+  | Laset(aa, ws, x, i) ->
       ensure_public_address env venv (L.loc x) x;
       ensure_public env venv (L.loc x) i;
       let le = content_ty ety in
-      if ssafe_test x i then
+      let venv =
         let l = Env.fresh2 env in
         let xty =
           match Env.get_i venv x with
@@ -882,7 +898,10 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
           | Indirect (lp, lx) -> VlPairs.add_le lx l; VlPairs.add_le le l;
               Indirect (lp, l)
         in
-        msf, Env.set_ty env venv x xty
+        Env.set_ty env venv x xty in
+
+      if ssafe_test x aa ws i then
+        msf, venv
       else (* mispeculation has necessarily occured *)
         msf, Env.corruption_speculative env venv le
 
@@ -943,7 +962,7 @@ let ensure_public_address_expr env venv loc e =
 (* --------------------------------------------------------------- *)
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
 
-let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
+let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
   let loc = i.i_loc.L.base_loc in
   match i.i_desc with
   | Csyscall (xs, o, es) ->
@@ -1002,20 +1021,20 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     | Protect, _, _ -> assert false
 
     | Other, _, _  ->
-        (* FIXME allows to add more constraints on es depending on the operators, like for div *)
-        let ety = ty_exprs_max env venv loc es in
-        ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
+      let public = not (CT.is_ct_sopn is_ct_asm o) in
+      let ety = ty_exprs_max ~public env venv loc es in
+      ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
     end
 
   | Cif(e, c1, c2) ->
     if is_inline i then
-      let msf1, venv1 = ty_cmd fenv env (msf, venv) c1 in
-      let msf2, venv2 = ty_cmd fenv env (msf, venv) c2 in
+      let msf1, venv1 = ty_cmd is_ct_asm fenv env (msf, venv) c1 in
+      let msf2, venv2 = ty_cmd is_ct_asm fenv env (msf, venv) c2 in
       MSF.max msf1 msf2, Env.max env venv1 venv2
     else begin
       ensure_public env venv loc e;
-      let msf1, venv1 = ty_cmd fenv env (MSF.enter_if msf e, venv) c1 in
-      let msf2, venv2 = ty_cmd fenv env (MSF.enter_if msf (Papp1(Onot, e)), venv) c2 in
+      let msf1, venv1 = ty_cmd is_ct_asm fenv env (MSF.enter_if msf e, venv) c1 in
+      let msf2, venv2 = ty_cmd is_ct_asm fenv env (MSF.enter_if msf (Papp1(Onot, e)), venv) c2 in
       MSF.max msf1 msf2, Env.max env venv1 venv2
     end
 
@@ -1027,7 +1046,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       (* let w, _ = written_vars [i] in *)
       let venv1 = Env.freshen env venv in (* venv <= venv1 *)
       let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
-      let (msf', venv') = ty_cmd fenv env msf_e c in
+      let (msf', venv') = ty_cmd is_ct_asm fenv env msf_e c in
       let msf' = MSF.end_loop loc msf msf' in
       Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
       msf', venv1
@@ -1048,9 +1067,9 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
        as secret is sufficient *)
 
     let venv1 = Env.freshen env venv in (* venv <= venv1 *)
-    let (msf2, venv2) = ty_cmd fenv env (msf1, venv1) c1 in
+    let (msf2, venv2) = ty_cmd is_ct_asm fenv env (msf1, venv1) c1 in
     ensure_public env venv2 loc e;
-    let (msf', venv') = ty_cmd fenv env (MSF.enter_if msf2 e, venv2) c2 in
+    let (msf', venv') = ty_cmd is_ct_asm fenv env (MSF.enter_if msf2 e, venv2) c2 in
     let msf' = MSF.end_loop loc msf1 msf' in
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
     MSF.enter_if msf' (Papp1(Onot, e)), venv1
@@ -1091,8 +1110,8 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     let msf = if is_Modified modmsf then MSF.toinit else msf in
     List.fold_left2 output_ty (msf, venv) xs tyout
 
-and ty_cmd fenv env msf_e c =
-  List.fold_left (ty_instr fenv env) msf_e c
+and ty_cmd is_ct_asm fenv env msf_e c =
+  List.fold_left (ty_instr is_ct_asm fenv env) msf_e c
 
 
 (* ------------------------------------------------------------------- *)
@@ -1386,18 +1405,18 @@ let init_constraint fenv f =
   env, venv, tyin, tyout, modmsf
 
 
-let rec ty_fun fenv fn =
+let rec ty_fun is_ct_asm fenv fn =
   try Hf.find fenv.env_ty fn
   with Not_found ->
-    let fty = ty_fun_infer fenv fn in
+    let fty = ty_fun_infer is_ct_asm fenv fn in
     Hf.add fenv.env_ty fn fty;
     fty
 
-and ty_fun_infer fenv fn =
+and ty_fun_infer is_ct_asm fenv fn =
   let f = FEnv.get_fun_def fenv fn in
   (* First compute all function call by f and recurse *)
   let _, called = written_vars_fc f in
-  Mf.iter (fun fn _ -> ignore (ty_fun fenv fn)) called;
+  Mf.iter (fun fn _ -> ignore (ty_fun is_ct_asm fenv fn)) called;
   let env, venv, tyin, tyout, modmsf = init_constraint fenv f in
   (* init msf status *)
   let msf =
@@ -1405,7 +1424,7 @@ and ty_fun_infer fenv fn =
         if ty = IsMsf then MSF.add (L.mk_loc x.v_dloc x) msf else msf)
       MSF.toinit f.f_args tyin in
   (* start type checking of the body *)
-  let msf, venv = ty_cmd fenv env (msf, venv) f.f_body in
+  let msf, venv = ty_cmd is_ct_asm fenv env (msf, venv) f.f_body in
   (* build the resulting type *)
   let doout x (omsf, ty) =
     let le_ty ty1 ty2 =
@@ -1447,7 +1466,7 @@ and ty_fun_infer fenv fn =
   let fty = { modmsf; tyin; tyout; constraints; resulting_corruption; } in
   if !Glob_options.debug then
     Format.eprintf
-      "Before optimization:@.%a@.After optimization:@."
+      "Before optimization:@.%a@."
       pp_funty
       (f.f_name.fn_name, fty);
   let tomax = List.fold_left add [] tyin in
@@ -1456,7 +1475,7 @@ and ty_fun_infer fenv fn =
   fty
 
 
-let ty_prog (prog:('info, 'asm) prog) fl =
+let ty_prog is_ct_asm (prog:('info, 'asm) prog) fl =
   let prog = snd prog in
   let fenv = { env_ty = Hf.create 101; env_def = prog } in
   let fl =
@@ -1468,7 +1487,7 @@ let ty_prog (prog:('info, 'asm) prog) fl =
         with Not_found ->
           hierror ~loc:Lnone ~kind:"speculative constant type checker" "unknown function %s" fn in
       List.map get fl in
-  List.map (fun fn -> fn.fn_name, ty_fun fenv fn) fl
+  List.map (fun fn -> fn.fn_name, ty_fun is_ct_asm fenv fn) fl
 
 (* ------------------------------------------------------------------------------- *)
 (* Inference of msf_info needed by the compiler                                    *)
