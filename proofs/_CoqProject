@@ -84,6 +84,11 @@ compiler/propagate_inline_proof.v
 compiler/riscv.v
 compiler/riscv_decl.v
 compiler/riscv_instr_decl.v
+compiler/riscv_extra.v
+compiler/riscv_lowering.v
+compiler/riscv_params.v
+compiler/riscv_params_core.v
+compiler/riscv_params_common.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/slh_lowering.v

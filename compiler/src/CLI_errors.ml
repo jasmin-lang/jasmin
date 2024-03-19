@@ -54,6 +54,10 @@ let check_options () =
     then warning Experimental Location.i_dummy
       "support of the ARMv7 architecture is experimental";
 
+  if !target_arch = RISCV
+    then warning Experimental Location.i_dummy
+      "support of the RISC-V architecture is really experimental";
+
   if !latexfile <> ""
   then warning Deprecated Location.i_dummy
          "the [-latex] option has been deprecated since March 2023; use [jazz2tex] instead";

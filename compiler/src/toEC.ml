@@ -1464,12 +1464,15 @@ let jmodel () =
   match !target_arch with
   | X86_64 -> "JModel_x86"
   | ARM_M4 -> "JModel_m4"
+  | RISCV -> failwith "TODO_RISCV: jmodel"
 
 let require_lib_slh () =
   let s =
     match !Glob_options.target_arch with
     | X86_64 -> "SLH64"
     | ARM_M4 -> "SLH32"
+    | RISCV -> failwith "TODO_RISCV: slh"
+
   in
   Format.sprintf "import %s." s
 
