@@ -743,6 +743,17 @@ let two_phase_coloring
   let schedule =
     if !Glob_options.lazy_regalloc then lazy_scheduling variables a
     else schedule_coloring size variables cnf a in
+  (* Give a specific error message if the bank is empty: there is no way the
+     variables can be allocated. We pick one of the variables to illustrate
+     the error message. *)
+  begin match schedule, registers with
+  | i :: _, [] ->
+      let x = List.hd (Hashtbl.find variables i) in
+      hierror_reg ~loc:Lnone "unable to allocate %a: bank “%s” is empty on this architecture"
+        (Printer.pp_dvar ~debug:true) x
+        (string_of_kind (kind_of_type Arch.reg_size x.v_kind x.v_ty))
+  | _, _ -> ()
+  end;
   List.iter (fun i ->
       let has_no_conflict v = does_not_conflict i cnf a v in
       match List.filter has_no_conflict registers with
