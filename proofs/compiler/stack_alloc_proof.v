@@ -837,17 +837,18 @@ Section EXPR.
     by rewrite Z.ones_equiv.
   Qed.
 
-  Lemma check_alignP x sr ty ws tt :
+  Lemma check_alignP al x sr ty ws tt :
     wf_sub_region sr ty ->
-    check_align x sr ws = ok tt ->
-    is_align (sub_region_addr sr) ws.
+    check_align al x sr ws = ok tt ->
+    is_aligned_if al (sub_region_addr sr) ws.
   Proof.
-    move=> hwf; rewrite /check_align; t_xrbindP => halign /eqP halign2.
+    move=> hwf; rewrite /check_align; t_xrbindP.
+    case: al => //; rewrite orFb => halign /eqP halign2.
     have: is_align (Addr sr.(sr_region).(r_slot)) ws.
     + apply (is_align_m halign).
       rewrite -hwf.(wfr_align).
       by apply (slot_align hwf.(wfr_slot)).
-    rewrite /is_align !p_to_zE (wunsigned_sub_region_addr hwf) Z.add_mod //.
+    rewrite /is_aligned_if /is_align !p_to_zE (wunsigned_sub_region_addr hwf) Z.add_mod //.
     move=> /eqP -> /=.
     by rewrite -(Zland_mod (z_ofs _)) halign2.
   Qed.
@@ -919,15 +920,15 @@ Section EXPR.
     by case hlocal: get_local => [pk|//] [<-] /(check_validP).
   Qed.
 
-  Lemma check_vpk_wordP x vpk ofs ws t :
+  Lemma check_vpk_wordP al x vpk ofs ws t :
     (forall zofs, ofs = Some zofs -> 0 <= zofs /\ zofs + wsize_size ws <= size_slot x.(gv)) ->
     get_var_kind pmap x = ok (Some vpk) ->
-    check_vpk_word rmap x.(gv) vpk ofs ws = ok t ->
+    check_vpk_word rmap al x.(gv) vpk ofs ws = ok t ->
     exists sr bytes, [/\
       check_gvalid rmap x = Some (sr, bytes),
       let isub_ofs := interval_of_zone (sub_zone_at_ofs sr.(sr_zone) ofs (wsize_size ws)) in
       ByteSet.mem bytes isub_ofs &
-      is_align (sub_region_addr sr) ws].
+      is_aligned_if al (sub_region_addr sr) ws].
   Proof.
     move=> hofs hget.
     rewrite /check_vpk_word.
@@ -1112,7 +1113,7 @@ Section EXPR.
       have [ws' [w [_ ?]]] := get_gvar_word hty hget; subst v.
       case: hty' => ?; subst ws'.
       rewrite (eq_sub_region_val_read_word _ hwf hread hmem _ h1 (get_val_byte_word w) (w:=w)) //.
-      by rewrite /= wrepr0 GRing.addr0 halign.
+      by rewrite wrepr0 GRing.addr0 halign.
     + move=> al aa sz x e1 he1 e' v he'; apply: on_arr_gvarP => n t hty /= hget.
       t_xrbindP => i vi /he1{he1}he1 hvi w hw <-.
       move: he'; t_xrbindP => e1' /he1{he1}he1'.
@@ -1137,7 +1138,7 @@ Section EXPR.
       assert (hwf := check_gvalid_wf wfr_wf hgvalid).
       have [_ h6] := (read_read8 hw).
       rewrite (eq_sub_region_val_read_word _ hwf hread hmem (mk_ofsiP h0) (w:=w)) // /=.
-      + case: al hw h3 h6 => //= hw h3 h6.
+      + case: al hw h3 h6 {hcheck} halign => //= hw h3 h6 halign.
         by rewrite (is_align_addE halign) WArray.arr_is_align h3.
        by move => k hk; rewrite (read8_alignment al) -h6.
     + move=> al1 sz1 v1 e1 IH e2 v.
@@ -1630,12 +1631,12 @@ Proof.
   by rewrite -(ss_top_stack hss).
 Qed.
 
-Lemma set_arr_wordP rmap m0 s1 s2 x ofs ws rmap2 :
+Lemma set_arr_wordP rmap m0 s1 s2 al x ofs ws rmap2 :
   valid_state rmap m0 s1 s2 ->
-  set_arr_word rmap x ofs ws = ok rmap2 ->
+  set_arr_word rmap al x ofs ws = ok rmap2 ->
   exists sr, [/\
     Mvar.get rmap.(var_region) x = Some sr,
-    is_align (sub_region_addr sr) ws &
+    is_aligned_if al (sub_region_addr sr) ws &
     set_sub_region rmap x sr ofs (wsize_size ws) = ok rmap2].
 Proof.
   move=> hvs.
@@ -1797,7 +1798,7 @@ Proof.
   have [hge0 hlen haa] := WArray.set_bound htt'.
   have hvp: validw (emem s2) al (sub_region_addr sr + wrepr _ (i1 * mk_scale aa ws))%R ws.
   + have := validw_sub_region_at_ofs _ hwf; rewrite hty; apply => //.
-    case: al {htt'} haa => //= haa.
+    case: al {htt'} haa hal => //= haa hal.
     apply: is_align_add; first by [].
     by rewrite WArray.arr_is_align.
   have /writeV -/(_ w) [mem2 hmem2] := hvp.

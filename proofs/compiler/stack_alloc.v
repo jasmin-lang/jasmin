@@ -176,10 +176,10 @@ Record pos_map := {
 
 (* TODO: Z.land or is_align ?
    Could be just is_align (sub_region_addr sr) ws ? *)
-Definition check_align x (sr:sub_region) ws :=
-  Let _ := assert (ws <= sr.(sr_region).(r_align))%CMP
+Definition check_align al x (sr:sub_region) ws :=
+  Let _ := assert ((al == Unaligned) || (ws <= sr.(sr_region).(r_align))%CMP) (* FIXME: is this check needed? *)
                   (stk_ierror_basic x "unaligned offset") in
-  assert (Z.land sr.(sr_zone).(z_ofs) (wsize_size ws - 1) == 0)%Z
+  assert ((al == Unaligned) || (Z.land sr.(sr_zone).(z_ofs) (wsize_size ws - 1) == 0)%Z)
          (stk_ierror_basic x "unaligned sub offset").
 
 Definition writable (x:var_i) (r:region) :=
@@ -313,7 +313,7 @@ End WITH_POINTER_DATA.
 
 (* Precondition size_of x = ws && length sr.sr_zone = wsize_size ws *)
 Definition set_word rmap (x:var_i) sr ws :=
-  Let _ := check_align x sr ws in
+  Let _ := check_align Aligned x sr ws in
   set_sub_region rmap x sr (Some 0)%Z (size_slot x).
 
 (* If we write to array [x] at offset [ofs], we invalidate the corresponding
@@ -324,9 +324,9 @@ Definition set_word rmap (x:var_i) sr ws :=
    approximation.
 *)
 (* [set_word], [set_stack_ptr] and [set_arr_word] could be factorized? -> think more about it *)
-Definition set_arr_word (rmap:region_map) (x:var_i) ofs ws :=
+Definition set_arr_word (rmap:region_map) al (x:var_i) ofs ws :=
   Let sr := get_sub_region rmap x in
-  Let _ := check_align x sr ws in
+  Let _ := check_align al x sr ws in
   set_sub_region rmap x sr ofs (wsize_size ws).
 
 Definition set_arr_call rmap x sr := set_sub_region rmap x sr (Some 0)%Z (size_slot x).
@@ -584,9 +584,9 @@ Definition check_vpk rmap (x:var_i) vpk ofs len :=
     ok sr'.
 *)
 
-Definition check_vpk_word rmap x vpk ofs ws :=
+Definition check_vpk_word rmap al x vpk ofs ws :=
   Let srs := check_vpk rmap x vpk ofs (wsize_size ws) in
-  check_align x srs.1 ws.
+  check_align al x srs.1 ws.
 
 Fixpoint alloc_e (e:pexpr) :=
   match e with
@@ -598,7 +598,7 @@ Fixpoint alloc_e (e:pexpr) :=
     | None => Let _ := check_diff xv in ok e
     | Some vpk =>
       if is_word_type (vtype xv) is Some ws then
-        Let _ := check_vpk_word rmap xv vpk (Some 0%Z) ws in
+        Let _ := check_vpk_word rmap Aligned xv vpk (Some 0%Z) ws in
         Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
         ok (Pload Aligned ws pofs.1 pofs.2)
       else Error (stk_ierror_basic xv "not a word variable in expression")
@@ -612,7 +612,7 @@ Fixpoint alloc_e (e:pexpr) :=
     | None => Let _ := check_diff xv in ok (Pget al aa ws x e1)
     | Some vpk =>
       let ofs := mk_ofsi aa ws e1 in
-      Let _ := check_vpk_word rmap xv vpk ofs ws in
+      Let _ := check_vpk_word rmap al xv vpk ofs ws in
       Let pofs := mk_addr xv aa ws vpk e1 in
       ok (Pload al ws pofs.1 pofs.2)
     end
@@ -690,7 +690,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     | None => Let _ := check_diff x in ok (rmap, Laset al aa ws x e1)
     | Some pk =>
       let ofs := mk_ofsi aa ws e1 in
-      Let rmap := set_arr_word rmap x ofs ws in
+      Let rmap := set_arr_word rmap al x ofs ws in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
       let r := Lmem al ws pofs.1 pofs.2 in
       ok (rmap, r)
@@ -1048,7 +1048,7 @@ Definition alloc_call_arg_aux rmap0 rmap (sao_param: option param_info) (e:pexpr
     Let srs := Region.check_valid rmap0 xv (Some 0%Z) (size_slot xv) in
     let sr := srs.1 in
     Let rmap := if pi.(pp_writable) then set_clear rmap xv sr (Some 0%Z) (size_slot xv) else ok rmap in
-    Let _  := check_align xv sr pi.(pp_align) in
+    Let _  := check_align Aligned xv sr pi.(pp_align) in
     ok (rmap, (Some (pi.(pp_writable),sr), Pvar (mk_lvar (with_var xv p))))
   | Some _, _ => Error (stk_ierror_basic xv "the argument should be a reg ptr")
   end.
