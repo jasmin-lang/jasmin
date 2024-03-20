@@ -122,6 +122,16 @@ Proof.
   rewrite hxty hyty //=.
 Qed.
 
+Lemma split_mem_opnP :
+  split_mem_opn_correct (sap_split_mem_opn x86_saparams).
+Proof.
+  move=> evt sp s s' ii tag vtmp lvs op es _ [<-] hsem.
+  eexists; last reflexivity.
+  apply: (sem_seq_ir (pT := progStack)).
+  constructor.
+  by rewrite /with_vm -surj_estate.
+Qed.
+
 End STACK_ALLOC.
 
 Definition x86_hsaparams {dc : DirectCall} : h_stack_alloc_params (ap_sap x86_params) :=
@@ -129,6 +139,7 @@ Definition x86_hsaparams {dc : DirectCall} : h_stack_alloc_params (ap_sap x86_pa
     mov_ofsP := x86_mov_ofsP;
     sap_immediateP := x86_immediateP;
     sap_swapP := x86_swapP;
+    sap_split_mem_opnP := split_mem_opnP;
   |}.
 
 (* ------------------------------------------------------------------------ *)

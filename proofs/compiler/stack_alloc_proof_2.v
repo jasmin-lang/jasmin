@@ -1800,14 +1800,17 @@ Context
   (shparams : slh_lowering.sh_params)
   (hshparams : slh_lowering_proof.h_sh_params shparams)
   (saparams : stack_alloc_params)
-  (hsaparams : h_stack_alloc_params saparams).
-
-Variable (local_alloc : funname -> stk_alloc_oracle_t).
-Variable (fresh_reg_ : Ident.name → stype → Ident.ident).
-Hypothesis Halloc_fd : forall fn fd,
-  get_fundef P.(p_funcs) fn = Some fd ->
-  exists2 fd', alloc_fd shparams saparams P'.(p_extra) mglob fresh_reg_ local_alloc fn fd = ok fd' &
-               get_fundef P'.(p_funcs) fn = Some fd'.
+  (hsaparams : h_stack_alloc_params saparams)
+  (local_alloc : funname -> stk_alloc_oracle_t)
+  (fresh_reg_ : Ident.name -> stype -> Ident.ident)
+  (warning : instr_info -> warning_msg -> instr_info)
+  (Halloc_fd :
+    forall fn fd,
+      get_fundef P.(p_funcs) fn = Some fd ->
+      exists2 fd',
+        alloc_fd shparams saparams P'.(p_extra) mglob fresh_reg_ local_alloc warning fn fd = ok fd'
+        & get_fundef P'.(p_funcs) fn = Some fd')
+.
 
 (* RAnone -> export function (TODO: rename RAexport?) *)
 Definition enough_size m sao :=
@@ -1834,7 +1837,7 @@ Let Pi_r s1 (i1:instr_r) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  alloc_i shparams saparams pmap local_alloc sao rmap1 (MkI ii1 i1) = ok (rmap2, c2) ->
+  alloc_i shparams saparams pmap local_alloc warning sao rmap1 (MkI ii1 i1) = ok (rmap2, c2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1846,7 +1849,7 @@ Let Pi s1 (i1:instr) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  alloc_i shparams saparams pmap local_alloc sao rmap1 i1 = ok (rmap2, c2) ->
+  alloc_i shparams saparams pmap local_alloc warning sao rmap1 i1 = ok (rmap2, c2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1858,7 +1861,7 @@ Let Pc s1 (c1:cmd) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  fmapM (alloc_i shparams saparams pmap local_alloc sao) rmap1 c1 = ok (rmap2, c2) ->
+  fmapM (alloc_i shparams saparams pmap local_alloc warning sao) rmap1 c1 = ok (rmap2, c2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1972,11 +1975,24 @@ Proof.
   + subst o => -[rmap_ i] halloc /= ? <- m0 s1' hvs ??; subst rmap_.
     have [s2' [hsem ?]] := (alloc_array_swapP hpmap P' hsaparams hvs hes hop hw halloc).
     by exists s2'; split => //; apply sem_seq_ir.
-  move => es' he [rmap4 x'] ha /= ? <- m0 s1' hvs hext hsao; subst rmap4.
+  move=> es' he [rmap4 x'] ha /=.
+  t_xrbindP=> args hsplit ?? m0 s1' hvs hext hsao; subst c2 rmap4.
   have [s2' [hw' hvalid']] := alloc_lvalsP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap ha hvs (sopn_toutP hop) hw.
-  exists s2'; split=> //.
-  apply sem_seq_ir; constructor.
-  by rewrite /sem_sopn P'_globs (alloc_esP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he hes) /= hop.
+  set ii2 := if _ then _ else ii1.
+  have [||||vm hsem hvm] :=
+    sap_split_mem_opnP
+      hsaparams (s := s1') (s' := s2') (sp := P') rip ii2 t hsplit.
+  + exact: wt_len.
+  + apply: read_rvs_alloc_lvals. eassumption.
+  + apply: read_es_alloc_es. eassumption.
+  + by rewrite /sem_sopn P'_globs /=
+      (alloc_esP hwf.(wfsl_no_overflow) hwf.(wfsl_align) _ _ _ hes) //= hop.
+  eexists; split; first exact: hsem.
+  apply: (valid_state_distinct_reg _ _ _ _ _ hvm).
+  + exact: len_neq_rip.
+  + exact: len_neq_rsp.
+  + exact: len_in_new.
+  exact: len_neq_ptr.
 Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall P Pi_r.
@@ -2085,7 +2101,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_max_size_ge0 pex fn fd fd' :
-  alloc_fd shparams saparams pex mglob fresh_reg_ local_alloc fn fd = ok fd' ->
+  alloc_fd shparams saparams pex mglob fresh_reg_ local_alloc warning fn fd = ok fd' ->
   0 <= (local_alloc fn).(sao_max_size).
 Proof.
   rewrite /alloc_fd /alloc_fd_aux /=.
@@ -2848,13 +2864,15 @@ Context
   (hshparams : slh_lowering_proof.h_sh_params shparams)
   (saparams : stack_alloc_params)
   (hsaparams : h_stack_alloc_params saparams)
-  (fresh_reg_ : Ident.name -> stype -> Ident.ident).
+  (fresh_reg_ : Ident.name -> stype -> Ident.ident)
+  (warning : instr_info -> warning_msg -> instr_info)
+.
 
 Lemma get_alloc_fd p_extra mglob oracle fds1 fds2 :
-  map_cfprog_name (alloc_fd shparams saparams p_extra mglob fresh_reg_ oracle) fds1 = ok fds2 ->
+  map_cfprog_name (alloc_fd shparams saparams p_extra mglob fresh_reg_ oracle warning) fds1 = ok fds2 ->
   forall fn fd1,
   get_fundef fds1 fn = Some fd1 ->
-  exists2 fd2, alloc_fd shparams saparams p_extra mglob fresh_reg_ oracle fn fd1 = ok fd2 &
+  exists2 fd2, alloc_fd shparams saparams p_extra mglob fresh_reg_ oracle warning fn fd1 = ok fd2 &
                get_fundef fds2 fn = Some fd2.
 Proof.
   move=> hmap fn fd1.
@@ -2901,7 +2919,7 @@ Record extend_mem_eq (m1 m2:mem) (rip:pointer) (data:seq u8) := {
       except for the regions pointed to by the writable [reg ptr]s given as arguments.
 *)
 Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
-  alloc_prog shparams saparams fresh_reg_ nrip nrsp data oracle_g oracle P = ok SP ->
+  alloc_prog shparams saparams fresh_reg_ nrip nrsp data oracle_g oracle warning P = ok SP ->
   forall ev scs1 m1 vargs1 scs1' m1' vres1,
     sem_call P ev scs1 m1 fn vargs1 scs1' m1' vres1 ->
     forall rip m2 vargs2,
@@ -2953,13 +2971,13 @@ Proof.
 Qed.
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
-  alloc_prog shparams saparams fresh_reg_ nrip nrsp data oracle_g oracle P = ok SP →
+  alloc_prog shparams saparams fresh_reg_ nrip nrsp data oracle_g oracle warning P = ok SP →
   exists2 mglob,
     init_map oracle_g data (p_globs P) = ok mglob &
     ∀ fn fd,
     get_fundef (p_funcs P) fn = Some fd →
     exists2 fd',
-      alloc_fd shparams saparams {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob fresh_reg_ oracle fn fd = ok fd' &
+      alloc_fd shparams saparams {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob fresh_reg_ oracle warning fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
   rewrite /alloc_prog; t_xrbindP => mglob -> _ fds ok_fds <- {SP} /=.
@@ -2968,7 +2986,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_checked_sao p_extra mglob oracle fn fd fd' :
-  alloc_fd shparams saparams p_extra mglob fresh_reg_ oracle fn fd = ok fd' →
+  alloc_fd shparams saparams p_extra mglob fresh_reg_ oracle warning fn fd = ok fd' →
   [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
 Proof.
   rewrite /alloc_fd/alloc_fd_aux/check_results.

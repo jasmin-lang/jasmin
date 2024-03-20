@@ -347,6 +347,16 @@ Lemma read_es_cons e es :
   Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
 Proof. by rewrite /read_es /= !read_esE read_eE; clear; SvD.fsetdec. Qed.
 
+Lemma read_es_read_e e es :
+  List.In e es ->
+  Sv.Subset (read_e e) (read_es es).
+Proof.
+  elim: es => [//|e' es hind] h.
+  rewrite read_es_cons.
+  case: (List.in_inv h) => [->|h']; first exact: Sv_Subset_union_left.
+  by auto using Sv_Subset_union_right.
+Qed.
+
 Lemma read_e_Pget aa ws x e :
   Sv.Equal (read_e (Pget aa ws x e)) (Sv.union (read_gvar x) (read_e e)).
 Proof. rewrite {1}/read_e /= read_eE. clear. SvD.fsetdec. Qed.
@@ -371,6 +381,55 @@ Lemma read_e_PappN_cons opn e es :
   Sv.Equal (read_e (PappN opn (e :: es))) (Sv.union (read_e e) (read_es es)).
 Proof. by rewrite -[read_e (PappN _ _)]/(read_es _) read_es_cons. Qed.
 
+Lemma read_gvarP x :
+  Sv.Subset (read_gvar x) (Sv.singleton (v_var (gv x))).
+Proof.
+  rewrite /read_gvar.
+  move: x => [[x xinfo] []] //.
+  exact: SvP.MP.subset_empty.
+Qed.
+
+Lemma read_e_Pif ty e e0 e1 :
+  Sv.Equal
+    (read_e (Pif ty e e0 e1))
+    (Sv.union (read_e e) (Sv.union (read_e e0) (read_e e1))).
+Proof. by rewrite {1}/read_e /= 2!read_eE. Qed.
+
+Definition t_rewrite_read_e :=
+  ( read_e_Pget
+  , read_e_Psub
+  , read_e_Pload
+  , read_e_Papp1
+  , read_e_Papp2
+  , read_e_Pif
+  ).
+
+Lemma read_e_cast_w ws e :
+  Sv.Equal (read_e (cast_w ws e)) (read_e e).
+Proof.
+  elim: e =>
+    [ // | // | // | //
+    | ?????
+    | ??????
+    | ????
+    | ???
+    | ?? hinde0 ? hinde1
+    | ???
+    | ???????
+    ]; rewrite ?t_rewrite_read_e //=.
+  all: try
+         match goal with
+         | [ x : sop1 |- _ ] => case: x => *
+         | [ x : sop2 |- _ ] => case: x => *
+         end.
+  all: try
+         match goal with
+         | [ x : op_kind |- _ ] => case: x => *
+         end.
+  all: rewrite ?t_rewrite_read_e //= ?(hinde0, hinde1) //.
+  by case: ifP.
+Qed.
+
 Lemma read_rvE s x: Sv.Equal (read_rv_rec s x) (Sv.union s (read_rv x)).
 Proof.
   case: x => //= *; rewrite /read_rv /= ?read_eE; clear; SvD.fsetdec.
@@ -388,12 +447,6 @@ Lemma read_rvs_cons x xs : Sv.Equal (read_rvs (x::xs)) (Sv.union (read_rv x) (re
 Proof.
   rewrite {1}/read_rvs /= read_rvsE read_rvE; clear; SvD.fsetdec.
 Qed.
-
-Lemma read_e_Pif ty e e0 e1 :
-  Sv.Equal
-    (read_e (Pif ty e e0 e1))
-    (Sv.union (read_e e) (Sv.union (read_e e0) (read_e e1))).
-Proof. by rewrite {1}/read_e /= 2!read_eE. Qed.
 
 Let Pr i := forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
 Let Pi i := forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
@@ -714,13 +767,7 @@ Section EQ_EXPR_READ_E.
 
   #[local]
   Ltac t_solve :=
-    rewrite
-      ?read_e_Pget
-      ?read_e_Psub
-      ?read_e_Pload
-      ?read_e_Papp1
-      ?read_e_Papp2
-      ?read_e_Pif;
+    rewrite ?t_rewrite_read_e;
     (repeat move=> /andP []);
     move=> /= *;
     t_eq_rewrites;

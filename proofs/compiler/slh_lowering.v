@@ -481,7 +481,7 @@ Definition lower_slho
   if is_protect_ptr slho is Some p then
        ok (Copn lvs tg (Oslh (SLHprotect_ptr_fail p)) es)
   else if shp_lower shparams lvs slho es is Some args then
-       ok (instr_of_copn_args tg args)
+       ok (ir_of_copn_args tg args)
   else Error (E.lowering_failed ii).
 
 Notation rec_cmd lower_i c := (mapM lower_i c).

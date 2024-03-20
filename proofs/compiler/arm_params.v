@@ -77,11 +77,46 @@ Definition arm_immediate (x: var_i) z :=
 Definition arm_swap t (x y z w : var_i) :=
   Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarm_swap reg_size))) [:: Plvar z; Plvar w].
 
+(* Build the the immediate [eoff] if it does not fit in a single LDR/STR
+   instruction. *)
+Definition lower_mem_off (tmp : var_i) (eoff : pexpr) : seq copn_args * pexpr :=
+  if expr.is_wconst reg_size eoff is Some woff
+  then ARMCopn.load_mem_imm tmp woff
+  else ([::], eoff).
+
+Definition split_mem_opn_match_lvs lvs :=
+  if lvs is [:: Lmem ws vbase eoff ] then Some (ws, vbase, eoff) else None.
+
+Definition split_mem_opn_match_es es :=
+  if es is [:: Pload ws vbase eoff ] then Some (ws, vbase, eoff) else None.
+
+(* Call [lower_mem_off] on memory accesses. *)
+Definition split_mem_opn
+  (tmp : var_i)
+  (lvs : seq lval)
+  (op : sopn)
+  (es : seq pexpr) :
+  cexec (seq copn_args) :=
+  if split_mem_opn_match_lvs lvs is Some (ws, vbase, eoff)
+  then
+    (* STR *)
+    let '(pre, eoff) := lower_mem_off tmp eoff in
+    ok (rcons pre ([:: Lmem ws vbase eoff ], op, es))
+  else
+    if split_mem_opn_match_es es is Some (ws, vbase, eoff)
+    then
+      (* LDR *)
+      let '(pre, eoff) := lower_mem_off tmp eoff in
+      ok (rcons pre (lvs, op, [:: Pload ws vbase eoff ]))
+    else
+      ok [:: (lvs, op, es) ].
+
 Definition arm_saparams : stack_alloc_params :=
   {|
     sap_mov_ofs := arm_mov_ofs;
     sap_immediate := arm_immediate;
     sap_swap := arm_swap;
+    sap_split_mem_opn := split_mem_opn;
   |}.
 
 (* ------------------------------------------------------------------------ *)

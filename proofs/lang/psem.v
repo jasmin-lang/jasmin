@@ -710,6 +710,25 @@ Lemma sem_seq_ir ii ir s0 s1 :
   -> sem s0 [:: MkI ii ir ] s1.
 Proof. by move=> /(EmkI ii) /sem_seq1. Qed.
 
+Definition sem_copn_args
+  (gd : glob_decls) (a : copn_args) (s : estate) : exec estate :=
+  sem_sopn gd a.1.2 s a.1.1 a.2.
+
+Definition sem_copns_args gd := foldM (sem_copn_args gd).
+
+Lemma sem_copns_args_sem args ii tag s s' :
+  let: c := [seq i_of_copn_args ii tag a | a <- args ] in
+  sem_copns_args (p_globs P) s args = ok s' ->
+  sem s c s'.
+Proof.
+  elim: args s => [|a args hind] s /=.
+  - move=> [->]. by econstructor.
+  t_xrbindP=> s0 hs0 hs'.
+  econstructor; last by eauto.
+  constructor.
+  by constructor.
+Qed.
+
 End SEM.
 
 Section WITH_PARAMS.
@@ -1077,21 +1096,6 @@ Lemma on_arr_gvar_eq_on wdb s' gd X s A x (f: ∀ n, WArray.array n → exec A) 
 Proof.
   move=> Heq; rewrite /get_gvar /read_gvar;case:ifP => _ Hin //.
   by apply: (on_arr_var_eq_on _ (X := X)) => //; SvD.fsetdec.
-Qed.
-
-Lemma get_var_eq_ex wdb vm1 vm2 X x:
-  ~Sv.In x X ->
-  vm1 =[\ X] vm2 ->
-  get_var wdb vm1 x = get_var wdb vm2 x.
-Proof. by move=> Hin Hvm;rewrite /get_var Hvm. Qed.
-
-Lemma get_gvar_eq_ex wdb gd vm1 vm2 X x:
-  disjoint (read_gvar x) X ->
-  vm1 =[\ X] vm2 ->
-  get_gvar wdb gd vm1 x = get_gvar wdb gd vm2 x.
-Proof.
-  rewrite /read_gvar /get_gvar; case: ifP => // _ /disjointP hin.
-  apply: get_var_eq_ex; apply hin; SvD.fsetdec.
 Qed.
 
 Section READ_E_ES_EQ_ON.
@@ -1806,6 +1810,176 @@ Qed.
 
 End Expr.
 
+(* -------------------------------------------------------------------------- *)
+
+Section EQ_EX.
+
+  Context
+    (wdb : bool)
+    (gd : glob_decls)
+    (xs : Sv.t)
+  .
+
+  Lemma get_var_eq_ex vm1 vm2 x:
+    ~ Sv.In x xs ->
+    vm1 =[\ xs ] vm2 ->
+    get_var wdb vm1 x = get_var wdb vm2 x.
+  Proof. by move=> Hin Hvm;rewrite /get_var Hvm. Qed.
+
+  Lemma get_gvar_eq_ex vm1 vm2 x:
+    disjoint (read_gvar x) xs ->
+    vm1 =[\ xs ] vm2 ->
+    get_gvar wdb gd vm1 x = get_gvar wdb gd vm2 x.
+  Proof.
+    rewrite /read_gvar /get_gvar; case: ifP => // _ /disjointP hin.
+    apply: get_var_eq_ex; apply hin; SvD.fsetdec.
+  Qed.
+
+  Lemma write_var_eq_ex x v s s' vm:
+    write_var wdb x v s = ok s' ->
+    vm =[\ xs ] evm s ->
+    exists2 vm',
+      write_var wdb x v (with_vm s vm) = ok (with_vm s' vm')
+      & vm' =[\ Sv.remove x xs ] evm s'.
+  Proof.
+    move=> hwrite hvm.
+    have [vm' [hwrite2 hvm' hx2]] := write_var_spec (with_vm s vm) hwrite.
+    have [vm0 [hwrite3 hvm3 _]] := write_var_spec s hwrite.
+    move: hwrite.
+    rewrite hwrite3 => -[?]; subst s'.
+    eexists.
+    - rewrite hwrite2 !with_vm_idem. reflexivity.
+    clear hwrite2 hwrite3.
+    move=> y /Sv.remove_spec hy.
+    case: (y =P x) => [-> | hne]; first by rewrite hx2.
+    clear hx2.
+    case: (Sv_memP y xs) => [hin | hnin].
+    - exfalso. exact: hy.
+    clear hy.
+    rewrite -hvm3; last by apply/Sv.singleton_spec.
+    rewrite -(hvm _ hnin) -hvm' //.
+    by apply/Sv.singleton_spec.
+  Qed.
+
+  Lemma on_arr_var_eq_ex s' s A x (f : forall n, WArray.array n -> exec A) :
+    evm s' =[\ xs ] evm s ->
+    ~ Sv.In x xs ->
+    on_arr_var (get_var wdb (evm s) x) f
+    = on_arr_var (get_var wdb (evm s') x) f.
+  Proof. move=> hvm hx. by rewrite /on_arr_var (get_var_eq_ex hx hvm). Qed.
+
+  Lemma sem_pexpr_eq_ex s vm e :
+    vm =[\ xs ] evm s ->
+    disjoint (read_e e) xs ->
+    sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
+  Proof.
+    elim: e =>
+      [ //
+      | //
+      | //
+      | ?
+      | ??? e hinde
+      | ???? e hinde
+      | ?? e hinde
+      | ? e hinde
+      | ? e0 hinde0 e1 hinde1
+      | ? [//|e es] hindes
+      | ? e hinde e0 hinde0 e1 hinde1
+      ] /= hvm.
+    - move=> ?. by rewrite /= (get_gvar_eq_ex _ hvm) // -read_e_var.
+    - rewrite read_e_Pget => /disjoint_union [??].
+      by rewrite -hinde // (get_gvar_eq_ex _ hvm).
+    - rewrite read_e_Psub => /disjoint_union [??].
+      by rewrite -hinde // (get_gvar_eq_ex _ hvm).
+    - rewrite read_e_Pload => /disjoint_add [??].
+      rewrite -hinde // (get_var_eq_ex _ hvm) //.
+      apply/Sv_memP.
+      by rewrite -disjoint_singleton.
+    - by rewrite read_e_Papp1 => /(hinde hvm) ->.
+    - by rewrite read_e_Papp2 => /disjoint_union [] /(hinde0 hvm) ->
+        /(hinde1 hvm) ->.
+    - rewrite read_e_PappN_cons => /disjoint_union [? hes].
+      rewrite hindes //=; last by left.
+      rewrite (mapM_ext (f2 := sem_pexpr wdb gd (with_vm s vm))) // => ??.
+      apply: hindes => //; first by right.
+      by eauto using disjoint_w, read_es_read_e.
+    rewrite read_e_Pif => /disjoint_union [? /disjoint_union [??]].
+    by rewrite hinde // hinde0 // hinde1.
+  Qed.
+
+  Lemma sem_pexprs_eq_ex s vm es :
+    vm =[\ xs ] evm s ->
+    disjoint (read_es es) xs ->
+    sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
+  Proof.
+    elim: es => [//|e es hind] hvm.
+    rewrite read_es_cons => /disjoint_union [he hes] /=.
+    by rewrite (sem_pexpr_eq_ex hvm he) (hind hvm hes).
+  Qed.
+
+  Lemma write_lval_eq_ex lv v s s' vm :
+    vm =[\ xs ] evm s ->
+    disjoint (read_rv lv) xs ->
+    write_lval wdb gd lv v s = ok s' ->
+    exists2 vm',
+      write_lval wdb gd lv v (with_vm s vm) = ok (with_vm s' vm')
+      & vm' =[\ xs ] evm s'.
+  Proof.
+    case: lv => [vi ty | x | ws x e | aa ws x e | aa ws len x e] /=.
+    - move=> ? _ /write_noneP [-> h1 h2]. rewrite /write_none h1 h2. by eexists.
+    - move=> hvm _ /write_var_eq_ex /(_ hvm) [?? hvm'].
+      eexists; first eassumption.
+      apply: (eq_exI _ hvm').
+      clear; SvD.fsetdec.
+    - rewrite read_eE => hvm /disjoint_union [] he.
+      rewrite -SvP.MP.singleton_equal_add disjoint_singleton.
+      move=> /Sv_memP hx.
+      rewrite (get_var_eq_ex hx hvm) (sem_pexpr_eq_ex hvm he).
+      t_xrbindP; repeat (move=> > -> /=).
+      move=> <-.
+      by eexists.
+    - rewrite read_eE => hvm /disjoint_union [] he.
+      rewrite -SvP.MP.singleton_equal_add disjoint_singleton.
+      move=> /Sv_memP hx.
+      rewrite (sem_pexpr_eq_ex hvm he).
+      rewrite (on_arr_var_eq_ex (s' := with_vm s vm) _ hvm hx).
+      apply: on_arr_varP => n t htx; rewrite /on_arr_var => -> /=.
+      t_xrbindP; repeat (move=> > -> /=).
+      move=> /write_var_eq_ex /(_ hvm) [?? hvm'].
+      eexists; first eassumption.
+      apply: (eq_exI _ hvm').
+      clear; SvD.fsetdec.
+    rewrite read_eE => hvm /disjoint_union [] he.
+    rewrite -SvP.MP.singleton_equal_add disjoint_singleton.
+    move=> /Sv_memP hx.
+    rewrite (sem_pexpr_eq_ex hvm he).
+    rewrite (on_arr_var_eq_ex (s' := with_vm s vm) _ hvm hx).
+    apply: on_arr_varP => n t htx; rewrite /on_arr_var => -> /=.
+    t_xrbindP; repeat (move=> > -> /=).
+    move=> /write_var_eq_ex /(_ hvm) [?? hvm'].
+    eexists; first eassumption.
+    apply: (eq_exI _ hvm').
+    clear; SvD.fsetdec.
+  Qed.
+
+  Lemma write_lvals_eq_ex lvs vs s s' vm :
+    vm =[\ xs ] evm s ->
+    disjoint (read_rvs lvs) xs ->
+    write_lvals wdb gd s lvs vs = ok s' ->
+    exists2 vm',
+      write_lvals wdb gd (with_vm s vm) lvs vs = ok (with_vm s' vm')
+      & vm' =[\ xs ] evm s'.
+  Proof.
+    elim: lvs vs s s' vm => [|lv lvs hind] [|v vs] //= s s' vm.
+    - move=> ? _ [<-]; by eexists.
+    rewrite read_rvs_cons => hvm /disjoint_union [] hlv hlvs.
+    t_xrbindP=> s0 hwrite hwrites.
+    have [vm0 -> hvm0] /= := write_lval_eq_ex hvm hlv hwrite.
+    have [vm1 -> hvm1] /= := hind _ _ _ _ hvm0 hlvs hwrites.
+    by eauto.
+  Qed.
+
+End EQ_EX.
 
 Section Sem_eqv.
 Context

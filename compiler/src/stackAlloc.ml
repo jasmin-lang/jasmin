@@ -190,6 +190,7 @@ let memory_analysis pp_err ~debug up =
         gao.gao_data
         cglobs
         get_sao
+        (fun ii _ -> ii)
         up
     with
     | Utils0.Ok sp -> sp 

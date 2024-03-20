@@ -45,6 +45,87 @@ Ltac t_arm_op :=
   rewrite ?zero_extend_u ?addn1;
   t_simpl_rewrites.
 
+Module ARMCopnP.
+
+Section WITH_PARAMS.
+
+Context
+  {wsw : WithSubWord}
+  {dc : DirectCall}
+  {syscall_state : Type}
+  {sc_sem : syscall_sem syscall_state}
+  {atoI : arch_toIdent}
+  {pT : progT}
+  {sCP : semCallParams}
+  (p : prog)
+  (evt : extra_val_t)
+.
+
+Let mkv xname vi :=
+  let: x := {| vname := xname; vtype := sword arm_reg_size; |} in
+  let: xi := {| v_var := x; v_info := vi; |} in
+  (xi, x).
+
+Lemma sem_copn_equiv gd args s :
+  ARMCopn_coreP.sem_copn_args gd args s
+  = sem_copn_args gd (ARMCopn.to_opn args) s.
+Proof.
+  rewrite /sem_copn_args /sem_sopn /exec_sopn /=.
+  case: args => -[lvs o] es /=.
+  case: sem_pexprs => //= ?.
+  by case: app_sopn.
+Qed.
+
+Lemma sem_copns_equiv gd args s :
+  ARMCopn_coreP.sem_copns_args gd s args
+  = sem_copns_args gd s (map ARMCopn.to_opn args).
+Proof.
+  elim: args s => //= o os ih s.
+  rewrite sem_copn_equiv.
+  by case: sem_copn_args.
+Qed.
+
+Lemma li_sem gd s xname vi imm :
+  let: (xi, x) := mkv xname vi in
+  let: lcmd := ARMCopn.li xi imm in
+  exists vm',
+    [/\ sem_copns_args gd s lcmd = ok (with_vm s vm')
+      , vm' =[\ Sv.singleton x ] evm s
+      & get_var true vm' x = ok (Vword (wrepr reg_size imm))
+    ].
+Proof.
+  have [vm' []] := ARMCopn_coreP.li_sem_copns_args gd s xname vi imm.
+  rewrite sem_copns_equiv => h1 h2 h3.
+  by exists vm'.
+Qed.
+Opaque ARMCopn.li.
+
+Lemma load_mem_immP pre eimm xname vi imm ii tag s :
+  let: x := {| vname := xname; vtype := sword arm_reg_size; |} in
+  let: xi := {| v_var := x; v_info := vi; |} in
+  let: c := [seq i_of_copn_args ii tag a | a <- pre ] in
+  ARMCopn.load_mem_imm xi imm = (pre, eimm) ->
+  exists vm,
+    let: s' := with_vm s vm in
+    [/\ sem p evt s c s'
+      , vm =[\ Sv.singleton x ] evm s
+      & sem_pexpr true (p_globs p) s' eimm = ok (Vword imm)
+    ].
+Proof.
+  set x := {| vname := _; |}; set xi := {| v_var := _; |}.
+  rewrite /ARMCopn.load_mem_imm.
+  case: is_mem_immediate => -[??]; subst pre eimm.
+  - exists (evm s); split => //. + rewrite with_vm_same /=. by econstructor.
+    by rewrite /= /sem_sop1 /= wrepr_signed.
+  have [vm [hsem hvm hget]] := li_sem (p_globs p) s xname vi (wunsigned imm).
+  exists vm; split=> //; first exact: sem_copns_args_sem.
+  by rewrite /sem_pexpr /= /get_gvar /= hget wrepr_unsigned.
+Qed.
+
+End WITH_PARAMS.
+
+End ARMCopnP.
+
 Module ARMFopnP.
 
 Section WITH_PARAMS.

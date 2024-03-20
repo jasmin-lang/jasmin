@@ -105,4 +105,5 @@ Module ARMOpn_core (Args : OpnArgs).
 
 End ARMOpn_core.
 
+Module ARMCopn_core := ARMOpn_core(CopnArgs).
 Module ARMFopn_core := ARMOpn_core(FopnArgs).

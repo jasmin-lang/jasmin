@@ -84,6 +84,12 @@ Module ARMOpn (Args : OpnArgs).
      Precondition: if [imm] is large, [x <> tmp]. *)
   Definition smart_subi_tmp x tmp imm := map to_opn (Core.smart_subi_tmp x tmp imm).
 
+  Definition load_mem_imm
+    {_ : PointerData} (tmp : var_i) (woff : word Uptr) : seq opn_args * rval :=
+    let z := wsigned woff in
+    if is_mem_immediate z
+    then ([::], rconst Uptr z)
+    else (li tmp (wunsigned woff), rvar tmp).
 
   End WITH_PARAMS.
 

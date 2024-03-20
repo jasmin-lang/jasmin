@@ -141,9 +141,106 @@ Lemma arm_swapP rip s tag (x y z w : var_i) (pz pw: pointer):
        (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz]).
 Proof.
   move=> hxty hyty hzty hwty hz hw.
-  constructor; rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /=.
-  rewrite /exec_sopn /= !truncate_word_u /= /write_var /set_var /=.
-  rewrite hxty hyty //=.
+  constructor.
+  by rewrite /sem_sopn /= /get_gvar /= /get_var /= hz hw /= /exec_sopn /=
+    !truncate_word_u /= /write_var /set_var /= hxty hyty //=.
+Qed.
+
+Lemma lower_mem_offP sp evt pre eoff' vtmp v w eoff ii tag s :
+  let: c := [seq i_of_copn_args ii tag a | a <- pre ] in
+  lower_mem_off vtmp eoff = (pre, eoff') ->
+  vtype vtmp = spointer ->
+  sem_pexpr true (p_globs sp) s eoff = ok v ->
+  to_pointer v = ok w ->
+  exists vm,
+    let: s' := with_vm s vm in
+    [/\ psem.sem (pT := progStack) sp evt s c s'
+      , vm =[\ Sv.singleton vtmp ] evm s
+      & Let v' := sem_pexpr true (p_globs sp) s' eoff' in to_pointer v' = ok w
+    ].
+Proof.
+  move: vtmp => [[[|||[]] tmpname] tmpi] //.
+  set vtmp := {| v_info := _; |}.
+  rewrite /lower_mem_off.
+  case heoff: is_wconst => [w'|]; first last.
+  - move=> [??] _ hsemeoff hv; subst pre eoff'.
+    exists (evm s); split=> //; rewrite with_vm_same.
+    + by constructor.
+    + by rewrite hsemeoff.
+    move=>
+      /(ARMCopnP.load_mem_immP (sCP := sCP_stack) sp evt ii tag s)
+      [vm [hsem hvm hsemeoff']] _ hsemeoff hv.
+  eexists; split; [exact: hsem | done|].
+  rewrite hsemeoff' /= {hsemeoff'}.
+  move: heoff => /(is_wconstP true (p_globs sp) s).
+  rewrite hsemeoff /= hv {hsemeoff hv} => -[?]; subst w.
+  by rewrite truncate_word_u.
+Qed.
+
+Lemma split_mem_opnP : split_mem_opn_correct (sap_split_mem_opn arm_saparams).
+Proof.
+  move=> sp evt s s' ii tag vtmp lvs op es args hargs hty htmplvs htmpes.
+  rewrite /sem_sopn.
+  t_xrbindP=> vres vargs hsemes hexec hwrite.
+
+  move: hargs.
+  rewrite /= /split_mem_opn.
+  case hlvs: split_mem_opn_match_lvs => [[[ws vbase] eoff]|]; first last.
+  - case hes: split_mem_opn_match_es => [[[ws vbase] eoff]|]; first last.
+
+    (* Case 1: No splitting. *)
+    + move=> [?]; subst args.
+      eexists; last reflexivity.
+      apply: (sem_seq_ir (pT := progStack)).
+      constructor.
+      by rewrite /sem_sopn hsemes /= hexec /= hwrite /with_vm -surj_estate.
+
+  (* Case 2: Need to split in [es]. *)
+  - case: es hes hsemes htmpes => [//|] [^e] [] //.
+    move=> [-> -> ->] /=.
+    t_xrbindP=> _ wb vb hgetbase hvb woff voff hsemeoff hwoff w hread <- ?
+      htmpes;
+      subst vargs.
+    case h: lower_mem_off => [pre eoff'] [?]; subst args.
+    have [vm [hsem hvm hsemeoff']] :=
+      lower_mem_offP evt ii tag h hty hsemeoff hwoff.
+    have [|vm' hwrite' hvm'] := write_lvals_eq_ex hvm _ hwrite.
+    + apply/disjoint_sym. rewrite disjoint_singleton. by apply/Sv_memP.
+    eexists; last exact: hvm'.
+    rewrite map_rcons -cats1.
+    apply: (sem_app hsem).
+    apply: (sem_seq_ir (pT := progStack)).
+    constructor.
+    rewrite /sem_sopn /= (get_var_eq_ex true _ hvm); first last.
+    * move: htmpes. clear. rewrite read_es_cons read_e_Pload. SvD.fsetdec.
+    rewrite hgetbase /= hvb /= hsemeoff' /= hread /= hexec /=
+      {hgetbase hvb hsemeoff' hread hexec}.
+    exact: hwrite'.
+
+  (* Case 3: Need to split in [lvs]. *)
+  case: lvs hlvs hwrite htmplvs => [//|] [^lv] [] //.
+  move=> [-> -> ->] /=.
+  case: vres hexec => [//|vr0 vres] hexec.
+  t_xrbindP=> s0 wbase v hgetbase hwbase woff voff hsemeoff hwoff w hw m
+    hwrite ?; subst s0.
+  case: vres hexec => [|//] hexec [?] htmp; subst s'.
+  case h: lower_mem_off => [pre eoff'] [?]; subst args.
+  have [vm [hsem hvm hsemeoff']] :=
+    lower_mem_offP evt ii tag h hty hsemeoff hwoff.
+  eexists.
+  - rewrite map_rcons -cats1.
+    apply: (sem_app hsem).
+    apply: (sem_seq_ir (pT := progStack)).
+    constructor.
+    rewrite /sem_sopn /=.
+    rewrite -(sem_pexprs_eq_ex _ _ hvm); first last.
+    + apply/disjoint_sym. rewrite disjoint_singleton. by apply/Sv_memP.
+    rewrite hsemes /= hexec /= {hsemes hexec}.
+    rewrite (get_var_eq_ex _ _ hvm); first last.
+    + move: htmp. clear. rewrite /read_rvs /= read_eE. SvD.fsetdec.
+    rewrite hgetbase /= hwbase /= hsemeoff' /= hw /= hwrite.
+    reflexivity.
+  done.
 Qed.
 
 End STACK_ALLOC.
@@ -154,6 +251,7 @@ Definition arm_hsaparams {dc : DirectCall} :
     mov_ofsP := arm_mov_ofsP;
     sap_immediateP := arm_immediateP;
     sap_swapP := arm_swapP;
+    sap_split_mem_opnP := split_mem_opnP;
   |}.
 
 (* ------------------------------------------------------------------------ *)
