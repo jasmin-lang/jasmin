@@ -23,293 +23,356 @@ open Utils
 
 let unsharp = String.map (fun c -> if c = '#' then '_' else c)
 
-let pp_var fmt x =
-  Format.fprintf fmt "%s_%s" (unsharp x.v_name) (string_of_uid x.v_id)
-
 module CL = struct
 
-type ty = Uint of int | Sint of int (* Should be bigger than 1 *)
+  type const = Z.t
 
-type const = Z.t
+  let pp_const fmt c = Format.fprintf fmt "%s" (Z.to_string c)
 
-type var = Prog.var
+  type var = Prog.var
 
-type tyvar = var * ty option
+  let pp_var fmt x =
+    Format.fprintf fmt "%s_%s" (unsharp x.v_name) (string_of_uid x.v_id)
 
-type atom =
-  | Aconst of const * ty
-  | Avar of tyvar
+  (* Expression over z *)
 
-type lval = tyvar
+  module I = struct
 
-(* Expression over z *)
+    type eexp =
+      | Iconst of const
+      | Ivar   of var
+      | Iunop  of string * eexp
+      | Ibinop of eexp * string * eexp
+      | Ilimbs of const * eexp list
 
-type eexp =
-  | Iconst of const
-  | Ivar   of var
-  | Iunop  of string * eexp
-  | Ibinop of eexp * string * eexp
-  | Ilimbs of const * eexp list
+    let (!-) e1 = Iunop ("-", e1)
+    let (-) e1 e2 = Ibinop (e1, "-", e2)
+    let (+) e1 e2 = Ibinop (e1, "+", e2)
+    let (!*) e1 e2 = Ibinop (e1, "*", e2)
+    let (!**) e1 e2 = Ibinop (e1, "**", e2)
 
-type epred =
-  | Eeq of eexp * eexp
-  | Eeqmod of eexp * eexp * eexp list
+    let rec pp_eexp fmt e =
+      match e with
+      | Iconst c    -> pp_const fmt c
+      | Ivar   x    -> pp_var   fmt x
+      | Iunop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_eexp e
+      | Ibinop (e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_eexp e1 s pp_eexp e2
+      | Ilimbs (c, es) ->
+        Format.fprintf fmt  "(limbs %a [%a])"
+          pp_const c
+          (pp_list ",@ " pp_eexp) es
 
-(* Range expression *)
+    type epred =
+      | Eeq of eexp * eexp
+      | Eeqmod of eexp * eexp * eexp list
 
-type rexp =
-  | Rvar   of var
-  | Rconst of const * const
-  | Ruext  of rexp * const
-  | Rsext  of rexp * const
-  | Runop  of string * rexp
-  | Rbinop of rexp * string * rexp
-  | Rpreop of string * rexp * rexp
-  | Rlimbs of const * rexp list
+    let pp_epred fmt ep =
+      match ep with
+      | Eeq(e1, e2) -> Format.fprintf fmt "(%a = %a)" pp_eexp e1 pp_eexp e2
+      | Eeqmod(e1,e2, es) ->
+        Format.fprintf fmt "(%a = %a (mod %a))"
+          pp_eexp e1
+          pp_eexp e2
+          (pp_list ",@ " pp_eexp) es
 
-type rpred =
-  | RPcmp   of rexp * string * rexp
-  | RPeqmod of rexp * rexp * string * rexp
-  | RPnot   of rpred
-  | RPand   of rpred list
-  | RPor    of rpred list
+    let pp_epreds fmt eps =
+      if eps = [] then Format.fprintf fmt "true"
+      else Format.fprintf fmt "/\[@[%a@]]" (pp_list ",@ " pp_epred) eps
 
-type arg =
-  | Atom of atom
-  | Lval of lval
-  | Const of const
-  | Ty    of ty
-  | Pred of epred list * rpred list
+  end
 
-type args = arg list
+  type ty = Uint of int | Sint of int (* Should be bigger than 1 *)
 
-type instr =
-  { iname : string;
-    iargs : args; }
+  let pp_ty fmt ty =
+    match ty with
+    | Uint i -> Format.fprintf fmt "uint%i" i
+    | Sint i -> Format.fprintf fmt "sint%i" i
 
-let uint i = Uint i
-let sint i = Sint i
+  let pp_cast fmt ty = Format.fprintf fmt "@@%a" pp_ty ty
 
-module R = struct
+  let pp_ocast fmt oty =
+    match oty with
+    | None -> ()
+    | Some ty -> pp_cast fmt ty
 
-  let const z1 z2 = Rconst(z1, z2)
+  type tyvar = var * ty option
 
-  let (-) e1 e2 = Rbinop (e1, "-", e2)
+  let pp_tyvar fmt (x, oty) =
+    Format.fprintf fmt "%a%a" pp_var x pp_ocast oty
 
-  let umod e1 e2 = Rpreop ("umod", e1, e2)
+  let pp_tyvars fmt xs =
+    Format.fprintf fmt "%a" (pp_list ",@ " pp_tyvar) xs
 
-end
+  (* Range expression *)
+  module R = struct
 
-module I = struct
+    type rexp =
+      | Rvar   of tyvar
+      | Rconst of const * const
+      | Ruext of rexp * const
+      | Rsext of rexp * const
+      | Runop  of string * rexp
+      | Rbinop of rexp * string * rexp
+      | Rpreop of string * rexp * rexp
+      | Rlimbs of const * rexp list
 
-  let (!-) e1 = Iunop ("-", e1)
-  let (-) e1 e2 = Ibinop (e1, "-", e2)
+    let const z1 z2 = Rconst(z1, z2)
+    let (!-) e1 = Runop ("-", e1)
+    let (-) e1 e2 = Rbinop (e1, "-", e2)
+    let (+) e1 e2 = Rbinop (e1, "+", e2)
+    let (!*) e1 e2 = Rbinop (e1, "*", e2)
+    let (!!) e1 e2 = Rbinop (e1, "neg", e2)
+    let (!~) e1 e2 = Rbinop (e1, "not", e2)
+    let (!&) e1 e2 = Rbinop (e1, "and", e2)
+    let (!|) e1 e2 = Rbinop (e1, "or", e2)
+    let (!^) e1 e2 = Rbinop (e1, "xor", e2)
+    let umod e1 e2 = Rpreop ("umod", e1, e2)
+    let smod e1 e2 = Rpreop ("smod", e1, e2)
+    let srem e1 e2 = Rpreop ("srem", e1, e2)
 
-end
-
-
-
-
-
-
-
-let op1 iname (d : lval) (s : atom) =
-  { iname; iargs = [Lval d; Atom s] }
-
-let op2 iname (d : lval) (s1 : atom) (s2 : atom) =
-  { iname; iargs = [Lval d; Atom s1; Atom s2] }
-
-let op2c iname (d : lval) (s1 : atom) (s2 : atom) (c : var) =
-  { iname; iargs = [Lval d; Atom s1; Atom s2; Atom (Avar (c,None))] }
-
-let op2_2 iname (d1 : lval) (d2: lval) (s1 : atom) (s2 : atom) =
-  { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2] }
-
-let op2_2c iname (d1 : lval) (d2: lval) (s1 : atom) (s2 : atom) (c : var) =
-  { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2; Atom (Avar (c,None))] }
-
-let shift iname (d : lval) (s : atom) (i : int) =
-  { iname; iargs = [Lval d; Atom s; Const (Z.of_int i)] }
-
-let cshift iname (d1 : lval) (d2 : lval) (s1 : atom) (s2 : atom) (i : int) =
-  { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2; Const (Z.of_int i)] }
-
-let shifts iname (d1 : lval) (d2 : lval) (s : atom) (i : int) =
-  { iname; iargs = [Lval d1; Lval d2; Atom s; Const (Z.of_int i)] }
-
-let shift2s iname (d1 : lval) (d2 : lval) (d3 : lval) (s1 : atom) (s2 : atom) (i : int) =
-  { iname; iargs = [Lval d1; Lval d2; Lval d3; Atom s1; Atom s2; Const (Z.of_int i)] }
-
-let mov  = op1   "mov"
-let add  = op2   "add"
-let adc  = op2c  "adc"
-let sub  = op2   "sub"
-let subc = op2_2 "subc"
-let sbc  = op2c  "sbc"
-let sbb  = op2c  "sbb"
-let mul  = op2   "mul"
-let mull = op2_2 "mull"
-(*
-  nondet
-  set
-*)
-
-let shl  = shift "shl"
-let shr  = shift "shr"
-let sar  = shift "sar"
-let cshl = cshift "cshl"
-let cshr = cshift "cshr"
-(*
-  spl
-  join
-*)
-
-let seteq = op2 "seteq"
-let and_  = op2 "and"
-let xor  = op2 "xor"
-
-let cast ty (d : lval) (s : atom) =
-  { iname = "cast"; iargs = [Ty ty; Lval d; Atom s] }
-
-let assert_ ep rp =
-  { iname = "assert"; iargs = [Pred(ep, rp)] }
-
-let cut ep rp =
-  { iname = "cut"; iargs = [Pred(ep, rp)] }
-
-(*
-   rcut
-*)
-
-let cmov = op2_2  "cmov"
-let adds = op2_2  "adds"
-let adcs = op2_2c "adcs"
-let subb = op2_2  "subb"
-let sbcs = op2_2c "sbcs"
-let sbbs = op2_2c "sbbs"
-let muls = op2_2  "muls"
-let mulj = op2    "mulj"
-
-(*
-   clear
-*)
-let shls = shifts "shls"
-let shrs = shifts "shrs"
-let sars = shifts "sars"
-
-let cshls = shift2s "cshls"
-let cshrs = shift2s "cshrs"
-let split = shifts  "split"
-let setne = op2     "setne"
-let or_   = op2     "or"
-let not   = op1     "not"
-
-let vpc ty (d : lval) (s : atom) =
-  { iname = "vpc"; iargs = [Ty ty; Lval d; Atom s] }
-
-let assume ep rp =
-  { iname = "assume"; iargs  = [Pred(ep, rp)] }
-
-(*
-  ecut
-  ghost
-*)
-
-let nop = { iname = "nop"; iargs = [] }
-
-let pp_ty fmt ty =
-  match ty with
-  | Uint i -> Format.fprintf fmt "uint%i" i
-  | Sint i -> Format.fprintf fmt "sint%i" i
-
-let pp_cast fmt ty = Format.fprintf fmt "@@%a" pp_ty ty
-
-let pp_ocast fmt oty =
-  match oty with
-  | None -> ()
-  | Some ty -> pp_cast fmt ty
-
-let pp_tyvar fmt (x, oty) =
-  Format.fprintf fmt "%a%a" pp_var x pp_ocast oty
-
-let pp_const fmt c = Format.fprintf fmt "%s" (Z.to_string c)
-
-let pp_atom fmt a =
-  match a with
-  | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
-  | Avar tv -> pp_tyvar fmt tv
-
-let rec pp_eexp fmt e =
-  match e with
-  | Iconst c    -> pp_const fmt c
-  | Ivar   x    -> pp_var   fmt x
-  | Iunop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_eexp e
-  | Ibinop (e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_eexp e1 s pp_eexp e2
-  | Ilimbs (c, es) ->
-      Format.fprintf fmt  "(limbs %a [%a])"
-        pp_const c
-        (pp_list ",@ " pp_eexp) es
-
-
-let pp_epred fmt ep =
-  match ep with
-  | Eeq(e1, e2) -> Format.fprintf fmt "(%a = %a)" pp_eexp e1 pp_eexp e2
-  | Eeqmod(e1,e2, es) ->
-     Format.fprintf fmt "(%a = %a (mod %a))"
-       pp_eexp e1
-       pp_eexp e2
-       (pp_list ",@ " pp_eexp) es
-
-let pp_epreds fmt eps =
-  if eps = [] then Format.fprintf fmt "true"
-  else Format.fprintf fmt "/\[@[%a@]]" (pp_list ",@ " pp_epred) eps
-
-let rec pp_rexp fmt r =
-  match r with
-  | Rvar x -> pp_var fmt x
-  | Rconst (c1, c2) -> Format.fprintf fmt "(const %a %a)" pp_const c1 pp_const c2
-  | Ruext (e, c) -> Format.fprintf fmt "(uext %a %a)" pp_rexp e pp_const c
-  | Rsext (e, c) -> Format.fprintf fmt "(sext %a %a)" pp_rexp e pp_const c
-  | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
-  | Rbinop(e1, s, e2) ->  Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
-  | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2
-  | Rlimbs(c, es) ->
+  let rec pp_rexp fmt r =
+    match r with
+    | Rvar x -> pp_tyvar fmt x
+    | Rconst (c1, c2) -> Format.fprintf fmt "(const %a %a)" pp_const c1 pp_const c2
+    | Ruext (e, c) -> Format.fprintf fmt "(uext %a %a)" pp_rexp e pp_const c
+    | Rsext (e, c) -> Format.fprintf fmt "(sext %a %a)" pp_rexp e pp_const c
+    | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
+    | Rbinop(e1, s, e2) ->  Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
+    | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2
+    | Rlimbs(c, es) ->
       Format.fprintf fmt  "(limbs %a [%a])"
         pp_const c
         (pp_list ",@ " pp_rexp) es
 
+    type rpred =
+      | RPcmp   of rexp * string * rexp
+      | RPeqmod of rexp * rexp * string * rexp
+      | RPnot   of rpred
+      | RPand   of rpred list
+      | RPor    of rpred list
 
-let rec pp_rpred fmt rp =
-  match rp with
-  | RPcmp(e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
-  | RPeqmod(e1, e2, s, e3) -> Format.fprintf fmt "(%a = %a (%s %a))" pp_rexp e1 pp_rexp e2 s pp_rexp e3
-  | RPnot e -> Format.fprintf fmt "(~ %a)" pp_rpred e
-  | RPand rps ->
-      if rps = [] then Format.fprintf fmt "true"
-      else Format.fprintf fmt "/\\[%a]" (pp_list ",@ " pp_rpred) rps
-  | RPor  rps -> Format.fprintf fmt "\\/[%a]" (pp_list ",@ " pp_rpred) rps
+    (* Require better notation naming *)
+    let (!=) e1 e2 = RPcmp (e1, "eq", e2)
+    let equmod e1 e2 e3 = RPeqmod (e1, e2, "equmod", e3)
+    let eqsmod e1 e2 e3 = RPeqmod (e1, e2, "eqsmod", e3)
+    let (@<) e1 e2 = RPcmp (e1, "ult", e2)
+    let (@<=) e1 e2 = RPcmp (e1, "ule", e2)
+    let (@>) e1 e2 = RPcmp (e1, "ugt", e2)
+    let (@>=) e1 e2 = RPcmp (e1, "uge", e2)
+    let (#<) e1 e2 = RPcmp (e1, "slt", e2)
+    let (#<=) e1 e2 = RPcmp (e1, "sle", e2)
+    let (#>) e1 e2 = RPcmp (e1, "sgt", e2)
+    let (#>=) e1 e2 = RPcmp (e1, "sge", e2)
 
-let pp_rpreds fmt rps = pp_rpred fmt (RPand rps)
+    let rec pp_rpred fmt rp =
+      match rp with
+      | RPcmp(e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
+      | RPeqmod(e1, e2, s, e3) -> Format.fprintf fmt "(%a = %a (%s %a))" pp_rexp e1 pp_rexp e2 s pp_rexp e3
+      | RPnot e -> Format.fprintf fmt "(~ %a)" pp_rpred e
+      | RPand rps ->
+        if rps = [] then Format.fprintf fmt "true"
+        else Format.fprintf fmt "/\\[%a]" (pp_list ",@ " pp_rpred) rps
+      | RPor  rps -> Format.fprintf fmt "\\/[%a]" (pp_list ",@ " pp_rpred) rps
 
-let pp_arg fmt a =
-  match a with
-  | Atom a  -> pp_atom fmt a
-  | Lval tv -> pp_tyvar fmt tv
-  | Const c -> pp_const fmt c
-  | Ty ty   -> pp_ty fmt ty
-  | Pred(ep, rp) ->
+  let pp_rpreds fmt rps = pp_rpred fmt (RPand rps)
+
+  end
+
+
+  type clause = I.epred list * R.rpred list
+
+  let pp_clause fmt (ep,rp) =
     Format.fprintf fmt "@[<hov 2>@[%a@] &&@ @[%a@]@]"
-       pp_epreds ep
-       pp_rpreds rp
+      I.pp_epreds ep
+      R.pp_rpreds rp
 
-let pp_instr fmt (i : instr) =
-  Format.fprintf fmt "%s %a;"
-    i.iname (pp_list "@ " pp_arg) i.iargs
+  module Instr = struct
+
+    type atom =
+      | Aconst of const * ty
+      | Avar of tyvar
+
+    let pp_atom fmt a =
+      match a with
+      | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
+      | Avar tv -> pp_tyvar fmt tv
+
+    type lval = tyvar
+
+    type arg =
+      | Atom of atom
+      | Lval of lval
+      | Const of const
+      | Ty    of ty
+      | Pred of clause
+
+    type args = arg list
+
+    let pp_arg fmt a =
+      match a with
+      | Atom a  -> pp_atom fmt a
+      | Lval tv -> pp_tyvar fmt tv
+      | Const c -> pp_const fmt c
+      | Ty ty   -> pp_ty fmt ty
+      | Pred cl -> pp_clause fmt cl
+
+    type instr =
+      { iname : string;
+        iargs : args; }
+
+    let pp_instr fmt (i : instr) =
+      Format.fprintf fmt "%s %a;"
+        i.iname (pp_list "@ " pp_arg) i.iargs
+
+    let pp_instrs fmt (is : instr list) =
+      Format.fprintf fmt "%a" (pp_list " " pp_instr) is
+
+    module Op1 = struct
+
+      let op1 iname (d : lval) (s : atom) =
+        { iname; iargs = [Lval d; Atom s] }
+
+      let mov  = op1 "mov"
+      let not  = op1 "not"
+
+    end
+
+    module Op2 = struct
+
+      let op2 iname (d : lval) (s1 : atom) (s2 : atom) =
+        { iname; iargs = [Lval d; Atom s1; Atom s2] }
+
+      let add  = op2  "add"
+      let sub  = op2  "sub"
+      let mul  = op2  "mul"
+      let seteq = op2 "seteq"
+      let and_  = op2 "and"
+      let xor  = op2  "xor"
+      let mulj = op2  "mulj"
+      let setne = op2 "setne"
+      let or_   = op2 "or"
+
+    end
+
+    module Op2c = struct
+
+      let op2c iname (d : lval) (s1 : atom) (s2 : atom) (c : var) =
+        { iname; iargs = [Lval d; Atom s1; Atom s2; Atom (Avar (c,None))] }
+
+      let adc  = op2c  "adc"
+      let sbc  = op2c  "sbc"
+      let sbb  = op2c  "sbb"
+
+    end
+
+    module Op2_2 = struct
+
+      let op2_2 iname (d1 : lval) (d2: lval) (s1 : atom) (s2 : atom) =
+        { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2] }
+
+      let subc = op2_2 "subc"
+      let mull = op2_2 "mull"
+      let cmov = op2_2  "cmov"
+      let adds = op2_2  "adds"
+      let subb = op2_2  "subb"
+      let muls = op2_2  "muls"
+
+    end
+
+    module Op2_2c = struct
+
+      let op2_2c iname (d1 : lval) (d2: lval) (s1 : atom) (s2 : atom) (c : var) =
+      { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2; Atom (Avar (c,None))] }
+
+      let adcs = op2_2c "adcs"
+      let sbcs = op2_2c "sbcs"
+      let sbbs = op2_2c "sbbs"
+
+    end
+
+    module Shift = struct
+
+      let shift iname (d : lval) (s : atom) (i : int) =
+        { iname; iargs = [Lval d; Atom s; Const (Z.of_int i)] }
+
+      let shl  = shift "shl"
+      let shr  = shift "shr"
+      let sar  = shift "sar"
+
+    end
+
+    module Cshift = struct
+
+      let cshift iname (d1 : lval) (d2 : lval) (s1 : atom) (s2 : atom) (i : int) =
+        { iname; iargs = [Lval d1; Lval d2; Atom s1; Atom s2; Const (Z.of_int i)] }
+
+      let cshl = cshift "cshl"
+      let cshr = cshift "cshr"
+
+    end
+
+    module Shifts =  struct
+      let shifts iname (d1 : lval) (d2 : lval) (s : atom) (i : int) =
+        { iname; iargs = [Lval d1; Lval d2; Atom s; Const (Z.of_int i)] }
+
+      let shls = shifts "shls"
+      let shrs = shifts "shrs"
+      let sars = shifts "sars"
+      let split = shifts  "split"
+
+    end
+
+    module Shift2s = struct
+
+      let shift2s iname (d1 : lval) (d2 : lval) (d3 : lval) (s1 : atom) (s2 : atom) (i : int) =
+        { iname; iargs = [Lval d1; Lval d2; Lval d3; Atom s1; Atom s2; Const (Z.of_int i)] }
+
+      let cshls = shift2s "cshls"
+      let cshrs = shift2s "cshrs"
+
+    end
+
+
+    let cast ty (d : lval) (s : atom) =
+      { iname = "cast"; iargs = [Ty ty; Lval d; Atom s] }
+
+    let assert_ ep rp =
+      { iname = "assert"; iargs = [Pred(ep, rp)] }
+
+    let cut ep rp =
+      { iname = "cut"; iargs = [Pred(ep, rp)] }
+
+    let vpc ty (d : lval) (s : atom) =
+      { iname = "vpc"; iargs = [Ty ty; Lval d; Atom s] }
+
+    let assume ep rp =
+      { iname = "assume"; iargs  = [Pred(ep, rp)] }
+
+(* nondet set spl join rcut clear ecut ghost *)
+
+  end
+
+  module Proc = struct
+
+    type proc =
+      { id : string;
+        formals : tyvar list;
+        pre : clause;
+        prog : Instr.instr list;
+        post : clause;
+      }
+
+  let pp_proc fmt (proc : proc) =
+    Format.fprintf fmt
+      "@[<v>proc %s(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@] @ }@ @]"
+      proc.id
+      pp_tyvars proc.formals
+      pp_clause proc.pre
+      Instr.pp_instrs proc.prog
+      pp_clause proc.post
+  end
 
 end
-
-
-
 
 (*
    TODO:
@@ -625,37 +688,37 @@ let pp_mov fmt ws xs es =
         pp_lval (List.nth xs 0, int_of_ws ws)
         pp_atome (List.nth es 0, int_of_ws ws)
   | Pconst _ ->
-      Format.fprintf fmt "mov %a %a"
-        pp_lval (List.nth xs 0, int_of_ws ws)
-        pp_atome (List.nth es 0, int_of_ws ws)
+    Format.fprintf fmt "mov %a %a"
+      pp_lval (List.nth xs 0, int_of_ws ws)
+      pp_atome (List.nth es 0, int_of_ws ws)
   | Papp1 (Oword_of_int ws, Pconst x) ->
-      Format.fprintf fmt "mov %a %a@uint%i"
-        pp_lval (List.nth xs 0, int_of_ws ws)
-        pp_print_i x
-        (int_of_ws ws)
+    Format.fprintf fmt "mov %a %a@uint%i"
+      pp_lval (List.nth xs 0, int_of_ws ws)
+      pp_print_i x
+      (int_of_ws ws)
   | _ -> assert false
 
- let rec pp_cast fmt (x,ws) =
-    match x with
-    | Pconst z -> x
-    | Pvar va ->
-      let ws_x = ws_of_ty (L.unloc va.gv).v_ty in
-      if ws = ws_x then x
-      else
-        let v = va.gv in
-        let k = va.gs in
-        let v_ = v.L.pl_desc in
-        let v1 = V.mk "TMP" v_.v_kind (CoreIdent.tu ws) v_.v_dloc v_.v_annot in
-        let pp fmt = pp_mov fmt ws [(Lvar (L.mk_loc v.pl_loc v1))] [x]
-        in
-        Format.fprintf fmt "%t;@ " pp;
-        let v  = { v with L.pl_desc = v1 } in
-        (* FIXME : I think we should not view it as a global is x is global *)
-        let v0 = { gv = v; gs = k } in
-        Pvar v0
-    | Papp1 (Oword_of_int _ws, x) ->
-      pp_cast fmt (x, ws)
-    | _ -> assert false
+let rec pp_cast fmt (x,ws) =
+  match x with
+  | Pconst z -> x
+  | Pvar va ->
+    let ws_x = ws_of_ty (L.unloc va.gv).v_ty in
+    if ws = ws_x then x
+    else
+      let v = va.gv in
+      let k = va.gs in
+      let v_ = v.L.pl_desc in
+      let v1 = V.mk "TMP" v_.v_kind (CoreIdent.tu ws) v_.v_dloc v_.v_annot in
+      let pp fmt = pp_mov fmt ws [(Lvar (L.mk_loc v.pl_loc v1))] [x]
+      in
+      Format.fprintf fmt "%t;@ " pp;
+      let v  = { v with L.pl_desc = v1 } in
+      (* FIXME : I think we should not view it as a global is x is global *)
+      let v0 = { gv = v; gs = k } in
+      Pvar v0
+  | Papp1 (Oword_of_int _ws, x) ->
+    pp_cast fmt (x, ws)
+  | _ -> assert false
 
 module type BaseOp = sig
   type op
@@ -670,24 +733,24 @@ end
 
 module I = struct
   let pp_var fmt (x,ws) =
-      match x with
-      | Pvar x ->
-        Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint ws
-      | _ -> assert false (* Manuel: What is this case? *)
+    match x with
+    | Pvar x ->
+      Format.fprintf fmt "%a@@%a" pp_gvar_i x.gv pp_uint ws
+    | _ -> assert false (* Manuel: What is this case? *)
 
   let rec pp_const fmt x =
-      match x with
-      | Pconst z ->
-        Format.fprintf fmt "%a" pp_print_i z
-      | Papp1 (Oword_of_int _ws, x) ->
-        Format.fprintf fmt "%a" pp_const x
-      | _ -> assert false
+    match x with
+    | Pconst z ->
+      Format.fprintf fmt "%a" pp_print_i z
+    | Papp1 (Oword_of_int _ws, x) ->
+      Format.fprintf fmt "%a" pp_const x
+    | _ -> assert false
 
   let rec get_const x =
-      match x with
-      | Pconst z -> Z.to_int z
-      | Papp1 (Oword_of_int _ws, x) -> get_const x
-      | _ -> assert false
+    match x with
+    | Pconst z -> Z.to_int z
+    | Papp1 (Oword_of_int _ws, x) -> get_const x
+    | _ -> assert false
 
 
   let pp_op2_1 op fmt ws d v1 v2 =
@@ -729,7 +792,7 @@ module X86BaseOp : BaseOp
 
         match trans with
         | Smt ->
-            Format.fprintf fmt "sub %a %a %a"
+          Format.fprintf fmt "sub %a %a %a"
             pp_lval (List.nth xs 5, int_of_ws ws)
             pp_atome (v1, int_of_ws ws)
             pp_atome (v2, int_of_ws ws)
@@ -987,57 +1050,57 @@ module ARMBaseOp : BaseOp
         pp_atome (v2', int_of_ws ws)
 *)
 
-| ADC
-| MUL
-| MLA
-| MLS
-| SDIV
-| SUB
-| RSB
-| UDIV
-| UMULL
-| UMAAL
-| UMLAL
-| SMULL
-| SMLAL
-| SMMUL
-| SMMULR
-| SMUL_hw _
-| SMLA_hw _
-| SMULW_hw _
-| AND
-| BFC
-| BFI
-| BIC
-| EOR
-| MVN
-| ORR
-| ASR
-| LSL
-| LSR
-| ROR
-| REV
-| REV16
-| REVSH
-| ADR
-| MOV
-| MOVT
-| UBFX
-| UXTB
-| UXTH
-| SBFX
-| CLZ
-| CMP
-| TST
-| CMN
-| LDR
-| LDRB
-| LDRH
-| LDRSB
-| LDRSH
-| STR
-| STRB
-| STRH -> assert false
+    | ADC
+    | MUL
+    | MLA
+    | MLS
+    | SDIV
+    | SUB
+    | RSB
+    | UDIV
+    | UMULL
+    | UMAAL
+    | UMLAL
+    | SMULL
+    | SMLAL
+    | SMMUL
+    | SMMULR
+    | SMUL_hw _
+    | SMLA_hw _
+    | SMULW_hw _
+    | AND
+    | BFC
+    | BFI
+    | BIC
+    | EOR
+    | MVN
+    | ORR
+    | ASR
+    | LSL
+    | LSR
+    | ROR
+    | REV
+    | REV16
+    | REVSH
+    | ADR
+    | MOV
+    | MOVT
+    | UBFX
+    | UXTB
+    | UXTH
+    | SBFX
+    | CLZ
+    | CMP
+    | TST
+    | CMN
+    | LDR
+    | LDRB
+    | LDRH
+    | LDRSB
+    | LDRSH
+    | STR
+    | STRB
+    | STRH -> assert false
 
 end
 
