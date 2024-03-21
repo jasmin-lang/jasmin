@@ -2235,7 +2235,7 @@ Proof.
   rewrite /wbit_n.
   case: ltP.
   + move=> /ltP hlt.
-    by rewrite word.subwordE word.wbit_t2wE (nth_map 0%R) ?size_enum_ord // nth_enum_ord.
+    by rewrite word.subwordE word.wbit_t2wE (nth_map ord0) ?size_enum_ord // nth_enum_ord.
   rewrite /nat_of_wsize => hle.
   rewrite word.wbit_word_ovf //.
   by apply /ltP; lia.

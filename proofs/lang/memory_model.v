@@ -219,7 +219,7 @@ Section CoreMem.
     elim: iota m => /=; first by move=> ?; constructor; eauto.
     move=> k l hrec m.
     apply (iffP andP).
-    + move=> [] /valid8P -/(_ (LE.wread8 v k)) [m'] hset hall.
+    + move=> [] /valid8P -/(_ (LE.wread8 v (Z.of_nat k))) [m'] hset hall.
       by rewrite hset;apply/hrec; apply: sub_all hall => i; rewrite (valid8_set _ hset).
     move=> [m'];t_xrbindP => m'' hset hf; split.
     + by apply/valid8P; eexists; eauto.

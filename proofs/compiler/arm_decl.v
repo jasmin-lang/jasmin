@@ -350,8 +350,8 @@ Definition z_to_bytes (n : Z) : Z * Z * Z * Z :=
 Definition is_ei_pattern (n : Z) : bool :=
   let '(b3, b2, b1, b0) := z_to_bytes n in
   [|| [&& b3 == b0, b2 == b0 & b1 == b0 ]
-    , [&& b3 == 0, b2 == b0 & b1 == 0 ]
-    | [&& b3 == b1, b2 == 0 & b0 == 0 ]
+    , [&& b3 == 0%Z, b2 == b0 & b1 == 0%Z ]
+    | [&& b3 == b1, b2 == 0%Z & b0 == 0%Z ]
   ].
 
 (* An immediate of the shift kind has the shape [0...01xxxxxxx0...0] where the
@@ -362,7 +362,7 @@ Definition is_ei_shift (n : Z) : bool :=
   (* Find where the first set bit and move 7 bits further. *)
   let byte_end := (Z.log2 n - 7)%Z in
   (* Check if any bit after the byte is one. *)
-  Z.rem n (Z.pow 2 byte_end) == 0.
+  Z.rem n (Z.pow 2 byte_end) == 0%Z.
 
 Definition ei_kind (n : Z) : expand_immediate_kind :=
   if [&& 0 <=? n & n <? 256 ]%Z then EI_byte
