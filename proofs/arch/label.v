@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra. 
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import global Utf8.
 
 Set   Implicit Arguments.

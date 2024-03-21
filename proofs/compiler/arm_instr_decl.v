@@ -5,7 +5,7 @@
 
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
