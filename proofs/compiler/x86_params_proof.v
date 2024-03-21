@@ -177,7 +177,7 @@ Proof.
   rewrite hget /= /exec_sopn /= truncate_word_u /=.
   rewrite -cats1 sem_fopns_args_cat.
   set vm0 := (evm s).[r <- Vword ts].
-  set vm2 := if sz != 0 then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
+  set vm2 := if sz != 0%Z then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
   set ts' := align_word _ _.
   set vm3 := vm_op_align vm2 vrsp ts'.
   have -> /= :

@@ -541,8 +541,8 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
     | SavedStackNone =>
         [&& sf_to_save e == [::]
           , sf_align e == U8
-          , sf_stk_sz e == 0
-          & sf_stk_extra_sz e == 0
+          , sf_stk_sz e == 0%Z
+          & sf_stk_extra_sz e == 0%Z
         ]
 
     | SavedStackReg x =>

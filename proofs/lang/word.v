@@ -102,8 +102,8 @@ Definition wbase (s: wsize) : Z :=
   modulus (wsize_size_minus_1 s).+1.
 
 Lemma wbaseE ws :
-  wbase ws = (2 ^ (wsize_size_minus_1 ws).+1)%Z.
-Proof. rewrite /wbase /word.modulus. by rewrite two_power_nat_equiv. Qed.
+  wbase ws = 2 ^ Z.of_nat (wsize_size_minus_1 ws).+1.
+Proof. by rewrite /wbase /word.modulus two_power_nat_equiv. Qed.
 
 Lemma wbase_pos ws :
   (wbase ws > 0)%Z.
@@ -399,7 +399,7 @@ Definition wmulhs sz (x y: word sz) : word sz :=
   high_bits sz (wsigned x * wsigned y).
 
 Definition wmulhrs sz (x y: word sz) : word sz :=
-  let: p := Z.shiftr (wsigned x * wsigned y) (wsize_size_minus_1 sz).-1 + 1 in
+  let: p := Z.shiftr (wsigned x * wsigned y) (Z.of_nat (wsize_size_minus_1 sz).-1) + 1 in
   wrepr sz (Z.shiftr p 1).
 
 Definition wmax_unsigned sz := wbase sz - 1.
@@ -434,7 +434,7 @@ Definition wbit_n sz (w:word sz) (n:nat) : bool :=
    wbit (wunsigned w) n.
 
 Lemma wbit_nE ws (w : word ws) i :
-  wbit_n w i = Z.odd (wunsigned w / 2 ^ i)%Z.
+  wbit_n w i = Z.odd (wunsigned w / 2 ^ Z.of_nat i)%Z.
 Proof.
   have [hlo _] := wunsigned_range w.
   rewrite /wbit_n.
@@ -459,16 +459,16 @@ Proof. apply/eq_from_wbit. Qed.
 Lemma wbit_higher_bits_0 x n ws (i : nat) :
   (0 <= n)%Z
   -> (0 <= x < 2 ^ n)%Z
-  -> (n <= i < (wsize_size_minus_1 ws).+1)%Z
+  -> (n <= Z.of_nat i < Z.of_nat (wsize_size_minus_1 ws).+1)%Z
   -> wbit_n (wrepr ws x) i = false.
 Proof.
-  set m : Z := (wsize_size_minus_1 ws).+1.
+  set m := Z.of_nat (wsize_size_minus_1 ws).+1.
   move=> h0n [h0x hxn] [hni him].
 
   rewrite wbit_nE.
   rewrite Zdiv_small; first done.
 
-  have hxi : (x < 2 ^ i)%Z.
+  have hxi : (x < 2 ^ Z.of_nat i)%Z.
   - apply: (Z.lt_le_trans _ _ _ hxn). apply: Z.pow_le_mono_r; lia.
 
   have hnm : (x < 2 ^ m)%Z.
@@ -479,14 +479,14 @@ Proof.
 Qed.
 
 Lemma wbit_lower_bits_0 x n ws (i : nat) :
-  (0 <= i < n)%Z
+  (0 <= Z.of_nat i < n)%Z
   -> (0 <= 2 ^ n * x < wbase ws)%Z
   -> wbit_n (wrepr ws (2 ^ n * x)) i = false.
 Proof.
   move=> [h0i hin] hw.
   rewrite wbit_nE.
   rewrite (wunsigned_repr_small hw).
-  rewrite -(Zplus_minus i n).
+  rewrite -(Zplus_minus (Z.of_nat i) n).
   rewrite Z.pow_add_r; last lia; last lia.
   rewrite -Z.mul_assoc Z.mul_comm.
   rewrite Z_div_mult; last lia.
@@ -1361,7 +1361,7 @@ Definition wbswap sz (w: word sz) : word sz :=
 
 (* -------------------------------------------------------------------*)
 Definition popcnt sz (w: word sz) :=
- wrepr sz (count id (w2t w)).
+ wrepr sz (Z.of_nat (count id (w2t w))).
 
 (* -------------------------------------------------------------------*)
 Definition pextr sz (w1 w2: word sz) :=
@@ -1383,7 +1383,7 @@ Definition pdep sz (w1 w2: word sz) :=
 (* -------------------------------------------------------------------*)
 
 Fixpoint leading_zero_aux (n : Z) (res sz : nat) : nat :=
-  if (n <? 2 ^ (sz - res))%Z
+  if (n <? 2 ^ Z.of_nat (sz - res))%Z
   then res
   else
     match res with
@@ -1392,7 +1392,7 @@ Fixpoint leading_zero_aux (n : Z) (res sz : nat) : nat :=
     end.
 
 Definition leading_zero (sz : wsize) (w : word sz) : word sz :=
-  wrepr sz (leading_zero_aux (wunsigned w) sz sz).
+  wrepr sz (Z.of_nat (leading_zero_aux (wunsigned w) sz sz)).
 
 (* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
@@ -2122,7 +2122,7 @@ Qed.
 Notation pointer := (word Uptr) (only parsing).
 
 Lemma subword_make_vec_bits_low (n m : nat) x y :
-  (n < m)%Z ->
+  (Z.of_nat n < Z.of_nat m)%Z ->
   word.subword 0 n (word.mkword m (wcat_r [:: x; y ])) = x.
 Proof.
   move=> h.

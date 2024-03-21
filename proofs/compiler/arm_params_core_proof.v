@@ -122,7 +122,7 @@ Lemma wbit_n_add ws n lbs hbs (i : nat) :
   (0 <= lbs < n2)%Z ->
   (0 <= hbs < n2)%Z ->
   let b :=
-    if (i <? n)%Z
+    if (Z.of_nat i <? n)%Z
     then wbit_n (wrepr ws lbs) i
     else wbit_n (wrepr ws hbs) (i - Z.to_nat n)
   in
@@ -130,8 +130,7 @@ Lemma wbit_n_add ws n lbs hbs (i : nat) :
 Proof.
   move=> hn hlbs hhbs.
 
-  have h0i : (0 <= i)%Z.
-  - exact: Zle_0_nat.
+  have h0i := Zle_0_nat i.
 
   have h0n : (0 <= n)%Z.
   - case: (Z.le_gt_cases 0 n) => h; first done.
@@ -146,7 +145,7 @@ Proof.
   all: rewrite wbit_nE.
   all: rewrite (wunsigned_repr_small hrange).
 
-  - rewrite -(Zplus_minus i n) Z.pow_add_r; last lia; last done.
+  - rewrite -(Zplus_minus (Z.of_nat i) n) Z.pow_add_r; last lia; last done.
     rewrite Z.add_comm -Z.mul_assoc Z.mul_comm Z_div_plus; first last.
     + apply/Z.lt_gt. by apply: Z.pow_pos_nonneg.
 
@@ -155,7 +154,7 @@ Proof.
     rewrite wunsigned_repr_small; first done.
     lia.
 
-  rewrite -(Zplus_minus n i) (Z.pow_add_r _ _ _ h0n); last lia.
+  rewrite -(Zplus_minus n (Z.of_nat i)) (Z.pow_add_r _ _ _ h0n); last lia.
   rewrite -Z.div_div; last lia; last lia.
   rewrite Z.add_comm Z.mul_comm Z_div_plus; last lia.
   rewrite (Zdiv_small _ _ hlbs) /= wbit_nE.
@@ -166,7 +165,7 @@ Proof.
     apply: (Z.lt_le_trans _ (2 ^ n)); first lia.
     apply: Z.pow_le_mono_r; lia.
 
-  rewrite int_of_Z_PoszE Nat2Z.n2zB; first by rewrite Z2Nat.id.
+  rewrite Nat2Z.n2zB; first by rewrite Z2Nat.id.
   by apply/ZNleP; rewrite (Z2Nat.id _ h0n); apply/Z.nlt_ge.
 Qed.
 
