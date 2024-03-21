@@ -4,7 +4,7 @@
 From Coq
 Require Import Setoid Morphisms Lia.
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import ZArith Utf8.
         Import Relations.
 

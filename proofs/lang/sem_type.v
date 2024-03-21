@@ -1,7 +1,7 @@
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import Psatz xseq.
 Require Export strings warray_.

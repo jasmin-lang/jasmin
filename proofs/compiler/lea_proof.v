@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import oseq.
 Require Import psem compiler_util.
 Require Import fexpr fexpr_sem fexpr_facts.

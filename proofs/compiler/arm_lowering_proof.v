@@ -1,6 +1,6 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 Import
   Order.POrderTheory
   Order.TotalTheory.
