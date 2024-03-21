@@ -1,7 +1,7 @@
 From Coq Require Import Relations.
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 Require Import
   fexpr_facts

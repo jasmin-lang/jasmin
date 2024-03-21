@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 Require Import ZArith.
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import psem allocation_proof compiler_util.
 Require Export inline.
 

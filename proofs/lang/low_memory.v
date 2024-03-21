@@ -3,7 +3,7 @@
 From Coq Require Import RelationClasses.
 Require memory_example.
 
-Import all_ssreflect all_algebra.
+Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import Lia.
 Import Utf8 ZArith.
