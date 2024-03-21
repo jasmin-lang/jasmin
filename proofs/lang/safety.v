@@ -12,6 +12,11 @@ Context
   (wdb : bool)
   (gd : glob_decls).
 
+(*Safety checker in Ocaml -> SC
+
+SC(s, P) -> True 
+P |= s /\ P type checks /\ P reaches ok state*)
+
 (* can be used to check that an expression does not evaluate to 0 *) 
 Definition not_zero_pexpr (e : pexpr) (s : @estate nosubword syscall_state ep) :=
 forall v sz n, 
@@ -154,9 +159,9 @@ Section safe_pexprs.
 
 Variable safe_pexpr : @estate nosubword syscall_state ep -> pexpr -> seq safe_cond -> Prop.
 
-End safe_pexprs. Print arr_access.
+End safe_pexprs. 
 
-Fixpoint interp_safe_cond (sc : safe_cond) (s : @estate nosubword syscall_state ep) : Prop :=
+Definition interp_safe_cond (sc : safe_cond) (s : @estate nosubword syscall_state ep) : Prop :=
 match sc with 
 | Defined_var x => defined_var x s
 | Not_zero e1 e2 => not_zero_pexpr e2 s
@@ -303,7 +308,7 @@ to_arr p ve <> Error err.
 Proof.
 move=> pd e s p ve err ht hs he. 
 have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd (sarr p) e s ve ht he.
-rewrite /to_arr /=. case: ve he htve=> //= t i he [] hte; subst.
+rewrite /to_arr /=. case: ve he htve=> //= t i he hte; subst. case: hte=> hte'; subst.
 + rewrite /WArray.cast /=. by case: ifP=> //= /eqP.
 by have := safe_not_undef e s (sarr p) i hs he.
 Qed.
@@ -317,7 +322,7 @@ to_word sz ve <> Error err.
 Proof.
 move=> pd e s sz sz' ve err ht hcmp hs he. 
 have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd (sword sz') e s ve ht he.
-rewrite /to_word /=. case: ve he htve=> //= t i he [] hte; subst.
+rewrite /to_word /=. case: ve he htve=> //= t i he hte; subst. case: hte=> hte'; subst.
 + have htr := truncate_word_le i hcmp. move=> htr'. by rewrite htr' in htr.
 by have := safe_not_undef e s (sword sz') i hs he.
 Qed.
@@ -476,7 +481,7 @@ case hv : ((evm s).[x]) hd hp=> [ b | z| arr a| w sz| i u] //=.
 + move=> hd [] hr. have hg : get_var false (evm s) x = ok (Varr a).
   + by rewrite /get_var /= hv. 
   have /= /eqP hsub' := type_of_get_var hg. by rewrite -hsub' in ht.
-+ move=> hd [] hr. have hg : get_var false (evm s) x = ok (Vword (s:=w) sz).
++ move=> hd hr. have hg : get_var false (evm s) x = ok (Vword (s:=w) sz).
   + by rewrite /get_var /= hv. 
   have /= /eqP hsub' := type_of_get_var hg. rewrite ht /eqP in hsub'. 
   move: hsub'. move=> /eqP hsub'. by have [hter hter'] := truncate_word_errP hr; subst.
@@ -493,7 +498,7 @@ Proof.
 move=> pd e t x s ve err ht hsub hs he. case: t ht hsub=> //= w ht hsub hp.
 have htve := @sem_pexpr_well_typed asm_op syscall_state ep spp wsw wdb gd pd (sword w) e s ve ht he.
 have htr := @to_pointer_not_tyerr asm_op syscall_state ep spp wsw 
-            wdb gd s e ve w err he htve hp.
+            wdb gd pd s e ve w err ht he hsub hp.
 case hve: ve he htve hp=> [ b | z | arr a | sz wsz | u i ] //=; subst.
 + move=> he htve htp; subst. by have [hter hter'] := truncate_word_errP htp; subst.
 move=> he htve hu; subst. by have := safe_not_undef e s (sword w) i hs he.
@@ -517,6 +522,16 @@ move: (ha (vi * mk_scale aa sz)%Z (vi * mk_scale aa sz)%Z erefl erefl)=> {ha} ha
 rewrite /in_range_check in hr. move: (hr ve vi he hi)=> {hr} hr hread.
 rewrite /read ha in hread. 
 case hm: mapM hread=> [vm | vmr] //=. move=> [] heq; subst.
+move: err hm. elim: (ziota 0 (wsize_size sz))=> [ | n ns] //= hin.
+move=> err. case hwr: WArray.get8=> [wv | wvr] //=.
++ case hm: mapM=> [vm | vmr] //= [] heq; subst. by move: (hin err hm).
+move=> [] heq; subst. 
+have htr := array_get8_not_tyerr p' arr (add (vi * mk_scale aa sz)%Z n) err hwr.
+rewrite /WArray.get8 in hwr. move: hwr.
+case has: assert=> [va | var] //=.
++ case has': assert=> [va' | var'] //= [] heq1. 
+  rewrite /assert in has'. move: has'. case: ifP=> //= has' [] heq2.
+  rewrite heq1 in heq2. rewrite /WArray.in_bound /= in has'. 
 Admitted.
 
 Lemma wt_safe_sem_opN_not_error : forall pd es op vm vma s err,

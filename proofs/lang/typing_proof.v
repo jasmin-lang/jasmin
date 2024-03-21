@@ -133,16 +133,27 @@ case: ifP=> //= hsub' [] heq; subst. move=> hteq; subst. move=> bv bv' hb hbt e1
 case: ifP=> //= _. by have := truncate_val_has_type ht. by have := truncate_val_has_type ht'.
 Admitted.
 
+Lemma get_global_value_ty : forall g a,
+is_lvar g = false ->
+get_global_value gd (gv g) = Some a ->
+type_of_val (gv2val a) == vtype (gv g).
+Proof.
+move=> g a hl. case ha: a=> [w wr | arr ar]//=; subst.
++ admit.
+admit.
+Admitted.
+
 Lemma get_gvar_not_tyerr : forall g ty s v,
 vtype (gv g) = ty ->
 get_gvar (wsw := nosubword) false gd (evm s) g = Error v ->
 v <> ErrType.
 Proof.
-move=> g ty s v /= [] hty. case: g hty=> [vi vs] //=.
-case: vi=> [vr vi] //=. case: vr=> [vt vn] //= heq; subst.
-rewrite /get_gvar /=. case: ifP=> //= hl. rewrite /get_global /=.
-case hg: (get_global_value gd {| vtype := ty; vname := vn |})=> [ a | ] //=.
+move=> g ty s v ht. rewrite /get_gvar. case: ifP=> //= hl.
+rewrite /get_global /=. case h : (get_global_value gd (gv g))=> [ a | ] //=.
++ case: ifP=> //= /eqP ht' [] heq; subst. by have /eqP := get_global_value_ty g a hl h.
+move=> [] heq; subst. admit.
 Admitted.
+
 
 Lemma truncate_val_not_tyerr : forall ty v v',
 subtype ty (type_of_val v) ->
@@ -150,10 +161,8 @@ truncate_val ty v = Error v' ->
 v' <> ErrType.
 Proof.
 move=> ty v v' hsub ht. case: v hsub ht=> //=.
-+ move=> b hsub ht. have hty := subtypeE hsub; subst. rewrite /truncate_val /= in ht.
-  by case: ht.
-+ move=> z hsub ht. have hty := subtypeE hsub; subst. rewrite /truncate_val /= in ht.
-  by case: ht.
++ move=> b hsub ht. have hty := subtypeE hsub; subst. by rewrite /truncate_val /= in ht.
++ move=> z hsub ht. have hty := subtypeE hsub; subst. by rewrite /truncate_val /= in ht.
 + move=> len arr hsub ht. have hty := subtypeE hsub; subst. rewrite /truncate_val /= in ht.
   move: ht. case ha: WArray.cast=> [av | aerr] //=. move=> [] hv; subst. rewrite /WArray.cast /= in ha. 
   move: ha. by case: ifP=> //= /eqP //=.
@@ -194,7 +203,7 @@ to_arr p i = Error v ->
 v <> ErrType.
 Proof.
 move=> i p v ht hi. rewrite /to_arr /= in hi. 
-case: i ht hi=> //= t ht [] hi; subst. 
+case: i ht hi=> //= t ht hi; subst. case: hi=> hi'; subst. 
 + rewrite /WArray.cast /=. by case: ifP=> //= /eqP //=. 
 rewrite /type_error. move=> [] hv; subst.
 rewrite /is_undef_t /= in ht. move: ht. by move=> /eqP.
@@ -311,6 +320,20 @@ er <> ErrType.
 Proof.
 Admitted.
 
+Lemma array_get8_not_tyerr: forall p (alen:WArray.array p) (i: Z) err, 
+WArray.get8 alen i = Error err ->
+err <> ErrType.
+Proof.
+move=> p alen i err. rewrite /WArray.get8 /=.
+case ha1: assert=> [va1 | var1] //=.
++ case ha2: assert=> [va2 | var2] //= [] <-.
+  rewrite /assert in ha2. move: ha2. by case: ifP=> //= ha2 [] <-.
+case ha3: assert=> [va3 | var3] //= [] <-.
++ rewrite /assert in ha1. move: ha1. by case: ifP=> //= ha1 [] <-.
+rewrite /assert in ha3. move: ha3. by case: ifP=> //= ha3 [] <-.
+Qed.
+
+
 Lemma read_sint_not_tyerr : forall pd s e ve vi p (alen:WArray.array p) a w er,
 ty_pexpr pd e = ok sint ->
 sem_pexpr (wsw := nosubword) false gd s e = ok ve ->
@@ -320,7 +343,20 @@ er <> ErrType.
 Proof.
 move=> pd s e ve vi p alen a w er hte he hi hr.
 have hvt := sem_pexpr_well_typed pd sint e s ve hte he.
-Admitted.
+rewrite readE in hr. move: hr. 
+case hm: mapM=> [vm | vmr] //.
++ case ha: assert=> [va | vr] //= [] heq; subst. 
+  rewrite /assert in ha. move: ha. by case: ifP=> //= ha [] <-.
+case ha: assert=> [va | vr] //= [] heq; subst.
++ move: hm. move: er. elim: (ziota 0 (wsize_size w))=> [ | n ns] //= hin.
+  case hr: read=> [vr | vrr] //= er.
+  + case hm': mapM=> [vm | vmr] //= [] <-. by move: (hin vmr hm').
+    move=> [] <-. move: hr. rewrite /read !ziotaE /=. case ha': assert=> [va' | var'] //=. 
+    + case hwr: WArray.get8=> [wv | wvr] //= [] <-.
+    by have := array_get8_not_tyerr p alen (add (add (vi * mk_scale a w)%Z n) 0)%Z wvr hwr.
+  move=> [] <-. rewrite /assert in ha'. move: ha'. by case: ifP=> //= ha' [] <-.
+rewrite /assert in ha. move: ha. by case: ifP=> //= ha [] <-.
+Qed.
 
 Lemma read_ptr_not_tyerr: forall pd s e ev we vi ptrv ptrv' er w,
 sem_pexpr (wsw := nosubword) false gd s e = ok ev ->
@@ -330,6 +366,17 @@ to_pointer ev = ok ptrv' ->
 read (emem s) (ptrv + ptrv')%R w = Error er ->
 er <> ErrType.
 Proof.
+move=> pd s e ev we vi ptrv ptrv' er w he hte hp hp' hr.
+have hvt := sem_pexpr_well_typed pd (sword we) e s ev hte he.
+rewrite /read in hr. move: hr. case hm: mapM=> [vm | vmr] //=.
++ case ha: assert=> [va | vr] //= [] heq; subst. 
+  rewrite /assert in ha. move: ha. by case: ifP=> //= ha [] <-.
+case ha: assert=> [va | vr] //= [] heq; subst.
++ move: hm. move: er. elim: (ziota 0 (wsize_size w))=> [ | n ns] //= hin.
+  case hr: get=> [vr | vrr] //= er.
+  + case hm': mapM=> [vm | vmr] //= [] <-. by move: (hin vmr hm').
+  move=> [] <-. move: hr. rewrite addE. admit. 
+rewrite /assert in ha. move: ha. by case: ifP=> //= ha [] <-.
 Admitted.
 
 Lemma to_pointer_not_tyerr : forall pd s e ev we er,
@@ -561,3 +608,11 @@ move=> [] hv; subst. by move: (hinde sbool s er hte he).
 Admitted. 
 
 End TYPING_PEXPR.
+
+(*Compute xH. (* 1 *)
+
+Compute (xO xH). (* 10 *)
+
+Compute (xI xH). (* 11 *)
+
+Compute (xO (xO xH)). (* 100*)*)
