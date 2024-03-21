@@ -296,7 +296,7 @@ Proof.
   move=> hbody.
 
   set vm0 := (evm s).[v_var r <- ok (pword_of_word ts)]%vmap.
-  set vm2 := if sz != 0 then vm0.[vrsp <- ok (pword_of_word (ts - wrepr Uptr sz))]%vmap else vm0.
+  set vm2 := if sz != 0%Z then vm0.[vrsp <- ok (pword_of_word (ts - wrepr Uptr sz))]%vmap else vm0.
 
   eexists.
   split.
@@ -314,7 +314,7 @@ Proof.
         reflexivity.
 
     + rewrite size_map size_rcons -addn2.
-      apply: (lsem_trans (s2 := of_estate (with_vm s vm2) fn (size P + (Nat.b2n (sz != 0)).+1))).
+      apply: (lsem_trans (s2 := of_estate (with_vm s vm2) fn (size P + (Nat.b2n (sz != 0%Z)).+1))).
       rewrite /vm2; case: eqP hbody => /= sz_nz hbody.
       * by subst; once (econstructor; fail).
 

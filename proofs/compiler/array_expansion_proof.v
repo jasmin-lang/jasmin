@@ -537,9 +537,9 @@ Proof.
     case: (vtype x) => //= p.
     case heq : (WArray.get AAscale (ai_ty ai) (WArray.empty p) i) => [w | ] //=.
     have []:= WArray.get_bound heq; rewrite /mk_scale => ???.
-    have h : ((0 <= 0%N)%Z ∧ (0%N < wsize_size (ai_ty ai)))%Z.
+    have h : ((0 <= Z0 < wsize_size (ai_ty ai)))%Z.
     + by move=> /=; have := wsize_size_pos (ai_ty ai); Psatz.lia.
-    have [_ /(_ 0 h)] := read_read8 heq.
+    have [_ /(_ Z0 h)] := read_read8 heq.
     by rewrite WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); Psatz.lia.
   have [s1' [hparams' heqa1]] := eq_alloc_write_vars hwf heqa hparams Hw.
   have [s2' [heqa2 hsem]]:= Hc _ _ _ hwf heqa1 hbody.
