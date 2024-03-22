@@ -10,6 +10,11 @@
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
 
+- The Constant-Time security checker is now available as a separate `jazzct`
+  tool; the `-checkCT`, `-checkCTon`, and `-infer` command line options are
+  deprecated
+  ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
+
 ## Bug fixes
 
 - The compiler no longer throws an exception when a required file does not exist

@@ -169,9 +169,9 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-oecarray" , Arg.String set_ec_array_path, "[dir]: output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
-    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
-    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
-    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
+    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system) (deprecated)";
+    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system) (deprecated)";
+    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system (deprecated)";
     "-slice"    , Arg.String set_slice  , "[f]: keep function [f] and all what it needs";
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
