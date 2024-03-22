@@ -1,0 +1,42 @@
+namespace A {
+  fn id(reg u32 x) -> reg u32 {
+    x = x;
+    return x;
+  }
+}
+
+namespace B {
+  fn id() -> reg u32 {
+    reg u32 i;
+    i = 42;
+    return i;
+  }
+}
+
+namespace C {
+  u32 x = 1;
+  namespace A {
+    u32 x = 2;
+    fn id() -> reg u32 {
+      reg u32 r;
+      r = x;
+      return r;
+    }
+  }
+}
+
+export
+fn main(reg u32 a) -> reg u32 {
+  reg u32 x y;
+  x = A::id(a);
+  y = B :: id();
+  x += y;
+  inline int i;
+  i = C :: x;
+  x += i;
+  i = C :: A :: x;
+  x += i;
+  y = C::A::id();
+  x += y;
+  return x;
+}
