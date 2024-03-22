@@ -211,9 +211,9 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-oecarray" , Arg.String set_ec_array_path, "[dir]: output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
-    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
-    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
-    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
+    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system) (deprecated)";
+    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system) (deprecated)";
+    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system (deprecated)";
     "-checkSCT", Arg.Unit set_sct       , ": checks that the full program is speculative constant time (using a type system)";
     "-checkSCTon", Arg.String set_sct_on, "[f]: checks that the function [f] is speculative constant time (using a type system)";
     "-checkSCTafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), "start sct checker after given pass";
