@@ -982,7 +982,7 @@ let pp_liveness vars get_liveness liveness_table conflicts a =
   in
 
   let pp_info fmt (loc, (i, o)) =
-    fprintf fmt "/* %a */@ " L.pp_iloc loc;
+    fprintf fmt "/* %a */@ " L.pp_iloc_short loc;
     fprintf fmt "@[<v>/* Live-in:@ %a */@]@ " pp_liveset i;
     fprintf fmt "@[<v>/* Live-out:@ %a */@]@ " pp_liveset o
   in
