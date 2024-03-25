@@ -24,9 +24,9 @@
  (libraries commonCLI))
 
 (executable
- (public_name jazzcheck)
- (name jazzcheck)
- (modules jazzcheck)
+ (public_name jazzct)
+ (name jazzct)
+ (modules jazzct)
  (flags (:standard -rectypes))
  (modes byte exe)
  (libraries commonCLI))
