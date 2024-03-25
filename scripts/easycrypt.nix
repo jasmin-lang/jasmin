@@ -55,7 +55,7 @@ stdenv.mkDerivation rec {
 
   buildInputs = with ocamlPackages; [
     ocaml findlib dune_3
-    batteries camlp-streams dune-build-info inifiles menhir menhirLib why3 yojson zarith
+    batteries camlp-streams dune-build-info dune-site inifiles menhir menhirLib why3 yojson zarith
   ];
   propagatedBuildInputs = [ why3.out ];
 
