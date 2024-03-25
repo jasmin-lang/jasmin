@@ -44,6 +44,7 @@ stdenv.mkDerivation rec {
   buildInputs = with ocamlPackages; [
     batteries
     dune-build-info
+    dune-site
     inifiles
     why3
     yojson
