@@ -78,7 +78,7 @@
 - Extraction as EasyCrypt code targets version 2024.01
   ([PR #690](https://github.com/jasmin-lang/jasmin/pull/690)).
 
-- The Constant-Time security checker is now available as a separate `jazzcheck`
+- The Constant-Time security checker is now available as a separate `jazzct`
   tool; the `-checkCT`, `-checkCTon`, and `-infer` command line options are
   deprecated
   ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).

@@ -41,11 +41,11 @@ all: build
 build: native
 
 define do-build
-	$(RM) jasminc jazz2tex jazzcheck
-	dune build @check entry/jasminc.$(1) entry/jazz2tex.$(1) entry/jazzcheck.$(1)
+	$(RM) jasminc jazz2tex jazzct
+	dune build @check entry/jasminc.$(1) entry/jazz2tex.$(1) entry/jazzct.$(1)
 	ln -sf "_build/default/entry/jasminc.$(1)" jasminc
 	ln -sf "_build/default/entry/jazz2tex.$(1)" jazz2tex
-	ln -sf "_build/default/entry/jazzcheck.$(1)" jazzcheck
+	ln -sf "_build/default/entry/jazzct.$(1)" jazzct
 endef
 
 byte:
@@ -68,18 +68,18 @@ check-ci:
 
 clean:
 	dune clean
-	$(RM) jasminc jazz2tex jazzcheck
+	$(RM) jasminc jazz2tex jazzct
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
 	$(INSTALL) -m 0755 -T jazz2tex $(DESTDIR)$(BINDIR)/jazz2tex
-	$(INSTALL) -m 0755 -T jazzcheck $(DESTDIR)$(BINDIR)/jazzcheck
+	$(INSTALL) -m 0755 -T jazzct $(DESTDIR)$(BINDIR)/jazzct
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
 	$(RM) $(DESTDIR)$(BINDIR)/jazz2tex
-	$(RM) $(DESTDIR)$(BINDIR)/jazzcheck
+	$(RM) $(DESTDIR)$(BINDIR)/jazzct
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz
