@@ -1,5 +1,5 @@
-fn test_if(reg u64 msf, reg u64 x) -> reg u64 {
-    inline bool b;
+fn test_if(reg u64 msf, reg u64 x) -> #msf reg u64 {
+    reg bool b;
 
     b = x == 0;
 
@@ -76,7 +76,7 @@ fn test_if(reg u64 msf, reg u64 x) -> reg u64 {
 
 
 fn test_while(reg u64 msf, reg u64 x) -> reg u64 {
-    inline bool b;
+    reg bool b;
 
     b = x == 0;
 
@@ -138,4 +138,13 @@ fn test_while(reg u64 msf, reg u64 x) -> reg u64 {
     msf = #update_msf(!b, msf);
 
    return msf;
+}
+
+export
+fn main(reg u64 a) -> reg u64 {
+  reg u64 m;
+  m = #init_msf();
+  m = test_if(m, a);
+  m = test_while(m, a);
+  return m;
 }
