@@ -31,6 +31,7 @@ depends: [
   "apron" {>= "v0.9.12"}
   "conf-ppl"
   "yojson" {>= "1.6.0"}
+  "angstrom"
   "ocamlfind" { build }
 ]
 conflicts: [

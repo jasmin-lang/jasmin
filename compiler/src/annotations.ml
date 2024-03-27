@@ -29,6 +29,13 @@ and annotation = pident * attribute option
 
 and annotations = annotation list
 
+let get (s: string) (annot: annotations) =
+  match
+    List.find_opt (fun (k, _) -> String.equal (Location.unloc k) s) annot
+  with
+  | Some (_, a) -> Some a
+  | None -> None
+
 let has_symbol s annot =
   List.exists (fun (k, _) -> String.equal (Location.unloc k) s) annot
 

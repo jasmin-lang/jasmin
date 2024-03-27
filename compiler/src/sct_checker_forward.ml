@@ -1231,6 +1231,12 @@ let parse_user_constraints (a:annotations) : (string * string) list =
      (List.map snd (A.process_annot [sconstraints, A.on_attribute ~on_string error] a))
 
 let init_constraint fenv f =
+  let sig_annot =
+    let open Option.Infix in
+    Annotations.get "sct" f.f_annot.f_user_annot >>= function
+    | Some { pl_desc = Astring s ;  _ } -> SecurityAnnotations.Parse.string s
+    | _ -> None
+  in
   let env = Env.init () in
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
@@ -1242,7 +1248,6 @@ let init_constraint fenv f =
   let export = f.f_cc = Export in
 
   let add_lvl s =
-    let s = L.unloc s in
     try Hashtbl.find tbl s
     with Not_found ->
       let l = Env.fresh2 ~name:s env in
@@ -1250,28 +1255,56 @@ let init_constraint fenv f =
       l in
 
   let to_lvl = function
-    | Poly s -> add_lvl s
+    | Poly s -> add_lvl (L.unloc s)
     | Secret -> Env.secret2 env
     | Transient -> Env.transient env
     | Public | Msf -> Env.public2 env in
+
+  let lvl_of_sa_level =
+    let open SecurityAnnotations in
+    let lvl_of_simple_level get =
+      function
+      | Public -> Env.public env
+      | Secret -> Env.secret env
+      | Named s -> get (add_lvl s)
+    in
+    function { normal; speculative } ->
+      lvl_of_simple_level fst normal, lvl_of_simple_level snd speculative
+  in
+
+  let to_vty =
+    function
+    | SecurityAnnotations.Msf -> Direct (to_lvl Msf)
+    | Direct n -> Direct (lvl_of_sa_level n)
+    | Indirect { ptr; value } -> Indirect (lvl_of_sa_level ptr, lvl_of_sa_level value)
+  in
 
   let error_msf loc =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  let mk_vty loc ~(msf:bool) x ls =
+  let mk_vty loc ~(msf:bool) x ls an =
     let msf, ovty =
-      match ls with
-      | [] -> None, None
-      | [l] ->
+      match ls, an with
+      | [], None -> None, None
+      | [l], None ->
         if not msf && l = Msf then error_msf loc;
         Some (l = Msf), Some(Direct (to_lvl l))
-      | [l1; l2] ->
+      | [l1; l2], None ->
         if (l1 = Msf || l2 = Msf) then error_msf loc;
         Some false, Some(Indirect (to_lvl l1, to_lvl l2))
-      | _ ->
+      | _, None ->
         error ~loc:(x.v_dloc)
-          "invalid security annotations %a" pp_var x in
+          "invalid security annotations %a" pp_var x
+      | [], Some n ->
+         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
+      | [Msf], Some n ->
+         if not msf then error_msf loc;
+         Some true, Some (to_vty n)
+      | _ :: _, Some _ ->
+         error ~loc:(x.v_dloc)
+          "security annotations %a redundant with security signature" pp_var x
+    in
     let vty =
       match ovty with
       | None ->
@@ -1299,13 +1332,14 @@ let init_constraint fenv f =
         end; ty in
     msf, vty in
 
-  let process_return x annot =
+  let process_return i x annot =
     let loc = L.loc x and x = L.unloc x in
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
     let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
-    mk_vty loc ~msf:(not export) x ls in
+    mk_vty loc ~msf:(not export) x ls an in
 
   (* process function outputs *)
-  let tyout = List.map2 process_return f.f_ret f.f_outannot in
+  let tyout = List.map2i process_return f.f_ret f.f_outannot in
 
   (* infer msf_oracle info *)
   let msfs =
@@ -1329,9 +1363,10 @@ let init_constraint fenv f =
   end;
 
   (* process function inputs *)
-  let process_param venv x =
+  let process_param i venv x =
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) in
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
-    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls in
+    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls an in
     let msf =
       match msf with
       | None -> Sv.mem x msfs
@@ -1360,7 +1395,7 @@ let init_constraint fenv f =
     let ty = if msf then IsMsf else IsNormal vty in
     venv, ty in
 
-  let venv, tyin = List.map_fold process_param venv f.f_args in
+  let venv, tyin = List.mapi_fold process_param venv f.f_args in
 
   (* build the constraints *)
   let do_constraint (s1, s2) =
@@ -1377,7 +1412,7 @@ let init_constraint fenv f =
   (* init type for local *)
   let do_local venv x =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
-    let _, vty = mk_vty x.v_dloc ~msf:false x ls in
+    let _, vty = mk_vty x.v_dloc ~msf:false x ls None in
     Env.add_var env venv x vk vty in
 
   let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
