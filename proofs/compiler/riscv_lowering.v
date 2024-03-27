@@ -56,9 +56,9 @@ Definition lower_Papp2
       Some (AND, [:: e0; e1 ])
   | Olor _ =>
       Some (OR, [:: e0; e1 ])
-(*  | Olxor _ =>
-      Some (EOR, e0, [:: e1 ])
-  | Olsr U32 =>
+  | Olxor _ =>
+      Some (XOR, [:: e0; e1 ])
+ (* | Olsr U32 =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (LSR, e0, [:: e1 ])
   | Olsl (Op_w U32) =>
