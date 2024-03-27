@@ -6,7 +6,7 @@ fn bfi(reg u32 x) -> reg u32 {
     y = #BFI(y, x, 31, 1);
     y = #BFI(y, x, 0, 32);
 
-    inline bool b;
+    reg bool b;
     ?{ "<s" = b } = #CMP(y, 5);
     y = #BFIcc(y, x, 0, 32, b, y);
 
