@@ -49,10 +49,13 @@ Definition lower_Papp2
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oadd (Op_w _) =>
-      Some (ADD, [:: e0; e1 ])
+    match e1 with
+    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (ADDI, [:: e0; e1])
+    | _ => Some (ADD, [:: e0; e1 ])
+    end
   | Osub (Op_w _) =>
       match e1 with
-      | Papp1 (Oword_of_int ws1) (Pconst n) => Some (ADD, [:: e0; Papp1 (Oword_of_int ws1) (Pconst (- n))])
+      | Papp1 (Oword_of_int ws1) (Pconst n) => Some (ADDI, [:: e0; Papp1 (Oword_of_int ws1) (Pconst (- n))])
       | _ => Some (SUB, [:: e0; e1 ])
       end
   | Oland _ =>
