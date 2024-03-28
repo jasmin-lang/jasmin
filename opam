@@ -25,6 +25,7 @@ depends: [
   "apron" {>= "v0.9.12"}
   "conf-ppl"
   "yojson" {>= "1.6.0"}
+  "angstrom"
   "ocamlfind" { build }
   "coq" {>= "8.14.0" & < "8.19~"}
   "coq-mathcomp-ssreflect" {>= "1.17" & < "1.20~"}

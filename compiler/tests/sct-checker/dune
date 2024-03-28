@@ -23,3 +23,10 @@
   (modules accept reject)
   (names
     accept reject))
+
+(tests
+  (libraries jasmin.jasmin angstrom)
+  (flags (:standard -rectypes))
+  (modules sct_annot)
+  (names
+    sct_annot))
