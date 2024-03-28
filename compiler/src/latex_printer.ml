@@ -204,7 +204,7 @@ and pp_arr_access fmt al aa ws x e len=
  F.fprintf fmt "%a%s[%a%a%a%a%a]"
     pp_var x
     (if aa = Warray_.AAdirect then "." else "")
-    pp_aligned al
+    pp_aligned (Option.bind len (fun _ -> al))
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
 let pp_writable = function

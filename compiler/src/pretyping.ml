@@ -941,6 +941,12 @@ let tt_al aa =
   | Some `Unaligned -> Unaligned
   | Some `Aligned -> Aligned
 
+let ignore_align ~loc =
+  function
+  | None -> ()
+  | Some _al ->
+     warning Always (L.i_loc0 loc) "ignored alignment annotation in array slice"
+
 (* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
@@ -973,9 +979,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
        let al = tt_al aa al in
        P.Pget (al, aa, ws, x, i), ty
     | Some plen ->
-       Option.may (fun _al ->
-           warning Always (L.i_loc0 (L.loc plen)) "ignored alignment annotation in array slice"
-         ) al;
+       ignore_align ~loc:(L.loc pe) al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
       let ty = P.Arr(ws, len) in
@@ -1146,16 +1150,17 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
   | S.PLArray (al, aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
-    let al = tt_al aa al in
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
     let i = ensure_int (L.loc pi) i ity in
     begin match olen with
-    | None -> 
+    | None ->
+      let al = tt_al aa al in
       loc, (fun _ -> P.Laset (al, aa, ws, L.mk_loc xlc x, i)), Some ty
     | Some plen ->
+      ignore_align ~loc al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
       let ty = P.Arr(ws, len) in
