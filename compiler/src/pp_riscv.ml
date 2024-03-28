@@ -15,22 +15,16 @@ let imm_pre = ""
 (* We support the following RISC-V memory accesses.
    Offset addressing:
      - A base register and an immediate offset (displacement):
-       [<reg>, #+/-<imm>] (where + can be omitted).
-     - A base register and a register offset: [<reg>, <reg>].
-     - A base register and a scaled register offset: [<reg>, <reg>, LSL #<imm>].
+       #+/-<imm>(<reg>) (where + can be omitted).
 *)
 let pp_reg_address_aux base disp off scal =
   match (disp, off, scal) with
   | None, None, None ->
-      Printf.sprintf "[%s]" base
+      Printf.sprintf "(%s)" base
   | Some disp, None, None ->
-      Printf.sprintf "[%s, %s%s]" base imm_pre disp
-  | None, Some off, None ->
-      Printf.sprintf "[%s, %s]" base off
-  | None, Some off, Some scal ->
-      Printf.sprintf "[%s, %s, lsl %s%s]" base off imm_pre scal
+      Printf.sprintf "%s%s(%s)" imm_pre disp base
   | _, _, _ ->
-      failwith "TODO_RISCV: pp_reg_address_aux"
+      assert false
 
 let global_datas = "glob_data"
 
