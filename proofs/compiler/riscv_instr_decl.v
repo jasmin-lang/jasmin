@@ -87,7 +87,19 @@ Definition pp_name name args :=
     pp_aop_args := map (fun a => (reg_size, a)) args;
   |}.
 
-
+Definition pp_name_imm name args :=
+  let name :=
+      match args with
+      | _ :: _ :: Imm _ _ :: _ => 
+        (name++"i")%string
+      | _ => name
+      end
+  in
+  {|
+    pp_aop_name := name;
+    pp_aop_ext := PP_name;
+    pp_aop_args := map (fun a => (reg_size, a)) args;
+  |}.
 (* -------------------------------------------------------------------- *)
 (* Instruction semantics and description. *)
 
@@ -116,7 +128,7 @@ Definition riscv_ADD_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s "ADD"; (* how to print it in Jasmin *)
       id_safe := [::];
-      id_pp_asm := pp_name "add"; (* how to print it in asm *)
+      id_pp_asm := pp_name_imm "add"; (* how to print it in asm *)
     |}.
 
 Definition prim_ADD := ("ADD"%string, primM ADD). (* how to parse it in Jasmin *)
@@ -166,7 +178,7 @@ Definition riscv_AND_instr : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_s "AND";
       id_safe := [::];
-      id_pp_asm := pp_name "and";
+      id_pp_asm := pp_name_imm "and";
     |}.
 
 Definition prim_AND := ("AND"%string, primM AND).

@@ -24,3 +24,9 @@ fn add_lowering(reg u32 a, reg u32 b) -> reg u32 {
     c = a + b;
     return c;
 }
+export
+fn sub_imm_lowering(reg u32 a) -> reg u32 {
+    reg u32 c;
+    c = a - 15;
+    return c;
+}

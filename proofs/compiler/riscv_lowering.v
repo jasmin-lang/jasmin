@@ -51,7 +51,10 @@ Definition lower_Papp2
   | Oadd (Op_w _) =>
       Some (ADD, [:: e0; e1 ])
   | Osub (Op_w _) =>
-        Some (SUB, [:: e0; e1 ])
+      match e1 with
+      | Papp1 (Oword_of_int ws1) (Pconst n) => Some (ADD, [:: e0; Papp1 (Oword_of_int ws1) (Pconst (- n))])
+      | _ => Some (SUB, [:: e0; e1 ])
+      end
   | Oland _ =>
       Some (AND, [:: e0; e1 ])
   | Olor _ =>
