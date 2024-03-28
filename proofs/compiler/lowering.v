@@ -31,9 +31,9 @@ Definition is_lval_in_memory (x : lval) : bool :=
   match x with
   | Lnone _ _ => false
   | Lvar v => is_var_in_memory v
-  | Laset _ _ v _ => is_var_in_memory v
+  | Laset _ _ _ v _ => is_var_in_memory v
   | Lasub _ _ _ v _ => is_var_in_memory v
-  | Lmem _ _ _ => true
+  | Lmem _ _ _ _ => true
   end.
 
 Notation lower_i :=

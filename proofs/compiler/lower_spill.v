@@ -64,8 +64,8 @@ Definition spill_env := Sv.t.
 
 Definition update_lv (env : spill_env) (lv : lval) : spill_env :=
   match lv with
-  | Lnone _ _ | Lmem _ _ _ => env
-  | Lvar x | Laset _ _ x _ | Lasub _ _ _ x _ => Sv.remove x env
+  | Lnone _ _ | Lmem _ _ _ _ => env
+  | Lvar x | Laset _ _ _ x _ | Lasub _ _ _ x _ => Sv.remove x env
   end.
 
 Definition update_lvs := foldl update_lv.

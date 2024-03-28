@@ -124,15 +124,16 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e
 
-  | Pget aa ws x e1 => 
-    if check_gvar m x then 
+  | Pget al aa ws x e1 =>
+    if check_gvar m x then
       Let e1 := expand_e m e1 in
-      ok (Pget aa ws x e1)
-    else 
+      ok (Pget al aa ws x e1)
+    else
       let x := gv x in
       match Mvar.get m.(sarrs) x, is_const e1 with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
+        Let _ := assert (al == Aligned) (reg_error x "(alignement must be enforced)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
         Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "(index out of bounds)") in
         let v := znth (v_var x) ai.(ai_elems) i in
@@ -145,10 +146,10 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let e1 := expand_e m e1 in
     ok (Psub aa ws len x e1)
 
-  | Pload ws x e1 =>
+  | Pload al ws x e1 =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e1 := expand_e m e1 in
-    ok (Pload ws x e1)
+    ok (Pload al ws x e1)
 
   | Papp1 o e1 => 
     Let e1 := expand_e m e1 in
@@ -179,19 +180,20 @@ Definition expand_lv (m : t) (x : lval)  :=
     Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok (Lvar x)
 
-  | Lmem ws x e => 
+  | Lmem al ws x e =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e := expand_e m e in
-    ok (Lmem ws x e)
+    ok (Lmem al ws x e)
 
-  | Laset aa ws x e =>
+  | Laset al aa ws x e =>
     if Sv.mem x m.(svars) then 
       Let e := expand_e m e in
-      ok (Laset aa ws x e)
+      ok (Laset al aa ws x e)
     else 
       match Mvar.get m.(sarrs) x, is_const e with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
+        Let _ := assert (al == Aligned) (reg_error x "(alignement must be enforced)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
         Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "(index out of bounds)") in
         let v := znth (v_var x) ai.(ai_elems) i in

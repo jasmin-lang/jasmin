@@ -70,7 +70,7 @@ Definition sz_init : lcmd :=
 Definition store_zero (off : fexpr) : linstr_r :=
   if store_mn_of_wsize ws is Some mn
     then
-      let current := Store ws vrsp off in
+      let current := Store Aligned ws vrsp off in
       let op := ARM_op mn default_opts in
       Lopn [:: current ] (Oarm op) [:: rvar vzero ]
     else Lalign. (* Absurd case. *)

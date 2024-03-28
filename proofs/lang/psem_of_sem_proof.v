@@ -163,11 +163,11 @@ case => hscs hm hvm; case: x => /=.
 - move => _ ty; rewrite /write_none.
   by t_xrbindP => /truncatable_sim -> -> <-; exists s1'.
 - move => x; exact: write_var_sim.
-- move => sz x e; t_xrbindP => ? ?;
+- move => al sz x e; t_xrbindP => ? ?;
     rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (And3 hscs hm hvm))
         -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
-- move => aa ws x e.
+- move => al aa ws x e.
   rewrite /on_arr_var /on_arr_var (get_var_sim hvm) /write_var.
   t_xrbindP => -[] // n t -> /=; t_xrbindP => ??
       /(sem_pexpr_sim (And3 hscs hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm) /= [vm' [h ->]] <-.

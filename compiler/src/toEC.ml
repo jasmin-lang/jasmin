@@ -47,7 +47,7 @@ let for_safety    env = env.model = Utils.Safety
 let rec read_mem_e = function
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> false
   | Pload _ -> true
-  | Papp1 (_, e) | Pget (_, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
+  | Papp1 (_, e) | Pget (_, _, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
@@ -56,8 +56,8 @@ and read_mem_es es = List.exists read_mem_e es
 
 let read_mem_lval = function
   | Lnone _ | Lvar _ -> false
-  | Lmem (_,_,_) -> true 
-  | Laset (_,_,_,e) | Lasub (_,_,_,_,e)-> read_mem_e e
+  | Lmem (_,_,_,_) -> true
+  | Laset (_,_,_,_,e) | Lasub (_,_,_,_,e)-> read_mem_e e
 
 
 let write_mem_lval = function
@@ -109,8 +109,8 @@ let int_of_word ws e =
 let rec leaks_e_rec pd leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
-  | Pload (_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
-  | Pget (_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e 
+  | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
+  | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
   | Papp1 (_, e) -> leaks_e_rec pd leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
   | PappN (_, es) -> leaks_es_rec pd leaks es
@@ -122,8 +122,8 @@ let leaks_es pd es = leaks_es_rec pd [] es
 
 let leaks_lval pd = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
-  | Lmem (_, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
+  | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
+  | Lmem (_, _, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
 
 (* FIXME: generate this list automatically *)
 (* Adapted from EasyCrypt source file src/ecLexer.mll *)
@@ -385,8 +385,8 @@ let pp_syscall env fmt o =
 let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
-  | Lmem (ws,_,_) -> Bty (U ws)
-  | Laset(_,ws, _, _) -> Bty (U ws)
+  | Lmem (_, ws,_,_) -> Bty (U ws)
+  | Laset(_, _, ws, _, _) -> Bty (U ws)
   | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
 
 
@@ -551,8 +551,8 @@ let ty_expr = function
   | Pbool _        -> tbool
   | Parr_init len  -> Arr (U8, len)
   | Pvar x         -> x.gv.L.pl_desc.v_ty
-  | Pload (sz,_,_) -> tu sz
-  | Pget  (_,sz,_,_) -> tu sz
+  | Pload (_, sz,_,_) -> tu sz
+  | Pget  (_,_, sz,_,_) -> tu sz
   | Psub (_,ws, len, _, _) -> Arr(ws, len)
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
@@ -605,7 +605,7 @@ let rec pp_expr pd env fmt (e:expr) =
   | Pvar x ->
     pp_ovar env fmt (L.unloc x.gv)
 
-  | Pget(aa, ws, x, e) -> 
+  | Pget(_, aa, ws, x, e) ->
     assert (check_array env x.gv);
     let pp fmt (x,e) = 
       let x = x.gv in
@@ -647,7 +647,7 @@ let rec pp_expr pd env fmt (e:expr) =
         i 
 
     
-  | Pload (sz, x, e) -> 
+  | Pload (_, sz, x, e) ->
     Format.fprintf fmt "(loadW%a Glob.mem (W%d.to_uint %a))"
       pp_size sz
       (int_of_ws pd)
@@ -730,13 +730,13 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
   let pp_e fmt e = pp_e fmt (lty, ety, e) in
   match lv with 
   | Lnone _ -> assert false
-  | Lmem(ws, x, e1) -> 
+  | Lmem(_, ws, x, e1) ->
     Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W%d.to_uint %a) (%a);@]" pp_size ws
       (int_of_ws pd)
       (pp_wcast pd env) (add_ptr pd (gkvar x) e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
-  | Laset (aa, ws, x, e1) -> 
+  | Laset (_, aa, ws, x, e1) ->
     assert (check_array env x);
     let x = L.unloc x in
     let (xws,n) = array_kind x.v_ty in
@@ -848,7 +848,7 @@ let ty_sopn pd asmOp op es =
 
 let is_write_lv x = function
   | Lnone _ | Lmem _ -> false 
-  | Lvar x' | Laset(_, _, x', _) | Lasub (_, _, _, x', _) -> 
+  | Lvar x' | Laset(_, _, _, x', _) | Lasub (_, _, _, x', _) ->
     V.equal x x'.L.pl_desc 
 
 let is_write_lvs x = List.exists (is_write_lv x)
@@ -1046,13 +1046,13 @@ module Leak = struct
     | Initv of var 
     | Initai of wsize * var * expr 
     | Inita of var * int
-    | InBound of wsize * int * expr
+    | InBound of Memory_model.aligned * wsize * int * expr
     | Valid of wsize * expr 
     | NotZero of wsize * expr 
 
-  let in_bound ws x e = 
+  let in_bound al ws x e =
     match (L.unloc x).v_ty with
-    | Arr(ws1,n) -> InBound(ws, (arr_size ws1 n), e)
+    | Arr(ws1,n) -> InBound(al, ws, (arr_size ws1 n), e)
     | _ -> assert false
 
   let safe_op2 safe _e1 e2 = function
@@ -1085,17 +1085,17 @@ module Leak = struct
         | Arr(ws,n) -> Inita (L.unloc x, arr_size ws n) :: safe
         | _ -> Initv(L.unloc x) :: safe 
       else safe 
-    | Pload (ws,x,e) -> 
+    | Pload (al, ws,x,e) -> (* TODO: alignment *)
       is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env safe e)
     | Papp1 (_, e) -> safe_e_rec pd env safe e
-    | Pget (aa, ws, x, e) -> 
+    | Pget (al, aa, ws, x, e) ->
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
       let x = x.gv in
       let safe = 
         let (_s,option) = Mv.find (L.unloc x) env.vars in
         if option then Initai(ws, L.unloc x, e) :: safe 
         else safe in
-      in_bound ws x e :: safe 
+      in_bound al ws x e :: safe
     | Psub _ -> assert false (* NOT IMPLEMENTED *) 
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e1 e2 op
@@ -1125,11 +1125,11 @@ module Leak = struct
 
   let safe_lval pd env = function
     | Lnone _ | Lvar _ -> []
-    | Lmem(ws, x, e) -> 
+    | Lmem(al, ws, x, e) -> (* TODO: alignment *)
       is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env [] e)
-    | Laset(aa, ws, x,e) -> 
+    | Laset(al, aa, ws, x,e) ->
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
-      in_bound ws x e :: safe_e_rec pd env [] e 
+      in_bound al ws x e :: safe_e_rec pd env [] e
     | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
 
   let pp_safe_e pd env fmt = function
@@ -1139,7 +1139,8 @@ module Leak = struct
     | Inita(x,n) -> Format.fprintf fmt "%a.is_init %a" (pp_Array env) n (pp_var env) x 
     | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr pd env) e pp_size sz 
     | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr pd env) e pp_size sz
-    | InBound(ws, n,e)  -> Format.fprintf fmt "in_bound %a %i %i" 
+    | InBound(al, ws, n,e)  -> Format.fprintf fmt "in_bound %a %a %i %i"
+                             pp_bool (al = Aligned)
                              (pp_expr pd env) e (size_of_ws ws) n
 
   let pp_safe_es pd env fmt es = pp_list "/\\@ " (pp_safe_e pd env) fmt es

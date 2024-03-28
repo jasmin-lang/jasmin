@@ -1,11 +1,15 @@
 open Wsize
 open Prog
 
-type param_info = { 
-  pi_ptr      : var;
-  pi_writable : bool;
-  pi_align    : wsize;
-}
+type alignment_constraint =
+  { ac_strict: wsize
+  ; ac_heuristic: wsize }
+
+type param_info = {
+    pi_ptr      : var;
+    pi_writable : bool;
+    pi_align    : alignment_constraint;
+  }
 
 type ptr_kind = 
   | Direct   of var * Interval.interval * Expr.v_scope

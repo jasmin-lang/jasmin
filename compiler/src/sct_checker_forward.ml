@@ -202,7 +202,7 @@ let ensure_register ~direct x =
 
 let reg_lval ~direct loc x =
   match x with
-  | Laset (_, _, x, _)
+  | Laset (_, _, _, x, _)
   | Lvar x -> ensure_register ~direct x; x
   | _ ->
       error ~loc "L-value %a must be a reg%s" pp_lval x
@@ -214,7 +214,7 @@ let reg_lval_opt ~direct loc =
   | x -> Some (reg_lval ~direct loc x)
 
 let reg_expr_opt ~direct = function
-  | Pget (_, _, x, _) | Pvar x ->
+  | Pget (_, _, _, x, _) | Pvar x ->
       if is_gkvar x && is_register ~direct (L.unloc x.gv)
       then Some x.gv
       else None
@@ -642,7 +642,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
 
   | Pvar x -> Env.gget venv x
 
-  | Pget (aa, ws, x, i) ->
+  | Pget (_, aa, ws, x, i) ->
       ensure_public_address env venv loc x.gv;
       ensure_public env venv loc i;
       let ty = Env.fresh2 env
@@ -657,7 +657,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
       ensure_public env venv loc i;
       Env.gget venv x
 
-  | Pload (_, x, i) ->
+  | Pload (_, _, x, i) ->
       ensure_public env venv loc (Pvar (gkvar x));
       ensure_public env venv loc i;
       Env.dsecret env
@@ -873,14 +873,14 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
       let venv = Env.set_ty env venv x xty in
       msf, venv
 
-  | Lmem(_, x, i) ->
+  | Lmem(_, _, x, i) ->
       ensure_public env venv (L.loc x) (Pvar (gkvar x));
       ensure_public env venv (L.loc x) i;
         (* programmes are assumed to be safe, thus corruption from memory store
            with [x + i] is speculative only *)
       msf, Env.corruption_speculative env venv (content_ty ety)
 
-  | Laset(aa, ws, x, i) ->
+  | Laset(_, aa, ws, x, i) ->
       ensure_public_address env venv (L.loc x) x;
       ensure_public env venv (L.loc x) i;
       let le = content_ty ety in

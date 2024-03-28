@@ -133,7 +133,8 @@ Section CONST_PROP.
   Proof.
     elim: e =>
       [||| x
-      |||| op1 e hinde
+      | al aa sz x e hinde
+      ||| op1 e hinde
       | op2 e0 hinde0 e1 hinde1
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
@@ -141,7 +142,7 @@ Section CONST_PROP.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
-    - by move => sz [] x [].
+    - by case: x =>  - x [] /=; auto.
 
     - rewrite use_mem_s_op1. exact: (hinde h).
 

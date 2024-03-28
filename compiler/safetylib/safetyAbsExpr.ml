@@ -416,7 +416,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
       | Pvar x -> mvar_of_var x :: acc
 
-      | Pget(access,ws,x,ei) ->
+      | Pget(_, access,ws,x,ei) ->
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
       | Psub (access, ws, len, x, ei) -> 
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws len ei @ acc
@@ -606,7 +606,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | _ -> raise (Binop_not_supported op2)
       end
 
-    | Pget(access,ws,x,ei) ->
+    | Pget(_, access,ws,x,ei) ->
       begin
         match abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1 ei with
         | [] -> assert false
@@ -641,17 +641,17 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Pconst _  | Pbool _ | Parr_init _ | Pvar _  -> None
 
-    | Pget(acc,ws,x,e1) ->
+    | Pget(al,acc,ws,x,e1) ->
       remove_if_expr_aux e1
-      |> map_f (fun ex -> Pget(acc,ws,x,ex))
+      |> map_f (fun ex -> Pget(al,acc,ws,x,ex))
 
     | Psub(acc,ws,x,len,e1) ->
       remove_if_expr_aux e1
       |> map_f (fun ex -> Psub(acc,ws,x,len,ex))
       
-    | Pload (sz, x, e1) ->
+    | Pload (al, sz, x, e1) ->
       remove_if_expr_aux e1
-      |> map_f (fun ex -> Pload (sz,x,ex))
+      |> map_f (fun ex -> Pload (al,sz,x,ex))
 
     | Papp1 (op1, e1) ->
       remove_if_expr_aux e1
@@ -1012,7 +1012,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | _, Bty _ -> MLvar (loc, Mlocal (Avar ux))
         | _, Arr _ -> MLvar (loc, Mlocal (Aarray ux)) end
 
-    | Laset (acc, ws, x, ei) ->
+    | Laset (_, acc, ws, x, ei) ->
       begin
         match abs_sub_arr_range abs (L.unloc x,Expr.Slocal) acc ws 1 ei with
         | [] -> assert false

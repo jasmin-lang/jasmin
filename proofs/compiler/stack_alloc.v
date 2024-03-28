@@ -176,10 +176,10 @@ Record pos_map := {
 
 (* TODO: Z.land or is_align ?
    Could be just is_align (sub_region_addr sr) ws ? *)
-Definition check_align x (sr:sub_region) ws :=
-  Let _ := assert (ws <= sr.(sr_region).(r_align))%CMP
+Definition check_align al x (sr:sub_region) ws :=
+  Let _ := assert ((al == Unaligned) || (ws <= sr.(sr_region).(r_align))%CMP) (* TODO: is this check needed? *)
                   (stk_ierror_basic x "unaligned offset") in
-  assert (Z.land sr.(sr_zone).(z_ofs) (wsize_size ws - 1) == 0)%Z
+  assert ((al == Unaligned) || (Z.land sr.(sr_zone).(z_ofs) (wsize_size ws - 1) == 0)%Z)
          (stk_ierror_basic x "unaligned sub offset").
 
 Definition writable (x:var_i) (r:region) :=
@@ -313,7 +313,7 @@ End WITH_POINTER_DATA.
 
 (* Precondition size_of x = ws && length sr.sr_zone = wsize_size ws *)
 Definition set_word rmap (x:var_i) sr ws :=
-  Let _ := check_align x sr ws in
+  Let _ := check_align Aligned x sr ws in
   set_sub_region rmap x sr (Some 0)%Z (size_slot x).
 
 (* If we write to array [x] at offset [ofs], we invalidate the corresponding
@@ -324,9 +324,9 @@ Definition set_word rmap (x:var_i) sr ws :=
    approximation.
 *)
 (* [set_word], [set_stack_ptr] and [set_arr_word] could be factorized? -> think more about it *)
-Definition set_arr_word (rmap:region_map) (x:var_i) ofs ws :=
+Definition set_arr_word (rmap:region_map) al (x:var_i) ofs ws :=
   Let sr := get_sub_region rmap x in
-  Let _ := check_align x sr ws in
+  Let _ := check_align al x sr ws in
   set_sub_region rmap x sr ofs (wsize_size ws).
 
 Definition set_arr_call rmap x sr := set_sub_region rmap x sr (Some 0)%Z (size_slot x).
@@ -584,9 +584,9 @@ Definition check_vpk rmap (x:var_i) vpk ofs len :=
     ok sr'.
 *)
 
-Definition check_vpk_word rmap x vpk ofs ws :=
+Definition check_vpk_word rmap al x vpk ofs ws :=
   Let srs := check_vpk rmap x vpk ofs (wsize_size ws) in
-  check_align x srs.1 ws.
+  check_align al x srs.1 ws.
 
 Fixpoint alloc_e (e:pexpr) :=
   match e with
@@ -598,33 +598,33 @@ Fixpoint alloc_e (e:pexpr) :=
     | None => Let _ := check_diff xv in ok e
     | Some vpk =>
       if is_word_type (vtype xv) is Some ws then
-        Let _ := check_vpk_word rmap xv vpk (Some 0%Z) ws in
+        Let _ := check_vpk_word rmap Aligned xv vpk (Some 0%Z) ws in
         Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
-        ok (Pload ws pofs.1 pofs.2)
+        ok (Pload Aligned ws pofs.1 pofs.2)
       else Error (stk_ierror_basic xv "not a word variable in expression")
     end
 
-  | Pget aa ws x e1 =>
+  | Pget al aa ws x e1 =>
     let xv := x.(gv) in
     Let e1 := alloc_e e1 in
     Let vk := get_var_kind x in
     match vk with
-    | None => Let _ := check_diff xv in ok (Pget aa ws x e1)
+    | None => Let _ := check_diff xv in ok (Pget al aa ws x e1)
     | Some vpk =>
       let ofs := mk_ofsi aa ws e1 in
-      Let _ := check_vpk_word rmap xv vpk ofs ws in
+      Let _ := check_vpk_word rmap al xv vpk ofs ws in
       Let pofs := mk_addr xv aa ws vpk e1 in
-      ok (Pload ws pofs.1 pofs.2)
+      ok (Pload al ws pofs.1 pofs.2)
     end
 
   | Psub aa ws len x e1 =>
     Error (stk_ierror_basic x.(gv) "Psub")
 
-  | Pload ws x e1 =>
+  | Pload al ws x e1 =>
     Let _ := check_var x in
     Let _ := check_diff x in
     Let e1 := alloc_e e1 in
-    ok (Pload ws x e1)
+    ok (Pload al ws x e1)
 
   | Papp1 o e1 =>
     Let e1 := alloc_e e1 in
@@ -676,34 +676,34 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
         if subtype (sword ws) ty then
           Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
           Let sr   := sub_region_pk x pk in
-          let r := Lmem ws pofs.1 pofs.2 in
+          let r := Lmem Aligned ws pofs.1 pofs.2 in
           Let rmap := Region.set_word rmap x sr ws in
           ok (rmap, r)
         else Error (stk_ierror_basic x "invalid type for assignment")
       else Error (stk_ierror_basic x "not a word variable in assignment")
     end
 
-  | Laset aa ws x e1 =>
+  | Laset al aa ws x e1 =>
     (* TODO: could we remove this [check_diff] and use an invariant in the proof instead? *)
     Let e1 := alloc_e rmap e1 in
     match get_local x with
-    | None => Let _ := check_diff x in ok (rmap, Laset aa ws x e1)
+    | None => Let _ := check_diff x in ok (rmap, Laset al aa ws x e1)
     | Some pk =>
       let ofs := mk_ofsi aa ws e1 in
-      Let rmap := set_arr_word rmap x ofs ws in
+      Let rmap := set_arr_word rmap al x ofs ws in
       Let pofs := mk_addr_ptr x aa ws pk e1 in
-      let r := Lmem ws pofs.1 pofs.2 in
+      let r := Lmem al ws pofs.1 pofs.2 in
       ok (rmap, r)
     end
 
   | Lasub aa ws len x e1 =>
     Error (stk_ierror_basic x "Lasub")
 
-  | Lmem ws x e1 =>
+  | Lmem al ws x e1 =>
     Let _ := check_var x in
     Let _ := check_diff x in
     Let e1 := alloc_e rmap e1 in
-    ok (rmap, Lmem ws x e1)
+    ok (rmap, Lmem al ws x e1)
   end.
 
 Definition nop := Copn [::] AT_none sopn_nop [::].
@@ -762,7 +762,7 @@ Definition mk_addr_pexpr rmap x vpk :=
   if is_stack_ptr vpk is Some (s, ofs, ws, z, f) then
     Let _   := assert (check_stack_ptr rmap s ws z f)
                       (stk_error x (pp_box [:: pp_s "the stack pointer"; pp_var x; pp_s "is no longer valid"])) in
-    ok (Pload Uptr (with_var x pmap.(vrsp)) (cast_const (ofs + z.(z_ofs))), 0%Z)
+    ok (Pload Aligned Uptr (with_var x pmap.(vrsp)) (cast_const (ofs + z.(z_ofs))), 0%Z)
   else
     Let xofs := addr_from_vpk x vpk in
     ok (Plvar xofs.1, xofs.2).
@@ -830,7 +830,7 @@ Definition alloc_array_move rmap r tag e :=
       | Pstkptr slot ofsx ws z x' =>
         let is_spilling := Some (slot, ws, z, x') in
         let dx_ofs := cast_const (ofsx + z.(z_ofs)) in
-        let dx := Lmem Uptr (with_var x pmap.(vrsp)) dx_ofs in
+        let dx := Lmem Aligned Uptr (with_var x pmap.(vrsp)) dx_ofs in
         let (rmap, oir) := get_addr is_spilling rmap x dx tag sry vpk ey ofs in
         match oir with
         | None =>
@@ -1048,7 +1048,7 @@ Definition alloc_call_arg_aux rmap0 rmap (sao_param: option param_info) (e:pexpr
     Let srs := Region.check_valid rmap0 xv (Some 0%Z) (size_slot xv) in
     let sr := srs.1 in
     Let rmap := if pi.(pp_writable) then set_clear rmap xv sr (Some 0%Z) (size_slot xv) else ok rmap in
-    Let _  := check_align xv sr pi.(pp_align) in
+    Let _  := check_align Aligned xv sr pi.(pp_align) in
     ok (rmap, (Some (pi.(pp_writable),sr), Pvar (mk_lvar (with_var xv p))))
   | Some _, _ => Error (stk_ierror_basic xv "the argument should be a reg ptr")
   end.
@@ -1088,9 +1088,9 @@ Definition check_lval_reg_call (r:lval) :=
     | None   => Let _ := check_diff x in ok tt
     | Some _ => Error (stk_ierror_basic x "call result should be stored in reg")
     end
-  | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
+  | Laset _ aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
   | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
-  | Lmem ws x e1     => Error (stk_ierror_basic x "call result should be stored in reg")
+  | Lmem al ws x e1  => Error (stk_ierror_basic x "call result should be stored in reg")
   end.
 
 Definition get_regptr (x:var_i) :=
@@ -1114,9 +1114,9 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
         Let rmap := Region.set_arr_call rmap x sr in
         (* TODO: Lvar p or Lvar (with_var x p) like in alloc_call_arg? *)
         ok (rmap, Lvar p)
-      | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
+      | Laset _ aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
       | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
-      | Lmem ws x e1     => Error (stk_ierror_basic x "call result should be stored in reg ptr")
+      | Lmem al ws x e1  => Error (stk_ierror_basic x "call result should be stored in reg ptr")
       end
     | (None, _) => Error (stk_ierror_no_var "alloc_lval_call")
     end
@@ -1525,7 +1525,7 @@ Definition check_glob data gv :=
   | @Gword ws w => assert (LE.decode ws data == w) (stk_ierror_no_var "bad decode")
   | @Garr p t =>
     Let _ := foldM (fun wd i =>
-             match read t i U8 with
+             match read t Aligned i U8 with
              | Ok w =>
                if wd == w then ok (i+1)%Z
                else Error (stk_ierror_no_var "bad decode array eq")

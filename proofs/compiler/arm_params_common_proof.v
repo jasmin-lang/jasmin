@@ -181,7 +181,7 @@ Lemma str_eval_instr {lp ls m' ii xname vi y off wx} {wy : word reg_size} :
   let: (xi, x) := mkv xname vi in
   get_var true (lvm ls) x = ok (Vword wx)
   -> get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> write (lmem ls) (wx + wrepr Uptr off)%R wy = ok m'
+  -> write (lmem ls) Aligned (wx + wrepr Uptr off)%R wy = ok m'
   -> let: li := li_of_fopn_args ii (ARMFopn.str y xi off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
 Proof. move=> ???. by t_arm_op. Qed.

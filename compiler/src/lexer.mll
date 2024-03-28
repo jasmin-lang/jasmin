@@ -181,6 +181,8 @@ rule main = parse
   | "="  { EQ       }
   | "==" { EQEQ     }
   | "!=" { BANGEQ   }
+  | "#unaligned" { UNALIGNED   }
+  | "#aligned" { ALIGNED   }
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }
