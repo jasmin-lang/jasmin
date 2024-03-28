@@ -8,6 +8,7 @@ val transient : level
 val secret : level
 val get_nth_argument : int -> signature -> typ option
 val get_nth_result : int -> signature -> typ option
+val get_sct_signature : Annotations.annotations -> signature option
 
 module PP : sig
   val simple_level : simple_level Utils.pp
