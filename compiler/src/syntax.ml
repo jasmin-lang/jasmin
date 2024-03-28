@@ -163,7 +163,7 @@ type pexpr_r =
 
 and pexpr = pexpr_r L.located
 
-and mem_access = wsize option * pident * ([`Add | `Sub] * pexpr) option * [`Aligned|`Unaligned] option
+and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`Add | `Sub] * pexpr) option
 
 (* -------------------------------------------------------------------- *)
 and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr

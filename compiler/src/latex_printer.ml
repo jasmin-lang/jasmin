@@ -121,8 +121,8 @@ let pp_attribute_key fmt s =
 
 let pp_aligned fmt = function
   | None -> ()
-  | Some `Aligned -> F.fprintf fmt "%aaligned" sharp ()
-  | Some `Unaligned -> F.fprintf fmt "%aunaligned" sharp ()
+  | Some `Aligned -> F.fprintf fmt "%aaligned " sharp ()
+  | Some `Unaligned -> F.fprintf fmt "%aunaligned " sharp ()
 
 let rec pp_simple_attribute fmt a = 
   match L.unloc a with 
@@ -178,7 +178,7 @@ let rec pp_expr_rec prio fmt pe =
     F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
     optparent fmt prio p ")"
 
-and pp_mem_access fmt (ty,x,e, al) =
+and pp_mem_access fmt (al, ty,x,e) =
   let pp_e fmt e = 
     match e with
     | None -> ()

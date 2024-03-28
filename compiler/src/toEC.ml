@@ -1085,7 +1085,7 @@ module Leak = struct
         | Arr(ws,n) -> Inita (L.unloc x, arr_size ws n) :: safe
         | _ -> Initv(L.unloc x) :: safe 
       else safe 
-    | Pload (al, ws,x,e) -> (* FIXME: alignment *)
+    | Pload (al, ws,x,e) -> (* TODO: alignment *)
       is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env safe e)
     | Papp1 (_, e) -> safe_e_rec pd env safe e
     | Pget (al, aa, ws, x, e) ->
@@ -1125,7 +1125,7 @@ module Leak = struct
 
   let safe_lval pd env = function
     | Lnone _ | Lvar _ -> []
-    | Lmem(al, ws, x, e) -> (* FIXME: alignment *)
+    | Lmem(al, ws, x, e) -> (* TODO: alignment *)
       is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env [] e)
     | Laset(al, aa, ws, x,e) ->
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)

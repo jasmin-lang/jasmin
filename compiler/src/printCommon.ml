@@ -131,7 +131,7 @@ let pp_arr_access pp_gvar pp_expr pp_len fmt al aa ws x e olen =
     | None -> ()
     | Some len -> fprintf fmt " : %a" pp_len len
   in
-  fprintf fmt "%a%s[%a %a %a%a]" pp_gvar x
+  fprintf fmt "%a%s[%a%a %a%a]" pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
     pp_aligned al
     pp_btype (U ws) pp_expr e pp_len olen

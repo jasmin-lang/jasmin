@@ -964,14 +964,18 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
-    let al = tt_al aa al in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
     let i = ensure_int (L.loc pi) i ity in
     begin match olen with
-    | None -> P.Pget (al, aa, ws, x, i), ty
+    | None ->
+       let al = tt_al aa al in
+       P.Pget (al, aa, ws, x, i), ty
     | Some plen ->
+       Option.may (fun _al ->
+           warning Always (L.i_loc0 (L.loc plen)) "ignored alignment annotation in array slice"
+         ) al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
       let ty = P.Arr(ws, len) in
@@ -1058,7 +1062,7 @@ and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   cast (L.loc pe) e ety ty 
   
 and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
-           (ct, ({ L.pl_loc = xlc } as x), e, al) =
+           (al, ct, ({ L.pl_loc = xlc } as x), e) =
   let x = tt_var `NoParam env x in
   check_ty_ptr pd ~loc:xlc x.P.v_ty;
   let e = 

@@ -386,7 +386,7 @@ Section CoreMem.
     by rewrite (write_read8 hw) (write_read8 hw') /=; case: andP.
  Qed.
 
- Definition disjoint_range_ovf p s p' s' : Prop :=
+ Definition disjoint_zrange_ovf p s p' s' : Prop :=
    ∀ i i' : Z, 0 <= i < s → 0 <= i' < s' → add p i ≠ add p' i'.
 
 End CoreMem.
@@ -614,7 +614,7 @@ Global Opaque Pointer.
 
 Lemma disjoint_zrange_alt a m b n :
   disjoint_zrange a m b n →
-  disjoint_range_ovf a m b n.
+  disjoint_zrange_ovf a m b n.
 Proof.
   case => /ZleP ha /ZleP hb D i j hi hj.
   rewrite !addE => K.
@@ -625,10 +625,10 @@ Proof.
   by rewrite K.
 Qed.
 
-Lemma zbetween_disjoint_range_ovf a b p m n s :
-  zbetween a n b m → disjoint_range_ovf p s a n → disjoint_range_ovf p s b m.
+Lemma zbetween_disjoint_zrange_ovf a b p m n s :
+  zbetween a n b m → disjoint_zrange_ovf p s a n → disjoint_zrange_ovf p s b m.
 Proof.
-  rewrite /zbetween /disjoint_range_ovf !zify => - [] hlo hhi D i i' hi hi' K.
+  rewrite /zbetween /disjoint_zrange_ovf !zify => - [] hlo hhi D i i' hi hi' K.
   set ofs := wunsigned b - wunsigned a.
   have hofs : 0 <= ofs + i' < n by Lia.lia.
   apply: (D _ _ hi hofs).

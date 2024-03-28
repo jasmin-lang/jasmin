@@ -1197,9 +1197,9 @@ Qed.
 
 Lemma eq_sub_region_val_disjoint_range sr bytes ty mem1 mem2 v p sz :
   (forall al p1 ws1,
-      disjoint_range_ovf p sz p1 (wsize_size ws1) ->
+      disjoint_zrange_ovf p sz p1 (wsize_size ws1) ->
       read mem2 al p1 ws1 = read mem1 al p1 ws1) ->
-  disjoint_range_ovf p sz (sub_region_addr sr) (size_of ty) ->
+  disjoint_zrange_ovf p sz (sub_region_addr sr) (size_of ty) ->
   eq_sub_region_val ty mem1 sr bytes v ->
   eq_sub_region_val ty mem2 sr bytes v.
 Proof.
@@ -1218,7 +1218,7 @@ Lemma disjoint_source_word rmap m0 s1 s2 :
   valid_state rmap m0 s1 s2 ->
   forall s al p ws,
     Sv.In s Slots -> validw s1.(emem) al p ws ->
-    disjoint_range_ovf p (wsize_size ws) (Addr s) (size_slot s).
+    disjoint_zrange_ovf p (wsize_size ws) (Addr s) (size_slot s).
 Proof.
   move=> hvs s al p ws hin /validwP [] hal hd i i' /hd.
   rewrite (validw8_alignment Aligned) !addE => hi hi'.
@@ -1762,7 +1762,7 @@ Proof.
         apply: (eq_sub_region_val_disjoint_range hreadeq _ (hval _ _ _ _ hgvalid hgy)).
         have := disjoint_source_word hvs hwfy.(wfr_slot) hvp1.
         have := zbetween_sub_region_addr hwfy.
-        exact: zbetween_disjoint_range_ovf.
+        exact: zbetween_disjoint_zrange_ovf.
       move=> y sry hgy.
       have [pk [hgpk hvpk]] := hptr _ _ hgy; exists pk; split => //.
       case: pk hgpk hvpk => //= s ofs ws' z f hgpk hread /hread <-.
@@ -1770,7 +1770,7 @@ Proof.
       assert (hwf' := sub_region_stkptr_wf (wf_locals hgpk)).
       have := disjoint_source_word hvs hwf'.(wfr_slot) hvp1.
       have := zbetween_sub_region_addr hwf'.
-      exact: zbetween_disjoint_range_ovf.
+      exact: zbetween_disjoint_zrange_ovf.
     + move=> p; rewrite (write_validw_eq hmem1) => hv.
       apply: read_write_any_mem hmem1 hmem2.
       by apply heqmem.

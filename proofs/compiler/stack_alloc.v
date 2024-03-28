@@ -177,7 +177,7 @@ Record pos_map := {
 (* TODO: Z.land or is_align ?
    Could be just is_align (sub_region_addr sr) ws ? *)
 Definition check_align al x (sr:sub_region) ws :=
-  Let _ := assert ((al == Unaligned) || (ws <= sr.(sr_region).(r_align))%CMP) (* FIXME: is this check needed? *)
+  Let _ := assert ((al == Unaligned) || (ws <= sr.(sr_region).(r_align))%CMP) (* TODO: is this check needed? *)
                   (stk_ierror_basic x "unaligned offset") in
   assert ((al == Unaligned) || (Z.land sr.(sr_zone).(z_ofs) (wsize_size ws - 1) == 0)%Z)
          (stk_ierror_basic x "unaligned sub offset").

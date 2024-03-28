@@ -235,7 +235,7 @@ prim:
 
 %inline mem_access:
 | ct=parens(utype)? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
-  { ct, v, e, al }
+  { al, ct, v, e }
   
 arr_access_len: 
 | COLON e=pexpr { e }
