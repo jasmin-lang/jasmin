@@ -9,7 +9,9 @@ let named n = Named n
 type level = { normal : simple_level; speculative : simple_level }
 
 let diag d = { normal = d; speculative = d }
+let public = diag Public
 let transient = { normal = Public; speculative = Secret }
+let secret = diag Secret
 
 type typ = Msf | Direct of level | Indirect of { ptr : level; value : level }
 
