@@ -57,7 +57,7 @@ Definition riscv_mov_ofs
         if ofs == Z0 then mk (MV, [:: y])
         else
           (* TODO: handle large immediates as in arm *)
-          mk (ADD, [::y; eword_of_int reg_size ofs ])
+          mk (ADDI, [::y; eword_of_int reg_size ofs ])
     | Lmem _ _ _ =>
       if ofs == Z0 then mk (STORE U32, [:: y]) else None
     | _ => None

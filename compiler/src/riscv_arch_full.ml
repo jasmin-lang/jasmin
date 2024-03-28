@@ -1,6 +1,7 @@
 open Arch_decl
 open Prog
 open Riscv_decl
+open Riscv_extra
 
 module type Riscv_input = sig
   val call_conv : (register, Riscv_decl.__, Riscv_decl.__, Riscv_decl.__, condt) calling_convention
@@ -14,7 +15,7 @@ module Riscv_core = struct
   type rflag =  Riscv_decl.__
   type cond = condt
   type asm_op = Riscv_instr_decl.riscv_op
-  type extra_op = Riscv_decl.__
+  type extra_op = Riscv_extra.riscv_extra_op
   type lowering_options = Riscv_lowering.lowering_options
 
   let atoI = X86_arch_full.atoI riscv_decl
@@ -30,7 +31,6 @@ module Riscv_core = struct
   let is_ct_asm_op (o : asm_op) =
     match o with
     | _ -> true
-
 
   let is_ct_asm_extra (o : extra_op) = true
 

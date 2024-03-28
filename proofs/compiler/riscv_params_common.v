@@ -39,13 +39,13 @@ Module RISCVOpn (Args : OpnArgs).
   Notation opn_args := (seq lval * sopn * seq rval)%type.
 
   Let op_gen mn x res : opn_args :=
-    ([:: lvar x ], Oriscv mn, res).
+    ([:: lvar x ], Oasm mn, res).
   Let op_un_reg mn x y := op_gen mn x [:: rvar y ].
   Let op_un_imm mn x imm := op_gen mn x [:: rconst reg_size imm ].
   Let op_bin_reg mn x y z := op_gen mn x [:: rvar y; rvar z ].
   Let op_bin_imm mn x y imm := op_gen mn x [:: rvar y; rconst reg_size imm ].
 
-  Definition to_opn '(d, o, e) : opn_args := (d, Oriscv o, e).
+  Definition to_opn '(d, o, e) : opn_args := (d, Oasm o, e).
 
   Definition mov x y   := to_opn (Core.mov x y).
   Definition add x y z := to_opn (Core.add x y z).
@@ -57,7 +57,7 @@ Module RISCVOpn (Args : OpnArgs).
   Definition addi x y imm := to_opn (Core.addi x y imm).
   Definition subi x y imm := to_opn (Core.subi x y imm).
 
-  Definition andi := op_bin_imm AND.
+  Definition andi := op_bin_imm (BaseOp (None, ANDI)).
 
   Definition align x y al := andi x y (wsize_size al - 1).
 

@@ -28,12 +28,12 @@ Context {atoI : arch_toIdent}.
 Definition chk_ws_reg (ws : wsize) : option unit :=
   oassert (ws == reg_size)%CMP.
 
-Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_op * pexprs) :=
+Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_extended_op * pexprs) :=
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oword_of_int _ =>
     if is_const e is Some _
-      then  Some(LI, [:: Papp1 (Oword_of_int U32) e])
+      then  Some(BaseOp (None, LI), [:: Papp1 (Oword_of_int U32) e])
     else None
 (*  | Olnot U32 =>
       Some (arg_shift MVN U32 [:: e ])
@@ -45,25 +45,25 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_op * 
 
 Definition lower_Papp2
   (ws : wsize) (op : sop2) (e0 e1 : pexpr) :
-  option (riscv_op * pexprs) :=
+  option (riscv_extended_op * pexprs) :=
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oadd (Op_w _) =>
     match e1 with
-    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (ADDI, [:: e0; e1])
-    | _ => Some (ADD, [:: e0; e1 ])
+    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, ADDI), [:: e0; e1])
+    | _ => Some (BaseOp (None, ADD), [:: e0; e1 ])
     end
   | Osub (Op_w _) =>
       match e1 with
-      | Papp1 (Oword_of_int ws1) (Pconst n) => Some (ADDI, [:: e0; Papp1 (Oword_of_int ws1) (Pconst (- n))])
-      | _ => Some (SUB, [:: e0; e1 ])
+      | Papp1 (Oword_of_int _) (Pconst _) =>  Some (ExtOp SUBI, [:: e0; e1])
+      | _ => Some (BaseOp (None, SUB), [:: e0; e1 ])
       end
   | Oland _ =>
-      Some (AND, [:: e0; e1 ])
+      Some (BaseOp (None, AND), [:: e0; e1 ])
   | Olor _ =>
-      Some (OR, [:: e0; e1 ])
+      Some (BaseOp (None, OR), [:: e0; e1 ])
   | Olxor _ =>
-      Some (XOR, [:: e0; e1 ])
+      Some (BaseOp (None, XOR), [:: e0; e1 ])
  (* | Olsr U32 =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (LSR, e0, [:: e1 ])
@@ -85,22 +85,22 @@ Definition lower_Papp2
 
 
 (* Lower an expression of the form [(ws)[v + e]] or [tab[ws e]]. *)
-Definition lower_load (ws: wsize) (e: pexpr) : option(riscv_op * pexprs) :=
+Definition lower_load (ws: wsize) (e: pexpr) : option(riscv_extended_op * pexprs) :=
   let%opt _ := chk_ws_reg ws in
-  Some (LOAD Signed U32, [:: e ]).
+  Some (BaseOp (None, LOAD Signed U32), [:: e ]).
 
 (* Lower an expression of the form [v].
    Precondition:
    - [v] is a one of the following:
      + a register.
      + a stack variable. *)
-Definition lower_Pvar (ws : wsize) (v : gvar) : option(riscv_op * pexprs) :=
+Definition lower_Pvar (ws : wsize) (v : gvar) : option(riscv_extended_op * pexprs) :=
     (* For now, only 32 bits can be read from memory or upon move, signed / unsigned has no effect on load or move *)
     if ws != U32 
         then None 
     else
         let op := if is_var_in_memory (gv v) then LOAD Signed U32 else MV in
-        Some (op, [:: Pvar v ]).
+        Some (BaseOp (None, op), [:: Pvar v ]).
 
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn
@@ -115,15 +115,32 @@ Definition lower_cassgn
     | Pload _ _ _=> lower_load ws e
     | Papp1 op e => lower_Papp1 ws op e
     | Papp2 op a b => lower_Papp2 ws op a b
-    | _ => None    
+    | _ => None
     end
-    in Some ([:: lv], Oriscv op, e).
+    in Some ([:: lv], Oasm op, e).
 
+Definition lower_swap ty lvs es : option copn_args := 
+  match ty with
+  | sword sz => 
+    if (sz <= U32)%CMP then 
+      Some (lvs, Oasm (ExtOp (SWAP sz)), es)
+    else None
+  | sarr _ => 
+      Some (lvs, Opseudo_op (Oswap ty), es)
+  | _ => None
+  end.
+
+Definition lower_pseudo_operator
+  (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option copn_args :=
+  match op with
+  | Oswap ty => lower_swap ty lvs es
+  | _ => None
+  end.
 
 Definition lower_copn
   (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
   match op with
-  | Opseudo_op pop => None
+  | Opseudo_op pop => lower_pseudo_operator lvs pop es
   | _ => None
   end.
 

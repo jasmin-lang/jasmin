@@ -14,7 +14,8 @@ Require Import
   arch_decl.
 Require Import
   riscv_decl
-  riscv_instr_decl.
+  riscv_instr_decl
+  riscv_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -31,7 +32,9 @@ Module RISCVOpn_core (Args : OpnArgs).
 
   Section WITH_PARAMS.
 
-  Definition opn_args := (seq lval * riscv_op * seq rval)%type.
+  Context {atoI : arch_toIdent}.
+
+  Definition opn_args := (seq lval * riscv_extended_op * seq rval)%type.
 
   Let op_gen mn x res : opn_args :=
     ([:: lvar x ], mn, res).
@@ -40,13 +43,13 @@ Module RISCVOpn_core (Args : OpnArgs).
   Let op_bin_reg mn x y z := op_gen mn x [:: rvar y; rvar z ].
   Let op_bin_imm mn x y imm := op_gen mn x [:: rvar y; rconst reg_size imm ].
 
-  Definition mov := op_un_reg MV.
-  Definition add := op_bin_reg ADD.
-  Definition sub := op_bin_reg SUB.
+  Definition mov := op_un_reg (BaseOp (None, MV)).
+  Definition add := op_bin_reg (BaseOp (None, ADD)).
+  Definition sub := op_bin_reg (BaseOp (None, SUB)).
 
-  Definition li := op_un_imm LI.
-  Definition addi := op_bin_imm ADD.
-  Definition subi := op_bin_imm SUB.
+  Definition li := op_un_imm (BaseOp (None, LI)).
+  Definition addi := op_bin_imm (BaseOp (None, ADDI)).
+  Definition subi := op_bin_imm (ExtOp SUBI).
 
   Definition smart_mov x y :=
     if v_var x == v_var y then [::] else [:: mov x y ].
