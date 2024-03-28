@@ -50,7 +50,8 @@ fn main_move(reg u64 x) {
     [x] = 0;
 }
 
-fn dup_msf(reg u64 msf) -> #msf reg u64, #msf reg u64 {
+#[sct="msf -> msf * msf"]
+fn dup_msf(reg u64 msf) -> reg u64, reg u64 {
     reg u64 msf1 msf2;
     msf1 = #mov_msf(msf);
     msf2 = #mov_msf(msf);

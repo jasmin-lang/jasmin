@@ -119,3 +119,8 @@ module Parse = struct
           rule s;
         None
 end
+
+let get_sct_signature a =
+  Option.bind (Annotations.get "sct" a) (function
+    | Some { pl_desc = Astring s; _ } -> Parse.string s
+    | _ -> None)
