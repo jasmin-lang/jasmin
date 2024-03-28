@@ -578,10 +578,10 @@ Proof.
 Qed.
 
 Lemma lower_loadP e :
-  match e with Pload _ _ _ | Pget _ _ _ _ => Plower_pexpr_aux e
+  match e with Pload _ _ _ _ | Pget _ _ _ _ _ => Plower_pexpr_aux e
   | _ => True end.
 Proof.
-  case: e => // [ aa | ] ws x e s ws' ws'' aop es w.
+  case: e => // [ al aa | al ] ws x e s ws' ws'' aop es w.
   all: rewrite /lower_pexpr_aux /lower_load.
   all: case: ws' => // /Some_inj[] ?? hws hfve; subst aop es.
   all: rewrite /sem_pexpr -/(sem_pexpr _ s e).
@@ -678,7 +678,7 @@ Proof.
       all: move=> [? ?]; subst aop es.
       all: split; last done.
       all: clear hfve.
-      all: rewrite /= -/(sem_pexpr _ s (Pload _ _ _)).
+      all: rewrite /= -/(sem_pexpr _ s (Pload _ _ _ _)).
       all: rewrite hseme {hseme} /=.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
@@ -696,7 +696,7 @@ Proof.
       all: move=> [? ?]; subst aop es.
       all: split; last done.
       all: clear hfve.
-      all: rewrite /= -/(sem_pexpr _ s (Pload _ _ _)).
+      all: rewrite /= -/(sem_pexpr _ s (Pload _ _ _ _)).
       all: rewrite hseme {hseme} /=.
       all: eexists; first reflexivity.
       all: rewrite /exec_sopn /=.
@@ -1039,11 +1039,11 @@ Lemma lower_pexpr_auxP e :
   Plower_pexpr_aux e.
 Proof.
   move=> s ws ws' aop es w.
-  case: e => [||| gx | aa ws0 x e || ws0 x e | op e | op e0 e1 ||] //.
+  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 ||] //.
 
   - exact: lower_PvarP.
-  - exact: (lower_loadP (Pget _ _ _ _)).
-  - exact: (lower_loadP (Pload _ _ _)).
+  - exact: (lower_loadP (Pget _ _ _ _ _)).
+  - exact: (lower_loadP (Pload _ _ _ _)).
   - exact: lower_Papp1P.
   exact: lower_Papp2P.
 Qed.
@@ -1102,7 +1102,7 @@ Proof.
   move=> h hs00 hws hfve hfvlv hseme hwrite.
 
   move: s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
-  case: e => [||| gx | aa ws0 x e || ws0 x e | op e | op e0 e1 || ty c e0 e1] //
+  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 || ty c e0 e1] //
     s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
 
   1-5: move: h => /no_preP [? h]; subst pre.

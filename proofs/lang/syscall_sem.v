@@ -29,7 +29,7 @@ Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_stack_stabl
 
 Lemma exec_getrandom_s_core_validw scs m p len rscs rm rp : 
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
-  validw m =2 validw rm.
+  validw m =3 validw rm.
 Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_validw_eq hf ? <- ?. Qed.
 
 Definition sem_syscall (o:syscall_t) : 
@@ -65,14 +65,14 @@ Proof.
   by exists vres=> //; apply List_Forall2_refl.
 Qed.
 
-Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =2 validw m2.
+Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =3 validw m2.
 
 Lemma sem_syscall_equiv o scs m : 
   mk_forall (fun (rm: (syscall_state_t * mem * _)) => mem_equiv m rm.1.2)
             (sem_syscall o scs m).
 Proof.
   case: o => _len /= p len [[scs' rm] t] /= hex; split.
-  + by apply: exec_getrandom_s_core_stable hex. 
+  + exact: exec_getrandom_s_core_stable hex.
   by apply: exec_getrandom_s_core_validw hex.
 Qed.
 

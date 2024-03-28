@@ -216,11 +216,11 @@ case => hscs hm hvm; case: x => /=.
   move /of_val_undef_sim => /exec_val_simE /= -> /= [<-].
   by exists s1'.
 - move => x; exact: write_var_sim.
-- move => sz x e; t_xrbindP => ? ?;
+- move => al sz x e; t_xrbindP => ? ?;
     rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (And3 hscs hm hvm))
         -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
-- move => aa ws x e.
+- move => al aa ws x e.
   rewrite /on_arr_var (get_var_sim hvm); rewrite /sem.write_var /write_var; t_xrbindP => t -> /=.
   case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (And3 hscs hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
   case => vm' [] h /= -> <- /=.

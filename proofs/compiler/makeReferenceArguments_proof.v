@@ -413,7 +413,7 @@ Context
     apply: (pexpr_mut_ind (P:= P) (Q:= Q))=> {e v}; split; rewrite /P /Q /= ?hs // => {P Q}.
     + move=> e ihe es ihes vs /andP [] /ihe{ihe}ihe /ihes{ihes}ihes.
       by t_xrbindP => ? /ihe -> /= ? /ihes -> /= <-.
-    + move=> aa sz x e ih v /ih{ih}ih.
+    + move=> al aa sz x e ih v /ih{ih}ih.
       apply: on_arr_gvarP => n t hx ->.
       by rewrite /on_arr_var /=; t_xrbindP => ze ve /ih -> /= -> ? /= -> <-.
     + move=> aa sz len x e ih v /ih{ih}ih.

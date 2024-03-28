@@ -357,9 +357,9 @@ Fixpoint const_prop_e (m:cpm) e :=
     if is_lvar x then
       if Mvar.get m x.(gv) is Some n then const n else e      
     else e
-  | Pget aa sz x e => Pget aa sz x (const_prop_e m e)
+  | Pget al aa sz x e => Pget al aa sz x (const_prop_e m e)
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
-  | Pload sz x e  => Pload sz x (const_prop_e m e)
+  | Pload al sz x e => Pload al sz x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
   | PappN op es   => s_opN op (map (const_prop_e m) es)
@@ -384,8 +384,8 @@ Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval :=
   match rv with
   | Lnone _ _       => (m, rv)
   | Lvar  x         => (Mvar.remove m x, rv)
-  | Lmem  sz x e    => (m, Lmem sz x (const_prop_e m e))
-  | Laset aa sz x e => (Mvar.remove m x, Laset aa sz x (const_prop_e m e))
+  | Lmem al sz x e  => (m, Lmem al sz x (const_prop_e m e))
+  | Laset al aa sz x e => (Mvar.remove m x, Laset al aa sz x (const_prop_e m e))
   | Lasub aa sz len x e => (Mvar.remove m x, Lasub aa sz len x (const_prop_e m e))
   end.
 

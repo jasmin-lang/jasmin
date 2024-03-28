@@ -132,7 +132,7 @@ Proof.
     + rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /=.
       by move: hx; rewrite wrepr0 GRing.addr0 => ->.
     by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx.
-  move=> ws_ x_ e_; move: (Lmem ws_ x_ e_) => {ws_ x_ e_} x.
+  move=> al_ ws_ x_ e_; move: (Lmem al_ ws_ x_ e_) => {al_ ws_ x_ e_} x.
   case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; constructor.
   rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.
   by move: hx; rewrite wrepr0 GRing.addr0 => ->.
@@ -240,7 +240,7 @@ Proof. move=> hgety. by t_arm_op. Qed.
 Lemma arm_op_str_off_eval_instr lp ls m' ii y off wx (wy : word reg_size) :
   get_var (lvm ls) (v_var x) = ok (Vword wx)
   -> get_var (lvm ls) (v_var y) = ok (Vword wy)
-  -> write (lmem ls) (wx + wrepr Uptr off)%R wy = ok m'
+  -> write (lmem ls) Aligned (wx + wrepr Uptr off)%R wy = ok m'
   -> let: li := li_of_copn_args ii (arm_op_str_off y x off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
 Proof. move=> hgety hgetx hwrite. by t_arm_op. Qed.
@@ -744,7 +744,7 @@ Lemma arm_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
   -> vtmp <> vrsp
   -> get_var (evm s) vrspi = ok (Vword ts)
   -> wf_vm (evm s)
-  -> write (emem s) (ts' + wrepr Uptr off)%R ts = ok m'
+  -> write (emem s) Aligned (ts' + wrepr Uptr off)%R ts = ok m'
   -> exists vm',
        let: ls := of_estate s fn (size P) in
        let: s' := {| escs := escs s; evm := vm'; emem := m'; |} in
@@ -909,7 +909,7 @@ Proof.
 
   move: hlassign.
   rewrite /lassign /= /arm_lassign.
-  case: x hwrite => [ ? ? ? | x ] hwrite /=.
+  case: x hwrite => [ ? ? ? ? | x ] hwrite /=.
   {
     case hmn: store_mn_of_wsize => [mn|] // [?]; subst li.
     rewrite /eval_instr /= /sem_sopn /=.
@@ -920,7 +920,7 @@ Proof.
   }
 
   case: ws w htrunc hwrite => //= w htrunc hwrite.
-  case: e hseme => [ ??? | ]; last case => //; last case => // - [] // [] // z.
+  case: e hseme => [ ???? | ]; last case => //; last case => // - [] // [] // z.
   2: move => e.
   all: move => /= hseme /Some_inj <-{li}.
   all: rewrite /eval_instr /= /sem_sopn /= to_estate_of_estate.

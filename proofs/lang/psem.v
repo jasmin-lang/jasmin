@@ -401,20 +401,20 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pbool b  => ok (Vbool b)
   | Parr_init n => ok (Varr (WArray.empty n))
   | Pvar v => get_gvar gd s.(evm) v
-  | Pget aa ws x e =>
+  | Pget al aa ws x e =>
       Let (n, t) := gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
-      Let w := WArray.get aa ws t i in
+      Let w := WArray.get al aa ws t i in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
     Let t' := WArray.get_sub aa ws len t i in
     ok (Varr t')
-  | Pload sz x e =>
+  | Pload al sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
     Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read s.(emem) (w1 + w2)%R sz in
+    Let w  := read s.(emem) al (w1 + w2)%R sz in
     ok (@to_val (sword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
@@ -450,18 +450,18 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
   match l with
   | Lnone _ ty => write_none s ty v
   | Lvar x => write_var x v s
-  | Lmem sz x e =>
+  | Lmem al sz x e =>
     Let vx := get_var (evm s) x >>= to_pointer in
     Let ve := sem_pexpr s e >>= to_pointer in
     let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word sz v in
-    Let m :=  write s.(emem) p w in
+    Let m :=  write s.(emem) al p w in
     ok (with_mem s m) 
-  | Laset aa ws x i =>
+  | Laset al aa ws x i =>
     Let (n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
-    Let t := WArray.set t aa i v in
+    Let t := WArray.set t al aa i v in
     write_var x (@to_val (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := s.[x] in
@@ -1081,7 +1081,7 @@ Lemma vrvP gd (x:lval) v s1 s2 :
   write_lval gd x v s1 = ok s2 ->
   s1.(evm) = s2.(evm) [\ vrv x].
 Proof.
-  case x => /= [ _ ty | ? /vrvP_var| sz y e| aa sz y e | aa sz len y e] //.
+  case x => /= [ _ ty | ? /vrvP_var| al sz y e| al aa sz y e | aa sz len y e] //.
   + by move=> /write_noneP [->].
   + by t_xrbindP => ptr yv hyv hptr ptr' ev hev hptr' w hw m hm <-.
   + apply: on_arr_varP => n t; case: y => -[] ty yn yi /= -> hget.
@@ -1113,8 +1113,8 @@ Lemma lv_write_memP gd (x:lval) v s1 s2:
   write_lval gd x v s1 = ok s2 ->
   emem s1 = emem s2.
 Proof.
-  case: x=> //= [v0 t|v0|aa ws v0 p|aa ws len v0 p] _.
-  + by move => /write_noneP [-> _]. 
+  case: x=> //= [v0 t|v0|al aa ws v0 p|aa ws len v0 p] _.
+  + by move => /write_noneP [-> _].
   + by apply: write_var_memP.
   + by apply: on_arr_varP=> n t Ht Hval; t_xrbindP=> ????????; apply: write_var_memP.
   by apply on_arr_varP => n t Ht Hval; t_xrbindP => ????????; apply: write_var_memP.
@@ -1128,8 +1128,8 @@ Lemma lv_write_scsP gd (x:lval) v s1 s2:
   write_lval gd x v s1 = ok s2 ->
   escs s1 = escs s2.
 Proof.
-  case: x=> /= [v0 t|v0|ws x e|aa ws v0 p|aa ws len v0 p].
-  + by move => /write_noneP [-> _]. 
+  case: x=> /= [v0 t|v0|ws x e|al aa ws v0 p|aa ws len v0 p].
+  + by move => /write_noneP [-> _].
   + by apply: write_var_scsP.
   + by t_xrbindP => *; subst s2.
   + by apply: on_arr_varP=> n t Ht Hval; t_xrbindP=> ????????; apply: write_var_scsP.
@@ -1279,13 +1279,13 @@ Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next lev
       case: (sem_pexpr _ _ e) => //= v.
       by move: ih => /(_ _ Heq) ->.
     - by move=> x s /get_gvar_eq_on -> //; SvD.fsetdec.
-    - move=> aa sz x e He s Heq; rewrite (He _ Heq) => {He}.
+    - move=> al aa sz x e He s Heq; rewrite (He _ Heq) => {He}.
       rewrite (on_arr_gvar_eq_on (s' := with_vm s1 vm') _ _ Heq) ?read_eE //.
       by SvD.fsetdec.
     - move=> aa sz len x e He s Heq; rewrite (He _ Heq) => {He}.
       rewrite (on_arr_gvar_eq_on (s' := with_vm s1 vm') _ _ Heq) ?read_eE //.
       by SvD.fsetdec.
-    - by move=> sz x e He s Hvm; rewrite (get_var_eq_on _ Hvm) ?(He _ Hvm) // read_eE;SvD.fsetdec.
+    - by move=> al sz x e He s Hvm; rewrite (get_var_eq_on _ Hvm) ?(He _ Hvm) // read_eE;SvD.fsetdec.
     - by move=> op e He s /He ->.
     - move => op e1 He1 e2 He2 s Heq; rewrite (He1 _ Heq) (He2 s) //.
       by move=> z Hin; apply Heq; rewrite read_eE; SvD.fsetdec.
@@ -1365,7 +1365,7 @@ Lemma write_lval_eq_on gd X x v s1 s2 vm1 :
    evm s2 =[Sv.union (vrv x) X] vm2 /\
    write_lval gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2).
 Proof.
-  case:x => [vi ty | x | sz x e | aa sz' x e | aa sz' len x e] /=.
+  case:x => [vi ty | x | al sz x e | al aa sz' x e | aa sz' len x e] /=.
   + move=> ? /write_noneP [->];rewrite /write_none=> H ?;exists vm1;split=>//.
     by case:H => [[u ->] | [->] ->].
   + move=> _ Hw /(write_var_eq_on Hw) [vm2 [Hvm2 Hx]];exists vm2;split=>//.
@@ -1885,10 +1885,10 @@ Proof.
 Qed.
 
 Lemma Array_set_uincl n1 n2
-   (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz aa i (v:word wz):
+   (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz al aa i (v:word wz):
   @val_uincl (sarr n1) (sarr n2) a1 a2 ->
-  WArray.set a1 aa i v = ok a1' ->
-  exists2 a2', WArray.set a2 aa i v = ok a2' &
+  WArray.set a1 al aa i v = ok a1' ->
+  exists2 a2', WArray.set a2 al aa i v = ok a2' &
       @val_uincl (sarr n1) (sarr n2) a1' a2'.
 Proof.
   rewrite /val_uincl /= => hu hs.
@@ -1958,7 +1958,7 @@ Lemma write_uincl_on gd s1 s2 vm1 r v1 v2:
     write_lval gd r v2 (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     vmap_uincl_on (vrv r) s2.(evm) vm2.
 Proof.
-  case: r => [xi ty | x | sz x p | aa sz1 x p | aa sz1 len x p] + Hv;
+  case: r => [xi ty | x | al sz x p | al aa sz1 x p | aa sz1 len x p] + Hv;
     rewrite /= ?read_eE; t_xrbindP=> Hvm1.
   + move=> H; have [-> _]:= write_noneP H.
     by rewrite (uincl_write_none _ Hv H); exists vm1.
@@ -2203,8 +2203,8 @@ Proof.
   case: l => /=.
   + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
   + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
-  + by move => sz' v e; t_xrbindP; case: ifP.
-  + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+  + by move => al sz' v e; t_xrbindP; case: ifP.
+  + by move => al aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
   by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
 Qed.
 
@@ -2566,13 +2566,13 @@ Proof. by rewrite /eq_gvar /get_gvar /is_lvar => /andP [] /eqP -> /eqP ->. Qed.
 
 Lemma eq_exprP gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr gd s e1 = sem_pexpr gd s e2.
 Proof.
-  elim: e1 e2=> [z  | b | n | x | aa sz x e He | aa sz len x e He | sz x e He | o e  He | o e1 He1 e2 He2 | o es Hes | t e He e1 He1 e2 He2]
-                [z' | b' | n' | x' | aa' sz' x' e' | aa' sz' len' x' e' | sz' x' e'  | o' e' | o' e1' e2' | o' es' | t' e' e1' e2'] //=.
-  + by move=> /eqP ->.   + by move=> /eqP ->.   + by move=> /eqP ->. 
+  elim: e1 e2=> [z  | b | n | x | al aa sz x e He | aa sz len x e He | al sz x e He | o e  He | o e1 He1 e2 He2 | o es Hes | t e He e1 He1 e2 He2]
+                [z' | b' | n' | x' | al' aa' sz' x' e' | aa' sz' len' x' e' | al' sz' x' e'  | o' e' | o' e1' e2' | o' es' | t' e' e1' e2'] //=.
+  + by move=> /eqP ->.   + by move=> /eqP ->.   + by move=> /eqP ->.
   + by apply: eq_gvarP.
-  + by move=> /andP[] /andP []/andP [] /eqP-> /eqP -> /eq_gvarP -> /He ->.
+  + by move=> /andP[] /andP[] /andP []/andP [] /eqP-> /eqP-> /eqP -> /eq_gvarP -> /He ->.
   + by move=> /andP[] /andP[] /andP[] /andP[] /eqP-> /eqP -> /eqP -> /eq_gvarP -> /He ->.
-  + by case/andP => /andP [] /eqP -> /eqP -> /He ->.
+  + by case/andP => /andP [] /andP[] /eqP-> /eqP -> /eqP -> /He ->.
   + by move=> /andP[]/eqP -> /He ->.
   + by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
   + rewrite -!/(sem_pexprs _ _).
@@ -2773,7 +2773,7 @@ Section WF.
   Lemma wf_write_lval gd x ve s1 s2 :
     wf_vm (evm s1) -> write_lval gd x ve s1 = ok s2 -> wf_vm (evm s2).
   Proof.
-    case: x => [vi t|v|sz v e|aa sz v e|aa sz len v e] /= Hwf.
+    case: x => [vi t|v|al sz v e|al aa sz v e|aa sz len v e] /= Hwf.
     + by move=> /write_noneP [->]. + by apply wf_write_var. + by t_rbindP => -[<-].
     + apply: on_arr_varP => n t ? ?.
       apply:rbindP => ??;apply:rbindP => ??;apply:rbindP => ??.

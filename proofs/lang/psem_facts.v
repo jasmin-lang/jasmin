@@ -65,7 +65,7 @@ Lemma write_lval_stack_stable gd x v s s' :
   write_lval gd x v s = ok s' →
   stack_stable (emem s) (emem s').
 Proof.
-  case: x => [ vi ty | x | ws x e | aa ws x e | aa ws len x e ].
+  case: x => [ vi ty | x | al ws x e | al aa ws x e | aa ws len x e ].
   - apply: on_vuP; first by move => _ _ ->.
     by move => _; case: ifP => // _ [<-].
   - by move => /write_var_emem ->.
@@ -84,27 +84,27 @@ Qed.
 
 Lemma write_lval_validw gd x v s s' :
   write_lval gd x v s = ok s' ->
-  validw (emem s) =2 validw (emem s').
+  validw (emem s) =3 validw (emem s').
 Proof.
   case: x => /=.
   - by move => _ ty /write_noneP [] <-.
   - by move => x /write_var_emem <-.
-  - t_xrbindP => /= ????? ?? ?? ? ? ? ? ? h <- /=.
-    by move=> ??; rewrite (write_validw_eq h).
-  - move => aa sz x e.
+  - t_xrbindP => /= ?????? ?? ?? ? ? ? ? ? h <- /=.
+    by move=> ???; rewrite (write_validw_eq h).
+  - move => al aa sz x e.
     by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
-  move => aa sz ty x e.
+  move => al aa sz x e.
   by apply: on_arr_varP; rewrite /write_var; t_xrbindP => ?????????????? <-.
 Qed.
 
 Lemma write_lvals_validw gd xs vs s s' :
   write_lvals gd s xs vs = ok s' ->
-  validw (emem s) =2 validw (emem s').
+  validw (emem s) =3 validw (emem s').
 Proof.
   elim: xs vs s.
   - by case => // ? [] ->.
   move => x xs ih [] // v vs s /=; t_xrbindP => ? /write_lval_validw h /ih.
-  by move=> h1 p ws; rewrite h h1.
+  by move=> h1 al p ws; rewrite h h1.
 Qed.
 
 Lemma alloc_free_stack_stable m1 ws sz ioff sz' m2 m2' m3 :
@@ -123,15 +123,15 @@ Qed.
 Lemma alloc_free_validw_stable m1 ws sz ioff sz' m2 m2' m3 :
   alloc_stack_spec m1 ws sz ioff sz' m2 ->
   stack_stable m2 m2' ->
-  validw m2 =2 validw m2' ->
+  validw m2 =3 validw m2' ->
   free_stack_spec m2' m3 ->
-  validw m1 =2 validw m3.
+  validw m1 =3 validw m3.
 Proof.
   move=> hass hss hvalid hfss.
-  move=> p ws'.
+  move=> al p ws'.
   congr (_ && _).
   apply: all_ziota => i hi.
-  rewrite !valid8_validw.
+  rewrite !(valid8_validw _ Aligned).
   rewrite hfss.(fss_valid) -hvalid hass.(ass_valid).
   rewrite -(ss_top_stack hss) -(ss_top_stack (alloc_free_stack_stable hass hss hfss)).
   rewrite /pointer_range.
@@ -170,7 +170,9 @@ Instance mem_equiv_trans : Transitive mem_equiv.
 Proof.
   move => m1 m2 m3 [hss1 hvalid1] [hss2 hvalid2].
   split; first by transitivity m2.
-  by move=> p ws; transitivity (validw m2 p ws).
+  move=> al p ws; transitivity (validw m2 al p ws).
+  + exact: hvalid1.
+  exact: hvalid2.
 Qed.
 
 Let Pc s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
@@ -198,8 +200,8 @@ Lemma mem_equiv_syscall : sem_Ind_syscall P Pi_r.
 Proof. 
   move => s1 scs m s2 o xs es ves vs hes h. 
   have [ho1 ho2]:= exec_syscallS h.  
-  move=> /dup[] /write_lvals_validw ? /write_lvals_stack_stable ?.
-  by split; [rewrite ho1 | move=> ??; rewrite ho2].
+  move=> /dup[] /write_lvals_validw ho3 /write_lvals_stack_stable ?.
+  split; [rewrite ho1 | move=> ???; rewrite ho2] => //; exact: ho3.
 Qed.
 
 Lemma mem_equiv_if_true : sem_Ind_if_true P ev Pc Pi_r.
@@ -339,7 +341,7 @@ Proof.
 Qed.
 
 Lemma sem_validw_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
-  sem p ev s1 c s2 → validw (emem s1) =2 validw (emem s2).
+  sem p ev s1 c s2 → validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_mem_equiv => {s1 c s2}.
   by move=> s1 s2 m2 ef /= [<-].
@@ -353,7 +355,7 @@ Proof.
 Qed.
 
 Lemma sem_i_validw_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
-  sem_i p ev s1 c s2 → validw (emem s1) =2 validw (emem s2).
+  sem_i p ev s1 c s2 → validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_i_mem_equiv => {s1 c s2}.
   by move=> s1 s2 m2 ef /= [<-].
@@ -367,7 +369,7 @@ Proof.
 Qed.
 
 Lemma sem_I_validw_stable_uprog (p : uprog) (ev : unit) s1 c s2 :
-  sem_I p ev s1 c s2 → validw (emem s1) =2 validw (emem s2).
+  sem_I p ev s1 c s2 → validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_I_mem_equiv => {s1 c s2}.
   by move=> s1 s2 m2 ef /= [<-].
@@ -381,7 +383,7 @@ Proof.
 Qed.
 
 Lemma sem_call_validw_stable_uprog (p : uprog) (ev : unit) scs1 m1 fn vargs scs2 m2 vres :
-  sem_call p ev scs1 m1 fn vargs scs2 m2 vres -> validw m1 =2 validw m2.
+  sem_call p ev scs1 m1 fn vargs scs2 m2 vres -> validw m1 =3 validw m2.
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
   by move=> s1 s2 m2 ef /= [<-].
@@ -400,7 +402,7 @@ Proof.
 Qed.
 
 Lemma sem_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
-  sem p gd s1 c s2 -> validw (emem s1) =2 validw (emem s2).
+  sem p gd s1 c s2 -> validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
@@ -424,7 +426,7 @@ Proof.
 Qed.
 
 Lemma sem_i_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
-  sem_i p gd s1 c s2 -> validw (emem s1) =2 validw (emem s2).
+  sem_i p gd s1 c s2 -> validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_i_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
@@ -448,7 +450,7 @@ Proof.
 Qed.
 
 Lemma sem_I_validw_stable_sprog (p : sprog) (gd : pointer) s1 c s2 :
-  sem_I p gd s1 c s2 -> validw (emem s1) =2 validw (emem s2).
+  sem_I p gd s1 c s2 -> validw (emem s1) =3 validw (emem s2).
 Proof.
   apply sem_I_mem_equiv => {s1 c s2}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.
@@ -473,7 +475,7 @@ Qed.
 
 Lemma sem_call_validw_stable_sprog (p : sprog) (gd : pointer) scs1 m1 fn vargs scs2 m2 vres :
   sem_call p gd scs1 m1 fn vargs scs2 m2 vres ->
-  validw m1 =2 validw m2.
+  validw m1 =3 validw m2.
 Proof.
   apply sem_call_mem_equiv => {scs1 m1 fn vargs scs2 m2 vres}.
   move=> s1 s2 m2 ef /=; rewrite /init_stk_state /finalize_stk_mem.

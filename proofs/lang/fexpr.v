@@ -21,12 +21,12 @@ Definition fconst (ws: wsize) (z: Z) : fexpr :=
 (* --------------------------------------------------------------------------- *)
 (* Right-expressions *)
 Variant rexpr :=
-  | Load of wsize & var_i & fexpr
+  | Load of aligned & wsize & var_i & fexpr
   | Rexpr of fexpr.
 
 (* Left-expressions *)
 Variant lexpr :=
-  | Store of wsize & var_i & fexpr
+  | Store of aligned & wsize & var_i & fexpr
   | LLvar of var_i.
 
 Notation rexprs := (seq rexpr).
@@ -52,13 +52,13 @@ Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
   end.
 
 Definition rexpr_of_pexpr (e: pexpr) : option rexpr :=
-  if e is Pload ws p e then omap (Load ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
+  if e is Pload al ws p e then omap (Load al ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
 
 Definition lexpr_of_lval (e: lval) : option lexpr :=
   match e with
   | Lvar x => Some (LLvar x)
-  | Lmem ws p e =>
-      omap (Store ws p) (fexpr_of_pexpr e)
+  | Lmem al ws p e =>
+      omap (Store al ws p) (fexpr_of_pexpr e)
   | _ => None
   end.
 

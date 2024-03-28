@@ -436,13 +436,13 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Parr_init n1, Parr_init n2 =>
     if n1 == n2 then ok m else Error error_e
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
-  | Pget aa1 w1 x1 e1, Pget aa2 w2 x2 e2 =>
-    if (aa1 == aa2) && (w1 == w2) then check_gv x1 x2 m >>= check_e e1 e2 else Error error_e
+  | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
+    if (al1 == al2) && (aa1 == aa2) && (w1 == w2) then check_gv x1 x2 m >>= check_e e1 e2 else Error error_e
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
     if (aa1 == aa2) && (w1 == w2) && (len1 == len2) then check_gv x1 x2 m >>= check_e e1 e2 
     else Error error_e
-  | Pload w1 x1 e1, Pload w2 x2 e2 =>
-    if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else Error error_e
+  | Pload al1 w1 x1 e1, Pload al2 w2 x2 e2 =>
+    if (al1 == al2) && (w1 == w2) then check_v x1 x2 m >>= check_e e1 e2 else Error error_e
   | Papp1 o1 e1, Papp1 o2 e2 =>
     if o1 == o2 then check_e e1 e2 m
     else Error error_e
@@ -494,10 +494,10 @@ Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
       else Error (cerr_varalloc x1 x2 "type mismatch")
     | _               => check_varc x1 x2 m
     end
-  | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
-    if w1 == w2 then check_v x1 x2 m >>= check_e e1 e2 else Error error_lv
-  | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 =>
-    if (aa1 == aa2) && (w1 == w2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
+  | Lmem al1 w1 x1 e1, Lmem al2 w2 x2 e2  =>
+    if (al1 == al2) && (w1 == w2) then check_v x1 x2 m >>= check_e e1 e2 else Error error_lv
+  | Laset al1 aa1 w1 x1 e1, Laset al2 aa2 w2 x2 e2 =>
+    if (al1 == al2) && (aa1 == aa2) && (w1 == w2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
     else Error error_lv
   | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 =>
     if (aa1 == aa2) && (w1 == w2) && (len1 == len2) then check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2

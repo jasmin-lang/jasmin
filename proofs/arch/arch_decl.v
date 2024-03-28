@@ -226,7 +226,8 @@ Canonical implicit_arg_eqType := EqType _ implicit_arg_eqMixin.
  *)
 Variant addr_kind : Type :=
 | AK_compute (* Only compute the address. *)
-| AK_mem.    (* Compute the address and load from memory. *)
+| AK_mem of aligned (* Compute the address and load from memory. *)
+.
 
 Scheme Equality for addr_kind.
 
@@ -270,9 +271,10 @@ Canonical  arg_desc_eqType  := EqType arg_desc arg_desc_eqMixin.
 
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).
-Definition E  n   := ADExplicit AK_mem n None.
+Definition Ea n   := ADExplicit (AK_mem Aligned) n None.
+Definition Eu n   := ADExplicit (AK_mem Unaligned) n None.
 Definition Ec n   := ADExplicit AK_compute n None.
-Definition Ef n r := ADExplicit AK_mem n (Some  r).
+Definition Ef n r := ADExplicit (AK_mem Aligned) n (Some  r).
 
 Definition check_oreg or ai :=
   match or, ai with

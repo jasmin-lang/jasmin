@@ -18,6 +18,9 @@
 - Register allocation can print liveness information (enable with `-pliveness`)
   ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749)).
 
+- Relaxed alignment constraints for memory and array accesses
+  ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748)).
+
 ## Bug fixes
 
 - The compiler no longer throws an exception when a required file does not exist

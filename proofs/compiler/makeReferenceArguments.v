@@ -88,9 +88,9 @@ Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
 
 Fixpoint noload (e:pexpr) := 
   match e with
-  | Pload _ _ _ => false 
+  | Pload _ _ _ _ => false
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => true
-  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => noload e
+  | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => noload e
   | Papp2 _ e1 e2 => noload e1 && noload e2 
   | PappN _ es => all noload es 
   | Pif _ e1 e2 e3 => [&& noload e1, noload e2 & noload e3]
@@ -98,7 +98,7 @@ Fixpoint noload (e:pexpr) :=
 
 Definition wf_lv (lv:lval) :=
   match lv with
-  | Lnone _ _ | Lmem _ _ _ | Laset _ _ _ _ => false 
+  | Lnone _ _ | Lmem _ _ _ _ | Laset _ _ _ _ _ => false
   | Lvar _ => true 
   | Lasub _ _ _ _ e => noload e
   end.

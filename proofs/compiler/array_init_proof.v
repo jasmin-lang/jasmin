@@ -107,7 +107,7 @@ Section REMOVE_INIT.
     case: Hse => ?; subst v.
     move: hsub;rewrite /truncate_val;case: ty => //= nty.
     t_xrbindP => empty /WArray.cast_empty_ok ??; subst v' empty.
-    case: x hwr => [vi t | [[xt xn] xi] | ws x e | aa ws x e | aa ws len [[xt xn] xi] e] /=.
+    case: x hwr => [vi t | [[xt xn] xi] | al ws x e | al aa ws x e | aa ws len [[xt xn] xi] e] /=.
     + by move=> /write_noneP [->];exists vm1;split=> //;constructor.
     + apply: rbindP => vm1';apply: on_vuP => //=.
       + case: xt => //= p0 _ /WArray.cast_empty_ok -> ? [?]; subst => Wf1.

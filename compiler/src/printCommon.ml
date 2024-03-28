@@ -14,6 +14,15 @@ let pp_wsize fmt sz = fprintf fmt "%a" pp_string0 (string_of_wsize sz)
 
 (* -------------------------------------------------------------------- *)
 
+let pp_aligned fmt =
+  function
+  | Memory_model.Aligned ->
+     Format.fprintf fmt "#aligned "
+  | Unaligned ->
+     Format.fprintf fmt "#unaligned "
+
+(* -------------------------------------------------------------------- *)
+
 let string_of_signess s = if s = Unsigned then "u" else "s"
 
 let string_of_velem s ws ve =
@@ -113,13 +122,14 @@ let pp_gtype (pp_size : formatter -> 'size -> unit) fmt = function
   | Arr (ws, e) -> fprintf fmt "%a[%a]" pp_btype (U ws) pp_size e
 
 (* -------------------------------------------------------------------- *)
-let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
+let pp_arr_access pp_gvar pp_expr pp_len fmt al aa ws x e olen =
   let pp_len fmt = function
     | None -> ()
     | Some len -> fprintf fmt " : %a" pp_len len
   in
-  fprintf fmt "%a%s[%a %a %a]" pp_gvar x
+  fprintf fmt "%a%s[%a%a %a%a]" pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
+    pp_aligned al
     pp_btype (U ws) pp_expr e pp_len olen
 
 (* -------------------------------------------------------------------- *)

@@ -31,7 +31,7 @@ Definition set_undef_e (t:stype) (v : exec (psem_t t)) :=
 Definition eval_array (vm : vmap) ws x i := 
   @on_arr_var _ (get_var vm x) 
      (fun n (t:WArray.array n) => 
-        Let w := WArray.get AAscale ws t i in
+        Let w := WArray.get Aligned AAscale ws t i in
         ok (pword_of_word w)).
 
 Definition eq_alloc_vm (m : t) (vm1 vm2 : vmap) := 
@@ -123,7 +123,7 @@ Proof.
   + by move=> b _ [<-] _ [<-].
   + by move=> n _ [<-] _ [<-].
   + by move=> x e2; t_xrbindP => /check_gvar_get -/(_ _ _ h) -> <-.
-  + move=> aa sz x e hrec e2.
+  + move=> al aa sz x e hrec e2.
     case heq : check_gvar.
     + have hx := check_gvar_get heq h.
       t_xrbindP => e1 /hrec he <- v /=.
@@ -131,7 +131,7 @@ Proof.
       by t_xrbindP => i vi /he -> /= -> /= w -> <-. 
     case hgetx : Mvar.get => [ai | //].
     case: (is_constP e) => // i.
-    t_xrbindP => /eqP <- /eqP -> bc.
+    t_xrbindP => /eqP <- /eqP -> /eqP -> bc.
     case hgeti : Mi.get => [xi | //] [<-] v.
     apply on_arr_gvarP => n t hty hx /=.
     t_xrbindP => w hw <-; case: h => -[] _ /(_ _ _ _ _ hgetx hgeti).
@@ -149,7 +149,7 @@ Proof.
     rewrite (check_gvar_get he h) => v.
     apply on_arr_gvarP => n t hty -> /=.
     by t_xrbindP => i vi /hrec1 -> /= -> t' /= -> <-.
-  + move=> sz x e hrec e2.
+  + move=> al sz x e hrec e2.
     t_xrbindP => hin e1 /hrec hrec1 <- /=.
     move=> v p vp; rewrite (check_var_get hin h) => -> /= -> /= i vi /hrec1 -> /= -> /=.
     by rewrite (eq_alloc_mem h) => ? -> <-.
@@ -213,11 +213,11 @@ Proof.
   + move=> ii ty _ [<-] /= ?? /dup [] /write_noneP [->] _ hn.
     by exists s2; split => //; apply: uincl_write_none hn.
   + by move=> x; t_xrbindP => _ ? <- /= v1 s1'; apply eq_alloc_write_var.
-  + move=> ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
+  + move=> al ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
     rewrite (check_var_get hin h) => -> /= -> /= pe ve.
     move=> /(expand_eP h he) -> /= -> /= ? -> /= mem.
     by rewrite -hmem => -> /= <-; exists (with_mem s2 mem).
-  + move=> aa ws x e x2.
+  + move=> al aa ws x e x2.
     case: ifPn => [hin | hnin].
     + t_xrbindP => e' he <- v s1' /=.
       apply on_arr_varP => n t hty.
@@ -225,7 +225,7 @@ Proof.
       t_xrbindP => i vi /(expand_eP h he) -> /= -> /= ? -> /= t' -> hw.
       by apply (eq_alloc_write_var h hin hw).
     case hai: Mvar.get => [ai | //].
-    case: is_constP => // i ; t_xrbindP => /eqP <- /eqP -> bc.
+    case: is_constP => // i ; t_xrbindP => /eqP <- /eqP -> /eqP -> bc.
     case hxi: Mi.get => [xi | //] [<-] v s1'.
     apply on_arr_varP => n t hty hget /=.
     rewrite /write_var; t_xrbindP => w hvw t' ht' vm' hs <-. 
@@ -535,7 +535,7 @@ Proof.
     rewrite /eval_array /= /get_var !Fv.get0.
     have [_ /(_ _ _ hxi) [_] []/eqP -> _ /=]:= hwf _ _ hai.
     case: (vtype x) => //= p.
-    case heq : (WArray.get AAscale (ai_ty ai) (WArray.empty p) i) => [w | ] //=.
+    case heq : (WArray.get Aligned AAscale (ai_ty ai) (WArray.empty p) i) => [w | ] //=.
     have []:= WArray.get_bound heq; rewrite /mk_scale => ???.
     have h : ((0 <= Z0 < wsize_size (ai_ty ai)))%Z.
     + by move=> /=; have := wsize_size_pos (ai_ty ai); Psatz.lia.

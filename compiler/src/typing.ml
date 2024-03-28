@@ -85,12 +85,12 @@ let rec ty_expr pd loc (e:expr) =
   | Pbool _     -> tbool
   | Parr_init len -> Arr (U8, len)
   | Pvar x      -> ty_gvar x 
-  | Pget(_aa,ws,x,e) -> 
+  | Pget(_al, _aa,ws,x,e) ->
     ty_get_set pd loc ws x e
     
   | Psub(_aa, ws, len, x, e) -> 
     ty_get_set_sub pd loc ws len x e
-  | Pload(ws,x,e) ->
+  | Pload(_, ws,x,e) ->
     ty_load_store pd loc ws x e
   | Papp1(op,e) -> 
     let tin, tout = type_of_op1 op in
@@ -147,8 +147,8 @@ and ty_get_set_sub pd loc ws len x e =
 let ty_lval pd loc = function
   | Lnone (_, ty) -> ty
   | Lvar x -> ty_var x
-  | Lmem(ws,x,e) -> ty_load_store pd loc ws x e
-  | Laset(_aa,ws,x,e) -> ty_get_set pd loc ws (gkvar x) e
+  | Lmem(_, ws,x,e) -> ty_load_store pd loc ws x e
+  | Laset(_al,_aa,ws,x,e) -> ty_get_set pd loc ws (gkvar x) e
   | Lasub(_aa,ws,len,x,e) -> ty_get_set_sub pd loc ws len (gkvar x) e
 
 let check_lval pd loc x ty = 

@@ -1,5 +1,6 @@
 val pp_string0 : Format.formatter -> char list -> unit
 val pp_wsize : Format.formatter -> Wsize.wsize -> unit
+val pp_aligned : Format.formatter -> Memory_model.aligned -> unit
 val string_of_signess : Wsize.signedness -> string
 val string_of_velem : Wsize.signedness -> Wsize.wsize -> Wsize.velem -> string
 val string_of_op1 : Expr.sop1 -> string
@@ -21,6 +22,7 @@ val pp_arr_access :
   (Format.formatter -> 'b -> unit) ->
   (Format.formatter -> 'c -> unit) ->
   Format.formatter ->
+  Memory_model.aligned ->
   Warray_.arr_access ->
   Wsize.wsize ->
   'a ->

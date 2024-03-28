@@ -108,7 +108,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
     Let lbl := get_label_after_pc s1 in
     if encode_label labels (lfn s1, lbl) is Some p then
-      Let m :=  write s1.(lmem) nsp p in
+      Let m :=  write s1.(lmem) Aligned nsp p in
       let s1' :=
         {| lscs := s1.(lscs);
            lmem := m;
@@ -133,7 +133,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
-    Let p  := read s1.(lmem) sp Uptr in
+    Let p  := read s1.(lmem) Aligned sp Uptr in
     Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
     let s1' :=
       {| lscs := s1.(lscs);

@@ -179,8 +179,8 @@ Section CHECK_EP.
       by case: eqP => //= <- [<-] ?; split => // ??? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
       by move=> /check_gvP Hv /(Hv gd) [Hea H].
-    - move => aa1 sz1 x1 e1 He1 [] // aa2 sz2 x2 e2 r re vm1.
-      case: andP  => // -[/eqP ? /eqP ?]; subst aa2 sz2.
+    - move => al1 aa1 sz1 x1 e1 He1 [] // al2 aa2 sz2 x2 e2 r re vm1.
+      case: andP  => // -[]/andP [/eqP ? /eqP ? /eqP ?]; subst al2 aa2 sz2.
       apply: rbindP => r' Hcv Hce Hea.
       have [Hea' Hget]:= check_gvP gd Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
@@ -199,8 +199,8 @@ Section CHECK_EP.
       t_xrbindP => w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE ->
         ? /= /Ht [? -> ?] <- /=.
       by eauto.
-    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
-      case: eqP => // ->.
+    - move => al1 sz1 x1 e1 He1 [] // al2 sz2 x2 e2 r re vm1.
+      case: andP => // - [] /eqP -> /eqP ->.
       apply: rbindP => r' Hcv Hce Hea.
       have [Hea' Hget]:= check_vP Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
@@ -371,8 +371,8 @@ Lemma check_lvalP gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
     write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
     eq_alloc r1' s1'.(evm) vm1'.
 Proof.
-  case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
-                    [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
+  case: x1 x2 => /= [ii1 t1 | x1 | al1 sz1 x1 p1 | al1 aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
+                    [ii2 t2 | x2 | al2 sz2 x2 p2 | al2 aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
   + case:ifP => //= hs [] <- ? Hv _ H.
     have [-> [ [u hpof]| [hpof ?]]]:= write_noneP H; rewrite /write_none.
     + have [v1' ]:= subtype_pof_val_ok hs hpof.
@@ -418,7 +418,7 @@ Proof.
       by move /eqP: hniw => ->;right.
     by move=> ? hc;have [vm2' [-> /= ?]]:= check_varcP Hvm1 hc Hset Hv;eexists;
      rewrite !with_vm_idem;eauto.
-  + case: eqP => // -> /=.
+  + case: andP => // - [] /eqP -> /eqP -> /=.
     t_xrbindP => r2 Hcv Hce Hvm1 Hv Happ wx vx.
     have [Hr2 H/H{H} [vx' [-> ]]]:= check_vP Hcv Hvm1.
     move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> >.
@@ -427,7 +427,7 @@ Proof.
     move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> ?
       /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ? /= -> <-.
     by eexists.
-  + case: andP => // -[/eqP -> /eqP ->] /=.
+  + case: andP => // -[] /andP[/eqP -> /eqP -> /eqP ->] /=.
     t_xrbindP => r2 r3 Hcv Hce Hcva Hvm1 Hv Happ.
     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP Hcv Hvm1.

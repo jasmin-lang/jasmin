@@ -22,8 +22,8 @@ End E.
 Fixpoint use_mem (e : pexpr) :=
   match e with 
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false 
-  | Pload _ _ _ => true
-  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e 
+  | Pload _ _ _ _ => true
+  | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2 
   | PappN _ es => has use_mem es 
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2 
@@ -97,9 +97,9 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
       | None => e 
       end 
     else e
-  | Pget aa ws x e     => Pget aa ws x (pi_e pi e)
+  | Pget al aa ws x e  => Pget al aa ws x (pi_e pi e)
   | Psub aa ws len x e => Psub aa ws len x (pi_e pi e)
-  | Pload ws x e       => Pload ws x (pi_e pi e)
+  | Pload al ws x e    => Pload al ws x (pi_e pi e)
   | Papp1 o e          => Papp1 o (pi_e pi e)
   | Papp2 o e1 e2      => Papp2 o (pi_e pi e1) (pi_e pi e2)
   | PappN o es         => 
@@ -118,8 +118,8 @@ Definition pi_lv (pi:pimap) (lv:lval) :=
   match lv with
   | Lnone _ _           => (pi, lv) 
   | Lvar x              => (remove pi x, lv)
-  | Lmem ws x e         => (remove_m pi, Lmem ws x (pi_e pi e))
-  | Laset aa ws x e     => (remove pi x, Laset aa ws x (pi_e pi e))
+  | Lmem al ws x e      => (remove_m pi, Lmem al ws x (pi_e pi e))
+  | Laset al aa ws x e  => (remove pi x, Laset al aa ws x (pi_e pi e))
   | Lasub aa ws len x e => (remove pi x, Lasub aa ws len x (pi_e pi e))
   end.
 

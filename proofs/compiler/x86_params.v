@@ -93,7 +93,7 @@ Definition x86_set_up_sp_register
 Definition x86_set_up_sp_stack
   (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : seq fopn_args :=
   let vtmpg := Fvar vtmpi in
-  let i := x86_lassign (Store Uptr rspi (fconst Uptr off)) Uptr (Rexpr vtmpg) in
+  let i := x86_lassign (Store Aligned Uptr rspi (fconst Uptr off)) Uptr (Rexpr vtmpg) in
   x86_set_up_sp_register rspi sf_sz al vtmpi ++ [:: i ].
 
 Definition x86_liparams : linearization_params :=

@@ -372,7 +372,7 @@ Lemma x86_spec_lip_set_up_sp_stack s ts m' al sz off P Q :
   -> vtmp <> vrsp
   -> get_var (evm s) vrsp = ok (Vword ts)
   -> wf_vm (evm s)
-  -> write (emem s) (ts' + wrepr Uptr off)%R ts = ok m'
+  -> write (emem s) Aligned (ts' + wrepr Uptr off)%R ts = ok m'
   -> exists vm',
        let: ls := of_estate s fn (size P) in
        let: s' := {| escs := escs s; evm := vm'; emem := m'; |} in
@@ -656,7 +656,7 @@ Proof.
     have {hci} hch := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
     have [s' hwm hlow'] :=
       compile_lvals (asm_e:=x86_extra)
-       (id_out := [:: E 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
+       (id_out := [:: Eu 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
     exists s'; last done.
     move: hca; rewrite /check_sopn_args /= => /and4P [] hE1 hE2 hE3 _.
 Opaque eval_arg_in_v check_i_args_kinds.

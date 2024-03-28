@@ -367,13 +367,13 @@ Proof.
     rewrite (addr_of_fexprP hws eqm he hadr); eexists; first reflexivity.
     by rewrite /= truncate_word_u.
   case: e => //=.
-  + move=> sz x p; t_xrbindP => /eqP <- r hr ?; subst a'.
+  + move=> al sz x p al'; t_xrbindP => /eqP <- ok_al' r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
-    by case: eqm => ? <- ?????; rewrite hwr /=; eauto.
+    by case: eqm => ? <- ??????; rewrite (aligned_le_read ok_al' hwr) /=; eauto.
   case => //.
-  + case: eqm => _ _ _ _ eqr eqrx eqx _ x.
+  + case: eqm => _ _ _ _ eqr eqrx eqx _ x al.
     move=> /xreg_of_varI; case: a' hcomp => // r;
       rewrite /compat_imm orbF => /eqP <- {a} h; have /= <- := of_varI h =>
       w ok_v /to_wordI[? [? [? ok_w]]];
@@ -381,7 +381,7 @@ Proof.
     + exact: (eqr _ _ ok_v).
     + exact: (eqrx _ _ ok_v).
     exact: (eqx _ _ ok_v).
-  case => //= w' [] //= z.
+  case => //= w' [] //= z al.
   t_xrbindP => /eqP _ h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
     eexists; first reflexivity.
@@ -440,7 +440,7 @@ Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
 Proof.
   move=> hlom; case:(hlom) => [hscs h1 hrip hnrip h2 h3 h4 h5]; case: ad => [ai _ | k n o]; rewrite /check_sopn_dest /=.
   case: ai => [f | r].
-  + case: lv1 => //=; first by move=> ???? <-.
+  + case: lv1 => //=; first by move=> ????? <-.
     t_xrbindP => x vm hvm <- <- /is_implicitP[] xi [] ?; subst x.
     move: hvm; rewrite /mem_write_val /set_var /on_vu /= /oof_val.
     case: ty vt => //= vt h.
@@ -471,7 +471,7 @@ Proof.
     + by rewrite Fv.setP_eq; case: vt => [ b | ] /ok_inj <-.
     rewrite Fv.setP_neq; first by apply h5.
     by apply /eqP => h; apply hne; apply: inj_to_var.
-  + case: lv1 => //=; first by move=> ???? <-.
+  + case: lv1 => //=; first by move=> ????? <-.
     t_xrbindP => x vm hvm <- <- /is_implicitP[] xi [] ?; subst x.
     case: ty vt hvm => //; first by case.
     move => sz w [] <- {vm}.
@@ -494,6 +494,7 @@ Proof.
     move=> f v'; rewrite /get_var /on_vu /=.
     by rewrite Fv.setP_neq //; apply h5.
   case heq1: onth => [a | //].
+  case heq3: k => [ // | al ].
   case heq2: arg_of_rexpr => [ a' | //] hty hw he1 /andP[] /eqP ? hc; subst a'.
   rewrite /mem_write_val /= /mem_write_ty.
   case: lv1 hw he1 heq2=> //=; cycle 1.
@@ -547,15 +548,15 @@ Proof.
       by rewrite word_extend_big // hsz.
     move => hne; rewrite Fv.setP_neq; first exact: h4.
     apply/eqP => h; have ? := inj_to_var h; exact: hne.
-  move=> sz [x xii] /= e; t_xrbindP.
+  move=> al' sz [x xii] /= e; t_xrbindP.
   move=> wp vp hget hp wofs vofs he hofs w hw m1 hm1 ??; subst m' e1.
   case: ty hty vt hw => //= sz' _ vt hw.
-  case: eqP => // ?; subst sz'.
+  t_xrbindP => /eqP ? hal; subst sz'.
   move: hw; rewrite truncate_word_u => -[?]; subst vt.
-  t_xrbindP => /= _ adr hadr ?; subst a => /=.
+  move => adr hadr ?; subst a => /=.
   rewrite /= heq1 hc /= /mem_write_mem -h1.
   have -> := addr_of_xpexprP hlom hadr hget hp he hofs.
-  rewrite hm1 /=; eexists; split; first by reflexivity.
+  rewrite (aligned_le_write hal hm1) /=; eexists; split; first by reflexivity.
   by constructor.
 Qed.
 
@@ -1150,13 +1151,13 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Assembling machine words. *)
 
-Lemma eval_assemble_word ii sz e a s xs v :
+Lemma eval_assemble_word ii al sz e a s xs v :
   lom_eqv rip s xs
   -> is_not_app1 e
-  -> assemble_word_load rip ii sz e = ok a
+  -> assemble_word_load rip ii al sz e = ok a
   -> sem_rexpr s.(emem) s.(evm) e = ok v
   -> exists2 v',
-       eval_asm_arg AK_mem xs a (sword sz) = ok v'
+       eval_asm_arg (AK_mem al) xs a (sword sz) = ok v'
        & value_uincl v v'.
 Proof.
   rewrite /assemble_word /eval_asm_arg => eqm.
@@ -1166,9 +1167,9 @@ Proof.
     + exact: (xgetreg_ex eqm ok_r ok_v).
     + exact: (xgetregx_ex eqm ok_r ok_v).
     exact: (xxgetreg_ex eqm ok_r ok_v).
-  move => sz' ? ? _ /=; t_xrbindP => /eqP <-{sz'} d ok_d <- ptr w ok_w ok_ptr uptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
+  move => al' sz' ? ? _ /=; t_xrbindP => /eqP <-{sz'} ok_al' d ok_d <- ptr w ok_w ok_ptr uptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
   case: (eqm) => _ eqmem _ _ _ _ _.
-  rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem ok_rd.
+  rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem (aligned_le_read ok_al' ok_rd).
   eexists; first reflexivity.
   exact: word_uincl_refl.
 Qed.

@@ -535,7 +535,7 @@ Section CONST_PROP_EP.
       case: Mvar.get => [n /(_ _ erefl)| _ /= ]; last by rewrite /= /get_gvar /=;eauto.
       by case: n => [ b | n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned;
            eexists;(split;first reflexivity) => /=.
-    - move => aa sz x e He v.
+    - move => al aa sz x e He v.
       apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
       t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
       move => a ha ?; subst; rewrite /= ha.
@@ -545,7 +545,7 @@ Section CONST_PROP_EP.
       t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.
-    - move => sz x e He v.
+    - move => al sz x e He v.
       t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] /[swap]
         /to_wordI[? [? [-> /word_uincl_truncate h]]]
         /value_uinclE[? [? [-> /h{h}h]]] ? h' <- /=.
@@ -646,7 +646,7 @@ Lemma const_prop_rvP s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv m x).1 /\
   write_lval gd (const_prop_rv m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | sz x p | aa sz x p | aa sz len x p] /= Hv; t_xrbindP.
+  case:x => [ii t | x | al sz x p | al aa sz x p | aa sz len x p] /= Hv; t_xrbindP.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + by move=> > -> /to_wordI [? [? [-> /= ->]]]
@@ -725,9 +725,9 @@ Proof.
   move=> m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
   + by move=> ?;rewrite Hm.
-  + by move=> ???? ->.
   + by move=> ????? ->.
-  + by move=> ??? ->.
+  + by move=> ????? ->.
+  + by move=> ???? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
   + move => op es h; f_equal.
@@ -742,7 +742,7 @@ Instance const_prop_rv_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => [ v | v | sz v p | aa sz v p | aa sz len v p] //=;rewrite Hm.
+  by case: rv => [ v | v | al sz v p | al aa sz v p | aa sz len v p] //=;rewrite Hm.
 Qed.
 
 #[local]

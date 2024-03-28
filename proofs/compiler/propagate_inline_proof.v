@@ -276,13 +276,13 @@ Proof.
   + move=> x v; case: ifP => h /=; last by eauto.
     move=> hg; case heq : Mvar.get => [[e' fv m ??] | ]; last by eauto.
     by move: hg; rewrite /get_gvar h => /(vpi_ok hvalid heq) /=.
-  + move=> ?? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
+  + move=> ??? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
     t_xrbindP => i vi /= /hrec [v' -> /= /of_value_uincl_te h] /(h sint) /= -> w hget <-.
     by rewrite /= hget /=; (eexists; first reflexivity) => /=.
   + move=> ??? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
     t_xrbindP => i vi /= /hrec [v' -> /= /of_value_uincl_te h] /(h sint) /= -> st hget <-.
     by rewrite /= hget /=; (eexists; first reflexivity) => /=.
-  + move=> ??? hrec ?; t_xrbindP => ?? -> /= -> ??
+  + move=> ???? hrec ?; t_xrbindP => ?? -> /= -> ??
       /hrec [ve -> /of_value_uincl_te h] /(h (sword _)) /= -> ? /= -> /= ->.
     by (eexists; first reflexivity).
   + move=> op e hrec v; t_xrbindP => ve /hrec [ve' -> hu] /= hs.
@@ -347,7 +347,7 @@ Proof.
   split => //= {e}.
   + by move=> e hrec es hrecs; rewrite negb_or => /andP [] /hrec -> /hrecs ->. 
   + by move=> x _; rewrite heq.
-  + by move=> ?? x e hrec /hrec ->; rewrite heq.
+  + by move=> ??? x e hrec /hrec ->; rewrite heq.
   + by move=> ??? x e hrec /hrec ->; rewrite heq.
   + by move=> ? e hrec /hrec ->.
   + by move=> ? e1 hrec1 e2 hrec2; rewrite negb_or => /andP[] /hrec1 -> /hrec2 ->.
@@ -401,12 +401,12 @@ Proof.
   + move=> vi ty /write_noneP [] ->.
     by rewrite /write_none => -[ [? ->] | [-> ->]].
   + by move=> x; apply write_var_valid_pi.
-  + move=> ws x e; t_xrbindP => px vx gx hpx pe ve he hpe w hw m hwr <-.
+  + move=> al ws x e; t_xrbindP => px vx gx hpx pe ve he hpe w hw m hwr <-.
     split; first by apply valid_pi_remove_m.
     have /(_ _ _ he) [ve' -> /of_value_uincl_te hu] := pi_eP hvalid.
     have /= -> := hu (sword _) _ hpe.
     by rewrite gx /= hpx hw /= hwr.
-  + move=> aa ws x e; apply on_arr_varP => n t hty hx.
+  + move=> al aa ws x e; apply on_arr_varP => n t hty hx.
     t_xrbindP => i ve he hi w hw t' ht' hwr.
     rewrite /on_arr_var hx /=.
     have /(_ _ _ he) [ve' -> /of_value_uincl_te hu] /= := pi_eP hvalid.
