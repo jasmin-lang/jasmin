@@ -135,6 +135,7 @@ end = struct
     let filters =
       [spublic, (fun a -> A.none a; Public);
        ssecret, (fun a -> A.none a; Secret);
+       "transient", (fun a -> A.none a; Public);
        spoly  , poly] in
     let lvl = A.ensure_uniq filters annot in
     let kind =
@@ -430,12 +431,41 @@ let ty_lvals1 env xs lvl =
   List.fold_left (fun env x -> ty_lval env x lvl) env xs
 
 (* -----------------------------------------------------------*)
+let lvl_of_level =
+  function
+  | SecurityAnnotations.Public -> Public
+  | Secret -> Secret
+  | Named n -> Lvl.poly1 (Vl.mk_poly n)
+
+let lvl_of_typ =
+  function
+  | SecurityAnnotations.Msf -> Public
+  | Direct t | Indirect { value = t ; ptr = _ } -> lvl_of_level t.normal
 
 let get_annot ensure_annot f =
-  let ain  = List.map (fun x -> x.v_name, Lvl.parse ~single:true ~kind_allowed:true x.v_annot) f.f_args in
+  let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
+  let process_argument i x =
+    let lvl =
+      match Lvl.parse ~single:true ~kind_allowed:true x.v_annot, Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) with
+      | lvl, None -> lvl
+      | (_, Some _), Some _ ->
+         error ~loc:(x.v_dloc)
+           "security annotations for argument %a redundant with security signature" (Printer.pp_var ~debug:false) x
+      | _, Some t -> Some Flexible, Some (lvl_of_typ t)
+    in
+    x.v_name, lvl
+  in
+  let process_result i a =
+    match Lvl.parse ~single:false ~kind_allowed:false a, Option.bind sig_annot (SecurityAnnotations.get_nth_result i) with
+    | (_, lvl), None -> lvl
+    | (_, Some _), Some _ ->
+       error ~loc:L._dummy
+         "security annotations for result at position %d redundant with security signature" i
+    | _, Some t -> Some (lvl_of_typ t)
+  in
+  let ain  = List.mapi process_argument f.f_args in
   let ainlevels = List.map (fun (_, (_, x)) -> x) ain in
-  let aout = List.map (Lvl.parse ~single:false ~kind_allowed:false) f.f_outannot in
-  let aout = List.map snd aout in
+  let aout = List.mapi process_result f.f_outannot in
 
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
