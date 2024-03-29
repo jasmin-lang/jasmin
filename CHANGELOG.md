@@ -19,7 +19,8 @@
   ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749)).
 
 - Relaxed alignment constraints for memory and array accesses
-  ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748)).
+  ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748),
+  [PR #772](https://github.com/jasmin-lang/jasmin/pull/772)).
 
 ## Bug fixes
 
