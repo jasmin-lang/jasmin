@@ -6,9 +6,9 @@ From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ word.
 Require Import ssrring.
 Require Zquot.
-Require Import Psatz ZArith utils.
+Require Import ZArith utils.
 Require Export wsize.
-Import Utf8.
+Import Utf8 Lia.
 Import word_ssrZ.
 
 Set Implicit Arguments.
@@ -162,7 +162,7 @@ Proof.
   rewrite /wbase /modulus !two_power_nat_S !two_power_nat_equiv => /wsize_size_m s_le_s'.
   apply: Z.mul_le_mono_nonneg_l; first by [].
   apply: Z.pow_le_mono_r; first by [].
-  Lia.lia.
+  lia.
 Qed.
 
 Lemma wsize_size_le a b :
@@ -315,8 +315,8 @@ Proof.
   move: (wunsigned_range a) (wunsigned_range b).
   rewrite /wunsigned mathcomp.word.word.addwE /GRing.add /= -/(wbase ws) => ha hb.
   case: ZltP => hlt. 
-  + by rewrite Zmod_small //;Psatz.lia.
-  by rewrite -(Z_mod_plus_full _ (-1)) Zmod_small;Psatz.lia.
+  + by rewrite Zmod_small //; lia.
+  by rewrite -(Z_mod_plus_full _ (-1)) Zmod_small; lia.
 Qed.
 
 Lemma wunsigned_sub (sz : wsize) (p : word sz) (n : Z):
@@ -336,8 +336,8 @@ Proof.
   rewrite /wunsigned mathcomp.word.word.subwE -/(wbase ws) => ha hb.
   have -> : (word.urepr a - word.urepr b)%R = word.urepr a - word.urepr b by done.
   case: ZleP => hle. 
-  + by rewrite Zmod_small //;Psatz.lia.
-  by rewrite -(Z_mod_plus_full _ 1) Zmod_small;Psatz.lia.
+  + by rewrite Zmod_small //; lia.
+  by rewrite -(Z_mod_plus_full _ 1) Zmod_small; lia.
 Qed.
 
 Lemma wunsigned_opp_if ws (a : word ws) : 
@@ -345,7 +345,7 @@ Lemma wunsigned_opp_if ws (a : word ws) :
 Proof.
   have ha := wunsigned_range a.
   rewrite -(GRing.add0r (-a)%R) wunsigned_sub_if wunsigned0.
-  by case: ZleP; case: eqP => //; Psatz.lia.
+  by case: ZleP; case: eqP => //; lia.
 Qed.
 
 Lemma wunsigned_add_mod ws ws' (w1 w2 : word ws) :
@@ -567,7 +567,7 @@ Proof.
 Qed.
 
 Local Ltac lia :=
-  rewrite /addn /addn_rec /subn /subn_rec; Psatz.lia.
+  rewrite /addn /addn_rec /subn /subn_rec; Lia.lia.
 
 Lemma wunsigned_wshl sz (x: word sz) c :
   wunsigned (wshl x (Z.of_nat c)) = (wunsigned x * 2 ^ Z.of_nat c) mod wbase sz.
@@ -1746,7 +1746,7 @@ Proof.
     rewrite i_bounded.
     apply/ltP.
     move/ltP: i_bounded.
-    Psatz.lia.
+    lia.
   move: i_bounded.
   subst k.
   move: (wsize_size_minus_1 _) => w.
@@ -1899,7 +1899,7 @@ Proof.
   rewrite /align_word wsize_size_is_pow2 wand_align.
   have ? := wunsigned_range p.
   have ? := pow2pos (wsize_log2 sz').
-  elim_div; Psatz.lia.
+  elim_div; lia.
 Qed.
 
 Lemma align_wordE sz sz' (p: word sz) :
@@ -2165,10 +2165,10 @@ Proof.
   have [hw0 hwn] := wunsigned_range w.
 
   apply: Z_lor_le.
-  - have := @wbase_m U64 U128 refl_equal. Psatz.lia.
+  - have := @wbase_m U64 U128 refl_equal. lia.
 
   rewrite Z.shiftl_mul_pow2; last done.
-  split; first Psatz.lia.
+  split; first lia.
   rewrite /wbase (modulusD 64 64) modulusE -expZE /=.
   exact: Zmult_lt_compat_r.
 Qed.

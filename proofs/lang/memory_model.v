@@ -3,7 +3,7 @@
 From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import strings word utils.
-Import Utf8 ZArith.
+Import Utf8 ZArith Lia.
 Import ssrring.
 
 Set Implicit Arguments.
@@ -238,7 +238,7 @@ Section CoreMem.
     case: eqP => [<- | hne].
     + rewrite sub_add ?eq_refl //.
       have : wsize_size ws <= wsize_size U256 by case: (ws).
-      Psatz.lia.
+      lia.
     by case: eqP => // heq; case: hne; rewrite -heq add_sub.
   Qed.
 
@@ -317,9 +317,9 @@ Section CoreMem.
     + by have /validwP [->] : validw m al p s by apply /writeV; eexists; eauto.
     move=> al' k hk.
     rewrite (write_read8 hw) sub_add /=.
-    + by case: andP => //; rewrite !zify; Psatz.lia.
+    + by case: andP => //; rewrite !zify; lia.
     have : wsize_size s <= wsize_size U256 by case: (s).
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma aligned_le_read m p sz v al al' :
@@ -420,10 +420,10 @@ Lemma no_overflow_incl p1 sz1 p2 sz2 :
   zbetween p1 sz1 p2 sz2 ->
   no_overflow p1 sz1 ->
   no_overflow p2 sz2.
-Proof. by rewrite /zbetween /no_overflow !zify; Psatz.lia. Qed.
+Proof. by rewrite /zbetween /no_overflow !zify; lia. Qed.
 
 Lemma zbetween_refl p sz : zbetween p sz p sz.
-Proof. by rewrite /zbetween !zify; Psatz.lia. Qed.
+Proof. by rewrite /zbetween !zify; lia. Qed.
 
 Lemma zbetween_trans p1 sz1 p2 sz2 p3 sz3 :
   zbetween p1 sz1 p2 sz2 ->
@@ -431,13 +431,13 @@ Lemma zbetween_trans p1 sz1 p2 sz2 p3 sz3 :
   zbetween p1 sz1 p3 sz3.
 Proof.
   rewrite /between => /andP [] /ZleP a /ZleP b /andP [] /ZleP c /ZleP d.
-  apply/andP; split; apply/ZleP; Psatz.lia.
+  apply/andP; split; apply/ZleP; lia.
 Qed.
 
 Lemma zbetween_le p sz1 sz2 :
   sz2 <= sz1 ->
   zbetween p sz1 p sz2.
-Proof. by rewrite /zbetween !zify; Psatz.lia. Qed.
+Proof. by rewrite /zbetween !zify; lia. Qed.
 
 Lemma between_byte pstk sz b i sz' :
   no_overflow b sz' →
@@ -446,21 +446,21 @@ Lemma between_byte pstk sz b i sz' :
   between pstk sz (b + wrepr Uptr i) U8.
 Proof.
   rewrite /zbetween !zify; change (wsize_size U8) with 1 => novf [] lo hi i_range.
-  rewrite wunsigned_add; first Psatz.lia.
-  move: (wunsigned_range b); Psatz.lia.
+  rewrite wunsigned_add; first lia.
+  move: (wunsigned_range b); lia.
 Qed.
 
 Lemma not_zbetween_neg p1 p2 sz1 sz2 :
   (sz1 <= 0)%Z ->
   (0 < sz2)%Z ->
   ~~ zbetween p1 sz1 p2 sz2.
-Proof. by move=> ??; apply /idP; rewrite /zbetween !zify; Psatz.lia. Qed.
+Proof. by move=> ??; apply /idP; rewrite /zbetween !zify; lia. Qed.
 
 Lemma zbetween_not_disjoint_zrange p1 s1 p2 s2 :
   zbetween p1 s1 p2 s2 ->
   0 < s2 ->
   ~ disjoint_zrange p1 s1 p2 s2.
-Proof. by rewrite /zbetween !zify => hb hlt [_ _ ?]; Psatz.lia. Qed.
+Proof. by rewrite /zbetween !zify => hb hlt [_ _ ?]; lia. Qed.
 
 Lemma not_between_U8_disjoint_zrange p1 sz1 p2 :
   no_overflow p1 sz1 ->
@@ -469,17 +469,17 @@ Lemma not_between_U8_disjoint_zrange p1 sz1 p2 :
 Proof.
   move=> hnover.
   rewrite /between /zbetween wsize8 !zify => hnb.
-  split=> //; last by Psatz.lia.
+  split=> //; last by lia.
   rewrite /no_overflow zify.
   have := wunsigned_range p2.
-  by Psatz.lia.
+  by lia.
 Qed.
 
 Lemma disjoint_zrange_sym p1 sz1 p2 sz2 :
   disjoint_zrange p1 sz1 p2 sz2 ->
   disjoint_zrange p2 sz2 p1 sz1.
 Proof.
-  rewrite /disjoint_zrange; move=> [*]; split=> //; Psatz.lia.
+  rewrite /disjoint_zrange; move=> [*]; split=> //; lia.
 Qed.
 
 Lemma disjoint_zrange_incl p1 s1 p2 s2 p1' s1' p2' s2' :
@@ -489,7 +489,7 @@ Lemma disjoint_zrange_incl p1 s1 p2 s2 p1' s1' p2' s2' :
   disjoint_zrange p1' s1' p2' s2'.
 Proof.
   rewrite /zbetween /disjoint_zrange /no_overflow !zify.
-  by move=> ?? [/ZleP ? /ZleP ? ?]; split; rewrite ?zify; Psatz.lia.
+  by move=> ?? [/ZleP ? /ZleP ? ?]; split; rewrite ?zify; lia.
 Qed.
 
 Lemma disjoint_zrange_incl_l p1 s1 p2 s2 p1' s1' :
@@ -527,8 +527,8 @@ Lemma disjoint_zrange_add p sz p' sz1 sz2 :
 Proof.
   move=> hsz hsz1 hsz2 hover' [hover _ hdisj] [_ _ hdisj'].
   split=> //.
-  move: hdisj'; rewrite wunsigned_add; first by Psatz.lia.
-  by move: hover'; rewrite /no_overflow zify; have := wunsigned_range p'; Psatz.lia.
+  move: hdisj'; rewrite wunsigned_add; first by lia.
+  by move: hover'; rewrite /no_overflow zify; have := wunsigned_range p'; lia.
 Qed.
 
 Lemma disjoint_zrange_U8 p sz p' sz' :
@@ -539,16 +539,16 @@ Lemma disjoint_zrange_U8 p sz p' sz' :
   disjoint_zrange p sz p' sz'.
 Proof.
   move=> hsz /dup[] /Z.lt_le_incl.
-  move: sz'; apply: natlike_ind; first by Psatz.lia.
+  move: sz'; apply: natlike_ind; first by lia.
   move=> sz' hsz' ih _ hover hdisj.
   have /Z_le_lt_eq_dec [?|?] := hsz'.
-  + apply disjoint_zrange_add => //; last by apply hdisj; Psatz.lia.
+  + apply disjoint_zrange_add => //; last by apply hdisj; lia.
     apply ih => //.
-    + by move: hover; rewrite /no_overflow !zify; Psatz.lia.
-    by move=> k hk; apply hdisj; Psatz.lia.
+    + by move: hover; rewrite /no_overflow !zify; lia.
+    by move=> k hk; apply hdisj; lia.
   subst sz'.
   rewrite -(GRing.addr0 p') -wrepr0.
-  by apply hdisj; Psatz.lia.
+  by apply hdisj; lia.
 Qed.
 
 Definition pointer_range (lo hi: pointer) : pred pointer :=
@@ -562,19 +562,19 @@ Lemma pointer_range_incl_l lo lo' hi pr :
   (wunsigned lo' <= wunsigned lo)%Z ->
   pointer_range lo hi pr ->
   pointer_range lo' hi pr.
-Proof. by rewrite /pointer_range !zify; Psatz.lia. Qed.
+Proof. by rewrite /pointer_range !zify; lia. Qed.
 
 Lemma pointer_range_incl_r lo hi hi' pr :
   (wunsigned hi <= wunsigned hi')%Z ->
   pointer_range lo hi pr ->
   pointer_range lo hi' pr.
-Proof. by rewrite /pointer_range !zify; Psatz.lia. Qed.
+Proof. by rewrite /pointer_range !zify; lia. Qed.
 
 Lemma pointer_range_between lo hi pr :
   pointer_range lo hi pr = between lo (wunsigned hi - wunsigned lo) pr U8.
 Proof.
   rewrite /pointer_range /between /zbetween wsize8.
-  by apply /idP/idP; rewrite !zify; Psatz.lia.
+  by apply /idP/idP; rewrite !zify; lia.
 Qed.
 
 (* -------------------------------------------------- *)
@@ -645,7 +645,7 @@ Proof.
   rewrite !addE => /(f_equal wunsigned).
   have h1 := wunsigned_range p1.
   have h2 := wunsigned_range p2.
-  by rewrite !wunsigned_add; Psatz.lia.
+  by rewrite !wunsigned_add; lia.
 Qed.
 
 Lemma is_align_modE ptr sz : (wunsigned ptr mod wsize_size sz == 0)%Z = is_align ptr sz.
@@ -681,7 +681,7 @@ Qed.
 Lemma is_align_mul sz j : is_align (wrepr Uptr (wsize_size sz * j)) sz.
 Proof.
   have hn := wsize_size_pos sz.
-  have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+  have hnz : wsize_size sz ≠ 0%Z by lia.
   by rewrite /is_align p_to_zE wunsigned_repr mod_wbase_wsize_size Z.mul_comm Z_mod_mult.
 Qed.
 
@@ -690,11 +690,11 @@ Lemma is_align_no_overflow ptr sz :
 Proof.
   rewrite /no_overflow /is_align p_to_zE => /eqP ha; apply/ZleP.
   have hn := wsize_size_pos sz.
-  have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+  have hnz : wsize_size sz ≠ 0%Z by lia.
   move: (wunsigned ptr) (wunsigned_range ptr) ha => {ptr} ptr.
   have [a ->] := wsize_size_div_wbase sz Uptr.
   move: (wsize_size sz) hn hnz => n hn hnz hr /Zmod_divides [] // q ?; subst ptr.
-  cut (q + 1 <= a)%Z; Psatz.nia.
+  cut (q + 1 <= a)%Z; nia.
 Qed.
 
 Notation do_align := align_word (only parsing).
@@ -719,16 +719,16 @@ Proof.
   apply/eqP; rewrite Z.mod_divide // /round_ws.
   elim_div => z z' /(_ ws_pos) [] ->{sz} D.
   case: eqP => ?.
-  - exists z; Psatz.lia.
-  exists (z + 1); Psatz.lia.
+  - exists z; lia.
+  exists (z + 1); lia.
 Qed.
 
 Lemma round_ws_range ws sz :
   sz <= round_ws ws sz < sz + wsize_size ws.
 Proof.
   have ws_pos := wsize_size_pos ws.
-  rewrite /round_ws; elim_div => ? ? [] // -> []; last by Psatz.lia.
-  case: eqP; Psatz.lia.
+  rewrite /round_ws; elim_div => ? ? [] // -> []; last by lia.
+  case: eqP; lia.
 Qed.
 
 Lemma round_wsE ws sz : round_ws ws sz =
@@ -738,7 +738,7 @@ Proof.
   rewrite /round_ws.
   elim_div => ? ? /(_ ws_pos) [] ->{sz} D.
   case: eqP => ? //.
-  by Psatz.lia.
+  by lia.
 Qed.
 
 Class memory (mem: Type) (CM: coreMem pointer mem) : Type :=
@@ -810,7 +810,7 @@ Section SPEC.
     have ? := ass_above_limit ass; have ? := ass_ioff ass.
     rewrite wunsigned_add //.
     assert (h := wunsigned_range (top_stack m)).  assert (h' := wunsigned_range pstk).
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma ass_read_old (ass:alloc_stack_spec) al p s : validw m al p s -> read m al p s = read m' al p s.
@@ -842,7 +842,7 @@ Section SPEC.
     have habove := ass.(ass_above_limit).
     move: hvalid; apply /negP.
     apply stack_region_is_free.
-    by rewrite -/(top_stack _); Psatz.lia.
+    by rewrite -/(top_stack _); lia.
   Qed.
 
   (* TODO: we could also prove [no_overflow pstk (sz + Z.max 0 sz')] *)
@@ -852,7 +852,7 @@ Section SPEC.
     rewrite /no_overflow zify.
     assert (hover := wunsigned_range (top_stack m)).
     have := ass.(ass_above_limit).
-    by Psatz.lia.
+    by lia.
   Qed.
 
   (* ass_fresh using disjoint_zrange *)
@@ -878,11 +878,11 @@ Section SPEC.
     - rewrite /no_overflow zify.
       have := ass.(ass_above_limit).
       have := [elaborate wunsigned_range (top_stack m)].
-      by Psatz.lia.
+      by lia.
     - rewrite /no_overflow zify.
       have := [elaborate wunsigned_range (stack_root m)].
-      by Psatz.lia.
-    by left; have := ass.(ass_above_limit); Psatz.lia.
+      by lia.
+    by left; have := ass.(ass_above_limit); lia.
   Qed.
 
 End SPEC.
@@ -914,7 +914,7 @@ Proof.
   have [hle hlt] := wunsigned_range (p - wrepr Uptr sz).
   have := Z.mod_le _ _ hle (wsize_size_pos ws).
   have := Z_mod_lt (wunsigned (p - wrepr Uptr sz)) (wsize_size ws) ltac:(done).
-  by Psatz.lia.
+  by lia.
 Qed.
 
 Lemma top_stack_after_alloc_bounded p ws sz :
@@ -924,8 +924,8 @@ Proof.
   move=> hsz.
   rewrite /top_stack_after_alloc.
   have := align_word_range ws (p + wrepr _ (- sz)).
-  rewrite wunsigned_add; first by Psatz.lia.
-  by have := wunsigned_range p; Psatz.lia.
+  rewrite wunsigned_add; first by lia.
+  by have := wunsigned_range p; lia.
 Qed.
 
 End WITH_POINTER_DATA.

@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
-Require Import Psatz xseq.
+Require Import xseq.
 Require Export warray_ word sem_type.
 Import Utf8.
 
@@ -435,8 +435,7 @@ Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
 Proof.
   by case: t1; case: t2 => >; rewrite /val_uincl //=;
     case: {-}_/ boolP => // h >;
-    rewrite -(FunctionalExtensionality.eta_expansion (@eq _))
-      (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
+    rewrite (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
 Qed.
 
 Lemma val_uinclEl t1 t2 v1 v2 :

@@ -12,8 +12,7 @@ Require Import
   arch_extra
   sem_params_of_arch_extra.
 Require Export x86_lowering.
-Import Utf8.
-Import Psatz.
+Import Utf8 Lia.
 Import Order.POrderTheory Order.TotalTheory.
 Import ssrring.
 

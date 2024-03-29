@@ -4,9 +4,9 @@
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
-Require Import Psatz xseq.
+Require Import xseq.
 Require Export utils array gen_map type word memory_model.
-Import Utf8 ZArith.
+Import Utf8 ZArith Lia.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -142,7 +142,7 @@ Module WArray.
     Lemma in_rangeP p ws:
       reflect (0 <= p /\ p + wsize_size ws <= s)%Z (in_range p ws).
     Proof.
-      rewrite /in_range; case: andP => h; constructor; move: h; rewrite !zify; Psatz.nia.
+      rewrite /in_range; case: andP => h; constructor; move: h; rewrite !zify; nia.
     Qed.
 
     Lemma validw_in_range m al p ws : validw m al p ws = (is_aligned_if al p ws && in_range p ws).
@@ -150,10 +150,10 @@ Module WArray.
       apply (sameP (validwP m al p ws)).
       apply (iffP andP).
       + move=> [] ? /in_rangeP ?;split => // k hk.
-        by rewrite -valid8_validw /valid8 /= /in_bound !zify !addE; Psatz.lia.
+        by rewrite -valid8_validw /valid8 /= /in_bound !zify !addE; lia.
       move=> [] ? h; split => //; apply /in_rangeP.
       move: (wsize_size_pos ws) (h 0) (h (wsize_size ws - 1)).
-      by rewrite add_0 addE -!valid8_validw /array_CM /valid8 /in_bound !zify; Psatz.lia.
+      by rewrite add_0 addE -!valid8_validw /array_CM /valid8 /in_bound !zify; lia.
     Qed.
 
   End CM.
@@ -509,7 +509,7 @@ Module WArray.
     have ht':= set_sub_get8 hget.
     have := set_sub_bound hget.
     have ltws := wsize_size_pos ws; rewrite /arr_size /mk_scale => hb.
-    have [{hb} h0i hilen'] : (0 <= i /\ i + len <= lena)%Z by Psatz.nia.
+    have [{hb} h0i hilen'] : (0 <= i /\ i + len <= lena)%Z by nia.
     rewrite /get !readE !is_aligned_if_is_align ?is_align_scale // /=.
     case: ifPn.
     + move=> /andP[]/ZleP ? /ZltP ?.
@@ -519,7 +519,7 @@ Module WArray.
       apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
       rewrite ht' /= !WArray.addE.
       case: ifPn => [ _ | /negP]; first by f_equal; ring.
-      elim; apply/andP; split; [apply/ZleP|apply/ZltP; rewrite /arr_size]; Psatz.nia.
+      elim; apply/andP; split; [apply/ZleP|apply/ZltP; rewrite /arr_size]; nia.
     move=> /negP hij.
     have -> // :
         mapM (λ k : Z, read t' Aligned (add (j * wsize_size ws)%Z k) U8) (ziota 0 (wsize_size ws)) =
@@ -527,7 +527,7 @@ Module WArray.
     apply eq_mapM => k; rewrite in_ziota => /andP []/ZleP ? /ZltP ?.
     rewrite ht' /= !WArray.addE /arr_size.
     case: ifPn => // /andP [] /ZleP ? /ZltP ?; elim hij.
-    apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.nia.
+    apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   Qed.
   Transparent Z.mul ziota. Opaque arr_size.
 
@@ -614,9 +614,9 @@ Module WArray.
     rewrite hr /= !WArray.addE.
     have ? := wsize_size_pos ws.
     have -> /= : (0 <=? j * wsize_size ws + k)%Z.
-    + by apply/ZleP; Psatz.lia.
+    + by apply/ZleP; lia.
     have -> /= : (j * wsize_size ws + k <? arr_size ws len)%Z.
-    + by apply /ZltP; rewrite /arr_size; Psatz.nia.
+    + by apply /ZltP; rewrite /arr_size; nia.
     f_equal; ring.
   Qed.
   Opaque arr_size.

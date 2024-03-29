@@ -5,8 +5,7 @@ Require Import psem psem_facts compiler_util low_memory.
 Require Export stack_alloc.
 Require slh_lowering_proof.
 Require Import byteset.
-Require Import Psatz.
-Import Utf8.
+Import Utf8 Lia.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

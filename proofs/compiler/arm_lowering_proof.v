@@ -5,7 +5,8 @@ Import
   Order.POrderTheory
   Order.TotalTheory.
 From mathcomp Require Import word_ssrZ.
-Require Import Psatz.
+
+From Coq Require Import Lia.
 
 Require Import
   compiler_util
