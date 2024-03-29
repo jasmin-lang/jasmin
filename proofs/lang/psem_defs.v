@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect ssralg ssrnum.
-Require Import Psatz xseq.
+Require Import xseq.
 Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap low_memory syscall_sem.
 Require Export
   flag_combination

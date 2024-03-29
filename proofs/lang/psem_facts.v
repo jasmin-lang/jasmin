@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import psem.
-Import Utf8.
+Import Utf8 Lia.
 Import Memory low_memory.
 
 Set Implicit Arguments.
@@ -151,7 +151,7 @@ Proof.
   change (wsize_size U8) with 1%Z.
   move => ptr_i_lo ptr_i_hi.
   apply: ptr_not_fresh.
-  move: (ass_ioff hass) (ass_add_ioff hass); Psatz.lia.
+  move: (ass_ioff hass) (ass_add_ioff hass); lia.
 Qed.
 
 Section MEM_EQUIV.

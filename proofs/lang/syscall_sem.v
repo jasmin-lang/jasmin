@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect ssralg ssrnum.
-Require Import ZArith Psatz.
+Require Import ZArith.
 Require Export utils syscall wsize word type low_memory sem_type values.
 Import Utf8.
 

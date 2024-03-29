@@ -8,8 +8,7 @@ From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.
 Require Import byteset.
-Require Import Psatz.
-Import Utf8.
+Import Utf8 Lia.
 
 
 Set Implicit Arguments.
@@ -331,7 +330,7 @@ Proof.
 Qed.
 
 Lemma init_stack_layout_size_ge0 : 0 <= sao.(sao_size).
-Proof. by have [? ? _] := init_stack_layoutP; Psatz.lia. Qed.
+Proof. by have [? ? _] := init_stack_layoutP; lia. Qed.
 
 Lemma init_stack_layout_stack_align x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> (ws1 <= sao.(sao_align))%CMP.

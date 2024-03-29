@@ -2,7 +2,7 @@
 From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import psem array_expansion compiler_util ZArith.
-Import Utf8.
+Import Utf8 Lia.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -92,12 +92,12 @@ Proof.
   have heq : size (take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai))) = Z.to_nat len.
   + rewrite size_takel // size_drop; apply/ZNleP.
     rewrite Nat2Z.n2zB.
-    + by rewrite -vai.(len_def) !Z2Nat.id // -subZE; Psatz.lia.
-    by apply/ZNleP; rewrite -vai.(len_def) !Z2Nat.id //; Psatz.lia.
+    + by rewrite -vai.(len_def) !Z2Nat.id // -subZE; lia.
+    by apply/ZNleP; rewrite -vai.(len_def) !Z2Nat.id //; lia.
   apply (eq_from_nth (x0:= dfl)).
   + by rewrite size_map size_ziota.
   move=> j; rewrite heq => hj.
-  rewrite nth_take // nth_drop (nth_map 0%Z) ?size_ziota // nth_ziota // /= znthE; last by Psatz.lia.
+  rewrite nth_take // nth_drop (nth_map 0%Z) ?size_ziota // nth_ziota // /= znthE; last by lia.
   rewrite Z2Nat.inj_add // ?Nat2Z.id //; apply Zle_0_nat.
 Qed.
 
@@ -385,10 +385,10 @@ Proof.
   + by have ? := vai.(len_pos); rewrite Pos2Z.inj_mul Z2Pos.id.
   move=> {wsaty'} t st hgx hst hi.
   have ? := wsize_size_pos (ai_ty a).
-  rewrite -Z2Nat.inj_pos (wf_take_drop (v_var (gv g)) vai) //. 2,3: by Psatz.nia.
+  rewrite -Z2Nat.inj_pos (wf_take_drop (v_var (gv g)) vai) //. 2,3: by nia.
   rewrite -map_comp; apply eq_in_map => j; rewrite in_ziota /comp /= => /andP [] /ZleP ? /ZltP ?.
   have hbound : (0 <=? i + j)%Z && (i + j <? ai_len a)%Z.
-  + by apply /andP; split; [apply/ZleP|apply/ZltP] => //; Psatz.nia.
+  + by apply /andP; split; [apply/ZleP|apply/ZltP] => //; nia.
   case: h => -[_ /(_ _ _ _ hga){hga}hgai _ _].
   move/hgai: (wf_mem (v_var (gv g)) vai hbound); rewrite -hgx /= => -[<-].
   by rewrite (wf_index _ vai hbound) (WArray.get_sub_get hst).
@@ -410,13 +410,13 @@ Proof.
   move => hva h0i hilen h0l.
   have : uniq (ziota i len).
   + rewrite ziotaE map_inj_uniq ?iota_uniq //.
-    by move=> j1 j2 h; apply Nat2Z.inj; Psatz.lia.
+    by move=> j1 j2 h; apply Nat2Z.inj; lia.
   elim/ziota_ind: (ziota _ _) s => /= [ | k l hk hrec] s.
   + by move=> _; exists (evm s) => //; rewrite with_vm_same.
   move=> /andP [] hkl huni.
   rewrite /write_var /set_var /DB /=.
   have hk1 : (0 <=? k)%Z && (k <? ai_len ai)%Z.
-  + by apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.lia.
+  + by apply/andP; split; [apply/ZleP|apply/ZltP]; lia.
   have hin := wf_mem (v_var x) hva hk1.
   rewrite (xi_ty hva hin).
   have -> /= : (truncatable false (sword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a k)))).
@@ -482,8 +482,8 @@ Proof.
   rewrite expand_vP => -[?]; subst vs'.
   have := WArray.set_sub_bound hra.
   have [ltws lt0len]:= (wsize_size_pos (ai_ty ai), len_pos hva).
-  rewrite /arr_size /mk_scale {1}(Z2Pos.id _ lt0len) Z2Pos.id; last by Psatz.nia.
-  move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by Psatz.nia.
+  rewrite /arr_size /mk_scale {1}(Z2Pos.id _ lt0len) Z2Pos.id; last by nia.
+  move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by nia.
   have -> := wf_take_drop (v_var x) hva h0i hilen' (Zle_0_pos _).
   rewrite -map_comp /comp.
   have [vm2 ] := wf_write_get s2 ra hva h0i hilen' (Zle_0_pos _).
@@ -494,13 +494,13 @@ Proof.
   + apply eq_in_map => j; rewrite in_ziota => /andP [] /ZleP ? /ZltP ?.
     rewrite (WArray.set_sub_get hra).
     have -> : (i <=? i + j)%Z && (i + j <? i + len')%Z; last by do 3!f_equal; ring.
-    by apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.nia.
+    by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   move=> -> hvm2; eexists; eauto.
   have hybound: forall y,
         (i <=? zindex y (ai_elems ai))%Z && (zindex y (ai_elems ai) <? i + len')%Z ->
         (y \in ai_elems ai).
   + move=> y => /andP [/ZleP ? /ZltP ?]; rewrite -(zindex_bound y hva).
-    by apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.nia.
+    by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   case heqa => heqv ??; split => //; split => /=.
   + move=> y hin; rewrite hvm2 /= Vm.setP_neq; last by apply/eqP=> ?; subst y; apply (x_nin hva hin).
     case: ifP; last by move=> _; apply heqv.
@@ -791,9 +791,9 @@ Proof.
   + by rewrite /undef_v (undef_x_vundef (_ _)).
   have []:= WArray.get_bound heq; rewrite /mk_scale => ???.
   have h : ((0 <= Z0 < wsize_size (ai_ty ai)))%Z.
-  + by move=> /=; have := wsize_size_pos (ai_ty ai); Psatz.lia.
+  + by move=> /=; have := wsize_size_pos (ai_ty ai); lia.
   have [_ /(_ Z0 h)] := read_read8 heq.
-  by rewrite WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); Psatz.lia.
+  by rewrite WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); lia.
 Qed.
 
 Lemma mapM2_dc_truncate_id tys vs vs':

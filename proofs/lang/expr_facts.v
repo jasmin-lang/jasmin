@@ -777,7 +777,7 @@ End EQ_EXPR_READ_E.
 
 Section WRANGE.
 Local Open Scope Z_scope.
-Import Psatz.
+Import Lia.
 
 Lemma size_wrange d z1 z2 :
   size (wrange d z1 z2) = Z.to_nat (z2 - z1).

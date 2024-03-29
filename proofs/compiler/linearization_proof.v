@@ -3089,7 +3089,7 @@ Section PROOF.
         by rewrite -addn1 -addnA -/before h1 -catA oseq.onth_cat ltnNge addn1 leqnSn /= subSnn.
       rewrite /rencode_label ok_ptr /= (eval_jumpP ok_lfd' (find_entry_label _ _)); last by apply/eqP.
       have hfind : find_label lbl P' = ok (size P + size before).+1.
-      + rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
+      + rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; lia.
         rewrite -catA find_label_cat_hd; last by apply has_label_allocate_stack_frame.
         by rewrite /find_label /= /is_label /= eqxx /= addn1 addnS.
 
