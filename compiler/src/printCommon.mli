@@ -19,16 +19,26 @@ val pp_gtype :
   unit
 
 val pp_arr_access :
-  (Format.formatter -> 'a -> unit) ->
-  (Format.formatter -> 'b -> unit) ->
-  (Format.formatter -> 'c -> unit) ->
+  'var Utils.pp ->
+  'expr Utils.pp ->
   Format.formatter ->
   Memory_model.aligned ->
   Warray_.arr_access ->
   Wsize.wsize ->
-  'a ->
-  'b ->
-  'c option ->
+  'var ->
+  'expr ->
+  unit
+
+val pp_arr_slice :
+  'var Utils.pp ->
+  'expr Utils.pp ->
+  'len Utils.pp ->
+  Format.formatter ->
+  Warray_.arr_access ->
+  Wsize.wsize ->
+  'var ->
+  'expr ->
+  'len ->
   unit
 
 val pp_len : Format.formatter -> int -> unit

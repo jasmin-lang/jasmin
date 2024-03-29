@@ -38,9 +38,9 @@ let pp_ge pp_len pp_var =
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_gvar fmt v
   | Pget(al,aa,ws,x,e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt al aa ws x e None
+    pp_arr_access pp_gvar pp_expr fmt al aa ws x e
   | Psub(aa,ws,len,x,e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt Aligned aa ws x e (Some len)
+    pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
   | Pload(al,ws,x,e) ->
     F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
       pp_btype (U ws)
@@ -71,9 +71,9 @@ let pp_glv pp_len pp_var fmt = function
      pp_aligned al
      (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
   | Laset(al, aa, ws, x, e) ->
-    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt al aa ws x e None
+    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) fmt al aa ws x e
   | Lasub(aa, ws, len, x, e) ->
-    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt Aligned aa ws x e (Some len)
+    pp_arr_slice (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e len
 
 
 (* -------------------------------------------------------------------- *)
