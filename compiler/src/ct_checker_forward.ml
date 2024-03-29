@@ -437,7 +437,7 @@ let get_annot ensure_annot f =
     if List.exists (fun a -> a = None) l then
       Pt.rs_tyerror ~loc:f.f_loc
         (Pt.string_error
-           "export functions should be fully annotated, missing some security annotations on %s.@ User option “-infer” to infer them."
+           "export functions should be fully annotated, missing some security annotations on %s.@ User option “--infer” to infer them."
            msg) in
   if ensure_annot && f.f_cc = Export then
     (check_defined "result types" aout;
