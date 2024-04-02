@@ -2,7 +2,7 @@ Require Import compiler_util expr.
 
 Section LOWERING.
 
-Definition fresh_vars : Type := Ident.name -> stype -> Ident.ident.
+Definition fresh_vars : Type := string -> stype -> Ident.ident.
 
 Context
   {asm_op lowering_options : Type}

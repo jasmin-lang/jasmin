@@ -29,7 +29,7 @@ End E.
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
-Context (fresh_var_ident: v_kind -> instr_info -> Ident.name -> stype -> Ident.ident).
+Context (fresh_var_ident: v_kind -> instr_info -> string -> stype -> Ident.ident).
 
 Definition is_spill_op o :=
   match o with

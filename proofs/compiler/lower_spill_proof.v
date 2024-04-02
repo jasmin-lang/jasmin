@@ -21,7 +21,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT  : progT}
   {sCP : semCallParams}
-  (fresh_var_ident : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident)
+  (fresh_var_ident : v_kind -> instr_info -> string -> stype -> Ident.ident)
   (p p' : prog) (ev : extra_val_t)
   (spill_prog_ok : spill_prog fresh_var_ident p = ok p').
 
