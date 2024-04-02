@@ -100,8 +100,8 @@ module Cident : sig
   val id_name : t -> Name.t
   val id_kind : t -> v_kind
 
-  val name_of_string : char list -> name
-  val string_of_name : name -> char list
+  val name_of_string : string -> name
+  val string_of_name : name -> string
 
   val spill_to_mmx : t -> bool
 end

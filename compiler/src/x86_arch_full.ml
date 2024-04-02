@@ -11,7 +11,7 @@ end
 let atoI decl =
   let open Prog in
   let mk_var k t s =
-    V.mk (Conv.string_of_cstring s) (Reg(k,Direct)) (Conv.ty_of_cty t) L._dummy [] in
+    V.mk s (Reg(k,Direct)) (Conv.ty_of_cty t) L._dummy [] in
 
   match Arch_extra.MkAToIdent.mk decl mk_var with
   | Utils0.Error e ->

@@ -1271,9 +1271,6 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   List.map f o.tin,
   o.i_out
 
-let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
-  List.map (fun (s, x) -> Conv.string_of_cstring s, x) asmOp.Sopn.prim_string
-
 let extract_size str : string * Sopn.prim_x86_suffix option =
   let get_size =
     let open Sopn in
@@ -1364,7 +1361,7 @@ let tt_prim asmOp id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   let c =
-    match List.assoc name (prim_string asmOp) with
+    match List.assoc name asmOp.Sopn.prim_string with
     | PrimX86 (valid_suffixes, preop) ->
       begin match match sz with
           | None -> default_suffix valid_suffixes |> preop
@@ -1381,7 +1378,7 @@ let tt_prim asmOp id =
     | PrimARM _ | exception Not_found ->
         oget
           ~exn:(tyerror ~loc (UnknownPrim s))
-          (Tt_arm_m4.tt_prim (prim_string asmOp) name sz)
+          (Tt_arm_m4.tt_prim asmOp.Sopn.prim_string name sz)
   in c
 
 let prim_of_op exn loc o =
@@ -1458,7 +1455,7 @@ let prim_of_pe pe =
 
 let cast_opn ~loc id ws =
   let open Sopn in
-  let name fmt = PrintCommon.pp_string0 fmt (id.str ()) in
+  let name fmt = Format.pp_print_string fmt (id.str ()) in
   let invalid () = rs_tyerror ~loc (UnsupportedZeroExtend name) in
   let open Arch_extra in
   function

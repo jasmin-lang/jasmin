@@ -26,7 +26,7 @@ let show_intrinsics asmOp fmt =
   List.iter (fun (n, i) ->
       let j = index i in
       intrinsics.(j) <- n :: intrinsics.(j))
-    (prim_string asmOp);
+    asmOp.Sopn.prim_string;
   Array.iter2 (fun h m ->
       Format.fprintf fmt "Intrinsics accepting %s:@." h;
       m |>
