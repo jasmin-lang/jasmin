@@ -84,7 +84,8 @@
   ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
 
 - Register allocation can print liveness information (enable with `-pliveness`)
-  ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749)).
+  ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749),
+  [PR #776](https://github.com/jasmin-lang/jasmin/pull/776)).
 
 - Relaxed alignment constraints for memory and array accesses
   ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748)).
