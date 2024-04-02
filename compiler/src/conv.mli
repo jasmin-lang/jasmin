@@ -2,9 +2,6 @@
 open Wsize
 open Prog
 
-val cstring_of_string : string -> char list (* coq string *)
-val string_of_cstring : char list (* coq string *) -> string
-
 val z_of_nat  : Datatypes.nat -> Z.t
 val int_of_nat : Datatypes.nat -> int
 val nat_of_int : int -> Datatypes.nat

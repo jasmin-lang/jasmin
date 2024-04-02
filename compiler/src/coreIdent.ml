@@ -90,11 +90,11 @@ module Cident = struct
   let id_name (x: t) : name = x.v_name
   let id_kind (x: t) : v_kind = x.v_kind
 
-  let name_of_string = CoreConv.string_of_cstring
-  let string_of_name = CoreConv.cstring_of_string
+  let name_of_string x = x
+  let string_of_name x = x
 
   (* FIXME: can we use something else that L._dummy? *)
-  let mk x k t = V.mk (CoreConv.string_of_cstring x) k t L._dummy []
+  let mk x k t = V.mk x k t L._dummy []
   let mk_flag x = mk x (Reg(Normal,Direct)) tbool
 
   let spill_to_mmx (x:t) =

@@ -1,5 +1,3 @@
-val prim_string : 'asm Sopn.asmOp -> (string * 'asm Sopn.prim_constructor) list
-
 type tyerror
 
 exception TyError of Location.t * tyerror

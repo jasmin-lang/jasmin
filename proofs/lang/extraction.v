@@ -3,7 +3,7 @@ Require jasmin_compiler.
    expand the jasmin_compiler module instead. *)
 
 From Coq Require ExtrOcamlBasic.
-From Coq Require ExtrOcamlString.
+From Coq Require ExtrOcamlNativeString.
 From Coq Require ExtrOCamlInt63.
 
 (* This is a hack to force the extraction to keep the singleton here,
