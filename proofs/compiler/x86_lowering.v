@@ -43,8 +43,8 @@ Definition vword vt vn := {| vtype := sword vt ; vname := vn |}.
 
 Context (fv: fresh_vars).
 
-Let fresh_flag n := vbool (fv (Ident.name_of_string n) sbool).
-Let fresh_word sz := vword sz (fv (Ident.name_of_string "__wtmp__") (sword sz)).
+Let fresh_flag n := vbool (fv n sbool).
+Let fresh_word sz := vword sz (fv "__wtmp__"%string (sword sz)).
 
 Definition fv_of := fresh_flag "__of__".
 Definition fv_cf := fresh_flag "__cf__".

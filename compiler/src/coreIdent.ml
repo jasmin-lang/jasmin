@@ -85,13 +85,8 @@ module Cident = struct
 
   let tag (x:t) = x.v_id
 
-  type name = Name.t
-
-  let id_name (x: t) : name = x.v_name
+  let id_name (x: t) : Name.t = x.v_name
   let id_kind (x: t) : v_kind = x.v_kind
-
-  let name_of_string x = x
-  let string_of_name x = x
 
   (* FIXME: can we use something else that L._dummy? *)
   let mk x k t = V.mk x k t L._dummy []

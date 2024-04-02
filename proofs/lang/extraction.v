@@ -43,17 +43,12 @@ Extract Constant var.FunName.tag => "CoreIdent.funname_tag".
 (* Module Cident *)
 
 Extract Constant ident.Cident.t       => "CoreIdent.Cident.t".
-Extract Constant ident.Cident.name    => "CoreIdent.Cident.name".
 Extract Constant ident.WrapIdent.t    => "CoreIdent.Cident.t".
-Extract Constant ident.WrapIdent.name => "CoreIdent.Cident.name".
-
 
 Extract Constant ident.Cident.tag     => "CoreIdent.Cident.tag".
 Extract Constant ident.Cident.id_name => "CoreIdent.Cident.id_name".
 Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 
-Extract Constant ident.Cident.name_of_string => "CoreIdent.Cident.name_of_string".
-Extract Constant ident.Cident.string_of_name => "CoreIdent.Cident.string_of_name".
 Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
 
 Cd  "lang/ocaml".

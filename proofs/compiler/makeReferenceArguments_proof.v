@@ -58,7 +58,7 @@ Context
   {eparams : EstateParams syscall_state}
   {spparams : SemPexprParams}
   {siparams : SemInstrParams asm_op syscall_state}
-  (fresh_id : instr_info → int → Ident.name → stype → Ident.ident).
+  (fresh_id : instr_info → int → string → stype → Ident.ident).
 
 #[local] Existing Instance indirect_c.
 
@@ -71,7 +71,7 @@ Context
   Qed.
 
   Section MakeEpilogueInd.
-  Variable P : int → seq (bool * Ident.name * stype) -> lvals -> seq pseudo_instr -> Prop.
+  Variable P : int → seq (bool * string * stype) -> lvals -> seq pseudo_instr -> Prop.
   Variable (ii : instr_info) (X:Sv.t).
 
   Hypothesis P0 : ∀ ctr, P ctr [::] [::] [::].

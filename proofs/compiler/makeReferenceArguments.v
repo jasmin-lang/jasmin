@@ -19,7 +19,7 @@ End E.
 
 Section Section.
 Context `{asmop:asmOp}.
-Context (fresh_reg_ptr : instr_info -> int -> Ident.name -> stype -> Ident.ident).
+Context (fresh_reg_ptr : instr_info -> int -> string -> stype -> Ident.ident).
 Context (p : uprog).
 
 Definition with_id vi ii ctr id ty :=
@@ -131,8 +131,8 @@ Definition get_sig fn :=
 
 Definition get_syscall_sig o :=
   let: s := syscall.syscall_sig_u o in
-  (map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tin),
-   map (fun ty => (is_sarr ty, Ident.name_of_string "__p__", ty)) s.(scs_tout)).
+  (map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tin),
+   map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tout)).
 
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in

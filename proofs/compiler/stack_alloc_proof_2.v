@@ -1832,7 +1832,7 @@ Context
   (hsaparams : h_stack_alloc_params saparams).
 
 Variable (local_alloc : funname -> stk_alloc_oracle_t).
-Variable (fresh_reg_ : Ident.name → stype → Ident.ident).
+Variable (fresh_reg_ : string → stype → Ident.ident).
 Hypothesis Halloc_fd : forall fn fd,
   get_fundef P.(p_funcs) fn = Some fd ->
   exists2 fd', alloc_fd shparams saparams P'.(p_extra) mglob fresh_reg_ local_alloc fn fd = ok fd' &
@@ -2960,7 +2960,7 @@ Context
   (hshparams : slh_lowering_proof.h_sh_params shparams)
   (saparams : stack_alloc_params)
   (hsaparams : h_stack_alloc_params saparams)
-  (fresh_reg_ : Ident.name -> stype -> Ident.ident).
+  (fresh_reg_ : string -> stype -> Ident.ident).
 
 Lemma get_alloc_fd p_extra mglob oracle fds1 fds2 :
   map_cfprog_name (alloc_fd shparams saparams p_extra mglob fresh_reg_ oracle) fds1 = ok fds2 ->

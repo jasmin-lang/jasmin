@@ -182,7 +182,7 @@ Record compiler_params
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_var_ident  : v_kind -> instr_info -> int -> Ident.name -> stype -> Ident.ident;
+  fresh_var_ident  : v_kind -> instr_info -> int -> string -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
 }.
@@ -245,8 +245,8 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p :=
     array_copy_prog
-      (fresh_var_ident cparams Inline dummy_instr_info 0 (Ident.name_of_string "i__copy") sint)
-      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0 (Ident.name_of_string "tmp") (sword ws))
+      (fresh_var_ident cparams Inline dummy_instr_info 0 "i__copy" sint)
+      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0 "tmp" (sword ws))
       p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
