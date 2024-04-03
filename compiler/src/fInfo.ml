@@ -25,9 +25,9 @@ let f_annot_empty = {
   }
 
 type arg_ret_info = { returned_params : int option list }
-(** When a non-inlined function returns a reg ptr, it has to be one of its
+(** When a non-inlined function returns a `ptr` array, it has to be one of its
     arguments. [returned_params] associates to each return value the index of
-    the corresponding argument if it is a reg ptr, and [None] otherwise. *)
+    the corresponding argument if it is a `ptr` array, and [None] otherwise. *)
 
 type call_conv =
   | Export of arg_ret_info  (** The function should be exported to the outside word *)
