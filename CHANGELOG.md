@@ -3,7 +3,7 @@
 
 ## New features
 
-- Export functions can have arrays as arguments and results.
+- Export functions can have `ptr` arrays as arguments and results.
   The compiler assumes that writable `ptr` are disjoint from the other
   `ptr` arguments and from the global data. This is the responsibility of
   the caller to ensure that this holds.

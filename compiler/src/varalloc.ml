@@ -270,14 +270,14 @@ let all_alignment pd (ctbl: alignment) alias params lalloc : param_info option l
   let doparam x =
     match x.v_kind with
     | Reg (_, Direct) -> None
-    | Reg (_, Pointer writable) ->
+    | Reg (_, Pointer w) ->
       let c = Alias.normalize_var alias x in
       assert (V.equal x c.in_var && c.scope = E.Slocal);
       let pi_ptr = 
         match Hv.find lalloc x with
         | RegPtr p -> p
         | _ | exception Not_found -> assert false in
-      let pi_writable = writable = Writable in
+      let pi_writable = w = Writable in
       let pi_align = get_align c in
       Some { pi_ptr; pi_writable; pi_align }
     | _ -> assert false in

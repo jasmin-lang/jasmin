@@ -338,7 +338,7 @@ Definition allNone {A: Type} (m: seq (option A)) : bool :=
   all (fun a => if a is None then true else false) m.
 
 (** Export functions (entry points) have restrictions on ptr arguments and returns.
-    Namely, the reg mut ptr should be the first arguments and returned at the same
+    Namely, the writable ptr arrays should be the first arguments and returned at the same
     positions in the return values.
     This is not a constraint coming from the implementation, it is just meant to give
     a readable correctness theorem. *)

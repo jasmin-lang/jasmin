@@ -205,7 +205,7 @@ let memory_analysis pp_err ~debug up =
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse fds in
-  (* FIXME: the code is duplicated between here and compiler.v, this is horrible *)
+  (* TODO: the code is duplicated between here and compiler.v, we should factorize *)
   let returned_params fn =
     let sao = get_sao fn in
     let _, fd = List.find (fun (_, fd) -> fd.f_name = fn) fds in
