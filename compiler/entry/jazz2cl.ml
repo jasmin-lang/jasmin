@@ -33,7 +33,7 @@ let parse_and_print print arch call_conv =
           end)
   in
   let module A = Arch_full.Arch_from_Core_arch (ACL.C) in
-  let module ToCL = ToCL.Mk(ACL.CL) in
+  let module CL = ToCL.Mk(ACL.CL) in
   fun ecoutput joutput output file funname ->
   try
     let _, pprog, _ =
@@ -102,8 +102,10 @@ let parse_and_print print arch call_conv =
        | None -> (stdout, ignore)
        | Some file -> (open_out file, close_out)
      in
+
+     let proc = CL.fun_to_proc (snd prog) (List.nth (snd prog) 0) in
      let fmt = Format.formatter_of_out_channel out in
-     Format.fprintf fmt "%a@." (ToCL.pp_fun A.reg_size A.asmOp (snd prog)) (List.nth (snd prog) 0);
+     ToCL.CL.Proc.pp_proc fmt proc;
      close out
   with
   | Utils.HiError e ->
