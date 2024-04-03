@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect.
 From Coq.Unicode Require Import Utf8.
-From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses Psatz.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
@@ -55,11 +55,14 @@ Notation "x == y ::> T" := (eq_op (T:= @ceqT_eqType T _) x y)
 Notation "x == y ::>" := (eq_op (T:= @ceqT_eqType _ _) x y)
   (at level 70, y at next level) : bool_scope.
 
-Class finTypeC (T:Type) := 
-  { _eqC   :> eqTypeC T
+Class finTypeC (T:Type) :=
+  { _eqC   : eqTypeC T
   ; cenum  : seq T
   ; cenumP : @Finite.axiom ceqT_eqType cenum
   }.
+
+#[global]
+Existing Instance _eqC.
 
 Section FinType.
 
@@ -148,28 +151,6 @@ Proof.
   by move=> [].
 Qed.
 
-Section ResultEqType.
-
-Variable E A : eqType.
-
-Definition result_eq (r1 r2: result E A): bool :=
-  match r1, r2 with
-  | Ok a1, Ok a2 => a1 == a2
-  | Error e1, Error e2 => e1 == e2
-  | _, _ => false
-  end.
-
-Lemma result_eqP : Equality.axiom result_eq.
-Proof.
-  case=> [a1|e1] [a2|e2] /=; try (by apply: ReflectF);
-  by apply: (equivP eqP);split=>[|[]] ->.
-Qed.
-
-Canonical result_eqMixin := EqMixin result_eqP.
-Canonical result_eqType := Eval hnf in EqType (result E A) result_eqMixin.
-
-End ResultEqType.
-
 Module Result.
 
 Definition apply eT aT rT (f : aT -> rT) (x : rT) (u : result eT aT) :=
@@ -228,16 +209,6 @@ Arguments assertP {E b e u} _.
 
 Variant error :=
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith.
-
-Scheme Equality for error.
-
-Lemma error_beqP : Equality.axiom error_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_error_dec_bl internal_error_dec_lb).
-Qed.
-
-Canonical error_eqMixin := EqMixin error_beqP.
-Canonical error_eqType := Eval hnf in EqType error error_eqMixin.
 
 Definition exec t := result error t.
 
@@ -1240,12 +1211,6 @@ Section CMP.
   Lemma cmp_nle_le x y : ~~ (cmp_le x y) -> cmp_le y x.
   Proof. by rewrite cmp_nle_lt; apply: cmp_lt_le. Qed.
 
-  Definition min (t1 t2: T) := 
-    if cmp_le t1 t2 then t1 else t2.
-
-  Definition max (t1 t2: T) := 
-    if cmp_le t1 t2 then t2 else t1.
-
 End CMP.
 
 Declare Scope cmp_scope.
@@ -1360,6 +1325,40 @@ Section MIN.
 End MIN.
 
 Arguments cmp_min {T cmp O} x y.
+
+Section MAX.
+  Context T (cmp: T → T → comparison) (O: Cmp cmp).
+  Definition cmp_max (x y: T) : T :=
+    if (x ≤ y)%CMP then y else x.
+
+  Lemma cmp_maxP x y (P: T → Prop) :
+    ((x ≤ y)%CMP → P y) →
+    ((y < x)%CMP → P x) →
+    P (cmp_max x y).
+  Proof.
+    rewrite /cmp_max; case: ifP.
+    - by move => _ /(_ erefl).
+    by rewrite -cmp_nle_lt => -> _ /(_ erefl).
+  Qed.
+
+  Lemma cmp_max_geL x y :
+    (x <= cmp_max x y)%CMP.
+  Proof. exact: (@cmp_maxP x y (λ z, x ≤ z)%CMP). Qed.
+
+  Lemma cmp_max_geR x y :
+    (y <= cmp_max x y)%CMP.
+  Proof.
+    apply: (@cmp_maxP x y (λ z, y ≤ z)%CMP) => //.
+    apply: cmp_lt_le.
+  Qed.
+
+  Lemma cmp_le_max x y :
+    (x ≤ y)%CMP → cmp_max x y = y.
+  Proof. by rewrite /cmp_max => ->. Qed.
+
+End MAX.
+
+Arguments cmp_max {T cmp O} x y.
 
 Definition bool_cmp b1 b2 :=
   match b1, b2 with
@@ -1791,9 +1790,27 @@ Ltac t_elim_uniq :=
 
 Variant and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
   And6 of P1 & P2 & P3 & P4 & P5 & P6.
+Variant and7 (P1 P2 P3 P4 P5 P6 P7 : Prop) : Prop :=
+  And7 of P1 & P2 & P3 & P4 & P5 & P6 & P7.
+Variant and8 (P1 P2 P3 P4 P5 P6 P7 P8 : Prop) : Prop :=
+  And8 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8.
+Variant and9 (P1 P2 P3 P4 P5 P6 P7 P8 P9 : Prop) : Prop :=
+  And9 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9.
+Variant and10 (P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 : Prop) : Prop :=
+  And10 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 & P10.
 
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
   (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
+  (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 & P7 ]" :=
+  (and7 P1 P2 P3 P4 P5 P6 P7) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 & P8 ]" :=
+  (and8 P1 P2 P3 P4 P5 P6 P7 P8) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 & P9 ]" :=
+  (and9 P1 P2 P3 P4 P5 P6 P7 P8 P9) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 , P9 & P10 ]" :=
+  (and10 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10) : type_scope.
 
 Tactic Notation "have!" ":= " constr(x) :=
   let h := fresh "h" in
@@ -1809,6 +1826,7 @@ Ltac t_do_rewrites tac :=
     match goal with
     | [ h : ?lhs = ?rhs |- _ ] => tac h lhs rhs
     | [ h : is_true (?lhs == ?rhs) |- _ ] => move: h => /eqP h; tac h lhs rhs
+    | [ h : is_true ?lhs |- _ ] => tac h lhs true
     end.
 
 #[local]
@@ -1868,6 +1886,43 @@ Proof. by case: u; constructor. Qed.
 
 End Option.
 
+Notation "'let%opt' x ':=' ox 'in' body" :=
+  (if ox is Some x then body else None)
+  (x strict pattern, at level 25).
+
+Notation "'let%opt '_' ':=' ox 'in' body" :=
+  (if ox is Some tt then body else None)
+  (at level 25).
+
+Lemma obindP aT bT oa (f : aT -> option bT) a (P : Type) :
+  (forall z, oa = Some z -> f z = Some a -> P) ->
+  (let%opt a' := oa in f a') = Some a ->
+  P.
+Proof. case: oa => // a' h h'. exact: (h _ _ h'). Qed.
+
+Definition oassert (b : bool) : option unit :=
+  if b then Some tt else None.
+
+Lemma oassertP {A b a} {oa : option A} :
+  (let%opt _ := oassert b in oa) = Some a ->
+  b /\ oa = Some a.
+Proof. by case: b. Qed.
+
+Lemma oassertP_isSome {A b} {oa : option A} :
+  isSome (let%opt _ := oassert b in oa) ->
+  b /\ isSome oa.
+Proof. by case: b. Qed.
+
+Lemma isSomeP {A : Type} {oa : option A} :
+  isSome oa ->
+  exists a, oa = Some a.
+Proof. case: oa; by [|eexists]. Qed.
+
+Lemma o2rP {eT A} {err : eT} {oa : option A} {a} :
+  o2r err oa = ok a ->
+  oa = Some a.
+Proof. by case: oa => //= ? [->]. Qed.
+
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
 Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
 
@@ -1880,3 +1935,93 @@ Qed.
 Lemma map_const_nseq A B (l : list A) (c : B) : map (fun=> c) l = nseq (size l) c.
 Proof. by elim: l => // > ? /=; f_equal. Qed.
 
+
+Section RT_TRANSN.
+
+Context
+  {A : Type}
+  {R Rstep : A -> A -> Prop}
+.
+
+Fixpoint transn_spec_aux (a0 an : A) (l : list A) : Prop :=
+  match l with
+  | [::] => R a0 an
+  | an1 :: l => Rstep an an1 -> transn_spec_aux a0 an1 l
+  end.
+
+Definition transn_spec (l : list A) : Prop :=
+  match l with
+  | [::] => True
+  | a0 :: l => transn_spec_aux a0 a0 l
+  end.
+
+  Section SPEC.
+
+  Context
+    (htrans : forall x y z, R x y -> R y z -> R x z)
+    (hstep : forall x y, Rstep x y -> R x y)
+    (hrefl : forall x, R x x)
+  .
+
+  Lemma transn_spec_auxP a0 an l :
+    R a0 an ->
+    transn_spec_aux a0 an l.
+  Proof.
+    elim: l an => //= an1 l hrec an h0n hnn1.
+    apply: hrec.
+    apply: (htrans h0n).
+    exact: hstep.
+  Qed.
+
+  Lemma transn_specP l : transn_spec l.
+  Proof.
+    case: l => [// | a0 [// | a1 l ?]].
+    apply: transn_spec_auxP.
+    exact: hstep.
+  Qed.
+
+  End SPEC.
+
+Context (hspec : forall l, transn_spec l).
+
+Lemma transn2 a0 a1 a2 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  R a0 a2.
+Proof. exact: (hspec [:: _; _; _ ]). Qed.
+
+Lemma transn3 a0 a1 a2 a3 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  R a0 a3.
+Proof. exact: (hspec [:: _; _; _; _ ]). Qed.
+
+Lemma transn4 a0 a1 a3 a2 a4 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  R a0 a4.
+Proof. exact: (hspec [:: _; _; _; _; _ ]). Qed.
+
+Lemma transn5 a0 a1 a3 a2 a4 a5 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  Rstep a4 a5 ->
+  R a0 a5.
+Proof. exact: (hspec [:: _; _; _; _; _; _ ]). Qed.
+
+Lemma transn6 a0 a1 a3 a2 a4 a5 a6 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  Rstep a4 a5 ->
+  Rstep a5 a6 ->
+  R a0 a6.
+Proof. exact: (hspec [:: _; _; _; _; _; _; _ ]). Qed.
+
+End RT_TRANSN.

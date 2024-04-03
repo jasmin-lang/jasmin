@@ -1,9 +1,9 @@
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
-Require Import Psatz xseq.
+Require Import xseq.
 Require Export warray_ word sem_type.
 Import Utf8.
 
@@ -234,10 +234,10 @@ Lemma value_uincl_undef_t t1 t2 :
 Proof. by move=> h; apply value_uincl_undef; rewrite type_of_undef h undef_tK. Qed.
 
 Lemma Array_set_uincl n1 n2
-   (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz aa i (v:word wz):
+   (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz al aa i (v:word wz):
   value_uincl (Varr a1) (Varr a2) ->
-  WArray.set a1 aa i v = ok a1' ->
-  exists2 a2', WArray.set a2 aa i v = ok a2' &
+  WArray.set a1 al aa i v = ok a1' ->
+  exists2 a2', WArray.set a2 al aa i v = ok a2' &
     value_uincl (Varr a1) (Varr a2).
 Proof. move=> /= hu hs; have [?[]]:= WArray.uincl_set hu hs; eauto. Qed.
 
@@ -435,8 +435,7 @@ Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
 Proof.
   by case: t1; case: t2 => >; rewrite /val_uincl //=;
     case: {-}_/ boolP => // h >;
-    rewrite -(FunctionalExtensionality.eta_expansion (@eq _))
-      (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
+    rewrite (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
 Qed.
 
 Lemma val_uinclEl t1 t2 v1 v2 :
@@ -736,6 +735,28 @@ Proof.
   by exists v => //; exact: List_Forall2_refl.
 Qed.
 
+Lemma value_uincl_oto_val ty (z z' : sem_t ty) :
+  val_uincl z z' ->
+  value_uincl (oto_val (sem_prod_id z)) (oto_val (sem_prod_id z')).
+Proof. by case: ty z z'. Qed.
+
+Definition swap_semi ty (x y: sem_t ty) : exec (sem_tuple [:: ty; ty]):= ok (sem_prod_id y, sem_prod_id x).
+
+Lemma swap_semu ty (vs vs' : seq value) (v : values):
+  List.Forall2 value_uincl vs vs' ->
+  @app_sopn_v [::ty; ty] [::ty; ty] (@swap_semi ty) vs = ok v ->
+  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (@swap_semi ty) vs' = ok v' & List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v.
+  case => //= v1 v1' ?? hu1; t_xrbindP.
+  case => //= v2 v2' ?? hu2; t_xrbindP.
+  case => // _ z1 hv1 z2 hv2 [] <- <- /=.
+  have [z1' -> hu1']:= val_uincl_of_val hu1 hv1.
+  have [z2' -> hu2' /=]:= val_uincl_of_val hu2 hv2.
+  eexists; first by eauto.
+  by repeat constructor; apply: value_uincl_oto_val.
+Qed.
+ 
 Section FORALL.
   Context  (T:Type) (P:T -> Prop).
 

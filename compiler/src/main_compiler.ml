@@ -13,7 +13,7 @@ let parse () =
   let infiles = ref [] in
   let set_in s = infiles := s :: !infiles in
   (* Set default option values *)
-  if Arch.os = Some `Windows then set_cc "windows";
+  if Sys.win32 then set_cc "windows";
   (* Parse command-line arguments *)
   Arg.parse options set_in usage_msg;
   let c =
@@ -60,8 +60,8 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
-let check_sct _s p _source_p =
-  Sct_checker_forward.ty_prog p (oget !sct_list)
+let check_sct is_ct_asm _s p _source_p =
+  Sct_checker_forward.ty_prog is_ct_asm p (oget !sct_list)
 
 (* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
@@ -113,7 +113,7 @@ let main () =
         | None -> () in
 
     let env, pprog, ast =
-      try Compile.parse_file Arch.reg_size Arch.asmOp_sopn infile
+      try Compile.parse_file Arch.arch_info infile
       with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
@@ -179,7 +179,7 @@ let main () =
           source_prog
         |> donotcompile
       else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
-        check_sct s p source_prog
+        check_sct Arch.is_ct_sopn s p source_prog
         |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
         |> donotcompile
       else
@@ -215,7 +215,7 @@ let main () =
     end;
 
     if !ct_list <> None then begin
-        let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
+        let sigs, status = Ct_checker_forward.ty_prog Arch.is_ct_sopn ~infer:!infer source_prog (oget !ct_list) in
            Format.printf "/* Security types:\n@[<v>%a@]*/@."
               (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
            let on_err (loc, msg) =
@@ -242,7 +242,7 @@ let main () =
             Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
-              (** TODO: allow to configure the initial stack pointer *)
+              (* TODO: allow to configure the initial stack pointer *)
               (match
                  Evaluator.initial_memory Arch.reg_size (Z.of_string "1024") m
                with

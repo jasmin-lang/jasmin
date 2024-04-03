@@ -1,9 +1,9 @@
 (* -------------------------------------------------------------------- *)
 open Utils
+open PrintCommon
 open Prog
 open Arch_decl
 open Label
-open X86_decl_core
 open X86_decl
 (* -------------------------------------------------------------------- *)
 module W = Wsize
@@ -24,7 +24,7 @@ let pp_gen (fmt : Format.formatter) = function
   | `Label lbl ->
       Format.fprintf fmt "%s:" lbl
   | `Instr (s, []) ->
-      Format.fprintf fmt "\t%-*s" iwidth s
+      Format.fprintf fmt "\t%s" s
   | `Instr (s, args) ->
       Format.fprintf fmt "\t%-*s\t%s"
         iwidth s (String.join ", " args)
@@ -34,7 +34,7 @@ let pp_gens (fmt : Format.formatter) xs =
 
 (* -------------------------------------------------------------------- *)
 let string_of_label name (p : label) =
-  Format.sprintf "L%s$%d" name (Conv.int_of_pos p)
+  Format.asprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
 type lreg =
@@ -411,7 +411,7 @@ module Printer (BP:BPrinter) = struct
     | Syscall_t.Read _ -> "__jasmin_syscall_read__"
 
   (* -------------------------------------------------------------------- *)
-  let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+  let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i_r) =
     match i with
     | ALIGN ->
       `Instr (".p2align", ["5"])
@@ -449,11 +449,17 @@ module Printer (BP:BPrinter) = struct
       let name = pp_name_ext pp in
       let args = pp_asm_args pp.pp_aop_args in
       `Instr(name, args)
-  
+
+  (* -------------------------------------------------------------------- *)
+  let pp_ii ({ Location.base_loc = ii; _}, _) =
+    List.map (fun i -> `Instr(i, [])) (DebugInfo.source_positions ii)
+
   (* -------------------------------------------------------------------- *)
   let pp_instr name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+    let Arch_decl.({ asmi_i = i ; asmi_ii = ii }) = i in
+    List.iter (pp_gen fmt) (pp_ii ii);
     pp_gen fmt (pp_instr name i)
-  
+
   (* -------------------------------------------------------------------- *)
   let pp_instrs name (fmt : Format.formatter) (is : (_, _, _, _, _, _) Arch_decl.asm_i list) =
     List.iter (Format.fprintf fmt "%a\n%!" (pp_instr name)) is
@@ -467,15 +473,18 @@ module Printer (BP:BPrinter) = struct
        `Instr (".p2align", ["5"])];
   
     List.iter (fun (n, d) ->
-        if d.asm_fd_export then pp_gens fmt
-      [`Instr (".globl", [mangle n.fn_name]);
-       `Instr (".globl", [n.fn_name])])
+        if d.asm_fd_export then
+          let fn = escape n.fn_name in
+          pp_gens fmt
+      [`Instr (".globl", [mangle fn]);
+       `Instr (".globl", [fn])])
       asm.asm_funcs;
   
     List.iter (fun (n, d) ->
         let name = n.fn_name in
         let export = d.asm_fd_export in
         if export then
+          let name = escape name in
         pp_gens fmt [
           `Label (mangle name);
           `Label name

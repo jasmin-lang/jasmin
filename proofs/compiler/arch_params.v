@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import
   compiler_util
   expr.
@@ -9,6 +9,7 @@ Require
   linearization
   lowering
   stack_alloc
+  stack_zeroization
   slh_lowering
   asm_gen.
 
@@ -32,7 +33,7 @@ Record lowering_params
      from those in a list of function declarations. *)
     lop_fvars_correct :
       lowering.fresh_vars
-      -> forall (eft : eqType) (pT : progT eft),
+      -> forall (pT : progT),
            seq fun_decl
            -> bool;
   }.
@@ -56,6 +57,9 @@ Record architecture_params
 
     (* Assembly generation parameters. See asm_gen.v. *)
     ap_agp : asm_gen.asm_gen_params;
+
+    (* Stack zeroization parameters. See stack_zeroization.v *)
+    ap_szp : stack_zeroization.stack_zeroization_params;
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

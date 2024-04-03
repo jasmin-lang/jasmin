@@ -1,9 +1,9 @@
 (* * Jasmin semantics with “partial values”. *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
-Require Import Psatz xseq.
-Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
+Require Import xseq.
+Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap low_memory syscall_sem.
 Require Export
   flag_combination
   sem_params.
@@ -79,6 +79,8 @@ Definition get_gvar (wdb : bool) (gd : glob_decls) (vm : Vm.t) (x : gvar) :=
   if is_lvar x then get_var wdb vm x.(gv)
   else get_global gd x.(gv).
 
+Definition get_var_is wdb vm := mapM (fun x => get_var wdb vm (v_var x)).
+
 Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
   Let v := v  in
   match v with
@@ -124,20 +126,20 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pbool b  => ok (Vbool b)
   | Parr_init n => ok (Varr (WArray.empty n))
   | Pvar v => get_gvar wdb gd s.(evm) v
-  | Pget aa ws x e =>
+  | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
       Let i := sem_pexpr s e >>= to_int in
-      Let w := WArray.get aa ws t i in
+      Let w := WArray.get al aa ws t i in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
     Let i := sem_pexpr s e >>= to_int in
     Let t' := WArray.get_sub aa ws len t i in
     ok (Varr t')
-  | Pload sz x e =>
+  | Pload al sz x e =>
     Let w1 := get_var wdb s.(evm) x >>= to_pointer in
     Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read s.(emem) (w1 + w2)%R sz in
+    Let w  := read s.(emem) al (w1 + w2)%R sz in
     ok (@to_val (sword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
@@ -174,18 +176,18 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   match l with
   | Lnone _ ty => write_none s ty v
   | Lvar x => write_var x v s
-  | Lmem sz x e =>
+  | Lmem al sz x e =>
     Let vx := get_var wdb (evm s) x >>= to_pointer in
     Let ve := sem_pexpr s e >>= to_pointer in
     let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word sz v in
-    Let m :=  write s.(emem) p w in
+    Let m := write s.(emem) al p w in
     ok (with_mem s m)
-  | Laset aa ws x i =>
+  | Laset al aa ws x i =>
     Let (n,t) := wdb, s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
-    Let t := WArray.set t aa i v in
+    Let t := WArray.set t al aa i v in
     write_var x (@to_val (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in

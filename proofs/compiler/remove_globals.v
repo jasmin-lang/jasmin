@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import xseq.
 Require Import expr compiler_util ZArith.
@@ -86,7 +86,7 @@ Section REMOVE.
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ _ => ok gd
+    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -124,22 +124,22 @@ Section REMOVE.
         Let xi := get_var_ ii env xi in
         ok (Pvar xi)
 
-      | Pget aa ws xi e =>
+      | Pget al aa ws xi e =>
         Let e  := remove_glob_e ii env e in
         Let xi := get_var_ ii env xi in
-        ok (Pget aa ws xi e)
+        ok (Pget al aa ws xi e)
 
       | Psub aa ws len xi e =>
         Let e  := remove_glob_e ii env e in
         Let xi := get_var_ ii env xi in
         ok (Psub aa ws len xi e)
 
-      | Pload ws xi e =>
+      | Pload al ws xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Pload ws xi e)
+          ok (Pload al ws xi e)
       | Papp1 o e =>
         Let e := remove_glob_e ii env e in
         ok (Papp1 o e)
@@ -164,18 +164,18 @@ Section REMOVE.
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else ok lv
-      | Lmem ws xi e =>
+      | Lmem al ws xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Lmem ws xi e)
-      | Laset aa ws xi e =>
+          ok (Lmem al ws xi e)
+      | Laset al aa ws xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok (Laset aa ws xi e)
+          ok (Laset al aa ws xi e)
       | Lasub aa ws len xi e =>
         let x := xi.(v_var) in
         if is_glob_var x then Error (rm_glob_error ii xi)
@@ -306,10 +306,10 @@ Section REMOVE.
             Let envc := loop check_c Loop.nb env in
             let: (env, c) := envc in
             ok (env, [::MkI ii (Cfor xi (d,e1,e2) c)])
-        | Ccall i lvs fn es =>
+        | Ccall lvs fn es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
-          ok (env, [::MkI ii (Ccall i lvs fn es)])
+          ok (env, [::MkI ii (Ccall lvs fn es)])
         end
       end.
 

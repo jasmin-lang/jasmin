@@ -1,0 +1,15 @@
+export
+fn bfi(reg u32 x) -> reg u32 {
+    reg u32 y;
+    y = 0;
+    y = #BFI(y, x, 0, 1);
+    y = #BFI(y, x, 31, 1);
+    y = #BFI(y, x, 0, 32);
+
+    reg bool b;
+    ?{ "<s" = b } = #CMP(y, 5);
+    y = #BFIcc(y, x, 0, 32, b, y);
+
+    y = y;
+    return y;
+}

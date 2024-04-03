@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import psem compiler_util.
 Require Export constant_prop.
 
@@ -26,8 +26,7 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  {T : eqType}
-  {pT : progT T}
+  {pT : progT}
   {sCP : semCallParams}.
 
 Section GLOB_DEFS.
@@ -554,11 +553,11 @@ Section CONST_PROP_EP.
       move=> hx /get_varP; rewrite hx => -[-> _ _] {hx}.
       by case: n => [ b | n | sz w ]; rewrite /sem_sop1 /= ?wrepr_unsigned;
            eexists;(split;first reflexivity) => //=; rewrite wrepr_unsigned.
-    - move => aa sz x e He v.
+    - move => al aa sz x e He v.
       apply: on_arr_gvarP => n t wt ok_x.
       t_xrbindP => z w /(He _) {He} [v'] [] ok_v' /[swap] /to_intI ? /value_uinclE; subst => ?; subst.
       move => a ha ?; subst.
-      have default : ∃ v' : value, sem_pexpr wdb gd s (Pget aa sz x (const_prop_e globs m e)) = ok v' ∧ value_uincl (Vword a) v'.
+      have default : ∃ v' : value, sem_pexpr wdb gd s (Pget al aa sz x (const_prop_e globs m e)) = ok v' ∧ value_uincl (Vword a) v'.
       + by rewrite /= /on_arr_var ok_x /= ok_v' /= ha /=; eexists; split; [ reflexivity | simpl ].
       case x_glob: is_glob; last exact: default.
       case: globs default Gvalid ok_v'; last by [].
@@ -576,7 +575,7 @@ Section CONST_PROP_EP.
       t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.
-    - move => sz x e He v.
+    - move => al sz x e He v.
       t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] /[swap]
         /to_wordI[? [? [-> /word_uincl_truncate h]]]
         /value_uinclE[? [? [-> /h{h}h]]] ? h' <- /=.
@@ -672,7 +671,7 @@ Lemma const_prop_rvP globs s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv globs m x).1 /\
   write_lval wdb gd (const_prop_rv globs m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | sz x p | aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
+  case:x => [ii t | x | al sz x p | al aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + by move=> > -> /to_wordI [? [? [-> /= ->]]]
@@ -752,9 +751,9 @@ Proof.
   move=> g _ <- m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
   + by case => ? [] //; rewrite Hm.
-  + by move=> ???? ->.
   + by move=> ????? ->.
-  + by move=> ??? ->.
+  + by move=> ????? ->.
+  + by move=> ???? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
   + move => op es h; f_equal.
@@ -769,7 +768,7 @@ Instance const_prop_rv_m :
   Proper (eq ==> @Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> g _ <- m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => [ v | v | sz v p | aa sz v p | aa sz len v p] //=;rewrite Hm.
+  by case: rv => [ v | v | al sz v p | al aa sz v p | aa sz len v p] //=;rewrite Hm.
 Qed.
 
 #[local]
@@ -920,7 +919,7 @@ Section PROPER.
     by case: is_bool => //= ?; case:ifP.
   Qed.
 
-  Local Lemma Wcall i xs f es: Pr (Ccall i xs f es).
+  Local Lemma Wcall xs f es: Pr (Ccall xs f es).
   Proof.
     move=> ii m1 m2 Heq /=;have := const_prop_rvs_m (erefl None) Heq (refl_equal xs).
     rewrite /const_prop_ir.
@@ -1250,7 +1249,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfun Hvs m ii' Hm.
+    move=> s1 scs2 m2 s2 xs fn args vargs vs Hargs Hcall Hfun Hvs m ii' Hm.
     rewrite /const_prop_ir -/const_prop_i.
     have [vargs' Hargs' Hall] := const_prop_esP Hm valid_without_globals Hargs.
     have /(_ _ Hm) [] /=:= const_prop_rvsP _ valid_without_globals Hvs.
@@ -1273,7 +1272,7 @@ Section PROOF.
     have [vargs1' htr hu1]:= mapM2_dc_truncate_val Hargs hargs'.
     have [vm3 /= hw hu3]:= write_vars_uincl (vm_uincl_refl _) hu1 Hw.
     have [vm4 /= []hc hu4]:= hc' _ hu3.
-    have [vres1 hvres1 hu5]:= get_vars_uincl hu4 Hres.
+    have [vres1 hvres1 hu5] := get_var_is_uincl hu4 Hres.
     have [vres1' ??]:= mapM2_dc_truncate_val Hfull hu5.
     exists vres1';split => //.
     econstructor;eauto => /=.

@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra. 
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import global Utf8.
 
 Set   Implicit Arguments.
@@ -77,5 +77,13 @@ Proof.
   have := decode_encode_label small_dom hmem.
   by case: encode_label.
 Qed.
+
+Definition rencode_label
+  (lbls : seq remote_label) (lbl : remote_label) : exec (word Uptr) :=
+  o2r ErrType (encode_label lbls lbl).
+
+Definition rdecode_label
+  (lbls : seq remote_label) (w : word Uptr) : exec remote_label :=
+  o2r ErrType (decode_label lbls w).
 
 End WITH_POINTER_DATA.

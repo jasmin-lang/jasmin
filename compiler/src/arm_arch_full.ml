@@ -1,6 +1,5 @@
 open Arch_decl
 open Prog
-open Arm_decl_core
 open Arm_decl
 
 
@@ -16,14 +15,27 @@ module Arm_core = struct
   type nonrec rflag = rflag
   type cond = condt
   type asm_op = Arm_instr_decl.arm_op
-  type extra_op = Arm_extra.__
-  type fresh_vars = Arm_lowering.fresh_vars
+  type extra_op = Arm_extra.arm_extra_op
   type lowering_options = Arm_lowering.lowering_options
 
   let atoI = X86_arch_full.atoI arm_decl
 
   let asm_e = Arm_extra.arm_extra atoI
   let aparams = Arm_params.arm_params atoI
+
+  let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
+
+  let alloc_stack_need_extra sz =
+    not (Arm_params_core.is_arith_small (Conv.cz_of_z sz))
+
+  let is_ct_asm_op (o : asm_op) =
+    match o with
+    | ARM_op( (SDIV  | UDIV), _) -> false
+    | _ -> true
+
+
+  let is_ct_asm_extra (_ : extra_op) = true
+
 end
 
 module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct

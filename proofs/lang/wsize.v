@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import strings ZArith utils.
 Import Utf8.
 Import word_ssrZ.
@@ -55,32 +55,6 @@ Definition wsizes :=
 
 Lemma wsize_fin_axiom : Finite.axiom wsizes.
 Proof. by case. Qed.
-
-Definition wsize_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK wsize_fin_axiom).
-Canonical wsize_choiceType :=
-  Eval hnf in ChoiceType wsize wsize_choiceMixin.
-
-Definition wsize_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK wsize_fin_axiom).
-Canonical wsize_countType :=
-  Eval hnf in CountType wsize wsize_countMixin.
-
-Definition wsize_finMixin :=
-  FinMixin wsize_fin_axiom.
-Canonical wsize_finType :=
-  Eval hnf in FinType wsize wsize_finMixin.
-
-(* -------------------------------------------------------------------- *)
-Scheme Equality for velem.
-
-Lemma velem_axiom : Equality.axiom velem_beq.
-Proof.
-  exact: (eq_axiom_of_scheme internal_velem_dec_bl internal_velem_dec_lb).
-Qed.
-
-Definition velem_eqMixin     := Equality.Mixin velem_axiom.
-Canonical  velem_eqType      := Eval hnf in EqType velem velem_eqMixin.
 
 (* ** Comparison
  * -------------------------------------------------------------------- *)
@@ -198,7 +172,8 @@ Variant v_kind :=
 
 (* -------------------------------------------------------------------- *)
 Variant safe_cond :=
-  | NotZero of wsize & nat  (* the nth argument of size sz is not zero *)
+  | X86Division of wsize & signedness (* this is a division instruction, two words by one word; result must fit in an single word *)
+  | InRange of wsize & Z & Z & nat (* the nth argument must be in the given range *)
   | AllInit of wsize & positive & nat.         (* the nth argument of is an array ws[p] where all ceil are initialized *)
 
 

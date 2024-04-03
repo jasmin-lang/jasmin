@@ -1,0 +1,17 @@
+export
+fn smul_hw(reg u32 x y) -> reg u32 {
+    reg u32 r;
+    r = #SMULBB(x, y);
+    r = #SMULBT(r, y);
+    r = #SMULTB(r, y);
+    r = #SMULTT(r, y);
+
+    reg bool b;
+    ?{ "<s" = b } = #CMP(r, y);
+    r = #SMULBBcc(r, y, b, r);
+    r = #SMULBTcc(r, y, b, r);
+    r = #SMULTBcc(r, y, b, r);
+    r = #SMULTTcc(r, y, b, r);
+
+    return r;
+}

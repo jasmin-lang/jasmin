@@ -11,12 +11,12 @@ let preprocess reg_size asmOp p =
 
 (* -------------------------------------------------------------------- *)
 
-let parse_file reg_size asmOp_sopn fname =
+let parse_file arch_info fname =
   let env =
     List.fold_left Pretyping.Env.add_from Pretyping.Env.empty
       !Glob_options.idirs
   in
-  Pretyping.tt_program reg_size asmOp_sopn env fname
+  Pretyping.tt_program arch_info env fname
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i pd asmOp i =
@@ -82,12 +82,20 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
     CheckAnnot.check_stack_size fds;
 
+
+    let get_internal_size _fd sfe =
+      let stk_size =
+        BinInt.Z.add sfe.Expr.sf_stk_sz sfe.Expr.sf_stk_extra_sz in
+      Conv.z_of_cz (Memory_model.round_ws sfe.sf_align stk_size)
+    in
+
     let fds =
       Regalloc.alloc_prog translate_var
         (fun _fd extra ->
           match extra.Expr.sf_save_stack with
           | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
           | Expr.SavedStackNone -> false)
+        get_internal_size
         fds
     in
     let fds = List.map (fun (y, _, x) -> (y, x)) fds in
@@ -197,8 +205,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     tokeep
   in
 
-  let is_reg_array x = is_reg_arr (Conv.var_of_cvar x) in
-
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
       let fds, _ = Conv.prog_of_csprog p in
@@ -210,6 +216,33 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     let ttbl = Sct_checker_forward.compile_infer_msf p in
     fun fn ->
       try Hf.find ttbl fn with Not_found -> assert false
+  in
+
+  let tbl_annot =
+    let tbl = Hf.create 17 in
+    let add (fn, cfd) =
+      let fd = fdef_of_cufdef fn cfd in
+      Hf.add tbl fn fd.f_annot
+    in
+    List.iter add cprog.Expr.p_funcs;
+    tbl
+  in
+
+  let get_annot fn =
+    try Hf.find tbl_annot fn
+    with Not_found ->
+           hierror
+             ~loc:Lnone
+             ~funname:fn.fn_name
+             ~kind:"compiler error"
+             ~internal:true
+             "invalid annotation table."
+  in
+
+  let szs_of_fn fn =
+    match (get_annot fn).stack_zero_strategy with
+    | Some (s, ows) -> Some (s, Option.map Pretyping.tt_ws ows)
+    | None -> None
   in
 
   let cparams =
@@ -246,8 +279,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
-      Compiler.is_reg_array;
       Compiler.slh_info;
+      Compiler.stack_zero_info = szs_of_fn;
     }
   in
 

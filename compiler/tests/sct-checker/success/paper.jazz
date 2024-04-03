@@ -1,0 +1,241 @@
+/* These examples are the one featured in the S&P 2023 paper,
+    “Typing High-Speed Cryptography against Spectre v1”
+*/
+param int N = 20;
+
+#[sct =
+  "{ ptr: transient, val: transient } * { ptr: transient, val: secret } * transient -> { ptr: public, val: secret }"
+]
+// ct = "public * secret * public -> secret"
+fn fig3a(
+  reg const ptr u64[N] p,
+  reg mut ptr u64[N] w,
+  reg u64 i)
+  ->  reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = i < N;
+  if b {
+    ms = #update_msf(b, ms);
+    x = p[i];
+    x = #protect(x, ms);
+  } else {
+    ms = #update_msf(! b, ms);
+  }
+  w[x] = 0;
+  return w;
+}
+
+#[sct = "
+{ ptr: transient, val: transient } * { ptr: transient, val: { n: w, s: secret } } * { ptr: transient, val: secret } * transient * secret
+-> { ptr: public, val: { n: w, s: secret } } * { ptr: public, val: secret }
+"]
+// ct = "public * w * secret * public * secret → w * secret"
+fn fig3b(
+  reg const ptr u64[N] p,
+  reg mut ptr u64[N] w,
+  reg mut ptr u64[N] s,
+  reg u64 i,
+  reg u64 secret)
+  -> reg mut ptr u64[N]
+  ,  reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = i < N;
+  if b {
+    ms = #update_msf(b, ms);
+    s[i] = secret;
+  } else {
+    ms = #update_msf(! b, ms);
+  }
+  x = p[0];
+  x = #protect(x, ms);
+  w[x] = 0;
+  return w, s;
+}
+
+#[ sct = "
+  { ptr: public, val: secret } * { ptr: public, val: secret } -> { ptr: public, val: secret }
+"]
+fn fig4a(
+  reg mut ptr u64[N] msg,
+  reg const ptr u64[N] key
+) -> reg mut ptr u64[N] {
+  reg u64 i t1 t2;
+  i = 0;
+  while (i < N) {
+    t1 = msg[(int) i];
+    t2 = key[(int) i];
+    t1 ^= t2;
+    msg[(int) i] = t1;
+    i += 1;
+  }
+  return msg;
+}
+
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: secret } -> { ptr: public, val: secret }
+"]
+fn fig4b(
+  reg mut ptr u64[N] msg,
+  reg const ptr u64[N] key
+) -> reg mut ptr u64[N] {
+  reg u64 ms i t1 t2;
+  ms = #init_msf();
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t1 = msg[(int) i];
+    t1 = #protect(t1, ms);
+    t2 = key[(int) i];
+    t2 = #protect(t2, ms);
+    t1 ^= t2;
+    msg[(int) i] = t1;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  return msg;
+}
+
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: secret } -> { ptr: public, val: secret }
+"]
+fn fig4c(
+  reg mut ptr u64[N] msg,
+  reg const ptr u64[N] key
+) -> reg mut ptr u64[N] {
+  reg u64 ms i t1 t2;
+  ms = #init_msf();
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t1 = msg[(int) i];
+    t2 = key[(int) i];
+    t1 ^= t2;
+    msg[(int) i] = t1;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  return msg;
+}
+
+#[sct = "
+  { ptr: public, val: { normal: d, speculative: secret } } -> { normal: d, speculative: d }
+"]
+fn fig5a(
+  reg const ptr u64[N] p
+) -> reg u64 {
+  reg u64 i s t;
+  s = 0;
+  i = 0;
+  while (i < N) {
+    t = p[i];
+    s += t;
+    i += 1;
+  }
+  return s;
+}
+
+#[sct = "
+  { ptr: transient, val: d } -> d
+"]
+fn fig5b(reg const ptr u64[N] p) -> reg u64 {
+  reg u64 ms i s t;
+  ms = #init_msf();
+  s = 0;
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t = p[(int) i];
+    t = #protect(t, ms);
+    s += t;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  return s;
+}
+
+#[sct = "
+  { ptr: transient, val: d } -> d
+"]
+fn fig5c(reg const ptr u64[N] p) -> reg u64 {
+  reg u64 ms i s t;
+  ms = #init_msf();
+  s = 0;
+  i = 0;
+  while (i < N) {
+    ms = #update_msf(i < N, ms);
+    t = p[(int) i];
+    s += t;
+    i += 1;
+  }
+  ms = #update_msf(!(i < N), ms);
+  s = #protect(s, ms);
+  return s;
+}
+
+/* This is too challenging for an automated low-level checker
+fn fig5d(
+  reg const ptr u64[N] p
+) -> reg u64 {
+  reg u64 ms i s t;
+  ms = #init_msf();
+  s = 0;
+  i = 0;
+  while (i < N) {
+    t = p[(int) i];
+    s += t;
+    i += 1;
+  }
+  ms = #update_msf(i == N, ms);
+  s = #protect(s, ms);
+  return s;
+}
+*/
+
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: transient } * transient -> public * { ptr: public, val: secret }
+"]
+fn fig6a(
+  reg mut ptr u64[N] s,
+  reg const ptr u64[N] p,
+  reg u64 i pub_v
+) -> reg u64, reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = i < N;
+  if b {
+    ms = #update_msf(b, ms);
+    s[(int) i] = pub_v;
+  } else {
+    ms = #update_msf(!b, ms);
+  }
+  x = p[5];
+  return x, s;
+}
+
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: transient } * transient * secret -> public * { ptr: public, val: secret }
+"]
+fn fig6b(
+  reg mut ptr u64[N] s,
+  reg const ptr u64[N] p,
+  reg u64 cond,
+  reg u64 sec_v
+) -> reg u64, reg mut ptr u64[N] {
+  reg u64 ms x;
+  reg bool b;
+  ms = #init_msf();
+  b = cond != 0;
+  if b {
+    ms = #update_msf(b, ms);
+    s[3] = sec_v;
+  } else {
+    ms = #update_msf(!b, ms);
+  }
+  x = p[5];
+  return x, s;
+}

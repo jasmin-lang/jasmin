@@ -352,7 +352,22 @@ let instanciate_fty fty lvls  =
   tyout
 
 (* -----------------------------------------------------------*)
+let is_ct_op1 (_: Expr.sop1) = true
 
+let is_ct_op2 (o: Expr.sop2) =
+  match o with
+  | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
+  | _ -> true
+
+let is_ct_opN (_ : Expr.opN) = true
+
+let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
+  match o with
+  | Opseudo_op _ -> true
+  | Oslh _ -> true
+  | Oasm asm -> is_ct_asm asm
+
+(* -----------------------------------------------------------*)
 (* [ty_expr ~public env e] return [env', lvl] such that [env' |- e : lvl]
    and [env' <= env] i.e for all x, [env'(x) <= env(x)].
    Furthermore [public => lvl = Public.
@@ -365,19 +380,25 @@ let rec ty_expr ~(public:bool) env (e:expr) =
 
   | Pvar x -> Env.gget ~public env x
 
-  | Pget (_, _, x, i) | Psub (_, _, _, x, i) ->
+  | Pget (_, _, _, x, i) | Psub (_, _, _, x, i) ->
     let env, ty = Env.gget ~public env x in
     let env, _  = ty_expr ~public:true env i in
     env, ty
 
-  | Pload (_, x, i) ->
+  | Pload (_, _, x, i) ->
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env, Secret
 
-  | Papp1(_, e)        -> ty_expr ~public env e
-  | Papp2(_, e1, e2)   -> ty_exprs_max ~public env [e1; e2]
-  | PappN(_, es)       -> ty_exprs_max ~public env es
+  | Papp1(o, e)        ->
+    let public = public || not (is_ct_op1 o) in
+    ty_expr ~public env e
+  | Papp2(o, e1, e2)   ->
+    let public = public || not (is_ct_op2 o) in
+    ty_exprs_max ~public env [e1; e2]
+  | PappN(o, es)       ->
+    let public = public || not (is_ct_opN o) in
+    ty_exprs_max ~public env es
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
 
 and ty_exprs ~public env es =
@@ -392,11 +413,11 @@ let ty_lval env x lvl =
   match x with
   | Lnone _ -> env
   | Lvar x -> Env.set env x lvl
-  | Lmem(_, x, i) ->
+  | Lmem(_, _, x, i) ->
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env
-  | Laset(_, _, x, i) | Lasub(_, _, _, x, i) ->
+  | Laset(_, _, _, x, i) | Lasub(_, _, _, x, i) ->
     (* x[i] = e is x = x[i <- e] *)
     let env, xlvl = Env.get ~public:false env x in
     let env, _    = ty_expr ~public:true env i in
@@ -507,15 +528,16 @@ let declassify_lvls annot lvls =
 
 (* [ty_instr env i] return env' such that env |- i : env' *)
 
-let rec ty_instr fenv env i =
+let rec ty_instr is_ct_asm fenv env i =
   let env1 =
   match i.i_desc with
   | Cassgn(x, _, _, e) ->
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl i.i_annot lvl)
 
-  | Copn(xs, _, _, es) ->
-    let env, lvl = ty_exprs_max ~public:false env es in
+  | Copn(xs, _, o, es) ->
+    let public = not (is_ct_sopn is_ct_asm o) in
+    let env, lvl = ty_exprs_max ~public env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
 
   | Csyscall(xs, RandomBytes _, es) ->
@@ -524,15 +546,15 @@ let rec ty_instr fenv env i =
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
-    let env1 = ty_cmd fenv env c1 in
-    let env2 = ty_cmd fenv env c2 in
+    let env1 = ty_cmd is_ct_asm fenv env c1 in
+    let env2 = ty_cmd is_ct_asm fenv env c2 in
     Env.max env1 env2
 
   | Cfor(x, (_, e1, e2), c) ->
     let env, _ = ty_exprs ~public:true env [e1; e2] in
     let rec loop env =
       let env1 = Env.set env x Public in
-      let env1 = ty_cmd fenv env1 c in (*  env |- x = p; c : env1 <= env  *)
+      let env1 = ty_cmd is_ct_asm fenv env1 c in (*  env |- x = p; c : env1 <= env  *)
       if Env.le env1 env then env      (* G <= G'  G' |- c : G''   G |- c : G'' *)
       else loop (Env.max env1 env) in  (* le env/env1 (max env1 env) Check *)
     loop env
@@ -545,15 +567,15 @@ let rec ty_instr fenv env i =
      *)
 
     let rec loop env =
-      let env1 = ty_cmd fenv env c1 in   (* env |- c1 : env1 *)
+      let env1 = ty_cmd is_ct_asm fenv env c1 in   (* env |- c1 : env1 *)
       let env1,_ = ty_expr ~public:true env1 e in
-      let env2 = ty_cmd fenv env1 c2 in  (* env1 |- c2 : env2 *)
+      let env2 = ty_cmd is_ct_asm fenv env1 c2 in  (* env1 |- c2 : env2 *)
       if Env.le env2 env then env1
       else loop (Env.max env2 env) in
     loop env
 
-  | Ccall (_, xs, f, es) ->
-    let fty = get_fun fenv f in
+  | Ccall (xs, f, es) ->
+    let fty = get_fun is_ct_asm fenv f in
     (* Check the arguments *)
     let do_e env e (_,lvl) = ty_expr ~public:(lvl=Public) env e in
     let env, elvls = List.map_fold2 do_e env es fty.tyin in
@@ -564,23 +586,23 @@ let rec ty_instr fenv env i =
     Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) Env.pp env Env.pp env1;
   env1
 
-and ty_cmd fenv env c =
-  List.fold_left (fun env i -> ty_instr fenv env i) env c
+and ty_cmd is_ct_asm fenv env c =
+  List.fold_left (fun env i -> ty_instr is_ct_asm fenv env i) env c
 
-and get_fun fenv f =
+and get_fun is_ct_asm fenv f =
   try Hf.find fenv.env_ty f
   with Not_found ->
-    let fty = ty_fun fenv f in
+    let fty = ty_fun is_ct_asm fenv f in
     Hf.add fenv.env_ty f fty;
     fty
 
-and ty_fun fenv fn =
+and ty_fun is_ct_asm fenv fn =
   (* TODO: we should have this defined *)
   let f = List.find (fun f -> F.equal f.f_name fn) fenv.env_def in
   let tyin, aout, ldecls = get_annot fenv.ensure_annot f in
   let env = List.fold_left2 Env.add Env.empty f.f_args tyin in
   let env = List.fold_left (fun env (x,lvl) -> Env.add env x (Strict, lvl)) env ldecls in
-  let env = ty_cmd fenv env f.f_body in
+  let env = ty_cmd is_ct_asm fenv env f.f_body in
   (* First ensure that all return that are required to be public are publics *)
   let set_pub env x aout =
     if aout = Some Public then
@@ -608,7 +630,7 @@ and ty_fun fenv fn =
   let tyin = List.map (fun (k, lvl) -> k, Env.norm_lvl env lvl) tyin in
   { tyin ; tyout }
 
-let ty_prog ~infer (prog: ('info, 'asm) prog) fl =
+let ty_prog (is_ct_asm: 'asm -> bool)  ~infer (prog: ('info, 'asm) prog) fl =
   let prog = snd prog in
   let fenv =
     { ensure_annot = not infer
@@ -623,7 +645,7 @@ let ty_prog ~infer (prog: ('info, 'asm) prog) fl =
         with Not_found -> hierror ~loc:Lnone ~kind:"constant type checker" "unknown function %s" fn in
       List.map get fl in
   let status =
-    match List.iter (fun fn -> ignore (get_fun fenv fn : signature)) fl with
+    match List.iter (fun fn -> ignore (get_fun is_ct_asm fenv fn : signature)) fl with
     | () -> None
     | exception Annot.AnnotationError (loc, msg)
     | exception CtTypeError (loc, msg)

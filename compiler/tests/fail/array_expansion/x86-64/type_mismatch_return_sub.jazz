@@ -1,0 +1,20 @@
+fn f () -> reg u64[4] {
+  reg u64[4] r;
+
+  inline int i;
+  for i = 0 to 4 {
+    r[i] = 0;
+  }
+
+  return r;
+}
+
+export fn main () -> reg u64 {
+  reg u32[8] r;
+  reg u64 res;
+
+  r[0:8] = f();
+  res = r[u64 0];
+
+  return res;
+}

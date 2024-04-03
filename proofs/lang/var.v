@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import strings utils gen_map type ident tagged.
 Require Import Utf8.
 
@@ -78,12 +78,8 @@ Module MvMake (I:IDENT).
 
 End MvMake.
 
-(* ** Types for idents
- * -------------------------------------------------------------------- *)
-
-
 Module Var := MvMake Ident.
-Export Var. 
+Export Var.
 Notation var   := Var.var.
 Notation vtype := Var.vtype.
 Notation vname := Var.vname.
@@ -120,14 +116,10 @@ Definition is_reg_ptr (x: var) : bool :=
 Definition is_regx (x: var) : bool :=
   if Ident.id_kind x.(vname) is Reg(Extra, _) then true else false.
 
-(* ** Variables function: to be not used if computation is needed,
- *                       but extentianality is permited
- * -------------------------------------------------------------------- *)
-
-(* Deduce inequalities from [~ Sv.In x (Sv.add y0 (... (Sv.add yn s)))]. *)
-Ltac t_notin_add :=
-  repeat (move=> /Sv.add_spec /Decidable.not_or [] ?);
-  move=> ?.
+Definition is_reg_array x :=
+  if Ident.id_kind x.(vname) is Reg (_, Direct) then
+    if x.(vtype) is sarr _ then true else false
+  else false.
 
 (* ** Finite set of variables (computable)
  *
@@ -300,6 +292,16 @@ Lemma sv_of_list_cons T (f : T -> _) x l :
   Sv.Equal (sv_of_list f (x::l)) (Sv.add (f x) (sv_of_list f l)).
 Proof. rewrite /sv_of_list /= sv_of_list_fold; SvD.fsetdec. Qed.
 
+Lemma sv_of_list_eq_ext {X} f g (xs : seq X) :
+  (forall x, List.In x xs -> f x = g x) ->
+  Sv.Equal (sv_of_list f xs) (sv_of_list g xs).
+Proof.
+  move=> /map_ext h.
+  split; move=> /sv_of_listP ?; apply: sv_of_listP.
+  - by rewrite -h.
+  by rewrite h.
+Qed.
+
 Lemma disjoint_subset_diff xs ys :
   disjoint xs ys
   -> Sv.Subset xs (Sv.diff xs ys).
@@ -383,6 +385,24 @@ Proof. SvD.fsetdec. Qed.
 Lemma Sv_subset_remove s x :
   Sv.subset (Sv.remove x s) s.
 Proof. apply/Sv.subset_spec. by apply: SvP.MP.subset_remove_3. Qed.
+
+Lemma Sv_diff_empty s :
+  Sv.Equal (Sv.diff s Sv.empty) s.
+Proof. SvD.fsetdec. Qed.
+
+Lemma enum_in_Sv X (_ : finTypeC X) to_var s x :
+  Sv.Subset (sv_of_list to_var cenum) s ->
+  Sv.In (to_var x) s.
+Proof.
+  apply; apply/sv_of_listP.
+  apply: (@map_f (@ceqT_eqType X _eqC)).
+  exact: mem_cenum.
+Qed.
+
+(* Deduce inequalities from [~ Sv.In x (Sv.add y0 (... (Sv.add yn s)))]. *)
+Ltac t_notin_add :=
+  repeat (move=> /Sv.add_spec /Decidable.not_or [] ?);
+  move=> ?.
 
 End SExtra.
 

@@ -47,7 +47,7 @@ let for_safety    env = env.model = Utils.Safety
 let rec read_mem_e = function
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> false
   | Pload _ -> true
-  | Papp1 (_, e) | Pget (_, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
+  | Papp1 (_, e) | Pget (_, _, _, _, e) | Psub (_, _, _, _, e) -> read_mem_e e
   | Papp2 (_, e1, e2) -> read_mem_e e1 || read_mem_e e2
   | PappN (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
@@ -56,8 +56,8 @@ and read_mem_es es = List.exists read_mem_e es
 
 let read_mem_lval = function
   | Lnone _ | Lvar _ -> false
-  | Lmem (_,_,_) -> true 
-  | Laset (_,_,_,e) | Lasub (_,_,_,_,e)-> read_mem_e e
+  | Lmem (_,_,_,_) -> true
+  | Laset (_,_,_,_,e) | Lasub (_,_,_,_,e)-> read_mem_e e
 
 
 let write_mem_lval = function
@@ -74,7 +74,7 @@ let rec read_mem_i s i =
   | Csyscall (xs, _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
-  | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
+  | Ccall (xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
   | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
 
 and read_mem_c s = List.exists (read_mem_i s)
@@ -88,7 +88,7 @@ let rec write_mem_i s i =
   | Csyscall(xs, _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
-  | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
+  | Ccall (xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s
   | Cfor (_, _, c)       -> write_mem_c s c 
 
 and write_mem_c s = List.exists (write_mem_i s)
@@ -111,8 +111,8 @@ let int_of_word ws e =
 let rec leaks_e_rec pd leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
-  | Pload (_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
-  | Pget (_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e 
+  | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
+  | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
   | Papp1 (_, e) -> leaks_e_rec pd leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
   | PappN (_, es) -> leaks_es_rec pd leaks es
@@ -124,102 +124,81 @@ let leaks_es pd es = leaks_es_rec pd [] es
 
 let leaks_lval pd = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
-  | Lmem (_, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
+  | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
+  | Lmem (_, _, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
 
 (* FIXME: generate this list automatically *)
+(* Adapted from EasyCrypt source file src/ecLexer.mll *)
 let ec_keyword = 
- [ "exact"
- ; "assumption"
- ; "smt"
- ; "by"
- ; "reflexivity"
- ; "done"
- ; "admit"
- ; "axiom"
- ; "axiomatized"
- ; "lemma"
- ; "realize"
- ; "choice"
- ; "proof"
- ; "qed"
- ; "goal"
- ; "end"
- ; "import"
- ; "export"
- ; "include"
- ; "local"
- ; "declare"
- ; "hint"
- ; "nosmt"
- ; "module"
- ; "of"
- ; "const"
- ; "op"
- ; "pred"
- ; "require"
- ; "theory"
- ; "abstract"
- ; "section"
- ; "type"
- ; "class"
- ; "instance"
- ; "print"
- ; "search"
- ; "as"
- ; "Pr"
- ; "clone"
- ; "with"
- ; "rename"
- ; "prover"
- ; "timeout"
- ; "why3"
- ; "dump"
- ; "Top"
- ; "Self"
- ; "time"
- ; "undo"
- ; "debug"
- ; "pragma"
+ [ "admit"
+ ; "admitted"
+
  ; "forall"
  ; "exists"
  ; "fun"
  ; "glob"
  ; "let"
  ; "in"
+ ; "for"
  ; "var"
  ; "proc"
  ; "if"
+ ; "is"
+ ; "match"
  ; "then"
  ; "else"
  ; "elif"
+ ; "match"
+ ; "for"
  ; "while"
  ; "assert"
  ; "return"
  ; "res"
  ; "equiv"
  ; "hoare"
+ ; "ehoare"
+ ; "choare"
+ ; "cost"
  ; "phoare"
  ; "islossless"
+ ; "async"
+
+ ; "try"
+ ; "first"
+ ; "last"
+ ; "do"
+ ; "strict"
+ ; "expect"
+
+ (* Lambda tactics *)
  ; "beta"
  ; "iota"
  ; "zeta"
+ ; "eta"
  ; "logic"
  ; "delta"
  ; "simplify"
+ ; "cbv"
  ; "congr"
+
+ (* Logic tactics *)
  ; "change"
  ; "split"
  ; "left"
  ; "right"
- ; "generalize"
  ; "case"
- ; "intros"
+
  ; "pose"
- ; "cut"
+ ; "gen"
  ; "have"
+ ; "suff"
  ; "elim"
+ ; "exlim"
+ ; "ecall"
  ; "clear"
+ ; "wlog"
+
+ (* Auto tactics *)
  ; "apply"
  ; "rewrite"
  ; "rwnormal"
@@ -227,6 +206,8 @@ let ec_keyword =
  ; "progress"
  ; "trivial"
  ; "auto"
+
+ (* Other tactics *)
  ; "idtac"
  ; "move"
  ; "modpath"
@@ -235,6 +216,17 @@ let ec_keyword =
  ; "ring"
  ; "ringeq"
  ; "algebra"
+
+ ; "exact"
+ ; "assumption"
+ ; "smt"
+ ; "by"
+ ; "reflexivity"
+ ; "done"
+ ; "solve"
+
+ (* PHL: tactics *)
+ ; "replace"
  ; "transitivity"
  ; "symmetry"
  ; "seq"
@@ -248,28 +240,86 @@ let ec_keyword =
  ; "swap"
  ; "cfold"
  ; "rnd"
+ ; "rndsem"
  ; "pr_bounded"
  ; "bypr"
  ; "byphoare"
+ ; "byehoare"
  ; "byequiv"
+ ; "byupto"
  ; "fel"
+
  ; "conseq"
  ; "exfalso"
  ; "inline"
+ ; "outline"
+ ; "interleave"
  ; "alias"
+ ; "weakmem"
  ; "fission"
  ; "fusion"
  ; "unroll"
  ; "splitwhile"
  ; "kill"
  ; "eager"
- ; "try"
- ; "first"
- ; "last"
- ; "do"
- ; "strict"
- ; "expect"
- ; "interleave" ]
+
+ ; "axiom"
+ ; "schema"
+ ; "axiomatized"
+ ; "lemma"
+ ; "realize"
+ ; "proof"
+ ; "qed"
+ ; "abort"
+ ; "goal"
+ ; "end"
+ ; "from"
+ ; "import"
+ ; "export"
+ ; "include"
+ ; "local"
+ ; "declare"
+ ; "hint"
+ ; "nosmt"
+ ; "module"
+ ; "of"
+ ; "const"
+ ; "op"
+ ; "pred"
+ ; "inductive"
+ ; "notation"
+ ; "abbrev"
+ ; "require"
+ ; "theory"
+ ; "abstract"
+ ; "section"
+ ; "type"
+ ; "class"
+ ; "instance"
+ ; "instantiate"
+ ; "print"
+ ; "search"
+ ; "locate"
+ ; "as"
+ ; "Pr"
+ ; "clone"
+ ; "with"
+ ; "rename"
+ ; "prover"
+ ; "timeout"
+ ; "why3"
+ ; "dump"
+ ; "remove"
+ ; "exit"
+
+ ; "fail"
+ ; "time"
+ ; "undo"
+ ; "debug"
+ ; "pragma"
+
+ ; "Top"
+ ; "Self" ]
 
 let syscall_mod_arg = "SC"
 let syscall_mod_sig = "Syscall_t"
@@ -288,17 +338,12 @@ let create_name env s =
       if Ss.mem s env.alls then aux (i+1)
       else s in
     aux 0
- 
-let mkfunname env fn = 
-  let s = fn.fn_name in
-  let s = 
-    let c0 = s.[0] in
-    let l0 = Char.lowercase_ascii c0 in
-    if c0 = l0 then s
-    else 
-      String.init (String.length s) (fun i -> if i = 0 then l0 else s.[i]) 
-  in
-  create_name env s
+
+let normalize_name n =
+  n |> String.uncapitalize_ascii |> escape
+
+let mkfunname env fn =
+  fn.fn_name |> normalize_name |> create_name env
 
 let empty_env model fds arrsz warrsz randombytes =
 
@@ -344,8 +389,8 @@ let syscall_sig_u pd o =
 let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
-  | Lmem (ws,_,_) -> Bty (U ws)
-  | Laset(_,ws, _, _) -> Bty (U ws)
+  | Lmem (_, ws,_,_) -> Bty (U ws)
+  | Laset(_, _, ws, _, _) -> Bty (U ws)
   | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
 
 
@@ -399,13 +444,13 @@ let set_var env x option s =
     vars = Mv.add x (s,option) env.vars }
 
 let add_var option env x = 
-  let s = String.uncapitalize_ascii x.v_name in
+  let s = normalize_name x.v_name in
   let s = create_name env s in
   set_var env x option s
 
-let add_glob env x = 
-  let s = create_name env x.v_name in
-  set_var env x false s 
+let add_glob env x =
+  let s = create_name env (normalize_name x.v_name) in
+  set_var env x false s
 
 let pp_oget option pp = 
   pp_maybe option (pp_enclose ~pre:"(oget " ~post:")") pp
@@ -510,8 +555,8 @@ let ty_expr = function
   | Pbool _        -> tbool
   | Parr_init len  -> Arr (U8, len)
   | Pvar x         -> x.gv.L.pl_desc.v_ty
-  | Pload (sz,_,_) -> tu sz
-  | Pget  (_,sz,_,_) -> tu sz
+  | Pload (_, sz,_,_) -> tu sz
+  | Pget  (_,_, sz,_,_) -> tu sz
   | Psub (_,ws, len, _, _) -> Arr(ws, len)
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
@@ -564,7 +609,7 @@ let rec pp_expr pd env fmt (e:expr) =
   | Pvar x ->
     pp_ovar env fmt (L.unloc x.gv)
 
-  | Pget(aa, ws, x, e) -> 
+  | Pget(_, aa, ws, x, e) ->
     assert (check_array env x.gv);
     let pp fmt (x,e) = 
       let x = x.gv in
@@ -606,7 +651,7 @@ let rec pp_expr pd env fmt (e:expr) =
         i 
 
     
-  | Pload (sz, x, e) -> 
+  | Pload (_, sz, x, e) ->
     Format.fprintf fmt "(loadW%a Glob.mem (W%d.to_uint %a))"
       pp_size sz
       (int_of_ws pd)
@@ -689,13 +734,13 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
   let pp_e fmt e = pp_e fmt (lty, ety, e) in
   match lv with 
   | Lnone _ -> assert false
-  | Lmem(ws, x, e1) -> 
+  | Lmem(_, ws, x, e1) ->
     Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W%d.to_uint %a) (%a);@]" pp_size ws
       (int_of_ws pd)
       (pp_wcast pd env) (add_ptr pd (gkvar x) e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
-  | Laset (aa, ws, x, e1) -> 
+  | Laset (_, aa, ws, x, e1) ->
     assert (check_array env x);
     let x = L.unloc x in
     let (xws,n) = array_kind x.v_ty in
@@ -789,15 +834,65 @@ let base_op = function
   | Sopn.Oasm (Arch_extra.BaseOp (_, o)) -> Sopn.Oasm (Arch_extra.BaseOp(None,o))
   | o -> o
 
-let ty_sopn pd asmOp op =
+let ty_sopn pd asmOp op es =
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
   | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
     let l = [Arr(ws, Conv.int_of_pos p)] in
     l, l
+  | Sopn.Opseudo_op (Pseudo_operator.Oswap _) -> 
+    let l = List.map ty_expr es in
+    l, l
   | _ ->
     List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op),
     List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
+
+(* This code replaces for loop that modify the loop counter by while loop,
+   it would be nice to prove in Coq the validity of the transformation *) 
+
+let is_write_lv x = function
+  | Lnone _ | Lmem _ -> false 
+  | Lvar x' | Laset(_, _, _, x', _) | Lasub (_, _, _, x', _) ->
+    V.equal x x'.L.pl_desc 
+
+let is_write_lvs x = List.exists (is_write_lv x)
+
+let rec is_write_i x i = 
+  match i.i_desc with
+  | Cassgn (lv,_,_,_) ->
+    is_write_lv x lv
+  | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
+    is_write_lvs x lvs
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> 
+    is_write_c x c1 || is_write_c x c2 
+  | Cfor(x',_,c) -> 
+    V.equal x x'.L.pl_desc || is_write_c x c
+
+and is_write_c x c = List.exists (is_write_i x) c
+  
+let rec remove_for_i i =
+  let i_desc = 
+    match i.i_desc with
+    | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
+    | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
+    | Cwhile(a, c1, e, c2) -> Cwhile(a, remove_for c1, e, remove_for c2)
+    | Cfor(j,r,c) -> 
+      let jd = j.pl_desc in
+      if not (is_write_c jd c) then Cfor(j, r, remove_for c)
+      else 
+        let jd' = V.clone jd in
+        let j' = { j with pl_desc = jd' } in
+        let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
+        let ii' = { i with i_desc = ii' } in
+        Cfor (j', r, ii' :: remove_for c)
+  in
+  { i with i_desc }   
+and remove_for c = List.map remove_for_i c
+
+let pp_opn pd asmOp fmt o = 
+  let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
+  let s = if Ss.mem s keywords then s^"_" else s in
+  Format.fprintf fmt "%s" s
 
 module Normal = struct  
 
@@ -822,7 +917,7 @@ module Normal = struct
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
-    | Ccall(_, lvs, f, _) ->      
+    | Ccall(lvs, f, _) ->
       if lvs = [] then env 
       else 
         let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
@@ -869,14 +964,14 @@ module Normal = struct
       pp_lval1 pd env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn([], _, op, _es) ->
-       (** Erase opn without any return values *)
+       (* Erase opn without any return values *)
        Format.fprintf fmt "(* Erased call to %a *)" (pp_opn pd asmOp) op
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn pd asmOp op in
-      let otys', _ = ty_sopn pd asmOp op' in
+      let otys,itys = ty_sopn pd asmOp op es in
+      let otys', _ = ty_sopn pd asmOp op' es in
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" (pp_opn pd asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
@@ -890,7 +985,7 @@ module Normal = struct
           Format.fprintf fmt "<- %a" pp_e (op,es) in
         pp_call pd env fmt lvs otys otys' pp (op,es)
         
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -955,13 +1050,13 @@ module Leak = struct
     | Initv of var 
     | Initai of wsize * var * expr 
     | Inita of var * int
-    | InBound of wsize * int * expr
+    | InBound of Memory_model.aligned * wsize * int * expr
     | Valid of wsize * expr 
     | NotZero of wsize * expr 
 
-  let in_bound ws x e = 
+  let in_bound al ws x e =
     match (L.unloc x).v_ty with
-    | Arr(ws1,n) -> InBound(ws, (arr_size ws1 n), e)
+    | Arr(ws1,n) -> InBound(al, ws, (arr_size ws1 n), e)
     | _ -> assert false
 
   let safe_op2 safe _e1 e2 = function
@@ -983,7 +1078,7 @@ module Leak = struct
     let (_s,option) = Mv.find (L.unloc x) env.vars in
     if option then Initv (L.unloc x) :: safe
     else safe
-    
+   
   let rec safe_e_rec pd env safe = function
     | Pconst _ | Pbool _ | Parr_init _ -> safe
     | Pvar x -> 
@@ -994,17 +1089,17 @@ module Leak = struct
         | Arr(ws,n) -> Inita (L.unloc x, arr_size ws n) :: safe
         | _ -> Initv(L.unloc x) :: safe 
       else safe 
-    | Pload (ws,x,e) -> 
+    | Pload (al, ws,x,e) -> (* TODO: alignment *)
       is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env safe e)
     | Papp1 (_, e) -> safe_e_rec pd env safe e
-    | Pget (aa, ws, x, e) -> 
+    | Pget (al, aa, ws, x, e) ->
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
       let x = x.gv in
       let safe = 
         let (_s,option) = Mv.find (L.unloc x) env.vars in
         if option then Initai(ws, L.unloc x, e) :: safe 
         else safe in
-      in_bound ws x e :: safe 
+      in_bound al ws x e :: safe
     | Psub _ -> assert false (* NOT IMPLEMENTED *) 
     | Papp2 (op, e1, e2) -> 
       safe_op2 (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e1 e2 op
@@ -1020,8 +1115,11 @@ module Leak = struct
     let id = Sopn.get_instr_desc pd asmOp opn in
     List.pmap (fun c ->
         match c with
-        | Wsize.NotZero(sz, i) ->
-          Some (NotZero(sz, List.nth es (Conv.int_of_nat i)))
+        | Wsize.X86Division(sz, _sg) ->
+          Some (NotZero(sz, List.nth es 2))
+        (* FIXME: there are more properties to check *)
+        | Wsize.InRange _ -> None
+        (* FIXME: there are properties to check *)
         | Wsize.AllInit (ws, p, i) ->
           let e = List.nth es (Conv.int_of_nat i) in
           let y = match e with Pvar y -> y | _ -> assert false in
@@ -1031,11 +1129,11 @@ module Leak = struct
 
   let safe_lval pd env = function
     | Lnone _ | Lvar _ -> []
-    | Lmem(ws, x, e) -> 
+    | Lmem(al, ws, x, e) -> (* TODO: alignment *)
       is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env [] e)
-    | Laset(aa, ws, x,e) -> 
+    | Laset(al, aa, ws, x,e) ->
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
-      in_bound ws x e :: safe_e_rec pd env [] e 
+      in_bound al ws x e :: safe_e_rec pd env [] e
     | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
 
   let pp_safe_e pd env fmt = function
@@ -1045,7 +1143,8 @@ module Leak = struct
     | Inita(x,n) -> Format.fprintf fmt "%a.is_init %a" (pp_Array env) n (pp_var env) x 
     | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr pd env) e pp_size sz 
     | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr pd env) e pp_size sz
-    | InBound(ws, n,e)  -> Format.fprintf fmt "in_bound %a %i %i" 
+    | InBound(al, ws, n,e)  -> Format.fprintf fmt "in_bound %a %a %i %i"
+                             pp_bool (al = Aligned)
                              (pp_expr pd env) e (size_of_ws ws) n
 
   let pp_safe_es pd env fmt es = pp_list "/\\@ " (pp_safe_e pd env) fmt es
@@ -1120,7 +1219,7 @@ module Leak = struct
       let otys = List.map Conv.ty_of_cty s.scs_tout in
       let env = add_aux env otys in
       add_aux env (List.map ty_lval lvs)
-    | Ccall(_, lvs, _, _) ->
+    | Ccall(lvs, _, _) ->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
@@ -1181,7 +1280,7 @@ module Leak = struct
       pp_call pd env fmt [lv] tys tys pp e
 
     | Copn([], _, op, es) ->
-       (** Erase opn without return values but keep their leakage *)
+       (* Erase opn without return values but keep their leakage *)
        let op' = base_op op in
        pp_leaks_opn pd asmOp env fmt op' es;
        Format.fprintf fmt "(* Erased call to %a *)" (pp_opn pd asmOp) op
@@ -1189,15 +1288,15 @@ module Leak = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn pd asmOp op in
-      let otys', _ = ty_sopn pd asmOp op' in
+      let otys,itys = ty_sopn pd asmOp op es in
+      let otys', _ = ty_sopn pd asmOp op' es in
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" (pp_opn pd asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
       pp_leaks_opn pd asmOp env fmt op' es;
       pp_call pd env fmt lvs otys otys' pp (op, es)
       
-    | Ccall(_, lvs, f, es) ->
+    | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
         pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
@@ -1282,6 +1381,7 @@ let pp_safe_ret pd env fmt xs =
     Leak.pp_safe_cond pd env fmt (Leak.safe_es pd env es)
 
 let pp_fun pd asmOp env fmt f =
+  let f = { f with f_body = remove_for f.f_body } in
   let locals = Sv.elements (locals f) in
   (* initialize the env *)
   let env = List.fold_left (add_var false) env f.f_args in
@@ -1320,8 +1420,6 @@ let pp_glob_decl env fmt (x,d) =
     Format.fprintf fmt "@[abbrev %a = %a.of_list witness [%a].@]@ "
        (pp_var env) x (pp_Array env) (Array.length t) 
        (pp_list ";@ " pp_elem) (Array.to_list t)
-
-
 
 let add_arrsz env f = 
   let add_sz x sz = 
@@ -1456,7 +1554,7 @@ and used_func_i used i =
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
-  | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
+  | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
 let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.map Regalloc.fill_in_missing_names funcs in

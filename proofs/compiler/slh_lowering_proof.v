@@ -1,6 +1,6 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 Require Import
   expr
@@ -133,7 +133,8 @@ Section CONST_PROP.
   Proof.
     elim: e =>
       [||| x
-      |||| op1 e hinde
+      | al aa sz x e hinde
+      ||| op1 e hinde
       | op2 e0 hinde0 e1 hinde1
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
@@ -141,7 +142,7 @@ Section CONST_PROP.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
-    - by move => sz [] x [].
+    - by case: x =>  - x [] /=; auto.
 
     - rewrite use_mem_s_op1. exact: (hinde h).
 
@@ -474,8 +475,7 @@ Qed.
 Section CHECK_PROOF.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {dc: DirectCall}
   {sCP : semCallParams}
   (shparams : sh_params)
@@ -723,7 +723,7 @@ Section LOWER_SLHO.
   Lemma check_resP wdb env xs ttys tys vs vs' s t:
     wf_env env (p_globs p') s ->
     check_res env xs ttys tys = ok t ->
-    mapM (fun x : var_i => get_var wdb (evm s) x) xs = ok vs ->
+    get_var_is wdb (evm s) xs = ok vs ->
     mapM2 ErrType dc_truncate_val ttys vs = ok vs' ->
     List.Forall2 slh_t_spec vs' tys.
   Proof.
@@ -791,8 +791,7 @@ End CHECK_PROOF.
 Section PASS_PROOF.
 
 Context
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   {sCP : semCallParams}
   {dc : DirectCall}
   (shparams : sh_params)
@@ -1130,7 +1129,7 @@ Qed.
 
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s scs2 m2 s' ? lvs fn args vargs vargs' hsemargs _ hrec hwrite.
+  move=> s scs2 m2 s' lvs fn args vargs vargs' hsemargs _ hrec hwrite.
   move=> ? env env' c hwf /=.
   case heq: fun_info => [tin tout]; t_xrbindP => t hargs hres <-.
   move: hrec; rewrite /Pfun heq => /(_ (check_f_argsP hwf hargs hsemargs)) [h1 h2].

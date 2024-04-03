@@ -35,14 +35,16 @@ Definition is_reg_ptr_expr ii sfx doit id ty e :=
     if doit && (is_glob x' || ~~is_reg_ptr x'.(gv)) then
       Some (with_id ii sfx x'.(gv).(v_info) id ty)
     else None
-  | Psub _ _ _ x' _ =>  Some (with_id ii sfx x'.(gv).(v_info) id ty)
+  | Psub _ _ _ x' _ =>
+    if doit then Some (with_id ii sfx x'.(gv).(v_info) id ty) else None
   | _      => None
   end.
 
 Definition is_reg_ptr_lval ii sfx doit id ty r :=
   match r with
   | Lvar x' => if doit && ~~is_reg_ptr x' then Some (with_id ii sfx x'.(v_info) id ty) else None
-  | Lasub _ _ _ x' _ => Some (with_id ii sfx x'.(v_info) id ty)
+  | Lasub _ _ _ x' _ =>
+    if doit then Some (with_id ii sfx x'.(v_info) id ty) else None
   | _      => None
   end.
 
@@ -89,8 +91,8 @@ Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
 
 Definition wf_lv (lv:lval) :=
   match lv with
-  | Lnone _ _ | Lmem _ _ _ | Laset _ _ _ _ => false 
-  | Lvar _ => true 
+  | Lnone _ _ | Lmem _ _ _ _ | Laset _ _ _ _ _ => false
+  | Lvar _ => true
   | Lasub _ _ _ _ e => ~~use_mem e
   end.
 
@@ -150,13 +152,13 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     Let c  := update_c (update_i X) c in
     Let c' := update_c (update_i X) c' in
     ok [::MkI ii (Cwhile a c e c')]
-  | Ccall ini xs fn es =>
+  | Ccall xs fn es =>
     let: (params,returns) := get_sig fn in
     Let pres := make_prologue ii X Hexadecimal.Nil params es in
     let: (prologue, es) := pres in
     Let xsep := make_epilogue ii X returns xs in
     let: (xs, epilogue) := xsep in 
-    ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
+    ok (prologue ++ MkI ii (Ccall xs fn es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in
     Let: (prologue, es) := make_prologue ii X Hexadecimal.Nil params es in

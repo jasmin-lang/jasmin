@@ -64,8 +64,8 @@ end = struct
   and mk_lval fn lv = match lv with
     | Lnone _ -> lv
     | Lvar v -> Lvar (mk_v_loc fn v)
-    | Lmem (ws,ty,e) -> Lmem (ws, mk_v_loc fn ty, mk_expr fn e)
-    | Laset (acc,ws,v,e) -> Laset (acc,ws, mk_v_loc fn v, mk_expr fn e)
+    | Lmem (al, ws,ty,e) -> Lmem (al, ws, mk_v_loc fn ty, mk_expr fn e)
+    | Laset (al,acc,ws,v,e) -> Laset (al,acc,ws, mk_v_loc fn v, mk_expr fn e)
     | Lasub (acc,ws,len,v,e) -> Lasub (acc,ws,len, mk_v_loc fn v, mk_expr fn e)
 
   and mk_range fn (dir, e1, e2) = (dir, mk_expr fn e1, mk_expr fn e2)
@@ -89,8 +89,8 @@ end = struct
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
       Cfor (mk_v_loc fn v, mk_range fn r, mk_stmt fn st)
-    | Ccall (inlinf, lvs, c_fn, es) ->
-      Ccall (inlinf, mk_lvals fn lvs, c_fn, mk_exprs fn es)
+    | Ccall (lvs, c_fn, es) ->
+      Ccall (mk_lvals fn lvs, c_fn, mk_exprs fn es)
     | Cwhile (a, st1, e, st2) ->
       Cwhile (a, mk_stmt fn st1, mk_expr fn e, mk_stmt fn st2)
 
@@ -99,10 +99,10 @@ end = struct
   and mk_expr fn expr = match expr with
     | Pconst _ | Pbool _ | Parr_init _ -> expr
     | Pvar v -> Pvar (mk_gvar fn v)
-    | Pget (acc, ws, v, e) -> Pget (acc, ws, mk_gvar fn v, mk_expr fn e)
+    | Pget (al, acc, ws, v, e) -> Pget (al, acc, ws, mk_gvar fn v, mk_expr fn e)
     | Psub (acc, ws, len, v, e) ->
       Psub (acc, ws, len, mk_gvar fn v, mk_expr fn e)
-    | Pload (ws, v, e) -> Pload (ws, mk_v_loc fn v, mk_expr fn e)
+    | Pload (al, ws, v, e) -> Pload (al, ws, mk_v_loc fn v, mk_expr fn e)
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
     | Papp2 (op, e1, e2) -> Papp2 (op, mk_expr fn e1, mk_expr fn e2)
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
@@ -186,7 +186,7 @@ end = struct
     | Psub _ -> dp  (* We ignore sub-array copies  *)
 
     (* We ignore loads for v, but we compute dependencies of v' in ei *)
-    | Pload (_,v',ei) -> app_expr dp (L.unloc v') ei ct
+    | Pload (_, _,v',ei) -> app_expr dp (L.unloc v') ei ct
 
     | Papp1 (_,e1) -> app_expr dp v e1 ct
     | Papp2  (_,e1,e2) -> app_expr (app_expr dp v e1 ct) v e2 ct
@@ -223,7 +223,7 @@ end = struct
         end
 
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
-      | Pload (_,v',ei) ->
+      | Pload (_, _,v',ei) ->
         let dp = app_expr st.dp (L.unloc v') ei st.ct in
         acc, { st with dp = dp }
 
@@ -249,7 +249,7 @@ end = struct
 
       | Pvar v' -> aux_gv acc v'
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
-      | Pload (_,v',ei) -> aux (aux_v acc v') ei
+      | Pload (_, _,v',ei) -> aux (aux_v acc v') ei
 
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
@@ -269,7 +269,7 @@ end = struct
       cfg = mcfg st1.cfg st2.cfg;
       while_vars = Sv.union st1.while_vars st2.while_vars;
       f_done = Ss.union st1.f_done st2.f_done;
-      if_conds = st1.if_conds @ st2.if_conds;
+      if_conds = List.rev_append st1.if_conds st2.if_conds;
       ct = ct }
 
   let set_ct ct st = { st with ct = ct }
@@ -285,7 +285,7 @@ end = struct
     | Lvar v -> pa_expr st (L.unloc v) e
 
     (* For memory stores, we are only interested in v and ei *)
-    | Lmem (_, v, ei) -> pa_expr st (L.unloc v) ei
+    | Lmem (_, _, v, ei) -> pa_expr st (L.unloc v) ei
 
 
   let rec flag_mem_lvs v = function
@@ -339,9 +339,9 @@ end = struct
       pa_flag_setfrom v (List.rev c)
 
     | Cwhile (_, c1, _, c2) ->
-      pa_flag_setfrom v ((List.rev c1) @ (List.rev c2))
+      pa_flag_setfrom v (List.rev_append c1 (List.rev c2))
         
-    | Ccall (_, lvs, _, _) | Csyscall(lvs, _, _) ->
+    | Ccall (lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
       
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
@@ -381,7 +381,7 @@ end = struct
           { st with ct = Sv.union st.ct (Sv.of_list vs) }
         else st in
 
-      let bdy_rev = (List.rev c1) @ (List.rev c2) in
+      let bdy_rev = List.rev_append c1 (List.rev c2) in
       let flags_setfrom = List.fold_left (fun flags_setfrom v -> match v.v_ty with
           | Bty Bool ->
             let new_f =
@@ -401,10 +401,10 @@ end = struct
       let st' = { st' with while_vars = while_vars } in
 
       (* Again, we reset the context after the merge *)
-      pa_stmt fn prog st' (c1 @ c2)
+      pa_stmt fn prog st' (List.append c1 c2)
       |> set_ct st.ct
 
-    | Ccall (_, lvs, fn', es) ->   
+    | Ccall (lvs, fn', es) ->   
       let st = { st with cfg = add_call st.cfg fn fn' } in
       let f_decl = get_fun_def (oget prog) fn' |> oget in
 
@@ -484,9 +484,9 @@ end = struct
         | Expr.Sglob -> sv
         | Expr.Slocal -> Sv.add (L.unloc v.gv) sv
       end
-    | Pget (_,_, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
+    | Pget (_,_, _, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
     | Psub (_,_,_, v, e) -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
-    | Pload (_, v, e) -> collect_vars_e (Sv.add (L.unloc v) sv) e
+    | Pload (_, _, v, e) -> collect_vars_e (Sv.add (L.unloc v) sv) e
     | Papp1 (_,e) -> collect_vars_e sv e
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
@@ -496,7 +496,7 @@ end = struct
   let collect_vars_lv sv = function
     | Lnone _ -> sv
     | Lvar v -> Sv.add (L.unloc v) sv
-    | Laset (_,_, v, e) | Lasub (_,_,_, v, e) | Lmem (_, v, e) ->
+    | Laset (_,_,_, v, e) | Lasub (_,_,_, v, e) | Lmem (_, _, v, e) ->
       collect_vars_e (Sv.add (L.unloc v) sv) e
 
   let collect_vars_lvs sv = List.fold_left collect_vars_lv sv

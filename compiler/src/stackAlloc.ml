@@ -57,12 +57,21 @@ let pp_return fmt n =
 
 let pp_sao fmt sao =
   let open Stack_alloc in
-  Format.fprintf fmt "alignment = %s; size = %a; ioff = %a; extra size = %a; max size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
+  let max_size = Conv.z_of_cz sao.sao_max_size in
+  let total_size =
+    (* if the function is export, we must take into account the alignment
+       of the stack *)
+    match sao.sao_return_address with
+    | RAnone -> Z.add max_size (Z.of_int (size_of_ws sao.sao_align - 1))
+    | _ -> max_size
+  in
+  Format.fprintf fmt "alignment = %s@;size = %a; ioff = %a; extra size = %a@;max size = %a; total size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
     (string_of_ws sao.sao_align)
     Z.pp_print (Conv.z_of_cz sao.sao_size)
     Z.pp_print (Conv.z_of_cz sao.sao_ioff)
     Z.pp_print (Conv.z_of_cz sao.sao_extra_size)
-    Z.pp_print (Conv.z_of_cz sao.sao_max_size)
+    Z.pp_print max_size
+    Z.pp_print total_size
     Z.pp_print (Conv.z_of_cz sao.sao_max_call_depth)
     (pp_list "@;" pp_param_info) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
@@ -95,7 +104,7 @@ module Regalloc = Regalloc (Arch)
 let memory_analysis pp_err ~debug up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog up in
-  let gao, sao = Varalloc.alloc_stack_prog Arch.callstyle Arch.reg_size Arch.aparams.ap_is_move_op p in
+  let gao, sao = Varalloc.alloc_stack_prog Arch.callstyle Arch.reg_size p in
   
   (* build coq info *)
   let crip = Var0.Var.vname (Conv.cvar_of_var Arch.rip) in
@@ -112,7 +121,7 @@ let memory_analysis pp_err ~debug up =
       Stack_alloc.({
         pp_ptr = Conv.cvar_of_var pi.pi_ptr;
         pp_writable = pi.pi_writable;
-        pp_align    = pi.pi_align;
+        pp_align    = pi.pi_align.ac_strict;
       }) in
     let conv_sub (i:Interval.t) = 
       Stack_alloc.{ z_ofs = Conv.cz_of_int i.min; 
@@ -212,24 +221,24 @@ let memory_analysis pp_err ~debug up =
   (* register allocation *)
   let translate_var = Conv.var_of_cvar in
   let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
-  let fds = Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) fds in
-  let fix_csao (_, ro, fd) =
+
+  let internal_size_tbl = Hf.create 117 in
+  let add_internal_size fd sz = Hf.add internal_size_tbl fd sz in
+  let get_internal_size fd _ = Hf.find internal_size_tbl fd.f_name in
+
+  let fix_subroutine_csao (_, fd) =
+    match fd.f_cc with
+    | Export -> ()
+    | Internal -> assert false
+    | Subroutine _ ->
+
     let fn = fd.f_name in
     let sao = Hf.find sao fn in
-    let csao = get_sao fn in 
-    let to_save = ro.ro_to_save in 
-    let has_stack = has_stack fd || to_save <> [] in
-    let rastack = 
-      (fd.f_cc <> Export) &&
-      match ro.ro_return_address with
-      | StackDirect | StackByReg _ -> true
-      | ByReg _ -> false in
-    let rsp = V.clone Arch.rsp_var in
-    let extra =
-      let extra = to_save in
-      if has_stack && ro.ro_rsp = None then extra @ [rsp]
-      else extra in
-      
+    let csao = get_sao fn in
+    let to_save = [] in
+    let rastack = Regalloc.subroutine_ra_by_stack fd in
+    let extra = [] in
+
     let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
 
     let align =
@@ -247,17 +256,157 @@ let memory_analysis pp_err ~debug up =
           let max_call_depth = Z.max max_call_depth fn_max_call_depth in
           align, max_stk, max_call_depth
         ) sao.sao_calls (align, Z.zero, Z.zero) in
+
+    (* if we zeroize the stack, we ensure that the max size is a multiple of the
+       size of the clear step. We use [fd.f_annot.stack_zero_strategy] and not
+       [align], this is on purpose! We know that the first one divides the
+       second one. *)
+    let max_size =
+      let stk_size =
+        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                   (Z.of_int extra_size) in
+      let stk_size =
+        Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size)) in
+      add_internal_size fn stk_size;
+      let max_size = Z.add max_stk stk_size in
+      max_size
+    in
+    let max_call_depth = Z.succ max_call_depth in
+    let saved_stack = Expr.SavedStackNone in
+
+    let conv_to_save x =
+      Conv.cvar_of_var x,
+      List.assoc x extrapos
+    in
+
+    let compare_to_save (_, x) (_, y) = Stdlib.Int.compare y x in
+
+    (* Stack slots for saving callee-saved registers are sorted in increasing order to simplify the check that they are all disjoint. *)
+    let convert_to_save m =
+      m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.cz_of_int n)
+    in
+    let csao =
+      Stack_alloc.{ csao with
+        sao_align = align;
+        sao_ioff = Conv.cz_of_int (if rastack && not (fd.f_cc = Export) then size_of_ws Arch.reg_size else 0);
+        sao_extra_size = Conv.cz_of_int extra_size;
+        sao_max_size = Conv.cz_of_z max_size;
+        sao_max_call_depth = Conv.cz_of_z max_call_depth;
+        sao_to_save = convert_to_save to_save;
+        sao_rsp  = saved_stack;
+        sao_return_address =
+          (* This is a dummy value it will be fixed in fix_csao *)
+          RAstack (None, Conv.cz_of_int 0, None)
+      } in
+    Hf.replace atbl fn csao
+  in
+
+  List.iter fix_subroutine_csao (List.rev fds);
+
+  let fds = Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) get_internal_size fds in
+
+  let fix_csao (_, ro, fd) =
+    match fd.f_cc with
+    | Subroutine _ ->
+      (* It as been already fixed by the previous pass fix_subroutine_csao,
+         we just need to fix the return address *)
+      let fn = fd.f_name in
+      let csao = get_sao fn in
+      let csao =
+      Stack_alloc.{ csao with
+        sao_return_address =
+          match ro.ro_return_address with
+          | StackDirect  -> RAstack (None, Conv.cz_of_int 0, None) (* FIXME stackDirect should provide a tmp register *)
+          | StackByReg (r, tmp) -> RAstack (Some (Conv.cvar_of_var r), Conv.cz_of_int 0, Option.map Conv.cvar_of_var tmp)
+          | ByReg (r, tmp)      -> RAreg (Conv.cvar_of_var r, Option.map Conv.cvar_of_var tmp)
+      } in
+      Hf.replace atbl fn csao
+    | Internal -> assert false
+    | Export ->
+
+    let fn = fd.f_name in
+    let sao = Hf.find sao fn in
+    let csao = get_sao fn in 
+
+    let to_save = ro.ro_to_save in 
+    let has_stack = has_stack fd || to_save <> [] in
+
+    let rsp = V.clone Arch.rsp_var in
+    let extra =
+      (* FIXME: how to make this more generic? *)
+      let extra = List.rev to_save in
+      if has_stack && ro.ro_rsp = None then extra @ [rsp]
+      else extra in
+      
+    let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
+
+    let align, max_stk, max_call_depth =
+      Sf.fold (fun fn (align, max_stk, max_call_depth) ->
+          let sao = get_sao fn in
+          let fn_align = sao.Stack_alloc.sao_align in
+          let align = if wsize_lt align fn_align then fn_align else align in
+          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size) in
+          let max_stk = Z.max max_stk fn_max in
+          let fn_max_call_depth = Conv.z_of_cz (sao.Stack_alloc.sao_max_call_depth) in
+          let max_call_depth = Z.max max_call_depth fn_max_call_depth in
+          align, max_stk, max_call_depth
+        ) sao.sao_calls (align, Z.zero, Z.zero) in
+    (* if we zeroize the stack, we may have to increase the alignment *)
+    let align =
+      match fd.f_cc, fd.f_annot.stack_zero_strategy with
+      | Export, Some (_, Some ws) ->
+          if Z.equal max_stk Z.zero
+            && Z.equal (Conv.z_of_cz csao.Stack_alloc.sao_size) Z.zero
+            && extra_size = 0
+          then
+            (* no stack to clear, we don't change the alignment *)
+            align
+          else
+            let ws = Pretyping.tt_ws ws in
+            if wsize_lt align ws then ws else align
+      | _, _ -> align
+    in
+    (* if we zeroize the stack, we ensure that the stack size of the export
+       function is a multiple of the alignment (this is what we systematically
+       do for subroutines). The difference is that, here, this is reflected
+       by increasing extra_size. *)
+    let extra_size =
+      let stk_size = 
+        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                   (Z.of_int extra_size) in
+      match fd.f_annot.stack_zero_strategy with
+      | Some _ ->
+          let round =
+              Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
+          in
+          Z.to_int (Z.sub round (Conv.z_of_cz csao.Stack_alloc.sao_size))
+      | None -> extra_size
+    in
+    (* if we zeroize the stack, we ensure that the max size is a multiple of the
+       size of the clear step. We use [fd.f_annot.stack_zero_strategy] and not
+       [align], this is on purpose! We know that the first one divides the
+       second one. *)
     let max_size = 
       let stk_size = 
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
                    (Z.of_int extra_size) in
       let stk_size = 
         match fd.f_cc with
-        | Export       -> Z.add stk_size (Z.of_int (size_of_ws align - 1))
-        | Subroutine _ -> 
+        | Export -> stk_size
+        | Subroutine _ ->
           Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
-      Z.add max_stk stk_size in
+      let max_size = Z.add max_stk stk_size in
+      match fd.f_cc, fd.f_annot.stack_zero_strategy with
+      | Export, Some (_, ows) ->
+          let ws =
+            match ows with
+            | Some ws -> Pretyping.tt_ws ws
+            | None -> align (* the default clear step is the alignment *)
+          in
+          Conv.z_of_cz (Memory_model.round_ws ws (Conv.cz_of_z max_size))
+      | _, _ -> max_size
+    in
     let max_call_depth = Z.succ max_call_depth in
     let saved_stack = 
       if has_stack then
@@ -280,21 +429,13 @@ let memory_analysis pp_err ~debug up =
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
-        sao_ioff = Conv.cz_of_int (if rastack && not (fd.f_cc = Export) then size_of_ws Arch.reg_size else 0);
+        sao_ioff = Conv.cz_of_int 0;
         sao_extra_size = Conv.cz_of_int extra_size;
         sao_max_size = Conv.cz_of_z max_size;
         sao_max_call_depth = Conv.cz_of_z max_call_depth;
         sao_to_save = convert_to_save to_save; 
         sao_rsp  = saved_stack;
-        sao_return_address =
-          match fd.f_cc with
-          | Export -> RAnone
-          | Internal -> assert false (* Inline function should have been removed *)
-          | Subroutine _ ->
-              match ro.ro_return_address with
-              | StackDirect  -> RAstack (None, Conv.cz_of_int 0)
-              | StackByReg r -> RAstack (Some (Conv.cvar_of_var r), Conv.cz_of_int 0)
-              | ByReg r      -> RAreg (Conv.cvar_of_var r)
+        sao_return_address = RAnone
       } in
     Hf.replace atbl fn csao in
   List.iter fix_csao (List.rev fds);

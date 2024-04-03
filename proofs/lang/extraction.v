@@ -23,6 +23,9 @@ Extract Constant expr.VarInfo.witness => "Location._dummy".
 Extract Constant expr.var_info => "Location.t".
 Extract Constant expr.InstrInfo.t => "IInfo.t".
 Extract Constant expr.InstrInfo.witness => "IInfo.dummy".
+Extract Constant expr.InstrInfo.with_location => "IInfo.with_location".
+Extract Constant expr.InstrInfo.is_inline => "IInfo.is_inline".
+Extract Constant expr.InstrInfo.var_info_of_ii => "IInfo.var_info_of_ii".
 Extract Constant expr.instr_info => "IInfo.t".
 Extract Constant expr.fun_info => "FInfo.t".
 Extract Constant waes.MixColumns => "(fun _ -> failwith ""MixColumns is not implemented"")".
@@ -47,7 +50,7 @@ Extract Constant ident.Cident.id_kind => "CoreIdent.Cident.id_kind".
 
 Extract Constant ident.Cident.name_of_string => "CoreIdent.Cident.name_of_string".
 Extract Constant ident.Cident.string_of_name => "CoreIdent.Cident.string_of_name".
-
+Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
 
 Cd  "lang/ocaml".
 
@@ -59,16 +62,15 @@ Separate Extraction
   sem_type
   sopn
   expr
+  stack_zero_strategy
   psem_defs
   sem_params_of_arch_extra
   arch_decl
   arch_extra
-  x86_decl_core
   x86_decl
   x86_instr_decl
   x86_extra
   x86_params
-  arm_decl_core
   arm_decl
   arm_instr_decl
   arm_extra

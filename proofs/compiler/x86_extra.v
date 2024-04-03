@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import Utf8.
 Require Import compiler_util.
@@ -279,6 +279,15 @@ Definition assemble_slh_protect
           [::                   [:: y] ::= (VPOR ws)     [:: x; eaux]])
     else Error (E.se_protect_arguments ii).
 
+Definition assemble_slh_move
+  (les : seq lexpr)
+  (res : seq rexpr) :
+  cexec (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
+  let lmmx := if les is [:: LLvar x ] then is_regx x else false in
+  let rmmx := if res is [:: Rexpr (Fvar x) ] then is_regx x else false in
+  let op := if lmmx || rmmx then MOVX else MOV in
+  ok [:: les ::= (op Uptr) res ].
+
 Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
   match o with
   | Oset0 sz =>
@@ -323,7 +332,7 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * re
 
   | Ox86SLHinit => assemble_slh_init outx
   | Ox86SLHupdate => assemble_slh_update ii outx inx
-  | Ox86SLHmove => ok [:: outx ::= (MOV Uptr) inx ]
+  | Ox86SLHmove => assemble_slh_move outx inx
   | Ox86SLHprotect ws => assemble_slh_protect ii ws outx inx
   end.
 

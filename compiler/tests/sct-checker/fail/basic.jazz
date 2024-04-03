@@ -1,0 +1,52 @@
+fn leak_transient(#transient reg u64 x) { x = [x]; }
+
+u64[2] not = { 1, 0 };
+
+fn after_branch(#transient reg u64 a){
+  reg u64 m;
+  m = #init_msf();
+  if a >= 2 { a = m; }
+  a = not[(int) a];
+  a = #protect(a, m);
+}
+
+fn missing_else(#transient reg u64 a){
+  reg u64 m;
+  reg bool b;
+  m = #init_msf();
+  b = a >= 2;
+  if b {
+    a = m;
+    m = #update_msf(b, m);
+  }
+  a = not[(int) a];
+  a = #protect(a, m);
+}
+
+fn missing_then(#transient reg u64 a){
+  reg u64 m;
+  reg bool b;
+  m = #init_msf();
+  b = a >= 2;
+  if b {
+    a = m;
+  } else {
+    m = #update_msf(!b, m);
+  }
+  a = not[(int) a];
+  a = #protect(a, m);
+}
+
+#[constraints="p <= public, t <= transient, secret <= s"]
+fn xof_init(
+  #public reg u64 j,
+  #[poly = p, poly = t] reg ptr u64[25] state,
+  #[poly = p, poly = s] reg ptr u8[32] rho)
+  ->
+  #[poly = p, poly = t] reg ptr u64[25]
+{
+  reg u64 t;
+  t = rho[u64 j];
+  state[j] = t;
+  return state;
+}

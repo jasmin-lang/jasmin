@@ -32,7 +32,6 @@ type tyerror =
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
   | InvalidCast         of P.pty pair
-  | InvalidGlobal       of A.symbol
   | InvalidTypeForGlobal of P.pty
   | NotAPointer         of P.plval
   | GlobArrayNotWord    
@@ -43,10 +42,7 @@ type tyerror =
   | Unsupported         of string
   | UnknownPrim         of A.symbol
   | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
-  | ReturnLocalStack    of A.symbol
   | PtrOnlyForArray
-  | ArgumentNotVar      
-  | BadVariableKind     of W.v_kind
   | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
@@ -99,7 +95,7 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt "unknown function: `%s'" x
 
   | InvalidType (ty, p) ->
-    F.fprintf fmt "the expression as type %a instead of %a"
+    F.fprintf fmt "the expression has type %a instead of %a"
        Printer.pp_ptype ty pp_typat p
 
   | TypeMismatch (t1,t2) ->
@@ -110,9 +106,6 @@ let pp_tyerror fmt (code : tyerror) =
   | InvalidCast (t1,t2) ->
     F.fprintf fmt "can not implicitly cast %a into %a"
       Printer.pp_ptype t1 Printer.pp_ptype t2        
-
-  | InvalidGlobal g ->
-      F.fprintf fmt "invalid use of a global name: ‘%s’" g
 
   | InvalidTypeForGlobal ty ->
       F.fprintf fmt "globals should have type word; found: ‘%a’"
@@ -189,18 +182,8 @@ let pp_tyerror fmt (code : tyerror) =
      F.fprintf fmt "primitive “%s” only accepts the following size annotations: %a" s
        (pp_list ",@ " pp_suffix) sfxs
 
-  | ReturnLocalStack v ->
-      F.fprintf fmt "can not return the local stack variable %s" v
-
   | PtrOnlyForArray -> 
     F.fprintf fmt "Pointer allowed only on array"
-
-  | ArgumentNotVar ->
-    F.fprintf fmt "the expression should be a variable"
-
-  | BadVariableKind kind ->
-    F.fprintf fmt "the variable should have kind %a"
-       PrintCommon.pp_kind kind
 
   | WriteToConstantPointer v ->
     F.fprintf fmt "Cannot write to the constant pointer %s" v
@@ -227,6 +210,13 @@ let pp_tyerror fmt (code : tyerror) =
     F.fprintf fmt "%s" s
 
 (* -------------------------------------------------------------------- *)
+(* Utility functions related to name spaces *)
+let qualify ns n = Format.asprintf "%s::%s" ns n
+
+let fully_qualified (stack: (A.symbol * 'a) list) n =
+  List.fold_left (fun n (ns, _) -> qualify ns n) n stack
+
+(* -------------------------------------------------------------------- *)
 module Env : sig
   type 'asm env
 
@@ -245,21 +235,25 @@ module Env : sig
   val is_reserved : 'asm env -> string -> bool
 
   val set_known_implicits : 'asm env -> (string * string) list -> 'asm env
-  val get_known_implicits : 'asm env -> (string * string) list 
+  val get_known_implicits : 'asm env -> (string * string) list
+
+  val enter_namespace : 'asm env -> A.pident -> 'asm env
+  val exit_namespace : 'asm env -> 'asm env
 
   module Vars : sig
-    val push       : 'asm env -> P.pvar -> 'asm env
-    val push_param : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
-    val find       : A.symbol -> 'asm env -> P.pvar option
-  end
+    val push_global   : 'asm env -> (P.pvar * P.pexpr P.ggexpr) -> 'asm env
+    val push_param    : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
+    val push_local    : 'asm env -> P.pvar -> 'asm env
+    val push_implicit : 'asm env -> P.pvar -> 'asm env
 
-  module Globals : sig
-    val push : 'asm env -> (P.pvar * P.pexpr P.ggexpr) -> 'asm env
-    val find : A.symbol -> 'asm env -> P.pvar option
+    val find : A.symbol -> 'asm env -> (P.pvar * E.v_scope) option
+
+    val iter_locals  : (P.pvar -> unit) -> 'asm env -> unit
+    val clear_locals : 'asm env -> 'asm env
   end
 
   module Funs : sig
-    val push : 'asm env -> (unit, 'asm) P.pfunc -> P.pty list -> 'asm env 
+    val push : 'asm env -> (unit, 'asm) P.pfunc -> P.pty list -> 'asm env
     val find : A.symbol -> 'asm env -> ((unit, 'asm) P.pfunc * P.pty list) option
   end
 
@@ -268,40 +262,47 @@ module Env : sig
     val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) L.located list
   end
 
-end = struct
+end  = struct
+
   type loader = 
-    { loaded : Path.t list (* absolute path *)
+    { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
     ; idir   : Path.t      (* absolute initial path *)
     ; dirs   : Path.t list 
     ; from   : (A.symbol, Path.t) Map.t
     } 
 
+  type 'asm global_bindings = {
+      gb_vars : (A.symbol, P.pvar * E.v_scope) Map.t;
+      gb_funs : (A.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
+    }
+
   type 'asm env = {
-    e_vars    : (A.symbol, P.pvar) Map.t;
-    e_globals : (A.symbol, P.pvar) Map.t;
-    e_funs    : (A.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
+    e_bindings : (A.symbol * 'asm global_bindings) list * 'asm global_bindings;
     e_decls   : (unit, 'asm) P.pmod_item list;
     e_exec    : (P.funname * (Z.t * Z.t) list) L.located list;
     e_loader  : loader;
-    e_reserved : Ss.t;                           (* Set of string (variable name) declared by the user, 
-                                                    fresh variables introduced by the compiler should be disjoint from this set *) 
+    e_declared : P.Spv.t ref; (* Set of local variables declared somewhere in the function *)
+    e_reserved : Ss.t;     (* Set of string (variable name) declared by the user, 
+                              fresh variables introduced by the compiler 
+                              should be disjoint from this set *) 
     e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
   let empty_loader =
-    { loaded = []
+    { loaded = Map.empty
     ; idir = Path.of_string (Sys.getcwd ())
     ; dirs = [[]]
     ; from = Map.empty
     }
 
+  let empty_gb = { gb_vars = Map.empty ; gb_funs = Map.empty }
+
   let empty : 'asm env =
-    { e_vars    = Map.empty
-    ; e_globals = Map.empty 
-    ; e_funs    = Map.empty
+    { e_bindings = [], empty_gb
     ; e_decls   = []
     ; e_exec    = []
     ; e_loader  = empty_loader
+    ; e_declared = ref P.Spv.empty
     ; e_reserved = Ss.empty
     ; e_known_implicits = [];
     }
@@ -310,11 +311,45 @@ end = struct
     { env with e_reserved = Ss.add s env.e_reserved }
 
   let is_reserved env s = 
-    Ss.mem s env.e_reserved 
+    Ss.mem s env.e_reserved
 
   let set_known_implicits env known_implicits = { env with e_known_implicits = known_implicits }
   let get_known_implicits env = env.e_known_implicits
 
+  let enter_namespace env ns =
+    let stack, bot = env.e_bindings in
+    { env with e_bindings = (L.unloc ns, empty_gb) :: stack, bot }
+
+  let merge_bindings on_duplicate ns =
+    Map.foldi (fun n v dst ->
+        let n = qualify ns n in
+        begin match Map.find n dst with
+        | exception Not_found -> ()
+        | (k, _) -> on_duplicate n (fst v) k end;
+        Map.add n v dst)
+
+  let warn_duplicate_var name v v' =
+    warning DuplicateVar (L.i_loc0 v.P.v_dloc)
+      "the variable %s is already declared at %a"
+      name L.pp_loc v'.P.v_dloc
+
+  let err_duplicate_fun name v fd =
+    rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
+
+  let merge_bindings (ns, src) dst =
+    { gb_vars = merge_bindings warn_duplicate_var ns src.gb_vars dst.gb_vars
+    ; gb_funs = merge_bindings err_duplicate_fun ns src.gb_funs dst.gb_funs
+    }
+
+  let exit_namespace env =
+    match env.e_bindings with
+    | [], _ -> assert false
+    | top :: [], bot ->
+       let merged = merge_bindings top bot in
+       { env with e_bindings = [], merged }
+    | top :: (ns, next) :: stack, bot ->
+       let merged = merge_bindings top next in
+       { env with e_bindings = (ns, merged) :: stack, bot }
 
   let add_from env (name, filename) = 
     let p = Path.of_string filename in 
@@ -354,11 +389,12 @@ end = struct
       if Path.is_absolute p then p
       else Path.concat loader.idir p in
     let ap = Path.normalize_in_tree ap in
-    if List.mem ap loader.loaded then None
+    let namespace = fully_qualified (fst env.e_bindings) "<>" in
+    if List.mem ap (Map.find_default [] namespace loader.loaded) then None
     else
-      let e_loader = 
+      let e_loader =
         { loader with
-          loaded = ap :: loader.loaded;
+          loaded = Map.modify_def [] namespace (List.cons ap) loader.loaded;
           dirs = List.tl p :: loader.dirs } in
       Some({ env with e_loader }, Path.to_string p)
 
@@ -368,44 +404,102 @@ end = struct
     
   let decls env = env.e_decls 
 
-  let dependencies env = env.e_loader.loaded
+  let dependencies env =
+    Map.fold ( @ ) env.e_loader.loaded []
+
+  let find (proj: 'asm global_bindings -> (A.symbol, 'a) Map.t) (x: A.symbol) (env: 'asm env) : 'a option =
+    let stack, bot = env.e_bindings in
+    let rec loop x =
+      function
+      | [] -> None
+      | (_, top) :: stack ->
+         match Map.find x (proj top) with
+         | exception Not_found -> loop x stack
+         | v -> Some v
+    in match loop x stack with
+       | None -> Map.Exceptionless.find x (proj bot)
+       | r -> r
+
+  (* Local variables *)
 
   module Vars = struct
-    let push (env : 'asm env) (v : P.pvar) =
-      { env with e_vars = Map.add v.P.v_name v env.e_vars;
-                 e_reserved = Ss.add v.P.v_name env.e_reserved}
-
-    let push_param env (x,_ as d) = 
-      let env = push env x in
-      { env with e_decls = P.MIparam d :: env.e_decls }
 
     let find (x : A.symbol) (env : 'asm env) =
-      Map.Exceptionless.find x env.e_vars
-  end
+      find (fun b -> b.gb_vars) x env
 
-  module Globals = struct
+    let warn_double_decl v map =
+      let name = v.P.v_name in
+      match Map.find name map with
+      | exception Not_found -> ()
+      | v', _ -> warn_duplicate_var name v v'
 
-    let push env (v,_ as d) = 
-      { env with e_globals = Map.add v.P.v_name v env.e_globals;
-                 e_decls = P.MIglobal d :: env.e_decls;
-                 e_reserved = Ss.add v.P.v_name env.e_reserved
-      }
+    let push_core (env : 'asm env) (name: P.Name.t) (v : P.pvar) (s : E.v_scope) =
+      let doit m =
+        warn_double_decl v m.gb_vars;
+        { m with gb_vars = Map.add name (v, s) m.gb_vars }
+      in
+      let e_bindings =
+        match env.e_bindings with
+        | [], bot -> [], doit bot
+        | (ns, top) :: stack, bot ->
+           (ns, doit top) :: stack, bot
+      in
+      { env with e_bindings; e_reserved = Ss.add name env.e_reserved;}
 
-    let find (x : A.symbol) (env : 'asm env) =
-      Map.Exceptionless.find x env.e_globals
+    let rename_var name x =
+      P.GV.mk name x.P.v_kind x.P.v_ty x.P.v_dloc x.P.v_annot
+
+    let push_global env (x, e) =
+      let name = x.P.v_name in
+      let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
+      let env = push_core env name x Sglob in
+      { env with e_decls = P.MIglobal (x, e) :: env.e_decls }
+
+    let push_param env (x, e) =
+      let name = x.P.v_name in
+      let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
+      let env = push_core env name x Slocal in
+      { env with e_decls = P.MIparam (x, e) :: env.e_decls }
+
+    let push_local (env : 'asm env) (v : P.pvar) =
+      env.e_declared := P.Spv.add v !(env.e_declared);
+      push_core env v.P.v_name v Slocal
+
+    let push_implicit (env : 'asm env) (v : P.pvar) =
+      let vars = match env.e_bindings with (_, b) :: _, _ | [], b -> b.gb_vars in
+      assert (not (Map.mem v.P.v_name vars));
+      push_core env v.P.v_name v Slocal
+
+    
+    let iter_locals f (env : 'asm env) = 
+      P.Spv.iter f !(env.e_declared)
+
+    let clear_locals (env : 'asm env) = 
+      { env with e_declared = ref P.Spv.empty } 
+
   end
 
   module Funs = struct
     let find (x : A.symbol) (env : 'asm env) =
-      Map.Exceptionless.find x env.e_funs
+      find (fun b -> b.gb_funs) x env
 
     let push env (v : (unit, 'asm) P.pfunc) rty =
       let name = v.P.f_name.P.fn_name in
+      let v = { v with P.f_name = P.F.mk (fully_qualified (fst env.e_bindings) name) } in
       match find name env with
-      | None -> { env with e_funs = Map.add name (v,rty) env.e_funs;
-                           e_decls = P.MIfun v :: env.e_decls }
-      | Some (fd,_) -> 
-        rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
+      | None ->
+         let doit m =
+           { m with gb_funs = Map.add name (v, rty) m.gb_funs }
+         in
+         let e_bindings =
+           match env.e_bindings with
+           | [], bot -> [], doit bot
+           | (ns, top) :: stack, bot ->
+              (ns, doit top) :: stack, bot
+      in
+      { env with e_bindings; e_decls = P.MIfun v :: env.e_decls }
+      | Some (fd,_) ->
+         err_duplicate_fun name v fd
 
   end
 
@@ -417,7 +511,7 @@ end = struct
 end
 
 (* -------------------------------------------------------------------- *)
-let tt_ws (ws : A.wsize) = Printer.ws_of_ws ws
+let tt_ws (ws : A.wsize) = ws
 
 (* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : W.reference =
@@ -447,32 +541,33 @@ type tt_mode = [
   ]
 
 (* -------------------------------------------------------------------- *)
-let tt_var (mode:tt_mode) (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
-  let v =
+
+let tt_var_core (mode:tt_mode) (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = lc; } = 
+  let v, _ as vs =
     match Env.Vars.find x env with
-    | Some v -> v
+    | Some vs -> vs
     | None -> rs_tyerror ~loc:lc (UnknownVar x) in
   begin match mode with
   | `OnlyParam ->
     if v.P.v_kind <> W.Const then
-      rs_tyerror ~loc:lc (StringError "only param variable are allowed here")
+      rs_tyerror ~loc:lc (StringError "only param variables are allowed here")
   | `NoParam -> 
     if v.P.v_kind = W.Const then
-      rs_tyerror ~loc:lc (StringError "param variable not allowed here")
+      rs_tyerror ~loc:lc (StringError "param variables are not allowed here")
   | `AllVar -> ()
   end;
+  vs
+
+let tt_var (mode:tt_mode) (env : 'asm Env.env) x = 
+  let v, s = tt_var_core mode env x in
+  if s = Sglob then 
+    rs_tyerror ~loc:(L.loc x) (StringError "global variables are not allowed here");
   v
 
 let tt_var_global (mode:tt_mode) (env : 'asm Env.env) v = 
   let lc = v.L.pl_loc in
-  let x, k = 
-    try tt_var mode env v, E.Slocal
-    with TyError _ when mode <> `OnlyParam ->
-      let x = v.L.pl_desc in
-      match Env.Globals.find x env with
-      | Some v -> v, E.Sglob
-      | None -> rs_tyerror ~loc:lc (UnknownVar x) in
-  { P.gv = L.mk_loc lc x; P.gs = k }, x.P.v_ty
+  let x, s = tt_var_core mode env v in
+  { P.gv = L.mk_loc lc x; P.gs = s }, x.P.v_ty
 
 (* -------------------------------------------------------------------- *)
 let tt_fun (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = loc; } =
@@ -919,7 +1014,27 @@ let combine_flags =
 
 let is_combine_flags id =
   List.mem_assoc (L.unloc id) combine_flags
-  
+
+let ensure_int loc i ty =
+  match ty with
+  | P.Bty Int -> i
+  | P.Bty (P.U ws) -> P.Papp1(E.Oint_of_word ws,i)
+  | _ -> rs_tyerror ~loc (TypeMismatch (ty, P.tint))
+
+(* -------------------------------------------------------------------- *)
+let tt_al aa =
+  let open Memory_model in
+  function
+  | None -> (match aa with Warray_.AAdirect -> Unaligned | AAscale -> Aligned)
+  | Some `Unaligned -> Unaligned
+  | Some `Aligned -> Aligned
+
+let ignore_align ~loc =
+  function
+  | None -> ()
+  | Some _al ->
+     warning Always (L.i_loc0 loc) "ignored alignment annotation in array slice"
+
 (* -------------------------------------------------------------------- *)
 let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   match L.unloc pe with
@@ -937,19 +1052,22 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     P.Pvar x, ty
 
   | S.PEFetch me ->
-    let ct, x, e = tt_mem_access ~mode pd env me in
-    P.Pload (ct, x, e), P.Bty (P.U ct)
+    let ct, x, e, al = tt_mem_access ~mode pd env me in
+    P.Pload (al, ct, x, e), P.Bty (P.U ct)
 
-  | S.PEGet (aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
+  | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
-    check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
+    let i = ensure_int (L.loc pi) i ity in
     begin match olen with
-    | None -> P.Pget (aa, ws, x, i), ty
+    | None ->
+       let al = tt_al aa al in
+       P.Pget (al, aa, ws, x, i), ty
     | Some plen ->
+       ignore_align ~loc:(L.loc pe) al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
       let ty = P.Arr(ws, len) in
@@ -1036,7 +1154,7 @@ and tt_expr_cast pd ?(mode=`AllVar) (env : 'asm Env.env) pe ty =
   cast (L.loc pe) e ety ty 
   
 and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
-           (ct, ({ L.pl_loc = xlc } as x), e) = 
+           (al, ct, ({ L.pl_loc = xlc } as x), e) =
   let x = tt_var `NoParam env x in
   check_ty_ptr pd ~loc:xlc x.P.v_ty;
   let e = 
@@ -1048,7 +1166,8 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
   let ct = ct |> Option.map_default tt_ws pd in
-  (ct,L.mk_loc xlc x,e)
+  let al = tt_al AAdirect al in
+  (ct,L.mk_loc xlc x,e, al)
 
 (* -------------------------------------------------------------------- *)
 and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
@@ -1079,7 +1198,7 @@ let tt_vardecl dfl_writable pd (env : 'asm Env.env) ((annot, (sto, xty)), x) =
 let tt_vardecls_push dfl_writable pd (env : 'asm Env.env) pxs =
   let xs  = List.map (tt_vardecl dfl_writable pd env) pxs in
   let env = 
-    List.fold_left (fun env x -> Env.Vars.push env (L.unloc x)) env xs in
+    List.fold_left (fun env x -> Env.Vars.push_local env (L.unloc x)) env xs in
   (env, xs)
 
 (* -------------------------------------------------------------------- *)
@@ -1116,18 +1235,20 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x = tt_var `NoParam env x in
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
-  | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
+  | S.PLArray (al, aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
-    check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
+    let i = ensure_int (L.loc pi) i ity in
     begin match olen with
-    | None -> 
-      loc, (fun _ -> P.Laset (aa, ws, L.mk_loc xlc x, i)), Some ty
+    | None ->
+      let al = tt_al aa al in
+      loc, (fun _ -> P.Laset (al, aa, ws, L.mk_loc xlc x, i)), Some ty
     | Some plen ->
+      ignore_align ~loc al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
       let ty = P.Arr(ws, len) in
@@ -1135,8 +1256,8 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     end
 
   | S.PLMem me ->
-    let ct, x, e = tt_mem_access ~mode:`AllVar pd env me in
-    loc, (fun _ -> P.Lmem (ct, x, e)), Some (P.Bty (P.U ct))
+    let ct, x, e, al = tt_mem_access ~mode:`AllVar pd env me in
+    loc, (fun _ -> P.Lmem (al, ct, x, e)), Some (P.Bty (P.U ct))
 
 (* -------------------------------------------------------------------- *)
 
@@ -1271,14 +1392,7 @@ let prim_of_op exn loc o =
     | Some({L.pl_desc = S.CVS _} ) -> raise exn
     | Some({L.pl_desc = S.CSS(None, _)}) -> None
     | Some({L.pl_desc = S.CSS(Some sz, _)}) ->  
-      Some (match sz with
-      | `W8 -> 8
-      | `W16 -> 16
-      | `W32 -> 32
-      | `W64 -> 64
-      | `W128 -> 128
-      | `W256 -> 256
-        )
+      Some (Annotations.int_of_ws sz)
   in
   let p =
     let f s n =
@@ -1363,11 +1477,18 @@ let pexpr_of_plvalue exn l =
   match L.unloc l with
   | S.PLIgnore      -> raise exn
   | S.PLVar  x      -> L.mk_loc (L.loc l) (S.PEVar x)
-  | S.PLArray(aa,ws,x,e,len)  -> L.mk_loc (L.loc l) (S.PEGet(aa,ws,x,e,len))
-  | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
+  | S.PLArray(al, aa,ws,x,e,len) -> L.mk_loc (L.loc l) (S.PEGet(al, aa,ws,x,e,len))
+  | S.PLMem(ty,x,e,al) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e,al))
 
 
-let tt_lvalues pd env loc (pimp, pls) implicit tys =
+type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {
+  pd : Wsize.wsize;
+  asmOp : ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op Sopn.sopn Sopn.asmOp;
+  known_implicits : (CoreIdent.Name.t * string) list;
+  flagnames: CoreIdent.Name.t list;
+}
+
+let tt_lvalues arch_info env loc (pimp, pls) implicit tys =
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
   let ignore_ = L.mk_loc loc S.PLIgnore in
 
@@ -1385,7 +1506,8 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
         ; "<u" , E.CF_LT Wsize.Unsigned
         ; "<=s", E.CF_LE Wsize.Signed
         ; "<=u", E.CF_LE Wsize.Unsigned
-        ; "==" , E.CF_EQ 
+        ; "==" , E.CF_EQ
+        ; "!=" , E.CF_NEQ
         ; ">=s", E.CF_GE Wsize.Signed
         ; ">=u", E.CF_GE Wsize.Unsigned
         ; ">s" , E.CF_GT Wsize.Signed
@@ -1449,7 +1571,7 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
       a, pimp_c, !implicits
   in
 
-  let ls = List.map (tt_lvalue pd env) pls in
+  let ls = List.map (tt_lvalue arch_info.pd env) pls in
   let ls = check_sig_lvs loc tys ls in
   let li = 
     match pimp_c with
@@ -1460,15 +1582,15 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
         try List.assoc i implicits 
         with Not_found -> 
           rs_tyerror ~loc (string_error "implicit label %s need to be defined" i) in
-      let pargs = List.map get_implicit ["OF"; "CF"; "SF"; "ZF"] in
-      let args = List.map (tt_expr_bool pd env) pargs in
+      let pargs = List.map get_implicit arch_info.flagnames in
+      let args = List.map (tt_expr_bool arch_info.pd env) pargs in
       let doc (c, s) = 
         let error loc = rs_tyerror ~loc (string_error " = ident is expected after %s" (L.unloc c)) in
         let a = 
          Annot.on_attribute 
             ~on_id:(fun loc _nid s -> L.mk_loc loc (S.PLVar (L.mk_loc loc s)))
             error (c,s) in
-        let _, flv, vty = tt_lvalue pd env a in
+        let _, flv, vty = tt_lvalue arch_info.pd env a in
         let e, ety = P.PappN (E.Ocombine_flags (List.assoc (L.unloc c) combines), args), P.tbool in
         let e = vty |> Option.map_default (cast (L.loc a) e ety) e in
         let ety =
@@ -1526,12 +1648,14 @@ let check_lval_pointer loc x =
   | P.Lvar x when P.is_ptr (L.unloc x).P.v_kind -> () 
   | _ -> rs_tyerror ~loc (NotAPointer x)
 
-let mk_call loc is_inline lvs f es =
+let mk_call loc inline lvs f es =
   let open P in
   begin match f.f_cc with
   | Internal -> ()
-  | Export -> if is_inline <> E.InlineFun then rs_tyerror ~loc (string_error "call to export function needs to be inlined")
-  | Subroutine _ when is_inline <> E.InlineFun ->
+  | Export ->
+    if not inline then
+      warning Always (L.i_loc0 loc) "export function will be inlined"
+  | Subroutine _ when not inline ->
     let check_lval = function
       | Lnone _ | Lvar _ | Lasub _ -> ()
       | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
@@ -1561,19 +1685,19 @@ let mk_call loc is_inline lvs f es =
       aux e in
   List.iter2 check_w f.f_args es;
 
-  P.Ccall (is_inline, lvs, f.P.f_name, es)
+  P.Ccall (lvs, f.P.f_name, es)
 
 let tt_annot_vardecls dfl_writable pd env (annot, (ty,vs)) = 
   let aty = annot, ty in
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable pd env vars 
   
-let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
+let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
   match L.unloc pi with
   | S.PIdecl tvs -> 
-    let env, _ = tt_annot_vardecls (fun _ -> true) pd env (annot, tvs) in
+    let env, _ = tt_annot_vardecls (fun _ -> true) arch_info.pd env (annot, tvs) in
     env, []
 
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
@@ -1586,23 +1710,36 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let pi = 
         L.mk_loc (L.loc pi) 
           (S.PIAssign (ls, `Raw, L.mk_loc el (S.PECombF(f, args)), None)) in
-      tt_instr pd asmOp env (annot, pi)
+      tt_instr arch_info env (annot, pi)
 
     else
       let (f,tlvs) = tt_fun env f in
       let _tlvs, tes = f_sig f in
-      let lvs, is = tt_lvalues pd env (L.loc pi) ls None tlvs in
+      let lvs, is = tt_lvalues arch_info env (L.loc pi) ls None tlvs in
       assert (is = []);
-      let es  = tt_exprs_cast pd env (L.loc pi) args tes in
-      let is_inline = 
-        match Annot.ensure_uniq1 "inline" Annot.none annot with
-        | Some () -> E.InlineFun
-        | None -> 
-          match f.P.f_cc with 
-          | FInfo.Internal -> E.InlineFun
-          | FInfo.Export | FInfo.Subroutine _ -> E.DoNotInline in
-      let annot = Annot.consume "inline" annot in
+      let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
+      let is_inline = P.is_inline annot f.P.f_cc in
+      let annot =
+        if is_inline || f.P.f_cc = FInfo.Export
+        then Annotations.add_symbol ~loc:el "inline" annot
+        else annot
+      in
       env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
+
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) 
+        when L.unloc f = "spill" || L.unloc f = "unspill"  ->
+    let op = L.unloc f in
+    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no implicit result" op);
+    if xs <> [] then rs_tyerror ~loc:(L.loc pi) (string_error "%s expects no result" op);
+    let es = tt_exprs arch_info.pd env args in
+    let doit (e, _) = 
+      match e with 
+      | P.Pvar x when P.is_reg_kind (P.kind_i x.gv) -> e
+      | _ ->  rs_tyerror ~loc:(L.loc pi) (string_error "%s expects only reg/reg ptr as arguments" op) in
+    let es = List.map doit es in
+    let op = if op = "spill" then Pseudo_operator.Spill else Pseudo_operator.Unspill in
+    let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in 
+    env, [mk_i ~annot (P.Copn([], AT_keep, p, es))]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
       (* FIXME syscall *)
@@ -1611,7 +1748,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let loc, x, ty =
         match xs with
         | [x] ->
-          let loc, x, oty = tt_lvalue pd env x in
+          let loc, x, oty = tt_lvalue arch_info.pd env x in
           let ty =
             match oty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
@@ -1621,7 +1758,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
           rs_tyerror ~loc:(L.loc pi)
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
-      let es = tt_exprs_cast pd env (L.loc pi) args [ty] in
+      let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty] in
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "open" ->
     (* FIXME syscall *)
@@ -1630,7 +1767,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
     let loc, x, ty =
       match xs with
       | [x] ->
-        let loc, x, oty = tt_lvalue pd env x in
+        let loc, x, oty = tt_lvalue arch_info.pd env x in
         let ty =
           match oty with
           | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
@@ -1642,7 +1779,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
     let _ = tt_as_word (loc, ty) in
     let e, ty = 
       match args with
-      | [e] -> tt_expr pd env e
+      | [e] -> tt_expr arch_info.pd env e
       | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "only a single variable is allowed as input of open")
     in
     (** FIXME: Pass an actual location *)
@@ -1655,7 +1792,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
     let loc, x, ty =
       match xs with
       | [x] ->
-        let loc, x, oty = tt_lvalue pd env x in
+        let loc, x, oty = tt_lvalue arch_info.pd env x in
         let ty =
           match oty with
           | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
@@ -1667,7 +1804,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
     let _ = tt_as_word (loc, ty) in
     let e, ty = 
       match args with
-      | [e] -> tt_expr pd env e
+      | [e] -> tt_expr arch_info.pd env e
       | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "only a single variable is allowed as input of open")
     in
     (** FIXME: Pass an actual location *)
@@ -1680,7 +1817,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
     let loc, x, ty =
       match xs with
       | [x] ->
-        let loc, x, oty = tt_lvalue pd env x in
+        let loc, x, oty = tt_lvalue arch_info.pd env x in
         let ty =
           match oty with
           | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
@@ -1692,9 +1829,9 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
     let e = 
       match args with
       | [e; f] -> 
-          let e, ty = tt_expr pd env e in
+          let e, ty = tt_expr arch_info.pd env e in
           let _ = tt_as_array (L._dummy, ty) in
-          let e2, ty2 = tt_expr pd env f in
+          let e2, ty2 = tt_expr arch_info.pd env f in
           let _ = tt_as_word (L._dummy, ty2) in
           [e; e2]
       | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "write expects two variables as input")
@@ -1707,7 +1844,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let loc, x, ty =
         match xs with
         | [x] ->
-          let loc, x, oty = tt_lvalue pd env x in
+          let loc, x, oty = tt_lvalue arch_info.pd env x in
           let ty =
             match oty with
             | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
@@ -1719,20 +1856,43 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let e = 
         match args with
         | [e; f] -> 
-            let e, ty = tt_expr pd env e in
+            let e, ty = tt_expr arch_info.pd env e in
             let _ = tt_as_array (L._dummy, ty) in
-            let e2, ty2 = tt_expr pd env f in
+            let e2, ty2 = tt_expr arch_info.pd env f in
             let _ = tt_as_word (L._dummy, ty2) in
             [e; e2]
         | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "read expects two variables as input")
       in
       env, [mk_i (P.Csyscall([x], Syscall_t.Read (Conv.pos_of_int 1), e))]
 
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "swap" ->
+      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");
+      let lvs, ty =
+        match xs with
+        | [x; y] ->
+          let loc, x, oxty = tt_lvalue arch_info.pd env x in
+          let yloc, y, _oytu = tt_lvalue arch_info.pd env y in
+          let ty =
+            match oxty with
+            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+            | Some ty -> ty in
+          let _ = 
+             match oxty with
+            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+            | Some yty -> check_ty_eq ~loc:yloc ~from:yty ~to_:ty in
+          [x ty; y ty], ty
+        | _ ->
+          rs_tyerror ~loc:(L.loc pi)
+            (string_error "a pair of destination is expected for swap") in
+      let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty; ty] in
+      let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
+      env, [mk_i (P.Copn(lvs, AT_keep, p, es))]
+
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p = tt_prim asmOp f in
-      let tlvs, tes, arguments = prim_sig asmOp p in
-      let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast pd env (L.loc pi) args tes in
+      let p = tt_prim arch_info.asmOp f in
+      let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
+      let lvs, einstr = tt_lvalues arch_info env (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
       env, mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
@@ -1740,17 +1900,17 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let ws, s = ct in
       let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
-      let p = tt_prim asmOp f in
-      let id = Sopn.asm_op_instr asmOp p in
+      let p = tt_prim arch_info.asmOp f in
+      let id = Sopn.asm_op_instr arch_info.asmOp p in
       let p = cast_opn ~loc:(L.loc pi) id ws p in
-      let tlvs, tes, arguments = prim_sig asmOp p in
-      let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast pd env (L.loc pi) args tes in
+      let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
+      let lvs, einstr = tt_lvalues arch_info env (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
       env, mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
 
   | PIAssign((None,[lv]), `Raw, pe, None) ->
-      let _, flv, vty = tt_lvalue pd env lv in
-      let e, ety = tt_expr ~mode:`AllVar pd env pe in
+      let _, flv, vty = tt_lvalue arch_info.pd env lv in
+      let e, ety = tt_expr ~mode:`AllVar arch_info.pd env pe in
       let e = vty |> Option.map_default (cast (L.loc pe) e ety) e in
       let ety =
         match vty with
@@ -1769,7 +1929,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let pe = prim_of_pe pe in
       let loc = L.loc pi in
       let i = annot, L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
-      tt_instr pd asmOp env i
+      tt_instr arch_info env i
 
   | S.PIAssign((pimp,ls), eqop, pe, None) ->
       let op = oget (peop2_of_eqop eqop) in
@@ -1779,62 +1939,62 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let pe1 = pexpr_of_plvalue exn (List.last ls) in
       let pe  = L.mk_loc loc (S.PEOp2(op,(pe1,pe))) in
       let i   = annot, L.mk_loc loc (S.PIAssign((pimp, ls), `Raw, pe, None)) in
-      tt_instr pd asmOp env i
+      tt_instr arch_info env i
 
   | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
       let exn = Unsupported "if not allowed here" in
       let cpi = S.PIAssign (ls, eqop, e, None) in
-      let env, i = tt_instr pd asmOp env (annot, L.mk_loc loc cpi) in
+      let env, i = tt_instr arch_info env (annot, L.mk_loc loc cpi) in
       let x, ty, e, is =
         match i with
         | { i_desc = P.Cassgn (x, _, ty, e) ; _ } :: is -> x, ty, e, is
         | _ -> rs_tyerror ~loc exn in
       let e' = oget ~exn:(tyerror ~loc exn) (P.expr_of_lval x) in
-      let c = tt_expr_bool pd env cp in
+      let c = tt_expr_bool arch_info.pd env cp in
       env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
 
   | PIIf (cp, st, sf) ->
-      let c  = tt_expr_bool pd env cp in
-      let st = tt_block pd asmOp env st in
-      let sf = Option.map_default (tt_block pd asmOp env) [] sf in
+      let c  = tt_expr_bool arch_info.pd env cp in
+      let st = tt_block arch_info env st in
+      let sf = Option.map_default (tt_block arch_info env) [] sf in
       env, [mk_i (P.Cif (c, st, sf))]
 
   | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
-      let i1   = tt_expr_int pd env i1 in
-      let i2   = tt_expr_int pd env i2 in
+      let i1   = tt_expr_int arch_info.pd env i1 in
+      let i2   = tt_expr_int arch_info.pd env i2 in
       let vx   = tt_var `AllVar env x in
       check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
-      let s    = tt_block pd asmOp env s in
+      let s    = tt_block arch_info env s in
       let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
 
   | PIWhile (s1, c, s2) ->
-      let c  = tt_expr_bool pd env c in
-      let s1 = Option.map_default (tt_block pd asmOp env) [] s1 in
-      let s2 = Option.map_default (tt_block pd asmOp env) [] s2 in
+      let c  = tt_expr_bool arch_info.pd env c in
+      let s1 = Option.map_default (tt_block arch_info env) [] s1 in
+      let s2 = Option.map_default (tt_block arch_info env) [] s2 in
       let a = 
         Option.map_default (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
       let annot = Annot.consume "align" annot in
       env, [mk_i ~annot (P.Cwhile (a, s1, c, s2))]
 
 (* -------------------------------------------------------------------- *)
-and tt_block pd asmOp env (pb : S.pblock) =
-  snd (tt_cmd pd asmOp env (L.unloc pb))
+and tt_block arch_info env (pb : S.pblock) =
+  snd (tt_cmd arch_info env (L.unloc pb))
 
-and tt_cmd pd asmOp env c =
+and tt_cmd arch_info env c =
   match c with
   | [] -> env, []
   | i::c -> 
-    let env, i = tt_instr pd asmOp env i in
-    let env, c = tt_cmd pd asmOp env c in
+    let env, i = tt_instr arch_info env i in
+    let env, c = tt_cmd arch_info env c in
     env, i @ c
 
 (* -------------------------------------------------------------------- *)
-let tt_funbody pd asmOp env (pb : S.pfunbody) =
+let tt_funbody arch_info env (pb : S.pfunbody) =
  (* let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in 
   let env = fst (tt_vardecls_push (fun _ -> true) env vars) in *)
-  let env, bdy = tt_cmd pd asmOp env pb.S.pdb_instr in
+  let env, bdy = tt_cmd arch_info env pb.S.pdb_instr in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (Option.default [] pb.pdb_ret) in
@@ -1902,16 +2062,63 @@ let tt_call_conv loc params returns cc =
 
 (* -------------------------------------------------------------------- *)
 
-let process_f_annot annot =
-  let open A in
+let process_f_annot loc funname f_cc annot =
+  let open FInfo in
 
   let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
- 
-  { retaddr_kind          = Annot.ensure_uniq1 "returnaddress"  mk_ra                annot;
+
+  let retaddr_kind =
+    let kind = Annot.ensure_uniq1 "returnaddress" mk_ra annot in
+    if kind <> None && not (FInfo.is_subroutine f_cc) then
+      hierror
+        ~loc:(Lone loc)
+        ~funname
+        ~kind:"unexpected annotation"
+        "returnaddress only applies to subroutines";
+    kind
+  in
+
+  let stack_zero_strategy =
+
+    let strategy =
+      let mk_szs = Annot.filter_string_list None Glob_options.stack_zero_strategies in
+      let strategy = Annot.ensure_uniq1 "stackzero" mk_szs annot in
+      if strategy <> None && f_cc <> Export then
+        hierror
+          ~loc:(Lone loc)
+          ~funname
+          ~kind:"unexpected annotation"
+          "stackzero only applies to export functions";
+      if Option.is_none strategy then
+        !Glob_options.stack_zero_strategy
+      else
+        strategy
+    in
+
+    let size =
+      let size = Annot.ensure_uniq1 "stackzerosize" (Annot.wsize None) annot in
+      if Option.is_none size then
+        !Glob_options.stack_zero_size
+      else
+        size
+    in
+
+    match strategy, size with
+    | None, None -> None
+    | None, Some _ ->
+        warning Always
+          (L.i_loc0 loc)
+          "\"stackzerosize\" is ignored, since you did not specify a strategy with attribute \"stackzero\"";
+        None
+    | Some szs, _ -> Some (szs, size)
+  in
+
+  { retaddr_kind;
     stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot;
     stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot;
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
     max_call_depth        = Annot.ensure_uniq1 "calldepth"      (Annot.pos_int None) annot;
+    stack_zero_strategy;
     f_user_annot          = annot;
   }
 
@@ -1939,9 +2146,7 @@ and add_reserved_oc env =
 
 (* -------------------------------------------------------------------- *)
 
-let known_implicits = ["OF","_of_"; "CF", "_cf_"; "SF", "_sf_"; "ZF", "_zf_"] 
-
-let add_known_implicits env c = 
+let add_known_implicits arch_info env c =
   let env = add_reserved_c env c in
   let create env s = 
     if not (Env.is_reserved env s) then s
@@ -1954,31 +2159,42 @@ let add_known_implicits env c =
   let env, known_implicits = 
     List.map_fold (fun env (s1, s2) ->
         let s2 = create env s2 in
-        let env = Env.Vars.push env (P.PV.mk s2 (Reg(Normal, Direct)) P.tbool L._dummy []) in
-        env, (s1, s2)) env known_implicits in
-  Env.set_known_implicits env known_implicits 
+        let env = Env.Vars.push_implicit env (P.PV.mk s2 (Reg(Normal, Direct)) P.tbool L._dummy []) in
+        env, (s1, s2)) env arch_info.known_implicits in
+  Env.set_known_implicits env known_implicits
 
 
-let tt_fundef pd asmOp (env : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
+let warn_unused_variables env f = 
+  let used = List.fold_left (fun s v -> P.Spv.add (L.unloc v) s) P.Spv.empty f.P.f_ret in
+  let used = P.Spv.union used (P.pvars_c f.P.f_body) in
+  let pp_var fmt x = F.fprintf fmt "%s.%s" x.P.v_name (CoreIdent.string_of_uid x.P.v_id) in
+  Env.Vars.iter_locals (fun x -> 
+   if not (P.Spv.mem x used) then 
+     warning UnusedVar (L.i_loc0 x.v_dloc) "unused variable %a" pp_var x)
+    env
+
+let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
+  let env = Env.Vars.clear_locals env0 in
   if is_combine_flags pf.pdf_name then
     rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
   let inret = Option.map_default (List.map L.unloc) [] pf.pdf_body.pdb_ret in
   let dfl_mut x = List.mem x inret in
   
   let envb, args = 
-    let env, args = List.map_fold (tt_annot_vardecls dfl_mut pd) env pf.pdf_args in
-    let env = add_known_implicits env pf.pdf_body.pdb_instr in
+    let env, args = List.map_fold (tt_annot_vardecls dfl_mut arch_info.pd) env pf.pdf_args in
+    let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
     env, List.flatten args in
-  let rty  = Option.map_default (List.map (tt_type pd env |- snd |- snd)) [] pf.pdf_rty in
+  let rty  = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
   let oannot = Option.map_default (List.map fst) [] pf.pdf_rty in
-  let body, xret = tt_funbody pd asmOp envb pf.pdf_body in
+  let body, xret = tt_funbody arch_info envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in
+  let name = L.unloc pf.pdf_name in
   let fdef =
     { P.f_loc   = loc;
-      P.f_annot = process_f_annot pf.pdf_annot;
+      P.f_annot = process_f_annot loc name f_cc pf.pdf_annot;
       P.f_cc    = f_cc;
-      P.f_name  = P.F.mk (L.unloc pf.pdf_name);
+      P.f_name  = P.F.mk name;
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;
       P.f_args  = args;
       P.f_body  = body;
@@ -1988,13 +2204,15 @@ let tt_fundef pd asmOp (env : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env 
 
   check_return_statement ~loc fdef.P.f_name rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
+  
+  warn_unused_variables envb fdef;
 
-  Env.Funs.push env fdef rty
+  Env.Funs.push env0 fdef rty
 
 (* -------------------------------------------------------------------- *)
 let tt_global_def pd env (gd:S.gpexpr) =
   let f e = 
-    let pe,ety = tt_expr ~mode:`OnlyParam pd env e in
+    let pe,ety = tt_expr ~mode:`AllVar pd env e in
     (L.mk_loc e.pl_loc pe, ety) in
   let array_of_string s =
     L.unloc s |> String.to_list |> List.map @@ fun c ->
@@ -2035,34 +2253,44 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
 
   let x = P.PV.mk (L.unloc gd.S.pgd_name) W.Global ty (L.loc gd.S.pgd_name) [] in
 
-  Env.Globals.push env (x,d)
+  Env.Vars.push_global env (x,d)
 
 (* -------------------------------------------------------------------- *)
-let rec tt_item pd asmOp (env : 'asm Env.env) pt : 'asm Env.env =
+let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
-  | S.PParam  pp -> tt_param  pd env (L.loc pt) pp
-  | S.PFundef pf -> tt_fundef pd asmOp env (L.loc pt) pf
-  | S.PGlobal pg -> tt_global pd env (L.loc pt) pg
+  | S.PParam  pp -> tt_param  arch_info.pd env (L.loc pt) pp
+  | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
+  | S.PGlobal pg -> tt_global arch_info.pd env (L.loc pt) pg
   | S.Pexec   pf ->
     Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
-  | S.Prequire (from, fs) -> 
-    List.fold_left (tt_file_loc pd asmOp from) env fs 
+  | S.Prequire (from, fs) ->
+    List.fold_left (tt_file_loc arch_info from) env fs
+  | S.PNamespace (ns, items) ->
+     let env = Env.enter_namespace env ns in
+     let env = List.fold_left (tt_item arch_info) env items in
+     let env = Env.exit_namespace env in
+     env
 
-and tt_file_loc pd asmOp from env fname = 
-  fst (tt_file pd asmOp env from (Some (L.loc fname)) (L.unloc fname))
+and tt_file_loc arch_info from env fname =
+  fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))
 
-and tt_file pd asmOp env from loc fname = 
+and tt_file arch_info env from loc fname =
   match Env.enter_file env from loc fname with
   | None -> env, []
-  | Some(env, fname) -> 
+  | Some(env, fname) ->
     let ast   = Parseio.parse_program ~name:fname in
-    let ast   = BatFile.with_file_in fname ast in
-    let env   = List.fold_left (tt_item pd asmOp) env ast in
+    let ast =
+      try BatFile.with_file_in fname ast
+      with Sys_error(err) ->
+        let loc = Option.map_default (fun l -> Lone l) Lnone loc in
+        hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
+    in
+    let env   = List.fold_left (tt_item arch_info) env ast in
     Env.exit_file env, ast
 
 (* -------------------------------------------------------------------- *)
-let tt_program pd asmOp (env : 'asm Env.env) (fname : string) =
-  let env, ast = tt_file pd asmOp env None None fname in
+let tt_program arch_info (env : 'asm Env.env) (fname : string) =
+  let env, ast = tt_file arch_info env None None fname in
   env, Env.decls env, ast
 
 (* FIXME :

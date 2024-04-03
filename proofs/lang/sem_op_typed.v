@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Export type expr sem_type.
 Require Export flag_combination.
@@ -127,18 +127,16 @@ Section WITH_PARAMS.
 
 Context {cfcd : FlagCombinationParams}.
 
-Definition sem_combine_flags
-  (o : combine_flags) (bof bcf bsf bzf : bool) : exec bool :=
-  let '(n, cfc) := cf_tbl o in
-  let b := cfc_xsem negb andb orb (fun x y => x == y) bof bcf bsf bzf cfc in
-  ok (if n then ~~ b else b).
+Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
+  cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
 
 Definition sem_opN_typed (o: opN) :
   let t := type_of_opN o in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
-  | Ocombine_flags o => sem_combine_flags o
+  | Ocombine_flags cf =>
+      fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.
 
 End WITH_PARAMS.

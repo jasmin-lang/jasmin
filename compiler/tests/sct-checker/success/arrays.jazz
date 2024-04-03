@@ -1,0 +1,36 @@
+param int N = 2;
+
+#[sct="{ ptr: transient, val: { n: d, s:secret } } × transient → { n: d, s: secret }"]
+fn transient_read(
+  reg ptr u64[N] p,
+  reg u64 i
+) -> reg u64 {
+  reg u64 x;
+  x = #init_msf();
+  x = i if i < N;
+  x = p[(int) x];
+  return x;
+}
+
+#[sct="public * d -> d"]
+fn safe_access(reg u64 c x) -> reg u64 {
+  stack u64[1] s;
+  if c != 0 {
+    s[0] = x;
+    x = s[0];
+  }
+  return x;
+}
+
+#[sct="public × d → d"]
+fn safe_direct_access(
+  reg u64 c,
+  reg u8 x
+) -> reg u8 {
+  stack u64[1] s;
+  if c != 0 {
+    s.[u8 3] = x;
+    x = s.[u8 3];
+  }
+  return x;
+}

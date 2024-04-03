@@ -1,6 +1,6 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 Require Import
   type
@@ -63,6 +63,8 @@ Definition ak_reg_imm16 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAimm U16 ] ] ].
 Definition ak_reg_addr : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
+Definition ak_reg_imm8_imm8 : i_args_kinds :=
+  [:: [:: [:: CAreg ]; [:: CAimm U8 ]; [:: CAimm U8 ] ] ].
 
 Definition ak_reg_reg_reg : i_args_kinds :=
     [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ] ].
@@ -72,6 +74,8 @@ Definition ak_reg_reg_imm8 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U8 ] ] ].
 Definition ak_reg_reg_imm16 : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U16 ] ] ].
+Definition ak_reg_reg_imm8_imm8 : i_args_kinds :=
+  [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAimm U8 ]; [:: CAimm U8 ] ] ].
 
 Definition ak_reg_reg_reg_reg : i_args_kinds :=
   [:: [:: [:: CAreg ]; [:: CAreg ]; [:: CAreg ] ; [:: CAreg ] ] ].
@@ -168,5 +172,11 @@ Definition idt_drop1 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop1.
 Definition idt_drop2 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop2.
 Definition idt_drop3 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop3.
 Definition idt_drop4 : instr_desc_t -> instr_desc_t := idt_dropn semi_drop4.
+
+Definition rtuple_drop5th
+  {t0 t1 t2 t3 t4 : stype}
+  (xs : exec (sem_tuple [:: t0; t1; t2; t3; t4 ])) :=
+  Let: (:: x0, x1, x2, x3 & x4 ) := xs in
+  ok (:: x0, x1, x2 & x3 ).
 
 End WITH_ARCH.

@@ -20,9 +20,9 @@ type 'len gexpr =
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
-  | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
+  | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
-  | Pload  of wsize * 'len gvar_i * 'len gexpr
+  | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
@@ -45,8 +45,8 @@ val is_reg_direct_kind : v_kind -> bool
 type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
- | Lmem  of wsize * 'len gvar_i * 'len gexpr
- | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
+ | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
+ | Laset of Memory_model.aligned * Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
  | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
 
 type 'len glvals = 'len glval list
@@ -64,7 +64,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
-  | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
   i_desc : ('len,'info,'asm) ginstr_r;
@@ -78,7 +78,7 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 (* ------------------------------------------------------------------------ *)
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot: Annotations.f_annot;
+    f_annot: FInfo.f_annot;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -202,6 +202,7 @@ val vars_e  : expr -> Sv.t
 val vars_es : expr list -> Sv.t
 val vars_i  : ('info,'asm) instr -> Sv.t
 val vars_c  : ('info,'asm) stmt  -> Sv.t
+val pvars_c  : ('info,'asm) pstmt  -> Spv.t
 val vars_fc : ('info,'asm) func  -> Sv.t
 
 val locals  : ('info,'asm) func -> Sv.t
@@ -269,13 +270,12 @@ val has_call_or_syscall : ('len, 'info, 'asm) gstmt -> bool
 val has_annot : Annotations.symbol -> ('len, 'info, 'asm) ginstr -> bool
 
 (* -------------------------------------------------------------------- *)
+val is_inline : Annotations.annotations -> FInfo.call_conv -> bool
+
+(* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
 val clamp_pe : pelem -> Z.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
 type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
 type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra
-
-
-
-

@@ -29,7 +29,7 @@ fn rotate(reg u128 r, inline int count) -> reg u128 {
 inline
 fn gimli_body (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u128 {
   reg u128 a, b, c, d, e;
-  inline int round, pattern;
+  inline int round;
 
   for round = 24 downto 0 {
     x = rotate(x, 24);
@@ -64,7 +64,7 @@ fn gimli_body (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u1
 
     if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
       reg u32 m;
-      m = 0x9e377900 ^32u round;
+      m = 0x9e377900 +32u round;
       a = (128u)m;
       x ^= a;
     }
@@ -74,16 +74,16 @@ fn gimli_body (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u1
 }
 
 export
-fn gimli(reg u64 state) {
+fn gimli(reg u64 io) {
   reg u128 x, y, z;
 
-  x = (u128)[state + 16 * 0];
-  y = (u128)[state + 16 * 1];
-  z = (u128)[state + 16 * 2];
+  x = (u128)[io + 16 * 0];
+  y = (u128)[io + 16 * 1];
+  z = (u128)[io + 16 * 2];
 
   (x,y,z) = gimli_body(x,y,z); 
 
-  (u128)[state + 16 * 0] = x;
-  (u128)[state + 16 * 1] = y;
-  (u128)[state + 16 * 2] = z;
+  (u128)[io + 16 * 0] = x;
+  (u128)[io + 16 * 1] = y;
+  (u128)[io + 16 * 2] = z;
 }

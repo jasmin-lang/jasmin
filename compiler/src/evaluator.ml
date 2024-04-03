@@ -124,7 +124,7 @@ let small_step1 ep spp sip s =
     | Cwhile (_, c1, e, c2) ->
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
-    | Ccall(_,xs,fn,es) ->
+    | Ccall(xs,fn,es) ->
       let vargs' = exn_exec ii (sem_pexprs nosubword ep spp true gd s1 es) in
       let f = 
         match get_fundef s.s_prog.p_funcs fn with
@@ -206,10 +206,10 @@ let pp_val fmt v =
     Format.fprintf fmt "@[[";
     for i = 0 to ip-2 do
       let i = Conv.cz_of_int i in
-      Format.fprintf fmt "%a;@ " pp_res (WArray.get p AAscale U8 t i);
+      Format.fprintf fmt "%a;@ " pp_res (WArray.get p Aligned AAscale U8 t i);
     done;
     if 0 < ip then 
-      pp_res fmt (WArray.get p AAscale U8 t (Conv.cz_of_int (ip-1)));
+      pp_res fmt (WArray.get p Aligned AAscale U8 t (Conv.cz_of_int (ip-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty

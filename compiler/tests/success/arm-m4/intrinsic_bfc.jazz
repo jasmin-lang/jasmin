@@ -1,0 +1,12 @@
+export
+fn bfc(reg u32 x) -> reg u32 {
+    x = #BFC(x, 0, 1);
+    x = #BFC(x, 31, 1);
+    x = #BFC(x, 0, 32);
+
+    reg bool b;
+    ?{ "<s" = b } = #CMP(x, 5);
+    x = #BFCcc(x, 0, 32, b, x);
+
+    return x;
+}

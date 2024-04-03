@@ -12,8 +12,8 @@ let inspect_gvar k { gs; gv } =
 let rec inspect_e k = function
   | Pconst _ | Pbool _ | Parr_init _ -> k
   | Pvar x -> inspect_gvar k x
-  | Pget (_, _, x, e) | Psub (_, _, _, x, e) -> inspect_gvar (inspect_e k e) x
-  | Pload (_, _, e) | Papp1 (_, e) -> inspect_e k e
+  | Pget (_, _, _, x, e) | Psub (_, _, _, x, e) -> inspect_gvar (inspect_e k e) x
+  | Pload (_, _, _, e) | Papp1 (_, e) -> inspect_e k e
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
@@ -22,7 +22,7 @@ and inspect_es k es = List.fold_left inspect_e k es
 
 let inspect_lv k = function
   | Lnone _ | Lvar _ -> k
-  | Lmem (_, _, e) | Laset (_, _, _, e) | Lasub (_, _, _, _, e) -> inspect_e k e
+  | Lmem (_, _, _, e) | Laset (_, _, _, _, e) | Lasub (_, _, _, _, e) -> inspect_e k e
 
 let inspect_lvs k xs = List.fold_left inspect_lv k xs
 
@@ -36,7 +36,7 @@ and inspect_instr_r k = function
   | Cif (g, a, b) | Cwhile (_, a, g, b) ->
       inspect_stmt (inspect_stmt (inspect_e k g) a) b
   | Cfor (_, (_, e1, e2), s) -> inspect_stmt (inspect_es k [ e1; e2 ]) s
-  | Ccall (_, xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
+  | Ccall (xs, fn, es) -> with_fun (inspect_lvs (inspect_es k es) xs) fn
 
 let slice fs (gd, fds) =
   let funs =
@@ -55,5 +55,17 @@ let slice fs (gd, fds) =
         if Sf.mem fd.f_name k.funs then inspect_stmt k fd.f_body else k)
       { vars = Sv.empty; funs } fds
   in
-  ( List.filter (fun (x, _) -> Sv.mem x k.vars) gd,
-    List.filter (fun fd -> Sf.mem fd.f_name k.funs) fds )
+  (* Keep only global variables that are referenced *)
+  let gd = List.filter (fun (x, _) -> Sv.mem x k.vars) gd in
+  (* Keep only functions that are referenced *)
+  let fds = List.filter (fun fd -> Sf.mem fd.f_name k.funs) fds in
+  (* Turn export functions that are not in the fs list into inline functions *)
+  let fds =
+    List.map
+      (fun fd ->
+        if List.mem fd.f_name.fn_name fs || not (FInfo.is_export fd.f_cc) then
+          fd
+        else { fd with f_cc = Internal })
+      fds
+  in
+  (gd, fds)

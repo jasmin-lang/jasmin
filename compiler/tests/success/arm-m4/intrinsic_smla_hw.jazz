@@ -1,0 +1,18 @@
+export
+fn smla_hw(reg u32 x y acc) -> reg u32 {
+    reg u32 r;
+    r = #SMLABB(x, y, acc);
+    r = #SMLABT(x, y, r);
+    r = #SMLATB(x, y, r);
+    r = #SMLATT(x, y, r);
+
+    reg bool b;
+    ?{ "<s" = b } = #CMP(x, y);
+    r = #SMLABBcc(x, y, r, b, r);
+    r = #SMLABTcc(x, y, r, b, r);
+    r = #SMLATBcc(x, y, r, b, r);
+    r = #SMLATTcc(x, y, r, b, r);
+
+    r = r;
+    return r;
+}

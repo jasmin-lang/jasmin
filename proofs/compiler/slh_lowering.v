@@ -18,7 +18,7 @@
 
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 Require Import expr.
 Require constant_prop flag_combination.
@@ -59,16 +59,16 @@ Definition cond_not_found (ii : instr_info) oe e : pp_error_loc :=
 
 Definition lvar_variable (ii: instr_info) : pp_error_loc :=
   pp_user_error (Some ii) None
-     (pp_s "miss-speculation flag should be stored into register").
+     (pp_s "misspeculation flag should be stored into register").
 
 Definition expr_variable (ii: instr_info) e : pp_error_loc :=
   pp_user_error (Some ii) None
-     (pp_vbox [:: pp_s "only register allowed for miss-speculation flag:";
+     (pp_vbox [:: pp_s "only register allowed for misspeculation flag:";
                   pp_e e]).
 
 Definition msf_not_found_r (x:var_i) (known : Sv.t) : pp_error_loc :=
    pp_user_error None (Some (v_info x))
-     (pp_vbox [:: pp_box [:: pp_s "Variable"; pp_var x; pp_s "is not a miss-speculation flag"];
+     (pp_vbox [:: pp_box [:: pp_s "Variable"; pp_var x; pp_s "is not a misspeculation flag"];
                   pp_box [:: pp_s "Known are"; pp_Sv known]]).
 
 Definition msf_not_found (ii : instr_info) (x:var_i) (known : Sv.t) : pp_error_loc :=
@@ -205,7 +205,7 @@ Context
   {asm_op : Type}
   {asmop : asmOp asm_op}
   {msfsz : MSFsize}
-  {eft : eqType} {pT : progT eft}.
+  {pT : progT}.
 
 Section CHECK_SLHO.
 
@@ -450,7 +450,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
       Let _ := chk_mem ii cond in
       check_while ii cond (check_cmd c0) (check_cmd c1) Loop.nb env
 
-  | Ccall _ xs fn es =>
+  | Ccall xs fn es =>
       let '(in_t, out_t) := fun_info fn in
       Let _ := check_f_args ii env es in_t in
       check_f_lvs ii env xs out_t
@@ -516,7 +516,7 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       Let c1' := lower_cmd c1 in
       ok (Cwhile al c0' b c1')
 
-    | Ccall _ _ _ _ =>
+    | Ccall _ _ _ =>
         ok ir
     end
   in
@@ -536,7 +536,7 @@ Definition is_shl_none ty :=
 
 Definition lower_slh_prog (entries : seq funname) (p : prog) : cexec prog :=
    Let _ := assert (all (fun f => all is_shl_none (fst (fun_info f))) entries)
-                   (E.pp_user_error None None (pp_s "exported function should not take an miss-speculation flag as input")) in
+                   (E.pp_user_error None None (pp_s "export function should not take a misspeculation flag as input")) in
    Let p_funcs := map_cfprog_name lower_fd (p_funcs p) in
    ok  {| p_funcs  := p_funcs;
           p_globs := p_globs p;

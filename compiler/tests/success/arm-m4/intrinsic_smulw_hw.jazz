@@ -1,0 +1,14 @@
+export
+fn smulw_hw(reg u32 x y) -> reg u32 {
+    reg u32 r;
+    r = #SMULWB(x, y);
+    r = #SMULWT(r, y);
+
+    reg bool b;
+    ?{ "<s" = b } = #CMP(r, y);
+    r = #SMULWBcc(r, y, b, r);
+    r = #SMULWTcc(r, y, b, r);
+
+    r = r;
+    return r;
+}

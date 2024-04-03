@@ -4,8 +4,8 @@ val fill_in_missing_names : ('info, 'asm) Prog.func -> ('info, 'asm) Prog.func
 
 type retaddr = 
   | StackDirect
-  | StackByReg of var
-  | ByReg of var
+  | StackByReg of var * var option
+  | ByReg of var * var option
 
 type reg_oracle_t = {
     ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
@@ -20,6 +20,9 @@ module type Regalloc = sig
   val renaming : (unit, extended_op) func -> (unit, extended_op) func
   val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
 
+  val subroutine_ra_by_stack : (unit, extended_op) func -> bool
+
+
   (** Returns:
     - the input function with variables turned into registers
     - the set of killed registers (see note below)
@@ -31,7 +34,9 @@ module type Regalloc = sig
 
    *)
   val alloc_prog :
-    (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
+    (Var0.Var.var -> var) ->
+    ((unit, extended_op) func -> 'a -> bool) ->
+    ((unit, extended_op) func -> 'a -> Z.t) ->
     ('a * (unit, extended_op) func) list ->
     ('a * reg_oracle_t * (unit, extended_op) func) list
 end

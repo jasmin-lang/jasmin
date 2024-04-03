@@ -2,14 +2,14 @@
   (name common)
   (wrapped false)
   (libraries jasmin.jasmin)
-  (flags -rectypes)
+  (flags (:standard -rectypes))
   (modules common))
 
 (tests
   (libraries jasmin.jasmin common)
   (deps
     error_messages.jazz)
-  (flags -rectypes)
+  (flags (:standard -rectypes))
   (modules sct_errors)
   (names
     sct_errors))
@@ -17,8 +17,16 @@
 (tests
   (libraries jasmin.jasmin common)
   (deps
-    annot.jazz)
-  (flags -rectypes)
-  (modules annot)
+    (glob_files success/*)
+    (glob_files fail/*))
+  (flags (:standard -rectypes))
+  (modules accept reject)
   (names
-    annot))
+    accept reject))
+
+(tests
+  (libraries jasmin.jasmin angstrom)
+  (flags (:standard -rectypes))
+  (modules sct_annot)
+  (names
+    sct_annot))

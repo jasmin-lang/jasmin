@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.
@@ -541,6 +541,8 @@ Definition get_var wdb vm x :=
   Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in
   ok v.
 
+Definition get_vars wdb vm := mapM (get_var wdb vm).
+
 Definition vm_initialized_on vm : seq var → Prop :=
   all (λ x, is_ok (get_var true vm x >>= of_val (vtype x))).
 
@@ -1006,11 +1008,11 @@ Section REL_EQUIV.
   Qed.
 
   Lemma eq_on_eq_vm vm1 vm2 vm1' vm2' d :
-    vm1  =1   vm2 →
+    (vm1  =1   vm2)%vm →
     vm1' =[d] vm2' →
     vm1  =[\d] vm1'→
     vm2  =[\d] vm2' →
-    vm1' =1   vm2'.
+    (vm1' =1   vm2')%vm.
   Proof.
     move => out on t1 t2 x.
     case: (Sv_memP x d); first exact: on.
@@ -1088,7 +1090,7 @@ Section REL_EQUIV.
   Proof. by move => h x _; exact: h. Qed.
 
   Lemma vm_eq_eq_on dom vm1 vm2 :
-    vm1 =1 vm2 →
+    (vm1 =1 vm2)%vm →
     vm1 =[dom] vm2.
   Proof. by move => h x _; exact: h. Qed.
 

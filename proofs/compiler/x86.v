@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import sem_type arch_decl x86_decl x86_instr_decl.
 
 Set   Implicit Arguments.
@@ -47,4 +47,4 @@ Definition x86_eval_cond (get : rflag -> result error bool) (c : condt) :=
 
 #[global]
 Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
-  {| eval_cond := x86_eval_cond |}.
+  {| eval_cond := fun _ => x86_eval_cond |}.

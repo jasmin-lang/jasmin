@@ -1,0 +1,12 @@
+export
+fn test(reg u64 a b) -> reg u64 {
+  reg bool cond;
+  reg u64 res one;
+
+  ?{ "!=" = cond } = #CMP_64(a, b);
+  res = 0;
+  one = 1;
+  res = one if(cond);
+
+  return res;
+}

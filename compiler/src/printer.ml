@@ -8,15 +8,6 @@ module E = Expr
 module F = Format
 
 (* -------------------------------------------------------------------- *)
-let ws_of_ws = function
-    | `W8   -> W.U8
-    | `W16  -> W.U16
-    | `W32  -> W.U32
-    | `W64  -> W.U64
-    | `W128 -> W.U128
-    | `W256 -> W.U256
-
-(* -------------------------------------------------------------------- *)
 let pp_print_X fmt z =
   Format.fprintf fmt "%s" (Z.format "#X" z)
 
@@ -46,13 +37,15 @@ let pp_ge pp_len pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_gvar fmt v
-  | Pget(aa,ws,x,e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None
+  | Pget(al,aa,ws,x,e) ->
+    pp_arr_access pp_gvar pp_expr fmt al aa ws x e
   | Psub(aa,ws,len,x,e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e (Some len)
-  | Pload(ws,x,e) ->
-    F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
-      pp_btype (U ws) pp_var_i x pp_expr e
+    pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
+  | Pload(al,ws,x,e) ->
+    F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
+      pp_btype (U ws)
+      pp_aligned al
+      pp_var_i x pp_expr e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
@@ -72,13 +65,15 @@ let pp_ge pp_len pp_var =
 let pp_glv pp_len pp_var fmt = function
   | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
-  | Lmem (ws, x, e) ->
-    F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
-     pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
-  | Laset(aa, ws, x, e) ->
-    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e None
+  | Lmem (al, ws, x, e) ->
+    F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
+     pp_btype (U ws)
+     pp_aligned al
+     (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
+  | Laset(al, aa, ws, x, e) ->
+    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) fmt al aa ws x e
   | Lasub(aa, ws, len, x, e) ->
-    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e (Some len)
+    pp_arr_slice (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e len
 
 
 (* -------------------------------------------------------------------- *)
@@ -97,7 +92,7 @@ let rec pp_simple_attribute fmt =
   function
   | Annotations.Aint z -> Z.pp_print fmt z
   | Aid s | Astring s -> F.fprintf fmt "%S" s
-  | Aws ws -> F.fprintf fmt "%s" (string_of_ws (ws_of_ws ws))
+  | Aws ws -> F.fprintf fmt "%s" (string_of_ws ws)
   | Astruct a -> F.fprintf fmt "(%a)" pp_annotations a
 
 and pp_attribute fmt = function
@@ -126,7 +121,7 @@ let pp_align fmt = function
   | E.NoAlign -> ()
 
 let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
-  F.fprintf fmt "%a" pp_info i.i_info;
+  F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
   | Cassgn(x, tg, ty, Parr_init n) ->
@@ -189,12 +184,11 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       (pp_cblock pp_info pp_len pp_opn pp_var) c (pp_ge pp_len pp_var) e
       (pp_cblock pp_info pp_len pp_opn pp_var) c'
 
-  | Ccall(ii, x, f, e) ->
+  | Ccall(x, f, e) ->
     let pp_x fmt = function
       | [] -> ()
       | x -> F.fprintf fmt "%a =@ " (pp_glvs pp_len pp_var) x in
-    F.fprintf fmt "@[<hov 2>%s%a%s(%a);@]"
-      (match ii with | E.InlineFun -> "#inline " | E.DoNotInline -> "")
+    F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
       pp_x x f.fn_name (pp_ges pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)
@@ -279,9 +273,9 @@ let pp_pprog pd asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
-let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
+let pp_fun ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
-  let pp_locals fmt = Sv.iter (F.fprintf fmt "%a;@ " pp_vd) in
+  let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
   let locals = locals fd in
   let ret = List.map L.unloc fd.f_ret in
   let pp_ret fmt () =
@@ -377,12 +371,18 @@ let pp_saved_stack ~debug fmt = function
   | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar x)
   | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" Z.pp_print (Conv.z_of_cz z)
 
+
+let pp_tmp_option ~debug =
+   Format.pp_print_option (fun fmt x -> Format.fprintf fmt " [tmp = %a]" (pp_var ~debug) (Conv.var_of_cvar x))
+
 let pp_return_address ~debug fmt = function
-  | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar x)
-  | Expr.RAstack(Some x, z) -> 
-    Format.fprintf fmt "%a, RSP + %a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz z)
-  | Expr.RAstack(None, z) -> 
-    Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz z)
+  | Expr.RAreg (x, o) ->
+    Format.fprintf fmt "%a%a" (pp_var ~debug) (Conv.var_of_cvar x) (pp_tmp_option ~debug) o
+
+  | Expr.RAstack(Some x, z, o) ->
+    Format.fprintf fmt "%a, RSP + %a%a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz z) (pp_tmp_option ~debug) o
+  | Expr.RAstack(None, z, o) ->
+    Format.fprintf fmt "RSP + %a%a" Z.pp_print (Conv.z_of_cz z) (pp_tmp_option ~debug) o
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
 let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
@@ -420,9 +420,13 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
   let rec pp_err fmt pp_e =
     match pp_e with
     | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
+    | Compiler_util.PPEz z -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
     | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
     | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc
+    | Compiler_util.PPElval x ->
+       x |> Conv.lval_of_clval |>
+       pp_glv pp_len (pp_dvar ~debug) fmt
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" fn.fn_name
     | Compiler_util.PPEiinfo ii ->
       let i_loc, _ = ii in

@@ -1,6 +1,8 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
+
+From mathcomp Require Import word_ssrZ.
 
 Require Import
   arch_params
@@ -11,6 +13,7 @@ Require Import
   linearization
   lowering
   stack_alloc
+  stack_zeroization
   slh_lowering.
 Require Import
   arch_decl
@@ -20,7 +23,10 @@ Require Import
   arm_decl
   arm_extra
   arm_instr_decl
-  arm_lowering.
+  arm_params_core
+  arm_params_common
+  arm_lowering
+  arm_stack_zeroization.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -29,168 +35,119 @@ Unset Printing Implicit Defensive.
 Section Section.
 Context {atoI : arch_toIdent}.
 
-Definition arm_op_mov (x y : var_i) : fopn_args :=
-  ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar y) ]).
-
-Definition arm_op_movi (x : var_i) (imm : Z) : fopn_args :=
-  let e := fconst reg_size imm in
-  ([:: LLvar x ], Oarm (ARM_op MOV default_opts), [:: Rexpr e ]).
-
-Definition arm_op_movt (x : var_i) (imm : Z) : fopn_args :=
-  let e := fconst U16 imm in
-  ([:: LLvar x ], Oarm (ARM_op MOVT default_opts), [:: Rexpr (Fvar x); Rexpr e ]).
-
-Definition arm_op_sub (x y z : var_i) : fopn_args :=
-  let f v := Rexpr (Fvar v) in
-  ([:: LLvar x ], Oarm (ARM_op SUB default_opts), map f [:: y; z ]).
-
-Definition arm_op_str_off (x y : var_i) (off : Z) : fopn_args :=
-  let lv := Store reg_size y (fconst Uptr off) in
-  ([:: lv ], Oarm (ARM_op STR default_opts), [:: Rexpr (Fvar x) ]).
-
-Definition arm_op_arith_imm
-  (op : arm_mnemonic) (x y : var_i) (imm : Z) : fopn_args :=
-  let ey := Rexpr (Fvar y) in
-  let eimm := fconst reg_size imm in
-  ([:: LLvar x ], Oarm (ARM_op op default_opts), [:: ey; Rexpr eimm ]).
-
-Definition arm_op_addi (x y : var_i) (imm : Z) : fopn_args :=
-  arm_op_arith_imm ADD x y imm.
-
-Definition arm_op_subi (x y : var_i) (imm : Z) : fopn_args :=
-  arm_op_arith_imm SUB x y imm.
-
-Definition arm_op_align (x y : var_i) (al : wsize) :=
-  arm_op_arith_imm BIC x y (wsize_size al - 1).
-
-(* Precondition: [0 <= imm < wbase reg_size]. *)
-Definition arm_cmd_load_large_imm (x : var_i) (imm : Z) : seq fopn_args :=
-  let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
-  [:: arm_op_movi x lbs; arm_op_movt x hbs ].
-
-(* Return a command that performs an operation with an immediate argument,
-   loading it into a register if needed.
-   In symbols,
-       R[x] := R[y] <+> imm
- *)
-Definition arm_cmd_large_arith_imm
-  (on_reg : var_i -> var_i -> var_i -> fopn_args)
-  (on_imm : var_i -> var_i -> Z -> fopn_args)
-  (x y : var_i)
-  (imm : Z) :
-  seq fopn_args :=
-  arm_cmd_load_large_imm x imm ++ [:: on_reg x y x ].
-
-Definition arm_cmd_large_subi (x y : var_i) (imm : Z) : seq fopn_args :=
-  arm_cmd_large_arith_imm arm_op_sub arm_op_subi x y imm.
-
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)
+
+Definition is_load e :=
+  if e is Pload _ _ _ _ then true else false.
 
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
   option instr_r :=
-  let ofs := eword_of_int reg_size ofs in
-  let: (op, args) :=
-    match mk_mov vpk with
-    | MK_LEA => (ADR, [:: add y ofs ])
-    | MK_MOV => (ADD, [:: y; ofs ])
-    end in
-  Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args).
+  let mk oa :=
+    let: (op, args) := oa in
+     Some (Copn [:: x ] tag (Oarm (ARM_op op default_opts)) args) in
+  match mk_mov vpk with
+  | MK_LEA => mk (ADR, [:: if ofs == Z0 then y else add y (eword_of_int reg_size ofs) ])
+  | MK_MOV =>
+    match x with
+    | Lvar x_ =>
+      if is_load y then
+        if ofs == Z0 then mk (LDR, [:: y]) else None
+      else
+        if ofs == Z0 then mk (MOV, [:: y])
+        else
+          (* This allows to remove constraint in register allocation *)
+          if is_arith_small ofs then mk (ADD, [::y; eword_of_int reg_size ofs ])
+          else
+            if y is Pvar y_ then
+              if [&& v_var x_ != v_var y_.(gv), is_lvar y_, vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
+                Some (Copn [::x; Lvar y_.(gv)] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
+              else None
+            else None
+    | Lmem _ _ _ _ =>
+      if ofs == Z0 then mk (STR, [:: y]) else None
+    | _ => None
+    end
+  end.
 
 Definition arm_immediate (x: var_i) z :=
   Copn [:: Lvar x ] AT_none (Oarm (ARM_op MOV default_opts)) [:: cast_const z ].
+
+Definition arm_swap t (x y z w : var_i) :=
+  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarm_swap reg_size))) [:: Plvar z; Plvar w].
 
 Definition arm_saparams : stack_alloc_params :=
   {|
     sap_mov_ofs := arm_mov_ofs;
     sap_immediate := arm_immediate;
+    sap_swap := arm_swap;
   |}.
-
 
 (* ------------------------------------------------------------------------ *)
 (* Linearization parameters. *)
 
 Section LINEARIZATION.
 
-Notation vtmpi := {| v_var := to_var R12; v_info := dummy_var_info; |}.
+Notation vtmpi  := (mk_var_i (to_var R12)).
+Notation vtmp2i := (mk_var_i (to_var LR)).
 
-(* TODO_ARM: This assumes 0 <= sz < 4096. *)
-Definition arm_allocate_stack_frame (rspi : var_i) (sz : Z) :=
-  arm_op_subi rspi rspi sz.
+Definition arm_allocate_stack_frame (rspi : var_i) (tmp: option var_i) (sz : Z) :=
+  if tmp is Some aux then
+    ARMFopn.smart_subi_tmp rspi aux sz
+  else
+    [:: ARMFopn.subi rspi rspi sz].
 
-(* TODO_ARM: This assumes 0 <= sz < 4096. *)
-Definition arm_free_stack_frame (rspi : var_i) (sz : Z) :=
-  arm_op_addi rspi rspi sz.
-
-(* TODO_ARM: Review. This seems unnecessary. *)
-Definition arm_lassign
-  (lv : lexpr) (ws : wsize) (e : rexpr) : option _ :=
-  let args :=
-    match lv with
-    | LLvar _ =>
-        if ws is U32
-        then
-          match e with
-          | Rexpr (Fapp1 (Oword_of_int U32) (Fconst _))
-          | Rexpr (Fvar _) =>
-              Some (MOV, e)
-          | Load _ _ _ =>
-              Some (LDR, e)
-          | _ =>
-              None
-          end
-        else
-          None
-    | Store _ _ _ =>
-        if store_mn_of_wsize ws is Some mn
-        then Some (mn, e)
-        else None
-    end
-  in
-  if args is Some (mn, e')
-  then Some ([:: lv ], Oarm (ARM_op mn default_opts), [:: e' ])
-  else None.
+Definition arm_free_stack_frame (rspi : var_i) (tmp : option var_i) (sz : Z) :=
+  if tmp is Some aux then
+    ARMFopn.smart_addi_tmp rspi aux sz
+  else
+    [:: ARMFopn.addi rspi rspi sz].
 
 Definition arm_set_up_sp_register
   (rspi : var_i)
   (sf_sz : Z)
   (al : wsize)
-  (r : var_i) :
-  option (seq fopn_args) :=
-  if (0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z
-  then
-    let i0 := arm_op_mov r rspi in
-    let load_imm := arm_cmd_large_subi vtmpi rspi sf_sz in
-    let i1 := arm_op_align vtmpi vtmpi al in
-    let i2 := arm_op_mov rspi vtmpi in
-    Some (i0 :: load_imm ++ [:: i1; i2 ])
-  else
-    None.
+  (r : var_i)
+  (tmp : var_i) :
+  seq fopn_args :=
+  let load_imm := ARMFopn.smart_subi tmp rspi sf_sz in
+  let i0 := ARMFopn.align tmp tmp al in
+  let i1 := ARMFopn.mov r rspi in
+  let i2 := ARMFopn.mov rspi tmp in
+  load_imm ++ [:: i0; i1; i2 ].
 
-Definition arm_set_up_sp_stack
-  (rspi : var_i) (sf_sz : Z) (al : wsize) (off : Z) : option (seq fopn_args) :=
-  if (0 <=? sf_sz)%Z && (sf_sz <? wbase reg_size)%Z
-  then
-    let load_imm := arm_cmd_large_subi vtmpi rspi sf_sz in
-    let i0 := arm_op_align vtmpi vtmpi al in
-    let i1 := arm_op_str_off rspi vtmpi off in
-    let i2 := arm_op_mov rspi vtmpi in
-    Some (load_imm ++ [:: i0; i1; i2 ])
-  else
-    None.
+Definition arm_tmp  : Ident.ident := vname (v_var vtmpi).
+Definition arm_tmp2 : Ident.ident := vname (v_var vtmp2i).
 
-Definition arm_tmp : Ident.ident := vname (v_var vtmpi).
+Definition arm_lmove (xd xs : var_i) :=
+  ([:: LLvar xd], Oarm (ARM_op MOV default_opts), [:: Rexpr (Fvar xs)]).
+
+Definition arm_check_ws ws := ws == reg_size.
+
+Definition arm_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
+  let ws := reg_size in
+  let mn := STR in
+  ([:: Store Aligned ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]).
+
+Definition arm_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
+  let ws := reg_size in
+  let mn := LDR in
+  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load Aligned ws xs (fconst ws ofs)]).
 
 Definition arm_liparams : linearization_params :=
   {|
-    lip_tmp := arm_tmp;
+    lip_tmp  := arm_tmp;
+    lip_tmp2 := arm_tmp2;
     lip_not_saved_stack := [:: arm_tmp ];
     lip_allocate_stack_frame := arm_allocate_stack_frame;
     lip_free_stack_frame := arm_free_stack_frame;
     lip_set_up_sp_register := arm_set_up_sp_register;
-    lip_set_up_sp_stack := arm_set_up_sp_stack;
-    lip_lassign := arm_lassign;
+    lip_lmove := arm_lmove;
+    lip_check_ws := arm_check_ws;
+    lip_lstore  := arm_lstore;
+    lip_lstores := lstores_imm_dfl arm_tmp2 arm_lstore ARMFopn.smart_addi is_arith_small;
+    lip_lloads  := lloads_imm_dfl arm_tmp2 arm_lload  ARMFopn.smart_addi is_arith_small;
   |}.
 
 End LINEARIZATION.
@@ -202,8 +159,7 @@ End LINEARIZATION.
 #[ local ]
 Definition arm_fvars_correct
   (fv : fresh_vars)
-  {eft : eqType}
-  {pT : progT eft}
+  {pT : progT}
   (fds : seq fun_decl) :
   bool :=
   fvars_correct (all_fresh_vars fv) (fvars fv) fds.
@@ -316,6 +272,14 @@ Definition arm_agparams : asm_gen_params :=
   |}.
 
 (* ------------------------------------------------------------------------ *)
+(* Stack zeroization parameters. *)
+
+Definition arm_szparams : stack_zeroization_params :=
+  {|
+    szp_cmd := stack_zeroization_cmd;
+  |}.
+
+(* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
 
 Definition arm_is_move_op (o : asm_op_t) : bool :=
@@ -336,6 +300,7 @@ Definition arm_params : architecture_params lowering_options :=
     ap_lip := arm_liparams;
     ap_lop := arm_loparams;
     ap_agp := arm_agparams;
+    ap_szp := arm_szparams;
     ap_shp := arm_shparams;
     ap_is_move_op := arm_is_move_op;
   |}.

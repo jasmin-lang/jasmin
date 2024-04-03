@@ -21,10 +21,12 @@ find:compiler/safetylib:*.mli
 compiler/src/LICENSE.puf
 compiler/scripts/runtest
 compiler/Makefile
-find:compiler:dune
+compiler/dune
 compiler/dune-project
 compiler/jasmin.opam
+compiler/safetylib/dune
 compiler/src/CIL/.keep
+compiler/src/dune
 compiler/config/tests.config
 
 # EasyCrypt library

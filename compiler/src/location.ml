@@ -18,7 +18,7 @@ let _dummy = {
   loc_echar = -1;
 }
 
-type i_loc = { 
+type i_loc = {
     uid_loc  : int;
     base_loc : t;
     stack_loc: t list;
@@ -40,8 +40,8 @@ let of_lexbuf (lb : lexbuf) =
   let p2 = Lexing.lexeme_end_p lb in
   make p1 p2
 
-let tostring (p : t) =
-  let spos =
+let tostring_pos ?(full=false) (p : t) =
+  if full then
     if p.loc_start = p.loc_end then
       Printf.sprintf "line %d (%d)"
         (fst p.loc_start) (snd p.loc_start)
@@ -52,25 +52,47 @@ let tostring (p : t) =
       Printf.sprintf "line %d (%d) to line %d (%d)"
         (fst p.loc_start) (snd p.loc_start)
         (fst p.loc_end  ) (snd p.loc_end  )
-  in
-    Printf.sprintf "\"%s\", %s" p.loc_fname spos
+  else
+    if fst p.loc_start = fst p.loc_end then
+      Printf.sprintf "line %d"
+        (fst p.loc_start)
+    else
+      Printf.sprintf "line %d to line %d"
+        (fst p.loc_start)
+        (fst p.loc_end  )
 
-let pp_loc fmt (p:t) = 
-  Format.fprintf fmt "%s" (tostring p)
+let tostring ?full (p : t) =
+  let spos = tostring_pos ?full p in
+  Printf.sprintf "\"%s\", %s" p.loc_fname spos
 
-let pp_sloc fmt (p:t) = 
+let pp_loc ?full fmt (p:t) =
+  Format.fprintf fmt "%s" (tostring ?full p)
+
+let pp_sloc fmt (p:t) =
   Format.fprintf fmt "line %d" (fst p.loc_start)
 
-let pp_iloc fmt ({base_loc = l; stack_loc = ls}:i_loc) = 
+let pp_iloc ?full fmt { base_loc = l; stack_loc = ls; _ } =
+  let last = ref _dummy in
+  let pp_loc fmt l =
+    if !last.loc_fname <> l.loc_fname then pp_loc ?full fmt l
+    else Format.fprintf fmt "%s" (tostring_pos ?full l);
+    last := l in
   let pp_sep fmt () = Format.fprintf fmt "@ from " in
-  Format.fprintf fmt "@[<v 2>%a@]" (Format.pp_print_list ~pp_sep pp_loc) (l::ls)
+  Format.fprintf fmt "@[<v>%a@]" (Format.pp_print_list ~pp_sep pp_loc) (l::ls)
+
+let pp_iloc_short = pp_iloc ~full:false
+
+let tostring = tostring ~full:true
+let pp_loc = pp_loc ~full:true
+let pp_iloc = pp_iloc ~full:true
+
 
 let isdummy (p : t) =
   p.loc_bchar < 0 || p.loc_echar < 0
 
 let merge (p1 : t) (p2 : t) =
-  if isdummy p1 then p2 
-  else if isdummy p2 then p1 
+  if isdummy p1 then p2
+  else if isdummy p2 then p1
   else
     { loc_fname = p1.loc_fname;
       loc_start = min p1.loc_start p2.loc_start;
@@ -120,7 +142,7 @@ let set_oloc oloc f x =
 (* -------------------------------------------------------------------- *)
 let i_loc_uid = ref 0
 
-let i_loc l ls = 
+let i_loc l ls =
   incr i_loc_uid;
   {
     uid_loc = !i_loc_uid;

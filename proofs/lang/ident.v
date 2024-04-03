@@ -1,13 +1,11 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
-Require Import Sint63 strings utils gen_map tagged.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
+Require Import Sint63 strings utils gen_map tagged wsize.
 Require Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Require x86_decl_core arm_decl_core.
 
 Module Type CORE_IDENT.
 
@@ -22,6 +20,8 @@ Module Type CORE_IDENT.
 
   Parameter name_of_string : string → name.
   Parameter string_of_name : name → string.
+
+  Parameter spill_to_mmx : t -> bool.
 
 End CORE_IDENT.
 
@@ -43,6 +43,7 @@ Module Cident : CORE_IDENT.
   Definition name_of_string of string := 1%uint63.
   Definition string_of_name of name := ""%string.
 
+  Definition spill_to_mmx (x : t) := false.
 End Cident.
 
 Module Tident <: TAGGED with Definition t := Cident.t
@@ -73,4 +74,5 @@ Module Ident <: IDENT.
   Definition name_of_string : string → name := Cident.name_of_string.
   Definition string_of_name : name → string := Cident.string_of_name.
 
+  Definition spill_to_mmx : ident -> bool := Cident.spill_to_mmx.
 End Ident.

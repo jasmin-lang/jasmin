@@ -71,8 +71,6 @@ module Hvl = Hashtbl.Make(Vl)
 module Mvl = Map.Make(Vl)
 module Svl = Set.Make(Vl)
 
-let constants = Svl.of_list Vl.constants
-
 (* --------------------------------------------------------- *)
 (* Inequalities                                              *)
 
@@ -239,7 +237,8 @@ end = struct
     let succ = successors l in
     let pp succ =
       Format.fprintf fmt "%a <= @[%a@],@ " Vl.pp vl
-        (Format.pp_print_list ~pp_sep:(fun _ -> Format.print_space)  (fun fmt s -> Vl.pp fmt (vlevel s))) succ in
+        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "@ ")
+           (fun fmt s -> Vl.pp fmt (vlevel s))) succ in
     if debug then pp succ
     else
       let succ =
@@ -282,9 +281,6 @@ module VlPairs = struct
   let add_le (n1, s1) (n2, s2) =
     Lvl.add_le n1 n2; Lvl.add_le s1 s2
   let add_le_speculative s' (_, s) = Lvl.add_le s' s
-
-  let equal (n1, s1) (n2, s2) =
-    Lvl.equal n1 n2 && Lvl.equal s1 s2
 
   let normalise (l, _) = (l, l)
 end

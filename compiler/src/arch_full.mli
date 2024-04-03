@@ -24,6 +24,7 @@ module type Core_arch = sig
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
+  val alloc_stack_need_extra : Z.t -> bool
 
   val lowering_opt : lowering_options
   val not_saved_stack : var list
@@ -31,6 +32,11 @@ module type Core_arch = sig
   val pp_asm : Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
 
   val callstyle : reg callstyle
+
+  val known_implicits : (Name.t * string) list
+
+  val is_ct_asm_op : asm_op -> bool
+  val is_ct_asm_extra : extra_op -> bool
 
 end
 
@@ -64,6 +70,9 @@ module type Arch = sig
 
   val callstyle : var callstyle 
   
+  val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
+
+  val is_ct_sopn : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op -> bool
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch

@@ -14,19 +14,19 @@ let gsubst_ty (flen: 'len1 -> 'len2) ty =
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, flen e)
 
-let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
+let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init (flen n)
   | Pvar v -> f v
-  | Pget (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
-  | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen len, gsubst_gvar f v, gsubst_e flen f e)
-  | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e flen f e)
+  | Pget (al, aa, ws, v, e) -> Pget(al, aa, ws, gsubst_gvar f v, gsubst_e flen f e)
+  | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen ~loc:(L.loc v.gv) len, gsubst_gvar f v, gsubst_e flen f e)
+  | Pload (al, ws, v, e) -> Pload (al, ws, gsubst_vdest f v, gsubst_e flen f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e flen f e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
-  | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty flen ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
+  | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty (flen ?loc:None) ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
 
 and gsubst_gvar f v = 
   match f v with
@@ -38,21 +38,25 @@ and gsubst_vdest f v =
   assert (is_gkvar v);
   v.gv
 
-let gsubst_lval flen f lv =
+let gsubst_lval (flen: ?loc:L.t -> 'len1 -> 'len2) f lv =
   match lv with
-  | Lnone(i,ty)  -> Lnone(i, gsubst_ty flen ty)
+  | Lnone(i,ty)  -> Lnone(i, gsubst_ty (flen ~loc:i) ty)
   | Lvar v       -> Lvar (gsubst_vdest f v)
-  | Lmem (w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e flen f e)
-  | Laset(aa,w,v,e) -> Laset(aa, w, gsubst_vdest f v, gsubst_e flen f e)
-  | Lasub(aa,w,len,v,e) -> Lasub(aa, w, flen len, gsubst_vdest f v, gsubst_e flen f e)
+  | Lmem (al, w,v,e) -> Lmem(al, w, gsubst_vdest f v, gsubst_e flen f e)
+  | Laset(al, aa,w,v,e) -> Laset(al, aa, w, gsubst_vdest f v, gsubst_e flen f e)
+  | Lasub(aa,w,len,v,e) -> Lasub(aa, w, flen ~loc:(L.loc v) len, gsubst_vdest f v, gsubst_e flen f e)
 
 let gsubst_lvals flen f  = List.map (gsubst_lval flen f)
 let gsubst_es flen f = List.map (gsubst_e flen f)
 
-let rec gsubst_i flen f i =
+let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
   let i_desc =
     match i.i_desc with
-    | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_ty flen ty, gsubst_e flen f e)
+    | Cassgn(x, tg, ty, e) ->
+      let e = gsubst_e flen f e in
+      let x = gsubst_lval flen f x in
+      let ty = gsubst_ty (flen ?loc:None) ty in
+      Cassgn(x, tg, ty, e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
     | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
@@ -60,23 +64,23 @@ let rec gsubst_i flen f i =
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
     | Cwhile(a, c, e, c') -> 
       Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, gsubst_c flen f c')
-    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals flen f x, fn, gsubst_es flen f e) in
+    | Ccall(x,fn,e) -> Ccall(gsubst_lvals flen f x, fn, gsubst_es flen f e) in
   { i with i_desc }
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
 
-let gsubst_func flen f fc =
+let gsubst_func (flen: ?loc:L.t -> 'len1 -> 'len2) f fc =
   let dov v = L.unloc (gsubst_vdest f (L.mk_loc L._dummy v)) in
   { fc with
-    f_tyin = List.map (gsubst_ty flen) fc.f_tyin;
+    f_tyin = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyin;
     f_args = List.map dov fc.f_args;
     f_body = gsubst_c flen f fc.f_body;
-    f_tyout = List.map (gsubst_ty flen) fc.f_tyout;
+    f_tyout = List.map (gsubst_ty (flen ?loc:None)) fc.f_tyout;
     f_ret  = List.map (gsubst_vdest f) fc.f_ret
   }
 
 let subst_func f fc =
-  gsubst_func (fun ty -> ty)
+  gsubst_func (fun ?loc:_ ty -> ty)
      (fun v -> if is_gkvar v then f v.gv else Pvar v) fc
 
 (* ---------------------------------------------------------------- *)
@@ -84,7 +88,7 @@ let subst_func f fc =
 type psubst = pexpr ggvar -> pexpr
 
 let rec psubst_e (f: psubst) e =
-  gsubst_e (psubst_e f) f e
+  gsubst_e (fun ?loc:_ -> psubst_e f) f e
   
 
 let psubst_ty f (ty:pty) : pty = 
@@ -151,7 +155,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
             f_args = List.map dov fc.f_args;
-            f_body = gsubst_c (psubst_e subst_v) subst_v fc.f_body;
+            f_body = gsubst_c (fun ?loc:_ -> psubst_e subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
@@ -181,7 +185,11 @@ let rec int_of_expr ?loc e =
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
-let isubst_len ?loc e = Z.to_int (int_of_expr ?loc e)
+let isubst_len ?loc e =
+  let z = int_of_expr ?loc e in
+  try Z.to_int z
+  with Z.Overflow ->
+    hierror ?loc "cannot define a (sub-)array of size %a, this number is too big" Z.pp_print z
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty
@@ -284,58 +292,57 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
   | Pconst z ->
       z
 
-  | Papp1 (Oneg k, e) ->
-      clamp_k k (Z.neg (clamp_k k (constant_of_expr e)))
-
-  | Papp2 (Oadd k, e1, e2) ->
-      let e1 = clamp_k k (constant_of_expr e1) in
-      let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Z.add e1 e2)
-
-  | Papp2 (Osub k, e1, e2) ->
-      let e1 = clamp_k k (constant_of_expr e1) in
-      let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Z.sub e1 e2)
-
-  | Papp2 (Omul k, e1, e2) ->
-      let e1 = clamp_k k (constant_of_expr e1) in
-      let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Z.mul e1 e2)
-
-  | PappN(Opack(ws,pe), es) ->
-      let es = List.map constant_of_expr es in
-      let k = int_of_pe pe in
-      let e = 
-        List.fold_left (fun n e -> 
-            Z.add (Z.shift_left n k) (clamp_pe pe e)) Z.zero es in
-      clamp ws e
-
   | _ -> raise NotAConstantExpr
 
 
 let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
+
+  let global_tbl = Hv.create 101 in
+  let add_glob x gv = Hv.add global_tbl x gv in
+  let get_glob x = Hv.find_option global_tbl (Conv.var_of_cvar x) in
+
   let mk_word ws e =
-    Word0.wrepr ws (Conv.cz_of_z (clamp ws (constant_of_expr e))) in
+    let open Constant_prop in
+    let e = Conv.cexpr_of_expr e in
+    let c = const_prop_e (fun _ -> assert false) (Some get_glob) Var0.Mvar.empty e in
+    let z = constant_of_expr (Conv.expr_of_cexpr c) in
+    Word0.wrepr ws (Conv.cz_of_z (clamp ws z)) in
+
+
   let doglob (x, e) =
-    match x.v_ty, e with
-    | Bty (U ws), GEword e ->
-      x, Global.Gword (ws, mk_word ws e)
-    | Arr (_ws, n), GEarray es when List.length es <> n ->
-       let m = List.length es in
-       hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
-         (Printer.pp_var ~debug:false) x
-         (List.length es)
-         (if m > 1 then "values" else "value")
-         n
-    | Arr (ws, n), GEarray es ->
-      let p = Conv.pos_of_int (n * size_of_ws ws) in
-      let t = Warray_.WArray.of_list ws (List.map (mk_word ws) es) in
-      x, Global.Garr(p, t)
-    | _, _ -> assert false
+    let gv =
+      match x.v_ty, e with
+      | Bty (U ws), GEword e ->
+        begin try Global.Gword (ws, mk_word ws e)
+        with NotAConstantExpr ->
+          hierror ~loc:x.v_dloc "the expression assigned to global variable %a must evaluate to a constant"
+            (Printer.pp_var ~debug:false) x
+        end
+      | Arr (_ws, n), GEarray es when List.length es <> n ->
+         let m = List.length es in
+         hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
+           (Printer.pp_var ~debug:false) x
+           (List.length es)
+           (if m > 1 then "values" else "value")
+           n
+      | Arr (ws, n), GEarray es ->
+        let p = Conv.pos_of_int (n * size_of_ws ws) in
+        let mk_word_i i e =
+          try mk_word ws e
+          with NotAConstantExpr ->
+            hierror ~loc:x.v_dloc "in the list assigned to global variable %a, the expression at position %d must evaluate to a constant"
+              (Printer.pp_var ~debug:false) x
+              i
+        in
+        let t = Warray_.WArray.of_list ws (List.mapi mk_word_i es) in
+        Global.Garr(p, t)
+      | _, _ -> assert false in
+    add_glob x gv;
+    x, gv
   in
-  let globals = List.map doglob globals in
+  let globals = List.rev_map doglob (List.rev globals) in
   globals, prog
 
 
@@ -358,7 +365,7 @@ let csubst_v () =
 
 let clone_func fc =
   let subst_v = csubst_v () in
-  gsubst_func (fun ty -> ty) subst_v fc
+  gsubst_func (fun ?loc:_ ty -> ty) subst_v fc
 
 (* ---------------------------------------------------------------- *)
 (* extend instruction info                                          *)
@@ -395,14 +402,14 @@ let vsubst_gv s v = { v with gv = vsubst_vi s v.gv }
 
 let vsubst_ve s v = Pvar (vsubst_gv s v) 
   
-let vsubst_e  s = gsubst_e  (fun ty -> ty) (vsubst_ve s)
-let vsubst_es s = gsubst_es (fun ty -> ty) (vsubst_ve s) 
+let vsubst_e  s = gsubst_e  (fun ?loc:_ ty -> ty) (vsubst_ve s)
+let vsubst_es s = gsubst_es (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
-let vsubst_lval  s = gsubst_lval  (fun ty -> ty) (vsubst_ve s)
-let vsubst_lvals s = gsubst_lvals (fun ty -> ty) (vsubst_ve s)
+let vsubst_lval  s = gsubst_lval  (fun ?loc:_ ty -> ty) (vsubst_ve s)
+let vsubst_lvals s = gsubst_lvals (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
-let vsubst_i s = gsubst_i (fun ty -> ty) (vsubst_ve s)
-let vsubst_c s = gsubst_c (fun ty -> ty) (vsubst_ve s)
+let vsubst_i s = gsubst_i (fun ?loc:_ ty -> ty) (vsubst_ve s)
+let vsubst_c s = gsubst_c (fun ?loc:_ ty -> ty) (vsubst_ve s)
 
-let vsubst_func s = gsubst_func (fun ty -> ty) (vsubst_ve s)
+let vsubst_func s = gsubst_func (fun ?loc:_ ty -> ty) (vsubst_ve s)
 

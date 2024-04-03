@@ -34,7 +34,7 @@ with i_calls_r (c : Sf.t) (i : instr_r) {struct i} : Sf.t :=
   | Cif    _  c1 c2   => c_calls (c_calls c c1) c2
   | Cfor   _  _  c1   => c_calls c c1
   | Cwhile _ c1 _  c2   => c_calls (c_calls c c1) c2
-  | Ccall  _  _  f  _ => Sf.add f c
+  | Ccall _ f _ => Sf.add f c
   end.
 
 Definition c_calls (c : Sf.t) (cmd : cmd) :=
@@ -44,7 +44,7 @@ Definition c_calls (c : Sf.t) (cmd : cmd) :=
 
 Section Section.
 
-Context {T} {pT:progT T}.
+Context {pT: progT}.
 
 Definition live_calls (s: Sf.t) (p: fun_decls) : Sf.t :=
   foldl (λ c x, let '(n, d) := x in if Sf.mem n c then c_calls c (f_body d) else c) s p.

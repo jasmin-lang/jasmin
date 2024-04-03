@@ -40,9 +40,8 @@ let solve_aux sz todo =
 
 let events_of_graph g =
   Mv.fold (fun n (min, max) result ->
-      if min < max
-      then (min, Start n) :: (max, End n) :: result
-      else result
+      assert(min < max);
+      (min, Start n) :: (max, End n) :: result
     )
     g []
 

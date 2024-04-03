@@ -14,7 +14,7 @@ let writev_lval s = function
   | Lnone _     -> s
   | Lvar x      -> Sv.add (L.unloc x) s
   | Lmem _      -> s
-  | Laset(_, _, x, _) 
+  | Laset(_, _, _, x, _)
   | Lasub(_, _, _, x, _) -> Sv.add (L.unloc x) s
 
 let writev_lvals s lvs = List.fold_left writev_lval s lvs
@@ -22,7 +22,7 @@ let writev_lvals s lvs = List.fold_left writev_lval s lvs
 (* When [weak] is true, the out live-set contains also the written variables. *)
 let rec live_i weak i s_o =
   let s_i, s_o, d = live_d weak i.i_desc s_o in
-  s_i, { i_desc = d; i_loc = i.i_loc; i_info = (s_i, s_o); i_annot = []}
+  s_i, { i with i_desc = d; i_info = (s_i, s_o); }
 
 and live_d weak d (s_o: Sv.t) =
   match d with
@@ -61,9 +61,9 @@ and live_d weak d (s_o: Sv.t) =
     let s_i, (c,c') = loop s_o in
     s_i, s_o, Cwhile(a, c, e, c')
 
-  | Ccall(ii,xs,f,es) ->
+  | Ccall(xs,f,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(ii,xs,f,es)
+    s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(xs,f,es)
 
   | Csyscall(xs,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
@@ -94,7 +94,7 @@ let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
     | (Cassgn _ | Copn _) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
-    | Ccall (_, xs, fn, _) ->
+    | Ccall (xs, fn, _) ->
        cbf loc fn xs ii
     | Csyscall (xs, op, _) ->
        cbs loc op xs ii

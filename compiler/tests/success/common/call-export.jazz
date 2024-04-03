@@ -1,0 +1,11 @@
+export fn aux(reg u32 x) -> reg u32 {
+  reg u32 y;
+  y = x;
+  return y;
+}
+
+export fn main(reg u32 a) -> reg u32 {
+  #inline
+  a = aux(a);
+  return a;
+}

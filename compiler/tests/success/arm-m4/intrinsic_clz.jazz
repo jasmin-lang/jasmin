@@ -1,0 +1,11 @@
+export
+fn main(reg u32 x) -> reg u32 {
+    reg u32 y;
+    y = #CLZ(x);
+
+    reg bool b;
+    ?{ "<s" = b } = #CMP(y, 9);
+    y = #CLZcc(y, b, y);
+
+    return y;
+}

@@ -22,9 +22,9 @@ type 'len gexpr =
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
-  | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr 
+  | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr 
-  | Pload  of wsize * 'len gvar_i * 'len gexpr
+  | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
@@ -81,8 +81,8 @@ let is_regx x =
 type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
- | Lmem  of wsize * 'len gvar_i * 'len gexpr
- | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
+ | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
+ | Laset of Memory_model.aligned * Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
  | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
  (* Lasub(acc,sz,len,v,e) is the sub-array of v:
     - [ws/8 * e; ws/8 * e + ws/8 * len[   if acc = Scale
@@ -100,7 +100,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
-  | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
+  | Ccall  of 'len glvals * funname * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
     i_desc : ('len,'info,'asm) ginstr_r;
@@ -114,7 +114,7 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 (* ------------------------------------------------------------------------ *)
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot: Annotations.f_annot;
+    f_annot: FInfo.f_annot;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -186,10 +186,10 @@ and pexpr_equal e1 e2 =
  | Pconst n1, Pconst n2 -> Z.equal n1 n2
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pvar v1, Pvar v2 -> PV.gequal v1 v2
- | Pget(a1,b1,v1,e1), Pget(a2, b2,v2,e2) -> a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
+ | Pget(al1, a1,b1,v1,e1), Pget(al2, a2, b2,v2,e2) -> al1 = al2 && a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
    a1 = a2 && b1 = b2 && pexpr_equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
- | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
+ | Pload(al1, b1,v1,e1), Pload(al2, b2,v2,e2) -> al1 = al2 &&b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
  | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
  | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23 
@@ -223,6 +223,7 @@ let ident_of_var (x:var) : CoreIdent.var = x
 
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
+
 let rvars_v f x s =
   if is_gkvar x then f (L.unloc x.gv) s
   else s 
@@ -230,8 +231,8 @@ let rvars_v f x s =
 let rec rvars_e f s = function
   | Pconst _ | Pbool _ | Parr_init _ -> s
   | Pvar x         -> rvars_v f x s
-  | Pget(_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
-  | Pload(_,x,e)   -> rvars_e f (f (L.unloc x) s) e
+  | Pget(_,_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
+  | Pload(_,_,x,e)   -> rvars_e f (f (L.unloc x) s) e
   | Papp1(_, e)    -> rvars_e f s e
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
@@ -242,8 +243,8 @@ and rvars_es f s es = List.fold_left (rvars_e f) s es
 let rvars_lv f s = function
  | Lnone _       -> s
  | Lvar x        -> f (L.unloc x) s
- | Lmem (_,x,e)
- | Laset (_,_,x,e)
+ | Lmem (_,_,x,e)
+ | Laset (_,_,_,x,e)
  | Lasub (_,_,_,x,e) -> rvars_e f (f (L.unloc x) s) e
 
 let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
@@ -256,7 +257,7 @@ let rec rvars_i f s i =
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
   | Cwhile(_,c,e,c')    -> rvars_c f (rvars_e f (rvars_c f s c') e) c
-  | Ccall(_,x,_,e) -> rvars_es f (rvars_lvs f s x) e
+  | Ccall(x,_,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
@@ -269,6 +270,7 @@ let vars_e e = rvars_e Sv.add Sv.empty e
 let vars_es es = rvars_es Sv.add Sv.empty es
 let vars_i i = rvars_i Sv.add Sv.empty i
 let vars_c c = rvars_c Sv.add Sv.empty c
+let pvars_c c = rvars_c Spv.add Spv.empty c
 
 let params fc =
   List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args
@@ -293,7 +295,7 @@ let rec written_vars_i ((v, f) as acc) i =
   | Cassgn(x, _, _, _) -> written_lv v x, f
   | Copn(xs, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
-  | Ccall(_, xs, fn, _) ->
+  | Ccall(xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
   | Cif(_, s1, s2)
   | Cwhile(_, s1, _, s2)
@@ -334,13 +336,7 @@ let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog =
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 
-let int_of_ws = function
-  | U8   -> 8
-  | U16  -> 16
-  | U32  -> 32
-  | U64  -> 64
-  | U128 -> 128
-  | U256 -> 256
+let int_of_ws = Annotations.int_of_ws 
 
 let size_of_ws = function
   | U8   -> 1
@@ -350,7 +346,7 @@ let size_of_ws = function
   | U128 -> 16
   | U256 -> 32
 
-let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
+let string_of_ws = Annotations.string_of_ws 
 
 let wsize_lt ws1 ws2 = Wsize.wsize_cmp ws1 ws2 = Datatypes.Lt
 let wsize_le ws1 ws2 = Wsize.wsize_cmp ws1 ws2 <> Datatypes.Gt
@@ -438,8 +434,8 @@ let get_ofs aa ws e =
 let expr_of_lval = function
   | Lnone _         -> None
   | Lvar x          -> Some (Pvar (gkvar x))
-  | Lmem (ws, x, e) -> Some (Pload(ws,x,e))
-  | Laset(a, ws, x, e) -> Some (Pget(a,ws,gkvar x,e))
+  | Lmem (al, ws, x, e) -> Some (Pload(al,ws,x,e))
+  | Laset(al, a, ws, x, e) -> Some (Pget(al, a,ws,gkvar x,e))
   | Lasub(a, ws, l, x, e) -> Some (Psub(a,ws,l,gkvar x, e))
 
 (* -------------------------------------------------------------------- *)
@@ -463,8 +459,10 @@ let rec has_call_or_syscall_i i =
 
 and has_call_or_syscall c = List.exists has_call_or_syscall_i c
 
-let has_annot a { i_annot ; _ } =
-  List.exists (fun (k, _) -> String.equal (L.unloc k) a) i_annot
+let has_annot a { i_annot; _ } = Annotations.has_symbol a i_annot
+
+let is_inline annot cc =
+  Annotations.has_symbol "inline" annot || cc = FInfo.Internal
 
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =

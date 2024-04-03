@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import
   oseq
   compiler_util
@@ -35,7 +35,7 @@ Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info
 Definition internal_error ii msg := 
   gen_error true (Some ii) None (pp_s msg).
 
-Definition unexpected_sopn `{PointerData} `{MSFsize} `{asmOp} ii msg op :=
+Definition unexpected_sopn `{MSFsize} `{asmOp} ii msg op :=
   let err :=
     pp_box [:: pp_s msg; pp_s "unexpected operator"; pp_s (string_of_sopn op) ]
   in
@@ -228,7 +228,7 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
-Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
+Definition assemble_word_load rip ii al (sz: wsize) (e: rexpr) :=
   match e with
   | Rexpr (Fapp1 (Oword_of_int sz') (Fconst z)) =>
     let w := wrepr sz' z in
@@ -240,9 +240,11 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
     ok (Imm w)
   | Rexpr (Fvar x) =>
     xreg_of_var ii x
-  | Load sz' v e' =>
+  | Load al' sz' v e' =>
     Let _ := assert (sz == sz')
                     (E.werror ii e "invalid Load size") in
+    Let _ := assert (aligned_le al al')
+                    (E.werror ii e "invalid Load alignment constraint") in
     Let w := addr_of_xpexpr rip ii Uptr v e' in
     ok (Addr w)
   | _ => Error (E.werror ii e "invalid rexpr for word")
@@ -250,7 +252,7 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
 
 Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
   match k with
-  | AK_mem => assemble_word_load rip ii sz e
+  | AK_mem al => assemble_word_load rip ii al sz e
   | AK_compute =>
     Let f := if e is Rexpr f then ok f else Error (E.werror ii e "invalid rexpr for LEA") in
     Let w := addr_of_fexpr rip ii sz f in
@@ -270,7 +272,7 @@ Definition arg_of_rexpr k rip ii (ty: stype) (e: rexpr) :=
 Definition rexpr_of_lexpr (lv: lexpr) : rexpr :=
   match lv with
   | LLvar x => Rexpr (Fvar x)
-  | Store s x e => Load s x e
+  | Store a s x e => Load a s x e
   end.
 
 Definition nmap (T:Type) := nat -> option T.
@@ -337,10 +339,12 @@ Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_d
 Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_desc * stype) :=
   match adt.1 with
   | ADImplicit i => is_implicit i x
-  | ADExplicit _ n o =>
+  | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_rexpr AK_mem rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      if k is AK_mem al then
+      if arg_of_rexpr (AK_mem al) rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      else false
       else false
     | None => false
     end
@@ -497,47 +501,48 @@ Definition is_not_app1 e : bool :=
 
 Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
   let '{| li_ii := ii; li_i := ir; |} := i in
+  let mk i := {| asmi_i := i ; asmi_ii := ii |} in
   match ir with
   | Lopn ds op es =>
       Let args := assemble_sopn rip ii op ds es in
-      ok (map (fun x => AsmOp x.1 x.2) args)
+      ok (map (fun x => mk (AsmOp x.1 x.2)) args)
 
   | Lalign =>
-      ok [:: ALIGN ]
+      ok [:: mk ALIGN ]
 
   | Llabel k lbl =>
-      ok [:: LABEL k lbl ]
+      ok [:: mk (LABEL k lbl) ]
 
   | Lgoto lbl =>
-      ok [:: JMP lbl ]
+      ok [:: mk (JMP lbl) ]
 
   | Ligoto e =>
       Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
-      Let arg := assemble_word AK_mem rip ii Uptr e in
-      ok [:: JMPI arg ]
+      Let arg := assemble_word (AK_mem Aligned) rip ii Uptr e in
+      ok [:: mk (JMPI arg) ]
 
   | LstoreLabel x lbl =>
       Let dst := if of_var x is Some r then ok r else Error (fail ii "bad var") in
-      ok [:: STORELABEL dst lbl ]
+      ok [:: mk (STORELABEL dst lbl) ]
 
   | Lcond e l =>
       Let cond := assemble_cond ii e in
-      ok [:: Jcc l cond ]
+      ok [:: mk (Jcc l cond) ]
 
   | Lsyscall o =>
-      ok [:: SysCall o ]
+      ok [:: mk (SysCall o) ]
 
   | Lcall None l =>
-      ok [:: CALL l ]
+      ok [:: mk (CALL l) ]
 
   | Lcall (Some r) l =>
-    Let r := 
+    Let r :=
       if to_reg r is Some r then ok r
       else Error (E.verror true "Not a register" ii r) in
-      ok [:: JAL r l ]
+      ok [:: mk (JAL r l) ]
 
   | Lret =>
-      ok [:: POPPC ]
+      ok [:: mk POPPC ]
 
   end.
 

@@ -194,16 +194,17 @@ let link_array_return params a xs es cc =
 let opn_cc o = 
   match o with
   | Sopn.Oslh (SLHprotect_ptr_fail _) -> Some [Some 0]
+  | Sopn.Opseudo_op(Pseudo_operator.Oswap _) -> Some [Some 1; Some 0]
   | _ -> None 
 
 let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
-  | Ccall (_, xs, fn, es) -> link_array_return params a xs es (cc fn)
+  | Ccall (xs, fn, es) -> link_array_return params a xs es (cc fn)
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
-  (* A special case for protect_ptr which is a kind of move *)
   | Copn (xs, _, o, es) -> 
+    (* A special case for operators that can return array *)
     begin match opn_cc o with 
     | None -> a 
     | Some l -> link_array_return params a xs es l

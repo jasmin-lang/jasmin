@@ -1,13 +1,12 @@
 open Arch_decl
-open X86_decl_core
 open X86_decl
 
 module type X86_input = sig
-  
- val call_conv : (register, register_ext, xmm_register, rflag, condt) calling_convention 
+
+ val call_conv : (register, register_ext, xmm_register, rflag, condt) calling_convention
  val lowering_opt : X86_lowering.lowering_options
 
-end 
+end
 
 let atoI decl =
   let open Prog in
@@ -38,6 +37,19 @@ module X86_core = struct
 
   let pp_asm = Ppasm.pp_prog
   let callstyle = Arch_full.StackDirect
+
+  let known_implicits = ["OF","_of_"; "CF", "_cf_"; "SF", "_sf_"; "ZF", "_zf_"]
+
+  let alloc_stack_need_extra _ = false
+
+  let is_ct_asm_op (o : asm_op) =
+    match o with
+    | DIV _ | IDIV _ -> false
+    | _ -> true
+
+  let is_ct_asm_extra (_ : extra_op) = true
+
+
 end
 
 
