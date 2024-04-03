@@ -915,6 +915,33 @@ let subroutine_ra_by_stack f =
         | None -> dfl
         | Some k -> dfl || k = OnStack
 
+module Miloc = Map.Make (struct
+  open Location
+  type t = i_loc
+  let compare x y = Stdlib.Int.compare x.uid_loc y.uid_loc
+end)
+
+type callsite_tree =
+  { sv : Sv.t option; sub : callsite_tree Miloc.t }
+
+let empty_callsite =
+  { sv = None; sub = Miloc.empty }
+
+let rec insert_callsite t (locs, sv) =
+  match locs with
+  | [] -> assert (t.sv = None); { t with sv = Some sv }
+  | loc::locs ->
+    { t with sub =
+      Miloc.modify_def empty_callsite loc
+        (fun t -> insert_callsite t (locs, sv))
+       t.sub }
+
+let callsite_tree (s : (Location.i_loc list * Sv.t) list) =
+  List.fold_left insert_callsite empty_callsite s
+
+
+
+
 let pp_liveness vars liveness_per_callsite liveness_table conflicts a =
   (* Prints the program with forced registers, equivalence classes, and liveness information *)
   let open Format in
@@ -975,10 +1002,11 @@ let pp_liveness vars liveness_per_callsite liveness_table conflicts a =
       let n = List.length xs in
       set_max k n;
       fprintf fmt "@[<h> %d %s%s (%a)@]" n (string_of_k k) (if n > 1 then "s" else "") (pp_list "@ " pp_var) xs in
-    fprintf fmt "%a"
-      (pp_list "@ " pp)
+    let l =
       (List.filter (fun (_, m) -> List.length m > 0)
-         [ Word, words; Extra, extras; Vector, vectors; Flag, flags])
+         [ Word, words; Extra, extras; Vector, vectors; Flag, flags]) in
+    fprintf fmt "%a" (pp_list "@ " pp) l
+
   in
 
   let pp_info fmt (loc, (i, o)) =
@@ -989,29 +1017,44 @@ let pp_liveness vars liveness_per_callsite liveness_table conflicts a =
 
   let pp_callsites fmt fn =
     let s = Hf.find_default liveness_per_callsite fn [] in
-    let pp_callsite fmt (loc, s) =
-      fprintf fmt "@[<hov 2>at %a: %a@]" (pp_list "@ " L.pp_iloc) loc pp_liveset s in
+    let rec pp_callsite i fmt t =
+      match t.sv with
+      | Some sv ->
+          assert (Miloc.is_empty t.sub);
+          fprintf fmt "@[<v>%a@]" pp_liveset sv;
+      | None ->
+        if Miloc.is_empty t.sub then ()
+        else
+          let pp_site fmt (loc, t) =
+            fprintf fmt "(%i)%a@   %a" i L.pp_iloc loc (pp_callsite (i+1)) t
+          in
+         fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_site) (Miloc.bindings t.sub)
+    in
     if s <> [] then
-      fprintf fmt "/* @[<v>Live when calling %s:@ %a@ */@]@." fn.fn_name (pp_list "@ " pp_callsite) s
+      fprintf fmt "@[<v>/* Live when calling %s:@ %a*/@]" fn.fn_name (pp_callsite 0) (callsite_tree s)
   in
 
-  let pp_recap fmt fn =
-    let pp fmt (k, n) =
-      fprintf fmt  "%d %s%s" n (string_of_k k) (if n > 1 then "s" else "")
+  let pp_recap fmt fn (i_w, i_e, i_v, i_f) (e_w, e_e, e_v, e_f) =
+    let pp fmt (k, i, e) =
+      fprintf fmt  "(intern : %d, extern : %d, total : %d) %s%s" i e (i+e)
+        (string_of_k k) (if (i+e) > 1 then "s" else "")
     in
-    fprintf fmt "/* @[<v>Maximal register usage for %s:@ %a@ @]*/@.@."
+    fprintf fmt "@[<v>/* Maximal register usage for %s:@ %a@ */@]@.@."
       fn.fn_name
       (pp_list "@ " pp)
-      (List.filter (fun (_, n) -> n > 0)
-         [ Word, !m_word; Extra, !m_extra; Vector, !m_vector; Flag, !m_flag])
+      (List.filter (fun (_, i , e) -> i + e > 0)
+         [ Word, i_w, e_w; Extra, i_e, e_e; Vector, i_v, e_v; Flag, i_f, e_f])
   in
 
   printf "/* Ready to allocate variables to registers: */@.";
   liveness_table |> Hf.iter (fun fn fd ->
     reset_max();
     printf "%a@." (pp_fun ~pp_locals ~pp_info (pp_opn Arch.reg_size Arch.asmOp) pp_var) fd;
-    printf "%a" pp_callsites fn;
-    pp_recap Format.std_formatter fn)
+    let intern = !m_word, !m_extra, !m_vector, !m_flag in
+    reset_max();
+    printf "%a@." pp_callsites fn;
+    let extern = !m_word, !m_extra, !m_vector, !m_flag in
+    pp_recap Format.std_formatter fn intern extern)
 
 let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func list) :
   (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
