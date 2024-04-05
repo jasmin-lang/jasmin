@@ -668,8 +668,8 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
   and alloc_stmt s = List.iter alloc_instr s
   in
   let loc = L.i_loc0 f.f_loc in
-  if f.f_cc = Export then alloc_args loc identity f.f_args;
-  if f.f_cc = Export then alloc_ret loc L.unloc f.f_ret;
+  if FInfo.is_export f.f_cc then alloc_args loc identity f.f_args;
+  if FInfo.is_export f.f_cc then alloc_ret loc L.unloc f.f_ret;
   alloc_stmt f.f_body;
   match Hf.find return_addresses f.f_name, Arch.callstyle with
   | (StackByReg (ra,_) | ByReg (ra, _)), Arch_full.ByReg (Some r) ->
@@ -892,7 +892,7 @@ let post_process
        assert (not stack_needed);
        killed_in_f, None
      end
-  | Export ->
+  | Export _ ->
      begin
        assert (Sv.is_empty live);
        let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
@@ -905,7 +905,7 @@ let post_process
 
 let subroutine_ra_by_stack f =
   match f.f_cc with
-  | Export | Internal -> assert false
+  | Export _ | Internal -> assert false
   | Subroutine _ ->
       match Arch.callstyle with
       | Arch_full.StackDirect -> true
@@ -1077,7 +1077,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
     (* compute where will be store the return address *)
     let ra =
        match f.f_cc with
-       | Export -> StackDirect
+       | Export _ -> StackDirect
        | Internal -> assert false
        | Subroutine _ ->
          match Arch.callstyle with
@@ -1103,7 +1103,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
       let written, cg = written_vars_fc f in
       let written =
         match f.f_cc with
-        | (Export | Internal) -> written
+        | (Export _ | Internal) -> written
         | Subroutine _ ->
           match ra with
           | StackDirect -> written
@@ -1264,7 +1264,7 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) get_i
         | StackDirect -> StackDirect
         | StackByReg(r, tmp) -> StackByReg (subst r, Option.map subst tmp)
         | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
-      let ro_to_save = if f.f_cc = Export then Sv.elements to_save else [] in
+      let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
       e, { ro_to_save ; ro_rsp ; ro_return_address }, f
     )
 

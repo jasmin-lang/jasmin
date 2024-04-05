@@ -3,6 +3,14 @@
 
 ## New features
 
+- Export functions can have `ptr` arrays as arguments and results.
+  The compiler assumes that writable `ptr` are disjoint from the other
+  `ptr` arguments and from the global data. This is the responsibility of
+  the caller to ensure that this holds.
+  For now, writable `ptr` must come first in the list of arguments and be
+  returned first and in the same order in the list of results.
+  ([PR #707](https://github.com/jasmin-lang/jasmin/pull/707)).
+
 - The type systems for constant time and speculative constant time now ensure
   that division and modulo operators may only be used with public arguments.
   This ensures that problems like KyberSlash (https://kyberslash.cr.yp.to/) do

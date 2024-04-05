@@ -1,0 +1,42 @@
+param int N = 4;
+
+// one const argument
+export fn f1 (reg ptr u32[N] r) -> reg u32 {
+  reg u32 res;
+  res = r[0];
+  return res;
+}
+
+// two const arguments, they do not have to be disjoint
+export fn f2 (reg ptr u32[N] r1, reg ptr u32[N] r2) -> reg u32 {
+  reg u32 res tmp;
+  res = r1[0];
+  tmp = r2[0];
+  res += tmp;
+  return res;
+}
+
+// one mut argument
+export fn f3 (reg ptr u32[N] r) -> reg ptr u32[N] {
+  reg u32 tmp;
+  tmp = 2;
+  r[0] = tmp;
+  return r;
+}
+
+// two mut and one const arguments
+// the mut come first, and are returned first and in the same order
+export fn f4 (reg ptr u32[N] r1, reg ptr u32[N] r2, reg ptr u32[N] r3, reg u32 x)
+  -> reg ptr u32[N], reg ptr u32[N] {
+  reg u32 tmp;
+  r1[0] = x;
+  tmp = r3[0];
+  r2[0] = tmp;
+  return r1, r2;
+}
+
+// works well with #copy
+export fn f_copy(reg ptr u32[N] dst src) -> reg ptr u32[N] {
+  dst = #copy_32(src);
+  return dst;
+}

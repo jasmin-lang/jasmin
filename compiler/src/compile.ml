@@ -289,7 +289,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     List.fold_right
       (fun fd acc ->
         match fd.f_cc with
-        | Export -> conv fd :: acc
+        | Export _ -> conv fd :: acc
         | Internal | Subroutine _ -> acc)
       (snd prog) []
   in

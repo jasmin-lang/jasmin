@@ -33,7 +33,7 @@ Module Import E.
     stk_ierror x (pp_box [:: pp_s msg; pp_nobox [:: pp_s "("; pp_var x; pp_s ")"]]).
 
   Definition stk_error_no_var_gen (internal:bool) msg := {|
-    pel_msg := pp_s msg;
+    pel_msg := msg;
     pel_fn := None;
     pel_fi := None;
     pel_ii := None;
@@ -42,8 +42,8 @@ Module Import E.
     pel_internal := internal
   |}.
 
-  Definition stk_error_no_var  := stk_error_no_var_gen false.
-  Definition stk_ierror_no_var := stk_error_no_var_gen true.
+  Definition stk_error_no_var s := stk_error_no_var_gen false (pp_s s).
+  Definition stk_ierror_no_var s := stk_error_no_var_gen true (pp_s s).
 
 End E.
 
@@ -1490,6 +1490,7 @@ Definition alloc_fd p_extra mglob (fresh_reg : Ident.name -> stype -> Ident.iden
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
+        sf_align_args := map (oapp pp_align U8) sao.(sao_params)
       |} in
   ok (swith_extra fd f_extra).
 
