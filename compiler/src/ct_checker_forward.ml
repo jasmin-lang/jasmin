@@ -448,9 +448,7 @@ let get_annot ensure_annot f =
     let lvl =
       match Lvl.parse ~single:true ~kind_allowed:true x.v_annot, Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) with
       | lvl, None -> lvl
-      | (_, Some _), Some _ ->
-         error ~loc:(x.v_dloc)
-           "security annotations for argument %a redundant with security signature" (Printer.pp_var ~debug:false) x
+      | (_, Some _) as lvl, _ -> lvl
       | _, Some t -> Some Flexible, Some (lvl_of_typ t)
     in
     x.v_name, lvl
@@ -458,9 +456,7 @@ let get_annot ensure_annot f =
   let process_result i a =
     match Lvl.parse ~single:false ~kind_allowed:false a, Option.bind sig_annot (SecurityAnnotations.get_nth_result i) with
     | (_, lvl), None -> lvl
-    | (_, Some _), Some _ ->
-       error ~loc:L._dummy
-         "security annotations for result at position %d redundant with security signature" i
+    | (_, (Some _ as lvl)), _ -> lvl
     | _, Some t -> Some (lvl_of_typ t)
   in
   let ain  = List.mapi process_argument f.f_args in

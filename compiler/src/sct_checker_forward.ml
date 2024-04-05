@@ -184,7 +184,7 @@ and modmsf_c fenv c =
 let error ~loc =
   hierror ~loc:(Lone loc) ~kind:"speculative constant type checker"
 
-let warn ~loc = warning SCTchecker loc
+let warn ~loc = warning SCTchecker (L.i_loc0 loc)
 
 (* --------------------------------------------------------- *)
 (* Inference of the variables that need to contain msf       *)
@@ -1270,14 +1270,11 @@ let init_constraint fenv f =
       | _, None ->
         error ~loc:(x.v_dloc)
           "invalid security annotations %a" pp_var x
-      | [], Some n ->
-         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
       | [Msf], Some n ->
          if not msf then error_msf loc;
          Some true, Some (to_vty n)
-      | _ :: _, Some _ ->
-         error ~loc:(x.v_dloc)
-          "security annotations %a redundant with security signature" pp_var x
+      | _, Some n ->
+         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
     in
     let vty =
       match ovty with
@@ -1348,22 +1345,21 @@ let init_constraint fenv f =
         if b <> Sv.mem x msfs then begin
           let loc = x.v_dloc in
           if b
-          then warn ~loc:(L.i_loc0 loc) "%a does not need to be an MSF" pp_var x
+          then warn ~loc:loc "%a does not need to be an MSF" pp_var x
           else error ~loc "%a should be an MSF" pp_var x
         end;
         b in
     if export then
-      begin match vty with
-      | Direct l ->
-        begin
+      begin let lvls = match vty with
+      | Indirect (p, v) -> [ p; v ]
+      | Direct v -> [ v ]
+      in List.iter begin fun l ->
           try VlPairs.add_le (Env.public env, Env.secret env) l
           with Lvl.Unsat _unsat ->
             error ~loc:(x.v_dloc)
               "security annotation for %a should be at least %s"
                  pp_var x stransient
-        end
-
-      | _ -> assert false
+        end lvls
       end;
     let venv = Env.add_var env venv x vk vty in
     let ty = if msf then IsMsf else IsNormal vty in
