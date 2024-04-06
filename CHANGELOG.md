@@ -25,7 +25,8 @@
 
 - Namespaces can be used to structure source code and require the same file
   more than once (in different contexts)
-  ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734)).
+  ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734),
+  [PR #780](https://github.com/jasmin-lang/jasmin/pull/780)).
 
 - Extraction as EasyCrypt code targets version 2024.01
   ([PR #690](https://github.com/jasmin-lang/jasmin/pull/690)).
