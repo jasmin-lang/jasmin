@@ -168,9 +168,32 @@ Definition riscv_shparams : sh_params :=
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
 
+Definition assemble_cond ii (e : fexpr) : cexec condt :=
+  match e with
+  | Fapp2 o (Fvar x0) (Fvar x1) =>
+    Let o :=
+      match o with
+      | Oeq _ => ok EQ
+      | Oneq _ => ok NE
+      | Olt (Cmp_w sg U32) => ok (LT sg)
+      | Oge (Cmp_w sg U32) => ok (GE sg)
+      | _ => Error (E.berror ii e "Could not match condition.")
+      end
+    in 
+    Let r0:= of_var_e ii x0 in 
+    Let r1:= of_var_e ii x1 in 
+    ok {|
+      cond_kind := o;
+      cond_fst := r0;
+      cond_snd := r1;
+    |}
+  | _ =>
+      Error (E.berror ii e "Can't assemble condition.")
+  end.
+
 Definition riscv_agparams : asm_gen_params :=
   {|
-    agp_assemble_cond := fun ii e => Error (E.berror ii e"not implemented");
+    agp_assemble_cond := assemble_cond
   |}.
 
 (* ------------------------------------------------------------------------ *)
