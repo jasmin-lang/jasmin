@@ -184,10 +184,14 @@ let pp_instr fn i =
   | CALL  lbl ->
        [LInstr ("call", [pp_remote_label lbl])]
 
-  | JAL _ -> assert false
+  | JAL (reg, lbl) ->
+    begin match reg with
+    | X1 -> [LInstr ("call", [pp_remote_label lbl] )]
+    | _ -> [LInstr ("jalr", [pp_register reg; pp_remote_label lbl] )]
+    end
 
-  | POPPC ->
-      [ LInstr ("ret", [ ]) ]
+  | POPPC -> 
+    [ LInstr ("ret", [ ]) ]
 
   | SysCall op ->
       [LInstr ("bl", [ pp_syscall op ])]
