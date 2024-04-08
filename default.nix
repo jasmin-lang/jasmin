@@ -20,13 +20,7 @@ let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages;
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
-  why3 = (pkgs.why3.overrideAttrs (o: rec {
-      version = "1.6.0";
-      src = pkgs.fetchurl {
-        url = "https://why3.gitlabpages.inria.fr/releases/${o.pname}-${version}.tar.gz";
-        hash = "sha256-hFvM6kHScaCtcHCc6Vezl9CR7BFbiKPoTEh7kj0ZJxw=";
-      };
-    })).override { ideSupport = false; };
+  why3 = pkgs.why3.override { ideSupport = false; };
 }; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
@@ -59,7 +53,7 @@ stdenv.mkDerivation {
          batteries
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
-    ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
+    ++ optionals ecDeps [ easycrypt alt-ergo z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
 

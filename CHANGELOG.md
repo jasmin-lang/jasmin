@@ -27,6 +27,9 @@
   more than once (in different contexts)
   ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734)).
 
+- Extraction as EasyCrypt code targets version 2024.01
+  ([PR #690](https://github.com/jasmin-lang/jasmin/pull/690)).
+
 ## Bug fixes
 
 - The compiler no longer throws an exception when a required file does not exist
