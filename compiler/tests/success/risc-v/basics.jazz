@@ -24,9 +24,40 @@ fn add_lowering(reg u32 a, reg u32 b) -> reg u32 {
     c = a + b;
     return c;
 }
+
 export
 fn sub_imm_lowering(reg u32 a) -> reg u32 {
     reg u32 c;
     c = a - 15;
     return c;
+}
+
+export
+fn if_reg_reg_lowering() -> reg u32 {
+    reg u32 a;
+    a = 15;
+    reg u32 b;
+    b = 15;
+    reg u32 c;
+    c = 0;
+
+    if (a == b) { c |= 1; }
+    if (!(a == b)) { c |= 2; }
+    if (a != b) { c |= 4; }
+    if (a > b) { c |= 16; }
+    if (a < b) { c |= 32; }
+    if (a >= b) { c |= 64; }
+    if (a <= b) { c |= 128; }
+    if (a >s b) { c |= 256; }
+    if (a <s b) { c |= 512; }
+    if (a >=s b) { c |= 1024; }
+    if (a <=s b) { c |= -2048; }
+
+    return c;
+}
+
+export fn main() -> reg u32 {
+    reg u32 r;
+    r = if_reg_reg_lowering();
+    return r;    
 }
