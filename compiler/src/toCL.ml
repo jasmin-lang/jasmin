@@ -460,7 +460,9 @@ module I = struct
 
   let rec extract_list e aux =
     match e with
-    | Pabstract ({name="couple"}, [h;q]) -> [h;q]
+    | Pabstract ({name="single"}, [h]) -> [h]
+    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
+    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
     | Pabstract ({name="word_nil"}, []) -> List.rev aux
     | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
     | _ -> assert false
