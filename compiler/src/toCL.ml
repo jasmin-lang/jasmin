@@ -944,8 +944,8 @@ module Mk(O:BaseOp) = struct
     | Cassert (t, p, e) ->
       let cl : CL.clause =
         match p with
-        | Expr.Cas -> [], [I.gexp_to_rpred  e]
-        | Expr.Smt -> I.gexp_to_epred  e, []
+        | Expr.Cas -> I.gexp_to_epred  e, []
+        | Expr.Smt -> [], [I.gexp_to_rpred  e]
       in
       begin
         match t with
