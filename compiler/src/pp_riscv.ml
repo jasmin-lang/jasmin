@@ -196,7 +196,7 @@ let pp_instr fn i =
 
   | POPPC -> 
     [ LInstr ("lw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) (Some "4") None None]); 
-    LInstr ("addi", [ pp_register X1; pp_register X1; "4"]);
+    LInstr ("addi", [ pp_register X2; pp_register X2; "4"]);
     LInstr ("ret", [ ]) ]
 
   | SysCall op ->
