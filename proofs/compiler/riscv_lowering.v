@@ -59,11 +59,20 @@ Definition lower_Papp2
       | _ => Some (BaseOp (None, SUB), [:: e0; e1 ])
       end
   | Oland _ =>
-      Some (BaseOp (None, AND), [:: e0; e1 ])
+    match e1 with
+    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, ANDI), [:: e0; e1])
+    | _ => Some (BaseOp (None, AND), [:: e0; e1 ])
+    end
   | Olor _ =>
-      Some (BaseOp (None, OR), [:: e0; e1 ])
+    match e1 with
+    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, ORI), [:: e0; e1])
+    | _ => Some (BaseOp (None, OR), [:: e0; e1 ])
+    end
   | Olxor _ =>
-      Some (BaseOp (None, XOR), [:: e0; e1 ])
+    match e1 with
+    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, XORI), [:: e0; e1])
+    | _ => Some (BaseOp (None, XOR), [:: e0; e1 ])
+    end
  (* | Olsr U32 =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (LSR, e0, [:: e1 ])

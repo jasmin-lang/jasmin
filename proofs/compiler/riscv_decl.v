@@ -118,15 +118,27 @@ Variant condition_kind :=
 
 Record condt := {
   cond_kind : condition_kind;
-  cond_fst : register;
-  cond_snd : register;
+  cond_fst : option register;
+  cond_snd : option register;
 }.
 
-Scheme Equality for condt.
+Scheme Equality for condition_kind.
+
+Definition condt_beq c1 c2 : bool :=
+  (condition_kind_beq c1.(cond_kind) c2.(cond_kind)) &&
+  (c1.(cond_fst) == c2.(cond_fst)) && (c1.(cond_snd) == c2.(cond_snd))
+.
 
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
 Proof.
-  exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
+  move => c1 c2.
+  apply Bool.iff_reflect.
+  split.
+  + move => ->.
+    by rewrite /condt_beq internal_condition_kind_dec_lb// !eqxx.
+  case: c1 c2 => k1 f1 s1 [] k2 f2 s2.
+  rewrite /condt_beq/=.
+  move => /andP[]/andP[] /internal_condition_kind_dec_bl-> /eqP->/eqP->//.   
 Qed.
 
 #[ export ]

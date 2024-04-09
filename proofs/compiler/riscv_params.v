@@ -168,24 +168,56 @@ Definition riscv_shparams : sh_params :=
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
 
-Definition assemble_cond ii (e : fexpr) : cexec condt :=
-  match e with
-  | Fapp2 o (Fvar x0) (Fvar x1) =>
-    Let o :=
+Definition condt_not (c : condition_kind) : condition_kind :=
+  match c with
+  | EQ => NE
+  | NE => EQ
+  | GE sg => LT sg
+  | LT sg => GE sg
+  end.
+
+Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
+  match e with  
+  | Fapp1 Onot e => 
+    Let c := assemble_cond ii e in ok 
+      {|
+      cond_kind:= (condt_not c.(cond_kind));
+      cond_fst:= c.(cond_fst);
+      cond_snd:= c.(cond_snd);
+      |}        
+  | Fapp2 o e0 e1 =>
+    Let: (o, swap) :=
       match o with
-      | Oeq _ => ok EQ
-      | Oneq _ => ok NE
-      | Olt (Cmp_w sg U32) => ok (LT sg)
-      | Oge (Cmp_w sg U32) => ok (GE sg)
+      | Oeq _ => ok (EQ, false)
+      | Oneq _ => ok (NE, false)
+      | Olt (Cmp_w sg U32) => ok (LT sg, false)
+      | Oge (Cmp_w sg U32) => ok (GE sg, false)
+      | Ogt (Cmp_w sg U32) => ok (LT sg, true)
+      | Ole (Cmp_w sg U32) => ok (GE sg, true)
       | _ => Error (E.berror ii e "Could not match condition.")
       end
+    in  
+    Let arg0 :=     
+      match e0 with
+      | Fvar x => Let r := of_var_e ii x in ok (Some r)
+      | Fconst 0 => ok None
+      | _ => Error (E.berror ii e "Can't assemble condition.") 
+      end
+    in
+    Let arg1:= 
+      match e1 with
+      | Fvar x => Let r := of_var_e ii x in ok (Some r)
+      | Fconst 0 => ok None
+      | _ => Error (E.berror ii e "Can't assemble condition.") 
+      end
     in 
-    Let r0:= of_var_e ii x0 in 
-    Let r1:= of_var_e ii x1 in 
+    let: (arg0, arg1) :=
+    if swap then (arg1, arg0) else (arg0, arg1)
+    in
     ok {|
       cond_kind := o;
-      cond_fst := r0;
-      cond_snd := r1;
+      cond_fst := arg0;
+      cond_snd := arg1;
     |}
   | _ =>
       Error (E.berror ii e "Can't assemble condition.")

@@ -92,8 +92,10 @@ let pp_condition_kind  (ck : Riscv_decl.condition_kind) =
   | GE Signed -> "bge"
   | GE Unsigned -> "bgeu"
 
-let pp_condt (ct: Riscv_decl.condt) =
-  pp_condition_kind ct.cond_kind
+let pp_cond_arg (ro: Riscv_decl.register option) =
+  match ro with
+  | Some r -> pp_register r
+  | None -> "x0"
 
 let pp_imm imm = Printf.sprintf "%s%s" imm_pre (Z.to_string imm)
 
@@ -122,7 +124,7 @@ let pp_address addr =
 let pp_asm_arg arg =
   match arg with
   | Condt _ -> None
-  | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
+  | Imm (ws, w) -> Some (pp_imm (Conv.z_of_word ws w))
   | Reg r -> Some (pp_register r)
   | Regx r -> Some (pp_register_ext r)
   | Addr addr -> Some (pp_address addr)
@@ -145,7 +147,7 @@ let pp_ext = function
  | PP_iname2(s,ws1,ws2) -> pp_iname2_ext s ws1 ws2
  | PP_viname(ve,long)   -> assert false
  | PP_viname2(ve1, ve2) -> assert false
- | PP_ct ct            -> pp_condt (match ct with Condt ct -> ct | _ -> assert false)
+ | PP_ct ct            -> assert false
 
 let pp_name_ext pp_op =
   Printf.sprintf "%s%s" (Conv.string_of_cstring pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
@@ -178,8 +180,10 @@ let pp_instr fn i =
       [ LInstr ("jr", [ lbl ]) ]
 
   | Jcc (lbl, ct) ->
-      let iname = Printf.sprintf "b%s" (pp_condt ct) in
-      [ LInstr (iname, [ pp_label fn lbl ]) ]
+      let iname = pp_condition_kind ct.cond_kind in
+      let cond_fst = pp_cond_arg ct.cond_fst in
+      let cond_snd = pp_cond_arg ct.cond_snd in
+      [ LInstr (iname, [ cond_fst; cond_snd; pp_label fn lbl ]) ]
 
   | CALL  lbl ->
        [LInstr ("call", [pp_remote_label lbl])]
@@ -191,7 +195,9 @@ let pp_instr fn i =
     end
 
   | POPPC -> 
-    [ LInstr ("ret", [ ]) ]
+    [ LInstr ("lw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) None None None]); 
+    LInstr ("addi", [ pp_register X1; pp_register X1; "4"]);
+    LInstr ("ret", [ ]) ]
 
   | SysCall op ->
       [LInstr ("bl", [ pp_syscall op ])]
@@ -227,10 +233,10 @@ let pp_fun (fn, fd) =
   let fn = fn.fn_name in
   let head =
     if fd.asm_fd_export then
-      [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
+      [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]); ]
     else []
   in let pre =
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; ] else []
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("addi", [ pp_register X1; pp_register X1; "-4"]); LInstr ("sw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) (Some "4") None None])] else []
   in
   let body = pp_body fn fd.asm_fd_body in
   (* TODO_RISCV: Review. *)

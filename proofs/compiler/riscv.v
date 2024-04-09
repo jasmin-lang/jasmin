@@ -17,6 +17,12 @@ Unset Printing Implicit Defensive.
 
 Definition riscv_eval_cond (get: register -> word riscv_reg_size) (c: condt) :
   result error bool :=
+  let geto o :=
+    match o with
+    | None => wrepr _ 0
+    | Some reg => get reg
+    end
+  in
   let repr sg := if sg is Signed then wsigned else wunsigned in
   let binop x y :=
     match c.(cond_kind) with
@@ -26,7 +32,7 @@ Definition riscv_eval_cond (get: register -> word riscv_reg_size) (c: condt) :
     | GE sg => repr sg x >=? repr sg y
     end%Z
   in
-  ok (binop (get c.(cond_fst)) (get c.(cond_snd))).
+  ok (binop (geto c.(cond_fst)) (geto c.(cond_snd))).
 
 #[ export ]
 Instance riscv : asm register register_ext xregister rflag condt riscv_op :=
