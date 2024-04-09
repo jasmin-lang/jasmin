@@ -58,6 +58,23 @@ fn if_reg_reg_lowering() -> reg u32 {
 
 export fn main() -> reg u32 {
     reg u32 r;
-    r = if_reg_reg_lowering();
-    return r;    
+    r = 0;
+
+    reg u32 r0;
+    reg u32 r1;
+
+    reg u32 a;
+    a = 10;
+
+    reg u32 b;
+    b = 3;
+
+    r0 = if_reg_reg_lowering();
+    r0 = sub_imm_lowering(a);
+    r0 = add_lowering(a, b);
+    r0, r1 = copy_lowering(a);
+    r0 = pass(a);
+    r0, r1 = copy(a);
+
+    return r;
 }
