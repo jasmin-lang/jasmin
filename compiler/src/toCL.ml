@@ -131,6 +131,7 @@ module CL = struct
     let srem e1 e2 = Rpreop ("srem", e1, e2)
     let shl e1 e2 = Rpreop ("shl", e1, e2)
     let shr e1 e2 = Rpreop ("shr", e1, e2)
+    let udiv e1 e2 = Rpreop ("udiv", e1, e2)
 
     let rec pp_rexp fmt r =
       match r with
@@ -411,7 +412,7 @@ module I = struct
     | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
     | Papp2(Osub _, e1, e2) -> minu !> e1 !> e2
     | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
-    (* | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) -> *)
+    | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) -> udiv !> e1 !> e2
     (*   Format.fprintf fmt "udiv (%a) (%a)" *)
     (*     pp_rexp e1 *)
     (*     pp_rexp e2 *)
@@ -814,10 +815,11 @@ module X86BaseOp : BaseOp
                CL.Instr.Op2.join l !l_tmp4 a;
               ]
       end
-    (* | MOVZX (ws1, ws2) -> *)
-    (*   Format.fprintf fmt "cast %a %a" *)
-    (*     pp_lval (List.nth xs 0, int_of_ws ws1) *)
-    (*     pp_atome (List.nth es 0, int_of_ws ws2) *)
+    | MOVZX (ws1, ws2) -> 
+          let a,i = cast_atome ws2 (List.nth es 0) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let ty = CL.Uint (int_of_ws ws1) in
+          i @ [CL.Instr.cast ty l a]
     | _ -> assert false
 
 end
@@ -944,8 +946,8 @@ module Mk(O:BaseOp) = struct
     | Cassert (t, p, e) ->
       let cl : CL.clause =
         match p with
-        | Expr.Cas -> [], [I.gexp_to_rpred  e]
-        | Expr.Smt -> I.gexp_to_epred  e, []
+        | Expr.Cas -> I.gexp_to_epred  e, []
+        | Expr.Smt -> [], [I.gexp_to_rpred  e]
       in
       begin
         match t with
