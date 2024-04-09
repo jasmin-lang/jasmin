@@ -195,7 +195,7 @@ let pp_instr fn i =
     end
 
   | POPPC -> 
-    [ LInstr ("lw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) None None None]); 
+    [ LInstr ("lw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) (Some "4") None None]); 
     LInstr ("addi", [ pp_register X1; pp_register X1; "4"]);
     LInstr ("ret", [ ]) ]
 
@@ -236,7 +236,7 @@ let pp_fun (fn, fd) =
       [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]); ]
     else []
   in let pre =
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("addi", [ pp_register X1; pp_register X1; "-4"]); LInstr ("sw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) (Some "4") None None])] else []
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("addi", [ pp_register X2; pp_register X2; "-4"]); LInstr ("sw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) (Some "4") None None])] else []
   in
   let body = pp_body fn fd.asm_fd_body in
   (* TODO_RISCV: Review. *)
