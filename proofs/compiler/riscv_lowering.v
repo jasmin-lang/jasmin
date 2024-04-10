@@ -73,6 +73,7 @@ Definition lower_Papp2
     | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, XORI), [:: e0; e1])
     | _ => Some (BaseOp (None, XOR), [:: e0; e1 ])
     end
+  | Omul _ => Some (BaseOp (None, MUL), [:: e0; e1])
  (* | Olsr U32 =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (LSR, e0, [:: e1 ])
@@ -91,7 +92,6 @@ Definition lower_Papp2
   | _ =>
       None
   end.
-
 
 (* Lower an expression of the form [(ws)[v + e]] or [tab[ws e]]. *)
 Definition lower_load (ws: wsize) (e: pexpr) : option(riscv_extended_op * pexprs) :=
@@ -113,7 +113,7 @@ Definition lower_Pvar (ws : wsize) (v : gvar) : option(riscv_extended_op * pexpr
 
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn
-  (lv : lval) (ws : wsize) (e : pexpr) : option (copn_args) :=
+  (lv : lval) (tg: assgn_tag) (ws : wsize) (e : pexpr) : option (copn_args) :=
   if is_lval_in_memory lv 
     then Some ([:: lv], Oriscv (STORE ws), [:: e])
   else
@@ -128,26 +128,33 @@ Definition lower_cassgn
     end
     in Some ([:: lv], Oasm op, e).
 
-Definition lower_swap ty lvs es : option copn_args := 
+Definition lower_swap ty lvs es : option (seq copn_args) := 
   match ty with
   | sword sz => 
     if (sz <= U32)%CMP then 
-      Some (lvs, Oasm (ExtOp (SWAP sz)), es)
+      Some([:: (lvs, Oasm (ExtOp (SWAP sz)), es)])
     else None
   | sarr _ => 
-      Some (lvs, Opseudo_op (Oswap ty), es)
+      Some([:: (lvs, Opseudo_op (Oswap ty), es)])
   | _ => None
   end.
 
+Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args):=
+  match lvs, es with
+  | [:: r1; r2 ], [:: x ; y ] => Some([:: ([:: r1], Oasm(BaseOp (None, MULU)), es); ([:: r2], Oasm(BaseOp (None, MUL)), es)]) (* Arbitrary choice : r1 computed before r2*)
+  | _, _ => None
+  end.
+
 Definition lower_pseudo_operator
-  (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option copn_args :=
+  (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option (seq copn_args) :=
   match op with
   | Oswap ty => lower_swap ty lvs es
+  | Omulu ws => lower_mulu lvs es
   | _ => None
   end.
 
 Definition lower_copn
-  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
+  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option (seq copn_args) :=
   match op with
   | Opseudo_op pop => lower_pseudo_operator lvs pop es
   | _ => None
@@ -163,12 +170,12 @@ Fixpoint lower_i (i : instr) : cmd :=
   let '(MkI ii ir) := i in
   match ir with
   (* ty is the type of the assign, lv and e *)
-  | Cassgn lv tag ty e =>
+  | Cassgn lv tg ty e =>
       let oirs :=
         match ty with
         | sword ws =>
-            let%opt (lvs, op, es) := lower_cassgn lv ws e in
-            Some ([:: Copn lvs tag op es ])
+            let%opt (lvs, op, es) := lower_cassgn lv tg ws e in
+            Some ([:: Copn lvs tg op es ])
         | _ => None
         end
       in
@@ -178,13 +185,12 @@ Fixpoint lower_i (i : instr) : cmd :=
 
  (* Copn : "assembly" instruction pattern matching, required for pseudo instructions or extra instructions *)
   | Copn lvs tag op es =>
-      let ir' :=
-        if lower_copn lvs op es is Some (lvs', op', es')
-        then Copn lvs' tag op' es'
-        else ir
-      in
-      [:: MkI ii ir' ]
-
+      let seq_ir :=
+        if lower_copn lvs op es is Some l
+        then map (fun '(lvs', op', es') => Copn lvs' tag op' es') l
+        else [:: ir]
+      in map (fun '(ir) => MkI ii ir) seq_ir
+      
   | Cif e c1 c2  =>
       let c1' := conc_map lower_i c1 in
       let c2' := conc_map lower_i c2 in
