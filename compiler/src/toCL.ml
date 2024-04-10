@@ -77,7 +77,7 @@ module CL = struct
 
     let pp_epreds fmt eps =
       if eps = [] then Format.fprintf fmt "true"
-      else Format.fprintf fmt "(@[%a@])" (pp_list ",@ " pp_epred) eps
+      else Format.fprintf fmt "(@[%a@])" (pp_list " /\\ " pp_epred) eps
 
   end
 
