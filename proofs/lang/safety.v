@@ -13,9 +13,13 @@ Context
   (gd : glob_decls).
 
 (*Safety checker in Ocaml -> SC
-
+SG(P) -> s 
 SC(s, P) -> True 
-P |= s /\ P type checks /\ P reaches ok state*)
+P |= s /\ P type checks. 
+
+/\ P reaches ok state /\ SC is formally correct *)
+
+(* x/y pos safe_div (x : int, y : pos) *)
 
 (* can be used to check that an expression does not evaluate to 0 *) 
 Definition not_zero_pexpr (e : pexpr) (s : @estate nosubword syscall_state ep) :=
@@ -521,9 +525,9 @@ rewrite /is_align_check_array /= he /sem_sop2 /= hi /= in ha.
 move: (ha (vi * mk_scale aa sz)%Z (vi * mk_scale aa sz)%Z erefl erefl)=> {ha} ha.
 rewrite /in_range_check in hr. move: (hr ve vi he hi)=> {hr} hr hread.
 rewrite /read ha in hread. 
-case hm: mapM hread=> [vm | vmr] //=. move=> [] heq; subst.
-move: err hm. elim: (ziota 0 (wsize_size sz))=> [ | n ns] //= hin.
-move=> err. case hwr: WArray.get8=> [wv | wvr] //=.
+case hm: mapM hread=> [vm | vmr] //=. move=> [] heq; subst. 
+move: err hm. elim : (ziota 0 (wsize_size sz))=> [ | n ns] //= hin err.
+case hwr: WArray.get8=> [wv | wvr] //=.
 + case hm: mapM=> [vm | vmr] //= [] heq; subst. by move: (hin err hm).
 move=> [] heq; subst. 
 have htr := array_get8_not_tyerr p' arr (add (vi * mk_scale aa sz)%Z n) err hwr.
@@ -532,6 +536,19 @@ case has: assert=> [va | var] //=.
 + case has': assert=> [va' | var'] //= [] heq1. 
   rewrite /assert in has'. move: has'. case: ifP=> //= has' [] heq2.
   rewrite heq1 in heq2. rewrite /WArray.in_bound /= in has'. 
+  move: has'. rewrite /andb /=. case: ifP=> //= h h'.  
+  + rewrite /WArray.in_range in hr. move: hr. rewrite /andb. case: ifP=> //= h1 h2.
+    rewrite /get_len_stype htx in h2. 
+    have hvt := @type_of_get_gvar_eq asm_op syscall_state ep spp wsw wdb gd (evm s) x (Varr arr) hg.
+    rewrite htx /type_of_val in hvt. case: hvt=> hvt'; subst. rewrite WArray.addE in h'.
+    have [hl hr] := Z.ltb_ge (vi * mk_scale aa sz + n) p. move: (hl h')=> hl'.
+    admit.
+  subst. admit.
+case has': assert=> [va' | var'] //=. 
++ move=>[] heq; subst. rewrite /assert in has. 
+  move: has. case: ifP=> //= has [] heq; subst. rewrite /WArray.is_init in has.
+  move: has. admit.
+move=> [] heq; subst. admit.
 Admitted.
 
 Lemma wt_safe_sem_opN_not_error : forall pd es op vm vma s err,
@@ -540,42 +557,22 @@ interp_safe_conds (flatten (gen_safe_conds gen_safe_cond es)) s ->
 mapM (sem_pexpr false gd s) es = ok vma ->
 sem_opN op vma <> Error err.
 Proof.
-move=> pd es. elim: es=> //=.
+move=> pd es op. case hteq: (type_of_opN op).1=> [ | t ts] //=; subst.
 + admit.
-move=> e es hin op. admit.
+move: (t :: ts). elim: es=> //=.
++ admit.
+move=> e es hin. move=> sts sts' vs s err. 
+case heq': sts=> [ | t' ts'] //=; subst.
+case hc: check_expr=> [vc | vcr] //=.
+case hm: mapM2=> [vm | vmr] //= [] heq hs; subst.
+case he: sem_pexpr=> [ve | ver] //=. 
+case hes: mapM=> [ves | vesr] //= [] heq; subst.
+have [hs1 hs2] := interp_safe_concat (gen_safe_cond e)
+(flatten (gen_safe_conds gen_safe_cond es)) s hs.
+move: (hin ts' vm ves s err hm hs2 hes)=> hoer.
+rewrite /sem_opN /=. case h: app_sopn => [r | er] //=.
+move=> [] heq; subst. 
 Admitted.
-
-(*Theorem sem_pexpr_not_err : forall pd e s ty err,
-ty_pexpr pd e = ok ty ->
-interp_safe_conds (gen_safe_cond e) s ->
-sem_pexpr (wsw := nosubword) false gd s e <> Error err.  
-Proof.
-move=> pd e s. elim: e=> //=.
-(* Pconst *)
-+ move=> x ty err [] ht [] hd _. 
-  by have := wt_safe_get_gvar_not_error x s ty err ht hd. 
-(* Pbool *)
-+ admit.
-(* Pget *)
-+ admit.
-(* Psub *)
-+ admit.
-(* Papp1 *)
-+ move=> op e hin ty err /=. case htop: (type_of_op1 op)=> [tin tout] //=.
-  rewrite /check_expr /check_type. case hte: ty_pexpr=> [te | ter] //=.
-  case: ifP=> //= hsub [] hteq hs; subst. case he: sem_pexpr=> [ve | ver] //=.
-  + by have := wt_safe_sem_op1_not_error pd op tin ty te e s ve err htop hsub
-               hte hs he.
-  by move: (hin te ver hte hs).
-(* Papp2 *)
-+ move=> op e1 hin1 e2 hin2 ty err. rewrite /check_expr /check_type.
-  admit.
-(* PappN *)
-+ move=> op es hin ty err. rewrite /check_pexprs.
-  case hm: mapM2=> [vm | vmr] //= [] hty hes; subst.
-  case hm': mapM=> [vm' | vmr'] //=.
-  by have := wt_safe_sem_opN_not_error pd es op vm vm' s err hm hes hm'.*)
-  
 
 Lemma wt_safe_mapM_not_error : forall pd t es vm s err,
 mapM2 ErrType (check_expr ty_pexpr pd) es t = ok vm ->
