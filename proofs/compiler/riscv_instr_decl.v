@@ -87,7 +87,7 @@ Definition ITypeInstruction semi jazz_name asm_name: instr_desc_t :=
     |}.
 
 (* -------------------------------------------------------------------- *)
-(* RISC-V 32I instructions (operators). *)
+(* RISC-V 32I Base Integer instructions (operators). *)
 
 Variant riscv_op : Type :=
 (* Arithmetic *)
@@ -113,6 +113,10 @@ Variant riscv_op : Type :=
 
 (* Stores *)
 | STORE of wsize                 (* Store 8 / 16 or 32-bit values from the low bits of register to memory *)
+
+(* RISC-V 32M Multiply instructions (operators). *)
+| MUL                            (* Multiply and write the least significant 32 bits of the result *)
+| MULH                           (* Multiply and write the most significant 32 bits of the result *)
 .
 
 Scheme Equality for riscv_op.
@@ -154,6 +158,17 @@ Definition riscv_ADDI_instr : instr_desc_t := ITypeInstruction riscv_add_semi "A
 Definition prim_ADDI := ("ADDI"%string, primM ADDI).
 
 
+Definition riscv_mul_semi (wn wm: ty_r) : exec ty_r := ok (wn * wm)%R.
+
+Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul".
+Definition prim_MUL := ("MUL"%string, primM MUL).
+
+Definition riscv_mulh_semi (wn wm: ty_r) : exec ty_r := ok (wmulhu wn wm).
+
+Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh".
+Definition prim_MULH := ("MULH"%string, primM MULH).
+
+
 Definition riscv_sub_semi (wn wm : ty_r) : exec ty_r := ok (wn - wm)%R.
 
 Definition riscv_SUB_instr : instr_desc_t := RTypeInstruction riscv_sub_semi "SUB" "sub".
@@ -185,7 +200,6 @@ Definition prim_XOR := ("XOR"%string, primM XOR).
 
 Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction riscv_xor_semi "XORI" "xori".
 Definition prim_XORI := ("XORI"%string, primM XORI).
-
 
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
   ok wn.
@@ -331,7 +345,6 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
 
 Definition prim_STORE := ("STORE"%string, primP STORE).
 
-
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
@@ -340,6 +353,8 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | ADD => riscv_ADD_instr
   | ADDI => riscv_ADDI_instr
   | SUB => riscv_SUB_instr
+  | MUL => riscv_MUL_instr
+  | MULH => riscv_MULH_instr
   | AND => riscv_AND_instr
   | ANDI => riscv_ANDI_instr  
   | OR => riscv_OR_instr
@@ -357,6 +372,8 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_ADD;
   prim_ADDI;
   prim_SUB;
+  prim_MUL;
+  prim_MULH;
   prim_OR;
   prim_ORI;
   prim_AND;
