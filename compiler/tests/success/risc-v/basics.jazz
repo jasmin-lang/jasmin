@@ -92,7 +92,7 @@ export fn main() -> reg u32 {
     if (rt0 != rt1) { r = -1; }
 
     rt0, rt1 = copy_lowering(a);
-    if (rt0 -= rt1) { r = -1; }
+    if (rt0 != rt1) { r = -1; }
 
     rt0 = pass(a);
     if (rt0 != a) { r = -1; }
