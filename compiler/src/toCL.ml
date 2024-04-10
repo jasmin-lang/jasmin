@@ -70,14 +70,14 @@ module CL = struct
       match ep with
       | Eeq(e1, e2) -> Format.fprintf fmt "(%a = %a)" pp_eexp e1 pp_eexp e2
       | Eeqmod(e1,e2, es) ->
-        Format.fprintf fmt "(%a = %a (mod [%a]))"
+        Format.fprintf fmt "eqmod %a %a [%a]"
           pp_eexp e1
           pp_eexp e2
           (pp_list ",@ " pp_eexp) es
 
     let pp_epreds fmt eps =
       if eps = [] then Format.fprintf fmt "true"
-      else Format.fprintf fmt "/\\[@[%a@]]" (pp_list ",@ " pp_epred) eps
+      else Format.fprintf fmt "(@[%a@])" (pp_list ",@ " pp_epred) eps
 
   end
 
@@ -485,7 +485,7 @@ module I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-   (*  | Pabstract ({name="indetX"}, _) ->   Format.fprintf fmt "X" *)
+    | Pabstract ({name="indetX"}, _) -> assert false
     | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Presult x -> Ivar (L.unloc x.gv)
     | _ -> assert false
