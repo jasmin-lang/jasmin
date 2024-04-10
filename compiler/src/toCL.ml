@@ -123,9 +123,9 @@ module CL = struct
     let mull e1 e2 = Rbinop (e1, "*", e2)
     let neg e1 = Runop ("neg", e1)
     let not e1 = Runop ("not", e1)
-    let rand e1 e2 = Rbinop (e1, "and", e2)
-    let ror e1 e2 = Rbinop (e1, "or", e2)
-    let xor e1 e2 = Rbinop (e1, "xor", e2)
+    let rand e1 e2 = Rbinop (e1, "&", e2)
+    let ror e1 e2 = Rbinop (e1, "|", e2)
+    let xor e1 e2 = Rbinop (e1, "^", e2)
     let umod e1 e2 = Rpreop ("umod", e1, e2)
     let smod e1 e2 = Rpreop ("smod", e1, e2)
     let srem e1 e2 = Rpreop ("srem", e1, e2)
@@ -176,9 +176,9 @@ module CL = struct
           match rps with
           | [] -> Format.fprintf fmt "true"
           | [h] -> pp_rpred fmt h
-          | h :: q -> Format.fprintf fmt "/\\[%a]" (pp_list ",@ " pp_rpred) rps
+          | h :: q -> Format.fprintf fmt "@[%a" (pp_list " /\\ " pp_rpred) rps
         end
-      | RPor  rps -> Format.fprintf fmt "\\/[%a]" (pp_list ",@ " pp_rpred) rps
+      | RPor  rps -> Format.fprintf fmt "@[%a" (pp_list " \\/ " pp_rpred) rps
 
     let pp_rpreds fmt rps = pp_rpred fmt (RPand rps)
 
