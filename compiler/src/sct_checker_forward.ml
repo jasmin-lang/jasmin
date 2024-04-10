@@ -40,10 +40,6 @@ type ulevel =
   | Public
   | Msf
 
-type uconstraints = (ulevel * ulevel) list
-type unomodmsf = bool option
-
-
 (* -------------------------------------------------------------- *)
 (* Special operators to deal with msf                             *)
 type special_op =
@@ -206,7 +202,7 @@ let ensure_register ~direct x =
 
 let reg_lval ~direct loc x =
   match x with
-  | Laset (_, _, x, _)
+  | Laset (_, _, _, x, _)
   | Lvar x -> ensure_register ~direct x; x
   | _ ->
       error ~loc "L-value %a must be a reg%s" pp_lval x
@@ -217,15 +213,15 @@ let reg_lval_opt ~direct loc =
   | Lnone _ -> None
   | x -> Some (reg_lval ~direct loc x)
 
-let reg_expr_opt ~direct loc = function
-  | Pget (_, _, x, _) | Pvar x ->
+let reg_expr_opt ~direct = function
+  | Pget (_, _, _, x, _) | Pvar x ->
       if is_gkvar x && is_register ~direct (L.unloc x.gv)
       then Some x.gv
       else None
   | _ -> None
 
 let reg_expr ~direct loc e =
-  match reg_expr_opt ~direct loc e with
+  match reg_expr_opt ~direct e with
   | Some x -> x
   | None -> error ~loc "expression %a must be a reg%s" pp_expr e
         (if direct then "" else " (ptr)")
@@ -305,7 +301,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         | AT_none | AT_keep -> false
         | AT_rename | AT_inline | AT_phinode -> true
       in
-      begin match reg_expr_opt ~direct:true loc e with
+      begin match reg_expr_opt ~direct:true e with
       | Some x' when gets_removed ->
           Sv.add (L.unloc x') (Sv.remove (L.unloc x) ms)
       | _ -> error ~loc "assignment to MSF variable %a not allowed" pp_var_i x
@@ -646,7 +642,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
 
   | Pvar x -> Env.gget venv x
 
-  | Pget (aa, ws, x, i) ->
+  | Pget (_, aa, ws, x, i) ->
       ensure_public_address env venv loc x.gv;
       ensure_public env venv loc i;
       let ty = Env.fresh2 env
@@ -661,7 +657,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
       ensure_public env venv loc i;
       Env.gget venv x
 
-  | Pload (_, x, i) ->
+  | Pload (_, _, x, i) ->
       ensure_public env venv loc (Pvar (gkvar x));
       ensure_public env venv loc i;
       Env.dsecret env
@@ -879,14 +875,14 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
       let venv = Env.set_ty env venv x xty in
       msf, venv
 
-  | Lmem(_, x, i) ->
+  | Lmem(_, _, x, i) ->
       ensure_public env venv (L.loc x) (Pvar (gkvar x));
       ensure_public env venv (L.loc x) i;
         (* programmes are assumed to be safe, thus corruption from memory store
            with [x + i] is speculative only *)
       msf, Env.corruption_speculative env venv (content_ty ety)
 
-  | Laset(aa, ws, x, i) ->
+  | Laset(_, aa, ws, x, i) ->
       ensure_public_address env venv (L.loc x) x;
       ensure_public env venv (L.loc x) i;
       let le = content_ty ety in
@@ -1237,6 +1233,7 @@ let parse_user_constraints (a:annotations) : (string * string) list =
      (List.map snd (A.process_annot [sconstraints, A.on_attribute ~on_string error] a))
 
 let init_constraint fenv f =
+  let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
   let env = Env.init () in
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
@@ -1248,7 +1245,6 @@ let init_constraint fenv f =
   let export = f.f_cc = Export in
 
   let add_lvl s =
-    let s = L.unloc s in
     try Hashtbl.find tbl s
     with Not_found ->
       let l = Env.fresh2 ~name:s env in
@@ -1256,28 +1252,56 @@ let init_constraint fenv f =
       l in
 
   let to_lvl = function
-    | Poly s -> add_lvl s
+    | Poly s -> add_lvl (L.unloc s)
     | Secret -> Env.secret2 env
     | Transient -> Env.transient env
     | Public | Msf -> Env.public2 env in
+
+  let lvl_of_sa_level =
+    let open SecurityAnnotations in
+    let lvl_of_simple_level get =
+      function
+      | Public -> Env.public env
+      | Secret -> Env.secret env
+      | Named s -> get (add_lvl s)
+    in
+    function { normal; speculative } ->
+      lvl_of_simple_level fst normal, lvl_of_simple_level snd speculative
+  in
+
+  let to_vty =
+    function
+    | SecurityAnnotations.Msf -> Direct (to_lvl Msf)
+    | Direct n -> Direct (lvl_of_sa_level n)
+    | Indirect { ptr; value } -> Indirect (lvl_of_sa_level ptr, lvl_of_sa_level value)
+  in
 
   let error_msf loc =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  let mk_vty loc ~(msf:bool) x ls =
+  let mk_vty loc ~(msf:bool) x ls an =
     let msf, ovty =
-      match ls with
-      | [] -> None, None
-      | [l] ->
+      match ls, an with
+      | [], None -> None, None
+      | [l], None ->
         if not msf && l = Msf then error_msf loc;
         Some (l = Msf), Some(Direct (to_lvl l))
-      | [l1; l2] ->
+      | [l1; l2], None ->
         if (l1 = Msf || l2 = Msf) then error_msf loc;
         Some false, Some(Indirect (to_lvl l1, to_lvl l2))
-      | _ ->
+      | _, None ->
         error ~loc:(x.v_dloc)
-          "invalid security annotations %a" pp_var x in
+          "invalid security annotations %a" pp_var x
+      | [], Some n ->
+         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
+      | [Msf], Some n ->
+         if not msf then error_msf loc;
+         Some true, Some (to_vty n)
+      | _ :: _, Some _ ->
+         error ~loc:(x.v_dloc)
+          "security annotations %a redundant with security signature" pp_var x
+    in
     let vty =
       match ovty with
       | None ->
@@ -1305,13 +1329,14 @@ let init_constraint fenv f =
         end; ty in
     msf, vty in
 
-  let process_return x annot =
+  let process_return i x annot =
     let loc = L.loc x and x = L.unloc x in
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
     let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
-    mk_vty loc ~msf:(not export) x ls in
+    mk_vty loc ~msf:(not export) x ls an in
 
   (* process function outputs *)
-  let tyout = List.map2 process_return f.f_ret f.f_outannot in
+  let tyout = List.map2i process_return f.f_ret f.f_outannot in
 
   (* infer msf_oracle info *)
   let msfs =
@@ -1335,9 +1360,10 @@ let init_constraint fenv f =
   end;
 
   (* process function inputs *)
-  let process_param venv x =
+  let process_param i venv x =
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) in
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
-    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls in
+    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls an in
     let msf =
       match msf with
       | None -> Sv.mem x msfs
@@ -1366,7 +1392,7 @@ let init_constraint fenv f =
     let ty = if msf then IsMsf else IsNormal vty in
     venv, ty in
 
-  let venv, tyin = List.map_fold process_param venv f.f_args in
+  let venv, tyin = List.mapi_fold process_param venv f.f_args in
 
   (* build the constraints *)
   let do_constraint (s1, s2) =
@@ -1383,7 +1409,7 @@ let init_constraint fenv f =
   (* init type for local *)
   let do_local venv x =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
-    let _, vty = mk_vty x.v_dloc ~msf:false x ls in
+    let _, vty = mk_vty x.v_dloc ~msf:false x ls None in
     Env.add_var env venv x vk vty in
 
   let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
@@ -1503,14 +1529,16 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
   let constraints = C.init() in
 
   let infer_fun f =
+    let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
 
-    let process_return annot =
+    let process_return i annot =
       let ls, _ = parse_var_annot ~kind_allowed:true ~msf:true annot in
-      List.mem Msf ls
+      let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
+      List.mem Msf ls || an = Some SecurityAnnotations.Msf
     in
 
     (* process function outputs *)
-    let tyout = List.map process_return f.f_outannot in
+    let tyout = List.mapi process_return f.f_outannot in
 
     (* infer the set of input variables that need to be msf *)
     let msfin =
@@ -1542,7 +1570,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
      | IsMsf      -> Slh_msf
   in
 
-  let do_f fn fty =
+  let do_f _fn fty =
     let in_t = List.map do_t fty.tyin in
     let out_t = List.map do_t fty.tyout in
     (in_t, out_t)

@@ -38,7 +38,7 @@ Context {atoI : arch_toIdent}.
 (* Stack alloc parameters. *)
 
 Definition is_load e :=
-  if e is Pload _ _ _ then true else false.
+  if e is Pload _ _ _ _ then true else false.
 
 Definition riscv_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
@@ -58,7 +58,7 @@ Definition riscv_mov_ofs
         else
           (* TODO: handle large immediates as in arm *)
           mk (ADDI, [::y; eword_of_int reg_size ofs ])
-    | Lmem _ _ _ =>
+    | Lmem _ _ _ _ =>
       if ofs == Z0 then mk (STORE U32, [:: y]) else None
     | _ => None
     end
@@ -124,11 +124,11 @@ Definition riscv_check_ws ws := ws == reg_size.
 
 Definition riscv_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
   let ws := reg_size in
-  ([:: Store ws xd (fconst ws ofs)], Oriscv (STORE ws), [:: Rexpr (Fvar xs)]).
+  ([:: Store Aligned ws xd (fconst ws ofs)], Oriscv (STORE ws), [:: Rexpr (Fvar xs)]).
 
 Definition riscv_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
   let ws := reg_size in
-  ([:: LLvar xd], Oriscv (LOAD Signed ws), [:: Load ws xs (fconst ws ofs)]).
+  ([:: LLvar xd], Oriscv (LOAD Signed ws), [:: Load Aligned ws xs (fconst ws ofs)]).
 
 Definition riscv_liparams : linearization_params :=
   {|

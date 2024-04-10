@@ -50,6 +50,7 @@ stdenv.mkDerivation {
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
          cmdliner
+         angstrom
          batteries
          ppxlib
          ppx_import

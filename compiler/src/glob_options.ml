@@ -8,6 +8,7 @@ let dwarf = ref false
 let debug = ref false
 let timings = ref false
 let print_list = ref []
+let print_liveness = ref false
 let ecfile = ref ""
 let ec_list = ref []
 let ec_array_path = ref Filename.current_dir_name
@@ -213,9 +214,9 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-oecarray" , Arg.String set_ec_array_path, "[dir]: output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
-    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
-    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
-    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
+    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system) (deprecated)";
+    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system) (deprecated)";
+    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system (deprecated)";
     "-checkSCT", Arg.Unit set_sct       , ": checks that the full program is speculative constant time (using a type system)";
     "-checkSCTon", Arg.String set_sct_on, "[f]: checks that the function [f] is speculative constant time (using a type system)";
     "-checkSCTafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), "start sct checker after given pass";
@@ -256,6 +257,7 @@ let options = [
     "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       ": select stack zeroization size for export functions";
+    "-pliveness", Arg.Set print_liveness, ": print liveness information during register allocation"
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

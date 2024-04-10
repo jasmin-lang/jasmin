@@ -3,13 +3,12 @@
 *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.
 Require Import byteset.
-Require Import Psatz.
-Import Utf8.
+Import Utf8 Lia.
 
 
 Set Implicit Arguments.
@@ -84,7 +83,7 @@ Proof.
     by rewrite LE.decodeK.
   move=> p t /=.
   set test := λ (wd : u8) (i : Z),
-       match read t i U8 with
+       match read t Aligned i U8 with
        | ok _ w => if wd == w then ok (i + 1) else Error (E.stk_ierror_no_var "bad decode array eq")
        | Error _ => Error (E.stk_ierror_no_var "bad decode array len")
        end.
@@ -93,8 +92,8 @@ Proof.
     foldM test i data' = ok z → 
     data = l ++ data' →
     Z.of_nat (size l) = i → 
-    (∀ (k : Z) (w : u8), 0%Z <= k < i -> read t k U8 = ok w → (data`_(Z.to_nat k))%R = w) → 
-    ∀ (k : Z) (w : u8), read t k U8 = ok w → (data`_(Z.to_nat k))%R = w); last first.
+    (∀ (k : Z) (w : u8), 0%Z <= k < i -> read t Aligned k U8 = ok w → (data`_(Z.to_nat k))%R = w) → 
+    ∀ (k : Z) (w : u8), read t Aligned k U8 = ok w → (data`_(Z.to_nat k))%R = w); last first.
   + by move=> hfold hsize; apply (H data 0%Z [::] z) => //; lia.
   move=> {z hf }; elim => [ | w data' hrec] i l z /=.
   + rewrite cats0 => _ <- <- h k w hr.
@@ -331,7 +330,7 @@ Proof.
 Qed.
 
 Lemma init_stack_layout_size_ge0 : 0 <= sao.(sao_size).
-Proof. by have [? ? _] := init_stack_layoutP; Psatz.lia. Qed.
+Proof. by have [? ? _] := init_stack_layoutP; lia. Qed.
 
 Lemma init_stack_layout_stack_align x1 ofs1 ws1 :
   Mvar.get stack x1 = Some (ofs1, ws1) -> (ws1 <= sao.(sao_align))%CMP.
@@ -982,7 +981,7 @@ Qed.
 
 Lemma init_map_wf_rmap vnew' s1 s2 :
   (forall i, 0 <= i < glob_size ->
-    read (emem s2) (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
+    read (emem s2) Aligned (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap (Mvar.empty _) vnew') Slots Addr Writable Align P empty s1 s2.
 Proof.
   clear disjoint_zrange_globals_locals.
@@ -1289,7 +1288,7 @@ Qed.
 Lemma init_local_map_wf_rmap s2 :
   let: s1 := {| escs := scs1; emem := m1; evm := Vm.init |} in
   (forall i, 0 <= i < glob_size ->
-    read (emem s2) (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
+    read (emem s2) Aligned (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap locals1 vnew1) Slots Addr Writable Align P rmap1 s1 s2.
 Proof.
   move=> heqvalg.
@@ -1596,14 +1595,14 @@ Record extend_mem (m1 m2:mem) (rip:pointer) (data:seq u8) := {
   em_align       : is_align rip U256;
     (* [rip] is 32-bytes aligned (and thus is 1,2,4,8,16-bytes aligned) *)
     (* could be formulated, [forall ws, is_align rip ws] *)
-  em_read_old8   : forall p, validw m1 p U8 -> read m1 p U8 = read m2 p U8;
+  em_read_old8   : forall p, validw m1 Aligned p U8 -> read m1 Aligned p U8 = read m2 Aligned p U8;
     (* [m2] contains [m1] *)
-  em_fresh       : forall p, validw m1 p U8 -> disjoint_zrange rip (Z.of_nat (size data)) p (wsize_size U8);
+  em_fresh       : forall p, validw m1 Aligned p U8 -> disjoint_zrange rip (Z.of_nat (size data)) p (wsize_size U8);
    (* the bytes in [rip; rip + Z.of_nat (size data) - 1] are disjoint from the valid bytes of [m1] *)
-  em_valid       : forall p, validw m1 p U8 || between rip (Z.of_nat (size data)) p U8 -> validw m2 p U8;
+  em_valid       : forall p, validw m1 Aligned p U8 || between rip (Z.of_nat (size data)) p U8 -> validw m2 Aligned p U8;
     (* [m2] contains at least [m1] and [rip; rip + Z.of_nat (size data) - 1] *)
   em_read_new    : forall i, 0 <= i < Z.of_nat (size data) ->
-                     read m2 (rip + wrepr _ i)%R U8 = ok (nth 0%R data (Z.to_nat i))
+                     read m2 Aligned (rip + wrepr _ i)%R U8 = ok (nth 0%R data (Z.to_nat i))
     (* the memory at address [rip] contains [data] *)
 }.
 
@@ -1657,7 +1656,7 @@ Proof.
       by apply: hext.(em_fresh) hvalid.
     + rewrite /Addr (pick_slot_locals hin).
       apply: (disjoint_zrange_incl_l (zbetween_Addr_locals hin)).
-      have hvalid2: validw m2 w U8.
+      have hvalid2: validw m2 Aligned w U8.
       + apply hext.(em_valid).
         by rewrite hvalid.
       have hdisj := hass.(ass_fresh) hvalid2.
@@ -1761,8 +1760,8 @@ Lemma valid_state_extend_mem pmap rsp Slots Addr Writable Align rmap m0 s1 s2 :
   extend_mem (emem s1) (emem s2) rip global_data ->
   forall rmap' s1' s2',
   valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap' m0 s1' s2' ->
-  validw (emem s1) =2 validw (emem s1') ->
-  validw (emem s2) =2 validw (emem s2') ->
+  validw (emem s1) =3 validw (emem s1') ->
+  validw (emem s2) =3 validw (emem s2') ->
   extend_mem (emem s1') (emem s2') rip global_data.
 Proof.
   move=> hwf hvs hext rmap' s1' s2' hvs' hvalideq1 hvalideq2.
@@ -1775,9 +1774,9 @@ Proof.
   have hb: between rip glob_size (rip + wrepr _ i)%R U8.
   + apply: between_byte hi => //.
     by apply zbetween_refl.
-  have hvalid0: validw m0 (rip + wrepr _ i)%R U8.
+  have hvalid0: validw m0 Aligned (rip + wrepr _ i)%R U8.
   + exact: vs_glob_valid.
-  have hnvalid1: ~ validw (emem s1) (rip + wrepr _ i)%R U8.
+  have hnvalid1: ~ validw (emem s1) Aligned (rip + wrepr _ i)%R U8.
   + move=> /hfresh.
     by apply zbetween_not_disjoint_zrange.
   have hdisjoint: forall s, Sv.In s Slots -> Writable s ->
@@ -1890,8 +1889,8 @@ Definition wf_results m vargs1 vargs2 fn :=
 Definition disjoint_from_writable_params fn p :=
   Forall3 (disjoint_from_writable_param p) (local_alloc fn).(sao_params).
 Definition mem_unchanged_params fn ms m0 m vargs1 vargs2 :=
-  forall p, validw m0 p U8 -> ~ validw ms p U8 -> disjoint_from_writable_params fn p vargs1 vargs2 ->
-  read m0 p U8 = read m p U8.
+  forall p, validw m0 Aligned p U8 -> ~ validw ms Aligned p U8 -> disjoint_from_writable_params fn p vargs1 vargs2 ->
+  read m0 Aligned p U8 = read m Aligned p U8.
 
 Let Pfun (scs1: syscall_state) (m1: mem) (fn: funname) (vargs: seq value) 
          (scs2: syscall_state) (m2: mem) (vres: seq value) :=
@@ -2235,7 +2234,7 @@ Proof.
   rewrite /wbit_n.
   case: ltP.
   + move=> /ltP hlt.
-    by rewrite word.subwordE word.wbit_t2wE (nth_map 0%R) ?size_enum_ord // nth_enum_ord.
+    by rewrite word.subwordE word.wbit_t2wE (nth_map ord0) ?size_enum_ord // nth_enum_ord.
   rewrite /nat_of_wsize => hle.
   rewrite word.wbit_word_ovf //.
   by apply /ltP; lia.
@@ -2516,7 +2515,7 @@ Qed.
 Lemma free_stack_spec_extend_mem m1 m2 m3 :
   extend_mem m1 m2 rip global_data ->
   free_stack_spec m2 m3 ->
-  (forall p, validw m1 p U8 || between rip (Z.of_nat (size global_data)) p U8 -> validw m3 p U8) ->
+  (forall p, validw m1 Aligned p U8 || between rip (Z.of_nat (size global_data)) p U8 -> validw m3 Aligned p U8) ->
   extend_mem m1 m3 rip global_data.
 Proof.
   move=> hext hfss hincl.
@@ -2562,7 +2561,7 @@ Qed.
 
 Lemma free_stack_spec_wf_results m1 m2 fn vargs1 vargs2 m3 m3' vres1 vres2 :
   wf_args m1 m3 fn vargs1 vargs2 ->
-  validw m3 =2 validw m3' ->
+  validw m3 =3 validw m3' ->
   free_stack_spec m2 m3' ->
   List.Forall (fun oi => forall i, oi = Some i -> nth None (local_alloc fn).(sao_params) i <> None) (local_alloc fn).(sao_return) ->
   wf_results m2 vargs1 vargs2 fn vres1 vres2 ->
@@ -2683,7 +2682,7 @@ Proof.
     + apply: between_byte hk => //.
       by apply zbetween_refl.
     (* TODO: use disjoint_zrange in ass_fresh? *)
-    have /hass.(ass_fresh) hfresh: validw m2 (rip + wrepr _ k)%R U8.
+    have /hass.(ass_fresh) hfresh: validw m2 Aligned (rip + wrepr _ k)%R U8.
     + apply hext.(em_valid).
       by rewrite hb orbT.
     apply disjoint_zrange_sym.
@@ -2775,10 +2774,10 @@ Proof.
 
   (* finalize *)
   have hfss := Memory.free_stackP (emem s2').
-  have hvalideq1: validw m1 =2 validw (emem s1').
+  have hvalideq1: validw m1 =3 validw (emem s1').
   + have /= -> := write_vars_memP hs1.
     by apply (sem_validw_stable_uprog hsem1).
-  have hvalideq2: validw m2 =2 validw (free_stack (emem s2')).
+  have hvalideq2: validw m2 =3 validw (free_stack (emem s2')).
   + apply: (alloc_free_validw_stable hass _ _ hfss);
       have /= -> := write_vars_memP hs2.
     + by apply (sem_stack_stable_sprog hsem2).
@@ -2868,14 +2867,14 @@ Record extend_mem_eq (m1 m2:mem) (rip:pointer) (data:seq u8) := {
   eme_align       : is_align rip U256;
     (* [rip] is 32-bytes aligned (and thus is 1,2,4,8,16-bytes aligned) *)
     (* could be formulated, [forall ws, is_align rip ws] *)
-  eme_read_old8   : forall p, validw m1 p U8 -> read m1 p U8 = read m2 p U8;
+  eme_read_old8   : forall p, validw m1 Aligned p U8 -> read m1 Aligned p U8 = read m2 Aligned p U8;
     (* [m2] contains [m1] *)
-  eme_fresh       : forall p, validw m1 p U8 -> disjoint_zrange rip (Z.of_nat (size data)) p (wsize_size U8);
+  eme_fresh       : forall p, validw m1 Aligned p U8 -> disjoint_zrange rip (Z.of_nat (size data)) p (wsize_size U8);
    (* the bytes in [rip; rip + Z.of_nat (size data) - 1] are disjoint from the valid bytes of [m1] *)
-  eme_valid       : forall p, validw m1 p U8 || between rip (Z.of_nat (size data)) p U8 = validw m2 p U8;
+  eme_valid       : forall p, validw m1 Aligned p U8 || between rip (Z.of_nat (size data)) p U8 = validw m2 Aligned p U8;
     (* [m2] contains exactly [m1] and [rip; rip + Z.of_nat (size data) - 1] *)
   eme_read_new    : forall i, 0 <= i < Z.of_nat (size data) ->
-                     read m2 (rip + wrepr _ i)%R U8 = ok (nth 0%R data (Z.to_nat i))
+                     read m2 Aligned (rip + wrepr _ i)%R U8 = ok (nth 0%R data (Z.to_nat i))
     (* the memory at address [rip] contains [data] *)
 }.
 

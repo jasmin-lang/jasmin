@@ -78,6 +78,21 @@
 - Extraction as EasyCrypt code targets version 2024.01
   ([PR #690](https://github.com/jasmin-lang/jasmin/pull/690)).
 
+- The Constant-Time security checker is now available as a separate `jazzct`
+  tool; the `-checkCT`, `-checkCTon`, and `-infer` command line options are
+  deprecated
+  ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
+
+- Register allocation can print liveness information (enable with `-pliveness`)
+  ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749)).
+
+- Relaxed alignment constraints for memory and array accesses
+  ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748)).
+
+- Namespaces can be used to structure source code and require the same file
+  more than once (in different contexts)
+  ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators

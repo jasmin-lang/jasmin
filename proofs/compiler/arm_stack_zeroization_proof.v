@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 Require Import Lia.
 
@@ -70,7 +70,7 @@ Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
   get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
   get_var true (lvm ls) rspi = ok (Vword w1) ->
   sem_fexpr (lvm ls) e >>= to_word Uptr = ok w2 ->
-  write (lmem ls) (w1 + w2)%R (sz:=ws) 0 = ok m' ->
+  write (lmem ls) Aligned (w1 + w2)%R (sz:=ws) 0 = ok m' ->
   let i := MkLI ii (store_zero rspi ws e) in
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).
 Proof.
@@ -107,12 +107,12 @@ Qed.
 Record state_rel_unrolled vars s1 s2 n (p:word Uptr) := {
   sr_scs : s1.(escs) = s2.(escs);
   sr_mem : mem_equiv s1.(emem) s2.(emem);
-  sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) p U8;
+  sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) Aligned p U8;
   sr_disjoint :
     forall p, disjoint_zrange top stk_max p (wsize_size U8) ->
-      read s1.(emem) p U8 = read s2.(emem) p U8;
+      read s1.(emem) Aligned p U8 = read s2.(emem) Aligned p U8;
   sr_zero : forall p,
-    between (top + wrepr _ n) (stk_max - n) p U8 -> read s2.(emem) p U8 = ok 0%R;
+    between (top + wrepr _ n) (stk_max - n) p U8 -> read s2.(emem) Aligned p U8 = ok 0%R;
   sr_vm : s1.(evm) =[\ Sv.add rspi vars] s2.(evm) ;
   sr_vsaved : s2.(evm).[vsaved_sp] = Vword ptr;
   sr_rsp : s2.(evm).[rspi] = Vword p;
@@ -311,9 +311,9 @@ Proof.
     move=> /eqP /Z.mod_divide [//|m ?].
     have ? := wsize_size_pos ws.
     have: (0 < m)%Z; nia.
-  have: validw (emem s2) (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
+  have: validw (emem s2) Aligned (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
   + apply /validwP; split.
-    + rewrite (is_align_addE top_aligned).
+    + rewrite /= (is_align_addE top_aligned).
       have /is_align_addE <- := [elaborate (is_align_mul ws 1)].
       rewrite Z.mul_1_r GRing.addrC GRing.subrK.
       rewrite WArray.arr_is_align.
@@ -360,7 +360,7 @@ Proof.
     rewrite (write_validw_eq hm').
     by apply hvalid.
   + move=> p hp.
-    rewrite (writeP_neq hm'); first by apply hdisj.
+    rewrite (writeP_neq _ hm'); first by apply hdisj.
     apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify -wrepr_sub.
@@ -535,9 +535,9 @@ Local Opaque wsize_size Z.of_nat.
     rewrite Z.mul_comm; apply Z.mul_le_mono_nonneg_l => //.
     rewrite Nat2Z.inj_succ.
     by apply Z.le_succ_l.
-  have: validw (emem s2) (top + (wrepr Uptr (stk_max - Z.of_nat n.+1 * wsize_size ws)))%R ws.
+  have: validw (emem s2) Aligned (top + (wrepr Uptr (stk_max - Z.of_nat n.+1 * wsize_size ws)))%R ws.
   + apply /validwP; split.
-    + rewrite (is_align_addE top_aligned).
+    + rewrite /= (is_align_addE top_aligned).
       have /is_align_addE <- := [elaborate (is_align_mul ws (Z.of_nat n.+1))].
       rewrite Z.mul_comm wrepr_sub GRing.addrC GRing.subrK.
       by rewrite WArray.arr_is_align.
@@ -585,7 +585,7 @@ Local Opaque wsize_size Z.of_nat.
     rewrite (write_validw_eq hm').
     by apply hvalid.
   + move=> p hp.
-    rewrite (writeP_neq hm'); first by apply hdisj.
+    rewrite (writeP_neq _ hm'); first by apply hdisj.
     apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.

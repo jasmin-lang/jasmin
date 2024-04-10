@@ -1,6 +1,5 @@
 From Coq Require Import Relations.
-From Coq Require Import Psatz.
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 
 Require Import oseq.
@@ -116,7 +115,7 @@ Proof.
     case: eqP => hxz.
     + by subst z; have /write_getP_eq [_ _ ->] /= := hw; rewrite zero_extend_u.
     by rewrite (write_getP_neq _ hw) //; apply/eqP.
-  move=> ws_ x_ e_; move: (Lmem ws_ x_ e_) => {ws_ x_ e_} x.
+  move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
   case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; exists (evm s2) => //.
   constructor.
   rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= zero_extend_u.

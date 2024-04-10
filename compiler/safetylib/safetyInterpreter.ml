@@ -277,20 +277,26 @@ let safe_var x = match (L.unloc x).v_ty with
 let safe_gvar x = match x.gs with
   | Expr.Sglob  -> []
   | Expr.Slocal -> safe_var x.gv
-         
+
+let optional_alignment_check al ws x e acc =
+  match al with
+  | Memory_model.Unaligned -> acc
+  | _ -> AlignedPtr (ws, x, e) :: acc
+
 let rec safe_e_rec safe = function
   | Pconst _ | Pbool _ | Parr_init _ -> safe
   | Pvar x -> safe_gvar x @ safe
 
-  | Pload (ws,x,e) ->
-    Valid      (ws, L.unloc x, e) ::
-    AlignedPtr (ws, L.unloc x, e) ::
-    safe_e_rec safe e
+  | Pload (al, ws,x,e) ->
+     let x = L.unloc x in
+    Valid (ws, x, e) ::
+    optional_alignment_check al ws x e
+    (safe_e_rec safe e)
       
-  | Pget (access, ws, x, e) ->
+  | Pget (al, access, ws, x, e) ->
     in_bound    x.gv access ws e 1 @
     init_get    x access ws e 1 @
-    arr_aligned (* x.gv *) access ws e @
+    (if al = Aligned then arr_aligned (* x.gv *) access ws e else []) @
     safe
 
   | Psub (access, ws, len, x, e) ->
@@ -317,14 +323,15 @@ let safe_es = List.fold_left safe_e_rec []
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
 
-  | Lmem(ws, x, e) ->
-    Valid (ws, L.unloc x, e) ::
-    AlignedPtr (ws, L.unloc x, e) ::
-    safe_e_rec [] e
+  | Lmem(al, ws, x, e) ->
+    let x = L.unloc x in
+    Valid (ws, x, e) ::
+    optional_alignment_check al ws x e
+    (safe_e_rec [] e)
 
-  | Laset(access,ws, x,e) ->
+  | Laset(al, access,ws, x,e) ->
     in_bound x access ws e 1 @
-    arr_aligned (* x *) access ws e @
+    (if al = Aligned then arr_aligned (* x *) access ws e else []) @
     safe_e_rec [] e
 
   | Lasub(access,ws,len,x,e) ->
@@ -1499,7 +1506,7 @@ end = struct
 
     and nm_e vs_for = function
       | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> true
-      | Pget (_,_,_,    e) 
+      | Pget (_,_,_,_,  e)
       | Psub (_,_,_, _, e) -> know_offset vs_for e && nm_e vs_for e
       | Pload _            -> false
       | Papp1 (_, e)       -> nm_e vs_for e
@@ -1511,7 +1518,7 @@ end = struct
 
     and nm_lv vs_for = function
       | Lnone _ | Lvar _ -> true
-      | Laset (_,_,_,e) | Lasub (_,_,_,_,e) -> know_offset vs_for e
+      | Laset (_,_,_,_,e) | Lasub (_,_,_,_,e) -> know_offset vs_for e
       | Lmem _ -> false
 
     and nm_lvs vs_for lvs = List.for_all (nm_lv vs_for) lvs 

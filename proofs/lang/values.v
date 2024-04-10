@@ -1,9 +1,9 @@
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
-Require Import Psatz xseq.
+Require Import xseq.
 Require Export warray_ word sem_type.
 Import Utf8.
 
@@ -234,10 +234,10 @@ Lemma value_uincl_undef_t t1 t2 :
 Proof. by move=> h; apply value_uincl_undef; rewrite type_of_undef h undef_tK. Qed.
 
 Lemma Array_set_uincl n1 n2
-   (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz aa i (v:word wz):
+   (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz al aa i (v:word wz):
   value_uincl (Varr a1) (Varr a2) ->
-  WArray.set a1 aa i v = ok a1' ->
-  exists2 a2', WArray.set a2 aa i v = ok a2' &
+  WArray.set a1 al aa i v = ok a1' ->
+  exists2 a2', WArray.set a2 al aa i v = ok a2' &
     value_uincl (Varr a1) (Varr a2).
 Proof. move=> /= hu hs; have [?[]]:= WArray.uincl_set hu hs; eauto. Qed.
 
@@ -435,8 +435,7 @@ Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
 Proof.
   by case: t1; case: t2 => >; rewrite /val_uincl //=;
     case: {-}_/ boolP => // h >;
-    rewrite -(FunctionalExtensionality.eta_expansion (@eq _))
-      (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
+    rewrite (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
 Qed.
 
 Lemma val_uinclEl t1 t2 v1 v2 :

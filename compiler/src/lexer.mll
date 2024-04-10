@@ -40,6 +40,7 @@
     "if"    , IF     ;
     "inline", INLINE ;
     "mut"   , MUTABLE;
+    "namespace", NAMESPACE;
     "param" , PARAM  ;
     "ptr"   , POINTER;
     "reg"   , REG    ;
@@ -156,6 +157,7 @@ rule main = parse
   | ";"     { SEMICOLON  }
   | "?"     { QUESTIONMARK  }
   | ":"     { COLON  }
+  | "::"    { COLONCOLON  }
 
   | ">>r"                   { ROR              }
   | "<<r"                   { ROL              }
@@ -181,6 +183,8 @@ rule main = parse
   | "="  { EQ       }
   | "==" { EQEQ     }
   | "!=" { BANGEQ   }
+  | "#unaligned" { UNALIGNED   }
+  | "#aligned" { ALIGNED   }
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }

@@ -1,9 +1,17 @@
 (subdir entry
+
+(library
+  (name commonCLI)
+  (wrapped false)
+  (libraries cmdliner jasmin.jasmin)
+  (flags (:standard -rectypes))
+  (modules commonCLI))
+
 (executable
  (public_name jasminc)
  (name jasminc)
  (modules jasminc)
- (flags -rectypes)
+ (flags (:standard -rectypes))
  (modes byte exe)
  (libraries jasminc))
 
@@ -11,7 +19,15 @@
  (public_name jazz2tex)
  (name jazz2tex)
  (modules jazz2tex)
- (flags -rectypes)
+ (flags (:standard -rectypes))
  (modes byte exe)
- (libraries cmdliner jasmin))
+ (libraries commonCLI))
+
+(executable
+ (public_name jazzct)
+ (name jazzct)
+ (modules jazzct)
+ (flags (:standard -rectypes))
+ (modes byte exe)
+ (libraries commonCLI))
 )

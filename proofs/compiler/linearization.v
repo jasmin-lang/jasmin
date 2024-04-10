@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import ZArith.
 Require Import Utf8.
 Import Relations.
@@ -541,8 +541,8 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
     | SavedStackNone =>
         [&& sf_to_save e == [::]
           , sf_align e == U8
-          , sf_stk_sz e == 0
-          & sf_stk_extra_sz e == 0
+          , sf_stk_sz e == 0%Z
+          & sf_stk_extra_sz e == 0%Z
         ]
 
     | SavedStackReg x =>

@@ -1,7 +1,7 @@
 From Coq Require Import ZArith.
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 Require Import
   strings

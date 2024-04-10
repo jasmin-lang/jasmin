@@ -15,6 +15,7 @@ install: [
   mkdir -p "%{prefix}%/bin"
   cp "_build/default/entry/jasminc.exe" "%{prefix}%/bin/jasminc"
   cp "_build/default/entry/jazz2tex.exe" "%{prefix}%/bin/jazz2tex"
+  cp "_build/default/entry/jazzct.exe" "%{prefix}%/bin/jazzct"
   mkdir -p "%{prefix}%/lib/jasmin/easycrypt"
   sh -c "cp ../eclib/*.ec \"%{prefix}%/lib/jasmin/easycrypt/\""
 ]
@@ -30,6 +31,7 @@ depends: [
   "apron" {>= "v0.9.12"}
   "conf-ppl"
   "yojson" {>= "1.6.0"}
+  "angstrom"
   "ocamlfind" { build }
 ]
 conflicts: [

@@ -1,6 +1,6 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 From mathcomp Require Import word_ssrZ.
 
@@ -39,7 +39,7 @@ Context {atoI : arch_toIdent}.
 (* Stack alloc parameters. *)
 
 Definition is_load e :=
-  if e is Pload _ _ _ then true else false.
+  if e is Pload _ _ _ _ then true else false.
 
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
@@ -65,7 +65,7 @@ Definition arm_mov_ofs
                 Some (Copn [::x; Lvar y_.(gv)] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
               else None
             else None
-    | Lmem _ _ _ =>
+    | Lmem _ _ _ _ =>
       if ofs == Z0 then mk (STR, [:: y]) else None
     | _ => None
     end
@@ -128,12 +128,12 @@ Definition arm_check_ws ws := ws == reg_size.
 Definition arm_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
   let ws := reg_size in
   let mn := STR in
-  ([:: Store ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]).
+  ([:: Store Aligned ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]).
 
 Definition arm_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
   let ws := reg_size in
   let mn := LDR in
-  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load ws xs (fconst ws ofs)]).
+  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load Aligned ws xs (fconst ws ofs)]).
 
 Definition arm_liparams : linearization_params :=
   {|

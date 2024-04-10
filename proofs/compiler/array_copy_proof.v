@@ -1,8 +1,9 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
+From Coq Require Import ZArith Lia.
 Require Import array_copy psem.
-Require Import compiler_util ZArith.
+Require Import compiler_util.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -195,7 +196,7 @@ Proof.
     set vm2' := vm1'.[i <- Vint (n - Z.succ j)].
     set tmp := {| vtype := sword ws; vname := fresh_temporary ws |}.
     have [] := hrec _ ((if cond then vm2'.[tmp <- Vword w] else vm2').[x <- Varr tx1]) tx1 => //.
-    + by Psatz.lia.
+    + by lia.
     + rewrite read_e_var; move=> z hz.
       case: (v_var x =P z) => hxz.
       + subst z; rewrite Vm.setP_eq.
@@ -245,7 +246,7 @@ Proof.
     + by rewrite /truncate_val /= truncate_word_u.
     rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ (mk_lvar i)) //= truncate_word_u /=.
     by rewrite hset /= write_var_eq_type.
-  move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by Psatz.lia.
+  move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by lia.
   + by rewrite Z.sub_diag.
   rewrite Z.sub_diag => vm2 [] hvm2 htx' hfor; exists vm2.
   + move=> z hz; case: (v_var x =P z) => [<- | hne].

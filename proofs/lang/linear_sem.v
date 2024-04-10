@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
@@ -143,7 +143,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
     Let lbl := get_label_after_pc s1 in
     Let p := rencode_label labels (lfn s1, lbl) in
-    Let m := write s1.(lmem) nsp p in
+    Let m := write s1.(lmem) Aligned nsp p in
     eval_jump d (lset_mem_vm s1 m vm)
   | Lcall (Some r) d =>
     Let lbl := get_label_after_pc s1 in
@@ -154,7 +154,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
-    Let p  := read s1.(lmem) sp Uptr in
+    Let p  := read s1.(lmem) Aligned sp Uptr in
     Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
     Let d := rdecode_label labels p in
     eval_jump d (lset_vm s1 vm)

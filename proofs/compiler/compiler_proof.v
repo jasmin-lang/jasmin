@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 
 Require Import
   arch_params_proof
@@ -518,8 +518,8 @@ Lemma compiler_back_endP
             lsem_exportcall tp scs lm fn vm scs' lm' vm',
             match_mem m' lm',
             (cparams.(stack_zero_info) fn <> None ->
-              forall p, ~ validw m p U8 ->
-                read lm' p U8 = read lm p U8 \/ read lm' p U8 = ok 0%R) &
+              forall p, ~ validw m Aligned p U8 ->
+                read lm' Aligned p U8 = read lm Aligned p U8 \/ read lm' Aligned p U8 = ok 0%R) &
             List.Forall2 value_uincl res (map (λ x : var_i, vm'.[x]) fd.(lfd_res))
           ]
       ].
@@ -531,10 +531,10 @@ Proof.
   move=> /InP ok_fn exec_p.
   set vtmp := var_tmps aparams.
   have vtmp_not_magic : disjoint vtmp (magic_variables p).
-  - by apply: (var_tmp_not_magic checked_p).
+  - exact: (var_tmp_not_magic (sip := sip_of_asm_e) checked_p).
   have p_call :
     sem_export_call p vtmp rip scs m fn args scs' m' res.
-  - apply: (merge_varmaps_export_callP checked_p _ exec_p).
+  - apply: (merge_varmaps_export_callP (sip := sip_of_asm_e) checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
     case: get_fundef => // fd /assertP /is_RAnoneP Export.
@@ -600,7 +600,7 @@ Proof.
   + move: bottom_instack; rewrite /no_overflow /zbetween !zify.
     have /= := [elaborate (wunsigned_range (top_stack m))].
     by Lia.lia.
-  have hvalid: ∀ pr, between bottom (lfd_stk_max lfd) pr U8 → validw tm pr U8.
+  have hvalid: ∀ pr, between bottom (lfd_stk_max lfd) pr U8 → validw tm Aligned pr U8.
   + move=> pr /(zbetween_trans bottom_instack).
     rewrite -/(between _ _ _ _) -pointer_range_between => hpr.
     apply H1.(valid_stk).
@@ -716,9 +716,9 @@ Lemma compiler_back_end_to_asmP
                 [/\ asmsem_exportcall xp fn xm xm'
                   , match_mem m' xm'.(asm_mem), xm'.(asm_scs) = scs'
                   , (cparams.(stack_zero_info) fn <> None ->
-                      forall p, ~ validw m p U8 ->
-                       read xm'.(asm_mem) p U8 = read xm.(asm_mem) p U8
-                       \/ read xm'.(asm_mem) p U8 = ok 0%R)
+                      forall p, ~ validw m Aligned p U8 ->
+                       read xm'.(asm_mem) Aligned p U8 = read xm.(asm_mem) Aligned p U8
+                       \/ read xm'.(asm_mem) Aligned p U8 = ok 0%R)
                   & List.Forall2 value_uincl res (get_typed_reg_values xm' xd.(asm_fd_res))
                 ]
       ].
@@ -856,9 +856,9 @@ Lemma compile_prog_to_asmP
                 [/\ asmsem_exportcall xp fn xm xm'
                   , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp), asm_scs xm' = scs'
                   , (cparams.(stack_zero_info) fn <> None ->
-                      forall p, ~ validw m p U8 ->
-                        read xm'.(asm_mem) p U8 = read xm.(asm_mem) p U8
-                        \/ read xm'.(asm_mem) p U8 = ok 0%R)
+                      forall p, ~ validw m Aligned p U8 ->
+                        read xm'.(asm_mem) Aligned p U8 = read xm.(asm_mem) Aligned p U8
+                        \/ read xm'.(asm_mem) Aligned p U8 = ok 0%R)
                   & List.Forall2 value_uincl vr (get_typed_reg_values xm' (asm_fd_res xd))
                 ]
       ].

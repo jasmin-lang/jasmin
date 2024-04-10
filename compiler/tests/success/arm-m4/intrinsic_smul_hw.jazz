@@ -6,7 +6,7 @@ fn smul_hw(reg u32 x y) -> reg u32 {
     r = #SMULTB(r, y);
     r = #SMULTT(r, y);
 
-    inline bool b;
+    reg bool b;
     ?{ "<s" = b } = #CMP(r, y);
     r = #SMULBBcc(r, y, b, r);
     r = #SMULBTcc(r, y, b, r);

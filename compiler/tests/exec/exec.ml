@@ -1,4 +1,3 @@
-open Jasmin
 open Execlib
 
 let () =

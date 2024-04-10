@@ -12,7 +12,7 @@ circular dependency. *)
 
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 Require Import utils.
 
 Set Implicit Arguments.

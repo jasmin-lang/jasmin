@@ -50,9 +50,9 @@ Definition RTypeInstruction semi jazz_name asm_name: instr_desc_t :=
   {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg; sreg ];
-      id_in := [:: E 1; E 2 ];
+      id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: sreg];
-      id_out := [:: E 0 ];
+      id_out := [:: Ea 0 ];
       id_semi := semi;
       id_nargs := 3;
       id_args_kinds := ak_reg_reg_reg;
@@ -71,9 +71,9 @@ Definition ITypeInstruction semi jazz_name asm_name: instr_desc_t :=
       id_msb_flag := MSB_MERGE;
       (* imm are coded on 12 bits, not 32 *)
       id_tin := [:: sreg; sreg ];
-      id_in := [:: E 1; E 2 ];
+      id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: sreg];
-      id_out := [:: E 0 ];
+      id_out := [:: Ea 0 ];
       id_semi := semi;
       id_nargs := 3;
       id_args_kinds := ak_reg_reg_imm;
@@ -194,9 +194,9 @@ Definition riscv_MV_instr : instr_desc_t :=
     {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg ];
-      id_in := [:: E 1 ];
+      id_in := [:: Ea 1 ];
       id_tout := [:: sreg ];
-      id_out := [:: E 0 ];
+      id_out := [:: Ea 0 ];
       id_semi := riscv_MV_semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg;
@@ -221,7 +221,7 @@ Definition riscv_LA_instr : instr_desc_t :=
       id_tin := [:: sreg ];
       id_in := [:: Ec 1 ];
       id_tout := [:: sreg ];
-      id_out := [:: E 0 ];
+      id_out := [:: Ea 0 ];
       id_semi := riscv_LA_semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr;
@@ -243,9 +243,9 @@ Definition riscv_LI_instr : instr_desc_t :=
     {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg ];
-      id_in := [:: E 1 ];
+      id_in := [:: Ea 1 ];
       id_tout := [:: sreg ];
-      id_out := [:: E 0 ];
+      id_out := [:: Ea 0 ];
       id_semi := riscv_LI_semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_imm;
@@ -282,13 +282,14 @@ Definition riscv_extend_semi s ws' ws (w : word ws) : exec (word ws') :=
   let extend := if s is Signed then sign_extend else zero_extend in
   ok (extend ws' ws w).
 
+(* TODO: unaligned access are ok but very discouraged on RISC-V, should we allow them? *)
 Definition riscv_LOAD_instr s ws : instr_desc_t :=
     {|
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sword ws ];
-      id_in := [:: E 1 ];
+      id_in := [:: Eu 1 ];
       id_tout := [:: sreg ];
-      id_out := [:: E 0 ];
+      id_out := [:: Ea 0 ];
       id_semi := @riscv_extend_semi s reg_size ws;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
@@ -313,9 +314,9 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
     {|
       id_msb_flag := MSB_MERGE; (* ? *)
       id_tin := [:: sreg ];
-      id_in := [:: E 0 ];
+      id_in := [:: Ea 0 ];
       id_tout := [:: sword ws ];
-      id_out := [:: E 1 ];
+      id_out := [:: Eu 1 ];
       id_semi := @riscv_extend_semi Unsigned ws reg_size;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)

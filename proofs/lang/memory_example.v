@@ -24,8 +24,8 @@ We additionally maintain two invariants:
 Require memory_model array type.
 
 Import Utf8.
-Import all_ssreflect all_algebra.
-Import ZArith.
+Import all_ssreflect ssralg ssrnum.
+Import ZArith Lia.
 Import word_ssrZ.
 Import type word utils gen_map.
 Import memory_model.
@@ -182,7 +182,7 @@ Module MemoryI : MemoryT.
     move => /is_align_no_overflow /lezP ??.
     rewrite wunsigned_add //.
     have := wunsigned_range ptr.
-    Psatz.lia.
+    lia.
   Qed.
 
   Definition bounded (z1 z2 z3: Z) := (z1 <=? z2) && (z2 <? z3).
@@ -192,7 +192,7 @@ Module MemoryI : MemoryT.
     0 <= footprint_of_frame f.
   Proof.
     case: f => off s e /and3P /= []; rewrite !zify /footprint_of_frame => /= *.
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma footprint_of_valid_frames frames :
@@ -201,16 +201,16 @@ Module MemoryI : MemoryT.
   Proof.
     elim: frames; first reflexivity.
     move => f frames ih /= /andP[] /footprint_of_valid_frame ok_f /ih{ih}.
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma frame_size_in_footprint f :
     valid_frame f →
     0 <= frame_size f <= footprint_of_frame f.
   Proof.
-    case/and3P; rewrite !zify => o_pos o_s e_pos; split; first Psatz.lia.
+    case/and3P; rewrite !zify => o_pos o_s e_pos; split; first lia.
     rewrite /footprint_of_frame.
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma stack_range ptr stk_root frames :
@@ -221,12 +221,12 @@ Module MemoryI : MemoryT.
     elim: frames => // f frames ih /andP[] ok_f ok_fr /orP[]; last first.
     - move => /ih{ih} /(_ ok_fr).
       have /= := footprint_of_valid_frame ok_f.
-      Psatz.lia.
+      lia.
     rewrite !zify => {ih}.
     have := footprint_of_valid_frames ok_fr.
     have /= := frame_size_in_footprint ok_f.
     case/and3P: ok_f; rewrite !zify.
-    Psatz.lia.
+    lia.
   Qed.
 
   Definition top_stack (m:mem) :=
@@ -276,7 +276,7 @@ Module MemoryI : MemoryT.
     elim: frames; first by rewrite add_0.
     move => f stk /=.
     case: (stack_blocks_rec _ _) => /= _ _ ->; rewrite addC; congr (add stk_root).
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma stack_blocks_rec_snd stk_root frames :
@@ -287,8 +287,8 @@ Module MemoryI : MemoryT.
     elim: frames => // f fr.
     have /= := (stack_blocks_rec_fst stk_root fr).
     case: (stack_blocks_rec _ _) => /= top [] //=.
-    - move => -> -> /=; rewrite addC; congr (add _); Psatz.lia.
-    case => _ _ _ -> _; rewrite addC; congr (add _); Psatz.lia.
+    - move => -> -> /=; rewrite addC; congr (add _); lia.
+    case => _ _ _ -> _; rewrite addC; congr (add _); lia.
   Qed.
 
   (** Allocation of a fresh block. *)
@@ -327,8 +327,8 @@ Module MemoryI : MemoryT.
   Proof.
     case/andP => /dup [] /footprint_of_valid_frame ok_f /and3P [] /ZleP h0fo /ZleP hfo _ ok_ws /= range.
     rewrite set_allocP.
-    case: ifPn; rewrite !zify; first Psatz.lia.
-    move => nrange; apply: m.(stk_freeP); Psatz.lia.
+    case: ifPn; rewrite !zify; first lia.
+    move => nrange; apply: m.(stk_freeP); lia.
   Qed.
 
   Definition alloc_stack (m: mem) (ws: wsize) (sz ioff sz': Z) : exec mem :=
@@ -363,7 +363,7 @@ Module MemoryI : MemoryT.
     rewrite zify.
     have [??] := wunsigned_range m.(stk_root).
     case: (frames m) h k => // f fs /andP[] /footprint_of_valid_frame ? _ /=.
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma free_stack_stk_allocP (m: mem) x :
@@ -375,7 +375,7 @@ Module MemoryI : MemoryT.
     move: old_allocated; rewrite range orbT => /(_ erefl) ->.
     have := stack_range valid_frames range.
     case: andP => //; rewrite !zify {range}.
-    Psatz.lia.
+    lia.
   Qed.
   #[ global ] Arguments free_stack_stk_allocP : clear implicits.
 
@@ -387,11 +387,11 @@ Module MemoryI : MemoryT.
     have old_free := m.(stk_freeP) x.
     rewrite set_allocP; case: ifPn => // nrange.
     apply: old_free.
-    split; first Psatz.lia.
-    case: (frames m) m.(framesP) range nrange => //= f stk; first Psatz.lia.
+    split; first lia.
+    case: (frames m) m.(framesP) range nrange => //= f stk; first lia.
     case/andP => /= /andP[] _ valid_frames _.
     have := footprint_of_valid_frames valid_frames.
-    rewrite !zify; Psatz.lia.
+    rewrite !zify; lia.
   Qed.
   #[ global ] Arguments free_stack_stk_freeP : clear implicits.
 
@@ -436,7 +436,7 @@ Module MemoryI : MemoryT.
     rewrite (ih _ _ x_range) {ih} set_allocP /=.
     move: ok_p; rewrite -/(wunsigned stk) -/(wunsigned p) => ok_p.
     case: andP => //; rewrite !zify.
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma init_mem_stk_freeP s stk x :
@@ -445,7 +445,7 @@ Module MemoryI : MemoryT.
     is_zalloc (init_mem_alloc s) x = false.
   Proof.
     move => all_above x_range.
-    rewrite /init_mem_alloc (init_mem_stk_freeP_aux (Mz.empty _) all_above) //; Psatz.lia.
+    rewrite /init_mem_alloc (init_mem_stk_freeP_aux (Mz.empty _) all_above) //; lia.
   Qed.
   #[ global ] Arguments init_mem_stk_freeP : clear implicits.
 
@@ -479,10 +479,10 @@ Module MemoryI : MemoryT.
 
   Lemma stack_region_is_free (m: mem) (p: pointer) :
     wunsigned (stk_limit m) <= wunsigned p < wunsigned (head (stk_root m) (stack_frames m)) →
-    ~~ validw m p U8.
+    ~~ validw m Aligned p U8.
   Proof.
     rewrite _top_stackE => - [] p_lo p_hi.
-    rewrite /validw is_align8 /= add_0 andbT /is_alloc (stk_freeP m) //; split.
+    rewrite /validw is_aligned_if_is_align ?is_align8 // /= add_0 andbT /is_alloc (stk_freeP m) //; split.
     + by have [] := wunsigned_range p.
     move: p_hi; rewrite /top_stack.
     rewrite wunsigned_add //.
@@ -490,7 +490,7 @@ Module MemoryI : MemoryT.
     rewrite zify.
     have := wunsigned_range (stk_root m).
     have := wunsigned_range (stk_limit m).
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma top_stack_below_root (m: mem) :
@@ -524,22 +524,22 @@ Module MemoryI : MemoryT.
            framesP := framesP m;
            stk_allocP := stk_allocP m;
            stk_freeP := stk_freeP m |} = P m) →
-    ∀ m p s (v: word s) m',
-      write m p v = ok m' →
+    ∀ m al p s (v: word s) m',
+      write m al p v = ok m' →
       P m  = P m'.
   Proof.
-    move => K m p s v m'; rewrite /write; t_xrbindP => _.
+    move => K m al p s v m'; rewrite /write; t_xrbindP => _.
     elim: ziota m => //=; first by move=> ? [->].
     by move=> ?? hrec; rewrite {2}/set; t_xrbindP => ?? /K h <- /hrec <-.
   Qed.
 
-  Lemma top_stack_write_mem m p s (v: word s) m' :
-    write m p v = ok m' →
+  Lemma top_stack_write_mem m al p s (v: word s) m' :
+    write m al p v = ok m' →
     top_stack m = top_stack m'.
   Proof. by apply write_mem_invariant. Qed.
 
-  Lemma write_mem_stable m m' p s (v:word s) :
-    write m p v = ok m' -> stack_stable m m'.
+  Lemma write_mem_stable m m' al p s (v:word s) :
+    write m al p v = ok m' -> stack_stable m m'.
   Proof. by move => ok_m'; split => /=; exact: write_mem_invariant ok_m'. Qed.
 
   (** Allocation *)
@@ -553,7 +553,7 @@ Module MemoryI : MemoryT.
 
   Lemma Zleb_succ (x y: Z) :
     (x + 1 <=? y) = (x <? y).
-  Proof. case: Z.leb_spec; case: Z.ltb_spec => //; Psatz.lia. Qed.
+  Proof. case: Z.leb_spec; case: Z.ltb_spec => //; lia. Qed.
 
   Lemma ass_above_limit m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
@@ -573,9 +573,9 @@ Module MemoryI : MemoryT.
     have limit_range := wunsigned_range (stk_limit m).
     have root_range := wunsigned_range (stk_root m).
     rewrite !wunsigned_add; first split.
-    1, 3-4: Psatz.lia.
+    1, 3-4: lia.
     rewrite /f /footprint_of_frame /=.
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma alloc_stack_ioff  m ws_stk sz ioff sz' m' :
@@ -589,8 +589,8 @@ Module MemoryI : MemoryT.
   Lemma ass_valid m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
     ∀ p,
-    validw m' p U8 =
-    validw m p U8 || between (top_stack m' + wrepr _ ioff) (sz - ioff) p U8.
+    validw m' Aligned p U8 =
+    validw m Aligned p U8 || between (top_stack m' + wrepr _ ioff) (sz - ioff) p U8.
   Proof.
     move=> h p.
     have [h1 h2] := alloc_stack_ioff h.
@@ -608,20 +608,20 @@ Module MemoryI : MemoryT.
     move=> habove.
     rewrite !wunsigned_add.
     + by case: ifP => _;rewrite (orbT, orbF).
-    1,3:Psatz.lia.
-    split; first Psatz.lia.
-    move: habove; rewrite wunsigned_add; last Psatz.lia.
-    Psatz.lia.
+    1,3:lia.
+    split; first lia.
+    move: habove; rewrite wunsigned_add; last lia.
+    lia.
   Qed.
 
   Lemma ass_fresh m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
-    ∀ p s,
-      validw m p s →
+    ∀ al p s,
+      validw m al p s →
       (wunsigned p + wsize_size s <= wunsigned (top_stack m') ∨ wunsigned (top_stack m') + sz <= wunsigned p).
   Proof.
     move => X; have := m.(stk_freeP); move: X.
-    rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /= stk_fresh p s /andP[] p_align p_alloc.
+    rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /= stk_fresh al p s /andP[] p_align p_alloc.
     rewrite /top_stack /=.
     right. apply/lezP; case: lezP => // /Z.nle_gt X.
     rewrite -(stk_fresh (wunsigned p)).
@@ -635,7 +635,7 @@ Module MemoryI : MemoryT.
     have {ok_f}/= := frame_size_in_footprint ok_f.
     move: (footprint_of_frame _) ovf => fr ovf fr_pos.
     have /andP[/footprint_of_valid_frames ok_s _] := framesP m.
-    rewrite wunsigned_add; Psatz.lia.
+    rewrite wunsigned_add; lia.
   Qed.
 
   Lemma ass_init m ws_stk sz ioff sz' m' :
@@ -655,28 +655,28 @@ Module MemoryI : MemoryT.
     have l_pos := wunsigned_range m.(stk_limit).
     have f_pos := footprint_of_stack_pos m.
     have s_pos := footprint_of_valid_frame ok_f.
-    move=> h; rewrite !wunsigned_add. 2,4: by Psatz.lia.
+    move=> h; rewrite !wunsigned_add. 2,4: by lia.
     + by rewrite Zleb_succ.
     assert (add_pos := wunsigned_range  (add (stk_root m) (- footprint_of_stack (frames m)))).
-    move: h; rewrite wunsigned_add; Psatz.lia.
+    move: h; rewrite wunsigned_add; lia.
   Qed.
 
   Lemma ass_read_old8 m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
     ∀ p,
-    validw m p U8 →
-    read m p U8 = read m' p U8.
+    validw m Aligned p U8 →
+    read m Aligned p U8 = read m' Aligned p U8.
   Proof.
     move => ok_m' p ok_m_p.
-    have : validw m' p U8 by rewrite (ass_valid ok_m') ok_m_p.
+    have : validw m' Aligned p U8 by rewrite (ass_valid ok_m') ok_m_p.
     have := ass_fresh ok_m' ok_m_p.
     move: ok_m_p; rewrite -!valid8_validw -!get_read8 /memory_model.get /= /get wsize8.
     move=> -> hfresh ->; rewrite (ass_init ok_m').
     have -> : ~~ between (top_stack m' + wrepr _ ioff) (sz - ioff) p U8.
     + rewrite /between !zify wsize8.
       have ? := ass_above_limit ok_m'. have ? := alloc_stack_ioff ok_m'.
-      rewrite wunsigned_add; first by Psatz.lia.
-      by assert (h1 := wunsigned_range (top_stack m)); assert (h2 := wunsigned_range (top_stack m')); Psatz.lia.
+      rewrite wunsigned_add; first by lia.
+      by assert (h1 := wunsigned_range (top_stack m)); assert (h2 := wunsigned_range (top_stack m')); lia.
     rewrite /= andbT.
     move: ok_m' hfresh.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-].
@@ -690,15 +690,15 @@ Module MemoryI : MemoryT.
     have l_pos := wunsigned_range m.(stk_limit).
     have f_pos := footprint_of_stack_pos m.
     have s_pos := footprint_of_valid_frame ok_f.
-    rewrite !zify wunsigned_add; last Psatz.lia.
-    case /and3P: ok_f; rewrite !zify /=; Psatz.lia.
+    rewrite !zify wunsigned_add; last lia.
+    case /and3P: ok_f; rewrite !zify /=; lia.
   Qed.
 
   Lemma ass_read_new m ws_stk sz ioff sz' m' :
     alloc_stack m ws_stk sz ioff sz' = ok m' →
     ∀ p,
-    ~validw m p U8 → validw m' p U8 →
-    read m' p U8 = Error ErrAddrInvalid.
+    ~validw m Aligned p U8 → validw m' Aligned p U8 →
+    read m' Aligned p U8 = Error ErrAddrInvalid.
   Proof.
     move=> ha p.
     rewrite (ass_valid ha) => /negP /negbTE -> /=.
@@ -774,13 +774,13 @@ Module MemoryI : MemoryT.
     rewrite /top_stack /=.
     have /andP[] := framesP m.
     case: (frames m) => /=.
-    + rewrite add_0; Psatz.lia.
+    + rewrite add_0; lia.
     move => f fr /andP[] ok_f ok_fr /lezP noovf.
     have ff := footprint_of_valid_frame ok_f.
     have fs := footprint_of_valid_frames ok_fr.
     have rr := wunsigned_range (stk_root m).
     have lr := wunsigned_range (stk_limit m).
-    rewrite !wunsigned_add; Psatz.lia.
+    rewrite !wunsigned_add; lia.
   Qed.
 
   Lemma wunsigned_top_stack m :
@@ -790,11 +790,11 @@ Module MemoryI : MemoryT.
     rewrite /top_stack wunsigned_add //.
     have := wunsigned_range (stk_root m).
     have := wunsigned_range (stk_limit m).
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma fss_valid m p :
-    validw (free_stack m) p U8 = validw m p U8 && ~~ pointer_range (top_stack m) (top_stack (free_stack m)) p.
+    validw (free_stack m) Aligned p U8 = validw m Aligned p U8 && ~~ pointer_range (top_stack m) (top_stack (free_stack m)) p.
   Proof.
     rewrite -!valid8_validw /valid8 /=.
     rewrite /is_alloc /= set_allocP.
@@ -808,12 +808,12 @@ Module MemoryI : MemoryT.
     apply: P.
     rewrite !zify first_frameE !wunsigned_top_stack.
     change (stk_root (free_stack m)) with (stk_root m).
-    Psatz.lia.
+    lia.
   Qed.
 
   Lemma fss_read_old8 m p :
-    validw (free_stack m) p U8 →
-    read m p U8 = read (free_stack m) p U8.
+    validw (free_stack m) Aligned p U8 →
+    read m Aligned p U8 = read (free_stack m) Aligned p U8.
   Proof.
     move => /dup [] hv'; rewrite (fss_valid m) => /andP[] hv hp.
     by move: hv' hv; rewrite -!valid8_validw -!get_read8 /memory_model.get /= /get => -> ->.  
@@ -859,10 +859,10 @@ Module MemoryI : MemoryT.
       have size_big := @round_ws_range ws (sz + sz').
       have size_small : 0 <= round_ws ws (sz + sz') <= wunsigned (top_stack m).
       - have := wunsigned_range (stk_limit m).
-        Psatz.lia.
+        lia.
       rewrite top_stack_after_aligned_alloc //.
       rewrite GRing.opprD GRing.addrA GRing.subrr wrepr_opp GRing.opprK GRing.add0r.
-      by have ? := wunsigned_range (top_stack m); rewrite wunsigned_repr_small; Psatz.lia.
+      by have ? := wunsigned_range (top_stack m); rewrite wunsigned_repr_small; lia.
     }
     (* old top stack is not aligned *)
     rewrite /top_stack_after_alloc.
@@ -875,7 +875,7 @@ Module MemoryI : MemoryT.
     rewrite -wrepr_add.
     have ? := wunsigned_range (stk_limit m).
     have ? := wunsigned_range (top_stack m).
-    rewrite wunsigned_repr_small; Psatz.lia.
+    rewrite wunsigned_repr_small; lia.
   Qed.
 
   End WITH_POINTER_DATA.

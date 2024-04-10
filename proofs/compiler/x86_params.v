@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -96,7 +96,7 @@ Definition x86_set_up_sp_register
   (rspi : var_i) (sf_sz : Z) (al : wsize) (r : var_i) (tmp : var_i) : seq fopn_args :=
   let i0 := x86_lassign (LLvar r) Uptr (Rexpr (Fvar rspi)) in
   let i2 := x86_op_align rspi Uptr al in
-  i0 :: rcons (if sf_sz != 0 then x86_allocate_stack_frame rspi None sf_sz else [::]) i2.
+  i0 :: rcons (if sf_sz != 0%Z then x86_allocate_stack_frame rspi None sf_sz else [::]) i2.
 
 Definition x86_lmove (xd xs: var_i) :=
   x86_lassign (LLvar xd) (wsize_of_stype (vtype xd)) (Rexpr (Fvar xs)).
@@ -105,11 +105,11 @@ Definition x86_check_ws (_: wsize) := true.
 
 Definition x86_lstore (xd : var_i) (ofs : Z) (xs :  var_i) :=
   let ws := wsize_of_stype (vtype xs) in
-  x86_lassign (Store ws xd (fconst Uptr ofs)) ws (Rexpr (Fvar xs)).
+  x86_lassign (Store Aligned ws xd (fconst Uptr ofs)) ws (Rexpr (Fvar xs)).
 
 Definition x86_lload (xd xs: var_i) (ofs : Z) :=
   let ws := wsize_of_stype (vtype xd) in
-  x86_lassign (LLvar xd) ws (Load ws xs (fconst Uptr ofs)).
+  x86_lassign (LLvar xd) ws (Load Aligned ws xs (fconst Uptr ofs)).
 
 Definition x86_liparams : linearization_params :=
   {|

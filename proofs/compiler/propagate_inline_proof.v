@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import all_ssreflect ssralg ssrnum.
 Require Import psem psem_facts constant_prop constant_prop_proof.
 Require Export propagate_inline.
 
@@ -237,13 +237,13 @@ Proof.
     move=> hg; case heq : Mvar.get => [[e' fv m ??] | ]; last by eauto.
     move: hg; rewrite /get_gvar h => /get_varP [-> ??].
     have /= [v' /(sem_pexpr_wdb wdb)??]:= vpi_ok hvalid heq; eexists; eauto.
-  + move=> ?? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
+  + move=> ??? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
     t_xrbindP => i vi /= /hrec [v' -> /= /of_value_uincl_te h] /(h sint) /= -> w hget <-.
     by rewrite /= hget /=; (eexists; first reflexivity) => /=.
   + move=> ??? x e hrec v; apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
     t_xrbindP => i vi /= /hrec [v' -> /= /of_value_uincl_te h] /(h sint) /= -> st hget <-.
     by rewrite /= hget /=; (eexists; first reflexivity) => /=.
-  + move=> ??? hrec ?; t_xrbindP => ?? -> /= -> ??
+  + move=> ???? hrec ?; t_xrbindP => ?? -> /= -> ??
       /hrec [ve -> /of_value_uincl_te h] /(h (sword _)) /= -> ? /= -> /= ->.
     by (eexists; first reflexivity).
   + move=> op e hrec v; t_xrbindP => ve /hrec [ve' -> hu] /= hs.
@@ -335,12 +335,12 @@ Proof.
   move=> hvalid; case: x => /=.
   + by move=> vi ty /write_noneP; rewrite /write_none => -[-> -> ->].
   + by move=> x; apply write_var_valid_pi.
-  + move=> ws x e; t_xrbindP => px vx gx hpx pe ve he hpe w hw m hwr <-.
+  + move=> al ws x e; t_xrbindP => px vx gx hpx pe ve he hpe w hw m hwr <-.
     split; first by apply valid_pi_remove_m.
     have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] := pi_eP hvalid.
     have /= -> := hu (sword _) _ hpe.
     by rewrite gx /= hpx hw /= hwr.
-  + move=> aa ws x e; apply on_arr_varP => n t hty hx.
+  + move=> al aa ws x e; apply on_arr_varP => n t hty hx.
     t_xrbindP => i ve he hi w hw t' ht' hwr.
     rewrite /on_arr_var hx /=.
     have /(_ _ _ _ he) [ve' -> /of_value_uincl_te hu] /= := pi_eP hvalid.

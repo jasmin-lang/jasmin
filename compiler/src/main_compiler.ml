@@ -247,7 +247,7 @@ let main () =
             Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
-              (** TODO: allow to configure the initial stack pointer *)
+              (* TODO: allow to configure the initial stack pointer *)
               (match
                  Evaluator.initial_memory Arch.reg_size (Z.of_string "1024") m
                with

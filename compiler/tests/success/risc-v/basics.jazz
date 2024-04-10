@@ -33,11 +33,7 @@ fn sub_imm_lowering(reg u32 a) -> reg u32 {
 }
 
 export
-fn if_reg_reg_lowering() -> reg u32 {
-    reg u32 a;
-    a = 15;
-    reg u32 b;
-    b = 15;
+fn if_reg_reg_lowering(reg u32 a, reg u32 b) -> reg u32 {
     reg u32 c;
     c = 0;
 
@@ -69,7 +65,7 @@ export fn main() -> reg u32 {
     reg u32 b;
     b = 3;
 
-    r0 = if_reg_reg_lowering();
+    r0 = if_reg_reg_lowering(a, b);
     r0 = sub_imm_lowering(a);
     r0 = add_lowering(a, b);
     r0, r1 = copy_lowering(a);
