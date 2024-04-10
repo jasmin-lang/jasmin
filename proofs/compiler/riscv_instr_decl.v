@@ -115,10 +115,10 @@ Variant riscv_op : Type :=
 | STORE of wsize                 (* Store 8 / 16 or 32-bit values from the low bits of register to memory *)
 
 (* RISC-V 32M Multiply instructions (operators). *)
-| MUL                            (* Multiply two signed registers and write the least significant 32 bits of the result *)
+| MUL                            (* Multiply two registers and write the least significant 32 bits of the result *)
 | MULU                           (* Multiply two unsigned registers and write the most significant 32 bits of the result *)
 | MULSU                          (* Multiply a signed and an unsigned registers and write the most significant 32 bits of the result *)
-| MULH                           (* Multiply two signed registers Multiply and write the most significant 32 bits of the result *)
+| MULH                           (* Multiply two signed registers and write the most significant 32 bits of the result *)
 .
 
 Scheme Equality for riscv_op.

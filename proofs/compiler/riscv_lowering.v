@@ -113,7 +113,7 @@ Definition lower_Pvar (ws : wsize) (v : gvar) : option(riscv_extended_op * pexpr
 
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn
-  (lv : lval) (tg: assgn_tag) (ws : wsize) (e : pexpr) : option (copn_args) :=
+  (lv : lval) (ws : wsize) (e : pexpr) : option (copn_args) :=
   if is_lval_in_memory lv 
     then Some ([:: lv], Oriscv (STORE ws), [:: e])
   else
@@ -141,7 +141,11 @@ Definition lower_swap ty lvs es : option (seq copn_args) :=
 
 Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args):=
   match lvs, es with
-  | [:: r1; r2 ], [:: x ; y ] => Some([:: ([:: r1], Oasm(BaseOp (None, MULU)), es); ([:: r2], Oasm(BaseOp (None, MUL)), es)]) (* Arbitrary choice : r1 computed before r2*)
+  | [:: r1; r2 ], [:: x ; y ] =>
+    (* Arbitrary choice : r1 computed before r2*)
+    Some [::
+      ([:: r1], Oasm(BaseOp (None, MULU)), es);
+      ([:: r2], Oasm(BaseOp (None, MUL)), es)]
   | _, _ => None
   end.
 
@@ -174,7 +178,7 @@ Fixpoint lower_i (i : instr) : cmd :=
       let oirs :=
         match ty with
         | sword ws =>
-            let%opt (lvs, op, es) := lower_cassgn lv tg ws e in
+            let%opt (lvs, op, es) := lower_cassgn lv ws e in
             Some ([:: Copn lvs tg op es ])
         | _ => None
         end
@@ -189,7 +193,7 @@ Fixpoint lower_i (i : instr) : cmd :=
         if lower_copn lvs op es is Some l
         then map (fun '(lvs', op', es') => Copn lvs' tag op' es') l
         else [:: ir]
-      in map (fun '(ir) => MkI ii ir) seq_ir
+      in map (MkI ii) seq_ir
       
   | Cif e c1 c2  =>
       let c1' := conc_map lower_i c1 in
