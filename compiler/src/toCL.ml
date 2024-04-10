@@ -485,7 +485,7 @@ module I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-    | Pabstract ({name="indetX"}, _) ->   Format.fprintf fmt "X"
+   (*  | Pabstract ({name="indetX"}, _) ->   Format.fprintf fmt "X" *)
     | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Presult x -> Ivar (L.unloc x.gv)
     | _ -> assert false
