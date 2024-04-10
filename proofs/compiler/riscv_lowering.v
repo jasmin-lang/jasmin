@@ -144,7 +144,7 @@ Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args)
   | [:: r1; r2 ], [:: x ; y ] =>
     (* Arbitrary choice : r1 computed before r2*)
     Some [::
-      ([:: r1], Oasm(BaseOp (None, MULU)), es);
+      ([:: r1], Oasm(BaseOp (None, MULHU)), es);
       ([:: r2], Oasm(BaseOp (None, MUL)), es)]
   | _, _ => None
   end.

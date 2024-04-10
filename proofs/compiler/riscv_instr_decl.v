@@ -116,9 +116,9 @@ Variant riscv_op : Type :=
 
 (* RISC-V 32M Multiply instructions (operators). *)
 | MUL                            (* Multiply two registers and write the least significant 32 bits of the result *)
-| MULU                           (* Multiply two unsigned registers and write the most significant 32 bits of the result *)
-| MULSU                          (* Multiply a signed and an unsigned registers and write the most significant 32 bits of the result *)
 | MULH                           (* Multiply two signed registers and write the most significant 32 bits of the result *)
+| MULHU                          (* Multiply two unsigned registers and write the most significant 32 bits of the result *)
+| MULHSU                         (* Multiply a signed and an unsigned registers and write the most significant 32 bits of the result *)
 .
 
 Scheme Equality for riscv_op.
@@ -168,13 +168,13 @@ Definition riscv_mulh_semi (wn wm: ty_r) : exec ty_r := ok (wmulhs wn wm).
 Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh".
 Definition prim_MULH := ("MULH"%string, primM MULH).
 
-Definition riscv_mulsu_semi (wn wm: ty_r) : exec ty_r := ok (wmulhsu wn wm).
-Definition riscv_MULSU_instr : instr_desc_t := RTypeInstruction riscv_mulsu_semi "MULSU" "mulsu".
-Definition prim_MULSU := ("MULSU"%string, primM MULSU).
+Definition riscv_mulhu_semi (wn wm: ty_r) : exec ty_r := ok (wmulhu wn wm).
+Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu".
+Definition prim_MULHU := ("MULHU"%string, primM MULHU).
 
-Definition riscv_mulu_semi (wn wm: ty_r) : exec ty_r := ok (wmulhu wn wm).
-Definition riscv_MULU_instr : instr_desc_t := RTypeInstruction riscv_mulu_semi "MULU" "mulu".
-Definition prim_MULU := ("MULU"%string, primM MULU).
+Definition riscv_mulhsu_semi (wn wm: ty_r) : exec ty_r := ok (wmulhsu wn wm).
+Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu".
+Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 
 
 Definition riscv_sub_semi (wn wm : ty_r) : exec ty_r := ok (wn - wm)%R.
@@ -363,8 +363,8 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | SUB => riscv_SUB_instr
   | MUL => riscv_MUL_instr
   | MULH => riscv_MULH_instr
-  | MULU => riscv_MULU_instr
-  | MULSU => riscv_MULSU_instr
+  | MULHU => riscv_MULHU_instr
+  | MULHSU => riscv_MULHSU_instr
   | AND => riscv_AND_instr
   | ANDI => riscv_ANDI_instr  
   | OR => riscv_OR_instr
@@ -384,8 +384,8 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_SUB;
   prim_MUL;
   prim_MULH;
-  prim_MULU;
-  prim_MULSU;
+  prim_MULHU;
+  prim_MULHSU;
   prim_OR;
   prim_ORI;
   prim_AND;

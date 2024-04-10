@@ -12,4 +12,4 @@ set -x
 
 $(dirname $0)/../jasminc -g -arch risc-v -o ${ASM} "$@"
 
-llvm-mc --triple=riscv32 --mcpu=generic-rv32 --filetype=obj -o ${OBJ} ${ASM}
+llvm-mc --triple=riscv32 --mcpu=generic-rv32 -mattr=+m --filetype=obj -o ${OBJ} ${ASM}
