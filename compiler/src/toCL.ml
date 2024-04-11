@@ -547,7 +547,7 @@ module I = struct
       Aconst (c,ty)
     | _ -> assert false
 
-  let mk_lval_atome lval = CL.Instr.Avar (lval)
+  let mk_lval_atome (lval: CL.Instr.lval) = CL.Instr.Avar (lval)
 
   let rec get_const x =
     match x with
@@ -952,8 +952,8 @@ module Mk(O:BaseOp) = struct
       in
       begin
         match t with
-        | Expr.Assert -> [CL.Instr.assert_ cl]
-        | Expr.Assume -> [CL.Instr.assume cl]
+        | Expr.Assert -> [], [CL.Instr.assert_ cl]
+        | Expr.Assume -> [], [CL.Instr.assume cl]
         | Expr.Cut -> assert false
       end
     | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
@@ -986,18 +986,21 @@ module Mk(O:BaseOp) = struct
       let post = aux aux2  fd.f_contra.f_post in
       let pre_cl = to_clause pre in
       let post_cl = to_clause post in
-      [CL.Instr.assert_ pre_cl;CL.Instr.assume post_cl]
+      r , [CL.Instr.assert_ pre_cl;CL.Instr.assume post_cl]
 
     | Cassgn (a, _, _, e) ->
       begin
         match a with
-        | Lvar x -> O.assgn_to_instr trans a e
+        | Lvar x -> [], O.assgn_to_instr trans a e
         | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
       end
-    | Copn(xs, _, o, es) -> pp_sopn xs o es trans
+    | Copn(xs, _, o, es) -> [], pp_sopn xs o es trans
 
   let pp_c fds c =
-    List.fold_left (fun acc a -> acc @ pp_i fds a) [] c
+    List.fold_left (fun (acc1,acc2) a ->
+        let l1,l2 = pp_i fds a in
+        acc1 @ l1, acc2 @ l2
+      ) ([],[]) c
 
   let fun_to_proc fds fd =
     let ret = List.map L.unloc fd.f_ret in
@@ -1006,9 +1009,10 @@ module Mk(O:BaseOp) = struct
           if List.exists (fun x -> (x.v_name = a.v_name) && (x.v_id = a.v_id)) l
           then l else a :: l
       ) fd.f_args ret in
+    let lval,prog = pp_c fds fd.f_body in
     let formals = List.map I.var_to_tyvar args in
+    let formals = formals @ List.map I.glval_to_lval lval in
     let pre = to_clause fd.f_contra.f_pre in
-    let prog = pp_c fds fd.f_body in
     let post = to_clause fd.f_contra.f_post in
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
