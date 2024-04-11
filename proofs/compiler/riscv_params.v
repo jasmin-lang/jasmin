@@ -173,23 +173,19 @@ Definition condt_not (c : condt) : condt :=
     | NE => EQ
     | GE sg => LT sg
     | LT sg => GE sg
+    end
   in
   {|
-    cond_kind: ck;
-    cond_fst: c.(cond_fst);
-    cond_snd: c.(cond_snd);
+    cond_kind:= ck;
+    cond_fst:= c.(cond_fst);
+    cond_snd:= c.(cond_snd);
   |}
-  end.
+.
 
 Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
   match e with  
   | Fapp1 Onot e => 
-    Let c := assemble_cond ii e in ok 
-      {|
-      cond_kind:= (condt_not c.(cond_kind));
-      cond_fst:= c.(cond_fst);
-      cond_snd:= c.(cond_snd);
-      |}        
+    Let c := assemble_cond ii e in ok (condt_not c)
   | Fapp2 o e0 e1 =>
     Let: (o, swap) :=
       match o with
