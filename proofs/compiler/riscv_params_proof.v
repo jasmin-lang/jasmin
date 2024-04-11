@@ -137,17 +137,15 @@ Definition riscv_hsaparams {dc : DirectCall} :
 
 Section LINEARIZATION.
 
+(*Modifiied from ARM proof
+- Changed the rewrite at the end of the proof
+*)
 Lemma riscv_spec_lip_allocate_stack_frame :
   allocate_stack_frame_correct riscv_liparams.
 Proof.
-Admitted.
-  (* move=> sp_rsp tmp s ts sz htmp hget /=.
+  move=> sp_rsp tmp s ts sz htmp hget /=.
   rewrite /riscv_allocate_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
-  
-  have := [elaborate
-      RISCVFopnP.smart_subi_tmp_sem_fopn_args dummy_var_info sz h1 h2 (to_word_get_var hget)
-    ].
   + have [? [-> ? /get_varP [-> _ _]]] := [elaborate
       RISCVFopnP.smart_subi_tmp_sem_fopn_args dummy_var_info sz h1 h2 (to_word_get_var hget)
     ].
@@ -155,15 +153,14 @@ Admitted.
   rewrite /= hget /=; t_riscv_op.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
-  by rewrite Vm.setP_eq wsub_wnot1 vm_truncate_val_eq.
-Qed. *)
+  by rewrite Vm.setP_eq /=.
+Qed.
 
 
 Lemma riscv_spec_lip_free_stack_frame :
   free_stack_frame_correct riscv_liparams.
 Proof.
-Admitted.
-  (* move=> sp_rsp tmp s ts sz htmp hget /=.
+  move=> sp_rsp tmp s ts sz htmp hget /=.
   rewrite /riscv_free_stack_frame.
   case: tmp htmp => [tmp [h1 h2]| _].
   + have [? [-> ? /get_varP [-> _ _]]] := [elaborate
@@ -174,13 +171,12 @@ Admitted.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
   by rewrite Vm.setP_eq vm_truncate_val_eq.
-Qed. *)
+Qed.
 
 Lemma riscv_spec_lip_set_up_sp_register :
   set_up_sp_register_correct riscv_liparams.
 Proof.
-Admitted.
-  (* Opaque sem_fopn_args.
+  Opaque sem_fopn_args.
   move=> [[? nrsp] vi1] [[? nr] vi2] [[? ntmp] vi3] ts al sz s hget /= ??? hne hne1 hne2; subst.
   rewrite /riscv_set_up_sp_register sem_fopns_args_cat /=.
   set vr := {|vname := nr|}; set r := {|v_var := vr|}.
@@ -219,7 +215,7 @@ Admitted.
   - by split; apply/eqP/vtype_diff; rewrite hxtype.
   t_vm_get; rewrite heq1 //.
   by apply: Sv_neq_not_in_singleton.
-Qed. *)
+Qed.
 
 Lemma riscv_lmove_correct : lmove_correct riscv_liparams.
 Proof.
@@ -339,27 +335,29 @@ Section ASM_GEN.
 (* FIXME: the following line fixes type inference with Coq 8.16 *)
 Local Instance the_asm : asm _ _ _ _ _ _ := _.
 
-(* Lemma condt_notP rf c b :
+Lemma condt_notP rf c b :
   riscv_eval_cond rf c = ok b
   -> riscv_eval_cond rf (condt_not c) = ok (negb b).
 Proof.
-  case: c => /=.
+  case: c => c x y.
+  case: c => [| | sg | sg].
+  rewrite /riscv_eval_cond /=.
+  by move=> [] <-.
+  
+  rewrite /riscv_eval_cond /=.
+  move => [] <-.
+  by rewrite negbK.
 
-  (* Introduce booleans [b] and equalities [_ = b] and [rf _ = ok b].
-     Rewrite all equalities, simplify and case all booleans. *)
-  all: t_xrbindP=> *.
-  all: subst=> /=.
-  all:
-    repeat
-      match goal with
-      | [ H : _ _ = ok _ |- _ ] => rewrite H {H} /=
-      end.
-  all:
-    by repeat
-      match goal with
-      | [ b : bool |- _ ] => case: b
-      end.
-Qed. *)
+  rewrite /riscv_eval_cond /=.
+  move => [] <-.
+  by rewrite -Z.leb_antisym Z.geb_leb.
+
+  rewrite /riscv_eval_cond /=.
+  move => [] <-.
+  rewrite Z.geb_leb Z.leb_antisym.
+  by rewrite negbK.
+
+Qed.
 
 (* Lemma eval_assemble_cond_Pvar ii m rf x r v :
   eqflags m rf
@@ -380,14 +378,15 @@ Proof.
   exact: value_of_bool_to_bool_of_rbool.
 Qed. *)
 
-(* Lemma eval_assemble_cond_Onot rf c v v0 v1 :
-  value_of_bool (riscv_eval_cond (get_rf rf) c) = ok v1
+Lemma eval_assemble_cond_Onot get c v v0 v1 :
+  value_of_bool (riscv_eval_cond (get) c) = ok v1
   -> value_uincl v0 v1
   -> sem_sop1 Onot v0 = ok v
   -> exists2 v',
-       value_of_bool (riscv_eval_cond (get_rf rf) (condt_not c)) = ok v'
+       value_of_bool (riscv_eval_cond (get) (condt_not c)) = ok v'
        & value_uincl v v'.
 Proof.
+  Opaque riscv_eval_cond.
   move=> hv1 hincl.
   move=> /sem_sop1I /= [b hb ?]; subst v.
 
@@ -396,7 +395,8 @@ Proof.
 
   rewrite (condt_notP hc) {hc}.
   by eexists.
-Qed. *)
+  Transparent riscv_eval_cond.
+Qed.
 (* 
 Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
   is_rflags_GE r0 r1 = true
@@ -484,23 +484,18 @@ Qed. *)
 
 Lemma riscv_eval_assemble_cond : assemble_cond_spec riscv_agparams.
 Proof.
-Admitted.
-  (* move=> ii m rr rf e c v; rewrite /riscv_agparams /riscv_eval_cond /get_rf /=.
-  move=> eqr eqf.
+  move=> ii m rr rf e c v; rewrite /riscv_agparams /riscv_eval_cond /get_rf /=.
+  move=> eqr _.
   elim: e c v => [| x | op1 e hind | op2 e0 hind0 e1 hind1 |] //= c v.
-
-  - t_xrbindP=> r hr hc; subst c.
-    move=> hv.
-    exact: (eval_assemble_cond_Pvar eqf hr hv).
 
   - case: op1 => //.
     t_xrbindP=> c' hc' hc; subst c.
     move=> v0 hv0 hsem.
     have [v1 hv1 hincl1] := hind _ _ hc' hv0.
-    clear ii m e eqr eqf hc' hv0 hind.
+    clear ii m e eqr hc' hv0 hind.
     exact: (eval_assemble_cond_Onot hv1 hincl1 hsem).
-
-  case: op2 => //.
+Admitted.
+  (* case: op2 => //.
   - case: e0 hind0 => // x0 _.
     case: e1 hind1 => // x1 _.
     t_xrbindP=> r0 hr0 r1 hr1 //=.
@@ -522,9 +517,9 @@ Admitted.
   have [v0' hv0' hincl0] := hind0 _ _ hass0 hsem0.
   have [v1' hv1' hincl1] := hind1 _ _ hass1 hsem1.
   clear eqr eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
-  exact: (eval_assemble_cond_Oor hor hv0' hincl0 hv1' hincl1 hsem).
-Qed. *)
-
+  exact: (eval_assemble_cond_Oor hor hv0' hincl0 hv1' hincl1 hsem). 
+Qed.
+*)
 (* TODO_RISCV: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
