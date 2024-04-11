@@ -166,12 +166,19 @@ Definition riscv_shparams : sh_params :=
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation parameters. *)
 
-Definition condt_not (c : condition_kind) : condition_kind :=
-  match c with
-  | EQ => NE
-  | NE => EQ
-  | GE sg => LT sg
-  | LT sg => GE sg
+Definition condt_not (c : condt) : condt :=
+  let ck :=
+    match c.(cond_kind) with
+    | EQ => NE
+    | NE => EQ
+    | GE sg => LT sg
+    | LT sg => GE sg
+  in
+  {|
+    cond_kind: ck;
+    cond_fst: c.(cond_fst);
+    cond_snd: c.(cond_snd);
+  |}
   end.
 
 Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
