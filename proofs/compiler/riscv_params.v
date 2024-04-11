@@ -25,7 +25,8 @@ Require Import
   riscv_instr_decl
   riscv_lowering
   riscv_params_core
-  riscv_params_common.
+  riscv_params_common
+  riscv_stack_zeroization.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -67,11 +68,8 @@ Definition riscv_mov_ofs
 Definition riscv_immediate (x: var_i) z :=
   Copn [:: Lvar x ] AT_none (Oriscv LI) [:: cast_const z ].
 
-(* Nonesense *)
-Definition dummy_instr_r :=
-  Cassgn (Lnone dummy_var_info sbool) AT_none sbool (Pbool true).
-
-Definition riscv_swap (t : assgn_tag) (x y z w : var_i) := dummy_instr_r.
+Definition riscv_swap t (x y z w : var_i) :=
+  Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (SWAP reg_size))) [:: Plvar z; Plvar w].
 
 Definition riscv_saparams : stack_alloc_params :=
   {|
@@ -233,7 +231,7 @@ Definition riscv_agparams : asm_gen_params :=
 
 Definition riscv_szparams : stack_zeroization_params :=
   {|
-    szp_cmd := fun _ _ _ _ _ _ => Error (stack_zeroization.E.error ( compiler_util.pp_s "not implemented"));
+    szp_cmd := stack_zeroization_cmd
   |}.
 
 (* ------------------------------------------------------------------------ *)

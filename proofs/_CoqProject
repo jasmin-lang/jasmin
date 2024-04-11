@@ -86,9 +86,15 @@ compiler/riscv_decl.v
 compiler/riscv_instr_decl.v
 compiler/riscv_extra.v
 compiler/riscv_lowering.v
+compiler/riscv_lowering_proof.v
 compiler/riscv_params.v
+compiler/riscv_params_proof.v
 compiler/riscv_params_core.v
+compiler/riscv_params_core_proof.v
 compiler/riscv_params_common.v
+compiler/riscv_params_common_proof.v
+compiler/riscv_stack_zeroization.v
+compiler/riscv_stack_zeroization_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/slh_lowering.v
