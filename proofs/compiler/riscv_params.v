@@ -189,8 +189,8 @@ Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
   | Fapp2 o e0 e1 =>
     Let: (o, swap) :=
       match o with
-      | Oeq _ => ok (EQ, false)
-      | Oneq _ => ok (NE, false)
+      | Oeq (Op_w U32) => ok (EQ, false)
+      | Oneq (Op_w U32) => ok (NE, false)
       | Olt (Cmp_w sg U32) => ok (LT sg, false)
       | Oge (Cmp_w sg U32) => ok (GE sg, false)
       | Ogt (Cmp_w sg U32) => ok (LT sg, true)

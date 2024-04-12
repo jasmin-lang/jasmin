@@ -486,7 +486,7 @@ Lemma riscv_eval_assemble_cond : assemble_cond_spec riscv_agparams.
 Proof.
   move=> ii m rr rf e c v; rewrite /riscv_agparams /riscv_eval_cond /get_rf /=.
   move=> eqr _.
-  elim: e c v => [| x | op1 e hind | op2 e0 hind0 e1 hind1 |] //= c v.
+  elim: e c v => [| | op1 e hind | op2 e0 _ e1 _ |] //= c v.
 
   - case: op1 => //.
     t_xrbindP=> c' hc' hc; subst c.
@@ -494,10 +494,29 @@ Proof.
     have [v1 hv1 hincl1] := hind _ _ hc' hv0.
     clear ii m e eqr hc' hv0 hind.
     exact: (eval_assemble_cond_Onot hv1 hincl1 hsem).
+    
+  t_xrbindP=> -[c_k b] h_op2.
+  t_xrbindP=> arg0 h_arg0 arg1 h_arg1 h_c v0 h_v0 v1 h_v1 h_v.
+  set sem_arg := (fun or => match or with
+    | Some reg => rr reg
+    | None => wrepr riscv_reg_size 0
+  end).
+  rewrite -/(sem_arg (cond_fst c)) -/(sem_arg (cond_snd c)).
+  have h_sem_arg0: Vword (sem_arg arg0) = v0.
+  + admit.
+  have h_sem_arg1: Vword (sem_arg arg1) = v1.
+  + admit.
+  
+  case: op2 h_op2 h_c h_arg0 h_arg1 h_v => //=.
+  - move=> -[] // [] //.
+  - move=> [] <- <- [] <- h_arg0 h_arg1 /=.
+    rewrite -h_sem_arg0 -h_sem_arg1.
+    rewrite /sem_sop2 /=.
+    rewrite !truncate_word_u /= => -[] <-.
+    by eexists; first by reflexivity.
 Admitted.
-  (* case: op2 => //.
-  - case: e0 hind0 => // x0 _.
-    case: e1 hind1 => // x1 _.
+    (* - t_xrbindP=> //=.
+    case: e1 => // x1 _.
     t_xrbindP=> r0 hr0 r1 hr1 //=.
     case hGE: is_rflags_GE => // -[?]; subst c.
     move=> v0 hv0 v1 hv1 hsem.
@@ -518,8 +537,7 @@ Admitted.
   have [v1' hv1' hincl1] := hind1 _ _ hass1 hsem1.
   clear eqr eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
   exact: (eval_assemble_cond_Oor hor hv0' hincl0 hv1' hincl1 hsem). 
-Qed.
-*)
+Qed. *)
 (* TODO_RISCV: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
