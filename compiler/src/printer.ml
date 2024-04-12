@@ -68,14 +68,18 @@ let pp_ge pp_len pp_var =
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
   | Pfvar x -> pp_var_i fmt x
-  | Pbig(e1, e2, op, x, e0, b) -> 
+  | Pbig(e1, e2, op, x, e0, b) ->
     F.fprintf fmt "@[(\\big[%s/%a]@ (%a \\in %a:%a)@ (%a))@]"
-      (string_of_op2 op) 
+      (string_of_op2 op)
       pp_expr e0
       pp_var_i x
       pp_expr e1
       pp_expr e2
       pp_expr b
+  | Pforall (x, e) ->
+    F.fprintf fmt "@[(\\forall %a, %a@"
+      pp_expr e
+      pp_var_i x
   | Presult v      -> pp_gvar fmt v
   | Presultget (aa,ws,x,e) ->
     pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None

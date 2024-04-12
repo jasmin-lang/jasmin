@@ -172,6 +172,10 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let body := expand_e m body in
     ok (Pbig e1 e2 op2 x e0 body) 
 
+  | Pforall x e =>
+    Let e := expand_e m e in
+    ok (Pforall x e)
+
   | Presult x =>
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e

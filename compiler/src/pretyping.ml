@@ -1203,6 +1203,14 @@ let rec tt_expr pd  ?(mode=`AllVar) (env : 'asm Env.env) pe =
         | Bty (U w)  -> P.E.Oadd (P.E.Op_w w), P.Papp1 (P.E.Oword_of_int w, P.Pconst Z.zero)
         | _ -> raise (tyerror ~loc:(L.loc pe) (StringError "the expression should have type int or uXX")) in
       P.Pbig(e1, e2, o, L.mk_loc (L.loc px) x, e0, b), ty
+
+  | S.PEForall (px, pe) ->
+      let x = (P.PV.mk (L.unloc px) Wsize.Inline P.tint (L.loc px) []) in
+      let env = Env.Fvars.push env x in
+      let e, ty = tt_expr ~mode pd env pe in
+      check_ty_eq ~loc:(L.loc pe) ~from:ty ~to_:P.tbool;
+      P.Pforall(L.mk_loc (L.loc px) x, e), ty
+
   | S.PEResult i ->
        let si =
          try Env.get_f_result env i with
@@ -1725,7 +1733,7 @@ let rec is_constant e =
   | P.PappN (_, es) -> List.for_all is_constant es
   | P.Pabstract (_, es) -> List.for_all is_constant es
   | P.Pif(_, e1, e2, e3)   -> is_constant e1 && is_constant e2 && is_constant e3
-  | P.Pfvar _ | P.Pbig _ -> false
+  | P.Pfvar _ | P.Pbig _ | P.Pforall _ -> false
   | P.Presult _ | P.Presultget _ -> false
 
 let check_lval_pointer loc x =  

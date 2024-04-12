@@ -114,6 +114,7 @@ end = struct
     | Pfvar _ -> expr
     | Pbig (e1, e2, op, v, e3, e4) ->
       Pbig(mk_expr fn e1, mk_expr fn e2, op, v, mk_expr fn e3, mk_expr fn e4)
+    | Pforall (v, e) -> Pforall (v, mk_expr fn e)
     | Presult v -> Presult (mk_gvar fn v)
     | Presultget (acc, ws, v, e) -> Presultget (acc, ws, mk_gvar fn v, mk_expr fn e)
 
@@ -205,6 +206,7 @@ end = struct
     | Pfvar _ -> dp
     | Pbig (e1, e2, _, _, e3, e4) ->
       app_expr (app_expr (app_expr (app_expr dp v e1 ct) v e2 ct) v e3 ct) v e4 ct
+    | Pforall (_, e) -> app_expr dp v e ct
     | Presult v' -> begin match v'.gs with
         | Expr.Sglob  -> dp (* We ignore global variables  *)
         | Expr.Slocal -> match (L.unloc v'.gv).v_ty with
@@ -262,6 +264,7 @@ end = struct
       | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
       | Pfvar _ -> acc, st
       | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux (acc,st) e1) e2) e3) e4
+      | Pforall (_, e) -> aux (acc,st) e
     in
 
     aux ([],st) e
@@ -291,6 +294,7 @@ end = struct
       | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
       | Pfvar _ -> acc
       | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux acc e1) e2) e3) e4
+      | Pforall (_, e) -> aux acc e
     in
     aux acc e
 
@@ -534,6 +538,7 @@ end = struct
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
     | Pfvar _ -> sv
     | Pbig (e1, e2, _, _, e3, e4) -> collect_vars_es sv [e1;e2;e3;e4]
+    | Pforall (_, e) -> collect_vars_es sv [e]
     | Presult v ->
       begin
         match v.gs with

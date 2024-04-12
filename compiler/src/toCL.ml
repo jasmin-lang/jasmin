@@ -70,14 +70,14 @@ module CL = struct
       match ep with
       | Eeq(e1, e2) -> Format.fprintf fmt "(%a = %a)" pp_eexp e1 pp_eexp e2
       | Eeqmod(e1,e2, es) ->
-        Format.fprintf fmt "eqmod %a %a [%a]"
+        Format.fprintf fmt "(%a = %a (mod [%a]))"
           pp_eexp e1
           pp_eexp e2
           (pp_list ",@ " pp_eexp) es
 
     let pp_epreds fmt eps =
       if eps = [] then Format.fprintf fmt "true"
-      else Format.fprintf fmt "(@[%a@])" (pp_list " /\\ " pp_epred) eps
+      else Format.fprintf fmt "/\\[@[%a@]]" (pp_list ",@ " pp_epred) eps
 
   end
 
@@ -176,7 +176,7 @@ module CL = struct
           match rps with
           | [] -> Format.fprintf fmt "true"
           | [h] -> pp_rpred fmt h
-          | h :: q -> Format.fprintf fmt "@[%a" (pp_list " /\\ " pp_rpred) rps
+          | h :: q -> Format.fprintf fmt "/\\[%a]" (pp_list ",@ " pp_rpred) rps
         end
       | RPor  rps -> Format.fprintf fmt "@[%a" (pp_list " \\/ " pp_rpred) rps
 
@@ -190,6 +190,14 @@ module CL = struct
     Format.fprintf fmt "@[<hov 2>@[%a@] &&@ @[%a@]@]"
       I.pp_epreds ep
       R.pp_rpreds rp
+
+  type fvar = var
+
+  let pp_fvar fmt x =
+    Format.fprintf fmt "%a@@bit :" pp_var x
+
+  let pp_fvars fmt xs =
+    Format.fprintf fmt "%a" (pp_list ",@ " pp_fvar) xs
 
   module Instr = struct
 
@@ -217,6 +225,7 @@ module CL = struct
       | Const of const
       | Ty    of ty
       | Pred of clause
+      | Fval of fvar
 
     type args = arg list
 
@@ -227,6 +236,7 @@ module CL = struct
       | Const c -> pp_const fmt c
       | Ty ty   -> pp_ty fmt ty
       | Pred cl -> pp_clause fmt cl
+      | Fval x  -> pp_fvar fmt x
 
     type instr =
       { iname : string;
@@ -363,7 +373,10 @@ module CL = struct
     let assume cl =
       { iname = "assume"; iargs  = [Pred cl] }
 
-    (* nondet set rcut clear ecut ghost *)
+    let ghost (v:fvar) cl =
+      { iname = "ghost";  iargs = [Fval v; Pred cl] }
+
+    (* nondet set rcut clear ecut *)
 
   end
 
@@ -379,8 +392,8 @@ module CL = struct
 
     let pp_proc fmt (proc : proc) =
       Format.fprintf fmt
-        "@[<v>proc %s(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@]@ }@ @] "
-        proc.id
+        "@[<v>proc main(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@]@ }@ @] "
+        (* proc.id *)
         pp_tyvars proc.formals
         pp_clause proc.pre
         Instr.pp_instrs proc.prog
@@ -473,6 +486,7 @@ module I = struct
     match e with
     | Pconst z -> Iconst z
     | Pvar x -> Ivar (L.unloc x.gv)
+    | Pfvar x -> Ivar (L.unloc x)
     | Papp1 (Oword_of_int _ws, x) -> !> x
     | Papp1 (Oint_of_word _ws, x) -> !> x
     | Papp1(Oneg _, e) -> !- !> e
@@ -485,20 +499,25 @@ module I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-    | Pabstract ({name="indetX"}, _) -> assert false
     | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Presult x -> Ivar (L.unloc x.gv)
     | _ -> assert false
 
-  let rec gexp_to_epred e : CL.I.epred list =
+  let rec gexp_to_epred e : CL.Instr.instr list * CL.I.epred list =
     let open CL.I in
     let (!>) e = gexp_to_eexp e in
     let (!>>) e = gexp_to_epred e in
     match e with
-    | Papp2(Oeq _, e1, e2)  -> [Eeq (!> e1, !> e2)]
-    | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
+    | Papp2(Oeq _, e1, e2)  -> [],[Eeq (!> e1, !> e2)]
+    | Papp2(Oand, e1, e2)  ->
+      let i1,e1 = !>> e1 in
+      let i2,e2 = !>> e2 in
+      i1 @ i2, e1 @ e2
     | Pabstract ({name="eqmod"} as _opa, [h1;h2;h3]) ->
-      [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
+      [],[Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
+    | Pforall(x, e) ->
+      let i,e = !>> e in
+      CL.Instr.ghost (L.unloc x) ([],[]) :: i, e
     | _ -> assert false
 
   let var_to_tyvar ?(sign=false) v : CL.tyvar =
@@ -816,7 +835,7 @@ module X86BaseOp : BaseOp
                CL.Instr.Op2.join l !l_tmp4 a;
               ]
       end
-    | MOVZX (ws1, ws2) -> 
+    | MOVZX (ws1, ws2) ->
           let a,i = cast_atome ws2 (List.nth es 0) in
           let l = I.glval_to_lval (List.nth xs 0) in
           let ty = CL.Uint (int_of_ws ws1) in
@@ -926,14 +945,22 @@ module Mk(O:BaseOp) = struct
     | (Expr.Cas,c)::q -> filter_clause q (c::cas,smt)
     | (Expr.Smt,c)::q -> filter_clause q (cas,c::smt)
 
-  let to_clause clause : CL.clause =
+  let to_smt smt =
+    List.fold_left (fun acc a -> I.gexp_to_rpred a ::  acc) [] smt
+
+  let to_cas cas =
+    List.fold_left (fun (acc1,acc2,acc3) a ->
+        let i,es = I.gexp_to_epred a in
+        match i with
+        | [] -> acc1, acc2, es @ acc3
+        | _ -> i @ acc1, es @ acc2, acc3)
+      ([],[],[]) cas
+
+  let to_clause clause : CL.clause * CL.Instr.instr list * CL.clause =
     let cas,smt = filter_clause clause ([],[]) in
-    match cas,smt with
-    | [],[] -> [], []
-    | [],smt -> [], List.fold_left (fun acc a -> I.gexp_to_rpred a ::  acc) [] smt
-    | cas,[] -> List.fold_left (fun acc a -> I.gexp_to_epred a @ acc) [] cas, []
-    | _,_ -> List.fold_left (fun acc a -> I.gexp_to_epred a @ acc) [] cas,
-             List.fold_left (fun acc a -> I.gexp_to_rpred a ::  acc) [] smt
+    let smt = to_smt smt in
+    let i,cas1,cas2 = to_cas cas in
+    (cas2,smt), i, (cas1,[])
 
   let pp_i fds i =
     let mk_trans = Annot.filter_string_list None ["smt", Smt ; "cas", Cas ] in
@@ -945,15 +972,12 @@ module Mk(O:BaseOp) = struct
     let trans = atran i.i_annot in
     match i.i_desc with
     | Cassert (t, p, e) ->
-      let cl : CL.clause =
-        match p with
-        | Expr.Cas -> I.gexp_to_epred  e, []
-        | Expr.Smt -> [], [I.gexp_to_rpred  e]
-      in
+      let (cas1,smt1),i,(cas2,smt2) = to_clause [(p,e)] in
+      let cl = cas1 @ cas2, smt1 @ smt2 in
       begin
         match t with
-        | Expr.Assert -> [], [CL.Instr.assert_ cl]
-        | Expr.Assume -> [], [CL.Instr.assume cl]
+        | Expr.Assert -> [], i @ [CL.Instr.assert_ cl]
+        | Expr.Assume -> [], i @ [CL.Instr.assume cl]
         | Expr.Cut -> assert false
       end
     | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
@@ -984,9 +1008,11 @@ module Mk(O:BaseOp) = struct
       let aux2 = Subst.gsubst_e (fun x -> x) aux1 in
       let pre = aux aux2 fd.f_contra.f_pre in
       let post = aux aux2  fd.f_contra.f_post in
-      let pre_cl = to_clause pre in
-      let post_cl = to_clause post in
-      r , [CL.Instr.assert_ pre_cl;CL.Instr.assume post_cl]
+      let (pre_cas1,pre_smt1),pre_i,(pre_cas2,pre_smt2) = to_clause pre in
+      let (post_cas1,post_smt1),post_i,(post_cas2,post_smt2) = to_clause post in
+      let pre_cl = pre_cas1 @ pre_cas2, pre_smt1 @ pre_smt2 in
+      let post_cl = post_cas1 @ post_cas2, post_smt1 @ post_smt2 in
+      r , pre_i @ [CL.Instr.assert_ pre_cl] @ post_i @ [CL.Instr.assume post_cl]
 
     | Cassgn (a, _, _, e) ->
       begin
@@ -1002,18 +1028,26 @@ module Mk(O:BaseOp) = struct
         acc1 @ l1, acc2 @ l2
       ) ([],[]) c
 
+  let filter_add cond l1 l2 =
+    List.fold_left (
+        fun l a ->
+          if List.exists (cond a) l
+          then l else a :: l
+      ) l1 l2
+
   let fun_to_proc fds fd =
     let ret = List.map L.unloc fd.f_ret in
-    let args = List.fold_left (
-        fun l a ->
-          if List.exists (fun x -> (x.v_name = a.v_name) && (x.v_id = a.v_id)) l
-          then l else a :: l
-      ) fd.f_args ret in
-    let lval,prog = pp_c fds fd.f_body in
+    let cond a x = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
+    let args = filter_add cond fd.f_args ret in
     let formals = List.map I.var_to_tyvar args in
-    let formals = formals @ List.map I.glval_to_lval lval in
-    let pre = to_clause fd.f_contra.f_pre in
-    let post = to_clause fd.f_contra.f_post in
+    let pre,pre_i,pre_f = to_clause fd.f_contra.f_pre in
+    let (post_cas1,post_smt1),post_i,(post_cas2,post_smt2) = to_clause fd.f_contra.f_post in
+    let post = post_cas1 @ post_cas2, post_smt1 @ post_smt2 in
+    let lval,prog = pp_c fds fd.f_body in
+    let prog = pre_i @ [CL.Instr.assume pre_f] @ prog @ post_i in
+    let formals_lval = List.map I.glval_to_lval lval in
+    let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
+    let formals = filter_add cond formals formals_lval in
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
              pre;

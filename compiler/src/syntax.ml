@@ -168,6 +168,7 @@ type pexpr_r =
   | PEOp2    of peop2 * (pexpr * pexpr)
   | PEIf     of pexpr * pexpr * pexpr
   | PEbig    of pbig * pexpr * pexpr * pident * pexpr
+  | PEForall of pident * pexpr
   | PEAbstract of pident * pexpr list
   | PEResult of int
   | PEResultGet of arr_access * wsize option * int * pexpr * pexpr option

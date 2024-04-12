@@ -123,13 +123,12 @@ Definition with_scs (s:estate) scs :=
 
 End ESTATE_UTILS.
 
-Class Prabstract := { iabstract : opA -> (list value  -> exec value) }.
+Class Prabstract := { piabstract : opA -> (list value  -> exec value) }.
 
 Section SEM_PEXPR.
 
-Context {absp: Prabstract}.
-
 Context
+  {absp: Prabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -169,7 +168,7 @@ Fixpoint sem_pexpr_aux (s:estate) (m : Vm.t) (e : pexpr) : exec value :=
     sem_opN op vs
   | Pabstract opa es =>
     Let vs := mapM (sem_pexpr_aux  s m) es in
-    iabstract opa vs
+    piabstract opa vs
   | Pif t e e1 e2 =>
     Let b := sem_pexpr_aux s m e >>= to_bool in
     Let v1 := sem_pexpr_aux s m e1 >>= truncate_val t in
@@ -187,6 +186,7 @@ Fixpoint sem_pexpr_aux (s:estate) (m : Vm.t) (e : pexpr) : exec value :=
                Let v4 := sem_pexpr_aux s m e4 in
                sem_sop2 sop acc v4)
       v3 l
+  | Pforall x e => undef_error
   | Presult v => get_gvar wdb gd s.(evm) v
   | Presultget aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in

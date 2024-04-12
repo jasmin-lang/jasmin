@@ -36,6 +36,7 @@
     "requires" , REQUIRES;
     "ensures", ENSURES;
     "result", RESULT;
+    "forall", FORALL;
 
     "abstract", ABSTRACT;
     "const" , CONSTANT;

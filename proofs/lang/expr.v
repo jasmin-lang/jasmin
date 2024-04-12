@@ -261,6 +261,7 @@ Inductive pexpr : Type :=
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
 | Pfvar : fvar -> pexpr
 | Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
+| Pforall: fvar -> pexpr -> pexpr
 | Pabstract : opA -> seq pexpr -> pexpr
 | Presult : gvar -> pexpr
 | Presultget : arr_access ->  wsize -> gvar -> pexpr -> pexpr
@@ -810,6 +811,7 @@ Fixpoint use_mem (e : pexpr) :=
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   | Pfvar _ => false
   | Pbig e1 e2 _ _ e3 e4 => use_mem e1 || use_mem e2 || use_mem e3 || use_mem e4
+  | Pforall _ e => use_mem e
   | Presult _ => false
   | Presultget _ _ _ e => use_mem e
   end.
@@ -837,6 +839,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   | Pfvar _ => s
   | Pbig e1 e2 _ _ e3 e4 => read_e_rec (read_e_rec (read_e_rec (read_e_rec s e4) e3) e2) e1
+  | Pforall _ e => read_e_rec s e
   | Presult x       => Sv.union (read_gvar x) s
   | Presultget _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   end.
