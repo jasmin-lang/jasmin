@@ -201,14 +201,14 @@ Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
     Let arg0 :=     
       match e0 with
       | Fvar x => Let r := of_var_e ii x in ok (Some r)
-      | Fapp1 (Oword_of_int _) (Fconst 0) => ok None
+      | Fapp1 (Oword_of_int U32) (Fconst 0) => ok None
       | _ => Error (E.berror ii e "Can't assemble condition.") 
       end
     in
     Let arg1:= 
       match e1 with
       | Fvar x => Let r := of_var_e ii x in ok (Some r)
-      | Fapp1 (Oword_of_int _) (Fconst 0) => ok None
+      | Fapp1 (Oword_of_int U32) (Fconst 0) => ok None
       | _ => Error (E.berror ii e "Can't assemble condition.") 
       end
     in 

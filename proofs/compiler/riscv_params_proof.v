@@ -502,19 +502,101 @@ Proof.
     | None => wrepr riscv_reg_size 0
   end).
   rewrite -/(sem_arg (cond_fst c)) -/(sem_arg (cond_snd c)).
-  have h_sem_arg0: Vword (sem_arg arg0) = v0.
-  + admit.
-  have h_sem_arg1: Vword (sem_arg arg1) = v1.
-  + admit.
+  have h_sem_arg0: value_uincl v0 (Vword (sem_arg arg0)).
+  + case: e0 {h_op2} h_arg0 {h_arg1} h_v0 => //.
+    + move=> v2.
+      t_xrbindP => z /of_var_eP h_of_var <-.
+      rewrite /sem_fexpr /get_var.
+      t_xrbindP => //= h_defined <-.
+      have h_to_var:=of_varI h_of_var.
+      have:=eqr z.
+      by rewrite h_to_var.
+    + move => [] // [] // [] // [] // [] <-.
+      rewrite /sem_fexpr /=.
+      by rewrite /sem_sop1 /= => -[] <-.
+
+  have h_sem_arg1: value_uincl v1 (Vword (sem_arg arg1)).
+  + case: e1 {h_op2 h_arg0} h_arg1 h_v1 => //.
+    + move=> v2.
+      t_xrbindP => z /of_var_eP h_of_var <-.
+      rewrite /sem_fexpr /get_var.
+      t_xrbindP => //= h_defined <-.
+      have h_to_var:=of_varI h_of_var.
+      have:=eqr z.
+      by rewrite h_to_var.
+    + move => [] // [] // [] // [] // [] <-.
+      rewrite /sem_fexpr /=.
+      by rewrite /sem_sop1 /= => -[] <-.
   
   case: op2 h_op2 h_c h_arg0 h_arg1 h_v => //=.
   - move=> -[] // [] //.
-  - move=> [] <- <- [] <- h_arg0 h_arg1 /=.
-    rewrite -h_sem_arg0 -h_sem_arg1.
+    move=> [] <- <- [] <- h_arg0 h_arg1 /=.
     rewrite /sem_sop2 /=.
-    rewrite !truncate_word_u /= => -[] <-.
-    by eexists; first by reflexivity.
-Admitted.
+    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
+    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
+    move => <-.
+    eexists; first by reflexivity.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
+    by have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
+    
+  - move=> -[] // [] //.
+    move=> [] <- <- [] <- h_arg0 h_arg1 /=.
+    rewrite /sem_sop2 /=.
+    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
+    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
+    move => <-.
+    eexists; first by reflexivity.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
+    by have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
+
+  - move=> -[] // sg // [] //.
+    move=> [] <- <- [] <- h_arg0 h_arg1 /=.
+    rewrite /sem_sop2 /=.
+    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
+    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
+    move => <-.
+    eexists; first by reflexivity.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
+    by case: sg {h_arg0 h_arg1}.
+
+  move=> -[] // sg // [] //.
+  + move=> [] <- <- [] <- h_arg0 h_arg1 /=.
+    rewrite /sem_sop2 /=.
+    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
+    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
+    move => <-.
+    eexists; first by reflexivity.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
+    rewrite Z.geb_leb.
+    by case: sg {h_arg0 h_arg1}.
+
+  move=> -[] // sg // [] //.
+  + move=> [] <- <- [] <- h_arg0 h_arg1 /=.
+    rewrite /sem_sop2 /=.
+    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
+    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
+    move => <-.
+    eexists; first by reflexivity.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
+    by case: sg {h_arg0 h_arg1}.
+
+  move=> -[] // sg // [] //.
+  + move=> [] <- <- [] <- h_arg0 h_arg1 /=.
+    rewrite /sem_sop2 /=.
+    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
+    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
+    move => <-.
+    eexists; first by reflexivity.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
+    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
+    rewrite Z.geb_leb.
+    by case: sg {h_arg0 h_arg1}.
+Qed.
+
+
     (* - t_xrbindP=> //=.
     case: e1 => // x1 _.
     t_xrbindP=> r0 hr0 r1 hr1 //=.
