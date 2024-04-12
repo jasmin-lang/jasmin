@@ -59,7 +59,7 @@ Module RISCVOpn (Args : OpnArgs).
 
   Definition andi := op_bin_imm (BaseOp (None, ANDI)).
 
-  Definition align x y al := andi x y (wsize_size al - 1).
+  Definition align x y al := andi x y (- (wsize_size al)).
 
   Definition smart_mov x y := map to_opn (Core.smart_mov x y).
 
