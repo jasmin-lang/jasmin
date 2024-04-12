@@ -3,6 +3,7 @@
 
 open Arch_decl
 open Utils
+open PrintCommon
 open Prog
 open Var0
 open Riscv_decl
@@ -58,7 +59,7 @@ let print_asm_lines fmt lns =
 (* -------------------------------------------------------------------- *)
 (* TODO_RISCV: This is architecture-independent. *)
 
-let string_of_label name p = Printf.sprintf "L%s$%d" name (Conv.int_of_pos p)
+let string_of_label name p = Printf.sprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
 
 let pp_label n lbl = string_of_label n lbl
 
