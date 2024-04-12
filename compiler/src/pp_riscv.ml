@@ -233,10 +233,12 @@ let pp_brace s = Format.sprintf "{%s}" s
 let pp_fun (fn, fd) =
   let fn = fn.fn_name in
   let head =
+    let fn = escape fn in
     if fd.asm_fd_export then
       [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]); ]
     else []
   in let pre =
+    let fn = escape fn in
     if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("addi", [ pp_register X2; pp_register X2; "-4"]); LInstr ("sw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) None None None])] else []
   in
   let body = pp_body fn fd.asm_fd_body in
