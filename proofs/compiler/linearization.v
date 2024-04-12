@@ -747,6 +747,7 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
     ; lfd_stk_max := sf_stk_max e
     ; lfd_frame_size := frame_size e
+    ; lfd_align_args := sf_align_args e
     |}).
 
 End FUN.

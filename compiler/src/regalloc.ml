@@ -668,8 +668,8 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
   and alloc_stmt s = List.iter alloc_instr s
   in
   let loc = L.i_loc0 f.f_loc in
-  if f.f_cc = Export then alloc_args loc identity f.f_args;
-  if f.f_cc = Export then alloc_ret loc L.unloc f.f_ret;
+  if FInfo.is_export f.f_cc then alloc_args loc identity f.f_args;
+  if FInfo.is_export f.f_cc then alloc_ret loc L.unloc f.f_ret;
   alloc_stmt f.f_body;
   match Hf.find return_addresses f.f_name, Arch.callstyle with
   | (StackByReg (ra,_) | ByReg (ra, _)), Arch_full.ByReg (Some r) ->
@@ -892,7 +892,7 @@ let post_process
        assert (not stack_needed);
        killed_in_f, None
      end
-  | Export ->
+  | Export _ ->
      begin
        assert (Sv.is_empty live);
        let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
@@ -905,7 +905,7 @@ let post_process
 
 let subroutine_ra_by_stack f =
   match f.f_cc with
-  | Export | Internal -> assert false
+  | Export _ | Internal -> assert false
   | Subroutine _ ->
       match Arch.callstyle with
       | Arch_full.StackDirect -> true
@@ -915,7 +915,34 @@ let subroutine_ra_by_stack f =
         | None -> dfl
         | Some k -> dfl || k = OnStack
 
-let pp_liveness vars get_liveness liveness_table conflicts a =
+module Miloc = Map.Make (struct
+  open Location
+  type t = i_loc
+  let compare x y = Stdlib.Int.compare x.uid_loc y.uid_loc
+end)
+
+type callsite_tree =
+  { sv : Sv.t option; sub : callsite_tree Miloc.t }
+
+let empty_callsite =
+  { sv = None; sub = Miloc.empty }
+
+let rec insert_callsite t (locs, sv) =
+  match locs with
+  | [] -> assert (t.sv = None); { t with sv = Some sv }
+  | loc::locs ->
+    { t with sub =
+      Miloc.modify_def empty_callsite loc
+        (fun t -> insert_callsite t (locs, sv))
+       t.sub }
+
+let callsite_tree (s : (Location.i_loc list * Sv.t) list) =
+  List.fold_left insert_callsite empty_callsite s
+
+
+
+
+let pp_liveness vars liveness_per_callsite liveness_table conflicts a =
   (* Prints the program with forced registers, equivalence classes, and liveness information *)
   let open Format in
   let open PrintCommon in
@@ -975,10 +1002,11 @@ let pp_liveness vars get_liveness liveness_table conflicts a =
       let n = List.length xs in
       set_max k n;
       fprintf fmt "@[<h> %d %s%s (%a)@]" n (string_of_k k) (if n > 1 then "s" else "") (pp_list "@ " pp_var) xs in
-    fprintf fmt "%a"
-      (pp_list "@ " pp)
+    let l =
       (List.filter (fun (_, m) -> List.length m > 0)
-         [ Word, words; Extra, extras; Vector, vectors; Flag, flags])
+         [ Word, words; Extra, extras; Vector, vectors; Flag, flags]) in
+    fprintf fmt "%a" (pp_list "@ " pp) l
+
   in
 
   let pp_info fmt (loc, (i, o)) =
@@ -987,45 +1015,46 @@ let pp_liveness vars get_liveness liveness_table conflicts a =
     fprintf fmt "@[<v>/* Live-out:@ %a */@]@ " pp_liveset o
   in
 
-  (** Partition the set s according to conflicts: conflicting variables are in the same component. *)
-  let components s =
-    let r, o = Sv.fold (fun x (r, o) ->
-          match Hv.find vars x with
-          | exception Not_found -> r, Sv.add x o
-          | i -> IntMap.add i x r, o
-        ) s (IntMap.empty, Sv.empty) in
-    let mark = ref IntSet.empty in
-    IntMap.fold (fun i x acc ->
-        if IntSet.mem i !mark then acc else (
-          let k = IntSet.filter (fun j -> IntMap.mem j r) (get_conflicts i conflicts) in
-          mark := IntSet.union (IntSet.add i k) !mark;
-          IntSet.fold (fun j -> Sv.add (IntMap.find j r)) k (Sv.singleton x) :: acc
-        )
-      ) r [o]
+  let pp_callsites fmt fn =
+    let s = Hf.find_default liveness_per_callsite fn [] in
+    let rec pp_callsite i fmt t =
+      match t.sv with
+      | Some sv ->
+          assert (Miloc.is_empty t.sub);
+          fprintf fmt "@[<v>%a@]" pp_liveset sv;
+      | None ->
+        if Miloc.is_empty t.sub then ()
+        else
+          let pp_site fmt (loc, t) =
+            fprintf fmt "(%i)%a@   %a" i L.pp_iloc loc (pp_callsite (i+1)) t
+          in
+         fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_site) (Miloc.bindings t.sub)
+    in
+    if s <> [] then
+      fprintf fmt "@[<v>/* Live when calling %s:@ %a*/@]" fn.fn_name (pp_callsite 0) (callsite_tree s)
   in
 
-  let pp_recap fmt fn =
-    let pp fmt (k, n) =
-      fprintf fmt  "%d %s%s" n (string_of_k k) (if n > 1 then "s" else "")
+  let pp_recap fmt fn (i_w, i_e, i_v, i_f) (e_w, e_e, e_v, e_f) =
+    let pp fmt (k, i, e) =
+      fprintf fmt  "(intern : %d, extern : %d, total : %d) %s%s" i e (i+e)
+        (string_of_k k) (if (i+e) > 1 then "s" else "")
     in
-    let s = get_liveness fn in
-    let pp_s fmt s =
-      if not (Sv.is_empty s) then
-        let c = components s in
-        fprintf fmt "@[<v>Live at call sites:@ %a@]@ " (pp_list "@ " pp_liveset) c in
-    fprintf fmt "/* @[<v>Maximum register usage for %s:@ %a@ @]%a*/@.@."
+    fprintf fmt "@[<v>/* Maximal register usage for %s:@ %a@ */@]@.@."
       fn.fn_name
       (pp_list "@ " pp)
-      (List.filter (fun (_, n) -> n > 0)
-         [ Word, !m_word; Extra, !m_extra; Vector, !m_vector; Flag, !m_flag])
-      pp_s s
+      (List.filter (fun (_, i , e) -> i + e > 0)
+         [ Word, i_w, e_w; Extra, i_e, e_e; Vector, i_v, e_v; Flag, i_f, e_f])
   in
 
   printf "/* Ready to allocate variables to registers: */@.";
   liveness_table |> Hf.iter (fun fn fd ->
     reset_max();
     printf "%a@." (pp_fun ~pp_locals ~pp_info (pp_opn Arch.reg_size Arch.asmOp) pp_var) fd;
-    pp_recap Format.std_formatter fn)
+    let intern = !m_word, !m_extra, !m_vector, !m_flag in
+    reset_max();
+    printf "%a@." pp_callsites fn;
+    let extern = !m_word, !m_extra, !m_vector, !m_flag in
+    pp_recap Format.std_formatter fn intern extern)
 
 let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func list) :
   (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * retaddr Hf.t =
@@ -1048,7 +1077,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
     (* compute where will be store the return address *)
     let ra =
        match f.f_cc with
-       | Export -> StackDirect
+       | Export _ -> StackDirect
        | Internal -> assert false
        | Subroutine _ ->
          match Arch.callstyle with
@@ -1074,7 +1103,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
       let written, cg = written_vars_fc f in
       let written =
         match f.f_cc with
-        | (Export | Internal) -> written
+        | (Export _ | Internal) -> written
         | Subroutine _ ->
           match ra with
           | StackDirect -> written
@@ -1095,16 +1124,16 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
     Format.printf "Before REGALLOC:@.%a@."
       Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.reg_size Arch.asmOp)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
-  let get_liveness, slive =
-    let live : Sv.t Hf.t = Hf.create 17 in
+  let get_liveness, slive, liveness_per_callsite =
+    let live : (L.i_loc list * Sv.t) list Hf.t = Hf.create 17 in
     let slive : (BinNums.positive Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
-        let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in
-        let cbf _loc fn xs (_, s) =
-          let s = Sv.union live_when_calling_f s in
+        let live_when_calling_f = Hf.find_default live f.f_name [[], Sv.empty] in
+        let cbf loc fn xs (_, s) =
           let s = Liveness.dep_lvs s xs in
-          Hf.modify_def Sv.empty fn (Sv.union s) live in
+          let s = List.map (fun (ctx, ls) -> loc :: ctx, Sv.union s ls) live_when_calling_f in
+          Hf.modify_def [] fn (List.rev_append s) live in
         let cbs _loc o xs (_, s) =
             let s = Liveness.dep_lvs s xs in
             match Hashtbl.find slive o with
@@ -1113,7 +1142,10 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
 
         Liveness.iter_call_sites cbf cbs f_with_liveness
       ) funcs;
-    (fun fn -> Hf.find_default live fn Sv.empty), slive
+    (let tbl = Hf.map (fun _ -> List.fold_left (fun acc (_, s) -> Sv.union acc s) Sv.empty) live in
+     fun fn -> Hf.find_default tbl fn Sv.empty),
+    slive,
+    live
   in
   let excluded = Sv.of_list [Arch.rip; Arch.rsp_var] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses Arch.all_registers funcs in
@@ -1183,7 +1215,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
 
   List.iter (fun f -> allocate_forced_registers return_addresses translate_var nv vars conflicts f a) funcs;
 
-  if !Glob_options.print_liveness then pp_liveness vars get_liveness liveness_table conflicts a;
+  if !Glob_options.print_liveness then pp_liveness vars liveness_per_callsite liveness_table conflicts a;
 
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in
@@ -1232,7 +1264,7 @@ let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) get_i
         | StackDirect -> StackDirect
         | StackByReg(r, tmp) -> StackByReg (subst r, Option.map subst tmp)
         | ByReg(r, tmp) -> ByReg (subst r, Option.map subst tmp) in
-      let ro_to_save = if f.f_cc = Export then Sv.elements to_save else [] in
+      let ro_to_save = if FInfo.is_export f.f_cc then Sv.elements to_save else [] in
       e, { ro_to_save ; ro_rsp ; ro_return_address }, f
     )
 

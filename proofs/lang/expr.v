@@ -602,6 +602,7 @@ Record stk_fun_extra := MkSFun {
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
+  sf_align_args     : seq wsize;
 }.
 
 Record sprog_extra := {

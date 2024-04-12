@@ -286,6 +286,10 @@ elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
 
+Lemma map_Forall2 aT bT (f : aT -> bT) m :
+  List.Forall2 (fun a b => f a = b) m (map f m).
+Proof. by elim: m => //= a m ih; constructor. Qed.
+
 Lemma mapM_ext eT aT bT (f1 f2: aT → result eT bT) (m: seq aT) :
   (∀ a, List.In a m → f1 a = f2 a) →
   mapM f1 m = mapM f2 m.
@@ -593,19 +597,6 @@ Section MAP2.
     by Lia.lia.
   Qed.
 
-  Lemma mapM2_Forall2 (P: R → B → Prop) ma mb mr :
-    (∀ a b r, List.In (a, b) (zip ma mb) → f a b = ok r → P r b) →
-    mapM2 ma mb = ok mr →
-    List.Forall2 P mr mb.
-  Proof.
-    elim: ma mb mr.
-    + move => [] // mr _ [<-]; constructor.
-    move => a ma ih [] // b mb mr' h /=; t_xrbindP => r ok_r mr rec <- {mr'}.
-    constructor.
-    + by apply: (h _ _ _ _ ok_r); left.
-    by apply: ih => // a' b' r' h' ok_r'; apply: (h a' b' r' _ ok_r'); right.
-  Qed.
-
   Lemma mapM2_Forall3 ma mb mr :
     mapM2 ma mb = ok mr ->
     Forall3 (fun a b r => f a b = ok r) ma mb mr.
@@ -615,6 +606,16 @@ Section MAP2.
     move=> a ma ih [//|b mb] /=.
     t_xrbindP=> _ r h mr /ih{ih}ih <-.
     by constructor.
+  Qed.
+
+  Lemma mapM2_nth ma mb mr :
+    mapM2 ma mb = ok mr ->
+    forall a b r i,
+      (i < size ma)%nat ->
+      f (nth a ma i) (nth b mb i) = ok (nth r mr i).
+  Proof.
+    move=> H; elim: {H ma mb mr}(mapM2_Forall3 H) => //= a b r ma mb mr ok_r _ ih.
+    by move=> a' b' r' [//|i]; apply ih.
   Qed.
 
   Lemma cat_mapM2 ha ta hb tb hl tl :
@@ -664,7 +665,8 @@ Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT *
     | _, _ => Error e
     end.
 
-Lemma size_fmapM2 {eT aT bT cT dT} e (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld :
+Lemma size_fmapM2 {eT aT bT cT dT} e
+  (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld :
   fmapM2 e f a lb lc = ok (a2, ld) ->
   size lb = size lc /\ size lb = size ld.
 Proof.
@@ -673,6 +675,45 @@ Proof.
   move=> b lb ih [//|c lc] a /=.
   t_xrbindP=> _ _ _ _ [_ ld] /ih{ih}ih _ <- /=.
   by Lia.lia.
+Qed.
+
+Lemma fmapM2_split {eT aT bT cT dT} e
+  (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld i :
+  fmapM2 e f a lb lc = ok (a2, ld) ->
+  exists a1,
+    fmapM2 e f a (take i lb) (take i lc) = ok (a1, take i ld) /\
+    fmapM2 e f a1 (drop i lb) (drop i lc) = ok (a2, drop i ld).
+Proof.
+  elim: lb lc a a2 ld i => [|b lb ih] [|c lc] //= a a2.
+  + move=> _ _ [<- <-] /=.
+    by eexists.
+  t_xrbindP=> _ i [a1 d] /= h1 [{}a2 ld] h2 <- <-.
+  case: i => [|i] /=.
+  + eexists; split; first by reflexivity.
+    by rewrite h1 /= h2.
+  rewrite h1 /=.
+  have [a1' [-> /= h2']] := ih _ _ _ _ i h2.
+  by eexists; split; first by reflexivity.
+Qed.
+
+Lemma fmapM2_nth {eT aT bT cT dT} e
+  (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld i b c d :
+  fmapM2 e f a lb lc = ok (a2, ld) ->
+  (i < size lb)%nat ->
+  exists a1 a1',
+    fmapM2 e f a (take i lb) (take i lc) = ok (a1, take i ld) /\
+    f a1 (nth b lb i) (nth c lc i) = ok (a1', nth d ld i) /\
+    fmapM2 e f a1' (drop i.+1 lb) (drop i.+1 lc) = ok (a2, drop i.+1 ld).
+Proof.
+  move=> hmap hi.
+  have [a1 [hmap1 hmap2]] := fmapM2_split i hmap.
+  have {hmap} [hsize1 hsize2] := size_fmapM2 hmap.
+  move: hmap2.
+  rewrite (drop_nth b hi).
+  rewrite (drop_nth c); last by rewrite -hsize1.
+  rewrite (drop_nth d) /=; last by rewrite -hsize2.
+  t_xrbindP=> -[a1' d'] hf [a2' ld'] /= hmap2 ???; subst d' a2' ld'.
+  by exists a1, a1'.
 Qed.
 
 (* Forall and size *)
@@ -707,6 +748,18 @@ Proof.
   by apply ih.
 Qed.
 
+Lemma nth_Forall2 A B (R : A -> B -> Prop) la lb a b :
+  size la = size lb ->
+  (forall i : nat, (i < size la)%nat -> R (nth a la i) (nth b lb i)) ->
+  List.Forall2 R la lb.
+Proof.
+  elim: la lb => [|a' la ih] [|b' lb] //= [] /ih{}ih hnth.
+  constructor.
+  + by apply (hnth 0%nat).
+  by apply ih; move=> i; apply (hnth i.+1).
+Qed.
+Arguments nth_Forall2 [A B R la lb].
+
 Lemma Forall2_forall A B (R : A -> B -> Prop) la lb :
   List.Forall2 R la lb ->
   forall a b, List.In (a, b) (zip la lb) ->
@@ -738,6 +791,31 @@ Proof.
   + by apply himpl; [left; reflexivity..|].
   apply ih.
   by move=> ?????; apply himpl; [right..|].
+Qed.
+
+Lemma Forall2_flip A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  List.Forall2 (fun x y => R y x) lb la.
+Proof. by elim {la lb} => // a b la lb h _ ih; constructor. Qed.
+
+Lemma Forall2_take A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  forall n,
+  List.Forall2 R (take n la) (take n lb).
+Proof.
+  elim {la lb} => //= a b la lb h _ ih n.
+  case: n => [|n] //=.
+  by constructor.
+Qed.
+
+Lemma Forall2_drop A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  forall n,
+  List.Forall2 R (drop n la) (drop n lb).
+Proof.
+  elim {la lb} => //= a b la lb h ? ih n.
+  case: n => [|n] //=.
+  by constructor.
 Qed.
 
 Lemma Forall3_nth A B C (R : A -> B -> C -> Prop) la lb lc :
@@ -844,6 +922,22 @@ Lemma List_Forall3_inv A B C (R : A -> B -> C -> Prop) l1 l2 l3 :
   end.
 Proof. by case. Qed.
 
+(* Transitivity of Forall *)
+(* -------------------------------------------------------------- *)
+
+Lemma Forall2_trans A B C lb (R1:A->B->Prop) (R2:B->C->Prop)
+                    la lc (R3:A->C->Prop) :
+  (forall b a c, R1 a b -> R2 b c -> R3 a c) ->
+  List.Forall2 R1 la lb ->
+  List.Forall2 R2 lb lc ->
+  List.Forall2 R3 la lc.
+Proof.
+  move=> himpl hfor1.
+  elim: {la lb} hfor1 lc => [ | a b la lb hr1 _ hrec] + /List_Forall2_inv_l.
+  + by move=> _ ->.
+  by move=> _ [c [lc [-> [hr2 hfor2]]]]; constructor; eauto.
+Qed.
+
 Section Subseq.
 
   Context (T : eqType).
@@ -907,6 +1001,13 @@ Section DifferentTypes.
     move: hn; rewrite -hsz orbb => hn.
     move=> /(all_nthP (s, t)) -/(_ n).
     by rewrite size_zip -hsz minnn nth_zip //; apply.
+  Qed.
+
+  Lemma all2_map S' T' (f:S'->S) (g:T'->T) l1 l2 :
+    all2 (fun x y => p (f x) (g y)) l1 l2 = all2 p (map f l1) (map g l2).
+  Proof.
+    elim: l1 l2 => [|x1 l1 ih] [|x2 l2] //=.
+    by rewrite ih.
   Qed.
 
 End DifferentTypes.
@@ -1051,9 +1152,6 @@ End FIND_MAP.
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
-Definition isSome aT (o : option aT) :=
-  if o is Some _ then true else false.
-
 Lemma isSome_obind (aT bT: Type) (f: aT → option bT) (o: option aT) :
   reflect (exists2 a, o = Some a & isSome (f a)) (isSome (o >>= f)%O).
 Proof.
@@ -1062,8 +1160,9 @@ Proof.
   by case: o => // a h; exists a.
 Qed.
 
-Definition omap_dflt {aT bT} (d : bT) (f : aT -> bT) (oa : option aT) :=
-  if oa is Some x then f x else d.
+Lemma isSome_omap aT bT (f : aT -> bT) (o : option aT) :
+  isSome (Option.map f o) = isSome o.
+Proof. by case: o. Qed.
 
 Fixpoint list_to_rev (ub : nat) :=
   match ub with
@@ -1073,18 +1172,7 @@ Fixpoint list_to_rev (ub : nat) :=
 
 Definition list_to ub := rev (list_to_rev ub).
 
-Lemma Forall2_trans (A B C:Type) l2 (R1:A->B->Prop) (R2:B->C->Prop)
-                    l1 l3 (R3:A->C->Prop)  :
-   (forall b a c, R1 a b -> R2 b c -> R3 a c) ->
-   List.Forall2 R1 l1 l2 ->
-   List.Forall2 R2 l2 l3 ->
-   List.Forall2 R3 l1 l3.
-Proof.
-  move=> H hr1;elim: hr1 l3 => {l1 l2} [ | a b l1 l2 hr1 _ hrec] l3 /List_Forall2_inv_l.
-  + by move => ->.
-   by case => ? [?] [->] [??]; constructor; eauto.
-Qed.
-
+(* is it not just List.flat_map? *)
 Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
   flatten (map f l).
 
