@@ -103,6 +103,10 @@ Variant riscv_op : Type :=
 | XOR                            (* Bitwise XOR with register *)
 | XORI                           (* Bitwise XOR with immediate *)
 
+(* Shift *)
+| SLL                            (* Shift Left Logical (by the 5 least significant bits of the second operand) *)
+| SLLI                           (* Shift Left Logical with immediate (of 5 bits) *)
+
 (* Pseudo instruction : Other data processing instructions *)
 | LA                             (* Load address *)
 | MV                             (* Copy operand to destination *)
@@ -208,6 +212,16 @@ Definition prim_XOR := ("XOR"%string, primM XOR).
 
 Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction riscv_xor_semi "XORI" "xori".
 Definition prim_XORI := ("XORI"%string, primM XORI).
+
+
+Definition riscv_sll_semi (wn wm : ty_r) : exec ty_r := ok (wshl wn (wunsigned (wand wm (wrepr U32 31)))).
+
+Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_and_semi "SLL" "sll".
+Definition prim_SLL := ("SLL"%string, primM SLL).
+
+Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction riscv_and_semi "SLLI" "slli".
+Definition prim_SLLI := ("SLLI"%string, primM SLLI).
+
 
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
   ok wn.
@@ -373,6 +387,8 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | XORI => riscv_XORI_instr
   | LA => riscv_LA_instr
   | LI => riscv_LI_instr
+  | SLL => riscv_SLL_instr
+  | SLLI => riscv_SLLI_instr
   | MV => riscv_MV_instr
   | LOAD s ws => riscv_LOAD_instr s ws
   | STORE ws => riscv_STORE_instr ws
@@ -395,6 +411,8 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_LA;
   prim_LI;
   prim_MV;
+  prim_SLL;
+  prim_SLLI;
   prim_LOAD;
   prim_STORE
 ].

@@ -76,10 +76,13 @@ Definition lower_Papp2
   | Omul _ => Some (BaseOp (None, MUL), [:: e0; e1])
  (* | Olsr U32 =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
-      else Some (LSR, e0, [:: e1 ])
+      else Some (LSR, e0, [:: e1 ]) *)
   | Olsl (Op_w U32) =>
-      Some (LSL, e0, [:: e1 ])
-  | Oasr (Op_w U32) =>
+    match e1 with
+    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, SLLI), [:: e0; e1])
+    | _ => Some (BaseOp (None, SLL), [:: e0; e1 ])
+    end
+  (* | Oasr (Op_w U32) =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (ASR, e0, [:: e1 ])
   | Oror U32 =>
