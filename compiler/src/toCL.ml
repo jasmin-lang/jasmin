@@ -178,7 +178,7 @@ module CL = struct
           | [h] -> pp_rpred fmt h
           | h :: q -> Format.fprintf fmt "/\\[%a]" (pp_list ",@ " pp_rpred) rps
         end
-      | RPor  rps -> Format.fprintf fmt "@[%a" (pp_list " \\/ " pp_rpred) rps
+      | RPor  rps -> Format.fprintf fmt "\\/[%a]" (pp_list ",@ " pp_rpred) rps
 
     let pp_rpreds fmt rps = pp_rpred fmt (RPand rps)
 
