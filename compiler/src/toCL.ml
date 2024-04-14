@@ -445,6 +445,7 @@ module I = struct
     | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
     | Presult x -> to_rvar x
+    | Pforall (x, e) -> gexp_to_rexp e
     | _ -> assert false
 
   let rec gexp_to_rpred e : CL.R.rpred =
@@ -469,6 +470,8 @@ module I = struct
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
     | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
     | Pabstract ({name="equmod64"}, [e1;e2;e3]) -> equmod !> e1 !> e2 !> e3
+    | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
+    | Pforall (x, e) -> gexp_to_rpred e
     | _ ->  assert false
 
   let rec extract_list e aux =
