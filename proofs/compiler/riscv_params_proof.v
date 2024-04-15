@@ -643,59 +643,47 @@ Lemma riscv_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops' :
        foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s ops' = ok s' &
        lom_eqv rip m' s'.
 Proof.
-Admitted.
-  (* case: op => /=.
-  + move=> w; case: eqP => // -> {w}.
-    case: lvs => // -[] // x [] // -[] // y [] //.
-    case: args => // -[] // [] // z [] // [] // [] // w [] //=.
-    t_xrbindP => vz hz _ vw hw <- <-.
-    rewrite /exec_sopn /= /sopn_sem /= /swap_semi.
-    t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
-    t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
-      /and4P [/eqP hxt /eqP hyt /eqP hzt /eqP hwt] <-.
-    move=> hmap hlom.
-    have h := (assemble_opsP riscv_eval_assemble_cond hmap erefl _ hlom).
-    set m1 := (with_vm m (((evm m).[x <- Vword (wxor wz ww)]).[y <- Vword (wxor (wxor wz ww) ww)])
-                                  .[x <- Vword (wxor (wxor wz ww) (wxor (wxor wz ww) ww))]).
-    case: (h m1) => {h}.
-    + rewrite /= hz /= hw /= /exec_sopn /= hvz hvw /=.
-      rewrite set_var_truncate //= !get_var_eq //= hxt /=.
-      rewrite get_var_neq // hw /= truncate_word_u /= hvw /=.
-      rewrite set_var_truncate //= !get_var_eq //= hyt /=.
-      rewrite get_var_neq // get_var_eq //= hxt /= !truncate_word_u /=.
-      rewrite set_var_truncate //= !with_vm_idem.
-    move=> s' hfold hlom'; exists s' => //; apply: lom_eqv_ext hlom'.
-    move=> i /=; rewrite !Vm.setP; case: eqP => [<- | ?].
-    + by move/eqP/negbTE: hyx => -> /=; rewrite hxt /= wxorA wxor_xx wxor0.
-    by case: eqP => // _; rewrite -wxorA wxor_xx wxorC wxor0.
-  case: lvs => // -[] // [[xt xn] xi] [] // [] // [[yt yn] yi] [] //.
-  set y := {|v_info := yi|}.
-  case: args => // -[] // [] // y' [] // [] // [] // [] // w [] // imm [] //=.
-  t_xrbindP => vy hvy <-.
-  rewrite /exec_sopn /= /sopn_sem /=; t_xrbindP => /= -[ n1 n2] w1 hw1 w2 hw2 [??] <- /=; subst n1 n2.
-  t_xrbindP => _ vm1 hsetx <- /= _ vm2 hsety <- <- /andP[] /eqP hne /eqP heq.
-  move=> /andP []/eqP ? /andP [] /eqP ? _ <- hmap hlom; subst xt yt.
-  rewrite -heq in hvy.
-  move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
-  move/get_varP: (hvy) => [_ _ /compat_valE] /= [_ [] <- hle2].
-  have ? := cmp_le_antisym hle1 hle2; subst ws => {hle1 hle2}.
-  have := RISCVFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) (to_word_get_var hvy).
-  move=> /(_ _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
-  have [] := (assemble_opsP riscv_eval_assemble_cond hmap _ hsem hlom).
-  + by rewrite all_map; apply/allT => -[[]].
-  move=> s' -> hlo; exists s' => //.
-  apply: lom_eqv_ext hlo => z /=.
-  move/get_varP: hvy => -[hvmy _ _].
-  move: hsety hsetx; rewrite !set_var_eq_type // => -[<-] [<-].
-  rewrite !Vm.setP; case: eqP => heqy.
-  + subst z; rewrite /= heqex /riscv_reg_size; last by SvD.fsetdec.
-    by rewrite -hvmy zero_extend_u.
-  case: eqP => heqx.
-  + rewrite -heqx -hvmx zero_extend_u /=.
-    move: hw2 => /truncate_wordP [? ].
-    by rewrite zero_extend_wrepr // => ->.
-  by apply heqex; rewrite /riscv_reg_size; SvD.fsetdec.
-Qed. *)
+  case: op => /=.
+  + case: lvs => // -[] // v [] //.
+    case: args => // -[] // [] // v0 [] // [] // [] // [] // [] // [] // z [] //=.
+    move=> ok_xs ok_ys ok_m' ok_ops ok_ops' lom_m_s.
+    have:= assemble_opsP riscv_eval_assemble_cond ok_ops' _ _ lom_m_s.
+    move: ok_ops => [] <- /=.
+    apply; first by reflexivity.
+    move: ok_xs ok_ys ok_m'; t_xrbindP => z0 -> <-.
+    rewrite /exec_sopn /= truncate_word_u; t_xrbindP.
+    move=> z1 z2 word _ <-.
+    rewrite /sopn_sem /=.
+    rewrite /riscv_sub_semi /= => -[] <- <-; t_xrbindP.
+    move=> z3 z4 ok_z4 <- <- /=.
+    rewrite word truncate_word_u /= wrepr_opp.
+    by rewrite ok_z4 /=.
+
+  move=> w; case: eqP => // -> {w}.
+  case: lvs => // -[] // x [] // -[] // y [] //.
+  case: args => // -[] // [] // z [] // [] // [] // w [] //=.
+  t_xrbindP => vz hz _ vw hw <- <-.
+  rewrite /exec_sopn /= /sopn_sem /= /swap_semi.
+  t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
+  t_xrbindP.
+  t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
+    /and4P [/eqP hxt /eqP hyt /eqP hzt /eqP hwt] <-.
+  move=> hmap hlom.
+  have h := (assemble_opsP riscv_eval_assemble_cond hmap erefl _ hlom).
+  set m1 := (with_vm m (((evm m).[x <- Vword (wxor wz ww)]).[y <- Vword (wxor (wxor wz ww) ww)])
+                                .[x <- Vword (wxor (wxor wz ww) (wxor (wxor wz ww) ww))]).
+  case: (h m1) => {h}.
+  + rewrite /= hz /= hw /= /exec_sopn /= hvz hvw /=.
+    rewrite set_var_truncate //= !get_var_eq //= hxt /=.
+    rewrite get_var_neq // hw /= truncate_word_u /= hvw /=.
+    rewrite set_var_truncate //= !get_var_eq //= hyt /=.
+    rewrite get_var_neq // get_var_eq //= hxt /= !truncate_word_u /=.
+    rewrite set_var_truncate //= !with_vm_idem.
+  move=> s' hfold hlom'; exists s' => //; apply: lom_eqv_ext hlom'.
+  move=> i /=; rewrite !Vm.setP; case: eqP => [<- | ?].
+  + by move/eqP/negbTE: hyx => -> /=; rewrite hxt /= wxorA wxor_xx wxor0.
+  by case: eqP => // _; rewrite -wxorA wxor_xx wxorC wxor0.
+Qed.
 
 Definition riscv_hagparams : h_asm_gen_params (ap_agp riscv_params) :=
   {|

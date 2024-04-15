@@ -113,8 +113,8 @@ Definition assemble_extra
   match o with 
   | SUBI => 
       match outx, inx with
-      | [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
-        ok [:: ((None, ADDI), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fapp1 (Oword_of_int ws) (Fconst (- imm)))])]
+      | [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fapp1 (Oword_of_int U32) (Fconst imm))] =>
+        ok [:: ((None, ADDI), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fapp1 (Oword_of_int U32) (Fconst (- imm)))])]
       | _, _ => Error (E.internal_error ii "ill-formed SUBI : invalid args or dests")
       end
   | SWAP sz =>
