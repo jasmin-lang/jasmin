@@ -56,7 +56,7 @@ Ltac t_riscv_op :=
   t_simpl_rewrites;
   rewrite /= /with_vm /=;
   repeat rewrite truncate_word_u /=;
-  rewrite ?zero_extend_u ?addn1;
+  rewrite ?zero_extend_u ?addn1 ?sign_extend_u;
   t_simpl_rewrites.
 
 Let mkv xname vi :=
@@ -89,8 +89,8 @@ Lemma sub_sem_fopn_args {s xname vi y} {wy : word Uptr} {z} {wz : word Uptr} :
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (RISCVFopn_core.sub xi y z) s = ok (with_vm s vm').
 Proof. 
-    (* by red; t_xrbindP => *; t_riscv_op; rewrite /= wsub_wnot1.  *)
-Admitted.
+  by red; t_xrbindP => *; t_riscv_op.
+Qed.
 
 Lemma subi_sem_fopn_args {s xname vi y imm wy} :
   let: (xi, x) := mkv xname vi in
@@ -98,9 +98,7 @@ Lemma subi_sem_fopn_args {s xname vi y imm wy} :
   let: wx' := Vword (wy - wrepr reg_size imm)in
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (RISCVFopn_core.subi xi y imm) s = ok (with_vm s vm').
-Proof.
-Admitted.
-(* Proof. by red; t_xrbindP => *; t_riscv_op; rewrite /= wsub_wnot1. Qed. *)
+Proof. by red; t_xrbindP => *; t_riscv_op. Qed.
 
 Lemma mov_sem_fopn_args {s xname vi y} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
@@ -344,8 +342,7 @@ Lemma gen_smart_opi_sem_fopn_args
       , vm' =[\ Sv.add x (Sv.singleton tmp) ] evm s
       & get_var true vm' x = ok (Vword (op w (wrepr reg_size imm))) ].
 Proof.
-Admitted.
-  (* rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
+  rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   case: tmp => -[] _ ntmp itmp /= ->. set vtmp := {| vname := _ |}; set tmp := {| v_info := itmp |}.
   move=> hcond hgety.
   rewrite /RISCVFopn_core.gen_smart_opi.
@@ -361,17 +358,18 @@ Admitted.
   - rewrite (opi_sem_fopn_args _ _ _ _ _ _ hgety) /=.
     eexists; split; first reflexivity; last by t_get_var.
     by move=> z hin; rewrite Vm.setP_neq // -/x; apply/eqP; SvD.fsetdec.
-  have [vm [hsem hvm hgett]] := li_lsem_1 s ntmp itmp imm.
-  rewrite /sem_fopns_args -cats1 foldM_cat -!/sem_fopns_args hsem /=.
-  rewrite -(get_var_eq_ex _ _ hvm) in hgety; last SvD.fsetdec.
+  rewrite movi_sem_fopn_args /=.
+  (* have [vm [hsem hvm hgett]] := li_lsem_1 s ntmp itmp imm. *)
+  (* rewrite /sem_fopns_args. -cats1. foldM_cat -!/sem_fopns_args hsem /=. *)
+  rewrite -(@get_var_neq _ _ vtmp _ _ (Vword (wrepr U32 imm))) // in hgety.
   rewrite
-    (op_sem_fopn_args (with_vm s vm) _ _ _ _ tmp (wrepr reg_size imm) hgety) /with_vm /=;
-    last by rewrite hgett /= truncate_word_u.
-  eexists; split; first reflexivity; last by t_get_var.
+    (op_sem_fopn_args (with_vm _ _) _ _ _ _ tmp (wrepr reg_size imm) hgety) /with_vm /=; 
+    last by rewrite get_var_eq //= truncate_word_u.
+  eexists; split ; first reflexivity; last by t_get_var.
   move=> z hin; rewrite -/x.
   rewrite Vm.setP_neq; last by apply/eqP; SvD.fsetdec.
-  rewrite hvm // -/vtmp; SvD.fsetdec.
-Qed. *)
+  by rewrite Vm.setP_neq; last by apply/eqP; SvD.fsetdec.
+Qed.
 
 End Section.
 
