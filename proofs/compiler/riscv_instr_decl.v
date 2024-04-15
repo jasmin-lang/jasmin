@@ -112,6 +112,10 @@ Variant riscv_op : Type :=
 | MV                             (* Copy operand to destination *)
 | LI                             (* Load immediate up to 32 bits *)
 
+(* Pseudo instruction : Negations *)
+| NOT                            (* 1's complement *)
+| NEG                            (* 2's complement *)
+
 (* Loads *)
 | LOAD of signedness & wsize     (* Load 8 / 16 or 32-bit & signed / unsigned *)
 
@@ -297,6 +301,56 @@ Definition riscv_LI_instr : instr_desc_t :=
 Definition prim_LI := ("LI"%string, primM LI).
 
 
+Definition riscv_NOT_semi (wn : ty_r) : exec ty_r :=
+  ok (wnot wn).
+
+Definition riscv_NOT_instr : instr_desc_t :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg ];
+      id_in := [:: Ea 1 ];
+      id_tout := [:: sreg ];
+      id_out := [:: Ea 0 ];
+      id_semi := riscv_NOT_semi;
+      id_nargs := 2;
+      id_args_kinds := ak_reg_reg;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s "NOT";
+      id_safe := [::];
+      id_pp_asm := pp_name "not";
+    |}.
+
+Definition prim_NOT := ("NOT"%string, primM NOT).
+
+
+Definition riscv_NEG_semi (wn : ty_r) : exec ty_r :=
+  ok (- wn)%R.
+
+Definition riscv_NEG_instr : instr_desc_t :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg ];
+      id_in := [:: Ea 1 ];
+      id_tout := [:: sreg ];
+      id_out := [:: Ea 0 ];
+      id_semi := riscv_NEG_semi;
+      id_nargs := 2;
+      id_args_kinds := ak_reg_reg;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s "NEG";
+      id_safe := [::];
+      id_pp_asm := pp_name "neg";
+    |}.
+
+Definition prim_NEG := ("NEG"%string, primM NOT).
+
+
 Definition string_of_sign s : string :=
   match s with
   | Signed => ""
@@ -387,6 +441,8 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | XORI => riscv_XORI_instr
   | LA => riscv_LA_instr
   | LI => riscv_LI_instr
+  | NOT => riscv_NOT_instr
+  | NEG => riscv_NEG_instr
   | SLL => riscv_SLL_instr
   | SLLI => riscv_SLLI_instr
   | MV => riscv_MV_instr
@@ -410,6 +466,8 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_XORI;
   prim_LA;
   prim_LI;
+  prim_NOT;
+  prim_NEG;
   prim_MV;
   prim_SLL;
   prim_SLLI;

@@ -35,10 +35,10 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
     if is_const e is Some _
       then  Some(BaseOp (None, LI), [:: Papp1 (Oword_of_int U32) e])
     else None
-(*  | Olnot U32 =>
-      Some (arg_shift MVN U32 [:: e ])
+  | Olnot U32 =>
+      Some(BaseOp (None, NOT), [:: e])
   | Oneg (Op_w U32) =>
-      Some (ARM_op RSB default_opts, [:: e; wconst (wrepr U32 0) ]) *)
+      Some(BaseOp (None, NEG), [:: e])
   | _ =>
       None
   end.
