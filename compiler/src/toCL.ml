@@ -637,10 +637,17 @@ module X86BaseOp : BaseOp
       i @ [CL.Instr.Op1.mov l a]
 
     | ADD ws ->
+      begin
       let a1,i1 = cast_atome ws (List.nth es 0) in
       let a2,i2 = cast_atome ws (List.nth es 1) in
       let l = I.glval_to_lval (List.nth xs 5) in
-      i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
+        match trans with
+        | Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
+        | Cas ->
+          let l_tmp = I.mk_spe_tmp_lval 1 in
+          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
+      end
 
     | SUB ws ->
       begin
@@ -752,17 +759,21 @@ module X86BaseOp : BaseOp
       end
 
     | SHR ws ->
-      let a, i = cast_atome ws (List.nth es 0) in
-      let (c,_) = I.gexp_to_const(List.nth es 1) in
-      let l = I.glval_to_lval (List.nth xs 5) in
-      i @ [CL.Instr.Shift.shr l a c]
+      begin
+        match trans with
+        | Smt ->
+          let a, i = cast_atome ws (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let l = I.glval_to_lval (List.nth xs 5) in
+          i @ [CL.Instr.Shift.shr l a c]
+        | Cas ->
+          let a,i = cast_atome ws (List.nth es 0) in
+          let c = I.get_const (List.nth es 1) in
+          let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 5) in
+          i @ [CL.Instr.Shifts.split l l_tmp a (Z.of_int c)]
+      end
 
-    (* | SAL ws -> *)
-    (*   (\* FIXME the type of second argument is wrong *\) *)
-    (*   Format.fprintf fmt "shl %a %a %a" *)
-    (*     pp_lval (List.nth xs 5, int_of_ws ws) *)
-    (*     pp_atome (List.nth es 0, int_of_ws ws) *)
-    (*     I.pp_const (List.nth es 1) *)
 
     | SAR ws ->
       begin
