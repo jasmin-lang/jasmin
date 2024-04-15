@@ -28,6 +28,20 @@ Context {atoI : arch_toIdent}.
 Definition chk_ws_reg (ws : wsize) : option unit :=
   oassert (ws == reg_size)%CMP.
 
+Definition is_load (e: pexpr) : bool :=
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _
+  | Psub _ _ _ _ _
+  | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
+    => false
+  | Pvar {| gs := Sglob |}
+  | Pget _ _ _ _ _
+  | Pload _ _ _ _
+    => true
+  | Pvar {| gs := Slocal ; gv := x |}
+    => is_var_in_memory x
+  end.
+
 Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_extended_op * pexprs) :=
   let%opt _ := chk_ws_reg ws in
   match op with
@@ -35,6 +49,12 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
     if is_const e is Some _
       then  Some(BaseOp (None, LI), [:: Papp1 (Oword_of_int U32) e])
     else None
+  | Osignext U32 ws' =>
+      let%opt _ := oassert (is_load e) in
+      Some (BaseOp(None, LOAD Signed ws'), [:: e ])
+  | Ozeroext U32 ws' =>
+      let%opt _ := oassert (is_load e) in
+      Some (BaseOp(None, LOAD Unsigned ws'), [:: e ])    
   | Olnot U32 =>
       Some(BaseOp (None, NOT), [:: e])
   | Oneg (Op_w U32) =>
