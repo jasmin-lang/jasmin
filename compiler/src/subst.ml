@@ -41,7 +41,6 @@ let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
          gsubst_vdest f x,
          gsubst_e flen f e0, 
          gsubst_e flen f b)
-  | Pforall (x, e) -> Pforall(gsubst_vdest f x, gsubst_e flen f e)
   | Presult v -> Presult (gsubst_gvar f v)
   | Presultget (aa, ws, v, e) -> Presultget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
 
@@ -207,7 +206,7 @@ let rec int_of_expr ?loc e =
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
   | Pbool _ | Parr_init _ | Pvar _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _
-  | Pfvar _ | Pbig _ | Pabstract _ | Pforall _
+  | Pfvar _ | Pbig _ | Pabstract _ 
   | Presult _ | Presultget _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
@@ -445,6 +444,5 @@ let rec gsubst_result m e =
     Pbig(gsubst_result m e1, gsubst_result m e2, o, x,
          gsubst_result m e0,
          gsubst_result m b)
-  | Pforall (x,e) -> Pforall(x,gsubst_result m e)
   | Presult v -> Presult(vsubst_gv m v)
   | Presultget (aa, ws, v, e) -> Presultget(aa, ws, vsubst_gv m v, gsubst_result m e)

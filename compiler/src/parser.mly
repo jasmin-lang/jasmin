@@ -33,7 +33,6 @@
 %token BANG
 %token BANGEQ
 %token BIG
-%token FORALL
 %token COLON
 %token COMMA
 %token ABSTRACT
@@ -304,9 +303,6 @@ pexpr_r:
 
 | bo= big LPAREN v=var IN e1=pexpr COLON e2=pexpr RPAREN LPAREN b=pexpr RPAREN
     { PEbig (bo, e1, e2, v, b) }
-
-| FORALL v=var COLON e=pexpr
-    { PEForall (v, e) }
 
 | RESULT DOT i=INT
     { PEResult (Z.to_int i)}

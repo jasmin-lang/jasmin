@@ -104,7 +104,6 @@ let rec cexpr_of_expr = function
   | Pfvar x -> C.Pfvar (cvari_of_vari x)
   | Pbig(e1,e2, o, x, e0, b) -> 
     C.Pbig(cexpr_of_expr e1, cexpr_of_expr e2, o, cvari_of_vari x, cexpr_of_expr e0, cexpr_of_expr b)
-  | Pforall (x, e) -> C.Pforall ( cvari_of_vari x, cexpr_of_expr e)
   | Presult x            -> C.Presult (cgvari_of_gvari x)
   | Presultget (aa,ws, x,e) -> C.Presultget (aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
 
@@ -127,7 +126,6 @@ let rec expr_of_cexpr = function
       }
     in
     Pabstract (o, List.map (expr_of_cexpr) es)
-  | C.Pforall (x, e) -> Pforall (vari_of_cvari x, expr_of_cexpr e)
   | C.Pif (ty, e, e1, e2) -> Pif(ty_of_cty ty, expr_of_cexpr e,
                                expr_of_cexpr e1,
                                expr_of_cexpr e2)

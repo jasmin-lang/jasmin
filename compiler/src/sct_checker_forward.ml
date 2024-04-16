@@ -649,7 +649,6 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | PappN(_, es)     -> ty_exprs_max env venv loc es
   | Pfvar _          -> assert false
   | Pbig _           -> assert false
-  | Pforall _        -> assert false
   | Presult _        -> assert false
   | Presultget _     -> assert false
   | Pabstract(_, es) -> ty_exprs_max env venv loc es

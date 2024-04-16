@@ -311,7 +311,6 @@ let rec safe_e_rec safe = function
     safe_e_rec (safe_e_rec (safe_e_rec safe e1) e2) e3
   | Pfvar _ -> assert false
   | Pbig (e1, e2, op2, v, e3, e4) -> assert false
-  | Pforall (v, e) -> assert false
   | Presult _ -> assert false
   | Presultget _ -> assert false
 
@@ -1515,7 +1514,6 @@ end = struct
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
       | Pfvar _ -> assert false
       | Pbig _ -> assert false
-      | Pforall _ -> assert false
       | Presult _ -> assert false
       | Presultget _ -> assert false
 

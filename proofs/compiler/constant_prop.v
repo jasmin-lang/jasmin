@@ -404,9 +404,6 @@ Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
      | _, _ => 
          Pbig s len sop x e0 (const_prop_e_aux lm m body)
      end
-  | Pforall x e =>
-    let e := const_prop_e_aux lm m e in
-    Pforall x e
   | Pabstract s es => Pabstract s ((map (const_prop_e_aux lm m) es))
   | Presult x       => e
   | Presultget aa sz x e =>

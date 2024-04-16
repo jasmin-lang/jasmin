@@ -54,7 +54,6 @@ let rec read_mem_e = function
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
-  | Pforall _ -> assert false
   | Presult _ -> assert false
   | Presultget _ -> assert false
 
@@ -126,7 +125,6 @@ let rec leaks_e_rec pd leaks e =
   | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
-  | Pforall _ -> assert false
   | Presult _ -> assert false
   | Presultget _ -> assert false
 
@@ -527,7 +525,6 @@ let ty_expr = function
   | Pif (ty,_,_,_) -> ty
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
-  | Pforall _ -> assert false
   | Presult _ -> assert false
   | Presultget _ -> assert false
 
@@ -662,7 +659,6 @@ let rec pp_expr pd env fmt (e:expr) =
 
   | Pfvar _ -> assert false
   | Pbig _ -> assert false
-  | Pforall _ -> assert false
   | Presult _ -> assert false
   | Presultget _ -> assert false
 
@@ -1081,7 +1077,6 @@ module Leak = struct
       safe_e_rec pd env (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e3
     | Pfvar _ -> assert false
     | Pbig _ -> assert false
-    | Pforall _ -> assert false
     | Presult _ -> assert false
     | Presultget _ -> assert false
 

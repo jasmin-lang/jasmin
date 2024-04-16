@@ -166,7 +166,6 @@ let slice_of_pexpr a =
   | Pif _ -> hierror_no_loc "conditional move of (ptr) arrays is not supported yet"
   | Pfvar _ -> None
   | Pbig _ -> None
-  | Pforall _ -> None
   | Presult _ -> None
   | Presultget _ -> None
 

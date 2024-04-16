@@ -166,7 +166,7 @@ Definition is_load (e: pexpr) : bool :=
   | Pconst _ | Pbool _ | Parr_init _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pabstract _ _ | Pif _ _ _ _
-  | Pfvar _ | Pbig _ _ _ _ _ _ | Pforall _ _
+  | Pfvar _ | Pbig _ _ _ _ _ _ 
   | Presult _ | Presultget _ _ _ _
     => false
   | Pvar {| gs := Sglob |}

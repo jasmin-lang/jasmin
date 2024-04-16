@@ -27,7 +27,6 @@ module CL : sig
     end
   type ty
   val pp_ty : Format.formatter -> ty -> unit
-  val ty_ws : ty -> int
   val pp_cast : Format.formatter -> ty -> unit
   type tyvar
   val pp_tyvar : Format.formatter -> 'a Prog.gvar * ty -> unit
@@ -72,9 +71,7 @@ module CL : sig
     sig
       type atom = Aconst of const * ty | Avar of tyvar
       val pp_atom : Format.formatter -> atom -> unit
-      val atome_ws : atom -> int
       type lval = tyvar
-      val lval_ws : lval -> int
       type arg
       type args
       val pp_arg : Format.formatter -> arg -> unit

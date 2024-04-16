@@ -81,17 +81,13 @@ module CL = struct
 
   end
 
-  type ty = Uint of int | Sint of int (* Should be bigger than 1 *)
+  type ty = Uint of int | Sint of int | Bit (* Should be bigger than 1 *)
 
   let pp_ty fmt ty =
     match ty with
     | Uint i -> Format.fprintf fmt "uint%i" i
     | Sint i -> Format.fprintf fmt "sint%i" i
-
-  let ty_ws ty =
-    match ty with
-    | Uint i -> i
-    | Sint i -> i
+    | Bit -> Format.fprintf fmt "bit"
 
   let pp_cast fmt ty = Format.fprintf fmt "@@%a" pp_ty ty
 
@@ -210,14 +206,7 @@ module CL = struct
       | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
       | Avar tv -> pp_tyvar fmt tv
 
-    let atome_ws a =
-      match a with
-      | Aconst (_, ty) -> ty_ws ty
-      | Avar (_, ty ) -> ty_ws ty
-
     type lval = tyvar
-
-    let lval_ws ((_,ty): lval) = ty_ws ty
 
     type arg =
       | Atom of atom
@@ -392,8 +381,8 @@ module CL = struct
 
     let pp_proc fmt (proc : proc) =
       Format.fprintf fmt
-        "@[<v>proc main(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@]@ }@ @] "
-        (* proc.id *)
+        "@[<v>proc %s(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@]@ }@ @] "
+        proc.id
         pp_tyvars proc.formals
         pp_clause proc.pre
         Instr.pp_instrs proc.prog
@@ -404,16 +393,17 @@ end
 module I = struct
 
   let int_of_typ = function
-    | Bty (U ws) -> int_of_ws ws
-    | Bty (Bool) -> 1
-    | Bty (Abstract ('/'::'*':: q)) -> String.to_int (String.of_list q)
+    | Bty (U ws) -> Some (int_of_ws ws)
+    | Bty (Bool) -> Some 1
+    | Bty (Abstract ('/'::'*':: q)) -> Some (String.to_int (String.of_list q))
+    | Bty (Int)  -> None
     | _ -> assert false
 
   let rec gexp_to_rexp e : CL.R.rexp =
     let open CL.R in
     let to_rvar x =
       let var = L.unloc x.gv in
-      Rvar (var, Uint (int_of_typ var.v_ty))
+      Rvar (var, Uint (Option.get (int_of_typ var.v_ty)))
     in
     let (!>) e = gexp_to_rexp e in
     match e with
@@ -481,13 +471,37 @@ module I = struct
     | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
     | _ -> assert false
 
-  let rec gexp_to_eexp e : CL.I.eexp =
+  let rec get_const x =
+    match x with
+    | Pconst z -> Z.to_int z
+    | Papp1 (Oword_of_int _ws, x) -> get_const x
+    | _ -> assert false
+
+  let var_to_tyvar ?(sign=false) v : CL.tyvar =
+    match int_of_typ v.v_ty with
+    | None -> v, CL.Bit
+    | Some w ->
+      if sign then v, CL.Sint w
+      else v, CL.Uint w
+
+  let mk_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
+      ?(kind = (Wsize.Stack Direct)) ?(sign=false)
+      ty : CL.Instr.lval =
+    let v = CoreIdent.GV.mk name kind ty l [] in
+    var_to_tyvar ~sign v
+
+  let mk_spe_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
+      ?(kind = (Wsize.Stack Direct)) ?(sign=false)
+      size =
+    let size = String.to_list (String.of_int size) in
+    mk_tmp_lval ~name ~l ~kind ~sign (Bty(Abstract ('/'::'*':: size)))
+
+  let rec gexp_to_eexp env e : CL.I.eexp =
     let open CL.I in
-    let (!>) e = gexp_to_eexp e in
+    let (!>) e = gexp_to_eexp env e in
     match e with
     | Pconst z -> Iconst z
     | Pvar x -> Ivar (L.unloc x.gv)
-    | Pfvar x -> Ivar (L.unloc x)
     | Papp1 (Oword_of_int _ws, x) -> !> x
     | Papp1 (Oint_of_word _ws, x) -> !> x
     | Papp1(Oneg _, e) -> !- !> e
@@ -501,41 +515,33 @@ module I = struct
         | _ -> assert false
       end
     | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
+    | Pabstract ({name="mon"}, [c;a;b]) ->
+      let c = get_const c in
+      let (v,_) =
+        match Hash.find env c with
+        | exception Not_found ->
+          let name = "X" ^ "_" ^ string_of_int c in
+          let x =
+            mk_tmp_lval ~name (Bty Int)
+          in
+          Hash.add env c x;
+          x
+        | x -> x
+      in
+      mull !> b (power (Ivar v) !> a)
     | Presult x -> Ivar (L.unloc x.gv)
     | _ -> assert false
 
-  let rec gexp_to_epred e : CL.Instr.instr list * CL.I.epred list =
+  let rec gexp_to_epred env e :CL.I.epred list =
     let open CL.I in
-    let (!>) e = gexp_to_eexp e in
-    let (!>>) e = gexp_to_epred e in
+    let (!>) e = gexp_to_eexp env e in
+    let (!>>) e = gexp_to_epred env e in
     match e with
-    | Papp2(Oeq _, e1, e2)  -> [],[Eeq (!> e1, !> e2)]
-    | Papp2(Oand, e1, e2)  ->
-      let i1,e1 = !>> e1 in
-      let i2,e2 = !>> e2 in
-      i1 @ i2, e1 @ e2
+    | Papp2(Oeq _, e1, e2)  -> [Eeq (!> e1, !> e2)]
+    | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
     | Pabstract ({name="eqmod"} as _opa, [h1;h2;h3]) ->
-      [],[Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
-    | Pforall(x, e) ->
-      let i,e = !>> e in
-      CL.Instr.ghost (L.unloc x) ([],[]) :: i, e
+      [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
     | _ -> assert false
-
-  let var_to_tyvar ?(sign=false) v : CL.tyvar =
-    if sign then v, CL.Sint (int_of_typ v.v_ty)
-    else v, CL.Uint (int_of_typ v.v_ty)
-
-  let mk_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
-      ?(kind = (Wsize.Stack Direct)) ?(sign=false)
-      ty : CL.Instr.lval =
-    let v = CoreIdent.GV.mk name kind ty l [] in
-    var_to_tyvar ~sign v
-
-  let mk_spe_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
-      ?(kind = (Wsize.Stack Direct)) ?(sign=false)
-      size =
-    let size = String.to_list (String.of_int size) in
-    mk_tmp_lval ~name ~l ~kind ~sign (Bty(Abstract ('/'::'*':: size)))
 
   let glval_to_lval x : CL.Instr.lval =
     match x with
@@ -568,12 +574,6 @@ module I = struct
     | _ -> assert false
 
   let mk_lval_atome (lval: CL.Instr.lval) = CL.Instr.Avar (lval)
-
-  let rec get_const x =
-    match x with
-    | Pconst z -> Z.to_int z
-    | Papp1 (Oword_of_int _ws, x) -> get_const x
-    | _ -> assert false
 end
 
 let rec power acc n = match n with | 0 -> acc | n -> power (acc * 2) (n - 1)
@@ -960,21 +960,16 @@ module Mk(O:BaseOp) = struct
   let to_smt smt =
     List.fold_left (fun acc a -> I.gexp_to_rpred a ::  acc) [] smt
 
-  let to_cas cas =
-    List.fold_left (fun (acc1,acc2,acc3) a ->
-        let i,es = I.gexp_to_epred a in
-        match i with
-        | [] -> acc1, acc2, es @ acc3
-        | _ -> i @ acc1, es @ acc2, acc3)
-      ([],[],[]) cas
+  let to_cas env cas =
+    List.fold_left (fun acc a -> I.gexp_to_epred env a  @ acc) [] cas
 
-  let to_clause clause : CL.clause * CL.Instr.instr list * CL.clause =
+  let to_clause env clause : CL.clause =
     let cas,smt = filter_clause clause ([],[]) in
     let smt = to_smt smt in
-    let i,cas1,cas2 = to_cas cas in
-    (cas2,smt), i, (cas1,[])
+    let cas = to_cas env cas in
+    (cas,smt)
 
-  let pp_i fds i =
+  let pp_i env fds i =
     let mk_trans = Annot.filter_string_list None ["smt", Smt ; "cas", Cas ] in
     let atran annot =
       match Annot.ensure_uniq1 "tran" mk_trans annot with
@@ -984,12 +979,11 @@ module Mk(O:BaseOp) = struct
     let trans = atran i.i_annot in
     match i.i_desc with
     | Cassert (t, p, e) ->
-      let (cas1,smt1),i,(cas2,smt2) = to_clause [(p,e)] in
-      let cl = cas1 @ cas2, smt1 @ smt2 in
+      let cl = to_clause env [(p,e)] in
       begin
         match t with
-        | Expr.Assert -> [], i @ [CL.Instr.assert_ cl]
-        | Expr.Assume -> [], i @ [CL.Instr.assume cl]
+        | Expr.Assert -> [], [CL.Instr.assert_ cl]
+        | Expr.Assume -> [], [CL.Instr.assume cl]
         | Expr.Cut -> assert false
       end
     | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
@@ -1020,11 +1014,9 @@ module Mk(O:BaseOp) = struct
       let aux2 = Subst.gsubst_e (fun x -> x) aux1 in
       let pre = aux aux2 fd.f_contra.f_pre in
       let post = aux aux2  fd.f_contra.f_post in
-      let (pre_cas1,pre_smt1),pre_i,(pre_cas2,pre_smt2) = to_clause pre in
-      let (post_cas1,post_smt1),post_i,(post_cas2,post_smt2) = to_clause post in
-      let pre_cl = pre_cas1 @ pre_cas2, pre_smt1 @ pre_smt2 in
-      let post_cl = post_cas1 @ post_cas2, post_smt1 @ post_smt2 in
-      r , pre_i @ [CL.Instr.assert_ pre_cl] @ post_i @ [CL.Instr.assume post_cl]
+      let pre_cl = to_clause env pre in
+      let post_cl = to_clause env post in
+      r , [CL.Instr.assert_ pre_cl] @  [CL.Instr.assume post_cl]
 
     | Cassgn (a, _, _, e) ->
       begin
@@ -1034,9 +1026,9 @@ module Mk(O:BaseOp) = struct
       end
     | Copn(xs, _, o, es) -> [], pp_sopn xs o es trans
 
-  let pp_c fds c =
+  let pp_c env fds c =
     List.fold_left (fun (acc1,acc2) a ->
-        let l1,l2 = pp_i fds a in
+        let l1,l2 = pp_i env fds a in
         acc1 @ l1, acc2 @ l2
       ) ([],[]) c
 
@@ -1048,18 +1040,20 @@ module Mk(O:BaseOp) = struct
       ) l1 l2
 
   let fun_to_proc fds fd =
+    let env = Hash.create 10 in
     let ret = List.map L.unloc fd.f_ret in
     let cond a x = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
     let args = filter_add cond fd.f_args ret in
     let formals = List.map I.var_to_tyvar args in
-    let pre,pre_i,pre_f = to_clause fd.f_contra.f_pre in
-    let (post_cas1,post_smt1),post_i,(post_cas2,post_smt2) = to_clause fd.f_contra.f_post in
-    let post = post_cas1 @ post_cas2, post_smt1 @ post_smt2 in
-    let lval,prog = pp_c fds fd.f_body in
-    let prog = pre_i @ [CL.Instr.assume pre_f] @ prog @ post_i in
+    let pre = to_clause env fd.f_contra.f_pre in
+    let post = to_clause env fd.f_contra.f_post in
+    let lval,prog = pp_c env fds fd.f_body in
     let formals_lval = List.map I.glval_to_lval lval in
     let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
     let formals = filter_add cond formals formals_lval in
+    let ghost = ref [] in
+    Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
+    let formals = filter_add cond formals !ghost in
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
              pre;
