@@ -69,44 +69,27 @@ Definition lower_Papp2
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oadd (Op_w _) =>
-    match e1 with
-    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, ADDI), [:: e0; e1])
-    | _ => Some (BaseOp (None, ADD), [:: e0; e1 ])
-    end
+    let op := if is_wconst U32 e1 then ADDI else ADD in
+    Some (BaseOp (None, op), [:: e0; e1])
   | Osub (Op_w _) =>
-      match e1 with
-      | Papp1 (Oword_of_int _) (Pconst _) =>  Some (ExtOp SUBI, [:: e0; e1])
-      | _ => Some (BaseOp (None, SUB), [:: e0; e1 ])
-      end
+    let op := if is_wconst U32 e1 then ExtOp SUBI else BaseOp(None, SUB) in
+    Some (op, [:: e0; e1])
   | Oland _ =>
-    match e1 with
-    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, ANDI), [:: e0; e1])
-    | _ => Some (BaseOp (None, AND), [:: e0; e1 ])
-    end
+    let op := if is_wconst U32 e1 then ANDI else AND in
+    Some (BaseOp (None, op), [:: e0; e1])
   | Olor _ =>
-    match e1 with
-    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, ORI), [:: e0; e1])
-    | _ => Some (BaseOp (None, OR), [:: e0; e1 ])
-    end
+    let op := if is_wconst U32 e1 then ORI else OR in
+    Some (BaseOp (None, op), [:: e0; e1])
   | Olxor _ =>
-    match e1 with
-    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, XORI), [:: e0; e1])
-    | _ => Some (BaseOp (None, XOR), [:: e0; e1 ])
-    end
-  | Omul _ => Some (BaseOp (None, MUL), [:: e0; e1])
-  (* | Olsr U32 =>
-      if is_zero U8 e1 then Some (MOV, e0, [::])
-      else Some (LSR, e0, [:: e1 ]) *)
+    let op := if is_wconst U32 e1 then XORI else XOR in
+    Some (BaseOp (None, op), [:: e0; e1])
+  | Omul (Op_w _) => Some (BaseOp (None, MUL), [:: e0; e1])
   | Olsr _  =>
-    match e1 with
-    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, SRLI), [:: e0; e1])
-    | _ => Some (BaseOp (None, SRL), [:: e0; e1 ])
-    end
+    let op := if is_wconst U32 e1 then SRLI else SRL in
+    Some (BaseOp (None, op), [:: e0; e1])
   | Olsl (Op_w U32) =>
-    match e1 with
-    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, SLLI), [:: e0; e1])
-    | _ => Some (BaseOp (None, SLL), [:: e0; e1 ])
-    end
+    let op := if is_wconst U8 e1 then SLLI else SLL in
+    Some (BaseOp (None, op), [:: e0; e1])
   (* | Oasr (Op_w U32) =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (ASR, e0, [:: e1 ])
@@ -142,8 +125,13 @@ Definition lower_Pvar (ws : wsize) (v : gvar) : option(riscv_extended_op * pexpr
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn
   (lv : lval) (ws : wsize) (e : pexpr) : option (copn_args) :=
-  if is_lval_in_memory lv 
-    then Some ([:: lv], Oriscv (STORE ws), [:: e])
+  if is_lval_in_memory lv
+    then 
+      if (ws <= U32)%CMP
+        then
+          Some ([:: lv], Oriscv (STORE ws), [:: e])
+        else
+          None
   else
   let%opt (op, e) :=
     match e with

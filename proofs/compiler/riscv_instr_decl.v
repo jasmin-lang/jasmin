@@ -411,11 +411,11 @@ Definition prim_LOAD := ("LOAD"%string, primS LOAD).
 Definition riscv_STORE_instr ws : instr_desc_t :=
     {|
       id_msb_flag := MSB_MERGE; (* ? *)
-      id_tin := [:: sreg ];
+      id_tin := [:: sword ws ];
       id_in := [:: Ea 0 ];
       id_tout := [:: sword ws ];
       id_out := [:: Eu 1 ];
-      id_semi := @riscv_extend_semi Unsigned ws reg_size;
+      id_semi := @riscv_extend_semi Unsigned ws ws;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
       id_eq_size := refl_equal;
