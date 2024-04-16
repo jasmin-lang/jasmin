@@ -94,9 +94,14 @@ Definition lower_Papp2
     | _ => Some (BaseOp (None, XOR), [:: e0; e1 ])
     end
   | Omul _ => Some (BaseOp (None, MUL), [:: e0; e1])
- (* | Olsr U32 =>
+  (* | Olsr U32 =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (LSR, e0, [:: e1 ]) *)
+  | Olsr _  =>
+    match e1 with
+    | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, SRLI), [:: e0; e1])
+    | _ => Some (BaseOp (None, SRL), [:: e0; e1 ])
+    end
   | Olsl (Op_w U32) =>
     match e1 with
     | Papp1 (Oword_of_int _) (Pconst _) =>  Some (BaseOp (None, SLLI), [:: e0; e1])

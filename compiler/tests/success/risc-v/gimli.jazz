@@ -1,0 +1,105 @@
+param int N_ROUND = 24;
+param int N_COLUMN = 4;
+param int ROUND_CONSTANT_HIGH = 0x9e37;
+param int ROUND_CONSTANT_LOW = 0x7900;
+param int ROUND_CONSTANT = 0x9e377900;
+
+inline
+fn swap(reg ptr u32[12] state, inline int i, inline int j) -> reg ptr u32[12] {
+    reg u32 x y;
+
+    x = state[i];
+    y = state[j];
+    state[i] = y;
+    state[j] = x;
+
+    return state;
+}
+
+inline fn ror32(reg u32 in, reg u32 cnt)  -> reg u32 {
+	reg u32 u l ret icnt;
+	u = in << cnt;
+  icnt = 32;
+  icnt = icnt - cnt;
+	l = in >> (icnt);
+	ret = u & l;
+	return ret;
+}
+
+inline
+fn gimli_ref(reg ptr u32[12] state) -> reg ptr u32[12] {
+    inline int round, column;
+    reg u32 x, y, z;
+    reg u32 a, b;
+    reg u32 rc;
+    reg u32 tmp;
+
+/*    rc = ROUND_CONSTANT_LOW; */
+/*    rc = #MOVT(rc, ROUND_CONSTANT_HIGH); */
+    rc = ROUND_CONSTANT;
+
+    for round = N_ROUND downto 0 {
+    for column = 0 to N_COLUMN {
+    x = state[0 + column];
+   /* x <<r= 24; */ 
+    x = ror32(x,24);
+    y = state[4 + column];
+   /* y <<r= 9; */
+    y = ror32(y,9);
+    z = state[8 + column];
+
+    tmp = z << 1;
+    a = x ^ tmp;
+    b = y & z;
+    tmp = b << 2;
+    a = a ^ tmp;
+    state[8 + column] = a;
+
+    a = y ^ x;
+    b = x | z;
+    tmp = b << 1;
+    a = a ^ tmp;
+    state[4 + column] = a;
+
+    a = z ^ y;
+    b = x & y;
+    tmp = b << 3;
+    a = a ^ tmp;
+    state[0 + column] = a;
+    }
+
+    if (round % 4 == 0) {
+    state = swap(state, 0, 1);
+    state = swap(state, 2, 3);
+    }
+
+    if (round % 4 == 2) {
+    state = swap(state, 0, 2);
+    state = swap(state, 1, 3);
+    }
+
+    if (round % 4 == 0) {
+    a = state[0];
+    b = rc + round;
+    a ^= b;
+    state[0] = a;
+    }
+    }
+    return state;
+}
+
+export
+fn gimli (reg u32 io) {
+  stack u32[12] state;
+  reg u32 t;
+  inline int i;
+  for i = 0 to 12 {
+    t = (u32)[io + 4 * i];
+    state[i] = t;
+  }
+  state = gimli_ref(state);
+  for i = 0 to 12 {
+    t = state[i];
+    (u32)[io + 4 * i] = t;
+  }
+}

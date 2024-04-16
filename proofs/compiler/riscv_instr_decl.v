@@ -105,6 +105,8 @@ Variant riscv_op : Type :=
 
 (* Shift *)
 | SLL                            (* Shift Left Logical (by the 5 least significant bits of the second operand) *)
+| SRL                            (* Shift Right Logical (by the 5 least significant bits of the second operand) *)
+| SRLI                           (* Shift Right Logical with immediate (of 5 bits) *)
 | SLLI                           (* Shift Left Logical with immediate (of 5 bits) *)
 
 (* Pseudo instruction : Other data processing instructions *)
@@ -223,9 +225,15 @@ Definition riscv_sll_semi (wn wm : ty_r) : exec ty_r := ok (wshl wn (wunsigned (
 Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_and_semi "SLL" "sll".
 Definition prim_SLL := ("SLL"%string, primM SLL).
 
+
+Definition riscv_SRL_instr : instr_desc_t := RTypeInstruction riscv_and_semi "SRL" "srl".
+Definition prim_SRL := ("SRL"%string, primM SRL).
+
 Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction riscv_and_semi "SLLI" "slli".
 Definition prim_SLLI := ("SLLI"%string, primM SLLI).
 
+Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction riscv_and_semi "SRLI" "srli".
+Definition prim_SRLI := ("SRLI"%string, primM SRLI).
 
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
   ok wn.
@@ -444,6 +452,8 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | NOT => riscv_NOT_instr
   | NEG => riscv_NEG_instr
   | SLL => riscv_SLL_instr
+  | SRL => riscv_SRL_instr
+  | SRLI => riscv_SLLI_instr
   | SLLI => riscv_SLLI_instr
   | MV => riscv_MV_instr
   | LOAD s ws => riscv_LOAD_instr s ws
@@ -470,7 +480,9 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_NEG;
   prim_MV;
   prim_SLL;
+  prim_SRL;
   prim_SLLI;
+  prim_SRLI;
   prim_LOAD;
   prim_STORE
 ].
