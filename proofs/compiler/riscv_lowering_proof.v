@@ -87,18 +87,13 @@ Notation lower_prog :=
      options
      warning
      fv).
-Notation lower_i := (lower_i fv).
-(* Notation disj_fvars := (disj_fvars fvars). *)
-(* Notation disj_fvars_get_fundef := (disj_fvars_get_fundef fv_correct). *)
 
 Notation p' := (lower_prog p).
 
-(*
+
 (* -------------------------------------------------------------------- *)
 
-Definition eq_fv (s0 s1 : estate) : Prop :=
-  estate_eq_except fvars s0 s1.
-
+(*
 Ltac t_fvars_neq :=
   move: fv_correct;
   move=> /andP [] _;
@@ -1572,14 +1567,11 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+*)
 
 #[ local ]
 Definition Pi (s0 : estate) (i : instr) (s1 : estate) :=
-  disj_fvars (vars_I i)
-  -> forall s0',
-       eq_fv s0' s0
-       -> exists2 s1',
-            sem p' ev s0' (lower_i i) s1' & eq_fv s1' s1.
+  sem p' ev s0 (lower_i i) s1.
 
 #[ local ]
 Definition Pi_r (s0 : estate) (i : instr_r) (s1 : estate) :=
@@ -1587,20 +1579,12 @@ Definition Pi_r (s0 : estate) (i : instr_r) (s1 : estate) :=
 
 #[ local ]
 Definition Pc (s0 : estate) (c : cmd) (s1 : estate) :=
-  disj_fvars (vars_c c)
-  -> forall s0',
-       eq_fv s0' s0
-       -> exists2 s1',
-            sem p' ev s0' (lower_cmd c) s1' & eq_fv s1' s1.
+  sem p' ev s0 (lower_cmd c) s1.
 
 #[ local ]
 Definition Pfor
   (i : var_i) (rng : seq Z) (s0 : estate) (c : cmd) (s1 : estate) :=
-  disj_fvars (Sv.add i (vars_c c))
-  -> forall s0',
-       eq_fv s0' s0
-       -> exists2 s1',
-            sem_for p' ev i rng s0' (lower_cmd c) s1' & eq_fv s1' s1.
+    sem_for p' ev i rng s0 (lower_cmd c) s1.
 
 #[ local ]
 Definition Pfun
@@ -1611,26 +1595,14 @@ Definition Pfun
 #[ local ]
 Lemma Hskip : sem_Ind_nil Pc.
 Proof.
-  move=> s0 hfv s1 hs10.
-  exists s1; last exact: hs10.
-  exact: (Eskip p' ev s1).
+  exact: (Eskip p' ev).
 Qed.
 
 #[ local ]
 Lemma Hcons : sem_Ind_cons p ev Pc Pi.
 Proof.
   move=> s1 s2 s3 i c _ hpi _ hpc.
-  move=> hfv s1' hs11.
-
-  move: hfv => /disj_fvars_vars_c_cons [hfvi hfvc].
-  have [s2' hsem12' hs22] := hpi hfvi s1' hs11.
-  have [s3' hsem23' hs32] := hpc hfvc s2' hs22.
-  clear s1 s2 hpi hpc hs11 hfvi hfvc hs22.
-
-  exists s3'; last exact: hs32.
-  clear hs32.
-
-  exact: (sem_app hsem12' hsem23').
+  exact: (sem_app hpi hpc).
 Qed.
 
 #[ local ]
@@ -1643,43 +1615,32 @@ Qed.
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
   move=> s0 s1 lv tag ty e v v' hseme htrunc hwrite.
-  move=> ii hfv s0' hs00.
-
-  move: hfv => /disj_fvars_vars_I_Cassgn [hfvlv hfve].
-
-  have [s1' hwrite' hs11] := eeq_exc_write_lval hfvlv hs00 hwrite.
-  clear hwrite.
-
-  assert (hassgn : sem_i p' ev s0' (Cassgn lv tag ty e) s1').
-  - apply: Eassgn.
-    + exact: (eeq_exc_sem_pexpr hfve hs00 hseme).
-    + exact: htrunc.
-    exact: hwrite'.
-
-  assert (default: exists2 s1'0 : estate, sem p' ev s0' [:: MkI ii (Cassgn lv tag ty e)] s1'0 & eq_fv s1'0 s1).
-  - exists s1'; last exact: hs11.
-    by apply: sem_seq1; apply: EmkI.
-
-  rewrite /lower_i.
-  case: ty htrunc hassgn default => // [ | ws ] htrunc hassgn default.
-  - case h: lower_cassgn_bool => [ irs | ]; last by [].
-    have [ sj hsemj hs1j ] := lower_cassgn_boolP ii h hseme htrunc hwrite' hs00 hfve hfvlv hassgn.
-    exists sj; first exact: hsemj.
-    apply: eeq_excS.
-    apply: eeq_excT hs1j.
-    exact: eeq_excS.
-
-  case h: lower_cassgn_word => [[pre [[lvs op] es]]|]; last by [].
-  have [s2' hsem02' hs12'] :=
-    lower_cassgn_wordP ii h hseme htrunc hwrite' hs00 hfve hfvlv hassgn.
-  exists s2'; last exact: (eeq_excT (eeq_excS hs12') hs11).
-  exact: hsem02'.
-Qed.
+  move => ii.
+  rewrite /Pi /=.
+  set none_s :=  match ty with sword _ => _ | _ => _ end.
+  case h : none_s => [ l | ]; last first.
+  + apply: sem_seq_ir.
+    by apply: Eassgn; eassumption.
+  case : ty htrunc @none_s h => // ws htrunc.
+  case h :  lower_cassgn => [[[lvs op] es] | ] //= [] <- /=.
+  apply: sem_seq_ir.
+  apply: Eopn.
+  move : h.
+  rewrite /lower_cassgn.
+  case : is_lval_in_memory.
+  + move => [] <- <- <- /=.
+  rewrite /sem_sopn /=.
+  rewrite hseme /=.
+  rewrite /exec_sopn /=.  
+  move: htrunc.
+  move => /truncate_val_typeE [w [ws' [w']]] [] h_trunc ??; subst => /=.
+  Admitted.
 
 #[ local ]
 Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
-  move=> s0 s1 tag op lvs es hsem01.
+Admitted.
+(*  move=> s0 s1 tag op lvs es hsem01.
   move=> ii hfv s0' hs00.
 
   move: hfv => /disj_fvars_vars_I_Copn [hfvlvs hfve].
@@ -1706,12 +1667,13 @@ Proof.
   case h: lower_copn => [[[lvs' op'] es']|].
   - exact: (lower_copnP hfve hcopn h).
   exact: hcopn.
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hsyscall : sem_Ind_syscall p Pi_r.
 Proof.
-  move=> s1 scs m s2 o xs es ves vs hes ho hw.
+  Admitted.
+(*  move=> s1 scs m s2 o xs es ves vs hes ho hw.
   move=> ii hdisj s1' hs1' /=.
 
   move: hdisj;
@@ -1724,38 +1686,13 @@ Proof.
   exists s2' => //.
   apply: sem_seq_ir; econstructor; eauto.
   by case: hs1' => -> -> _.
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
 Proof.
-  move=> s0 s1 e c0 c1 hseme _ hc.
-  move=> ii hfv s0' hs00.
-
-  move: hfv => /disj_fvars_vars_I_Cif [hfve hfv0 _].
-
-  rewrite /=.
-  case h: lower_condition => [pre e'].
-  have [s1' [hsem01' hs10 hseme']] := sem_lower_condition ii h hs00 hfve hseme.
-  clear hseme hfve h.
-
-  have [s2' hsem12' hs21] := hc hfv0 s1' hs10.
-  clear hc hs00 hfv0 hs10.
-
-  exists s2'; last exact: hs21.
-  clear hs21.
-
-  rewrite map_cat.
-  apply: (sem_app hsem01').
-  apply: sem_seq_ir. apply: Eif_true.
-  - exact: hseme'.
-  exact: hsem12'.
-Qed.
-
-#[ local ]
-Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
-Proof.
-  move=> s0 s1 e c0 c1 hseme _ hc.
+Admitted.
+ (* move=> s0 s1 e c0 c1 hseme _ hc.
   move=> ii hfv s0' hs00.
 
   move: hfv => /disj_fvars_vars_I_Cif [hfve _ hfv1].
@@ -1776,12 +1713,40 @@ Proof.
   apply: sem_seq_ir. apply: Eif_false.
   - exact: hseme'.
   exact: hsem12'.
-Qed.
+Qed.*)
+
+#[ local ]
+Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
+Proof.
+Admitted.
+ (* move=> s0 s1 e c0 c1 hseme _ hc.
+  move=> ii hfv s0' hs00.
+
+  move: hfv => /disj_fvars_vars_I_Cif [hfve _ hfv1].
+
+  rewrite /=.
+  case h: lower_condition => [pre e'].
+  have [s1' [hsem01' hs10 hseme']] := sem_lower_condition ii h hs00 hfve hseme.
+  clear hseme hs00 hfve h.
+
+  have [s2' hsem12' hs21] := hc hfv1 s1' hs10.
+  clear hc hfv1 hs10.
+
+  exists s2'; last exact: hs21.
+  clear hs21.
+
+  rewrite map_cat.
+  apply: (sem_app hsem01').
+  apply: sem_seq_ir. apply: Eif_false.
+  - exact: hseme'.
+  exact: hsem12'.
+Qed.*)
 
 #[ local ]
 Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s0 s1 s2 s3 al c0 e c1 _ hc0 hseme _ hc1 _ hwhile.
+Admitted.
+(*  move=> s0 s1 s2 s3 al c0 e c1 _ hc0 hseme _ hc1 _ hwhile.
   move=> ii hfv s0' hs00.
 
   have [hfv0 hfve hfv1] := disj_fvars_vars_I_Cwhile hfv.
@@ -1809,12 +1774,13 @@ Proof.
   move=> [s5' [hsemI34' hsem44']].
   rewrite (semE hsem44').
   exact: (sem_IE hsemI34').
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s0 s1 al c0 e c1 _ hc0 hseme.
+Admitted.
+(*  move=> s0 s1 al c0 e c1 _ hc0 hseme.
   move=> ii hfv s0' hs00.
 
   move: hfv => /disj_fvars_vars_I_Cwhile [hfv0 hfve _].
@@ -1832,12 +1798,13 @@ Proof.
   apply: sem_seq_ir. apply: Ewhile_false.
   - apply: (sem_app hsem01' hsem12').
   exact: hseme'.
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
 Proof.
-  move=> s0 s1 i d lo hi c vlo vhi hlo hhi _ hfor.
+Admitted.  
+(*  move=> s0 s1 i d lo hi c vlo vhi hlo hhi _ hfor.
   move=> ii hfv s0' hs00.
 
   move: hfv => /disj_fvars_vars_I_Cfor [hfvc hfvlo hfvhi].
@@ -1852,22 +1819,24 @@ Proof.
   - exact: (eeq_exc_sem_pexpr hfvlo hs00 hlo).
   - exact: (eeq_exc_sem_pexpr hfvhi hs00 hhi).
   exact: hsemf01'.
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hfor_nil : sem_Ind_for_nil Pfor.
 Proof.
-  move=> s0 i c.
+Admitted.
+(* move=> s0 i c.
   move=> _ s0' hs00.
   exists s0'; last exact: hs00.
   clear hs00.
   exact: EForDone.
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
 Proof.
-  move=> s0 s1 s2 s3 i v vs c hwrite hsem hc hsemf hfor.
+Admitted.
+(*  move=> s0 s1 s2 s3 i v vs c hwrite hsem hc hsemf hfor.
   move=> hfv s0' hs00.
 
   have {hwrite} hwrite : write_lval true (p_globs p) i v s0 = ok s1.
@@ -1889,12 +1858,13 @@ Proof.
   - exact: hwrite01'.
   - exact: hsem12'.
   exact: hsem23'.
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s0 scs0 m0 s1 lvs fn args vargs vs hsemargs _ hfun hwrite.
+Admitted.
+(*  move=> s0 scs0 m0 s1 lvs fn args vargs vs hsemargs _ hfun hwrite.
   move=> ii hfv s0' hs0'.
   rewrite /=.
 
@@ -1913,11 +1883,13 @@ Proof.
   - exact: (eeq_exc_sem_pexprs hfvargs hs0' hsemargs).
   - move: hs0' => [-> -> _]. exact: hfun.
   - exact: hwrite01'.
-Qed.
+Qed.*)
 
 #[ local ]
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
+Admitted.
+(*
   move=> scs0 m0 scs1 m1 fn fd vargs vargs' s0 s1 s2 vres vres'.
   move=> hget htruncargs hinit hwrite _ hc hres htruncres hscs hfin.
 
@@ -1938,15 +1910,16 @@ Proof.
   - exact: htruncres.
   - move: hs22 => [-> _ _]. done.
   - move: hs22 => [_ -> _]. exact: hfin.
-Qed. *)
+Qed.*)
 
 Lemma lower_callP
   (f : funname) scs mem scs' mem' (va vr : seq value) :
+  (* Calling f in a given context implies calling f in the same context except p -> p compiled. *)
   sem_call p ev scs mem f va scs' mem' vr
   -> sem_call (lower_prog p) ev scs mem f va scs' mem' vr.
 Proof.
-Admitted.
-  (* exact:
+  (* <=> by apply: *)
+  exact:
     (sem_call_Ind
        Hskip
        Hcons
@@ -1963,6 +1936,6 @@ Admitted.
        Hfor_cons
        Hcall
        Hproc).
-Qed. *)
+Qed.
 
 End PROOF.
