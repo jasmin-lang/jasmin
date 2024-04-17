@@ -46,5 +46,5 @@ module Riscv (Lowering_params : Riscv_input) : Arch_full.Core_arch = struct
 
   let pp_asm = Pp_riscv.print_prog
 
-  let callstyle = Arch_full.ByReg (Some X1)
+  let callstyle = Arch_full.ByReg (Some RA)
 end

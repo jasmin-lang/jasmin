@@ -27,7 +27,7 @@ Definition riscv_xreg_size := U64. (* Unused *)
 (* -------------------------------------------------------------------- *)
 (* Registers. *)
 Variant register : Type :=
-| X1  | X2  | X3  | X4  | X5  | X6  | X7  | X8  (* General-purpose registers. *)
+| RA  | SP  | GP  | TP  | X5  | X6  | X7  | X8  (* General-purpose registers. *)
 | X9  | X10 | X11 | X12 | X13 | X14 | X15 | X16 (* General-purpose registers. *)
 | X17 | X18 | X19 | X20 | X21 | X22 | X23 | X24 (* General-purpose registers. *)
 | X25 | X26 | X27 | X28 | X29 | X30 | X31.      (* General-purpose registers. *)
@@ -46,11 +46,12 @@ Instance eqTC_register : eqTypeC register :=
 Canonical arm_register_eqType := @ceqT_eqType _ eqTC_register.
 
 Definition registers :=
-  [::  X1;  X2;  X3;  X4;  X5;  X6;  X7;  X8;
+  [::  RA;  SP;  GP;  TP;  X5;  X6;  X7;  X8;
        X9; X10; X11; X12; X13; X14; X15; X16;
       X17; X18; X19; X20; X21; X22; X23; X24;
       X25; X26; X27; X28; X29; X30; X31
   ].
+
 
 Lemma register_fin_axiom : Finite.axiom registers.
 Proof. by case. Qed.
@@ -66,10 +67,10 @@ Canonical register_finType := @cfinT_finType _ finTC_register.
 
 Definition register_to_string (r : register) : string :=
   match r with
-  | X1  => "x1"
-  | X2  => "x2"
-  | X3  => "x3"
-  | X4  => "x4"
+  | RA  => "ra"
+  | SP  => "sp"
+  | GP  => "gp"
+  | TP  => "tp"
   | X5  => "x5"
   | X6  => "x6"
   | X7  => "x7"
@@ -177,15 +178,15 @@ Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   ; toS_x     := empty_toS sword64
   ; toS_f     := empty_toS sbool
   ; reg_size_neq_xreg_size := refl_equal
-  ; ad_rsp := X2
+  ; ad_rsp := SP
   ; ad_fcp := riscv_fcp
   }.
 
-  (* It looks like the program crashes if X3 (global pointer) is not preserved.
-     To be on the safe side, X3 and X4 (thread pointer) are marked as callee-saved. *)
+  (* It looks like the program crashes if GP (global pointer) is not preserved.
+     To be on the safe side, GP and TP (thread pointer) are marked as callee-saved. *)
   Definition riscv_linux_call_conv : calling_convention :=
   {| callee_saved :=
-      map ARReg [:: X2; X3; X4; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ]
+      map ARReg [:: SP; GP; TP; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: X10; X11; X12; X13; X14; X15; X16; X17 ]
    ; call_xreg_args := [::]

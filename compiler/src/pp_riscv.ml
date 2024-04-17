@@ -191,13 +191,13 @@ let pp_instr fn i =
 
   | JAL (reg, lbl) ->
     begin match reg with
-    | X1 -> [LInstr ("call", [pp_remote_label lbl] )]
+    | RA -> [LInstr ("call", [pp_remote_label lbl] )]
     | _ -> [LInstr ("jalr", [pp_register reg; pp_remote_label lbl] )]
     end
 
   | POPPC -> 
-    [ LInstr ("lw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) None None None]);
-    LInstr ("addi", [ pp_register X2; pp_register X2; "4"]);
+    [ LInstr ("lw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None]);
+    LInstr ("addi", [ pp_register SP; pp_register SP; "4"]);
     LInstr ("ret", [ ]) ]
 
   | SysCall op ->
@@ -239,7 +239,7 @@ let pp_fun (fn, fd) =
     else []
   in let pre =
     let fn = escape fn in
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("addi", [ pp_register X2; pp_register X2; "-4"]); LInstr ("sw", [ pp_register X1;  pp_reg_address_aux (pp_register X2) None None None])] else []
+    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("addi", [ pp_register SP; pp_register SP; "-4"]); LInstr ("sw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None])] else []
   in
   let body = pp_body fn fd.asm_fd_body in
   (* TODO_RISCV: Review. *)
