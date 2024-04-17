@@ -576,20 +576,11 @@ Section Section.
 
 Context {pT: progT}.
 
-
-(* const_prop_out (with_globals gd) without_globals *)
-
-
 Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
 
-(* const_prop_out (fun tag => with_globals_cl gd) (with_globals_cl gd) *)
-
-
-Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
-  (* let with_globals := with_globals in *)
-  (* let without_globals := without_globals in *)
-  let with_globals := (fun _ _ => with_globals_cl gd) in
-  let without_globals := with_globals_cl gd in
+Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
+  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
+  let without_globals := if cl then with_globals_cl gd else without_globals in
   let 'MkFun ii ci si p c so r ev := f in
   let ci_pre := map (fun c =>
                         let truc := const_prop_e without_globals empty_cpm (snd c) in
@@ -603,8 +594,8 @@ Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
   let ci := MkContra ci_pre ci_post in
   MkFun ii ci si p c so r ev.
 
-Definition const_prop_prog (p:prog) : prog :=
-  map_prog (const_prop_fun p.(p_globs)) p.
+Definition const_prop_prog (cl: bool) (p:prog) : prog :=
+  map_prog (const_prop_fun cl p.(p_globs)) p.
 
 End Section.
 

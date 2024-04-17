@@ -51,26 +51,26 @@ Context
   {fcp : FlagCombinationParams}
   (is_move_op : asm_op_t -> bool).
 
-Let postprocess (p: uprog) : cexec uprog :=
-  let p := const_prop_prog p in
+Let postprocess (cl: bool) (p: uprog) : cexec uprog :=
+  let p := const_prop_prog cl p in
   dead_code_prog is_move_op p false.
 
 (* FIXME: error really not clear for the user *)
 (* TODO: command line option to specify the unrolling depth,
    the error should suggest increasing the number
 *)
-Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
+Fixpoint unroll (cl:bool)(n: nat) (p: uprog) : cexec uprog :=
   if n is S n' then
     let: (p', repeat) := unroll_prog p in
     if repeat then
-      Let: p'' := postprocess p' in
-      unroll n' p''
+      Let: p'' := postprocess cl p' in
+      unroll cl n' p''
     else ok p
   else Error (loop_iterator "unrolling").
 
-Definition unroll_loop (p: uprog) :=
-  Let p := postprocess p in
-  unroll Loop.nb p.
+Definition unroll_loop (cl: bool) (p: uprog) :=
+  Let p := postprocess cl p in
+  unroll cl Loop.nb p.
 
 End IS_MOVE_OP.
 
@@ -263,7 +263,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p := inlining to_keep p in
 
-  Let p := unroll_loop (ap_is_move_op aparams) p in
+  Let p := unroll_loop (ap_is_move_op aparams) false p in
   let p := cparams.(print_uprog) Unrolling p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -386,7 +386,7 @@ Definition compiler_CL_first_part (to_keep: seq funname) (p: prog) : cexec uprog
 
   Let p := inlining to_keep p in
 
-  Let p := unroll_loop (ap_is_move_op aparams) p in
+  Let p := unroll_loop (ap_is_move_op aparams) true p in
   let p := cparams.(print_uprog) Unrolling p in
 
   live_range_splitting p.
@@ -397,7 +397,7 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
 
   let p := cparams.(print_uprog) ArrayCopy p in
 
-  Let p := unroll_loop (ap_is_move_op aparams) p in
+  Let p := unroll_loop (ap_is_move_op aparams) true p in
   let p := cparams.(print_uprog) Unrolling p in
 
   Let pv := live_range_splitting p in
