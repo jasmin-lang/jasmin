@@ -179,15 +179,11 @@ Proof.
     rewrite /eval_instr /= /get_var /= hrsp /=.    
     reflexivity.
 
-  + rewrite /lnext_pc /=. 
-    rewrite -cat_rcons -cats1 in hbody'.     
-    apply: (eval_lsem1 hbody') => //.
-    apply:  RISCVFopnP.movi_eval_instr => /=.
-
-    apply: (eval_lsem1 hbody') => //=. first by rewrite !size_cat !addn1.
-
-
-    by 
+  + rewrite /lnext_pc /=.
+    rewrite -1!cat_rcons -1!cats1 in hbody'.
+    apply: (eval_lsem1 hbody') => /=; first by rewrite !size_cat !addn1.
+    + by reflexivity.
+    by apply: RISCVFopnP.movi_eval_instr => /=.
 
   + rewrite /lnext_pc /=.
     rewrite -2!cat_rcons -2!cats1 in hbody'.
@@ -228,31 +224,20 @@ Proof.
         apply /eqP => /(@inj_to_var _ _ _ _ _ _) |
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
-  rewrite Vm.setP_eq.
-  case: wsizeO => /=.
-
+  by rewrite Vm.setP_eq.
 
   split=> //=.
   + move=> p.
     by rewrite Z.sub_diag /between (negbTE (not_zbetween_neg _ _ _ _)).
-  + do 4 (rewrite (eq_ex_set_l _ (eq_ex_refl _));
+  + do 6 (rewrite (eq_ex_set_l _ (eq_ex_refl _));
       last by case; apply Sv.add_spec; (left; reflexivity) ||
       right; apply /sv_of_listP; rewrite !in_cons /= eqxx /= ?orbT).
-    have hsub: Sv.Subset (Sv.singleton voff) (Sv.add rspi sz_init_vars).
-    + move=> _ /Sv.singleton_spec ->.
-      apply Sv.add_spec.
-      by right; apply /sv_of_listP; rewrite !in_cons /= eqxx /= ?orbT.
-    rewrite (eq_exI hsub hvm2).
-    by rewrite (eq_ex_set_l _ (eq_ex_refl _));
-      last by case; apply Sv.add_spec; (left; reflexivity) ||
-      right; apply /sv_of_listP; rewrite !in_cons /= eqxx /= ?orbT.
-  + do 4 (rewrite Vm.setP_neq;
+    by apply eq_ex_refl.
+  + do 5 (rewrite Vm.setP_neq;
       last by [
         apply /eqP => /(@inj_to_var _ _ _ _ _ _) |
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
-    rewrite hvm2;
-      last by move=> /Sv.singleton_spec /= /(@inj_to_var _ _ _ _ _ _).
     by rewrite Vm.setP_eq.
   + rewrite Vm.setP_neq;
       last by apply /eqP => h; apply /rsp_nin /sv_of_listP;
@@ -268,7 +253,7 @@ End INIT.
 Section LOOP.
 
 Definition sz_loop_vars :=
-  sv_of_list v_var [:: voff & vflags].
+  sv_of_list v_var [:: voff; vtemp].
 
 Context (hsmall : (ws <= U32)%CMP).
 Context (lbl : label.label) (pre pos : seq linstr).
@@ -282,8 +267,7 @@ Lemma loop_bodyP vars s1 s2 n :
   (0 < n)%Z ->
   exists s3,
     [/\ lsem lp (of_estate s2 fn (size pre + 1))
-                (of_estate s3 fn (size pre + 3)),
-        s3.(evm).[vzf] = Vbool (ZF_of_word (wrepr U32 n - wrepr U32 (wsize_size ws)))
+                (of_estate s3 fn (size pre + 4))
       & state_rel_loop vars s1 s3 (n - wsize_size ws) top].
 Proof.
   move=> hsubset hsr hlt.
@@ -310,13 +294,18 @@ Proof.
     by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
   eexists (Estate _ _ _); split=> /=.
-  apply: lsem_step2.
+  apply: lsem_step3.
   + rewrite
       /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
-      /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /= wsub_wnot1
+      /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /=
       /of_estate /= /lnext_pc /= -addnS.
     reflexivity.
-  + rewrite /lsem1 /step (find_instr_skip hbody) /= -(addn1 2) addnA addn1.
+  + rewrite /lsem1 /step (find_instr_skip hbody) /=.
+    rewrite /eval_instr /= get_var_eq //.
+    rewrite get_var_neq; last by move=> /= h; apply /rsp_nin /sv_of_listP;
+        rewrite !in_cons /= -h eqxx /= ?orbT.
+    by rewrite /get_var hsr.(sr_rsp); reflexivity.
+  + rewrite /lsem1 /step (find_instr_skip hbody) /= -(addn1 1) addnA addn1.  
     apply: store_zero_eval_instr => //=.
     + do 5 (rewrite (@get_var_neq _ _ _ vzero);
         last by [|move=> /(@inj_to_var _ _ _ _ _ _)]).
