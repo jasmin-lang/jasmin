@@ -496,7 +496,8 @@ Section GLOBALS.
 
 Context (gd: glob_decls).
 
-Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+Fixpoint const_prop_ir with_globals without_globals (m:cpm) ii (ir:instr_r) : cpm * cmd :=
+  let const_prop_i :=  const_prop_i with_globals without_globals in
   match ir with
 
   | Cassgn x tag ty e =>
@@ -565,9 +566,9 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
 
   end
 
-with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=
+with const_prop_i with_globals without_globals (m:cpm) (i:instr) : cpm * cmd :=
   let (ii,ir) := i in
-  const_prop_ir m ii ir.
+  const_prop_ir with_globals without_globals m ii ir.
 
 End GLOBALS.
 
@@ -575,13 +576,26 @@ Section Section.
 
 Context {pT: progT}.
 
+
+(* const_prop_out (with_globals gd) without_globals *)
+
+
+Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
+
+(* const_prop_out (fun tag => with_globals_cl gd) (with_globals_cl gd) *)
+
+
 Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
+  (* let with_globals := with_globals in *)
+  (* let without_globals := without_globals in *)
+  let with_globals := (fun _ _ => with_globals_cl gd) in
+  let without_globals := with_globals_cl gd in
   let 'MkFun ii ci si p c so r ev := f in
   let ci_pre := map (fun c =>
                         let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_pre)
   in
-  let (m, c) := const_prop (const_prop_i gd) empty_cpm c in
+  let (m, c) := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
   let ci_post := map (fun c =>
                         let truc := const_prop_e without_globals m (snd c) in
                         (fst c, truc)) ci.(f_post)
@@ -589,7 +603,8 @@ Definition const_prop_fun (gd: glob_decls) (f: fundef) :=
   let ci := MkContra ci_pre ci_post in
   MkFun ii ci si p c so r ev.
 
-Definition const_prop_prog (p:prog) : prog := map_prog (const_prop_fun p.(p_globs)) p.
+Definition const_prop_prog (p:prog) : prog :=
+  map_prog (const_prop_fun p.(p_globs)) p.
 
 End Section.
 
