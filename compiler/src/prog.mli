@@ -207,6 +207,8 @@ val vars_fc : ('info,'asm) func  -> Sv.t
 
 val locals  : ('info,'asm) func -> Sv.t
 
+val spilled :  ('info,'asm) func -> Sv.t
+
 (* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)
 val written_vars_fc : ('info,'asm) func -> Sv.t * L.i_loc list Mf.t

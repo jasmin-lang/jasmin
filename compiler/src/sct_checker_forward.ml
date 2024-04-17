@@ -47,11 +47,14 @@ type special_op =
   | Update_msf
   | Mov_msf
   | Protect
+  | Spill of Pseudo_operator.spill_op
   | Other
 
 let is_special o =
   match o with
-  | Sopn.Opseudo_op _ | Oasm _ -> Other
+  | Sopn.Opseudo_op (Pseudo_operator.Ospill (o, _)) -> Spill o
+  | Sopn.Opseudo_op _ -> Other
+  | Oasm _ -> Other
   | Oslh o ->
     match o with
     | SLHinit   -> Init_msf
@@ -168,7 +171,7 @@ let rec modmsf_i fenv i =
     begin match is_special o with
     | Init_msf -> modified_here (* LFENCE modifies msf *)
     | Update_msf -> modified_here (* not sure it is needed *)
-    | Mov_msf | Protect | Other -> NotModified
+    | Mov_msf | Protect | Spill _ | Other -> NotModified
     end
   | Cfor(_, _, c) -> modmsf_c fenv c
   | Ccall (_, f, _) ->
@@ -358,6 +361,8 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
 
     | Protect, _, _ -> assert false
 
+    | Spill _, _, _ -> ms
+
     | Other, xs, _ -> checks ms xs; ms
 
 and infer_msf_c ~withcheck fenv tbl c ms =
@@ -374,10 +379,10 @@ module Env : sig
   type venv (* type variables association *)
 
   val init : unit -> env
+
   val empty : env -> venv
   val constraints : env -> C.constraints
   val add_var : env -> venv -> var -> var_kind -> vty -> venv
-
   val public    : env -> Lvl.t
   val secret    : env -> Lvl.t
 
@@ -414,11 +419,17 @@ module Env : sig
 
   val get_resulting_corruption : venv -> VlPairs.t
 
+  (* This is part is used to keep track of spill/unspill *)
+  val add_spill : env -> var -> var
+  val set_spill : env -> venv -> var_i list -> venv
+  val set_unspill : env -> venv -> var_i list -> venv
+
 end = struct
 
   type env = {
       constraints : C.constraints;
       strictness  : unit Hv.t;
+      spilled     : var Hv.t;
       msf_oracle  : (L.i_loc, Sv.t) Hashtbl.t;
     }
 
@@ -433,8 +444,9 @@ end = struct
 
   let init () =
     { constraints = C.init ();
-      strictness = Hv.create 97;
-      msf_oracle = Hashtbl.create 97; }
+      strictness  = Hv.create 97;
+      spilled     = Hv.create 97;
+      msf_oracle  = Hashtbl.create 97; }
 
   let constraints env = env.constraints
 
@@ -453,12 +465,12 @@ end = struct
   let fresh2 ?name env = (C.fresh ?name env.constraints,
                           C.fresh ?name env.constraints)
 
-  let empty env = {
-      vtype = Mv.empty;
+  let empty env =
+    { vtype = Mv.empty;
       vars = Sv.empty;
       resulting_corruption = fresh2 env;
       public2 = public2 env;
-  }
+    }
 
   let get venv x =
     try match x.v_kind with
@@ -610,6 +622,35 @@ end = struct
   let corruption_speculative env venv (_, s) = corruption env venv (public env, s)
 
   let get_resulting_corruption venv = venv.resulting_corruption
+
+  let get_spilled env (x:var_i) =
+    try L.mk_loc (L.loc x) (Hv.find env.spilled (L.unloc x))
+    with Not_found -> assert false
+
+  let add_spill env x =
+    let kind =
+      match x.v_kind with
+      | Const | Inline | Stack _ -> assert false
+      | Global -> if is_ty_arr x.v_ty then Wsize.Stack(Pointer Constant) else Wsize.Stack(Direct)
+      | Reg (_, r) -> Stack(r) in
+    let sx = V.mk x.v_name kind x.v_ty x.v_dloc [] in
+    Hv.add env.spilled x sx;
+    sx
+
+  let set_spill env venv xs =
+    let add venv (x:var_i) =
+      let sx = get_spilled env x in
+      let ty = get_i venv x in
+      set_ty env venv sx ty in
+     List.fold_left add venv xs
+
+  let set_unspill env venv xs =
+    let add venv (x:var_i) =
+      let sx = get_spilled env x in
+      let ty = get_i venv sx in
+      set_ty env venv x ty in
+     List.fold_left add venv xs
+
 end
 
 
@@ -1014,6 +1055,11 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
 
     | Protect, _, _ -> assert false
 
+    | Spill o, _, es ->
+        let xs = List.map (reg_expr ~direct:false loc) es in
+        if o = Pseudo_operator.Spill then msf, Env.set_spill env venv xs
+        else msf, Env.set_unspill env venv xs
+
     | Other, _, _  ->
       let public = not (CT.is_ct_sopn is_ct_asm o) in
       let ety = ty_exprs_max ~public env venv loc es in
@@ -1411,6 +1457,12 @@ let init_constraint fenv f =
     Env.add_var env venv x vk vty in
 
   let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
+
+  let do_spill venv x =
+    let sx = Env.add_spill env x in
+    do_local venv sx in
+
+  let venv = List.fold_left do_spill venv (Sv.elements (spilled f)) in
 
   (* infer modmsf and check consistency with user info *)
   let modmsf = modmsf_c fenv f.f_body in

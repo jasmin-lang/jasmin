@@ -1,0 +1,28 @@
+fn spill1(
+    #public reg u64 pub,
+    #secret reg u64 sec
+) ->
+    #public reg u64
+{
+    () = #spill(pub, sec);
+    () = #unspill(pub, sec);
+    [pub] = sec;
+    return pub;
+}
+
+
+fn spill2(
+    #public reg u64 pub,
+    #secret reg u64 sec
+) ->
+    #public reg u64
+{
+    reg u64 msf;
+    msf = #init_msf();
+    () = #spill(pub, sec);
+    [pub] = sec;
+    () = #unspill(pub, sec);
+    pub = #protect(pub, msf);
+    [pub] = sec;
+    return pub;
+}
