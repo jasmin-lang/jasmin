@@ -31,3 +31,6 @@ Failed as expected modmsf_trace: "fail/modmsf-trace.jazz", line 17 (2-8):
                                    the function f2 destroys MSFs at "fail/modmsf-trace.jazz", line 12 (19-25)
                                    the function f1 destroys MSFs at "fail/modmsf-trace.jazz", line 9 (19-31)
                                    the function kill_msf destroys MSFs at "fail/modmsf-trace.jazz", line 3 (4) to line 5 (5)
+File spill.jazz:
+Failed as expected spill2: "fail/spill.jazz", line 12 (5-8):
+                           speculative constant type checker: pub has type #transient but should be at most #public

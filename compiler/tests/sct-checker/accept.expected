@@ -247,6 +247,19 @@ output corruption: #public
  constraints:
 
 
+File spill.jazz:
+nomodmsf spill1 : #public * #secret ->
+#public
+output corruption: #transient
+ constraints:
+
+
+modmsf spill2 : #public * #secret ->
+#public
+output corruption: #transient
+ constraints:
+
+
 File while.jazz:
 modmsf while_first_branch : #public * #secret ->
 #public
