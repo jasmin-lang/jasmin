@@ -34,6 +34,7 @@ Context
 Let vsaved_sp := mk_var_i (to_var X5).
 Let voff := mk_var_i (to_var X6).
 Let vzero := mk_var_i (to_var X7).
+Let vtemp := mk_var_i (to_var X8).
 
 Notation rvar := (fun v => Rexpr (Fvar v)) (only parsing).
 Notation rconst := (fun ws imm => Rexpr (fconst ws imm)) (only parsing).
@@ -63,14 +64,10 @@ Definition sz_init : lcmd :=
     :: [:: RISCVFopn.li vzero 0 ]
   in
   map (li_of_fopn_args dummy_instr_info) args.
-(* 
-Definition store_zero (off : fexpr) : linstr_r :=
-  if store_mn_of_wsize ws is Some mn
-    then
-      let current := Store Aligned ws vrsp off in
-      let op := RISCV_op mn default_opts in
-      Lopn [:: current ] (Oriscv op) [:: rvar vzero ]
-    else Lalign. (* Absurd case. *)
+
+Definition store_zero (v: var_i) (off : Z) : linstr_r :=
+  let current := Store Aligned ws v (fconst reg_size off) in
+  Lopn [:: current ] (Oriscv (STORE ws)) [:: rvar vzero].
 
 (* Implementation:
 l1:
@@ -80,18 +77,23 @@ l1:
 *)
 Definition sz_loop : lcmd :=
   let dec_off :=
-    let opts :=
-      {| set_flags := true; is_conditional := false; has_shift := None; |}
-    in
-    let op := RISCV_op SUB opts in
-    let dec := rconst U32 (wsize_size ws) in
-    Lopn (leflags ++ [:: LLvar voff ]) (Oriscv op) [:: rvar voff; dec ]
+    let '(r, op, e):=
+      RISCVFopn.subi voff voff (wsize_size ws)
+    in 
+    Lopn r op e
+  in
+  let compute_address :=
+  let '(r, op, e):=
+      RISCVFopn.add vtemp vrsp voff
+    in  
+    Lopn r op e
   in
   let irs :=
     [:: Llabel InternalLabel lbl
       ; dec_off
-      ; store_zero (Fvar voff)
-      ; Lcond (Fapp1 Onot (Fvar vzf)) lbl
+      ; compute_address
+      ; store_zero vtemp 0
+      ; Lcond (Fapp2 (Oneq (Op_w U32)) (Fvar voff) (fconst reg_size 0)) lbl
     ]
   in
   map (MkLI dummy_instr_info) irs.
@@ -102,7 +104,7 @@ Definition restore_sp :=
 Definition stack_zero_loop : lcmd := sz_init ++ sz_loop ++ restore_sp.
 
 Definition stack_zero_loop_vars :=
-  sv_of_list v_var [:: vsaved_sp, voff, vzero & vflags].
+  sv_of_list v_var [:: vsaved_sp; voff; vzero].
 
 
 (* Implementation:
@@ -113,15 +115,14 @@ Definition stack_zero_loop_vars :=
 *)
 Definition sz_unrolled : lcmd :=
   let rn := rev (ziota 0 (stk_max / wsize_size ws)) in
-  [seq MkLI dummy_instr_info (store_zero (fconst reg_size (off * wsize_size ws))) | off <- rn ].
+  [seq MkLI dummy_instr_info (store_zero vrsp (off * wsize_size ws)) | off <- rn ].
 
 Definition stack_zero_unrolled : lcmd := sz_init ++ sz_unrolled ++ restore_sp.
 
 (* [voff] is used, because it is set by [sz_init], even though it is not used in
    the for loop. *)
 Definition stack_zero_unrolled_vars :=
-  sv_of_list v_var [:: vsaved_sp, voff, vzero & vflags].
-*)
+  sv_of_list v_var [:: vsaved_sp; voff; vzero].
 
 End RSP.
 
@@ -132,9 +133,7 @@ Definition stack_zeroization_cmd
   (ws_align ws : wsize)
   (stk_max : Z) :
   cexec (lcmd * Sv.t) :=
-  Error (stack_zeroization.E.error ( compiler_util.pp_s "not implemented")).
-
-  (* let err msg :=
+  let err msg :=
     {|
       pel_msg := compiler_util.pp_s msg;
       pel_fn := None;
@@ -146,17 +145,17 @@ Definition stack_zeroization_cmd
   |}
   in
   let err_size :=
-    err "Stack zeroization size not supported in RISCVv7"%string in
+    err "Stack zeroization size not supported in risc-v"%string in
   Let _ := assert (ws <= U32)%CMP err_size in
   let rsp := vid rspn in
   match szs with
   | SZSloop =>
     ok (stack_zero_loop rsp lbl ws_align ws stk_max, stack_zero_loop_vars)
   | SZSloopSCT =>
-    let err_sct := err "Strategy ""loop with SCT"" is not supported in RISCVv7"%string in
+    let err_sct := err "Strategy ""loop with SCT"" is not supported in risc-v"%string in
     Error err_sct
   | SZSunrolled =>
     ok (stack_zero_unrolled rsp ws_align ws stk_max, stack_zero_unrolled_vars)
-  end. *)
+  end. 
 
 End STACK_ZEROIZATION.
