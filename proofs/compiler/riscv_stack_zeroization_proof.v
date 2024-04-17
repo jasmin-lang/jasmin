@@ -19,11 +19,11 @@ Require Import
   arch_extra
   sem_params_of_arch_extra.
 Require Import
-  arm_decl
-  arm_extra
-  arm_instr_decl
-  arm_params_common_proof.
-Require Export arm_stack_zeroization.
+  riscv_decl
+  riscv_extra
+  riscv_instr_decl
+  riscv_params_common_proof.
+Require Export riscv_stack_zeroization.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -58,30 +58,25 @@ Section RSP.
 Context (rspn : Ident.ident).
 Let rspi := vid rspn.
 
-Let vsaved_sp := mk_var_i (to_var R02).
-Let voff := mk_var_i (to_var R03).
-Let vzero := mk_var_i (to_var R12).
-Let vzf := mk_var_i (to_var ZF).
-Let vflags := [seq mk_var_i (to_var f) | f <- rflags ].
-Let leflags := [seq LLvar f | f <- vflags ].
+Let vsaved_sp := mk_var_i (to_var X5).
+Let voff := mk_var_i (to_var X6).
+Let vzero := mk_var_i (to_var X7).
+Let vtemp := mk_var_i (to_var X8).
 
-Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
+Lemma store_zero_eval_instr lp ii ws (v: var_i) off (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U32)%CMP ->
   get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
-  get_var true (lvm ls) rspi = ok (Vword w1) ->
-  sem_fexpr (lvm ls) e >>= to_word Uptr = ok w2 ->
-  write (lmem ls) Aligned (w1 + w2)%R (sz:=ws) 0 = ok m' ->
-  let i := MkLI ii (store_zero rspi ws e) in
+  get_var true (lvm ls) v = ok (Vword w1) ->
+  write (lmem ls) Aligned (w1 + wrepr _ off)%R (sz:=ws) 0 = ok m' ->
+  let i := MkLI ii (store_zero ws v off) in
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).
 Proof.
-  move=> ws_small hvzero hrsp he hm'.
-  rewrite /eval_instr /= /store_zero.
-  have [mn hstore]: exists mn, store_mn_of_wsize ws = Some mn.
-  + by case: ws ws_small {hm'} => //= _; eexists; reflexivity.
-  rewrite hstore /= hvzero /=.
-  rewrite (store_mn_of_wsizeP (w:=0%R) hstore) /=;
-    last by rewrite (truncate_word_le _ ws_small) zero_extend0.
-  by rewrite hrsp /= (truncate_word_u w1) /= he /= truncate_word_u /= hm' /=.
+  move => ws_small hvzero hv hm'.
+  Print store_zero.
+  rewrite /eval_instr /=.
+  rewrite hvzero /=.
+  rewrite /exec_sopn /= (truncate_word_le _ ws_small) zero_extend0 /=.
+  by rewrite hv /= (truncate_word_u w1) /= !truncate_word_u /= zero_extend0 /= hm' /=.
 Qed.
 
 Context (lp : lprog) (fn : funname).
@@ -166,80 +161,65 @@ Lemma sz_initP (s1 : estate) :
     state_rel_loop sz_init_vars s1 s2 stk_max top.
 Proof.
   move=> hvalid hrsp.
-  move: hbody; rewrite /= map_cat /=.
-  set isave_sp := li_of_fopn_args _ (ARMFopn.mov _ _).
-  set iload_off := map _ (ARMFopn.li _ _).
-  set ialign := li_of_fopn_args _ (ARMFopn.align _ _ _).
-  set istore_sp := li_of_fopn_args _ (ARMFopn.mov _ _).
-  set isub_sp := li_of_fopn_args _ (ARMFopn.sub _ _ _).
-  set izero := li_of_fopn_args _ (ARMFopn.movi _ _).
-  rewrite -catA /=; move=> hbody'.
-
-  have [vm2 [hsem2 hvm2 hoff2]] : [elaborate
-    exists vm2, [/\
-      lsem lp
-        (of_estate (with_vm s1 (evm s1).[vsaved_sp <- Vword ptr]) fn (size pre + 1))
-        {| lscs := escs s1;
-           lmem := emem s1;
-           lvm := vm2;
-           lfn := fn;
-           lpc := size (pre ++ isave_sp :: iload_off)
-        |},
-      vm2 =[\Sv.singleton voff] (evm s1).[vsaved_sp <- Vword ptr] &
-      vm2.[voff] = Vword (wrepr Uptr stk_max)]].
-  + move: hbody'; rewrite -cat_rcons => hbody'.
-    have /= := [elaborate
-      let: s1 := with_vm s1 (evm s1).[vsaved_sp <- Vword ptr] in
-      let: ls1 := of_estate s1 _ _ in
-      ARMFopnP.li_lsem (ls := ls1) hbody' erefl erefl
-    ].
-    rewrite -/iload_off size_rcons -{1}addn1 => -[vm2 [hsem2 hvm2 hgetoff]].
-    exists vm2; split=> //.
-    + by rewrite size_cat /= -(addSnnS (size _) (size _)).
-    by move/get_varP: hgetoff => [<- _ _].
+  move: hbody; rewrite /=.
+  set isave_sp := li_of_fopn_args _ (RISCVFopn.mov _ _).
+  set iload_off := li_of_fopn_args _ (RISCVFopn.li _ _).
+  set ialign := li_of_fopn_args _ (RISCVFopn.align _ _ _).
+  set istore_sp := li_of_fopn_args _ (RISCVFopn.mov _ _).
+  set isub_sp := li_of_fopn_args _ (RISCVFopn.sub _ _ _).
+  set izero := li_of_fopn_args _ (RISCVFopn.li _ _).
+  move=> hbody'.
+  rewrite /of_estate.
 
   eexists (Estate _ _ _); split=> /=.
-  move: hbody'; rewrite -cat_rcons catA cat_rcons => hbody'.
-  apply: (lsem_trans6 _ hsem2); apply: lsem_step1.
+  apply: lsem_trans6; apply: lsem_step1.
 
   + apply: (eval_lsem1 hbody) => //.
-    rewrite addn1.
-    apply: ARMFopnP.mov_eval_instr.
-    rewrite /get_var hrsp /=.
+    apply:  RISCVFopnP.mov_eval_instr => /=.
+    rewrite /eval_instr /= /get_var /= hrsp /=.    
     reflexivity.
 
-  + apply: (eval_lsem1 hbody') => //.
-    apply: ARMFopnP.align_eval_instr.
-    rewrite /get_var /=.
-    rewrite hvm2;
-      last by move=> /Sv.singleton_spec /= /(@inj_to_var _ _ _ _ _ _).
-    rewrite Vm.setP_eq /=.
-    reflexivity.
+  + rewrite /lnext_pc /=. 
+    rewrite -cat_rcons -cats1 in hbody'.     
+    apply: (eval_lsem1 hbody') => //.
+    apply:  RISCVFopnP.movi_eval_instr => /=.
 
-  + rewrite /lnext_pc /=.
-    rewrite -cat_rcons -cats1 in hbody'.
-    apply: (eval_lsem1 hbody') => //; first by rewrite !size_cat !addn1.
-    apply: ARMFopnP.mov_eval_instr.
-    rewrite get_var_eq /=; last by [].
-    reflexivity.
+    apply: (eval_lsem1 hbody') => //=. first by rewrite !size_cat !addn1.
+
+
+    by 
 
   + rewrite /lnext_pc /=.
     rewrite -2!cat_rcons -2!cats1 in hbody'.
     apply: (eval_lsem1 hbody') => //; first by rewrite !size_cat !addn1.
-    apply: ARMFopnP.sub_eval_instr => /=.
+    apply: RISCVFopnP.align_eval_instr => /=.
+    rewrite get_var_neq; last by move=> /(@inj_to_var _ _ _ _ _ _).
+    by rewrite get_var_eq //=.
+
+  + rewrite /lnext_pc /=.
+    rewrite -3!cat_rcons -3!cats1 in hbody'.
+    apply: (eval_lsem1 hbody') => //; first by rewrite !size_cat !addn1.
+    apply: RISCVFopnP.mov_eval_instr.
+    rewrite get_var_eq /=; last by [].
+    reflexivity.
+
+  + rewrite /lnext_pc /=.
+    rewrite -4!cat_rcons -4!cats1 in hbody'.
+    apply: (eval_lsem1 hbody') => //; first by rewrite !size_cat !addn1.
+    apply: RISCVFopnP.sub_eval_instr => /=.
     * rewrite get_var_eq /=; last by []. reflexivity.
     rewrite get_var_neq;
       last by move=> h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
     rewrite get_var_neq; last by move=> /(@inj_to_var _ _ _ _ _ _).
-    rewrite /get_var hoff2 /=.
-    reflexivity.
+    by rewrite get_var_eq //=.
 
   rewrite /lnext_pc /=.
-  rewrite -3!cat_rcons -3!cats1 in hbody'.
+  rewrite -5!cat_rcons -5!cats1 in hbody'.
   apply: (eval_lsem1 hbody') => //; first by rewrite !size_cat !addn1.
-  rewrite ARMFopnP.movi_eval_instr; last by left.
-  rewrite !size_cat /= addn4 !addnS.
+  rewrite /eval_instr /= /exec_sopn /= truncate_word_u /=.
+  rewrite /lnext_pc /=.
+  rewrite !addnS addn0.
   reflexivity.
 
   split=> /=.
@@ -248,7 +228,10 @@ Proof.
         apply /eqP => /(@inj_to_var _ _ _ _ _ _) |
         apply /eqP => h; apply /rsp_nin /sv_of_listP;
           rewrite !in_cons /= -h eqxx /= ?orbT]).
-    exact: hoff2.
+  rewrite Vm.setP_eq.
+  case: wsizeO => /=.
+
+
   split=> //=.
   + move=> p.
     by rewrite Z.sub_diag /between (negbTE (not_zbetween_neg _ _ _ _)).
@@ -372,7 +355,7 @@ Proof.
     + by rewrite LE.read0.
     apply hzero.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
-    change arm_reg_size with Uptr.
+    change riscv_reg_size with Uptr.
     rewrite -wrepr_sub -wrepr_opp -!GRing.addrA -!wrepr_add.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
@@ -497,7 +480,7 @@ Proof.
   eexists (Estate _ _ _); split=> /=.
   + apply: (eval_lsem_step1 hbody) => //.
     rewrite addn1.
-    apply: ARMFopnP.mov_eval_instr.
+    apply: RISCVFopnP.mov_eval_instr.
     by rewrite /get_var /= hsr.(sr_vsaved) /=; reflexivity.
   case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //=.
@@ -597,7 +580,7 @@ Local Opaque wsize_size Z.of_nat.
     + by rewrite LE.read0.
     apply hzero.
     move: h hb; rewrite /between /zbetween wsize8 !zify /top.
-    change arm_reg_size with Uptr.
+    change riscv_reg_size with Uptr.
     rewrite -wrepr_opp -!GRing.addrA -!wrepr_add.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     rewrite wunsigned_sub_if.
@@ -659,7 +642,7 @@ Context (hlabel : ~~ has (is_label lbl) pre).
 
 Lemma sz_init_no_lbl : ~~ has (is_label lbl) (sz_init rspi ws_align stk_max).
 Proof.
-  rewrite /= has_map has_cat /= /ARMFopn.li /ARMFopn.Core.li.
+  rewrite /= has_map has_cat /= /RISCVFopn.li /RISCVFopn.Core.li.
   case: ifP => // _.
   by case: Z.div_eucl => ??.
 Qed.
@@ -768,7 +751,7 @@ End RSP.
 Lemma sz_init_no_ext_lbl rsp ws_align stk_max :
   label_in_lcmd (sz_init rsp ws_align stk_max) = [::].
 Proof.
-  rewrite /= map_cat label_in_lcmd_cat /= cats0 /ARMFopn.li /ARMFopn.Core.li.
+  rewrite /= map_cat label_in_lcmd_cat /= cats0 /RISCVFopn.li /RISCVFopn.Core.li.
   by case: ifP => // _; case: Z.div_eucl => ??.
 Qed.
 
@@ -776,7 +759,7 @@ Lemma store_zero_no_ext_lbl ii rsp ws off :
   get_label (MkLI ii (store_zero rsp ws off)) = None.
 Proof. by rewrite /store_zero; case: store_mn_of_wsize. Qed.
 
-Lemma arm_stack_zero_cmd_not_ext_lbl szs rspn lbl ws_align ws stk_max cmd vars :
+Lemma riscv_stack_zero_cmd_not_ext_lbl szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   label_in_lcmd cmd = [::].
 Proof.
@@ -793,7 +776,7 @@ Proof.
     by elim: rev => [//|?? ih] /=; rewrite store_zero_no_ext_lbl.
 Qed.
 
-Lemma arm_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
+Lemma riscv_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   stack_zeroization_proof.sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars.
 Proof.

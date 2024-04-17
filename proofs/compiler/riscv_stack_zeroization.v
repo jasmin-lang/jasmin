@@ -104,7 +104,7 @@ Definition restore_sp :=
 Definition stack_zero_loop : lcmd := sz_init ++ sz_loop ++ restore_sp.
 
 Definition stack_zero_loop_vars :=
-  sv_of_list v_var [:: vsaved_sp; voff; vzero].
+  sv_of_list v_var [:: vsaved_sp; voff; vzero; vtemp].
 
 
 (* Implementation:
@@ -122,7 +122,7 @@ Definition stack_zero_unrolled : lcmd := sz_init ++ sz_unrolled ++ restore_sp.
 (* [voff] is used, because it is set by [sz_init], even though it is not used in
    the for loop. *)
 Definition stack_zero_unrolled_vars :=
-  sv_of_list v_var [:: vsaved_sp; voff; vzero].
+  sv_of_list v_var [:: vsaved_sp; voff; vzero; vtemp].
 
 End RSP.
 
