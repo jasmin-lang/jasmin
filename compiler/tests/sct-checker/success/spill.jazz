@@ -17,11 +17,14 @@ fn spill2(
 ) ->
     #public reg u64
 {
+    #spill_to_mmx reg u64 pub1;
     reg u64 msf;
+    pub1 = pub;
     msf = #init_msf();
-    () = #spill(pub, sec);
+    () = #spill(pub, pub1, sec);
     [pub] = sec;
-    () = #unspill(pub, sec);
+    () = #unspill(pub, pub1, sec);
+    [pub1] = sec;
     pub = #protect(pub, msf);
     [pub] = sec;
     return pub;

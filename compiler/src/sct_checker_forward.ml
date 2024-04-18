@@ -420,7 +420,7 @@ module Env : sig
   val get_resulting_corruption : venv -> VlPairs.t
 
   (* This is part is used to keep track of spill/unspill *)
-  val add_spill : env -> var -> var
+  val add_spill : env -> var -> var option
   val set_spill : env -> venv -> var_i list -> venv
   val set_unspill : env -> venv -> var_i list -> venv
 
@@ -429,7 +429,7 @@ end = struct
   type env = {
       constraints : C.constraints;
       strictness  : unit Hv.t;
-      spilled     : var Hv.t;
+      spilled     : var option Hv.t;  (* None means that the variable is spill to mmx and not in the stack *)
       msf_oracle  : (L.i_loc, Sv.t) Hashtbl.t;
     }
 
@@ -624,32 +624,38 @@ end = struct
   let get_resulting_corruption venv = venv.resulting_corruption
 
   let get_spilled env (x:var_i) =
-    try L.mk_loc (L.loc x) (Hv.find env.spilled (L.unloc x))
+    try Option.map (L.mk_loc (L.loc x)) (Hv.find env.spilled (L.unloc x))
     with Not_found -> assert false
 
   let add_spill env x =
-    let kind =
-      match x.v_kind with
-      | Const | Inline | Stack _ -> assert false
-      | Global -> if is_ty_arr x.v_ty then Wsize.Stack(Pointer Constant) else Wsize.Stack(Direct)
-      | Reg (_, r) -> Stack(r) in
-    let sx = V.mk x.v_name kind x.v_ty x.v_dloc [] in
+    let sx =
+      if CoreIdent.Cident.spill_to_mmx x then None
+      else
+        let kind =
+          match x.v_kind with
+          | Const | Inline | Stack _ -> assert false
+          | Global -> if is_ty_arr x.v_ty then Wsize.Stack(Pointer Constant) else Wsize.Stack(Direct)
+          | Reg (_, r) -> Stack(r) in
+        Some (V.mk x.v_name kind x.v_ty x.v_dloc [])
+    in
     Hv.add env.spilled x sx;
     sx
 
   let set_spill env venv xs =
     let add venv (x:var_i) =
-      let sx = get_spilled env x in
-      let ty = get_i venv x in
-      set_ty env venv sx ty in
-     List.fold_left add venv xs
+      Option.map_default (fun sx ->
+          let ty = get_i venv x in
+          set_ty env venv sx ty) venv (get_spilled env x)
+    in
+    List.fold_left add venv xs
 
   let set_unspill env venv xs =
     let add venv (x:var_i) =
-      let sx = get_spilled env x in
+      Option.map_default (fun sx ->
       let ty = get_i venv sx in
-      set_ty env venv x ty in
-     List.fold_left add venv xs
+      set_ty env venv x ty) venv (get_spilled env x)
+   in
+   List.fold_left add venv xs
 
 end
 
@@ -1459,8 +1465,7 @@ let init_constraint fenv f =
   let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
 
   let do_spill venv x =
-    let sx = Env.add_spill env x in
-    do_local venv sx in
+    Option.map_default (fun sx -> do_local venv sx) venv (Env.add_spill env x) in
 
   let venv = List.fold_left do_spill venv (Sv.elements (spilled f)) in
 
