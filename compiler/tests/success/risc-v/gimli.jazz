@@ -18,10 +18,10 @@ fn swap(reg ptr u32[12] state, inline int i, inline int j) -> reg ptr u32[12] {
 
 inline fn ror32(reg u32 in, reg u32 cnt)  -> reg u32 {
 	reg u32 u l ret icnt;
-	u = in << cnt;
+	u = in << (cnt & 31);
   icnt = 32;
   icnt = icnt - cnt;
-	l = in >> (icnt);
+	l = in >> (icnt & 31);
 	ret = u & l;
 	return ret;
 }

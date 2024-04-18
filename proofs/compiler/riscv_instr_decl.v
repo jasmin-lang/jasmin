@@ -236,6 +236,7 @@ Definition prim_SRL := ("SRL"%string, primM SRL).
 Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction riscv_srl_semi "SRLI" "srli".
 Definition prim_SRLI := ("SRLI"%string, primM SRLI).
 
+
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
   ok wn.
 
@@ -453,9 +454,9 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | NOT => riscv_NOT_instr
   | NEG => riscv_NEG_instr
   | SLL => riscv_SLL_instr
-  | SRL => riscv_SRL_instr
-  | SRLI => riscv_SLLI_instr
   | SLLI => riscv_SLLI_instr
+  | SRL => riscv_SRL_instr
+  | SRLI => riscv_SRLI_instr
   | MV => riscv_MV_instr
   | LOAD s ws => riscv_LOAD_instr s ws
   | STORE ws => riscv_STORE_instr ws
@@ -481,8 +482,8 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_NEG;
   prim_MV;
   prim_SLL;
-  prim_SRL;
   prim_SLLI;
+  prim_SRL;
   prim_SRLI;
   prim_LOAD;
   prim_STORE

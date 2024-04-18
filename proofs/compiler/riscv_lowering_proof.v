@@ -1611,6 +1611,49 @@ Proof.
   move=> ii i s1 s2 _ hi. exact: hi.
 Qed.
 
+(* Factorize with x86 *)
+Lemma to_word_m sz sz' a w :
+  to_word sz a = ok w ->
+  (sz' ≤ sz)%CMP ->
+  to_word sz' a = ok (zero_extend sz' w).
+Proof.
+  clear.
+  case/to_wordI' => n [] m [] sz_le_n ->{a} ->{w} /= sz'_le_sz.
+  by rewrite truncate_word_le ?zero_extend_idem // (cmp_le_trans sz'_le_sz sz_le_n).
+Qed.
+
+Lemma check_shift_amountP e sa s z w :
+  check_shift_amount e = Some sa ->
+  sem_pexpr true (p_globs p) s e = ok z ->
+  to_word U8 z = ok w ->
+  Sv.Subset (read_e sa) (read_e e) /\
+  exists2 n, sem_pexpr true (p_globs p) s sa >>= to_word U8 = ok n & forall f (a: word U32), sem_shift f a w = sem_shift f a (wand n (wrepr U8 31)).
+Proof.
+  rewrite /check_shift_amount.
+  case en: is_wconst => [ n | ].
+  - case: eqP; last by [].
+    move => n_in_range /Some_inj <-{sa} ok_z ok_w.
+    have! := (is_wconstP true (p_globs p) s en).
+    rewrite {en} ok_z /= ok_w => /ok_inj ?; subst w.
+    split; first by [].
+    exists n; first reflexivity.
+    by rewrite -n_in_range.
+  case: {en} e => // - [] // sz' a b.
+  case en: is_wconst => [ n | ]; last by [].
+  case: eqP; last by [].
+  move => ? /Some_inj ? /=; subst a n.
+  rewrite /sem_sop2 /=; t_xrbindP => a ok_a c ok_c wa ok_wa wb ok_wb <-{z} /truncate_wordP[] _ ->{w}.
+  have! := (is_wconstP true (p_globs p) s en).
+  rewrite {en} ok_a ok_c /= => hc.
+  split.
+  - clear; rewrite {2}/read_e /= !read_eE; SvD.fsetdec.
+  eexists; first by rewrite (to_word_m ok_wa (wsize_le_U8 _)).
+  move => f x; rewrite /sem_shift; do 2 f_equal.
+  have := to_word_m ok_wb (wsize_le_U8 _).
+  rewrite {ok_wb} hc => /ok_inj ->.
+  by rewrite wand_zero_extend; last exact: wsize_le_U8.
+Qed.
+
 (* TRYING TO REFACTOR WIP *)
 (* #[ local ]
 Lemma Hassgn_op2 op2 p0 p1 s s1 v v' lv op2' :
@@ -2019,88 +2062,141 @@ Proof.
     move=> /=.
     rewrite -wxor_zero_extend // in hwrite.
     rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite.
+    by rewrite hwrite.        
 
-  + case: is_wconst => //=.
-    + move => _ [] <- <- <- //=.
-      rewrite /sem_sopn /= .
-      move: hseme.
+  + case: o hseme => // hseme.
+    case good_shift: check_shift_amount => [ sa | ] //.
+    move: good_shift => /check_shift_amountP.
+    move: hseme.
+    t_xrbindP.
+    move => z0 ok_z0 z1 ok_z1.
+    rewrite /sem_sop2 /=.
+    t_xrbindP.
+    move=> zo /to_wordI' [] ws [] w' [] hcmp ? ?; subst.
+    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
+    move=> /(_ _ _ _ ok_z1) /=.
+    rewrite truncate_word_le //. 
+    move=> /(_ _ erefl) /=.
+    move=> [hread [shift]] ok_shift eq_sem_shift.
+    move => [] <- <- <- //=.
+    case: is_wconst => //=.
+    + move=> _.
+      rewrite /sem_sopn /exec_sopn /= /app_sopn.
+      rewrite ok_z0 /=.
+      move: ok_shift.
       t_xrbindP.
-      move => z0 /= -> //= z1 hseme.
-      rewrite /sem_sop2 /=.
-      t_xrbindP.
-      move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-      move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-      rewrite hseme /= /exec_sopn /= /app_sopn.
+      move=> sa' -> /= ok_shift.
       move: htrunc.
       rewrite /truncate_val /=.
       t_xrbindP => z /truncate_wordP.
       move=> [] hcmp' -> ?; subst.
-      rewrite truncate_word_le ; last by eassumption.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      move=> /=.
-
-      (* rewrite -wshl_zero_extend // in hwrite.
-      rewrite !zero_extend_idem // in hwrite.
-      by rewrite hwrite.
-
-    move => [] <- <- <- //=.
-    rewrite /sem_sopn /= .
-    move: hseme.
+      rewrite truncate_word_le; last by apply: cmp_le_trans;
+      eassumption.
+      rewrite /= ok_shift /=.
+      move: hwrite.
+      rewrite /sem_shr /= zero_extend_u eq_sem_shift /sem_shift.
+      by move => ->.
+    rewrite /sem_sopn /exec_sopn /= /app_sopn.
+    rewrite ok_z0 /=.
+    move: ok_shift.
     t_xrbindP.
-    move => z0 /= -> //= z1 hseme.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    rewrite hseme /= /exec_sopn /= /app_sopn.
+    move=> sa' -> /= ok_shift.
     move: htrunc.
     rewrite /truncate_val /=.
     t_xrbindP => z /truncate_wordP.
     move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    move=> /=.
-    rewrite -wxor_zero_extend // in hwrite.
-    rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite. *)
+    rewrite truncate_word_le; last by apply: cmp_le_trans;
+    eassumption.
+    rewrite /= ok_shift /=.
+    move: hwrite.
+    rewrite /sem_shr /= zero_extend_u eq_sem_shift /sem_shift.
+    by move => ->.
 
-    
-Admitted.
+  case: o hseme => // -[] // hseme.
+  case good_shift: check_shift_amount => [ sa | ] //.
+  move: good_shift => /check_shift_amountP.
+  move: hseme.
+  t_xrbindP.
+  move => z0 ok_z0 z1 ok_z1.
+  rewrite /sem_sop2 /=.
+  t_xrbindP.
+  move=> zo /to_wordI' [] ws [] w' [] hcmp ? ?; subst.
+  move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
+  move=> /(_ _ _ _ ok_z1) /=.
+  rewrite truncate_word_le //. 
+  move=> /(_ _ erefl) /=.
+  move=> [hread [shift]] ok_shift eq_sem_shift.
+  move => [] <- <- <- //=.
+  case: is_wconst => //=.
+  + move=> _.
+    rewrite /sem_sopn /exec_sopn /= /app_sopn.
+    rewrite ok_z0 /=.
+    move: ok_shift.
+    t_xrbindP.
+    move=> sa' -> /= ok_shift.
+    move: htrunc.
+    rewrite /truncate_val /=.
+    t_xrbindP => z /truncate_wordP.
+    move=> [] hcmp' -> ?; subst.
+    rewrite truncate_word_le; last by apply: cmp_le_trans;
+    eassumption.
+    rewrite /= ok_shift /=.
+    move: hwrite.
+    rewrite /sem_shl /= zero_extend_u eq_sem_shift /sem_shift.
+    by move => ->.
+  rewrite /sem_sopn /exec_sopn /= /app_sopn.
+  rewrite ok_z0 /=.
+  move: ok_shift.
+  t_xrbindP.
+  move=> sa' -> /= ok_shift.
+  move: htrunc.
+  rewrite /truncate_val /=.
+  t_xrbindP => z /truncate_wordP.
+  move=> [] hcmp' -> ?; subst.
+  rewrite truncate_word_le; last by apply: cmp_le_trans;
+  eassumption.
+  rewrite /= ok_shift /=.
+  move: hwrite.
+  rewrite /sem_shl /= zero_extend_u eq_sem_shift /sem_shift.
+  by move => ->.
+Qed.
 
 
 #[ local ]
 Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
-Admitted.
-(*  move=> s0 s1 tag op lvs es hsem01.
-  move=> ii hfv s0' hs00.
+  move=> s0 s1 tag op lvs es hsem01.
+  move=> ii.
 
-  move: hfv => /disj_fvars_vars_I_Copn [hfvlvs hfve].
+  rewrite /Pi /=.
+  
+  case h : lower_copn => [l | ];
+  last by apply: sem_seq_ir; apply: Eopn.
+  move: h.
 
-  move: hsem01.
-  rewrite /sem_sopn.
-  t_xrbindP=> vs xs hsemes hexec hwrite.
-
-  have [s1' hwrite' hs11] := eeq_exc_write_lvals hfvlvs hs00 hwrite.
-  clear hfvlvs hwrite.
-
-  exists s1'; last exact: hs11.
-  clear hs11.
+  case: op hsem01 => // -[] //=.
+  + move => [] // hsem01.
+   rewrite /lower_mulu.
+   case: lvs hsem01 => // lv1 [] // lv2 [] // hsem01.
+   case: es hsem01 => // -[] // x [] // [] // y [] // hsem01.
+   case: Sv_memP => // hin1 /=.
+   case: Sv_memP => //hin2 /=.
+   move => [] <- /=.
+   move: hsem01.
+  rewrite /sem_sopn /=. 
+  t_xrbindP.
+  move => vs _ v1 ok_v1 _ v2 ok_v2 <- <-.
+  rewrite /exec_sopn /= /sopn_sem /=.
+  t_xrbindP => _ w0 ok_w0 w1 ok_w1 <- <- /=.
+  t_xrbindP => s2 ok_s2 {}s1 ok_s1 <-.
+  apply: (Eseq (s2:=s2)).
+  + apply: EmkI.
+    apply: Eopn.
+    by rewrite /sem_sopn /= ok_v1 /= ok_v2 /= /exec_sopn /= ok_w0 /= ok_w1 /= ok_s2.
   apply: sem_seq_ir.
-
-  assert (hcopn : sem_i p' ev s0' (Copn lvs tag op es) s1').
-  - apply: Eopn.
-    rewrite /sem_sopn /=.
-    rewrite (eeq_exc_sem_pexprs hfve hs00 hsemes) {hfve hs00 hsemes} /=.
-    rewrite hexec /=.
-    exact: hwrite'.
-  clear hs00 hsemes hwrite'.
-
-  case h: lower_copn => [[[lvs' op'] es']|].
-  - exact: (lower_copnP hfve hcopn h).
-  exact: hcopn.
-Qed.*)
+  apply: Eopn.
+  Admitted.
+(*Qed.*)
 
 #[ local ]
 Lemma Hsyscall : sem_Ind_syscall p Pi_r.

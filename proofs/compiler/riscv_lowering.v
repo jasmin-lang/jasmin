@@ -28,6 +28,18 @@ Context {atoI : arch_toIdent}.
 Definition chk_ws_reg (ws : wsize) : option unit :=
   oassert (ws == reg_size)%CMP.
 
+(* Ensure shift amount is less than 32 *)
+Definition check_shift_amount e :=
+  if is_wconst U8 e is Some n
+  then if n == wand n (wrepr U8 31) then Some e else None
+  else match e with
+  | Papp2 (Oland _) a b =>
+      if is_wconst U8 b is Some n
+      then if n == wrepr U8 31 then Some a else None
+      else None
+  | _ => None 
+  end.
+
 Definition is_load (e: pexpr) : bool :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _
@@ -84,12 +96,16 @@ Definition lower_Papp2
     let op := if is_wconst U32 e1 then XORI else XOR in
     Some (BaseOp (None, op), [:: e0; e1])
   | Omul (Op_w _) => Some (BaseOp (None, MUL), [:: e0; e1])
-  | Olsr _  =>
-    let op := if is_wconst U32 e1 then SRLI else SRL in
-    Some (BaseOp (None, op), [:: e0; e1])
+  | Olsr U32 =>
+    if check_shift_amount e1 is Some(e1) then
+      let op := if is_wconst U8 e1 then SRLI else SRL in
+      Some (BaseOp (None, op), [:: e0; e1])
+    else None
   | Olsl (Op_w U32) =>
-    let op := if is_wconst U8 e1 then SLLI else SLL in
-    Some (BaseOp (None, op), [:: e0; e1])
+    if check_shift_amount e1 is Some(e1) then
+      let op := if is_wconst U8 e1 then SLLI else SLL in
+      Some (BaseOp (None, op), [:: e0; e1])
+    else None
   (* | Oasr (Op_w U32) =>
       if is_zero U8 e1 then Some (MOV, e0, [::])
       else Some (ASR, e0, [:: e1 ])
@@ -155,10 +171,13 @@ Definition lower_swap ty lvs es : option (seq copn_args) :=
   | _ => None
   end.
 
-Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args):=
+Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args):=  
   match lvs, es with
-  | [:: r1; r2 ], [:: x ; y ] =>
-    (* Arbitrary choice : r1 computed before r2*)
+  | [:: r1; r2 ], [:: Pvar x ; Pvar y ] =>
+    if Sv.mem x.(gv) (vrv r1) || Sv.mem y.(gv) (vrv r1) then
+    None
+    else
+    (* Arbitrary choice : r1 computed before r2*)  
     Some [::
       ([:: r1], Oasm(BaseOp (None, MULHU)), es);
       ([:: r2], Oasm(BaseOp (None, MUL)), es)]
@@ -169,7 +188,7 @@ Definition lower_pseudo_operator
   (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option (seq copn_args) :=
   match op with
   | Oswap ty => lower_swap ty lvs es
-  | Omulu ws => lower_mulu lvs es
+  | Omulu U32 => lower_mulu lvs es
   | _ => None
   end.
 
