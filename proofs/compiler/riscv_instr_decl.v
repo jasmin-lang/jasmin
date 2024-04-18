@@ -46,10 +46,10 @@ Definition pp_name name args :=
   - J type: imm -> reg (e.g.: JAL, update PC)
   *)
 
-Definition RTypeInstruction semi jazz_name asm_name: instr_desc_t :=
+Definition RTypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
   {|
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg; sreg ];
+      id_tin := [:: sreg; sword ws ];
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: sreg];
       id_out := [:: Ea 0 ];
@@ -66,11 +66,11 @@ Definition RTypeInstruction semi jazz_name asm_name: instr_desc_t :=
     |}.
 
 
-Definition ITypeInstruction semi jazz_name asm_name: instr_desc_t :=
+Definition ITypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
   {|
       id_msb_flag := MSB_MERGE;
       (* imm are coded on 12 bits, not 32 *)
-      id_tin := [:: sreg; sreg ];
+      id_tin := [:: sreg; sword ws ];
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: sreg];
       id_out := [:: Ea 0 ];
@@ -220,19 +220,20 @@ Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction riscv_xor_semi "X
 Definition prim_XORI := ("XORI"%string, primM XORI).
 
 
-Definition riscv_sll_semi (wn wm : ty_r) : exec ty_r := ok (wshl wn (wunsigned (wand wm (wrepr U32 31)))).
+Definition riscv_sll_semi (wn : ty_r) (wm : word U8) : exec ty_r := ok (wshl wn (wunsigned (wand wm (wrepr U8 31)))).
 
-Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_and_semi "SLL" "sll".
+Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_sll_semi "SLL" "sll".
 Definition prim_SLL := ("SLL"%string, primM SLL).
 
-
-Definition riscv_SRL_instr : instr_desc_t := RTypeInstruction riscv_and_semi "SRL" "srl".
-Definition prim_SRL := ("SRL"%string, primM SRL).
-
-Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction riscv_and_semi "SLLI" "slli".
+Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction riscv_sll_semi "SLLI" "slli".
 Definition prim_SLLI := ("SLLI"%string, primM SLLI).
 
-Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction riscv_and_semi "SRLI" "srli".
+Definition riscv_srl_semi (wn : ty_r) (wm : word U8) : exec ty_r := ok (wshr wn (wunsigned (wand wm (wrepr U8 31)))).
+
+Definition riscv_SRL_instr : instr_desc_t := RTypeInstruction riscv_srl_semi "SRL" "srl".
+Definition prim_SRL := ("SRL"%string, primM SRL).
+
+Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction riscv_srl_semi "SRLI" "srli".
 Definition prim_SRLI := ("SRLI"%string, primM SRLI).
 
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=

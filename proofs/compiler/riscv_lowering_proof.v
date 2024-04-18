@@ -1611,11 +1611,26 @@ Proof.
   move=> ii i s1 s2 _ hi. exact: hi.
 Qed.
 
+(* TRYING TO REFACTOR WIP *)
+(* #[ local ]
+Lemma Hassgn_op2 op2 p0 p1 s s1 v v' lv op2' :
+Let v1 := sem_pexpr true (p_globs p) s p0 in 
+(Let v2 := sem_pexpr true (p_globs p) s p1 in 
+sem_sop2 op2 v1 v2) = ok v ->
+truncate_val (sword riscv_reg_size) v = ok v' ->
+write_lval true (p_globs p) lv v' s = ok s1 ->
+is_sword (type_of_op2 op2).1.1 ->
+is_sword (type_of_op2 op2).1.2 ->
+sem_sop2_typed op2 = (fun t1 t2 => Let t3 := exec_sopn op2' [::(to_val t1); (to_val t2)] in 
+of_val _ t3) ->
+sem_sopn (p_globs p) op2' s [::lv] [:: p0; p1] = ok s1.
+Proof. *)
+
 #[ local ]
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
   move=> s0 s1 lv tag ty e v v' hseme htrunc hwrite.
-  move => ii.
+  move=> ii.
   rewrite /Pi /=.
   set none_s :=  match ty with sword _ => _ | _ => _ end.
   case h : none_s => [ l | ]; last first.
@@ -2005,6 +2020,51 @@ Proof.
     rewrite -wxor_zero_extend // in hwrite.
     rewrite !zero_extend_idem // in hwrite.
     by rewrite hwrite.
+
+  + case: is_wconst => //=.
+    + move => _ [] <- <- <- //=.
+      rewrite /sem_sopn /= .
+      move: hseme.
+      t_xrbindP.
+      move => z0 /= -> //= z1 hseme.
+      rewrite /sem_sop2 /=.
+      t_xrbindP.
+      move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
+      move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
+      rewrite hseme /= /exec_sopn /= /app_sopn.
+      move: htrunc.
+      rewrite /truncate_val /=.
+      t_xrbindP => z /truncate_wordP.
+      move=> [] hcmp' -> ?; subst.
+      rewrite truncate_word_le ; last by eassumption.
+      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
+      move=> /=.
+
+      (* rewrite -wshl_zero_extend // in hwrite.
+      rewrite !zero_extend_idem // in hwrite.
+      by rewrite hwrite.
+
+    move => [] <- <- <- //=.
+    rewrite /sem_sopn /= .
+    move: hseme.
+    t_xrbindP.
+    move => z0 /= -> //= z1 hseme.
+    rewrite /sem_sop2 /=.
+    t_xrbindP.
+    move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
+    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
+    rewrite hseme /= /exec_sopn /= /app_sopn.
+    move: htrunc.
+    rewrite /truncate_val /=.
+    t_xrbindP => z /truncate_wordP.
+    move=> [] hcmp' -> ?; subst.
+    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
+    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
+    move=> /=.
+    rewrite -wxor_zero_extend // in hwrite.
+    rewrite !zero_extend_idem // in hwrite.
+    by rewrite hwrite. *)
+
     
 Admitted.
 
