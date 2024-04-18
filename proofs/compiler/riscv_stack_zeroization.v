@@ -34,7 +34,7 @@ Context
 Let vsaved_sp := mk_var_i (to_var X5).
 Let voff := mk_var_i (to_var X6).
 Let vzero := mk_var_i (to_var X7).
-Let vtemp := mk_var_i (to_var X8).
+Let vtemp := mk_var_i (to_var X12).
 
 Notation rvar := (fun v => Rexpr (Fvar v)) (only parsing).
 Notation rconst := (fun ws imm => Rexpr (fconst ws imm)) (only parsing).
