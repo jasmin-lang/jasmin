@@ -61,7 +61,7 @@ Let rspi := vid rspn.
 Let vsaved_sp := mk_var_i (to_var X5).
 Let voff := mk_var_i (to_var X6).
 Let vzero := mk_var_i (to_var X7).
-Let vtemp := mk_var_i (to_var X8).
+Let vtemp := mk_var_i (to_var X12).
 
 Lemma store_zero_eval_instr lp ii ws (v: var_i) off (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U32)%CMP ->
@@ -299,30 +299,29 @@ Proof.
       /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
       /get_var hsr.(srl_off) /= /exec_sopn /= !truncate_word_u /=
       /of_estate /= /lnext_pc /= -addnS.
-    reflexivity.
+    by reflexivity.
   + rewrite /lsem1 /step (find_instr_skip hbody) /=.
     rewrite /eval_instr /= get_var_eq //.
     rewrite get_var_neq; last by move=> /= h; apply /rsp_nin /sv_of_listP;
         rewrite !in_cons /= -h eqxx /= ?orbT.
-        Admitted.
-(*    by rewrite /get_var hsr.(sr_rsp); reflexivity.
-  + rewrite /lsem1 /step (find_instr_skip hbody) /= -(addn1 1) addnA addn1.  
+    rewrite /get_var hsr.(sr_rsp) /=.
+    rewrite /exec_sopn /=.
+    rewrite !truncate_word_u /=.
+    by rewrite /of_estate /lnext_pc /=; reflexivity.
+
+  + rewrite /lsem1 /step -addn1 -addnA (find_instr_skip hbody) /= -(addn1 3) (addnA _ 3) addn1 addn1.
     apply: store_zero_eval_instr => //=.
-    + do 5 (rewrite (@get_var_neq _ _ _ vzero);
+    + do 2 (rewrite (@get_var_neq _ _ _ vzero);
         last by [|move=> /(@inj_to_var _ _ _ _ _ _)]).
       by rewrite /get_var hsr.(sr_vzero).
-    + do 5 (rewrite (@get_var_neq _ _ _ rspi);
-        last by [|move=> /= h; apply /rsp_nin /sv_of_listP;
-        rewrite !in_cons /= -h eqxx /= ?orbT]).
-      by rewrite /get_var hsr.(sr_rsp); reflexivity.
     + rewrite get_var_eq //= truncate_word_u; reflexivity.
+    rewrite wrepr0 GRing.addr0.
     exact: hm'.
-  + do 3 (rewrite Vm.setP_neq;
-      last by [|apply /eqP => /(@inj_to_var _ _ _ _ _ _)]).
-    by rewrite Vm.setP_eq.
   case: hsr => hoff [hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound].
   split=> /=.
-  + rewrite Vm.setP_eq /=.
+  + rewrite Vm.setP_neq /=; 
+        last by apply /eqP => /(@inj_to_var _ _ _ _ _ _).
+    rewrite Vm.setP_eq /=.
     by rewrite wrepr_sub.
   split=> //=.
   + apply (mem_equiv_trans hmem).
@@ -352,23 +351,21 @@ Proof.
     rewrite wunsigned_add; last by lia.
     rewrite wunsigned_add; last by lia.
     case: ZleP; lia.
-  + by do 5 (rewrite (eq_ex_set_l _ (eq_ex_refl _));
+  + by do 2 (rewrite (eq_ex_set_l _ (eq_ex_refl _));
       last by case; apply Sv.add_spec; right;
       apply /hsubset /sv_of_listP; rewrite !in_cons /= eqxx /= ?orbT).
-  + rewrite Vm.setP_neq; last by apply /eqP => /(@inj_to_var _ _ _ _ _ _).
-    by rewrite !Vm.setP_neq.
-  + rewrite Vm.setP_neq;
+  + by do 2 (rewrite Vm.setP_neq; last by apply /eqP => /(@inj_to_var _ _ _ _ _ _)).
+  + by do 2 (rewrite Vm.setP_neq;
       last by apply /eqP => h; apply /rsp_nin /sv_of_listP;
-      rewrite !in_cons /= -h eqxx /= ?orbT.
-    by do 4 rewrite Vm.setP_neq //.
-  + by do 5 (rewrite Vm.setP_neq;
+      rewrite !in_cons /= -h eqxx /= ?orbT).
+  + by do 2 (rewrite Vm.setP_neq;
       last by [|apply /eqP => /(@inj_to_var _ _ _ _ _ _)]).
   + rewrite -WArray.arr_is_align wrepr_sub.
     have /is_align_addE <- := [elaborate (is_align_mul ws 1)].
     rewrite Z.mul_1_r GRing.addrC GRing.subrK.
     by rewrite WArray.arr_is_align.
   by lia.
-Qed.*)
+Qed.
 
 Lemma loopP vars s1 s2 n :
   Sv.Subset sz_loop_vars vars ->
@@ -376,11 +373,11 @@ Lemma loopP vars s1 s2 n :
   (0 < n)%Z ->
   exists s3,
     [/\ lsem lp (of_estate s2 fn (size pre + 1))
-                (of_estate s3 fn (size pre + 4))
+                (of_estate s3 fn (size pre + 5))
       & state_rel_loop vars s1 s3 0 top].
 Proof.
-Admitted.
-(*  move=> hsubset hsr hlt.
+  Local Opaque wsize_size.
+  move=> hsubset hsr hlt.
   have [k hn]: (exists k, n = Z.of_nat k * wsize_size ws)%Z.
   + have := hsr.(sr_aligned).
     rewrite /is_align WArray.p_to_zE.
@@ -392,7 +389,7 @@ Admitted.
   elim: k n s2 hsr hlt hn => [|k ih] n s2 hsr hlt hn.
   + move: hn; rewrite Z.mul_0_l.
     by lia.
-  have [s3 [hsem3 hzf3 hsr3]] := loop_bodyP hsubset hsr hlt.
+  have [s3 [hsem3 hsr3]] := loop_bodyP hsubset hsr hlt.
   have: (k = 0 \/ 0 < k)%coq_nat by lia.
   case=> hk.
   + subst k.
@@ -400,8 +397,8 @@ Admitted.
     exists s3; split.
     + apply: (lsem_step_end hsem3).
       by rewrite /lsem1 /step (find_instr_skip hbody) /= /eval_instr /=
-         /get_var /= hzf3 /= GRing.addrN /ZF_of_word /= eqxx /= /setpc /=
-         /lnext_pc /= -addnS.
+         /get_var hsr3.(srl_off) /= /sem_sop2 /= !truncate_word_u /= 
+         Z.sub_diag eqxx /= -(addn1 4) addnA addn1; reflexivity.
     by move: hsr3; rewrite Z.sub_diag.
   have hlt3: (0 < n - wsize_size ws)%Z by nia.
   have hn3: (n - wsize_size ws)%Z = (Z.of_nat k * wsize_size ws)%Z by lia.
@@ -412,11 +409,12 @@ Admitted.
   rewrite /lsem1 /step.
   rewrite (find_instr_skip hbody) /=.
   rewrite /eval_instr /=.
-  rewrite /get_var /= hzf3 /=.
-  have ->: ~~ ZF_of_word (wrepr U32 n - wrepr U32 (wsize_size ws)).
-  + rewrite /ZF_of_word; apply /eqP => /(f_equal wunsigned).
-    rewrite wunsigned0 -wrepr_sub wunsigned_repr_small; first by lia.
+  rewrite /get_var /= hsr3.(srl_off) /= /sem_sop2 /= !truncate_word_u /=.
+  have->: (wrepr riscv_reg_size (n - wsize_size ws) != wrepr riscv_reg_size 0).
+  + apply /eqP => /(f_equal wunsigned).
+    rewrite wrepr0 wunsigned0 wunsigned_repr_small; first by lia.
     change U32 with Uptr.
+    change riscv_reg_size with Uptr.
     have := hsr.(sr_bound).
     have! := (wunsigned_range (align_word ws_align ptr)).
     have := wsize_size_pos ws.
@@ -427,7 +425,8 @@ Admitted.
   rewrite /is_label /= eqxx /=.
   rewrite /setcpc /=.
   by rewrite -addnS.
-Qed.*)
+  Local Transparent wsize_size.
+Qed.
 
 Lemma sz_loopP vars s1 s2 n :
   Sv.Subset sz_loop_vars vars ->
@@ -438,8 +437,7 @@ Lemma sz_loopP vars s1 s2 n :
                 (of_estate s3 fn (size pre + size (sz_loop rspi lbl ws)))
       & state_rel_loop vars s1 s3 0 top].
 Proof.
-Admitted.
-(*
+
   move=> hsubset hsr hlt.
   have [s3 [hsem3 hsr3]] := loopP hsubset hsr hlt.
   exists s3; split=> //.
@@ -447,7 +445,7 @@ Admitted.
   apply: (eval_lsem1 hbody) => //.
   by rewrite addn1.
 Qed.
-*)
+
 End LOOP.
 
 Section RESTORE.
@@ -503,8 +501,7 @@ Lemma unrolled_bodyP vars s1 s2 n :
                 (of_estate s3 fn (size pre + n.+1))
       & state_rel_unrolled vars s1 s3 (stk_max - Z.of_nat n.+1 * wsize_size ws) top].
 Proof.
-Admitted.
-(* Local Opaque wsize_size Z.of_nat.
+Local Opaque wsize_size Z.of_nat.
   move=> hsr hlt.
   have hlt': (0 < Z.of_nat n.+1 * wsize_size ws <= stk_max)%Z.
   + split; first by have := wsize_size_pos ws; lia.
@@ -550,7 +547,6 @@ Admitted.
     apply: store_zero_eval_instr => //=.
     + by rewrite /get_var hsr.(sr_vzero).
     + by rewrite /get_var hsr.(sr_rsp); reflexivity.
-    + by rewrite truncate_word_u; reflexivity.
     apply hm'.
   case: hsr => hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound.
   split=> //=.
@@ -587,7 +583,7 @@ Admitted.
     by rewrite WArray.arr_is_align.
   by lia.
 Local Transparent wsize_size Z.of_nat.
-Qed.*)
+Qed.
 
 Lemma sz_unrolledP vars s1 s2 :
   state_rel_unrolled vars s1 s2 stk_max top ->
@@ -635,12 +631,7 @@ Context (rsp_nin : ~ Sv.In rspi stack_zero_loop_vars).
 Context (hlabel : ~~ has (is_label lbl) pre).
 
 Lemma sz_init_no_lbl : ~~ has (is_label lbl) (sz_init rspi ws_align stk_max).
-Proof.
-Admitted.
-(*  rewrite /= has_map has_cat /= /RISCVFopn.li /RISCVFopn.Core.li.
-  case: ifP => // _.
-  by case: Z.div_eucl => ??.
-Qed.*)
+Proof. done. Qed.
 
 Lemma stack_zero_loopP (s1 : estate) :
   valid_between (emem s1) top stk_max ->
@@ -650,8 +641,7 @@ Lemma stack_zero_loopP (s1 : estate) :
                 (of_estate s2 fn (size pre + size (stack_zero_loop rspi lbl ws_align ws stk_max)))
       & state_rel_unrolled stack_zero_loop_vars s1 s2 0 ptr].
 Proof.
-Admitted.
-(*  move=> hvalid hrsp.
+ move=> hvalid hrsp.
   move: hbody; rewrite /stack_zero_loop -!catA => hbody'.
   have hsubset_init: Sv.Subset sz_init_vars stack_zero_loop_vars.
   + move=> x /sv_of_listP hin.
@@ -690,7 +680,7 @@ Admitted.
   apply (lsem_trans hsem3).
   rewrite -!size_cat !catA (size_cat _ (restore_sp _)).
   exact: hsem4.
-Qed.*)
+Qed.
 
 End STACK_ZERO_LOOP.
 
@@ -744,46 +734,27 @@ End STACK_ZERO_UNROLLED.
 
 End RSP.
 
-Lemma sz_init_no_ext_lbl rsp ws_align stk_max :
-  label_in_lcmd (sz_init rsp ws_align stk_max) = [::].
-Proof.
-Admitted.
-(*  rewrite /= map_cat label_in_lcmd_cat /= cats0 /RISCVFopn.li /RISCVFopn.Core.li.
-  by case: ifP => // _; case: Z.div_eucl => ??.
-Qed.*)
-
-Lemma store_zero_no_ext_lbl ii rsp ws off :
-  get_label (MkLI ii (store_zero rsp ws off)) = None.
-Proof.
-Admitted.
-(* by rewrite /store_zero; case: store_mn_of_wsize. 
- Qed. *)
-
 Lemma riscv_stack_zero_cmd_not_ext_lbl szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   label_in_lcmd cmd = [::].
 Proof.
-Admitted.
 
-(*  rewrite /stack_zeroization_cmd.
+ rewrite /stack_zeroization_cmd.
   t_xrbindP=> _.
   case: szs => //.
+  + by move=> [<- _].
   + move=> [<- _].
-    rewrite /stack_zero_loop !label_in_lcmd_cat sz_init_no_ext_lbl.
-    by rewrite /= store_zero_no_ext_lbl.
-  + move=> [<- _].
-    rewrite /stack_zero_unrolled !label_in_lcmd_cat sz_init_no_ext_lbl.
+    rewrite /stack_zero_unrolled !label_in_lcmd_cat.
     rewrite /= cats0.
     rewrite /sz_unrolled.
-    by elim: rev => [//|?? ih] /=; rewrite store_zero_no_ext_lbl.
-Qed.*)
+    by elim: rev => [//|?? ih] /=.
+Qed.
 
 Lemma riscv_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
   stack_zeroization_cmd szs rspn lbl ws_align ws stk_max = ok (cmd, vars) ->
   stack_zeroization_proof.sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars.
 Proof.
-Admitted.
-(*  move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lfd lc
+ move=> hcmd rsp_nin lt_0_stk_max halign le_ws_ws_align lp fn lfd lc
     /negP hlabel hlfd hbody ls ptr hfn hpc hstack hrsp top hvalid.
   have [s2 [hsem hsr]]: [elaborate
     exists s2,
@@ -828,6 +799,6 @@ Admitted.
   + have := hsr.(sr_zero).
     by rewrite wrepr0 GRing.addr0 Z.sub_0_r.
   exact: hsr.(sr_disjoint).
-Qed.*)
+Qed.
 
 End STACK_ZEROIZATION.
