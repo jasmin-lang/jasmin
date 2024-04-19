@@ -5,7 +5,7 @@ open Utils
 
 let parse_and_check arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
-  let check infer ct_list file =
+  let check infer ct_list speculative file =
     let _env, pprog, _ast =
       try Compile.parse_file A.arch_info file with
       | Annot.AnnotationError (loc, code) ->
@@ -23,19 +23,28 @@ let parse_and_check arch call_conv =
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
 
-    let sigs, errs =
-      Ct_checker_forward.ty_prog A.is_ct_sopn ~infer prog ct_list
-    in
-    Format.printf "/* Security types:\n@[<v>%a@]*/@."
-      (pp_list "@ " (Ct_checker_forward.pp_signature prog))
-      sigs;
-    let on_err (loc, msg) =
-      hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
-    in
-    Stdlib.Option.iter on_err errs
+    if speculative then
+      match Sct_checker_forward.ty_prog A.is_ct_sopn prog ct_list with
+      | exception Annot.AnnotationError (loc, code) ->
+          hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
+      | sigs ->
+          Format.printf "/* Security types:\n@[<v>%a@]*/@."
+            (pp_list "@ " Sct_checker_forward.pp_funty)
+            sigs
+    else
+      let sigs, errs =
+        Ct_checker_forward.ty_prog A.is_ct_sopn ~infer prog ct_list
+      in
+      Format.printf "/* Security types:\n@[<v>%a@]*/@."
+        (pp_list "@ " (Ct_checker_forward.pp_signature prog))
+        sigs;
+      let on_err (loc, msg) =
+        hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
+      in
+      Stdlib.Option.iter on_err errs
   in
-  fun infer ct_list file ->
-    match check infer ct_list file with
+  fun infer ct_list speculative file ->
+    match check infer ct_list speculative file with
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
@@ -44,6 +53,10 @@ let parse_and_check arch call_conv =
 let infer =
   let doc = "Infer security contracts" in
   Arg.(value & flag & info [ "infer" ] ~doc)
+
+let speculative =
+  let doc = "Check for S-CT" in
+  Arg.(value & flag & info [ "speculative"; "sct" ] ~doc)
 
 let slice =
   let doc =
@@ -67,9 +80,9 @@ let () =
       `I ("JASMINPATH", "To resolve $(i,require) directives");
     ]
   in
-  let info =
-    Cmd.info "jazzct" ~version:Glob_options.version_string ~doc ~man
-  in
+  let info = Cmd.info "jazzct" ~version:Glob_options.version_string ~doc ~man in
   Cmd.v info
-    Term.(const parse_and_check $ arch $ call_conv $ infer $ slice $ file)
+    Term.(
+      const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative
+      $ file)
   |> Cmd.eval |> exit
