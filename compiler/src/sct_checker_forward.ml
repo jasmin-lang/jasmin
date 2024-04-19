@@ -1457,17 +1457,17 @@ let init_constraint fenv f =
   List.iter do_constraint (parse_user_constraints f.f_annot.f_user_annot);
 
   (* init type for local *)
-  let do_local venv x =
+  let do_local x venv =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
     let _, vty = mk_vty x.v_dloc ~msf:false x ls None in
     Env.add_var env venv x vk vty in
 
-  let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
+  let venv = Sv.fold do_local (locals f) venv in
 
-  let do_spill venv x =
-    Option.map_default (fun sx -> do_local venv sx) venv (Env.add_spill env x) in
+  let do_spill x venv =
+    Option.map_default (fun sx -> do_local sx venv) venv (Env.add_spill env x) in
 
-  let venv = List.fold_left do_spill venv (Sv.elements (spilled f)) in
+  let venv = Sv.fold do_spill (spilled f) venv in
 
   (* infer modmsf and check consistency with user info *)
   let modmsf = modmsf_c fenv f.f_body in
