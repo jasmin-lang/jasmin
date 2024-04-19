@@ -131,6 +131,9 @@
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
   fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
 
+- The deprecated legacy interface to the CT checker has been removed
+  ([PR #769](https://github.com/jasmin-lang/jasmin/pull/769)).
+
 # Jasmin 2023.06.3 — 2024-04-10
 
 ## New features
