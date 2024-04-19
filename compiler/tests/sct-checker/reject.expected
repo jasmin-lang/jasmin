@@ -1,6 +1,6 @@
 File basic.jazz:
 Failed as expected xof_init: "fail/basic.jazz", line 51 (9-14):
-                             speculative constant type checker: return type for state is #[ptr = public, val = secret] it should be less than #[ptr = public, val = { n = public, s = t}]
+                             speculative constant type checker: return type for state is #[ptr = public, val = secret] it should be less than #[ptr = public, val = transient]
 Failed as expected missing_then: "fail/basic.jazz", line 37 (18-19):
                                  speculative constant type checker: the variable m is not known to be a msf, only {
                                    } are

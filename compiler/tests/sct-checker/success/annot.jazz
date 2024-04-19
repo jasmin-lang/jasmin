@@ -8,12 +8,14 @@ fn f(#transient reg u64 x) -> #secret reg u64 {
    return r;
 }
 
-fn id(#poly = k reg u64 arg) -> #poly = { k } reg u64 {
+#[sct="k → k"]
+fn id(reg u64 arg) -> reg u64 {
   _ = #init_msf();
   return arg;
 }
 
-fn id1(#poly = k reg u64 arg) -> #poly = { k } reg u64 {
+#[sct="k → k"]
+fn id1(reg u64 arg) -> reg u64 {
   return arg;
 }
 

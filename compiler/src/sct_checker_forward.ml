@@ -1129,32 +1129,11 @@ let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: annotations) : ulev
         sstrict,   (fun a -> check_allowed a; A.none a; Strict)] in
     A.ensure_uniq filters annot in
 
-  let poly arg =
-    let poly_error loc =
-      A.error ~loc
-        "= ident or = { ident } is expected after “%s”" spoly in
-
-    let mk_poly loc _nid id =
-      if id = stransient || id = spublic || id = ssecret then
-        A.error ~loc
-          "%s not allowed as argument of %s" id spoly;
-      Poly (L.mk_loc loc id) in
-
-    let on_struct loc _nid (s:annotations) =
-      List.iter A.none s;
-      if List.length s <> 1 then poly_error loc;
-      let (s, _) = List.hd s in
-      mk_poly (L.loc s) _nid (L.unloc s) in
-
-    let on_id loc _nid id = mk_poly loc _nid id in
-
-    A.on_attribute ~on_id ~on_struct poly_error arg in
-
   let filters =
     [spublic, (fun a -> A.none a; Public);
      ssecret, (fun a -> A.none a; Secret);
-     stransient, (fun a -> A.none a; Transient);
-     spoly, poly] in
+     stransient, (fun a -> A.none a; Transient)
+     ] in
 
   let filters =
     if msf then (smsf, (fun a -> A.none a; Msf)) :: filters else filters in

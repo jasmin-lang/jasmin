@@ -53,8 +53,6 @@ export fn not_known_as_msf() {
   x = #mov_msf(x);
 }
 
-export fn bad_poly_annot(#poly=public reg u64 x) { [x] = 0; }
-
 export fn msf_in_export(reg u64 p) {
   p = #protect(p, p);
 }
