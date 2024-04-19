@@ -25,11 +25,6 @@ let help_intrinsics = ref false
 type color = | Auto | Always | Never
 let color = ref Auto
 
-let ct_list = ref None
-let infer   = ref false
-
-let sct_list = ref None
-
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
@@ -105,26 +100,6 @@ let set_color c =
   in
   color := assoc c
 
-let set_ct () =  
-  if !ct_list = None then ct_list := Some []
-
-let set_ct_on s = 
-  ct_list := 
-    Some (match !ct_list with
-          | None -> [s]
-          | Some l -> s::l)
-
-let set_sct () =
-  if !sct_list = None then sct_list := Some []
-
-let set_sct_on s =
-  sct_list :=
-    Some (match !sct_list with
-          | None -> [s]
-          | Some l -> s::l)
-
-let sct_comp_pass = ref Compiler.ParamsExpansion
-
 let parse_jasmin_path s =
   s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
 
@@ -185,9 +160,6 @@ let symbol2pass =
   List.iter (fun s -> Hashtbl.add tbl (fst (print_strings s)) s) Compiler.compiler_step_list;
   fun s -> Hashtbl.find tbl s
 
-let set_sct_comp_pass s =
- sct_comp_pass := symbol2pass s
-
 let print_option p =
   let s, msg = print_strings p in
   ("-p"^s, Arg.Unit (set_printing p), " Print program after "^msg)
@@ -212,12 +184,6 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename] Use filename as output destination for easycrypt extraction";
     "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification";
-    "-checkCT", Arg.Unit set_ct         , " Check that the full program is constant time (using a type system) (deprecated)";
-    "-checkCTon", Arg.String set_ct_on  , "[f] Check that the function [f] is constant time (using a type system) (deprecated)";
-    "-infer"    , Arg.Set infer         , " Infer security level annotations of the constant time type system (deprecated)";
-    "-checkSCT", Arg.Unit set_sct       , " Check that the full program is speculative constant time (using a type system)";
-    "-checkSCTon", Arg.String set_sct_on, "[f] Check that the function [f] is speculative constant time (using a type system)";
-    "-checkSCTafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), " Run SCT checker after the given pass";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
     "-safety", Arg.Unit set_safety      , " Generate model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";

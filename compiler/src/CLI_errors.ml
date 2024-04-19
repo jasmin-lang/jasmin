@@ -58,8 +58,4 @@ let check_options () =
   then warning Deprecated Location.i_dummy
          "the [-latex] option has been deprecated since March 2023; use [jazz2tex] instead";
 
-  if Option.is_some !ct_list || !infer
-  then warning Deprecated Location.i_dummy
-         "the command-line options for constant-time have been deprecated since March 2024; use [jazzct] instead";
-
   List.iter chk_out_file [ outfile; latexfile; ecfile ]
