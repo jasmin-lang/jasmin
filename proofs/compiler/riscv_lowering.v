@@ -173,14 +173,14 @@ Definition lower_swap ty lvs es : option (seq copn_args) :=
 
 Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option (seq copn_args):=  
   match lvs, es with
-  | [:: r1; r2 ], [:: Pvar x ; Pvar y ] =>
-    if Sv.mem x.(gv) (vrv r1) || Sv.mem y.(gv) (vrv r1) then
+  | [:: Lvar r1; Lvar r2 ], [:: Pvar x ; Pvar y ] =>
+    if (r1 == x.(gv):>var) || (r1 == y.(gv):>var) then
     None
     else
     (* Arbitrary choice : r1 computed before r2*)  
     Some [::
-      ([:: r1], Oasm(BaseOp (None, MULHU)), es);
-      ([:: r2], Oasm(BaseOp (None, MUL)), es)]
+      ([:: Lvar r1], Oasm(BaseOp (None, MULHU)), es);
+      ([:: Lvar r2], Oasm(BaseOp (None, MUL)), es)]
   | _, _ => None
   end.
 
