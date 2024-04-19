@@ -72,7 +72,6 @@ Lemma store_zero_eval_instr lp ii ws (v: var_i) off (ls:lstate) (w1 w2 : word Up
   eval_instr lp i ls = ok (lnext_pc (lset_mem ls m')).
 Proof.
   move => ws_small hvzero hv hm'.
-  Print store_zero.
   rewrite /eval_instr /=.
   rewrite hvzero /=.
   rewrite /exec_sopn /= (truncate_word_le _ ws_small) zero_extend0 /=.

@@ -708,11 +708,10 @@ Section STACK_ZEROIZATION.
 
 Lemma riscv_hszparams : h_stack_zeroization_params (ap_szp riscv_params).
 Proof.
-Admitted.
-  (* split.
+  split.
   + exact: riscv_stack_zero_cmd_not_ext_lbl.
   exact: riscv_stack_zero_cmdP.
-Qed. *)
+Qed.
 
 End STACK_ZEROIZATION.
 

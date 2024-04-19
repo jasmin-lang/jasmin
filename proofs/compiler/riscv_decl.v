@@ -43,7 +43,7 @@ Qed.
 Instance eqTC_register : eqTypeC register :=
   { ceqP := register_eq_axiom }.
 
-Canonical arm_register_eqType := @ceqT_eqType _ eqTC_register.
+Canonical riscv_register_eqType := @ceqT_eqType _ eqTC_register.
 
 Definition registers :=
   [::  RA;  SP;  GP;  TP;  X5;  X6;  X7;  X8;

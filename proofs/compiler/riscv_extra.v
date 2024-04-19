@@ -123,11 +123,11 @@ Definition assemble_extra
       | [:: LLvar x; LLvar y], [:: Rexpr (Fvar z); Rexpr (Fvar w)] =>
         (* x, y = swap(z, w) *)
         Let _ := assert (v_var x != v_var w)
-          (E.internal_error ii "bad arm swap : x = w") in
+          (E.internal_error ii "bad risc-v swap : x = w") in
         Let _ := assert (v_var y != v_var x)
-          (E.internal_error ii "bad arm swap : y = x") in
+          (E.internal_error ii "bad risc-v swap : y = x") in
         Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y; z; w])
-          (E.error ii "arm swap only valid for register of type u32") in
+          (E.error ii "risc-v swap only valid for register of type u32") in
 
         ok [:: ((None, XOR), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fvar w)]);
                (* x = z ^ w *)
@@ -135,10 +135,10 @@ Definition assemble_extra
                (* y = x ^ w = z ^ w ^ w = z *)
                ((None, XOR), [:: LLvar x], [:: Rexpr (Fvar x); Rexpr (Fvar y)])
            ]   (* x = x ^ y = z ^ w ^ z = w *)
-      | _, _ => Error (E.error ii "only register is accepted on source and destination of the swap instruction on arm")
+      | _, _ => Error (E.error ii "only register is accepted on source and destination of the swap instruction on risc-v")
       end
     else
-      Error (E.error ii "arm swap only valid for register of type u32")
+      Error (E.error ii "risc-v swap only valid for register of type u32")
   end.
 
 #[ export ]
