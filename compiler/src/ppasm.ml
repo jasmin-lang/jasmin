@@ -483,12 +483,12 @@ module Printer (BP:BPrinter) = struct
     List.iter (fun (n, d) ->
         let name = n.fn_name in
         let export = d.asm_fd_export in
-        if export then
+        if export then begin
           let name = escape name in
         pp_gens fmt [
           `Label (mangle name);
           `Label name
-        ];
+        ] end;
   
         pp_instrs name fmt d.asm_fd_body;
   

@@ -208,7 +208,7 @@ let pp_var_decl pp_var pp_size fmt v =
 
 let pp_call_conv fmt =
   function
-  | FInfo.Export -> Format.fprintf fmt "export@ "
+  | FInfo.Export _ -> Format.fprintf fmt "export@ "
   | FInfo.Internal -> Format.fprintf fmt "inline@ "
   | FInfo.Subroutine _ -> ()
 

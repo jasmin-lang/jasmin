@@ -275,7 +275,7 @@ Section ADD_INIT.
        vm_eq (evm s1) vm1 ->
        exists2 vm2,
          vm_eq (evm s2) vm2
-         & sem (with_vm s1 vm1) (with_vm s2 vm2))%vm
+         & sem (with_vm s1 vm1) (with_vm s2 vm2))
     (only parsing).
 
   Definition lift_semI s1 i s2 :=

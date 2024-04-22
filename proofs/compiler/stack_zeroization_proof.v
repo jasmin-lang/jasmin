@@ -110,7 +110,8 @@ Lemma stack_zeroization_lfd_invariants rspn fn lfd lfd' :
     , lfd_export lfd = lfd_export lfd'
     , lfd_callee_saved lfd = lfd_callee_saved lfd'
     , lfd_stk_max lfd = lfd_stk_max lfd'
-    & lfd_frame_size lfd = lfd_frame_size lfd'].
+    & lfd_frame_size lfd = lfd_frame_size lfd'
+    /\ lfd_align_args lfd = lfd_align_args lfd'].
 Proof.
   rewrite /stack_zeroization_lfd.
   case: szs_of_fn => [[szs ws]|]; last by move=> [<-].
