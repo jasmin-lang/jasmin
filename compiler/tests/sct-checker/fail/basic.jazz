@@ -37,13 +37,13 @@ fn missing_then(#transient reg u64 a){
   a = #protect(a, m);
 }
 
-#[constraints="p <= public, t <= transient, secret <= s"]
+#[sct="public × { ptr: public, val: transient } × { ptr: public, val: secret } → { ptr: public, val: transient }"]
 fn xof_init(
-  #public reg u64 j,
-  #[poly = p, poly = t] reg ptr u64[25] state,
-  #[poly = p, poly = s] reg ptr u8[32] rho)
+  reg u64 j,
+  reg ptr u64[25] state,
+  reg ptr u8[32] rho)
   ->
-  #[poly = p, poly = t] reg ptr u64[25]
+  reg ptr u64[25]
 {
   reg u64 t;
   t = rho[u64 j];

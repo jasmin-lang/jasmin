@@ -21,7 +21,6 @@ let () =
       "update_msf_not_msf";
       "msf_trans";
       "not_known_as_msf";
-      "bad_poly_annot";
       "msf_in_export";
       "should_be_a_msf";
       "at_least_transient";

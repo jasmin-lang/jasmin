@@ -73,6 +73,12 @@
   when the `-g` command-line flag is given (off by default).
   ([PR #684](https://github.com/jasmin-lang/jasmin/pull/684)).
 
+- The Constant-Time security checker also accepts annotations for the
+  *Speculative*-Constant-Time checker (`transient` and `msf` are interpreted as
+  `public`; information relative to pointers or to mis-speculated executions is
+  ignored)
+  ([PR #773](https://github.com/jasmin-lang/jasmin/pull/773)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators

@@ -184,7 +184,7 @@ and modmsf_c fenv c =
 let error ~loc =
   hierror ~loc:(Lone loc) ~kind:"speculative constant type checker"
 
-let warn ~loc = warning SCTchecker loc
+let warn ~loc = warning SCTchecker (L.i_loc0 loc)
 
 (* --------------------------------------------------------- *)
 (* Inference of the variables that need to contain msf       *)
@@ -1129,32 +1129,11 @@ let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: annotations) : ulev
         sstrict,   (fun a -> check_allowed a; A.none a; Strict)] in
     A.ensure_uniq filters annot in
 
-  let poly arg =
-    let poly_error loc =
-      A.error ~loc
-        "= ident or = { ident } is expected after “%s”" spoly in
-
-    let mk_poly loc _nid id =
-      if id = stransient || id = spublic || id = ssecret then
-        A.error ~loc
-          "%s not allowed as argument of %s" id spoly;
-      Poly (L.mk_loc loc id) in
-
-    let on_struct loc _nid (s:annotations) =
-      List.iter A.none s;
-      if List.length s <> 1 then poly_error loc;
-      let (s, _) = List.hd s in
-      mk_poly (L.loc s) _nid (L.unloc s) in
-
-    let on_id loc _nid id = mk_poly loc _nid id in
-
-    A.on_attribute ~on_id ~on_struct poly_error arg in
-
   let filters =
     [spublic, (fun a -> A.none a; Public);
      ssecret, (fun a -> A.none a; Secret);
-     stransient, (fun a -> A.none a; Transient);
-     spoly, poly] in
+     stransient, (fun a -> A.none a; Transient)
+     ] in
 
   let filters =
     if msf then (smsf, (fun a -> A.none a; Msf)) :: filters else filters in
@@ -1291,14 +1270,11 @@ let init_constraint fenv f =
       | _, None ->
         error ~loc:(x.v_dloc)
           "invalid security annotations %a" pp_var x
-      | [], Some n ->
-         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
       | [Msf], Some n ->
          if not msf then error_msf loc;
          Some true, Some (to_vty n)
-      | _ :: _, Some _ ->
-         error ~loc:(x.v_dloc)
-          "security annotations %a redundant with security signature" pp_var x
+      | _, Some n ->
+         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
     in
     let vty =
       match ovty with
@@ -1369,22 +1345,21 @@ let init_constraint fenv f =
         if b <> Sv.mem x msfs then begin
           let loc = x.v_dloc in
           if b
-          then warn ~loc:(L.i_loc0 loc) "%a does not need to be an MSF" pp_var x
+          then warn ~loc:loc "%a does not need to be an MSF" pp_var x
           else error ~loc "%a should be an MSF" pp_var x
         end;
         b in
     if export then
-      begin match vty with
-      | Direct l ->
-        begin
+      begin let lvls = match vty with
+      | Indirect (p, v) -> [ p; v ]
+      | Direct v -> [ v ]
+      in List.iter begin fun l ->
           try VlPairs.add_le (Env.public env, Env.secret env) l
           with Lvl.Unsat _unsat ->
             error ~loc:(x.v_dloc)
               "security annotation for %a should be at least %s"
                  pp_var x stransient
-        end
-
-      | _ -> assert false
+        end lvls
       end;
     let venv = Env.add_var env venv x vk vty in
     let ty = if msf then IsMsf else IsNormal vty in
