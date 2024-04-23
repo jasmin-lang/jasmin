@@ -79,6 +79,11 @@
   ignored)
   ([PR #773](https://github.com/jasmin-lang/jasmin/pull/773)).
 
+- The Constant-Time security checker optionally runs the first compilation
+  passes before checking; the last pass to run is configured through the
+  `--compile` command line argument
+  ([PR #788](https://github.com/jasmin-lang/jasmin/pull/788)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators
