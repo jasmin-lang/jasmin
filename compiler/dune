@@ -16,6 +16,14 @@
  (libraries jasminc))
 
 (executable
+ (public_name albespin)
+ (name albespin)
+ (modules albespin)
+ (flags (:standard -rectypes))
+ (modes byte exe)
+ (libraries jasminc))
+
+(executable
  (public_name jazz2tex)
  (name jazz2tex)
  (modules jazz2tex)
