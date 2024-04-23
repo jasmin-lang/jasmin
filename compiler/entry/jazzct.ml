@@ -5,7 +5,7 @@ open Utils
 
 let parse_and_check arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
-  let check infer ct_list speculative file =
+  let check infer ct_list speculative pass file =
     let _env, pprog, _ast =
       try Compile.parse_file A.arch_info file with
       | Annot.AnnotationError (loc, code) ->
@@ -21,6 +21,26 @@ let parse_and_check arch call_conv =
       try Compile.preprocess A.reg_size A.asmOp pprog
       with Typing.TyError (loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
+    in
+
+    let prog =
+      if pass <= Compiler.ParamsExpansion then prog
+      else
+        let module E = struct
+          exception Found
+        end in
+        let res = ref prog in
+        match
+          Compile.compile
+            (module A)
+            (fun ~debug:_ step prog ->
+              if step = pass then (
+                res := prog;
+                raise E.Found))
+            prog (Conv.cuprog_of_prog prog)
+        with
+        | exception E.Found -> !res
+        | _ -> assert false
     in
 
     if speculative then
@@ -43,8 +63,8 @@ let parse_and_check arch call_conv =
       in
       Stdlib.Option.iter on_err errs
   in
-  fun infer ct_list speculative file ->
-    match check infer ct_list speculative file with
+  fun infer ct_list speculative compile file ->
+    match check infer ct_list speculative compile file with
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
@@ -66,6 +86,20 @@ let slice =
   in
   Arg.(value & opt_all string [] & info [ "slice"; "only"; "on" ] ~doc)
 
+let compile =
+  let alts =
+    List.map
+      (fun s -> (fst (Glob_options.print_strings s), s))
+      Compiler.(List.filter (( > ) StackAllocation) compiler_step_list)
+  in
+  let doc =
+    Format.asprintf "Check for security after the given compilation pass (%s)."
+      (Arg.doc_alts_enum alts)
+  in
+
+  let passes = Arg.enum alts in
+  Arg.(value & opt passes Typing & info [ "compile"; "after" ] ~doc)
+
 let file =
   let doc = "The Jasmin source file to verify" in
   Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"JAZZ" ~doc)
@@ -84,5 +118,5 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative
-      $ file)
+      $ compile $ file)
   |> Cmd.eval |> exit
