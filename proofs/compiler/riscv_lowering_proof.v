@@ -103,7 +103,7 @@ Proof.
   move=> ii i s1 s2 _ hi. exact: hi.
 Qed.
 
-(* Factorize with x86 *)
+(* TODO: factorize with x86 *)
 Lemma to_word_m sz sz' a w :
   to_word sz a = ok w ->
   (sz' ≤ sz)%CMP ->
@@ -114,6 +114,7 @@ Proof.
   by rewrite truncate_word_le ?zero_extend_idem // (cmp_le_trans sz'_le_sz sz_le_n).
 Qed.
 
+(* TODO: factorize with x86 *)
 Lemma check_shift_amountP e sa s z w :
   check_shift_amount e = Some sa ->
   sem_pexpr true (p_globs p) s e = ok z ->
@@ -146,20 +147,120 @@ Proof.
   by rewrite wand_zero_extend; last exact: wsize_le_U8.
 Qed.
 
-(* TRYING TO REFACTOR WIP *)
-(* #[ local ]
-Lemma Hassgn_op2 op2 p0 p1 s s1 v v' lv op2' :
-Let v1 := sem_pexpr true (p_globs p) s p0 in 
-(Let v2 := sem_pexpr true (p_globs p) s p1 in 
-sem_sop2 op2 v1 v2) = ok v ->
-truncate_val (sword riscv_reg_size) v = ok v' ->
-write_lval true (p_globs p) lv v' s = ok s1 ->
-is_sword (type_of_op2 op2).1.1 ->
-is_sword (type_of_op2 op2).1.2 ->
-sem_sop2_typed op2 = (fun t1 t2 => Let t3 := exec_sopn op2' [::(to_val t1); (to_val t2)] in 
-of_val _ t3) ->
-sem_sopn (p_globs p) op2' s [::lv] [:: p0; p1] = ok s1.
-Proof. *)
+#[ local ]
+Lemma Hassgn_op2_generic s e1 e2 v1 v2 op2 v ws v' lv s1 (op2' : sopn) :
+  sem_pexpr true (p_globs p) s e1 = ok v1 ->
+  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  sem_sop2 op2 v1 v2 = ok v ->
+  truncate_val (sword ws) v = ok v' ->
+  write_lval true (p_globs p) lv v' s = ok s1 ->
+  forall ws1 ws2 ws3 ws1' ws2'
+    (eq1 : type_of_op2 op2 = (sword ws1, sword ws2, sword ws3))
+    (eq2 : tin (sopn.get_instr_desc op2') = [::sword ws1'; sword ws2'])
+    (eq3 : tout (sopn.get_instr_desc op2') = [:: sword ws]),
+  (ws <= ws3)%CMP
+  /\ exists w1 w2, [/\
+      to_word ws1 v1 = ok w1,
+      to_word ws2 v2 = ok w2 &
+      forall e1' e2' w1' w2'
+        (hcmp1 : (ws1' <= ws1)%CMP)
+        (hcmp2 : (ws2' <= ws2)%CMP),
+        sem_pexpr true (p_globs p) s e1' >>= to_word ws1 = ok w1' ->
+        sem_pexpr true (p_globs p) s e2' >>= to_word ws2 = ok w2' ->
+        Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
+        ok (zero_extend ws w)
+        = ecast l (sem_prod l _) eq2
+            (ecast l (sem_prod _ (exec (sem_tuple l))) eq3
+              (semi (sopn.get_instr_desc op2')))
+            (zero_extend ws1' w1') (zero_extend ws2' w2') ->
+        sem_sopn (p_globs p) op2' s [::lv] [:: e1'; e2'] = ok s1].
+Proof.
+  move=> ok_v1 ok_v2 ok_v htrunc hwrite ws1 ws2 ws3 ws1' ws2' eq1 eq2 eq3.
+  move: ok_v.
+  rewrite /sem_sop2; move: (sem_sop2_typed op2).
+  rewrite -> eq1 => /= sem_sop2_typed ok_v.
+  rewrite /sem_sopn /= /exec_sopn /= /sopn_sem; move: (semi (sopn.get_instr_desc op2')).
+  rewrite -> eq2, -> eq3 => semi.
+
+  move: ok_v.
+  t_xrbindP=> w1 ok_w1 w2 ok_w2 w ok_w ?; subst.
+  move: htrunc; rewrite /truncate_val /=.
+  t_xrbindP=> _ /truncate_wordP [hcmp3 ->] ?; subst.
+  split=> //.
+  rewrite ok_w1 ok_w2 /=.
+  exists w1, w2; split=> //.
+  t_xrbindP=> e1' e2' w1' w2' hcmp1 hcmp2 v1' ok_v1' ok_w1' v2' ok_v2' ok_w2' eq_sem.
+  rewrite ok_v1' ok_v2' /= (to_word_m ok_w1' hcmp1) (to_word_m ok_w2' hcmp2) /=.
+  by rewrite -eq_sem ok_w /= hwrite.
+Qed.
+
+#[ local ]
+Lemma Hassgn_op2 s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
+  sem_pexpr true (p_globs p) s e1 = ok v1 ->
+  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  sem_sop2 op2 v1 v2 = ok v ->
+  truncate_val (sword U32) v = ok v' ->
+  write_lval true (p_globs p) lv v' s = ok s1 ->
+  forall ws
+    (eq1 : type_of_op2 op2 = (sword ws, sword ws, sword ws))
+    (eq2 : tin (sopn.get_instr_desc op2') = [::sword U32; sword U32])
+    (eq3 : tout (sopn.get_instr_desc op2') = [:: sword U32]),
+  (U32 <= ws)%CMP
+  /\ exists w1 w2, [/\
+      to_word ws v1 = ok w1,
+      to_word ws v2 = ok w2 &
+      Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
+      ok (zero_extend U32 w)
+      = ecast l (sem_prod l _) eq2
+          (ecast l (sem_prod _ (exec (sem_tuple l))) eq3
+            (semi (sopn.get_instr_desc op2')))
+          (zero_extend U32 w1) (zero_extend U32 w2) ->
+      sem_sopn (p_globs p) op2' s [::lv] [:: e1; e2] = ok s1].
+Proof.
+  move=> ok_v1 ok_v2 ok_v htrunc hwrite ws eq1 eq2 eq3.
+  have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+    Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite eq1 eq2 eq3.
+  split=> //.
+  exists w1, w2; split=> //.
+  apply sem_correct=> //.
+  + by rewrite ok_v1.
+  by rewrite ok_v2.
+Qed.
+
+#[ local ]
+Lemma Hassgn_op2_shift s e1 e2 v1 v2 op2 v v' lv s1 (op2' : sopn) :
+  sem_pexpr true (p_globs p) s e1 = ok v1 ->
+  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  sem_sop2 op2 v1 v2 = ok v ->
+  truncate_val (sword U32) v = ok v' ->
+  write_lval true (p_globs p) lv v' s = ok s1 ->
+  forall ws
+    (eq1 : type_of_op2 op2 = (sword ws, sword U8, sword ws))
+    (eq2 : tin (sopn.get_instr_desc op2') = [::sword U32; sword U8])
+    (eq3 : tout (sopn.get_instr_desc op2') = [:: sword U32]),
+  (U32 <= ws)%CMP
+  /\ exists w1 w2, [/\
+      to_word ws v1 = ok w1,
+      to_word U8 v2 = ok w2 &
+      forall e2' w2',
+        sem_pexpr true (p_globs p) s e2' >>= to_word U8 = ok w2' ->
+        Let w := ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 in
+        ok (zero_extend U32 w)
+        = ecast l (sem_prod l _) eq2
+            (ecast l (sem_prod _ (exec (sem_tuple l))) eq3
+              (semi (sopn.get_instr_desc op2')))
+            (zero_extend U32 w1) w2' ->
+        sem_sopn (p_globs p) op2' s [::lv] [:: e1; e2'] = ok s1].
+Proof.
+  move=> ok_v1 ok_v2 ok_v htrunc hwrite ws eq1 eq2 eq3.
+  have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+    Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite eq1 eq2 eq3.
+  split=> //.
+  exists w1, w2; split=> //.
+  move=> e2' w2' ok_w2'; rewrite -(zero_extend_u w2').
+  apply sem_correct=> //.
+  by rewrite ok_v1.
+Qed.
 
 #[ local ]
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
@@ -312,347 +413,69 @@ Proof.
     rewrite truncate_word_le //=.
     by rewrite hwrite.
 
-  move => s p0 p1 hseme.
-  rewrite /lower_Papp2 //=.
-  rewrite /chk_ws_reg.
+  t_xrbindP=> s e1 e2 v1 ok_v1 v2 ok_v2 ok_v.
+  rewrite /lower_Papp2 /chk_ws_reg.
   case: eqP => //= ?; subst.
-  case: s hseme => //= o hseme.
-  + case: o hseme => //= w hseme.
-    case: is_wconst => //=.
-    + move => _ [] <- <- <- //=.
-      rewrite /sem_sopn /= .
-      move: hseme.
-      t_xrbindP.
-      move => z0 /= -> //= z1 hseme.
-      rewrite /sem_sop2 /=.
-      t_xrbindP.
-      move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-      move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-      rewrite hseme /= /exec_sopn /= /app_sopn.
-      move: htrunc.
-      rewrite /truncate_val /=.
-      t_xrbindP => z /truncate_wordP.
-      move=> [] hcmp' -> ?; subst.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      move=> /=.
-      rewrite wadd_zero_extend // in hwrite.
-      rewrite !zero_extend_idem // in hwrite.
-      by rewrite hwrite.
-
-    move => [] <- <- <- //=.
-    rewrite /sem_sopn /= .
-    move: hseme.
-    t_xrbindP.
-    move => z0 /= -> //= z1 hseme.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    rewrite hseme /= /exec_sopn /= /app_sopn.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    move=> /=.
-    rewrite wadd_zero_extend // in hwrite.
-    rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite.
-
-  + case: o hseme => // ws hseme.
-    rewrite /sem_sopn /= .
-    move=> [] <- <- <-.
-    move: hseme.
-    t_xrbindP.
-    move => z0 /= -> //= z1 hseme.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> _ /to_wordI' [] ws' [] w' [] hcmp -> ->.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    rewrite hseme /= /exec_sopn /= /app_sopn.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    move=> /=.
-    rewrite wmul_zero_extend // in hwrite.
-    rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite.
-
-  + case: o hseme => //= w hseme.
-    case: is_wconst => //=.
-    + move => _ [] <- <- <- //=.
-      rewrite /sem_sopn /= .
-      move: hseme.
-      t_xrbindP.
-      move => z0 /= -> //= z1 hseme.
-      rewrite /sem_sop2 /=.
-      t_xrbindP.
-      move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-      move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-      rewrite hseme /= /exec_sopn /= /app_sopn.
-      move: htrunc.
-      rewrite /truncate_val /=.
-      t_xrbindP => z /truncate_wordP.
-      move=> [] hcmp' -> ?; subst.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      move=> /=.
-      rewrite wsub_zero_extend // in hwrite.
-      rewrite !zero_extend_idem // in hwrite.
-      by rewrite hwrite.
-
-    move => [] <- <- <- //=.
-    rewrite /sem_sopn /= .
-    move: hseme.
-    t_xrbindP.
-    move => z0 /= -> //= z1 hseme.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    rewrite hseme /= /exec_sopn /= /app_sopn.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    move=> /=.
-    rewrite wsub_zero_extend // in hwrite.
-    rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite.
-
-  + case: is_wconst => //=.
-    + move => _ [] <- <- <- //=.
-      rewrite /sem_sopn /= .
-      move: hseme.
-      t_xrbindP.
-      move => z0 /= -> //= z1 hseme.
-      rewrite /sem_sop2 /=.
-      t_xrbindP.
-      move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-      move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-      rewrite hseme /= /exec_sopn /= /app_sopn.
-      move: htrunc.
-      rewrite /truncate_val /=.
-      t_xrbindP => z /truncate_wordP.
-      move=> [] hcmp' -> ?; subst.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      move=> /=.
-      rewrite -wand_zero_extend // in hwrite.
-      rewrite !zero_extend_idem // in hwrite.
-      by rewrite hwrite.
-
-    move => [] <- <- <- //=.
-    rewrite /sem_sopn /= .
-    move: hseme.
-    t_xrbindP.
-    move => z0 /= -> //= z1 hseme.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    rewrite hseme /= /exec_sopn /= /app_sopn.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    move=> /=.
-    rewrite -wand_zero_extend // in hwrite.
-    rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite.
-
-  + case: is_wconst => //=.
-    + move => _ [] <- <- <- //=.
-      rewrite /sem_sopn /= .
-      move: hseme.
-      t_xrbindP.
-      move => z0 /= -> //= z1 hseme.
-      rewrite /sem_sop2 /=.
-      t_xrbindP.
-      move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-      move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-      rewrite hseme /= /exec_sopn /= /app_sopn.
-      move: htrunc.
-      rewrite /truncate_val /=.
-      t_xrbindP => z /truncate_wordP.
-      move=> [] hcmp' -> ?; subst.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      move=> /=.
-      rewrite -wor_zero_extend // in hwrite.
-      rewrite !zero_extend_idem // in hwrite.
-      by rewrite hwrite.
-
-    move => [] <- <- <- //=.
-    rewrite /sem_sopn /= .
-    move: hseme.
-    t_xrbindP.
-    move => z0 /= -> //= z1 hseme.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    rewrite hseme /= /exec_sopn /= /app_sopn.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    move=> /=.
-    rewrite -wor_zero_extend // in hwrite.
-    rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite.
-
-  + case: is_wconst => //=.
-    + move => _ [] <- <- <- //=.
-      rewrite /sem_sopn /= .
-      move: hseme.
-      t_xrbindP.
-      move => z0 /= -> //= z1 hseme.
-      rewrite /sem_sop2 /=.
-      t_xrbindP.
-      move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-      move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-      rewrite hseme /= /exec_sopn /= /app_sopn.
-      move: htrunc.
-      rewrite /truncate_val /=.
-      t_xrbindP => z /truncate_wordP.
-      move=> [] hcmp' -> ?; subst.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-      move=> /=.
-      rewrite -wxor_zero_extend // in hwrite.
-      rewrite !zero_extend_idem // in hwrite.
-      by rewrite hwrite.
-
-    move => [] <- <- <- //=.
-    rewrite /sem_sopn /= .
-    move: hseme.
-    t_xrbindP.
-    move => z0 /= -> //= z1 hseme.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> _ /to_wordI' [] ws [] w' [] hcmp -> ->.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    rewrite hseme /= /exec_sopn /= /app_sopn.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;eassumption.
-    move=> /=.
-    rewrite -wxor_zero_extend // in hwrite.
-    rewrite !zero_extend_idem // in hwrite.
-    by rewrite hwrite.        
-
-  + case: o hseme => // hseme.
+  case: s ok_v => //= o ok_v.
+  + case: o ok_v => //= ws ok_v.
+    move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    by apply sem_correct; rewrite /= wadd_zero_extend.
+  + case: o ok_v => //= ws ok_v.
+    move=> [<- <- <-].
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    by apply sem_correct; rewrite /= wmul_zero_extend.
+  + case: o ok_v => //= ws ok_v.
+    move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    by apply sem_correct; rewrite /= wsub_zero_extend.
+  + move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    by apply sem_correct; rewrite /= -wand_zero_extend.
+  + move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    by apply sem_correct; rewrite /= -wor_zero_extend.
+  + move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    by apply sem_correct; rewrite /= -wxor_zero_extend.
+  + case: o ok_v => // ok_v.
     case good_shift: check_shift_amount => [ sa | ] //.
-    move: good_shift => /check_shift_amountP.
-    move: hseme.
-    t_xrbindP.
-    move => z0 ok_z0 z1 ok_z1.
-    rewrite /sem_sop2 /=.
-    t_xrbindP.
-    move=> zo /to_wordI' [] ws [] w' [] hcmp ? ?; subst.
-    move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-    move=> /(_ _ _ _ ok_z1) /=.
-    rewrite truncate_word_le //. 
-    move=> /(_ _ erefl) /=.
-    move=> [hread [shift]] ok_shift eq_sem_shift.
-    move => [] <- <- <- //=.
-    case: is_wconst => //=.
-    + move=> _.
-      rewrite /sem_sopn /exec_sopn /= /app_sopn.
-      rewrite ok_z0 /=.
-      move: ok_shift.
-      t_xrbindP.
-      move=> sa' -> /= ok_shift.
-      move: htrunc.
-      rewrite /truncate_val /=.
-      t_xrbindP => z /truncate_wordP.
-      move=> [] hcmp' -> ?; subst.
-      rewrite truncate_word_le; last by apply: cmp_le_trans;
-      eassumption.
-      rewrite /= ok_shift /=.
-      move: hwrite.
-      rewrite /sem_shr /= zero_extend_u eq_sem_shift /sem_shift.
-      by move => ->.
-    rewrite /sem_sopn /exec_sopn /= /app_sopn.
-    rewrite ok_z0 /=.
-    move: ok_shift.
-    t_xrbindP.
-    move=> sa' -> /= ok_shift.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;
-    eassumption.
-    rewrite /= ok_shift /=.
-    move: hwrite.
-    rewrite /sem_shr /= zero_extend_u eq_sem_shift /sem_shift.
-    by move => ->.
-
-  case: o hseme => // -[] // hseme.
+    move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [_ [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
+    apply (sem_correct _ _ ok_wa).
+    by rewrite /= !zero_extend_u /sem_shr eq_shift.
+  case: o ok_v => // -[] // ok_v.
   case good_shift: check_shift_amount => [ sa | ] //.
-  move: good_shift => /check_shift_amountP.
-  move: hseme.
-  t_xrbindP.
-  move => z0 ok_z0 z1 ok_z1.
-  rewrite /sem_sop2 /=.
-  t_xrbindP.
-  move=> zo /to_wordI' [] ws [] w' [] hcmp ? ?; subst.
-  move=> wz2 /to_wordI' [] ws2 [] w2' [] hcmp2 ???; subst.
-  move=> /(_ _ _ _ ok_z1) /=.
-  rewrite truncate_word_le //. 
-  move=> /(_ _ erefl) /=.
-  move=> [hread [shift]] ok_shift eq_sem_shift.
-  move => [] <- <- <- //=.
-  case: is_wconst => //=.
-  + move=> _.
-    rewrite /sem_sopn /exec_sopn /= /app_sopn.
-    rewrite ok_z0 /=.
-    move: ok_shift.
-    t_xrbindP.
-    move=> sa' -> /= ok_shift.
-    move: htrunc.
-    rewrite /truncate_val /=.
-    t_xrbindP => z /truncate_wordP.
-    move=> [] hcmp' -> ?; subst.
-    rewrite truncate_word_le; last by apply: cmp_le_trans;
-    eassumption.
-    rewrite /= ok_shift /=.
-    move: hwrite.
-    rewrite /sem_shl /= zero_extend_u eq_sem_shift /sem_shift.
-    by move => ->.
-  rewrite /sem_sopn /exec_sopn /= /app_sopn.
-  rewrite ok_z0 /=.
-  move: ok_shift.
-  t_xrbindP.
-  move=> sa' -> /= ok_shift.
-  move: htrunc.
-  rewrite /truncate_val /=.
-  t_xrbindP => z /truncate_wordP.
-  move=> [] hcmp' -> ?; subst.
-  rewrite truncate_word_le; last by apply: cmp_le_trans;
-  eassumption.
-  rewrite /= ok_shift /=.
-  move: hwrite.
-  rewrite /sem_shl /= zero_extend_u eq_sem_shift /sem_shift.
-  by move => ->.
+  move=> [<- <- <-].
+  rewrite !fun_if if_same.
+  set op2' := Oasm _.
+  have [_ [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+    Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+  have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
+  apply (sem_correct _ _ ok_wa).
+  by rewrite /= !zero_extend_u /sem_shl eq_shift.
 Qed.
-
 
 #[ local ]
 Lemma Hopn : sem_Ind_opn p Pi_r.
