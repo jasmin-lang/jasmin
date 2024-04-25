@@ -335,49 +335,22 @@ Section ASM_GEN.
 (* FIXME: the following line fixes type inference with Coq 8.16 *)
 Local Instance the_asm : asm _ _ _ _ _ _ := _.
 
+(* TODO: move *)
+Lemma negb_wlt ws sg (w1 w2 : word ws) : ~~ (wlt sg w1 w2) = wle sg w2 w1.
+Proof. by case: sg => /=; rewrite -Z.leb_antisym. Qed.
+
 Lemma condt_notP rf c b :
   riscv_eval_cond rf c = ok b
   -> riscv_eval_cond rf (condt_not c) = ok (negb b).
 Proof.
   case: c => c x y.
-  case: c => [| | sg | sg].
-  rewrite /riscv_eval_cond /=.
-  by move=> [] <-.
-  
-  rewrite /riscv_eval_cond /=.
-  move => [] <-.
-  by rewrite negbK.
-
-  rewrite /riscv_eval_cond /=.
-  move => [] <-.
-  by rewrite -Z.leb_antisym Z.geb_leb.
-
-  rewrite /riscv_eval_cond /=.
-  move => [] <-.
-  rewrite Z.geb_leb Z.leb_antisym.
-  by rewrite negbK.
-
+  case: c => [| | sg | sg]; rewrite /riscv_eval_cond /= => -[<-] //.
+  + by rewrite negbK.
+  + by rewrite negb_wlt.
+  by rewrite -negb_wlt negbK.
 Qed.
 
-(* Lemma eval_assemble_cond_Pvar ii m rf x r v :
-  eqflags m rf
-  -> of_var_e ii x = ok r
-  -> get_var true (evm m) x = ok v
-  -> exists2 v',
-       value_of_bool (riscv_eval_cond (get_rf rf) (condt_of_rflag r)) = ok v'
-       & value_uincl v v'.
-Proof.
-  move=> eqf hr hv.
-  have hincl := xgetflag_ex eqf hr hv.
-  clear ii x m eqf hr hv.
-
-  rewrite condt_of_rflagP.
-
-  eexists; last exact: hincl.
-  clear v hincl.
-  exact: value_of_bool_to_bool_of_rbool.
-Qed. *)
-
+(* copied from arm_params_proof *)
 Lemma eval_assemble_cond_Onot get c v v0 v1 :
   value_of_bool (riscv_eval_cond (get) c) = ok v1
   -> value_uincl v0 v1
@@ -397,240 +370,91 @@ Proof.
   by eexists.
   Transparent riscv_eval_cond.
 Qed.
-(* 
-Lemma eval_assemble_cond_Obeq ii m rf v x0 x1 r0 r1 v0 v1 :
-  is_rflags_GE r0 r1 = true
-  -> eqflags m rf
-  -> of_var_e ii x0 = ok r0
-  -> get_var true (evm m) x0 = ok v0
-  -> of_var_e ii x1 = ok r1
-  -> get_var true (evm m) x1 = ok v1
-  -> sem_sop2 Obeq v0 v1 = ok v
-  -> exists2 v',
-       value_of_bool (riscv_eval_cond (get_rf rf) GE_ct) = ok v' & value_uincl v v'.
+
+Lemma assemble_cond_argP ii e or vm v rr :
+  (forall r, value_uincl vm.[to_var r] (Vword (rr r))) ->
+  assemble_cond_arg ii e = ok or ->
+  sem_fexpr vm e = ok v ->
+  value_uincl v (Vword (sem_cond_arg rr or)).
 Proof.
-  move=> hGE eqf hr0 hv0 hr1 hv1.
-
-  move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
-  move: hb.
-  rewrite /mk_sem_sop2 /=.
-  move=> [?]; subst b.
-
-  have hincl0 := xgetflag_ex eqf hr0 hv0.
-  have hincl1 := xgetflag_ex eqf hr1 hv1.
-  clear ii m x0 x1 eqf hr0 hv0 hr1 hv1.
-
-  have ? := to_boolI hb0; subst v0.
-  have ? := to_boolI hb1; subst v1.
-  clear hb0 hb1.
-
-  move: r0 r1 hincl0 hincl1 hGE.
-  move=> [] [] // hincl0 hincl1 _.
-  all: rewrite 2!get_rf_to_bool_of_rbool.
-  all: rewrite (value_uinclE hincl0) {hincl0} /=.
-  all: rewrite (value_uinclE hincl1) {hincl1} /=.
-  all: by eexists.
-Qed. *)
-
-(* Lemma eval_assemble_cond_Oand rf c c0 c1 v v0 v1 v0' v1' :
-  condt_and c0 c1 = Some c
-  -> value_of_bool (riscv_eval_cond (get_rf rf) c0) = ok v0'
-  -> value_uincl v0 v0'
-  -> value_of_bool (riscv_eval_cond (get_rf rf) c1) = ok v1'
-  -> value_uincl v1 v1'
-  -> sem_sop2 Oand v0 v1 = ok v
-  -> exists2 v',
-       value_of_bool (riscv_eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
-Proof.
-  move=> hand hv0' hincl0 hv1' hincl1.
-  move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
-
-  move: hb.
-  rewrite /mk_sem_sop2 /=.
-  move=> [?]; subst b.
-
-  have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.
-  have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
-  clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
-
-  rewrite (condt_andP hand hc0 hc1) {hand hc0 hc1} /=.
-  by eexists.
+  move=> eqr.
+  case: e => //=.
+  + t_xrbindP=> _ r /of_var_eI <- <- /get_varP [-> _ _] /=.
+    by apply eqr.
+  by move=> [] // [] // [] // [] // [<-] /= [<-].
 Qed.
 
-Lemma eval_assemble_cond_Oor rf c c0 c1 v v0 v1 v0' v1' :
-  condt_or c0 c1 = Some c
-  -> value_of_bool (riscv_eval_cond (get_rf rf) c0) = ok v0'
-  -> value_uincl v0 v0'
-  -> value_of_bool (riscv_eval_cond (get_rf rf) c1) = ok v1'
-  -> value_uincl v1 v1'
-  -> sem_sop2 Oor v0 v1 = ok v
-  -> exists2 v',
-       value_of_bool (riscv_eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
+Lemma assemble_cond_app2P_aux ck v1 v2 op2 v w1 w2 :
+  sem_sop2 op2 v1 v2 = ok v ->
+  value_uincl v1 (Vword w1) ->
+  value_uincl v2 (Vword w2) ->
+  forall (eq1 : type_of_op2 op2 = (sword U32, sword U32, sbool)),
+  ecast t (let t := t in _) eq1 (sem_sop2_typed op2) w1 w2 = ok (sem_cond_kind ck w1 w2) ->
+  value_uincl v (Vbool (sem_cond_kind ck w1 w2)).
 Proof.
-  move=> hor hv0' hincl0 hv1' hincl1.
-  move=> /sem_sop2I /= [b0 [b1 [b [hb0 hb1 hb ?]]]]; subst v.
+  move=> ok_v hincl1 hincl2 eq1.
+  move: ok_v.
+  rewrite /sem_sop2; move: (sem_sop2_typed op2).
+  rewrite -> eq1 => /= sem_sop2_typed ok_v.
 
-  move: hb.
-  rewrite /mk_sem_sop2 /=.
-  move=> [?]; subst b.
+  move: ok_v.
+  t_xrbindP=> _ /to_wordI' [ws1 [w1' [hcmp1 ? ->]]]
+              _ /to_wordI' [ws2 [w2' [hcmp2 ? ->]]]; subst.
+  move: hincl1 hincl2 => /= /andP [hcmp1' /eqP ->{w1'}] /andP [hcmp2' /eqP ->{w2'}].
+  have ? := cmp_le_antisym hcmp1 hcmp1'.
+  have ? := cmp_le_antisym hcmp2 hcmp2'; subst.
+  rewrite !zero_extend_u.
+  by move=> _ -> <- [->].
+Qed.
 
-  have hc0 := value_uincl_to_bool_value_of_bool hincl0 hb0 hv0'.
-  have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
-  clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
-
-  rewrite (condt_orP hor hc0 hc1) {hor hc0 hc1} /=.
-  by eexists.
-Qed. *)
+Lemma assemble_cond_app2P op2 ck swap v1 v2 v w1 w2 :
+  assemble_cond_app2 op2 = Some (ck, swap) ->
+  sem_sop2 op2 v1 v2 = ok v ->
+  value_uincl v1 (Vword w1) ->
+  value_uincl v2 (Vword w2) ->
+  let: (w1, w2) := if swap then (w2, w1) else (w1, w2) in
+  value_uincl v (Vbool (sem_cond_kind ck w1 w2)).
+Proof.
+  case: op2 => //=.
+  + move=> [] // [] // [<- <-] ok_v hincl1 hincl2.
+    by apply: (assemble_cond_app2P_aux ok_v hincl1 hincl2).
+  + move=> [] // [] // [<- <-] ok_v hincl1 hincl2.
+    by apply: (assemble_cond_app2P_aux ok_v hincl1 hincl2).
+  + move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
+    by apply: (assemble_cond_app2P_aux ok_v hincl1 hincl2).
+  + move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
+    have {}ok_v: sem_sop2 (Oge (Cmp_w sg U32)) v2 v1 = ok v.
+    + by move: ok_v; rewrite /sem_sop2 /=; t_xrbindP=> _ -> _ -> /= ->.
+    by apply: (assemble_cond_app2P_aux ok_v hincl2 hincl1).
+  + move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
+    have {}ok_v: sem_sop2 (Olt (Cmp_w sg U32)) v2 v1 = ok v.
+    + by move: ok_v; rewrite /sem_sop2 /=; t_xrbindP=> _ -> _ -> /= ->.
+    by apply: (assemble_cond_app2P_aux ok_v hincl2 hincl1).
+  move=> [] // sg [] // [<- <-] ok_v hincl1 hincl2.
+  by apply: (assemble_cond_app2P_aux ok_v hincl1 hincl2).
+Qed.
 
 Lemma riscv_eval_assemble_cond : assemble_cond_spec riscv_agparams.
 Proof.
-  move=> ii m rr rf e c v; rewrite /riscv_agparams /riscv_eval_cond /get_rf /=.
-  move=> eqr _.
-  elim: e c v => [| | op1 e hind | op2 e0 _ e1 _ |] //= c v.
+  move=> ii m rr _ e c v eqr _ ok_c ok_v /=.
+  eexists; first by reflexivity.
+  elim: e c ok_c v ok_v => [| | op1 e hind | op2 e1 _ e2 _ |] //=.
 
   - case: op1 => //.
-    t_xrbindP=> c' hc' hc; subst c.
-    move=> v0 hv0 hsem.
-    have [v1 hv1 hincl1] := hind _ _ hc' hv0.
-    clear ii m e eqr hc' hv0 hind.
-    exact: (eval_assemble_cond_Onot hv1 hincl1 hsem).
-    
-  t_xrbindP=> -[c_k b] h_op2.
-  t_xrbindP=> arg0 h_arg0 arg1 h_arg1 h_c v0 h_v0 v1 h_v1 h_v.
-  set sem_arg := (fun or => match or with
-    | Some reg => rr reg
-    | None => wrepr riscv_reg_size 0
-  end).
-  rewrite -/(sem_arg (cond_fst c)) -/(sem_arg (cond_snd c)).
-  have h_sem_arg0: value_uincl v0 (Vword (sem_arg arg0)).
-  + case: e0 {h_op2} h_arg0 {h_arg1} h_v0 => //.
-    + move=> v2.
-      t_xrbindP => z /of_var_eP h_of_var <-.
-      rewrite /sem_fexpr /get_var.
-      t_xrbindP => //= h_defined <-.
-      have h_to_var:=of_varI h_of_var.
-      have:=eqr z.
-      by rewrite h_to_var.
-    + move => [] // [] // [] // [] // [] <-.
-      rewrite /sem_fexpr /=.
-      by rewrite /sem_sop1 /= => -[] <-.
+    t_xrbindP=> _ c ok_c <- v v1 ok_v ok_v1.
+    have hincl := hind _ ok_c _ ok_v.
+    by have [_ [<-] ?] := eval_assemble_cond_Onot erefl hincl ok_v1.
 
-  have h_sem_arg1: value_uincl v1 (Vword (sem_arg arg1)).
-  + case: e1 {h_op2 h_arg0} h_arg1 h_v1 => //.
-    + move=> v2.
-      t_xrbindP => z /of_var_eP h_of_var <-.
-      rewrite /sem_fexpr /get_var.
-      t_xrbindP => //= h_defined <-.
-      have h_to_var:=of_varI h_of_var.
-      have:=eqr z.
-      by rewrite h_to_var.
-    + move => [] // [] // [] // [] // [] <-.
-      rewrite /sem_fexpr /=.
-      by rewrite /sem_sop1 /= => -[] <-.
-  
-  case: op2 h_op2 h_c h_arg0 h_arg1 h_v => //=.
-  - move=> -[] // [] //.
-    move=> [] <- <- [] <- h_arg0 h_arg1 /=.
-    rewrite /sem_sop2 /=.
-    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
-    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
-    move => <-.
-    eexists; first by reflexivity.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
-    by have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
-    
-  - move=> -[] // [] //.
-    move=> [] <- <- [] <- h_arg0 h_arg1 /=.
-    rewrite /sem_sop2 /=.
-    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
-    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
-    move => <-.
-    eexists; first by reflexivity.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
-    by have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
-
-  - move=> -[] // sg // [] //.
-    move=> [] <- <- [] <- h_arg0 h_arg1 /=.
-    rewrite /sem_sop2 /=.
-    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
-    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
-    move => <-.
-    eexists; first by reflexivity.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
-    by case: sg {h_arg0 h_arg1}.
-
-  move=> -[] // sg // [] //.
-  + move=> [] <- <- [] <- h_arg0 h_arg1 /=.
-    rewrite /sem_sop2 /=.
-    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
-    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
-    move => <-.
-    eexists; first by reflexivity.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
-    rewrite Z.geb_leb.
-    by case: sg {h_arg0 h_arg1}.
-
-  move=> -[] // sg // [] //.
-  + move=> [] <- <- [] <- h_arg0 h_arg1 /=.
-    rewrite /sem_sop2 /=.
-    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
-    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
-    move => <-.
-    eexists; first by reflexivity.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
-    by case: sg {h_arg0 h_arg1}.
-
-  move=> -[] // sg // [] //.
-  + move=> [] <- <- [] <- h_arg0 h_arg1 /=.
-    rewrite /sem_sop2 /=.
-    t_xrbindP => z0 /to_wordI' [] ws0 [] w0 [] h_w0 //= ? ->; subst.
-    move => z1 /to_wordI' [] ws1 [] w1 [] h_w1 //= ? ->; subst.
-    move => <-.
-    eexists; first by reflexivity.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w0 h_w0) h_sem_arg0.
-    have /word_uincl_eq <- := word_uincl_trans (word_uincl_zero_ext w1 h_w1) h_sem_arg1.
-    rewrite Z.geb_leb.
-    by case: sg {h_arg0 h_arg1}.
+  t_xrbindP=> c [ck b] /o2rP hop2.
+  t_xrbindP=> arg1 ok_arg1 arg2 ok_arg2 ok_c v v1 ok_v1 v2 ok_v2 ok_v.
+  have hincl1 := assemble_cond_argP eqr ok_arg1 ok_v1.
+  have hincl2 := assemble_cond_argP eqr ok_arg2 ok_v2.
+  have {hop2} := assemble_cond_app2P hop2 ok_v hincl1 hincl2.
+  by case: b ok_c => -[<-].
 Qed.
 
-
-    (* - t_xrbindP=> //=.
-    case: e1 => // x1 _.
-    t_xrbindP=> r0 hr0 r1 hr1 //=.
-    case hGE: is_rflags_GE => // -[?]; subst c.
-    move=> v0 hv0 v1 hv1 hsem.
-    exact: (eval_assemble_cond_Obeq hGE eqf hr0 hv0 hr1 hv1 hsem).
-
-  - t_xrbindP=> c0 hass0 c1 hass1.
-    case hand: condt_and => [c'|] // [?]; subst c'.
-    move=> v0 hsem0 v1 hsem1 hsem.
-    have [v0' hv0' hincl0] := hind0 _ _ hass0 hsem0.
-    have [v1' hv1' hincl1] := hind1 _ _ hass1 hsem1.
-    clear eqr eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
-    exact: (eval_assemble_cond_Oand hand hv0' hincl0 hv1' hincl1 hsem).
-
-  t_xrbindP=> c0 hass0 c1 hass1.
-  case hor: condt_or => [c'|] // [?]; subst c'.
-  move=> v0 hsem0 v1 hsem1 hsem.
-  have [v0' hv0' hincl0] := hind0 _ _ hass0 hsem0.
-  have [v1' hv1' hincl1] := hind1 _ _ hass1 hsem1.
-  clear eqr eqf hass0 hsem0 hind0 hass0 hsem1 hind1.
-  exact: (eval_assemble_cond_Oor hor hv0' hincl0 hv1' hincl1 hsem). 
-Qed. *)
 (* TODO_RISCV: Is there a way of avoiding importing here? *)
 Import arch_sem.
-
-(* Lemma sem_sopns_fopns_args s lc :
-  sem_sopns s [seq (None, o, d, e) | '(d, o, e) <- lc] =
-  sem_fopns_args s (map RISCVFopn.to_opn lc).
-Proof.
-  elim: lc s => //= -[[xs o] es ] lc ih s.
-  rewrite /sem_fopn_args /sem_sopn_t /=; case: sem_rexprs => //= >.
-  by rewrite /exec_sopn /= /Oriscv; case : app_sopn => //= >; case write_lexprs.
-Qed. *)
 
 Lemma riscv_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops' :
   sem_rexprs m args = ok xs

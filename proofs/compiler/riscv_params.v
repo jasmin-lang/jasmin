@@ -182,39 +182,37 @@ Definition condt_not (c : condt) : condt :=
   |}
 .
 
+Definition assemble_cond_arg ii e : cexec (option register) :=
+  match e with
+  | Fvar x => Let r := of_var_e ii x in ok (Some r)
+  | Fapp1 (Oword_of_int U32) (Fconst 0) => ok None
+  | _ => Error (E.berror ii e "Can't assemble condition.")
+  end.
+
+(* Returns a condition_kind + a boolean describing if the arguments must be
+   swapped. *)
+Definition assemble_cond_app2 (o : sop2) :=
+  match o with
+  | Oeq (Op_w U32) => Some (EQ, false)
+  | Oneq (Op_w U32) => Some (NE, false)
+  | Olt (Cmp_w sg U32) => Some (LT sg, false)
+  | Oge (Cmp_w sg U32) => Some (GE sg, false)
+  | Ogt (Cmp_w sg U32) => Some (LT sg, true)
+  | Ole (Cmp_w sg U32) => Some (GE sg, true)
+  | _ => None
+  end.
+
 Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
   match e with  
   | Fapp1 Onot e => 
     Let c := assemble_cond ii e in ok (condt_not c)
   | Fapp2 o e0 e1 =>
     Let: (o, swap) :=
-      match o with
-      | Oeq (Op_w U32) => ok (EQ, false)
-      | Oneq (Op_w U32) => ok (NE, false)
-      | Olt (Cmp_w sg U32) => ok (LT sg, false)
-      | Oge (Cmp_w sg U32) => ok (GE sg, false)
-      | Ogt (Cmp_w sg U32) => ok (LT sg, true)
-      | Ole (Cmp_w sg U32) => ok (GE sg, true)
-      | _ => Error (E.berror ii e "Could not match condition.")
-      end
-    in  
-    Let arg0 :=     
-      match e0 with
-      | Fvar x => Let r := of_var_e ii x in ok (Some r)
-      | Fapp1 (Oword_of_int U32) (Fconst 0) => ok None
-      | _ => Error (E.berror ii e "Can't assemble condition.") 
-      end
+      o2r (E.berror ii e "Could not match condition.") (assemble_cond_app2 o)
     in
-    Let arg1:= 
-      match e1 with
-      | Fvar x => Let r := of_var_e ii x in ok (Some r)
-      | Fapp1 (Oword_of_int U32) (Fconst 0) => ok None
-      | _ => Error (E.berror ii e "Can't assemble condition.") 
-      end
-    in 
-    let: (arg0, arg1) :=
-    if swap then (arg1, arg0) else (arg0, arg1)
-    in
+    Let arg0 := assemble_cond_arg ii e0 in
+    Let arg1 := assemble_cond_arg ii e1 in
+    let: (arg0, arg1) := if swap then (arg1, arg0) else (arg0, arg1) in
     ok {|
       cond_kind := o;
       cond_fst := arg0;
