@@ -101,7 +101,7 @@ Definition lower_Papp2
       let op := if is_wconst U8 e1 then SRLI else SRL in
       Some (BaseOp (None, op), [:: e0; e1])
     else None
-  | Olsl (Op_w U32) =>
+  | Olsl (Op_w _) =>
     if check_shift_amount e1 is Some(e1) then
       let op := if is_wconst U8 e1 then SLLI else SLL in
       Some (BaseOp (None, op), [:: e0; e1])

@@ -465,16 +465,17 @@ Proof.
     have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
     apply (sem_correct _ _ ok_wa).
     by rewrite /= !zero_extend_u /sem_shr eq_shift.
-  case: o ok_v => // -[] // ok_v.
+  case: o ok_v => // ws ok_v.
   case good_shift: check_shift_amount => [ sa | ] //.
   move=> [<- <- <-].
   rewrite !fun_if if_same.
   set op2' := Oasm _.
-  have [_ [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+  have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
     Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
   have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
   apply (sem_correct _ _ ok_wa).
-  by rewrite /= !zero_extend_u /sem_shl eq_shift.
+  rewrite /= zero_extend_wshl //; last by have [? _] := wunsigned_range w2.
+  by rewrite -/(sem_shift _ _ _) eq_shift.
 Qed.
 
 #[ local ]
