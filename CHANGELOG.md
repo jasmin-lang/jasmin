@@ -127,6 +127,10 @@
   ([PR #753](https://github.com/jasmin-lang/jasmin/pull/753);
   fixes [#718](https://github.com/jasmin-lang/jasmin/issues/718)).
 
+- Correctly parse ARMv7 intrinsics whose name ends in `-S`
+  ([PR #791](https://github.com/jasmin-lang/jasmin/pull/791);
+  fixes [#546](https://github.com/jasmin-lang/jasmin/issues/546)).
+
 ## Other changes
 
 - Pretty-printing of Jasmin programs is more precise

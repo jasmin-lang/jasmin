@@ -10,11 +10,17 @@ fn f(reg u32 a b c) -> reg u32 {
   a = b * c + d if cond;
   a += b * c if cond;
 
+  b = #MLA(c, d, a);
+  c = #MLAcc(d, a, b, cond, c);
+
   // MLS
   b = c - d * a;
   b -= c * d;
   c = d - a * b if cond;
   c -= a * b if cond;
+
+  d = #MLS(a, b, c);
+  c = #MLScc(d, a, b, cond, c);
 
   d = c;
   return d;
