@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 open PrintCommon
+open PrintASM
 open Prog
 open Arch_decl
 open Label
@@ -31,10 +32,6 @@ let pp_gen (fmt : Format.formatter) = function
 
 let pp_gens (fmt : Format.formatter) xs =
   List.iter (Format.fprintf fmt "%a\n%!" pp_gen) xs
-
-(* -------------------------------------------------------------------- *)
-let string_of_label name (p : label) =
-  Format.asprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
 type lreg =
