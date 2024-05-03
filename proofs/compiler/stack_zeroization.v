@@ -140,6 +140,7 @@ Definition stack_zeroization_lprog (lp : lprog) : cexec lprog :=
       lp_rip := lp_rip lp;
       lp_rsp := lp_rsp lp;
       lp_globs := lp_globs lp;
+      lp_glob_names := lp_glob_names lp;
       lp_funcs := lp_funs;
     |}.
 

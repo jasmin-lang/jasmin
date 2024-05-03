@@ -607,7 +607,7 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
   Let fds :=
     map_cfprog_linear (assemble_fd rip rsp) (lp_funcs p)
   in
-  ok {| asm_globs := lp_globs p; asm_funcs := fds; |}.
+  ok {| asm_globs := lp_globs p; asm_glob_names := lp_glob_names p; asm_funcs := fds; |}.
 
 End ASM_EXTRA.
 

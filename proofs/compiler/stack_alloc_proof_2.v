@@ -3053,7 +3053,7 @@ Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog
     ∀ fn fd,
     get_fundef (p_funcs P) fn = Some fd →
     exists2 fd',
-      alloc_fd shparams saparams {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob fresh_reg_ oracle fn fd = ok fd' &
+      alloc_fd shparams saparams {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data ; sp_glob_names := oracle_g |} mglob fresh_reg_ oracle fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
   rewrite /alloc_prog; t_xrbindP => mglob -> _ fds ok_fds <- {SP} /=.

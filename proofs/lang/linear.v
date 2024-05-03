@@ -73,6 +73,7 @@ Record lprog :=
  {  lp_rip   : Ident.ident;
     lp_rsp : Ident.ident;
     lp_globs : seq u8;
+    lp_glob_names: seq (var * wsize * Z);
     lp_funcs : seq (funname * lfundef) }.
 
 End ASM_OP.

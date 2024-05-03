@@ -582,6 +582,7 @@ Record asm_fundef := XFundef
 
 Record asm_prog : Type :=
   { asm_globs : seq u8
+  ; asm_glob_names : seq (var * wsize * Z)
   ; asm_funcs : seq (funname * asm_fundef)
   }.
 
