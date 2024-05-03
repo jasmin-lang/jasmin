@@ -154,16 +154,11 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
-    let do_compile = ref true in
-    let donotcompile () = do_compile := false in
-
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
         - Pretty-print the program
         - Add your own checker here!
     *)
-    (* FIXME: I think this donotcompile stuff does not work anymore,
-       At least the compilation will not be stopped if the passes are after Compiler.ParamsExpansion *)
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_p
@@ -173,7 +168,7 @@ let main () =
           s
           p
           source_prog
-        |> donotcompile
+        |> fun () -> exit 0
       else
       (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;
@@ -203,11 +198,9 @@ let main () =
         BatPervasives.ignore_exceptions
           (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
         raise e end;
-      donotcompile()
+      exit 0
     end;
 
-    if !do_compile then begin
-  
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
 
@@ -257,7 +250,6 @@ let main () =
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" Arch.pp_asm asm
-    end
     end
   with
   | Utils.HiError e ->
