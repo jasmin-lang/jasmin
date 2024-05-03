@@ -7,6 +7,7 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 open Arch_decl
 open Utils
 open PrintCommon
+open PrintASM
 open Prog
 open Var0
 open Arm_decl
@@ -40,30 +41,6 @@ let global_datas = "glob_data"
 
 let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
   Format.asprintf "%s+%a" global_datas Z.pp_print (Conv.z_of_int32 p)
-
-(* -------------------------------------------------------------------- *)
-(* TODO_ARM: This is architecture-independent. *)
-(* Assembly code lines. *)
-
-type asm_line =
-  | LLabel of string
-  | LInstr of string * string list
-  | LByte of string
-
-let iwidth = 4
-
-let print_asm_line fmt ln =
-  match ln with
-  | LLabel lbl ->
-      Format.fprintf fmt "%s:" lbl
-  | LInstr (s, []) ->
-      Format.fprintf fmt "\t%-*s" iwidth s
-  | LInstr (s, args) ->
-      Format.fprintf fmt "\t%-*s\t%s" iwidth s (String.concat ", " args)
-  | LByte n -> Format.fprintf fmt "\t.byte\t%s" n
-
-let print_asm_lines fmt lns =
-  List.iter (Format.fprintf fmt "%a\n%!" print_asm_line) lns
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
