@@ -1577,6 +1577,7 @@ Definition alloc_prog (fresh_reg : Ident.name -> stype -> Ident.ident)
     sp_rip   := rip;
     sp_rsp   := rsp;
     sp_globs := global_data;
+    sp_glob_names := global_alloc;
   |} in
   Let _ := assert (rip != rsp) (stk_ierror_no_var "rip and rsp clash") in
   Let p_funs := map_cfprog_name (alloc_fd  p_extra mglob fresh_reg local_alloc) P.(p_funcs) in

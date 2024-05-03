@@ -609,6 +609,7 @@ Record sprog_extra := {
   sp_rsp   : Ident.ident;
   sp_rip   : Ident.ident;
   sp_globs : seq u8;
+  sp_glob_names: seq (var * wsize * Z);
 }.
 
 Definition progStack : progT :=
