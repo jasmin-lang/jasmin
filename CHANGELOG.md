@@ -84,6 +84,9 @@
   `--compile` command line argument
   ([PR #788](https://github.com/jasmin-lang/jasmin/pull/788)).
 
+- Global data in assembly listing now shows the names of all global variables
+  ([PR #793](https://github.com/jasmin-lang/jasmin/pull/793)).
+
 ## Bug fixes
 
 - Type-checking rejects invalid variants of primitive operators

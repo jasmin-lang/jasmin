@@ -308,15 +308,16 @@ let pp_fun (fn, fd) =
 
 let pp_funcs funs = List.concat_map pp_fun funs
 
-let pp_data globs =
+let pp_data globs names =
   if not (List.is_empty globs) then
     LInstr (".p2align", ["5"]) ::
-    LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
+    LLabel global_datas ::
+    format_glob_data globs names
   else []
 
 let pp_prog p =
   let code = pp_funcs p.asm_funcs in
-  let data = pp_data p.asm_globs in
+  let data = pp_data p.asm_globs p.asm_glob_names in
   headers @ code @ data
 
 let print_instr s fmt i = print_asm_lines fmt (pp_instr s i)

@@ -191,7 +191,7 @@ let pp_align ws =
 
 (* ----------------------------------------------------------------------- *)
 
-let pp_glob_data fmt gd =
+let pp_glob_data fmt gd names =
   if not (List.is_empty gd) then
     let n = global_datas in
     let m = mangle global_datas in
@@ -201,7 +201,7 @@ let pp_glob_data fmt gd =
             `Instr (".p2align", [pp_align U256]);
             `Label m;
             `Label n]);
-      Format.fprintf fmt "      %a\n%!" PrintCommon.pp_datas gd
+      format_glob_data gd names |> print_asm_lines fmt
     end
 
 let pp_instr_wsize (ws : W.wsize) =
@@ -488,8 +488,8 @@ module Printer (BP:BPrinter) = struct
         if export then
         pp_gens fmt [`Instr ("ret", [])]
       ) asm.asm_funcs;
-    pp_glob_data fmt asm.asm_globs
-  
+    pp_glob_data fmt asm.asm_globs asm.asm_glob_names
+
 end
 
 module PATT = Printer(ATT)
