@@ -775,16 +775,11 @@ Proof. by rewrite /wshr /lsr Z.shiftr_0_r ureprK. Qed.
 
 Lemma wshr_full sz (w : word sz) : wshr w (wsize_bits sz) = 0%R.
 Proof.
-  apply/eqP/eq_from_wbit_n.
-  move=> i.
-  rewrite w0E.
-  rewrite wshrE //.
-  rewrite /wsize_bits /=.
-  rewrite SuccNat2Pos.id_succ.
-  rewrite /wbit_n.
-  rewrite wbit_word_ovf; first done.
-  apply: ltn_addr.
-  exact: ltnSn.
+  apply/eqP; rewrite word_eqE; apply/eqP.
+  rewrite /wsize_bits Zpos_P_of_succ_nat -Nat2Z.inj_succ.
+  rewrite -!/(wunsigned _) wunsigned_wshr wunsigned0.
+  rewrite -two_power_nat_equiv.
+  exact: Z.div_small (wunsigned_range w).
 Qed.
 
 Lemma wshl0 sz (w: word sz) : wshl w 0 = w.
