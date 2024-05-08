@@ -28,6 +28,12 @@
   returned first and in the same order in the list of results.
   ([PR #707](https://github.com/jasmin-lang/jasmin/pull/707)).
 
+- The (speculative) constant-time checker can optionally check that secrets are
+  only used with guaranteed constant time instructions (DOIT for Intel, DIT for
+  ARM)
+  ([PR #736](https://github.com/jasmin-lang/jasmin/pull/736),
+  [PR #811](https://github.com/jasmin-lang/jasmin/pull/811)).
+
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
   If the annotation #spill_to_mmx is used at the variable declaration the variable
