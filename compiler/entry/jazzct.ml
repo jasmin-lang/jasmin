@@ -3,6 +3,8 @@ open Cmdliner
 open CommonCLI
 open Utils
 
+exception CLIerror of string
+
 let parse_and_check arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
   let check doit infer ct_list speculative pass file =
@@ -22,6 +24,9 @@ let parse_and_check arch call_conv =
       with Typing.TyError (loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
+
+    if doit && pass < Compiler.LowerInstruction then
+      raise (CLIerror "DOIT can only be enabled after lowering, use -after option.") else
 
     let prog =
       if pass <= Compiler.ParamsExpansion then prog
@@ -68,6 +73,9 @@ let parse_and_check arch call_conv =
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
+        exit 1
+    | exception CLIerror s ->
+        Format.eprintf "%s" s;
         exit 1
 
 let doit =
