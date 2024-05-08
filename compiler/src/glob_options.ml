@@ -22,6 +22,7 @@ let trust_aligned = ref false
 
 let help_version = ref false
 let help_intrinsics = ref false
+let help_instructions = ref false
 type color = | Auto | Always | Never
 let color = ref Auto
 
@@ -204,9 +205,10 @@ let options = [
     "-wduplicatevar", Arg.Unit (add_warning DuplicateVar), " Print warning when two variables share the same name";
     "-wunusedvar", Arg.Unit (add_warning UnusedVar), " Print warning when a variable is not used";
     "-noinsertarraycopy", Arg.Clear introduce_array_copy, " Do not automatically insert array copy";
-    "-nowarning", Arg.Unit (nowarning), " Do no print warnings";
+    "-nowarning", Arg.Unit (nowarning), " Do not print warnings";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), " Print messages with color";
     "-help-intrinsics", Arg.Set help_intrinsics, " List the set of intrinsic operators (and exit)";
+    "-help-instructions", Arg.Set help_instructions, " List the set of instructions and their variants (and exit)";
     "-print-stack-alloc", Arg.Set print_stack_alloc, " Print the results of the stack allocation OCaml oracle";
     "-lazy-regalloc", Arg.Set lazy_regalloc, " Allocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, " Print program after each compilation steps";

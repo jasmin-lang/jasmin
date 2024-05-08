@@ -25,7 +25,7 @@ let parse () =
   if c then enable_colors ();
   match !infiles with
   | [] ->
-    if !help_intrinsics || !safety_makeconfigdoc <> None || !help_version
+    if !help_intrinsics || !help_instructions || !safety_makeconfigdoc <> None || !help_version
     then ""
     else error()
   | [ infile ] ->
@@ -97,6 +97,10 @@ let main () =
       SafetyConfig.mk_config_doc dir;
       exit 0);
 
+
+    if !help_instructions
+    then (Help.show_instructions (); exit 0);
+
     if !help_intrinsics
     then (Help.show_intrinsics Arch.asmOp_sopn (); exit 0);
 
@@ -123,12 +127,12 @@ let main () =
     in
 
     if !print_dependencies then begin
-      Format.printf "%a" 
+      Format.printf "%a"
         (pp_list " " (fun fmt p -> Format.fprintf fmt "%s" (BatPathGen.OfString.to_string p)))
         (List.tl (List.rev (Pretyping.Env.dependencies env)));
       exit 0
     end;
- 
+
     if !latexfile <> "" then begin
       let out = open_out !latexfile in
       let fmt = Format.formatter_of_out_channel out in
@@ -136,7 +140,7 @@ let main () =
       close_out out;
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
-  
+
     eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
 
     let prog =

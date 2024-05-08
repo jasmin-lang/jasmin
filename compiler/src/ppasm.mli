@@ -1,4 +1,5 @@
 open Wsize
+open Arch_decl
 (* -------------------------------------------------------------------- *)
 exception InvalidRegSize of wsize
 
@@ -6,6 +7,9 @@ exception InvalidRegSize of wsize
 val mangle : string -> string
 
 (* -------------------------------------------------------------------- *)
+val pp_name_ext :
+  (X86_decl.register, X86_decl.register_ext, X86_decl.xmm_register, X86_decl.rflag, X86_decl.condt) pp_asm_op -> string
+
 val pp_instr :
   string -> Format.formatter ->
   (X86_decl.register, X86_decl.register_ext, X86_decl.xmm_register, X86_decl.rflag, X86_decl.condt, X86_instr_decl.x86_op) Arch_decl.asm_i ->

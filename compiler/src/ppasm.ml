@@ -495,6 +495,11 @@ end
 module PATT = Printer(ATT)
 module PIntel = Printer(Intel)
 
+let pp_name_ext pp_op =
+  match !Glob_options.assembly_style with
+  | `ATT -> PATT.pp_name_ext pp_op
+  | `Intel -> PIntel.pp_name_ext pp_op
+
 let pp_instr name fmt i =
     match !Glob_options.assembly_style with
     | `ATT -> PATT.pp_instr name fmt i
