@@ -94,8 +94,8 @@ Variant compiler_step :=
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
   | LowerInstruction            : compiler_step
-  | SLHLowering                 : compiler_step
   | PropagateInline             : compiler_step
+  | SLHLowering                 : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
@@ -126,8 +126,8 @@ Definition compiler_step_list := [::
   ; RegArrayExpansion
   ; RemoveGlobal
   ; LowerInstruction
-  ; SLHLowering
   ; PropagateInline
+  ; SLHLowering
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
@@ -285,7 +285,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
-  let pl :=
+  let p :=
     lower_prog
       (lop_lower_i loparams)
       (lowering_opt cparams)
@@ -293,15 +293,15 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
       pg
   in
-  let pl := cparams.(print_uprog) LowerInstruction pl in
+  let p := cparams.(print_uprog) LowerInstruction p in
 
-  Let pl := lower_slh_prog shparams (cparams.(slh_info) pl) to_keep pl in
-  let pl := cparams.(print_uprog) SLHLowering pl in
+  Let p := propagate_inline.pi_prog p in
+  let p := cparams.(print_uprog) PropagateInline p in
 
-  Let pp := propagate_inline.pi_prog pl in
-  let pp := cparams.(print_uprog) PropagateInline pp in
+  Let p := lower_slh_prog shparams (cparams.(slh_info) p) to_keep p in
+  let p := cparams.(print_uprog) SLHLowering p in
 
-  ok pp.
+  ok p.
 
 Definition compiler_third_part (returned_params: funname -> option (seq (option nat))) (ps: sprog) : cexec sprog :=
 

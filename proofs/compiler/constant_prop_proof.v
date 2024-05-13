@@ -609,6 +609,9 @@ Definition const_prop_eP globs e s m h g :=
 Definition const_prop_esP globs es s m h g :=
   (@const_prop_e_esP globs s m h g).2 es.
 
+Definition empty_const_prop_eP e s :=
+  const_prop_eP (e := e) (s := s) (valid_cpm_empty _) (I : valid_globs None).
+
 Lemma remove_cpm1P x v m s1 s1' :
   write_var wdb x v s1 = ok s1' ->
   valid_cpm (evm s1) m ->
