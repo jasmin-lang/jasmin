@@ -1251,7 +1251,7 @@ module Mk(O:BaseOp) = struct
     let mk_trans = Annot.filter_string_list None ["smt", Smt ; "cas", Cas ] in
     let atran annot =
       match Annot.ensure_uniq1 "tran" mk_trans annot with
-      | None -> Smt
+      | None -> Cas
       | Some aty -> aty
     in
     let trans = atran i.i_annot in
