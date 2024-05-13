@@ -975,7 +975,9 @@ module Normal = struct
           Format.fprintf fmt "<%@ %a (%a)" (pp_syscall env) o pp_args es in
         pp_call pd env fmt lvs otys otys pp es
 
-    | Cassert _ -> ()
+    | Cassert (_,_,e) ->
+      Format.fprintf fmt "@[<v>assert (%a)@]"
+        (pp_expr pd env) e
 
     | Cif(e,c1,c2) ->
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"

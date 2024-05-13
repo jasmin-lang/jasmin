@@ -34,13 +34,47 @@ module CL = struct
   let pp_var fmt x =
     Format.fprintf fmt "%s_%s" (unsharp x.v_name) (string_of_uid x.v_id)
 
+  type ty =
+    | Uint of int
+    | Sint of int (* Should be bigger than 1 *)
+    | Bit
+    | Vector of int * ty
+
+  let pp_ty fmt ty =
+    match ty with
+    | Uint i -> Format.fprintf fmt "uint%i" i
+    | Sint i -> Format.fprintf fmt "sint%i" i
+    | Bit -> Format.fprintf fmt "bit"
+    | Vector _ -> ()
+
+  let pp_cast fmt ty = Format.fprintf fmt "%@%a" pp_ty ty
+
+  type tyvar = var * ty
+
+  let pp_vector fmt typ =
+    match typ with
+    | Vector _ -> Format.fprintf fmt "%%"
+    | _ -> ()
+
+  let pp_tyvar fmt (x, ty) =
+    Format.fprintf fmt "%a%a%a" pp_vector ty pp_var x pp_cast ty
+
+  let pp_tyvars fmt xs =
+    Format.fprintf fmt "%a" (pp_list ",@ " pp_tyvar) xs
+
+  let pp_tyvar2 fmt (x, ty) =
+    Format.fprintf fmt "%a%a" pp_vector ty pp_var x
+
+  let pp_tyvars2 fmt xs =
+    Format.fprintf fmt "%a" (pp_list ",@ " pp_tyvar2) xs
+
   (* Expression over z *)
 
   module I = struct
 
     type eexp =
       | Iconst of const
-      | Ivar   of var
+      | Ivar   of tyvar
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
@@ -54,7 +88,7 @@ module CL = struct
     let rec pp_eexp fmt e =
       match e with
       | Iconst c    -> pp_const fmt c
-      | Ivar   x    -> pp_var   fmt x
+      | Ivar   x    -> pp_tyvar2 fmt x
       | Iunop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_eexp e
       | Ibinop (e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_eexp e1 s pp_eexp e2
       | Ilimbs (c, es) ->
@@ -80,24 +114,6 @@ module CL = struct
       else Format.fprintf fmt "/\\[@[%a@]]" (pp_list ",@ " pp_epred) eps
 
   end
-
-  type ty = Uint of int | Sint of int | Bit (* Should be bigger than 1 *)
-
-  let pp_ty fmt ty =
-    match ty with
-    | Uint i -> Format.fprintf fmt "uint%i" i
-    | Sint i -> Format.fprintf fmt "sint%i" i
-    | Bit -> Format.fprintf fmt "bit"
-
-  let pp_cast fmt ty = Format.fprintf fmt "@@%a" pp_ty ty
-
-  type tyvar = var * ty
-
-  let pp_tyvar fmt (x, ty) =
-    Format.fprintf fmt "%a%a" pp_var x pp_cast ty
-
-  let pp_tyvars fmt xs =
-    Format.fprintf fmt "%a" (pp_list ",@ " pp_tyvar) xs
 
   (* Range expression *)
   module R = struct
@@ -165,7 +181,8 @@ module CL = struct
     let rec pp_rpred fmt rp =
       match rp with
       | RPcmp(e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
-      | RPeqmod(e1, e2, s, e3) -> Format.fprintf fmt "(%a = %a (%s %a))" pp_rexp e1 pp_rexp e2 s pp_rexp e3
+      | RPeqmod(e1, e2, s, e3) ->
+        Format.fprintf fmt "(%a = %a (%s %a))" pp_rexp e1 pp_rexp e2 s pp_rexp e3
       | RPnot e -> Format.fprintf fmt "(~ %a)" pp_rpred e
       | RPand rps ->
         begin
@@ -187,24 +204,28 @@ module CL = struct
       I.pp_epreds ep
       R.pp_rpreds rp
 
-  type fvar = var
+  type gvar = var
 
-  let pp_fvar fmt x =
+  let pp_gvar fmt x =
     Format.fprintf fmt "%a@@bit :" pp_var x
 
-  let pp_fvars fmt xs =
-    Format.fprintf fmt "%a" (pp_list ",@ " pp_fvar) xs
+  let pp_gvars fmt xs =
+    Format.fprintf fmt "%a" (pp_list ",@ " pp_gvar) xs
 
   module Instr = struct
 
     type atom =
       | Aconst of const * ty
       | Avar of tyvar
+      | Avecta of tyvar * atom
+      | Avatome of atom list
 
-    let pp_atom fmt a =
+    let rec pp_atom fmt a =
       match a with
       | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
       | Avar tv -> pp_tyvar fmt tv
+      | Avecta (v, a) -> Format.fprintf fmt "%a[%a]" pp_tyvar v pp_atom a
+      | Avatome al -> Format.fprintf fmt "[%a]" (pp_list ",@" pp_atom) al
 
     type lval = tyvar
 
@@ -214,18 +235,18 @@ module CL = struct
       | Const of const
       | Ty    of ty
       | Pred of clause
-      | Fval of fvar
+      | Gval of gvar
 
     type args = arg list
 
     let pp_arg fmt a =
       match a with
       | Atom a  -> pp_atom fmt a
-      | Lval tv -> pp_tyvar fmt tv
+      | Lval lv -> pp_tyvar fmt lv
       | Const c -> pp_const fmt c
       | Ty ty   -> pp_ty fmt ty
       | Pred cl -> pp_clause fmt cl
-      | Fval x  -> pp_fvar fmt x
+      | Gval x  -> pp_gvar fmt x
 
     type instr =
       { iname : string;
@@ -362,8 +383,8 @@ module CL = struct
     let assume cl =
       { iname = "assume"; iargs  = [Pred cl] }
 
-    let ghost (v:fvar) cl =
-      { iname = "ghost";  iargs = [Fval v; Pred cl] }
+    let ghost (v: gvar) cl =
+      { iname = "ghost";  iargs = [Gval v; Pred cl] }
 
     (* nondet set rcut clear ecut *)
 
@@ -399,30 +420,23 @@ module I = struct
     | Bty (Int)  -> None
     | _ -> assert false
 
+  let to_var x =
+    let var = L.unloc x.gv in
+    var, CL.Uint (Option.get (int_of_typ var.v_ty))
+
   let rec gexp_to_rexp e : CL.R.rexp =
     let open CL.R in
-    let to_rvar x =
-      let var = L.unloc x.gv in
-      Rvar (var, Uint (Option.get (int_of_typ var.v_ty)))
-    in
     let (!>) e = gexp_to_rexp e in
     match e with
     | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
     | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws))
-    | Pvar x -> to_rvar x
+    | Pvar x -> Rvar (to_var x)
     | Papp1(Oneg _, e) -> neg !> e
     | Papp1(Olnot _, e) -> not !> e
     | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
     | Papp2(Osub _, e1, e2) -> minu !> e1 !> e2
     | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
     | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) -> udiv !> e1 !> e2
-    (*   Format.fprintf fmt "udiv (%a) (%a)" *)
-    (*     pp_rexp e1 *)
-    (*     pp_rexp e2 *)
-    (* | Papp2(Odiv (Cmp_w (Signed,_)), e1, e2) -> *)
-    (*   Format.fprintf fmt "sdiv (%a) (%a)" *)
-    (*     pp_rexp e1 *)
-    (*     pp_rexp e2 *)
     | Papp2(Olxor _, e1, e2) -> xor !> e1 !> e2
     | Papp2(Oland _, e1, e2) -> rand !> e1 !> e2
     | Papp2(Olor _, e1, e2) -> ror !> e1 !> e2
@@ -434,7 +448,7 @@ module I = struct
     | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
-    | Presult x -> to_rvar x
+    | Presult x -> Rvar (to_var x)
     | _ -> assert false
 
   let rec gexp_to_rpred e : CL.R.rpred =
@@ -477,12 +491,24 @@ module I = struct
     | Papp1 (Oword_of_int _ws, x) -> get_const x
     | _ -> assert false
 
-  let var_to_tyvar ?(sign=false) v : CL.tyvar =
-    match int_of_typ v.v_ty with
-    | None -> v, CL.Bit
-    | Some w ->
-      if sign then v, CL.Sint w
-      else v, CL.Uint w
+  let var_to_tyvar ?(sign=false) ?(vector=None) v : CL.tyvar =
+    match vector with
+    | None ->
+      begin
+        match int_of_typ v.v_ty with
+        | None -> v, CL.Bit
+        | Some w ->
+          if sign then v, CL.Sint w
+          else v, CL.Uint w
+      end
+    | Some (n,w) ->
+      begin
+        match int_of_typ v.v_ty with
+        | None -> assert false
+        | Some w' ->
+          assert (n * w = w' && not sign);
+          v, CL.Vector (n, CL.Uint w)
+      end
 
   let mk_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
       ?(kind = (Wsize.Stack Direct)) ?(sign=false)
@@ -501,7 +527,7 @@ module I = struct
     let (!>) e = gexp_to_eexp env e in
     match e with
     | Pconst z -> Iconst z
-    | Pvar x -> Ivar (L.unloc x.gv)
+    | Pvar x -> Ivar (to_var x)
     | Papp1 (Oword_of_int _ws, x) -> !> x
     | Papp1 (Oint_of_word _ws, x) -> !> x
     | Papp1(Oneg _, e) -> !- !> e
@@ -517,7 +543,7 @@ module I = struct
     | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
-      let (v,_) =
+      let v =
         match Hash.find env c with
         | exception Not_found ->
           let name = "X" ^ "_" ^ string_of_int c in
@@ -529,7 +555,7 @@ module I = struct
         | x -> x
       in
       mull !> b (power (Ivar v) !> a)
-    | Presult x -> Ivar (L.unloc x.gv)
+    | Presult x -> Ivar (to_var x)
     | _ -> assert false
 
   let rec gexp_to_epred env e :CL.I.epred list =
@@ -605,12 +631,11 @@ module X86BaseOp : BaseOp
     match x with
     | Pvar va ->
       let ws_x = ws_of_ty (L.unloc va.gv).v_ty in
-
       if ws = ws_x then I.gexp_to_atome x,[]
       else
+        let e = I.gexp_to_atome x in
         let v = L.unloc va.gv in
         let kind = v.v_kind in
-        let e = I.gexp_to_atome x in
         let (_,ty) as x = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
     | Papp1 (Oword_of_int ws_x, Pconst z) ->
@@ -797,7 +822,7 @@ module X86BaseOp : BaseOp
           let l_tmp1 = I.mk_spe_tmp_lval 1 in
           let l_tmp2 = I.mk_spe_tmp_lval (int_of_ws ws - 1) in
           let c = I.get_const (List.nth es 1) in
-          let a2 = I.mk_const_atome (c + 1) Z.zero in
+          let a2 = I.mk_const_atome c Z.zero in
           let l_tmp3 = I.mk_spe_tmp_lval (c + 1) in
           let a3 = I.mk_const_atome (c + 1) (Z.of_int (power 1 (c + 1) - 1)) in
           let l_tmp4 = I.mk_spe_tmp_lval (c + 1) in
@@ -1039,6 +1064,34 @@ module Mk(O:BaseOp) = struct
           then l else a :: l
       ) l1 l2
 
+  type vector =
+    | U16x16
+
+  let unfold_vector formals =
+    let aux ((formal,ty) as v) =
+      let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
+      match Annot.ensure_uniq1 "vect" mk_vector (formal.v_annot) with
+      | None -> [v],[]
+      | Some U16x16 ->
+        let rec aux i acc =
+          match i with
+          | 0 -> acc
+          | n ->
+            let name = String.concat "_" [formal.v_name; "v" ; string_of_int i] in
+            let v = I.mk_tmp_lval ~name u16 in
+            aux ( n - 1) (v :: acc)
+        in
+        let v = aux 16 [] in
+        let va = List.map (fun v -> CL.Instr.Avar v) v in
+        let a = CL.Instr.Avatome va in
+        let l = I.var_to_tyvar ~vector:(Some(16,16)) formal in
+        v,[CL.Instr.Op1.mov l a]
+    in
+    List.fold_left (fun (acc1,acc2) v ->
+        let fs,is = aux v in
+        fs @ acc1,is @ acc2)
+      ([],[]) formals
+
   let fun_to_proc fds fd =
     let env = Hash.create 10 in
     let ret = List.map L.unloc fd.f_ret in
@@ -1054,6 +1107,8 @@ module Mk(O:BaseOp) = struct
     let ghost = ref [] in
     Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
     let formals = filter_add cond formals !ghost in
+    let formals, instr = unfold_vector formals in
+    let prog = instr @ prog in
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
              pre;

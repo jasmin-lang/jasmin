@@ -7,11 +7,17 @@ module CL : sig
   val pp_const : Format.formatter -> Z.t -> unit
   type var
   val pp_var : Format.formatter -> 'a Prog.gvar -> unit
+  type ty
+  val pp_ty : Format.formatter -> ty -> unit
+  val pp_cast : Format.formatter -> ty -> unit
+  type tyvar
+  val pp_tyvar : Format.formatter -> 'a Prog.gvar * ty -> unit
+  val pp_tyvars : Format.formatter -> ('a Prog.gvar * ty) list -> unit
   module I :
     sig
       type eexp =
           Iconst of const
-        | Ivar of var
+        | Ivar of tyvar
         | Iunop of string * eexp
         | Ibinop of eexp * string * eexp
         | Ilimbs of const * eexp list
@@ -25,12 +31,6 @@ module CL : sig
       val pp_epred : Format.formatter -> epred -> unit
       val pp_epreds : Format.formatter -> epred list -> unit
     end
-  type ty
-  val pp_ty : Format.formatter -> ty -> unit
-  val pp_cast : Format.formatter -> ty -> unit
-  type tyvar
-  val pp_tyvar : Format.formatter -> 'a Prog.gvar * ty -> unit
-  val pp_tyvars : Format.formatter -> ('a Prog.gvar * ty) list -> unit
   module R :
     sig
       type rexp
@@ -69,7 +69,11 @@ module CL : sig
   val pp_clause : Format.formatter -> I.epred list * R.rpred list -> unit
   module Instr :
     sig
-      type atom = Aconst of const * ty | Avar of tyvar
+      type atom =
+        | Aconst of const * ty
+        | Avar of tyvar
+        | Avecta of tyvar * atom
+        | Avatome of atom list
       val pp_atom : Format.formatter -> atom -> unit
       type lval = tyvar
       type arg
