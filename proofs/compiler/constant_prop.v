@@ -391,6 +391,8 @@ End GLOBALS.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
 
+Definition empty_const_prop_e := const_prop_e without_globals empty_cpm.
+
 Definition merge_cpm : cpm -> cpm -> cpm :=
   Mvar.map2 (fun _ (o1 o2: option const_v) =>
    match o1, o2 with

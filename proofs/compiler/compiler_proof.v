@@ -196,12 +196,14 @@ Proof.
   rewrite !print_uprogP => ok_pp <- {p'} ok_fn exec_p.
 
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  apply: compose_pass_uincl.
-  - move=> vr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl).
-   apply: compose_pass.
+  apply: compose_pass.
   - move=> vr'.
-    assert (h := lower_slh_prog_sem_call (dc:=direct_c) (hap_hshp haparams) (ev:= tt) ok_pj).
+    have! h :=
+      (lower_slh_prog_sem_call
+         (dc := direct_c) (ev := tt) (hap_hshp haparams) ok_pp).
     apply h => //.
+  apply: compose_pass_uincl.
+  - move=> vr'; apply: (pi_callP (sCP := sCP_unit) ok_pj va_refl).
   apply: compose_pass.
   - move => vr'.
     exact:
