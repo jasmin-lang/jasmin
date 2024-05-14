@@ -72,7 +72,7 @@ module CL : sig
       type atom =
         | Aconst of const * ty
         | Avar of tyvar
-        | Avecta of tyvar * atom
+        | Avecta of tyvar * int
         | Avatome of atom list
       val pp_atom : Format.formatter -> atom -> unit
       type lval = tyvar

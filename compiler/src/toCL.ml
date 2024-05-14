@@ -40,12 +40,12 @@ module CL = struct
     | Bit
     | Vector of int * ty
 
-  let pp_ty fmt ty =
+  let rec pp_ty fmt ty =
     match ty with
     | Uint i -> Format.fprintf fmt "uint%i" i
     | Sint i -> Format.fprintf fmt "sint%i" i
     | Bit -> Format.fprintf fmt "bit"
-    | Vector _ -> ()
+    | Vector (i,t) -> Format.fprintf fmt "%a[%i]" pp_ty t i
 
   let pp_cast fmt ty = Format.fprintf fmt "%@%a" pp_ty ty
 
@@ -56,8 +56,11 @@ module CL = struct
     | Vector _ -> Format.fprintf fmt "%%"
     | _ -> ()
 
-  let pp_tyvar fmt (x, ty) =
-    Format.fprintf fmt "%a%a%a" pp_vector ty pp_var x pp_cast ty
+  let pp_vvar fmt (x, ty) =
+      Format.fprintf fmt "%a%a" pp_vector ty pp_var x
+
+  let pp_tyvar fmt ((x, ty) as v) =
+      Format.fprintf fmt "%a%a" pp_vvar v pp_cast ty
 
   let pp_tyvars fmt xs =
     Format.fprintf fmt "%a" (pp_list ",@ " pp_tyvar) xs
@@ -217,14 +220,14 @@ module CL = struct
     type atom =
       | Aconst of const * ty
       | Avar of tyvar
-      | Avecta of tyvar * atom
+      | Avecta of tyvar * int
       | Avatome of atom list
 
     let rec pp_atom fmt a =
       match a with
       | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
       | Avar tv -> pp_tyvar fmt tv
-      | Avecta (v, a) -> Format.fprintf fmt "%a[%a]" pp_tyvar v pp_atom a
+      | Avecta (v, i) -> Format.fprintf fmt "%a[%i]" pp_vvar v i
       | Avatome al -> Format.fprintf fmt "[%a]" (pp_list ",@" pp_atom) al
 
     type lval = tyvar
@@ -512,9 +515,9 @@ module I = struct
 
   let mk_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
       ?(kind = (Wsize.Stack Direct)) ?(sign=false)
-      ty : CL.Instr.lval =
+      ?(vector=None) ty : CL.Instr.lval =
     let v = CoreIdent.GV.mk name kind ty l [] in
-    var_to_tyvar ~sign v
+    var_to_tyvar ~sign ~vector v
 
   let mk_spe_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
       ?(kind = (Wsize.Stack Direct)) ?(sign=false)
@@ -646,15 +649,36 @@ module X86BaseOp : BaseOp
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
     | _ -> assert false
 
+  let (!) e = I.mk_lval_atome e
+
+  let cast_vector_atome ws v x =
+    let a,i = cast_atome ws x in
+    let a1 = CL.Instr.Avatome [a] in
+    let v = int_of_velem v in
+    let s = int_of_ws ws in
+    let l_tmp = I.mk_tmp_lval ~vector:(Some(1,s)) (CoreIdent.tu ws) in
+    let l_tmp2 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+    let ty = CL.(Vector (v, Uint (s/v))) in
+    CL.Instr.Avar l_tmp2,
+    i @ [CL.Instr.Op1.mov l_tmp a1;
+         CL.Instr.cast ty l_tmp2 !l_tmp;
+        ]
+
+  let cast_atome_vector ws v x l =
+    let s = int_of_ws ws in
+    let l_tmp = I.mk_tmp_lval ~vector:(Some(1,s)) (CoreIdent.tu ws) in
+    let ty = CL.(Vector (v, Uint s)) in
+    let a = CL.Instr.Avecta (l_tmp, 0) in
+    [CL.Instr.cast ty l_tmp x;
+     CL.Instr.Op1.mov l a
+    ]
+
   let assgn_to_instr trans x e =
     let a = I.gexp_to_atome e in
     let l = I.glval_to_lval x in
     [CL.Instr.Op1.mov l a]
 
   let op_to_instr trans xs o es =
-
-    let (!) e = I.mk_lval_atome e in
-
     match o with
     | X86_instr_decl.MOV ws ->
       let a,i = cast_atome ws (List.nth es 0) in
@@ -799,7 +823,6 @@ module X86BaseOp : BaseOp
           i @ [CL.Instr.Shifts.split l l_tmp a (Z.of_int c)]
       end
 
-
     | SAR ws ->
       begin
         match trans with
@@ -873,10 +896,21 @@ module X86BaseOp : BaseOp
               ]
       end
     | MOVZX (ws1, ws2) ->
-          let a,i = cast_atome ws2 (List.nth es 0) in
-          let l = I.glval_to_lval (List.nth xs 0) in
-          let ty = CL.Uint (int_of_ws ws1) in
-          i @ [CL.Instr.cast ty l a]
+      let a,i = cast_atome ws2 (List.nth es 0) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let ty = CL.Uint (int_of_ws ws1) in
+      i @ [CL.Instr.cast ty l a]
+
+    | VPADD (v,ws) ->
+      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
+      let v = int_of_velem v in
+      let s = int_of_ws ws in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
+
     | _ -> assert false
 
 end
@@ -1064,34 +1098,6 @@ module Mk(O:BaseOp) = struct
           then l else a :: l
       ) l1 l2
 
-  type vector =
-    | U16x16
-
-  let unfold_vector formals =
-    let aux ((formal,ty) as v) =
-      let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
-      match Annot.ensure_uniq1 "vect" mk_vector (formal.v_annot) with
-      | None -> [v],[]
-      | Some U16x16 ->
-        let rec aux i acc =
-          match i with
-          | 0 -> acc
-          | n ->
-            let name = String.concat "_" [formal.v_name; "v" ; string_of_int i] in
-            let v = I.mk_tmp_lval ~name u16 in
-            aux ( n - 1) (v :: acc)
-        in
-        let v = aux 16 [] in
-        let va = List.map (fun v -> CL.Instr.Avar v) v in
-        let a = CL.Instr.Avatome va in
-        let l = I.var_to_tyvar ~vector:(Some(16,16)) formal in
-        v,[CL.Instr.Op1.mov l a]
-    in
-    List.fold_left (fun (acc1,acc2) v ->
-        let fs,is = aux v in
-        fs @ acc1,is @ acc2)
-      ([],[]) formals
-
   let fun_to_proc fds fd =
     let env = Hash.create 10 in
     let ret = List.map L.unloc fd.f_ret in
@@ -1107,8 +1113,6 @@ module Mk(O:BaseOp) = struct
     let ghost = ref [] in
     Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
     let formals = filter_add cond formals !ghost in
-    let formals, instr = unfold_vector formals in
-    let prog = instr @ prog in
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
              pre;
