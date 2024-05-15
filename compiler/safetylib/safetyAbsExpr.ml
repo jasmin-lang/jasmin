@@ -940,10 +940,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     let abs, warns =
       List.fold_left2 (fun (abs, warns) v source_v ->
           let gv_ws, warn = match v, source_v with
-            | Mlocal (AarraySlice (_,_ws,_)), _ ->
-              (* Export function cannot have arrays as input. *)
-              assert false (* Some ws *)
-
             | Mlocal (Avar gv), Mlocal (Avar source_gv) ->
               begin match gv.v_ty, source_gv.v_ty with
                 | Bty (U ws), Bty (U ws') ->
