@@ -745,6 +745,19 @@ Lemma get_var_set wdb vm x v y :
      else get_var wdb vm y.
 Proof. by rewrite {1}/get_var Vm.setP; case: eqP => // *; rewrite -vm_truncate_val_defined. Qed.
 
+Lemma get_var_set_var wdb vm vm' x y v :
+  (~~ wdb || is_defined v) ->
+  set_var wdb vm y v = ok vm' ->
+  get_var wdb vm' x =
+    if x == y
+    then ok (vm_truncate_val (vtype x) v)
+    else get_var wdb vm x.
+Proof.
+  move=> hv /set_varP [_ ? ->].
+  rewrite get_var_set // eq_sym hv /=.
+  by case: eqP => [->|_].
+Qed.
+
 Lemma get_var_eq wdb x vm v :
   truncatable wdb (vtype x) v ->
   get_var wdb vm.[x <- v] x =

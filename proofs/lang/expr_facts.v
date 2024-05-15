@@ -6,6 +6,10 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Lemma var_i_surj x :
+  x = {| v_var := v_var x; v_info := v_info x; |}.
+Proof. by move: x => []. Qed.
+
 Lemma is_lvar_is_glob x : is_lvar x = ~~is_glob x.
 Proof. by case: x => ? []. Qed.
 

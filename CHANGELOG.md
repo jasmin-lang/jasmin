@@ -3,6 +3,10 @@
 
 ## New features
 
+- ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
+  immediates whose negation is small, a single `MVN`; and for large immediates
+  a pair of `MOV` and `MOVT`.
+
 - Export functions can have `ptr` arrays as arguments and results.
   The compiler assumes that writable `ptr` are disjoint from the other
   `ptr` arguments and from the global data. This is the responsibility of

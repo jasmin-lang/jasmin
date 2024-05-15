@@ -298,6 +298,12 @@ Defined.
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
 
+Section ASM_GEN.
+
+Notation assemble_extra_correct :=
+  (assemble_extra_correct x86_agparams) (only parsing).
+
+
 (* FIXME: Is there a way of avoiding this import? *)
 Import arch_sem.
 
@@ -517,21 +523,6 @@ Proof.
   rewrite /word_uincl mul0n.
   by rewrite (@subword0 U128 U256) zero_extend_idem.
 Qed.
-
-Definition assemble_extra_correct (op : x86_extra_op) :=
-  forall rip ii les res m xs ys m' s ops ops',
-    let: assemble :=
-      fun '(op0, ls, rs) => assemble_asm_op x86_agparams rip ii op0 ls rs
-    in
-    sem_rexprs m res = ok xs ->
-    exec_sopn (Oasm (ExtOp op)) xs = ok ys ->
-    write_lexprs les ys m = ok m' ->
-    to_asm ii op les res = ok ops ->
-    mapM assemble ops = ok ops' ->
-    lom_eqv rip m s ->
-    exists2 s',
-      foldM (fun '(op'', asm_args) => eval_op op'' asm_args) s ops' = ok s'
-      & lom_eqv rip m' s'.
 
 Lemma assemble_slh_move_correct : assemble_extra_correct Ox86SLHmove.
 Proof.
@@ -840,9 +831,10 @@ Qed.
 Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
   {|
     hagp_eval_assemble_cond := eval_assemble_cond;
-    hagp_assemble_extra_op :=
-      fun rip ii op => assemble_extra_op (op := op) (rip := rip) (ii := ii);
+    hagp_assemble_extra_op := assemble_extra_op;
   |}.
+
+End ASM_GEN.
 
 (* ------------------------------------------------------------------------ *)
 (* Speculative execution. *)
