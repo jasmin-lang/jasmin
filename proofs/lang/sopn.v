@@ -211,7 +211,7 @@ Definition Oswap_instr ty :=
      semu   := @swap_semu ty;
      i_safe := [::];
   |}.
-           
+
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   match o with
   | Ospill o tys => Ospill_instr o tys

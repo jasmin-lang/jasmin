@@ -23,7 +23,6 @@ Require Import
   arm_decl
   arm_extra
   arm_instr_decl
-  arm_params_core
   arm_params_common
   arm_lowering
   arm_stack_zeroization.

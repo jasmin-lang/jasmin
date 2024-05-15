@@ -381,6 +381,6 @@ Definition is_expandable_or_shift (n : Z) : bool :=
    | EI_byte | EI_pattern | EI_shift => true
    | EI_none => false
   end.
- 
+
 Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
 Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.

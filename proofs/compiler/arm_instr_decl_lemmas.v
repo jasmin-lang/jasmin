@@ -66,7 +66,7 @@ Proof.
 
   (* Destruct [vprev]. *)
   all:
-    repeat (
+    do 6? (
       case: vprev => [| ? vprev ] //=;
       t_xrbindP=> //;
       repeat
@@ -84,7 +84,7 @@ Proof.
   all: rewrite /exec_sopn /=.
   all: case: vargs => [| ? vargs ] //; t_xrbindP => // v.
   all:
-    repeat (
+    do 6? (
       case: vargs => [| ? vargs ] //;
       t_xrbindP => //;
       match goal with

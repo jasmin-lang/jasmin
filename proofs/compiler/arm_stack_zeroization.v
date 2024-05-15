@@ -38,9 +38,6 @@ Let vzf := mk_var_i (to_var ZF).
 Let vflags := [seq mk_var_i (to_var f) | f <- rflags ].
 Let leflags := [seq LLvar f | f <- vflags ].
 
-Notation rvar := (fun v => Rexpr (Fvar v)) (only parsing).
-Notation rconst := (fun ws imm => Rexpr (fconst ws imm)) (only parsing).
-
 (* For both strategies we need to initialize:
    - [saved_sp] to save [SP]
    - [off] to offset from [SP] to already zeroized region
@@ -60,7 +57,7 @@ Definition sz_init : lcmd :=
   let args :=
     ARMFopn.mov vsaved_sp vrsp
     :: ARMFopn.li voff stk_max
-    ++ ARMFopn.align vzero vsaved_sp alignment
+    :: ARMFopn.align vzero vsaved_sp alignment
     :: ARMFopn.mov vrsp vzero
     :: ARMFopn.sub vrsp vrsp voff
     :: [:: ARMFopn.movi vzero 0 ]

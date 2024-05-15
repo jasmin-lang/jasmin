@@ -206,7 +206,9 @@ end = struct
   let chk_imm_reject_shift args n =
     chk_imm args n exn_imm_shifted exn_imm_too_big
 
-  (* Force W-encoding of 16-bits on [EI_shift] and [EI_none]. *)
+  (* We need to avoid encoding T2 when the constant is a shift to avoid setting
+     the carry flag.
+     We force the W-encoding of 16-bits on both [EI_shift] and [EI_none]. *)
   let chk_imm_w16_encoding args n opts =
     chk_imm args n (chk_w16_encoding opts) (chk_w16_encoding opts)
 
