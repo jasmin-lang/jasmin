@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
+Require Import Uint63.
 Require Import psem compiler_util.
 Require Export makeReferenceArguments.
 Import Utf8.
@@ -57,7 +58,7 @@ Context
   {eparams : EstateParams syscall_state}
   {spparams : SemPexprParams}
   {siparams : SemInstrParams asm_op syscall_state}
-  (fresh_id : instr_info → Ident.name → stype → Ident.ident).
+  (fresh_id : instr_info → int → Ident.name → stype → Ident.ident).
 
 #[local] Existing Instance indirect_c.
 
@@ -70,14 +71,14 @@ Context
   Qed.
 
   Section MakeEpilogueInd.
-  Variable P : Hexadecimal.uint → seq (bool * Ident.name * stype) -> lvals -> seq pseudo_instr -> Prop.
+  Variable P : int → seq (bool * Ident.name * stype) -> lvals -> seq pseudo_instr -> Prop.
   Variable (ii : instr_info) (X:Sv.t).
 
   Hypothesis P0 : ∀ ctr, P ctr [::] [::] [::].
 
   Hypothesis PSNone :
-    forall ctr b x ty xftys lv lvs args,
-         is_reg_ptr_lval fresh_id ii ctr b x ty lv = None
+    forall (ctr:int) b x ty xftys lv lvs args,
+         is_reg_ptr_lval fresh_id b ii ctr x ty lv = None
       -> make_pseudo_epilogue fresh_id ii X ctr xftys lvs = ok args
       -> P ctr xftys lvs args
       -> P ctr ((b,x,ty) :: xftys) (lv :: lvs) (PI_lv lv :: args).
@@ -85,9 +86,9 @@ Context
   Hypothesis PSSome :
     forall ctr b x ty xftys lv lvs (y : var_i) args,
        ~~Sv.mem y X
-    -> is_reg_ptr_lval fresh_id ii ctr b x ty lv = Some y
-    -> make_pseudo_epilogue fresh_id ii X (Hexadecimal.Little.succ ctr) xftys lvs = ok args
-    -> P (Hexadecimal.Little.succ ctr) xftys lvs args
+    -> is_reg_ptr_lval fresh_id b ii ctr x ty lv = Some y
+    -> make_pseudo_epilogue fresh_id ii X (Uint63.succ ctr) xftys lvs = ok args
+    -> P (Uint63.succ ctr) xftys lvs args
     -> P ctr ((b, x, ty) :: xftys) (lv :: lvs) (PI_lv (Lvar y) :: (PI_i lv ty y) :: args).
 
   Lemma make_pseudo_epilogueW ctr xftys lvs args :
@@ -145,19 +146,19 @@ Context
    by move => y _ <-.
   Qed.
 
-  Lemma is_reg_ptr_lval_ty b ii sfx x ty lv y:
-     is_reg_ptr_lval fresh_id ii sfx b x ty lv = Some y -> vtype y = ty.
+  Lemma is_reg_ptr_lval_ty b ii ctr x ty lv y:
+     is_reg_ptr_lval fresh_id b ii ctr x ty lv = Some y -> vtype y = ty.
   Proof. by case: lv => //= [? | _ _ _ ? _]; case: ifP => // _ [<-]. Qed.
 
-  Lemma make_pseudo_codeP ii sfx X xtys lvs pis s1 s2 vm1 vs vst:
-    make_pseudo_epilogue fresh_id ii X sfx xtys lvs = ok pis ->
+  Lemma make_pseudo_codeP ii X ctr xtys lvs pis s1 s2 vm1 vs vst:
+    make_pseudo_epilogue fresh_id ii X ctr xtys lvs = ok pis ->
     mapM2 ErrType dc_truncate_val (map snd xtys) vs = ok vst ->
     Sv.Subset (Sv.union (read_rvs lvs) (vrvs lvs)) X ->
     write_lvals true (p_globs p) s1 lvs vst = ok s2 ->
     evm s1 =[X] vm1 ->
     exists2 vm2,sem_pis ii (with_vm s1 vm1) pis vst (with_vm s2 vm2) & evm s2 =[X] vm2.
   Proof.
-    move=> h; elim /make_pseudo_epilogueW : h s1 vm1 vs vst => {xtys lvs pis}.
+    move=> h; elim /make_pseudo_epilogueW : h s1 vm1 vs vst => {ctr xtys lvs pis}.
     + by move=> _ s1 vm1 [] // _ [] <- _ [<-] ?; exists vm1 => //; constructor.
     + move=> ctr b x ty xtys lv lvs pis hnone _ ih s1 vm1 [ //| v vs] vst' /=.
       t_xrbindP => vt ht vst hts <- {vst'}.
@@ -451,16 +452,16 @@ Context
     case: (sem_s1_s2 X _ c'E _ _ eq_s1_vm1); first by SvD.fsetdec.
     move=> vm2 eq_s2_vm2 sem_vm1_vm2; exists vm2 => //.
     apply/sem_seq1/EmkI/(Efor (vlo := vlo) (vhi := vhi)) => //.
-    + rewrite -(make_referenceprog_globs Hp) -cpl_lo.
+    + rewrite -(make_referenceprog_globs Hp) - cpl_lo.
       rewrite -read_e_eq_on_empty // -/(read_e _).
       by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
-    rewrite - eq_globs -cpl_hi.
+    rewrite - eq_globs - cpl_hi.
     rewrite -read_e_eq_on_empty // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
 
-  Lemma is_reg_ptr_expr_ty ii ctr b x ty lv y:
-     is_reg_ptr_expr fresh_id ii ctr b x ty lv = Some y -> vtype y = ty.
+  Lemma is_reg_ptr_expr_ty b ii ctr x ty lv y:
+     is_reg_ptr_expr fresh_id b ii ctr x ty lv = Some y -> vtype y = ty.
   Proof. by case: lv => //= [? | _ _ _ ? _]; case: ifP => // _ [<-]. Qed.
 
   Lemma make_prologueP X ii s:

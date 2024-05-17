@@ -29,3 +29,6 @@ let hash i = i
 let to_uint64 i = Int64.logand (Int64.of_int i) maxuint63
 
 let to_string i = Int64.to_string (to_uint64 i)
+
+let add x y = x + y
+[@@ocaml.inline always]
