@@ -16,3 +16,5 @@ val compares : t -> t -> int
 
 val hash : t -> int
 val to_string : t -> string
+
+val add     : t -> t -> t

@@ -1,5 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From mathcomp Require Import fintype finfun ssralg.
+Require Import Uint63.
 
 Require Import
   arch_params_proof
@@ -334,7 +335,7 @@ Qed.
 
 (* TODO: move *)
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog (ap_shp aparams) (ap_sap aparams) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) rip rsp data ga la p = ok p' →
+  alloc_prog (ap_shp aparams) (ap_sap aparams) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
   by rewrite /alloc_prog; t_xrbindP => ???? _ <-.

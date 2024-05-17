@@ -184,7 +184,7 @@ let memory_analysis pp_err ~debug up =
         false
         Arch.aparams.ap_shp
         Arch.aparams.ap_sap
-        (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy)
+        (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy (Uint63.of_int 0))
         crip
         crsp
         gao.gao_data

@@ -58,7 +58,7 @@ Extract Constant ident.Cident.spill_to_mmx => "CoreIdent.Cident.spill_to_mmx".
 
 Cd  "lang/ocaml".
 
-Extraction Blacklist String List Nat Utils Var Array.
+Extraction Blacklist String List Nat Uint63 Utils Var Array.
 
 Separate Extraction
   utils
