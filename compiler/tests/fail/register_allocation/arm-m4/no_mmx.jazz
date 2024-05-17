@@ -1,0 +1,10 @@
+export fn main () -> reg u32 {
+  reg u32 res;
+  #mmx reg u32 tmp;
+
+  res = 0;
+  tmp = res;
+  res = tmp;
+
+  return res;
+}

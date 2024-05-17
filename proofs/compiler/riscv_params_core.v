@@ -1,6 +1,6 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 From mathcomp Require Import word_ssrZ.
 
@@ -23,9 +23,7 @@ Unset Printing Implicit Defensive.
 
 Definition is_arith_small (imm : Z) : bool := (imm <? Z.pow 2 12)%Z.
 
-Module RISCVOpn_core (Args : OpnArgs).
-
-  Import Args.
+Module RISCVFopn_core.
 
   #[local]
   Open Scope Z.
@@ -34,10 +32,10 @@ Module RISCVOpn_core (Args : OpnArgs).
 
   Context {atoI : arch_toIdent}.
 
-  Definition opn_args := (seq lval * riscv_extended_op * seq rval)%type.
+  Definition opn_args := (seq lexpr * riscv_extended_op * seq rexpr)%type.
 
   Let op_gen mn x res : opn_args :=
-    ([:: lvar x ], mn, res).
+    ([:: LLvar x ], mn, res).
   Let op_un_reg mn x y := op_gen mn x [:: rvar y ].
   Let op_un_imm mn x imm := op_gen mn x [:: rconst reg_size imm ].
   Let op_bin_reg mn x y z := op_gen mn x [:: rvar y; rvar z ].
@@ -50,6 +48,10 @@ Module RISCVOpn_core (Args : OpnArgs).
   Definition li := op_un_imm (BaseOp (None, LI)).
   Definition addi := op_bin_imm (BaseOp (None, ADDI)).
   Definition subi := op_bin_imm (ExtOp SUBI).
+
+  Definition andi := op_bin_imm (BaseOp (None, ANDI)).
+
+  Definition align x y al := andi x y (- (wsize_size al)).
 
   Definition smart_mov x y :=
     if v_var x == v_var y then [::] else [:: mov x y ].
@@ -97,6 +99,4 @@ Module RISCVOpn_core (Args : OpnArgs).
 
   End WITH_PARAMS.
 
-End RISCVOpn_core.
-
-Module RISCVFopn_core := RISCVOpn_core(FopnArgs).
+End RISCVFopn_core.

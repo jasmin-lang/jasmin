@@ -609,6 +609,7 @@ Record sprog_extra := {
   sp_rsp   : Ident.ident;
   sp_rip   : Ident.ident;
   sp_globs : seq u8;
+  sp_glob_names: seq (var * wsize * Z);
 }.
 
 Definition progStack : progT :=
@@ -928,23 +929,3 @@ Definition instr_of_copn_args
   (args : copn_args)
   : instr_r :=
   Copn args.1.1 tg args.1.2 args.2.
-
-
-(* ------------------------------------------------------------------- *)
-
-Module Type OpnArgs.
-  Parameter lval rval : Type.
-  Parameter lvar : var_i -> lval.
-  Parameter lmem : forall {_ : PointerData}, aligned -> wsize -> var_i -> Z -> lval.
-  Parameter rvar : var_i -> rval.
-  Parameter rconst : wsize -> Z -> rval.
-End OpnArgs.
-
-Module CopnArgs <: OpnArgs.
-  Definition lval := lval.
-  Definition rval := pexpr.
-  Definition lvar := Lvar.
-  Definition lmem {_ : PointerData} al ws x z := Lmem al ws x (cast_const z).
-  Definition rvar x := Pvar (mk_lvar x).
-  Definition rconst ws z := cast_w ws (Pconst z).
-End CopnArgs.

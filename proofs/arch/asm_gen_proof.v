@@ -674,6 +674,20 @@ Proof.
   by rewrite hev' /= hv' /= happ1 /=; eauto.
 Qed.
 
+(* Converting [extra_op]s into [asm_op]s, assembling them and evaluating
+   must be equivalent to computing their semantics. *)
+Definition assemble_extra_correct op : Prop :=
+  forall rip ii lvs args m xs ys m' s ops ops',
+    sem_rexprs m args = ok xs
+    -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
+    -> write_lexprs lvs ys m = ok m'
+    -> to_asm ii op lvs args = ok ops
+    -> mapM (assemble_asm_args agparams rip ii) ops = ok ops'
+    -> lom_eqv rip m s
+    -> exists2 s',
+         foldM (fun '(op, args) s => eval_op op args s) s ops' = ok s'
+         & lom_eqv rip m' s'.
+
 Record h_asm_gen_params :=
   {
     (* Calling [assemble_cond] and [eval_cond] must respect the semantics
@@ -683,20 +697,7 @@ Record h_asm_gen_params :=
        semantics with a [m]. *)
     hagp_eval_assemble_cond : assemble_cond_spec;
 
-    (* Converting [extra_op]s into [asm_op]s, assembling them and evaluating
-       must be equivalent to computing their semantics. *)
-    hagp_assemble_extra_op :
-      forall rip ii op lvs args m xs ys m' s ops ops',
-        sem_rexprs m args = ok xs
-        -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
-        -> write_lexprs lvs ys m = ok m'
-        -> to_asm ii op lvs args = ok ops
-        -> mapM (assemble_asm_args agparams rip ii) ops = ok ops'
-        -> lom_eqv rip m s
-        -> exists2 s',
-             foldM (fun '(op'', asm_args) s => eval_op op'' asm_args s) s ops'
-               = ok s'
-             & lom_eqv rip m' s';
+    hagp_assemble_extra_op : forall op, assemble_extra_correct op;
   }.
 
 Context

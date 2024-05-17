@@ -63,10 +63,12 @@ Definition pseudo_operator_beq (o1 o2 : pseudo_operator) : bool :=
 
 Lemma pseudo_operator_eq_axiom : Equality.axiom pseudo_operator_beq.
 Proof.
-  case => [o1 l1 | w1 p1 | | w1 | w1 | w1 | t1 ];
-  case => [o2 l2 | w2 p2 | | w2 | w2 | w2 | t2 ] => /=; try by constructor.
-  1,2: by apply (equivP andP);split => [ [/eqP -> /eqP ->]| [-> ->]].
-  all: by apply (equivP eqP); split => [ -> | [->]].
+  case=> [o1 l1 | w1 p1 | | w1 | w1 | w1 | t1];
+    case=> [o2 l2 | w2 p2 | | w2 | w2 | w2 | t2] => /=;
+    by [ constructor
+       | apply (equivP andP); split => [[/eqP -> /eqP ->] | [-> ->]]
+       | apply (equivP eqP); split => [-> | [->]]
+       ].
 Qed.
 
 #[export]
@@ -86,4 +88,3 @@ Definition string_of_pseudo_operator (o : pseudo_operator) : string :=
   | Osubcarry ws => pp_sz "sbb" ws tt
   | Oswap _ => "swap"
   end.
-

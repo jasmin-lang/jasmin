@@ -332,6 +332,9 @@ Definition riscv_hloparams { dc : DirectCall } : h_lowering_params (ap_lop riscv
 
 Section ASM_GEN.
 
+Notation assemble_extra_correct :=
+  (assemble_extra_correct riscv_agparams) (only parsing).
+
 (* FIXME: the following line fixes type inference with Coq 8.16 *)
 Local Instance the_asm : asm _ _ _ _ _ _ := _.
 
@@ -456,34 +459,29 @@ Qed.
 (* TODO_RISCV: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
-Lemma riscv_assemble_extra_op rip ii op lvs args m xs ys m' s ops ops' :
-  sem_rexprs m args = ok xs
-  -> exec_sopn (Oasm (ExtOp op)) xs = ok ys
-  -> write_lexprs lvs ys m = ok m'
-  -> to_asm ii op lvs args = ok ops
-  -> mapM (fun '(op0, ls, rs) => assemble_asm_op riscv_agparams rip ii op0 ls rs) ops = ok ops'
-  -> lom_eqv rip m s
-  -> exists2 s' : asmmem,
-       foldM (fun '(op'', asm_args) => [eta eval_op op'' asm_args]) s ops' = ok s' &
-       lom_eqv rip m' s'.
+Lemma assemble_subi_correct : assemble_extra_correct SUBI.
 Proof.
-  case: op => /=.
-  + case: lvs => // -[] // v [] //.
-    case: args => // -[] // [] // v0 [] // [] // [] // [] // [] // [] // z [] //=.
-    move=> ok_xs ok_ys ok_m' ok_ops ok_ops' lom_m_s.
-    have:= assemble_opsP riscv_eval_assemble_cond ok_ops' _ _ lom_m_s.
-    move: ok_ops => [] <- /=.
-    apply; first by reflexivity.
-    move: ok_xs ok_ys ok_m'; t_xrbindP => z0 -> <-.
-    rewrite /exec_sopn /= truncate_word_u; t_xrbindP.
-    move=> z1 z2 word _ <-.
-    rewrite /sopn_sem /=.
-    rewrite /riscv_sub_semi /= => -[] <- <-; t_xrbindP.
-    move=> z3 z4 ok_z4 <- <- /=.
-    rewrite word truncate_word_u /= wrepr_opp.
-    by rewrite ok_z4 /=.
+  move=> rip ii lvs args m xs ys m' s ops ops' /=.
+  case: lvs => // -[] // v [] //.
+  case: args => // -[] // [] // v0 [] // [] // [] // [] // [] // [] // z [] //=.
+  move=> ok_xs ok_ys ok_m' ok_ops ok_ops' lom_m_s.
+  have:= assemble_opsP riscv_eval_assemble_cond ok_ops' _ _ lom_m_s.
+  move: ok_ops => [] <- /=.
+  apply; first by reflexivity.
+  move: ok_xs ok_ys ok_m'; t_xrbindP => z0 -> <-.
+  rewrite /exec_sopn /= truncate_word_u; t_xrbindP.
+  move=> z1 z2 word _ <-.
+  rewrite /sopn_sem /=.
+  rewrite /riscv_sub_semi /= => -[] <- <-; t_xrbindP.
+  move=> z3 z4 ok_z4 <- <- /=.
+  rewrite word truncate_word_u /= wrepr_opp.
+  by rewrite ok_z4 /=.
+Qed.
 
-  move=> w; case: eqP => // -> {w}.
+Lemma assemble_swap_correct ws : assemble_extra_correct (SWAP ws).
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops' /=.
+  case: eqP => // -> {ws}.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
@@ -507,6 +505,13 @@ Proof.
   move=> i /=; rewrite !Vm.setP; case: eqP => [<- | ?].
   + by move/eqP/negbTE: hyx => -> /=; rewrite hxt /= wxorA wxor_xx wxor0.
   by case: eqP => // _; rewrite -wxorA wxor_xx wxorC wxor0.
+Qed.
+
+Lemma riscv_assemble_extra_op op : assemble_extra_correct op.
+Proof.
+  case: op.
+  + exact: assemble_subi_correct.
+  exact: assemble_swap_correct.
 Qed.
 
 Definition riscv_hagparams : h_asm_gen_params (ap_agp riscv_params) :=

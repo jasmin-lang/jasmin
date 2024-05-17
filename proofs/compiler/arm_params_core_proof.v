@@ -104,15 +104,23 @@ Proof. by rewrite /=; t_xrbindP => *; t_arm_op. Qed.
 
 Lemma movi_sem_fopn_args {s imm xname vi} :
   let: (xi, x) := mkv xname vi in
-  (is_expandable_or_shift imm \/ is_w16_encoding imm) ->
+  (is_expandable imm \/ is_w16_encoding imm) ->
   let: vm' := (evm s).[x <- Vword (wrepr U32 imm)] in
   sem_fopn_args (ARMFopn_core.movi xi imm) s = ok (with_vm s vm').
+Proof. by t_arm_op. Qed.
+
+Lemma mvni_sem_fopn_args {s imm xname vi} :
+  let: (xi, x) := mkv xname vi in
+  is_expandable imm ->
+  let: vm' := (evm s).[x <- Vword (wnot (wrepr U32 imm))] in
+  sem_fopn_args (ARMFopn_core.mvni xi imm) s = ok (with_vm s vm').
 Proof. by t_arm_op. Qed.
 
 Opaque ARMFopn_core.add.
 Opaque ARMFopn_core.addi.
 Opaque ARMFopn_core.mov.
 Opaque ARMFopn_core.movi.
+Opaque ARMFopn_core.mvni.
 Opaque ARMFopn_core.sub.
 Opaque ARMFopn_core.subi.
 
@@ -262,10 +270,23 @@ Lemma li_lsem_1 s xname vi imm :
       & get_var true vm' x = ok (Vword (wrepr reg_size imm)) ].
 Proof.
   rewrite /ARMFopn_core.li; case: orP => [himm' | _] /=.
+
+  (* Case: small immediate. *)
   + rewrite (movi_sem_fopn_args himm') /with_vm /=.
     eexists; split; first reflexivity; last by t_get_var.
     move=> v /Sv.singleton_spec ?.
     by t_vm_get.
+
+  case: ifP => [himm' | _] /=.
+
+  (* Case: negated immediate. *)
+  + rewrite (mvni_sem_fopn_args himm') /with_vm /=.
+    eexists; split; first reflexivity.
+    * move=> v /Sv.singleton_spec ?.
+      by t_vm_get.
+    by rewrite wrepr_mod -wrepr_wnot /= wnot_wnot wrepr_mod get_var_eq.
+
+  (* Case: large immediate. *)
   case hdivmod: Z.div_eucl => [hbs lbs] /=.
   rewrite movi_sem_fopn_args /=; first last.
   + have := Z_div_mod imm (wbase U16).

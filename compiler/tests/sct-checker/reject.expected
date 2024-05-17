@@ -1,6 +1,6 @@
 File basic.jazz:
 Failed as expected xof_init: "fail/basic.jazz", line 51 (9-14):
-                             speculative constant type checker: return type for state is #[ptr = public, val = secret] it should be less than #[ptr = public, val = { n = public, s = t}]
+                             speculative constant type checker: return type for state is #[ptr = public, val = secret] it should be less than #[ptr = public, val = transient]
 Failed as expected missing_then: "fail/basic.jazz", line 37 (18-19):
                                  speculative constant type checker: the variable m is not known to be a msf, only {
                                    } are
@@ -31,3 +31,6 @@ Failed as expected modmsf_trace: "fail/modmsf-trace.jazz", line 17 (2-8):
                                    the function f2 destroys MSFs at "fail/modmsf-trace.jazz", line 12 (19-25)
                                    the function f1 destroys MSFs at "fail/modmsf-trace.jazz", line 9 (19-31)
                                    the function kill_msf destroys MSFs at "fail/modmsf-trace.jazz", line 3 (4) to line 5 (5)
+File spill.jazz:
+Failed as expected spill2: "fail/spill.jazz", line 12 (5-8):
+                           speculative constant type checker: pub has type #transient but should be at most #public

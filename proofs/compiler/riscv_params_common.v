@@ -1,6 +1,6 @@
 From mathcomp Require Import
   all_ssreflect
-  all_algebra.
+  ssralg ssrnum.
 
 From mathcomp Require Import word_ssrZ.
 
@@ -23,11 +23,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module RISCVOpn (Args : OpnArgs).
-
-  Import Args.
-
-  Module Core := RISCVOpn_core(Args).
+Module RISCVFopn.
 
   #[local]
   Open Scope Z.
@@ -36,53 +32,43 @@ Module RISCVOpn (Args : OpnArgs).
 
   Context {atoI : arch_toIdent}.
 
-  Notation opn_args := (seq lval * sopn * seq rval)%type.
+  Definition to_opn '(d, o, e) : fopn_args := (d, Oasm o, e).
 
-  Let op_gen mn x res : opn_args :=
-    ([:: lvar x ], Oasm mn, res).
-  Let op_un_reg mn x y := op_gen mn x [:: rvar y ].
-  Let op_un_imm mn x imm := op_gen mn x [:: rconst reg_size imm ].
-  Let op_bin_reg mn x y z := op_gen mn x [:: rvar y; rvar z ].
-  Let op_bin_imm mn x y imm := op_gen mn x [:: rvar y; rconst reg_size imm ].
-
-  Definition to_opn '(d, o, e) : opn_args := (d, Oasm o, e).
-
-  Definition mov x y   := to_opn (Core.mov x y).
-  Definition add x y z := to_opn (Core.add x y z).
-  Definition sub x y z := to_opn (Core.sub x y z).
+  Definition mov x y   := to_opn (RISCVFopn_core.mov x y).
+  Definition add x y z := to_opn (RISCVFopn_core.add x y z).
+  Definition sub x y z := to_opn (RISCVFopn_core.sub x y z).
 
   (* Load an immediate to a register. *)
-  Definition li x   imm := to_opn (Core.li x imm).
+  Definition li x   imm := to_opn (RISCVFopn_core.li x imm).
 
-  Definition addi x y imm := to_opn (Core.addi x y imm).
-  Definition subi x y imm := to_opn (Core.subi x y imm).
+  Definition addi x y imm := to_opn (RISCVFopn_core.addi x y imm).
+  Definition subi x y imm := to_opn (RISCVFopn_core.subi x y imm).
 
-  Definition andi := op_bin_imm (BaseOp (None, ANDI)).
+  Definition andi x y imm := to_opn (RISCVFopn_core.andi x y imm).
 
   Definition align x y al := andi x y (- (wsize_size al)).
 
-  Definition smart_mov x y := map to_opn (Core.smart_mov x y).
+  Definition smart_mov x y := map to_opn (RISCVFopn_core.smart_mov x y).
 
   (* Compute [R[x] := R[y] + imm % 2^32
      Precondition: if [imm] is large, [x <> y]. *)
-  Definition smart_addi x y imm := map to_opn (Core.smart_addi x y imm).
+  Definition smart_addi x y imm := map to_opn (RISCVFopn_core.smart_addi x y imm).
 
   (* Compute [R[x] := R[y] - imm % 2^32
      Precondition: if [imm] is large, [x <> y]. *)
-  Definition smart_subi x y imm := map to_opn (Core.smart_subi x y imm).
+  Definition smart_subi x y imm := map to_opn (RISCVFopn_core.smart_subi x y imm).
 
   (* Compute [R[x] := R[x] + imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition smart_addi_tmp x tmp imm := map to_opn (Core.smart_addi_tmp x tmp imm).
+  Definition smart_addi_tmp x tmp imm :=
+    map to_opn (RISCVFopn_core.smart_addi_tmp x tmp imm).
 
   (* Compute [R[x] := R[x] - imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition smart_subi_tmp x tmp imm := map to_opn (Core.smart_subi_tmp x tmp imm).
+  Definition smart_subi_tmp x tmp imm :=
+    map to_opn (RISCVFopn_core.smart_subi_tmp x tmp imm).
 
 
   End WITH_PARAMS.
 
-End RISCVOpn.
-
-Module RISCVCopn := RISCVOpn(CopnArgs).
-Module RISCVFopn := RISCVOpn(FopnArgs).
+End RISCVFopn.

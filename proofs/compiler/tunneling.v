@@ -53,6 +53,7 @@ Section LprogSem.
     {| lp_rip := lp_rip p
      ; lp_rsp := lp_rsp p
      ; lp_globs := lp_globs p
+     ; lp_glob_names := lp_glob_names p
      ; lp_funcs := lf |}.
 
 End LprogSem.

@@ -20,21 +20,24 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition is_arith_small imm := is_expandable_or_shift imm || is_w12_encoding imm.
+Definition is_arith_small (imm : Z) : bool :=
+  is_expandable_or_shift imm || is_w12_encoding imm.
 
-Module ARMOpn_core (Args : OpnArgs).
+Definition Z_mod_lnot (z : Z) (ws : wsize) : Z :=
+  let m := wbase ws in
+  (Z.lnot (z mod m) mod m)%Z.
 
-  Import Args.
+Module ARMFopn_core.
 
   #[local]
   Open Scope Z.
 
   Section WITH_PARAMS.
 
-  Definition opn_args := (seq lval * arm_op * seq rval)%type.
+  Definition opn_args := (seq lexpr * arm_op * seq rexpr)%type.
 
   Let op_gen mn x res : opn_args :=
-    ([:: lvar x ], ARM_op mn default_opts, res).
+    ([:: LLvar x ], ARM_op mn default_opts, res).
   Let op_un_reg mn x y := op_gen mn x [:: rvar y ].
   Let op_un_imm mn x imm := op_gen mn x [:: rconst reg_size imm ].
   Let op_bin_reg mn x y z := op_gen mn x [:: rvar y; rvar z ].
@@ -45,17 +48,35 @@ Module ARMOpn_core (Args : OpnArgs).
   Definition sub := op_bin_reg SUB.
 
   Definition movi := op_un_imm MOV.
+  Definition mvni := op_un_imm MVN.
   Definition movt x imm := op_gen MOVT x [:: rvar x; rconst U16 imm ].
   Definition addi := op_bin_imm ADD.
   Definition subi := op_bin_imm SUB.
 
-  (* Load an immediate to a register. *)
+  Definition bici := op_bin_imm BIC.
+
+  Definition str x y off :=
+    let lv := lstore Aligned reg_size y off in
+    ([:: lv ], ARM_op STR default_opts, [:: rvar x ]).
+
+  Definition align x y al := bici x y (wsize_size al - 1).
+
+  (* Load an immediate to a register.
+     If the expression is an integer, we first check that the immediate is
+     either a byte or an expandable pattern.
+     If not, we try to use the W-encoding (16-bit immediate and we can't set
+     flags).
+     Otherwise, we try to use [MVN]. *)
   Definition li x imm :=
-    if is_expandable_or_shift imm || is_w16_encoding imm
+    if is_expandable imm || is_w16_encoding imm
     then [:: movi x imm ]
     else
-      let '(hbs, lbs) := Z.div_eucl imm (wbase U16) in
-      [:: movi x lbs; movt x hbs ].
+      let nimm := Z_mod_lnot imm reg_size in
+      if is_expandable nimm
+      then [:: mvni x nimm ]
+      else
+        let p := Z.div_eucl imm (wbase U16) in
+        [:: movi x p.2; movt x p.1 ].
 
   Definition smart_mov x y :=
     if v_var x == v_var y then [::] else [:: mov x y ].
@@ -103,6 +124,4 @@ Module ARMOpn_core (Args : OpnArgs).
 
   End WITH_PARAMS.
 
-End ARMOpn_core.
-
-Module ARMFopn_core := ARMOpn_core(FopnArgs).
+End ARMFopn_core.

@@ -766,6 +766,7 @@ Definition linear_prog : cexec lprog :=
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_rsp   := p.(p_extra).(sp_rsp);
         lp_globs := p.(p_extra).(sp_globs);
+        lp_glob_names := p.(p_extra).(sp_glob_names);
         lp_funcs := funcs.2 |}.
 
 End PROG.

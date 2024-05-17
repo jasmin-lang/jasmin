@@ -83,12 +83,4 @@ Definition free_vars_r (r:rexpr) : Sv.t :=
 
 Definition rvar (x : var_i) : rexpr := Rexpr (Fvar x).
 Definition rconst (ws : wsize) (z : Z) : rexpr := Rexpr (fconst ws z).
-
-Module FopnArgs <: OpnArgs.
-  Definition lval := lexpr.
-  Definition rval := rexpr.
-  Definition lvar := LLvar.
-  Definition lmem {_ : PointerData} al ws x z := Store al ws x (fconst Uptr z).
-  Definition rvar := rvar.
-  Definition rconst := rconst.
-End FopnArgs.
+Definition lstore {_ : PointerData} al ws x z := Store al ws x (fconst Uptr z).

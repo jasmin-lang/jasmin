@@ -7,6 +7,7 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 open Arch_decl
 open Utils
 open PrintCommon
+open PrintASM
 open Prog
 open Var0
 open Arm_decl
@@ -40,30 +41,6 @@ let global_datas = "glob_data"
 
 let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
   Format.asprintf "%s+%a" global_datas Z.pp_print (Conv.z_of_int32 p)
-
-(* -------------------------------------------------------------------- *)
-(* TODO_ARM: This is architecture-independent. *)
-(* Assembly code lines. *)
-
-type asm_line =
-  | LLabel of string
-  | LInstr of string * string list
-  | LByte of string
-
-let iwidth = 4
-
-let print_asm_line fmt ln =
-  match ln with
-  | LLabel lbl ->
-      Format.fprintf fmt "%s:" lbl
-  | LInstr (s, []) ->
-      Format.fprintf fmt "\t%-*s" iwidth s
-  | LInstr (s, args) ->
-      Format.fprintf fmt "\t%-*s\t%s" iwidth s (String.concat ", " args)
-  | LByte n -> Format.fprintf fmt "\t.byte\t%s" n
-
-let print_asm_lines fmt lns =
-  List.iter (Format.fprintf fmt "%a\n%!" print_asm_line) lns
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -229,7 +206,9 @@ end = struct
   let chk_imm_reject_shift args n =
     chk_imm args n exn_imm_shifted exn_imm_too_big
 
-  (* Force W-encoding of 16-bits on [EI_shift] and [EI_none]. *)
+  (* We need to avoid encoding T2 when the constant is a shift to avoid setting
+     the carry flag.
+     We force the W-encoding of 16-bits on both [EI_shift] and [EI_none]. *)
   let chk_imm_w16_encoding args n opts =
     chk_imm args n (chk_w16_encoding opts) (chk_w16_encoding opts)
 
@@ -331,15 +310,16 @@ let pp_fun (fn, fd) =
 
 let pp_funcs funs = List.concat_map pp_fun funs
 
-let pp_data globs =
+let pp_data globs names =
   if not (List.is_empty globs) then
     LInstr (".p2align", ["5"]) ::
-    LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
+    LLabel global_datas ::
+    format_glob_data globs names
   else []
 
 let pp_prog p =
   let code = pp_funcs p.asm_funcs in
-  let data = pp_data p.asm_globs in
+  let data = pp_data p.asm_globs p.asm_glob_names in
   headers @ code @ data
 
 let print_instr s fmt i = print_asm_lines fmt (pp_instr s i)

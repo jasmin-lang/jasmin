@@ -3,6 +3,10 @@
 
 ## New features
 
+- ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
+  immediates whose negation is small, a single `MVN`; and for large immediates
+  a pair of `MOV` and `MOVT`.
+
 - Export functions can have `ptr` arrays as arguments and results.
   The compiler assumes that writable `ptr` are disjoint from the other
   `ptr` arguments and from the global data. This is the responsibility of
@@ -10,12 +14,6 @@
   For now, writable `ptr` must come first in the list of arguments and be
   returned first and in the same order in the list of results.
   ([PR #707](https://github.com/jasmin-lang/jasmin/pull/707)).
-
-- The type systems for constant time and speculative constant time now ensure
-  that division and modulo operators may only be used with public arguments.
-  This ensures that problems like KyberSlash (https://kyberslash.cr.yp.to/) do
-  not occur.
-  ([PR #722](https://github.com/jasmin-lang/jasmin/pull/722)).
 
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
@@ -36,15 +34,11 @@
       `compiler/tests/success/common/swap_word.jazz` for usage.
   ([PR #691](https://github.com/jasmin-lang/jasmin/pull/691)).
 
-- Add the x86_64 instruction `XCHG`,
-    `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
-  ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
-
 - Support Selective Speculative Load Hardening.
   We now support operators SLH operators as in [Typing High-Speed Cryptography
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
-  We also provide a speculative CCT checker, via the compiler flag `-checkSCT`.
+  We also provide a speculative CCT checker, via the `jazzct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
    [PR #723](https://github.com/jasmin-lang/jasmin/pull/723)).
 
@@ -83,24 +77,19 @@
   when the `-g` command-line flag is given (off by default).
   ([PR #684](https://github.com/jasmin-lang/jasmin/pull/684)).
 
-- Extraction as EasyCrypt code targets version 2024.01
-  ([PR #690](https://github.com/jasmin-lang/jasmin/pull/690)).
+- The Constant-Time security checker also accepts annotations for the
+  *Speculative*-Constant-Time checker (`transient` and `msf` are interpreted as
+  `public`; information relative to pointers or to mis-speculated executions is
+  ignored)
+  ([PR #773](https://github.com/jasmin-lang/jasmin/pull/773)).
 
-- The Constant-Time security checker is now available as a separate `jazzct`
-  tool; the `-checkCT`, `-checkCTon`, and `-infer` command line options are
-  deprecated
-  ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
+- The Constant-Time security checker optionally runs the first compilation
+  passes before checking; the last pass to run is configured through the
+  `--compile` command line argument
+  ([PR #788](https://github.com/jasmin-lang/jasmin/pull/788)).
 
-- Register allocation can print liveness information (enable with `-pliveness`)
-  ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749),
-  [PR #776](https://github.com/jasmin-lang/jasmin/pull/776)).
-
-- Relaxed alignment constraints for memory and array accesses
-  ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748)).
-
-- Namespaces can be used to structure source code and require the same file
-  more than once (in different contexts)
-  ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734)).
+- Global data in assembly listing now shows the names of all global variables
+  ([PR #793](https://github.com/jasmin-lang/jasmin/pull/793)).
 
 ## Bug fixes
 
@@ -141,17 +130,13 @@
   ([PR #731](https://github.com/jasmin-lang/jasmin/pull/731);
   fixes [#729](https://github.com/jasmin-lang/jasmin/issues/729)).
 
-- The compiler no longer throws an exception when a required file does not exist
-  ([PR #733](https://github.com/jasmin-lang/jasmin/pull/733)).
-
-- When slicing, export functions that are called from kept functions are no
-  longer spuriously kept
-  ([PR #751](https://github.com/jasmin-lang/jasmin/pull/751);
-  fixes [#750](https://github.com/jasmin-lang/jasmin/issues/750)).
-
 - Attach more precise meta-data to variables introduced at compile-time
   ([PR #753](https://github.com/jasmin-lang/jasmin/pull/753);
   fixes [#718](https://github.com/jasmin-lang/jasmin/issues/718)).
+
+- Correctly parse ARMv7 intrinsics whose name ends in `-S`
+  ([PR #791](https://github.com/jasmin-lang/jasmin/pull/791);
+  fixes [#546](https://github.com/jasmin-lang/jasmin/issues/546)).
 
 ## Other changes
 
@@ -162,12 +147,56 @@
   ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531);
   fixes [#525](https://github.com/jasmin-lang/jasmin/issues/525)).
 
-- Add more warning options:
-    - `-wduplicatevar`: warns when two variables share the same name;
-    - `-wunusedvar`: warns when a declared variable is not used.
+- The deprecated legacy interface to the CT checker has been removed
+  ([PR #769](https://github.com/jasmin-lang/jasmin/pull/769)).
 
-  ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
-  Warning this is a **breaking change**.
+# Jasmin 2023.06.3 — 2024-04-10
+
+## New features
+
+- The type system for constant time now ensures that division and modulo
+  operators may only be used with public arguments.
+  This ensures that problems like KyberSlash (https://kyberslash.cr.yp.to/) do
+  not occur.
+  ([PR #722](https://github.com/jasmin-lang/jasmin/pull/722)).
+
+- Add the x86_64 instruction `XCHG`,
+    `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
+  ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
+
+- The Constant-Time security checker is now available as a separate `jazzct`
+  tool; the `-checkCT`, `-checkCTon`, and `-infer` command line options are
+  deprecated
+  ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
+
+- Register allocation can print liveness information (enable with `-pliveness`)
+  ([PR #749](https://github.com/jasmin-lang/jasmin/pull/749),
+  [PR #776](https://github.com/jasmin-lang/jasmin/pull/776)).
+
+- Relaxed alignment constraints for memory and array accesses
+  ([PR #748](https://github.com/jasmin-lang/jasmin/pull/748),
+  [PR #772](https://github.com/jasmin-lang/jasmin/pull/772)).
+
+- Namespaces can be used to structure source code and require the same file
+  more than once (in different contexts)
+  ([PR #734](https://github.com/jasmin-lang/jasmin/pull/734),
+  [PR #780](https://github.com/jasmin-lang/jasmin/pull/780)).
+
+- Extraction as EasyCrypt code targets version 2024.01
+  ([PR #690](https://github.com/jasmin-lang/jasmin/pull/690)).
+
+## Bug fixes
+
+- The compiler no longer throws an exception when a required file does not exist
+  ([PR #733](https://github.com/jasmin-lang/jasmin/pull/733);
+  fixes [#383](https://github.com/jasmin-lang/jasmin/issues/383)).
+
+- When slicing, export functions that are called from kept functions are no
+  longer spuriously kept
+  ([PR #751](https://github.com/jasmin-lang/jasmin/pull/751);
+  fixes [#750](https://github.com/jasmin-lang/jasmin/issues/750)).
+
+## Other changes
 
 - Instruction selection for x86-64, when storing a large immediate value in
   memory, introduces a copy through an intermediate register rather that
@@ -176,6 +205,13 @@
 
 - Expansion of `#copy` operators uses an intermediate register when needed
   ([PR #735](https://github.com/jasmin-lang/jasmin/pull/735)).
+
+- Add more warning options:
+    - `-wduplicatevar`: warns when two variables share the same name;
+    - `-wunusedvar`: warns when a declared variable is not used.
+
+  ([PR #605](https://github.com/jasmin-lang/jasmin/pull/605)).
+  Warning this is a **breaking change**.
 
 # Jasmin 2023.06.2 — 2023-12-22
 
