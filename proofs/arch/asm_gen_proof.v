@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
+From mathcomp Require Import fintype finfun ssralg.
 From Coq Require Import Relation_Operators.
 Require Import
   oseq

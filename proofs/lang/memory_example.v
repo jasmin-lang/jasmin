@@ -24,7 +24,7 @@ We additionally maintain two invariants:
 Require memory_model array type.
 
 Import Utf8.
-Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 Import ZArith Lia.
 Import word_ssrZ.
 Import type word utils gen_map.

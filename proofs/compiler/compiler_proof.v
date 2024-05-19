@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
+From mathcomp Require Import fintype finfun ssralg.
 
 Require Import
   arch_params_proof

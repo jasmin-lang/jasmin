@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 Require Import
   oseq
   compiler_util
@@ -11,7 +11,6 @@ Require Import
   arch_decl
   arch_extra.
 Import Utf8 String.
-Import all_ssreflect.
 Import compiler_util.
 
 Set Implicit Arguments.

@@ -2,8 +2,8 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
-From mathcomp Require Import word_ssrZ word.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype tuple.
+From mathcomp Require Import div fintype order ssralg ssrnum word_ssrZ word.
 Require Import ssrring.
 Require Zquot.
 Require Import ZArith utils.

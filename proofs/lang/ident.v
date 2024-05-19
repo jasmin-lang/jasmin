@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import Sint63 strings utils gen_map tagged wsize.
 Require Import Utf8.
 

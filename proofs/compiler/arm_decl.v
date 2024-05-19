@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import

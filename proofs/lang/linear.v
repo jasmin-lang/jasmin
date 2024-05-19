@@ -1,6 +1,6 @@
 (* * Syntax of the linear language *)
 
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 Require Import expr fexpr label sopn.
 
 Set Implicit Arguments.

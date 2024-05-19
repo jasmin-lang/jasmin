@@ -16,9 +16,7 @@
    will replace it with [shp_lower ... SLHprotect_ptr ...] when the pointer
    becomes a register. *)
 
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr.
 Require constant_prop flag_combination.

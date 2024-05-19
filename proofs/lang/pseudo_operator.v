@@ -1,7 +1,5 @@
 From Coq Require Import ZArith.
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 
 Require Import
   strings

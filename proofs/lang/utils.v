@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
+From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
 From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.

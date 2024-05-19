@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import Lia.
 

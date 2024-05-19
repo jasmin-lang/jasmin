@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Export type expr sem_type.
 Require Export flag_combination.

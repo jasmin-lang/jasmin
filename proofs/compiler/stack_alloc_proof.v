@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util low_memory.
 Require Export stack_alloc.

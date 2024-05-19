@@ -1,5 +1,3 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
-From mathcomp Require Import word_ssrZ.
 Require Import compiler_util expr.
 
 Section LOWERING.

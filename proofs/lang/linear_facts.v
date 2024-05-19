@@ -1,7 +1,5 @@
 From Coq Require Import Relations.
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 
 Require Import
   fexpr_facts

@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr label linear.
 Require Import seq_extra compiler_util.
 

@@ -1,7 +1,3 @@
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
-
 Require Import expr.
 
 Set Implicit Arguments.

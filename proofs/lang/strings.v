@@ -1,6 +1,6 @@
 Require Import ZArith.
 Require Export String.
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice.
 Require Import utils gen_map.
 
 Set Implicit Arguments.

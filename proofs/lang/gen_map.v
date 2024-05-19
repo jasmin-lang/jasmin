@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 Require Import FMaps FMapAVL FSetAVL.
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import utils.
 
 Set Implicit Arguments.
