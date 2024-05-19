@@ -218,6 +218,7 @@ module CL = struct
   module Instr = struct
 
     type atom =
+      | AconstNoType of const
       | Aconst of const * ty
       | Avar of tyvar
       | Avecta of tyvar * int
@@ -225,10 +226,11 @@ module CL = struct
 
     let rec pp_atom fmt a =
       match a with
+      | AconstNoType c -> pp_const fmt c
       | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
       | Avar tv -> pp_tyvar fmt tv
       | Avecta (v, i) -> Format.fprintf fmt "%a[%i]" pp_vvar v i
-      | Avatome al -> Format.fprintf fmt "[%a]" (pp_list ",@" pp_atom) al
+      | Avatome al -> Format.fprintf fmt "[%a]" (pp_list ", " pp_atom) al
 
     type lval = tyvar
 
@@ -361,6 +363,16 @@ module CL = struct
 
     end
 
+    module ShiftsV =  struct
+
+      let shifts iname (d1 : lval) (d2 : lval) (s : atom) (c : const) (w : int) =
+        { iname; iargs = [Lval d1; Lval d2; Atom s; Atom (Avatome (List.init w (fun _ -> (AconstNoType c))))] }
+
+      let shls = shifts "shls"
+      let shrs = shifts "shrs"
+      let sars = shifts "sars"
+
+    end
     module Shift2s = struct
 
       let shift2s iname (d1 : lval) (d2 : lval) (d3 : lval) (s1 : atom) (s2 : atom) (c : const) =
@@ -902,6 +914,7 @@ module X86BaseOp : BaseOp
       i @ [CL.Instr.cast ty l a]
 
     | VPADD (v,ws) ->
+      begin
       let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
       let v = int_of_velem v in
@@ -909,10 +922,194 @@ module X86BaseOp : BaseOp
       let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
-      i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
-
+      match trans with
+        | Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
+        | Cas ->
+          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3
+      end      
+    |SETcc -> assert false 
+    |CLC -> assert false
+    |STC -> assert false
+    |VBROADCASTI128 -> assert false
+    |VEXTRACTI128 -> assert false
+    |VINSERTI128 -> assert false
+    |VPERM2I128 -> assert false
+    |VPERMD -> assert false
+    |VPERMQ -> assert false
+    |VMOVLPD -> assert false
+    |VMOVHPD -> assert false
+    |CLFLUSH -> assert false
+    |LFENCE -> assert false
+    |MFENCE -> assert false
+    |SFENCE -> assert false
+    |AESDEC -> assert false
+    |VAESDEC -> assert false
+    |AESDECLAST -> assert false
+    |VAESDECLAST -> assert false
+    |AESENC -> assert false
+    |VAESENC -> assert false
+    |AESENCLAST -> assert false
+    |VAESENCLAST -> assert false
+    |AESIMC -> assert false
+    |VAESIMC -> assert false
+    |AESKEYGENASSIST -> assert false
+    |VAESKEYGENASSIST -> assert false
+    |PCLMULQDQ -> assert false
+    |CMOVcc _ -> assert false
+    |MUL _ -> assert false
+    |IMUL _ -> assert false
+    |DIV _ -> assert false
+    |IDIV _ -> assert false
+    |CQO _ -> assert false
+    |LZCNT _ -> assert false
+    |BT _ -> assert false
+    |LEA _ -> assert false
+    |TEST _ -> assert false
+    |CMP _ -> assert false
+    |ROR _ -> assert false
+    |ROL _ -> assert false
+    |RCR _ -> assert false
+    |RCL _ -> assert false
+    |SAL _ -> assert false
+    |SHLD _ -> assert false
+    |SHRD _ -> assert false
+    |MULX_lo_hi _ -> assert false
+    |ADCX _ -> assert false
+    |ADOX _ -> assert false
+    |BSWAP _ -> assert false
+    |POPCNT _ -> assert false
+    |PEXT _ -> assert false
+    |PDEP _ -> assert false
+    |MOVX _ -> assert false
+    |MOVD _ -> assert false
+    |VMOV _ -> assert false
+    |VMOVDQA _ -> assert false
+    |VMOVDQU ws ->       
+      let a,i = cast_atome ws (List.nth es 0) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      i @ [CL.Instr.Op1.mov l a]
+    |VPMOVSX _ -> assert false
+    |VPMOVZX _ -> assert false
+    |VPAND ws ->
+      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
+      let s = int_of_ws ws in
+      let v = s / 16 in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+          i1 @ i2 @ [CL.Instr.Op2.and_ l_tmp a1 a2] @ i3
+    |VPANDN _ -> assert false
+    |VPOR _ -> assert false
+    |VPXOR _ -> assert false
+    |VPSUB (v,ws) ->
+      begin
+      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
+      let v = int_of_velem v in
+      let s = int_of_ws ws in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      match trans with
+        | Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
+        | Cas ->
+          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
+      end      
+    |VPAVG _ -> assert false
+    |VPMULL (v,ws) ->
+      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
+      let v = int_of_velem v in
+      let s = int_of_ws ws in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp1 l_tmp a1 a2] @ i3
+    |VPMULH ws -> 
+      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
+      let s = int_of_ws ws in
+      let v = s / 16 in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
+    |VPMULHU _ -> assert false
+    |VPMULHRS _ -> assert false
+    |VPMUL _ -> assert false
+    |VPMULU _ -> assert false
+    |VPEXTR _ -> assert false
+    |VPINSR _ -> assert false
+    |VPSLL (v,ws) -> 
+          let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let v = int_of_velem v in
+          let s = int_of_ws ws in
+          let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i3 = cast_atome_vector ws v !l_tmp l in
+          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          i1 @ [CL.Instr.ShiftsV.shls l_tmp1 l_tmp a1 c v] @ i3
+    |VPSRL (v,ws) -> 
+          let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let v = int_of_velem v in
+          let s = int_of_ws ws in
+          let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i3 = cast_atome_vector ws v !l_tmp l in
+          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          i1 @ [CL.Instr.ShiftsV.shrs l_tmp l_tmp1 a1 c v] @ i3
+    |VPSRA (v,ws) -> 
+          let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let v = int_of_velem v in
+          let s = int_of_ws ws in
+          let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i3 = cast_atome_vector ws v !l_tmp l in
+          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          i1 @ [CL.Instr.ShiftsV.sars l_tmp l_tmp1 a1 c v] @ i3
+    |VPSLLV _ -> assert false
+    |VPSRLV _ -> assert false
+    |VPSLLDQ _ -> assert false
+    |VPSRLDQ _ -> assert false
+    |VPSHUFB _ -> assert false
+    |VPSHUFD _ -> assert false
+    |VPSHUFHW _ -> assert false
+    |VPSHUFLW _ -> assert false
+    |VPBLEND _ -> assert false
+    |VPBLENDVB _ -> assert false
+    |VPACKUS _ -> assert false
+    |VPACKSS _ -> assert false
+    |VSHUFPS _ -> assert false
+    |VPBROADCAST _ -> assert false
+    |VMOVSHDUP _ -> assert false
+    |VMOVSLDUP _ -> assert false
+    |VPALIGNR _ -> assert false
+    |VPUNPCKH _ -> assert false
+    |VPUNPCKL _ -> assert false
+    |VPMOVMSKB _ -> assert false
+    |VPCMPEQ _ -> assert false
+    |VPCMPGT _ -> assert false
+    |VPMADDUBSW _ -> assert false
+    |VPMADDWD _ -> assert false
+    |VPMINU _ -> assert false
+    |VPMINS _ -> assert false
+    |VPMAXU _ -> assert false
+    |VPMAXS _ -> assert false
+    |VPTEST _ -> assert false
+    |RDTSC _ -> assert false
+    |RDTSCP _ -> assert false
+    |VPCLMULQDQ _ -> assert false
     | _ -> assert false
-
 end
 
 module ARMBaseOp : BaseOp
