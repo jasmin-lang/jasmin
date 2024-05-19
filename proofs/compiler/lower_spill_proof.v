@@ -213,7 +213,7 @@ Proof.
   move: hx; rewrite /get_gvar /mk_lvar /= => /get_varP /= [? hd ?]; subst vx.
   have ? : (evm s).[x] = vt; last subst vt.
   + by apply: (truncate_val_subtype_eq htr); apply getP_subtype.
-  have hvm : vm.[x <- (evm s).[x]] =1 vm.
+  have hvm : (vm.[x <- (evm s).[x]] =1 vm)%vm.
   + move=> z; rewrite Vm.setP; case: eqP => // ?; subst z.
     rewrite  vm_truncate_val_eq; first by apply heq.
     by apply: truncate_val_has_type htr.
