@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import utils.
 Require Import arch_decl.

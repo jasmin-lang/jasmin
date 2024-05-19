@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From Coq Require Import PArith ZArith.
 Require Import
   word

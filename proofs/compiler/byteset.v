@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 Require Import utils Wellfounded.
 Import Lexicographic_Product Relation_Operators.
 

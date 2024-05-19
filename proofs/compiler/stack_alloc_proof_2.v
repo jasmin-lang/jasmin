@@ -3,7 +3,8 @@
 *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
+From mathcomp Require Import div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.

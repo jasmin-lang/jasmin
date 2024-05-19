@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import PrimInt63 Sint63 utils gen_map.
 
 Set Implicit Arguments.

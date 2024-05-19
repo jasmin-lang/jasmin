@@ -1,7 +1,3 @@
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
-
 Require Import
   sem_params
   syscall.

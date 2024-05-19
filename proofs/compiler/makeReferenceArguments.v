@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 From Coq Require Import HexadecimalString ZArith.
 Require Import gen_map expr compiler_util.
 

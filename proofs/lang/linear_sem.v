@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.

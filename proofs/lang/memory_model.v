@@ -1,7 +1,6 @@
 (* ** Imports and settings *)
-
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq div eqtype.
+From mathcomp Require Import ssralg word_ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith Lia.
 Import ssrring.

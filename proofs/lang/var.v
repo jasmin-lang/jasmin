@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import strings utils gen_map type ident tagged.
 Require Import Utf8.
 

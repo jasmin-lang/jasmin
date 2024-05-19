@@ -3,7 +3,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq ssralg.
 From mathcomp Require Import word_ssrZ word.
 Require Import word.
 Require Import ZArith utils.

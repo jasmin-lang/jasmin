@@ -3,10 +3,8 @@
    These are the THUMB instructions of ARMv7-M, the instruction set of the M4
    processor. *)
 
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
+From mathcomp Require Import ssralg word_ssrZ.
 
 Require Import
   sem_type

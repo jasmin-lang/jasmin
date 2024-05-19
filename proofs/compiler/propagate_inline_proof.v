@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem psem_facts constant_prop constant_prop_proof.
 Require Export propagate_inline.
 

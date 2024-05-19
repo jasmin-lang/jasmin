@@ -3,7 +3,7 @@ This language is structured (as jasmin-source) and is used just before lineariza
 *)
 Require Import expr compiler_util.
 Import Utf8.
-Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

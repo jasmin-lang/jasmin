@@ -2,8 +2,8 @@
 (* * Correctness proof of the lowering pass *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype order.
+From mathcomp Require Import ssralg ssrnum word_ssrZ.
 Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
