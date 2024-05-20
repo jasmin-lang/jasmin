@@ -911,6 +911,41 @@ module X86BaseOp : BaseOp
       let i3 = cast_atome_vector ws v !l_tmp l in
       i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
 
+    | VPSUB (v,ws) ->
+      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
+      let v = int_of_velem v in
+      let s = int_of_ws ws in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
+
+    | VPMULL (v,ws) ->
+      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
+      let v = int_of_velem v in
+      let s = int_of_ws ws in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp1 l_tmp a1 a2] @ i3
+
+    (* | VPMULH ws -> assert false *)
+    (* | VPBROADCAST (v,ws) -> assert false *)
+
+    (*   VPSLL_8u32 *)
+    (*   PBLEND_16u16 *)
+    (*   VPSRL_8u32 *)
+    (*   VPBLEND_16u16 *)
+    (*   VMOVSLDUP_256 *)
+    (*   VPSRL_4u64 *)
+    (*   VPUNPCKL_4u64 *)
+    (*   VPUNPCKH_4u64 *)
+    (*   VPERM2I128 *)
+    (*   VPSRA_16u16 *)
+
     | _ -> assert false
 
 end

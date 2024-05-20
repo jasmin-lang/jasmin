@@ -28,6 +28,13 @@ end
 
 module Mty = Map.Make (Tcmp)
 
+type proofvar = {
+    assume_ : Ss.elt;
+    assert_ : Ss.elt;
+    assert_proof : Ss.elt;
+    assume_proof : Ss.elt;
+}
+
 type env = {
     model : model;
     alls : Ss.t;
@@ -38,6 +45,9 @@ type env = {
     warrsz : Sint.t ref;
     auxv  : string list Mty.t;
     randombytes : Sint.t ref;
+    proofv : proofvar Mf.t ref;
+    func : funname option;
+    freturn : Prog.var list
   }
 
 let for_safety    env = env.model = Utils.Safety
@@ -52,10 +62,10 @@ let rec read_mem_e = function
   | PappN (_, es) -> read_mem_es es
   | Pabstract (_, es) -> read_mem_es es
   | Pif  (_, e1, e2, e3) -> read_mem_e e1 || read_mem_e e2 || read_mem_e e3
-  | Pfvar _ -> assert false
-  | Pbig _ -> assert false
-  | Presult _ -> assert false
-  | Presultget _ -> assert false
+  | Pfvar _ -> false
+  | Pbig (e1, e2, _, _, ei, e)-> read_mem_e e1 || read_mem_e e2 || read_mem_e ei || read_mem_e e
+  | Presult _ -> false
+  | Presultget (_, _, _, e) -> read_mem_e e
 
 and read_mem_es es = List.exists read_mem_e es
 
@@ -124,9 +134,10 @@ let rec leaks_e_rec pd leaks e =
   | Pabstract (_, es) -> leaks_es_rec pd leaks es
   | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
   | Pfvar _ -> assert false
-  | Pbig _ -> assert false
-  | Presult _ -> assert false
-  | Presultget _ -> assert false
+  | Pbig (e1, e2, _, _, ei, e) ->
+    leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) ei) e
+  | Presult _ -> leaks
+  | Presultget (_,_,_, e) -> leaks_e_rec pd (e::leaks) e
 
 and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
@@ -323,7 +334,11 @@ let empty_env model fds arrsz warrsz randombytes =
     warrsz;
     auxv  = Mty.empty;
     randombytes;
+    proofv = ref Mf.empty;
+    func = None;
+    freturn = [];
   } in
+
 
 (*  let mk_tys tys = List.map Conv.cty_of_ty tys in *)
   let add_fun env fd = 
@@ -352,6 +367,9 @@ let ty_lval = function
   | Laset(_,ws, _, _) -> Bty (U ws)
   | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
 
+
+let add_proofv env f p =
+  env.proofv := Mf.add f p !(env.proofv)
 
 let add_Array env n =
   env.arrsz := Sint.add n !(env.arrsz)
@@ -492,7 +510,8 @@ let pp_op2 fmt = function
   | Ovlsr(ve,ws) -> pp_vop2 fmt ("shr", ve, ws)
   | Ovlsl(ve,ws) -> pp_vop2 fmt ("shl", ve, ws)
   | Ovasr(ve,ws) -> pp_vop2 fmt ("sar", ve, ws) 
-  
+
+let pp_opa fmt opa = Format.fprintf fmt "%s" opa.name
 
 let in_ty_op1 op =
   Conv.ty_of_cty (fst  (E.type_of_op1 op))
@@ -523,10 +542,10 @@ let ty_expr = function
   | PappN (op, _)  -> out_ty_opN op
   | Pabstract (op, _)  -> op.tyout
   | Pif (ty,_,_,_) -> ty
-  | Pfvar _ -> assert false
-  | Pbig _ -> assert false
-  | Presult _ -> assert false
-  | Presultget _ -> assert false
+  | Pfvar x -> x.L.pl_desc.v_ty
+  | Pbig (_, _, op, _, _, _) -> out_ty_op2 op
+  | Presult x -> x.gv.L.pl_desc.v_ty
+  | Presultget (_,sz,_,_) -> tu sz
 
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -563,7 +582,7 @@ let pp_cast env pp fmt (ty,ety,e) =
         i
 
 
-let rec pp_expr pd env fmt (e:expr) = 
+let rec pp_expr pd env fmt (e:expr) =
   match e with
   | Pconst z -> Format.fprintf fmt "%a" pp_print_i z
 
@@ -650,17 +669,45 @@ let rec pp_expr pd env fmt (e:expr) =
         (pp_list "@ " (pp_expr pd env)) es
     end
 
-  | Pabstract _ -> assert false
+  | Pabstract (opa, es) ->
+    Format.fprintf fmt "@[%a@ (%a)@]"
+      pp_opa opa
+      (pp_list "@ " (pp_expr pd env)) es
 
   | Pif(_,e1,et,ef) -> 
     let ty = ty_expr e in
     Format.fprintf fmt "(%a ? %a : %a)"
       (pp_expr pd env) e1 (pp_wcast pd env) (ty,et) (pp_wcast pd env) (ty,ef)
 
-  | Pfvar _ -> assert false
-  | Pbig _ -> assert false
-  | Presult _ -> assert false
-  | Presultget _ -> assert false
+  | Pfvar x -> pp_ovar env fmt (L.unloc x)
+
+  | Pbig (a, b, op, v, i, e) ->
+    let env = add_var false env (L.unloc v) in
+    Format.fprintf fmt "@[(foldr (fun x acc => x %a acc) %a ((map (fun %a => %a) (iota_ %a %a))))@]"
+      pp_op2 op
+      (pp_expr pd env) i
+      (pp_ovar env) (L.unloc v)
+      (pp_expr pd env) e
+      (pp_expr pd env) a
+      (pp_expr pd env) b
+
+  | Presult x ->
+    let x = L.unloc x.gv in
+    let i,_ =
+      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) env.freturn
+    in
+    Format.fprintf fmt "res.`%i" i
+  | Presultget (aa, ws, x, e) ->
+    assert (check_array env x.gv);
+    let x = L.unloc x.gv in
+    let i,_ =
+      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) env.freturn
+    in
+    let (xws,n) = array_kind x.v_ty in
+    if ws = xws && aa = Warray_.AAscale then
+      Format.fprintf fmt "@[res.`%i.[%a]@]" i (pp_expr pd env) e
+    else
+      assert false
 
 and pp_wcast pd env fmt (ty, e) = 
   pp_cast env (pp_expr pd env) fmt (ty, ty_expr e, e)
@@ -836,7 +883,7 @@ let rec is_write_i x i =
     is_write_c x c1 || is_write_c x c2 
   | Cfor(x',_,c) -> 
     V.equal x x'.L.pl_desc || is_write_c x c
-  | Cassert _ -> assert false
+  | Cassert _ -> false
 
 and is_write_c x c = List.exists (is_write_i x) c
   
@@ -855,7 +902,7 @@ let rec remove_for_i i =
         let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
         let ii' = { i with i_desc = ii' } in
         Cfor (j', r, ii' :: remove_for c)
-    | Cassert _ -> assert false
+    | Cassert _ -> i.i_desc
   in
   { i with i_desc }   
 and remove_for c = List.map remove_for_i c
@@ -920,7 +967,7 @@ module Normal = struct
     Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr pd asmOp env)) c
 
   and pp_instr pd asmOp env fmt i =
-    match i.i_desc with 
+    match i.i_desc with
     | Cassgn(v, _, _, Parr_init _) ->
       let pp_e fmt _ = Format.fprintf fmt "witness" in
       pp_lval1 pd env pp_e fmt (v, ((), ()))
@@ -975,9 +1022,23 @@ module Normal = struct
           Format.fprintf fmt "<%@ %a (%a)" (pp_syscall env) o pp_args es in
         pp_call pd env fmt lvs otys otys pp es
 
-    | Cassert (_,_,e) ->
-      Format.fprintf fmt "@[<v>assert (%a)@]"
-        (pp_expr pd env) e
+    | Cassert (Assume,_,e) ->
+      let f = Option.get env.func in
+      let p = Mf.find f !(env.proofv) in
+      Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@ @]"
+        p.assume_ p.assume_ (pp_expr pd env) e;
+      Format.fprintf fmt "@[<v>%s <- %s /\\ ((%s /\\ %s) => %a);@ @]"
+        p.assume_proof p.assume_proof p.assert_ p.assume_ (pp_expr pd env) e
+
+    | Cassert (Assert,_,e) ->
+      let f = Option.get env.func in
+      let p = Mf.find f !(env.proofv) in
+      Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@ @]"
+        p.assert_ p.assert_ (pp_expr pd env) e;
+      Format.fprintf fmt "@[<v>%s <- %s /\\ ((%s => %s) => %a); @ @]"
+        p.assert_proof p.assert_proof p.assert_ p.assume_ (pp_expr pd env) e
+
+    | Cassert (_,_,e) -> assert false
 
     | Cif(e,c1,c2) ->
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
@@ -1196,7 +1257,7 @@ module Leak = struct
     | Ccall(lvs, _, _) ->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
-    | Cassert _ -> env
+    | Cassert _ -> assert false
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
     | Cfor(_,_,c) -> 
       if for_safety env then
@@ -1298,7 +1359,7 @@ module Leak = struct
           Format.fprintf fmt "<%@ %a (%a)" (pp_syscall env) o pp_args es in
         pp_call pd env fmt lvs otys otys pp es
 
-    | Cassert _ -> ()
+    | Cassert _ -> assert false
 
     | Cif(e,c1,c2) ->
       pp_leaks_if pd env fmt e;
@@ -1357,6 +1418,16 @@ let pp_safe_ret pd env fmt xs =
     let es = List.map (fun x -> Pvar (gkvar x)) xs in
     Leak.pp_safe_cond pd env fmt (Leak.safe_es pd env es)
 
+let pp_bool_var env fmt var =
+  Format.fprintf fmt "@[var %s:@ %a@]" var (pp_ty env) tbool
+
+let pp_proof_var env fmt proofv =
+  Format.fprintf fmt "%a@ %a@ %a@ %a@ "
+    (pp_bool_var env) proofv.assume_
+    (pp_bool_var env) proofv.assert_
+    (pp_bool_var env) proofv.assume_proof
+    (pp_bool_var env) proofv.assert_proof
+
 let pp_fun pd asmOp env fmt f =
   let f = { f with f_body = remove_for f.f_body } in
   let locals = Sv.elements (locals f) in
@@ -1368,14 +1439,28 @@ let pp_fun pd asmOp env fmt f =
     if env.model = Normal then Normal.init_aux pd asmOp env f.f_body
     else Leak.init_aux pd asmOp env f.f_body in
 
+  let fname = get_funname env f.f_name in
+  let assume_ = create_name env ("assume_" ^ fname) in
+  let assert_ = create_name env ("assert_" ^ fname) in
+  let assume_proof = create_name env ("assume_proof_" ^ fname) in
+  let assert_proof = create_name env ("assert_proof_" ^ fname) in
+
+  let proofv = {assume_; assert_; assume_proof; assert_proof} in
+
+  add_proofv env f.f_name proofv;
+
+  let env = { env with func = Some f.f_name } in
+
   (* Print the function *)
   (* FIXME ajouter les conditions d'initialisation 
      sur les variables de retour *)
   let pp_cmd = 
     if env.model = Normal then Normal.pp_cmd
-    else Leak.pp_cmd in
+    else Leak.pp_cmd
+  in
   Format.fprintf fmt 
-    "@[<v>proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a%a@]@ }@]"
+    "@[<v>@[<v>%a@]@ proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a%a@]@ }@]"
+    (pp_proof_var env) proofv
     (pp_fname env) f.f_name
     (pp_params env) f.f_args 
     (pp_rty env) f.f_tyout
@@ -1384,6 +1469,81 @@ let pp_fun pd asmOp env fmt f =
     (pp_cmd pd asmOp env) f.f_body
     (pp_safe_ret pd env) f.f_ret
     (pp_ret env) f.f_ret
+
+let pp_contract pd env fmt c =
+  let c = List.map (fun (_,x) -> x) c in
+  if List.is_empty c then
+    Format.fprintf fmt "true"
+  else
+    Format.fprintf fmt "%a" (pp_list "/\\@ " (pp_expr pd env)) c
+
+let pp_proof1 pd env fmt f =
+      let p = Mf.find f.f_name !(env.proofv) in
+      let fname = get_funname env f.f_name in
+      Format.fprintf fmt "axiom %s_assert : hoare [M.%s : %a ==> M.%s /\\ ((M.%s /\\ M.%s) => %a)].@ "
+        fname fname
+        (pp_contract pd env) f.f_contra.f_pre
+        p.assert_proof
+        p.assert_
+        p.assume_
+        (pp_contract pd env) f.f_contra.f_post
+
+let pp_proof2 pd env fmt f =
+      let p = Mf.find f.f_name !(env.proofv) in
+      let fname = get_funname env f.f_name in
+      Format.fprintf fmt
+        "lemma %s_assume : hoare [M.%s : %a ==> M.%s].@ "
+        fname fname
+        (pp_contract pd env) f.f_contra.f_pre
+        p.assume_proof;
+      Format.fprintf fmt  "proof.@ admitted. (*TODO*)@ "
+
+let pp_proof3 pd env fmt f =
+      let p = Mf.find f.f_name !(env.proofv) in
+      let fname = get_funname env f.f_name in
+      Format.fprintf fmt
+        "lemma %s_assert_assume_sound : hoare [M.%s : true ==> (M.%s /\\ M.%s) => (M.%s /\\ M.%s)].@ "
+        fname fname
+        p.assert_proof
+        p.assume_proof
+        p.assert_
+        p.assume_;
+      Format.fprintf fmt  "proof.@ admitted. (*TODO*)@ "
+
+let pp_proof4 pd env fmt f =
+      let p = Mf.find f.f_name !(env.proofv) in
+      let fname = get_funname env f.f_name in
+      Format.fprintf fmt
+        "lemma %s_spec : hoare [M.%s : %a ==> %a].@ "
+        fname fname
+        (pp_contract pd env) f.f_contra.f_pre
+        (pp_contract pd env) f.f_contra.f_post;
+      Format.fprintf fmt "proof.@ ";
+      Format.fprintf fmt
+        "have h: hoare [M.%s : %a ==> M.%s /\\ M.%s /\\ ((M.%s /\\ M.%s) => %a)].@ "
+        fname
+        (pp_contract pd env) f.f_contra.f_pre
+        p.assert_proof
+        p.assume_proof
+        p.assert_
+        p.assume_
+        (pp_contract pd env) f.f_contra.f_post;
+      Format.fprintf fmt "+ by conseq %s_assume %s_assert.@ " fname fname;
+      Format.fprintf fmt "conseq h %s_assert_assume_sound => //; smt().@ " fname;
+      Format.fprintf fmt "qed.@ "
+
+let pp_proof pd env fmt funcs =
+  List.iter (fun f ->
+      let env = List.fold_left (add_var false) env f.f_args in
+      let freturn = List.map (fun x -> L.unloc x) f.f_ret in
+      let env = {env with freturn} in
+      Format.fprintf fmt "%a@ %a@ %a@ %a@ "
+        (pp_proof1 pd env) f
+        (pp_proof2 pd env) f
+        (pp_proof3 pd env) f
+        (pp_proof4 pd env) f
+    )
+    funcs
 
 let pp_glob_decl env fmt (x,d) =
   match d with
@@ -1505,7 +1665,7 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
   in
 
   Format.fprintf fmt 
-    "@[<v>%s.@ %s %s.@ %s@ @ %s@ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
+    "@[<v>%s.@ %s %s.@ %s@ @ %s@ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ %a @]@."
     "require import AllCore IntDiv CoreMap List Distr"
     "from Jasmin require import"
     (jmodel ())
@@ -1518,6 +1678,7 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
     pp_mod_arg env
     pp_leakages env 
     (pp_list "@ @ " (pp_fun pd asmOp env)) funcs
+    (pp_proof pd env) funcs
     
 let rec used_func f = 
   used_func_c Ss.empty f.f_body 
