@@ -130,7 +130,8 @@ module CL = struct
       | Rbinop of rexp * string * rexp
       | Rpreop of string * rexp * rexp
       | Rlimbs of const * rexp list
-
+      | RVget  of rexp * int * int * const
+ 
     let const z1 z2 = Rconst(z1, z2)
     let (!-) e1 = Runop ("-", e1)
     let minu e1 e2 = Rbinop (e1, "-", e2)
@@ -161,6 +162,10 @@ module CL = struct
         Format.fprintf fmt  "(limbs %a [%a])"
           pp_const c
           (pp_list ",@ " pp_rexp) es
+      | RVget(e,i1,i2,c) -> 
+        Format.fprintf fmt  "(%a[%a])"
+          pp_rexp e
+          pp_const c
 
     type rpred =
       | RPcmp   of rexp * string * rexp
@@ -218,7 +223,6 @@ module CL = struct
   module Instr = struct
 
     type atom =
-      | AconstNoType of const
       | Aconst of const * ty
       | Avar of tyvar
       | Avecta of tyvar * int
@@ -226,7 +230,6 @@ module CL = struct
 
     let rec pp_atom fmt a =
       match a with
-      | AconstNoType c -> pp_const fmt c
       | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
       | Avar tv -> pp_tyvar fmt tv
       | Avecta (v, i) -> Format.fprintf fmt "%a[%i]" pp_vvar v i
@@ -339,6 +342,21 @@ module CL = struct
 
     end
 
+    let rec int_of_ty = function
+      | Uint n -> n
+      | Sint n -> n
+      | Bit -> 1
+      | Vector (i,t) -> i * int_of_ty t
+
+    module ShiftV =  struct
+      let shift iname (d : lval) (s : atom) (c : const) (w : int) =
+        { iname; iargs = [Lval d; Atom s; Atom (Avatome 
+             (List.init w (fun _ -> (Aconst (c,Uint (int_of_ty (snd d) / w))))))] }
+      let shl = shift "shl"
+      let shr = shift "shr"
+      let sar = shift "sar"
+    end
+
     module Cshift = struct
 
       let cshift iname (d1 : lval) (d2 : lval) (s1 : atom) (s2 : atom) (c : const) =
@@ -363,16 +381,6 @@ module CL = struct
 
     end
 
-    module ShiftsV =  struct
-
-      let shifts iname (d1 : lval) (d2 : lval) (s : atom) (c : const) (w : int) =
-        { iname; iargs = [Lval d1; Lval d2; Atom s; Atom (Avatome (List.init w (fun _ -> (AconstNoType c))))] }
-
-      let shls = shifts "shls"
-      let shrs = shifts "shrs"
-      let sars = shifts "sars"
-
-    end
     module Shift2s = struct
 
       let shift2s iname (d1 : lval) (d2 : lval) (d3 : lval) (s1 : atom) (s2 : atom) (c : const) =
@@ -489,6 +497,8 @@ module I = struct
     | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
     | Pabstract ({name="equmod64"}, [e1;e2;e3]) -> equmod !> e1 !> e2 !> e3
     | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
+    | Pabstract ({name="u256_as_16u16"}, [e0;e1;e2;e3;e4;e5;e6;e7;e8;e9;e10;e11;e12;e13;e14;e15;e16]) -> 
+           RPand [] (* FIX ME: INTRODUCE AN INITIAL ASSIGNMENT! *)
     | _ ->  assert false
 
   let rec extract_list e aux =
@@ -1048,6 +1058,9 @@ module X86BaseOp : BaseOp
     |VPEXTR _ -> assert false
     |VPINSR _ -> assert false
     |VPSLL (v,ws) -> 
+      begin
+      match trans with
+        | Smt ->
           let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
           let (c,_) = I.gexp_to_const(List.nth es 1) in
           let v = int_of_velem v in
@@ -1055,9 +1068,13 @@ module X86BaseOp : BaseOp
           let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
           let l = I.glval_to_lval (List.nth xs 0) in
           let i3 = cast_atome_vector ws v !l_tmp l in
-          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
-          i1 @ [CL.Instr.ShiftsV.shls l_tmp1 l_tmp a1 c v] @ i3
+          i1 @ [CL.Instr.ShiftV.shl l_tmp a1 c v] @ i3
+        | Cas -> assert false 
+      end
     |VPSRL (v,ws) -> 
+      begin
+      match trans with
+        | Smt ->
           let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
           let (c,_) = I.gexp_to_const(List.nth es 1) in
           let v = int_of_velem v in
@@ -1065,9 +1082,13 @@ module X86BaseOp : BaseOp
           let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
           let l = I.glval_to_lval (List.nth xs 0) in
           let i3 = cast_atome_vector ws v !l_tmp l in
-          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
-          i1 @ [CL.Instr.ShiftsV.shrs l_tmp l_tmp1 a1 c v] @ i3
+          i1 @ [CL.Instr.ShiftV.shr l_tmp a1 c v] @ i3
+        | Cas -> assert false 
+      end
     |VPSRA (v,ws) -> 
+      begin
+      match trans with
+        | Smt ->
           let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
           let (c,_) = I.gexp_to_const(List.nth es 1) in
           let v = int_of_velem v in
@@ -1075,8 +1096,9 @@ module X86BaseOp : BaseOp
           let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
           let l = I.glval_to_lval (List.nth xs 0) in
           let i3 = cast_atome_vector ws v !l_tmp l in
-          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
-          i1 @ [CL.Instr.ShiftsV.sars l_tmp l_tmp1 a1 c v] @ i3
+          i1 @ [CL.Instr.ShiftV.sar l_tmp a1 c v] @ i3
+        | Cas -> assert false 
+      end
     |VPSLLV _ -> assert false
     |VPSRLV _ -> assert false
     |VPSLLDQ _ -> assert false

@@ -70,7 +70,6 @@ module CL : sig
   module Instr :
     sig
       type atom =
-        | AconstNoType of const
         | Aconst of const * ty
         | Avar of tyvar
         | Avecta of tyvar * int
