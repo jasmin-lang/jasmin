@@ -773,13 +773,15 @@ module X86BaseOp : BaseOp
       let a1 = I.mk_const_atome (int_of_ws ws) Z.one in
       let a2,i2 = cast_atome ws (List.nth es 0) in
       let l = I.glval_to_lval (List.nth xs 4) in
-      i2 @ [CL.Instr.Op2.add l a1 a2]
+      let l_tmp = I.mk_spe_tmp_lval 1 in
+      i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2] (* should we account for overflow in increment? *)
 
     | DEC ws ->
       let a1,i1 = cast_atome ws (List.nth es 0) in
       let a2 = I.mk_const_atome (int_of_ws ws) Z.one in
       let l = I.glval_to_lval (List.nth xs 4) in
-      i1 @ [CL.Instr.Op2.sub l a1 a2]
+      let l_tmp = I.mk_spe_tmp_lval 1 in
+      i1 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2] (* should we account for underflow in decrement? *)
 
     | AND ws ->
       let a1,i1 = cast_atome ws (List.nth es 0) in
@@ -842,7 +844,7 @@ module X86BaseOp : BaseOp
           let c = I.get_const (List.nth es 1) in
           let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
           let l = I.glval_to_lval (List.nth xs 5) in
-          i @ [CL.Instr.Shifts.split l l_tmp a (Z.of_int c)]
+          i @ [CL.Instr.Shifts.shrs l_tmp l a (Z.of_int c)] (* Why not use the safe version of shr here too *)
       end
 
     | SAR ws ->
