@@ -1,0 +1,59 @@
+u8[8] a = "Testfile";
+u8[7] b = "Content";
+
+export
+fn main(reg u64 p) -> reg u64 {
+
+    stack u8[8] fname;
+    fname = #copy_8(a);
+    stack u8[7] fcontent;
+    fcontent = #copy_8(b);
+
+    reg u64 fd spill_fd;
+    reg u8 code;
+
+    // write content to file
+    fd = #open(fname);
+
+    fd = fd;
+
+    spill_fd = fd;
+
+    fcontent = #write(fcontent, fd);
+
+    fd = spill_fd;
+
+    code = #close(fd);
+
+    // read content from file
+    fd = #open(fname);
+
+    fd = fd;
+
+    spill_fd = fd;
+
+    stack u8[7] content;
+    content = #read(content, fd);
+
+    fd = spill_fd;
+
+    code = #close(fd);
+
+    // check content of file
+    reg u64 res;
+    res = 0;
+    
+    inline int i;
+    for i = 0 to 7 {
+        reg u64 tmp tmp2;
+        tmp = (64u)fcontent[i];
+        tmp2 = (64u)content[i];
+        tmp ^= tmp2;
+        res |= tmp;
+    }
+
+    res = res;
+
+    return res;
+}
+

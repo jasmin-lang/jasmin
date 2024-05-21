@@ -46,7 +46,7 @@ Arguments mk_spp {_}.
 (* Parameters needed to execute programs.
    This gets extracted and used in OCaml (in the evaluator), so [asm_op] and
    [syscall_state] are parameters instead of record fields. *)
-Class SemInstrParams (asm_op syscall_state : Type) := mk_sip
+Class SemInstrParams {pd:PointerData} (asm_op syscall_state : Type) := mk_sip
   {
     _asmop : asmOp asm_op;
     _sc_sem : syscall_sem syscall_state;
@@ -55,4 +55,4 @@ Class SemInstrParams (asm_op syscall_state : Type) := mk_sip
 #[global]
 Existing Instances _asmop _sc_sem | 1000.
 
-Arguments mk_sip {_ _ _ _}.
+Arguments mk_sip {_ _ _ _ _}.

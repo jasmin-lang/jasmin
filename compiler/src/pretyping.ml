@@ -1760,6 +1760,110 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty] in
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "open" ->
+    (* FIXME syscall *)
+    (* This is dirty but ... *)
+    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "open expects no implicit arguments");
+    let loc, x, ty =
+      match xs with
+      | [x] ->
+        let loc, x, oty = tt_lvalue arch_info.pd env x in
+        let ty =
+          match oty with
+          | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+          | Some ty -> ty in
+        loc, x ty, ty
+      | _ ->
+        rs_tyerror ~loc:(L.loc pi)
+          (string_error "only a single variable is allowed as destination of open") in
+    let _ = tt_as_word (loc, ty) in
+    let e, ty = 
+      match args with
+      | [e] -> tt_expr arch_info.pd env e
+      | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "only a single variable is allowed as input of open")
+    in
+    (** FIXME: Pass an actual location *)
+    let _ = tt_as_array (L._dummy, ty) in
+    env, [mk_i (P.Csyscall([x], Syscall_t.Open (Conv.pos_of_int 1), [e]))]
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "close" ->
+    (* FIXME syscall *)
+    (* This is dirty but ... *)
+    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "close expects no implicit arguments");
+    let loc, x, ty =
+      match xs with
+      | [x] ->
+        let loc, x, oty = tt_lvalue arch_info.pd env x in
+        let ty =
+          match oty with
+          | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+          | Some ty -> ty in
+        loc, x ty, ty
+      | _ ->
+        rs_tyerror ~loc:(L.loc pi)
+          (string_error "only a single variable is allowed as destination of close") in
+    let _ = tt_as_word (loc, ty) in
+    let e, ty = 
+      match args with
+      | [e] -> tt_expr arch_info.pd env e
+      | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "only a single variable is allowed as input of open")
+    in
+    (** FIXME: Pass an actual location *)
+    let _ = tt_as_word (L._dummy, ty) in
+    env, [mk_i (P.Csyscall([x], Syscall_t.Close, [e]))]
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "write" ->
+    (* FIXME syscall *)
+    (* This is dirty but ... *)
+    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "write expects no implicit arguments");
+    let loc, x, ty =
+      match xs with
+      | [x] ->
+        let loc, x, oty = tt_lvalue arch_info.pd env x in
+        let ty =
+          match oty with
+          | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+          | Some ty -> ty in
+        loc, x ty, ty
+      | _ ->
+        rs_tyerror ~loc:(L.loc pi)
+          (string_error "only a single variable is allowed as destination of write") in
+    let e = 
+      match args with
+      | [e; f] -> 
+          let e, ty = tt_expr arch_info.pd env e in
+          let _ = tt_as_array (L._dummy, ty) in
+          let e2, ty2 = tt_expr arch_info.pd env f in
+          let _ = tt_as_word (L._dummy, ty2) in
+          [e; e2]
+      | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "write expects two variables as input")
+    in
+    env, [mk_i (P.Csyscall([x], Syscall_t.Write (Conv.pos_of_int 1), e))]
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "read" ->
+      (* FIXME syscall *)
+      (* This is dirty but ... *)
+      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "read expects no implicit arguments");
+      let loc, x, ty =
+        match xs with
+        | [x] ->
+          let loc, x, oty = tt_lvalue arch_info.pd env x in
+          let ty =
+            match oty with
+            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+            | Some ty -> ty in
+          loc, x ty, ty
+        | _ ->
+          rs_tyerror ~loc:(L.loc pi)
+            (string_error "only a single variable is allowed as destination of read") in
+      let e = 
+        match args with
+        | [e; f] -> 
+            let e, ty = tt_expr arch_info.pd env e in
+            let _ = tt_as_array (L._dummy, ty) in
+            let e2, ty2 = tt_expr arch_info.pd env f in
+            let _ = tt_as_word (L._dummy, ty2) in
+            [e; e2]
+        | _ -> rs_tyerror ~loc:(L.loc pi) (string_error "read expects two variables as input")
+      in
+      env, [mk_i (P.Csyscall([x], Syscall_t.Read (Conv.pos_of_int 1), e))]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "swap" ->
       if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");

@@ -140,6 +140,10 @@ let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
 let pp_syscall (o : _ Syscall_t.syscall_t) =
   match o with
   | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
+  | Syscall_t.Open _ -> "__jasmin_syscall_open__"
+  | Syscall_t.Close -> "__jasmin_syscall_close__"
+  | Syscall_t.Write _ -> "__jasmin_syscall_write__"
+  | Syscall_t.Read _ -> "__jasmin_syscall_read__"
 
 (* To conform to the Unified Assembly Language (UAL) of ARM, IT instructions
    must be introduced *in addition* to conditional suffixes. *)
@@ -260,7 +264,7 @@ let pp_instr fn i =
       [ LInstr ("pop", [ "{pc}" ]) ]
 
   | SysCall op ->
-      [LInstr ("bl", [ pp_syscall op ])]
+      [LInstr ("bl", [ pp_syscall (Conv.syscall_of_csyscall op) ])]
 
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
