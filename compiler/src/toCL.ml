@@ -130,7 +130,8 @@ module CL = struct
       | Rbinop of rexp * string * rexp
       | Rpreop of string * rexp * rexp
       | Rlimbs of const * rexp list
-
+      | RVget  of rexp * int * int * const
+ 
     let const z1 z2 = Rconst(z1, z2)
     let (!-) e1 = Runop ("-", e1)
     let minu e1 e2 = Rbinop (e1, "-", e2)
@@ -161,6 +162,10 @@ module CL = struct
         Format.fprintf fmt  "(limbs %a [%a])"
           pp_const c
           (pp_list ",@ " pp_rexp) es
+      | RVget(e,i1,i2,c) -> 
+        Format.fprintf fmt  "(%a[%a])"
+          pp_rexp e
+          pp_const c
 
     type rpred =
       | RPcmp   of rexp * string * rexp
@@ -228,7 +233,7 @@ module CL = struct
       | Aconst (c, ty) -> Format.fprintf fmt "%a%a" pp_const c pp_cast ty
       | Avar tv -> pp_tyvar fmt tv
       | Avecta (v, i) -> Format.fprintf fmt "%a[%i]" pp_vvar v i
-      | Avatome al -> Format.fprintf fmt "[%a]" (pp_list ",@" pp_atom) al
+      | Avatome al -> Format.fprintf fmt "[%a]" (pp_list ", " pp_atom) al
 
     type lval = tyvar
 
@@ -335,6 +340,21 @@ module CL = struct
       let shr  = shift "shr"
       let sar  = shift "sar"
 
+    end
+
+    let rec int_of_ty = function
+      | Uint n -> n
+      | Sint n -> n
+      | Bit -> 1
+      | Vector (i,t) -> i * int_of_ty t
+
+    module ShiftV =  struct
+      let shift iname (d : lval) (s : atom) (c : const) (w : int) =
+        { iname; iargs = [Lval d; Atom s; Atom (Avatome 
+             (List.init w (fun _ -> (Aconst (c,Uint (int_of_ty (snd d) / w))))))] }
+      let shl = shift "shl"
+      let shr = shift "shr"
+      let sar = shift "sar"
     end
 
     module Cshift = struct
@@ -477,6 +497,8 @@ module I = struct
     | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
     | Pabstract ({name="equmod64"}, [e1;e2;e3]) -> equmod !> e1 !> e2 !> e3
     | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
+    | Pabstract ({name="u256_as_16u16"}, [e0;e1;e2;e3;e4;e5;e6;e7;e8;e9;e10;e11;e12;e13;e14;e15;e16]) -> 
+           RPand [] (* FIX ME: INTRODUCE AN INITIAL ASSIGNMENT! *)
     | _ ->  assert false
 
   let rec extract_list e aux =
@@ -902,6 +924,7 @@ module X86BaseOp : BaseOp
       i @ [CL.Instr.cast ty l a]
 
     | VPADD (v,ws) ->
+      begin
       let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
       let v = int_of_velem v in
@@ -909,9 +932,90 @@ module X86BaseOp : BaseOp
       let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
-      i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
-
-    | VPSUB (v,ws) ->
+      match trans with
+        | Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
+        | Cas ->
+          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3
+      end      
+    |SETcc -> assert false 
+    |CLC -> assert false
+    |STC -> assert false
+    |VBROADCASTI128 -> assert false
+    |VEXTRACTI128 -> assert false
+    |VINSERTI128 -> assert false
+    |VPERM2I128 -> assert false
+    |VPERMD -> assert false
+    |VPERMQ -> assert false
+    |VMOVLPD -> assert false
+    |VMOVHPD -> assert false
+    |CLFLUSH -> assert false
+    |LFENCE -> assert false
+    |MFENCE -> assert false
+    |SFENCE -> assert false
+    |AESDEC -> assert false
+    |VAESDEC -> assert false
+    |AESDECLAST -> assert false
+    |VAESDECLAST -> assert false
+    |AESENC -> assert false
+    |VAESENC -> assert false
+    |AESENCLAST -> assert false
+    |VAESENCLAST -> assert false
+    |AESIMC -> assert false
+    |VAESIMC -> assert false
+    |AESKEYGENASSIST -> assert false
+    |VAESKEYGENASSIST -> assert false
+    |PCLMULQDQ -> assert false
+    |CMOVcc _ -> assert false
+    |MUL _ -> assert false
+    |IMUL _ -> assert false
+    |DIV _ -> assert false
+    |IDIV _ -> assert false
+    |CQO _ -> assert false
+    |LZCNT _ -> assert false
+    |BT _ -> assert false
+    |LEA _ -> assert false
+    |TEST _ -> assert false
+    |CMP _ -> assert false
+    |ROR _ -> assert false
+    |ROL _ -> assert false
+    |RCR _ -> assert false
+    |RCL _ -> assert false
+    |SAL _ -> assert false
+    |SHLD _ -> assert false
+    |SHRD _ -> assert false
+    |MULX_lo_hi _ -> assert false
+    |ADCX _ -> assert false
+    |ADOX _ -> assert false
+    |BSWAP _ -> assert false
+    |POPCNT _ -> assert false
+    |PEXT _ -> assert false
+    |PDEP _ -> assert false
+    |MOVX _ -> assert false
+    |MOVD _ -> assert false
+    |VMOV _ -> assert false
+    |VMOVDQA _ -> assert false
+    |VMOVDQU ws ->       
+      let a,i = cast_atome ws (List.nth es 0) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      i @ [CL.Instr.Op1.mov l a]
+    |VPMOVSX _ -> assert false
+    |VPMOVZX _ -> assert false
+    |VPAND ws ->
+      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
+      let s = int_of_ws ws in
+      let v = s / 16 in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
+          i1 @ i2 @ [CL.Instr.Op2.and_ l_tmp a1 a2] @ i3
+    |VPANDN _ -> assert false
+    |VPOR _ -> assert false
+    |VPXOR _ -> assert false
+    |VPSUB (v,ws) ->
+      begin
       let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
       let v = int_of_velem v in
@@ -919,35 +1023,115 @@ module X86BaseOp : BaseOp
       let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
-      i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
-
-    | VPMULL (v,ws) ->
+      match trans with
+        | Smt ->
+          i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
+        | Cas ->
+          let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
+      end      
+    |VPAVG _ -> assert false
+    |VPMULL (v,ws) ->
       let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
       let v = int_of_velem v in
       let s = int_of_ws ws in
       let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      let i3 = cast_atome_vector ws v !l_tmp l in
       let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp1 l_tmp a1 a2] @ i3
+    |VPMULH ws -> 
+      let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
+      let s = int_of_ws ws in
+      let v = s / 16 in
+      let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp1 l_tmp a1 a2] @ i3
-
-    (* | VPMULH ws -> assert false *)
-    (* | VPBROADCAST (v,ws) -> assert false *)
-
-    (*   VPSLL_8u32 *)
-    (*   PBLEND_16u16 *)
-    (*   VPSRL_8u32 *)
-    (*   VPBLEND_16u16 *)
-    (*   VMOVSLDUP_256 *)
-    (*   VPSRL_4u64 *)
-    (*   VPUNPCKL_4u64 *)
-    (*   VPUNPCKH_4u64 *)
-    (*   VPERM2I128 *)
-    (*   VPSRA_16u16 *)
-
+      let l_tmp1 = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
+    |VPMULHU _ -> assert false
+    |VPMULHRS _ -> assert false
+    |VPMUL _ -> assert false
+    |VPMULU _ -> assert false
+    |VPEXTR _ -> assert false
+    |VPINSR _ -> assert false
+    |VPSLL (v,ws) -> 
+      begin
+      match trans with
+        | Smt ->
+          let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let v = int_of_velem v in
+          let s = int_of_ws ws in
+          let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i3 = cast_atome_vector ws v !l_tmp l in
+          i1 @ [CL.Instr.ShiftV.shl l_tmp a1 c v] @ i3
+        | Cas -> assert false 
+      end
+    |VPSRL (v,ws) -> 
+      begin
+      match trans with
+        | Smt ->
+          let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let v = int_of_velem v in
+          let s = int_of_ws ws in
+          let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i3 = cast_atome_vector ws v !l_tmp l in
+          i1 @ [CL.Instr.ShiftV.shr l_tmp a1 c v] @ i3
+        | Cas -> assert false 
+      end
+    |VPSRA (v,ws) -> 
+      begin
+      match trans with
+        | Smt ->
+          let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let v = int_of_velem v in
+          let s = int_of_ws ws in
+          let l_tmp = I.mk_tmp_lval ~vector:(Some(v,s/v)) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i3 = cast_atome_vector ws v !l_tmp l in
+          i1 @ [CL.Instr.ShiftV.sar l_tmp a1 c v] @ i3
+        | Cas -> assert false 
+      end
+    |VPSLLV _ -> assert false
+    |VPSRLV _ -> assert false
+    |VPSLLDQ _ -> assert false
+    |VPSRLDQ _ -> assert false
+    |VPSHUFB _ -> assert false
+    |VPSHUFD _ -> assert false
+    |VPSHUFHW _ -> assert false
+    |VPSHUFLW _ -> assert false
+    |VPBLEND _ -> assert false
+    |VPBLENDVB _ -> assert false
+    |VPACKUS _ -> assert false
+    |VPACKSS _ -> assert false
+    |VSHUFPS _ -> assert false
+    |VPBROADCAST _ -> assert false
+    |VMOVSHDUP _ -> assert false
+    |VMOVSLDUP _ -> assert false
+    |VPALIGNR _ -> assert false
+    |VPUNPCKH _ -> assert false
+    |VPUNPCKL _ -> assert false
+    |VPMOVMSKB _ -> assert false
+    |VPCMPEQ _ -> assert false
+    |VPCMPGT _ -> assert false
+    |VPMADDUBSW _ -> assert false
+    |VPMADDWD _ -> assert false
+    |VPMINU _ -> assert false
+    |VPMINS _ -> assert false
+    |VPMAXU _ -> assert false
+    |VPMAXS _ -> assert false
+    |VPTEST _ -> assert false
+    |RDTSC _ -> assert false
+    |RDTSCP _ -> assert false
+    |VPCLMULQDQ _ -> assert false
     | _ -> assert false
-
 end
 
 module ARMBaseOp : BaseOp
