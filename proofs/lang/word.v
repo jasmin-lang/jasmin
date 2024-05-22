@@ -526,6 +526,7 @@ Lemma wshrE sz (x: word sz) c i :
   wbit_n (wshr x c) i = wbit_n x (Z.to_nat c + i).
 Proof.
   move/Z2Nat.id => {1}<-.
+  rewrite /wshr -urepr_lsr ureprK.
   exact: wbit_lsr.
 Qed.
 
@@ -543,6 +544,7 @@ Proof.
   rewrite -(Z.mod_small (wunsigned x / 2 ^ Z.of_nat c) (modulus sz)) //.
   rewrite -wunsigned_repr.
   congr wunsigned.
+  rewrite /wshr -urepr_lsr ureprK.
   apply/eqP/eq_from_wbit_n => i.
   rewrite /wbit_n wbit_lsr wunsigned_repr /wbit.
   rewrite Z.mod_small //.
@@ -771,7 +773,7 @@ Lemma msb0 sz : @msb sz 0 = false.
 Proof. by case: sz. Qed.
 
 Lemma wshr0 sz (w: word sz) : wshr w 0 = w.
-Proof. by rewrite /wshr /lsr Z.shiftr_0_r ureprK. Qed.
+Proof. by rewrite /wshr Z.shiftr_0_r ureprK. Qed.
 
 Lemma wshr_full sz (w : word sz) : wshr w (wsize_bits sz) = 0%R.
 Proof.
@@ -1241,22 +1243,11 @@ Qed.
 
 (* -------------------------------------------------------------------*)
 Lemma lsr0 n (w: n.-word) : lsr w 0 = w.
-Proof. by rewrite /lsr Z.shiftr_0_r ureprK. Qed.
+Proof. by apply/word_eqP; rewrite -urepr_word urepr_lsr. Qed.
 
 Lemma subword0 (ws ws' :wsize) (w: word ws') :
    mathcomp.word.word.subword 0 ws w = zero_extend ws w.
-Proof.
-  apply/eqP/eq_from_wbit_n => i.
-  rewrite wbit_zero_extend.
-  have := ltn_ord i.
-  rewrite ltnS => -> /=.
-  rewrite /subword lsr0.
-  rewrite {1}/wbit_n /wunsigned mkwordK.
-  rewrite /mathcomp.word.word.wbit /modulus two_power_nat_equiv.
-  rewrite Z.mod_pow2_bits_low //.
-  have /leP := ltn_ord i.
-  lia.
-Qed.
+Proof. by rewrite /subword -urepr_word urepr_lsr Z.shiftr_0_r. Qed.
 
 (* -------------------------------------------------------------------*)
 Definition check_scale (s:Z) :=
