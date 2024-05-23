@@ -1,0 +1,6 @@
+(library
+  (name uint63)
+  (public_name jasmin.uint63)
+  (modules :standard \ uint63_31 uint63_63)
+  (virtual_modules uint63)
+  (default_implementation uint63_native))
