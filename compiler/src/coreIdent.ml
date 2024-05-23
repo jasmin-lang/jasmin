@@ -88,10 +88,6 @@ module Cident = struct
   let id_name (x: t) : Name.t = x.v_name
   let id_kind (x: t) : v_kind = x.v_kind
 
-  (* FIXME: can we use something else that L._dummy? *)
-  let mk x k t = V.mk x k t L._dummy []
-  let mk_flag x = mk x (Reg(Normal,Direct)) tbool
-
   let spill_to_mmx (x:t) =
     match Annot.ensure_uniq1 "spill_to_mmx" Annot.none x.v_annot with
     | Some () -> true
