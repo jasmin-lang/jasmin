@@ -19,8 +19,6 @@ fn sub(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x -= 2048;
     x -= 0;
     x -= -2047;
-
-    x -= 2049;
     
     x += y;
     [x] = x;
