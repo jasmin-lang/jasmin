@@ -1,0 +1,12 @@
+export
+fn mul(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Registers.
+    x = arg0 * arg1;
+    [x] = x;
+
+    reg u32 res;
+    res = x;
+    return res;
+}
