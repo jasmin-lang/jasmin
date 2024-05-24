@@ -18,10 +18,12 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition is_arith_small (imm : Z) : bool := (imm <? Z.pow 2 12)%Z.
+(* Returns true for imm comprised between -2048 (-2ˆ11) and 2047 (2ˆ11 - 1); else otherwise*)
+Definition is_arith_small (imm : Z) : bool := (- Z.pow 2 11 <=? imm)%Z && (imm <? Z.pow 2 11)%Z.
 
 Module RISCVFopn_core.
 
+Definition is_arith_small_neg (imm: Z) : bool := is_arith_small(-imm).
   #[local]
   Open Scope Z.
 
@@ -79,20 +81,20 @@ Module RISCVFopn_core.
   (* Compute [R[x] := R[y] - imm % 2^32
      Precondition: if [imm] is large, [x <> y]. *)
   Definition smart_subi x y imm :=
-    gen_smart_opi sub subi is_arith_small (Some 0%Z) x x y imm.
+    gen_smart_opi sub subi is_arith_small_neg (Some 0%Z) x x y imm.
 
   (* Compute [R[x] := R[x] <o> imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition gen_smart_opi_tmp on_reg on_imm x tmp imm :=
+  Definition gen_smart_opi_tmp is_arith_small on_reg on_imm x tmp imm :=
     gen_smart_opi on_reg on_imm is_arith_small (Some 0%Z) tmp x x imm.
 
   (* Compute [R[x] := R[x] + imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition smart_addi_tmp x tmp imm := gen_smart_opi_tmp add addi x tmp imm.
+  Definition smart_addi_tmp x tmp imm := gen_smart_opi_tmp is_arith_small add addi x tmp imm.
 
   (* Compute [R[x] := R[x] - imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition smart_subi_tmp x tmp imm := gen_smart_opi_tmp sub subi x tmp imm.
+  Definition smart_subi_tmp x tmp imm := gen_smart_opi_tmp is_arith_small_neg sub subi x tmp imm.
 
   End WITH_PARAMS.
 
