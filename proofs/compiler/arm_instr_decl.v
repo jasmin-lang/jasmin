@@ -1985,7 +1985,12 @@ Definition arm_prim_string : seq (string * prim_constructor arm_op) :=
   let mk_prim mn sf ic :=
     let hs := xseq.assoc always_has_shift_mnemonics mn in
     let opts := {| set_flags := sf; is_conditional := ic; has_shift := hs; |} in
-    ARM_op mn opts
+    Let _ :=
+      assert
+        [|| ~~ sf | mn \in set_flags_mnemonics ]
+        "this mnemonic cannot set flags"%string
+    in
+    ok (ARM_op mn opts)
   in
   map (fun mn => (string_of_arm_mnemonic mn, PrimARM (mk_prim mn))) cenum.
 

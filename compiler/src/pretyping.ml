@@ -40,7 +40,7 @@ type tyerror =
   | CallNotAllowed
   | PrimNotAllowed
   | Unsupported         of string
-  | UnknownPrim         of A.symbol
+  | UnknownPrim of A.symbol * string
   | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
   | PtrOnlyForArray
   | WriteToConstantPointer of A.symbol
@@ -172,8 +172,8 @@ let pp_tyerror fmt (code : tyerror) =
 
   | Unsupported s ->
       F.fprintf fmt "%s" s
-  | UnknownPrim s ->
-      F.fprintf fmt "unknown primitive: `%s'" s
+  | UnknownPrim(s, msg) ->
+      F.fprintf fmt "unknown primitive: \"%s\"%s" s msg
 
   | PrimWrongSuffix (s, []) ->
       F.fprintf fmt "primitive accepts no size annotation: `%s'" s
@@ -1376,9 +1376,8 @@ let tt_prim asmOp id =
             | None -> rs_tyerror ~loc (PrimWrongSuffix (name, valid_suffixes))
     end
     | PrimARM _ | exception Not_found ->
-        oget
-          ~exn:(tyerror ~loc (UnknownPrim s))
-          (Tt_arm_m4.tt_prim asmOp.Sopn.prim_string name sz)
+       let err msg = tyerror ~loc (UnknownPrim(s, msg)) in
+       Tt_arm_m4.tt_prim err asmOp.Sopn.prim_string name sz
   in c
 
 let prim_of_op exn loc o =
