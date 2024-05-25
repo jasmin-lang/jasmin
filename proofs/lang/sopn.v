@@ -65,7 +65,7 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimARM of
     (bool                 (* set_flags *)
      -> bool              (* is_conditional *)
-     -> asm_op).
+     -> result string asm_op).
 
 Class asmOp (asm_op : Type) := {
   _eqT           : eqTypeC asm_op
@@ -368,7 +368,7 @@ Instance eqC_sopn : eqTypeC sopn :=
 Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : prim_constructor B :=
   match p with
   | PrimX86 a k => PrimX86 a (fun x => omap f (k x))
-  | PrimARM x => PrimARM (fun sf ic => f (x sf ic))
+  | PrimARM mk => PrimARM (fun sf ic => Let y := mk sf ic in ok (f y))
   end.
 
 Definition primM {A: Type} f  := @PrimX86 A [::] (fun _ => Some f).

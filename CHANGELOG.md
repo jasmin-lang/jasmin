@@ -93,6 +93,11 @@
 
 ## Bug fixes
 
+- The compiler rejects ARM intrincics with the `S` suffix if the instruction
+  does not set flags
+  ([PR #809](https://github.com/jasmin-lang/jasmin/pull/809);
+  fixes [#808](https://github.com/jasmin-lang/jasmin/issues/808)).
+
 - Type-checking rejects invalid variants of primitive operators
   ([PR #490](https://github.com/jasmin-lang/jasmin/pull/490);
   fixes [#488](https://github.com/jasmin-lang/jasmin/pull/488)).
