@@ -74,14 +74,16 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
       None
   end.
 
-(* RISC-V only handles immediates lower than 2ˆ12 for most instructions *)
+(* RISC-V only handles immediates lower than 2ˆ12 for I type instructions *)
 Definition decide_op_reg_imm
-  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op): 
+  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op) (n: bool): 
   option (riscv_extended_op * pexprs) :=
   let imm:= is_wconst ws e1 in
   match imm with
   | Some (word) => 
-    if is_arith_small (wsigned word) then
+    let small := if n then is_arith_small_neg (wsigned word)
+    else is_arith_small (wsigned word) in
+    if small then
       Some(op_reg_imm, [::e0; e1])
     else None
   | _ => Some(op_reg_reg, [::e0; e1])
@@ -92,11 +94,11 @@ Definition lower_Papp2
   option (riscv_extended_op * pexprs) :=
   let%opt _ := chk_ws_reg ws in
   match op with
-  | Oadd (Op_w _) => decide_op_reg_imm U32 e0 e1 (BaseOp(None, ADD)) (BaseOp(None, ADDI))
-  | Osub (Op_w _) => decide_op_reg_imm U32 e0 e1 (BaseOp(None, SUB)) (ExtOp SUBI) 
-  | Oland _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, AND)) (BaseOp(None, ANDI))
-  | Olor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, OR)) (BaseOp(None, ORI))
-  | Olxor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, XOR)) (BaseOp(None, XORI))
+  | Oadd (Op_w _) => decide_op_reg_imm U32 e0 e1 (BaseOp(None, ADD)) (BaseOp(None, ADDI)) false
+  | Osub (Op_w _) => decide_op_reg_imm U32 e0 e1 (BaseOp(None, SUB)) (ExtOp SUBI) true
+  | Oland _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, AND)) (BaseOp(None, ANDI)) false
+  | Olor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, OR)) (BaseOp(None, ORI)) true
+  | Olxor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, XOR)) (BaseOp(None, XORI)) true
   | Omul (Op_w _) => Some (BaseOp (None, MUL), [:: e0; e1])
   | Olsr U32 =>
     if check_shift_amount e1 is Some(e1) then
