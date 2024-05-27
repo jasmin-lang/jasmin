@@ -391,7 +391,7 @@ let pp_ty env fmt ty =
   | Bty Int  -> Format.fprintf fmt "int"
   | Bty (U ws) -> pp_sz_t fmt ws
   | Arr(ws,n) -> Format.fprintf fmt "%a %a.t" pp_sz_t ws (pp_Array env) n
-  | Bty Abstract _ -> Format.fprintf fmt "TODO"
+  | Bty Abstract _ -> assert false
 
 let add_aux env tys = 
   let tbl = Hashtbl.create 10 in
@@ -670,7 +670,7 @@ let rec pp_expr pd env fmt (e:expr) =
     end
 
   | Pabstract (opa, es) ->
-    Format.fprintf fmt "@[%a@ (%a)@]"
+    Format.fprintf fmt "@[%a@ %a@]"
       pp_opa opa
       (pp_list "@ " (pp_expr pd env)) es
 
@@ -693,19 +693,30 @@ let rec pp_expr pd env fmt (e:expr) =
 
   | Presult x ->
     let x = L.unloc x.gv in
+    let ret = env.freturn in
     let i,_ =
-      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) env.freturn
+      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) ret
     in
-    Format.fprintf fmt "res.`%i" i
+    if List.length ret = 1 then
+      Format.fprintf fmt "res"
+    else
+      Format.fprintf fmt "res.`%i" i
+
   | Presultget (aa, ws, x, e) ->
     assert (check_array env x.gv);
     let x = L.unloc x.gv in
+    let ret = env.freturn in
     let i,_ =
-      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) env.freturn
+      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) ret
     in
     let (xws,n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
-      Format.fprintf fmt "@[res.`%i.[%a]@]" i (pp_expr pd env) e
+      begin
+        if List.length ret = 1 then
+          Format.fprintf fmt "@[res.[%a]@]" (pp_expr pd env) e
+        else
+          Format.fprintf fmt "@[res.`%i.[%a]@]" i (pp_expr pd env) e
+      end
     else
       assert false
 
@@ -1025,18 +1036,18 @@ module Normal = struct
     | Cassert (Assume,_,e) ->
       let f = Option.get env.func in
       let p = Mf.find f !(env.proofv) in
-      Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@ @]"
-        p.assume_ p.assume_ (pp_expr pd env) e;
       Format.fprintf fmt "@[<v>%s <- %s /\\ ((%s /\\ %s) => %a);@ @]"
-        p.assume_proof p.assume_proof p.assert_ p.assume_ (pp_expr pd env) e
+        p.assume_proof p.assume_proof p.assert_ p.assume_ (pp_expr pd env) e;
+      Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@ @]"
+        p.assume_ p.assume_ (pp_expr pd env) e
 
     | Cassert (Assert,_,e) ->
       let f = Option.get env.func in
       let p = Mf.find f !(env.proofv) in
+      Format.fprintf fmt "@[<v>%s <- %s /\\ ((%s /\\ %s) => %a); @ @]"
+        p.assert_proof p.assert_proof p.assert_ p.assume_ (pp_expr pd env) e;
       Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@ @]"
-        p.assert_ p.assert_ (pp_expr pd env) e;
-      Format.fprintf fmt "@[<v>%s <- %s /\\ ((%s => %s) => %a); @ @]"
-        p.assert_proof p.assert_proof p.assert_ p.assume_ (pp_expr pd env) e
+        p.assert_ p.assert_ (pp_expr pd env) e
 
     | Cassert (_,_,e) -> assert false
 
@@ -1421,12 +1432,20 @@ let pp_safe_ret pd env fmt xs =
 let pp_bool_var env fmt var =
   Format.fprintf fmt "@[var %s:@ %a@]" var (pp_ty env) tbool
 
+let pp_init_bool_var env fmt var =
+  Format.fprintf fmt "@[%s <- true;@]" var
+
 let pp_proof_var env fmt proofv =
-  Format.fprintf fmt "%a@ %a@ %a@ %a@ "
+  Format.fprintf fmt "%a@ %a@ %a@ %a@ %a@ %a@ %a@ %a@ "
     (pp_bool_var env) proofv.assume_
     (pp_bool_var env) proofv.assert_
     (pp_bool_var env) proofv.assume_proof
     (pp_bool_var env) proofv.assert_proof
+    (pp_init_bool_var env) proofv.assume_
+    (pp_init_bool_var env) proofv.assert_
+    (pp_init_bool_var env) proofv.assume_proof
+    (pp_init_bool_var env) proofv.assert_proof
+
 
 let pp_fun pd asmOp env fmt f =
   let f = { f with f_body = remove_for f.f_body } in
@@ -1450,6 +1469,9 @@ let pp_fun pd asmOp env fmt f =
   add_proofv env f.f_name proofv;
 
   let env = { env with func = Some f.f_name } in
+
+  (*Add fresh logical variable*)
+  (*initial the variable*)
 
   (* Print the function *)
   (* FIXME ajouter les conditions d'initialisation 
@@ -1477,20 +1499,48 @@ let pp_contract pd env fmt c =
   else
     Format.fprintf fmt "%a" (pp_list "/\\@ " (pp_expr pd env)) c
 
+let pp_var_eq env fmt (vars1, vars2) =
+  let vars = List.map2 (fun a b -> a,b) vars1 vars2 in
+  let pp fmt (var1,var2) =
+    Format.fprintf fmt "%s = %a " var1 (pp_var env) var2
+  in
+  Format.fprintf fmt "%a"  (pp_list "/\\ " pp) vars
+
+let mk_old_param env params =
+  List.fold_left (fun (env,acc) v ->
+      let s = String.uncapitalize_ascii v.v_name in
+      let s = "_" ^ s in
+      let s = create_name env s in
+      let env = set_var env v false s in
+      env, s :: acc
+    ) (env,[]) (List.rev params)
+
 let pp_proof1 pd env fmt f =
       let p = Mf.find f.f_name !(env.proofv) in
       let fname = get_funname env f.f_name in
-      Format.fprintf fmt "axiom %s_assert : hoare [M.%s : %a ==> M.%s /\\ ((M.%s /\\ M.%s) => %a)].@ "
-        fname fname
+      let freturn = List.map (fun x -> L.unloc x) f.f_ret in
+      let env = {env with freturn} in
+      let env1, vars = mk_old_param env f.f_args in
+      let env = List.fold_left (add_var false) env f.f_args in
+
+      Format.fprintf fmt "axiom %s_assert : forall %a, hoare [M.%s : (%a /\\ %a) ==> M.%s /\\ ((M.%s /\\ M.%s) => %a)].@ "
+        fname
+        (pp_list " " pp_string) vars
+        fname
+        (pp_var_eq env) (vars, f.f_args)
         (pp_contract pd env) f.f_contra.f_pre
         p.assert_proof
         p.assert_
         p.assume_
-        (pp_contract pd env) f.f_contra.f_post
+        (pp_contract pd env1) f.f_contra.f_post
 
 let pp_proof2 pd env fmt f =
       let p = Mf.find f.f_name !(env.proofv) in
       let fname = get_funname env f.f_name in
+      let freturn = List.map (fun x -> L.unloc x) f.f_ret in
+      let env = {env with freturn} in
+      let env = List.fold_left (add_var false) env f.f_args in
+
       Format.fprintf fmt
         "lemma %s_assume : hoare [M.%s : %a ==> M.%s].@ "
         fname fname
@@ -1501,6 +1551,7 @@ let pp_proof2 pd env fmt f =
 let pp_proof3 pd env fmt f =
       let p = Mf.find f.f_name !(env.proofv) in
       let fname = get_funname env f.f_name in
+
       Format.fprintf fmt
         "lemma %s_assert_assume_sound : hoare [M.%s : true ==> (M.%s /\\ M.%s) => (M.%s /\\ M.%s)].@ "
         fname fname
@@ -1513,11 +1564,19 @@ let pp_proof3 pd env fmt f =
 let pp_proof4 pd env fmt f =
       let p = Mf.find f.f_name !(env.proofv) in
       let fname = get_funname env f.f_name in
+      let freturn = List.map (fun x -> L.unloc x) f.f_ret in
+      let env = {env with freturn} in
+      let env1,vars = mk_old_param env f.f_args in
+      let env = List.fold_left (add_var false) env f.f_args in
+
       Format.fprintf fmt
-        "lemma %s_spec : hoare [M.%s : %a ==> %a].@ "
-        fname fname
+        "lemma %s_spec : forall %a, hoare [M.%s : (%a /\\ %a) ==> %a].@ "
+        fname
+        (pp_list " " pp_string) vars
+        fname
+        (pp_var_eq env) (vars, f.f_args)
         (pp_contract pd env) f.f_contra.f_pre
-        (pp_contract pd env) f.f_contra.f_post;
+        (pp_contract pd env1) f.f_contra.f_post;
       Format.fprintf fmt "proof.@ ";
       Format.fprintf fmt
         "have h: hoare [M.%s : %a ==> M.%s /\\ M.%s /\\ ((M.%s /\\ M.%s) => %a)].@ "
@@ -1534,9 +1593,6 @@ let pp_proof4 pd env fmt f =
 
 let pp_proof pd env fmt funcs =
   List.iter (fun f ->
-      let env = List.fold_left (add_var false) env f.f_args in
-      let freturn = List.map (fun x -> L.unloc x) f.f_ret in
-      let env = {env with freturn} in
       Format.fprintf fmt "%a@ %a@ %a@ %a@ "
         (pp_proof1 pd env) f
         (pp_proof2 pd env) f
