@@ -196,7 +196,7 @@ Lemma smart_addi_sem_fopn_args xname vi y imm s (w : wreg) :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hor hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
@@ -207,7 +207,7 @@ Qed.
 Lemma smart_subi_sem_fopn_args xname vi y imm s (w : wreg) :
   let: (xi, x) := mkv xname vi in
   let: lc := RISCVFopn.smart_subi xi y imm in
-  is_arith_small imm \/ x <> v_var y ->
+  is_arith_small_neg imm \/ x <> v_var y ->
   get_var true (evm s) (v_var y) >>= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
@@ -216,7 +216,7 @@ Lemma smart_subi_sem_fopn_args xname vi y imm s (w : wreg) :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hor hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
               (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
@@ -237,7 +237,7 @@ Lemma smart_addi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
              (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
@@ -259,7 +259,7 @@ Lemma smart_subi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
               (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.

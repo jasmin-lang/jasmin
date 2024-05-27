@@ -331,8 +331,8 @@ Lemma gen_smart_opi_sem_fopn_args
   xname vi (tmp : var_i) y imm s (w : wreg) :
   vtype tmp = sword Uptr ->
   let: (xi, x) := mkv xname vi in
-  let: lc := RISCVFopn_core.gen_smart_opi on_reg on_imm is_arith_small neutral tmp xi y imm in
-  is_arith_small imm \/ v_var tmp <> v_var y -> 
+  let: lc := RISCVFopn_core.gen_smart_opi on_reg on_imm is_small neutral tmp xi y imm in
+  is_small imm \/ v_var tmp <> v_var y -> 
   get_var true (evm s) (v_var y) >>= to_word Uptr = ok w -> 
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
