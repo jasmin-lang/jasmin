@@ -434,6 +434,72 @@ module CL = struct
   end
 end
 
+module Counter = struct
+  let cpt = ref 0
+  let next () = incr cpt ; !cpt
+  let get () = !cpt
+end
+
+module Cfg = struct
+
+  type node =
+    { mutable nkind : CL.Instr.instr;
+      mutable succs : node list;
+      mutable preds: node list;
+      id: int
+    }
+
+  and program = node list
+
+  let mk_node nkind =
+    let preds = [] in
+    let succs = [] in
+    let id = Counter.next() in
+    { nkind ; succs; preds; id }
+
+  (** Compute CFG:
+      Requires to first compute all nodes, by maintaining the order of the stmt
+      in the list.
+  *)
+
+  let rec update_succ node succ =
+    let addSucc n  =
+      node.succs <- n :: node.succs;
+      n.preds <- node :: n.preds
+    in
+    let addOptionSucc (n: node option) =
+      match n with
+      | None -> ()
+      | Some n' -> addSucc n'
+    in
+    addOptionSucc succ
+
+  let rec cfg_node nodes next =
+    match nodes with
+    | [] -> assert false
+    | [h] -> update_succ h next
+    | h :: q ->
+      update_succ h (Some (List.hd q));
+      cfg_node q next
+
+  let compute_cfg program = cfg_node program None
+
+  let cfg_of_prog prog =
+    let cfg = List.map mk_node prog in
+    compute_cfg cfg;
+    List.hd cfg
+
+  let prog_of_cfg cfg =
+    let rec aux node acc =
+      match node.succs with
+      | [] -> node.nkind::acc
+      | [h] -> aux h (node.nkind::acc)
+      | _ -> assert false
+    in
+    aux cfg []
+
+end
+
 module I = struct
 
   let int_of_typ = function
@@ -1404,6 +1470,10 @@ module Mk(O:BaseOp) = struct
     let ghost = ref [] in
     Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
     let formals = filter_add cond formals !ghost in
+
+    let cfg = Cfg.cfg_of_prog prog in
+    let prog = Cfg.prog_of_cfg cfg in
+
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
              pre;
