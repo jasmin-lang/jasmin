@@ -174,13 +174,19 @@ end
 module type BaseOp = sig
   type op
   type extra_op
+  type trans =
+    | Cas1
+    | Cas2
+    | Cas3
+    | Smt
+
   val op_to_instr :
-    Expr.assertion_prover ->
+    trans ->
     int Prog.glval list ->
     op -> int Prog.gexpr list -> CL.Instr.instr list
 
   val assgn_to_instr :
-    Expr.assertion_prover ->
+    trans ->
     int Prog.glval -> int Prog.gexpr -> CL.Instr.instr list
 end
 
