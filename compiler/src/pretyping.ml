@@ -1776,6 +1776,13 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
         | _ ->
           rs_tyerror ~loc:(L.loc pi)
             (string_error "a pair of destination is expected for swap") in
+      let () = match ty with
+        | Arr _ -> ()
+        | Bty (U ws) when ws <= U64 -> ()
+        | Bty ty ->
+           rs_tyerror ~loc:(L.loc pi)
+             (string_error "the swap primitive is not available at type %a" PrintCommon.pp_btype ty)
+      in
       let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty; ty] in
       let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
       env, [mk_i (P.Copn(lvs, AT_keep, p, es))]

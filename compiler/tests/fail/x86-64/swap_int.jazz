@@ -1,0 +1,9 @@
+export
+fn main(reg u8 a) -> reg u8 {
+  inline int i j;
+  i = 0;
+  j = 1;
+  i, j = #swap(i, j);
+  a = a if i < j;
+  return a;
+}
