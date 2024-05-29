@@ -35,7 +35,10 @@ let pp_reg_address_aux base disp off scal =
   | None, Some off, Some scal ->
       Printf.sprintf "[%s, %s, lsl %s%s]" base off imm_pre scal
   | _, _, _ ->
-      failwith "TODO_ARM: pp_reg_address_aux"
+     hierror
+      ~loc:Lnone
+      ~kind:"assembly printing"
+      "the address computation is too complex: an intermediate variable might be needed"
 
 let global_datas = "glob_data"
 
