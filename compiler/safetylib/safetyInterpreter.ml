@@ -1352,6 +1352,19 @@ end = struct
       let e = Papp1 (E.Olnot ws, e1) in
       [Some e]
 
+    | Sopn.Oslh op ->
+       begin match op with
+       | SLHinit -> [ Some (pcast U64 (Pconst (Z.of_int 0))) ]
+       | SLHupdate ->
+          let b, msf = as_seq2 es in
+          let msf = Pif (Bty (U U64), b, msf, pcast U64 (Pconst (Z.of_int (-1)))) in
+          [ Some msf ]
+       | SLHmove -> let msf = as_seq1 es in [ Some msf ]
+       | SLHprotect _ | SLHprotect_ptr _ ->
+          let x, _msf = as_seq2 es in
+          [ Some x ]
+       | SLHprotect_ptr_fail _ -> assert false
+       end
     | _ ->
       debug (fun () ->
           Format.eprintf "Warning: unknown opn %a, default to ⊤.@."

@@ -40,7 +40,8 @@
   The compilation of these is proven to preserve functional semantics.
   We also provide a speculative CCT checker, via the `jazzct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
-   [PR #723](https://github.com/jasmin-lang/jasmin/pull/723)).
+   [PR #723](https://github.com/jasmin-lang/jasmin/pull/723),
+   [PR #814](https://github.com/jasmin-lang/jasmin/pull/814))
 
 - Register arrays and sub-arrays can appear as arguments and return values of
   local functions;
