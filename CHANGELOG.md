@@ -32,7 +32,8 @@
   On arm-m4, this is compiled using 3 xor instructions.
   See `compiler/tests/success/common/swap.jazz` and
       `compiler/tests/success/common/swap_word.jazz` for usage.
-  ([PR #691](https://github.com/jasmin-lang/jasmin/pull/691)).
+  ([PR #691](https://github.com/jasmin-lang/jasmin/pull/691),
+   [PR #816](https://github.com/jasmin-lang/jasmin/pull/816)).
 
 - Support Selective Speculative Load Hardening.
   We now support operators SLH operators as in [Typing High-Speed Cryptography
