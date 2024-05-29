@@ -1,8 +1,8 @@
 require Gimli_arm Gimli_x86.
 import List Int JWord.
 
-equiv gimli_ref_equiv :
-  Gimli_arm.M.gimli_ref ~ Gimli_x86.M.gimli_ref :
+equiv gimli_equiv :
+  Gimli_arm.M.gimli ~ Gimli_x86.M.gimli :
   ={ state } ==> ={ res }.
 proof.
   proc.
