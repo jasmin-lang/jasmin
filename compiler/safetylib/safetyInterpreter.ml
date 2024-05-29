@@ -1167,6 +1167,10 @@ end = struct
 
     | Sopn.Opseudo_op (Oaddcarry ws) -> mk_addcarry ws es
 
+    | Sopn.Opseudo_op (Oswap ty) ->
+       let x, y = as_seq2 es in
+       [ Some y; Some x]
+
     | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Ox86MOVZX32) ->
       let e = as_seq1 es in
       (* Cast [e], seen as an U32, to an integer, and then back to an U64. *)
