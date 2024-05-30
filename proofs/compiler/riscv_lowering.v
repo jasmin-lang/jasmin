@@ -78,8 +78,7 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
 Definition decide_op_reg_imm
   (ws : wsize) (e0 e1: pexpr) (is_small : Z -> bool) (op_reg_reg op_reg_imm : riscv_extended_op) : 
   option (riscv_extended_op * pexprs) :=
-  let imm:= is_wconst ws e1 in
-  match imm with
+  match is_wconst ws e1 with
   | Some (word) => 
     if is_small (wsigned word) then
       Some(op_reg_imm, [::e0; e1])
