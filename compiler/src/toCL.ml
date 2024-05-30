@@ -546,6 +546,7 @@ module I = struct
     let (!>>) e = gexp_to_rpred e in
     match e with
     | Pbool (true) -> RPand []
+    | Pbool (false) -> assert false
     | Papp1(Onot, e) -> RPnot (!>> e)
     | Papp2(Oeq _, e1, e2) -> eq !> e1 !> e2
     | Papp2(Obeq, e1, e2)  -> eq !> e1 !> e2
@@ -999,10 +1000,11 @@ module X86BaseOp : BaseOp
           let l_tmp4 = I.mk_spe_tmp_lval c in
           let l_tmp5 = I.mk_spe_tmp_lval c in
           let c2 = Z.of_int c in
+          let c3 = Z.of_int (power 1 c) in
           let l_tmp6 = I.mk_spe_tmp_lval (int_of_ws ws - c) in
           let l = I.glval_to_lval (List.nth xs 5) in
           i1 @ [CL.Instr.Op1.mov l_tmp a1;
-                CL.Instr.assert_ ([Eeqmod(Ivar l_tmp, Iconst Z.zero,[Iconst (Z.of_int c)] )] ,[]);
+                CL.Instr.assert_ ([Eeqmod(Ivar l_tmp, Iconst Z.zero,[Iconst c3])] ,[]);
                 CL.Instr.Shifts.spl l_tmp1 l_tmp2 a1 c1;
                 CL.Instr.Op2.join l_tmp3 a2 !l_tmp1;
                 CL.Instr.Op2.mul l_tmp4 !l_tmp3 a3;
@@ -1472,8 +1474,8 @@ module Mk(O:BaseOp) = struct
     Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
     let formals = filter_add cond formals !ghost in
 
-    let cfg = Cfg.cfg_of_prog prog in
-    let prog = Cfg.prog_of_cfg cfg in
+    (* let cfg = Cfg.cfg_of_prog prog in *)
+    (* let prog = Cfg.prog_of_cfg cfg in *)
 
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
