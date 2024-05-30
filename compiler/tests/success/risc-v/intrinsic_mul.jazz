@@ -6,6 +6,15 @@ fn mul(reg u32 arg0, reg u32 arg1) -> reg u32 {
     x = #MUL(arg0, arg1);
     [x] = x;
 
+    x = #MULH(arg0, arg1);
+    [x] = x;
+
+    x = #MULHU(arg0, arg1);
+    [x] = x;
+
+    x = #MULHSU(arg0, arg1);
+    [x] = x;
+
     reg u32 res;
     res = x;
     return res;
