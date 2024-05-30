@@ -1,10 +1,17 @@
 export
 fn mul(reg u32 arg0, reg u32 arg1) -> reg u32 {
     reg u32 x;
+    reg u32 y;
 
     // Registers.
     x = arg0 * arg1;
     [x] = x;
+
+    x, y = arg0 * arg1;
+    [x] = x;
+    [y] = y;
+
+    // #MULHSU cannot currently be reached through lowering, but only using intrinsics
 
     reg u32 res;
     res = x;
