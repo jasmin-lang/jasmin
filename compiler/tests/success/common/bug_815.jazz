@@ -1,0 +1,9 @@
+export
+fn snd(reg u32 x y) -> reg u32 {
+  stack u32[1] a b;
+  a[0] = x;
+  b[0] = y;
+  a, b = #swap(a, b);
+  x = a[0];
+  return x;
+}
