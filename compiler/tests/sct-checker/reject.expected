@@ -1,4 +1,19 @@
 File basic.jazz:
+Failed as expected missing_update_in_loop: "fail/basic.jazz", line 91 (2) to line 93 (3):
+                                           speculative constant type checker: msf is Exact {
+                                             } it should be be at least Exact {
+                                            msf }
+Failed as expected missing_update_after_loop: "fail/basic.jazz", line 84 (18-21):
+                                              speculative constant type checker: MSF is Trans
+                                              (! (x >u ((64u) 0)))
+Failed as expected outdated_msf: "fail/basic.jazz", line 74 (9-12):
+                                 speculative constant type checker: the variable msf is not known to be a msf, only {
+                                   } are
+Failed as expected conditional_init_msf: "fail/basic.jazz", line 65 (9-12):
+                                         speculative constant type checker: the variable msf is not known to be a msf, only {
+                                           } are
+Failed as expected magic_msf: "fail/basic.jazz", line 56 (2-10):
+                              speculative constant type checker: assignment to MSF variable msf not allowed
 Failed as expected xof_init: "fail/basic.jazz", line 51 (9-14):
                              speculative constant type checker: return type for state is #[ptr = public, val = secret] it should be less than #[ptr = public, val = transient]
 Failed as expected missing_then: "fail/basic.jazz", line 37 (18-19):
@@ -12,6 +27,11 @@ Failed as expected after_branch: "fail/basic.jazz", line 10 (18-19):
                                    } are
 Failed as expected leak_transient: "fail/basic.jazz", line 1 (42-50):
                                    speculative constant type checker: x has type #transient but should be at most #public
+File corruption.jazz:
+Failed as expected does_corrupt_memory: "fail/corruption.jazz", line 26 (12-13):
+                                        speculative constant type checker: return type for y is #[ptr = public, val = transient] it should be less than #[ptr = public, val = public]
+Failed as expected corrupts_memory: "fail/corruption.jazz", line 12 (12-13):
+                                    speculative constant type checker: return type for y is #[ptr = public, val = transient] it should be less than #[ptr = public, val = public]
 File functions.jazz:
 Failed as expected call_kills_msf: "fail/functions.jazz", line 9 (2-10):
                                    speculative constant type checker: 

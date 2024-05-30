@@ -1,0 +1,33 @@
+/* Unsafe store to x also taints y */
+#[sct="
+  public × secret × { ptr: public, val: any } × { ptr: public, val: public } →
+    { ptr: public, val: secret } × { ptr: public, val: public }
+"]
+fn corrupts_memory(
+  reg u64 i,
+  reg u64 s,
+  reg ptr u64[1] x,
+  reg ptr u64[1] y
+) ->
+ reg ptr u64[1],
+ reg ptr u64[1] {
+  x[i] = s;
+  return x, y;
+}
+
+#[sct="
+  secret × { ptr: public, val: any } × { ptr: public, val: public } →
+    { ptr: public, val: secret } × { ptr: public, val: public }
+"]
+fn does_corrupt_memory(
+  reg u64 s,
+  reg ptr u64[1] x,
+  reg ptr u64[1] y
+) ->
+ reg ptr u64[1],
+ reg ptr u64[1] {
+  if false {
+    x[1] = s;
+  }
+  return x, y;
+}
