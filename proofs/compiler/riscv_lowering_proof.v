@@ -261,10 +261,10 @@ Proof.
 Qed.
 
 
-Lemma decide_op_reg_immP s e1 e2 v1 v2 op_reg_reg op_reg_imm o es lv s1 n:
+Lemma decide_op_reg_immP s e1 e2 v1 v2 is_small op_reg_reg op_reg_imm o es lv s1 :
   sem_pexpr true (p_globs p) s e1 = ok v1 ->
   sem_pexpr true (p_globs p) s e2 = ok v2 ->
-  decide_op_reg_imm U32 e1 e2 (op_reg_reg) (op_reg_imm) n = Some (o, es) ->
+  decide_op_reg_imm U32 e1 e2 is_small (op_reg_reg) (op_reg_imm) = Some (o, es) ->
   sem_sopn (p_globs p) (Oasm op_reg_reg) = sem_sopn (p_globs p) (Oasm op_reg_imm) ->
   sem_sopn (p_globs p) (Oasm op_reg_reg) s [:: lv] [:: e1; e2] = ok s1 ->
   sem_sopn (p_globs p) (Oasm o) s [:: lv] es = ok s1.

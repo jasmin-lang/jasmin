@@ -2,7 +2,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
-  arch_params
   compiler_util
   expr
   fexpr
