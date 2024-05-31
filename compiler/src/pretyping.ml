@@ -1317,7 +1317,14 @@ let extract_size str : string * Sopn.prim_x86_suffix option =
           (fun c0 i c1 j ->
             if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
             PVx(wsize_of_int i, wsize_of_int j))
-      with End_of_file | Scanf.Scan_failure _ -> raise Not_found
+      with End_of_file | Scanf.Scan_failure _ ->
+        try
+          Scanf.sscanf s "%c%u%!"
+          (fun c i ->
+            if (c = 'u') then PVs(W.Unsigned, wsize_of_int i)
+          else if (c = 's') then PVs(W.Signed, wsize_of_int i)
+          else raise Not_found)
+        with End_of_file | Scanf.Scan_failure _ -> raise Not_found
   in
   try
   match List.rev (String.split_on_char '_' str) with
