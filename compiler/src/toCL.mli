@@ -198,6 +198,13 @@ module ARMBaseOp : BaseOp
  with type op = Arm_instr_decl.arm_op
  and type extra_op = Arm_extra.__
 
+val sub_fun_param :
+  'a Jasmin__CoreIdent.gvar list ->
+  'b Jasmin__CoreIdent.gvar list ->
+  'c Jasmin__Prog.gexpr list ->
+  'c Jasmin__Prog.glval list ->
+  ('d * 'c Jasmin__Prog.gexpr) list ->
+  ('d * 'c Jasmin__Prog.gexpr) list
 
 module Mk(O:BaseOp) : sig
 val fun_to_proc :

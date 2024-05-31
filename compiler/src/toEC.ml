@@ -35,12 +35,13 @@ type proofvar = {
     assume_proof : Ss.elt;
 }
 
-type env = {
+type ('len) env = {
     model : model;
     alls : Ss.t;
     vars : (string * bool) Mv.t;  (* true means option type *)
     glob : (string * ty) Ms.t;
-    funs : (string * (ty list * ty list)) Mf.t;  
+    funs : (string * (ty list * ty list)) Mf.t;
+    contra : ('len Prog.gfcontract * 'len CoreIdent.gvar list * 'len CoreIdent.gvar list) Mf.t;
     arrsz  : Sint.t ref;
     warrsz : Sint.t ref;
     auxv  : string list Mty.t;
@@ -330,6 +331,7 @@ let empty_env model fds arrsz warrsz randombytes =
     vars = Mv.empty;
     glob = Ms.empty;
     funs = Mf.empty;
+    contra = Mf.empty;
     arrsz;
     warrsz;
     auxv  = Mty.empty;
@@ -347,9 +349,19 @@ let empty_env model fds arrsz warrsz randombytes =
       Mf.add fd.f_name (s, ((*mk_tys*) fd.f_tyout, (*mk_tys*)fd.f_tyin)) env.funs in
     { env with funs; alls = Ss.add s env.alls } in
 
-  List.fold_left add_fun env fds
+  let env = List.fold_left add_fun env fds in
+
+  let add_fun_contra env fd =
+    let contra =
+      let args = fd.f_args in
+      let ret = List.map L.unloc fd.f_ret in
+      Mf.add fd.f_name (fd.f_contra,args, ret)  env.contra in
+    { env with contra }
+  in
+  List.fold_left add_fun_contra env fds
 
 let get_funtype env f = snd (Mf.find f env.funs)
+let get_funcontr env f = Mf.find f env.contra
 let get_funname env f = fst (Mf.find f env.funs) 
 let pp_fname env fmt f = Format.fprintf fmt "%s" (get_funname env f)
 
@@ -974,6 +986,22 @@ module Normal = struct
       let tyauxs = List.combine (List.combine etyso etysi) auxs in
       List.iter2 (pp_assgn_i pd env fmt) lvs tyauxs
 
+  let pp_assume pd env p fmt e =
+    Format.fprintf fmt "@[<v>%s <- @[<v>%s /\\@ ((%s /\\ %s)@   => %a)@];@]@ "
+      p.assume_proof p.assume_proof p.assert_ p.assume_
+      (pp_expr pd env) e;
+    Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@]"
+      p.assume_ p.assume_
+      (pp_expr pd env) e
+
+  let pp_assert pd env p fmt e =
+    Format.fprintf fmt "@[<v>%s <- @[<v>%s /\\@ ((%s /\\ %s)@   => %a)@];@]@ "
+      p.assert_proof p.assert_proof p.assert_ p.assume_
+      (pp_expr pd env) e;
+    Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@]"
+      p.assert_ p.assert_
+      (pp_expr pd env) e
+
   let rec pp_cmd pd asmOp env fmt c =
     Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr pd asmOp env)) c
 
@@ -1011,14 +1039,31 @@ module Normal = struct
         
     | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
-      let pp_args fmt es = 
-        pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
-      if lvs = [] then 
-        Format.fprintf fmt "@[%a (%a);@]" (pp_fname env) f pp_args es
-      else
-        let pp fmt es = 
-          Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
-        pp_call pd env fmt lvs otys otys pp es
+
+      let cf = Option.get env.func in
+      let p = Mf.find cf !(env.proofv) in
+
+      let (contr,args,ret) = get_funcontr env f in
+      let pre = ToCL.sub_fun_param args ret es lvs contr.f_pre in
+      let pre = List.map (fun (_,e) -> e) pre in
+      let post = ToCL.sub_fun_param args ret es lvs contr.f_pre in
+      let post = List.map (fun (_,e) -> e) post in
+
+      Format.fprintf fmt "%a@ " (pp_list "@ " (pp_assert pd env p)) pre;
+
+      begin
+        let pp_args fmt es =
+          pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es)
+        in
+        if lvs = [] then
+          Format.fprintf fmt "@[%a (%a);@]" (pp_fname env) f pp_args es
+        else
+          let pp fmt es =
+            Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
+          pp_call pd env fmt lvs otys otys pp es
+      end;
+
+      Format.fprintf fmt "@ %a@ " (pp_list "@ " (pp_assume pd env p)) post;
 
     | Csyscall(lvs, o, es) ->
       let s = Syscall.syscall_sig_u o in
@@ -1036,22 +1081,12 @@ module Normal = struct
     | Cassert (Assume,_,e) ->
       let f = Option.get env.func in
       let p = Mf.find f !(env.proofv) in
-      Format.fprintf fmt "@[<v>%s <- @[<v>%s /\\@ ((%s /\\ %s)@   => %a)@];@]@ "
-        p.assume_proof p.assume_proof p.assert_ p.assume_
-        (pp_expr pd env) e;
-      Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@ @]"
-        p.assume_ p.assume_
-        (pp_expr pd env) e
+      pp_assume pd env p fmt e
 
     | Cassert (Assert,_,e) ->
       let f = Option.get env.func in
       let p = Mf.find f !(env.proofv) in
-      Format.fprintf fmt "@[<v>%s <- @[<v>%s /\\@ ((%s /\\ %s)@   => %a)@];@]@ "
-        p.assert_proof p.assert_proof p.assert_ p.assume_
-        (pp_expr pd env) e;
-      Format.fprintf fmt "@[<v>%s <- %s /\\ %a;@ @]"
-        p.assert_ p.assert_
-        (pp_expr pd env) e
+      pp_assert pd env p fmt e
 
     | Cassert (_,_,e) -> assert false
 

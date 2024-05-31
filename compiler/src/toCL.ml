@@ -1354,6 +1354,32 @@ module ARMBaseOp : BaseOp
 
 end
 
+let sub_fun_param args ret params r =
+  let aux f =
+    List.map (fun (prover,clause) -> prover, f clause)
+  in
+  let check v vi=
+    (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
+  in
+  let aux1 v =
+    match List.findi (fun _ vi -> check v vi) args with
+    | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) params in
+      e
+    | exception _ ->
+      begin
+        match List.findi (fun _ vi -> check v vi) ret with
+        | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) r in
+          begin
+            match e with
+            | Lvar v ->  Pvar({gv = v; gs = Expr.Slocal})
+            | _ ->  Pvar v
+          end
+        | exception _ ->  Pvar v
+      end
+  in
+  let aux2 = Subst.gsubst_e (fun x -> x) aux1 in
+  aux aux2
+
 module Mk(O:BaseOp) = struct
 
   let pp_ext_op xs o es trans =
@@ -1406,31 +1432,9 @@ module Mk(O:BaseOp) = struct
     | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
     | Ccall (r,f,params) ->
       let fd = List.find (fun fd -> fd.f_name.fn_id = f.fn_id) fds in
-      let aux f =
-        List.map (fun (prover,clause) -> prover, f clause)
-      in
-      let check v vi=
-        (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
-      in
-      let aux1 v =
-        match List.findi (fun _ vi -> check v vi) fd.f_args with
-        | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) params in
-          e
-        | exception _ ->
-          begin
-            match List.findi (fun _ vi -> check v (L.unloc vi)) fd.f_ret with
-            | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) r in
-              begin
-                match e with
-                | Lvar v ->  Pvar({gv = v; gs = Expr.Slocal})
-                | _ ->  Pvar v
-              end
-            | exception _ ->  Pvar v
-          end
-      in
-      let aux2 = Subst.gsubst_e (fun x -> x) aux1 in
-      let pre = aux aux2 fd.f_contra.f_pre in
-      let post = aux aux2  fd.f_contra.f_post in
+      let ret = List.map L.unloc fd.f_ret in
+      let pre = sub_fun_param fd.f_args ret params r fd.f_contra.f_pre in
+      let post = sub_fun_param fd.f_args ret params r fd.f_contra.f_post in
       let pre_cl = to_clause env pre in
       let post_cl = to_clause env post in
       r , [CL.Instr.assert_ pre_cl] @  [CL.Instr.assume post_cl]
