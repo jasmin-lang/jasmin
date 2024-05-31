@@ -924,8 +924,8 @@ module X86BaseOp : BaseOp
           let a, i = cast_atome ws (List.nth es 0) in
           let (c,_) = I.gexp_to_const (List.nth es 1) in
           let l = I.glval_to_lval (List.nth xs 5) in
-          let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws)  in
-          i @ [CL.Instr.Shifts.shrs l_tmp l a c]
+          let l_tmp = I.mk_spe_tmp_lval (Z.to_int c) in
+          i @ [CL.Instr.Shifts.shrs l l_tmp a c]
         | _ -> assert false
       end
 
