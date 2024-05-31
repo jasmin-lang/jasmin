@@ -905,8 +905,7 @@ module X86BaseOp : BaseOp
           i @ [CL.Instr.Shift.shl l a c]
         | Cas1 ->
           let a, i = cast_atome ws (List.nth es 0) in
-          let g = (List.nth es 1) in
-          let (c,_) = I.gexp_to_const g in
+          let (c,_) = I.gexp_to_const (List.nth es 1) in
           let l = I.glval_to_lval (List.nth xs 5) in
           let l_tmp = I.mk_spe_tmp_lval (Z.to_int c) in
           i @ [CL.Instr.Shifts.shls l_tmp l a c]
@@ -923,11 +922,10 @@ module X86BaseOp : BaseOp
           i @ [CL.Instr.Shift.shr l a c]
         | Cas1 ->
           let a, i = cast_atome ws (List.nth es 0) in
-          let g = (List.nth es 1) in
-          let (c,_) = I.gexp_to_const g in
+          let (c,_) = I.gexp_to_const (List.nth es 1) in
           let l = I.glval_to_lval (List.nth xs 5) in
           let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws)  in
-          i @ [CL.Instr.Shifts.split l l_tmp a c]
+          i @ [CL.Instr.Shifts.shrs l_tmp l a c]
         | _ -> assert false
       end
 
