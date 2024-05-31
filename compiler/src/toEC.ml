@@ -712,7 +712,7 @@ let rec pp_expr pd env fmt (e:expr) =
     if List.length ret = 1 then
       Format.fprintf fmt "res"
     else
-      Format.fprintf fmt "res.`%i" i
+      Format.fprintf fmt "res.`%i" (i+1)
 
   | Presultget (aa, ws, x, e) ->
     assert (check_array env x.gv);
@@ -1525,8 +1525,8 @@ let pp_fun pd asmOp env fmt f =
     (pp_params env) f.f_args 
     (pp_rty env) f.f_tyout
     pp_aux env
-    (pp_proof_var_init env) proofv
     (pp_locals env) locals
+    (pp_proof_var_init env) proofv
     (pp_cmd pd asmOp env) f.f_body
     (pp_safe_ret pd env) f.f_ret
     (pp_ret env) f.f_ret
