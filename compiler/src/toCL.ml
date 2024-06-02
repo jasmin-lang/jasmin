@@ -1377,8 +1377,27 @@ let sub_fun_param args ret params r =
         | exception _ ->  Pvar v
       end
   in
-  let aux2 = Subst.gsubst_e (fun x -> x) aux1 in
-  aux aux2
+  aux (Subst.gsubst_e (fun x -> x) aux1)
+
+let rec sub_return m e =
+  match e with
+  | Pconst _  | Pbool _ | Parr_init _ | Pfvar _  | Pvar _ -> e
+  | Pget (aa, ws, v, e) -> Pget(aa, ws, v, sub_return m e)
+  | Psub (aa, ws, len, v, e) -> Psub(aa,ws, len, v, sub_return m e)
+  | Pload (ws, v, e) -> Pload (ws, v, sub_return m e)
+  | Papp1 (o, e)     -> Papp1 (o, sub_return m e)
+  | Papp2 (o, e1, e2)-> Papp2 (o, sub_return m e1, sub_return m e2)
+  | PappN (o, es) -> PappN (o, List.map (sub_return m) es)
+  | Pabstract (o, es) ->
+    Pabstract (o, List.map (sub_return m) es)
+  | Pif (ty, e, e1, e2)-> Pif (ty, sub_return m e, sub_return m e1, sub_return m e2)
+  | Pbig (e1, e2, o, x, e0, b) ->
+    Pbig(sub_return m e1, sub_return m e2, o,
+          x,
+         sub_return m e0,
+         sub_return m b)
+  | Presult v -> m v
+  | Presultget (aa, ws, v, e) -> Pget(aa, ws,  v, sub_return m e)
 
 module Mk(O:BaseOp) = struct
 

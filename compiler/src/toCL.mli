@@ -199,12 +199,16 @@ module ARMBaseOp : BaseOp
  and type extra_op = Arm_extra.__
 
 val sub_fun_param :
-  'a Jasmin__CoreIdent.gvar list ->
-  'b Jasmin__CoreIdent.gvar list ->
-  'c Jasmin__Prog.gexpr list ->
-  'c Jasmin__Prog.glval list ->
-  ('d * 'c Jasmin__Prog.gexpr) list ->
-  ('d * 'c Jasmin__Prog.gexpr) list
+  'a CoreIdent.gvar list ->
+  'b CoreIdent.gvar list ->
+  'c Prog.gexpr list ->
+  'c Prog.glval list ->
+  ('d * 'c Prog.gexpr) list ->
+  ('d * 'c Prog.gexpr) list
+
+val sub_return :
+  ('a Prog.ggvar -> 'a Prog.gexpr) ->
+  'a Prog.gexpr -> 'a Prog.gexpr
 
 module Mk(O:BaseOp) : sig
 val fun_to_proc :

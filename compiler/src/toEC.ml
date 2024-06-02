@@ -41,6 +41,7 @@ type ('len) env = {
     vars : (string * bool) Mv.t;  (* true means option type *)
     glob : (string * ty) Ms.t;
     funs : (string * (ty list * ty list)) Mf.t;
+    tmplvs : ('len CoreIdent.gvar list) Mf.t;
     contra : ('len Prog.gfcontract * 'len CoreIdent.gvar list * 'len CoreIdent.gvar list) Mf.t;
     arrsz  : Sint.t ref;
     warrsz : Sint.t ref;
@@ -331,6 +332,7 @@ let empty_env model fds arrsz warrsz randombytes =
     vars = Mv.empty;
     glob = Ms.empty;
     funs = Mf.empty;
+    tmplvs = Mf.empty;
     contra = Mf.empty;
     arrsz;
     warrsz;
@@ -355,7 +357,8 @@ let empty_env model fds arrsz warrsz randombytes =
     let contra =
       let args = fd.f_args in
       let ret = List.map L.unloc fd.f_ret in
-      Mf.add fd.f_name (fd.f_contra,args, ret)  env.contra in
+      Mf.add fd.f_name (fd.f_contra,args, ret) env.contra
+    in
     { env with contra }
   in
   List.fold_left add_fun_contra env fds
@@ -379,6 +382,9 @@ let ty_lval = function
   | Laset(_,ws, _, _) -> Bty (U ws)
   | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
 
+let add_tmp_lv env f lvs =
+  let tmplvs = Mf.add f lvs env.tmplvs in
+  {env with tmplvs}
 
 let add_proofv env f p =
   env.proofv := Mf.add f p !(env.proofv)
@@ -707,7 +713,8 @@ let rec pp_expr pd env fmt (e:expr) =
     let x = L.unloc x.gv in
     let ret = env.freturn in
     let i,_ =
-      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) ret
+      List.findi (fun _ a ->
+          x.v_name = a.v_name && x.v_id = a.v_id) ret
     in
     if List.length ret = 1 then
       Format.fprintf fmt "res"
@@ -1002,6 +1009,15 @@ module Normal = struct
       p.assert_ p.assert_
       (pp_expr pd env) e
 
+  let mk_old_param env params =
+    List.fold_left (fun (env,acc) v ->
+        let s = String.uncapitalize_ascii v.v_name in
+        let s = "_" ^ s in
+        let s = create_name env s in
+        let env = set_var env v false s in
+        env, s :: acc
+      ) (env,[]) (List.rev params)
+
   let rec pp_cmd pd asmOp env fmt c =
     Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr pd asmOp env)) c
 
@@ -1039,18 +1055,42 @@ module Normal = struct
         
     | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
+      let (contr,args,ret) = get_funcontr env f in
 
       let cf = Option.get env.func in
       let p = Mf.find cf !(env.proofv) in
+      let tmps = Mf.find f env.tmplvs in
 
-      let (contr,args,ret) = get_funcontr env f in
+      let lvs2 = List.map (fun v -> Lvar (L.mk_loc L._dummy v)) tmps in
+
+      let elvs2 =
+        List.map (fun v ->
+          Pvar({gv = L.mk_loc L._dummy v; gs = Expr.Slocal})
+        ) tmps
+      in
+
+      let sub_fun_return ret r =
+        let aux f = List.map (fun (prover,clause) -> prover, f clause) in
+        let check v vi=
+          (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
+        in
+        let aux1 v =
+          let (i, _) =  List.findi (fun _ vi -> check v vi) ret in
+          let _,e = List.findi (fun ii _ -> ii = i) r in
+          e
+        in
+        aux (ToCL.sub_return aux1)
+      in
+
       let pre = ToCL.sub_fun_param args ret es lvs contr.f_pre in
       let pre = List.map (fun (_,e) -> e) pre in
-      let post = ToCL.sub_fun_param args ret es lvs contr.f_pre in
+      let post = sub_fun_return ret elvs2 contr.f_post in
+      let post = ToCL.sub_fun_param args ret es lvs post in
       let post = List.map (fun (_,e) -> e) post in
 
       Format.fprintf fmt "%a@ " (pp_list "@ " (pp_assert pd env p)) pre;
 
+      let env = List.fold_left (add_var false) env tmps in
       begin
         let pp_args fmt es =
           pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es)
@@ -1060,10 +1100,13 @@ module Normal = struct
         else
           let pp fmt es =
             Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
-          pp_call pd env fmt lvs otys otys pp es
+          pp_call pd env fmt lvs2 otys otys pp es
       end;
 
       Format.fprintf fmt "@ %a@ " (pp_list "@ " (pp_assume pd env p)) post;
+      List.iter2 (fun lv e ->
+          Format.fprintf fmt "%a <- %a;@ " (pp_lval env) lv (pp_expr pd env) e
+        ) lvs elvs2
 
     | Csyscall(lvs, o, es) ->
       let s = Syscall.syscall_sig_u o in
@@ -1463,6 +1506,15 @@ let pp_aux fmt env =
     Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_ty env) ty in
   Mty.iter (fun ty -> List.iter (pp ty)) env.auxv
 
+let pp_tmp fmt env =
+  let pp tmp ty =
+    Format.fprintf fmt "@[var %s:@ %a@];@ " tmp.v_name (pp_ty env) ty
+  in
+  Mf.iter (fun f tmps ->
+      let otys, _ = get_funtype env f in
+      List.iter2 pp tmps otys
+    ) env.tmplvs
+
 let pp_safe_ret pd env fmt xs =
   if for_safety env then
     let es = List.map (fun x -> Pvar (gkvar x)) xs in
@@ -1488,6 +1540,26 @@ let pp_proof_var env fmt proofv =
     (pp_bool_var env) proofv.assume_proof
     (pp_bool_var env) proofv.assert_proof
 
+let rec init_tmp_lvs env i =
+  match i.i_desc with
+  | Cassgn _
+  | Copn _
+  | Csyscall _
+  | Cassert _ -> env
+  | Ccall(lvs, f, _) ->
+    let otys, itys = get_funtype env f in
+    let (contr,args,ret) = get_funcontr env f in
+    let tmp =
+      List.map2 (fun ty arg ->
+          let name = "tmp___" ^ arg.v_name in
+          CoreIdent.GV.mk name (Wsize.Stack Direct) ty L._dummy []
+        ) otys ret
+    in
+    add_tmp_lv env f tmp
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) ->
+    List.fold init_tmp_lvs (List.fold init_tmp_lvs env c1) c2
+  | Cfor(_,_,c) -> List.fold init_tmp_lvs env c
+
 let pp_fun pd asmOp env fmt f =
   let f = { f with f_body = remove_for f.f_body } in
   let locals = Sv.elements (locals f) in
@@ -1509,7 +1581,9 @@ let pp_fun pd asmOp env fmt f =
 
   add_proofv env f.f_name proofv;
 
-  let env = { env with func = Some f.f_name } in
+  let freturn = List.map (fun x -> L.unloc x) f.f_ret in
+  let env = { env with func = Some f.f_name ; freturn} in
+  let env = List.fold init_tmp_lvs env f.f_body in
 
   (* Print the function *)
   (* FIXME ajouter les conditions d'initialisation 
@@ -1519,12 +1593,13 @@ let pp_fun pd asmOp env fmt f =
     else Leak.pp_cmd
   in
   Format.fprintf fmt 
-    "@[<v>@[<v>%a@]@ proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a@ %a%a@]@ }@]"
+    "@[<v>@[<v>%a@]@ proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a@ %a@ %a%a@]@ }@]"
     (pp_proof_var env) proofv
     (pp_fname env) f.f_name
     (pp_params env) f.f_args 
     (pp_rty env) f.f_tyout
     pp_aux env
+    pp_tmp env
     (pp_locals env) locals
     (pp_proof_var_init env) proofv
     (pp_cmd pd asmOp env) f.f_body
@@ -1545,15 +1620,6 @@ let pp_var_eq env fmt (vars1, vars2) =
   in
   Format.fprintf fmt "%a"  (pp_list "/\\ " pp) vars
 
-let mk_old_param env params =
-  List.fold_left (fun (env,acc) v ->
-      let s = String.uncapitalize_ascii v.v_name in
-      let s = "_" ^ s in
-      let s = create_name env s in
-      let env = set_var env v false s in
-      env, s :: acc
-    ) (env,[]) (List.rev params)
-
 let pp_hoare fmt (f, pre, post) =
   Format.fprintf fmt "@[<v>hoare [M.%s :@  @[<v>%a@  ==>@    %a@]@ ]@]"
     f pre () post ()
@@ -1563,7 +1629,7 @@ let pp_proof1 pd env fmt f =
       let fname = get_funname env f.f_name in
       let freturn = List.map (fun x -> L.unloc x) f.f_ret in
       let env = {env with freturn} in
-      let env1, vars = mk_old_param env f.f_args in
+      let env1, vars = Normal.mk_old_param env f.f_args in
       let env = List.fold_left (add_var false) env f.f_args in
 
       let pp_pre fmt () =
@@ -1633,7 +1699,7 @@ let pp_proof4 pd env fmt f =
       let fname = get_funname env f.f_name in
       let freturn = List.map (fun x -> L.unloc x) f.f_ret in
       let env = {env with freturn} in
-      let env1,vars = mk_old_param env f.f_args in
+      let env1,vars = Normal.mk_old_param env f.f_args in
       let env = List.fold_left (add_var false) env f.f_args in
 
       let pp_pre fmt () =
