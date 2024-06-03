@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
 Require Import strings ZArith utils.
 Import Utf8.
 Import word_ssrZ.

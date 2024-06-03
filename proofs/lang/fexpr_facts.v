@@ -1,6 +1,6 @@
 From Coq Require Import Utf8.
 Require Import oseq.
-From mathcomp Require Import all_ssreflect ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import fexpr fexpr_sem.
 Require Import expr psem.
 

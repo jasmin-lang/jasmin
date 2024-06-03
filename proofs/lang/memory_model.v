@@ -1,7 +1,6 @@
 (* ** Imports and settings *)
-
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq div eqtype.
+From mathcomp Require Import ssralg word_ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith Lia.
 Import ssrring.
@@ -66,8 +65,8 @@ Module LE.
     rewrite (nth_map O); first last.
     - rewrite size_iota.
       by apply/ltP.
-    rewrite /word.subword /= Z.shiftr_0_l Zmod_0_l.
-    by apply/(@eqP (word U8)).
+    rewrite /word.subword -word.urepr_word word.urepr_lsr Z.shiftr_0_l.
+    exact/eqP.
   Qed.
 
 End LE.

@@ -236,7 +236,7 @@ module type BPrinter = sig
   val pp_address      : W.wsize -> (register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
   val rev_args        : 'a list -> 'a list
   val pp_iname_ext    : W.wsize -> string
-  val pp_iname2_ext   : char list -> W.wsize -> W.wsize -> string
+  val pp_iname2_ext   : string -> W.wsize -> W.wsize -> string
   val pp_storelabel   : string -> register -> Label.label -> string
   val pp_asm_syntax : string  
 end 
@@ -351,7 +351,7 @@ module Intel : BPrinter = struct
   let rev_args args = args
 
   let pp_iname_ext _ = ""
-  let pp_iname2_ext ext _ _ = Conv.string_of_cstring ext
+  let pp_iname2_ext ext _ _ = ext
 
   let pp_storelabel name dst lbl = 
     Printf.sprintf "lea\t%s, [rip + %s]" 
@@ -373,7 +373,7 @@ module Printer (BP:BPrinter) = struct
   let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _, _) Arch_decl.asm_arg)) =
     match op with
     | Condt  _   -> assert false
-    | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
+    | Imm(ws, w) -> pp_imm ((if ws = U8 then Conv.z_unsigned_of_word else Conv.z_of_word) ws w)
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
     | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> BP.pp_address ws addr
@@ -396,7 +396,7 @@ module Printer (BP:BPrinter) = struct
     | PP_ct ct            -> pp_ct (match ct with Condt ct -> ct | _ -> assert false)
   
   let pp_name_ext pp_op =
-    Printf.sprintf "%s%s" (Conv.string_of_cstring pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
+    Printf.sprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
 
   (* -------------------------------------------------------------------- *)
   let pp_syscall (o : 'a Syscall_t.syscall_t) =

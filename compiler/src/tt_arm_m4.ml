@@ -19,11 +19,14 @@ let get_arm_prim ps s =
   let set_flags, s = get_set_flags ps s in
   (s, set_flags, is_conditional)
 
-let tt_prim ps s sa =
+let tt_prim err ps s sa =
   let name, set_flags, is_conditional = get_arm_prim ps s in
   match List.assoc_opt name ps with
   | Some (Sopn.PrimARM pr) ->
     if sa == None
-    then Some (pr set_flags is_conditional)
-    else None
-  | _ -> None
+    then
+      match pr set_flags is_conditional with
+      | Ok op -> op
+      | Error msg -> raise (err (String.concat "" [ " ("; msg; ")" ]))
+    else raise (err "")
+  | _ -> raise (err "")

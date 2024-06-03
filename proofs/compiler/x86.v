@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import sem_type arch_decl x86_decl x86_instr_decl.
 
 Set   Implicit Arguments.

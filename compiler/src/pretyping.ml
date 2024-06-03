@@ -40,7 +40,7 @@ type tyerror =
   | CallNotAllowed
   | PrimNotAllowed
   | Unsupported         of string
-  | UnknownPrim         of A.symbol
+  | UnknownPrim of A.symbol * string
   | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
   | PtrOnlyForArray
   | WriteToConstantPointer of A.symbol
@@ -173,8 +173,8 @@ let pp_tyerror fmt (code : tyerror) =
 
   | Unsupported s ->
       F.fprintf fmt "%s" s
-  | UnknownPrim s ->
-      F.fprintf fmt "unknown primitive: `%s'" s
+  | UnknownPrim(s, msg) ->
+      F.fprintf fmt "unknown primitive: \"%s\"%s" s msg
 
   | PrimWrongSuffix (s, []) ->
       F.fprintf fmt "primitive accepts no size annotation: `%s'" s
@@ -1272,9 +1272,6 @@ let prim_sig asmOp p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   List.map f o.tin,
   o.i_out
 
-let prim_string asmOp : (string * 'asm Sopn.prim_constructor) list =
-  List.map (fun (s, x) -> Conv.string_of_cstring s, x) asmOp.Sopn.prim_string
-
 let extract_size str : string * Sopn.prim_x86_suffix option =
   let get_size =
     let open Sopn in
@@ -1365,7 +1362,7 @@ let tt_prim asmOp id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   let c =
-    match List.assoc name (prim_string asmOp) with
+    match List.assoc name asmOp.Sopn.prim_string with
     | PrimX86 (valid_suffixes, preop) ->
       begin match match sz with
           | None -> default_suffix valid_suffixes |> preop
@@ -1380,9 +1377,8 @@ let tt_prim asmOp id =
             | None -> rs_tyerror ~loc (PrimWrongSuffix (name, valid_suffixes))
     end
     | PrimARM _ | exception Not_found ->
-        oget
-          ~exn:(tyerror ~loc (UnknownPrim s))
-          (Tt_arm_m4.tt_prim (prim_string asmOp) name sz)
+       let err msg = tyerror ~loc (UnknownPrim(s, msg)) in
+       Tt_arm_m4.tt_prim err asmOp.Sopn.prim_string name sz
   in c
 
 let prim_of_op exn loc o =
@@ -1459,7 +1455,7 @@ let prim_of_pe pe =
 
 let cast_opn ~loc id ws =
   let open Sopn in
-  let name fmt = PrintCommon.pp_string0 fmt (id.str ()) in
+  let name fmt = Format.pp_print_string fmt (id.str ()) in
   let invalid () = rs_tyerror ~loc (UnsupportedZeroExtend name) in
   let open Arch_extra in
   function
@@ -1781,6 +1777,13 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
         | _ ->
           rs_tyerror ~loc:(L.loc pi)
             (string_error "a pair of destination is expected for swap") in
+      let () = match ty with
+        | Arr _ -> ()
+        | Bty (U ws) when ws <= U64 -> ()
+        | Bty ty ->
+           rs_tyerror ~loc:(L.loc pi)
+             (string_error "the swap primitive is not available at type %a" PrintCommon.pp_btype ty)
+      in
       let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty; ty] in
       let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
       env, [mk_i (P.Copn(lvs, AT_keep, p, es))]

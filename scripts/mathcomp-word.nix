@@ -5,7 +5,7 @@ let inherit (coqPackages) coq; in
 let mathcomp = coqPackages.mathcomp.override { version = "1.18.0"; }
 ; in
 
-let rev = "48ca41b54fe315ca2efcee5f8dd8ee3fb33a7de1"; in
+let rev = "f8f819204d9183d4073477ea0e7350b163336cc2"; in
 
 stdenv.mkDerivation rec {
   version = "2.3-git-${builtins.substring 0 8 rev}";
@@ -15,7 +15,7 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    hash = "sha256-Vm1F3zHy7DOi982KoM0N/VY1n1w3Wdza76aoNnLnDPo=";
+    hash = "sha256-xjw09Ek25sNg0EKv6JvUup4Ln44I78lCYZbkCSJZKUE=";
   };
 
   buildInputs = [ coq ocaml dune_3 ];

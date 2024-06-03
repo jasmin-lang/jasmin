@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.

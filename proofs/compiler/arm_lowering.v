@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -29,10 +27,10 @@ Context {atoI : arch_toIdent}.
 (* This pass is parameterized by four variable names that will be used to create
    variables for the processor flags. *)
 
-Definition fv_NF (fv: fresh_vars) := fv (Ident.name_of_string "__n__") sbool.
-Definition fv_ZF (fv: fresh_vars) := fv (Ident.name_of_string "__z__") sbool.
-Definition fv_CF (fv: fresh_vars) := fv (Ident.name_of_string "__c__") sbool.
-Definition fv_VF (fv: fresh_vars) := fv (Ident.name_of_string "__v__") sbool.
+Definition fv_NF (fv: fresh_vars) := fv "__n__"%string sbool.
+Definition fv_ZF (fv: fresh_vars) := fv "__z__"%string sbool.
+Definition fv_CF (fv: fresh_vars) := fv "__c__"%string sbool.
+Definition fv_VF (fv: fresh_vars) := fv "__v__"%string sbool.
 
 Definition all_fresh_vars (fv : fresh_vars) : seq Ident.ident :=
   [:: fv_NF fv; fv_ZF fv; fv_CF fv; fv_VF fv ].

@@ -1,5 +1,5 @@
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
-From mathcomp Require Import all_ssreflect.
 Require Import utils gen_map.
 
 Import ZArith.

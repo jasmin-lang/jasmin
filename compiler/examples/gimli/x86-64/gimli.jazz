@@ -1,4 +1,5 @@
-fn gimli_ref(reg ptr u32[12] state) -> reg ptr u32[12] {
+export
+fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
 inline int round, column;
 reg u32 x, y, z;
 reg u32 a, b, c;
@@ -60,17 +61,4 @@ for round = 24 downto 0 {
   }
 }
 return state;
-}
-
-export
-fn gimli(reg u64 io) {
-  stack u32[12] state;
-  inline int i;
-  for i = 0 to 12 {
-    state[i] = (u32)[io + 4 * i];
-  }
-  state = gimli_ref(state);
-  for i = 0 to 12 {
-    (u32)[io + 4 * i] = state[i];
-  }
 }

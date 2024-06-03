@@ -1,0 +1,9 @@
+(library
+  (name uint63_native)
+  (public_name jasmin.uint63-native)
+  (implements jasmin.uint63))
+
+(rule
+ (targets uint63.ml)
+ (deps (:gen-file ../uint63_%{ocaml-config:int_size}.ml))
+ (action (copy# %{gen-file} %{targets})))

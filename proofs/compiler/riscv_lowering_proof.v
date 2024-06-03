@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype order ssralg.
 Import
   Order.POrderTheory
   Order.TotalTheory.

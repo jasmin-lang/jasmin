@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import expr ZArith sem_op_typed compiler_util.
-Import all_ssreflect ssralg ssrnum.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.

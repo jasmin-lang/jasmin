@@ -1,0 +1,20 @@
+export
+fn deref(reg u64 x) -> reg u64 {
+  reg u64[2] msf;
+
+  msf[1] = #init_msf();
+  msf[0] = #mov_msf(msf[1]);
+
+  reg bool b;
+  b = x < 10;
+  if b {
+    msf[1] = #update_msf(b, msf[0]);
+  } else {
+    msf[1] = #update_msf(!b, msf[0]);
+  }
+
+  x = [x];
+  x = #protect(x, msf[1]);
+
+  return x;
+}

@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq.
 Require Import Utf8 oseq utils.
 
 Set Implicit Arguments.

@@ -1,0 +1,5 @@
+export
+fn main(reg u128 x y) -> reg u128, reg u128 {
+  y, x = #swap(x, y);
+  return y, x;
+}

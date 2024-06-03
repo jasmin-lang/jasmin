@@ -332,7 +332,7 @@ let error_of_cerror pp_err e =
   let msg = Format.dprintf "%a" pp_err e.Compiler_util.pel_msg in
   let iloc = iloc_of_loc e in
   let funname = Option.map (fun fn -> fn.fn_name) e.pel_fn in
-  let pass = Option.map string_of_cstring e.pel_pass in
+  let pass = e.pel_pass in
   { err_msg = msg;
     err_loc = iloc;
     err_funname = funname;
@@ -344,8 +344,8 @@ let error_of_cerror pp_err e =
 (* -------------------------------------------------------------------------- *)
 let fresh_var_ident =
   let memo = Hashtbl.create 5 in
-  fun r (i_loc, _) n st ->
-    let k = (r, i_loc.L.uid_loc, n, st) in
+  fun r (i_loc, _) num n st ->
+    let k = (r, i_loc.L.uid_loc, num, n, st) in
     match Hashtbl.find memo k with
     | x -> x
     | exception Not_found ->

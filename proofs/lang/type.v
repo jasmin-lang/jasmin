@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import ZArith gen_map utils strings.
 Require Export wsize.
 Import Utf8.

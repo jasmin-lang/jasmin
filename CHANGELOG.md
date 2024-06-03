@@ -32,7 +32,8 @@
   On arm-m4, this is compiled using 3 xor instructions.
   See `compiler/tests/success/common/swap.jazz` and
       `compiler/tests/success/common/swap_word.jazz` for usage.
-  ([PR #691](https://github.com/jasmin-lang/jasmin/pull/691)).
+  ([PR #691](https://github.com/jasmin-lang/jasmin/pull/691),
+   [PR #816](https://github.com/jasmin-lang/jasmin/pull/816)).
 
 - Support Selective Speculative Load Hardening.
   We now support operators SLH operators as in [Typing High-Speed Cryptography
@@ -40,7 +41,8 @@
   The compilation of these is proven to preserve functional semantics.
   We also provide a speculative CCT checker, via the `jazzct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
-   [PR #723](https://github.com/jasmin-lang/jasmin/pull/723)).
+   [PR #723](https://github.com/jasmin-lang/jasmin/pull/723),
+   [PR #814](https://github.com/jasmin-lang/jasmin/pull/814))
 
 - Register arrays and sub-arrays can appear as arguments and return values of
   local functions;
@@ -92,6 +94,11 @@
   ([PR #793](https://github.com/jasmin-lang/jasmin/pull/793)).
 
 ## Bug fixes
+
+- The compiler rejects ARM intrincics with the `S` suffix if the instruction
+  does not set flags
+  ([PR #809](https://github.com/jasmin-lang/jasmin/pull/809);
+  fixes [#808](https://github.com/jasmin-lang/jasmin/issues/808)).
 
 - Type-checking rejects invalid variants of primitive operators
   ([PR #490](https://github.com/jasmin-lang/jasmin/pull/490);
@@ -149,6 +156,11 @@
 
 - The deprecated legacy interface to the CT checker has been removed
   ([PR #769](https://github.com/jasmin-lang/jasmin/pull/769)).
+
+- In x86 assembly, 8-bit immediate operands are printed unsigned,
+  i.e., in the range [0; 255]
+  ([PR #821](https://github.com/jasmin-lang/jasmin/pull/821);
+  fixes [#803](https://github.com/jasmin-lang/jasmin/issues/803)).
 
 # Jasmin 2023.06.3 — 2024-04-10
 

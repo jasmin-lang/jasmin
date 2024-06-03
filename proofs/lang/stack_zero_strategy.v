@@ -10,9 +10,7 @@ Implemented in [compiler/stack_zeroization.v].
 The strategies are not defined in [compiler/stack_zeroization.v] to avoid a
 circular dependency. *)
 
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
 Require Import utils.
 
 Set Implicit Arguments.

@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat div eqtype ssralg.
 
 Require Import
   sem_type

@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice fintype.
 From mathcomp Require Import word_ssrZ.
 Require oseq.
 Require Import ZArith

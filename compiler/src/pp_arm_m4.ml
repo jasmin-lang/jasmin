@@ -35,7 +35,10 @@ let pp_reg_address_aux base disp off scal =
   | None, Some off, Some scal ->
       Printf.sprintf "[%s, %s, lsl %s%s]" base off imm_pre scal
   | _, _, _ ->
-      failwith "TODO_ARM: pp_reg_address_aux"
+     hierror
+      ~loc:Lnone
+      ~kind:"assembly printing"
+      "the address computation is too complex: an intermediate variable might be needed"
 
 let global_datas = "glob_data"
 
@@ -53,7 +56,7 @@ let pp_label n lbl = string_of_label n lbl
 let pp_remote_label (fn, lbl) =
   string_of_label fn.fn_name lbl
 
-let hash_to_string_core (to_string : 'a -> string) =
+let hash_to_string (to_string : 'a -> string) =
   let tbl = Hashtbl.create 17 in
   fun r ->
      try Hashtbl.find tbl r
@@ -61,9 +64,6 @@ let hash_to_string_core (to_string : 'a -> string) =
        let s = to_string r in
        Hashtbl.add tbl r s;
        s
-
-let hash_to_string (to_string : 'a -> char list) =
-  hash_to_string_core (fun x -> Conv.string_of_cstring (to_string x))
 
 let pp_register = hash_to_string arch.toS_r.to_string
 
@@ -135,7 +135,7 @@ let pp_shift (ARM_op (_, opts)) args =
 let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
   let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
   let pp = id.id_pp_asm args in
-  Format.asprintf "%s%s%s%s" (Conv.string_of_cstring pp.pp_aop_name) suff (pp_set_flags opts) (pp_conditional args)
+  Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =
   match o with

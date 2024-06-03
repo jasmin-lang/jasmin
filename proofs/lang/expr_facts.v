@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 Require Import Utf8.
 Require Export expr.
 
@@ -320,32 +320,24 @@ End WRITE.
 
 Section READ.
 
-Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
+Lemma read_e_esE :
+  (∀ e s, Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s)) ∧
+  (∀ es s, Sv.Equal (read_es_rec s es) (Sv.union (read_es es) s)).
 Proof.
-  elim: e s => //= [v | al aa w v e He | aa w len v e He | al w v e He | o e1 He1 e2 He2 | o es Hes | t e He e1 He1 e2 He2] s;
-   rewrite /read_e /= ?He ?He1 ?He2; try (clear; SvD.fsetdec).
-  rewrite -/read_es_rec -/read_es.
-  elim: es Hes s.
-  + by move => _ /= s; clear; SvD.fsetdec.
-  move => e es ih Hes s /=.
-  rewrite /read_es /= -/read_e ih.
-  + rewrite Hes.
-    + rewrite ih.
-      + by clear; SvD.fsetdec.
-      move => e' he' s'; apply: Hes.
-      by right.
-    by left.
-  move => e' he' s'; apply: Hes.
-  by right.
+  apply: pexprs_ind_pair;
+  split => //= [ e He es Hes | v | al aa w v e He | aa w len v e He | al w v e He | o e1 He1 e2 He2 | t e He e1 He1 e2 He2 ] s;
+    rewrite /read_e /= ?He ?He1 ?He2; try (clear; SvD.fsetdec).
+  rewrite /read_es /= -/read_e Hes He Hes; clear; SvD.fsetdec.
 Qed.
+
+Lemma read_eE e s : Sv.Equal (read_e_rec s e) (Sv.union (read_e e) s).
+Proof. exact: (proj1 read_e_esE). Qed.
 
 Lemma read_e_var (x:gvar) : Sv.Equal (read_e (Pvar x))(read_gvar x).
 Proof. rewrite /read_e /= /read_gvar;case:ifP => _; clear; SvD.fsetdec. Qed.
 
 Lemma read_esE es s : Sv.Equal (read_es_rec s es) (Sv.union (read_es es) s).
-Proof.
-  elim: es s => [ | e es Hes] s;rewrite /read_es /= ?Hes ?read_eE; clear; SvD.fsetdec.
-Qed.
+Proof. exact: (proj2 read_e_esE). Qed.
 
 Lemma read_es_cons e es :
   Sv.Equal (read_es (e :: es)) (Sv.union (read_e e) (read_es es)).
@@ -547,11 +539,9 @@ Proof. by rewrite /eq_gvar ?eqxx. Qed.
 
 Lemma eq_expr_refl e : eq_expr e e.
 Proof.
-elim: e => //= [ ? | ????? -> | ????? -> |???? -> | ?? -> | ?? -> ? -> | ? es ih | ??-> ? -> ? -> ] //=;
-  rewrite ?eqxx ?eq_gvar_refl //=.
-elim: es ih => // e es ih h /=; rewrite h.
-+ by apply: ih => e' he'; apply: h; right.
-by left.
+  suff : (∀ e, eq_expr e e) ∧ (∀ es, all2 eq_expr es es) by case.
+  apply: pexprs_ind_pair; split => //= [ ? -> ? -> | ? | ????? -> | ????? -> | ???? -> | ?? -> | ?? -> ? -> | ?? -> | ?? -> ? -> ];
+  rewrite ?eqxx ?eq_gvar_refl //.
 Qed.
 
 Lemma eq_gvar_symm gx gy :
@@ -561,10 +551,9 @@ Proof. rewrite /eq_gvar. move=> /andP [] /eqP -> /eqP ->. by rewrite !eqxx. Qed.
 Lemma eq_expr_symm e0 e1 :
   eq_expr e0 e1 -> eq_expr e1 e0.
 Proof.
-  elim: e1 e0 =>
-    [? | ? | ? | ? | ?????? | ?????? | ????? | ??? | ????? | ? es1 hind | ???????]
-    [? | ? | ? | ? | ?????  | ?????  | ????  | ??  | ???   | ? es0 h | ????]
-    //= *.
+  suff : (∀ e0 e1, eq_expr e0 e1 -> eq_expr e1 e0) ∧ (∀ es es', all2 eq_expr es es' → all2 eq_expr es' es).
+  - case=> h _; exact: h.
+  apply: pexprs_ind_pair; split => //= [ [] |????[]|?[]|?[]|?[]|?[]|??????[]|??????[]|?????[]|???[]|?????[]|???[]|???????[]] //= *.
 
   all:
     repeat
@@ -586,28 +575,20 @@ Proof.
       end.
 
   (* We are finished with all but the [PopN] case. *)
-  all: try by rewrite ?eqxx.
-
-  move: h => /= /andP [] /eqP -> h.
-  rewrite eqxx /=.
-
-  elim: es0 es1 hind h => [|e0 es0 hind'] [|e1 es1] //= hind h.
-  move: h => /andP [h0 h1].
-  rewrite (hind _ _ _ h0) {h0} /=; last by left.
-  apply: (hind' _ _ h1).
-  clear hind' h1.
-  move=> e he.
-  apply: hind.
-  by right.
+  all: by rewrite ?eqxx //=; eauto.
 Qed.
 
 Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
 Proof. by rewrite /eq_gvar => /andP[] /eqP -> /eqP -> /andP[] /eqP -> /eqP ->; rewrite !eqxx. Qed.
 
-Lemma eq_expr_trans e2 e1 e3 : 
+Lemma eq_expr_trans e2 e1 e3 :
   eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3.
 Proof.
-  elim: e1 e2 e3.
+  suff : (∀ e1 e2 e3, eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3) ∧
+           (∀ x y z, all2 eq_expr x y → all2 eq_expr y z → all2 eq_expr x z) by case; eauto.
+  apply: pexprs_ind_pair; split => //=.
+  + by case.
+  + by move => ???? [] // ?? [] // ?? /andP[] /= ?? /andP[] ??; apply/andP; split; eauto.
   1-3: by move=> ? [] // ? [] //= ? /eqP -> /eqP ->.
   + by move=> x1 [] // x2 [] //= x3; apply eq_gvar_trans.
   + move=> ????? hrec [] //= ????? [] //= ?????.
@@ -628,10 +609,7 @@ Proof.
     move=> /andP[]/andP[]/eqP-> /hrec1 h1 /hrec2 h2.
     by move=> /andP[]/andP[]/eqP-> /h1 -> /h2 ->; rewrite !eqxx.
   + move=> o es1 hrec [] //= ? es2 [] ? es3 //=.
-    move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=.
-    elim: es1 hrec es2 es3 h1 h2 => [ | e1 es1 hrecs] hrec [] // e2 es2 [] //= e3 es3.
-    move=> /andP[]/hrec h1 /hrecs hs /andP[] /h1 ->; last by left.
-    by move=> /hs -> // e hin; apply hrec; right.
+    move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=; eauto.
   move=> ?? hrec ? hrec1 ? hrec2 []//= ???? []//= ????.
   move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
@@ -652,10 +630,12 @@ Definition eq_expr_use_mem e0 e1 :
   eq_expr e0 e1
   -> use_mem e0 = use_mem e1.
 Proof.
-  elim: e0 e1 =>
-    [? | ? | ? | ? | ?????? | ?????? | ????? | ??? | ????? | ? es0 hind | ???????]
-    [? | ? | ? | ? | ?????  | ?????  | ????  | ??  | ???   | ? es1 h | ????]
-    //= *.
+  suff : (∀ e e', eq_expr e e' → use_mem e = use_mem e') ∧
+           (∀ es es', all2 eq_expr es es' → has use_mem es = has use_mem es') by case; eauto.
+  clear; apply: pexprs_ind_pair; split => //=
+    [ | e he es hes |?|?|?|?|??????|??????|?????|???|?????|???|???????] [] //.
+  - by move => ?? /andP[] /he -> /hes ->.
+  all: move => *.
 
   all:
     repeat
@@ -673,15 +653,7 @@ Proof.
         ] => rewrite (hind _ h) {hind h}
       end.
 
-  move: h => /= /andP [_ h].
-  elim: es0 es1 h hind => [|e0 es0 hind0] [|e1 es1] h hind //=.
-  move: h => /= /andP [h0 h1].
-  rewrite (hind _ _ _ h0); last by left.
-  f_equal.
-  apply: (hind0 _ h1).
-  move=> e he.
-  apply: hind.
-  by right.
+  rewrite /=; eauto.
 Qed.
 
 Section EQ_EXPR_READ_E.
@@ -734,45 +706,14 @@ Section EQ_EXPR_READ_E.
     eq_expr e0 e1
     -> Sv.Equal (read_e e0) (read_e e1).
   Proof.
-    elim: e0 e1 =>
-      [ ?
-      | ?
-      | ?
-      | [??]
-      | ???? e0 hinde0
-      | ???? e0 hinde0
-      | ??? e0 hinde0
-      | ? e0 hinde0
-      | ? e00 hinde00 e01 hinde01
-      | ? es0 hindes0
-      | ? e0 hinde0 e00 hinde00 e01 hinde01
-      ]
-      [ ?
-      | ?
-      | ?
-      | [??]
-      | ???? e1
-      | ???? e1
-      | ??? e1
-      | ? e1
-      | ? e10 e11
-      | ? es1
-      | ? e1 e10 e11
-      ] //=; try by t_solve.
-
-    - move=> h. rewrite /read_e /=. by rewrite (eq_gvar_read_gvar h).
-
-    move=> /andP [] _ h.
-    rewrite 2![read_e (PappN _ _)]/(read_es _) -/read_es.
-    move: h hindes0.
-    apply: (list_all2_ind (P := fun _ _ => _ -> Sv.Equal _ _))
-      => // {es0 es1} e0 es0 e1 es1 h0 h1 hind0 hind1.
-    rewrite /read_es /= -/read_e !read_esE.
-    rewrite (hind1 _ _ _ h0) {h0}; last by left.
-    rewrite hind0 {hind0}; first done.
-    move=> e2 he2.
-    apply: hind1.
-    by right.
+    suff : (∀ e e', eq_expr e e' → Sv.Equal (read_e e) (read_e e'))
+           ∧ (∀ es es', all2 eq_expr es es' → Sv.Equal (read_es es) (read_es es')) by case; eauto.
+    clear; apply: pexprs_ind_pair; split => //
+    [|e he es hes|?|?|?|?|??????|??????|?????|???|?????|? es hes|???????] [] //= >;
+    try by t_solve.
+    - by rewrite !read_es_cons => /andP[] /he -> /hes ->.
+    - by move => /eq_gvar_read_gvar; rewrite /read_e /= => ->.
+    by rewrite /read_e /= -/read_es_rec !read_esE => /andP[] _ /hes ->.
   Qed.
 
 End EQ_EXPR_READ_E.

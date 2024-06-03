@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem compiler_util.
 Require Export pseudo_operator lower_spill.
 Import Utf8.
@@ -21,7 +21,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT  : progT}
   {sCP : semCallParams}
-  (fresh_var_ident : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident)
+  (fresh_var_ident : v_kind -> instr_info -> string -> stype -> Ident.ident)
   (p p' : prog) (ev : extra_val_t)
   (spill_prog_ok : spill_prog fresh_var_ident p = ok p').
 
@@ -213,7 +213,7 @@ Proof.
   move: hx; rewrite /get_gvar /mk_lvar /= => /get_varP /= [? hd ?]; subst vx.
   have ? : (evm s).[x] = vt; last subst vt.
   + by apply: (truncate_val_subtype_eq htr); apply getP_subtype.
-  have hvm : vm.[x <- (evm s).[x]] =1 vm.
+  have hvm : (vm.[x <- (evm s).[x]] =1 vm)%vm.
   + move=> z; rewrite Vm.setP; case: eqP => // ?; subst z.
     rewrite  vm_truncate_val_eq; first by apply heq.
     by apply: truncate_val_has_type htr.

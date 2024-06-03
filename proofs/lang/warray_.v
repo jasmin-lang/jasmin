@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 Require Export ZArith Setoid Morphisms.
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import xseq.
 Require Export utils array gen_map type word memory_model.

@@ -1,7 +1,5 @@
 From Coq Require Import Lia.
-From mathcomp Require Import
-  all_ssreflect
-  ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg.
 
 From mathcomp Require Import word_ssrZ.
 

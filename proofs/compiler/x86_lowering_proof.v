@@ -2,8 +2,8 @@
 (* * Correctness proof of the lowering pass *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype order.
+From mathcomp Require Import ssralg ssrnum word_ssrZ.
 Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
@@ -77,7 +77,7 @@ Section PROOF.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_sf; SvD.fsetdec. Qed.
   Lemma zf_in_fv: Sv.In (fv_zf fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_zf; SvD.fsetdec. Qed.
-  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv (Ident.name_of_string "__wtmp__") (sword sz))) fvars.
+  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv "__wtmp__"%string (sword sz))) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /=; case: sz; SvD.fsetdec. Qed.
 
   Local Hint Resolve of_neq_cf of_neq_sf of_neq_zf cf_neq_sf cf_neq_zf sf_neq_zf : core.

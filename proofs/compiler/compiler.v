@@ -1,5 +1,6 @@
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
-Require Import ZArith.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
+From mathcomp Require Import ssralg.
+Require Import ZArith Uint63.
 Require Import Utf8.
 
 Require Import
@@ -181,7 +182,7 @@ Record compiler_params
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
+  fresh_var_ident  : v_kind -> instr_info -> int -> string -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
 }.
@@ -244,15 +245,18 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p :=
     array_copy_prog
-      (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint)
-      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info (Ident.name_of_string "tmp") (sword ws))
+      (fresh_var_ident cparams Inline dummy_instr_info 0 "i__copy" sint)
+      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0 "tmp" (sword ws))
       p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
 
-  Let p := spill_prog cparams.(fresh_var_ident) p in
+  Let p :=
+    spill_prog
+      (fun k ii => fresh_var_ident cparams k ii 0)
+      p in
   let p := cparams.(print_uprog) LowerSpill p in
 
   Let p := inlining to_keep p in
@@ -281,7 +285,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pg))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pg))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -290,7 +294,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lop_lower_i loparams)
       (lowering_opt cparams)
       (warning cparams)
-      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
       pg
   in
   let p := cparams.(print_uprog) LowerInstruction p in
@@ -385,7 +389,7 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
       true
       shparams
       saparams
-      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)

@@ -1,5 +1,6 @@
 From Coq Require Import Relations.
-From mathcomp Require Import all_ssreflect ssralg ssrnum.
+From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat finfun.
+From mathcomp Require Import ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import oseq.

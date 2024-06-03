@@ -66,7 +66,7 @@ let pp_label n lbl = string_of_label n lbl
 let pp_remote_label (fn, lbl) =
   string_of_label fn.fn_name lbl
 
-let hash_to_string_core (to_string : 'a -> string) =
+let hash_to_string (to_string : 'a -> string) =
   let tbl = Hashtbl.create 17 in
   fun r ->
      try Hashtbl.find tbl r
@@ -74,9 +74,6 @@ let hash_to_string_core (to_string : 'a -> string) =
        let s = to_string r in
        Hashtbl.add tbl r s;
        s
-
-let hash_to_string (to_string : 'a -> char list) =
-  hash_to_string_core (fun x -> Conv.string_of_cstring (to_string x))
 
 let pp_register = hash_to_string arch.toS_r.to_string
 
@@ -139,7 +136,7 @@ let headers = [  ]
 (* -------------------------------------------------------------------- *)
 
   let pp_iname_ext _ = ""
-  let pp_iname2_ext ext _ _ = Conv.string_of_cstring ext
+  let pp_iname2_ext ext _ _ = ext
 
 let pp_ext = function
  | PP_error             -> assert false
@@ -151,7 +148,7 @@ let pp_ext = function
  | PP_ct ct            -> assert false
 
 let pp_name_ext pp_op =
-  Printf.sprintf "%s%s" (Conv.string_of_cstring pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
+  Printf.sprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =
   match o with
