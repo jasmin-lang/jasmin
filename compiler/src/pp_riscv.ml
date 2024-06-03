@@ -25,7 +25,11 @@ let pp_reg_address_aux base disp off scal =
   | Some disp, None, None ->
       Printf.sprintf "%s%s(%s)" imm_pre disp base
   | _, _, _ ->
-      assert false
+      hierror
+      ~loc:Lnone
+      ~kind:"assembly printing"
+      "the address computation is too complex: an intermediate variable might be needed"
+
 
 let global_datas = "glob_data"
 
