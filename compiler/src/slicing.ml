@@ -12,8 +12,8 @@ let inspect_gvar k { gs; gv } =
 let rec inspect_e k = function
   | Pconst _ | Pbool _ | Parr_init _ -> k
   | Pvar x -> inspect_gvar k x
-  | Presult x -> inspect_gvar k x
-  | Presultget (_, _, x, e)
+  | Presult (_,x) -> inspect_gvar k x
+  | Presultget (_, _, _, x, e)
   | Pget (_, _, x, e) | Psub (_, _, _, x, e) -> inspect_gvar (inspect_e k e) x
   | Pload (_, _, e) | Papp1 (_, e) -> inspect_e k e
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2

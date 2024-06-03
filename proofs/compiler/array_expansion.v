@@ -172,14 +172,14 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let body := expand_e m body in
     ok (Pbig e1 e2 op2 x e0 body) 
 
-  | Presult x =>
+  | Presult _ x =>
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e
 
-  | Presultget aa ws x e1 =>
+  | Presultget aa ws i x e1 =>
     if check_gvar m x then
       Let e1 := expand_e m e1 in
-      ok (Presultget aa ws x e1)
+      ok (Presultget aa ws i x e1)
     else
       let x := gv x in
       match Mvar.get m.(sarrs) x, is_const e1 with
@@ -188,7 +188,7 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
         Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "index out of bound") in
         let v := znth (v_var x) ai.(ai_elems) i in
-        ok (Presult (mk_lvar {| v_var := v; v_info := v_info x |}))
+        ok (Presult i (mk_lvar {| v_var := v; v_info := v_info x |}))
       | _, _ => Error (reg_error x "(the index is not a constant)")
       end
   end.

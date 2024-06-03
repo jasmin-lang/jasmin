@@ -186,8 +186,8 @@ Fixpoint sem_pexpr_aux (s:estate) (m : Vm.t) (e : pexpr) : exec value :=
                Let v4 := sem_pexpr_aux s m e4 in
                sem_sop2 sop acc v4)
       v3 l
-  | Presult v => get_gvar wdb gd s.(evm) v
-  | Presultget aa ws x e =>
+  | Presult _ v => get_gvar wdb gd s.(evm) v
+  | Presultget aa ws _ x e =>
       Let (n, t) := wdb, gd, s.[x] in
       Let i := sem_pexpr_aux s m e >>= to_int in
       Let w := WArray.get aa ws t i in

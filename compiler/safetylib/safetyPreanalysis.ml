@@ -114,8 +114,8 @@ end = struct
     | Pfvar _ -> expr
     | Pbig (e1, e2, op, v, e3, e4) ->
       Pbig(mk_expr fn e1, mk_expr fn e2, op, v, mk_expr fn e3, mk_expr fn e4)
-    | Presult v -> Presult (mk_gvar fn v)
-    | Presultget (acc, ws, v, e) -> Presultget (acc, ws, mk_gvar fn v, mk_expr fn e)
+    | Presult (i, v) -> Presult (i, mk_gvar fn v)
+    | Presultget (acc, ws, i, v, e) -> Presultget (acc, ws, i, mk_gvar fn v, mk_expr fn e)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -205,7 +205,7 @@ end = struct
     | Pfvar _ -> dp
     | Pbig (e1, e2, _, _, e3, e4) ->
       app_expr (app_expr (app_expr (app_expr dp v e1 ct) v e2 ct) v e3 ct) v e4 ct
-    | Presult v' -> begin match v'.gs with
+    | Presult (i, v') -> begin match v'.gs with
         | Expr.Sglob  -> dp (* We ignore global variables  *)
         | Expr.Slocal -> match (L.unloc v'.gv).v_ty with
           | Bty _ -> add_dep dp v (L.unloc v'.gv) ct
@@ -241,7 +241,7 @@ end = struct
             | Bty _ -> (L.unloc v'.gv) :: acc, st
             | Arr _ -> acc, st
         end
-      | Presult v' ->
+      | Presult (i, v') ->
         begin
           match v'.gs with
           | Expr.Sglob -> acc, st
@@ -281,7 +281,7 @@ end = struct
 
       | Pvar v' -> aux_gv acc v'
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
-      | Presult v' -> aux_gv acc v'
+      | Presult (_, v') -> aux_gv acc v'
       | Pload (_,v',ei) -> aux (aux_v acc v') ei
 
       | Papp1 (_,e1) -> aux acc e1
@@ -534,13 +534,13 @@ end = struct
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
     | Pfvar _ -> sv
     | Pbig (e1, e2, _, _, e3, e4) -> collect_vars_es sv [e1;e2;e3;e4]
-    | Presult v ->
+    | Presult (_, v) ->
       begin
         match v.gs with
         | Expr.Sglob -> sv
         | Expr.Slocal -> Sv.add (L.unloc v.gv) sv
       end
-    | Presultget (_,_, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
+    | Presultget (_, _, _, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
 
 
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es

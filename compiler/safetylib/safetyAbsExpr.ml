@@ -433,8 +433,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | Pfvar _ -> acc
       | Pbig (e1, e2, _, _, e3, e4) ->
         aux (aux (aux (aux acc e1) e2) e3) e4
-      | Presult x -> mvar_of_var x :: acc
-      | Presultget(access,ws,x,ei) ->
+      | Presult (_, x) -> mvar_of_var x :: acc
+      | Presultget(access,ws,_,x,ei) ->
         abs_sub_arr_range abs (L.unloc x.gv,x.gs) access ws 1   ei @ acc
     in
 

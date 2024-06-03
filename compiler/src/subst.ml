@@ -41,8 +41,8 @@ let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
          gsubst_vdest f x,
          gsubst_e flen f e0, 
          gsubst_e flen f b)
-  | Presult v -> Presult (gsubst_gvar f v)
-  | Presultget (aa, ws, v, e) -> Presultget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
+  | Presult (i,v) -> Presult (i,gsubst_gvar f v)
+  | Presultget (aa, ws, i, v, e) -> Presultget(aa, ws, i, gsubst_gvar f v, gsubst_e flen f e)
 
 and gsubst_gvar f v = 
   match f v with
@@ -106,7 +106,6 @@ let subst_func f fc =
   gsubst_func (fun ty -> ty)
      (fun v -> if is_gkvar v then f v.gv else Pvar v) fc
 
-
 let rec subst_result m e =
   match e with
   | Pconst _  | Pbool _ | Parr_init _ | Pfvar _  | Pvar _ -> e
@@ -124,8 +123,8 @@ let rec subst_result m e =
           x,
          subst_result m e0,
          subst_result m b)
-  | Presult v -> m v
-  | Presultget (aa, ws, v, e) -> Pget(aa, ws,  v, subst_result m e)
+  | Presult (i, v) -> Pvar (m i v)
+  | Presultget (aa, ws, i, v, e) -> Pget(aa, ws, m i v, subst_result m e)
 
 (* ---------------------------------------------------------------- *)
 
@@ -465,5 +464,5 @@ let rec gsubst_result m e =
     Pbig(gsubst_result m e1, gsubst_result m e2, o, x,
          gsubst_result m e0,
          gsubst_result m b)
-  | Presult v -> Presult(vsubst_gv m v)
-  | Presultget (aa, ws, v, e) -> Presultget(aa, ws, vsubst_gv m v, gsubst_result m e)
+  | Presult (i,v) -> Presult(i,vsubst_gv m v)
+  | Presultget (aa, ws, i, v, e) -> Presultget(aa, ws, i, vsubst_gv m v, gsubst_result m e)

@@ -39,8 +39,8 @@ type 'len gexpr =
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
   | Pfvar  of 'len gvar_i
   | Pbig   of 'len gexpr * 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr
-  | Presult of 'len ggvar
-  | Presultget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
+  | Presult of int * 'len ggvar
+  | Presultget   of Warray_.arr_access * wsize * int * 'len ggvar * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 
@@ -260,8 +260,8 @@ let rec rvars_e f s = function
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
   | Pfvar _ -> s
   | Pbig(e1, e2, _, _, e0, body) -> List.fold_left (rvars_e f) s [e1; e2; e0; body]
-  | Presult x         -> rvars_v f x s
-  | Presultget(_,_,x,e)  -> rvars_e f (rvars_v f x s) e
+  | Presult (_, x)         -> rvars_v f x s
+  | Presultget(_,_,_,x,e)  -> rvars_e f (rvars_v f x s) e
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es
 

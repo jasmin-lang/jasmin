@@ -144,7 +144,7 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
   let rec add_e = function
     | Pconst _ | Pbool _ | Parr_init _  | Pvar _ | Presult _ -> ()
     | Pget (_,ws, x, e) -> add_ggvar x ws 0; add_e e
-    | Presultget (_,ws, x, e) -> add_ggvar x ws 0; add_e e
+    | Presultget (_,ws, _, x, e) -> add_ggvar x ws 0; add_e e
     | Psub (_,_,_,_,e) | Pload (_, _, e) | Papp1 (_, e) -> add_e e
     | Papp2 (_, e1,e2) -> add_e e1; add_e e2
     | PappN (_, es) -> add_es es 

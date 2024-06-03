@@ -36,8 +36,8 @@ type 'len gexpr =
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
   | Pfvar  of 'len gvar_i
   | Pbig   of 'len gexpr * 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr
-  | Presult of 'len ggvar
-  | Presultget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
+  | Presult of int * 'len ggvar
+  | Presultget   of Warray_.arr_access * wsize * int * 'len ggvar * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 

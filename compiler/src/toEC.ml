@@ -67,7 +67,7 @@ let rec read_mem_e = function
   | Pfvar _ -> false
   | Pbig (e1, e2, _, _, ei, e)-> read_mem_e e1 || read_mem_e e2 || read_mem_e ei || read_mem_e e
   | Presult _ -> false
-  | Presultget (_, _, _, e) -> read_mem_e e
+  | Presultget (_, _, _, _, e) -> read_mem_e e
 
 and read_mem_es es = List.exists read_mem_e es
 
@@ -139,7 +139,7 @@ let rec leaks_e_rec pd leaks e =
   | Pbig (e1, e2, _, _, ei, e) ->
     leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) ei) e
   | Presult _ -> leaks
-  | Presultget (_,_,_, e) -> leaks_e_rec pd (e::leaks) e
+  | Presultget (_, _, _, _, e) -> leaks_e_rec pd (e::leaks) e
 
 and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
@@ -562,8 +562,8 @@ let ty_expr = function
   | Pif (ty,_,_,_) -> ty
   | Pfvar x -> x.L.pl_desc.v_ty
   | Pbig (_, _, op, _, _, _) -> out_ty_op2 op
-  | Presult x -> x.gv.L.pl_desc.v_ty
-  | Presultget (_,sz,_,_) -> tu sz
+  | Presult (_, x) -> x.gv.L.pl_desc.v_ty
+  | Presultget (_, sz, _, _, _) -> tu sz
 
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -709,32 +709,24 @@ let rec pp_expr pd env fmt (e:expr) =
       (pp_expr pd env) a
       (pp_expr pd env) b
 
-  | Presult x ->
-    let x = L.unloc x.gv in
+  | Presult (i, x) ->
     let ret = env.freturn in
-    let i,_ =
-      List.findi (fun _ a ->
-          x.v_name = a.v_name && x.v_id = a.v_id) ret
-    in
     if List.length ret = 1 then
       Format.fprintf fmt "res"
     else
       Format.fprintf fmt "res.`%i" (i+1)
 
-  | Presultget (aa, ws, x, e) ->
+  | Presultget (aa, ws, i, x, e) ->
     assert (check_array env x.gv);
     let x = L.unloc x.gv in
     let ret = env.freturn in
-    let i,_ =
-      List.findi (fun _ a -> x.v_name = a.v_name && x.v_id = a.v_id) ret
-    in
     let (xws,n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
       begin
         if List.length ret = 1 then
           Format.fprintf fmt "@[res.[%a]@]" (pp_expr pd env) e
         else
-          Format.fprintf fmt "@[res.`%i.[%a]@]" i (pp_expr pd env) e
+          Format.fprintf fmt "@[res.`%i.[%a]@]" (i+1) (pp_expr pd env) e
       end
     else
       assert false
@@ -1033,17 +1025,14 @@ module Normal = struct
     in
     aux (Subst.gsubst_e (fun x -> x) aux1)
 
-  let sub_fun_return ret r =
+  let sub_fun_return r =
     let aux f = List.map (fun (prover,clause) -> prover, f clause) in
-    let check v vi=
-      (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
-    in
-    let aux1 v =
-      let (i, _) =  List.findi (fun _ vi -> check v vi) ret in
-      let _,e = List.findi (fun ii _ -> ii = i) r in
-      e
+    let aux1 i v =
+      let _,v = List.findi (fun ii _ -> ii = i) r in
+      {gv = L.mk_loc L._dummy v; gs = Expr.Slocal}
     in
     aux (Subst.subst_result aux1)
+
 
   let rec pp_cmd pd asmOp env fmt c =
     Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr pd asmOp env)) c
@@ -1098,7 +1087,7 @@ module Normal = struct
 
       let pre = sub_fun_param args es contr.f_pre in
       let pre = List.map (fun (_,e) -> e) pre in
-      let post = sub_fun_return ret elvs2 contr.f_post in
+      let post = sub_fun_return tmps contr.f_post in
       let post = sub_fun_param args es post in
       let post = List.map (fun (_,e) -> e) post in
 

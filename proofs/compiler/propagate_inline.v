@@ -112,9 +112,9 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
     let body := pi_e pi body in
     Pbig e1 e2 op2 x e0 body
 
-  | Presult x => e
+  | Presult _ x => e
 
-  | Presultget aa ws x e => Presultget aa ws x (pi_e pi e)
+  | Presultget aa ws i x e => Presultget aa ws i x (pi_e pi e)
 
   end.
 

@@ -130,8 +130,8 @@ let rec ty_expr pd loc (e:expr) =
     if not (subtype tin1 tout) && not (subtype tin2 tout) then 
       error loc "invalid big op type";
     tout
-  | Presult x -> ty_gvar x
-  | Presultget(_aa,ws,x,e) -> ty_get_set pd loc ws x e
+  | Presult (_,x) -> ty_gvar x
+  | Presultget(_aa,ws,_, x,e) -> ty_get_set pd loc ws x e
 
 
 and check_expr pd loc e ty = 

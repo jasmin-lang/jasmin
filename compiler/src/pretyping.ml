@@ -1210,7 +1210,7 @@ let rec tt_expr pd  ?(mode=`AllVar) (env : 'asm Env.env) pe =
          | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult i)
        in
        let x, ty = tt_var_global mode env si in
-       P.Presult x, ty
+       P.Presult (i,x), ty
 
   | S.PEResultGet (aa, ws, v, pi, olen) ->
        let si =
@@ -1221,10 +1221,10 @@ let rec tt_expr pd  ?(mode=`AllVar) (env : 'asm Env.env) pe =
        let ty, _ = tt_as_array (L.loc pe, ty) in
        let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
        let ty = P.tu ws in
-       let i,ity  = tt_expr ~mode pd env pi in
+       let e,ity  = tt_expr ~mode pd env pi in
        check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
        begin match olen with
-         | None -> P.Presultget (aa, ws, x, i), ty
+         | None -> P.Presultget (aa, ws, v, x, e), ty
          | Some plen -> assert false
        end
 

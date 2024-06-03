@@ -104,8 +104,8 @@ let rec cexpr_of_expr = function
   | Pfvar x -> C.Pfvar (cvari_of_vari x)
   | Pbig(e1,e2, o, x, e0, b) -> 
     C.Pbig(cexpr_of_expr e1, cexpr_of_expr e2, o, cvari_of_vari x, cexpr_of_expr e0, cexpr_of_expr b)
-  | Presult x            -> C.Presult (cgvari_of_gvari x)
-  | Presultget (aa,ws, x,e) -> C.Presultget (aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
+  | Presult (i,x)            -> C.Presult (cz_of_z (Z.of_int i),cgvari_of_gvari x)
+  | Presultget (aa, ws, i, x, e) -> C.Presultget (aa, ws, cz_of_z (Z.of_int i), cgvari_of_gvari x, cexpr_of_expr e)
 
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
@@ -132,8 +132,8 @@ let rec expr_of_cexpr = function
   | C.Pfvar x -> Pfvar (vari_of_cvari x)
   | C.Pbig(e1,e2, o, x, e0, b) -> 
     Pbig(expr_of_cexpr e1, expr_of_cexpr e2, o, vari_of_cvari x, expr_of_cexpr e0, expr_of_cexpr b)
-  | C.Presult x            -> Presult (gvari_of_cgvari x)
-  | C.Presultget (aa,ws, x,e) -> Presultget (aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
+  | C.Presult (z, x)            -> Presult (Z.to_int (z_of_cz z), gvari_of_cgvari x)
+  | C.Presultget (aa, ws, z, x, e) -> Presultget (aa, ws, Z.to_int (z_of_cz z), gvari_of_cgvari x, expr_of_cexpr e)
 
 
 
