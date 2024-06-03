@@ -500,34 +500,34 @@ module Cfg = struct
 
 end
 
-module SimplVectir = struct
-  open Cfg
-  open CL.Instr
+(* module SimplVector = struct *)
+(*   open Cfg *)
+(*   open CL.Instr *)
 
-  let rec find_vect_lval v i ty n  =
-    match n.nkind with
-    | {iname = "mov"; iargs = [Lval v ; Atom (Avar (v,Vector (i,ty)))]} ->
-      assert false
-    | _ ->
-      begin
-        match n.succs with
-        | [] -> ()
-        | h :: [] -> find_vect_lval v i ty h
-        | _ -> assert false
-      end
+(*   let rec find_vect_lval v i ty n  = *)
+(*     match n.nkind with *)
+(*     | {iname = "mov"; iargs = [Lval v ; Atom (Avar (v,Vector (i,ty)))]} -> *)
+(*       assert false *)
+(*     | _ -> *)
+(*       begin *)
+(*         match n.succs with *)
+(*         | [] -> () *)
+(*         | h :: [] -> find_vect_lval v i ty h *)
+(*         | _ -> assert false *)
+(*       end *)
 
-  let rec simplvect n =
-    match n.nkind with
-    | {iname = "adds"; iargs = [_ ; _; Atom (Avar (v,Vector (i,ty))) ; Atom _]} ->
-      assert false
-    | _ ->
-      begin
-        match n.succs with
-        | [] -> ()
-        | h :: [] -> simplvect h
-        | _ -> assert false
-      end
-end
+(*   let rec simplvect n = *)
+(*     match n.nkind with *)
+(*     | {iname = "adds"; iargs = [_ ; _; Atom (Avar (v,Vector (i,ty))) ; Atom _]} -> *)
+(*       assert false *)
+(*     | _ -> *)
+(*       begin *)
+(*         match n.succs with *)
+(*         | [] -> () *)
+(*         | h :: [] -> simplvect h *)
+(*         | _ -> assert false *)
+(*       end *)
+(* end *)
 
 module I = struct
 
@@ -876,7 +876,7 @@ module X86BaseOp : BaseOp
     | NEG ws ->
       let a1 = I.mk_const_atome (int_of_ws ws) Z.zero in
       let a2,i2 = cast_atome ws (List.nth es 0) in
-      let l = I.glval_to_lval (List.nth xs 1) in
+      let l = I.glval_to_lval (List.nth xs 5) in
       i2 @ [CL.Instr.Op2.sub l a1 a2]
 
     | INC ws ->
