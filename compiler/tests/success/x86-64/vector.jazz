@@ -233,6 +233,8 @@ y = (64u) #VPEXTR_16(a, 3);
 r64 += y;
 y = #VPEXTR_64(a, 1);
 r64 += y;
+y = #VPEXTR_64(a, -0x80);
+r64 += y;
 
 return r64;
 }
