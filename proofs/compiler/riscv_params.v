@@ -16,6 +16,7 @@ Require Import
   arch_decl
   arch_extra
   asm_gen.
+
 Require Import
   riscv_decl
   riscv_extra
@@ -23,7 +24,8 @@ Require Import
   riscv_lowering
   riscv_params_core
   riscv_params_common
-  riscv_stack_zeroization.
+  riscv_stack_zeroization
+  riscv_lower_addressing.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -232,6 +234,15 @@ Definition riscv_szparams : stack_zeroization_params :=
     szp_cmd := stack_zeroization_cmd
   |}.
 
+
+(* ------------------------------------------------------------------------ *)
+(* Stack zeroization parameters. *)
+
+Definition riscv_laparams : lower_addressing_params :=
+  {|
+    lap_lower_address := @lower_addressing_prog _
+  |}.
+
 (* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
 
@@ -249,6 +260,7 @@ Definition riscv_params : architecture_params lowering_options :=
     ap_lip := riscv_liparams;
     ap_lop := riscv_loparams;
     ap_agp := riscv_agparams;
+    ap_lap := riscv_laparams;
     ap_szp := riscv_szparams;
     ap_shp := riscv_shparams;
     ap_is_move_op := riscv_is_move_op;
