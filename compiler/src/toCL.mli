@@ -198,18 +198,6 @@ module ARMBaseOp : BaseOp
  with type op = Arm_instr_decl.arm_op
  and type extra_op = Arm_extra.__
 
-val sub_fun_param :
-  'a CoreIdent.gvar list ->
-  'b CoreIdent.gvar list ->
-  'c Prog.gexpr list ->
-  'c Prog.glval list ->
-  ('d * 'c Prog.gexpr) list ->
-  ('d * 'c Prog.gexpr) list
-
-val sub_return :
-  ('a Prog.ggvar -> 'a Prog.gexpr) ->
-  'a Prog.gexpr -> 'a Prog.gexpr
-
 module Mk(O:BaseOp) : sig
 val fun_to_proc :
   (int, 'f, ('a, 'b, 'c, 'd, 'e, O.op, O.extra_op) Arch_extra.extended_op) gfunc list ->

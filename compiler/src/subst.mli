@@ -16,6 +16,9 @@ val remove_params : ('info, 'asm) pprog -> ('info, 'asm) prog
 val clone_func : ('info, 'asm) func -> ('info, 'asm) func
 
 val extend_iinfo : L.i_loc -> ('info, 'asm) func -> ('info, 'asm) func
+
+val subst_result : ('len1 ggvar -> 'len1 gexpr) -> 'len1 gexpr -> 'len1 gexpr
+
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *)
 

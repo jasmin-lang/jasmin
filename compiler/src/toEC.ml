@@ -1018,6 +1018,33 @@ module Normal = struct
         env, s :: acc
       ) (env,[]) (List.rev params)
 
+  let sub_fun_param args params =
+    let aux f =
+      List.map (fun (prover,clause) -> prover, f clause)
+    in
+    let check v vi=
+      (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
+    in
+    let aux1 v =
+      match List.findi (fun _ vi -> check v vi) args with
+      | i,_ ->  let _,e = List.findi (fun ii _ -> ii = i) params in
+        e
+      | exception _ ->  Pvar v
+    in
+    aux (Subst.gsubst_e (fun x -> x) aux1)
+
+  let sub_fun_return ret r =
+    let aux f = List.map (fun (prover,clause) -> prover, f clause) in
+    let check v vi=
+      (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
+    in
+    let aux1 v =
+      let (i, _) =  List.findi (fun _ vi -> check v vi) ret in
+      let _,e = List.findi (fun ii _ -> ii = i) r in
+      e
+    in
+    aux (Subst.subst_result aux1)
+
   let rec pp_cmd pd asmOp env fmt c =
     Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr pd asmOp env)) c
 
@@ -1052,7 +1079,7 @@ module Normal = struct
         let pp fmt (op, es) = 
           Format.fprintf fmt "<- %a" pp_e (op,es) in
         pp_call pd env fmt lvs otys otys' pp (op,es)
-        
+
     | Ccall(lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let (contr,args,ret) = get_funcontr env f in
@@ -1069,23 +1096,10 @@ module Normal = struct
         ) tmps
       in
 
-      let sub_fun_return ret r =
-        let aux f = List.map (fun (prover,clause) -> prover, f clause) in
-        let check v vi=
-          (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
-        in
-        let aux1 v =
-          let (i, _) =  List.findi (fun _ vi -> check v vi) ret in
-          let _,e = List.findi (fun ii _ -> ii = i) r in
-          e
-        in
-        aux (ToCL.sub_return aux1)
-      in
-
-      let pre = ToCL.sub_fun_param args ret es lvs contr.f_pre in
+      let pre = sub_fun_param args es contr.f_pre in
       let pre = List.map (fun (_,e) -> e) pre in
       let post = sub_fun_return ret elvs2 contr.f_post in
-      let post = ToCL.sub_fun_param args ret es lvs post in
+      let post = sub_fun_param args es post in
       let post = List.map (fun (_,e) -> e) post in
 
       Format.fprintf fmt "%a@ " (pp_list "@ " (pp_assert pd env p)) pre;

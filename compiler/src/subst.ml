@@ -106,6 +106,27 @@ let subst_func f fc =
   gsubst_func (fun ty -> ty)
      (fun v -> if is_gkvar v then f v.gv else Pvar v) fc
 
+
+let rec subst_result m e =
+  match e with
+  | Pconst _  | Pbool _ | Parr_init _ | Pfvar _  | Pvar _ -> e
+  | Pget (aa, ws, v, e) -> Pget(aa, ws, v, subst_result m e)
+  | Psub (aa, ws, len, v, e) -> Psub(aa,ws, len, v, subst_result m e)
+  | Pload (ws, v, e) -> Pload (ws, v, subst_result m e)
+  | Papp1 (o, e)     -> Papp1 (o, subst_result m e)
+  | Papp2 (o, e1, e2)-> Papp2 (o, subst_result m e1, subst_result m e2)
+  | PappN (o, es) -> PappN (o, List.map (subst_result m) es)
+  | Pabstract (o, es) ->
+    Pabstract (o, List.map (subst_result m) es)
+  | Pif (ty, e, e1, e2)-> Pif (ty, subst_result m e, subst_result m e1, subst_result m e2)
+  | Pbig (e1, e2, o, x, e0, b) ->
+    Pbig(subst_result m e1, subst_result m e2, o,
+          x,
+         subst_result m e0,
+         subst_result m b)
+  | Presult v -> m v
+  | Presultget (aa, ws, v, e) -> Pget(aa, ws,  v, subst_result m e)
+
 (* ---------------------------------------------------------------- *)
 
 type psubst = pexpr ggvar -> pexpr
