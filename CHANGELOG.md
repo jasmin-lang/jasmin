@@ -1,5 +1,12 @@
 # [unreleased]
 
+## Other changes
+
+- In x86 assembly, 8-bit immediate operands are printed unsigned,
+  i.e., in the range [0; 255]
+  ([PR #821](https://github.com/jasmin-lang/jasmin/pull/821);
+  fixes [#803](https://github.com/jasmin-lang/jasmin/issues/803)).
+
 # Jasmin 2023.06.3 — 2024-04-10
 
 ## New features
