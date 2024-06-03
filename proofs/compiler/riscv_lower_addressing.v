@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype. 
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import ZArith.
 
@@ -20,20 +20,21 @@ Section Section.
 Context {atoI: arch_toIdent} {pT: progT}.
 
 Section tmp.
+
 Context (tmp: var_i).
 
 Fixpoint lower_addressing_i (i: instr) :=
   let (ii,ir) := i in
   match ir with
   | Copn xs t o [:: Pload al ws x e] => 
-    match mk_lea ws e with
+    match mk_lea ws (Papp2 (Oadd (Op_w Uptr)) (Pvar (mk_lvar x)) e) with
     | Some lea =>
       match lea.(lea_base), lea.(lea_offset) with
-      | None, Some(off) => 
+      | Some base, Some off => 
         if lea.(lea_disp) != 0%Z then [:: i]
-        else map (MkI ii) [:: Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); Pconst lea.(lea_scale)]; 
-                              Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar x); Pvar (mk_lvar tmp)];
-                              Copn xs t o [:: Pload al ws tmp (Pconst 0)]]
+        else map (MkI ii) [:: Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); wconst (wrepr Uptr (Z.log2 lea.(lea_scale)))]; 
+                              Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)];
+                              Copn xs t o [:: Pload al ws tmp (wconst (wrepr Uptr 0))]]
       | _, _ =>  [:: i]
       end
     | None => [:: i]

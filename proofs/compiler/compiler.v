@@ -378,8 +378,6 @@ Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : c
 Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
-  let pl := cparams.(print_uprog) LowerAddressing pl in
-  let pl := (ap_lap aparams).(lap_lower_address) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) pl in
   (* stack + register allocation *)
   let ao := cparams.(stackalloc) pl in
   Let _ := check_wf_ptr entries p ao.(ao_stack_alloc) in
@@ -397,6 +395,9 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
       pl
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
+
+  let ps := (ap_lap aparams).(lap_lower_address) (pT:=progStack) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) ps in
+  let ps := cparams.(print_sprog) LowerAddressing ps in
 
   let returned_params fn :=
     if fn \in entries then Some (ao_stack_alloc ao fn).(sao_return) else None
