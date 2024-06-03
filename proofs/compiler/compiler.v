@@ -98,6 +98,7 @@ Variant compiler_step :=
   | LowerInstruction            : compiler_step
   | PropagateInline             : compiler_step
   | SLHLowering                 : compiler_step
+  | LowerAddressing             : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
@@ -130,6 +131,7 @@ Definition compiler_step_list := [::
   ; LowerInstruction
   ; PropagateInline
   ; SLHLowering
+  ; LowerAddressing
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
@@ -376,7 +378,8 @@ Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : c
 Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
-  let pl := (ap_lap aparams).(lap_lower_address) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) p in
+  let pl := cparams.(print_uprog) LowerAddressing pl in
+  let pl := (ap_lap aparams).(lap_lower_address) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) pl in
   (* stack + register allocation *)
   let ao := cparams.(stackalloc) pl in
   Let _ := check_wf_ptr entries p ao.(ao_stack_alloc) in
