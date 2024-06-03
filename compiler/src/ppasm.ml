@@ -373,7 +373,7 @@ module Printer (BP:BPrinter) = struct
   let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _, _) Arch_decl.asm_arg)) =
     match op with
     | Condt  _   -> assert false
-    | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
+    | Imm(ws, w) -> pp_imm ((if ws = U8 then Conv.z_unsigned_of_word else Conv.z_of_word) ws w)
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
     | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> BP.pp_address ws addr
