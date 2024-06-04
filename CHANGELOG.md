@@ -46,6 +46,9 @@
 - Improve handling of instruction `LEA` in the safety checker
   ([PR #900](https://github.com/jasmin-lang/jasmin/pull/900)).
 
+- Extraction to EasyCrypt for safety verification is now removed, it was
+  deprecated in the previous release
+  ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
 
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
