@@ -185,6 +185,7 @@ let main () =
           let out = open_out !ecfile in
           let fmt = Format.formatter_of_out_channel out in
           fmt, fun () -> close_out out in
+      Format.pp_set_margin fmt !Glob_options.ecwidth;
       let fnames =
         match !ec_list with
         | [] -> List.map (fun { f_name ; _ } -> f_name.fn_name) (snd prog)

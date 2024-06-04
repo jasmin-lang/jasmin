@@ -1,6 +1,11 @@
 
 # [unreleased]
 
+## New features
+
+- New compiler option `-ecwidth` for setting the max line length in extracted
+  easycrypt files. ([PR #863](https://github.com/jasmin-lang/jasmin/pull/863)).
+
 ## Bug fixes
 
 - Easycrypt extraction for CT : fix decreasing for loops
