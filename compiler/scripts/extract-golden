@@ -1,0 +1,31 @@
+#!/bin/bash
+
+set -e
+
+DIR=test_res/extract_golden/${2%.jazz}-$1
+
+# This directory should be an exact copy of what is generated in DIR.
+GOLDEN_DIR=test_golden/extract_golden/${2%.jazz}-$1
+
+if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
+mkdir -p ${DIR}
+
+EC=${DIR}/jasmin.ec
+CT=${DIR}/jasmin_ct.ec
+
+if [ "$1" = "arm" ]; then
+	shift
+	ARCH="-arch arm-m4"
+else
+	ARCH="-arch x86-64"
+fi
+
+set -x
+
+echo $(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -oec ${EC} "$2"
+echo $(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$2"
+$(dirname $0)/../jasminc -ppwidth 1000 ${ARCH} -oecarray ${DIR} -oec ${EC} "$2"
+$(dirname $0)/../jasminc -ppwidth 1000 ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$2"
+
+diff -Bbu ${GOLDEN_DIR}/jasmin.ec ${DIR}/jasmin.ec
+diff -Bbu ${GOLDEN_DIR}/jasmin_ct.ec ${DIR}/jasmin_ct.ec
