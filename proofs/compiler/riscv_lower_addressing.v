@@ -30,16 +30,27 @@ Fixpoint lower_addressing_i (i: instr) :=
     match mk_lea ws (Papp2 (Oadd (Op_w Uptr)) (Pvar (mk_lvar x)) e) with
     | Some lea =>
       match lea.(lea_base), lea.(lea_offset) with
-      | Some base, Some off => 
-        if lea.(lea_disp) != 0%Z then [:: i]
-        else map (MkI ii) [:: Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); wconst (wrepr Uptr (Z.log2 lea.(lea_scale)))]; 
-                              Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)];
-                              Copn xs t o [:: Pload al ws tmp (wconst (wrepr Uptr 0))]]
+      | Some base, Some off =>
+          map (MkI ii) [:: Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); wconst (wrepr Uptr (Z.log2 lea.(lea_scale)))]; 
+                           Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)];
+                           Copn xs t o [:: Pload al ws tmp (wconst (wrepr Uptr lea.(lea_disp)))]]
       | _, _ =>  [:: i]
       end
     | None => [:: i]
     end
-  | Copn xs t o _ => [:: i ]
+| Copn [:: Lmem al ws x e] t o es => 
+    match mk_lea ws (Papp2 (Oadd (Op_w Uptr)) (Pvar (mk_lvar x)) e) with
+    | Some lea =>
+      match lea.(lea_base), lea.(lea_offset) with
+      | Some base, Some off => 
+        map (MkI ii) [:: Copn [:: Lvar tmp] AT_none (Oriscv SLLI) [:: Pvar (mk_lvar off); wconst (wrepr Uptr (Z.log2 lea.(lea_scale)))]; 
+                         Copn [:: Lvar tmp] AT_none (Oriscv ADD) [:: Pvar (mk_lvar base); Pvar (mk_lvar tmp)];
+                              Copn [:: Lmem al ws tmp (wconst (wrepr Uptr lea.(lea_disp)))] t o es]
+      | _, _ =>  [:: i]
+      end
+    | None => [:: i]
+    end    
+  | Copn _ _ _ _
   | Cassgn _ _ _ _ 
   | Csyscall _ _ _
   | Ccall _ _ _ => [:: i]      
