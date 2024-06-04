@@ -521,12 +521,5 @@ abstract theory PolyArray.
     by rewrite mem_iota /= => h1; apply h;case h1.
   qed.
 
-  (* -------------------------------------------------------------------- *)
-  op is_init (t: 'a option t) = all is_init t.
-
-  lemma is_init_Some (t:'a t) : is_init (map Some t).
-  proof. by rewrite /is_init allP => i hi; rewrite mapiE. qed.
-
-  hint simplify [eqtrue] is_init_Some.
 
 end PolyArray.
