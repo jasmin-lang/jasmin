@@ -400,8 +400,8 @@ module CL = struct
     let cut ep rp =
       { iname = "cut"; iargs = [Pred(ep, rp)] }
 
-    let vpc ty (d : lval) (s : atom) =
-      { iname = "vpc"; iargs = [Ty ty; Lval d; Atom s] }
+    let vpc _ty (d : lval) (s : atom) =
+      { iname = "vpc"; iargs = [Lval d; Atom s] }
 
     let assume cl =
       { iname = "assume"; iargs  = [Pred cl] }
@@ -709,7 +709,9 @@ module I = struct
 
   let mk_const c : CL.const = Z.of_int c
 
-  let mk_const_atome ws c = CL.Instr.Aconst (c, CL.Uint ws)
+  let mk_const_atome ws ?(sign=false) c =
+    if sign then CL.Instr.Aconst (c, CL.Sint ws)
+    else CL.Instr.Aconst (c, CL.Uint ws)
 
   let gexp_to_atome x : CL.Instr.atom =
     match x with
@@ -873,10 +875,17 @@ module X86BaseOp : BaseOp
       i1 @ i2 @ [CL.Instr.Op2_2c.sbbs l1 l2 a1 a2 v]
 
     | NEG ws ->
-      let a1 = I.mk_const_atome (int_of_ws ws) Z.zero in
-      let a2,i2 = cast_atome ws (List.nth es 0) in
+      let a = I.mk_const_atome ~sign:true (int_of_ws ws) Z.zero in
+      let a1,i1 = cast_atome ws (List.nth es 0) in
+      let l_tmp1 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
+      let ty1 = CL.Sint (int_of_ws ws) in
+      let l_tmp2 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
+      let ty2 = CL.Sint (int_of_ws ws) in
       let l = I.glval_to_lval (List.nth xs 5) in
-      i2 @ [CL.Instr.Op2.sub l a1 a2]
+      i1 @ [CL.Instr.vpc ty1 l_tmp1 a1;
+            CL.Instr.Op2.sub l_tmp2 a !l_tmp1;
+            CL.Instr.vpc ty2 l !l_tmp2
+           ]
 
     | INC ws ->
       let a1 = I.mk_const_atome (int_of_ws ws) Z.one in
@@ -962,11 +971,10 @@ module X86BaseOp : BaseOp
         match trans with
         | Smt ->
           let a,i = cast_atome ws (List.nth es 0) in
-          let sign = true in
-          let l_tmp1 = I.mk_tmp_lval ~sign (CoreIdent.tu ws) in
+          let l_tmp1 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
           let ty1 = CL.Sint (int_of_ws ws) in
           let (c,_) = I.gexp_to_const(List.nth es 1) in
-          let l_tmp2 = I.mk_tmp_lval ~sign (CoreIdent.tu ws) in
+          let l_tmp2 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
           let l_tmp3 = I.mk_tmp_lval (CoreIdent.tu ws) in
           let ty2 = CL.Uint (int_of_ws ws) in
           let l = I.glval_to_lval (List.nth xs 5) in
