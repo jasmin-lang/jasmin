@@ -31,7 +31,7 @@ module Mty = Map.Make (Tcmp)
 type env = {
     model : model;
     alls : Ss.t;
-    vars : (string * bool) Mv.t;  (* true means option type *)
+    vars : string Mv.t;
     glob : (string * ty) Ms.t;
     funs : (string * (ty list * ty list)) Mf.t;  
     arrsz  : Sint.t ref;
@@ -39,8 +39,6 @@ type env = {
     auxv  : string list Mty.t;
     randombytes : Sint.t ref;
   }
-
-let for_safety    env = env.model = Utils.Safety
 
 (* --------------------------------------------------------------- *)
 
@@ -429,35 +427,21 @@ let get_aux env tys =
     List.nth l n in
   List.map do1 tys
 
-let set_var env x option s = 
+let set_var env x s = 
   { env with 
     alls = Ss.add s env.alls;
-    vars = Mv.add x (s,option) env.vars }
+    vars = Mv.add x s env.vars }
 
-let add_var option env x = 
+let add_var env x = 
   let s = normalize_name x.v_name in
   let s = create_name env s in
-  set_var env x option s
+  set_var env x s
 
 let add_glob env x =
   let s = create_name env (normalize_name x.v_name) in
-  set_var env x false s
+  set_var env x s
 
-let pp_oget option pp = 
-  pp_maybe option (pp_enclose ~pre:"(oget " ~post:")") pp
-
-let pp_var env fmt (x:var) = 
-  pp_string fmt (fst (Mv.find x env.vars))
-
-let pp_ovar env fmt (x:var) = 
-  let (s,option) = Mv.find x env.vars in
-  if option then
-    let ty = x.v_ty in
-    if is_ty_arr ty then
-      let (_ws,n) = array_kind ty in
-      Format.fprintf fmt "(%a.map oget %s)" (pp_Array env) n s
-    else pp_oget true pp_string fmt s
-  else pp_string fmt s
+let pp_var env fmt (x:var) = pp_string fmt (Mv.find x env.vars)
 
 let pp_zeroext fmt (szi, szo) = 
   let io, ii = int_of_ws szo, int_of_ws szi in
@@ -597,25 +581,20 @@ let rec pp_expr pd env fmt (e:expr) =
 
   | Parr_init _n -> Format.fprintf fmt "witness"
 
-  | Pvar x ->
-    pp_ovar env fmt (L.unloc x.gv)
+  | Pvar x -> pp_var env fmt (L.unloc x.gv)
 
   | Pget(_, aa, ws, x, e) ->
     assert (check_array env x.gv);
-    let pp fmt (x,e) = 
-      let x = x.gv in
-      let x = L.unloc x in
-      let (xws,n) = array_kind x.v_ty in
-      if ws = xws && aa = Warray_.AAscale then
-        Format.fprintf fmt "@[%a.[%a]@]" (pp_var env) x (pp_expr pd env) e
-      else
-        Format.fprintf fmt "@[(get%i%s@ %a@ %a)@]" 
-          (int_of_ws ws) 
-          (pp_access aa)
-          (pp_initi env (pp_var env)) (x, n, xws) (pp_expr pd env) e in
-    let option = 
-      for_safety env && snd (Mv.find (L.unloc x.gv) env.vars) in
-    pp_oget option pp fmt (x,e)
+    let x = x.gv in
+    let x = L.unloc x in
+    let (xws,n) = array_kind x.v_ty in
+    if ws = xws && aa = Warray_.AAscale then
+    Format.fprintf fmt "@[%a.[%a]@]" (pp_var env) x (pp_expr pd env) e
+    else
+    Format.fprintf fmt "@[(get%i%s@ %a@ %a)@]" 
+        (int_of_ws ws) 
+        (pp_access aa)
+        (pp_initi env (pp_var env)) (x, n, xws) (pp_expr pd env) e
 
   | Psub (aa, ws, len, x, e) -> 
     assert (check_array env x.gv);
@@ -718,7 +697,7 @@ let pp_rty env fmt tys =
 
 let pp_ret env fmt xs = 
   Format.fprintf fmt "@[return (%a);@]"
-    (pp_list ",@ " (fun fmt x -> pp_ovar env fmt (L.unloc x))) xs
+    (pp_list ",@ " (fun fmt x -> pp_var env fmt (L.unloc x))) xs
 
 let pp_lval1 pd env pp_e fmt (lv, (ety, e)) = 
   let lty = ty_lval lv in
@@ -1037,135 +1016,23 @@ end
 
 module Leak = struct 
 
-  type safe_cond = 
-    | Initv of var 
-    | Initai of wsize * var * expr 
-    | Inita of var * int
-    | InBound of Memory_model.aligned * wsize * int * expr
-    | Valid of wsize * expr 
-    | NotZero of wsize * expr 
-
-  let in_bound al ws x e =
-    match (L.unloc x).v_ty with
-    | Arr(ws1,n) -> InBound(al, ws, (arr_size ws1 n), e)
-    | _ -> assert false
-
-  let safe_op2 safe _e1 e2 = function
-    | E.Obeq    | E.Oand    | E.Oor     
-    | E.Oadd _  | E.Omul _  | E.Osub _ 
-    | E.Oland _ | E.Olor _  | E.Olxor _ 
-    | E.Olsr _  | E.Olsl _  | E.Oasr _
-    | E.Orol _ | E.Oror _
-    | E.Oeq _   | E.Oneq _  | E.Olt _  | E.Ole _ | E.Ogt _ | E.Oge _ 
-    | E.Ovadd _ | E.Ovsub _ | E.Ovmul _
-    | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> safe
-
-    | E.Odiv E.Cmp_int -> safe 
-    | E.Omod Cmp_int  -> safe
-    | E.Odiv (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
-    | E.Omod (E.Cmp_w(_, s)) -> NotZero (s, e2) :: safe 
-    
-  let is_init env x safe = 
-    let (_s,option) = Mv.find (L.unloc x) env.vars in
-    if option then Initv (L.unloc x) :: safe
-    else safe
-   
-  let rec safe_e_rec pd env safe = function
-    | Pconst _ | Pbool _ | Parr_init _ -> safe
-    | Pvar x -> 
-      let x = x.gv in
-      let (_s,option) = Mv.find (L.unloc x) env.vars in
-      if option then
-        match (L.unloc x).v_ty with
-        | Arr(ws,n) -> Inita (L.unloc x, arr_size ws n) :: safe
-        | _ -> Initv(L.unloc x) :: safe 
-      else safe 
-    | Pload (al, ws,x,e) -> (* TODO: alignment *)
-      is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env safe e)
-    | Papp1 (_, e) -> safe_e_rec pd env safe e
-    | Pget (al, aa, ws, x, e) ->
-      assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
-      let x = x.gv in
-      let safe = 
-        let (_s,option) = Mv.find (L.unloc x) env.vars in
-        if option then Initai(ws, L.unloc x, e) :: safe 
-        else safe in
-      in_bound al ws x e :: safe
-    | Psub _ -> assert false (* NOT IMPLEMENTED *) 
-    | Papp2 (op, e1, e2) -> 
-      safe_op2 (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e1 e2 op
-    | PappN (_op, _es) -> assert false (* TODO: nary *)
-    | Pif  (_,e1, e2, e3) -> 
-      safe_e_rec pd env (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e3
-
-  let safe_e pd env = safe_e_rec pd env [] 
-
-  let safe_es pd env = List.fold_left (safe_e_rec pd env) []
-
-  let safe_opn pd asmOp env safe opn es =
-    let id = Sopn.get_instr_desc pd asmOp opn in
-    List.pmap (fun c ->
-        match c with
-        | Wsize.X86Division(sz, _sg) ->
-          Some (NotZero(sz, List.nth es 2))
-        (* FIXME: there are more properties to check *)
-        | Wsize.InRange _ -> None
-        (* FIXME: there are properties to check *)
-        | Wsize.AllInit (ws, p, i) ->
-          let e = List.nth es (Conv.int_of_nat i) in
-          let y = match e with Pvar y -> y | _ -> assert false in
-          let (_s,option) = Mv.find (L.unloc y.gv) env.vars in 
-          if option then Some (Inita (L.unloc y.gv, arr_size ws (Conv.int_of_pos p)))
-          else None) id.i_safe @ safe
-
-  let safe_lval pd env = function
-    | Lnone _ | Lvar _ -> []
-    | Lmem(al, ws, x, e) -> (* TODO: alignment *)
-      is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env [] e)
-    | Laset(al, aa, ws, x,e) ->
-      assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
-      in_bound al ws x e :: safe_e_rec pd env [] e
-    | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
-
-  let pp_safe_e pd env fmt = function
-    | Initv x -> Format.fprintf fmt "is_init %a" (pp_var env) x
-    | Initai(ws, x,e) -> Format.fprintf fmt "is_init%i %a %a" 
-                           (int_of_ws ws) (pp_var env) x (pp_expr pd env) e
-    | Inita(x,n) -> Format.fprintf fmt "%a.is_init %a" (pp_Array env) n (pp_var env) x 
-    | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr pd env) e pp_size sz 
-    | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr pd env) e pp_size sz
-    | InBound(al, ws, n,e)  -> Format.fprintf fmt "in_bound %a %a %i %i"
-                             pp_bool (al = Aligned)
-                             (pp_expr pd env) e (size_of_ws ws) n
-
-  let pp_safe_es pd env fmt es = pp_list "/\\@ " (pp_safe_e pd env) fmt es
-
   let pp_leaks pd env fmt es = 
     Format.fprintf fmt "leakages <- LeakAddr(@[[%a]@]) :: leakages;@ "
       (pp_list ";@ " (pp_expr pd env)) es
 
-  let pp_safe_cond pd env fmt conds = 
-    if conds <> [] then 
-      Format.fprintf fmt "safe <- @[safe /\\ %a@];@ " (pp_safe_es pd env) conds 
-    
   let pp_leaks_e pd env fmt e =
     match env.model with
     | ConstantTime -> pp_leaks pd env fmt (leaks_e pd e)
-    | Safety -> pp_safe_cond pd env fmt (safe_e pd env e)
-    | _ -> ()
+    | Normal -> ()
 
   let pp_leaks_es pd env fmt es = 
     match env.model with
     | ConstantTime -> pp_leaks pd env fmt (leaks_es pd es)
-    | Safety -> pp_safe_cond pd env fmt (safe_es pd env es)
-    | _ -> ()
+    | Normal -> ()
     
   let pp_leaks_opn pd asmOp env fmt op es = 
     match env.model with
     | ConstantTime -> pp_leaks pd env fmt (leaks_es pd es)
-    | Safety -> 
-      let conds = safe_opn pd asmOp env (safe_es pd env es) op es in
-      pp_safe_cond pd env fmt conds 
     | Normal -> ()
 
   let pp_leaks_if pd env fmt e = 
@@ -1175,7 +1042,6 @@ module Leak = struct
       Format.fprintf fmt 
         "leakages <- LeakCond(%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
         (pp_expr pd env) e (pp_list ";@ " (pp_expr pd env)) leaks
-    | Safety -> pp_safe_cond pd env fmt (safe_e pd env e)
     | Normal -> ()
 
   let pp_leaks_for pd env fmt e1 e2 = 
@@ -1186,7 +1052,6 @@ module Leak = struct
         "leakages <- LeakFor(%a,%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
         (pp_expr pd env) e1 (pp_expr pd env) e2 
         (pp_list ";@ " (pp_expr pd env)) leaks
-    | Safety -> pp_safe_cond pd env fmt (safe_es pd env [e1;e2])
     | Normal -> ()
 
   let pp_leaks_lv pd env fmt lv = 
@@ -1194,8 +1059,7 @@ module Leak = struct
     | ConstantTime -> 
       let leaks = leaks_lval pd lv in
       if leaks <> [] then pp_leaks pd env fmt leaks
-    | Safety -> pp_safe_cond pd env fmt (safe_lval pd env lv)
-    | _ -> ()
+    | Normal -> ()
 
   let rec init_aux_i pd asmOp env i =
     match i.i_desc with
@@ -1214,38 +1078,15 @@ module Leak = struct
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
-    | Cfor(_,_,c) -> 
-      if for_safety env then
-        init_aux pd asmOp (add_aux env [tint; tint]) c
-      else
-        init_aux pd asmOp (add_aux env [tint]) c
+    | Cfor(_,_,c) -> init_aux pd asmOp (add_aux env [tint]) c
 
   and init_aux pd asmOp env c = List.fold_left (init_aux_i pd asmOp) env c
-
-  let pp_some env pp lv fmt e = 
-    if for_safety env then
-      match lv with
-      | Lnone _ -> ()
-      | Lvar x ->
-        let x = L.unloc x in
-        let _s, option = Mv.find x env.vars in
-        if option then
-          let ty = x.v_ty in
-          if is_ty_arr ty then
-            let (_ws,n) = array_kind ty in
-            Format.fprintf fmt "(%a.map Some %a)" (pp_Array env) n pp e
-          else Format.fprintf fmt "(Some %a)" pp e 
-        else pp fmt e 
-      | Lmem _ -> pp fmt e
-      | Laset _ -> pp fmt e
-      | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
-    else pp fmt e
 
   let pp_assgn_i pd env fmt lv ((etyo, etyi), aux) =
     Format.fprintf fmt "@ "; pp_leaks_lv pd env fmt lv;
     let pp_e fmt aux =
       pp_wzeroext pp_string fmt etyo etyi aux in
-    let pp_e = pp_some env (pp_cast env pp_e) lv in
+    let pp_e = pp_cast env pp_e in
     pp_lval1 pd env pp_e fmt (lv, (etyo,aux))
 
   let pp_call pd env fmt lvs etyso etysi pp a =
@@ -1330,11 +1171,7 @@ module Leak = struct
       (* decreasing for loops have bounds swaped *)
       let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in 
       pp_leaks_for pd env fmt e1 e2;
-      let aux, env1 = 
-        if for_safety env then 
-          let auxs = get_aux env [tint;tint] in
-          List.hd auxs, set_var env (L.unloc i) false (List.nth auxs 1) 
-        else List.hd (get_aux env [tint]), env in
+      let aux, env1 = List.hd (get_aux env [tint]), env in
       let pp_init, pp_e2 = 
         match e2 with
         (* Can be generalized to the case where e2 is not modified by c and i *)
@@ -1348,18 +1185,13 @@ module Leak = struct
       let pp_i1, pp_i2 = 
         if d = UpTo then pp_i , pp_e2
         else pp_e2, pp_i in
-      let pp_restore fmt () = 
-        if for_safety env then
-          Format.fprintf fmt "@ @[%a <- %a;@]"
-            (pp_var env) (L.unloc i) (pp_some env pp_i (Lvar i)) () in
       Format.fprintf fmt 
-        "@[<v>%a%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a %s 1;@]@ }%a@]"
+        "@[<v>%a%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a %s 1;@]@ }@]"
         pp_init () 
         pp_i () (pp_expr pd env) e1 
         pp_i1 () pp_i2 ()
         (pp_cmd pd asmOp env1) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
-        pp_restore ()
 
 end 
 
@@ -1368,17 +1200,12 @@ let pp_aux fmt env =
     Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_ty env) ty in
   Mty.iter (fun ty -> List.iter (pp ty)) env.auxv
 
-let pp_safe_ret pd env fmt xs =
-  if for_safety env then
-    let es = List.map (fun x -> Pvar (gkvar x)) xs in
-    Leak.pp_safe_cond pd env fmt (Leak.safe_es pd env es)
-
 let pp_fun pd asmOp env fmt f =
   let f = { f with f_body = remove_for f.f_body } in
   let locals = Sv.elements (locals f) in
   (* initialize the env *)
-  let env = List.fold_left (add_var false) env f.f_args in
-  let env = List.fold_left (add_var (for_safety env)) env locals in  
+  let env = List.fold_left add_var env f.f_args in
+  let env = List.fold_left add_var env locals in  
   (* init auxiliary variables *) 
   let env = 
     if env.model = Normal then Normal.init_aux pd asmOp env f.f_body
@@ -1391,14 +1218,13 @@ let pp_fun pd asmOp env fmt f =
     if env.model = Normal then Normal.pp_cmd
     else Leak.pp_cmd in
   Format.fprintf fmt 
-    "@[<v>proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a%a@]@ }@]"
+    "@[<v>proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a@]@ }@]"
     (pp_fname env) f.f_name
     (pp_params env) f.f_args 
     (pp_rty env) f.f_tyout
     pp_aux env
     (pp_locals env) locals
     (pp_cmd pd asmOp env) f.f_body
-    (pp_safe_ret pd env) f.f_ret
     (pp_ret env) f.f_ret
 
 let pp_glob_decl env fmt (x,d) =
@@ -1494,8 +1320,6 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
     match env.model with
     | ConstantTime ->
       Format.fprintf fmt "var leakages : leakages_t@ @ " 
-    | Safety -> 
-      Format.fprintf fmt "var safe : bool@ @ " 
     | Normal -> () in
 
   let pp_mod_arg fmt env =
