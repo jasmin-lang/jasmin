@@ -676,6 +676,7 @@ module I = struct
         | x -> x
       in
       mull !> b (power (Ivar v) !> a)
+    | Presult (_,x) -> Ivar (to_var x)
     | _ -> assert false
 
   let rec gexp_to_epred env e :CL.I.epred list =
