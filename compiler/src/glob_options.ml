@@ -19,6 +19,7 @@ let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
 let trust_aligned = ref false
+let ppwidth = ref 80
 
 let help_version = ref false
 let help_intrinsics = ref false
@@ -221,7 +222,8 @@ let options = [
     "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       " Select stack zeroization size for export functions";
-    "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation"
+    "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation";
+    "-ppwidth", Arg.Set_int ppwidth, " Set column width for pretty-printing."
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
