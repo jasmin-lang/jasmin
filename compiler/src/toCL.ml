@@ -884,7 +884,7 @@ module X86BaseOp : BaseOp
       let l = I.glval_to_lval (List.nth xs 5) in
       i1 @ [CL.Instr.vpc ty1 l_tmp1 a1;
             CL.Instr.Op2.sub l_tmp2 a !l_tmp1;
-            CL.Instr.vpc ty2 l !l_tmp2
+            CL.Instr.cast ty2 l !l_tmp2
            ]
 
     | INC ws ->
