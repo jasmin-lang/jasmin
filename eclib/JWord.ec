@@ -2497,8 +2497,20 @@ abstract theory BitWordSH.
       let r  = sar v i in
       rflags_OF i r rc false.
 
+  op RORX_XX (v: t) (i: W8.t) : t =
+    v `|>>>|` shift_mask i.
+
+  op SARX_XX (v i: t) : t =
+    sar v (to_uint i %% size).
+
+  op SHRX_XX (v i: t) : t =
+    v `>>>` to_uint i %% size.
+
+  op SHLX_XX (v i: t) : t =
+    v `<<<` to_uint i %% size.
+
 end SHIFT.
-  
+
 end BitWordSH.
 
 theory W16.

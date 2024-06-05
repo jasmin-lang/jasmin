@@ -72,6 +72,12 @@ Variant x86_op : Type :=
 | SAR    of wsize    (*   signed / right *)
 | SHLD   of wsize    (* unsigned (double) / left *)
 | SHRD   of wsize    (* unsigned (double) / right *)
+
+| RORX of wsize (* rotate right w/o affecting flags *)
+| SARX of wsize (* arithmetic shift right w/o affecting flags *)
+| SHRX of wsize (* logical shift right w/o affecting flags *)
+| SHLX of wsize (* logical shift left w/o affecting flags *)
+
 | MULX_lo_hi of wsize  (* mul unsigned, doesn't affect arithmetic flags *)
 | ADCX    of wsize  (* add with carry flag, only writes carry flag *)
 | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
@@ -678,6 +684,21 @@ Definition x86_SAR sz (v: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
     let rc := lsb (wsar v (wunsigned i - 1)) in
     let r  := wsar v (wunsigned i) in
     rflags_OF i r rc false.
+
+(* ---------------------------------------------------------------- *)
+Definition x86_RORX sz (v: word sz) (i: u8) : exec (word sz) :=
+  Let _ := check_size_32_64 sz in
+  let i := wand i (x86_shift_mask sz) in
+  ok (wror v (wunsigned i)).
+
+Definition x86_bmi_shift sz (op: word sz → Z → word sz) (v i: word sz) : exec (word sz) :=
+  Let _ := check_size_32_64 sz in
+  let i := Z.land (wunsigned i) (wunsigned (x86_shift_mask sz)) in
+  ok (op v i).
+
+Definition x86_SARX sz := x86_bmi_shift (@wsar sz).
+Definition x86_SHRX sz := x86_bmi_shift (@wshr sz).
+Definition x86_SHLX sz := x86_bmi_shift (@wshl sz).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_BSWAP sz (v: word sz) : ex_tpl (w_ty sz) :=
@@ -1456,6 +1477,22 @@ Definition Ox86_SHLD_instr :=
 Definition Ox86_SHRD_instr :=
   mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD check_shld safe_shxd (prim_16_64 SHRD) (pp_iname_ww_8 "shrd").
 
+Definition check_rorx of wsize := [::[::r ; rm true; i U8]].
+
+Definition Ox86_RORX_instr :=
+  mk_instr_ww8_w_120 "RORX" x86_RORX check_rorx (prim_32_64 RORX) (pp_name "rorx").
+
+Definition check_sarx of wsize := [::[::r ; rm true; r]].
+
+Definition Ox86_SARX_instr :=
+  mk_instr_w2_w_120 "SARX" x86_SARX check_sarx (prim_32_64 SARX) (pp_name "sarx").
+
+Definition Ox86_SHRX_instr :=
+  mk_instr_w2_w_120 "SHRX" x86_SHRX check_sarx (prim_32_64 SHRX) (pp_name "shrx").
+
+Definition Ox86_SHLX_instr :=
+  mk_instr_w2_w_120 "SHLX" x86_SHLX check_sarx (prim_32_64 SHLX) (pp_name "shlx").
+
 Definition Ox86_BSWAP_instr :=
   mk_instr_w_w "BSWAP" x86_BSWAP [:: Eu 0] [:: Eu 0] 1 (fun _ => [:: [::r]]) (prim_32_64 BSWAP) (pp_iname "bswap").
 
@@ -1952,6 +1989,10 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SAL sz             => Ox86_SAL_instr.1 sz
   | SHLD sz            => Ox86_SHLD_instr.1 sz
   | SHRD sz            => Ox86_SHRD_instr.1 sz
+  | RORX sz            => Ox86_RORX_instr.1 sz
+  | SARX sz            => Ox86_SARX_instr.1 sz
+  | SHRX sz            => Ox86_SHRX_instr.1 sz
+  | SHLX sz            => Ox86_SHLX_instr.1 sz
   | MOVX sz            => Ox86_MOVX_instr.1 sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
   | MOVV sz            => Ox86_MOVV_instr.1 sz
@@ -2090,6 +2131,10 @@ Definition x86_prim_string :=
    Ox86_SAL_instr.2;
    Ox86_SHLD_instr.2;
    Ox86_SHRD_instr.2;
+   Ox86_RORX_instr.2;
+   Ox86_SARX_instr.2;
+   Ox86_SHRX_instr.2;
+   Ox86_SHLX_instr.2;
    Ox86_MOVX_instr.2;
    Ox86_MOVD_instr.2;
    Ox86_MOVV_instr.2;
