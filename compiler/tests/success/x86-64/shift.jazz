@@ -69,3 +69,29 @@ n = 11;
 
 [p + 0] = f;
 }
+
+export
+fn test_rorx(reg u64 x) -> reg u32 {
+  x = #RORX_64(x, 0);
+  x = #RORX_64(x, 1);
+  x = #RORX_64(x, -193);
+  reg u32 y;
+  y = #RORX_32(x, 1);
+  y = #RORX_32(y, 17);
+  return y;
+}
+
+u64[1] g = {0x536764457835516b};
+export
+fn test_bmi_shifts(reg u64 x) -> reg u32 {
+  stack u64 y;
+  y = x;
+  reg u32 z;
+  x = #SARX_64(g[0], x);
+  x = #SHRX_64(y, x);
+  x = #SHLX_64(x, x);
+  z = #SARX_32(g[u32 0], x);
+  z = #SHRX_32(z, x);
+  z = #SHLX_32(x, z);
+  return z;
+}
