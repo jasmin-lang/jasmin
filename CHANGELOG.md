@@ -1,5 +1,11 @@
 # [unreleased]
 
+## New features
+
+- The following x86 BMI2 instructions are now available:
+  `RORX`, `SARX`, `SHRX`, and `SHLX`
+  ([PR #824](https://github.com/jasmin-lang/jasmin/pull/824)).
+
 ## Other changes
 
 - In x86 assembly, 8-bit immediate operands are printed unsigned,
