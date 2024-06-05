@@ -624,7 +624,7 @@ Proof.
   case: ifP hf'1.
   + by move=> hX [?]; subst f'; econstructor; eauto => //=; rewrite -eq_p_extra.
   t_xrbindP=> _ hcm [env' c'] hc' ?; subst f'.
-  pose m := init_map fresh_var_ident (foldl to_spill_i Sv.empty c).
+  pose m := init_map fresh_var_ident (foldl to_spill_i (Sv.empty, false) c).1.
   pose X := Sv.union (vars_l fp) (Sv.union (vars_l res) (vars_c c)).
   pose get_spill := lower_spill.get_spill m.
   pose S := {| get_spill     := get_spill;

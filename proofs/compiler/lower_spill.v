@@ -44,13 +44,14 @@ Definition to_spill_e s e :=
   end.
 
 (* Compute the set for variable that are spilled *)
-Fixpoint to_spill_i (s : Sv.t) (i : instr) :=
+Fixpoint to_spill_i (s : Sv.t * bool) (i : instr) :=
   let (ii,ir) := i in
   match ir with
   | Cassgn _ _ _ _ => s
   | Copn _ _ o es =>
     match is_spill_op o with
-    | Some (Spill, _) => foldl to_spill_e s es
+    | Some (Spill, _) => (foldl to_spill_e s.1 es, true)
+    | Some (Unspill, _) => (s.1, true)
     | _ => s
     end
   | Csyscall _ _ _ => s
@@ -218,9 +219,9 @@ Definition check_map (m:Mvar.t var) X :=
 
 Definition spill_fd {eft} (fn:funname) (fd: _fundef eft) : cexec (_fundef eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
-  let s := foldl to_spill_i Sv.empty c in
-  if Sv.is_empty s then ok fd else
-  let m := init_map s in
+  let s := foldl to_spill_i (Sv.empty, false) c in
+  if ~~s.2 then ok fd else
+  let m := init_map s.1 in
   let X := Sv.union (vars_l params) (Sv.union (vars_l res) (vars_c c)) in
   let b := check_map m X in
   Let _ := assert b.1 (pp_internal_error E.pass (pp_s "invalid map")) in
