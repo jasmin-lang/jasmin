@@ -834,7 +834,7 @@ module X86BaseOp : BaseOp
           let l_tmp3 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
           let ty2 = CL.Sint (int_of_ws ws) in
           i1 @ i2 @ [CL.Instr.cast ty1 l_tmp1 a1;
-                     CL.Instr.cast ty1 l_tmp2 a1;
+                     CL.Instr.cast ty1 l_tmp2 a2;
                      CL.Instr.Op2.add l_tmp3 !l_tmp1 !l_tmp2;
                      CL.Instr.cast ty2 l !l_tmp3
                ]
