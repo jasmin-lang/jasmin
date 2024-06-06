@@ -359,7 +359,7 @@ def _main():
                     file=sys.stderr,
                 )
             ANSITerm.progress_write(
-                f"Tests: {i: 4}/{n: 4} | Failed: {fails: 4} | [{success}] {last_cmd}"
+                f"Tests: {(i+1): 4}/{n: 4} | Failed: {fails: 4} | [{success}] {last_cmd}"
             )
 
     errors = [x for x in result if not x.success]
