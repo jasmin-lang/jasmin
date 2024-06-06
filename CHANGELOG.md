@@ -1,6 +1,12 @@
 
 # [unreleased]
 
+## Bug fixes
+
+- Easycrypt extraction for CT : fix decreasing for loops
+  ([PR #859](https://github.com/jasmin-lang/jasmin/pull/859);
+  fixes [#858](https://github.com/jasmin-lang/jasmin/issues/858)).
+
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
 ## New features
