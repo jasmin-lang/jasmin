@@ -736,6 +736,7 @@ module type BaseOp = sig
     | Cas2
     | Cas3
     | Smt
+    | Smt1
 
   val op_to_instr :
     trans ->
@@ -761,6 +762,7 @@ module X86BaseOp : BaseOp
     | Cas2
     | Cas3
     | Smt
+    | Smt1
 
   let cast_atome ws x =
     match x with
@@ -825,6 +827,17 @@ module X86BaseOp : BaseOp
         match trans with
         | Smt ->
           i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
+        | Smt1 ->
+          let l_tmp1 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
+          let l_tmp2 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
+          let ty1 = CL.Sint (int_of_ws ws) in
+          let l_tmp3 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
+          let ty2 = CL.Sint (int_of_ws ws) in
+          i1 @ i2 @ [CL.Instr.cast ty1 l_tmp1 a1;
+                     CL.Instr.cast ty1 l_tmp2 a1;
+                     CL.Instr.Op2.add l_tmp3 !l_tmp1 !l_tmp2;
+                     CL.Instr.cast ty2 l !l_tmp3
+               ]
         | Cas1 ->
           let l_tmp = I.mk_spe_tmp_lval 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
@@ -883,7 +896,7 @@ module X86BaseOp : BaseOp
       let l_tmp2 = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
       let ty2 = CL.Sint (int_of_ws ws) in
       let l = I.glval_to_lval (List.nth xs 5) in
-      i1 @ [CL.Instr.vpc ty1 l_tmp1 a1;
+      i1 @ [CL.Instr.cast ty1 l_tmp1 a1;
             CL.Instr.Op2.sub l_tmp2 a !l_tmp1;
             CL.Instr.cast ty2 l !l_tmp2
            ]
@@ -1047,6 +1060,7 @@ module X86BaseOp : BaseOp
                 CL.Instr.assume ([Eeq(Ivar l_tmp5, Iconst Z.zero)] ,[]);
                 CL.Instr.Op2.join l !l_tmp4 !l_tmp6;
                ]
+        | _ -> assert false
       end
 
     | MOVSX (ws1, ws2) ->
@@ -1318,6 +1332,7 @@ module ARMBaseOp : BaseOp
     | Cas2
     | Cas3
     | Smt
+    | Smt1
 
   let ws = Wsize.U32
 
@@ -1446,7 +1461,9 @@ module Mk(O:BaseOp) = struct
     (cas,smt)
 
   let pp_i env fds i =
-    let l = ["smt", O.Smt ; "cas", Cas1; "cas2", Cas2; "cas3", Cas3 ] in
+    let l =
+      ["smt", O.Smt ;"smt1", Smt1 ; "cas", Cas1; "cas2", Cas2; "cas3", Cas3 ]
+    in
     let mk_trans = Annot.filter_string_list None l in
     let atran annot =
       match Annot.ensure_uniq1 "tran" mk_trans annot with

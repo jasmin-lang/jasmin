@@ -179,6 +179,7 @@ module type BaseOp = sig
     | Cas2
     | Cas3
     | Smt
+    | Smt1
 
   val op_to_instr :
     trans ->
