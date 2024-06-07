@@ -33,7 +33,8 @@
   See `compiler/tests/success/common/swap.jazz` and
       `compiler/tests/success/common/swap_word.jazz` for usage.
   ([PR #691](https://github.com/jasmin-lang/jasmin/pull/691),
-   [PR #816](https://github.com/jasmin-lang/jasmin/pull/816)).
+   [PR #816](https://github.com/jasmin-lang/jasmin/pull/816),
+   [PR #818](https://github.com/jasmin-lang/jasmin/pull/818)).
 
 - Support Selective Speculative Load Hardening.
   We now support operators SLH operators as in [Typing High-Speed Cryptography

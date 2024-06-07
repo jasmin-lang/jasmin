@@ -1,348 +1,388 @@
 #! /usr/bin/env python3
 
 # --------------------------------------------------------------------
-import sys, os, re, glob, itertools, logging
+import sys, os, glob, itertools, logging
 import subprocess as sp, time, datetime, socket, yaml
 import collections as cl, configparser as cp
+import shutil
+from dataclasses import dataclass, field, InitVar
+from typing import Optional
+
+
+@dataclass
+class Options:
+    timeout: Optional[int]
+    jobs: int
+    report: Optional[str]
+    bin: str
+    args: list[str]
+    targets: list[str]
+    scenarios: dict[str, "Scenario"]
+
+    def test_cases(self):
+        for target in self.targets:
+            yield from self.scenarios[target].test_cases(self)
+
+
+@dataclass
+class Scenario:
+    bin: str
+    args: list[str]
+    okdirs: str
+    kodirs: str
+    exclude: list[str]
+
+    def _test_case_dirs(self):
+        def expand(dirs) -> list[str]:
+            return [
+                path
+                for dir in dirs.split()
+                for path in glob.glob(dir, recursive=True)
+                if not any(path.startswith(e.removeprefix("!")) for e in self.exclude)
+            ]
+
+        return [
+            *((x, True) for x in expand(self.okdirs)),
+            *((x, False) for x in expand(self.kodirs)),
+        ]
+
+    def _listdir(self, dir: str) -> list[str]:
+        try:
+            scripts = os.listdir(dir)
+        except OSError as e:
+            logging.error(f"Cannot scan dir {dir}: {e}.")
+            return []
+        return sorted(
+            [
+                os.path.join(dir, x)
+                for x in scripts
+                if any(x.endswith(suf) for suf in (".mil", ".jazz"))
+            ]
+        )
+
+    def test_cases(self, options: Options):
+        for dir, valid in self._test_case_dirs():
+            for script in self._listdir(dir):
+                yield TestCase(valid, dir, self.args, self.bin, script, options)
+
+
+@dataclass
+class TestCase:
+    valid: bool
+    group: str
+    args: list[str]
+    bin: str
+    filename: str
+    command: list[str] = field(init=False)
+    options: InitVar[Options]
+
+    def __post_init__(self, options):
+        binary = self.bin if self.bin else options.bin
+        self.command = [binary] + options.args + self.args
+        if options.timeout:
+            self.command.extend(["-timeout", str(options.timeout)])
+        self.command.extend([self.filename])
+
+
+@dataclass
+class TestResult:
+    success: bool
+    config: TestCase
+    time: float
+    stderr: str
+    stdout: str
+
 
 # --------------------------------------------------------------------
 class folded_unicode(str):
     pass
 
+
 class literal_unicode(str):
     pass
 
-def folded_unicode_representer(dumper, data):
-    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='>')
-def literal_unicode_representer(dumper, data):
-    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
 
-yaml.add_representer(folded_unicode , folded_unicode_representer)
+def folded_unicode_representer(dumper, data):
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=">")
+
+
+def literal_unicode_representer(dumper, data):
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+
+
+yaml.add_representer(folded_unicode, folded_unicode_representer)
 yaml.add_representer(literal_unicode, literal_unicode_representer)
 
-# --------------------------------------------------------------------
-class Object(object):
-    def __init__(self, **kw):
-        self.__dict__.update(kw)
 
 # --------------------------------------------------------------------
-class ANSIColor(object):
+class ANSITerm:
     BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 
-    @staticmethod
-    def _hascolors():
-        if not hasattr(sys.stdout, "isatty"):
-            return False
-        if not sys.stdout.isatty():
-            return False
+    isatty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+    hascolors = False
+    (term_cols, term_lines) = shutil.get_terminal_size()
 
+    if isatty:
         try:
             import curses
 
             curses.setupterm()
-            return curses.tigetnum("colors") > 2
-        except:
-            return False
+            hascolors = curses.tigetnum("colors") > 2
+        except Exception:
+            pass
 
-    @staticmethod
-    def color(txt, color):
-        if ANSIColor.hascolors:
-            return "\x1b[1;%dm%s\x1b[0m" % (30+color, txt)
+    @classmethod
+    def color(cls, txt, color):
+        if cls.hascolors:
+            return "\x1b[1;%dm%s\x1b[0m" % (30 + color, txt)
         return txt
 
-ANSIColor.hascolors = ANSIColor._hascolors()
+    @classmethod
+    def progress_write(cls, s):
+        if cls.isatty:
+            print("\033[J" + s, end="", file=sys.stderr, flush=True)
+            up = len(s) // int(cls.term_cols)
+            bs = ""
+            if up != 0:
+                bs += f"\033[{bs}A"
+            print(bs + "\r", file=sys.stderr, end="", flush=False)
 
-def red  (txt): return ANSIColor.color(txt, ANSIColor.RED  )
-def green(txt): return ANSIColor.color(txt, ANSIColor.GREEN)
 
 def rcolor(txt, b):
-    return (green if b else red)(txt)
+    color = ANSITerm.GREEN if b else ANSITerm.RED
+    return ANSITerm.color(txt, color)
+
 
 # --------------------------------------------------------------------
-def _options():
+def arg_parser():
     from optparse import OptionParser
 
     parser = OptionParser()
-
     parser.add_option(
-        '', '--bin-args',
-        action  = 'append',
-        metavar = 'ARGS',
-        default = [],
-        help    = 'append ARGS to EasyCrypt command (cumulative)')
-
+        "",
+        "--bin-args",
+        action="append",
+        metavar="ARGS",
+        default=[],
+        help="append ARGS to EasyCrypt command (cumulative)",
+    )
     parser.add_option(
-        '', '--timeout',
-        action  = 'store',
-        default = None,
-        metavar = 'TIMEOUT',
-        type    = 'int',
-        help    = 'set the timeout option to pass to EasyCrypt')
-
+        "",
+        "--timeout",
+        action="store",
+        default=None,
+        metavar="TIMEOUT",
+        type="int",
+        help="set the timeout option to pass to EasyCrypt",
+    )
     parser.add_option(
-        '', '--jobs',
-        action  = 'store',
-        default = 1,
-        metavar = 'JOBS',
-        type    = 'int',
-        help    = 'number of maximum parallel test jobs')
-
+        "",
+        "--jobs",
+        action="store",
+        default=1,
+        metavar="JOBS",
+        type="int",
+        help="number of maximum parallel test jobs",
+    )
     parser.add_option(
-        '', '--report',
-        action  = 'store',
-        default = None,
-        metavar = 'FILE',
-        help    = 'dump result to FILE')
+        "",
+        "--report",
+        action="store",
+        default=None,
+        metavar="FILE",
+        type=str,
+        help="dump result to FILE",
+    )
+    return parser
 
-    (cmdopt, args) = parser.parse_args()
 
-    if len(args) < 1:
-        parser.error('this program takes at least one argument')
+def _options() -> Options:
+    parser = arg_parser()
+    (cmdopt, cmdargs) = parser.parse_args()
+    if len(cmdargs) < 1:
+        parser.error("this program takes at least one argument")
+    config_path = cmdargs[0]
+    target_args = cmdargs[1:]
 
     if cmdopt.timeout:
         if cmdopt.timeout <= 0:
-            parser.error('timeout must be positive')
-
+            parser.error("timeout must be positive")
     if cmdopt.jobs <= 0:
-        parser.error('jobs must be positive')
+        parser.error("jobs must be positive")
 
-    options = Object(scenarios = dict())
-    options.timeout  = cmdopt.timeout
-    options.jobs     = cmdopt.jobs
-    options.report   = cmdopt.report
-
-    defaults = dict(args = '', exclude = '', okdirs = '', kodirs = '', bin = '')
-
+    defaults = dict(args="", exclude="", okdirs="", kodirs="", bin="")
     config = cp.ConfigParser(defaults)
-    config.read(args[0])
+    config.read(config_path)
 
-    def resolve_targets(names):
-        targets = []
-        for name in names:
-            if name.startswith('!'):
-                targets = filter(lambda x : x != name[1:], targets)
-            else:
-                if name not in targets:
-                    targets.append(name)
-        return targets
+    targets = []
+    for name in target_args:
+        if name.startswith("!"):
+            targets = list(filter(lambda x: x != name[1:], targets))
+        else:
+            if name not in targets:
+                targets.append(name)
 
-    options.bin     = config.get('default', 'bin')
-    options.args    = config.get('default', 'args').split()
-    options.targets = resolve_targets(args[1:])
-
+    args = config.get("default", "args").split()
     if cmdopt.bin_args:
-        options.args.extend(itertools.chain.from_iterable( \
-          x.split() for x in cmdopt.bin_args))
+        args.extend(itertools.chain.from_iterable(x.split() for x in cmdopt.bin_args))
 
-    for test in [x for x in config.sections() if x.startswith('test-')]:
-        scenario = Object()
-        scenario.bin     = config.get(test, 'bin')
-        scenario.args    = config.get(test, 'args').split()
-        scenario.okdirs  = config.get(test, 'okdirs')
-        scenario.kodirs  = config.get(test, 'kodirs')
-        scenario.exclude = config.get(test, 'exclude')
+    options = Options(
+        timeout=cmdopt.timeout,
+        jobs=cmdopt.jobs,
+        report=cmdopt.report,
+        bin=config.get("default", "bin"),
+        args=args,
+        targets=targets,
+        scenarios=dict(),
+    )
+
+    for test in [x for x in config.sections() if x.startswith("test-")]:
+        scenario = Scenario(
+            bin=config.get(test, "bin"),
+            args=config.get(test, "args").split(),
+            okdirs=config.get(test, "okdirs"),
+            kodirs=config.get(test, "kodirs"),
+            exclude=config.get(test, "exclude").split(),
+        )
         options.scenarios[test[5:]] = scenario
 
     for x in options.targets:
         if x not in options.scenarios:
-            parser.error('unknown scenario: %s' % (x,))
+            parser.error("unknown scenario: %s" % (x,))
 
     return options
 
+
 # --------------------------------------------------------------------
-def _dump_report(config, results, out):
+def _dump_report(results, out):
     totaltime = sum([x.time for x in results])
-    grouped   = dict()
-    aout      = []
+    grouped = dict()
+    aout = []
 
     for result in results:
         grouped.setdefault(result.config.group, []).append(result)
 
+    hostname = socket.gethostname()
+    timestamp = datetime.datetime.utcnow().isoformat()
     for gname, group in grouped.items():
-        ko   = [x for x in group if not x.success]
+        ko = [x for x in group if not x.success]
         node = cl.OrderedDict()
 
-        node['name']      = gname
-        node['hostname']  = config.hostname
-        node['timestamp'] = config.timestamp.isoformat()
-        node['tests']     = len(group)
-        node['failures']  = len(ko)
-        node['time']      = '%.3f' % totaltime
-        node['details']   = []
+        node["name"] = gname
+        node["hostname"] = hostname
+        node["timestamp"] = timestamp
+        node["tests"] = len(group)
+        node["failures"] = len(ko)
+        node["time"] = "%.3f" % totaltime
+        node["details"] = []
 
         for result in group:
             subnode = cl.OrderedDict()
 
             name = os.path.basename(result.config.filename)
             name = os.path.splitext(name)[0]
-            name = '%s (%s)' % (name, result.config.filename)
+            name = "%s (%s)" % (name, result.config.filename)
 
-            subnode['name']       = name
-            subnode['time']       = '%.3f' % (result.time,)
-            subnode['success']    = result.success
-            subnode['shouldpass'] = result.config.isvalid
-            subnode['output']     = \
-                literal_unicode(str(result.stderr).rstrip('\r\n'))
+            subnode["name"] = name
+            subnode["time"] = "%.3f" % (result.time,)
+            subnode["success"] = result.success
+            subnode["shouldpass"] = result.config.valid
+            subnode["output"] = literal_unicode(str(result.stderr).rstrip("\r\n"))
 
-            node['details'].append(subnode)
+            node["details"].append(subnode)
 
         aout.append(node)
 
-    opts = dict(default_flow_style = None, encoding = 'utf-8')
+    opts = dict(default_flow_style=None, encoding="utf-8")
 
-    out.write(str(yaml.dump(aout, **opts), 'ascii'))
+    out.write(str(yaml.dump(aout, **opts), "ascii"))
+
 
 # --------------------------------------------------------------------
-def _run_test(config, options):
-    logging.info("running jasmin on `%s' [valid: %s]" % \
-                     (config.filename, config.isvalid))
+def _run_test(config: TestCase):
+    logging.info("running jasmin on `%s' [valid: %s]" % (config.filename, config.valid))
 
     timestamp = time.time()
-    binary = options.bin if not config.bin else config.bin
     try:
-        command = [binary] + options.args + config.args
-        if options.timeout:
-            command.extend(['-timeout', str(options.timeout)])
-        command.extend([config.filename])
-
-        logging.info('command: %r' % (command,))
-        config.command = command
-        process = sp.Popen(command, stdout = sp.PIPE, stderr = sp.PIPE)
-
-        try:
-            _, err = process.communicate()
-            status   = process.poll()
-        finally:
-            try   : process.kill()
-            except: pass
-    except OSError as e:
-        logging.error("cannot run `%s': %s" % (binary, e))
-        exit (1)
+        logging.info('command: "{}"'.format(" ".join(config.command)))
+        proc = sp.run(config.command, stdout=sp.PIPE, stderr=sp.PIPE, text=True)
+    except sp.SubprocessError:
+        logging.error(f"""Could not run "{' '.join(config.command)}".\n""")
+        raise
     timestamp = time.time() - timestamp
-    success   = (bool(status) != bool(config.isvalid))
+    success = bool(proc.returncode) != bool(config.valid)
 
+    logging.info(
+        "result for `%s': success: %s" % (config.command, rcolor(success, success))
+    )
 
-    logging.info("result for `%s': success: %s" % \
-                     (config.command, rcolor(success, success)))
+    return TestResult(success, config, timestamp, proc.stderr, proc.stdout)
 
-    return Object(success = success  ,
-                  config  = config   ,
-                  time    = timestamp,
-                  stderr  = err      )
 
 # --------------------------------------------------------------------
 def _main():
     # ------------------------------------------------------------------
     options = _options()
 
-    logfmt = '%(asctime)-15s - %(levelname)s - %(message)s'
+    logfmt = "%(asctime)-15s - %(levelname)s - %(message)s"
     if options.jobs > 1:
-        logfmt = '%s %s' % ('[%(threadName)s]', logfmt)
-        
-    logging.basicConfig(
-        stream = sys.stderr,
-        level  = logging.DEBUG,
-        format = logfmt)
+        logfmt = "%s %s" % ("[%(threadName)s]", logfmt)
 
-    # ------------------------------------------------------------------
-    def gather(obj):
-        logging.debug("gathering scripts in `%s'" % (obj.src,))
-        try:
-            scripts = os.listdir(obj.src)
-        except OSError as e:
-            logging.warning("cannot scan `%s': %s" % (obj.src, e))
-            return []
-        scripts = sorted([x for x in scripts if re.search(r'\.(mil|jazz)$', x)])
-        logging.debug("%.4d script(s) found in `%s'" % (len(scripts), obj.src))
+    logging.basicConfig(stream=sys.stderr, level=logging.WARNING, format=logfmt)
 
-        def config(filename):
-            fullname = os.path.join(obj.src, filename)
-            return Object(isvalid  = obj.valid,
-                          group    = obj.src,
-                          args     = obj.args,
-                          bin      = obj.bin,
-                          filename = fullname)
+    allscripts = list(options.test_cases())
 
-        return [config(x) for x in scripts]
-
-    def gather_for_scenario(scenario):
-        def expand(dirs):
-            def for1(x):
-                aout = []
-                if x.startswith('!'):
-                    aout.append(x[1:])
-                    for root, dnames, _ in os.walk(x[1:]):
-                        aout.extend([os.path.join(root, x) for x in dnames])
-                else:
-                    aout.extend(glob.glob(x, recursive=True))
-                return aout
-
-            dirs = [for1(x) for x in re.split(r'\s+', dirs)]
-            return list(itertools.chain.from_iterable(dirs))
-
-        data = dict(args = scenario.args, bin = scenario.bin)
-
-        dirs = []
-        dirs.extend([Object(src = x, valid = True , **data) \
-                         for x in expand(scenario.okdirs)])
-        dirs.extend([Object(src = x, valid = False, **data) \
-                         for x in expand(scenario.kodirs)])
-        dirs = [x for x in dirs if x.src not in expand(scenario.exclude)]
-        dirs = map(gather, dirs)
-        return list(itertools.chain.from_iterable(dirs))
-
-    def gatherall():
-        dirs = [options.scenarios[x] for x in options.targets]
-        dirs = map(gather_for_scenario, dirs)
-        return list(itertools.chain.from_iterable(dirs))
-
-    allscripts = gatherall()
-
-    logging.debug("%.4d script(s) in total" % (len(allscripts,)))
+    logging.debug(f"{len(allscripts): 4d} scripts in total")
 
     # --------------------------------------------------------------------
-    mainconfig = Object()
 
-    mainconfig.hostname  = socket.gethostname()
-    mainconfig.timestamp = datetime.datetime.utcnow()
+    import concurrent.futures as futures
 
-    if options.jobs > 1:
-        import concurrent.futures as futures
-
-    if options.jobs > 1:
-        with futures.ThreadPoolExecutor(options.jobs, thread_name_prefix = 'Thread') as executor:
-            result = list(executor.map(
-                lambda config : _run_test(config, options),
-                allscripts))
-    else:
+    with futures.ThreadPoolExecutor(
+        options.jobs, thread_name_prefix="Thread"
+    ) as executor:
         result = []
-        for config in allscripts:
-            result.append(_run_test(config, options))
+        n = len(allscripts)
+        fails = 0
+        for i, res in enumerate(executor.map(_run_test, allscripts)):
+            result.append(res)
+            last_cmd = " ".join(res.config.command)
+            success = rcolor("SUCCESS" if res.success else "FAIL", res.success)
+            if not res.success:
+                fails += 1
+                sep = 15 * "-"
+                s = f"{sep} Stdout {sep}\n{res.stdout}\n{sep} Stderr {sep}\n{res.stderr}\n"
+                print(
+                    ANSITerm.color(f"\033[JFailed test {last_cmd}", ANSITerm.RED)
+                    + f"\n{s}",
+                    file=sys.stderr,
+                )
+            ANSITerm.progress_write(
+                f"Tests: {i: 4}/{n: 4} | Failed: {fails: 4} | [{success}] {last_cmd}"
+            )
 
     errors = [x for x in result if not x.success]
-    nerrs  = len(errors)
-
-    logging.info(rcolor("# of failed scripts: %d" % (nerrs,), nerrs == 0))
     if errors:
         logging.info("--- BEGIN FAILING SCRIPTS ---")
         for error in errors:
-            logging.info(' '.join(error.config.command))
+            logging.info(" ".join(error.config.command))
         logging.info("--- END FAILING SCRIPTS ---")
-        logging.critical("some tests did NOT pass")
+        logging.critical(f"{len(errors)} tests did NOT pass")
 
     if options.report is not None:
-        if options.report == '-':
-            _dump_report(mainconfig, result, sys.stderr)
+        if options.report == "-":
+            _dump_report(result, sys.stderr)
         else:
-            with open(options.report, 'wt') as output:
-                _dump_report(mainconfig, result, output)
+            with open(options.report, "wt") as output:
+                _dump_report(result, output)
 
-    exit (2 if errors else 0)
+    exit(2 if errors else 0)
+
 
 # --------------------------------------------------------------------
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         _main()
     except KeyboardInterrupt:
-        print('interrupted', file = sys.stderr)
+        print("interrupted", file=sys.stderr)
         exit(127)

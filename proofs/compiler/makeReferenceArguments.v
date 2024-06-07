@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat.
 From Coq Require Import ZArith Uint63.
 Require Import gen_map expr compiler_util.
 
@@ -134,10 +134,22 @@ Definition get_syscall_sig o :=
   (map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tin),
    map (fun ty => (is_sarr ty, "__p__"%string, ty)) s.(scs_tout)).
 
+Definition is_swap_op (op: sopn) : option stype :=
+  if op is Opseudo_op (pseudo_operator.Oswap (sarr _ as ty)) then Some ty else None.
+
 Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   match ir with
-  | Cassgn _ _ _ _ |  Copn _ _ _ _  => ok [::i]
+  | Copn xs tg op es =>
+      if is_swap_op op is Some ty then
+        let sig := (true, "__swap__"%string, ty) in
+        let sig := [:: sig; sig ] in
+        Let: (prologue, es) := make_prologue ii X 0 sig es in
+        Let: (xs, epilogue) := make_epilogue ii X sig xs in
+        let tg := if [&& size prologue == 2 & size epilogue == 2] then AT_inline else tg in
+        ok (prologue ++ MkI ii (Copn xs tg (Opseudo_op (pseudo_operator.Oswap ty)) es) :: epilogue)
+      else ok [:: i ]
+  | Cassgn _ _ _ _ => ok [:: i ]
   | Cif b c1 c2 =>
     Let c1 := update_c (update_i X) c1 in
     Let c2 := update_c (update_i X) c2 in
