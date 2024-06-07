@@ -369,7 +369,6 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   fun a -> loop a e
 
 let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
-  if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
@@ -377,6 +376,7 @@ let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflic
                     (Printer.pp_var ~debug:true) v
                     (Printer.pp_var ~debug:true) w
                     (pp_trace pd asmOp i) tr;
+    if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
     c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
 
