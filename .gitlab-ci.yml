@@ -67,6 +67,14 @@ coq-proof:
   script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs'
 
+coq-master:
+  stage: prove
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg coqMaster true
+  extends: .common
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs'
+
 ocaml:
   stage: build
   variables:

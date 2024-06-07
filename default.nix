@@ -2,6 +2,7 @@
 , inCI ? false
 , pinned-nixpkgs ? inCI
 , coqDeps ? !inCI
+, coqMaster ? false
 , ocamlDeps ? !inCI
 , testDeps ? !inCI
 , devTools ? !inCI
@@ -14,7 +15,13 @@ with pkgs;
 
 let inherit (lib) optionals; in
 
-let coqPackages = coqPackages_8_18; in
+let coqPackages =
+  if coqMaster then
+    pkgs.coqPackages.overrideScope (self: super: {
+      coq = super.coq.override { version = "master"; };
+    })
+  else coqPackages_8_18
+; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
