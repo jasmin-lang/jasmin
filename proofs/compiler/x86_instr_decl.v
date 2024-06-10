@@ -168,13 +168,13 @@ Variant x86_op : Type :=
 
 (* AES instructions *)
 | AESDEC
-| VAESDEC
+| VAESDEC of wsize
 | AESDECLAST
-| VAESDECLAST
+| VAESDECLAST of wsize
 | AESENC
-| VAESENC
+| VAESENC of wsize
 | AESENCLAST
-| VAESENCLAST
+| VAESENCLAST of wsize
 | AESIMC
 | VAESIMC
 | AESKEYGENASSIST
@@ -1873,33 +1873,37 @@ Definition mk_instr_aes2 jname aname (constr:x86_op) x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] msb_flag x86_sem
          (check_xmm_xmmm U128) 2 (primM constr) (pp_name_ty aname [::U128;U128]).
 
-Definition mk_instr_aes3 jname aname (constr:x86_op) x86_sem msb_flag :=
-  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: Eu 1; Eu 2] [:: Eu 0] msb_flag x86_sem
-         (check_xmm_xmm_xmmm U128) 3 (primM constr) (pp_name_ty aname [::U128;U128;U128]).
+Definition mk_instr_aes3 jname aname (constr: wsize → x86_op) x86_sem :=
+  (λ sz, mk_instr (pp_sz jname sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1; Eu 2]
+           [:: Eu 0] MSB_CLEAR
+           (x86_u128_binop (lift2_vec U128 x86_sem sz))
+           (check_xmm_xmm_xmmm sz) 3 [::]
+           (pp_name_ty aname [:: sz; sz; sz ]),
+   (jname%string, prim_128_256 constr)).
 
 Definition Ox86_AESDEC_instr := 
   mk_instr_aes2 "AESDEC" "aesdec" AESDEC x86_AESDEC MSB_MERGE.
 
-Definition Ox86_VAESDEC_instr := 
-  mk_instr_aes3 "VAESDEC" "vaesdec" VAESDEC x86_AESDEC MSB_CLEAR.
+Definition Ox86_VAESDEC_instr :=
+  mk_instr_aes3 "VAESDEC" "vaesdec" VAESDEC wAESDEC.
 
 Definition Ox86_AESDECLAST_instr := 
   mk_instr_aes2 "AESDECLAST" "aesdeclast" AESDECLAST x86_AESDECLAST MSB_MERGE.
 
-Definition Ox86_VAESDECLAST_instr := 
-  mk_instr_aes3 "VAESDECLAST" "vaesdeclast" VAESDECLAST x86_AESDECLAST MSB_CLEAR.
+Definition Ox86_VAESDECLAST_instr :=
+  mk_instr_aes3 "VAESDECLAST" "vaesdeclast" VAESDECLAST wAESDECLAST.
 
 Definition Ox86_AESENC_instr := 
   mk_instr_aes2 "AESENC" "aesenc" AESENC x86_AESENC MSB_MERGE.
 
-Definition Ox86_VAESENC_instr := 
-  mk_instr_aes3 "VAESENC" "vaesenc" VAESENC x86_AESENC MSB_CLEAR.
+Definition Ox86_VAESENC_instr :=
+  mk_instr_aes3 "VAESENC" "vaesenc" VAESENC wAESENC.
 
 Definition Ox86_AESENCLAST_instr := 
   mk_instr_aes2 "AESENCLAST" "aesenclast" AESENCLAST x86_AESENCLAST MSB_MERGE.
 
-Definition Ox86_VAESENCLAST_instr := 
-  mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST x86_AESENCLAST MSB_CLEAR.
+Definition Ox86_VAESENCLAST_instr :=
+  mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST wAESENCLAST.
 
 Definition Ox86_AESIMC_instr := 
   mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: Eu 1] [:: Eu 0] MSB_MERGE x86_AESIMC
@@ -2063,13 +2067,13 @@ Definition x86_instr_desc o : instr_desc_t :=
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
-  | VAESDEC            => Ox86_VAESDEC_instr.1         
+  | VAESDEC sz         => Ox86_VAESDEC_instr.1 sz
   | AESDECLAST         => Ox86_AESDECLAST_instr.1      
-  | VAESDECLAST        => Ox86_VAESDECLAST_instr.1     
+  | VAESDECLAST sz     => Ox86_VAESDECLAST_instr.1 sz
   | AESENC             => Ox86_AESENC_instr.1          
-  | VAESENC            => Ox86_VAESENC_instr.1         
+  | VAESENC sz         => Ox86_VAESENC_instr.1 sz
   | AESENCLAST         => Ox86_AESENCLAST_instr.1      
-  | VAESENCLAST        => Ox86_VAESENCLAST_instr.1     
+  | VAESENCLAST sz     => Ox86_VAESENCLAST_instr.1 sz
   | AESIMC             => Ox86_AESIMC_instr.1          
   | VAESIMC            => Ox86_VAESIMC_instr.1         
   | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1 
