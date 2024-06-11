@@ -21,7 +21,7 @@ install: [
 ]
 depends: [
   "ocaml" { >= "4.11" & build }
-  "batteries" {>= "3.4"}
+  "batteries" {>= "3.5"}
   "cmdliner" {>= "1.1" & build }
   "dune" {>= "3.2"}
   "menhir" {>= "20160825" & build }
