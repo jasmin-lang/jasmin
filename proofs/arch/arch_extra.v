@@ -300,6 +300,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; tin      := id.(id_tin)
     ; i_in     := map sopn_arg_desc id.(id_in)
     ; i_out    := map sopn_arg_desc id.(id_out)
+    ; conflicts:= [::]
     ; tout     := id.(id_tout)
     ; semi     := id.(id_semi)
     ; semu     := @vuincl_app_sopn_v _ _ id.(id_semi) id.(id_tin_narr)

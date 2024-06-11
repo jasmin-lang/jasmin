@@ -52,15 +52,15 @@ Local Notation E n := (sopn.ADExplicit n None).
 
 Definition Oarm_add_large_imm_instr : instruction_desc :=
   let ty := sword arm_reg_size in
-  let tys := [:: ty; ty] in
-  let semi := fun (x y : word arm_reg_size) => ok (x + y, x)%R in
+  let semi := fun (x y : word arm_reg_size) => ok (x + y)%R in
   {| str    := (fun _ => "add_large_imm"%string)
-   ; tin    := tys
-   ; i_in   := [:: E 0; E 1]
-   ; tout   := tys
-   ; i_out  := [:: E 2; E 0]
+   ; tin    := [:: ty; ty]
+   ; i_in   := [:: E 1; E 2]
+   ; tout   := [:: ty]
+   ; i_out  := [:: E 0]
+   ; conflicts := [:: (E 0, E 1)]
    ; semi   := semi
-   ; semu   := @values.vuincl_app_sopn_v tys tys semi refl_equal
+   ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] semi refl_equal
    ; i_safe := [::] |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
@@ -222,8 +222,8 @@ Definition assemble_extra
       Error (E.error ii "arm swap only valid for register of type u32")
   | Oarm_add_large_imm =>
     match outx, inx with
-    | [:: LLvar x; LLvar y], [:: Rexpr (Fvar y'); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
-      Let _ := assert ((v_var x != v_var y) && (v_var y == v_var y'))
+    | [:: LLvar x], [:: Rexpr (Fvar y); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
+      Let _ := assert (v_var x != v_var y)
          (E.internal_error ii "bad arm_add_large_imm: invalid register") in
       Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y])
           (E.error ii "arm swap only valid for register of type u32") in

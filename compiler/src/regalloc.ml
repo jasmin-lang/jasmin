@@ -380,6 +380,42 @@ let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflic
     c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
 
+(* Some instructions can declare conflicts between the registers appearing
+   in the arguments and in the result. We collect all these conflicts. *)
+let collect_opn_conflicts pd reg_size asmOp
+      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: ('info, 'asm) func list) (c: conflicts) : conflicts =
+  let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
+  let rec collect_opn_conflicts_instr c i =
+    begin match i.i_desc with
+    | Copn (lvs, _, op, es) ->
+      let id = get_instr_desc reg_size asmOp op in
+      let conflicts = id.conflicts in
+      let find_desc a =
+        let exception Found of arg_position in
+        try
+          List.iteri (fun i a' -> if a = a' then raise (Found (APin i))) id.i_in;
+          List.iteri (fun i a' -> if a = a' then raise (Found (APout i))) id.i_out;
+          hierror_reg ~loc:(Lmore i.i_loc) ~internal:true "the instruction description is not correct"
+        with
+        | Found ap -> ap
+      in
+      List.fold_left (fun c (a1, a2) ->
+        match find_var lvs es (find_desc a1), find_var lvs es (find_desc a2) with
+        | Some x1, Some x2 ->
+            add_one (Lmore i.i_loc) (L.unloc x1) (L.unloc x2) c
+        | _, _ -> c) c conflicts
+    | Cfor (_, _, s) -> collect_opn_conflicts_stmt c s
+    | Cif (_, s1, s2)
+    | Cwhile (_, s1, _, s2) ->
+        let c = collect_opn_conflicts_stmt c s1 in
+        collect_opn_conflicts_stmt c s2
+    | _ -> c
+    end
+  and collect_opn_conflicts_stmt c s =
+    List.fold_left (fun c i -> collect_opn_conflicts_instr c i) c s
+  in
+  List.fold_left (fun c f -> collect_opn_conflicts_stmt c f.f_body) c f
+
 let collect_conflicts pd reg_size asmOp
       (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
   let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
@@ -1171,13 +1207,21 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
       funcs
   in
   let vars = normalize_variables vars eqc in
+  let conflicts =
+    collect_opn_conflicts
+      Arch.pointer_data Arch.reg_size Arch.asmOp
+      vars
+      tr
+      funcs
+      empty_conflicts
+  in
   (* Intra-procedural conflicts *)
   let conflicts =
     Hf.fold (fun _fn lf conflicts ->
         collect_conflicts Arch.pointer_data Arch.reg_size Arch.asmOp vars tr lf conflicts
       )
       liveness_table
-      empty_conflicts
+      conflicts
   in
 
   (* In-register return address conflicts with function arguments *)
