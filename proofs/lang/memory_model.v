@@ -3,7 +3,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq div eqtype.
 From mathcomp Require Import ssralg word_ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith Lia.
-Import ssrring.
+Require Import ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

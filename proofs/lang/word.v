@@ -4,7 +4,6 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype tuple.
 From mathcomp Require Import div fintype order ssralg ssrnum word_ssrZ word.
-Require Import ssrring.
 Require Zquot.
 Require Import ZArith utils.
 Require Export wsize.
@@ -1234,10 +1233,6 @@ Lemma wlesE' ws (x y : word ws) :
 Proof. by rewrite -[_ || _]negbK negb_or negbK wltsE' /= leNgt. Qed.
 
 End WCMPE.
-
-(* -------------------------------------------------------------------*)
-Ltac wring :=
-  rewrite ?zero_extend_u; ssring.
 
 (* -------------------------------------------------------------------*)
 Lemma wdwordu0 sz (w:word sz) : wdwordu 0 w = wunsigned w.
