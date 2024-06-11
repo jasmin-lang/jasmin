@@ -1,0 +1,18 @@
+export fn main () -> reg u32 {
+  stack u32[N] s;
+  reg ptr u32[N] r;
+  reg ptr u32[1] r2;
+  reg u32 n i res;
+
+  i = 0;
+  res = 0;
+  n = N;
+  while (i < n) {
+    s[i] = res;
+  }
+  r = s;
+  r2 = r[N-1:1];
+  res = r2[0];
+
+  return res;
+}
