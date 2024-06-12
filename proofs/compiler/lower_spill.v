@@ -103,8 +103,8 @@ Definition unspill_x (ii : instr_info) (env : spill_env) (x : var_i) :=
     let sx := {| v_var := sx; v_info := x.(v_info) |} in
     ok (MkI ii (Cassgn (Lvar x) AT_none (vtype x) (Plvar sx)))
   else
-    Error (E.error ii (pp_hov [::pp_s "The variable"; pp_var x;
-            pp_s "needs to be spill before (maybe the variable has been written since the last spill)"])).
+    Error (E.error ii (pp_nobox [:: PPEbreak; pp_hov [::pp_s "The variable"; pp_var x;
+            pp_s "needs to be spilled before (maybe the variable has been written since the last spill)"]])).
 
 Definition unspill_es ii env tys es :=
   Let xs := get_Pvars ii es in
@@ -208,7 +208,7 @@ Definition get_spill (m:Mvar.t var) ii (x:var) :=
   match Mvar.get m x with
   | Some sx => ok sx
   | None => Error (E.error ii
-     (pp_hov [::pp_s "The variable"; pp_var x; pp_s "needs to be spill"]))
+     (pp_hov [::pp_s "The variable"; pp_var x; pp_s "needs to be spilled"]))
   end.
 
 Definition check_map (m:Mvar.t var) X :=
