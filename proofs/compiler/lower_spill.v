@@ -87,31 +87,29 @@ Section GET.
 
 Context (get_spill : instr_info -> var -> cexec var).
 
-(* FIXME: should we use AT_none instead of t ? *)
-Definition spill_x  (ii : instr_info) (t : assgn_tag) (env : spill_env) (x : var_i) :=
+Definition spill_x  (ii : instr_info) (env : spill_env) (x : var_i) :=
   Let sx := get_spill ii x in
   let sx := {| v_var := sx; v_info := x.(v_info) |} in
-  ok (Sv.add (v_var x) env, MkI ii (Cassgn (Lvar sx) t (vtype x) (Plvar x))).
+  ok (Sv.add (v_var x) env, MkI ii (Cassgn (Lvar sx) AT_none (vtype x) (Plvar x))).
 
-Definition spill_es ii t env tys es :=
+Definition spill_es ii env tys es :=
   Let xs := get_Pvars ii es in
   Let _ := check_ty ii xs tys in
-  fmapM (spill_x ii t) env xs.
+  fmapM (spill_x ii) env xs.
 
-(* FIXME: should we use AT_none instead of t ? *)
-Definition unspill_x (ii : instr_info) (t : assgn_tag) (env : spill_env) (x : var_i) :=
+Definition unspill_x (ii : instr_info) (env : spill_env) (x : var_i) :=
   if Sv.mem (v_var x) env then
     Let sx := get_spill ii x in
     let sx := {| v_var := sx; v_info := x.(v_info) |} in
-    ok (MkI ii (Cassgn (Lvar x) t (vtype x) (Plvar sx)))
+    ok (MkI ii (Cassgn (Lvar x) AT_none (vtype x) (Plvar sx)))
   else
     Error (E.error ii (pp_hov [::pp_s "The variable"; pp_var x;
             pp_s "needs to be spill before (maybe the variable has been written since the last spill)"])).
 
-Definition unspill_es ii t env tys es :=
+Definition unspill_es ii env tys es :=
   Let xs := get_Pvars ii es in
   Let _ := check_ty ii xs tys in
-  mapM (unspill_x ii t env) xs.
+  mapM (unspill_x ii env) xs.
 
 Section CMD.
 
@@ -169,8 +167,8 @@ Fixpoint spill_i (env : spill_env) (i : instr) : cexec (spill_env * cmd) :=
   | Cassgn lv t ty e => ok (update_lv env lv, [:: i])
   | Copn lvs t o es =>
     match is_spill_op o with
-    | Some (Spill, tys)   => spill_es ii t env tys es
-    | Some (Unspill, tys) => Let c := unspill_es ii t env tys es in ok (env, c)
+    | Some (Spill, tys)   => spill_es ii env tys es
+    | Some (Unspill, tys) => Let c := unspill_es ii env tys es in ok (env, c)
     | None                => ok (update_lvs env lvs, [::i])
     end
   | Csyscall lvs c es => ok (update_lvs env lvs, [::i])
