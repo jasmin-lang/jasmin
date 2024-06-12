@@ -106,7 +106,7 @@ Definition unspill_x (ii : instr_info) (t : assgn_tag) (env : spill_env) (x : va
     ok (MkI ii (Cassgn (Lvar x) t (vtype x) (Plvar sx)))
   else
     Error (E.error ii (pp_hov [::pp_s "The variable"; pp_var x;
-            pp_s "needs to be spill before (maybe the variable has been wrote since the last spill)"])).
+            pp_s "needs to be spill before (maybe the variable has been written since the last spill)"])).
 
 Definition unspill_es ii t env tys es :=
   Let xs := get_Pvars ii es in

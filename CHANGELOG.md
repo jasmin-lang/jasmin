@@ -30,8 +30,9 @@
   is spilled into a mmx variable (this works only for x86)
   See `compiler/tests/success/common/spill.jazz`.
   and `compiler/tests/success/X86-64/spill_mmx.jazz`.
-  ([PR #687](https://github.com/jasmin-lang/jasmin/pull/687)) and
-  ([PR #692](https://github.com/jasmin-lang/jasmin/pull/692)).
+  ([PR #687](https://github.com/jasmin-lang/jasmin/pull/687),
+  [PR #692](https://github.com/jasmin-lang/jasmin/pull/692), and
+  [PR #836](https://github.com/jasmin-lang/jasmin/pull/836)).
 
 - Add a swap primitive,
     `x, y = #swap(x, y)`
