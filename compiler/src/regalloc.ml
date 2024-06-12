@@ -89,12 +89,15 @@ let find_equality_constraints (id: instruction_desc) : arg_position list list =
     tbl []
 
 let find_var outs ins ap : _ option =
+  let oget = function
+    | Some x -> x
+    | None -> hierror_reg ~loc:Lnone ~internal:true "the instruction description is not correct" in
   match ap with
   | APout n ->
-     Option.bind (Oseq.onth outs n)
+     Oseq.onth outs n |> oget |>
        (function Lvar v -> Some v | _ -> None)
   | APin n ->
-     Option.bind (Oseq.onth ins n)
+     Oseq.onth ins n |> oget |>
        (function
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
