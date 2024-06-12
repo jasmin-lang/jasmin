@@ -23,12 +23,17 @@ Variant arg_desc :=
 | ADImplicit  of var
 | ADExplicit  of nat & option var.
 
+Variant arg_position :=
+| APout of nat
+| APin of nat.
+
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
   tin      : list stype;
   i_in     : seq arg_desc;
   tout     : list stype;
   i_out    : seq arg_desc;
+  conflicts: seq (arg_position * arg_position);
   semi     : sem_prod tin (exec (sem_tuple tout));
   semu     : forall vs vs' v,
                 List.Forall2 value_uincl vs vs' ->
@@ -45,6 +50,7 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe :=
      i_in     := i_in;
      tout     := tout;
      i_out    := i_out;
+     conflicts:= [::];
      semi     := semi;
      semu     := @vuincl_app_sopn_v tin tout semi refl_equal;
      i_safe   := safe;
@@ -133,6 +139,7 @@ Definition Ocopy_instr ws p :=
      i_in     := [:: E 1];
      tout     := [:: sarr sz];
      i_out    := [:: E 0];
+     conflicts:= [::];
      semi     := @WArray.copy ws p;
      semu     := @vuincl_copy ws p;
      i_safe   := [:: AllInit ws p 0];
@@ -196,6 +203,7 @@ Definition Ospill_instr o tys :=
      i_in     := mapi (fun i _ => E i) tys; 
      tout     := [:: ]; 
      i_out    := [:: ];
+     conflicts:= [::];
      semi     := spill_semi tys;
      semu     := @spill_semu tys; 
      i_safe   := [:: ];
@@ -207,6 +215,7 @@ Definition Oswap_instr ty :=
      i_in   := [:: E 0; E 1]; (* this info is relevant *)
      tout   := [:: ty; ty];
      i_out  := [:: E 0; E 1]; (* this info is relevant *)
+     conflicts:= [::];
      semi   := @swap_semi ty;
      semu   := @swap_semu ty;
      i_safe := [::];
@@ -306,6 +315,7 @@ Definition SLHprotect_ptr_instr p :=
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
      tout     := [:: sarr p ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
+     conflicts:=[::];
      semi     := @se_protect_ptr_sem p;
      semu     := @protect_ptr_semu p;
      i_safe   := [::];
@@ -332,6 +342,7 @@ Definition SLHprotect_ptr_fail_instr p :=
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
      tout     := [:: sarr p ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
+     conflicts:=[::];
      semi     := @se_protect_ptr_fail_sem p;
      semu     := @protect_ptr_fail_semu p;
      i_safe   := [::];
