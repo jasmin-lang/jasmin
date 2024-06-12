@@ -20,7 +20,7 @@ let coqPackages =
     pkgs.coqPackages.overrideScope (self: super: {
       coq = super.coq.override { version = "master"; };
     })
-  else coqPackages_8_18
+  else coqPackages_8_19
 ; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
