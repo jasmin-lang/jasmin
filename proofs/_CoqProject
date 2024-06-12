@@ -8,6 +8,7 @@
 -arg "-w +deprecated-instance-without-locality"
 -arg "-w -hiding-delimiting-key"
 -arg "-w +deprecated-since-mathcomp-1.17.0"
+-arg "-w -argument-scope-delimiter"
 
 -R 3rdparty Jasmin
 -R arch Jasmin
