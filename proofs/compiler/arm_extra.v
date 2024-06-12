@@ -50,6 +50,8 @@ Instance eqTC_arm_extra_op : eqTypeC arm_extra_op :=
 
 Local Notation E n := (sopn.ADExplicit n None).
 
+(* [conflicts] ensures that the returned register is distinct from the first
+   argument. *)
 Definition Oarm_add_large_imm_instr : instruction_desc :=
   let ty := sword arm_reg_size in
   let semi := fun (x y : word arm_reg_size) => ok (x + y)%R in
@@ -58,7 +60,7 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; i_in   := [:: E 1; E 2]
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
-   ; conflicts := [:: (E 0, E 1)]
+   ; conflicts := [:: (APout 0, APin 0)]
    ; semi   := semi
    ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] semi refl_equal
    ; i_safe := [::] |}.

@@ -23,13 +23,17 @@ Variant arg_desc :=
 | ADImplicit  of var
 | ADExplicit  of nat & option var.
 
+Variant arg_position :=
+| APout of nat
+| APin of nat.
+
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
   tin      : list stype;
   i_in     : seq arg_desc;
   tout     : list stype;
   i_out    : seq arg_desc;
-  conflicts: seq (arg_desc * arg_desc);
+  conflicts: seq (arg_position * arg_position);
   semi     : sem_prod tin (exec (sem_tuple tout));
   semu     : forall vs vs' v,
                 List.Forall2 value_uincl vs vs' ->

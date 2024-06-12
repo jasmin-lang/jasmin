@@ -69,13 +69,6 @@ let types_cannot_conflict reg_size kx x ky y : bool =
 
 type arg_position = APout of int | APin of int
 
-let int_of_nat n =
-  let rec loop acc =
-    function
-    | Datatypes.O -> acc
-    | Datatypes.S n -> loop (1 + acc) n
-  in loop 0 n
-
 let find_equality_constraints (id: instruction_desc) : arg_position list list =
   let tbl : (int, arg_position list) Hashtbl.t = Hashtbl.create 17 in
   let set n p =
@@ -85,11 +78,11 @@ let find_equality_constraints (id: instruction_desc) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.i_out;
+      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APout n)) id.i_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.i_in;
+      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APin n)) id.i_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -390,17 +383,13 @@ let collect_opn_conflicts pd reg_size asmOp
     | Copn (lvs, _, op, es) ->
       let id = get_instr_desc reg_size asmOp op in
       let conflicts = id.conflicts in
-      let find_desc a =
-        let exception Found of arg_position in
-        try
-          List.iteri (fun i a' -> if a = a' then raise (Found (APin i))) id.i_in;
-          List.iteri (fun i a' -> if a = a' then raise (Found (APout i))) id.i_out;
-          hierror_reg ~loc:(Lmore i.i_loc) ~internal:true "the instruction description is not correct"
-        with
-        | Found ap -> ap
-      in
       List.fold_left (fun c (a1, a2) ->
-        match find_var lvs es (find_desc a1), find_var lvs es (find_desc a2) with
+        let ap_of_cap a =
+          match a with
+          | Sopn.APout n -> APout (Conv.int_of_nat n)
+          | Sopn.APin n -> APin (Conv.int_of_nat n)
+        in
+        match find_var lvs es (ap_of_cap a1), find_var lvs es (ap_of_cap a2) with
         | Some x1, Some x2 ->
             add_one (Lmore i.i_loc) (L.unloc x1) (L.unloc x2) c
         | _, _ -> c) c conflicts
