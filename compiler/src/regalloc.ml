@@ -67,8 +67,6 @@ let types_cannot_conflict reg_size kx x ky y : bool =
   | Word, Word | Extra, Extra | Vector, Vector | Flag, Flag -> false
   | _, _ -> true
 
-type arg_position = APout of int | APin of int
-
 let find_equality_constraints (id: instruction_desc) : arg_position list list =
   let tbl : (int, arg_position list) Hashtbl.t = Hashtbl.create 17 in
   let set n p =
@@ -78,11 +76,11 @@ let find_equality_constraints (id: instruction_desc) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APout n)) id.i_out;
+      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APout (Conv.nat_of_int n))) id.i_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APin n)) id.i_in;
+      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APin (Conv.nat_of_int n))) id.i_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -92,10 +90,12 @@ let find_equality_constraints (id: instruction_desc) : arg_position list list =
 
 let find_var outs ins ap : _ option =
   match ap with
-  | APout n -> (List.nth outs n |> function Lvar v -> Some v | _ -> None)
+  | APout n ->
+     Option.bind (Oseq.onth outs n)
+       (function Lvar v -> Some v | _ -> None)
   | APin n ->
-     (List.nth ins n |>
-        function
+     Option.bind (Oseq.onth ins n)
+       (function
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
@@ -384,12 +384,7 @@ let collect_opn_conflicts pd reg_size asmOp
       let id = get_instr_desc reg_size asmOp op in
       let conflicts = id.conflicts in
       List.fold_left (fun c (a1, a2) ->
-        let ap_of_cap a =
-          match a with
-          | Sopn.APout n -> APout (Conv.int_of_nat n)
-          | Sopn.APin n -> APin (Conv.int_of_nat n)
-        in
-        match find_var lvs es (ap_of_cap a1), find_var lvs es (ap_of_cap a2) with
+        match find_var lvs es a1, find_var lvs es a2 with
         | Some x1, Some x2 ->
             add_one (Lmore i.i_loc) (L.unloc x1) (L.unloc x2) c
         | _, _ -> c) c conflicts
