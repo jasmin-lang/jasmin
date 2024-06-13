@@ -1,0 +1,8 @@
+export fn main () -> reg u32 {
+  reg u32 res;
+  res = 0;
+  () = #spill(res);
+  res = 2;
+  () = #unspill(res);
+  return res;
+}
