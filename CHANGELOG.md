@@ -50,7 +50,7 @@
   We now support operators SLH operators as in [Typing High-Speed Cryptography
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
-  We also provide a speculative CCT checker, via the `jazzct` flag `--sct`.
+  We also provide a speculative CCT checker, via the `jasmin-ct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
    [PR #723](https://github.com/jasmin-lang/jasmin/pull/723),
    [PR #814](https://github.com/jasmin-lang/jasmin/pull/814))
@@ -187,7 +187,7 @@
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
 
-- The Constant-Time security checker is now available as a separate `jazzct`
+- The Constant-Time security checker is now available as a separate `jasmin-ct`
   tool; the `-checkCT`, `-checkCTon`, and `-infer` command line options are
   deprecated
   ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
