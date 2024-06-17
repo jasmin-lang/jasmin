@@ -43,9 +43,7 @@ build: native
 define do-build
 	$(RM) jasminc jasmin2tex jasmin-ct
 	dune build @check @install
-	cp -L "_build/install/default/bin/jasminc" jasminc
-	cp -L "_build/install/default/bin/jasmin2tex" jasmin2tex
-	cp -L "_build/install/default/bin/jasmin-ct" jasmin-ct
+	for p in _build/install/default/bin/*; do ln -sf $$p $(shell basename $$p); done
 endef
 
 byte:
