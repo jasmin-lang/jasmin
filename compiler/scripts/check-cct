@@ -2,4 +2,4 @@
 
 set -ex
 
-exec $(dirname $0)/../jazzct "$@"
+exec $(dirname $0)/../jasmin-ct "$@"

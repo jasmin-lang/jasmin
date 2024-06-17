@@ -13,6 +13,10 @@
 
 ## Other changes
 
+- The executable `jazzct` for checking constant time is renamed into
+  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
+  ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
+
 - In x86 assembly, 8-bit immediate operands are printed unsigned,
   i.e., in the range [0; 255]
   ([PR #821](https://github.com/jasmin-lang/jasmin/pull/821);

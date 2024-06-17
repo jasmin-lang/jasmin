@@ -79,9 +79,9 @@ ocaml:
   artifacts:
     paths:
     - compiler/_build/
+    - compiler/jasmin2tex
     - compiler/jasminc
-    - compiler/jazz2tex
-    - compiler/jazzct
+    - compiler/jasmin-ct
 
 eclib:
   stage: prove
@@ -118,7 +118,7 @@ opam-compiler:
     nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
     'eval $(opam env) &&
      make -C compiler -j$NIX_BUILD_CORES &&
-     (cd compiler && mkdir -p bin && cp _build/default/entry/jasminc.exe bin/jasminc && cp _build/default/entry/jazz2tex.exe bin/jazz2tex && cp _build/default/entry/jazzct.exe bin/jazzct && mkdir -p lib/jasmin/easycrypt && cp ../eclib/*.ec lib/jasmin/easycrypt/)'
+     (cd compiler && mkdir -p bin && cp -L _build/install/default/bin/* bin/ && mkdir -p lib/jasmin/easycrypt && cp ../eclib/*.ec lib/jasmin/easycrypt/)'
   artifacts:
     paths:
     - compiler/bin/

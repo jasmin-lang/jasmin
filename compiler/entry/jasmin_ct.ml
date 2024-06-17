@@ -28,7 +28,8 @@ let parse_and_check arch call_conv =
       (pp_list "@ " (Ct_checker_forward.pp_signature prog))
       sigs;
     let on_err (loc, msg) =
-      hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror msg
+      hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a"
+        Pretyping.pp_tyerror msg
     in
     Stdlib.Option.iter on_err errs
   in
@@ -66,7 +67,7 @@ let () =
     ]
   in
   let info =
-    Cmd.info "jazzct" ~version:Glob_options.version_string ~doc ~man
+    Cmd.info "jasmin-ct" ~version:Glob_options.version_string ~doc ~man
   in
   Cmd.v info
     Term.(const parse_and_check $ arch $ call_conv $ infer $ slice $ file)
