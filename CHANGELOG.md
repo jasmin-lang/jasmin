@@ -3,6 +3,10 @@
 
 ## New features
 
+- The executable `jazzct` for checking constant time is renamed into
+  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
+  ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
+
 - The instructions of the VAES extension are available through a size suffix
   (e.g., `VAESENC_256`)
   ([PR #831](https://github.com/jasmin-lang/jasmin/pull/831),
@@ -50,7 +54,7 @@
   We now support operators SLH operators as in [Typing High-Speed Cryptography
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
-  We also provide a speculative CCT checker, via the `jazzct` flag `--sct`.
+  We also provide a speculative CCT checker, via the `jasmin-ct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
    [PR #723](https://github.com/jasmin-lang/jasmin/pull/723),
    [PR #814](https://github.com/jasmin-lang/jasmin/pull/814))

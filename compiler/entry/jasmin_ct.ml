@@ -114,7 +114,7 @@ let () =
       `I ("JASMINPATH", "To resolve $(i,require) directives");
     ]
   in
-  let info = Cmd.info "jazzct" ~version:Glob_options.version_string ~doc ~man in
+  let info = Cmd.info "jasmin-ct" ~version:Glob_options.version_string ~doc ~man in
   Cmd.v info
     Term.(
       const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative

@@ -41,11 +41,9 @@ all: build
 build: native
 
 define do-build
-	$(RM) jasminc jazz2tex jazzct
-	dune build @check entry/jasminc.$(1) entry/jazz2tex.$(1) entry/jazzct.$(1)
-	ln -sf "_build/default/entry/jasminc.$(1)" jasminc
-	ln -sf "_build/default/entry/jazz2tex.$(1)" jazz2tex
-	ln -sf "_build/default/entry/jazzct.$(1)" jazzct
+	$(RM) jasminc jasmin2tex jasmin-ct
+	dune build @check @install
+	for p in _build/install/default/bin/*; do ln -sf $$p $$(basename $$p); done
 endef
 
 byte:
@@ -68,18 +66,18 @@ check-ci:
 
 clean:
 	dune clean
-	$(RM) jasminc jazz2tex jazzct
+	$(RM) jasminc jasmin2tex jasmin-ct
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
-	$(INSTALL) -m 0755 -T jazz2tex $(DESTDIR)$(BINDIR)/jazz2tex
-	$(INSTALL) -m 0755 -T jazzct $(DESTDIR)$(BINDIR)/jazzct
+	$(INSTALL) -m 0755 -T jasmin2tex $(DESTDIR)$(BINDIR)/jasmin2tex
+	$(INSTALL) -m 0755 -T jasmin-ct $(DESTDIR)$(BINDIR)/jasmin-ct
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
-	$(RM) $(DESTDIR)$(BINDIR)/jazz2tex
-	$(RM) $(DESTDIR)$(BINDIR)/jazzct
+	$(RM) $(DESTDIR)$(BINDIR)/jasmin2tex
+	$(RM) $(DESTDIR)$(BINDIR)/jasmin-ct
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz

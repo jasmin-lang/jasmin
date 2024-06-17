@@ -36,7 +36,7 @@ let () =
     ]
   in
   let info =
-    Cmd.info "jazz2tex" ~version:Glob_options.version_string ~doc ~man
+    Cmd.info "jasmin2tex" ~version:Glob_options.version_string ~doc ~man
   in
   Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ output $ file)
   |> Cmd.eval |> exit
