@@ -89,6 +89,7 @@ compiler/riscv_decl.v
 compiler/riscv_instr_decl.v
 compiler/riscv_extra.v
 compiler/riscv_lower_addressing.v
+compiler/riscv_lower_addressing_proof.v
 compiler/riscv_lowering.v
 compiler/riscv_lowering_proof.v
 compiler/riscv_params.v

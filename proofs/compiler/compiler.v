@@ -396,7 +396,7 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
-  let ps := (ap_lap aparams).(lap_lower_address) (pT:=progStack) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) ps in
+  Let ps := (ap_lap aparams).(lap_lower_address) (pT:=progStack) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) ps in
   let ps := cparams.(print_sprog) LowerAddressing ps in
 
   let returned_params fn :=

@@ -37,11 +37,13 @@ Record lowering_params
            -> bool;
   }.
 
+(* Lowering of complex addressing mode for RISC-V.
+   It is the identity for the other architectures. *)
 Record lower_addressing_params
   `{asm_e : asm_extra} :=
-  {      
+  {
     lap_lower_address :
-      forall (pT : progT), (string -> stype -> Ident.ident) -> prog -> prog; 
+      forall (pT : progT), (string -> stype -> Ident.ident) -> prog -> cexec prog; 
   }.
 
 Record architecture_params

@@ -343,6 +343,19 @@ Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
   |}.
 
 (* ------------------------------------------------------------------------ *)
+(* Lowering of complex addressing mode for RISC-V.
+   It is the identity on arm, so the proof is trivial. *)
+
+Lemma arm_hlaparams : h_lower_addressing_params (ap_lap arm_params).
+Proof.
+  split=> /=.
+  + by move=> ? _ ? _ [<-].
+  + move=> ? _ ? _ [<-] _ fd ->.
+    by exists fd.
+  by move=> ?? _ ? _ [<-].
+Qed.
+
+(* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
 
 Section ASM_GEN.
@@ -934,6 +947,7 @@ Definition arm_h_params : h_architecture_params arm_params :=
     ok_lip_tmp      := arm_ok_lip_tmp;
     ok_lip_tmp2     := arm_ok_lip_tmp2;
     hap_hlop        := arm_hloparams;
+    hap_hlap        := arm_hlaparams;
     hap_hagp        := arm_hagparams;
     hap_hshp        := arm_hshp;
     hap_hszp        := arm_hszparams;
