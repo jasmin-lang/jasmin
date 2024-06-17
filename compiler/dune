@@ -16,9 +16,9 @@
  (libraries jasminc))
 
 (executable
- (public_name jazz2tex)
- (name jazz2tex)
- (modules jazz2tex)
+ (public_name jasmin2tex)
+ (name jasmin2tex)
+ (modules jasmin2tex)
  (flags (:standard -rectypes))
  (modes byte exe)
  (libraries commonCLI))

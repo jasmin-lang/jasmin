@@ -4,7 +4,7 @@
 ## New features
 
 - The executable `jazzct` for checking constant time is renamed into
-  `jasmin-ct`
+  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
   ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
 
 - The instructions of the VAES extension are available through a size suffix
