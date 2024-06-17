@@ -42,10 +42,10 @@ build: native
 
 define do-build
 	$(RM) jasminc jazz2tex jasmin-ct
-	dune build @check entry/jasminc.$(1) entry/jazz2tex.$(1) entry/jazzct.$(1)
-	ln -sf "_build/default/entry/jasminc.$(1)" jasminc
-	ln -sf "_build/default/entry/jazz2tex.$(1)" jazz2tex
-	ln -sf "_build/default/entry/jazzct.$(1)" jasmin-ct
+	dune build @check @install
+	ln -sf "_build/install/default/bin/jasminc" jasminc
+	ln -sf "_build/install/default/bin/jazz2tex" jazz2tex
+	ln -sf "_build/install/default/bin/jasmin-ct" jasmin-ct
 endef
 
 byte:

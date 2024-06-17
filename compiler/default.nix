@@ -9,9 +9,9 @@ stdenv.mkDerivation {
 
   installPhase = ''
     mkdir -p $out/bin
-    for p in jasminc jazz2tex jazzct
+    for p in jasminc jazz2tex jasmin-ct
     do
-      cp _build/default/entry/$p.exe $out/bin/$p
+      cp -L _build/install/default/bin/$p $out/bin/$p
     done
   '';
 }

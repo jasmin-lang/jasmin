@@ -3,6 +3,9 @@
 
 ## New features
 
+- The executable jazzct for checking constant time is renamed into jasmin-ct
+  ([pR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
+
 - The instructions of the VAES extension are available through a size suffix
   (e.g., `VAESENC_256`)
   ([PR #831](https://github.com/jasmin-lang/jasmin/pull/831),
@@ -187,7 +190,7 @@
     `a, b = #XCHG(a, b);` to allow swapping the contents of two operands.
   ([PR #678](https://github.com/jasmin-lang/jasmin/pull/678)).
 
-- The Constant-Time security checker is now available as a separate `jasmin-ct`
+- The Constant-Time security checker is now available as a separate `jazzct`
   tool; the `-checkCT`, `-checkCTon`, and `-infer` command line options are
   deprecated
   ([PR #766](https://github.com/jasmin-lang/jasmin/pull/766)).
