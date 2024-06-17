@@ -3,6 +3,19 @@
 
 ## New features
 
+- The stack allocation checker accepts more programs. This checker is run
+  during the stack allocation pass to verify that the transformation done
+  by the pass (mostly, turning arrays accesses into memory accesses)
+  is correct. It ensures that there is no aliasing problem when two arrays
+  are put in the same place in memory. Before, an assignment `a1 = a2`, where
+  `a1` and `a2` are two arrays, was accepted only if there was no aliasing
+  issue on `a2`, and `a1` was marked as having no aliasing issue.
+  Now, there is no such requirement on `a2`, and `a1` is marked as having
+  the same aliasing issues as `a2`.
+  This gives in particular more freedom for spilling and unspilling reg ptr,
+  see `compiler/tests/success/subarrays/x86-64/spill_partial.jazz`.
+  ([PR #841](https://github.com/jasmin-lang/jasmin/pull/841)).
+
 - ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
   immediates whose negation is small, a single `MVN`; and for large immediates
   a pair of `MOV` and `MOVT`.
