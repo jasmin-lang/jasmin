@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import expr ZArith sem_op_typed compiler_util.
@@ -334,8 +335,7 @@ subst => /=.
 by apply:(iffP idP) => [ /eqP | [] ] ->.
 Qed.
 
-Definition const_v_eqMixin     := Equality.Mixin const_v_eq_axiom.
-Canonical  const_v_eqType      := Eval hnf in EqType const_v const_v_eqMixin.
+HB.instance Definition _ := hasDecEq.Build const_v const_v_eq_axiom.
 
 Local Notation cpm := (Mvar.t const_v).
 

@@ -4,7 +4,6 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype tuple.
 From mathcomp Require Import div fintype order ssralg ssrnum word_ssrZ word.
-Require Import ssrring.
 Require Zquot.
 Require Import ZArith utils.
 Require Export wsize.
@@ -190,8 +189,7 @@ Coercion nat_of_pelem (pe: pelem) : nat :=
   | PE128 => nat_of_wsize U128
   end.
 
-Definition word := fun sz =>
-  [comRingType of (wsize_size_minus_1 sz).+1.-word].
+Definition word sz : comRingType := (wsize_size_minus_1 sz).+1.-word.
 
 Global Opaque word.
 
@@ -1239,10 +1237,6 @@ Proof. by rewrite -[_ || _]negbK negb_or negbK wltsE' /= leNgt. Qed.
 End WCMPE.
 
 (* -------------------------------------------------------------------*)
-Ltac wring :=
-  rewrite ?zero_extend_u; ssring.
-
-(* -------------------------------------------------------------------*)
 Lemma wdwordu0 sz (w:word sz) : wdwordu 0 w = wunsigned w.
 Proof. done. Qed.
 
@@ -2158,6 +2152,7 @@ Proof.
 
   rewrite Z.shiftl_mul_pow2; last done.
   split; first lia.
-  rewrite /wbase (modulusD 64 64) modulusE -expZE /=.
-  exact: Zmult_lt_compat_r.
+  move: hwn; rewrite !wbaseE /=.
+  change (Z.pow_pos 2 128) with (Z.pow_pos 2 64 * Z.pow_pos 2 64).
+  lia.
 Qed.

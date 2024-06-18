@@ -923,11 +923,20 @@ op VPTEST_256 (v1 v2: W256.t) =
 (* AES instruction *)
 
 abbrev [-printing] VAESDEC          = AESDEC.
+abbrev [-printing] VAESDEC_128      = AESDEC.
 abbrev [-printing] VAESDECLAST      = AESDECLAST.
+abbrev [-printing] VAESDECLAST_128  = AESDECLAST.
 abbrev [-printing] VAESENC          = AESENC.
+abbrev [-printing] VAESENC_128      = AESENC.
 abbrev [-printing] VAESENCLAST      = AESENCLAST.
+abbrev [-printing] VAESENCLAST_128  = AESENCLAST.
 abbrev [-printing] VAESIMC          = AESIMC.
 abbrev [-printing] VAESKEYGENASSIST = AESKEYGENASSIST.
+
+op VAESDEC_256     = W2u128.map2 VAESDEC_128.
+op VAESDECLAST_256 = W2u128.map2 VAESDECLAST_128.
+op VAESENC_256     = W2u128.map2 VAESENC_128.
+op VAESENCLAST_256 = W2u128.map2 VAESENCLAST_128.
 
 (* ------------------------------------------------------------------- *)
 (* PCLMULQDQ instructions *)

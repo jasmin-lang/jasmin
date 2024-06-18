@@ -1,3 +1,4 @@
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import PrimInt63 Sint63 utils gen_map.
 
@@ -24,8 +25,7 @@ Module Type TAGGED.
 
   Parameter t_eq_axiom : Equality.axiom t_eqb.
 
-  Definition t_eqMixin := Equality.Mixin t_eq_axiom.
-  Canonical  t_eqType  := EqType t t_eqMixin.
+  Parameter t_eqType : eqType.
 
   (* Comparison *)
   Parameter cmp : t -> t -> comparison.
@@ -54,8 +54,8 @@ Module Tagged(C:TaggedCore) <: TAGGED with Definition t := C.t
     split => [ | -> //]; apply tagI.
   Qed.
 
-  Definition t_eqMixin := Equality.Mixin t_eq_axiom.
-  Canonical  t_eqType  := EqType t t_eqMixin.
+  HB.instance Definition _ := hasDecEq.Build t t_eq_axiom.
+  Definition t_eqType : eqType := t.
 
   (* Comparison *)
   Definition cmp (x y : t) : comparison := (tag x ?= tag y)%sint63.
@@ -74,13 +74,13 @@ Module Tagged(C:TaggedCore) <: TAGGED with Definition t := C.t
 
   Module CmpT.
 
-    Definition t := [eqType of t].
+    Definition t : eqType := t.
     Definition cmp : t -> t -> comparison := cmp.
     Definition cmpO : Cmp cmp := cmpO.
 
   End CmpT.
 
-  Module Mt : MAP with Definition K.t := [eqType of t] := Mmake CmpT.
+  Module Mt : MAP with Definition K.t := (t : eqType) := Mmake CmpT.
 
   Module St  := Smake CmpT.
   Module StP := MSetEqProperties.EqProperties St.

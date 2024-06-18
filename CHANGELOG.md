@@ -3,6 +3,19 @@
 
 ## New features
 
+- The executable `jazzct` for checking constant time is renamed into
+  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
+  ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
+
+- The instructions of the VAES extension are available through a size suffix
+  (e.g., `VAESENC_256`)
+  ([PR #831](https://github.com/jasmin-lang/jasmin/pull/831),
+  fixes [#630](https://github.com/jasmin-lang/jasmin/issues/630)).
+
+- The following x86 BMI2 instructions are now available:
+  `RORX`, `SARX`, `SHRX`, and `SHLX`
+  ([PR #824](https://github.com/jasmin-lang/jasmin/pull/824)).
+
 - ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
   immediates whose negation is small, a single `MVN`; and for large immediates
   a pair of `MOV` and `MOVT`.
@@ -18,11 +31,12 @@
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
   If the annotation #spill_to_mmx is used at the variable declaration the variable
-  is spilled into a mmx variable (this works only for x86)
+  is spilled into a mmx variable (this works only for x86).
   See `compiler/tests/success/common/spill.jazz`.
   and `compiler/tests/success/X86-64/spill_mmx.jazz`.
-  ([PR #687](https://github.com/jasmin-lang/jasmin/pull/687)) and
-  ([PR #692](https://github.com/jasmin-lang/jasmin/pull/692)).
+  ([PR #687](https://github.com/jasmin-lang/jasmin/pull/687),
+  [PR #692](https://github.com/jasmin-lang/jasmin/pull/692), and
+  [PR #836](https://github.com/jasmin-lang/jasmin/pull/836)).
 
 - Add a swap primitive,
     `x, y = #swap(x, y)`
@@ -40,7 +54,7 @@
   We now support operators SLH operators as in [Typing High-Speed Cryptography
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
-  We also provide a speculative CCT checker, via the `jazzct` flag `--sct`.
+  We also provide a speculative CCT checker, via the `jasmin-ct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
    [PR #723](https://github.com/jasmin-lang/jasmin/pull/723),
    [PR #814](https://github.com/jasmin-lang/jasmin/pull/814))

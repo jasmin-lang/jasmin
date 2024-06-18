@@ -35,10 +35,11 @@ class Scenario:
     def _test_case_dirs(self):
         def expand(dirs) -> list[str]:
             return [
-                path
+                root
                 for dir in dirs.split()
                 for path in glob.glob(dir, recursive=True)
-                if not any(path.startswith(e.removeprefix("!")) for e in self.exclude)
+                for root, _, _ in os.walk(path)
+                if not any(root.startswith(e) for e in self.exclude)
             ]
 
         return [

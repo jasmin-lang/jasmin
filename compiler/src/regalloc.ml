@@ -67,15 +67,6 @@ let types_cannot_conflict reg_size kx x ky y : bool =
   | Word, Word | Extra, Extra | Vector, Vector | Flag, Flag -> false
   | _, _ -> true
 
-type arg_position = APout of int | APin of int
-
-let int_of_nat n =
-  let rec loop acc =
-    function
-    | Datatypes.O -> acc
-    | Datatypes.S n -> loop (1 + acc) n
-  in loop 0 n
-
 let find_equality_constraints (id: instruction_desc) : arg_position list list =
   let tbl : (int, arg_position list) Hashtbl.t = Hashtbl.create 17 in
   let set n p =
@@ -85,11 +76,11 @@ let find_equality_constraints (id: instruction_desc) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.i_out;
+      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APout (Conv.nat_of_int n))) id.i_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.i_in;
+      | ADExplicit (p, _) -> set (Conv.int_of_nat p) (APin (Conv.nat_of_int n))) id.i_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -98,11 +89,16 @@ let find_equality_constraints (id: instruction_desc) : arg_position list list =
     tbl []
 
 let find_var outs ins ap : _ option =
+  let oget = function
+    | Some x -> x
+    | None -> hierror_reg ~loc:Lnone ~internal:true "the instruction description is not correct" in
   match ap with
-  | APout n -> (List.nth outs n |> function Lvar v -> Some v | _ -> None)
+  | APout n ->
+     Oseq.onth outs n |> oget |>
+       (function Lvar v -> Some v | _ -> None)
   | APin n ->
-     (List.nth ins n |>
-        function
+     Oseq.onth ins n |> oget |>
+       (function
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
@@ -369,7 +365,6 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   fun a -> loop a e
 
 let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
-  if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
@@ -377,8 +372,36 @@ let conflicts_add_one pd reg_size asmOp tbl tr loc (v: var) (w: var) (c: conflic
                     (Printer.pp_var ~debug:true) v
                     (Printer.pp_var ~debug:true) w
                     (pp_trace pd asmOp i) tr;
+    if types_cannot_conflict reg_size v.v_kind v.v_ty w.v_kind w.v_ty then c else
     c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
+
+(* Some instructions can declare conflicts between the registers appearing
+   in the arguments and in the result. We collect all these conflicts. *)
+let collect_opn_conflicts pd reg_size asmOp
+      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: ('info, 'asm) func list) (c: conflicts) : conflicts =
+  let add_one = conflicts_add_one pd reg_size asmOp tbl tr in
+  let rec collect_opn_conflicts_instr c i =
+    begin match i.i_desc with
+    | Copn (lvs, _, op, es) ->
+      let id = get_instr_desc reg_size asmOp op in
+      let conflicts = id.conflicts in
+      List.fold_left (fun c (a1, a2) ->
+        match find_var lvs es a1, find_var lvs es a2 with
+        | Some x1, Some x2 ->
+            add_one (Lmore i.i_loc) (L.unloc x1) (L.unloc x2) c
+        | _, _ -> c) c conflicts
+    | Cfor (_, _, s) -> collect_opn_conflicts_stmt c s
+    | Cif (_, s1, s2)
+    | Cwhile (_, s1, _, s2) ->
+        let c = collect_opn_conflicts_stmt c s1 in
+        collect_opn_conflicts_stmt c s2
+    | _ -> c
+    end
+  and collect_opn_conflicts_stmt c s =
+    List.fold_left (fun c i -> collect_opn_conflicts_instr c i) c s
+  in
+  List.fold_left (fun c f -> collect_opn_conflicts_stmt c f.f_body) c f
 
 let collect_conflicts pd reg_size asmOp
       (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
@@ -1171,13 +1194,21 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
       funcs
   in
   let vars = normalize_variables vars eqc in
+  let conflicts =
+    collect_opn_conflicts
+      Arch.pointer_data Arch.reg_size Arch.asmOp
+      vars
+      tr
+      funcs
+      empty_conflicts
+  in
   (* Intra-procedural conflicts *)
   let conflicts =
     Hf.fold (fun _fn lf conflicts ->
         collect_conflicts Arch.pointer_data Arch.reg_size Arch.asmOp vars tr lf conflicts
       )
       liveness_table
-      empty_conflicts
+      conflicts
   in
 
   (* In-register return address conflicts with function arguments *)

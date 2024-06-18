@@ -56,9 +56,11 @@ Definition arm_mov_ofs
           (* This allows to remove constraint in register allocation *)
           if is_arith_small ofs then mk (ADD, [::y; eword_of_int reg_size ofs ])
           else
+            (* These checks are not needed for the proof, but it is probably better
+               to fail here than in asm_gen. *)
             if y is Pvar y_ then
-              if [&& v_var x_ != v_var y_.(gv), is_lvar y_, vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
-                Some (Copn [::x; Lvar y_.(gv)] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
+              if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
+                Some (Copn [::x] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
               else None
             else None
     | Lmem _ _ _ _ =>

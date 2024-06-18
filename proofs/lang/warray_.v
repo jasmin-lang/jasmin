@@ -2,6 +2,7 @@
 
 (* ** Imports and settings *)
 Require Export ZArith Setoid Morphisms.
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import xseq.
@@ -24,8 +25,7 @@ Proof.
     (eq_axiom_of_scheme internal_arr_access_dec_bl internal_arr_access_dec_lb).
 Qed.
 
-Definition arr_access_eqMixin     := Equality.Mixin arr_access_eq_axiom.
-Canonical  arr_access_eqType      := Eval hnf in EqType arr_access arr_access_eqMixin.
+HB.instance Definition _ := hasDecEq.Build arr_access arr_access_eq_axiom.
 
 Local Open Scope Z_scope.
 
@@ -51,7 +51,8 @@ Module WArray.
   Definition empty (s:positive) : array s :=
     {| arr_data := Mz.empty _ |}.
 
-  Local Notation pointer := [eqType of Z].
+  #[ local ]
+  Notation pointer := Z.
 
   (* We set the priority to 1, so that memory_model.Pointer is selected by
      default.

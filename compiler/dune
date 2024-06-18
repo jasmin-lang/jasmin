@@ -16,17 +16,17 @@
  (libraries jasminc))
 
 (executable
- (public_name jazz2tex)
- (name jazz2tex)
- (modules jazz2tex)
+ (public_name jasmin2tex)
+ (name jasmin2tex)
+ (modules jasmin2tex)
  (flags (:standard -rectypes))
  (modes byte exe)
  (libraries commonCLI))
 
 (executable
- (public_name jazzct)
- (name jazzct)
- (modules jazzct)
+ (public_name jasmin-ct)
+ (name jasmin_ct)
+ (modules jasmin_ct)
  (flags (:standard -rectypes))
  (modes byte exe)
  (libraries commonCLI))

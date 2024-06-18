@@ -44,13 +44,14 @@ Definition to_spill_e s e :=
   end.
 
 (* Compute the set for variable that are spilled *)
-Fixpoint to_spill_i (s : Sv.t) (i : instr) :=
+Fixpoint to_spill_i (s : Sv.t * bool) (i : instr) :=
   let (ii,ir) := i in
   match ir with
   | Cassgn _ _ _ _ => s
   | Copn _ _ o es =>
     match is_spill_op o with
-    | Some (Spill, _) => foldl to_spill_e s es
+    | Some (Spill, _) => (foldl to_spill_e s.1 es, true)
+    | Some (Unspill, _) => (s.1, true)
     | _ => s
     end
   | Csyscall _ _ _ => s
@@ -86,31 +87,29 @@ Section GET.
 
 Context (get_spill : instr_info -> var -> cexec var).
 
-(* FIXME: should we use AT_none instead of t ? *)
-Definition spill_x  (ii : instr_info) (t : assgn_tag) (env : spill_env) (x : var_i) :=
+Definition spill_x  (ii : instr_info) (env : spill_env) (x : var_i) :=
   Let sx := get_spill ii x in
   let sx := {| v_var := sx; v_info := x.(v_info) |} in
-  ok (Sv.add (v_var x) env, MkI ii (Cassgn (Lvar sx) t (vtype x) (Plvar x))).
+  ok (Sv.add (v_var x) env, MkI ii (Cassgn (Lvar sx) AT_none (vtype x) (Plvar x))).
 
-Definition spill_es ii t env tys es :=
+Definition spill_es ii env tys es :=
   Let xs := get_Pvars ii es in
   Let _ := check_ty ii xs tys in
-  fmapM (spill_x ii t) env xs.
+  fmapM (spill_x ii) env xs.
 
-(* FIXME: should we use AT_none instead of t ? *)
-Definition unspill_x (ii : instr_info) (t : assgn_tag) (env : spill_env) (x : var_i) :=
+Definition unspill_x (ii : instr_info) (env : spill_env) (x : var_i) :=
   if Sv.mem (v_var x) env then
     Let sx := get_spill ii x in
     let sx := {| v_var := sx; v_info := x.(v_info) |} in
-    ok (MkI ii (Cassgn (Lvar x) t (vtype x) (Plvar sx)))
+    ok (MkI ii (Cassgn (Lvar x) AT_none (vtype x) (Plvar sx)))
   else
-    Error (E.error ii (pp_hov [::pp_s "The variable"; pp_var x;
-            pp_s "needs to be spill before (maybe the variable has been wrote since the last spill)"])).
+    Error (E.error ii (pp_nobox [:: PPEbreak; pp_hov [::pp_s "The variable"; pp_var x;
+            pp_s "needs to be spilled before (maybe the variable has been written since the last spill)"]])).
 
-Definition unspill_es ii t env tys es :=
+Definition unspill_es ii env tys es :=
   Let xs := get_Pvars ii es in
   Let _ := check_ty ii xs tys in
-  mapM (unspill_x ii t env) xs.
+  mapM (unspill_x ii env) xs.
 
 Section CMD.
 
@@ -168,8 +167,8 @@ Fixpoint spill_i (env : spill_env) (i : instr) : cexec (spill_env * cmd) :=
   | Cassgn lv t ty e => ok (update_lv env lv, [:: i])
   | Copn lvs t o es =>
     match is_spill_op o with
-    | Some (Spill, tys)   => spill_es ii t env tys es
-    | Some (Unspill, tys) => Let c := unspill_es ii t env tys es in ok (env, c)
+    | Some (Spill, tys)   => spill_es ii env tys es
+    | Some (Unspill, tys) => Let c := unspill_es ii env tys es in ok (env, c)
     | None                => ok (update_lvs env lvs, [::i])
     end
   | Csyscall lvs c es => ok (update_lvs env lvs, [::i])
@@ -209,7 +208,7 @@ Definition get_spill (m:Mvar.t var) ii (x:var) :=
   match Mvar.get m x with
   | Some sx => ok sx
   | None => Error (E.error ii
-     (pp_hov [::pp_s "The variable"; pp_var x; pp_s "needs to be spill"]))
+     (pp_hov [::pp_s "The variable"; pp_var x; pp_s "needs to be spilled"]))
   end.
 
 Definition check_map (m:Mvar.t var) X :=
@@ -218,9 +217,9 @@ Definition check_map (m:Mvar.t var) X :=
 
 Definition spill_fd {eft} (fn:funname) (fd: _fundef eft) : cexec (_fundef eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
-  let s := foldl to_spill_i Sv.empty c in
-  if Sv.is_empty s then ok fd else
-  let m := init_map s in
+  let s := foldl to_spill_i (Sv.empty, false) c in
+  if ~~s.2 then ok fd else
+  let m := init_map s.1 in
   let X := Sv.union (vars_l params) (Sv.union (vars_l res) (vars_c c)) in
   let b := check_map m X in
   Let _ := assert b.1 (pp_internal_error E.pass (pp_s "invalid map")) in

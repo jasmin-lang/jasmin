@@ -1,3 +1,4 @@
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import ssralg.
 Require Import ZArith Uint63.
@@ -148,8 +149,7 @@ Proof.
        internal_compiler_step_dec_bl
        internal_compiler_step_dec_lb).
 Qed.
-Definition compiler_step_eqMixin := Equality.Mixin compiler_step_eq_axiom.
-Canonical  compiler_step_eqType  := Eval hnf in EqType compiler_step compiler_step_eqMixin.
+HB.instance Definition _ := hasDecEq.Build compiler_step compiler_step_eq_axiom.
 
 Lemma compiler_step_list_complete : Finite.axiom compiler_step_list.
 Proof. by case. Qed.

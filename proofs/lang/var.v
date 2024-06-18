@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
 Require Import Setoid Morphisms.
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import strings utils gen_map type ident tagged.
 Require Import Utf8.
@@ -58,8 +59,7 @@ Module MvMake (I:IDENT).
       by rewrite !eq_refl.
   Qed.
 
-  Definition var_eqMixin := EqMixin var_eqP.
-  Canonical  var_eqType  := EqType var var_eqMixin.
+  HB.instance Definition _ := hasDecEq.Build var var_eqP.
 
   Definition var_cmp (x y:var) :=
     Lex (stype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
@@ -127,7 +127,7 @@ Definition is_reg_array x :=
 
 Module CmpVar.
 
-  Definition t := [eqType of var].
+  Definition t : eqType := var.
 
   Definition cmp : t -> t -> comparison := var_cmp.
 

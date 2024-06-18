@@ -1,3 +1,4 @@
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import
@@ -35,10 +36,7 @@ Proof.
        internal_riscv_extra_op_dec_lb).
 Qed.
 
-Definition riscv_extra_op_eqMixin :=
-  Equality.Mixin riscv_extra_op_eq_axiom.
-Canonical riscv_extra_op_eqType :=
-  Eval hnf in EqType riscv_extra_op riscv_extra_op_eqMixin.
+HB.instance Definition _ := hasDecEq.Build riscv_extra_op riscv_extra_op_eq_axiom.
 
 #[ export ]
 Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
@@ -52,6 +50,7 @@ Definition riscv_SUBI_instr : instruction_desc :=
    i_in   := [:: E 1; E 2];
    tout   := [:: sreg];
    i_out  := [:: E 0];
+   conflicts := [::];
    semi   := riscv_sub_semi;
    semu   := @values.vuincl_app_sopn_v [::sreg; sreg] [::sreg] riscv_sub_semi refl_equal;
    i_safe := [::] 

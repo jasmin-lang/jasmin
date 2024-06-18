@@ -1,4 +1,5 @@
 (* -------------------------------------------------------------------- *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 From Coq Require Import
@@ -116,7 +117,7 @@ Variant address :=
 | Arip of pointer.    (* Address relative to instruction pointer. *)
 
 Definition oeq_reg (x y:option reg_t) :=
-  @eq_op (option_eqType ceqT_eqType) x y.
+  @eq_op (option ceqT_eqType) x y.
 
 Definition reg_address_beq (addr1: reg_address) addr2 :=
   match addr1, addr2 with
@@ -131,8 +132,7 @@ case=> [d1 b1 s1 o1] [d2 b2 s2 o2]; apply: (iffP idP) => /=.
 by case; do 4! move=> ->; rewrite /oeq_reg !eqxx.
 Qed.
 
-Definition reg_address_eqMixin := Equality.Mixin reg_address_eq_axiom.
-Canonical reg_address_eqType := EqType reg_address reg_address_eqMixin.
+HB.instance Definition _ := hasDecEq.Build reg_address reg_address_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -148,8 +148,7 @@ Proof.
   by case=> []? []? /=; (constructor || apply: reflect_inj eqP => ?? []).
 Qed.
 
-Definition address_eqMixin := Equality.Mixin address_eq_axiom.
-Canonical address_eqType := EqType address address_eqMixin.
+HB.instance Definition _ := hasDecEq.Build address address_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* Arguments to assembly instructions. *)
@@ -190,8 +189,7 @@ Proof.
   by move=> /Imm_inj [? ];subst => /= ->;rewrite !eqxx.
 Qed.
 
-Definition asm_arg_eqMixin := Equality.Mixin asm_arg_eq_axiom.
-Canonical asm_arg_eqType := EqType asm_arg asm_arg_eqMixin.
+HB.instance Definition _ := hasDecEq.Build asm_arg asm_arg_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* Writing a large word to register or memory
@@ -209,8 +207,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_msb_flag_dec_bl internal_msb_flag_dec_lb).
 Qed.
 
-Definition msb_flag_eqMixin := Equality.Mixin msb_flag_eq_axiom.
-Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
+HB.instance Definition _ := hasDecEq.Build msb_flag msb_flag_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* Implicit arguments.
@@ -233,8 +230,7 @@ Proof.
   by case=> []? []? /=; (constructor || apply: reflect_inj eqP => ?? []).
 Qed.
 
-Definition implicit_arg_eqMixin := Equality.Mixin implicit_arg_eq_axiom.
-Canonical implicit_arg_eqType := EqType _ implicit_arg_eqMixin.
+HB.instance Definition _ := hasDecEq.Build implicit_arg implicit_arg_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* Address kinds.
@@ -292,8 +288,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_arg_kind_dec_bl internal_arg_kind_dec_lb).
 Qed.
 
-Definition arg_kind_eqMixin := Equality.Mixin arg_kind_eq_axiom.
-Canonical  arg_kind_eqType  := EqType _ arg_kind_eqMixin.
+HB.instance Definition _ := hasDecEq.Build arg_kind arg_kind_eq_axiom.
 
 
 (* An argument position where different argument kinds are allowed is
@@ -564,8 +559,7 @@ Definition asm_typed_reg_beq r1 r2 :=
 Lemma asm_typed_reg_eq_axiom : Equality.axiom asm_typed_reg_beq.
 Proof. case => r1 [] r2 /=; try by (constructor || apply: reflect_inj eqP => ?? []). Qed.
 
-Definition asm_typed_reg_eqMixin := Equality.Mixin asm_typed_reg_eq_axiom.
-Canonical asm_typed_reg_eqType := EqType asm_typed_reg asm_typed_reg_eqMixin.
+HB.instance Definition _ := hasDecEq.Build asm_typed_reg asm_typed_reg_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* Function declaration                                                 *)
@@ -658,8 +652,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_rflagv_dec_bl internal_rflagv_dec_lb).
 Qed.
 
-Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
-Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
+HB.instance Definition _ := hasDecEq.Build rflagv rflagv_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* Assembly declaration. *)

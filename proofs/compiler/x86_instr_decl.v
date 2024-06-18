@@ -1,3 +1,4 @@
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype tuple.
 From mathcomp Require Import ssralg word word_ssrZ.
 Require Import utils strings word waes sem_type global oseq sopn.
@@ -72,6 +73,12 @@ Variant x86_op : Type :=
 | SAR    of wsize    (*   signed / right *)
 | SHLD   of wsize    (* unsigned (double) / left *)
 | SHRD   of wsize    (* unsigned (double) / right *)
+
+| RORX of wsize (* rotate right w/o affecting flags *)
+| SARX of wsize (* arithmetic shift right w/o affecting flags *)
+| SHRX of wsize (* logical shift right w/o affecting flags *)
+| SHLX of wsize (* logical shift left w/o affecting flags *)
+
 | MULX_lo_hi of wsize  (* mul unsigned, doesn't affect arithmetic flags *)
 | ADCX    of wsize  (* add with carry flag, only writes carry flag *)
 | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
@@ -162,13 +169,13 @@ Variant x86_op : Type :=
 
 (* AES instructions *)
 | AESDEC
-| VAESDEC
+| VAESDEC of wsize
 | AESDECLAST
-| VAESDECLAST
+| VAESDECLAST of wsize
 | AESENC
-| VAESENC
+| VAESENC of wsize
 | AESENCLAST
-| VAESENCLAST
+| VAESENCLAST of wsize
 | AESIMC
 | VAESIMC
 | AESKEYGENASSIST
@@ -186,8 +193,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_x86_op_dec_bl internal_x86_op_dec_lb).
 Qed.
 
-Definition x86_op_eqMixin := Equality.Mixin x86_op_eq_axiom.
-Canonical x86_op_eqType := EqType x86_op x86_op_eqMixin.
+HB.instance Definition _ := hasDecEq.Build x86_op x86_op_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 Definition b_ty             := [:: sbool].
@@ -680,6 +686,21 @@ Definition x86_SAR sz (v: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
     rflags_OF i r rc false.
 
 (* ---------------------------------------------------------------- *)
+Definition x86_RORX sz (v: word sz) (i: u8) : exec (word sz) :=
+  Let _ := check_size_32_64 sz in
+  let i := wand i (x86_shift_mask sz) in
+  ok (wror v (wunsigned i)).
+
+Definition x86_bmi_shift sz (op: word sz → Z → word sz) (v i: word sz) : exec (word sz) :=
+  Let _ := check_size_32_64 sz in
+  let i := Z.land (wunsigned i) (wunsigned (x86_shift_mask sz)) in
+  ok (op v i).
+
+Definition x86_SARX sz := x86_bmi_shift (@wsar sz).
+Definition x86_SHRX sz := x86_bmi_shift (@wshr sz).
+Definition x86_SHLX sz := x86_bmi_shift (@wshl sz).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_BSWAP sz (v: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_32_64 sz in
   ok (wbswap v).
@@ -855,7 +876,7 @@ Definition wpblendw (m : u8) (w1 w2 : word U128) :=
   let v1 := split_vec U16 w1 in
   let v2 := split_vec U16 w2 in
   let b := split_vec 1 m in
-  let r := map3 (λ (b0 : word.word_ringType 0) (v3 v4 : mathcomp.word.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
+  let r := map3 (λ (b0 : (mathcomp.word.word.word 1 : ringType)) (v3 v4 : mathcomp.word.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
   make_vec U128 r.
 
 Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
@@ -1456,6 +1477,22 @@ Definition Ox86_SHLD_instr :=
 Definition Ox86_SHRD_instr :=
   mk_instr_w2w8_b5w_01c0 "SHRD" x86_SHRD check_shld safe_shxd (prim_16_64 SHRD) (pp_iname_ww_8 "shrd").
 
+Definition check_rorx of wsize := [::[::r ; rm true; i U8]].
+
+Definition Ox86_RORX_instr :=
+  mk_instr_ww8_w_120 "RORX" x86_RORX check_rorx (prim_32_64 RORX) (pp_name "rorx").
+
+Definition check_sarx of wsize := [::[::r ; rm true; r]].
+
+Definition Ox86_SARX_instr :=
+  mk_instr_w2_w_120 "SARX" x86_SARX check_sarx (prim_32_64 SARX) (pp_name "sarx").
+
+Definition Ox86_SHRX_instr :=
+  mk_instr_w2_w_120 "SHRX" x86_SHRX check_sarx (prim_32_64 SHRX) (pp_name "shrx").
+
+Definition Ox86_SHLX_instr :=
+  mk_instr_w2_w_120 "SHLX" x86_SHLX check_sarx (prim_32_64 SHLX) (pp_name "shlx").
+
 Definition Ox86_BSWAP_instr :=
   mk_instr_w_w "BSWAP" x86_BSWAP [:: Eu 0] [:: Eu 0] 1 (fun _ => [:: [::r]]) (prim_32_64 BSWAP) (pp_iname "bswap").
 
@@ -1836,33 +1873,37 @@ Definition mk_instr_aes2 jname aname (constr:x86_op) x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: Eu 0; Eu 1] [:: Eu 0] msb_flag x86_sem
          (check_xmm_xmmm U128) 2 (primM constr) (pp_name_ty aname [::U128;U128]).
 
-Definition mk_instr_aes3 jname aname (constr:x86_op) x86_sem msb_flag :=
-  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: Eu 1; Eu 2] [:: Eu 0] msb_flag x86_sem
-         (check_xmm_xmm_xmmm U128) 3 (primM constr) (pp_name_ty aname [::U128;U128;U128]).
+Definition mk_instr_aes3 jname aname (constr: wsize → x86_op) x86_sem :=
+  (λ sz, mk_instr (pp_sz jname sz) (w2_ty sz sz) (w_ty sz) [:: Eu 1; Eu 2]
+           [:: Eu 0] MSB_CLEAR
+           (x86_u128_binop (lift2_vec U128 x86_sem sz))
+           (check_xmm_xmm_xmmm sz) 3 [::]
+           (pp_name_ty aname [:: sz; sz; sz ]),
+   (jname%string, prim_128_256 constr)).
 
 Definition Ox86_AESDEC_instr := 
   mk_instr_aes2 "AESDEC" "aesdec" AESDEC x86_AESDEC MSB_MERGE.
 
-Definition Ox86_VAESDEC_instr := 
-  mk_instr_aes3 "VAESDEC" "vaesdec" VAESDEC x86_AESDEC MSB_CLEAR.
+Definition Ox86_VAESDEC_instr :=
+  mk_instr_aes3 "VAESDEC" "vaesdec" VAESDEC wAESDEC.
 
 Definition Ox86_AESDECLAST_instr := 
   mk_instr_aes2 "AESDECLAST" "aesdeclast" AESDECLAST x86_AESDECLAST MSB_MERGE.
 
-Definition Ox86_VAESDECLAST_instr := 
-  mk_instr_aes3 "VAESDECLAST" "vaesdeclast" VAESDECLAST x86_AESDECLAST MSB_CLEAR.
+Definition Ox86_VAESDECLAST_instr :=
+  mk_instr_aes3 "VAESDECLAST" "vaesdeclast" VAESDECLAST wAESDECLAST.
 
 Definition Ox86_AESENC_instr := 
   mk_instr_aes2 "AESENC" "aesenc" AESENC x86_AESENC MSB_MERGE.
 
-Definition Ox86_VAESENC_instr := 
-  mk_instr_aes3 "VAESENC" "vaesenc" VAESENC x86_AESENC MSB_CLEAR.
+Definition Ox86_VAESENC_instr :=
+  mk_instr_aes3 "VAESENC" "vaesenc" VAESENC wAESENC.
 
 Definition Ox86_AESENCLAST_instr := 
   mk_instr_aes2 "AESENCLAST" "aesenclast" AESENCLAST x86_AESENCLAST MSB_MERGE.
 
-Definition Ox86_VAESENCLAST_instr := 
-  mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST x86_AESENCLAST MSB_CLEAR.
+Definition Ox86_VAESENCLAST_instr :=
+  mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST wAESENCLAST.
 
 Definition Ox86_AESIMC_instr := 
   mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: Eu 1] [:: Eu 0] MSB_MERGE x86_AESIMC
@@ -1952,6 +1993,10 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SAL sz             => Ox86_SAL_instr.1 sz
   | SHLD sz            => Ox86_SHLD_instr.1 sz
   | SHRD sz            => Ox86_SHRD_instr.1 sz
+  | RORX sz            => Ox86_RORX_instr.1 sz
+  | SARX sz            => Ox86_SARX_instr.1 sz
+  | SHRX sz            => Ox86_SHRX_instr.1 sz
+  | SHLX sz            => Ox86_SHLX_instr.1 sz
   | MOVX sz            => Ox86_MOVX_instr.1 sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
   | MOVV sz            => Ox86_MOVV_instr.1 sz
@@ -2022,13 +2067,13 @@ Definition x86_instr_desc o : instr_desc_t :=
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
-  | VAESDEC            => Ox86_VAESDEC_instr.1         
+  | VAESDEC sz         => Ox86_VAESDEC_instr.1 sz
   | AESDECLAST         => Ox86_AESDECLAST_instr.1      
-  | VAESDECLAST        => Ox86_VAESDECLAST_instr.1     
+  | VAESDECLAST sz     => Ox86_VAESDECLAST_instr.1 sz
   | AESENC             => Ox86_AESENC_instr.1          
-  | VAESENC            => Ox86_VAESENC_instr.1         
+  | VAESENC sz         => Ox86_VAESENC_instr.1 sz
   | AESENCLAST         => Ox86_AESENCLAST_instr.1      
-  | VAESENCLAST        => Ox86_VAESENCLAST_instr.1     
+  | VAESENCLAST sz     => Ox86_VAESENCLAST_instr.1 sz
   | AESIMC             => Ox86_AESIMC_instr.1          
   | VAESIMC            => Ox86_VAESIMC_instr.1         
   | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1 
@@ -2090,6 +2135,10 @@ Definition x86_prim_string :=
    Ox86_SAL_instr.2;
    Ox86_SHLD_instr.2;
    Ox86_SHRD_instr.2;
+   Ox86_RORX_instr.2;
+   Ox86_SARX_instr.2;
+   Ox86_SHRX_instr.2;
+   Ox86_SHLX_instr.2;
    Ox86_MOVX_instr.2;
    Ox86_MOVD_instr.2;
    Ox86_MOVV_instr.2;

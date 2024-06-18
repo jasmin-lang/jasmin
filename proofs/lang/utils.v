@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
 From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
@@ -42,18 +43,21 @@ Class eqTypeC (T:Type) :=
   { beq : T -> T -> bool
   ; ceqP: Equality.axiom beq }.
 
+Module EqType.
 Section EqType.
 
 Context {T:Type} {ceqT : eqTypeC T}.
-Definition ceqT_eqMixin := Equality.Mixin ceqP.
-Definition ceqT_eqType  := Eval hnf in EqType T ceqT_eqMixin.
+HB.instance Definition _ := hasDecEq.Build T ceqP.
+Definition ceqT_eqType : eqType := T.
 
 End EqType.
+End EqType.
+Definition ceqT_eqType {T} {ceqT} := @EqType.ceqT_eqType T ceqT.
 
-Notation "x == y ::> T" := (eq_op (T:= @ceqT_eqType T _) x y)
+Notation "x == y ::> T" := (@eq_op (@ceqT_eqType T _) x y)
   (at level 70, y at next level) : bool_scope.
 
-Notation "x == y ::>" := (eq_op (T:= @ceqT_eqType _ _) x y)
+Notation "x == y ::>" := (@eq_op (@ceqT_eqType _ _) x y)
   (at level 70, y at next level) : bool_scope.
 
 Class finTypeC (T:Type) :=
@@ -65,25 +69,16 @@ Class finTypeC (T:Type) :=
 #[global]
 Existing Instance _eqC.
 
+Module FinType.
 Section FinType.
 
 Context `{cfinT:finTypeC}.
 
-Definition cfinT_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK cenumP).
-Definition cfinT_choiceType :=
-  Eval hnf in ChoiceType ceqT_eqType cfinT_choiceMixin.
-
-Definition cfinT_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK cenumP).
-Definition cfinT_countType :=
-  Eval hnf in @Countable.pack T cfinT_countMixin cfinT_choiceType _ (fun x => x).
-
-Definition cfinT_finMixin :=
-  @Finite.EnumMixin cfinT_countType _ cenumP.
-Definition cfinT_finType :=
-  Eval hnf in 
-    (@Finite.pack T ceqT_eqMixin cfinT_finMixin cfinT_choiceType _ (fun x => x) _ (fun x => x)).
+HB.instance Definition _ := Equality.copy T ceqT_eqType.
+HB.instance Definition _ : isCountable T :=
+  PCanIsCountable (FinIsCount.pickleK cenumP).
+HB.instance Definition _ := isFinite.Build T cenumP.
+Definition cfinT_finType : finType := T.
 
 Lemma mem_cenum : cenum =i ceqT_eqType.
 Proof.
@@ -91,6 +86,9 @@ Proof.
 Qed.
 
 End FinType.
+End FinType.
+Definition cfinT_finType {T} {cfinT} := @FinType.cfinT_finType T cfinT.
+Definition mem_cenum {T} {cfinT} := @FinType.mem_cenum T cfinT.
 
 Module FinMap.
 
@@ -103,7 +101,7 @@ Context `{cfinT:finTypeC} (U:Type).
 Definition map := @finfun_of cfinT_finType (fun _ => U) (Phant _).
 
 Definition of_fun := 
-  @FinfunDef.finfun cfinT_finType (fun _ => U).
+  @finfun.finfun cfinT_finType (fun _ => U).
 
 Definition set (m:map) (x: T) (y:U) : map := 
   of_fun (fun z : T => if z == x ::> then y else m z).
@@ -1226,8 +1224,7 @@ Proof.
     (eq_axiom_of_scheme internal_comparison_dec_bl internal_comparison_dec_lb).
 Qed.
 
-Canonical comparison_eqMixin := EqMixin comparison_beqP.
-Canonical comparison_eqType := Eval hnf in EqType comparison comparison_eqMixin.
+HB.instance Definition _ := hasDecEq.Build comparison comparison_beqP.
 
 (* -------------------------------------------------------------------- *)
 
@@ -1490,8 +1487,7 @@ Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 
-Definition pos_eqMixin := EqMixin pos_eqP.
-Canonical  pos_eqType  := EqType positive pos_eqMixin.
+HB.instance Definition _ := hasDecEq.Build positive pos_eqP.
 
 #[global]
 Instance positiveO : Cmp Pos.compare.

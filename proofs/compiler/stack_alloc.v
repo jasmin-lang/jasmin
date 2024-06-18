@@ -1,4 +1,5 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import strings word utils type var expr.
@@ -82,12 +83,11 @@ Proof.
   by apply:(iffP and3P) => /= [[/eqP -> /eqP -> /eqP ->] | [-> -> ->]].
 Qed.
 
-Definition region_eqMixin := Equality.Mixin region_axiom.
-Canonical  region_eqType  := Eval hnf in EqType region region_eqMixin.
+HB.instance Definition _ := hasDecEq.Build region region_axiom.
 
 Module CmpR.
 
-  Definition t := [eqType of region].
+  Definition t : eqType := region.
 
   Definition cmp (r1 r2: t) :=
     Lex (bool_cmp r1.(r_writable) r2.(r_writable))
@@ -121,8 +121,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_zone_dec_bl internal_zone_dec_lb).
 Qed.
 
-Definition zone_eqMixin := Equality.Mixin zone_eq_axiom.
-Canonical  zone_eqType  := EqType zone zone_eqMixin.
+HB.instance Definition _ := hasDecEq.Build zone zone_eq_axiom.
 
 Definition disjoint_zones z1 z2 :=
   (((z1.(z_ofs) + z1.(z_len))%Z <= z2.(z_ofs)) ||
@@ -144,8 +143,7 @@ Proof.
   by apply:(iffP andP) => /= [[/eqP -> /eqP ->] | [-> ->]].
 Qed.
 
-Definition sub_region_eqMixin := Equality.Mixin sub_region_eq_axiom.
-Canonical sub_region_eqType := EqType sub_region sub_region_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sub_region sub_region_eq_axiom.
 
 (* ------------------------------------------------------------------ *)
 (* idea: could we use a gvar instead of var & v_scope? *)

@@ -2,20 +2,20 @@
 
 let inherit (coqPackages) coq; in
 
-let mathcomp = coqPackages.mathcomp.override { version = "1.19.0"; }
+let mathcomp = coqPackages.mathcomp.override { version = "2.2.0"; }
 ; in
 
-let rev = "f8f819204d9183d4073477ea0e7350b163336cc2"; in
+let rev = "1abe5ade5240115aed1e3c140e261f1554af2322"; in
 
 stdenv.mkDerivation rec {
-  version = "2.3-git-${builtins.substring 0 8 rev}";
+  version = "3.2-git-${builtins.substring 0 8 rev}";
   pname = "coq${coq.coq-version}-mathcomp-word";
 
   src = fetchFromGitHub {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    hash = "sha256-xjw09Ek25sNg0EKv6JvUup4Ln44I78lCYZbkCSJZKUE=";
+    hash = "sha256-s6UD9aYsaRXlxMNxkZGD/yZx1rlDVqJLU1mLfJAg6To=";
   };
 
   buildInputs = [ coq ocaml dune_3 ];
