@@ -3,19 +3,6 @@
 
 ## New features
 
-- The executable `jazzct` for checking constant time is renamed into
-  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
-  ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
-
-- The instructions of the VAES extension are available through a size suffix
-  (e.g., `VAESENC_256`)
-  ([PR #831](https://github.com/jasmin-lang/jasmin/pull/831),
-  fixes [#630](https://github.com/jasmin-lang/jasmin/issues/630)).
-
-- The following x86 BMI2 instructions are now available:
-  `RORX`, `SARX`, `SHRX`, and `SHLX`
-  ([PR #824](https://github.com/jasmin-lang/jasmin/pull/824)).
-
 - ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
   immediates whose negation is small, a single `MVN`; and for large immediates
   a pair of `MOV` and `MOVT`.
@@ -171,6 +158,25 @@
 
 - The deprecated legacy interface to the CT checker has been removed
   ([PR #769](https://github.com/jasmin-lang/jasmin/pull/769)).
+
+# Jasmin 2023.06.4 — 2024-06-18
+
+## New features
+
+- The instructions of the VAES extension are available through a size suffix
+  (e.g., `VAESENC_256`)
+  ([PR #831](https://github.com/jasmin-lang/jasmin/pull/831),
+  fixes [#630](https://github.com/jasmin-lang/jasmin/issues/630)).
+
+- The following x86 BMI2 instructions are now available:
+  `RORX`, `SARX`, `SHRX`, and `SHLX`
+  ([PR #824](https://github.com/jasmin-lang/jasmin/pull/824)).
+
+## Other changes
+
+- The executable `jazzct` for checking constant time is renamed into
+  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
+  ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
 
 - In x86 assembly, 8-bit immediate operands are printed unsigned,
   i.e., in the range [0; 255]
