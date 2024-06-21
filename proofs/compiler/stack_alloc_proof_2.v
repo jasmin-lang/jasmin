@@ -3,8 +3,8 @@
 *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
-From mathcomp Require Import div ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype (* fintype *).
+From mathcomp Require Import (* div *) ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.
@@ -1977,7 +1977,7 @@ Proof.
     have [s2' [hs2' hvs']] := alloc_array_move_initP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap P'_globs hsaparams hvs hv htr hw halloc.
     by exists s2'; split => //; apply sem_seq1; constructor.
   move=> e' he1 [rmap2' x'] hax /= ?? m0 s2 hvs hext hsao; subst rmap2' c2.
-  have he := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he1.
+  have [ve' [hve' htr']] := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he1 hv htr.
   have htyv':= truncate_val_has_type htr.
   have [s2' [/= hw' hvs']]:= alloc_lvalP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap hax hvs htyv' hw.
   exists s2'; split=> //.
@@ -2016,7 +2016,10 @@ Proof.
   have [s2' [hw' hvalid']] := alloc_lvalsP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap ha hvs (sopn_toutP hop) hw.
   exists s2'; split=> //.
   apply sem_seq_ir; constructor.
-  by rewrite /sem_sopn P'_globs (alloc_esP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he hes) /= hop.
+  rewrite /sem_sopn P'_globs.
+  have [va' [ok_va' hop']] := exec_sopn_truncate_val hop.
+  have [vs3 [ok_vs3 htr']] := alloc_esP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs he hes ok_va'.
+  by rewrite ok_vs3 /= (truncate_val_exec_sopn htr' hop').
 Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall P Pi_r.
@@ -2031,7 +2034,8 @@ Local Lemma Hif_true : sem_Ind_if_true P ev Pc Pi_r.
 Proof.
   move=> s1 s2 e c1 c2 Hse _ Hc pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
   t_xrbindP => e' he [rmap4 c1'] hc1 [rmap5 c2'] hc2 /= ?? m0 s1' hv hext hsao; subst rmap2 c.
-  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse; rewrite -P'_globs => he'.
+  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse; rewrite -P'_globs.
+  move=> /(_ _ erefl) [] b [] he' /= /truncate_valI [_ ?]; subst b.
   have [s2' [Hsem Hvalid']] := Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
   exists s2'; split; first by apply sem_seq1;constructor;apply: Eif_true.
   by apply: valid_state_Incl Hvalid'; apply incl_Incl; apply incl_merge_l.
@@ -2041,7 +2045,8 @@ Local Lemma Hif_false : sem_Ind_if_false P ev Pc Pi_r.
 Proof.
   move=> s1 s2 e c1 c2 Hse _ Hc pmap rsp Slots Addr Writable Align rmap1 rmap2 ii1 c hpmap hwf sao /=.
   t_xrbindP => e' he [rmap4 c1'] hc1 [rmap5 c2'] hc2 /= ?? m0 s1' hv hext hsao; subst rmap2 c.
-  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse; rewrite -P'_globs => he'.
+  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv he Hse; rewrite -P'_globs.
+  move=> /(_ _ erefl) [] b [] he' /= /truncate_valI [_ ?]; subst b.
   have [s2' [Hsem Hvalid']] := Hc _ _ _ _ _ _ _ _ _ hpmap hwf _ hc2 _ _ hv hext hsao.
   exists s2'; split; first by apply sem_seq1; constructor; apply: Eif_false.
   by apply: valid_state_Incl Hvalid'; apply incl_Incl; apply incl_merge_r.
@@ -2066,7 +2071,8 @@ Proof.
   t_xrbindP => -[rmap7 c11] hc1 /= e1 he [rmap8 c22] /= hc2 ????? hincl2 ??.
   subst c rmap4 rmap7 rmap8 e1 c11 c22 => m0 s1' /(valid_state_Incl hincl1) hv hext hsao.
   have [s2' [hs1 hv2]]:= Hc1 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
-  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv2 he Hv; rewrite -P'_globs => he'.
+  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv2 he Hv; rewrite -P'_globs.
+  move=> /(_ _ erefl) [] b [] he' /= /truncate_valI [_ ?]; subst b.
   have hsao2 := stack_stable_wf_sao (sem_stack_stable_sprog hs1) hsao.
   have hext2 := valid_state_extend_mem hwf hv hext hv2 (sem_validw_stable_uprog hhi) (sem_validw_stable_sprog hs1).
   have [s3' [hs2 /(valid_state_Incl (incl_Incl hincl2)) hv3]]:= Hc2 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc2 _ _ hv2 hext2 hsao2.
@@ -2085,7 +2091,8 @@ Proof.
   t_xrbindP => -[rmap7 c11] hc1 /= e1 he [rmap8 c22] /= hc2 ????? hincl2 ??.
   subst c rmap4 rmap7 rmap8 e1 c11 c22 => m0 s1' /(valid_state_Incl hincl1) hv hext hsao.
   have [s2' [hs1 hv2]]:= Hc1 _ _ _ _ _ _ _ _ _ hpmap hwf _ hc1 _ _ hv hext hsao.
-  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv2 he Hv; rewrite -P'_globs => he'.
+  have := alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hv2 he Hv; rewrite -P'_globs.
+  move=> /(_ _ erefl) [] b [] he' /= /truncate_valI [_ ?]; subst b.
   by exists s2';split => //; apply sem_seq1; constructor; apply: Ewhile_false; eassumption.
 Qed.
 
@@ -2270,53 +2277,6 @@ Proof.
   exists s2'; split=> //.
   apply sem_seq1; constructor; econstructor; rewrite ?P'_globs; eauto.
   by case: hvs => <- *.
-Qed.
-
-(* Not sure at all if this is the right way to do the proof. *)
-Lemma wbit_subword (ws ws' : wsize) i (w : word ws) k :
-  wbit_n (word.subword i ws' w) k = (k < ws')%nat && wbit_n w (k + i).
-Proof.
-  clear.
-  rewrite /wbit_n.
-  case: ltP.
-  + move=> /ltP hlt.
-    by rewrite word.subwordE word.wbit_t2wE (nth_map ord0) ?size_enum_ord // nth_enum_ord.
-  rewrite /nat_of_wsize => hle.
-  rewrite word.wbit_word_ovf //.
-  by apply /ltP; lia.
-Qed.
-
-(* TODO: is this result generic enough to be elsewhere ? *)
-Lemma zero_extend_wread8 (ws ws' : wsize) (w : word ws) :
-  (ws' <= ws)%CMP ->
-  forall off,
-    0 <= off < wsize_size ws' ->
-    LE.wread8 (zero_extend ws' w) off = LE.wread8 w off.
-Proof.
-  clear.
-  move=> /wsize_size_le /(Z.divide_pos_le _ _ (wsize_size_pos _)) hle off hoff.
-  rewrite /LE.wread8 /LE.encode /split_vec.
-  have hmod: forall (ws:wsize), ws %% U8 = 0%nat.
-  + by move=> [].
-  have hdiv: forall (ws:wsize), ws %/ U8 = Z.to_nat (wsize_size ws).
-  + by move=> [].
-  have hlt: (Z.to_nat off < Z.to_nat (wsize_size ws))%nat.
-  + by apply /ltP /Z2Nat.inj_lt; lia.
-  have hlt': (Z.to_nat off < Z.to_nat (wsize_size ws'))%nat.
-  + by apply /ltP /Z2Nat.inj_lt; lia.
-  rewrite !hmod !addn0.
-  rewrite !(nth_map 0%nat) ?size_iota ?hdiv // !nth_iota // !add0n.
-  apply /eqP/eq_from_wbit_n => i.
-  rewrite !wbit_subword; f_equal.
-  rewrite wbit_zero_extend.
-  have -> //: (i + Z.to_nat off * U8 <= wsize_size_minus_1 ws')%nat.
-  rewrite -ltnS -/(nat_of_wsize ws').
-  apply /ltP.
-  have := ltn_ord i; rewrite -/(nat_of_wsize _) => /ltP hi.
-  have /ltP ? := hlt'.
-  have <-: (Z.to_nat (wsize_size ws') * U8 = ws')%nat.
-  + by case: (ws').
-  by rewrite -!multE -!plusE; nia.
 Qed.
 
 (* Actually, I think we could have proved something only for arrays, since we

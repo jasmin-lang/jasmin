@@ -116,6 +116,10 @@
 
 ## Bug fixes
 
+- Truncation of stack variables is handled correctly
+  ([PR #848](https://github.com/jasmin-lang/jasmin/pull/848);
+  fixes [#681](https://github.com/jasmin-lang/jasmin/issues/681)).
+
 - The compiler rejects ARM intrincics with the `S` suffix if the instruction
   does not set flags
   ([PR #809](https://github.com/jasmin-lang/jasmin/pull/809);
