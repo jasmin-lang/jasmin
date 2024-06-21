@@ -1,9 +1,8 @@
 module Core_arch_ARM : Arch_full.Core_arch
   with type asm_op = Arm_instr_decl.arm_op
-  and type extra_op = Arm_extra.__
+  and type extra_op = Arm_extra.arm_extra_op
 
 
-open X86_decl_core
 open X86_decl
 
 val core_arch_x86 :

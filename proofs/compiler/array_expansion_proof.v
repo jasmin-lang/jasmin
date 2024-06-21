@@ -346,9 +346,10 @@ Proof.
   + by t_xrbindP => > /(expand_eP h) {}h <- ?
       hrec > /h{h} /= -> ? /hrec{hrec}[? + ->] <- /= => ->; eexists.
   move=> [ws len] [] //=.
-  + move=> g c >; case: Option.oappP => // a1 hga; case: ifP => //
-      /and3P[/eqP? /eqP ? hloc] + _; subst; rewrite /get_gvar /=hloc{hloc} /=.
-    t_xrbindP=> + hrec ? z0 /hrec{hrec}+ <- => + [? ->] /= => <-.
+  + move=> g c >.
+    t_xrbindP=> a1 /o2rP hga /and3P[/eqP? /eqP ? hloc] + _; subst.
+    rewrite /get_gvar /=hloc{hloc} /get_var /=.
+    move=> + hrec _ _ [<-] z0 /hrec{hrec}+ <- => + [? ->] /= => <-.
     have vai := (valid hga); case: h => -[_ /(_ _ _ _ hga){hga}hgai _ _].
     have := Vm.getP (evm s1) (gv g); rewrite vai.(x_ty) /compat_val /=.
     move => /compat_typeE /type_of_valI [x2 /dup[] hg ->].
@@ -361,10 +362,10 @@ Proof.
     by rewrite (wf_index _ vai hbound).
 
   move=> aa ws' len' g ei es >.
-  t_xrbindP => /eqP ?; subst aa.
-  case: is_constP => // i.
-  case: Option.oappP => // a hga.
-  t_xrbindP => /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z. subst ws ws' len es => /=.
+  t_xrbindP=> /eqP ?; subst aa.
+  case: is_constP => // i _ /o2rP [<-].
+  move=> a /o2rP hga.
+  move=> /and4P [] /eqP ? /eqP ? /eqP ? hloc ? _ hrec vs z; subst ws ws' len es => /=.
   have vai := valid hga.
 
 (*  have [hninx [hlen hxty] hlena haxi huni hother]:= valid hga. *)
@@ -453,8 +454,9 @@ Proof.
     move=> /= > ? hrec; t_xrbindP => > /eval_arrayP [? h] ?/hrec{}hrec <-.
     rewrite /write_none /= /truncatable.
     by case: h => [-> | [? ->]] /=; rewrite ?wsize_le_U8.
-  + move=> x xs2; case: Option.oappP => // ai hga; have hva:= valid hga.
-    case: ifP => //= /andP[/eqP? /eqP?] [hmap] va vs' s1'; subst.
+  + move=> x xs2.
+    t_xrbindP=> ai /o2rP hga; have hva:= valid hga.
+    move=> /andP[/eqP? /eqP?] hmap va vs' s1'; subst.
     move=> /write_varP [-> _]. rewrite hva.(x_ty) => /vm_truncate_valEl [] a -> _.
     rewrite expand_vP => -[?]; subst vs'.
     rewrite (wf_ai_elems (v_var x) hva) -map_comp /comp.
@@ -473,8 +475,8 @@ Proof.
     subst y; rewrite hga => -[<-] hin.
     by rewrite in_ziota (zindex_bound _ hva) hin (x_ty hva) vm_truncate_val_eq.
   move => aa ws' len' x e xs2; t_xrbindP => /eqP ?; subst aa.
-  case: is_constP => // i;  case: Option.oappP => // ai hga; have hva:= valid hga.
-  t_xrbindP => /and3P []/eqP ? /eqP ? /eqP ? <- va vs' s1'; subst a ws' len.
+  case: is_constP => // i _ /o2rP [<-] ai /o2rP hga; have hva:= valid hga.
+  move=> /and3P []/eqP ? /eqP ? /eqP ? <- va vs' s1'; subst a ws' len.
   have /= := Vm.getP (evm s1) x; rewrite hva.(x_ty) => /compat_valEl [a heqx]; rewrite heqx.
   t_xrbindP => sa /to_arrI -> ra hra /write_varP [] -> _ _.
   rewrite expand_vP => -[?]; subst vs'.
@@ -814,8 +816,8 @@ Proof.
   by rewrite /dc_truncate_val /=; move=> h; have := mapM2_Forall3 h; elim => // _ > [->] _ ->.
 Qed.
 
-Lemma expend_tyv_expand_return m b tys (xs : list var_i) ins:
-  mapM2 E.length_mismatch (expand_tyv m b) tys xs = ok ins ->
+Lemma expend_tyv_expand_return m b s tys (xs : list var_i) ins:
+  mapM2 E.length_mismatch (expand_tyv m b s) tys xs = ok ins ->
   mapM2 E.length_mismatch (expand_return m) [seq i.2 | i <- ins] [seq Lvar i | i <- xs] =
     ok [seq map Lvar x.1.2 | x <- ins].
 Proof.
@@ -827,8 +829,8 @@ Proof.
   by move=> hin ???; subst tysx xsx o; rewrite hin /= hrec.
 Qed.
 
-Lemma expend_tyv_expand_param m b tys (xs : list var_i) ins:
-  mapM2 E.length_mismatch (expand_tyv m b) tys xs = ok ins ->
+Lemma expend_tyv_expand_param m b s tys (xs : list var_i) ins:
+  mapM2 E.length_mismatch (expand_tyv m b s) tys xs = ok ins ->
   mapM2 E.length_mismatch (expand_param m) [seq i.2 | i <- ins] [seq Pvar (mk_lvar i) | i <- xs] =
     ok [seq map (fun y => Pvar (mk_lvar y)) x.1.2 | x <- ins].
 Proof.

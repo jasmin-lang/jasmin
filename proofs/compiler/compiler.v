@@ -19,6 +19,7 @@ Require Import
   array_init
   constant_prop
   dead_calls
+  lower_spill
   dead_code
   inline
   linearization
@@ -29,6 +30,7 @@ Require Import
   slh_lowering
   remove_globals
   stack_alloc
+  stack_zeroization
   tunneling
   unrolling
   wsize.
@@ -82,6 +84,7 @@ Variant compiler_step :=
   | RemoveAssert                : compiler_step
   | ArrayCopy                   : compiler_step
   | AddArrInit                  : compiler_step
+  | LowerSpill                  : compiler_step
   | Inlining                    : compiler_step
   | RemoveUnusedFunction        : compiler_step
   | Unrolling                   : compiler_step
@@ -101,6 +104,7 @@ Variant compiler_step :=
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
   | Linearization               : compiler_step
+  | StackZeroization            : compiler_step
   | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
 
@@ -113,6 +117,7 @@ Definition compiler_step_list := [::
   ; RemoveAssert
   ; ArrayCopy
   ; AddArrInit
+  ; LowerSpill
   ; Inlining
   ; RemoveUnusedFunction
   ; Unrolling
@@ -132,6 +137,7 @@ Definition compiler_step_list := [::
   ; RegAllocation
   ; DeadCode_RegAllocation
   ; Linearization
+  ; StackZeroization
   ; Tunneling
   ; Assembly
 ].
@@ -181,6 +187,7 @@ Record compiler_params
   fresh_id         : glob_decls -> var -> Ident.ident;
   fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
+  stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
 }.
 
 Context
@@ -212,6 +219,9 @@ Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
 
 Definition var_tmp : var :=
   {| vname := lip_tmp liparams; vtype := sword Uptr; |}.
+Definition var_tmp2 : var :=
+  {| vname := lip_tmp2 liparams; vtype := sword Uptr; |}.
+Definition var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -254,12 +264,19 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := remove_assert_prog p in
   let p := cparams.(print_uprog) RemoveAssert p in
 
-  Let p := array_copy.array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
+  Let p :=
+    array_copy.array_copy_prog
+      (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint)
+      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info (Ident.name_of_string "tmp") (sword ws))
+      p in
 
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
+
+  Let p := spill_prog cparams.(fresh_var_ident) p in
+  let p := cparams.(print_uprog) LowerSpill p in
 
   Let p := inlining to_keep p in
 
@@ -355,7 +372,7 @@ Definition check_export entries (p: sprog) : cexec unit :=
   allM (λ fn,
           if get_fundef (p_funcs p) fn is Some fd then
             assert
-              (fd.(f_extra).(sf_return_address) == RAnone)
+              (is_RAnone fd.(f_extra).(sf_return_address))
               (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address")))
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.
@@ -363,9 +380,29 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd var_tmp in
+  Let _ := merge_varmaps.check pd var_tmps in
   Let pl := linear_prog liparams pd in
   let pl := cparams.(print_linear) Linearization pl in
+  (* stack zeroization                 *)
+  let szs_of_fn fn :=
+    match cparams.(stack_zero_info) fn with
+    | Some (szs, ows) =>
+      let ws :=
+        match ows with
+        | Some ws => ws
+        | None =>
+          (* the default clear step is the alignment *)
+          if get_fundef pl.(lp_funcs) fn is Some lfd then
+            lfd.(lfd_align)
+          else U8 (* impossible *)
+        end
+      in
+      Some (szs, ws)
+    | None => None
+    end
+  in
+  Let pl := stack_zeroization_lprog aparams.(ap_szp) szs_of_fn pl in
+  let pl := cparams.(print_linear) StackZeroization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
   let pl := cparams.(print_linear) Tunneling pl in

@@ -3,7 +3,6 @@ open Utils
 open Prog
 open Arch_decl
 open Label
-open X86_decl_core
 open X86_decl
 (* -------------------------------------------------------------------- *)
 module W = Wsize
@@ -407,7 +406,7 @@ module Printer (BP:BPrinter) = struct
     | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 
   (* -------------------------------------------------------------------- *)
-  let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+  let pp_instr name (i : (_, _, _, _, _, _) Arch_decl.asm_i_r) =
     match i with
     | ALIGN ->
       `Instr (".p2align", ["5"])
@@ -445,11 +444,17 @@ module Printer (BP:BPrinter) = struct
       let name = pp_name_ext pp in
       let args = pp_asm_args pp.pp_aop_args in
       `Instr(name, args)
-  
+
+  (* -------------------------------------------------------------------- *)
+  let pp_ii ({ Location.base_loc = ii; _}, _) =
+    List.map (fun i -> `Instr(i, [])) (DebugInfo.source_positions ii)
+
   (* -------------------------------------------------------------------- *)
   let pp_instr name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
+    let Arch_decl.({ asmi_i = i ; asmi_ii = ii }) = i in
+    List.iter (pp_gen fmt) (pp_ii ii);
     pp_gen fmt (pp_instr name i)
-  
+
   (* -------------------------------------------------------------------- *)
   let pp_instrs name (fmt : Format.formatter) (is : (_, _, _, _, _, _) Arch_decl.asm_i list) =
     List.iter (Format.fprintf fmt "%a\n%!" (pp_instr name)) is

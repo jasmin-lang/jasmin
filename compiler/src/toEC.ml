@@ -152,98 +152,77 @@ let leaks_lval pd = function
   | Lmem (_, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
 
 (* FIXME: generate this list automatically *)
+(* Adapted from EasyCrypt source file src/ecLexer.mll *)
 let ec_keyword = 
- [ "exact"
- ; "assumption"
- ; "smt"
- ; "by"
- ; "reflexivity"
- ; "done"
- ; "admit"
- ; "axiom"
- ; "axiomatized"
- ; "lemma"
- ; "realize"
- ; "choice"
- ; "proof"
- ; "qed"
- ; "goal"
- ; "end"
- ; "import"
- ; "export"
- ; "include"
- ; "local"
- ; "declare"
- ; "hint"
- ; "nosmt"
- ; "module"
- ; "of"
- ; "const"
- ; "op"
- ; "pred"
- ; "require"
- ; "theory"
- ; "abstract"
- ; "section"
- ; "type"
- ; "class"
- ; "instance"
- ; "print"
- ; "search"
- ; "as"
- ; "Pr"
- ; "clone"
- ; "with"
- ; "rename"
- ; "prover"
- ; "timeout"
- ; "why3"
- ; "dump"
- ; "Top"
- ; "Self"
- ; "time"
- ; "undo"
- ; "debug"
- ; "pragma"
+ [ "admit"
+ ; "admitted"
+
  ; "forall"
  ; "exists"
  ; "fun"
  ; "glob"
  ; "let"
  ; "in"
+ ; "for"
  ; "var"
  ; "proc"
  ; "if"
+ ; "is"
+ ; "match"
  ; "then"
  ; "else"
  ; "elif"
+ ; "match"
+ ; "for"
  ; "while"
  ; "assert"
  ; "return"
  ; "res"
  ; "equiv"
  ; "hoare"
+ ; "ehoare"
+ ; "choare"
+ ; "cost"
  ; "phoare"
  ; "islossless"
+ ; "async"
+
+ ; "try"
+ ; "first"
+ ; "last"
+ ; "do"
+ ; "strict"
+ ; "expect"
+
+ (* Lambda tactics *)
  ; "beta"
  ; "iota"
  ; "zeta"
+ ; "eta"
  ; "logic"
  ; "delta"
  ; "simplify"
+ ; "cbv"
  ; "congr"
+
+ (* Logic tactics *)
  ; "change"
  ; "split"
  ; "left"
  ; "right"
- ; "generalize"
  ; "case"
- ; "intros"
+
  ; "pose"
- ; "cut"
+ ; "gen"
  ; "have"
+ ; "suff"
  ; "elim"
+ ; "exlim"
+ ; "ecall"
  ; "clear"
+ ; "wlog"
+
+ (* Auto tactics *)
  ; "apply"
  ; "rewrite"
  ; "rwnormal"
@@ -251,6 +230,8 @@ let ec_keyword =
  ; "progress"
  ; "trivial"
  ; "auto"
+
+ (* Other tactics *)
  ; "idtac"
  ; "move"
  ; "modpath"
@@ -259,6 +240,17 @@ let ec_keyword =
  ; "ring"
  ; "ringeq"
  ; "algebra"
+
+ ; "exact"
+ ; "assumption"
+ ; "smt"
+ ; "by"
+ ; "reflexivity"
+ ; "done"
+ ; "solve"
+
+ (* PHL: tactics *)
+ ; "replace"
  ; "transitivity"
  ; "symmetry"
  ; "seq"
@@ -272,28 +264,86 @@ let ec_keyword =
  ; "swap"
  ; "cfold"
  ; "rnd"
+ ; "rndsem"
  ; "pr_bounded"
  ; "bypr"
  ; "byphoare"
+ ; "byehoare"
  ; "byequiv"
+ ; "byupto"
  ; "fel"
+
  ; "conseq"
  ; "exfalso"
  ; "inline"
+ ; "outline"
+ ; "interleave"
  ; "alias"
+ ; "weakmem"
  ; "fission"
  ; "fusion"
  ; "unroll"
  ; "splitwhile"
  ; "kill"
  ; "eager"
- ; "try"
- ; "first"
- ; "last"
- ; "do"
- ; "strict"
- ; "expect"
- ; "interleave" ]
+
+ ; "axiom"
+ ; "schema"
+ ; "axiomatized"
+ ; "lemma"
+ ; "realize"
+ ; "proof"
+ ; "qed"
+ ; "abort"
+ ; "goal"
+ ; "end"
+ ; "from"
+ ; "import"
+ ; "export"
+ ; "include"
+ ; "local"
+ ; "declare"
+ ; "hint"
+ ; "nosmt"
+ ; "module"
+ ; "of"
+ ; "const"
+ ; "op"
+ ; "pred"
+ ; "inductive"
+ ; "notation"
+ ; "abbrev"
+ ; "require"
+ ; "theory"
+ ; "abstract"
+ ; "section"
+ ; "type"
+ ; "class"
+ ; "instance"
+ ; "instantiate"
+ ; "print"
+ ; "search"
+ ; "locate"
+ ; "as"
+ ; "Pr"
+ ; "clone"
+ ; "with"
+ ; "rename"
+ ; "prover"
+ ; "timeout"
+ ; "why3"
+ ; "dump"
+ ; "remove"
+ ; "exit"
+
+ ; "fail"
+ ; "time"
+ ; "undo"
+ ; "debug"
+ ; "pragma"
+
+ ; "Top"
+ ; "Self" ]
 
 let syscall_mod_arg = "SC"
 let syscall_mod_sig = "Syscall_t"
@@ -875,11 +925,14 @@ let base_op = function
   | Sopn.Oasm (Arch_extra.BaseOp (_, o)) -> Sopn.Oasm (Arch_extra.BaseOp(None,o))
   | o -> o
 
-let ty_sopn pd asmOp op =
+let ty_sopn pd asmOp op es =
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
   | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
     let l = [Arr(ws, Conv.int_of_pos p)] in
+    l, l
+  | Sopn.Opseudo_op (Pseudo_operator.Oswap _) -> 
+    let l = List.map ty_expr es in
     l, l
   | _ ->
     List.map Conv.ty_of_cty (Sopn.sopn_tout Build_Tabstract pd asmOp op),
@@ -928,6 +981,11 @@ let rec remove_for_i i =
   in
   { i with i_desc }   
 and remove_for c = List.map remove_for_i c
+
+let pp_opn pd asmOp fmt o = 
+  let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
+  let s = if Ss.mem s keywords then s^"_" else s in
+  Format.fprintf fmt "%s" s
 
 module Normal = struct  
 
@@ -1023,7 +1081,7 @@ module Normal = struct
         e
       | exception _ ->  Pvar v
     in
-    aux (Subst.gsubst_e (fun x -> x) aux1)
+    aux (Subst.gsubst_e (fun ?loc:_ x -> x) aux1)
 
   let sub_fun_return r =
     let aux f = List.map (fun (prover,clause) -> prover, f clause) in
@@ -1054,8 +1112,8 @@ module Normal = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn pd asmOp op in
-      let otys', _ = ty_sopn pd asmOp op' in
+      let otys,itys = ty_sopn pd asmOp op es in
+      let otys', _ = ty_sopn pd asmOp op' es in
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" (pp_opn pd asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
@@ -1420,8 +1478,8 @@ module Leak = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn pd asmOp op in
-      let otys', _ = ty_sopn pd asmOp op' in
+      let otys,itys = ty_sopn pd asmOp op es in
+      let otys', _ = ty_sopn pd asmOp op' es in
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" (pp_opn pd asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in

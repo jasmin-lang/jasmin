@@ -1319,13 +1319,13 @@ end
 
 module ARMBaseOp : BaseOp
   with type op = Arm_instr_decl.arm_op
-   and  type extra_op = Arm_extra.__
+   and  type extra_op = Arm_extra.arm_extra_op
 = struct
 
   open Arm_instr_decl
 
   type op = Arm_instr_decl.arm_op
-  type extra_op = Arm_extra.__
+  type extra_op = Arm_extra.arm_extra_op
 
   type trans =
     | Cas1
@@ -1427,7 +1427,7 @@ let sub_fun_param args params =
     | i -> snd (List.findi (fun ii _ -> ii = i) params)
     | exception _ -> Pvar v
   in
-  aux (Subst.gsubst_e (fun x -> x) aux1)
+  aux (Subst.gsubst_e (fun ?loc:_ x -> x) aux1)
 
 module Mk(O:BaseOp) = struct
 

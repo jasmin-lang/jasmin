@@ -1,0 +1,3 @@
+u64[1] a = { 1 };
+u64[3] b = { 0, a[1], 2 };
+  // a[1] is not defined, and thus constant propagation is impossible

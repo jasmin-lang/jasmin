@@ -4,7 +4,7 @@ open Glob_options
 
 let preprocess reg_size asmOp p =
   let p =
-    p |> Subst.remove_params |>Insert_copy_and_fix_length.doit reg_size
+    p |> Subst.remove_params |> Insert_copy_and_fix_length.doit reg_size
   in
   Typing.check_prog reg_size asmOp p;
   p
@@ -62,7 +62,6 @@ struct
     let fd = trans fd in
     cufdef_of_fdef fd
 
-
   let translate_var = Conv.var_of_cvar
 
   let memory_analysis up : Compiler.stack_alloc_oracles =
@@ -76,12 +75,20 @@ struct
 
     CheckAnnot.check_stack_size fds;
 
+
+    let get_internal_size _fd sfe =
+      let stk_size =
+        BinInt.Z.add sfe.Expr.sf_stk_sz sfe.Expr.sf_stk_extra_sz in
+      Conv.z_of_cz (Memory_model.round_ws sfe.sf_align stk_size)
+    in
+
     let fds =
       Regalloc.alloc_prog translate_var
         (fun _fd extra ->
           match extra.Expr.sf_save_stack with
           | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
           | Expr.SavedStackNone -> false)
+        get_internal_size
         fds
     in
     let fds = List.map (fun (y, _, x) -> (y, x)) fds in
@@ -194,9 +201,33 @@ struct
     let ttbl = Sct_checker_forward.compile_infer_msf p in
     fun fn ->
       try Hf.find ttbl fn with Not_found -> assert false
- 
-  let cparams ~onlyreg visit_prog_after_pass = 
-    {
+
+  let tbl_annot cprog =
+    let tbl = Hf.create 17 in
+    let add (fn, cfd) =
+      let fd = fdef_of_cufdef fn cfd in
+      Hf.add tbl fn fd.f_annot
+    in
+    List.iter add cprog.Expr.p_funcs;
+    tbl
+
+  let get_annot cprog fn =
+    try Hf.find (tbl_annot cprog) fn
+    with Not_found ->
+           hierror
+             ~loc:Lnone
+             ~funname:fn.fn_name
+             ~kind:"compiler error"
+             ~internal:true
+             "invalid annotation table."
+
+  let szs_of_fn cprog fn =
+    match (get_annot cprog fn).stack_zero_strategy with
+    | Some (s, ows) -> Some (s, Option.map Pretyping.tt_ws ows)
+    | None -> None
+
+  let cparams ~onlyreg visit_prog_after_pass cprog =
+  {
       Compiler.rename_fd;
       Compiler.expand_fd = expand_fd ~onlyreg;
       Compiler.split_live_ranges_fd =
@@ -230,6 +261,7 @@ struct
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
+      Compiler.stack_zero_info = szs_of_fn cprog;
     }
 
 end
@@ -260,7 +292,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams 
-    (cparams ~onlyreg:true visit_prog_after_pass)
+    (cparams ~onlyreg:true visit_prog_after_pass cprog)
     export_functions
     (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
 (*--------------------------------------------------------------------- *)
@@ -281,7 +313,7 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
   let visit_prog_after_pass ~debug s p = 
     eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p in
 
-  let cparams = CP.cparams ~onlyreg:false visit_prog_after_pass in
+  let cparams = CP.cparams ~onlyreg:false visit_prog_after_pass cprog in
 
   (* Add array copy after inlining every where *)
   let is_array_init e = 

@@ -136,7 +136,7 @@ Definition st_get_rflag (s : asmmem) (rf : rflag_t) :=
 (* -------------------------------------------------------------------- *)
 
 Definition eval_cond_mem (s : asmmem) (c : cond_t) :=
-  eval_cond (st_get_rflag s) c.
+  eval_cond s.(asm_reg) (st_get_rflag s) c.
 
 (* -------------------------------------------------------------------- *)
 Definition st_write_ip (ip : nat) (s : asm_state) :=
@@ -154,7 +154,7 @@ Definition st_update_next (m:asmmem) (s : asm_state) :=
 
 (* -------------------------------------------------------------------- *)
 Definition is_label (lbl: label) (i: asm_i) : bool :=
-  match i with
+  match asmi_i i with
   | LABEL _ lbl' => lbl == lbl'
   | _ => false
   end.
@@ -407,7 +407,7 @@ Section PROG.
 Context  (p: asm_prog).
 
 Definition label_in_asm (body: asm_code) : seq label :=
-  pmap (λ i, if i is LABEL ExternalLabel lbl then Some lbl else None) body.
+  pmap (λ i, if asmi_i i is LABEL ExternalLabel lbl then Some lbl else None) body.
 
 Definition label_in_asm_prog : seq remote_label :=
   [seq (f.1, lbl) | f <- asm_funcs p, lbl <- label_in_asm (asm_fd_body f.2) ].
@@ -416,11 +416,11 @@ Definition label_in_asm_prog : seq remote_label :=
 Notation labels := label_in_asm_prog.
 
 Definition return_address_from (s: asm_state) : option (word Uptr) :=
-  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some (LABEL ExternalLabel lbl) then
+  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some {| asmi_i := LABEL ExternalLabel lbl |} then
     encode_label labels (asm_f s, lbl)
   else None.
 
-Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
+Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
   match i with
   | ALIGN
   | LABEL _ _    => ok (st_write_ip (asm_ip s).+1 s)
@@ -461,7 +461,7 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
 (* -------------------------------------------------------------------- *)
 Definition fetch_and_eval (s: asm_state) :=
   if oseq.onth s.(asm_c) s.(asm_ip) is Some i then
-    eval_instr i s
+    eval_instr i.(asmi_i) s
   else type_error.
 
 Definition asmsem1 (s1 s2: asm_state) : Prop :=
@@ -532,7 +532,7 @@ Proof.
   by transitivity s1.
 Qed.
 
-Lemma eval_instr_invariant (i: asm_i) (s s': asm_state) :
+Lemma eval_instr_invariant (i: asm_i_r) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.

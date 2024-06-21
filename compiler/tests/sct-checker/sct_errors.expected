@@ -1,4 +1,4 @@
-Failed as expected assign_msf: speculative constant type checker: assignment operation not permitted on a msf variable: x
+Failed as expected assign_msf: speculative constant type checker: assignment to MSF variable x not allowed
 Failed as expected syscall: speculative constant type checker: syscalls destroy msf variables, {
                              x } are required
 Failed as expected update_msf_not_trans: speculative constant type checker: MSF is not Trans

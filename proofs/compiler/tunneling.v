@@ -44,7 +44,8 @@ Section LprogSem.
       fd.(lfd_res)
       fd.(lfd_export)
       fd.(lfd_callee_saved)
-      fd.(lfd_total_stack)
+      fd.(lfd_stk_max)
+      fd.(lfd_frame_size)
   .
 
   Definition setfuncs p lf :=

@@ -8,7 +8,6 @@ open Arch_decl
 open Utils
 open Prog
 open Var0
-open Arm_decl_core
 open Arm_decl
 open Arm_instr_decl
 
@@ -243,7 +242,7 @@ end = struct
     | _ -> ""
 end
 
-let pp_instr fn _ i =
+let pp_instr fn i =
   match i with
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
@@ -294,7 +293,15 @@ let pp_instr fn _ i =
 
 (* -------------------------------------------------------------------- *)
 
-let pp_body fn fmt cmd = List.concat_map (pp_instr fn fmt) cmd
+let pp_body fn =
+  let open List in
+  concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
+  let i = 
+    try pp_instr fn i 
+    with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
+  append
+    (map (fun i -> LInstr (i, [])) (DebugInfo.source_positions ii.base_loc))
+    i
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -303,7 +310,7 @@ let mangle x = Printf.sprintf "_%s" x
 
 let pp_brace s = Format.sprintf "{%s}" s
 
-let pp_fun fmt (fn, fd) =
+let pp_fun (fn, fd) =
   let fn = fn.fn_name in
   let head =
     if fd.asm_fd_export then
@@ -313,12 +320,12 @@ let pp_fun fmt (fn, fd) =
   let pre =
     if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
-  let body = pp_body fn fmt fd.asm_fd_body in
+  let body = pp_body fn fd.asm_fd_body in
   (* TODO_ARM: Review. *)
-  let pos = if fd.asm_fd_export then pp_instr fn fmt POPPC else [] in
+  let pos = if fd.asm_fd_export then pp_instr fn POPPC else [] in
   head @ pre @ body @ pos
 
-let pp_funcs fmt funs = List.concat_map (pp_fun fmt) funs
+let pp_funcs funs = List.concat_map pp_fun funs
 
 let pp_data globs =
   if not (List.is_empty globs) then
@@ -326,10 +333,10 @@ let pp_data globs =
     LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
   else []
 
-let pp_prog fmt p =
-  let code = pp_funcs fmt p.asm_funcs in
+let pp_prog p =
+  let code = pp_funcs p.asm_funcs in
   let data = pp_data p.asm_globs in
   headers @ code @ data
 
-let print_instr s fmt i = print_asm_lines fmt (pp_instr s fmt i)
-let print_prog fmt p = print_asm_lines fmt (pp_prog fmt p)
+let print_instr s fmt i = print_asm_lines fmt (pp_instr s i)
+let print_prog fmt p = print_asm_lines fmt (pp_prog p)

@@ -67,7 +67,7 @@ let pp_stackframe fmt (sz, ws) =
 
 let pp_meta fmt fd =
   F.fprintf fmt "(* %a *)"
-    pp_stackframe (fd.lfd_total_stack, fd.lfd_align)
+    pp_stackframe (fd.lfd_stk_max, fd.lfd_align)
 
 let pp_return is_export fmt =
   function

@@ -287,8 +287,8 @@ Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   | _ => None
   end.
 
-Definition pexpr_of_cf (cf : combine_flags) (flags : seq var) : pexpr :=
-  let eflags := [seq Plvar (mk_var_i x) | x <- flags ] in
+Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : pexpr :=
+  let eflags := [seq Plvar {| v_var := x; v_info := vi |} | x <- flags ] in
   PappN (Ocombine_flags cf) eflags.
 
 
@@ -313,6 +313,12 @@ Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
 
 Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
+
+Definition var_info_of_lval (x: lval) : var_info :=
+  match x with
+  | Lnone i t => i
+  | Lvar x | Lmem _ x _ | Laset _ _ x _ | Lasub _ _ _ x _ => v_info x
+  end.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
@@ -342,6 +348,7 @@ Module Type InstrInfoT <: TAG.
   Include TAG.
   Parameter with_location : t -> t.
   Parameter is_inline : t -> bool.
+  Parameter var_info_of_ii : t -> var_info.
 End InstrInfoT.
 
 Module InstrInfo : InstrInfoT.
@@ -349,6 +356,7 @@ Module InstrInfo : InstrInfoT.
   Definition witness : t := 1%positive.
   Definition with_location (ii : t) := ii.
   Definition is_inline (_ : t) : bool := false.
+  Definition var_info_of_ii (_ : t) : var_info := dummy_var_info.
 End InstrInfo.
 
 Definition instr_info := InstrInfo.t.
@@ -356,6 +364,7 @@ Definition dummy_instr_info : instr_info := InstrInfo.witness.
 Definition ii_with_location (ii : instr_info) : instr_info :=
   InstrInfo.with_location ii.
 Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
+Definition var_info_of_ii (ii : instr_info) : var_info := InstrInfo.var_info_of_ii ii.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
@@ -586,24 +595,36 @@ Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_e
 
 Variant return_address_location :=
 | RAnone
-| RAreg of var               (* The return address is pass by a register and 
-                                keeped in this register during function call *)
-| RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack 
+| RAreg of var & option var  (* The return address is pass by a register and
+                                keeped in this register during function call,
+                                the option is for incrementing the large stack in arm *)
+| RAstack of option var & Z & option var.
+                             (* None means that the call instruction directly store ra on the stack
                                 Some r means that the call instruction directly store ra on r and 
-                                the function should store r on the stack *)
+                                the function should store r on the stack,
+                                The second option is for incrementing the large stack in arm *)
+
+Definition is_RAnone ra :=
+  if ra is RAnone then true else false.
+
+Definition is_RAstack ra :=
+  if ra is RAstack _ _ _ then true else false.
+
+Definition is_RAstack_None ra :=
+  if ra is RAstack None _ _ then true else false.
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
-  | RAreg x1 => if r2 is RAreg x2 then x1 == x2 else false
-  | RAstack lr1 z1 => if r2 is RAstack lr2 z2 then (lr1 == lr2) && (z1 == z2) else false
+  | RAreg x1 o1 => if r2 is RAreg x2 o2 then (x1 == x2) && (o1 == o2) else false
+  | RAstack lr1 z1 o1 => if r2 is RAstack lr2 z2 o2 then [&& lr1 == lr2, z1 == z2 & o1 == o2] else false
   end.
 
 Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
 Proof.
-  case => [ | x1 | lr1 z1 ] [ | x2 | lr2 z2 ] /=; try by constructor.
-  + by apply (iffP eqP); congruence.
-  by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
+  case => [ | x1 o1 | lr1 z1 o1 ] [ | x2 o2 | lr2 z2 o2 ] /=; try by constructor.
+  + by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
+  by apply (iffP and3P) => [ []/eqP-> /eqP-> /eqP-> | []-> -> ->].
 Qed.
 
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
@@ -969,3 +990,21 @@ Definition instr_of_copn_args
 
 End INSTR_COPN.
 
+(* ------------------------------------------------------------------- *)
+
+Module Type OpnArgs.
+  Parameter lval rval : Type.
+  Parameter lvar : var_i -> lval.
+  Parameter lmem : forall {_ : PointerData}, wsize -> var_i -> Z -> lval.
+  Parameter rvar : var_i -> rval.
+  Parameter rconst : wsize -> Z -> rval.
+End OpnArgs.
+
+Module CopnArgs.
+  Definition lval := lval.
+  Definition rval := pexpr.
+  Definition lvar := Lvar.
+  Definition lmem {_ : PointerData} ws x z := Lmem ws x (cast_const z).
+  Definition rvar x := Pvar (mk_lvar x).
+  Definition rconst ws z := cast_w ws (Pconst z).
+End CopnArgs.

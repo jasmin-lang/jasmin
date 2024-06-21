@@ -1187,7 +1187,7 @@ rewrite !mathcomp.word.word.msbE /= !subZE; set w := (_ sz);
     by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
   apply/esym/negbTE; rewrite negbK; apply/eqP/esym.
   rewrite [val _]subw_modE /urepr /= -/w; have ->/=: (val α < val β)%R.
-    by have := ltr_le_add ha hb; rewrite addrC ltr_add2l.
+  by have := ltr_le_add ha hb; rewrite addrC ltr_add2l.
   rewrite mulr1n addrK opprD addrA lt_eqF //= opprK.
   by rewrite ltr_addl modulus_gt0.
 + rewrite ltr_subr_addl ltNge ltW /=; last first.
@@ -2013,6 +2013,20 @@ Proof.
   change (word.modulus wsz) with (two_power_nat wsz).
   rewrite two_power_nat_equiv.
   by rewrite Zlxor_mod.
+Qed.
+
+Lemma wxorA ws : associative (@wxor ws).
+Proof.
+  move=> x y z.
+  rewrite -(wrepr_unsigned x) -(wrepr_unsigned y) -(wrepr_unsigned z).
+  by rewrite !wrepr_xor Z.lxor_assoc.
+Qed.
+
+Lemma wxorC ws : commutative (@wxor ws).
+Proof.
+  move=> x y.
+  rewrite -(wrepr_unsigned x) -(wrepr_unsigned y).
+  by rewrite !wrepr_xor Z.lxor_comm.
 Qed.
 
 Lemma wrepr_wnot ws z :

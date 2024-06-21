@@ -96,7 +96,7 @@ type 'len gfcontract = {
 
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot: Annotations.f_annot;
+    f_annot: FInfo.f_annot;
     f_contra: 'len gfcontract;
     f_cc   : FInfo.call_conv;
     f_name : funname;

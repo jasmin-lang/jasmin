@@ -147,7 +147,7 @@ Context
 
   Lemma is_reg_ptr_lval_ty b ii sfx x ty lv y:
      is_reg_ptr_lval fresh_id ii sfx b x ty lv = Some y -> vtype y = ty.
-  Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
+  Proof. by case: lv => //= [? | _ _ _ ? _]; case: ifP => // _ [<-]. Qed.
 
   Lemma make_pseudo_codeP ii sfx X xtys lvs pis s1 s2 vm1 vs vst:
     make_pseudo_epilogue fresh_id ii X sfx xtys lvs = ok pis ->
@@ -204,7 +204,7 @@ Context
     sem_pis ii s1 pis vs s2 ->
     exists s1' vm2,
       [/\ write_lvals true (p_globs p') s1 lvs vs = ok s1',
-          sem p' ev s1' c (with_vm s2 vm2) & evm s2 =1 vm2].
+          sem p' ev s1' c (with_vm s2 vm2) & (evm s2 =1 vm2)%vm].
   Proof.
     elim: pis lvs c vs s1 => /= [ | pi pis ih] lvs' c' vs s1.
     + case/ok_inj => <- <-{lvs' c'} /sem_pisE[] -> <- {vs s1}.
@@ -236,7 +236,7 @@ Context
     + move=> x hx; have /= <- := vrvsP hw3; last by SvD.fsetdec.
       rewrite -(vrvsP hws); last by SvD.fsetdec.
       by rewrite -(vrvP H3) //; SvD.fsetdec.
-    have [vmi [hsemi heqv]]: exists vmi, write_lval true (p_globs p') lv v' (with_vm s1' vm3) = ok (with_vm s1' vmi) /\ evm s1' =1 vmi.
+    have [vmi [hsemi heqv]]: exists vmi, write_lval true (p_globs p') lv v' (with_vm s1' vm3) = ok (with_vm s1' vmi) /\ (evm s1' =1 vmi)%vm.
     + move: H3; rewrite /write_lval.
       move /Sv.is_empty_spec: hwr; move /Sv.is_empty_spec: hrw.
       rewrite /read_I_rec /write_I_rec [X in (Sv.inter (vrvs _) X)]/= /read_gvar
@@ -484,7 +484,7 @@ Context
 
   Lemma is_reg_ptr_expr_ty ii ctr b x ty lv y:
      is_reg_ptr_expr fresh_id ii ctr b x ty lv = Some y -> vtype y = ty.
-  Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
+  Proof. by case: lv => //= [? | _ _ _ ? _]; case: ifP => // _ [<-]. Qed.
 
   Lemma make_prologueP X ii s:
      forall xfty ctr args Y pl args',

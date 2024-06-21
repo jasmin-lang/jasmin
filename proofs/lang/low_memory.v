@@ -39,6 +39,19 @@ Lemma eq_mem_trans m2 m1 m3 :
   eq_mem m1 m3.
 Proof. move => p q x y; rewrite (p x y); exact: (q x y). Qed.
 
+Definition eq_mem_ex (m m' : mem) (top : word Uptr) (stk_max : Z) : Prop :=
+  forall p,
+    disjoint_zrange top stk_max p (wsize_size U8) ->
+    read m p U8 = read m' p U8.
+
+(* -------------------------------------------------------------- *)
+
+Definition valid_between (m : mem) (top : word Uptr) (stk_max : Z) : Prop :=
+  forall p, between top stk_max p U8 -> validw m p U8.
+
+Definition zero_between (m : mem) (top : word Uptr) (stk_max : Z) : Prop :=
+  forall p, between top stk_max p U8 -> read m p U8 = ok 0%R.
+
 (* -------------------------------------------------------------- *)
 #[ global ]
 Instance stack_stable_equiv : Equivalence stack_stable.
@@ -60,40 +73,6 @@ Lemma write_validw m ptr sz (w:word sz) m' :
   validw m ptr sz.
 Proof.
   move => hw; apply /writeV; exists m'; exact hw.
-Qed.
-
-(* An alternate form of [CoreMem.writeP_neq] that should be easier to use. *)
-Lemma writeP_neq mem1 mem2 p ws (v : word ws) p2 ws2 :
-  write mem1 p v = ok mem2 ->
-  disjoint_range p ws p2 ws2 ->
-  read mem2 p2 ws2 = read mem1 p2 ws2.
-Proof.
-  move=> hmem2 hdisj.
-  apply (writeP_neq hmem2).
-  by apply disjoint_range_alt.
-Qed.
-
-Lemma disjoint_range_valid_not_valid_U8 m p1 ws1 p2 :
-  validw m p1 ws1 ->
-  ~ validw m p2 U8 ->
-  disjoint_range p1 ws1 p2 U8.
-Proof.
-  move=> /validwP [hal1 hval1] hnval.
-  split.
-  + by apply is_align_no_overflow.
-  + by apply is_align_no_overflow; apply is_align8.
-  rewrite wsize8.
-  case: (Z_le_gt_dec (wunsigned p1 + wsize_size ws1) (wunsigned p2)); first by left.
-  case: (Z_le_gt_dec (wunsigned p2 + 1) (wunsigned p1)); first by right.
-  move=> hgt1 hgt2.
-  case: hnval.
-  apply /validwP; split.
-  + by apply is_align8.
-  move=> k; rewrite wsize8 => hk; have ->: k = 0%Z by Lia.lia.
-  rewrite add_0.
-  have ->: p2 = (p1 + wrepr _ (wunsigned p2 - wunsigned p1))%R.
-  + by rewrite wrepr_sub !wrepr_unsigned; ssring.
-  by apply hval1; Lia.lia.
 Qed.
 
 Lemma alloc_stack_top_stack m ws sz ioff sz' m' :

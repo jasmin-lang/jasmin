@@ -1,0 +1,51 @@
+/* This tests that stores that are not speculatively safe corrupt the whole (memory) state */
+#[constraints="p <= public, transient <= t, t <= transient, secret <= s"]
+fn corrupts_memory(
+  #public reg u64 i,
+  #secret reg u64 s,
+  reg ptr u64[1] x,
+  #[poly = p, poly = p] reg ptr u64[1] y
+) ->
+ #[poly = p, poly = s] reg ptr u64[1],
+ #[poly = p, poly = t] reg ptr u64[1] {
+  x[i] = s;
+  return x, y;
+}
+
+#[constraints="p <= public, secret <= s"]
+fn does_not_corrupt_memory(
+  #secret reg u64 s,
+  reg ptr u64[1] x,
+  #[poly = p, poly = p] reg ptr u64[1] y
+) ->
+ #[poly = p, poly = s] reg ptr u64[1],
+ #[poly = p, poly = p] reg ptr u64[1] {
+  x[0] = s;
+  return x, y;
+}
+
+#[constraints="p <= public, transient <= t, t <= transient, secret <= s"]
+fn does_corrupt_memory(
+  #secret reg u64 s,
+  reg ptr u64[1] x,
+  #[poly = p, poly = p] reg ptr u64[1] y
+) ->
+ #[poly = p, poly = s] reg ptr u64[1],
+ #[poly = p, poly = t] reg ptr u64[1] {
+  if false {
+    x[1] = s;
+  }
+  return x, y;
+}
+
+#[constraints="p <= public, secret <= s"]
+fn does_not_corrupt_registers(
+  #public reg u64 i,
+  #secret reg u64 s,
+  reg ptr u64[1] x
+) ->
+ #[poly = p, poly = s] reg ptr u64[1],
+ #public reg u64 {
+  x[i] = s;
+  return x, i;
+}

@@ -18,6 +18,7 @@ Variant x86_op : Type :=
 | MOVSX  of wsize & wsize      (* sign-extend *)
 | MOVZX  of wsize & wsize      (* zero-extend *)
 | CMOVcc of wsize              (* conditional copy *)
+| XCHG   of wsize              (* exchanges the contents of two operands *)
 
   (* Arithmetic *)
 | ADD    of wsize                  (* add unsigned / signed *)
@@ -374,6 +375,10 @@ Definition x86_MOVZX szi szo (x: word szi) : ex_tpl (w_ty szo) :=
     end in
   ok (zero_extend szo x).
 
+Definition x86_XCHG sz (v1 v2: word sz) : ex_tpl (w2_ty sz sz) :=
+  Let _ := check_size_8_64 sz in
+  ok (v2, v1).
+
 Definition x86_ADD sz (v1 v2 : word sz) : ex_tpl (b5w_ty sz) :=
   Let _ := check_size_8_64 sz in
   ok (rflags_of_aluop_w
@@ -687,11 +692,11 @@ Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
 
 (* ---------------------------------------------------------------- *)
 Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
-  let _ := check_size_32_64 sz in
+  Let _ := check_size_32_64 sz in
   ok (@pextr sz v1 v2).
 
 Definition x86_PDEP sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
-  let _ := check_size_32_64 sz in
+  Let _ := check_size_32_64 sz in
   ok (@pdep sz v1 v2).
 
 Definition x86_MOVX sz (x: word sz) : exec (word sz) :=
@@ -867,12 +872,12 @@ Definition x86_VPBLENDVB sz (x y m: word sz) : ex_tpl (w_ty sz) :=
 
 Definition SaturatedSignedToUnsigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
   let i1 := wsigned w in
-  let i2 := max 0%Z (min i1 (wmax_unsigned sz2)) in
+  let i2 := cmp_max 0%Z (cmp_min i1 (wmax_unsigned sz2)) in
   wrepr sz2 i2.
 
 Definition SaturatedSignedToSigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
   let i1 := wsigned w in
-  let i2 := max (wmin_signed sz2) (min i1 (wmax_signed sz2)) in
+  let i2 := cmp_max (wmin_signed sz2) (cmp_min i1 (wmax_signed sz2)) in
   wrepr sz2 i2.
 
 Definition vpack2 (sz1 sz2 sz:wsize) (op:word sz1 -> word sz2) (w1 w2:word sz) : word sz := 
@@ -1049,7 +1054,7 @@ Definition wVPCLMULDQD sz (w1 w2: word sz) (k: u8): word sz :=
  make_vec sz (map2 f (split_vec U128 w1) (split_vec U128 w2)).
 
 Definition x86_VPCLMULQDQ sz (v1 v2: word sz) (k: u8): ex_tpl (w_ty sz) :=
- let _ := check_size_128_256 sz in
+ Let _ := check_size_128_256 sz in
  ok (wVPCLMULDQD v1 v2 k).
 
 (* ----------------------------------------------------------------------------- *)
@@ -1241,9 +1246,12 @@ Definition rm b := [:: CAreg; CAmem b].
 
 Definition rmi sz := [:: CAreg; CAmem true; CAimm sz].
 Definition ri  sz := [:: CAreg; CAimm sz].
+
+Definition m_r := [:: m false; r].
+Definition r_rm_false := [:: r; rm false].
+
 Definition r_rm := [:: r; rm true].
 Definition r_rmi sz := [:: r; rmi sz].
-
 Definition m_ri sz := [:: m false; ri sz].
 
 Definition xmm := [:: CAxmm ].
@@ -1292,6 +1300,11 @@ Definition pp_movzx szs szd args :=
 
 Definition Ox86_MOVZX_instr             :=
   mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movsx (prim_movzx MOVZX) pp_movzx.
+
+Definition check_xchg := [:: m_r; r_rm].
+Definition Ox86_XCHG_instr :=
+  let name := "XCHG"%string in
+  ( (fun sz => mk_instr (pp_sz name sz) (w2_ty sz sz) (w2_ty sz sz) [:: E 0; E 1] [:: E 0; E 1] (reg_msb_flag sz) (@x86_XCHG sz) check_xchg 2 [::] (pp_name "xchg" sz)), (name, primP XCHG)).
 
 Definition c_r_rm := [:: c; r; rm true].
 Definition Ox86_CMOVcc_instr            :=
@@ -1896,6 +1909,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | MOVSX sz sz'       => Ox86_MOVSX_instr.1 sz sz'
   | MOVZX sz sz'       => Ox86_MOVZX_instr.1 sz sz'
   | CMOVcc sz          => Ox86_CMOVcc_instr.1 sz
+  | XCHG sz            => Ox86_XCHG_instr.1 sz
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
   | PEXT sz            => Ox86_PEXT_instr.1 sz
@@ -2033,6 +2047,7 @@ Definition x86_prim_string :=
    Ox86_MOVSX_instr.2;
    Ox86_MOVZX_instr.2;
    Ox86_CMOVcc_instr.2;
+   Ox86_XCHG_instr.2;
    Ox86_BSWAP_instr.2;
    Ox86_POPCNT_instr.2;
    Ox86_PEXT_instr.2;

@@ -291,7 +291,12 @@ let all_alignment pd ctbl alias ret params lalloc =
 
 
 (* --------------------------------------------------- *)
-let alloc_local_stack size slots atbl = 
+let round_ws ws sz =
+  let d = size_of_ws ws in
+  if sz mod d = 0 then sz
+  else (sz/d + 1) * d
+
+let alloc_local_stack size slots atbl =
   let do1 x = 
     let ws = 
       try Hv.find atbl x 
@@ -321,12 +326,8 @@ let alloc_local_stack size slots atbl =
   let size = ref size in
   
   let init_slot (x,ws) = 
-    let s = size_of_ws ws in
-    let pos = !size in
+    let pos = round_ws ws !size in
     let n = size_of x.v_ty in
-    let pos = 
-      if pos mod s = 0 then pos
-      else (pos/s + 1) * s in
     size := pos + n;
     (x,ws,pos) in
 

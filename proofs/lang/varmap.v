@@ -1042,11 +1042,11 @@ Section REL_EQUIV.
   Qed.
 
   Lemma eq_on_eq_vm vm1 vm2 vm1' vm2' d :
-    vm1  =1   vm2 →
+    (vm1  =1   vm2)%vm →
     vm1' =[d] vm2' →
     vm1  =[\d] vm1'→
     vm2  =[\d] vm2' →
-    vm1' =1   vm2'.
+    (vm1' =1   vm2')%vm.
   Proof.
     move => out on t1 t2 x.
     case: (Sv_memP x d); first exact: on.
@@ -1124,7 +1124,7 @@ Section REL_EQUIV.
   Proof. by move => h x _; exact: h. Qed.
 
   Lemma vm_eq_eq_on dom vm1 vm2 :
-    vm1 =1 vm2 →
+    (vm1 =1 vm2)%vm →
     vm1 =[dom] vm2.
   Proof. by move => h x _; exact: h. Qed.
 

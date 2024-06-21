@@ -62,5 +62,17 @@ let slice fs (gd, fds) =
         if Sf.mem fd.f_name k.funs then inspect_stmt k fd.f_body else k)
       { vars = Sv.empty; funs } fds
   in
-  ( List.filter (fun (x, _) -> Sv.mem x k.vars) gd,
-    List.filter (fun fd -> Sf.mem fd.f_name k.funs) fds )
+  (* Keep only global variables that are referenced *)
+  let gd = List.filter (fun (x, _) -> Sv.mem x k.vars) gd in
+  (* Keep only functions that are referenced *)
+  let fds = List.filter (fun fd -> Sf.mem fd.f_name k.funs) fds in
+  (* Turn export functions that are not in the fs list into inline functions *)
+  let fds =
+    List.map
+      (fun fd ->
+        if List.mem fd.f_name.fn_name fs || not (FInfo.is_export fd.f_cc) then
+          fd
+        else { fd with f_cc = Internal })
+      fds
+  in
+  (gd, fds)

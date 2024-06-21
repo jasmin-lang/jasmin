@@ -13,7 +13,7 @@ let parse () =
   let infiles = ref [] in
   let set_in s = infiles := s :: !infiles in
   (* Set default option values *)
-  if Arch.os = Some `Windows then set_cc "windows";
+  if Sys.win32 then set_cc "windows";
   (* Parse command-line arguments *)
   Arg.parse options set_in usage_msg;
   let c =
@@ -60,8 +60,8 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   ()
 
 (* -------------------------------------------------------------------- *)
-let check_sct _s p _source_p =
-  Sct_checker_forward.ty_prog p (oget !sct_list)
+let check_sct is_ct_asm _s p _source_p =
+  Sct_checker_forward.ty_prog is_ct_asm p (oget !sct_list)
 
 (* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
@@ -179,7 +179,7 @@ let main () =
           source_prog
         |> donotcompile
       else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
-        check_sct s p source_prog
+        check_sct Arch.is_ct_sopn s p source_prog
         |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
         |> donotcompile
       else
@@ -216,7 +216,7 @@ let main () =
 
 
     if !ct_list <> None then begin
-        let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
+        let sigs, status = Ct_checker_forward.ty_prog Arch.is_ct_sopn ~infer:!infer source_prog (oget !ct_list) in
            Format.printf "/* Security types:\n@[<v>%a@]*/@."
               (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
            let on_err (loc, msg) =

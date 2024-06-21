@@ -1,21 +1,9 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-ECROOT   ?=
-ECCHECK  ?=
-ECARGS   ?=
 ECCONF   := tests.config 
-XUNITOUT ?= xunit.xml
+ECARGS   ?=
 CHECKS   ?= jasmin
-
-ifeq ($(ECCHECK),)
-ifeq ($(ECROOT),)
-ECCHECK := ec-runtest
-else
-PATH    := ${ECROOT}:${PATH}
-ECCHECK := $(ECROOT)/scripts/testing/runtest
-endif
-endif
 
 # --------------------------------------------------------------------
 DESTDIR  ?=
@@ -26,18 +14,15 @@ SHRDIR   := $(PREFIX)/share
 INSTALL  ?= ../scripts/install-sh
 
 # --------------------------------------------------------------------
-.PHONY: default usage check check-xunit install uninstall
+.PHONY: default usage check install uninstall
 
 default: check
 
 usage:
-	@echo "Usage: make <target> where <target> in [check|check-xunit]" >&2
+	@echo "Usage: make <target> where <target> in [check|install|uninstall]" >&2
 
 check:
-	$(ECCHECK) --bin-args="$(ECARGS)" $(ECCONF) $(CHECKS)
-
-check-xunit:
-	$(ECCHECK) --bin-args="$(ECARGS)" --report=$(XUNITOUT) $(ECCONF) $(CHECKS)
+	easycrypt runtest $(ECARGS) $(ECCONF) $(CHECKS)
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(LIBDIR)/jasmin/easycrypt

@@ -53,13 +53,13 @@ export fn not_known_as_msf() {
   x = #mov_msf(x);
 }
 
-export fn bad_poly_annot(#poly=public reg u64 x) {}
+export fn bad_poly_annot(#poly=public reg u64 x) { [x] = 0; }
 
 export fn msf_in_export(reg u64 p) {
   p = #protect(p, p);
 }
 
-fn must_not_be_a_msf_aux(#msf reg u64 p) {
+fn must_not_be_a_msf_aux(#msf reg u64 p) { p = p;
 }
 
 fn should_be_a_msf_aux(#public reg u64 p) {
@@ -167,7 +167,7 @@ export fn ret_msf() -> #public reg u64 {
   return msf;
 }
 
-export fn public_arg(#public reg u32 x) {}
+export fn public_arg(#public reg u32 x) { x = x; }
 
 export fn need_declassify(#transient reg u64 p) -> #public reg u64 {
   reg u64 x msf;

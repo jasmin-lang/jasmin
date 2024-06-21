@@ -237,7 +237,8 @@ end = struct
     let succ = successors l in
     let pp succ =
       Format.fprintf fmt "%a <= @[%a@],@ " Vl.pp vl
-        (Format.pp_print_list ~pp_sep:(fun _ -> Format.print_space)  (fun fmt s -> Vl.pp fmt (vlevel s))) succ in
+        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "@ ")
+           (fun fmt s -> Vl.pp fmt (vlevel s))) succ in
     if debug then pp succ
     else
       let succ =

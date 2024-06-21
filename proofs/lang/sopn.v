@@ -168,7 +168,7 @@ Definition Oaddcarry_instr sz :=
            (fun x y c => let p := @waddcarry sz x y c in ok (Some p.1, p.2))
            [::].
 
-Definition Osubcarry_instr sz:= 
+Definition Osubcarry_instr sz := 
   mk_instr_desc (pp_sz "sbb" sz)
            [:: sword sz; sword sz; sbool]
            [:: E 0; E 1; E 2] (* this info is irrelevant *)
@@ -177,13 +177,56 @@ Definition Osubcarry_instr sz:=
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
            [::].
 
+Fixpoint spill_semi (tys: seq stype) : sem_prod tys (exec (sem_tuple [::])):= 
+  match tys as tys0 return sem_prod tys0 (exec (sem_tuple [::])) with
+  | [::] => ok tt
+  | t::tys => fun (_ : sem_t t) => spill_semi tys
+  end.
+
+Lemma spill_semu tys (vs vs' : seq value) (v : values) :
+   List.Forall2 value_uincl vs vs' ->
+   app_sopn_v (spill_semi tys) vs = ok v -> 
+   exists2 v' : values, app_sopn_v (spill_semi tys) vs' = ok v' & 
+                        List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v; elim: tys vs vs' v => /= [ | t tys hrec] ?? v; case => //=.
+  + by move=> [<-]; exists [::].
+  move=> v1 v1' vs vs' huv hu /=; t_xrbindP => ?? hv ha <-.
+  have [? -> _ /=]:= val_uincl_of_val huv hv.
+  by apply: hrec;[ apply hu | rewrite ha].
+Qed.
+
+Definition Ospill_instr o tys := 
+  {| str      := (fun _ => string_of_pseudo_operator (Ospill o tys)); 
+     tin      := tys; 
+     i_in     := mapi (fun i _ => E i) tys; 
+     tout     := [:: ]; 
+     i_out    := [:: ];
+     semi     := spill_semi tys;
+     semu     := @spill_semu tys; 
+     i_safe   := [:: ];
+  |}.
+
+Definition Oswap_instr ty := 
+  {| str    := (fun _ => "swap"%string);
+     tin    := [:: ty; ty];
+     i_in   := [:: E 0; E 1]; (* this info is relevant *)
+     tout   := [:: ty; ty];
+     i_out  := [:: E 0; E 1]; (* this info is relevant *)
+     semi   := @swap_semi _ ty;
+     semu   := @swap_semu _ ty;
+     i_safe := [::];
+  |}.
+
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   match o with
+  | Ospill o tys => Ospill_instr o tys
   | Ocopy ws p   => Ocopy_instr ws p
   | Onop         => Onop_instr
   | Omulu     sz => Omulu_instr sz
   | Oaddcarry sz => Oaddcarry_instr sz
   | Osubcarry sz => Osubcarry_instr sz
+  | Oswap     ty => Oswap_instr ty
   end.
 
 (* ------------------------------------------------------------- *)
@@ -342,6 +385,7 @@ Definition primP {A: Type} (f: wsize -> A) :=
 Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
   [::
     ("copy", primP (fun sz => Opseudo_op (Ocopy sz xH)));  (* The size is fixed later *)
+    ("swap", primM (Opseudo_op (Oswap sbool))); (* The type is fixed later *)
     (* "NOP" is ignored on purpose *)
     ("mulu", primP (fun sz => Opseudo_op (Omulu sz)));
     ("adc", primP (fun sz => Opseudo_op (Oaddcarry sz)));

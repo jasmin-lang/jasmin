@@ -5,7 +5,7 @@ open Prog
 
 type 'a callstyle =
   | StackDirect           (* call instruction push the return address on top of the stack *)
-  | ByReg of 'a option    (* call instruction store the return address on a register, 
+  | ByReg of 'a option    (* call instruction store the return address on a register,
                                (Some r) neams that the register is forced to be r *)
 
 (* TODO: check that we cannot use sth already defined on the Coq side *)
@@ -23,6 +23,7 @@ module type Core_arch = sig
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
+  val alloc_stack_need_extra : Z.t -> bool
 
   val lowering_opt : lowering_options
   val not_saved_stack : var list
@@ -32,6 +33,9 @@ module type Core_arch = sig
   val callstyle : reg callstyle
 
   val known_implicits : (Name.t * string) list
+
+  val is_ct_asm_op : asm_op -> bool
+  val is_ct_asm_extra : extra_op -> bool
 
 end
 
@@ -66,6 +70,8 @@ module type Arch = sig
   val callstyle : var callstyle
 
   val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
+
+  val is_ct_sopn : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op -> bool
 end
 
 module Arch_from_Core_arch (A : Core_arch) :
@@ -79,7 +85,7 @@ module Arch_from_Core_arch (A : Core_arch) :
      and type extra_op = A.extra_op = struct
   include A
 
-  let arch_decl = A.asm_e._asm._arch_decl 
+  let arch_decl = A.asm_e._asm._arch_decl
   let reg_size = arch_decl.reg_size
   let xreg_size = arch_decl.xreg_size
   let pointer_data = arch_pd A.asm_e._asm._arch_decl
@@ -110,30 +116,30 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let callee_save = call_conv.callee_saved
 
-  (* Remark the order is very important this register allocation use this list to 
-     allocate register. The lasts in the list are taken only when needed. 
+  (* Remark the order is very important this register allocation use this list to
+     allocate register. The lasts in the list are taken only when needed.
      So it is better to have callee_saved at the end *)
-  
+
   let callee_save_reg  = List.filter_map (Arch_decl.get_ARReg arch_decl) callee_save
   let callee_save_regx = List.filter_map (Arch_decl.get_ARegX arch_decl) callee_save
   let callee_save_xreg = List.filter_map (Arch_decl.get_AXReg arch_decl) callee_save
 
   let rsp = arch_decl.ad_rsp
 
-  let mk_allocatable regs callee_save = 
+  let mk_allocatable regs callee_save =
      List.filter (fun r -> not (List.mem r callee_save)) regs
      @
      callee_save
 
-  let allocatable = 
+  let allocatable =
     let good_order = mk_allocatable (Arch_decl.registers arch_decl) callee_save_reg in
     (* be sure that rsp is not used *)
-    List.filter (fun r -> r <> rsp) good_order  
+    List.filter (fun r -> r <> rsp) good_order
 
-  let extra_allocatable = 
+  let extra_allocatable =
     mk_allocatable (Arch_decl.registerxs arch_decl) callee_save_regx
 
-  let xmm_allocatable = 
+  let xmm_allocatable =
     mk_allocatable (Arch_decl.xregisters arch_decl) callee_save_xreg
 
   let arguments = call_conv.call_reg_args
@@ -167,7 +173,7 @@ module Arch_from_Core_arch (A : Core_arch) :
     List.map var_of_xreg xmm_allocatable
 
   let callee_save_vars =
-    let var_of_typed = function 
+    let var_of_typed = function
       | ARReg r -> var_of_reg  r
       | ARegX r -> var_of_regx r
       | AXReg r -> var_of_xreg r
@@ -180,7 +186,7 @@ module Arch_from_Core_arch (A : Core_arch) :
 
   let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
 
-  let callstyle = 
+  let callstyle =
     match A.callstyle with
     | StackDirect -> StackDirect
     | ByReg o -> ByReg (Option.map var_of_reg o)
@@ -191,5 +197,10 @@ module Arch_from_Core_arch (A : Core_arch) :
       known_implicits = known_implicits;
       flagnames = List.map fst known_implicits;
     }
+
+  let is_ct_sopn (o : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) =
+   match o with
+   | BaseOp (_, o) -> is_ct_asm_op o
+   | ExtOp o -> is_ct_asm_extra o
 
 end

@@ -98,6 +98,11 @@ module Cident = struct
   let mk x k t = V.mk (CoreConv.string_of_cstring x) k t L._dummy []
   let mk_flag x = mk x (Reg(Normal,Direct)) tbool
 
+  let spill_to_mmx (x:t) =
+    match Annot.ensure_uniq1 "spill_to_mmx" Annot.none x.v_annot with
+    | Some () -> true
+    | None    -> false
+
 end
 
 (* ------------------------------------------------------------------------ *)

@@ -8,15 +8,6 @@ module E = Expr
 module F = Format
 
 (* -------------------------------------------------------------------- *)
-let ws_of_ws = function
-    | `W8   -> W.U8
-    | `W16  -> W.U16
-    | `W32  -> W.U32
-    | `W64  -> W.U64
-    | `W128 -> W.U128
-    | `W256 -> W.U256
-
-(* -------------------------------------------------------------------- *)
 let pp_print_X fmt z =
   Format.fprintf fmt "%s" (Z.format "#X" z)
 
@@ -111,7 +102,7 @@ let rec pp_simple_attribute fmt =
   function
   | Annotations.Aint z -> Z.pp_print fmt z
   | Aid s | Astring s -> F.fprintf fmt "%S" s
-  | Aws ws -> F.fprintf fmt "%s" (string_of_ws (ws_of_ws ws))
+  | Aws ws -> F.fprintf fmt "%s" (string_of_ws ws)
   | Astruct a -> F.fprintf fmt "(%a)" pp_annotations a
 
 and pp_attribute fmt = function
@@ -414,12 +405,18 @@ let pp_saved_stack ~debug fmt = function
   | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar x)
   | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" Z.pp_print (Conv.z_of_cz z)
 
+
+let pp_tmp_option ~debug =
+   Format.pp_print_option (fun fmt x -> Format.fprintf fmt " [tmp = %a]" (pp_var ~debug) (Conv.var_of_cvar x))
+
 let pp_return_address ~debug fmt = function
-  | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar x)
-  | Expr.RAstack(Some x, z) -> 
-    Format.fprintf fmt "%a, RSP + %a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz z)
-  | Expr.RAstack(None, z) -> 
-    Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz z)
+  | Expr.RAreg (x, o) ->
+    Format.fprintf fmt "%a%a" (pp_var ~debug) (Conv.var_of_cvar x) (pp_tmp_option ~debug) o
+
+  | Expr.RAstack(Some x, z, o) ->
+    Format.fprintf fmt "%a, RSP + %a%a" (pp_var ~debug) (Conv.var_of_cvar x) Z.pp_print (Conv.z_of_cz z) (pp_tmp_option ~debug) o
+  | Expr.RAstack(None, z, o) ->
+    Format.fprintf fmt "RSP + %a%a" Z.pp_print (Conv.z_of_cz z) (pp_tmp_option ~debug) o
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
 let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
@@ -457,6 +454,7 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
   let rec pp_err fmt pp_e =
     match pp_e with
     | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
+    | Compiler_util.PPEz z -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
     | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
     | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc

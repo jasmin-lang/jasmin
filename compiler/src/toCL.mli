@@ -197,7 +197,7 @@ module X86BaseOp : BaseOp
 
 module ARMBaseOp : BaseOp
  with type op = Arm_instr_decl.arm_op
- and type extra_op = Arm_extra.__
+ and type extra_op = Arm_extra.arm_extra_op
 
 module Mk(O:BaseOp) : sig
 val fun_to_proc :

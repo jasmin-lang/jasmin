@@ -195,6 +195,7 @@ let link_array_return params a xs es cc =
 let opn_cc o = 
   match o with
   | Sopn.Oslh (SLHprotect_ptr_fail _) -> Some [Some 0]
+  | Sopn.Opseudo_op(Pseudo_operator.Oswap _) -> Some [Some 1; Some 0]
   | _ -> None 
 
 let rec analyze_instr_r params cc a =
@@ -206,6 +207,7 @@ let rec analyze_instr_r params cc a =
   | Cassert _ -> a
   (* A special case for protect_ptr which is a kind of move *)
   | Copn (xs, _, o, es) -> 
+    (* A special case for operators that can return array *)
     begin match opn_cc o with 
     | None -> a 
     | Some l -> link_array_return params a xs es l

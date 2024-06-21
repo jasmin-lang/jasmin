@@ -10,11 +10,7 @@ Require Import
   shift_kind
   strings
   utils
-  wsize
-  ident.
-
-Require Export
-  arm_decl_core.
+  wsize.
 
 Require Import
   arch_decl
@@ -30,8 +26,19 @@ Unset Printing Implicit Defensive.
  * This is a description of the base architecture (no extensions).
  *)
 
+(* --------------------------------------------- *)
+Definition arm_reg_size  := U32.
+Definition arm_xreg_size := U64.
+
 (* -------------------------------------------------------------------- *)
 (* Registers. *)
+
+Variant register : Type :=
+| R00 | R01 | R02 | R03         (* Lower general-purpose registers. *)
+| R04 | R05 | R06 | R07         (* Lower general-purpose registers. *)
+| R08 | R09 | R10 | R11 | R12   (* Higher general-purpose registers. *)
+| LR                            (* Subroutine link register. *)
+| SP.                           (* Stack pointer. *)
 
 Scheme Equality for register.
 
@@ -88,6 +95,12 @@ Instance reg_toS : ToString (sword arm_reg_size) register :=
 
 (* -------------------------------------------------------------------- *)
 (* Flags. *)
+
+Variant rflag : Type :=
+| NF    (* Negative condition flag. *)
+| ZF    (* Zero confition flag. *)
+| CF    (* Carry condition flag. *)
+| VF.   (* Overflow condition flag. *)
 
 Scheme Equality for rflag.
 
@@ -293,8 +306,8 @@ Notation xregister := empty.
 
 #[ export ]
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
-  { reg_size  := arm_decl_core.arm_reg_size
-  ; xreg_size := U64
+  { reg_size  := arm_reg_size
+  ; xreg_size := arm_xreg_size
   ; cond_eqC  := eqTC_condt
   ; toS_r     := reg_toS
   ; toS_rx    := empty_toS sword32
@@ -315,7 +328,6 @@ Definition arm_linux_call_conv : calling_convention :=
    ; call_xreg_ret  := [::]
    ; call_reg_ret_uniq := erefl true;
   |}.
-
 
 (* -------------------------------------------------------------------- *)
 (* Valid immediates checks. *)
@@ -364,5 +376,11 @@ Definition is_expandable (n : Z) : bool :=
   | EI_shift | EI_none => false
   end.
 
+Definition is_expandable_or_shift (n : Z) : bool :=
+   match ei_kind n with
+   | EI_byte | EI_pattern | EI_shift => true
+   | EI_none => false
+  end.
+ 
 Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
 Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.

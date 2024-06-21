@@ -4,6 +4,7 @@ let version_string = "Jasmin Compiler @VERSION@"
 (*--------------------------------------------------------------------- *)
 let outfile = ref ""
 let latexfile = ref ""
+let dwarf = ref false
 let debug = ref false
 let timings = ref false
 let print_list = ref []
@@ -35,6 +36,20 @@ let print_stack_alloc = ref false
 let introduce_array_copy = ref true
 let print_dependencies = ref false 
 let lazy_regalloc = ref false
+
+let stack_zero_strategy = ref None
+let stack_zero_strategies =
+  let open Stack_zero_strategy in
+  let assoc = function
+    | SZSloop -> "loop"
+    | SZSloopSCT -> "loopSCT"
+    | SZSunrolled -> "unrolled"
+  in
+  List.map (fun s -> (assoc s, s)) stack_zero_strategy_list
+let set_stack_zero_strategy s =
+  stack_zero_strategy := Some (List.assoc s stack_zero_strategies)
+let stack_zero_size = ref None
+let set_stack_zero_size s = stack_zero_size := Some (Annot.ws_of_string s)
 
 type architecture =
   | X86_64
@@ -138,6 +153,7 @@ let print_strings = function
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
   | Compiler.ArrayCopy                   -> "arraycopy", "array copy"
   | Compiler.AddArrInit                  -> "addarrinit", "add array initialisation"
+  | Compiler.LowerSpill                  -> "lowerspill", "lower spill/unspill instructions"
   | Compiler.Inlining                    -> "inline"   , "inlining"
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
   | Compiler.Unrolling                   -> "unroll"   , "unrolling"
@@ -157,6 +173,7 @@ let print_strings = function
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
   | Compiler.Linearization               -> "linear"   , "linearization"
+  | Compiler.StackZeroization            -> "stackzero", "stack zeroization"
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 
@@ -182,6 +199,7 @@ let stop_after_option p =
 let options = [
     "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
+    "-g"       , Arg.Set dwarf         , "emit DWARF2 line number information";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-timings" , Arg.Set timings       , ": print a timestamp and elapsed time after each pass";
     "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
@@ -231,6 +249,12 @@ let options = [
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
     "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
+    "-stack-zero",
+      Arg.Symbol (List.map fst stack_zero_strategies, set_stack_zero_strategy),
+      ": select stack zeroization strategy for export functions";
+    "-stack-zero-size",
+      Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
+      ": select stack zeroization size for export functions";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

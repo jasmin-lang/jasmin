@@ -12,11 +12,10 @@ Require Import
   asm_gen_proof
   sem_params_of_arch_extra.
 Require
-  linearization
   linearization_proof
   lowering
-  stack_alloc
   stack_alloc_proof
+  stack_zeroization_proof
   slh_lowering_proof.
 Require Export arch_params.
 
@@ -74,11 +73,15 @@ Record h_architecture_params
       linearization_proof.h_linearization_params
         (ap_lip aparams);
 
-    (* The scratch register in linearize_params must be a register.
+    (* The scratch registers in linearize_params must be a register.
        Needed for the compiler proof. *)
     ok_lip_tmp :
       exists r : reg_t,
         of_ident (linearization.lip_tmp (ap_lip aparams)) = Some r;
+
+    ok_lip_tmp2 :
+      exists r : reg_t,
+        of_ident (linearization.lip_tmp2 (ap_lip aparams)) = Some r;
 
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);
@@ -88,6 +91,10 @@ Record h_architecture_params
 
     (* Speculative execution lowering hypothesis *)
     hap_hshp : slh_lowering_proof.h_sh_params (ap_shp aparams);
+
+    (* Stack zeroization hypotheses. See [stack_zeroization_proof.v]. *)
+    hap_hszp :
+      stack_zeroization_proof.h_stack_zeroization_params (ap_szp aparams);
 
     (* ------------------------------------------------------------------------ *)
     (* Shared across multiple passes. *)

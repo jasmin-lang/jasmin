@@ -80,12 +80,11 @@ Lemma rexpr_of_pexprP s e r v :
   sem_pexpr true gd s e = ok v →
   sem_rexpr (emem s) (evm s) r = ok v.
 Proof.
-  Admitted.
-  (*   elim/rexpr_of_pexpr_ind: (rexpr_of_pexpr e). *)
-(*   - move => ws p f -> {e} /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <-{r} /=. *)
-(*     by t_xrbindP => > -> /= -> > /ok_a -> /= -> /= > -> <-. *)
-(*   by move => _ /obindI[] f [] /fexpr_of_pexprP ok_f /Some_inj <-{r} /ok_f. *)
-(* Qed. *)
+    elim/rexpr_of_pexpr_ind: (rexpr_of_pexpr e).
+  - move => ws p f -> {e} /obindI[] a [] /fexpr_of_pexprP ok_a /Some_inj <-{r} /=.
+    by t_xrbindP => > -> /= -> > /ok_a -> /= -> /= > -> <-.
+  by move => _ /obindI[] f [] /fexpr_of_pexprP ok_f /Some_inj <-{r} /ok_f.
+Qed.
 
 Lemma lexpr_of_lvalP x d s v s' :
   lexpr_of_lval x = Some d →
@@ -124,6 +123,48 @@ Lemma free_vars_rP vm2 vm1 r m:
 Proof.
   case: r => [w v f | f] /= heq; last by apply free_varsP.
   rewrite (free_vars_recP heq) (get_var_eq_on _ _ heq) // free_varsE; SvD.fsetdec.
+Qed.
+
+
+Lemma write_lexpr_stack_stable e v s1 s2 :
+  write_lexpr e v s1 = ok s2 ->
+  stack_stable (emem s1) (emem s2).
+Proof.
+  case: e => [ws x e|x] /=.
+  + t_xrbindP=> ?? _ _ ?? _ _ ? _ ? hw <- /=.
+    exact: Memory.write_mem_stable hw.
+  t_xrbindP=> ? _ <- /=.
+  by reflexivity.
+Qed.
+
+Lemma write_lexprs_stack_stable es vs s1 s2 :
+  write_lexprs es vs s1 = ok s2 ->
+  stack_stable (emem s1) (emem s2).
+Proof.
+  elim: es vs s1 => [|e es ih] [|v vs] s1 //=.
+  + by move=> [<-].
+  by t_xrbindP=> s1' /write_lexpr_stack_stable -> /ih.
+Qed.
+
+Lemma write_lexpr_validw e v s1 s2 :
+  write_lexpr e v s1 = ok s2 ->
+  validw (emem s1) =2 validw (emem s2).
+Proof.
+  case: e => [ws x e|x] /=.
+  + t_xrbindP=> ?? _ _ ?? _ _ ? _ ? hw <- /=.
+    by move=> ??; rewrite (write_validw_eq hw).
+  t_xrbindP=> ? _ <- /=.
+  by move=> ??; reflexivity.
+Qed.
+
+Lemma write_lexprs_validw es vs s1 s2 :
+  write_lexprs es vs s1 = ok s2 ->
+  validw (emem s1) =2 validw (emem s2).
+Proof.
+  elim: es vs s1 => [|e es ih] [|v vs] s1 //=.
+  + by move=> [<-].
+  t_xrbindP=> s1' /write_lexpr_validw hvalid1 /ih hvalid2.
+  by move=> ??; rewrite hvalid1 hvalid2.
 Qed.
 
 End Section.

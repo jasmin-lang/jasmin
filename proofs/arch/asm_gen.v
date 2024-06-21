@@ -35,7 +35,7 @@ Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info
 Definition internal_error ii msg := 
   gen_error true (Some ii) None (pp_s msg).
 
-Definition unexpected_sopn `{PointerData} `{MSFsize} `{asmOp} ii msg op :=
+Definition unexpected_sopn `{MSFsize} `{asmOp} ii msg op :=
   let err :=
     pp_box [:: pp_s msg; pp_s "unexpected operator"; pp_s (string_of_sopn op) ]
   in
@@ -498,50 +498,51 @@ Definition is_not_app1 e : bool :=
 
 Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
   let '{| li_ii := ii; li_i := ir; |} := i in
+  let mk i := {| asmi_i := i ; asmi_ii := ii |} in
   match ir with
   | Lopn ds op es =>
       Let args := assemble_sopn rip ii op ds es in
-      ok (map (fun x => AsmOp x.1 x.2) args)
+      ok (map (fun x => mk (AsmOp x.1 x.2)) args)
 
   | Lalign =>
-      ok [:: ALIGN ]
+      ok [:: mk ALIGN ]
 
   | Llabel k lbl =>
-      ok [:: LABEL k lbl ]
+      ok [:: mk (LABEL k lbl) ]
 
   | Lassert _ =>
        Error (fail ii "Assert not supported")
 
   | Lgoto lbl =>
-      ok [:: JMP lbl ]
+      ok [:: mk (JMP lbl) ]
 
   | Ligoto e =>
       Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
       Let arg := assemble_word AK_mem rip ii Uptr e in
-      ok [:: JMPI arg ]
+      ok [:: mk (JMPI arg) ]
 
   | LstoreLabel x lbl =>
       Let dst := if of_var x is Some r then ok r else Error (fail ii "bad var") in
-      ok [:: STORELABEL dst lbl ]
+      ok [:: mk (STORELABEL dst lbl) ]
 
   | Lcond e l =>
       Let cond := assemble_cond ii e in
-      ok [:: Jcc l cond ]
+      ok [:: mk (Jcc l cond) ]
 
   | Lsyscall o =>
-      ok [:: SysCall o ]
+      ok [:: mk (SysCall o) ]
 
   | Lcall None l =>
-      ok [:: CALL l ]
+      ok [:: mk (CALL l) ]
 
   | Lcall (Some r) l =>
-    Let r := 
+    Let r :=
       if to_reg r is Some r then ok r
       else Error (E.verror true "Not a register" ii r) in
-      ok [:: JAL r l ]
+      ok [:: mk (JAL r l) ]
 
   | Lret =>
-      ok [:: POPPC ]
+      ok [:: mk POPPC ]
 
   end.
 

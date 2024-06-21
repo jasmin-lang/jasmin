@@ -198,6 +198,27 @@ move => z /=; case: eqP; try constructor.
 move => ->; exact: Is_reflect_some.
 Qed.
 
+Lemma is_falseP e : reflect (e = Pbool false) (is_false e).
+Proof.
+  case: e; try by right.
+  by case; constructor.
+Qed.
+
+Lemma is_zeroP sz e : reflect (e = @wconst sz 0) (is_zero sz e).
+Proof.
+  case: e; try by right.
+  case; try by right.
+  move => sz' []; try by right.
+  case; try by right.
+  rewrite /=.
+  case: eqP.
+  - by move => <-; left.
+  by move => ne; right => - [].
+Qed.
+
+Lemma is_RAnoneP ra : reflect (ra = RAnone) (is_RAnone ra).
+Proof. by case: ra => [ | ? | ?? ] /=; constructor. Qed.
+
 (* ** Compute written variables
  * -------------------------------------------------------------------- *)
 
@@ -800,26 +821,6 @@ Section EQ_EXPR_READ_E.
  Qed.
 
 End EQ_EXPR_READ_E.
-
-
-(* ------------------------------------------------------------------- *)
-Lemma is_falseP e : reflect (e = Pbool false) (is_false e).
-Proof.
-  case: e; try by right.
-  by case; constructor.
-Qed.
-
-Lemma is_zeroP sz e : reflect (e = @wconst sz 0) (is_zero sz e).
-Proof.
-  case: e; try by right.
-  case; try by right.
-  move => sz' []; try by right.
-  case; try by right.
-  rewrite /=.
-  case: eqP.
-  - by move => <-; left.
-  by move => ne; right => - [].
-Qed.
 
 (* -------------------------------------------------------------------- *)
 

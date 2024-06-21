@@ -1,4 +1,4 @@
-(* * Syntax and semantics of the linear language *)
+(* * Semantics of the linear language *)
 
 (* ** Imports and settings *)
 
@@ -54,10 +54,28 @@ Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
 Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
 Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
- 
+Definition lset_estate' (ls : lstate) (s : estate) : lstate :=
+  Eval hnf in of_estate s ls.(lfn) ls.(lpc).
+Definition lset_estate
+  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) : lstate :=
+  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; |}.
+Definition lset_mem_vm (ls : lstate) (m : mem) (vm : Vm.t) : lstate :=
+  Eval hnf in lset_estate ls (lscs ls) m vm.
+Definition lset_mem (ls : lstate) (m : mem) : lstate :=
+  Eval hnf in lset_mem_vm ls m (lvm ls).
+Definition lset_vm (ls : lstate) (vm : Vm.t) : lstate :=
+  Eval hnf in lset_mem_vm ls (lmem ls) vm.
+Definition lnext_pc (ls : lstate) : lstate :=
+  Eval hnf in setpc ls (lpc ls).+1.
+
 Lemma to_estate_of_estate es fn pc:
   to_estate (of_estate es fn pc) = es.
 Proof. by case: es. Qed.
+
+Lemma of_estate_to_estate ls :
+  of_estate (to_estate ls) (lfn ls) (lpc ls) = ls.
+Proof. by case: ls. Qed.
+
 
 (* The [lsem] relation defines the semantics of a linear command
 as the reflexive transitive closure of the [lsem1] relation that
@@ -78,16 +96,22 @@ Definition eval_jump d s :=
   ok (setcpc s fn pc.+1).
 
 Definition find_instr (s:lstate) :=
-  if get_fundef (lp_funcs P) s.(lfn) is Some fd then
-    let body := lfd_body fd in
-    oseq.onth body s.(lpc)
-  else None.
+  let%opt fd := get_fundef (lp_funcs P) s.(lfn) in
+  oseq.onth (lfd_body fd) s.(lpc).
 
 Definition get_label_after_pc (s:lstate) :=
-  if find_instr (setpc s s.(lpc).+1) is Some i then
+  if find_instr (lnext_pc s) is Some i then
     if li_i i is Llabel ExternalLabel l then ok l
     else type_error
   else type_error.
+
+Definition sem_fopn_args (p : fopn_args) (s: estate) :=
+  let: (xs,o,es) := p in
+  Let args := sem_rexprs s es in
+  Let res := exec_sopn o args in
+  write_lexprs xs res s.
+
+Definition sem_fopns_args := foldM sem_fopn_args.
 
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
@@ -95,14 +119,23 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     let s := to_estate s1 in
     Let args := sem_rexprs s es in
     Let res := exec_sopn o args in
-    Let s2 := write_lexprs xs res s in
-    ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+    Let s' := write_lexprs xs res s in
+    ok (lnext_pc (lset_estate' s1 s'))
   | Lsyscall o =>
-    Let ves := get_vars true s1.(lvm) (syscall_sig o).(scs_vin) in
-    Let: (scs, m, vs) := exec_syscall (semCallParams:= sCP_stack) s1.(lscs) s1.(lmem) o ves in 
-    Let s2 := write_lvals true [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
-                (to_lvals (syscall_sig o).(scs_vout)) vs in
-                ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+    let sig := syscall_sig o in
+    Let ves := get_vars true s1.(lvm) sig.(scs_vin) in
+    Let: (scs, m, vs) :=
+      exec_syscall (semCallParams := sCP_stack) s1.(lscs) s1.(lmem) o ves
+    in
+    let s :=
+      {|
+        escs := scs;
+        emem := m;
+        evm := vm_after_syscall s1.(lvm);
+      |}
+    in
+    Let s' := write_lvals true [::] s (to_lvals sig.(scs_vout)) vs in
+              ok (lnext_pc (lset_estate' s1 s'))
   | Lassert _ => ok (setpc s1 s1.(lpc).+1)
   | Lcall None d =>
     let vrsp := v_var (vid (lp_rsp P)) in
@@ -110,62 +143,38 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     let nsp := (sp - wrepr Uptr (wsize_size Uptr))%R in
     Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
     Let lbl := get_label_after_pc s1 in
-    if encode_label labels (lfn s1, lbl) is Some p then
-      Let m :=  write s1.(lmem) nsp p in
-      let s1' :=
-        {| lscs := s1.(lscs);
-           lmem := m;
-           lvm  := vm;
-           lfn  := s1.(lfn);
-           lpc  := s1.(lpc) |} in
-      eval_jump d s1'
-    else type_error
+    Let p := rencode_label labels (lfn s1, lbl) in
+    Let m := write s1.(lmem) nsp p in
+    eval_jump d (lset_mem_vm s1 m vm)
   | Lcall (Some r) d =>
     Let lbl := get_label_after_pc s1 in
-    if encode_label labels (lfn s1, lbl) is Some p then
-      Let vm := set_var true s1.(lvm) r (Vword p) in
-      let s1' := 
-        {| lscs := s1.(lscs);
-           lmem := s1.(lmem);
-           lvm  := vm;
-           lfn  := s1.(lfn);
-           lpc  := s1.(lpc) |} in
-      eval_jump d s1'
-    else type_error
+    Let p := rencode_label labels (lfn s1, lbl) in
+    Let vm := set_var true s1.(lvm) r (Vword p) in
+    eval_jump d (lset_vm s1 vm)
   | Lret =>
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
     let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
     Let p  := read s1.(lmem) sp Uptr in
     Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
-    let s1' :=
-      {| lscs := s1.(lscs);
-         lmem := s1.(lmem);
-         lvm  := vm;
-         lfn  := s1.(lfn);
-         lpc  := s1.(lpc) |} in
-    if decode_label labels p is Some d then
-      eval_jump d s1'
-    else type_error
-  | Lalign   => ok (setpc s1 s1.(lpc).+1)
-  | Llabel _ _ => ok (setpc s1 s1.(lpc).+1)
+    Let d := rdecode_label labels p in
+    eval_jump d (lset_vm s1 vm)
+  | Lalign   => ok (lnext_pc s1)
+  | Llabel _ _ => ok (lnext_pc s1)
   | Lgoto d => eval_jump d s1
   | Ligoto e =>
     Let p := sem_rexpr s1.(lmem) s1.(lvm) e >>= to_pointer in
-    if decode_label labels p is Some d then
-      eval_jump d s1
-    else type_error
+    Let d := rdecode_label labels p in
+    eval_jump d s1
   | LstoreLabel x lbl =>
-    if encode_label labels (lfn s1, lbl) is Some p
-    then
-      Let vm := set_var true s1.(lvm) x (Vword p) in
-      ok {| lscs := s1.(lscs) ; lmem := s1.(lmem) ; lvm := vm ; lfn := s1.(lfn) ; lpc := s1.(lpc).+1 |}
-    else type_error
+    Let p := rencode_label labels (lfn s1, lbl) in
+    Let vm := set_var true s1.(lvm) x (Vword p) in
+    ok (lnext_pc (lset_vm s1 vm))
   | Lcond e lbl =>
     Let b := sem_fexpr s1.(lvm) e >>= to_bool in
     if b then
       eval_jump (s1.(lfn),lbl) s1
-    else ok (setpc s1 s1.(lpc).+1)
+    else ok (lnext_pc s1)
   end.
 
 Definition step (s: lstate) : exec lstate :=
@@ -194,28 +203,6 @@ Lemma lsem_step s2 s1 s3 :
   lsem s1 s3.
 Proof.
   by move=> H; apply: rt_trans; apply: rt_step.
-Qed.
-
-Lemma lsem_step2 ls0 ls1 ls2 :
-  lsem1 ls0 ls1
-  -> lsem1 ls1 ls2
-  -> lsem ls0 ls2.
-Proof.
-  move=> h0 h1.
-  apply: (lsem_step h0).
-  apply: (lsem_step h1).
-  exact: rt_refl.
-Qed.
-
-Lemma lsem_step3 ls0 ls1 ls2 ls3 :
-  lsem1 ls0 ls1
-  -> lsem1 ls1 ls2
-  -> lsem1 ls2 ls3
-  -> lsem ls0 ls3.
-Proof.
-  move=> h0 h1 h2.
-  apply: (lsem_step h0).
-  exact: (lsem_step2 h1 h2).
 Qed.
 
 Lemma lsem_step_end s2 s1 s3 :
@@ -302,13 +289,29 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
+Definition ls_export_initial scs m vm fn :=
+  {|
+    lscs := scs;
+    lmem := m;
+    lvm := vm;
+    lfn := fn;
+    lpc := 0;
+  |}.
+
+Definition ls_export_final scs m vm fn fd :=
+  {|
+    lscs := scs;
+    lmem := m;
+    lvm := vm;
+    lfn := fn;
+    lpc := size (lfd_body fd);
+  |}.
+
 Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) (scs':syscall_state_t) (m': mem) (vm': Vm.t) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd
-  & lsem
-         {| lscs := scs; lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
-         {| lscs := scs'; lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
+  & lsem (ls_export_initial scs m vm fn) (ls_export_final scs' m' vm' fn fd)
   & vm =[ callee_saved ] vm'
 .
 
