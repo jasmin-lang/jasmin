@@ -56,5 +56,6 @@ let check_options () =
 
   if !latexfile <> ""
   then warning Deprecated Location.i_dummy
-         "the [-latex] option has been deprecated since March 2023; use [jazz2tex] instead";
+         "the [-latex] option has been deprecated since March 2023; use [jasmin2tex] instead";
+
   List.iter chk_out_file [ outfile; latexfile; ecfile ]

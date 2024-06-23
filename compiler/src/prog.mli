@@ -26,9 +26,9 @@ type 'len gexpr =
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
-  | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
+  | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
   | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
-  | Pload  of wsize * 'len gvar_i * 'len gexpr
+  | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
@@ -37,7 +37,7 @@ type 'len gexpr =
   | Pfvar  of 'len gvar_i
   | Pbig   of 'len gexpr * 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr
   | Presult of int * 'len ggvar
-  | Presultget   of Warray_.arr_access * wsize * int * 'len ggvar * 'len gexpr
+  | Presultget of Memory_model.aligned * Warray_.arr_access * wsize * int * 'len ggvar * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 
@@ -56,8 +56,8 @@ val is_reg_direct_kind : v_kind -> bool
 type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
- | Lmem  of wsize * 'len gvar_i * 'len gexpr
- | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
+ | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
+ | Laset of Memory_model.aligned * Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
  | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
 
 type 'len glvals = 'len glval list
@@ -225,6 +225,8 @@ val pvars_c  : ('info,'asm) pstmt  -> Spv.t
 val vars_fc : ('info,'asm) func  -> Sv.t
 
 val locals  : ('info,'asm) func -> Sv.t
+
+val spilled :  ('info,'asm) func -> Sv.t
 
 (* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)

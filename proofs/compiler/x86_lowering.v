@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import Utf8.
 Require Import
@@ -43,8 +43,8 @@ Definition vword vt vn := {| vtype := sword vt ; vname := vn |}.
 
 Context (fv: fresh_vars).
 
-Let fresh_flag n := vbool (fv (Ident.name_of_string n) sbool).
-Let fresh_word sz := vword sz (fv (Ident.name_of_string "__wtmp__") (sword sz)).
+Let fresh_flag n := vbool (fv n sbool).
+Let fresh_word sz := vword sz (fv "__wtmp__"%string (sword sz)).
 
 Definition fv_of := fresh_flag "__of__".
 Definition fv_cf := fresh_flag "__cf__".
@@ -72,7 +72,7 @@ Definition fvars_correct p :=
 Definition stype_of_lval (x: lval) : stype :=
   match x with
   | Lnone _ t => t
-  | Lvar v | Lmem _ v _ | Laset _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
+  | Lvar v | Lmem _ _ v _ | Laset _ _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
@@ -85,7 +85,7 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   match lv with
   | Lnone _ ty
   | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_stype ty
-  | Laset _ sz _ _ | Lmem sz _ _ => sz
+  | Laset _ _ sz _ _ | Lmem _ sz _ _ => sz
   | Lasub _ _ _ _ _ => U64
   end.
 
@@ -224,7 +224,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
-  | Pget _ sz {| gv := v |} _
+  | Pget _ _ sz {| gv := v |} _
   | Pvar {| gv := ({| v_var := {| vtype := sword sz |} |} as v) |} =>
     if (sz ≤ U64)%CMP
     then LowerMov (if is_var_in_memory v then is_lval_in_memory x else false)
@@ -233,7 +233,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     else if (U32 ≤ szo)%CMP then LowerCopn (Ox86 (MOVV szo)) [:: e ]
     else LowerAssgn
     else LowerAssgn
-  | Pload sz _ _ =>
+  | Pload _ sz _ _ =>
       if (sz ≤ U64)%CMP
       then LowerMov (is_lval_in_memory x)
       else kb true sz (LowerCopn (Ox86 (VMOVDQU sz)) [:: e ])

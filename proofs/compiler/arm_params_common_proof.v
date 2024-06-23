@@ -1,8 +1,5 @@
 From Coq Require Import Lia.
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
-
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -167,7 +164,7 @@ Qed.
 (* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma movi_eval_instr {lp ls ii imm xname vi} :
   let: (xi, x) := mkv xname vi in
-  (is_expandable_or_shift imm \/ is_w16_encoding imm) ->
+  (is_expandable imm \/ is_w16_encoding imm) ->
   let: li := li_of_fopn_args ii (ARMFopn.movi xi imm) in
   let: vm' := (lvm ls).[x <- Vword (wrepr U32 imm)] in
   eval_instr lp li ls = ok (next_vm_ls ls vm').
@@ -177,11 +174,18 @@ Proof.
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
+Lemma li_eval_instr {lp ls ii imm xname vi} :
+  let: (xi, x) := mkv xname vi in
+  let: li := li_of_fopn_args ii (ARMFopn.li xi imm) in
+  let: vm' := (lvm ls).[x <- Vword (wrepr U32 imm)] in
+  eval_instr lp li ls = ok (next_vm_ls ls vm').
+Proof. by t_arm_op. Qed.
+
 Lemma str_eval_instr {lp ls m' ii xname vi y off wx} {wy : word reg_size} :
   let: (xi, x) := mkv xname vi in
   get_var true (lvm ls) x = ok (Vword wx)
   -> get_var true (lvm ls) (v_var y) = ok (Vword wy)
-  -> write (lmem ls) (wx + wrepr Uptr off)%R wy = ok m'
+  -> write (lmem ls) Aligned (wx + wrepr Uptr off)%R wy = ok m'
   -> let: li := li_of_fopn_args ii (ARMFopn.str y xi off) in
      eval_instr lp li ls = ok (next_mem_ls ls m').
 Proof. move=> ???. by t_arm_op. Qed.
@@ -197,23 +201,23 @@ Opaque ARMFopn.subi.
 
 Lemma li_lsem lp fn ls ii P Q xname vi imm :
   let: (xi, x) := mkv xname vi in
-  let: lcmd := map (li_of_fopn_args ii) (ARMFopn.li xi imm) in
-  is_linear_of lp fn (P ++ lcmd ++ Q)
+  let: lcmd := li_of_fopn_args ii (ARMFopn.li xi imm) in
+  is_linear_of lp fn (P ++ lcmd :: Q)
   -> lpc ls = size P
   -> lfn ls = fn
   -> exists vm',
-       let: ls' := setpc (lset_vm ls vm') (size P + size lcmd) in
+       let: ls' := setpc (lset_vm ls vm') (size P + 1) in
        [/\ lsem lp ls ls'
          , vm' =[\ Sv.singleton x ] lvm ls
          & get_var true vm' x = ok (Vword (wrepr reg_size imm))
        ].
 Proof.
   move=> hlin hpc hfn.
-  have [vm' []] := ARMFopn_coreP.li_lsem_1 (to_estate ls) xname vi imm.
-  rewrite sem_fopns_equiv => h1 h2 h3.
-  exists vm'; split => //.
-  assert (h := sem_fopns_args_lsem h1 hlin); rewrite size_map.
-  by case: (ls) hfn hpc h => //= *; subst.
+  eexists; split.
+  - rewrite addn1 -lnext_pc_setpc -hpc setpc_id.
+    exact: (eval_lsem_step1 hlin _ _ li_eval_instr).
+  - move=> x /Sv.singleton_spec /nesym /eqP hx. by rewrite Vm.setP_neq.
+  by rewrite get_var_eq.
 Qed.
 Opaque ARMFopn.li.
 

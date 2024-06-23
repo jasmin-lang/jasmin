@@ -1,0 +1,9 @@
+(library
+  (name uint63_js)
+  (public_name jasmin.uint63-js)
+  (implements jasmin.uint63))
+
+(rule
+ (targets uint63.ml)
+ (deps (:gen-file ../uint63_31.ml))
+ (action (copy# %{gen-file} %{targets})))

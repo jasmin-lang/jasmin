@@ -81,16 +81,16 @@ let rec cexpr_of_expr = function
   | Pbool  b          -> C.Pbool  b
   | Parr_init n       -> C.Parr_init (pos_of_int n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari x)
-  | Pget (aa,ws, x,e) -> C.Pget (aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
+  | Pget (al, aa,ws, x,e) -> C.Pget (al, aa, ws, cgvari_of_gvari x, cexpr_of_expr e)
   | Psub (aa,ws,len, x,e) -> 
     C.Psub (aa, ws, pos_of_int len, cgvari_of_gvari x, cexpr_of_expr e)
-  | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari x, cexpr_of_expr e)
+  | Pload (al, ws, x, e)  -> C.Pload(al, ws, cvari_of_vari x, cexpr_of_expr e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr e1, cexpr_of_expr e2)
   | PappN (o, es) -> C.PappN (o, List.map (cexpr_of_expr) es)
   | Pabstract (o, es) ->
     let o = C.{
-        pa_name = String.to_list o.name;
+        pa_name = o.name;
         pa_tyin = List.map cty_of_ty o.tyin;
         pa_tyout = cty_of_ty o.tyout;
       }
@@ -105,22 +105,22 @@ let rec cexpr_of_expr = function
   | Pbig(e1,e2, o, x, e0, b) -> 
     C.Pbig(cexpr_of_expr e1, cexpr_of_expr e2, o, cvari_of_vari x, cexpr_of_expr e0, cexpr_of_expr b)
   | Presult (i,x)            -> C.Presult (cz_of_z (Z.of_int i),cgvari_of_gvari x)
-  | Presultget (aa, ws, i, x, e) -> C.Presultget (aa, ws, cz_of_z (Z.of_int i), cgvari_of_gvari x, cexpr_of_expr e)
+  | Presultget (al, aa, ws, i, x, e) -> C.Presultget (al, aa, ws, cz_of_z (Z.of_int i), cgvari_of_gvari x, cexpr_of_expr e)
 
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
   | C.Parr_init n       -> Parr_init (int_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari x)
-  | C.Pget (aa,ws, x,e) -> Pget (aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
+  | C.Pget (al, aa,ws, x,e) -> Pget (al, aa, ws, gvari_of_cgvari x, expr_of_cexpr e)
   | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, int_of_pos len, gvari_of_cgvari x, expr_of_cexpr e)
-  | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari x, expr_of_cexpr e)
+  | C.Pload (al, ws, x, e)  -> Pload(al, ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr e1, expr_of_cexpr e2)
   | C.PappN (o, es) -> PappN (o, List.map (expr_of_cexpr) es)
   | C.Pabstract (o, es) ->
     let o = {
-        name = String.of_list o.pa_name;
+        name = o.pa_name;
         tyin = List.map ty_of_cty o.pa_tyin;
         tyout = ty_of_cty o.pa_tyout;
       }
@@ -133,7 +133,7 @@ let rec expr_of_cexpr = function
   | C.Pbig(e1,e2, o, x, e0, b) -> 
     Pbig(expr_of_cexpr e1, expr_of_cexpr e2, o, vari_of_cvari x, expr_of_cexpr e0, expr_of_cexpr b)
   | C.Presult (z, x)            -> Presult (Z.to_int (z_of_cz z), gvari_of_cgvari x)
-  | C.Presultget (aa, ws, z, x, e) -> Presultget (aa, ws, Z.to_int (z_of_cz z), gvari_of_cgvari x, expr_of_cexpr e)
+  | C.Presultget (al, aa, ws, z, x, e) -> Presultget (al, aa, ws, Z.to_int (z_of_cz z), gvari_of_cgvari x, expr_of_cexpr e)
 
 
 
@@ -142,16 +142,16 @@ let rec expr_of_cexpr = function
 let clval_of_lval = function
   | Lnone(loc, ty)  -> C.Lnone (loc, cty_of_ty ty)
   | Lvar x          -> C.Lvar  (cvari_of_vari x)
-  | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari x, cexpr_of_expr e)
-  | Laset(aa,ws,x,e)-> C.Laset (aa, ws, cvari_of_vari x, cexpr_of_expr e)
+  | Lmem (al, ws, x, e) -> C.Lmem (al, ws, cvari_of_vari x, cexpr_of_expr e)
+  | Laset(al, aa,ws,x,e)-> C.Laset (al, aa, ws, cvari_of_vari x, cexpr_of_expr e)
   | Lasub(aa,ws,len,x,e)-> 
     C.Lasub (aa, ws, pos_of_int len, cvari_of_vari x, cexpr_of_expr e)
 
 let lval_of_clval = function
   | C.Lnone(p, ty)  -> Lnone (p, ty_of_cty ty)
   | C.Lvar x        -> Lvar (vari_of_cvari x)
-  | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari x, expr_of_cexpr e)
-  | C.Laset(aa,ws,x,e) -> Laset (aa,ws, vari_of_cvari x, expr_of_cexpr e)
+  | C.Lmem(al,ws,x,e)  -> Lmem (al, ws, vari_of_cvari x, expr_of_cexpr e)
+  | C.Laset(al, aa,ws,x,e) -> Laset (al, aa,ws, vari_of_cvari x, expr_of_cexpr e)
   | C.Lasub(aa,ws,len,x,e) -> 
     Lasub (aa,ws, int_of_pos len, vari_of_cvari x, expr_of_cexpr e)
 
@@ -338,7 +338,7 @@ let prog_of_csprog p =
 let to_array ty p t = 
   let ws, n = array_kind ty in
   let get i = 
-    match Warray_.WArray.get p Warray_.AAscale ws t (cz_of_int i) with
+    match Warray_.WArray.get p Aligned Warray_.AAscale ws t (cz_of_int i) with
     | Utils0.Ok w -> z_of_word ws w
     | _    -> assert false in
   ws, Array.init n get
@@ -388,7 +388,7 @@ let error_of_cerror pp_err e =
   let msg = Format.dprintf "%a" pp_err e.Compiler_util.pel_msg in
   let iloc = iloc_of_loc e in
   let funname = Option.map (fun fn -> fn.fn_name) e.pel_fn in
-  let pass = Option.map string_of_cstring e.pel_pass in
+  let pass = e.pel_pass in
   { err_msg = msg;
     err_loc = iloc;
     err_funname = funname;
@@ -400,8 +400,8 @@ let error_of_cerror pp_err e =
 (* -------------------------------------------------------------------------- *)
 let fresh_var_ident =
   let memo = Hashtbl.create 5 in
-  fun r (i_loc, _) n st ->
-    let k = (r, i_loc.L.uid_loc, n, st) in
+  fun r (i_loc, _) num n st ->
+    let k = (r, i_loc.L.uid_loc, num, n, st) in
     match Hashtbl.find memo k with
     | x -> x
     | exception Not_found ->

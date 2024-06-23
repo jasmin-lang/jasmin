@@ -26,9 +26,7 @@ module PointsToImpl : PointsTo = struct
              (* top : mem_loc list } *)
 
   let make mls =
-    let make_var v = match v.v_ty with
-      | Arr _ -> raise (Aint_error "Array(s) in export function's inputs")
-      | Bty _ -> Mlocal (Avar v) in
+    let make_var v = Mlocal (Avar v) in
 
     let pts = List.fold_left (fun pts x -> match x with
         | MemLoc v -> Mm.add (make_var v) [x] pts)

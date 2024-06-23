@@ -16,7 +16,7 @@ type base_ty =
   | Bool
   | Int              (* Unbounded integer for pexpr *)
   | U   of wsize (* U(n): unsigned n-bit integer *)
-  | Abstract of char list
+  | Abstract of string
   [@@deriving compare,sexp]
 
 type 'len gty =
@@ -86,17 +86,8 @@ module Cident = struct
 
   let tag (x:t) = x.v_id
 
-  type name = Name.t
-
-  let id_name (x: t) : name = x.v_name
+  let id_name (x: t) : Name.t = x.v_name
   let id_kind (x: t) : v_kind = x.v_kind
-
-  let name_of_string = CoreConv.string_of_cstring
-  let string_of_name = CoreConv.cstring_of_string
-
-  (* FIXME: can we use something else that L._dummy? *)
-  let mk x k t = V.mk (CoreConv.string_of_cstring x) k t L._dummy []
-  let mk_flag x = mk x (Reg(Normal,Direct)) tbool
 
   let spill_to_mmx (x:t) =
     match Annot.ensure_uniq1 "spill_to_mmx" Annot.none x.v_annot with

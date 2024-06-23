@@ -34,7 +34,6 @@ end = struct
 end
 
 module Svl : Set.S with type elt = Vl.t = Set.Make(Vl)
-module Mvl : Map.S with type key = Vl.t = Map.Make(Vl)
 
 type level =
   | Secret
@@ -135,6 +134,7 @@ end = struct
     let filters =
       [spublic, (fun a -> A.none a; Public);
        ssecret, (fun a -> A.none a; Secret);
+       "transient", (fun a -> A.none a; Public);
        spoly  , poly] in
     let lvl = A.ensure_uniq filters annot in
     let kind =
@@ -352,14 +352,14 @@ let instanciate_fty fty lvls  =
   tyout
 
 (* -----------------------------------------------------------*)
-let is_ct_op1 (o: Expr.sop1) = true
+let is_ct_op1 (_: Expr.sop1) = true
 
 let is_ct_op2 (o: Expr.sop2) =
   match o with
   | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
   | _ -> true
 
-let is_ct_opN (o : Expr.opN) = true
+let is_ct_opN (_ : Expr.opN) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with
@@ -380,12 +380,12 @@ let rec ty_expr ~(public:bool) env (e:expr) =
 
   | Pvar x -> Env.gget ~public env x
 
-  | Pget (_, _, x, i) | Psub (_, _, _, x, i) ->
+  | Pget (_, _, _, x, i) | Psub (_, _, _, x, i) ->
     let env, ty = Env.gget ~public env x in
     let env, _  = ty_expr ~public:true env i in
     env, ty
 
-  | Pload (_, x, i) ->
+  | Pload (_, _, x, i) ->
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env, Secret
@@ -418,11 +418,11 @@ let ty_lval env x lvl =
   match x with
   | Lnone _ -> env
   | Lvar x -> Env.set env x lvl
-  | Lmem(_, x, i) ->
+  | Lmem(_, _, x, i) ->
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env
-  | Laset(_, _, x, i) | Lasub(_, _, _, x, i) ->
+  | Laset(_, _, _, x, i) | Lasub(_, _, _, x, i) ->
     (* x[i] = e is x = x[i <- e] *)
     let env, xlvl = Env.get ~public:false env x in
     let env, _    = ty_expr ~public:true env i in
@@ -435,19 +435,44 @@ let ty_lvals1 env xs lvl =
   List.fold_left (fun env x -> ty_lval env x lvl) env xs
 
 (* -----------------------------------------------------------*)
+let lvl_of_level =
+  function
+  | SecurityAnnotations.Public -> Public
+  | Secret -> Secret
+  | Named n -> Lvl.poly1 (Vl.mk_poly n)
+
+let lvl_of_typ =
+  function
+  | SecurityAnnotations.Msf -> Public
+  | Direct t | Indirect { value = t ; ptr = _ } -> lvl_of_level t.normal
 
 let get_annot ensure_annot f =
-  let ain  = List.map (fun x -> x.v_name, Lvl.parse ~single:true ~kind_allowed:true x.v_annot) f.f_args in
+  let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
+  let process_argument i x =
+    let lvl =
+      match Lvl.parse ~single:true ~kind_allowed:true x.v_annot, Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) with
+      | lvl, None -> lvl
+      | (_, Some _) as lvl, _ -> lvl
+      | _, Some t -> Some Flexible, Some (lvl_of_typ t)
+    in
+    x.v_name, lvl
+  in
+  let process_result i a =
+    match Lvl.parse ~single:false ~kind_allowed:false a, Option.bind sig_annot (SecurityAnnotations.get_nth_result i) with
+    | (_, lvl), None -> lvl
+    | (_, (Some _ as lvl)), _ -> lvl
+    | _, Some t -> Some (lvl_of_typ t)
+  in
+  let ain  = List.mapi process_argument f.f_args in
   let ainlevels = List.map (fun (_, (_, x)) -> x) ain in
-  let aout = List.map (Lvl.parse ~single:false ~kind_allowed:false) f.f_outannot in
-  let aout = List.map snd aout in
+  let aout = List.mapi process_result f.f_outannot in
 
   let check_defined msg l =
     if List.exists (fun a -> a = None) l then
       error ~loc:f.f_loc
-           "export functions should be fully annotated, missing some security annotations on %s.@ User option “-infer” to infer them."
+           "export functions should be fully annotated, missing some security annotations on %s.@ User option “--infer” to infer them."
            msg in
-  if ensure_annot && f.f_cc = Export then
+  if ensure_annot && FInfo.is_export f.f_cc then
     (check_defined "result types" aout;
      check_defined "function parameters" ainlevels);
   (* fill the missing input type *)
@@ -520,15 +545,15 @@ let get_annot ensure_annot f =
 (* -----------------------------------------------------------*)
 let sdeclassify = "declassify"
 
-let is_declasify annot =
+let is_declassify annot =
   Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
 
 let declassify_lvl annot lvl =
-  if is_declasify annot then Public
+  if is_declassify annot then Public
   else lvl
 
 let declassify_lvls annot lvls =
-  if is_declasify annot then List.map (fun _ -> Public) lvls
+  if is_declassify annot then List.map (fun _ -> Public) lvls
   else lvls
 
 (* [ty_instr env i] return env' such that env |- i : env' *)

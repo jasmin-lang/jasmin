@@ -15,6 +15,9 @@ find:src:*.ml
 find:src:*.mli
 find:src:*.mll
 find:src:*.mly
+find:uint63:*.ml
+find:uint63:*.mli
+find:uint63:dune
 
 safetylib/dune
 

@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import Lia.
 
@@ -95,12 +95,12 @@ Qed.
 Record state_rel_unrolled_small vars s1 s2 n (p:word Uptr) := {
   sr_scs : s1.(escs) = s2.(escs);
   sr_mem : mem_equiv s1.(emem) s2.(emem);
-  sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) p U8;
+  sr_mem_valid : forall p, between top stk_max p U8 -> validw s2.(emem) Aligned p U8;
   sr_disjoint :
     forall p, disjoint_zrange top stk_max p (wsize_size U8) ->
-      read s1.(emem) p U8 = read s2.(emem) p U8;
+      read s1.(emem) Aligned p U8 = read s2.(emem) Aligned p U8;
   sr_zero : forall p,
-    between (top + wrepr _ n) (stk_max - n) p U8 -> read s2.(emem) p U8 = ok 0%R;
+    between (top + wrepr _ n) (stk_max - n) p U8 -> read s2.(emem) Aligned p U8 = ok 0%R;
   sr_vm : s1.(evm) =[\ Sv.add rspi vars] s2.(evm) ;
   sr_tmp : s2.(evm).[tmpi] = Vword ptr;
   sr_rsp : s2.(evm).[rspi] = Vword p;
@@ -157,9 +157,9 @@ Proof.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd))].
   + by exists lfd.
-  have: validw (emem s2) (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
+  have: validw (emem s2) Aligned (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
   + apply /validwP; split.
-    + rewrite (is_align_addE top_aligned).
+    + rewrite /= (is_align_addE top_aligned).
       have /is_align_addE <- := [elaborate (is_align_mul ws 1)].
       rewrite Z.mul_1_r GRing.addrC GRing.subrK.
       rewrite WArray.arr_is_align.
@@ -214,7 +214,7 @@ Proof.
     rewrite (write_validw_eq hm').
     by apply hvalid.
   + move=> p hp.
-    rewrite (writeP_neq hm'); first by apply hdisj.
+    rewrite (writeP_neq _ hm'); first by apply hdisj.
     apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify -wrepr_sub.
@@ -465,9 +465,9 @@ Proof.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd))].
   + by exists lfd.
-  have: validw (emem s2) (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
+  have: validw (emem s2) Aligned (top + (wrepr Uptr n - wrepr Uptr (wsize_size ws)))%R ws.
   + apply /validwP; split.
-    + rewrite (is_align_addE top_aligned).
+    + rewrite /= (is_align_addE top_aligned).
       have /is_align_addE <- := [elaborate (is_align_mul ws 1)].
       rewrite Z.mul_1_r GRing.addrC GRing.subrK.
       rewrite WArray.arr_is_align.
@@ -523,7 +523,7 @@ Proof.
     rewrite (write_validw_eq hm').
     by apply hvalid.
   + move=> p hp.
-    rewrite (writeP_neq hm'); first by apply hdisj.
+    rewrite (writeP_neq _ hm'); first by apply hdisj.
     apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify -wrepr_sub.
@@ -832,9 +832,9 @@ Local Opaque wsize_size Z.of_nat.
     rewrite Z.mul_comm; apply Z.mul_le_mono_nonneg_l => //.
     rewrite Nat2Z.inj_succ.
     by apply Z.le_succ_l.
-  have: validw (emem s2) (top + (wrepr Uptr (stk_max - Z.of_nat n.+1 * wsize_size ws)))%R ws.
+  have: validw (emem s2) Aligned (top + (wrepr Uptr (stk_max - Z.of_nat n.+1 * wsize_size ws)))%R ws.
   + apply /validwP; split.
-    + rewrite (is_align_addE top_aligned).
+    + rewrite /= (is_align_addE top_aligned).
       have /is_align_addE <- := [elaborate (is_align_mul ws (Z.of_nat n.+1))].
       rewrite Z.mul_comm wrepr_sub GRing.addrC GRing.subrK.
       by rewrite WArray.arr_is_align.
@@ -889,7 +889,7 @@ Local Opaque wsize_size Z.of_nat.
     rewrite (write_validw_eq hm').
     by apply hvalid.
   + move=> p hp.
-    rewrite (writeP_neq hm'); first by apply hdisj.
+    rewrite (writeP_neq _ hm'); first by apply hdisj.
     apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.
@@ -1088,9 +1088,9 @@ Local Opaque wsize_size Z.of_nat.
     rewrite Z.mul_comm; apply Z.mul_le_mono_nonneg_l => //.
     rewrite Nat2Z.inj_succ.
     by apply Z.le_succ_l.
-  have: validw (emem s2) (top + (wrepr Uptr (stk_max - Z.of_nat n.+1 * wsize_size ws)))%R ws.
+  have: validw (emem s2) Aligned (top + (wrepr Uptr (stk_max - Z.of_nat n.+1 * wsize_size ws)))%R ws.
   + apply /validwP; split.
-    + rewrite (is_align_addE top_aligned).
+    + rewrite /= (is_align_addE top_aligned).
       have /is_align_addE <- := [elaborate (is_align_mul ws (Z.of_nat n.+1))].
       rewrite Z.mul_comm wrepr_sub GRing.addrC GRing.subrK.
       by rewrite WArray.arr_is_align.
@@ -1143,7 +1143,7 @@ Local Opaque wsize_size Z.of_nat.
     rewrite (write_validw_eq hm').
     by apply hvalid.
   + move=> p hp.
-    rewrite (writeP_neq hm'); first by apply hdisj.
+    rewrite (writeP_neq _ hm'); first by apply hdisj.
     apply: disjoint_range_alt.
     apply: disjoint_zrange_incl_l hp.
     rewrite /top /zbetween !zify.

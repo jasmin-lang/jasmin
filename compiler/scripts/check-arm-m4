@@ -11,5 +11,8 @@ trap "rm -r ${DIR}" EXIT
 set -x
 
 $(dirname $0)/../jasminc -g -arch arm-m4 -o ${ASM} "$@"
+# Negative test cases should have failed by now
+# Succeed early if it's not the case (i.e., do not try to assemble the result)
+(echo "$@" | grep -q fail) && exit 0
 
 llvm-mc --triple=armv7m --mcpu=cortex-m4 --filetype=obj -o ${OBJ} ${ASM}

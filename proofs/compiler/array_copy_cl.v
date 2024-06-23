@@ -54,7 +54,7 @@ Definition array_copy ii (x: var_i * option pexpr) (ws: wsize) (n: positive) (y:
   [:: MkI ii pre;
       MkI ii 
         (Cfor i (UpTo, Pconst 0, Pconst n) 
-           [:: MkI ii (Cassgn (Laset AAscale ws x xei) AT_none (sword ws) (Pget AAscale ws y yei))])
+           [:: MkI ii (Cassgn (Laset Aligned AAscale ws x xei) AT_none (sword ws) (Pget Aligned AAscale ws y yei))])
     ].
 
 Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd := 

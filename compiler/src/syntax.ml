@@ -149,7 +149,7 @@ module W = Wsize
 type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
-  | PEGet    of arr_access * wsize option * pident * pexpr * pexpr option
+  | PEGet    of [`Aligned|`Unaligned] option * arr_access * wsize option * pident * pexpr * pexpr option
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
@@ -163,11 +163,11 @@ type pexpr_r =
   | PEbig    of pbig * pexpr * pexpr * pident * pexpr
   | PEAbstract of pident * pexpr list
   | PEResult of int
-  | PEResultGet of arr_access * wsize option * int * pexpr * pexpr option
+  | PEResultGet of [`Aligned|`Unaligned] option * arr_access * wsize option * int * pexpr * pexpr option
 
 and pexpr = pexpr_r L.located
 
-and mem_access = wsize option * pident * ([`Add | `Sub] * pexpr) option
+and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`Add | `Sub] * pexpr) option
 
 and pbig = 
   | PEAll 
@@ -191,7 +191,7 @@ type annot_pstotype = annotations * pstotype
 type plvalue_r =
   | PLIgnore
   | PLVar   of pident
-  | PLArray of arr_access * wsize option * pident * pexpr * pexpr option
+  | PLArray of [`Aligned|`Unaligned] option * arr_access * wsize option * pident * pexpr * pexpr option
   | PLMem   of mem_access 
 
 type plvalue = plvalue_r L.located
@@ -315,6 +315,7 @@ type pitem =
   | Prequire of (pident option * prequire list)
   | Pabstract_ty of pabstract_ty
   | Pabstract_pre of pabstract_pred
+  | PNamespace of pident * pitem L.located list
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

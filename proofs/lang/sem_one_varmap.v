@@ -2,7 +2,7 @@
 *)
 Require psem one_varmap.
 Import Utf8.
-Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Export one_varmap.
 Import psem var.
 Import low_memory.

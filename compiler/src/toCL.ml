@@ -534,7 +534,12 @@ module I = struct
   let int_of_typ = function
     | Bty (U ws) -> Some (int_of_ws ws)
     | Bty (Bool) -> Some 1
-    | Bty (Abstract ('/'::'*':: q)) -> Some (String.to_int (String.of_list q))
+    | Bty (Abstract s) ->
+      begin
+        match String.to_list s with
+        | '/'::'*':: q -> Some (String.to_int (String.of_list q))
+        | _ -> assert false
+      end
     | Bty (Int)  -> None
     | _ -> assert false
 
@@ -641,7 +646,8 @@ module I = struct
       ?(kind = (Wsize.Stack Direct)) ?(sign=false)
       size =
     let size = String.to_list (String.of_int size) in
-    mk_tmp_lval ~name ~l ~kind ~sign (Bty(Abstract ('/'::'*':: size)))
+    let s = String.of_list ('/'::'*':: size) in
+    mk_tmp_lval ~name ~l ~kind ~sign (Bty(Abstract s))
 
   let rec gexp_to_eexp env e : CL.I.eexp =
     let open CL.I in
@@ -1137,13 +1143,13 @@ module X86BaseOp : BaseOp
     |MFENCE -> assert false
     |SFENCE -> assert false
     |AESDEC -> assert false
-    |VAESDEC -> assert false
+    |VAESDEC _ -> assert false
     |AESDECLAST -> assert false
-    |VAESDECLAST -> assert false
+    |VAESDECLAST _ -> assert false
     |AESENC -> assert false
-    |VAESENC -> assert false
+    |VAESENC _ -> assert false
     |AESENCLAST -> assert false
-    |VAESENCLAST -> assert false
+    |VAESENCLAST _ -> assert false
     |AESIMC -> assert false
     |VAESIMC -> assert false
     |AESKEYGENASSIST -> assert false

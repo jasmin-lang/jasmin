@@ -1,8 +1,8 @@
 (*
 *)
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import one_varmap.
 Import Utf8.
-Import all_ssreflect.
 Import expr compiler_util.
 
 Set Implicit Arguments.

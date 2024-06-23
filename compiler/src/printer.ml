@@ -37,13 +37,15 @@ let pp_ge pp_len pp_var =
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_gvar fmt v
-  | Pget(aa,ws,x,e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None
+  | Pget(al,aa,ws,x,e) ->
+    pp_arr_access pp_gvar pp_expr fmt al aa ws x e
   | Psub(aa,ws,len,x,e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e (Some len)
-  | Pload(ws,x,e) ->
-    F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
-      pp_btype (U ws) pp_var_i x pp_expr e
+    pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len
+  | Pload(al,ws,x,e) ->
+    F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
+      pp_btype (U ws)
+      pp_aligned al
+      pp_var_i x pp_expr e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
@@ -68,8 +70,8 @@ let pp_ge pp_len pp_var =
       pp_expr e2
       pp_expr b
   | Presult (_, v)      -> pp_gvar fmt v
-  | Presultget (aa, ws, _, x, e) ->
-    pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None
+  | Presultget (al, aa, ws, _, x, e) ->
+    pp_arr_access pp_gvar pp_expr fmt al aa ws x e
   in
   pp_expr
 
@@ -77,13 +79,15 @@ let pp_ge pp_len pp_var =
 let pp_glv pp_len pp_var fmt = function
   | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
-  | Lmem (ws, x, e) ->
-    F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
-     pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
-  | Laset(aa, ws, x, e) ->
-    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e None
+  | Lmem (al, ws, x, e) ->
+    F.fprintf fmt "@[(%a)[%a%a@ +@ %a]@]"
+     pp_btype (U ws)
+     pp_aligned al
+     (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
+  | Laset(al, aa, ws, x, e) ->
+    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) fmt al aa ws x e
   | Lasub(aa, ws, len, x, e) ->
-    pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e (Some len)
+    pp_arr_slice (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e len
 
 
 (* -------------------------------------------------------------------- *)
@@ -135,7 +139,7 @@ let pp_prover fmt = function
   | Smt -> Format.fprintf fmt "smt"
 
 let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
-  F.fprintf fmt "%a" pp_info i.i_info;
+  F.fprintf fmt "%a" pp_info (i.i_loc, i.i_info);
   F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
   | Cassgn(x, tg, ty, Parr_init n) ->
@@ -226,7 +230,7 @@ let pp_var_decl pp_var pp_size fmt v =
 
 let pp_call_conv fmt =
   function
-  | FInfo.Export -> Format.fprintf fmt "export@ "
+  | FInfo.Export _ -> Format.fprintf fmt "export@ "
   | FInfo.Internal -> Format.fprintf fmt "inline@ "
   | FInfo.Subroutine _ -> ()
 
@@ -291,7 +295,6 @@ let pp_pprog pd asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
-
 let pp_var ~debug =
     if debug then
       fun fmt x -> F.fprintf fmt "%s_id_%s" Str.(global_replace (regexp "#") "_" x.v_name) (string_of_uid x.v_id)
@@ -310,9 +313,9 @@ let rec pp_clauses ~debug prepost fmt cs =
                    (pp_clause ~debug) c
                    (pp_clauses ~debug prepost) q
 
-let pp_fun ~debug ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
+let pp_fun ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
-  let pp_locals fmt = Sv.iter (F.fprintf fmt "%a;@ " pp_vd) in
+  let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
   let locals = locals fd in
   let ret = List.map L.unloc fd.f_ret in
   let pp_ret fmt () =
@@ -453,7 +456,7 @@ let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
   in
   let rec pp_err fmt pp_e =
     match pp_e with
-    | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
+    | Compiler_util.PPEstring s -> Format.fprintf fmt "%s" s
     | Compiler_util.PPEz z -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
     | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" pp_var v
     | Compiler_util.PPEvarinfo loc ->

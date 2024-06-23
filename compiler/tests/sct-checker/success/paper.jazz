@@ -3,37 +3,43 @@
 */
 param int N = 20;
 
-// TODO: this is a workaround, parsing of annotations being certainly buggy
-#[constraints="p <= public, t <= transient, secret <= s"]
+#[sct =
+  "{ ptr: transient, val: transient } * { ptr: transient, val: secret } * transient -> { ptr: public, val: secret }"
+]
+// ct = "public * secret * public -> secret"
 fn fig3a(
-  #[poly = t, poly = t] reg const ptr u64[N] p,
-  #[poly = t, poly = s] reg mut ptr u64[N] w,
-  #transient reg u64 i)
-  ->  #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg const ptr u64[N] p,
+  reg mut ptr u64[N] w,
+  reg u64 i)
+  ->  reg mut ptr u64[N] {
   reg u64 ms x;
   reg bool b;
   ms = #init_msf();
   b = i < N;
   if b {
     ms = #update_msf(b, ms);
-    x = p[(int) i];
+    x = p[i];
     x = #protect(x, ms);
   } else {
     ms = #update_msf(! b, ms);
   }
-  w[(int) x] = 0;
+  w[x] = 0;
   return w;
 }
 
-#[constraints="p <= public, t <= transient, secret <= s"]
+#[sct = "
+{ ptr: transient, val: transient } * { ptr: transient, val: { n: w, s: secret } } * { ptr: transient, val: secret } * transient * secret
+-> { ptr: public, val: { n: w, s: secret } } * { ptr: public, val: secret }
+"]
+// ct = "public * w * secret * public * secret → w * secret"
 fn fig3b(
-  #[poly = t, poly = t] reg const ptr u64[N] p,
-  #[poly = t, poly = w] reg mut ptr u64[N] w,
-  #[poly = t, poly = i] reg mut ptr u64[N] s,
-  #transient reg u64 i,
-  #secret reg u64 secret)
-  -> #[poly = p, poly = w] reg mut ptr u64[N]
-    , #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg const ptr u64[N] p,
+  reg mut ptr u64[N] w,
+  reg mut ptr u64[N] s,
+  reg u64 i,
+  reg u64 secret)
+  -> reg mut ptr u64[N]
+  ,  reg mut ptr u64[N] {
   reg u64 ms x;
   reg bool b;
   ms = #init_msf();
@@ -50,11 +56,13 @@ fn fig3b(
   return w, s;
 }
 
-#[constraints="p <= public, secret <= s"]
+#[ sct = "
+  { ptr: public, val: secret } * { ptr: public, val: secret } -> { ptr: public, val: secret }
+"]
 fn fig4a(
-  #[poly = p, poly = d] reg mut ptr u64[N] msg,
-  #[poly = p, poly = s] reg const ptr u64[N] key
-) -> #[poly = p, poly = d] reg mut ptr u64[N] {
+  reg mut ptr u64[N] msg,
+  reg const ptr u64[N] key
+) -> reg mut ptr u64[N] {
   reg u64 i t1 t2;
   i = 0;
   while (i < N) {
@@ -67,11 +75,13 @@ fn fig4a(
   return msg;
 }
 
-#[constraints="p <= public, t <= transient, secret <= s"]
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: secret } -> { ptr: public, val: secret }
+"]
 fn fig4b(
-  #[poly = t, poly = d] reg mut ptr u64[N] msg,
-  #[poly = t, poly = s] reg const ptr u64[N] key
-) -> #[poly = p, poly = d] reg mut ptr u64[N] {
+  reg mut ptr u64[N] msg,
+  reg const ptr u64[N] key
+) -> reg mut ptr u64[N] {
   reg u64 ms i t1 t2;
   ms = #init_msf();
   i = 0;
@@ -89,11 +99,13 @@ fn fig4b(
   return msg;
 }
 
-#[constraints="p <= public, t <= transient, secret <= s"]
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: secret } -> { ptr: public, val: secret }
+"]
 fn fig4c(
-  #[poly = t, poly = d] reg mut ptr u64[N] msg,
-  #[poly = t, poly = s] reg const ptr u64[N] key
-) -> #[poly = p, poly = d] reg mut ptr u64[N] {
+  reg mut ptr u64[N] msg,
+  reg const ptr u64[N] key
+) -> reg mut ptr u64[N] {
   reg u64 ms i t1 t2;
   ms = #init_msf();
   i = 0;
@@ -109,26 +121,27 @@ fn fig4c(
   return msg;
 }
 
-// FIXME: It should be explicit that “d” is secret on speculative executions
-#[constraints="t <= transient"]
+#[sct = "
+  { ptr: public, val: { normal: d, speculative: secret } } -> { normal: d, speculative: d }
+"]
 fn fig5a(
-  #[poly = t, poly = d] reg const ptr u64[N] p
-) -> #[poly = d] reg u64 {
+  reg const ptr u64[N] p
+) -> reg u64 {
   reg u64 i s t;
   s = 0;
   i = 0;
   while (i < N) {
-    t = p[(int) i];
+    t = p[i];
     s += t;
     i += 1;
   }
   return s;
 }
 
-#[constraints="t <= transient"]
-fn fig5b(
-  #[poly = t, poly = d] reg const ptr u64[N] p
-) -> #[poly = d] reg u64 {
+#[sct = "
+  { ptr: transient, val: d } -> d
+"]
+fn fig5b(reg const ptr u64[N] p) -> reg u64 {
   reg u64 ms i s t;
   ms = #init_msf();
   s = 0;
@@ -144,10 +157,10 @@ fn fig5b(
   return s;
 }
 
-#[constraints="t <= transient"]
-fn fig5c(
-  #[poly = t, poly = d] reg const ptr u64[N] p
-) -> #[poly = d] reg u64 {
+#[sct = "
+  { ptr: transient, val: d } -> d
+"]
+fn fig5c(reg const ptr u64[N] p) -> reg u64 {
   reg u64 ms i s t;
   ms = #init_msf();
   s = 0;
@@ -182,12 +195,14 @@ fn fig5d(
 }
 */
 
-#[constraints="p <= public, t <= transient, secret <= s"]
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: transient } * transient -> public * { ptr: public, val: secret }
+"]
 fn fig6a(
-  #[poly = t, poly = s] reg mut ptr u64[N] s,
-  #[poly = t, poly = t] reg const ptr u64[N] p,
-  #transient reg u64 i pub_v
-) -> #public reg u64, #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg mut ptr u64[N] s,
+  reg const ptr u64[N] p,
+  reg u64 i pub_v
+) -> reg u64, reg mut ptr u64[N] {
   reg u64 ms x;
   reg bool b;
   ms = #init_msf();
@@ -202,13 +217,15 @@ fn fig6a(
   return x, s;
 }
 
-#[constraints="p <= public, t <= transient, secret <= s"]
+#[sct = "
+  { ptr: transient, val: secret } * { ptr: transient, val: transient } * transient * secret -> public * { ptr: public, val: secret }
+"]
 fn fig6b(
-  #[poly = t, poly = s] reg mut ptr u64[N] s,
-  #[poly = t, poly = t] reg const ptr u64[N] p,
-  #transient reg u64 cond,
-  #secret reg u64 sec_v
-) -> #public reg u64, #[poly = p, poly = s] reg mut ptr u64[N] {
+  reg mut ptr u64[N] s,
+  reg const ptr u64[N] p,
+  reg u64 cond,
+  reg u64 sec_v
+) -> reg u64, reg mut ptr u64[N] {
   reg u64 ms x;
   reg bool b;
   ms = #init_msf();

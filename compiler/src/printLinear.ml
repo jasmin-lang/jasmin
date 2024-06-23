@@ -19,7 +19,7 @@ let pp_stype fmt =
   | T.Coq_sint   -> F.fprintf fmt "int"
   | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
   | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
-  | T.Coq_sabstract s -> F.fprintf fmt "abstract %a" pp_string0 s
+  | T.Coq_sabstract s -> F.fprintf fmt "abstract %a" pp_string s
 
 (* ---------------------------------------------------------------- *)
 let pp_label fmt lbl =
@@ -59,7 +59,7 @@ let pp_instr pd asmOp fmt i =
 
 let pp_param fmt x =
   let y = Conv.var_of_cvar x.E.v_var in
-  F.fprintf fmt "%a %a %s" pp_ty y.P.v_ty pp_kind y.P.v_kind y.P.v_name
+  F.fprintf fmt "%a %a %s" pp_kind y.P.v_kind pp_ty y.P.v_ty y.P.v_name
 
 let pp_stackframe fmt (sz, ws) =
   F.fprintf fmt "maximal stack usage: %a, alignment = %s"

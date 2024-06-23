@@ -26,6 +26,7 @@
 %token PREDICATE
 
 %token SHARP
+%token ALIGNED
 %token AMP
 %token AMPAMP
 %token ASSERT
@@ -34,6 +35,7 @@
 %token BANGEQ
 %token BIG
 %token COLON
+%token COLONCOLON
 %token COMMA
 %token ABSTRACT
 %token REQUIRES
@@ -64,6 +66,7 @@
 %token               LTLT
 %token MINUS
 %token MUTABLE
+%token NAMESPACE
 %token PARAM
 %token PERCENT
 %token PIPE
@@ -86,6 +89,7 @@
 %token STAR
 %token TO
 %token TRUE
+%token UNALIGNED
 %token UNDERSCORE
 %token WHILE
 %token EXPORT
@@ -112,8 +116,11 @@
 
 %%
 
+%inline qident:
+| x = separated_nonempty_list(COLONCOLON, NID) { String.concat "::" x }
+
 %inline ident:
-| x=loc(NID) { x }
+| x=loc(qident) { x }
 
 var:
 | x=ident { x }
@@ -243,15 +250,19 @@ prim:
 | PLUS e=pexpr { `Add, e }
 | MINUS e=pexpr { `Sub, e }
 
+%inline unaligned:
+| ALIGNED { `Aligned }
+| UNALIGNED { `Unaligned }
+
 %inline mem_access:
-| ct=parens(utype)? LBRACKET v=var e=mem_ofs? RBRACKET 
-  { ct, v, e }
+| ct=parens(utype)? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
+  { al, ct, v, e }
   
 arr_access_len: 
 | COLON e=pexpr { e }
 
 arr_access_i:
-| ws=utype? e=pexpr len=arr_access_len? {ws, e, len} 
+| al=unaligned? ws=utype? e=pexpr len=arr_access_len? {ws, e, len, al }
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {
@@ -262,8 +273,8 @@ pexpr_r:
 | v=var
     { PEVar v }
 
-| v=var i=arr_access 
-    { let aa, (ws, e, len) = i in PEGet (aa, ws, v, e, len) }
+| v=var i=arr_access
+    { let aa, (ws, e, len, al) = i in PEGet (al, aa, ws, v, e, len) }
 
 | TRUE
     { PEBool true }
@@ -274,8 +285,8 @@ pexpr_r:
 | i=INT
     { PEInt i }
 
-| ma=mem_access 
-    { let ct,v,e = ma in PEFetch (ct, v, e) }
+| ma=mem_access
+    { let ct, v, e, al = ma in PEFetch (ct, v, e, al) }
 
 | ct=parens(svsize) LBRACKET es=rtuple1(pexpr) RBRACKET
     { PEpack(ct,es) }
@@ -308,7 +319,7 @@ pexpr_r:
     { PEResult (Z.to_int i)}
 
 | RESULT DOT index=INT i=arr_access
-    { let aa, (ws, e, len) = i in PEResultGet (aa, ws, Z.to_int index, e, len) }
+    { let aa, (ws, e, len, al) = i in PEResultGet (al, aa, ws, Z.to_int index, e, len) }
 
 
 pexpr:
@@ -346,11 +357,11 @@ plvalue_r:
 | x=var
     { PLVar x }
 
-| x=var i=arr_access 
-    { let a,(ws,e,len) = i in PLArray (a, ws, x, e, len) }
+| x=var i=arr_access
+    { let a, (ws, e, len, al) = i in PLArray (al, a, ws, x, e, len) }
 
-| ma=mem_access 
-    { let ct,v,e = ma in PLMem (ct, v, e) }
+| ma=mem_access
+    { let ct, v, e, al = ma in PLMem (ct, v, e, al) }
 
 plvalue:
 | x=loc(plvalue_r) { x }
@@ -548,6 +559,9 @@ top:
 | x=prequire { Syntax.Prequire x}
 | x=pabstract_ty { Syntax.Pabstract_ty x}
 | x=pabstract_pa { Syntax.Pabstract_pre x}
+| NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
+    { Syntax.PNamespace (name, pfs) }
+
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

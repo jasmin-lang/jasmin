@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 Require Import FMaps FMapAVL FSetAVL.
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import utils.
 
 Set Implicit Arguments.
@@ -428,8 +428,8 @@ Module Mmake (K':CmpType) <: MAP.
     reflect (m.[kv.1] = Some kv.2) (kv \in elements m).
   Proof.
     rewrite /elements;move=> T kv m.
-    have : InA (Map.eq_key_elt (elt:=T)) (kv.1, kv.2) (Map.elements m) <->
-           (kv \in Map.elements m).
+    assert(InA (Map.eq_key_elt (elt:=T)) (kv.1, kv.2) (Map.elements m) <->
+           (kv \in Map.elements m)) as step.
     + elim: (Map.elements m) => [|x xs Hrec].
       + by rewrite in_nil; split => // /InAE.
       rewrite in_cons; split=> [| /orP [/eqP|]].
@@ -440,6 +440,7 @@ Module Mmake (K':CmpType) <: MAP.
         by move/Hrec ->; exact: orbT.
       + move => ->; constructor;case x;reflexivity.
       by move => H; apply /InA_cons_tl /Hrec.
+    revert step.
     case: (boolP (kv \in Map.elements m)) => Hin [Hf Ht];constructor.
     + move: (Ht (erefl _)).
       by move=> /(Facts.elements_mapsto_iff m kv.1 kv.2) /Facts.find_mapsto_iff.
@@ -691,7 +692,7 @@ Require Import ZArith.
 
 Module CmpPos.
 
-  Definition t := [eqType of positive].
+  Definition t : eqType := positive.
 
   Definition cmp : t -> t -> comparison := Pos.compare.
 
@@ -708,7 +709,7 @@ Module Mp := Mmake CmpPos.
 From mathcomp Require Import word_ssrZ.
 Module CmpZ.
 
-  Definition t := [eqType of Z].
+  Definition t : eqType := Z.
 
   Definition cmp : t -> t -> comparison := Z.compare.
 

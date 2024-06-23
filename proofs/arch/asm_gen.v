@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 Require Import
   oseq
   compiler_util
@@ -11,7 +11,6 @@ Require Import
   arch_decl
   arch_extra.
 Import Utf8 String.
-Import all_ssreflect.
 Import compiler_util.
 
 Set Implicit Arguments.
@@ -228,7 +227,7 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
-Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
+Definition assemble_word_load rip ii al (sz: wsize) (e: rexpr) :=
   match e with
   | Rexpr (Fapp1 (Oword_of_int sz') (Fconst z)) =>
     let w := wrepr sz' z in
@@ -240,9 +239,11 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
     ok (Imm w)
   | Rexpr (Fvar x) =>
     xreg_of_var ii x
-  | Load sz' v e' =>
+  | Load al' sz' v e' =>
     Let _ := assert (sz == sz')
                     (E.werror ii e "invalid Load size") in
+    Let _ := assert (aligned_le al al')
+                    (E.werror ii e "invalid Load alignment constraint") in
     Let w := addr_of_xpexpr rip ii Uptr v e' in
     ok (Addr w)
   | _ => Error (E.werror ii e "invalid rexpr for word")
@@ -250,7 +251,7 @@ Definition assemble_word_load rip ii (sz: wsize) (e: rexpr) :=
 
 Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e: rexpr) :=
   match k with
-  | AK_mem => assemble_word_load rip ii sz e
+  | AK_mem al => assemble_word_load rip ii al sz e
   | AK_compute =>
     Let f := if e is Rexpr f then ok f else Error (E.werror ii e "invalid rexpr for LEA") in
     Let w := addr_of_fexpr rip ii sz f in
@@ -271,7 +272,7 @@ Definition arg_of_rexpr k rip ii (ty: stype) (e: rexpr) :=
 Definition rexpr_of_lexpr (lv: lexpr) : rexpr :=
   match lv with
   | LLvar x => Rexpr (Fvar x)
-  | Store s x e => Load s x e
+  | Store a s x e => Load a s x e
   end.
 
 Definition nmap (T:Type) := nat -> option T.
@@ -338,10 +339,12 @@ Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_d
 Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : rexpr) (adt : arg_desc * stype) :=
   match adt.1 with
   | ADImplicit i => is_implicit i x
-  | ADExplicit _ n o =>
+  | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_rexpr AK_mem rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      if k is AK_mem al then
+      if arg_of_rexpr (AK_mem al) rip ii adt.2 x is Ok a' then (a == a') && check_oreg o a
+      else false
       else false
     | None => false
     end
@@ -518,7 +521,7 @@ Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
 
   | Ligoto e =>
       Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
-      Let arg := assemble_word AK_mem rip ii Uptr e in
+      Let arg := assemble_word (AK_mem Aligned) rip ii Uptr e in
       ok [:: mk (JMPI arg) ]
 
   | LstoreLabel x lbl =>
@@ -578,6 +581,7 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
      ; asm_fd_res := res
      ; asm_fd_export := lfd_export fd
      ; asm_fd_total_stack := lfd_total_stack fd
+     ; asm_fd_align_args := lfd_align_args fd
     |} in
 
   Let _ := assert (check_call_conv fd) 
@@ -594,19 +598,19 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
   let rsp := mk_ptr (lp_rsp p) in
   Let _ :=
     assert
-      ((to_reg  rip == None :> option_eqType ceqT_eqType) && 
-       (to_regx rip == None :> option_eqType ceqT_eqType))  
+      ((to_reg  rip == None :> option ceqT_eqType) &&
+       (to_regx rip == None :> option ceqT_eqType))
       (E.gen_error true None None (pp_s "Invalid RIP"))
   in
   Let _ :=
     assert
-      (of_ident (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
+      (of_ident (lp_rsp p) == Some ad_rsp :> option ceqT_eqType)
       (E.gen_error true None None (pp_s "Invalid RSP"))
   in
   Let fds :=
     map_cfprog_linear (assemble_fd rip rsp) (lp_funcs p)
   in
-  ok {| asm_globs := lp_globs p; asm_funcs := fds; |}.
+  ok {| asm_globs := lp_globs p; asm_glob_names := lp_glob_names p; asm_funcs := fds; |}.
 
 End ASM_EXTRA.
 

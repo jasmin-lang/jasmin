@@ -1,5 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Utils
+open PrintCommon
+open PrintASM
 open Prog
 open Arch_decl
 open Label
@@ -30,10 +32,6 @@ let pp_gen (fmt : Format.formatter) = function
 
 let pp_gens (fmt : Format.formatter) xs =
   List.iter (Format.fprintf fmt "%a\n%!" pp_gen) xs
-
-(* -------------------------------------------------------------------- *)
-let string_of_label name (p : label) =
-  Format.sprintf "L%s$%d" name (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
 type lreg =
@@ -193,7 +191,7 @@ let pp_align ws =
 
 (* ----------------------------------------------------------------------- *)
 
-let pp_glob_data fmt gd =
+let pp_glob_data fmt gd names =
   if not (List.is_empty gd) then
     let n = global_datas in
     let m = mangle global_datas in
@@ -203,7 +201,7 @@ let pp_glob_data fmt gd =
             `Instr (".p2align", [pp_align U256]);
             `Label m;
             `Label n]);
-      Format.fprintf fmt "      %a\n%!" PrintCommon.pp_datas gd
+      format_glob_data gd names |> print_asm_lines fmt
     end
 
 let pp_instr_wsize (ws : W.wsize) =
@@ -238,7 +236,7 @@ module type BPrinter = sig
   val pp_address      : W.wsize -> (register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
   val rev_args        : 'a list -> 'a list
   val pp_iname_ext    : W.wsize -> string
-  val pp_iname2_ext   : char list -> W.wsize -> W.wsize -> string
+  val pp_iname2_ext   : string -> W.wsize -> W.wsize -> string
   val pp_storelabel   : string -> register -> Label.label -> string
   val pp_asm_syntax : string  
 end 
@@ -353,7 +351,7 @@ module Intel : BPrinter = struct
   let rev_args args = args
 
   let pp_iname_ext _ = ""
-  let pp_iname2_ext ext _ _ = Conv.string_of_cstring ext
+  let pp_iname2_ext ext _ _ = ext
 
   let pp_storelabel name dst lbl = 
     Printf.sprintf "lea\t%s, [rip + %s]" 
@@ -375,7 +373,7 @@ module Printer (BP:BPrinter) = struct
   let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _, _) Arch_decl.asm_arg)) =
     match op with
     | Condt  _   -> assert false
-    | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
+    | Imm(ws, w) -> pp_imm ((if ws = U8 then Conv.z_unsigned_of_word else Conv.z_of_word) ws w)
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
     | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> BP.pp_address ws addr
@@ -398,7 +396,7 @@ module Printer (BP:BPrinter) = struct
     | PP_ct ct            -> pp_ct (match ct with Condt ct -> ct | _ -> assert false)
   
   let pp_name_ext pp_op =
-    Printf.sprintf "%s%s" (Conv.string_of_cstring pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
+    Printf.sprintf "%s%s" pp_op.pp_aop_name (pp_ext pp_op.pp_aop_ext)
 
   (* -------------------------------------------------------------------- *)
   let pp_syscall (o : 'a Syscall_t.syscall_t) =
@@ -468,27 +466,30 @@ module Printer (BP:BPrinter) = struct
        `Instr (".p2align", ["5"])];
   
     List.iter (fun (n, d) ->
-        if d.asm_fd_export then pp_gens fmt
-      [`Instr (".globl", [mangle n.fn_name]);
-       `Instr (".globl", [n.fn_name])])
+        if d.asm_fd_export then
+          let fn = escape n.fn_name in
+          pp_gens fmt
+      [`Instr (".globl", [mangle fn]);
+       `Instr (".globl", [fn])])
       asm.asm_funcs;
   
     List.iter (fun (n, d) ->
         let name = n.fn_name in
         let export = d.asm_fd_export in
-        if export then
+        if export then begin
+          let name = escape name in
         pp_gens fmt [
           `Label (mangle name);
           `Label name
-        ];
+        ] end;
   
         pp_instrs name fmt d.asm_fd_body;
   
         if export then
         pp_gens fmt [`Instr ("ret", [])]
       ) asm.asm_funcs;
-    pp_glob_data fmt asm.asm_globs
-  
+    pp_glob_data fmt asm.asm_globs asm.asm_glob_names
+
 end
 
 module PATT = Printer(ATT)

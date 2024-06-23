@@ -1,7 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
-
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -23,7 +20,6 @@ Require Import
   arm_decl
   arm_extra
   arm_instr_decl
-  arm_params_core
   arm_params_common
   arm_lowering
   arm_stack_zeroization.
@@ -39,7 +35,7 @@ Context {atoI : arch_toIdent}.
 (* Stack alloc parameters. *)
 
 Definition is_load e :=
-  if e is Pload _ _ _ then true else false.
+  if e is Pload _ _ _ _ then true else false.
 
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
@@ -60,12 +56,14 @@ Definition arm_mov_ofs
           (* This allows to remove constraint in register allocation *)
           if is_arith_small ofs then mk (ADD, [::y; eword_of_int reg_size ofs ])
           else
+            (* These checks are not needed for the proof, but it is probably better
+               to fail here than in asm_gen. *)
             if y is Pvar y_ then
-              if [&& v_var x_ != v_var y_.(gv), is_lvar y_, vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
-                Some (Copn [::x; Lvar y_.(gv)] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
+              if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
+                Some (Copn [::x] tag (Oasm (ExtOp Oarm_add_large_imm)) [::y; eword_of_int reg_size ofs ])
               else None
             else None
-    | Lmem _ _ _ =>
+    | Lmem _ _ _ _ =>
       if ofs == Z0 then mk (STR, [:: y]) else None
     | _ => None
     end
@@ -128,12 +126,12 @@ Definition arm_check_ws ws := ws == reg_size.
 Definition arm_lstore (xd : var_i) (ofs : Z) (xs : var_i) :=
   let ws := reg_size in
   let mn := STR in
-  ([:: Store ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]).
+  ([:: Store Aligned ws xd (fconst ws ofs)], Oarm (ARM_op mn default_opts), [:: Rexpr (Fvar xs)]).
 
 Definition arm_lload (xd : var_i) (xs: var_i) (ofs : Z) :=
   let ws := reg_size in
   let mn := LDR in
-  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load ws xs (fconst ws ofs)]).
+  ([:: LLvar xd], Oarm (ARM_op mn default_opts), [:: Load Aligned ws xs (fconst ws ofs)]).
 
 Definition arm_liparams : linearization_params :=
   {|

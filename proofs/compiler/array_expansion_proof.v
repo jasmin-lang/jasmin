@@ -1,8 +1,8 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 Require Import psem array_expansion compiler_util ZArith.
-Import Utf8.
+Import Utf8 Lia.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -27,7 +27,7 @@ Definition wf_t (m : t) :=
 
 Definition eval_array ws v i :=
   if v is Varr _ t
-  then ok (rdflt undef_w (rmap (@Vword _) (WArray.get AAscale ws t i)))
+  then ok (rdflt undef_w (rmap (@Vword _) (WArray.get Aligned AAscale ws t i)))
   else type_error.
 
 Definition eq_alloc_vm {wsw : WithSubWord} (m : t) vm1 vm2 :=
@@ -92,12 +92,12 @@ Proof.
   have heq : size (take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai))) = Z.to_nat len.
   + rewrite size_takel // size_drop; apply/ZNleP.
     rewrite Nat2Z.n2zB.
-    + by rewrite -vai.(len_def) !Z2Nat.id // -subZE; Psatz.lia.
-    by apply/ZNleP; rewrite -vai.(len_def) !Z2Nat.id //; Psatz.lia.
+    + by rewrite -vai.(len_def) !Z2Nat.id // -subZE; lia.
+    by apply/ZNleP; rewrite -vai.(len_def) !Z2Nat.id //; lia.
   apply (eq_from_nth (x0:= dfl)).
   + by rewrite size_map size_ziota.
   move=> j; rewrite heq => hj.
-  rewrite nth_take // nth_drop (nth_map 0%Z) ?size_ziota // nth_ziota // /= znthE; last by Psatz.lia.
+  rewrite nth_take // nth_drop (nth_map 0%Z) ?size_ziota // nth_ziota // /= znthE; last by lia.
   rewrite Z2Nat.inj_add // ?Nat2Z.id //; apply Zle_0_nat.
 Qed.
 
@@ -113,7 +113,7 @@ Qed.
 
 Lemma expand_vP n a ws l :
   mapM (eval_array ws (@Varr n a)) l =
-    ok (map (fun i => rdflt undef_w (rmap (@Vword _) (WArray.get AAscale ws a i)))  l).
+    ok (map (fun i => rdflt undef_w (rmap (@Vword _) (WArray.get Aligned AAscale ws a i)))  l).
 Proof. by elim: l => // *; simpl map; rewrite -mapM_cons. Qed.
 
 
@@ -196,13 +196,13 @@ Proof.
   + by move=> b _ <- _ <-.
   + by move=> n _ <- _ <-.
   + by move=> > /(check_gvar_get) -/(_ _ _ h) -> <-.
-  + move=> aa sz x e hrec e2.
+  + move=> al aa sz x e hrec e2.
     case: ifP => [/check_gvar_get /(_ h)|/norP/proj1/negbNE hlv].
     + t_xrbindP=> -> e1 /hrec he <- v /=.
       apply: on_arr_gvarP => n t hty ->.
       by t_xrbindP=> i vi /he -> /= -> /= w -> <-.
     case hgetx : Mvar.get => [ax|//]; case: is_constP => // i.
-    t_xrbindP=> /eqP <- /eqP -> hbound <- v; have hai := valid hgetx.
+    t_xrbindP=> /eqP <- /eqP -> /eqP -> hbound <- v; have hai := valid hgetx.
     apply: on_arr_gvarP => n t /eqP hty.
     rewrite /get_gvar hlv{hlv} => /get_varP [ hx1 _ _] /=.
     t_xrbindP=> ? hw <-.
@@ -212,7 +212,7 @@ Proof.
     rewrite (check_gvar_get he h) => v.
     apply on_arr_gvarP => n t hty -> /=.
     by t_xrbindP => i vi /hrec1 -> /= -> t' /= -> <-.
-  + move=> sz x e hrec e2 hin e1 /hrec hrec1 <- /=.
+  + move=> al sz x e hrec e2 hin e1 /hrec hrec1 <- /=.
     move=> v p vp; rewrite (check_var_get hin h) => -> /= -> /= i vi /hrec1 -> /= -> /=.
     by rewrite (eq_alloc_mem h) => ? -> <-.
   + by move=> o e1 hrec e2 e1' /hrec he1 <- /= ?? /he1 -> /= ->.
@@ -260,11 +260,11 @@ Proof.
   + move=> ii ty _ [<-] /= ?? /dup [] /write_noneP [-> _ _] hn.
     by exists s2; split => //; apply: uincl_write_none hn.
   + by move=> x; t_xrbindP => _ ? <- /= v1 s1'; apply eq_alloc_write_var.
-  + move=> ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
+  + move=> al ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
     rewrite (check_var_get hin h) => -> /= -> /= pe ve.
     move=> /(expand_eP h he) -> /= -> /= ? -> /= mem.
     by rewrite -hmem => -> /= <-; exists (with_mem s2 mem).
-  + move=> aa ws x e x2.
+  + move=> al aa ws x e x2.
     case: ifPn => [hin | hnin].
     + t_xrbindP => e' he <- v s1' /=.
       apply on_arr_varP => n t hty.
@@ -272,7 +272,7 @@ Proof.
       t_xrbindP => i vi /(expand_eP h he) -> /= -> /= ? -> /= t' -> hw.
       by apply (eq_alloc_write_var h hin hw).
     case hai: Mvar.get => [ai | //].
-    case: is_constP => // i ; t_xrbindP => /eqP <- /eqP -> hbound <- v s1'.
+    case: is_constP => // i ; t_xrbindP => /eqP <- /eqP -> /eqP -> hbound <- v s1'.
     apply on_arr_varP => n t hty hget /=.
     t_xrbindP => w hvw t' ht' /dup[] hw1 /write_varP [? _ htrv]; subst s1'.
     have vai := valid hai; have hin := wf_mem (v_var x) vai hbound.
@@ -385,10 +385,10 @@ Proof.
   + by have ? := vai.(len_pos); rewrite Pos2Z.inj_mul Z2Pos.id.
   move=> {wsaty'} t st hgx hst hi.
   have ? := wsize_size_pos (ai_ty a).
-  rewrite -Z2Nat.inj_pos (wf_take_drop (v_var (gv g)) vai) //. 2,3: by Psatz.nia.
+  rewrite -Z2Nat.inj_pos (wf_take_drop (v_var (gv g)) vai) //. 2,3: by nia.
   rewrite -map_comp; apply eq_in_map => j; rewrite in_ziota /comp /= => /andP [] /ZleP ? /ZltP ?.
   have hbound : (0 <=? i + j)%Z && (i + j <? ai_len a)%Z.
-  + by apply /andP; split; [apply/ZleP|apply/ZltP] => //; Psatz.nia.
+  + by apply /andP; split; [apply/ZleP|apply/ZltP] => //; nia.
   case: h => -[_ /(_ _ _ _ hga){hga}hgai _ _].
   move/hgai: (wf_mem (v_var (gv g)) vai hbound); rewrite -hgx /= => -[<-].
   by rewrite (wf_index _ vai hbound) (WArray.get_sub_get hst).
@@ -399,27 +399,27 @@ Lemma wf_write_get s (x:var_i) ai (a : WArray.array (Z.to_pos (arr_size (ai_ty a
   (0 <= i)%Z -> (i + len <= ai_len ai)%Z -> (0 <= len)%Z ->
   exists2 vm,
     write_lvals false gd s [seq Lvar {| v_var := znth (v_var x) (ai_elems ai) x0; v_info := v_info x |} | x0 <- ziota i len]
-      [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get AAscale (ai_ty ai) a i)) | i <- ziota i len] = ok (with_vm s vm) &
+      [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a i)) | i <- ziota i len] = ok (with_vm s vm) &
     forall y,
       vm.[y] =
         let j := zindex y (ai_elems ai) in
         if j \in ziota i len then
-           rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get AAscale (ai_ty ai) a j))
+           rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a j))
         else (evm s).[y].
 Proof.
   move => hva h0i hilen h0l.
   have : uniq (ziota i len).
   + rewrite ziotaE map_inj_uniq ?iota_uniq //.
-    by move=> j1 j2 h; apply Nat2Z.inj; Psatz.lia.
+    by move=> j1 j2 h; apply Nat2Z.inj; lia.
   elim/ziota_ind: (ziota _ _) s => /= [ | k l hk hrec] s.
   + by move=> _; exists (evm s) => //; rewrite with_vm_same.
   move=> /andP [] hkl huni.
   rewrite /write_var /set_var /DB /=.
   have hk1 : (0 <=? k)%Z && (k <? ai_len ai)%Z.
-  + by apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.lia.
+  + by apply/andP; split; [apply/ZleP|apply/ZltP]; lia.
   have hin := wf_mem (v_var x) hva hk1.
   rewrite (xi_ty hva hin).
-  have -> /= : (truncatable false (sword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get AAscale (ai_ty ai) a k)))).
+  have -> /= : (truncatable false (sword (ai_ty ai)) (rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) a k)))).
   + by case: WArray.get => //=.
   set s1 := with_vm _ _.
   case: (hrec s1 huni) => vm -> hvm; exists vm => // y; rewrite in_cons.
@@ -482,25 +482,25 @@ Proof.
   rewrite expand_vP => -[?]; subst vs'.
   have := WArray.set_sub_bound hra.
   have [ltws lt0len]:= (wsize_size_pos (ai_ty ai), len_pos hva).
-  rewrite /arr_size /mk_scale {1}(Z2Pos.id _ lt0len) Z2Pos.id; last by Psatz.nia.
-  move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by Psatz.nia.
+  rewrite /arr_size /mk_scale {1}(Z2Pos.id _ lt0len) Z2Pos.id; last by nia.
+  move=> hb; have [{hb} h0i hilen'] : (0 <= i /\ i + len' <= ai_len ai)%Z by nia.
   have -> := wf_take_drop (v_var x) hva h0i hilen' (Zle_0_pos _).
   rewrite -map_comp /comp.
   have [vm2 ] := wf_write_get s2 ra hva h0i hilen' (Zle_0_pos _).
   rewrite {1 2}(ziota_shift i len') -!map_comp /comp.
   have -> :
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
-   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len'].
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) ra (i + x0))) | x0 <- ziota 0 len'] =
+   [seq rdflt undef_w (rmap (Vword (s:=ai_ty ai)) (WArray.get Aligned AAscale (ai_ty ai) sa i0)) | i0 <- ziota 0 len'].
   + apply eq_in_map => j; rewrite in_ziota => /andP [] /ZleP ? /ZltP ?.
     rewrite (WArray.set_sub_get hra).
     have -> : (i <=? i + j)%Z && (i + j <? i + len')%Z; last by do 3!f_equal; ring.
-    by apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.nia.
+    by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   move=> -> hvm2; eexists; eauto.
   have hybound: forall y,
         (i <=? zindex y (ai_elems ai))%Z && (zindex y (ai_elems ai) <? i + len')%Z ->
         (y \in ai_elems ai).
   + move=> y => /andP [/ZleP ? /ZltP ?]; rewrite -(zindex_bound y hva).
-    by apply/andP; split; [apply/ZleP|apply/ZltP]; Psatz.nia.
+    by apply/andP; split; [apply/ZleP|apply/ZltP]; nia.
   case heqa => heqv ??; split => //; split => /=.
   + move=> y hin; rewrite hvm2 /= Vm.setP_neq; last by apply/eqP=> ?; subst y; apply (x_nin hva hin).
     case: ifP; last by move=> _; apply heqv.
@@ -804,10 +804,10 @@ Proof.
   case heq : WArray.get => [w | /=]; last first.
   + by rewrite /undef_v (undef_x_vundef (_ _)).
   have []:= WArray.get_bound heq; rewrite /mk_scale => ???.
-  have h : ((0 <= 0%N)%Z ∧ (0%N < wsize_size (ai_ty ai)))%Z.
-  + by move=> /=; have := wsize_size_pos (ai_ty ai); Psatz.lia.
-  have [_ /(_ 0 h)] := read_read8 heq.
-  by rewrite WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); Psatz.lia.
+  have h : ((0 <= Z0 < wsize_size (ai_ty ai)))%Z.
+  + by move=> /=; have := wsize_size_pos (ai_ty ai); lia.
+  have [_ /(_ Z0 h)] := read_read8 heq.
+  by rewrite WArray.get0 //= WArray.addE; have := wsize_size_pos (ai_ty ai); lia.
 Qed.
 
 Lemma mapM2_dc_truncate_id tys vs vs':

@@ -1,5 +1,3 @@
-From mathcomp Require Import all_ssreflect all_algebra.
-
 Require Import
   expr
   fexpr
@@ -87,7 +85,7 @@ Definition loop_small_cmd (lbl : label) ws_align ws (stk_max : Z) : lcmd :=
 
   (* (ws)[rsp + off] = 0; *)
   let i6 :=
-    Lopn [:: Store ws rspi (Fvar offi) ] (Ox86 (MOV ws)) [:: rconst ws 0 ]
+    Lopn [:: Store Aligned ws rspi (Fvar offi) ] (Ox86 (MOV ws)) [:: rconst ws 0 ]
   in
 
   (* if (!zf) goto l1 *)
@@ -146,7 +144,7 @@ Definition loop_large_cmd (lbl : label) ws_align ws (stk_max : Z) : lcmd :=
 
   (* (ws)[rsp + off] = ymm; *)
   let i7 :=
-    Lopn [:: Store ws rspi (Fvar offi) ] (Ox86 (VMOVDQU ws)) [:: rvar vlri ]
+    Lopn [:: Store Aligned ws rspi (Fvar offi) ] (Ox86 (VMOVDQU ws)) [:: rvar vlri ]
   in
 
   (* if (!zf) goto l1 *)
@@ -195,7 +193,7 @@ Definition unrolled_small_cmd ws_align ws (stk_max : Z) : lcmd :=
   (* (ws)[rsp + off] = 0; *)
   let f off :=
     Lopn
-      [:: Store ws rspi (fconst U64 off) ]
+      [:: Store Aligned ws rspi (fconst U64 off) ]
       (Ox86 (MOV ws))
       [:: rconst ws 0 ]
   in
@@ -237,7 +235,7 @@ Definition unrolled_large_cmd ws_align ws (stk_max : Z) : lcmd :=
   (* (ws)[rsp + off] = ymm; *)
   let f off :=
     Lopn
-      [:: Store ws rspi (fconst U64 off) ]
+      [:: Store Aligned ws rspi (fconst U64 off) ]
       (Ox86 (VMOVDQU ws))
       [:: rvar vlri ]
   in

@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 Require Import psem compiler_util.
 Require Export constant_prop.
 
@@ -615,12 +615,13 @@ Section CONST_PROP_EP.
       move=> hx /get_varP; rewrite hx => -[-> _ _] {hx}.
       by case: n => [ b | n | sz w ]; rewrite /sem_sop1 /= ?wrepr_unsigned;
            eexists;(split;first reflexivity) => //=; rewrite wrepr_unsigned.
-    - move => aa sz x e He v m0 /=.
+    - move => al aa sz x e He v m0 /=.
       apply: on_arr_gvarP => n t wt ok_x.
-      t_xrbindP => z w /(He _) [v'] [] ok_v' /[swap] /to_intI ? /value_uinclE ; subst => ?; subst.      move => a ha ?; subst.
-      have default : ∃ v' : value, sem_pexpr_aux wdb gd s m0 (Pget aa sz x (const_prop_e globs m e)) = ok v' ∧ value_uincl (Vword a) v'.
-      +  rewrite /= /on_arr_var ok_x /= /He ok_v' /= ha /=; eexists; split ; [ reflexivity | by simpl ].
-      case x_glob: is_glob ; last exact: default.
+      t_xrbindP => z w /(He _) {He} [v'] [] ok_v' /[swap] /to_intI ? /value_uinclE; subst => ?; subst.
+      move => a ha ?; subst.
+      have default : ∃ v' : value, sem_pexpr_aux wdb gd s m0 (Pget al aa sz x (const_prop_e globs m e)) = ok v' ∧ value_uincl (Vword a) v'.
+      + by rewrite /= /on_arr_var ok_x /= /He ok_v' /= ha /=; eexists; split; [ reflexivity | simpl ].
+      case x_glob: is_glob; last exact: default.
       case: globs default Gvalid ok_v'; last by [].
       move => f + /(_ x.(gv)).
       case: (f _); last by [].
@@ -636,7 +637,7 @@ Section CONST_PROP_EP.
       t_xrbindP => z w /(He _) [v'] [->] /[swap] /to_intI -> /value_uinclE ->.
       move => a ha ?; subst; rewrite /= ha.
       by eexists; (split; first reflexivity) => /=.
-    - move => sz x e He v ? //=.
+    - move => al sz x e He v ? //=.
       t_xrbindP => ? ? -> /= -> ? ? /He [v'] [->] /[swap]
         /to_wordI[? [? [-> /word_uincl_truncate h]]]
         /value_uinclE[? [? [-> /h{h}h]]] ? h' <- /=.
@@ -694,6 +695,9 @@ Definition const_prop_eP globs e s m h g :=
 
 Definition const_prop_esP globs es s m h g :=
   (@const_prop_e_esP globs s m h g).2 es.
+
+Definition empty_const_prop_eP e s :=
+  const_prop_eP (e := e) (s := s) (valid_cpm_empty _) (I : valid_globs None).
 
 Lemma remove_cpm1P x v m s1 s1' :
   write_var wdb x v s1 = ok s1' ->
@@ -757,7 +761,7 @@ Lemma const_prop_rvP globs s1 s2 m x v:
   valid_cpm (evm s2) (const_prop_rv globs m x).1 /\
   write_lval wdb gd (const_prop_rv globs m x).2 v s1 = ok s2.
 Proof.
-  case:x => [ii t | x | sz x p | aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
+  case:x => [ii t | x | al sz x p | al aa sz x p | aa sz len x p] /= Hv Gv; t_xrbindP.
   + by move=> H; have [??]:= write_noneP H; subst s2.
   + by move=> H;split=>//;apply: remove_cpm1P H Hv.
   + by move=> > -> /to_wordI [? [? [-> /= ->]]]
@@ -837,9 +841,9 @@ Proof.
   move=> g _ <- m1 m2 Hm e e' <- {e'}.
   elim: e => //=.
   + by case => ? [] //; rewrite Hm.
-  + by move=> ???? ->.
   + by move=> ????? ->.
-  + by move=> ??? ->.
+  + by move=> ????? ->.
+  + by move=> ???? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
   + move => op es h; f_equal.
@@ -854,7 +858,7 @@ Instance const_prop_rv_m :
   Proper (eq ==> @Mvar_eq const_v ==> eq ==> RelationPairs.RelProd (@Mvar_eq const_v) eq) const_prop_rv.
 Proof.
   move=> g _ <- m1 m2 Hm rv rv' <- {rv'}.
-  by case: rv => [ v | v | sz v p | aa sz v p | aa sz len v p] //=;rewrite Hm.
+  by case: rv => [ v | v | al sz v p | al aa sz v p | aa sz len v p] //=;rewrite Hm.
 Qed.
 
 #[local]

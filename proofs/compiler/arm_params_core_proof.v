@@ -1,8 +1,5 @@
 From Coq Require Import Lia.
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
-
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -104,15 +101,23 @@ Proof. by rewrite /=; t_xrbindP => *; t_arm_op. Qed.
 
 Lemma movi_sem_fopn_args {s imm xname vi} :
   let: (xi, x) := mkv xname vi in
-  (is_expandable_or_shift imm \/ is_w16_encoding imm) ->
+  (is_expandable imm \/ is_w16_encoding imm) ->
   let: vm' := (evm s).[x <- Vword (wrepr U32 imm)] in
   sem_fopn_args (ARMFopn_core.movi xi imm) s = ok (with_vm s vm').
+Proof. by t_arm_op. Qed.
+
+Lemma mvni_sem_fopn_args {s imm xname vi} :
+  let: (xi, x) := mkv xname vi in
+  is_expandable imm ->
+  let: vm' := (evm s).[x <- Vword (wnot (wrepr U32 imm))] in
+  sem_fopn_args (ARMFopn_core.mvni xi imm) s = ok (with_vm s vm').
 Proof. by t_arm_op. Qed.
 
 Opaque ARMFopn_core.add.
 Opaque ARMFopn_core.addi.
 Opaque ARMFopn_core.mov.
 Opaque ARMFopn_core.movi.
+Opaque ARMFopn_core.mvni.
 Opaque ARMFopn_core.sub.
 Opaque ARMFopn_core.subi.
 
@@ -122,7 +127,7 @@ Lemma wbit_n_add ws n lbs hbs (i : nat) :
   (0 <= lbs < n2)%Z ->
   (0 <= hbs < n2)%Z ->
   let b :=
-    if (i <? n)%Z
+    if (Z.of_nat i <? n)%Z
     then wbit_n (wrepr ws lbs) i
     else wbit_n (wrepr ws hbs) (i - Z.to_nat n)
   in
@@ -130,8 +135,7 @@ Lemma wbit_n_add ws n lbs hbs (i : nat) :
 Proof.
   move=> hn hlbs hhbs.
 
-  have h0i : (0 <= i)%Z.
-  - exact: Zle_0_nat.
+  have h0i := Zle_0_nat i.
 
   have h0n : (0 <= n)%Z.
   - case: (Z.le_gt_cases 0 n) => h; first done.
@@ -146,7 +150,7 @@ Proof.
   all: rewrite wbit_nE.
   all: rewrite (wunsigned_repr_small hrange).
 
-  - rewrite -(Zplus_minus i n) Z.pow_add_r; last lia; last done.
+  - rewrite -(Zplus_minus (Z.of_nat i) n) Z.pow_add_r; last lia; last done.
     rewrite Z.add_comm -Z.mul_assoc Z.mul_comm Z_div_plus; first last.
     + apply/Z.lt_gt. by apply: Z.pow_pos_nonneg.
 
@@ -155,7 +159,7 @@ Proof.
     rewrite wunsigned_repr_small; first done.
     lia.
 
-  rewrite -(Zplus_minus n i) (Z.pow_add_r _ _ _ h0n); last lia.
+  rewrite -(Zplus_minus n (Z.of_nat i)) (Z.pow_add_r _ _ _ h0n); last lia.
   rewrite -Z.div_div; last lia; last lia.
   rewrite Z.add_comm Z.mul_comm Z_div_plus; last lia.
   rewrite (Zdiv_small _ _ hlbs) /= wbit_nE.
@@ -166,7 +170,7 @@ Proof.
     apply: (Z.lt_le_trans _ (2 ^ n)); first lia.
     apply: Z.pow_le_mono_r; lia.
 
-  rewrite int_of_Z_PoszE Nat2Z.n2zB; first by rewrite Z2Nat.id.
+  rewrite Nat2Z.n2zB; first by rewrite Z2Nat.id.
   by apply/ZNleP; rewrite (Z2Nat.id _ h0n); apply/Z.nlt_ge.
 Qed.
 
@@ -263,10 +267,23 @@ Lemma li_lsem_1 s xname vi imm :
       & get_var true vm' x = ok (Vword (wrepr reg_size imm)) ].
 Proof.
   rewrite /ARMFopn_core.li; case: orP => [himm' | _] /=.
+
+  (* Case: small immediate. *)
   + rewrite (movi_sem_fopn_args himm') /with_vm /=.
     eexists; split; first reflexivity; last by t_get_var.
     move=> v /Sv.singleton_spec ?.
     by t_vm_get.
+
+  case: ifP => [himm' | _] /=.
+
+  (* Case: negated immediate. *)
+  + rewrite (mvni_sem_fopn_args himm') /with_vm /=.
+    eexists; split; first reflexivity.
+    * move=> v /Sv.singleton_spec ?.
+      by t_vm_get.
+    by rewrite wrepr_mod -wrepr_wnot /= wnot_wnot wrepr_mod get_var_eq.
+
+  (* Case: large immediate. *)
   case hdivmod: Z.div_eucl => [hbs lbs] /=.
   rewrite movi_sem_fopn_args /=; first last.
   + have := Z_div_mod imm (wbase U16).

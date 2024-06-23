@@ -1,2 +1,2 @@
 param int N = 1025;
-require "large_internal_stack_template.jazz"
+require "large_internal_stack_template.jinc"

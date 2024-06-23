@@ -104,7 +104,7 @@ module Regalloc = Regalloc (Arch)
 let memory_analysis pp_err ~debug up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog up in
-  let gao, sao = Varalloc.alloc_stack_prog Arch.callstyle Arch.reg_size Arch.aparams.ap_is_move_op p in
+  let gao, sao = Varalloc.alloc_stack_prog Arch.callstyle Arch.reg_size p in
   
   (* build coq info *)
   let crip = Var0.Var.vname (Conv.cvar_of_var Arch.rip) in
@@ -121,7 +121,7 @@ let memory_analysis pp_err ~debug up =
       Stack_alloc.({
         pp_ptr = Conv.cvar_of_var pi.pi_ptr;
         pp_writable = pi.pi_writable;
-        pp_align    = pi.pi_align;
+        pp_align    = pi.pi_align.ac_strict;
       }) in
     let conv_sub (i:Interval.t) = 
       Stack_alloc.{ z_ofs = Conv.cz_of_int i.min; 
@@ -185,7 +185,7 @@ let memory_analysis pp_err ~debug up =
         false
         Arch.aparams.ap_shp
         Arch.aparams.ap_sap
-        (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy)
+        (Conv.fresh_var_ident (Reg (Normal, Pointer Writable)) IInfo.dummy (Uint63.of_int 0))
         crip
         crsp
         gao.gao_data
@@ -206,7 +206,21 @@ let memory_analysis pp_err ~debug up =
   
   (* remove unused result *)
   let tokeep = RemoveUnusedResults.analyse fds in
-  let tokeep fn = tokeep fn in
+  (* TODO: the code is duplicated between here and compiler.v, we should factorize *)
+  let returned_params fn =
+    let sao = get_sao fn in
+    let _, fd = List.find (fun (_, fd) -> fd.f_name = fn) fds in
+    match fd.f_cc with
+    | Export _ -> Some sao.sao_return
+    | _ -> None
+  in
+  let tokeep fn =
+    match returned_params fn with
+    | Some l ->
+        let l' = List.map ((=) None) l in
+        if List.for_all (fun x -> x) l' then None else Some l'
+    | None -> tokeep fn
+  in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef fd in
     let fd = 
@@ -221,7 +235,7 @@ let memory_analysis pp_err ~debug up =
   
   (* register allocation *)
   let translate_var = Conv.var_of_cvar in
-  let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
+  let has_stack f = FInfo.is_export f.f_cc && (Hf.find sao f.f_name).sao_modify_rsp in
 
   let internal_size_tbl = Hf.create 117 in
   let add_internal_size fd sz = Hf.add internal_size_tbl fd sz in
@@ -229,7 +243,7 @@ let memory_analysis pp_err ~debug up =
 
   let fix_subroutine_csao (_, fd) =
     match fd.f_cc with
-    | Export -> ()
+    | Export _ -> ()
     | Internal -> assert false
     | Subroutine _ ->
 
@@ -289,7 +303,7 @@ let memory_analysis pp_err ~debug up =
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
-        sao_ioff = Conv.cz_of_int (if rastack && not (fd.f_cc = Export) then size_of_ws Arch.reg_size else 0);
+        sao_ioff = Conv.cz_of_int (if rastack && not (FInfo.is_export fd.f_cc) then size_of_ws Arch.reg_size else 0);
         sao_extra_size = Conv.cz_of_int extra_size;
         sao_max_size = Conv.cz_of_z max_size;
         sao_max_call_depth = Conv.cz_of_z max_call_depth;
@@ -323,7 +337,7 @@ let memory_analysis pp_err ~debug up =
       } in
       Hf.replace atbl fn csao
     | Internal -> assert false
-    | Export ->
+    | Export _ ->
 
     let fn = fd.f_name in
     let sao = Hf.find sao fn in
@@ -355,7 +369,7 @@ let memory_analysis pp_err ~debug up =
     (* if we zeroize the stack, we may have to increase the alignment *)
     let align =
       match fd.f_cc, fd.f_annot.stack_zero_strategy with
-      | Export, Some (_, Some ws) ->
+      | Export _, Some (_, Some ws) ->
           if Z.equal max_stk Z.zero
             && Z.equal (Conv.z_of_cz csao.Stack_alloc.sao_size) Z.zero
             && extra_size = 0
@@ -393,13 +407,13 @@ let memory_analysis pp_err ~debug up =
                    (Z.of_int extra_size) in
       let stk_size = 
         match fd.f_cc with
-        | Export -> stk_size
+        | Export _     -> stk_size
         | Subroutine _ ->
           Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
       let max_size = Z.add max_stk stk_size in
       match fd.f_cc, fd.f_annot.stack_zero_strategy with
-      | Export, Some (_, ows) ->
+      | Export _, Some (_, ows) ->
           let ws =
             match ows with
             | Some ws -> Pretyping.tt_ws ws

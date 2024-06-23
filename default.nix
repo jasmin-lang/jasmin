@@ -2,6 +2,7 @@
 , inCI ? false
 , pinned-nixpkgs ? inCI
 , coqDeps ? !inCI
+, coqMaster ? false
 , ocamlDeps ? !inCI
 , testDeps ? !inCI
 , devTools ? !inCI
@@ -14,7 +15,15 @@ with pkgs;
 
 let inherit (lib) optionals; in
 
-let coqPackages = coqPackages_8_18; in
+let coqPackages =
+  if coqMaster then
+    pkgs.coqPackages.overrideScope (self: super: {
+      coq = super.coq.override { version = "master"; };
+      coq-elpi = super.coq-elpi.override { version = "coq-master"; };
+      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.0"; };
+    })
+  else coqPackages_8_19
+; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
@@ -50,6 +59,7 @@ stdenv.mkDerivation {
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
          cmdliner
+         angstrom
          batteries
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])

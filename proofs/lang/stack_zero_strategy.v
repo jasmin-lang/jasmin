@@ -10,9 +10,8 @@ Implemented in [compiler/stack_zeroization.v].
 The strategies are not defined in [compiler/stack_zeroization.v] to avoid a
 circular dependency. *)
 
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
 Require Import utils.
 
 Set Implicit Arguments.
@@ -44,10 +43,8 @@ Proof.
        internal_stack_zero_strategy_dec_bl
        internal_stack_zero_strategy_dec_lb).
 Qed.
-Definition stack_zero_strategy_eqMixin :=
-  Equality.Mixin stack_zero_strategy_eq_axiom.
-Canonical  stack_zero_strategy_eqType  :=
-  Eval hnf in EqType stack_zero_strategy stack_zero_strategy_eqMixin.
+
+HB.instance Definition _ := hasDecEq.Build stack_zero_strategy stack_zero_strategy_eq_axiom.
 
 Lemma stack_zero_strategy_list_complete : Finite.axiom stack_zero_strategy_list.
 Proof. by case. Qed.

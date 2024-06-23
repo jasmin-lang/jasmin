@@ -12,9 +12,7 @@ In export functions we set the [stk_max] field to a multiple of the size
 of a clearing step, so that the overwriting is done in an integer number of
 writes. *)
 
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 From mathcomp Require Import word_ssrZ.
 Require Import ZArith.
 
@@ -141,6 +139,7 @@ Definition stack_zeroization_lprog (lp : lprog) : cexec lprog :=
       lp_rip := lp_rip lp;
       lp_rsp := lp_rsp lp;
       lp_globs := lp_globs lp;
+      lp_glob_names := lp_glob_names lp;
       lp_funcs := lp_funs;
     |}.
 

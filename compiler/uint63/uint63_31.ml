@@ -30,3 +30,5 @@ let equal (x : t) y = x = y
 let compares x y = Int64.(compare (shift_left x 1) (shift_left y 1))
 
 let to_string = Int64.to_string
+
+let add x y = mask63 (Int64.add x y)

@@ -20,9 +20,9 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init (flen n)
   | Pvar v -> f v
-  | Pget (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
+  | Pget (al, aa, ws, v, e) -> Pget(al, aa, ws, gsubst_gvar f v, gsubst_e flen f e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen ~loc:(L.loc v.gv) len, gsubst_gvar f v, gsubst_e flen f e)
-  | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e flen f e)
+  | Pload (al, ws, v, e) -> Pload (al, ws, gsubst_vdest f v, gsubst_e flen f e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e flen f e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
@@ -43,7 +43,7 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
          gsubst_e flen f e0, 
          gsubst_e flen f b)
   | Presult (i,v) -> Presult (i,gsubst_gvar f v)
-  | Presultget (aa, ws, i, v, e) -> Presultget(aa, ws, i, gsubst_gvar f v, gsubst_e flen f e)
+  | Presultget (al, aa, ws, i, v, e) -> Presultget(al, aa, ws, i, gsubst_gvar f v, gsubst_e flen f e)
 
 and gsubst_gvar f v = 
   match f v with
@@ -59,8 +59,8 @@ let gsubst_lval (flen: ?loc:L.t -> 'len1 -> 'len2) f lv =
   match lv with
   | Lnone(i,ty)  -> Lnone(i, gsubst_ty (flen ~loc:i) ty)
   | Lvar v       -> Lvar (gsubst_vdest f v)
-  | Lmem (w,v,e) -> Lmem(w, gsubst_vdest f v, gsubst_e flen f e)
-  | Laset(aa,w,v,e) -> Laset(aa, w, gsubst_vdest f v, gsubst_e flen f e)
+  | Lmem (al, w,v,e) -> Lmem(al, w, gsubst_vdest f v, gsubst_e flen f e)
+  | Laset(al, aa,w,v,e) -> Laset(al, aa, w, gsubst_vdest f v, gsubst_e flen f e)
   | Lasub(aa,w,len,v,e) -> Lasub(aa, w, flen ~loc:(L.loc v) len, gsubst_vdest f v, gsubst_e flen f e)
 
 let gsubst_lvals flen f  = List.map (gsubst_lval flen f)
@@ -114,9 +114,9 @@ let subst_func f fc =
 let rec subst_result m e =
   match e with
   | Pconst _  | Pbool _ | Parr_init _ | Pfvar _  | Pvar _ -> e
-  | Pget (aa, ws, v, e) -> Pget(aa, ws, v, subst_result m e)
+  | Pget (al, aa, ws, v, e) -> Pget(al, aa, ws, v, subst_result m e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws, len, v, subst_result m e)
-  | Pload (ws, v, e) -> Pload (ws, v, subst_result m e)
+  | Pload (al, ws, v, e) -> Pload (al, ws, v, subst_result m e)
   | Papp1 (o, e)     -> Papp1 (o, subst_result m e)
   | Papp2 (o, e1, e2)-> Papp2 (o, subst_result m e1, subst_result m e2)
   | PappN (o, es) -> PappN (o, List.map (subst_result m) es)
@@ -129,7 +129,7 @@ let rec subst_result m e =
          subst_result m e0,
          subst_result m b)
   | Presult (i, v) -> Pvar (m i v)
-  | Presultget (aa, ws, i, v, e) -> Pget(aa, ws, m i v, subst_result m e)
+  | Presultget (al, aa, ws, i, v, e) -> Pget(al, aa, ws, m i v, subst_result m e)
 
 (* ---------------------------------------------------------------- *)
 
@@ -471,9 +471,9 @@ let rec gsubst_result m e =
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init n
   | Pvar v ->  Pvar v
-  | Pget (aa, ws, v, e) -> Pget(aa, ws, v, gsubst_result m e)
+  | Pget (al, aa, ws, v, e) -> Pget(al, aa, ws, v, gsubst_result m e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws, len, v, gsubst_result m e)
-  | Pload (ws, v, e) -> Pload (ws, v, gsubst_result m e)
+  | Pload (al, ws, v, e) -> Pload (al, ws, v, gsubst_result m e)
   | Papp1 (o, e)     -> Papp1 (o, gsubst_result m e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_result m e1, gsubst_result m e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_result m) es)
@@ -485,4 +485,4 @@ let rec gsubst_result m e =
          gsubst_result m e0,
          gsubst_result m b)
   | Presult (i,v) -> Presult(i,vsubst_gv m v)
-  | Presultget (aa, ws, i, v, e) -> Presultget(aa, ws, i, vsubst_gv m v, gsubst_result m e)
+  | Presultget (al, aa, ws, i, v, e) -> Presultget(al, aa, ws, i, vsubst_gv m v, gsubst_result m e)

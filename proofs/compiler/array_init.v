@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 Require Import ZArith.
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import expr compiler_util.
 
 Set Implicit Arguments.

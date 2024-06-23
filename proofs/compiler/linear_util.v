@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr label linear.
 Require Import seq_extra compiler_util.
 
@@ -28,6 +28,7 @@ Definition map_lfundef (f : lcmd -> lcmd) (lfd : lfundef) : lfundef :=
     lfd_callee_saved := lfd_callee_saved lfd;
     lfd_stk_max := lfd_stk_max lfd;
     lfd_frame_size := lfd_frame_size lfd;
+    lfd_align_args := lfd_align_args lfd;
   |}.
 
 Fixpoint max_map

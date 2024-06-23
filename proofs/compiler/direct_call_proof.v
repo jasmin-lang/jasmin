@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import varmap psem.
 
 Import Utf8.
@@ -207,7 +207,7 @@ Section EXPR.
 
   Lemma write_lval_weak s' x v : write_lval true gd x v s = ok s' -> write_lval wdb gd x v s = ok s'.
   Proof.
-    case: x => [vi t | x | ws x e | aa ws x e | aa ws len x e] /=; t_xrbindP.
+    case: x => [vi t | x | ws x e | al aa ws x e | aa ws len x e] /=; t_xrbindP.
     + by rewrite /write_none; t_xrbindP => /truncatable_weak -> /DB_weak -> ->.
     + by apply write_var_weak.
     + by move=> ? > /get_var_weak -> /= -> > /sem_pexpr_weak -> /= -> > -> > /= -> <-.

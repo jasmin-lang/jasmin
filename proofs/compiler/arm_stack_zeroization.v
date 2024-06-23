@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 
 Require Import
   expr
@@ -38,9 +38,6 @@ Let vzf := mk_var_i (to_var ZF).
 Let vflags := [seq mk_var_i (to_var f) | f <- rflags ].
 Let leflags := [seq LLvar f | f <- vflags ].
 
-Notation rvar := (fun v => Rexpr (Fvar v)) (only parsing).
-Notation rconst := (fun ws imm => Rexpr (fconst ws imm)) (only parsing).
-
 (* For both strategies we need to initialize:
    - [saved_sp] to save [SP]
    - [off] to offset from [SP] to already zeroized region
@@ -60,7 +57,7 @@ Definition sz_init : lcmd :=
   let args :=
     ARMFopn.mov vsaved_sp vrsp
     :: ARMFopn.li voff stk_max
-    ++ ARMFopn.align vzero vsaved_sp alignment
+    :: ARMFopn.align vzero vsaved_sp alignment
     :: ARMFopn.mov vrsp vzero
     :: ARMFopn.sub vrsp vrsp voff
     :: [:: ARMFopn.movi vzero 0 ]
@@ -70,7 +67,7 @@ Definition sz_init : lcmd :=
 Definition store_zero (off : fexpr) : linstr_r :=
   if store_mn_of_wsize ws is Some mn
     then
-      let current := Store ws vrsp off in
+      let current := Store Aligned ws vrsp off in
       let op := ARM_op mn default_opts in
       Lopn [:: current ] (Oarm op) [:: rvar vzero ]
     else Lalign. (* Absurd case. *)

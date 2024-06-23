@@ -1,9 +1,9 @@
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import Psatz xseq.
+Require Import xseq.
 Require Export warray_ word sem_type.
 Import Utf8.
 Require Import JMeq.
@@ -247,6 +247,14 @@ Section VALUE.
   Lemma value_uincl_refl v: value_uincl v v.
   Proof.  case: v => //=. Qed.
 
+  Lemma Array_set_uincl n1 n2
+    (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz al aa i (v:word wz):
+    value_uincl (Varr a1) (Varr a2) ->
+    WArray.set a1 al aa i v = ok a1' ->
+    exists2 a2', WArray.set a2 al aa i v = ok a2' &
+                   value_uincl (Varr a1) (Varr a2).
+  Proof. move=> /= hu hs; have [?[]]:= WArray.uincl_set hu hs; eauto. Qed.
+
   Hint Resolve value_uincl_refl : core.
 
   Lemma value_uincl_subtype v1 v2 :
@@ -305,14 +313,6 @@ Section VALUE.
     value_uincl (undef_addr t1) (undef_addr t2).
   Proof. by move=> h; apply value_uincl_undef; rewrite type_of_undef h undef_tK. Qed.
 
-  Lemma Array_set_uincl n1 n2
-    (a1 a1': WArray.array n1) (a2 : WArray.array n2) wz aa i (v:word wz):
-    value_uincl (Varr a1) (Varr a2) ->
-    WArray.set a1 aa i v = ok a1' ->
-    exists2 a2', WArray.set a2 aa i v = ok a2' &
-                   value_uincl (Varr a1) (Varr a2).
-  Proof. move=> /= hu hs; have [?[]]:= WArray.uincl_set hu hs; eauto. Qed.
-
   (* ** Conversions between values and sem_t
    * -------------------------------------------------------------------- *)
 
@@ -367,11 +367,11 @@ Section VALUE.
   Notation to_pointer := (to_word Uptr).
 
   Lemma to_wordI sz v w : to_word sz v = ok w ->
-                          exists sz' (w': word sz'), v = Vword w' /\ truncate_word sz w' = ok w.
+    exists sz' (w': word sz'), v = Vword w' /\ truncate_word sz w' = ok w.
   Proof. by case: v => //=; eauto; case => //. Qed.
 
   Lemma to_wordI' sz v w : to_word sz v = ok w -> exists sz' (w': word sz'),
-        [/\ (sz <= sz')%CMP, v = Vword w' & w = zero_extend sz w'].
+    [/\ (sz <= sz')%CMP, v = Vword w' & w = zero_extend sz w'].
   Proof.
     move=> /to_wordI[sz' [w' [? /truncate_wordP[??]]]]; eexists _, _.
     by constructor; eauto.
@@ -446,7 +446,7 @@ Section VALUE.
     end.
 
   Lemma to_abstractI s v a : to_abstract s v = ok a ->
-                             exists s' (a': iabstract s'), v = Vabstract a' /\ cast_abstract s a' = ok a.
+    exists s' (a': iabstract s'), v = Vabstract a' /\ cast_abstract s a' = ok a.
   Proof. case: v => //=; eauto; case => //= ??.
          by case : eqP.
   Qed.
@@ -484,15 +484,15 @@ Section VALUE.
     end.
 
   Lemma of_val_typeE t v v' : of_val t v = ok v' ->
-                              match t, v' with
-                              | sarr len, vt => v = Varr vt
-                              | sword ws, vt => exists ws' (w: word ws'),
-                                  v = Vword w /\ truncate_word ws w = ok vt
-                              | sbool, vt => v = vt
-                              | sint, vt => v = vt
-                              | sabstract s, vt => exists s' (a: iabstract s'),
-                                  v = Vabstract a /\ cast_abstract s a = ok vt
-                              end.
+    match t, v' with
+    | sarr len, vt => v = Varr vt
+    | sword ws, vt => exists ws' (w: word ws'),
+        v = Vword w /\ truncate_word ws w = ok vt
+    | sbool, vt => v = vt
+    | sint, vt => v = vt
+    | sabstract s, vt => exists s' (a: iabstract s'),
+        v = Vabstract a /\ cast_abstract s a = ok vt
+    end.
   Proof.
     case: t v' => /= >.
     + exact: to_boolI.
@@ -503,16 +503,16 @@ Section VALUE.
   Qed.
 
   Lemma of_valE t v v' : of_val t v = ok v' ->
-                         match v with
-                         | Vbool b => exists h: t = sbool, eq_rect _ _ v' _ h = b
-                         | Vint i => exists h: t = sint, eq_rect _ _ v' _ h = i
-                         | Varr len a => exists (h: t = sarr len), eq_rect _ _ v' _ h = a
-                         | Vword ws w => exists ws' (h: t = sword ws') w',
-                             truncate_word ws' w = ok w' /\ eq_rect _ _ v' _ h = w'
-                         | Vabstract s a => exists s' (h: t = sabstract s') a',
-                             cast_abstract s' a = ok a' /\ eq_rect _ _ v' _ h = a'
-                         | Vundef t h => False
-                         end.
+    match v with
+    | Vbool b => exists h: t = sbool, eq_rect _ _ v' _ h = b
+    | Vint i => exists h: t = sint, eq_rect _ _ v' _ h = i
+    | Varr len a => exists (h: t = sarr len), eq_rect _ _ v' _ h = a
+    | Vword ws w => exists ws' (h: t = sword ws') w',
+        truncate_word ws' w = ok w' /\ eq_rect _ _ v' _ h = w'
+    | Vabstract s a => exists s' (h: t = sabstract s') a',
+        cast_abstract s' a = ok a' /\ eq_rect _ _ v' _ h = a'
+    | Vundef t h => False
+    end.
   Proof.
     by case: t v' => > /of_val_typeE; try (simpl=> ->; exists erefl; eauto);
                     simpl=> > [? [? [-> ]]]; eexists; exists erefl; eauto.
@@ -573,14 +573,14 @@ Section VALUE.
   Proof. by case: t v1 v2 => /= > => [[]|[]| /Varr_inj1 |[]| /Vabstract_inj1]. Qed.
 
   Lemma to_valI t (x: sem_t t) v : to_val x = v ->
-                                   match v with
-                                   | Vbool b => exists h: t = sbool, eq_rect _ _ x _ h = b
-                                   | Vint i => exists h: t = sint, eq_rect _ _ x _ h = i
-                                   | Varr len a => exists h: t = sarr len, eq_rect _ _ x _ h = a
-                                   | Vword ws w => exists h: t = sword ws, eq_rect _ _ x _ h = w
-                                   | Vabstract s a => exists h: t = sabstract s, eq_rect _ _ x _ h = a
-                                   | Vundef _ _ => False
-                                   end.
+    match v with
+    | Vbool b => exists h: t = sbool, eq_rect _ _ x _ h = b
+    | Vint i => exists h: t = sint, eq_rect _ _ x _ h = i
+    | Varr len a => exists h: t = sarr len, eq_rect _ _ x _ h = a
+    | Vword ws w => exists h: t = sword ws, eq_rect _ _ x _ h = w
+    | Vabstract s a => exists h: t = sabstract s, eq_rect _ _ x _ h = a
+    | Vundef _ _ => False
+    end.
   Proof. by case: t x => /= > <-; exists erefl. Qed.
 
   Lemma type_of_to_val t (s: sem_t t) : type_of_val (to_val s) = t.
@@ -599,19 +599,18 @@ Section VALUE.
     value_uincl (to_val v1) (to_val v2).
 
   Lemma val_uincl_alt t1 t2 : @val_uincl t1 t2 =
-                                match t1, t2 return sem_t t1 -> sem_t t2 -> Prop with
-                                | sarr _, sarr _ => WArray.uincl
-                                | sword s1, sword s2 => @word_uincl s1 s2
-                                | sabstract s1, sabstract s2 => @abstract_uincl s1 s2
-                                | t1', t2' => if boolP (t1' == t2') is AltTrue h
-                                             then eq_rect _ (fun x => sem_t t1' -> sem_t x -> Prop) eq _ (eqP h)
-                                             else fun _ _ => False
-                                end.
+    match t1, t2 return sem_t t1 -> sem_t t2 -> Prop with
+    | sarr _, sarr _ => WArray.uincl
+    | sword s1, sword s2 => @word_uincl s1 s2
+    | sabstract s1, sabstract s2 => @abstract_uincl s1 s2
+    | t1', t2' => if boolP (t1' == t2') is AltTrue h
+                 then eq_rect _ (fun x => sem_t t1' -> sem_t x -> Prop) eq _ (eqP h)
+                 else fun _ _ => False
+    end.
   Proof.
     by case: t1; case: t2 => >; rewrite /val_uincl //=;
-                              case: {-}_/ boolP => // h >;
-                                                    rewrite -(FunctionalExtensionality.eta_expansion (@eq _))
-                                                               (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
+       case: {-}_/ boolP => // h >;
+       rewrite (Eqdep_dec.UIP_dec stype_eq_dec (eqP h)).
   Qed.
 
   Lemma val_uinclEl t1 t2 v1 v2 :

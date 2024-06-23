@@ -1,5 +1,7 @@
-From mathcomp Require Import all_ssreflect all_algebra.
-Require Import ZArith.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
+From mathcomp Require Import ssralg.
+Require Import ZArith Uint63.
 Require Import Utf8.
 
 Require Import
@@ -97,8 +99,8 @@ Variant compiler_step :=
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
   | LowerInstruction            : compiler_step
-  | SLHLowering                 : compiler_step
   | PropagateInline             : compiler_step
+  | SLHLowering                 : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
@@ -130,8 +132,8 @@ Definition compiler_step_list := [::
   ; RegArrayExpansion
   ; RemoveGlobal
   ; LowerInstruction
-  ; SLHLowering
   ; PropagateInline
+  ; SLHLowering
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
@@ -151,8 +153,7 @@ Proof.
        internal_compiler_step_dec_bl
        internal_compiler_step_dec_lb).
 Qed.
-Definition compiler_step_eqMixin := Equality.Mixin compiler_step_eq_axiom.
-Canonical  compiler_step_eqType  := Eval hnf in EqType compiler_step compiler_step_eqMixin.
+HB.instance Definition _ := hasDecEq.Build compiler_step compiler_step_eq_axiom.
 
 Lemma compiler_step_list_complete : Finite.axiom compiler_step_list.
 Proof. by case. Qed.
@@ -185,7 +186,7 @@ Record compiler_params
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_var_ident  : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident;
+  fresh_var_ident  : v_kind -> instr_info -> int -> string -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
 }.
@@ -223,21 +224,6 @@ Definition var_tmp2 : var :=
   {| vname := lip_tmp2 liparams; vtype := sword Uptr; |}.
 Definition var_tmps : Sv.t := Sv.add var_tmp2 (Sv.singleton var_tmp).
 
-(* Ensure that export functions are preserved *)
-Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
-  assert (pmap remove_return entries == [::]) (pp_internal_error_s "remove return" "Signature of some export functions are modified").
-
-(** Export functions (entry points) shall not have ptr arguments or return values. *)
-Definition allNone {A: Type} (m: seq (option A)) : bool :=
-  all (fun a => if a is None then true else false) m.
-
-Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
-  allM (λ fn,
-       let: sao := ao fn in
-       assert (allNone sao.(sao_params)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” arguments")) >>
-       assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
-    entries.
-
 Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := split_live_ranges_prog p in
   let pv := cparams.(print_uprog) Splitting pv in
@@ -266,8 +252,8 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p :=
     array_copy.array_copy_prog
-      (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint)
-      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info (Ident.name_of_string "tmp") (sword ws))
+      (fresh_var_ident cparams Inline dummy_instr_info 0 "i__copy" sint)
+      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0 "tmp" (sword ws))
       p in
 
   let p := cparams.(print_uprog) ArrayCopy p in
@@ -275,7 +261,10 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
 
-  Let p := spill_prog cparams.(fresh_var_ident) p in
+  Let p :=
+    spill_prog
+      (fun k ii => fresh_var_ident cparams k ii 0)
+      p in
   let p := cparams.(print_uprog) LowerSpill p in
 
   Let p := inlining to_keep p in
@@ -304,32 +293,39 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pg))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pg))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
-  let pl :=
+  let p :=
     lower_prog
       (lop_lower_i loparams)
       (lowering_opt cparams)
       (warning cparams)
-      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
       pg
   in
-  let pl := cparams.(print_uprog) LowerInstruction pl in
+  let p := cparams.(print_uprog) LowerInstruction p in
 
-  Let pl := lower_slh_prog shparams (cparams.(slh_info) pl) to_keep pl in
-  let pl := cparams.(print_uprog) SLHLowering pl in
+  Let p := propagate_inline.pi_prog p in
+  let p := cparams.(print_uprog) PropagateInline p in
 
-  Let pp := propagate_inline.pi_prog pl in
-  let pp := cparams.(print_uprog) PropagateInline pp in
+  Let p := lower_slh_prog shparams (cparams.(slh_info) p) to_keep p in
+  let p := cparams.(print_uprog) SLHLowering p in
 
-  ok pp.
+  ok p.
 
-Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
+Definition compiler_third_part (returned_params: funname -> option (seq (option nat))) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
-  Let _ := check_removereturn entries rminfo in
+  let rminfo fn :=
+    match returned_params fn with
+    | Some l =>
+      let l' := List.map (fun i => if i is None then true else false) l in
+      if all (fun b => b) l' then None else Some l' (* do we want that? *)
+    | None => rminfo fn
+    end
+  in
   Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
@@ -342,19 +338,66 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   ok pd.
 
+(* returns None if not reg ptr, Some false if reg const ptr, Some true if reg mut ptr *)
+Definition wptr_status (x : var_i) :=
+  match Ident.id_kind x.(vname) with
+  | Reg (_, Pointer writable) =>
+    Some match writable with | Writable => true | Constant => false end
+  | _ => None
+  end.
+
+Definition allNone {A: Type} (m: seq (option A)) : bool :=
+  all (fun a => if a is None then true else false) m.
+
+(** Export functions (entry points) have restrictions on ptr arguments and returns.
+    Namely, the writable ptr arrays should be the first arguments and returned at the same
+    positions in the return values.
+    This is not a constraint coming from the implementation, it is just meant to give
+    a readable correctness theorem. *)
+Definition check_wf_ptr entries (p:prog) (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
+  Let _ :=
+    allM (fun fn =>
+      match get_fundef p.(p_funcs) fn with
+      | None => ok tt
+      | Some fd =>
+        assert
+          (all2
+            (fun (x:var_i) pi => wptr_status x == omap pp_writable pi)
+            fd.(f_params) (ao fn).(sao_params))
+          (pp_at_fi fd.(f_info) (pp_at_fn fn
+            (stack_alloc.E.stk_ierror_no_var "inconsistent wptr_status")))
+      end) entries
+  in
+    allM (fun fn =>
+      match get_fundef p.(p_funcs) fn with
+      | None => ok tt
+      | Some fd =>
+        let n := find (fun x => wptr_status x != Some true) fd.(f_params) in
+        assert
+          ((take n (ao fn).(sao_return) == map Some (iota 0 n)) &&
+            allNone (drop n (ao fn).(sao_return)))
+          (pp_at_fi fd.(f_info) (pp_at_fn fn
+            (stack_alloc.E.stk_error_no_var_gen false
+              (pp_nobox [::
+                pp_s "the ordering of the arguments or the results is not correct.";
+                PPEbreak;
+                pp_s "The reg mut ptr must come first in the arguments";
+                pp_s " and be returned first, in the same order, in the results."]))))
+      end) entries.
+
 Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
-  Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
+  Let _ := check_wf_ptr entries p ao.(ao_stack_alloc) in
   Let ps :=
     stack_alloc.alloc_prog
       true
       shparams
       saparams
-      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)
@@ -364,7 +407,10 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
-  Let pd := compiler_third_part entries ps in
+  let returned_params fn :=
+    if fn \in entries then Some (ao_stack_alloc ao fn).(sao_return) else None
+  in
+  Let pd := compiler_third_part returned_params ps in
 
   ok pd.
 
@@ -430,7 +476,9 @@ Definition compiler_CL_first_part (to_keep: seq funname) (p: prog) : cexec uprog
 
 Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
-  Let p := array_copy_cl.array_copy_prog (fresh_var_ident cparams Inline dummy_instr_info (Ident.name_of_string "i__copy") sint) p in
+  Let p := array_copy_cl.array_copy_prog
+             (fresh_var_ident cparams Inline dummy_instr_info 0 "i__copy" sint)
+   p in
 
   let p := cparams.(print_uprog) ArrayCopy p in
 
@@ -455,7 +503,7 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
 
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info) (p_funcs pa))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pa))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -464,7 +512,7 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
       (lop_lower_i loparams)
       (lowering_opt cparams)
       (warning cparams)
-      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
       pa
   in
   let pl := cparams.(print_uprog) LowerInstruction pl in

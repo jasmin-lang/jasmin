@@ -2,7 +2,7 @@
 *)
 Require psem_facts sem_one_varmap.
 Import Utf8.
-Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Import low_memory.
 Import psem psem_facts sem_one_varmap.
 
@@ -510,7 +510,7 @@ End PRESERVED_RSP_GD.
 
 Section VALIDW_STABLE.
 
-Infix "≡" := (λ m1 m2, validw m1 =2 validw m2) (at level 40).
+Infix "≡" := (λ m1 m2, validw m1 =3 validw m2) (at level 40).
 
 Instance eqrel_trans A B C : Transitive (@eqrel A B C).
 Proof. by move => x y z xy yz a b; transitivity (y a b). Qed.
@@ -524,7 +524,7 @@ Lemma validw_stable_nil : sem_Ind_nil Pc.
 Proof. by []. Qed.
 
 Lemma validw_stable_cons : sem_Ind_cons p var_tmp Pc Pi.
-Proof. move => ki kc x y z i c _ xy _ yz; red; etransitivity; eassumption. Qed.
+Proof. by move => ki kc x y z i c _ xy _ yz ???; rewrite xy yz. Qed.
 
 Lemma validw_stable_mkI : sem_Ind_mkI p var_tmp Pi Pi_r.
 Proof. by []. Qed.
@@ -536,7 +536,7 @@ Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
 
 Lemma validw_stable_syscall : sem_Ind_syscall p Pi_r.
-Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ??; rewrite ho. Qed.
+Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ???; rewrite ho hw. Qed.
 
 Lemma validw_stable_assert_true : sem_Ind_assert_true p Pi_r.
 Proof. by []. Qed.

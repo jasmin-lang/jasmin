@@ -1,5 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype finfun.
+From mathcomp Require Import ssralg word_ssrZ.
 
 Require Import
   arch_params_proof
@@ -177,7 +177,7 @@ Proof.
   rewrite hget /= /exec_sopn /= truncate_word_u /=.
   rewrite -cats1 sem_fopns_args_cat.
   set vm0 := (evm s).[r <- Vword ts].
-  set vm2 := if sz != 0 then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
+  set vm2 := if sz != 0%Z then vm0.[vrsp <- Vword (ts - wrepr Uptr sz)] else vm0.
   set ts' := align_word _ _.
   set vm3 := vm_op_align vm2 vrsp ts'.
   have -> /= :
@@ -298,6 +298,12 @@ Defined.
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
 
+Section ASM_GEN.
+
+Notation assemble_extra_correct :=
+  (assemble_extra_correct x86_agparams) (only parsing).
+
+
 (* FIXME: Is there a way of avoiding this import? *)
 Import arch_sem.
 
@@ -415,7 +421,7 @@ Qed.
 Lemma check_sopn_args_xmm rip ii oargs es ads cond n k ws:
   check_sopn_args x86_agparams rip ii oargs es ads ->
   check_i_args_kinds [::cond] oargs ->
-  nth (E 0, sword8) ads n = (E k, sword ws) ->
+  nth (Eu 0, sword8) ads n = (Eu k, sword ws) ->
   nth xmm cond k = xmm ->
   n < size es ->
   exists (r: xreg_t),
@@ -424,7 +430,7 @@ Lemma check_sopn_args_xmm rip ii oargs es ads cond n k ws:
     oseq.onth oargs k = Some (XReg r).
 Proof.
   rewrite /= orbF => hca hc hE hxmm hn.
-  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (E 0, sword8) _ hca.
+  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Eu 0, sword8) _ hca.
   rewrite hn => /(_ erefl) ha.
   assert (hcIaux := check_sopn_argP ha).
   move: hcIaux; rewrite hE => h; inversion_clear h.
@@ -443,10 +449,10 @@ Proof.
     eauto.
 Qed.
 
-Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n k ws:
+Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n al k ws:
   check_sopn_dests x86_agparams rip ii oargs xs ads ->
   check_i_args_kinds [::cond] oargs ->
-  nth (E 0, sword8) ads n = (E k, sword ws) ->
+  nth (Ea 0, sword8) ads n = (ADExplicit (AK_mem al) k None, sword ws) ->
   nth xmm cond k = xmm ->
   n < size xs ->
   exists (r: xreg_t),
@@ -456,7 +462,7 @@ Lemma check_sopn_dests_xmm rip ii oargs xs ads cond n k ws:
     oseq.onth oargs k = Some (XReg r).
 Proof.
   rewrite /= orbF => hca hc hE hxmm hn.
-  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (E 0, sword8) _ hca.
+  have /(_ n):= all2_nth (Rexpr (Fconst 0)) (Ea 0, sword8) _ hca.
   rewrite size_map hn => /(_ erefl).
   rewrite (nth_map (LLvar (mk_var_i rip))) //.
   set e := nth (LLvar _) _ _.
@@ -498,7 +504,7 @@ Proof.
   have [yr [vi /= ? hyr]] := check_sopn_dests_xmm (n:=0) hcd hidc erefl erefl erefl; subst y ops ops'.
   have [s' hwm hlow'] :=
     compile_lvals (asm_e:=x86_extra)
-     (id_out := [:: E 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
+     (id_out := [:: Eu 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
   exists s'; last done.
   move: hca; rewrite /check_sopn_args /= => /and4P [] _ hE2 hE3 _.
   have [vh' hev2 /= hvh']:= check_sopn_arg_sem_eval eval_assemble_cond hlow hE2 hvh hwh.
@@ -517,21 +523,6 @@ Proof.
   rewrite /word_uincl mul0n.
   by rewrite (@subword0 U128 U256) zero_extend_idem.
 Qed.
-
-Definition assemble_extra_correct (op : x86_extra_op) :=
-  forall rip ii les res m xs ys m' s ops ops',
-    let: assemble :=
-      fun '(op0, ls, rs) => assemble_asm_op x86_agparams rip ii op0 ls rs
-    in
-    sem_rexprs m res = ok xs ->
-    exec_sopn (Oasm (ExtOp op)) xs = ok ys ->
-    write_lexprs les ys m = ok m' ->
-    to_asm ii op les res = ok ops ->
-    mapM assemble ops = ok ops' ->
-    lom_eqv rip m s ->
-    exists2 s',
-      foldM (fun '(op'', asm_args) => eval_op op'' asm_args) s ops' = ok s'
-      & lom_eqv rip m' s'.
 
 Lemma assemble_slh_move_correct : assemble_extra_correct Ox86SLHmove.
 Proof.
@@ -840,9 +831,10 @@ Qed.
 Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
   {|
     hagp_eval_assemble_cond := eval_assemble_cond;
-    hagp_assemble_extra_op :=
-      fun rip ii op => assemble_extra_op (op := op) (rip := rip) (ii := ii);
+    hagp_assemble_extra_op := assemble_extra_op;
   |}.
+
+End ASM_GEN.
 
 (* ------------------------------------------------------------------------ *)
 (* Speculative execution. *)

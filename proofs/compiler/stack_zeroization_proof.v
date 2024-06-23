@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import ZArith.
 
@@ -48,7 +46,7 @@ Definition sz_cmd_spec rspn lbl ws_align ws stk_max cmd vars : Prop :=
     [/\ let: ls' := setpc (lset_mem_vm ls m' vm') (size lc + size cmd) in
         lsem lp ls ls'
       , lvm ls =[\ vars ] vm'
-      , validw (lmem ls) =2 validw m'
+      , validw (lmem ls) =3 validw m'
       , zero_between m' top stk_max
       & eq_mem_ex (lmem ls) m' top stk_max
     ].
@@ -110,7 +108,8 @@ Lemma stack_zeroization_lfd_invariants rspn fn lfd lfd' :
     , lfd_export lfd = lfd_export lfd'
     , lfd_callee_saved lfd = lfd_callee_saved lfd'
     , lfd_stk_max lfd = lfd_stk_max lfd'
-    & lfd_frame_size lfd = lfd_frame_size lfd'].
+    & lfd_frame_size lfd = lfd_frame_size lfd'
+    /\ lfd_align_args lfd = lfd_align_args lfd'].
 Proof.
   rewrite /stack_zeroization_lfd.
   case: szs_of_fn => [[szs ws]|]; last by move=> [<-].
@@ -300,8 +299,8 @@ Record match_mem_zero (m m': mem) (bottom : pointer) stk_max : Prop :=
       read_zero : zero_between m' bottom stk_max
     ; read_untouched : forall p,
         disjoint_zrange bottom stk_max p (wsize_size U8) ->
-        read m p U8 = read m' p U8
-    ; valid_eq : validw m =2 validw m'
+        read m Aligned p U8 = read m' Aligned p U8
+    ; valid_eq : validw m =3 validw m'
     }.
 
 Definition match_mem_zero_export (m m' : mem) top stk_max (szs : option (stack_zero_strategy * wsize)) :=

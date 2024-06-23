@@ -8,24 +8,13 @@
 (*         *     (see CIL/LICENSE.coq file for the text of the license) *)
 (************************************************************************)
 
-type t = int
+type t
 
-let _ = assert (Sys.word_size = 64)
+val of_int : int -> t
+val equal      : t -> t -> bool
+val compares : t -> t -> int
 
-let maxuint63 = Int64.of_string "0x7FFFFFFFFFFFFFFF"
+val hash : t -> int
+val to_string : t -> string
 
-let of_int i = i
-[@@ocaml.inline always]
-
-let equal (x : int) (y : int) = x = y
-[@@ocaml.inline always]
-
-let compares (x : int) (y : int) =
-  Stdlib.Int.compare x y
-
-let hash i = i
-[@@ocaml.inline always]
-
-let to_uint64 i = Int64.logand (Int64.of_int i) maxuint63
-
-let to_string i = Int64.to_string (to_uint64 i)
+val add     : t -> t -> t

@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import expr ZArith sem_op_typed compiler_util.
-Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.
@@ -337,8 +338,7 @@ subst => /=.
 by apply:(iffP idP) => [ /eqP | [] ] ->.
 Qed.
 
-Definition const_v_eqMixin     := Equality.Mixin const_v_eq_axiom.
-Canonical  const_v_eqType      := Eval hnf in EqType const_v const_v_eqMixin.
+HB.instance Definition _ := hasDecEq.Build const_v const_v_eq_axiom.
 
 Local Notation cpm := (Mvar.t const_v).
 
@@ -359,12 +359,12 @@ Section GLOBALS.
 
 Context (globs: globals).
 
-Let pget_global aa sz x e : pexpr :=
-  if globs is Some f then if f x.(gv) is Some (Garr len a) then if e is Pconst i then if WArray.get aa sz a i is Ok w then wconst w
-  else Pget aa sz x e
-  else Pget aa sz x e
-  else Pget aa sz x e
-  else Pget aa sz x e.
+Let pget_global al aa sz x e : pexpr :=
+  if globs is Some f then if f x.(gv) is Some (Garr len a) then if e is Pconst i then if WArray.get al aa sz a i is Ok w then wconst w
+  else Pget al aa sz x e
+  else Pget al aa sz x e
+  else Pget al aa sz x e
+  else Pget al aa sz x e.
 
 Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
   match e with
@@ -377,13 +377,13 @@ Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
       | Slocal => if Mvar.get m x is Some n then const n else e
       | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
       end
-  | Pget aa sz x e =>
+  | Pget al aa sz x e =>
       let e := const_prop_e_aux lm m e in
       if is_glob x
-      then pget_global aa sz x e
-      else Pget aa sz x e
+      then pget_global al aa sz x e
+      else Pget al aa sz x e
   | Psub aa sz len x e => Psub aa sz len x (const_prop_e_aux lm m e)
-  | Pload sz x e  => Pload sz x (const_prop_e_aux lm m e)
+  | Pload al sz x e  => Pload al sz x (const_prop_e_aux lm m e)
   | Papp1 o e     => s_op1 o (const_prop_e_aux lm m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e_aux lm m e1)  (const_prop_e_aux lm m e2)
   | PappN op es   => s_opN op (map (const_prop_e_aux lm m) es)
@@ -406,9 +406,9 @@ Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
      end
   | Pabstract s es => Pabstract s ((map (const_prop_e_aux lm m) es))
   | Presult _ _    => e
-  | Presultget aa sz i x e =>
+  | Presultget al aa sz i x e =>
       let e := const_prop_e_aux lm m e in
-      Presultget aa sz i x e
+      Presultget al aa sz i x e
   end.
 
 Definition const_prop_e := const_prop_e_aux (Mvar.empty _).
@@ -416,6 +416,8 @@ Definition const_prop_e := const_prop_e_aux (Mvar.empty _).
 End GLOBALS.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
+
+Definition empty_const_prop_e := const_prop_e without_globals empty_cpm.
 
 Definition merge_cpm : cpm -> cpm -> cpm :=
   Mvar.map2 (fun _ (o1 o2: option const_v) =>
@@ -433,8 +435,8 @@ Definition const_prop_rv globs (m:cpm) (rv:lval) : cpm * lval :=
   match rv with
   | Lnone _ _       => (m, rv)
   | Lvar  x         => (Mvar.remove m x, rv)
-  | Lmem  sz x e    => (m, Lmem sz x (const_prop_e globs m e))
-  | Laset aa sz x e => (Mvar.remove m x, Laset aa sz x (const_prop_e globs m e))
+  | Lmem al sz x e  => (m, Lmem al sz x (const_prop_e globs m e))
+  | Laset al aa sz x e => (Mvar.remove m x, Laset al aa sz x (const_prop_e globs m e))
   | Lasub aa sz len x e => (Mvar.remove m x, Lasub aa sz len x (const_prop_e globs m e))
   end.
 

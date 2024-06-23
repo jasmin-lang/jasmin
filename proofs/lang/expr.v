@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import word_ssrZ.
@@ -100,8 +101,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_sop1_dec_bl internal_sop1_dec_lb).
 Qed.
 
-Definition sop1_eqMixin     := Equality.Mixin sop1_eq_axiom.
-Canonical  sop1_eqType      := Eval hnf in EqType sop1 sop1_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sop1 sop1_eq_axiom.
 
 Scheme Equality for sop2.
 (* Definition sop2_beq : sop2 -> sop2 -> bool *)
@@ -111,8 +111,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_sop2_dec_bl internal_sop2_dec_lb).
 Qed.
 
-Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
-Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
 
 Scheme Equality for opN.
 
@@ -121,8 +120,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_opN_dec_bl internal_opN_dec_lb).
 Qed.
 
-Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
-Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
+HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -234,8 +232,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_v_scope_dec_bl internal_v_scope_dec_lb).
 Qed.
 
-Definition v_scope_eqMixin     := Equality.Mixin v_scope_eq_axiom.
-Canonical  v_scope_eqType      := Eval hnf in EqType v_scope v_scope_eqMixin.
+HB.instance Definition _ := hasDecEq.Build v_scope v_scope_eq_axiom.
 
 Record gvar := Gvar { gv : var_i; gs : v_scope }.
 
@@ -252,9 +249,9 @@ Inductive pexpr : Type :=
 | Pbool  :> bool -> pexpr
 | Parr_init : positive → pexpr
 | Pvar   :> gvar -> pexpr
-| Pget   : arr_access -> wsize -> gvar -> pexpr -> pexpr
+| Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
 | Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
-| Pload  : wsize -> var_i -> pexpr -> pexpr
+| Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
@@ -263,7 +260,7 @@ Inductive pexpr : Type :=
 | Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
 | Pabstract : opA -> seq pexpr -> pexpr
 | Presult : Z -> gvar -> pexpr
-| Presultget : arr_access ->  wsize -> Z -> gvar -> pexpr -> pexpr
+| Presultget : aligned -> arr_access -> wsize -> Z -> gvar -> pexpr -> pexpr
 .
 
 Notation pexprs := (seq pexpr).
@@ -298,8 +295,8 @@ Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : 
 Variant lval : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar  `(var_i)
-| Lmem  `(wsize) `(var_i) `(pexpr)
-| Laset `(arr_access) `(wsize) `(var_i) `(pexpr)
+| Lmem  of aligned & wsize & var_i & pexpr
+| Laset of aligned & arr_access & wsize & var_i & pexpr
 | Lasub `(arr_access) `(wsize) `(positive) `(var_i) `(pexpr).
 
 Coercion Lvar : var_i >-> lval.
@@ -317,7 +314,7 @@ Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with
   | Lnone i t => i
-  | Lvar x | Lmem _ x _ | Laset _ _ x _ | Lasub _ _ _ x _ => v_info x
+  | Lvar x | Lmem _ _ x _ | Laset _ _ _ x _ | Lasub _ _ _ x _ => v_info x
   end.
 
 (* ** Instructions
@@ -332,8 +329,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_dir_dec_bl internal_dir_dec_lb).
 Qed.
 
-Definition dir_eqMixin     := Equality.Mixin dir_eq_axiom.
-Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
+HB.instance Definition _ := hasDecEq.Build dir dir_eq_axiom.
 
 Definition range := (dir * pexpr * pexpr)%type.
 
@@ -384,8 +380,7 @@ Proof.
     (eq_axiom_of_scheme internal_assgn_tag_dec_bl internal_assgn_tag_dec_lb).
 Qed.
 
-Definition assgn_tag_eqMixin     := Equality.Mixin assgn_tag_eq_axiom.
-Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMixin.
+HB.instance Definition _ := hasDecEq.Build assgn_tag assgn_tag_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -578,7 +573,7 @@ Variant saved_stack :=
 Definition saved_stack_beq (x y : saved_stack) :=
   match x, y with
   | SavedStackNone, SavedStackNone => true
-  | SavedStackReg v1, SavedStackReg v2 => v1 == v2
+  | (SavedStackReg v1), SavedStackReg v2 => v1 == v2
   | SavedStackStk z1, SavedStackStk z2 => z1 == z2
   | _, _ => false
   end.
@@ -590,8 +585,7 @@ Proof.
   by apply (iffP eqP); congruence.
 Qed.
 
-Definition saved_stack_eqMixin   := Equality.Mixin saved_stack_eq_axiom.
-Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_eqMixin.
+HB.instance Definition _ := hasDecEq.Build saved_stack saved_stack_eq_axiom.
 
 Variant return_address_location :=
 | RAnone
@@ -627,8 +621,8 @@ Proof.
   by apply (iffP and3P) => [ []/eqP-> /eqP-> /eqP-> | []-> -> ->].
 Qed.
 
-Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
-Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_location return_address_location_eqMixin.
+HB.instance Definition _ := hasDecEq.Build return_address_location
+  return_address_location_eq_axiom.
 
 Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
@@ -640,12 +634,14 @@ Record stk_fun_extra := MkSFun {
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
+  sf_align_args     : seq wsize;
 }.
 
 Record sprog_extra := {
   sp_rsp   : Ident.ident;
   sp_rip   : Ident.ident;
   sp_globs : seq u8;
+  sp_glob_names: seq (var * wsize * Z);
 }.
 
 Definition progStack : progT :=
@@ -780,8 +776,8 @@ Definition vrv_rec (s:Sv.t) (rv:lval) :=
   match rv with
   | Lnone _ _  => s
   | Lvar  x    => Sv.add x s
-  | Lmem _ _ _  => s
-  | Laset _ _ x _  => Sv.add x s
+  | Lmem _ _ _ _  => s
+  | Laset _ _ _ x _  => Sv.add x s
   | Lasub _ _ _ x _ => Sv.add x s
   end.
 
@@ -791,7 +787,7 @@ Definition vrv := (vrv_rec Sv.empty).
 Definition vrvs := (vrvs_rec Sv.empty).
 
 Definition lv_write_mem (r:lval) : bool :=
-  if r is Lmem _ _ _ then true else false.
+  if r is Lmem _ _ _ _ then true else false.
 
 Fixpoint write_i_rec s (i:instr_r) :=
   match i with
@@ -823,8 +819,8 @@ Definition write_c c := write_c_rec Sv.empty c.
 Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
-  | Pload _ _ _ => true
-  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
+  | Pload _ _ _ _ => true
+  | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pabstract _ es => has use_mem es
@@ -832,7 +828,7 @@ Fixpoint use_mem (e : pexpr) :=
   | Pfvar _ => false
   | Pbig e1 e2 _ _ e3 e4 => use_mem e1 || use_mem e2 || use_mem e3 || use_mem e4
   | Presult _ _ => false
-  | Presultget _ _ _ _ e => use_mem e
+  | Presultget _ _ _ _ _ e => use_mem e
   end.
 
 (* ** Compute read variables
@@ -848,9 +844,9 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbool  _
   | Parr_init _    => s
   | Pvar   x       => Sv.union (read_gvar x) s
-  | Pget _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
+  | Pget _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
-  | Pload _ x e    => read_e_rec (Sv.add x s) e
+  | Pload _ _ x e  => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
@@ -859,7 +855,7 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pfvar _ => s
   | Pbig e1 e2 _ _ e3 e4 => read_e_rec (read_e_rec (read_e_rec (read_e_rec s e4) e3) e2) e1
   | Presult _ x       => Sv.union (read_gvar x) s
-  | Presultget _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
+  | Presultget _ _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -870,8 +866,8 @@ Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
   | Lnone _ _     => s
   | Lvar  _       => s
-  | Lmem _ x e    => read_e_rec (Sv.add x s) e
-  | Laset _ _ x e => read_e_rec (Sv.add x s) e
+  | Lmem _ _ x e  => read_e_rec (Sv.add x s) e
+  | Laset _ _ _ x e => read_e_rec (Sv.add x s) e
   | Lasub _ _ _ x e => read_e_rec (Sv.add x s) e
   end.
 
@@ -948,9 +944,9 @@ Fixpoint eq_expr e e' :=
   | Pbool  b      , Pbool  b'         => b == b'
   | Parr_init n   , Parr_init n'      => n == n'
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
-  | Pget aa w x e , Pget aa' w' x' e' => (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
+  | Pget al aa w x e , Pget al' aa' w' x' e' => (al == al') && (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'
-  | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
+  | Pload al w x e, Pload al' w' x' e' => (al == al') && (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
@@ -989,22 +985,3 @@ Definition instr_of_copn_args
   Copn args.1.1 tg args.1.2 args.2.
 
 End INSTR_COPN.
-
-(* ------------------------------------------------------------------- *)
-
-Module Type OpnArgs.
-  Parameter lval rval : Type.
-  Parameter lvar : var_i -> lval.
-  Parameter lmem : forall {_ : PointerData}, wsize -> var_i -> Z -> lval.
-  Parameter rvar : var_i -> rval.
-  Parameter rconst : wsize -> Z -> rval.
-End OpnArgs.
-
-Module CopnArgs.
-  Definition lval := lval.
-  Definition rval := pexpr.
-  Definition lvar := Lvar.
-  Definition lmem {_ : PointerData} ws x z := Lmem ws x (cast_const z).
-  Definition rvar x := Pvar (mk_lvar x).
-  Definition rconst ws z := cast_w ws (Pconst z).
-End CopnArgs.

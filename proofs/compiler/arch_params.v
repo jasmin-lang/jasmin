@@ -1,4 +1,3 @@
-From mathcomp Require Import all_ssreflect all_algebra.
 Require Import
   compiler_util
   expr.

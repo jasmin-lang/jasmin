@@ -2,8 +2,8 @@
 (* * Correctness proof of the lowering pass *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype order.
+From mathcomp Require Import ssralg ssrnum word_ssrZ.
 Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
@@ -12,8 +12,7 @@ Require Import
   arch_extra
   sem_params_of_arch_extra.
 Require Export x86_lowering.
-Import Utf8.
-Import Psatz.
+Import Utf8 Lia.
 Import Order.POrderTheory Order.TotalTheory.
 Import ssrring.
 
@@ -78,7 +77,7 @@ Section PROOF.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_sf; SvD.fsetdec. Qed.
   Lemma zf_in_fv: Sv.In (fv_zf fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_zf; SvD.fsetdec. Qed.
-  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv (Ident.name_of_string "__wtmp__") (sword sz))) fvars.
+  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv "__wtmp__"%string (sword sz))) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /=; case: sz; SvD.fsetdec. Qed.
 
   Local Hint Resolve of_neq_cf of_neq_sf of_neq_zf cf_neq_sf cf_neq_zf sf_neq_zf : core.
@@ -213,7 +212,7 @@ Section PROOF.
     write_lval true gd l v s = ok s' →
     ∃ sz', type_of_val v = sword sz'.
   Proof.
-  case: l => /= [ _ [] // sz' | [[vt vn] vi] | sz' [[vt vn] vi] e | aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
+  case: l => /= [ _ [] // sz' | [[vt vn] vi] | al sz' [[vt vn] vi] e | al aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
   - case => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; t_xrbindP => w1 v1 _ h1 w n _ hn w' /to_wordI [ws [? [??]]]; subst => /=; eauto.
@@ -557,7 +556,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|n|x|aa ws x e | aa ws len x e |sz x e| o e|o e1 e2| op es |e e1 e2] //.
+    move: e Hs=> [z|b|n|x|al aa ws x e | aa ws len x e |al sz x e| o e|o e1 e2| op es |e e1 e2] //.
     + case: x => - [] [] [] // sz vn vi vs //= /dup[] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').

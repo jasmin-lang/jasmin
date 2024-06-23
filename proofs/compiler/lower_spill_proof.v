@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem compiler_util.
 Require Export pseudo_operator lower_spill.
 Import Utf8.
@@ -21,7 +21,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {pT  : progT}
   {sCP : semCallParams}
-  (fresh_var_ident : v_kind -> instr_info -> Ident.name -> stype -> Ident.ident)
+  (fresh_var_ident : v_kind -> instr_info -> string -> stype -> Ident.ident)
   (p p' : prog) (ev : extra_val_t)
   (spill_prog_ok : spill_prog fresh_var_ident p = ok p').
 
@@ -141,12 +141,12 @@ Proof.
   rewrite /truncate_val hw /=; eauto.
 Qed.
 
-Lemma spill_xP S ii tag x i env env' s vx vt vm :
+Lemma spill_xP S ii x i env env' s vx vt vm :
   get_gvar true gd (evm s) (mk_lvar x) = ok vx ->
   truncate_val (vtype x) vx = ok vt ->
   Sv.Subset (read_gvar (mk_lvar x)) S.(X) ->
   valid_env S env (evm s) vm ->
-  spill_x S.(get_spill) ii tag env x = ok (env', i) ->
+  spill_x S.(get_spill) ii env x = ok (env', i) ->
   exists2 vm' : Vm.t, sem_I p' ev (with_vm s vm) i (with_vm s vm') & valid_env S env' (evm s) vm'.
 Proof.
   rewrite /spill_x; t_xrbindP => hx htr hX [heq hval] sx hsx <- <-.
@@ -175,12 +175,12 @@ Proof.
   by subst sx'; apply/heqx/(get_spill_inj hsx (hsx' ii)).
 Qed.
 
-Lemma spill_esP S ii tag tys es c env env' s vs vs' vm :
+Lemma spill_esP S ii tys es c env env' s vs vs' vm :
   sem_pexprs true gd s es = ok vs ->
   mapM2 ErrType truncate_val tys vs = ok vs' ->
   Sv.Subset (read_es es) S.(X) ->
   valid_env S env (evm s) vm ->
-  spill_es S.(get_spill) ii tag env tys es = ok (env', c) ->
+  spill_es S.(get_spill) ii env tys es = ok (env', c) ->
   exists2 vm' : Vm.t, sem p' ev (with_vm s vm) c (with_vm s vm') & valid_env S env' (evm s) vm'.
 Proof.
   rewrite /spill_es; t_xrbindP.
@@ -198,11 +198,11 @@ Proof.
   by econstructor; eauto.
 Qed.
 
-Lemma unspill_xP S ii tag x i env s vx vt vm :
+Lemma unspill_xP S ii x i env s vx vt vm :
   get_gvar true gd (evm s) (mk_lvar x) = ok vx ->
   truncate_val (vtype x) vx = ok vt ->
   valid_env S env (evm s) vm ->
-  unspill_x S.(get_spill) ii tag env x = ok i ->
+  unspill_x S.(get_spill) ii env x = ok i ->
   exists2 vm' : Vm.t, sem_I p' ev (with_vm s vm) i (with_vm s vm') & valid_env S env (evm s) vm'.
 Proof.
   rewrite /unspill_x;case: Sv_memP => // hin.
@@ -213,7 +213,7 @@ Proof.
   move: hx; rewrite /get_gvar /mk_lvar /= => /get_varP /= [? hd ?]; subst vx.
   have ? : (evm s).[x] = vt; last subst vt.
   + by apply: (truncate_val_subtype_eq htr); apply getP_subtype.
-  have hvm : vm.[x <- (evm s).[x]] =1 vm.
+  have hvm : (vm.[x <- (evm s).[x]] =1 vm)%vm.
   + move=> z; rewrite Vm.setP; case: eqP => // ?; subst z.
     rewrite  vm_truncate_val_eq; first by apply heq.
     by apply: truncate_val_has_type htr.
@@ -228,11 +228,11 @@ Proof.
   by exists sx1 => //; rewrite (hvm x') (hvm sx1).
 Qed.
 
-Lemma unspill_esP S ii tag tys es c env s vs vs' vm :
+Lemma unspill_esP S ii tys es c env s vs vs' vm :
   sem_pexprs true gd s es = ok vs ->
   mapM2 ErrType truncate_val tys vs = ok vs' ->
   valid_env S env (evm s) vm ->
-  unspill_es S.(get_spill) ii tag env tys es = ok c ->
+  unspill_es S.(get_spill) ii env tys es = ok c ->
   exists2 vm' : Vm.t, sem p' ev (with_vm s vm) c (with_vm s vm') & valid_env S env (evm s) vm'.
 Proof.
   rewrite /unspill_es; t_xrbindP.
@@ -624,7 +624,7 @@ Proof.
   case: ifP hf'1.
   + by move=> hX [?]; subst f'; econstructor; eauto => //=; rewrite -eq_p_extra.
   t_xrbindP=> _ hcm [env' c'] hc' ?; subst f'.
-  pose m := init_map fresh_var_ident (foldl to_spill_i Sv.empty c).
+  pose m := init_map fresh_var_ident (foldl to_spill_i (Sv.empty, false) c).1.
   pose X := Sv.union (vars_l fp) (Sv.union (vars_l res) (vars_c c)).
   pose get_spill := lower_spill.get_spill m.
   pose S := {| get_spill     := get_spill;

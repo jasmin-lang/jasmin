@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 Require Import ZArith.
 Require Import Utf8.
 Import Relations.
@@ -550,8 +550,8 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
     | SavedStackNone =>
         [&& sf_to_save e == [::]
           , sf_align e == U8
-          , sf_stk_sz e == 0
-          & sf_stk_extra_sz e == 0
+          , sf_stk_sz e == 0%Z
+          & sf_stk_extra_sz e == 0%Z
         ]
 
     | SavedStackReg x =>
@@ -758,6 +758,7 @@ Definition linear_fd (fd: sfundef) :=
     ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
     ; lfd_stk_max := sf_stk_max e
     ; lfd_frame_size := frame_size e
+    ; lfd_align_args := sf_align_args e
     |}).
 
 End FUN.
@@ -776,6 +777,7 @@ Definition linear_prog : cexec lprog :=
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_rsp   := p.(p_extra).(sp_rsp);
         lp_globs := p.(p_extra).(sp_globs);
+        lp_glob_names := p.(p_extra).(sp_glob_names);
         lp_funcs := funcs.2 |}.
 
 End PROG.

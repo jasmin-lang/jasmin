@@ -1,4 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From Coq Require Import PArith ZArith.
 Require Import
   word
@@ -22,8 +23,7 @@ Proof.
     (eq_axiom_of_scheme internal_syscall_t_dec_bl internal_syscall_t_dec_lb).
 Qed.
 
-Definition syscall_t_eqMixin     := Equality.Mixin syscall_t_eq_axiom.
-Canonical  syscall_t_eqType      := Eval hnf in EqType syscall_t syscall_t_eqMixin.
+HB.instance Definition _ := hasDecEq.Build syscall_t syscall_t_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* For typing                                                           *)

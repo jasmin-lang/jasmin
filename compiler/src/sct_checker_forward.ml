@@ -40,10 +40,6 @@ type ulevel =
   | Public
   | Msf
 
-type uconstraints = (ulevel * ulevel) list
-type unomodmsf = bool option
-
-
 (* -------------------------------------------------------------- *)
 (* Special operators to deal with msf                             *)
 type special_op =
@@ -51,11 +47,14 @@ type special_op =
   | Update_msf
   | Mov_msf
   | Protect
+  | Spill of Pseudo_operator.spill_op
   | Other
 
 let is_special o =
   match o with
-  | Sopn.Opseudo_op _ | Oasm _ -> Other
+  | Sopn.Opseudo_op (Pseudo_operator.Ospill (o, _)) -> Spill o
+  | Sopn.Opseudo_op _ -> Other
+  | Oasm _ -> Other
   | Oslh o ->
     match o with
     | SLHinit   -> Init_msf
@@ -173,7 +172,7 @@ let rec modmsf_i fenv i =
     begin match is_special o with
     | Init_msf -> modified_here (* LFENCE modifies msf *)
     | Update_msf -> modified_here (* not sure it is needed *)
-    | Mov_msf | Protect | Other -> NotModified
+    | Mov_msf | Protect | Spill _ | Other -> NotModified
     end
   | Cfor(_, _, c) -> modmsf_c fenv c
   | Ccall (_, f, _) ->
@@ -189,7 +188,7 @@ and modmsf_c fenv c =
 let error ~loc =
   hierror ~loc:(Lone loc) ~kind:"speculative constant type checker"
 
-let warn ~loc = warning SCTchecker loc
+let warn ~loc = warning SCTchecker (L.i_loc0 loc)
 
 (* --------------------------------------------------------- *)
 (* Inference of the variables that need to contain msf       *)
@@ -207,7 +206,7 @@ let ensure_register ~direct x =
 
 let reg_lval ~direct loc x =
   match x with
-  | Laset (_, _, x, _)
+  | Laset (_, _, _, x, _)
   | Lvar x -> ensure_register ~direct x; x
   | _ ->
       error ~loc "L-value %a must be a reg%s" pp_lval x
@@ -218,15 +217,15 @@ let reg_lval_opt ~direct loc =
   | Lnone _ -> None
   | x -> Some (reg_lval ~direct loc x)
 
-let reg_expr_opt ~direct loc = function
-  | Pget (_, _, x, _) | Pvar x ->
+let reg_expr_opt ~direct = function
+  | Pget (_, _, _, x, _) | Pvar x ->
       if is_gkvar x && is_register ~direct (L.unloc x.gv)
       then Some x.gv
       else None
   | _ -> None
 
 let reg_expr ~direct loc e =
-  match reg_expr_opt ~direct loc e with
+  match reg_expr_opt ~direct e with
   | Some x -> x
   | None -> error ~loc "expression %a must be a reg%s" pp_expr e
         (if direct then "" else " (ptr)")
@@ -308,7 +307,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
         | AT_none | AT_keep -> false
         | AT_rename | AT_inline | AT_phinode -> true
       in
-      begin match reg_expr_opt ~direct:true loc e with
+      begin match reg_expr_opt ~direct:true e with
       | Some x' when gets_removed ->
           Sv.add (L.unloc x') (Sv.remove (L.unloc x) ms)
       | _ -> error ~loc "assignment to MSF variable %a not allowed" pp_var_i x
@@ -365,6 +364,8 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
 
     | Protect, _, _ -> assert false
 
+    | Spill _, _, _ -> ms
+
     | Other, xs, _ -> checks ms xs; ms
 
 and infer_msf_c ~withcheck fenv tbl c ms =
@@ -381,10 +382,10 @@ module Env : sig
   type venv (* type variables association *)
 
   val init : unit -> env
+
   val empty : env -> venv
   val constraints : env -> C.constraints
   val add_var : env -> venv -> var -> var_kind -> vty -> venv
-
   val public    : env -> Lvl.t
   val secret    : env -> Lvl.t
 
@@ -421,11 +422,17 @@ module Env : sig
 
   val get_resulting_corruption : venv -> VlPairs.t
 
+  (* This is part is used to keep track of spill/unspill *)
+  val add_spill : env -> var -> var option
+  val set_spill : env -> venv -> var_i list -> venv
+  val set_unspill : env -> venv -> var_i list -> venv
+
 end = struct
 
   type env = {
       constraints : C.constraints;
       strictness  : unit Hv.t;
+      spilled     : var option Hv.t;  (* None means that the variable is spill to mmx and not in the stack *)
       msf_oracle  : (L.i_loc, Sv.t) Hashtbl.t;
     }
 
@@ -440,8 +447,9 @@ end = struct
 
   let init () =
     { constraints = C.init ();
-      strictness = Hv.create 97;
-      msf_oracle = Hashtbl.create 97; }
+      strictness  = Hv.create 97;
+      spilled     = Hv.create 97;
+      msf_oracle  = Hashtbl.create 97; }
 
   let constraints env = env.constraints
 
@@ -460,12 +468,12 @@ end = struct
   let fresh2 ?name env = (C.fresh ?name env.constraints,
                           C.fresh ?name env.constraints)
 
-  let empty env = {
-      vtype = Mv.empty;
+  let empty env =
+    { vtype = Mv.empty;
       vars = Sv.empty;
       resulting_corruption = fresh2 env;
       public2 = public2 env;
-  }
+    }
 
   let get venv x =
     try match x.v_kind with
@@ -617,6 +625,41 @@ end = struct
   let corruption_speculative env venv (_, s) = corruption env venv (public env, s)
 
   let get_resulting_corruption venv = venv.resulting_corruption
+
+  let get_spilled env (x:var_i) =
+    try Option.map (L.mk_loc (L.loc x)) (Hv.find env.spilled (L.unloc x))
+    with Not_found -> assert false
+
+  let add_spill env x =
+    let sx =
+      if CoreIdent.Cident.spill_to_mmx x then None
+      else
+        let kind =
+          match x.v_kind with
+          | Const | Inline | Stack _ -> assert false
+          | Global -> if is_ty_arr x.v_ty then Wsize.Stack(Pointer Constant) else Wsize.Stack(Direct)
+          | Reg (_, r) -> Stack(r) in
+        Some (V.mk x.v_name kind x.v_ty x.v_dloc [])
+    in
+    Hv.add env.spilled x sx;
+    sx
+
+  let set_spill env venv xs =
+    let add venv (x:var_i) =
+      Option.map_default (fun sx ->
+          let ty = get_i venv x in
+          set_ty env venv sx ty) venv (get_spilled env x)
+    in
+    List.fold_left add venv xs
+
+  let set_unspill env venv xs =
+    let add venv (x:var_i) =
+      Option.map_default (fun sx ->
+      let ty = get_i venv sx in
+      set_ty env venv x ty) venv (get_spilled env x)
+   in
+   List.fold_left add venv xs
+
 end
 
 
@@ -649,7 +692,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
 
   | Pvar x -> Env.gget venv x
 
-  | Pget (aa, ws, x, i) ->
+  | Pget (_, aa, ws, x, i) ->
       ensure_public_address env venv loc x.gv;
       ensure_public env venv loc i;
       let ty = Env.fresh2 env
@@ -664,7 +707,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
       ensure_public env venv loc i;
       Env.gget venv x
 
-  | Pload (_, x, i) ->
+  | Pload (_, _, x, i) ->
       ensure_public env venv loc (Pvar (gkvar x));
       ensure_public env venv loc i;
       Env.dsecret env
@@ -886,14 +929,14 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
       let venv = Env.set_ty env venv x xty in
       msf, venv
 
-  | Lmem(_, x, i) ->
+  | Lmem(_, _, x, i) ->
       ensure_public env venv (L.loc x) (Pvar (gkvar x));
       ensure_public env venv (L.loc x) i;
         (* programmes are assumed to be safe, thus corruption from memory store
            with [x + i] is speculative only *)
       msf, Env.corruption_speculative env venv (content_ty ety)
 
-  | Laset(aa, ws, x, i) ->
+  | Laset(_, aa, ws, x, i) ->
       ensure_public_address env venv (L.loc x) x;
       ensure_public env venv (L.loc x) i;
       let le = content_ty ety in
@@ -939,7 +982,7 @@ let ty_lvals env (msf_e : msf_e) xs tys : msf_e =
 
 let sdeclassify = "declassify"
 
-let is_declasify annot =
+let is_declassify annot =
   Annot.ensure_uniq1 sdeclassify Annot.none annot <> None
 
 let declassify_lvl env (_, s) = (Env.public env, s)
@@ -948,11 +991,11 @@ let declassify env = function
   | Direct le          -> Direct (declassify_lvl env le)
   | Indirect (lp, le)  -> Indirect (lp, declassify_lvl env le)
 
-let declassify_ty env annot ty = if is_declasify annot
+let declassify_ty env annot ty = if is_declassify annot
   then declassify env ty
   else ty
 
-let declassify_tys env annot tys = if is_declasify annot
+let declassify_tys env annot tys = if is_declassify annot
   then List.map (declassify env) tys
   else tys
 
@@ -1026,6 +1069,11 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       ty_lval env msf_e x xty
 
     | Protect, _, _ -> assert false
+
+    | Spill o, _, es ->
+        let xs = List.map (reg_expr ~direct:false loc) es in
+        if o = Pseudo_operator.Spill then msf, Env.set_spill env venv xs
+        else msf, Env.set_unspill env venv xs
 
     | Other, _, _  ->
       let public = not (CT.is_ct_sopn is_ct_asm o) in
@@ -1143,32 +1191,11 @@ let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: annotations) : ulev
         sstrict,   (fun a -> check_allowed a; A.none a; Strict)] in
     A.ensure_uniq filters annot in
 
-  let poly arg =
-    let poly_error loc =
-      A.error ~loc
-        "= ident or = { ident } is expected after “%s”" spoly in
-
-    let mk_poly loc _nid id =
-      if id = stransient || id = spublic || id = ssecret then
-        A.error ~loc
-          "%s not allowed as argument of %s" id spoly;
-      Poly (L.mk_loc loc id) in
-
-    let on_struct loc _nid (s:annotations) =
-      List.iter A.none s;
-      if List.length s <> 1 then poly_error loc;
-      let (s, _) = List.hd s in
-      mk_poly (L.loc s) _nid (L.unloc s) in
-
-    let on_id loc _nid id = mk_poly loc _nid id in
-
-    A.on_attribute ~on_id ~on_struct poly_error arg in
-
   let filters =
     [spublic, (fun a -> A.none a; Public);
      ssecret, (fun a -> A.none a; Secret);
-     stransient, (fun a -> A.none a; Transient);
-     spoly, poly] in
+     stransient, (fun a -> A.none a; Transient)
+     ] in
 
   let filters =
     if msf then (smsf, (fun a -> A.none a; Msf)) :: filters else filters in
@@ -1245,6 +1272,7 @@ let parse_user_constraints (a:annotations) : (string * string) list =
      (List.map snd (A.process_annot [sconstraints, A.on_attribute ~on_string error] a))
 
 let init_constraint fenv f =
+  let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
   let env = Env.init () in
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
@@ -1253,10 +1281,9 @@ let init_constraint fenv f =
   Hashtbl.add tbl ssecret    (Env.secret2 env);
   (* export function: all input type should be at most transient and msf is not allowed *)
   (* the new version does not take that into accout, does it? *)
-  let export = f.f_cc = Export in
+  let export = FInfo.is_export f.f_cc in
 
   let add_lvl s =
-    let s = L.unloc s in
     try Hashtbl.find tbl s
     with Not_found ->
       let l = Env.fresh2 ~name:s env in
@@ -1264,28 +1291,53 @@ let init_constraint fenv f =
       l in
 
   let to_lvl = function
-    | Poly s -> add_lvl s
+    | Poly s -> add_lvl (L.unloc s)
     | Secret -> Env.secret2 env
     | Transient -> Env.transient env
     | Public | Msf -> Env.public2 env in
+
+  let lvl_of_sa_level =
+    let open SecurityAnnotations in
+    let lvl_of_simple_level get =
+      function
+      | Public -> Env.public env
+      | Secret -> Env.secret env
+      | Named s -> get (add_lvl s)
+    in
+    function { normal; speculative } ->
+      lvl_of_simple_level fst normal, lvl_of_simple_level snd speculative
+  in
+
+  let to_vty =
+    function
+    | SecurityAnnotations.Msf -> Direct (to_lvl Msf)
+    | Direct n -> Direct (lvl_of_sa_level n)
+    | Indirect { ptr; value } -> Indirect (lvl_of_sa_level ptr, lvl_of_sa_level value)
+  in
 
   let error_msf loc =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  let mk_vty loc ~(msf:bool) x ls =
+  let mk_vty loc ~(msf:bool) x ls an =
     let msf, ovty =
-      match ls with
-      | [] -> None, None
-      | [l] ->
+      match ls, an with
+      | [], None -> None, None
+      | [l], None ->
         if not msf && l = Msf then error_msf loc;
         Some (l = Msf), Some(Direct (to_lvl l))
-      | [l1; l2] ->
+      | [l1; l2], None ->
         if (l1 = Msf || l2 = Msf) then error_msf loc;
         Some false, Some(Indirect (to_lvl l1, to_lvl l2))
-      | _ ->
+      | _, None ->
         error ~loc:(x.v_dloc)
-          "invalid security annotations %a" pp_var x in
+          "invalid security annotations %a" pp_var x
+      | [Msf], Some n ->
+         if not msf then error_msf loc;
+         Some true, Some (to_vty n)
+      | _, Some n ->
+         Some (n = SecurityAnnotations.Msf), Some (to_vty n)
+    in
     let vty =
       match ovty with
       | None ->
@@ -1313,13 +1365,14 @@ let init_constraint fenv f =
         end; ty in
     msf, vty in
 
-  let process_return x annot =
+  let process_return i x annot =
     let loc = L.loc x and x = L.unloc x in
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
     let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
-    mk_vty loc ~msf:(not export) x ls in
+    mk_vty loc ~msf:(not export) x ls an in
 
   (* process function outputs *)
-  let tyout = List.map2 process_return f.f_ret f.f_outannot in
+  let tyout = List.map2i process_return f.f_ret f.f_outannot in
 
   (* infer msf_oracle info *)
   let msfs =
@@ -1343,9 +1396,10 @@ let init_constraint fenv f =
   end;
 
   (* process function inputs *)
-  let process_param venv x =
+  let process_param i venv x =
+    let an = Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) in
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
-    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls in
+    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls an in
     let msf =
       match msf with
       | None -> Sv.mem x msfs
@@ -1353,28 +1407,27 @@ let init_constraint fenv f =
         if b <> Sv.mem x msfs then begin
           let loc = x.v_dloc in
           if b
-          then warn ~loc:(L.i_loc0 loc) "%a does not need to be an MSF" pp_var x
+          then warn ~loc:loc "%a does not need to be an MSF" pp_var x
           else error ~loc "%a should be an MSF" pp_var x
         end;
         b in
     if export then
-      begin match vty with
-      | Direct l ->
-        begin
+      begin let lvls = match vty with
+      | Indirect (p, v) -> [ p; v ]
+      | Direct v -> [ v ]
+      in List.iter begin fun l ->
           try VlPairs.add_le (Env.public env, Env.secret env) l
           with Lvl.Unsat _unsat ->
             error ~loc:(x.v_dloc)
               "security annotation for %a should be at least %s"
                  pp_var x stransient
-        end
-
-      | _ -> assert false
+        end lvls
       end;
     let venv = Env.add_var env venv x vk vty in
     let ty = if msf then IsMsf else IsNormal vty in
     venv, ty in
 
-  let venv, tyin = List.map_fold process_param venv f.f_args in
+  let venv, tyin = List.mapi_fold process_param venv f.f_args in
 
   (* build the constraints *)
   let do_constraint (s1, s2) =
@@ -1389,12 +1442,17 @@ let init_constraint fenv f =
   List.iter do_constraint (parse_user_constraints f.f_annot.f_user_annot);
 
   (* init type for local *)
-  let do_local venv x =
+  let do_local x venv =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
-    let _, vty = mk_vty x.v_dloc ~msf:false x ls in
+    let _, vty = mk_vty x.v_dloc ~msf:false x ls None in
     Env.add_var env venv x vk vty in
 
-  let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
+  let venv = Sv.fold do_local (locals f) venv in
+
+  let do_spill x venv =
+    Option.map_default (fun sx -> do_local sx venv) venv (Env.add_spill env x) in
+
+  let venv = Sv.fold do_spill (spilled f) venv in
 
   (* infer modmsf and check consistency with user info *)
   let modmsf = modmsf_c fenv f.f_body in
@@ -1511,14 +1569,16 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
   let constraints = C.init() in
 
   let infer_fun f =
+    let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
 
-    let process_return annot =
+    let process_return i annot =
       let ls, _ = parse_var_annot ~kind_allowed:true ~msf:true annot in
-      List.mem Msf ls
+      let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
+      List.mem Msf ls || an = Some SecurityAnnotations.Msf
     in
 
     (* process function outputs *)
-    let tyout = List.map process_return f.f_outannot in
+    let tyout = List.mapi process_return f.f_outannot in
 
     (* infer the set of input variables that need to be msf *)
     let msfin =
@@ -1550,7 +1610,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
      | IsMsf      -> Slh_msf
   in
 
-  let do_f fn fty =
+  let do_f _fn fty =
     let in_t = List.map do_t fty.tyin in
     let out_t = List.map do_t fty.tyout in
     (in_t, out_t)
