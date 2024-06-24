@@ -1333,8 +1333,8 @@ let init_constraint fenv f =
       | None ->
         begin match x.v_kind with
         | Const -> Env.dpublic env
-        | Stack Direct -> Direct (Env.fresh2 env)
-        | Stack (Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
+        | Stack Direct -> Direct (Env.fresh env, Env.secret env)
+        | Stack (Pointer _) -> Indirect((Env.fresh env, Env.secret env), Env.fresh2 env)
         | Reg (_, Direct) -> Direct (Env.fresh2 env)
         | Reg (_, Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
