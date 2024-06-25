@@ -648,34 +648,6 @@ module SimplVector = struct
     | {iname = "mov"; iargs = [_; Atom _]} -> aux v n
     | _ -> assert false
 
-  (* DUPLICATE from module I *)
-  let int_of_typ = function
-    | Bty (U ws) -> Some (int_of_ws ws)
-    | Bty (Bool) -> Some 1
-    | Bty (Abstract ('/'::'*':: q)) -> Some (String.to_int (String.of_list q))
-    | Bty (Int)  -> None
-    | _ -> assert false
-
-  let var_to_tyvar ?(sign=false) ?vector v : CL.tyvar =
-    match vector with
-    | None ->
-      begin
-        match int_of_typ v.v_ty with
-        | None -> v, CL.Bit
-        | Some w ->
-          if sign then v, CL.Sint w
-          else v, CL.Uint w
-      end
-    | Some (n,w) ->
-      begin
-        match int_of_typ v.v_ty with
-        | None -> assert false
-        | Some w' ->
-          assert (n * w = w' && not sign);
-          v, CL.Vector (n, CL.Uint w)
-      end
-  (* ****************** *)
-
   let rec update_arg args v argidx =
     match args with
     | [] -> assert false
@@ -707,14 +679,6 @@ module SimplVector = struct
   let rec simpl_cfg cfg =
     replace_lvals cfg;
     cfg
-
-    (* match node.succs with *)
-    (* | [] -> assert false *)
-    (* | [h] -> replace_lval node h; h *)
-    (* | h::_ -> *)
-    (*   replace_lval node h; *)
-    (*   List.hd (node :: (simpl_cfg h)) *)
-    (* | _ -> assert false *)
 end
 
 module type I = sig
@@ -1976,9 +1940,9 @@ module Mk(O:BaseOp) = struct
     Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
     let formals = filter_add cond formals !ghost in
 
-    let cfg = Cfg.cfg_of_prog_rev prog in
+    (* let cfg = Cfg.cfg_of_prog_rev prog in
     let clean_cfg = SimplVector.simpl_cfg cfg in
-    let prog = Cfg.prog_of_cfg clean_cfg in
+    let prog = Cfg.prog_of_cfg clean_cfg in *)
 
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
