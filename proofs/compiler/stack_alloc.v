@@ -586,7 +586,9 @@ Definition check_vpk_word rmap al x vpk ofs ws :=
   Let _ := check_valid x sr' bytes in
   check_align al x sr ws.
 
-Fixpoint alloc_e (e:pexpr) :=
+Definition bad_arg_number := stk_ierror_no_var "invalid number of args".
+
+Fixpoint alloc_e (e:pexpr) ty :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
   | Pvar   x =>
@@ -595,16 +597,18 @@ Fixpoint alloc_e (e:pexpr) :=
     match vk with
     | None => Let _ := check_diff xv in ok e
     | Some vpk =>
-      if is_word_type (vtype xv) is Some ws then
-        Let _ := check_vpk_word rmap Aligned xv vpk (Some 0%Z) ws in
-        Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
-        ok (Pload Aligned ws pofs.1 pofs.2)
+      if is_word_type ty is Some ws then
+        if subtype (sword ws) (vtype xv) then
+          Let _ := check_vpk_word rmap Aligned xv vpk (Some 0%Z) ws in
+          Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
+          ok (Pload Aligned ws pofs.1 pofs.2)
+        else Error (stk_ierror_basic xv "invalid type for expression")
       else Error (stk_ierror_basic xv "not a word variable in expression")
     end
 
   | Pget al aa ws x e1 =>
     let xv := x.(gv) in
-    Let e1 := alloc_e e1 in
+    Let e1 := alloc_e e1 sint in
     Let vk := get_var_kind x in
     match vk with
     | None => Let _ := check_diff xv in ok (Pget al aa ws x e1)
@@ -621,30 +625,31 @@ Fixpoint alloc_e (e:pexpr) :=
   | Pload al ws x e1 =>
     Let _ := check_var x in
     Let _ := check_diff x in
-    Let e1 := alloc_e e1 in
+    Let e1 := alloc_e e1 (sword Uptr) in
     ok (Pload al ws x e1)
 
   | Papp1 o e1 =>
-    Let e1 := alloc_e e1 in
+    Let e1 := alloc_e e1 (type_of_op1 o).1 in
     ok (Papp1 o e1)
 
   | Papp2 o e1 e2 =>
-    Let e1 := alloc_e e1 in
-    Let e2 := alloc_e e2 in
+    let tys := type_of_op2 o in
+    Let e1 := alloc_e e1 tys.1.1 in
+    Let e2 := alloc_e e2 tys.1.2 in
     ok (Papp2 o e1 e2)
 
   | PappN o es =>
-    Let es := mapM alloc_e es in
+    Let es := mapM2 bad_arg_number alloc_e es (type_of_opN o).1 in
     ok (PappN o es)
 
   | Pif t e e1 e2 =>
-    Let e := alloc_e e in
-    Let e1 := alloc_e e1 in
-    Let e2 := alloc_e e2 in
-    ok (Pif t e e1 e2)
+    Let e := alloc_e e sbool in
+    Let e1 := alloc_e e1 ty in
+    Let e2 := alloc_e e2 ty in
+    ok (Pif ty e e1 e2)
   end.
 
-  Definition alloc_es := mapM alloc_e.
+  Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.
 
 End ALLOC_E.
 
@@ -683,7 +688,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
 
   | Laset al aa ws x e1 =>
     (* TODO: could we remove this [check_diff] and use an invariant in the proof instead? *)
-    Let e1 := alloc_e rmap e1 in
+    Let e1 := alloc_e rmap e1 sint in
     match get_local x with
     | None => Let _ := check_diff x in ok (rmap, Laset al aa ws x e1)
     | Some pk =>
@@ -700,7 +705,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
   | Lmem al ws x e1 =>
     Let _ := check_var x in
     Let _ := check_diff x in
-    Let e1 := alloc_e rmap e1 in
+    Let e1 := alloc_e rmap e1 (sword Uptr) in
     ok (rmap, Lmem al ws x e1)
   end.
 
@@ -893,7 +898,7 @@ Definition alloc_protect_ptr rmap ii r t e msf :=
       match pk with
       | Pregptr px =>
         let dx := Lvar (with_var x px) in
-        Let msf := add_iinfo ii (alloc_e rmap msf) in
+        Let msf := add_iinfo ii (alloc_e rmap msf (sword msf_size)) in
         Let ir := lower_protect_ptr_fail ii [::dx] t [:: ey; msf] in
         let rmap := Region.set_move rmap x sry bytesy in
         ok (rmap, ir)
@@ -1213,7 +1218,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
         Let ri := add_iinfo ii (alloc_array_move_init rmap r t e) in
         ok (ri.1, [:: MkI ii ri.2])
       else
-        Let e := add_iinfo ii (alloc_e rmap e) in
+        Let e := add_iinfo ii (alloc_e rmap e ty) in
         Let r := add_iinfo ii (alloc_lval rmap r ty) in
         ok (r.1, [:: MkI ii (Cassgn r.2 t ty e)])
 
@@ -1226,7 +1231,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
         Let rs := add_iinfo ii (alloc_array_swap rmap rs t e) in
         ok (rs.1, [:: MkI ii rs.2])
       else
-      Let e  := add_iinfo ii (alloc_es rmap e) in
+      Let e  := add_iinfo ii (alloc_es rmap e (sopn_tin o)) in
       Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
       ok (rs.1, [:: MkI ii (Copn rs.2 t o e)])
 
@@ -1234,7 +1239,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       alloc_syscall ii rmap rs o es
 
     | Cif e c1 c2 =>
-      Let e := add_iinfo ii (alloc_e rmap e) in
+      Let e := add_iinfo ii (alloc_e rmap e sbool) in
       Let c1 := fmapM (alloc_i sao) rmap c1 in
       Let c2 := fmapM (alloc_i sao) rmap c2 in
       let rmap:= merge c1.1 c2.1 in
@@ -1244,7 +1249,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       let check_c rmap :=
         Let c1 := fmapM (alloc_i sao) rmap c1 in
         let rmap1 := c1.1 in
-        Let e := add_iinfo ii (alloc_e rmap1 e) in
+        Let e := add_iinfo ii (alloc_e rmap1 e sbool) in
         Let c2 := fmapM (alloc_i sao) rmap1 c2 in
         ok ((rmap1, c2.1), (e, (c1.2, c2.2))) in
       Let r := loop2 ii check_c Loop.nb rmap in

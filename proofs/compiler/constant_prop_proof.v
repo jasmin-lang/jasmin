@@ -590,8 +590,8 @@ Section CONST_PROP_EP.
       rewrite /= hw1 hw2 /=.
       by apply: vuincl_sem_sop2 h.
     - move => op es ih v.
-      t_xrbindP => vs /ih{ih} [] vs' ih /vuincl_sem_opN h/h{h} [] v' ok_v' h.
-      by rewrite s_opNP /= -/(sem_pexprs _ _ _) ih /= ok_v'; eauto.
+      t_xrbindP => vs /ih{ih} [] vs' ih /vuincl_sem_opN h/h{h} ok_v.
+      by rewrite s_opNP /= -/(sem_pexprs _ _ _) ih /= ok_v; eauto.
     move => t e He e1 He1 e2 He2 v.
     t_xrbindP => b ve /He/= [] ve' [] hse /[swap] /to_boolI -> /value_uinclE ?; subst.
     move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(value_uincl_truncate hue1) [] ? /dup[] ht1 /truncate_value_uincl ht1' hu1.
