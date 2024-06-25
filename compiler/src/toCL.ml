@@ -348,6 +348,10 @@ module CL = struct
       | Bit -> 1
       | Vector (i,t) -> i * int_of_ty t
 
+    let int_of_tyvar (tyv: tyvar) =
+      let (_,ty) = tyv in
+      int_of_ty ty
+
     module ShiftV =  struct
       let shift iname (d : lval) (s : atom) (c : const) (w : int) =
         { iname; iargs = [Lval d; Atom s; Atom (Avatome
@@ -489,6 +493,12 @@ module Cfg = struct
     compute_cfg cfg;
     List.hd cfg
 
+  let cfg_of_prog_rev prog =
+    let prog_rev = List.rev prog in
+    let cfg = List.map mk_node prog_rev in
+    compute_cfg cfg;
+    List.hd cfg
+
   let prog_of_cfg cfg =
     let rec aux node acc =
       match node.succs with
@@ -498,36 +508,214 @@ module Cfg = struct
     in
     aux cfg []
 
+    let prog_of_cfg_rev cfg =
+      let rec aux node acc =
+        match node.succs with
+        | [] -> node.nkind::acc
+        | [h] -> aux h (node.nkind::acc)
+        | _ -> assert false
+      in
+      let prog_rev = aux cfg [] in
+      List.rev prog_rev
+
 end
 
-(* module SimplVector = struct *)
-(*   open Cfg *)
-(*   open CL.Instr *)
+module SimplVector = struct
+  open Cfg
+  open CL.Instr
 
-(*   let rec find_vect_lval v i ty n  = *)
-(*     match n.nkind with *)
-(*     | {iname = "mov"; iargs = [Lval v ; Atom (Avar (v,Vector (i,ty)))]} -> *)
-(*       assert false *)
-(*     | _ -> *)
-(*       begin *)
-(*         match n.succs with *)
-(*         | [] -> () *)
-(*         | h :: [] -> find_vect_lval v i ty h *)
-(*         | _ -> assert false *)
-(*       end *)
+  let getNextI n' =
+    match n'.succs with
+    | h :: _ -> Some h
+    | _ -> None
 
-(*   let rec simplvect n = *)
-(*     match n.nkind with *)
-(*     | {iname = "adds"; iargs = [_ ; _; Atom (Avar (v,Vector (i,ty))) ; Atom _]} -> *)
-(*       assert false *)
-(*     | _ -> *)
-(*       begin *)
-(*         match n.succs with *)
-(*         | [] -> () *)
-(*         | h :: [] -> simplvect h *)
-(*         | _ -> assert false *)
-(*       end *)
-(* end *)
+  let rec is_unsigned (ty: CL.ty) =
+    match ty with
+    | Uint _ -> true
+    | Sint _ -> false
+    | Bit -> true
+    | Vector (_, ty') -> is_unsigned ty'
+
+  let rec is_equiv_type (ty: CL.ty) (ty': CL.ty) =
+    match (ty, ty') with
+    | (Uint i, Uint i') -> i == i'
+    | (Uint i, Sint i') -> false
+    | (Uint i, Bit) -> false (* i == 1 ? *)
+    | (Uint i, Vector (i', ty'')) ->
+      i == (i' * int_of_ty ty'') && (is_unsigned ty'')
+    | (Sint i, Bit) -> false
+    | (Sint i, Vector (i', ty'')) ->
+      i == (i' * int_of_ty ty'') && not(is_unsigned ty'')
+    | (Bit, Vector (_, _)) -> false
+    | Vector (i, ty''), Vector (i', ty''') ->
+      (i * int_of_ty ty'' == i' * int_of_ty ty''') && ((is_unsigned ty'') == (is_unsigned ty'''))
+    | _ -> is_equiv_type ty' ty (* use recursivity to check the commutative pair *)
+
+  let rec find_vect_lval v ty n  =
+  (*
+    Example
+    - [x] 0. adds %TMP_____159@uint16[16] %TMP_____157@uint16[16] %TMP_____154@uint16[16] %TMP_____156@uint16[16];
+    - [x] 1. cast %TMP_____158@uint256[1] %TMP_____157@uint16[16];
+    - [x] 2. mov c_141@uint256 %TMP_____158[0];
+    - [x] 3. mov %TMP_____160@uint256[1] [c_141@uint256];
+    - [x] 4. cast %TMP_____161@uint16[16] %TMP_____160@uint256[1];
+  *)
+      let aux v' ty' n =
+        let i = getNextI n in
+        match i with
+        | Some n' -> find_vect_lval v' ty' n'
+        | None -> None
+      in
+    match n.nkind with
+    | {iname = "cast"; iargs = [Lval v; Atom (Avar (v', ty'))]} ->
+      (* when (n.nkind.iname == "cast" || n.nkind.iname == "mov") ->*)
+      (* cast %TMP_____161@uint16[16] %TMP_____160@uint256[1]; *)
+      (* cast %TMP_____158@uint256[1] %TMP_____157@uint16[16]; *)
+      if is_equiv_type ty ty' then
+        aux v' ty' n
+      else
+        assert false
+    | {iname = "mov"; iargs = [Lval v; Atom (Avecta ((v', ty'), j))]} ->
+      (* mov c_141@uint256 %TMP_____158[0]; *)
+      if j == 0 && is_equiv_type ty ty' then (* do we care if j == 0 ? *)
+        aux v' ty' n
+      else
+        None
+    | {iname = "mov"; iargs = [Lval v; Atom (Avatome [Avar (v', ty')])]} ->
+      (* mov %TMP_____160@uint256[1] [c_141@uint256] *)
+      if is_equiv_type ty ty' then
+        aux v' ty' n
+      else
+        assert false
+    | {iname = "adds"; iargs = [_; Lval v; Atom (Avar (_, ty')); _]} ->
+      (* adds %TMP_____159@uint16[16] %TMP_____157@uint16[16] %TMP_____154@uint16[16] %TMP_____156@uint16[16] *)
+      if is_equiv_type ty ty' then
+        Some v
+      else
+        assert false
+    | {iname = "add"; iargs = [Lval v; Atom (Avar (_, ty')); _]} ->
+      if is_equiv_type ty ty' then
+        Some v
+      else
+        assert false
+    | _ -> assert false
+
+  let rec unused_lval v n =
+    let rec var_in_vatome v' l =
+      match l with
+        | h :: l ->
+          begin
+            match h with
+            | Avar (v, _) -> true
+            | Avecta ((v, _), _) -> true
+            | Avatome l' -> (var_in_vatome v l') || (var_in_vatome v l)
+            | _ -> var_in_vatome v l
+          end
+        | [] -> false
+    in
+    let aux v' n =
+      let i = getNextI n in
+        begin
+        match i with
+        | Some n' -> unused_lval v n'
+        | None -> false
+        end
+    in
+    match n.nkind with
+    | {iname = "mov"; iargs = [_; Atom (Avar (v, _))]} -> false
+    | {iname = "mov"; iargs = [_; Atom (Avecta ((v, _), _))]} -> false
+    | {iname = "mov"; iargs = [_; Atom (Avatome l)]} ->
+      if var_in_vatome v l then
+        false
+      else
+        aux v n
+    | {iname = "mov"; iargs = [Lval v; _]} -> true
+    | {iname = "cast"; iargs = [_; Atom (Avar (v, _))]} -> false
+    | {iname = "cast"; iargs = [_; Atom (Avecta ((v, _), _))]} -> false
+    | {iname = "cast"; iargs = [_; Atom (Avatome l)]} ->
+      if var_in_vatome v l then
+        false
+      else
+        aux v n
+    | {iname = "adds"; iargs = [_; _; Atom (Avar (v, _)); _]} -> false
+    | {iname = "adds"; iargs = [_; _; _; Atom (Avar (v, _))]} -> false
+    | {iname = "adds"; iargs = [_; _; Atom (Avecta ((v, _), _)); _]} -> false
+    | {iname = "adds"; iargs = [_; _; _; Atom (Avecta ((v, _), _))]} -> false
+    | {iname = "add"; iargs = [_; Atom (Avar (v, _)); _]} -> false
+    | {iname = "add"; iargs = [_; _; Atom (Avar (v, _))]} -> false
+    | {iname = "add"; iargs = [_; Atom (Avecta ((v, _), _)); _]} -> false
+    | {iname = "add"; iargs = [_; _; Atom (Avecta ((v, _), _))]} -> false
+    | {iname = "mov"; iargs = [_; Atom _]} -> aux v n
+    | _ -> assert false
+
+  (* DUPLICATE from module I *)
+  let int_of_typ = function
+    | Bty (U ws) -> Some (int_of_ws ws)
+    | Bty (Bool) -> Some 1
+    | Bty (Abstract ('/'::'*':: q)) -> Some (String.to_int (String.of_list q))
+    | Bty (Int)  -> None
+    | _ -> assert false
+
+  let var_to_tyvar ?(sign=false) ?vector v : CL.tyvar =
+    match vector with
+    | None ->
+      begin
+        match int_of_typ v.v_ty with
+        | None -> v, CL.Bit
+        | Some w ->
+          if sign then v, CL.Sint w
+          else v, CL.Uint w
+      end
+    | Some (n,w) ->
+      begin
+        match int_of_typ v.v_ty with
+        | None -> assert false
+        | Some w' ->
+          assert (n * w = w' && not sign);
+          v, CL.Vector (n, CL.Uint w)
+      end
+  (* ****************** *)
+
+  let rec update_arg args v argidx =
+    match args with
+    | [] -> assert false
+    | h::q ->
+      if argidx == 0 then v::q
+      else h::(update_arg q v (argidx-1))
+
+  let replace_lval node succ = (* Search for the source of the argument in lval of another instruction *)
+    match node.nkind with
+    | {iname = "adds"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
+      let l = find_vect_lval v (Vector (i, ty)) succ in
+      begin
+        match l with
+        | Some v' ->
+          let arg' = (Atom (Avar v')) in
+          let iargs' = update_arg node.nkind.iargs arg' 2 in
+          node.nkind <- { iname = node.nkind.iname; iargs = iargs' };
+        | None -> ()
+      end
+    | _ -> ()
+
+  let rec replace_lvals node =
+    match node.succs with
+    | [] -> ()
+    | h::_ ->
+      replace_lval node h;
+      replace_lvals h
+
+  let rec simpl_cfg cfg =
+    replace_lvals cfg;
+    cfg
+
+    (* match node.succs with *)
+    (* | [] -> assert false *)
+    (* | [h] -> replace_lval node h; h *)
+    (* | h::_ -> *)
+    (*   replace_lval node h; *)
+    (*   List.hd (node :: (simpl_cfg h)) *)
+    (* | _ -> assert false *)
+end
 
 module type I = sig
   val int_of_typ : 'a Prog.gty -> int option
@@ -1788,8 +1976,9 @@ module Mk(O:BaseOp) = struct
     Hash.iter (fun _ x -> ghost := x :: ! ghost) env;
     let formals = filter_add cond formals !ghost in
 
-    (* let cfg = Cfg.cfg_of_prog prog in *)
-    (* let prog = Cfg.prog_of_cfg cfg in *)
+    let cfg = Cfg.cfg_of_prog_rev prog in
+    let clean_cfg = SimplVector.simpl_cfg cfg in
+    let prog = Cfg.prog_of_cfg clean_cfg in
 
     CL.Proc.{id = fd.f_name.fn_name;
              formals;
