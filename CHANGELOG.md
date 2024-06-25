@@ -172,6 +172,10 @@
 
 ## Other changes
 
+- Extraction to EasyCrypt for safety verification is deprecated;
+  it has been broken for a while, and is now explicitly unmaintained
+  ([PR #849](https://github.com/jasmin-lang/jasmin/pull/849)).
+
 - Pretty-printing of Jasmin programs is more precise
   ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).
 

@@ -185,7 +185,7 @@ let options = [
     "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
-    "-safety", Arg.Unit set_safety      , " Generate model for safety verification";
+    "-safety", Arg.Unit set_safety      , " Generate model for safety verification (deprecated)";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
     " Parameter for automatic safety verification:\n    \
