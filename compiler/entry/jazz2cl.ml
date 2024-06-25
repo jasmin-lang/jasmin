@@ -11,30 +11,29 @@ let add_inline f =
 
 module type Arch_ToCL = sig
   module C : Arch_full.Core_arch
-  module CL : ToCL.BaseOp
-     with type op = C.asm_op
-     and type extra_op = C.extra_op
+  val test : bool -> (module  ToCL.BaseOp
+                       with type op = C.asm_op
+                        and type extra_op = C.extra_op)
 end
 
-let parse_and_print print arch call_conv =
+let parse_and_print print arch call_conv ecoutput joutput output file funname =
   let _ = if print then Glob_options.set_all_print () in
 
   let (module ACL : Arch_ToCL) =
-      match arch with
-      | Amd64 ->
-         (module struct
-            module C = (val CoreArchFactory.core_arch_x86 ~use_lea:false ~use_set0:false call_conv)
-            module CL = ToCL.X86BaseOp
-          end)
-      | CortexM ->
-         (module struct
-            module C = CoreArchFactory.Core_arch_ARM
-            module CL = ToCL.ARMBaseOp
-          end)
+    match arch with
+    | Amd64 ->
+      (module struct
+        module C = (val CoreArchFactory.core_arch_x86 ~use_lea:false ~use_set0:false call_conv)
+        let test = ToCL.x86BaseOpsign
+      end)
+    | CortexM ->
+      (module struct
+        module C = CoreArchFactory.Core_arch_ARM
+        let test  = ToCL.armeBaseOpsign
+      end)
   in
   let module A = Arch_full.Arch_from_Core_arch (ACL.C) in
-  let module CL = ToCL.Mk(ACL.CL) in
-  fun ecoutput joutput output file funname ->
+
   try
     let _, pprog, _ =
       (* FIXME: This code is a cut and paste of main_compiler *)
@@ -57,12 +56,28 @@ let parse_and_print print arch call_conv =
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
 
-    let funname =
+    let funname,annot =
      try
        let fd = List.find (fun fd -> fd.Prog.f_name.fn_name = funname) (snd prog) in
-       fd.Prog.f_name
+       fd.Prog.f_name,fd.Prog.f_annot
      with Not_found ->
        hierror ~loc:Lnone ~kind:"typing error" "unknow function %s" funname in
+
+    let trans annot =
+      let l =
+        ["t", true ; "f", false]
+      in
+      let mk_trans = Annot.filter_string_list None l in
+      let atran annot =
+        match Annot.ensure_uniq1 "signed" mk_trans annot with
+        | None -> false
+        | Some s -> s
+      in
+      atran annot
+    in
+
+    let signed = trans annot.f_user_annot in
+    let module CL = ToCL.Mk(val ACL.test signed) in
 
      (* First step: annot all call site with inline *)
      let prog = (fst prog, List.map add_inline (snd prog)) in
@@ -70,9 +85,6 @@ let parse_and_print print arch call_conv =
 
      let prog = Compile.compile_CL (module A) cprog funname in
      let prog = Conv.prog_of_cuprog ((* FIXME *) Obj.magic prog) in
-(*
-        Format.eprintf "%a@." (Printer.pp_prog ~debug:true A.reg_size A.asmOp) prog;
-*)
 
      begin match joutput with
      | None -> ()
@@ -94,8 +106,6 @@ let parse_and_print print arch call_conv =
           (fun () -> ToEC.extract A.reg_size A.asmOp fmt Normal prog fnames)
           ()
      end;
-
-
 
      let out, close =
        match output with
