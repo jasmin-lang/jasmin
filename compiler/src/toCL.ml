@@ -525,9 +525,14 @@ module SimplVector = struct
   open CL.Instr
 
   let getNextI n' =
-    match n'.succs with
+    match n'.preds with
     | h :: _ -> Some h
     | _ -> None
+
+  let getPrevI n' =
+      match n'.succs with
+      | h :: _ -> Some h
+      | _ -> None
 
   let rec is_unsigned (ty: CL.ty) =
     match ty with
@@ -540,55 +545,41 @@ module SimplVector = struct
     match (ty, ty') with
     | (Uint i, Uint i') -> i == i'
     | (Uint i, Sint i') -> false
-    | (Uint i, Bit) -> false (* i == 1 ? *)
+    | (Uint i, Bit) -> assert false
     | (Uint i, Vector (i', ty'')) ->
       i == (i' * int_of_ty ty'') && (is_unsigned ty'')
-    | (Sint i, Bit) -> false
+    | (Sint i, Bit) -> assert false
     | (Sint i, Vector (i', ty'')) ->
       i == (i' * int_of_ty ty'') && not(is_unsigned ty'')
-    | (Bit, Vector (_, _)) -> false
+    | (Bit, Vector (_, _)) -> assert false
     | Vector (i, ty''), Vector (i', ty''') ->
       (i * int_of_ty ty'' == i' * int_of_ty ty''') && ((is_unsigned ty'') == (is_unsigned ty'''))
     | _ -> is_equiv_type ty' ty (* use recursivity to check the commutative pair *)
 
   let rec find_vect_lval v ty n  =
-  (*
-    Example
-    - [x] 0. adds %TMP_____159@uint16[16] %TMP_____157@uint16[16] %TMP_____154@uint16[16] %TMP_____156@uint16[16];
-    - [x] 1. cast %TMP_____158@uint256[1] %TMP_____157@uint16[16];
-    - [x] 2. mov c_141@uint256 %TMP_____158[0];
-    - [x] 3. mov %TMP_____160@uint256[1] [c_141@uint256];
-    - [x] 4. cast %TMP_____161@uint16[16] %TMP_____160@uint256[1];
-  *)
       let aux v' ty' n =
-        let i = getNextI n in
+        let i = getPrevI n in
         match i with
         | Some n' -> find_vect_lval v' ty' n'
         | None -> None
       in
     match n.nkind with
     | {iname = "cast"; iargs = [Lval v; Atom (Avar (v', ty'))]} ->
-      (* when (n.nkind.iname == "cast" || n.nkind.iname == "mov") ->*)
-      (* cast %TMP_____161@uint16[16] %TMP_____160@uint256[1]; *)
-      (* cast %TMP_____158@uint256[1] %TMP_____157@uint16[16]; *)
       if is_equiv_type ty ty' then
         aux v' ty' n
       else
         assert false
     | {iname = "mov"; iargs = [Lval v; Atom (Avecta ((v', ty'), j))]} ->
-      (* mov c_141@uint256 %TMP_____158[0]; *)
       if j == 0 && is_equiv_type ty ty' then (* do we care if j == 0 ? *)
         aux v' ty' n
       else
         None
     | {iname = "mov"; iargs = [Lval v; Atom (Avatome [Avar (v', ty')])]} ->
-      (* mov %TMP_____160@uint256[1] [c_141@uint256] *)
       if is_equiv_type ty ty' then
         aux v' ty' n
       else
         assert false
     | {iname = "adds"; iargs = [_; Lval v; Atom (Avar (_, ty')); _]} ->
-      (* adds %TMP_____159@uint16[16] %TMP_____157@uint16[16] %TMP_____154@uint16[16] %TMP_____156@uint16[16] *)
       if is_equiv_type ty ty' then
         Some v
       else
@@ -618,7 +609,7 @@ module SimplVector = struct
         begin
         match i with
         | Some n' -> unused_lval v n'
-        | None -> false
+        | None -> true
         end
     in
     match n.nkind with
