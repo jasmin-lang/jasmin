@@ -1,6 +1,8 @@
 
 # [unreleased]
 
+# Jasmin 2024.06.0 — Sophia-Antipolis, 2024-06-26
+
 ## New features
 
 - The stack allocation checker accepts more programs. This checker is run
