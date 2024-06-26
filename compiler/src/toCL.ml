@@ -702,221 +702,223 @@ module type I = sig
   val mk_lval_atome : CL.Instr.lval -> CL.Instr.atom
 end
 
-let sign s : (module I) =
-  let module S = struct
-    let int_of_typ = function
-      | Bty (U ws) -> Some (int_of_ws ws)
-      | Bty (Bool) -> Some 1
-      | Bty (Abstract s) ->
-        begin
-          match String.to_list s with
-          | '/'::'*':: q -> Some (String.to_int (String.of_list q))
-          | _ -> assert false
-        end
-      | Bty (Int)  -> None
-      | _ -> assert false
+module type S = sig
+  val s : bool
+end
 
-    let to_var ?(sign=s) x =
-      let var = L.unloc x.gv in
-      if sign then var, CL.Sint (Option.get (int_of_typ var.v_ty))
-      else var, CL.Uint (Option.get (int_of_typ var.v_ty))
+module I (S:S): I = struct
 
-    let rec gexp_to_rexp ?(sign=s) e : CL.R.rexp =
-      let open CL.R in
-      let (!>) e = gexp_to_rexp ~sign e in
-      match e with
-      | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
-      | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws))
-      | Pvar x -> Rvar (to_var ~sign x)
-      | Papp1(Oneg _, e) -> neg !> e
-      | Papp1(Olnot _, e) -> not !> e
-      | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
-      | Papp2(Osub _, e1, e2) -> minu !> e1 !> e2
-      | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
-      | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) -> udiv !> e1 !> e2
-      | Papp2(Olxor _, e1, e2) -> xor !> e1 !> e2
-      | Papp2(Oland _, e1, e2) -> rand !> e1 !> e2
-      | Papp2(Olor _, e1, e2) -> ror !> e1 !> e2
-      | Papp2(Omod (Cmp_w (Unsigned,_)), e1, e2) -> umod !> e1 !> e2
-      | Papp2(Omod (Cmp_w (Signed,_)), e1, e2) -> smod !> e1 !> e2
-      | Papp2(Olsl _, e1, e2) ->  shl !> e1 !> e2
-      | Papp2(Olsr _, e1, e2) ->  shr !> e1 !> e2
-      | Papp1(Ozeroext (osz,isz), e1) -> Ruext (!> e1, (int_of_ws osz) - (int_of_ws isz))
-      | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
-      | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
-      | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
-      | Presult (_, x) -> Rvar (to_var x)
-      | _ -> assert false
+  let int_of_typ = function
+    | Bty (U ws) -> Some (int_of_ws ws)
+    | Bty (Bool) -> Some 1
+    | Bty (Abstract s) ->
+      begin
+        match String.to_list s with
+        | '/'::'*':: q -> Some (String.to_int (String.of_list q))
+        | _ -> assert false
+      end
+    | Bty (Int)  -> None
+    | _ -> assert false
 
-    let rec gexp_to_rpred ?(sign=s) e : CL.R.rpred =
-      let open CL.R in
-      let (!>) e = gexp_to_rexp ~sign e in
-      let (!>>) e = gexp_to_rpred ~sign e in
-      match e with
-      | Pbool (true) -> RPand []
-      | Pbool (false) -> assert false
-      | Papp1(Onot, e) -> RPnot (!>> e)
-      | Papp2(Oeq _, e1, e2) -> eq !> e1 !> e2
-      | Papp2(Obeq, e1, e2)  -> eq !> e1 !> e2
-      | Papp2(Oand, e1, e2)  -> RPand [!>> e1; !>> e2]
-      | Papp2(Oor, e1, e2)  -> RPor [!>> e1; !>> e2]
-      | Papp2(Ole (Cmp_w (Signed,_)), e1, e2)  -> sle !> e1 !>e2
-      | Papp2(Ole (Cmp_w (Unsigned,_)), e1, e2)  -> ule !> e1 !> e2
-      | Papp2(Olt (Cmp_w (Signed,_)), e1, e2)  -> slt !> e1 !> e2
-      | Papp2(Olt (Cmp_w (Unsigned,_)), e1, e2)  -> ult !> e1 !> e2
-      | Papp2(Oge (Cmp_w (Signed,_)), e1, e2)  -> sge !> e1 !> e2
-      | Papp2(Oge (Cmp_w (Unsigned,_)), e1, e2)  -> uge !> e1 !> e2
-      | Papp2(Ogt (Cmp_w (Signed,_)), e1, e2)  -> sgt !> e1 !> e2
-      | Papp2(Ogt (Cmp_w (Unsigned,_)), e1, e2)  -> ugt !> e1 !> e2
-      | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
-      | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
-      | Pabstract ({name="equmod64"}, [e1;e2;e3]) -> equmod !> e1 !> e2 !> e3
-      | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
-      | Pabstract ({name="u256_as_16u16"}, [e0;e1;e2;e3;e4;e5;e6;e7;e8;e9;e10;e11;e12;e13;e14;e15;e16]) -> 
-        RPand [] (* FIX ME: INTRODUCE AN INITIAL ASSIGNMENT! *)
-      | _ ->  assert false
+  let to_var ?(sign=S.s) x =
+    let var = L.unloc x.gv in
+    if sign then var, CL.Sint (Option.get (int_of_typ var.v_ty))
+    else var, CL.Uint (Option.get (int_of_typ var.v_ty))
 
-    let rec extract_list e aux =
-      match e with
-      | Pabstract ({name="single"}, [h]) -> [h]
-      | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
-      | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
-      | Pabstract ({name="word_nil"}, []) -> List.rev aux
-      | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
-      | _ -> assert false
+  let rec gexp_to_rexp ?(sign=S.s) e : CL.R.rexp =
+    let open CL.R in
+    let (!>) e = gexp_to_rexp ~sign e in
+    match e with
+    | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
+    | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws))
+    | Pvar x -> Rvar (to_var ~sign x)
+    | Papp1(Oneg _, e) -> neg !> e
+    | Papp1(Olnot _, e) -> not !> e
+    | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
+    | Papp2(Osub _, e1, e2) -> minu !> e1 !> e2
+    | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
+    | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) -> udiv !> e1 !> e2
+    | Papp2(Olxor _, e1, e2) -> xor !> e1 !> e2
+    | Papp2(Oland _, e1, e2) -> rand !> e1 !> e2
+    | Papp2(Olor _, e1, e2) -> ror !> e1 !> e2
+    | Papp2(Omod (Cmp_w (Unsigned,_)), e1, e2) -> umod !> e1 !> e2
+    | Papp2(Omod (Cmp_w (Signed,_)), e1, e2) -> smod !> e1 !> e2
+    | Papp2(Olsl _, e1, e2) ->  shl !> e1 !> e2
+    | Papp2(Olsr _, e1, e2) ->  shr !> e1 !> e2
+    | Papp1(Ozeroext (osz,isz), e1) -> Ruext (!> e1, (int_of_ws osz) - (int_of_ws isz))
+    | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
+    | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
+    | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
+    | Presult (_, x) -> Rvar (to_var x)
+    | _ -> assert false
 
-    let rec get_const x =
-      match x with
-      | Pconst z -> Z.to_int z
-      | Papp1 (Oword_of_int _ws, x) -> get_const x
-      | _ -> assert false
+  let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
+    let open CL.R in
+    let (!>) e = gexp_to_rexp ~sign e in
+    let (!>>) e = gexp_to_rpred ~sign e in
+    match e with
+    | Pbool (true) -> RPand []
+    | Pbool (false) -> assert false
+    | Papp1(Onot, e) -> RPnot (!>> e)
+    | Papp2(Oeq _, e1, e2) -> eq !> e1 !> e2
+    | Papp2(Obeq, e1, e2)  -> eq !> e1 !> e2
+    | Papp2(Oand, e1, e2)  -> RPand [!>> e1; !>> e2]
+    | Papp2(Oor, e1, e2)  -> RPor [!>> e1; !>> e2]
+    | Papp2(Ole (Cmp_w (Signed,_)), e1, e2)  -> sle !> e1 !>e2
+    | Papp2(Ole (Cmp_w (Unsigned,_)), e1, e2)  -> ule !> e1 !> e2
+    | Papp2(Olt (Cmp_w (Signed,_)), e1, e2)  -> slt !> e1 !> e2
+    | Papp2(Olt (Cmp_w (Unsigned,_)), e1, e2)  -> ult !> e1 !> e2
+    | Papp2(Oge (Cmp_w (Signed,_)), e1, e2)  -> sge !> e1 !> e2
+    | Papp2(Oge (Cmp_w (Unsigned,_)), e1, e2)  -> uge !> e1 !> e2
+    | Papp2(Ogt (Cmp_w (Signed,_)), e1, e2)  -> sgt !> e1 !> e2
+    | Papp2(Ogt (Cmp_w (Unsigned,_)), e1, e2)  -> ugt !> e1 !> e2
+    | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
+    | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
+    | Pabstract ({name="equmod64"}, [e1;e2;e3]) -> equmod !> e1 !> e2 !> e3
+    | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
+    | Pabstract ({name="u256_as_16u16"}, [e0;e1;e2;e3;e4;e5;e6;e7;e8;e9;e10;e11;e12;e13;e14;e15;e16]) -> 
+      RPand [] (* FIX ME: INTRODUCE AN INITIAL ASSIGNMENT! *)
+    | _ ->  assert false
 
-    let var_to_tyvar ?(sign=s) ?vector v : CL.tyvar =
-      match vector with
-      | None ->
-        begin
-          match int_of_typ v.v_ty with
-          | None -> v, CL.Bit
-          | Some w ->
-            if sign then v, CL.Sint w
-            else v, CL.Uint w
-        end
-      | Some (n,w) ->
-        begin
-          match int_of_typ v.v_ty with
-          | None -> assert false
-          | Some w' ->
-            assert (n * w = w' && not sign);
-            v, CL.Vector (n, CL.Uint w)
-        end
+  let rec extract_list e aux =
+    match e with
+    | Pabstract ({name="single"}, [h]) -> [h]
+    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
+    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
+    | Pabstract ({name="word_nil"}, []) -> List.rev aux
+    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
+    | _ -> assert false
 
-    let mk_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
-        ?(kind = (Wsize.Stack Direct)) ?(sign= s)
-        ?vector ty : CL.Instr.lval =
-      let v = CoreIdent.GV.mk name kind ty l [] in
-      var_to_tyvar ~sign ?vector v
+  let rec get_const x =
+    match x with
+    | Pconst z -> Z.to_int z
+    | Papp1 (Oword_of_int _ws, x) -> get_const x
+    | _ -> assert false
 
-    let wsize_of_int = function
-      | 8   -> Wsize.U8
-      | 16  -> Wsize.U16
-      | 32  -> Wsize.U32
-      | 64  -> Wsize.U64
-      | 128 -> Wsize.U128
-      | 256 -> Wsize.U256
-      | _ -> assert false
+  let var_to_tyvar ?(sign=S.s) ?vector v : CL.tyvar =
+    match vector with
+    | None ->
+      begin
+        match int_of_typ v.v_ty with
+        | None -> v, CL.Bit
+        | Some w ->
+          if sign then v, CL.Sint w
+          else v, CL.Uint w
+      end
+    | Some (n,w) ->
+      begin
+        match int_of_typ v.v_ty with
+        | None -> assert false
+        | Some w' ->
+          assert (n * w = w' && not sign);
+          v, CL.Vector (n, CL.Uint w)
+      end
 
-    let mk_spe_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
-        ?(kind = (Wsize.Stack Direct)) ?(sign= s)
-        size =
-      let size = String.to_list (String.of_int size) in
-      let s = String.of_list ('/'::'*':: size) in
-      mk_tmp_lval ~name ~l ~kind ~sign (Bty(Abstract s))
+  let mk_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
+      ?(kind = (Wsize.Stack Direct)) ?(sign=S.s)
+      ?vector ty : CL.Instr.lval =
+    let v = CoreIdent.GV.mk name kind ty l [] in
+    var_to_tyvar ~sign ?vector v
 
-    let rec gexp_to_eexp env ?(sign= s) e : CL.I.eexp =
-      let open CL.I in
-      let (!>) e = gexp_to_eexp env ~sign e in
-      match e with
-      | Pconst z -> Iconst z
-      | Pvar x -> Ivar (to_var ~sign x)
-      | Papp1 (Oword_of_int _ws, x) -> !> x
-      | Papp1 (Oint_of_word _ws, x) -> !> x
-      | Papp1(Oneg _, e) -> !- !> e
-      | Papp2(Oadd _, e1, e2) -> !> e1 + !> e2
-      | Papp2(Osub _, e1, e2) -> !> e1 - !> e2
-      | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
-      | Pabstract ({name="limbs"}, [h;q]) ->
-        begin
-          match !> h with
-          | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
-          | _ -> assert false
-        end
-      | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
-      | Pabstract ({name="mon"}, [c;a;b]) ->
-        let c = get_const c in
-        let v =
-          match Hash.find env c with
-          | exception Not_found ->
-            let name = "X" ^ "_" ^ string_of_int c in
-            let x =
-              mk_tmp_lval ~name (Bty Int)
-            in
-            Hash.add env c x;
-            x
-          | x -> x
-        in
-        mull !> b (power (Ivar v) !> a)
-      | Presult (_,x) -> Ivar (to_var ~sign x)
-      | _ -> assert false
+  let wsize_of_int = function
+    | 8   -> Wsize.U8
+    | 16  -> Wsize.U16
+    | 32  -> Wsize.U32
+    | 64  -> Wsize.U64
+    | 128 -> Wsize.U128
+    | 256 -> Wsize.U256
+    | _ -> assert false
 
-    let rec gexp_to_epred env ?(sign=s) e :CL.I.epred list =
-      let open CL.I in
-      let (!>) e = gexp_to_eexp env ~sign e in
-      let (!>>) e = gexp_to_epred env ~sign e in
-      match e with
-      | Papp2(Oeq _, e1, e2)  -> [Eeq (!> e1, !> e2)]
-      | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
-      | Pabstract ({name="eqmod"} as _opa, [h1;h2;h3]) ->
-        [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
-      | _ -> assert false
+  let mk_spe_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
+      ?(kind = (Wsize.Stack Direct)) ?(sign=S.s)
+      size =
+    let size = String.to_list (String.of_int size) in
+    let s = String.of_list ('/'::'*':: size) in
+    mk_tmp_lval ~name ~l ~kind ~sign (Bty(Abstract s))
 
-    let glval_to_lval ?(sign=s) x : CL.Instr.lval =
-      match x with
-      | Lvar v -> var_to_tyvar ~sign (L.unloc v)
-      | Lnone (l,ty)  ->
-        let name = "NONE____" in
-        mk_tmp_lval ~sign ~name ~l ty
-      | Lmem _ | Laset _ | Lasub _ -> assert false
+  let rec gexp_to_eexp env ?(sign=S.s) e : CL.I.eexp =
+    let open CL.I in
+    let (!>) e = gexp_to_eexp env ~sign e in
+    match e with
+    | Pconst z -> Iconst z
+    | Pvar x -> Ivar (to_var ~sign x)
+    | Papp1 (Oword_of_int _ws, x) -> !> x
+    | Papp1 (Oint_of_word _ws, x) -> !> x
+    | Papp1(Oneg _, e) -> !- !> e
+    | Papp2(Oadd _, e1, e2) -> !> e1 + !> e2
+    | Papp2(Osub _, e1, e2) -> !> e1 - !> e2
+    | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
+    | Pabstract ({name="limbs"}, [h;q]) ->
+      begin
+        match !> h with
+        | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
+        | _ -> assert false
+      end
+    | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
+    | Pabstract ({name="mon"}, [c;a;b]) ->
+      let c = get_const c in
+      let v =
+        match Hash.find env c with
+        | exception Not_found ->
+          let name = "X" ^ "_" ^ string_of_int c in
+          let x =
+            mk_tmp_lval ~name (Bty Int)
+          in
+          Hash.add env c x;
+          x
+        | x -> x
+      in
+      mull !> b (power (Ivar v) !> a)
+    | Presult (_,x) -> Ivar (to_var ~sign x)
+    | _ -> assert false
 
-    let gexp_to_var ?(sign=s) x : CL.tyvar =
-      match x with
-      | Pvar x -> var_to_tyvar ~sign (L.unloc x.gv)
-      | _ -> assert false
+  let rec gexp_to_epred env ?(sign=S.s) e :CL.I.epred list =
+    let open CL.I in
+    let (!>) e = gexp_to_eexp env ~sign e in
+    let (!>>) e = gexp_to_epred env ~sign e in
+    match e with
+    | Papp2(Oeq _, e1, e2)  -> [Eeq (!> e1, !> e2)]
+    | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
+    | Pabstract ({name="eqmod"} as _opa, [h1;h2;h3]) ->
+      [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
+    | _ -> assert false
 
-    let gexp_to_const ?(sign=s) x : CL.const * CL.ty =
-      match x with
-      | Papp1 (Oword_of_int ws, Pconst c) ->
-        if sign then (c, CL.Sint (int_of_ws ws))
-        else (c, CL.Uint (int_of_ws ws))
-      | _ -> assert false
+  let glval_to_lval ?(sign=S.s) x : CL.Instr.lval =
+    match x with
+    | Lvar v -> var_to_tyvar ~sign (L.unloc v)
+    | Lnone (l,ty)  ->
+      let name = "NONE____" in
+      mk_tmp_lval ~sign ~name ~l ty
+    | Lmem _ | Laset _ | Lasub _ -> assert false
 
-    let mk_const c : CL.const = Z.of_int c
+  let gexp_to_var ?(sign=S.s) x : CL.tyvar =
+    match x with
+    | Pvar x -> var_to_tyvar ~sign (L.unloc x.gv)
+    | _ -> assert false
 
-    let mk_const_atome ws ?(sign=s) c =
-      if sign then CL.Instr.Aconst (c, CL.Sint ws)
-      else CL.Instr.Aconst (c, CL.Uint ws)
+  let gexp_to_const ?(sign=S.s) x : CL.const * CL.ty =
+    match x with
+    | Papp1 (Oword_of_int ws, Pconst c) ->
+      if sign then (c, CL.Sint (int_of_ws ws))
+      else (c, CL.Uint (int_of_ws ws))
+    | _ -> assert false
 
-    let gexp_to_atome ?(sign=s) x : CL.Instr.atom =
-      match x with
-      | Pvar _ -> Avar (gexp_to_var ~sign x)
-      | Papp1 (Oword_of_int _, Pconst _) ->
-        let c,ty = gexp_to_const x in
-        Aconst (c,ty)
-      | _ -> assert false
+  let mk_const c : CL.const = Z.of_int c
 
-    let mk_lval_atome (lval: CL.Instr.lval) = CL.Instr.Avar (lval)
-  end
-  in (module S)
+  let mk_const_atome ws ?(sign=S.s) c =
+    if sign then CL.Instr.Aconst (c, CL.Sint ws)
+    else CL.Instr.Aconst (c, CL.Uint ws)
 
+  let gexp_to_atome ?(sign=S.s) x : CL.Instr.atom =
+    match x with
+    | Pvar _ -> Avar (gexp_to_var ~sign x)
+    | Papp1 (Oword_of_int _, Pconst _) ->
+      let c,ty = gexp_to_const x in
+      Aconst (c,ty)
+    | _ -> assert false
+
+  let mk_lval_atome (lval: CL.Instr.lval) = CL.Instr.Avar (lval)
+end
 
 let rec power acc n = match n with | 0 -> acc | n -> power (acc * 2) (n - 1)
 
@@ -945,7 +947,11 @@ module X86BaseOpU : BaseOp
   type op = X86_instr_decl.x86_op
   type extra_op = X86_extra.x86_extra_op
 
-  module I = (val sign false)
+  module S = struct
+    let s = false
+  end
+
+  module I = I (S)
 
   type trans =
     | Cas1
@@ -1515,7 +1521,12 @@ module X86BaseOpS : BaseOp
   type op = X86_instr_decl.x86_op
   type extra_op = X86_extra.x86_extra_op
 
-  module I = (val sign true)
+
+  module S = struct
+    let s = true
+  end
+
+  module I = I (S)
 
   type trans =
     | Cas1
@@ -1712,7 +1723,11 @@ module ARMBaseOp : BaseOp
   type op = Arm_instr_decl.arm_op
   type extra_op = Arm_extra.arm_extra_op
 
-  module I = (val sign false)
+  module S = struct
+    let s = false
+  end
+
+  module I = I (S)
 
   let ws = Wsize.U32
 
