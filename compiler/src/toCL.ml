@@ -609,7 +609,7 @@ let sign s : (module I) =
       | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
       | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
       | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
-      | Presult (_, x) -> Rvar (to_var x)
+      | Presult (_, x) -> Rvar (to_var ~sign x)
       | _ -> assert false
 
     let rec gexp_to_rpred ?(sign= s) e : CL.R.rpred =
@@ -887,6 +887,8 @@ module X86BaseOpU : BaseOp
         | Cas1 ->
           let l_tmp = I.mk_spe_tmp_lval 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
+        | Cas2 ->
+          i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
         | _ -> assert false
       end
 
@@ -1434,7 +1436,8 @@ module X86BaseOpS : BaseOp
         | Cas1 ->
           let l_tmp = I.mk_spe_tmp_lval 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
-        | _ -> assert false
+        | Cas2 ->
+          i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
       end
 
     | SUB ws ->
@@ -1448,10 +1451,18 @@ module X86BaseOpS : BaseOp
         | Cas1 ->
           let l_tmp = I.mk_spe_tmp_lval ~sign:true 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
-        | _ -> assert false
+        | Cas2 ->
+          i1 @ i2 @ [CL.Instr.Op2.sub l a1 a2]
       end
 
     | IMULr ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l = I.glval_to_lval ~sign:true (List.nth xs 5) in
+      let l_tmp = I.mk_tmp_lval ~sign:true (CoreIdent.tu ws) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2]
+
+    | IMULri ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l = I.glval_to_lval ~sign:true (List.nth xs 5) in
@@ -1526,6 +1537,18 @@ module X86BaseOpS : BaseOp
     | MOVSX (ws1, ws2) ->
       begin
         match trans with
+        | Smt ->
+          let a,i = cast_atome ws2 (List.nth es 0) in
+          let sign = true in
+          let l_tmp1 = I.mk_tmp_lval ~sign (CoreIdent.tu ws2) in
+          let ty1 = CL.Sint (int_of_ws ws2) in
+          let l_tmp2 = I.mk_tmp_lval ~sign (CoreIdent.tu ws1) in
+          let ty2 = CL.Sint (int_of_ws ws1) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let ty3 = CL.Uint (int_of_ws ws1) in
+          i @ [CL.Instr.cast ty1 l_tmp1 a;
+               CL.Instr.cast ty2 l_tmp2 !l_tmp1;
+               CL.Instr.cast ty3 l !l_tmp2]
         | Cas1 ->
           let a,i = cast_atome ws2 (List.nth es 0) in
           let c = Z.of_int (int_of_ws ws2 - 1) in
@@ -1546,7 +1569,134 @@ module X86BaseOpS : BaseOp
               ]
         | _ -> assert false
       end
-    | _ -> assert false
+    (*
+|SETcc -> assert false
+|CLC -> assert false
+|STC -> assert false
+|VBROADCASTI128 -> assert false
+|VEXTRACTI128 -> assert false
+|VINSERTI128 -> assert false
+|VPERM2I128 -> assert false
+|VPERMD -> assert false
+|VPERMQ -> assert false
+|VMOVLPD -> assert false
+|VMOVHPD -> assert false
+|CLFLUSH -> assert false
+|LFENCE -> assert false
+|MFENCE -> assert false
+|SFENCE -> assert false
+|AESDEC -> assert false
+|AESDECLAST -> assert false
+|AESENC -> assert false
+|AESENCLAST -> assert false
+|AESIMC -> assert false
+|VAESIMC -> assert false
+|AESKEYGENASSIST -> assert false
+|VAESKEYGENASSIST -> assert false
+|PCLMULQDQ -> assert false
+|MOVZX (_, _) -> assert false
+|CMOVcc _ -> assert false
+|XCHG _ -> assert false
+|MUL _ -> assert false
+|IMUL _ -> assert false
+|IMULri _ -> assert false
+|DIV _ -> assert false
+|IDIV _ -> assert false
+|CQO _ -> assert false
+|ADC _ -> assert false
+|SBB _ -> assert false
+|LZCNT _ -> assert false
+|BT _ -> assert false
+|LEA _ -> assert false
+|TEST _ -> assert false
+|CMP _ -> assert false
+|AND _ -> assert false
+|ANDN _ -> assert false
+|OR _ -> assert false
+|XOR _ -> assert false
+|NOT _ -> assert false
+|ROR _ -> assert false
+|ROL _ -> assert false
+|RCR _ -> assert false
+|RCL _ -> assert false
+|SHR _ -> assert false
+|SAL _ -> assert false
+|SHLD _ -> assert false
+|SHRD _ -> assert false
+|RORX _ -> assert false
+|SARX _ -> assert false
+|SHRX _ -> assert false
+|SHLX _ -> assert false
+|MULX_lo_hi _ -> assert false
+|ADCX _ -> assert false
+|ADOX _ -> assert false
+|BSWAP _ -> assert false
+|POPCNT _ -> assert false
+|PEXT _ -> assert false
+|PDEP _ -> assert false
+|MOVX _ -> assert false
+|MOVD _ -> assert false
+|MOVV _ -> assert false
+|VMOV _ -> assert false
+|VMOVDQA _ -> assert false
+|VMOVDQU _ -> assert false
+|VPMOVSX (_, _, _, _) -> assert false
+|VPMOVZX (_, _, _, _) -> assert false
+|VPAND _ -> assert false
+|VPANDN _ -> assert false
+|VPOR _ -> assert false
+|VPXOR _ -> assert false
+|VPADD (_, _) -> assert false
+|VPSUB (_, _) -> assert false
+|VPAVG (_, _) -> assert false
+|VPMULL (_, _) -> assert false
+|VPMULH _ -> assert false
+|VPMULHU _ -> assert false
+|VPMULHRS _ -> assert false
+|VPMUL _ -> assert false
+|VPMULU _ -> assert false
+|VPEXTR _ -> assert false
+|VPINSR _ -> assert false
+|VPSLL (_, _) -> assert false
+|VPSRL (_, _) -> assert false
+|VPSRA (_, _) -> assert false
+|VPSLLV (_, _) -> assert false
+|VPSRLV (_, _) -> assert false
+|VPSLLDQ _ -> assert false
+|VPSRLDQ _ -> assert false
+|VPSHUFB _ -> assert false
+|VPSHUFD _ -> assert false
+|VPSHUFHW _ -> assert false
+|VPSHUFLW _ -> assert false
+|VPBLEND (_, _) -> assert false
+|VPBLENDVB _ -> assert false
+|VPACKUS (_, _) -> assert false
+|VPACKSS (_, _) -> assert false
+|VSHUFPS _ -> assert false
+|VPBROADCAST (_, _) -> assert false
+|VMOVSHDUP _ -> assert false
+|VMOVSLDUP _ -> assert false
+|VPALIGNR _ -> assert false
+|VPUNPCKH (_, _) -> assert false
+|VPUNPCKL (_, _) -> assert false
+|VPMOVMSKB (_, _) -> assert false
+|VPCMPEQ (_, _) -> assert false
+|VPCMPGT (_, _) -> assert false
+|VPMADDUBSW _ -> assert false
+|VPMADDWD _ -> assert false
+|VPMINU (_, _) -> assert false
+|VPMINS (_, _) -> assert false
+|VPMAXU (_, _) -> assert false
+|VPMAXS (_, _) -> assert false
+|VPTEST _ -> assert false
+|RDTSC _ -> assert false
+|RDTSCP _ -> assert false
+|VAESDEC _ -> assert false
+|VAESDECLAST _ -> assert false
+|VAESENC _ -> assert false
+|VAESENCLAST _ -> assert false
+|VPCLMULQDQ _ -> assert false *)
+| _ -> assert false
 end
 
 let x86BaseOpsign s :
