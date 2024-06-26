@@ -699,6 +699,8 @@ module type I = sig
     ?kind:Wsize.v_kind ->
     ?sign:bool ->
     ?vector:int * int -> int Jasmin__CoreIdent.gty -> CL.Instr.lval
+  val wsize_of_int:
+    int -> Wsize.wsize
   val mk_spe_tmp_lval :
     ?name:Jasmin__CoreIdent.Name.t ->
     ?l:Prog.L.t ->
@@ -831,6 +833,15 @@ let sign s : (module I) =
         ?vector ty : CL.Instr.lval =
       let v = CoreIdent.GV.mk name kind ty l [] in
       var_to_tyvar ~sign ?vector v
+
+    let wsize_of_int = function
+      | 8   -> Wsize.U8
+      | 16  -> Wsize.U16
+      | 32  -> Wsize.U32
+      | 64  -> Wsize.U64
+      | 128 -> Wsize.U128
+      | 256 -> Wsize.U256
+      | _ -> assert false
 
     let mk_spe_tmp_lval ?(name = "TMP____") ?(l = L._dummy)
         ?(kind = (Wsize.Stack Direct)) ?(sign= s)
@@ -1301,11 +1312,11 @@ module X86BaseOpU : BaseOp
       let ty = CL.Uint (int_of_ws ws1) in
       i @ [CL.Instr.cast ty l a]
 
-    | VPADD (v,ws) ->
+    | VPADD (ve,ws) ->
       begin
-      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
-      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
-      let v = int_of_velem v in
+      let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
+      let v = int_of_velem ve in
       let s = int_of_ws ws in
       let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
@@ -1314,7 +1325,7 @@ module X86BaseOpU : BaseOp
         | Smt ->
           i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
         | Cas1 ->
-          let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
           i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3
         | _ -> assert false
       end
