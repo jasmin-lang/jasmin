@@ -135,6 +135,19 @@ output corruption: #transient
  constraints:
 
 
+File bug_852.jazz:
+nomodmsf reset : #public ->
+
+output corruption: #public
+ constraints:
+
+
+modmsf main : #transient ->
+
+output corruption: #public
+ constraints:
+
+
 File corruption.jazz:
 nomodmsf corrupts_memory : #public * #secret *
                            #[ptr = public, val = secret] *
