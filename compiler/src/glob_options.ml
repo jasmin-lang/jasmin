@@ -29,6 +29,7 @@ let color = ref Auto
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
+let old_ct = ref false
 let print_stack_alloc = ref false
 let introduce_array_copy = ref true
 let print_dependencies = ref false 
@@ -84,7 +85,17 @@ let set_ec_array_path p =
 let set_slice f =
   slice := f :: !slice
 
-let set_constTime () = model := ConstantTime
+let set_constTime () =
+  old_ct := true;
+  model := ConstantTime
+
+let set_leak l =
+  let assoc = function
+    | "none" -> Normal
+    | "ct" -> ConstantTime
+    | "value" -> ValLeak
+    | _ -> assert false
+  in model := assoc l
 
 let set_checksafety () = check_safety := true
 let set_safetyparam s = safety_param := Some s
@@ -183,7 +194,8 @@ let options = [
     "-ec"       , Arg.String  set_ec    , "[f] Extract function [f] and its dependencies to an easycrypt file";
     "-oec"     ,  Arg.Set_string ecfile , "[filename] Use filename as output destination for easycrypt extraction";
     "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path";
-    "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification";
+    "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification (deprecated)";
+    "-leak", Arg.Symbol ([ "none"; "ct"; "value" ], set_leak), "Generate model for leakage verification";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
