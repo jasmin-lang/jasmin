@@ -19,6 +19,7 @@ let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
 let trust_aligned = ref false
+let ppwidth = ref 80
 
 let help_version = ref false
 let help_intrinsics = ref false
@@ -84,7 +85,6 @@ let set_slice f =
   slice := f :: !slice
 
 let set_constTime () = model := ConstantTime
-let set_safety () = model := Safety
 
 let set_checksafety () = check_safety := true
 let set_safetyparam s = safety_param := Some s
@@ -185,7 +185,6 @@ let options = [
     "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
-    "-safety", Arg.Unit set_safety      , " Generate model for safety verification (deprecated)";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
     " Parameter for automatic safety verification:\n    \
@@ -221,7 +220,8 @@ let options = [
     "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       " Select stack zeroization size for export functions";
-    "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation"
+    "-pliveness", Arg.Set print_liveness, " Print liveness information during register allocation";
+    "-ppwidth", Arg.Set_int ppwidth, " Set column width for pretty-printing."
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

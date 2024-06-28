@@ -2,24 +2,28 @@
 
 set -e
 
-DIR=$(mktemp -d jasminXXXXXX)
+mkdir -p test_extraction
+DIR=$(mktemp -d -p test_extraction jasminXXXXXX)
 EC=${DIR}/jasmin.ec
 CT=${DIR}/jasmin_ct.ec
 
-if [ "$1" = "arm" ]
-then
+if [ "$1" = "arm" ]; then
 	shift
 	ARCH="-arch arm-m4"
 else
 	ARCH="-arch x86-64"
 fi
 
-trap "rm -r ${DIR}" EXIT
+# trap "rm -r ${DIR}" EXIT
+
+ECLIB=$(dirname $0)/../../eclib
 
 set -x
 
-$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -oec ${EC} "$@"
-$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$@"
+echo $(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -oec ${EC} "$2"
+echo $(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$2"
+$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -oec ${EC} "$2"
+$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$2"
 
-easycrypt ${ECARGS} ${EC}
-easycrypt ${ECARGS} ${CT}
+easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${EC}
+easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${CT}
