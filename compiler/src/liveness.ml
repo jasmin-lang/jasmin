@@ -10,16 +10,19 @@ let dep_lv s_o x =
 let dep_lvs s_o xs =
   List.fold_left dep_lv s_o xs
 
-let writev_lval s = function
+(** Adds to [s] variables that are used as destination or to compute a
+destination (array index, memory offset) *)
+let weak_dep_lv s = function
   | Lnone _     -> s
   | Lvar x      -> Sv.add (L.unloc x) s
-  | Lmem _      -> s
-  | Laset(_, _, _, x, _)
-  | Lasub(_, _, _, x, _) -> Sv.add (L.unloc x) s
+  | Lmem(_, _, x, e)
+  | Laset(_, _, _, x, e)
+  | Lasub(_, _, _, x, e) -> Sv.add (L.unloc x) (Sv.union (vars_e e) s)
 
-let writev_lvals s lvs = List.fold_left writev_lval s lvs
+let weak_dep_lvs s lvs = List.fold_left weak_dep_lv s lvs
 
-(* When [weak] is true, the out live-set contains also the written variables. *)
+(* When [weak] is true, the out live-set contains also the written variables and
+the variables that are used for evaluating LHS expressions. *)
 let rec live_i weak i s_o =
   let s_i, s_o, d = live_d weak i.i_desc s_o in
   s_i, { i with i_desc = d; i_info = (s_i, s_o); }
@@ -30,7 +33,7 @@ and live_d weak d (s_o: Sv.t) =
 
     let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
     let s_o =
-      if weak then writev_lval s_o x
+      if weak then weak_dep_lv s_o x
       else s_o in
     s_i, s_o, Cassgn(x, tg, ty, e)
 
@@ -38,7 +41,7 @@ and live_d weak d (s_o: Sv.t) =
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     let s_o =
      if weak
-     then writev_lvals s_o xs
+     then weak_dep_lvs s_o xs
      else s_o in
     s_i, s_o, Copn(xs,t,o,es)
 
@@ -63,11 +66,11 @@ and live_d weak d (s_o: Sv.t) =
 
   | Ccall(xs,f,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(xs,f,es)
+    s_i, (if weak then weak_dep_lvs s_o xs else s_o), Ccall(xs,f,es)
 
   | Csyscall(xs,o,es) ->
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    s_i, (if weak then writev_lvals s_o xs else s_o), Csyscall(xs,o,es)
+    s_i, (if weak then weak_dep_lvs s_o xs else s_o), Csyscall(xs,o,es)
 
 and live_c weak c s_o =
   List.fold_right

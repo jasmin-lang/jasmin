@@ -35,7 +35,9 @@ module type Core_arch = sig
   val known_implicits : (Name.t * string) list
 
   val is_ct_asm_op : asm_op -> bool
+  val is_doit_asm_op : asm_op -> bool
   val is_ct_asm_extra : extra_op -> bool
+  val is_doit_asm_extra : extra_op -> bool
 
 end
 
@@ -71,7 +73,7 @@ module type Arch = sig
 
   val arch_info : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Pretyping.arch_info
 
-  val is_ct_sopn : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op -> bool
+  val is_ct_sopn : ?doit:bool -> (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op -> bool
 end
 
 module Arch_from_Core_arch (A : Core_arch) :
@@ -198,9 +200,9 @@ module Arch_from_Core_arch (A : Core_arch) :
       flagnames = List.map fst known_implicits;
     }
 
-  let is_ct_sopn (o : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) =
+  let is_ct_sopn ?(doit = false) (o : (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) =
    match o with
-   | BaseOp (_, o) -> is_ct_asm_op o
-   | ExtOp o -> is_ct_asm_extra o
+   | BaseOp (_, o) -> (if doit then is_doit_asm_op else is_ct_asm_op) o
+   | ExtOp o -> (if doit then is_doit_asm_extra else is_ct_asm_extra) o
 
 end

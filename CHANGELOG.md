@@ -3,18 +3,18 @@
 
 ## New features
 
-- The executable `jazzct` for checking constant time is renamed into
-  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
-  ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
-
-- The instructions of the VAES extension are available through a size suffix
-  (e.g., `VAESENC_256`)
-  ([PR #831](https://github.com/jasmin-lang/jasmin/pull/831),
-  fixes [#630](https://github.com/jasmin-lang/jasmin/issues/630)).
-
-- The following x86 BMI2 instructions are now available:
-  `RORX`, `SARX`, `SHRX`, and `SHLX`
-  ([PR #824](https://github.com/jasmin-lang/jasmin/pull/824)).
+- The stack allocation checker accepts more programs. This checker is run
+  during the stack allocation pass to verify that the transformation done
+  by the pass (mostly, turning arrays accesses into memory accesses)
+  is correct. It ensures that there is no aliasing problem when two arrays
+  are put in the same place in memory. Before, an assignment `a1 = a2`, where
+  `a1` and `a2` are two arrays, was accepted only if there was no aliasing
+  issue on `a2`, and `a1` was marked as having no aliasing issue.
+  Now, there is no such requirement on `a2`, and `a1` is marked as having
+  the same aliasing issues as `a2`.
+  This gives in particular more freedom for spilling and unspilling reg ptr,
+  see `compiler/tests/success/subarrays/x86-64/spill_partial.jazz`.
+  ([PR #841](https://github.com/jasmin-lang/jasmin/pull/841)).
 
 - ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
   immediates whose negation is small, a single `MVN`; and for large immediates
@@ -27,6 +27,12 @@
   For now, writable `ptr` must come first in the list of arguments and be
   returned first and in the same order in the list of results.
   ([PR #707](https://github.com/jasmin-lang/jasmin/pull/707)).
+
+- The (speculative) constant-time checker can optionally check that secrets are
+  only used with guaranteed constant time instructions (DOIT for Intel, DIT for
+  ARM)
+  ([PR #736](https://github.com/jasmin-lang/jasmin/pull/736),
+  [PR #811](https://github.com/jasmin-lang/jasmin/pull/811)).
 
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
@@ -110,6 +116,10 @@
 
 ## Bug fixes
 
+- Truncation of stack variables is handled correctly
+  ([PR #848](https://github.com/jasmin-lang/jasmin/pull/848);
+  fixes [#681](https://github.com/jasmin-lang/jasmin/issues/681)).
+
 - The compiler rejects ARM intrincics with the `S` suffix if the instruction
   does not set flags
   ([PR #809](https://github.com/jasmin-lang/jasmin/pull/809);
@@ -162,6 +172,10 @@
 
 ## Other changes
 
+- Extraction to EasyCrypt for safety verification is deprecated;
+  it has been broken for a while, and is now explicitly unmaintained
+  ([PR #849](https://github.com/jasmin-lang/jasmin/pull/849)).
+
 - Pretty-printing of Jasmin programs is more precise
   ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).
 
@@ -171,6 +185,25 @@
 
 - The deprecated legacy interface to the CT checker has been removed
   ([PR #769](https://github.com/jasmin-lang/jasmin/pull/769)).
+
+# Jasmin 2023.06.4 — 2024-06-18
+
+## New features
+
+- The instructions of the VAES extension are available through a size suffix
+  (e.g., `VAESENC_256`)
+  ([PR #831](https://github.com/jasmin-lang/jasmin/pull/831),
+  fixes [#630](https://github.com/jasmin-lang/jasmin/issues/630)).
+
+- The following x86 BMI2 instructions are now available:
+  `RORX`, `SARX`, `SHRX`, and `SHLX`
+  ([PR #824](https://github.com/jasmin-lang/jasmin/pull/824)).
+
+## Other changes
+
+- The executable `jazzct` for checking constant time is renamed into
+  `jasmin-ct`, similarly the executable `jazz2tex` is renamed into `jasmin2tex`
+  ([PR #838](https://github.com/jasmin-lang/jasmin/pull/838)).
 
 - In x86 assembly, 8-bit immediate operands are printed unsigned,
   i.e., in the range [0; 255]
