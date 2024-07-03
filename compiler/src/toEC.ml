@@ -988,28 +988,35 @@ let init_leakv env c = match env.model with
     } in
     { env with leakvs = List.init (max_nesting + 1) leakv }
 
+let leakw env = Format.sprintf "LeakW%s" (string_of_wsize env.pd)
+
 let leak_cond e = Eapp (ec_ident "LeakCond", [e])
 
-let leak_addr e = Eapp (ec_ident "LeakAddr", [e])
+let leak_addr_b el = Eapp (ec_ident "LeakAddr", [Elist el])
+let leak_addr e = leak_addr_b [e]
+let leak_ae = leak_addr_b []
 
 let leak_for e1 e2 = Eapp (ec_ident "LeakFor", [Etuple [e1; e2]])
 
+let leak_word env e = Eapp (ec_ident (leakw env), [e])
+
 let leak_const env z: ec_expr list = match env.model with
   | Normal | ConstantTime -> []
-  | ValLeak -> [leak_cond (Econst z)]
+  | ValLeak -> [leak_addr (Econst z)]
 
 let leak_bool env b = match env.model with
   | Normal | ConstantTime -> []
-  | ValLeak -> [Ebool b]
+  | ValLeak -> [leak_cond (Ebool b)]
 
 let leak_var env v = match env.model with
   | Normal | ConstantTime -> []
-  | ValLeak -> [toec_expr env (Pvar v)]
+  | ValLeak -> [leak_word env (toec_expr env (Pvar v))]
 
 let leak_addrv env x e = match env.model with
   | Normal -> []
   | ConstantTime | ValLeak ->
-      [toec_expr env (int_of_word env.pd (snd (add_ptr env.pd (gkvar x) e)))]
+      let addr = int_of_word env.pd (snd (add_ptr env.pd (gkvar x) e)) in
+      [leak_addr (toec_expr env (addr))]
 
 let rec leaks_e_rec env leaks e =
   match e with
@@ -1018,7 +1025,7 @@ let rec leaks_e_rec env leaks e =
   | Parr_init _ -> leaks
   | Pvar v -> (leak_var env v) @ leaks
   | Pload (_,_,x,e) -> leaks_e_rec env ((leak_addrv env x e) @ leaks) e
-  | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ((toec_expr env e)::leaks) e
+  | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ([leak_addr (toec_expr env e)] @ leaks) e
   | Papp1 (_, e) -> leaks_e_rec env leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec env (leaks_e_rec env leaks e1) e2
   | PappN (_, es) -> leaks_es_rec env leaks es
@@ -1026,17 +1033,21 @@ let rec leaks_e_rec env leaks e =
 and leaks_es_rec env leaks es = List.fold_left (leaks_e_rec env) leaks es
 
 let leaks_e env e = leaks_e_rec env [] e
+
 let leaks_es env es = leaks_es_rec env [] es
 
 let leaks_lval env = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec env [toec_expr env e] e
-  | Lmem (_, _, x,e) -> leaks_e_rec env [toec_expr env (int_of_word env.pd (snd (add_ptr env.pd (gkvar x) e)))] e
-
+  | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec env [leak_addr (toec_expr env e)] e
+  | Lmem (_, _, x,e) -> leaks_e_rec env (leak_addrv env x e) e
 
 let ec_newleaks_ct leaks =
-  let add_leak lacc l = Eop2 (Infix "::", l, lacc) in
-  List.fold_left add_leak (ec_ident "leakages") leaks
+  let leaks = match leaks with
+    | [Eapp (Eident ["LeakAddr"], [Elist [a]]); Eapp (Eident ["LeakAddr"], [Elist [b]])] -> [leak_addr_b [a; b]]
+    | _ -> leaks
+  in
+  let add_leak l lacc = Eop2 (Infix "::", l, lacc) in
+  List.fold_right add_leak leaks (ec_ident "leakages")
 
 let env_leak env = List.hd env.leakvs
 
@@ -1052,18 +1063,18 @@ let ec_addleaks env leaks =
   | ConstantTime -> [asgn "leakages" (ec_newleaks_ct leaks)]
   | ValLeak -> [asgn (env_leakacc env) (ec_newleaks_val env leaks)]
 
-let ec_leaks env es = ec_addleaks env [leak_addr (Elist es)]
-
-let ec_leaks_e env e = ec_leaks env (leaks_e env e)
-
-let ec_leaks_es env es = ec_leaks env (leaks_es env es)
+let ec_addleaks_i env leaks = match env.model with
+  | Normal | ValLeak -> ec_addleaks env leaks
+  | ConstantTime ->
+      let leaks = (match leaks with | [] -> [leak_ae] | _ :: _ -> leaks) in
+      ec_addleaks env leaks
 
 let ec_leaks_lv env lv = 
     match env.model with
     | ConstantTime | ValLeak -> 
         let leaks = leaks_lval env lv in
         if leaks = [] then []
-        else ec_leaks env leaks
+        else ec_addleaks_i env leaks
     | Normal -> []
 
 let ec_leaks_lvs env lvs = List.concat_map (ec_leaks_lv env) lvs
@@ -1072,16 +1083,14 @@ let ec_leaks_opn env lvs es =
     match env.model with
     | Normal -> []
     | ConstantTime ->
-          ec_leaks env (leaks_es env es)
+          ec_addleaks_i env (leaks_es env es)
     | ValLeak ->
         (* FIXME: we should also have this leakage for CT extraction *)
         (ec_leaks_lvs env lvs) @
-          ec_leaks env (leaks_es env es)
-
-let leak_ae = leak_addr (Elist [])
+          ec_addleaks env (leaks_es env es)
 
 let ec_leaks_for env e1 e2 = 
-  (leaks_es env [e1; e2]) @ [leak_ae; leak_for (toec_expr env e1) (toec_expr env e2)]
+  (leaks_es env [e1; e2]) @ [leak_for (toec_expr env e1) (toec_expr env e2); leak_ae]
 
 let ec_assgn env lv (etyo, etyi) e =
     let e = e |> ec_wzeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
@@ -1097,6 +1106,8 @@ let ec_instr_aux env lvs etyso etysi instr =
     let assgn_auxs = List.flatten (List.map2 (ec_assgn_i env) lvs tyauxs) in
     call @ assgn_auxs
 
+let leaklist e = Eapp ((ec_ident "LeakList"), [e])
+
 let ec_pcall env lvs otys f args =
   let ltys = List.map ty_lval lvs in
   if env.model = Normal && (lvs = [] || (check_lvals lvs && ltys = otys)) then
@@ -1108,7 +1119,7 @@ let ec_pcall env lvs otys f args =
       | ValLeak ->
           let call = (env_leak env).call in
           (call_instr ((LvIdent [call]) :: lvals))
-          @ (listappend (env_leakacc env) (ec_ident call))
+          @ (listappend (env_leakacc env) (leaklist (ec_ident call)))
           
     in
       ec_instr_aux env lvs otys otys call_instr
@@ -1136,12 +1147,21 @@ let leaking_block env f = match env.model with
     in
     (reset_leakacc new_env) @ f new_env @  leak_update
 
-let rec toec_cmd env c = List.flatten (List.map (toec_instr env) c)
+let rec toec_cmd env c =
+  let instr_comment idx i = match env.model with
+  | Normal | ConstantTime -> []
+  | ValLeak ->
+      [EScomment (
+        Format.asprintf "--- %i: %a ---" idx (Printer.pp_instr ~debug:false env.pd env.asmOp) i
+      )]
+    in
+  let map_instr idx i = (instr_comment idx i) @ (toec_instr env i) in
+  List.flatten (List.mapi map_instr c)
 
 and toec_instr env i =
     match i.i_desc with
     | Cassgn (lv, _, _, (Parr_init _ as e)) ->
-        (ec_leaks_e env e) @
+        (ec_addleaks_i env (leaks_e env e)) @
         [toec_lval1 env lv (ec_ident "witness")]
     | Cassgn (lv, _, _, e) -> (
         match env.model with
@@ -1150,8 +1170,8 @@ and toec_instr env i =
             [toec_lval1 env lv e]
         | ConstantTime | ValLeak ->
             let tys = [ty_expr e] in
-            (ec_leaks_e env e) @
-            ec_call env [lv] tys tys (toec_expr env e)
+            (ec_addleaks_i env (leaks_e env e)) @
+            (ec_call env [lv] tys tys (toec_expr env e))
             (* TODO add ValLeak leakage *)
     )
     | Copn ([], _, op, es) ->
@@ -1172,14 +1192,14 @@ and toec_instr env i =
     | Ccall (lvs, f, es) ->
         let otys, itys = get_funtype env f in
         let args = List.map (ec_wcast env) (List.combine itys es) in
-        (ec_leaks_es env es) @
+        (ec_addleaks_i env (leaks_es env es)) @
         (ec_pcall env lvs otys [get_funname env f] args)
     | Csyscall (lvs, o, es) ->
         let s = Syscall.syscall_sig_u o in
         let otys = List.map Conv.ty_of_cty s.scs_tout in
         let itys =  List.map Conv.ty_of_cty s.scs_tin in
         let args = List.map (ec_wcast env) (List.combine itys es) in
-        (ec_leaks_es env es) @
+        (ec_addleaks_i env (leaks_es env es)) @
         (ec_pcall env lvs otys [ec_syscall env o] args)
     | Cif (e, c1, c2) ->
         let cmd_if env = 
@@ -1190,7 +1210,7 @@ and toec_instr env i =
           match env.model with
           | Normal -> cmd_if env
           | ConstantTime ->
-              (ec_addleaks env ((leaks_e env e) @ [leak_ae; lcond]))
+              (ec_addleaks env ((leaks_e env e) @ [lcond; leak_ae]))
               @ (cmd_if env)
           | ValLeak ->
               let condvar = (env_leak env).ctrl in
@@ -1209,7 +1229,7 @@ and toec_instr env i =
           match env.model with
           | Normal -> (toec_cmd env c1) @ (cmd_while env [] [])
           | ConstantTime ->
-              let leak_e = ec_addleaks env ((leaks_e env e) @ [leak_ae; lcond]) in
+              let leak_e = ec_addleaks env ((leaks_e env e) @ [lcond; leak_ae]) in
               (toec_cmd env c1) @ leak_e @ (cmd_while env [] leak_e)
           | ValLeak ->
               let condvar = (env_leak env).ctrl in
@@ -1319,7 +1339,7 @@ let toec_fun env f =
     Mty.iter (fun ty _ -> add_ty env ty) env.auxv;
     let ec_locals_leakage =
       let leakv_vars leakv =
-        List.map (fun v -> (v, "leakage")) [leakv.acc; leakv.ctrl; leakv.loop_body; leakv.call]
+        List.map (fun v -> (v, "leakages")) [leakv.acc; leakv.ctrl; leakv.loop_body; leakv.call]
       in
       List.concat_map leakv_vars env.leakvs
     in
@@ -1347,7 +1367,7 @@ let toec_fun env f =
             | [x] -> ESreturn x
             | xs -> ESreturn (Etuple xs)
           )
-          | ValLeak -> ESreturn (Etuple ((ec_ident (env_leakacc env)) :: ret_vars)) 
+          | ValLeak -> ESreturn (Etuple ((env |> env_leakacc |> ec_ident |> leaklist) :: ret_vars)) 
     in
     let leak_rty = match env.model with
       | Normal | ConstantTime -> []
