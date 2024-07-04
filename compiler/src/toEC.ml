@@ -980,11 +980,13 @@ let init_leakv env c = match env.model with
   | Normal | ConstantTime -> env
   | ValLeak ->
     let max_nesting = block_nesting c in
-    let leakv i = {
-      acc = create_name env "leak";
-      ctrl = create_name env "leak_c";
-      loop_body = create_name env "leak_b";
-      call= create_name env "leak_call";
+    let leakv i =
+      let suf = if i = 0 then "" else Format.sprintf "_%i" i in
+      {
+      acc = create_name env ("leak" ^ suf);
+      ctrl = create_name env ("leak_c" ^ suf);
+      loop_body = create_name env ("leak_b" ^ suf);
+      call = create_name env ("leak_call" ^ suf);
     } in
     { env with leakvs = List.init (max_nesting + 1) leakv }
 
@@ -1035,6 +1037,13 @@ and leaks_es_rec env leaks es = List.fold_left (leaks_e_rec env) leaks es
 let leaks_e env e = leaks_e_rec env [] e
 
 let leaks_es env es = leaks_es_rec env [] es
+
+let leaks_es_noval env es =
+  let model = match env.model with
+    | ConstantTime | ValLeak -> ConstantTime
+    | Normal -> Normal
+  in
+  leaks_es { env with model } es
 
 let leaks_lval env = function
   | Lnone _ | Lvar _ -> []
@@ -1108,19 +1117,19 @@ let ec_instr_aux env lvs etyso etysi instr =
 
 let leaklist e = Eapp ((ec_ident "LeakList"), [e])
 
-let ec_pcall env lvs otys f args =
+let ec_pcall env ?(syscall=false) lvs otys f args =
   let ltys = List.map ty_lval lvs in
   if env.model = Normal && (lvs = [] || (check_lvals lvs && ltys = otys)) then
     [EScall (ec_lvals env lvs, f, args)]
   else
     let call_instr lvals = [EScall (lvals, f, args)] in
-    let call_instr lvals = match env.model with
-      | Normal | ConstantTime -> call_instr lvals
-      | ValLeak ->
+      (* FIXME: we should have leakage on syscalls, at least on the returned value ? *)
+    let call_instr lvals = if env.model = ValLeak && not syscall then
           let call = (env_leak env).call in
           (call_instr ((LvIdent [call]) :: lvals))
-          @ (listappend (env_leakacc env) (leaklist (ec_ident call)))
-          
+          @ (listappend (env_leakacc env) (ec_ident call))
+        else
+          call_instr lvals
     in
       ec_instr_aux env lvs otys otys call_instr
 
@@ -1192,15 +1201,17 @@ and toec_instr env i =
     | Ccall (lvs, f, es) ->
         let otys, itys = get_funtype env f in
         let args = List.map (ec_wcast env) (List.combine itys es) in
-        (ec_addleaks_i env (leaks_es env es)) @
+        (* TODO: should we leak value of function arguments ? *)
+        (ec_addleaks_i env (leaks_es_noval env es)) @
         (ec_pcall env lvs otys [get_funname env f] args)
     | Csyscall (lvs, o, es) ->
         let s = Syscall.syscall_sig_u o in
         let otys = List.map Conv.ty_of_cty s.scs_tout in
         let itys =  List.map Conv.ty_of_cty s.scs_tin in
         let args = List.map (ec_wcast env) (List.combine itys es) in
-        (ec_addleaks_i env (leaks_es env es)) @
-        (ec_pcall env lvs otys [ec_syscall env o] args)
+        (* TODO: should we leak value of function arguments ? *)
+        (ec_addleaks_i env (leaks_es_noval env es)) @
+        (ec_pcall env ~syscall:true lvs otys [ec_syscall env o] args)
     | Cif (e, c1, c2) ->
         let cmd_if env = 
           [ESif (toec_expr env e, toec_cmd env c1, toec_cmd env c2)]
@@ -1238,16 +1249,16 @@ and toec_instr env i =
               let condleak env = Elist ((leaks_e env e) @ [lcond]) in
               let body_pre = (reset_leakacc new_env) in
               let body_post =
-                listappend condvar (condleak new_env) @
-                listappend bodyvar (ec_ident (env_leakacc new_env))
+                listappend condvar (leaklist (condleak new_env)) @
+                listappend bodyvar (leaklist (ec_ident (env_leakacc new_env)))
               in
               [EScomment "While loop init block"]
               @ (toec_cmd env c1)
               @ [EScomment "While loop"]
-              @ [asgn condvar (Elist [condleak env])]
+              @ [asgn condvar (condleak env)]
               @ [asgn bodyvar (Elist [])]
               @ (cmd_while env body_pre body_post)
-              @ listappend (env_leakacc env) (Elist [ec_ident condvar; ec_ident bodyvar])
+              @ listappend (env_leakacc env) (leaklist (Elist [leaklist (ec_ident condvar); leaklist (ec_ident bodyvar)]))
         )
     | Cfor (i, (d,e1,e2), c) ->
         (* decreasing for loops have bounds swaped *)
@@ -1339,7 +1350,8 @@ let toec_fun env f =
     Mty.iter (fun ty _ -> add_ty env ty) env.auxv;
     let ec_locals_leakage =
       let leakv_vars leakv =
-        List.map (fun v -> (v, "leakages")) [leakv.acc; leakv.ctrl; leakv.loop_body; leakv.call]
+        (List.map (fun v -> (v, "leakages")) [leakv.acc; leakv.ctrl; leakv.loop_body])
+        @ [(leakv.call, "leakage")]
       in
       List.concat_map leakv_vars env.leakvs
     in
