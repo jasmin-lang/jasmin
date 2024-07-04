@@ -1012,7 +1012,15 @@ let leak_bool env b = match env.model with
 
 let leak_var env v = match env.model with
   | Normal | ConstantTime -> []
-  | ValLeak -> [leak_word env (toec_expr env (Pvar v))]
+  | ValLeak ->
+      let vident = ec_vari env (L.unloc v.gv) in
+      match v.gv.L.pl_desc.v_ty with
+      | Arr _ -> assert false (* unsupported *)
+      | Bty base -> match base with
+        | Bool -> [leak_cond vident]
+        | Int -> [leak_addr vident]
+        | U U32 -> [leak_word env vident] (* FIXME handle properly word size *)
+        | U _ -> assert false
 
 let leak_addrv env x e = match env.model with
   | Normal -> []
@@ -1298,7 +1306,7 @@ and toec_instr env i =
               let bodyvar = (env_leak env).loop_body in
               let new_env = nested_block env in
               let body_pre = (reset_leakacc new_env) in
-              let body_post = listappend bodyvar (ec_ident (env_leakacc new_env)) in
+              let body_post = listappend bodyvar (leaklist (ec_ident (env_leakacc new_env))) in
               [asgn condvar (Elist (ec_leaks_for env e1 e2))]
               @ [asgn bodyvar (Elist [])]
               @ (cmd_for new_env body_pre body_post)
