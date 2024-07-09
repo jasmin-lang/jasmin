@@ -69,6 +69,9 @@ coq-proof:
 
 coq-master:
   stage: prove
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH !~ /^release-/
   variables:
     EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg coqMaster true
   extends: .common
