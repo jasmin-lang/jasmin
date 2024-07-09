@@ -264,7 +264,7 @@ def _dump_report(results, out):
         grouped.setdefault(result.config.group, []).append(result)
 
     hostname = socket.gethostname()
-    timestamp = datetime.datetime.now(datetime.UTC).isoformat()
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     for gname, group in grouped.items():
         ko = [x for x in group if not x.success]
         node = cl.OrderedDict()
