@@ -27,6 +27,11 @@
   ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973),
   [PR#1001](https://github.com/jasmin-lang/jasmin/pull/1001)).
 
+- The speculative constant-time checker rejects more programs, considering that
+  different source-level local variables may be merged during the compilation
+  process
+  ([PR#989](https://github.com/jasmin-lang/jasmin/pull/989)).
+
 ## Other changes
 
 - The “allocation” pass now uses the liveness information to reduce the sizes
