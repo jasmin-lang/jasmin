@@ -1,6 +1,8 @@
 
 # [unreleased]
 
+# Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
+
 ## New features
 
 - The stack allocation checker accepts more programs. This checker is run
@@ -19,6 +21,7 @@
 - ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
   immediates whose negation is small, a single `MVN`; and for large immediates
   a pair of `MOV` and `MOVT`.
+  ([PR #795](https://github.com/jasmin-lang/jasmin/pull/795)).
 
 - Export functions can have `ptr` arrays as arguments and results.
   The compiler assumes that writable `ptr` are disjoint from the other
@@ -57,13 +60,13 @@
    [PR #818](https://github.com/jasmin-lang/jasmin/pull/818)).
 
 - Support Selective Speculative Load Hardening.
-  We now support operators SLH operators as in [Typing High-Speed Cryptography
+  We now support SLH operators as in [Typing High-Speed Cryptography
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
   We also provide a speculative CCT checker, via the `jasmin-ct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
    [PR #723](https://github.com/jasmin-lang/jasmin/pull/723),
-   [PR #814](https://github.com/jasmin-lang/jasmin/pull/814))
+   [PR #814](https://github.com/jasmin-lang/jasmin/pull/814)).
 
 - Register arrays and sub-arrays can appear as arguments and return values of
   local functions;
@@ -75,6 +78,7 @@
 - Add the instruction `MULX_hi`,
      `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
   but no extra register is used for the low half of the result.
+  ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531)).
 
 - Definition of parameters can now use arbritrary expressions and depend on
   other parameters. See `tests/success/common/test_globals.jazz`.
@@ -120,7 +124,7 @@
   ([PR #848](https://github.com/jasmin-lang/jasmin/pull/848);
   fixes [#681](https://github.com/jasmin-lang/jasmin/issues/681)).
 
-- The compiler rejects ARM intrincics with the `S` suffix if the instruction
+- The compiler rejects ARM intrinsics with the `S` suffix if the instruction
   does not set flags
   ([PR #809](https://github.com/jasmin-lang/jasmin/pull/809);
   fixes [#808](https://github.com/jasmin-lang/jasmin/issues/808)).
@@ -153,7 +157,7 @@
   [PR 712](https://github.com/jasmin-lang/jasmin/pull/697);
   fixes [#696](https://github.com/jasmin-lang/jasmin/issues/696)).
 
-- Fix code generation for ARMv7 when export function have large stack frames
+- Fix code generation for ARMv7 when export functions have large stack frames
   ([PR #710](https://github.com/jasmin-lang/jasmin/pull/710);
    fixes [#709](https://github.com/jasmin-lang/jasmin/issues/709)).
 
