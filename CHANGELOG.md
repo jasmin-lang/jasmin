@@ -17,8 +17,6 @@
   ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
   fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
 
-
-
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
@@ -26,6 +24,11 @@
 
 - Fix EC extraction in case on nested loops
   ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
+
+- The speculative constant-time checker rejects more programs, considering that
+  different source-level local variables may be merged during the compilation
+  process
+  ([PR#989](https://github.com/jasmin-lang/jasmin/pull/989)).
 
 ## Other changes
 
