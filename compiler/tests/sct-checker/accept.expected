@@ -61,14 +61,14 @@ output corruption: #public
  constraints:
 
 
-modmsf safe_access : #public * #poly = { n = d, s = secret} ->
-#poly = { n = d, s = secret}
+modmsf safe_access : #public * #secret ->
+#secret
 output corruption: #public
  constraints:
 
 
-modmsf safe_direct_access : #public * #poly = { n = d, s = secret} ->
-#poly = { n = d, s = secret}
+modmsf safe_direct_access : #public * #secret ->
+#secret
 output corruption: #public
  constraints:
 

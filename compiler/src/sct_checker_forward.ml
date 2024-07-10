@@ -1311,12 +1311,10 @@ let init_constraint fenv f =
       | None ->
         begin match x.v_kind with
         | Const -> Env.dpublic env
-        | Stack Direct when is_local -> Direct (Env.fresh env, Env.secret env)
-        | Stack Direct -> Direct (Env.fresh2 env)
-        | Stack (Pointer _) when is_local -> Indirect((Env.fresh env, Env.secret env), Env.fresh2 env)
-        | Stack (Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
-        | Reg (_, Direct) -> Direct (Env.fresh2 env)
-        | Reg (_, Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
+        | (Stack Direct | Reg (_, Direct)) when is_local -> Direct (Env.secret2 env)
+        | (Stack Direct | Reg (_, Direct)) -> Direct (Env.fresh2 env)
+        | (Stack (Pointer _) | Reg (_, Pointer _)) when is_local -> Indirect(Env.secret2 env, Env.fresh2 env)
+        | (Stack (Pointer _) | Reg (_, Pointer _)) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
         | Global -> Env.dpublic env (* unsure *)
         end
