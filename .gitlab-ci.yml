@@ -248,6 +248,23 @@ test-extract-to-ec:
     paths:
     - compiler/report.log
 
+test-extract-to-ec-ref:
+  stage: test
+  parallel:
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true --arg testDeps true
+    JSJOBS: $(NIX_BUILD_CORES)
+  extends: .common
+  needs:
+  - coq-program
+  - ocaml
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C compiler CHECKCATS="x86-64-extraction-ref arm-m4-extraction-ref" check'
+  artifacts:
+    when: always
+    paths:
+    - compiler/report.log
+
 push-compiler-code:
   stage: deploy
   environment: deployment

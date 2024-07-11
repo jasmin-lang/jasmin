@@ -1,0 +1,188 @@
+require import AllCore IntDiv CoreMap List Distr.
+from Jasmin require import JModel_x86.
+import SLH64.
+
+from Jasmin require import JLeakage.
+
+
+
+module M = {
+  var leakages : leakages_t
+  
+  proc minmax (inp:W64.t) : unit = {
+    var aux: W128.t;
+    var aux_0: W256.t;
+    
+    var x1:W128.t;
+    var x2:W128.t;
+    var y1:W256.t;
+    var y2:W256.t;
+    
+    leakages <- LeakAddr([(W64.to_uint (inp + (W64.of_int 0)))]) :: leakages;
+    aux <- (loadW128 Glob.mem (W64.to_uint (inp + (W64.of_int 0))));
+    x1 <- aux;
+    leakages <- LeakAddr([(W64.to_uint (inp + (W64.of_int 16)))]) :: leakages;
+    aux <- (loadW128 Glob.mem (W64.to_uint (inp + (W64.of_int 16))));
+    x2 <- aux;
+    leakages <- LeakAddr([(W64.to_uint (inp + (W64.of_int 0)))]) :: leakages;
+    aux_0 <- (loadW256 Glob.mem (W64.to_uint (inp + (W64.of_int 0))));
+    y1 <- aux_0;
+    leakages <- LeakAddr([(W64.to_uint (inp + (W64.of_int 32)))]) :: leakages;
+    aux_0 <- (loadW256 Glob.mem (W64.to_uint (inp + (W64.of_int 32))));
+    y2 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINS_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINU_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINS_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINU_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINS_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINU_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXS_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXU_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXS_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXU_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXS_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXU_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINS_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINU_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINS_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINU_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINS_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINU_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXS_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXU_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXS_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXU_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXS_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXU_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINS_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINU_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINS_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINU_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINS_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMINU_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXS_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXU_4u32 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXS_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXU_8u16 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXS_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- VPMAXU_16u8 x1 x2;
+    x1 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINS_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINU_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINS_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINU_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINS_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMINU_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXS_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXU_8u32 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXS_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXU_16u16 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXS_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- VPMAXU_32u8 y1 y2;
+    y1 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x1;
+    leakages <- LeakAddr([(W64.to_uint (inp + (W64.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW128 Glob.mem (W64.to_uint (inp + (W64.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- y1;
+    leakages <- LeakAddr([(W64.to_uint (inp + (W64.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW256 Glob.mem (W64.to_uint (inp + (W64.of_int 0))) (aux_0);
+    return ();
+  }
+}.
+

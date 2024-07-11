@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -e
+
+ROOT_DIR=tests/results/extraction_ref
+REF_ROOT_DIR=tests/results.expected/extraction_ref
+
+DIR=$ROOT_DIR/${2%.jazz}/$1
+EC=${DIR}/jasmin.ec
+CT=${DIR}/jasmin_ct.ec
+
+# This directory should be an exact copy of what is generated in DIR.
+REF_DIR=$REF_ROOT_DIR/${2%.jazz}/$1
+
+if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
+mkdir -p $DIR
+
+if [ "$1" = "arm" ]; then
+	ARCH="-arch arm-m4"
+else
+	ARCH="-arch x86-64"
+fi
+
+set -x
+set -o xtrace
+
+$(dirname $0)/../jasminc -ecwidth 1000 ${ARCH} -oecarray ${DIR} -oec ${EC} "$2"
+$(dirname $0)/../jasminc -ecwidth 1000 ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$2"
+
+diff -Bbu ${REF_DIR}/jasmin.ec ${DIR}/jasmin.ec
+diff -Bbu ${REF_DIR}/jasmin_ct.ec ${DIR}/jasmin_ct.ec

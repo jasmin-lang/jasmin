@@ -1,0 +1,187 @@
+require import AllCore IntDiv CoreMap List Distr.
+from Jasmin require import JModel_m4.
+import SLH32.
+
+from Jasmin require import JLeakage.
+
+
+
+module M = {
+  var leakages : leakages_t
+  
+  proc mov (arg0:W32.t) : W32.t = {
+    var aux_3: bool;
+    var aux_2: bool;
+    var aux_1: bool;
+    var aux_0: bool;
+    var aux: W32.t;
+    
+    var res_0:W32.t;
+    var x:W32.t;
+    var _nf_:bool;
+    var _zf_:bool;
+    var _cf_:bool;
+    var n:bool;
+    var z:bool;
+    var c:bool;
+    var v:bool;
+    
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- arg0;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOV (W32.of_int 1);
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOV (W32.of_int 3402287818);
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOV (W32.of_int 3389049344);
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOV (W32.of_int 13238474);
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOV (W32.of_int 51968);
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOV (W32.of_int 51914);
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_3, aux_2, aux_1, aux) <- MOVS x;
+    _nf_ <- aux_3;
+    _zf_ <- aux_2;
+    _cf_ <- aux_1;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_3, aux_2, aux_1, aux) <- MOVS (W32.of_int 3402287818);
+    _nf_ <- aux_3;
+    _zf_ <- aux_2;
+    _cf_ <- aux_1;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_3, aux_2, aux_1, aux) <- MOVS (W32.of_int 3389049344);
+    _nf_ <- aux_3;
+    _zf_ <- aux_2;
+    _cf_ <- aux_1;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_3, aux_2, aux_1, aux) <- MOVS (W32.of_int 13238474);
+    _nf_ <- aux_3;
+    _zf_ <- aux_2;
+    _cf_ <- aux_1;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    leakages <- LeakAddr([(W32.to_uint (x + (W32.of_int 0)))]) :: leakages;
+    Glob.mem <- storeW32 Glob.mem (W32.to_uint (x + (W32.of_int 0))) (aux);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_3, aux_2, aux_1, aux_0) <- CMP x (W32.of_int 0);
+    n <- aux_3;
+    z <- aux_2;
+    c <- aux_1;
+    v <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x z x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (! z) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x c x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (! c) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x n x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (! n) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x v x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (! v) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (c /\ (! z)) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x ((! c) \/ z) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (n = v) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (! (n = v)) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x ((! z) /\ (n = v)) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc x (z \/ (! (n = v))) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- MOVcc (W32.of_int 1) (! z) x;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_3, aux_2, aux_1, aux) <- MOVScc arg0 (! z) n z c x;
+    n <- aux_3;
+    z <- aux_2;
+    c <- aux_1;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_3, aux_2, aux_1, aux) <- MOVScc (W32.of_int 49) (! (! z)) n z c x;
+    n <- aux_3;
+    z <- aux_2;
+    c <- aux_1;
+    x <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- x;
+    res_0 <- aux;
+    return (res_0);
+  }
+}.
+

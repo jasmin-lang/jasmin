@@ -1,0 +1,41 @@
+require import AllCore IntDiv CoreMap List Distr.
+from Jasmin require import JModel_x86.
+import SLH64.
+
+
+require import Array1.
+require import WArray8.
+
+
+
+module M = {
+  proc f (x:W64.t) : W64.t = {
+    
+    var r:W64.t;
+    var a:W64.t Array1.t;
+    var b:W64.t Array1.t;
+    a <- witness;
+    b <- witness;
+    if (((W64.of_int 0) \ult x)) {
+      a.[0] <- x;
+      x <- (x + a.[0]);
+      b.[0] <- x;
+      r <- b.[0];
+    } else {
+      a.[0] <- x;
+      x <- (x + a.[0]);
+      b.[0] <- x;
+      r <- b.[0];
+    }
+    return (r);
+  }
+  
+  proc main (x:W64.t) : W64.t = {
+    
+    var result:W64.t;
+    
+    result <@ f (x);
+    return (result);
+  }
+}.
+

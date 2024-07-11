@@ -26,3 +26,34 @@ The contents of the `src/CIL` directory are extracted from Coq files from severa
  been adapted from the source code of Coq and are distributed under the terms of
  the GNU Lesser General Public License Version 2.1 (see
  [`src/CIL/LICENSE.coq`](src/CIL/LICENSE.coq)).
+
+## Tests
+
+## Easycrypt extraction tests
+
+Extraction is tested in two ways:
+
+1. Easycrypt validation tests: the extraction is passed through easycrypt, with
+   the results stored in `tests/results/extraction`. They can be run using
+
+   ```sh
+   make check CHECKCATS="x86-64-extraction arm-m4-extraction"
+   ```
+
+2. Check equality (up to whitespace) against reference extracted files in
+   `tests/results.expected/extraction_ref`. The results are stored in
+   `tests/results/extraction_ref`. These tests are run with
+
+   ```sh
+   make check CHECKCATS="x86-64-extraction-ref arm-m4-extraction-ref"
+   ```
+
+   For these tests, the reference extract files can be "promoted" using
+
+   ```sh
+   make promote-extraction
+   ```
+
+   This copies the results of the last test run
+   (`tests/results/extraction_ref`) to be the new reference files
+   (`tests/results.expected/extraction_ref`).

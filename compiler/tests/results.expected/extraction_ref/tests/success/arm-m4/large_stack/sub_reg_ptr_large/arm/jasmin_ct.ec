@@ -1,0 +1,60 @@
+require import AllCore IntDiv CoreMap List Distr.
+from Jasmin require import JModel_m4.
+import SLH32.
+
+from Jasmin require import JLeakage.
+require import Array1 Array65536.
+require import WArray4 WArray262144.
+
+
+
+module M = {
+  var leakages : leakages_t
+  
+  proc main () : W32.t = {
+    var aux: W32.t;
+    var aux_1: W32.t Array1.t;
+    var aux_0: W32.t Array65536.t;
+    
+    var res_0:W32.t;
+    var i:W32.t;
+    var n:W32.t;
+    var s:W32.t Array65536.t;
+    var r:W32.t Array65536.t;
+    var r2:W32.t Array1.t;
+    r <- witness;
+    r2 <- witness;
+    s <- witness;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- (W32.of_int 0);
+    i <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- (W32.of_int 0);
+    res_0 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- (W32.of_int 65536);
+    n <- aux;
+    
+    leakages <- LeakCond((i \ult n)) :: LeakAddr([]) :: leakages;
+    
+    while ((i \ult n)) {
+      leakages <- LeakAddr([]) :: leakages;
+      aux <- res_0;
+      leakages <- LeakAddr([(W32.to_uint i)]) :: leakages;
+      s.[(W32.to_uint i)] <- aux;
+    leakages <- LeakCond((i \ult n)) :: LeakAddr([]) :: leakages;
+    
+    }
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- s;
+    r <- aux_0;
+    leakages <- LeakAddr([(65536 - 1)]) :: leakages;
+    aux_1 <- (Array1.init (fun i_0 => r.[(65536 - 1) + i_0]));
+    r2 <- aux_1;
+    leakages <- LeakAddr([0]) :: leakages;
+    aux <- r2.[0];
+    res_0 <- aux;
+    return (res_0);
+  }
+}.
+

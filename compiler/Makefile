@@ -94,3 +94,11 @@ jasmin.bnf: src/parser.mly
 
 jasmin.ebnf: scripts/expand-bnf jasmin.bnf
 	@sed -f $^ > $@
+
+# --------------------------------------------------------------------
+
+.PHONY: promote-extraction
+
+promote-extraction:
+	-rm -r tests/results.expected/extraction_ref
+	cd tests/results && find extraction_ref -name 'jasmin*.ec' -exec cp --parents \{\} ../results.expected \;
