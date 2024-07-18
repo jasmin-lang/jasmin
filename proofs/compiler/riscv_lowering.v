@@ -107,16 +107,11 @@ Definition lower_Papp2
       let op := if is_wconst U8 e1 then SLLI else SLL in
       Some (BaseOp (None, op), [:: e0; e1])
     else None
-  (* | Oasr (Op_w U32) =>
-      if is_zero U8 e1 then Some (MOV, e0, [::])
-      else Some (ASR, e0, [:: e1 ])
-  | Oror U32 =>
-      if is_zero U8 e1 then Some (MOV, e0, [::])
-      else Some (ROR, e0, [:: e1 ])
-  | Orol U32 =>
-      let%opt c := is_wconst U8 e1 in
-      if c == 0%R then Some (MOV, e0, [::])
-      else Some (ROR, e0, [:: wconst (32 - c) ]) *)
+  | Oasr (Op_w U32) =>
+    if check_shift_amount e1 is Some(e1) then
+      let op := if is_wconst U8 e1 then SRAI else SRA in
+      Some (BaseOp (None, op), [:: e0; e1])
+    else None
   | _ =>
       None
   end.
