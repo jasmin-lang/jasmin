@@ -497,7 +497,7 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_SLLI;
   prim_SRL;
   prim_SRLI;
-  prim_SRAI;
+  prim_SRA;
   prim_SRAI;
   prim_LOAD;
   prim_STORE
