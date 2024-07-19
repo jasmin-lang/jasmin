@@ -1614,6 +1614,13 @@ module X86BaseOpS : BaseOp
       let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2]
 
+   | IMULri ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l = I.glval_to_lval (List.nth xs 5) in
+      let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2]
+
     | NEG ws ->
       let a = I.mk_const_atome (int_of_ws ws) Z.zero in
       let a1,i1 = cast_atome ws (List.nth es 0) in
@@ -1625,14 +1632,14 @@ module X86BaseOpS : BaseOp
       let a2,i2 = cast_atome ws (List.nth es 0) in
       let l = I.glval_to_lval (List.nth xs 4) in
       let l_tmp = I.mk_spe_tmp_lval 1 in
-      i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2] (* should we account for overflow in increment? *)
+      i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
 
     | DEC ws ->
       let a1,i1 = cast_atome ws (List.nth es 0) in
       let a2 = I.mk_const_atome (int_of_ws ws)   Z.one in
       let l = I.glval_to_lval (List.nth xs 4) in
       let l_tmp = I.mk_spe_tmp_lval 1 in
-      i1 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2] (* should we account for underflow in decrement? *)
+      i1 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
 
     | SHL ws ->
       begin
@@ -1653,13 +1660,30 @@ module X86BaseOpS : BaseOp
         | _ -> assert false
       end
 
+    | SHR ws ->
+      begin
+        match trans with
+        | Smt ->
+          let a, i = cast_atome ws (List.nth es 0) in
+          let (c,_) = I.gexp_to_const(List.nth es 1) in
+          let l = I.glval_to_lval (List.nth xs 5) in
+          i @ [CL.Instr.Shift.shr l a c]
+        | Cas1 ->
+          let a, i = cast_atome ws (List.nth es 0) in
+          let (c,_) = I.gexp_to_const (List.nth es 1) in
+          let l = I.glval_to_lval (List.nth xs 5) in
+          let l_tmp = I.mk_spe_tmp_lval (Z.to_int c) in
+          i @ [CL.Instr.Shifts.shrs l l_tmp a c]
+        | _ -> assert false
+      end
+
     | SAR ws ->
       begin
         match trans with
         | Cas1 ->
           let a1,i1 = cast_atome ws (List.nth es 0) in
           let c = I.get_const (List.nth es 1) in
-          let l_tmp = I.mk_spe_tmp_lval  (int_of_ws ws) in
+          let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws) in
           let c = Z.of_int c in
           let l = I.glval_to_lval (List.nth xs 5) in
           i1 @ [CL.Instr.Shifts.split l l_tmp a1 c]
@@ -1702,6 +1726,41 @@ module X86BaseOpS : BaseOp
               ]
         | _ -> assert false
       end
+    | MOVZX _ -> assert false
+    | CMOVcc _ -> assert false
+    | XCHG _ -> assert false
+    | MUL _ -> assert false
+    | IMUL _ -> assert false
+    | DIV _ -> assert false
+    | IDIV _ -> assert false
+    | CQO _ -> assert false
+    | ADC _ -> assert false
+    | SBB _ -> assert false
+    | MOVX _ -> assert false
+    | MOVD _ -> assert false
+    | MOVV _ -> assert false
+    | OR _ -> assert false
+    | XOR _ -> assert false
+    | NOT _ -> assert false
+    | ROR _ -> assert false
+    | ROL _ -> assert false
+    | RCR _ -> assert false
+    | RCL _ -> assert false
+    | SAL _ -> assert false
+    | SHLD _ -> assert false
+    | SHRD _ -> assert false
+    | RORX _ -> assert false
+    | SARX _ -> assert false
+    | SHRX _ -> assert false
+    | SHLX _ -> assert false
+    | MULX_lo_hi _ -> assert false
+    | ADCX _ -> assert false
+    | ADOX _ -> assert false
+    | BSWAP _ -> assert false
+    | POPCNT _ -> assert false
+    | PEXT _ -> assert false
+    | PDEP _ -> assert false
+
     | _ -> assert false
 end
 
