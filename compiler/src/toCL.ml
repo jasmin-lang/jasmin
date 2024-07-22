@@ -499,6 +499,7 @@ module Cfg = struct
       let prog_rev = aux cfg [] in
       List.rev prog_rev
 
+
 end
 
 module SimplVector = struct
@@ -559,7 +560,7 @@ module SimplVector = struct
       if is_equiv_type ty ty' then
         aux v' ty' n
       else
-        assert false
+        None
     | {iname = "mov"; iargs = [Lval v; Atom (Avecta ((v', ty'), j))]} ->
       if j == 0 && is_equiv_type ty ty' then (* do we care if j == 0 ? *)
         aux v' ty' n
@@ -569,98 +570,147 @@ module SimplVector = struct
       if is_equiv_type ty ty' then
         aux v' ty' n
       else
-        assert false
+        None
     | {iname = "adds"; iargs = [_; Lval v; Atom (Avar (_, ty')); _]} ->
       if is_equiv_type ty ty' then
         Some v
       else
-        assert false
+        None
     | {iname = "add"; iargs = [Lval v; Atom (Avar (_, ty')); _]} ->
       if is_equiv_type ty ty' then
         Some v
       else
-        assert false
-    | _ -> assert false
+        None
+    | {iname = "adds"; iargs = [_; Lval v; _; Atom (Avar (_, ty'))]} ->
+      if is_equiv_type ty ty' then
+        Some v
+      else
+        None
+    | {iname = "add"; iargs = [Lval v; _; Atom (Avar (_, ty'))]} ->
+      if is_equiv_type ty ty' then
+        Some v
+      else
+        None
+    | _ -> None
 
-  let rec unused_lval v n =
+    let rec update_arg args v argidx =
+      match args with
+      | [] -> assert false
+      | h::q ->
+        if argidx == 0 then v::q
+        else h::(update_arg q v (argidx-1))
+
+    let update_node_args node arg i =
+      let iargs' = update_arg node.nkind.iargs arg i in
+      node.nkind <- { iname = node.nkind.iname; iargs = iargs' }
+
+    let sr_lval node pred = (* Search for the source of the argument in lval of another instruction *)
+      let replace_arg v' i =
+        let arg' = (Atom (Avar v')) in
+        update_node_args node arg' i;
+      in
+      match node.nkind with
+      | {iname = "adds"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
+        let l = find_vect_lval v (Vector (i, ty)) pred in
+        begin
+          match l with
+          | Some v' -> replace_arg v' 2
+          | None -> ()
+        end
+      | {iname = "adds"; iargs = [_; _; _; Atom (Avar (v, Vector (i, ty)))]} ->
+        let l = find_vect_lval v (Vector (i, ty)) pred in
+        begin
+          match l with
+          | Some v' -> replace_arg v' 2
+          | None -> ()
+        end
+      | _ -> ()
+
+    let rec sr_lvals node =
+      match node.succs with
+      | [] -> ()
+      | h::_ ->
+        sr_lval node h;
+        sr_lvals h
+
+  let rec unused_lval v nI = (* Checks if lval is used in any subsequent instruction *)
     let rec var_in_vatome v' l =
       match l with
-        | h :: l ->
+        | h :: t ->
           begin
             match h with
-            | Avar (v, _) -> true
-            | Avecta ((v, _), _) -> true
-            | Avatome l' -> (var_in_vatome v l') || (var_in_vatome v l)
-            | _ -> var_in_vatome v l
+            | Avar v' -> (v' == v) || var_in_vatome v t
+            | Avecta (v', _) -> (v' == v) || var_in_vatome v t
+            | Avatome l' -> var_in_vatome v t || var_in_vatome v l'  (* is this valid CL? should we assert false ?? *)
+            | _ -> var_in_vatome v t
           end
         | [] -> false
     in
-    let aux v' n =
-      let i = getNextI n in
-        begin
-        match i with
-        | Some n' -> unused_lval v n'
-        | None -> true
-        end
+    let aux v' n' =
+      let i = getNextI n' in
+      unused_lval v' i
     in
-    match n.nkind with
-    | {iname = "mov"; iargs = [_; Atom (Avar (v, _))]} -> false
-    | {iname = "mov"; iargs = [_; Atom (Avecta ((v, _), _))]} -> false
-    | {iname = "mov"; iargs = [_; Atom (Avatome l)]} ->
-      if var_in_vatome v l then
-        false
-      else
-        aux v n
-    | {iname = "mov"; iargs = [Lval v; _]} -> true
-    | {iname = "cast"; iargs = [_; Atom (Avar (v, _))]} -> false
-    | {iname = "cast"; iargs = [_; Atom (Avecta ((v, _), _))]} -> false
-    | {iname = "cast"; iargs = [_; Atom (Avatome l)]} ->
-      if var_in_vatome v l then
-        false
-      else
-        aux v n
-    | {iname = "adds"; iargs = [_; _; Atom (Avar (v, _)); _]} -> false
-    | {iname = "adds"; iargs = [_; _; _; Atom (Avar (v, _))]} -> false
-    | {iname = "adds"; iargs = [_; _; Atom (Avecta ((v, _), _)); _]} -> false
-    | {iname = "adds"; iargs = [_; _; _; Atom (Avecta ((v, _), _))]} -> false
-    | {iname = "add"; iargs = [_; Atom (Avar (v, _)); _]} -> false
-    | {iname = "add"; iargs = [_; _; Atom (Avar (v, _))]} -> false
-    | {iname = "add"; iargs = [_; Atom (Avecta ((v, _), _)); _]} -> false
-    | {iname = "add"; iargs = [_; _; Atom (Avecta ((v, _), _))]} -> false
-    | {iname = "mov"; iargs = [_; Atom _]} -> aux v n
-    | _ -> assert false
-
-  let rec update_arg args v argidx =
-    match args with
-    | [] -> assert false
-    | h::q ->
-      if argidx == 0 then v::q
-      else h::(update_arg q v (argidx-1))
-
-  let replace_lval node succ = (* Search for the source of the argument in lval of another instruction *)
-    match node.nkind with
-    | {iname = "adds"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
-      let l = find_vect_lval v (Vector (i, ty)) succ in
+    match nI with
+    | None -> true
+    | Some n ->
       begin
-        match l with
-        | Some v' ->
-          let arg' = (Atom (Avar v')) in
-          let iargs' = update_arg node.nkind.iargs arg' 2 in
-          node.nkind <- { iname = node.nkind.iname; iargs = iargs' };
-        | None -> ()
+        match n.nkind with
+        | {iname = "mov"; iargs = [_; Atom (Avar v')]} -> (v' != v) && (aux v n)
+        | {iname = "mov"; iargs = [_; Atom (Avecta (v', _))]} -> (v' != v) && (aux v n)
+        | {iname = "mov"; iargs = [_; Atom (Aconst _)]} -> aux v n
+        | {iname = "mov"; iargs = [_; Atom (Avatome l)]} -> not(var_in_vatome v l) && (aux v n)
+        | {iname = "cast"; iargs = [_; Atom (Avar v')]} -> (v' != v) && (aux v n)
+        | {iname = "cast"; iargs = [_; Atom (Avecta (v', _))]} -> (v' != v) && (aux v n)
+        | {iname = "cast"; iargs = [_; Atom (Aconst _)]} -> aux v n
+        | {iname = "cast"; iargs = [_; Atom (Avatome l)]} -> not(var_in_vatome v l) && (aux v n)
+        | {iname = "adds"; iargs = [_; _; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "adds"; iargs = [_; _; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "add"; iargs = [_; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "add"; iargs = [_; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
+        | _ -> aux v n
       end
-    | _ -> ()
 
-  let rec replace_lvals node =
-    match node.succs with
-    | [] -> ()
-    | h::_ ->
-      replace_lval node h;
-      replace_lvals h
+  let rec nop_uinst cfg node =
+    let nI = getNextI node in
+    match node.nkind with
+      | {iname = "cast"; iargs = [Lval v; _]}  ->
+        if unused_lval v nI then
+          node.nkind <- { iname = "nop"; iargs = [] }
+        else ()
+      | {iname = "mov"; iargs = [Lval v; _]}  ->
+        if unused_lval v nI then
+          node.nkind <- { iname = "nop"; iargs = [] }
+        else ()
+      | _ -> ()
+
+  let rec nop_uinsts cfg node =
+    nop_uinst cfg node;
+    let nI = getPrevI node in
+    match nI with
+    | None -> ()
+    | Some i -> nop_uinsts cfg i
+
+  let rec remove_nops l =
+    match l with
+    | [] -> []
+    | h::t ->
+      begin
+      match h with
+      | { iname = "nop" } -> remove_nops t
+      | _ -> h :: remove_nops t
+      end
 
   let rec simpl_cfg cfg =
-    replace_lvals cfg;
-    cfg
+    sr_lvals cfg;
+    let nI = getPrevI cfg in
+    match nI with
+    | None -> cfg
+    | Some i ->
+      begin
+        nop_uinsts cfg i;
+        let cfg' = cfg_of_prog (remove_nops (prog_of_cfg_rev cfg)) in
+        cfg'
+      end
 end
 
 module type I = sig
