@@ -108,7 +108,7 @@ let main () =
         | Some conf -> SafetyConfig.load_config conf
         | None -> () in
 
-    let env, pprog, ast =
+    let env, pprog, _ast =
       try Compile.parse_file Arch.arch_info infile
       with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
@@ -128,15 +128,7 @@ let main () =
         (List.tl (List.rev (Pretyping.Env.dependencies env)));
       exit 0
     end;
- 
-    if !latexfile <> "" then begin
-      let out = open_out !latexfile in
-      let fmt = Format.formatter_of_out_channel out in
-      Format.fprintf fmt "%a@." Latex_printer.pp_prog ast;
-      close_out out;
-      if !debug then Format.eprintf "Pretty printed to LATEX@."
-    end;
-  
+
     eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
 
     let prog =
