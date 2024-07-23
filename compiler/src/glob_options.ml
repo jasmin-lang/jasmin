@@ -3,7 +3,6 @@ open Utils
 let version_string = "Jasmin Compiler @VERSION@"
 (*--------------------------------------------------------------------- *)
 let outfile = ref ""
-let latexfile = ref ""
 let dwarf = ref false
 let debug = ref false
 let timings = ref false
@@ -175,7 +174,6 @@ let options = [
     "-debug"   , Arg.Set debug         , " Print debug information";
     "-timings" , Arg.Set timings       , " Print a timestamp and elapsed time after each pass";
     "-I"       , Arg.String set_idirs  , "[ident:path] Bind ident to path for from ident require ...";
-    "-latex"   , Arg.Set_string latexfile, "[filename] Generate the corresponding LATEX file (deprecated)";
     "-lea"     , Arg.Set lea           , " Use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";

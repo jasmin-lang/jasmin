@@ -6,6 +6,12 @@
 - Easycrypt extraction for CT : fix decreasing for loops
   ([PR #859](https://github.com/jasmin-lang/jasmin/pull/859);
   fixes [#858](https://github.com/jasmin-lang/jasmin/issues/858)).
+
+## Other changes
+
+- The deprecated legacy interface to the LATEX pretty-printer has been removed
+  ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
+
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
 ## New features
