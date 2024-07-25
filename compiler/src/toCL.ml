@@ -961,7 +961,7 @@ module X86BaseOpU : BaseOp
 
   let trans annot =
     let l =
-      ["smt", Smt ; "cas", Cas1; "cas2", Cas2; "cas3", Cas3 ]
+      ["smt", Smt ; "cas", Cas1; "cas_two", Cas2; "cas_three", Cas3 ]
     in
     let mk_trans = Annot.filter_string_list None l in
     let atran annot =
@@ -1531,11 +1531,12 @@ module X86BaseOpS : BaseOp
   type trans =
     | Cas1
     | Cas2
+    | Cas3
     | Smt
 
   let trans annot =
     let l =
-      ["smt", Smt ; "cas", Cas1; "cas2", Cas2;]
+      ["smt", Smt ; "cas", Cas1; "cas_two", Cas2; "cas_three", Cas3; ]
     in
     let mk_trans = Annot.filter_string_list None l in
     let atran annot =
@@ -1564,6 +1565,25 @@ module X86BaseOpS : BaseOp
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
     | _ -> assert false
 
+  let vpc_atome ws x =
+    match x with
+    | Pvar va ->
+      let ws_x = ws_of_ty (L.unloc va.gv).v_ty in
+      if ws = ws_x then I.gexp_to_atome  x,[]
+      else
+        let e = I.gexp_to_atome x in
+        let v = L.unloc va.gv in
+        let kind = v.v_kind in
+        let (_,ty) as x = I.mk_tmp_lval ~kind (CoreIdent.tu ws) in
+        CL.Instr.Avar x, [CL.Instr.vpc ty x e]
+    | Papp1 (Oword_of_int ws_x, Pconst z) ->
+      if ws = ws_x then I.gexp_to_atome  x,[]
+      else
+        let e = I.gexp_to_atome x in
+        let (_,ty) as x = I.mk_tmp_lval  (CoreIdent.tu ws) in
+        CL.Instr.Avar x, [CL.Instr.vpc ty x e]
+    | _ -> assert false
+
   let (!) e = I.mk_lval_atome e
 
   let assgn_to_instr _annot x e =
@@ -1575,10 +1595,15 @@ module X86BaseOpS : BaseOp
     let trans = trans annot in
     match o with
     | X86_instr_decl.MOV ws ->
-      let a,i = cast_atome ws (List.nth es 0) in
-      let l = I.glval_to_lval  (List.nth xs 0) in
-      i @ [CL.Instr.Op1.mov l a]
-
+      begin match trans with
+      | Smt -> let a, i = vpc_atome ws (List.nth es 0) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        i @ [CL.Instr.Op1.mov l a]
+      | _ -> 
+        let a,i = cast_atome ws (List.nth es 0) in
+        let l = I.glval_to_lval  (List.nth xs 0) in
+        i @ [CL.Instr.Op1.mov l a]
+      end
     | ADD ws ->
       begin
       let a1,i1 = cast_atome ws (List.nth es 0) in
@@ -1614,6 +1639,25 @@ module X86BaseOpS : BaseOp
       let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2]
 
+    | IMULri ws -> 
+      begin match trans with
+      | Cas1 -> (* FIXME: lower part should be unsigned*)
+        let a1, i1 = cast_atome ws (List.nth es 0) in
+        let a2, i2 = cast_atome ws (List.nth es 1) in
+        let l = I.glval_to_lval (List.nth xs 5) in
+        let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
+        i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2]
+      | Smt -> 
+        let a1, i1 = cast_atome ws (List.nth es 0) in
+        let a2, i2 = cast_atome ws (List.nth es 1) in
+        let l = I.glval_to_lval (List.nth xs 5) in
+        i1 @ i2 @ [CL.Instr.Op2.mul l a1 a2]
+      | _ -> assert false
+      end
+      
+    | ADC _ -> assert false
+    | SBB _ -> assert false
+
     | NEG ws ->
       let a = I.mk_const_atome (int_of_ws ws) Z.zero in
       let a1,i1 = cast_atome ws (List.nth es 0) in
@@ -1634,6 +1678,13 @@ module X86BaseOpS : BaseOp
       let l_tmp = I.mk_spe_tmp_lval 1 in
       i1 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2] (* should we account for underflow in decrement? *)
 
+    | AND _ -> assert false
+    | ANDN _  -> assert false
+    | OR _ -> assert false
+    | XOR _ -> assert false
+    | NOT _ -> assert false
+    
+
     | SHL ws ->
       begin
         match trans with
@@ -1653,6 +1704,8 @@ module X86BaseOpS : BaseOp
         | _ -> assert false
       end
 
+    | SHR _ -> assert false
+
     | SAR ws ->
       begin
         match trans with
@@ -1668,7 +1721,7 @@ module X86BaseOpS : BaseOp
           let c = I.get_const (List.nth es 1) in
           let c1 = Z.of_int (power 1 c) in
           let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws) in
-          let l_tmp1 = I.mk_spe_tmp_lval (int_of_ws ws) in
+          let l_tmp1 = I.mk_spe_tmp_lval ~sign:false (int_of_ws ws) in
           let c = Z.of_int c in
           let l = I.glval_to_lval (List.nth xs 5) in
           i1 @ [CL.Instr.Op1.mov l_tmp a1;
@@ -1684,24 +1737,26 @@ module X86BaseOpS : BaseOp
         match trans with
         | Cas1 ->
           let a,i = cast_atome ws2 (List.nth es 0) in
-          let c = Z.of_int (int_of_ws ws2 - 1) in
-          let l_tmp1 = I.mk_spe_tmp_lval 1 in
-          let l_tmp2 = I.mk_spe_tmp_lval (int_of_ws ws2 - 1) in
-          let diff = int_of_ws ws1 - (int_of_ws ws2) in
-          let a2 = I.mk_const_atome (diff - 1) Z.zero in
-          let l_tmp3 = I.mk_spe_tmp_lval diff in
-          let a3 =
-            I.mk_const_atome diff (Z.of_int ((power 1 diff) - 1))
-          in
-          let l_tmp4 = I.mk_spe_tmp_lval diff in
+          (* let c = Z.of_int (int_of_ws ws2 - 1) in *)
+          (* let l_tmp1 = I.mk_spe_tmp_lval 1 in *)
+          (* let l_tmp2 = I.mk_spe_tmp_lval (int_of_ws ws2 - 1) in *)
+          (* let diff = int_of_ws ws1 - (int_of_ws ws2) in *)
+          (* let a2 = I.mk_const_atome (diff - 1) Z.zero in *)
+          (* let l_tmp3 = I.mk_spe_tmp_lval diff in *)
+          (* let a3 = *)
+            (* I.mk_const_atome diff (Z.of_int ((power 1 diff) - 1)) *)
+          (* in *)
+          (* let l_tmp4 = I.mk_spe_tmp_lval diff in *)
           let l = I.glval_to_lval (List.nth xs 0) in
-          i @ [CL.Instr.Shifts.spl l_tmp1 l_tmp2 a c;
-               CL.Instr.Op2.join l_tmp3 a2 !l_tmp1;
-               CL.Instr.Op2.mul l_tmp4 !l_tmp3 a3;
-               CL.Instr.Op2.join l !l_tmp4 a;
-              ]
+          i @ [CL.Instr.cast (CL.Sint (int_of_ws ws1)) l a]
+        | Smt -> 
+          let a, i = vpc_atome ws2 (List.nth es 0) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          i @ [CL.Instr.vpc (CL.Sint (int_of_ws ws1)) l a]
         | _ -> assert false
       end
+    | MOVZX _ -> assert false
+    
     | _ -> assert false
 end
 
