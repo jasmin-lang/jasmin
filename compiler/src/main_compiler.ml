@@ -151,6 +151,8 @@ let main () =
       else prog
     in
 
+    let prog = Slh_gen.add_slh prog in
+
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
