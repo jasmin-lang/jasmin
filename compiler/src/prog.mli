@@ -244,6 +244,7 @@ val refresh_i_loc_p : ('info,'asm) prog  -> ('info,'asm) prog
 (* Functions on types                                                   *)
 
 val int_of_ws  : wsize -> int
+val z_of_ws  : wsize -> Z.t
 val string_of_ws : wsize -> string
 val size_of_ws : wsize -> int
 

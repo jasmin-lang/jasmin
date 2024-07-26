@@ -364,6 +364,7 @@ let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog =
 (* Functions on types                                                   *)
 
 let int_of_ws = Annotations.int_of_ws
+let z_of_ws = Annotations.z_of_ws
 
 let size_of_ws = function
   | U8   -> 1
