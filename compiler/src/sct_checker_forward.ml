@@ -1311,7 +1311,9 @@ let init_constraint fenv f =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  let mk_vty loc ~(msf:bool) x ls an =
+  (** The [is_local] argument is true when variable [x] is a local variable as
+  opposed to an argument or a returned value which inherits constraints from the call-sites. *)
+  let mk_vty loc ~is_local ~(msf:bool) x ls an =
     let msf, ovty =
       match ls, an with
       | [], None -> None, None
@@ -1335,8 +1337,10 @@ let init_constraint fenv f =
       | None ->
         begin match x.v_kind with
         | Const -> Env.dpublic env
-        | Stack Direct -> Direct (Env.fresh env, Env.secret env)
-        | Stack (Pointer _) -> Indirect((Env.fresh env, Env.secret env), Env.fresh2 env)
+        | Stack Direct when is_local -> Direct (Env.fresh env, Env.secret env)
+        | Stack Direct -> Direct (Env.fresh2 env)
+        | Stack (Pointer _) when is_local -> Indirect((Env.fresh env, Env.secret env), Env.fresh2 env)
+        | Stack (Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Reg (_, Direct) -> Direct (Env.fresh2 env)
         | Reg (_, Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
@@ -1361,7 +1365,7 @@ let init_constraint fenv f =
     let loc = L.loc x and x = L.unloc x in
     let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
     let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
-    mk_vty loc ~msf:(not export) x ls an in
+    mk_vty ~is_local:false loc ~msf:(not export) x ls an in
 
   (* process function outputs *)
   let tyout = List.map2i process_return f.f_ret f.f_outannot in
@@ -1391,7 +1395,7 @@ let init_constraint fenv f =
   let process_param i venv x =
     let an = Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) in
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
-    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls an in
+    let msf, vty = mk_vty ~is_local:false x.v_dloc ~msf:(not export) x ls an in
     let msf =
       match msf with
       | None -> Sv.mem x msfs
@@ -1436,7 +1440,7 @@ let init_constraint fenv f =
   (* init type for local *)
   let do_local x venv =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
-    let _, vty = mk_vty x.v_dloc ~msf:false x ls None in
+    let _, vty = mk_vty x.v_dloc ~is_local:true ~msf:false x ls None in
     Env.add_var env venv x vk vty in
 
   let venv = Sv.fold do_local (locals f) venv in

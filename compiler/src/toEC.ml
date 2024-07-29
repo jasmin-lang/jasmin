@@ -1327,6 +1327,8 @@ module Leak = struct
         (pp_cmd pd asmOp env) (c2@c1) pp_leak e
 
     | Cfor(i, (d,e1,e2), c) ->
+      (* decreasing for loops have bounds swaped *)
+      let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in 
       pp_leaks_for pd env fmt e1 e2;
       let aux, env1 = 
         if for_safety env then 
