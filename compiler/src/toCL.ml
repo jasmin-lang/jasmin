@@ -582,6 +582,18 @@ module SimplVector = struct
         Some (v', ty')
       else
         aux (v, ty) n
+    | {iname = "mull"; iargs = [Lval (vh', tyh'); Lval (vl', tyl'); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+      if v == vl' &&  (is_equiv_type  tyl' ty'' || is_equiv_type tyl' ty''') then
+        Some (vl', tyl')
+      else if v == vh' &&  (is_equiv_type  tyh' ty'' || is_equiv_type tyh' ty''') then
+        Some (vh', tyh')
+      else
+        aux (v, ty) n
+    | {iname = "subb"; iargs = [_; Lval (v', ty'); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+        if v == v' &&  (is_equiv_type  ty' ty'' || is_equiv_type ty' ty''') then
+          Some (v', ty')
+        else
+          aux (v, ty) n
     | _ -> aux (v, ty) n (* Keep searching *)
 
     let sr_lval node pred = (* Search for the source of the argument in lval of another instruction *)
@@ -1452,11 +1464,11 @@ module X86BaseOpU : BaseOp
     |VPANDN _ -> assert false
     |VPOR _ -> assert false
     |VPXOR _ -> assert false
-    |VPSUB (v,ws) ->
+    |VPSUB (ve,ws) ->
       begin
-      let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
-      let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
-      let v = int_of_velem v in
+      let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+      let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
+      let v = int_of_velem ve in
       let s = int_of_ws ws in
       let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
@@ -1465,7 +1477,7 @@ module X86BaseOpU : BaseOp
         | Smt ->
           i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
         | Cas1 ->
-          let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
         | _ -> assert false
       end
