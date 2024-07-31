@@ -548,82 +548,75 @@ module SimplVector = struct
       (i * int_of_ty ty'' == i' * int_of_ty ty''') && ((is_unsigned ty'') == (is_unsigned ty'''))
     | _ -> is_equiv_type ty' ty (* use recursivity to check the commutative pair *)
 
-  let rec find_vect_lval v ty n  =
-      let aux v' ty' n =
-        let i = getPrevI n in
-        match i with
-        | Some n' -> find_vect_lval v' ty' n'
+  let rec find_vect_lval v n  =
+      let (v, ty) = v in
+      let aux v' n' =
+        let nI = getPrevI n' in
+        match nI with
+        | Some i -> find_vect_lval v' i
         | None -> None
       in
     match n.nkind with
-    | {iname = "cast"; iargs = [Lval v; Atom (Avar (v', ty'))]} ->
-      if is_equiv_type ty ty' then
-        aux v' ty' n
+    | {iname = "cast"; iargs = [Lval (v', ty'); Atom (Avar (v'', ty''))]} ->
+      if v == v' && is_equiv_type ty' ty'' then
+        aux (v'',ty'') n
       else
-        None
-    | {iname = "mov"; iargs = [Lval v; Atom (Avecta ((v', ty'), j))]} ->
-      if j == 0 && is_equiv_type ty ty' then (* do we care if j == 0 ? *)
-        aux v' ty' n
+        aux (v, ty) n
+    | {iname = "mov"; iargs = [Lval (v', ty') ; Atom (Avecta ((v'', ty''), j))]} ->
+      if v == v' && j == 0 && is_equiv_type ty' ty'' then (* do we care if j != 0 ? *)
+        aux (v'',ty'') n
       else
-        None
-    | {iname = "mov"; iargs = [Lval v; Atom (Avatome [Avar (v', ty')])]} ->
-      if is_equiv_type ty ty' then
-        aux v' ty' n
+        aux (v, ty) n
+    | {iname = "mov"; iargs = [Lval (v', ty'); Atom (Avatome [Avar (v'', ty'')])]} ->
+      if v == v' && is_equiv_type ty' ty'' then
+        aux (v'', ty'') n
       else
-        None
-    | {iname = "adds"; iargs = [_; Lval v; Atom (Avar (_, ty')); _]} ->
-      if is_equiv_type ty ty' then
-        Some v
+        aux (v, ty) n
+    | {iname = "adds"; iargs = [_; Lval (v', ty'); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+      if v == v' && (is_equiv_type ty' ty'' || is_equiv_type ty' ty''') then
+        Some (v', ty')
       else
-        None
-    | {iname = "add"; iargs = [Lval v; Atom (Avar (_, ty')); _]} ->
-      if is_equiv_type ty ty' then
-        Some v
+        aux (v, ty) n
+    | {iname = "add"; iargs = [Lval (v', ty');  Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+      if v == v' && (is_equiv_type ty' ty'' || is_equiv_type ty' ty''') then
+        Some (v', ty')
       else
-        None
-    | {iname = "adds"; iargs = [_; Lval v; _; Atom (Avar (_, ty'))]} ->
-      if is_equiv_type ty ty' then
-        Some v
-      else
-        None
-    | {iname = "add"; iargs = [Lval v; _; Atom (Avar (_, ty'))]} ->
-      if is_equiv_type ty ty' then
-        Some v
-      else
-        None
-    | _ -> None
-
-    let rec update_arg args v argidx =
-      match args with
-      | [] -> assert false
-      | h::q ->
-        if argidx == 0 then v::q
-        else h::(update_arg q v (argidx-1))
-
-    let update_node_args node arg i =
-      let iargs' = update_arg node.nkind.iargs arg i in
-      node.nkind <- { iname = node.nkind.iname; iargs = iargs' }
+        aux (v, ty) n
+    | _ -> aux (v, ty) n (* Keep searching *)
 
     let sr_lval node pred = (* Search for the source of the argument in lval of another instruction *)
+      let rec update_arg args v i =
+        begin
+          match args with
+          | [] -> assert false
+          | h::q ->
+            if i == 0 then v::q
+            else h::(update_arg q v (i-1))
+        end
+      in
       let replace_arg v' i =
         let arg' = (Atom (Avar v')) in
-        update_node_args node arg' i;
+        let iargs' = update_arg node.nkind.iargs arg' i in
+        node.nkind <- { iname = node.nkind.iname; iargs = iargs' }
+      in
+      let aux v idx =
+        let l = find_vect_lval v pred in
+          begin
+            match l with
+            | Some v' -> replace_arg v' idx
+            | None -> ()
+          end
       in
       match node.nkind with
-      | {iname = "adds"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
-        let l = find_vect_lval v (Vector (i, ty)) pred in
-        begin
-          match l with
-          | Some v' -> replace_arg v' 2
-          | None -> ()
-        end
-      | {iname = "adds"; iargs = [_; _; _; Atom (Avar (v, Vector (i, ty)))]} ->
-        let l = find_vect_lval v (Vector (i, ty)) pred in
-        begin
-          match l with
-          | Some v' -> replace_arg v' 2
-          | None -> ()
-        end
+      | {iname = "adds"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
+        aux (v, Vector (i, ty)) 2;
+        aux (v', Vector (i', ty')) 3;
+      | {iname = "mull"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
+        aux (v, Vector (i, ty)) 2;
+        aux (v', Vector (i', ty')) 3;
+      | {iname = "subb"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
+        aux (v, Vector (i, ty)) 2;
+        aux (v', Vector (i', ty')) 3;
       | _ -> ()
 
     let rec sr_lvals node =
