@@ -632,10 +632,10 @@ module SimplVector = struct
         | h :: t ->
           begin
             match h with
-            | Avar v' -> (v' == v) || var_in_vatome v t
-            | Avecta (v', _) -> (v' == v) || var_in_vatome v t
-            | Avatome l' -> var_in_vatome v t || var_in_vatome v l'  (* is this valid CL? should we assert false ?? *)
-            | _ -> var_in_vatome v t
+            | Avar v' -> (v' == v) || (var_in_vatome v t)
+            | Avecta (v', _) -> (v' == v) || (var_in_vatome v t)
+            | Avatome l' -> (var_in_vatome v t) || (var_in_vatome v l')  (* is this valid CL? should we assert false ?? *)
+            | _ -> (var_in_vatome v t)
           end
         | [] -> false
     in
@@ -660,6 +660,12 @@ module SimplVector = struct
         | {iname = "adds"; iargs = [_; _; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
         | {iname = "add"; iargs = [_; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
         | {iname = "add"; iargs = [_; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "subb"; iargs = [_; _; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "subb"; iargs = [_; _; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "sub"; iargs = [_; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "sub"; iargs = [_; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "mull"; iargs = [_; _; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
+        | {iname = "mull"; iargs = [_; _; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
         | _ -> aux v n
       end
 
