@@ -1641,7 +1641,7 @@ Proof.
   rewrite map_cons -/(iota _ _) Z.add_0_r; congr (_ :: _).
   rewrite (iotaDl 1) -map_comp.
   rewrite ziota_recP.
-  apply: eq_map => i /=.
+  apply: eq_map => i /=; rewrite ?add0n.
   Lia.lia.
 Qed.
 
@@ -1660,7 +1660,7 @@ Proof.
   rewrite !ziotaE.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
   rewrite -addn1 addnC iotaDl -map_comp.
-  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat; Lia.lia.
+  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat ?add0n; Lia.lia.
 Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
