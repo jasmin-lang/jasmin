@@ -1061,7 +1061,7 @@ Section REL_EQUIV.
     vm1 =[s] vm1' ->
     set_var wdb vm1' x v = ok vm1'.[x <- v] /\ vm2 =[Sv.add x s] vm1'.[x <- v].
   Proof.
-    move=> /dup [] /(set_var_eq_on1 vm1') [hw2 h] hw1 hs.
+    move=> /[dup] /(set_var_eq_on1 vm1') [hw2 h] hw1 hs.
     split => //; rewrite SvP.MP.add_union_singleton.
     apply: (eq_on_union hs h); apply: set_var_eq_ex; eauto.
   Qed.

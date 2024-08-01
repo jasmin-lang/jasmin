@@ -130,7 +130,7 @@ Lemma ssem_sop1P o e : Papp1 o e =E ssem_sop1 o e.
 Proof.
   rewrite /ssem_sop1.
   case heq : of_expr => [ v | ] //=.
-  apply: eeq_weaken => rho v' /dup[]h1 /=.
+  apply: eeq_weaken => rho v' /[dup]h1 /=.
   rewrite /sem_sop1 -Let_Let (of_exprP rho heq) /= => -[?]; subst v'.
   by case heq' : to_expr => [e' | //]; apply to_exprP.
 Qed.
@@ -458,7 +458,7 @@ Proof.
   rewrite /ssem_sop2.
   case heq1 : (of_expr _ e1) => [ v1 | ] //=.
   case heq2 : (of_expr _ e2) => [ v2 | ] //=.
-  apply: eeq_weaken => rho v' /dup[]h1 /=.
+  apply: eeq_weaken => rho v' /[dup]h1 /=.
   rewrite /sem_sop2.
   move: (of_exprP rho heq1) (of_exprP rho heq2).
   t_xrbindP => ? -> he1 ? -> he2 ? [<-] ? [<-]; rewrite he1 he2 => ?[<-] ?[<-] ? -> ? /=; subst v'.
@@ -594,8 +594,8 @@ Section CONST_PROP_EP.
       by rewrite s_opNP /= -/(sem_pexprs _ _ _) ih /= ok_v; eauto.
     move => t e He e1 He1 e2 He2 v.
     t_xrbindP => b ve /He/= [] ve' [] hse /[swap] /to_boolI -> /value_uinclE ?; subst.
-    move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(value_uincl_truncate hue1) [] ? /dup[] ht1 /truncate_value_uincl ht1' hu1.
-    move=> ve2 vte2 /He2 []ve2' [] hse2 hue2 /(value_uincl_truncate hue2) [] ? /dup[] ht2 /truncate_value_uincl ht2' hu2 <-.
+    move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(value_uincl_truncate hue1) [] ? /[dup] ht1 /truncate_value_uincl ht1' hu1.
+    move=> ve2 vte2 /He2 []ve2' [] hse2 hue2 /(value_uincl_truncate hue2) [] ? /[dup] ht2 /truncate_value_uincl ht2' hu2 <-.
     rewrite /s_if; case: is_boolP hse; first by move=> [][<-] /=;eexists;split;eauto using value_uincl_trans.
     move=> /= p -> /=;rewrite hse1 hse2 /= ht1 ht2 /=;eexists;split;eauto.
     by case:(b).
@@ -652,7 +652,7 @@ Proof.
   have [_ /vm_truncate_valE [ws' [-> _ -> /=]] /get_varP [<-]] := write_get_varP_eq hw.
   move => _ _.
   elim/cmp_minP: (cmp_min szw ws'); first by move => ->.
-  case/dup => /(@cmp_lt_le _ _ _ _ _) hle'.
+  move=> /[dup] /(@cmp_lt_le _ _ _ _ _) hle'.
   rewrite -cmp_nle_lt => /negbTE ->.
   by rewrite zero_extend_wrepr.
 Qed.
@@ -1121,7 +1121,7 @@ Section PROOF.
     case: (Hc1 _ Hm).
     case Heq1 : const_prop => [m1 c0]; case Heq2 : const_prop => [m2 c3] /= Hval Hs;split.
     + by apply merge_cpmP;left.
-    move=> vm1 /dup[] h /Hs [vm2 [ hc u]];exists vm2;split => //.
+    move=> vm1 /[dup] h /Hs [vm2 [ hc u]];exists vm2;split => //.
     apply sem_seq1; do 2 constructor=> //.
     by have [v2 -> /value_uinclE ->]:= sem_pexpr_uincl h He.
   Qed.
@@ -1136,7 +1136,7 @@ Section PROOF.
     case: (Hc1 _ Hm).
     case Heq1 : const_prop => [m1 c0]; case Heq2 : const_prop => [m2 c3] /= Hval Hs;split.
     + by apply merge_cpmP;right.
-    move=> vm1 /dup[] h /Hs [vm2 [ hc u]];exists vm2;split => //.
+    move=> vm1 /[dup] h /Hs [vm2 [ hc u]];exists vm2;split => //.
     apply sem_seq1; constructor;apply Eif_false => //.
     by have [v2 -> /value_uinclE ->]:= sem_pexpr_uincl h He.
   Qed.
@@ -1218,7 +1218,7 @@ Section PROOF.
     have := Hfor _ Heqm Hm'1.
     case Heq1: const_prop => [m'' c'] /= Hsem;split.
     + by apply: valid_cpm_rm Hm;apply (write_iP (P:=p) (ev:=ev));econstructor;eauto.
-    move=> vm1 /dup[] hvm1 /Hsem [vm2 [ hfor hvm2]];exists vm2;split => //.
+    move=> vm1 /[dup] hvm1 /Hsem [vm2 [ hfor hvm2]];exists vm2;split => //.
     apply sem_seq1;constructor;econstructor;eauto.
     + have [v' [h /=]] := const_prop_eP Hm valid_without_globals Hlo; case: v' h => //= ? h ->.
       by have [v2 -> /value_uinclE ->]:= sem_pexpr_uincl hvm1 h.

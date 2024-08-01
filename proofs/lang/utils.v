@@ -1531,13 +1531,6 @@ Qed.
  * -------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------- *)
-Variant dup_spec (P : Prop) :=
-| Dup of P & P.
-
-Lemma dup (P : Prop) : P -> dup_spec P.
-Proof. by move=> ?; split. Qed.
-
-(* -------------------------------------------------------------------- *)
 Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
 Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
 

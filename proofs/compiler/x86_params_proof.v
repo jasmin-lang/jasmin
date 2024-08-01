@@ -722,7 +722,7 @@ Opaque cat.
   rewrite /se_protect_large_sem Hws /= => -[?]?; subst tr ys.
   case: lvs => // -[] // [aux iaux] [] // y [] // hws.
   case: args hes => // ew [] // emsf [] // hes1.
-  t_xrbindP; rewrite negb_or => /andP [] haux1 haux2 hops /dup[] + hmap hlo.
+  t_xrbindP; rewrite negb_or => /andP [] haux1 haux2 hops /[dup] + hmap hlo.
 Transparent cat.
   rewrite -hops /=; t_xrbindP => -[op1 oargs1] hass1 z0 z1 _ z2.
   rewrite mapM_cat /=; t_xrbindP => _ _ _ -[op2 oargs2] hass2 _ _ _ _ {z0 z1 z2}.
