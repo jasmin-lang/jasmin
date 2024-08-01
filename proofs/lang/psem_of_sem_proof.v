@@ -92,7 +92,7 @@ Lemma set_var_sim (vm1 : vmap_n) (vm1' : vmap_s) x v vm2 :
     (vm2 =1 vm2')%vm ∧
     set_var true vm1' x v = ok vm2'.
 Proof.
-  move=> hsim /set_varP [hdb /dup []htr /truncatable_sim htr' ->].
+  move=> hsim /set_varP [hdb /[dup]htr /truncatable_sim htr' ->].
   rewrite (set_var_truncate hdb htr') //; eexists; split; last by eauto.
   by apply vmap_set_sim.
 Qed.
