@@ -1781,16 +1781,6 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------- *)
-Lemma sumbool_of_boolET (b: bool) (h: b) :
-  Sumbool.sumbool_of_bool b = left h.
-Proof. by move: h; rewrite /is_true => ?; subst. Qed.
-
-Lemma sumbool_of_boolEF (b: bool) (h: b = false) :
-  Sumbool.sumbool_of_bool b = right h.
-Proof. by move: h; rewrite /is_true => ?; subst. Qed.
-
-
-(* ------------------------------------------------------------------------- *)
 
 Definition lprod ts tr :=
   foldr (fun t tr => t -> tr) tr ts.
