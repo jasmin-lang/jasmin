@@ -104,8 +104,10 @@ Variant riscv_op : Type :=
 (* Shift *)
 | SLL                            (* Shift Left Logical (by the 5 least significant bits of the second operand) *)
 | SRL                            (* Shift Right Logical (by the 5 least significant bits of the second operand) *)
-| SRLI                           (* Shift Right Logical with immediate (of 5 bits) *)
+| SRA                            (* Shift Right Arithmetic (by the 5 least significant bits of the second operand) *)
 | SLLI                           (* Shift Left Logical with immediate (of 5 bits) *)
+| SRLI                           (* Shift Right Logical with immediate (of 5 bits) *)
+| SRAI                           (* Shift Right Arithmetic with immediate (of 5 bits) *)
 
 (* Pseudo instruction : Other data processing instructions *)
 | LA                             (* Load address *)
@@ -233,6 +235,15 @@ Definition prim_SRL := ("SRL"%string, primM SRL).
 
 Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction riscv_srl_semi "SRLI" "srli".
 Definition prim_SRLI := ("SRLI"%string, primM SRLI).
+
+(*CHECKME*)
+Definition riscv_sra_semi (wn : ty_r) (wm : word U8) : exec ty_r := ok (wsar wn (wunsigned (wand wm (wrepr U8 31)))).
+
+Definition riscv_SRA_instr : instr_desc_t := RTypeInstruction riscv_sra_semi "SRA" "sra".
+Definition prim_SRA := ("SRA"%string, primM SRA).
+
+Definition riscv_SRAI_instr : instr_desc_t := ITypeInstruction riscv_sra_semi "SRAI" "srai".
+Definition prim_SRAI := ("SRAI"%string, primM SRAI).
 
 
 Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
@@ -397,12 +408,13 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
       id_check_dest := refl_equal;
       id_str_jas := pp_sign_sz "LOAD" s ws;
       id_safe := [::];
-      id_pp_asm := pp_name ("l" ++ string_of_sign s ++ string_of_size ws);
+      id_pp_asm := pp_name ("l" ++ string_of_size ws ++ string_of_sign s);
     |}.
 
 Definition primS (f: signedness -> wsize -> riscv_op) :=
   PrimX86
-    [seq PVs sg ws | sg <- [:: Signed; Unsigned], ws <- [:: U8; U16; U32]]
+    ([seq PVs Signed ws | ws <- [:: U8; U16; U32]] ++
+      [seq PVs Unsigned ws | ws <- [:: U8; U16]])
     (fun s => if s is PVs sg ws then (Some (f sg ws)) else None).
 
 Definition prim_LOAD := ("LOAD"%string, primS LOAD).
@@ -455,6 +467,8 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | SLLI => riscv_SLLI_instr
   | SRL => riscv_SRL_instr
   | SRLI => riscv_SRLI_instr
+  | SRA => riscv_SRA_instr
+  | SRAI => riscv_SRAI_instr
   | MV => riscv_MV_instr
   | LOAD s ws => riscv_LOAD_instr s ws
   | STORE ws => riscv_STORE_instr ws
@@ -483,6 +497,8 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_SLLI;
   prim_SRL;
   prim_SRLI;
+  prim_SRA;
+  prim_SRAI;
   prim_LOAD;
   prim_STORE
 ].

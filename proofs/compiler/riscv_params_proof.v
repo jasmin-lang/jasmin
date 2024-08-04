@@ -36,6 +36,7 @@ Require Import
   riscv_params_common_proof
   riscv_lowering
   riscv_lowering_proof
+  riscv_lower_addressing_proof
   riscv_stack_zeroization_proof.
 Require Export riscv_params.
 
@@ -328,6 +329,17 @@ Definition riscv_hloparams { dc : DirectCall } : h_lowering_params (ap_lop riscv
   |}.
 
 (* ------------------------------------------------------------------------ *)
+(* Lowering of complex addressing mode for RISC-V *)
+
+Lemma riscv_hlaparams : h_lower_addressing_params (ap_lap riscv_params).
+Proof.
+  split=> /=.
+  + exact: @lower_addressing_prog_invariants.
+  + exact: @lower_addressing_fd_invariants.
+  exact: @lower_addressing_progP.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
 
 Section ASM_GEN.
@@ -573,6 +585,7 @@ Definition riscv_h_params {dc : DirectCall} : h_architecture_params riscv_params
     ok_lip_tmp      := riscv_ok_lip_tmp;
     ok_lip_tmp2     := riscv_ok_lip_tmp2;
     hap_hlop        := riscv_hloparams;
+    hap_hlap        := riscv_hlaparams;
     hap_hagp        := riscv_hagparams;
     hap_hshp        := riscv_hshp;
     hap_hszp        := riscv_hszparams;
