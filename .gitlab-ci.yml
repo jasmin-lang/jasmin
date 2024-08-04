@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 stages:
 - prepare
 - prove
@@ -276,3 +277,5 @@ push-compiler-code:
   - git add compiler eclib
   - git commit -m "Jasmin compiler on branch “$CI_COMMIT_REF_NAME” at $CI_COMMIT_SHORT_SHA"  || true
   - git push --set-upstream origin $CI_COMMIT_REF_NAME
+=======
+>>>>>>> Stashed changes
