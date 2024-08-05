@@ -1,4 +1,5 @@
 open Utils
+open Wsize
 module L = Location
 module A = Annotations
 
@@ -86,15 +87,15 @@ let pos_int dfl ((id, _) as arg) =
       "a positive integer" Z.pp_print dfl;
   i
 
-let string_of_ws ws = Prog.string_of_ws (Printer.ws_of_ws ws)
+let string_of_ws ws = Annotations.string_of_ws ws
+
+let ws_strings =
+  List.map
+    (fun ws -> (string_of_ws ws, ws))
+    [ U8; U16; U32; U64; U128; U256 ]
 
 let ws_of_string =
-  let l =
-    List.map
-      (fun ws -> (string_of_ws ws, ws))
-      [ `W8; `W16; `W32; `W64; `W128; `W256 ]
-  in
-  fun s -> List.assoc s l
+  fun s -> List.assoc s ws_strings
 
 let wsize dfl arg =
   let error loc nid =

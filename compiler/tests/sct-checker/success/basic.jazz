@@ -91,3 +91,17 @@ export fn store(#transient reg u64 p i q, #secret reg u64 v) {
     [q + 8 * j] = v;
   }
 }
+
+#[sct="public * { ptr: public, val: transient } * { ptr: public, val: secret } -> { ptr: public, val: secret }"]
+fn xof_init(
+  reg u64 j,
+  reg ptr u64[25] state,
+  reg ptr u8[32] rho)
+  ->
+  reg ptr u64[25]
+{
+  reg u64 t;
+  t = rho[u64 j];
+  state[j] = t;
+  return state;
+}

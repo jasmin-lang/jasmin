@@ -1,4 +1,4 @@
-Failed as expected assign_msf: speculative constant type checker: assignment operation not permitted on a msf variable: x
+Failed as expected assign_msf: speculative constant type checker: assignment to MSF variable x not allowed
 Failed as expected syscall: speculative constant type checker: syscalls destroy msf variables, {
                              x } are required
 Failed as expected update_msf_not_trans: speculative constant type checker: MSF is not Trans
@@ -10,7 +10,6 @@ Failed as expected msf_trans: speculative constant type checker: MSF is Trans
                               (x ==64u ((64u) 0))
 Failed as expected not_known_as_msf: speculative constant type checker: 
                                      the variables { x } need to be MSFs.
-Annotation error in bad_poly_annot: public not allowed as argument of poly
 Failed as expected msf_in_export: speculative constant type checker: 
                                   the arguments { p } need to be MSFs, this is not allowed for export functions.
 Failed as expected should_be_a_msf: speculative constant type checker: p should be an MSF
@@ -25,7 +24,7 @@ Failed as expected call_bad_nomodmsf3: speculative constant type checker: annota
 Failed as expected call_modmsf_destroys: speculative constant type checker: 
                                          this function call destroys MSFs and { msf } are required.
                                          Trace:
-                                           the function modmsf_destroys destroys MSFs at "error_messages.jazz", line 142 (2) to line 144 (3)
+                                           the function modmsf_destroys destroys MSFs at "error_messages.jazz", line 140 (2) to line 142 (3)
 Failed as expected ret_high: speculative constant type checker: return type for p is #secret it should be less than #public
 Failed as expected ret_transient: speculative constant type checker: return type for p is #transient it should be less than #public
 Failed as expected ret_msf: speculative constant type checker: return annotation for msf should be msf

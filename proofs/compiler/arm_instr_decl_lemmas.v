@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -66,7 +64,7 @@ Proof.
 
   (* Destruct [vprev]. *)
   all:
-    repeat (
+    do 6? (
       case: vprev => [| ? vprev ] //=;
       t_xrbindP=> //;
       repeat
@@ -84,7 +82,7 @@ Proof.
   all: rewrite /exec_sopn /=.
   all: case: vargs => [| ? vargs ] //; t_xrbindP => // v.
   all:
-    repeat (
+    do 6? (
       case: vargs => [| ? vargs ] //;
       t_xrbindP => //;
       match goal with

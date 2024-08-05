@@ -216,8 +216,8 @@ let pp_word fmt ws w =
   let z = Conv.z_of_cz z in
   Printer.pp_print_X fmt z
 
-let pp_abstract fmt s = 
-  Format.fprintf fmt "abstract<%a>" PrintCommon.pp_string0 s
+let pp_abstract fmt s =
+  Format.fprintf fmt "abstract<%a>" Utils.pp_string s
 
 let pp_val fmt v = 
   match v with
@@ -232,19 +232,11 @@ let pp_val fmt v =
     Format.fprintf fmt "@[[";
     for i = 0 to ip-2 do
       let i = Conv.cz_of_int i in
-      Format.fprintf fmt "%a;@ " pp_res (WArray.get p AAscale U8 t i);
+      Format.fprintf fmt "%a;@ " pp_res (WArray.get p Aligned AAscale U8 t i);
     done;
     if 0 < ip then 
-      pp_res fmt (WArray.get p AAscale U8 t (Conv.cz_of_int (ip-1)));
+      pp_res fmt (WArray.get p Aligned AAscale U8 t (Conv.cz_of_int (ip-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty
   | Vabstract (s, _) -> pp_abstract fmt s
-
-
- 
-
-      
-
-
-

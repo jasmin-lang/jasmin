@@ -1,6 +1,6 @@
 (* * Syntax of the linear language *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 Require Import expr fexpr label sopn.
 
 Set Implicit Arguments.
@@ -54,8 +54,17 @@ Record lfundef := LFundef {
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
  lfd_export: bool;
  lfd_callee_saved: seq var; (* A list of variables that must be initialized before calling this function *)
- lfd_total_stack: Z; (* total amount of stack memory needed by this function (and all functions called by this one *)
+ lfd_stk_max : Z; (* max amount of stack memory used by this function (and all functions called by this one *)
+ lfd_frame_size : Z; (* needed for stack zeroization *)
+ lfd_align_args : seq wsize;
 }.
+
+(* takes into account the padding due to the alignment of the stack of export functions *)
+Definition lfd_total_stack lfd :=
+  if lfd.(lfd_export) then
+    (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1)%Z
+  else
+    lfd.(lfd_stk_max).
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
   (lfd_tyin lfd, lfd_tyout lfd).
@@ -64,6 +73,7 @@ Record lprog :=
  {  lp_rip   : Ident.ident;
     lp_rsp : Ident.ident;
     lp_globs : seq u8;
+    lp_glob_names: seq (var * wsize * Z);
     lp_funcs : seq (funname * lfundef) }.
 
 End ASM_OP.

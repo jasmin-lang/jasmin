@@ -44,6 +44,7 @@
     "if"    , IF     ;
     "inline", INLINE ;
     "mut"   , MUTABLE;
+    "namespace", NAMESPACE;
     "param" , PARAM  ;
     "ptr"   , POINTER;
     "reg"   , REG    ;
@@ -73,12 +74,12 @@
 
   let size_of_string =
   function
-  | "8" -> `W8
-  | "16" -> `W16
-  | "32" -> `W32
-  | "64" -> `W64
-  | "128" -> `W128
-  | "256" -> `W256
+  | "8"   -> Wsize.U8
+  | "16"  -> Wsize.U16
+  | "32"  -> Wsize.U32
+  | "64"  -> Wsize.U64
+  | "128" -> Wsize.U128
+  | "256" -> Wsize.U256
   | _ -> assert false
 
   let mksizesign sw s = size_of_string sw, sign_of_char s
@@ -160,6 +161,7 @@ rule main = parse
   | ";"     { SEMICOLON  }
   | "?"     { QUESTIONMARK  }
   | ":"     { COLON  }
+  | "::"    { COLONCOLON  }
 
   | ">>r"                   { ROR              }
   | "<<r"                   { ROL              }
@@ -185,6 +187,8 @@ rule main = parse
   | "="  { EQ       }
   | "==" { EQEQ     }
   | "!=" { BANGEQ   }
+  | "#unaligned" { UNALIGNED   }
+  | "#aligned" { ALIGNED   }
 
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }

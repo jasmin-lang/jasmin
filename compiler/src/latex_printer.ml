@@ -122,6 +122,11 @@ let pp_attribute_key fmt s =
   then F.fprintf fmt "%s" s
   else F.fprintf fmt "%S" s
 
+let pp_aligned fmt = function
+  | None -> ()
+  | Some `Aligned -> F.fprintf fmt "%aaligned " sharp ()
+  | Some `Unaligned -> F.fprintf fmt "%aunaligned " sharp ()
+
 let rec pp_simple_attribute fmt a = 
   match L.unloc a with 
   | Aint i -> Z.pp_print fmt i
@@ -149,9 +154,9 @@ let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
   | PEVar x -> pp_var fmt x
-  | PEGet (aa, ws, x, e, len) -> 
-    pp_arr_access fmt aa ws x e len
-  | PEFetch me -> pp_mem_access fmt me 
+  | PEGet (al, aa, ws, x, e, len) ->
+    pp_arr_access fmt al aa ws x e len
+  | PEFetch me -> pp_mem_access fmt me
   | PEpack (vs,es) ->
     F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
@@ -177,13 +182,13 @@ let rec pp_expr_rec prio fmt pe =
     F.fprintf fmt "%a ? %a : %a" (pp_expr_rec p) e1 (pp_expr_rec p) e2 (pp_expr_rec p) e3;
     optparent fmt prio p ")"
 
-and pp_mem_access fmt (ty,x,e) = 
+and pp_mem_access fmt (al, ty,x,e) =
   let pp_e fmt e = 
     match e with
     | None -> ()
     | Some (`Add, e) -> Format.fprintf fmt " + %a" pp_expr e 
     | Some (`Sub, e) -> Format.fprintf fmt " - %a" pp_expr e in
-  F.fprintf fmt "%a[%a%a]" (pp_opt (pp_paren pp_ws)) ty pp_var x pp_e e
+  F.fprintf fmt "%a[%a%a%a]" (pp_opt (pp_paren pp_ws)) ty pp_aligned al pp_var x pp_e e
   
 and pp_type fmt ty =
   match L.unloc ty with
@@ -196,14 +201,15 @@ and pp_type fmt ty =
 and pp_ws fmt w = F.fprintf fmt "%a" ptype (string_of_wsize w)
 and pp_expr fmt e = pp_expr_rec Pmin fmt e
 
-and pp_arr_access fmt aa ws x e len= 
+and pp_arr_access fmt al aa ws x e len=
  let pp_olen fmt len = 
    match len with
    | None -> ()
    | Some len -> Format.fprintf fmt " : %a" pp_expr len in
- F.fprintf fmt "%a%s[%a%a%a%a]" 
-    pp_var x 
+ F.fprintf fmt "%a%s[%a%a%a%a%a]"
+    pp_var x
     (if aa = Warray_.AAdirect then "." else "")
+    pp_aligned (Option.bind len (fun _ -> al))
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
 let pp_writable = function
@@ -253,7 +259,7 @@ let pp_lv fmt x =
   match L.unloc x with
   | PLIgnore -> F.fprintf fmt "_"
   | PLVar x -> pp_var fmt x
-  | PLArray (aa, ws, x, e, len) -> pp_arr_access fmt aa ws x e len
+  | PLArray (al, aa, ws, x, e, len) -> pp_arr_access fmt al aa ws x e len
   | PLMem me -> pp_mem_access fmt me 
 
 let pp_eqop fmt op =
@@ -396,7 +402,7 @@ let pp_abstract_pre fmt { pap_name ; pap_args ; pap_rty; pap_annot } =
     (fun fmt (_annot, d) -> pp_type fmt d) pap_rty;
   F.fprintf fmt eol
 
-let pp_pitem fmt pi =
+let rec pp_pitem fmt pi =
   match L.unloc pi with
   | PFundef f -> pp_fundef fmt f
   | PParam p  -> pp_param fmt p
@@ -411,6 +417,15 @@ let pp_pitem fmt pi =
       F.fprintf fmt eol
   | Pabstract_ty t ->  pp_abstract_ty fmt t.pat_name
   | Pabstract_pre p -> pp_abstract_pre fmt p
+  | PNamespace (ns, pis) ->
+     (* TODO: ident within namespaces? *)
+     F.fprintf fmt "%a %s " kw "namespace" (L.unloc ns);
+     openbrace fmt ();
+     F.fprintf fmt eol;
+     List.iter (pp_pitem fmt) pis;
+     F.fprintf fmt eol;
+     closebrace fmt ();
+     F.fprintf fmt eol
 
 let pp_prog fmt =
   List.iter (F.fprintf fmt "%a" pp_pitem)

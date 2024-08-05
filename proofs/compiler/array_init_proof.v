@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem compiler_util.
 Require Export array_init.
 Import Utf8.
@@ -98,7 +98,7 @@ Section REMOVE_INIT.
     case: Hse => ?; subst v.
     move: hsub;rewrite /truncate_val;case: ty => //= nty.
     t_xrbindP => empty /WArray.cast_empty_ok ??; subst v' empty.
-    case: x hwr => [vi t | [x xi] | ws x e | aa ws x e | aa ws len [x xi] e] /=.
+    case: x hwr => [vi t | [x xi] | al ws x e | al aa ws x e | aa ws len [x xi] e] /=.
     + by move=> /write_noneP [->];exists vm1 => //;constructor.
     + move=> /write_varP_arr [/=hty _ _ ->] /= hsub.
       exists vm1; first by constructor.
@@ -272,9 +272,9 @@ Section ADD_INIT.
 
   Notation lift_vm sem s1 s2 :=
     (forall vm1,
-       evm s1 =1 vm1 ->
+       vm_eq (evm s1) vm1 ->
        exists2 vm2,
-         evm s2 =1 vm2
+         vm_eq (evm s2) vm2
          & sem (with_vm s1 vm1) (with_vm s2 vm2))
     (only parsing).
 
@@ -474,7 +474,7 @@ Section ADD_INIT.
     apply aux.
     + constructor; econstructor;eauto.
     move=> vm1 heq1.
-    have heq1' : evm (with_mem s1 m2) =1 vm1 := heq1.
+    have heq1' : (evm (with_mem s1 m2) =1 vm1)%vm := heq1.
     have [vm2 heq2 hwr2 ]:= write_lvars_ext_eq (s1 := (with_scs (with_mem s1 m2) scs2)) heq1 Hxs.
     exists vm2 => //; constructor; econstructor; eauto.
     by rewrite -(sem_pexprs_ext_eq _ _ args).

@@ -1,0 +1,13 @@
+export fn main () -> reg u32 {
+  stack u32[1] s1 s2;
+  reg u32 aux res;
+
+  aux = 0;
+  s1[0] = aux;
+  s2[0] = aux;
+  aux = s1[0];
+  res = s2[aux]; // this is the problematic line, we need to take a reg ptr of s2 to do that
+  res += aux;
+
+  return res;
+}

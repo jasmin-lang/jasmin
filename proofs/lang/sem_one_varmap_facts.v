@@ -2,7 +2,7 @@
 *)
 Require psem_facts sem_one_varmap.
 Import Utf8.
-Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Import low_memory.
 Import psem psem_facts sem_one_varmap.
 
@@ -21,7 +21,7 @@ Context
   {sip : SemInstrParams asm_op syscall_state}
   {ovm_i : one_varmap_info}
   (p : sprog)
-  (var_tmp : var).
+  (var_tmp : Sv.t).
 
 Section STACK_STABLE.
 
@@ -235,7 +235,12 @@ Lemma Hwhile_false_nw : sem_Ind_while_false p var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
 Lemma Hcall_nw : sem_Ind_call p var_tmp Pi_r Pfun.
-Proof. by []. Qed.
+Proof.
+  move=> ii k s1 s2 res fn args xargs xres ???.
+  rewrite /Pfun /Pi_r /kill_tmp_call /= => h1 x hx.
+  have /Sv_memP/negbTE hn : ¬ Sv.In x (fd_tmp_call p fn) by SvD.fsetdec.
+  rewrite kill_varsE hn -h1 ?kill_varsE ?hn //; SvD.fsetdec.
+Qed.
 
 Lemma Hproc_nw : sem_Ind_proc p var_tmp Pc Pfun.
 Proof.
@@ -330,7 +335,7 @@ Qed.
 (* The contents of RSP and GD registers are preserved. *)
 Section PRESERVED_RSP_GD.
 
-Hypothesis var_tmp_not_magic : ~~ Sv.mem var_tmp (magic_variables p).
+Hypothesis var_tmp_not_magic : disjoint var_tmp (magic_variables p).
 
 Let Pc (k: Sv.t) (_: estate) (_: cmd) (_: estate) : Prop := disjoint k (magic_variables p).
 Let Pi (k: Sv.t) (_: estate) (_: instr) (_: estate) : Prop := disjoint k (magic_variables p).
@@ -393,14 +398,15 @@ Proof.
   rewrite /saved_stack_valid in ok_ss.
   rewrite /Pfun !disjoint_unionE ih /=.
   rewrite /ra_vm /saved_stack_vm.
-  apply/andP; split.
-  1: case: sf_return_address ok_ra => //.
-  1: rewrite SvP.MP.add_union_singleton disjoint_unionE => rax_not_magic.
-  1: apply/andP; split; last exact: flags_not_magic.
-  1: by rewrite disjoint_singletonE.
-  3: case: sf_save_stack ok_ss => //.
-  2: move=> [ra _ /= /andP[]/eqP r_neq_gd /eqP r_neq_rsp| _ _].
-  1,4: move => /= r /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
+  apply/andP; split; last first.
+  + case: sf_save_stack ok_ss => //.
+    move=> /= r /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
+    by rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=; SvD.fsetdec.
+  case: sf_return_address ok_ra => //.
+  + rewrite disjoint_unionE => rax_not_magic.
+    by apply/andP; split => //; apply: flags_not_magic.
+  1: move=> r _ /= /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
+  2: move=> [] //= r _ _ /andP[] /eqP r_neq_gd /eqP r_neq_rsp.
   all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=; SvD.fsetdec.
 Qed.
 
@@ -465,7 +471,7 @@ End PRESERVED_RSP_GD.
 
 Section VALIDW_STABLE.
 
-Infix "≡" := (λ m1 m2, validw m1 =2 validw m2) (at level 40).
+Infix "≡" := (λ m1 m2, validw m1 =3 validw m2) (at level 40).
 
 Instance eqrel_trans A B C : Transitive (@eqrel A B C).
 Proof. by move => x y z xy yz a b; transitivity (y a b). Qed.
@@ -479,7 +485,7 @@ Lemma validw_stable_nil : sem_Ind_nil Pc.
 Proof. by []. Qed.
 
 Lemma validw_stable_cons : sem_Ind_cons p var_tmp Pc Pi.
-Proof. move => ki kc x y z i c _ xy _ yz; red; etransitivity; eassumption. Qed.
+Proof. by move => ki kc x y z i c _ xy _ yz ???; rewrite xy yz. Qed.
 
 Lemma validw_stable_mkI : sem_Ind_mkI p var_tmp Pi Pi_r.
 Proof. by []. Qed.
@@ -491,7 +497,7 @@ Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
 
 Lemma validw_stable_syscall : sem_Ind_syscall p Pi_r.
-Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ??; rewrite ho. Qed.
+Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ???; rewrite ho hw. Qed.
 
 Lemma validw_stable_if_true : sem_Ind_if_true p var_tmp Pc Pi_r.
 Proof. by []. Qed.

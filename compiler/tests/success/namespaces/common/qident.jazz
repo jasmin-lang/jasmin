@@ -1,0 +1,8 @@
+namespace N { u32 g = 42; }
+
+export
+fn main() -> reg u32 {
+  reg u32 r;
+  r = N::g;
+  return r;
+}

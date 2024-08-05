@@ -1,0 +1,2 @@
+param int N = 65536;
+require "sub_reg_ptr_template.jinc"

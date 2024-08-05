@@ -2,6 +2,7 @@
 , inCI ? false
 , pinned-nixpkgs ? inCI
 , coqDeps ? !inCI
+, coqMaster ? false
 , ocamlDeps ? !inCI
 , testDeps ? !inCI
 , devTools ? !inCI
@@ -14,19 +15,24 @@ with pkgs;
 
 let inherit (lib) optionals; in
 
-let coqPackages = coqPackages_8_17; in
+let coqPackages =
+  if coqMaster then
+    pkgs.coqPackages.overrideScope (self: super: {
+      coq = super.coq.override { version = "master"; };
+      coq-elpi = callPackage scripts/coq-elpi.nix {
+        version = "master";
+        inherit (self) lib mkCoqDerivation coq;
+      };
+      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.0"; };
+    })
+  else coqPackages_8_19
+; in
 
 let mathcomp-word = callPackage scripts/mathcomp-word.nix { inherit coqPackages; }; in
 
 let easycrypt = callPackage scripts/easycrypt.nix {
   inherit ecRef;
-  why3 = pkgs.why3.overrideAttrs (o: rec {
-      version = "1.6.0";
-      src = pkgs.fetchurl {
-        url = "https://why3.gitlabpages.inria.fr/releases/${o.pname}-${version}.tar.gz";
-        hash = "sha256-hFvM6kHScaCtcHCc6Vezl9CR7BFbiKPoTEh7kj0ZJxw=";
-      };
-    });
+  why3 = pkgs.why3.override { ideSupport = false; };
 }; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
@@ -49,19 +55,24 @@ let ecDeps = ecRef != ""; in
 
 stdenv.mkDerivation {
   name = "jasmin-0";
-  src = null;
+  src = nix-gitignore.gitignoreSource [] ./.;
   buildInputs = []
     ++ optionals coqDeps [ coqPackages.coq mathcomp-word ]
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
          cmdliner
-         (batteries.overrideAttrs (o: { doCheck = false; }))
+         angstrom
+         batteries
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
-    ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
-    # Apron as packaged in opam is broken with gnumake ≥ 4.4
-    # Bringing gnumake 4.2 in scope works around this issue
-    ++ optionals opamDeps [ gnumake42 rsync git pkg-config perl ppl mpfr opam ]
+    ++ optionals ecDeps [ easycrypt alt-ergo z3.out ]
+    ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
+
+  enableParallelBuilding = true;
+
+  installPhase = ''
+    make -C compiler install PREFIX=$out
+  '';
 }

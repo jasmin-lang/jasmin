@@ -1,0 +1,36 @@
+export
+fn main(reg u64 x) -> reg u128 {
+  reg u128 r;
+  stack u128[2] a;
+  inline int i;
+  for i = 0 to 16 {
+    a[u16 i] = (u16)[x + 2 * i];
+  }
+  ?{}, r = #set0_128();
+  for i = 0 to 3 {
+    r ^= a.[#unaligned i * 8];
+  }
+  return r;
+}
+
+export
+fn sopndest() -> reg u64 {
+  stack u128[2] a;
+  reg u128 x;
+  x = #set0_128();
+  a.[#unaligned u128 8] = x;
+  reg u64 r;
+  r = a.[u64 8];
+  return r;
+}
+
+export
+fn add_in_mem(reg u64 x y) -> reg u64 {
+  stack u64[2] s;
+  s[0] = 0;
+  s[1] = 0;
+  s.[#unaligned 4] = x;
+  s.[#unaligned 4] += y;
+  x = s[0];
+  return x;
+}

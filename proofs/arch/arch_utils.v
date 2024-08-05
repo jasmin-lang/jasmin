@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
 Require Import
   type

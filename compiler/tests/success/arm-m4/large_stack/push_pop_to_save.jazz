@@ -1,0 +1,48 @@
+param int N = 1024;
+param int T = 10;
+
+export fn main() -> reg u32 {
+  stack u32[N] s;
+  reg ptr u32[N] ps;
+  reg u32 i n d;
+  inline int j;
+
+  i = 0;
+  n = N;
+  ps = s;
+  while(i < n) {
+    ps[i] = i;
+    i += 1;
+  }
+
+  reg u32[T] t;
+  for j = 0 to T {
+    t[j] = ps[j];
+  }
+  i = T;
+  n = (N / T) * T;
+  while (i < n) {
+    for j = 0 to T {
+      d = ps[i];
+      t[j] += d;
+      i += 1;
+    }
+  }
+  n = N;
+  while (i < n) {
+    d = ps[i];
+    t[0] += d;
+    i += 1;
+  }
+
+  for j = 1 to T {
+    t[0] += t[j];
+  }
+
+  i = t[0];
+  return i;
+
+}
+
+
+

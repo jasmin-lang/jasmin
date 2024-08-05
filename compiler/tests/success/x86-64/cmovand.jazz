@@ -1,5 +1,5 @@
 inline
-fn condition2(reg u64 i n) -> inline bool {
+fn condition2(reg u64 i n) -> reg bool {
  reg u8 a b c;
  reg bool result;
 

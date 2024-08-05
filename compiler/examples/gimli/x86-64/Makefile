@@ -35,7 +35,7 @@ gimliv.s gimliv1.s: gimliv.jinc
 
 clean:
 	@echo "cleaning..."
-	@rm test testv testv1 test*.out gimli*.o 2> /dev/null || true
+	$(RM) test testv testv1 test*.out gimli*.o 2> /dev/null || true
 
 archclean: clean
-	@rm -r gimli.s gimliv.s gimliv1.s 2> /dev/null || true
+	$(RM) -r gimli.s gimliv.s gimliv1.s 2> /dev/null || true

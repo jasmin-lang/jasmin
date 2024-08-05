@@ -13,9 +13,9 @@ let parse () =
   let infiles = ref [] in
   let set_in s = infiles := s :: !infiles in
   (* Set default option values *)
-  if Arch.os = Some `Windows then set_cc "windows";
+  if Sys.win32 then set_cc "windows";
   (* Parse command-line arguments *)
-  Arg.parse options set_in usage_msg;
+  Arg.parse (Arg.align options) set_in usage_msg;
   let c =
     match !color with
     | Auto -> Unix.isatty (Unix.descr_of_out_channel stderr)
@@ -48,7 +48,7 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 
   let () =
     List.iter (fun f_decl ->
-        if f_decl.f_cc = Export then
+        if FInfo.is_export f_decl.f_cc then
           let () = Format.eprintf "@[<v>Analyzing function %s@]@."
               f_decl.f_name.fn_name in
 
@@ -58,10 +58,6 @@ let check_safety_p pd asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
           analyze source_f_decl f_decl p)
       (List.rev (snd p)) in
   ()
-
-(* -------------------------------------------------------------------- *)
-let check_sct _s p _source_p =
-  Sct_checker_forward.ty_prog p (oget !sct_list)
 
 (* -------------------------------------------------------------------- *)
 module type ArchCoreWithAnalyze = sig
@@ -158,16 +154,11 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
-    let do_compile = ref true in
-    let donotcompile () = do_compile := false in
-
     (* This function is called after each compilation pass.
         - Check program safety (and exit) if the time has come
         - Pretty-print the program
         - Add your own checker here!
     *)
-    (* FIXME: I think this donotcompile stuff does not work anymore,
-       At least the compilation will not be stopped if the passes are after Compiler.ParamsExpansion *)
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_p
@@ -177,11 +168,7 @@ let main () =
           s
           p
           source_prog
-        |> donotcompile
-      else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
-        check_sct s p source_prog
-        |> List.iter (Format.printf "%a@." Sct_checker_forward.pp_funty)
-        |> donotcompile
+        |> fun () -> exit 0
       else
       (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;
@@ -211,22 +198,9 @@ let main () =
         BatPervasives.ignore_exceptions
           (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
         raise e end;
-      donotcompile()
+      exit 0
     end;
 
-    if !ct_list <> None then begin
-        let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
-           Format.printf "/* Security types:\n@[<v>%a@]*/@."
-              (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
-           let on_err (loc, msg) =
-             hierror ~loc:(Lone loc) ~kind:"constant type checker" "%t" msg
-           in
-           Stdlib.Option.iter on_err status;
-        donotcompile()
-    end;
-
-    if !do_compile then begin
-  
     (* Now call the coq compiler *)
     let cprog = Conv.cuprog_of_prog prog in
 
@@ -242,7 +216,7 @@ let main () =
             Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
-              (** TODO: allow to configure the initial stack pointer *)
+              (* TODO: allow to configure the initial stack pointer *)
               (match
                  Evaluator.initial_memory Arch.reg_size (Z.of_string "1024") m
                with
@@ -277,14 +251,13 @@ let main () =
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" Arch.pp_asm asm
     end
-    end
   with
   | Utils.HiError e ->
     Format.eprintf "%a@." pp_hierror e;
     exit 1
 
   | UsageError ->
-    Arg.usage options usage_msg;
+    Arg.usage (Arg.align options) usage_msg;
     exit 1
 
   | CLIerror e ->

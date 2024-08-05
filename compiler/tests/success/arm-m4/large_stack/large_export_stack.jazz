@@ -1,0 +1,22 @@
+param int N = 1025;
+
+export fn main () -> reg u32 {
+  stack u32[N] st;
+  reg ptr u32[N] t;
+  reg u32 i, s, n, tmp;
+
+  t = st;
+  i = 0;
+  n = N;
+  while (i < n) {
+    t[i] = i;
+    i += 1;
+  }
+  i = 0; s = 0;
+  while (i < n) {
+    tmp = t[i];
+    s += tmp;
+    i += 1;
+  }
+  return s;
+}

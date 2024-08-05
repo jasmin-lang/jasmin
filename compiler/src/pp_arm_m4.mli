@@ -4,13 +4,13 @@ val mangle : string -> string
 val print_instr :
   string (* Current function name. *)
   -> Format.formatter
-  -> ( Arm_decl_core.register
+  -> ( Arm_decl.register
      , Arm_decl.__
      , Arm_decl.__
-     , Arm_decl_core.rflag
+     , Arm_decl.rflag
      , Arm_decl.condt
      , Arm_instr_decl.arm_op )
-     Arch_decl.asm_i
+     Arch_decl.asm_i_r
   -> unit
 
 val print_prog :

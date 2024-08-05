@@ -1,7 +1,9 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
+From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
-From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses Psatz.
+From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
@@ -41,18 +43,21 @@ Class eqTypeC (T:Type) :=
   { beq : T -> T -> bool
   ; ceqP: Equality.axiom beq }.
 
+Module EqType.
 Section EqType.
 
 Context {T:Type} {ceqT : eqTypeC T}.
-Definition ceqT_eqMixin := Equality.Mixin ceqP.
-Definition ceqT_eqType  := Eval hnf in EqType T ceqT_eqMixin.
+HB.instance Definition _ := hasDecEq.Build T ceqP.
+Definition ceqT_eqType : eqType := T.
 
 End EqType.
+End EqType.
+Definition ceqT_eqType {T} {ceqT} := @EqType.ceqT_eqType T ceqT.
 
-Notation "x == y ::> T" := (eq_op (T:= @ceqT_eqType T _) x y)
+Notation "x == y ::> T" := (@eq_op (@ceqT_eqType T _) x y)
   (at level 70, y at next level) : bool_scope.
 
-Notation "x == y ::>" := (eq_op (T:= @ceqT_eqType _ _) x y)
+Notation "x == y ::>" := (@eq_op (@ceqT_eqType _ _) x y)
   (at level 70, y at next level) : bool_scope.
 
 Class finTypeC (T:Type) :=
@@ -64,25 +69,16 @@ Class finTypeC (T:Type) :=
 #[global]
 Existing Instance _eqC.
 
+Module FinType.
 Section FinType.
 
 Context `{cfinT:finTypeC}.
 
-Definition cfinT_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK cenumP).
-Definition cfinT_choiceType :=
-  Eval hnf in ChoiceType ceqT_eqType cfinT_choiceMixin.
-
-Definition cfinT_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK cenumP).
-Definition cfinT_countType :=
-  Eval hnf in @Countable.pack T cfinT_countMixin cfinT_choiceType _ (fun x => x).
-
-Definition cfinT_finMixin :=
-  @Finite.EnumMixin cfinT_countType _ cenumP.
-Definition cfinT_finType :=
-  Eval hnf in 
-    (@Finite.pack T ceqT_eqMixin cfinT_finMixin cfinT_choiceType _ (fun x => x) _ (fun x => x)).
+HB.instance Definition _ := Equality.copy T ceqT_eqType.
+HB.instance Definition _ : isCountable T :=
+  PCanIsCountable (FinIsCount.pickleK cenumP).
+HB.instance Definition _ := isFinite.Build T cenumP.
+Definition cfinT_finType : finType := T.
 
 Lemma mem_cenum : cenum =i ceqT_eqType.
 Proof.
@@ -90,6 +86,9 @@ Proof.
 Qed.
 
 End FinType.
+End FinType.
+Definition cfinT_finType {T} {cfinT} := @FinType.cfinT_finType T cfinT.
+Definition mem_cenum {T} {cfinT} := @FinType.mem_cenum T cfinT.
 
 Module FinMap.
 
@@ -102,7 +101,7 @@ Context `{cfinT:finTypeC} (U:Type).
 Definition map := @finfun_of cfinT_finType (fun _ => U) (Phant _).
 
 Definition of_fun := 
-  @FinfunDef.finfun cfinT_finType (fun _ => U).
+  @finfun.finfun cfinT_finType (fun _ => U).
 
 Definition set (m:map) (x: T) (y:U) : map := 
   of_fun (fun z : T => if z == x ::> then y else m z).
@@ -285,6 +284,10 @@ Proof.
 elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
+
+Lemma map_Forall2 aT bT (f : aT -> bT) m :
+  List.Forall2 (fun a b => f a = b) m (map f m).
+Proof. by elim: m => //= a m ih; constructor. Qed.
 
 Lemma mapM_ext eT aT bT (f1 f2: aT → result eT bT) (m: seq aT) :
   (∀ a, List.In a m → f1 a = f2 a) →
@@ -593,19 +596,6 @@ Section MAP2.
     by Lia.lia.
   Qed.
 
-  Lemma mapM2_Forall2 (P: R → B → Prop) ma mb mr :
-    (∀ a b r, List.In (a, b) (zip ma mb) → f a b = ok r → P r b) →
-    mapM2 ma mb = ok mr →
-    List.Forall2 P mr mb.
-  Proof.
-    elim: ma mb mr.
-    + move => [] // mr _ [<-]; constructor.
-    move => a ma ih [] // b mb mr' h /=; t_xrbindP => r ok_r mr rec <- {mr'}.
-    constructor.
-    + by apply: (h _ _ _ _ ok_r); left.
-    by apply: ih => // a' b' r' h' ok_r'; apply: (h a' b' r' _ ok_r'); right.
-  Qed.
-
   Lemma mapM2_Forall3 ma mb mr :
     mapM2 ma mb = ok mr ->
     Forall3 (fun a b r => f a b = ok r) ma mb mr.
@@ -615,6 +605,16 @@ Section MAP2.
     move=> a ma ih [//|b mb] /=.
     t_xrbindP=> _ r h mr /ih{ih}ih <-.
     by constructor.
+  Qed.
+
+  Lemma mapM2_nth ma mb mr :
+    mapM2 ma mb = ok mr ->
+    forall a b r i,
+      (i < size ma)%nat ->
+      f (nth a ma i) (nth b mb i) = ok (nth r mr i).
+  Proof.
+    move=> H; elim: {H ma mb mr}(mapM2_Forall3 H) => //= a b r ma mb mr ok_r _ ih.
+    by move=> a' b' r' [//|i]; apply ih.
   Qed.
 
   Lemma cat_mapM2 ha ta hb tb hl tl :
@@ -664,7 +664,8 @@ Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT *
     | _, _ => Error e
     end.
 
-Lemma size_fmapM2 {eT aT bT cT dT} e (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld :
+Lemma size_fmapM2 {eT aT bT cT dT} e
+  (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld :
   fmapM2 e f a lb lc = ok (a2, ld) ->
   size lb = size lc /\ size lb = size ld.
 Proof.
@@ -673,6 +674,45 @@ Proof.
   move=> b lb ih [//|c lc] a /=.
   t_xrbindP=> _ _ _ _ [_ ld] /ih{ih}ih _ <- /=.
   by Lia.lia.
+Qed.
+
+Lemma fmapM2_split {eT aT bT cT dT} e
+  (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld i :
+  fmapM2 e f a lb lc = ok (a2, ld) ->
+  exists a1,
+    fmapM2 e f a (take i lb) (take i lc) = ok (a1, take i ld) /\
+    fmapM2 e f a1 (drop i lb) (drop i lc) = ok (a2, drop i ld).
+Proof.
+  elim: lb lc a a2 ld i => [|b lb ih] [|c lc] //= a a2.
+  + move=> _ _ [<- <-] /=.
+    by eexists.
+  t_xrbindP=> _ i [a1 d] /= h1 [{}a2 ld] h2 <- <-.
+  case: i => [|i] /=.
+  + eexists; split; first by reflexivity.
+    by rewrite h1 /= h2.
+  rewrite h1 /=.
+  have [a1' [-> /= h2']] := ih _ _ _ _ i h2.
+  by eexists; split; first by reflexivity.
+Qed.
+
+Lemma fmapM2_nth {eT aT bT cT dT} e
+  (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld i b c d :
+  fmapM2 e f a lb lc = ok (a2, ld) ->
+  (i < size lb)%nat ->
+  exists a1 a1',
+    fmapM2 e f a (take i lb) (take i lc) = ok (a1, take i ld) /\
+    f a1 (nth b lb i) (nth c lc i) = ok (a1', nth d ld i) /\
+    fmapM2 e f a1' (drop i.+1 lb) (drop i.+1 lc) = ok (a2, drop i.+1 ld).
+Proof.
+  move=> hmap hi.
+  have [a1 [hmap1 hmap2]] := fmapM2_split i hmap.
+  have {hmap} [hsize1 hsize2] := size_fmapM2 hmap.
+  move: hmap2.
+  rewrite (drop_nth b hi).
+  rewrite (drop_nth c); last by rewrite -hsize1.
+  rewrite (drop_nth d) /=; last by rewrite -hsize2.
+  t_xrbindP=> -[a1' d'] hf [a2' ld'] /= hmap2 ???; subst d' a2' ld'.
+  by exists a1, a1'.
 Qed.
 
 (* Forall and size *)
@@ -707,6 +747,18 @@ Proof.
   by apply ih.
 Qed.
 
+Lemma nth_Forall2 A B (R : A -> B -> Prop) la lb a b :
+  size la = size lb ->
+  (forall i : nat, (i < size la)%nat -> R (nth a la i) (nth b lb i)) ->
+  List.Forall2 R la lb.
+Proof.
+  elim: la lb => [|a' la ih] [|b' lb] //= [] /ih{}ih hnth.
+  constructor.
+  + by apply (hnth 0%nat).
+  by apply ih; move=> i; apply (hnth i.+1).
+Qed.
+Arguments nth_Forall2 [A B R la lb].
+
 Lemma Forall2_forall A B (R : A -> B -> Prop) la lb :
   List.Forall2 R la lb ->
   forall a b, List.In (a, b) (zip la lb) ->
@@ -738,6 +790,31 @@ Proof.
   + by apply himpl; [left; reflexivity..|].
   apply ih.
   by move=> ?????; apply himpl; [right..|].
+Qed.
+
+Lemma Forall2_flip A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  List.Forall2 (fun x y => R y x) lb la.
+Proof. by elim {la lb} => // a b la lb h _ ih; constructor. Qed.
+
+Lemma Forall2_take A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  forall n,
+  List.Forall2 R (take n la) (take n lb).
+Proof.
+  elim {la lb} => //= a b la lb h _ ih n.
+  case: n => [|n] //=.
+  by constructor.
+Qed.
+
+Lemma Forall2_drop A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  forall n,
+  List.Forall2 R (drop n la) (drop n lb).
+Proof.
+  elim {la lb} => //= a b la lb h ? ih n.
+  case: n => [|n] //=.
+  by constructor.
 Qed.
 
 Lemma Forall3_nth A B C (R : A -> B -> C -> Prop) la lb lc :
@@ -844,6 +921,22 @@ Lemma List_Forall3_inv A B C (R : A -> B -> C -> Prop) l1 l2 l3 :
   end.
 Proof. by case. Qed.
 
+(* Transitivity of Forall *)
+(* -------------------------------------------------------------- *)
+
+Lemma Forall2_trans A B C lb (R1:A->B->Prop) (R2:B->C->Prop)
+                    la lc (R3:A->C->Prop) :
+  (forall b a c, R1 a b -> R2 b c -> R3 a c) ->
+  List.Forall2 R1 la lb ->
+  List.Forall2 R2 lb lc ->
+  List.Forall2 R3 la lc.
+Proof.
+  move=> himpl hfor1.
+  elim: {la lb} hfor1 lc => [ | a b la lb hr1 _ hrec] + /List_Forall2_inv_l.
+  + by move=> _ ->.
+  by move=> _ [c [lc [-> [hr2 hfor2]]]]; constructor; eauto.
+Qed.
+
 Section Subseq.
 
   Context (T : eqType).
@@ -907,6 +1000,13 @@ Section DifferentTypes.
     move: hn; rewrite -hsz orbb => hn.
     move=> /(all_nthP (s, t)) -/(_ n).
     by rewrite size_zip -hsz minnn nth_zip //; apply.
+  Qed.
+
+  Lemma all2_map S' T' (f:S'->S) (g:T'->T) l1 l2 :
+    all2 (fun x y => p (f x) (g y)) l1 l2 = all2 p (map f l1) (map g l2).
+  Proof.
+    elim: l1 l2 => [|x1 l1 ih] [|x2 l2] //=.
+    by rewrite ih.
   Qed.
 
 End DifferentTypes.
@@ -1051,9 +1151,6 @@ End FIND_MAP.
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
-Definition isSome aT (o : option aT) :=
-  if o is Some _ then true else false.
-
 Lemma isSome_obind (aT bT: Type) (f: aT → option bT) (o: option aT) :
   reflect (exists2 a, o = Some a & isSome (f a)) (isSome (o >>= f)%O).
 Proof.
@@ -1062,8 +1159,9 @@ Proof.
   by case: o => // a h; exists a.
 Qed.
 
-Definition omap_dflt {aT bT} (d : bT) (f : aT -> bT) (oa : option aT) :=
-  if oa is Some x then f x else d.
+Lemma isSome_omap aT bT (f : aT -> bT) (o : option aT) :
+  isSome (Option.map f o) = isSome o.
+Proof. by case: o. Qed.
 
 Fixpoint list_to_rev (ub : nat) :=
   match ub with
@@ -1073,18 +1171,7 @@ Fixpoint list_to_rev (ub : nat) :=
 
 Definition list_to ub := rev (list_to_rev ub).
 
-Lemma Forall2_trans (A B C:Type) l2 (R1:A->B->Prop) (R2:B->C->Prop)
-                    l1 l3 (R3:A->C->Prop)  :
-   (forall b a c, R1 a b -> R2 b c -> R3 a c) ->
-   List.Forall2 R1 l1 l2 ->
-   List.Forall2 R2 l2 l3 ->
-   List.Forall2 R3 l1 l3.
-Proof.
-  move=> H hr1;elim: hr1 l3 => {l1 l2} [ | a b l1 l2 hr1 _ hrec] l3 /List_Forall2_inv_l.
-  + by move => ->.
-   by case => ? [?] [->] [??]; constructor; eauto.
-Qed.
-
+(* is it not just List.flat_map? *)
 Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
   flatten (map f l).
 
@@ -1137,8 +1224,7 @@ Proof.
     (eq_axiom_of_scheme internal_comparison_dec_bl internal_comparison_dec_lb).
 Qed.
 
-Canonical comparison_eqMixin := EqMixin comparison_beqP.
-Canonical comparison_eqType := Eval hnf in EqType comparison comparison_eqMixin.
+HB.instance Definition _ := hasDecEq.Build comparison comparison_beqP.
 
 (* -------------------------------------------------------------------- *)
 
@@ -1210,12 +1296,6 @@ Section CMP.
 
   Lemma cmp_nle_le x y : ~~ (cmp_le x y) -> cmp_le y x.
   Proof. by rewrite cmp_nle_lt; apply: cmp_lt_le. Qed.
-
-  Definition min (t1 t2: T) := 
-    if cmp_le t1 t2 then t1 else t2.
-
-  Definition max (t1 t2: T) := 
-    if cmp_le t1 t2 then t2 else t1.
 
 End CMP.
 
@@ -1332,6 +1412,40 @@ End MIN.
 
 Arguments cmp_min {T cmp O} x y.
 
+Section MAX.
+  Context T (cmp: T → T → comparison) (O: Cmp cmp).
+  Definition cmp_max (x y: T) : T :=
+    if (x ≤ y)%CMP then y else x.
+
+  Lemma cmp_maxP x y (P: T → Prop) :
+    ((x ≤ y)%CMP → P y) →
+    ((y < x)%CMP → P x) →
+    P (cmp_max x y).
+  Proof.
+    rewrite /cmp_max; case: ifP.
+    - by move => _ /(_ erefl).
+    by rewrite -cmp_nle_lt => -> _ /(_ erefl).
+  Qed.
+
+  Lemma cmp_max_geL x y :
+    (x <= cmp_max x y)%CMP.
+  Proof. exact: (@cmp_maxP x y (λ z, x ≤ z)%CMP). Qed.
+
+  Lemma cmp_max_geR x y :
+    (y <= cmp_max x y)%CMP.
+  Proof.
+    apply: (@cmp_maxP x y (λ z, y ≤ z)%CMP) => //.
+    apply: cmp_lt_le.
+  Qed.
+
+  Lemma cmp_le_max x y :
+    (x ≤ y)%CMP → cmp_max x y = y.
+  Proof. by rewrite /cmp_max => ->. Qed.
+
+End MAX.
+
+Arguments cmp_max {T cmp O} x y.
+
 Definition bool_cmp b1 b2 :=
   match b1, b2 with
   | false, true  => Lt
@@ -1373,8 +1487,7 @@ Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 
-Definition pos_eqMixin := EqMixin pos_eqP.
-Canonical  pos_eqType  := EqType positive pos_eqMixin.
+HB.instance Definition _ := hasDecEq.Build positive pos_eqP.
 
 #[global]
 Instance positiveO : Cmp Pos.compare.
@@ -1762,9 +1875,27 @@ Ltac t_elim_uniq :=
 
 Variant and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
   And6 of P1 & P2 & P3 & P4 & P5 & P6.
+Variant and7 (P1 P2 P3 P4 P5 P6 P7 : Prop) : Prop :=
+  And7 of P1 & P2 & P3 & P4 & P5 & P6 & P7.
+Variant and8 (P1 P2 P3 P4 P5 P6 P7 P8 : Prop) : Prop :=
+  And8 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8.
+Variant and9 (P1 P2 P3 P4 P5 P6 P7 P8 P9 : Prop) : Prop :=
+  And9 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9.
+Variant and10 (P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 : Prop) : Prop :=
+  And10 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 & P10.
 
 Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
   (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
+  (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 & P7 ]" :=
+  (and7 P1 P2 P3 P4 P5 P6 P7) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 & P8 ]" :=
+  (and8 P1 P2 P3 P4 P5 P6 P7 P8) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 & P9 ]" :=
+  (and9 P1 P2 P3 P4 P5 P6 P7 P8 P9) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 , P9 & P10 ]" :=
+  (and10 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10) : type_scope.
 
 Tactic Notation "have!" ":= " constr(x) :=
   let h := fresh "h" in
@@ -1872,6 +2003,11 @@ Lemma isSomeP {A : Type} {oa : option A} :
   exists a, oa = Some a.
 Proof. case: oa; by [|eexists]. Qed.
 
+Lemma o2rP {eT A} {err : eT} {oa : option A} {a} :
+  o2r err oa = ok a ->
+  oa = Some a.
+Proof. by case: oa => //= ? [->]. Qed.
+
 Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
 Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
 
@@ -1884,3 +2020,93 @@ Qed.
 Lemma map_const_nseq A B (l : list A) (c : B) : map (fun=> c) l = nseq (size l) c.
 Proof. by elim: l => // > ? /=; f_equal. Qed.
 
+
+Section RT_TRANSN.
+
+Context
+  {A : Type}
+  {R Rstep : A -> A -> Prop}
+.
+
+Fixpoint transn_spec_aux (a0 an : A) (l : list A) : Prop :=
+  match l with
+  | [::] => R a0 an
+  | an1 :: l => Rstep an an1 -> transn_spec_aux a0 an1 l
+  end.
+
+Definition transn_spec (l : list A) : Prop :=
+  match l with
+  | [::] => True
+  | a0 :: l => transn_spec_aux a0 a0 l
+  end.
+
+  Section SPEC.
+
+  Context
+    (htrans : forall x y z, R x y -> R y z -> R x z)
+    (hstep : forall x y, Rstep x y -> R x y)
+    (hrefl : forall x, R x x)
+  .
+
+  Lemma transn_spec_auxP a0 an l :
+    R a0 an ->
+    transn_spec_aux a0 an l.
+  Proof.
+    elim: l an => //= an1 l hrec an h0n hnn1.
+    apply: hrec.
+    apply: (htrans h0n).
+    exact: hstep.
+  Qed.
+
+  Lemma transn_specP l : transn_spec l.
+  Proof.
+    case: l => [// | a0 [// | a1 l ?]].
+    apply: transn_spec_auxP.
+    exact: hstep.
+  Qed.
+
+  End SPEC.
+
+Context (hspec : forall l, transn_spec l).
+
+Lemma transn2 a0 a1 a2 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  R a0 a2.
+Proof. exact: (hspec [:: _; _; _ ]). Qed.
+
+Lemma transn3 a0 a1 a2 a3 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  R a0 a3.
+Proof. exact: (hspec [:: _; _; _; _ ]). Qed.
+
+Lemma transn4 a0 a1 a3 a2 a4 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  R a0 a4.
+Proof. exact: (hspec [:: _; _; _; _; _ ]). Qed.
+
+Lemma transn5 a0 a1 a3 a2 a4 a5 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  Rstep a4 a5 ->
+  R a0 a5.
+Proof. exact: (hspec [:: _; _; _; _; _; _ ]). Qed.
+
+Lemma transn6 a0 a1 a3 a2 a4 a5 a6 :
+  Rstep a0 a1 ->
+  Rstep a1 a2 ->
+  Rstep a2 a3 ->
+  Rstep a3 a4 ->
+  Rstep a4 a5 ->
+  Rstep a5 a6 ->
+  R a0 a6.
+Proof. exact: (hspec [:: _; _; _; _; _; _; _ ]). Qed.
+
+End RT_TRANSN.

@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq.
 Require Import Utf8 oseq utils.
 
 Set Implicit Arguments.
@@ -86,3 +86,14 @@ Section AllProps.
   Qed.
 
 End AllProps.
+
+Lemma all_has {T} (p q: pred T) (s: seq T) :
+  all p s →
+  has q s →
+  exists2 t, List.In t s & p t && q t.
+Proof.
+  elim: s => // t s ih /= /andP[] pt ps /orP[] r.
+  - exists t; first by left.
+    by rewrite pt.
+  by case: (ih ps r) => y Y Z; exists y; first right.
+Qed.

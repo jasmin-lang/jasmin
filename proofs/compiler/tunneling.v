@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import ZArith.
 
 Require Import Utf8.
@@ -44,13 +44,16 @@ Section LprogSem.
       fd.(lfd_res)
       fd.(lfd_export)
       fd.(lfd_callee_saved)
-      fd.(lfd_total_stack)
+      fd.(lfd_stk_max)
+      fd.(lfd_frame_size)
+      fd.(lfd_align_args)
   .
 
   Definition setfuncs p lf :=
     {| lp_rip := lp_rip p
      ; lp_rsp := lp_rsp p
      ; lp_globs := lp_globs p
+     ; lp_glob_names := lp_glob_names p
      ; lp_funcs := lf |}.
 
 End LprogSem.

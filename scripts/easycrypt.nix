@@ -3,7 +3,7 @@
 , stdenv
 , fetchFromGitHub
 , ocamlPackages
-, python3Packages
+, python3
 , why3
 }:
 
@@ -17,61 +17,57 @@ with {
   };
 
   "release" = rec {
-    version = "2023.09";
+    version = "2024.01";
     rev = "r${version}";
     src = fetchFromGitHub {
       owner = "easycrypt";
       repo = "easycrypt";
       inherit rev;
-      hash = "sha256-9xavU9jRisZekPqC87EyiLXtZCGu/9QeGzq6BJGt1+Y=";
+      hash = "sha256-UYDoVMi5TtYxgPq5nkp/oRtcMcHl2p7KAG8ptvuOL5U=";
     };
   };
 
 }."${ecRef}";
 
-let runtest = python3Packages.buildPythonApplication rec {
-  pname = "easycrypt-runtest";
-  format = "other";
-  inherit src version;
-
-  dontConfigure = true;
-  dontBuild = true;
-  doCheck = false;
-
-  pythonPath = with python3Packages; [ pyyaml ];
-
-  installPhase = ''
-    runHook preInstall
-    mkdir -p $out/bin
-    cp scripts/testing/runtest $out/bin/ec-runtest
-    runHook postInstall
-  '';
-
-}; in
-
 stdenv.mkDerivation rec {
   pname = "easycrypt";
   inherit version src;
 
-  buildInputs = with ocamlPackages; [
-    ocaml findlib dune_3
-    batteries camlp-streams dune-build-info inifiles menhir menhirLib yojson zarith
+  nativeBuildInputs = with ocamlPackages; [
+    dune_3
+    findlib
+    menhir
+    ocaml
+    python3.pkgs.wrapPython
   ];
-  propagatedBuildInputs = [ why3 ];
 
-  preConfigure = ''
+  buildInputs = with ocamlPackages; [
+    batteries
+    dune-build-info
+    dune-site
+    inifiles
+    why3
+    yojson
+    zarith
+  ];
+
+  propagatedBuildInputs = [ why3.out ];
+
+  strictDeps = true;
+
+  postPatch = ''
     substituteInPlace dune-project --replace '(name easycrypt)' '(name easycrypt)(version ${rev})'
   '';
 
+  pythonPath = with python3.pkgs; [ pyyaml ];
+
   installPhase = ''
     runHook preInstall
-    dune install --prefix $out -p $pname
+    dune install --prefix $out ${pname}
+    rm -rf $out/lib/easycrypt/ecLib
     rm $out/bin/ec-runtest
+    wrapPythonProgramsIn "$out/lib/easycrypt/commands" "$pythonPath"
     runHook postInstall
   '';
-
-  passthru = {
-    inherit runtest;
-  };
 
 }

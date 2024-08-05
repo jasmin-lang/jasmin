@@ -1,3 +1,9 @@
+/* stack zeroization uses the alignment of the function as the default clear
+   step size. Due to the system call, the function is aligned on u128, but stack
+   zeroization is not implemented for u128 on ARM. Thus we introduce this
+   annotation to use u32 for the clear step size instead.
+*/
+#[stackzerosize=u32]
 export
 fn random32() -> reg u32 {
   stack u8[4] s;

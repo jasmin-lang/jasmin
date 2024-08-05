@@ -5,12 +5,20 @@ open Wsize
 module E = Expr
 
 (* -------------------------------------------------------------------- *)
-
-let pp_string0 fmt str = fprintf fmt "%a" (pp_list "" pp_print_char) str
+let escape = String.map (fun c -> if c = '.' || c = ':' then '_' else c)
 
 (* -------------------------------------------------------------------- *)
 
-let pp_wsize fmt sz = fprintf fmt "%a" pp_string0 (string_of_wsize sz)
+let pp_wsize fmt sz = fprintf fmt "%s" (string_of_wsize sz)
+
+(* -------------------------------------------------------------------- *)
+
+let pp_aligned fmt =
+  function
+  | Memory_model.Aligned ->
+     Format.fprintf fmt "#aligned "
+  | Unaligned ->
+     Format.fprintf fmt "#unaligned "
 
 (* -------------------------------------------------------------------- *)
 
@@ -79,10 +87,10 @@ let string_of_op2 = function
   | Ovlsl (ve, ws) -> asprintf "<<%s" (string_of_velem Signed ws ve)
 
 (* -------------------------------------------------------------------- *)
-let pp_opn pd asmOp fmt o = pp_string0 fmt (Sopn.string_of_sopn Build_Tabstract pd asmOp o)
+let pp_opn pd asmOp fmt o = pp_string fmt (Sopn.string_of_sopn Build_Tabstract pd asmOp o)
 
 (* -------------------------------------------------------------------- *)
-let pp_opA fmt (op: E.opA) = pp_string0 fmt op.pa_name
+let pp_opA fmt (op: E.opA) = pp_string fmt op.pa_name
 
 (* -------------------------------------------------------------------- *)
 let pp_syscall (o : 'a Syscall_t.syscall_t) =
@@ -113,7 +121,7 @@ let pp_btype fmt = function
   | Bool -> fprintf fmt "bool"
   | U i -> fprintf fmt "u%i" (int_of_ws i)
   | Int -> fprintf fmt "int"
-  | Abstract s -> fprintf fmt "Abstract %a" pp_string0 s
+  | Abstract s -> fprintf fmt "Abstract %a" pp_string s
 
 (* -------------------------------------------------------------------- *)
 let pp_gtype (pp_size : formatter -> 'size -> unit) fmt = function
@@ -121,14 +129,17 @@ let pp_gtype (pp_size : formatter -> 'size -> unit) fmt = function
   | Arr (ws, e) -> fprintf fmt "%a[%a]" pp_btype (U ws) pp_size e
 
 (* -------------------------------------------------------------------- *)
-let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
-  let pp_len fmt = function
-    | None -> ()
-    | Some len -> fprintf fmt " : %a" pp_len len
-  in
-  fprintf fmt "%a%s[%a %a %a]" pp_gvar x
+let pp_arr_access pp_gvar pp_expr fmt al aa ws x e =
+  fprintf fmt "%a%s[%a%a %a]"
+    pp_gvar x
     (if aa = Warray_.AAdirect then "." else "")
-    pp_btype (U ws) pp_expr e pp_len olen
+    pp_aligned al
+    pp_btype (U ws) pp_expr e
+
+let pp_arr_slice pp_gvar pp_expr pp_len fmt aa ws x e len =
+  fprintf fmt "%a%s[%a %a : %a]" pp_gvar x
+    (if aa = Warray_.AAdirect then "." else "")
+    pp_btype (U ws) pp_expr e pp_len len
 
 (* -------------------------------------------------------------------- *)
 let pp_len fmt len = fprintf fmt "%i" len

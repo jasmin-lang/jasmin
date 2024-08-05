@@ -1,7 +1,3 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
-
 Require Import
   sem_params
   syscall.

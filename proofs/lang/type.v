@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import ZArith gen_map utils strings.
 Require Export wsize.
 Import Utf8.
@@ -49,8 +50,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_stype_dec_bl internal_stype_dec_lb).
 Qed.
 
-Definition stype_eqMixin     := Equality.Mixin stype_axiom.
-Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
+HB.instance Definition _ := hasDecEq.Build stype stype_axiom.
 
 
 (* ** Comparison
@@ -98,7 +98,7 @@ Qed.
 
 Module CmpStype.
 
-  Definition t : eqType := [eqType of stype].
+  Definition t : eqType := stype.
 
   Definition cmp : t -> t -> comparison := stype_cmp.
 
@@ -108,7 +108,7 @@ End CmpStype.
 
 Module CEDecStype.
 
-  Definition t := [eqType of stype].
+  Definition t : eqType := stype.
 
   Fixpoint pos_dec (p1 p2:positive) : {p1 = p2} + {True} :=
     match p1 as p1' return {p1' = p2} + {True} with

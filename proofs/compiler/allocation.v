@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 Require Import expr compiler_util ZArith.
 Import Utf8.
@@ -441,14 +441,14 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Parr_init n1, Parr_init n2 =>
     Let _  := assert (n1 == n2) error_e in ok m
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
-  | Pget aa1 w1 x1 e1, Pget aa2 w2 x2 e2 =>
-    Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_e in
+  | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
+    Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
     check_gv x1 x2 m >>= check_e e1 e2
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
     Let _ := assert ([&& aa1 == aa2, w1 == w2 & len1 == len2]) error_e in
     check_gv x1 x2 m >>= check_e e1 e2
-  | Pload w1 x1 e1, Pload w2 x2 e2 =>
-    Let _ := assert (w1 == w2) error_e in
+  | Pload al1 w1 x1 e1, Pload al2 w2 x2 e2 =>
+    Let _ := assert ((al1 == al2) && (w1 == w2)) error_e in
     check_v x1 x2 m >>= check_e e1 e2
   | Papp1 o1 e1, Papp1 o2 e2 =>
     Let _ := assert (o1 == o2) error_e in check_e e1 e2 m
@@ -500,11 +500,11 @@ Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
       else Error (cerr_varalloc x1 x2 "type mismatch")
     | _               => check_varc x1 x2 m
     end
-  | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
-    Let _ := assert (w1 == w2) error_lv in
+  | Lmem al1 w1 x1 e1, Lmem al2 w2 x2 e2  =>
+    Let _ := assert ((al1 == al2) && (w1 == w2)) error_lv in
     check_v x1 x2 m >>= check_e e1 e2
-  | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 =>
-    Let _ := assert ((aa1 == aa2) && (w1 == w2)) error_lv in
+  | Laset al1 aa1 w1 x1 e1, Laset al2 aa2 w2 x2 e2 =>
+    Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_lv in
     check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
   | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 =>
     Let _ := assert [&& aa1 == aa2, w1 == w2 & len1 == len2] error_lv in
@@ -666,12 +666,13 @@ Definition check_f_extra_s (r: M.t) (e1 e2: extra_fun_t) p1 p2 : cexec M.t :=
   (e1.(sf_align) == e2.(sf_align)),
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)),
   (e1.(sf_stk_ioff) == e2.(sf_stk_ioff)),
+  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)),
   (e1.(sf_stk_max) == e2.(sf_stk_max)),
   (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)),
-  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)),
   (e1.(sf_to_save) == e2.(sf_to_save)),
-  (e1.(sf_save_stack) == e2.(sf_save_stack)) &
-  (e1.(sf_return_address) == e2.(sf_return_address)) ]
+  (e1.(sf_save_stack) == e2.(sf_save_stack)),
+  (e1.(sf_return_address) == e2.(sf_return_address)) &
+  (e1.(sf_align_args) == e2.(sf_align_args))]
       (E.error "extra not equal") in
   if e1.(sf_return_address) == RAnone then
     check_vars p1 p2 r

@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import ZArith psem compiler_util.
 Require Export unrolling.
 

@@ -1,0 +1,18 @@
+/* There are not enough MMX registers to hold all of the t array
+   Compilation should fail with a proper error message. */
+param int N = 9;
+export
+fn main(reg u64 x) -> reg u64 {
+  x = x;
+  reg u64 t;
+  #mmx
+  reg u64[N] m;
+  inline int i;
+
+  for i = 0 to N { t = i; m[i] = t; }
+
+  for i = 0 to N { t = m[i]; x += t; }
+
+  return x;
+  
+}

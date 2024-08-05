@@ -1,6 +1,5 @@
 open Arch_decl
 open Prog
-open Arm_decl_core
 open Arm_decl
 
 
@@ -16,7 +15,7 @@ module Arm_core = struct
   type nonrec rflag = rflag
   type cond = condt
   type asm_op = Arm_instr_decl.arm_op
-  type extra_op = Arm_extra.__
+  type extra_op = Arm_extra.arm_extra_op
   type lowering_options = Arm_lowering.lowering_options
 
   let atoI = X86_arch_full.atoI arm_decl
@@ -25,6 +24,80 @@ module Arm_core = struct
   let aparams = Arm_params.arm_params atoI
 
   let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
+
+  let alloc_stack_need_extra sz =
+    not (Arm_params_core.is_arith_small (Conv.cz_of_z sz))
+
+  let is_ct_asm_op (o : asm_op) =
+    match o with
+    | ARM_op( (SDIV  | UDIV), _) -> false
+    | _ -> true
+
+  let is_doit_asm_op (o : asm_op) =
+    match o with
+    | ARM_op(ADC, _) -> true
+    | ARM_op(ADD, _) -> true
+    | ARM_op(ADR, _) -> false (* Not DIT *)
+    | ARM_op(AND, _) -> true
+    | ARM_op(ASR, _) -> true
+    | ARM_op(BFC, _) -> true
+    | ARM_op(BFI, _) -> true
+    | ARM_op(BIC, _) -> true
+    | ARM_op(CLZ, _) -> true
+    | ARM_op(CMN, _) -> true
+    | ARM_op(CMP, _) -> true
+    | ARM_op(EOR, _) -> true
+    | ARM_op(LDR, _) -> true
+    | ARM_op(LDRB, _) -> true
+    | ARM_op(LDRH, _) -> true
+    | ARM_op(LDRSB, _) -> true
+    | ARM_op(LDRSH, _) -> true
+    | ARM_op(LSL, _) -> true
+    | ARM_op(LSR, _) -> true
+    | ARM_op(MLA, _) -> true
+    | ARM_op(MLS, _) -> true
+    | ARM_op(MOV, _) -> true
+    | ARM_op(MOVT, _) -> true
+    | ARM_op(MUL, _) -> true
+    | ARM_op(MVN, _) -> true
+    | ARM_op(ORR, _) -> true
+    | ARM_op(REV, _) -> true
+    | ARM_op(REV16, _) -> true
+    | ARM_op(REVSH, _) -> false (* Not DIT *)
+    | ARM_op(ROR, _) -> true
+    | ARM_op(RSB, _) -> false (* Not DIT *)
+    | ARM_op(SBFX, _) -> true
+    | ARM_op(SDIV, _) -> false (* Not DIT *)
+    | ARM_op(SMLA_hw _, _) -> false (* Not DIT *)
+    | ARM_op(SMLAL, _) -> true
+    | ARM_op(SMMUL, _) -> false (* Not DIT *)
+    | ARM_op(SMMULR, _) -> false (* Not DIT *)
+    | ARM_op(SMUL_hw _, _) -> false (* Not DIT *)
+    | ARM_op(SMULL, _) -> true
+    | ARM_op(SMULW_hw _, _) -> false (* Not DIT *)
+    | ARM_op(STR, _) -> true
+    | ARM_op(STRB, _) -> true
+    | ARM_op(STRH, _) -> true
+    | ARM_op(SUB, _) -> true
+    | ARM_op(TST, _) -> true
+    | ARM_op(UBFX, _) -> true
+    | ARM_op(UDIV, _) -> false (* Not DIT *)
+    | ARM_op(UMAAL, _) -> false (* Not DIT *)
+    | ARM_op(UMLAL, _) -> true
+    | ARM_op(UMULL, _) -> true
+    | ARM_op(UXTB, _) -> true
+    | ARM_op(UXTH, _) -> true
+
+
+  (* All of the extra ops compile into CT instructions (no DIV). *)
+  let is_ct_asm_extra (o : extra_op) = true
+
+  (* All of the extra ops compile into DIT instructions only, but this needs to be checked manually. *)
+  let is_doit_asm_extra (o : extra_op) =
+    match o with
+    | Oarm_swap _ -> true
+    | Oarm_add_large_imm -> true
+    | (Osmart_li _ | Osmart_li_cc _) -> true (* emit MOVT *)
 
 end
 

@@ -1,7 +1,6 @@
 param int N_ROUND = 24;
 param int N_COLUMN = 4;
-param int ROUND_CONSTANT_HIGH = 0x9e37;
-param int ROUND_CONSTANT_LOW = 0x7900;
+param int ROUND_CONSTANT = 0x9e377900;
 
 inline
 fn swap(reg ptr u32[12] state, inline int i, inline int j) -> reg ptr u32[12] {
@@ -15,15 +14,14 @@ fn swap(reg ptr u32[12] state, inline int i, inline int j) -> reg ptr u32[12] {
     return state;
 }
 
-inline
-fn gimli_ref(reg ptr u32[12] state) -> reg ptr u32[12] {
+export
+fn gimli(reg ptr u32[12] state) -> reg ptr u32[12] {
     inline int round, column;
     reg u32 x, y, z;
     reg u32 a, b;
     reg u32 rc;
 
-    rc = ROUND_CONSTANT_LOW;
-    rc = #MOVT(rc, ROUND_CONSTANT_HIGH);
+    rc = ROUND_CONSTANT;
 
     for round = N_ROUND downto 0 {
     for column = 0 to N_COLUMN {
@@ -67,20 +65,4 @@ fn gimli_ref(reg ptr u32[12] state) -> reg ptr u32[12] {
     }
     }
     return state;
-}
-
-export
-fn gimli (reg u32 io) {
-  stack u32[12] state;
-  reg u32 t;
-  inline int i;
-  for i = 0 to 12 {
-    t = (u32)[io + 4 * i];
-    state[i] = t;
-  }
-  state = gimli_ref(state);
-  for i = 0 to 12 {
-    t = state[i];
-    (u32)[io + 4 * i] = t;
-  }
 }

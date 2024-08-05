@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 From Coq Require Import Utf8.
 Require Import expr.
 
@@ -21,12 +21,12 @@ Definition fconst (ws: wsize) (z: Z) : fexpr :=
 (* --------------------------------------------------------------------------- *)
 (* Right-expressions *)
 Variant rexpr :=
-  | Load of wsize & var_i & fexpr
+  | Load of aligned & wsize & var_i & fexpr
   | Rexpr of fexpr.
 
 (* Left-expressions *)
 Variant lexpr :=
-  | Store of wsize & var_i & fexpr
+  | Store of aligned & wsize & var_i & fexpr
   | LLvar of var_i.
 
 Notation rexprs := (seq rexpr).
@@ -52,13 +52,13 @@ Fixpoint fexpr_of_pexpr (e: pexpr) : option fexpr :=
   end.
 
 Definition rexpr_of_pexpr (e: pexpr) : option rexpr :=
-  if e is Pload ws p e then omap (Load ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
+  if e is Pload al ws p e then omap (Load al ws p) (fexpr_of_pexpr e) else omap Rexpr (fexpr_of_pexpr e).
 
 Definition lexpr_of_lval (e: lval) : option lexpr :=
   match e with
   | Lvar x => Some (LLvar x)
-  | Lmem ws p e =>
-      omap (Store ws p) (fexpr_of_pexpr e)
+  | Lmem al ws p e =>
+      omap (Store al ws p) (fexpr_of_pexpr e)
   | _ => None
   end.
 
@@ -77,6 +77,10 @@ Definition free_vars (e: fexpr) : Sv.t :=
 
 Definition free_vars_r (r:rexpr) : Sv.t :=
   match r with
-  | Load _ x e => free_vars_rec (Sv.singleton x) e
+  | Load _ _ x e => free_vars_rec (Sv.singleton x) e
   | Rexpr e    => free_vars e
   end.
+
+Definition rvar (x : var_i) : rexpr := Rexpr (Fvar x).
+Definition rconst (ws : wsize) (z : Z) : rexpr := Rexpr (fconst ws z).
+Definition lstore {_ : PointerData} al ws x z := Store al ws x (fconst Uptr z).

@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -29,10 +27,10 @@ Context {atoI : arch_toIdent}.
 (* This pass is parameterized by four variable names that will be used to create
    variables for the processor flags. *)
 
-Definition fv_NF (fv: fresh_vars) := fv (Ident.name_of_string "__n__") sbool.
-Definition fv_ZF (fv: fresh_vars) := fv (Ident.name_of_string "__z__") sbool.
-Definition fv_CF (fv: fresh_vars) := fv (Ident.name_of_string "__c__") sbool.
-Definition fv_VF (fv: fresh_vars) := fv (Ident.name_of_string "__v__") sbool.
+Definition fv_NF (fv: fresh_vars) := fv "__n__"%string sbool.
+Definition fv_ZF (fv: fresh_vars) := fv "__z__"%string sbool.
+Definition fv_CF (fv: fresh_vars) := fv "__c__"%string sbool.
+Definition fv_VF (fv: fresh_vars) := fv "__v__"%string sbool.
 
 Definition all_fresh_vars (fv : fresh_vars) : seq Ident.ident :=
   [:: fv_NF fv; fv_ZF fv; fv_CF fv; fv_VF fv ].
@@ -55,7 +53,17 @@ Section ARM_LOWERING.
 Context
   (fv : fresh_vars).
 
-Notation lowered_pexpr := (option (arm_op * seq pexpr)) (only parsing).
+(* TODO: When this pass is allowed to fail, this should be inside [cexec]. *)
+Definition low_expr : Type := option (sopn * seq pexpr).
+Definition le_skip : low_expr := None.
+Definition le_issue_sopn op es : low_expr := Some (op, es).
+Definition le_issue_extra op := le_issue_sopn (Oasm (ExtOp op)).
+Definition le_issue_aop aop := le_issue_sopn (Oasm (BaseOp (None, aop))).
+Definition le_issue_opts mn opts := le_issue_aop (ARM_op mn opts).
+Definition le_issue mn := le_issue_opts mn default_opts.
+
+Definition no_pre (ole : low_expr) : option (seq instr_r * sopn * seq pexpr) :=
+  let%opt (aop, es) := ole in Some ([::], aop, es).
 
 Definition chk_ws_reg (ws : wsize) : option unit :=
   oassert (ws == reg_size)%CMP.
@@ -74,8 +82,8 @@ Definition flags_of_mn (mn : arm_mnemonic) : seq var :=
   in
   map (fun x => x fv) ids.
 
-Definition lflags_of_mn (mn : arm_mnemonic) : seq lval :=
-  to_lvals (flags_of_mn mn).
+Definition lflags_of_mn (vi : var_info) (mn : arm_mnemonic) : seq lval :=
+  [seq Lvar {| v_var := x; v_info := vi; |} | x <- flags_of_mn mn ].
 
 Definition lower_TST (e0 e1 : pexpr) : option (seq pexpr) :=
   match e0, e1 with
@@ -87,13 +95,17 @@ Definition lower_TST (e0 e1 : pexpr) : option (seq pexpr) :=
 
 (* TODO_ARM: CMP and TST take register shifts. *)
 Definition lower_condition_Papp2
-  (op : sop2) (e0 e1 : pexpr) : option (arm_mnemonic * pexpr * seq pexpr) :=
+  (vi : var_info)
+  (op : sop2)
+  (e0 e1 : pexpr) :
+  option (arm_mnemonic * pexpr * seq pexpr) :=
   let%opt (cf, ws) := cf_of_condition op in
   let%opt _ := chk_ws_reg ws in
-  let cmp := (CMP, pexpr_of_cf cf (fresh_flags fv), [:: e0; e1 ]) in
+  let cmp := (CMP, pexpr_of_cf cf vi (fresh_flags fv), [:: e0; e1 ]) in
   match op with
   | Oeq (Op_w _) =>
-      let eZF := Pvar (mk_lvar (mk_var_i (fvZF fv))) in
+      let zf_var := {| v_var := fvZF fv; v_info := vi |} in
+      let eZF := Pvar (mk_lvar zf_var) in
       Some (if lower_TST e0 e1 is Some es then (TST, eZF, es) else cmp)
   | Oneq (Op_w _)
   | Olt (Cmp_w _ _)
@@ -105,13 +117,13 @@ Definition lower_condition_Papp2
   end.
 
 Definition lower_condition_pexpr
-  (e : pexpr) : option (seq lval * sopn * seq pexpr * pexpr) :=
+  (vi : var_info) (e : pexpr) : option (seq lval * sopn * seq pexpr * pexpr) :=
   let%opt (op, e0, e1) := is_Papp2 e in
-  let%opt (mn, e', es) := lower_condition_Papp2 op e0 e1 in
-  Some (lflags_of_mn mn, Oarm (ARM_op mn default_opts), es, e').
+  let%opt (mn, e', es) := lower_condition_Papp2 vi op e0 e1 in
+  Some (lflags_of_mn vi mn, Oarm (ARM_op mn default_opts), es, e').
 
-Definition lower_condition (e : pexpr) : seq instr_r * pexpr :=
-  if lower_condition_pexpr e is Some (lvs, op, es, c)
+Definition lower_condition (vi: var_info) (e : pexpr) : seq instr_r * pexpr :=
+  if lower_condition_pexpr vi e is Some (lvs, op, es, c)
   then ([:: Copn lvs AT_none op es ], c)
   else ([::], e).
 
@@ -151,15 +163,15 @@ Definition arg_shift
    - [v] is a one of the following:
      + a register.
      + a stack variable. *)
-Definition lower_Pvar (ws : wsize) (v : gvar) : lowered_pexpr :=
+Definition lower_Pvar (ws : wsize) (v : gvar) : low_expr :=
   let%opt _ := chk_ws_reg ws in
   let mn := if is_var_in_memory (gv v) then LDR else MOV in
-  Some (ARM_op mn default_opts, [:: Pvar v ]).
+  le_issue mn [:: Pvar v ].
 
 (* Lower an expression of the form [(ws)[v + e]] or [tab[ws e]]. *)
-Definition lower_load (ws: wsize) (e: pexpr) : lowered_pexpr :=
+Definition lower_load (ws: wsize) (e: pexpr) : low_expr :=
   let%opt _ := chk_ws_reg ws in
-  Some (ARM_op LDR default_opts, [:: e ]).
+  le_issue LDR [:: e ].
 
 Definition is_load (e: pexpr) : bool :=
   match e with
@@ -168,55 +180,40 @@ Definition is_load (e: pexpr) : bool :=
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pabstract _ _ | Pif _ _ _ _
     => false
   | Pvar {| gs := Sglob |}
-  | Pget _ _ _ _
-  | Pload _ _ _
+  | Pget _ _ _ _ _
+  | Pload _ _ _ _
     => true
   | Pvar {| gs := Slocal ; gv := x |}
     => is_var_in_memory x
   end.
 
-Definition Z_mod_lnot (z : Z) (ws : wsize) : Z :=
-  let m := wbase ws in
-  (Z.lnot (z mod m) mod m)%Z.
+Definition mov_imm_op (e : pexpr) : sopn :=
+  if isSome (is_const e)
+  then Oasm (ExtOp (Osmart_li U32))
+  else Oarm (ARM_op MOV default_opts).
 
-(* If the expression is an integer, we first check that the immediate is either
-   a byte or an expandable pattern. If not, we try to use the W-encoding
-   (16-bit immediate and we can't set flags). Otherwise, we try to use [MVN]. *)
-Definition mov_imm_mnemonic (e : pexpr) : option (arm_mnemonic * pexpr) :=
-  if is_const e is Some z
-  then
-    if is_expandable z
-    then Some (MOV, e)
-    else
-      if is_w16_encoding z
-      then Some (MOV, e)
-      else
-        let nz := Z_mod_lnot z reg_size in
-        let%opt _ := oassert (is_expandable nz) in
-        Some (MVN, Pconst nz)
-  else Some (MOV, e).
-
-Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : lowered_pexpr :=
+Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : low_expr :=
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oword_of_int ws' =>
       let%opt _ := oassert (U32 <= ws')%CMP in
-      let%opt (mn, e') := mov_imm_mnemonic e in
-      Some (ARM_op mn default_opts, [:: Papp1 (Oword_of_int U32) e' ])
+      let op := mov_imm_op e in
+      le_issue_sopn op [:: Papp1 (Oword_of_int U32) e ]
   | Osignext U32 ws' =>
       let%opt _ := oassert (is_load e) in
       let%opt mn := sload_mn_of_wsize ws' in
-      Some (ARM_op mn default_opts, [:: e ])
+      le_issue mn [:: e ]
   | Ozeroext U32 ws' =>
       let%opt _ := oassert (is_load e) in
       let%opt mn := uload_mn_of_wsize ws' in
-      Some (ARM_op mn default_opts, [:: e ])
+      le_issue mn [:: e ]
   | Olnot U32 =>
-      Some (arg_shift MVN U32 [:: e ])
+      let (op, es) := arg_shift MVN U32 [:: e ] in
+      le_issue_aop op es
   | Oneg (Op_w U32) =>
-      Some (ARM_op RSB default_opts, [:: e; wconst (wrepr U32 0) ])
+      le_issue RSB [:: e; wconst (wrepr U32 0) ]
   | _ =>
-      None
+      le_skip
   end.
 
 Definition is_mul (e: pexpr) : option (pexpr * pexpr) :=
@@ -288,32 +285,37 @@ Definition lower_Papp2_op
      + a shifted register.
      + an immediate word. *)
 Definition lower_Papp2
-  (ws : wsize) (op : sop2) (e0 e1 : pexpr) : lowered_pexpr :=
+  (ws : wsize) (op : sop2) (e0 e1 : pexpr) : low_expr :=
   let%opt (mn, e0', e1') := lower_Papp2_op ws op e0 e1 in
   let '(aop, es) := arg_shift mn ws e1' in
-  Some (aop, e0' :: es).
+  le_issue_aop aop (e0' :: es).
 
-Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : lowered_pexpr :=
+Definition lower_pexpr_aux (ws : wsize) (e : pexpr) : low_expr :=
   match e with
   | Pvar v => lower_Pvar ws v
-  | Pget _ _ _ _
-  | Pload _ _ _=> lower_load ws e
+  | Pget _ _ _ _ _
+  | Pload _ _ _ _ => lower_load ws e
   | Papp1 op e => lower_Papp1 ws op e
   | Papp2 op a b => lower_Papp2 ws op a b
+  | _ => le_skip
+  end.
+
+Definition sopn_set_is_conditional (op : sopn) : option sopn :=
+  match op with
+  | Oasm (BaseOp (None, ARM_op mn opts)) =>
+      Some (Oarm (ARM_op mn (set_is_conditional opts)))
+  | Oasm (ExtOp (Osmart_li ws)) => Some (Oasm (ExtOp (Osmart_li_cc ws)))
   | _ => None
   end.
 
-Definition no_pre (ole : lowered_pexpr) :
-  option (seq instr_r * arm_op * seq pexpr) :=
-  let%opt (aop, es) := ole in Some ([::], aop, es).
-
-Definition lower_pexpr (ws : wsize) (e : pexpr) :
-  option (seq instr_r * arm_op * seq pexpr) :=
+Definition lower_pexpr (vi: var_info) (ws : wsize) (e : pexpr):
+  option (seq instr_r * sopn * seq pexpr) :=
   if e is Pif (sword ws') c e0 e1 then
     let%opt _ := oassert (ws == ws')%CMP in
-    let%opt (ARM_op mn opts, es) := lower_pexpr_aux ws e0 in
-    let '(pre, c') := lower_condition c in
-    Some (pre, ARM_op mn (set_is_conditional opts), es ++ [:: c'; e1 ])
+    let%opt (op, es) := lower_pexpr_aux ws e0 in
+    let%opt op := sopn_set_is_conditional op in
+    let '(pre, c') := lower_condition vi c in
+    Some (pre, op, es ++ [:: c'; e1 ])
   else
     no_pre (lower_pexpr_aux ws e).
 
@@ -339,15 +341,19 @@ Definition lower_store (ws : wsize) (e : pexpr) : option (arm_op * seq pexpr) :=
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn_word
   (lv : lval) (ws : wsize) (e : pexpr) : option (seq instr_r * copn_args) :=
-  let%opt (pre, aop, es) :=
+  let vi := var_info_of_lval lv in
+  let%opt (pre, op, es) :=
     if is_lval_in_memory lv
-    then no_pre (lower_store ws e)
-    else lower_pexpr ws e
+    then
+      let%opt (aop, es) := lower_store ws e in
+      no_pre (le_issue_aop aop es)
+    else lower_pexpr vi ws e
   in
-  Some (pre, ([:: lv ], Oarm aop, es)).
+  Some (pre, ([:: lv ], op, es)).
 
 Definition lower_cassgn_bool (lv : lval) (tag: assgn_tag) (e : pexpr) : option (seq instr_r) :=
-  let%opt (lvs, op, es, c) := lower_condition_pexpr e in
+  let vi := var_info_of_lval lv in
+  let%opt (lvs, op, es, c) := lower_condition_pexpr vi e in
   Some [:: Copn lvs tag op es; Cassgn lv AT_inline sbool c ].
 
 (* -------------------------------------------------------------------- *)
@@ -414,11 +420,23 @@ Definition lower_base_op
       | _ => None end
     else None.
 
+Definition lower_swap ty lvs es : option copn_args := 
+  match ty with
+  | sword sz => 
+    if (sz <= U32)%CMP then 
+      Some (lvs, Oasm (ExtOp (Oarm_swap sz)), es)
+    else None
+  | sarr _ => 
+      Some (lvs, Opseudo_op (Oswap ty), es)
+  | _ => None
+  end.
+
 Definition lower_pseudo_operator
   (lvs : seq lval) (op : pseudo_operator) (es : seq pexpr) : option copn_args :=
   match op with
   | Oaddcarry U32 => lower_add_carry lvs es
   | Omulu U32 => lower_mulu lvs es
+  | Oswap ty => lower_swap ty lvs es
   | _ => None
   end.
 
@@ -459,7 +477,7 @@ Fixpoint lower_i (i : instr) : cmd :=
       [:: MkI ii ir' ]
 
   | Cif e c1 c2  =>
-      let '(pre, e') := lower_condition e in
+      let '(pre, e') := lower_condition (var_info_of_ii ii) e in
       let c1' := conc_map lower_i c1 in
       let c2' := conc_map lower_i c2 in
       map (MkI ii) (pre ++ [:: Cif e' c1' c2' ])
@@ -469,7 +487,7 @@ Fixpoint lower_i (i : instr) : cmd :=
       [:: MkI ii (Cfor v r c') ]
 
   | Cwhile a c0 e c1 =>
-      let '(pre, e') := lower_condition e in
+      let '(pre, e') := lower_condition (var_info_of_ii ii) e in
       let c0' := conc_map lower_i c0 in
       let c1' := conc_map lower_i c1 in
       [:: MkI ii (Cwhile a (c0' ++ map (MkI ii) pre) e' c1') ]

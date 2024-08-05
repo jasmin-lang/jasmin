@@ -28,9 +28,9 @@ type 'len gexpr =
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
-  | Pget   of Warray_.arr_access * wsize * 'len ggvar * 'len gexpr 
-  | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr 
-  | Pload  of wsize * 'len gvar_i * 'len gexpr
+  | Pget   of Memory_model.aligned * Warray_.arr_access * wsize * 'len ggvar * 'len gexpr
+  | Psub   of Warray_.arr_access * wsize * 'len * 'len ggvar * 'len gexpr
+  | Pload  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
   | Papp1  of E.sop1 * 'len gexpr
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opN * 'len gexpr list
@@ -43,43 +43,43 @@ type 'len gexprs = 'len gexpr list
 let kind_i v = (L.unloc v).v_kind
 let ty_i v = (L.unloc v).v_ty
 
-let is_stack_kind k = 
+let is_stack_kind k =
   match k with
   | Stack _ -> true
   | _       -> false
 
-let is_reg_kind k = 
+let is_reg_kind k =
   match k with
   | Reg _ -> true
   | _     -> false
 
-let reg_kind k = 
+let reg_kind k =
   match k with
   | Reg (k, _) -> k
   | _     -> assert false
 
-let is_reg_direct_kind k = 
+let is_reg_direct_kind k =
   match k with
   | Reg (_, Direct) -> true
   | _ -> false
 
-let is_reg_ptr_kind k = 
+let is_reg_ptr_kind k =
   match k with
   | Reg (_, Pointer _) -> true
   | _ -> false
 
-let is_stk_ptr_kind k = 
+let is_stk_ptr_kind k =
   match k with
   | Stack (Pointer _) -> true
   | _ -> false
 
-let is_ptr k = 
+let is_ptr k =
   match k with
-  | Stack k | Reg(_, k) -> k <> Direct 
+  | Stack k | Reg(_, k) -> k <> Direct
   | _ -> false
 
-let is_regx x = 
-  match x.v_kind with 
+let is_regx x =
+  match x.v_kind with
   | Reg (Extra, _) -> true
   | _ -> false
 
@@ -88,8 +88,8 @@ let is_regx x =
 type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
- | Lmem  of wsize * 'len gvar_i * 'len gexpr
- | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
+ | Lmem  of Memory_model.aligned * wsize * 'len gvar_i * 'len gexpr
+ | Laset of Memory_model.aligned * Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
  | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
  (* Lasub(acc,sz,len,v,e) is the sub-array of v:
     - [ws/8 * e; ws/8 * e + ws/8 * len[   if acc = Scale
@@ -121,7 +121,7 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 (* ------------------------------------------------------------------------ *)
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot: Annotations.f_annot;
+    f_annot: FInfo.f_annot;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -132,7 +132,7 @@ type ('len,'info,'asm) gfunc = {
     f_ret  : 'len gvar_i list
   }
 
-type 'len ggexpr = 
+type 'len ggexpr =
   | GEword of 'len gexpr
   | GEarray of 'len gexprs
 
@@ -149,7 +149,7 @@ type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
 let gkglob x = { gv = x; gs = E.Sglob}
 let gkvar x = { gv = x; gs = E.Slocal}
 
-let is_gkvar x = x.gs = E.Slocal 
+let is_gkvar x = x.gs = E.Slocal
 
 (* ------------------------------------------------------------------------ *)
 (* Parametrized expression *)
@@ -181,25 +181,25 @@ module Spv = Set.Make  (PV)
 
 (* ------------------------------------------------------------------------ *)
 
-let rec pty_equal t1 t2 = 
-  match t1, t2 with 
+let rec pty_equal t1 t2 =
+  match t1, t2 with
   | Bty b1, Bty b2 -> b1 = b2
-  | Arr(b1, e1), Arr(b2, e2) -> 
+  | Arr(b1, e1), Arr(b2, e2) ->
     (b1 = b2) && pexpr_equal e1 e2
   | _, _ -> false
 
-and pexpr_equal e1 e2 = 
+and pexpr_equal e1 e2 =
  match e1, e2 with
  | Pconst n1, Pconst n2 -> Z.equal n1 n2
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pvar v1, Pvar v2 -> PV.gequal v1 v2
- | Pget(a1,b1,v1,e1), Pget(a2, b2,v2,e2) -> a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
+ | Pget(al1, a1,b1,v1,e1), Pget(al2, a2, b2,v2,e2) -> al1 = al2 && a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
    a1 = a2 && b1 = b2 && pexpr_equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
- | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
+ | Pload(al1, b1,v1,e1), Pload(al2, b2,v2,e2) -> al1 = al2 &&b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
  | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
- | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23 
+ | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23
  | _, _ -> false
 
 (* ------------------------------------------------------------------------ *)
@@ -233,13 +233,13 @@ let ident_of_var (x:var) : CoreIdent.var = x
 
 let rvars_v f x s =
   if is_gkvar x then f (L.unloc x.gv) s
-  else s 
+  else s
 
 let rec rvars_e f s = function
   | Pconst _ | Pbool _ | Parr_init _ -> s
   | Pvar x         -> rvars_v f x s
-  | Pget(_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
-  | Pload(_,x,e)   -> rvars_e f (f (L.unloc x) s) e
+  | Pget(_,_,_,x,e) | Psub (_, _, _, x, e) -> rvars_e f (rvars_v f x s) e
+  | Pload(_,_,x,e)   -> rvars_e f (f (L.unloc x) s) e
   | Papp1(_, e)    -> rvars_e f s e
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
@@ -251,8 +251,8 @@ and rvars_es f s es = List.fold_left (rvars_e f) s es
 let rvars_lv f s = function
  | Lnone _       -> s
  | Lvar x        -> f (L.unloc x) s
- | Lmem (_,x,e)
- | Laset (_,_,x,e)
+ | Lmem (_,_,x,e)
+ | Laset (_,_,_,x,e)
  | Lasub (_,_,_,x,e) -> rvars_e f (f (L.unloc x) s) e
 
 let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
@@ -318,8 +318,8 @@ let written_vars_fc fc =
 (* -------------------------------------------------------------------- *)
 (* Refresh i_loc, ensure that locations are uniq                        *)
 
-let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr = 
-  let i_desc = 
+let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr =
+  let i_desc =
     match i.i_desc with
     | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
     | Cif(e, c1, c2) ->
@@ -331,26 +331,20 @@ let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr =
   in
   { i with i_desc; i_loc = L.refresh_i_loc i.i_loc }
 
-and refresh_i_loc_c (c:('info,'asm) stmt) : ('info,'asm) stmt = 
+and refresh_i_loc_c (c:('info,'asm) stmt) : ('info,'asm) stmt =
   List.map refresh_i_loc_i c
 
-let refresh_i_loc_f (f:('info,'asm) func) : ('info,'asm) func = 
+let refresh_i_loc_f (f:('info,'asm) func) : ('info,'asm) func =
   { f with f_body = refresh_i_loc_c f.f_body }
 
-let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog = 
+let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog =
   fst p, List.map refresh_i_loc_f (snd p)
 
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 
-let int_of_ws = function
-  | U8   -> 8
-  | U16  -> 16
-  | U32  -> 32
-  | U64  -> 64
-  | U128 -> 128
-  | U256 -> 256
+let int_of_ws = Annotations.int_of_ws
 
 let size_of_ws = function
   | U8   -> 1
@@ -360,7 +354,7 @@ let size_of_ws = function
   | U128 -> 16
   | U256 -> 32
 
-let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
+let string_of_ws = Annotations.string_of_ws
 
 let wsize_lt ws1 ws2 = Wsize.wsize_cmp ws1 ws2 = Datatypes.Lt
 let wsize_le ws1 ws2 = Wsize.wsize_cmp ws1 ws2 <> Datatypes.Gt
@@ -393,17 +387,17 @@ let ws_of_ty = function
 
 let arr_size ws i = size_of_ws ws * i
 
-let size_of t = 
+let size_of t =
   match t with
   | Bty (U ws) -> size_of_ws ws
-  | Arr (ws', n) -> arr_size ws' n 
-  | _ -> assert false 
+  | Arr (ws', n) -> arr_size ws' n
+  | _ -> assert false
 
 (* -------------------------------------------------------------------- *)
 (* Functions over variables                                             *)
 
-let is_stack_var v = 
-  is_stack_kind v.v_kind 
+let is_stack_var v =
+  is_stack_kind v.v_kind
 
 let is_reg_arr v =
   is_reg_direct_kind v.v_kind && is_ty_arr v.v_ty
@@ -419,7 +413,7 @@ let ( ++ ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.add n1 n2)
   | _, _                 -> Papp2(Oadd Op_int, e1, e2)
-  
+
 let ( ** ) e1 e2 =
   match e1, e2 with
   | Pconst n1, Pconst n2 -> Pconst (Z.mul n1 n2)
@@ -448,8 +442,8 @@ let get_ofs aa ws e =
 let expr_of_lval = function
   | Lnone _         -> None
   | Lvar x          -> Some (Pvar (gkvar x))
-  | Lmem (ws, x, e) -> Some (Pload(ws,x,e))
-  | Laset(a, ws, x, e) -> Some (Pget(a,ws,gkvar x,e))
+  | Lmem (al, ws, x, e) -> Some (Pload(al,ws,x,e))
+  | Laset(al, a, ws, x, e) -> Some (Pget(al, a,ws,gkvar x,e))
   | Lasub(a, ws, l, x, e) -> Some (Psub(a,ws,l,gkvar x, e))
 
 (* -------------------------------------------------------------------- *)
@@ -478,6 +472,18 @@ let has_annot a { i_annot; _ } = Annotations.has_symbol a i_annot
 let is_inline annot cc =
   Annotations.has_symbol "inline" annot || cc = FInfo.Internal
 
+let rec spilled_i s i =
+  match i.i_desc with
+  | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), es) -> rvars_es Sv.add s es
+  | Cassgn _ | Csyscall _ | Ccall _ | Copn _-> s
+  | Cif(e,c1,c2)     -> spilled_c (spilled_c s c1) c2
+  | Cfor(_, _, c)    -> spilled_c s c
+  | Cwhile(_,c,_,c') -> spilled_c (spilled_c s c) c'
+
+and spilled_c s c =  List.fold_left spilled_i s c
+
+let spilled fc = spilled_c Sv.empty fc.f_body
+
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =
   Z.erem z (Z.shift_left Z.one (int_of_ws sz))
@@ -487,5 +493,5 @@ let clamp_pe (sz : pelem) (z : Z.t) =
 
 
 (* --------------------------------------------------------------------- *)
-type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
+type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func
 type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra

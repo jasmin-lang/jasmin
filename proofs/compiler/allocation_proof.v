@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 Require Import psem compiler_util.
 Require Export allocation.
 
@@ -125,8 +125,8 @@ Section CHECK_EP.
     - by move => n1 [] // n2 r re vm1; t_xrbindP => /eqP <- <- ?; split => //= ??? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
       by move=> /check_gvP Hv /(Hv wdb gd) [Hea H].
-    - move => aa1 sz1 x1 e1 He1 [] // aa2 sz2 x2 e2 r re vm1.
-      t_xrbindP => r' /andP [/eqP ? /eqP ?] Hcv Hce Hea; subst aa2 sz2.
+    - move => al1 aa1 sz1 x1 e1 He1 [] // al2 aa2 sz2 x2 e2 r re vm1.
+      t_xrbindP => r' /andP[] /andP [/eqP ? /eqP ?] /eqP ? Hcv Hce Hea; subst al2 aa2 sz2.
       have [Hea' Hget]:= check_gvP wdb gd Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
       apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
@@ -141,8 +141,8 @@ Section CHECK_EP.
       rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get_sub Ht.
       t_xrbindP => w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE -> ? /= /Ht [? -> ?] <- /=.
       by eauto.
-    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
-      t_xrbindP => r' /eqP -> Hcv Hce Hea.
+    - move => al1 sz1 x1 e1 He1 [] // al2 sz2 x2 e2 r re vm1.
+      t_xrbindP => r' /andP[] /eqP -> /eqP -> Hcv Hce Hea.
       have [Hea' Hget]:= check_vP wdb Hcv Hea.
       have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
       t_xrbindP => w1 ve1 /Hget [ve1' [->]] /[swap] /to_wordI [? [? [-> ]]]
@@ -166,7 +166,8 @@ Section CHECK_EP.
       split => //= scs m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
       rewrite -/(sem_pexprs _ _ _).
       move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
-      by have [] := vuincl_sem_opN ok_v1 hs; eauto.
+      rewrite (vuincl_sem_opN hs ok_v1).
+      by eexists; split; first by reflexivity.
     move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
     t_xrbindP => r1 r' /eqP <- /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
@@ -263,8 +264,8 @@ Lemma check_lvalP wdb gd r1 r1' x1 x2 e2 s1 s1' vm1 v1 v2 :
     write_lval wdb gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') &
     eq_alloc r1' s1'.(evm) vm1'.
 Proof.
-  case: x1 x2 => /= [ii1 t1 | x1 | sz1 x1 p1 | aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
-                    [ii2 t2 | x2 | sz2 x2 p2 | aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
+  case: x1 x2 => /= [ii1 t1 | x1 | al1 sz1 x1 p1 | al1 aa1 sz1 x1 p1 | aa1 sz1 len1 x1 p1]
+                    [ii2 t2 | x2 | al2 sz2 x2 p2 | al2 aa2 sz2 x2 p2 | aa2 sz2 len2 x2 p2] //=.
   + t_xrbindP => hs <- ? Hv _ H.
     have [ -> htr hdb]:= write_noneP H; rewrite /write_none.
     have [ -> hu' -> /=]:= compat_truncate_uincl hs htr Hv hdb; eauto.
@@ -290,14 +291,14 @@ Proof.
     exists vm1.[x2 <- vm1.[x2]] => //.
     apply: eq_alloc_add ht Hvm1 hu'.
 
-  + t_xrbindP => r2 /eqP -> Hcv Hce Hvm1 Hv Happ wx vx.
+  + t_xrbindP => r2 /andP[] /eqP -> /eqP -> Hcv Hce Hvm1 Hv Happ wx vx.
     have [Hr2 H/H{H} [vx' [-> ]]]:= check_vP wdb Hcv Hvm1.
     move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> >.
     case: (s1) Hvm1 Hr2 => scs1 sm1 svm1 /= Hvm1 Hr2.
     have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr2.
     by move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> ?
       /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ? /= -> <-; eexists.
-  + t_xrbindP => r2 r3 /andP [] /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
+  + t_xrbindP => r2 r3 /andP [] /andP[] /eqP -> /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP wdb Hcv Hvm1.
     case: vx2 => //= n0 t2 Ht.
@@ -819,16 +820,17 @@ Lemma check_fundef_meta ep1 ep2 ffd1 ffd2 u u' :
   let fd1 := ffd1.2 in
   let fd2 := ffd2.2 in
   [/\
+     sf_align fd1.(f_extra) = sf_align fd2.(f_extra),
      sf_stk_max fd1.(f_extra) = sf_stk_max fd2.(f_extra),
      sf_return_address fd1.(f_extra) = sf_return_address fd2.(f_extra) &
-     sf_align fd1.(f_extra) = sf_align fd2.(f_extra)
+     sf_align_args fd1.(f_extra) = sf_align_args fd2.(f_extra)
   ].
 Proof.
   case: ffd1 ffd2 => f1 fd1 [] f2 fd2.
   rewrite /check_fundef; t_xrbindP => _ r _ r'.
   rewrite /check_f_extra_s; t_xrbindP => /and4P[] /eqP -> _ _.
-  case/and4P => /eqP -> _ _.
-  case/and3P => _ _ /eqP ->.
+  case/and4P => _ /eqP -> _.
+  case/and4P => _ _ /eqP -> /eqP ->.
   done.
 Qed.
 
@@ -860,7 +862,7 @@ Proof.
   split; last by []; first by case: ifP c2.
   rewrite /= /init_stk_state => a b c d.
   case/and4P: c1 => /eqP -> /eqP -> /eqP ->.
-  by case/and4P => _ _ /eqP ->.
+  by case/and4P => /eqP ->.
 Qed.
 
 End SPROG.

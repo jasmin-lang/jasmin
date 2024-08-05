@@ -16,7 +16,7 @@ install: [
 ]
 depends: [
   "ocaml" { >= "4.10" & build }
-  "batteries" {>= "3.4"}
+  "batteries" {>= "3.5"}
   "cmdliner" { build }
   "menhir" {>= "20160825" & build }
   "menhirLib"
@@ -25,10 +25,13 @@ depends: [
   "apron" {>= "v0.9.12"}
   "conf-ppl"
   "yojson" {>= "1.6.0"}
-  "ocamlbuild" { build }
+  "angstrom" {>= "0.14.0"}
   "ocamlfind" { build }
-  "coq" {>= "8.14.0" & < "8.19~"}
-  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.19~"}
+  "coq" {>= "8.18.0" & < "8.20~"}
+  "coq-mathcomp-ssreflect" {>= "2.0" & < "2.3~"}
   "coq-mathcomp-algebra"
-  "coq-mathcomp-word" {>= "2.1" & < "3.0~"}
+  "coq-mathcomp-word" {>= "3.2"}
+]
+conflicts: [
+  "ez-conf-lib"
 ]

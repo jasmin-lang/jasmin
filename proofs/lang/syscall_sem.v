@@ -1,8 +1,8 @@
 (* * Jasmin semantics with “partial values”. *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
-Require Import ZArith Psatz.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq ssralg.
+Require Import ZArith.
 Require Export utils syscall wsize word type low_memory sem_type values.
 Import Utf8.
 
@@ -60,7 +60,7 @@ Proof.
   by rewrite hra /=; eexists; eauto.
 Qed.
 
-Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =2 validw m2.
+Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =3 validw m2.
 
 Lemma exec_syscallSu scs m o vargs rscs rm vres :
   exec_syscall_u scs m o vargs = ok (rscs, rm, vres) →
@@ -90,7 +90,7 @@ Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_stack_stabl
 
 Lemma exec_getrandom_s_core_validw scs m p len rscs rm rp : 
   exec_getrandom_s_core scs m p len = ok (rscs, rm, rp) →
-  validw m =2 validw rm.
+  validw m =3 validw rm.
 Proof. by rewrite /exec_getrandom_s_core; t_xrbindP => rm' /fill_mem_validw_eq hf ? <- ?. Qed.
 
 Definition sem_syscall (o:syscall_t) : 

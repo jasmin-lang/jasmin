@@ -1,9 +1,9 @@
 (* * Jasmin semantics with “partial values”. *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
-Require Import Psatz xseq.
-Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+Require Import xseq.
+Require Export array type expr gen_map warray_ sem_type sem_op_typed values varmap expr_facts low_memory syscall_sem psem_defs.
 Require Export
   flag_combination
   sem_params.
@@ -107,11 +107,11 @@ Class semCallParams
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
   finalize   : extra_fun_t -> mem -> mem;
   exec_syscall : syscall_state_t -> mem -> syscall_t -> values -> exec (syscall_state_t * mem * values);
-  exec_syscallP: forall scs m o vargs vargs' rscs rm vres, 
+  exec_syscallP: forall scs m o vargs vargs' rscs rm vres,
      exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
-     List.Forall2 value_uincl vargs vargs' -> 
+     List.Forall2 value_uincl vargs vargs' ->
      exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres';
-  exec_syscallS: forall scs m o vargs rscs rm vres, 
+  exec_syscallS: forall scs m o vargs rscs rm vres,
      exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
      mem_equiv m rm;
 }.
@@ -234,7 +234,7 @@ with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_
     sem s1 f.(f_body) s2 ->
     get_var_is (~~ direct_call) s2.(evm) f.(f_res) = ok vres ->
     mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
-    scs2 = s2.(escs) -> 
+    scs2 = s2.(escs) ->
     m2 = finalize f.(f_extra) s2.(emem)  ->
     sem_call scs1 m1 fn vargs' scs2 m2 vres'.
 
@@ -276,7 +276,7 @@ Section SEM_IND.
       sem_sopn gd o s1 xs es = ok s2 →
       Pi_r s1 (Copn xs t o es) s2.
 
-  Definition sem_Ind_syscall : Prop := 
+  Definition sem_Ind_syscall : Prop :=
     forall  s1 scs m s2 o xs es ves vs,
       sem_pexprs true gd s1 es = ok ves →
       exec_syscall s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
@@ -341,10 +341,10 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_call : Prop :=
-    forall (s1 : estate) (scs2 : syscall_state_t) (m2 : mem) (s2 : estate) 
+    forall (s1 : estate) (scs2 : syscall_state_t) (m2 : mem) (s2 : estate)
            (xs : lvals) (fn : funname) (args : pexprs) (vargs vs : seq value),
       sem_pexprs (~~direct_call) gd s1 args = ok vargs →
-      sem_call (escs s1) (emem s1) fn vargs scs2 m2 vs → 
+      sem_call (escs s1) (emem s1) fn vargs scs2 m2 vs →
       Pfun (escs s1) (emem s1) fn vargs scs2 m2 vs →
       write_lvals (~~direct_call) gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 →
       Pi_r s1 (Ccall xs fn args) s2.
@@ -361,7 +361,7 @@ Section SEM_IND.
       Pc s1 (f_body f) s2 ->
       get_var_is (~~ direct_call) s2.(evm) (f_res f) = ok vres ->
       mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
-      scs2 = s2.(escs) -> 
+      scs2 = s2.(escs) ->
       m2 = finalize f.(f_extra) s2.(emem) ->
       Pfun scs1 m1 fn vargs' scs2 m2 vres'.
 
@@ -419,7 +419,7 @@ Section SEM_IND.
          s4 (@sem_for_Ind i ws s2 c s3 s4)
     end
 
-  with sem_call_Ind (scs : syscall_state_t) (m : mem) (f13 : funname) (l : seq value) (scs0 : syscall_state_t) (m0 : mem) 
+  with sem_call_Ind (scs : syscall_state_t) (m : mem) (f13 : funname) (l : seq value) (scs0 : syscall_state_t) (m0 : mem)
          (l0 : seq value) (s : sem_call scs m f13 l scs0 m0 l0) {struct s} : Pfun scs m f13 l scs0 m0 l0 :=
     match s with
     | @EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw Hsem Hvres Hcr hscs Hfi=>
@@ -446,6 +446,23 @@ Proof.
   + by apply: get_var_compat heq.
   by rewrite /compat_val (type_of_get_global heq) (get_global_defined heq) orbT.
 Qed.
+
+Lemma get_var_to_word wdb vm x ws w :
+  vtype x = sword ws ->
+  get_var wdb vm x >>= to_word ws = ok w ->
+  get_var wdb vm x = ok (Vword w).
+Proof.
+  t_xrbindP => htx v /dup[] /get_varP [] -> hdef + ->.
+  rewrite htx => hcomp /to_wordI' [ws1 [w1 [hws hx ->]]].
+  move: hcomp; rewrite hx => /compat_valE [ws2 [?] hws']; subst ws2.
+  have <- : ws1 = ws; last by rewrite zero_extend_u.
+  case: sw_allowed hws' => // hws'; apply: cmp_le_antisym hws' hws.
+Qed.
+
+Lemma to_word_get_var wdb vm x ws (w:word ws) :
+  get_var wdb vm x = ok (Vword w) ->
+  get_var wdb vm x >>= to_word ws = ok w.
+Proof. by move=> -> /=; rewrite truncate_word_u. Qed.
 
 (* Remark compat_type b = if b then subtype else eq *)
 Lemma type_of_get_gvar x gd vm v :
@@ -546,7 +563,7 @@ Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
   rewrite /exec_sopn /sopn_tin /sopn_sem.
-  case (get_instr_desc o) => /= _ tin _ tout _ semi _ _.
+  case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _.
   t_xrbindP => p hp _.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
   by t_xrbindP => sv /= /of_val_subtype -> /hrec.
@@ -680,7 +697,7 @@ Lemma sem_seq1 i s1 s2:
 Proof.
   move=> Hi; apply (Eseq Hi);constructor.
 Qed.
- 
+
 Lemma sem_seq1_iff (i : instr) s1 s2:
   sem_I s1 i s2 <-> sem s1 [:: i] s2.
 Proof.
@@ -727,6 +744,19 @@ Lemma get_var_set wdb vm x v y :
        Let _ := assert (~~wdb || is_defined v) ErrAddrUndef in ok (vm_truncate_val (vtype x) v)
      else get_var wdb vm y.
 Proof. by rewrite {1}/get_var Vm.setP; case: eqP => // *; rewrite -vm_truncate_val_defined. Qed.
+
+Lemma get_var_set_var wdb vm vm' x y v :
+  (~~ wdb || is_defined v) ->
+  set_var wdb vm y v = ok vm' ->
+  get_var wdb vm' x =
+    if x == y
+    then ok (vm_truncate_val (vtype x) v)
+    else get_var wdb vm x.
+Proof.
+  move=> hv /set_varP [_ ? ->].
+  rewrite get_var_set // eq_sym hv /=.
+  by case: eqP => [->|_].
+Qed.
 
 Lemma get_var_eq wdb x vm v :
   truncatable wdb (vtype x) v ->
@@ -873,7 +903,7 @@ Lemma vrvP wdb gd (x:lval) v s1 s2 :
   write_lval gd wdb x v s1 = ok s2 ->
   s1.(evm) =[\ vrv x] s2.(evm).
 Proof.
-  case x => /= [ _ ty | ? /vrvP_var| sz y e| aa sz y e | aa sz len y e] //.
+  case x => /= [ _ ty | ? /vrvP_var| al sz y e| al aa sz y e | aa sz len y e] //.
   + by move=> /write_noneP [->].
   + by t_xrbindP => ptr yv hyv hptr ptr' ev hev hptr' w hw m hm <-.
   + by apply: on_arr_varP; t_xrbindP => *; apply: vrvP_var; eauto.
@@ -910,8 +940,8 @@ Lemma lv_write_memP wdb gd (x:lval) v s1 s2:
   write_lval gd wdb x v s1 = ok s2 ->
   emem s1 = emem s2.
 Proof.
-  case: x=> //= [v0 t|v0|aa ws v0 p|aa ws len v0 p] _.
-  + by move => /write_noneP [-> _]. 
+  case: x=> //= [v0 t|v0|al aa ws v0 p|aa ws len v0 p] _.
+  + by move => /write_noneP [-> _].
   + by apply: write_var_memP.
   + by apply: on_arr_varP; t_xrbindP=> *; apply: write_var_memP; eauto.
   by apply on_arr_varP; t_xrbindP => *; apply: write_var_memP; eauto.
@@ -925,8 +955,8 @@ Lemma lv_write_scsP wdb gd (x:lval) v s1 s2:
   write_lval gd wdb x v s1 = ok s2 ->
   escs s1 = escs s2.
 Proof.
-  case: x=> /= [v0 t|v0|ws x e|aa ws v0 p|aa ws len v0 p].
-  + by move => /write_noneP [-> _]. 
+  case: x=> /= [v0 t|v0|ws x e|al aa ws v0 p|aa ws len v0 p].
+  + by move => /write_noneP [-> _].
   + by apply: write_var_scsP.
   + by t_xrbindP => *; subst s2.
   + by apply: on_arr_varP; t_xrbindP=> *; apply: write_var_scsP; eauto.
@@ -1099,13 +1129,13 @@ Section READ_E_ES_EQ_ON.
       case: (sem_pexpr _ _ _ e) => //= v.
       by move: ih => /(_ _ Heq) ->.
     - by move=> x s /get_gvar_eq_on -> //; SvD.fsetdec.
-    - move=> aa sz x e He s Heq; rewrite (He _ Heq) => {He}.
+    - move=> al aa sz x e He s Heq; rewrite (He _ Heq) => {He}.
       rewrite (on_arr_gvar_eq_on (s' := with_vm s1 vm') _ _ _ Heq) ?read_eE //.
       by SvD.fsetdec.
     - move=> aa sz len x e He s Heq; rewrite (He _ Heq) => {He}.
       rewrite (on_arr_gvar_eq_on (s' := with_vm s1 vm') _ _ _ Heq) ?read_eE //.
       by SvD.fsetdec.
-    - by move=> sz x e He s Hvm; rewrite (get_var_eq_on _ _ Hvm) ?(He _ Hvm) // read_eE;SvD.fsetdec.
+    - by move=> al sz x e He s Hvm; rewrite (get_var_eq_on _ _ Hvm) ?(He _ Hvm) // read_eE;SvD.fsetdec.
     - by move=> op e He s /He ->.
     - move => op e1 He1 e2 He2 s Heq; rewrite (He1 _ Heq) (He2 s) //.
       by move=> z Hin; apply Heq; rewrite read_eE; SvD.fsetdec.
@@ -1166,7 +1196,7 @@ Proof.
   split => //= {e}.
   + by move=> e hrec es hrecs; rewrite negb_or => /andP [] /hrec -> /hrecs ->.
   + by move=> x _; rewrite heq.
-  + by move=> ?? x e hrec /hrec ->; rewrite heq.
+  + by move=> ??? x e hrec /hrec ->; rewrite heq.
   + by move=> ??? x e hrec /hrec ->; rewrite heq.
   + by move=> ? e hrec /hrec ->.
   + by move=> ? e1 hrec1 e2 hrec2; rewrite negb_or => /andP[] /hrec1 -> /hrec2 ->.
@@ -1215,7 +1245,7 @@ Lemma write_lval_eq_on1 wdb gd s1 s2 vm1 x v:
     write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     s2.(evm) =[vrv x] vm2.
 Proof.
-  case:x => [vi ty | x | sz x e | aa sz' x e | aa sz' len x e] /=.
+  case:x => [vi ty | x | al sz x e | al aa sz' x e | aa sz' len x e] /=.
   + by move=> _ /write_noneP [-> h1 h2]; rewrite /write_none h1 h2; exists vm1.
   + by move=> _ /(write_var_eq_on1 vm1).
   + rewrite read_eE => Hvm.
@@ -1284,6 +1314,26 @@ Corollary get_gvar_uincl wdb x gd vm1 vm2 v1:
   exists2 v2, get_gvar wdb gd vm2 x = ok v2 & value_uincl v1 v2.
 Proof. by move => /(_ x.(gv)) h; apply: get_gvar_uincl_at; case: ifP. Qed.
 
+Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
+  value_uincl ve1 ve1' -> sem_sop1 o ve1 = ok v1 ->
+  sem_sop1 o ve1' = ok v1.
+Proof.
+  rewrite /sem_sop1; t_xrbindP=> /of_value_uincl_te h + /h{h}.
+  by case: o; last case; move=> > -> /= ->.
+Qed.
+
+Lemma sem_sop1_truncate_val o ve1 v1 :
+  sem_sop1 o ve1 = ok v1 ->
+  exists ve1',
+    truncate_val (type_of_op1 o).1 ve1 = ok ve1' /\
+    sem_sop1 o ve1' = ok v1.
+Proof.
+  rewrite /sem_sop1 /truncate_val.
+  t_xrbindP=> w -> <- /=.
+  eexists; split; first by reflexivity.
+  by rewrite of_val_to_val.
+Qed.
+
 Lemma vuincl_sem_sop2 o ve1 ve1' ve2 ve2' v1 :
   value_uincl ve1 ve1' -> value_uincl ve2 ve2' ->
   sem_sop2 o ve1 ve2 = ok v1 ->
@@ -1298,99 +1348,138 @@ Proof.
     | _ => idtac end => > -> > -> ? /=; (move=> -> || case=> ->) => /= ->.
 Qed.
 
-Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
-  value_uincl ve1 ve1' -> sem_sop1 o ve1 = ok v1 ->
-  sem_sop1 o ve1' = ok v1.
+Lemma sem_sop2_truncate_val o ve1 ve2 v1 :
+  sem_sop2 o ve1 ve2 = ok v1 ->
+  exists ve1' ve2', [/\
+    truncate_val (type_of_op2 o).1.1 ve1 = ok ve1',
+    truncate_val (type_of_op2 o).1.2 ve2 = ok ve2' &
+    sem_sop2 o ve1' ve2' = ok v1].
 Proof.
-  rewrite /sem_sop1; t_xrbindP=> /of_value_uincl_te h + /h{h}.
-  by case: o; last case; move=> > -> /= ->.
+  rewrite /sem_sop2 /truncate_val.
+  t_xrbindP=> w1 -> w2 -> w ho <- /=.
+  eexists _, _; split; [by reflexivity..|].
+  by rewrite !of_val_to_val /= ho.
 Qed.
 
 Lemma vuincl_sem_opN op vs v vs' :
-  sem_opN op vs = ok v →
   List.Forall2 value_uincl vs vs' →
-  exists2 v' : value, sem_opN op vs' = ok v' & value_uincl v v'.
+  sem_opN op vs = ok v →
+  sem_opN op vs' = ok v.
 Proof.
   rewrite /sem_opN.
-  t_xrbindP => q ok_q <-{v} hvs.
+  t_xrbindP => hvs q ok_q <-{v}.
   have -> /= := vuincl_sopn _ hvs ok_q.
   + by eauto.
   case: {q ok_q} op => //.
   by move => sz n; rewrite /= all_nseq orbT.
 Qed.
 
-(* --------------------------------------------------------- *)
-
-Lemma sem_pexpr_uincl_on_rec wdb gd s1 vm2 es vs1 :
-  s1.(evm) <=[read_es es] vm2 →
-  sem_pexprs wdb gd s1 es = ok vs1 →
-  (∀ e : pexpr, List.In e es →
-   ∀ v1 : value,
-     s1.(evm) <=[read_e e] vm2 →
-     sem_pexpr wdb gd s1 e = ok v1 →
-   exists2 v2 : value,
-   sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 &
-   value_uincl v1 v2) →
-   exists2 vs2,
-     sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
-     List.Forall2 value_uincl vs1 vs2.
+Lemma sem_opN_truncate_val o vs v :
+  sem_opN o vs = ok v ->
+  exists vs',
+    mapM2 ErrType truncate_val (type_of_opN o).1 vs = ok vs' /\
+    sem_opN o vs' = ok v.
 Proof.
-  elim: es vs1.
-  + by case => //; eauto.
-  move => e es ih vs1.
-  rewrite read_es_cons => /uincl_on_union_and [] hvm /ih{ih}ih /=.
-  t_xrbindP => v ok_v vs ok_vs <-{vs1} rec.
-  move: ih => /(_ _ ok_vs) [].
-  + by move => e' he'; apply: rec; right.
-  move => vs' ok_vs' hs.
-  move: rec => /(_ e _ _ hvm ok_v) []; first by left.
-  move => v' ok_v' h.
-  exists (v' :: vs'); first by rewrite ok_v' ok_vs'.
-  by constructor.
+  rewrite /sem_opN.
+  t_xrbindP=> w hvs <-.
+  have [vs' [-> hvs']] := app_sopn_truncate_val hvs.
+  eexists; split; first by reflexivity.
+  by rewrite hvs'.
 Qed.
 
-Lemma sem_pexpr_uincl_on wdb gd s1 vm2 e v1 :
-  s1.(evm) <=[read_e e] vm2 →
-  sem_pexpr wdb gd s1 e = ok v1 →
-  exists2 v2, sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 & value_uincl v1 v2.
+Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
+  List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
+  exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
 Proof.
-  elim: e v1 => /= > => [|||| Hp v1 | Hp v1 | Hp v1 | Hp v1 | He1 e2 He2 v1 | Hes v1 | He e1 He1 e2 He2 v1];
-    rewrite /read_e /= ?read_eE ?read_eE /read_gvar; t_xrbindP=> Hu.
-  1-3: by move=> ->; eauto.
-  + by apply: get_gvar_uincl_at; move: Hu; case: ifP => // _; apply; SvD.fsetdec.
-  + move: Hu => /uincl_on_union_and[] /Hp{Hp}Hp Hu.
+  rewrite /exec_sopn /sopn_sem => vs_vs' ho.
+  exact: (get_instr_desc o).(semu) vs_vs' ho.
+Qed.
+
+Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
+  mapM2 ErrType truncate_val (sopn_tin o) vs = ok vs' ->
+  exec_sopn o vs' = ok v ->
+  exec_sopn o vs = ok v.
+Proof.
+  move=> htr; rewrite /exec_sopn.
+  t_xrbindP=> w ok_w <-.
+  by rewrite (truncate_val_app_sopn htr ok_w).
+Qed.
+
+Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op syscall_state} o vs v :
+  exec_sopn o vs = ok v ->
+  exists vs',
+    mapM2 ErrType truncate_val (sopn_tin o) vs = ok vs' /\
+    exec_sopn o vs' = ok v.
+Proof.
+  rewrite /exec_sopn; t_xrbindP=> w ok_w <-.
+  have [? [-> {}ok_w]] := app_sopn_truncate_val ok_w.
+  eexists; split; first by reflexivity.
+  by rewrite ok_w.
+Qed.
+
+(* --------------------------------------------------------- *)
+Lemma sem_pexpr_uincl_on_pair wdb gd s1 vm2 :
+  (∀ e v1,
+      s1.(evm) <=[read_e e] vm2 →
+      sem_pexpr wdb gd s1 e = ok v1 →
+      exists2 v2, sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 & value_uincl v1 v2
+  ) ∧ (∀ es vs1,
+          s1.(evm) <=[read_es es] vm2 →
+          sem_pexprs wdb gd s1 es = ok vs1 →
+          exists2 vs2,
+         sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
+           List.Forall2 value_uincl vs1 vs2
+      ).
+Proof.
+  apply: pexprs_ind_pair; split => //=;
+    rewrite /read_e /= ?read_eE ?read_eE /read_gvar.
+  + by move => _ _ /ok_inj <-; exists [::].
+  + move => e rec es ih vs1.
+    rewrite read_es_cons => /uincl_on_union_and [] /rec{}rec /ih{ih}ih /=.
+    by t_xrbindP => v /rec [] v' -> h vs /ih [] vs' -> hs <- /=; exists (v' :: vs'); eauto.
+  1-3: by move => ? _ _ /ok_inj <-; eexists.
+  + move => ?? Hu; apply: get_gvar_uincl_at; move: Hu; case: ifP => // _; apply; SvD.fsetdec.
+  + move => al aa sz x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{}Hp Hu.
     apply on_arr_gvarP => n t Htx; rewrite /on_arr_var => /get_gvar_uincl_at - /(_ vm2) [].
     * by move: Hu; case: ifP => // _; apply; SvD.fsetdec.
     t_xrbindP=> ? -> /value_uinclE [? -> /WArray.uincl_get hg] > /Hp{Hp}
       [? -> ] /[swap] /to_intI -> /value_uinclE -> ? /hg{hg} /= -> /= ->.
     by eauto.
-  + move: Hu => /uincl_on_union_and[] /Hp{Hp}Hp Hu.
+  + move => aa sz len x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{Hp}Hp Hu.
     apply on_arr_gvarP => n t Htx; rewrite /on_arr_var => /get_gvar_uincl_at - /(_ vm2) [].
     * by move: Hu; case: ifP => // _; apply; SvD.fsetdec.
     t_xrbindP=> ? -> /value_uinclE [? -> /WArray.uincl_get_sub h] > /Hp{Hp}
       [? -> ] /[swap] /to_intI -> /value_uinclE -> ? /h{h} /= [? -> ?] /= <-.
     by eauto.
-  + move: Hu => /uincl_on_union_and[] /Hp{Hp}Hp Hu > /get_var_uincl_at - /(_ vm2) [].
+  + move => al sz x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{Hp}Hp Hu.
+    t_xrbindP => > /get_var_uincl_at - /(_ vm2) [].
     * by apply: Hu; SvD.fsetdec.
     move=> ? -> /[swap] /to_wordI [? [? [-> /word_uincl_truncate h]]]
       /value_uinclE [? [? [-> /h{h} /= ->]]] > /Hp[] ? ->
       /[swap] /to_wordI[? [? [-> /word_uincl_truncate h]]]
       /value_uinclE [? [? [-> /h{h} /= ->]]] ? /= -> /= ->.
     by eauto.
-  + by move: Hu => /uincl_on_union_and[] /Hp{Hp}Hp Hu
+  + by move => op e Hp v1; rewrite read_eE => /uincl_on_union_and[] /Hp{Hp}Hp Hu; t_xrbindP =>
       ve1 /Hp [] ve1' -> /vuincl_sem_sop1 Hvu1 /Hvu1; exists v1.
-  + by move: Hu => /uincl_on_union_and[] /He1{He1}He1
-      /uincl_on_union_and[] /He2{He2} He2 _
+  + by move => op e1 He1 e2 He2 v1 ; rewrite !read_eE => /uincl_on_union_and[] /He1{He1}He1
+      /uincl_on_union_and[] /He2{He2} He2 _; t_xrbindP =>
       ? /He1 [? -> /vuincl_sem_sop2 h1] ? /He2 [? -> /h1 h2/h2]; exists v1.
-  + move=> vs /(fun x => sem_pexpr_uincl_on_rec Hu x Hes) [? ].
-    by rewrite /sem_pexprs => -> /vuincl_sem_opN h/h.
-  move: Hu => /uincl_on_union_and[] /He{He}He /uincl_on_union_and[]
-    /He1{He1}He1 /uincl_on_union_and[] /He2{He2}He2 _ b
+  + by move => op es Hes v /Hes{}Hes; t_xrbindP => vs1 /Hes[] vs2;
+    rewrite /sem_pexprs => -> /vuincl_sem_opN h{}/h; exists v.
+  move => t e He e1 He1 e2 He2 v1.
+  rewrite !read_eE => /uincl_on_union_and[] /He{He}He /uincl_on_union_and[]
+    /He1{He1}He1 /uincl_on_union_and[] /He2{He2}He2 _; t_xrbindP => b
     > /He[? ->] /[swap] /to_boolI -> /value_uinclE -> ?
     > /He1[? ->] /value_uincl_truncate h /h{h} [? /= -> ?]
     > /He2 [? -> /value_uincl_truncate h] /h{h} [? /= -> ?] /= <-.
   by case: b; eauto.
 Qed.
+
+Lemma sem_pexpr_uincl_on wdb gd s1 vm2 e v1 :
+  s1.(evm) <=[read_e e] vm2 →
+  sem_pexpr wdb gd s1 e = ok v1 →
+  exists2 v2, sem_pexpr wdb gd (with_vm s1 vm2) e = ok v2 & value_uincl v1 v2.
+Proof. exact: (proj1 (sem_pexpr_uincl_on_pair wdb gd s1 vm2)). Qed.
 
 Corollary sem_pexpr_uincl wdb gd s1 vm2 e v1 :
   s1.(evm) <=1 vm2 →
@@ -1403,11 +1492,7 @@ Lemma sem_pexprs_uincl_on wdb gd s1 vm2 es vs1 :
   sem_pexprs wdb gd s1 es = ok vs1 →
   exists2 vs2, sem_pexprs wdb gd (with_vm s1 vm2) es = ok vs2 &
               List.Forall2 value_uincl vs1 vs2.
-Proof.
-  move => heq ok_vs.
-  apply: (sem_pexpr_uincl_on_rec heq ok_vs) => e he v.
-  exact: sem_pexpr_uincl_on.
-Qed.
+Proof. exact: (proj2 (sem_pexpr_uincl_on_pair wdb gd s1 vm2)). Qed.
 
 Corollary sem_pexprs_uincl wdb gd s1 vm2 es vs1 :
   s1.(evm) <=1 vm2 →
@@ -1434,14 +1519,6 @@ Lemma sem_pexprs_uincl_on' wdb gd es s scs m vm vm' vs1 :
 Proof.
   rewrite read_esE => /(uincl_onI (SvP.MP.union_subset_1 _)) h1 h2.
   by have /(_ _ h1) := sem_pexprs_uincl_on _ h2.
-Qed.
-
-Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
-  List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
-  exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
-Proof.
-  rewrite /exec_sopn /sopn_sem => vs_vs' ho.
-  exact: (get_instr_desc o).(semu) vs_vs' ho.
 Qed.
 
 Lemma write_var_uincl_on wdb X (x : var_i) v1 v2 s1 s2 vm1 :
@@ -1513,7 +1590,7 @@ Lemma write_uincl_on wdb gd s1 s2 vm1 r v1 v2:
     write_lval wdb gd r v2 (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     s2.(evm) <=[vrv r] vm2.
 Proof.
-  case: r => [xi ty | x | sz x p | aa sz1 x p | aa sz1 len x p] + Hv;
+  case: r => [xi ty | x | al sz x p | al aa sz1 x p | aa sz1 len x p] + Hv;
     rewrite /= ?read_eE; t_xrbindP=> Hvm1.
   + move=> H; have [-> _]:= write_noneP H.
     by rewrite (uincl_write_none _ Hv H); exists vm1.
@@ -1702,7 +1779,7 @@ Proof.
   + by move => _ ? /write_noneP [].
   + by rewrite /write_var; t_xrbindP => > /set_varP [].
   + by t_xrbindP.
-  + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+  + by move => al aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
   by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
 Qed.
 
@@ -1728,7 +1805,7 @@ Proof.
   apply: pexprs_ind_pair; subst P Q; split => //=.
   + by move=> e he es hes vs; t_xrbindP => ? /he -> ? /hes -> <-.
   + by move=> x v; apply get_gvar_wdb.
-  + move=> aa ws x e he v; apply on_arr_gvarP; t_xrbindP; rewrite /on_arr_var.
+  + move=> al aa ws x e he v; apply on_arr_gvarP; t_xrbindP; rewrite /on_arr_var.
     by move=> len a ha /get_gvar_wdb -> ?? /he -> /= -> ? /= -> <-.
   + move=> aa ws len x e he v; apply on_arr_gvarP; t_xrbindP; rewrite /on_arr_var.
     by move=> ??? /get_gvar_wdb -> ?? /he -> /= -> ? /= -> <-.
@@ -1746,17 +1823,17 @@ Lemma sem_pexprs_wdb e : Q e.
 Proof. by case: sem_pexpr_wdb_and. Qed.
 
 Lemma sem_pexpr_ext_eq e vm :
-  evm s =1 vm ->
+  (evm s =1 vm)%vm ->
   sem_pexpr wdb gd s e = sem_pexpr wdb gd (with_vm s vm) e.
 Proof. by move=> heq; apply/read_e_eq_on_empty/vm_eq_eq_on. Qed.
 
 Lemma sem_pexprs_ext_eq es vm :
-  evm s =1 vm ->
+  (evm s =1 vm)%vm ->
   sem_pexprs wdb gd s es = sem_pexprs wdb gd (with_vm s vm) es.
 Proof. by move=> heq; apply/read_es_eq_on_empty/vm_eq_eq_on. Qed.
 
 Lemma write_lvar_ext_eq x v s1 s2 vm1 :
-  evm s1 =1 vm1 ->
+  (evm s1 =1 vm1)%vm ->
   write_lval wdb gd x v s1 = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2).
 Proof.
@@ -1772,7 +1849,7 @@ Proof.
 Qed.
 
 Lemma write_lvars_ext_eq xs vs s1 s2 vm1 :
-  evm s1 =1 vm1 ->
+  (evm s1 =1 vm1)%vm ->
   write_lvals wdb gd s1 xs vs = ok s2 ->
   exists2 vm2, evm s2 =1 vm2 & write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2).
 Proof.
@@ -1916,7 +1993,7 @@ Qed.
 
 Lemma sem_vm_eq s1 c s2 vm1:
   sem p ev s1 c s2 ->
-  evm s1 =1 vm1 ->
+  (evm s1 =1 vm1)%vm ->
   exists2 vm2, sem p ev (with_vm s1 vm1) c (with_vm s2 vm2) & evm s2 =1 vm2.
 Proof.
   move=> hsem heq1.
@@ -2013,7 +2090,7 @@ Qed.
 
 Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
 Proof.
-  move=> s1 scs m s2 xs o es ves vs hes hex hw vm1 hvm1. 
+  move=> s1 scs m s2 xs o es ves vs hes hex hw vm1 hvm1.
   have [ves' hes' hle] := sem_pexprs_uincl hvm1 hes.
   have [vs' hex' hle']:= exec_syscallP hex hle.
   have  [vm2 Hw ?]:= writes_uincl (s1 := with_scs (with_mem s1 m) scs) hvm1 hle' hw.
@@ -2255,44 +2332,32 @@ Qed.
 
 End UNDEFINCL.
 
-Lemma eq_expr_recP wdb gd s (es es': pexprs) :
-  (∀ e : pexpr, List.In e es →
-   ∀ e' : pexpr, eq_expr e e' → sem_pexpr wdb gd s e = sem_pexpr wdb gd s e') →
-  all2 eq_expr es es' →
-  sem_pexprs wdb gd s es = sem_pexprs wdb gd s es'.
-Proof.
-  elim: es es'; first by case.
-  move => e es ih [] //= e' es' rec /andP [] he hes.
-  rewrite (rec e _ e' he); last by left.
-  case: (sem_pexpr _ _ _ e') => //= v.
-  rewrite (ih es') // => q hq q' hq'.
-  by apply: rec => //; right.
-Qed.
-
 Lemma eq_gvarP wdb gd vm x x' : eq_gvar x x' → get_gvar wdb gd vm x = get_gvar wdb gd vm x'.
 Proof. by rewrite /eq_gvar /get_gvar /is_lvar => /andP [] /eqP -> /eqP ->. Qed.
 
-Lemma eq_exprP wdb gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr wdb gd s e1 = sem_pexpr wdb gd s e2.
+Lemma eq_exprP_pair wdb gd s :
+  (∀ e e', eq_expr e e' → sem_pexpr wdb gd s e = sem_pexpr wdb gd s e') ∧
+  (∀ es es', all2 eq_expr es es' → sem_pexprs wdb gd s es = sem_pexprs wdb gd s es').
 Proof.
-  elim: e1 e2=> [z  | b | n | x | aa sz x e He | aa sz len x e He | sz x e He | o e  He | o e1 He1 e2 He2 | o es Hes | t e He e1 He1 e2 He2]
-                [z' | b' | n' | x' | aa' sz' x' e' | aa' sz' len' x' e' | sz' x' e'  | o' e' | o' e1' e2' | o' es' | t' e' e1' e2'] //=.
-  + by move=> /eqP ->.   + by move=> /eqP ->.   + by move=> /eqP ->. 
-  + by apply: eq_gvarP.
-  + by move=> /andP[] /andP []/andP [] /eqP-> /eqP -> /eq_gvarP -> /He ->.
-  + by move=> /andP[] /andP[] /andP[] /andP[] /eqP-> /eqP -> /eqP -> /eq_gvarP -> /He ->.
-  + by case/andP => /andP [] /eqP -> /eqP -> /He ->.
-  + by move=> /andP[]/eqP -> /He ->.
-  + by move=> /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
-  + rewrite -!/(sem_pexprs _ _ _).
-    by case/andP => /eqP <- /(eq_expr_recP Hes) ->.
-  by move=> /andP[]/andP[]/andP[] /eqP -> /He -> /He1 -> /He2 ->.
+  apply: pexprs_ind_pair; split =>
+    [| e he es hes |?|?|?|?|????? He|????? He|???? He|?? He|?? He1 ? He2|?? hes|?? He ? He1 ? He2] [] //=.
+  - by move => e' es' /andP[] /he -> /hes ->.
+  1-3: by move => ? /eqP ->.
+  - exact: eq_gvarP.
+  1-2: by move=> > /andP[] /andP[] /andP []/andP [] /eqP-> /eqP-> /eqP -> /eq_gvarP -> /He ->.
+  - by move=> > /andP[] /andP[] /andP [] /eqP-> /eqP-> /eqP -> /He ->.
+  - by move=> > /andP[]/eqP -> /He ->.
+  - by move=> > /andP[]/andP[] /eqP -> /He1 -> /He2 ->.
+  - by rewrite -/(sem_pexprs _ _ _) => > /andP[]/eqP-> /hes ->.
+  by move=> > /andP[]/andP[]/andP[] /eqP -> /He -> /He1 -> /He2 ->.
 Qed.
+
+Lemma eq_exprP wdb gd s e1 e2 : eq_expr e1 e2 -> sem_pexpr wdb gd s e1 = sem_pexpr wdb gd s e2.
+Proof. exact: (proj1 (eq_exprP_pair wdb gd s)). Qed.
 
 Lemma eq_exprsP wdb gd m es1 es2:
   all2 eq_expr es1 es2 → sem_pexprs wdb gd m es1 = sem_pexprs wdb gd m es2.
-Proof.
-  apply: eq_expr_recP => e _ e'; exact: eq_exprP.
-Qed.
+Proof. exact: (proj2 (eq_exprP_pair wdb gd m)). Qed.
 
 Lemma get_var_undef vm x v ty h :
   get_var true vm x = ok v -> v <> Vundef ty h.
@@ -2323,13 +2388,13 @@ Context
 #[ global ]
 Instance sCP_unit : semCallParams (pT := progUnit) :=
   { init_state := fun _ _ _ s => ok s;
-    finalize   := fun _ m => m; 
+    finalize   := fun _ m => m;
     exec_syscall  := exec_syscall_u;
     exec_syscallP := exec_syscallPu;
     exec_syscallS := exec_syscallSu;
 }.
 
-(* ** Semantic with stack 
+(* ** Semantic with stack
  * -------------------------------------------------------------------- *)
 
 Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (s:estate) :=
@@ -2346,7 +2411,7 @@ Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
 #[ global ]
 Instance sCP_stack : semCallParams (pT := progStack) :=
   { init_state := init_stk_state;
-    finalize   := finalize_stk_mem; 
+    finalize   := finalize_stk_mem;
     exec_syscall  := exec_syscall_s;
     exec_syscallP := exec_syscallPs;
     exec_syscallS := exec_syscallSs;

@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -43,7 +44,7 @@ cmp(const void* x, const void* y) {
   for (int j = 0; j < n; ++j) {                 \
     printf("%02x", out[j]);                 \
   }                                             \
-  printf("\t%lld\t%lld\t%lld\n", times[NBENCH >> 2], times[NBENCH >> 1], times[(NBENCH >> 2) + (NBENCH >> 1)]);
+  printf("\t%"PRIu64"\t%"PRIu64"\t%"PRIu64"\n", times[NBENCH >> 2], times[NBENCH >> 1], times[(NBENCH >> 2) + (NBENCH >> 1)]);
 
 int main(void)
 {

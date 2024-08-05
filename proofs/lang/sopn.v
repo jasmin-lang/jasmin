@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 
 Require Import
   pseudo_operator
@@ -26,12 +27,17 @@ Variant arg_desc :=
 | ADImplicit  of var
 | ADExplicit  of nat & option var.
 
+Variant arg_position :=
+| APout of nat
+| APin of nat.
+
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
   tin      : list stype;
   i_in     : seq arg_desc;
   tout     : list stype;
   i_out    : seq arg_desc;
+  conflicts: seq (arg_position * arg_position);
   semi     : sem_prod tin (exec (sem_tuple tout));
   semu     : forall vs vs' v,
                 List.Forall2 value_uincl vs vs' ->
@@ -57,7 +63,7 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimARM of
     (bool                 (* set_flags *)
      -> bool              (* is_conditional *)
-     -> asm_op).
+     -> result string asm_op).
 
 Class asmOp (asm_op : Type) := {
   _eqT           : eqTypeC asm_op
@@ -78,6 +84,7 @@ Notation mk_instr_desc str tin i_in tout i_out semi safe :=
      i_in     := i_in;
      tout     := tout;
      i_out    := i_out;
+     conflicts:= [::];
      semi     := semi;
      semu     := @vuincl_app_sopn_v _ tin tout semi refl_equal;
      i_safe   := safe;
@@ -111,8 +118,7 @@ Proof.
   all: by [ constructor | apply: reflect_inj eqP => ?? [] ].
 Qed.
 
-Definition sopn_eqMixin := Equality.Mixin sopn_eq_axiom.
-Canonical  sopn_eqType  := EqType sopn sopn_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sopn sopn_eq_axiom.
 
 Definition sopn_copy (ws : wsize) (p : positive) : sopn :=
   Opseudo_op (Ocopy ws p).
@@ -139,6 +145,7 @@ Definition Ocopy_instr ws p :=
      i_in     := [:: E 1];
      tout     := [:: sarr sz];
      i_out    := [:: E 0];
+     conflicts:= [::];
      semi     := @WArray.copy ws p;
      semu     := @vuincl_copy _ ws p;
      i_safe   := [:: AllInit ws p 0];
@@ -168,7 +175,7 @@ Definition Oaddcarry_instr sz :=
            (fun x y c => let p := @waddcarry sz x y c in ok (Some p.1, p.2))
            [::].
 
-Definition Osubcarry_instr sz:= 
+Definition Osubcarry_instr sz := 
   mk_instr_desc (pp_sz "sbb" sz)
            [:: sword sz; sword sz; sbool]
            [:: E 0; E 1; E 2] (* this info is irrelevant *)
@@ -177,13 +184,58 @@ Definition Osubcarry_instr sz:=
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
            [::].
 
+Fixpoint spill_semi (tys: seq stype) : sem_prod tys (exec (sem_tuple [::])):= 
+  match tys as tys0 return sem_prod tys0 (exec (sem_tuple [::])) with
+  | [::] => ok tt
+  | t::tys => fun (_ : sem_t t) => spill_semi tys
+  end.
+
+Lemma spill_semu tys (vs vs' : seq value) (v : values) :
+   List.Forall2 value_uincl vs vs' ->
+   app_sopn_v (spill_semi tys) vs = ok v -> 
+   exists2 v' : values, app_sopn_v (spill_semi tys) vs' = ok v' & 
+                        List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v; elim: tys vs vs' v => /= [ | t tys hrec] ?? v; case => //=.
+  + by move=> [<-]; exists [::].
+  move=> v1 v1' vs vs' huv hu /=; t_xrbindP => ?? hv ha <-.
+  have [? -> _ /=]:= val_uincl_of_val huv hv.
+  by apply: hrec;[ apply hu | rewrite ha].
+Qed.
+
+Definition Ospill_instr o tys := 
+  {| str      := (fun _ => string_of_pseudo_operator (Ospill o tys)); 
+     tin      := tys; 
+     i_in     := mapi (fun i _ => E i) tys; 
+     tout     := [:: ]; 
+     i_out    := [:: ];
+     conflicts:= [::];
+     semi     := spill_semi tys;
+     semu     := @spill_semu tys; 
+     i_safe   := [:: ];
+  |}.
+
+Definition Oswap_instr ty := 
+  {| str    := (fun _ => "swap"%string);
+     tin    := [:: ty; ty];
+     i_in   := [:: E 0; E 1]; (* this info is relevant *)
+     tout   := [:: ty; ty];
+     i_out  := [:: E 0; E 1]; (* this info is relevant *)
+     conflicts:= [::];
+     semi   := @swap_semi _ ty;
+     semu   := @swap_semu _ ty;
+     i_safe := [::];
+  |}.
+
 Definition pseudo_op_get_instr_desc (o : pseudo_operator) : instruction_desc :=
   match o with
+  | Ospill o tys => Ospill_instr o tys
   | Ocopy ws p   => Ocopy_instr ws p
   | Onop         => Onop_instr
   | Omulu     sz => Omulu_instr sz
   | Oaddcarry sz => Oaddcarry_instr sz
   | Osubcarry sz => Osubcarry_instr sz
+  | Oswap     ty => Oswap_instr ty
   end.
 
 (* ------------------------------------------------------------- *)
@@ -269,6 +321,7 @@ Definition SLHprotect_ptr_instr p :=
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
      tout     := [:: sarr p ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
+     conflicts:=[::];
      semi     := @se_protect_ptr_sem p;
      semu     := @protect_ptr_semu p;
      i_safe   := [::];
@@ -295,6 +348,7 @@ Definition SLHprotect_ptr_fail_instr p :=
      i_in     := [:: E 0; E 1 ]; (* this info is irrelevant *)
      tout     := [:: sarr p ];
      i_out    := [:: E 2 ]; (* this info is irrelevant *)
+     conflicts:=[::];
      semi     := @se_protect_ptr_fail_sem p;
      semu     := @protect_ptr_fail_semu p;
      i_safe   := [::];
@@ -330,8 +384,8 @@ Instance eqC_sopn : eqTypeC sopn :=
 
 Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : prim_constructor B :=
   match p with
-  | PrimX86 a k => PrimX86 a (fun x => Option.bind (olift f) (k x))
-  | PrimARM x => PrimARM (fun sf ic => f (x sf ic))
+  | PrimX86 a k => PrimX86 a (fun x => omap f (k x))
+  | PrimARM mk => PrimARM (fun sf ic => Let y := mk sf ic in ok (f y))
   end.
 
 Definition primM {A: Type} f  := @PrimX86 A [::] (fun _ => Some f).
@@ -342,6 +396,7 @@ Definition primP {A: Type} (f: wsize -> A) :=
 Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
   [::
     ("copy", primP (fun sz => Opseudo_op (Ocopy sz xH)));  (* The size is fixed later *)
+    ("swap", primM (Opseudo_op (Oswap sbool))); (* The type is fixed later *)
     (* "NOP" is ignored on purpose *)
     ("mulu", primP (fun sz => Opseudo_op (Omulu sz)));
     ("adc", primP (fun sz => Opseudo_op (Oaddcarry sz)));

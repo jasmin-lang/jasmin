@@ -55,8 +55,20 @@ output corruption: #public
  constraints:
 
 
-modmsf safe_access : #public * #poly = { n = d, s = d} ->
+modmsf safe_access_no_array : #public * #poly = { n = d, s = d} ->
 #poly = { n = d, s = d}
+output corruption: #public
+ constraints:
+
+
+modmsf safe_access : #public * #poly = { n = d, s = secret} ->
+#poly = { n = d, s = secret}
+output corruption: #public
+ constraints:
+
+
+modmsf safe_direct_access : #public * #poly = { n = d, s = secret} ->
+#poly = { n = d, s = secret}
 output corruption: #public
  constraints:
 
@@ -116,6 +128,56 @@ output corruption: #transient
  constraints:
 
 
+nomodmsf xof_init : #public * #[ptr = public, val = transient] *
+                    #[ptr = public, val = secret] ->
+#[ptr = public, val = secret]
+output corruption: #transient
+ constraints:
+
+
+File bug_852.jazz:
+nomodmsf reset : #public ->
+
+output corruption: #public
+ constraints:
+
+
+modmsf main : #transient ->
+
+output corruption: #public
+ constraints:
+
+
+File corruption.jazz:
+nomodmsf corrupts_memory : #public * #secret *
+                           #[ptr = public, val = secret] *
+                           #[ptr = public, val = public] ->
+#[ptr = public, val = secret] * #[ptr = public, val = transient]
+output corruption: #transient
+ constraints:
+
+
+nomodmsf does_not_corrupt_memory : #secret * #[ptr = public, val = secret] *
+                                   #[ptr = public, val = public] ->
+#[ptr = public, val = secret] * #[ptr = public, val = public]
+output corruption: #public
+ constraints:
+
+
+modmsf does_corrupt_memory : #secret * #[ptr = public, val = secret] *
+                             #[ptr = public, val = public] ->
+#[ptr = public, val = secret] * #[ptr = public, val = transient]
+output corruption: #transient
+ constraints:
+
+
+nomodmsf does_not_corrupt_registers : #public * #secret *
+                                      #[ptr = public, val = secret] ->
+#[ptr = public, val = secret] * #public
+output corruption: #transient
+ constraints:
+
+
 File for_loop.jazz:
 modmsf for_inference_bug1 : #msf ->
 #msf
@@ -130,7 +192,7 @@ output corruption: #public
 
 
 File local-stack-array.jazz:
-modmsf main : #transient ->
+modmsf main :  ->
 #public
 output corruption: #public
  constraints:
@@ -145,35 +207,32 @@ output corruption: #public
 
 
 modmsf fig3b : #[ptr = transient, val = transient] *
-               #[ptr = transient, val = { n = w, s = w}] *
-               #[ptr = transient, val = { n = s, s = s}] * #transient *
-               #secret ->
-#[ptr = public, val = { n = w, s = w}] *
-#[ptr = public, val = { n = s, s = s}]
-output corruption: #transient
- constraints:
-s <= s, w <= w, 
-
-modmsf fig4a : #[ptr = public, val = { n = d, s = d}] *
-               #[ptr = public, val = secret] ->
-#[ptr = public, val = { n = d, s = d}]
+               #[ptr = transient, val = { n = w, s = secret}] *
+               #[ptr = transient, val = secret] * #transient * #secret ->
+#[ptr = public, val = { n = w, s = secret}] * #[ptr = public, val = secret]
 output corruption: #transient
  constraints:
 
 
-modmsf fig4b : #[ptr = transient, val = { n = d, s = d}] *
+modmsf fig4a : #[ptr = public, val = secret] * #[ptr = public, val = secret] ->
+#[ptr = public, val = secret]
+output corruption: #transient
+ constraints:
+
+
+modmsf fig4b : #[ptr = transient, val = secret] *
                #[ptr = transient, val = secret] ->
-#[ptr = public, val = { n = d, s = d}]
+#[ptr = public, val = secret]
 output corruption: #transient
  constraints:
-d <= d, 
 
-modmsf fig4c : #[ptr = transient, val = { n = d, s = d}] *
+
+modmsf fig4c : #[ptr = transient, val = secret] *
                #[ptr = transient, val = secret] ->
-#[ptr = public, val = { n = d, s = d}]
+#[ptr = public, val = secret]
 output corruption: #transient
  constraints:
-d <= d, 
+
 
 modmsf fig5a : #[ptr = public, val = { n = d, s = secret}] ->
 #poly = { n = d, s = secret}
@@ -204,6 +263,19 @@ modmsf fig6b : #[ptr = transient, val = secret] *
                #[ptr = transient, val = transient] * #transient * #secret ->
 #public * #[ptr = public, val = secret]
 output corruption: #public
+ constraints:
+
+
+File spill.jazz:
+nomodmsf spill1 : #public * #secret ->
+#public
+output corruption: #transient
+ constraints:
+
+
+modmsf spill2 : #public * #secret ->
+#public
+output corruption: #transient
  constraints:
 
 

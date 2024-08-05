@@ -37,7 +37,7 @@ let exec (fs, prog) ms f args =
     match
       Evaluator.run
         (module Arch)
-        (Expr.to_uprog Arch.asmOp prog)
+        (Expr.to_uprog Build_Tabstract Arch.asmOp prog)
         IInfo.dummy f args m
     with
     | _m, res -> Ok res

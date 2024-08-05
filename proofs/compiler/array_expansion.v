@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
 Require Import expr.
 Require Import compiler_util ZArith.
@@ -21,6 +21,17 @@ Module Import E.
     pel_fi := None;
     pel_ii := None;
     pel_vi := Some x.(v_info);
+    pel_pass := Some pass;
+    pel_internal := false
+  |}.
+
+  Definition reg_error_expr e msg := {|
+    pel_msg := pp_nobox [:: pp_s "cannot expand expression"; PPEbreak;
+                            pp_s "  "; pp_e e; PPEbreak; pp_s msg];
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := None;
+    pel_vi := None;
     pel_pass := Some pass;
     pel_internal := false
   |}.
@@ -105,7 +116,6 @@ Definition nelem (ty: stype) (ws: wsize) : Z :=
   then n / wsize_size ws
   else 0.
 
-(* FIXME: improve error messages *)
 Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr := 
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
@@ -114,31 +124,32 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e
 
-  | Pget aa ws x e1 => 
-    if check_gvar m x then 
+  | Pget al aa ws x e1 =>
+    if check_gvar m x then
       Let e1 := expand_e m e1 in
-      ok (Pget aa ws x e1)
-    else 
+      ok (Pget al aa ws x e1)
+    else
       let x := gv x in
       match Mvar.get m.(sarrs) x, is_const e1 with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
+        Let _ := assert (al == Aligned) (reg_error x "(alignement must be enforced)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
-        Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "index out of bound") in
+        Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "(index out of bounds)") in
         let v := znth (v_var x) ai.(ai_elems) i in
         ok (Pvar (mk_lvar {| v_var := v; v_info := v_info x |}))
       | _, _ => Error (reg_error x "(the index is not a constant)")
       end
-  
+
   | Psub aa ws len x e1 => 
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(sub-reg arrays are not allowed)") in
     Let e1 := expand_e m e1 in
     ok (Psub aa ws len x e1)
 
-  | Pload ws x e1 =>
+  | Pload al ws x e1 =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e1 := expand_e m e1 in
-    ok (Pload ws x e1)
+    ok (Pload al ws x e1)
 
   | Papp1 o e1 => 
     Let e1 := expand_e m e1 in
@@ -173,26 +184,27 @@ Definition expand_lv (m : t) (x : lval)  :=
     Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok (Lvar x)
 
-  | Lmem ws x e => 
+  | Lmem al ws x e =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e := expand_e m e in
-    ok (Lmem ws x e)
+    ok (Lmem al ws x e)
 
-  | Laset aa ws x e =>
+  | Laset al aa ws x e =>
     if Sv.mem x m.(svars) then 
       Let e := expand_e m e in
-      ok (Laset aa ws x e)
+      ok (Laset al aa ws x e)
     else 
       match Mvar.get m.(sarrs) x, is_const e with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
+        Let _ := assert (al == Aligned) (reg_error x "(alignement must be enforced)") in
         Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
-        Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "index out of bound") in
+        Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "(index out of bounds)") in
         let v := znth (v_var x) ai.(ai_elems) i in
         ok (Lvar {| v_var := v; v_info := v_info x |})
       | _, _ => Error (reg_error x "(the index is not a constant)")
       end
-  
+
   | Lasub aa ws len x e =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(sub-reg arrays are not allowed)") in
     Let e := expand_e m e in
@@ -205,64 +217,50 @@ Definition expand_es m := mapM (expand_e m).
 Definition expand_lvs m := mapM (expand_lv m).
 
 Definition expand_param (m : t) ex (e : pexpr) : cexec _ :=
-  let erre {A} x := @Error _ A (reg_ierror (gv x) "variable cannot be expanded") in
   match ex with
   | Some (ws, len) =>
     match e with
     | Pvar x =>
+      Let ai := o2r (reg_error (gv x) "(not a reg array)") (Mvar.get m.(sarrs) (gv x)) in
+      Let _ := assert [&& ws == ai_ty ai, len == ai_len ai & is_lvar x]
+                      (reg_error (gv x) "(type mismatch)") in
       let vi := v_info (gv x) in
-      oapp (fun ai =>
-        if [&& ws == ai_ty ai, len == ai_len ai & is_lvar x]
-        then ok (map (fun v => Pvar (mk_lvar (VarI v vi))) (ai_elems ai))
-        else Error (reg_ierror (gv x) "type mismatch")) (erre x) (Mvar.get m.(sarrs) (gv x))
+      ok (map (fun v => Pvar (mk_lvar (VarI v vi))) (ai_elems ai))
     | Psub aa ws' len' x e =>
       Let _ := assert (aa == AAscale) (reg_error (gv x) "(the default scale must be used)") in
-      match is_const e with
-      | Some i =>
-        let vi := v_info (gv x) in
-        oapp (fun ai =>
-          Let _ := assert [&& ws == ai_ty ai, ws' == ws, len == len' & is_lvar x]
-                          (reg_ierror (gv x) "type mismatch") in
-          let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
-          ok (map (fun v => Pvar (mk_lvar (VarI v vi))) elems))
-          (erre x) (Mvar.get m.(sarrs) (gv x))
-      | None =>
-          Error (reg_error (gv x) "(the index is not a constant)")
-      end
-
+      Let i := o2r (reg_error (gv x) "(the index is not a constant)") (is_const e) in
+      Let ai := o2r (reg_error (gv x) "(not a reg array)") (Mvar.get m.(sarrs) (gv x)) in
+      Let _ := assert [&& ws == ai_ty ai, ws' == ws, len == len' & is_lvar x]
+                      (reg_error (gv x) "(type mismatch)") in
+      let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
+      let vi := v_info (gv x) in
+      ok (map (fun v => Pvar (mk_lvar (VarI v vi))) elems)
     | _ =>
-      Error (reg_ierror_no_var "only variables and sub arrays can be expanded in function arguments")
+      Error (reg_error_expr e "Only variables and sub-arrays can be expanded in function arguments.")
     end
   | None => rmap (fun x => [:: x]) (expand_e m e)
   end.
 
 Definition expand_return m ex x :=
-  let erre {A} x := @Error _ A (reg_ierror x "variable cannot be expanded") in
   match ex with
   | Some (ws, len) =>
     match x with
     | Lnone v t => ok (nseq (Z.to_nat len) (Lnone v (sword ws)))
     | Lvar x =>
+      Let ai := o2r (reg_error x "(not a reg array)") (Mvar.get m.(sarrs) x) in
+      Let _ := assert [&& ws == ai_ty ai & len == ai_len ai]
+                      (reg_error x "(type mismatch)") in
       let vi := v_info x in
-      oapp (fun ai =>
-        if [&& ws == ai_ty ai & len == ai_len ai]
-        then ok (map (fun v => Lvar (VarI v vi)) (ai_elems ai))
-        else Error (reg_ierror x "type mismatch")) (erre x) (Mvar.get m.(sarrs) x)
+      ok (map (fun v => Lvar (VarI v vi)) (ai_elems ai))
     | Lasub aa ws' len' x e =>
       Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
-      match is_const e with
-      | Some i =>
-        let vi := v_info x in
-        oapp (fun ai =>
-          Let _ := assert [&& ws == ai_ty ai, ws' == ws & len == len']
-                          (reg_ierror x "type mismatch") in
-          let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
-          ok (map (fun v => Lvar (VarI v vi)) elems))
-          (erre x) (Mvar.get m.(sarrs) x)
-      | None =>
-          Error (reg_error x "(the index is not a constant)")
-      end
-
+      Let i := o2r (reg_error x "(the index is not a constant)") (is_const e) in
+      Let ai := o2r (reg_error x "(not a reg array)") (Mvar.get m.(sarrs) x) in
+      Let _ := assert [&& ws == ai_ty ai, ws' == ws & len == len']
+                      (reg_error x "(type mismatch)") in
+      let vi := v_info x in
+      let elems := take (Z.to_nat len) (drop (Z.to_nat i) (ai_elems ai)) in
+      ok (map (fun v => Lvar (VarI v vi)) elems)
     | _ => Error (reg_ierror_no_var "only variables/sub-arrays/_ can be expanded in function return")
     end
   | None => rmap (fun x => [:: x]) (expand_lv m x)
@@ -322,9 +320,9 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     else Error (reg_ierror_no_var "function not found")
   end.
 
-Definition expand_tyv m b ty v :=
+Definition expand_tyv m b s ty v :=
   if Mvar.get m.(sarrs) (v_var v) is Some ai then
-    Let _ := assert b (reg_ierror v "expansion would modify signature of an exported function") in
+    Let _ := assert b (reg_error v ("(reg arrays are not allowed in " ++ s ++ " of export functions)")) in
     let vi := v_info v in
     let vvars := map (fun v' => VarI v' vi) (ai_elems ai) in
     let vtypes := map vtype (ai_elems ai) in
@@ -340,11 +338,11 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
   | MkFun _ tyin params c tyout res ef =>
     let '(m, fi) := x in
     let exp := ~~(fname \in entries) in
-    Let ins  := mapM2 length_mismatch (expand_tyv m exp) tyin params in
+    Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") tyin params in
     let tyin   := map (fun x => fst (fst x)) ins in
     let params := map (fun x => snd (fst x)) ins in
     let ins    := map snd ins in
-    Let outs := mapM2 length_mismatch (expand_tyv m exp) tyout res in
+    Let outs := mapM2 length_mismatch (expand_tyv m exp "the return type") tyout res in
     let tyout  := map (fun x => fst (fst x)) outs in
     let res    := map (fun x => snd (fst x)) outs in
     let outs   := map snd outs in

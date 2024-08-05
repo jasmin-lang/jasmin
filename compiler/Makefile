@@ -5,14 +5,24 @@ JSJOBS    ?= 2
 CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
-CHECKCATS ?= safety CCT x86-64-ATT x86-64-Intel x86-64-print x86-64-nolea arm-m4 arm-m4-print
+CHECKCATS ?= \
+	safety \
+	CCT CCT-DOIT \
+	x86-64-ATT \
+	x86-64-Intel \
+	x86-64-print \
+	x86-64-nolea \
+	arm-m4 \
+	arm-m4-print \
+	x86-64-stack-zero-loop \
+	x86-64-stack-zero-unrolled \
+	arm-m4-stack-zero-loop \
+	arm-m4-stack-zero-unrolled
 
 # --------------------------------------------------------------------
 DESTDIR  ?=
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
-LIBDIR   := $(PREFIX)/lib
-SHRDIR   := $(PREFIX)/share
 INSTALL  ?= ../scripts/install-sh
 
 # --------------------------------------------------------------------
@@ -22,11 +32,8 @@ DISTDIR ?= jasmin-compiler
 OBELISK ?= obelisk
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native CIL check check-ci __force__
+.PHONY: all build byte native CIL check check-ci
 .PHONY: clean install uninstall dist
-.PHONY: %.ml %.mli %.inferred.mli
-
-.PRECIOUS: _c_build/%.s _c_build/%.o
 
 all: build
 	@true
@@ -34,11 +41,9 @@ all: build
 build: native
 
 define do-build
-	$(RM) jasminc jazz2tex
-	dune build entry/jasminc.$(1)
-	dune build entry/jazz2tex.$(1)
-	ln -sf "_build/default/entry/jasminc.$(1)" jasminc
-	ln -sf "_build/default/entry/jazz2tex.$(1)" jazz2tex
+	$(RM) jasminc jasmin2tex jasmin-ct
+	dune build @check @install
+	for p in _build/install/default/bin/*; do ln -sf $$p $$(basename $$p); done
 endef
 
 byte:
@@ -48,7 +53,7 @@ native:
 	$(call do-build,exe)
 
 CIL:
-	rm -f src/CIL/*.ml src/CIL/*.mli ../proofs/extraction.vo
+	$(RM) -f src/CIL/*.ml src/CIL/*.mli ../proofs/extraction.vo
 	$(MAKE) -C ../proofs extraction
 	cp ../proofs/lang/ocaml/*.ml  src/CIL/
 	cp ../proofs/lang/ocaml/*.mli src/CIL/
@@ -61,17 +66,18 @@ check-ci:
 
 clean:
 	dune clean
-	rm -rf _c_build
-	rm -f jasminc jazz2tex lib*.a
+	$(RM) jasminc jasmin2tex jasmin-ct
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
-	$(INSTALL) -m 0755 -T jazz2tex $(DESTDIR)$(BINDIR)/jazz2tex
+	$(INSTALL) -m 0755 -T jasmin2tex $(DESTDIR)$(BINDIR)/jasmin2tex
+	$(INSTALL) -m 0755 -T jasmin-ct $(DESTDIR)$(BINDIR)/jasmin-ct
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
-	$(RM) $(DESTDIR)$(BINDIR)/jazz2tex
+	$(RM) $(DESTDIR)$(BINDIR)/jasmin2tex
+	$(RM) $(DESTDIR)$(BINDIR)/jasmin-ct
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz
@@ -81,31 +87,6 @@ $(DISTDIR).tgz: MANIFEST
 	../scripts/distribution $(DISTDIR) $<
 	tar -czvf $(DISTDIR).tgz --owner=0 --group=0 $(DISTDIR)
 	$(RM) -r $(DISTDIR)
-
-# --------------------------------------------------------------------
-_c_build: __force__
-	[ -e $@ ] || mkdir $@
-
-lib%.a: _c_build/%.o
-	rm -f $@ && ar rc $@ $< && ranlib $@
-
-_c_build/%.o: _c_build/%.s
-	gcc -c -o $@ $<
-
-_c_build/%.s: examples/%.jazz _c_build jasminc
-	./jasminc $< -o $@
-
-# --------------------------------------------------------------------
-%.inferred.mli:
-	@$(call do-core-build,src/$@) && cat _build/src/$@
-
-# --------------------------------------------------------------------
-%.ml:
-	$(call do-core-build,src/$*.cmo)
-
-# --------------------------------------------------------------------
-%.mli:
-	$(call do-core-build,src/$*.cmi)
 
 # --------------------------------------------------------------------
 jasmin.bnf: src/parser.mly
