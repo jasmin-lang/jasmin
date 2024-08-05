@@ -1,9 +1,10 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice fintype.
 From mathcomp Require Import word_ssrZ.
 Require oseq.
 Require Import ZArith
 utils
-strings wsize ident
+strings wsize
 memory_model
 (* word *)
 global
@@ -16,11 +17,33 @@ Require Import
   arch_decl
   arch_utils.
 
-Require Export x86_decl_core.
-
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+(* --------------------------------------------- *)
+Definition x86_reg_size  := U64.
+Definition x86_xreg_size := U256.
+
+(* -------------------------------------------------------------------- *)
+Variant register : Type :=
+  | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
+  | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
+
+(* -------------------------------------------------------------------- *)
+Variant register_ext : Type :=
+  | MM0 | MM1 | MM2 | MM3 | MM4 | MM5 | MM6 | MM7.
+
+(* -------------------------------------------------------------------- *)
+Variant xmm_register : Type :=
+  | XMM0 | XMM1 | XMM2 | XMM3
+  | XMM4 | XMM5 | XMM6 | XMM7
+  | XMM8 | XMM9 | XMM10 | XMM11
+  | XMM12 | XMM13 | XMM14 | XMM15.
+
+(* -------------------------------------------------------------------- *)
+Variant rflag : Type :=
+  | CF | PF | ZF | SF | OF.
 
 (* -------------------------------------------------------------------- *)
 Variant condt : Type :=
@@ -51,9 +74,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_register_dec_bl internal_register_dec_lb).
 Qed.
 
-Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
-Canonical reg_eqType := EqType register reg_eqMixin.
-
+HB.instance Definition _ := hasDecEq.Build register reg_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -67,8 +88,7 @@ Proof.
        internal_register_ext_dec_lb).
 Qed.
 
-Definition regx_eqMixin := Equality.Mixin regx_eq_axiom.
-Canonical regx_eqType := EqType register_ext regx_eqMixin.
+HB.instance Definition _ := hasDecEq.Build register_ext regx_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -82,8 +102,7 @@ Proof.
        internal_xmm_register_dec_lb).
 Qed.
 
-Definition xreg_eqMixin := Equality.Mixin xreg_eq_axiom.
-Canonical xreg_eqType := EqType _ xreg_eqMixin.
+HB.instance Definition _ := hasDecEq.Build xmm_register xreg_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -94,8 +113,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_rflag_dec_bl internal_rflag_dec_lb).
 Qed.
 
-Definition rflag_eqMixin := Equality.Mixin rflag_eq_axiom.
-Canonical rflag_eqType := EqType rflag rflag_eqMixin.
+HB.instance Definition _ := hasDecEq.Build rflag rflag_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -106,8 +124,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_condt_dec_bl internal_condt_dec_lb).
 Qed.
 
-Definition condt_eqMixin := Equality.Mixin condt_eq_axiom.
-Canonical condt_eqType := EqType condt condt_eqMixin.
+HB.instance Definition _ := hasDecEq.Build condt condt_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 Definition registers :=
@@ -117,20 +134,10 @@ Definition registers :=
 Lemma registers_fin_axiom : Finite.axiom registers.
 Proof. by case. Qed.
 
-Definition reg_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK registers_fin_axiom).
-Canonical reg_choiceType :=
-  Eval hnf in ChoiceType register reg_choiceMixin.
+HB.instance Definition _ := Countable.copy register
+  (pcan_type (FinIsCount.pickleK registers_fin_axiom)).
 
-Definition reg_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK registers_fin_axiom).
-Canonical reg_countType :=
-  Eval hnf in CountType register reg_countMixin.
-
-Definition reg_finMixin :=
-  FinMixin registers_fin_axiom.
-Canonical reg_finType :=
-  Eval hnf in FinType register reg_finMixin.
+HB.instance Definition _ := isFinite.Build register registers_fin_axiom.
 
 (* -------------------------------------------------------------------- *)
 Definition regxs :=
@@ -139,20 +146,10 @@ Definition regxs :=
 Lemma regxs_fin_axiom : Finite.axiom regxs.
 Proof. by case. Qed.
 
-Definition regx_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK regxs_fin_axiom).
-Canonical regx_choiceType :=
-  Eval hnf in ChoiceType register_ext regx_choiceMixin.
+HB.instance Definition _ := Countable.copy register_ext
+  (pcan_type (FinIsCount.pickleK regxs_fin_axiom)).
 
-Definition regx_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK regxs_fin_axiom).
-Canonical regx_countType :=
-  Eval hnf in CountType register_ext regx_countMixin.
-
-Definition regx_finMixin :=
-  FinMixin regxs_fin_axiom.
-Canonical regx_finType :=
-  Eval hnf in FinType register_ext regx_finMixin.
+HB.instance Definition _ := isFinite.Build register_ext regxs_fin_axiom.
 
 (* -------------------------------------------------------------------- *)
 Definition xmm_registers :=
@@ -164,20 +161,10 @@ Proof. by case. Qed.
 Lemma mmx_registers_fin_axiom : Finite.axiom regxs.
 Proof. by case. Qed.
 
-Definition xreg_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
-Canonical xreg_choiceType :=
-  Eval hnf in ChoiceType xmm_register xreg_choiceMixin.
+HB.instance Definition _ := Countable.copy xmm_register
+  (pcan_type (FinIsCount.pickleK xmm_registers_fin_axiom)).
 
-Definition xreg_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
-Canonical xreg_countType :=
-  Eval hnf in CountType xmm_register xreg_countMixin.
-
-Definition xreg_finMixin :=
-  FinMixin xmm_registers_fin_axiom.
-Canonical xreg_finType :=
-  Eval hnf in FinType xmm_register xreg_finMixin.
+HB.instance Definition _ := isFinite.Build xmm_register xmm_registers_fin_axiom.
 
 (* -------------------------------------------------------------------- *)
 #[ local ]
@@ -188,25 +175,11 @@ Lemma rflags_fin_axiom : Finite.axiom rflags.
 Proof. by case. Qed.
 
 #[ local ]
-Definition rflag_choiceMixin :=
-  PcanChoiceMixin (FinIsCount.pickleK rflags_fin_axiom).
-#[ local ]
-Canonical rflag_choiceType :=
-  Eval hnf in ChoiceType rflag rflag_choiceMixin.
+HB.instance Definition _ := Countable.copy rflag
+  (pcan_type (FinIsCount.pickleK rflags_fin_axiom)).
 
 #[ local ]
-Definition rflag_countMixin :=
-  PcanCountMixin (FinIsCount.pickleK rflags_fin_axiom).
-#[ local ]
-Canonical rflag_countType :=
-  Eval hnf in CountType rflag rflag_countMixin.
-
-#[ local ]
-Definition rflag_finMixin :=
-  FinMixin rflags_fin_axiom.
-#[ local ]
-Canonical rflag_finType :=
-  Eval hnf in FinType rflag rflag_finMixin.
+HB.instance Definition _ := isFinite.Build rflag rflags_fin_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -363,8 +336,8 @@ Instance x86_fcp : FlagCombinationParams :=
 
 #[global]
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
-  { reg_size := U64
-  ; xreg_size := U256
+  { reg_size := x86_reg_size
+  ; xreg_size := x86_xreg_size
   ; toS_r := x86_reg_toS
   ; toS_rx:= x86_regx_toS
   ; toS_x := x86_xreg_toS

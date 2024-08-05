@@ -1,5 +1,6 @@
 (* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import xseq strings utils var type values sopn expr fexpr arch_decl.
 Require Import compiler_util.
 
@@ -282,7 +283,7 @@ Variant extended_op :=
 
 Definition extended_op_beq o1 o2 :=
   match o1, o2 with
-  | BaseOp o1, BaseOp o2 => eq_op (T:= prod_eqType _ ceqT_eqType) o1 o2
+  | BaseOp o1, BaseOp o2 => o1 == o2 :> _ * ceqT_eqType
   | ExtOp o1, ExtOp o2 => o1 == o2 ::>
   | _, _               => false
   end.
@@ -292,8 +293,7 @@ Proof.
   by case=> [] o1 [] o2 /=; (constructor || apply: reflect_inj eqP => ?? []).
 Qed.
 
-Definition extended_op_eqMixin := Equality.Mixin extended_op_eq_axiom.
-Definition extended_op_eqType := EqType extended_op extended_op_eqMixin.
+HB.instance Definition _ := hasDecEq.Build extended_op extended_op_eq_axiom.
 
 Definition get_instr_desc (o: extended_op) : instruction_desc :=
  match o with
@@ -303,6 +303,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; tin      := id.(id_tin)
     ; i_in     := map sopn_arg_desc id.(id_in)
     ; i_out    := map sopn_arg_desc id.(id_out)
+    ; conflicts:= [::]
     ; tout     := id.(id_tout)
     ; semi     := id.(id_semi)
     ; semu     := @vuincl_app_sopn_v _ _ _ id.(id_semi) id.(id_tin_narr)

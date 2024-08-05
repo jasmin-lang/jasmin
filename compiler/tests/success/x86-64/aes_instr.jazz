@@ -43,3 +43,18 @@ x1 = #VAESKEYGENASSIST((u128)[p], 0);
 r = 0;
 return r;
 }
+
+export
+fn test_vaes(reg u64 p) {
+  reg u256 x y z;
+  x = (u256)[p];
+  y = #VAESENC_256(x, (u256)[p + 32]);
+  z = #VAESENC_256(y, x);
+  x = #VAESENCLAST_256(z, (u256)[p + 64]);
+  y = #VAESENCLAST_256(x, y);
+  z = #VAESDEC_256(y, (u256)[p + 32]);
+  x = #VAESDEC_256(z, y);
+  y = #VAESDECLAST_256(x, (u256)[p]);
+  z = #VAESDECLAST_256(y, x);
+  (u256)[p] = z;
+}

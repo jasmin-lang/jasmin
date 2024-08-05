@@ -116,7 +116,7 @@ qed.
 
 lemma to_sint_cmp (x : t) : min_sint <= to_sint x <= max_sint.
 proof.
- by rewrite /to_sint /= /smod /=; smt.
+  smt(powS_minus gt0_size to_uint_cmp).
 qed.
 
 lemma of_uintK (x : int) : to_uint (of_int x) = x %% modulus.
@@ -479,29 +479,29 @@ proof. move=> ->;apply orwK. qed.
 lemma andw_invw w: andw w (invw w) = zerow.
 proof. by rewrite -xorw1; ring. qed.
 
-lemma nosmt orw_xorw w1 w2: orw w1 w2 = w1 +^ w2 +^ (andw w1 w2).
+lemma orw_xorw w1 w2: orw w1 w2 = w1 +^ w2 +^ (andw w1 w2).
 proof.
 apply wordP => i Hi.
 rewrite orE !xorE andE !map2iE //.
 by case: w1.[i]; case: w2.[i].
 qed.
 
-lemma nosmt andw_orwDl: left_distributive andw orw.
+lemma andw_orwDl: left_distributive andw orw.
 proof.
 by move=> x y z; rewrite !orw_xorw; ring.
 qed.
 
-lemma nosmt andw_orwDr: right_distributive andw orw.
+lemma andw_orwDr: right_distributive andw orw.
 proof.
 by move=> x y z; rewrite !orw_xorw; ring.
 qed.
 
-lemma nosmt orw_andwDl: left_distributive orw andw.
+lemma orw_andwDl: left_distributive orw andw.
 proof.
 by move=> x y z; rewrite !orw_xorw; ring.
 qed.
 
-lemma nosmt orw_andwDr: right_distributive orw andw.
+lemma orw_andwDr: right_distributive orw andw.
 proof.
 by move=> x y z; rewrite !orw_xorw; ring.
 qed.
@@ -1120,14 +1120,14 @@ proof.
   apply bound_abs; smt (le_modz to_uint_cmp gt0_pow2 modz_cmp).
 qed.
 
-lemma nosmt to_uintNE w:
+lemma to_uintNE w:
  to_uint (-w) = (modulus - to_uint w) %% modulus.
 proof.
 rewrite to_uintN.
 by have /= ->:= (modzMDl 1).
 qed.
 
-lemma nosmt of_intNE (n:int):
+lemma of_intNE (n:int):
   of_int (-n) = of_int (modulus - n).
 proof.
 rewrite of_intN.
@@ -1154,7 +1154,7 @@ proof. by rewrite map2_w2bits bits2wK // size_map2 minrE !size_w2bits. qed.
 lemma map_w2bits_w2bits f w : map f (w2bits w) = w2bits (map f w).
 proof. by rewrite map_w2bits bits2wK 2:// size_map size_w2bits. qed.
 
-lemma nosmt to_uintD_disjoint w1 w2:
+lemma to_uintD_disjoint w1 w2:
  w1 `&` w2 = BitWord.zero =>
  to_uint (w1 + w2) = to_uint w1 + to_uint w2.
 proof.
@@ -1166,7 +1166,7 @@ apply bs2int_add_disjoint; rewrite ?size_w2bits //.
 by rewrite -H0 map2_w2bits_w2bits.
 qed.
 
-lemma nosmt orw_disjoint w1 w2:
+lemma orw_disjoint w1 w2:
  w1 `&` w2 = BitWord.zero => w1 `|` w2 = w1 + w2.
 proof.
 move=> H; have H0: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
@@ -1176,12 +1176,12 @@ move: H0; rewrite !to_uintE andE => H0.
 by rewrite orE -bs2int_or_add ?size_mkseq // 1:-H0 map2_w2bits_w2bits.
 qed.
 
-lemma nosmt to_uint_orw_disjoint w1 w2:
+lemma to_uint_orw_disjoint w1 w2:
  w1 `&` w2 = zero =>
  to_uint (w1 `|` w2) = to_uint w1 + to_uint w2.
 proof. by move=> *; rewrite orw_disjoint // to_uintD_disjoint. qed.
 
-lemma nosmt ule_andN0 (x y: t):
+lemma ule_andN0 (x y: t):
  x `&` invw y = BitWord.zero =>
  x \ule y.
 proof.
@@ -1193,18 +1193,18 @@ rewrite !to_uintE; apply bs2int_sub_common.
 by rewrite map_w2bits_w2bits map2_w2bits_w2bits.
 qed.
 
-lemma nosmt ule_andw x y:
+lemma ule_andw x y:
  x `&` y \ule x.
 proof.
 rewrite andwC; apply ule_andN0.
 by rewrite -andwA andw_invw andw0.
 qed.
 
-lemma nosmt to_uint_ule_andw (x y: t):
+lemma to_uint_ule_andw (x y: t):
  to_uint (x `&` y) <= to_uint x.
 proof. have := ule_andw x y; by rewrite uleE. qed.
 
-lemma nosmt ule_orw x y:
+lemma ule_orw x y:
  x \ule x `|` y.
 proof.
 have {1}->: x = (x`|`y) `&` (x`|`invw y).
@@ -1214,7 +1214,7 @@ have {1}->: x = (x`|`y) `&` (x`|`invw y).
 by apply ule_andw.
 qed.
 
-lemma nosmt subw_xorw w1 w2:
+lemma subw_xorw w1 w2:
  invw w1 `&` w2 = BitWord.zero => w1 - w2 = w1 `^` w2.
 proof.
 move=> H; have H0: to_uint (invw w1 `&` w2) = 0 by smt(to_uint0).
@@ -1228,7 +1228,7 @@ rewrite -bs2int_xor_sub ?size_mkseq //.
 by rewrite map2_w2bits_w2bits.
 qed.
 
-lemma nosmt orw_xpnd w1 w2: w1 `|` w2 = w1 - w1 `&` w2 + w2.
+lemma orw_xpnd w1 w2: w1 `|` w2 = w1 - w1 `&` w2 + w2.
 proof.
 rewrite subw_xorw.
  by rewrite andwA (andwC (invw w1)) andw_invw and0w.
@@ -1247,7 +1247,7 @@ rewrite orw_xpnd andw_invw => <-.
 by ring.
 qed.
 
-lemma nosmt twos_compl (x: t):  -x = invw x + BitWord.one.
+lemma twos_compl (x: t):  -x = invw x + BitWord.one.
 proof.
 apply (addrI x); rewrite addrA ones_compl onewS.
 by ring.
@@ -1260,7 +1260,7 @@ rewrite twos_compl -orw_disjoint.
 by rewrite orwC orw_invw.
 qed.
 
-lemma nosmt to_uint_invw w: to_uint (invw w) = max_uint - to_uint w.
+lemma to_uint_invw w: to_uint (invw w) = max_uint - to_uint w.
 proof.
 rewrite -to_uint_onew -to_uintB.
  rewrite uleE to_uint_onew.
@@ -1300,12 +1300,12 @@ qed.
 
 hint simplify masklsbE.
 
-lemma nosmt shrl_andmaskN k w:
+lemma shrl_andmaskN k w:
  0 <= k =>
  w `>>>` k `<<<` k = w `&` invw (masklsb k).
 proof. by move=> Hk; apply wordP => i Hi /= /#. qed.
 
-lemma nosmt shlw_andmask k1 k2 w:
+lemma shlw_andmask k1 k2 w:
  0 <= k1 <= k2 < size =>
  (w `<<<` k1) `&` masklsb k2 = (w `&` masklsb (k2-k1)) `<<<` k1.
 proof.
@@ -1313,7 +1313,7 @@ move=> *; apply/wordP => i Hi /=; rewrite !Hi /= /min.
 smt(get_out).
 qed.
 
-lemma nosmt andmask_shrw k1 k2 w:
+lemma andmask_shrw k1 k2 w:
  0 <= k2 < k1 < size =>
  (w `&` masklsb k1) `>>>` k2
  = (w `>>>` k2) `&` masklsb (k1-k2).
@@ -1322,7 +1322,7 @@ move=> *; apply/wordP => i Hi /=; rewrite !Hi /min /=.
 smt(get_out).
 qed.
 
-lemma nosmt andmask_shlw k1 k2 w:
+lemma andmask_shlw k1 k2 w:
  0 <= k1 < size =>
  (w `&` masklsb k1) `<<<` k2
  = (w `<<<` k2) `&` masklsb (k1+k2).
@@ -1331,7 +1331,7 @@ move=> *; apply/wordP => i Hi /=; rewrite Hi /= /min.
 smt(get_out).
 qed.
 
-lemma nosmt shrw_shlw_disjoint k1 k2 w1 w2:
+lemma shrw_shlw_disjoint k1 k2 w1 w2:
  0 <= k1 < size <= k1+k2 =>
  (w1 `>>>` k1) `&` (w2 `<<<` k2) = zero.
 proof.
@@ -1339,11 +1339,11 @@ move=> *; apply/wordP => i Hi /=; rewrite Hi /= /min.
 smt(get_out).
 qed.
 
-lemma nosmt andmaskK k w:
+lemma andmaskK k w:
  size <= k =>  w `&` masklsb k = w.
 proof. by move=> *; apply/wordP => i Hi /= /#. qed.
 
-lemma nosmt shrw_andmaskK k1 k2 w:
+lemma shrw_andmaskK k1 k2 w:
  0 <= k1 < size <= (k1+k2)%Int =>
  (w `>>>` k1) `&` masklsb k2 = (w `>>>` k1).
 proof.
@@ -1356,12 +1356,12 @@ lemma mask_and_mask k1 k2:
  (masklsb k1 `&` masklsb k2) = masklsb (min k1 k2).
 proof. by move=> *; apply/wordP => i Hi /= /#. qed.
 
-lemma nosmt shrw_shlw_shlw k1 k2 x:
+lemma shrw_shlw_shlw k1 k2 x:
  0 <= k1 < k2 =>
  x `>>>` k1 `<<<` k2 = (x `&` invw (masklsb k1)) `<<<` (k2-k1).
 proof. by move=> *; apply/wordP => i Hi /= /#. qed.
 
-lemma nosmt shrw_shlw_shrw k1 k2 x:
+lemma shrw_shlw_shrw k1 k2 x:
  0 <= k2 <= k1 < size =>
  x `>>>` k1 `<<<` k2 = (x `&` invw (masklsb k1)) `>>>` (k1-k2).
 proof.
@@ -1369,7 +1369,7 @@ move=> *; apply/wordP => i Hi /=; rewrite !Hi /= /min.
 smt(get_out).
 qed.
 
-lemma nosmt shlw_shrw_shlw k1 k2 x:
+lemma shlw_shrw_shlw k1 k2 x:
  0 <= k2 <= k1 < size =>
  x `<<<` k1 `>>>` k2 = (x `&` masklsb (size-k1)) `<<<` (k1-k2).
 proof.
@@ -1377,12 +1377,12 @@ move=> *; apply/wordP => i Hi /=; rewrite !Hi /= /min.
 smt(get_out).
 qed.
 
-lemma nosmt shlw_shrw_shrw k1 k2 x:
+lemma shlw_shrw_shrw k1 k2 x:
  0 <= k1 < k2 < size =>
  x `<<<` k1 `>>>` k2 = (x `&` masklsb (size-k1)) `>>>` (k2-k1).
 proof. by move=> *; apply/wordP => i Hi /=; rewrite !Hi /= /#. qed.
 
-lemma nosmt splitwE k w:
+lemma splitwE k w:
  0 <= k =>
  to_uint w = to_uint (w `&` masklsb k) + 2^k * to_uint (w `>>>` k).
 proof.
@@ -1392,7 +1392,7 @@ qed.
 
 op splitBits k w = (w `&` masklsb k, w `>>>` k).
 
-lemma nosmt splitBits_disjoint k w:
+lemma splitBits_disjoint k w:
  0 <= k =>
  (splitBits k w).`1 `&` ((splitBits k w).`2 `<<<` k) = BitWord.zero.
 proof.
@@ -1400,7 +1400,7 @@ move => *; rewrite /splitBits /= shrl_andmaskN //.
 by rewrite andwA -(andwA w) (andwC _ w) andwA andwK -andwA andw_invw andw0.
 qed.
 
-lemma nosmt to_uint_splitBits k w:
+lemma to_uint_splitBits k w:
  0 <= k =>
  to_uint (splitBits k w).`1 + 2^k * to_uint (splitBits k w).`2 = to_uint w.
 proof. by move=> ?; rewrite eq_sym (splitwE k w). qed.
@@ -1416,14 +1416,14 @@ rewrite /splitMask /=.
 by rewrite (andwC w) -andwA (andwA w) andwK (andwC w) andwA andw_invw and0w.
 qed.
 
-lemma nosmt splitMask_add mask w:
+lemma splitMask_add mask w:
  (splitMask mask w).`1 + (splitMask mask w).`2 = w.
 proof.
 rewrite -orw_disjoint; first by apply (splitMask_and0 mask w).
 by rewrite /splitMask /= !(andwC w) -andw_orwDl orw_invw and1w.
 qed.
 
-lemma nosmt splitAtP k w:
+lemma splitAtP k w:
  0 <= k <= size =>
  to_uint (splitAt k w).`1 = to_uint w %% 2^k
  /\ to_uint (splitAt k w).`2 = 2^k * (to_uint w %/ 2^k).
@@ -1993,8 +1993,7 @@ abstract theory W_WS.
      w \bits'S i = WS.of_int 0.
   proof.
     move=> hi;apply WS.wordP => k hk.
-    rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint.
-    smt(gt0_r WS.gt0_size sizeBrS).
+    rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint sizeBrS /#.
   qed.
 
   lemma get_zero i : WB.of_int 0 \bits'S i = WS.of_int 0.
@@ -2197,7 +2196,7 @@ abstract theory W_WS.
      smt (ler_weexpn2l le_size WS.gt0_size).
    qed.
 
-  lemma nosmt zeroextu'BE (x: WS.t) :
+  lemma zeroextu'BE (x: WS.t) :
      zeroextu'B x = pack'R_t (Pack.init (fun i => if i = 0 then x else WS.of_int 0)).
   proof.
      apply/wordP => i h.
@@ -2498,8 +2497,20 @@ abstract theory BitWordSH.
       let r  = sar v i in
       rflags_OF i r rc false.
 
+  op RORX_XX (v: t) (i: W8.t) : t =
+    v `|>>>|` shift_mask i.
+
+  op SARX_XX (v i: t) : t =
+    sar v (to_uint i %% size).
+
+  op SHRX_XX (v i: t) : t =
+    v `>>>` to_uint i %% size.
+
+  op SHLX_XX (v i: t) : t =
+    v `<<<` to_uint i %% size.
+
 end SHIFT.
-  
+
 end BitWordSH.
 
 theory W16.

@@ -1,0 +1,41 @@
+inline fn array_init () -> stack u32[5] {
+  stack u32[5] a;
+  inline int i;
+  for i = 0 to 5 {
+     a[i] = i;
+  }
+  return a;
+}
+
+export
+fn test_u16 () -> reg u16 {
+   stack u32[5] a;
+   a = array_init();
+
+   reg u64 i;
+   i = 0;
+   a[i] = 3;
+   reg u16 r;
+   r = a[u16 i];
+
+   return r;
+}
+
+fn test_u32 () -> reg u32 {
+   stack u32[5] a;
+   a = array_init();
+
+   reg u32 r;
+   r = 0;
+
+   reg u64 i;
+   i = 0;
+   reg u32 t;
+   while (i < 5) {
+     t = a[i];
+     r = r + t;
+     i += 1;
+   }
+
+   return r;
+}

@@ -16,9 +16,7 @@
    will replace it with [shp_lower ... SLHprotect_ptr ...] when the pointer
    becomes a register. *)
 
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 
 Require Import expr.
 Require constant_prop flag_combination.
@@ -59,16 +57,16 @@ Definition cond_not_found (ii : instr_info) oe e : pp_error_loc :=
 
 Definition lvar_variable (ii: instr_info) : pp_error_loc :=
   pp_user_error (Some ii) None
-     (pp_s "miss-speculation flag should be stored into register").
+     (pp_s "misspeculation flag should be stored into register").
 
 Definition expr_variable (ii: instr_info) e : pp_error_loc :=
   pp_user_error (Some ii) None
-     (pp_vbox [:: pp_s "only register allowed for miss-speculation flag:";
+     (pp_vbox [:: pp_s "only register allowed for misspeculation flag:";
                   pp_e e]).
 
 Definition msf_not_found_r (x:var_i) (known : Sv.t) : pp_error_loc :=
    pp_user_error None (Some (v_info x))
-     (pp_vbox [:: pp_box [:: pp_s "Variable"; pp_var x; pp_s "is not a miss-speculation flag"];
+     (pp_vbox [:: pp_box [:: pp_s "Variable"; pp_var x; pp_s "is not a misspeculation flag"];
                   pp_box [:: pp_s "Known are"; pp_Sv known]]).
 
 Definition msf_not_found (ii : instr_info) (x:var_i) (known : Sv.t) : pp_error_loc :=
@@ -118,6 +116,17 @@ End E.
 
 Module Env.
 
+  Section WITH_PARAMS.
+  Context {AB : Tabstract}.
+  Context {fcparams : flag_combination.FlagCombinationParams}.
+
+  (* We keep track of the condition of the last conditional we entered, and of
+     the set of variables that are set as MSFs.
+
+     We keep the simplified version of the condition, using constant
+     propagation, in order to deal with double negations.
+     The source type system will reject the program anyways if the condition of
+     an [update_msf] doesn't correspond with the one in the conditional. *)
   Record t :=
     {
       cond : option pexpr;
@@ -144,6 +153,7 @@ Module Env.
     |}.
 
   Definition update_cond (env : t) (c : pexpr) : t :=
+    let c := constant_prop.empty_const_prop_e c in
     {| cond := Some c; msf_vars := msf_vars env; |}.
 
   Definition meet (env0 env1 : t) : t :=
@@ -172,31 +182,33 @@ Module Env.
   Definition is_msf_var (env : t) (x : var) : bool :=
     Sv.mem x (msf_vars env).
 
+  (* If [c] is true then the compiler will have removed the conditional
+     branch. *)
   Definition is_cond (env : t) (c : pexpr) : bool :=
-    (* If [c] is true then the compiler will have removed the conditional
-       branch. *)
     eq_expr c (Pbool true) ||
+    let c := constant_prop.empty_const_prop_e c in
     if cond env is Some c' then eq_expr c c' else false.
 
-  Definition after_SLHmove (env : Env.t) (ox : option var) : Env.t :=
+  Definition after_SLHmove (env : t) (ox : option var) : t :=
     let s := sv_of_option ox in
     {|
       cond := restrict_cond (cond env) s;
       msf_vars := Sv.union s (msf_vars env);
     |}.
 
-  Definition after_assign_var (env : Env.t) (x : var) : Env.t :=
+  Definition after_assign_var (env : t) (x : var) : t :=
     {|
       cond := restrict_cond (cond env) (Sv.singleton x);
       msf_vars := Sv.remove x (msf_vars env);
     |}.
 
-  Definition after_assign_vars (env : Env.t) (xs : Sv.t) : Env.t :=
+  Definition after_assign_vars (env : t) (xs : Sv.t) : t :=
     {|
       cond := restrict_cond (cond env) xs;
       msf_vars := Sv.diff (msf_vars env) xs;
     |}.
 
+  End WITH_PARAMS.
 End Env.
 
 Section CHECK.
@@ -206,6 +218,7 @@ Context
   {asm_op : Type}
   {asmop : asmOp asm_op}
   {msfsz : MSFsize}
+  {fcparams : flag_combination.FlagCombinationParams}
   {pT : progT}.
 
 Section CHECK_SLHO.
@@ -378,13 +391,9 @@ Section CHECK_WHILE.
      and after [c0] is executed for the last time we get [env0]. *)
 
   Context
-    {fcparams : flag_combination.FlagCombinationParams}
     (ii : instr_info)
     (cond : pexpr)
     (check_c0 check_c1 : Env.t -> cexec Env.t).
-
-  Definition neg_const_prop (e : pexpr) : pexpr :=
-    constant_prop.const_prop_e None constant_prop.empty_cpm (enot e).
 
   (* Similarly to the for loop case, we use the argument [env] as an initial
      guess for [env*], and if it is not a fixed point we guess the intersection
@@ -398,7 +407,7 @@ Section CHECK_WHILE.
       Let env0 := check_c0 env in
       Let env1 := check_c1 (Env.update_cond env0 cond) in
       if Env.le env env1
-      then ok (Env.update_cond env0 (neg_const_prop cond))
+      then ok (Env.update_cond env0 (enot cond))
       else check_while n (Env.meet env env1)
     else
       Error (ii_loop_iterator E.pass ii).
@@ -418,7 +427,6 @@ Record sh_params :=
   }.
 
 Context
-  {fcparams : flag_combination.FlagCombinationParams}
   (shparams : sh_params)
   (fun_info : funname -> seq slh_t * seq slh_t).
 
@@ -442,7 +450,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
   | Cif cond c0 c1 =>
       Let _ := chk_mem ii cond in
       Let env0 := check_cmd c0 (Env.update_cond env cond) in
-      Let env1 := check_cmd c1 (Env.update_cond env (neg_const_prop cond)) in
+      Let env1 := check_cmd c1 (Env.update_cond env (enot cond)) in
       ok (Env.meet env0 env1)
 
   | Cfor x _ c => check_for ii x (check_cmd c) Loop.nb env
@@ -537,7 +545,7 @@ Definition is_shl_none ty :=
 
 Definition lower_slh_prog (entries : seq funname) (p : prog) : cexec prog :=
    Let _ := assert (all (fun f => all is_shl_none (fst (fun_info f))) entries)
-                   (E.pp_user_error None None (pp_s "exported function should not take an miss-speculation flag as input")) in
+                   (E.pp_user_error None None (pp_s "export function should not take a misspeculation flag as input")) in
    Let p_funcs := map_cfprog_name lower_fd (p_funcs p) in
    ok  {| p_funcs  := p_funcs;
           p_globs := p_globs p;

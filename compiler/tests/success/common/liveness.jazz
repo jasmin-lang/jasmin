@@ -1,0 +1,65 @@
+fn inc(reg u32 a) -> reg u32 {
+  a += 1;
+  return a;
+}
+
+export
+fn f1(reg u32 x y) -> reg u32 {
+  reg u32 t u v;
+  t = x;
+  u = inc(t);
+  v = inc(u);
+  v ^= y;
+  v ^= x;
+  return v;
+}
+
+export
+fn f2(reg u32 z) -> reg u32, reg u32 {
+  reg u32 f;
+  f = z;
+  f = inc(f);
+  f = f;
+  z = z;
+  return z, f;
+}
+
+fn leaf() {}
+
+export
+fn f3(reg u32 a) -> reg u32 {
+  a = a;
+  leaf();
+  return a;
+}
+
+export
+fn f4(reg u32 a b) -> reg u32 {
+  a = a;
+  leaf();
+  a ^= b;
+  return a;
+}
+
+fn bot() {}
+fn mid() -> reg u32 {
+  reg u32 p q;
+  p = 1;
+  bot();
+  q = p;
+  bot();
+  q ^= p;
+  return q;
+}
+
+export
+fn top() -> reg u32 {
+  reg u32 r s t;
+  r = 1;
+  bot();
+  s = r;
+  mid();
+  t = s;
+  bot();
+  return t;
+}

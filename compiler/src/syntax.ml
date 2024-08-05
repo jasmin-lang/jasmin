@@ -23,14 +23,7 @@ type svsize  = vsize * sign * vesize
 type castop1 = CSS of sowsize | CVS of svsize 
 type castop = castop1 L.located option
 
-let bits_of_wsize : wsize -> int =
-  function
-  | `W8   -> 8
-  | `W16  -> 16
-  | `W32  -> 32
-  | `W64  -> 64
-  | `W128 -> 128
-  | `W256 -> 256
+let bits_of_wsize : wsize -> int = Annotations.int_of_ws 
 
 let suffix_of_sign : sign -> string =
   function
@@ -156,7 +149,7 @@ module W = Wsize
 type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
-  | PEGet    of arr_access * wsize option * pident * pexpr * pexpr option
+  | PEGet    of [`Aligned|`Unaligned] option * arr_access * wsize option * pident * pexpr * pexpr option
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
@@ -170,10 +163,10 @@ type pexpr_r =
 
 and pexpr = pexpr_r L.located
 
-and mem_access = wsize option * pident * ([`Add | `Sub] * pexpr) option
+and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`Add | `Sub] * pexpr) option
 
 (* -------------------------------------------------------------------- *)
-and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr | Tabstract of char list
+and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr | Tabstract of pident
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -188,7 +181,7 @@ type annot_pstotype = annotations * pstotype
 type plvalue_r =
   | PLIgnore
   | PLVar   of pident
-  | PLArray of arr_access * wsize option * pident * pexpr * pexpr option
+  | PLArray of [`Aligned|`Unaligned] option * arr_access * wsize option * pident * pexpr * pexpr option
   | PLMem   of mem_access 
 
 type plvalue = plvalue_r L.located
@@ -290,6 +283,7 @@ type pitem =
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
   | Pabstract_ty of pabstract_ty
+  | PNamespace of pident * pitem L.located list
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

@@ -1,0 +1,16 @@
+fn f (reg ptr u64[4] r) -> reg ptr u64[4] {
+  return r;
+}
+
+export fn main () -> reg u64 {
+  stack u64[4] s;
+  reg u64[4] r;
+  reg u64 res;
+
+  // makeReferenceArguments introduces an equality
+  // r = regptr;
+  // which is rejected
+  r = f(s);
+
+  return res;
+}

@@ -1,6 +1,6 @@
 Require Import psem psem_facts.
 Import Utf8.
-Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -30,7 +30,7 @@ Notation estate_s := (estate (wsw:= withsubword)).
 #[local]Open Scope vm_scope.
 
 Definition estate_sim (e: estate_n) (e': estate_s) : Prop :=
-  [/\ escs e = escs e', emem e = emem e' & evm e =1 evm e'].
+  [/\ escs e = escs e', emem e = emem e' & (evm e =1 evm e')%vm].
 
 Lemma estate_sim_scs e e' scs :
   estate_sim e e' ->
@@ -42,16 +42,16 @@ Lemma estate_sim_mem e e' m :
   estate_sim (with_mem e m) (with_mem e' m).
 Proof. by case => *; constructor. Qed.
 
-Lemma vmap0_sim : Vm.init (wsw:= nosubword) =1 Vm.init (wsw:= withsubword).
+Lemma vmap0_sim : (Vm.init (wsw:= nosubword) =1 Vm.init (wsw:= withsubword))%vm.
 Proof. by move=> x; rewrite !Vm.initP. Qed.
 
 Lemma get_var_sim (vm : vmap_n) (vm' : vmap_s) :
-  vm =1 vm' →
+  (vm =1 vm')%vm →
   ∀ x, get_var true vm x = get_var true vm' x.
 Proof. by move=> heq x; rewrite /get_var heq. Qed.
 
 Lemma get_gvar_sim gd (vm : vmap_n) (vm' : vmap_s) :
-  vm =1 vm' →
+  (vm =1 vm')%vm →
   ∀ x, get_gvar true gd vm x = get_gvar true gd vm' x.
 Proof.
 by move => h x; rewrite /get_gvar (get_var_sim h).
@@ -68,9 +68,9 @@ Proof.
 Qed.
 
 Lemma vmap_set_sim (vm : vmap_n) (vm' : vmap_s) x v:
-  vm =1 vm' →
+  (vm =1 vm')%vm →
   truncatable true (wsw:=nosubword) (vtype x) v →
-  vm.[x <- v] =1 vm'.[x <- v].
+  (vm.[x <- v] =1 vm'.[x <- v])%vm.
 Proof.
   move => hvm hv y; rewrite !Vm.setP.
   by rewrite vm_truncate_val_sim // hvm.
@@ -86,10 +86,10 @@ Proof.
 Qed.
 
 Lemma set_var_sim (vm1 : vmap_n) (vm1' : vmap_s) x v vm2 :
-  vm1 =1 vm1' →
+  (vm1 =1 vm1')%vm →
   set_var true vm1 x v = ok vm2 →
   ∃ vm2',
-    vm2 =1 vm2' ∧
+    (vm2 =1 vm2')%vm ∧
     set_var true vm1' x v = ok vm2'.
 Proof.
   move=> hsim /set_varP [hdb /dup []htr /truncatable_sim htr' ->].
@@ -163,11 +163,11 @@ case => hscs hm hvm; case: x => /=.
 - move => _ ty; rewrite /write_none.
   by t_xrbindP => /truncatable_sim -> -> <-; exists s1'.
 - move => x; exact: write_var_sim.
-- move => sz x e; t_xrbindP => ? ?;
+- move => al sz x e; t_xrbindP => ? ?;
     rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (And3 hscs hm hvm))
         -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
-- move => aa ws x e.
+- move => al aa ws x e.
   rewrite /on_arr_var /on_arr_var (get_var_sim hvm) /write_var.
   t_xrbindP => -[] // n t -> /=; t_xrbindP => ??
       /(sem_pexpr_sim (And3 hscs hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm) /= [vm' [h ->]] <-.

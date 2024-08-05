@@ -1,0 +1,34 @@
+namespace Double {
+  inline fn f(reg u32 x) -> reg u32 {
+    x <<= 1;
+    return x;
+  }
+  require "map.jinc"
+}
+
+namespace Triple {
+  inline fn f(reg u32 x) -> reg u32 {
+    reg u32 y;
+    y = x;
+    y = Double::f(y);
+    x += y;
+    return x;
+  }
+  require "map.jinc"
+}
+
+export
+fn main(reg u32 a) -> reg u32 {
+  stack u32[4] s;
+  inline int i;
+  for i = 0 to 4 { s[i] = a; }
+  s = Double::map(s);
+  s = Triple::map(s);
+  reg u32 r;
+  r = 0;
+  for i = 0 to 4 {
+    a = s[i];
+    r += a;
+  }
+  return r;
+}

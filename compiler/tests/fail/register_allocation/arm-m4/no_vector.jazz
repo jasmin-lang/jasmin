@@ -1,0 +1,12 @@
+export fn main () -> reg u32 {
+  reg u32 res;
+  reg u256 tmp;
+
+  tmp = 0;
+  res = 1;
+  if (tmp >= 0) {
+    res = 0;
+  }
+
+  return res;
+}

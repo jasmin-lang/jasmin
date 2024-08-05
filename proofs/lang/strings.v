@@ -1,6 +1,7 @@
 Require Import ZArith.
 Require Export String.
-From mathcomp Require Import all_ssreflect.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice.
 Require Import utils gen_map.
 
 Set Implicit Arguments.
@@ -17,14 +18,9 @@ Proof.
   exact: (eq_axiom_of_scheme internal_ascii_dec_bl internal_ascii_dec_lb).
 Qed.
 
-Definition ascii_eqMixin := EqMixin ascii_eqP.
-Canonical  ascii_eqType  := EqType Ascii.ascii ascii_eqMixin.
-
-Definition ascii_choiceMixin := CanChoiceMixin Ascii.ascii_nat_embedding.
-Canonical  ascii_choiceType  := ChoiceType Ascii.ascii ascii_choiceMixin.
-
-Definition ascii_countMixin := CanCountMixin Ascii.ascii_nat_embedding.
-Canonical  ascii_countType  := CountType Ascii.ascii ascii_countMixin.
+HB.instance Definition _ := hasDecEq.Build Ascii.ascii ascii_eqP.
+HB.instance Definition _ := Countable.copy Ascii.ascii
+  (can_type Ascii.ascii_nat_embedding).
 
 Definition ascii_cmp (c c': Ascii.ascii) :=
   match c, c' with
@@ -60,8 +56,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_string_dec_bl internal_string_dec_lb).
 Qed.
 
-Definition string_eqMixin := EqMixin string_eqP.
-Canonical  string_eqType  := EqType string string_eqMixin.
+HB.instance Definition _ := hasDecEq.Build string string_eqP.
 
 Fixpoint string_cmp s1 s2 :=
   match s1, s2 with
@@ -86,7 +81,7 @@ Qed.
 
 Module CmpString.
 
-  Definition t : eqType := [eqType of string].
+  Definition t : eqType := string.
 
   Definition cmp : t -> t -> comparison := string_cmp.
 

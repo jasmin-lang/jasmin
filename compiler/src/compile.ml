@@ -82,12 +82,20 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
     CheckAnnot.check_stack_size fds;
 
+
+    let get_internal_size _fd sfe =
+      let stk_size =
+        BinInt.Z.add sfe.Expr.sf_stk_sz sfe.Expr.sf_stk_extra_sz in
+      Conv.z_of_cz (Memory_model.round_ws sfe.sf_align stk_size)
+    in
+
     let fds =
       Regalloc.alloc_prog translate_var
         (fun _fd extra ->
           match extra.Expr.sf_save_stack with
           | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
           | Expr.SavedStackNone -> false)
+        get_internal_size
         fds
     in
     let fds = List.map (fun (y, _, x) -> (y, x)) fds in
@@ -210,6 +218,33 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       try Hf.find ttbl fn with Not_found -> assert false
   in
 
+  let tbl_annot =
+    let tbl = Hf.create 17 in
+    let add (fn, cfd) =
+      let fd = fdef_of_cufdef fn cfd in
+      Hf.add tbl fn fd.f_annot
+    in
+    List.iter add cprog.Expr.p_funcs;
+    tbl
+  in
+
+  let get_annot fn =
+    try Hf.find tbl_annot fn
+    with Not_found ->
+           hierror
+             ~loc:Lnone
+             ~funname:fn.fn_name
+             ~kind:"compiler error"
+             ~internal:true
+             "invalid annotation table."
+  in
+
+  let szs_of_fn fn =
+    match (get_annot fn).stack_zero_strategy with
+    | Some (s, ows) -> Some (s, Option.map Pretyping.tt_ws ows)
+    | None -> None
+  in
+
   let cparams =
     {
       Compiler.rename_fd;
@@ -245,6 +280,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
+      Compiler.stack_zero_info = szs_of_fn;
     }
   in
 
@@ -253,7 +289,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     List.fold_right
       (fun fd acc ->
         match fd.f_cc with
-        | Export -> conv fd :: acc
+        | Export _ -> conv fd :: acc
         | Internal | Subroutine _ -> acc)
       (snd prog) []
   in

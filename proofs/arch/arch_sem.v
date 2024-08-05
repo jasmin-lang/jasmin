@@ -1,5 +1,5 @@
-From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype finfun.
+From mathcomp Require Import ssralg word_ssrZ.
 Require oseq.
 Require Import ZArith
 utils
@@ -136,7 +136,7 @@ Definition st_get_rflag (s : asmmem) (rf : rflag_t) :=
 (* -------------------------------------------------------------------- *)
 
 Definition eval_cond_mem (s : asmmem) (c : cond_t) :=
-  eval_cond (st_get_rflag s) c.
+  eval_cond s.(asm_reg) (st_get_rflag s) c.
 
 (* -------------------------------------------------------------------- *)
 Definition st_write_ip (ip : nat) (s : asm_state) :=
@@ -154,7 +154,7 @@ Definition st_update_next (m:asmmem) (s : asm_state) :=
 
 (* -------------------------------------------------------------------- *)
 Definition is_label (lbl: label) (i: asm_i) : bool :=
-  match i with
+  match asmi_i i with
   | LABEL _ lbl' => lbl == lbl'
   | _ => false
   end.
@@ -189,7 +189,7 @@ Definition eval_Jcc lbl ct (s : asm_state) : asm_result_state :=
     ok (st_write_ip s.(asm_ip).+1 s).
 
 (* -------------------------------------------------------------------- *)
-Definition word_of_scale (n:nat) : pointer := wrepr Uptr (2%Z^n)%R.
+Definition word_of_scale (n:nat) : pointer := wrepr Uptr (two_power_nat n).
 
 (* -------------------------------------------------------------------- *)
 Definition decode_reg_addr (s : asmmem) (a : reg_address) : pointer := nosimpl (
@@ -221,10 +221,12 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     let a := decode_addr s addr in
     match ty with
     | sword sz =>
-      if k is AK_compute then ok (Vword (zero_extend sz a))
-      else
-        Let w := read s.(asm_mem) a sz in
+      match k with
+      | AK_compute => ok (Vword (zero_extend sz a))
+      | AK_mem al =>
+        Let w := read s.(asm_mem) al a sz in
         ok (Vword w)
+      end
     | _        => type_error
     end
   | XReg x     => ok (Vword (s.(asm_xreg) x))
@@ -268,8 +270,8 @@ Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
    |}.
 
 (* -------------------------------------------------------------------- *)
-Definition mem_write_mem (l : pointer) sz (w : word sz) (s : asmmem) :=
-  Let m := write s.(asm_mem) l w in ok
+Definition mem_write_mem al (l : pointer) sz (w : word sz) (s : asmmem) :=
+  Let m := write s.(asm_mem) al l w in ok
   {| asm_mem  := m;
      asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
@@ -331,7 +333,7 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
   match ad with
   | ADImplicit (IAreg r)   => ok (mem_write_reg f r w s)
   | ADImplicit (IArflag f) => type_error
-  | ADExplicit _ i or    =>
+  | ADExplicit k i or    =>
     match onth args i with
     | None => type_error
     | Some a =>
@@ -340,7 +342,10 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
       | Reg r   => ok (mem_write_reg  f r w s)
       | Regx r  => ok (mem_write_regx  f r w s)
       | XReg x  => ok (mem_write_xreg f x w s)
-      | Addr addr => mem_write_mem (decode_addr s addr) w s
+      | Addr addr =>
+          if k is AK_mem al
+          then mem_write_mem al (decode_addr s addr) w s
+          else type_error
       | _       => type_error
       end
     end
@@ -390,13 +395,13 @@ Definition eval_op o args m :=
 (* -------------------------------------------------------------------- *)
 Definition eval_POP (s: asm_state) : exec (asm_state * wreg) :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
-  Let v := read s.(asm_m).(asm_mem) sp reg_size in
+  Let v := read s.(asm_m).(asm_mem) Aligned sp reg_size in
   let m := mem_write_reg MSB_CLEAR ad_rsp (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v).
 
 Definition eval_PUSH (w: wreg) (s: asm_state) : exec asm_state :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
-  Let m := mem_write_mem (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in
+  Let m := mem_write_mem Aligned (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in
   let m := mem_write_reg MSB_CLEAR ad_rsp (sp - wrepr Uptr (wsize_size Uptr))%R m in
   ok {| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}.
 
@@ -407,7 +412,7 @@ Section PROG.
 Context  (p: asm_prog).
 
 Definition label_in_asm (body: asm_code) : seq label :=
-  pmap (λ i, if i is LABEL ExternalLabel lbl then Some lbl else None) body.
+  pmap (λ i, if asmi_i i is LABEL ExternalLabel lbl then Some lbl else None) body.
 
 Definition label_in_asm_prog : seq remote_label :=
   [seq (f.1, lbl) | f <- asm_funcs p, lbl <- label_in_asm (asm_fd_body f.2) ].
@@ -416,11 +421,11 @@ Definition label_in_asm_prog : seq remote_label :=
 Notation labels := label_in_asm_prog.
 
 Definition return_address_from (s: asm_state) : option (word Uptr) :=
-  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some (LABEL ExternalLabel lbl) then
+  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some {| asmi_i := LABEL ExternalLabel lbl |} then
     encode_label labels (asm_f s, lbl)
   else None.
 
-Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
+Definition eval_instr (i : asm_i_r) (s: asm_state) : exec asm_state :=
   match i with
   | ALIGN
   | LABEL _ _    => ok (st_write_ip (asm_ip s).+1 s)
@@ -431,7 +436,7 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
     else type_error
   | JMP lbl   => eval_JMP p lbl s
   | JMPI d =>
-    Let v := eval_asm_arg AK_mem s d (sword Uptr) >>= to_pointer in
+    Let v := eval_asm_arg (AK_mem Aligned) s d (sword Uptr) >>= to_pointer in
     if decode_label labels v is Some lbl then
       eval_JMP p lbl s
     else type_error
@@ -461,7 +466,7 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
 (* -------------------------------------------------------------------- *)
 Definition fetch_and_eval (s: asm_state) :=
   if oseq.onth s.(asm_c) s.(asm_ip) is Some i then
-    eval_instr i s
+    eval_instr i.(asmi_i) s
   else type_error.
 
 Definition asmsem1 (s1 s2: asm_state) : Prop :=
@@ -501,8 +506,8 @@ Lemma mem_write_reg_invariant f r sz (w: word sz) (s: asmmem) :
   mem_write_reg f r w s ≡ s.
 Proof. by []. Qed.
 
-Lemma mem_write_mem_invariant a sz (w: word sz) (s s': asmmem) :
-  mem_write_mem a w s = ok s' → s ≡ s'.
+Lemma mem_write_mem_invariant al a sz (w: word sz) (s s': asmmem) :
+  mem_write_mem al a w s = ok s' → s ≡ s'.
 Proof. by rewrite /mem_write_mem; t_xrbindP => ? /Memory.write_mem_stable ? <-. Qed.
 
 Lemma mem_write_val_invariant f xs d v (s s': asmmem) :
@@ -514,10 +519,11 @@ Proof.
   - by move => ? _; case: d.1 => // - [] // ? /ok_inj <-.
   move => ? ? _; case: d.1 => [ [] | ] //=.
   - by move => ? /ok_inj <-.
-  move => _ ? ?; case: onth => //; t_xrbindP => - [] // ? _.
+  move => k ? ?; case: onth => //; t_xrbindP => - [] // ? _.
   - by move=> /ok_inj <-.
   - by move=> /ok_inj <-.
-  - by exact: mem_write_mem_invariant.
+  - case: k => // al.
+    by exact: mem_write_mem_invariant.
   by move => /ok_inj <-.
 Qed.
 
@@ -532,7 +538,7 @@ Proof.
   by transitivity s1.
 Qed.
 
-Lemma eval_instr_invariant (i: asm_i) (s s': asm_state) :
+Lemma eval_instr_invariant (i: asm_i_r) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.

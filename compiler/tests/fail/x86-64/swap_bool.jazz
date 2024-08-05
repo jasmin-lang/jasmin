@@ -1,0 +1,9 @@
+export
+fn main(reg u8 a) -> reg u8 {
+  reg bool b c;
+  b = a != 0;
+  c = a <s 0;
+  b, c = #swap(b, c);
+  a = a if b;
+  return a;
+}

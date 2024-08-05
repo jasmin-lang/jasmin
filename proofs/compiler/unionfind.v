@@ -1,4 +1,4 @@
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 Require Import Utf8.
 Require Import expr label.
 
@@ -301,7 +301,7 @@ End NaiveUnionFind.
 
 
 Module LblEqType <: EqType.
-  Definition T := [eqType of label].
+  Definition T : eqType := label.
 End LblEqType.
 
 

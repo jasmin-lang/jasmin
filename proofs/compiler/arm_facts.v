@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From Coq Require Import ZArith.
 
 Require Import
@@ -46,10 +44,8 @@ Proof.
   case: Z.div_eucl (Z_div_mod q1 256 refl_equal) => [q2 b2'] [hq2 hb2'];
     subst q1.
 
-  rewrite /wunsigned /word.subword !word.mkwordK /= -/(wunsigned w) hw {hw}.
+  rewrite /wunsigned /word.subword -!word.urepr_word !word.urepr_lsr !word.mkwordK /= -/(wunsigned w) hw {hw}.
   rewrite -/(wbase U8) -/(wbase U32).
-  rewrite
-    -!(Znumtheory.Zmod_div_mod _ _ _ _ _ (wbase_div_wbase (wsize_le_U8 _))) //.
   rewrite !Z.shiftr_div_pow2 // Z.mul_comm Z.add_comm.
   change (2 ^ 16) with (2 ^ 8 * 2 ^ 8).
   change (2 ^ 24) with (2 ^ 8 * 2 ^ 8 * 2 ^ 8).

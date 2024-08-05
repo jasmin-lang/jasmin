@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 Require Import ZArith.
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import expr compiler_util.
 
 Set Implicit Arguments.
@@ -91,7 +91,7 @@ Definition add_init_aux ii x c :=
   match x.(vtype) with
   | sarr n =>
     if ~~ is_ptr x then
-      let x := VarI x dummy_var_info in
+      let x := VarI x (var_info_of_ii ii) in
       MkI ii (Cassgn (Lvar x) AT_none (sarr n) (Parr_init n)) :: c
     else c
   | _ => c

@@ -6,6 +6,11 @@
 -arg "-w +deprecated-hint-without-locality"
 -arg "-w +deprecated-hint-rewrite-without-locality"
 -arg "-w +deprecated-instance-without-locality"
+-arg "-w -hiding-delimiting-key"
+-arg "-w +deprecated-since-mathcomp-1.17.0"
+-arg "-w -argument-scope-delimiter"
+-arg "-w -redundant-canonical-projection"
+-arg "-w -projection-no-head-constant"
 
 -R 3rdparty Jasmin
 -R arch Jasmin
@@ -30,7 +35,6 @@ compiler/allocation_proof.v
 compiler/arch_params.v
 compiler/arch_params_proof.v
 compiler/arm_decl.v
-compiler/arm_decl_core.v
 compiler/arm_extra.v
 compiler/arm_facts.v
 compiler/arm_instr_decl.v
@@ -39,6 +43,12 @@ compiler/arm_lowering.v
 compiler/arm_lowering_proof.v
 compiler/arm_params.v
 compiler/arm_params_proof.v
+compiler/arm_params_common.v
+compiler/arm_params_common_proof.v
+compiler/arm_params_core.v
+compiler/arm_params_core_proof.v
+compiler/arm_stack_zeroization.v
+compiler/arm_stack_zeroization_proof.v
 compiler/arm.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
@@ -62,9 +72,12 @@ compiler/inline_proof.v
 compiler/jasmin_compiler.v
 compiler/lea.v
 compiler/lea_proof.v
+compiler/linear_util.v
 compiler/linearization.v
 compiler/linearization_proof.v
 compiler/lowering.v
+compiler/lower_spill.v
+compiler/lower_spill_proof.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
@@ -78,6 +91,8 @@ compiler/slh_lowering_proof.v
 compiler/stack_alloc.v
 compiler/stack_alloc_proof.v
 compiler/stack_alloc_proof_2.v
+compiler/stack_zeroization.v
+compiler/stack_zeroization_proof.v
 compiler/tunneling.v
 compiler/tunneling_proof.v
 compiler/unionfind.v
@@ -85,13 +100,14 @@ compiler/unionfind_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
-compiler/x86_decl_core.v
 compiler/x86_extra.v
 compiler/x86_instr_decl.v
 compiler/x86_lowering.v
 compiler/x86_lowering_proof.v
 compiler/x86_params.v
 compiler/x86_params_proof.v
+compiler/x86_stack_zeroization.v
+compiler/x86_stack_zeroization_proof.v
 compiler/x86.v
 lang/array.v
 lang/expr.v
@@ -105,6 +121,7 @@ lang/gen_map.v
 lang/global.v
 lang/ident.v
 lang/linear.v
+lang/linear_facts.v
 lang/linear_sem.v
 lang/low_memory.v
 lang/lowering_lemmas.v
@@ -124,6 +141,7 @@ lang/sem_type.v
 lang/shift_kind.v
 lang/sopn.v
 lang/slh_ops.v
+lang/stack_zero_strategy.v
 lang/strings.v
 lang/syscall.v
 lang/syscall_sem.v

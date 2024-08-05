@@ -2,7 +2,8 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
 Require Import strings ZArith utils.
 Import Utf8.
 Import word_ssrZ.
@@ -47,8 +48,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_wsize_dec_bl internal_wsize_dec_lb).
 Qed.
 
-Definition wsize_eqMixin     := Equality.Mixin wsize_axiom.
-Canonical  wsize_eqType      := Eval hnf in EqType wsize wsize_eqMixin.
+HB.instance Definition _ := hasDecEq.Build wsize wsize_axiom.
 
 Definition wsizes :=
   [:: U8 ; U16 ; U32 ; U64 ; U128 ; U256 ].

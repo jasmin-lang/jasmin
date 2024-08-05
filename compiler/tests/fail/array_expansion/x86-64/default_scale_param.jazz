@@ -1,0 +1,14 @@
+fn f (reg u64[4] r) -> reg u64 {
+  reg u64 res;
+  res = r[0];
+  return res;
+}
+
+export fn main () -> reg u64 {
+  reg u64[4] r;
+  reg u64 res;
+
+  res = f(r.[0:4]);
+
+  return res;
+}

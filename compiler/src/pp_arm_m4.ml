@@ -6,9 +6,10 @@ Immediate values (denoted <imm>) are always nonnegative integers.
 
 open Arch_decl
 open Utils
+open PrintCommon
+open PrintASM
 open Prog
 open Var0
-open Arm_decl_core
 open Arm_decl
 open Arm_instr_decl
 
@@ -34,7 +35,10 @@ let pp_reg_address_aux base disp off scal =
   | None, Some off, Some scal ->
       Printf.sprintf "[%s, %s, lsl %s%s]" base off imm_pre scal
   | _, _, _ ->
-      failwith "TODO_ARM: pp_reg_address_aux"
+     hierror
+      ~loc:Lnone
+      ~kind:"assembly printing"
+      "the address computation is too complex: an intermediate variable might be needed"
 
 let global_datas = "glob_data"
 
@@ -43,39 +47,16 @@ let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
-(* Assembly code lines. *)
 
-type asm_line =
-  | LLabel of string
-  | LInstr of string * string list
-  | LByte of string
-
-let iwidth = 4
-
-let print_asm_line fmt ln =
-  match ln with
-  | LLabel lbl ->
-      Format.fprintf fmt "%s:" lbl
-  | LInstr (s, []) ->
-      Format.fprintf fmt "\t%-*s" iwidth s
-  | LInstr (s, args) ->
-      Format.fprintf fmt "\t%-*s\t%s" iwidth s (String.concat ", " args)
-  | LByte n -> Format.fprintf fmt "\t.byte\t%s" n
-
-let print_asm_lines fmt lns =
-  List.iter (Format.fprintf fmt "%a\n%!" print_asm_line) lns
-
-(* -------------------------------------------------------------------- *)
-(* TODO_ARM: This is architecture-independent. *)
-
-let string_of_label name p = Printf.sprintf "L%s$%d" name (Conv.int_of_pos p)
+let string_of_label name p =
+  Format.asprintf "L%s$%d" (escape name) (Conv.int_of_pos p)
 
 let pp_label n lbl = string_of_label n lbl
 
 let pp_remote_label (fn, lbl) =
   string_of_label fn.fn_name lbl
 
-let hash_to_string_core (to_string : 'a -> string) =
+let hash_to_string (to_string : 'a -> string) =
   let tbl = Hashtbl.create 17 in
   fun r ->
      try Hashtbl.find tbl r
@@ -83,9 +64,6 @@ let hash_to_string_core (to_string : 'a -> string) =
        let s = to_string r in
        Hashtbl.add tbl r s;
        s
-
-let hash_to_string (to_string : 'a -> char list) =
-  hash_to_string_core (fun x -> Conv.string_of_cstring (to_string x))
 
 let pp_register = hash_to_string arch.toS_r.to_string
 
@@ -154,10 +132,10 @@ let pp_shift (ARM_op (_, opts)) args =
       let sh = pp_shift_kind sk in
       List.modify_last (Printf.sprintf "%s %s" sh) args
 
-let pp_mnemonic_ext (ARM_op (mn, opts) as op) suff args =
+let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
   let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
   let pp = id.id_pp_asm args in
-  Format.asprintf "%s%s%s%s" (Conv.string_of_cstring pp.pp_aop_name) suff (pp_set_flags opts) (pp_conditional args)
+  Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =
   match o with
@@ -228,7 +206,9 @@ end = struct
   let chk_imm_reject_shift args n =
     chk_imm args n exn_imm_shifted exn_imm_too_big
 
-  (* Force W-encoding of 16-bits on [EI_shift] and [EI_none]. *)
+  (* We need to avoid encoding T2 when the constant is a shift to avoid setting
+     the carry flag.
+     We force the W-encoding of 16-bits on both [EI_shift] and [EI_none]. *)
   let chk_imm_w16_encoding args n opts =
     chk_imm args n (chk_w16_encoding opts) (chk_w16_encoding opts)
 
@@ -243,7 +223,7 @@ end = struct
     | _ -> ""
 end
 
-let pp_instr fn _ i =
+let pp_instr fn i =
   match i with
   | ALIGN ->
       failwith "TODO_ARM: pp_instr align"
@@ -294,7 +274,15 @@ let pp_instr fn _ i =
 
 (* -------------------------------------------------------------------- *)
 
-let pp_body fn fmt cmd = List.concat_map (pp_instr fn fmt) cmd
+let pp_body fn =
+  let open List in
+  concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
+  let i = 
+    try pp_instr fn i 
+    with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
+  append
+    (map (fun i -> LInstr (i, [])) (DebugInfo.source_positions ii.base_loc))
+    i
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -303,33 +291,36 @@ let mangle x = Printf.sprintf "_%s" x
 
 let pp_brace s = Format.sprintf "{%s}" s
 
-let pp_fun fmt (fn, fd) =
+let pp_fun (fn, fd) =
   let fn = fn.fn_name in
   let head =
+    let fn = escape fn in
     if fd.asm_fd_export then
       [ LInstr (".global", [ mangle fn ]); LInstr (".global", [ fn ]) ]
     else []
   in
   let pre =
+    let fn = escape fn in
     if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("push", [pp_brace (pp_register LR)]) ] else []
   in
-  let body = pp_body fn fmt fd.asm_fd_body in
+  let body = pp_body fn fd.asm_fd_body in
   (* TODO_ARM: Review. *)
-  let pos = if fd.asm_fd_export then pp_instr fn fmt POPPC else [] in
+  let pos = if fd.asm_fd_export then pp_instr fn POPPC else [] in
   head @ pre @ body @ pos
 
-let pp_funcs fmt funs = List.concat_map (pp_fun fmt) funs
+let pp_funcs funs = List.concat_map pp_fun funs
 
-let pp_data globs =
+let pp_data globs names =
   if not (List.is_empty globs) then
     LInstr (".p2align", ["5"]) ::
-    LLabel global_datas :: List.map (fun b -> LByte (Z.to_string (Conv.z_of_int8 b))) globs
+    LLabel global_datas ::
+    format_glob_data globs names
   else []
 
-let pp_prog fmt p =
-  let code = pp_funcs fmt p.asm_funcs in
-  let data = pp_data p.asm_globs in
+let pp_prog p =
+  let code = pp_funcs p.asm_funcs in
+  let data = pp_data p.asm_globs p.asm_glob_names in
   headers @ code @ data
 
-let print_instr s fmt i = print_asm_lines fmt (pp_instr s fmt i)
-let print_prog fmt p = print_asm_lines fmt (pp_prog fmt p)
+let print_instr s fmt i = print_asm_lines fmt (pp_instr s i)
+let print_prog fmt p = print_asm_lines fmt (pp_prog p)

@@ -6,7 +6,7 @@ fn smla_hw(reg u32 x y acc) -> reg u32 {
     r = #SMLATB(x, y, r);
     r = #SMLATT(x, y, r);
 
-    inline bool b;
+    reg bool b;
     ?{ "<s" = b } = #CMP(x, y);
     r = #SMLABBcc(x, y, r, b, r);
     r = #SMLABTcc(x, y, r, b, r);

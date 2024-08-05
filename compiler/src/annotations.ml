@@ -3,7 +3,17 @@ type symbol = string
 type pident = symbol Location.located
 
 (* -------------------------------------------------------------------- *)
-type wsize = [ `W8 | `W16 | `W32 | `W64 | `W128 | `W256 ]
+type wsize = Wsize.wsize 
+
+let int_of_ws = function
+  | Wsize.U8 -> 8
+  | U16  -> 16
+  | U32  -> 32
+  | U64  -> 64
+  | U128 -> 128
+  | U256 -> 256
+
+let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
 
 (* -------------------------------------------------------------------- *)
 type simple_attribute =
@@ -19,27 +29,12 @@ and annotation = pident * attribute option
 
 and annotations = annotation list
 
-type returnaddress_kind =
-  | OnStack
-  | OnReg
-
-type f_annot = {
-    retaddr_kind          : returnaddress_kind option;
-    stack_allocation_size : Z.t option;
-    stack_size            : Z.t option;
-    stack_align           : wsize option;
-    max_call_depth        : Z.t option;
-    f_user_annot          : annotations;
-}
-
-let f_annot_empty = {
-    retaddr_kind          = None;
-    stack_allocation_size = None;
-    stack_size            = None;
-    stack_align           = None;
-    max_call_depth        = None;
-    f_user_annot          = [];
-  }
+let get (s: string) (annot: annotations) =
+  match
+    List.find_opt (fun (k, _) -> String.equal (Location.unloc k) s) annot
+  with
+  | Some (_, a) -> Some a
+  | None -> None
 
 let has_symbol s annot =
   List.exists (fun (k, _) -> String.equal (Location.unloc k) s) annot

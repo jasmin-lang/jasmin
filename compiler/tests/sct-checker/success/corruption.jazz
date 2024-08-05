@@ -1,0 +1,60 @@
+/* This tests that stores that are not speculatively safe corrupt the whole (memory) state */
+#[sct="
+  public × secret × { ptr: public, val: any } × { ptr: public, val: public } →
+    { ptr: public, val: secret } × { ptr: public, val: transient }
+"]
+fn corrupts_memory(
+  reg u64 i,
+  reg u64 s,
+  reg ptr u64[1] x,
+  reg ptr u64[1] y
+) ->
+ reg ptr u64[1],
+ reg ptr u64[1] {
+  x[i] = s;
+  return x, y;
+}
+
+#[sct="
+  secret × { ptr: public, val: any } × { ptr: public, val: public } →
+    { ptr: public, val: secret } × { ptr: public, val: public }
+"]
+fn does_not_corrupt_memory(
+  reg u64 s,
+  reg ptr u64[1] x,
+  reg ptr u64[1] y
+) ->
+ reg ptr u64[1],
+ reg ptr u64[1] {
+  x[0] = s;
+  return x, y;
+}
+
+#[sct="
+  secret × { ptr: public, val: any } × { ptr: public, val: public } →
+    { ptr: public, val: secret } × { ptr: public, val: transient }
+"]
+fn does_corrupt_memory(
+  reg u64 s,
+  reg ptr u64[1] x,
+  reg ptr u64[1] y
+) ->
+ reg ptr u64[1],
+ reg ptr u64[1] {
+  if false {
+    x[1] = s;
+  }
+  return x, y;
+}
+
+#[sct="public * secret * { ptr: public, val: any } -> { ptr: public, val: secret } * public"]
+fn does_not_corrupt_registers(
+  reg u64 i,
+  reg u64 s,
+  reg ptr u64[1] x
+) ->
+ reg ptr u64[1],
+ reg u64 {
+  x[i] = s;
+  return x, i;
+}

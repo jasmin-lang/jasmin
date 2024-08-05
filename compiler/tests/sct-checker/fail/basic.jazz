@@ -36,3 +36,61 @@ fn missing_then(#transient reg u64 a){
   a = not[(int) a];
   a = #protect(a, m);
 }
+
+#[sct="public × { ptr: public, val: transient } × { ptr: public, val: secret } → { ptr: public, val: transient }"]
+fn xof_init(
+  reg u64 j,
+  reg ptr u64[25] state,
+  reg ptr u8[32] rho)
+  ->
+  reg ptr u64[25]
+{
+  reg u64 t;
+  t = rho[u64 j];
+  state[j] = t;
+  return state;
+}
+
+fn magic_msf() -> #msf reg u64 {
+  reg u64 msf;
+  msf = 0;
+  return msf;
+}
+
+fn conditional_init_msf(reg u64 x) -> #msf reg u64 {
+  reg u64 msf;
+  if x > 0 {
+    msf = #init_msf();
+  }
+  return msf;
+}
+
+fn outdated_msf(reg u64 x) -> #msf reg u64, reg u64 {
+  reg u64 msf;
+  msf = #init_msf();
+  if x > 0 {
+    x = 0;
+  }
+  return msf, x;
+}
+
+fn missing_update_after_loop(reg u64 x) -> reg u64 {
+  reg u64 msf;
+  msf = #init_msf();
+  while (x > 0) {
+    msf = #update_msf(x > 0, msf);
+    x -= 1;
+  }
+  x = #protect(x, msf);
+  return x;
+}
+
+fn missing_update_in_loop(reg u64 x) -> reg u64 {
+  reg u64 msf;
+  msf = #init_msf();
+  while (x > 0) {
+    x -= 1;
+  }
+  msf = #update_msf(!(x > 0), msf);
+  return msf;
+}

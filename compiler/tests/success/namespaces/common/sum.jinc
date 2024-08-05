@@ -1,0 +1,12 @@
+/* Parameters:
+  param int N;
+*/
+fn sum(reg u32[N] t) -> reg u32 {
+  reg u32 s;
+  inline int c;
+  s = 0;
+  for c = 0 to N {
+    s += t[c];
+  }
+  return s;
+}

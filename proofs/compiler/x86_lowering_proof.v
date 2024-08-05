@@ -2,8 +2,8 @@
 (* * Correctness proof of the lowering pass *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp Require Import word_ssrZ.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype order.
+From mathcomp Require Import ssralg ssrnum word_ssrZ.
 Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
@@ -12,8 +12,7 @@ Require Import
   arch_extra
   sem_params_of_arch_extra.
 Require Export x86_lowering.
-Import Utf8.
-Import Psatz.
+Import Utf8 Lia.
 Import Order.POrderTheory Order.TotalTheory.
 Import ssrring.
 
@@ -78,7 +77,7 @@ Section PROOF.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_sf; SvD.fsetdec. Qed.
   Lemma zf_in_fv: Sv.In (fv_zf fv) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /= /fv_zf; SvD.fsetdec. Qed.
-  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv (Ident.name_of_string "__wtmp__") (sword sz))) fvars.
+  Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv "__wtmp__"%string (sword sz))) fvars.
   Proof. by rewrite /fvars /x86_lowering.fvars /=; case: sz; SvD.fsetdec. Qed.
 
   Local Hint Resolve of_neq_cf of_neq_sf of_neq_zf cf_neq_sf cf_neq_zf sf_neq_zf : core.
@@ -213,7 +212,7 @@ Section PROOF.
     write_lval true gd l v s = ok s' →
     ∃ sz', type_of_val v = sword sz'.
   Proof.
-  case: l => /= [ _ [] // sz' | [[vt vn] vi] | sz' [[vt vn] vi] e | aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
+  case: l => /= [ _ [] // sz' | [[vt vn] vi] | al sz' [[vt vn] vi] e | al aa sz' [[vt vn] vi] e |  aa sz' len [[vt vn] vi] e ] /=.
   - case => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; case: v => //=; eauto => -[] //=; eauto.
   - move => ->; t_xrbindP => w1 v1 _ h1 w n _ hn w' /to_wordI [ws [? [??]]]; subst => /=; eauto.
@@ -282,7 +281,7 @@ Section PROOF.
     to_word ws v1 = ok w1 ->
     exists s',
       let: i := Copn lflags AT_none (Ox86 (CMP ws)) [:: e0; e1 ] in
-      let: e := pexpr_of_cf cf [:: vof; vcf; vsf; vzf ] in
+      let: e := pexpr_of_cf cf vi [:: vof; vcf; vsf; vzf ] in
       let: b := sem_combine_flags cf bof bcf bsf bzf in
       [/\ sem p' ev s [:: MkI ii i ] s'
         , eq_exc_fresh s' s
@@ -557,7 +556,7 @@ Section PROOF.
     end.
   Proof.
     rewrite /lower_cassgn_classify.
-    move: e Hs=> [z|b|n|x|aa ws x e | aa ws len x e |sz x e| o e|o e1 e2| op es |e e1 e2] //.
+    move: e Hs=> [z|b|n|x|al aa ws x e | aa ws len x e |al sz x e| o e|o e1 e2| op es |e e1 e2] //.
     + case: x => - [] [] [] // sz vn vi vs //= /dup[] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
@@ -1358,7 +1357,8 @@ Section PROOF.
       move: x Hcond=> [i e'] Hcond.
       clear s2' Hw' Hs2'.
       move: Hv' => /=; t_xrbindP=> b bv Hbv Hb trv1 v1 Hv1 Htr1 trv2 v2 Hv2 Htr2 ?;subst v.
-      have [s2' [Hs2'1 Hs2'2 Hs2'3]] := lower_condition_corr ii Hcond Hs1' Hbv.
+      have [s2' [Hs2'1 Hs2'2 Hs2'3]] :=
+        lower_condition_corr ii Hcond Hs1' Hbv.
       have [s3' Hw' Hs3'] := eeq_exc_write_lval Hdisjl Hs2'2 Hw.
       exists s3'; split=> //.
       rewrite map_cat.
@@ -1580,49 +1580,50 @@ Section PROOF.
     ∃ so',
       sem p' ev si' (map (MkI ii) (lower_addcarry fv sz sub xs t es)) so' ∧
       eq_exc_fresh so' so.
-    Proof.
-      move=> hi dxs des hx hv ho.
-      rewrite/lower_addcarry /=.
-      set default := [:: Copn _ _ _ _ ].
-      have hdefault : ∃ so', sem p' ev si' [seq MkI ii i | i <- default] so' ∧ eq_exc_fresh so' so.
-      + by repeat econstructor; rewrite /sem_sopn hx /= hv.
-      case: ifP => // hsz64.
-      generalize (lower_addcarry_classifyP sub xs es); case: lower_addcarry_classify => //.
-      move => [[[[vi op] es'] cf] r] [? [x' [y' [b [?]]]]] C; subst.
-      assert (
-          disj_fvars (read_es es') ∧
-            ∃ x',
-            sem_pexprs true gd si' es' = ok x' ∧
-            ∃ v',
-            exec_sopn (Ox86 (op sz)) x' = ok v' ∧
-            let f := Lnone_b vi in
-            write_lvals true gd si' [:: f ; cf ; f ; f ; f ; r ] v' = ok so) as D.
-      {
-        clear - hsz64 des hx hv C ho.
-        case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
-        + move: hv hx; rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
-           have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;subst x y v =>
-            /sem_pexprs_dec3 [hx] [hy] [?]; subst b;
-          (exists [:: Vword w1; Vword w2]; split; [by rewrite /sem_pexprs /= hx /= hy|]);
-          rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SUB /x86_ADD /check_size_8_64 hsz64; eexists; split; first reflexivity.
-          + by rewrite /= Z.sub_0_r sub_underflow wrepr_sub !wrepr_unsigned in ho.
-          + by [].
-          by rewrite /= Z.add_0_r add_overflow wrepr_add !wrepr_unsigned in ho.
-        exists x; split; [ exact hx |]; clear hx.
-        move: hv;rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
-         have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;
-        subst x y v; rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SBB /x86_ADC /check_size_8_64 hsz64;
-        eexists; split; first reflexivity;
-        rewrite //=.
-        + by rewrite /= sub_borrow_underflow in ho.
-        by rewrite /= add_carry_overflow in ho.
-      }
-      clear C.
-      case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
-      case: (opn_5flags_correct ii t (Some U32) sz des' dxs hxs' hv' ho') => {hv' ho'} so'.
-      intuition eauto using eeq_excT.
-    Qed.
-    Opaque lower_addcarry.
+  Proof.
+    move=> hi dxs des hx hv ho.
+    rewrite/lower_addcarry /=.
+    set default := [:: Copn _ _ _ _ ].
+    have hdefault : ∃ so', sem p' ev si' [seq MkI ii i | i <- default] so' ∧ eq_exc_fresh so' so.
+    + by repeat econstructor; rewrite /sem_sopn hx /= hv.
+    case: ifP => // hsz64.
+    generalize (lower_addcarry_classifyP sub xs es); case: lower_addcarry_classify => //.
+    move => [[[[vi op] es'] cf] r] [? [x' [y' [b [?]]]]] C; subst.
+    assert (
+        disj_fvars (read_es es') ∧
+          ∃ x',
+          sem_pexprs true gd si' es' = ok x' ∧
+          ∃ v',
+          exec_sopn (Ox86 (op sz)) x' = ok v' ∧
+          let f := Lnone_b vi in
+          write_lvals true gd si' [:: f ; cf ; f ; f ; f ; r ] v' = ok so) as D.
+    {
+      clear - hsz64 des hx hv C ho.
+      case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
+      + move: hv hx; rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
+         have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;subst x y v =>
+          /sem_pexprs_dec3 [hx] [hy] [?]; subst b;
+        (exists [:: Vword w1; Vword w2]; split; [by rewrite /sem_pexprs /= hx /= hy|]);
+        rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SUB /x86_ADD /check_size_8_64 hsz64; eexists; split; first reflexivity.
+        + by rewrite /= Z.sub_0_r sub_underflow wrepr_sub !wrepr_unsigned in ho.
+        + by [].
+        by rewrite /= Z.add_0_r add_overflow wrepr_add !wrepr_unsigned in ho.
+      exists x; split; [ exact hx |]; clear hx.
+      move: hv;rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
+       have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [?] [?] ?;
+      subst x y v; rewrite /= /sopn_sem /= !truncate_word_le // {hsz1 hsz2} /x86_SBB /x86_ADC /check_size_8_64 hsz64;
+      eexists; split; first reflexivity;
+      rewrite //=.
+      + by rewrite /= sub_borrow_underflow in ho.
+      by rewrite /= add_carry_overflow in ho.
+    }
+    clear C.
+    case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
+    case: (opn_5flags_correct ii t (Some U32) sz des' dxs hxs' hv' ho') => {hv' ho'} so'.
+    intuition eauto using eeq_excT.
+  Qed.
+  Opaque lower_addcarry.
+
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
@@ -1714,6 +1715,17 @@ Section PROOF.
     (* Osubcarry *)
     + case: (lower_addcarry_correct ii t (sub:= true) Hs1' Hdisjl Hdisje Hx' Hv Hw').
       exact: (aux_eq_exc_trans Hs2').
+    
+    (* Oswap *)
+    rewrite /= /lower_swap.
+    case heq: is_word_type => [ ws | ] //.
+    case: ifP => // hle; have ? := is_word_typeP heq; subst sz.
+    exists s2'; split => //.
+    apply: sem_seq_ir; econstructor; eauto.
+    rewrite /exec_sopn /sem_sopn /= Hx' /=.
+    have <- : exec_sopn (Opseudo_op (pseudo_operator.Oswap (sword ws))) x = exec_sopn (Ox86 (XCHG ws)) x.
+    + by rewrite /exec_sopn /sopn_sem /= /x86_XCHG /check_size_8_64 hle.
+    by rewrite Hv /= Hw'.
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
@@ -1734,7 +1746,7 @@ Section PROOF.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv dummy_var_info e by [].
+    have Hcond: x = lower_condition fv (var_info_of_ii ii) e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2 Hs2'3]] :=
       lower_condition_corr ii Hcond Hs1' (eeq_exc_sem_pexpr Hdisje Hs1' Hz).
@@ -1753,7 +1765,7 @@ Section PROOF.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv dummy_var_info e by [].
+    have Hcond: x = lower_condition fv (var_info_of_ii ii) e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2 Hs2'3]] :=
       lower_condition_corr ii Hcond Hs1' (eeq_exc_sem_pexpr Hdisje Hs1' Hz).
@@ -1772,7 +1784,7 @@ Section PROOF.
     move=> s1 s2 s3 s4 a c e c' _ Hc Hz _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
     have := Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv dummy_var_info e by [].
+    have Hcond: x = lower_condition fv (var_info_of_ii ii) e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=
@@ -1799,7 +1811,7 @@ Section PROOF.
     move=> s1 s2 a c e c' _ Hc Hz ii Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv dummy_var_info e by [].
+    have Hcond: x = lower_condition fv (var_info_of_ii ii) e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=

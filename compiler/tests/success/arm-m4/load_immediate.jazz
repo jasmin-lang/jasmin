@@ -1,0 +1,9 @@
+export
+fn load_immediate() {
+    reg u32 x;
+
+    x = 0x000cb000; // This needs a MOV and a MOVT.
+    [x] = x;
+    x = 0x000acaca; // This needs a MOV and a MOVT.
+    [x] = x;
+}

@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Export type expr sem_type.
 Require Export flag_combination.
@@ -73,7 +73,7 @@ Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
   match o with
-  | Obeq => mk_sem_sop2 (@eq_op [eqType of bool])
+  | Obeq => mk_sem_sop2 (@eq_op bool)
   | Oand => mk_sem_sop2 andb
   | Oor  => mk_sem_sop2 orb
 

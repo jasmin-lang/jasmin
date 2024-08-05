@@ -1,25 +1,49 @@
 param int N = 2;
 
-#[constraints="t <= transient"]
+#[sct="{ ptr: transient, val: { n: d, s:secret } } × transient → { n: d, s: secret }"]
 fn transient_read(
-  #[poly = t, poly = d] reg ptr u64[N] p,
-  #[poly = t] reg u64 i
-) -> #[poly = d] reg u64 {
+  reg ptr u64[N] p,
+  reg u64 i
+) -> reg u64 {
   reg u64 x;
   x = #init_msf();
   x = i if i < N;
-  x = p[(int) x];
+  x = p[x];
   return x;
 }
 
-fn safe_access(
-  #public reg u64 c,
-  #[poly = d] reg u64 x
-) -> #[poly = d] reg u64 {
+#[sct="public * d -> d"]
+fn safe_access_no_array(reg u64 c x) -> reg u64 {
+  stack u64 s;
+  if c != 0 {
+    s = x;
+    x = s;
+  }
+  return x;
+}
+
+// Contrary to the example above (safe_access_no_array),
+// the checker is not able to detect that the array is fully overwritten
+// and only a “weak update” is done on “s[0] = x;”
+#[sct="public * { n: d, s: secret } -> { n: d, s: secret }"]
+fn safe_access(reg u64 c x) -> reg u64 {
   stack u64[1] s;
   if c != 0 {
     s[0] = x;
     x = s[0];
+  }
+  return x;
+}
+
+#[sct="public × { n: d, s: secret } → { n: d, s: secret }"]
+fn safe_direct_access(
+  reg u64 c,
+  reg u8 x
+) -> reg u8 {
+  stack u64[1] s;
+  if c != 0 {
+    s.[u8 3] = x;
+    x = s.[u8 3];
   }
   return x;
 }

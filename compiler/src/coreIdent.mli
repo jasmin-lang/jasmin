@@ -17,7 +17,7 @@ type base_ty =
   | Bool
   | Int              (* Unbounded integer for pexpr *)
   | U   of wsize (* U(n): unsigned n-bit integer *)
-  | Abstract of char list
+  | Abstract of string
   [@@deriving compare,sexp]
 
 type 'len gty =
@@ -95,15 +95,12 @@ end
 
 module Cident : sig
   type t = var
-  type name = Name.t
 
   val tag : var -> Uint63.t
   val id_name : t -> Name.t
   val id_kind : t -> v_kind
 
-  val name_of_string : char list -> name
-  val string_of_name : name -> char list
-
+  val spill_to_mmx : t -> bool
 end
 
 (* -------------------------------------------------------------------- *)

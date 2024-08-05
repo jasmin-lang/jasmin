@@ -1,0 +1,55 @@
+export
+fn main() -> reg u32 {
+  stack u32[2] s;
+  reg ptr u32[1] p;
+  reg u32 z;
+  z = 0;
+
+  s[0] = z;
+  s[1] = z;
+
+  p = s[u8 1:4];
+
+  reg u32 r;
+  r = p[#unaligned 0];
+
+  return r;
+}
+
+fn load(reg ptr u32[1] a) -> reg u32 {
+  reg u32 v;
+  v = a[#unaligned 0];
+  return v;
+}
+
+export
+fn deref_unaligned() -> reg u32 {
+  stack u32[2] s; // s mod u32 = -1
+  reg u32 z;
+  z = 0;
+  inline int i;
+  for i = 0 to 8 {
+    s[u8 i] = z;
+  }
+
+  reg u32 r;
+  r = load(s.[1:1]);
+
+  return r;
+}
+
+export
+fn deref_aligned() -> reg u32 {
+  stack u32[1] s;
+  reg u32 z;
+  z = 0;
+  inline int i;
+  for i = 0 to 4 {
+    s[u8 i] = z;
+  }
+
+  reg u32 r;
+  r = load(s.[0:1]);
+
+  return r;
+}

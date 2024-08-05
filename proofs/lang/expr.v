@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect all_algebra.
+From HB Require Import structures.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import word_ssrZ.
@@ -100,8 +101,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_sop1_dec_bl internal_sop1_dec_lb).
 Qed.
 
-Definition sop1_eqMixin     := Equality.Mixin sop1_eq_axiom.
-Canonical  sop1_eqType      := Eval hnf in EqType sop1 sop1_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sop1 sop1_eq_axiom.
 
 Scheme Equality for sop2.
 (* Definition sop2_beq : sop2 -> sop2 -> bool *)
@@ -111,8 +111,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_sop2_dec_bl internal_sop2_dec_lb).
 Qed.
 
-Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
-Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
+HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
 
 Scheme Equality for opN.
 
@@ -121,8 +120,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_opN_dec_bl internal_opN_dec_lb).
 Qed.
 
-Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
-Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
+HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -224,8 +222,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_v_scope_dec_bl internal_v_scope_dec_lb).
 Qed.
 
-Definition v_scope_eqMixin     := Equality.Mixin v_scope_eq_axiom.
-Canonical  v_scope_eqType      := Eval hnf in EqType v_scope v_scope_eqMixin.
+HB.instance Definition _ := hasDecEq.Build v_scope v_scope_eq_axiom.
 
 Record gvar := Gvar { gv : var_i; gs : v_scope }.
 
@@ -240,9 +237,9 @@ Inductive pexpr : Type :=
 | Pbool  :> bool -> pexpr
 | Parr_init : positive → pexpr
 | Pvar   :> gvar -> pexpr
-| Pget   : arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr 
-| Pload  : wsize -> var_i -> pexpr -> pexpr
+| Pget   : aligned -> arr_access -> wsize -> gvar -> pexpr -> pexpr
+| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr
+| Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opN & seq pexpr
@@ -269,8 +266,8 @@ Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   | _ => None
   end.
 
-Definition pexpr_of_cf (cf : combine_flags) (flags : seq var) : pexpr :=
-  let eflags := [seq Plvar (mk_var_i x) | x <- flags ] in
+Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : pexpr :=
+  let eflags := [seq Plvar {| v_var := x; v_info := vi |} | x <- flags ] in
   PappN (Ocombine_flags cf) eflags.
 
 
@@ -280,8 +277,8 @@ Definition pexpr_of_cf (cf : combine_flags) (flags : seq var) : pexpr :=
 Variant lval : Type :=
 | Lnone `(var_info) `(stype)
 | Lvar  `(var_i)
-| Lmem  `(wsize) `(var_i) `(pexpr)
-| Laset `(arr_access) `(wsize) `(var_i) `(pexpr)
+| Lmem  of aligned & wsize & var_i & pexpr
+| Laset of aligned & arr_access & wsize & var_i & pexpr
 | Lasub `(arr_access) `(wsize) `(positive) `(var_i) `(pexpr).
 
 Coercion Lvar : var_i >-> lval.
@@ -296,6 +293,12 @@ Definition get_lvar (x: lval) : exec var :=
 
 Definition Lnone_b (vi : var_info) : lval := Lnone vi sbool.
 
+Definition var_info_of_lval (x: lval) : var_info :=
+  match x with
+  | Lnone i t => i
+  | Lvar x | Lmem _ _ x _ | Laset _ _ _ x _ | Lasub _ _ _ x _ => v_info x
+  end.
+
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
@@ -308,8 +311,7 @@ Proof.
   exact: (eq_axiom_of_scheme internal_dir_dec_bl internal_dir_dec_lb).
 Qed.
 
-Definition dir_eqMixin     := Equality.Mixin dir_eq_axiom.
-Canonical  dir_eqType      := Eval hnf in EqType dir dir_eqMixin.
+HB.instance Definition _ := hasDecEq.Build dir dir_eq_axiom.
 
 Definition range := (dir * pexpr * pexpr)%type.
 
@@ -324,6 +326,7 @@ Module Type InstrInfoT <: TAG.
   Include TAG.
   Parameter with_location : t -> t.
   Parameter is_inline : t -> bool.
+  Parameter var_info_of_ii : t -> var_info.
 End InstrInfoT.
 
 Module InstrInfo : InstrInfoT.
@@ -331,6 +334,7 @@ Module InstrInfo : InstrInfoT.
   Definition witness : t := 1%positive.
   Definition with_location (ii : t) := ii.
   Definition is_inline (_ : t) : bool := false.
+  Definition var_info_of_ii (_ : t) : var_info := dummy_var_info.
 End InstrInfo.
 
 Definition instr_info := InstrInfo.t.
@@ -338,6 +342,7 @@ Definition dummy_instr_info : instr_info := InstrInfo.witness.
 Definition ii_with_location (ii : instr_info) : instr_info :=
   InstrInfo.with_location ii.
 Definition ii_is_inline (ii : instr_info) : bool := InstrInfo.is_inline ii.
+Definition var_info_of_ii (ii : instr_info) : var_info := InstrInfo.var_info_of_ii ii.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
@@ -357,8 +362,7 @@ Proof.
     (eq_axiom_of_scheme internal_assgn_tag_dec_bl internal_assgn_tag_dec_lb).
 Qed.
 
-Definition assgn_tag_eqMixin     := Equality.Mixin assgn_tag_eq_axiom.
-Canonical  assgn_tag_eqType      := Eval hnf in EqType assgn_tag assgn_tag_eqMixin.
+HB.instance Definition _ := hasDecEq.Build assgn_tag assgn_tag_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 
@@ -533,7 +537,7 @@ Variant saved_stack :=
 Definition saved_stack_beq (x y : saved_stack) :=
   match x, y with
   | SavedStackNone, SavedStackNone => true
-  | SavedStackReg v1, SavedStackReg v2 => v1 == v2
+  | (SavedStackReg v1), SavedStackReg v2 => v1 == v2
   | SavedStackStk z1, SavedStackStk z2 => z1 == z2
   | _, _ => false
   end.
@@ -545,33 +549,44 @@ Proof.
   by apply (iffP eqP); congruence.
 Qed.
 
-Definition saved_stack_eqMixin   := Equality.Mixin saved_stack_eq_axiom.
-Canonical  saved_stack_eqType    := Eval hnf in EqType saved_stack saved_stack_eqMixin.
+HB.instance Definition _ := hasDecEq.Build saved_stack saved_stack_eq_axiom.
 
 Variant return_address_location :=
 | RAnone
-| RAreg of var               (* The return address is pass by a register and 
-                                keeped in this register during function call *)
-| RAstack of option var & Z. (* None means that the call instruction directly store ra on the stack 
+| RAreg of var & option var  (* The return address is pass by a register and
+                                keeped in this register during function call,
+                                the option is for incrementing the large stack in arm *)
+| RAstack of option var & Z & option var.
+                             (* None means that the call instruction directly store ra on the stack
                                 Some r means that the call instruction directly store ra on r and 
-                                the function should store r on the stack *)
+                                the function should store r on the stack,
+                                The second option is for incrementing the large stack in arm *)
+
+Definition is_RAnone ra :=
+  if ra is RAnone then true else false.
+
+Definition is_RAstack ra :=
+  if ra is RAstack _ _ _ then true else false.
+
+Definition is_RAstack_None ra :=
+  if ra is RAstack None _ _ then true else false.
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
-  | RAreg x1 => if r2 is RAreg x2 then x1 == x2 else false
-  | RAstack lr1 z1 => if r2 is RAstack lr2 z2 then (lr1 == lr2) && (z1 == z2) else false
+  | RAreg x1 o1 => if r2 is RAreg x2 o2 then (x1 == x2) && (o1 == o2) else false
+  | RAstack lr1 z1 o1 => if r2 is RAstack lr2 z2 o2 then [&& lr1 == lr2, z1 == z2 & o1 == o2] else false
   end.
 
 Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
 Proof.
-  case => [ | x1 | lr1 z1 ] [ | x2 | lr2 z2 ] /=; try by constructor.
-  + by apply (iffP eqP); congruence.
-  by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
+  case => [ | x1 o1 | lr1 z1 o1 ] [ | x2 o2 | lr2 z2 o2 ] /=; try by constructor.
+  + by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
+  by apply (iffP and3P) => [ []/eqP-> /eqP-> /eqP-> | []-> -> ->].
 Qed.
 
-Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
-Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_location return_address_location_eqMixin.
+HB.instance Definition _ := hasDecEq.Build return_address_location
+  return_address_location_eq_axiom.
 
 Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
@@ -583,12 +598,14 @@ Record stk_fun_extra := MkSFun {
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
+  sf_align_args     : seq wsize;
 }.
 
 Record sprog_extra := {
   sp_rsp   : Ident.ident;
   sp_rip   : Ident.ident;
   sp_globs : seq u8;
+  sp_glob_names: seq (var * wsize * Z);
 }.
 
 Definition progStack : progT :=
@@ -721,8 +738,8 @@ Definition vrv_rec (s:Sv.t) (rv:lval) :=
   match rv with
   | Lnone _ _  => s
   | Lvar  x    => Sv.add x s
-  | Lmem _ _ _  => s
-  | Laset _ _ x _  => Sv.add x s
+  | Lmem _ _ _ _  => s
+  | Laset _ _ _ x _  => Sv.add x s
   | Lasub _ _ _ x _ => Sv.add x s
   end.
 
@@ -732,7 +749,7 @@ Definition vrv := (vrv_rec Sv.empty).
 Definition vrvs := (vrvs_rec Sv.empty).
 
 Definition lv_write_mem (r:lval) : bool :=
-  if r is Lmem _ _ _ then true else false.
+  if r is Lmem _ _ _ _ then true else false.
 
 Fixpoint write_i_rec s (i:instr_r) :=
   match i with
@@ -763,8 +780,8 @@ Definition write_c c := write_c_rec Sv.empty c.
 Fixpoint use_mem (e : pexpr) :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false
-  | Pload _ _ _ => true
-  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
+  | Pload _ _ _ _ => true
+  | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
@@ -783,9 +800,9 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Pbool  _
   | Parr_init _    => s
   | Pvar   x       => Sv.union (read_gvar x) s
-  | Pget _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
+  | Pget _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
   | Psub _ _ _ x e => read_e_rec (Sv.union (read_gvar x) s) e
-  | Pload _ x e    => read_e_rec (Sv.add x s) e
+  | Pload _ _ x e  => read_e_rec (Sv.add x s) e
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
@@ -800,8 +817,8 @@ Definition read_rv_rec  (s:Sv.t) (r:lval) :=
   match r with
   | Lnone _ _     => s
   | Lvar  _       => s
-  | Lmem _ x e    => read_e_rec (Sv.add x s) e
-  | Laset _ _ x e => read_e_rec (Sv.add x s) e
+  | Lmem _ _ x e  => read_e_rec (Sv.add x s) e
+  | Laset _ _ _ x e => read_e_rec (Sv.add x s) e
   | Lasub _ _ _ x e => read_e_rec (Sv.add x s) e
   end.
 
@@ -877,9 +894,9 @@ Fixpoint eq_expr e e' :=
   | Pbool  b      , Pbool  b'         => b == b'
   | Parr_init n   , Parr_init n'      => n == n'
   | Pvar   x      , Pvar   x'         => eq_gvar x x'
-  | Pget aa w x e , Pget aa' w' x' e' => (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
+  | Pget al aa w x e , Pget al' aa' w' x' e' => (al == al') && (aa==aa') && (w == w') && (eq_gvar x x') && eq_expr e e'
   | Psub aa w len x e , Psub aa' w' len' x' e' => (aa==aa') && (w == w') && (len == len') && (eq_gvar x x') && eq_expr e e'
-  | Pload w x e, Pload w' x' e' => (w == w') && (v_var x == v_var x') && eq_expr e e'
+  | Pload al w x e, Pload al' w' x' e' => (al == al') && (w == w') && (v_var x == v_var x') && eq_expr e e'
   | Papp1  o e    , Papp1  o' e'      => (o == o') && eq_expr e e'
   | Papp2  o e1 e2, Papp2  o' e1' e2' => (o == o') && eq_expr e1 e1' && eq_expr e2 e2'
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')

@@ -1,6 +1,4 @@
-From mathcomp Require Import
-  all_ssreflect
-  all_algebra.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
 Require Import
   expr
@@ -126,14 +124,14 @@ Section CONST_PROP.
     all: by t_simpl_rewrites.
   Qed.
 
-  #[local]
   Lemma use_mem_const_prop_e {_ : FlagCombinationParams} cpm e :
     ~~ use_mem e ->
     ~~ use_mem (const_prop_e None cpm e).
   Proof.
     elim: e =>
       [||| x
-      |||| op1 e hinde
+      | al aa sz x e hinde
+      ||| op1 e hinde
       | op2 e0 hinde0 e1 hinde1
       | opn es hindes
       | ty e hinde e0 hinde0 e1 hinde1
@@ -141,7 +139,7 @@ Section CONST_PROP.
 
     - by case: x => x [] //; case: Mvar.get => // - [].
 
-    - by move => sz [] x [].
+    - by case: x =>  - x [] /=; auto.
 
     - rewrite use_mem_s_op1. exact: (hinde h).
 
@@ -163,31 +161,6 @@ Section CONST_PROP.
     case: is_bool => [[]|] //.
     by rewrite !negb_or h h0 h1.
   Qed.
-
-  Lemma use_mem_neg_const_prop {_ : FlagCombinationParams} e :
-    ~~ use_mem e ->
-    ~~ use_mem (neg_const_prop e).
-  Proof. move=> h. exact: use_mem_const_prop_e. Qed.
-
-  Lemma sem_pexpr_neg_const_prop
-    {syscall_state : Type}
-    {wsw: WithSubWord}
-    {ep : EstateParams syscall_state}
-    {spp : SemPexprParams}
-    gd s e b :
-    sem_pexpr true gd s e = ok (Vbool b) ->
-    sem_pexpr true gd s (neg_const_prop e) = ok (Vbool (~~ b)).
-  Proof.
-    move=> h.
-
-    have :
-      sem_pexpr true gd s (enot e) = ok (Vbool (~~ b)).
-    - by rewrite /= h.
-
-    move=> /(const_prop_eP (valid_cpm_empty _) (I: valid_globs _ None)) [v' [? /value_uinclE ?]].
-    by subst v'.
-  Qed.
-
 
 End CONST_PROP.
 
@@ -235,6 +208,10 @@ Module EnvP.
 
 Import Env.
 
+Section WITH_PARAMS.
+
+Context {fcparams : flag_combination.FlagCombinationParams}.
+
 Lemma empty_msf_vars x :
   ~~ is_msf_var empty x.
 Proof. done. Qed.
@@ -279,6 +256,8 @@ Proof.
   exact: eq_expr_trans.
 Qed.
 
+End WITH_PARAMS.
+
 End EnvP.
 
 Section WITH_PARAMS.
@@ -288,7 +267,8 @@ Context
   {wsw: WithSubWord}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
-  {sip : SemInstrParams asm_op syscall_state}.
+  {sip : SemInstrParams asm_op syscall_state}
+.
 
 Definition wf_vars (msf_vars: Sv.t) (vm:Vm.t) :=
   forall x,
@@ -342,7 +322,14 @@ Lemma wf_env_update_cond env cond gd s :
   -> sem_pexpr true gd s cond = ok (Vbool true)
   -> ~~ use_mem cond
   -> wf_env (Env.update_cond env cond) gd s.
-Proof. by move=> [hwfvars hwfcond] hsemcond hmem; split. Qed.
+Proof.
+  move=> [hwfvars hwfcond] hsemcond hmem.
+  split=> //.
+  rewrite /wf_env /= use_mem_const_prop_e //.
+  move: hsemcond => /constant_prop_proof.empty_const_prop_eP
+    [] v [] h /value_uinclE ?.
+  by subst v.
+Qed.
 
 Lemma wf_cond_restrict s s' gd X cond:
   evm s =[\ X]  evm s'->
@@ -465,9 +452,14 @@ Proof.
 Qed.
 
 Lemma wf_is_cond env c gd s :
-  wf_env env gd s -> Env.is_cond env c -> sem_pexpr true gd s c = ok (Vbool true).
+  wf_env env gd s ->
+  Env.is_cond env c ->
+  sem_pexpr true gd s (constant_prop.empty_const_prop_e c) = ok (Vbool true).
 Proof.
-  move=> [_ hwf] /orP [/eq_exprP -> //| ].
+  move=> [_ hwf] /orP [].
+  - move=> /(eq_exprP true gd s) /constant_prop_proof.empty_const_prop_eP
+      [] v [] h /value_uinclE ?; subst v.
+    by rewrite h.
   by case: Env.cond hwf => //= c1 [h _] /eq_exprP ->.
 Qed.
 
@@ -552,11 +544,14 @@ Section LOWER_SLHO.
     rewrite /exec_sopn /=.
     case: args => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] //.
     case: es => //= e1; t_xrbindP => -[] //= e2; t_xrbindP.
-    move=>
-      ? /(wf_is_cond hwf) ->
-      /(check_e_msfP _ hwf) ->
-      oz hx <- v1' [?] vs v2' [?] es _ <- ?.
-    case: es => // -[?]; subst v1' v2' v1 v2 => t _ [<-] r hr hsem <- hwrite.
+    move=> ? /(wf_is_cond hwf) hcond /(check_e_msfP _ hwf) -> oz hx <- v1'.
+    move=> /constant_prop_proof.empty_const_prop_eP.
+    rewrite {}hcond => -[_ []] [<-] h.
+    move=> vs v2' [?] es _ <- ?.
+    case: es => // -[?] wmsf; subst v1' v2' v2.
+    move=> b /to_boolI ?; subst v1.
+    move: h => /value_uinclE [?]; subst b.
+    move=> r hr hsem <- hwrite.
     exact: (lower_SLHmove_exec_sopn_aux hwf hx hr hsem hwrite).
   Qed.
 
@@ -768,7 +763,7 @@ Lemma check_whileP ii cond check_c0 check_c1 n env env' :
         , check_c1 (Env.update_cond env0 cond) = ok env1
         , Env.le env_fix env1
         , Env.le env_fix env
-        & env' = Env.update_cond env0 (neg_const_prop cond)
+        & env' = Env.update_cond env0 (enot cond)
       ].
 Proof.
   elim: n env env' => [//|n hind] env env' /=.
@@ -996,9 +991,8 @@ Proof.
   t_xrbindP =>  hmem env0 _ env1 hcheck1 ? irs c0' _ c1' hlower1 ? ?; subst irs c env'.
 
   have hwf' :
-    wf_env (Env.update_cond env (neg_const_prop cond)) (p_globs p) s.
-  - apply: (wf_env_update_cond hwf); last exact: (use_mem_neg_const_prop hmem).
-    exact: (sem_pexpr_neg_const_prop hsemcond).
+    wf_env (Env.update_cond env (enot cond)) (p_globs p) s.
+  - apply: (wf_env_update_cond hwf) => //. by rewrite /= hsemcond.
 
   have [hsem1 hwf1] := hc1 _ _ _ hwf' hcheck1 hlower1.
 
@@ -1042,7 +1036,7 @@ Proof.
   have hwffix := wf_env_le hle1 hwf1.
   have hcheck :
     check_i fun_info (MkI ii (Cwhile al c0 cond c1)) env_fix
-    = ok (Env.update_cond env0 (neg_const_prop cond)).
+    = ok (Env.update_cond env0 (enot cond)).
   - by rewrite /= hmem /= Loop.nbP /= hcheck0 /= hcheck1 /= hle1.
 
   have [hsem hwf0'] := hind _ _ _ _ hwffix hcheck hlower.
@@ -1071,8 +1065,8 @@ Proof.
 
   split.
   - constructor; exact: (Ewhile_false _ _ hsem0' hsemcond).
-  apply: (wf_env_update_cond hwf0); last exact: (use_mem_neg_const_prop hmem).
-  exact: (sem_pexpr_neg_const_prop hsemcond).
+  apply: (wf_env_update_cond hwf0) => //.
+  by rewrite /= hsemcond.
 Qed.
 
 (* The resulting environment is well-formed because from [check_forP] we know
