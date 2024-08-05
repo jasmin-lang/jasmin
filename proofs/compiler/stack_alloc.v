@@ -646,7 +646,7 @@ Fixpoint alloc_e (e:pexpr) ty :=
     ok (PappN o es)
 
   | Pabstract s es =>
-      Error  (stk_error_no_var "Pabstract")
+      Error  (stk_ierror_no_var "Pabstract")
 
   | Pif t e e1 e2 =>
     Let e := alloc_e e sbool in
