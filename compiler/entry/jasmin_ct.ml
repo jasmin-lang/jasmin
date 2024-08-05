@@ -5,7 +5,7 @@ open Utils
 
 let parse_and_check arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
-  let check infer ct_list speculative pass file =
+  let check ~doit infer ct_list speculative pass file =
     let _env, pprog, _ast =
       try Compile.parse_file A.arch_info file with
       | Annot.AnnotationError (loc, code) ->
@@ -44,7 +44,7 @@ let parse_and_check arch call_conv =
     in
 
     if speculative then
-      match Sct_checker_forward.ty_prog A.is_ct_sopn prog ct_list with
+      match Sct_checker_forward.ty_prog (A.is_ct_sopn ~doit) prog ct_list with
       | exception Annot.AnnotationError (loc, code) ->
           hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | sigs ->
@@ -53,7 +53,7 @@ let parse_and_check arch call_conv =
             sigs
     else
       let sigs, errs =
-        Ct_checker_forward.ty_prog A.is_ct_sopn ~infer prog ct_list
+        Ct_checker_forward.ty_prog (A.is_ct_sopn ~doit) ~infer prog ct_list
       in
       Format.printf "/* Security types:\n@[<v>%a@]*/@."
         (pp_list "@ " (Ct_checker_forward.pp_signature prog))
@@ -63,8 +63,13 @@ let parse_and_check arch call_conv =
       in
       Stdlib.Option.iter on_err errs
   in
-  fun infer ct_list speculative compile file ->
-    match check infer ct_list speculative compile file with
+  fun infer ct_list speculative compile file doit ->
+    let compile =
+      if doit && compile < Compiler.PropagateInline then
+        Compiler.PropagateInline
+      else compile
+    in
+    match check ~doit infer ct_list speculative compile file with
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
@@ -104,6 +109,10 @@ let file =
   let doc = "The Jasmin source file to verify" in
   Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"JAZZ" ~doc)
 
+let doit =
+  let doc = "Allow only DOIT instructions on secrets" in
+  Arg.(value & flag & info [ "doit" ] ~doc)
+
 let () =
   let doc = "Check Constant-Time security of Jasmin programs" in
   let man =
@@ -114,9 +123,11 @@ let () =
       `I ("JASMINPATH", "To resolve $(i,require) directives");
     ]
   in
-  let info = Cmd.info "jasmin-ct" ~version:Glob_options.version_string ~doc ~man in
+  let info =
+    Cmd.info "jasmin-ct" ~version:Glob_options.version_string ~doc ~man
+  in
   Cmd.v info
     Term.(
       const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative
-      $ compile $ file)
+      $ compile $ file $ doit)
   |> Cmd.eval |> exit

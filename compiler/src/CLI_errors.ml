@@ -50,6 +50,10 @@ let check_options () =
   then warning Experimental Location.i_dummy
       "support for windows calling-convention is experimental";
 
+  if !model = Safety
+  then warning Deprecated Location.i_dummy
+         "the [-safety] option has been deprecated since June 2024";
+
   if !target_arch = ARM_M4
     then warning Experimental Location.i_dummy
       "support of the ARMv7 architecture is experimental";

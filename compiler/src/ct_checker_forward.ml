@@ -389,7 +389,6 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env, Secret
-
   | Papp1(o, e)        ->
     let public = public || not (is_ct_op1 o) in
     ty_expr ~public env e
@@ -399,7 +398,7 @@ let rec ty_expr ~(public:bool) env (e:expr) =
   | PappN(o, es)       ->
     let public = public || not (is_ct_opN o) in
     ty_exprs_max ~public env es
-  | Pabstract(_, es)   -> ty_exprs_max ~public env es
+  | Pabstract(_, es)   -> assert false
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
   | Pfvar _ -> assert false
   | Pbig _ -> assert false

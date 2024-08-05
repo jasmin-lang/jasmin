@@ -117,8 +117,7 @@ End E.
 Module Env.
 
   Section WITH_PARAMS.
-
-  Context {A: Tabstract}.
+  Context {AB : Tabstract}.
   Context {fcparams : flag_combination.FlagCombinationParams}.
 
   (* We keep track of the condition of the last conditional we entered, and of

@@ -1,0 +1,8 @@
+export
+fn load_small(reg u32 x) -> reg u16 {
+  stack u32 s;
+  reg u16 r;
+  s = x;
+  r = s;
+  return r;
+}

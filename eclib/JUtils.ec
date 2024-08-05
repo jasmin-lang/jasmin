@@ -51,7 +51,7 @@ lemma modz_sub_carry k i d : 0 <= k < d => 0 <= i < d => k - i < 0 =>
   by rewrite -divz_eq; ring.
 qed.
 
-lemma nosmt divz_mod_mul n p i: 0 <= p => 0 <= n =>
+lemma divz_mod_mul n p i: 0 <= p => 0 <= n =>
   (i %% (n*p)) %/ p = (i %/ p) %% n.
 proof.
   move=> [hp | <- //]; move=> [hn | <- //].
@@ -66,7 +66,7 @@ proof.
   by apply modz_cmp => /#.
 qed.
 
-lemma nosmt divz_mod_div n p i: p %| n => 0 <= p => 0 <= n =>
+lemma divz_mod_div n p i: p %| n => 0 <= p => 0 <= n =>
   (i %% n) %/ p = (i %/ p) %% (n%/p).
 proof.
   rewrite dvdz_eq => {2}<- hp hn;apply divz_mod_mul => //.
@@ -86,7 +86,7 @@ proof.
 qed.
 
 (* FIXME: this is defined in IntDiv but with 0 <= i *)
-lemma nosmt modz_pow2_div n p i: 0 <= p <= n =>
+lemma modz_pow2_div n p i: 0 <= p <= n =>
   (i %% 2^n) %/ 2^p = (i %/ 2^p) %% 2^(n-p).
 proof.
   move=> [h1 h2];rewrite divz_mod_div.
@@ -153,7 +153,7 @@ proof. by rewrite xorC xor_true. qed.
 lemma xor0b (b : bool) : false ^^ b = b.
 proof. by rewrite xorC xor_false. qed.
 
-lemma nosmt xorK_simplify (b1 b2: bool) : b1 = b2 => b1 ^^ b2 = false.
+lemma xorK_simplify (b1 b2: bool) : b1 = b2 => b1 ^^ b2 = false.
 proof. by move=> ->; apply xorK. qed.
 
 hint simplify (xor1b, xor_true, xor0b, xor_false)@0.

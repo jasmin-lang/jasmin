@@ -651,16 +651,16 @@ Section CONST_PROP_EP.
       t_xrbindP => v1 /He1 [w1] [hw1 hvw1] v2 /He2 [w2] [hw2 hvw2] h; apply/s_op2P_aux.
       rewrite /= hw1 hw2 /=.
       by apply: vuincl_sem_sop2 h.
-    - move => op es ih v ? ; rewrite s_opNP_aux //=.
-      t_xrbindP => vs /ih{ih} [] vs' ih /vuincl_sem_opN h/h{h} [] v' ok_v' h.
-      rewrite /= -/(sem_pexprs_aux _ _ _ _) ; move : ih => -> /=;  eauto.
-    - move => t e He e1 He1 e2 He2 v ? //=.
-      t_xrbindP => b ve /He/= [] ve' [] hse /[swap] /to_boolI -> /value_uinclE  ?; subst.
-      move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(value_uincl_truncate hue1) [] ? /dup[] ht1 /truncate_value_uincl ht1' hu1.
-      move=> ve2 vte2 /He2 []ve2' [] hse2 hue2 /(value_uincl_truncate hue2) [] ? /dup[] ht2 /truncate_value_uincl ht2' hu2 <-.
-      rewrite /s_if; case: is_boolP hse; first by move=> [][<-] /=;eexists;split;eauto using value_uincl_trans.
-     move=> /= p -> /=;rewrite hse1 hse2 /=ht1 ht2 /=;eexists;split;eauto.
-      by case:(b).
+    - move => op es ih v.
+      t_xrbindP => vs /ih{ih} [] vs' ih /vuincl_sem_opN h/h{h} ok_v.
+      by rewrite s_opNP /= -/(sem_pexprs _ _ _) ih /= ok_v; eauto.
+    move => t e He e1 He1 e2 He2 v.
+    t_xrbindP => b ve /He/= [] ve' [] hse /[swap] /to_boolI -> /value_uinclE ?; subst.
+    move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(value_uincl_truncate hue1) [] ? /dup[] ht1 /truncate_value_uincl ht1' hu1.
+    move=> ve2 vte2 /He2 []ve2' [] hse2 hue2 /(value_uincl_truncate hue2) [] ? /dup[] ht2 /truncate_value_uincl ht2' hu2 <-.
+    rewrite /s_if; case: is_boolP hse; first by move=> [][<-] /=;eexists;split;eauto using value_uincl_trans.
+    move=> /= p -> /=;rewrite hse1 hse2 /= ht1 ht2 /=;eexists;split;eauto.
+    by case:(b).
 -    move => sop v e1 He1 e2 He2 e3 He3 e4 He4 v0 ? /=.
    t_xrbindP => z1 ve1 /He1 [ ] ve1' /[swap] /to_intI  -> [ ] ->  /value_uinclE -> //=.
     move => z2 ve2 /He2 [ ] ve2' /[swap] /to_intI -> [ ] -> /value_uinclE -> //=.

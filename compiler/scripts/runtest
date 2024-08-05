@@ -264,7 +264,7 @@ def _dump_report(results, out):
         grouped.setdefault(result.config.group, []).append(result)
 
     hostname = socket.gethostname()
-    timestamp = datetime.datetime.utcnow().isoformat()
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     for gname, group in grouped.items():
         ko = [x for x in group if not x.success]
         node = cl.OrderedDict()
@@ -359,7 +359,7 @@ def _main():
                     file=sys.stderr,
                 )
             ANSITerm.progress_write(
-                f"Tests: {i: 4}/{n: 4} | Failed: {fails: 4} | [{success}] {last_cmd}"
+                f"Tests: {(i+1): 4}/{n: 4} | Failed: {fails: 4} | [{success}] {last_cmd}"
             )
 
     errors = [x for x in result if not x.success]
