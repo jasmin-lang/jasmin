@@ -40,20 +40,25 @@ let rec warn_extra_i pd asmOp i =
   | Cfor _ ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "for loop remains"
-  | Ccall _ | Csyscall _ | Cassert _ -> ()
+  | Cassert _ | Ccall _ | Csyscall _ -> ()
 
 let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 
 (*--------------------------------------------------------------------- *)
 
-module CompilerParams (Arch : Arch_full.Arch) =
-struct
-
-  module Regalloc = Regalloc.Regalloc (Arch) 
-  module StackAlloc = StackAlloc.StackAlloc (Arch) 
-
-  let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd)
-  let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef fd)
+let compile (type reg regx xreg rflag cond asm_op extra_op)
+    (module Arch : Arch_full.Arch
+      with type reg = reg
+       and type regx = regx
+       and type xreg = xreg
+       and type rflag = rflag
+       and type cond = cond
+       and type asm_op = asm_op
+       and type extra_op = extra_op) visit_prog_after_pass prog cprog =
+  let module Regalloc = Regalloc.Regalloc (Arch) in
+  let module StackAlloc = StackAlloc.StackAlloc (Arch) in
+  let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd) in
+  let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef fd) in
 
   let apply msg trans fn cfd =
     if !debug then Format.eprintf "START %s@." msg;
@@ -61,14 +66,16 @@ struct
     if !debug then Format.eprintf "back to ocaml@.";
     let fd = trans fd in
     cufdef_of_fdef fd
+  in
 
-  let translate_var = Conv.var_of_cvar
+  let translate_var = Conv.var_of_cvar in
 
   let memory_analysis up : Compiler.stack_alloc_oracles =
     StackAlloc.memory_analysis
       (Printer.pp_err ~debug:!debug)
       ~debug:!debug up
- 
+  in
+
   let global_regalloc fds =
     if !debug then Format.eprintf "START regalloc@.";
     let fds = List.map Conv.fdef_of_csfdef fds in
@@ -94,15 +101,18 @@ struct
     let fds = List.map (fun (y, _, x) -> (y, x)) fds in
     let fds = List.map Conv.csfdef_of_fdef fds in
     fds
+  in
 
-  let pp_cuprog visit_prog_after_pass s cp =
+  let pp_cuprog s cp =
     Conv.prog_of_cuprog cp |> visit_prog_after_pass ~debug:true s
+  in
 
   let pp_csprog fmt cp =
     let p = Conv.prog_of_csprog cp in
     Printer.pp_sprog ~debug:true Arch.pointer_data Arch.asmOp fmt p
+  in
 
-  let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.asmOp fmt lp
+  let pp_linear fmt lp = PrintLinear.pp_prog Arch.pointer_data Arch.asmOp fmt lp in
 
   let rename_fd ii fn cfd =
     let ii, _ = ii in
@@ -111,10 +121,11 @@ struct
       Subst.extend_iinfo ii fd
     in
     apply "rename_fd" doit fn cfd
+  in
 
-  let expand_fd ~onlyreg fn cfd =
+  let expand_fd fn cfd =
     let fd = Conv.fdef_of_cufdef (fn, cfd) in
-    let vars, harrs = Array_expand.init_tbl ~onlyreg fd in
+    let vars, harrs = Array_expand.init_tbl fd in
     let cvar = Conv.cvar_of_var in
     let vars = List.map cvar (Sv.elements vars) in
     let arrs = ref [] in
@@ -166,43 +177,48 @@ struct
     let f_outannot = List.flatten (List.map2 do_outannot fd.f_ret fd.f_outannot) in
     let finfo = fd.f_loc, fd.f_annot, f_cc, f_outannot in
     { Array_expansion.vars; arrs = !arrs; finfo }
+  in
 
   let refresh_instr_info fn f =
     (fn, f) |> Conv.fdef_of_cufdef |> refresh_i_loc_f |> Conv.cufdef_of_fdef |> snd
+  in
 
   let warning ii msg =
     (if not !Glob_options.lea then
      let loc, _ = ii in
      warning UseLea loc "%a" Printer.pp_warning_msg msg);
     ii
+  in
 
   let fresh_id _gd x =
     let x = Conv.var_of_cvar x in
     Prog.V.clone x
+  in
 
-  let split_live_ranges_fd fd = Regalloc.split_live_ranges fd 
-
-  let renaming_fd fd = Regalloc.renaming fd 
-
-  let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd
+  let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
+  let renaming_fd fd = Regalloc.renaming fd in
+  let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd in
 
   let removereturn sp =
     let fds, _data = Conv.prog_of_csprog sp in
     let tokeep = RemoveUnusedResults.analyse fds in
     tokeep
+  in
 
   let warn_extra s p =
     if s = Compiler.DeadCode_RegAllocation then
       let fds, _ = Conv.prog_of_csprog p in
       List.iter (warn_extra_fd Arch.pointer_data Arch.asmOp) fds
+  in
 
   let slh_info up =
     let p = Conv.prog_of_cuprog up in
     let ttbl = Sct_checker_forward.compile_infer_msf p in
     fun fn ->
       try Hf.find ttbl fn with Not_found -> assert false
+  in
 
-  let tbl_annot cprog =
+  let tbl_annot =
     let tbl = Hf.create 17 in
     let add (fn, cfd) =
       let fd = fdef_of_cufdef fn cfd in
@@ -210,9 +226,10 @@ struct
     in
     List.iter add cprog.Expr.p_funcs;
     tbl
+  in
 
-  let get_annot cprog fn =
-    try Hf.find (tbl_annot cprog) fn
+  let get_annot fn =
+    try Hf.find tbl_annot fn
     with Not_found ->
            hierror
              ~loc:Lnone
@@ -220,16 +237,18 @@ struct
              ~kind:"compiler error"
              ~internal:true
              "invalid annotation table."
+  in
 
-  let szs_of_fn cprog fn =
-    match (get_annot cprog fn).stack_zero_strategy with
+  let szs_of_fn fn =
+    match (get_annot fn).stack_zero_strategy with
     | Some (s, ows) -> Some (s, Option.map Pretyping.tt_ws ows)
     | None -> None
+  in
 
-  let cparams ~onlyreg visit_prog_after_pass cprog =
-  {
+  let cparams =
+    {
       Compiler.rename_fd;
-      Compiler.expand_fd = expand_fd ~onlyreg;
+      Compiler.expand_fd;
       Compiler.split_live_ranges_fd =
         apply "split live ranges" split_live_ranges_fd;
       Compiler.renaming_fd = apply "alloc inline assgn" renaming_fd;
@@ -244,7 +263,7 @@ struct
       Compiler.regalloc = global_regalloc;
       Compiler.print_uprog =
         (fun s p ->
-          pp_cuprog visit_prog_after_pass s p;
+          pp_cuprog s p;
           p);
       Compiler.print_sprog =
         (fun s p ->
@@ -261,26 +280,10 @@ struct
       Compiler.fresh_id;
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
-      Compiler.stack_zero_info = szs_of_fn cprog;
+      Compiler.stack_zero_info = szs_of_fn;
     }
+  in
 
-end
-
-(*--------------------------------------------------------------------- *)
-
-let compile (type reg regx xreg rflag cond asm_op extra_op)
-    (module Arch : Arch_full.Arch
-      with type reg = reg
-       and type regx = regx
-       and type xreg = xreg
-       and type rflag = rflag
-       and type cond = cond
-       and type asm_op = asm_op
-       and type extra_op = extra_op) visit_prog_after_pass prog cprog =
-
-  let module CP = CompilerParams(Arch) in
-  let open CP in
- 
   let export_functions =
     let conv fd = fd.f_name in
     List.fold_right
@@ -291,77 +294,6 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       (snd prog) []
   in
 
-  Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams 
-    (cparams ~onlyreg:true visit_prog_after_pass cprog)
+  Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams cparams
     export_functions
     (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
-(*--------------------------------------------------------------------- *)
-
-
-let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
- (module Arch : Arch_full.Arch
-  with type reg = reg
-   and type regx = regx
-   and type xreg = xreg
-   and type rflag = rflag
-   and type cond = cond
-   and type asm_op = asm_op
-   and type extra_op = extra_op) cprog toextract =
-  let module CP = CompilerParams(Arch) in
-  let open CP in
-
-  let visit_prog_after_pass ~debug s p = 
-    eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p in
-
-  let cparams = CP.cparams ~onlyreg:false visit_prog_after_pass cprog in
-
-  (* Add array copy after inlining every where *)
-  let is_array_init e = 
-    match e with
-    | Parr_init _ -> true
-    | _ -> false in
-
-  let rec add_array_copy_i i = 
-    { i with i_desc = add_array_copy_id i.i_desc }
-
-  and add_array_copy_id i = 
-  match i with
-  | Cif(e,c1,c2) -> Cif(e, add_array_copy_c c1, add_array_copy_c c2)
-  | Cfor(x,r,c)  -> Cfor(x,r, add_array_copy_c c)
-  | Cwhile(a,c1,e,c2) -> Cwhile(a, add_array_copy_c c1, e, add_array_copy_c c2)
-  | Cassgn(Lvar x, t, _ty, e) when is_arr x.pl_desc && not (is_array_init e) ->
-      let (ws,n) = array_kind x.pl_desc.v_ty in
-      Copn([Lvar x],t, Opseudo_op (Ocopy(ws, Conv.pos_of_int n)), [e])
-  | Cassgn(Lasub (_, ws, n,_, _) as x, t, _ty, e) when not (is_array_init e) ->
-      Copn([x],t, Opseudo_op (Ocopy(ws, Conv.pos_of_int n)), [e])
-  | Cassert _ | Ccall _ | Copn _ | Csyscall _ | Cassgn _ -> i
-
-  and add_array_copy_c c = 
-    List.map add_array_copy_i c in
-
-  let add_array_copy_f f = 
-   { f with f_body = add_array_copy_c f.f_body } in
-  let add_array_copy (g,fds) = (g, List.map add_array_copy_f fds) in  
-  
-  let doit f p = 
-    match f p with
-    | Utils0.Error e ->
-      let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
-      raise (HiError e)
-    | Utils0.Ok p -> p in
-
-  let cprog =   
-    doit 
-      (Compiler.compiler_CL_first_part Arch.asm_e Arch.aparams cparams
-         [toextract])
-      (Expr.to_uprog Build_Tabstract Arch.asmOp cprog) in
-     
-  let cprog = 
-    let p = Conv.prog_of_cuprog (Obj.magic cprog) in
-(*    Format.eprintf "Before add copy@.%a@." (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) p; *)
-    let p = add_array_copy p in
-(*    Format.eprintf "After add copy@.%a@." (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) p; *)
-    let cp = Conv.cuprog_of_prog p in
-    cp in      
-  doit (Compiler.compiler_CL_second_part Arch.asm_e Arch.aparams cparams [toextract])
-      (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)

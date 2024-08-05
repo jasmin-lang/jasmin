@@ -41,7 +41,7 @@ all: build
 build: native
 
 define do-build
-	$(RM) jasminc jasmin2tex jazz2cl jasmin-ct
+	$(RM) jasminc jasmin2tex jasmin-ct
 	dune build @check @install
 	for p in _build/install/default/bin/*; do ln -sf $$p $$(basename $$p); done
 endef
@@ -72,13 +72,11 @@ install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
 	$(INSTALL) -m 0755 -T jasmin2tex $(DESTDIR)$(BINDIR)/jasmin2tex
-	$(INSTALL) -m 0755 -T jazz2cl $(DESTDIR)$(BINDIR)/jazz2cl
 	$(INSTALL) -m 0755 -T jasmin-ct $(DESTDIR)$(BINDIR)/jasmin-ct
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin2tex
-	$(RM) $(DESTDIR)$(BINDIR)/jazz2cl
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin-ct
 
 # --------------------------------------------------------------------

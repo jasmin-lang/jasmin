@@ -24,14 +24,6 @@
  (libraries commonCLI))
 
 (executable
- (public_name jazz2cl)
- (name jazz2cl)
- (modules jazz2cl)
- (flags -rectypes)
- (modes byte exe)
- (libraries commonCLI))
-
-(executable
  (public_name jasmin-ct)
  (name jasmin_ct)
  (modules jasmin_ct)
