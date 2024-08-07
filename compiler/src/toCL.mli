@@ -3,15 +3,69 @@ open Wsize
 open Sopn
 
 module CL : sig
+  type ty =
+    | Uint of int
+    | Sint of int (* Should be bigger than 1 *)
+    | Bit
+    | Vector of int * ty
+
+  type const = Z.t
+
+  type var = Prog.var
+
+  type tyvar = var * ty
+
+  module I: sig
+    type epred
+  end
+
+  module R :sig
+    type rpred
+  end
+
+  type clause = I.epred list * R.rpred list
+
+  type gvar
+
   module Instr :
-    sig
-      type instr
+  sig
+    type atom =
+      | Aconst of const * ty
+      | Avar of tyvar
+      | Avecta of tyvar * int
+      | Avatome of atom list
+
+    type lval = tyvar
+
+    type arg =
+      | Atom of atom
+      | Lval of lval
+      | Const of const
+      | Ty    of ty
+      | Pred of clause
+      | Gval of gvar
+
+    type args = arg list
+
+    type instr = {
+      iname : string;
+      iargs : args;
+    }
+
       val pp_instr : Format.formatter -> instr -> unit
       val pp_instrs : Format.formatter -> instr list -> unit
     end
+
   module Proc :
     sig
-      type proc
+      type proc = {
+        id : string;
+        formals : tyvar list;
+        pre : clause;
+        prog : Instr.instr list;
+        post : clause;
+      }
+
       val pp_proc : Format.formatter -> proc -> unit
     end
 end

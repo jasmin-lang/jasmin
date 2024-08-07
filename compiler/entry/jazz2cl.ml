@@ -114,6 +114,12 @@ let parse_and_print print arch call_conv ecoutput joutput output file funname =
      in
 
      let proc = CL.fun_to_proc (snd prog) (List.nth (snd prog) 0) in
+
+     (* let cfg = CL_vsimpl.Cfg.cfg_of_prog_rev proc.prog in *)
+     (* let clean_cfg = CL_vsimpl.SimplVector.simpl_cfg cfg in *)
+     (* let prog = CL_vsimpl.Cfg.prog_of_cfg clean_cfg in *)
+     (* let proc ={proc with prog} in *)
+
      let fmt = Format.formatter_of_out_channel out in
      ToCL.CL.Proc.pp_proc fmt proc;
      close out
