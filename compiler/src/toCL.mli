@@ -16,11 +16,41 @@ module CL : sig
   type tyvar = var * ty
 
   module I: sig
-    type epred
+
+    type eexp =
+      | Iconst of const
+      | Ivar   of tyvar
+      | Iunop  of string * eexp
+      | Ibinop of eexp * string * eexp
+      | Ilimbs of const * eexp list
+
+    type epred =
+      | Eeq of eexp * eexp
+      | Eeqmod of eexp * eexp * eexp list
+
   end
 
   module R :sig
-    type rpred
+
+    type rexp =
+      | Rvar   of tyvar
+      | Rconst of int * const
+      | Ruext of rexp * int
+      | Rsext of rexp * int
+      | Runop  of string * rexp
+      | Rbinop of rexp * string * rexp
+      | Rpreop of string * rexp * rexp
+      | Rlimbs of const * rexp list
+      | RVget  of tyvar * const
+      | UnPack of  tyvar * int * int
+
+    type rpred =
+      | RPcmp   of rexp * string * rexp
+      | RPeqmod of rexp * rexp * string * rexp
+      | RPnot   of rpred
+      | RPand   of rpred list
+      | RPor    of rpred list
+
   end
 
   type clause = I.epred list * R.rpred list

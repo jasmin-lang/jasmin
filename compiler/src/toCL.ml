@@ -130,7 +130,8 @@ module CL = struct
       | Rbinop of rexp * string * rexp
       | Rpreop of string * rexp * rexp
       | Rlimbs of const * rexp list
-      | RVget  of rexp * int * int * const
+      | RVget  of tyvar * const
+      | UnPack of  tyvar * int * int
 
     let const z1 z2 = Rconst(z1, z2)
     let (!-) e1 = Runop ("-", e1)
@@ -162,10 +163,11 @@ module CL = struct
         Format.fprintf fmt  "(limbs %a [%a])"
           pp_const c
           (pp_list ",@ " pp_rexp) es
-      | RVget(e,i1,i2,c) ->
+      | RVget(e,c) ->
         Format.fprintf fmt  "(%a[%a])"
-          pp_rexp e
+          pp_tyvar e
           pp_const c
+      | UnPack _ -> assert false
 
     type rpred =
       | RPcmp   of rexp * string * rexp
@@ -507,6 +509,8 @@ module I (S:S): I = struct
     | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
+    | Pabstract ({name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
+      UnPack (to_var ~sign x, 16, Z.to_int z)
     | Presult (_, x) -> Rvar (to_var x)
     | _ -> assert false
 
@@ -534,8 +538,6 @@ module I (S:S): I = struct
     | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
     | Pabstract ({name="equmod64"}, [e1;e2;e3]) -> equmod !> e1 !> e2 !> e3
     | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
-    | Pabstract ({name="u256_as_16u16"}, [e0;e1;e2;e3;e4;e5;e6;e7;e8;e9;e10;e11;e12;e13;e14;e15;e16]) -> 
-      RPand [] (* FIX ME: INTRODUCE AN INITIAL ASSIGNMENT! *)
     | _ ->  assert false
 
   let rec extract_list e aux =
