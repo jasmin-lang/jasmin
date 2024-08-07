@@ -1369,7 +1369,7 @@ module X86BaseOpS : BaseOp
       | Smt -> let a, i = vpc_atome ws (List.nth es 0) in
         let l = I.glval_to_lval (List.nth xs 0) in
         i @ [CL.Instr.Op1.mov l a]
-      | _ -> 
+      | _ ->
         let a,i = cast_atome ws (List.nth es 0) in
         let l = I.glval_to_lval  (List.nth xs 0) in
         i @ [CL.Instr.Op1.mov l a]
@@ -1425,7 +1425,7 @@ module X86BaseOpS : BaseOp
         i1 @ i2 @ [CL.Instr.Op2.mul l a1 a2]
       | _ -> assert false
       end
-      
+
     | ADC _ -> assert false
     | SBB _ -> assert false
 
@@ -1454,7 +1454,6 @@ module X86BaseOpS : BaseOp
     | OR _ -> assert false
     | XOR _ -> assert false
     | NOT _ -> assert false
-    
 
     | SHL ws ->
       begin
@@ -1527,7 +1526,7 @@ module X86BaseOpS : BaseOp
           let a,i = cast_atome ws2 (List.nth es 0) in
           let l = I.glval_to_lval (List.nth xs 0) in
           i @ [CL.Instr.cast (CL.Sint (int_of_ws ws1)) l a]
-        | Smt -> 
+        | Smt ->
           let a, i = vpc_atome ws2 (List.nth es 0) in
           let l = I.glval_to_lval (List.nth xs 0) in
           i @ [CL.Instr.vpc (CL.Sint (int_of_ws ws1)) l a]
@@ -1597,17 +1596,7 @@ module ARMBaseOp : BaseOp
   let op_to_instr trans xs o es =
     let mn, opt = match o with Arm_instr_decl.ARM_op (mn, opt) -> mn, opt in
     match mn with
-    | ADD -> assert false
-(*
-      let v1 = pp_cast fmt (List.nth es 0, ws) in
-      let v2 = pp_cast fmt (List.nth es 1, ws) in
-      let v2' = pp_shifted fmt opt v2 es in
-      Format.fprintf fmt "add %a %a %a"
-        pp_lval (List.nth xs 5, int_of_ws ws)
-        pp_atome (v1, int_of_ws ws)
-        pp_atome (v2', int_of_ws ws)
-*)
-
+    | ADD
     | ADC
     | MUL
     | MLA
@@ -1764,34 +1753,6 @@ module Mk(O:BaseOp) = struct
           if List.exists (cond a) l
           then l else a :: l
       ) l1 l2
-
-  type vector =
-    | U16x16
-
-  let unfold_vector formals =
-    let aux ((formal,ty) as v) =
-      let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
-      match Annot.ensure_uniq1 "vect" mk_vector (formal.v_annot) with
-      | None -> [v],[]
-      | Some U16x16 ->
-        let rec aux i acc =
-          match i with
-          | 0 -> acc
-          | n ->
-            let name = String.concat "_" [formal.v_name; "v" ; string_of_int i] in
-            let v = O.I.mk_tmp_lval ~name u16 in
-            aux ( n - 1) (v :: acc)
-        in
-        let v = aux 16 [] in
-        let va = List.map (fun v -> CL.Instr.Avar v) v in
-        let a = CL.Instr.Avatome va in
-        let l = O.I.var_to_tyvar ~vector:(16,16) formal in
-        v,[CL.Instr.Op1.mov l a]
-    in
-    List.fold_left (fun (acc1,acc2) v ->
-        let fs,is = aux v in
-        fs @ acc1,is @ acc2)
-      ([],[]) formals
 
   let fun_to_proc fds fd =
     let env = Hash.create 10 in

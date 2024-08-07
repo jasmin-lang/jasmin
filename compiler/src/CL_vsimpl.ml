@@ -1,4 +1,5 @@
 open ToCL
+open CoreIdent
 
 module Counter = struct
   let cpt = ref 0
@@ -81,6 +82,34 @@ module Cfg = struct
     List.rev prog_rev
 
 end
+
+(* type vector = *)
+(*   | U16x16 *)
+
+(* let unfold_vector formals = *)
+(*   let aux ((formal,ty) as v) = *)
+(*     let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in *)
+(*     match Annot.ensure_uniq1 "vect" mk_vector (formal.v_annot) with *)
+(*     | None -> [v],[] *)
+(*     | Some U16x16 -> *)
+(*       let rec aux i acc = *)
+(*         match i with *)
+(*         | 0 -> acc *)
+(*         | n -> *)
+(*           let name = String.concat "_" [formal.v_name; "v" ; string_of_int i] in *)
+(*           let v = O.I.mk_tmp_lval ~name u16 in *)
+(*           aux ( n - 1) (v :: acc) *)
+(*       in *)
+(*       let v = aux 16 [] in *)
+(*       let va = List.map (fun v -> CL.Instr.Avar v) v in *)
+(*       let a = CL.Instr.Avatome va in *)
+(*       let l = O.I.var_to_tyvar ~vector:(16,16) formal in *)
+(*       v,[CL.Instr.Op1.mov l a] *)
+(*   in *)
+(*   List.fold_left (fun (acc1,acc2) v -> *)
+(*       let fs,is = aux v in *)
+(*       fs @ acc1,is @ acc2) *)
+(*     ([],[]) formals *)
 
 module SimplVector = struct
   open Cfg
