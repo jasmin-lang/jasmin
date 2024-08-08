@@ -1,0 +1,194 @@
+require import AllCore IntDiv CoreMap List Distr.
+from Jasmin require import JModel_x86.
+import SLH64.
+
+from Jasmin require import JLeakage.
+require import Array1.
+require import WArray8.
+
+
+
+module M = {
+  var leakages : leakages_t
+  
+  proc main (a64:W64.t, b64:W64.t) : W8.t = {
+    var aux_6: W8.t;
+    var aux_5: W8.t;
+    var aux_4: W16.t;
+    var aux_3: W16.t;
+    var aux_2: W32.t;
+    var aux_1: W32.t;
+    var aux_0: W64.t;
+    var aux: W64.t;
+    
+    var b8:W8.t;
+    var sa64:W64.t;
+    var a32:W32.t;
+    var b32:W32.t;
+    var a16:W16.t;
+    var b16:W16.t;
+    var a8:W8.t;
+    var sa32:W32.t;
+    var sa16:W16.t;
+    var sa8:W8.t;
+    var t:W64.t Array1.t;
+    var  _0:W32.t;
+    var  _1:W16.t;
+    var  _2:W8.t;
+    t <- witness;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- a64;
+    sa64 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_0, aux) <- XCHG_64 a64 b64;
+    a64 <- aux_0;
+    b64 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- a64;
+    a32 <- (truncateu32 aux_0);
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- b64;
+    b32 <- (truncateu32 aux_0);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_2, aux_1) <- XCHG_32 a32 b32;
+    a32 <- aux_2;
+    b32 <- aux_1;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_2 <- a32;
+    a16 <- (truncateu16 aux_2);
+    leakages <- LeakAddr([]) :: leakages;
+    aux_2 <- b32;
+    b16 <- (truncateu16 aux_2);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_4, aux_3) <- XCHG_16 a16 b16;
+    a16 <- aux_4;
+    b16 <- aux_3;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_4 <- a16;
+    a8 <- (truncateu8 aux_4);
+    leakages <- LeakAddr([]) :: leakages;
+    aux_4 <- b16;
+    b8 <- (truncateu8 aux_4);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_6, aux_5) <- XCHG_8 a8 b8;
+    a8 <- aux_6;
+    b8 <- aux_5;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- sa64;
+    a64 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_0, aux) <- XCHG_64 a64 sa64;
+    a64 <- aux_0;
+    sa64 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_0, aux) <- XCHG_64 sa64 a64;
+    sa64 <- aux_0;
+    a64 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- a64;
+    a32 <- (truncateu32 aux_0);
+    leakages <- LeakAddr([]) :: leakages;
+    aux_2 <- a32;
+    sa32 <- aux_2;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_2, aux_1) <- XCHG_32 a32 sa32;
+    a32 <- aux_2;
+    sa32 <- aux_1;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_2, aux_1) <- XCHG_32 sa32 a32;
+    sa32 <- aux_2;
+     _0 <- aux_1;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_2 <- sa32;
+    a32 <- aux_2;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_2 <- a32;
+    sa16 <- (truncateu16 aux_2);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_4, aux_3) <- XCHG_16 (truncateu16 a32) sa16;
+    a16 <- aux_4;
+    sa16 <- aux_3;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_4, aux_3) <- XCHG_16 sa16 a16;
+    sa16 <- aux_4;
+     _1 <- aux_3;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_4 <- sa16;
+    a16 <- aux_4;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_4 <- a16;
+    sa8 <- (truncateu8 aux_4);
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_6, aux_5) <- XCHG_8 (truncateu8 a16) sa8;
+    a8 <- aux_6;
+    sa8 <- aux_5;
+    leakages <- LeakAddr([]) :: leakages;
+    (aux_6, aux_5) <- XCHG_8 sa8 a8;
+    sa8 <- aux_6;
+     _2 <- aux_5;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_6 <- (b8 `^` sa8);
+    b8 <- aux_6;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- sa64;
+    a64 <- aux_0;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- a64;
+    leakages <- LeakAddr([0]) :: leakages;
+    t.[0] <- aux_0;
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_0, aux) <- XCHG_64 a64 t.[0];
+    a64 <- aux_0;
+    leakages <- LeakAddr([0]) :: leakages;
+    t.[0] <- aux;
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_0, aux) <- XCHG_64 t.[0] a64;
+    leakages <- LeakAddr([0]) :: leakages;
+    t.[0] <- aux_0;
+    a64 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_0 <- a64;
+    a32 <- (truncateu32 aux_0);
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_2, aux_1) <- XCHG_32 a32 (get32 (WArray8.init64 (fun i => (t).[i])) 0);
+    a32 <- aux_2;
+    leakages <- LeakAddr([0]) :: leakages;
+    t <- Array1.init (WArray8.get64 (WArray8.set32 (WArray8.init64 (fun i => (t).[i])) 0 (aux_1)));
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_2, aux_1) <- XCHG_32 (get32 (WArray8.init64 (fun i => (t).[i])) 0) a32;
+    leakages <- LeakAddr([0]) :: leakages;
+    t <- Array1.init (WArray8.get64 (WArray8.set32 (WArray8.init64 (fun i => (t).[i])) 0 (aux_2)));
+    a32 <- aux_1;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_2 <- a32;
+    a16 <- (truncateu16 aux_2);
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_4, aux_3) <- XCHG_16 a16 (get16 (WArray8.init64 (fun i => (t).[i])) 0);
+    a16 <- aux_4;
+    leakages <- LeakAddr([0]) :: leakages;
+    t <- Array1.init (WArray8.get64 (WArray8.set16 (WArray8.init64 (fun i => (t).[i])) 0 (aux_3)));
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_4, aux_3) <- XCHG_16 (get16 (WArray8.init64 (fun i => (t).[i])) 0) a16;
+    leakages <- LeakAddr([0]) :: leakages;
+    t <- Array1.init (WArray8.get64 (WArray8.set16 (WArray8.init64 (fun i => (t).[i])) 0 (aux_4)));
+    a16 <- aux_3;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_4 <- a16;
+    a8 <- (truncateu8 aux_4);
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_6, aux_5) <- XCHG_8 a8 (get8 (WArray8.init64 (fun i => (t).[i])) 0);
+    a8 <- aux_6;
+    leakages <- LeakAddr([0]) :: leakages;
+    t <- Array1.init (WArray8.get64 (WArray8.set8 (WArray8.init64 (fun i => (t).[i])) 0 (aux_5)));
+    leakages <- LeakAddr([0]) :: leakages;
+    (aux_6, aux_5) <- XCHG_8 (get8 (WArray8.init64 (fun i => (t).[i])) 0) a8;
+    leakages <- LeakAddr([0]) :: leakages;
+    t <- Array1.init (WArray8.get64 (WArray8.set8 (WArray8.init64 (fun i => (t).[i])) 0 (aux_6)));
+    a8 <- aux_5;
+    leakages <- LeakAddr([]) :: leakages;
+    aux_6 <- (b8 `^` a8);
+    b8 <- aux_6;
+    return (b8);
+  }
+}.
+
