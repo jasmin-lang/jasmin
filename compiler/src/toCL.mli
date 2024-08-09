@@ -113,6 +113,11 @@ module type BaseOp = sig
     int Prog.glval list ->
     op -> int Prog.gexpr list -> CL.Instr.instr list
 
+  val extra_op_to_instr :
+    Annotations.annotations ->
+    int Prog.glval list ->
+    extra_op -> int Prog.gexpr list -> CL.Instr.instr list
+
   val assgn_to_instr :
     Annotations.annotations ->
     int Prog.glval -> int Prog.gexpr -> CL.Instr.instr list
