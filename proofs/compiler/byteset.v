@@ -111,7 +111,7 @@ Module Type ByteSetType.
 
 End ByteSetType.
 
-Module ByteSet : ByteSetType.
+Module ByteSet <: ByteSetType.
 
 (* sorted in increasing order, no overlap *)
 Definition bytes := seq interval.
