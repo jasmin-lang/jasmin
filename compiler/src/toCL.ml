@@ -740,6 +740,8 @@ module X86BaseOpU : BaseOp
     | Cas3
     | Smt
 
+  exception  Not_trans of trans
+
   let trans annot =
     let l =
       ["smt", Smt ; "cas", Cas1; "cas_two", Cas2; "cas_three", Cas3 ]
@@ -817,8 +819,8 @@ module X86BaseOpU : BaseOp
         | Smt ->
           i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
         | Cas1 ->
-          let l_tmp = I.mk_spe_tmp_lval 1 in
-          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
+          let lc = I.glval_to_lval (List.nth xs 1) in
+          i1 @ i2 @ [CL.Instr.Op2_2.adds lc l a1 a2]
         | _ -> assert false
       end
 
