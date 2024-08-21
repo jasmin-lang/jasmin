@@ -45,4 +45,37 @@ fn all_kinds() -> reg u32 {
   return x;
 }
 
+export
+fn slices(reg u32 x) -> reg u32 {
+  inline int i;
+  stack u32[4] p q;
+  for i = 0 to 4 { p[i] = x; }
+  for i = 0 to 2 {
+    q[2 * i:2] = #copy_32(p[2 - 2 * i:2]);
+  }
+  x = q[1];
+  return x;
+}
 
+export
+fn self_copy(reg u32 x) -> reg u32 {
+  inline int i;
+  stack u32[3] s;
+  s[0] = x;
+  for i = 1 to 3 {
+    s[i:1] = #copy_32(s[i - 1:1]);
+  }
+  x = s[2];
+  return x;
+}
+
+export
+fn ptr_slices() -> reg u32 {
+  reg u32 x;
+  reg ptr u32[2] p;
+  stack u32[1] s;
+  p = g[1:2];
+  s = #copy_32(p[1:1]);
+  x = s[0];
+  return x;
+}

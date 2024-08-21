@@ -7,6 +7,10 @@
   ([PR #859](https://github.com/jasmin-lang/jasmin/pull/859);
   fixes [#858](https://github.com/jasmin-lang/jasmin/issues/858)).
 
+- Array copy operator `#copy` support slices as arguments and results
+  ([PR #880](https://github.com/jasmin-lang/jasmin/pull/880);
+  fixes [#842](https://github.com/jasmin-lang/jasmin/issues/842)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
