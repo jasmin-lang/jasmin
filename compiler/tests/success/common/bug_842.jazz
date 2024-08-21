@@ -1,0 +1,23 @@
+export fn fail() -> reg u32
+{
+  stack u32[1] a b;
+  reg u32 one;
+  one = 1;
+  a[0] = one;
+  b[0:1] = #copy_32(a);
+  reg u32 r;
+  r = b[0];
+  return r;
+}
+
+export fn fail2() -> reg u32
+{
+  stack u32[1] a b;
+  reg u32 one;
+  one = 1;
+  a[0] = one;
+  b = #copy_32(a[0:1]);
+  reg u32 r;
+  r = b[0];
+  return r;
+}
