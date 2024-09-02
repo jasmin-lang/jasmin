@@ -10,6 +10,22 @@ type 'len slhvar = {
 let count = ref (Utils.Uniq.gen ())
 let msf_count = ref 0
 
+let mk_update (cond : 'len gexpr) (var : 'len slhvar) (loc : L.i_loc) =
+  {
+    i_desc = Copn ([ var.lv ], AT_none, Sopn.Oslh SLHupdate, [ cond; var.gx ]);
+    i_loc = loc;
+    i_info = ();
+    i_annot = [];
+  }
+
+let mk_init (var : 'len slhvar) (loc : L.i_loc) =
+  {
+    i_desc = Copn ([ var.lv ], AT_keep, Sopn.Oslh SLHinit, []);
+    i_loc = loc;
+    i_info = ();
+    i_annot = [];
+  }
+
 let mk_slhvar name reg_kind =
   let msf_gvar =
     GV.mk
@@ -92,36 +108,18 @@ let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar)
                (add_setmsf_instr msf mmx_msf spill_instr unspill_instr funcs)
                body)))
   in
+  let init_instr = mk_init msf i.i_loc in
   match i.i_desc with
-  | Csyscall (_, _, _) ->
-      let init_instr =
-        {
-          i_desc = Copn ([ msf.lv ], AT_keep, Sopn.Oslh SLHinit, []);
-          i_loc = i.i_loc;
-          i_info = ();
-          i_annot = [];
-        }
-      in
-      [ i; init_instr; spill_instr i.i_loc ]
+  | Csyscall (_, _, _) -> [ i; init_instr; spill_instr i.i_loc ]
   | Ccall (vars, func_name, inputs) ->
       if is_export_fn funcs func_name then
-        let init_instr =
-          {
-            i_desc = Copn ([ msf.lv ], AT_keep, Sopn.Oslh SLHinit, []);
-            i_loc = i.i_loc;
-            i_info = ();
-            i_annot = [];
-          }
-        in
         [ i; init_instr; spill_instr i.i_loc ]
       else
         [
-          (* unspill_instr i.i_loc; *)
           {
             i with
             i_desc = Ccall (mmx_msf.lv :: vars, func_name, mmx_msf.gx :: inputs);
           };
-          (* spill_instr i.i_loc; *)
         ]
   | Cif (cond, if_body, else_body) ->
       (* TODO: remove this condvar if tests pass *)
@@ -138,43 +136,18 @@ let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar)
             };
           ]
       in
-      let update_msf_if =
-        {
-          i_desc =
-            Copn
-              ([ msf.lv ], AT_none, Sopn.Oslh SLHupdate, [ cond_expr; msf.gx ]);
-          i_loc = i.i_loc;
-          i_info = ();
-          i_annot = [];
-        }
+      let update_msf_if = mk_update cond_expr msf i.i_loc in
+      let update_msf_else = mk_update (Papp1 (E.Onot, cond_expr)) msf i.i_loc in
+      let if_block =
+        unspill_instr i.i_loc :: update_msf_if :: spill_instr i.i_loc
+        :: add_slh_block if_body
       in
-
-      let update_msf_else =
-        {
-          i_desc =
-            Copn
-              ( [ msf.lv ],
-                AT_none,
-                Sopn.Oslh SLHupdate,
-                [ Papp1 (E.Onot, cond_expr); msf.gx ] );
-          i_loc = i.i_loc;
-          i_info = ();
-          i_annot = [];
-        }
+      let else_block =
+        unspill_instr i.i_loc :: update_msf_else :: spill_instr i.i_loc
+        :: add_slh_block else_body
       in
       init_b_instr
-      @ [ unspill_instr i.i_loc ]
-      @ [
-          {
-            i with
-            i_desc =
-              Cif
-                ( cond_expr,
-                  update_msf_if :: spill_instr i.i_loc :: add_slh_block if_body,
-                  update_msf_else :: spill_instr i.i_loc
-                  :: add_slh_block else_body );
-          };
-        ]
+      @ [ { i with i_desc = Cif (cond_expr, if_block, else_block) } ]
   | Cwhile (alignf, c1, cond, c2) ->
       let cond_expr = if is_cond_var cond then cond else b_expr in
       let init_b_instr =
@@ -189,43 +162,18 @@ let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar)
             };
           ]
       in
-      let update_msf_body =
-        {
-          i_desc =
-            Copn
-              ([ msf.lv ], AT_none, Sopn.Oslh SLHupdate, [ cond_expr; msf.gx ]);
-          i_loc = i.i_loc;
-          i_info = ();
-          i_annot = [];
-        }
-      in
-      (* TODO change update_msf to fn *)
+      let update_msf_body = mk_update cond_expr msf i.i_loc in
       let update_msf_after =
-        {
-          i_desc =
-            Copn
-              ( [ msf.lv ],
-                AT_none,
-                Sopn.Oslh SLHupdate,
-                [ Papp1 (E.Onot, cond_expr); msf.gx ] );
-          i_loc = i.i_loc;
-          i_info = ();
-          i_annot = [];
-        }
+        mk_update (Papp1 (E.Onot, cond_expr)) msf i.i_loc
+      in
+      let c1 = add_slh_block c1 @ init_b_instr in
+      let c2 =
+        unspill_instr i.i_loc :: update_msf_body :: spill_instr i.i_loc
+        :: add_slh_block c2
       in
       [
+        { i with i_desc = Cwhile (alignf, c1, cond_expr, c2) };
         unspill_instr i.i_loc;
-        {
-          i with
-          i_desc =
-            Cwhile
-              ( alignf,
-                add_slh_block c1 @ init_b_instr,
-                cond_expr,
-                (update_msf_body :: spill_instr i.i_loc :: add_slh_block c2)
-                @ [ unspill_instr i.i_loc ] );
-        };
-        (* unspill_instr i.i_loc; *)
         update_msf_after;
         spill_instr i.i_loc;
       ]
@@ -290,14 +238,7 @@ let add_slh_local (mmx_msf : 'len slhvar) funcs
 
 let add_slh_export funcs (msf : 'len slhvar) (mmx_msf : 'len slhvar)
     (func : (pexpr, 'info, 'asm) gfunc) =
-  let init_instr =
-    {
-      i_desc = Copn ([ msf.lv ], AT_keep, Sopn.Oslh SLHinit, []);
-      i_loc = L.i_dummy;
-      i_info = ();
-      i_annot = [];
-    }
-  in
+  let init_instr = mk_init msf L.i_dummy in
   let spill_instr loc =
     {
       i_desc = Copn ([ mmx_msf.lv ], AT_none, Sopn.Oslh SLHmove, [ msf.gx ]);
