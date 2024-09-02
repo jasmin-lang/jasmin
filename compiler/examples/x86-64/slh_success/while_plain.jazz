@@ -1,0 +1,40 @@
+export
+fn add1 () -> (reg u64) {
+  reg u64 z;
+//   reg u64 msf;
+  reg bool temp;
+  inline bool b;
+  
+//   msf = #init_msf(); /*  */
+  z = ((64u) 5); /* u64 */
+  temp = (z >u ((64u) 0)); /* bool */
+  b = !temp; /* bool */
+  while (b) {
+    // msf = #update_msf(b, msf); /*  */
+    z = (z -64u ((64u) 1)); /* u64 */
+    temp = (z >u ((64u) 0)); /* bool */
+    b = !temp; /* bool */
+  }
+//   msf = #update_msf((! b), msf); /*  */
+  return (z);
+}
+// export
+// fn add1 () -> (reg u64) {
+//   reg u64 z;
+// //   reg u64 msf;
+//   reg bool temp;
+//   reg bool b;
+  
+// //   msf = #init_msf(); /*  */
+//   z = ((64u) 5); /* u64 */
+//   temp = (z >u ((64u) 0)); /* bool */
+//   while {
+//     b = (z >u ((64u) 0)); /* bool */
+//   } (b) {
+//     // msf = #update_msf(b, msf); /*  */
+//     z = (z -64u ((64u) 1)); /* u64 */
+//     temp = (z >u ((64u) 0)); /* bool */
+//   }
+// //   msf = #update_msf((! b), msf); /*  */
+//   return (z);
+// }

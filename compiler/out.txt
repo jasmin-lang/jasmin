@@ -1,0 +1,2451 @@
+/* -------------------------------------------------------------------- */
+/* After typing */
+
+param int N = 1;
+
+fn dot_product (reg u64 msf, reg const ptr u64[N] v1,
+               reg const ptr u64[N] v2) -> (reg u64, reg u64) {
+  reg u64 res;
+  inline int i;
+  reg u64 tmp;
+  
+  res = ((64u) 0); /* u64 */
+  for i = 0 to N {
+    tmp = v1[#aligned u64 i]; /* u64 */
+    tmp = (tmp *64u v2[#aligned u64 i]); /* u64 */
+    res = (res +64u tmp); /* u64 */
+  }
+  return (msf, res);
+}
+
+fn product_matrix_vector (reg u64 msf, reg const ptr u64[(N * N)] m,
+                         reg const ptr u64[N] v, reg mut ptr u64[N] res) -> 
+(reg u64, reg mut ptr u64[N]) {
+  inline int i;
+  reg u64 tmp;
+  
+  for i = 0 to N {
+    (msf, tmp) = dot_product(msf, m[u64 (i * N) : N], v);
+    res[#aligned u64 i] = tmp; /* u64 */
+  }
+  return (msf, res);
+}
+
+fn transpose (reg u64 msf, reg const ptr u64[(N * N)] m,
+             reg mut ptr u64[(N * N)] res) -> (reg u64,
+                                              reg mut ptr u64[(N * N)]) {
+  inline int i;
+  inline int j;
+  reg u64 tmp;
+  
+  for i = 0 to N {
+    for j = 0 to N {
+      tmp = m[#aligned u64 (j + (i * N))]; /* u64 */
+      res[#aligned u64 (i + (j * N))] = tmp; /* u64 */
+    }
+  }
+  return (msf, res);
+}
+
+fn product_matrix_matrix (reg u64 msf, reg const ptr u64[(N * N)] m1,
+                         reg const ptr u64[(N * N)] m2,
+                         reg mut ptr u64[(N * N)] res) -> (reg u64,
+                                                          reg mut ptr u64[
+                                                          (N * N)]) {
+  reg mut ptr u64[(N * N)] pres;
+  stack u64[(N * N)] m2t;
+  inline int i;
+  stack u64[(N * N)] rest;
+  
+  pres = res; /* u64[(N * N)] */
+  (msf, m2t) = transpose(msf, m2, m2t);
+  for i = 0 to N {
+    (msf, rest[u64 (i * N) : N]) =
+      product_matrix_vector(msf, m1, m2t[u64 (i * N) : N],
+                            rest[u64 (i * N) : N]);
+  }
+  res = pres; /* u64[(N * N)] */
+  (msf, res) = transpose(msf, rest, res);
+  return (msf, res);
+}
+
+export
+fn productMM (reg u64 x, reg u64 y, reg u64 z) -> () {
+  reg u64 msf;
+  inline int i;
+  reg u64 tmp;
+  stack u64[(N * N)] mx;
+  stack u64[(N * N)] my;
+  stack u64[(N * N)] mz;
+  
+  msf = #init_msf(); /*  */
+  for i = 0 to (N * N) {
+    tmp = (u64)[#unaligned x + ((64u) (8 * i))]; /* u64 */
+    mx[#aligned u64 i] = tmp; /* u64 */
+    tmp = (u64)[#unaligned y + ((64u) (8 * i))]; /* u64 */
+    my[#aligned u64 i] = tmp; /* u64 */
+  }
+  (msf, mz) = product_matrix_matrix(msf, mx, my, mz);
+  for i = 0 to (N * N) {
+    tmp = mz[#aligned u64 i]; /* u64 */
+    (u64)[#unaligned z + ((64u) (8 * i))] = tmp; /* u64 */
+  }
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After param expansion */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  inline int i.279;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  for i.279 = 0 to 1 {
+    tmp.280 = v1.276[#aligned u64 i.279]; /* u64 */
+    tmp.280 = (tmp.280 *64u v2.277[#aligned u64 i.279]); /* u64 */
+    res.278 = (res.278 +64u tmp.280); /* u64 */
+  }
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  inline int i.273;
+  reg u64 tmp.274;
+  
+  for i.273 = 0 to 1 {
+    (msf.269, tmp.274) =
+      dot_product(msf.269, m.270[u64 (i.273 * 1) : 1], v.271);
+    res.272[#aligned u64 i.273] = tmp.274; /* u64 */
+  }
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  inline int i.266;
+  inline int j.267;
+  reg u64 tmp.268;
+  
+  for i.266 = 0 to 1 {
+    for j.267 = 0 to 1 {
+      tmp.268 = m.264[#aligned u64 (j.267 + (i.266 * 1))]; /* u64 */
+      res.265[#aligned u64 (i.266 + (j.267 * 1))] = tmp.268; /* u64 */
+    }
+  }
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  inline int i.261;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u64[1] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  for i.261 = 0 to 1 {
+    (msf.255, rest.262[u64 (i.261 * 1) : 1]) =
+      product_matrix_vector(msf.255, m1.256, m2t.260[u64 (i.261 * 1) : 1],
+                            rest.262[u64 (i.261 * 1) : 1]);
+  }
+  res.258 = pres.259; /* u64[1] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  inline int i.250;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = (u64)[#unaligned x.246 + ((64u) (8 * i.250))]; /* u64 */
+    mx.252[#aligned u64 i.250] = tmp.251; /* u64 */
+    tmp.251 = (u64)[#unaligned y.247 + ((64u) (8 * i.250))]; /* u64 */
+    my.253[#aligned u64 i.250] = tmp.251; /* u64 */
+  }
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = mz.254[#aligned u64 i.250]; /* u64 */
+    (u64)[#unaligned z.248 + ((64u) (8 * i.250))] = tmp.251; /* u64 */
+  }
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After array copy */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  inline int i.279;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  for i.279 = 0 to 1 {
+    tmp.280 = v1.276[#aligned u64 i.279]; /* u64 */
+    tmp.280 = (tmp.280 *64u v2.277[#aligned u64 i.279]); /* u64 */
+    res.278 = (res.278 +64u tmp.280); /* u64 */
+  }
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  inline int i.273;
+  reg u64 tmp.274;
+  
+  for i.273 = 0 to 1 {
+    (msf.269, tmp.274) =
+      dot_product(msf.269, m.270[u64 (i.273 * 1) : 1], v.271);
+    res.272[#aligned u64 i.273] = tmp.274; /* u64 */
+  }
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  inline int i.266;
+  inline int j.267;
+  reg u64 tmp.268;
+  
+  for i.266 = 0 to 1 {
+    for j.267 = 0 to 1 {
+      tmp.268 = m.264[#aligned u64 (j.267 + (i.266 * 1))]; /* u64 */
+      res.265[#aligned u64 (i.266 + (j.267 * 1))] = tmp.268; /* u64 */
+    }
+  }
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  inline int i.261;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u8[8] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  for i.261 = 0 to 1 {
+    (msf.255, rest.262[u64 (i.261 * 1) : 1]) =
+      product_matrix_vector(msf.255, m1.256, m2t.260[u64 (i.261 * 1) : 1],
+                            rest.262[u64 (i.261 * 1) : 1]);
+  }
+  res.258 = pres.259; /* u8[8] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  inline int i.250;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = (u64)[#unaligned x.246 + ((64u) (8 * i.250))]; /* u64 */
+    mx.252[#aligned u64 i.250] = tmp.251; /* u64 */
+    tmp.251 = (u64)[#unaligned y.247 + ((64u) (8 * i.250))]; /* u64 */
+    my.253[#aligned u64 i.250] = tmp.251; /* u64 */
+  }
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = mz.254[#aligned u64 i.250]; /* u64 */
+    (u64)[#unaligned z.248 + ((64u) (8 * i.250))] = tmp.251; /* u64 */
+  }
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After add array initialisation */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  inline int i.279;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  for i.279 = 0 to 1 {
+    tmp.280 = v1.276[#aligned u64 i.279]; /* u64 */
+    tmp.280 = (tmp.280 *64u v2.277[#aligned u64 i.279]); /* u64 */
+    res.278 = (res.278 +64u tmp.280); /* u64 */
+  }
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  inline int i.273;
+  reg u64 tmp.274;
+  
+  for i.273 = 0 to 1 {
+    (msf.269, tmp.274) =
+      dot_product(msf.269, m.270[u64 (i.273 * 1) : 1], v.271);
+    res.272[#aligned u64 i.273] = tmp.274; /* u64 */
+  }
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  inline int i.266;
+  inline int j.267;
+  reg u64 tmp.268;
+  
+  for i.266 = 0 to 1 {
+    for j.267 = 0 to 1 {
+      tmp.268 = m.264[#aligned u64 (j.267 + (i.266 * 1))]; /* u64 */
+      res.265[#aligned u64 (i.266 + (j.267 * 1))] = tmp.268; /* u64 */
+    }
+  }
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  inline int i.261;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u8[8] */
+  ArrayInit(m2t.260); /* length=8 u8[8] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  ArrayInit(rest.262); /* length=8 u8[8] */
+  for i.261 = 0 to 1 {
+    (msf.255, rest.262[u64 (i.261 * 1) : 1]) =
+      product_matrix_vector(msf.255, m1.256, m2t.260[u64 (i.261 * 1) : 1],
+                            rest.262[u64 (i.261 * 1) : 1]);
+  }
+  res.258 = pres.259; /* u8[8] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  inline int i.250;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  ArrayInit(my.253); /* length=8 u8[8] */
+  ArrayInit(mx.252); /* length=8 u8[8] */
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = (u64)[#unaligned x.246 + ((64u) (8 * i.250))]; /* u64 */
+    mx.252[#aligned u64 i.250] = tmp.251; /* u64 */
+    tmp.251 = (u64)[#unaligned y.247 + ((64u) (8 * i.250))]; /* u64 */
+    my.253[#aligned u64 i.250] = tmp.251; /* u64 */
+  }
+  ArrayInit(mz.254); /* length=8 u8[8] */
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = mz.254[#aligned u64 i.250]; /* u64 */
+    (u64)[#unaligned z.248 + ((64u) (8 * i.250))] = tmp.251; /* u64 */
+  }
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After lower spill/unspill instructions */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  inline int i.279;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  for i.279 = 0 to 1 {
+    tmp.280 = v1.276[#aligned u64 i.279]; /* u64 */
+    tmp.280 = (tmp.280 *64u v2.277[#aligned u64 i.279]); /* u64 */
+    res.278 = (res.278 +64u tmp.280); /* u64 */
+  }
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  inline int i.273;
+  reg u64 tmp.274;
+  
+  for i.273 = 0 to 1 {
+    (msf.269, tmp.274) =
+      dot_product(msf.269, m.270[u64 (i.273 * 1) : 1], v.271);
+    res.272[#aligned u64 i.273] = tmp.274; /* u64 */
+  }
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  inline int i.266;
+  inline int j.267;
+  reg u64 tmp.268;
+  
+  for i.266 = 0 to 1 {
+    for j.267 = 0 to 1 {
+      tmp.268 = m.264[#aligned u64 (j.267 + (i.266 * 1))]; /* u64 */
+      res.265[#aligned u64 (i.266 + (j.267 * 1))] = tmp.268; /* u64 */
+    }
+  }
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  inline int i.261;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u8[8] */
+  ArrayInit(m2t.260); /* length=8 u8[8] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  ArrayInit(rest.262); /* length=8 u8[8] */
+  for i.261 = 0 to 1 {
+    (msf.255, rest.262[u64 (i.261 * 1) : 1]) =
+      product_matrix_vector(msf.255, m1.256, m2t.260[u64 (i.261 * 1) : 1],
+                            rest.262[u64 (i.261 * 1) : 1]);
+  }
+  res.258 = pres.259; /* u8[8] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  inline int i.250;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  ArrayInit(my.253); /* length=8 u8[8] */
+  ArrayInit(mx.252); /* length=8 u8[8] */
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = (u64)[#unaligned x.246 + ((64u) (8 * i.250))]; /* u64 */
+    mx.252[#aligned u64 i.250] = tmp.251; /* u64 */
+    tmp.251 = (u64)[#unaligned y.247 + ((64u) (8 * i.250))]; /* u64 */
+    my.253[#aligned u64 i.250] = tmp.251; /* u64 */
+  }
+  ArrayInit(mz.254); /* length=8 u8[8] */
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = mz.254[#aligned u64 i.250]; /* u64 */
+    (u64)[#unaligned z.248 + ((64u) (8 * i.250))] = tmp.251; /* u64 */
+  }
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After inlining */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  inline int i.279;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  for i.279 = 0 to 1 {
+    tmp.280 = v1.276[#aligned u64 i.279]; /* u64 */
+    tmp.280 = (tmp.280 *64u v2.277[#aligned u64 i.279]); /* u64 */
+    res.278 = (res.278 +64u tmp.280); /* u64 */
+  }
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  inline int i.273;
+  reg u64 tmp.274;
+  
+  for i.273 = 0 to 1 {
+    (msf.269, tmp.274) =
+      dot_product(msf.269, m.270[u64 (i.273 * 1) : 1], v.271);
+    res.272[#aligned u64 i.273] = tmp.274; /* u64 */
+  }
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  inline int i.266;
+  inline int j.267;
+  reg u64 tmp.268;
+  
+  for i.266 = 0 to 1 {
+    for j.267 = 0 to 1 {
+      tmp.268 = m.264[#aligned u64 (j.267 + (i.266 * 1))]; /* u64 */
+      res.265[#aligned u64 (i.266 + (j.267 * 1))] = tmp.268; /* u64 */
+    }
+  }
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  inline int i.261;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u8[8] */
+  ArrayInit(m2t.260); /* length=8 u8[8] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  ArrayInit(rest.262); /* length=8 u8[8] */
+  for i.261 = 0 to 1 {
+    (msf.255, rest.262[u64 (i.261 * 1) : 1]) =
+      product_matrix_vector(msf.255, m1.256, m2t.260[u64 (i.261 * 1) : 1],
+                            rest.262[u64 (i.261 * 1) : 1]);
+  }
+  res.258 = pres.259; /* u8[8] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  inline int i.250;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  ArrayInit(my.253); /* length=8 u8[8] */
+  ArrayInit(mx.252); /* length=8 u8[8] */
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = (u64)[#unaligned x.246 + ((64u) (8 * i.250))]; /* u64 */
+    mx.252[#aligned u64 i.250] = tmp.251; /* u64 */
+    tmp.251 = (u64)[#unaligned y.247 + ((64u) (8 * i.250))]; /* u64 */
+    my.253[#aligned u64 i.250] = tmp.251; /* u64 */
+  }
+  ArrayInit(mz.254); /* length=8 u8[8] */
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = mz.254[#aligned u64 i.250]; /* u64 */
+    (u64)[#unaligned z.248 + ((64u) (8 * i.250))] = tmp.251; /* u64 */
+  }
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After remove unused function */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  inline int i.279;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  for i.279 = 0 to 1 {
+    tmp.280 = v1.276[#aligned u64 i.279]; /* u64 */
+    tmp.280 = (tmp.280 *64u v2.277[#aligned u64 i.279]); /* u64 */
+    res.278 = (res.278 +64u tmp.280); /* u64 */
+  }
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  inline int i.273;
+  reg u64 tmp.274;
+  
+  for i.273 = 0 to 1 {
+    (msf.269, tmp.274) =
+      dot_product(msf.269, m.270[u64 (i.273 * 1) : 1], v.271);
+    res.272[#aligned u64 i.273] = tmp.274; /* u64 */
+  }
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  inline int i.266;
+  inline int j.267;
+  reg u64 tmp.268;
+  
+  for i.266 = 0 to 1 {
+    for j.267 = 0 to 1 {
+      tmp.268 = m.264[#aligned u64 (j.267 + (i.266 * 1))]; /* u64 */
+      res.265[#aligned u64 (i.266 + (j.267 * 1))] = tmp.268; /* u64 */
+    }
+  }
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  inline int i.261;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u8[8] */
+  ArrayInit(m2t.260); /* length=8 u8[8] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  ArrayInit(rest.262); /* length=8 u8[8] */
+  for i.261 = 0 to 1 {
+    (msf.255, rest.262[u64 (i.261 * 1) : 1]) =
+      product_matrix_vector(msf.255, m1.256, m2t.260[u64 (i.261 * 1) : 1],
+                            rest.262[u64 (i.261 * 1) : 1]);
+  }
+  res.258 = pres.259; /* u8[8] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  inline int i.250;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  ArrayInit(my.253); /* length=8 u8[8] */
+  ArrayInit(mx.252); /* length=8 u8[8] */
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = (u64)[#unaligned x.246 + ((64u) (8 * i.250))]; /* u64 */
+    mx.252[#aligned u64 i.250] = tmp.251; /* u64 */
+    tmp.251 = (u64)[#unaligned y.247 + ((64u) (8 * i.250))]; /* u64 */
+    my.253[#aligned u64 i.250] = tmp.251; /* u64 */
+  }
+  ArrayInit(mz.254); /* length=8 u8[8] */
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  for i.250 = 0 to (1 * 1) {
+    tmp.251 = mz.254[#aligned u64 i.250]; /* u64 */
+    (u64)[#unaligned z.248 + ((64u) (8 * i.250))] = tmp.251; /* u64 */
+  }
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After unrolling */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  tmp.280 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.280 = (tmp.280 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.278 = (res.278 +64u tmp.280); /* u64 */
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 tmp.274;
+  
+  (msf.269, tmp.274) = dot_product(msf.269, m.270[u64 0 : 1], v.271);
+  res.272[#aligned u64 0] = tmp.274; /* u64 */
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.268;
+  
+  tmp.268 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.268; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u8[8] */
+  ArrayInit(m2t.260); /* length=8 u8[8] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  ArrayInit(rest.262); /* length=8 u8[8] */
+  (msf.255, rest.262[u64 0 : 1]) =
+    product_matrix_vector(msf.255, m1.256, m2t.260[u64 0 : 1],
+                          rest.262[u64 0 : 1]);
+  res.258 = pres.259; /* u8[8] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  ArrayInit(my.253); /* length=8 u8[8] */
+  ArrayInit(mx.252); /* length=8 u8[8] */
+  tmp.251 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.252[#aligned u64 0] = tmp.251; /* u64 */
+  tmp.251 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.253[#aligned u64 0] = tmp.251; /* u64 */
+  ArrayInit(mz.254); /* length=8 u8[8] */
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  tmp.251 = mz.254[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.251; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After remove unused function */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.278;
+  reg u64 tmp.280;
+  
+  res.278 = ((64u) 0); /* u64 */
+  tmp.280 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.280 = (tmp.280 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.278 = (res.278 +64u tmp.280); /* u64 */
+  return (msf.275, res.278);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 tmp.274;
+  
+  (msf.269, tmp.274) = dot_product(msf.269, m.270[u64 0 : 1], v.271);
+  res.272[#aligned u64 0] = tmp.274; /* u64 */
+  return (msf.269, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.268;
+  
+  tmp.268 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.268; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.259;
+  stack u64[1] m2t.260;
+  stack u64[1] rest.262;
+  
+  pres.259 = res.258; /* u8[8] */
+  ArrayInit(m2t.260); /* length=8 u8[8] */
+  (msf.255, m2t.260) = transpose(msf.255, m2.257, m2t.260);
+  ArrayInit(rest.262); /* length=8 u8[8] */
+  (msf.255, rest.262[u64 0 : 1]) =
+    product_matrix_vector(msf.255, m1.256, m2t.260[u64 0 : 1],
+                          rest.262[u64 0 : 1]);
+  res.258 = pres.259; /* u8[8] */
+  (msf.255, res.258) = transpose(msf.255, rest.262, res.258);
+  return (msf.255, res.258);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.249;
+  reg u64 tmp.251;
+  stack u64[1] mx.252;
+  stack u64[1] my.253;
+  stack u64[1] mz.254;
+  
+  msf.249 = #init_msf(); /*  */
+  ArrayInit(my.253); /* length=8 u8[8] */
+  ArrayInit(mx.252); /* length=8 u8[8] */
+  tmp.251 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.252[#aligned u64 0] = tmp.251; /* u64 */
+  tmp.251 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.253[#aligned u64 0] = tmp.251; /* u64 */
+  ArrayInit(mz.254); /* length=8 u8[8] */
+  (msf.249, mz.254) = product_matrix_matrix(msf.249, mx.252, my.253, mz.254);
+  tmp.251 = mz.254[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.251; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After liverange splitting */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.288;
+  reg u64 tmp.289;
+  reg u64 tmp.290;
+  reg u64 res.291;
+  
+  res.288 = ((64u) 0); /* u64 */
+  tmp.289 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.290 = (tmp.289 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.291 = (res.288 +64u tmp.290); /* u64 */
+  return (msf.275, res.291);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 msf.292;
+  reg u64 tmp.293;
+  
+  (msf.292, tmp.293) = dot_product(msf.269, m.270[u64 0 : 1], v.271);
+  res.272[#aligned u64 0] = tmp.293; /* u64 */
+  return (msf.292, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.294;
+  
+  tmp.294 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.294; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.295;
+  stack u64[1] m2t.296;
+  reg u64 msf.297;
+  stack u64[1] m2t.298;
+  stack u64[1] rest.299;
+  reg u64 msf.300;
+  reg mut ptr u64[1] res.301;
+  reg u64 msf.302;
+  reg mut ptr u64[1] res.303;
+  
+  pres.295 = res.258; /* u8[8] */
+  ArrayInit(m2t.296); /* length=8 u8[8] */
+  (msf.297, m2t.298) = transpose(msf.255, m2.257, m2t.296);
+  ArrayInit(rest.299); /* length=8 u8[8] */
+  (msf.300, rest.299[u64 0 : 1]) =
+    product_matrix_vector(msf.297, m1.256, m2t.298[u64 0 : 1],
+                          rest.299[u64 0 : 1]);
+  res.301 = pres.295; /* u8[8] */
+  (msf.302, res.303) = transpose(msf.300, rest.299, res.301);
+  return (msf.302, res.303);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.304;
+  stack u64[1] my.305;
+  stack u64[1] mx.306;
+  reg u64 tmp.307;
+  reg u64 tmp.308;
+  stack u64[1] mz.309;
+  reg u64 msf.310;
+  stack u64[1] mz.311;
+  reg u64 tmp.312;
+  
+  msf.304 = #init_msf(); /*  */
+  ArrayInit(my.305); /* length=8 u8[8] */
+  ArrayInit(mx.306); /* length=8 u8[8] */
+  tmp.307 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.306[#aligned u64 0] = tmp.307; /* u64 */
+  tmp.308 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.305[#aligned u64 0] = tmp.308; /* u64 */
+  ArrayInit(mz.309); /* length=8 u8[8] */
+  (msf.310, mz.311) = product_matrix_matrix(msf.304, mx.306, my.305, mz.309);
+  tmp.312 = mz.311[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.312; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After variable renaming to remove copies */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.288;
+  reg u64 tmp.289;
+  reg u64 tmp.290;
+  reg u64 res.291;
+  
+  res.288 = ((64u) 0); /* u64 */
+  tmp.289 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.290 = (tmp.289 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.291 = (res.288 +64u tmp.290); /* u64 */
+  return (msf.275, res.291);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 msf.292;
+  reg u64 tmp.293;
+  
+  (msf.292, tmp.293) = dot_product(msf.269, m.270[u64 0 : 1], v.271);
+  res.272[#aligned u64 0] = tmp.293; /* u64 */
+  return (msf.292, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.294;
+  
+  tmp.294 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.294; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.295;
+  stack u64[1] m2t.296;
+  reg u64 msf.297;
+  stack u64[1] m2t.298;
+  stack u64[1] rest.299;
+  reg u64 msf.300;
+  reg mut ptr u64[1] res.301;
+  reg u64 msf.302;
+  reg mut ptr u64[1] res.303;
+  
+  pres.295 = res.258; /* u8[8] */
+  ArrayInit(m2t.296); /* length=8 u8[8] */
+  (msf.297, m2t.298) = transpose(msf.255, m2.257, m2t.296);
+  ArrayInit(rest.299); /* length=8 u8[8] */
+  (msf.300, rest.299[u64 0 : 1]) =
+    product_matrix_vector(msf.297, m1.256, m2t.298[u64 0 : 1],
+                          rest.299[u64 0 : 1]);
+  res.301 = pres.295; /* u8[8] */
+  (msf.302, res.303) = transpose(msf.300, rest.299, res.301);
+  return (msf.302, res.303);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.304;
+  stack u64[1] my.305;
+  stack u64[1] mx.306;
+  reg u64 tmp.307;
+  reg u64 tmp.308;
+  stack u64[1] mz.309;
+  reg u64 msf.310;
+  stack u64[1] mz.311;
+  reg u64 tmp.312;
+  
+  msf.304 = #init_msf(); /*  */
+  ArrayInit(my.305); /* length=8 u8[8] */
+  ArrayInit(mx.306); /* length=8 u8[8] */
+  tmp.307 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.306[#aligned u64 0] = tmp.307; /* u64 */
+  tmp.308 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.305[#aligned u64 0] = tmp.308; /* u64 */
+  ArrayInit(mz.309); /* length=8 u8[8] */
+  (msf.310, mz.311) = product_matrix_matrix(msf.304, mx.306, my.305, mz.309);
+  tmp.312 = mz.311[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.312; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After remove phi nodes introduced by splitting */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.288;
+  reg u64 tmp.289;
+  reg u64 tmp.290;
+  reg u64 res.291;
+  
+  res.288 = ((64u) 0); /* u64 */
+  tmp.289 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.290 = (tmp.289 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.291 = (res.288 +64u tmp.290); /* u64 */
+  return (msf.275, res.291);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 msf.292;
+  reg u64 tmp.293;
+  
+  (msf.292, tmp.293) = dot_product(msf.269, m.270[u64 0 : 1], v.271);
+  res.272[#aligned u64 0] = tmp.293; /* u64 */
+  return (msf.292, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.294;
+  
+  tmp.294 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.294; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.295;
+  stack u64[1] m2t.296;
+  reg u64 msf.297;
+  stack u64[1] m2t.298;
+  stack u64[1] rest.299;
+  reg u64 msf.300;
+  reg mut ptr u64[1] res.301;
+  reg u64 msf.302;
+  reg mut ptr u64[1] res.303;
+  
+  pres.295 = res.258; /* u8[8] */
+  ArrayInit(m2t.296); /* length=8 u8[8] */
+  (msf.297, m2t.298) = transpose(msf.255, m2.257, m2t.296);
+  ArrayInit(rest.299); /* length=8 u8[8] */
+  (msf.300, rest.299[u64 0 : 1]) =
+    product_matrix_vector(msf.297, m1.256, m2t.298[u64 0 : 1],
+                          rest.299[u64 0 : 1]);
+  res.301 = pres.295; /* u8[8] */
+  (msf.302, res.303) = transpose(msf.300, rest.299, res.301);
+  return (msf.302, res.303);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.304;
+  stack u64[1] my.305;
+  stack u64[1] mx.306;
+  reg u64 tmp.307;
+  reg u64 tmp.308;
+  stack u64[1] mz.309;
+  reg u64 msf.310;
+  stack u64[1] mz.311;
+  reg u64 tmp.312;
+  
+  msf.304 = #init_msf(); /*  */
+  ArrayInit(my.305); /* length=8 u8[8] */
+  ArrayInit(mx.306); /* length=8 u8[8] */
+  tmp.307 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.306[#aligned u64 0] = tmp.307; /* u64 */
+  tmp.308 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.305[#aligned u64 0] = tmp.308; /* u64 */
+  ArrayInit(mz.309); /* length=8 u8[8] */
+  (msf.310, mz.311) = product_matrix_matrix(msf.304, mx.306, my.305, mz.309);
+  tmp.312 = mz.311[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.312; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After dead code after variable renaming to remove copies */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.288;
+  reg u64 tmp.289;
+  reg u64 tmp.290;
+  reg u64 res.291;
+  
+  res.288 = ((64u) 0); /* u64 */
+  tmp.289 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.290 = (tmp.289 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.291 = (res.288 +64u tmp.290); /* u64 */
+  return (msf.275, res.291);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 msf.292;
+  reg u64 tmp.293;
+  
+  (msf.292, tmp.293) = dot_product(msf.269, m.270[u64 0 : 1], v.271);
+  res.272[#aligned u64 0] = tmp.293; /* u64 */
+  return (msf.292, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.294;
+  
+  tmp.294 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.294; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.295;
+  stack u64[1] m2t.296;
+  reg u64 msf.297;
+  stack u64[1] m2t.298;
+  stack u64[1] rest.299;
+  reg u64 msf.300;
+  reg mut ptr u64[1] res.301;
+  reg u64 msf.302;
+  reg mut ptr u64[1] res.303;
+  
+  pres.295 = res.258; /* u8[8] */
+  ArrayInit(m2t.296); /* length=8 u8[8] */
+  (msf.297, m2t.298) = transpose(msf.255, m2.257, m2t.296);
+  ArrayInit(rest.299); /* length=8 u8[8] */
+  (msf.300, rest.299[u64 0 : 1]) =
+    product_matrix_vector(msf.297, m1.256, m2t.298[u64 0 : 1],
+                          rest.299[u64 0 : 1]);
+  res.301 = pres.295; /* u8[8] */
+  (msf.302, res.303) = transpose(msf.300, rest.299, res.301);
+  return (msf.302, res.303);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.304;
+  stack u64[1] my.305;
+  stack u64[1] mx.306;
+  reg u64 tmp.307;
+  reg u64 tmp.308;
+  stack u64[1] mz.309;
+  reg u64 msf.310;
+  stack u64[1] mz.311;
+  reg u64 tmp.312;
+  
+  msf.304 = #init_msf(); /*  */
+  ArrayInit(my.305); /* length=8 u8[8] */
+  ArrayInit(mx.306); /* length=8 u8[8] */
+  tmp.307 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.306[#aligned u64 0] = tmp.307; /* u64 */
+  tmp.308 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.305[#aligned u64 0] = tmp.308; /* u64 */
+  ArrayInit(mz.309); /* length=8 u8[8] */
+  (msf.310, mz.311) = product_matrix_matrix(msf.304, mx.306, my.305, mz.309);
+  tmp.312 = mz.311[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.312; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After remove array initialisation */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.288;
+  reg u64 tmp.289;
+  reg u64 tmp.290;
+  reg u64 res.291;
+  
+  res.288 = ((64u) 0); /* u64 */
+  tmp.289 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.290 = (tmp.289 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.291 = (res.288 +64u tmp.290); /* u64 */
+  return (msf.275, res.291);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 msf.292;
+  reg u64 tmp.293;
+  
+  (msf.292, tmp.293) = dot_product(msf.269, m.270[u64 0 : 1], v.271);
+  res.272[#aligned u64 0] = tmp.293; /* u64 */
+  return (msf.292, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.294;
+  
+  tmp.294 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.294; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.295;
+  stack u64[1] m2t.296;
+  reg u64 msf.297;
+  stack u64[1] m2t.298;
+  stack u64[1] rest.299;
+  reg u64 msf.300;
+  reg mut ptr u64[1] res.301;
+  reg u64 msf.302;
+  reg mut ptr u64[1] res.303;
+  
+  pres.295 = res.258; /* u8[8] */
+  ArrayInit(m2t.296); /* length=8 u8[8] */
+  (msf.297, m2t.298) = transpose(msf.255, m2.257, m2t.296);
+  ArrayInit(rest.299); /* length=8 u8[8] */
+  (msf.300, rest.299[u64 0 : 1]) =
+    product_matrix_vector(msf.297, m1.256, m2t.298[u64 0 : 1],
+                          rest.299[u64 0 : 1]);
+  res.301 = pres.295; /* u8[8] */
+  (msf.302, res.303) = transpose(msf.300, rest.299, res.301);
+  return (msf.302, res.303);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.304;
+  stack u64[1] my.305;
+  stack u64[1] mx.306;
+  reg u64 tmp.307;
+  reg u64 tmp.308;
+  stack u64[1] mz.309;
+  reg u64 msf.310;
+  stack u64[1] mz.311;
+  reg u64 tmp.312;
+  
+  msf.304 = #init_msf(); /*  */
+  ArrayInit(my.305); /* length=8 u8[8] */
+  ArrayInit(mx.306); /* length=8 u8[8] */
+  tmp.307 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.306[#aligned u64 0] = tmp.307; /* u64 */
+  tmp.308 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.305[#aligned u64 0] = tmp.308; /* u64 */
+  ArrayInit(mz.309); /* length=8 u8[8] */
+  (msf.310, mz.311) = product_matrix_matrix(msf.304, mx.306, my.305, mz.309);
+  tmp.312 = mz.311[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.312; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After add assignments before and after call to ensure that arguments and results are ref ptr */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.288;
+  reg u64 tmp.289;
+  reg u64 tmp.290;
+  reg u64 res.291;
+  
+  res.288 = ((64u) 0); /* u64 */
+  tmp.289 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.290 = (tmp.289 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.291 = (res.288 +64u tmp.290); /* u64 */
+  return (msf.275, res.291);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 msf.292;
+  reg u64 tmp.293;
+  reg mut ptr u8[8] v1.322;
+  
+  v1.322 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.292, tmp.293) = dot_product(msf.269, v1.322, v.271);
+  res.272[#aligned u64 0] = tmp.293; /* u64 */
+  return (msf.292, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.294;
+  
+  tmp.294 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.294; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.295;
+  stack u64[1] m2t.296;
+  reg u64 msf.297;
+  stack u64[1] m2t.298;
+  stack u64[1] rest.299;
+  reg u64 msf.300;
+  reg mut ptr u64[1] res.301;
+  reg u64 msf.302;
+  reg mut ptr u64[1] res.303;
+  reg mut ptr u8[8] res.317;
+  reg mut ptr u8[8] v.318;
+  reg mut ptr u8[8] res.319;
+  reg mut ptr u8[8] res.320;
+  reg mut ptr u8[8] m.321;
+  
+  pres.295 = res.258; /* u8[8] */
+  ArrayInit(m2t.296); /* length=8 u8[8] */
+  res.317 = m2t.296; /* u8[8]:r */
+  (msf.297, res.317) = transpose(msf.255, m2.257, res.317);
+  m2t.298 = res.317; /* u8[8]:r */
+  ArrayInit(rest.299); /* length=8 u8[8] */
+  v.318 = m2t.298[u64 0 : 1]; /* u8[8]:r */
+  res.319 = rest.299[u64 0 : 1]; /* u8[8]:r */
+  (msf.300, res.320) =
+    product_matrix_vector(msf.297, m1.256, v.318, res.319);
+  rest.299[u64 0 : 1] = res.320; /* u8[8]:r */
+  res.301 = pres.295; /* u8[8] */
+  m.321 = rest.299; /* u8[8]:r */
+  (msf.302, res.303) = transpose(msf.300, m.321, res.301);
+  return (msf.302, res.303);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.304;
+  stack u64[1] my.305;
+  stack u64[1] mx.306;
+  reg u64 tmp.307;
+  reg u64 tmp.308;
+  stack u64[1] mz.309;
+  reg u64 msf.310;
+  stack u64[1] mz.311;
+  reg u64 tmp.312;
+  reg mut ptr u8[8] m1.313;
+  reg mut ptr u8[8] m2.314;
+  reg mut ptr u8[8] res.315;
+  reg mut ptr u8[8] res.316;
+  
+  msf.304 = #init_msf(); /*  */
+  ArrayInit(my.305); /* length=8 u8[8] */
+  ArrayInit(mx.306); /* length=8 u8[8] */
+  tmp.307 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.306[#aligned u64 0] = tmp.307; /* u64 */
+  tmp.308 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.305[#aligned u64 0] = tmp.308; /* u64 */
+  ArrayInit(mz.309); /* length=8 u8[8] */
+  m1.313 = mx.306; /* u8[8]:r */
+  m2.314 = my.305; /* u8[8]:r */
+  res.315 = mz.309; /* u8[8]:r */
+  (msf.310, res.316) =
+    product_matrix_matrix(msf.304, m1.313, m2.314, res.315);
+  mz.311 = res.316; /* u8[8]:r */
+  tmp.312 = mz.311[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.312; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After expansion of register arrays */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.288;
+  reg u64 tmp.289;
+  reg u64 tmp.290;
+  reg u64 res.291;
+  
+  res.288 = ((64u) 0); /* u64 */
+  tmp.289 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.290 = (tmp.289 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.291 = (res.288 +64u tmp.290); /* u64 */
+  return (msf.275, res.291);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg u64 msf.292;
+  reg u64 tmp.293;
+  reg mut ptr u8[8] v1.322;
+  
+  v1.322 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.292, tmp.293) = dot_product(msf.269, v1.322, v.271);
+  res.272[#aligned u64 0] = tmp.293; /* u64 */
+  return (msf.292, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.294;
+  
+  tmp.294 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.294; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.295;
+  stack u64[1] m2t.296;
+  reg u64 msf.297;
+  stack u64[1] m2t.298;
+  stack u64[1] rest.299;
+  reg u64 msf.300;
+  reg mut ptr u64[1] res.301;
+  reg u64 msf.302;
+  reg mut ptr u64[1] res.303;
+  reg mut ptr u8[8] res.317;
+  reg mut ptr u8[8] v.318;
+  reg mut ptr u8[8] res.319;
+  reg mut ptr u8[8] res.320;
+  reg mut ptr u8[8] m.321;
+  
+  pres.295 = res.258; /* u8[8] */
+  ArrayInit(m2t.296); /* length=8 u8[8] */
+  res.317 = m2t.296; /* u8[8]:r */
+  (msf.297, res.317) = transpose(msf.255, m2.257, res.317);
+  m2t.298 = res.317; /* u8[8]:r */
+  ArrayInit(rest.299); /* length=8 u8[8] */
+  v.318 = m2t.298[u64 0 : 1]; /* u8[8]:r */
+  res.319 = rest.299[u64 0 : 1]; /* u8[8]:r */
+  (msf.300, res.320) =
+    product_matrix_vector(msf.297, m1.256, v.318, res.319);
+  rest.299[u64 0 : 1] = res.320; /* u8[8]:r */
+  res.301 = pres.295; /* u8[8] */
+  m.321 = rest.299; /* u8[8]:r */
+  (msf.302, res.303) = transpose(msf.300, m.321, res.301);
+  return (msf.302, res.303);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.304;
+  stack u64[1] my.305;
+  stack u64[1] mx.306;
+  reg u64 tmp.307;
+  reg u64 tmp.308;
+  stack u64[1] mz.309;
+  reg u64 msf.310;
+  stack u64[1] mz.311;
+  reg u64 tmp.312;
+  reg mut ptr u8[8] m1.313;
+  reg mut ptr u8[8] m2.314;
+  reg mut ptr u8[8] res.315;
+  reg mut ptr u8[8] res.316;
+  
+  msf.304 = #init_msf(); /*  */
+  ArrayInit(my.305); /* length=8 u8[8] */
+  ArrayInit(mx.306); /* length=8 u8[8] */
+  tmp.307 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.306[#aligned u64 0] = tmp.307; /* u64 */
+  tmp.308 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.305[#aligned u64 0] = tmp.308; /* u64 */
+  ArrayInit(mz.309); /* length=8 u8[8] */
+  m1.313 = mx.306; /* u8[8]:r */
+  m2.314 = my.305; /* u8[8]:r */
+  res.315 = mz.309; /* u8[8]:r */
+  (msf.310, res.316) =
+    product_matrix_matrix(msf.304, m1.313, m2.314, res.315);
+  mz.311 = res.316; /* u8[8]:r */
+  tmp.312 = mz.311[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.312; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After liverange splitting */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = ((64u) 0); /* u64 */
+  tmp.324 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.325 = (tmp.324 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.326 = (res.323 +64u tmp.325); /* u64 */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = tmp.329; /* u64 */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.330; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.348[#aligned u64 0] = tmp.349; /* u64 */
+  tmp.350 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.347[#aligned u64 0] = tmp.350; /* u64 */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = mz.357[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.358; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After variable renaming to remove copies */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = ((64u) 0); /* u64 */
+  tmp.324 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.325 = (tmp.324 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.326 = (res.323 +64u tmp.325); /* u64 */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = tmp.329; /* u64 */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.330; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.348[#aligned u64 0] = tmp.349; /* u64 */
+  tmp.350 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.347[#aligned u64 0] = tmp.350; /* u64 */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = mz.357[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.358; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After remove phi nodes introduced by splitting */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = ((64u) 0); /* u64 */
+  tmp.324 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.325 = (tmp.324 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.326 = (res.323 +64u tmp.325); /* u64 */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = tmp.329; /* u64 */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.330; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.348[#aligned u64 0] = tmp.349; /* u64 */
+  tmp.350 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.347[#aligned u64 0] = tmp.350; /* u64 */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = mz.357[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.358; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After dead code after variable renaming to remove copies */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = ((64u) 0); /* u64 */
+  tmp.324 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.325 = (tmp.324 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.326 = (res.323 +64u tmp.325); /* u64 */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = tmp.329; /* u64 */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.330; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.348[#aligned u64 0] = tmp.349; /* u64 */
+  tmp.350 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.347[#aligned u64 0] = tmp.350; /* u64 */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = mz.357[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.358; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After remove globals variables */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = ((64u) 0); /* u64 */
+  tmp.324 = v1.276[#aligned u64 0]; /* u64 */
+  tmp.325 = (tmp.324 *64u v2.277[#aligned u64 0]); /* u64 */
+  res.326 = (res.323 +64u tmp.325); /* u64 */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = tmp.329; /* u64 */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = m.264[#aligned u64 0]; /* u64 */
+  res.265[#aligned u64 0] = tmp.330; /* u64 */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = (u64)[#unaligned x.246 + ((64u) 0)]; /* u64 */
+  mx.348[#aligned u64 0] = tmp.349; /* u64 */
+  tmp.350 = (u64)[#unaligned y.247 + ((64u) 0)]; /* u64 */
+  my.347[#aligned u64 0] = tmp.350; /* u64 */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = mz.357[#aligned u64 0]; /* u64 */
+  (u64)[#unaligned z.248 + ((64u) 0)] = tmp.358; /* u64 */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After lowering of instructions */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = #MOV_64(((64u) 0)); /*  */
+  tmp.324 = #MOV_64(v1.276[#aligned u64 0]); /*  */
+  (_ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */,
+   tmp.325) = #IMULr_64(tmp.324, v2.277[#aligned u64 0]); /*  */
+  (_ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */,
+   res.326) = #ADD_64(res.323, tmp.325); /*  */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = #MOV_64(tmp.329); /*  */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = #MOV_64(m.264[#aligned u64 0]); /*  */
+  res.265[#aligned u64 0] = #MOV_64(tmp.330); /*  */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = #MOV_64((u64)[#unaligned x.246 + ((64u) 0)]); /*  */
+  mx.348[#aligned u64 0] = #MOV_64(tmp.349); /*  */
+  tmp.350 = #MOV_64((u64)[#unaligned y.247 + ((64u) 0)]); /*  */
+  my.347[#aligned u64 0] = #MOV_64(tmp.350); /*  */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = #MOV_64(mz.357[#aligned u64 0]); /*  */
+  (u64)[#unaligned z.248 + ((64u) 0)] = #MOV_64(tmp.358); /*  */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After propagate inline variables */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = #MOV_64(((64u) 0)); /*  */
+  tmp.324 = #MOV_64(v1.276[#aligned u64 0]); /*  */
+  (_ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */,
+   tmp.325) = #IMULr_64(tmp.324, v2.277[#aligned u64 0]); /*  */
+  (_ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */,
+   res.326) = #ADD_64(res.323, tmp.325); /*  */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = #MOV_64(tmp.329); /*  */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = #MOV_64(m.264[#aligned u64 0]); /*  */
+  res.265[#aligned u64 0] = #MOV_64(tmp.330); /*  */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = #MOV_64((u64)[#unaligned x.246 + ((64u) 0)]); /*  */
+  mx.348[#aligned u64 0] = #MOV_64(tmp.349); /*  */
+  tmp.350 = #MOV_64((u64)[#unaligned y.247 + ((64u) 0)]); /*  */
+  my.347[#aligned u64 0] = #MOV_64(tmp.350); /*  */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = #MOV_64(mz.357[#aligned u64 0]); /*  */
+  (u64)[#unaligned z.248 + ((64u) 0)] = #MOV_64(tmp.358); /*  */
+  return ();
+}
+
+
+/* -------------------------------------------------------------------- */
+/* After lowering of selective load hardening instructions */
+
+
+fn dot_product (reg u64 msf.275, reg const ptr u64[1] v1.276,
+               reg const ptr u64[1] v2.277) -> (reg u64, reg u64) {
+  reg u64 res.323;
+  reg u64 tmp.324;
+  reg u64 tmp.325;
+  reg u64 res.326;
+  
+  res.323 = #MOV_64(((64u) 0)); /*  */
+  tmp.324 = #MOV_64(v1.276[#aligned u64 0]); /*  */
+  (_ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */,
+   tmp.325) = #IMULr_64(tmp.324, v2.277[#aligned u64 0]); /*  */
+  (_ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */, _ /* bool */,
+   res.326) = #ADD_64(res.323, tmp.325); /*  */
+  return (msf.275, res.326);
+}
+
+fn product_matrix_vector (reg u64 msf.269, reg const ptr u64[1] m.270,
+                         reg const ptr u64[1] v.271,
+                         reg mut ptr u64[1] res.272) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u8[8] v1.327;
+  reg u64 msf.328;
+  reg u64 tmp.329;
+  
+  v1.327 = m.270[u64 0 : 1]; /* u8[8]:r */
+  (msf.328, tmp.329) = dot_product(msf.269, v1.327, v.271);
+  res.272[#aligned u64 0] = #MOV_64(tmp.329); /*  */
+  return (msf.328, res.272);
+}
+
+fn transpose (reg u64 msf.263, reg const ptr u64[1] m.264,
+             reg mut ptr u64[1] res.265) -> (reg u64, reg mut ptr u64[1]) {
+  reg u64 tmp.330;
+  
+  tmp.330 = #MOV_64(m.264[#aligned u64 0]); /*  */
+  res.265[#aligned u64 0] = #MOV_64(tmp.330); /*  */
+  return (msf.263, res.265);
+}
+
+fn product_matrix_matrix (reg u64 msf.255, reg const ptr u64[1] m1.256,
+                         reg const ptr u64[1] m2.257,
+                         reg mut ptr u64[1] res.258) -> (reg u64,
+                                                        reg mut ptr u64[1]) {
+  reg mut ptr u64[1] pres.331;
+  stack u64[1] m2t.332;
+  reg mut ptr u8[8] res.333;
+  reg u64 msf.334;
+  reg mut ptr u8[8] res.335;
+  stack u64[1] m2t.336;
+  stack u64[1] rest.337;
+  reg mut ptr u8[8] v.338;
+  reg mut ptr u8[8] res.339;
+  reg u64 msf.340;
+  reg mut ptr u8[8] res.341;
+  reg mut ptr u64[1] res.342;
+  reg mut ptr u8[8] m.343;
+  reg u64 msf.344;
+  reg mut ptr u64[1] res.345;
+  
+  pres.331 = res.258; /* u8[8] */
+  ArrayInit(m2t.332); /* length=8 u8[8] */
+  res.333 = m2t.332; /* u8[8]:r */
+  (msf.334, res.335) = transpose(msf.255, m2.257, res.333);
+  m2t.336 = res.335; /* u8[8]:r */
+  ArrayInit(rest.337); /* length=8 u8[8] */
+  v.338 = m2t.336[u64 0 : 1]; /* u8[8]:r */
+  res.339 = rest.337[u64 0 : 1]; /* u8[8]:r */
+  (msf.340, res.341) =
+    product_matrix_vector(msf.334, m1.256, v.338, res.339);
+  rest.337[u64 0 : 1] = res.341; /* u8[8]:r */
+  res.342 = pres.331; /* u8[8] */
+  m.343 = rest.337; /* u8[8]:r */
+  (msf.344, res.345) = transpose(msf.340, m.343, res.342);
+  return (msf.344, res.345);
+}
+
+export
+fn productMM (reg u64 x.246, reg u64 y.247, reg u64 z.248) -> () {
+  reg u64 msf.346;
+  stack u64[1] my.347;
+  stack u64[1] mx.348;
+  reg u64 tmp.349;
+  reg u64 tmp.350;
+  stack u64[1] mz.351;
+  reg mut ptr u8[8] m1.352;
+  reg mut ptr u8[8] m2.353;
+  reg mut ptr u8[8] res.354;
+  reg u64 msf.355;
+  reg mut ptr u8[8] res.356;
+  stack u64[1] mz.357;
+  reg u64 tmp.358;
+  
+  msf.346 = #Ox86_init_msf(); /*  */
+  ArrayInit(my.347); /* length=8 u8[8] */
+  ArrayInit(mx.348); /* length=8 u8[8] */
+  tmp.349 = #MOV_64((u64)[#unaligned x.246 + ((64u) 0)]); /*  */
+  mx.348[#aligned u64 0] = #MOV_64(tmp.349); /*  */
+  tmp.350 = #MOV_64((u64)[#unaligned y.247 + ((64u) 0)]); /*  */
+  my.347[#aligned u64 0] = #MOV_64(tmp.350); /*  */
+  ArrayInit(mz.351); /* length=8 u8[8] */
+  m1.352 = mx.348; /* u8[8]:r */
+  m2.353 = my.347; /* u8[8]:r */
+  res.354 = mz.351; /* u8[8]:r */
+  (msf.355, res.356) =
+    product_matrix_matrix(msf.346, m1.352, m2.353, res.354);
+  mz.357 = res.356; /* u8[8]:r */
+  tmp.358 = #MOV_64(mz.357[#aligned u64 0]); /*  */
+  (u64)[#unaligned z.248 + ((64u) 0)] = #MOV_64(tmp.358); /*  */
+  return ();
+}
+
+
+"examples/x86-64/matrix_product.jazz", line 40 (1) to line 58 (1):
+compilation error in function product_matrix_matrix:
+variable allocation: cannot put a reg ptr argument into the local stack

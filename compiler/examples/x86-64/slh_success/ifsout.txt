@@ -1,0 +1,43 @@
+	.att_syntax
+	.text
+	.p2align	5
+	.globl	_add1
+	.globl	add1
+_add1:
+add1:
+	movq	%rsp, %rsi
+	andq	$-8, %rsp
+	lfence
+	movq	$0, %rcx
+	cmpq	$0, %rdi
+	jnbe	Ladd1$5
+	movq	$-1, %rax
+	cmovnbe	%rax, %rcx
+	call	Ldouble_64$1
+Ladd1$8:
+	jmp 	Ladd1$6
+Ladd1$5:
+	movq	$-1, %rax
+	cmovbe	%rax, %rcx
+	call	Ldouble_64$1
+Ladd1$7:
+Ladd1$6:
+	cmpq	$0, %rdi
+	jb  	Ladd1$1
+	movq	$-1, %rax
+	cmovb	%rax, %rcx
+	call	Ldouble_64$1
+Ladd1$4:
+	incq	%rax
+	jmp 	Ladd1$2
+Ladd1$1:
+	movq	$-1, %rax
+	cmovnb	%rax, %rcx
+	call	Ldouble_64$1
+Ladd1$3:
+Ladd1$2:
+	movq	%rsi, %rsp
+	ret
+Ldouble_64$1:
+	imulq	$2, %rdi, %rax
+	ret

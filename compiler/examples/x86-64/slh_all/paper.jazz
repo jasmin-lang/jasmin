@@ -1,0 +1,26 @@
+param int N = 20;
+
+#[sct =
+  "{ ptr: transient, val: transient } * { ptr: transient, val: secret } * transient -> { ptr: public, val: secret }"
+]
+// ct = "public * secret * public -> secret"
+fn fig3a(
+  reg const ptr u64[N] p,
+  reg mut ptr u64[N] w,
+  reg u64 i)
+  ->  reg mut ptr u64[N] {
+  reg u64 x;
+  reg bool b;
+//   ms = #init_msf();
+  b = i < N;
+  if b {
+    // ms = #update_msf(b, ms);
+    x = p[i];
+    #protect x = x;
+    // x = #protect(x, ms);
+  } else {
+    // ms = #update_msf(! b, ms);
+  }
+  w[x] = 0;
+  return w;
+}

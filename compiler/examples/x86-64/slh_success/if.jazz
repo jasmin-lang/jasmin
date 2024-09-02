@@ -1,0 +1,22 @@
+fn double_32(reg u32 inp) -> reg u32
+{
+    reg u32 dupl;
+    dupl = 2 * inp;
+    return dupl;
+}
+
+export fn add1(reg u32 arg) -> reg u32
+{
+    reg u32 z;
+    // reg bool temp;
+    // temp = arg > 0;
+    if arg>0{
+        z = 2 * z;
+    }
+    else{
+        z = 2 * z;
+        // #protect z = z;
+    }
+    #protect z = z;
+    return z;
+}

@@ -1,0 +1,45 @@
+
+modmsf __sha256 : #public * #public * #public ->
+
+output corruption: #transient
+ constraints:
+
+
+modmsf jade_hash_sha256_amd64_ref : #transient * #transient * #transient ->
+#public
+output corruption: #transient
+ constraints:
+
+*/
+parmida@nblpj01:~/libjade/sslh/src$ jasmin-ct crypto_kem/kyber/ .jazz --infer --sct
+common/   kyber512/ kyber768/ 
+parmida@nblpj01:~/libjade/sslh/src$ jasmin-ct crypto_kem/kyber/kyber512/ .jazz --infer --sct
+amd64/    common/   hacspec/  META.yml  
+parmida@nblpj01:~/libjade/sslh/src$ jasmin-ct crypto_kem/kyber/kyber512/amd64/ .jazz --infer --sct
+avx2/ ref/  
+parmida@nblpj01:~/libjade/sslh/src$ jasmin-ct crypto_kem/kyber/kyber512/amd64/ref/kem.jazz --infer --sct
+jasmin-ct: JAZZ argument: no 'crypto_kem/kyber/kyber512/amd64/ref/kem.jazz'
+           file
+Usage: jasmin-ct [OPTION]… JAZZ
+Try 'jasmin-ct --help' for more information.
+parmida@nblpj01:~/libjade/sslh/src$ ls crypto_kem/kyber/kyber512/amd64/ref/
+include
+parmida@nblpj01:~/libjade/sslh/src$ jasmin-ct crypto_kem/kyber/kyber512/amd64/avx2/kem.jazz --infer --sct
+"crypto_kem/kyber/kyber512/amd64/avx2/indcpa.jinc", line 1 (5-9):
+typing error: unknown name Jade
+parmida@nblpj01:~/libjade/sslh/src$ head crypto_kem/kyber/kyber512/amd64/avx2/indcpa.jinc
+from Jade require "crypto_kem/kyber/kyber512/common/params.jinc"
+from Jade require "crypto_kem/kyber/common/amd64/avx2/poly.jinc"
+from Jade require "crypto_kem/kyber/common/amd64/avx2/polyvec.jinc"
+require "gen_matrix.jinc"
+
+inline
+fn __indcpa_keypair(reg u64 pkp, reg u64 skp) -> #msf reg u64
+{
+  stack u64 spkp sskp;
+  stack u8[KYBER_SYMBYTES] rb;
+parmida@nblpj01:~/libjade/sslh/src$ export JASMINPATH='Jade:/home/parmida/libjade/sslh/src'
+parmida@nblpj01:~/libjade/sslh/src$ jasmin-ct crypto_kem/kyber/kyber512/amd64/avx2/kem.jazz --infer --sct
+"crypto_kem/kyber/kyber512/amd64/avx2/indcpa.jinc", line 1 (5-9):
+typing error: unknown name Jade
+parmida@nblpj01:~/libjade/sslh/src$ 

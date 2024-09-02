@@ -1,0 +1,28 @@
+export fn double_64(reg u64 inp) -> reg u64
+{
+    reg u64 dupl;
+    //TODO why this can't be protected
+    dupl = 2 * inp;
+    return dupl;
+}
+export fn add1() -> reg u64
+{
+    reg u64 z;
+    reg bool temp;
+    z = 5;
+    temp = z > 0;
+    while(z>0){
+        // #protect z += 1;
+        // z += 1;
+        // z = double_64(z);
+        z = double_64(z);
+        // #protect z = #ADD_64(z, z);
+        // z = #ADD_64(z, z);
+        z -= 1;
+        // #protect arg = arg;
+        temp = z > 0;
+        // #protect temp = temp;
+    }
+    // #protect z = z;
+    return z;
+}

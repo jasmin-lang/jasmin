@@ -1,0 +1,16 @@
+export fn add1(reg u64 arg) -> reg u64
+{
+    reg u64 z;
+    reg bool temp;
+    inline bool b;
+    z = 0;
+    temp = arg > 0;
+    b = temp;
+    while(b){
+        z += 1;
+        arg -= 1;
+        temp = arg > 0;
+        b = temp;
+    }
+    return z;
+}

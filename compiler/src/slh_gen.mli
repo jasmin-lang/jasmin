@@ -1,3 +1,3 @@
 open Prog
 
-val add_slh : ('info, 'asm) prog -> ('info, 'asm) prog
+val add_slh : (unit, 'asm) pprog -> (unit, 'asm) pprog

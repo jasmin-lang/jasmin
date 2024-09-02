@@ -7,5 +7,8 @@ lib*.a
 report.log
 /jasmin.mlpack
 /jasminc
+~/jasmin2/compiler/Makefile
 /jasmin2tex
 /jasmin-ct
+/Makefile
+/config/tests.config

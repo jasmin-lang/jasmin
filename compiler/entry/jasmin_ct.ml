@@ -3,7 +3,7 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let parse_and_check arch call_conv =
+let parse_and_check arch call_conv should_not_slh_gen =
   let module A = (val get_arch_module arch call_conv) in
   let check ~doit infer ct_list speculative pass file =
     let _env, pprog, _ast =
@@ -16,6 +16,11 @@ let parse_and_check arch call_conv =
       | Syntax.ParseError (loc, msg) ->
           hierror ~loc:(Lone loc) ~kind:"parse error" "%s"
             (Option.default "" msg)
+    in
+    let pprog =
+      if not should_not_slh_gen && arch = Amd64 then 
+      Slh_gen.add_slh pprog
+      else pprog
     in
     let prog =
       try Compile.preprocess A.reg_size A.asmOp pprog
@@ -83,6 +88,10 @@ let speculative =
   let doc = "Check for S-CT" in
   Arg.(value & flag & info [ "speculative"; "sct" ] ~doc)
 
+  let should_not_slh_gen =
+    let doc = "Disable slh gen" in
+    Arg.(value & flag & info [ "noslh-gen" ] ~doc)
+
 let slice =
   let doc =
     "Only check the given function (and its dependencies). This argument may \
@@ -128,6 +137,6 @@ let () =
   in
   Cmd.v info
     Term.(
-      const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative
+      const parse_and_check $ arch $ call_conv $ should_not_slh_gen $ infer $ slice $ speculative
       $ compile $ file $ doit)
   |> Cmd.eval |> exit

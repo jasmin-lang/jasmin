@@ -1,0 +1,10 @@
+without slh_gen bad:
+tests/fail/register_allocation/x86-64/too_many_ret.jazz
+
+without slh_gen ok but with slh_gen bad:
+tests/fail/stack_allocation/x86-64/uninit_stack.jazz
+should fail, exeption excpected:
+Fatal error: exception File "src/intervalGraphColoring.ml", line 43, characters 6-12: Assertion failed
+
+
+

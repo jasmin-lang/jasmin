@@ -1,7 +1,7 @@
 open Jasmin
 open Cmdliner
 
-type arch
+type arch = Amd64 | CortexM
 
 val get_arch_module : arch -> Glob_options.call_conv -> (module Arch_full.Arch)
 val arch : arch Term.t

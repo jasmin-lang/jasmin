@@ -1,0 +1,30 @@
+fn double_64(reg u64 inp) -> reg u64
+{
+    reg u64 dupl;
+    dupl = 2 * inp;
+    return dupl;
+}
+
+export fn add1(reg u64 arg) -> reg u64
+{
+    reg u64 z;
+    reg bool temp;
+    temp = arg > 0;
+    if temp{
+        z = double_64(arg);
+    }
+    else{
+        z = double_64(arg);
+        z = z + 1;
+    }
+    reg bool temp2;
+    temp2 = arg < 0;
+    if temp2{
+        z = double_64(arg);
+    }
+    else{
+        z = double_64(arg);
+        z = z + 1;
+    }
+    return z;
+}
