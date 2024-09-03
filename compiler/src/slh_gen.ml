@@ -10,14 +10,6 @@ type 'len slhvar = {
 let count = ref (Utils.Uniq.gen ())
 let msf_count = ref 0
 
-let mk_update (cond : 'len gexpr) (var : 'len slhvar) (loc : L.i_loc) =
-  {
-    i_desc = Copn ([ var.lv ], AT_none, Sopn.Oslh SLHupdate, [ cond; var.gx ]);
-    i_loc = loc;
-    i_info = ();
-    i_annot = [];
-  }
-
 let mk_init (var : 'len slhvar) (loc : L.i_loc) =
   {
     i_desc = Copn ([ var.lv ], AT_keep, Sopn.Oslh SLHinit, []);
@@ -26,7 +18,23 @@ let mk_init (var : 'len slhvar) (loc : L.i_loc) =
     i_annot = [];
   }
 
-let mk_slhvar name reg_kind =
+let mk_update (cond : 'len gexpr) (var : 'len slhvar) (loc : L.i_loc) =
+  {
+    i_desc = Copn ([ var.lv ], AT_none, Sopn.Oslh SLHupdate, [ cond; var.gx ]);
+    i_loc = loc;
+    i_info = ();
+    i_annot = [];
+  }
+
+let mk_mov (lhs : 'len slhvar) (rhs : 'len slhvar) (loc : L.i_loc) =
+  {
+    i_desc = Copn ([ lhs.lv ], AT_none, Sopn.Oslh SLHmove, [ rhs.gx ]);
+    i_loc = loc;
+    i_info = ();
+    i_annot = [];
+  }
+
+let mk_slhvar (name : string) (reg_kind : Wsize.reg_kind) =
   let msf_gvar =
     GV.mk
       (name ^ string_of_int !msf_count)
@@ -86,9 +94,9 @@ let rec is_export_fn (funcs : (pexpr, 'info, 'asm) gfunc list)
     match (List.hd funcs).f_cc with Export _ -> true | _ -> false
   else is_export_fn (List.tl funcs) fun_name
 
-let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar)
-    (spill_instr : L.i_loc -> ('len, unit, 'asm) ginstr) unspill_instr funcs
-    (i : ('len, unit, 'asm) ginstr) : ('len, unit, 'asm) ginstr list =
+let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar) spill_instr
+    unspill_instr funcs (i : ('len, unit, 'asm) ginstr) :
+    ('len, unit, 'asm) ginstr list =
   (* TODO revert to count *)
   let name = "slh_bool" ^ string_of_int !msf_count in
   let b = GV.mk name Inline (Bty Bool) L._dummy [] in
@@ -194,22 +202,8 @@ let add_slh_local (mmx_msf : 'len slhvar) funcs
     (func : (pexpr, 'info, 'asm) gfunc) =
   let msf = mk_slhvar "msf" Normal in
 
-  let spill_instr loc =
-    {
-      i_desc = Copn ([ mmx_msf.lv ], AT_none, Sopn.Oslh SLHmove, [ msf.gx ]);
-      i_loc = loc;
-      i_info = ();
-      i_annot = [];
-    }
-  in
-  let unspill_instr loc =
-    {
-      i_desc = Copn ([ msf.lv ], AT_none, Sopn.Oslh SLHmove, [ mmx_msf.gx ]);
-      i_loc = loc;
-      i_info = ();
-      i_annot = [];
-    }
-  in
+  let spill_instr loc = mk_mov mmx_msf msf loc in
+  let unspill_instr loc = mk_mov msf mmx_msf loc in
   let append_None prev_cc =
     match prev_cc with
     | FInfo.Subroutine prev_returned_params ->
@@ -239,22 +233,8 @@ let add_slh_local (mmx_msf : 'len slhvar) funcs
 let add_slh_export funcs (msf : 'len slhvar) (mmx_msf : 'len slhvar)
     (func : (pexpr, 'info, 'asm) gfunc) =
   let init_instr = mk_init msf L.i_dummy in
-  let spill_instr loc =
-    {
-      i_desc = Copn ([ mmx_msf.lv ], AT_none, Sopn.Oslh SLHmove, [ msf.gx ]);
-      i_loc = loc;
-      i_info = ();
-      i_annot = [];
-    }
-  in
-  let unspill_instr loc =
-    {
-      i_desc = Copn ([ msf.lv ], AT_none, Sopn.Oslh SLHmove, [ mmx_msf.gx ]);
-      i_loc = loc;
-      i_info = ();
-      i_annot = [];
-    }
-  in
+  let spill_instr loc = mk_mov mmx_msf msf loc in
+  let unspill_instr loc = mk_mov msf mmx_msf loc in
   {
     func with
     f_body =
@@ -265,10 +245,7 @@ let add_slh_export funcs (msf : 'len slhvar) (mmx_msf : 'len slhvar)
 
 let add_slh_func funcs (func : (pexpr, 'info, 'asm) gfunc) =
   let msf = mk_slhvar "msf" Normal in
-
   let mmx_msf = mk_slhvar "mmx_msf" Extra in
-  (* if the function is export, add init_msf. Otherwise, add msf argument and
-     result. *)
   match func.f_cc with
   | Export _ -> add_slh_export funcs msf mmx_msf func
   | _ -> add_slh_local mmx_msf funcs func
