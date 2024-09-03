@@ -1,5 +1,5 @@
 From HB Require Import structures.
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 
 Require Import
   compiler_util
@@ -9,7 +9,8 @@ Require Import
   utils.
 Require Export
   arch_decl
-  arch_extra.
+  arch_extra
+  riscv_params_core.
 Require Import
   riscv_decl
   riscv_instr_decl
@@ -24,7 +25,8 @@ Unset Printing Implicit Defensive.
 
 Variant riscv_extra_op : Type :=  
   | SUBI
-  | SWAP of wsize.
+  | SWAP of wsize
+  | Oriscv_add_large_imm.
 
 Scheme Equality for riscv_extra_op.
 
@@ -42,7 +44,6 @@ HB.instance Definition _ := hasDecEq.Build riscv_extra_op riscv_extra_op_eq_axio
 Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
   { ceqP := riscv_extra_op_eq_axiom }.
 
-
 Definition riscv_SUBI_instr : instruction_desc :=
   {|
    str    := pp_s "SUBI";
@@ -56,10 +57,26 @@ Definition riscv_SUBI_instr : instruction_desc :=
    i_safe := [::] 
    |}.
 
+(* [conflicts] ensures that the returned register is distinct from the first
+   argument. *)
+Definition Oriscv_add_large_imm_instr : instruction_desc :=
+  let ty := sword riscv_reg_size in
+  let semi := fun (x y : word riscv_reg_size) => ok (x + y)%R in
+  {| str    := (fun _ => "add_large_imm"%string)
+   ; tin    := [:: ty; ty]
+   ; i_in   := [:: E 1; E 2]
+   ; tout   := [:: ty]
+   ; i_out  := [:: E 0]
+   ; conflicts := [:: (APout 0, APin 0)]
+   ; semi   := semi
+   ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] semi refl_equal
+   ; i_safe := [::] |}.
+
 Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=
   match o with
   | SUBI => riscv_SUBI_instr  
   | SWAP ws => Oswap_instr (sword ws)
+  | Oriscv_add_large_imm => Oriscv_add_large_imm_instr
    end.
   
 (* Without priority 1, this instance is selected when looking for an [asmOp],
@@ -101,6 +118,10 @@ Definition error (ii : instr_info) (msg : string) :=
 
 End E.
 
+Definition asm_args_of_opn_args
+  : seq (RISCVFopn_core.opn_args riscv_op) -> seq (asm_op_msb_t * lexprs * rexprs) :=
+  map (fun '(les, aop, res) => ((None, aop), les, res)).
+
 Definition assemble_extra
            (ii: instr_info)
            (o: riscv_extra_op)
@@ -136,6 +157,17 @@ Definition assemble_extra
       end
     else
       Error (E.error ii "risc-v swap only valid for register of type u32")
+  | Oriscv_add_large_imm =>
+    match outx, inx with
+    | [:: LLvar x], [:: Rexpr (Fvar y); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
+      Let _ := assert (v_var x != v_var y)
+         (E.internal_error ii "bad riscv_add_large_imm: invalid register") in
+      Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y])
+          (E.error ii "riscv_add_large_imm only valid for register of type u32") in
+      ok (asm_args_of_opn_args (RISCVFopn_core.smart_addi x y imm))
+    | _, _ =>
+      Error (E.internal_error ii "bad riscv_add_large_imm: invalid args or dests")
+    end   
   end.
 
 #[ export ]
