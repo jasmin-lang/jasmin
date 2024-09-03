@@ -11,6 +11,11 @@
   ([PR #880](https://github.com/jasmin-lang/jasmin/pull/880);
   fixes [#842](https://github.com/jasmin-lang/jasmin/issues/842)).
 
+## Other changes
+
+- The checker for S-CT accepts copies of outdated MSF
+  ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).
+
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
 ## New features

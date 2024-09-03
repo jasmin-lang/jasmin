@@ -51,6 +51,15 @@ Failed as expected modmsf_trace: "fail/modmsf-trace.jazz", line 17 (2-8):
                                    the function f2 destroys MSFs at "fail/modmsf-trace.jazz", line 12 (19-25)
                                    the function f1 destroys MSFs at "fail/modmsf-trace.jazz", line 9 (19-31)
                                    the function kill_msf destroys MSFs at "fail/modmsf-trace.jazz", line 3 (4) to line 5 (5)
+File movmsf.jazz:
+Failed as expected overwrite2: "fail/movmsf.jazz", line 29 (4-5):
+                               speculative constant type checker: x cannot become an MSF as the current status depends on it (
+                               (x >u ((64u) 0)))
+Failed as expected overwrite: "fail/movmsf.jazz", line 21 (4-5):
+                              speculative constant type checker: x cannot become an MSF as the current status depends on it (
+                              (x >u ((64u) 0)))
+Failed as expected fail: "fail/movmsf.jazz", line 13 (29-32):
+                         speculative constant type checker: MSF is not Trans
 File speculative-stack-leak.jazz:
 Failed as expected main: "fail/speculative-stack-leak.jazz", line 32 (2) to line 36 (3):
                          speculative constant type checker: (pub > ((32u) 0)) has type #transient but should be at most #public
