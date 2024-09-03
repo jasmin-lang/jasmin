@@ -5,8 +5,8 @@ u64[2] not = { 1, 0 };
 fn after_branch(#transient reg u64 a){
   reg u64 m;
   m = #init_msf();
-  if a >= 2 { a = m; }
-  a = not[(int) a];
+  if a >= 2 { a = 0; }
+  a = not[a];
   a = #protect(a, m);
 }
 

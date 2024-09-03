@@ -1,0 +1,31 @@
+inline
+fn reset_msf() -> #msf reg u64 {
+  reg u64 msf;
+  msf = #init_msf();
+  return msf;
+}
+
+fn fail(reg u64 x) {
+  reg u64 msf;
+  msf = #init_msf();
+  if x < 1 {
+    msf = reset_msf();
+    msf = #update_msf(x < 1, msf);
+  }
+}
+
+fn overwrite(reg u64 x) {
+  reg u64 msf;
+  msf = #init_msf();
+  if x > 0 {
+    x = msf;
+  }
+}
+
+fn overwrite2(reg u64 x) {
+  reg u64 msf;
+  msf = #init_msf();
+  if x > 0 {
+    x = #mov_msf(msf);
+  }
+}

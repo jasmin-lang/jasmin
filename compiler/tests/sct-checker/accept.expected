@@ -198,6 +198,19 @@ output corruption: #public
  constraints:
 
 
+File movmsf.jazz:
+modmsf reset_msf :  ->
+#msf
+output corruption: #public
+ constraints:
+
+
+modmsf main : #transient ->
+
+output corruption: #public
+ constraints:
+
+
 File paper.jazz:
 modmsf fig3a : #[ptr = transient, val = transient] *
                #[ptr = transient, val = secret] * #transient ->
