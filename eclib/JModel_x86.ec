@@ -1,6 +1,5 @@
 (* -------------------------------------------------------------------- *)
-require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder Bool.
-(*---*) import CoreMap Map Ring.IntID IntOrder .
+require import AllCore IntDiv List.
 require export JModel_common JArray JWord_array Jslh JMemory AES.
 
 

@@ -325,7 +325,7 @@ Module MemoryI : MemoryT.
         (wunsigned (stk_root m) - (footprint_of_frame f + footprint_of_stack (frames m)) + frame_off f)
         (frame_size f - frame_off f)) x = false.
   Proof.
-    case/andP => /dup [] /footprint_of_valid_frame ok_f /and3P [] /ZleP h0fo /ZleP hfo _ ok_ws /= range.
+    case/andP => /[dup] /footprint_of_valid_frame ok_f /and3P [] /ZleP h0fo /ZleP hfo _ ok_ws /= range.
     rewrite set_allocP.
     case: ifPn; rewrite !zify; first lia.
     move => nrange; apply: m.(stk_freeP); lia.
@@ -598,7 +598,7 @@ Module MemoryI : MemoryT.
     move: h; rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /=.
     rewrite -!valid8_validw /valid8 /= /is_alloc /top_stack /=.
     case/and3P: h.
-    set fr := {| frame_size := sz |} => /dup [] ok_f /and3P[] /ZleP h0fo hfo _ /lezP no_ovf _.
+    set fr := {| frame_size := sz |} => /[dup] ok_f /and3P[] /ZleP h0fo hfo _ /lezP no_ovf _.
     rewrite set_allocP /between /zbetween Zleb_succ.
     have b_pos := wunsigned_range m.(stk_root).
     have l_pos := wunsigned_range m.(stk_limit).
@@ -815,7 +815,7 @@ Module MemoryI : MemoryT.
     validw (free_stack m) Aligned p U8 →
     read m Aligned p U8 = read (free_stack m) Aligned p U8.
   Proof.
-    move => /dup [] hv'; rewrite (fss_valid m) => /andP[] hv hp.
+    move => /[dup] hv'; rewrite (fss_valid m) => /andP[] hv hp.
     by move: hv' hv; rewrite -!valid8_validw -!get_read8 /memory_model.get /= /get => -> ->.  
   Qed.
 

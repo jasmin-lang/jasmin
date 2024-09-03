@@ -48,20 +48,21 @@ Unset Printing Implicit Defensive.
 
 Section Section.
 
+#[local] Existing Instance withsubword.
+#[local] Existing Instance direct_c.
+
 Context
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
   {call_conv : calling_convention}.
 
-#[local] Existing Instance withsubword.
-
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
 
 Section STACK_ALLOC.
 
-Context {dc : DirectCall} (P': sprog).
+Context (P': sprog).
 
 Lemma arm_mov_ofsP s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
@@ -132,7 +133,7 @@ Qed.
 
 End STACK_ALLOC.
 
-Definition arm_hsaparams {dc : DirectCall} :
+Definition arm_hsaparams :
   h_stack_alloc_params (ap_sap arm_params)  :=
   {|
     mov_ofsP := arm_mov_ofsP;
@@ -311,7 +312,6 @@ Proof. exists LR; exact: to_identK. Qed.
 (* Lowering hypotheses. *)
 
 Lemma arm_lower_callP
-  { dc : DirectCall }
   (pT : progT)
   (sCP : semCallParams)
   (p : prog)
@@ -337,7 +337,7 @@ Proof.
   exact: lower_callP.
 Qed.
 
-Definition arm_hloparams { dc : DirectCall } : h_lowering_params (ap_lop arm_params) :=
+Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
   {|
     hlop_lower_callP := arm_lower_callP;
   |}.
@@ -927,7 +927,7 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-Definition arm_h_params {dc : DirectCall} : h_architecture_params arm_params :=
+Definition arm_h_params : h_architecture_params arm_params :=
   {|
     hap_hsap        := arm_hsaparams;
     hap_hlip        := arm_hliparams;

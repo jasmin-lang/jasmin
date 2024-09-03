@@ -129,7 +129,7 @@ Module WArray.
       set8 m p w = ok m' ->
       get8 m' p' = if p == p' then ok w else get8 m p'.
     Proof.
-      rewrite /get8 /set8 => /dup[] /valid8_set ->; t_xrbindP => hb <-.
+      rewrite /get8 /set8 => /[dup] /valid8_set ->; t_xrbindP => hb <-.
       case heq: in_bound => //=; last by case: eqP => // h;move: heq; rewrite -h hb.
       by rewrite /is_init /= Mz.setP; case: eqP.
     Qed.
@@ -260,7 +260,7 @@ Module WArray.
 
   Lemma cast_empty_ok len1 len2 t: 
     WArray.cast len1 (empty len2) = ok t -> t = empty len1.
-  Proof. by move=> /dup[]/cast_len/eqP; rewrite cast_empty => -> [<-]. Qed.
+  Proof. by move=> /[dup]/cast_len/eqP; rewrite cast_empty => -> [<-]. Qed.
 
   Lemma cast_get8 len1 len2 (m : array len2) m' :
     cast len1 m = ok m' ->
@@ -285,7 +285,7 @@ Module WArray.
     cast len a1 = ok a1' ->
     exists2 a2', cast len a2 = ok a2' & uincl a1' a2'.
   Proof.
-    move=> /dup [] /uincl_len ? hu /dup [] /cast_len ?; subst len1 len2.
+    move=> /[dup] /uincl_len ? hu /[dup] /cast_len ?; subst len1 len2.
     rewrite castK => -[<-]; exists a2 => //; apply castK.
   Qed.
 

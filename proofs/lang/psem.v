@@ -452,7 +452,7 @@ Lemma get_var_to_word wdb vm x ws w :
   get_var wdb vm x >>= to_word ws = ok w ->
   get_var wdb vm x = ok (Vword w).
 Proof.
-  t_xrbindP => htx v /dup[] /get_varP [] -> hdef + ->.
+  t_xrbindP => htx v /[dup] /get_varP [] -> hdef + ->.
   rewrite htx => hcomp /to_wordI' [ws1 [w1 [hws hx ->]]].
   move: hcomp; rewrite hx => /compat_valE [ws2 [?] hws']; subst ws2.
   have <- : ws1 = ws; last by rewrite zero_extend_u.
@@ -1233,7 +1233,7 @@ Lemma write_var_eq_on wdb X x v s1 s2 vm1:
     write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     evm s2 =[Sv.add x X] vm2.
 Proof.
-  move=> /dup [] /(write_var_eq_on1 vm1) [vm2' hw2 h] hw1 hs.
+  move=> /[dup] /(write_var_eq_on1 vm1) [vm2' hw2 h] hw1 hs.
   exists vm2' => //; rewrite SvP.MP.add_union_singleton.
   apply: (eq_on_union hs h); [apply: vrvP_var hw1 | apply: vrvP_var hw2].
 Qed.
@@ -1551,7 +1551,7 @@ Corollary write_var_uincl wdb s1 s2 vm1 v1 v2 (x : var_i) :
     write_var wdb x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2) &
     s2.(evm) <=1 vm2.
 Proof.
-  move => Hvm hv /dup[] hw1 /(write_var_uincl_on1 vm1 hv) {hv} [] vm2 hw2 le.
+  move => Hvm hv /[dup] hw1 /(write_var_uincl_on1 vm1 hv) {hv} [] vm2 hw2 le.
   exists vm2 => //; apply: (uincl_on_vm_uincl Hvm le); [apply: vrvP_var hw1 | apply: vrvP_var hw2].
 Qed.
 

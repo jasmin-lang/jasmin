@@ -1531,13 +1531,6 @@ Qed.
  * -------------------------------------------------------------------- *)
 
 (* -------------------------------------------------------------------- *)
-Variant dup_spec (P : Prop) :=
-| Dup of P & P.
-
-Lemma dup (P : Prop) : P -> dup_spec P.
-Proof. by move=> ?; split. Qed.
-
-(* -------------------------------------------------------------------- *)
 Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
 Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
 
@@ -1641,7 +1634,7 @@ Proof.
   rewrite map_cons -/(iota _ _) Z.add_0_r; congr (_ :: _).
   rewrite (iotaDl 1) -map_comp.
   rewrite ziota_recP.
-  apply: eq_map => i /=.
+  apply: eq_map => i /=; rewrite ?add0n.
   Lia.lia.
 Qed.
 
@@ -1660,7 +1653,7 @@ Proof.
   rewrite !ziotaE.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
   rewrite -addn1 addnC iotaDl -map_comp.
-  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat; Lia.lia.
+  by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat ?add0n; Lia.lia.
 Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
@@ -1786,16 +1779,6 @@ Proof.
   move=> hin; rewrite /zindex znthE; last by apply Zle_0_nat.
   by rewrite Nat2Z.id nth_index.
 Qed.
-
-(* ------------------------------------------------------------------------- *)
-Lemma sumbool_of_boolET (b: bool) (h: b) :
-  Sumbool.sumbool_of_bool b = left h.
-Proof. by move: h; rewrite /is_true => ?; subst. Qed.
-
-Lemma sumbool_of_boolEF (b: bool) (h: b = false) :
-  Sumbool.sumbool_of_bool b = right h.
-Proof. by move: h; rewrite /is_true => ?; subst. Qed.
-
 
 (* ------------------------------------------------------------------------- *)
 

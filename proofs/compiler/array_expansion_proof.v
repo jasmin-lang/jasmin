@@ -257,7 +257,7 @@ Lemma expand_lvP (s1 s2 : estate) :
      exists s2', write_lval wdb gd x2 v s2 = ok s2' /\ eq_alloc m s1' s2'.
 Proof.
   move=> h; case: (h) => -[heq ha] hscs hmem [] /=.
-  + move=> ii ty _ [<-] /= ?? /dup [] /write_noneP [-> _ _] hn.
+  + move=> ii ty _ [<-] /= ?? /[dup] /write_noneP [-> _ _] hn.
     by exists s2; split => //; apply: uincl_write_none hn.
   + by move=> x; t_xrbindP => _ ? <- /= v1 s1'; apply eq_alloc_write_var.
   + move=> al ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
@@ -274,7 +274,7 @@ Proof.
     case hai: Mvar.get => [ai | //].
     case: is_constP => // i ; t_xrbindP => /eqP <- /eqP -> /eqP -> hbound <- v s1'.
     apply on_arr_varP => n t hty hget /=.
-    t_xrbindP => w hvw t' ht' /dup[] hw1 /write_varP [? _ htrv]; subst s1'.
+    t_xrbindP => w hvw t' ht' /[dup] hw1 /write_varP [? _ htrv]; subst s1'.
     have vai := valid hai; have hin := wf_mem (v_var x) vai hbound.
     move: (vai.(xi_ty) hin) (vai.(xi_nin) hin) => htyi ?.
     have [htri htrvi hdb hdv]:= to_word_vm_truncate_val wdb htyi hvw.
@@ -352,7 +352,7 @@ Proof.
     move=> + hrec _ _ [<-] z0 /hrec{hrec}+ <- => + [? ->] /= => <-.
     have vai := (valid hga); case: h => -[_ /(_ _ _ _ hga){hga}hgai _ _].
     have := Vm.getP (evm s1) (gv g); rewrite vai.(x_ty) /compat_val /=.
-    move => /compat_typeE /type_of_valI [x2 /dup[] hg ->].
+    move => /compat_typeE /type_of_valI [x2 /[dup] hg ->].
     rewrite /sem_pexprs mapM_cat -/(sem_pexprs _ _ _ (flatten _)) => -> /=.
     rewrite expand_vP /=; eexists; eauto.
     rewrite mapM_map /comp /= /get_gvar /get_var /= mapM_ok /=; do 2!f_equal.
@@ -771,7 +771,7 @@ Proof.
       + by move=> xi /mapP [id ? ->].
       move=> x' ai' xi /eqP ?. rewrite Mvar.setP_neq // => /hget -/(_ xi) h [].
       by rewrite -(map_id elems) => /sv_of_listP -/hdis h1 /h.
-    move=> hne /dup[] /hget h1 /hwf [/= ??????? xi_disj]; constructor => //=.
+    move=> hne /[dup] /hget h1 /hwf [/= ??????? xi_disj]; constructor => //=.
     move=> x' ai' xi hxx'; rewrite Mvar.setP; case: eqP => [? | hne']; last by apply xi_disj.
     by move=> [<-] [] /= /h1 /hdis h2; rewrite -(map_id elems) => /sv_of_listP.
   + by SvD.fsetdec.
