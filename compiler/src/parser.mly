@@ -82,7 +82,7 @@
 %token EXPORT
 %token ARRAYINIT
 %token <string> NID
-%token <Z.t> INT
+%token <Syntax.pbasedinteger> INT
 %token <string> STRING
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
@@ -127,8 +127,8 @@ annotationlabel:
   | s=loc(STRING) { s }
 
 int: 
-  | i=INT       { i }
-  | MINUS i=INT { Z.neg i } 
+  | i=INT       { i.zvalue }
+  | MINUS i=INT { Z.neg i.zvalue } 
 
 simple_attribute:
   | i=int          { Aint i    }

@@ -13,6 +13,7 @@ type arr_access = Warray_.arr_access
 
 type sign = [ `Unsigned | `Signed ]
 
+type pbasedinteger =  {zvalue:Z.t;raw:string}
 type vesize = [`W1 | `W2 | `W4 | `W8 | `W16 | `W32 | `W64 | `W128]
 type vsize   = [ `V2 | `V4 | `V8 | `V16 | `V32 ]
 
@@ -153,7 +154,7 @@ type pexpr_r =
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
-  | PEInt    of Z.t
+  | PEInt    of pbasedinteger
   | PECall   of pident * pexpr list
   | PECombF  of pident * pexpr list
   | PEPrim   of pident * pexpr list
@@ -263,7 +264,7 @@ type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
 (* -------------------------------------------------------------------- *)
 type pexec = {
   pex_name: pident;
-  pex_mem: (Z.t * Z.t) list;
+  pex_mem: (pbasedinteger * pbasedinteger) list;
 }
 
 (* -------------------------------------------------------------------- *)
