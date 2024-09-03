@@ -16,6 +16,9 @@
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
   ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
 
+- The checker for S-CT accepts copies of outdated MSF
+  ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).
+
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
 ## New features
