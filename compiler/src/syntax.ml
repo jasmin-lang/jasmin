@@ -212,11 +212,17 @@ type vardecls = pstotype * pident list
 
 type pinstr_r =
   | PIArrayInit of pident
+      (** ArrayInit(x); *)
   | PIAssign    of plvals * peqop * pexpr * pexpr option
+      (** x, y += z >> 4 if c; *)
   | PIIf        of pexpr * pblock * pblock option
+      (** if e { … } else { … } *)
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
+      (** for i = 0 to N { … } *)
   | PIWhile     of pblock option * pexpr * pblock option
+      (** while { … } (x > 0) { … } *)
   | PIdecl      of vardecls
+      (** reg u32 x y z; *)
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
