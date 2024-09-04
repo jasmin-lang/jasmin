@@ -166,53 +166,111 @@ let stop_after_option p =
   let s, msg = print_strings p in
   ("-until_" ^ s, Arg.Unit (set_stop_after p), " Stop after " ^ msg)
 
-let options = [
-    "-version" , Arg.Set help_version  , " Display version information about this compiler (and exit)";
-    "-o"       , Arg.Set_string outfile, "[filename] Name of the output file";
-    "-g"       , Arg.Set dwarf         , " Emit DWARF2 line number information";
-    "-debug"   , Arg.Set debug         , " Print debug information";
-    "-timings" , Arg.Set timings       , " Print a timestamp and elapsed time after each pass";
-    "-I"       , Arg.String set_idirs  , "[ident:path] Bind ident to path for from ident require ...";
-    "-lea"     , Arg.Set lea           , " Use lea as much as possible (default is nolea)";
-    "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
-    "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
-    "-noset0"   , Arg.Clear set0        , " Do not use set0 option";
-    "-ec"       , Arg.String  set_ec    , "[f] Extract function [f] and its dependencies to an easycrypt file";
-    "-oec"     ,  Arg.Set_string ecfile , "[filename] Use filename as output destination for easycrypt extraction";
-    "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path";
-    "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification";
-    "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
-    "-safety", Arg.Unit set_safety      , " Generate model for safety verification (deprecated)";
-    "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
-    "-safetyparam", Arg.String set_safetyparam,
-    " Parameter for automatic safety verification:\n    \
-     format: \"f_1>param_1|f_2>param_2|...\" \
-     where each param_i is of the form:\n    \
-     pt_1,...,pt_n;len_1,...,len_k\n    \
-     pt_1,...,pt_n: input pointers of f_i\n    \
-     len_1,...,len_k: input lengths of f_i";
-     "-safetyconfig", Arg.String set_safetyconfig, "[filename] Use filename (JSON) as configuration file for the safety checker";
-    "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir] Make the safety checker configuration docs in [dir]";
-    "-nocheckalignment", Arg.Set trust_aligned, " Do not report alignment issue as safety violations";
-    "-wlea", Arg.Unit (add_warning UseLea), " Print warning when lea is used";
-    "-w_"  , Arg.Unit (add_warning IntroduceNone), " Print warning when extra _ is introduced";
-    "-wea", Arg.Unit (add_warning ExtraAssignment), " Print warning when extra assignment is introduced";
-    "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), " Print warning when array copy is introduced";
-    "-wduplicatevar", Arg.Unit (add_warning DuplicateVar), " Print warning when two variables share the same name";
-    "-wunusedvar", Arg.Unit (add_warning UnusedVar), " Print warning when a variable is not used";
-    "-noinsertarraycopy", Arg.Clear introduce_array_copy, " Do not automatically insert array copy";
-    "-nowarning", Arg.Unit (nowarning), " Do no print warnings";
-    "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), " Print messages with color";
-    "-help-intrinsics", Arg.Set help_intrinsics, " List the set of intrinsic operators (and exit)";
-    "-print-stack-alloc", Arg.Set print_stack_alloc, " Print the results of the stack allocation OCaml oracle";
-    "-lazy-regalloc", Arg.Set lazy_regalloc, " Allocate variables to registers in program order";
-    "-pall"    , Arg.Unit set_all_print, " Print program after each compilation steps";
-    "-print-dependencies", Arg.Set print_dependencies, " Print dependencies and exit";
-    "-intel", Arg.Unit (set_syntax `Intel), " Use intel syntax (default is AT&T)"; 
-    "-ATT", Arg.Unit (set_syntax `ATT), " Use AT&T syntax (default is AT&T)"; 
-    "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), " Select calling convention (default depends on host architecture)";
-    "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), " Select target arch (default is x86-64)";
-    "-stack-zero",
+let options =
+  [
+    ( "-version",
+      Arg.Set help_version,
+      " Display version information about this compiler (and exit)" );
+    ("-o", Arg.Set_string outfile, "[filename] Name of the output file");
+    ("-g", Arg.Set dwarf, " Emit DWARF2 line number information");
+    ("-debug", Arg.Set debug, " Print debug information");
+    ( "-timings",
+      Arg.Set timings,
+      " Print a timestamp and elapsed time after each pass" );
+    ( "-I",
+      Arg.String set_idirs,
+      "[ident:path] Bind ident to path for from ident require ..." );
+    ("-lea", Arg.Set lea, " Use lea as much as possible (default is nolea)");
+    ("-nolea", Arg.Clear lea, " Try to use add and mul instead of lea");
+    ("-set0", Arg.Set set0, " Use [xor x x] to set x to 0 (default is not)");
+    ("-noset0", Arg.Clear set0, " Do not use set0 option");
+    ( "-ec",
+      Arg.String set_ec,
+      "[f] Extract function [f] and its dependencies to an easycrypt file" );
+    ( "-oec",
+      Arg.Set_string ecfile,
+      "[filename] Use filename as output destination for easycrypt extraction"
+    );
+    ( "-oecarray",
+      Arg.String set_ec_array_path,
+      "[dir] Output easycrypt array theories to the given path" );
+    ( "-CT",
+      Arg.Unit set_constTime,
+      " Generate model for constant time verification" );
+    ( "-slice",
+      Arg.String set_slice,
+      "[f] Keep function [f] and everything it needs" );
+    ( "-safety",
+      Arg.Unit set_safety,
+      " Generate model for safety verification (deprecated)" );
+    ("-checksafety", Arg.Unit set_checksafety, " Automatically check for safety");
+    ( "-safetyparam",
+      Arg.String set_safetyparam,
+      " Parameter for automatic safety verification:\n\
+      \    format: \"f_1>param_1|f_2>param_2|...\" where each param_i is of \
+       the form:\n\
+      \    pt_1,...,pt_n;len_1,...,len_k\n\
+      \    pt_1,...,pt_n: input pointers of f_i\n\
+      \    len_1,...,len_k: input lengths of f_i" );
+    ( "-safetyconfig",
+      Arg.String set_safetyconfig,
+      "[filename] Use filename (JSON) as configuration file for the safety \
+       checker" );
+    ( "-safetymakeconfigdoc",
+      Arg.String set_safety_makeconfigdoc,
+      "[dir] Make the safety checker configuration docs in [dir]" );
+    ( "-nocheckalignment",
+      Arg.Set trust_aligned,
+      " Do not report alignment issue as safety violations" );
+    ("-wlea", Arg.Unit (add_warning UseLea), " Print warning when lea is used");
+    ( "-w_",
+      Arg.Unit (add_warning IntroduceNone),
+      " Print warning when extra _ is introduced" );
+    ( "-wea",
+      Arg.Unit (add_warning ExtraAssignment),
+      " Print warning when extra assignment is introduced" );
+    ( "-winsertarraycopy",
+      Arg.Unit (add_warning IntroduceArrayCopy),
+      " Print warning when array copy is introduced" );
+    ( "-wduplicatevar",
+      Arg.Unit (add_warning DuplicateVar),
+      " Print warning when two variables share the same name" );
+    ( "-wunusedvar",
+      Arg.Unit (add_warning UnusedVar),
+      " Print warning when a variable is not used" );
+    ( "-noinsertarraycopy",
+      Arg.Clear introduce_array_copy,
+      " Do not automatically insert array copy" );
+    ("-nowarning", Arg.Unit nowarning, " Do no print warnings");
+    ( "-color",
+      Arg.Symbol ([ "auto"; "always"; "never" ], set_color),
+      " Print messages with color" );
+    ( "-help-intrinsics",
+      Arg.Set help_intrinsics,
+      " List the set of intrinsic operators (and exit)" );
+    ( "-print-stack-alloc",
+      Arg.Set print_stack_alloc,
+      " Print the results of the stack allocation OCaml oracle" );
+    ( "-lazy-regalloc",
+      Arg.Set lazy_regalloc,
+      " Allocate variables to registers in program order" );
+    ( "-pall",
+      Arg.Unit set_all_print,
+      " Print program after each compilation steps" );
+    ( "-print-dependencies",
+      Arg.Set print_dependencies,
+      " Print dependencies and exit" );
+    ( "-intel",
+      Arg.Unit (set_syntax `Intel),
+      " Use intel syntax (default is AT&T)" );
+    ("-ATT", Arg.Unit (set_syntax `ATT), " Use AT&T syntax (default is AT&T)");
+    ( "-call-conv",
+      Arg.Symbol ([ "windows"; "linux" ], set_cc),
+      " Select calling convention (default depends on host architecture)" );
+    ( "-arch",
+      Arg.Symbol ([ "x86-64"; "arm-m4" ], set_target_arch),
+      " Select target arch (default is x86-64)" );
+    ( "-stack-zero",
       Arg.Symbol (List.map fst stack_zero_strategies, set_stack_zero_strategy),
       " Select stack zeroization strategy for export functions" );
     ( "-stack-zero-size",
