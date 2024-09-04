@@ -11,6 +11,10 @@
   ([PR #880](https://github.com/jasmin-lang/jasmin/pull/880);
   fixes [#842](https://github.com/jasmin-lang/jasmin/issues/842)).
 
+- Fix SCT check of `while` loops
+  ([PR #888](https://github.com/jasmin-lang/jasmin/pull/888));
+  fixes [#887](https://github.com/jasmin-lang/jasmin/issues/887)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
