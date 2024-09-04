@@ -364,11 +364,9 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN 
-    { PIWhile (is1, b, None) }
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
+    { PIWhile (is1, b, is2) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock
-    { PIWhile (is1, b, Some is2) }
 | vd=postfix(pvardecl(COMMA?), SEMICOLON) 
     { PIdecl vd }
 
