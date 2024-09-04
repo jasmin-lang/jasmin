@@ -580,7 +580,7 @@ Qed.
 (** Pointer arithmetic *)
 
 #[ global ]
-Instance Pointer : pointer_op pointer.
+Instance PointerW : pointer_op pointer.
 Proof.
 refine
   {| add p k   := (p + wrepr Uptr k)%R
@@ -609,7 +609,7 @@ Proof. rewrite /= wrepr_add; ssring. Qed.
 Lemma p_to_zE p : p_to_z p = wunsigned p.
 Proof. done. Qed.
 
-Global Opaque Pointer.
+Global Opaque PointerW.
 
 Lemma disjoint_zrange_alt a m b n :
   disjoint_zrange a m b n →
