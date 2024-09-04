@@ -1127,9 +1127,9 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     let (msf2, venv2) = ty_cmd is_ct_asm fenv env (msf1, venv1) c1 in
     ensure_public env venv2 loc e;
     let (msf', venv') = ty_cmd is_ct_asm fenv env (MSF.enter_if msf2 e, venv2) c2 in
-    let msf' = MSF.end_loop loc msf1 msf' in
+    let _ = MSF.end_loop loc msf1 msf' in
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
-    MSF.enter_if msf' (Papp1(Onot, e)), venv1
+    MSF.enter_if msf2 (Papp1(Onot, e)), venv2
 
   | Ccall (xs, f, es) ->
     let fty = FEnv.get_fty fenv f in
