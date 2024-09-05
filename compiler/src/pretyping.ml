@@ -2152,7 +2152,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
   | S.PGlobal pg -> tt_global arch_info.pd env (L.loc pt) pg
   | S.Pexec   pf ->
-    Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name (List.map (fun ((x,y):string*string) -> (S.parse_int x),(S.parse_int y)) pf.pex_mem) env
+    Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name (List.map (fun (x,y) -> S.parse_int x,S.parse_int y) pf.pex_mem) env
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
   | S.PNamespace (ns, items) ->
