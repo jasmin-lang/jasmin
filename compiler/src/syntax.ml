@@ -24,7 +24,7 @@ type castop1 = CSS of sowsize | CVS of svsize
 type castop = castop1 L.located option
 
 type int_representation = string
-let parse_int (ir:int_representation) : Z.t = Z.of_string ir
+let parse_int = Z.of_string
 
 let bits_of_wsize : wsize -> int = Annotations.int_of_ws 
 
