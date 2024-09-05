@@ -1002,11 +1002,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Lmem _ -> MLnone
     | Lvar x  ->
       let ux = L.unloc x in
-      begin match ux.v_kind, ux.v_ty with
-        | Global,_ -> assert false (* this case should not be possible *)
-        (* MLvar (Mglobal (ux.v_name,ux.v_ty)) *)
-        | _, Bty _ -> MLvar (loc, Mlocal (Avar ux))
-        | _, Arr _ -> MLvar (loc, Mlocal (Aarray ux)) end
+      begin match ux.v_ty with
+        | Bty _ -> MLvar (loc, Mlocal (Avar ux))
+        | Arr _ -> MLvar (loc, Mlocal (Aarray ux)) end
 
     | Laset (_, acc, ws, x, ei) ->
       begin
