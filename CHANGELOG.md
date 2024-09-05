@@ -20,6 +20,10 @@
   ([PR #892](https://github.com/jasmin-lang/jasmin/pull/892));
   fixes [#870](https://github.com/jasmin-lang/jasmin/issues/870)).
 
+- Safety checker handles dynamically scoped global variables
+  ([PR #890](https://github.com/jasmin-lang/jasmin/pull/890);
+  fixes [#662](https://github.com/jasmin-lang/jasmin/issues/662)).
+
 ## Other changes
 
 - The checker for S-CT accepts copies of outdated MSF

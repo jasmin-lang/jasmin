@@ -1,0 +1,9 @@
+export fn main(reg ptr u8[8] s) -> reg u8 {
+  global u64 index;
+  index = 5;
+  reg u64 i;
+  i = index;
+  reg u8 r;
+  r = s[i];
+  return r;
+}
