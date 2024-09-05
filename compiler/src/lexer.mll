@@ -134,10 +134,10 @@ rule main = parse
   | '"' (([^'"' '\\']|'\\' _)* as s) '"' { STRING (unescape (L.of_lexbuf lexbuf) s) }
 
   (* Why this is needed *)
-  | ((*'-'?*) digit+) as s   
-      {INT s} 
+  | ((*'-'?*) digit+ ('_'digit+)* ) as s   
+      {INT Str.(global_replace (regexp "_") "" s)} 
 
-  | ('0' ['x' 'X'] hexdigit+) as s
+  | ('0' ['x' 'X' 'b' 'B' 'o' 'O'] hexdigit+) as s
       {INT s}
 
   | ident as s
