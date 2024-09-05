@@ -15,6 +15,11 @@
   ([PR #888](https://github.com/jasmin-lang/jasmin/pull/888));
   fixes [#887](https://github.com/jasmin-lang/jasmin/issues/887)).
 
+- Fix compilation of functions with system calls but not making other use of
+  the stack
+  ([PR #892](https://github.com/jasmin-lang/jasmin/pull/892));
+  fixes [#870](https://github.com/jasmin-lang/jasmin/issues/870)).
+
 ## Other changes
 
 - The checker for S-CT accepts copies of outdated MSF
