@@ -1202,10 +1202,6 @@ let tt_vardecls_push dfl_writable pd (env : 'asm Env.env) pxs =
   (env, xs)
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecl_push dfl_writable pd (env : 'asm Env.env) px =
-  snd_map as_seq1 (tt_vardecls_push dfl_writable pd env [px])
-
-(* -------------------------------------------------------------------- *)
 let tt_param pd (env : 'asm Env.env) _loc (pp : S.pparam) : 'asm Env.env =
   let ty = tt_type pd env pp.ppa_ty in
   let pe, ety = tt_expr ~mode:`OnlyParam pd env pp.S.ppa_init in
@@ -1891,8 +1887,6 @@ and tt_cmd arch_info env c =
 
 (* -------------------------------------------------------------------- *)
 let tt_funbody arch_info env (pb : S.pfunbody) =
- (* let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in 
-  let env = fst (tt_vardecls_push (fun _ -> true) env vars) in *)
   let env, bdy = tt_cmd arch_info env pb.S.pdb_instr in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
@@ -2152,7 +2146,10 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
   | S.PGlobal pg -> tt_global arch_info.pd env (L.loc pt) pg
   | S.Pexec   pf ->
-    Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name (List.map (fun (x,y) -> S.parse_int x,S.parse_int y) pf.pex_mem) env
+    Env.Exec.push (L.loc pt)
+      (fst (tt_fun env pf.pex_name)).P.f_name
+      (List.map (fun (x, y) -> S.parse_int x, S.parse_int y) pf.pex_mem)
+      env
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
   | S.PNamespace (ns, items) ->
