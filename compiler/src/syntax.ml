@@ -23,6 +23,9 @@ type svsize  = vsize * sign * vesize
 type castop1 = CSS of sowsize | CVS of svsize 
 type castop = castop1 L.located option
 
+type int_representation = string
+let parse_int = Z.of_string
+
 let bits_of_wsize : wsize -> int = Annotations.int_of_ws 
 
 let suffix_of_sign : sign -> string =
@@ -153,7 +156,7 @@ type pexpr_r =
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
-  | PEInt    of Z.t
+  | PEInt    of int_representation
   | PECall   of pident * pexpr list
   | PECombF  of pident * pexpr list
   | PEPrim   of pident * pexpr list
@@ -263,7 +266,7 @@ type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
 (* -------------------------------------------------------------------- *)
 type pexec = {
   pex_name: pident;
-  pex_mem: (Z.t * Z.t) list;
+  pex_mem: (int_representation * int_representation) list;
 }
 
 (* -------------------------------------------------------------------- *)
@@ -280,3 +283,4 @@ type pitem =
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list
+

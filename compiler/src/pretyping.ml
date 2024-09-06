@@ -1045,7 +1045,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     P.Pbool b, P.tbool
 
   | S.PEInt i ->
-    P.Pconst i, P.tint
+    P.Pconst (S.parse_int i), P.tint
 
   | S.PEVar x ->
     let x, ty = tt_var_global mode env x in
@@ -2144,6 +2144,7 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
 
   Env.Vars.push_global env (x,d)
 
+
 (* -------------------------------------------------------------------- *)
 let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   match L.unloc pt with
@@ -2151,7 +2152,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
   | S.PGlobal pg -> tt_global arch_info.pd env (L.loc pt) pg
   | S.Pexec   pf ->
-    Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
+    Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name (List.map (fun (x,y) -> S.parse_int x,S.parse_int y) pf.pex_mem) env
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
   | S.PNamespace (ns, items) ->

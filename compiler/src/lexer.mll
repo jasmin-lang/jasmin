@@ -135,10 +135,10 @@ rule main = parse
 
   (* Why this is needed *)
   | ((*'-'?*) digit+) as s   
-      { INT (Z.of_string s) } 
+      {INT s} 
 
   | ('0' ['x' 'X'] hexdigit+) as s
-      { INT (Z.of_string s) }
+      {INT s}
 
   | ident as s
       { Option.default (NID s) (Hash.find_option keywords s) }

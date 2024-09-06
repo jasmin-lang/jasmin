@@ -19,6 +19,10 @@
 
 - The checker for S-CT accepts copies of outdated MSF
   ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).
+  
+- Preserve formatting of integer literals in the lexer and when pretty-printing to LATEX
+  ([PR #886](https://github.com/jasmin-lang/jasmin/pull/886)).
+
 
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
