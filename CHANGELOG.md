@@ -19,8 +19,10 @@
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
   ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
+
 - The checker for S-CT accepts copies of outdated MSF
   ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).
+  
 - Preserve formatting of integer literals in the lexer and when pretty-printing to LATEX
   ([PR #886](https://github.com/jasmin-lang/jasmin/pull/886)).
 
