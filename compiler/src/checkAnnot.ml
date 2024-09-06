@@ -40,7 +40,6 @@ let check_stack_size fds =
       | None -> ()
       | Some expected ->
           let actual = sf_align in
-          let expected = Pretyping.tt_ws expected in
           if actual = expected then (
             if !debug then
               Format.eprintf "INFO: %s has the expected stack alignment (%s)@."

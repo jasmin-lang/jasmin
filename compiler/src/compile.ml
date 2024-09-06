@@ -240,9 +240,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
   in
 
   let szs_of_fn fn =
-    match (get_annot fn).stack_zero_strategy with
-    | Some (s, ows) -> Some (s, Option.map Pretyping.tt_ws ows)
-    | None -> None
+    (get_annot fn).stack_zero_strategy
   in
 
   let cparams =
