@@ -511,9 +511,6 @@ end  = struct
 end
 
 (* -------------------------------------------------------------------- *)
-let tt_ws (ws : A.wsize) = ws
-
-(* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : W.reference =
   match p with
   | `Pointer (Some `Writable) -> W.Pointer W.Writable
@@ -714,7 +711,6 @@ let op_info exn op (castop:S.castop) ty ws_cmp vs_cmp =
 
     | CSS(Some sz, s) -> 
       let s = tt_sign s in
-      let sz = tt_ws sz in
       check_op loc op (Some (snd ws_cmp)) sz;
       OpKE(E.Cmp_w(s, sz))
 
@@ -1058,7 +1054,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
-    let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
+    let ws = Option.default (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
     let i = ensure_int (L.loc pi) i ity in
@@ -1083,7 +1079,6 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       e, P.tint 
       
     | `Cast (`ToWord (sz, sg)) ->
-      let sz = tt_ws sz in
       let e, ws = cast_word (L.loc pe) sz e ety in
       let e = 
         if W.wsize_cmp ws sz = Datatypes.Lt then 
@@ -1165,7 +1160,7 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
       match k with
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
-  let ct = ct |> Option.map_default tt_ws pd in
+  let ct = ct |> Option.default pd in
   let al = tt_al AAdirect al in
   (ct,L.mk_loc xlc x,e, al)
 
@@ -1174,9 +1169,9 @@ and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
   match L.unloc pty with
   | S.TBool     -> P.tbool
   | S.TInt      -> P.tint
-  | S.TWord  ws -> P.Bty (P.U (tt_ws ws))
+  | S.TWord  ws -> P.Bty (P.U ws)
   | S.TArray (ws, e) ->
-      P.Arr (tt_ws ws, fst (tt_expr ~mode:`OnlyParam pd env e))
+      P.Arr (ws, fst (tt_expr ~mode:`OnlyParam pd env e))
 
 (* -------------------------------------------------------------------- *)
 let tt_exprs pd (env : 'asm Env.env) es = List.map (tt_expr ~mode:`AllVar pd env) es
@@ -1235,7 +1230,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
-    let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
+    let ws = Option.default (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
     let i = ensure_int (L.loc pi) i ity in
@@ -1793,7 +1788,6 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
   | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
       ->
       let ws, s = ct in
-      let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr arch_info.asmOp p in
