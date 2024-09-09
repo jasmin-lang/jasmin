@@ -606,7 +606,7 @@ Qed.
 Theorem sem_pexpr_safe : forall pd e s ty,
 ty_pexpr pd e = ok ty ->
 interp_safe_conds (gen_safe_cond e) s ->
-exists v, sem_pexpr (wsw := nosubword) false gd s e = ok v /\ type_of_val v = ty.
+exists v, sem_pexpr (wsw := nosubword) false gd s e = ok v /\ type_of_val v = ty /\ is_defined v.
 Proof.
 move=> pd e s. elim: e=> //=.
 (* Pconst *)
