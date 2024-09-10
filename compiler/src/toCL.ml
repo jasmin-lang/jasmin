@@ -833,8 +833,8 @@ module X86BaseOpU : BaseOp
         | Smt ->
           i1 @ i2 @ [CL.Instr.Op2.sub l a1 a2]
         | Cas1 ->
-          let l_tmp = I.mk_spe_tmp_lval 1 in
-          i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
+          let lb = I.glval_to_lval (List.nth xs 1) in
+          i1 @ i2 @ [CL.Instr.Op2_2.subb lb l a1 a2]
         | _ -> assert false
       end
 
