@@ -24,6 +24,7 @@
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
   ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
+- Modification of jasmin2tex to support source file integer representation.
 
 - The checker for S-CT accepts copies of outdated MSF
   ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).

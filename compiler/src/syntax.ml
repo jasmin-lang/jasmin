@@ -13,6 +13,7 @@ type arr_access = Warray_.arr_access
 
 type sign = [ `Unsigned | `Signed ]
 
+type pbasedinteger =  {zvalue:Z.t;raw:string}
 type vesize = [`W1 | `W2 | `W4 | `W8 | `W16 | `W32 | `W64 | `W128]
 type vsize   = [ `V2 | `V4 | `V8 | `V16 | `V32 ]
 
@@ -211,13 +212,23 @@ type align = [`Align | `NoAlign]
 
 type plvals = annotations L.located option * plvalue list
 
-type vardecls = pstotype * pident list
+
+type notinitvardecl = pident
+type initvardecl = pident * pexpr
+type vardecl = InitVarDecl of initvardecl | NotInitVarDecl of notinitvardecl
+type vardecls = pstotype * vardecl L.located list
+
+let var_decl_id (v:vardecl) : pident = 
+  match v with 
+  | InitVarDecl (ty,exp) -> ty
+  | NotInitVarDecl (ty) -> ty
+
+
+type passign =  plvals * peqop * pexpr * pexpr option
 
 type pinstr_r =
   | PIArrayInit of pident
-      (** ArrayInit(x); *)
-  | PIAssign    of plvals * peqop * pexpr * pexpr option
-      (** x, y += z >> 4 if c; *)
+  | PIAssign    of passign
   | PIIf        of pexpr * pblock * pblock option
       (** if e { … } else { … } *)
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
@@ -252,11 +263,13 @@ type pcall_conv = [
   | `Inline
 ]
 
+type paramdecls = pstotype * pident list
+
 type pfundef = {
   pdf_annot : annotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
-  pdf_args : (annotations * vardecls) list;
+  pdf_args : (annotations * paramdecls) list;
   pdf_rty  : (annotations * pstotype) list option;
   pdf_body : pfunbody;
 }

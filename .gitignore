@@ -18,6 +18,7 @@ compiler/src/CIL/*.mli
 *.glob
 *.aux
 *.lock
+*.vscode
 _build
 *.run.out
 *.run.err

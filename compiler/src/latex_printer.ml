@@ -235,6 +235,19 @@ let pp_args fmt (sty, xs) =
     pp_sto_ty sty
     (pp_list " " pp_var) xs
 
+let pp_decl fmt (x:vardecl )= 
+  match x with
+  | NotInitVarDecl v -> F.fprintf fmt "%s" (L.unloc v)
+  | InitVarDecl (v,e) ->  F.fprintf fmt "%s" (L.unloc v); pp_expr fmt e
+
+
+let pp_decls fmt (sty,vd) = 
+  F.fprintf
+    fmt 
+    "%a %a"
+    pp_sto_ty sty
+    (pp_list " " pp_decl) vd
+
 let pp_rty =
   pp_opt
     (fun fmt tys ->
@@ -263,8 +276,9 @@ let pp_eqop fmt op =
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
-let pp_vardecls fmt d =
-  F.fprintf fmt "%a;" pp_args d
+let pp_vardecls fmt (d:vardecls) =
+  let i,v = d in 
+  F.fprintf fmt "%a;" pp_decls (i, List.map (L.unloc) v)
 
 let rec pp_instr depth fmt (annot, p) =
   if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;
