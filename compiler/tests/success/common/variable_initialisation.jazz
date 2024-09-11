@@ -1,0 +1,18 @@
+/*
+Test for intialising variable during declaration
+The used semantic is the following : 
+reg u32 x=3; 
+
+is traduced to 
+reg u32 x;
+x=3;
+*/
+
+fn test() -> reg u32 {
+    reg u32 x=3;
+    reg u32 y=x;
+
+    reg u32 x=4,y=x;
+
+    return y;
+} 
