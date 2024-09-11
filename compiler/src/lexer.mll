@@ -108,6 +108,8 @@
 let blank    = [' ' '\t' '\r']
 let newline  = ['\n']
 let digit    = ['0'-'9']
+let octdigit = ['0'-'7']
+let bindigit = ['0'-'1']
 let hexdigit = ['0'-'9' 'a'-'f' 'A'-'F']
 let lower    = ['a'-'z']
 let upper    = ['A'-'Z']
@@ -133,11 +135,13 @@ rule main = parse
 
   | '"' (([^'"' '\\']|'\\' _)* as s) '"' { STRING (unescape (L.of_lexbuf lexbuf) s) }
 
-  (* Why this is needed *)
-  | ((*'-'?*) digit+) as s   
-      {INT s} 
+  | (digit+(('_')+ digit+)*) as s
 
-  | ('0' ['x' 'X'] hexdigit+) as s
+  | ('0' ['x' 'X'] hexdigit+(('_')+hexdigit+)*) as s
+
+  | ('0' ['b' 'B'] bindigit+(('_')+bindigit+)*) as s
+
+  | ('0' ['o' 'O'] octdigit+(('_')+octdigit+)*) as s
       {INT s}
 
   | ident as s
