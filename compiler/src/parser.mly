@@ -430,7 +430,7 @@ storage:
 | v=var EQ e=pexpr {Syntax.InitVarDecl (v,e)}
 
 %inline pvardecl(S):
-| ty=stor_type vs=separated_nonempty_list(S, decl) { (ty, vs) }
+| ty=stor_type vs=separated_nonempty_list(S, loc(decl)) { (ty, vs) }
 
 
 pfunbody :

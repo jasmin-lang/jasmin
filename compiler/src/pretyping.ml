@@ -1683,17 +1683,16 @@ let mk_call loc inline lvs f es =
 
   P.Ccall (lvs, f.P.f_name, es)
 
-let assign_from_decl (loc:L.t) (env: 'asm Env.env)  (decl:S.vardecl): S.passign option = 
-  match decl with 
+let assign_from_decl (env: 'asm Env.env)  (decl:S.vardecl L.located): S.passign option = 
+  match L.unloc decl with 
   | InitVarDecl (i,e) -> 
-    let loc = (L.mk_loc loc (S.PLVar i)) in
+    let loc = (L.mk_loc (L.loc decl) (S.PLVar i)) in
     Some ((None, [loc]),`Raw,e,None)
-    
   | NotInitVarDecl (e) -> None
 
 let tt_annot_vardecls dfl_writable pd env ((annot, (ty,vs)):A.annotations * S.vardecls)= 
     let aty = annot, ty in
-    let vars = List.map (fun (v:S.vardecl) -> aty, (S.var_decl_id v)) vs in
+    let vars = List.map (fun (v:S.vardecl L.located) -> aty, (S.var_decl_id (L.unloc v))) vs in
     tt_vardecls_push dfl_writable pd env vars 
   
 let tt_annot_paramdecls dfl_writable pd env ((annot,(ty,vs)):A.annotations * S.paramdecls) =
@@ -1902,7 +1901,7 @@ tt_assign_raw
     let i = annot, L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
     tt_instr arch_info env i
 
-    and 
+and 
 tt_assign_op 
     arch_info 
     (mk_i:?annot:A.annotations ->('a, unit, 'b) P.ginstr_r ->('a, unit, 'b) P.ginstr) 
@@ -1986,15 +1985,46 @@ tt_assign
         tt_assign_expression arch_info mk_i ls eqop e cp env (annot,pi)
 
 and 
+
+tt_annot_decl 
+  arch_info
+  (mk_i: ?annot:A.annotations ->('a, unit, 'b) P.ginstr_r ->('a, unit, 'b) P.ginstr) 
+  (vd: S.vardecl L.located) 
+  (aty: A.annotations * S.pstotype)
+  (env: 'asm Env.env) 
+  ((annot,pi): S.pinstr) 
+=
+    
+    let assigned = assign_from_decl env vd in
+    match assigned with
+    | None -> let var = tt_vardecl (fun _ -> true) arch_info.pd env (aty, S.var_decl_id (L.unloc vd))
+      in let env = Env.Vars.push_local env (L.unloc var) 
+    in env,[]
+    | Some assign -> 
+      let var = tt_vardecl (fun _ -> true) arch_info.pd env (aty,S.var_decl_id (L.unloc vd)) 
+      in let env = Env.Vars.push_local env (L.unloc var) in 
+      let env,l = tt_assign arch_info mk_i assign env (annot,pi)
+      in
+      env,l
+    
+and
+tt_annot_decls 
+  arch_info 
+  (mk_i: ?annot:A.annotations ->('a, unit, 'b) P.ginstr_r ->('a, unit, 'b) P.ginstr) 
+  (ty,vds:S.pstotype * S.vardecl L.located list) 
+  (env: 'asm Env.env) 
+  ((annot,pi): S.pinstr) 
+=
+  let aty = annot, ty in
+  List.fold (fun (env,l) (v:S.vardecl L.located)-> let env, l2 = tt_annot_decl arch_info mk_i v aty env (annot,pi) in (env,List.concat [l;l2]) ) (env,[]) vds
+
+and
 tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
    match L.unloc pi with
   | S.PIdecl (ty,vds)-> 
-    let env, _ = tt_annot_vardecls (fun _ -> true) arch_info.pd env (annot, (ty,vds)) 
-    in let assigns = List.filter_map (fun (x:S.vardecl)-> (assign_from_decl (L.loc pi) env x)) vds
-    in List.fold (fun (env,l) assign -> (tt_assign arch_info mk_i assign env (annot,pi))) (env,[]) assigns
-
+    tt_annot_decls arch_info mk_i (ty,vds) env (annot,pi)
 
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
     let x = tt_var `AllVar env x in
@@ -2168,6 +2198,7 @@ let process_f_annot loc funname f_cc annot =
 let rec add_reserved_i env (_,i) = 
   match L.unloc i with 
   | S.PIdecl (_, ids) -> 
+      let ids = List.map (L.unloc) ids in
       List.fold_left (fun env id -> Env.add_reserved env (L.unloc id)) env (List.map S.var_decl_id ids)
   | PIArrayInit _ | PIAssign _ -> env
   | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' env c) oc

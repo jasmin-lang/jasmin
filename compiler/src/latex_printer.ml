@@ -277,7 +277,8 @@ let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
 let pp_vardecls fmt (d:vardecls) =
-  F.fprintf fmt "%a;" pp_decls d
+  let i,v = d in 
+  F.fprintf fmt "%a;" pp_decls (i, List.map (L.unloc) v)
 
 let rec pp_instr depth fmt (annot, p) =
   if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;

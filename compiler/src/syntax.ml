@@ -213,7 +213,7 @@ type plvals = annotations L.located option * plvalue list
 type notinitvardecl = pident
 type initvardecl = pident * pexpr
 type vardecl = InitVarDecl of initvardecl | NotInitVarDecl of notinitvardecl
-type vardecls = pstotype * vardecl list
+type vardecls = pstotype * vardecl L.located list
 
 let var_decl_id (v:vardecl) : pident = 
   match v with 
