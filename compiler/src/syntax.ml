@@ -1,4 +1,5 @@
 open Annotations
+open Utils
 (* -------------------------------------------------------------------- *)
 module L = Location
 
@@ -24,7 +25,9 @@ type castop1 = CSS of sowsize | CVS of svsize
 type castop = castop1 L.located option
 
 type int_representation = string
-let parse_int = Z.of_string
+let parse_int (i: int_representation) : Z.t =
+  let s = String.filter (( <> ) '_') i in
+  Z.of_string s
 
 let bits_of_wsize : wsize -> int = Annotations.int_of_ws 
 
