@@ -1,6 +1,14 @@
 
 # [unreleased]
 
+## New features
+
+- Support more integer notations
+  ([PR#897](https://github.com/jasmin-lang/jasmin/pull/897)):
+    * Octal: `0O777`, `0o52`
+    * Binary: `0b11101`, `0B11100`
+    * `_` characters: `100_000_00___111`
+
 ## Bug fixes
 
 - Easycrypt extraction for CT : fix decreasing for loops
