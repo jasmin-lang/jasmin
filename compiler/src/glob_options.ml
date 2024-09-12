@@ -105,6 +105,7 @@ let call_conv =
   ref Linux (* Default value is chosen on start-up in `main_compiler` *)
 
 let should_slh_gen = ref true
+let should_spill_msf = ref false
 
 let set_cc cc =
   let cc =
@@ -276,6 +277,7 @@ let options =
     ( "-stack-zero-size",
       Arg.Symbol (List.map fst Annot.ws_strings, set_stack_zero_size),
       " Select stack zeroization size for export functions" );
+    ("-spill-msf", Arg.Set should_spill_msf, " enable msf spilling to mmx");
     ("-noslh-gen", Arg.Clear should_slh_gen, " disable slh_gen");
     ( "-pliveness",
       Arg.Set print_liveness,

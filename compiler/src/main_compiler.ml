@@ -174,7 +174,8 @@ let main () =
     in
 
     let pprog =
-      if !target_arch = X86_64 && !should_slh_gen then Slh_gen.add_slh pprog
+      if !target_arch = X86_64 && !should_slh_gen then
+        Slh_gen.add_slh pprog !should_spill_msf
       else pprog
     in
     if !print_dependencies then (

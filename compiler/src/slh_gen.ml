@@ -48,15 +48,15 @@ let mk_slhvar (name : string) (reg_kind : Wsize.reg_kind) =
   { gv = msf_gvar; gvi = msf_gvar_i; lv = msf_lval; gx = msf_expr }
 
 let add_slh_protect (msf : 'len slhvar) spill_instr unspill_instr
-    (i : ('len, unit, 'asm) ginstr) : ('len, unit, 'asm) ginstr list =
+    (should_spill_msf : bool) (i : ('len, unit, 'asm) ginstr) :
+    ('len, unit, 'asm) ginstr list =
   let check_i_annot i = Annotations.has_symbol "protect" i.i_annot in
   match i.i_desc with
   | Cassgn (Lvar lhs, tag, wsize, e) when check_i_annot i -> (
       let lhs_gvar = L.unloc lhs in
       let lhs_expr = Pvar { gv = lhs; gs = Slocal } in
       if is_ptr lhs_gvar.v_kind then
-        [
-          unspill_instr i.i_loc;
+        let new_i =
           {
             i with
             i_desc =
@@ -65,14 +65,15 @@ let add_slh_protect (msf : 'len slhvar) spill_instr unspill_instr
                   tag,
                   Sopn.Oslh (SLHprotect_ptr Coq_xH),
                   [ lhs_expr; msf.gx ] );
-          };
-          spill_instr i.i_loc;
-        ]
+          }
+        in
+        if should_spill_msf then
+          [ unspill_instr i.i_loc; new_i (* spill_instr i.i_loc; *) ]
+        else [ new_i ]
       else
         match wsize with
         | Bty (U wordsize) ->
-            [
-              unspill_instr i.i_loc;
+            let new_i =
               {
                 i with
                 i_desc =
@@ -81,9 +82,11 @@ let add_slh_protect (msf : 'len slhvar) spill_instr unspill_instr
                       tag,
                       Sopn.Oslh (SLHprotect wordsize),
                       [ lhs_expr; msf.gx ] );
-              };
-              spill_instr i.i_loc;
-            ]
+              }
+            in
+            if should_spill_msf then
+              [ unspill_instr i.i_loc; new_i (* spill_instr i.i_loc; *) ]
+            else [ new_i ]
         | _ -> [ i ])
   | _ -> [ i ]
 
@@ -95,8 +98,8 @@ let rec is_export_fn (funcs : (pexpr, 'info, 'asm) gfunc list)
   else is_export_fn (List.tl funcs) fun_name
 
 let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar) spill_instr
-    unspill_instr funcs (i : ('len, unit, 'asm) ginstr) :
-    ('len, unit, 'asm) ginstr list =
+    unspill_instr funcs (should_spill_msf : bool)
+    (i : ('len, unit, 'asm) ginstr) : ('len, unit, 'asm) ginstr list =
   (* TODO revert to count *)
   let name = "slh_bool" ^ string_of_int !msf_count in
   let b = GV.mk name Inline (Bty Bool) L._dummy [] in
@@ -110,27 +113,32 @@ let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar) spill_instr
   let add_slh_block body =
     List.flatten
       (List.map
-         (add_slh_protect msf spill_instr unspill_instr)
+         (add_slh_protect msf spill_instr unspill_instr should_spill_msf)
          (List.flatten
             (List.map
-               (add_setmsf_instr msf mmx_msf spill_instr unspill_instr funcs)
+               (add_setmsf_instr msf mmx_msf spill_instr unspill_instr funcs
+                  should_spill_msf)
                body)))
   in
   let init_instr = mk_init msf i.i_loc in
   match i.i_desc with
-  | Csyscall (_, _, _) -> [ i; init_instr; spill_instr i.i_loc ]
+  | Csyscall (_, _, _) ->
+      if should_spill_msf then [ i; init_instr; spill_instr i.i_loc ]
+      else [ i; init_instr ]
   | Ccall (vars, func_name, inputs) ->
+      let final_msf = if should_spill_msf then mmx_msf else msf in
       if is_export_fn funcs func_name then
-        [ i; init_instr; spill_instr i.i_loc ]
+        if should_spill_msf then [ i; init_instr; spill_instr i.i_loc ]
+        else [ i; init_instr ]
       else
         [
           {
             i with
-            i_desc = Ccall (mmx_msf.lv :: vars, func_name, mmx_msf.gx :: inputs);
+            i_desc =
+              Ccall (final_msf.lv :: vars, func_name, final_msf.gx :: inputs);
           };
         ]
   | Cif (cond, if_body, else_body) ->
-      (* TODO: remove this condvar if tests pass *)
       let cond_expr = if is_cond_var cond then cond else b_expr in
       let init_b_instr =
         if is_cond_var cond then []
@@ -147,12 +155,16 @@ let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar) spill_instr
       let update_msf_if = mk_update cond_expr msf i.i_loc in
       let update_msf_else = mk_update (Papp1 (E.Onot, cond_expr)) msf i.i_loc in
       let if_block =
-        unspill_instr i.i_loc :: update_msf_if :: spill_instr i.i_loc
-        :: add_slh_block if_body
+        if should_spill_msf then
+          unspill_instr i.i_loc :: update_msf_if :: spill_instr i.i_loc
+          :: add_slh_block if_body
+        else update_msf_if :: add_slh_block if_body
       in
       let else_block =
-        unspill_instr i.i_loc :: update_msf_else :: spill_instr i.i_loc
-        :: add_slh_block else_body
+        if should_spill_msf then
+          unspill_instr i.i_loc :: update_msf_else :: spill_instr i.i_loc
+          :: add_slh_block else_body
+        else update_msf_else :: add_slh_block else_body
       in
       init_b_instr
       @ [ { i with i_desc = Cif (cond_expr, if_block, else_block) } ]
@@ -176,34 +188,37 @@ let rec add_setmsf_instr (msf : 'len slhvar) (mmx_msf : 'len slhvar) spill_instr
       in
       let c1 = add_slh_block c1 @ init_b_instr in
       let c2 =
-        unspill_instr i.i_loc :: update_msf_body :: spill_instr i.i_loc
-        :: add_slh_block c2
+        if should_spill_msf then
+          unspill_instr i.i_loc :: update_msf_body :: spill_instr i.i_loc
+          :: add_slh_block c2
+        else update_msf_body :: add_slh_block c2
       in
-      [
-        { i with i_desc = Cwhile (alignf, c1, cond_expr, c2) };
-        unspill_instr i.i_loc;
-        update_msf_after;
-        spill_instr i.i_loc;
-      ]
+      let new_i = { i with i_desc = Cwhile (alignf, c1, cond_expr, c2) } in
+      if should_spill_msf then
+        [ new_i; unspill_instr i.i_loc; update_msf_after; spill_instr i.i_loc ]
+      else [ new_i; update_msf_after ]
   | Cfor (it, rn, body) ->
       [ { i with i_desc = Cfor (it, rn, add_slh_block body) } ]
   | _ -> [ i ]
 
-let add_slh_instrs msf mmx_msf spill_instr unspill_instr body funcs =
+let add_slh_instrs msf mmx_msf spill_instr unspill_instr body funcs
+    (should_spill_msf : bool) =
   List.flatten
     (List.map
-       (add_slh_protect msf spill_instr unspill_instr)
+       (add_slh_protect msf spill_instr unspill_instr should_spill_msf)
        (List.flatten
           (List.map
-             (add_setmsf_instr msf mmx_msf spill_instr unspill_instr funcs)
+             (add_setmsf_instr msf mmx_msf spill_instr unspill_instr funcs
+                should_spill_msf)
              body)))
 
 let add_slh_local (mmx_msf : 'len slhvar) funcs
-    (func : (pexpr, 'info, 'asm) gfunc) =
+    (func : (pexpr, 'info, 'asm) gfunc) (should_spill_msf : bool) =
   let msf = mk_slhvar "msf" Normal in
 
   let spill_instr loc = mk_mov mmx_msf msf loc in
   let unspill_instr loc = mk_mov msf mmx_msf loc in
+  let final_msf = if should_spill_msf then mmx_msf else msf in
   let append_None prev_cc =
     match prev_cc with
     | FInfo.Subroutine prev_returned_params ->
@@ -220,37 +235,48 @@ let add_slh_local (mmx_msf : 'len slhvar) funcs
     f_cc = append_None func.f_cc;
     f_name = func.f_name;
     f_tyin = Bty (U U64) :: func.f_tyin;
-    f_args = mmx_msf.gv :: func.f_args;
+    f_args = final_msf.gv :: func.f_args;
     f_body =
-      add_slh_instrs msf mmx_msf spill_instr unspill_instr func.f_body funcs;
+      add_slh_instrs msf mmx_msf spill_instr unspill_instr func.f_body funcs
+        should_spill_msf;
     f_tyout = Bty (U U64) :: func.f_tyout;
     f_outannot =
-      ((Location.mk_loc Location._dummy "msf", None) :: mmx_msf.gv.v_annot)
+      ((Location.mk_loc Location._dummy "msf", None) :: final_msf.gv.v_annot)
       :: func.f_outannot;
-    f_ret = mmx_msf.gvi :: func.f_ret;
+    f_ret = final_msf.gvi :: func.f_ret;
   }
 
 let add_slh_export funcs (msf : 'len slhvar) (mmx_msf : 'len slhvar)
-    (func : (pexpr, 'info, 'asm) gfunc) =
+    (func : (pexpr, 'info, 'asm) gfunc) (should_spill_msf : bool) =
   let init_instr = mk_init msf L.i_dummy in
-  let spill_instr loc = mk_mov mmx_msf msf loc in
+  let spill_instr = mk_mov mmx_msf msf in
   let unspill_instr loc = mk_mov msf mmx_msf loc in
+  let init_instr =
+    if should_spill_msf then [ init_instr; spill_instr init_instr.i_loc ]
+    else [ init_instr ]
+  in
   {
     func with
     f_body =
       init_instr
-      :: spill_instr init_instr.i_loc
-      :: add_slh_instrs msf mmx_msf spill_instr unspill_instr func.f_body funcs;
+      (* :: spill_instr init_instr.i_loc
+         :: add_slh_instrs msf mmx_msf spill_instr unspill_instr func.f_body funcs
+              should_spill_msf; *)
+      @ add_slh_instrs msf mmx_msf spill_instr unspill_instr func.f_body funcs
+          should_spill_msf;
   }
 
-let add_slh_func funcs (func : (pexpr, 'info, 'asm) gfunc) =
+let add_slh_func funcs (func : (pexpr, 'info, 'asm) gfunc)
+    (should_spill_msf : bool) =
   let msf = mk_slhvar "msf" Normal in
   let mmx_msf = mk_slhvar "mmx_msf" Extra in
   match func.f_cc with
-  | Export _ -> add_slh_export funcs msf mmx_msf func
-  | _ -> add_slh_local mmx_msf funcs func
+  | Export _ -> add_slh_export funcs msf mmx_msf func should_spill_msf
+  | _ -> add_slh_local mmx_msf funcs func should_spill_msf
 
-let add_slh (pprog : (unit, 'asm) pprog) =
+let add_slh (pprog : (unit, 'asm) pprog) (should_spill_msf : bool) :
+    (unit, 'asm) pprog =
+  (* let should_spill_msf = true in *)
   let match_item (item : ('len, 'info, 'asm) gmod_item) prev_funcs =
     match item with MIfun gfunc -> prev_funcs @ [ gfunc ] | _ -> prev_funcs
   in
@@ -262,7 +288,8 @@ let add_slh (pprog : (unit, 'asm) pprog) =
   let prev_funcs = get_all_funcs pprog in
   let process_item (item : ('len, 'info, 'asm) gmod_item) =
     match item with
-    | MIfun gfunc -> MIfun (add_slh_func prev_funcs gfunc)
+    | MIfun gfunc -> MIfun (add_slh_func prev_funcs gfunc should_spill_msf)
     | _ -> item
   in
+  (* pprog *)
   List.map process_item pprog

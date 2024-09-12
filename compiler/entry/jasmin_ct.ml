@@ -3,7 +3,7 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let parse_and_check arch call_conv should_not_slh_gen =
+let parse_and_check arch call_conv should_slh_gen should_spill_msf=
   let module A = (val get_arch_module arch call_conv) in
   let check ~doit infer ct_list speculative pass file =
     let _env, pprog, _ast =
@@ -18,8 +18,8 @@ let parse_and_check arch call_conv should_not_slh_gen =
             (Option.default "" msg)
     in
     let pprog =
-      if not should_not_slh_gen && arch = Amd64 then 
-      Slh_gen.add_slh pprog
+      if not should_slh_gen && arch = Amd64 then 
+      Slh_gen.add_slh pprog should_spill_msf
       else pprog
     in
     let prog =
@@ -88,9 +88,13 @@ let speculative =
   let doc = "Check for S-CT" in
   Arg.(value & flag & info [ "speculative"; "sct" ] ~doc)
 
-  let should_not_slh_gen =
-    let doc = "Disable slh gen" in
-    Arg.(value & flag & info [ "noslh-gen" ] ~doc)
+let should_slh_gen =
+  let doc = "Disable slh gen" in
+  Arg.(value & flag & info [ "noslh-gen" ] ~doc)
+
+let should_spill_msf =
+  let doc = "Enable msf spill to mmx in slh gen" in
+  Arg.(value & flag & info [ "spill-msf" ] ~doc)
 
 let slice =
   let doc =
@@ -137,6 +141,6 @@ let () =
   in
   Cmd.v info
     Term.(
-      const parse_and_check $ arch $ call_conv $ should_not_slh_gen $ infer $ slice $ speculative
+      const parse_and_check $ arch $ call_conv $ should_slh_gen $ should_spill_msf $ infer $ slice $ speculative
       $ compile $ file $ doit)
   |> Cmd.eval |> exit
