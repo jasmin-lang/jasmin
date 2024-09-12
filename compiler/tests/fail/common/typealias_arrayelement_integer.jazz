@@ -1,0 +1,7 @@
+
+type x = int;
+
+
+fn test() {
+    reg x[t] y;
+}
