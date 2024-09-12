@@ -172,7 +172,8 @@ and pexpr = pexpr_r L.located
 and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`Add | `Sub] * pexpr) option
 
 (* -------------------------------------------------------------------- *)
-and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
+and psizetype = TypeWsize of wsize | TypeSizeAlias of pident
+and ptype_r = TBool | TInt | TWord of wsize | TArray of psizetype * pexpr | TAlias of pident
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -234,6 +235,11 @@ and fordir   = [ `Down | `Up ]
 and pinstr = annotations * pinstr_r L.located
 and pblock = pblock_r L.located
 
+let string_of_sizetype =
+  function
+  | TypeWsize ws -> string_of_ws ws
+  | TypeSizeAlias pident -> L.unloc pident
+
 (* -------------------------------------------------------------------- *)
 type pparam = {
   ppa_ty   : ptype;
@@ -289,6 +295,7 @@ type pitem =
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
   | PNamespace of pident * pitem L.located list
+  | PTypeAlias of pident * ptype
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

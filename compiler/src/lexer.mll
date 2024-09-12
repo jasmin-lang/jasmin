@@ -18,6 +18,7 @@
       raise (Syntax.ParseError (loc, Some (Format.asprintf "ill-formed string (%s)" msg)))
 
   let _keywords = [
+    "type"  , TYPE   ;
     "u8"    , T_U8   ;
     "u16"   , T_U16  ;
     "u32"   , T_U32  ;

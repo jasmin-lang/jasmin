@@ -42,6 +42,7 @@
 %token FN
 %token FOR
 %token FROM
+%token TYPE
 %token <Syntax.sign>GE
 %token GLOBAL
 %token <Syntax.sign>GT
@@ -166,6 +167,10 @@ utype:
 | T_U128 { Wsize.U128 }
 | T_U256 { Wsize.U256 }
 
+utype_array:
+| ws=utype {TypeWsize ws}
+| id=ident {TypeSizeAlias id}
+
 ptype_r:
 | T_BOOL
     { TBool }
@@ -176,8 +181,9 @@ ptype_r:
 | ut=utype
     { TWord ut }
 
-| ut=utype d=brackets(pexpr)
+| ut=utype_array d=brackets(pexpr)
     { TArray (ut, d) }
+| x=ident {TAlias x}
 
 ptype:
 | x=loc(ptype_r) { x }
@@ -505,6 +511,8 @@ top:
 | x=pglobal  { Syntax.PGlobal x }
 | x=pexec    { Syntax.Pexec   x }
 | x=prequire { Syntax.Prequire x}
+| TYPE name = ident EQ ty = ptype SEMICOLON
+    { Syntax.PTypeAlias (name, ty)}
 | NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
     { Syntax.PNamespace (name, pfs) }
 (* -------------------------------------------------------------------- *)
