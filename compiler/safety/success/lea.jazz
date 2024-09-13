@@ -1,0 +1,29 @@
+param int N = 4;
+
+export
+fn nested_loops(reg ptr u16[N] array) -> reg ptr u16[N] {
+  reg u64 i;
+  ?{}, i = #set0();
+  while (i < N - 1) {
+    reg u64 j;
+    j = #LEA(i + 1);
+    while (j < N) {
+      array[j] += 1;
+      j += 1;
+    }
+    i += 1;
+  }
+  return array;
+}
+
+export
+fn truncate() -> reg u64 {
+  stack u64[2] s;
+  s[1] = 0;
+  reg u64 x;
+  x = (1<<32);
+  reg u64 y;
+  y = (64u)#LEA_32(x +64u 1);
+  x = s[y];
+  return x;
+}
