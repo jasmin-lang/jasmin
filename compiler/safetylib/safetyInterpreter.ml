@@ -1356,6 +1356,14 @@ end = struct
       let e = Papp1 (E.Olnot ws, e1) in
       [Some e]
 
+    | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.LEA ws)) ->
+      let e1 = as_seq1 es in
+      let e =
+        match ty_expr e1 with
+        | Bty (U ws') when int_of_ws ws < int_of_ws ws' -> Papp1 (E.Ozeroext (ws, ws'), e1)
+        | _ -> e1 in
+      [Some e]
+
     | Sopn.Oslh op ->
        begin match op with
        | SLHinit -> [ Some (pcast U64 (Pconst (Z.of_int 0))) ]

@@ -31,6 +31,9 @@
 - Preserve formatting of integer literals in the lexer and when pretty-printing to LATEX
   ([PR #886](https://github.com/jasmin-lang/jasmin/pull/886)).
 
+- Improve handling of instruction `LEA` in the safety checker
+  ([PR #900](https://github.com/jasmin-lang/jasmin/pull/900)).
+
 
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
