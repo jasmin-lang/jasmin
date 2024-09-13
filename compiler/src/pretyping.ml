@@ -1681,13 +1681,15 @@ let tt_annot_vardecls dfl_writable pd env (annot, (ty,vs)) =
 
 
 let rec tt_assign 
-  (mk_i: ?annot:A.annotations -> ('a, unit, 'b) P.ginstr_r -> ('a, unit, 'b) P.ginstr)
+  (mk_i:?annot:A.annotations ->
+    ('a, unit, 'b) P.ginstr_r ->
+    ('a, unit, 'b) P.ginstr
+  )
   arch_info 
   (env: 'asm Env.env) 
   ((annot,pi): S.pinstr) 
   ((lvals,op,exp,cexp):(S.plvals * S.peqop * S.pexpr* S.pexpr option))
-  :
-  'asm Env.env * (unit,'asm) P.instr list = 
+ = 
   match (lvals,op,exp,cexp) with
   | (ls, `Raw, { pl_desc = PECall (f, args); pl_loc = el }, None) ->
     if is_combine_flags f then
@@ -1844,7 +1846,8 @@ let rec tt_assign
 let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
-  match L.unloc pi with
+  
+    match L.unloc pi with
   | S.PIdecl tvs -> 
     let env, _ = tt_annot_vardecls (fun _ -> true) arch_info.pd env (annot, tvs) in
     env, []
@@ -1856,7 +1859,6 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
   
   | S.PIAssign (lval,op,exp,cexp) -> 
     tt_assign mk_i arch_info env (annot,pi) (lval,op,exp,cexp)
-
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool arch_info.pd env cp in
       let st = tt_block arch_info env st in
