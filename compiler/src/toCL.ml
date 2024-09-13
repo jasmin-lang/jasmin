@@ -1279,7 +1279,8 @@ module X86BaseOpS : BaseOp
         | Cas1 ->
           let l_tmp = I.mk_spe_tmp_lval 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
-        | _ -> assert false
+        | Cas2 ->
+          i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
       end
 
     | SUB ws ->
@@ -1293,7 +1294,8 @@ module X86BaseOpS : BaseOp
         | Cas1 ->
           let l_tmp = I.mk_spe_tmp_lval  1 in
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
-        | _ -> assert false
+        | Cas2 ->
+          i1 @ i2 @ [CL.Instr.Op2.sub l a1 a2]
       end
 
     | IMULr ws ->
@@ -1381,6 +1383,18 @@ module X86BaseOpS : BaseOp
     | MOVSX (ws1, ws2) ->
       begin
         match trans with
+        | Smt ->
+          let a,i = cast_atome ws2 (List.nth es 0) in
+          let sign = true in
+          let l_tmp1 = I.mk_tmp_lval ~sign (CoreIdent.tu ws2) in
+          let ty1 = CL.Sint (int_of_ws ws2) in
+          let l_tmp2 = I.mk_tmp_lval ~sign (CoreIdent.tu ws1) in
+          let ty2 = CL.Sint (int_of_ws ws1) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let ty3 = CL.Uint (int_of_ws ws1) in
+          i @ [CL.Instr.cast ty1 l_tmp1 a;
+               CL.Instr.cast ty2 l_tmp2 !l_tmp1;
+               CL.Instr.cast ty3 l !l_tmp2]
         | Cas1 ->
           let a,i = cast_atome ws2 (List.nth es 0) in
           let l = I.glval_to_lval (List.nth xs 0) in
