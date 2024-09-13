@@ -123,24 +123,24 @@ module CL = struct
 
     type rexp =
       | Rvar   of tyvar
-      | Rconst of int * const
-      | Ruext of rexp * int
-      | Rsext of rexp * int
+      | Rconst of Z.t
+(*    | Ruext of rexp * int
+      | Rsext of rexp * int *)
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
-      | Rpreop of string * rexp * rexp
+(*    | Rpreop of string * rexp * rexp *)
       | Rlimbs of const * rexp list
       | RVget  of tyvar * const
-      | UnPack of  tyvar * int * int
+(*    | UnPack of  tyvar * int * int *)
 
-    let const z1 z2 = Rconst(z1, z2)
+    let const z1 = Rconst z1
     let (!-) e1 = Runop ("-", e1)
     let minu e1 e2 = Rbinop (e1, "-", e2)
     let add e1 e2 = Rbinop (e1, "+", e2)
     let mull e1 e2 = Rbinop (e1, "*", e2)
     let neg e1 = Runop ("neg", e1)
     let not e1 = Runop ("not", e1)
-    let rand e1 e2 = Rbinop (e1, "&", e2)
+(*    let rand e1 e2 = Rbinop (e1, "&", e2)
     let ror e1 e2 = Rbinop (e1, "|", e2)
     let xor e1 e2 = Rbinop (e1, "^", e2)
     let umod e1 e2 = Rpreop ("umod", e1, e2)
@@ -148,17 +148,17 @@ module CL = struct
     let srem e1 e2 = Rpreop ("srem", e1, e2)
     let shl e1 e2 = Rpreop ("shl", e1, e2)
     let shr e1 e2 = Rpreop ("shr", e1, e2)
-    let udiv e1 e2 = Rpreop ("udiv", e1, e2)
+    let udiv e1 e2 = Rpreop ("udiv", e1, e2) *)
 
     let rec pp_rexp fmt r =
       match r with
       | Rvar x -> pp_tyvar fmt x
-      | Rconst (c1, c2) -> Format.fprintf fmt "(const %i %a)" c1 pp_const c2
-      | Ruext (e, c) -> Format.fprintf fmt "(uext %a %i)" pp_rexp e c
-      | Rsext (e, c) -> Format.fprintf fmt "(sext %a %i)" pp_rexp e c
+      | Rconst c1 -> Format.fprintf fmt "(const %a)" pp_const c1 
+(*    | Ruext (e, c) -> Format.fprintf fmt "(uext %a %i)" pp_rexp e c
+      | Rsext (e, c) -> Format.fprintf fmt "(sext %a %i)" pp_rexp e c *)
       | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
       | Rbinop(e1, s, e2) ->  Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
-      | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2
+(*    | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2 *)
       | Rlimbs(c, es) ->
         Format.fprintf fmt  "(limbs %a [%a])"
           pp_const c
@@ -167,32 +167,32 @@ module CL = struct
         Format.fprintf fmt  "(%a[%a])"
           pp_tyvar e
           pp_const c
-      | UnPack _ -> assert false
+(*       | UnPack _ -> assert false *)
 
     type rpred =
       | RPcmp   of rexp * string * rexp
-      | RPeqmod of rexp * rexp * string * rexp
+      (* | RPeqmod of rexp * rexp * string * rexp *)
       | RPnot   of rpred
       | RPand   of rpred list
       | RPor    of rpred list
 
-    let eq e1 e2 = RPcmp (e1, "=", e2)
+(*  let eq e1 e2 = RPcmp (e1, "=", e2)
     let equmod e1 e2 e3 = RPeqmod (e1, e2, "umod", e3)
-    let eqsmod e1 e2 e3 = RPeqmod (e1, e2, "smod", e3)
+    let eqsmod e1 e2 e3 = RPeqmod (e1, e2, "smod", e3) *)
     let ult e1 e2 = RPcmp (e1, "<", e2)
     let ule e1 e2 = RPcmp (e1, "<=", e2)
     let ugt e1 e2 = RPcmp (e1, ">", e2)
     let uge e1 e2 = RPcmp (e1, ">=", e2)
-    let slt e1 e2 = RPcmp (e1, "<s", e2)
+(*  let slt e1 e2 = RPcmp (e1, "<s", e2)
     let sle e1 e2 = RPcmp (e1, "<=s", e2)
     let sgt e1 e2 = RPcmp (e1, ">s", e2)
-    let sge e1 e2 = RPcmp (e1, ">=s", e2)
+    let sge e1 e2 = RPcmp (e1, ">=s", e2) *)
 
     let rec pp_rpred fmt rp =
       match rp with
       | RPcmp(e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
-      | RPeqmod(e1, e2, s, e3) ->
-        Format.fprintf fmt "(%a = %a (%s %a))" pp_rexp e1 pp_rexp e2 s pp_rexp e3
+(*    | RPeqmod(e1, e2, s, e3) ->
+        Format.fprintf fmt "(%a = %a (%s %a))" pp_rexp e1 pp_rexp e2 s pp_rexp e3 *)
       | RPnot e -> Format.fprintf fmt "(~ %a)" pp_rpred e
       | RPand rps ->
         begin
@@ -497,29 +497,32 @@ module I (S:S): I = struct
     let open CL.R in
     let (!>) e = gexp_to_rexp ~sign e in
     match e with
-    | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
-    | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws))
+    | Pconst z -> Rconst z
+(*  | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
+    | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws)) *)
     | Pvar x -> Rvar (to_var ~sign x)
     | Papp1(Oneg _, e) -> neg !> e
     | Papp1(Olnot _, e) -> not !> e
     | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
     | Papp2(Osub _, e1, e2) -> minu !> e1 !> e2
     | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
-    | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) -> udiv !> e1 !> e2
+(*  | Papp2(Odiv (Cmp_w (Unsigned,_)), e1, e2) -> udiv !> e1 !> e2 
     | Papp2(Olxor _, e1, e2) -> xor !> e1 !> e2
     | Papp2(Oland _, e1, e2) -> rand !> e1 !> e2
-    | Papp2(Olor _, e1, e2) -> ror !> e1 !> e2
+    | Papp2(Olor _, e1, e2) -> ror !> e1 !> e2  
     | Papp2(Omod (Cmp_w (Unsigned,_)), e1, e2) -> umod !> e1 !> e2
-    | Papp2(Omod (Cmp_w (Signed,_)), e1, e2) -> smod !> e1 !> e2
+    | Papp2(Omod (Cmp_w (Signed,_)), e1, e2) -> smod !> e1 !> e2  
     | Papp2(Olsl _, e1, e2) ->  shl !> e1 !> e2
-    | Papp2(Olsr _, e1, e2) ->  shr !> e1 !> e2
+    | Papp2(Olsr _, e1, e2) ->  shr !> e1 !> e2   
     | Papp1(Ozeroext (osz,isz), e1) -> Ruext (!> e1, (int_of_ws osz) - (int_of_ws isz))
     | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
     | Pabstract ({name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
-      UnPack (to_var ~sign x, 16, Z.to_int z)
+      UnPack (to_var ~sign x, 16, Z.to_int z) *)
+    | Pabstract ({name="u16i"}, [v]) -> !> v
     | Presult (_, x) -> Rvar (to_var x)
+    | _ -> assert false
     | _ -> error e
 
   let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
@@ -530,22 +533,23 @@ module I (S:S): I = struct
     | Pbool (true) -> RPand []
     | Pbool (false) -> assert false
     | Papp1(Onot, e) -> RPnot (!>> e)
-    | Papp2(Oeq _, e1, e2) -> eq !> e1 !> e2
-    | Papp2(Obeq, e1, e2)  -> eq !> e1 !> e2
+(*  | Papp2(Oeq _, e1, e2) -> eq !> e1 !> e2
+    | Papp2(Obeq, e1, e2)  -> eq !> e1 !> e2 *)
     | Papp2(Oand, e1, e2)  -> RPand [!>> e1; !>> e2]
     | Papp2(Oor, e1, e2)  -> RPor [!>> e1; !>> e2]
-    | Papp2(Ole (Cmp_w (Signed,_)), e1, e2)  -> sle !> e1 !>e2
-    | Papp2(Ole (Cmp_w (Unsigned,_)), e1, e2)  -> ule !> e1 !> e2
+    | Papp2(Ole int, e1, e2)  -> ule !> e1 !> e2
+    | Papp2(Oge int, e1, e2)  -> uge !> e1 !> e2
+    | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
+    | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
+(*  | Papp2(Ole (Cmp_w (Signed,_)), e1, e2)  -> sle !> e1 !>e2
     | Papp2(Olt (Cmp_w (Signed,_)), e1, e2)  -> slt !> e1 !> e2
-    | Papp2(Olt (Cmp_w (Unsigned,_)), e1, e2)  -> ult !> e1 !> e2
     | Papp2(Oge (Cmp_w (Signed,_)), e1, e2)  -> sge !> e1 !> e2
-    | Papp2(Oge (Cmp_w (Unsigned,_)), e1, e2)  -> uge !> e1 !> e2
-    | Papp2(Ogt (Cmp_w (Signed,_)), e1, e2)  -> sgt !> e1 !> e2
-    | Papp2(Ogt (Cmp_w (Unsigned,_)), e1, e2)  -> ugt !> e1 !> e2
+    | Papp2(Ogt (Cmp_w (Signed,_)), e1, e2)  -> sgt !> e1 !> e2 *)
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
-    | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
+(*  | Pabstract ({name="eqsmod64"}, [e1;e2;e3]) -> eqsmod !> e1 !> e2 !> e3
     | Pabstract ({name="equmod64"}, [e1;e2;e3]) -> equmod !> e1 !> e2 !> e3
-    | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
+    | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2 *)
+    | _ -> assert false
     | _ -> error e
 
   let rec extract_list e aux =
