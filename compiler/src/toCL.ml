@@ -123,17 +123,17 @@ module CL = struct
 
     type rexp =
       | Rvar   of tyvar
-      | Rconst of Z.t
-(*    | Ruext of rexp * int
-      | Rsext of rexp * int *)
+      | Rconst of int * const
+      | Ruext of rexp * int
+      | Rsext of rexp * int 
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
 (*    | Rpreop of string * rexp * rexp *)
       | Rlimbs of const * rexp list
       | RVget  of tyvar * const
-(*    | UnPack of  tyvar * int * int *)
+      | UnPack of  tyvar * int * int 
 
-    let const z1 = Rconst z1
+    let const (i1,z1) = Rconst (i1,z1)
     let (!-) e1 = Runop ("-", e1)
     let minu e1 e2 = Rbinop (e1, "-", e2)
     let add e1 e2 = Rbinop (e1, "+", e2)
@@ -153,9 +153,9 @@ module CL = struct
     let rec pp_rexp fmt r =
       match r with
       | Rvar x -> pp_tyvar fmt x
-      | Rconst c1 -> Format.fprintf fmt "(const %a)" pp_const c1 
-(*    | Ruext (e, c) -> Format.fprintf fmt "(uext %a %i)" pp_rexp e c
-      | Rsext (e, c) -> Format.fprintf fmt "(sext %a %i)" pp_rexp e c *)
+      | Rconst (c1,c2) -> Format.fprintf fmt "(const %i %a)" c1 pp_const c2 
+      | Ruext (e, c) -> Format.fprintf fmt "(uext %a %i)" pp_rexp e c
+      | Rsext (e, c) -> Format.fprintf fmt "(sext %a %i)" pp_rexp e c 
       | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
       | Rbinop(e1, s, e2) ->  Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
 (*    | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2 *)
@@ -167,7 +167,7 @@ module CL = struct
         Format.fprintf fmt  "(%a[%a])"
           pp_tyvar e
           pp_const c
-(*       | UnPack _ -> assert false *)
+      | UnPack _ -> assert false 
 
     type rpred =
       | RPcmp   of rexp * string * rexp
@@ -497,9 +497,8 @@ module I (S:S): I = struct
     let open CL.R in
     let (!>) e = gexp_to_rexp ~sign e in
     match e with
-    | Pconst z -> Rconst z
-(*  | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
-    | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws)) *)
+    | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
+    | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws)) 
     | Pvar x -> Rvar (to_var ~sign x)
     | Papp1(Oneg _, e) -> neg !> e
     | Papp1(Olnot _, e) -> not !> e
@@ -514,12 +513,12 @@ module I (S:S): I = struct
     | Papp2(Omod (Cmp_w (Signed,_)), e1, e2) -> smod !> e1 !> e2  
     | Papp2(Olsl _, e1, e2) ->  shl !> e1 !> e2
     | Papp2(Olsr _, e1, e2) ->  shr !> e1 !> e2   
-    | Papp1(Ozeroext (osz,isz), e1) -> Ruext (!> e1, (int_of_ws osz) - (int_of_ws isz))
+    | Papp1(Ozeroext (osz,isz), e1) -> Ruext (!> e1, (int_of_ws osz) - (int_of_ws isz)) *)
     | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
     | Pabstract ({name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
-      UnPack (to_var ~sign x, 16, Z.to_int z) *)
+        UnPack (to_var ~sign x, 16, Z.to_int z) 
     | Pabstract ({name="u16i"}, [v]) -> !> v
     | Presult (_, x) -> Rvar (to_var x)
     | _ -> assert false
@@ -615,7 +614,7 @@ module I (S:S): I = struct
     | Pconst z -> Iconst z
     | Pvar x -> Ivar (to_var ~sign x)
     | Papp1 (Oword_of_int _ws, x) -> !> x
-    | Papp1 (Oint_of_word _ws, x) -> !> x
+    | Papp1 (Oint_of_word _ws, x) -> assert false (* !> x *)
     | Papp1(Oneg _, e) -> !- !> e
     | Papp2(Oadd _, e1, e2) -> !> e1 + !> e2
     | Papp2(Osub _, e1, e2) -> !> e1 - !> e2
@@ -626,6 +625,7 @@ module I (S:S): I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
+    | Pabstract ({name="u16i"}, [v]) -> !> v
     | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
@@ -754,7 +754,7 @@ module X86BaseOpU : BaseOp
     let atran annot =
       match Annot.ensure_uniq1 "tran" mk_trans annot with
       | None -> Cas1
-      | Some aty -> aty
+      | Some aty -> aty 
     in
     atran annot
 
@@ -825,6 +825,9 @@ module X86BaseOpU : BaseOp
         | Cas1 ->
           let lc = I.glval_to_lval (List.nth xs 1) in
           i1 @ i2 @ [CL.Instr.Op2_2.adds lc l a1 a2]
+        | Cas2 ->
+          let lc = I.glval_to_lval (List.nth xs 1) in
+          i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
         | _ -> assert false
       end
 

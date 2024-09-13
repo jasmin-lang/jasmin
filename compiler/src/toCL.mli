@@ -34,15 +34,15 @@ module CL : sig
 
     type rexp =
       | Rvar   of tyvar
-      | Rconst of Z.t
-(*    | Ruext of rexp * int
-      | Rsext of rexp * int *)
+      | Rconst of int * const
+      | Ruext of rexp * int
+      | Rsext of rexp * int 
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
 (*    | Rpreop of string * rexp * rexp *)
       | Rlimbs of const * rexp list
       | RVget  of tyvar * const
-(*    | UnPack of  tyvar * int * int *)
+      | UnPack of  tyvar * int * int 
 
     type rpred =
       | RPcmp   of rexp * string * rexp
