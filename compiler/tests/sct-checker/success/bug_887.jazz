@@ -1,0 +1,23 @@
+fn test_msf(reg u64 msf x) {
+  while {
+    msf = #init_msf();
+  } (x != 0) {
+    msf = #update_msf(x != 0, msf);
+    x = 0;
+  }
+  msf = #update_msf(! (x != 0), msf);
+}
+
+#[sct="secret → public"]
+fn test_venv(reg u64 s) -> reg u64 {
+  reg u64 i r;
+  r = 0;
+  i = 0;
+  while {
+    r = 0;
+  } (i < 10) {
+    r = s;
+    i += 1;
+  }
+  return r;
+}

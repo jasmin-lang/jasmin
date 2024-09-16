@@ -916,7 +916,7 @@ Section EXPR.
   Proof.
     move=> hofs; rewrite /get_var_kind /check_gvalid.
     case : (@idP (is_glob x)) => hg.
-    + t_xrbindP=> -[_ ws'] /get_globalP /dup [] /wf_globals /sub_region_glob_wf hwf -> <- /= [<- <- <-].
+    + t_xrbindP=> -[_ ws'] /get_globalP /[dup] /wf_globals /sub_region_glob_wf hwf -> <- /= [<- <- <-].
       set bytesx := ByteSet.full _.
       by exists bytesx.
     by case hlocal: get_local => [pk|//] [<-] /get_sub_region_bytesP.
@@ -1438,7 +1438,7 @@ Lemma eq_sub_region_val_same_region s2 sr ty sry ty' mem2 bytes v :
   eq_sub_region_val ty' mem2 sry (ByteSet.remove bytes (interval_of_zone sr.(sr_zone))) v.
 Proof.
   move=> hwf hwfy hr hreadeq [hread hty'].
-  split=> // off hmem v1 /dup[] /get_val_byte_bound; rewrite hty' => hoff hget.
+  split=> // off hmem v1 /[dup] /get_val_byte_bound; rewrite hty' => hoff hget.
   have hwfy' := sub_region_at_ofs_wf_byte hwfy hoff.
   move: hmem; rewrite memi_mem_U8.
   move=> /(mem_remove_interval_of_zone (wf_zone_len_gt0 hwf) (wf_zone_len_gt0 hwfy')) [hmem hdisj].
@@ -2123,7 +2123,7 @@ Proof.
   rewrite hty.
   exists a1; split=> //.
   move=> k w.
-  move=> /dup[]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
+  move=> /[dup]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
   rewrite (WArray.get_sub_get8 hgsub) /=.
   by move: hbound; rewrite -!zify => ->.
 Qed.
@@ -2174,7 +2174,7 @@ Lemma cast_get8 len1 len2 (m : WArray.array len2) (m' : WArray.array len1) :
     read m Aligned k U8 = ok w.
 Proof.
   move=> hcast k w.
-  move=> /dup[]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
+  move=> /[dup]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
   rewrite (WArray.cast_get8 hcast).
   by case: hbound => _ /ZltP ->.
 Qed.
@@ -2490,7 +2490,7 @@ Proof.
   have {hofs} -> := get_ofs_subP he hofs.
   move=> hlx hget hsub hread.
   apply (valid_state_set_move_sub hvs hlx h).
-  move=> srx /dup[] /hget{hget} ? hget; subst srx; rewrite heq.
+  move=> srx /[dup] /hget{hget} ? hget; subst srx; rewrite heq.
   split=> // off hmem w /=.
   rewrite (WArray.set_sub_get8 ha3) /=.
   case: ifPn => [_|].
@@ -2610,7 +2610,7 @@ Proof.
         (sub_region_at_ofs sry (Some ofs) len).(sr_region) x)
       (Varr a').
   + rewrite /= get_var_bytes_set_move_bytes /= !eqxx /=.
-    move=> off hmem w' /dup[] /get_val_byte_bound /= hoff /hay.
+    move=> off hmem w' /[dup] /get_val_byte_bound /= hoff /hay.
     rewrite -sub_region_addr_offset -GRing.addrA -wrepr_add.
     assert (hval := wfr_val hgvalidy hgety).
     case: hval => hread _.
@@ -2767,7 +2767,7 @@ Proof.
   have hpky: valid_vpk rmap1 s2 y.(gv) sry vpky.
   + have /wfr_gptr := hgvalidy.
     by rewrite hkindy => -[_ [[]] <-].
-  t_xrbindP=> -[e1 ofs2] /dup [] hmk_addr /(mk_addr_pexprP true _ hwfpky hpky) [w [he1 haddr]] [] <- _ <-.
+  t_xrbindP=> -[e1 ofs2] /[dup] hmk_addr /(mk_addr_pexprP true _ hwfpky hpky) [w [he1 haddr]] [] <- _ <-.
   have [? [ay [hgety hay]]] := get_Pvar_subP he hgete erefl; subst n.
 
   have hread:
@@ -2783,7 +2783,7 @@ Proof.
         (sub_region_at_ofs sry (Some ofs) len).(sr_region) x)
       (Varr a').
   + rewrite /= get_var_bytes_set_move_bytes /= !eqxx /=.
-    move=> off hmem w' /dup[] /get_val_byte_bound /= hoff /hay.
+    move=> off hmem w' /[dup] /get_val_byte_bound /= hoff /hay.
     rewrite -sub_region_addr_offset -GRing.addrA -wrepr_add.
     assert (hval := wfr_val hgvalidy hgety).
     case: hval => hread _.
@@ -2891,7 +2891,7 @@ Proof.
     apply (valid_state_set_move_regptr (ptr_prop _ hpx) hvs (sub_region_at_ofs_0_wf hwfw) hpx htrx).
     rewrite /set_move /= get_var_bytes_set_move_bytes eqxx /= eqxx /=.
     rewrite hxty eqxx; split => //.
-    move=> off hmem ww /dup[] /get_val_byte_bound /= hoff hget.
+    move=> off hmem ww /[dup] /get_val_byte_bound /= hoff hget.
     have /(_ _ _ _ _ hvs _ _ _ _ gvalidw) := vs_wf_region.(wfr_val).
     rewrite get_gvar_nglob in hw => //; last by rewrite -is_lvar_is_glob.
     rewrite get_gvar_nglob // => /(_ _ hw) [+ _].
@@ -2914,7 +2914,7 @@ Proof.
     apply (valid_state_set_move_regptr (ptr_prop _ hpy) hvs' (sub_region_at_ofs_0_wf hwfz) hpy htry).
     rewrite /set_move /= get_var_bytes_set_move_bytes eqxx /= eqxx /=.
     rewrite hyty eqxx; split => //.
-    move=> off hmem ww /dup[] /get_val_byte_bound /= hoff hget.
+    move=> off hmem ww /[dup] /get_val_byte_bound /= hoff hget.
     have /(_ _ _ _ _ hvs _ _ _ _ gvalidz) := vs_wf_region.(wfr_val).
     rewrite get_gvar_nglob in hz => //; last by rewrite -is_lvar_is_glob.
     rewrite get_gvar_nglob // => /(_ _ hz) [+ _]. 
@@ -3305,7 +3305,7 @@ Lemma wf_rmap_Incl rmap1 rmap2 s1 s2 :
   wf_rmap rmap2 s1 s2 ->
   wf_rmap rmap1 s1 s2.
 Proof.
-  move=> /dup[] hincl [hinclr hsub] hwfr.
+  move=> /[dup] hincl [hinclr hsub] hwfr.
   case: (hwfr) => hwfsr hval hptr; split.
   + move=> x sr /hinclr.
     by apply hwfsr.
@@ -3577,7 +3577,7 @@ Proof.
     move: hget; rewrite /get_gvar /= => /get_varP [].
     by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
   have /(wfr_val hgvalid) [hread /= hty] := hget'.
-  move=> off w /dup[] /get_val_byte_bound; rewrite hty => hoff.
+  move=> off w /[dup] /get_val_byte_bound; rewrite hty => hoff.
   apply hread.
   have :=
     subset_inter_l bytes
@@ -4058,7 +4058,7 @@ Proof.
   move=> hvs hlwf hlunch hldisj.
   move=> x sr bytes v /= hgvalid /(wfr_val hgvalid) [hread hty].
   have /(check_gvalid_wf wfr_wf) /= hwf := hgvalid.
-  split=> // off hmem w /dup[] /get_val_byte_bound; rewrite hty => hoff hget.
+  split=> // off hmem w /[dup] /get_val_byte_bound; rewrite hty => hoff hget.
   rewrite -(hread _ hmem _ hget).
   apply (eq_read_holed_rmap hvs hlwf hlunch hldisj hwf hoff).
   move=> hw.
@@ -4337,7 +4337,7 @@ Proof.
       by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
     assert (hval := wfr_val hgvalid hget').
     case: hval => hread hty.
-    move=> off w /dup[] /get_val_byte_bound; rewrite hty => hoff.
+    move=> off w /[dup] /get_val_byte_bound; rewrite hty => hoff.
     apply hread.
     have :=
     subset_inter_l bytes
@@ -4610,7 +4610,7 @@ Proof.
   + rewrite /s1''' /s2'''.
     apply: (valid_state_set_sub_region_regptr _ hvs1'' hwfg hsub hofs hlx hrmap2' h).
     + by rewrite hlocal.(wfr_rtype).
-    rewrite htreq; split=> // off hmem w /dup[] /get_val_byte_bound /= hoff.
+    rewrite htreq; split=> // off hmem w /[dup] /get_val_byte_bound /= hoff.
     rewrite (WArray.fill_get8 hfill) (fill_mem_read8_no_overflow _ hfillm)
             -?(WArray.fill_size hfill) ?positive_nat_Z /=;
       try lia.

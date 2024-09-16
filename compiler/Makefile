@@ -7,7 +7,7 @@ CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
 CHECKCATS ?= \
 	safety \
-	CCT CCT-DOIT \
+	CCT CCT-DOIT SCT \
 	x86-64-ATT \
 	x86-64-Intel \
 	x86-64-print \

@@ -82,7 +82,7 @@
 %token EXPORT
 %token ARRAYINIT
 %token <string> NID
-%token <Z.t> INT
+%token <Syntax.int_representation> INT
 %token <string> STRING
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
@@ -127,8 +127,8 @@ annotationlabel:
   | s=loc(STRING) { s }
 
 int: 
-  | i=INT       { i }
-  | MINUS i=INT { Z.neg i } 
+  | i=INT       { Syntax.parse_int i }
+  | MINUS i=INT { Z.neg (Syntax.parse_int i ) } 
 
 simple_attribute:
   | i=int          { Aint i    }
@@ -364,11 +364,9 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN 
-    { PIWhile (is1, b, None) }
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
+    { PIWhile (is1, b, is2) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock
-    { PIWhile (is1, b, Some is2) }
 | vd=postfix(pvardecl(COMMA?), SEMICOLON) 
     { PIdecl vd }
 

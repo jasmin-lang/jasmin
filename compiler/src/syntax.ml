@@ -1,4 +1,5 @@
 open Annotations
+open Utils
 (* -------------------------------------------------------------------- *)
 module L = Location
 
@@ -22,6 +23,11 @@ type svsize  = vsize * sign * vesize
 
 type castop1 = CSS of sowsize | CVS of svsize 
 type castop = castop1 L.located option
+
+type int_representation = string
+let parse_int (i: int_representation) : Z.t =
+  let s = String.filter (( <> ) '_') i in
+  Z.of_string s
 
 let bits_of_wsize : wsize -> int = Annotations.int_of_ws 
 
@@ -153,7 +159,7 @@ type pexpr_r =
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
-  | PEInt    of Z.t
+  | PEInt    of int_representation
   | PECall   of pident * pexpr list
   | PECombF  of pident * pexpr list
   | PEPrim   of pident * pexpr list
@@ -212,11 +218,17 @@ type vardecls = pstotype * pident list
 
 type pinstr_r =
   | PIArrayInit of pident
+      (** ArrayInit(x); *)
   | PIAssign    of plvals * peqop * pexpr * pexpr option
+      (** x, y += z >> 4 if c; *)
   | PIIf        of pexpr * pblock * pblock option
+      (** if e { … } else { … } *)
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
+      (** for i = 0 to N { … } *)
   | PIWhile     of pblock option * pexpr * pblock option
+      (** while { … } (x > 0) { … } *)
   | PIdecl      of vardecls
+      (** reg u32 x y z; *)
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
@@ -263,7 +275,7 @@ type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
 (* -------------------------------------------------------------------- *)
 type pexec = {
   pex_name: pident;
-  pex_mem: (Z.t * Z.t) list;
+  pex_mem: (int_representation * int_representation) list;
 }
 
 (* -------------------------------------------------------------------- *)
@@ -280,3 +292,4 @@ type pitem =
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list
+

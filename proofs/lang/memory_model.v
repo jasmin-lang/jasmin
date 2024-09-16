@@ -537,7 +537,7 @@ Lemma disjoint_zrange_U8 p sz p' sz' :
   (forall k, 0 <= k /\ k < sz' -> disjoint_zrange p sz (p' + wrepr _ k) (wsize_size U8)) ->
   disjoint_zrange p sz p' sz'.
 Proof.
-  move=> hsz /dup[] /Z.lt_le_incl.
+  move=> hsz /[dup] /Z.lt_le_incl.
   move: sz'; apply: natlike_ind; first by lia.
   move=> sz' hsz' ih _ hover hdisj.
   have /Z_le_lt_eq_dec [?|?] := hsz'.
@@ -580,7 +580,7 @@ Qed.
 (** Pointer arithmetic *)
 
 #[ global ]
-Instance Pointer : pointer_op pointer.
+Instance PointerW : pointer_op pointer.
 Proof.
 refine
   {| add p k   := (p + wrepr Uptr k)%R
@@ -609,7 +609,7 @@ Proof. rewrite /= wrepr_add; ssring. Qed.
 Lemma p_to_zE p : p_to_z p = wunsigned p.
 Proof. done. Qed.
 
-Global Opaque Pointer.
+Global Opaque PointerW.
 
 Lemma disjoint_zrange_alt a m b n :
   disjoint_zrange a m b n →
@@ -859,7 +859,7 @@ Section SPEC.
     validw m Aligned p s ->
     disjoint_zrange p (wsize_size s) pstk sz.
   Proof.
-    move=> /dup[] /ass.(ass_fresh) hfresh hvalid.
+    move=> /[dup] /ass.(ass_fresh) hfresh hvalid.
     split=> //.
     + apply is_align_no_overflow.
       by move: hvalid => /validwP [? _].

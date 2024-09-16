@@ -376,7 +376,6 @@ let memory_analysis pp_err ~debug up =
             (* no stack to clear, we don't change the alignment *)
             align
           else
-            let ws = Pretyping.tt_ws ws in
             if wsize_lt align ws then ws else align
       | _, _ -> align
     in
@@ -415,7 +414,7 @@ let memory_analysis pp_err ~debug up =
       | Export _, Some (_, ows) ->
           let ws =
             match ows with
-            | Some ws -> Pretyping.tt_ws ws
+            | Some ws -> ws
             | None -> align (* the default clear step is the alignment *)
           in
           Conv.z_of_cz (Memory_model.round_ws ws (Conv.cz_of_z max_size))

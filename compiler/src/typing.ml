@@ -118,7 +118,7 @@ and check_expr pd loc e ty =
 and check_exprs pd loc es tys = 
   let len = List.length tys in
   if List.length es <> len then
-    error loc "invalid number of expressions %i excepted" len;
+    error loc "invalid number of expressions %i expected" len;
   List.iter2 (check_expr pd loc) es tys
 
 and ty_load_store pd loc ws x e = 
@@ -161,7 +161,7 @@ let check_lval pd loc x ty =
 let check_lvals pd loc xs tys =
   let len = List.length tys in
   if List.length xs <> len then
-    error loc "invalid number of left values %i excepted" len;
+    error loc "invalid number of left values %i expected" len;
   List.iter2 (check_lval pd loc) xs tys
 
 (* -------------------------------------------------------------------- *)

@@ -121,7 +121,6 @@ class ANSITerm:
 
     isatty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
     hascolors = False
-    (term_cols, term_lines) = shutil.get_terminal_size()
 
     if isatty:
         try:
@@ -141,12 +140,13 @@ class ANSITerm:
     @classmethod
     def progress_write(cls, s):
         if cls.isatty:
-            print("\033[J" + s, end="", file=sys.stderr, flush=True)
-            up = len(s) // int(cls.term_cols)
-            bs = ""
-            if up != 0:
-                bs += f"\033[{bs}A"
-            print(bs + "\r", file=sys.stderr, end="", flush=False)
+            # Truncate s according to terminal width
+            # taking into account the eleven bytes that change colors
+            term_cols, _ = shutil.get_terminal_size()
+            s = s[0:int(term_cols) + 11]
+            print(f"\033[J{s}\r", end="", file=sys.stderr)
+        else:
+            print(s, file=sys.stderr)
 
 
 def rcolor(txt, b):
@@ -361,6 +361,8 @@ def _main():
             ANSITerm.progress_write(
                 f"Tests: {(i+1): 4}/{n: 4} | Failed: {fails: 4} | [{success}] {last_cmd}"
             )
+
+    print('', file=sys.stderr, flush=True)
 
     errors = [x for x in result if not x.success]
     if errors:
