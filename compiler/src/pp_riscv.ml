@@ -198,7 +198,7 @@ let pp_instr fn i =
     LInstr ("ret", [ ]) ]
 
   | SysCall op ->
-      [LInstr ("bl", [ pp_syscall op ])]
+      [LInstr ("call", [ pp_syscall op ])]
 
   | AsmOp (op, args) ->
       let id = instr_desc riscv_decl riscv_op_decl (None, op) in
