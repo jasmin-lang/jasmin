@@ -38,11 +38,11 @@ Context
 
 #[local] Existing Instance withsubword.
 
-Definition sem_fopn_args (p : seq lexpr * riscv_extended_op * seq rexpr) (s : estate) :=
+Definition sem_fopn_args (p : seq lexpr * riscv_op * seq rexpr) (s : estate) :=
   let: (xs,o,es) := p in
   Let args := sem_rexprs s es in
-  let op := arch_extra.get_instr_desc o in
-  Let t := app_sopn (tin op) (semi op) args in
+  let op := instr_desc_op o in
+  Let t := app_sopn (id_tin op) (id_semi op) args in
   let res := list_ltuple t in
   write_lexprs xs res s.
 
@@ -95,8 +95,18 @@ Lemma subi_sem_fopn_args {s xname vi y imm wy} :
   let: wx' := Vword (wy - wrepr reg_size imm)in
   let: vm' := (evm s).[x <- wx'] in
   sem_fopn_args (RISCVFopn_core.subi xi y imm) s = ok (with_vm s vm').
-Proof. by red; t_xrbindP => *; t_riscv_op. Qed.
-
+Proof.   
+  red.  
+  t_xrbindP => *.
+  rewrite /RISCVFopn_core.subi.
+  rewrite /RISCVFopn_core.neg_op_bin_imm.
+  rewrite /RISCVFopn_core.op_gen.
+  t_riscv_op.
+  rewrite /riscv_add_semi.
+  rewrite wrepr_opp.
+  reflexivity.
+  Qed.  
+  
 Lemma mov_sem_fopn_args {s xname vi y} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
   get_var true (evm s) (v_var y) >>= to_word Uptr = ok wy ->

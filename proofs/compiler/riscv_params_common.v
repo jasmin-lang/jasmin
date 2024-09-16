@@ -40,7 +40,7 @@ Module RISCVFopn.
   Definition li x   imm := to_opn (RISCVFopn_core.li x imm).
 
   Definition addi x y imm := to_opn (RISCVFopn_core.addi x y imm).
-  Definition subi x y imm := to_opn_ext (RISCVFopn_core.op_bin_imm SUBI x y imm).
+  Definition subi x y imm := to_opn (RISCVFopn_core.subi x y imm).
 
   Definition andi x y imm := to_opn (RISCVFopn_core.andi x y imm).
 
@@ -52,22 +52,21 @@ Module RISCVFopn.
      Precondition: if [imm] is large, [x <> y]. *)
   Definition smart_addi x y imm := map to_opn (RISCVFopn_core.smart_addi x y imm).
 
+  (* Compute [R[x] := R[y] - imm % 2^32
+    Precondition: if [imm] is large, [x <> y]. *)
+  Definition smart_subi x y imm := map to_opn (RISCVFopn_core.smart_subi x y imm).
+
   (* Compute [R[x] := R[x] + imm % 2^32].
      Precondition: if [imm] is large, [x <> tmp]. *)
   Definition smart_addi_tmp x tmp imm :=
     map to_opn (RISCVFopn_core.smart_addi_tmp x tmp imm).
 
+   (* Compute [R[x] := R[x] - imm % 2^32].
+      Precondition: if [imm] is large, [x <> tmp]. *)
+    Definition smart_subi_tmp x tmp imm :=
+      map to_opn (RISCVFopn_core.smart_subi_tmp x tmp imm).
   Definition opn_ext_args := (seq lexpr * riscv_extended_op * seq rexpr)%type.
-
-  (* Compute [R[x] := R[y] - imm % 2^32
-     Precondition: if [imm] is large, [x <> y]. *)
-  Definition smart_subi x y imm :=
-    RISCVFopn_core.gen_smart_opi to_opn sub subi is_arith_small_neg (Some 0%Z) x x y imm.
-
-  (* Compute [R[x] := R[x] - imm % 2^32].
-     Precondition: if [imm] is large, [x <> tmp]. *)
-  Definition smart_subi_tmp x tmp imm := RISCVFopn_core.gen_smart_opi_tmp to_opn is_arith_small_neg sub subi x tmp imm.
-
+ 
   End WITH_PARAMS.
 
 End RISCVFopn.

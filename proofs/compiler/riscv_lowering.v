@@ -76,12 +76,32 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
 
 (* RISC-V only handles immediates lower than 2ˆ12 for I type instructions *)
 Definition decide_op_reg_imm
-  (ws : wsize) (e0 e1: pexpr) (is_small : Z -> bool) (op_reg_reg op_reg_imm : riscv_extended_op) : 
+  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op) : 
   option (riscv_extended_op * pexprs) :=
   match is_wconst ws e1 with
   | Some (word) => 
-    if is_small (wsigned word) then
-      Some(op_reg_imm, [::e0; e1])
+    if is_arith_small (wsigned word) then
+    Some(op_reg_imm, [::e0; e1])
+    else None
+  | _ => Some(op_reg_reg, [::e0; e1])
+  end.
+
+Definition insert_minus  (e1: pexpr) : option pexpr :=
+match e1 with  
+  | Papp1 (Oword_of_int sz) (Pconst n) => 
+    Some(Papp1 (Oword_of_int sz) (Pconst (- n)))
+  | _ => None
+end.
+
+(* RISC-V only handles immediates lower than 2ˆ12 for I type instructions *)
+Definition decide_op_reg_imm_neg
+  (ws : wsize) (e0 e1: pexpr) (op_reg_reg op_reg_imm : riscv_extended_op) : 
+  option (riscv_extended_op * pexprs) :=
+  match is_wconst ws e1 with
+  | Some (word) => 
+    if is_arith_small_neg (wsigned word) then
+    let%opt e1:= insert_minus e1 in
+    Some(op_reg_imm, [::e0; e1])
     else None
   | _ => Some(op_reg_reg, [::e0; e1])
   end.
@@ -91,11 +111,11 @@ Definition lower_Papp2
   option (riscv_extended_op * pexprs) :=
   let%opt _ := chk_ws_reg ws in
   match op with
-  | Oadd (Op_w _) => decide_op_reg_imm U32 e0 e1 is_arith_small (BaseOp(None, ADD)) (BaseOp(None, ADDI))
-  | Osub (Op_w _) => decide_op_reg_imm U32 e0 e1 is_arith_small_neg (BaseOp(None, SUB)) (ExtOp SUBI)
-  | Oland _ => decide_op_reg_imm U32 e0 e1 is_arith_small (BaseOp(None, AND)) (BaseOp(None, ANDI))
-  | Olor _ => decide_op_reg_imm U32 e0 e1 is_arith_small (BaseOp(None, OR)) (BaseOp(None, ORI))
-  | Olxor _ => decide_op_reg_imm U32 e0 e1 is_arith_small (BaseOp(None, XOR)) (BaseOp(None, XORI))
+  | Oadd (Op_w _) => decide_op_reg_imm U32 e0 e1 (BaseOp(None, ADD)) (BaseOp(None, ADDI))
+  | Osub (Op_w _) => decide_op_reg_imm_neg U32 e0 e1 (BaseOp(None, SUB)) (BaseOp(None, ADDI))
+  | Oland _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, AND)) (BaseOp(None, ANDI))
+  | Olor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, OR)) (BaseOp(None, ORI))
+  | Olxor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, XOR)) (BaseOp(None, XORI))
   | Omul (Op_w _) => Some (BaseOp (None, MUL), [:: e0; e1])
   | Olsr U32 =>
     if check_shift_amount e1 is Some(e1) then

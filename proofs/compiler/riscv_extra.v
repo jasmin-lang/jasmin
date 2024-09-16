@@ -24,7 +24,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Variant riscv_extra_op : Type :=  
-  | SUBI
   | SWAP of wsize
   | Oriscv_add_large_imm.
 
@@ -44,19 +43,6 @@ HB.instance Definition _ := hasDecEq.Build riscv_extra_op riscv_extra_op_eq_axio
 Instance eqTC_riscv_extra_op : eqTypeC riscv_extra_op :=
   { ceqP := riscv_extra_op_eq_axiom }.
 
-Definition riscv_SUBI_instr : instruction_desc :=
-  {|
-   str    := pp_s "SUBI";
-   tin    := [::sreg; sreg];
-   i_in   := [:: E 1; E 2];
-   tout   := [:: sreg];
-   i_out  := [:: E 0];
-   conflicts := [::];
-   semi   := riscv_sub_semi;
-   semu   := @values.vuincl_app_sopn_v [::sreg; sreg] [::sreg] riscv_sub_semi refl_equal;
-   i_safe := [::] 
-   |}.
-
 (* [conflicts] ensures that the returned register is distinct from the first
    argument. *)
 Definition Oriscv_add_large_imm_instr : instruction_desc :=
@@ -74,7 +60,6 @@ Definition Oriscv_add_large_imm_instr : instruction_desc :=
 
 Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=
   match o with
-  | SUBI => riscv_SUBI_instr  
   | SWAP ws => Oswap_instr (sword ws)
   | Oriscv_add_large_imm => Oriscv_add_large_imm_instr
    end.
@@ -87,7 +72,7 @@ Definition get_instr_desc (o: riscv_extra_op) : instruction_desc :=
 Instance riscv_extra_op_decl : asmOp riscv_extra_op | 1 :=
   {
     asm_op_instr := get_instr_desc;
-    prim_string := [::]; (* SUBI should not be used in jazz programm, hence absent from the list *)
+    prim_string := [::];
   }.
 
 Module E.
@@ -119,7 +104,7 @@ Definition error (ii : instr_info) (msg : string) :=
 End E.
 
 Definition asm_args_of_opn_args
-  : seq (RISCVFopn_core.opn_args riscv_op) -> seq (asm_op_msb_t * lexprs * rexprs) :=
+  : seq RISCVFopn_core.opn_args -> seq (asm_op_msb_t * lexprs * rexprs) :=
   map (fun '(les, aop, res) => ((None, aop), les, res)).
 
 Definition assemble_extra
@@ -128,13 +113,7 @@ Definition assemble_extra
            (outx: lexprs)
            (inx: rexprs)
            : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
-  match o with 
-  | SUBI => 
-      match outx, inx with
-      | [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fapp1 (Oword_of_int U32) (Fconst imm))] =>
-        ok [:: ((None, ADDI), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fapp1 (Oword_of_int U32) (Fconst (- imm)))])]
-      | _, _ => Error (E.internal_error ii "ill-formed SUBI : invalid args or dests")
-      end
+  match o with   
   | SWAP sz =>
     if (sz == U32)%CMP then
       match outx, inx with
