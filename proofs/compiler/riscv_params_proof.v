@@ -89,9 +89,15 @@ Proof.
       constructor.
       rewrite /sem_sopn /= P'_globs /exec_sopn ok_z /= ok_i /= with_vm_same.
       by move: hx; rewrite /= wrepr0 GRing.addr0 => ->.
-    move=> [<-] /= hx; exists (evm s2) => //.
+    case: ifP => _.
+    + move=> [<-] /= hx; exists (evm s2) => //.
+      constructor.
+      by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx with_vm_same.
+    case: e ok_z => // y /= hget.
+    case: andb => // -[<-] hw.
+    exists (evm s2) => //.
     constructor.
-    by rewrite /sem_sopn /= P'_globs /exec_sopn /sem_sop2 /= ok_z /= ok_i /= truncate_word_u /= ?truncate_word_u /= hx with_vm_same.
+    by rewrite /sem_sopn /= P'_globs /exec_sopn hget /= ok_i /= truncate_word_u /= hw with_vm_same.
   move=> al ws_ x_ e_; move: (Lmem al ws_ x_ e_) => {al ws_ x_ e_} x.
   case: eqP => [-> | _ ] // /Some_inj <-{ins} hx; exists (evm s2) => //.
   constructor.
@@ -154,7 +160,7 @@ Proof.
   rewrite /= hget /=; t_riscv_op.
   eexists; split; first reflexivity.
   + by move=> z hz; rewrite Vm.setP_neq //; apply /eqP; SvD.fsetdec.
-  by rewrite Vm.setP_eq /=.
+  by rewrite Vm.setP_eq /= wrepr_opp.
 Qed.
 
 
@@ -471,23 +477,13 @@ Qed.
 (* TODO_RISCV: Is there a way of avoiding importing here? *)
 Import arch_sem.
 
-Lemma assemble_subi_correct : assemble_extra_correct SUBI.
+Lemma sem_sopns_fopns_args s lc :
+  sem_sopns s [seq (None, o, d, e) | '(d, o, e) <- lc] =
+  sem_fopns_args s (map RISCVFopn.to_opn lc).
 Proof.
-  move=> rip ii lvs args m xs ys m' s ops ops' /=.
-  case: lvs => // -[] // v [] //.
-  case: args => // -[] // [] // v0 [] // [] // [] // [] // [] // [] // z [] //=.
-  move=> ok_xs ok_ys ok_m' ok_ops ok_ops' lom_m_s.
-  have:= assemble_opsP riscv_eval_assemble_cond ok_ops' _ _ lom_m_s.
-  move: ok_ops => [] <- /=.
-  apply; first by reflexivity.
-  move: ok_xs ok_ys ok_m'; t_xrbindP => z0 -> <-.
-  rewrite /exec_sopn /= truncate_word_u; t_xrbindP.
-  move=> z1 z2 word _ <-.
-  rewrite /sopn_sem /=.
-  rewrite /riscv_sub_semi /= => -[] <- <-; t_xrbindP.
-  move=> z3 z4 ok_z4 <- <- /=.
-  rewrite word truncate_word_u /= wrepr_opp.
-  by rewrite ok_z4 /=.
+  elim: lc s => //= -[[xs o] es ] lc ih s.
+  rewrite /sem_fopn_args /sem_sopn_t /=; case: sem_rexprs => //= >.
+  by rewrite /exec_sopn /= /Oriscv; case : app_sopn => //= >; case write_lexprs.
 Qed.
 
 Lemma assemble_swap_correct ws : assemble_extra_correct (SWAP ws).
@@ -519,11 +515,40 @@ Proof.
   by case: eqP => // _; rewrite -wxorA wxor_xx wxorC wxor0.
 Qed.
 
+Lemma assemble_add_large_imm_correct :
+  assemble_extra_correct Oriscv_add_large_imm.
+Proof.
+  move=> rip ii lvs args m xs ys m' s ops ops' /=.
+  case: lvs => // -[] // [[xt xn] xi] [] //.
+  case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
+  t_xrbindP => vy hvy <-.
+  rewrite /exec_sopn /= /sopn_sem /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
+  t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
+  move=> /andP []/eqP ? /andP [] /eqP hyty _ <- hmap hlom; subst xt.
+  move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
+  move/get_varP: (hvy) => [_ _ /compat_valE] /=; rewrite hyty => -[_ [] <- hle2].
+  have ? := cmp_le_antisym hle1 hle2; subst ws => {hle1 hle2}.
+  have := RISCVFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) (to_word_get_var hvy).
+  move=> /(_ _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
+  have [] := (assemble_opsP riscv_eval_assemble_cond hmap _ hsem hlom).
+  + by rewrite all_map; apply/allT => -[[]].
+  move=> s' -> hlo; exists s' => //.
+  apply: lom_eqv_ext hlo => z /=.
+  move/get_varP: hvy => -[hvmy _ _].
+  move: hsetx; rewrite set_var_eq_type // => -[<-].
+  rewrite Vm.setP.
+  case: eqP => heqx.
+  + rewrite -heqx -hvmx zero_extend_u /=.
+    move: hw2 => /truncate_wordP [? ].
+    by rewrite zero_extend_wrepr // => ->.
+  by apply heqex; rewrite /riscv_reg_size; SvD.fsetdec.
+Qed.
+
 Lemma riscv_assemble_extra_op op : assemble_extra_correct op.
 Proof.
   case: op.
-  + exact: assemble_subi_correct.
-  exact: assemble_swap_correct.
+  + exact: assemble_swap_correct.
+  exact: assemble_add_large_imm_correct.
 Qed.
 
 Definition riscv_hagparams : h_asm_gen_params (ap_agp riscv_params) :=
