@@ -16,6 +16,7 @@ Require Import
   arch_decl
   arch_extra
   asm_gen.
+
 Require Import
   riscv_decl
   riscv_extra
@@ -23,7 +24,8 @@ Require Import
   riscv_lowering
   riscv_params_core
   riscv_params_common
-  riscv_stack_zeroization.
+  riscv_stack_zeroization
+  riscv_lower_addressing.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -54,8 +56,16 @@ Definition riscv_mov_ofs
       else
         if ofs == Z0 then mk (MV, [:: y])
         else
-          (* TODO: handle large immediates as in arm *)
-          mk (ADDI, [::y; eword_of_int reg_size ofs ])
+          (* This allows to remove constraint in register allocation *)
+          if is_arith_small ofs then mk (ADDI, [::y; eword_of_int reg_size ofs ])
+          else
+            (* These checks are not needed for the proof, but it is probably better
+               to fail here than in asm_gen. *)
+            if y is Pvar y_ then
+              if [&& vtype x_ == sword U32 & vtype y_.(gv) == sword U32] then
+                Some (Copn [::x] tag (Oasm (ExtOp Oriscv_add_large_imm)) [::y; eword_of_int reg_size ofs ])
+              else None
+            else None
     | Lmem _ _ _ _ =>
       if ofs == Z0 then mk (STORE U32, [:: y]) else None
     | _ => None
@@ -232,6 +242,15 @@ Definition riscv_szparams : stack_zeroization_params :=
     szp_cmd := stack_zeroization_cmd
   |}.
 
+
+(* ------------------------------------------------------------------------ *)
+(* Stack zeroization parameters. *)
+
+Definition riscv_laparams : lower_addressing_params :=
+  {|
+    lap_lower_address := @lower_addressing_prog _
+  |}.
+
 (* ------------------------------------------------------------------------ *)
 (* Shared parameters. *)
 
@@ -249,6 +268,7 @@ Definition riscv_params : architecture_params lowering_options :=
     ap_lip := riscv_liparams;
     ap_lop := riscv_loparams;
     ap_agp := riscv_agparams;
+    ap_lap := riscv_laparams;
     ap_szp := riscv_szparams;
     ap_shp := riscv_shparams;
     ap_is_move_op := riscv_is_move_op;

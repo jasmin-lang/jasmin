@@ -132,7 +132,7 @@ Lemma sub_eval_instr {lp ls ii xname vi y z} {wy wz : word Uptr} :
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> hy hz.
-  have /(_ _ xname vi):= RISCVFopn_coreP.sub_sem_fopn_args (s:=to_estate _) (to_word_get_var hy) (to_word_get_var hz).
+  have /(_ xname vi):= RISCVFopn_coreP.sub_sem_fopn_args (s:=to_estate _) (to_word_get_var hy) (to_word_get_var hz).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
@@ -146,7 +146,7 @@ Lemma subi_eval_instr {lp ls ii xname vi y imm wy} :
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> h1; set vm := _.[ _ <- _].
-  have /(_ _ xname vi imm):= RISCVFopn_coreP.subi_sem_fopn_args (s:=to_estate _) (to_word_get_var h1).
+  have /(_ xname vi imm):= RISCVFopn_coreP.subi_sem_fopn_args (s:=to_estate _) (to_word_get_var h1).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
@@ -159,7 +159,7 @@ Lemma mov_eval_instr {lp ls ii xname vi y} {wy : word Uptr} :
   eval_instr lp li ls = ok (next_vm_ls ls vm').
 Proof.
   move=> hy.
-  have /(_ _ xname vi):= RISCVFopn_coreP.mov_sem_fopn_args (s:=to_estate _) (to_word_get_var hy).
+  have /(_ xname vi):= RISCVFopn_coreP.mov_sem_fopn_args (s:=to_estate _) (to_word_get_var hy).
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
@@ -196,8 +196,8 @@ Lemma smart_addi_sem_fopn_args xname vi y imm s (w : wreg) :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hor hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-             (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
+             (@RISCVFopn_coreP.add_sem_fopn_args _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -207,7 +207,7 @@ Qed.
 Lemma smart_subi_sem_fopn_args xname vi y imm s (w : wreg) :
   let: (xi, x) := mkv xname vi in
   let: lc := RISCVFopn.smart_subi xi y imm in
-  is_arith_small imm \/ x <> v_var y ->
+  is_arith_small_neg imm \/ x <> v_var y ->
   get_var true (evm s) (v_var y) >>= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
@@ -216,8 +216,8 @@ Lemma smart_subi_sem_fopn_args xname vi y imm s (w : wreg) :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hor hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-              (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
+              (@RISCVFopn_coreP.sub_sem_fopn_args _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -237,8 +237,8 @@ Lemma smart_addi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-             (@RISCVFopn_coreP.add_sem_fopn_args _ _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _ _)].
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small) (neutral:= Some 0%Z)
+             (@RISCVFopn_coreP.add_sem_fopn_args _ _) (@RISCVFopn_coreP.addi_sem_fopn_args _ _)].
   move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
@@ -259,8 +259,8 @@ Lemma smart_subi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
 Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
-  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-              (@RISCVFopn_coreP.sub_sem_fopn_args _ _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _ _)].
+  have := [elaborate RISCVFopn_coreP.gen_smart_opi_sem_fopn_args (is_small:= is_arith_small_neg) (neutral:= Some 0%Z)
+              (@RISCVFopn_coreP.sub_sem_fopn_args _ _) (@RISCVFopn_coreP.subi_sem_fopn_args _ _)].
   move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.

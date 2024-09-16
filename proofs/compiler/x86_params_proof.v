@@ -297,6 +297,19 @@ Proof.
 Defined.
 
 (* ------------------------------------------------------------------------ *)
+(* Lowering of complex addressing mode for RISC-V.
+   It is the identity on x86, so the proof is trivial. *)
+
+Lemma x86_hlaparams : h_lower_addressing_params (ap_lap x86_params).
+Proof.
+  split=> /=.
+  + by move=> ? _ ? _ [<-].
+  + move=> ? _ ? _ [<-] _ fd ->.
+    by exists fd.
+  by move=> ?? _ ? _ [<-].
+Qed.
+
+(* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
 
 Section ASM_GEN.
@@ -917,6 +930,7 @@ Definition x86_h_params {call_conv : calling_convention} : h_architecture_params
     ok_lip_tmp      := x86_ok_lip_tmp;
     ok_lip_tmp2     := x86_ok_lip_tmp2;
     hap_hlop        := x86_hloparams;
+    hap_hlap        := x86_hlaparams;
     hap_hagp        := x86_hagparams;
     hap_hshp        := x86_hshparams;
     hap_hszp        := x86_hszparams;

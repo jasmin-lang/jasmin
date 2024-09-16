@@ -269,6 +269,7 @@ Lemma loop_bodyP vars s1 s2 n :
                 (of_estate s3 fn (size pre + 4))
       & state_rel_loop vars s1 s3 (n - wsize_size ws) top].
 Proof.
+  Local Opaque wsize_size.
   move=> hsubset hsr hlt.
   have hn: (0 < wsize_size ws <= n)%Z.
   + split=> //.
@@ -307,7 +308,6 @@ Proof.
     rewrite /exec_sopn /=.
     rewrite !truncate_word_u /=.
     by rewrite /of_estate /lnext_pc /=; reflexivity.
-
   + rewrite /lsem1 /step -addn1 -addnA (find_instr_skip hbody) /= -(addn1 3) (addnA _ 3) addn1 addn1.
     apply: store_zero_eval_instr => //=.
     + do 2 (rewrite (@get_var_neq _ _ _ vzero);
@@ -315,12 +315,14 @@ Proof.
       by rewrite /get_var hsr.(sr_vzero).
     + rewrite get_var_eq //= truncate_word_u; reflexivity.
     rewrite wrepr0 GRing.addr0.
+    rewrite wrepr_opp.
     exact: hm'.
   case: hsr => hoff [hscs hmem hvalid hdisj hzero hvm hsaved hrsp hvzero haligned hbound].
   split=> /=.
   + rewrite Vm.setP_neq /=; 
         last by apply /eqP => /(@inj_to_var _ _ _ _ _ _).
     rewrite Vm.setP_eq /=.
+    rewrite wrepr_opp.
     by rewrite wrepr_sub.
   split=> //=.
   + apply (mem_equiv_trans hmem).
@@ -364,6 +366,7 @@ Proof.
     rewrite Z.mul_1_r GRing.addrC GRing.subrK.
     by rewrite WArray.arr_is_align.
   by lia.
+  Local Transparent wsize_size.
 Qed.
 
 Lemma loopP vars s1 s2 n :

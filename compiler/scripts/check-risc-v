@@ -12,4 +12,25 @@ set -x
 
 $(dirname $0)/../jasminc -g -arch risc-v -o ${ASM} "$@"
 
-llvm-mc --triple=riscv32 --mcpu=generic-rv32 -mattr=+m --filetype=obj -o ${OBJ} ${ASM}
+# Set default ASSEMBLY_CHECKER
+ASSEMBLY_CHECKER=${ASSEMBLY_CHECKER:-llvm-mc}
+ASSEMBLY_CHECKER_OPTIONS=${ASSEMBLY_CHECKER_OPTIONS:---triple=riscv32 --mcpu=generic-rv32 -mattr=+m --filetype=obj}
+# Detect operating system
+UNAME_S=$(uname -s)
+
+# Conditionally set ASSEMBLY_CHECKER for Darwin (macOS)
+if [ "$UNAME_S" == "Darwin" ]; then
+    ASSEMBLY_CHECKER="riscv64-unknown-elf-as"
+    ASSEMBLY_CHECKER_OPTIONS=""
+elif [ "$UNAME_S" == "Linux" ]; then
+    ASSEMBLY_CHECKER="llvm-mc"
+    ASSEMBLY_CHECKER_OPTIONS="--triple=riscv32 --mcpu=generic-rv32 -mattr=+m --filetype=obj"
+fi
+
+# Check if the assembly checker binary exists and is executable
+if ! command -v "$ASSEMBLY_CHECKER" &> /dev/null; then
+    echo "Error: $ASSEMBLY_CHECKER is not installed or not found in PATH."
+    exit 1
+fi
+
+${ASSEMBLY_CHECKER} ${ASSEMBLY_CHECKER_OPTIONS} -o ${OBJ} ${ASM}

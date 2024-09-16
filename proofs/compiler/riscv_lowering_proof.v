@@ -260,6 +260,34 @@ Proof.
   by rewrite ok_v1.
 Qed.
 
+Lemma decide_op_reg_immP s e1 e2 v1 v2 op_reg_reg op_reg_imm o es lv s1 :
+  sem_pexpr true (p_globs p) s e1 = ok v1 ->
+  sem_pexpr true (p_globs p) s e2 = ok v2 ->
+  decide_op_reg_imm U32 e1 e2 (op_reg_reg) (op_reg_imm) = Some (o, es) ->
+  sem_sopn (p_globs p) (Oasm op_reg_reg) = sem_sopn (p_globs p) (Oasm op_reg_imm) ->
+  sem_sopn (p_globs p) (Oasm op_reg_reg) s [:: lv] [:: e1; e2] = ok s1 ->
+  sem_sopn (p_globs p) (Oasm o) s [:: lv] es = ok s1.
+Proof.
+  move => ok_v1 ok_v2 + eq_sem.
+  rewrite /riscv_lowering.decide_op_reg_imm.
+  case en : is_wconst => [ t | ].
+  - case : ifP => // _ [<- <-].
+    by rewrite eq_sem.
+  by move=> [<- <-].
+Qed.
+
+Lemma minus_insertP e1 e2 s0 ws w :
+insert_minus e1 = Some e2 ->
+Let x := sem_pexpr true (p_globs p) s0 e1 in to_word ws x = ok (w)%R ->
+Let x := sem_pexpr true (p_globs p) s0 e2 in to_word ws x = ok (- w)%R.
+Proof.
+  case : e1 => // -[] // sz [] // n /= [<-] /=.
+  move => /truncate_wordP [hcmp ->].
+  rewrite truncate_word_le //.  
+  rewrite wrepr_opp.
+  by rewrite wopp_zero_extend.
+Qed.
+  
 #[ local ]
 Lemma Hassgn : sem_Ind_assgn p Pi_r.
 Proof.
@@ -416,12 +444,21 @@ Proof.
   case: eqP => //= ?; subst.
   case: s ok_v => //= o ok_v.
   + case: o ok_v => //= ws ok_v.
-    move=> [<- <- <-].
-    rewrite !fun_if if_same.
-    set op2' := Oasm _.
-    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+    rewrite /riscv_lowering.decide_op_reg_imm.
+    - case en : is_wconst => [ n | ].
+      - case : ifP => //.
+      rewrite /riscv_params_core.is_arith_small.
+      move => hcmp1 /=.
+      set op2' := Oasm _.
+      have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-    by apply sem_correct; rewrite /= wadd_zero_extend.
+      move=> [<- <- <-].
+      by apply sem_correct; rewrite /= wadd_zero_extend.
+    - set op2' := Oasm _.
+      have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
+      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      move=> [<- <- <-].
+      by apply sem_correct; rewrite /= wadd_zero_extend.
   + case: o ok_v => //= ws ok_v.
     move=> [<- <- <-].
     set op2' := Oasm _.
@@ -429,26 +466,39 @@ Proof.
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= wmul_zero_extend.
   + case: o ok_v => //= ws ok_v.
+    rewrite /riscv_lowering.decide_op_reg_imm_neg.
+    case en : is_wconst => [ n | ].
+    - case : ifP => //.
+      rewrite /riscv_params_core.is_arith_small_neg.
+      move => hcmp1 /=.
+      case h_insert: insert_minus => [e1' | //].
+      set op2' := Oasm _.
+      have [hcmp [w1 [w2] [ok_w1 ok_w2 sem_correct]]] := Hassgn_op2_generic ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+      move=> [<- <- <-].  
+      apply :(sem_correct _ _ w1 (- w2)%R) => //.
+      + by rewrite ok_v1. 
+      + apply (minus_insertP h_insert).
+        by rewrite ok_v2.
+      by rewrite /= wadd_zero_extend.
     move=> [<- <- <-].
-    rewrite !fun_if if_same.
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= wsub_zero_extend.
-  + move=> [<- <- <-].
-    rewrite !fun_if if_same.
+  + case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+    apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-      Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-    by apply sem_correct; rewrite /= -wand_zero_extend.
-  + move=> [<- <- <-].
-    rewrite !fun_if if_same.
+    Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.  
+    by apply sem_correct; rewrite /= -wand_zero_extend.        
+  + case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+    apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
     by apply sem_correct; rewrite /= -wor_zero_extend.
-  + move=> [<- <- <-].
-    rewrite !fun_if if_same.
+  + case h: decide_op_reg_imm => [[ol esi] | ] //= [<- <- <-].
+    apply: (decide_op_reg_immP ok_v1 ok_v2 h erefl).
     set op2' := Oasm _.
     have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
       Hassgn_op2 ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
@@ -463,17 +513,27 @@ Proof.
     have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
     apply (sem_correct _ _ ok_wa).
     by rewrite /= !zero_extend_u /sem_shr eq_shift.
-  case: o ok_v => // ws ok_v.
-  case good_shift: check_shift_amount => [ sa | ] //.
-  move=> [<- <- <-].
-  rewrite !fun_if if_same.
-  set op2' := Oasm _.
-  have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] :=
-    Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
-  have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
-  apply (sem_correct _ _ ok_wa).
-  rewrite /= zero_extend_wshl //; last by have [? _] := wunsigned_range w2.
-  by rewrite -/(sem_shift _ _ _) eq_shift.
+  + case: o ok_v => // ws ok_v.
+    case good_shift: check_shift_amount => [ sa | ] //.
+    move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] := 
+      Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
+    apply (sem_correct _ _ ok_wa).
+    rewrite /= zero_extend_wshl //; last by have [? _] := wunsigned_range w2.
+    by rewrite -/(sem_shift _ _ _) eq_shift.  
+  case: o ok_v => // -[] // ok_v.
+    case good_shift: check_shift_amount => [ sa | ] //.
+    move=> [<- <- <-].
+    rewrite !fun_if if_same.
+    set op2' := Oasm _.
+    have [hcmp [w1 [w2 [ok_w1 ok_w2 sem_correct]]]] := 
+      Hassgn_op2_shift ok_v1 ok_v2 ok_v htrunc hwrite (op2' := op2') erefl erefl erefl.
+    have [_ [wa ok_wa eq_shift]] := check_shift_amountP good_shift ok_v2 ok_w2.
+    apply (sem_correct _ _ ok_wa).
+    by rewrite /= !zero_extend_u /sem_sar eq_shift.    
 Qed.
 
 #[ local ]
