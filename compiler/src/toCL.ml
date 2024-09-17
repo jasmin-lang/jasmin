@@ -128,8 +128,8 @@ module CL = struct
       | Rsext of rexp * int 
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
-(*    | Rpreop of string * rexp * rexp *)
-      | Rlimbs of const * rexp list
+(*    | Rpreop of string * rexp * rexp  
+      | Rlimbs of const * rexp list *)
       | RVget  of tyvar * const
       | UnPack of  tyvar * int * int 
 
@@ -158,11 +158,11 @@ module CL = struct
       | Rsext (e, c) -> Format.fprintf fmt "(sext %a %i)" pp_rexp e c 
       | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
       | Rbinop(e1, s, e2) ->  Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
-(*    | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2 *)
+(*    | Rpreop(s, e1, e2) -> Format.fprintf fmt "(%s %a %a)" s pp_rexp e1 pp_rexp e2 
       | Rlimbs(c, es) ->
         Format.fprintf fmt  "(limbs %a [%a])"
           pp_const c
-          (pp_list ",@ " pp_rexp) es
+          (pp_list ",@ " pp_rexp) es *)
       | RVget(e,c) ->
         Format.fprintf fmt  "(%a[%a])"
           pp_tyvar e
@@ -183,10 +183,6 @@ module CL = struct
     let ule e1 e2 = RPcmp (e1, "<=", e2)
     let ugt e1 e2 = RPcmp (e1, ">", e2)
     let uge e1 e2 = RPcmp (e1, ">=", e2)
-(*  let slt e1 e2 = RPcmp (e1, "<s", e2)
-    let sle e1 e2 = RPcmp (e1, "<=s", e2)
-    let sgt e1 e2 = RPcmp (e1, ">s", e2)
-    let sge e1 e2 = RPcmp (e1, ">=s", e2) *)
 
     let rec pp_rpred fmt rp =
       match rp with
@@ -497,7 +493,7 @@ module I (S:S): I = struct
     let open CL.R in
     let (!>) e = gexp_to_rexp ~sign e in
     match e with
-    | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, z)
+    | Papp1 (Oword_of_int ws, Pconst z) -> assert ((Z.of_int 0) <= z);Rconst(int_of_ws ws, z)
     | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws)) 
     | Pvar x -> Rvar (to_var ~sign x)
     | Papp1(Oneg _, e) -> neg !> e
@@ -561,7 +557,7 @@ module I (S:S): I = struct
 
   let rec get_const x =
     match x with
-    | Pconst z -> Z.to_int z
+    | Pconst z -> assert ((Z.of_int 0) <= z);Z.to_int z
     | Papp1 (Oword_of_int _ws, x) -> get_const x
     | _ -> assert false
 
