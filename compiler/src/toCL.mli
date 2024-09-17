@@ -39,8 +39,8 @@ module CL : sig
       | Rsext of rexp * int 
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
-(*    | Rpreop of string * rexp * rexp *)
-      | Rlimbs of const * rexp list
+(*    | Rpreop of string * rexp * rexp 
+      | Rlimbs of const * rexp list *)
       | RVget  of tyvar * const
       | UnPack of  tyvar * int * int 
 
