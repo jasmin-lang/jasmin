@@ -1789,7 +1789,7 @@ Section PROOF.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=
       lower_condition_corr
-        dummy_instr_info
+        ii
         Hcond
         Hs2'2
         (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).
@@ -1816,7 +1816,7 @@ Section PROOF.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=
       lower_condition_corr
-        dummy_instr_info
+        ii
         Hcond
         Hs2'2
         (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).
