@@ -37,7 +37,7 @@ val tint  : 'len gty
 
 (* ------------------------------------------------------------------------ *)
 
-type 'len gvar = private {
+type +'len gvar = private {
   v_name : Name.t;
   v_id   : uid;
   v_kind : v_kind;
