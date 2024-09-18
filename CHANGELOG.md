@@ -32,6 +32,10 @@
   ([PR #890](https://github.com/jasmin-lang/jasmin/pull/890);
   fixes [#662](https://github.com/jasmin-lang/jasmin/issues/662)).
 
+- Adding label to global variables in assembly generation to avoid name conflicts
+  ([PR #907](https://github.com/jasmin-lang/jasmin/pull/907);
+  fixes [#871](https://github.com/jasmin-lang/jasmin/issues/871)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
