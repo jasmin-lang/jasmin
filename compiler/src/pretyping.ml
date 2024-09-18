@@ -1405,8 +1405,8 @@ let prim_of_op exn loc o =
 
 (*  x + y     -> addc x y false
     x + y + c -> addc x y c
-    x - y     -> addc x y false
-    x - y - c -> addc x y c
+    x - y     -> subb x y false
+    x - y - c -> subb x y c
     x * y     -> umul *)
 
 let prim_of_pe pe =
