@@ -71,9 +71,6 @@ Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
 #[export]
 Instance arch_msfsz `{arch_decl} : MSFsize := { msf_size := reg_size }.
 
-#[export]
-Instance iabstract_unit : Tabstract | 1000 := { iabstract := fun _ => unit}.
-
 Definition mk_ptr `{arch_decl} name :=
   {| vtype := sword Uptr; vname := name; |}.
 
@@ -86,10 +83,14 @@ Definition cond_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg r
 
 Section DECL.
 
+(* FIXME: I would like to be able to remove this *)
+
+Context {tabstract : Tabstract}.
+
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
 Definition sreg := sword reg_size.
-Definition wreg := @sem_t iabstract_unit sreg.
+Definition wreg := sem_t sreg.
 Definition sxreg := sword xreg_size.
 Definition wxreg := sem_t sxreg.
 
@@ -676,7 +677,7 @@ HB.instance Definition _ := hasDecEq.Build rflagv rflagv_eq_axiom.
 (* Assembly declaration. *)
 Section ASM.
 
-Class asm (reg regx xreg rflag cond asm_op: Type) :=
+Class asm {tabstract : Tabstract} (reg regx xreg rflag cond asm_op: Type) :=
   { _arch_decl   : arch_decl reg regx xreg rflag cond
   ; _asm_op_decl : asm_op_decl asm_op
   ; eval_cond   : (reg_t -> word reg_size) -> (rflag_t -> exec bool) -> cond_t -> exec bool

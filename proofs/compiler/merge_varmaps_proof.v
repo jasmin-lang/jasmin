@@ -19,6 +19,7 @@ Unset Printing Implicit Defensive.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract }
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}

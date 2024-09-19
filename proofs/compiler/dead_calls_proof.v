@@ -11,6 +11,7 @@ Unset Printing Implicit Defensive.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}

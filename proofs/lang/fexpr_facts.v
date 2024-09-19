@@ -39,6 +39,7 @@ Qed.
 Section Section.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {syscall_state : Type}
   {ep : EstateParams syscall_state}

@@ -11,7 +11,7 @@ Require Import x86_decl x86_instr_decl x86_extra.
 
 Section Section.
 
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 Definition is_regx_e (e:pexpr) := 
   if e is Pvar x then is_regx x.(gv)

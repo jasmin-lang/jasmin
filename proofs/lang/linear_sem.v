@@ -21,6 +21,7 @@ Local Open Scope seq_scope.
 Section SEM.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}

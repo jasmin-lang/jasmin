@@ -20,6 +20,7 @@ Unset Printing Implicit Defensive.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -312,7 +313,7 @@ Definition match_mem_zero_export (m m' : mem) top stk_max (szs : option (stack_z
 Lemma stack_zeroization_lprogP lp lp' scs m fn vm scs' m' vm' ptr lfd :
   stack_zeroization_lprog lp = ok lp' ->
   lsem_exportcall lp scs m fn vm scs' m' vm' ->
-  vm'.[vid (lp_rsp lp')] = @Vword Uptr ptr ->
+  vm'.[vid (lp_rsp lp')] = @Vword _ Uptr ptr ->
   get_fundef lp.(lp_funcs) fn = Some lfd ->
   (lfd.(lfd_stk_max) + wsize_size lfd.(lfd_align) - 1 <= wunsigned ptr)%Z ->
   let bottom := (align_word lfd.(lfd_align) ptr - wrepr _ lfd.(lfd_stk_max))%R in

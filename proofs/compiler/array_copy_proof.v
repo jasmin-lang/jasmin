@@ -16,6 +16,7 @@ Local Open Scope Z_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -163,7 +164,7 @@ Proof.
   set cond := needs_temporary _ _.
   set c := map (MkI ii) _.
   have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1', 
-    vm1 <=[Sv.union (read_e y) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = @Varr len tx &
+    vm1 <=[Sv.union (read_e y) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = @Varr _ len tx &
     sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
   + rewrite /ipre; case: ifPn => hxy.
     + exists vm1; last by constructor; econstructor.
@@ -230,7 +231,7 @@ Proof.
     { apply: Eseq; last apply: sem_seq1; constructor; apply: Eassgn.
       + rewrite /= get_gvar_neq //.
         rewrite -eq_globs; move: hv => /= => -> /=.
-        by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
+        by rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
       + by rewrite /truncate_val /= truncate_word_u.
       + by rewrite /= write_var_eq_type.
       + by rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT.
@@ -242,9 +243,9 @@ Proof.
     apply: Eassgn.
     + rewrite /= get_gvar_neq //.
       rewrite -eq_globs; move: hv => /= => -> /=.
-      by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
+      by rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
     + by rewrite /truncate_val /= truncate_word_u.
-    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ (mk_lvar i)) //= truncate_word_u /=.
+    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= truncate_word_u /=.
     by rewrite hset /= write_var_eq_type.
   move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by lia.
   + by rewrite Z.sub_diag.

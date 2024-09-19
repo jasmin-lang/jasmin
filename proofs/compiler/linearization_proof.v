@@ -26,6 +26,7 @@ Unset Printing Implicit Defensive.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
@@ -551,7 +552,7 @@ Lemma lstores_dfl_correct1 rspi to_save s top m2:
 Proof.
   elim: to_save s => /= [ | [x ofs] to_save ih] s hget.
   + by move=> [<-]; rewrite with_mem_same.
-  t_xrbindP; case heq: vtype => [|||ws]// m' _ [<-] hchk w v hgetx htow hw hf.
+  t_xrbindP; case heq: vtype => [|||ws|]// m' _ [<-] hchk w v hgetx htow hw hf.
   have -> := lstore_correct (xd:= rspi) (xs:= VarI x dummy_var_info) heq hchk hget _ hw.
   + by have /= -> := ih (with_mem s m') hget hf.
   by rewrite hgetx /= htow.
@@ -580,7 +581,7 @@ Proof.
   + by rewrite hget' /= truncate_word_u.
   apply: (lstores_dfl_correct1 hget1) => {hget1}.
   elim: to_save s hnin heq hget hget' hf => //= -[x ofs] to_save ih s hnin heq hget hget'.
-  case heqt: vtype => [|||ws] //=; t_xrbindP.
+  case heqt: vtype => [|||ws|] //=; t_xrbindP.
   move=> m -> w v hgetx hwx hw hf /=.
   rewrite (get_var_eq_ex _ _ heq); last first.
   + by move=> /Sv.singleton_spec ?; subst x; rewrite mem_head in hnin.
@@ -607,7 +608,7 @@ Proof.
   elim: to_restore s => /=.
   + by move=> s _ ? [<-]; rewrite with_vm_same.
   move=> [x ofs] to_restore ih s /= hnin hget.
-  case heqt: vtype => [|||ws] //=; t_xrbindP.
+  case heqt: vtype => [|||ws|] //=; t_xrbindP.
   move=> vm1 hchk w hread hset hf.
   have /(_ ofs vm1) := lload_correct (xd:= VarI x dummy_var_info) hget.
   rewrite heqt /= hchk /= hread /= hset => -> //=.
@@ -622,7 +623,7 @@ Lemma lloads_dfl_correct :
 Proof.
   move=> rspi to_rest ofs s top vm2 /= hnin hnin2 hne hget.
   rewrite /lloads_dfl foldM_cat; t_xrbindP => vm1 hf.
-  rewrite /=; case heqt: vtype => [|||ws] //=; t_xrbindP.
+  rewrite /=; case heqt: vtype => [|||ws|] //=; t_xrbindP.
   move=> vm2' hchk w hread hset ?; subst vm2'.
   have [+ hget2]:= lloads_aux_correct hnin hget hf.
   rewrite /lloads_aux map_cat sem_fopns_args_cat => -> /=.
@@ -659,7 +660,7 @@ Proof.
     elim: (to_rest ++ [:: (v_var rspi, ofs)]) s vm1 heq hf => /=.
     + by move=> s vm1 heqx [<-] _; exists vm1 => //; apply eq_exS.
     move=> [x {}ofs] to_restore ih s vm1 heqx.
-    case heqt: vtype => [|||ws] //=; t_xrbindP.
+    case heqt: vtype => [|||ws|] //=; t_xrbindP.
     move=> vm1' -> /= w hread hset hf hnin2.
     rewrite -GRing.addrA -wrepr_add.
     have -> : (ofs0 + (ofs - ofs0))%Z =ofs%Z by ring.
@@ -2070,7 +2071,7 @@ Section PROOF.
     rewrite -!catA => E K X H M U.
     exists m3 vm3 => //.
     + exact: lsem_trans Ei E.
-    + apply (@eq_exT _ vm2).
+    + apply (@eq_exT _ _ vm2).
       + apply: eq_exI Ki.
         exact: Sv_Subset_union_left.
       apply: eq_exI K.
@@ -3472,7 +3473,7 @@ Section PROOF.
           & ofs = ofs'.
   Proof.
     rewrite /check_to_save_slot /=.
-    move: x => [[|||ws'] xname] //= [<- <-]; eauto.
+    move: x => [[|||ws'|] xname] //= [<- <-]; eauto.
   Qed.
 
   Lemma read_after_spill top al vm m1 to_spill m2 lo hi :
@@ -4201,7 +4202,7 @@ Section PROOF.
                        vm5.[x] = vm4.[x].
         + move=> y; elim: (to_restore) (vm4) sem_loads => /= [ | [x ofs] to_rest ih] vm.
           + by move=> [<-].
-          case ht: vtype => [|||ws'] //=; t_xrbindP => vm' hchk w hr /set_varP [_ _ hvm] /ih /=.
+          case ht: vtype => [|||ws'|] //=; t_xrbindP => vm' hchk w hr /set_varP [_ _ hvm] /ih /=.
           rewrite in_cons; case: ifP => hin.
           + rewrite orbT => -[yofs] [yws] [yw] [h1 h2 h3 h4].
             by exists yofs, yws, yw; split => //; rewrite in_cons h2 orbT.

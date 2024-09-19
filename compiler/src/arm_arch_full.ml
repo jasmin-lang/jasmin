@@ -20,8 +20,8 @@ module Arm_core = struct
 
   let atoI = X86_arch_full.atoI arm_decl
 
-  let asm_e = Arm_extra.arm_extra atoI
-  let aparams = Arm_params.arm_params atoI
+  let asm_e = Arm_extra.arm_extra Build_Tabstract atoI
+  let aparams = Arm_params.arm_params Build_Tabstract atoI
 
   let known_implicits = ["NF", "_nf_"; "ZF", "_zf_"; "CF", "_cf_"; "VF", "_vf_"]
 
@@ -110,7 +110,7 @@ module Arm (Lowering_params : Arm_input) : Arch_full.Core_arch = struct
 
   let lowering_opt = ()
 
-  let not_saved_stack = (Arm_params.arm_liparams atoI).lip_not_saved_stack
+  let not_saved_stack = (Arm_params.arm_liparams Build_Tabstract atoI).lip_not_saved_stack
 
   let pp_asm = Pp_arm_m4.print_prog
 

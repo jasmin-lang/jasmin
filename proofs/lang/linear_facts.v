@@ -21,6 +21,7 @@ Section WITH_PARAMS.
 #[local] Existing Instance withsubword.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
