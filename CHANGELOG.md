@@ -12,6 +12,10 @@
 - Extraction as EasyCrypt code targets version 2024.09
   ([PR #910](https://github.com/jasmin-lang/jasmin/pull/910)).
 
+- Local variables may be initialized when declared, as for instance
+  `reg u32 x = 1, y, z = 2; stack u64 s = 1, u, t = z;`
+  ([PR #908](https://github.com/jasmin-lang/jasmin/pull/908)).
+
 ## Bug fixes
 
 - Easycrypt extraction for CT : fix decreasing for loops

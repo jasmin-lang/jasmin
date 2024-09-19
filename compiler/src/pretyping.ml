@@ -1674,11 +1674,18 @@ let mk_call loc inline lvs f es =
 
   P.Ccall (lvs, f.P.f_name, es)
 
-let tt_annot_vardecls dfl_writable pd env (annot, (ty,vs)) = 
+let assign_from_decl (decl: S.vardecl L.located) =
+  let v, e = L.unloc decl in
+  Option.map (fun e ->
+      let d = L.mk_loc (L.loc decl) (S.PLVar v) in
+      (None, [d]), `Raw, e, None
+    ) e
+
+let tt_annot_paramdecls dfl_writable pd env (annot, (ty,vs)) =
   let aty = annot, ty in
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable pd env vars 
-  
+
 let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
   let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
@@ -1826,10 +1833,24 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let c = tt_expr_bool arch_info.pd env_rhs cp in
       mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
   in
+  let tt_annot_decl env (vd: S.vardecl L.located) (aty: A.annotations * S.pstotype) =
+    (* remember the environment prior to the declaration:
+      it will be used to type-check the right-hand side initializing expression, if any *)
+    let env_rhs = env in
+    let var = tt_vardecl (fun _ -> true) arch_info.pd env (aty, S.var_decl_id (L.unloc vd)) in
+    let env = Env.Vars.push_local env_rhs (L.unloc var) in
+    match assign_from_decl vd with
+    | None -> env, []
+    | Some (ls, eq, op, ocp) -> env, tt_assign env env_rhs ls eq op ocp
+  in
+
   match L.unloc pi with
-  | S.PIdecl tvs ->
-    let env, _ = tt_annot_vardecls (fun _ -> true) arch_info.pd env (annot, tvs) in
-    env, []
+  | S.PIdecl (ty,vds) ->
+    List.fold (fun (env, acc) v ->
+        let env, cmd = tt_annot_decl env v (annot, ty) in
+        env, acc @ cmd)
+      (env, [])
+      vds
 
   | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
     let x = tt_var `AllVar env x in
@@ -1999,8 +2020,8 @@ let process_f_annot loc funname f_cc annot =
 (* Compute the set of declared variables                                *)
 let rec add_reserved_i env (_,i) = 
   match L.unloc i with 
-  | S.PIdecl (_, ids) -> 
-      List.fold_left (fun env id -> Env.add_reserved env (L.unloc id)) env ids 
+  | S.PIdecl (_, ids) ->
+      List.fold_left (fun env id -> Env.add_reserved env (L.unloc (S.var_decl_id (L.unloc id)))) env ids
   | PIArrayInit _ | PIAssign _ -> env
   | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' env c) oc
   | PIFor(_, _, c) -> add_reserved_c' env c
@@ -2053,7 +2074,7 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
   let dfl_mut x = List.mem x inret in
   
   let envb, args = 
-    let env, args = List.map_fold (tt_annot_vardecls dfl_mut arch_info.pd) env pf.pdf_args in
+    let env, args = List.map_fold (tt_annot_paramdecls dfl_mut arch_info.pd) env pf.pdf_args in
     let env = add_known_implicits arch_info env pf.pdf_body.pdb_instr in
     env, List.flatten args in
   let rty  = Option.map_default (List.map (tt_type arch_info.pd env |- snd |- snd)) [] pf.pdf_rty in
