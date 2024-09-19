@@ -26,6 +26,12 @@ let is_array_copy (x:lval) (e:expr) =
     end
   | _ -> None
 
+let size_of_lval =
+  function
+  | Lvar x -> size_of (L.unloc x).v_ty
+  | Lasub (_, ws, len, _, _) -> arr_size ws len
+  | Lnone _ | Lmem _ | Laset _ -> assert false
+
 let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
 and iac_instr_r pd loc ir =
@@ -50,15 +56,14 @@ and iac_instr_r pd loc ir =
       let tys = List.map (fun e -> Conv.cty_of_ty (Typing.ty_expr pd loc e)) es in  
       Copn(xs,t, Sopn.Opseudo_op(Pseudo_operator.Ospill(o, tys)), es)
                  
-    | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [Lvar x] ->
+    | Sopn.Opseudo_op(Pseudo_operator.Ocopy(ws, _)), [x] ->
       (* Fix the size it is dummy for the moment *)
-      let xn = size_of (L.unloc x).v_ty in
+      let xn = size_of_lval x in
       let wsn = size_of_ws ws in
       if xn mod wsn <> 0 then 
-        Typing.error loc 
-          "the variable %a has type %a, its size (%i) should be a multiple of %i"
-          (Printer.pp_var ~debug:false) (L.unloc x)
-          PrintCommon.pp_ty (L.unloc x).v_ty
+        Typing.error loc
+          "the destination %a has size %i: it should be a multiple of %i"
+          (Printer.pp_lval ~debug:false) x
           xn wsn
       else
         let op = Pseudo_operator.Ocopy (ws, Conv.pos_of_int (xn / wsn)) in

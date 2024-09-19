@@ -578,9 +578,6 @@ end  = struct
 end
 
 (* -------------------------------------------------------------------- *)
-let tt_ws (ws : A.wsize) = ws
-
-(* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : W.reference =
   match p with
   | `Pointer (Some `Writable) -> W.Pointer W.Writable
@@ -790,7 +787,6 @@ let op_info exn op (castop:S.castop) ty ws_cmp vs_cmp =
 
     | CSS(Some sz, s) -> 
       let s = tt_sign s in
-      let sz = tt_ws sz in
       check_op loc op (Some (snd ws_cmp)) sz;
       OpKE(E.Cmp_w(s, sz))
 
@@ -1122,7 +1118,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
     P.Pbool b, P.tbool
 
   | S.PEInt i ->
-    P.Pconst i, P.tint
+    P.Pconst (S.parse_int i), P.tint
 
   | S.PEVar x ->
     tt_fvar_global mode env x
@@ -1134,7 +1130,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
   | S.PEGet (al, aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
     let ty, _ = tt_as_array (xlc, ty) in
-    let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
+    let ws = Option.default (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode pd env pi in
     let i = ensure_int (L.loc pi) i ity in
@@ -1159,7 +1155,6 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       e, P.tint 
       
     | `Cast (`ToWord (sz, sg)) ->
-      let sz = tt_ws sz in
       let e, ws = cast_word (L.loc pe) sz e ety in
       let e = 
         if W.wsize_cmp ws sz = Datatypes.Lt then 
@@ -1303,6 +1298,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       P.Pbig(e1, e2, o, L.mk_loc (L.loc px) x, e0, b), ty
 
   | S.PEResult i ->
+       let i =  Z.to_int ( S.parse_int i) in
        let si =
          try Env.get_f_result env i with
          | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult i)
@@ -1311,13 +1307,14 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
        P.Presult (i,x), ty
 
   | S.PEResultGet (al, aa, ws, v, pi, olen) ->
+       let v =  Z.to_int ( S.parse_int v) in
        let si =
          try Env.get_f_result env v with
          | _ -> rs_tyerror ~loc:(L.loc pe) (UnknownResult v)
        in
        let x, ty = tt_var_global mode env si in
        let ty, _ = tt_as_array (L.loc pe, ty) in
-       let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
+       let ws = Option.default (P.ws_of_ty ty) ws in
        let ty = P.tu ws in
        let e,ity  = tt_expr ~mode pd env pi in
        check_ty_eq ~loc:(L.loc pi) ~from:ity ~to_:P.tint;
@@ -1344,7 +1341,7 @@ and tt_mem_access pd ?(mode=`AllVar) (env : 'asm Env.env)
       match k with
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w pd), e) in
-  let ct = ct |> Option.map_default tt_ws pd in
+  let ct = ct |> Option.default pd in
   let al = tt_al AAdirect al in
   (ct,L.mk_loc xlc x,e, al)
 
@@ -1353,9 +1350,9 @@ and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
   match L.unloc pty with
   | S.TBool     -> P.tbool
   | S.TInt      -> P.tint
-  | S.TWord  ws -> P.Bty (P.U (tt_ws ws))
+  | S.TWord  ws -> P.Bty (P.U ws)
   | S.TArray (ws, e) ->
-    P.Arr (tt_ws ws, fst (tt_expr ~mode:`OnlyParam pd env e))
+    P.Arr (ws, fst (tt_expr ~mode:`OnlyParam pd env e))
   | S.Tabstract s -> P.Bty (P.Abstract (L.unloc s))
 
 (* -------------------------------------------------------------------- *)
@@ -1380,10 +1377,6 @@ let tt_vardecls_push dfl_writable pd (env : 'asm Env.env) pxs =
   let env = 
     List.fold_left (fun env x -> Env.Vars.push_local env (L.unloc x)) env xs in
   (env, xs)
-
-(* -------------------------------------------------------------------- *)
-let tt_vardecl_push dfl_writable pd (env : 'asm Env.env) px =
-  snd_map as_seq1 (tt_vardecls_push dfl_writable pd env [px])
 
 (* -------------------------------------------------------------------- *)
 let tt_param pd (env : 'asm Env.env) _loc (pp : S.pparam) : 'asm Env.env =
@@ -1419,7 +1412,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
     let x  = tt_var `NoParam env x in
     reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
-    let ws = Option.map_default tt_ws (P.ws_of_ty ty) ws in
+    let ws = Option.default (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode:`AllVar pd env pi in
     let i = ensure_int (L.loc pi) i ity in
@@ -1979,7 +1972,6 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
   | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
       ->
       let ws, s = ct in
-      let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
       let p = tt_prim arch_info.asmOp f in
       let id = Sopn.asm_op_instr Build_Tabstract arch_info.asmOp p in
@@ -2089,8 +2081,6 @@ and tt_cmd arch_info env c =
 
 (* -------------------------------------------------------------------- *)
 let tt_funbody arch_info env (pb : S.pfunbody) =
- (* let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in 
-  let env = fst (tt_vardecls_push (fun _ -> true) env vars) in *)
   let env, bdy = tt_cmd arch_info env pb.S.pdb_instr in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
@@ -2363,6 +2353,7 @@ let tt_global pd (env : 'asm Env.env) _loc (gd: S.pglobal) : 'asm Env.env =
 
   Env.Vars.push_global env (x,d)
 
+
 (* -------------------------------------------------------------------- *)
 let tt_abstract_typ env _loc (t: S.pabstract_ty) : 'asm Env.env =
   Env.add_abstract_typ env (L.unloc t.pat_name)
@@ -2378,7 +2369,10 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
   | S.PFundef pf -> tt_fundef arch_info env (L.loc pt) pf
   | S.PGlobal pg -> tt_global arch_info.pd env (L.loc pt) pg
   | S.Pexec   pf ->
-    Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
+    Env.Exec.push (L.loc pt)
+      (fst (tt_fun env pf.pex_name)).P.f_name
+      (List.map (fun (x, y) -> S.parse_int x, S.parse_int y) pf.pex_mem)
+      env
   | S.Prequire (from, fs) ->
     List.fold_left (tt_file_loc arch_info from) env fs
   | S.Pabstract_ty pat -> tt_abstract_typ env (L.loc pt) pat

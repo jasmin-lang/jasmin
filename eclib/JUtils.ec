@@ -266,22 +266,6 @@ op _interleave (l1 l2: 'a list) =
  with l1 = _::_, l2 = "[]" => l1
  with l1 = a1::l1', l2 = a2::l2' => a1::a2::_interleave l1' l2'.
 
-(* ------------------------------------------------------------------- *)
-(* Safety                                                              *)
-
-op in_bound (x n:int) = 0 <= x /\ x < n.
-op is_init (x : 'a option) = x <> None.
-
-lemma is_init_Some (a:'a) : is_init (Some a).
-proof. done. qed.
-
-lemma in_bound_simplify x n :
-    0 <= x < n => in_bound x n.
-proof. done. qed.
-
-hint simplify [eqtrue] is_init_Some.
-hint simplify [eqtrue] in_bound_simplify.
-
 (* -------------------------------------------------------------------- *)
 
 lemma powm1_mod k n:

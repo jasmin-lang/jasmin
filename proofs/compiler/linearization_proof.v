@@ -333,7 +333,7 @@ have : exists (b1 b2:bool), st = sbool /\ sem_pexpr true gd s e1 = ok (Vbool b1)
     by move: htr2; rewrite /truncate_val; t_xrbindP => /= b2 /to_boolI -> ?;eauto.
   have [??]:= truncate_valI htr2;subst st v2.
   by move: htr1; rewrite /truncate_val; t_xrbindP => /= b1 /to_boolI -> ?;eauto.
-move=> [b1 [b2 [-> []/dup[]hb1 /he1 -> /dup[]hb2 /he2 ->]]] /=.
+move=> [b1 [b2 [-> []/[dup]hb1 /he1 -> /[dup]hb2 /he2 ->]]] /=.
 by rewrite hb1 hb2 /=; case bp.
 Qed.
 
@@ -1477,7 +1477,7 @@ Section PROOF.
       have := [elaborate top_stack_below_root _ m1]; rewrite -/(top_stack _).
       by lia.
     (* read stk *)
-    + move=> p1 w1 hb /dup[] Hr1.
+    + move=> p1 w1 hb /[dup] Hr1.
       move: (Hve p1) (Hvr p1).
       have -> := readV Hr1.
       case: validw.
@@ -2697,7 +2697,7 @@ Section PROOF.
     }
     (* arbitrary expression *)
     move => {} e ok_e Ew Hw.
-    t_xrbindP => /dup[] checked_e /check_fexprP[] f ok_f ok_c ok_c'.
+    t_xrbindP => /[dup] checked_e /check_fexprP[] f ok_f ok_c ok_c'.
     move: Hw; rewrite checked_e /to_fexpr ok_f => Hw.
     case: c' Ec' Hc' ok_c' Ew Hw => [ | i c' ].
     { (* second body is empty *)
@@ -3747,7 +3747,7 @@ Section PROOF.
     move=> [x1 ofs1] to_save ih lo /all_disjoint_aligned_betweenP.
     move=> [] ofs1' [] ws1' [] [] /=.
     case heq: is_word_type => [ws1 | ] // [??]; subst ofs1' ws1'.
-    move=> _ hlo _ _ /dup[] {}/ih ih /all_disjoint_aligned_between_range ?.
+    move=> _ hlo _ _ /[dup] {}/ih ih /all_disjoint_aligned_between_range ?.
     move=> x ofs ws; rewrite in_cons => /orP [/eqP [-> ->] | hin] ht.
     + by move: heq; rewrite ht => -[->].
     have := ih _ _ _ hin ht; have := (@le0_wsize_size ws1); lia.
@@ -4292,7 +4292,7 @@ Section PROOF.
           rewrite SvP.diff_mem negb_and => /orP[]; last first.
           * move/negbNE; rewrite sv_of_list_map.
             have -> : (id \o fst) = fst by done.
-            move=> /dup [hin]; rewrite sv_of_listE => hin'.
+            move=> /[dup] hin; rewrite sv_of_listE => hin'.
             have -> : (x == var_tmp2) = false.
             + by apply/negbTE/eqP => ?; subst x; rewrite hin in tmp2_not_saved.
             rewrite hin' hvm2 // => /Sv.add_spec [?| /Sv.add_spec [?| /Sv.add_spec [?| ]]].

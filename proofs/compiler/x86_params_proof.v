@@ -44,6 +44,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 #[local] Existing Instance withsubword.
+#[local] Existing Instance direct_c.
 
 Section Section.
 Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
@@ -53,7 +54,7 @@ Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem sysca
 (* Stack alloc hypotheses. *)
 
 Section STACK_ALLOC.
-Context {dc : DirectCall} (P' : sprog).
+Context (P' : sprog).
 
 Lemma lea_ptrP s1 e i x tag ofs w s2 :
   P'.(p_globs) = [::]
@@ -124,7 +125,7 @@ Qed.
 
 End STACK_ALLOC.
 
-Definition x86_hsaparams {dc : DirectCall} : h_stack_alloc_params (ap_sap x86_params) :=
+Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
   {|
     mov_ofsP := x86_mov_ofsP;
     sap_immediateP := x86_immediateP;
@@ -290,7 +291,7 @@ Qed.
 (* Lowering hypotheses. *)
 
 (* Due to the order of the parameters we can't defined this as a record. *)
-Definition x86_hloparams {dc : DirectCall} : h_lowering_params (ap_lop x86_params).
+Definition x86_hloparams : h_lowering_params (ap_lop x86_params).
 Proof.
   split. exact: @lower_callP.
 Defined.
@@ -722,7 +723,7 @@ Opaque cat.
   rewrite /se_protect_large_sem Hws /= => -[?]?; subst tr ys.
   case: lvs => // -[] // [aux iaux] [] // y [] // hws.
   case: args hes => // ew [] // emsf [] // hes1.
-  t_xrbindP; rewrite negb_or => /andP [] haux1 haux2 hops /dup[] + hmap hlo.
+  t_xrbindP; rewrite negb_or => /andP [] haux1 haux2 hops /[dup] + hmap hlo.
 Transparent cat.
   rewrite -hops /=; t_xrbindP => -[op1 oargs1] hass1 z0 z1 _ z2.
   rewrite mapM_cat /=; t_xrbindP => _ _ _ -[op2 oargs2] hass2 _ _ _ _ {z0 z1 z2}.
@@ -909,7 +910,7 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-Definition x86_h_params {dc : DirectCall} {call_conv : calling_convention} : h_architecture_params x86_params :=
+Definition x86_h_params {call_conv : calling_convention} : h_architecture_params x86_params :=
   {|
     hap_hsap        := x86_hsaparams;
     hap_hlip        := x86_hliparams;

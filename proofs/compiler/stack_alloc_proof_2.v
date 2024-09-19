@@ -1134,7 +1134,7 @@ Proof.
       have ?: x <> p.
       + by move /is_sarrP: harr => [n]; congruence.
       by move=> /SvD.F.add_3; auto.
-    move=> ? /dup[] ? /hnew ?.
+    move=> ? /[dup] ? /hnew ?.
     have ?: p <> y by congruence.
     by move=> /SvD.F.add_3; auto.
   move=> s z f.
@@ -1191,7 +1191,7 @@ Proof.
   case: eqP.
   + move=> <- _.
     by move=> /SvD.F.add_3; auto.
-  move=> ? /dup[] ? /hnew ?.
+  move=> ? /[dup] ? /hnew ?.
   have ?: f <> y by congruence.
   by move=> /SvD.F.add_3; auto.
 Qed.
@@ -1402,7 +1402,7 @@ Proof.
     have ?: param.(v_var) <> pi.(pp_ptr).
     + by move /is_sarrP : harrty => [n]; congruence.
     by move=> /SvD.F.add_3; auto.
-  move=> ? /dup[] ? /hnew ?.
+  move=> ? /[dup] ? /hnew ?.
   have ?: pi.(pp_ptr) <> y by congruence.
   by move=> /SvD.F.add_3; auto.
 Qed.
@@ -2655,7 +2655,7 @@ Proof.
   have hj := nth_not_default hpi ltac:(discriminate).
   move=> /= [p [-> hread]] hresultp.
   exists p; split; first by reflexivity.
-  move=> off w /dup[] /get_val_byte_bound hoff.
+  move=> off w /[dup] /get_val_byte_bound hoff.
   rewrite -hfss.(fss_read_old8); first by apply hread.
   move: (hargs j); rewrite /wf_arg (nth_map None) //.
   rewrite hpi /= -hresultp.(wrp_args).

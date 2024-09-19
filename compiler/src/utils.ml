@@ -233,7 +233,6 @@ let pp_string fmt s =
 (* -------------------------------------------------------------------- *)
 type model =
   | ConstantTime
-  | Safety
   | Normal
 
 (* -------------------------------------------------------------------- *)
@@ -297,9 +296,21 @@ let add_iloc e i_loc =
   in
   { e with err_loc }
 
+let remove_dummy_locations =
+  let open Location in
+  function
+  | Lnone -> Lnone
+  | Lone l when isdummy l -> Lnone
+  | Lone _ as x -> x
+  | Lmore {  base_loc ; stack_loc ; _ } ->
+     match List.filter (fun x -> not (isdummy x)) (base_loc :: stack_loc) with
+     | [] -> Lnone
+     | [ x ] -> Lone x
+     | x :: xs -> Lmore (i_loc x xs)
+
 let pp_hierror fmt e =
   let pp_loc fmt =
-    match e.err_loc with
+    match remove_dummy_locations e.err_loc with
     | Lnone -> ()
     | Lone l -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_loc) l
     | Lmore i_loc -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_iloc) i_loc

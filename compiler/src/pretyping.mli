@@ -39,7 +39,6 @@ module Env : sig
   end
 end
 
-val tt_ws : Annotations.wsize -> Wsize.wsize
 val tt_prim : 'op Sopn.asmOp -> Annotations.symbol Location.located -> 'op
 
 type ('a, 'b, 'c, 'd, 'e, 'f, 'g) arch_info = {

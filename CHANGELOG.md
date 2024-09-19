@@ -1,11 +1,55 @@
 
 # [unreleased]
 
+## New features
+
+- Support more integer notations
+  ([PR#897](https://github.com/jasmin-lang/jasmin/pull/897)):
+    * Octal: `0O777`, `0o52`
+    * Binary: `0b11101`, `0B11100`
+    * `_` characters: `100_000_00___111`
+
 ## Bug fixes
 
 - Easycrypt extraction for CT : fix decreasing for loops
   ([PR #859](https://github.com/jasmin-lang/jasmin/pull/859);
   fixes [#858](https://github.com/jasmin-lang/jasmin/issues/858)).
+
+- Array copy operator `#copy` support slices as arguments and results
+  ([PR #880](https://github.com/jasmin-lang/jasmin/pull/880);
+  fixes [#842](https://github.com/jasmin-lang/jasmin/issues/842)).
+
+- Fix SCT check of `while` loops
+  ([PR #888](https://github.com/jasmin-lang/jasmin/pull/888));
+  fixes [#887](https://github.com/jasmin-lang/jasmin/issues/887)).
+
+- Fix compilation of functions with system calls but not making other use of
+  the stack
+  ([PR #892](https://github.com/jasmin-lang/jasmin/pull/892));
+  fixes [#870](https://github.com/jasmin-lang/jasmin/issues/870)).
+
+- Safety checker handles dynamically scoped global variables
+  ([PR #890](https://github.com/jasmin-lang/jasmin/pull/890);
+  fixes [#662](https://github.com/jasmin-lang/jasmin/issues/662)).
+
+## Other changes
+
+- The deprecated legacy interface to the LATEX pretty-printer has been removed
+  ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
+
+- The checker for S-CT accepts copies of outdated MSF
+  ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).
+  
+- Preserve formatting of integer literals in the lexer and when pretty-printing to LATEX
+  ([PR #886](https://github.com/jasmin-lang/jasmin/pull/886)).
+
+- Improve handling of instruction `LEA` in the safety checker
+  ([PR #900](https://github.com/jasmin-lang/jasmin/pull/900)).
+
+- Extraction to EasyCrypt for safety verification is now removed, it was
+  deprecated in the previous release
+  ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
+
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
 ## New features

@@ -54,8 +54,8 @@ Section CONSISTENCY.
              else None).
     exists (λ dom p, oseq.onth dom (Z.to_nat (wunsigned p))).
     move => dom lbl /ZleP small_dom.
-    rewrite -has_pred1 => /dup[] => lbl_in_dom.
-    rewrite has_find => /= /dup[] /ltP found -> /=.
+    rewrite -has_pred1 => /[dup] => lbl_in_dom.
+    rewrite has_find => /= /[dup] /ltP found -> /=.
     rewrite wunsigned_repr_small; last first.
     - move: (find _ _) (size _) small_dom found => n m; Lia.lia.
     rewrite Nat2Z.id oseq.onth_nth.

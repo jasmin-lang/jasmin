@@ -1,0 +1,5 @@
+export
+fn rand(reg ptr u8[32] io) -> reg ptr u8[32] {
+  io = #randombytes(io);
+  return io;
+}
