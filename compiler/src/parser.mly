@@ -424,11 +424,19 @@ storage:
 | INLINE         { `Inline }
 | GLOBAL         { `Global }
 
-%inline pvardecl(S):
-| ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
-annot_pvardecl: 
-| a=annotations vd=pvardecl(empty) { (a,vd) }
+%inline decl:
+| v=var { v, None }
+| v=var EQ e=pexpr { v, Some e }
+
+%inline pvardecl(S):
+| ty=stor_type vs=separated_nonempty_list(S, loc(decl)) { (ty, vs) }
+
+pparamdecl(S): 
+    ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
+
+annot_pparamdecl:
+| a=annotations vd=pparamdecl(empty) { (a,vd) }
 
 pfunbody :
 | LBRACE
@@ -447,7 +455,7 @@ pfundef:
     cc=call_conv?
     FN
     name = ident
-    args = parens_tuple(annot_pvardecl)
+    args = parens_tuple(annot_pparamdecl)
     rty  = prefix(RARROW, tuple(annot_stor_type))?
     body = pfunbody
 
