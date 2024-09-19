@@ -60,6 +60,7 @@ Qed.
 Section PROOF.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
@@ -680,7 +681,7 @@ Proof.
   case: hw hfve => // - [] //.
   apply: rbindP => /= w' ok_w' /ok_inj /Vword_inj[] ?? hfve /Some_inj[] ??; subst => /=.
   split; last by [].
-  exists [:: v; @Vword U32 0 ].
+  exists [:: v; @Vword _ U32 0 ].
   - by rewrite /= hseme wrepr0.
   by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= GRing.add0r wnot1_wopp zero_extend_u.
 Qed.

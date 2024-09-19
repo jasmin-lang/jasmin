@@ -49,6 +49,7 @@ Unset Printing Implicit Defensive.
 Section Section.
 
 Context
+  {tabstract : Tabstract}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -264,7 +265,7 @@ Qed.
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
 Proof.
   move=> xd xs ofs s vm top hgets.
-  case heq: vtype => [|||ws] //; t_xrbindP.
+  case heq: vtype => [|||ws|] //; t_xrbindP.
   move=> _ <- /eqP ? w hread hset; subst ws.
   rewrite /arm_lload /= hgets /= truncate_word_u /= hread /=.
   by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.

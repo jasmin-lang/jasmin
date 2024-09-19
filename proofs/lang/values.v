@@ -54,7 +54,7 @@ Proof. by move=> /compat_type_subtype h; rewrite -subtype_undef_tP (subtype_tran
  * -------------------------------------------------------------------- *)
 Section VALUE.
 
-  Context {A : Tabstract}.
+  Context {tabstract : Tabstract}.
 
   Variant value : Type :=
     | Vbool  :> bool -> value
@@ -349,7 +349,7 @@ Section VALUE.
     end.
 
   Lemma to_arrI n v t : to_arr n v = ok t -> v = Varr t.
-  Proof. 
+  Proof.
     case: v => //= n' t' /dup [] /WArray.cast_len ?; subst n'.
     by rewrite WArray.castK => -[<-].
   Qed.
@@ -572,6 +572,14 @@ Section VALUE.
   Lemma to_val_inj t (v1 v2: sem_t t) : to_val v1 = to_val v2 -> v1 = v2.
   Proof. by case: t v1 v2 => /= > => [[]|[]| /Varr_inj1 |[]| /Vabstract_inj1]. Qed.
 
+  Lemma of_val_to_val t (v : sem_t t) : of_val t (to_val v) = ok v.
+  Proof.
+    case: t v => //=.
+    + by move=> len a; rewrite WArray.castK.
+    + by move=> ws w; rewrite truncate_word_u.
+    by move=> s v; rewrite cast_abstract_u.
+  Qed.
+
   Lemma to_valI t (x: sem_t t) v : to_val x = v ->
     match v with
     | Vbool b => exists h: t = sbool, eq_rect _ _ x _ h = b
@@ -717,7 +725,7 @@ Section VALUE.
     match v with
     | Vbool b => ty = sbool /\ vt = b
     | Vint i => ty = sint /\ vt = i
-    | Varr len a => ty = sarr len /\ vt = Varr a  
+    | Varr len a => ty = sarr len /\ vt = Varr a
     | Vword ws w => exists ws' w',
         [/\ ty = sword ws', truncate_word ws' w = ok w' & vt = Vword w']
     | Vabstract s a => exists s' a',
@@ -786,6 +794,44 @@ Section VALUE.
     + by move=> _; rewrite /truncate_val /= WArray.castK.
     + by move=> _ _; rewrite /truncate_val /= truncate_word_u.
       by move=> _ _; rewrite /truncate_val /= cast_abstract_u.
+  Qed.
+
+  Lemma subtype_truncate_val_idem ty1 ty2 v v1 v2 :
+    subtype ty2 ty1 ->
+    truncate_val ty1 v = ok v1 ->
+    truncate_val ty2 v1 = ok v2 ->
+    truncate_val ty2 v = ok v2.
+  Proof.
+    move=> /subtypeE hsub /truncate_valE htr.
+    case: v htr hsub => //.
+    + by move=> b [-> ->] _.
+    + by move=> z [-> ->] _.
+    + by move=> len a [-> ->] _.
+    + move=> ws w [ws1 [w1 [-> /truncate_wordP [hcmp1 ->] ->]]] [ws2 [-> hcmp2]].
+      rewrite /truncate_val /= truncate_word_le //= => -[<-].
+      rewrite truncate_word_le /=; last by apply (cmp_le_trans hcmp2 hcmp1).
+      by rewrite zero_extend_idem.
+    move=> s ? [? [? [-> /cast_abstractP[h1 h2] -> ->]]] /=.
+    by subst s; have -> := JMeq_eq h2.
+  Qed.
+
+  Lemma subtype_truncate_val ty1 ty2 v v1 :
+    subtype ty2 ty1 ->
+    truncate_val ty1 v = ok v1 ->
+    exists v2, truncate_val ty2 v1 = ok v2.
+  Proof.
+    move=> /subtypeE hsub /truncate_valI htr.
+    case: v1 htr hsub => //.
+    + by move=> b [-> _] ->; eexists; reflexivity.
+    + by move=> z [-> _] ->; eexists; reflexivity.
+    + move=> len a [-> _] ->.
+      by rewrite /truncate_val /= WArray.castK; eexists; reflexivity.
+    + move=> ws1 w1 [_ [_ [-> _ _]]] [ws2 [-> hcmp2]].
+      rewrite /truncate_val /= truncate_word_le //.
+      by eexists; reflexivity.
+    move=> s ? [? [? [-> /cast_abstractP[h1 h2] h3 h4]]] /=.
+    subst s v ty2; have -> := JMeq_eq h2.
+    rewrite /truncate_val /= cast_abstract_u /=; eexists; eauto.
   Qed.
 
   Lemma truncate_val_defined ty v v' : truncate_val ty v = ok v' -> is_defined v'.
@@ -880,6 +926,36 @@ Section VALUE.
     Let t := app_sopn _ semi vs in
         ok (list_ltuple t).
 
+  Lemma app_sopn_truncate_val T l f vargs (t:T) :
+    app_sopn l f vargs = ok t ->
+    exists vargs',
+      mapM2 ErrType truncate_val l vargs = ok vargs' /\
+      app_sopn l f vargs' = ok t.
+  Proof.
+    elim: l f vargs => /= [|ty l ih] f [|v vargs] //.
+    + move=> ->.
+      by eexists; split; first by reflexivity.
+    t_xrbindP=> w hv /ih [vargs' [htr hvargs']].
+    rewrite /truncate_val hv /= htr /=.
+    eexists; split; first by reflexivity.
+    by rewrite /= of_val_to_val /=.
+  Qed.
+
+  Lemma truncate_val_app_sopn T l f vargs vargs' (t : T) :
+    mapM2 ErrType truncate_val l vargs = ok vargs' ->
+    app_sopn l f vargs' = ok t ->
+    app_sopn l f vargs = ok t.
+  Proof.
+    move=> htr.
+    elim: {l vargs vargs' htr} (mapM2_Forall3 htr) f => //=.
+    move=> ty v v' tys vargs vargs' htr _ ih f.
+    t_xrbindP=> w' ok_w' ok_t.
+    move: htr => /[dup] /truncate_val_idem.
+    rewrite /truncate_val ok_w' /=.
+    t_xrbindP=> <- _ -> /to_val_inj -> /=.
+    by apply ih.
+  Qed.
+
   Lemma vuincl_sopn T ts o vs vs' (v: T) :
     all is_not_sarr ts -> List.Forall2 value_uincl vs vs' ->
     app_sopn ts o vs = ok v -> app_sopn ts o vs' = ok v.
@@ -962,8 +1038,8 @@ Section VALUE.
   Section FORALL.
     Context  (T:Type) (P:T -> Prop).
 
-    Fixpoint mk_forall (l:seq stype) : sem_prod l (exec T) -> Prop := 
-      match l as l0 return sem_prod l0 (exec T) -> Prop with 
+    Fixpoint mk_forall (l:seq stype) : sem_prod l (exec T) -> Prop :=
+      match l as l0 return sem_prod l0 (exec T) -> Prop with
       | [::] => fun o => forall t, o = ok t -> P t
       | t::l => fun o => forall (x:sem_t t), @mk_forall l (o x)
       end.
@@ -976,25 +1052,25 @@ Section VALUE.
 
     Context (P2:T -> T -> Prop).
 
-    Fixpoint mk_forall_ex (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop := 
-      match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with 
-      | [::] => fun o1 o2 => forall t, o1 = ok t -> exists2 t', o2 = ok t' & P2 t t' 
+    Fixpoint mk_forall_ex (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
+      match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with
+      | [::] => fun o1 o2 => forall t, o1 = ok t -> exists2 t', o2 = ok t' & P2 t t'
   | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall_ex l (o1 x) (o2 x)
     end.
-    
-    Lemma mk_forall_exP l f1 f2 vargs t : @mk_forall_ex l f1 f2 -> app_sopn l f1 vargs = ok t -> 
+
+    Lemma mk_forall_exP l f1 f2 vargs t : @mk_forall_ex l f1 f2 -> app_sopn l f1 vargs = ok t ->
                                           exists2 t', app_sopn l f2 vargs = ok t' & P2 t t'.
     Proof.
       elim: l vargs f1 f2 => [ | a l hrec] [ | v vs] //= f1 f2 hall; first by apply hall.
       by t_xrbindP => w ->; apply/hrec.
     Qed.
 
-    Fixpoint mk_forall2 (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop := 
-      match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with 
+    Fixpoint mk_forall2 (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
+      match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with
       | [::] => fun o1 o2 => forall t1 t2, o1 = ok t1 -> o2 = ok t2 -> P2 t1 t2
       | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall2 l (o1 x) (o2 x)
       end.
-    
+
     Lemma mk_forall2P l f1 f2 vargs t1 t2 : @mk_forall2 l f1 f2 -> app_sopn l f1 vargs = ok t1 -> app_sopn l f2 vargs = ok t2 -> P2 t1 t2.
     Proof.
       elim: l vargs f1 f2 => [ | a l hrec] [ | v vs] //= f1 f2 hall; first by apply hall.
@@ -1004,6 +1080,7 @@ Section VALUE.
   End FORALL.
 End VALUE.
 
+Arguments Vundef {tabstract}.
 Notation to_pointer := (to_word Uptr).
 Notation undef_b := (@Vundef _ sbool erefl).
 Notation undef_i := (@Vundef _ sint erefl).

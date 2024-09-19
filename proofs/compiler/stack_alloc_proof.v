@@ -29,7 +29,7 @@ Proof. by apply size_of_gt0. Qed.
 
 Lemma size_of_le ty ty' : subtype ty ty' -> size_of ty <= size_of ty'.
 Proof.
-  case: ty => [||p|ws]; case:ty' => [||p'|ws'] //.
+  case: ty => [||p|ws|]; case:ty' => [||p'|ws'|] //.
   + by move=> /eqP ->; lia.
   move=> /wsize_size_le.
   by apply Z.divide_pos_le.
@@ -45,6 +45,7 @@ Notation spointer := (sword Uptr) (only parsing).
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -2738,7 +2739,7 @@ Lemma alloc_protect_ptrP m0 s1 s2 s1' rmap1 rmap2 ii r tag e msf vmsf v v' n i2 
   valid_state rmap1 m0 s1 s2 ->
   sem_pexpr true gd s1 e = ok v ->
   sem_pexpr true gd s1 msf = ok vmsf ->
-  truncate_val ty_msf vmsf = ok (@Vword msf_size 0%R) ->
+  truncate_val ty_msf vmsf = ok (@Vword _ msf_size 0%R) ->
   truncate_val (sarr n) v = ok v' ->
   write_lval true gd r v' s1 = ok s1' ->
   alloc_protect_ptr shparams pmap rmap1 ii r tag e msf = ok (rmap2, i2) ->
@@ -2998,7 +2999,7 @@ Record wf_arg_pointer m1 m2 (wptrs:seq (option bool)) vargs vargs' (writable:boo
     forall j vaj pj, i <> j ->
       isSome (nth None wptrs j) ->
       nth (Vbool true) vargs j = vaj ->
-      nth (Vbool true) vargs' j = @Vword Uptr pj ->
+      nth (Vbool true) vargs' j = @Vword _ Uptr pj ->
       disjoint_zrange p (size_val va) pj (size_val vaj)
     (* if the reg ptr is marked as writable, the associated zone in the target
        memory is disjoint from all the zones pointed to by other reg ptr *)

@@ -10,7 +10,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section SEM_OP_TYPED.
-Context {A : Tabstract}.
+Context {tabstract : Tabstract}.
 
 Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
@@ -30,7 +30,7 @@ Definition zlsl (x i : Z) : Z :=
   if (0 <=? i)%Z then (x * 2^i)%Z
   else (x / 2^(-i))%Z.
 
-Definition zasr (x i : Z) : Z := 
+Definition zasr (x i : Z) : Z :=
   zlsl x (-i).
 
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
@@ -92,13 +92,13 @@ Definition sem_sop2_typed (o: sop2) :
   | Olor  s       => mk_sem_sop2 wor
   | Olxor s       => mk_sem_sop2 wxor
   | Olsr s        => mk_sem_sop2 sem_shr
-  | Olsl Op_int   => mk_sem_sop2 zlsl 
+  | Olsl Op_int   => mk_sem_sop2 zlsl
   | Olsl (Op_w s) => mk_sem_sop2 sem_shl
-  | Oasr Op_int   => mk_sem_sop2 zasr 
+  | Oasr Op_int   => mk_sem_sop2 zasr
   | Oasr (Op_w s) => mk_sem_sop2 sem_sar
   | Oror s        => mk_sem_sop2 sem_ror
   | Orol s        => mk_sem_sop2 sem_rol
- 
+
   | Oeq Op_int    => mk_sem_sop2 Z.eqb
   | Oeq (Op_w s)  => mk_sem_sop2 eq_op
   | Oneq Op_int   => mk_sem_sop2 (fun x y => negb (Z.eqb x y))
@@ -142,5 +142,7 @@ End WITH_PARAMS.
 
 End SEM_OP_TYPED.
 
-Arguments sem_sop1_typed : clear implicits.
-Arguments sem_sop2_typed : clear implicits.
+
+Arguments sem_sop1_typed {_}.
+
+Arguments sem_sop2_typed {_}.

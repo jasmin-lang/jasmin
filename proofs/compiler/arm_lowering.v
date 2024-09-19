@@ -51,6 +51,7 @@ Definition fvars (fv : fresh_vars) : Sv.t := sv_of_list id (fresh_flags fv).
 Section ARM_LOWERING.
 
 Context
+  {tabstract : Tabstract}
   (fv : fresh_vars).
 
 (* TODO: When this pass is allowed to fail, this should be inside [cexec]. *)
@@ -420,13 +421,13 @@ Definition lower_base_op
       | _ => None end
     else None.
 
-Definition lower_swap ty lvs es : option copn_args := 
+Definition lower_swap ty lvs es : option copn_args :=
   match ty with
-  | sword sz => 
-    if (sz <= U32)%CMP then 
+  | sword sz =>
+    if (sz <= U32)%CMP then
       Some (lvs, Oasm (ExtOp (Oarm_swap sz)), es)
     else None
-  | sarr _ => 
+  | sarr _ =>
       Some (lvs, Opseudo_op (Oswap ty), es)
   | _ => None
   end.

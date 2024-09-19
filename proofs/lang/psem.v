@@ -20,6 +20,10 @@ Open Scope vm_scope.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
+Section TAbstract.
+
+Context {tabstract:Tabstract}.
+
 Lemma sem_sop1I y x f:
   sem_sop1 f x = ok y →
   exists2 w : sem_t (type_of_op1 f).1,
@@ -489,7 +493,7 @@ Qed.
 Lemma on_arr_varP {syscall_state : Type} {ep : EstateParams syscall_state}
   A (f : forall n, WArray.array n -> exec A) wdb v vm x P :
   (forall n t, vtype x = sarr n ->
-               get_var wdb vm x = ok (@Varr n t) ->
+               get_var wdb vm x = ok (@Varr _ n t) ->
                f n t = ok v -> P) ->
   on_arr_var (get_var wdb vm x) f = ok v -> P.
 Proof.
@@ -500,7 +504,7 @@ Qed.
 
 Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) wdb v gd s x P:
   (forall n t, vtype x.(gv) = sarr n ->
-               get_gvar wdb gd s x = ok (@Varr n t) ->
+               get_gvar wdb gd s x = ok (@Varr _ n t) ->
                f n t = ok v -> P) ->
   on_arr_var (get_gvar wdb gd s x) f = ok v -> P.
 Proof.
@@ -2422,6 +2426,8 @@ End SEM_CALL_PARAMS.
 End WITH_PARAMS.
 
 End WSW.
+
+End TAbstract.
 
 Ltac t_get_var :=
   repeat (

@@ -20,6 +20,7 @@ Local Notation cpm := (Mvar.t const_v).
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw:WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
@@ -104,15 +105,15 @@ rewrite /sem_sop1; t_xrbindP => ? /to_intI -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
 Qed.
 
-Lemma e2boolP e b : 
+Lemma e2boolP e b :
    e2bool e = ok b -> e = Pbool b.
 Proof. by case: e => //= ? [->]. Qed.
 
-Lemma e2intP e z : 
+Lemma e2intP e z :
    e2int e = ok z -> e = Pconst z.
 Proof. by case: e => //= ? [->]. Qed.
-  
-Lemma of_exprP rho t e v :  
+
+Lemma of_exprP rho t e v :
   of_expr t e = ok v ->
   Let x := sem_pexpr wdb gd rho e in of_val t x = ok v.
 Proof.
@@ -472,8 +473,8 @@ Proof.
 Qed.
 
 Lemma app_sopnP T0 ts o es x s :
-  @app_sopn T0 ts o es = ok x ->
-  sem_pexprs wdb gd s es >>= values.app_sopn ts o = ok x.
+  @app_sopn _ T0 ts o es = ok x ->
+  sem_pexprs wdb gd s es >>= @values.app_sopn _ _ ts o = ok x.
 Proof.
   elim: ts es o => /= [ | t ts ih ].
   + by case=> // _ -> [<-].
@@ -643,7 +644,7 @@ Proof.
     rewrite Mvar.setP /=; case: eqP => [<- [<-]| hne]; last by apply hv.
     rewrite hwdb in hw *.
     by have [_ /vm_truncate_valE [hty ->] /get_varP [<-??]] := write_get_varP_eq hw.
-  case: v => //= s ;last by move=> ??/truncate_valE. 
+  case: v => //= s ;last by move=> ??/truncate_valE.
   move=> w /andP[] Ule /eqP -> /truncate_valE [szw [ww [-> /truncate_wordP[hle ->] ->]]] /=.
   rewrite !(zero_extend_wrepr _ Ule, zero_extend_wrepr _ (cmp_le_trans hle Ule), zero_extend_wrepr _ hle).
   move=> hw hv z n.
@@ -1178,10 +1179,10 @@ Section PROOF.
     have H :  forall e0,
       sem_pexpr true gd s2 e0 = ok (Vbool true) ->
       (exists vm2,
-        sem p' ev (with_vm s3 vm3) [:: MkI ii (Cwhile a c0 e0 c0')] (with_vm s4 vm2) ∧ 
+        sem p' ev (with_vm s3 vm3) [:: MkI ii (Cwhile a c0 e0 c0')] (with_vm s4 vm2) ∧
         vm_uincl (evm s4) vm2) ->
       exists vm2,
-        sem p' ev (with_vm s1 vm1) [:: MkI ii (Cwhile a c0 e0 c0')] (with_vm s4 vm2)  ∧ 
+        sem p' ev (with_vm s1 vm1) [:: MkI ii (Cwhile a c0 e0 c0')] (with_vm s4 vm2)  ∧
         vm_uincl (evm s4) vm2.
     + move=> e0 He0 [vm5] [] /sem_seq1_iff /sem_IE Hsw hvm5;exists vm5;split => //.
       apply:sem_seq1;constructor.

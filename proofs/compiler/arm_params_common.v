@@ -26,7 +26,7 @@ Module ARMFopn.
 
   Section WITH_PARAMS.
 
-  Context {atoI : arch_toIdent}.
+  Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
   Definition to_opn '(d, o, e) : fopn_args := (d, Oarm o, e).
 

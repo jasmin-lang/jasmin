@@ -16,6 +16,7 @@ Local Open Scope seq_scope.
 
 Section PROOF.
   Context
+    {tabstract : Tabstract}
     {wsw : WithSubWord}
     {asm_op syscall_state : Type}
     {ep : EstateParams syscall_state}
