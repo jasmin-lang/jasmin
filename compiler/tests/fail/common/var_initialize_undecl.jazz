@@ -1,0 +1,4 @@
+export fn main() -> reg u32 {
+  reg u32 x = x;
+  return x;
+}

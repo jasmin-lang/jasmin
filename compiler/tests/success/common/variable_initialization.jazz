@@ -1,0 +1,48 @@
+/*
+Test for intialising variable during declaration
+The used semantic is the following : 
+reg u32 x=3; 
+
+is traduced to 
+reg u32 x;
+x=3;
+*/
+
+fn test_basic() -> reg u32 {
+    reg u32 x=3;
+    reg u32 y=x;
+    return y;
+} 
+
+fn test_multiples () -> reg u32,reg u32 {
+    reg u32 x=1,y=2;
+    return x,y;
+}
+
+fn test_primitive(){
+    reg ptr u32[1] a;
+    a[0] = 1;
+    stack u32[1] b = #copy_32(a[0:1]);
+}
+
+fn test_randombytes () {
+    reg ptr u8[1] r;
+    reg ptr u8[1] q = #randombytes(r);
+}
+
+fn test_calls () {
+    reg u32  x= test_basic();
+}
+
+export fn whitespace() -> reg u32 {
+  reg u32 x = 1 y = x + 1;
+  return y;
+}
+
+#[stacksize = 4]
+export fn rand() -> reg u32 {
+  stack u8[4] _x x = #randombytes(_x);
+  reg u32 r;
+  r = x[u32 0];
+  return r;
+}
