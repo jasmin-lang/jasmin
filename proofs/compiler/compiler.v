@@ -16,6 +16,7 @@ Require Import
 Require Import
   allocation
   array_copy
+  array_copy_cl
   array_expansion
   array_init
   constant_prop
