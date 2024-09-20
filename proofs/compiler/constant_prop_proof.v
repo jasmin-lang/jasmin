@@ -24,6 +24,7 @@ Context
   {wsw:WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -486,7 +487,7 @@ Proof.
 Qed.
 
 Lemma s_opNP op s es :
-  sem_pexpr wdb gd s (s_opN op es) = sem_pexpr wdb gd s (PappN op es).
+  sem_pexpr wdb gd s (s_opN op es) = sem_pexpr wdb gd s (pappN op es).
 Proof.
 
 Opaque app_sopn values.app_sopn.
@@ -504,6 +505,10 @@ Opaque app_sopn values.app_sopn.
 Transparent app_sopn values.app_sopn.
 
 Qed.
+
+Lemma s_opNAP op s es :
+  sem_pexpr wdb gd s (s_opNA op es) = sem_pexpr wdb gd s (PappN op es).
+Proof. case: op => op //; apply s_opNP. Qed.
 
 Definition vconst c :=
   match c with
@@ -591,8 +596,8 @@ Section CONST_PROP_EP.
       rewrite /= hw1 hw2 /=.
       by apply: vuincl_sem_sop2 h.
     - move => op es ih v.
-      t_xrbindP => vs /ih{ih} [] vs' ih /vuincl_sem_opN h/h{h} ok_v.
-      by rewrite s_opNP /= -/(sem_pexprs _ _ _) ih /= ok_v; eauto.
+      t_xrbindP => vs /ih{ih} [] vs' ih /vuincl_sem_opNA h/h{h}.
+      by rewrite s_opNAP /= -/(sem_pexprs _ _ _) ih => /= ->; exists v.
     move => t e He e1 He1 e2 He2 v.
     t_xrbindP => b ve /He/= [] ve' [] hse /[swap] /to_boolI -> /value_uinclE ?; subst.
     move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(value_uincl_truncate hue1) [] ? /dup[] ht1 /truncate_value_uincl ht1' hu1.
@@ -1246,7 +1251,7 @@ Section PROOF.
     have /(Hf _ Heqm) Hc'': valid_cpm (evm s2) m.
     + have -> := valid_cpm_m (refl_equal (evm s2)) Heqm.
       apply: valid_cpm_rm Hm'=> z Hz;apply: (writeP Hsemc);SvD.fsetdec.
-    have /(_ _ _ (value_uincl_refl _)) [vm1' hw hvm1'] := write_var_uincl hvm1 _ Hw.
+    have /(_ _ _ _ (value_uincl_refl _)) [vm1' hw hvm1'] := write_var_uincl hvm1 _ Hw.
     have [vm2 [hc' /Hc'' [vm3 [hfor U]]]]:= Hc' _ hvm1';exists vm3;split => //.
     by apply: EForOne hc' hfor.
   Qed.

@@ -30,8 +30,9 @@ Section ASM_EXTRA.
 #[local] Existing Instance withsubword.
 
 Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-        `{asm_e : asm_extra} {call_conv: calling_convention}
-         {asm_scsem : asm_syscall_sem}.
+        `{asm_e : asm_extra} {absp : Prabstract} {call_conv: calling_convention}
+         {asm_scsem : asm_syscall_sem}
+.
 
 (* -------------------------------------------------------------------- *)
 Lemma xreg_of_varI {ii x y} :
@@ -41,7 +42,7 @@ Lemma xreg_of_varI {ii x y} :
   | Regx r => of_var x = Some r
   | XReg r => of_var x = Some r
   | _ => False
-  end. 
+  end.
 Proof.
   rewrite /xreg_of_var.
   case heqxr: (to_xreg x) => [ r | ]; first by move=> [<-].
@@ -1906,7 +1907,7 @@ Proof.
   exists xm'; last exact: M'.
   eexists; first exact: ok_fd'.
   - exact: export.
-  - exact: ok_call_conv. 
+  - exact: ok_call_conv.
   - by move: xexec; rewrite /asm_pos take_size ok_c.
   move=> r hr.
   assert (H: var_of_asm_typed_reg r \in map var_of_asm_typed_reg callee_saved).
@@ -2010,7 +2011,7 @@ Proof.
   all: repeat (rewrite get_var_vmap_set_vars_other_type; last done).
   + rewrite get_var_vmap_set_vars_other.
     + rewrite get_var_vmap_set_vars_finite //=; exact cenumP.
-    by apply/allP => /= x _; rewrite eq_sym; apply/eqP/to_var_reg_neq_regx.  
+    by apply/allP => /= x _; rewrite eq_sym; apply/eqP/to_var_reg_neq_regx.
   + by rewrite get_var_vmap_set_vars_finite //=; exact: cenumP.
   + by rewrite get_var_vmap_set_vars_finite //=; exact: cenumP.
   by rewrite get_var_vmap_set_vars_finite /=;[case: (asm_flag s r)| exact: cenumP].

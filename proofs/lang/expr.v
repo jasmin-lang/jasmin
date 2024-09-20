@@ -56,7 +56,7 @@ Variant sop2 :=
 | Oland of wsize
 | Olor  of wsize
 | Olxor of wsize
-| Olsr  of wsize 
+| Olsr  of wsize
 | Olsl  of op_kind
 | Oasr  of op_kind
 | Oror  of wsize
@@ -78,9 +78,18 @@ Variant sop2 :=
 | Ovasr of velem & wsize
 .
 
+(* Abstract n-ary operators *)
+
+Record opA := MkAbstP {
+  pa_name   : string;
+  pa_tyin   : seq stype;
+  pa_tyout  : stype;
+  pa_tyin_narr : all is_not_sarr pa_tyin;
+}.
+
 (* N-ary operators *)
 Variant combine_flags :=
-| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
+| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *)
 | CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
 | CF_EQ                    (* Alias : E                              *)
 | CF_NEQ                   (* Alias : !E                             *)
@@ -88,9 +97,14 @@ Variant combine_flags :=
 | CF_GT    of signedness   (* Alias : signed => !LE; unsigned => !BE *)
 .
 
+
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
-| Ocombine_flags of combine_flags
+| Ocombine_flags of combine_flags.
+
+Variant opNA :=
+| OopN of opN
+| Oabstract of opA
 .
 
 Scheme Equality for sop1.
@@ -113,6 +127,30 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
 
+Definition opA_beq (o1 o2 : opA) :=
+  [&& o1.(pa_name) == o2.(pa_name)
+    , o1.(pa_tyin) == o2.(pa_tyin)
+    & o1.(pa_tyout) == o2.(pa_tyout)].
+
+Lemma opA_eq_axiom : Equality.axiom opA_beq.
+Proof.
+  move=> x y; apply Bool.iff_reflect; split.
+  + by move=> ->; rewrite /opA_beq !eqxx.
+  case: x => ??? h1; case: y => ??? h2 /and3P [/= /eqP ? /eqP ? /eqP ?]; subst.
+  by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec h1 h2).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build opA opA_eq_axiom.
+
+Scheme Equality for combine_flags.
+
+Lemma combine_flags_eq_axiom : Equality.axiom combine_flags_beq.
+Proof.
+  exact: (eq_axiom_of_scheme internal_combine_flags_dec_bl internal_combine_flags_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build combine_flags combine_flags_eq_axiom.
+
 Scheme Equality for opN.
 
 Lemma opN_eq_axiom : Equality.axiom opN_beq.
@@ -121,6 +159,22 @@ Proof.
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
+
+Definition opNA_beq (o1 o2 : opNA) :=
+  match o1, o2 with
+  | OopN o1, OopN o2 => o1 == o2
+  | Oabstract a1, Oabstract a2 => a1 == a2
+  | _, _ => false
+  end.
+
+Lemma opNA_eq_axiom : Equality.axiom opNA_beq.
+Proof.
+  move=> [o1 | a1] [o2 | a2] /=; try by constructor.
+  + by apply: (equivP eqP); split => [-> | [] ->].
+  by apply: (equivP eqP); split => [-> | [] ->].
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build opNA opNA_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -172,6 +226,8 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
 
 Definition tin_combine_flags := [:: sbool; sbool; sbool; sbool].
 
+Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
+
 Definition type_of_opN (op: opN) : seq stype * stype :=
   match op with
   | Opack ws p =>
@@ -180,15 +236,11 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
   | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
 
-(* Abstract n-ary operators *)
-
-Record opA := MkAbstP {
-  pa_name   : string;
-  pa_tyin   : seq stype;
-  pa_tyout  : stype;
-}.
-
-Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
+Definition type_of_opNA (op: opNA) : seq stype * stype :=
+  match op with
+  | OopN o => type_of_opN o
+  | Oabstract o => type_of_opA o
+  end.
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -221,8 +273,8 @@ Definition mk_var_i (x : var) :=
 Notation vid ident :=
   (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
 
-Variant v_scope := 
-  | Slocal 
+Variant v_scope :=
+  | Slocal
   | Sglob.
 
 Scheme Equality for v_scope.
@@ -252,8 +304,7 @@ Inductive pexpr : Type :=
 | Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
-| PappN of opN & seq pexpr
-| Pabstract : opA -> seq pexpr -> pexpr
+| PappN of opNA & seq pexpr
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr.
 
 Notation pexprs := (seq pexpr).
@@ -265,6 +316,8 @@ Definition eor e1 e2 := Papp2 Oor e1 e2.
 Definition eand e1 e2 := Papp2 Oand e1 e2.
 Definition eeq e1 e2 := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 := enot (eeq e1 e2).
+Definition pappN (o : opN) (es : pexprs) :=
+  PappN (OopN o) es.
 
 Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   match op with
@@ -279,7 +332,7 @@ Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
 
 Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : pexpr :=
   let eflags := [seq Plvar {| v_var := x; v_info := vi |} | x <- flags ] in
-  PappN (Ocombine_flags cf) eflags.
+  pappN (Ocombine_flags cf) eflags.
 
 
 (* ** Left values
@@ -390,7 +443,7 @@ Context `{asmop:asmOp}.
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
 | Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
-| Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
+| Csyscall : lvals -> syscall_t -> pexprs -> instr_r
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
 | Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
@@ -516,7 +569,7 @@ Context {A: Tabstract}.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
-(* ** Programs before stack/memory allocation 
+(* ** Programs before stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Definition progUnit : progT :=
@@ -537,7 +590,7 @@ Definition _ufun_decls :=  seq (_fun_decl unit).
 Definition _uprog      := _prog unit unit.
 Definition to_uprog (p:_uprog) : uprog := p.
 
-(* ** Programs after stack/memory allocation 
+(* ** Programs after stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Variant saved_stack :=
@@ -569,7 +622,7 @@ Variant return_address_location :=
                                 the option is for incrementing the large stack in arm *)
 | RAstack of option var & Z & option var.
                              (* None means that the call instruction directly store ra on the stack
-                                Some r means that the call instruction directly store ra on r and 
+                                Some r means that the call instruction directly store ra on r and
                                 the function should store r on the stack,
                                 The second option is for incrementing the large stack in arm *)
 
@@ -766,7 +819,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   match i with
   | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
-  | Csyscall xs _ _ => vrvs_rec s xs 
+  | Csyscall xs _ _ => vrvs_rec s xs
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -795,14 +848,13 @@ Fixpoint use_mem (e : pexpr) :=
   | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
-  | Pabstract _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
   end.
 
 (* ** Compute read variables
  * -------------------------------------------------------------------- *)
 
-Definition read_gvar (x:gvar) := 
+Definition read_gvar (x:gvar) :=
   if is_lvar x then Sv.singleton x.(gv)
   else Sv.empty.
 
@@ -818,7 +870,6 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
-  | Pabstract _ es => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
   end.
 
@@ -898,7 +949,7 @@ End ASM_OP.
 (* --------------------------------------------------------------------- *)
 (* Test the equality of two expressions modulo variable info             *)
 
-Definition eq_gvar x x' := 
+Definition eq_gvar x x' :=
   (x.(gs) == x'.(gs)) && (v_var x.(gv) == v_var x'.(gv)).
 
 Fixpoint eq_expr e e' :=
@@ -919,7 +970,7 @@ Fixpoint eq_expr e e' :=
   end.
 
 (* ------------------------------------------------------------------- *)
-Definition to_lvals (l:seq var) : seq lval := 
+Definition to_lvals (l:seq var) : seq lval :=
   map (fun x => Lvar (mk_var_i x)) l.
 
 (* ------------------------------------------------------------------- *)

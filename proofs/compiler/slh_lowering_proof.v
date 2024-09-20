@@ -147,15 +147,13 @@ Section CONST_PROP.
     - move: h => /norP [] /hinde0 h0 /hinde1 h1.
       by rewrite (use_mem_s_op2 _ h0 h1).
 
-    - rewrite /s_opN.
-      case: app_sopn; first by case: opn.
-      move=> _.
-      elim: es h hindes => //= e es hind /norP [he hes] hindes.
-      rewrite negb_or.
-      rewrite (hindes _ _ he) /=; last by left.
-      apply: (hind hes) => e' he'.
-      apply: hindes.
-      by right.
+    - have hes: ~~ has use_mem [seq const_prop_e None cpm i | i <- es].
+      + elim: es h hindes => //= e es hind /norP [he hes] hindes.
+        rewrite negb_or (hindes _ _ he) /=; last by left.
+        apply: (hind hes) => e' he'.
+        by apply: hindes; right.
+      case: opn => //= opn.
+      by rewrite /s_opN; case: app_sopn => //; case: opn.
 
     rewrite /s_if /=.
     move: h => /norP [] /norP [] /hinde h /hinde0 h0 /hinde1 h1.
@@ -185,6 +183,7 @@ Section H_SH_PARAMS.
     {tabstract : Tabstract}
     {asm_op syscall_state : Type}
     {wsw: WithSubWord}
+    {absp : Prabstract}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {asmop : asmOp asm_op}.
@@ -268,6 +267,7 @@ Context
   {tabstract : Tabstract}
   {asm_op syscall_state : Type}
   {wsw: WithSubWord}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}

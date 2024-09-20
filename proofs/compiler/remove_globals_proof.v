@@ -22,6 +22,7 @@ Module INCL. Section INCL.
     {wsw : WithSubWord}
     {dc:DirectCall}
     {asm_op syscall_state : Type}
+    {absp : Prabstract}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}.
@@ -319,6 +320,7 @@ Module RGP. Section PROOFS.
     {wsw : WithSubWord}
     {dc:DirectCall}
     {asm_op syscall_state : Type}
+    {absp : Prabstract}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}

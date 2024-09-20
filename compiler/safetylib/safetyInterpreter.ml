@@ -310,7 +310,6 @@ let rec safe_e_rec safe = function
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (_,es) -> List.fold_left safe_e_rec safe es
-  | Pabstract (_, es) -> List.fold_left safe_e_rec safe es
   | Pif  (_,e1, e2, e3) ->
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
@@ -1529,7 +1528,6 @@ end = struct
       | Papp1 (_, e)       -> nm_e vs_for e
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
-      | Pabstract (_,es)   -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
 
     and nm_es vs_for es = List.for_all (nm_e vs_for) es

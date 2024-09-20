@@ -16,7 +16,6 @@ let rec inspect_e k = function
   | Pload (_, _, _, e) | Papp1 (_, e) -> inspect_e k e
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
-  | Pabstract (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
 
 and inspect_es k es = List.fold_left inspect_e k es

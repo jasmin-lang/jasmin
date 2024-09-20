@@ -48,6 +48,7 @@ Section WITH_PARAMS.
 
 Context
   {tabstract : Tabstract}
+  {absp : Prabstract}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}

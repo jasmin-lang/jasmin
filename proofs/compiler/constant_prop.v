@@ -20,19 +20,19 @@ Section WITH_PARAMS.
 Context {tabstract: Tabstract}.
 Context {fcp : FlagCombinationParams}.
 
-Definition e2bool (e:pexpr) : exec bool := 
+Definition e2bool (e:pexpr) : exec bool :=
   match e with
   | Pbool b => ok b
   | _       => type_error
   end.
 
-Definition e2int (e:pexpr) : exec Z := 
+Definition e2int (e:pexpr) : exec Z :=
   match e with
   | Pconst z => ok z
   | _        => type_error
   end.
 
-Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) := 
+Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   match is_wconst sz e with
   | Some w => ok w
   | None   => type_error
@@ -42,12 +42,12 @@ Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
   | sbool   => e2bool
   | sint    => e2int
-  | sarr n  => fun _ => type_error 
+  | sarr n  => fun _ => type_error
   | sword sz => e2word sz
   | sabstract _ => fun _ => type_error
   end.
 
-Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
+Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   match t return sem_t t -> exec pexpr with
   | sbool => fun b => ok (Pbool b)
   | sint  => fun z => ok (Pconst z)
@@ -56,22 +56,22 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   | sabstract _ => fun _ => type_error
   end.
 
-Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr :=
+  let r :=
     Let x := of_expr _ e in
     to_expr (sem_sop1_typed o x) in
-  match r with 
+  match r with
   | Ok e => e
   | _ => Papp1 o e
   end.
 
-Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
+  let r :=
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
     Let v  := sem_sop2_typed o x1 x2 in
-    to_expr v in 
-  match r with 
+    to_expr v in
+  match r with
   | Ok e => e
   | _ => Papp2 o e1 e2
   end.
@@ -103,17 +103,17 @@ Definition s_op1 o e :=
   | Oneg Op_int => sneg_int e
   | _           => ssem_sop1 o e
   end.
- 
+
 (* ------------------------------------------------------------------------ *)
 
-Definition sbeq e1 e2 := 
+Definition sbeq e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b1, Some b2 => Pbool (b1 == b2)
-  | Some b, _ => if b then e2 else snot e2 
-  | _, Some b => if b then e1 else snot e1 
+  | Some b, _ => if b then e2 else snot e2
+  | _, Some b => if b then e1 else snot e1
   | _, _      => Papp2 Obeq e1 e2
   end.
-  
+
 Definition sand e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -273,7 +273,7 @@ Definition sge ty e1 e2 :=
 
 Definition s_op2 o e1 e2 :=
   match o with
-  | Obeq    => sbeq e1 e2 
+  | Obeq    => sbeq e1 e2
   | Oand    => sand e1 e2
   | Oor     => sor  e1 e2
   | Oadd ty => sadd ty e1 e2
@@ -299,7 +299,13 @@ Definition s_opN (op:opN) (es:pexprs) : pexpr :=
     | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
     | Ocombine_flags _ => fun b => Pbool b
     end r
-  | _ => PappN op es
+  | _ => pappN op es
+  end.
+
+Definition s_opNA (op:opNA) (es:pexprs) : pexpr :=
+  match op with
+  | OopN o => s_opN o es
+  | Oabstract _ => PappN op es
   end.
 
 Definition s_if t e e1 e2 :=
@@ -386,8 +392,7 @@ Fixpoint const_prop_e (m:cpm) e :=
   | Pload al sz x e => Pload al sz x (const_prop_e m e)
   | Papp1 o e     => s_op1 o (const_prop_e m e)
   | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
-  | PappN op es   => s_opN op (map (const_prop_e m) es)
-  | Pabstract s es => Pabstract s ((map (const_prop_e m) es))
+  | PappN op es   => s_opNA op (map (const_prop_e m) es)
   | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
   end.
 

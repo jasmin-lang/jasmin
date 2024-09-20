@@ -34,6 +34,7 @@ Section FIXME.
 Context
   {tabstract : Tabstract}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {sip : SemInstrParams asm_op syscall_state}.
 
@@ -51,7 +52,7 @@ End FIXME.
 
 Section STACK_ZEROIZATION.
 
-Context {tabstract : Tabstract} {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {tabstract : Tabstract} {absp : Prabstract} {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {call_conv : calling_convention}.
 
 Section RSP.

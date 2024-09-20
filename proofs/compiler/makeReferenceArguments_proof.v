@@ -18,6 +18,7 @@ Context
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -57,6 +58,7 @@ Context
   {tabstract : Tabstract}
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {eparams : EstateParams syscall_state}
   {spparams : SemPexprParams}
   {siparams : SemInstrParams asm_op syscall_state}

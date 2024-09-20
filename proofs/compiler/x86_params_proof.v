@@ -46,7 +46,7 @@ Unset Printing Implicit Defensive.
 #[local] Existing Instance withsubword.
 
 Section Section.
-Context {tabstract : Tabstract} {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {tabstract : Tabstract} {absp : Prabstract} {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 
 
 (* ------------------------------------------------------------------------ *)
@@ -103,7 +103,7 @@ Lemma x86_immediateP w s (x: var_i) z :
 Proof.
   case: x => - [] [] // [] // x xi _ /=.
   have := mov_wsP (pT := progStack) AT_none _ (cmp_le_refl _).
-  move => /(_ _ _ _ _ _ _ _ _ P').
+  move => /(_ _ _ _ _ _ _ _ _ _ P').
   apply; last reflexivity.
   by rewrite /= truncate_word_u.
 Qed.

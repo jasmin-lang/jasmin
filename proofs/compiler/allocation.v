@@ -460,9 +460,6 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     Let _ := assert (t == t') error_e in
     check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
-  | Pabstract o1 es1, Pabstract o2 es2 =>
-    Let _ := check_opa o1 o2 m in
-    fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
   | _, _ => Error error_e
   end.
 

@@ -40,6 +40,11 @@ Definition sem_opN
   Let w := app_sopn (@sem_opN_typed _ cfcd op) vs in
   ok (to_val w).
 
+Definition sem_opNA
+  {cfcd : FlagCombinationParams} {absp: Prabstract} (op: opNA) (vs: values) : exec value :=
+  Let w := app_sopn (@sem_opNA_typed _ cfcd _ op) vs in
+  ok (to_val w).
+
 End SEM_OP.
 
 (* ** Global access
@@ -123,8 +128,6 @@ Definition with_scs (s:estate) scs :=
 
 End ESTATE_UTILS.
 
-Class Prabstract := { iabstract : opA -> (list value  -> exec value) }.
-
 Section SEM_PEXPR.
 
 Context {absp: Prabstract}.
@@ -166,10 +169,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     sem_sop2 o v1 v2
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
-    sem_opN op vs
-  | Pabstract opa es =>
-    Let vs := mapM (sem_pexpr s) es in
-    iabstract opa vs
+    sem_opNA op vs
   | Pif t e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
     Let v1 := sem_pexpr s e1 >>= truncate_val t in

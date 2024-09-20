@@ -75,7 +75,8 @@ Context
 Definition scfc (cf : combine_flags) (es : seq pexpr) : pexpr :=
   if es is [:: eof; ecf; esf; ezf ]
   then cf_xsem snot sand sor sbeq eof ecf esf ezf cf
-  else PappN (Ocombine_flags cf) es. (* Never happens. *)
+  else pappN (Ocombine_flags cf) es. (* Never happens. *)
+
 
 Fixpoint pi_e (pi:pimap) (e:pexpr) := 
   match e with
@@ -95,12 +96,11 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   | PappN o es         => 
     let es := (map (pi_e pi) es) in
     match o with
-    | Opack _ _ => PappN o es
-    | Ocombine_flags c => scfc c es
+    | OopN (Opack _ _) => PappN o es
+    | OopN (Ocombine_flags c) => scfc c es
+    | Oabstract _ => PappN o es
     end
-  | Pabstract s es      =>
-    let es := (map (pi_e pi) es) in
-    Pabstract s es
+
   | Pif t e e1 e2      => Pif t (pi_e pi e) (pi_e pi e1) (pi_e pi e2)
   end.
 

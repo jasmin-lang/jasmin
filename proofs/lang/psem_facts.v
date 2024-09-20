@@ -14,6 +14,7 @@ Context
   {wsw:WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.

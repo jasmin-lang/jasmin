@@ -17,6 +17,7 @@ Context
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -530,7 +531,7 @@ Section PROOF.
     move=> Hc.
     have Hvm : evm s1 <=[sv] vm1. + by apply: uincl_onI Hvm2'2;SvD.fsetdec.
     move: (Hc vm1 Hvm). move=> [vm2'] /= [Hvm2'1] Hsem'.
-    move: Hres; have /= <-:= @sem_pexprs_get_var _ _ _ _ _ _ gd s2 => Hres.
+    move: Hres; have /= <-:= @sem_pexprs_get_var _ _ _ _ _ _ _ gd s2 => Hres.
     case: s2 Hsem Hscs Hfi Hvm2'1 Hsem' Hres Hc=> escs2 emem2 evm2 Hsem Hscs Hfi Hvm2'1 Hsem' Hres Hc.
     have Hres' : sem_pexprs (~~direct_call) gd {| escs := escs2; emem := emem2; evm := evm2 |}
            [seq Plvar i | i <- fn_keep_only onfun fn res] = ok (fn_keep_only onfun fn vres).

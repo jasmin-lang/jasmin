@@ -17,6 +17,7 @@ Context
   {tabstract : Tabstract}
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}.
 

@@ -113,7 +113,8 @@ Qed.
 
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)
 Lemma sem_i_conditional
-  {dc : DirectCall} (p : prog)
+  {dc : DirectCall} {absp : Prabstract}
+  (p : prog)
   ev s0 s1 mn sf osk lvs tag args c prev vargs b vprev vprev' vres :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}

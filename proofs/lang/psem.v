@@ -139,6 +139,7 @@ Section SEM.
 Context
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -524,6 +525,7 @@ Section WITH_SCS.
 
   Context
     {asm_op syscall_state : Type}
+    {absp: Prabstract}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     (wdb : bool)
@@ -584,6 +586,7 @@ Section SEM.
 Context
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -720,6 +723,7 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}.
 
@@ -1374,17 +1378,30 @@ Proof.
   t_xrbindP => hvs q ok_q <-{v}.
   have -> /= := vuincl_sopn _ hvs ok_q.
   + by eauto.
-  case: {q ok_q} op => //.
-  by move => sz n; rewrite /= all_nseq orbT.
+  by case: {q ok_q} op => // sz n; rewrite /= all_nseq orbT.
+Qed.
+
+Lemma vuincl_sem_opNA op vs v vs' :
+  List.Forall2 value_uincl vs vs' →
+  sem_opNA op vs = ok v →
+  sem_opNA op vs' = ok v.
+Proof.
+  rewrite /sem_opNA.
+  t_xrbindP => hvs q ok_q <-{v}.
+  have -> /= := vuincl_sopn _ hvs ok_q.
+  + by eauto.
+  case: {q ok_q} op => /=.
+  + by case => // sz n; rewrite /= all_nseq orbT.
+  by move=> o; apply pa_tyin_narr.
 Qed.
 
 Lemma sem_opN_truncate_val o vs v :
-  sem_opN o vs = ok v ->
+  sem_opNA o vs = ok v ->
   exists vs',
-    mapM2 ErrType truncate_val (type_of_opN o).1 vs = ok vs' /\
-    sem_opN o vs' = ok v.
+    mapM2 ErrType truncate_val (type_of_opNA o).1 vs = ok vs' /\
+    sem_opNA o vs' = ok v.
 Proof.
-  rewrite /sem_opN.
+  rewrite /sem_opNA.
   t_xrbindP=> w hvs <-.
   have [vs' [-> hvs']] := app_sopn_truncate_val hvs.
   eexists; split; first by reflexivity.
@@ -1393,7 +1410,7 @@ Qed.
 
 Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
-  exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
+  exists2 v', exec_sopn o vs' = ok v' & List.Forall2 value_uincl v v'.
 Proof.
   rewrite /exec_sopn /sopn_sem => vs_vs' ho.
   exact: (get_instr_desc o).(semu) vs_vs' ho.
@@ -1468,8 +1485,8 @@ Proof.
   + by move => op e1 He1 e2 He2 v1 ; rewrite !read_eE => /uincl_on_union_and[] /He1{He1}He1
       /uincl_on_union_and[] /He2{He2} He2 _; t_xrbindP =>
       ? /He1 [? -> /vuincl_sem_sop2 h1] ? /He2 [? -> /h1 h2/h2]; exists v1.
-  + by move => op es Hes v /Hes{}Hes; t_xrbindP => vs1 /Hes[] vs2;
-    rewrite /sem_pexprs => -> /vuincl_sem_opN h{}/h; exists v.
+  + move => op es Hes v /Hes{}Hes; t_xrbindP => vs1 /Hes[] vs2.
+    by rewrite /sem_pexprs => -> /vuincl_sem_opNA h /h /= ->; exists v.
   move => t e He e1 He1 e2 He2 v1.
   rewrite !read_eE => /uincl_on_union_and[] /He{He}He /uincl_on_union_and[]
     /He1{He1}He1 /uincl_on_union_and[] /He2{He2}He2 _; t_xrbindP => b

@@ -61,6 +61,7 @@ Section PROOF.
 
 Context
   {tabstract : Tabstract}
+  {absp : Prabstract}
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
@@ -299,7 +300,7 @@ Proof.
   all: repeat t_get_var => //.
 
   all: rewrite
-    /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+    /sem_opNA /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
     1?wsub_wnot1
     1?nzcv_of_aluop_CF_sub
     1?wsigned_wsub_wnot1

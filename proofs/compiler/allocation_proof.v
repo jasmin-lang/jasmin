@@ -18,6 +18,7 @@ Context
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
@@ -167,8 +168,7 @@ Section CHECK_EP.
       split => //= scs m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
       rewrite -/(sem_pexprs _ _ _).
       move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
-      rewrite (vuincl_sem_opN hs ok_v1).
-      by eexists; split; first by reflexivity.
+      by rewrite (vuincl_sem_opNA hs ok_v1); exists v1.
     move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
     t_xrbindP => r1 r' /eqP <- /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
@@ -844,7 +844,7 @@ Lemma init_alloc_sprogP :
       eq_alloc r s1.(evm) vm2.
 Proof.
   rewrite /init_alloc_sprog /init_state /= /init_stk_state /check_vars.
-  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ _ [::]) => hw.
+  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ _ _ [::]) => hw.
   have [vm2 ]:= check_lvalsP (s1 := (Estate scs m' Vm.init)) hc eq_alloc_empty
                          (List_Forall2_refl _ (@value_uincl_refl _)) hw.
   rewrite ha -write_vars_lvals => ??.
