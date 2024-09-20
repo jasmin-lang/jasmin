@@ -787,7 +787,7 @@ module X86BaseOpU : BaseOp
 
     | ADD ws ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default; "cas_two", `Cas2 ] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         let a1,i1 = cast_atome ws (List.nth es 0) in
         let a2,i2 = cast_atome ws (List.nth es 1) in
@@ -798,13 +798,11 @@ module X86BaseOpU : BaseOp
         | `Default ->
           let lc = I.glval_to_lval (List.nth xs 1) in
           i1 @ i2 @ [CL.Instr.Op2_2.adds lc l a1 a2]
-        | `Cas2 ->
-          i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
       end
 
     | SUB ws ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         let a1, i1 = cast_atome ws (List.nth es 0) in
         let a2, i2 = cast_atome ws (List.nth es 1) in
@@ -912,7 +910,7 @@ module X86BaseOpU : BaseOp
 
     | SHL ws ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         match trans with
         | `Smt ->
@@ -930,7 +928,7 @@ module X86BaseOpU : BaseOp
 
     | SHR ws ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         match trans with
         | `Smt ->
@@ -949,7 +947,7 @@ module X86BaseOpU : BaseOp
     | SAR ws ->
       begin
         let l =
-          ["smt", `Smt ; "cas", `Default; "cas_two", `Cas2; "cas_three", `Cas3]
+          ["smt", `Smt ; "default", `Default; "cas_two", `Cas2; "cas_three", `Cas3]
         in
         let trans = trans annot l in
         match trans with
@@ -1034,7 +1032,7 @@ module X86BaseOpU : BaseOp
 
     | MOVSX (ws1, ws2) ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         match trans with
         | `Smt ->
@@ -1077,7 +1075,7 @@ module X86BaseOpU : BaseOp
 
     | VPADD (ve,ws) ->
       begin
-      let l = ["smt", `Smt ; "cas", `Default] in
+      let l = ["smt", `Smt ; "default", `Default] in
       let trans = trans annot l in
       let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
@@ -1110,7 +1108,7 @@ module X86BaseOpU : BaseOp
 
     |VPSUB (ve,ws) ->
       begin
-      let l = ["smt", `Smt ; "cas", `Default] in
+      let l = ["smt", `Smt ; "default", `Default] in
       let trans = trans annot l in
 
       let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
@@ -1126,7 +1124,6 @@ module X86BaseOpU : BaseOp
         | `Default ->
           let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
-        | _ -> assert false
       end
 
     |VPMULL (v,ws) ->
@@ -1236,7 +1233,7 @@ module X86BaseOpS : BaseOp
     match o with
     | X86_instr_decl.MOV ws ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         match trans with
       | `Smt -> let a, i = vpc_atome ws (List.nth es 0) in
@@ -1249,7 +1246,7 @@ module X86BaseOpS : BaseOp
       end
     | ADD ws ->
       begin
-      let l = ["smt", `Smt ; "cas", `Default; "cas_two", `Cas2] in
+      let l = ["smt", `Smt ; "default", `Default] in
       let trans = trans annot l in
       let a1,i1 = cast_atome ws (List.nth es 0) in
       let a2,i2 = cast_atome ws (List.nth es 1) in
@@ -1260,13 +1257,11 @@ module X86BaseOpS : BaseOp
         | `Default ->
           let l_tmp = I.mk_spe_tmp_lval ~sign:false 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
-        | `Cas2 ->
-          i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
       end
 
     | SUB ws ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default; "cas_two", `Cas2] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         let a1, i1 = cast_atome ws (List.nth es 0) in
         let a2, i2 = cast_atome ws (List.nth es 1) in
@@ -1277,8 +1272,6 @@ module X86BaseOpS : BaseOp
         | `Default ->
           let l_tmp = I.mk_spe_tmp_lval  ~sign:false 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
-        | `Cas2 ->
-          i1 @ i2 @ [CL.Instr.Op2.sub l a1 a2]
       end
 
     | IMULr ws 
@@ -1324,7 +1317,7 @@ module X86BaseOpS : BaseOp
 
     | SHL ws ->
       begin
-        let l = ["smt", `Smt ; "cas", `Default] in
+        let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         match trans with
         | `Smt ->
@@ -1339,13 +1332,11 @@ module X86BaseOpS : BaseOp
           let l_tmp = I.mk_spe_tmp_lval  (Z.to_int c) in
           i @ [CL.Instr.Shifts.shls l_tmp l a c]
         (* maybe do a multiplication *)
-
-        | _ -> assert false
       end
 
     | SAR ws ->
       begin
-        let l = ["cas", `Default; "cas_two", `Cas2] in
+        let l = ["default", `Default; "force_low_zero", `ForceLowZero] in
         let trans = trans annot l in
         match trans with
         | `Default->
@@ -1355,7 +1346,7 @@ module X86BaseOpS : BaseOp
           let c = Z.of_int c in
           let l = I.glval_to_lval (List.nth xs 5) in
           i1 @ [CL.Instr.Shifts.split l l_tmp a1 c]
-        | `Cas2 ->
+        | `ForceLowZero ->
           let a1,i1 = cast_atome ws (List.nth es 0) in
           let c = I.get_const (List.nth es 1) in
           let c1 = Z.(I.power one (of_int c)) in
@@ -1368,12 +1359,11 @@ module X86BaseOpS : BaseOp
                 CL.Instr.Shifts.split l l_tmp1 !l_tmp c;
                 CL.Instr.assume ([Eeq(Ivar l_tmp1, Iconst Z.zero)] ,[]);
                ]
-        | _ -> assert false
       end
 
     | MOVSX (ws1, ws2) ->
       begin
-        let l = ["smt", `Smt1; "smt_two", `Smt2 ; "cas", `Default] in
+        let l = ["smt", `Smt1; "smt_two", `Smt2 ; "default", `Default] in
         let trans = trans annot l in
 
         match trans with
@@ -1394,11 +1384,10 @@ module X86BaseOpS : BaseOp
           let l = I.glval_to_lval (List.nth xs 0) in
           i @ [CL.Instr.vpc (CL.Sint (int_of_ws ws1)) l a]
 
-        | `Cas1 ->
+        | `Default ->
           let a,i = cast_atome ws2 (List.nth es 0) in
           let l = I.glval_to_lval (List.nth xs 0) in
           i @ [CL.Instr.cast (CL.Sint (int_of_ws ws1)) l a]
-        | _ -> assert false
       end
 
     | _ ->
