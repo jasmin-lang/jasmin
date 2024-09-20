@@ -36,17 +36,14 @@ module CL : sig
       | Rvar   of tyvar
       | Rconst of int * const
       | Ruext of rexp * int
-      | Rsext of rexp * int 
+      | Rsext of rexp * int
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
-(*    | Rpreop of string * rexp * rexp 
-      | Rlimbs of const * rexp list *)
       | RVget  of tyvar * const
-      | UnPack of  tyvar * int * int 
+      | UnPack of  tyvar * int * int
 
     type rpred =
       | RPcmp   of rexp * string * rexp
-(*    | RPeqmod of rexp * rexp * string * rexp *)
       | RPnot   of rpred
       | RPand   of rpred list
       | RPor    of rpred list

@@ -159,6 +159,7 @@ module CL = struct
       | RPand   of rpred list
       | RPor    of rpred list
 
+    let eq e1 e2 = RPcmp (e1, "=", e2)
     let ult e1 e2 = RPcmp (e1, "<", e2)
     let ule e1 e2 = RPcmp (e1, "<=", e2)
     let ugt e1 e2 = RPcmp (e1, ">", e2)
@@ -395,7 +396,6 @@ module CL = struct
   end
 end
 
-
 module type I = sig
 
   val power: Z.t -> Z.t -> Z.t
@@ -467,11 +467,36 @@ module I (S:S): I = struct
     in
     hierror ~loc:Lnone ~kind:msg  "@[%a@]" (Printer.pp_expr ~debug:true) e
 
+  let rec power (acc: Z.t) (n: Z.t) =
+    match n with
+    | n when n = Z.zero -> acc
+    | n when Z.(n < Z.zero) -> assert false
+    | n -> power Z.(acc * (Z.of_int 2)) Z.(n - Z.one)
+
+  let w2i ?(sign=S.s) c ws =
+    assert ((Z.of_int 0) <= c);
+    if sign then
+      let c =
+        if Z.(c >= power Z.one Z.((z_of_ws ws) - one)) then
+          Z.(c - (power Z.one (z_of_ws ws))) else c
+      in
+      c
+    else c
+
+  (* let w2i ?(sign=S.s) ws z = *)
+  (*   assert ((Z.of_int 0) <= c); *)
+  (*   let zi = Z.rem z (Z.pow (Z.of_int 2) ws) in *)
+  (*   if sign *)
+  (*   then if zi < (Z.pow (Z.of_int 2) (ws-1)) *)
+  (*     then zi *)
+  (*     else (Z.sub zi (Z.pow (Z.of_int 2) ws)) *)
+  (*   else zi *)
+
   let rec gexp_to_rexp ?(sign=S.s) e : CL.R.rexp =
     let open CL.R in
     let (!>) e = gexp_to_rexp ~sign e in
     match e with
-    | Papp1 (Oword_of_int ws, Pconst z) -> assert ((Z.of_int 0) <= z);Rconst(int_of_ws ws, z)
+    | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, w2i ~sign z ws)
     | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws))
     | Pvar x -> Rvar (to_var ~sign x)
     | Papp1(Oneg _, e) -> neg !> e
@@ -493,12 +518,12 @@ module I (S:S): I = struct
     let (!>>) e = gexp_to_rpred ~sign e in
     match e with
     | Pbool (true) -> RPand []
-    | Pbool (false) -> assert false
     | Papp1(Onot, e) -> RPnot (!>> e)
     | Papp2(Oand, e1, e2)  -> RPand [!>> e1; !>> e2]
     | Papp2(Oor, e1, e2)  -> RPor [!>> e1; !>> e2]
     | Papp2(Ole int, e1, e2)  -> ule !> e1 !> e2
     | Papp2(Oge int, e1, e2)  -> uge !> e1 !> e2
+    | Papp2(Oeq _, e1, e2) -> eq !> e1 !> e2
     | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
@@ -560,22 +585,14 @@ module I (S:S): I = struct
     let s = String.of_list ('/'::'*':: size) in
     mk_tmp_lval ~name ~l ~kind ~sign (Bty(Abstract s))
 
-  let w2i ?(sign=S.s) ws z =
-      let zi = Z.rem z (Z.pow (Z.of_int 2) ws) in
-         if sign
-         then if zi < (Z.pow (Z.of_int 2) (ws-1))
-              then zi
-              else (Z.sub zi (Z.pow (Z.of_int 2) ws))
-         else zi
-
   let rec gexp_to_eexp env ?(sign=S.s) e : CL.I.eexp =
     let open CL.I in
     let (!>) e = gexp_to_eexp env ~sign e in
     match e with
     | Pconst z -> Iconst z
     | Pvar x -> Ivar (to_var ~sign x)
-    | Papp1 (Oword_of_int _ws, x) -> !> x
-    | Papp1 (Oint_of_word _ws, x) -> assert false (* !> x *)
+    | Papp1 (Oword_of_int ws, Pconst z) -> Iconst (w2i ~sign z ws)
+    | Papp1 (Oint_of_word _ws, x) -> assert false
     | Papp1(Oneg _, e) -> !- !> e
     | Papp2(Oadd _, e1, e2) -> !> e1 + !> e2
     | Papp2(Osub _, e1, e2) -> !> e1 - !> e2
@@ -586,14 +603,14 @@ module I (S:S): I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-    | Pabstract ({name="u16i"}, [v]) ->
-      begin
-        match v with
-      (* why do we have more cases?  | Pvar _ -> !> v *)
-        | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
-             (Pconst (w2i ~sign 16 z))
-        | _ -> !> v
-      end
+    (* | Pabstract ({name="u16i"}, [v]) -> *)
+    (*   begin *)
+    (*     match v with *)
+    (*   (\* why do we have more cases?  | Pvar _ -> !> v *\) *)
+    (*     | Papp1 (Oword_of_int _ws, Pconst z) ->  !> *)
+    (*          (Pconst (w2i ~sign z U16)) *)
+    (*     | _ -> !> v *)
+    (*   end *)
     (* | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e *)
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
@@ -636,26 +653,23 @@ module I (S:S): I = struct
     | Pvar x -> var_to_tyvar ~sign (L.unloc x.gv)
     | _ -> assert false
 
-  let rec power (acc: Z.t) (n: Z.t) = match n with
-    | n when n = Z.zero -> acc
-    | n when Z.(n < Z.zero) -> assert false
-    | n -> power Z.(acc * (Z.of_int 2)) Z.(n - Z.one)
+  let mk_const_atome ws ?(sign=S.s) c =
+    if sign then CL.Instr.Aconst (c, CL.Sint ws)
+    else
+      begin
+        assert ((Z.of_int 0) <= c);
+        CL.Instr.Aconst (c, CL.Uint ws)
+      end
 
   let gexp_to_const ?(sign=S.s) x : CL.const * CL.ty =
     match x with
     | Papp1 (Oword_of_int ws, Pconst c) ->
-      if sign then
-        let c = if Z.(c >= power Z.one Z.((z_of_ws ws) - one)) then
-        Z.(c - (power Z.one (z_of_ws ws))) else c in
-        (c , CL.Sint (int_of_ws ws))
-      else (c, CL.Uint (int_of_ws ws))
+      let c = w2i ~sign c ws in
+      if sign then c, CL.Sint (int_of_ws ws)
+      else c, CL.Uint (int_of_ws ws)
     | _ -> assert false
 
   let mk_const c : CL.const = Z.of_int c
-
-  let mk_const_atome ws ?(sign=S.s) c =
-    if sign then CL.Instr.Aconst (c, CL.Sint ws)
-    else CL.Instr.Aconst (c, CL.Uint ws)
 
   let gexp_to_atome ?(sign=S.s) x : CL.Instr.atom =
     match x with
@@ -1243,12 +1257,11 @@ module X86BaseOpS : BaseOp
         match trans with
         | `Smt ->
           i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
-        | `Defaumt ->
+        | `Default ->
           let l_tmp = I.mk_spe_tmp_lval ~sign:false 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp l a1 a2]
         | `Cas2 ->
           i1 @ i2 @ [CL.Instr.Op2.add l a1 a2]
-        | _ -> assert false
       end
 
     | SUB ws ->
@@ -1261,12 +1274,11 @@ module X86BaseOpS : BaseOp
         match trans with
         | `Smt ->
           i1 @ i2 @ [CL.Instr.Op2.sub l a1 a2]
-        | `Cas1 ->
+        | `Default ->
           let l_tmp = I.mk_spe_tmp_lval  ~sign:false 1 in
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
         | `Cas2 ->
           i1 @ i2 @ [CL.Instr.Op2.sub l a1 a2]
-        | _ -> assert false
       end
 
     | IMULr ws 
