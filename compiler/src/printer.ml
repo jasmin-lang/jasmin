@@ -51,12 +51,12 @@ let pp_ge pp_len pp_var =
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
-  | PappN (E.Opack(_sz, pe), es) ->
+  | PappN (OopN(E.Opack(_sz, pe)), es) ->
     F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
-  | PappN (Ocombine_flags c, es) ->
+  | PappN (OopN(Ocombine_flags c), es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es
-  | Pabstract(opA,es) ->
-    F.fprintf fmt "@[%s(%a)@]" opA.name (pp_list ",@ " pp_expr) es
+  | PappN(Oabstract opA,es) ->
+    F.fprintf fmt "@[%s(%a)@]" opA.pa_name (pp_list ",@ " pp_expr) es
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2

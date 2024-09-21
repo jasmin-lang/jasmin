@@ -13,8 +13,10 @@ Local Open Scope seq_scope.
 Section INLINE.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -258,7 +260,7 @@ Proof.
   rewrite vrvs_cons read_es_cons read_e_var /read_gvar /mk_lvar /= => Hsub Heqe Hempty.
   t_xrbindP => ve Hse vz Hses ?? v1 vs1 htr htrs ?; subst ve vz vs'.
   t_xrbindP => s1 Hw Hws; apply Eseq with s1.
-  + constructor;econstructor;rewrite /=;eauto.
+  + constructor;econstructor;rewrite /=;eauto; last by apply: vs1.
     rewrite /get_gvar /mk_lvar /=.
     have /get_var_eq_on <- //: evm s0 =[Sv.singleton rx] evm s.
     + by move=> y ?;apply: Heqe; SvD.fsetdec.
@@ -583,7 +585,7 @@ Section PROOF.
     + elim: (fx);first by rewrite read_rvs_nil;SvD.fsetdec.
       by move=> ?? Hrec; rewrite /= read_rvs_cons /=;SvD.fsetdec.
     have [vargs1' htin' Hall'] := mapM2_truncate_val Htin Hall.
-    have [|/=vm1] := write_lvals_uincl_on _ Hall' Hw (@uincl_on_refl _ _ X).
+    have [|/=vm1] := write_lvals_uincl_on _ Hall' Hw (@uincl_on_refl _ _ _ X).
     + by rewrite heq; SvD.fsetdec.
     move=> hsub Hvm1; case: (Hc vm1) => /=.
     + by apply: uincl_onI hsub;SvD.fsetdec.

@@ -14,8 +14,10 @@ Unset Printing Implicit Defensive.
 Section ESTATE_EQ_EXCEPT.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}.
 
@@ -167,6 +169,7 @@ End ESTATE_EQ_EXCEPT.
 Section DISJ_FVARS.
 
 Context
+  {tabstract : Tabstract}
   {pT : progT}
   {asmop : Type}
   {asm_op : asmOp asmop}

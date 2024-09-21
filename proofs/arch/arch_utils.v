@@ -114,22 +114,22 @@ Lemma all2_beheadn
   all2 p (beheadn n xs) (beheadn n ys).
 Proof. move=> h. elim: n => // n'. exact: all2_behead. Qed.
 
-Definition semi_drop1
+Definition semi_drop1 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead1 tout))) :=
   behead_tuple semi.
 
-Definition semi_drop2
+Definition semi_drop2 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead2 tout))) :=
   behead_tuple (behead_tuple semi).
 
-Definition semi_drop3
+Definition semi_drop3 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead3 tout))) :=
   behead_tuple (behead_tuple (behead_tuple semi)).
 
-Definition semi_drop4
+Definition semi_drop4 {tabstract : Tabstract}
   {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead4 tout))) :=
   behead_tuple (behead_tuple (behead_tuple (behead_tuple semi))).
@@ -143,6 +143,7 @@ Proof. move=> /andP [-> hsize]. exact: size_beheadn. Qed.
 Section WITH_ARCH.
 
 Context
+  {tabstract : Tabstract}
   {reg regx xreg rflag cond : Type}
   {ad : arch_decl reg regx xreg rflag cond}.
 

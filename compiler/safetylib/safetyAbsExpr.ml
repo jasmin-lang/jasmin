@@ -347,7 +347,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | Papp1 _ | Papp2 _ | Pbool _
     | Parr_init _ | Pget _ | Psub _
-    | Pload _ | PappN _ | Pabstract _ | Pif _
+    | Pload _ | PappN _ | Pif _
     | Pfvar _ | Pbig _
     | Presult _ | Presultget _ -> None
 
@@ -425,7 +425,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         
       | Papp1 (_, e1) -> aux acc e1
       | PappN (_, es) -> List.fold_left aux acc es
-      | Pabstract (_, es) -> List.fold_left aux acc es
 
       | Pload _ -> raise Expr_contain_load
 
@@ -627,7 +626,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       end
 
     (* We return top on loads and Opack *)
-    | PappN (E.Opack _, _) | Pload _ -> top_linexpr abs ws_e
+    | PappN (OopN (E.Opack _), _) | Pload _ -> top_linexpr abs ws_e
 
     | _ -> print_not_word_expr e;
       assert false
@@ -692,19 +691,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Pbig _ -> assert false
     | Presult _ -> assert  false
     | Presultget _ -> assert false
-    | Pabstract (opn, es) ->
-      let rec f_expl i es =
-        match es with
-        | [] -> (-1,None)
-        | e :: r_es -> match remove_if_expr_aux e with
-          | None -> f_expl (i + 1) r_es
-          | Some _ as r -> (i,r)
-      in
-      match f_expl 0 es with
-      | _,None -> None
-      | i,Some (ty, b, el, er) ->
-        let repi ex = List.mapi (fun j x -> if j = i then ex else x) es in
-        Some (ty, b, Pabstract (opn, repi el), Pabstract (opn, repi er))
 
   let rec remove_if_expr (e : 'a Prog.gexpr) = match remove_if_expr_aux e with
     | Some (_,b,el,er) ->
@@ -794,7 +780,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           | Some (ty,eb,el,er)  -> aux (Pif (ty,eb,el,er))
           | None -> flat_bexpr_to_btcons abs op2 e1 e2 end
 
-    | PappN (Ocombine_flags c, [ eof; ecf; esf; ezf ]) ->
+    | PappN (OopN (Ocombine_flags c), [ eof; ecf; esf; ezf ]) ->
       begin match c with
         | E.CF_EQ -> aux ezf
         | E.CF_LT Unsigned -> aux ecf

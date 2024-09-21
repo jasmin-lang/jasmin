@@ -108,7 +108,6 @@ end = struct
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
     | Papp2 (op, e1, e2) -> Papp2 (op, mk_expr fn e1, mk_expr fn e2)
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
-    | Pabstract (op,es) -> Pabstract(op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
     | Pfvar _ -> expr
@@ -199,7 +198,6 @@ end = struct
     | Papp1 (_,e1) -> app_expr dp v e1 ct
     | Papp2  (_,e1,e2) -> app_expr (app_expr dp v e1 ct) v e2 ct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
-    | Pabstract (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
     | Pfvar _ -> dp
@@ -258,7 +256,6 @@ end = struct
       | Papp1 (_,e1) -> aux (acc,st) e1
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
-      | Pabstract (_,es) -> List.fold_left aux (acc, st) es
       | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
       | Pfvar _ -> acc, st
       | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux (acc,st) e1) e2) e3) e4
@@ -286,11 +283,11 @@ end = struct
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
-      | Pabstract (_,es) -> List.fold_left aux acc es
       | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
       | Pfvar _ -> acc
       | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux acc e1) e2) e3) e4
     in
+
     aux acc e
 
   let st_merge st1 st2 ct =
@@ -529,7 +526,6 @@ end = struct
     | Papp1 (_,e) -> collect_vars_e sv e
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
-    | Pabstract (_,el) -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
     | Pfvar _ -> sv
     | Pbig (e1, e2, _, _, e3, e4) -> collect_vars_es sv [e1;e2;e3;e4]

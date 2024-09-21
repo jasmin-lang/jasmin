@@ -16,9 +16,11 @@ Local Open Scope Z_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -74,7 +76,7 @@ Let Pi s1 (i1:instr) s2 :=
   Sv.Subset (vars_I i1) X ->
   forall i2, array_copy_i fresh_var_ident X i1 = ok i2 ->
   forall vm1, evm s1 <=[X] vm1 ->
-  exists2 vm2, evm s2 <=[X] vm2 & 
+  exists2 vm2, evm s2 <=[X] vm2 &
       sem p2 ev (with_vm s1 vm1) i2 (with_vm s2 vm2).
 
 Let Pi_r s1 (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
@@ -83,14 +85,14 @@ Let Pc s1 (c1:cmd) s2 :=
   Sv.Subset (vars_c c1) X ->
   forall c2, array_copy_c X (array_copy_i fresh_var_ident) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1 ->
-  exists2 vm2, evm s2 <=[X] vm2  & 
+  exists2 vm2, evm s2 <=[X] vm2  &
     sem p2 ev (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
 Let Pfor (i:var_i) vs s1 c1 s2 :=
   Sv.Subset (Sv.add i (vars_c c1)) X ->
   forall c2, array_copy_c X (array_copy_i fresh_var_ident) c1 = ok c2 ->
   forall vm1, evm s1 <=[X] vm1  ->
-  exists2 vm2, evm s2 <=[X] vm2 & 
+  exists2 vm2, evm s2 <=[X] vm2 &
     sem_for p2 ev i vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
 Let Pfun sc1 m1 fn vargs sc2 m2 vres :=
@@ -215,9 +217,14 @@ Proof.
   set ipre := if _ then _ else _.
   set cond := needs_temporary _ _.
   set c := map (MkI ii) _.
+(*
   have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1',
     vm1 <=[Sv.union (read_gvar src) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = @Varr len tx &
     sem_I p2 ev (with_vm s vm1) (MkI ii ipre) (with_vm s vm1').
+*)
+  have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1',
+    vm1 <=[Sv.union (read_e src) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = @Varr _ len tx &
+    sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
   + rewrite /ipre; case: ifPn => hxy.
     + exists vm1; last by constructor; econstructor.
       split; first by [].
@@ -229,7 +236,7 @@ Proof.
       by case/norP: hxy; rewrite /eq_gvar /= /read_gvar; case: (src) => /= vy [/= /eqP | /=]; SvD.fsetdec.
     constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
     by rewrite write_var_eq_type.
-  move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl)) 
+  move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 erefl))
     => -[tx'] hcopy hutx.
   have :
     forall (j:Z), 0 <= j -> j <= n ->
@@ -284,7 +291,7 @@ Proof.
     { apply: Eseq; last apply: sem_seq1; constructor; apply: Eassgn.
       + rewrite /= get_gvar_neq //.
         rewrite -eq_globs; move: hv => /= => -> /=.
-        by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
+        by rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
       + by rewrite /truncate_val /= truncate_word_u.
       + by rewrite /= write_var_eq_type.
       + by rewrite /mk_lvar /= /get_gvar get_var_eq /= cmp_le_refl orbT.
@@ -296,9 +303,9 @@ Proof.
     apply: Eassgn.
     + rewrite /= get_gvar_neq //.
       rewrite -eq_globs; move: hv => /= => -> /=.
-      by rewrite (@get_gvar_eq _ _ _ (mk_lvar i)) //= (WArray.uincl_get hty' hget).
+      by rewrite (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty') hget).
     + by rewrite /truncate_val /= truncate_word_u.
-    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ (mk_lvar i)) //= truncate_word_u /=.
+    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ _ _ _ (mk_lvar i)) //= truncate_word_u /=.
     by rewrite hset /= write_var_eq_type.
   move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by lia.
   + by rewrite Z.sub_diag.

@@ -28,7 +28,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 (* Used to set up stack. *)
 Definition x86_op_align (x : var_i) (ws : wsize) (al : wsize) : fopn_args :=

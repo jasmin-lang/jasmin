@@ -483,9 +483,6 @@ Fixpoint check_e_aux (lm:M.t) (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let lmb := check_varc x1 x2 lm in
     Let _ := assert (o1 == o2) error_e in
     check_e_aux lm s1 s2 m >>= check_e_aux lm len1 len2 >>= check_e_aux lm e1 e2  >>= check_e_aux lmb b1 b2
-  | Pabstract o1 es1, Pabstract o2 es2 =>
-    Let _ := check_opa o1 o2 m in
-    fold2 (alloc_error "check_e (appN)") (check_e_aux lm) es1 es2 m
   | _, _ => Error error_e
   end.
 

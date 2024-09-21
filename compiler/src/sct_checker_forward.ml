@@ -726,7 +726,6 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | Pbig _           -> assert false
   | Presult _        -> assert false
   | Presultget _     -> assert false
-  | Pabstract(_, es) -> assert false
 
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in

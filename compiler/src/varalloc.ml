@@ -161,7 +161,6 @@ let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignme
     | Psub (_,_,_,_,e) | Pload (_, _, _, e) | Papp1 (_, e) -> add_e e
     | Papp2 (_, e1,e2) -> add_e e1; add_e e2
     | PappN (_, es) -> add_es es 
-    | Pabstract (_, es) -> add_es es
     | Pif (_,e1,e2,e3) -> add_e e1; add_e e2; add_e e3
     | Pfvar _ -> ()
     | Pbig (e1, e2, _, _, e3, e4) -> add_e e1; add_e e2; add_e e3; add_e e4

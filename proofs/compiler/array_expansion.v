@@ -164,10 +164,6 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let es := mapM (expand_e m) es in
     ok (PappN o es)
 
-  | Pabstract s es =>
-    Let es := mapM (expand_e m) es in
-    ok (Pabstract s es)
-
   | Pif ty e1 e2 e3 =>
     Let e1 := expand_e m e1 in
     Let e2 := expand_e m e2 in

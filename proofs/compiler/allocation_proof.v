@@ -14,9 +14,11 @@ Local Open Scope seq_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
@@ -167,8 +169,7 @@ Section CHECK_EP.
       rewrite -/(sem_pexprs_aux _ _ _ _).
       rewrite -/(sem_pexprs _ _ _ _).
       move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
-      rewrite (vuincl_sem_opN hs ok_v1).
-      by eexists; split; first by reflexivity.
+      by rewrite (vuincl_sem_opNA hs ok_v1); exists v1.
     move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
     t_xrbindP => r1 r' /eqP <- /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
     move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
@@ -299,7 +300,7 @@ Proof.
     case: (s1) Hvm1 Hr2 => scs1 sm1 svm1 /= Hvm1 Hr2.
     have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr2.
     by move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> ?
-      /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ? /= -> <-; eexists.
+      /(@of_value_uincl_te _ (sword _) _ _ _ Hv) /= -> ? /= -> <-; eexists.
   + t_xrbindP => r2 r3 /andP [] /andP[] /eqP -> /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP wdb Hcv Hvm1.
@@ -308,10 +309,10 @@ Proof.
     case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
     have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr3.
     move=> /of_value_uincl_te h/(h sint _){h} /= -> ?
-      /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ?
+      /(@of_value_uincl_te _ (sword _) _ _ _ Hv) /= -> ?
       /(WArray.uincl_set Ht) [? [/= -> Ht2']].
-    have: value_uincl (Varr _) (Varr _) := Ht2'.
-    by rewrite /write_var; t_xrbindP=> /(check_varcP Hr1' Hcva) h ?
+    have: value_uincl (tabstract:= tabstract) (Varr _) (Varr _) := Ht2'.
+    by rewrite /write_var; t_xrbindP => /(check_varcP Hr1' Hcva) h ?
       /h{h} [vm2' /= -> ?] <-; eexists.
   t_xrbindP=> r2 r3 /and3P[]/eqP -> /eqP -> /eqP -> Hcv Hce Hcva Hvm1 Hv Happ.
   apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
@@ -321,9 +322,9 @@ Proof.
   case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
   have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP wdb gd Hce Hr3.
     move=> /of_value_uincl_te h/(h sint _){h} /= -> ?
-      /(@of_value_uincl_te (sarr _) _ _ _ Hv) [? /= -> ]
+      /(@of_value_uincl_te _ (sarr _) _ _ _ Hv) [? /= -> ]
       /(WArray.uincl_set_sub Ht) h ? /h{h} [? /= -> Ht2'].
-  have: value_uincl (Varr _) (Varr _) := Ht2'.
+  have: value_uincl (tabstract:= tabstract) (Varr _) (Varr _) := Ht2'.
   by rewrite /write_var; t_xrbindP=> /(check_varcP Hr1' Hcva) h ?
     /h{h} [vm2' /= -> ?] <-; eexists.
 Qed.
@@ -873,9 +874,9 @@ Lemma init_alloc_sprogP :
       eq_alloc r s1.(evm) vm2.
 Proof.
   rewrite /init_alloc_sprog /init_state /= /init_stk_state /check_vars.
-  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ [::]) => hw.
+  t_xrbindP => ef ep1 ep2 ev s1 scs m r hc m' ha; rewrite (@write_vars_lvals _ _ _ _ _ _ _ [::]) => hw.
   have [vm2 ]:= check_lvalsP (s1 := (Estate scs m' Vm.init)) hc eq_alloc_empty
-                         (List_Forall2_refl _ (@value_uincl_refl)) hw.
+                         (List_Forall2_refl _ (@value_uincl_refl _)) hw.
   rewrite ha -write_vars_lvals => ??.
   by exists vm2.
 Qed.

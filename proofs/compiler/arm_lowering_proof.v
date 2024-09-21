@@ -60,6 +60,8 @@ Qed.
 Section PROOF.
 
 Context
+  {tabstract : Tabstract}
+  {absp : Prabstract}
   {wsw : WithSubWord}
   {dc : DirectCall}
   {atoI : arch_toIdent}
@@ -298,7 +300,7 @@ Proof.
   all: repeat t_get_var => //.
 
   all: rewrite
-    /sem_opN /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
+    /sem_opNA /= /sem_combine_flags /cf_xsem /NF_of_word /ZF_of_word /=
     1?wsub_wnot1
     1?nzcv_of_aluop_CF_sub
     1?wsigned_wsub_wnot1
@@ -680,7 +682,7 @@ Proof.
   case: hw hfve => // - [] //.
   apply: rbindP => /= w' ok_w' /ok_inj /Vword_inj[] ?? hfve /Some_inj[] ??; subst => /=.
   split; last by [].
-  exists [:: v; @Vword U32 0 ].
+  exists [:: v; @Vword _ U32 0 ].
   - by rewrite /= hseme wrepr0.
   by rewrite /exec_sopn /= /sopn_sem ok_w' truncate_word_u /= GRing.add0r wnot1_wopp zero_extend_u.
 Qed.

@@ -26,18 +26,23 @@ Context {abst: Tabstract}.
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
-  ok (to_val (sem_sop1_typed _ o x)).
+  ok (to_val (sem_sop1_typed o x)).
 
 Definition sem_sop2 (o: sop2) (v1 v2: value) : exec value :=
   let t := type_of_op2 o in
   Let x1 := of_val _ v1 in
   Let x2 := of_val _ v2 in
-  Let r  := sem_sop2_typed _ o x1 x2 in
+  Let r  := sem_sop2_typed o x1 x2 in
   ok (to_val r).
 
 Definition sem_opN
   {cfcd : FlagCombinationParams} (op: opN) (vs: values) : exec value :=
   Let w := app_sopn (@sem_opN_typed _ cfcd op) vs in
+  ok (to_val w).
+
+Definition sem_opNA
+  {cfcd : FlagCombinationParams} {absp: Prabstract} (op: opNA) (vs: values) : exec value :=
+  Let w := app_sopn (@sem_opNA_typed _ cfcd _ op) vs in
   ok (to_val w).
 
 End SEM_OP.
@@ -123,8 +128,6 @@ Definition with_scs (s:estate) scs :=
 
 End ESTATE_UTILS.
 
-Class Prabstract := { piabstract : opA -> (list value  -> exec value) }.
-
 Section SEM_PEXPR.
 
 Context
@@ -164,11 +167,8 @@ Fixpoint sem_pexpr_aux (s:estate) (m : Vm.t) (e : pexpr) : exec value :=
     Let v2 := sem_pexpr_aux s m e2 in
     sem_sop2 o v1 v2
   | PappN op es =>
-    Let vs := mapM (sem_pexpr_aux s m) es in
-    sem_opN op vs
-  | Pabstract opa es =>
-    Let vs := mapM (sem_pexpr_aux  s m) es in
-    piabstract opa vs
+    Let vs := mapM (sem_pexpr s) es in
+    sem_opNA op vs
   | Pif t e e1 e2 =>
     Let b := sem_pexpr_aux s m e >>= to_bool in
     Let v1 := sem_pexpr_aux s m e1 >>= truncate_val t in

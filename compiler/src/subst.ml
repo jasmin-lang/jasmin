@@ -9,7 +9,7 @@ let hierror ?loc fmt =
   | None -> h ~loc:Lnone ~internal:true fmt
   | Some loc -> h ~loc:(Lone loc) fmt
 
-let gsubst_ty (flen: 'len1 -> 'len2) ty = 
+let gsubst_ty (flen: 'len1 -> 'len2) ty =
   match ty with
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, flen e)
@@ -26,25 +26,17 @@ let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gex
   | Papp1 (o, e)     -> Papp1 (o, gsubst_e flen f e)
   | Papp2 (o, e1, e2)-> Papp2 (o, gsubst_e flen f e1, gsubst_e flen f e2)
   | PappN (o, es) -> PappN (o, List.map (gsubst_e flen f) es)
-  | Pabstract (o, es) ->
-    let o = {
-      name = o.name;
-      tyin = List.map (gsubst_ty (flen ?loc:None)) o.tyin;
-      tyout = (gsubst_ty (flen ?loc:None)) o.tyout;
-    }
-    in
-    Pabstract (o, List.map (gsubst_e flen f) es)
   | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty (flen ?loc:None) ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
   | Pfvar x -> Pfvar (gsubst_vdest f x)
-  | Pbig (e1, e2, o, x, e0, b) -> 
-    Pbig(gsubst_e flen f e1, gsubst_e flen f e2, o, 
+  | Pbig (e1, e2, o, x, e0, b) ->
+    Pbig(gsubst_e flen f e1, gsubst_e flen f e2, o,
          gsubst_vdest f x,
-         gsubst_e flen f e0, 
+         gsubst_e flen f e0,
          gsubst_e flen f b)
   | Presult (i,v) -> Presult (i,gsubst_gvar f v)
   | Presultget (al, aa, ws, i, v, e) -> Presultget(al, aa, ws, i, gsubst_gvar f v, gsubst_e flen f e)
 
-and gsubst_gvar f v = 
+and gsubst_gvar f v =
   match f v with
   | Pvar v -> v
   | _      -> assert false
@@ -79,7 +71,7 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
-    | Cwhile(a, c, e, c') -> 
+    | Cwhile(a, c, e, c') ->
       Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, gsubst_c flen f c')
     | Ccall(x,fn,e) -> Ccall(gsubst_lvals flen f x, fn, gsubst_es flen f e) in
   { i with i_desc }
@@ -136,9 +128,9 @@ type psubst = pexpr ggvar -> pexpr
 
 let rec psubst_e (f: psubst) e =
   gsubst_e (fun ?loc:_ -> psubst_e f) f e
-  
 
-let psubst_ty f (ty:pty) : pty = 
+
+let psubst_ty f (ty:pty) : pty =
   match ty with
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, psubst_e f e)
@@ -149,7 +141,7 @@ let psubst_v subst =
     let k = v.gs in
     let v = v.gv in
     let v_ = v.L.pl_desc in
-    let e = 
+    let e =
       try Mpv.find v_ !subst
       with Not_found ->
         assert (not (PV.is_glob v_));
@@ -161,7 +153,7 @@ let psubst_v subst =
         subst := Mpv.add v_ e !subst;
         e in
     match e with
-    | Pvar x -> 
+    | Pvar x ->
       let k = x.gs in
       let x = {x.gv with L.pl_loc = L.loc v} in
       let x = {gv = x; gs = k} in
@@ -179,7 +171,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
     | [] -> [], []
     | MIparam(v,e) :: items ->
         let g, p = aux items in
-        let f = psubst_v !subst in 
+        let f = psubst_v !subst in
         subst := Mpv.add v (psubst_e f e) !subst;
         g, p
     | MIglobal (v, e) :: items ->
@@ -230,8 +222,7 @@ let rec int_of_expr ?loc e =
       op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
   | Pbool _ | Parr_init _ | Pvar _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _
-  | Pfvar _ | Pbig _ | Pabstract _ 
-  | Presult _ | Presultget _ ->
+  | Pfvar _ | Pbig _  | Presult _ | Presultget _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
@@ -263,24 +254,24 @@ let isubst_prog glob prog =
           subst := Mpv.add v_ e !subst;
           e in
       match e with
-      | Pvar x -> 
+      | Pvar x ->
         let k = x.gs in
         let x = {x.gv with L.pl_loc = L.loc v} in
         let x = {gv = x; gs = k} in
         Pvar x
       | _      -> e in
-    aux in 
+    aux in
 
   let subst = ref Mpv.empty in
-  
-  let isubst_glob (x, gd) = 
+
+  let isubst_glob (x, gd) =
     let subst_v = isubst_v subst in
-    let x = 
-      let x = 
+    let x =
+      let x =
         gsubst_gvar subst_v {gv = L.mk_loc L._dummy x; gs = Expr.Sglob} in
       assert (not (is_gkvar x)); L.unloc x.gv in
 
-    let gd = 
+    let gd =
       match gd with
       | GEword e -> GEword (gsubst_e isubst_len subst_v e)
       | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es) in
@@ -289,7 +280,7 @@ let isubst_prog glob prog =
 
   let subst = !subst in
 
-  let isubst_item fc = 
+  let isubst_item fc =
     let subst = ref subst in
     let subst_v = isubst_v subst in
     let dov v =
@@ -316,7 +307,7 @@ let isubst_prog glob prog =
   in
 
   let prog = List.map isubst_item prog in
-  glob, prog 
+  glob, prog
 
 
 
@@ -325,8 +316,8 @@ let isubst_prog glob prog =
 
 exception NotAConstantExpr
 
-let clamp_k k e = 
-  match k with 
+let clamp_k k e =
+  match k with
   | E.Op_w ws -> clamp ws e
   | E.Op_int  -> e
 
@@ -406,7 +397,7 @@ let csubst_v () =
     if not (is_gkvar v) then Pvar v
     else
       let v_ = v.gv.L.pl_desc in
-      let v' = 
+      let v' =
         try Hv.find tbl v_
         with Not_found ->
           let v' = V.clone v_ in
@@ -422,14 +413,14 @@ let clone_func fc =
 (* extend instruction info                                          *)
 
 let rec extend_iinfo_i pre i =
-  let i_desc = 
+  let i_desc =
     match i.i_desc with
     | Cassgn _ | Copn _ | Csyscall _ | Ccall _ | Cassert _ -> i.i_desc
-    | Cif(e,c1,c2) -> 
+    | Cif(e,c1,c2) ->
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
-    | Cfor(x,r,c) -> 
+    | Cfor(x,r,c) ->
       Cfor(x,r, extend_iinfo_c pre c)
-    | Cwhile (a, c1, e, c2) -> 
+    | Cwhile (a, c1, e, c2) ->
       Cwhile(a, extend_iinfo_c pre c1, e, extend_iinfo_c pre c2) in
   let {L.base_loc = ii; L.stack_loc = l} = i.i_loc in
   let i_loc = L.i_loc ii (l @ pre) in
@@ -437,13 +428,13 @@ let rec extend_iinfo_i pre i =
 
 and extend_iinfo_c pre c = List.map (extend_iinfo_i pre) c
 
-let extend_iinfo {L.base_loc = i; L.stack_loc = l} fd = 
+let extend_iinfo {L.base_loc = i; L.stack_loc = l} fd =
   { fd with f_body = extend_iinfo_c (i::l) fd.f_body }
 
 (* ---------------------------------------------------------------- *)
-(* Perform a substitution of variable by variable                   *) 
+(* Perform a substitution of variable by variable                   *)
 
-type vsubst = var Mv.t 
+type vsubst = var Mv.t
 
 let vsubst_v s v = try Mv.find v s with Not_found -> v
 
@@ -451,8 +442,8 @@ let vsubst_vi s v = {v with L.pl_desc = vsubst_v s (L.unloc v) }
 
 let vsubst_gv s v = { v with gv = vsubst_vi s v.gv }
 
-let vsubst_ve s v = Pvar (vsubst_gv s v) 
-  
+let vsubst_ve s v = Pvar (vsubst_gv s v)
+
 let vsubst_e  s = gsubst_e  (fun ?loc:_ ty -> ty) (vsubst_ve s)
 let vsubst_es s = gsubst_es (fun ?loc:_ ty -> ty) (vsubst_ve s)
 

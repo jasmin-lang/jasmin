@@ -1,5 +1,5 @@
 open BinNums
-open Utils0 
+open Utils0
 open Type
 open Sem_type
 open Warray_
@@ -10,45 +10,47 @@ open Expr
 open Psem_defs
 open Values
 open Sem_params
- 
-type eval_error = 
+
+type eval_error =
  | Uerror of Utils0.error
- | Aerror of pexpr 
+ | Aerror of pexpr
 
 exception Eval_error of instr_info * eval_error
 
 let pp_error fmt err =
   match err with
-  | Aerror e -> 
-    Format.fprintf fmt "assert fail : %a" 
-      (Printer.pp_expr ~debug:true) 
+  | Aerror e ->
+    Format.fprintf fmt "assert fail : %a"
+      (Printer.pp_expr ~debug:true)
       (Conv.expr_of_cexpr e)
   | Uerror err ->
-    let msg = 
+    let msg =
       match err with
       | ErrOob -> "out_of_bound"
       | ErrAddrUndef -> "undefined address"
       | ErrAddrInvalid -> "invalid address"
       | ErrStack -> "stack error"
       | ErrType  -> "type error"
-      | ErrArith -> "arithmetic error" in
+      | ErrArith -> "arithmetic error"
+      | ErrAbsOp -> "cannot evaluate abstract operator"
+    in
     Format.fprintf fmt "%s" msg
 
-let exn_exec (ii:instr_info) (r: 't exec) = 
+let exn_exec (ii:instr_info) (r: 't exec) =
   match r with
   | Ok r -> r
   | Error e -> raise (Eval_error(ii, Uerror e))
 
-let of_val_z ii v : coq_Z = 
+let of_val_z ii v : coq_Z =
   Obj.magic (exn_exec ii (of_val Build_Tabstract Coq_sint v))
 
-let of_val_b ii v : bool = 
+let of_val_b ii v : bool =
   Obj.magic (exn_exec ii (of_val Build_Tabstract Coq_sbool v))
 
 (* ----------------------------------------------------------------- *)
-type 'asm stack = 
+type 'asm stack =
   | Sempty of instr_info * 'asm fundef
-  | Scall of 
+  | Scall of
       instr_info * 'asm fundef * lval list * Vm.t * 'asm instr list * 'asm stack
   | Sfor of instr_info * var_i * coq_Z list * 'asm instr list * 'asm instr list * 'asm stack
 
@@ -61,7 +63,12 @@ type ('syscall_state, 'asm) state =
 
 exception Final of Memory.mem * values
 
-let prasbstract = (fun _ _ -> assert false)
+let prasbstract (o : opA) =
+  let rec aux ts =
+    match ts with
+    | [] -> (Obj.magic (Error ErrAbsOp) : Obj.t)
+    | _ :: ts -> (Obj.magic (fun (t : Obj.t) -> aux ts) : Obj.t) in
+  aux o.pa_tyin
 
 let return ep spp s =
   assert (s.s_cmd = []);
@@ -69,15 +76,15 @@ let return ep spp s =
   | Sempty(ii, f) ->
     let s2 = s.s_estate in
     let m2 = s2.emem and vm2 = s2.evm in
-    let vres = 
+    let vres =
       exn_exec ii (mapM (fun (x:var_i) -> get_var Build_Tabstract nosubword true vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType (truncate_val Build_Tabstract) f.f_tyout vres) in
     raise (Final(m2, vres'))
-    
+
   | Scall(ii,f,xs,vm1,c,stk) ->
     let gd = s.s_prog.p_globs in
     let {escs = scs2; emem = m2; evm = vm2} = s.s_estate in
-    let vres = 
+    let vres =
       exn_exec ii (mapM (fun (x:var_i) -> get_var Build_Tabstract nosubword true vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType (truncate_val Build_Tabstract) f.f_tyout vres) in
     let s1 =
@@ -85,7 +92,7 @@ let return ep spp s =
         (write_lvals Build_Tabstract nosubword prasbstract
            ep spp true gd {escs = scs2; emem = m2; evm = vm1 } xs vres')
     in
-    { s with 
+    { s with
       s_cmd = c;
       s_estate = s1;
       s_stk = stk }
@@ -156,7 +163,7 @@ let small_step1 ep spp sip s =
       let s =
         {s with s_cmd = []; s_stk = Sfor(ii, i, rng, body, c, s.s_stk) } in
       return ep spp s
- 
+
     | Cwhile (_, c1, e, c2) ->
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
@@ -164,14 +171,14 @@ let small_step1 ep spp sip s =
       let vargs' =
         exn_exec ii (sem_pexprs Build_Tabstract nosubword prasbstract ep spp true gd s1 es)
       in
-      let f = 
+      let f =
         match get_fundef s.s_prog.p_funcs fn with
         | Some f -> f
         | None -> assert false in
       let vargs = exn_exec ii (mapM2 ErrType (truncate_val Build_Tabstract) f.f_tyin vargs') in
       let {escs; emem = m1; evm = vm1}  = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
-      let sf = 
+      let sf =
         exn_exec ii (write_vars Build_Tabstract nosubword ep true f.f_params vargs {escs; emem = m1; evm = Vm.init Build_Tabstract nosubword})
       in
       {s with s_cmd = f.f_body;
@@ -193,7 +200,7 @@ let init_state ep scs0 p ii fn args m =
 let exec ep spp sip scs0 p ii fn args m =
   let s = init_state ep scs0 p ii fn args m in
   try small_step ep spp sip s
-  with Final(m,vs) -> m, vs 
+  with Final(m,vs) -> m, vs
 
 (* ----------------------------------------------------------- *)
 let initial_memory reg_size rsp alloc =
@@ -215,19 +222,19 @@ let run (type reg regx xreg rflag cond asm_op extra_op)
       (p :
          (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op
            Expr.uprog) ii fn args m =
-  let ep = Sem_params_of_arch_extra.ep_of_asm_e A.asm_e Syscall_ocaml.sc_sem in
-  let spp = Sem_params_of_arch_extra.spp_of_asm_e A.asm_e in
+  let ep = Sem_params_of_arch_extra.ep_of_asm_e Build_Tabstract A.asm_e Syscall_ocaml.sc_sem in
+  let spp = Sem_params_of_arch_extra.spp_of_asm_e Build_Tabstract A.asm_e in
   let sip =
-    Sem_params_of_arch_extra.sip_of_asm_e A.asm_e Syscall_ocaml.sc_sem
+    Sem_params_of_arch_extra.sip_of_asm_e Build_Tabstract A.asm_e Syscall_ocaml.sc_sem
   in
   let scs0 = Syscall_ocaml.initial_state () in
   exec ep spp sip scs0 p ii fn args m
 
 (* ----------------------------------------------------------- *)
-let pp_undef fmt ty = 
+let pp_undef fmt ty =
   Format.fprintf fmt "undef<%a>" PrintCommon.pp_ty (Conv.ty_of_cty ty)
- 
-let pp_word fmt ws w = 
+
+let pp_word fmt ws w =
   let z = Word0.wunsigned ws w in
   let z = Conv.z_of_cz z in
   Printer.pp_print_X fmt z
@@ -235,13 +242,13 @@ let pp_word fmt ws w =
 let pp_abstract fmt s =
   Format.fprintf fmt "abstract<%a>" Utils.pp_string s
 
-let pp_val fmt v = 
+let pp_val fmt v =
   match v with
   | Vbool b -> Format.fprintf fmt "%b" b
   | Vint z  -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
   | Varr(p,t) ->
     let ip = Conv.int_of_pos p in
-    let pp_res fmt = function 
+    let pp_res fmt = function
       | Ok w               -> pp_word fmt U8 w
       | Error ErrAddrUndef -> pp_undef fmt (Coq_sword U8)
       | Error _            -> assert false in
@@ -250,7 +257,7 @@ let pp_val fmt v =
       let i = Conv.cz_of_int i in
       Format.fprintf fmt "%a;@ " pp_res (WArray.get p Aligned AAscale U8 t i);
     done;
-    if 0 < ip then 
+    if 0 < ip then
       pp_res fmt (WArray.get p Aligned AAscale U8 t (Conv.cz_of_int (ip-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w

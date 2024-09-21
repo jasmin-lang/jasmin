@@ -310,7 +310,6 @@ let rec safe_e_rec safe = function
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (_,es) -> List.fold_left safe_e_rec safe es
-  | Pabstract (_, es) -> List.fold_left safe_e_rec safe es
   | Pif  (_,e1, e2, e3) ->
     (* We do not check "is_defined e1 && is_defined e2" since
         (safe_e_rec (safe_e_rec safe e1) e2) implies it *)
@@ -370,7 +369,7 @@ let safe_opn safe opn es =
   let id =
     Sopn.get_instr_desc Build_Tabstract
       X86_decl.x86_decl.reg_size
-      (Arch_extra.asm_opI X86_arch_full.X86_core.asm_e)
+      (Arch_extra.asm_opI Build_Tabstract X86_arch_full.X86_core.asm_e)
       opn
   in
   List.flatten (List.map (fun c ->
@@ -1542,7 +1541,6 @@ end = struct
       | Papp1 (_, e)       -> nm_e vs_for e
       | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
       | PappN (_,es)       -> nm_es vs_for es
-      | Pabstract (_,es)   -> nm_es vs_for es
       | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
       | Pfvar _ -> assert false
       | Pbig _ -> assert false

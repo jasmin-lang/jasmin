@@ -237,6 +237,10 @@ Definition ZF_of_word sz (w : word sz) :=
 
 (* -------------------------------------------------------------------- *)
   (*  OF; CF; SF;    PF;    ZF  *)
+
+Section Section.
+Context {tabstract : Tabstract}.
+
 Definition rflags_of_bwop sz (w : word sz) : (sem_tuple b5_ty) :=
   (*  OF;  CF;    SF;           PF;           ZF  *)
   (:: Some false, Some false, Some (SF_of_word w), Some (PF_of_word w) & Some (ZF_of_word w)).
@@ -2242,4 +2246,8 @@ Instance x86_op_decl : asm_op_decl x86_op := {
    prim_string    := x86_prim_string;
 }.
 
-Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
+Definition x86_prog := @asm_prog _ register _ _ _ _ _ _ x86_op_decl.
+
+End Section.
+
+Notation "'ex_tpl' A" := (exec (@sem_tuple _ A)) (at level 200, only parsing).

@@ -79,7 +79,7 @@ HB.instance Definition _ := hasDecEq.Build x86_extra_op x86_extra_op_eq_axiom.
 Local Notation E n := (ADExplicit n None).
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 Definition Oset0_instr sz  :=
   if (sz <= U64)%CMP then 
@@ -355,7 +355,7 @@ Instance x86_extra : asm_extra register register_ext xmm_register rflag condt x8
 
 (* This concise name is convenient in OCaml code. *)
 Definition x86_extended_op :=
-  @extended_op _ _ _ _ _ _ _ x86_extra.
+  @extended_op _ _ _ _ _ _ _ _ x86_extra.
 
 Definition Ox86 o : @sopn _ x86_extended_op _ := Oasm (BaseOp (None, o)).
 

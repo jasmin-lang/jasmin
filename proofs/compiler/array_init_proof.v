@@ -13,9 +13,11 @@ Local Open Scope seq_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
@@ -356,7 +358,7 @@ Section ADD_INIT.
     apply ih; last by move=> y hy; apply hu; rewrite in_cons hy orbT.
     move=> vm1 hu1; rewrite /add_init_aux.
     have hl1 := hl _ hu1.
-    case heq: vtype => [||len|] //; case:ifP => _ //.
+    case heq: vtype => [||len||] //; case:ifP => _ //.
     set i' := MkI _ _.
     have [vm2 heq2 hi']: exists2 vm2, evm s1 =1 vm2 & sem_I p' ev (with_vm s1 vm1) i' (with_vm s1 vm2).
     + rewrite /i'; have := hu x; rewrite in_cons eq_refl /= => /(_ erefl) {hu i'} hx.

@@ -10,7 +10,9 @@ Unset Printing Implicit Defensive.
 Section PROOF.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -62,7 +64,7 @@ Lemma vm_truncate_val_sim t v :
      vm_truncate_val (wsw:=nosubword) t v =
      vm_truncate_val (wsw:=withsubword) t v.
 Proof.
-  move=>/vm_truncate_valE; case: v => [b|z|len a|ws w|//].
+  move=>/vm_truncate_valE; case: v => [b|z|len a|ws w|//|//].
   1-3: by move=> [-> ].
   by move=> [ws' [-> ]] /=.
 Qed.
@@ -80,8 +82,8 @@ Lemma truncatable_sim ty v :
   truncatable true (wsw:= nosubword) ty v ->
   truncatable true (wsw:= withsubword) ty v.
 Proof.
-  move=> /vm_truncate_valE; case: (v) => [b|z|len a|ws w| t i] /=.
-  1-3,5: by move=> [-> _] //=; rewrite eqxx.
+  move=> /vm_truncate_valE; case: (v) => [b|z|len a|ws w| s i | t i] /=.
+  1-3,5-6: by move=> [-> _] //=; rewrite eqxx.
   by move=> [ws' [-> _ _]] /=.
 Qed.
 
@@ -321,7 +323,9 @@ End PROOF.
 Section INSTANCE.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.

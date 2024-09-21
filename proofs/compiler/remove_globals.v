@@ -150,9 +150,7 @@ Section REMOVE.
       | PappN op es =>
         Let es := mapM (remove_glob_e ii env) es in
         ok (PappN op es)
-      | Pabstract s es =>
-        Let es := mapM (remove_glob_e ii env) es in
-        ok (Pabstract s es)
+
       | Pif t e e1 e2 =>
         Let e := remove_glob_e ii env e in
         Let e1 := remove_glob_e ii env e1 in

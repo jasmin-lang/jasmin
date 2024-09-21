@@ -16,7 +16,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Lemma ignore_has_shift mn sf ic hs hs' :
+Lemma ignore_has_shift {tabstract : Tabstract} mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=
        {| set_flags := sf; is_conditional := ic; has_shift := hs; |}
@@ -34,6 +34,7 @@ Proof. by case: mn. Qed.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {atoI : arch_toIdent}
   {syscall_state : Type}
@@ -112,7 +113,8 @@ Qed.
 
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)
 Lemma sem_i_conditional
-  {dc : DirectCall} (p : prog)
+  {dc : DirectCall} {absp : Prabstract}
+  (p : prog)
   ev s0 s1 mn sf osk lvs tag args c prev vargs b vprev vprev' vres :
   let opts :=
     {| set_flags := sf; is_conditional := false; has_shift := osk; |}

@@ -25,9 +25,12 @@ Record wf_ai (m : t) (x:var) ai := {
 Definition wf_t (m : t) :=
   forall x ai, Mvar.get m.(sarrs) x = Some ai -> wf_ai m x ai.
 
+Section Tabstract.
+Context {tabstract : Tabstract}.
+
 Definition eval_array ws v i :=
   if v is Varr _ t
-  then ok (rdflt undef_w (rmap (@Vword _) (WArray.get Aligned AAscale ws t i)))
+  then ok (rdflt undef_w (rmap (@Vword _ _) (WArray.get Aligned AAscale ws t i)))
   else type_error.
 
 Definition eq_alloc_vm {wsw : WithSubWord} (m : t) vm1 vm2 :=
@@ -48,7 +51,7 @@ Definition expand_vs := mapM2 ErrType expand_v.
 (* ---------------------------------------------------------------------- *)
 
 Lemma eval_arrayP ws v i w : eval_array ws v i = ok w ->
-  is_sarr (type_of_val v) /\ (w = undef_w \/ exists ww, w = @Vword ws ww).
+  is_sarr (type_of_val v) /\ (w = undef_w \/ exists ww, w = @Vword _ ws ww).
 Proof.
   by case: v => //= > [<-]; split=> //; case: WArray.get; auto; right; eexists.
 Qed.
@@ -112,16 +115,16 @@ Proof.
 Qed.
 
 Lemma expand_vP n a ws l :
-  mapM (eval_array ws (@Varr n a)) l =
-    ok (map (fun i => rdflt undef_w (rmap (@Vword _) (WArray.get Aligned AAscale ws a i)))  l).
+  mapM (eval_array ws (@Varr _ n a)) l =
+    ok (map (fun i => rdflt undef_w (rmap (@Vword _ _) (WArray.get Aligned AAscale ws a i)))  l).
 Proof. by elim: l => // *; simpl map; rewrite -mapM_cons. Qed.
-
 
 Section WITH_PARAMS.
 
 Context
   {wsw : WithSubWord}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -931,3 +934,5 @@ Proof.
 Qed.
 
 End WITH_PARAMS.
+
+End Tabstract.

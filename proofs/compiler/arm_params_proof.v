@@ -52,6 +52,8 @@ Section Section.
 #[local] Existing Instance direct_c.
 
 Context
+  {tabstract : Tabstract}
+  {absp : Prabstract}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -189,7 +191,7 @@ Proof.
   set vrsp := {|vname := nrsp|}; set rsp := {|v_var := vrsp|}.
   set ts' := align_word _ _.
   have := ARMFopnP.smart_subi_sem_fopn_args vi3 (y:= rsp) _ (to_word_get_var hget).
-  move=> /(_ arm_linux_call_conv ntmp sz) [].
+  move=> /(_ absp arm_linux_call_conv ntmp sz) [].
   + by right => /= -[?]; subst ntmp.
   move=> vm1 [] -> heq1 hget1 /=.
   set s1 := with_vm _ _.
@@ -265,7 +267,7 @@ Qed.
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
 Proof.
   move=> xd xs ofs s vm top hgets.
-  case heq: vtype => [|||ws] //; t_xrbindP.
+  case heq: vtype => [|||ws|] //; t_xrbindP.
   move=> _ <- /eqP ? w hread hset; subst ws.
   rewrite /arm_lload /= hgets /= truncate_word_u /= hread /=.
   by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
@@ -650,7 +652,7 @@ Proof.
   move/get_varP: (hvy) => [_ _ /compat_valE] /=; rewrite hyty => -[_ [] <- hle2].
   have ? := cmp_le_antisym hle1 hle2; subst ws => {hle1 hle2}.
   have := ARMFopnP.smart_addi_sem_fopn_args xi (y:= y) (or_intror _ hne) (to_word_get_var hvy).
-  move=> /(_ _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
+  move=> /(_ absp _ imm) [vm []]; rewrite -sem_sopns_fopns_args => hsem heqex /get_varP [hvmx _ _].
   have [] := (assemble_opsP arm_eval_assemble_cond hmap _ hsem hlom).
   + by rewrite all_map; apply/allT => -[[]].
   move=> s' -> hlo; exists s' => //.

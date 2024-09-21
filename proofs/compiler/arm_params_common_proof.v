@@ -47,6 +47,8 @@ Module ARMFopnP.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
+  {absp : Prabstract}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -122,7 +124,7 @@ Qed.
 (* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma sub_eval_instr {lp ls ii xname vi y z} {wy wz : word Uptr} :
   let: (xi, x) := mkv xname vi in
-  get_var true (lvm ls) (v_var y) = ok (Vword wy) -> 
+  get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
   get_var true (lvm ls) (v_var z) = ok (Vword wz) ->
   let: li := li_of_fopn_args ii (ARMFopn.sub xi y z) in
   let: wx' := Vword (wy - wz)in
@@ -138,7 +140,7 @@ Qed.
 Lemma subi_eval_instr {lp ls ii xname vi y imm wy} :
   let: (xi, x) := mkv xname vi in
   get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
-  let: li := li_of_fopn_args ii (ARMFopn.subi xi y imm) in 
+  let: li := li_of_fopn_args ii (ARMFopn.subi xi y imm) in
   let: wx' := Vword (wy - wrepr reg_size imm)in
   let: vm' := (lvm ls).[x <- wx'] in
   eval_instr lp li ls = ok (next_vm_ls ls vm').
@@ -225,7 +227,7 @@ Lemma smart_addi_sem_fopn_args xname vi y imm s (w : wreg) :
   let: (xi, x) := mkv xname vi in
   let: lc := ARMFopn.smart_addi xi y imm in
   is_arith_small imm \/ x <> v_var y ->
-  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w -> 
+  get_var true (evm s) (v_var y) >>= to_word Uptr = ok w ->
   exists vm',
     [/\ sem_fopns_args s lc = ok (with_vm s vm')
       , vm' =[\ Sv.singleton x ] evm s
@@ -234,7 +236,7 @@ Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-             (@ARMFopn_coreP.add_sem_fopn_args _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _)].
+             (@ARMFopn_coreP.add_sem_fopn_args _ _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -254,7 +256,7 @@ Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hor hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-              (@ARMFopn_coreP.sub_sem_fopn_args _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _)].
+              (@ARMFopn_coreP.sub_sem_fopn_args _ _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi xi y imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   move=> vm' [hsem heq heqx] ; exists vm'; split => //=.
@@ -264,7 +266,7 @@ Qed.
 Lemma smart_addi_tmp_sem_fopn_args s (tmp : var_i) xname vi imm w :
   let: (xi, x) := mkv xname vi in
   let: lcmd := ARMFopn.smart_addi_tmp xi tmp imm in
-  x <> v_var tmp -> 
+  x <> v_var tmp ->
   vtype tmp = sword U32 ->
   get_var true (evm s) x >>= to_word Uptr = ok w ->
   exists vm',
@@ -275,7 +277,7 @@ Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-             (@ARMFopn_coreP.add_sem_fopn_args _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _)].
+             (@ARMFopn_coreP.add_sem_fopn_args _ _ _) (@ARMFopn_coreP.addi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.addr0.
   + by right => h; rewrite h in hne.
@@ -297,7 +299,7 @@ Proof.
   rewrite /=; set x := {| vname := _; |}; set xi := {| v_var := _; |}.
   move=> hne hty hget; rewrite -sem_fopns_equiv.
   have := [elaborate ARMFopn_coreP.gen_smart_opi_sem_fopn_args is_arith_small (neutral:= Some 0%Z)
-              (@ARMFopn_coreP.sub_sem_fopn_args _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _)].
+              (@ARMFopn_coreP.sub_sem_fopn_args _ _ _) (@ARMFopn_coreP.subi_sem_fopn_args _ _ _)].
   move=> /(_ _ xname vi tmp xi imm s w) [] //.
   + by move=> >; rewrite wrepr0 GRing.subr0.
   + by right => h; rewrite h in hne.
@@ -312,6 +314,7 @@ End ARMFopnP.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {atoI  : arch_toIdent}
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}

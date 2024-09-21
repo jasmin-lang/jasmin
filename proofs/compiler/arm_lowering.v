@@ -51,6 +51,7 @@ Definition fvars (fv : fresh_vars) : Sv.t := sv_of_list id (fresh_flags fv).
 Section ARM_LOWERING.
 
 Context
+  {tabstract : Tabstract}
   (fv : fresh_vars).
 
 (* TODO: When this pass is allowed to fail, this should be inside [cexec]. *)
@@ -177,7 +178,7 @@ Definition is_load (e: pexpr) : bool :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _
   | Psub _ _ _ _ _
-  | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pabstract _ _ | Pif _ _ _ _
+  | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
   | Pfvar _ | Pbig _ _ _ _ _ _ 
   | Presult _ _ | Presultget _ _ _ _ _ _
     => false
@@ -422,13 +423,13 @@ Definition lower_base_op
       | _ => None end
     else None.
 
-Definition lower_swap ty lvs es : option copn_args := 
+Definition lower_swap ty lvs es : option copn_args :=
   match ty with
-  | sword sz => 
-    if (sz <= U32)%CMP then 
+  | sword sz =>
+    if (sz <= U32)%CMP then
       Some (lvs, Oasm (ExtOp (Oarm_swap sz)), es)
     else None
-  | sarr _ => 
+  | sarr _ =>
       Some (lvs, Opseudo_op (Oswap ty), es)
   | _ => None
   end.

@@ -39,8 +39,10 @@ Qed.
 Section Section.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {syscall_state : Type}
+  {absp: Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   (wdb : bool)

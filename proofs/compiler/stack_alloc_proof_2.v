@@ -36,9 +36,11 @@ Variable global_alloc : seq (var * wsize * Z).
 Let glob_size := Z.of_nat (size global_data).
 
 Context
+  {tabstract : Tabstract }
   {wsw : WithSubWord}
   {dc:DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -98,7 +100,7 @@ Proof.
   + by move=> hfold hsize; apply (H data 0%Z [::] z) => //; lia.
   move=> {z hf }; elim => [ | w data' hrec] i l z /=.
   + rewrite cats0 => _ <- <- h k w hr.
-    have /= ? := @get_val_byte_bound (Varr t) k _ hr.
+    have /= ? := @get_val_byte_bound tabstract (Varr t) k _ hr.
     by apply h => //; rewrite hsz positive_nat_Z.
   rewrite {2}/test; t_xrbindP => i'.
   case heq: read => [ wp | ] //.  
@@ -1732,7 +1734,7 @@ Qed.
    At least, it works with the current formulation.
 *)
 Definition disjoint_from_writable_param p wptr varg1 varg2 :=
-  forall p2, wptr = Some true -> varg2 = @Vword Uptr p2 ->
+  forall p2, wptr = Some true -> varg2 = @Vword _ Uptr p2 ->
   disjoint_zrange p2 (size_val varg1) p (wsize_size U8).
 
 (* [disjoint_from_writable_params] correctly captures the notion of being
@@ -2934,9 +2936,11 @@ End INIT.
 Section HSAPARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc : DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}

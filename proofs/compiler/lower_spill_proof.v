@@ -13,9 +13,11 @@ Local Open Scope seq_scope.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw : WithSubWord}
   {dc  : DirectCall}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep  : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -133,7 +135,7 @@ Qed.
 
 (* TODO: Move this ? *)
 Lemma app_sopn_truncate_val T ts (f:sem_prod ts (exec T)) vs r :
-  app_sopn ts f vs = ok r ->
+  app_sopn (ts:=ts) f vs = ok r ->
   exists vs', mapM2 ErrType truncate_val ts vs = ok vs'.
 Proof.
   elim: ts f vs => [ | t ts hrec] f [ | v vs] //=; first by eauto.

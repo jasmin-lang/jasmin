@@ -33,7 +33,9 @@ Unset Printing Implicit Defensive.
 Section FIXME.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {sip : SemInstrParams asm_op syscall_state}.
 
@@ -50,7 +52,8 @@ End FIXME.
 
 Section STACK_ZEROIZATION.
 
-Context {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Context {tabstract : Tabstract} {absp : Prabstract}
+        {atoI : arch_toIdent} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {call_conv : calling_convention}.
 
 Section RSP.
@@ -67,7 +70,7 @@ Let leflags := [seq LLvar f | f <- vflags ].
 
 Lemma store_zero_eval_instr lp ii ws e (ls:lstate) (w1 w2 : word Uptr) m' :
   (ws <= U32)%CMP ->
-  get_var true (lvm ls) vzero = ok (@Vword Uptr 0) ->
+  get_var true (lvm ls) vzero = ok (@Vword _ Uptr 0) ->
   get_var true (lvm ls) rspi = ok (Vword w1) ->
   sem_fexpr (lvm ls) e >>= to_word Uptr = ok w2 ->
   write (lmem ls) Aligned (w1 + w2)%R (sz:=ws) 0 = ok m' ->
@@ -116,7 +119,7 @@ Record state_rel_unrolled vars s1 s2 n (p:word Uptr) := {
   sr_vm : s1.(evm) =[\ Sv.add rspi vars] s2.(evm) ;
   sr_vsaved : s2.(evm).[vsaved_sp] = Vword ptr;
   sr_rsp : s2.(evm).[rspi] = Vword p;
-  sr_vzero : s2.(evm).[vzero] = @Vword Uptr 0; (* contrary to x86, not ws but U32 *)
+  sr_vzero : s2.(evm).[vzero] = @Vword _ Uptr 0; (* contrary to x86, not ws but U32 *)
   sr_aligned : is_align n ws;
   sr_bound : (0 <= n <= stk_max)%Z;
 }.
@@ -309,10 +312,10 @@ Proof.
     reflexivity.
   + rewrite /lsem1 /step (find_instr_skip hbody) /= -(addn1 2) addnA addn1.
     apply: store_zero_eval_instr => //=.
-    + do 5 (rewrite (@get_var_neq _ _ _ vzero);
+    + do 5 (rewrite (@get_var_neq _ _ _ _ vzero);
         last by [|move=> /(@inj_to_var _ _ _ _ _ _)]).
       by rewrite /get_var hsr.(sr_vzero).
-    + do 5 (rewrite (@get_var_neq _ _ _ rspi);
+    + do 5 (rewrite (@get_var_neq _ _ _ _ rspi);
         last by [|move=> /= h; apply /rsp_nin /sv_of_listP;
         rewrite !in_cons /= -h eqxx /= ?orbT]).
       by rewrite /get_var hsr.(sr_rsp); reflexivity.

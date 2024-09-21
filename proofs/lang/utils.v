@@ -207,7 +207,7 @@ Proof. by case: b. Qed.
 Arguments assertP {E b e u} _.
 
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrAbsOp.
 
 Definition exec t := result error t.
 

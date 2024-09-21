@@ -642,11 +642,8 @@ Fixpoint alloc_e (e:pexpr) ty :=
     ok (Papp2 o e1 e2)
 
   | PappN o es =>
-    Let es := mapM2 bad_arg_number alloc_e es (type_of_opN o).1 in
+    Let es := mapM2 bad_arg_number alloc_e es (type_of_opNA o).1 in
     ok (PappN o es)
-
-  | Pabstract s es =>
-      Error  (stk_ierror_no_var "Pabstract")
 
   | Pif t e e1 e2 =>
     Let e := alloc_e e sbool in

@@ -9,18 +9,20 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition gd_incl (gd1 gd2: glob_decls) :=
+Definition gd_incl {tabstract : Tabstract} (gd1 gd2: glob_decls) :=
   forall g v, get_global gd1 g = ok v -> get_global gd2 g = ok v.
 
-Lemma gd_inclT gd3 gd1 gd2 :  gd_incl gd1 gd3 -> gd_incl gd3 gd2 -> gd_incl gd1 gd2.
+Lemma gd_inclT {tabstract : Tabstract} gd3 gd1 gd2 :  gd_incl gd1 gd3 -> gd_incl gd3 gd2 -> gd_incl gd1 gd2.
 Proof. by move=> h1 h2 g v /h1 /h2. Qed.
 
 Module INCL. Section INCL.
 
   Context
+    {tabstract : Tabstract}
     {wsw : WithSubWord}
     {dc:DirectCall}
     {asm_op syscall_state : Type}
+    {absp : Prabstract}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}.
@@ -333,9 +335,11 @@ End EXTEND. Import EXTEND.
 Module RGP. Section PROOFS.
 
   Context
+    {tabstract : Tabstract}
     {wsw : WithSubWord}
     {dc:DirectCall}
     {asm_op syscall_state : Type}
+    {absp : Prabstract}
     {ep : EstateParams syscall_state}
     {spp : SemPexprParams}
     {sip : SemInstrParams asm_op syscall_state}
