@@ -473,6 +473,7 @@ module I (S:S): I = struct
     | n when Z.(n < Z.zero) -> assert false
     | n -> power Z.(acc * (Z.of_int 2)) Z.(n - Z.one)
 
+  (* Fixme: what happens if value is out of bounds *)
   let w2i ?(sign=S.s) c ws =
     assert ((Z.of_int 0) <= c);
     if sign then
@@ -603,14 +604,14 @@ module I (S:S): I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-    (* | Pabstract ({name="u16i"}, [v]) -> *)
-    (*   begin *)
-    (*     match v with *)
-    (*   (\* why do we have more cases?  | Pvar _ -> !> v *\) *)
-    (*     | Papp1 (Oword_of_int _ws, Pconst z) ->  !> *)
-    (*          (Pconst (w2i ~sign z U16)) *)
-    (*     | _ -> !> v *)
-    (*   end *)
+   | Pabstract ({name="u16i"}, [v]) -> 
+       begin 
+         match v with 
+       (* why do we have more cases?  | Pvar _ -> !> v *) 
+         | Papp1 (Oword_of_int _ws, Pconst z) ->  !> 
+              (Pconst (w2i ~sign z U16)) 
+         | _ -> !> v 
+       end 
     (* | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e *)
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
