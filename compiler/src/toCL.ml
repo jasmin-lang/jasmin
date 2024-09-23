@@ -1287,24 +1287,25 @@ module X86BaseOpS : BaseOp
 
     | IMULr ws 
     | IMULri ws ->
-      let a1, i1 = cast_atome ws (List.nth es 0) in
-      let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l = I.glval_to_lval (List.nth xs 5) in
-      let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
-      let l_tmp1 = I.mk_tmp_lval ~sign:false (CoreIdent.tu ws) in
-      let ty = CL.Sint (int_of_ws ws) in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
-                 CL.Instr.cast ty l !l_tmp1]
-
-    (* | IMULri ws ->
+      let l = ["smt", `Smt; "default", `Default] in
+      let trans = trans annot l in 
       begin match trans with
-      | Smt -> 
+      | `Default -> 
+        let a1, i1 = cast_atome ws (List.nth es 0) in
+        let a2, i2 = cast_atome ws (List.nth es 1) in
+        let l = I.glval_to_lval (List.nth xs 5) in
+        let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
+        let l_tmp1 = I.mk_tmp_lval ~sign:false (CoreIdent.tu ws) in
+        let ty = CL.Sint (int_of_ws ws) in
+        i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
+                   CL.Instr.cast ty l !l_tmp1]
+
+      | `Smt -> 
         let a1, i1 = cast_atome ws (List.nth es 0) in
         let a2, i2 = cast_atome ws (List.nth es 1) in
         let l = I.glval_to_lval (List.nth xs 5) in
         i1 @ i2 @ [CL.Instr.Op2.mul l a1 a2]
-     | _ -> assert false
-      end *)
+      end
 
     | NEG ws ->
       let a = I.mk_const_atome (int_of_ws ws) Z.zero in
@@ -1353,23 +1354,16 @@ module X86BaseOpS : BaseOp
         | `Default->
           let a1,i1 = cast_atome ws (List.nth es 0) in
           let c = I.get_const (List.nth es 1) in
-          let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws) in
-          let c = Z.of_int c in
+          (* let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws) in *)
+          let l_tmp = I.mk_spe_tmp_lval ~sign:false c in
           let l = I.glval_to_lval (List.nth xs 5) in
-          i1 @ [CL.Instr.Shifts.split l l_tmp a1 c]
+          let c = Z.of_int c in
+          i1 @ [CL.Instr.Shifts.sars l l_tmp a1 c]
         | `ForceLowZero ->
           let a1,i1 = cast_atome ws (List.nth es 0) in
-          let c = I.get_const (List.nth es 1) in
-          let c1 = Z.(I.power one (of_int c)) in
-          let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws) in
-          let l_tmp1 = I.mk_spe_tmp_lval ~sign:false (int_of_ws ws) in
-          let c = Z.of_int c in
+          let c = I.get_const (List.nth es 1) |> Z.of_int in
           let l = I.glval_to_lval (List.nth xs 5) in
-          i1 @ [CL.Instr.Op1.mov l_tmp a1;
-                CL.Instr.assert_ ([Eeqmod(Ivar l_tmp, Iconst Z.zero,[Iconst c1])] ,[]);
-                CL.Instr.Shifts.split l l_tmp1 !l_tmp c;
-                CL.Instr.assume ([Eeq(Ivar l_tmp1, Iconst Z.zero)] ,[]);
-               ]
+          i1 @ [CL.Instr.Shift.sar l a1 c]
       end
 
     | MOVSX (ws1, ws2) ->
