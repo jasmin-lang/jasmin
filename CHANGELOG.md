@@ -9,6 +9,9 @@
     * Binary: `0b11101`, `0B11100`
     * `_` characters: `100_000_00___111`
 
+- Extraction as EasyCrypt code targets version 2024.09
+  ([PR #910](https://github.com/jasmin-lang/jasmin/pull/910)).
+
 ## Bug fixes
 
 - Easycrypt extraction for CT : fix decreasing for loops
