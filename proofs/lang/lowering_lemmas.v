@@ -23,14 +23,14 @@ Context
 
 (* State equality up to a set of variables. *)
 Definition estate_eq_except ys s1 s2 :=
-  [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem) & s1.(evm) =[\ ys] s2.(evm)].
+  [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem), s1.(evm) =[\ ys] s2.(evm) & s1.(eassert) = s2.(eassert) ].
 
 (* FIXME syscall : why it is needed to redeclare it here *)
 (* note that in utils, it is CMorphisms.Proper, here it is Morpisms.Proper *)
 #[global]
-Instance and3_iff_morphism :
-  Proper (iff ==> iff ==> iff ==> iff) and3.
-Proof. apply and3_iff_morphism. Qed.
+Instance and4_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff ==> iff) and4.
+Proof. apply and4_iff_morphism. Qed.
 (* END FIXME syscall *)
 
 Lemma eeq_excR xs s :
@@ -40,20 +40,20 @@ Proof. done. Qed.
 Lemma eeq_excS xs s0 s1 :
   estate_eq_except xs s0 s1
   -> estate_eq_except xs s1 s0.
-Proof. by rewrite /estate_eq_except => -[-> -> ->]. Qed.
+Proof. by rewrite /estate_eq_except => -[-> -> -> ->]. Qed.
 
 Lemma eeq_excT xs s0 s1 s2 :
   estate_eq_except xs s0 s1
   -> estate_eq_except xs s1 s2
   -> estate_eq_except xs s0 s2.
-Proof. by rewrite /estate_eq_except => -[-> -> ->]. Qed.
+Proof. by rewrite /estate_eq_except => -[-> -> -> ->]. Qed.
 
 Lemma eeq_exc_disjoint xs ys s0 s1 :
   disjoint xs ys
   -> estate_eq_except ys s0 s1
-  -> [/\ escs s0 = escs s1, emem s0 = emem s1 & evm s0 =[ xs ] evm s1].
+  -> [/\ escs s0 = escs s1, emem s0 = emem s1, evm s0 =[ xs ] evm s1 & eassert s0 = eassert s1].
 Proof.
-  move=> /Sv.is_empty_spec hdisj [-> -> hvm].
+  move=> /Sv.is_empty_spec hdisj [-> -> hvm ->].
   split=> // x hxxs.
   apply: hvm.
   SvD.fsetdec.
@@ -66,10 +66,8 @@ Lemma eeq_exc_sem_pexprs wdb gd xs es v s0 s1 :
   -> sem_pexprs wdb gd s1 es = ok v.
 Proof.
   move=> hdisj heq.
-  have [hscs hmem hvm] := eeq_exc_disjoint hdisj heq.
-  rewrite (read_es_eq_on wdb gd hvm).
-  rewrite /with_vm.
-  rewrite hscs hmem.
+  have [hscs hmem hvm htr] := eeq_exc_disjoint hdisj heq.
+  rewrite (read_es_eq_on wdb gd hvm) /with_vm hscs hmem htr.
   by rewrite -(surj_estate s0).
 Qed.
 
@@ -100,9 +98,9 @@ Lemma eeq_exc_write_lvals wdb gd xs s0 s1 s0' ls vs :
        write_lvals wdb gd s0' ls vs = ok s1' & estate_eq_except xs s1' s1.
 Proof.
   move=> hdisj.
-  move: s0 s0' => [scs0 mem0 vm0] [scs0' mem0' vm0'].
-  move=> [/= hscs hmem hvm] hwrite.
-  subst scs0 mem0.
+  move: s0 s0' => [scs0 mem0 vm0 tr0] [scs0' mem0' vm0' tr0'].
+  move=> [/= hscs hmem hvm htr] hwrite.
+  subst scs0 mem0 tr0.
 
   have hsub : Sv.Subset (read_rvs ls) (Sv.diff (read_rvs ls) xs).
   - rewrite /vars_lvals in hdisj.

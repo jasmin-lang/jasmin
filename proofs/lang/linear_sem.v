@@ -51,7 +51,7 @@ Record lstate := Lstate
     lfn : funname;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm).
+Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm) [::].
 Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
 Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
@@ -60,7 +60,7 @@ Definition lset_estate' (ls : lstate) (s : estate) : lstate :=
   Eval hnf in of_estate s ls.(lfn) ls.(lpc).
 Definition lset_estate
   (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; |}.
+  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; eassert := [::] |}.
 Definition lset_mem_vm (ls : lstate) (m : mem) (vm : Vm.t) : lstate :=
   Eval hnf in lset_estate ls (lscs ls) m vm.
 Definition lset_mem (ls : lstate) (m : mem) : lstate :=
@@ -70,14 +70,15 @@ Definition lset_vm (ls : lstate) (vm : Vm.t) : lstate :=
 Definition lnext_pc (ls : lstate) : lstate :=
   Eval hnf in setpc ls (lpc ls).+1.
 
+(*
 Lemma to_estate_of_estate es fn pc:
   to_estate (of_estate es fn pc) = es.
 Proof. by case: es. Qed.
+*)
 
 Lemma of_estate_to_estate ls :
   of_estate (to_estate ls) (lfn ls) (lpc ls) = ls.
 Proof. by case: ls. Qed.
-
 
 (* The [lsem] relation defines the semantics of a linear command
 as the reflexive transitive closure of the [lsem1] relation that
@@ -134,11 +135,11 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
         escs := scs;
         emem := m;
         evm := vm_after_syscall s1.(lvm);
+        eassert := [::];
       |}
     in
     Let s' := write_lvals true [::] s (to_lvals sig.(scs_vout)) vs in
               ok (lnext_pc (lset_estate' s1 s'))
-  | Lassert _ => ok (setpc s1 s1.(lpc).+1)
   | Lcall None d =>
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in

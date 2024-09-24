@@ -128,6 +128,16 @@ Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
 Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
 
+#[global]
+Instance and4_impl_morphism :
+  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and4 | 1.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 [/h1 ? /h2 ? /h3 ? /h4 ?]. Qed.
+
+#[global]
+Instance and4_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff ==> iff) and4.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4; split => -[] /h1 ? /h2 ? /h3 ? /h4 ?. Qed.
+
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 

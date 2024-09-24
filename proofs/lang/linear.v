@@ -17,7 +17,6 @@ Context `{asmop:asmOp}.
 Variant linstr_r :=
   | Lopn   : lexprs -> sopn -> rexprs -> linstr_r
   | Lsyscall : syscall_t -> linstr_r
-  | Lassert  : pexpr -> linstr_r (* FIXME: add annotation_kind *)
   | Lcall    : option var_i -> remote_label -> linstr_r 
      (* Lcall ra lbl: 
         if ra = Some r the return adress is stored in r else on top of the stack *)

@@ -105,6 +105,18 @@ Proof. by case: s. Qed.
 Lemma evm_add_contracts s c : evm (add_contracts s c) = evm s.
 Proof. by case: s. Qed.
 
+Lemma add_contracts_with_vm s vm v :
+  add_contracts (with_vm s vm) v = with_vm (add_contracts s v) vm.
+Proof. by case: s. Qed.
+
+Lemma add_assumes_with_vm s vm v :
+  add_assumes (with_vm s vm) v = with_vm (add_assumes s v) vm.
+Proof. by case s. Qed.
+
+Lemma add_asserts_with_vm s vm v :
+  add_asserts (with_vm s vm) v = with_vm (add_asserts s v) vm.
+Proof. by case s. Qed.
+
 End ESTATE_UTILS.
 
  (* -------------------------------------------------------------------- *)
