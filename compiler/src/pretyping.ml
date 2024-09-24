@@ -1708,7 +1708,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
         then Annotations.add_symbol ~loc:el "inline" annot
         else annot
       in
-      env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
+      [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None
         when L.unloc f = "spill" || L.unloc f = "unspill"  ->
     let op = L.unloc f in
@@ -1722,7 +1722,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
     let es = List.map doit es in
     let op = if op = "spill" then Pseudo_operator.Spill else Pseudo_operator.Unspill in
     let p = Sopn.Opseudo_op (Ospill(op, [] (* dummy info, will be fixed latter *))) in 
-    env, [mk_i ~annot (P.Copn([], AT_keep, p, es))]
+    [mk_i ~annot (P.Copn([], AT_keep, p, es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "randombytes" ->
       (* FIXME syscall *)
@@ -1742,7 +1742,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
             (string_error "only a single variable is allowed as destination of randombytes") in
       let _ = tt_as_array (loc, ty) in
       let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty] in
-      env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
+      [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | (ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None when L.unloc f = "swap" ->
       if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "swap expects no implicit arguments");
@@ -1772,14 +1772,14 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       in
       let es = tt_exprs_cast arch_info.pd env (L.loc pi) args [ty; ty] in
       let p = Sopn.Opseudo_op (Oswap Type.Coq_sbool) in  (* The type is fixed latter *)
-      env, [mk_i (P.Copn(lvs, AT_keep, p, es))]
+      [mk_i (P.Copn(lvs, AT_keep, p, es))]
 
   | ls, `Raw, { pl_desc = PEPrim (f, args) }, None ->
       let p = tt_prim arch_info.asmOp f in
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
-      env, mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
+      mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
 
   | ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None
       ->
@@ -1792,7 +1792,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let tlvs, tes, arguments = prim_sig arch_info.asmOp p in
       let lvs, einstr = tt_lvalues arch_info env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast arch_info.pd env (L.loc pi) args tes in
-      env, mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
+      mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
 
   | (None,[lv]), `Raw, pe, None ->
       let _, flv, vty = tt_lvalue arch_info.pd env lv in
@@ -1808,7 +1808,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
         P.(match v with
             | Lvar v -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
             | _ -> AT_none) in
-      env, [mk_i (cassgn_for v tg ety e)]
+      [mk_i (cassgn_for v tg ety e)]
 
   | ls, `Raw, pe, None ->
       (* Try to match addc, subc, mulu *)
@@ -1827,14 +1827,14 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
   | ls, eqop, e, Some cp ->
       let loc = L.loc pi in
       let exn = Unsupported "if not allowed here" in
-      let env, i = tt_assign env ls eqop e None in
+      let i = tt_assign env ls eqop e None in
       let x, ty, e, is =
         match i with
         | { i_desc = P.Cassgn (x, _, ty, e) ; _ } :: is -> x, ty, e, is
         | _ -> rs_tyerror ~loc exn in
       let e' = oget ~exn:(tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool arch_info.pd env cp in
-      env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
+      mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
   in
   match L.unloc pi with
   | S.PIdecl tvs ->
@@ -1846,7 +1846,7 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
     let xi = (L.mk_loc lc x) in
     env, [mk_i (arr_init xi)]
 
-  | S.PIAssign (ls, eqop, pe, ocp) -> tt_assign env ls eqop pe ocp
+  | S.PIAssign (ls, eqop, pe, ocp) -> env, tt_assign env ls eqop pe ocp
 
   | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool arch_info.pd env cp in
