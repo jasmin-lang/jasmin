@@ -169,8 +169,6 @@ Section PROOF.
     apply h2.
     apply hrec.
     apply h3.
-    
-    Search(_ -> bool).
   Qed.
 
   Definition read_ovar (o: option var_i) : Sv.t :=
