@@ -294,8 +294,6 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
-Definition fvar : Type := var_i.
-
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
@@ -308,11 +306,8 @@ Inductive pexpr : Type :=
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
 | PappN of opNA & seq pexpr
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
-| Pfvar : fvar -> pexpr
-| Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
-| Presult : Z -> gvar -> pexpr
-| Presultget : aligned -> arr_access -> wsize -> Z -> gvar -> pexpr -> pexpr.
-
+| Pbig : pexpr -> sop2 -> var_i -> pexpr -> pexpr -> pexpr -> pexpr.
+  (* Pbig idx op x e start len = big idx op (fun x => e) [iota start len] *)
 
 Notation pexprs := (seq pexpr).
 
@@ -443,10 +438,6 @@ Variant align :=
 
 (* -------------------------------------------------------------------- *)
 
-Section ASM_OP.
-
-Context `{asmop:asmOp}.
-
 Variant annotation_kind :=
   | Assert
   | Assume
@@ -455,6 +446,31 @@ Variant annotation_kind :=
 Variant assertion_prover :=
   | Cas
   | Smt.
+
+Scheme Equality for annotation_kind.
+
+Lemma annotation_kind_eq_axiom : Equality.axiom annotation_kind_beq.
+Proof.
+  exact:
+    (eq_axiom_of_scheme internal_annotation_kind_dec_bl internal_annotation_kind_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build annotation_kind annotation_kind_eq_axiom.
+
+Scheme Equality for assertion_prover.
+
+Lemma assertion_prover_eq_axiom : Equality.axiom assertion_prover_beq.
+Proof.
+  exact:
+    (eq_axiom_of_scheme internal_assertion_prover_dec_bl internal_assertion_prover_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build assertion_prover assertion_prover_eq_axiom.
+
+(* -------------------------------------------------------------------- *)
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
 
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
@@ -535,6 +551,7 @@ Context `{asmop:asmOp}.
 Definition fun_info := FunInfo.t.
 
 Record fun_contract := MkContra {
+    f_iparams : seq var_i;  (* initial value of the parameter *)
     f_pre : list (assertion_prover * pexpr);
     f_post : list (assertion_prover * pexpr);
   }.
@@ -877,10 +894,7 @@ Fixpoint use_mem (e : pexpr) :=
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
-  | Pfvar _ => false
-  | Pbig e1 e2 _ _ e3 e4 => use_mem e1 || use_mem e2 || use_mem e3 || use_mem e4
-  | Presult _ _ => false
-  | Presultget _ _ _ _ _ e => use_mem e
+  | Pbig idx _ _ body start len => use_mem idx || use_mem body || use_mem start || use_mem len
   end.
 
 (* ** Compute read variables
@@ -903,10 +917,9 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
-  | Pfvar _ => s
-  | Pbig e1 e2 _ _ e3 e4 => read_e_rec (read_e_rec (read_e_rec (read_e_rec s e4) e3) e2) e1
-  | Presult _ x       => Sv.union (read_gvar x) s
-  | Presultget _ _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
+  | Pbig idx _ x body start len =>
+      Sv.union (Sv.remove x (read_e_rec Sv.empty body))
+               (read_e_rec (read_e_rec (read_e_rec s len) start) idx)
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -1003,10 +1016,10 @@ Fixpoint eq_expr e e' :=
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
-  | Pfvar v       , Pfvar v'            =>  v_var v == v_var v' 
-  | Pbig e1 e2 sop v e3 e4     , Pbig e1' e2' sop' v' e3' e4'=> (sop == sop') && (v_var v == v_var v') &&
-                                                           eq_expr e1 e1' && eq_expr e2 e2' &&
-                                                           eq_expr e3 e3' && eq_expr e4 e4'
+  | Pbig idx op x body start len, Pbig idx' op' x' body' start' len' =>
+    eq_expr idx idx' && (op == op') && (v_var x == v_var x') &&
+    eq_expr body body' &&
+    eq_expr start start' && eq_expr len len'
   | _             , _                 => false
   end.
 

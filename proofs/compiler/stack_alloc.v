@@ -651,10 +651,8 @@ Fixpoint alloc_e (e:pexpr) ty :=
     Let e2 := alloc_e e2 ty in
     ok (Pif ty e e1 e2)
 
- | Pfvar v => Error (stk_ierror_no_var "Pfvar is not supported in stack_alloc")
- | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
- | Presult _ _ => Error (stk_ierror_no_var "Presult is not supported in stack_alloc")
- | Presultget _ _ _ _ _ _ => Error (stk_ierror_no_var "Presultget is not supported in stack_alloc")
+  | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
+
   end.
 
   Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.

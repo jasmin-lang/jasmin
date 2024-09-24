@@ -179,8 +179,7 @@ Definition is_load (e: pexpr) : bool :=
   | Pconst _ | Pbool _ | Parr_init _
   | Psub _ _ _ _ _
   | Papp1 _ _ | Papp2 _ _ _ | PappN _ _ | Pif _ _ _ _
-  | Pfvar _ | Pbig _ _ _ _ _ _ 
-  | Presult _ _ | Presultget _ _ _ _ _ _
+  | Pbig _ _ _ _ _ _
     => false
   | Pvar {| gs := Sglob |}
   | Pget _ _ _ _ _
@@ -480,8 +479,7 @@ Fixpoint lower_i (i : instr) : cmd :=
       [:: MkI ii ir' ]
 
   | Cassert t p e =>
-      let '(pre, e') := lower_condition (var_info_of_ii ii) e in
-      map (MkI ii) (pre ++ [:: Cassert t p e'])
+      [:: MkI ii (Cassert t p e)]
 
   | Cif e c1 c2  =>
       let '(pre, e') := lower_condition (var_info_of_ii ii) e in

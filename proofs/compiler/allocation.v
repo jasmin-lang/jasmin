@@ -13,7 +13,7 @@ Module E.
 Definition pass_name := "allocation"%string.
 
 (* FIXME: are there internal errors? *)
-Definition gen_error (internal:bool) (ii:option instr_info) (msg:string) := 
+Definition gen_error (internal:bool) (ii:option instr_info) (msg:string) :=
   {| pel_msg      := pp_s msg
    ; pel_fn       := None
    ; pel_fi       := None
@@ -450,7 +450,7 @@ Definition check_varc (xi1 xi2:var_i) m : cexec M.t :=
   if M.v_compat_typeP x1 x2 is left h then check_var_aux m h
   else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
-Fixpoint check_e_aux (lm:M.t) (e1 e2:pexpr) (m:M.t) : cexec M.t :=
+Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   match e1, e2 with
   | Pconst n1, Pconst n2 =>
     Let _ := assert (n1 == n2) error_e in ok m
@@ -461,32 +461,32 @@ Fixpoint check_e_aux (lm:M.t) (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
-    check_gv x1 x2 m >>= check_e_aux lm e1 e2
+    check_gv x1 x2 m >>= check_e e1 e2
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
     Let _ := assert ([&& aa1 == aa2, w1 == w2 & len1 == len2]) error_e in
-    check_gv x1 x2 m >>= check_e_aux lm e1 e2
+    check_gv x1 x2 m >>= check_e e1 e2
   | Pload al1 w1 x1 e1, Pload al2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (w1 == w2)) error_e in
-    check_v x1 x2 m >>= check_e_aux lm e1 e2
+    check_v x1 x2 m >>= check_e e1 e2
   | Papp1 o1 e1, Papp1 o2 e2 =>
-    Let _ := assert (o1 == o2) error_e in check_e_aux lm e1 e2 m
+    Let _ := assert (o1 == o2) error_e in check_e e1 e2 m
    | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
-    Let _ := assert (o1 == o2) error_e in check_e_aux lm e11 e21 m >>= check_e_aux lm e12 e22
+    Let _ := assert (o1 == o2) error_e in check_e e11 e21 m >>= check_e e12 e22
   | PappN o1 es1, PappN o2 es2 =>
     Let _ := assert (o1 == o2) error_e in
-    fold2 (alloc_error "check_e (appN)") (check_e_aux lm) es1 es2 m
+    fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     Let _ := assert (t == t') error_e in
-    check_e_aux lm e e' m >>= check_e_aux lm e1 e1' >>= check_e_aux lm e2 e2'
-  | Pfvar x1, Pfvar x2 => Let _ := check_lv x1 x2 lm in ok m
-  | Pbig s1 len1 o1 x1 e1 b1, Pbig s2 len2 o2 x2 e2 b2 =>
-    Let lmb := check_varc x1 x2 lm in
+    check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
+  | Pbig idx1 o1 x1 b1 s1 len1, Pbig idx2 o2 x2 b2 s2 len2 =>
     Let _ := assert (o1 == o2) error_e in
-    check_e_aux lm s1 s2 m >>= check_e_aux lm len1 len2 >>= check_e_aux lm e1 e2  >>= check_e_aux lmb b1 b2
+    Let m :=
+     check_e s1 s2 m >>= check_e len1 len2 >>= check_e idx1 idx2 in
+    Let mb := check_varc x1 x2 m in
+    Let m := check_e b1 b2 mb in
+    ok (M.remove m x2)
   | _, _ => Error error_e
   end.
-
-Definition check_e := check_e_aux M.empty.
 
 Definition is_Pvar (e:option (stype * pexpr)) :=
   match e with
@@ -531,7 +531,7 @@ Section LOOP.
 
   Fixpoint loop (n:nat) (m:M.t) :=
     match n with
-    | O => Error E.loop_iterator 
+    | O => Error E.loop_iterator
     | S n =>
       Let m' := check_c m in
       if M.incl m m' then ok m
@@ -542,7 +542,7 @@ Section LOOP.
 
   Fixpoint loop2 (n:nat) (m:M.t) :=
     match n with
-    | O => Error E.loop_iterator 
+    | O => Error E.loop_iterator
     | S n =>
       Let m' := check_c2 m in
       if M.incl m m'.2 then ok m'.1
@@ -585,6 +585,8 @@ Fixpoint check_i (i1 i2:instr_r) r :=
     check_es arg1 arg2 r >>= check_lvals x1 x2
 
   | Cassert t1 p1 e1, Cassert t2 p2 e2 =>
+    Let _ := assert (t1 == t2) (alloc_error "annotation_kind not equals") in
+(*    Let _ := assert (p1 == p2) (alloc_error "assertion_prover not equals") in *)
     Let re := check_e e1 e2 r in
     ok (re)
 
@@ -628,6 +630,12 @@ Context {pT: progT}.
 Variable (init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t).
 Variable (check_f_extra: M.t → extra_fun_t → extra_fun_t → seq var_i → seq var_i → cexec M.t).
 
+Definition check_funspec (s1 s2 : seq (assertion_prover * pexpr)) (r:M.t) :=
+  fold2 (alloc_error "check_funspec")
+    (fun (p1 p2: assertion_prover * pexpr) r =>
+       Let _ := assert (p1.1 == p2.1) (alloc_error "funspec: assertion_prover not equals") in
+       check_e p1.2 p2.2 r) s1 s2 r.
+
 Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Datatypes.unit) :=
   let (f1,fd1) := f1 in
   let (f2,fd2) := f2 in
@@ -640,11 +648,16 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
     let es1 := map Plvar fd1.(f_res) in
     let es2 := map Plvar fd2.(f_res) in
     Let _r := check_es es1 es2 r in
+    (* Check annotation *)
+    Let r := check_vars fd1.(f_params) fd2.(f_params) M.empty in
+    Let _ := check_funspec fd1.(f_contra).(f_pre) fd2.(f_contra).(f_pre) r in
+    Let r := check_vars fd1.(f_contra).(f_iparams) fd2.(f_contra).(f_iparams) r in
+    Let _ := check_funspec fd1.(f_contra).(f_post) fd2.(f_contra).(f_post) r in
     ok tt)).
 
 Definition check_prog_error := alloc_error "check_fundef (fold2)".
 
-Definition check_prog ep1 p_funcs1 ep2 p_funcs2 := 
+Definition check_prog ep1 p_funcs1 ep2 p_funcs2 :=
   fold2 check_prog_error (check_fundef ep1 ep2) p_funcs1 p_funcs2 tt.
 
 End PROG.

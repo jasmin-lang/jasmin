@@ -82,7 +82,7 @@ Record array_info := {
 
 Record t := {
   svars : Sv.t;
-  sarrs : Mvar.t array_info;  
+  sarrs : Mvar.t array_info;
 }.
 
 Definition expd_t := (Mf.t (seq (option (wsize * Z)) * seq (option (wsize * Z)))).
@@ -103,12 +103,12 @@ Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
              (reg_ierror_no_var "init_array_info") in
   ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_len := len; ai_elems := vars |}).
 
-Definition init_map (fi : expand_info) := 
+Definition init_map (fi : expand_info) :=
   let svars := sv_of_list (fun x => x) fi.(vars) in
   Let sarrs := foldM init_array_info (svars, Mvar.empty _) fi.(arrs) in
   ok ({| svars := svars; sarrs := sarrs.2 |}, finfo fi).
 
-Definition check_gvar (m : t) (x: gvar) := 
+Definition check_gvar (m : t) (x: gvar) :=
   ~~ is_lvar x || Sv.mem (gv x) m.(svars).
 
 Definition nelem (ty: stype) (ws: wsize) : Z :=
@@ -116,7 +116,7 @@ Definition nelem (ty: stype) (ws: wsize) : Z :=
   then n / wsize_size ws
   else 0.
 
-Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr := 
+Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
 
@@ -141,7 +141,7 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
       | _, _ => Error (reg_error x "(the index is not a constant)")
       end
 
-  | Psub aa ws len x e1 => 
+  | Psub aa ws len x e1 =>
     Let _ := assert (check_gvar m x) (reg_error x.(gv) "(sub-reg arrays are not allowed)") in
     Let e1 := expand_e m e1 in
     ok (Psub aa ws len x e1)
@@ -151,16 +151,16 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let e1 := expand_e m e1 in
     ok (Pload al ws x e1)
 
-  | Papp1 o e1 => 
+  | Papp1 o e1 =>
     Let e1 := expand_e m e1 in
     ok (Papp1 o e1)
 
   | Papp2 o e1 e2 =>
     Let e1 := expand_e m e1 in
     Let e2 := expand_e m e2 in
-    ok (Papp2 o e1 e2) 
+    ok (Papp2 o e1 e2)
 
-  | PappN o es => 
+  | PappN o es =>
     Let es := mapM (expand_e m) es in
     ok (PappN o es)
 
@@ -168,44 +168,22 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     Let e1 := expand_e m e1 in
     Let e2 := expand_e m e2 in
     Let e3 := expand_e m e3 in
-    ok (Pif ty e1 e2 e3) 
-  
-  | Pfvar v => ok (Pfvar v)
+    ok (Pif ty e1 e2 e3)
 
-  | Pbig e1 e2 op2 x e0 body => 
-    Let e1 := expand_e m e1 in
-    Let e2 := expand_e m e2 in
-    Let e0 := expand_e m e0 in
+  | Pbig idx op x body s len =>
+    Let idx := expand_e m idx in
     Let body := expand_e m body in
-    ok (Pbig e1 e2 op2 x e0 body) 
+    Let s := expand_e m s in
+    Let len := expand_e m len in
+    ok (Pbig idx op x body s len)
 
-  | Presult _ x =>
-    Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
-    ok e
-
-  | Presultget al aa ws i x e1 =>
-    if check_gvar m x then
-      Let e1 := expand_e m e1 in
-      ok (Presultget al aa ws i x e1)
-    else
-      let x := gv x in
-      match Mvar.get m.(sarrs) x, is_const e1 with
-      | Some ai, Some i =>
-        Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
-        Let _ := assert (al == Aligned) (reg_error x "(alignement must be enforced)") in
-        Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
-        Let _ := assert [&& 0 <=? i & i <? ai.(ai_len)]%Z (reg_error x "index out of bound") in
-        let v := znth (v_var x) ai.(ai_elems) i in
-        ok (Presult i (mk_lvar {| v_var := v; v_info := v_info x |}))
-      | _, _ => Error (reg_error x "(the index is not a constant)")
-      end
   end.
 
 Definition expand_lv (m : t) (x : lval)  :=
   match x with
   | Lnone _ _ => ok x
 
-  | Lvar x => 
+  | Lvar x =>
     Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok (Lvar x)
 
@@ -215,10 +193,10 @@ Definition expand_lv (m : t) (x : lval)  :=
     ok (Lmem al ws x e)
 
   | Laset al aa ws x e =>
-    if Sv.mem x m.(svars) then 
+    if Sv.mem x m.(svars) then
       Let e := expand_e m e in
       ok (Laset al aa ws x e)
-    else 
+    else
       match Mvar.get m.(sarrs) x, is_const e with
       | Some ai, Some i =>
         Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
@@ -324,21 +302,21 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
 
   | Cif b c1 c2 =>
     Let b  := add_iinfo ii (expand_e m b) in
-    Let c1 := mapM (expand_i m) c1 in 
-    Let c2 := mapM (expand_i m) c2 in 
+    Let c1 := mapM (expand_i m) c1 in
+    Let c2 := mapM (expand_i m) c2 in
     ok (MkI ii (Cif b c1 c2))
 
   | Cfor x (dir, e1, e2) c =>
     Let _  := add_iinfo ii (assert (Sv.mem x m.(svars)) (reg_ierror x "reg array as a variable of a for loop")) in
     Let e1 := add_iinfo ii (expand_e m e1) in
     Let e2 := add_iinfo ii (expand_e m e2) in
-    Let c  := mapM (expand_i m) c in 
+    Let c  := mapM (expand_i m) c in
     ok (MkI ii (Cfor x (dir, e1, e2) c))
 
   | Cwhile a c e c' =>
     Let e  := add_iinfo ii (expand_e m e) in
-    Let c  := mapM (expand_i m) c in 
-    Let c' := mapM (expand_i m) c' in 
+    Let c  := mapM (expand_i m) c in
+    Let c' := mapM (expand_i m) c' in
     ok (MkI ii (Cwhile a c e c'))
 
   | Ccall xs fn es =>
@@ -364,13 +342,15 @@ Definition expand_tyv m b s ty v :=
 Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
   Let x := init_map (fi fname fd) in
   match fd with
-  | MkFun _ ci tyin params c tyout res ef =>
+  | MkFun _ ci ityin params c tyout res ef =>
     let '(m, fi) := x in
     let exp := ~~(fname \in entries) in
-    Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") tyin params in
+    Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin params in
     let tyin   := map (fun x => fst (fst x)) ins in
     let params := map (fun x => snd (fst x)) ins in
     let ins    := map snd ins in
+    Let iins := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin ci.(f_iparams) in
+    let ci_params := flatten (map (fun x => snd (fst x)) iins) in
     Let ci_pre := mapM (fun c =>
                         Let truc := expand_e m (snd c) in
                         ok(fst c, truc)) ci.(f_pre)
@@ -383,7 +363,8 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
                         Let e := expand_e m (snd c) in
                         ok(fst c, e)) ci.(f_post)
     in
-    let ci := MkContra ci_pre ci_post in
+
+    let ci := MkContra ci_params ci_pre ci_post in
     ok (MkFun fi ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
         m, (ins, outs))
   end.

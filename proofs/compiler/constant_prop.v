@@ -372,7 +372,7 @@ Let pget_global al aa sz x e : pexpr :=
   else Pget al aa sz x e
   else Pget al aa sz x e.
 
-Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
+Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _
   | Pbool  _
@@ -384,40 +384,31 @@ Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
       | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
       end
   | Pget al aa sz x e =>
-      let e := const_prop_e_aux lm m e in
+      let e := const_prop_e m e in
       if is_glob x
       then pget_global al aa sz x e
       else Pget al aa sz x e
-  | Psub aa sz len x e => Psub aa sz len x (const_prop_e_aux lm m e)
-  | Pload al sz x e  => Pload al sz x (const_prop_e_aux lm m e)
-  | Papp1 o e     => s_op1 o (const_prop_e_aux lm m e)
-  | Papp2 o e1 e2 => s_op2 o (const_prop_e_aux lm m e1)  (const_prop_e_aux lm m e2)
-  | PappN op es   => s_opNA op (map (const_prop_e_aux lm m) es)
-  | Pif t e e1 e2 => s_if t (const_prop_e_aux lm m e) (const_prop_e_aux lm m e1) (const_prop_e_aux lm m e2)
-  | Pfvar x       => 
-     if Mvar.get lm x is Some n then const n else e 
-  | Pbig s len sop x e0 body => 
-     (* FIXME Add a function *)
-     let s := const_prop_e_aux lm m s in
-     let len := const_prop_e_aux lm m len in
-     let e0 := const_prop_e_aux lm m e0 in
+  | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
+  | Pload al sz x e  => Pload al sz x (const_prop_e m e)
+  | Papp1 o e     => s_op1 o (const_prop_e m e)
+  | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
+  | PappN op es   => s_opNA op (map (const_prop_e m) es)
+  | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
+  | Pbig idx op x body s len =>
+     let s   := const_prop_e m s in
+     let len := const_prop_e m len in
+     let idx := const_prop_e m idx in
      match is_const s, is_const len with
      | Some s, Some len =>
        foldl (fun acc i =>
-               let lm := Mvar.set lm x (Cint i) in 
-               let b := const_prop_e_aux lm m body in 
-               Papp2 sop acc b)
-             e0 (ziota s len)
-     | _, _ => 
-         Pbig s len sop x e0 (const_prop_e_aux lm m body)
+               let m := Mvar.set m x (Cint i) in
+               let b := const_prop_e m body in
+               Papp2 op acc b)
+             idx (ziota s len)
+     | _, _ =>
+         Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
      end
-  | Presult _ _    => e
-  | Presultget al aa sz i x e =>
-      let e := const_prop_e_aux lm m e in
-      Presultget al aa sz i x e
   end.
-
-Definition const_prop_e := const_prop_e_aux (Mvar.empty _).
 
 End GLOBALS.
 
@@ -594,13 +585,13 @@ Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
                         let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_pre)
   in
-  let (m, c) := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
+  let mc := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
   let ci_post := map (fun c =>
-                        let truc := const_prop_e without_globals m (snd c) in
+                        let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_post)
   in
-  let ci := MkContra ci_pre ci_post in
-  MkFun ii ci si p c so r ev.
+  let ci := MkContra ci.(f_iparams) ci_pre ci_post in
+  MkFun ii ci si p mc.2 so r ev.
 
 Definition const_prop_prog (cl: bool) (p:prog) : prog :=
   map_prog (const_prop_fun cl p.(p_globs)) p.

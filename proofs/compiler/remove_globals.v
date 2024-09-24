@@ -156,21 +156,13 @@ Section REMOVE.
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
         ok (Pif t e e1 e2)
-      | Pfvar x => ok (Pfvar x)
-      | Pbig e1 e2 op2 x e0 body =>
-        Let e1   := remove_glob_e ii env e1 in
-        Let e2   := remove_glob_e ii env e2 in
-        Let e0   := remove_glob_e ii env e0 in
-        Let body := remove_glob_e ii env body in
-        ok (Pbig e1 e2 op2 x e0 body)
-      | Presult i xi =>
-        Let xi := get_var_ ii env xi in
-        ok (Presult i xi)
 
-      | Presultget al aa ws i xi e =>
-        Let e  := remove_glob_e ii env e in
-        Let xi := get_var_ ii env xi in
-        ok (Presultget al aa ws i xi e)
+      | Pbig idx op x body start len =>
+        Let idx   := remove_glob_e ii env idx in
+        Let start := remove_glob_e ii env start in
+        Let len   := remove_glob_e ii env len in
+        Let body  := remove_glob_e ii env body in
+        ok (Pbig idx op x body start len)
 
       end.
 

@@ -78,13 +78,16 @@ Context {wsw:WithSubWord}.
 (* ** State
  * ------------------------------------------------------------------------- *)
 
+Definition contracts_trace := seq (annotation_kind * bool).
+
 Record estate
   {syscall_state : Type}
   {ep : EstateParams syscall_state} := Estate
   {
     escs : syscall_state;
     emem : mem;
-    evm  : Vm.t
+    evm  : Vm.t;
+    eassert : contracts_trace; (* assertion in reverse order *)
   }.
 
 Arguments Estate {syscall_state}%type_scope {ep} _ _ _%vm_scope.
@@ -118,13 +121,22 @@ Context
   {ep : EstateParams syscall_state}.
 
 Definition with_vm (s:estate) vm :=
-  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
+  {| escs := s.(escs); emem := s.(emem); evm := vm; eassert := s.(eassert) |}.
 
 Definition with_mem (s:estate) m :=
-  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
+  {| escs := s.(escs); emem := m; evm := s.(evm); eassert := s.(eassert) |}.
 
 Definition with_scs (s:estate) scs :=
-  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
+  {| escs := scs; emem := s.(emem); evm := s.(evm); eassert := s.(eassert) |}.
+
+Definition add_contract (s:estate) (a: annotation_kind * bool) :=
+  {| escs := s.(escs); emem := s.(emem); evm := s.(evm); eassert := a :: s.(eassert) |}.
+
+Definition add_contracts (s:estate) (a: contracts_trace) :=
+  {| escs := s.(escs); emem := s.(emem); evm := s.(evm); eassert := a ++ s.(eassert) |}.
+
+Definition add_asserts (s:estate) (bs:seq bool) := add_contracts s [seq (Assert,b) | b <- bs].
+Definition add_assumes (s:estate) (bs:seq bool) := add_contracts s [seq (Assume,b) | b <- bs].
 
 End ESTATE_UTILS.
 
@@ -138,7 +150,11 @@ Context
   (wdb : bool)
   (gd : glob_decls).
 
-Fixpoint sem_pexpr_aux (s:estate) (m : Vm.t) (e : pexpr) : exec value :=
+Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
+  Let vm := set_var wdb s.(evm) x v in
+  ok (with_vm s vm).
+
+Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
   | Pconst z => ok (Vint z)
   | Pbool b  => ok (Vbool b)
@@ -146,63 +162,47 @@ Fixpoint sem_pexpr_aux (s:estate) (m : Vm.t) (e : pexpr) : exec value :=
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
-      Let i := sem_pexpr_aux s m e >>= to_int in
+      Let i := sem_pexpr s e >>= to_int in
       Let w := WArray.get al aa ws t i in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
-    Let i := sem_pexpr_aux s m e >>= to_int in
+    Let i := sem_pexpr s e >>= to_int in
     Let t' := WArray.get_sub aa ws len t i in
     ok (Varr t')
   | Pload al sz x e =>
     Let w1 := get_var wdb s.(evm) x >>= to_pointer in
-    Let w2 := sem_pexpr_aux s m e >>= to_pointer in
+    Let w2 := sem_pexpr s e >>= to_pointer in
     Let w  := read s.(emem) al (w1 + w2)%R sz in
     ok (@to_val _ (sword sz) w)
   | Papp1 o e1 =>
-    Let v1 := sem_pexpr_aux s m e1 in
+    Let v1 := sem_pexpr s e1 in
     sem_sop1 o v1
   | Papp2 o e1 e2 =>
-    Let v1 := sem_pexpr_aux s m e1 in
-    Let v2 := sem_pexpr_aux s m e2 in
+    Let v1 := sem_pexpr s e1 in
+    Let v2 := sem_pexpr s e2 in
     sem_sop2 o v1 v2
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
     sem_opNA op vs
   | Pif t e e1 e2 =>
-    Let b := sem_pexpr_aux s m e >>= to_bool in
-    Let v1 := sem_pexpr_aux s m e1 >>= truncate_val t in
-    Let v2 := sem_pexpr_aux s m e2 >>= truncate_val t in
+    Let b  := sem_pexpr s e >>= to_bool in
+    Let v1 := sem_pexpr s e1 >>= truncate_val t in
+    Let v2 := sem_pexpr s e2 >>= truncate_val t in
                                     ok (if b then v1 else v2)
-  | Pfvar v => get_var wdb m v
-  | Pbig e1 e2 sop v e3 e4 =>
-    Let v1 := sem_pexpr_aux s m e1 >>= to_int in
-    Let v2 := sem_pexpr_aux s m e2 >>= to_int in
-    Let v3 := sem_pexpr_aux s m e3 in
-    let l := ziota v1 v2 in
-    Let l := mapM (fun x => ok (Vint x)) l in
+  | Pbig idx op x body start len =>
+    Let vs   := sem_pexpr s start >>= to_int in
+    Let vlen := sem_pexpr s len >>= to_int in
+    Let vidx := sem_pexpr s idx in
+    let l := ziota vs vlen in
     foldM (fun i acc =>
-               Let m := set_var wdb m v i in
-               Let v4 := sem_pexpr_aux s m e4 in
-               sem_sop2 sop acc v4)
-      v3 l
-  | Presult _ v => get_gvar wdb gd s.(evm) v
-  | Presultget al aa ws _ x e =>
-      Let (n, t) := wdb, gd, s.[x] in
-      Let i := sem_pexpr_aux s m e >>= to_int in
-      Let w := WArray.get al aa ws t i in
-      ok (Vword w)
+               Let s := write_var x (Vint i) s in
+               Let vb := sem_pexpr s body in
+               sem_sop2 op acc vb)
+      vidx l
   end.
 
-Definition sem_pexprs_aux s m := mapM (sem_pexpr_aux s m).
-
-Definition sem_pexpr s e : exec value := sem_pexpr_aux s (Vm.init) e.
-
-Definition sem_pexprs s := sem_pexprs_aux s (Vm.init).
-
-Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
-  Let vm := set_var wdb s.(evm) x v in
-  ok (with_vm s vm).
+Definition sem_pexprs s :=  mapM (sem_pexpr s).
 
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
@@ -263,6 +263,38 @@ Definition sem_sopn gd o m lvs args :=
 End EXEC_ASM.
 
 End WSW.
+
+Section CONTRA.
+
+Context
+  {tabstract : Tabstract}
+  {wsw:WithSubWord}
+  {asm_op syscall_state : Type}
+  {absp : Prabstract}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  (P : prog).
+
+Notation gd := (p_globs P).
+
+Definition sem_pre (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) :=
+  if get_fundef (p_funcs P) fn is Some f then
+    Let vargs := mapM2 ErrType truncate_val f.(f_tyin) vargs' in
+    Let s := write_vars true f.(f_params) vargs (Estate scs m Vm.init [::]) in
+    mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) f.(f_contra).(f_pre)
+  else Error ErrUnknowFun.
+
+Definition sem_post (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) (vres : values) :=
+ if get_fundef (p_funcs P) fn is Some f then
+    Let vargs := mapM2 ErrType truncate_val f.(f_tyin) vargs' in
+    Let s := write_vars true f.(f_contra).(f_iparams) vargs (Estate scs m Vm.init [::]) in
+    Let s :=  write_vars true f.(f_res) vres s in
+    mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) f.(f_contra).(f_post)
+  else Error ErrUnknowFun.
+
+End CONTRA.
 
 (* Just for extraction *)
 Definition syscall_sem__ := @syscall_sem.exec_syscall_u.
