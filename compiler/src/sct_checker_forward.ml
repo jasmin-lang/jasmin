@@ -802,7 +802,9 @@ module MSF : sig
   val enter_if : t -> expr -> t
   val max : t -> t -> t
 
+  val check_msf : t -> var_i -> unit
   val check_msf_trans : t -> var_i -> expr -> unit
+  val is_msf    : t -> var_i -> bool
   val is_msf_exact    : t -> var_i -> bool
   val check_msf_exact : t -> var_i -> unit
   val loop : Env.env -> L.i_loc -> t -> t
@@ -823,9 +825,14 @@ module MSF : sig
     exact (Sv.singleton (L.unloc x))
 
   let add x (xs, oe) =
-    assert (oe = None);
     ensure_register ~direct:true x;
-    exact (Sv.add (L.unloc x) xs)
+    let loc = L.loc x in
+    let x = L.unloc x in
+    Stdlib.Option.iter (fun e ->
+        if Sv.mem x (vars_e e) then
+          error ~loc "%a cannot become an MSF as the current status depends on it (%a)" pp_var x pp_expr e
+      ) oe;
+    (Sv.add x xs, oe)
 
   let update (xs, oe) x =
     match oe with
@@ -843,7 +850,13 @@ module MSF : sig
     | Some e1, Some e2 when expr_equal e1 e2 -> Sv.inter xs1 xs2, Some e1
     | _, _ -> toinit
 
-  let check_msf_trans (xs, ob) ms b =
+  let check_msf (xs, _) ms =
+    if not (Sv.mem (L.unloc ms) xs) then
+      error ~loc:(L.loc ms)
+        "the variable %a is not known to be a msf, only %a are"
+        pp_var_i ms pp_vset xs
+
+  let check_msf_trans ((_, ob) as msf) ms b =
     match ob with
     | None -> error ~loc:(L.loc ms) "MSF is not Trans"
     | Some b' ->
@@ -851,25 +864,20 @@ module MSF : sig
           error ~loc:(L.loc ms)
           "the expression %a need to be equal to@ %a"
             pp_expr b pp_expr  b';
-        if not (Sv.mem (L.unloc ms) xs) then
-          error ~loc:(L.loc ms)
-            "the variable %a is not known to be a msf, only %a are"
-          pp_var_i ms pp_vset xs
+        check_msf msf ms
+
+  let is_msf (xs, _) ms = Sv.mem (L.unloc ms) xs
 
   let is_msf_exact (xs, ob) ms =
     match ob with
     | Some _ -> false
     | None -> Sv.mem (L.unloc ms) xs
 
-  let check_msf_exact (xs, ob) ms =
+  let check_msf_exact ((_, ob) as msf) ms =
     match ob with
     | Some b ->
       error ~loc:(L.loc ms) "MSF is Trans@ %a"  pp_expr b
-    | None ->
-        if not (Sv.mem (L.unloc ms) xs) then
-          error ~loc:(L.loc ms)
-            "the variable %a is not known to be a msf, only %a are"
-          pp_var_i ms pp_vset xs
+    | None -> check_msf msf ms
 
   let pp fmt (xs, oe) =
     match oe with
@@ -1010,6 +1018,13 @@ let ensure_public_address_expr env venv loc e =
       with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct (Env.public2 env))
 
 (* --------------------------------------------------------------- *)
+let move_msf ~loc env (msf, venv) mso msi =
+  let mso = reg_lval ~direct:true loc mso
+  and msi = reg_expr ~direct:true loc msi in
+  MSF.check_msf msf msi;
+  MSF.add mso msf, Env.set_ty env venv mso (Env.dpublic env)
+
+(* --------------------------------------------------------------- *)
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
 
 let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
@@ -1022,10 +1037,8 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     (* We don't known what happen to MSF after external function call *)
     ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)
 
-  | Cassgn(mso, _, _, (Pvar x as msi)) when MSF.is_msf_exact msf x.gv ->
-    let mso = reg_lval ~direct:true loc mso and msi = reg_expr ~direct:true loc msi in
-    MSF.check_msf_exact msf msi;
-    MSF.add mso msf, Env.set_ty env venv mso (Env.dpublic env)
+  | Cassgn(mso, _, _, (Pvar x as msi)) when MSF.is_msf msf x.gv ->
+    move_msf ~loc env msf_e mso msi
 
   | Cassgn(x, _, _, e) ->
     let ety = ty_expr env venv loc e in
@@ -1051,9 +1064,7 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     | Update_msf, _, _ -> assert false
 
     | Mov_msf, [mso], [msi] ->
-      let mso = reg_lval ~direct:true loc mso and msi = reg_expr ~direct:true loc msi in
-      MSF.check_msf_exact msf msi;
-      MSF.add mso msf, Env.set_ty env venv mso (Env.dpublic env)
+      move_msf ~loc env msf_e mso msi
 
     | Mov_msf, _, _ -> assert false
 
@@ -1126,9 +1137,9 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
     let (msf2, venv2) = ty_cmd is_ct_asm fenv env (msf1, venv1) c1 in
     ensure_public env venv2 loc e;
     let (msf', venv') = ty_cmd is_ct_asm fenv env (MSF.enter_if msf2 e, venv2) c2 in
-    let msf' = MSF.end_loop loc msf1 msf' in
+    let _ = MSF.end_loop loc msf1 msf' in
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
-    MSF.enter_if msf' (Papp1(Onot, e)), venv1
+    MSF.enter_if msf2 (Papp1(Onot, e)), venv2
 
   | Ccall (xs, f, es) ->
     let fty = FEnv.get_fty fenv f in
@@ -1319,7 +1330,9 @@ let init_constraint fenv f =
     error ~loc
       "%s annotation not allowed here" smsf in
 
-  let mk_vty loc ~(msf:bool) x ls an =
+  (** The [is_local] argument is true when variable [x] is a local variable as
+  opposed to an argument or a returned value which inherits constraints from the call-sites. *)
+  let mk_vty loc ~is_local ~(msf:bool) x ls an =
     let msf, ovty =
       match ls, an with
       | [], None -> None, None
@@ -1343,7 +1356,9 @@ let init_constraint fenv f =
       | None ->
         begin match x.v_kind with
         | Const -> Env.dpublic env
+        | Stack Direct when is_local -> Direct (Env.fresh env, Env.secret env)
         | Stack Direct -> Direct (Env.fresh2 env)
+        | Stack (Pointer _) when is_local -> Indirect((Env.fresh env, Env.secret env), Env.fresh2 env)
         | Stack (Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Reg (_, Direct) -> Direct (Env.fresh2 env)
         | Reg (_, Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
@@ -1369,7 +1384,7 @@ let init_constraint fenv f =
     let loc = L.loc x and x = L.unloc x in
     let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
     let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
-    mk_vty loc ~msf:(not export) x ls an in
+    mk_vty ~is_local:false loc ~msf:(not export) x ls an in
 
   (* process function outputs *)
   let tyout = List.map2i process_return f.f_ret f.f_outannot in
@@ -1399,7 +1414,7 @@ let init_constraint fenv f =
   let process_param i venv x =
     let an = Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) in
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
-    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls an in
+    let msf, vty = mk_vty ~is_local:false x.v_dloc ~msf:(not export) x ls an in
     let msf =
       match msf with
       | None -> Sv.mem x msfs
@@ -1444,7 +1459,7 @@ let init_constraint fenv f =
   (* init type for local *)
   let do_local x venv =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
-    let _, vty = mk_vty x.v_dloc ~msf:false x ls None in
+    let _, vty = mk_vty x.v_dloc ~is_local:true ~msf:false x ls None in
     Env.add_var env venv x vk vty in
 
   let venv = Sv.fold do_local (locals f) venv in

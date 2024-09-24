@@ -1,0 +1,14 @@
+/* In this example, r is public most of the time, except when the loop exits. */
+#[sct="secret → ()"]
+fn test_venv(reg u64 s) {
+  reg u64 i r;
+  r = 0;
+  i = 0;
+  while {
+    r = s;
+  } (i < 10) {
+    r = 0;
+    i += 1;
+  }
+  [r] = 0;
+}

@@ -1,0 +1,22 @@
+/*
+Test for all valid integer syntaxes
+*/
+export fn test () -> reg u32 {
+    reg u32 y;
+    y = 0b11110000;
+    y = 0b111_111_11;
+    y = 0B111_00_11;
+
+    y = 0o01234567;
+    y = 0o765_4_321;
+    y = 0O76543210;
+
+    y = 1000000000;
+    y = 1000_0000_000;
+
+    y = 0x01234567;
+    y = 0x765_b_32aac;
+    y = 0X76aab3210;
+
+    return y;
+}

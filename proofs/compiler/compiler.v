@@ -250,12 +250,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := remove_assert_prog p in
   let p := cparams.(print_uprog) RemoveAssert p in
 
-  Let p :=
-    array_copy.array_copy_prog
-      (fresh_var_ident cparams Inline dummy_instr_info 0 "i__copy" sint)
-      (λ ws, fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0 "tmp" (sword ws))
-      p in
-
+  Let p := array_copy.array_copy_prog (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
   let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog p in
@@ -461,7 +456,6 @@ Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
 
 Definition compile_prog_to_asm entries (p: prog): cexec asm_prog :=
   compiler_front_end entries p >>= compiler_back_end_to_asm entries.
-
 
 Definition compiler_CL_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := add_init_prog p in

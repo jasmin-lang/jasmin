@@ -55,14 +55,20 @@ output corruption: #public
  constraints:
 
 
-modmsf safe_access : #public * #poly = { n = d, s = d} ->
+modmsf safe_access_no_array : #public * #poly = { n = d, s = d} ->
 #poly = { n = d, s = d}
 output corruption: #public
  constraints:
 
 
-modmsf safe_direct_access : #public * #poly = { n = d, s = d} ->
-#poly = { n = d, s = d}
+modmsf safe_access : #public * #poly = { n = d, s = secret} ->
+#poly = { n = d, s = secret}
+output corruption: #public
+ constraints:
+
+
+modmsf safe_direct_access : #public * #poly = { n = d, s = secret} ->
+#poly = { n = d, s = secret}
 output corruption: #public
  constraints:
 
@@ -129,6 +135,32 @@ output corruption: #transient
  constraints:
 
 
+File bug_852.jazz:
+nomodmsf reset : #public ->
+
+output corruption: #public
+ constraints:
+
+
+modmsf main : #transient ->
+
+output corruption: #public
+ constraints:
+
+
+File bug_887.jazz:
+modmsf test_msf : #secret * #transient ->
+
+output corruption: #public
+ constraints:
+
+
+modmsf test_venv : #secret ->
+#public
+output corruption: #public
+ constraints:
+
+
 File corruption.jazz:
 nomodmsf corrupts_memory : #public * #secret *
                            #[ptr = public, val = secret] *
@@ -175,6 +207,19 @@ output corruption: #public
 File local-stack-array.jazz:
 modmsf main :  ->
 #public
+output corruption: #public
+ constraints:
+
+
+File movmsf.jazz:
+modmsf reset_msf :  ->
+#msf
+output corruption: #public
+ constraints:
+
+
+modmsf main : #transient ->
+
 output corruption: #public
  constraints:
 

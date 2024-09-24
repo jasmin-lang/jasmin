@@ -222,9 +222,7 @@ struct
              "invalid annotation table."
 
   let szs_of_fn cprog fn =
-    match (get_annot cprog fn).stack_zero_strategy with
-    | Some (s, ows) -> Some (s, Option.map Pretyping.tt_ws ows)
-    | None -> None
+    (get_annot cprog fn).stack_zero_strategy
 
   let cparams ~onlyreg visit_prog_after_pass cprog =
   {

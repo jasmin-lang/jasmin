@@ -3,6 +3,57 @@
 
 ## New features
 
+- Support more integer notations
+  ([PR#897](https://github.com/jasmin-lang/jasmin/pull/897)):
+    * Octal: `0O777`, `0o52`
+    * Binary: `0b11101`, `0B11100`
+    * `_` characters: `100_000_00___111`
+
+## Bug fixes
+
+- Easycrypt extraction for CT : fix decreasing for loops
+  ([PR #859](https://github.com/jasmin-lang/jasmin/pull/859);
+  fixes [#858](https://github.com/jasmin-lang/jasmin/issues/858)).
+
+- Array copy operator `#copy` support slices as arguments and results
+  ([PR #880](https://github.com/jasmin-lang/jasmin/pull/880);
+  fixes [#842](https://github.com/jasmin-lang/jasmin/issues/842)).
+
+- Fix SCT check of `while` loops
+  ([PR #888](https://github.com/jasmin-lang/jasmin/pull/888));
+  fixes [#887](https://github.com/jasmin-lang/jasmin/issues/887)).
+
+- Fix compilation of functions with system calls but not making other use of
+  the stack
+  ([PR #892](https://github.com/jasmin-lang/jasmin/pull/892));
+  fixes [#870](https://github.com/jasmin-lang/jasmin/issues/870)).
+
+- Safety checker handles dynamically scoped global variables
+  ([PR #890](https://github.com/jasmin-lang/jasmin/pull/890);
+  fixes [#662](https://github.com/jasmin-lang/jasmin/issues/662)).
+
+## Other changes
+
+- The deprecated legacy interface to the LATEX pretty-printer has been removed
+  ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
+
+- The checker for S-CT accepts copies of outdated MSF
+  ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).
+  
+- Preserve formatting of integer literals in the lexer and when pretty-printing to LATEX
+  ([PR #886](https://github.com/jasmin-lang/jasmin/pull/886)).
+
+- Improve handling of instruction `LEA` in the safety checker
+  ([PR #900](https://github.com/jasmin-lang/jasmin/pull/900)).
+
+- Extraction to EasyCrypt for safety verification is now removed, it was
+  deprecated in the previous release
+  ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
+
+# Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
+
+## New features
+
 - The stack allocation checker accepts more programs. This checker is run
   during the stack allocation pass to verify that the transformation done
   by the pass (mostly, turning arrays accesses into memory accesses)
@@ -19,6 +70,7 @@
 - ARM now compiles `x = imm;` smartly: for small immediates, a single `MOV`; for
   immediates whose negation is small, a single `MVN`; and for large immediates
   a pair of `MOV` and `MOVT`.
+  ([PR #795](https://github.com/jasmin-lang/jasmin/pull/795)).
 
 - Export functions can have `ptr` arrays as arguments and results.
   The compiler assumes that writable `ptr` are disjoint from the other
@@ -27,6 +79,12 @@
   For now, writable `ptr` must come first in the list of arguments and be
   returned first and in the same order in the list of results.
   ([PR #707](https://github.com/jasmin-lang/jasmin/pull/707)).
+
+- The (speculative) constant-time checker can optionally check that secrets are
+  only used with guaranteed constant time instructions (DOIT for Intel, DIT for
+  ARM)
+  ([PR #736](https://github.com/jasmin-lang/jasmin/pull/736),
+  [PR #811](https://github.com/jasmin-lang/jasmin/pull/811)).
 
 - Add spill/unspill primitives allowing to spill/unspill reg and reg ptr
   to/from the stack without need to declare the corresponding stack variable.
@@ -51,13 +109,13 @@
    [PR #818](https://github.com/jasmin-lang/jasmin/pull/818)).
 
 - Support Selective Speculative Load Hardening.
-  We now support operators SLH operators as in [Typing High-Speed Cryptography
+  We now support SLH operators as in [Typing High-Speed Cryptography
   against Spectre v1](https://ia.cr/2022/1270).
   The compilation of these is proven to preserve functional semantics.
   We also provide a speculative CCT checker, via the `jasmin-ct` flag `--sct`.
   ([PR #447](https://github.com/jasmin-lang/jasmin/pull/447),
    [PR #723](https://github.com/jasmin-lang/jasmin/pull/723),
-   [PR #814](https://github.com/jasmin-lang/jasmin/pull/814))
+   [PR #814](https://github.com/jasmin-lang/jasmin/pull/814)).
 
 - Register arrays and sub-arrays can appear as arguments and return values of
   local functions;
@@ -69,6 +127,7 @@
 - Add the instruction `MULX_hi`,
      `hi = #MULX_hi(x, y);` is equivalent to `hi, _ = #MULX(x, y);`
   but no extra register is used for the low half of the result.
+  ([PR #531](https://github.com/jasmin-lang/jasmin/pull/531)).
 
 - Definition of parameters can now use arbritrary expressions and depend on
   other parameters. See `tests/success/common/test_globals.jazz`.
@@ -110,7 +169,11 @@
 
 ## Bug fixes
 
-- The compiler rejects ARM intrincics with the `S` suffix if the instruction
+- Truncation of stack variables is handled correctly
+  ([PR #848](https://github.com/jasmin-lang/jasmin/pull/848);
+  fixes [#681](https://github.com/jasmin-lang/jasmin/issues/681)).
+
+- The compiler rejects ARM intrinsics with the `S` suffix if the instruction
   does not set flags
   ([PR #809](https://github.com/jasmin-lang/jasmin/pull/809);
   fixes [#808](https://github.com/jasmin-lang/jasmin/issues/808)).
@@ -143,7 +206,7 @@
   [PR 712](https://github.com/jasmin-lang/jasmin/pull/697);
   fixes [#696](https://github.com/jasmin-lang/jasmin/issues/696)).
 
-- Fix code generation for ARMv7 when export function have large stack frames
+- Fix code generation for ARMv7 when export functions have large stack frames
   ([PR #710](https://github.com/jasmin-lang/jasmin/pull/710);
    fixes [#709](https://github.com/jasmin-lang/jasmin/issues/709)).
 
@@ -161,6 +224,10 @@
   fixes [#546](https://github.com/jasmin-lang/jasmin/issues/546)).
 
 ## Other changes
+
+- Extraction to EasyCrypt for safety verification is deprecated;
+  it has been broken for a while, and is now explicitly unmaintained
+  ([PR #849](https://github.com/jasmin-lang/jasmin/pull/849)).
 
 - Pretty-printing of Jasmin programs is more precise
   ([PR #491](https://github.com/jasmin-lang/jasmin/pull/491)).

@@ -1,5 +1,6 @@
 (* ** Imports and settings *)
-From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
+From mathcomp Require Import div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import psem psem_facts compiler_util low_memory.
 Require Export stack_alloc.
@@ -915,7 +916,7 @@ Section EXPR.
   Proof.
     move=> hofs; rewrite /get_var_kind /check_gvalid.
     case : (@idP (is_glob x)) => hg.
-    + t_xrbindP=> -[_ ws'] /get_globalP /dup [] /wf_globals /sub_region_glob_wf hwf -> <- /= [<- <- <-].
+    + t_xrbindP=> -[_ ws'] /get_globalP /[dup] /wf_globals /sub_region_glob_wf hwf -> <- /= [<- <- <-].
       set bytesx := ByteSet.full _.
       by exists bytesx.
     by case hlocal: get_local => [pk|//] [<-] /get_sub_region_bytesP.
@@ -1045,16 +1046,18 @@ Section EXPR.
   Qed.
 
   Let X e : Prop :=
-    ∀ e' v,
-      alloc_e pmap rmap e = ok e' →
+    ∀ ty e' v v2,
+      alloc_e pmap rmap e ty = ok e' →
       sem_pexpr true gd s e = ok v →
-      sem_pexpr true [::] s' e' = ok v.
+      truncate_val ty v = ok v2 ->
+      exists v', sem_pexpr true [::] s' e' = ok v' /\ truncate_val ty v' = ok v2.
 
   Let Y es : Prop :=
-    ∀ es' vs,
-      alloc_es pmap rmap es = ok es' →
+    ∀ err tys es' vs vs2,
+      alloc_es pmap rmap es tys = ok es' →
       sem_pexprs true gd s es = ok vs →
-      sem_pexprs true [::] s' es' = ok vs.
+      mapM2 err truncate_val tys vs = ok vs2 ->
+      exists vs', sem_pexprs true [::] s' es' = ok vs' /\ mapM2 err truncate_val tys vs' = ok vs2.
 
   Lemma check_varP (x:var_i) t: 
     check_var pmap x = ok t -> 
@@ -1087,22 +1090,83 @@ Section EXPR.
     by move=> _ /(_ ltac:(discriminate)) [->] _ [<-].
   Qed.
 
+  (* Not sure at all if this is the right way to do the proof. *)
+  Lemma wbit_subword (ws ws' : wsize) i (w : word ws) k :
+    wbit_n (word.subword i ws' w) k = (k < ws')%nat && wbit_n w (k + i).
+  Proof.
+    clear.
+    rewrite /wbit_n.
+    case: ltP.
+    + move=> /ltP hlt.
+      by rewrite word.subwordE word.wbit_t2wE (nth_map ord0) ?size_enum_ord // nth_enum_ord.
+    rewrite /nat_of_wsize => hle.
+    rewrite word.wbit_word_ovf //.
+    by apply /ltP; lia.
+  Qed.
+
+  (* TODO: is this result generic enough to be elsewhere ? *)
+  Lemma zero_extend_wread8 (ws ws' : wsize) (w : word ws) :
+    (ws' <= ws)%CMP ->
+    forall off,
+      0 <= off < wsize_size ws' ->
+      LE.wread8 (zero_extend ws' w) off = LE.wread8 w off.
+  Proof.
+    clear.
+    move=> /wsize_size_le /(Z.divide_pos_le _ _ (wsize_size_pos _)) hle off hoff.
+    rewrite /LE.wread8 /LE.encode /split_vec.
+    have hmod: forall (ws:wsize), ws %% U8 = 0%nat.
+    + by move=> [].
+    have hdiv: forall (ws:wsize), ws %/ U8 = Z.to_nat (wsize_size ws).
+    + by move=> [].
+    have hlt: (Z.to_nat off < Z.to_nat (wsize_size ws))%nat.
+    + by apply /ltP /Z2Nat.inj_lt; lia.
+    have hlt': (Z.to_nat off < Z.to_nat (wsize_size ws'))%nat.
+    + by apply /ltP /Z2Nat.inj_lt; lia.
+    rewrite !hmod !addn0.
+    rewrite !(nth_map 0%nat) ?size_iota ?hdiv // !nth_iota // !add0n.
+    apply /eqP/eq_from_wbit_n => i.
+    rewrite !wbit_subword; f_equal.
+    rewrite wbit_zero_extend.
+    have -> //: (i + Z.to_nat off * U8 <= wsize_size_minus_1 ws')%nat.
+    rewrite -ltnS -/(nat_of_wsize ws').
+    apply /ltP.
+    have := ltn_ord i; rewrite -/(nat_of_wsize _) => /ltP hi.
+    have /ltP ? := hlt'.
+    have <-: (Z.to_nat (wsize_size ws') * U8 = ws')%nat.
+    + by case: (ws').
+    by rewrite -!multE -!plusE; nia.
+  Qed.
+
   Lemma check_e_esP : (∀ e, X e) * (∀ es, Y es).
   Proof.
     apply: pexprs_ind_pair; subst X Y; split => //=.
-    + by move=> ?? [<-] [<-].
-    + move=> e he es hes ??; t_xrbindP => e' /he{he}he es' /hes{hes}hes <- /=.
-      by move=> v /he -> vs /hes -> <-.
-    + by move=> z ?? [<-] [<-].
-    + by move=> b ?? [<-] [<-].
-    + by move=> n ?? [<-] [<-].
-    + move=> x e' v; t_xrbindP => -[ vpk | ] hgvk; last first.
-      + by t_xrbindP=> /check_diffP hnnew <-; apply: get_var_kindP.
-      case hty: is_word_type => [ws | //]; move /is_word_typeP in hty.
-      t_xrbindP => hcheck [xi ei] haddr <- hget /=.
+    + move=> err [|//] _ _ _ /= [<-] [<-] [<-].
+      by exists [::].
+    + move=> e he es hes err [//|ty tys].
+      t_xrbindP=> _ _ vs2 e' ok_e' es' ok_es' <- v ok_v vs ok_vs <- /=.
+      t_xrbindP=> v2 ok_v2 {}vs2 ok_vs2 <-.
+      have [v' [ok_v' htr]] := he _ _ _ _ ok_e' ok_v ok_v2.
+      have [vs' [ok_vs' htrs]] := hes _ _ _ _ _ ok_es' ok_vs ok_vs2.
+      rewrite ok_v' ok_vs' /=.
+      eexists; split; first by reflexivity.
+      by rewrite /= htr htrs.
+    + move=> z ???? [<-] [<-] /= /truncate_valE [-> ->].
+      by eexists; split; first by reflexivity.
+    + move=> b ???? [<-] [<-] /= /truncate_valE [-> ->].
+      by eexists; split; first by reflexivity.
+    + move=> n ???? [<-] [<-] /= /truncate_valE [-> ->].
+      eexists; split; first by reflexivity.
+      by rewrite /truncate_val /= WArray.castK /=.
+    + move=> x ty e' v v2; t_xrbindP => -[ vpk | ] hgvk; last first.
+      + t_xrbindP=> /check_diffP hnnew <- /= ok_v htr.
+        exists v; split=> //.
+        by apply: get_var_kindP.
+      case hty: is_word_type => [ws | //]; move /is_word_typeP in hty; subst.
+      case: ifP => //; rewrite -/(subtype (sword _) _) => hsub.
+      t_xrbindP => hcheck [xi ei] haddr <- hget /= htr.
       have h0: Let x := sem_pexpr true [::] s' 0 in to_int x = ok 0 by done.
       have h1: 0 <= 0 /\ wsize_size ws <= size_slot x.(gv).
-      + by rewrite hty /=; lia.
+      + by have /= := size_of_le hsub; lia.
       have h1' := ofs_bound_option h1 (fun _ => refl_equal).
       have [sr [bytes [hgvalid hmem halign]]] := check_vpk_wordP h1' hgvk hcheck.
       have h2: valid_vpk rmap s' x.(gv) sr vpk.
@@ -1110,25 +1174,39 @@ Section EXPR.
         by rewrite hgvk => -[_ [[]] <-].
       have [wx [wi [-> -> /= haddr2]]] := check_mk_addr h0 (get_var_kind_wf hgvk) h2 haddr.
       rewrite -haddr2.
-      assert (heq := wfr_val hgvalid hget); rewrite hty in heq.
+      have [ws' [htyx hcmp]] := subtypeEl hsub.
+      assert (heq := wfr_val hgvalid hget); rewrite htyx in heq.
       case: heq => hread hty'.
+      have [ws'' [w [_ ?]]] := get_gvar_word htyx hget; subst v.
+      case: hty' => ?; subst ws''.
       assert (hwf := check_gvalid_wf wfr_wf hgvalid).
-      have [ws' [w [_ ?]]] := get_gvar_word hty hget; subst v.
-      case: hty' => ?; subst ws'.
-      rewrite (eq_sub_region_val_read_word _ hwf hread hmem _ h1 (get_val_byte_word w) (w:=w)) //.
-      by rewrite wrepr0 GRing.addr0 halign.
-    + move=> al aa sz x e1 he1 e' v he'; apply: on_arr_gvarP => n t hty /= hget.
-      t_xrbindP => i vi /he1{he1}he1 hvi w hw <-.
-      move: he'; t_xrbindP => e1' /he1{he1}he1'.
+      have hwf' := wf_sub_region_subtype hsub hwf.
+      rewrite (eq_sub_region_val_read_word _ hwf' hread hmem (w:=zero_extend ws w)) //.
+      + rewrite wrepr0 GRing.addr0 halign /=.
+        eexists; split; first by reflexivity.
+        move: htr; rewrite /truncate_val /=.
+        t_xrbindP=> ? /truncate_wordP [_ ->] <-.
+        by rewrite truncate_word_u.
+      + by move=> /=; lia.
+      move=> k hk.
+      rewrite zero_extend_wread8 //.
+      apply (get_val_byte_word w).
+      by have /= := size_of_le hsub; rewrite htyx /=; lia.
+    + move=> al aa sz x e1 he1 ty e' v v2 he'; apply: on_arr_gvarP => n t htyx /= hget.
+      t_xrbindP => i vi /he1{he1}he1 hvi w hw <- htr.
+      exists (Vword w); split=> //.
+      move: he'; t_xrbindP => e1' /he1{he1}.
+      rewrite /truncate_val /= hvi /= => /(_ _ erefl) [] v' [] he1'.
+      t_xrbindP=> i' hv' ?; subst i'.
       have h0 : sem_pexpr true [::] s' e1' >>= to_int = ok i.
-      + by rewrite he1'.
+      + by rewrite he1' /= hv'.
       move=> [vpk | ]; last first.
       + t_xrbindP => h /check_diffP h1 <- /=.
         by rewrite (get_var_kindP h h1 hget) /= h0 /= hw.
       t_xrbindP => hgvk hcheck [xi ei] haddr <- /=.
       have [h1 h2 h3] := WArray.get_bound hw.
       have h4: 0 <= i * mk_scale aa sz /\ i * mk_scale aa sz + wsize_size sz <= size_slot x.(gv).
-      + by rewrite hty.
+      + by rewrite htyx.
       have h4' := ofs_bound_option h4 (mk_ofsiP h0).
       have [sr [bytes [hgvalid hmem halign]]] := check_vpk_wordP h4' hgvk hcheck.
       have h5: valid_vpk rmap s' x.(gv) sr vpk.
@@ -1143,22 +1221,59 @@ Section EXPR.
       rewrite (eq_sub_region_val_read_word _ hwf hread hmem (mk_ofsiP h0) (w:=w)) // /=.
       + case: al hw h3 h6 {hcheck} halign => //= hw h3 h6 halign.
         by rewrite (is_align_addE halign) WArray.arr_is_align h3.
-       by move => k hk; rewrite (read8_alignment al) -h6.
-    + move=> al1 sz1 v1 e1 IH e2 v.
+      by move => k hk; rewrite (read8_alignment al) -h6.
+    + move=> al1 sz1 v1 e1 IH ty e2 v v2.
       t_xrbindP => /check_varP hc /check_diffP hnnew e1' /IH hrec <- wv1 vv1 /= hget hto' we1 ve1.
-      move=> /hrec -> hto wr hr ?; subst v.
+      move=> he1 hto wr hr ? htr; subst v.
+      exists (Vword wr); split=> //.
+      have := hrec _ _ he1.
+      rewrite /truncate_val /= hto /= => /(_ _ erefl) [] v' [] he1'.
+      t_xrbindP=> w hv' ?; subst w.
       have := get_var_kindP hc hnnew hget; rewrite /get_gvar /= => -> /=.
-      by rewrite hto' hto /= -(eq_mem_source_word hvalid (readV hr)) hr.
-    + move=> o1 e1 IH e2 v.
-      by t_xrbindP => e1' /IH hrec <- ve1 /hrec /= ->.
-    + move=> o1 e1 H1 e1' H1' e2 v.
-      by t_xrbindP => e1_ /H1 hrec e1'_ /H1' hrec' <- ve1 /hrec /= -> /= ve2 /hrec' ->.
-    + move => e1 es1 H1 e2 v.
-      t_xrbindP => es1' /H1{H1}H1 <- vs /H1{H1} /=.
-      by rewrite /sem_pexprs => ->.
-    move=> t e He e1 H1 e1' H1' e2 v.
-    t_xrbindP => e_ /He he e1_ /H1 hrec e1'_ /H1' hrec' <-.
-    by move=> b vb /he /= -> /= -> ?? /hrec -> /= -> ?? /hrec' -> /= -> /= ->.
+      rewrite hto' /= he1' /= hv' /=.
+      by rewrite -(eq_mem_source_word hvalid (readV hr)) hr.
+    + move=> o1 e1 IH ty e2 v v2.
+      t_xrbindP => e1' /IH hrec <- ve1 /hrec{}hrec hve1 htr.
+      exists v; split=> //=.
+      have [ve1' [htr' hve1']] := sem_sop1_truncate_val hve1.
+      have [v' [he1' /truncate_value_uincl huincl]] := hrec _ htr'.
+      rewrite he1' /=.
+      by apply (vuincl_sem_sop1 huincl).
+    + move=> o2 e1 H1 e2 H2 ty e' v v2.
+      t_xrbindP => e1' /H1 hrec1 e2' /H2 hrec2 <- ve1 /hrec1{}hrec1 ve2 /hrec2{}hrec2 ho2 htr.
+      exists v; split=> //=.
+      have [ve1' [ve2' [htr1 htr2 ho2']]] := sem_sop2_truncate_val ho2.
+      have [v1' [-> /truncate_value_uincl huincl1]] := hrec1 _ htr1.
+      have [v2' [-> /truncate_value_uincl huincl2]] := hrec2 _ htr2.
+      by rewrite /= (vuincl_sem_sop2 huincl1 huincl2 ho2').
+    + move => o es1 H1 ty e2 v v2.
+      t_xrbindP => es1' /H1{H1}H1 <- ves /H1{H1}H1 /= hves htr.
+      exists v; split=> //.
+      rewrite -/(sem_pexprs _ _ _ _).
+      have [ves' [htr' hves']] := sem_opN_truncate_val hves.
+      have [vs' [-> /mapM2_truncate_value_uincl huincl]] := H1 _ _ htr'.
+      by rewrite /= (vuincl_sem_opN huincl hves').
+    move=> t e He e1 H1 e2 H2 ty e' v v2.
+    t_xrbindP=> e_ /He he e1_ /H1 hrec1 e2_ /H2 hrec2 <-.
+    move=> b vb /he{}he hvb ve1 ve1' /hrec1{}hrec1 htr1 ve2 ve2' /hrec2{}hrec2 htr2 <- htr.
+    move: he; rewrite {1 2}/truncate_val /= hvb /= => /(_ _ erefl) [] vb' [] -> /=.
+    t_xrbindP=> b' -> ? /=; subst b'.
+    have hsub: subtype ty t.
+    + have := truncate_val_subtype htr.
+      rewrite fun_if.
+      rewrite (truncate_val_has_type htr1) (truncate_val_has_type htr2).
+      by rewrite if_same.
+    have [ve1'' htr1''] := subtype_truncate_val hsub htr1.
+    have := subtype_truncate_val_idem hsub htr1 htr1''.
+    move=> /hrec1 [ve1_ [-> /= ->]] /=.
+    have [ve2'' htr2''] := subtype_truncate_val hsub htr2.
+    have := subtype_truncate_val_idem hsub htr2 htr2''.
+    move=> /hrec2 [ve2_ [-> /= ->]] /=.
+    eexists; split; first by reflexivity.
+    move: htr.
+    rewrite !(fun_if (truncate_val ty)).
+    rewrite htr1'' htr2''.
+    by rewrite (truncate_val_idem htr1'') (truncate_val_idem htr2'').
   Qed.
 
   Definition alloc_eP := check_e_esP.1.
@@ -1323,7 +1438,7 @@ Lemma eq_sub_region_val_same_region s2 sr ty sry ty' mem2 bytes v :
   eq_sub_region_val ty' mem2 sry (ByteSet.remove bytes (interval_of_zone sr.(sr_zone))) v.
 Proof.
   move=> hwf hwfy hr hreadeq [hread hty'].
-  split=> // off hmem v1 /dup[] /get_val_byte_bound; rewrite hty' => hoff hget.
+  split=> // off hmem v1 /[dup] /get_val_byte_bound; rewrite hty' => hoff hget.
   have hwfy' := sub_region_at_ofs_wf_byte hwfy hoff.
   move: hmem; rewrite memi_mem_U8.
   move=> /(mem_remove_interval_of_zone (wf_zone_len_gt0 hwf) (wf_zone_len_gt0 hwfy')) [hmem hdisj].
@@ -1742,7 +1857,11 @@ Proof.
   + move=> al ws x e1 /=; t_xrbindP => /check_varP hx /check_diffP hnnew e1' /(alloc_eP hvs) he1 <-.
     move=> s1' xp ? hgx hxp w1 v1 /he1 he1' hv1 w hvw mem1 hmem1 <- /=.
     have := get_var_kindP hvs hx hnnew; rewrite /get_gvar /= => /(_ _ _ hgx) -> /=.
-    rewrite he1' hxp /= hv1 /= hvw /=.
+    have {}he1': sem_pexpr true [::] s2 e1' >>= to_pointer = ok w1.
+    + have [ws1 [wv1 [? hwv1]]] := to_wordI hv1; subst.
+      move: he1'; rewrite /truncate_val /= hwv1 /= => /(_ _ erefl) [] ve1' [] -> /=.
+      by t_xrbindP=> w1' -> ? /=; subst w1'.
+    rewrite he1' hxp /= hvw /=.
     have hvp1 := write_validw hmem1.
     have /valid_incl_word hvp2 := hvp1.
     have /writeV -/(_ w) [mem2 hmem2] := hvp2.
@@ -1783,15 +1902,18 @@ Proof.
   move=> al aa ws x e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1.
   move=> hr2 s1'; apply on_arr_varP => n t hty hxt.
   t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' /write_varP [? hdb htr]; subst s1'.
+  have {he1} he1 : sem_pexpr true [::] s2 e1' >>= to_int = ok i1.
+  + have ? := to_intI hi1; subst.
+    move: he1'; rewrite /truncate_val /= => /(_ _ erefl) [] ve1' [] -> /=.
+    by t_xrbindP=> i1' -> ? /=; subst i1'.
   case hlx: get_local hr2 => [pk | ]; last first.
   + t_xrbindP=> /check_diffP hnnew <-.
     have /get_var_kindP -/(_ _ _ hnnew hxt) : get_var_kind pmap (mk_lvar x) = ok None.
     + by rewrite /get_var_kind /= hlx.
     rewrite /get_gvar /= => hxt2.
-    rewrite he1' /= hi1 hxt2 /= hvw /= htt' /= (write_var_truncate hdb htr) //.
+    rewrite he1 hxt2 /= hvw /= htt' /= (write_var_truncate hdb htr) //.
     by eexists; split; first reflexivity; apply valid_state_set_var.
   t_xrbindP => rmap2 /set_arr_wordP [sr [hget hal hset]] [xi ei] ha <- /=.
-  have {he1} he1 : sem_pexpr true [::] s2 e1' >>= to_int = ok i1 by rewrite he1'.
   have /wfr_ptr [pk' [hlx' hpk]] := hget.
   have hgvalid := check_gvalid_lvar hget.
   move: hlx'; rewrite hlx => -[?]; subst pk'.
@@ -2001,7 +2123,7 @@ Proof.
   rewrite hty.
   exists a1; split=> //.
   move=> k w.
-  move=> /dup[]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
+  move=> /[dup]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
   rewrite (WArray.get_sub_get8 hgsub) /=.
   by move: hbound; rewrite -!zify => ->.
 Qed.
@@ -2052,7 +2174,7 @@ Lemma cast_get8 len1 len2 (m : WArray.array len2) (m' : WArray.array len1) :
     read m Aligned k U8 = ok w.
 Proof.
   move=> hcast k w.
-  move=> /dup[]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
+  move=> /[dup]; rewrite -{1}get_read8 => /WArray.get_valid8 /WArray.in_boundP => hbound.
   rewrite (WArray.cast_get8 hcast).
   by case: hbound => _ /ZltP ->.
 Qed.
@@ -2368,7 +2490,7 @@ Proof.
   have {hofs} -> := get_ofs_subP he hofs.
   move=> hlx hget hsub hread.
   apply (valid_state_set_move_sub hvs hlx h).
-  move=> srx /dup[] /hget{hget} ? hget; subst srx; rewrite heq.
+  move=> srx /[dup] /hget{hget} ? hget; subst srx; rewrite heq.
   split=> // off hmem w /=.
   rewrite (WArray.set_sub_get8 ha3) /=.
   case: ifPn => [_|].
@@ -2488,7 +2610,7 @@ Proof.
         (sub_region_at_ofs sry (Some ofs) len).(sr_region) x)
       (Varr a').
   + rewrite /= get_var_bytes_set_move_bytes /= !eqxx /=.
-    move=> off hmem w' /dup[] /get_val_byte_bound /= hoff /hay.
+    move=> off hmem w' /[dup] /get_val_byte_bound /= hoff /hay.
     rewrite -sub_region_addr_offset -GRing.addrA -wrepr_add.
     assert (hval := wfr_val hgvalidy hgety).
     case: hval => hread _.
@@ -2645,7 +2767,7 @@ Proof.
   have hpky: valid_vpk rmap1 s2 y.(gv) sry vpky.
   + have /wfr_gptr := hgvalidy.
     by rewrite hkindy => -[_ [[]] <-].
-  t_xrbindP=> -[e1 ofs2] /dup [] hmk_addr /(mk_addr_pexprP true _ hwfpky hpky) [w [he1 haddr]] [] <- _ <-.
+  t_xrbindP=> -[e1 ofs2] /[dup] hmk_addr /(mk_addr_pexprP true _ hwfpky hpky) [w [he1 haddr]] [] <- _ <-.
   have [? [ay [hgety hay]]] := get_Pvar_subP he hgete erefl; subst n.
 
   have hread:
@@ -2661,7 +2783,7 @@ Proof.
         (sub_region_at_ofs sry (Some ofs) len).(sr_region) x)
       (Varr a').
   + rewrite /= get_var_bytes_set_move_bytes /= !eqxx /=.
-    move=> off hmem w' /dup[] /get_val_byte_bound /= hoff /hay.
+    move=> off hmem w' /[dup] /get_val_byte_bound /= hoff /hay.
     rewrite -sub_region_addr_offset -GRing.addrA -wrepr_add.
     assert (hval := wfr_val hgvalidy hgety).
     case: hval => hread _.
@@ -2706,13 +2828,16 @@ Proof.
   have := slh_lowering_proof.hshp_spec_lower hshparams heq.
   pose s2' := (with_vm s2 (evm s2).[ p <- vp]).
   move: he1; t_xrbindP => ve1 h1 hve1 /=.
-  move=> /(_ s2 s2' [::] [::ve1; Vword wmsf] [::Vword (w + wrepr Uptr ofs2)]) /= h.
+  have := alloc_eP hvs hmsf' hmsf.
+  rewrite /truncate_val /= htr /= => /(_ _ erefl) [] vmsf' [] ok_vmsf'.
+  t_xrbindP=> z hto ?; subst z.
+  move=> /(_ s2 s2' [::] [::ve1; vmsf'] [::Vword (w + wrepr Uptr ofs2)]) /= h.
   have ? : ofs2 = 0%Z; last subst ofs2.
   + by case: (vpky) hvpky hmk_addr => // -[] //= ? _ [] _ <-.
   constructor; rewrite P'_globs; apply h.
-  + by eexists; [reflexivity | apply htr].
-  + by rewrite h1 (alloc_eP hvs hmsf' hmsf).
-  + by rewrite /exec_sopn /= hve1 htr /= wrepr0 GRing.addr0.
+  + by eexists; [reflexivity| apply hto].
+  + by rewrite h1 /= ok_vmsf' /=.
+  + by rewrite /exec_sopn /= hve1 hto /= wrepr0 GRing.addr0.
   rewrite /write_var /set_var /s2' /vp -sub_region_addr_offset haddr wrepr0 !GRing.addr0 /=.
   by rewrite (wfr_rtype hlocal) cmp_le_refl orbT.
 Qed.
@@ -2766,7 +2891,7 @@ Proof.
     apply (valid_state_set_move_regptr (ptr_prop _ hpx) hvs (sub_region_at_ofs_0_wf hwfw) hpx htrx).
     rewrite /set_move /= get_var_bytes_set_move_bytes eqxx /= eqxx /=.
     rewrite hxty eqxx; split => //.
-    move=> off hmem ww /dup[] /get_val_byte_bound /= hoff hget.
+    move=> off hmem ww /[dup] /get_val_byte_bound /= hoff hget.
     have /(_ _ _ _ _ hvs _ _ _ _ gvalidw) := vs_wf_region.(wfr_val).
     rewrite get_gvar_nglob in hw => //; last by rewrite -is_lvar_is_glob.
     rewrite get_gvar_nglob // => /(_ _ hw) [+ _].
@@ -2789,7 +2914,7 @@ Proof.
     apply (valid_state_set_move_regptr (ptr_prop _ hpy) hvs' (sub_region_at_ofs_0_wf hwfz) hpy htry).
     rewrite /set_move /= get_var_bytes_set_move_bytes eqxx /= eqxx /=.
     rewrite hyty eqxx; split => //.
-    move=> off hmem ww /dup[] /get_val_byte_bound /= hoff hget.
+    move=> off hmem ww /[dup] /get_val_byte_bound /= hoff hget.
     have /(_ _ _ _ _ hvs _ _ _ _ gvalidz) := vs_wf_region.(wfr_val).
     rewrite get_gvar_nglob in hz => //; last by rewrite -is_lvar_is_glob.
     rewrite get_gvar_nglob // => /(_ _ hz) [+ _]. 
@@ -3180,7 +3305,7 @@ Lemma wf_rmap_Incl rmap1 rmap2 s1 s2 :
   wf_rmap rmap2 s1 s2 ->
   wf_rmap rmap1 s1 s2.
 Proof.
-  move=> /dup[] hincl [hinclr hsub] hwfr.
+  move=> /[dup] hincl [hinclr hsub] hwfr.
   case: (hwfr) => hwfsr hval hptr; split.
   + move=> x sr /hinclr.
     by apply hwfsr.
@@ -3452,7 +3577,7 @@ Proof.
     move: hget; rewrite /get_gvar /= => /get_varP [].
     by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
   have /(wfr_val hgvalid) [hread /= hty] := hget'.
-  move=> off w /dup[] /get_val_byte_bound; rewrite hty => hoff.
+  move=> off w /[dup] /get_val_byte_bound; rewrite hty => hoff.
   apply hread.
   have :=
     subset_inter_l bytes
@@ -3933,7 +4058,7 @@ Proof.
   move=> hvs hlwf hlunch hldisj.
   move=> x sr bytes v /= hgvalid /(wfr_val hgvalid) [hread hty].
   have /(check_gvalid_wf wfr_wf) /= hwf := hgvalid.
-  split=> // off hmem w /dup[] /get_val_byte_bound; rewrite hty => hoff hget.
+  split=> // off hmem w /[dup] /get_val_byte_bound; rewrite hty => hoff hget.
   rewrite -(hread _ hmem _ hget).
   apply (eq_read_holed_rmap hvs hlwf hlunch hldisj hwf hoff).
   move=> hw.
@@ -4212,7 +4337,7 @@ Proof.
       by rewrite /get_var hty => <- ? /compat_valEl [a] ->.
     assert (hval := wfr_val hgvalid hget').
     case: hval => hread hty.
-    move=> off w /dup[] /get_val_byte_bound; rewrite hty => hoff.
+    move=> off w /[dup] /get_val_byte_bound; rewrite hty => hoff.
     apply hread.
     have :=
     subset_inter_l bytes
@@ -4485,7 +4610,7 @@ Proof.
   + rewrite /s1''' /s2'''.
     apply: (valid_state_set_sub_region_regptr _ hvs1'' hwfg hsub hofs hlx hrmap2' h).
     + by rewrite hlocal.(wfr_rtype).
-    rewrite htreq; split=> // off hmem w /dup[] /get_val_byte_bound /= hoff.
+    rewrite htreq; split=> // off hmem w /[dup] /get_val_byte_bound /= hoff.
     rewrite (WArray.fill_get8 hfill) (fill_mem_read8_no_overflow _ hfillm)
             -?(WArray.fill_size hfill) ?positive_nat_Z /=;
       try lia.

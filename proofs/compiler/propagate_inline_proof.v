@@ -253,8 +253,9 @@ Proof.
   + move=> o es hrec ?; t_xrbindP => ? /hrec [vs' hs' hu].
     case: o => [wz pe | c] /=.
     + move=> ho; rewrite -/(sem_pexprs wdb gd _ (pi_es pi es)) hs' /=.
-      by apply: vuincl_sem_opN ho hu.
-    move=> ho; have [v' ho' hu']:= vuincl_sem_opN ho hu.
+      rewrite (vuincl_sem_opN hu ho).
+      by eexists; first by reflexivity.
+    move=> ho; have ho' := vuincl_sem_opN hu ho.
     by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
   move=> ?? hrec ? hrec1 ? hrec2 v; t_xrbindP.
   move=> ?? /hrec [? -> /of_value_uincl_te h] /(h sbool) /= ->.

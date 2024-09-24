@@ -557,7 +557,7 @@ Section PROOF.
   Proof.
     rewrite /lower_cassgn_classify.
     move: e Hs=> [z|b|n|x|al aa ws x e | aa ws len x e |al sz x e| o e|o e1 e2| op es |e e1 e2] //.
-    + case: x => - [] [] [] // sz vn vi vs //= /dup[] ok_v.
+    + case: x => - [] [] [] // sz vn vi vs //= /[dup] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
       case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
@@ -1813,7 +1813,7 @@ Section PROOF.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=
       lower_condition_corr
-        dummy_instr_info
+        ii
         Hcond
         Hs2'2
         (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).
@@ -1840,7 +1840,7 @@ Section PROOF.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=
       lower_condition_corr
-        dummy_instr_info
+        ii
         Hcond
         Hs2'2
         (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).

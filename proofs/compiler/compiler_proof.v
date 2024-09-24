@@ -485,7 +485,7 @@ Proof.
   rewrite -gd2 in ok_p2.
   case/sem_call_length: (exec_p1) => fd1 [] get_fd1 size_params size_tyin size_tyout size_res.
   have! [mglob ok_mglob] := (alloc_prog_get_fundef ok_p2).
-  move=> /(_ _ _ get_fd1)[] fd2 /dup[] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p ok_sao_r get_fd2.
+  move=> /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p ok_sao_r get_fd2.
   have [fd [get_fd _]] := sem_callE exec_p.
   rewrite /get_nb_wptr /get_wptrs get_fd /= seq.find_map /preim.
   set n := find _ _.
@@ -1233,7 +1233,7 @@ Proof.
   have -> := compiler_back_end_to_asm_meta ok_xp.
   case=> /= mi1 mi2 mi3 mi4.
   rewrite (ss_top_stack mi3).
-  move=> /dup[] henough /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
+  move=> /[dup] henough /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
   have [sfd [xd [get_sfd get_xd xd_export align_args_eq]]] :=
     compiler_back_end_to_asm_get_fundef ok_xp ok_fn.
   exists xd; split=> //.

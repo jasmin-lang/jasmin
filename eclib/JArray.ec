@@ -58,11 +58,11 @@ abstract theory MonoArray.
     0 <= x < size => t.[x<-a].[y] = if y = x then a else t.[y].
   proof. by move=> hx;rewrite get_set_if hx. qed.
 
-  lemma nosmt set_eqiE (t : t) x y a :
+  lemma set_eqiE (t : t) x y a :
     0 <= x < size => y = x => t.[x <- a].[y] = a.
   proof. by move=> h1 ->;rewrite get_setE. qed.
 
-  lemma nosmt set_neqiE (t : t) x y a :
+  lemma set_neqiE (t : t) x y a :
     y <> x => t.[x <- a].[y] = t.[y].
   proof. by rewrite get_set_if => /neqF ->. qed.
 
@@ -316,11 +316,11 @@ abstract theory PolyArray.
     0 <= x < size => t.[x<-a].[y] = if y = x then a else t.[y].
   proof. by move=> hx; rewrite get_set_if hx. qed.
 
-  lemma nosmt set_eqiE (t : 'a t) x y a :
+  lemma set_eqiE (t : 'a t) x y a :
     0 <= x < size => y = x => t.[x <- a].[y] = a.
   proof. by move=> h1 ->;rewrite get_setE. qed.
 
-  lemma nosmt set_neqiE (t : 'a t) x y a :
+  lemma set_neqiE (t : 'a t) x y a :
     0 <= x < size => y <> x => t.[x <- a].[y] = t.[y].
   proof. by move=> h1; rewrite get_setE // => ->. qed.
 
@@ -521,12 +521,5 @@ abstract theory PolyArray.
     by rewrite mem_iota /= => h1; apply h;case h1.
   qed.
 
-  (* -------------------------------------------------------------------- *)
-  op is_init (t: 'a option t) = all is_init t.
-
-  lemma is_init_Some (t:'a t) : is_init (map Some t).
-  proof. by rewrite /is_init allP => i hi; rewrite mapiE. qed.
-
-  hint simplify [eqtrue] is_init_Some.
 
 end PolyArray.

@@ -1,0 +1,10 @@
+// Cannot copy by chunks of 4 bytes starting at offset 3 bytes
+export fn main() -> reg u32 {
+   stack u8[8] s;
+   s[u64 0] = 0;
+   stack u32[1] d;
+   d = #copy_32(s[3:4]);
+   reg u32 r;
+   r = d[0];
+   return r;
+}

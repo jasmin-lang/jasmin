@@ -350,8 +350,8 @@ Section VALUE.
 
   Lemma to_arrI n v t : to_arr n v = ok t -> v = Varr t.
   Proof. 
-    case: v => //= n' t' /dup [] /WArray.cast_len ?; subst n'.
-    by rewrite WArray.castK => -[<-].
+  case: v => //= n' t' /[dup] /WArray.cast_len ?; subst n'.
+  by rewrite WArray.castK => -[<-].
   Qed.
 
   Lemma to_arr_undef p v : to_arr p v <> undef_error.
@@ -627,7 +627,7 @@ Section VALUE.
   Proof.
     case: t1 v1 => /=; case: t2 v2 => //=; try (exists erefl; done);
                                     rewrite /val_uincl /=.
-    + by move=> > /dup [] /WArray.uincl_len ? ?; subst; exists erefl.
+    + by move=> > /[dup] /WArray.uincl_len ? ?; subst; exists erefl.
     + by eexists; exists erefl.
       by eexists; exists erefl.
   Qed.
@@ -646,7 +646,7 @@ Section VALUE.
   Proof.
     case: t1 v1 => /=; case: t2 v2 => //=; try (exists erefl; done);
                                     rewrite /val_uincl /=.
-    + by move=> > /dup [] /WArray.uincl_len ? ?; subst; exists erefl.
+    + by move=> > /[dup] /WArray.uincl_len ? ?; subst; exists erefl.
     + by eexists; exists erefl.
       by eexists; exists erefl.
   Qed.

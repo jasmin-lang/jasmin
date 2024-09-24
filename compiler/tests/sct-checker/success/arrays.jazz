@@ -8,11 +8,24 @@ fn transient_read(
   reg u64 x;
   x = #init_msf();
   x = i if i < N;
-  x = p[(int) x];
+  x = p[x];
   return x;
 }
 
 #[sct="public * d -> d"]
+fn safe_access_no_array(reg u64 c x) -> reg u64 {
+  stack u64 s;
+  if c != 0 {
+    s = x;
+    x = s;
+  }
+  return x;
+}
+
+// Contrary to the example above (safe_access_no_array),
+// the checker is not able to detect that the array is fully overwritten
+// and only a “weak update” is done on “s[0] = x;”
+#[sct="public * { n: d, s: secret } -> { n: d, s: secret }"]
 fn safe_access(reg u64 c x) -> reg u64 {
   stack u64[1] s;
   if c != 0 {
@@ -22,7 +35,7 @@ fn safe_access(reg u64 c x) -> reg u64 {
   return x;
 }
 
-#[sct="public × d → d"]
+#[sct="public × { n: d, s: secret } → { n: d, s: secret }"]
 fn safe_direct_access(
   reg u64 c,
   reg u8 x

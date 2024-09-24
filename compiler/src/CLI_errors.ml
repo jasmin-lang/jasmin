@@ -54,8 +54,4 @@ let check_options () =
     then warning Experimental Location.i_dummy
       "support of the ARMv7 architecture is experimental";
 
-  if !latexfile <> ""
-  then warning Deprecated Location.i_dummy
-         "the [-latex] option has been deprecated since March 2023; use [jasmin2tex] instead";
-
-  List.iter chk_out_file [ outfile; latexfile; ecfile ]
+  List.iter chk_out_file [ outfile; ecfile ]

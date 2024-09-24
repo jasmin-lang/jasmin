@@ -1,0 +1,38 @@
+// After running this function, the secret is left below the top of the stack
+inline
+fn leak(reg u32 x) -> reg u32 {
+  stack u32 s;
+  s = x;
+  x = s;
+  return x;
+}
+
+// Under mis-speculation, the second if may access the uninitialized stack variable
+// and expose the resulting value as public
+inline
+fn get(reg u32 p) -> reg u32 {
+  stack u32 t;
+  if true {
+    t = p;
+  }
+  if true {
+    p = t;
+  }
+  return p;
+}
+
+#[sct="secret × transient → public"]
+export
+fn main(reg u32 sec pub) -> reg u32 {
+  _ = #init_msf();
+  sec = leak(sec);
+  pub = get(pub);
+  reg u32 r;
+  // leak pub
+  if pub >s 0 {
+    r = 0;
+  } else {
+    r = 1;
+  }
+  return r;
+}

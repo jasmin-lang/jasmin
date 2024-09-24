@@ -431,8 +431,8 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
 
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
-  let sao_modify_rsp = 
-    sao_size <> 0 || ra_on_stack ||
+  let sao_modify_rsp =
+    sao_size <> 0 || has_syscall fd.f_body ||
       Sf.exists (fun fn -> (get_info fn).sao_modify_rsp) sao_calls in
   let sao = {
     sao_calls;
