@@ -691,11 +691,13 @@ module type BaseOp = sig
 
   val op_to_instr :
     Annotations.annotations ->
+    Location.t ->
     int Prog.glval list ->
     op -> int Prog.gexpr list -> CL.Instr.instr list
 
   val extra_op_to_instr :
     Annotations.annotations ->
+    Location.t ->
     int Prog.glval list ->
     extra_op -> int Prog.gexpr list -> CL.Instr.instr list
 
@@ -794,7 +796,7 @@ module X86BaseOpU : BaseOp
     let l = I.glval_to_lval x in
     [CL.Instr.Op1.mov l a]
 
-  let op_to_instr annot xs o es =
+  let op_to_instr annot loc xs o es =
     match o with
     | X86_instr_decl.MOV ws ->
       let a,i = cast_atome ws (List.nth es 0) in
@@ -1170,9 +1172,9 @@ module X86BaseOpU : BaseOp
       let msg =
         Format.asprintf "Unsupport operator in %s translation" S.error
       in
-      hierror ~loc:Lnone ~kind:msg  "%s" name
+      hierror ~loc:(Lone loc) ~kind:msg  "%s" name
 
-  let extra_op_to_instr annot xs (o:extra_op) es =
+  let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
     | _ ->
       let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
@@ -1180,7 +1182,7 @@ module X86BaseOpU : BaseOp
       let msg =
         Format.asprintf "Unsupport extra operator in %s translation" S.error
       in
-      hierror ~loc:Lnone ~kind:msg  "%s" name
+      hierror ~loc:(Lone loc) ~kind:msg  "%s" name
 
 end
 
@@ -1245,7 +1247,7 @@ module X86BaseOpS : BaseOp
     let l = I.glval_to_lval  x in
     [CL.Instr.Op1.mov l a]
 
-  let op_to_instr annot xs o es =
+  let op_to_instr annot loc xs o es =
     match o with
     | X86_instr_decl.MOV ws ->
       begin
@@ -1290,12 +1292,12 @@ module X86BaseOpS : BaseOp
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
       end
 
-    | IMULr ws 
+    | IMULr ws
     | IMULri ws ->
       let l = ["smt", `Smt; "default", `Default] in
-      let trans = trans annot l in 
+      let trans = trans annot l in
       begin match trans with
-      | `Default -> 
+      | `Default ->
         let a1, i1 = cast_atome ws (List.nth es 0) in
         let a2, i2 = cast_atome ws (List.nth es 1) in
         let l = I.glval_to_lval (List.nth xs 5) in
@@ -1305,7 +1307,7 @@ module X86BaseOpS : BaseOp
         i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
                    CL.Instr.cast ty l !l_tmp1]
 
-      | `Smt -> 
+      | `Smt ->
         let a1, i1 = cast_atome ws (List.nth es 0) in
         let a2, i2 = cast_atome ws (List.nth es 1) in
         let l = I.glval_to_lval (List.nth xs 5) in
@@ -1406,9 +1408,9 @@ module X86BaseOpS : BaseOp
       let msg =
         Format.asprintf "@[Unsupport operator in %s translation]@ " S.error;
       in
-      hierror ~loc:Lnone ~kind: msg "%s" name
+      hierror ~loc:(Lone loc) ~kind: msg "%s" name
 
-  let extra_op_to_instr annot xs (o:extra_op) es =
+  let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
     | _ ->
       let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
@@ -1416,7 +1418,7 @@ module X86BaseOpS : BaseOp
       let msg =
         Format.asprintf "Unsupport extra operator in %s translation" S.error
       in
-      hierror ~loc:Lnone ~kind:msg  "%s" name
+      hierror ~loc:(Lone loc) ~kind:msg  "%s" name
 
 end
 
@@ -1449,7 +1451,7 @@ module ARMBaseOp : BaseOp
 
   let assgn_to_instr trans x e = assert false
 
-  let op_to_instr trans xs o es =
+  let op_to_instr trans loc xs o es =
     let mn, opt = match o with Arm_instr_decl.ARM_op (mn, opt) -> mn, opt in
     match mn with
     | _ ->
@@ -1458,9 +1460,9 @@ module ARMBaseOp : BaseOp
       let msg =
         Format.asprintf "@[Unsupport operator in %s translation]@ " S.error
       in
-      hierror ~loc:Lnone ~kind:msg "%s" name
+      hierror ~loc:(Lone loc) ~kind:msg "%s" name
 
-  let extra_op_to_instr annot xs (o:extra_op) es =
+  let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
     | _ ->
       let x86_id = Arm_extra.get_instr_desc o in
@@ -1468,7 +1470,7 @@ module ARMBaseOp : BaseOp
       let msg =
         Format.asprintf "Unsupport extra operator in %s translation" S.error
       in
-      hierror ~loc:Lnone ~kind:msg  "%s" name
+      hierror ~loc:(Lone loc) ~kind:msg  "%s" name
 
 end
 
@@ -1505,16 +1507,16 @@ module Mk(O:BaseOp) = struct
     in
     aux (Subst.gsubst_e (fun ?loc:_ x -> x) aux1)
 
-  let pp_ext_op xs o es trans =
+  let pp_ext_op loc xs o es trans =
     match o with
-    | Arch_extra.BaseOp (_, o) -> O.op_to_instr trans xs o es
-    | Arch_extra.ExtOp o -> O.extra_op_to_instr trans xs o es
+    | Arch_extra.BaseOp (_, o) -> O.op_to_instr trans loc xs o es
+    | Arch_extra.ExtOp o -> O.extra_op_to_instr trans loc xs o es
 
-  let pp_sopn xs o es tcas =
+  let pp_sopn loc xs o es tcas =
     match o with
     | Sopn.Opseudo_op _ -> assert false
     | Sopn.Oslh _ -> assert false
-    | Sopn.Oasm o -> pp_ext_op xs o es tcas
+    | Sopn.Oasm o -> pp_ext_op loc xs o es tcas
 
   let rec filter_clause cs (cas,smt) =
     match cs with
@@ -1561,7 +1563,7 @@ module Mk(O:BaseOp) = struct
         | Lvar x -> [], O.assgn_to_instr trans a e
         | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
       end
-    | Copn(xs, _, o, es) -> [], pp_sopn xs o es trans
+    | Copn(xs, _, o, es) -> [], pp_sopn i.i_loc.base_loc xs o es trans
 
   let pp_c env fds c =
     List.fold_left (fun (acc1,acc2) a ->
