@@ -708,23 +708,28 @@ end
 type trans = [ `Default]
 
 let trans annot l =
-  let mk_trans = Annot.filter_string_list None l in
-  let atran annot =
-    let v_ = try 
-      Annot.ensure_uniq1 "tran" mk_trans annot 
-    with _ -> 
-      let tran = Annotations.get "tran" annot |> (function | Some (Some v) -> Some v | _ -> None) in
-      match tran with 
-      | Some {pl_desc=(Annotations.Astring an);_} -> 
-        Format.eprintf "Translation \"%s\" not found among valid translations: [%s]@." an
-        (List.reduce (fun a b -> a ^ "; " ^ b) (List.map fst l)); assert false
-      | _ -> assert false (* Should never happen *)
-    in
-    match v_ with
-    | None -> `Default
-    | Some aty -> aty
+  let v =
+      match Annotations.get "tran" annot with
+      | Some (Some {pl_desc=(Annotations.Aid an);pl_loc=loc}) ->
+        let _,a =
+          try List.find (fun (x,_) -> String.equal x an) l with
+          | _ ->
+            hierror ~loc:(Lone loc) ~kind:"Translation option"
+              "Translation \"%s\" not found among valid translations: [%s]@." an
+                (List.reduce (fun a b -> a ^ "; " ^ b) (List.map fst l))
+
+        in
+        Some a
+      | Some (Some {pl_desc=an;pl_loc=loc}) ->
+        hierror ~loc:(Lone loc) ~kind:"Translation option"  "Unsupported attribute@."
+
+      | _ -> None
   in
-  atran annot
+
+  match v with
+  | None -> `Default
+  | Some aty -> aty
+
 
 module X86BaseOpU : BaseOp
   with type op = X86_instr_decl.x86_op
