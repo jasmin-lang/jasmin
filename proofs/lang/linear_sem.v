@@ -51,7 +51,7 @@ Record lstate := Lstate
     lfn : funname;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm) [::].
+Definition to_estate tr (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm) tr.
 Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
 Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
@@ -70,14 +70,12 @@ Definition lset_vm (ls : lstate) (vm : Vm.t) : lstate :=
 Definition lnext_pc (ls : lstate) : lstate :=
   Eval hnf in setpc ls (lpc ls).+1.
 
-(*
 Lemma to_estate_of_estate es fn pc:
-  to_estate (of_estate es fn pc) = es.
+  to_estate (eassert es) (of_estate es fn pc) = es.
 Proof. by case: es. Qed.
-*)
 
-Lemma of_estate_to_estate ls :
-  of_estate (to_estate ls) (lfn ls) (lpc ls) = ls.
+Lemma of_estate_to_estate tr ls :
+  of_estate (to_estate tr ls) (lfn ls) (lpc ls) = ls.
 Proof. by case: ls. Qed.
 
 (* The [lsem] relation defines the semantics of a linear command
@@ -119,7 +117,7 @@ Definition sem_fopns_args := foldM sem_fopn_args.
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
-    let s := to_estate s1 in
+    let s := to_estate [::] s1 in
     Let args := sem_rexprs s es in
     Let res := exec_sopn o args in
     Let s' := write_lexprs xs res s in

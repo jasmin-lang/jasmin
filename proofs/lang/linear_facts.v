@@ -259,7 +259,7 @@ Lemma sem_fopns_args_cat s lc1 lc2 :
   Let s' := sem_fopns_args s lc1 in sem_fopns_args s' lc2.
 Proof. apply foldM_cat. Qed.
 
-Lemma sem_fopn_args_eval_instr ls s' lp a ii :
+Lemma sem_fopn_args_eval_instr tr ls s' lp a ii :
   sem_fopn_args a (to_estate ls) = ok s' ->
   let: ls' := lnext_pc (lset_estate' ls s') in
   eval_instr lp (li_of_fopn_args ii a) ls = ok ls'.

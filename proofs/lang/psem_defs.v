@@ -129,11 +129,14 @@ Definition with_mem (s:estate) m :=
 Definition with_scs (s:estate) scs :=
   {| escs := scs; emem := s.(emem); evm := s.(evm); eassert := s.(eassert) |}.
 
-Definition add_contract (s:estate) (a: annotation_kind * bool) :=
-  {| escs := s.(escs); emem := s.(emem); evm := s.(evm); eassert := a :: s.(eassert) |}.
+Definition with_eassert (s:estate) (a:contracts_trace) :=
+   {| escs := s.(escs); emem := s.(emem); evm := s.(evm); eassert := a |}.
 
-Definition add_contracts (s:estate) (a: contracts_trace) :=
-  {| escs := s.(escs); emem := s.(emem); evm := s.(evm); eassert := a ++ s.(eassert) |}.
+Definition add_contract (s:estate) (a:annotation_kind * bool) :=
+  with_eassert s (a::s.(eassert)).
+
+Definition add_contracts (s:estate) (a:contracts_trace) :=
+  with_eassert s (a ++ s.(eassert)).
 
 Definition add_asserts (s:estate) (bs:seq bool) := add_contracts s [seq (Assert,b) | b <- bs].
 Definition add_assumes (s:estate) (bs:seq bool) := add_contracts s [seq (Assume,b) | b <- bs].
