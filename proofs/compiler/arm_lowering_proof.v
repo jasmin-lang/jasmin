@@ -1730,7 +1730,7 @@ Lemma Hassert : sem_Ind_assert p Pi_r.
 Proof.
   move => s t pt e b he.
   move => ii hfv s0' hs0'.
-  move: hfv => /disj_fvars_vars_I_Cassert [hfve].
+  move: hfv => /disj_fvars_vars_I_Cassert hfve.
   exists (add_contract s0' (t, b)); last by apply: eeq_exc_add_contract.
   apply/sem_seq1; constructor; apply: Eassert.
   by apply: eeq_exc_sem_pexpr; [apply: hfve|apply: hs0'|].
@@ -1901,6 +1901,18 @@ Proof.
   - exact: hsem12'.
   exact: hsem23'.
 Qed.
+
+#[ local ]
+Lemma lower_pre scs m fn vargs v :
+  sem_pre p scs m fn vargs = ok v ->
+  sem_pre p' scs m fn vargs = ok v.
+Proof. by rewrite /sem_pre/lower_prog get_map_prog; case: get_fundef. Qed.
+
+#[ local ]
+Lemma lower_post scs m fn vargs vres v :
+  sem_post p scs m fn vargs vres = ok v ->
+  sem_post p' scs m fn vargs vres = ok v.
+Proof. by rewrite /sem_post get_map_prog; case: get_fundef. Qed.
 
 #[ local ]
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.

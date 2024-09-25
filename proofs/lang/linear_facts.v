@@ -34,9 +34,9 @@ Lemma setpc_id ls :
   setpc ls (lpc ls) = ls.
 Proof. by case: ls. Qed.
 
-Lemma setpc_lset_estate ls pc scs m vm :
-  lset_estate (setpc ls pc) scs m vm
-  = setpc (lset_estate ls scs m vm) pc.
+Lemma setpc_lset_estate ls pc scs m vm tr :
+  lset_estate (setpc ls pc) scs m vm tr
+  = setpc (lset_estate ls scs m vm tr) pc.
 Proof. done. Qed.
 
 Lemma lnext_pc_setpc ls n :
@@ -47,8 +47,8 @@ Lemma setcpc_setpc ls fn n n' :
   setcpc (setpc ls n') fn n = setcpc ls fn n.
 Proof. done. Qed.
 
-Lemma lfn_lset_estate ls scs m vm :
-  lfn (lset_estate ls scs m vm) = lfn ls.
+Lemma lfn_lset_estate ls scs m vm tr:
+  lfn (lset_estate ls scs m vm tr) = lfn ls.
 Proof. done. Qed.
 
 #[local]

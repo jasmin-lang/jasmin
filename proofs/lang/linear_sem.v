@@ -61,10 +61,10 @@ Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc s.(
 Definition lset_estate' (ls : lstate) (s : estate) : lstate :=
   Eval hnf in of_estate s ls.(lfn) ls.(lpc).
 Definition lset_estate
-  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; eassert := [::] |}.
+  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) (tr : contracts_trace) : lstate :=
+  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; eassert := tr |}.
 Definition lset_mem_vm (ls : lstate) (m : mem) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_estate ls (lscs ls) m vm.
+  Eval hnf in lset_estate ls (lscs ls) m vm (ltr ls).
 Definition lset_mem (ls : lstate) (m : mem) : lstate :=
   Eval hnf in lset_mem_vm ls m (lvm ls).
 Definition lset_vm (ls : lstate) (vm : Vm.t) : lstate :=
@@ -135,7 +135,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
         escs := scs;
         emem := m;
         evm := vm_after_syscall s1.(lvm);
-        eassert := [::];
+        eassert := ltr s1;
       |}
     in
     Let s' := write_lvals true [::] s (to_lvals sig.(scs_vout)) vs in

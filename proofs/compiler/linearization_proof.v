@@ -145,10 +145,8 @@ Section CAT.
   Lemma cat_syscall : forall xs o es, Pr (Csyscall xs o es).
   Proof. by []. Qed.
 
-  Let Hassert_true : forall t p e, Pr (Cassert t p e).
-  Proof. by []. Qed.
-
-  Let Hassert : forall t p e, Pr (Cassert t p e).
+  #[ local ]
+  Lemma cat_assert : forall t p e, Pr (Cassert t p e).
   Proof. by []. Qed.
 
   #[ local ]
@@ -199,7 +197,7 @@ Section CAT.
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
+      (instr_Rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
@@ -207,7 +205,7 @@ Section CAT.
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
     exact:
-      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_if cat_for cat_while cat_call).
+      (cmd_rect cat_mkI cat_skip cat_seq cat_assgn cat_opn cat_syscall cat_assert cat_if cat_for cat_while cat_call).
   Qed.
 
 End CAT.
@@ -220,7 +218,6 @@ Definition valid_labels (fn: funname) (lo hi: label) (i: linstr) : bool :=
   match li_i i with
   | Lopn _ _ _
   | Lsyscall _
-  | Lassert _
   | Lalign
   | Ligoto _
   | Lret
@@ -385,6 +382,7 @@ Let sf_correct1 f (op : word Uptr -> word Uptr -> word Uptr) :=
          lvm := vm';
          lfn := fn;
          lpc := size P + size lcmd;
+         ltr := ltr ls
        |}
      in
      [/\ lsem lp ls ls'
