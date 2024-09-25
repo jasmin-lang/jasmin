@@ -161,6 +161,14 @@ output corruption: #public
  constraints:
 
 
+File conditional-expr.jazz:
+nomodmsf leak_cond : #secret * #[ptr = public, val = public] *
+                     #[ptr = public, val = public] ->
+#[ptr = secret, val = secret]
+output corruption: #public
+ constraints:
+
+
 File corruption.jazz:
 nomodmsf corrupts_memory : #public * #secret *
                            #[ptr = public, val = secret] *

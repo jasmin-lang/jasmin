@@ -1,0 +1,9 @@
+#sct="
+    secret *
+    { ptr: public, val: public } *
+    { ptr: public, val: public } ->
+    { ptr: secret, val: secret }"
+fn leak_cond(reg u64 sec, reg ptr u64[1] x y) -> reg ptr u64[1] {
+    x = sec == 0 ? x : y;
+    return x;
+}
