@@ -48,14 +48,16 @@ Record lstate := Lstate
   { lscs : syscall_state_t;
     lmem : mem;
     lvm  : Vm.t;
-    lfn : funname;
-    lpc  : nat; }.
+    lfn  : funname;
+    lpc  : nat;
+    ltr  : contracts_trace;
+  }.
 
-Definition to_estate tr (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm) tr.
-Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
-Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
-Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
-Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
+Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm) s.(ltr).
+Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc s.(eassert).
+Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc s.(ltr).
+Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc) s.(ltr).
+Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc s.(ltr).
 Definition lset_estate' (ls : lstate) (s : estate) : lstate :=
   Eval hnf in of_estate s ls.(lfn) ls.(lpc).
 Definition lset_estate
@@ -71,11 +73,11 @@ Definition lnext_pc (ls : lstate) : lstate :=
   Eval hnf in setpc ls (lpc ls).+1.
 
 Lemma to_estate_of_estate es fn pc:
-  to_estate (eassert es) (of_estate es fn pc) = es.
+  to_estate (of_estate es fn pc) = es.
 Proof. by case: es. Qed.
 
-Lemma of_estate_to_estate tr ls :
-  of_estate (to_estate tr ls) (lfn ls) (lpc ls) = ls.
+Lemma of_estate_to_estate ls :
+  of_estate (to_estate ls) (lfn ls) (lpc ls) = ls.
 Proof. by case: ls. Qed.
 
 (* The [lsem] relation defines the semantics of a linear command
@@ -117,7 +119,7 @@ Definition sem_fopns_args := foldM sem_fopn_args.
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
-    let s := to_estate [::] s1 in
+    let s := to_estate s1 in
     Let args := sem_rexprs s es in
     Let res := exec_sopn o args in
     Let s' := write_lexprs xs res s in
@@ -294,9 +296,10 @@ Definition ls_export_initial scs m vm fn :=
   {|
     lscs := scs;
     lmem := m;
-    lvm := vm;
-    lfn := fn;
-    lpc := 0;
+    lvm  := vm;
+    lfn  := fn;
+    lpc  := 0;
+    ltr  := [::];
   |}.
 
 Definition ls_export_final scs m vm fn fd :=
@@ -306,6 +309,7 @@ Definition ls_export_final scs m vm fn fd :=
     lvm := vm;
     lfn := fn;
     lpc := size (lfd_body fd);
+    ltr := [::];
   |}.
 
 Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) (scs':syscall_state_t) (m': mem) (vm': Vm.t) : Prop :=

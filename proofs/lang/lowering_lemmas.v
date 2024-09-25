@@ -4,6 +4,7 @@ Require Import
   expr
   low_memory
   lowering
+  compiler_util
   psem.
 
 Set Implicit Arguments.
@@ -161,8 +162,55 @@ Proof.
   by rewrite (hvm _ hx).
 Qed.
 
+Lemma eeq_exc_add_contract vs s0 s1 c :
+   estate_eq_except vs s0 s1 ->
+   estate_eq_except vs (add_contract s0 c) (add_contract s1 c).
+Proof.
+  by move=> [??? h4]; rewrite /add_contract /with_eassert; split => //; rewrite h4.
+Qed.
+
+Lemma eeq_exc_add_contracts vs s0 s1 c :
+   estate_eq_except vs s0 s1 ->
+   estate_eq_except vs (add_contracts s0 c) (add_contracts s1 c).
+Proof.
+  by move=> [??? h4]; rewrite /add_contracts /with_eassert; split => //; rewrite h4.
+Qed.
+
 End ESTATE_EQ_EXCEPT.
 
+Section PROG.
+
+Context
+  {tabstract : Tabstract}
+  {wsw:WithSubWord}
+  {asm_op syscall_state : Type}
+  {absp: Prabstract}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {lowering_options : Type}
+  (lower_i0 :
+    lowering_options
+    -> (instr_info -> warning_msg -> instr_info)
+    -> fresh_vars
+    -> instr
+    -> cmd)
+  (options : lowering_options)
+  (warning : instr_info -> warning_msg -> instr_info)
+  (fv : fresh_vars).
+
+Lemma lower_pre (p:prog) scs m fn vargs v :
+  sem_pre p scs m fn vargs = ok v ->
+  sem_pre (lower_prog lower_i0 options warning fv p) scs m fn vargs = ok v.
+Proof. by rewrite /sem_pre/lower_prog get_map_prog; case: get_fundef. Qed.
+
+Lemma lower_post (p:prog) scs m fn vargs vres v :
+  sem_post p scs m fn vargs vres = ok v ->
+  sem_post (lower_prog lower_i0 options warning fv p) scs m fn vargs vres = ok v.
+Proof. by rewrite /sem_post get_map_prog; case: get_fundef. Qed.
+
+End PROG.
 
 Section DISJ_FVARS.
 

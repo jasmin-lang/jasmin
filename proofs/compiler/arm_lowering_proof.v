@@ -816,7 +816,7 @@ Proof.
       all:
         have [ws2 [wbase [wsham [hws2 hbase hsham hw1 [hfvbase hfvsham]]]]] :=
           get_arg_shiftP hget_arg_shift hfve1 hseme1.
-    
+
       all: have hfves := disj_fvars_read_es3 hfve0 hfvbase hfvsham.
       all: split; last done.
       all: clear hfve0 hfvbase hfvsham hfves.
@@ -980,7 +980,7 @@ Lemma lower_pexpr_auxP e :
   Plower_pexpr_aux e.
 Proof.
   move=> s ws ws' aop es w.
-  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 ||] //.
+  case: e => [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 |||] //.
 
   - exact: lower_PvarP.
   - exact: (lower_loadP (Pget _ _ _ _ _)).
@@ -1044,7 +1044,7 @@ Proof.
 
   move: s0 ws' pre op es w h hs00 hws hfve hfvlv hseme hwrite.
   case: e =>
-    [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 || ty c e0 e1] //
+    [||| gx | al aa ws0 x e || al ws0 x e | op e | op e0 e1 || ty c e0 e1 | ] //
     s0 ws' pre aop es w h hs00 hws hfve hfvlv hseme hwrite.
 
   1-5: move: h => /no_preP [? h]; subst pre.
@@ -1154,7 +1154,7 @@ Proof.
   rewrite /lower_store.
   case hmn: store_mn_of_wsize => [mn|] //.
 
-  case: e hseme hfv => [||| gx ||||||| ty c e0 e1] // hseme hfv [? ?];
+  case: e hseme hfv => [||| gx ||||||| ty c e0 e1|] // hseme hfv [? ?];
     subst aop es.
 
   all: apply: Eopn.
@@ -1362,7 +1362,7 @@ Proof.
   move=> hwrite1.
 
   move: h.
-  case: e2 hseme2 => [| [] || gx |||||||] //= hseme2 [???];
+  case: e2 hseme2 => [| [] || gx ||||||||] //= hseme2 [???];
     subst lvs' op' es'.
   all: rewrite /= hseme0 hseme1 /= {hseme0 hseme1}.
 
@@ -1603,8 +1603,8 @@ Definition Pfor
 
 #[ local ]
 Definition Pfun
-  scs0 (m0 : mem) (fn : funname) (vargs : seq value) scs1 (m1 : mem) (vres : seq value) :=
-  sem_call p' ev scs0 m0 fn vargs scs1 m1 vres.
+  scs0 (m0 : mem) (fn : funname) (vargs : seq value) scs1 (m1 : mem) (vres : seq value) (tr : contracts_trace) :=
+  sem_call p' ev scs0 m0 fn vargs scs1 m1 vres tr.
 
 
 #[ local ]
@@ -1726,35 +1726,14 @@ Proof.
 Qed.
 
 #[ local ]
-Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+Lemma Hassert : sem_Ind_assert p Pi_r.
 Proof.
-  move => s t pt e he.
+  move => s t pt e b he.
   move => ii hfv s0' hs0'.
   move: hfv => /disj_fvars_vars_I_Cassert [hfve].
-  rewrite /=.
-  case h: lower_condition => [pre e'].
-  have [s1' [hsem01' hs10 hseme']] := sem_lower_condition ii h hs0' hfve he.
-  exists s1' => //.
-  rewrite map_cat.
-  apply: (sem_app hsem01').
-  apply: sem_seq1; constructor; apply: Eassert_true.
-  rewrite //=.
-Qed.
-
-#[ local ]
-Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
-Proof.
-  move => s t pt e he.
-  move => ii hfv s0' hs0'.
-  move: hfv => /disj_fvars_vars_I_Cassert [hfve].
-  rewrite /=.
-  case h: lower_condition => [pre e'].
-  have [s1' [hsem01' hs10 hseme']] := sem_lower_condition ii h hs0' hfve he.
-  exists s1' => //.
-  rewrite map_cat.
-  apply: (sem_app hsem01').
-  apply: sem_seq1; constructor; apply: Eassert_false.
-  rewrite //=.
+  exists (add_contract s0' (t, b)); last by apply: eeq_exc_add_contract.
+  apply/sem_seq1; constructor; apply: Eassert.
+  by apply: eeq_exc_sem_pexpr; [apply: hfve|apply: hs0'|].
 Qed.
 
 #[ local ]
@@ -1926,36 +1905,38 @@ Qed.
 #[ local ]
 Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s0 scs0 m0 s1 lvs fn args vargs vs hsemargs _ hfun hwrite.
+  move=> s0 scs0 m0 s1 s2 lvs fn args vargs vs vpr vpo tr hsemargs hpr _ hfun hwrite hpo ->.
   move=> ii hfv s0' hs0'.
   rewrite /=.
 
   have hwith_s0' : eq_fv (with_scs (with_mem s0' m0) scs0) (with_scs (with_mem s0 m0) scs0).
-  - split=> //. move: hs0' => [_ _ hvm0']. exact: hvm0'.
+  - by case: hs0' => *; split.
 
   move: hfv => /disj_fvars_vars_I_Ccall [hfvlvs hfvargs].
 
   have [s1' hwrite01' hs11] := eeq_exc_write_lvals hfvlvs hwith_s0' hwrite.
   clear hfvlvs hwith_s0' hwrite.
 
-  exists s1'; last exact: hs11.
+  exists (add_assumes (add_contracts (add_asserts s1' vpr) tr) vpo);
+    last by by repeat apply eeq_exc_add_contracts.
   clear hs11.
 
-  apply: sem_seq_ir. apply: Ecall.
+  apply: sem_seq_ir. apply: Ecall => //.
   - exact: (eeq_exc_sem_pexprs hfvargs hs0' hsemargs).
-  - move: hs0' => [-> -> _]. exact: hfun.
+  - by case: hs0' => -> -> _ _; apply: lower_pre hpr.
+  - move: hs0' => [-> -> _ _]; exact: hfun.
   - exact: hwrite01'.
+  by apply: lower_post hpo.
 Qed.
 
 #[ local ]
 Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> scs0 m0 scs1 m1 fn fd vargs vargs' s0 s1 s2 vres vres'.
-  move=> hget htruncargs hinit hwrite _ hc hres htruncres hscs hfin.
+  move=> scs0 m0 scs1 m1 fn fd vargs vargs' s0 s1 s2 vres vres' vpr vpo tr.
+  move=> hget htruncargs hinit hwrite hpr _ hc hres htruncres hscs hfin hpo ->.
 
   have [_ hfvres hfvc] := disj_fvars_get_fundef hget.
-
-  have [s2' hsem12' hs22] := hc hfvc s1 (eeq_excR fvars s1).
+  have [s2' hsem12' hs22] := hc hfvc (add_assumes s1 vpr) (eeq_excR fvars _).
   clear hfvc.
 
   apply: EcallRun.
@@ -1963,19 +1944,22 @@ Proof.
   - exact: htruncargs.
   - exact: hinit.
   - exact: hwrite.
+  - exact: lower_pre hpr.
   - exact: hsem12'.
   - rewrite -(sem_pexprs_get_var _ (p_globs p)).
     rewrite -(sem_pexprs_get_var _ (p_globs p)) in hres.
     exact: (eeq_exc_sem_pexprs (disj_fvars_vars_l_read_es hfvres) hs22 hres).
   - exact: htruncres.
-  - move: hs22 => [-> _ _]. done.
-  - move: hs22 => [_ -> _]. exact: hfin.
+  - by move: hs22 => [-> _ _].
+  - by move: hs22 => [_ -> _ _].
+  - exact: lower_post hpo.
+  by rewrite /add_asserts/add_contracts; case: hs22 => ???->.
 Qed.
 
 Lemma lower_callP
-  (f : funname) scs mem scs' mem' (va vr : seq value) :
-  sem_call p ev scs mem f va scs' mem' vr
-  -> sem_call (lower_prog p) ev scs mem f va scs' mem' vr.
+  (f : funname) scs mem scs' mem' (va vr : seq value) tr :
+  sem_call p ev scs mem f va scs' mem' vr tr
+  -> sem_call (lower_prog p) ev scs mem f va scs' mem' vr tr.
 Proof.
   exact:
     (sem_call_Ind
@@ -1985,8 +1969,7 @@ Proof.
        Hassgn
        Hopn
        Hsyscall
-       Hassert_true
-       Hassert_false
+       Hassert
        Hif_true
        Hif_false
        Hwhile_true
