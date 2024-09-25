@@ -96,18 +96,11 @@ Section PROOF.
     apply: sem_seq1; apply: EmkI; apply: Esyscall; rewrite ?p'_globs; eassumption.
   Qed.
 
-  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Local Lemma Hassert : sem_Ind_assert p Pi_r.
   Proof.
-    move => s t pt e He H.
+    move => s t pt e b He H.
     rewrite /Pc /Pi_r /=.
-    by apply: sem_seq1; apply: EmkI; apply: Eassert_true; rewrite ?p'_globs.
-  Qed.
-
-  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
-  Proof.
-    move => s t pt e He H.
-    rewrite /Pc /Pi_r /=.
-    by apply: sem_seq1; apply: EmkI; apply: Eassert_false; rewrite ?p'_globs.
+    by apply: sem_seq1; apply: EmkI; apply: Eassert; rewrite ?p'_globs.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -185,26 +178,51 @@ Section PROOF.
     apply: sem_app; [ exact: Hc | exact: Hfor'].
   Qed.
 
+
+  Local Lemma sem_pre_ok scs m fn vargs v:
+    sem_pre p scs m fn vargs = ok v ->
+    sem_pre p' scs m fn vargs = ok v.
+  Proof.
+    rewrite /sem_pre; case heq: get_fundef => [fd|] //.
+    rewrite (p'_get_fundef heq) p'_globs /unroll_fun /= => {heq}.
+    by case: fd => > /=; case: unroll_cmd.
+  Qed.
+
+  Local Lemma sem_post_ok scs m fn vargs vres v:
+    sem_post p scs m fn vargs vres = ok v ->
+    sem_post p' scs m fn vargs vres = ok v.
+  Proof.
+    rewrite /sem_post; case heq: get_fundef => [fd|] //.
+    rewrite (p'_get_fundef heq) p'_globs /unroll_fun /= => {heq}.
+    by case: fd => > /=; case: unroll_cmd.
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs2 m2 s2 xs fn args vargs vs Hexpr _ Hfun Hw ii' /=.
-    by apply: sem_seq1; apply: EmkI; apply: Ecall; rewrite ?p'_globs; eassumption.
+    move=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpr vpo tr Hexpr hpr _ Hfun Hw hpo -> ii' /=.
+    apply: sem_seq1; apply: EmkI; apply: Ecall; rewrite ?p'_globs; try eassumption.
+    + by apply: sem_pre_ok hpr.
+    + by apply: sem_post_ok hpo.
+    by case s2.
   Qed.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
+    move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' vpr vpo tr.
+    case: f=> fi fcon ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw hpr _ Hc Hres Htyo Hsys Hfi hpo ->.
     move/p'_get_fundef: Hget Hc.
     rewrite /Pc /=.
     case: unroll_cmd => c _ /= Hget Hc.
     apply: EcallRun; first exact: Hget.
-    all: rewrite /= ?p'_extra; eassumption.
+    all: rewrite /= ?p'_extra; try eassumption.
+    + by apply: sem_pre_ok hpr.
+    + by apply: sem_post_ok hpo.
+    done.
   Qed.
 
-  Lemma unroll_callP f scs mem scs' mem' va vr:
-    sem_call p  ev scs mem f va scs' mem' vr ->
-    sem_call p' ev scs mem f va scs' mem' vr.
+  Lemma unroll_callP f scs mem scs' mem' va vr tr:
+    sem_call p  ev scs mem f va scs' mem' vr tr ->
+    sem_call p' ev scs mem f va scs' mem' vr tr.
   Proof.
     exact:
       (sem_call_Ind
@@ -214,8 +232,7 @@ Section PROOF.
          Hassgn
          Hopn
          Hsyscall
-         Hassert_true
-         Hassert_false
+         Hassert
          Hif_true
          Hif_false
          Hwhile_true
