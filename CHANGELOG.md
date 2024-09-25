@@ -64,6 +64,10 @@
 - Various improvements to the LATEX pretty-printer
   ([PR #916](https://github.com/jasmin-lang/jasmin/pull/916)).
 
+- Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
+  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated
+  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914)).
+
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
 ## New features
