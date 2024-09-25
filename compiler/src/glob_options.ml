@@ -177,10 +177,10 @@ let options = [
     "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
     "-noset0"   , Arg.Clear set0        , " Do not use set0 option";
-    "-ec"       , Arg.String  set_ec    , "[f] Extract function [f] and its dependencies to an easycrypt file";
-    "-oec"     ,  Arg.Set_string ecfile , "[filename] Use filename as output destination for easycrypt extraction";
-    "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path";
-    "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification";
+    "-ec"       , Arg.String  set_ec    , "[f] Extract function [f] and its dependencies to an easycrypt file (deprecated)";
+    "-oec"     ,  Arg.Set_string ecfile , "[filename] Use filename as output destination for easycrypt extraction (deprecated)";
+    "-oecarray" , Arg.String set_ec_array_path, "[dir] Output easycrypt array theories to the given path (deprecated)";
+    "-CT" , Arg.Unit set_constTime      , " Generate model for constant time verification (deprecated)";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
     "-checksafety", Arg.Unit set_checksafety, " Automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,

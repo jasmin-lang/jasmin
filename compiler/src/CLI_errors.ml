@@ -54,4 +54,12 @@ let check_options () =
     then warning Experimental Location.i_dummy
       "support of the ARMv7 architecture is experimental";
 
+  if !ec_list <> []
+    || !ecfile <> ""
+    || !ec_array_path <> Filename.current_dir_name
+    || !model <> Normal
+  then
+    warning Deprecated Location.i_dummy
+         "Easycrypt extraction via jasminc is deprecated. Use jasmin2ec instead.";
+
   List.iter chk_out_file [ outfile; ecfile ]

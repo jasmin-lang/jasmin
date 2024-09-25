@@ -91,6 +91,7 @@ ocaml:
     paths:
     - compiler/_build/
     - compiler/jasmin2tex
+    - compiler/jasmin2ec
     - compiler/jasminc
     - compiler/jasmin-ct
 

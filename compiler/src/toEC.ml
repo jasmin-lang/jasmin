@@ -1320,7 +1320,7 @@ let ec_randombytes env =
         }
     ]
 
-let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes =
+let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes array_dir =
     let add_glob_env env (x, d) = add_glob (add_glob_arrsz env (x, d)) x in
     let env = empty_env pd model funcs arrsz warrsz randombytes
         |> fun env -> List.fold_left add_glob_env env globs
@@ -1329,9 +1329,15 @@ let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes =
 
     let funs = List.map (toec_fun asmOp env) funcs in
 
-    let prefix = !Glob_options.ec_array_path in
-    Sint.iter (pp_array_decl ~prefix) !(env.arrsz);
-    Sint.iter (pp_warray_decl ~prefix) !(env.warrsz);
+    begin
+      match array_dir with
+    | Some prefix ->
+        begin
+          Sint.iter (pp_array_decl ~prefix) !(env.arrsz);
+          Sint.iter (pp_warray_decl ~prefix) !(env.warrsz)
+        end
+    | None -> ()
+    end;
 
     let pp_arrays arr s = match Sint.elements s with
         | [] -> []
@@ -1369,8 +1375,8 @@ let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes =
     (ec_randombytes env) @
     [top_mod]
 
-let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
-    pp_ec_prog fmt (toec_prog pd asmOp model globs funcs arrsz warrsz randombytes);
+let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes array_dir =
+    pp_ec_prog fmt (toec_prog pd asmOp model globs funcs arrsz warrsz randombytes array_dir);
     Format.fprintf fmt "@."
 
 let rec used_func f = 
@@ -1387,9 +1393,14 @@ and used_func_i used i =
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
+let extract ((globs,funcs):('info, 'asm) prog) pd asmOp model fnames array_dir fmt =
+  let fnames =
+    match fnames with
+    | [] -> List.map (fun { f_name ; _ } -> f_name.fn_name) funcs
+    | fnames -> fnames
+  in
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
-  let tokeep = ref (Ss.of_list tokeep) in
+  let tokeep = ref (Ss.of_list fnames) in
   let dofun f = 
     if Ss.mem f.f_name.fn_name !tokeep then
       (tokeep := Ss.union (used_func f) !tokeep; true)
@@ -1398,5 +1409,4 @@ let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let arrsz = ref Sint.empty in
   let warrsz = ref Sint.empty in
   let randombytes = ref Sint.empty in
-  pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes
-
+  pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes array_dir

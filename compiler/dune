@@ -30,4 +30,12 @@
  (flags (:standard -rectypes))
  (modes byte exe)
  (libraries commonCLI))
+
+(executable
+ (public_name jasmin2ec)
+ (name jasmin2ec)
+ (modules jasmin2ec)
+ (flags (:standard -rectypes))
+ (modes byte exe)
+ (libraries commonCLI))
 )
