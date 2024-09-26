@@ -207,13 +207,14 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     sem_call ii (Sv.union k vm) s1 fn s2.
 
 Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
-  | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) tr of
+  | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
     saved_stack_valid fd k &
     Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
-    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm);
-             eassert := [::] |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2; eassert := tr |} &
+    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm); eassert := [::] |}
+          fd.(f_body)
+          {| escs:= scs'; emem := m2 ; evm := vm2; eassert := [::] |} &
     get_var_is false vm2 fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
  (*   all2 check_ty_val fd.(f_tyout) res' & *)
