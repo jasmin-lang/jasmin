@@ -19,6 +19,7 @@ let symbol s fmt () = latex s fmt ""
 let kw = latex "kw"
 let ptype = latex "type"
 let dname = latex "dname"
+let pprim = latex "primitive"
 let arrow = symbol "arrow"
 let sharp fmt () = F.fprintf fmt "\\#"
 let openbrace fmt () = F.fprintf fmt "\\{"
@@ -166,7 +167,7 @@ let rec pp_expr_rec prio fmt pe =
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
   | PECombF (f, args) -> 
     F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
-  | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pp_var f (pp_list ", " pp_expr) args
+  | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pprim (L.unloc f) (pp_list ", " pp_expr) args
   | PEOp1 (op, e) ->
     let p = prio_of_op1 op in
     optparent fmt prio p "(";
