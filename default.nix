@@ -23,7 +23,7 @@ let coqPackages =
         version = "master";
         inherit (self) lib mkCoqDerivation coq;
       };
-      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.0"; };
+      hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
     })
   else coqPackages_8_19
 ; in
