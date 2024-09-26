@@ -109,6 +109,10 @@ Lemma add_contracts_with_vm s vm v :
   add_contracts (with_vm s vm) v = with_vm (add_contracts s v) vm.
 Proof. by case: s. Qed.
 
+Lemma add_contract_with_vm s vm v :
+  add_contract (with_vm s vm) v = with_vm (add_contract s v) vm.
+Proof. by case: s. Qed.
+
 Lemma add_assumes_with_vm s vm v :
   add_assumes (with_vm s vm) v = with_vm (add_assumes s v) vm.
 Proof. by case s. Qed.
