@@ -366,8 +366,7 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
     dname (L.unloc pdf_name)
     (pp_list ", " (fun fmt (_annot, d) -> pp_args fmt d)) pdf_args
     pp_rty pdf_rty
-    (pp_inbraces 0 pp_funbody) pdf_body;
-  F.fprintf fmt eol
+    (pp_inbraces 0 pp_funbody) pdf_body
 
 let pp_string fmt s =
   s |> L.unloc |> F.asprintf "%S" |> String.iter @@ function
@@ -381,8 +380,7 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
     kw "param"
     pp_type ppa_ty
     dname (L.unloc ppa_name)
-    pp_expr ppa_init;
-  F.fprintf fmt eol
+    pp_expr ppa_init
 
 let pp_pgexpr fmt = function
   | GEword e -> pp_expr fmt e 
@@ -397,8 +395,7 @@ let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"
     pp_type pgd_type
     dname (L.unloc pgd_name)
-    pp_pgexpr pgd_val;
-  F.fprintf fmt eol
+    pp_pgexpr pgd_val
 
 let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
@@ -414,8 +411,7 @@ let rec pp_pitem fmt pi =
       Option.may (fun name ->
           F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
       F.fprintf fmt "%a%a " pp_from from kw "require";
-      List.iter (pp_path fmt) s;
-      F.fprintf fmt eol
+      List.iter (pp_path fmt) s
   | PNamespace (ns, pis) ->
      (* TODO: ident within namespaces? *)
      F.fprintf fmt "%a %s " kw "namespace" (L.unloc ns);
@@ -423,8 +419,7 @@ let rec pp_pitem fmt pi =
      F.fprintf fmt eol;
      List.iter (pp_pitem fmt) pis;
      F.fprintf fmt eol;
-     closebrace fmt ();
-     F.fprintf fmt eol
+     closebrace fmt ()
 
 let pp_prog fmt =
-  List.iter (F.fprintf fmt "%a" pp_pitem)
+  F.pp_print_list ~pp_sep:(fun fmt () -> F.fprintf fmt eol) pp_pitem fmt
