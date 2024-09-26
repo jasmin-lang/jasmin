@@ -19,6 +19,7 @@ let symbol s fmt () = latex s fmt ""
 let kw = latex "kw"
 let ptype = latex "type"
 let dname = latex "dname"
+let pannot = latex "annotation"
 let pprim = latex "primitive"
 let arrow = symbol "arrow"
 let sharp fmt () = F.fprintf fmt "\\#"
@@ -122,18 +123,23 @@ let pp_space fmt _ =
 
 let pp_attribute_key fmt s =
   if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false) s
-  then F.fprintf fmt "%s" s
+  then pannot fmt s
   else F.fprintf fmt "%S" s
 
-let pp_aligned fmt = function
-  | None -> ()
-  | Some `Aligned -> F.fprintf fmt "%aaligned " sharp ()
-  | Some `Unaligned -> F.fprintf fmt "%aunaligned " sharp ()
+let string_of_align =
+  function
+  | `Aligned -> "aligned"
+  | `Unaligned -> "unaligned"
 
-let rec pp_simple_attribute fmt a = 
-  match L.unloc a with 
+let pp_aligned =
+  pp_opt (fun fmt al ->
+      F.fprintf fmt "%a%a " sharp () pannot (string_of_align al)
+    )
+
+let rec pp_simple_attribute fmt a =
+  match L.unloc a with
   | Aint i -> Z.pp_print fmt i
-  | Aid s | Astring s -> Format.fprintf fmt "%s" s
+  | Aid s | Astring s -> pannot fmt s
   | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
 
@@ -145,12 +151,18 @@ and pp_attribute fmt = function
   | None -> ()
 
 and pp_annotation fmt (id, atr) =
-  Format.fprintf fmt "@[%a%a@]" pp_attribute_key (L.unloc id) pp_attribute atr
+  Format.fprintf fmt "%a%a" pp_attribute_key (L.unloc id) pp_attribute atr
 
 let pp_top_annotations fmt annot =
   match annot with
   | []  -> ()
   | [a] -> Format.fprintf fmt "@[%a%a\\\\@]\n" sharp () pp_annotation a
+  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
+
+let pp_inline_annotations fmt annot =
+  match annot with
+  | []  -> ()
+  | [a] -> Format.fprintf fmt "%a%a " sharp () pp_annotation a
   | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
 
 let rec pp_expr_rec prio fmt pe =
@@ -234,6 +246,9 @@ let pp_storage fmt s =
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty
 
+let pp_annot_sto_ty fmt (annot, stoty) =
+  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_sto_ty stoty
+
 let pp_args fmt (sty, xs) =
   F.fprintf
     fmt
@@ -253,12 +268,15 @@ let pp_decls fmt (sty, vd) =
     pp_sto_ty sty
     (pp_list " " pp_decl) vd
 
+let pp_annot_args fmt  (annot, args) =
+  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_args args
+
 let pp_rty =
   pp_opt
     (fun fmt tys ->
        F.fprintf fmt " %a %a"
          arrow ()
-         (pp_list ", " (fun fmt (_annot, ty) -> pp_sto_ty fmt ty)) tys)
+         (pp_list ", " pp_annot_sto_ty) tys)
 
 let pp_inbraces depth p fmt x =
   openbrace fmt ();
@@ -365,7 +383,7 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
-    (pp_list ", " (fun fmt (_annot, d) -> pp_args fmt d)) pdf_args
+    (pp_list ", " pp_annot_args) pdf_args
     pp_rty pdf_rty
     (pp_inbraces 0 pp_funbody) pdf_body
 
