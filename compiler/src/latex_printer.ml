@@ -40,8 +40,13 @@ let pp_cc =
 let pp_var fmt x =
   F.fprintf fmt "%s" (L.unloc x)
 
+let pp_castop fmt =
+  function
+  | None -> ()
+  | Some ty -> ptype fmt (string_of_castop1 (L.unloc ty))
+
 let pp_op2 fmt =
-  let f s p = F.fprintf fmt "%s%a" p ptype (string_of_castop s) in
+  let f s p = F.fprintf fmt "%s%a" p pp_castop s in
   let ret s = F.fprintf fmt "%s" s in
   function
   | `Add s -> f s "+"
