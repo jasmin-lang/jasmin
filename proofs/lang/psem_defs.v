@@ -282,18 +282,36 @@ Context
 
 Notation gd := (p_globs P).
 
-Definition sem_pre (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) :=
+(** Switch for the semantics of function calls:
+  - when false, arguments and returned values are truncated to the declared type of the called function;
+  - when true, arguments and returned values are allowed to be undefined.
+
+Informally, “direct call” means that passing arguments and returned value does not go through an assignment;
+indeed, assignments truncate and fail on undefined values.
+*)
+Class DirectCall := {
+  direct_call : bool;
+}.
+
+Definition indirect_c : DirectCall := {| direct_call := false |}.
+Definition direct_c : DirectCall := {| direct_call := true |}.
+
+Definition dc_truncate_val {dc: DirectCall} t v :=
+  if direct_call then ok v
+  else truncate_val t v.
+
+Definition sem_pre {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) :=
   if get_fundef (p_funcs P) fn is Some f then
-    Let vargs := mapM2 ErrType truncate_val f.(f_tyin) vargs' in
-    Let s := write_vars true f.(f_params) vargs (Estate scs m Vm.init [::]) in
+    Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+    Let s := write_vars (~~direct_call) f.(f_params) vargs (Estate scs m Vm.init [::]) in
     mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) f.(f_contra).(f_pre)
   else Error ErrUnknowFun.
 
-Definition sem_post (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) (vres : values) :=
+Definition sem_post {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) (vres : values) :=
  if get_fundef (p_funcs P) fn is Some f then
-    Let vargs := mapM2 ErrType truncate_val f.(f_tyin) vargs' in
-    Let s := write_vars true f.(f_contra).(f_iparams) vargs (Estate scs m Vm.init [::]) in
-    Let s :=  write_vars true f.(f_res) vres s in
+    Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+    Let s := write_vars (~~direct_call) f.(f_contra).(f_iparams) vargs (Estate scs m Vm.init [::]) in
+    Let s :=  write_vars (~~direct_call) f.(f_res) vres s in
     mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) f.(f_contra).(f_post)
   else Error ErrUnknowFun.
 

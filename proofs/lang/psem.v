@@ -144,20 +144,6 @@ Class semCallParams
      mem_equiv m rm;
 }.
 
-(** Switch for the semantics of function calls:
-  - when false, arguments and returned values are truncated to the declared type of the called function;
-  - when true, arguments and returned values are allowed to be undefined.
-
-Informally, “direct call” means that passing arguments and returned value does not go through an assignment;
-indeed, assignments truncate and fail on undefined values.
-*)
-Class DirectCall := {
-  direct_call : bool;
-}.
-
-Definition indirect_c : DirectCall := {| direct_call := false |}.
-Definition direct_c : DirectCall := {| direct_call := true |}.
-
 Section SEM.
 
 Context
@@ -176,10 +162,6 @@ Notation gd := (p_globs P).
 
 Definition get_lvar_i (x: lval) : exec var_i :=
   if x is Lvar x then ok x else type_error.
-
-Definition dc_truncate_val t v :=
-  if direct_call then ok v
-  else truncate_val t v.
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
@@ -2349,6 +2331,40 @@ Proof.
   by move=> ? /hrec -> <-.
 Qed.
 
+Lemma dc_truncate_value_uincl t v1 v2 : dc_truncate_val t v1 = ok v2 → value_uincl v2 v1.
+Proof.
+  rewrite /dc_truncate_val; case: ifP => [_ [<-] // | _].
+  apply truncate_value_uincl.
+Qed.
+
+Lemma mapM2_id tyin vargs vargs' :
+  mapM2 ErrType (λ (_ : stype) (v : value), ok v) tyin vargs = ok vargs' ->
+  vargs = vargs'.
+Proof.
+  elim: tyin vargs vargs' => /= [ | ty tyin hrec] [ | v vs] // >.
+  + by move=> [].
+  by t_xrbindP => > /hrec -> <-.
+Qed.
+
+Lemma mapM2_dc_truncate_value_uincl tyin vargs vargs' :
+  mapM2 ErrType dc_truncate_val tyin vargs = ok vargs' → List.Forall2 value_uincl vargs' vargs.
+Proof.
+  rewrite /dc_truncate_val; case: direct_call; last by apply mapM2_truncate_value_uincl.
+  by move=> /mapM2_id ->; apply List_Forall2_refl.
+Qed.
+
+Lemma mapM2_dc_truncate_val tys vs1' vs1 vs2' :
+  mapM2 ErrType dc_truncate_val tys vs1' = ok vs1 →
+  List.Forall2 value_uincl vs1' vs2' →
+  exists2 vs2 : seq value,
+    mapM2 ErrType dc_truncate_val tys vs2' = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+Proof.
+  rewrite /dc_truncate_val; case: direct_call; last by apply mapM2_truncate_val.
+  move=> h1 h2; elim: h2 tys vs1 h1 => {vs1' vs2'} [ | v1 v2 vs1' vs2' hu hus hrec] [] //=.
+  + by move=> ? [<-]; exists [::].
+  t_xrbindP => _ tys ?? /hrec [vs2 -> hall] <- /=; eexists; eauto.
+Qed.
+
 Lemma sem_pre_uincl vargs scs m fn vargs' vpr :
   List.Forall2 value_uincl vargs vargs' ->
   sem_pre p scs m fn vargs  = ok vpr ->
@@ -2356,7 +2372,7 @@ Lemma sem_pre_uincl vargs scs m fn vargs' vpr :
 Proof.
   rewrite /sem_pre; case: get_fundef => // fd hu; t_xrbindP.
   move=> vas htru s0 hw hmap.
-  have [vas' -> huva /=] := mapM2_truncate_val htru hu.
+  have [vas' -> huva /=] := mapM2_dc_truncate_val htru hu.
   have [vm2 /= -> /= huvm] := write_vars_uincl (vm_uincl_refl _) huva hw.
   by apply sem_contracts_uincl.
 Qed.
@@ -2369,7 +2385,7 @@ Lemma sem_post_uincl vargs vres scs m fn vargs' vres' vpo :
 Proof.
   rewrite /sem_post; case: get_fundef => // fd hua hur; t_xrbindP.
   move=> vas htru s0 hwa s1 hwr hmap.
-  have [vas' -> huva /=] := mapM2_truncate_val htru hua.
+  have [vas' -> huva /=] := mapM2_dc_truncate_val htru hua.
   have [vm2 /= -> /= huvm2] := write_vars_uincl (vm_uincl_refl _) huva hwa.
   have [vm3 /= -> /= huvm3] := write_vars_uincl huvm2 hur hwr.
   by apply sem_contracts_uincl.
@@ -2391,40 +2407,6 @@ Lemma all2_check_ty_val v1 x v2 :
   all2 check_ty_val x v1 → List.Forall2 value_uincl v1 v2 → all2 check_ty_val x v2.
 Proof.
   move=> /all2P H1 H2;apply /all2P;apply: Forall2_trans H1 H2;apply check_ty_val_uincl.
-Qed.
-
-Lemma mapM2_id tyin vargs vargs' :
-  mapM2 ErrType (λ (_ : stype) (v : value), ok v) tyin vargs = ok vargs' ->
-  vargs = vargs'.
-Proof.
-  elim: tyin vargs vargs' => /= [ | ty tyin hrec] [ | v vs] // >.
-  + by move=> [].
-  by t_xrbindP => > /hrec -> <-.
-Qed.
-
-Lemma dc_truncate_value_uincl t v1 v2 : dc_truncate_val t v1 = ok v2 → value_uincl v2 v1.
-Proof.
-  rewrite /dc_truncate_val; case: ifP => [_ [<-] // | _].
-  apply truncate_value_uincl.
-Qed.
-
-Lemma mapM2_dc_truncate_value_uincl tyin vargs vargs' :
-  mapM2 ErrType dc_truncate_val tyin vargs = ok vargs' → List.Forall2 value_uincl vargs' vargs.
-Proof.
-  rewrite /dc_truncate_val; case: direct_call; last by apply mapM2_truncate_value_uincl.
-  by move=> /mapM2_id ->; apply List_Forall2_refl.
-Qed.
-
-Lemma mapM2_dc_truncate_val tys vs1' vs1 vs2' :
-  mapM2 ErrType dc_truncate_val tys vs1' = ok vs1 →
-  List.Forall2 value_uincl vs1' vs2' →
-  exists2 vs2 : seq value,
-    mapM2 ErrType dc_truncate_val tys vs2' = ok vs2 & List.Forall2 value_uincl vs1 vs2.
-Proof.
-  rewrite /dc_truncate_val; case: direct_call; last by apply mapM2_truncate_val.
-  move=> h1 h2; elim: h2 tys vs1 h1 => {vs1' vs2'} [ | v1 v2 vs1' vs2' hu hus hrec] [] //=.
-  + by move=> ? [<-]; exists [::].
-  t_xrbindP => _ tys ?? /hrec [vs2 -> hall] <- /=; eexists; eauto.
 Qed.
 
 Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.

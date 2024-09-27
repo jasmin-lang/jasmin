@@ -171,6 +171,7 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
     ok (Pif ty e1 e2 e3)
 
   | Pbig idx op x body s len =>
+    Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "Pbig binder not in svar") in
     Let idx := expand_e m idx in
     Let body := expand_e m body in
     Let s := expand_e m s in
@@ -348,12 +349,15 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
     Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin params in
     let tyin   := map (fun x => fst (fst x)) ins in
     let params := map (fun x => snd (fst x)) ins in
-    let ins    := map snd ins in
     Let iins := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin ci.(f_iparams) in
+    Let _ := assert ([seq x.1.1 | x <- ins] == [seq x.1.1 | x <- iins])
+                    (E.reg_ierror_no_var "ins.1.1 <> iins.1.1") in
+    let ins    := map snd ins in
+    Let _ := assert (ins == [seq i.2 | i <- iins]) (E.reg_ierror_no_var "ins <> map snd iins") in
     let ci_params := flatten (map (fun x => snd (fst x)) iins) in
     Let ci_pre := mapM (fun c =>
-                        Let truc := expand_e m (snd c) in
-                        ok(fst c, truc)) ci.(f_pre)
+                        Let e := expand_e m (snd c) in
+                        ok(fst c, e)) ci.(f_pre)
     in
     Let outs := mapM2 length_mismatch (expand_tyv m exp "the return type") tyout res in
     let tyout  := map (fun x => fst (fst x)) outs in
@@ -363,6 +367,7 @@ Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef)
                         Let e := expand_e m (snd c) in
                         ok(fst c, e)) ci.(f_post)
     in
+
 
     let ci := MkContra ci_params ci_pre ci_post in
     ok (MkFun fi ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
