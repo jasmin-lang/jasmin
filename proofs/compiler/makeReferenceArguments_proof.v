@@ -209,7 +209,7 @@ Context
     sem_pis ii s1 pis vs s2 ->
     exists s1' vm2,
       [/\ write_lvals true (p_globs p') s1 lvs vs = ok s1',
-          sem p' ev s1' c (with_vm s2 vm2) & (evm s2 =1 vm2)%vm].
+          sem p' ev s1' c (with_vm s2 vm2)& (evm s2 =1 vm2)%vm (*& eassert s1 = eassert s2*) ].
   Proof.
     elim: pis lvs c vs s1 => /= [ | pi pis ih] lvs' c' vs s1.
     + case/ok_inj => <- <-{lvs' c'} /sem_pisE[] -> <- {vs s1}.
@@ -218,7 +218,7 @@ Context
     case: pi => [lv | lv ty y] /=; t_xrbindP => -[] lvs c /ih{ih}ih.
     + move=> [??] h; subst lvs' c'.
       case/sem_pisE: h => v [] vs' [] s2' [] ? H H0; subst.
-      have [s1' [vm2 [hws hsem]]] := ih _ _ H0.
+      have [s1' [vm2 [hws hsem ?]]] := ih _ _ H0.
       by exists s1', vm2 ; split => //=; rewrite H.
     t_xrbindP => /Sv.is_empty_spec.
     rewrite /mk_ep_i /= /write_I /read_I /= -/vrv -/read_rv -Sv.is_empty_spec.
@@ -229,6 +229,7 @@ Context
     have nwm_pi : ~~ lv_write_mem lv by case: (lv) wflv.
     have heqm  := lv_write_memP nwm_pi H3.
     have heqs  := lv_write_scsP H3.
+    have heqa  := lv_write_assertP H3.
     have [{nwm_pi} vm3 hw3 hvm3] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
     have hy : sem_pexpr true (p_globs p') (with_vm s1' vm3) (Plvar y) = ok v.
     + rewrite -H; rewrite /=; apply: (get_gvar_eq_on _ _ (@SvP.MP.subset_refl _)).
@@ -276,7 +277,7 @@ Context
     have [vm4 ]:= sem_vm_eq hsem heqv.
     rewrite with_vm_idem => {hsem}hsem heqvm4.
     exists (with_vm s1' vm3), vm4; split.
-    + by have -> // : s1 = (with_vm s3 (evm s1)); rewrite /with_vm -heqm -heqs; case: (s1).
+    + by have -> // : s1 = (with_vm s3 (evm s1)); rewrite /with_vm -heqm -heqs -heqa; case: (s1).
     + by econstructor;eauto.
     by move=> x; rewrite (heqvm x) // (heqvm4 x).
   Qed.
@@ -303,10 +304,10 @@ Context
     forall vm1, evm s1 =[X] vm1 ->
     exists2 vm2, evm s2 =[X] vm2 & sem_for p' ev i vs (with_vm s1 vm1) c' (with_vm s2 vm2).
 
-  Let Pfun scs m fn vargs scs' m' vres :=
+  Let Pfun scs m fn vargs scs' m' vres tr :=
     forall fnd vargs', get_fundef (p_funcs p) fn = Some fnd ->
     mapM2 ErrType truncate_val (f_tyin fnd) vargs = mapM2 ErrType truncate_val (f_tyin fnd) vargs' ->
-    sem_call p' ev scs m fn vargs' scs' m' vres.
+    sem_call p' ev scs m fn vargs' scs' m' vres tr.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
@@ -462,25 +463,12 @@ Context
     by rewrite Hsem_pexprs /= Hexec_sopn.
   Qed.
 
-  Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+  Local Lemma Hassert : sem_Ind_assert p Pi_r.
   Proof.
-    move => s t pt e He Hs ii c' [<-].
-    move => H vm Hvm.
+    move => s t pt e b He Hs ii c' [<-] H vm Hvm.
     exists vm => //.
-    apply/sem_seq1/EmkI. apply Eassert_true.
-    rewrite - eq_globs -He.
-    rewrite  -read_e_eq_on_empty // -/(read_e _).
-    by apply: (eq_onI _ Hvm); SvD.fsetdec.
-  Qed.
-
-  Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
-  Proof.
-    move => s t pt e He Hs ii c' [<-].
-    move => H vm Hvm.
-    exists vm => //.
-    apply/sem_seq1/EmkI. apply Eassert_false.
-    rewrite - eq_globs -He.
-    rewrite -read_e_eq_on_empty // -/(read_e _).
+    apply/sem_seq1/EmkI; apply: Eassert.
+    rewrite - eq_globs -He -read_e_eq_on_empty // -/(read_e _).
     by apply: (eq_onI _ Hvm); SvD.fsetdec.
   Qed.
 
@@ -500,7 +488,7 @@ Context
     rewrite -read_e_eq_on_empty // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
-  
+
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.
@@ -514,7 +502,7 @@ Context
     rewrite -read_e_eq_on_empty // -/(read_e _).
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
-  
+
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 s3 s4 a c e c' sem_s1_s2 H_s1_s2.
@@ -554,7 +542,7 @@ Context
    by apply: (eq_onI _ eq_s2_vm2) ; SvD.fsetdec.
   Qed.
 
-  
+
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
     move => s1 x c X c' Hc le_X vm1 eq_s1_vm1.
@@ -593,12 +581,38 @@ Context
     by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
 
+  Local Lemma sem_pre_ok scs m fn vargs v fd vargs':
+    get_fundef (p_funcs p) fn = Some fd ->
+    mapM2 ErrType truncate_val (f_tyin fd) vargs = mapM2 ErrType truncate_val (f_tyin fd) vargs' ->
+    sem_pre p scs m fn vargs = ok v ->
+    sem_pre p' scs m fn vargs' = ok v.
+  Proof.
+    rewrite /sem_pre => hfd htr.
+    move: Hp; rewrite /makereference_prog hfd.
+    apply: rbindP => funcs hmap [?]; subst p'.
+    case : (get_map_cfprog_gen hmap hfd) => fd' /[swap] -> /=.
+    by rewrite /update_fd htr; apply: rbindP => c' ? [<-] /=.
+  Qed.
+
+  Local Lemma sem_post_ok scs m fn vargs vres v fd vargs':
+    get_fundef (p_funcs p) fn = Some fd ->
+    mapM2 ErrType truncate_val (f_tyin fd) vargs = mapM2 ErrType truncate_val (f_tyin fd) vargs' ->
+    sem_post p scs m fn vargs vres = ok v ->
+    sem_post p' scs m fn vargs' vres = ok v.
+  Proof.
+    rewrite /sem_post => hfd htr.
+    move: Hp; rewrite /makereference_prog hfd.
+    apply: rbindP => funcs hmap [?]; subst p'.
+    case : (get_map_cfprog_gen hmap hfd) => fd' /[swap] -> /=.
+    by rewrite /update_fd htr; apply: rbindP => c' ? [<-].
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 scs m s2 lv fn args vargs aout eval_args h1 h2 h3.
+    move=> s1 scs m s2 s3 lv fn args vargs aout vpr vpo tr eval_args hpr h1 h2 h3 hpo ->.
     move=> ii' X c' hupd; rewrite !(read_Ii, write_Ii).
     rewrite !(read_i_call, write_i_call) => le_X vm1 eq_s1_vm1.
-    case: (sem_callE h1) hupd => fnd [fnE] [vs] [s1'] [s2'] [s3'] [vres] [vsE] [_ hwrinit] _ [hgetout aoutE] _.
+    case: (sem_callE h1) hupd => fnd [fnE] [vs] [s1'] [s2'] [s3'] [vres] [?] [?] [/[dup] vsE vsE'] [_ hwrinit _] _ [hgetout aoutE] _.
     rewrite /= /get_sig fnE.
     have heqin : map snd (map2 mk_info (f_params fnd) (f_tyin fnd)) = f_tyin fnd.
     + have [_ h] := size_mapM2 vsE; rewrite -(size_fold2 hwrinit) in h.
@@ -613,14 +627,25 @@ Context
     rewrite heqin.
     move=> vmx [vargs'] [sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
     rewrite -heqout in aoutE.
-    have [|vm2 [s3] [Hwr_lvals Hsem eq_s2_vm2]]:=
-      make_epilogueP epE _ h3 aoutE (eq_onT eq_s1_vm1 eq_vm1_vmx); first by SvD.fsetdec.
+    have /= hassert1 := lvs_write_assertP h3.
+    set c := [seq (Assume, b) | b <- vpo] ++ (tr ++ ([seq (Assert, b) | b <- vpr] ++ eassert s2)).
+    move/(lvs_write_with_eassert c): h3 => h3.
+    have [|vm2 [s4] [Hwr_lvals Hsem eq_s2_vm2]] := make_epilogueP epE _ h3 aoutE (eq_onT eq_s1_vm1 eq_vm1_vmx);
+      first by SvD.fsetdec.
     exists vm2 => //.
-    apply : (sem_app sem_pl); apply : (Eseq _ Hsem); apply : EmkI.
+    apply : (sem_app sem_pl). apply : (Eseq _ Hsem); apply : EmkI.
+    move: Hwr_lvals; rewrite with_vm_assert_swap => /[dup] /lvs_write_assertP /= h.
+    move=> /(lvs_write_with_eassert (eassert s1)).
+    have -> : with_eassert (with_eassert (with_vm (with_scs (with_mem s1 m) scs) vmx) c) (eassert s1) =
+              with_vm (with_scs (with_mem s1 m) scs) vmx by case s1.
+    move=> Hwr_lvals.
     econstructor.
     + by apply eval_vargs'.
-    2: by apply Hwr_lvals.
-    by apply (h2 _ _ fnE); rewrite trunc_vargs' -vsE heqin.
+    + by rewrite escs_with_vm emem_with_vm; apply: (sem_pre_ok fnE) hpr; rewrite trunc_vargs'.
+    + by apply (h2 _ _ fnE); rewrite trunc_vargs' -vsE heqin.
+    + by apply: Hwr_lvals.
+    + by apply: (sem_post_ok fnE) hpo; rewrite trunc_vargs'.
+    by move: h; case s4 => /= > <-; rewrite hassert1.
   Qed.
 
   Lemma eq_extra : p_extra p = p_extra p'.
@@ -631,11 +656,13 @@ Context
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move=> sc1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hf Hvargs.
-    move=> Hs0 Hs1 Hsem_s2 Hs2 Hvres Hvres' Hscs2 Hm2 f' vargs1.
-    rewrite Hf => -[?] h; subst f'; rewrite h in Hvargs => {h}.
+    move=> sc1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres' vpr vpo tr Hf Hvargs.
+    move=> Hs0 Hs1 hpr Hsem_s2 Hs2 Hvres Hvres' Hscs2 Hm2 hpo -> f' vargs1.
+    rewrite Hf => -[?] h; subst f'; rewrite h in Hvargs.
     have H := (all_progP _ Hf).
     rewrite eq_extra in Hs0.
+    have hpr' := sem_pre_ok Hf h hpr.
+    have hpo' := sem_post_ok Hf h hpo.
     move : Hp; rewrite /makereference_prog; t_xrbindP => y Hmap ?.
     subst p'.
     case : (get_map_cfprog_gen Hmap Hf) => x Hupdate Hy.
@@ -646,8 +673,9 @@ Context
     have [||x Hevms2 Hsem] := (Hs2 _ _ Hupdate_c _ (evm s1)) => //; first by SvD.fsetdec.
     rewrite with_vm_same in Hsem.
     eapply EcallRun ; try by eassumption.
-    rewrite -Hvres -!(sem_pexprs_get_var _ (p_globs p)).
-    symmetry; move : Hevms2; rewrite -read_esE; apply : read_es_eq_on.
+    + rewrite -Hvres -!(sem_pexprs_get_var _ (p_globs p)).
+      symmetry; move : Hevms2; rewrite -read_esE; apply : read_es_eq_on.
+    by case s2.
   Qed.
 
   Lemma exec_syscall_truncate scs m o ves scs' m' vs:
@@ -691,9 +719,9 @@ Context
     by apply: exec_syscall_eq_tr ho; rewrite htves'.
   Qed.
 
-  Lemma makeReferenceArguments_callP f scs mem scs' mem' va vr:
-    sem_call p ev scs mem f va scs' mem' vr ->
-    sem_call p' ev scs mem f va scs' mem' vr.
+  Lemma makeReferenceArguments_callP f scs mem scs' mem' va vr tr :
+    sem_call p ev scs mem f va scs' mem' vr tr ->
+    sem_call p' ev scs mem f va scs' mem' vr tr.
   Proof.
     move=> Hsem; case: (sem_callE Hsem) => fd [hget _].
     exact:
@@ -704,8 +732,7 @@ Context
          Hassgn
          Hopn
          Hsyscall
-         Hassert_true
-         Hassert_false
+         Hassert
          Hif_true
          Hif_false
          Hwhile_true

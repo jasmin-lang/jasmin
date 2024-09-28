@@ -121,6 +121,9 @@ Lemma add_asserts_with_vm s vm v :
   add_asserts (with_vm s vm) v = with_vm (add_asserts s v) vm.
 Proof. by case s. Qed.
 
+Lemma with_vm_assert_swap s a vm : with_vm (with_eassert s a) vm = with_eassert (with_vm s vm) a.
+Proof. by case: s. Qed.
+
 End ESTATE_UTILS.
 
  (* -------------------------------------------------------------------- *)
@@ -1047,6 +1050,60 @@ Proof.
   + by t_xrbindP => *; subst s2.
   + by apply: on_arr_varP; t_xrbindP=> *; apply: write_var_scsP; eauto.
   by apply on_arr_varP; t_xrbindP => *; apply: write_var_scsP; eauto.
+Qed.
+
+Lemma write_var_assertP wdb x v s1 s2 :
+  write_var wdb x v s1 = ok s2 → eassert s1 = eassert s2.
+Proof. by apply: rbindP=> ?? [] <-. Qed.
+
+Lemma lv_write_assertP wdb gd (x:lval) v s1 s2:
+  write_lval gd wdb x v s1 = ok s2 ->
+  eassert s1 = eassert s2.
+Proof.
+  case: x=> /= [v0 t|v0|ws x e|al aa ws v0 p|aa ws len v0 p].
+  + by move => /write_noneP [-> _].
+  + by apply: write_var_assertP.
+  + by t_xrbindP => *; subst s2.
+  + by apply: on_arr_varP; t_xrbindP=> *; apply: write_var_assertP; eauto.
+  by apply on_arr_varP; t_xrbindP => *; apply: write_var_assertP; eauto.
+Qed.
+
+Lemma write_var_with_eassert a wdb x v s1 s2:
+  write_var wdb x v s1 = ok s2 ->
+  write_var wdb x v (with_eassert s1 a) = ok (with_eassert s2 a).
+Proof.
+  by apply: rbindP; rewrite /write_var /= => > -> [<-] /=; case s1.
+Qed.
+
+Lemma sem_pexpr_with_eassert a wdb gd s1 e : sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_eassert s1 a) e.
+Proof. by apply sem_pexpr_vm_mem. Qed.
+
+Lemma lv_write_with_eassert a wdb gd (x:lval) v s1 s2:
+  write_lval gd wdb x v s1 = ok s2 ->
+  write_lval gd wdb x v (with_eassert s1 a) = ok (with_eassert s2 a).
+Proof.
+  case: x=> /= [v0 t|v0|ws x e|al aa ws v0 p|aa ws len v0 p].
+  + by move => /write_noneP; rewrite /write_none => -[-> -> ->].
+  + by apply: write_var_with_eassert.
+  + by t_xrbindP => > -> /= -> /= >; rewrite (sem_pexpr_with_eassert a) => -> /= -> > -> > /= -> <-.
+  + apply: on_arr_varP; t_xrbindP; rewrite /on_arr_var => > ? -> /= >.
+    by rewrite (sem_pexpr_with_eassert a) => -> /= -> > -> > /= -> /=; apply write_var_with_eassert.
+  apply: on_arr_varP; t_xrbindP; rewrite /on_arr_var => > ? -> /= >.
+  by rewrite (sem_pexpr_with_eassert a) => -> /= -> > -> > /= -> /=; apply write_var_with_eassert.
+Qed.
+
+Lemma lvs_write_assertP wdb gd xs vs s1 s2 : write_lvals gd wdb s1 xs vs = ok s2 → eassert s1 = eassert s2.
+Proof.
+  elim: xs vs s1 => [ | x xs hrec] [ | v vs] //= s1; first by move=> [<-].
+  t_xrbindP => > /lv_write_assertP ->; apply hrec.
+Qed.
+
+Lemma lvs_write_with_eassert a wdb gd xs vs s1 s2:
+  write_lvals gd wdb s1 xs vs = ok s2 ->
+  write_lvals gd wdb (with_eassert s1 a) xs vs = ok (with_eassert s2 a).
+Proof.
+  elim: xs vs s1 => [ | x xs hrec] [ | v vs] > //=; first by move=> [<-].
+  t_xrbindP => > /(lv_write_with_eassert a) ->; apply: hrec.
 Qed.
 
 Section Write.
