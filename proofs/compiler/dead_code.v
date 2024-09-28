@@ -181,6 +181,8 @@ Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
   let res := fn_keep_only fn res in
   let tyo := fn_keep_only fn tyo in
   let s := read_es (map Plvar res) in
+  let s_post := read_es (map snd ci.(f_post)) in
+  let s := Sv.union s (Sv.diff s_post (read_es (map Plvar ci.(f_iparams)))) in
   Let c := dead_code_c dead_code_i c s in
   ok (MkFun ii ci tyi params c.2 tyo res ef).
 
