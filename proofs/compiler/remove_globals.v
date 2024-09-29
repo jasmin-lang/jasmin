@@ -47,25 +47,25 @@ Section REMOVE.
 
   Notation venv := (Mvar.t var).
 
-  Definition check_data (d:glob_value) (ws:wsize) (w:word ws) := 
+  Definition check_data (d:glob_value) (ws:wsize) (w:word ws) :=
     match d with
     | @Gword ws' w' => (ws == ws') && (w == zero_extend ws w')
     | _             => false
     end.
 
   Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (w:word ws) :=
-    let test (gv:glob_decl) := 
+    let test (gv:glob_decl) :=
       if (sword ws == vtype gv.1) && (check_data gv.2 w) then Some gv.1
-      else None in 
+      else None in
     match find_map test gd with
     | None => Error (rm_glob_error ii xi)
     | Some g => ok g
-    end. 
+    end.
 
   Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (w:word ws) :=
-    let test (gv:glob_decl) := 
+    let test (gv:glob_decl) :=
        (sword ws == vtype gv.1) && (check_data gv.2 w) in
-    if has test gd then ok gd 
+    if has test gd then ok gd
     else
       let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
       if has (fun g' => g'.1 == gx) gd then Error (rm_glob_error_dup ii gx)
@@ -104,15 +104,15 @@ Section REMOVE.
   Section GD.
     Context (gd:glob_decls).
 
-    Definition get_var_ ii (env:venv) (xi:gvar) := 
+    Definition get_var_ ii (env:venv) (xi:gvar) :=
       if is_lvar xi then
-        let vi := xi.(gv) in 
+        let vi := xi.(gv) in
         let x := vi.(v_var) in
         if is_glob_var x then
           match Mvar.get env x with
           | Some g => ok (mk_gvar (VarI g vi.(v_info)))
           | None   => Error (rm_glob_error ii vi)
-          end 
+          end
         else ok xi
       else ok xi.
 
@@ -136,10 +136,10 @@ Section REMOVE.
 
       | Pload al ws xi e =>
         let x := xi.(v_var) in
-        if is_glob_var x then Error (rm_glob_error ii xi)
-        else
-          Let e := remove_glob_e ii env e in
-          ok (Pload al ws xi e)
+        Let _     := assert (~~ is_glob_var x) (rm_glob_error ii x) in
+        Let e := remove_glob_e ii env e in
+        ok (Pload al ws xi e)
+
       | Papp1 o e =>
         Let e := remove_glob_e ii env e in
         ok (Papp1 o e)
@@ -158,6 +158,7 @@ Section REMOVE.
         ok (Pif t e e1 e2)
 
       | Pbig idx op x body start len =>
+        Let _     := assert (~~ is_glob_var x) (rm_glob_error ii x) in
         Let idx   := remove_glob_e ii env idx in
         Let start := remove_glob_e ii env start in
         Let len   := remove_glob_e ii env len in
@@ -344,6 +345,7 @@ Section REMOVE.
            f_res    := f.(f_res);
            f_extra  := f.(f_extra);
         |}.
+
   End GD.
 
   Definition remove_glob_prog (p:uprog) :=
