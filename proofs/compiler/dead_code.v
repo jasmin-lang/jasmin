@@ -76,12 +76,12 @@ Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   | _, _, _ => false
   end.
 
-Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) {struct tokeep}:= 
+Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) {struct tokeep}:=
   match tokeep, l with
-  | [::], _ => l 
+  | [::], _ => l
   | b::tokeep, [::] => [::]
-  | b::tokeep, x::l => 
-    let l := keep_only l tokeep in 
+  | b::tokeep, x::l =>
+    let l := keep_only l tokeep in
     if b then x::l else l
   end.
 
@@ -89,7 +89,7 @@ Section ONFUN.
 
 Context (do_nop: bool) (onfun: funname -> option (seq bool)).
 
-Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) := 
+Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) :=
   match onfun fn with
   | None => l
   | Some tokeep => keep_only l tokeep
@@ -118,7 +118,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * option instr)
   | Cassgn x tag ty e =>
     let w := write_i ir in
     if tag != AT_keep then
-      if (disjoint s w && negb (lv_write_mem x)) || 
+      if (disjoint s w && negb (lv_write_mem x)) ||
          ((do_nop || (tag == AT_rename)) && check_nop x e) then ok (s, None)
       else ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, Some i)
     else   ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, Some i)
@@ -162,7 +162,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * option instr)
     ok (s, Some (MkI ii (Cwhile a c e c')))
 
   | Ccall xs fn es =>
-    Let sxs := 
+    Let sxs :=
       match onfun fn with
       | None => ok (read_rvs_rec (Sv.diff s (vrvs xs)) xs, xs)
       | Some bs => add_iinfo ii (check_keep_only xs bs s)
@@ -177,13 +177,17 @@ Section Section.
 Context {pT: progT}.
 
 Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
-  let 'MkFun ii ci tyi params c tyo res ef := fd in
-  let res := fn_keep_only fn res in
+  let 'MkFun ii ci tyi params c tyo fres ef := fd in
+  let res := fn_keep_only fn fres in
   let tyo := fn_keep_only fn tyo in
   let s := read_es (map Plvar res) in
-  let s_post := read_es (map snd ci.(f_post)) in
-  let s := Sv.union s (Sv.diff s_post (read_es (map Plvar ci.(f_iparams)))) in
   Let c := dead_code_c dead_code_i c s in
+  let si := read_es [seq c.2 | c <- fd.(f_contra).(f_post)] in
+  Let _ :=
+    match onfun fn with
+    | None => ok (Sv.empty, [::]) (* dummy value *)
+    | Some bs => check_keep_only (map Lvar fres) bs si
+    end in
   ok (MkFun ii ci tyi params c.2 tyo res ef).
 
 Definition dead_code_prog_tokeep (p: prog) : cexec prog :=
