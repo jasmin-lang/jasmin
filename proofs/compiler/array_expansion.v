@@ -340,36 +340,40 @@ Definition expand_tyv m b s ty v :=
     (reg_ierror v "there should be an invariant ensuring this never happens in array_expansion_proof") in
     ok ([:: ty], [:: v], None).
 
+Definition expand_ci m exp (insf: seq (seq stype * seq var_i * option (wsize * Z)))
+                           (ins: seq (option (wsize * Z))) ityin ci :=
+  match ci with
+  | Some ci =>
+    Let iins := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin ci.(f_iparams) in
+    Let _ := assert ([seq x.1.1 | x <- insf] == [seq x.1.1 | x <- iins])
+                    (E.reg_ierror_no_var "ins.1.1 <> iins.1.1") in
+    Let _ := assert (ins == [seq i.2 | i <- iins]) (E.reg_ierror_no_var "ins <> map snd iins") in
+    let ci_params := flatten (map (fun x => snd (fst x)) iins) in
+    Let ci_pre := mapM (fun c =>
+                        Let e := expand_e m (snd c) in
+                        ok(fst c, e)) ci.(f_pre) in
+    Let ci_post := mapM (fun c =>
+                        Let e := expand_e m (snd c) in
+                        ok(fst c, e)) ci.(f_post) in
+    ok (Some (MkContra ci_params ci_pre ci_post))
+  | None => ok None
+  end.
+
 Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
   Let x := init_map (fi fname fd) in
   match fd with
   | MkFun _ ci ityin params c tyout res ef =>
     let '(m, fi) := x in
     let exp := ~~(fname \in entries) in
-    Let ins  := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin params in
-    let tyin   := map (fun x => fst (fst x)) ins in
-    let params := map (fun x => snd (fst x)) ins in
-    Let iins := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin ci.(f_iparams) in
-    Let _ := assert ([seq x.1.1 | x <- ins] == [seq x.1.1 | x <- iins])
-                    (E.reg_ierror_no_var "ins.1.1 <> iins.1.1") in
-    let ins    := map snd ins in
-    Let _ := assert (ins == [seq i.2 | i <- iins]) (E.reg_ierror_no_var "ins <> map snd iins") in
-    let ci_params := flatten (map (fun x => snd (fst x)) iins) in
-    Let ci_pre := mapM (fun c =>
-                        Let e := expand_e m (snd c) in
-                        ok(fst c, e)) ci.(f_pre)
-    in
+    Let insf  := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin params in
+    let tyin   := map (fun x => fst (fst x)) insf in
+    let params := map (fun x => snd (fst x)) insf in
+    let ins := map snd insf in
     Let outs := mapM2 length_mismatch (expand_tyv m exp "the return type") tyout res in
     let tyout  := map (fun x => fst (fst x)) outs in
     let res    := map (fun x => snd (fst x)) outs in
     let outs   := map snd outs in
-    Let ci_post := mapM (fun c =>
-                        Let e := expand_e m (snd c) in
-                        ok(fst c, e)) ci.(f_post)
-    in
-
-
-    let ci := MkContra ci_params ci_pre ci_post in
+    Let ci := expand_ci m exp insf ins ityin ci in
     ok (MkFun fi ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
         m, (ins, outs))
   end.

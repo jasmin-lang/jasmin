@@ -564,7 +564,7 @@ Class progT := {
 
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
-  f_contra : fun_contract;
+  f_contra : option fun_contract;
   f_tyin   : seq stype;
   f_params : seq var_i;
   f_body   : cmd;

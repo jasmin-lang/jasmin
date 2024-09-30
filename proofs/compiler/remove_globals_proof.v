@@ -187,6 +187,7 @@ Module INCL. Section INCL.
     sem_pre P2 scs m fn vargs = ok v.
   Proof.
     rewrite /sem_pre /P2 /=; case: get_fundef => fd //; t_xrbindP.
+    case: f_contra => // ?; t_xrbindP.
     move=> > -> /= s1 -> /=.
     by elim: f_pre v => //= j js hrec v; t_xrbindP => > /(gd_incl_e hincl) -> /= -> /= > /hrec -> <-.
   Qed.
@@ -196,6 +197,7 @@ Module INCL. Section INCL.
     sem_post P2 scs m fn vargs vres = ok v.
   Proof.
     rewrite /sem_post /P2; case: get_fundef => fd //; t_xrbindP.
+    case: f_contra => // ?; t_xrbindP.
     move=> > -> /= s1 -> /= > -> /=.
     by elim: f_post v => //= j js hrec v; t_xrbindP => > /(gd_incl_e hincl) -> /= -> /= > /hrec -> <-.
   Qed.
@@ -792,8 +794,7 @@ Module RGP. Section PROOFS.
   Proof.
     rewrite /sem_pre; case hfd: get_fundef => [fd|//].
     have [fd' [->]] := get_fundefP hfd.
-    rewrite /remove_glob_fundef; t_xrbindP => ? hp ? hr ? _  <- /=.
-    move=> ? -> /= > -> //.
+    by rewrite /remove_glob_fundef; t_xrbindP => ? hp ? hr ? _  <-.
   Qed.
 
   Local Lemma sem_post_ok scs mem fn vargs vres vpo :
@@ -802,8 +803,7 @@ Module RGP. Section PROOFS.
   Proof.
     rewrite /sem_post; case hfd: get_fundef => [fd|//].
     have [fd' [->]] := get_fundefP hfd.
-    rewrite /remove_glob_fundef; t_xrbindP => ? hp ? hr ? _  <- /=.
-    by move=> ? -> /= > -> /= > -> /=.
+    by rewrite /remove_glob_fundef; t_xrbindP => ? hp ? hr ? _  <-.
   Qed.
 
   Local Lemma Hcall : sem_Ind_call P ev Pi_r Pfun.

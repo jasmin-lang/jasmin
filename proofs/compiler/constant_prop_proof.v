@@ -1431,7 +1431,7 @@ Section PROOF.
   Local Lemma sem_pre_ok scs m fn vargs v:
     sem_pre p scs m fn vargs = ok v → sem_pre p' scs m fn vargs = ok v.
   Proof.
-    rewrite /sem_pre /p' (get_map_prog (const_prop_fun cl gd) p fn); case: get_fundef => //= -[] > /=.
+    rewrite /sem_pre /p' (get_map_prog (const_prop_fun cl gd) p fn); case: get_fundef => //= -[] ? [] // > /=.
     t_xrbindP => ? -> ? /= -> /=.
     elim: f_pre v => //= -[ap e] pr hrec.
     t_xrbindP => > he /to_boolI hb ? /hrec -> <-; subst.
@@ -1447,7 +1447,7 @@ Section PROOF.
   Local Lemma sem_post_ok scs m fn vargs vres v:
     sem_post p scs m fn vargs vres = ok v → sem_post p' scs m fn vargs vres = ok v.
   Proof.
-    rewrite /sem_post /p' (get_map_prog (const_prop_fun cl gd) p fn); case: get_fundef => //= -[] > /=.
+    rewrite /sem_post /p' (get_map_prog (const_prop_fun cl gd) p fn); case: get_fundef => //= -[] ? [] // > /=.
     t_xrbindP => ? -> ? /= -> /= ? -> /=.
     elim: f_post v => //= -[ap e] pr hrec.
     t_xrbindP => > he /to_boolI hb ? /hrec -> <-; subst.

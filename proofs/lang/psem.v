@@ -2427,7 +2427,8 @@ Lemma sem_pre_uincl vargs scs m fn vargs' vpr :
   sem_pre p scs m fn vargs  = ok vpr ->
   sem_pre p scs m fn vargs' = ok vpr.
 Proof.
-  rewrite /sem_pre; case: get_fundef => // fd hu; t_xrbindP.
+  rewrite /sem_pre; case: get_fundef => // fd hu.
+  case: f_contra => // ci; t_xrbindP.
   move=> vas htru s0 hw hmap.
   have [vas' -> huva /=] := mapM2_dc_truncate_val htru hu.
   have [vm2 /= -> /= huvm] := write_vars_uincl (vm_uincl_refl _) huva hw.
@@ -2440,7 +2441,8 @@ Lemma sem_post_uincl vargs vres scs m fn vargs' vres' vpo :
   sem_post p scs m fn vargs vres = ok vpo ->
   sem_post p scs m fn vargs' vres' = ok vpo.
 Proof.
-  rewrite /sem_post; case: get_fundef => // fd hua hur; t_xrbindP.
+  rewrite /sem_post; case: get_fundef => // fd hua hur.
+  case: f_contra => // ci; t_xrbindP.
   move=> vas htru s0 hwa s1 hwr hmap.
   have [vas' -> huva /=] := mapM2_dc_truncate_val htru hua.
   have [vm2 /= -> /= huvm2] := write_vars_uincl (vm_uincl_refl _) huva hwa.

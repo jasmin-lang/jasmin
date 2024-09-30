@@ -577,20 +577,23 @@ Context {pT: progT}.
 
 Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
 
-Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
-  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
-  let without_globals := if cl then with_globals_cl gd else without_globals in
-  let 'MkFun ii ci si p c so r ev := f in
+Definition const_prop_ci without_globals ci :=
   let ci_pre := map (fun c =>
                         let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_pre)
   in
-  let mc := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
   let ci_post := map (fun c =>
                         let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_post)
   in
-  let ci := MkContra ci.(f_iparams) ci_pre ci_post in
+  MkContra ci.(f_iparams) ci_pre ci_post.
+
+Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
+  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
+  let without_globals := if cl then with_globals_cl gd else without_globals in
+  let 'MkFun ii ci si p c so r ev := f in
+  let mc := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
+  let ci := Option.map (const_prop_ci without_globals) ci in
   MkFun ii ci si p mc.2 so r ev.
 
 Definition const_prop_prog (cl: bool) (p:prog) : prog :=

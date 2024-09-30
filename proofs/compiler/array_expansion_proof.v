@@ -872,14 +872,15 @@ Local Lemma sem_pre_ok scs m1 fn ei eo vargs vargs1 v :
 Proof.
   rewrite /sem_pre => hsig hexp.
   case Hget: get_fundef => [f | //].
-  have [fd1 [fd2 [m [inout [Hget2 hsigs /=]]]] {Hget}]:= all_checked Hget.
+  have [fd1 [fd2 [m [inout [-> hsigs /=]]]] {Hget}]:= all_checked Hget.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: f => /= finfo fci ftyin fparams fbody ftyout fres fextra.
   set fd := {| f_info := finfo |} => hinit.
-  t_xrbindP => ins hparams iins hiparams _ _ pr' hpr' outs hres po' hpo' <- ??;
-    subst mt inout.
-  t_xrbindP => c hc ?; subst fd1.
-  move: hsigs; rewrite hsig Hget2 /= => -[??]; subst ei eo.
+  t_xrbindP => ins hparams iins hiparams ci' hci <- ??; subst mt inout.
+  t_xrbindP => c' _ <- /=.
+  move: hci; rewrite /expand_ci; case: (fci); last by move=> [<-] [<-].
+  move=> ci; t_xrbindP => ? h1 _ _ pr' hpr' po' hpo' <-.
+  move: hsigs; rewrite hsig /= => -[??]; subst ei eo.
   move=> vargs' Hca s1 Hw hpr.
   set (sempty := {| escs := scs; emem := m1; evm := Vm.init; eassert := [::] |}).
   have hwf := wf_init_map hinit.
@@ -889,7 +890,7 @@ Proof.
   have [s1']:= expand_returnsP hwf heqae (expend_tyv_expand_return hparams) Hw hexp.
   have -> := expand_vs_flatten hwf hparams hexp.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa1.
-  elim : (f_pre fci) (pr') v hpr' hpr => /=.
+  elim : (f_pre ci) (pr') v hpr' hpr => /=.
   + by move=> _ _ [<-] [<-].
   move=> a l hrec ? ? ; t_xrbindP.
   move=> > hexe <- > hpr' <- > hse hbool > hpr <- /=.
@@ -906,13 +907,15 @@ Local Lemma sem_post_ok scs m1 fn ei eo vargs vargs1 vres vres1 v :
 Proof.
   rewrite /sem_post => hsig hexpa hexpr.
   case Hget: get_fundef => [f | //].
-  have [fd1 [fd2 [m [inout [Hget2 hsigs /=]]]] {Hget}]:= all_checked Hget.
+  have [fd1 [fd2 [m [inout [-> hsigs /=]]]] {Hget}]:= all_checked Hget.
   rewrite /expand_fsig; t_xrbindP => -[mt finf].
   case: f => /= finfo fci ftyin fparams fbody ftyout fres fextra.
   set fd := {| f_info := finfo |} => hinit.
-  t_xrbindP => ins hparams iins hiparams /eqP heqins1 /eqP heqins2 pr' hpr' outs hres po' hpo' <- ??; subst mt inout.
-  t_xrbindP => c hc ?; subst fd1.
-  move: hsigs; rewrite hsig Hget2 /= => -[??]; subst ei eo.
+  t_xrbindP => ins hparams outs hres ci' hci <- ??; subst mt inout.
+  t_xrbindP => c' _ <- /=.
+  move: hci; rewrite /expand_ci; case: (fci); last by move=> [<-] [<-].
+  move=> ci; t_xrbindP => iins hiparams /eqP heqins1 /eqP heqins2 pr' hpr' po' hpo' <-.
+  move: hsigs; rewrite hsig /= => -[??]; subst ei eo.
   move=> vargs' Hca s1 Hw1 s2 Hw2 hpo.
   set (sempty := {| escs := scs; emem := m1; evm := Vm.init; eassert := [::] |}).
   have hwf := wf_init_map hinit.
@@ -920,13 +923,13 @@ Proof.
   rewrite !(write_vars_lvals false gd) in Hw1, Hw2.
   have ?:= mapM2_dc_truncate_id Hca; subst vargs'.
   rewrite heqins2 in hexpa.
-  have [s1']:= expand_returnsP hwf heqae (expend_tyv_expand_return hiparams) Hw1 hexpa.
+  have [s1'] := expand_returnsP hwf heqae (expend_tyv_expand_return hiparams) Hw1 hexpa.
   rewrite heqins1.
   have -> := expand_vs_flatten hwf hiparams hexpa.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa1.
   have [s2' ]:= expand_returnsP hwf heqa1 (expend_tyv_expand_return hres) Hw2 hexpr.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa2.
-  elim : (f_post fci) (po') v hpo' hpo => /=.
+  elim : (f_post ci) (po') v hpo' hpo => /=.
   + by move=> _ _ [<-] [<-].
   move=> a l hrec ? ? ; t_xrbindP.
   move=> > hexe <- > hpo' <- > hse hbool > hpo <- /=.
@@ -959,7 +962,7 @@ Proof.
   case: f Hca Hw Hc Hres Hcr hpo => /=.
   move=> finfo fci ftyin fparams fbody ftyout fres fextra.
   set fd := {| f_info := finfo |} => Hca Hw Hc Hres Hcr hpo hinit.
-  t_xrbindP => ins hparams iins hiparams _ _ pr' hpr' outs hres po' hpo' <- ??; subst mt inout.
+  t_xrbindP => ins hparams outs hres ci hci <- ??; subst mt inout.
   t_xrbindP => c hc ?; subst fd1.
   move=> expdin expdout; rewrite hsigs => -[??] vargs1 hexvs; subst expdin expdout.
   set (sempty := {| escs := scs1; emem := m1; evm := Vm.init; eassert := [::] |}).
@@ -1015,7 +1018,7 @@ Proof.
   t_xrbindP=> > +?? /hrec{hrec}h ?; subst=> /=.
   case: eqP; last by move=> /nesym /eqP?; rewrite Mf.setP_neq //.
   move=> <- + ? [] <- /=.
-  rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP => ? hz ??????? hz1 ?? <- /=.
+  rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP => ? hz ? hz1 ?? <- /=.
   do 2 f_equal.
   + move: (mapM2_Forall3 hz); elim => //= > + _ ->.
     by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.

@@ -488,8 +488,8 @@ Local Lemma sem_pre_ok scs m fn vargs v:
   sem_pre p2 scs m fn vargs = ok v.
 Proof.
   rewrite /sem_pre.
-  case: get_fundef (@all_checked fn) => // -[] /= > /(_ _ erefl) [fd2].
-  by rewrite /array_copy_fd eq_globs; t_xrbindP => ?? <- -> /= ? -> /= ? -> /= ->.
+  case: get_fundef (@all_checked fn) => // -[] /= ? ci > /(_ _ erefl) [fd2].
+  by rewrite /array_copy_fd eq_globs; t_xrbindP => ?? <- -> /=; case: ci.
 Qed.
 
 Local Lemma sem_post_ok scs m fn vargs vres v:
@@ -497,8 +497,8 @@ Local Lemma sem_post_ok scs m fn vargs vres v:
   sem_post p2 scs m fn vargs vres = ok v.
 Proof.
   rewrite /sem_post.
-  case: get_fundef (@all_checked fn) => // -[] /= > /(_ _ erefl) [fd2].
-  by rewrite /array_copy_fd eq_globs; t_xrbindP => ?? <- -> /= ? -> /= ? -> /= ? -> /= ->.
+  case: get_fundef (@all_checked fn) => // -[] /= ? ci > /(_ _ erefl) [fd2].
+  by rewrite /array_copy_fd eq_globs; t_xrbindP => ?? <- -> /=; case: ci.
 Qed.
 
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.

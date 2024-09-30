@@ -495,7 +495,8 @@ Section PROOF.
     have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' /[swap] -> {hfd}] := get_map_cfprog_name_gen dcok hfd.
-    by rewrite eq_globs /dead_code_fd; case: fd => > /=; t_xrbindP => ? _ _ _ <- /= > -> /= > ->.
+    rewrite eq_globs /dead_code_fd; case: fd => ? ci > /=; t_xrbindP => ? _ _ _ <-.
+    by case: ci.
   Qed.
 
   Local Lemma sem_post_ok scs mem fn vargs vres vres' vpo :
@@ -508,7 +509,8 @@ Section PROOF.
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' /[swap] -> {hfd}] := get_map_cfprog_name_gen dcok hfd.
     rewrite eq_globs /dead_code_fd; case: fd => /= fi fc tyi fp fb tyo fr fex.
-    t_xrbindP => ? _ [I xs_] hch <- /= hres ? -> /= s1 -> /= s2 hw.
+    t_xrbindP => ? _ [I xs_] hch <- /= hres; case: fc hch => [fc | //] => hch.
+    t_xrbindP=> ? -> /= s1 -> /= s2 hw.
     move: hch; set sout := (read_es _) => hch.
     have [vm2 [Hvm2 /= -> /=]]:
       exists vm2, evm s2 <=[sout] vm2 /\

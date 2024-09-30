@@ -531,10 +531,9 @@ Proof.
   case hfun : get_fundef => [fd |] //.
   have [f' hf'1 -> /=] := get_map_cfprog_name_gen spillok hfun.
   move : hf'1; rewrite /spill_fd -eq_globs.
-  case : (fd) => >.
-  case : ifP => //=.
-  + move => _ [<-] //=.
-  by t_xrbindP => _ _ ? _ <-  ? -> ? /= ->.
+  case : (fd) => ? ci > /=.
+  case : ifP => //=; first by move => _ [<-].
+  by t_xrbindP => _ _ ? _ <- /=; case: ci.
 Qed.
 
 
@@ -547,10 +546,9 @@ Proof.
   case hfun : get_fundef => [fd |] //.
   have [f' hf'1 -> /=] := get_map_cfprog_name_gen spillok hfun.
   move : hf'1; rewrite /spill_fd -eq_globs.
-  case : (fd) => >.
-  case : ifP => //=.
-  + move => _ [<-] //=.
-  by t_xrbindP => _ _ ? _ <-  ? -> ? /= -> ? /= ->.
+  case : (fd) => ? ci >.
+  case : ifP => //=; first by move => _ [<-].
+  by t_xrbindP => _ _ ? _ <- /=; case: ci.
 Qed.
 
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.

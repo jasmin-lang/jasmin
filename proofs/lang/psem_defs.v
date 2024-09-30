@@ -302,17 +302,25 @@ Definition dc_truncate_val {dc: DirectCall} t v :=
 
 Definition sem_pre {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) :=
   if get_fundef (p_funcs P) fn is Some f then
-    Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
-    Let s := write_vars (~~direct_call) f.(f_params) vargs (Estate scs m Vm.init [::]) in
-    mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) f.(f_contra).(f_pre)
+    match f.(f_contra) with
+    | Some ci =>
+      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+      Let s := write_vars (~~direct_call) f.(f_params) vargs (Estate scs m Vm.init [::]) in
+      mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_pre)
+    | None => ok [::]
+    end
   else Error ErrUnknowFun.
 
 Definition sem_post {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (vargs' : values) (vres : values) :=
  if get_fundef (p_funcs P) fn is Some f then
-    Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
-    Let s := write_vars (~~direct_call) f.(f_contra).(f_iparams) vargs (Estate scs m Vm.init [::]) in
-    Let s :=  write_vars (~~direct_call) f.(f_res) vres s in
-    mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) f.(f_contra).(f_post)
+   match f.(f_contra) with
+   | Some ci =>
+     Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
+     Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in
+     Let s :=  write_vars (~~direct_call) f.(f_res) vres s in
+     mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_post)
+   | None => ok [::]
+   end
   else Error ErrUnknowFun.
 
 End CONTRA.

@@ -260,6 +260,7 @@ Section LEMMA.
     MVM {
       mvm_scs  : escs s = escs t;
       mvm_mem  : emem s = emem t;
+      mvm_eass : eassert s = eassert t;
       mvm_vmap : s.(evm) <=[\D] t.(evm);
     }.
 
@@ -272,7 +273,7 @@ Section LEMMA.
     Sv.Subset X X' →
     match_estate X s t →
     match_estate X' s t.
-  Proof. by move => hle [?? hvm]; split => //; apply: uincl_exI hle hvm. Qed.
+  Proof. by move => hle [??? hvm]; split => //; apply: uincl_exI hle hvm. Qed.
 
   Let Pc (s1: estate) (c: cmd) (s2: estate) : Prop :=
     ∀ sz I O t1,
@@ -361,8 +362,9 @@ Section LEMMA.
   Lemma with_vm_m x y :
     escs x = escs y →
     emem x = emem y →
+    eassert x = eassert y →
     forall vm, with_vm x vm = with_vm y vm.
-  Proof. by case: x y => scs m vm [] scs' m' vm' /= -> ->. Qed.
+  Proof. by case: x y => scs m vm eass [] scs' m' vm' eass' /= -> -> ->. Qed.
 
   Lemma check_eP wdb ii I e s t v u : check_e ii I e = ok u ->
     match_estate I s t ->
@@ -371,7 +373,7 @@ Section LEMMA.
   Proof.
     rewrite /check_e/check_fv => /assertP/Sv.is_empty_spec hd sim sem.
     have := sem_pexpr_uincl_on (vm2 := evm t) _ sem.
-    rewrite (with_vm_m (mvm_scs sim) (mvm_mem sim)) with_vm_same; apply.
+    rewrite (with_vm_m (mvm_scs sim) (mvm_mem sim) (mvm_eass sim)) with_vm_same; apply.
     by move=> x hx; apply (mvm_vmap sim); SvD.fsetdec.
   Qed.
 
@@ -397,7 +399,7 @@ Section LEMMA.
     rewrite /check_lv /check_fv; t_xrbindP => /Sv.is_empty_spec hd <- hsim hw hu.
     have []:= write_uincl_on (vm1 := evm t1) _ hu hw.
     + move=> z hz; apply (mvm_vmap hsim); SvD.fsetdec.
-    move=> vm2; rewrite (with_vm_m (mvm_scs hsim) (mvm_mem hsim)) with_vm_same => hw' hs.
+    move=> vm2; rewrite (with_vm_m (mvm_scs hsim) (mvm_mem hsim) (mvm_eass hsim)) with_vm_same => hw' hs.
     exists (with_vm s2 vm2) => //;split => // z hz.
     case: (Sv_memP z (vrv x)) => hin; first by apply hs.
     rewrite -(vrvP hw); last by SvD.fsetdec.
@@ -442,13 +444,13 @@ Section LEMMA.
     by econstructor; eauto; rewrite /sem_sopn ok_w /= ok_w' /=.
   Qed.
 
-  Lemma Hassert_true: sem_Ind_assert_true p Pi_r.
+  Lemma Hassert: sem_Ind_assert p Pi_r.
   Proof.
-    move => s t pt e eval_e sz ii I O t1.
+    move => s t pt e b eval_e sz ii I O t1.
     rewrite /check_instr_r -/check_instr.
     t_xrbindP  => hce ? pre hsim; subst O.
     have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
-    exists t1 => //. eexists;last reflexivity.
+    exists (add_contract t1 (t,b)) => //. eexists;last reflexivity.
     by apply sem_one_varmap.Eassert_true.
   Qed.
 
