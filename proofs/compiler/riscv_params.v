@@ -157,7 +157,8 @@ End LINEARIZATION.
 Definition riscv_loparams : lowering_params lowering_options :=
   {|
     lop_lower_i _ _ _ := lower_i;
-    lop_fvars_correct := fun _ _ _ => true; (* No fresh variables introduced *)
+    lop_fvars_correct := fun _ _ _ => true; (* No fresh variable introduced *)
+  |}.
 
 
 (* ------------------------------------------------------------------------ *)
