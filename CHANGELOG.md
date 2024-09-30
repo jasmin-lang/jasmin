@@ -61,6 +61,9 @@
   deprecated in the previous release
   ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
 
+- Various improvements to the LATEX pretty-printer
+  ([PR #916](https://github.com/jasmin-lang/jasmin/pull/916)).
+
 # Jasmin 2024.07.0 — Sophia-Antipolis, 2024-07-09
 
 ## New features
