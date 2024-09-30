@@ -90,7 +90,6 @@ Definition riscv_saparams : stack_alloc_params :=
 
 Section LINEARIZATION.
 
-(* FIXME RISCV: are these registers ok? *)
 Notation vtmpi  := (mk_var_i (to_var X28)).
 Notation vtmp2i := (mk_var_i (to_var X29)).
 
