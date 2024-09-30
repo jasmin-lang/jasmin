@@ -107,7 +107,7 @@ Proof.
  Transparent wsize_size.
 Qed.
 
-(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
+(* TODO try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma align_eval_instr {lp ls ii xname vi y al} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
   get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
@@ -121,7 +121,7 @@ Proof.
   by apply :  align_sem_fopn_args; rewrite h1 /= truncate_word_u.
 Qed.
 
-(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
+(* TODO try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma sub_eval_instr {lp ls ii xname vi y z} {wy wz : word Uptr} :
   let: (xi, x) := mkv xname vi in
   get_var true (lvm ls) (v_var y) = ok (Vword wy) -> 
@@ -136,7 +136,7 @@ Proof.
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
-(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
+(* TODO try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma subi_eval_instr {lp ls ii xname vi y imm wy} :
   let: (xi, x) := mkv xname vi in
   get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
@@ -150,7 +150,7 @@ Proof.
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
-(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
+(* TODO try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma mov_eval_instr {lp ls ii xname vi y} {wy : word Uptr} :
   let: (xi, x) := mkv xname vi in
   get_var true (lvm ls) (v_var y) = ok (Vword wy) ->
@@ -163,7 +163,7 @@ Proof.
   by rewrite sem_fopn_equiv; apply: sem_fopn_args_eval_instr.
 Qed.
 
-(* FIXME try to remove the usage of this lemma, use sem_fopn_args version instead *)
+(* TODO try to remove the usage of this lemma, use sem_fopn_args version instead *)
 Lemma movi_eval_instr {lp ls ii imm xname vi} :
   let: (xi, x) := mkv xname vi in
   (* (is_expandable_or_shift imm \/ is_w16_encoding imm) -> *)
