@@ -747,3 +747,54 @@ Proof.
 Qed.
 
 End WITH_PARAMS.
+
+Section EQ_EX.
+
+Context
+  {wsw:WithSubWord}
+  {asm_op syscall_state : Type}
+  {ep : EstateParams syscall_state}
+  {spp : SemPexprParams}.
+  
+Lemma write_lval_eq_ex wdb gd X x v s1 s2 vm1 :
+  disjoint X (read_rv x) ->
+  write_lval wdb gd x v s1 = ok s2 ->
+  evm s1 =[\ X] vm1 ->
+  exists2 vm2 : Vm.t,
+    write_lval wdb gd x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    evm s2 =[\ X] vm2.
+Proof.
+  move=> hdisj hw eq_vm1.
+  have eq_vm1' := eq_ex_disjoint_eq_on eq_vm1 hdisj.
+  have [vm2 hw2 eq_vm2] := write_lval_eq_on1 eq_vm1' hw.
+  exists vm2 => //.
+  move=> y y_in.
+  case: (Sv_memP y (vrv x)) => y_in'.
+  + by apply eq_vm2.
+  have /= <- := vrvP hw; last by clear -y_in'; SvD.fsetdec.
+  have /= <- := vrvP hw2; last by clear -y_in'; SvD.fsetdec.
+  by apply eq_vm1.
+Qed.
+
+
+Lemma write_lvals_eq_ex wdb gd X xs vs s1 s2 vm1 :
+  disjoint X (read_rvs xs) ->
+  write_lvals wdb gd s1 xs vs = ok s2 ->
+  evm s1 =[\ X] vm1 ->
+  exists2 vm2 : Vm.t,
+    write_lvals wdb gd (with_vm s1 vm1) xs vs = ok (with_vm s2 vm2) &
+    evm s2 =[\ X] vm2.
+Proof.
+  move=> hdisj hw eq_vm1.
+  have eq_vm1' := eq_ex_disjoint_eq_on eq_vm1 hdisj.
+  have [vm2 hw2 eq_vm2] := write_lvals_eq_on (@SvD.F.Subset_refl _) hw eq_vm1'.
+  exists vm2 => //.
+  move=> y y_in.
+  case: (Sv_memP y (Sv.union (vrvs xs) (read_rvs xs))) => y_in'.
+  + by apply eq_vm2.
+  have /= <- := vrvsP hw; last by clear -y_in'; SvD.fsetdec.
+  have /= <- := vrvsP hw2; last by clear -y_in'; SvD.fsetdec.
+  by apply eq_vm1.
+Qed.
+
+End EQ_EX.
