@@ -20,7 +20,6 @@ Require Import
   riscv_decl
   riscv_extra
   riscv_instr_decl
-  (* riscv_instr_decl_lemmas *)
   riscv_lowering.
 
 Set Implicit Arguments.
