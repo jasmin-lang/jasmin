@@ -265,37 +265,6 @@ Proof.
   have := Z_mod_lt hbs B hB; nia.
 Qed.
 
-(* Lemma li_lsem_1 s xname vi imm :
-  let: (xi, x) := mkv xname vi in
-  let: lcmd := RISCVFopn_core.li xi imm in
-  exists vm',
-    [/\ sem_fopns_args s lcmd = ok (with_vm s vm')
-      , vm' =[\ Sv.singleton x ] evm s
-      & get_var true vm' x = ok (Vword (wrepr reg_size imm)) ].
-Proof.
-  rewrite /RISCVFopn_core.li; case: orP => [himm' | _] /=.
-  + rewrite (movi_sem_fopn_args himm') /with_vm /=.
-    eexists; split; first reflexivity; last by t_get_var.
-    move=> v /Sv.singleton_spec ?.
-    by t_vm_get.
-  case hdivmod: Z.div_eucl => [hbs lbs] /=.
-  rewrite movi_sem_fopn_args /=; first last.
-  + have := Z_div_mod imm (wbase U16).
-    rewrite hdivmod.
-    move=> []; first done.
-    rewrite wbaseE /= => _ [??].
-    right.
-    by apply/ZltP.
-  t_riscv_op.
-  t_get_var => /=; t_riscv_op => //.
-  eexists; split; first reflexivity.
-  + by move=> v /Sv.singleton_spec ?; t_vm_get.
-  t_get_var=> //=.
-  by rewrite (mov_movt hdivmod).
-Qed.
-Opaque RISCVFopn_core.movt.
-Opaque RISCVFopn_core.li. *)
-
 Lemma smart_mov_sem_fopns_args s (w : wreg) xname vi y :
   let: (xi, x) := mkv xname vi in
   let: lc := RISCVFopn_core.smart_mov xi y in
