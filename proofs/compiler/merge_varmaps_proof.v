@@ -672,7 +672,7 @@ Section LEMMA.
     t_xrbindP => hces hal hargs hres htmp hxs pre sim.
     have simU := match_estate_kill (tmp_call (f_extra fd)) sim.
     have [vargs' hvargs' hincl]:= check_esP hces simU ok_vargs.
-    have [|||| [htr [k [tvm2] [res'] [texec hk get_res res_uincl]]] ] :=
+    have [|||| htr [k [tvm2] [res'] [texec hk get_res res_uincl]] ] :=
       ih ii fd (kill_vars (fd_tmp_call p fn) (evm t1)) vargs' heq _ _ _ _ hincl.
     + by rewrite /top_stack_aligned (is_align_m hal (mvp_stack_aligned pre)) orbT.
     + by rewrite kill_vars_tmp_call_rsp; apply: (mvp_top_stack pre).
