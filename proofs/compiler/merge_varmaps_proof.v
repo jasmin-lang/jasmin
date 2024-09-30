@@ -30,7 +30,7 @@ Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != pex.(sp_rsp) →
   init_stk_state fex pex gd s = ok s' →
   [/\
-    escs s = escs s',
+    escs s = escs s', eassert s' = [::],
     (evm s').[vid pex.(sp_rip)] = Vword gd,
     alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_ioff) fex.(sf_stk_extra_sz) = ok (emem s'),
     (evm s').[vid pex.(sp_rsp)] = Vword (top_stack (emem s')) &
@@ -135,7 +135,7 @@ Proof.
   move: ok_p; rewrite /fd_tmp_call /check; t_xrbindP => _ _ _ ? ok_prog.
   have /(_ f) := get_map_cfprog_name_gen ok_prog.
   case: get_fundef => // fd /(_ _ erefl) [? ].
-  by rewrite /check_fd /=; t_xrbindP => ? _ _ _ _ _ _ /disjoint_sym.
+  by rewrite /check_fd /=; t_xrbindP => ? _ _ _ _ _ _ _ /disjoint_sym.
 Qed.
 
 Lemma kill_vars_tmp_call_rsp fn vm :
@@ -260,12 +260,15 @@ Section LEMMA.
     MVM {
       mvm_scs  : escs s = escs t;
       mvm_mem  : emem s = emem t;
-      mvm_eass : eassert s = eassert t;
+      mvm_ea_n : eassert s = [::] /\ eassert t = [::];
       mvm_vmap : s.(evm) <=[\D] t.(evm);
     }.
 
+  Lemma mvm_eass D s t : match_estate D s t -> eassert s = eassert t.
+  Proof. by move=> /mvm_ea_n [-> ->]. Qed.
+
   Instance match_estate_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) match_estate.
-  Proof. 
+  Proof.
     by move => x y x_eq_y s _ <- t _ <-; split => - [] ?; rewrite ?x_eq_y => ?; constructor => //; rewrite x_eq_y.
   Qed.
 
@@ -312,7 +315,7 @@ Section LEMMA.
       2: exact: (mvp_stack_aligned ok_W).
       by move: (mvp_not_written ok_W); rewrite write_c_cons; apply: disjoint_w;
         move: (write_I i) (write_c c) (* SvD.fsetdec faster *); SvD.fsetdec.
-    have [t2 [ki texec_i hki] sim2] := hi _ _ _ _ ok_i ok_W1 sim1. 
+    have [t2 [ki texec_i hki] sim2] := hi _ _ _ _ ok_i ok_W1 sim1.
     have ok_W2 : merged_vmap_precondition (write_c c) sz (emem s2) (evm t2).
     - have [ not_written_gd not_written_rsp ] := not_written_magic (mvp_not_written ok_W1).
       split.
@@ -366,6 +369,7 @@ Section LEMMA.
     forall vm, with_vm x vm = with_vm y vm.
   Proof. by case: x y => scs m vm eass [] scs' m' vm' eass' /= -> -> ->. Qed.
 
+
   Lemma check_eP wdb ii I e s t v u : check_e ii I e = ok u ->
     match_estate I s t ->
     sem_pexpr wdb (p_globs p) s e = ok v ->
@@ -400,7 +404,9 @@ Section LEMMA.
     have []:= write_uincl_on (vm1 := evm t1) _ hu hw.
     + move=> z hz; apply (mvm_vmap hsim); SvD.fsetdec.
     move=> vm2; rewrite (with_vm_m (mvm_scs hsim) (mvm_mem hsim) (mvm_eass hsim)) with_vm_same => hw' hs.
-    exists (with_vm s2 vm2) => //;split => // z hz.
+    exists (with_vm s2 vm2) => //;split => //.
+    + by rewrite eassert_with_vm -(lv_write_assertP hw); case: (mvm_ea_n hsim).
+    move=> z hz.
     case: (Sv_memP z (vrv x)) => hin; first by apply hs.
     rewrite -(vrvP hw); last by SvD.fsetdec.
     rewrite -(vrvP hw'); last by SvD.fsetdec.
@@ -445,24 +451,7 @@ Section LEMMA.
   Qed.
 
   Lemma Hassert: sem_Ind_assert p Pi_r.
-  Proof.
-    move => s t pt e b eval_e sz ii I O t1.
-    rewrite /check_instr_r -/check_instr.
-    t_xrbindP  => hce ? pre hsim; subst O.
-    have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
-    exists (add_contract t1 (t,b)) => //. eexists;last reflexivity.
-    by apply sem_one_varmap.Eassert_true.
-  Qed.
-
-  Lemma Hassert_false: sem_Ind_assert_false p Pi_r.
-  Proof.
-    move => s t pt e eval_e sz ii I O t1.
-    rewrite /check_instr_r -/check_instr.
-    t_xrbindP  => hce ? pre hsim; subst O.
-    have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
-    exists t1 => //. eexists;last reflexivity.
-    by apply sem_one_varmap.Eassert_false.
-  Qed.
+  Proof. done. Qed.
 
   Lemma Hif_true: sem_Ind_if_true p global_data Pc Pi_r.
   Proof.
@@ -599,7 +588,7 @@ Section LEMMA.
   Lemma Hfor_cons: sem_Ind_for_cons p global_data Pc Pfor.
   Proof. by []. Qed.
 
-  Let Pfun scs (m: mem) (fn: funname) (args: seq value) scs' (m': mem) (res: seq value) : Prop :=
+  Let Pfun scs (m: mem) (fn: funname) (args: seq value) scs' (m': mem) (res: seq value) (tr : contracts_trace): Prop :=
     ∀ ii fd tvm1 args',
       get_fundef (p_funcs p) fn = Some fd →
       top_stack_aligned fd m →
@@ -607,14 +596,16 @@ Section LEMMA.
       tvm1.[ vgd ] = Vword global_data →
       get_var_is false tvm1 fd.(f_params) = ok args' →
       List.Forall2 value_uincl args args' →
+      tr = [::] /\
       ∃ (k: Sv.t) tvm2 res',
-        [/\ sem_call ii k {| escs := scs; emem := m ; evm := tvm1 |} fn {| escs := scs'; emem := m' ; evm := tvm2 |},
+        [/\ sem_call ii k {| escs := scs; emem := m ; evm := tvm1; eassert := [::] |} fn
+                          {| escs := scs'; emem := m'; evm := tvm2; eassert := [::] |} ,
          Sv.Subset k (writefun_ra p var_tmps wrf fn),
          get_var_is false tvm2 fd.(f_res) = ok res' &
          List.Forall2 value_uincl res res'
         ].
 
-  Lemma all2_get_pvar args xs : 
+  Lemma all2_get_pvar args xs :
     all2
       (λ (e : pexpr) (a : var_i),
         match e with
@@ -629,8 +620,8 @@ Section LEMMA.
   Qed.
 
   Lemma all2_get_lvar xs res :
-    all2 
-     (λ (x : lval) (r : var_i), 
+    all2
+     (λ (x : lval) (r : var_i),
       match x with
       | Lvar v => v_var v == r
       | _ => false
@@ -644,20 +635,44 @@ Section LEMMA.
   Lemma match_estate_kill I s1 t1 K:
      match_estate I s1 t1 -> match_estate (Sv.union I K) s1 (with_vm t1 (kill_vars K (evm t1))).
   Proof.
-    move=> [h1 h2 h3]; constructor => // x hx.
+    move=> [h1 h2 hea h3]; constructor => // x hx.
     rewrite /with_vm /= kill_varsE; case: Sv_memP => //; first by SvD.fsetdec.
     move=> hni; apply h3; SvD.fsetdec.
+  Qed.
+
+  #[local]
+  Lemma sem_pre_ok fn fd scs m vargs vpr :
+    get_fundef (p_funcs p) fn = Some fd ->
+    sem_pre p scs m fn vargs = ok vpr ->
+    vpr = [::].
+  Proof.
+    move=> ok_fd; rewrite /sem_pre; rewrite ok_fd.
+    case: (checkP ok_p ok_fd) => ok_wrf.
+    rewrite /check_fd; t_xrbindP => D _ _ _ _ _ h _ _ _.
+    by case: f_contra h => // _ [<-].
+  Qed.
+
+  #[local]
+  Lemma sem_post_ok fn fd scs m vargs vres vpo :
+    get_fundef (p_funcs p) fn = Some fd ->
+    sem_post p scs m fn vargs vres = ok vpo ->
+    vpo = [::].
+  Proof.
+    move=> ok_fd; rewrite /sem_post; rewrite ok_fd.
+    case: (checkP ok_p ok_fd) => ok_wrf.
+    rewrite /check_fd; t_xrbindP => D _ _ _ _ _ h _ _ _.
+    by case: f_contra h => // _ [<-].
   Qed.
 
   Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
   Proof.
     move=>
-      s1 scs2 m2 s2 xs fn args vargs vs ok_vargs sexec ih ok_s2 sz ii I O t1.
+      s1 scs2 m2 s2 s3 xs fn args vargs vs vpr vpo tr ok_vargs hpr sexec ih ok_s2 hpo -> sz ii I O t1.
     rewrite /check_instr_r /=; case heq : get_fundef => [ fd | //].
     t_xrbindP => hces hal hargs hres htmp hxs pre sim.
     have simU := match_estate_kill (tmp_call (f_extra fd)) sim.
     have [vargs' hvargs' hincl]:= check_esP hces simU ok_vargs.
-    have [|||| k [tvm2] [res'] [texec hk get_res res_uincl] ] :=
+    have [|||| [htr [k [tvm2] [res'] [texec hk get_res res_uincl]]] ] :=
       ih ii fd (kill_vars (fd_tmp_call p fn) (evm t1)) vargs' heq _ _ _ _ hincl.
     + by rewrite /top_stack_aligned (is_align_m hal (mvp_stack_aligned pre)) orbT.
     + by rewrite kill_vars_tmp_call_rsp; apply: (mvp_top_stack pre).
@@ -666,16 +681,20 @@ Section LEMMA.
       move=> /= /andP []; case: e => //= -[] x [] // /eqP hxy hall2.
       rewrite /get_gvar /= hxy; t_xrbindP => ? /= /hrec -> // <- /=.
       by rewrite /fd_tmp_call heq.
+    subst tr.
     have hget_pvar := all2_get_pvar hargs.
     have hget_lvar := all2_get_lvar hres.
-    exists (kill_tmp_call p fn {| escs := scs2; emem := m2 ; evm := tvm2 |}).
+    exists (kill_tmp_call p fn {| escs := scs2; emem := m2 ; evm := tvm2; eassert := [::] |}).
     + exists (Sv.union k (fd_tmp_call p fn)); last first.
       + by rewrite /write_i /= /write_i_rec /= /writefun_ra_call; SvD.fsetdec.
       econstructor; eauto.
-      by move: texec; rewrite (mvm_scs sim) (mvm_mem sim); case: (t1).
-    split => //.
+      move: texec; rewrite (mvm_scs sim) (mvm_mem sim).
+      by case: (t1) (proj2 (mvm_ea_n sim)) => /= > ->.
+    split => //=.
     - by rewrite (write_lvals_escs ok_s2).
     - by rewrite (write_lvals_emem hget_lvar ok_s2).
+    - rewrite (sem_post_ok heq hpo) (sem_pre_ok heq hpr); split => //=.
+      by rewrite -(lvs_write_assertP ok_s2) /=; case: (mvm_ea_n sim).
     rewrite -hxs => y hy; rewrite /kill_tmp_call /= kill_varsE /fd_tmp_call heq /=; case: Sv_memP.
     + by SvD.fsetdec.
     move=> /Sv_memP /negbTE hntc; case: (Sv_memP y (sv_of_list v_var (f_res fd))); last first.
@@ -691,7 +710,7 @@ Section LEMMA.
     case: d hxd => // d hxd /andP [] /= /eqP hxq hall2 s3 s4 w ws.
     move: hx; rewrite /= inE orbX; case/orP; last first.
     + by move => hx; exact: ih _ _ vs_vs' _ hx hxds hqs hall2 _ ws.
-    case/andP => /eqP hyq /negbTE x_not_in_ys. 
+    case/andP => /eqP hyq /negbTE x_not_in_ys.
     have <- := vrvsP ws; last by rewrite (vrvs_vars hxds) -Sv.mem_spec sv_of_listE /= x_not_in_ys.
     move/write_varP: w vv' => [-> ? /vm_truncate_value_uincl].
     rewrite hxq -hyq Vm.setP_eq; apply: value_uincl_trans.
@@ -709,19 +728,19 @@ Section LEMMA.
     have [vs' ho' uvs]:= exec_syscallP ho uves.
     have h : match_estate (Sv.union I syscall_kill)
              (with_scs (with_mem s1 m) scs)
-             {| escs := scs; emem := m; evm := vm_after_syscall (evm t1) |}.
-    + split => //=.
+             {| escs := scs; emem := m; evm := vm_after_syscall (evm t1); eassert := eassert t1 |}.
+    + split => //=; first by apply: mvm_ea_n sim.
       move=> z hz; rewrite /vm_after_syscall kill_varsE.
       case: Sv_memP.
       + by move=> ?; exfalso; apply hz; SvD.fsetdec.
       by move=> hz'; apply: (mvm_vmap sim); SvD.fsetdec.
     have [t2 hw' sim2]: exists2 t2,
-        write_lvals true (p_globs p) {| escs := scs; emem := m; evm := vm_after_syscall (evm t1) |}
+        write_lvals true (p_globs p) {| escs := scs; emem := m; evm := vm_after_syscall (evm t1); eassert := eassert t1 |}
           (to_lvals (syscall_sig o).(scs_vout)) vs' = ok t2 &
            match_estate (Sv.diff (Sv.union I syscall_kill) (vrvs (to_lvals (syscall_sig o).(scs_vout)))) s2 t2.
     + move=> {ho ho' pre hes sim hves' hes'}.
       elim: xs (syscall_sig o).(scs_vout) hres (Sv.union I syscall_kill)
-            (with_scs (with_mem s1 m) scs) {| escs := scs; emem := m; evm := vm_after_syscall (evm t1) |}
+            (with_scs (with_mem s1 m) scs) {| escs := scs; emem := m; evm := vm_after_syscall (evm t1); eassert := eassert t1 |}
             vs vs' uvs hw h => {s1 t1 }.
       + move=> [] //= _ S s1 t1 _ _ [] // [<-].
         by rewrite /vrvs /=; exists t1 => //; have -> : Sv.Equal (Sv.diff S Sv.empty) S by SvD.fsetdec.
@@ -745,8 +764,8 @@ Section LEMMA.
 
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
   Proof.
-    move => scs m ?? fn fd vargs vargs' s0 s1 s2 vres vres' ok_fd ok_vargs /init_stk_stateI
-      -/(_ rip_neq_rsp) [hscs0 vgd_v ok_m' vrsp_v hvmap0] ok_s1 sexec ih ok_vres ok_vres' -> ->
+    move => scs m ?? fn fd vargs vargs' s0 s1 s2 vres vres' vpr vpo tr ok_fd ok_vargs /init_stk_stateI
+      -/(_ rip_neq_rsp) [hscs0 heassert0 vgd_v ok_m' vrsp_v hvmap0] ok_s1 hpr sexec ih ok_vres ok_vres' -> -> hpo ->
       ii fd' tvm1 args' ok_fd' sp_align vrsp_tv vgd_tv ok_args' ok_args''.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
@@ -755,7 +774,7 @@ Section LEMMA.
     set res := sv_of_list v_var (f_res fd).
     set params := sv_of_list v_var(f_params fd).
     move => checked_body hdisj
-      checked_params RSP_not_result preserved_magic
+      checked_params RSP_not_result preserved_magic _
       checked_save_stack htmp_call_magic checked_ra.
 
     have {checked_ra} checked_ra :
@@ -784,7 +803,7 @@ Section LEMMA.
       move: preserved_magic; rewrite /writefun_ra ok_fd /ra_vm heq /disjoint.
       by t_xrbindP => /Sv.is_empty_spec h ->; split => //; SvD.fsetdec.
     have ra_neq_magic :
-      match sf_return_address (f_extra fd) with 
+      match sf_return_address (f_extra fd) with
       | RAreg ra _ | RAstack (Some ra) _ _ =>
          [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr]
       | _ => True
@@ -812,10 +831,10 @@ Section LEMMA.
       rewrite -(write_vars_memP ok_s1) (alloc_stack_top_stack ok_m').
       exact: do_align_is_align.
     have sim1 : match_estate ID s1 t1'.
-    - subst t1'; split;
-      [ by rewrite /=; move: ok_s1; rewrite (write_vars_lvals _ [::]); apply write_lvals_escs
-      | by rewrite emem_with_vm (write_vars_memP ok_s1)
-      | ].
+    - subst t1'; split.
+      + by rewrite /=; move: ok_s1; rewrite (write_vars_lvals _ [::]); apply write_lvals_escs.
+      + by rewrite emem_with_vm (write_vars_memP ok_s1).
+      + by rewrite (write_vars_lvals _ [::]) in ok_s1; rewrite /= -(lvs_write_assertP ok_s1).
       rewrite evm_with_vm /set_RSP => z.
       case: (z =P vrsp) => [-> _ | /eqP hzrsp hnin].
       + rewrite Vm.setP_eq -(write_vars_eq_ex ok_s1) ?vrsp_v ?vm_truncate_val_eq //.
@@ -856,7 +875,7 @@ Section LEMMA.
           - case/SvD.F.union_iff => [ | /vflagsP ->] //.
             by case/SvD.F.add_iff => [<- | /Sv.singleton_spec ->].
           - by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
-          case: ra; last by SvD.fsetdec.  
+          case: ra; last by SvD.fsetdec.
           by move => r /Sv.singleton_spec -> /and3P [] _ _ /eqP ->.
         rewrite /saved_stack_vm.
         case: sf_save_stack => [ | ra | ofs ] /=; only 1, 3: SvD.fsetdec.
@@ -869,7 +888,10 @@ Section LEMMA.
       by rewrite {1}/top_stack ok_free.(fss_frames) ok_free.(fss_root) -(sem_stack_stable_sprog sexec).(ss_root)
          -(sem_stack_stable_sprog sexec).(ss_frames) -(write_vars_memP ok_s1) ok_alloc.(ass_root) ok_alloc.(ass_frames).
 
-    have [ t2 [ k texec hk ] sim2 ] := ih _ _ _ t1' checked_body pre1 sim1.
+    have [??] := (sem_pre_ok ok_fd hpr, sem_post_ok ok_fd hpo); subst vpr vpo.
+    have sim1' : match_estate ID (add_assumes s1 [::]) t1'.
+    + case: sim1 => *; split => //.
+    have [ t2 [ k texec hk ] sim2 ] := ih _ _ _ t1' checked_body pre1 sim1'.
     have [tres ok_tres res_uincl] :
       let: vm := set_RSP p (free_stack (emem t2)) (evm t2) in
       exists2 tres,
@@ -890,6 +912,8 @@ Section LEMMA.
       have ex : value_uincl vm.[x] (set_RSP p m vm').[x].
       + by rewrite /set_RSP Vm.setP_neq //; apply: hvm; apply h; rewrite inE eqxx.
       by eexists; first reflexivity; constructor.
+    split.
+    + by case: sim2 => /= _ _ [].
     exists
        (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmps) (saved_stack_vm fd))),
        (set_RSP p (free_stack (emem t2)) (evm t2)), tres; split.
@@ -912,8 +936,8 @@ Section LEMMA.
       + exact: sp_align.
       + exact: vrsp_tv.
       + exact: ok_m'.
-      + have -> : scs = escs s0 by done.
-        exact: texec.
+      + have -> /= : scs = escs s0 by done.
+        by move: texec; rewrite /t1' (surj_estate s0) /= heassert0; apply.
       + rewrite /valid_RSP -(sem_not_written texec).
         + rewrite /t1' /= Vm.setP_eq vm_truncate_val_eq // -(mvm_mem sim2).
           move: ok_s1; rewrite (write_vars_lvals _ [::]) => /write_lvals_stack_stable /ss_top_stack ->.
@@ -921,7 +945,7 @@ Section LEMMA.
         move/Sv.subset_spec: ok_wrf; rewrite /write_fd /= => ok_wrf.
         have [_]:= not_written_magic preserved_magic.
         by rewrite /vrsp /= /writefun_ra Sv.union_spec; intuition.
-      rewrite (mvm_scs sim2) (mvm_mem sim2); reflexivity.
+      rewrite (mvm_scs sim2) (mvm_mem sim2) (proj2 (mvm_ea_n sim2)); reflexivity.
     - move: ok_wrf hk; rewrite /valid_writefun /write_fd /= /writefun_ra ok_fd /is_true Sv.subset_spec.
       set s := (X in Sv.union _ X); rewrite -/s; move: s (write_c fd.(f_body)) (wrf fn); clear.
       by SvD.fsetdec.
@@ -929,9 +953,9 @@ Section LEMMA.
     exact: res_uincl.
   Qed.
 
-  Lemma merge_varmaps_callP scs m fn args scs' m' res :
-    psem.sem_call p global_data scs m fn args scs' m' res
-    -> Pfun scs m fn args scs' m' res.
+  Lemma merge_varmaps_callP scs m fn args scs' m' res tr :
+    psem.sem_call p global_data scs m fn args scs' m' res tr
+    -> Pfun scs m fn args scs' m' res tr.
   Proof.
     exact:
       (sem_call_Ind
@@ -941,8 +965,7 @@ Section LEMMA.
         Hassgn
         Hopn
         Hsyscall
-        Hassert_true
-        Hassert_false
+        Hassert
         Hif_true
         Hif_false
         Hwhile_true
@@ -956,9 +979,9 @@ Section LEMMA.
 
 End LEMMA.
 
-Lemma merge_varmaps_export_callP scs m fn args scs' m' res :
+Lemma merge_varmaps_export_callP scs m fn args scs' m' res tr :
   is_export p fn →
-  psem.sem_call p global_data scs m fn args scs' m' res →
+  psem.sem_call p global_data scs m fn args scs' m' res tr →
   sem_one_varmap.sem_export_call p var_tmps global_data scs m fn args scs' m' res.
 Proof.
   case => fd ok_fd Export.
@@ -970,7 +993,7 @@ Proof.
   set ID := (ID in check_c _ ID _).
   set results := sv_of_list v_var (f_res fd).
   set params := sv_of_list v_var (f_params fd).
-  move => checked_body hdisj checked_params RSP_not_result preserved_magic checked_save_stack tmp_call_magic.
+  move => checked_body hdisj checked_params RSP_not_result preserved_magic _ checked_save_stack tmp_call_magic.
   t_xrbindP => to_save_not_result ok_callee_saved ok_params.
 
   move => /(_ _ _ erefl) H.
@@ -981,10 +1004,10 @@ Proof.
   - exact: RSP_not_result.
   move => vm args' ok_args' args_args' vm_rsp vm_gd.
   have := H vm args' vm_rsp vm_gd ok_args' args_args'.
-  case => k [] vm2 [] res' [] texec ok_k ok_res' res_res'.
+  case => ? [] k [] vm2 [] res' [] texec ok_k ok_res' res_res'.
   case/sem_one_varmap.sem_callE: texec.
-  rewrite ok_fd => ? m0 [scs1 m1 vm1] k' /Some_inj <-.
-  rewrite /ra_valid /ra_undef_vm Export => rax_not_magic' ok_save_stack _ _ ok_m0 texec s1_rsp [] ????; subst.
+  rewrite ok_fd => ? m0 [scs1 m1 vm1 eass1] k' /Some_inj <-.
+  rewrite /ra_valid /ra_undef_vm Export => rax_not_magic' ok_save_stack _ _ ok_m0 texec s1_rsp [] ?????; subst.
   exists m0 k' m1 vm1 res'=> //.
   + move/Sv.subset_spec: ok_callee_saved ok_k.
     move: (writefun_ra _ _ _ _) => W.
