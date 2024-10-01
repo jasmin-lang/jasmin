@@ -709,14 +709,32 @@ Proof.
 
   (* SLHprotect *)
 Opaque cat.
-  rewrite /exec_sopn /= /sopn_sem /= /Ox86SLHprotect_instr /Uptr /assemble_slh_protect /= => ws.
-  case: ifP => /= Hws; t_xrbindP.
-    (* ws <= U64 *)
-  + case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes tr w hw wmsf hmsf.
-    rewrite /se_protect_small_sem /x86_OR /check_size_8_64 Hws => -[?]? hws ? hmap hlo; subst tr ys ops.
+  rewrite /exec_sopn /= /sopn_sem /= /Ox86SLHprotect_instr /Uptr /assemble_slh_protect /= => rk ws.
+  case: (boolP (ws <= U64)%CMP) => /= Hws; t_xrbindP.
+
+  (* ws <= U64 *)
+  - case: rk => /=; t_xrbindP.
+    + case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes tr w hw wmsf hmsf.
+      rewrite /se_protect_small_sem /x86_OR /check_size_8_64 Hws => -[?]? hws ? hmap hlo; subst tr ys ops.
+      apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
+      by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /= /x86_OR /check_size_8_64 Hws /= hws.
+    (* MMX *)
+    case: xs => // vw.
+    t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes tr w hw wmsf hmsf.
+    rewrite /se_protect_mmx_sem /x86_POR.
+    t_xrbindP=> /eqP ??? hws ? hmap hlo; subst ws tr ys ops.
     apply: (assemble_opsP eval_assemble_cond hmap erefl _ hlo).
-    by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /= /x86_OR /check_size_8_64 Hws /= hws.
+    by rewrite /= hes /exec_sopn /= hw hmsf /= /sopn_sem /= /x86_POR /= hws.
+
   (* ws >= U64 *)
+  case: rk => /=; t_xrbindP; first last.
+  - (* Never happens. *)
+    case: xs => // vw.
+    t_xrbindP=> -[] // vmsf.
+    t_xrbindP=> // -[] // _ ?? _ ? _.
+    rewrite /se_protect_mmx_sem.
+    t_xrbindP=> /eqP ?; by subst ws.
+
   have {Hws} Hws : (U64 < ws)%CMP by rewrite -cmp_nle_lt Hws.
   have Hws' : (U128 <= ws)%CMP by case: (ws) Hws.
   case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes tr w hw wmsf hmsf.
@@ -844,19 +862,29 @@ Lemma x86_spec_shp_lower :
   spec_shp_lower (shp_lower x86_shparams).
 Proof.
   move=> s s' gd lvs slho es args res lvs' op' es'.
-  case: slho => [|||[]||] //= [???] hargs;
-     subst lvs' op' es'; rewrite /sem_sopn /exec_sopn /= => ->;
-     move: args hargs; destruct_opn_args=> /=.
+  case: slho => [||| ws ||] //=;
+    last (case: (boolP (_ <= _)%CMP) => hws;
+            first case: (boolP (is_mmx_protect _ _)) => hmmx);
+    move=> [???] hargs; subst lvs' op' es';
+    rewrite /sem_sopn /exec_sopn /= => ->;
+    move: args hargs; destruct_opn_args=> /=.
   - by move=> _ _ [<-] <-.
-  - by move=> [->] _ _ [<-] ? -> [<-] <-.
-  - by move=> _ _ ? -> [<-] <-.
-  all: move=> [v [] ? hv]; subst v; rewrite hv.
-  all: move=>  _ ? -> _ [<-] [<-] <- /=.
-  1,2,3:
-   move/to_wordI: hv => [sz [w] [? /truncate_wordP [hle hze]]]; subst => /=;
-   rewrite truncate_word_le ?(cmp_le_trans _ hle) //
-      -(zero_extend_idem (s2:= U64)) // -hze zero_extend0 /=.
-  all: by rewrite ?wpbroadcast0 worC wor0.
+  - move=> [->] ?? -> ? -> /= [<-] <-. by rewrite if_neg.
+  - by move=> _ ?? -> [<-] <-.
+  - case: ws hws hmmx => //= _ _ [_ [<-] ->] ?? -> ? [<-] [<-] <-.
+    by rewrite /= worC wor0.
+  - rewrite /app_sopn /= /sopn_sem /= hws /=.
+    move=> [v [] ? hv]; subst v; rewrite hv.
+    move=> _ ? -> _ [<-] [<-] <- /=.
+    move/to_wordI: hv => [sz [w] [? /truncate_wordP [hle hze]]]; subst=> /=.
+    rewrite truncate_word_le ?(cmp_le_trans _ hle) //
+      -(zero_extend_idem (s2 := U64)) // -hze zero_extend0 /=.
+    by rewrite /se_protect_small_sem /x86_OR /check_size_8_64 hws /= worC wor0.
+  rewrite /app_sopn /= /sopn_sem /= (negbTE hws) /=.
+  move=> [v [] ? hv]; subst v; rewrite hv.
+  move=> _ ? -> _ [<-] [<-] <- /=.
+  move/to_wordI: hv => [sz [w] [? /truncate_wordP [hle hze]]]; subst=> /=.
+  by rewrite /se_protect_large_sem -cmp_nle_lt hws wpbroadcast0 worC wor0.
 Qed.
 
 Definition x86_hshparams : h_sh_params (ap_shp x86_params) :=

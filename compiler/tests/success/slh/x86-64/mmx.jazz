@@ -1,0 +1,16 @@
+export
+fn main(reg u64 x) -> reg u64 {
+    reg u64 msf;
+    msf = #init_msf();
+
+    #mmx reg u64 _msf;
+    _msf = #mov_msf(msf);
+
+    #mmx reg u64 _x;
+    _x = x;
+
+    _x = #protect(_x, _msf);
+
+    x = _x;
+    return x;
+}
