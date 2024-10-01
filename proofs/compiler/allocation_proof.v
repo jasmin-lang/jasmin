@@ -95,10 +95,10 @@ Section CHECK_EP.
   Let P e1 : Prop :=
     ∀ e2 r re vm1, check_e e1 e2 r = ok re →
     eq_alloc r vm1 vm2 →
-    eq_alloc re vm1 vm2 ∧
-    ∀ scs m v1,
-      sem_pexpr wdb gd {| escs := scs; emem := m ; evm := vm1 |} e1 = ok v1 →
-    ∃ v2, sem_pexpr wdb gd {| escs := scs; emem := m ; evm := vm2 |} e2 = ok v2 ∧
+    eq_alloc re vm1 vm2  ∧
+    ∀ scs m v1 tr,
+      sem_pexpr wdb gd {| escs := scs; emem := m ; evm := vm1; eassert := tr |} e1 = ok v1 →
+    ∃ v2, sem_pexpr wdb gd {| escs := scs; emem := m ; evm := vm2; eassert := tr |} e2 = ok v2 ∧
           value_uincl v1 v2.
 
   Let Q es1 : Prop :=
@@ -106,31 +106,31 @@ Section CHECK_EP.
     fold2 err check_e es1 es2 r = ok re →
     eq_alloc r vm1 vm2 →
     eq_alloc re vm1 vm2 ∧
-    ∀ scs m vs1,
-      sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm1 |} es1 = ok vs1 →
-    ∃ vs2, sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm2 |} es2 = ok vs2 ∧
+    ∀ scs m vs1 tr,
+      sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm1; eassert := tr |} es1 = ok vs1 →
+    ∃ vs2, sem_pexprs wdb gd {| escs := scs; emem := m ; evm := vm2; eassert := tr |} es2 = ok vs2 ∧
            List.Forall2 value_uincl vs1 vs2.
 
   Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
-    apply: pexprs_ind_pair; split; subst P Q; rewrite /sem_pexpr => //=.
-    - case => // r _ vm1 _ [<-] h; split => // scs m _ [<-] /=; eauto.
+    apply: pexprs_ind_pair; split; subst P Q => //=.
+    - case => // r _ vm1 _ [<-] h ; split => // scs m ??  [<-] /=; eauto.
     - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err ; t_xrbindP => r'  ok_r' ok_re h.
       move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.
       move: hes1 => /(_ es2 r' re vm1 err ok_re h') [] hre hes1.
-      apply: (conj hre) => scs m vs1'; t_xrbindP => v1 ok_v1 vs1 ok_vs1 <- {vs1'} /=.
-      move: he1 => /(_ _ _ _ ok_v1) [] v2 [] ->  hv.
-      move: hes1 => /(_ _ _ _ ok_vs1) [] vs2 [] -> hvs.
+      apply: (conj hre) => scs m vs1'; t_xrbindP => tr v1 ok_v1 vs1 ok_vs1 <- {vs1'} /=.
+      move: he1 => /(_ _ _ _ tr ok_v1) [] v2  [] //= ->  hv.
+      move: hes1 => /(_ _ _ _ tr ok_vs1) [] vs2 [] -> hvs.
       eexists; split; first reflexivity. by constructor.
-    - by move => z1 [] // z2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists z1.
-    - by move => b1 [] // b2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ??? [] <-; exists b1.
-    - by move => n1 [] // n2 r re vm1; t_xrbindP => /eqP <- <- ?; split => //= ??? [<-]; eauto.
+    - by move => z1 [] // z2 r re vm1 ; t_xrbindP=> /eqP <- -> ?; split=> // ????  [] <-; exists z1.
+    - by move => b1 [] // b2 r re vm1; t_xrbindP => /eqP <- -> ?; split=> // ???? [] <-; exists b1.
+    - by move => n1 [] // n2 r re vm1; t_xrbindP => /eqP <- <- ?; split => //= ???? [<-]; eauto.
     - move => x1 [] // x2 r re vm1.
-      by move=> /check_gvP Hv /(Hv wdb gd) [Hea H].
+      by move=> /check_gvP Hv /(Hv wdb gd) [Hea H] //=; split => // ?????; apply H.
     - move => al1 aa1 sz1 x1 e1 He1 [] // al2 aa2 sz2 x2 e2 r re vm1.
       t_xrbindP => r' /andP[] /andP [/eqP ? /eqP ?] /eqP ? Hcv Hce Hea; subst al2 aa2 sz2.
       have [Hea' Hget]:= check_gvP wdb gd Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
+      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1 tr.
       apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
       rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get Ht.
       t_xrbindP=> w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE -> ? /= /Ht -> /= <-.
@@ -138,7 +138,7 @@ Section CHECK_EP.
     - move => aa1 sz1 len1 x1 e1 He1 [] // aa2 sz2 len2 x2 e2 r re vm1.
       t_xrbindP => r' /and3P [/eqP ? /eqP ? /eqP ?] Hcv Hce Hea; subst aa2 sz2 len2.
       have [Hea' Hget]:= check_gvP wdb gd Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
+      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1 tr.
       apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
       rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get_sub Ht.
       t_xrbindP => w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE -> ? /= /Ht [? -> ?] <- /=.
@@ -146,37 +146,43 @@ Section CHECK_EP.
     - move => al1 sz1 x1 e1 He1 [] // al2 sz2 x2 e2 r re vm1.
       t_xrbindP => r' /andP[] /eqP -> /eqP -> Hcv Hce Hea.
       have [Hea' Hget]:= check_vP wdb Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
+      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1 tr.
       t_xrbindP => w1 ve1 /Hget [ve1' [->]] /[swap] /to_wordI [? [? [-> ]]]
         /word_uincl_truncate h /value_uinclE [? [? [-> /h{h} /= ->]]]
         > /Hse1{Hse1} [? [-> ]] /[swap] /to_wordI [? [? [-> ]]]
         /word_uincl_truncate h /value_uinclE [? [? [-> /h{h} /= ->]]] ? /= -> /= ->.
       by eauto.
     - move => op1 e1 He1 [] // op2 e2 r re vm1.
-      t_xrbindP => /eqP <- H /(He1 _ _ _ _ H) [Hea Hse1];split=>//= scs m v1.
+      t_xrbindP => /eqP <- H /(He1 _ _ _ _ H) [Hea Hse1];split=>//= scs m v1 tr.
       t_xrbindP => v /Hse1 [v1'] [-> U1].
       by move=> /(vuincl_sem_sop1 U1);exists v1.
     - move => op1 e11 He11 e12 He12 [] // op2 e21 e22 r re vm1.
       t_xrbindP => r' /eqP <- Hs1 Hs2 Hea.
       have [Hea' Hse1]:= He11 _ _ _ _ Hs1 Hea.
-      have [? Hse2]:= He12 _ _ _ _ Hs2 Hea'; split => //= scs m v.
+      have [? Hse2]:= He12 _ _ _ _ Hs2 Hea'; split => //= scs m v tr.
       t_xrbindP => v1 /Hse1 [v1' [-> U1]] v2 /Hse2 [v2' [-> U2]].
       by move=> /(vuincl_sem_sop2 U1 U2);exists v.
     - move => op1 es1 Hes1 [] // op2 es2 r re vm1.
       t_xrbindP => /eqP <- ok_re hr.
       move: Hes1 => /(_ _ _ _ _ _  ok_re hr) [] hre h.
-      split => //= scs m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
-      rewrite -/(sem_pexprs_aux _ _ _ _).
+      split => //= scs m v1 tr; t_xrbindP => vs1 ok_vs1 ok_v1.
       rewrite -/(sem_pexprs _ _ _ _).
-      move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
+      move: h => /(_ _ _ _ tr ok_vs1) [] vs2 [] -> hs /=.
       by rewrite (vuincl_sem_opNA hs ok_v1); exists v1.
-    move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
-    t_xrbindP => r1 r' /eqP <- /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
-    move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
-    t_xrbindP=> b > /Hs [?] /= [->] /= /[swap] /to_boolI -> /value_uinclE ->.
-    move=> ?? /Hs1 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?].
-    move=> ?? /Hs2 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?] <- /=.
-    by eexists;split;eauto;case: (b).
+    - move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
+      t_xrbindP => r1 r' /eqP <- /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
+      move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs ;split=>// scs m v1.
+      t_xrbindP=> b > /Hs [?] /= [->] /= /[swap] /to_boolI -> /value_uinclE ->.
+      move=> ?? /Hs1 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?].
+      move=> ?? /Hs2 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?] <- /=.
+      eexists;split;eauto;case: (b).
+      by case: ifP.
+      by case: ifP.
+    move => idx Hidx op1 v1 body Hbody start Hstart len Hlen [] //= idx2 op2 v2 body2 start2 len2 r re vm1.
+    t_xrbindP => /eqP <-  r1 r2 r' /Hstart Hstart' /Hlen Hlen' /Hidx Hidx' r3 ? r4 /Hbody Hbody' ? {Hstart Hidx Hbody Hlen}.
+    move=> /Hstart' {Hstart'} [] /Hlen' {Hlen'}[] /Hidx'{Hidx'}[] *.
+    subst re.
+
   Qed.
 
 End CHECK_EP.
