@@ -44,8 +44,8 @@ Record h_lowering_params
         (f : funname)
         (scs: syscall_state_t) (mem : low_memory.mem)
         (scs': syscall_state_t) (mem' : low_memory.mem)
-        (va vr : seq value),
-        sem_call (dc:= direct_c) p ev scs mem f va scs' mem' vr
+        (va vr : seq value) (tr : contracts_trace),
+        sem_call (dc:= direct_c) p ev scs mem f va scs' mem' vr tr
         -> let lprog :=
              lowering.lower_prog
                (lop_lower_i loparams)
@@ -54,7 +54,7 @@ Record h_lowering_params
                fv
                p
            in
-           sem_call lprog ev scs mem f va scs' mem' vr;
+           sem_call lprog ev scs mem f va scs' mem' vr tr;
   }.
 
 Record h_architecture_params
