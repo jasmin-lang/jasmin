@@ -254,6 +254,32 @@ Qed.
 
 End MEM_EQUIV.
 
+Lemma lsem1_tr lp s1 s2 :
+  lsem1 lp s1 s2 -> ltr s1 = ltr s2.
+Proof.
+  rewrite /lsem1 /step.
+  case: find_instr => [i|//].
+  rewrite /eval_instr.
+  case: li_i => [||[?|] []||||[]|||] >; t_xrbindP.
+  + by move=> > _ > _ > /write_lexprs_eassert /= -> <-.
+  + by move=> > _ [] [] > _; t_xrbindP => > /lvs_write_assertP /= -> <-.
+  + by move=> > _ > _ > _ /=; case: get_fundef => //=; t_xrbindP => > _ <-.
+  + by move=> > _ _ > _ > _ > _ > _ /=; case: get_fundef => //=; t_xrbindP => > _ <-.
+  + by move=> > _ _ > _ > _ [] > _ /=; case: get_fundef => //=; t_xrbindP => > _ <-.
+  + by move=> <-.
+  + by move=> _ _ <-.
+  + by move=> /=; case: get_fundef => //=; t_xrbindP => > _ <-.
+  + by move=> > _ _ [>] _ /=; case: get_fundef => //=; t_xrbindP => > _ <-.
+  + by move=> > _ > _ <-.
+  move=> > _ _; case: ifP => _ /=.
+  + by case: get_fundef => //=; t_xrbindP => > _ <-.
+  by move=> [<-].
+Qed.
+
+Lemma lsem_tr lp s1 s2 :
+  lsem lp s1 s2 -> ltr s1 = ltr s2.
+Proof. by move: s1 s2; apply lsem_ind => // s1 s2 s3 /lsem1_tr ->. Qed.
+
 Lemma sem_fopns_args_cat s lc1 lc2 :
   sem_fopns_args s (lc1 ++ lc2) =
   Let s' := sem_fopns_args s lc1 in sem_fopns_args s' lc2.

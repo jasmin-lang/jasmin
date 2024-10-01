@@ -169,4 +169,19 @@ Proof.
   by move=> ???; rewrite hvalid1 hvalid2.
 Qed.
 
+Lemma write_lexpr_eassert e v s1 s2 :
+  write_lexpr e v s1 = ok s2 -> eassert s1 = eassert s2.
+Proof.
+  case e => /=; t_xrbindP.
+  + by move=> > _ _ > _ _ > _ > _ <-.
+  by move=> > _ <-.
+Qed.
+
+Lemma write_lexprs_eassert e v s1 s2 :
+  write_lexprs e v s1 = ok s2 -> eassert s1 = eassert s2.
+Proof.
+  elim: e v s1 => [ | e es hrec] [ | v vs] s1 //=; first by move=> [<-].
+  t_xrbindP => ? /write_lexpr_eassert ->; apply hrec.
+Qed.
+
 End Section.
