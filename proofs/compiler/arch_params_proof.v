@@ -65,12 +65,12 @@ Record h_lower_addressing_params
   (laparams : lower_addressing_params) :=
   { 
     hlap_lower_address_prog_invariants :
-      forall (pT : progT) fresh_reg p p',
+      forall fresh_reg p p',
       lap_lower_address laparams fresh_reg p = ok p' ->
       p.(p_globs) = p'.(p_globs) /\ p.(p_extra) = p'.(p_extra);
 
     hlap_lower_address_fd_invariants :
-      forall (pT : progT) fresh_reg p p',
+      forall fresh_reg p p',
       lap_lower_address laparams fresh_reg p = ok p' ->
       forall fn fd,
       get_fundef p.(p_funcs) fn = Some fd ->
@@ -84,11 +84,11 @@ Record h_lower_addressing_params
             fd.(f_extra) = fd'.(f_extra)];
 
     hlap_lower_addressP :
-      forall (pT : progT) (sCP : semCallParams) fresh_reg p p',
+      forall fresh_reg (p p':_sprog),
       lap_lower_address laparams fresh_reg p = ok p' ->
       forall ev scs mem f vs scs' mem' vr,
-      sem_call p ev scs mem f vs scs' mem' vr ->
-      sem_call p' ev scs mem f vs scs' mem' vr
+      sem_call (pT:=progStack) p ev scs mem f vs scs' mem' vr ->
+      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr
   }.
 
 Record h_architecture_params

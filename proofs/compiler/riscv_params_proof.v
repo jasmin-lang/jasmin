@@ -340,9 +340,9 @@ Definition riscv_hloparams { dc : DirectCall } : h_lowering_params (ap_lop riscv
 Lemma riscv_hlaparams : h_lower_addressing_params (ap_lap riscv_params).
 Proof.
   split=> /=.
-  + exact: @lower_addressing_prog_invariants.
-  + exact: @lower_addressing_fd_invariants.
-  exact: @lower_addressing_progP.
+  + exact: (lower_addressing_prog_invariants (pT:=progStack)).
+  + exact: (lower_addressing_fd_invariants (pT:=progStack)).
+  exact: (lower_addressing_progP (pT:=progStack)).
 Qed.
 
 (* ------------------------------------------------------------------------ *)

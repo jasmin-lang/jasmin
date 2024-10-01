@@ -43,7 +43,7 @@ Record lower_addressing_params
   `{asm_e : asm_extra} :=
   {
     lap_lower_address :
-      forall (pT : progT), (string -> stype -> Ident.ident) -> prog -> cexec prog; 
+      (string -> stype -> Ident.ident) -> _sprog -> cexec _sprog;
   }.
 
 Record architecture_params

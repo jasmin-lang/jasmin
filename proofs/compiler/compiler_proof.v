@@ -484,11 +484,9 @@ Proof.
   have! [mglob ok_mglob] := (alloc_prog_get_fundef ok_p2).
   move=> /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p ok_sao_r get_fd2.
   have [_ p2_p3_extra] :=
-    hlap_lower_address_prog_invariants (hap_hlap haparams) (pT := progStack)
-      ok_p3.
+    hlap_lower_address_prog_invariants (hap_hlap haparams) ok_p3.
   have [fd3 get_fd3 [_ _ _ _ _ fd2_fd3_extra]] :=
-    hlap_lower_address_fd_invariants (hap_hlap haparams) (pT := progStack)
-      ok_p3 get_fd2.
+    hlap_lower_address_fd_invariants (hap_hlap haparams) ok_p3 get_fd2.
   have [fd4 [get_fd4 fd3_fd4_align]] :=
      compiler_third_part_invariants ok_p4 get_fd3.
   rewrite /get_nb_wptr /get_wptrs get_fd /= seq.find_map /preim.
@@ -531,8 +529,7 @@ Proof.
   move => /(_ (hap_hshp haparams) va' hargs heqinmem ok_mi').
   case => mi' [] vr2 [] exec_p2 m'_mi' vr2_wf vr2_eqinmem U.
   have exec_p3 :=
-    hlap_lower_addressP (hap_hlap haparams) (pT := progStack)
-      ok_p3 exec_p2.
+    hlap_lower_addressP (hap_hlap haparams) ok_p3 exec_p2.
   have [] := compiler_third_partP ok_p4.
   case/(_ _ _ _ _ _ _ _ _ exec_p3).
   set rminfo := fun fn => _.

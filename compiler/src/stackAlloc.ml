@@ -175,7 +175,7 @@ let memory_analysis pp_err ~debug up =
     Format.eprintf "%a@.@.@." (pp_oracle up) saos
   end;
 
-  let sp' =
+  let sp =
     match
       Stack_alloc.alloc_prog
         Arch.pointer_data
@@ -192,11 +192,20 @@ let memory_analysis pp_err ~debug up =
         get_sao
         up
     with
-    | Utils0.Ok sp -> sp 
+    | Utils0.Ok sp -> sp
     | Utils0.Error e ->
       let e = Conv.error_of_cerror pp_err e in
       raise (HiError e)
   in
+
+  let sp' =
+    match Arch.aparams.ap_lap (Conv.fresh_var_ident (Reg (Normal, Direct)) IInfo.dummy (Uint63.of_int 0)) sp with
+    | Utils0.Ok sp -> sp
+    | Utils0.Error e ->
+      let e = Conv.error_of_cerror pp_err e in
+      raise (HiError e)
+  in
+
   let fds, _ = Conv.prog_of_csprog sp' in
   
   if debug then

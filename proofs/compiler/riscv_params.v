@@ -247,7 +247,7 @@ Definition riscv_szparams : stack_zeroization_params :=
 
 Definition riscv_laparams : lower_addressing_params :=
   {|
-    lap_lower_address := @lower_addressing_prog _
+    lap_lower_address := lower_addressing_prog (pT:=progStack)
   |}.
 
 (* ------------------------------------------------------------------------ *)

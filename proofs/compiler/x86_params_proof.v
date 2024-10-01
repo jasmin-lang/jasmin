@@ -303,10 +303,10 @@ Defined.
 Lemma x86_hlaparams : h_lower_addressing_params (ap_lap x86_params).
 Proof.
   split=> /=.
-  + by move=> ? _ ? _ [<-].
-  + move=> ? _ ? _ [<-] _ fd ->.
+  + by move=> _ ? _ [<-].
+  + move=> _ ? _ [<-] _ fd ->.
     by exists fd.
-  by move=> ?? _ ? _ [<-].
+  by move=> _ ? _ [<-].
 Qed.
 
 (* ------------------------------------------------------------------------ *)

@@ -349,10 +349,10 @@ Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
 Lemma arm_hlaparams : h_lower_addressing_params (ap_lap arm_params).
 Proof.
   split=> /=.
-  + by move=> ? _ ? _ [<-].
-  + move=> ? _ ? _ [<-] _ fd ->.
+  + by move=> _ ? _ [<-].
+  + move=> _ ? _ [<-] _ fd ->.
     by exists fd.
-  by move=> ?? _ ? _ [<-].
+  by move=> _ ? _ [<-].
 Qed.
 
 (* ------------------------------------------------------------------------ *)
