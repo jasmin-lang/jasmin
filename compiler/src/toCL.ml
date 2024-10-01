@@ -814,6 +814,13 @@ module X86BaseOpU : BaseOp
       let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.mov l a]
 
+    | CMOVcc ws -> (* warning, does not work with ! cf *)
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let a3, i3 = cast_atome ws (List.nth es 2) in
+      let x1 = I.glval_to_lval (List.nth xs 0) in
+      let c = I.gexp_to_var (List.nth es 0) in
+      i2 @ [CL.Instr.Op2_2.cmov x1 c a2 a3]
+
     | ADD ws ->
       begin
         let l = ["smt", `Smt ; "default", `Default] in
@@ -1273,6 +1280,22 @@ module X86BaseOpS : BaseOp
         let l = I.glval_to_lval  (List.nth xs 0) in
         i @ [CL.Instr.Op1.mov l a]
       end
+    | CMOVcc ws -> (* warning, does not work with ! cf *)
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        match trans with
+        | `Smt -> let a2, i2 = vpc_atome ws (List.nth es 1) in
+          let a3, i3 = vpc_atome ws (List.nth es 2) in
+          let x1 = I.glval_to_lval (List.nth xs 0) in
+          let c = I.gexp_to_var (List.nth es 0) in
+          i2 @ [CL.Instr.Op2_2.cmov x1 c a2 a3]
+        | `Default ->  let a2, i2 = cast_atome ws (List.nth es 1) in
+          let a3, i3 = cast_atome ws (List.nth es 2) in
+          let x1 = I.glval_to_lval (List.nth xs 0) in
+          let c = I.gexp_to_var (List.nth es 0) in
+          i2 @ [CL.Instr.Op2_2.cmov x1 c a2 a3]
+    end
     | ADD ws ->
       begin
       let l = ["smt", `Smt ; "default", `Default] in
