@@ -851,6 +851,13 @@ module X86BaseOpU : BaseOp
           i1 @ i2 @ [CL.Instr.Op2_2.subb lb l a1 a2]
       end
 
+    | MUL ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 5) in
+      let l2 = I.glval_to_lval (List.nth xs 6) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l1 l2 a1 a2;]
+
     | IMULr ws
     | IMULri ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
@@ -1326,6 +1333,22 @@ module X86BaseOpS : BaseOp
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
       end
 
+    | MUL ws ->
+      let l = ["smt", `Smt; "default", `Default] in
+      let trans = trans annot l in
+      begin match trans with
+      | `Default ->
+         let a1, i1 = cast_atome ws (List.nth es 0) in
+         let a2, i2 = cast_atome ws (List.nth es 1) in
+         let l1 = I.glval_to_lval (List.nth xs 5) in
+         let l2 = I.glval_to_lval (List.nth xs 6) in
+         i1 @ i2 @ [CL.Instr.Op2_2.mull l1 l2 a1 a2;]
+      | `Smt ->
+         let a1, i1 = cast_atome ws (List.nth es 0) in
+         let a2, i2 = cast_atome ws (List.nth es 1) in
+         let l = I.glval_to_lval (List.nth xs 5) in
+         i1 @ i2 @ [CL.Instr.Op2.mul l a1 a2;]
+      end
     | IMULr ws
     | IMULri ws ->
       let l = ["smt", `Smt; "default", `Default] in
