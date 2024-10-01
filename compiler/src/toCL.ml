@@ -607,6 +607,13 @@ module I (S:S): I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
+   | Pabstract ({name="u64i"}, [v]) ->
+       begin
+         match v with
+         | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
+              (Pconst (w2i ~sign z U64))
+         | _ -> !> v
+  end
    | Pabstract ({name="u16i"}, [v]) ->
        begin
          match v with
