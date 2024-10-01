@@ -324,8 +324,8 @@ Lemma arm_lower_callP
   (_ : lop_fvars_correct arm_loparams fv (p_funcs p))
   (f : funname)
   scs mem scs' mem'
-  (va vr : seq value) :
-  psem.sem_call p ev scs mem f va scs' mem' vr
+  (va vr : seq value) tr :
+  psem.sem_call p ev scs mem f va scs' mem' vr tr
   -> let lprog :=
        lowering.lower_prog
          (lop_lower_i arm_loparams)
@@ -334,7 +334,7 @@ Lemma arm_lower_callP
          fv
          p
      in
-     psem.sem_call lprog ev scs mem f va scs' mem' vr.
+     psem.sem_call lprog ev scs mem f va scs' mem' vr tr.
 Proof.
   exact: lower_callP.
 Qed.
