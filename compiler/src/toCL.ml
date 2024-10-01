@@ -528,6 +528,9 @@ module I (S:S): I = struct
     | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
+    | Pabstract ({name="eqt"}, [e1]) -> eq !> e1 (Rconst(1, Z.of_int 1))
+    | Pabstract ({name="eqf"}, [e1]) -> eq !> e1 (Rconst(1, Z.of_int 0))
+    | Pabstract ({name="eqb"}, [e1; e2]) -> eq !> e1 !> e2
     | _ -> error e
 
   let rec extract_list e aux =
@@ -604,14 +607,14 @@ module I (S:S): I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-   | Pabstract ({name="u16i"}, [v]) -> 
-       begin 
-         match v with 
-       (* why do we have more cases?  | Pvar _ -> !> v *) 
-         | Papp1 (Oword_of_int _ws, Pconst z) ->  !> 
-              (Pconst (w2i ~sign z U16)) 
-         | _ -> !> v 
-       end 
+   | Pabstract ({name="u16i"}, [v]) ->
+       begin
+         match v with
+       (* why do we have more cases?  | Pvar _ -> !> v *)
+         | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
+              (Pconst (w2i ~sign z U16))
+         | _ -> !> v
+       end
     (* | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e *)
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
