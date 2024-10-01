@@ -649,6 +649,7 @@ module I (S:S): I = struct
     | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
     | Pabstract ({name="eqmod"} as _opa, [h1;h2;h3]) ->
       [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
+    | Pabstract ({name="eq"}, [e1; e2]) -> [Eeq (!> e1, !> e2)]
     | _ -> error e
 
   let glval_to_lval ?(sign=S.s) x : CL.Instr.lval =
