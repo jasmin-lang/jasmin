@@ -41,8 +41,8 @@ Context
 #[local]
 Lemma find_instr_skip p fn P Q :
   is_linear_of p fn (P ++ Q) ->
-  forall scs m vm n,
-  find_instr p (Lstate scs m vm fn (size P + n)) = oseq.onth Q n.
+  forall scs m vm n tr,
+  find_instr p (Lstate scs m vm fn (size P + n) tr) = oseq.onth Q n.
 Proof. by eauto using find_instr_skip'. Qed.
 
 End FIXME.
@@ -174,7 +174,7 @@ Proof.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   + apply: lsem_step.
     + rewrite /lsem1 /step.
       rewrite (find_instr_skip hlinear) /=.
@@ -328,7 +328,7 @@ Local Opaque wsize_size.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd))].
   + by exists lfd.
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _ _ _); split.
   + apply: lsem_step5; rewrite /lsem1 /step /=.
     * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
@@ -394,7 +394,7 @@ Proof.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ loop_small_cmd rspn lbl ws_align ws stk_max ++ cmd))].
   + by exists lfd.
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   + apply: lsem_step1.
     rewrite /lsem1 /step.
     rewrite (find_instr_skip hlinear) /=.
@@ -482,7 +482,7 @@ Proof.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   + apply: lsem_step.
     + rewrite /lsem1 /step.
       rewrite (find_instr_skip hlinear) /=.
@@ -637,7 +637,7 @@ Local Opaque wsize_size.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd))].
   + by exists lfd.
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _ _ _); split.
   + apply: lsem_step6; rewrite /lsem1 /step.
     * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
@@ -715,7 +715,7 @@ Proof.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ loop_large_cmd rspn lbl ws_align ws stk_max ++ cmd))].
   + by exists lfd.
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   + apply: lsem_step1.
     rewrite /lsem1 /step.
     rewrite (find_instr_skip hlinear) /=.
@@ -848,7 +848,7 @@ Local Opaque wsize_size Z.of_nat.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _ _ _); split.
   + apply: lsem_step1.
     rewrite /lsem1 /step.
     rewrite -addnA (find_instr_skip hlinear) /=.
@@ -967,7 +967,7 @@ Local Opaque wsize_size.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ unrolled_small_cmd rspn ws_align ws stk_max))].
   + by exists lfd.
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _ _ _); split.
   + apply: lsem_step3; rewrite /lsem1 /step.
     * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
@@ -1023,7 +1023,7 @@ Proof.
         (3 + Z.to_nat (stk_max / wsize_size ws)).+1.
   + rewrite /= size_map size_cat !size_map size_rev size_ziota /=.
     by rewrite addnS addn0 -addSn.
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   + apply: lsem_step1.
     rewrite /lsem1 /step.
     rewrite -addnA (find_instr_skip hlinear) /=.
@@ -1104,7 +1104,7 @@ Local Opaque wsize_size Z.of_nat.
     have ? := [elaborate (wunsigned_range (align_word ws_align ptr))].
     by rewrite wunsigned_add; last rewrite wunsigned_sub; lia.
   move=> /(writeV 0) [m' hm'].
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _ _ _); split.
   + apply: lsem_step1.
     rewrite /lsem1 /step.
     rewrite -addnA (find_instr_skip hlinear) /=.
@@ -1221,7 +1221,7 @@ Local Opaque wsize_size.
   have hlinear:
     [elaborate (is_linear_of lp fn (lc ++ unrolled_large_cmd rspn ws_align ws stk_max))].
   + by exists lfd.
-  eexists (Estate _ _ _); split.
+  eexists (Estate _ _ _ _); split.
   + apply: lsem_step4; rewrite /lsem1 /step.
     * rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
@@ -1289,7 +1289,7 @@ Proof.
         (4 + Z.to_nat (stk_max / wsize_size ws)).+1.
   + rewrite /= size_map size_cat !size_map size_rev size_ziota /=.
     by rewrite addnS addn0 -addSn.
-  eexists (Estate _ _ _); split=> /=.
+  eexists (Estate _ _ _ _); split=> /=.
   + apply: lsem_step1.
     rewrite /lsem1 /step.
     rewrite -addnA (find_instr_skip hlinear) /=.
@@ -1423,7 +1423,8 @@ Proof.
     by rewrite -{1}hfn -{1}hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.
-  + by rewrite -hfn /of_estate -hsr.(sr_scs) in hsem.
+  + rewrite -hfn /of_estate -hsr.(sr_scs) in hsem.
+    by have /= h := lsem_tr hsem; rewrite -h in hsem.
   + move=> x hin.
     case: (x =P vid rspn) => [->|hneq].
     + by rewrite hsr.(sr_rsp).
