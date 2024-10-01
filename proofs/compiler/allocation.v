@@ -482,9 +482,9 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     Let _ := assert (o1 == o2) error_e in
     Let m :=
      check_e s1 s2 m >>= check_e len1 len2 >>= check_e idx1 idx2 in
-    Let mb := check_varc x1 x2 m in
-    Let m := check_e b1 b2 mb in
-    ok (M.remove m x2)
+    Let mx := check_varc x1 x2 m in
+    Let _ := check_e b1 b2 mx in
+    ok m
   | _, _ => Error error_e
   end.
 
@@ -641,7 +641,7 @@ Definition check_contract params1 params2 res1 res2 (ci1 ci2: option fun_contrac
   | Some ci1, Some ci2 =>
     Let r := check_vars params1 params2 M.empty in
     Let _ := check_funspec ci1.(f_pre) ci2.(f_pre) r in
-    Let r := check_vars ci1.(f_iparams) ci2.(f_iparams) r in
+    Let r := check_vars ci1.(f_iparams) ci2.(f_iparams) M.empty in
     Let r := check_vars res1 res2 r in
     Let _ := check_funspec ci1.(f_post) ci2.(f_post) r in
     ok tt
