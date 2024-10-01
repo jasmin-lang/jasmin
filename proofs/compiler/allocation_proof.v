@@ -674,7 +674,7 @@ Section PROOF.
     have /(_ _ eq_alloc_empty) [?] := check_lvalsP hcip _ hu1' h1.
     rewrite -write_vars_lvals -eq_globs => -> /= heqa s2.
     rewrite (write_vars_lvals _ gd) => h2.
-    have [? []] := check_lvalsP hcr heqa hu2 h2.
+    have [? ] := check_lvalsP hcr heqa hu2 h2.
     rewrite -write_vars_lvals => -> /= heqa'.
     apply: check_funspecP heqa' hcpo.
   Qed.
