@@ -118,11 +118,15 @@ module CL = struct
 
   end
 
+let length' l =
+    List.fold_left (fun a _ -> a + 1) 0 l;
+
   (* Range expression *)
   module R = struct
 
     type rexp =
       | Rvar   of tyvar
+      | Rlimbs of rexp list
       | Rconst of int * const
       | Ruext of rexp * int
       | Rsext of rexp * int
@@ -143,6 +147,7 @@ module CL = struct
       match r with
       | Rvar x -> pp_tyvar fmt x
       | Rconst (c1,c2) -> Format.fprintf fmt "(const %i %a)" c1 pp_const c2
+      | Rlimbs (l) -> Format.fprintf fmt "(limbs %i [%a])" (256 / length' l) (pp_list ",@ " pp_rexp) l
       | Ruext (e, c) -> Format.fprintf fmt "(uext %a %i)" pp_rexp e c
       | Rsext (e, c) -> Format.fprintf fmt "(sext %a %i)" pp_rexp e c
       | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
@@ -158,6 +163,8 @@ module CL = struct
       | RPnot   of rpred
       | RPand   of rpred list
       | RPor    of rpred list
+      | Reqmod of rexp * rexp * rexp list
+
 
     let eq e1 e2 = RPcmp (e1, "=", e2)
     let ult e1 e2 = RPcmp (e1, "<", e2)
@@ -167,6 +174,7 @@ module CL = struct
 
     let rec pp_rpred fmt rp =
       match rp with
+      | Reqmod(e1, e2, l) -> Format.fprintf fmt "eqmod %a %a %a" pp_rexp e1 pp_rexp e2 (pp_list ",@ " pp_rexp) l
       | RPcmp(e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
       | RPnot e -> Format.fprintf fmt "(~ %a)" pp_rpred e
       | RPand rps ->
@@ -493,6 +501,17 @@ module I (S:S): I = struct
   (*     else (Z.sub zi (Z.pow (Z.of_int 2) ws)) *)
   (*   else zi *)
 
+    let rec extract_list e aux =
+    match e with
+    | Pabstract ({name="single"}, [h]) -> [h]
+    | Pabstract ({name="rsingle"}, [h]) -> [h]
+    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
+    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
+    | Pabstract ({name="quad"}, [h1;h2;h3;h4]) -> [h1;h2;h3;h4]
+    | Pabstract ({name="word_nil"}, []) -> List.rev aux
+    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
+    | _ -> assert false
+
   let rec gexp_to_rexp ?(sign=S.s) e : CL.R.rexp =
     let open CL.R in
     let (!>) e = gexp_to_rexp ~sign e in
@@ -508,10 +527,13 @@ module I (S:S): I = struct
     | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
+    | Pabstract ({name="rlimbs"}, [q]) -> Rlimbs (List.map (!>) (extract_list q []))
     | Pabstract ({name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
         UnPack (to_var ~sign x, 16, Z.to_int z)
     | Presult (_, x) -> Rvar (to_var x)
     | _ -> error e
+
+
 
   let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
     let open CL.R in
@@ -531,16 +553,9 @@ module I (S:S): I = struct
     | Pabstract ({name="eqt"}, [e1]) -> eq !> e1 (Rconst(1, Z.of_int 1))
     | Pabstract ({name="eqf"}, [e1]) -> eq !> e1 (Rconst(1, Z.of_int 0))
     | Pabstract ({name="eqb"}, [e1; e2]) -> eq !> e1 !> e2
+    | Pabstract ({name="eqrmod"}, [e1;e2;l]) ->
+      Reqmod (!> e1, !> e2, List.map (!>) (extract_list l []))
     | _ -> error e
-
-  let rec extract_list e aux =
-    match e with
-    | Pabstract ({name="single"}, [h]) -> [h]
-    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
-    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
-    | Pabstract ({name="word_nil"}, []) -> List.rev aux
-    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
-    | _ -> assert false
 
   let rec get_const x =
     match x with
@@ -949,7 +964,7 @@ module X86BaseOpU : BaseOp
 
     | NOT ws ->
       let a,i = cast_atome ws (List.nth es 0) in
-      let l = I.glval_to_lval (List.nth xs 5) in
+      let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.not l a]
 
     | SHL ws ->

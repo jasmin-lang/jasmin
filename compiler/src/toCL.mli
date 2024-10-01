@@ -34,6 +34,7 @@ module CL : sig
 
     type rexp =
       | Rvar   of tyvar
+      | Rlimbs of  rexp list
       | Rconst of int * const
       | Ruext of rexp * int
       | Rsext of rexp * int
@@ -47,6 +48,7 @@ module CL : sig
       | RPnot   of rpred
       | RPand   of rpred list
       | RPor    of rpred list
+      | Reqmod  of rexp * rexp * rexp list
 
   end
 
