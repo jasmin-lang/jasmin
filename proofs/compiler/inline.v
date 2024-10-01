@@ -69,8 +69,23 @@ Definition locals fd :=
 Definition check_rename f (fd1 fd2:ufundef) (s:Sv.t) :=
   Let _ := check_ufundef tt tt (f,fd1) (f,fd2) tt in
   let s2 := locals_p fd2 in
-  if disjoint s s2 then ok tt
+  if disjoint s s2 then ok s2
   else Error (inline_error (pp_s "invalid refreshing in function")).
+
+Definition inline_contra ii (fd2: ufundef) es (s s2: Sv.t) :=
+  match fd2.(f_contra) with
+  | None => ok ([::], [::], [::])
+  | Some ci =>
+    let s3 := vrvs (map Lvar ci.(f_iparams)) in
+    if disjoint s s3 && disjoint s2 s3 then
+      let renames_iargs := assgn_tuple ii (map Lvar ci.(f_iparams)) AT_rename fd2.(f_tyin) es in
+      let assert_pre    := [seq (MkI ii (Cassert Assert c.1 c.2)) | c <- ci.(f_pre)]  in
+      let assume_pre    := [seq (MkI ii (Cassert Assume c.1 c.2)) | c <- ci.(f_pre)]  in
+      let assert_post   := [seq (MkI ii (Cassert Assert c.1 c.2)) | c <- ci.(f_post)] in
+      let assume_post   := [seq (MkI ii (Cassert Assume c.1 c.2)) | c <- ci.(f_post)] in
+      ok (renames_iargs, assert_pre ++ assume_pre, assert_post ++ assume_post)
+    else Error (inline_error (pp_s "invalid refreshing in function spec"))
+  end.
 
 Definition get_fun (p:ufun_decls) (f:funname) :=
   match get_fundef p f with
@@ -104,7 +119,8 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     if ii_is_inline iinfo then
       Let fd := add_iinfo iinfo (get_fun p f) in
       let fd' := rename_fd iinfo f fd in
-      Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
+      let s := Sv.union (vrvs xs) X in
+      Let s2 := add_iinfo iinfo (check_rename f fd fd' s) in
       let ii := ii_with_location iinfo in
       let rename_args :=
         assgn_tuple ii (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es
@@ -112,7 +128,8 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
       let rename_res :=
         assgn_tuple ii xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))
       in
-      ok (X, rename_args ++ fd'.(f_body) ++ rename_res)
+      Let: (rename_iargs, c_pr, c_po) := inline_contra ii fd' es s s2 in
+      ok (X, rename_args ++ rename_iargs ++ c_pr ++ fd'.(f_body) ++ c_po ++ rename_res)
     else ok (X, [::i])
   end.
 
