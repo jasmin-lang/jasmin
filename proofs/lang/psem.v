@@ -145,6 +145,7 @@ Class semCallParams
   exec_syscallS: forall scs m o vargs rscs rm vres,
      exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
      mem_equiv m rm;
+  init_eassert : forall ef ep ev s1 s2, init_state ef ep ev s1 = ok s2 -> eassert s1 = eassert s2;
 }.
 
 Section SEM.
@@ -1056,6 +1057,13 @@ Lemma write_var_assertP wdb x v s1 s2 :
   write_var wdb x v s1 = ok s2 → eassert s1 = eassert s2.
 Proof. by apply: rbindP=> ?? [] <-. Qed.
 
+Lemma write_vars_assertP wdb x v s1 s2 :
+  write_vars wdb x v s1 = ok s2 → eassert s1 = eassert s2.
+Proof.
+  elim: x v s1 => [ | x xs hrec] [ | v vs] s1 //=; first by move=> [<-].
+  t_xrbindP => > /write_var_assertP ->; apply: hrec.
+Qed.
+
 Lemma lv_write_assertP wdb gd (x:lval) v s1 s2:
   write_lval gd wdb x v s1 = ok s2 ->
   eassert s1 = eassert s2.
@@ -1073,6 +1081,14 @@ Lemma write_var_with_eassert a wdb x v s1 s2:
   write_var wdb x v (with_eassert s1 a) = ok (with_eassert s2 a).
 Proof.
   by apply: rbindP; rewrite /write_var /= => > -> [<-] /=; case s1.
+Qed.
+
+Lemma write_vars_with_eassert a wdb x v s1 s2:
+  write_vars wdb x v s1 = ok s2 ->
+  write_vars wdb x v (with_eassert s1 a) = ok (with_eassert s2 a).
+Proof.
+  elim: x v s1 => [ | x xs hrec] [ | v vs] s1 //=; first by move=> [->].
+  by t_xrbindP => > /(write_var_with_eassert a) -> /hrec /= ->.
 Qed.
 
 Lemma sem_pexpr_with_eassert a wdb gd s1 e : sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_eassert s1 a) e.
@@ -2665,6 +2681,10 @@ Context
 (* ** Semantic without stack
  * -------------------------------------------------------------------- *)
 
+#[ local ]
+Lemma init_eassert_u s1 s2 : Ok error s1 = ok s2 -> eassert s1 = eassert s2.
+Proof. by move=> [->]. Qed.
+
 #[ global ]
 Instance sCP_unit : semCallParams (pT := progUnit) :=
   { init_state := fun _ _ _ s => ok s;
@@ -2672,6 +2692,7 @@ Instance sCP_unit : semCallParams (pT := progUnit) :=
     exec_syscall  := exec_syscall_u;
     exec_syscallP := exec_syscallPu;
     exec_syscallS := exec_syscallSu;
+    init_eassert  := fun _ _ _ s1 s2 => @init_eassert_u s1 s2;
 }.
 
 (* ** Semantic with stack
@@ -2683,10 +2704,15 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
   let vm1  := s.(evm) in
   Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) sf.(sf_stk_ioff) sf.(sf_stk_extra_sz) in
   write_vars true [:: vid pe.(sp_rsp) ; vid pe.(sp_rip)]
-             [:: Vword (top_stack m1'); Vword wrip] (Estate scs1 m1' Vm.init [::]).
+             [:: Vword (top_stack m1'); Vword wrip] (Estate scs1 m1' Vm.init (eassert s)).
 
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
+
+#[ local ]
+Lemma init_eassert_s sf pe wrip s1 s2 :
+  init_stk_state sf pe wrip s1 = ok s2 -> eassert s1 = eassert s2.
+Proof. by rewrite /init_stk_state; t_xrbindP => > _ > /write_vars_assertP. Qed.
 
 #[ global ]
 Instance sCP_stack : semCallParams (pT := progStack) :=
@@ -2695,6 +2721,7 @@ Instance sCP_stack : semCallParams (pT := progStack) :=
     exec_syscall  := exec_syscall_s;
     exec_syscallP := exec_syscallPs;
     exec_syscallS := exec_syscallSs;
+    init_eassert  := init_eassert_s;
 }.
 
 End SEM_CALL_PARAMS.
