@@ -622,7 +622,8 @@ module I (S:S): I = struct
               (Pconst (w2i ~sign z U16))
          | _ -> !> v
        end
-    (* | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e *)
+    | Pabstract ({name="b2i"}, [v]) -> !> v
+    | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
       let v =
