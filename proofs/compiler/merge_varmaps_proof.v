@@ -29,6 +29,7 @@ Context
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != pex.(sp_rsp) →
   init_stk_state fex pex gd s = ok s' →
+  eassert s = [::] →
   [/\
     escs s = escs s', eassert s' = [::],
     (evm s').[vid pex.(sp_rip)] = Vword gd,
@@ -38,7 +39,7 @@ Lemma init_stk_stateI fex pex gd s s' :
               (evm s').[x] = Vm.init.[x]].
 Proof.
   move => /eqP checked_sp_rip.
-  apply: rbindP => m ok_m [<-] /=; split => //.
+  apply: rbindP => m ok_m [<-] /= ?; split => //.
   + by rewrite Vm.setP_eq vm_truncate_val_eq.
   + rewrite Vm.setP_neq.
     * by rewrite Vm.setP_eq vm_truncate_val_eq.
@@ -765,7 +766,7 @@ Section LEMMA.
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
   Proof.
     move => scs m ?? fn fd vargs vargs' s0 s1 s2 vres vres' vpr vpo tr ok_fd ok_vargs /init_stk_stateI
-      -/(_ rip_neq_rsp) [hscs0 heassert0 vgd_v ok_m' vrsp_v hvmap0] ok_s1 hpr sexec ih ok_vres ok_vres' -> -> hpo ->
+      -/(_ rip_neq_rsp erefl) [hscs0 heassert0 vgd_v ok_m' vrsp_v hvmap0] ok_s1 hpr sexec ih ok_vres ok_vres' -> -> hpo ->
       ii fd' tvm1 args' ok_fd' sp_align vrsp_tv vgd_tv ok_args' ok_args''.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
