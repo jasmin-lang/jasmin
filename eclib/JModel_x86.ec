@@ -255,9 +255,11 @@ qed.
     (* MMX instructions *)
 (*
     | MOVX  of wsize
+    | POR
 *)
 op MOVX_32 (v: W32.t) = v.
 op MOVX_64 (v: W64.t) = v.
+abbrev [-printing] POR = W64.(`|`).
 
 (* -------------------------------------------------------------------- *)
   (* SSE instructions *)

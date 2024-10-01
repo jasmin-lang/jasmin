@@ -1,0 +1,8 @@
+export
+fn por_32(reg u32 x y) -> reg u32 {
+    #mmx reg u32 a = x;
+    #mmx reg u32 b = y;
+    a |= b;
+    x = a;
+    return x;
+}

@@ -16,6 +16,12 @@
   `reg u32 x = 1, y, z = 2; stack u64 s = 1, u, t = z;`
   ([PR #908](https://github.com/jasmin-lang/jasmin/pull/908)).
 
+- The SCT checker now allows protecting in MMX registers
+  ([PR #917](https://github.com/jasmin-lang/jasmin/pull/917)).
+
+- Add support for the MMX instruction `POR`
+  ([PR #917](https://github.com/jasmin-lang/jasmin/pull/917)).
+
 ## Bug fixes
 
 - Easycrypt extraction for CT : fix decreasing for loops

@@ -1,0 +1,8 @@
+export
+fn por_mem(reg u64 x y) -> reg u64 {
+    stack u64 s = x;
+    #mmx reg u64 a = y;
+    s = #POR(s, a);
+    x = s;
+    return x;
+}

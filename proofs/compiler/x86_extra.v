@@ -60,8 +60,7 @@ Variant x86_extra_op : Type :=
 | Ox86SLHinit
 | Ox86SLHupdate
 | Ox86SLHmove
-| Ox86SLHprotect of wsize
-
+| Ox86SLHprotect of reg_kind & wsize
 .
 
 Scheme Equality for x86_extra_op.
@@ -172,6 +171,11 @@ Definition se_protect_small_sem
   (ws:wsize) (w:word ws) (msf:word ws) : exec (sem_tuple (b5w_ty ws)) :=
    x86_OR w msf.
 
+Definition se_protect_mmx_sem
+  (ws:wsize) (w:word ws) (msf:word ws) : exec (word ws) :=
+  Let _ := assert (ws == reg_size) ErrType in
+  ok (wor w msf).
+
 Definition se_protect_large_sem
   (ws:wsize) (w:word ws) (msf:wmsf) : exec (word ws * word ws) :=
    Let _ := assert (Uptr < ws )%CMP ErrType in
@@ -179,10 +183,18 @@ Definition se_protect_large_sem
    ok (aux, wor w aux).
 
 Definition Ox86SLHprotect_str := append "Ox86_" SLHprotect_str.
-Definition Ox86SLHprotect_instr :=
+Definition Ox86SLHprotect_instr rk :=
   let out := map sopn_arg_desc implicit_flags ++ [:: E 0] in
   fun (ws:wsize) =>
-  if (ws <= Uptr)%CMP then
+  if rk is Extra then
+    mk_instr_desc (pp_sz SLHprotect_str ws)
+      [:: sword ws; sword ws]
+      [:: E 0; E 1 ]
+      [:: sword ws ]
+      [:: E 0 ]
+      (@se_protect_mmx_sem ws)
+      [::]
+  else if (ws <= Uptr)%CMP then
      mk_instr_desc (pp_sz SLHprotect_str ws)
                   [:: sword ws; sword ws]
                   [:: E 0; E 1]
@@ -210,7 +222,7 @@ Definition get_instr_desc o :=
   | Ox86SLHinit       => Ox86SLHinit_instr
   | Ox86SLHupdate     => Ox86SLHupdate_instr
   | Ox86SLHmove       => Ox86SLHmove_instr
-  | Ox86SLHprotect ws => Ox86SLHprotect_instr ws
+  | Ox86SLHprotect rk ws => Ox86SLHprotect_instr rk ws
   end.
 
 Definition prim_string :=
@@ -256,28 +268,28 @@ Definition assemble_slh_update
 
 Definition assemble_slh_protect
   (ii : instr_info)
+  (rk : reg_kind)
   (ws : wsize)
   (les : seq lexpr)
   (res : seq rexpr) :
   cexec (seq (asm_op_msb_t * seq lexpr * seq rexpr)) :=
-  if (ws <= U64)%CMP
-  then ok [:: les ::= (OR ws) res ]
-  else
-    if (les, res) is ([:: LLvar aux; y], [:: x; msf ]) then
+  if (ws <= U64)%CMP then
+    ok [:: les ::= (if rk is Extra then POR else OR ws) res ]
+  else if (les, res) is ([:: LLvar aux; y], [:: x; msf ]) then
      (* aux = VPINSR msf 0;
         aux = VPINSR msf 1;
         aux = VINSERTI128 aux aux 1; // only for size 256
         y   = VPOR x aux
       *)
       Let _ := assert (~~(Sv.mem aux (free_vars_r x) || Sv.mem aux (free_vars_r msf)))
-                      (E.se_update_arguments ii) in
+                      (E.se_protect_arguments ii) in
       let eaux := Rexpr (Fvar aux) in
       let laux := [:: LLvar aux] in
       ok ([::                     laux ::= (VPINSR VE64) [:: eaux; msf; re8_0]       ;
                                   laux ::= (VPINSR VE64) [:: eaux; msf; re8_1]       ] ++
           (if ws == U256 then [:: laux ::= (VINSERTI128) [:: eaux; eaux; re8_1]] else [::]) ++
           [::                   [:: y] ::= (VPOR ws)     [:: x; eaux]])
-    else Error (E.se_protect_arguments ii).
+  else Error (E.se_protect_arguments ii).
 
 Definition assemble_slh_move
   (les : seq lexpr)
@@ -333,7 +345,7 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lexprs * re
   | Ox86SLHinit => assemble_slh_init outx
   | Ox86SLHupdate => assemble_slh_update ii outx inx
   | Ox86SLHmove => assemble_slh_move outx inx
-  | Ox86SLHprotect ws => assemble_slh_protect ii ws outx inx
+  | Ox86SLHprotect rk ws => assemble_slh_protect ii rk ws outx inx
   end.
 
 #[global]
