@@ -1,0 +1,7 @@
+export
+fn por_mmx_reg(reg u64 x y) -> reg u64 {
+    #mmx reg u64 a = x;
+    a |= y;
+    x = a;
+    return x;
+}

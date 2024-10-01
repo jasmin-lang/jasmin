@@ -91,6 +91,8 @@ Variant x86_op : Type :=
 
   (* MMX instructions *)
 | MOVX  of wsize 
+| POR
+
   (* SSE instructions *)
 | MOVD     of wsize (* MOVD/MOVQ to wide registers *)
 | MOVV     of wsize (* MOVD/MOVQ from wide registers *)
@@ -724,6 +726,10 @@ Definition x86_MOVX sz (x: word sz) : exec (word sz) :=
   Let _ := check_size_32_64 sz in
   ok x.
 
+Definition x86_POR (v1 v2: wreg) : exec (wreg) :=
+  ok (wor v1 v2).
+
+
 (* ---------------------------------------------------------------- *)
 Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
   Let _ := check_size_32_64 sz in
@@ -1262,6 +1268,7 @@ Definition rx := [:: CAregx].
 Definition m b := [:: CAmem b].
 Definition i sz := [:: CAimm sz].
 Definition rm b := [:: CAreg; CAmem b].
+Definition rxm b := [:: CAregx; CAmem b].
 
 Definition rmi sz := [:: CAreg; CAmem true; CAimm sz].
 Definition ri  sz := [:: CAreg; CAimm sz].
@@ -1287,6 +1294,7 @@ Definition Ox86_MOV_instr               :=
                check_mov (prim_8_64 MOV) (pp_iname "mov").
 
 Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
+Definition check_por : i_args_kinds := [:: [:: rx; rxm true ] ].
 
 Definition pp_movd name sz args :=
  pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
@@ -1300,6 +1308,23 @@ Definition pp_movd name sz args :=
 Definition Ox86_MOVX_instr               :=
   mk_instr_w_w "MOVX" x86_MOVX [:: Eu 1] [:: Eu 0] 2
                check_movx (prim_32_64 MOVX) (pp_movd "mov").
+
+Definition Ox86_POR_instr :=
+  let desc :=
+    mk_instr
+      (pp_s "POR")
+      (w2_ty U64 U64)
+      (w_ty U64)
+      [:: Eu 0; Eu 1 ]
+      [:: Eu 0 ]
+      MSB_MERGE
+      x86_POR
+      check_por
+      2
+      [::]
+      (pp_name "por" U64)
+  in
+  (desc, ("POR", primM POR)).
 
 Definition check_movsx (_ _:wsize) := [:: r_rm ].
 
@@ -1998,6 +2023,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SHRX sz            => Ox86_SHRX_instr.1 sz
   | SHLX sz            => Ox86_SHLX_instr.1 sz
   | MOVX sz            => Ox86_MOVX_instr.1 sz
+  | POR                => Ox86_POR_instr.1
   | MOVD sz            => Ox86_MOVD_instr.1 sz
   | MOVV sz            => Ox86_MOVV_instr.1 sz
   | VMOV sz            => Ox86_VMOV_instr.1 sz
@@ -2140,6 +2166,7 @@ Definition x86_prim_string :=
    Ox86_SHRX_instr.2;
    Ox86_SHLX_instr.2;
    Ox86_MOVX_instr.2;
+   Ox86_POR_instr.2;
    Ox86_MOVD_instr.2;
    Ox86_MOVV_instr.2;
    Ox86_VMOV_instr.2;

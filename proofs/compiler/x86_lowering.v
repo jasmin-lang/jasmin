@@ -332,10 +332,12 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         else kb true sz (LowerCopn (Ox86 (VPAND sz)) [:: a ; b ])
       end
 
-
     | Olor sz =>
       if (sz ≤ U64)%CMP
-      then k8 sz (LowerFopn sz (Ox86 (OR sz)) [:: a ; b ] (Some U32))
+      then
+        if [&& is_regx_l x & sz == U64 ]
+        then k8 sz (LowerDiscardFlags 0 (Ox86 POR) [:: a ; b ])
+        else k8 sz (LowerFopn sz (Ox86 (OR sz)) [:: a ; b ] (Some U32))
       else kb true sz (LowerCopn (Ox86 (VPOR sz)) [:: a ; b ])
     | Olxor sz =>
       if (sz ≤ U64)%CMP

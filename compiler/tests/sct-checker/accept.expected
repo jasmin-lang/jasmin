@@ -211,6 +211,37 @@ output corruption: #public
  constraints:
 
 
+File mmx.jazz:
+nomodmsf spill_msf : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+nomodmsf return_msf : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+nomodmsf take_msf : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+modmsf init_mmx_msf :  ->
+#msf
+output corruption: #public
+ constraints:
+
+
+nomodmsf protect_mmx : #poly = { n = ?480, s = secret} * #msf ->
+#poly = { n = ?480, s = ?480}
+output corruption: #public
+ constraints:
+
+
 File movmsf.jazz:
 modmsf reset_msf :  ->
 #msf
