@@ -95,6 +95,7 @@ Variant compiler_step :=
   | MakeRefArguments            : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
+  | PreLowering                 : compiler_step
   | LowerInstruction            : compiler_step
   | PropagateInline             : compiler_step
   | SLHLowering                 : compiler_step
@@ -128,6 +129,7 @@ Definition compiler_step_list := [::
   ; MakeRefArguments
   ; RegArrayExpansion
   ; RemoveGlobal
+  ; PreLowering
   ; LowerInstruction
   ; PropagateInline
   ; SLHLowering
@@ -281,9 +283,12 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
+  Let pp := aparams.(ap_plp).(plp_prog) (fresh_var_ident cparams (Reg (Normal, Direct))) pg in
+  let pp := cparams.(print_uprog) PreLowering pp in
+
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pg))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pp))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -293,7 +298,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lowering_opt cparams)
       (warning cparams)
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
-      pg
+      pp
   in
   let p := cparams.(print_uprog) LowerInstruction p in
 
