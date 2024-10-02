@@ -1,5 +1,4 @@
-
-# [unreleased]
+# Jasmin 2024.07.1 — Nancy, 2024-10-03
 
 ## New features
 
@@ -53,13 +52,12 @@
 
 - The checker for S-CT accepts copies of outdated MSF
   ([PR #885](https://github.com/jasmin-lang/jasmin/pull/885)).
-  
+
 - Preserve formatting of integer literals in the lexer and when pretty-printing to LATEX
   ([PR #886](https://github.com/jasmin-lang/jasmin/pull/886)).
 
 - Improve handling of instruction `LEA` in the safety checker
   ([PR #900](https://github.com/jasmin-lang/jasmin/pull/900)).
-
 
 - Various improvements to the LATEX pretty-printer
   ([PR #916](https://github.com/jasmin-lang/jasmin/pull/916)).
