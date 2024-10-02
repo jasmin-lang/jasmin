@@ -67,8 +67,7 @@ Section INCL.
       by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
     move=> xs f es ii X1 c' X2 /=.
     case: ii_is_inline => [|//].
-    t_xrbindP=> fd /get_funP -/Incl.
-    by rewrite /get_fun => -> s2 h [[ip cpr] cpo] hc [<-] <- /=; rewrite h /= hc.
+    by t_xrbindP=> fd /get_funP -/Incl; rewrite /get_fun => -> /= -> /= -> /= <- <-.
   Qed.
 
   Lemma inline_incl fd fd' :
@@ -192,7 +191,7 @@ Section SUBSET.
   Proof.
     move=> xs f es ii X2 Xc /=.
     case: ii_is_inline => [|[<-] //].
-    by t_xrbindP => fd _ ?? [[??] ?] ? [<-].
+    by t_xrbindP => fd _ ?? <-.
   Qed.
 
   Lemma inline_c_subset c : Pc c.
@@ -520,32 +519,36 @@ Section PROOF.
       + by apply: sem_pre_uincl; last by apply: sem_pre_ok hpr.
       + by apply: sem_post_uincl; last by apply: sem_post_ok hpo.
       by case s2.
-Admitted.
-
-(*
-    t_xrbindP => fd' /get_funP Hfd'.
+    t_xrbindP => fd' /get_funP Hfd' hfd'_contract.
     have [fd [Hfd Hinline]] := inline_progP uniq_funname Hp Hfd'.
     rewrite /check_rename; t_xrbindP => Hcheckf /=.
-    case:ifP => // Hdisj _ ??;subst X1 c' => vm1 Hvm1.
+    case:ifP => // Hdisj _ ??; subst X1 c' => vm1 Hvm1.
     have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
     + by apply: uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
     have [vres1 Hvres Hscall]:= Hfun _ Huargs.
     case: (sem_callE Hscall) => f [].
     rewrite Hfd' => /Some_inj <- {f}.
-    case => vargs0 [s0] [s1] [svm2] [vres] [hvs' [hs0 hs1] hsvm2 [hvres hvres1] [hscs2 hm2]].
-    have [vm0_ [vm1_ [vm2_ [vres2 [vres' [Htin [Hi Hwv] Hbody [Hvs Hall Htout] [hscs2' hm2']]]]]]] :=
-      alloc_fun_uprogP_eq Hcheckf hvs' hs0 hs1 hsvm2 hvres hvres1 hscs2 hm2.
+    case => vargs0 [s0] [s1] [svm2] [vres] [vpr'] [vpo']
+       [hvs' [hs0 hs1 hpr'] hsvm2 [hvres hvres1] [hscs2 hm2 hpo' htr]].
+    have eassert_s1 : eassert s1 = [::].
+    + by move: hs0 => [?]; subst s0; have /= <- := write_vars_assertP hs1.
+    have eassert_s2 : eassert s2 = tr1.
+    + by have /= <- := lvs_write_assertP Hw.
+    have := alloc_fun_uprogP_eq Hcheckf hvs' hs0 hs1 hpr' hsvm2 hvres hvres1 hscs2 hm2 hpo' htr.
+    move=> [vm0_] [vm1_] [vm2_] [vres2] [vres'] [] Htin [] Hi Hwv _ Hbody [Hvs Hall Htout _ _] [hscs2' hm2'].
     move: hs0 Hi hm2'; rewrite /init_state /finalize /=.
-    move=> [?]; subst s0 => -[] ? _; subst vm0_ m2.
-    move=> {hvs' hs1 hsvm2 Hfd' Hfd Hcheckf Hsc Hinline}.
+    move=> [?]; subst s0 => -[] ??; subst vm0_ m2.
+    move=> {hvs' hs1 hsvm2 Hcheckf Hfd Hsc Hinline}.
     move: Hdisj Hvm1;rewrite read_i_call.
     move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv Hbody Hdisjoint Hvm1.
     rewrite (write_vars_lvals _ gd) in Hwv.
     have [||/= vm1' Wvm1' Uvm1'] :=
       writes_uincl (vm1 := vm1) (v2 := vargs0) _ _ Hwv.
-    + apply vm_uincl_init. + by apply List_Forall2_refl.
-    have Uvmi : evm (with_vm s1 vm1_) <=1 vm1' by done.
+    + by apply vm_uincl_init. + by apply List_Forall2_refl.
+    have {}Wvm1' := lvs_write_with_eassert tr1 Wvm1'.
+    have Uvmi : evm (add_assumes (with_vm s1 vm1_) vpr') <=1 vm1' by done.
     have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvmi Hbody.
+
     have [/=vs2' Hvs' Uvs'] := get_var_is_uincl Uvm3 Hvs.
     have [vs' Htout' Uvs]:= mapM2_truncate_val Htout Uvs'.
     have Heqvm : svm1 <=[Sv.union (read_rvs xs) X2] vm3.
@@ -562,18 +565,32 @@ Admitted.
     have [|vm4 /= Hvm4 Hw']:= write_lvals_uincl_on _ HH Hw Heqvm;first by SvD.fsetdec.
     exists vm4.
     + by apply: uincl_onI Hvm4;SvD.fsetdec.
-    apply sem_app with (with_vm s1 vm1').
+    apply sem_app with (with_eassert (with_vm s1 vm1') tr1).
     + rewrite eq_globs !with_vm_idem in Hvargs', Wvm1'.
-      apply: assgn_tuple_Lvar Hvargs' Htin Wvm1' => //.
+      apply: assgn_tuple_Lvar Hvargs' Htin Wvm1'.
       by move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec /locals /locals_p vrvs_recE;SvD.fsetdec.
+    have : sem_pre p' scs1 sm1 fn vargs' = ok vpr.
+    + by apply: sem_pre_ok; apply: sem_pre_uincl hpr.
+    rewrite hpr' => -[?]; subst vpr'.
+    have : sem_post p' scs2 (finalize (f_extra fd') (emem svm2)) fn vargs' vres1 = ok vpo.
+    + by apply: sem_post_ok; apply: sem_post_uincl hpo.
+    rewrite hpo' => -[?]; subst vpo'.
+    have [??]: vpr = [::] /\ vpo = [::]; last subst vpr vpo.
+    + by move: hpr' hpo'; rewrite /sem_pre/sem_post Hfd'; case: f_contra hfd'_contract => // _ [<-] [<-].
+    have := sem_with_eassert tr1 Hsem'.
+    have -> :  (with_eassert (with_vm (add_assumes (with_vm s1 vm1_) [::]) vm1') (eassert (with_vm (add_assumes (with_vm s1 vm1_) [::]) vm1') ++ tr1)) =
+               (with_eassert (with_vm s1 vm1') tr1).
+    + by rewrite /add_assumes /with_eassert /= eassert_s1.
+    move=> {}Hsem'; subst tr.
     apply: (sem_app Hsem').
     rewrite eq_globs in Hw' => {Hw}; subst scs2.
-    case: (svm2) Hw' => escs2 emem2 evm2 Hw'.
-    apply: assgn_tuple_Pvar Htout' Hw' => //;last first.
+    case: (svm2) Hw' => escs2 emem2 evm2 tr2 /=.
+    rewrite /with_vm /with_scs /with_mem /= eassert_s2 => /(lvs_write_with_eassert (tr2++tr1)); rewrite /with_eassert /= => Hw'.
+    apply: assgn_tuple_Pvar Htout' Hw' => //.
     move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec.
     by rewrite /locals /locals_p vrvs_recE read_cE write_c_recE;SvD.fsetdec.
   Qed.
-*)
+
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
     move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 svm2 vres vres' vpr vpo tr Hget Htin Hi Hw hpr Hsem Hc Hres Htout Hscs Hfi hpo ->.

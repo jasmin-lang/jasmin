@@ -1094,6 +1094,9 @@ Qed.
 Lemma sem_pexpr_with_eassert a wdb gd s1 e : sem_pexpr wdb gd s1 e = sem_pexpr wdb gd (with_eassert s1 a) e.
 Proof. by apply sem_pexpr_vm_mem. Qed.
 
+Lemma sem_pexprs_with_eassert a wdb gd s1 e : sem_pexprs wdb gd s1 e = sem_pexprs wdb gd (with_eassert s1 a) e.
+Proof. by apply sem_pexprs_vm_mem. Qed.
+
 Lemma lv_write_with_eassert a wdb gd (x:lval) v s1 s2:
   write_lval gd wdb x v s1 = ok s2 ->
   write_lval gd wdb x v (with_eassert s1 a) = ok (with_eassert s2 a).
@@ -2622,6 +2625,82 @@ Proof.
 Qed.
 
 End UNDEFINCL.
+
+Section WITH_EASSERT.
+
+Context
+  {dc:DirectCall}
+  {sip : SemInstrParams asm_op syscall_state}
+  {pT : progT}
+  {sCP : semCallParams}.
+
+Variable p : prog.
+Variable ev : extra_val_t.
+Variable tr : contracts_trace.
+
+Notation gd:= (p_globs p).
+
+Let Pr s i s' :=
+  sem_i p ev (with_eassert s (eassert s ++ tr)) i (with_eassert s' (eassert s' ++ tr)).
+
+Let Pi s i s' :=
+  sem_I p ev (with_eassert s (eassert s ++ tr)) i (with_eassert s' (eassert s' ++ tr)).
+
+Let Pc s c s' :=
+  sem p ev (with_eassert s (eassert s ++ tr)) c (with_eassert s' (eassert s' ++ tr)).
+
+Let Pfor i vs s c s' :=
+  sem_for p ev i vs (with_eassert s (eassert s ++ tr)) c (with_eassert s' (eassert s' ++ tr)).
+
+Let Pfun (_ : syscall_state_t) (_:mem) (_:funname) (_:seq value) (_:syscall_state_t) (_:mem) (_: seq value) (_: contracts_trace) := True.
+
+Lemma sem_with_eassert s c s' :
+   sem p ev s c s' ->
+   sem p ev (with_eassert s (eassert s ++ tr)) c (with_eassert s' (eassert s' ++ tr)).
+Proof.
+  apply: (sem_Ind (Pi_r := Pr) (Pi := Pi) (Pc := Pc) (Pfor:= Pfor) (Pfun := Pfun)) => {s c s'} //.
+  + by move=> ?; constructor.
+  + by move=> s1 s2 s3 i c _ hi _ hc; apply:Eseq hc.
+  + move=> s s' x t ty e ??; rewrite (sem_pexpr_with_eassert (eassert s ++ tr)) => ?? hw.
+    have := lv_write_with_eassert (eassert s ++ tr) hw.
+    have {2}->:= lv_write_assertP hw => ?.
+    by econstructor; eauto.
+  + move=> s s' xs t o es; rewrite /sem_sopn; t_xrbindP => ??.
+    rewrite (sem_pexprs_with_eassert (eassert s ++ tr)) => he ho hw.
+    have := lvs_write_with_eassert (eassert s ++ tr) hw.
+    have {2}->:= lvs_write_assertP hw => hw'.
+    by econstructor; eauto; rewrite /sem_sopn he /= ho /= hw'.
+  + move=> s s' >; rewrite (sem_pexprs_with_eassert (eassert s ++ tr)) => he hsys hw.
+    have := lvs_write_with_eassert (eassert s ++ tr) hw.
+    have {2}->:= lvs_write_assertP hw => hw'.
+    by econstructor; eauto.
+  + move=> s s' >; rewrite (sem_pexpr_with_eassert (eassert s ++ tr)) => he.
+    by apply: Eassert.
+  + move=> s s' >; rewrite (sem_pexpr_with_eassert (eassert s ++ tr)) => he _ hrec.
+    by apply: Eif_true.
+  + move=> s s' >; rewrite (sem_pexpr_with_eassert (eassert s ++ tr)) => he _ hrec.
+    by apply: Eif_false.
+  + move=> s s' > _ hc; rewrite (sem_pexpr_with_eassert (eassert s' ++ tr)) => he _ hc' _ hw.
+    by apply: Ewhile_true; eauto.
+  + move=> s s' > _ hc; rewrite (sem_pexpr_with_eassert (eassert s' ++ tr)) => he.
+    by apply: Ewhile_false; eauto.
+  + move=> s s' >.
+    do 2! rewrite (sem_pexpr_with_eassert (eassert s ++ tr)) => ?.
+    by move=> _ hfor; econstructor; eauto.
+  + by move=> s >; econstructor.
+  + move=> s s' > hw _ hc _ hfor.
+    have := write_var_with_eassert (eassert s ++ tr) hw.
+    by have {2}-> := write_var_assertP hw => ?; econstructor; eauto.
+  move=> s1 scs m s2 s3 xs fn args vargs vs vpr vpo trf.
+  rewrite (sem_pexprs_with_eassert (eassert s1 ++ tr)) => he hpr hf _ hw hpo ->.
+  set s := (with_scs (with_mem s1 m) scs).
+  have := lvs_write_with_eassert (eassert s ++ tr) hw.
+  have {2}->:= lvs_write_assertP hw => hw'.
+  econstructor; eauto.
+  by case s2 => *; rewrite /add_assumes /add_contracts /add_asserts /with_eassert /= -!catA.
+Qed.
+
+End WITH_EASSERT.
 
 Lemma eq_gvarP wdb gd vm x x' : eq_gvar x x' → get_gvar wdb gd vm x = get_gvar wdb gd vm x'.
 Proof. by rewrite /eq_gvar /get_gvar /is_lvar => /andP [] /eqP -> /eqP ->. Qed.
