@@ -42,8 +42,8 @@ let pp_reg_address_aux base disp off scal =
 
 let global_datas = "glob_data"
 
-let pp_rip_address (p : Ssralg.GRing.ComRing.sort) : string =
-  Format.asprintf "%s+%a" global_datas Z.pp_print (Conv.z_of_int32 p)
+let pp_rip_address (p : Ssralg.GRing.ComRing.sort) =
+  byte_label global_datas (Conv.z_of_int32 p)
 
 (* -------------------------------------------------------------------- *)
 (* TODO_ARM: This is architecture-independent. *)
@@ -223,6 +223,26 @@ end = struct
     | _ -> ""
 end
 
+(* We assume that [ADR] instructions are only generated for accessing the data
+   section (i.e., global variables). *)
+let pp_ADR pp opts args =
+  let name_lo = pp_mnemonic_ext (ARM_op(MOV, opts)) "w" args in
+  let name_hi = pp_mnemonic_ext (ARM_op(MOVT, opts)) "" args in
+  let args =
+    List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+  in
+  let args_lo =
+    match args with
+    | dst :: addr :: rest -> dst :: ("#:lower16:" ^ addr) :: rest
+    | _ -> assert false
+  in
+  let args_hi =
+    match args with
+    | dst :: addr :: rest -> dst :: ("#:upper16:" ^ addr) :: rest
+    | _ -> assert false
+  in
+  [ LInstr(name_lo, args_lo); LInstr(name_hi, args_hi) ]
+
 let pp_instr fn i =
   match i with
   | ALIGN ->
@@ -265,12 +285,18 @@ let pp_instr fn i =
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
       let pp = id.id_pp_asm args in
+      (* We need to perform the check even if we don't use the suffix, for
+         instance for [LDR] or [STR]. *)
       let suff = ArgChecker.check_args op pp.pp_aop_args in
-      let name = pp_mnemonic_ext op suff args in
-      let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
-      let args = pp_shift op args in
-      get_IT i @ [ LInstr (name, args) ]
-
+      match op with
+      | ARM_op(ADR, opts) -> pp_ADR pp opts args
+      | _ ->
+          let name = pp_mnemonic_ext op suff args in
+          let args =
+            List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+          in
+          let args = pp_shift op args in
+          get_IT i @ [ LInstr (name, args) ]
 
 (* -------------------------------------------------------------------- *)
 
@@ -314,7 +340,7 @@ let pp_data globs names =
   if not (List.is_empty globs) then
     LInstr (".p2align", ["5"]) ::
     LLabel global_datas ::
-    format_glob_data globs names
+    format_glob_data global_datas globs names
   else []
 
 let pp_prog p =

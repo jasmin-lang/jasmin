@@ -32,19 +32,31 @@ let string_of_glob occurrences x =
   let suffix = if count > 0 then Format.asprintf "$%d" count else "" in
   Format.asprintf "G$%s%s" (escape x.v_name) suffix
 
+let byte_label global_datas i =
+  Format.asprintf "%s_%a" global_datas Z.pp_print i
 
 (* -------------------------------------------------------------------- *)
-let format_glob_data globs names =
+let format_glob_data_entry global_datas i olabel b =
+  let lbl =
+    match olabel with
+    | Some x -> [ LLabel x ]
+    | None -> []
+  in
+  lbl @ [ LLabel(byte_label global_datas (Z.of_int i)); LByte(b) ]
+
+let format_glob_data global_datas globs names =
   (* Creating a Hashtable to count occurrences of a label name*)
   let occurrences = Hash.create 42 in
   let names =
     List.map (fun ((x, _), p) -> (Conv.var_of_cvar x, Conv.z_of_cz p)) names
   in
-  List.flatten
-    (List.mapi
-       (fun i b ->
-         let b = LByte (Z.to_string (Conv.z_of_int8 b)) in
-         match List.find (fun (_, p) -> Z.equal (Z.of_int i) p) names with
-         | exception Not_found -> [ b ]
-         | x, _ -> [ LLabel (string_of_glob occurrences x); b ])
-       globs)
+  let doit i b =
+    let olabel =
+      match List.find (fun (_, p) -> Z.equal p (Z.of_int i)) names with
+      | x, _ -> Some (string_of_glob occurrences x)
+      | exception Not_found -> None
+    in
+    let b = Conv.z_of_int8 b |> Z.to_string in
+    format_glob_data_entry global_datas i olabel b
+  in
+  List.flatten (List.mapi doit globs)

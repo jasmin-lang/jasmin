@@ -37,6 +37,8 @@ Context {atoI : arch_toIdent}.
 Definition is_load e :=
   if e is Pload _ _ _ _ then true else false.
 
+(* It is important that we generate the [ADR] instruction *only* for accesses to
+   the data section, since the symbols get split to perform far accesses. *)
 Definition arm_mov_ofs
   (x : lval) (tag : assgn_tag) (vpk : vptr_kind) (y : pexpr) (ofs : Z) :
   option instr_r :=
