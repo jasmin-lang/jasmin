@@ -97,11 +97,22 @@ let parse_and_print print arch call_conv ecoutput joutput output file funname =
      in
 
      let proc = CL.fun_to_proc (snd prog) (List.nth (snd prog) 0) in
-
-     (* let cfg = CL_vsimpl.Cfg.cfg_of_prog_rev proc.prog in *)
-     (* let clean_cfg = CL_vsimpl.SimplVector.simpl_cfg cfg in *)
-     (* let prog = CL_vsimpl.Cfg.prog_of_cfg clean_cfg in *)
-     (* let proc ={proc with prog} in *)
+     let formals',pre_ghost_instr,post_ghost_instr = CL_vsimpl.GhostVector.unfold_vectors proc.formals proc.ret_vars in
+     let prog' = pre_ghost_instr @ proc.prog @ post_ghost_instr in
+     let (pre_epred, pre_rpred) = proc.pre in
+     let (post_epred, post_rpred) = proc.post in
+     let pre_epred',_ = CL_vsimpl.GhostVector.unfold_vghosts_epred formals' pre_epred in
+     let pre_rpred',_ = CL_vsimpl.GhostVector.unfold_vghosts_rpred formals' pre_rpred in
+     let post_epred',_ = CL_vsimpl.GhostVector.unfold_vghosts_epred formals' post_epred in
+     let post_rpred',_ = CL_vsimpl.GhostVector.unfold_vghosts_rpred formals' post_rpred in
+     let ret_vars = CL_vsimpl.SimplVector.get_clause_vars post_epred' post_rpred' in
+     let prog' = CL_vsimpl.GhostVector.unfold_cfg_clauses prog' formals' in
+     let cfg = CL_vsimpl.Cfg.cfg_of_prog_rev prog' in
+     let clean_cfg = CL_vsimpl.SimplVector.simpl_cfg cfg ret_vars in
+     let prog' = CL_vsimpl.Cfg.prog_of_cfg clean_cfg in
+     let pre' = (pre_epred', pre_rpred') in
+     let post' = (post_epred', post_rpred') in
+     let proc = {proc with formals = formals'; pre = pre'; prog = prog'; post = post'} in
 
      let fmt = Format.formatter_of_out_channel out in
      ToCL.CL.Proc.pp_proc fmt proc;
