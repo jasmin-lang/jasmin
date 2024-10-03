@@ -527,8 +527,10 @@ module I (S:S): I = struct
     | PappN(Oabstract {pa_name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | PappN(Oabstract {pa_name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | PappN(Oabstract {pa_name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
-    | PappN (Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
+    | PappN(Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
     | PappN(Oabstract {pa_name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
+        UnPack (to_var ~sign x, 16, Z.to_int z)
+    | PappN(Oabstract {pa_name="u256_as_16u16"}, [Presult (_, x) ; Pconst z]) ->
         UnPack (to_var ~sign x, 16, Z.to_int z)
     | _ -> error e
 

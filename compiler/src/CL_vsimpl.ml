@@ -83,33 +83,101 @@ module Cfg = struct
 
 end
 
-(* type vector = *)
-(*   | U16x16 *)
+module GhostVector = struct
+  open CL.Instr
+  open CL.R
 
-(* let unfold_vector formals = *)
-(*   let aux ((formal,ty) as v) = *)
-(*     let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in *)
-(*     match Annot.ensure_uniq1 "vect" mk_vector (formal.v_annot) with *)
-(*     | None -> [v],[] *)
-(*     | Some U16x16 -> *)
-(*       let rec aux i acc = *)
-(*         match i with *)
-(*         | 0 -> acc *)
-(*         | n -> *)
-(*           let name = String.concat "_" [formal.v_name; "v" ; string_of_int i] in *)
-(*           let v = O.I.mk_tmp_lval ~name u16 in *)
-(*           aux ( n - 1) (v :: acc) *)
-(*       in *)
-(*       let v = aux 16 [] in *)
-(*       let va = List.map (fun v -> CL.Instr.Avar v) v in *)
-(*       let a = CL.Instr.Avatome va in *)
-(*       let l = O.I.var_to_tyvar ~vector:(16,16) formal in *)
-(*       v,[CL.Instr.Op1.mov l a] *)
-(*   in *)
-(*   List.fold_left (fun (acc1,acc2) v -> *)
-(*       let fs,is = aux v in *)
-(*       fs @ acc1,is @ acc2) *)
-(*     ([],[]) formals *)
+  module S = struct
+    let s = false (* TODO: is it always unsigned?*)
+    let error = "unsigned x86"
+  end
+
+  module I = I (S)
+
+  type vector =
+    | U16x16
+
+  let get_vghost ghosts gname =
+    let vghost = List.find (fun (v, _) -> v.v_name = gname) ghosts in
+    vghost
+
+  let get_unfolded_vector_namei v i =
+    String.concat "_" [v.v_name; "v" ; string_of_int i]
+
+  let rec replace_vghosts ghosts r =
+    let aux (v, ty) i =
+      let name = get_unfolded_vector_namei v i in
+      let v' = get_vghost ghosts name in
+      Rvar v'
+    in
+    match r with
+    | Rvar x -> r
+    | Rconst (c1, c2) -> r
+    | Ruext (e, c) ->
+      let e' = replace_vghosts ghosts e in
+      Ruext (e', c)
+    | Rsext (e, c) ->
+      let e' = replace_vghosts ghosts e in
+      Rsext(e', c)
+    | Runop(s, e) ->
+      let e' = replace_vghosts ghosts e in
+      Runop(s, e')
+    | Rbinop(e1, s, e2) ->
+      let e1' = replace_vghosts ghosts e1 in
+      let e2' = replace_vghosts ghosts e2 in
+      Rbinop(e1', s, e2')
+    | RVget(e,c) -> r
+    | UnPack (e,us,i) ->
+      aux e i
+
+  let rec unfold_vghosts ghosts pre =
+    match pre with
+    | RPcmp(e1, s, e2) ->
+      let e1' = replace_vghosts ghosts e1 in
+      let e2' = replace_vghosts ghosts e2 in
+      RPcmp(e1', s, e2')
+    | RPnot e ->
+      let e' = unfold_vghosts ghosts e in
+      RPnot e'
+    | RPand rps ->
+      let rps' = List.map (unfold_vghosts ghosts) rps in
+      RPand rps'
+    | RPor  rps ->
+      let rps' = List.map (unfold_vghosts ghosts) rps in
+      RPor rps'
+
+  (* let unfold_vghosts_epre ghosts pre = *)
+  (*   List.map (unfold_vghosts ghosts) pre *)
+
+  let unfold_vghosts_rpred ghosts pre =
+    List.map (unfold_vghosts ghosts) pre
+
+  let unfold_vector formals =
+    let aux ((formal,ty) as v) =
+      let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
+      match Annot.ensure_uniq1 "vect" mk_vector (formal.v_annot) with
+      | None -> [v],[]
+      | Some U16x16 ->
+        let rec aux i acc =
+          match i with
+          | 0 -> acc
+          | n ->
+            let name = get_unfolded_vector_namei formal (i-1) in
+            let v = I.mk_tmp_lval ~name u16 in
+            aux (n - 1) (v :: acc)
+        in
+        let vl = aux 16 [] in
+        let va = List.map (fun v -> Avar v) vl in
+        let a = Avatome va in
+        let (l_v, l_ty) as l = I.var_to_tyvar ~vector:(1,256) formal in
+        let l_0 = Avecta (l, 0) in
+        vl,[cast l_ty l a; Op1.mov v l_0]
+        in
+        List.fold_left (fun (acc1,acc2) v ->
+            let fs,is = aux v in
+            fs @ acc1,is @ acc2)
+          ([],[]) formals
+end
 
 module SimplVector = struct
   open Cfg
