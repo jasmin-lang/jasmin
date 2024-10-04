@@ -893,6 +893,15 @@ module X86BaseOpU : BaseOp
 (*       let l_tmp = I.mk_tmp_lval(CoreIdent.tu ws) in *)
 (*       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2] *\) *)
 
+    | ADCX ws
+    | ADOX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 1) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a1 a2 v]
+
     | ADC ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
