@@ -211,7 +211,7 @@ Context
   {asmop : asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
-  let semi := sopn_sem o in
+  Let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
 

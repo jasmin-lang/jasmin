@@ -96,16 +96,17 @@ Proof. by case s. Qed.
 #[global]Hint Resolve wsize_le_U8 wsize_ge_U256: core.
 
 (* -------------------------------------------------------------------- *)
-Definition check_size_8_64 sz := assert (sz ≤ U64)%CMP ErrType.
-Definition check_size_8_32 sz := assert (sz ≤ U32)%CMP ErrType.
-Definition check_size_16_32 sz := assert ((U16 ≤ sz) && (sz ≤ U32))%CMP ErrType.
-Definition check_size_16_64 sz := assert ((U16 ≤ sz) && (sz ≤ U64))%CMP ErrType.
-Definition check_size_32_64 sz := assert ((U32 ≤ sz) && (sz ≤ U64))%CMP ErrType.
-Definition check_size_128_256 sz := assert ((U128 ≤ sz) && (sz ≤ U256))%CMP ErrType.
+Definition size_8_16 sz := (sz <= U16)%CMP.
+Definition size_8_32 sz := (sz <= U64)%CMP.
+Definition size_8_64 sz := (sz <= U64)%CMP.
+Definition size_16_32 sz := ((U16 <= sz) && (sz <= U32))%CMP.
+Definition size_16_64 sz := ((U16 ≤ sz) && (sz ≤ U64))%CMP.
+Definition size_32_64 sz := ((U32 ≤ sz) && (sz ≤ U64))%CMP.
+Definition size_128_256 sz := ((U128 ≤ sz) && (sz ≤ U256))%CMP.
 
-Lemma wsize_nle_u64_check_128_256 sz :
+Lemma wsize_nle_u64_size_128_256 sz :
   (sz ≤ U64)%CMP = false →
-  check_size_128_256 sz = ok tt.
+  size_128_256 sz.
 Proof. by case: sz. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -141,10 +142,10 @@ Definition string_of_ve_sz (ve:velem) (sz:wsize) : string :=
 
 Definition pp_s (s: string) (_: unit) : string := s.
 
-Definition pp_sz (s: string) (sz: wsize) (_: unit) : string := 
+Definition pp_sz (s: string) (sz: wsize) (_: unit) : string :=
   s ++ "_" ++ string_of_wsize sz.
 
-Definition pp_ve_sz (s: string) (ve: velem) (sz: wsize) (_: unit) : string := 
+Definition pp_ve_sz (s: string) (ve: velem) (sz: wsize) (_: unit) : string :=
   s ++ "_" ++ string_of_ve_sz ve sz.
 
 Definition pp_ve_sz_ve_sz (s: string) (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (_: unit) : string :=
@@ -172,10 +173,23 @@ Variant v_kind :=
 
 (* -------------------------------------------------------------------- *)
 Variant safe_cond :=
-  | X86Division of wsize & signedness (* this is a division instruction, two words by one word; result must fit in an single word *)
-  | InRange of wsize & Z & Z & nat (* the nth argument must be in the given range *)
-  | AllInit of wsize & positive & nat.         (* the nth argument of is an array ws[p] where all ceil are initialized *)
-
+  (* the nth argument must be different from 0 *)
+  | NotZero of wsize & nat
+  (* this is a division instruction, two words by one word;
+    result must fit in an single word, divider should be <> 0 *)
+  | X86Division of wsize & signedness
+  (* the nth argument (unsigned interpretation, mod 32) must be in the given range *)
+  | InRangeMod32 of wsize & Z & Z & nat
+  (*  the nth argument (unsigned interpretation) must be in the < z *)
+  | ULt of wsize & nat & Z
+  (*  the nth argument (unsigned interpretation) must be in the >= z *)
+  | UGe of wsize & Z & nat
+  (*  the sum of the nth arguments (unsigned interpretation) must be in the <= z *)
+  | UaddLe of wsize & nat & nat & Z
+  (* the nth argument of is an array ws[p] where all ceil are initialized *)
+  | AllInit of wsize & positive & nat
+  (* Unsatisfiable safe_cond *)
+  | ScFalse.
 
 (* -------------------------------------------------------------------- *)
 Class PointerData := {

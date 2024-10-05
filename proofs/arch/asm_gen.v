@@ -8,6 +8,7 @@ Require Import
   linear
   lea.
 Require Import
+  arm_expand_imm
   arch_decl
   arch_extra.
 Import Utf8 String.
@@ -21,7 +22,7 @@ Module E.
 
 Definition pass_name := "asmgen"%string.
 
-Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info) (msg:pp_error) := 
+Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info) (msg:pp_error) :=
   {| pel_msg      := msg
    ; pel_fn       := None
    ; pel_fi       := None
@@ -31,7 +32,7 @@ Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info
    ; pel_internal := internal
   |}.
 
-Definition internal_error ii msg := 
+Definition internal_error ii msg :=
   gen_error true (Some ii) None (pp_s msg).
 
 Definition unexpected_sopn `{MSFsize} `{asmOp} ii msg op :=
@@ -40,10 +41,10 @@ Definition unexpected_sopn `{MSFsize} `{asmOp} ii msg op :=
   in
   gen_error true (Some ii) None err.
 
-Definition error ii msg := 
+Definition error ii msg :=
   gen_error false (Some ii) None msg.
 
-Definition verror internal msg ii (v:var_i) := 
+Definition verror internal msg ii (v:var_i) :=
   gen_error internal (Some ii) (Some v.(v_info)) (pp_box [:: pp_s msg; pp_s ":"; pp_var v]).
 
 Definition invalid_name category ii (v:var_i) :=
@@ -55,11 +56,11 @@ Definition invalid_ty category ii (v:var_i) :=
 Definition invalid_flag ii (v:var_i) :=
    verror false ("Invalid name for rflag (check initialization?)") ii v.
 
-Definition berror ii e msg := 
+Definition berror ii e msg :=
   gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "not able to compile the condition"; pp_fe e];
                                              pp_s msg]).
 
-Definition werror ii e msg := 
+Definition werror ii e msg :=
   gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "invalid rexpr for oprd"; pp_re e];
                                              pp_s msg]).
 
@@ -110,7 +111,7 @@ Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
   | None =>
   match to_regx x with
   | Some r => ok (ARegX r)
-  | None => 
+  | None =>
   match to_xreg x with
   | Some r => ok (AXReg r)
   | None =>
@@ -317,7 +318,7 @@ Definition compile_arg rip ii (ade: (arg_desc * stype) * rexpr) (m: nmap asm_arg
 Definition compile_args rip ii adts (es: rexprs) (m: nmap asm_arg) :=
   foldM (compile_arg rip ii) m (zip adts es).
 
-Definition compat_imm ty a' a := 
+Definition compat_imm ty a' a :=
   (a == a') || match ty, a, a' with
              | sword sz, Imm sz1 w1, Imm sz2 w2 => sign_extend sz w1 == sign_extend sz w2
              | _, _, _ => false
@@ -370,7 +371,7 @@ Definition check_sopn_dests rip ii (loargs : seq asm_arg) (outx : lexprs) (adt :
 Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
-  | Imm _ _, CAimm _ => true
+  | Imm _ _, CAimm _ _ => true
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
   | Addr _, CAmem _ => true
@@ -403,11 +404,11 @@ Definition filter_i_args_kinds_no_imm (cond:i_args_kinds) (a:asm_args) : i_args_
 Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   match a, cond with
   | Condt _, CAcond => Some a
-  | Imm sz w, CAimm sz' =>
+  | Imm sz w, CAimm checker sz' =>
     let w1 := zero_extend sz' w in
     let w2 := sign_extend sz w1 in
     (* this check is not used (yet?) in the correctness proof *)
-    if w == w2 then Some (Imm w1) else None
+    if (w == w2) && check_CAimm checker w1 then Some (Imm w1) else None
   | Reg _, CAreg => Some a
   | Regx _, CAregx => Some a
   | Addr _, CAmem _ => Some a
@@ -429,10 +430,23 @@ Definition enforce_imm_args_kinds (args:asm_args) (cond:args_kinds) : option asm
 Definition enforce_imm_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   utils.find_map (enforce_imm_args_kinds a) cond.
 
+Definition pp_caimm_checker_s checker :=
+  match checker with
+  | CAimmC_none => [::]
+  | CAimmC_arm_shift_amout sk =>
+    let: (lo, hi) := shift_kind.shift_amount_bounds sk in
+    [:: pp_s "["; pp_z lo; pp_s ","; pp_z hi; pp_s "]" ]
+  | CAimmC_arm_wencoding ew =>
+    [:: pp_s "(shift ="; pp_s (string_of_ew (on_shift ew));
+        pp_s ", none ="; pp_s (string_of_ew (on_none ew )); pp_s ")"]
+  | CAimmC_arm_0_8_16_24 => [:: pp_s "[0;8;16;24]"]
+  end.
+
 Definition pp_arg_kind c :=
   match c with
   | CAmem b => pp_nobox [:: pp_s "mem (glob "; pp_s (if b then "" else "not ")%string; pp_s "allowed)"]
-  | CAimm ws => pp_nobox [:: pp_s "imm "; pp_s (string_of_wsize ws)]
+  | CAimm checker ws =>
+      pp_nobox [:: pp_s "imm ", pp_s (string_of_wsize ws) & pp_caimm_checker_s checker]
   | CAcond => pp_s "cond"
   | CAreg => pp_s "reg"
   | CAregx => pp_s "regx"
@@ -553,7 +567,7 @@ Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition is_typed_reg x := 
+Definition is_typed_reg x :=
    (vtype x != sbool) &&
    is_ok (asm_typed_reg_of_var x).
 
@@ -567,10 +581,10 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
     (E.gen_error true None None (pp_s "Stack pointer is an argument")) in
   Let _ := assert
     (all is_typed_reg fd.(lfd_callee_saved))
-    (E.gen_error true None None (pp_s "Saved variable is not a register")) in 
+    (E.gen_error true None None (pp_s "Saved variable is not a register")) in
   Let arg := mapM typed_reg_of_vari fd.(lfd_arg) in
   Let res := mapM typed_reg_of_vari fd.(lfd_res) in
-  let fd := 
+  let fd :=
     {| asm_fd_align := lfd_align fd
      ; asm_fd_arg := arg
      ; asm_fd_body := fd'
@@ -580,7 +594,7 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
      ; asm_fd_align_args := lfd_align_args fd
     |} in
 
-  Let _ := assert (check_call_conv fd) 
+  Let _ := assert (check_call_conv fd)
                   (E.gen_error true None None (pp_s "export function does not respect the calling convention")) in
   ok fd.
 
@@ -631,7 +645,7 @@ Definition all_vars :=
       let sig := syscall_sig_s o in
       {| scs_vin  := map to_var (take (size sig.(scs_tin)) call_reg_args);
          scs_vout := map to_var (take (size sig.(scs_tout)) call_reg_ret) |};
-  all_vars     := all_vars; 
+  all_vars     := all_vars;
   callee_saved := sv_of_list var_of_asm_typed_reg callee_saved;
   vflags       := vflags;
   vflagsP      := vflagsP;

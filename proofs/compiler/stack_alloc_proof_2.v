@@ -2002,7 +2002,7 @@ Proof.
   + have [[sz ?]?? {heq}]:= is_protect_ptr_failP heq; subst o xs es.
     t_xrbindP => -[rmap5 i] /= hi ?? m0 s1' hvs hext hsao; subst rmap5 c2.
     move: hes => /=; t_xrbindP => ve hve _ vmsf hvmsf <- ?; subst va.
-    move: hop; rewrite /exec_sopn /= /sopn_sem /= /se_protect_ptr_fail_sem.
+    move: hop; rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem.
     t_xrbindP => a1 a ha wmsf /to_wordI [sz' [w']] [? hwmsf] /eqP ???; subst wmsf a1 vs vmsf.
     move: hw => /=; t_xrbindP => s2' hwr ?; subst s2'.
     have := alloc_protect_ptrP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap P'_globs hshparams hvs hve hvmsf _ _ hwr hi.
