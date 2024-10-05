@@ -12,6 +12,7 @@ open Prog
 open Var0
 open Arm_decl
 open Arm_instr_decl
+open Arm_expand_imm
 
 let arch = arm_decl
 
@@ -215,7 +216,7 @@ end = struct
   let check_args (ARM_op (mn, opts)) args =
     match mn with
     | ADC | RSB -> chk_imm_accept_shift args 2
-    | CMP -> chk_imm_accept_shift args 1
+    | CMP | CMN -> chk_imm_accept_shift args 1
     | ADD | SUB -> chk_imm_accept_shift_w12 args 2 opts
     | MOV -> chk_imm_w16_encoding args 1 opts
     | AND | BIC | EOR | ORR -> chk_imm_reject_shift args 2
