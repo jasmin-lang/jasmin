@@ -17,10 +17,12 @@ Require Import
   utils
   expr
   word.
+
 Require Import
   sopn
   flag_combination
-  shift_kind.
+  shift_kind
+  arm_expand_imm.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -44,6 +46,26 @@ Existing Instance _finC.
 
 Definition rtype {t T} `{ToString t T} := t.
 
+(* This type and the field check_CAimm is not very elegant, but
+   it is the only solution I have to keep a decidable equality over the type arg_kind.
+   If new architecture need new checker for immediate then we should add an entry here.
+   But it definition can be done in the architecture itself
+*)
+
+Inductive caimm_checker_s :=
+  | CAimmC_none
+  | CAimmC_arm_shift_amout of shift_kind
+  | CAimmC_arm_wencoding   of expected_wencoding
+  | CAimmC_arm_0_8_16_24.
+
+Scheme Equality for caimm_checker_s.
+
+Lemma caimm_checker_s_eq_axiom : Equality.axiom caimm_checker_s_beq.
+Proof.
+  exact: (eq_axiom_of_scheme internal_caimm_checker_s_dec_bl internal_caimm_checker_s_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build caimm_checker_s caimm_checker_s_eq_axiom.
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
@@ -60,6 +82,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
   ; ad_fcp : FlagCombinationParams
+  ; check_CAimm : caimm_checker_s -> forall ws, word ws -> bool
   }.
 
 #[global]
@@ -279,7 +302,8 @@ Variant arg_kind :=
 | CAregx
 | CAxmm
 | CAmem of bool (* true if Global is allowed *)
-| CAimm of wsize.
+| CAimm of caimm_checker_s & wsize.
+
 
 Scheme Equality for arg_kind.
 
@@ -289,7 +313,6 @@ Proof.
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build arg_kind arg_kind_eq_axiom.
-
 
 (* An argument position where different argument kinds are allowed is
  * represented by a list of these kinds.
@@ -317,7 +340,7 @@ Definition i_args_kinds := seq args_kinds.
 Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
-  | Imm sz _, CAimm sz' => sz == sz'
+  | Imm sz z, CAimm checker sz' => (sz == sz') && check_CAimm checker z
   | Reg _ , CAreg => true
   | Regx _, CAregx => true
   | Addr _, CAmem _ => true
@@ -360,6 +383,9 @@ Record pp_asm_op := mk_pp_asm_op {
 (* Instruction descriptions. *)
 Record instr_desc_t := {
   (* Info for architecture semantics. *)
+  (* This field allows to ensure the validity of the instruction,
+     it is usefull when the type asm_op allow to encode more instructions than the real existing one *)
+  id_valid : bool;
   (* When writing a smaller value to a register, keep or clear old bits? *)
   id_msb_flag   : msb_flag;
   (* Types of input arguments. *)
@@ -384,8 +410,13 @@ Record instr_desc_t := {
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
   id_pp_asm     : asm_args -> pp_asm_op;
+  (* Extra properties ensuring that previous information are consistent *)
+  id_safe_wf    : all (fun sc => values.sc_needed_args sc <= size id_tin) id_safe;
+    (* id_semi does not generates type error *)
+  id_semi_errty : id_valid -> sem_forall (fun r => r <> Error ErrType) id_tin id_semi;
+    (* safety condition are sufficient to ensure that no error are raised *)
+  id_semi_safe  : id_valid -> values.interp_safe_cond_ty id_safe id_semi;
 }.
-
 
 (* -------------------------------------------------------------------- *)
 (* Architecture operand declaration. *)
@@ -478,8 +509,11 @@ Definition exclude_mem_i_args_kinds (d : arg_desc) (cond : i_args_kinds) : i_arg
 Definition exclude_mem_aux (cond : i_args_kinds) (d : seq arg_desc) :=
   foldl (fun cond d => exclude_mem_i_args_kinds d cond) cond d.
 
+Definition is_nil {T:Type} (l : seq T) :=
+  if l is [::] then true else false.
+
 Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :=
-  filter (fun c => [::] \notin c) (exclude_mem_aux cond d).
+  filter (fun c => ~~ has is_nil c) (exclude_mem_aux cond d).
 
 Lemma instr_desc_tout_narr ws xs :
   all is_not_sarr xs -> all is_not_sarr (map (extend_size ws) xs).
@@ -492,18 +526,42 @@ Proof.
 Qed.
 
 (* An extension of [instr_desc] that deals with msb flags *)
+
+Definition extend_sem {tin tout : seq stype} ws
+  (semi : sem_prod tin (exec (sem_tuple tout))) : sem_prod tin (exec (sem_tuple  (map (extend_size ws) tout))) :=
+  apply_lprod (Result.map (@extend_tuple ws tout)) semi.
+
+Lemma extend_sem_errty tin tout ws (semi : sem_prod tin (exec (sem_tuple tout))) :
+  sem_forall (fun r => r <> Error ErrType) tin semi ->
+  sem_forall (fun r => r <> Error ErrType) tin (extend_sem ws semi).
+Proof.
+  rewrite /extend_sem; elim: tin semi => //=.
+  + by move=> [] //= ? h [h1]; apply h; rewrite h1.
+  move=> t ts hrec semi hsemi v; apply/hrec/hsemi.
+Qed.
+
+Lemma extend_sem_safe tin tout ws sc (semi : sem_prod tin (exec (sem_tuple tout))) :
+  values.interp_safe_cond_ty sc semi ->
+  values.interp_safe_cond_ty sc (extend_sem ws semi).
+Proof.
+  rewrite /values.interp_safe_cond_ty /extend_sem.
+  elim: tin semi (@nil values.value) => //= [ | t ts hrec] semi vs.
+  + by move=> h /h [t] -> /=; eauto.
+  move=> h v; apply/hrec/h.
+Qed.
+
 Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
   let d := instr_desc_op o in
   if ws is Some ws then
     if d.(id_msb_flag) == MSB_CLEAR then
-    {| id_msb_flag   := d.(id_msb_flag);
+    {| id_valid      := d.(id_valid);
+       id_msb_flag   := d.(id_msb_flag);
        id_tin        := d.(id_tin);
        id_in         := d.(id_in);
        id_tout       := map (extend_size ws) d.(id_tout);
        id_out        := d.(id_out);
-       id_semi       :=
-         apply_lprod (Result.map (@extend_tuple ws d.(id_tout))) d.(id_semi);
+       id_semi       := extend_sem ws d.(id_semi);
        id_args_kinds := exclude_mem d.(id_args_kinds) d.(id_out) ;
        id_nargs      := d.(id_nargs);
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
@@ -512,7 +570,11 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);
-       id_pp_asm     := d.(id_pp_asm); |}
+       id_pp_asm     := d.(id_pp_asm);
+       id_safe_wf    := d.(id_safe_wf);
+       id_semi_errty := fun h => extend_sem_errty ws (d.(id_semi_errty) h);
+       id_semi_safe  := fun h => extend_sem_safe ws (d.(id_semi_safe) h);
+ |}
     else d (* FIXME do the case for MSB_KEEP *)
   else
     d.
@@ -547,7 +609,7 @@ Variant asm_typed_reg :=
   | ABReg of rflag_t.
 Notation asm_typed_regs := (seq asm_typed_reg).
 
-Definition asm_typed_reg_beq r1 r2 := 
+Definition asm_typed_reg_beq r1 r2 :=
   match r1, r2 with
   | ARReg r1, ARReg r2 => r1 == r2 ::>
   | ARegX r1, ARegX r2 => r1 == r2 ::>
@@ -583,46 +645,46 @@ Record asm_prog : Type :=
 (* -------------------------------------------------------------------- *)
 (* Calling Convention                                                   *)
 
-Definition is_ABReg r := 
+Definition is_ABReg r :=
   match r with
   | ABReg _ => true
   | _ => false
   end.
 
-Class calling_convention := 
+Class calling_convention :=
   { callee_saved   : seq asm_typed_reg
   ; callee_saved_not_bool : all (fun r => ~~is_ABReg r) callee_saved
   ; call_reg_args  : seq reg_t
   ; call_xreg_args : seq xreg_t
-  ; call_reg_ret   : seq reg_t 
+  ; call_reg_ret   : seq reg_t
   ; call_xreg_ret  : seq xreg_t
   ; call_reg_ret_uniq : uniq (T:= @ceqT_eqType _ _) call_reg_ret
   }.
 
-Definition get_ARReg (a:asm_typed_reg) := 
+Definition get_ARReg (a:asm_typed_reg) :=
   match a with
   | ARReg r => Some r
   | _ => None
   end.
 
-Definition get_ARegX (a:asm_typed_reg) := 
+Definition get_ARegX (a:asm_typed_reg) :=
   match a with
   | ARegX r => Some r
   | _ => None
   end.
 
-Definition get_AXReg (a:asm_typed_reg) := 
+Definition get_AXReg (a:asm_typed_reg) :=
   match a with
   | AXReg r => Some r
   | _ => None
   end.
 
-Definition check_list {T} {eqc : eqTypeC T} (get : asm_typed_reg -> option T) (l:asm_typed_regs) (expected:seq T) := 
+Definition check_list {T} {eqc : eqTypeC T} (get : asm_typed_reg -> option T) (l:asm_typed_regs) (expected:seq T) :=
   let r := pmap get l in
   (r : seq (@ceqT_eqType T eqc)) == take (size r) expected.
 
 Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
-  implb fd.(asm_fd_export) 
+  implb fd.(asm_fd_export)
     [&& check_list get_ARReg fd.(asm_fd_arg) call_reg_args,
         check_list get_AXReg fd.(asm_fd_arg) call_xreg_args,
         check_list get_ARReg fd.(asm_fd_res) call_reg_ret &

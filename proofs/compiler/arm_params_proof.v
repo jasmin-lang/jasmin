@@ -605,7 +605,7 @@ Lemma sem_sopns_fopns_args s lc :
 Proof.
   elim: lc s => //= -[[xs o] es ] lc ih s.
   rewrite /sem_fopn_args /sem_sopn_t /=; case: sem_rexprs => //= >.
-  by rewrite /exec_sopn /= /Oarm; case : app_sopn => //= >; case write_lexprs.
+  by rewrite /exec_sopn /= /sopn_sem /Oarm; case: i_valid => //=; case : app_sopn => //= >; case write_lexprs.
 Qed.
 
 Lemma assemble_swap_correct ws : assemble_extra_correct (Oarm_swap ws).
@@ -615,7 +615,7 @@ Proof.
   case: lvs => // -[] // x [] // -[] // y [] //.
   case: args => // -[] // [] // z [] // [] // [] // w [] //=.
   t_xrbindP => vz hz _ vw hw <- <-.
-  rewrite /exec_sopn /= /sopn_sem /= /swap_semi.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /swap_semi.
   t_xrbindP => /= _ wz hvz ww hvw <- <- /=.
   t_xrbindP => _ vm1 /set_varP [_ htrx ->] <- _ vm2 /set_varP [_ htry ->] <- <- /eqP hxw /eqP hyx
     /and4P [/eqP hxt /eqP hyt /eqP hzt /eqP hwt] <-.
@@ -643,7 +643,7 @@ Proof.
   case: lvs => // -[] // [[xt xn] xi] [] //.
   case: args => // -[] // [] // y [] // [] // [] // [] // w [] // imm [] //=.
   t_xrbindP => vy hvy <-.
-  rewrite /exec_sopn /= /sopn_sem /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
+  rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=; t_xrbindP => /= n w1 hw1 w2 hw2 ? <- /=; subst n.
   t_xrbindP => ? vm1 hsetx <- <- /= /eqP hne.
   move=> /andP []/eqP ? /andP [] /eqP hyty _ <- hmap hlom; subst xt.
   move/to_wordI: hw1 => [ws [w' [?]]] /truncate_wordP [hle1 ?]; subst vy w1.
@@ -754,7 +754,7 @@ Proof.
     ARMFopn_coreP.li_lsem_1 m (vname (v_var x)) (v_info x) imm.
   rewrite /= -hty -var_surj -var_i_surj => hsem hvm hgetx.
   move: hsemargs hexec hwrite.
-  rewrite  /exec_sopn /sopn_sem /=.
+  rewrite  /exec_sopn /sopn_sem /sopn_sem_ /=.
   t_xrbindP=> _ vcond hsemcond _ vy hgety vrest hsemrest <- <- <-.
   t_xrbindP=>  w w' hw' bcond /to_boolI ? wy hwy; subst vcond.
   move: hw' => /to_wordI [ws [w0 []]] /Vword_inj [] ?; subst ws.

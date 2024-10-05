@@ -14,6 +14,8 @@ Require Import
   arch_decl
   arch_utils.
 
+Require Export arm_expand_imm.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -240,12 +242,8 @@ Definition string_of_shift_kind (sk : shift_kind) : string :=
   end.
 
 Definition check_shift_amount (sk: shift_kind) (z: Z) : bool :=
-  match sk with
-  | SLSL => (0 <=? z)%Z && (z <=? 31)%Z
-  | SLSR => (1 <=? z)%Z && (z <=? 32)%Z
-  | SASR => (1 <=? z)%Z && (z <=? 32)%Z
-  | SROR => (1 <=? z)%Z && (z <=? 31)%Z
-  end.
+  let: (lo, hi) := shift_amount_bounds sk in
+  (lo <=? z)%Z && (z <=? hi)%Z.
 
 Definition shift_op (sk: shift_kind) :
   forall (sz: wsize), word sz -> Z -> word sz :=
@@ -302,6 +300,14 @@ Instance arm_fcp : FlagCombinationParams :=
 Notation register_ext := empty.
 Notation xregister := empty.
 
+Definition arm_check_CAimm (checker : caimm_checker_s) ws (w : word ws) : bool :=
+  match checker with
+  | CAimmC_none => true
+  | CAimmC_arm_shift_amout sk => check_shift_amount sk (wunsigned w)
+  | CAimmC_arm_wencoding ew => check_ei_kind ew w
+  | CAimmC_arm_0_8_16_24 => let x := wunsigned w in x \in [::0;8;16;24]%Z
+  end.
+
 #[ export ]
 Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := arm_reg_size
@@ -314,6 +320,7 @@ Instance arm_decl : arch_decl register register_ext xregister rflag condt :=
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
   ; ad_fcp := arm_fcp
+  ; check_CAimm := arm_check_CAimm
   }.
 
 Definition arm_linux_call_conv : calling_convention :=
@@ -327,47 +334,6 @@ Definition arm_linux_call_conv : calling_convention :=
    ; call_reg_ret_uniq := erefl true;
   |}.
 
-(* -------------------------------------------------------------------- *)
-(* Valid immediates checks. *)
-
-Variant expand_immediate_kind :=
-| EI_none
-| EI_byte
-| EI_pattern
-| EI_shift.
-
-Definition z_to_bytes (n : Z) : Z * Z * Z * Z :=
-  let '(n, b0) := Z.div_eucl n 256 in
-  let '(n, b1) := Z.div_eucl n 256 in
-  let '(n, b2) := Z.div_eucl n 256 in
-  let b3 := (n mod 256)%Z in
-  (b3, b2, b1, b0).
-
-(* An immediate of the pattern kind has the shape [bbbb], [0b0b], or [b0b0],
-   where [b] is a byte. *)
-Definition is_ei_pattern (n : Z) : bool :=
-  let '(b3, b2, b1, b0) := z_to_bytes n in
-  [|| [&& b3 == b0, b2 == b0 & b1 == b0 ]
-    , [&& b3 == 0%Z, b2 == b0 & b1 == 0%Z ]
-    | [&& b3 == b1, b2 == 0%Z & b0 == 0%Z ]
-  ].
-
-(* An immediate of the shift kind has the shape [0...01xxxxxxx0...0] where the
-   number of suffix zeroes is at least one.
-   Here we assume that last part, i.e. that [n] is larger than 2 (if it were
-   not, we would have caught it in the ETI_byte case). *)
-Definition is_ei_shift (n : Z) : bool :=
-  (* Find where the first set bit and move 7 bits further. *)
-  let byte_end := (Z.log2 n - 7)%Z in
-  (* Check if any bit after the byte is one. *)
-  Z.rem n (Z.pow 2 byte_end) == 0%Z.
-
-Definition ei_kind (n : Z) : expand_immediate_kind :=
-  if [&& 0 <=? n & n <? 256 ]%Z then EI_byte
-  else if is_ei_pattern n then EI_pattern
-  else if is_ei_shift n then EI_shift
-  else EI_none.
-
 Definition is_expandable (n : Z) : bool :=
   match ei_kind n with
   | EI_byte | EI_pattern => true
@@ -379,6 +345,3 @@ Definition is_expandable_or_shift (n : Z) : bool :=
    | EI_byte | EI_pattern | EI_shift => true
    | EI_none => false
   end.
-
-Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
-Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.

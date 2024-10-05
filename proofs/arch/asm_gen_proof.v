@@ -41,7 +41,7 @@ Lemma xreg_of_varI {ii x y} :
   | Regx r => of_var x = Some r
   | XReg r => of_var x = Some r
   | _ => False
-  end. 
+  end.
 Proof.
   rewrite /xreg_of_var.
   case heqxr: (to_xreg x) => [ r | ]; first by move=> [<-].
@@ -655,13 +655,14 @@ Lemma compile_asm_opn_aux (condspec : assemble_cond_spec) rip ii (loargs : seq a
   -> lom_eqv rip m s
   -> exists2 s', exec_instr_op id loargs s = ok s' & lom_eqv rip m' s'.
 Proof.
-  move=> id ; rewrite /exec_sopn.
-  t_xrbindP => Hxs vt Hvt <-{ys} Hm' Hargs Hdest Hid Hlomeqv.
+  move=> id ; rewrite /exec_sopn /sopn_sem.
+  t_xrbindP => Hxs _ hval <- vt Hvt <-{ys} Hm' Hargs Hdest Hid Hlomeqv.
   rewrite /exec_instr_op /eval_instr_op Hid /=.
-  move: vt Hvt Hm'; rewrite /sopn_sem /get_instr_desc /= -/id => {Hid}.
-  case: id Hargs Hdest => /= msb_flag id_tin
+  move: hval => /=; rewrite -/id => -> /=.
+  move: vt Hvt Hm'; rewrite /sopn_sem /sopn_sem_ /get_instr_desc /= -/id => {Hid}.
+  case: id Hargs Hdest => /= id_safe_ msb_flag id_tin
    id_in id_tout id_out id_semi id_args_kinds id_nargs /andP[] /eqP hsin /eqP hsout
-   _ id_str_jas id_check_dest id_safe id_wsize id_pp Hargs Hdest vt happ Hm'.
+   _ id_str_jas id_check_dest id_safe id_wsize id_pp _ _ _ Hargs Hdest vt happ Hm'.
   elim: id_in id_tin hsin id_semi args xs Hargs happ Hxs; rewrite /sem_prod.
   + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
     exact: (compile_lvals _ hsout Hm' Hlomeqv Hdest).
@@ -1004,6 +1005,7 @@ Proof.
   case: op => -[ws |] //= op.
   case: eqP => //= hclear /[dup] hcheck /exclude_mem_correct [hc hnaddr].
   rewrite /exec_instr_op /= /eval_instr_op /= hcheck hc hclear /=.
+  case: id_valid => //=.
   case heq : eval_args_in => [vargs | ] //=.
   rewrite app_sopn_apply_lprod.
   case: app_sopn => //= t.
@@ -1017,8 +1019,8 @@ Lemma enforce_imm_arg_kind_correct a c a' :
   check_arg_kind a' c.
 Proof.
   case: a; case: c => [|||| b |] //=; try by move=> ? [<-].
-  move=> ws1 ws2 w.
-  by case: eqP => // -> [<-] /=.
+  move=> checker ws1 ws2 w.
+  by case: ifP => // /andP [] /eqP -> /= h [<-] /=; rewrite h eqxx.
 Qed.
 
 Lemma enforce_imm_arg_kinds_correct a cond' a' :
@@ -1906,7 +1908,7 @@ Proof.
   exists xm'; last exact: M'.
   eexists; first exact: ok_fd'.
   - exact: export.
-  - exact: ok_call_conv. 
+  - exact: ok_call_conv.
   - by move: xexec; rewrite /asm_pos take_size ok_c.
   move=> r hr.
   assert (H: var_of_asm_typed_reg r \in map var_of_asm_typed_reg callee_saved).
@@ -2010,7 +2012,7 @@ Proof.
   all: repeat (rewrite get_var_vmap_set_vars_other_type; last done).
   + rewrite get_var_vmap_set_vars_other.
     + rewrite get_var_vmap_set_vars_finite //=; exact cenumP.
-    by apply/allP => /= x _; rewrite eq_sym; apply/eqP/to_var_reg_neq_regx.  
+    by apply/allP => /= x _; rewrite eq_sym; apply/eqP/to_var_reg_neq_regx.
   + by rewrite get_var_vmap_set_vars_finite //=; exact: cenumP.
   + by rewrite get_var_vmap_set_vars_finite //=; exact: cenumP.
   by rewrite get_var_vmap_set_vars_finite /=;[case: (asm_flag s r)| exact: cenumP].

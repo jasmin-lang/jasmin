@@ -1,0 +1,6 @@
+export
+fn main(reg u32 x, reg u32 y) -> reg u32 {
+  reg u32 z;
+  z = x + (y << 50);
+  return z;
+}

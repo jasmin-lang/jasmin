@@ -177,9 +177,9 @@ Lemma value_uinclE v1 v2 :
   | Vundef t _ => subtype t (type_of_val v2)
   | _ => v2 = v1
   end.
-Proof. 
+Proof.
   case: v1 => >; case: v2 => > //= h; subst; eauto.
-  have ?:= WArray.uincl_len h; subst; eauto. 
+  have ?:= WArray.uincl_len h; subst; eauto.
 Qed.
 
 Lemma value_uincl_refl v: value_uincl v v.
@@ -277,7 +277,7 @@ Definition to_arr len v : exec (sem_t (sarr len)) :=
   end.
 
 Lemma to_arrI n v t : to_arr n v = ok t -> v = Varr t.
-Proof. 
+Proof.
   case: v => //= n' t' /[dup] /WArray.cast_len ?; subst n'.
   by rewrite WArray.castK => -[<-].
 Qed.
@@ -323,7 +323,7 @@ Definition of_val t : value -> exec (sem_t t) :=
 
 Lemma of_val_typeE t v v' : of_val t v = ok v' ->
   match t, v' with
-  | sarr len, vt => v = Varr vt 
+  | sarr len, vt => v = Varr vt
   | sword ws, vt => exists ws' (w: word ws'),
     v = Vword w /\ truncate_word ws w = ok vt
   | sbool, vt => v = vt
@@ -354,7 +354,7 @@ Qed.
 Lemma of_val_subtype t v sv : of_val t v = ok sv -> subtype t (type_of_val v).
 Proof.
   case: t sv => > /of_val_typeE; try by move=> ->.
-  by case=> ? [? [-> /truncate_wordP[]]]. 
+  by case=> ? [? [-> /truncate_wordP[]]].
 Qed.
 
 Lemma of_value_uincl ty v v' vt :
@@ -522,7 +522,7 @@ Lemma truncate_val_typeE ty v vt :
   match ty with
   | sbool => exists2 b: bool, v = b & vt = b
   | sint => exists2 i: Z, v = i & vt = i
-  | sarr len => exists2 a : WArray.array len, v = Varr a & vt = Varr a 
+  | sarr len => exists2 a : WArray.array len, v = Varr a & vt = Varr a
   | sword ws => exists w ws' (w': word ws'),
     [/\ truncate_word ws w' = ok w, v = Vword w' & vt = Vword w]
   end.
@@ -537,7 +537,7 @@ Lemma truncate_valE ty v vt :
   match v with
   | Vbool b => ty = sbool /\ vt = b
   | Vint i => ty = sint /\ vt = i
-  | Varr len a => ty = sarr len /\ vt = Varr a  
+  | Varr len a => ty = sarr len /\ vt = Varr a
   | Vword ws w => exists ws' w',
     [/\ ty = sword ws', truncate_word ws' w = ok w' & vt = Vword w']
   | Vundef _ _ => False
@@ -645,7 +645,7 @@ Lemma value_uincl_truncate ty x y x' :
   truncate_val ty x = ok x' →
   exists2 y', truncate_val ty y = ok y' & value_uincl x' y'.
 Proof.
-  case: x => > /value_uinclE+ /truncate_valE => [ + []  | + [] 
+  case: x => > /value_uinclE+ /truncate_valE => [ + []  | + []
     | [? + ? []]
     | [? [? [+ /word_uincl_truncate h]]] [? [? [+ /h{h} h]]] |//]
     => -> -> ->.
@@ -810,12 +810,12 @@ Lemma value_uincl_oto_val ty (z z' : sem_t ty) :
   value_uincl (oto_val (sem_prod_id z)) (oto_val (sem_prod_id z')).
 Proof. by case: ty z z'. Qed.
 
-Definition swap_semi ty (x y: sem_t ty) : exec (sem_tuple [:: ty; ty]):= ok (sem_prod_id y, sem_prod_id x).
+Definition swap_semi ty (x y: sem_t ty) : (sem_tuple [:: ty; ty]):= (sem_prod_id y, sem_prod_id x).
 
 Lemma swap_semu ty (vs vs' : seq value) (v : values):
   List.Forall2 value_uincl vs vs' ->
-  @app_sopn_v [::ty; ty] [::ty; ty] (@swap_semi ty) vs = ok v ->
-  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (@swap_semi ty) vs' = ok v' & List.Forall2 value_uincl v v'.
+  @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs = ok v ->
+  exists2 v' : values, @app_sopn_v [::ty; ty] [::ty; ty] (sem_prod_ok [::ty; ty] (@swap_semi ty)) vs' = ok v' & List.Forall2 value_uincl v v'.
 Proof.
   rewrite /app_sopn_v.
   case => //= v1 v1' ?? hu1; t_xrbindP.
@@ -826,15 +826,12 @@ Proof.
   eexists; first by eauto.
   by repeat constructor; apply: value_uincl_oto_val.
 Qed.
- 
+
 Section FORALL.
   Context  (T:Type) (P:T -> Prop).
 
-  Fixpoint mk_forall (l:seq stype) : sem_prod l (exec T) -> Prop := 
-    match l as l0 return sem_prod l0 (exec T) -> Prop with 
-    | [::] => fun o => forall t, o = ok t -> P t
-    | t::l => fun o => forall (x:sem_t t), @mk_forall l (o x)
-    end.
+  Definition mk_forall (l:seq stype) : sem_prod l (exec T) -> Prop :=
+    sem_forall (fun o => forall t, o = ok t -> P t) l.
 
   Lemma mk_forallP l f vargs t : @mk_forall l f -> app_sopn l f vargs = ok t -> P t.
   Proof.
@@ -844,25 +841,25 @@ Section FORALL.
 
   Context (P2:T -> T -> Prop).
 
-  Fixpoint mk_forall_ex (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop := 
-    match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with 
-    | [::] => fun o1 o2 => forall t, o1 = ok t -> exists2 t', o2 = ok t' & P2 t t' 
+  Fixpoint mk_forall_ex (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
+    match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with
+    | [::] => fun o1 o2 => forall t, o1 = ok t -> exists2 t', o2 = ok t' & P2 t t'
     | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall_ex l (o1 x) (o2 x)
     end.
-  
-  Lemma mk_forall_exP l f1 f2 vargs t : @mk_forall_ex l f1 f2 -> app_sopn l f1 vargs = ok t -> 
+
+  Lemma mk_forall_exP l f1 f2 vargs t : @mk_forall_ex l f1 f2 -> app_sopn l f1 vargs = ok t ->
     exists2 t', app_sopn l f2 vargs = ok t' & P2 t t'.
   Proof.
     elim: l vargs f1 f2 => [ | a l hrec] [ | v vs] //= f1 f2 hall; first by apply hall.
     by t_xrbindP => w ->; apply/hrec.
   Qed.
 
-  Fixpoint mk_forall2 (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop := 
-    match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with 
+  Fixpoint mk_forall2 (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop :=
+    match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with
     | [::] => fun o1 o2 => forall t1 t2, o1 = ok t1 -> o2 = ok t2 -> P2 t1 t2
     | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall2 l (o1 x) (o2 x)
     end.
-  
+
   Lemma mk_forall2P l f1 f2 vargs t1 t2 : @mk_forall2 l f1 f2 -> app_sopn l f1 vargs = ok t1 -> app_sopn l f2 vargs = ok t2 -> P2 t1 t2.
   Proof.
     elim: l vargs f1 f2 => [ | a l hrec] [ | v vs] //= f1 f2 hall; first by apply hall.
@@ -870,3 +867,107 @@ Section FORALL.
   Qed.
 
 End FORALL.
+
+Definition interp_safe_cond (vs : values) (sc : safe_cond) :=
+  match sc with
+  | NotZero ws k =>
+    forall w, to_word ws (nth undef_b vs k) = ok w -> wunsigned w <> 0%Z
+  | InRangeMod32 ws i j k =>
+    forall w, to_word ws (nth undef_b vs k) = ok w -> (i <= (wunsigned w) mod 32 <= j)%Z
+  | ULt ws k z =>
+    forall w, to_word ws (nth undef_b vs k) = ok w -> (wunsigned w < z)%Z
+  | UGe ws z k =>
+    forall w, to_word ws (nth undef_b vs k) = ok w -> (z <= wunsigned w)%Z
+  | UaddLe ws k1 k2 z =>
+    forall w1 w2, to_word ws (nth undef_b vs k1) = ok w1 ->
+                  to_word ws (nth undef_b vs k2) = ok w2 ->
+                  (wunsigned w1 + wunsigned w2 <= z)%Z
+  | AllInit ws p k =>
+    forall t, to_arr (Z.to_pos (arr_size ws p)) (nth undef_b vs k) = ok t ->
+    forall i, (0 <= i < p)%Z ->
+     exists w, WArray.get Aligned AAscale ws t i = ok w
+  | X86Division sz sign =>
+    forall hi lo dv,
+      mapM (to_word sz) (take 3 vs) = ok [:: hi; lo; dv] ->
+      match sign with
+      | Signed =>
+        let dd := wdwords hi lo in
+        let dv := wsigned dv in
+        let q  := (Z.quot dd dv)%Z in
+        let r  := (Z.rem  dd dv)%Z in
+        let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
+        ~((dv == 0)%Z || ov)
+      | Unsigned =>
+        let dd := wdwordu hi lo in
+        let dv := wunsigned dv in
+        let q  := (dd  /  dv)%Z in
+        let r  := (dd mod dv)%Z in
+        let ov := (q >? wmax_unsigned sz)%Z in
+        ~( (dv == 0)%Z || ov)
+      end
+  | ScFalse => False
+  end.
+
+Definition sc_needed_args sc :=
+  match sc with
+  | NotZero _ k | InRangeMod32 _ _ _ k | AllInit _ _ k | ULt _ k _ | UGe _ _ k => S k
+  | UaddLe _ k1 k2 _ => S (if ssrnat.leq k1 k2 then k2 else k1)
+  | X86Division sz sign => 3
+  | ScFalse => 0
+  end.
+
+Lemma interp_safe_cond_cat vs1 vs2 sc :
+  ssrnat.leq (sc_needed_args sc) (size vs1) ->
+  interp_safe_cond vs1 sc <-> interp_safe_cond (vs1 ++ vs2) sc.
+Proof.
+  case: sc => //=.
+  + by move=> ws k hsz; rewrite nth_cat hsz.
+  + by move=> ws s hsz; rewrite takel_cat //; apply/ssrnat.leP.
+  + by move=> ws i j k hsz; rewrite nth_cat hsz.
+  + by move=> ws k z hsz; rewrite nth_cat hsz.
+  + by move=> ws z k hsz; rewrite nth_cat hsz.
+  + move=> ws k1 k2 z hsz.
+    have [hsz1 hsz2]: ssrnat.leq (S k1) (size vs1) /\ ssrnat.leq (S k2) (size vs1).
+    + move: hsz.
+      case: ifP => h1 h2; split; apply: ssrnat.leq_trans h2 => //.
+      have /(@Logic.eq_sym bool) := ssrnat.leqNgt k1 k2.
+      by rewrite h1 => /negbFE h2; apply: (ssrnat.leq_trans h2).
+    by rewrite !nth_cat hsz1 hsz2.
+  by move=> ws p k hsz; rewrite nth_cat hsz.
+Qed.
+
+Fixpoint interp_safe_cond_ty_aux
+  {T} (P : values -> T -> Prop) (vs: values) (tin : seq stype) : sem_prod tin T -> Prop :=
+match tin return sem_prod tin T -> Prop with
+| [::] => fun t => P vs t
+| t::tin => fun o => forall v, interp_safe_cond_ty_aux P (rcons vs (to_val v)) (o v)
+end.
+
+Lemma interp_safe_cond_ty_aux_cat {T} (P : values -> T -> Prop) vs tin1 tin2 (o : sem_prod (tin1 ++ tin2) T) :
+  interp_safe_cond_ty_aux P vs o <->
+  interp_safe_cond_ty_aux (fun vs (o2: sem_prod tin2 T) => interp_safe_cond_ty_aux P vs o2) vs
+     (eq_rect_r id o (Logic.eq_sym (sem_prod_cat tin1 tin2 T))).
+Proof.
+  elim: tin1 vs o => //= t tin1 hrec vs.
+  setoid_rewrite hrec.
+  rewrite /eq_ind_r /= /eq_ind /=.
+  move: (sem_prod_cat tin1 tin2 T); rewrite /sem_prod /=.
+  rewrite /Logic.eq_sym.
+  move: (lprod [seq sem_t i | i <- tin1 ++ tin2] T).
+  move=> lprod h; subst => //=.
+Qed.
+
+Definition interp_safe_cond_ty tin T sc (semi : sem_prod tin (exec T)) :=
+  interp_safe_cond_ty_aux
+    (fun vs r => List.Forall (interp_safe_cond vs) sc -> exists t, r = ok t) [::] semi.
+
+Lemma sem_prod_ok_safe_aux {T:Type} (tin : seq stype) (o: sem_prod tin T) sc vs :
+   interp_safe_cond_ty_aux
+     (fun (vs : values) (r : result error T) =>
+        List.Forall (interp_safe_cond vs) sc -> exists t : T, r = ok t) vs
+      (sem_prod_ok tin o).
+Proof. elim: tin vs o => //=; eauto. Qed.
+
+Lemma sem_prod_ok_safe {T:Type} (tin : seq stype) (o: sem_prod tin T) :
+   interp_safe_cond_ty [::] (sem_prod_ok tin o).
+Proof. apply sem_prod_ok_safe_aux. Qed.

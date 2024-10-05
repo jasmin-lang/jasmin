@@ -22,6 +22,7 @@ let pp_error fmt err =
   | ErrStack -> "stack error"
   | ErrType  -> "type error"
   | ErrArith -> "arithmetic error"
+  | ErrSemUndef -> "undefined semantics"
 
 let exn_exec (ii:instr_info) (r: 't exec) = 
   match r with

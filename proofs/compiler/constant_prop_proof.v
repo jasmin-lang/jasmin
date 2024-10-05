@@ -1089,7 +1089,7 @@ Section PROOF.
     + by constructor; rewrite /sem_sopn hs /= ho'.
     move: hs; have [?? ->]:= is_update_immP heq; subst rvs' o => /=.
     t_xrbindP => _ ve hve <- hvs2; subst vs2.
-    move: ho'; rewrite /exec_sopn /= /sopn_sem /= /se_update_sem.
+    move: ho'; rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /= /se_update_sem.
     t_xrbindP; move=> _ z hvez <- ?; subst vs3.
     move: hw => /=; t_xrbindP => s' hw ?; subst s'.
     case: (b) hw => hw; econstructor; eauto.

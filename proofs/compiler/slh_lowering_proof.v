@@ -522,7 +522,7 @@ Section LOWER_SLHO.
     wf_env env (p_globs p') s ->
     check_lv_msf ii (nth (Lnone dummy_var_info sint) lvs 0) = ok ox ->
     to_word msf_size (@Vword msf_size 0) = ok w ->
-    sopn_sem (Oslh SLHmove) w = ok t ->
+    sopn_sem_ (Oslh SLHmove) w = ok t ->
     write_lvals true (p_globs p') s lvs [:: Vword t ] = ok s' ->
     P ->
     P /\ wf_env (Env.after_SLHmove env ox) (p_globs p') s'.
@@ -609,7 +609,7 @@ Section LOWER_SLHO.
     move=> e2 [] /=; t_xrbindP; last by move=> *; subst.
     move=> v1' he1 _ v2' he2 _ <- <- ? [?]; subst v1' v2'.
     move=> t1 t2 hv1 msf hmsf.
-    rewrite /sopn_sem /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
+    rewrite /sopn_sem /sopn_sem_ /= /se_protect_ptr_fail_sem; t_xrbindP => /eqP ???;
       subst t2 msf res env'.
     case: lvs => //= lv; t_xrbindP => -[] //= s'' hw [?]; subst s''.
     split => //; apply: wf_env_after_assign_vars1; eauto.
@@ -927,11 +927,12 @@ Proof.
       rewrite /exec_sopn /=; t_xrbindP.
       case: args hsemes => // v1; t_xrbindP => -[] // v2; t_xrbindP => -[] // hsemes.
       rewrite (mapM_nth (Pconst 0%Z) (Vint 0) (n:= 1) hsemes); last by rewrite (size_mapM hsemes).
-      move=> [?] t1 t2 hv1; subst v2; rewrite /= truncate_word_u => _ [<-] [] ??; subst t2 res.
+      move=> [?] t1 t2 hv1; subst v2; rewrite /= truncate_word_u => _ [<-] [].
+      rewrite /se_protect_ptr_sem => ??; subst t2 res.
       case: lvs hwrite => //= x []; t_xrbindP => //= s1 hw [?]; subst s1.
       split; last by apply: wf_env_after_assign_vars1 hwf hw.
       do 2!constructor.
-      by rewrite /sem_sopn hsemes /exec_sopn /sopn_sem /= hv1 truncate_word_u /se_protect_ptr_fail_sem /= eqxx /= hw.
+      by rewrite /sem_sopn hsemes /exec_sopn /sopn_sem /sopn_sem_ /= hv1 truncate_word_u /se_protect_ptr_fail_sem /= eqxx /= hw.
     case hlower: shp_lower => [[[lvs' op'] es']|] //= hcheck [<-] hexec.
     have [hs hw]:= lower_slhoP hshparams hwf hcheck hlower hsemes hexec hwrite.
     by split => //; do 2!constructor.
