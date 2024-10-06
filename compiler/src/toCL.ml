@@ -118,11 +118,15 @@ module CL = struct
 
   end
 
+let length' l =
+    List.fold_left (fun a _ -> a + 1) 0 l;
+
   (* Range expression *)
   module R = struct
 
     type rexp =
       | Rvar   of tyvar
+      | Rlimbs of rexp list
       | Rconst of int * const
       | Ruext of rexp * int
       | Rsext of rexp * int
@@ -143,6 +147,7 @@ module CL = struct
       match r with
       | Rvar x -> pp_tyvar fmt x
       | Rconst (c1,c2) -> Format.fprintf fmt "(const %i %a)" c1 pp_const c2
+      | Rlimbs (l) -> Format.fprintf fmt "(limbs %i [%a])" (256 / length' l) (pp_list ",@ " pp_rexp) l
       | Ruext (e, c) -> Format.fprintf fmt "(uext %a %i)" pp_rexp e c
       | Rsext (e, c) -> Format.fprintf fmt "(sext %a %i)" pp_rexp e c
       | Runop(s, e) -> Format.fprintf fmt "(%s %a)" s pp_rexp e
@@ -158,6 +163,8 @@ module CL = struct
       | RPnot   of rpred
       | RPand   of rpred list
       | RPor    of rpred list
+      | RPeqmod of rexp * rexp * rexp list
+
 
     let eq e1 e2 = RPcmp (e1, "=", e2)
     let ult e1 e2 = RPcmp (e1, "<", e2)
@@ -167,6 +174,7 @@ module CL = struct
 
     let rec pp_rpred fmt rp =
       match rp with
+      | RPeqmod(e1, e2, l) -> Format.fprintf fmt "eqmod %a %a %a" pp_rexp e1 pp_rexp e2 (pp_list ",@ " pp_rexp) l
       | RPcmp(e1, s, e2) -> Format.fprintf fmt "(%a %s %a)" pp_rexp e1 s pp_rexp e2
       | RPnot e -> Format.fprintf fmt "(~ %a)" pp_rpred e
       | RPand rps ->
@@ -290,6 +298,7 @@ module CL = struct
 
       let subc = op2_2 "subc"
       let mull = op2_2 "mull"
+      let umull = op2_2 "umull"
       let cmov = op2_2  "cmov"
       let adds = op2_2  "adds"
       let subb = op2_2  "subb"
@@ -371,6 +380,8 @@ module CL = struct
     let ghost (v: gvar) cl =
       { iname = "ghost";  iargs = [Gval v; Pred cl] }
 
+    let clear (v: lval) =
+      { iname = "clear";  iargs = [Lval v] }
     (* nondet set rcut clear ecut *)
 
   end
@@ -493,6 +504,17 @@ module I (S:S): I = struct
   (*     else (Z.sub zi (Z.pow (Z.of_int 2) ws)) *)
   (*   else zi *)
 
+    let rec extract_list e aux =
+    match e with
+    | Pabstract ({name="single"}, [h]) -> [h]
+    | Pabstract ({name="rsingle"}, [h]) -> [h]
+    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
+    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
+    | Pabstract ({name="quad"}, [h1;h2;h3;h4]) -> [h1;h2;h3;h4]
+    | Pabstract ({name="word_nil"}, []) -> List.rev aux
+    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
+    | _ -> assert false
+
   let rec gexp_to_rexp ?(sign=S.s) e : CL.R.rexp =
     let open CL.R in
     let (!>) e = gexp_to_rexp ~sign e in
@@ -508,10 +530,13 @@ module I (S:S): I = struct
     | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
+    | Pabstract ({name="rlimbs"}, [q]) -> Rlimbs (List.map (!>) (extract_list q []))
     | Pabstract ({name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
         UnPack (to_var ~sign x, 16, Z.to_int z)
     | Presult (_, x) -> Rvar (to_var x)
     | _ -> error e
+
+
 
   let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
     let open CL.R in
@@ -528,16 +553,12 @@ module I (S:S): I = struct
     | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
+    | Pabstract ({name="eqt"}, [e1]) -> eq !> e1 (Rconst(1, Z.of_int 1))
+    | Pabstract ({name="eqf"}, [e1]) -> eq !> e1 (Rconst(1, Z.of_int 0))
+    | Pabstract ({name="eqb"}, [e1; e2]) -> eq !> e1 !> e2
+    | Pabstract ({name="eqrmod"}, [e1;e2;l]) ->
+      RPeqmod (!> e1, !> e2, List.map (!>) (extract_list l []))
     | _ -> error e
-
-  let rec extract_list e aux =
-    match e with
-    | Pabstract ({name="single"}, [h]) -> [h]
-    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
-    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
-    | Pabstract ({name="word_nil"}, []) -> List.rev aux
-    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
-    | _ -> assert false
 
   let rec get_const x =
     match x with
@@ -604,15 +625,23 @@ module I (S:S): I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-   | Pabstract ({name="u16i"}, [v]) -> 
-       begin 
-         match v with 
-       (* why do we have more cases?  | Pvar _ -> !> v *) 
-         | Papp1 (Oword_of_int _ws, Pconst z) ->  !> 
-              (Pconst (w2i ~sign z U16)) 
-         | _ -> !> v 
-       end 
-    (* | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e *)
+   | Pabstract ({name="u64i"}, [v]) ->
+       begin
+         match v with
+         | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
+              (Pconst (w2i ~sign z U64))
+         | _ -> !> v
+  end
+   | Pabstract ({name="u16i"}, [v]) ->
+       begin
+         match v with
+       (* why do we have more cases?  | Pvar _ -> !> v *)
+         | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
+              (Pconst (w2i ~sign z U16))
+         | _ -> !> v
+       end
+    | Pabstract ({name="b2i"}, [v]) -> !> v
+    | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
       let v =
@@ -639,6 +668,7 @@ module I (S:S): I = struct
     | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
     | Pabstract ({name="eqmod"} as _opa, [h1;h2;h3]) ->
       [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
+    | Pabstract ({name="eq"}, [e1; e2]) -> [Eeq (!> e1, !> e2)]
     | _ -> error e
 
   let glval_to_lval ?(sign=S.s) x : CL.Instr.lval =
@@ -722,8 +752,8 @@ let trans annot l =
 
         in
         Some a
-      | Some (Some {pl_desc=an;pl_loc=loc}) ->
-        hierror ~loc:(Lone loc) ~kind:"Translation option"  "Unsupported attribute@."
+      | Some (Some {pl_desc=an;pl_loc=loc}) -> assert false
+        (*hierror ~loc:(Lone loc) ~kind:"Translation option"  "Unsupported attribute@."*)
 
       | _ -> None
   in
@@ -748,6 +778,7 @@ module X86BaseOpU : BaseOp
 
   module I = I (S)
 
+
   let cast_atome ws x =
     match x with
     | Pvar va ->
@@ -767,7 +798,11 @@ module X86BaseOpU : BaseOp
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
     | _ -> assert false
 
+  let deref r = !r
   let (!) e = I.mk_lval_atome e
+
+  let adox_cleared = ref 0
+  let adcx_cleared = ref 0
 
   let cast_vector_atome ws v x =
     let a,i = cast_atome ws x in
@@ -803,6 +838,13 @@ module X86BaseOpU : BaseOp
       let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.mov l a]
 
+    | CMOVcc ws -> (* warning, does not work with ! cf *)
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let a3, i3 = cast_atome ws (List.nth es 2) in
+      let x1 = I.glval_to_lval (List.nth xs 0) in
+      let c = I.gexp_to_var (List.nth es 0) in
+      i2 @ [CL.Instr.Op2_2.cmov x1 c a2 a3]
+
     | ADD ws ->
       begin
         let l = ["smt", `Smt ; "default", `Default] in
@@ -833,16 +875,23 @@ module X86BaseOpU : BaseOp
           i1 @ i2 @ [CL.Instr.Op2_2.subb lb l a1 a2]
       end
 
+    | MUL ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 5) in
+      let l2 = I.glval_to_lval (List.nth xs 6) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l1 l2 a1 a2;]
+
     | IMULr ws
     | IMULri ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l = I.glval_to_lval (List.nth xs 5) in
-      let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
-      let l_tmp1 = I.mk_tmp_lval (CoreIdent.tu ws) in
-      let ty = CL.Sint (int_of_ws ws) in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
-                 CL.Instr.cast ty l !l_tmp1]
+      let l1 = I.glval_to_lval (List.nth xs 5) in
+      let l = I.mk_spe_tmp_lval 64 in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l l1 a1 a2;
+               CL.Instr.assert_ ([], [RPcmp(Rvar l, "=", (Rconst(64, Z.of_int 0)))]);
+               CL.Instr.assume ([Eeq(Ivar l, Iconst Z.zero)] ,[]);
+       ]
 
 (* (\*  *)
 (*     | IMULri ws -> *)
@@ -851,6 +900,38 @@ module X86BaseOpU : BaseOp
 (*       let l = I.glval_to_lval (List.nth xs 5) in *)
 (*       let l_tmp = I.mk_tmp_lval(CoreIdent.tu ws) in *)
 (*       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2] *\) *)
+
+    | ADCX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      let instructions =
+      if deref adcx_cleared = 0 then (
+        adcx_cleared := 1;
+        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      ) else (
+        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      )
+    in
+    instructions
+
+    | ADOX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      let instructions =
+      if deref adox_cleared = 0 then (
+          adox_cleared := 1;
+        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      ) else (
+        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      )
+    in
+    instructions
 
     | ADC ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
@@ -923,7 +1004,7 @@ module X86BaseOpU : BaseOp
 
     | NOT ws ->
       let a,i = cast_atome ws (List.nth es 0) in
-      let l = I.glval_to_lval (List.nth xs 5) in
+      let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.not l a]
 
     | SHL ws ->
@@ -1176,13 +1257,19 @@ module X86BaseOpU : BaseOp
 
   let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
+    | Ox86MULX  ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      i1 @ i2 @ [CL.Instr.Op2_2.umull l1 l2 a1 a2;]
     | _ ->
-      let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
+     let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
       let name = x86_id.str () in
       let msg =
-        Format.asprintf "Unsupport extra operator in %s translation" S.error
+        Format.asprintf "Unsupported extra operator in %s translation" S.error
       in
-      hierror ~loc:(Lone loc) ~kind:msg  "%s" name
+        hierror ~loc:(Lone loc) ~kind:msg  "%s" name
 
 end
 
@@ -1240,7 +1327,12 @@ module X86BaseOpS : BaseOp
         CL.Instr.Avar x, [CL.Instr.vpc ty x e]
     | _ -> assert false
 
+  let deref r = !r
   let (!) e = I.mk_lval_atome e
+
+  let adox_cleared = ref 0
+  let adcx_cleared = ref 0
+
 
   let assgn_to_instr _annot x e =
     let a = I.gexp_to_atome  e in
@@ -1262,6 +1354,22 @@ module X86BaseOpS : BaseOp
         let l = I.glval_to_lval  (List.nth xs 0) in
         i @ [CL.Instr.Op1.mov l a]
       end
+    | CMOVcc ws -> (* warning, does not work with ! cf *)
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        match trans with
+        | `Smt -> let a2, i2 = vpc_atome ws (List.nth es 1) in
+          let a3, i3 = vpc_atome ws (List.nth es 2) in
+          let x1 = I.glval_to_lval (List.nth xs 0) in
+          let c = I.gexp_to_var (List.nth es 0) in
+          i2 @ [CL.Instr.Op2_2.cmov x1 c a2 a3]
+        | `Default ->  let a2, i2 = cast_atome ws (List.nth es 1) in
+          let a3, i3 = cast_atome ws (List.nth es 2) in
+          let x1 = I.glval_to_lval (List.nth xs 0) in
+          let c = I.gexp_to_var (List.nth es 0) in
+          i2 @ [CL.Instr.Op2_2.cmov x1 c a2 a3]
+    end
     | ADD ws ->
       begin
       let l = ["smt", `Smt ; "default", `Default] in
@@ -1292,27 +1400,90 @@ module X86BaseOpS : BaseOp
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp l a1 a2]
       end
 
-    | IMULr ws
-    | IMULri ws ->
+    | MUL ws ->
       let l = ["smt", `Smt; "default", `Default] in
       let trans = trans annot l in
       begin match trans with
       | `Default ->
-        let a1, i1 = cast_atome ws (List.nth es 0) in
-        let a2, i2 = cast_atome ws (List.nth es 1) in
-        let l = I.glval_to_lval (List.nth xs 5) in
-        let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
-        let l_tmp1 = I.mk_tmp_lval ~sign:false (CoreIdent.tu ws) in
-        let ty = CL.Sint (int_of_ws ws) in
-        i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
-                   CL.Instr.cast ty l !l_tmp1]
-
+         let a1, i1 = cast_atome ws (List.nth es 0) in
+         let a2, i2 = cast_atome ws (List.nth es 1) in
+         let l1 = I.glval_to_lval (List.nth xs 5) in
+         let l2 = I.glval_to_lval (List.nth xs 6) in
+         i1 @ i2 @ [CL.Instr.Op2_2.mull l1 l2 a1 a2;]
       | `Smt ->
-        let a1, i1 = cast_atome ws (List.nth es 0) in
-        let a2, i2 = cast_atome ws (List.nth es 1) in
-        let l = I.glval_to_lval (List.nth xs 5) in
-        i1 @ i2 @ [CL.Instr.Op2.mul l a1 a2]
+         let a1, i1 = cast_atome ws (List.nth es 0) in
+         let a2, i2 = cast_atome ws (List.nth es 1) in
+         let l = I.glval_to_lval (List.nth xs 5) in
+         i1 @ i2 @ [CL.Instr.Op2.mul l a1 a2;]
       end
+
+
+    | ADCX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      let instructions =
+      if deref adcx_cleared = 0 then (
+        adcx_cleared := 1;
+        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      ) else (
+        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      )
+    in
+    instructions
+
+    | ADOX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      let instructions =
+      if deref adox_cleared = 0 then (
+          adox_cleared := 1;
+        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      ) else (
+        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      )
+    in
+    instructions
+
+
+    | IMULr ws
+    | IMULri ws ->
+      let li = ["smt", `Smt; "default", `Default; "hi0", `hi0] in
+      let trans = trans annot li in
+          begin match trans with
+              | `Default ->
+                let a1, i1 = cast_atome ws (List.nth es 0) in
+                let a2, i2 = cast_atome ws (List.nth es 1) in
+                let l = I.glval_to_lval (List.nth xs 5) in
+                let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
+                let l_tmp1 = I.mk_tmp_lval ~sign:false (CoreIdent.tu ws) in
+                let ty = CL.Sint (int_of_ws ws) in
+                i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
+                           CL.Instr.cast ty l !l_tmp1]
+              | `Smt ->
+                let a1, i1 = cast_atome ws (List.nth es 0) in
+                let a2, i2 = cast_atome ws (List.nth es 1) in
+                let l = I.glval_to_lval (List.nth xs 5) in
+                i1 @ i2 @ [CL.Instr.Op2.mul l a1 a2]
+              | `hi0 ->
+                  let a1, i1 = cast_atome ws (List.nth es 0) in
+                  let a2, i2 = cast_atome ws (List.nth es 1) in
+                  let l = I.glval_to_lval (List.nth xs 5) in
+                  let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
+                  let l_tmp1 = I.mk_tmp_lval (CoreIdent.tu ws) in
+                  let ty = CL.Sint (int_of_ws ws) in
+                  i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
+                           CL.Instr.cast ty l !l_tmp1;
+                           CL.Instr.assert_ ([], [RPcmp(Rvar l_tmp1, "=", (Rconst(64, Z.of_int 0)))]);
+                           CL.Instr.assume ([Eeq(Ivar l_tmp1, Iconst Z.zero)] ,[]);
+                           ]
+      end
+
 
     | NEG ws ->
       let a = I.mk_const_atome (int_of_ws ws) Z.zero in
