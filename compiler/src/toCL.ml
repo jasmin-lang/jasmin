@@ -298,6 +298,7 @@ let length' l =
 
       let subc = op2_2 "subc"
       let mull = op2_2 "mull"
+      let umull = op2_2 "umull"
       let cmov = op2_2  "cmov"
       let adds = op2_2  "adds"
       let subb = op2_2  "subb"
@@ -379,6 +380,8 @@ let length' l =
     let ghost (v: gvar) cl =
       { iname = "ghost";  iargs = [Gval v; Pred cl] }
 
+    let clear (v: lval) =
+      { iname = "clear";  iargs = [Lval v] }
     (* nondet set rcut clear ecut *)
 
   end
@@ -775,6 +778,7 @@ module X86BaseOpU : BaseOp
 
   module I = I (S)
 
+
   let cast_atome ws x =
     match x with
     | Pvar va ->
@@ -794,7 +798,11 @@ module X86BaseOpU : BaseOp
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
     | _ -> assert false
 
+  let deref r = !r
   let (!) e = I.mk_lval_atome e
+
+  let adox_cleared = ref 0
+  let adcx_cleared = ref 0
 
   let cast_vector_atome ws v x =
     let a,i = cast_atome ws x in
@@ -893,14 +901,37 @@ module X86BaseOpU : BaseOp
 (*       let l_tmp = I.mk_tmp_lval(CoreIdent.tu ws) in *)
 (*       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2] *\) *)
 
-    | ADCX ws
+    | ADCX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      let instructions =
+      if deref adcx_cleared = 0 then (
+        adcx_cleared := 1;
+        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      ) else (
+        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      )
+    in
+    instructions
+
     | ADOX ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l1 = I.glval_to_lval (List.nth xs 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a1 a2 v]
+      let instructions =
+      if deref adox_cleared = 0 then (
+          adox_cleared := 1;
+        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      ) else (
+        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      )
+    in
+    instructions
 
     | ADC ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
@@ -1226,13 +1257,19 @@ module X86BaseOpU : BaseOp
 
   let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
+    | Ox86MULX  ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      i1 @ i2 @ [CL.Instr.Op2_2.umull l1 l2 a1 a2;]
     | _ ->
-      let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
+     let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
       let name = x86_id.str () in
       let msg =
-        Format.asprintf "Unsupport extra operator in %s translation" S.error
+        Format.asprintf "Unsupported extra operator in %s translation" S.error
       in
-      hierror ~loc:(Lone loc) ~kind:msg  "%s" name
+        hierror ~loc:(Lone loc) ~kind:msg  "%s" name
 
 end
 
