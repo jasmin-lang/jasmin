@@ -191,11 +191,14 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
           then Some (UseLea, "LEA instruction is used")
           else None
       | Split_memory_access ->
-          let msg =
-            "This memory immediate does not fit in one instruction, several \
-             instructions were issued."
-          in
-          Some (SplitMemoryAccess, msg)
+          if not !Glob_options.split_memory_access
+          then
+            let msg =
+              "This memory immediate does not fit in one instruction, several \
+               instructions were issued."
+            in
+            Some (SplitMemoryAccess, msg)
+          else None
     in
     let loc, _ = ii in
     Option.may (fun (w, msg) -> warning w loc "%s" msg) o;
