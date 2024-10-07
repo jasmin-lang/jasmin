@@ -409,9 +409,6 @@ let pp_sprog ~debug pd asmOp fmt ((funcs, p_extra):('info, 'asm) Prog.sprog) =
 
 (* ----------------------------------------------------------------------- *)
 
-let pp_warning_msg fmt = function
-  | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
-
 let pp_err ~debug fmt (pp_e : Compiler_util.pp_error) =
   let pp_var fmt v =
     let v = Conv.var_of_cvar v in

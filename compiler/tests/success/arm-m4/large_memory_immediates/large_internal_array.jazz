@@ -1,0 +1,23 @@
+// Stack allocation needs to split the array set and get operations into several
+// instructions to that the immediates fit in one instruction.
+
+// The LDR/STR instructions take an immediate of up to 12 bits.
+// Since elements are 4 bytes, we the size limit for an array is 2^12 / 4.
+param int LIMIT = 1024;
+
+export
+fn large_array() -> reg u32 {
+    reg u32 r;
+    stack u32[LIMIT + 1] a;
+
+    r = 0;
+    a[LIMIT] = r;
+    r = a[LIMIT];
+
+    reg bool b;
+    b = r <= 3;
+    a[LIMIT] = r if b;
+    r = a[LIMIT] if b;
+
+    return r;
+}

@@ -292,7 +292,7 @@ Proof.
     move=> []; first done.
     rewrite wbaseE /= => _ [??].
     right.
-    by apply/ZltP.
+    by rewrite !zify.
   t_arm_op.
   t_get_var => /=; t_arm_op => //.
   eexists; split; first reflexivity.

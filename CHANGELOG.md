@@ -70,6 +70,11 @@
   ([PR #955](https://github.com/jasmin-lang/jasmin/pull/955);
   fixes [#950](https://github.com/jasmin-lang/jasmin/issues/950)).
 
+- The compiler now introduces several instructions for memory operations whose
+  offsets are too large for the ARM encoding
+  ([PR #741](https://github.com/jasmin-lang/jasmin/pull/741)). It issues a
+  warning in these cases.
+
 # Jasmin 2024.07.1 — Nancy, 2024-10-03
 
 ## New features

@@ -111,11 +111,26 @@ Definition stack_zero_loop_vars :=
     (ws)[rsp + wsize_size ws] = zero
     (ws)[rsp + 0] = zero
 *)
-Definition sz_unrolled : lcmd :=
+Definition sz_unrolled_aux : lcmd :=
   let rn := rev (ziota 0 (stk_max / wsize_size ws)) in
   [seq MkLI dummy_instr_info (store_zero (fconst reg_size (off * wsize_size ws))) | off <- rn ].
 
-Definition stack_zero_unrolled : lcmd := sz_init ++ sz_unrolled ++ restore_sp.
+Definition sz_unrolled err : cexec lcmd :=
+  let max := (stk_max / wsize_size ws)%Z in
+  let e :=
+    let s :=
+      [:: pp_s "Stack too large for strategy ""unrolled"" (the offsets don't"
+        ; pp_s "fit in the instruction encoding)."
+      ]
+    in
+    err (pp_box s)
+  in
+  Let _ := assert (is_mem_immediate ((max - 1) * wsize_size ws)) e in
+  ok sz_unrolled_aux.
+
+Definition stack_zero_unrolled err : cexec lcmd :=
+  Let c := sz_unrolled err in
+  ok (sz_init ++ c ++ restore_sp).
 
 (* [voff] is used, because it is set by [sz_init], even though it is not used in
    the for loop. *)
@@ -131,9 +146,9 @@ Definition stack_zeroization_cmd
   (ws_align ws : wsize)
   (stk_max : Z) :
   cexec (lcmd * Sv.t) :=
-  let err msg :=
+  let err pp :=
     {|
-      pel_msg := compiler_util.pp_s msg;
+      pel_msg := pp;
       pel_fn := None;
       pel_fi := None;
       pel_ii := None;
@@ -142,18 +157,20 @@ Definition stack_zeroization_cmd
       pel_internal := false;
   |}
   in
-  let err_size :=
-    err "Stack zeroization size not supported in ARMv7"%string in
+  let err_size := err (pp_s "Stack zeroization size not supported in ARMv7") in
   Let _ := assert (ws <= U32)%CMP err_size in
   let rsp := vid rspn in
   match szs with
   | SZSloop =>
     ok (stack_zero_loop rsp lbl ws_align ws stk_max, stack_zero_loop_vars)
   | SZSloopSCT =>
-    let err_sct := err "Strategy ""loop with SCT"" is not supported in ARMv7"%string in
+    let err_sct :=
+      err (pp_s "Strategy ""loop with SCT"" is not supported in ARMv7")
+    in
     Error err_sct
   | SZSunrolled =>
-    ok (stack_zero_unrolled rsp ws_align ws stk_max, stack_zero_unrolled_vars)
+    Let c := stack_zero_unrolled rsp ws_align ws stk_max err in
+    ok (c, stack_zero_unrolled_vars)
   end.
 
 End STACK_ZEROIZATION.

@@ -12,7 +12,9 @@ Local Unset Elimination Schemes.
  * -------------------------------------------------------------------------- *)
 
 Variant warning_msg : Set :=
-  | Use_lea.
+  | Use_lea
+  | Split_memory_access
+.
 
 (* ** Compiler error
  * -------------------------------------------------------------------------- *)

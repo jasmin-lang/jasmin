@@ -88,19 +88,23 @@ let find_equality_constraints (id: instruction_desc) : arg_position list list =
        | _ -> apl :: res)
     tbl []
 
-let find_var outs ins ap : _ option =
-  let oget = function
-    | Some x -> x
-    | None -> hierror_reg ~loc:Lnone ~internal:true "the instruction description is not correct" in
+let find_var outs ins ap =
+  let err () =
+    hierror_reg
+      ~loc:Lnone ~internal:true "the instruction description is not correct"
+  in
+  let get_lvar = function
+    | Lvar v | Lmem(_, _, v, _) -> Some v
+    | _ -> None
+  in
+  let get_evar = function
+  | Pvar v when is_gkvar v -> Some v.gv
+  | Pload(_, _, v, _) -> Some v
+  | _ -> None
+  in
   match ap with
-  | APout n ->
-     Oseq.onth outs n |> oget |>
-       (function Lvar v -> Some v | _ -> None)
-  | APin n ->
-     Oseq.onth ins n |> oget |>
-       (function
-        | Pvar v -> if is_gkvar v then Some v.gv else None
-        | _ -> None)
+  | APout n -> Oseq.onth outs n |> Option.default_delayed err |> get_lvar
+  | APin n -> Oseq.onth ins n |> Option.default_delayed err |> get_evar
 
 let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
