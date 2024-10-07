@@ -61,6 +61,8 @@ stdenv.mkDerivation {
     ++ optionals testDeps ([ curl.bin oP.apron.out libllvm ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib dune_3
+          ocaml-lsp 
+         ocamlformat
          cmdliner
          angstrom
          batteries
