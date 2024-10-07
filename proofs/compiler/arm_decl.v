@@ -380,5 +380,11 @@ Definition is_expandable_or_shift (n : Z) : bool :=
    | EI_none => false
   end.
 
-Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
-Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.
+Definition is_w12_encoding (z : Z) : bool := [&& 0 <=? z & z <? Z.pow 2 12 ]%Z.
+Definition is_w16_encoding (z : Z) : bool := [&& 0 <=? z & z <? Z.pow 2 16 ]%Z.
+
+(* The LDR/STR families can take 12-bit unsigned immediates or 8-bit signed
+   immediates. *)
+Definition is_mem_immediate (z : Z) : bool :=
+  let u := (if z <? 0 then z + wbase reg_size else z)%Z in
+  is_w12_encoding u || [&& -256 <? z & z <? 256 ]%Z.

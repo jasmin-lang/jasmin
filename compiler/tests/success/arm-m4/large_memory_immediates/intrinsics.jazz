@@ -1,0 +1,21 @@
+export
+fn intrinsics(reg u32 p) -> reg u32 {
+    [p + 4096] = #STR(p);
+    (u8)[p + 4096] = #STRB(p);
+    (u16)[p + 4096] = #STRH(p);
+    p = #LDR([p + 4096]);
+    p = #LDRB((u8)[p + 4096]);
+    p = #LDRH((u16)[p + 4096]);
+
+    reg bool b;
+    b = p <= 3;
+    [p + 4096] = #STRcc(p, b, [p + 4096]);
+    (u8)[p + 4096] = #STRBcc(p, b, (u8)[p + 4096]);
+    (u16)[p + 4096] = #STRHcc(p, b, (u16)[p + 4096]);
+    p = #LDRcc([p + 4096], b, p);
+    p = #LDRBcc((u8)[p + 4096], b, p);
+    p = #LDRHcc((u16)[p + 4096], b, p);
+
+    p = p;
+    return p;
+}

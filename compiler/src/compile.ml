@@ -183,10 +183,25 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     (fn, f) |> Conv.fdef_of_cufdef |> refresh_i_loc_f |> Conv.cufdef_of_fdef |> snd
   in
 
-  let warning ii msg =
-    (if not !Glob_options.lea then
-     let loc, _ = ii in
-     warning UseLea loc "%a" Printer.pp_warning_msg msg);
+  let warning ii w =
+    let o =
+      match w with
+      | Compiler_util.Use_lea ->
+          if not !Glob_options.lea
+          then Some (UseLea, "LEA instruction is used")
+          else None
+      | Split_memory_access ->
+          if not !Glob_options.split_memory_access
+          then
+            let msg =
+              "This memory immediate does not fit in one instruction, several \
+               instructions were issued."
+            in
+            Some (SplitMemoryAccess, msg)
+          else None
+    in
+    let loc, _ = ii in
+    Option.may (fun (w, msg) -> warning w loc "%s" msg) o;
     ii
   in
 

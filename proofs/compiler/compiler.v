@@ -391,6 +391,7 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
       (ao_globals ao)
       (ao_global_alloc ao)
       (ao_stack_alloc ao)
+      (warning cparams)
       pl
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in

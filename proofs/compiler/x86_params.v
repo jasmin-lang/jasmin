@@ -67,6 +67,7 @@ Definition x86_saparams : stack_alloc_params :=
     sap_mov_ofs := x86_mov_ofs;
     sap_immediate := x86_immediate;
     sap_swap := x86_swap;
+    sap_mem_opn := fun lvs tag op es => (Copn lvs tag op es, false);
   |}.
 
 (* ------------------------------------------------------------------------ *)

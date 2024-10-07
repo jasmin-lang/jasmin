@@ -175,6 +175,7 @@ type warning =
   | SimplifyVectorSuffix
   | DuplicateVar 
   | UnusedVar 
+  | SplitMemoryAccess
   | SCTchecker
   | Deprecated
   | Experimental
