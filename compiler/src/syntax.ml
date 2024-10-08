@@ -155,7 +155,7 @@ module W = Wsize
 type pexpr_r =
   | PEParens of pexpr
   | PEVar    of pident
-  | PEGet    of [`Aligned|`Unaligned] option * arr_access * wsize option * pident * pexpr * pexpr option
+  | PEGet    of [`Aligned|`Unaligned] option * arr_access * psizetype option * pident * pexpr * pexpr option
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
@@ -169,10 +169,11 @@ type pexpr_r =
 
 and pexpr = pexpr_r L.located
 
-and mem_access = [ `Aligned | `Unaligned ] option * wsize option * pident * ([`Add | `Sub] * pexpr) option
+and mem_access = [ `Aligned | `Unaligned ] option * psizetype option * pident * ([`Add | `Sub] * pexpr) option
 
 (* -------------------------------------------------------------------- *)
-and ptype_r = TBool | TInt | TWord of wsize | TArray of wsize * pexpr
+and psizetype = TypeWsize of wsize | TypeSizeAlias of pident
+and ptype_r = TBool | TInt | TWord of wsize | TArray of psizetype * pexpr | TAlias of pident
 and ptype   = ptype_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -187,7 +188,7 @@ type annot_pstotype = annotations * pstotype
 type plvalue_r =
   | PLIgnore
   | PLVar   of pident
-  | PLArray of [`Aligned|`Unaligned] option * arr_access * wsize option * pident * pexpr * pexpr option
+  | PLArray of [`Aligned|`Unaligned] option * arr_access * psizetype option * pident * pexpr * pexpr option
   | PLMem   of mem_access 
 
 type plvalue = plvalue_r L.located
@@ -239,6 +240,11 @@ and fordir   = [ `Down | `Up ]
 
 and pinstr = annotations * pinstr_r L.located
 and pblock = pblock_r L.located
+
+let string_of_sizetype =
+  function
+  | TypeWsize ws -> string_of_ws ws
+  | TypeSizeAlias pident -> Format.asprintf "%s" (L.unloc pident)
 
 (* -------------------------------------------------------------------- *)
 type pparam = {
@@ -295,6 +301,7 @@ type pitem =
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
   | PNamespace of pident * pitem L.located list
+  | PTypeAlias of pident * ptype
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

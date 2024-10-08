@@ -1,0 +1,8 @@
+
+
+type x = u64[3];
+
+
+fn test() {
+    reg x[3] y;
+}
