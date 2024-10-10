@@ -523,3 +523,28 @@ abstract theory PolyArray.
 
 
 end PolyArray.
+
+(* Array slicing *)
+abstract theory SubArray.
+  op sizeS: int.
+  axiom gt0_sizeS: 0 < sizeS.
+
+  op sizeB: int.
+  axiom gt0_sizeB: 0 < sizeB.
+
+  (* Sub-array *)
+  clone import PolyArray as ArrayS with
+    op size <- sizeS
+    proof ge0_size by rewrite ltzW gt0_sizeS.
+
+  (* Base array *)
+  clone import PolyArray as ArrayB with
+    op size <- sizeB
+    proof ge0_size by rewrite ltzW gt0_sizeB.
+
+  op get_sub (a: 'a ArrayB.t) (i: int) = ArrayS.init (fun j => a.[i + j]).
+
+  op set_sub (a: 'a ArrayB.t) (i: int) (b: 'a ArrayS.t) =
+    ArrayB.init (fun j => if i <= j < i + sizeS then b.[j - i] else a.[j]).
+end SubArray.
+
