@@ -26,6 +26,7 @@ arch/arch_decl.v
 arch/arch_extra.v
 arch/arch_sem.v
 arch/arch_utils.v
+arch/arm_expand_imm.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v

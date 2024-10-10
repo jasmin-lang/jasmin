@@ -72,6 +72,30 @@ Definition sem_ot (t:stype) : Type :=
 
 Definition sem_tuple ts := ltuple (map sem_ot ts).
 
+Fixpoint sem_prod_ok {T: Type} (tin : seq stype) : sem_prod tin T -> sem_prod tin (exec T) :=
+  match tin return sem_prod tin T -> sem_prod tin (exec T) with
+  | [::] => fun o => ok o
+  | t :: ts => fun o v => @sem_prod_ok T ts (o v)
+  end.
+Arguments sem_prod_ok {T}%type_scope tin%seq_scope _.
+
+Fixpoint sem_forall {T: Type} (P: T -> Prop) (tin : seq stype) : sem_prod tin T -> Prop :=
+  match tin return sem_prod tin T -> Prop with
+  | [::] => P
+  | t :: ts => fun o => forall v, @sem_forall T P ts (o v)
+  end.
+Arguments sem_forall {T}%type_scope P%function_scope tin%seq_scope _.
+
+Lemma sem_prod_ok_ok {T: Type} (tin : seq stype) (o : sem_prod tin T) :
+  sem_forall (fun et => exists t, et = ok t) tin (sem_prod_ok tin o).
+Proof. elim: tin o => /= [o | a l hrec o v]; eauto. Qed.
+
+Lemma sem_prod_ok_error {T: Type} (tin : seq stype) (o : sem_prod tin T) e :
+  sem_forall (fun et => et <> Error e) tin (sem_prod_ok tin o).
+Proof. by elim: tin o => /= [o | a l hrec o v]; eauto. Qed.
+
+(* -------------------------------------------------------------------- *)
+
 Notation wmsf := (word msf_size).
 
 (* -------------------------------------------------------------------- *)

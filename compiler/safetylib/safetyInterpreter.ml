@@ -14,8 +14,8 @@ open SafetyConstr
 open SafetySymEq
 open SafetyPointsTo
 open SafetyBoolean
-open SafetyAbsExpr    
-  
+open SafetyAbsExpr
+
 (*------------------------------------------------------------*)
 (* REM *)
 (* Printexc.record_backtrace true *)
@@ -48,8 +48,8 @@ let add_glob_var env (v : var) =
 
 (* let add_glob_gvar env (v : int ggvar) = match v.gs with
  *   | Expr.Slocal -> env
- *   | Expr.Sglob  -> add_glob_var env (L.unloc v.gv) 
- * 
+ *   | Expr.Sglob  -> add_glob_var env (L.unloc v.gv)
+ *
  * let rec add_glob_expr env = function
  *   | Pconst _ | Pbool _ | Parr_init _ -> env
  *   | Pvar x          -> add_glob_gvar env x
@@ -61,18 +61,18 @@ let add_glob_var env (v : var) =
  *   | PappN (_,es)    -> List.fold_left add_glob_expr env es
  *   | Pif(_,e,e1,e2)  ->
  *     add_glob_expr (add_glob_expr (add_glob_expr env e) e1) e2
- * 
+ *
  * let add_glob_exprs env es = List.fold_left add_glob_expr env es
- * 
+ *
  * let rec add_glob_lv env = function
  *   | Lnone _      -> env
  *   | Lvar x       -> add_glob_var env (L.unloc x)
  *   | Lmem      (_,x,e)
- *   | Laset   (_,_,x,e) 
+ *   | Laset   (_,_,x,e)
  *   | Lasub (_,_,_,x,e)  -> add_glob_expr (add_glob_var env (L.unloc x)) e
- * 
+ *
  * let add_glob_lvs env lvs = List.fold_left add_glob_lv env lvs
- * 
+ *
  * let rec add_glob_instr env i =
  *   match i.i_desc with
  *   | Cassgn(x, _, _, e) -> add_glob_expr (add_glob_lv env x) e
@@ -84,7 +84,7 @@ let add_glob_var env (v : var) =
  *   | Cwhile(_,c,e,c') ->
  *     add_glob_body (add_glob_expr (add_glob_body env c') e) c
  *   | Ccall(_,x,_,e) -> add_glob_exprs (add_glob_lvs env x) e
- * 
+ *
  * and add_glob_body env c =  List.fold_left add_glob_instr env c *)
 
 
@@ -96,18 +96,18 @@ type arr_slice = { as_arr    : var;
                    as_len    : int;
                    as_access : Warray_.arr_access;
                    as_offset : Prog.expr; }
-                     
+
 type safe_cond =
   | Initv of var
-      
+
   | Initai  of arr_slice
   | InBound of int * arr_slice
   | InRange of expr * expr * expr (* InRange a b c ≡ c ∈ [a; b] *)
 
   | Valid       of wsize * var * expr (* allocated memory region *)
-  | AlignedPtr  of wsize * var * expr (* aligned pointer *)                   
+  | AlignedPtr  of wsize * var * expr (* aligned pointer *)
   | AlignedExpr of wsize * expr       (* aligned expression *)
-               
+
   | NotZero of wsize * expr
   | Termination of bool (* the boolean signals whether this is a severe violation *)
 
@@ -130,7 +130,7 @@ let pp_access fmt = function
   | Warray_.AAscale -> Format.fprintf fmt "scale"
 
 let pp_arr_slice fmt slice =
-  let pp_len fmt i = 
+  let pp_len fmt i =
     if i = 1 then ()
     else Format.fprintf fmt " : %d" i in
   Format.fprintf fmt "%a%s[U%d %a %a]"
@@ -139,26 +139,26 @@ let pp_arr_slice fmt slice =
     (int_of_ws slice.as_wsize)
     (Printer.pp_expr ~debug:false) slice.as_offset
     pp_len slice.as_len
-  
+
 let pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x
   | Initai (slice) ->
     Format.fprintf fmt "is_init %a"
       pp_arr_slice slice
-      
+
   | NotZero(sz,e) -> Format.fprintf fmt "%a <>%a zero" pp_expr e pp_ws sz
   | InRange(lo, hi, e) -> Format.fprintf fmt "%a ∈ [%a; %a]" pp_expr e pp_expr lo pp_expr hi
   | InBound(n,slice)  ->
-    Format.fprintf fmt "in_bound: %a (length %i U8)"      
+    Format.fprintf fmt "in_bound: %a (length %i U8)"
       pp_arr_slice slice n
-      
+
   | Valid (sz, x, e) ->
     Format.fprintf fmt "is_valid %s + %a u%a" x.v_name pp_expr e pp_ws sz
   | AlignedPtr (sz, x, e) ->
     Format.fprintf fmt "aligned pointer %s + %a u%a" x.v_name pp_expr e pp_ws sz
   | AlignedExpr (sz, e) ->
     Format.fprintf fmt "aligned %a u%a" pp_expr e pp_ws sz
-            
+
   | Termination b -> Format.fprintf fmt "termination%s" (if b then "" else " has not been checked")
 
 type violation_loc =
@@ -219,7 +219,7 @@ let add64 x e = Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e)
 
 (*------------------------------------------------------------*)
 (* checks for arrays and sub-arrays *)
-    
+
 let in_bound x access ws e len =
   let ux = L.unloc x in
   match ux.v_ty with
@@ -229,7 +229,7 @@ let in_bound x access ws e len =
                                as_wsize = ws;
                                as_offset = e;
                                as_access = access; } )]
-  (* | Bty (U _)-> []  *)    
+  (* | Bty (U _)-> []  *)
   | _ -> assert false
 
 let init_get x access ws e len =
@@ -292,7 +292,7 @@ let rec safe_e_rec safe = function
     Valid (ws, x, e) ::
     optional_alignment_check al ws x e
     (safe_e_rec safe e)
-      
+
   | Pget (al, access, ws, x, e) ->
     in_bound    x.gv access ws e 1 @
     init_get    x access ws e 1 @
@@ -306,7 +306,7 @@ let rec safe_e_rec safe = function
        need to check that the offset w.r.t. the base is aligned. *)
     arr_aligned (* x.gv *) access ws e @
     safe
-    
+
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (_,es) -> List.fold_left safe_e_rec safe es
@@ -362,7 +362,7 @@ let split_div sg ws es =
   int_of_words sg ws hi lo,
   int_of_word sg ws d
 
-let safe_opn safe opn es = 
+let safe_opn safe opn es =
   let id =
     Sopn.get_instr_desc
       X86_decl.x86_decl.reg_size
@@ -380,13 +380,42 @@ let safe_opn safe opn es =
           | Signed ->
              InRange (Pconst (Z.neg (half_modulus sz)), Pconst (Z.pred (half_modulus sz)), Papp2 (E.Odiv E.Cmp_int, n, d))
         ]
-      | Wsize.InRange(sz, lo, hi, n) ->
-         [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), Papp1 (Oint_of_word sz, List.nth es (Conv.int_of_nat n)))]
-      | Wsize.AllInit(ws, p, i) -> 
+      | Wsize.InRangeMod32(sz, lo, hi, n) ->
+         let n = List.nth es (Conv.int_of_nat n) in
+         let n = Papp1 (Oint_of_word sz, n) in
+         let n = Papp2 (Omod Cmp_int, n, Pconst (Z.of_int 32)) in
+         [ InRange(Pconst (Conv.z_of_cz lo), Pconst (Conv.z_of_cz hi), n) ]
+      | Wsize.AllInit(ws, p, i) ->
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
-        List.flatten 
-          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1)))
+        List.flatten
+          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1))
+      | NotZero (sz, n) ->
+        [ NotZero(sz, List.nth es (Conv.int_of_nat n)) ]
+
+      | ULt (sz, n, z) ->
+        let n = List.nth es (Conv.int_of_nat n) in
+        let n = Papp1 (Oint_of_word sz, n) in
+        [ InRange(Pconst Z.zero, Pconst (Z.pred (Conv.z_of_cz z)), n)] (* n ∈ [0; z-1] *)
+
+      | UGe (sz, z, n) ->
+        let n = List.nth es (Conv.int_of_nat n) in
+        let n = Papp1 (Oint_of_word sz, n) in
+        let z = Pconst (Conv.z_of_cz z) in
+        [ InRange(Pconst Z.zero, n, z) ] (* z ∈ [0; n] *)
+
+      | UaddLe(sz, n1, n2, z) ->
+        let n1 = List.nth es (Conv.int_of_nat n1) in
+        let n1 = Papp1 (Oint_of_word sz, n1) in
+        let n2 = List.nth es (Conv.int_of_nat n2) in
+        let n2 = Papp1 (Oint_of_word sz, n2) in
+        let n12 = Papp2 (Oadd Op_int, n1, n2) in
+        let z = Pconst (Conv.z_of_cz z) in
+        [ InRange(Pconst Z.zero, z, n12) ] (* n1 + n2 ∈ [0; z] *)
+
+      | ScFalse ->
+         [InRange(Pconst Z.zero, Pconst Z.zero, Pconst Z.one)] (* 1 ∈ [0; 0] *)
+    )
      id.i_safe) @ safe
 
 let safe_instr ginstr = match ginstr.i_desc with
@@ -404,7 +433,7 @@ let safe_return main_decl =
 (*------------------------------------------------------------*)
 let rec add_offsets assigns = match assigns with
   | [] -> []
-  | (Mlocal (Avar v)) :: tail when v.v_ty <> Bty (Prog.Bool) ->       
+  | (Mlocal (Avar v)) :: tail when v.v_ty <> Bty (Prog.Bool) ->
     (Mlocal (Avar v)) :: (MvarOffset v) :: add_offsets tail
   | u :: tail -> u :: add_offsets tail
 
@@ -467,13 +496,13 @@ let fun_vars ~expand_arrays f_decl env =
 (************************)
 
 type warnings = (Format.formatter -> unit) list
-    
+
 type analyse_res =
   { violations : violation list;
     print_var_interval : (Format.formatter -> mvar -> unit);
     mem_ranges_printer : (Format.formatter -> unit -> unit);
     warnings : warnings; }
-                     
+
 module AbsInterpreter (PW : ProgWrap) : sig
   val analyze : Wsize.wsize -> X86_extra.x86_extended_op Sopn.asmOp -> unit -> analyse_res
 end = struct
@@ -493,7 +522,7 @@ end = struct
 
   (* Function abstraction.
      This is a bit messy because the same function abstraction can be used
-     with different call-stacks, but the underlying disjunctive domain we 
+     with different call-stacks, but the underlying disjunctive domain we
      use is sensitive to the call-stack. *)
   module FAbs : sig
     type t
@@ -505,7 +534,7 @@ end = struct
        Return the abstraction of the initial states that was used, the
        abstract final state, and the side-effects of the function (if the
        abstraction applies in state [in]).
-       Remarks: 
+       Remarks:
        - the final state abstraction [f_out] uses the disjunctions of [in]. *)
     val apply : AbsDom.t -> t -> (AbsDom.t * side_effects) option
 
@@ -525,9 +554,9 @@ end = struct
         fa_s_effects = f_effects; }
 
     let apply abs_in fabs =
-      if AbsDom.is_included abs_in (AbsDom.to_shape fabs.fa_in abs_in) 
+      if AbsDom.is_included abs_in (AbsDom.to_shape fabs.fa_in abs_in)
       then begin
-        debug (fun () -> 
+        debug (fun () ->
             Format.eprintf "Reusing previous analysis of the body ...@.@.");
         Some (AbsDom.to_shape fabs.fa_out abs_in, fabs.fa_s_effects)
       end
@@ -539,7 +568,7 @@ end = struct
 
   (*---------------------------------------------------------------*)
   type astate = { it : FAbs.t ItMap.t;
-                  abs : AbsDom.t; 
+                  abs : AbsDom.t;
                   cstack : funname list;
                   env : s_env;
                   prog : (minfo, X86_extra.x86_extended_op) prog;
@@ -583,7 +612,7 @@ end = struct
       in
       let f_args        = comp_f_args main_decl in
       let source_f_args = comp_f_args main_source in
-      
+
       let f_in_args = List.map in_cp_var f_args
       and m_locs = List.map (fun mloc -> MmemRange mloc ) env.m_locs in
 
@@ -591,7 +620,7 @@ end = struct
          their types. E.g. register of type U 64 is in [0;2^64]. *)
       let abs, warns = AbsDom.make (f_args @ m_locs) mem_locs
                 |> AbsExpr.set_zeros (f_args @ m_locs)
-                (* We use the function location as location of the initial 
+                (* We use the function location as location of the initial
                    assignment of the main procedure's arguments. *)
                 |> AbsExpr.set_bounds f_args source_f_args in
 
@@ -621,7 +650,7 @@ end = struct
                     s_effects = [];
                     violations = []; } in
 
-      (* We initialize the arguments. Note that for exported function, we 
+      (* We initialize the arguments. Note that for exported function, we
          know that input arrays are initialized. *)
       ( init_state_init_args (fun_args ~expand_arrays:true main_decl) state,
         warns )
@@ -634,7 +663,7 @@ end = struct
         | Mlocal at -> AbsDom.check_init state.abs at
         | _ -> assert false end
 
-    | Initai slice -> 
+    | Initai slice ->
       let is =
         AbsExpr.abs_sub_arr_range
           state.abs
@@ -645,9 +674,9 @@ end = struct
 
     | InBound (n, slice) ->
       (* We check that:
-         - offset * ws/8 + len * ws/8   
-           is no larger than n if the slice is Scaled 
-         - offset        + len * ws/8   
+         - offset * ws/8 + len * ws/8
+           is no larger than n if the slice is Scaled
+         - offset        + len * ws/8
            is no larger than n if the slice is Direct *)
       let scaled_offset = match slice.as_access with
         | Warray_.AAscale ->
@@ -660,10 +689,10 @@ end = struct
                        scaled_offset,
                        Pconst (Z.of_int (size_of_ws slice.as_wsize *
                                          slice.as_len))) in
-            
+
       let simple_check = match AbsExpr.linearize_smpl_iexpr state.abs bnd with
         | None -> false
-        | Some lin_e -> 
+        | Some lin_e ->
           let int = AbsDom.bound_texpr state.abs lin_e in
           Scalar.cmp_int int.sup n <= 0 in
 
@@ -673,7 +702,7 @@ end = struct
 
         begin match AbsExpr.bexpr_to_btcons be state.abs with
           | None -> false
-          | Some c -> 
+          | Some c ->
             AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     | InRange(lo, hi, e) ->
@@ -692,7 +721,7 @@ end = struct
       let be = Papp2 (E.Oeq (E.Op_w ws), e, pcast ws (Pconst (Z.of_int 0))) in
       begin match AbsExpr.bexpr_to_btcons be state.abs with
         | None -> false
-        | Some c -> 
+        | Some c ->
           AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     (* These are checked elsewhere *)
@@ -720,14 +749,14 @@ end = struct
             let x_o = Mtexpr.var (MvarOffset x) in
             let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
             let c_ws =
-              (size_of_ws ws) 
+              (size_of_ws ws)
               |> Coeff.s_of_int
               |> Mtexpr.cst in
             let ws_plus_e = Mtexpr.binop Texpr1.Add c_ws lin_e in
             let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
                         |> sexpr_from_simple_expr in
             let abs = AbsDom.assign_sexpr abs None [MmemRange pt, sexpr] in
-            
+
             ( abs,
               violations,
               if List.mem pt s_effect then s_effect else pt :: s_effect)
@@ -747,7 +776,7 @@ end = struct
 
             (* And we check that the offset is correctly aligned. *)
             let x_o = Mtexpr.var (MvarOffset x) in
-            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in            
+            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
             let o_plus_e = Mtexpr.binop Texpr1.Add x_o lin_e in
             let violations =
               if AbsDom.check_align abs o_plus_e ws
@@ -760,7 +789,7 @@ end = struct
 
     | AlignedExpr (ws,e) as pv ->
       (* We check that the offset is correctly aligned. *)
-      let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in 
+      let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
       let violations =
         if AbsDom.check_align abs lin_e ws
         then violations
@@ -776,35 +805,35 @@ end = struct
     | [] -> unsafe
     | c :: t ->
       let unsafe = if is_safe state c then unsafe else c :: unsafe in
-      check_safety_rec state unsafe t 
-        
+      check_safety_rec state unsafe t
+
   let rec mem_safety_rec a = function
     | [] -> a
-    | c :: t ->       
+    | c :: t ->
       mem_safety_rec (mem_safety_apply a c) t
 
   let add_violations : astate -> violation list -> astate = fun state ls ->
     if ls <> [] then debug (fun () -> Format.eprintf "%a@." pp_violations ls);
     { state with violations = List.sort_uniq v_compare (ls @ state.violations) }
-    
+
   let rec check_safety state loc conds =
     let vsc = check_safety_rec state [] conds in
     let abs, mvsc, s_effects =
       mem_safety_rec (state.abs, [], state.s_effects) conds in
-    
+
     let state = { state with abs = abs;
                              s_effects = s_effects } in
-    
+
     let unsafe = vsc @ mvsc
                  |> List.map (fun x -> (loc,x)) in
     add_violations state unsafe
 
-      
+
   (*-------------------------------------------------------------------------*)
   (* Initialize variable or array elements lvalues. *)
-  let init_mlv_no_array mlv state = 
+  let init_mlv_no_array mlv state =
     { state with abs = AbsExpr.a_init_mlv_no_array mlv state.abs; }
-      
+
 
   let offsets_of_mvars l = List.map ty_gvar_of_mvar l
                            |> List.filter (fun x -> x <> None)
@@ -821,13 +850,13 @@ end = struct
     let assigns = combine3 exp_in_tys f_args es
                   |> List.map (fun (x,y,z) ->
                       (* The info on the [mlval] does not matter here,
-                         since the flow-sensitive packing heuristic we use 
+                         since the flow-sensitive packing heuristic we use
                          only makes sense for fully inlined Jasmin programs *)
                       let y = MLvar ({ i_instr_number = -1 }, y) in
                       (x, y, z)) in
 
     let abs = List.fold_left (fun abs (in_ty, mvar, e) ->
-        AbsExpr.abs_assign abs in_ty mvar e ) 
+        AbsExpr.abs_assign abs in_ty mvar e )
         state.abs assigns in
 
     { state with abs = abs }
@@ -837,7 +866,7 @@ end = struct
     (* TODO: check that [_out_ty] can be ignored here. *)
     List.fold_left (fun abs (_out_ty,rexpr,(ty_lv,mlvo)) ->
         AbsExpr.abs_assign abs ty_lv mlvo rexpr)
-      
+
       abs ret_assigns
 
   let forget_f_vars f state =
@@ -883,7 +912,7 @@ end = struct
     debug (fun () -> Format.eprintf "forgetting variables ...@.");
     let state = forget_stack_vars state in
 
-    let state = { state with 
+    let state = { state with
                   abs = AbsDom.new_cnstr_blck state.abs callsite; } in
 
     { state with cstack = f :: state.cstack;
@@ -897,7 +926,7 @@ end = struct
     let r = prepare_call abs callsite f es in
     let t' = Sys.time () in
     let sf = "prepare_call_" ^ f.fn_name in
-    let () = 
+    let () =
       if Prof.is_recorded sf
       then ()
       else Prof.record sf in
@@ -906,14 +935,14 @@ end = struct
     r
 
   let get_ret_assgns abs f_decl lvs =
-    let f_rets_no_offsets = 
+    let f_rets_no_offsets =
       List.map (fun x ->
           Pvar { gv = x; gs = Expr.Slocal; }
         ) f_decl.f_ret in
     let out_tys = f_decl.f_tyout in
     let mlvs = List.map (fun x ->
         (* The info of [mlv] does not matter here,
-           since the flow-sensitive packing heuristic we use 
+           since the flow-sensitive packing heuristic we use
            only makes sense for fully inlined Jasmin programs *)
         (ty_lval x,
          AbsExpr.mvar_of_lvar abs { i_instr_number = -1 }  x)
@@ -940,9 +969,9 @@ end = struct
           (pp_list pp_mvar) (List.map (fun x -> MmemRange x) fstate.s_effects));
 
     (* We join the alignment constraints, as we want the union of
-       previous and new constraints. 
+       previous and new constraints.
        Also, every variable (of the callee or caller) which was initalized
-       remains so. *)   
+       remains so. *)
     let abs = AbsDom.meet
         ~join_align:true
         state.abs fstate.abs in
@@ -958,11 +987,11 @@ end = struct
     debug(fun () -> Format.eprintf "evaluating returned values ...@.");
     (* Finally, we assign the returned values in the corresponding lvalues *)
     let f_decl = get_fun_def fstate.prog fname |> oget in
-    let r_assgns = get_ret_assgns state.abs f_decl lvs in      
-    
+    let r_assgns = get_ret_assgns state.abs f_decl lvs in
+
     let state = { state with abs = aeval_f_return state.abs r_assgns } in
 
-    debug(fun () -> 
+    debug(fun () ->
         Format.eprintf "forgetting %s local variables ...@.@." fname.fn_name);
     (* We forget the variables of f to get a smaller abstract element. *)
     forget_f_vars fname state
@@ -989,26 +1018,26 @@ end = struct
 
   (* FIXME *)
   let pf_of_word _sz _w = None
-  (* lsb w. *) 
+  (* lsb w. *)
 
   let zf_of_word sz w =
     Some (Papp2 (E.Oeq (E.Op_w sz),
                  w,
                  pcast sz (Pconst (Z.of_int 0))))
 
-  let rflags_of_aluop sz w vu _vs = 
+  let rflags_of_aluop sz w vu _vs =
     let of_f = None               (* FIXME *)
-    and cf   = cf_of_word sz w vu 
+    and cf   = cf_of_word sz w vu
     and sf   = sf_of_word sz w
     and pf   = pf_of_word sz w
     and zf   = zf_of_word sz w in
     [of_f;cf;sf;pf;zf]
 
   (* For the SUB (without carry) and CMP operation, we manually set
-     the flags to have simpler and more precise expressions for the 
+     the flags to have simpler and more precise expressions for the
      carry and zero flags. *)
   let rflags_of_sub sz w1 w2 =
-    let sub = Papp2 (E.Osub (E.Op_w sz), w1, w2) in 
+    let sub = Papp2 (E.Osub (E.Op_w sz), w1, w2) in
     let of_f = None               (* FIXME *)
     and cf   = Some (Papp2 (E.Olt (E.Cmp_w (Unsigned, sz)), w1,w2))
     and sf   = sf_of_word sz sub
@@ -1025,7 +1054,7 @@ end = struct
     and zf   = zf_of_word sz w in
     [of_f;cf;sf;pf;zf]
 
-  let rflags_of_neg sz w _vs = 
+  let rflags_of_neg sz w _vs =
     let of_f = None               (* FIXME, same than for rflags_of_aluop *)
     and cf   = None               (* FIXME, must be (w != 0)*)
     and sf   = sf_of_word sz w
@@ -1081,7 +1110,7 @@ end = struct
   (* -------------------------------------------------------------------- *)
   (* FIXME: redo using the generic flags definition above *)
   let mk_addcarry ws es =
-    let el,er,eb = as_seq3 es in    
+    let el,er,eb = as_seq3 es in
     let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
     let w_carry = Papp2 (E.Oadd (E.Op_w ws),
                          w_no_carry,
@@ -1104,10 +1133,10 @@ end = struct
 
     match eb with
     | Pbool false ->         (* No carry *)
-      [Some cf_no_carry; Some w_no_carry] 
+      [Some cf_no_carry; Some w_no_carry]
 
     | Pbool true ->          (* Carry *)
-      [Some cf_carry; Some w_carry] 
+      [Some cf_carry; Some w_carry]
 
     | _ ->                   (* General case, potential carry *)
       let _w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
@@ -1119,7 +1148,7 @@ end = struct
 
   (* FIXME: idem *)
   let mk_subcarry ws es =
-    let el,er,eb = as_seq3 es in    
+    let el,er,eb = as_seq3 es in
     let w_no_carry = Papp2 (E.Osub (E.Op_w ws), el, er) in
     let w_carry = Papp2 (E.Osub (E.Op_w ws),
                          w_no_carry,
@@ -1137,10 +1166,10 @@ end = struct
 
     match eb with
     | Pbool false ->         (* No carry *)
-      [Some cf_no_carry; Some w_no_carry] 
+      [Some cf_no_carry; Some w_no_carry]
 
     | Pbool true ->          (* Carry *)
-      [Some cf_carry; Some w_carry] 
+      [Some cf_carry; Some w_carry]
 
     | _ ->                   (* General case, potential carry *)
       let _w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
@@ -1150,7 +1179,7 @@ end = struct
       [None; None]
       (* [Some cf; Some w]  *)
 
-  
+
   (* -------------------------------------------------------------------- *)
   (* Remark: the assignments must be done in the correct order.
      Bitwise operators are ignored for now (result is soundly set to top).
@@ -1176,7 +1205,7 @@ end = struct
       (* Cast [e], seen as an U32, to an integer, and then back to an U64. *)
       [Some (Papp1(E.Oword_of_int U64, Papp1(E.Oint_of_word U32, e)))]
 
-    (* Idem than Ox86MOVZX32, but with different sizes. *)      
+    (* Idem than Ox86MOVZX32, but with different sizes. *)
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.MOVZX (sz_o, sz_i))) ->
       assert (x = None); (* FIXME *)
       assert (int_of_ws sz_o >= int_of_ws sz_i);
@@ -1203,7 +1232,7 @@ end = struct
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.MUL ws))
 
     (* mul signed *)
-    (* since, for now, we ignore the upper-bits, 
+    (* since, for now, we ignore the upper-bits,
        we do the same thing than for unsigned multiplication. *)
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.IMUL ws)) ->
       assert (x = None);
@@ -1283,7 +1312,7 @@ end = struct
     (* copy *)
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.MOV _)) ->
       assert (x = None);
-      let e = as_seq1 es in 
+      let e = as_seq1 es in
       [Some e]
 
     (* shift, unsigned / left  *)
@@ -1308,7 +1337,7 @@ end = struct
       rflags_unknwon @ [Some e]
 
     (* FIXME: adding bit shift with flags *)
-    (* 
+    (*
     | ROR    of wsize    (* rotation / right *)
     | ROL    of wsize    (* rotation / left  *)
     | RCR    of wsize    (* rotation / right with carry *)
@@ -1329,7 +1358,7 @@ end = struct
       assert (x = None);
       let c,el,er = as_seq3 es in
       let e = Pif (Bty (U sz), c, el, er) in
-      [Some e] 
+      [Some e]
 
     (* bitwise operators *)
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.AND ws)) ->
@@ -1385,7 +1414,7 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
-  (* Ugly handling of flags to build. 
+  (* Ugly handling of flags to build.
      When adding new flags, update [find_heur]. *)
   type flags_heur = { fh_zf : Mtexpr.t option;
                       fh_cf : Mtexpr.t option; }
@@ -1394,21 +1423,21 @@ end = struct
     Format.fprintf fmt "@[<hv 0>zf: %a;@ cf %a@]"
       (pp_opt Mtexpr.print) (fh.fh_zf)
       (pp_opt Mtexpr.print) (fh.fh_cf)
-  
-  
+
+
   (* [v] is the variable receiving the assignment. *)
   let opn_heur pd asmOp opn v es =
-    match opn with 
-    (* sub carry *) 
+    match opn with
+    (* sub carry *)
     | Sopn.Opseudo_op (Osubcarry _) ->
-      (* FIXME: improve precision by allowing decrement by something else 
+      (* FIXME: improve precision by allowing decrement by something else
          than 1 here. *)
       Some { fh_zf = None;
              fh_cf = Some (Mtexpr.binop Texpr1.Add
                              (Mtexpr.var v)
                              (Mtexpr.cst (Coeff.s_of_int 1))); }
-        
-    (* decrement *) 
+
+    (* decrement *)
     | Sopn.Oasm (Arch_extra.BaseOp (x, X86_instr_decl.DEC _)) ->
       assert (x = None);
       Some { fh_zf = Some (Mtexpr.var v);
@@ -1425,7 +1454,7 @@ end = struct
           check_is_word x;
           Mtexpr.var (mvar_of_var x)
         | Papp1 (E.Oword_of_int _, e) -> to_mvar e
-        | Papp1 (E.Oint_of_word _, e) -> to_mvar e 
+        | Papp1 (E.Oint_of_word _, e) -> to_mvar e
         | _ -> raise Opn_heur_failed in
       let el, er = as_seq2 es in
       begin try
@@ -1433,7 +1462,7 @@ end = struct
         Some { fh_zf = Some (Mtexpr.binop Texpr1.Sub el er);
                fh_cf = Some (Mtexpr.binop Texpr1.Sub el er); }
         with Opn_heur_failed -> None end
-      
+
     (* (\* sub with borrow *\)
      * | Sopn.Oasm (Arch_extra.BaseOp (X86_instr_decl.SBB _)) *)
     | _ ->
@@ -1447,7 +1476,7 @@ end = struct
   (* Ugly, just tries to match the string name to a flag name. *)
   let find_heur bv = function
     | None -> raise Heuristic_failed
-    | Some heur ->     
+    | Some heur ->
       let s = Bvar.var_name bv in
       let s = String.lowercase_ascii s in
       if String.starts_with s "v_cf"
@@ -1457,7 +1486,7 @@ end = struct
       else raise Heuristic_failed
 
   (* Heuristic for the (candidate) decreasing quantity to prove while
-     loop termination. *)  
+     loop termination. *)
   let dec_qnty_heuristic pd asmOp loop_body loop_cond =
     let heur_leaf leaf = match Mtcons.get_typ leaf with
       | Lincons0.SUPEQ | Lincons0.SUP -> Mtcons.get_expr leaf
@@ -1476,15 +1505,15 @@ end = struct
        the case, we look for the instruction that set the flag, and use a
        heuristic depending on the operation. *)
     | Some (BVar bv) ->
-      let brev = List.rev loop_body in 
+      let brev = List.rev loop_body in
       begin try
-          List.find_map (fun ginstr -> match ginstr.i_desc with 
+          List.find_map (fun ginstr -> match ginstr.i_desc with
               | Copn(lvs,_,opn,es) ->
                 List.find_map_opt (fun lv ->
                     match lv with
-                    | Lvar x -> 
+                    | Lvar x ->
                       let x_mv = Mlocal (Avar (L.unloc x)) in
-                      if Bvar.make x_mv true = Bvar.positive bv 
+                      if Bvar.make x_mv true = Bvar.positive bv
                       (* We found the assignment where the flag is set *)
                       then
                         (* Register for which the flags are computed. *)
@@ -1498,7 +1527,7 @@ end = struct
                       else None
                     | _ -> None) lvs
 
-              | _ -> None                
+              | _ -> None
             ) brev
         with Not_found -> raise Heuristic_failed
       end
@@ -1508,7 +1537,7 @@ end = struct
 
   (* -------------------------------------------------------------------- *)
   (* Check that there are no memory stores and loads. *)
-  let check_memory_access_aux f_decl = 
+  let check_memory_access_aux f_decl =
 
     (* vs_for: integer variable from for loops, which will be inlined to
        a constant integer value. *)
@@ -1516,12 +1545,12 @@ end = struct
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
       | Csyscall(lvs, _ ,es)    -> nm_lvs vs_for lvs && nm_es vs_for es
-      | Cif (e, st, st')        -> 
+      | Cif (e, st, st')        ->
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
-      | Cwhile (_, st1, e, st2) -> 
+      | Cwhile (_, st1, e, st2) ->
         nm_e vs_for e && nm_stmt vs_for st1 && nm_stmt vs_for st2
-      | Ccall (lvs, fn, es)  -> 
+      | Ccall (lvs, fn, es)  ->
         let f' = get_fun_def prog fn |> oget in
         nm_lvs vs_for lvs && nm_es vs_for es && nm_fdecl f'
 
@@ -1546,7 +1575,7 @@ end = struct
       | Laset (_,_,_,_,e) | Lasub (_,_,_,_,e) -> know_offset vs_for e
       | Lmem _ -> false
 
-    and nm_lvs vs_for lvs = List.for_all (nm_lv vs_for) lvs 
+    and nm_lvs vs_for lvs = List.for_all (nm_lv vs_for) lvs
 
     and know_offset vs_for = function
       | Pconst _ -> true
@@ -1556,7 +1585,7 @@ end = struct
           | Expr.Sglob -> true
           | Expr.Slocal -> List.mem v.gv vs_for
         end
-        
+
       | Papp1 (E.Oneg Op_int, e) -> know_offset vs_for e
 
       | Papp2 ((Osub Op_int | Omul Op_int | Oadd Op_int), e1, e2) ->
@@ -1565,7 +1594,7 @@ end = struct
       | _ -> false
     in
 
-    nm_fdecl f_decl 
+    nm_fdecl f_decl
 
 
   (* Memoisation *)
@@ -1576,16 +1605,16 @@ end = struct
       Hf.add nm_memo f_decl.f_name res;
       res
 
-  
-  (* The function must not use memory loads/stores, array accesses must be 
+
+  (* The function must not use memory loads/stores, array accesses must be
      fixed, and arrays in arguments must be fully initialized
      (i.e. cells must be initialized). *)
-  let check_valid_call_top st f_decl = 
-    let cells_init = 
+  let check_valid_call_top st f_decl =
+    let cells_init =
       List.for_all (fun v -> match mvar_of_scoped_var Expr.Slocal v with
-          | Mlocal (Aarray _) as mv -> 
+          | Mlocal (Aarray _) as mv ->
             let vs = u8_blast_var ~blast_arrays:true mv in
-            List.for_all (function 
+            List.for_all (function
                 | Mlocal at -> AbsDom.check_init st.abs at
                 | _ -> assert false (* initialization of other arguments
                                        should already have been checked
@@ -1688,7 +1717,7 @@ end = struct
 
   and aeval_ginstr_aux pd asmOp : ('ty,minfo,'asm) ginstr -> astate -> astate =
     fun ginstr state ->
-    match ginstr.i_desc with 
+    match ginstr.i_desc with
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
         when Config.sc_pif_movecc_as_if () ->
         assert (ty1 = ty2);
@@ -1712,9 +1741,9 @@ end = struct
       | Copn ([ lv ], _, Opseudo_op (Ocopy _), [ e ])
       | Cassgn (lv, _, _, e) ->
         let abs = AbsExpr.abs_assign
-            state.abs 
+            state.abs
             (ty_lval lv)
-            (AbsExpr.mvar_of_lvar state.abs ginstr.i_info lv) 
+            (AbsExpr.mvar_of_lvar state.abs ginstr.i_info lv)
             e in
         { state with abs = abs; }
 
@@ -1777,7 +1806,7 @@ end = struct
 
         (* We check that if the loop does not exit, then ni_e decreased by
              at least one. *)
-        let check_ni_dec state = 
+        let check_ni_dec state =
           if AbsDom.is_bottom state.abs then state
           else
             match ni_e with
@@ -1789,15 +1818,15 @@ end = struct
               (* (initial nie) - nie *)
               let e = Mtexpr.(binop Sub (var mvar_ni) nie) in
 
-              (* We assume the loop does not exit, and check whether the 
+              (* We assume the loop does not exit, and check whether the
                  candidate decreasing quantity indeed decreased. *)
               let state_in = match oec state.abs with
-                | Some ec -> 
-                  { state with 
+                | Some ec ->
+                  { state with
                     abs = AbsDom.meet_btcons state.abs ec }
                 | None -> state in
 
-              debug(fun () -> 
+              debug(fun () ->
                   Format.eprintf "@[<v 2>Checking the numerical quantity in:@;\
                                   %a@]@."
                     (AbsDom.print ~full:true)
@@ -1842,9 +1871,9 @@ end = struct
             then add_violations state_o [(InProg prog_pt, Termination false)]
             else check_ni_dec state_o in
 
-          (* We forget the variable storing the initial value of the 
+          (* We forget the variable storing the initial value of the
              candidate decreasing quantity. *)
-          let state_o = { state_o with 
+          let state_o = { state_o with
                           abs = AbsDom.forget_list state_o.abs [mvar_ni] } in
 
           let abs_r = AbsDom.join state.abs state_o.abs in
@@ -1898,12 +1927,12 @@ end = struct
           | None -> state in
 
         (* Simple heuristic for the widening threshold.
-           Basically, if the loop condition is a return flag, we use the 
+           Basically, if the loop condition is a return flag, we use the
            candidate decreasing numerical quantity to make the threshold. *)
         let smpl_thrs abs = match simpl_obtcons (oec abs) with
           | Some _ as constr -> constr
           | None -> Option.map (fun e -> Mtcons.make e Lincons1.SUP) ni_e in
-            
+
         let rec stabilize state pre_state =
           if is_stable state pre_state then exit_loop state
           else
@@ -1936,7 +1965,7 @@ end = struct
                   state_i.abs state_i'.abs w_abs);
             stabilize_b { state_i' with abs = w_abs; } state in
 
-        (* We first unroll the loop k_unroll times. 
+        (* We first unroll the loop k_unroll times.
            (k_unroll is a parameter of the analysis) *)
         let state, pre_state = unroll_times (Config.sc_k_unroll ()) state None in
 
@@ -1948,7 +1977,7 @@ end = struct
 
         (* We pop the disjunctive constraint block *)
         let abs = AbsDom.pop_cnstr_blck state.abs prog_pt in
-        { state with abs = abs; } 
+        { state with abs = abs; }
 
 
       | Ccall(lvs, f, es) ->
@@ -1975,7 +2004,7 @@ end = struct
 
       | Cfor(i, (d,e1,e2), c) ->
         let prog_pt = ginstr.i_loc in
-        (match AbsExpr.aeval_cst_int state.abs e1, 
+        (match AbsExpr.aeval_cst_int state.abs e1,
               AbsExpr.aeval_cst_int state.abs e2 with
         | Some z1, Some z2 ->
           if z1 = z2 then state else
@@ -1997,7 +2026,7 @@ end = struct
                 (* We set the integer variable i to ci. *)
                 let expr_ci = Mtexpr.cst (Coeff.s_of_int ci)
                                   |> sexpr_from_simple_expr in
-                let abs = 
+                let abs =
                   AbsDom.assign_sexpr
                     state.abs (Some ginstr.i_info) [mvari, expr_ci] in
 
@@ -2008,7 +2037,7 @@ end = struct
 
                 (* We pop the disjunctive constraint block. *)
                 let abs = AbsDom.pop_cnstr_blck state.abs prog_pt in
-                { state with abs = abs; } 
+                { state with abs = abs; }
               ) state range
 
         | _ ->
@@ -2024,21 +2053,21 @@ end = struct
     fun f f_decl callsite st_in ->
     let itk = ItFunIn (f,callsite) in
 
-    match aeval_call_strategy callsite f_decl st_in with 
+    match aeval_call_strategy callsite f_decl st_in with
     | Config.Call_Direct -> aeval_body pd asmOp f_decl.f_body st_in
 
     (* Precond: [check_valid_call_top st_in] must hold:
-       the function must not use memory loads/stores, array accesses must be 
+       the function must not use memory loads/stores, array accesses must be
        fixed, and arrays in arguments must be fully initialized
        (i.e. cells must be initialized). *)
     | Config.Call_TopByCallSite ->
       (* f has been abstractly evaluated at this callsite before *)
-      if ItMap.mem itk st_in.it then 
+      if ItMap.mem itk st_in.it then
         let fabs = ItMap.find itk st_in.it in
         match FAbs.apply st_in.abs fabs with
         | Some (f_abs_out, f_effects) ->
           { st_in with abs = f_abs_out;
-                       s_effects = f_effects; } 
+                       s_effects = f_effects; }
 
         | None -> assert false    (* that should not be possible *)
 
@@ -2047,7 +2076,7 @@ end = struct
         (* Set the abstract state to top (and remove all disjunction).
              Moreover, all arguments of [f_decl] are assumed
              initialized (including array cells). *)
-        let st_in_ndisj = 
+        let st_in_ndisj =
           let mvars =
             List.map (fun x -> mvar_of_scoped_var Expr.Slocal x) f_decl.f_args
             |> u8_blast_vars ~blast_arrays:true in
@@ -2056,15 +2085,15 @@ end = struct
               | Mlocal at -> AbsDom.is_init abs at
               | _ -> assert false
             ) abs mvars in
-          
-          { st_in with abs = abs } 
+
+          { st_in with abs = abs }
         in
 
         let st_out_ndisj = aeval_body pd asmOp f_decl.f_body st_in_ndisj in
 
         (* We make a new function abstraction for f. Roughly, it is of the form:
            input |--> (output,effects) *)
-        let fabs = FAbs.make 
+        let fabs = FAbs.make
             st_in_ndisj.abs
             st_out_ndisj.abs
             st_out_ndisj.s_effects in
@@ -2073,9 +2102,9 @@ end = struct
                              it = ItMap.add itk fabs st_out_ndisj.it } in
 
         (* It remains to add the disjunctions of the call_site to st_out *)
-        { st_out_ndisj with 
+        { st_out_ndisj with
           abs = AbsDom.to_shape st_out_ndisj.abs st_in.abs }
-        
+
   and aeval_if pd asmOp ginstr e c1 c2 state =
     let eval_cond state = function
       | Some ec -> AbsDom.meet_btcons state.abs ec
@@ -2087,7 +2116,7 @@ end = struct
         let ec = simpl_obtcons oec |> oget in
         AbsDom.add_cnstr state.abs ~meet:true ec ginstr.i_loc
       else
-        (* FIXME: check that the fact that we do not introduce a 
+        (* FIXME: check that the fact that we do not introduce a
            disjunction node does not create issues. *)
         let noec = Option.bind oec flip_btcons in
         ( eval_cond state oec, eval_cond state noec ) in
@@ -2117,7 +2146,7 @@ end = struct
         aeval_ginstr pd asmOp ginstr state)
         state gstmt in
     let () = if gstmt <> [] then
-        debug (fun () ->            
+        debug (fun () ->
             Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
     state
 
@@ -2128,15 +2157,15 @@ end = struct
     (* | CallWideningAll -> Call_WideningByCallSite *)
     | Config.CallTopHeuristic ->
       if check_valid_call_top st_in f_decl
-      then Config.Call_TopByCallSite 
+      then Config.Call_TopByCallSite
       else Config.Call_Direct in
 
-    debug(fun () -> Format.eprintf "Call strategy for %s at %a: %a@." 
+    debug(fun () -> Format.eprintf "Call strategy for %s at %a: %a@."
              f_decl.f_name.fn_name
              L.pp_iloc callsite
              pp_call_strategy strat);
     strat
-  
+
   (*------------------------------------------------------------------------*)
   let print_mem_ranges state =
     debug(fun () -> Format.eprintf
@@ -2158,9 +2187,9 @@ end = struct
         if (List.mem v vars_to_keep) then acc else v :: acc )
         [] vars in
 
-    let abs_proj = 
+    let abs_proj =
       AbsDom.pop_cnstr_blck
-        (AbsDom.forget_list state.abs rem_vars) 
+        (AbsDom.forget_list state.abs rem_vars)
         L.i_dummy                (* We use L.i_dummy for the initial block *)
     in
 
@@ -2174,7 +2203,7 @@ end = struct
     let exception UserInterupt in
 
     let t_start = Sys.time () in
-    let print_stats () =      
+    let print_stats () =
       Format.eprintf "@[<v 0>Duration: %1f@;%a@]"
         (Sys.time () -. t_start)
         Prof.print () in
@@ -2213,16 +2242,16 @@ end
 module type ExportWrap = sig
   (* main function, before any compilation pass *)
   val main_source : (unit, X86_extra.x86_extended_op) Prog.func
-      
+
   val main : (unit, X86_extra.x86_extended_op) Prog.func
   val prog : (unit, X86_extra.x86_extended_op) Prog.prog
 end
 
 module AbsAnalyzer (EW : ExportWrap) = struct
-  
+
   module EW = struct
     let main_source = EW.main_source
-    
+
     (* We ensure that all variable names are unique *)
     let main,prog = MkUniq.mk_uniq EW.main EW.prog
   end
@@ -2239,7 +2268,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
         else String.split_on_char ',' pts |> Option.some in
       { relationals = relationals;
         pointers = pointers; }
-      
+
     | [_] ->
       raise (Failure "-safetyparam ill-formed (maybe you forgot a ';' ?)")
     | _ ->
@@ -2256,7 +2285,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
   let analyze pd asmOp () =
-    try     
+    try
     let ps_assoc = Option.map_default parse_params
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
@@ -2277,7 +2306,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
 
     let npt = List.filter (fun x -> not (List.mem x pt_vars)) EW.main.f_args
               |> List.map (fun x -> MmemRange (MemLoc x)) in
-    
+
     let l_res = List.map (fun p ->
         let module AbsInt = AbsInterpreter (struct
             include EW
@@ -2290,7 +2319,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     | res :: _->
       let pp_mem_range fmt = match npt with
         | [] -> Format.fprintf fmt ""
-        | _ ->          
+        | _ ->
           Format.eprintf "@[<v 2>Memory ranges:@;%a@]@;"
             (pp_list res.print_var_interval) npt in
 
@@ -2304,7 +2333,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
         if warns <> [] then
           Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
             (pp_list (fun fmt x -> x fmt)) warns in
-      
+
       Format.eprintf "@?@[<v>%a@;\
                       %a@;\
                       %a@;\

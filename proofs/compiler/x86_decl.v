@@ -188,7 +188,7 @@ Instance eqTC_register : eqTypeC register :=
   { ceqP := reg_eq_axiom }.
 
 #[global]
-Instance finC_register : finTypeC register := 
+Instance finC_register : finTypeC register :=
   { cenumP := registers_fin_axiom }.
 
 Definition register_to_string r : string :=
@@ -223,7 +223,7 @@ Instance eqTC_regx : eqTypeC register_ext :=
   { ceqP := regx_eq_axiom }.
 
 #[global]
-Instance finC_regx : finTypeC register_ext := 
+Instance finC_regx : finTypeC register_ext :=
   { cenumP := regxs_fin_axiom }.
 
 Definition regx_to_string r : string:=
@@ -250,7 +250,7 @@ Instance eqTC_xmm_register : eqTypeC xmm_register :=
   { ceqP := xreg_eq_axiom }.
 
 #[global]
-Instance finC_xmm_register : finTypeC xmm_register := 
+Instance finC_xmm_register : finTypeC xmm_register :=
   { cenumP := xmm_registers_fin_axiom }.
 
 Definition xreg_to_string r : string :=
@@ -333,6 +333,12 @@ Instance x86_fcp : FlagCombinationParams :=
 
 
 (* -------------------------------------------------------------------- *)
+Definition x86_check_CAimm (checker : caimm_checker_s) ws (w : ssralg.GRing.ComRing.sort(word ws)) : bool :=
+  match checker with
+  | CAimmC_none => true
+  | _ => false  (* Only CAimmC_none is needed for x86 *)
+  end.
+
 
 #[global]
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
@@ -345,9 +351,10 @@ Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := RSP
   ; ad_fcp := x86_fcp
+  ; check_CAimm := x86_check_CAimm
   }.
 
-Definition x86_linux_call_conv : calling_convention := 
+Definition x86_linux_call_conv : calling_convention :=
   {| callee_saved   := map ARReg [:: RBX; RBP; RSP; R12; R13; R14; R15 ]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: RDI; RSI; RDX; RCX; R8; R9 ]
@@ -357,13 +364,13 @@ Definition x86_linux_call_conv : calling_convention :=
    ; call_reg_ret_uniq := erefl true;
   |}.
 
-Definition x86_windows_call_conv : calling_convention := 
-  {| callee_saved   := map ARReg [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ] ++ 
+Definition x86_windows_call_conv : calling_convention :=
+  {| callee_saved   := map ARReg [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ] ++
                        map AXReg [:: XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: RCX; RDX; R8; R9 ]
    ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3 ]
    ; call_reg_ret   := [:: RAX ]
    ; call_xreg_ret  := [:: XMM0 ]
-   ; call_reg_ret_uniq := erefl true;                    
+   ; call_reg_ret_uniq := erefl true;
   |}.

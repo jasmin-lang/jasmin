@@ -39,7 +39,7 @@ Qed.
 End FinIsCount.
 End FinIsCount.
 
-Class eqTypeC (T:Type) := 
+Class eqTypeC (T:Type) :=
   { beq : T -> T -> bool
   ; ceqP: Equality.axiom beq }.
 
@@ -100,10 +100,10 @@ Context `{cfinT:finTypeC} (U:Type).
 
 Definition map := @finfun_of cfinT_finType (fun _ => U) (Phant _).
 
-Definition of_fun := 
+Definition of_fun :=
   @finfun.finfun cfinT_finType (fun _ => U).
 
-Definition set (m:map) (x: T) (y:U) : map := 
+Definition set (m:map) (x: T) (y:U) : map :=
   of_fun (fun z : T => if z == x ::> then y else m z).
 
 End Section.
@@ -111,7 +111,7 @@ End Section.
 End FinMap.
 
 (* -------------------------------------------------------------------- *)
-Lemma reflect_inj (T:eqType) (U:Type) (f:T -> U) a b : 
+Lemma reflect_inj (T:eqType) (U:Type) (f:T -> U) a b :
   injective f -> reflect (a = b) (a == b) -> reflect (f a = f b) (a == b).
 Proof. by move=> hinj heq; apply: (iffP heq) => [| /hinj ] ->. Qed.
 
@@ -207,7 +207,7 @@ Proof. by case: b. Qed.
 Arguments assertP {E b e u} _.
 
 Variant error :=
- | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith.
+ | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef.
 
 Definition exec t := result error t.
 
@@ -269,7 +269,7 @@ Definition mapM eT aT bT (f : aT -> result eT bT)  : seq aT → result eT (seq b
   end.
 
 Lemma mapM_cons aT eT bT x xs y ys (f : aT -> result eT bT):
-  f x = ok y /\ mapM f xs = ok ys 
+  f x = ok y /\ mapM f xs = ok ys
   <-> mapM f (x :: xs) = ok (y :: ys).
 Proof.
   split.
@@ -652,7 +652,7 @@ Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> se
       Ok eT (ys.1, y.2 :: ys.2)
     end.
 
-Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT * dT)) : 
+Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT * dT)) :
    aT -> seq bT -> seq cT -> result eT (aT * seq dT) :=
   fix mapM a lb lc :=
     match lb, lc with
@@ -736,6 +736,15 @@ Lemma Forall_nth A (R : A -> Prop) l :
 Proof.
   elim {l} => // a l h _ ih d [//|i].
   by apply ih.
+Qed.
+
+Lemma Forall_nthP A (R : A -> Prop) l :
+  List.Forall R l <->
+  forall d i, (i < size l)%nat -> R (nth d l i).
+Proof.
+  split; first by apply Forall_nth.
+  elim: l => //= a l hrec hi; constructor; first by apply (hi a O).
+  apply hrec => d i hsz; apply (hi d (i.+1) hsz).
 Qed.
 
 Lemma Forall2_nth A B (R : A -> B -> Prop) la lb :
@@ -1696,7 +1705,7 @@ Proof.
 Qed.
 
 Lemma list_all_ind (Q : Z -> bool) (P : list Z -> Prop):
-  P [::] -> 
+  P [::] ->
   (forall i l, Q i -> all Q l -> P l -> P (i::l))->
   (forall l, all Q l -> P l).
 Proof.
@@ -1705,7 +1714,7 @@ Proof.
 Qed.
 
 Lemma ziota_ind (P : list Z -> Prop) p1 p2:
-  P [::] -> 
+  P [::] ->
   (forall i l, p1 <= i < p1 + p2 -> P l -> P (i::l))->
   P (ziota p1 p2).
 Proof.

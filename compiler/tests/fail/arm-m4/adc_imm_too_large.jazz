@@ -1,5 +1,5 @@
 export
-fn main(reg u32 x) -> reg u32 {
+fn main(reg u32 x) {
     reg bool c;
     c, x += x;
     x = #ADC(x, 0x0000caca, c);
