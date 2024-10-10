@@ -1015,7 +1015,7 @@ let leak_var env v = match env.model with
   | ValLeak ->
       let vident = ec_vari env (L.unloc v.gv) in
       match v.gv.L.pl_desc.v_ty with
-      | Arr _ -> assert false (* unsupported *)
+      | Arr _ -> [] (* FIXME: should we have any leakage? *)
       | Bty base -> match base with
         | Bool -> [leak_cond vident]
         | Int -> [leak_addr vident]
