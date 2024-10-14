@@ -18,6 +18,7 @@
       raise (Syntax.ParseError (loc, Some (Format.asprintf "ill-formed string (%s)" msg)))
 
   let _keywords = [
+    "type"  , TYPE   ;
     "u8"    , T_U8   ;
     "u16"   , T_U16  ;
     "u32"   , T_U32  ;
@@ -53,6 +54,7 @@
     "export", EXPORT ;
     "ArrayInit", ARRAYINIT;
     "_"     , UNDERSCORE;
+    "`"    , BACKQUOTE  ;
   ]
 
   let keywords = Hash.of_enum (List.enum _keywords)
@@ -187,9 +189,9 @@ rule main = parse
   | "="  { EQ       }
   | "==" { EQEQ     }
   | "!=" { BANGEQ   }
+  | "`"  { BACKQUOTE    }
   | "#unaligned" { UNALIGNED   }
   | "#aligned" { ALIGNED   }
-
   | _ as c  { invalid_char (L.of_lexbuf lexbuf) c }
   | eof     { EOF }
 

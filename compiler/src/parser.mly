@@ -42,6 +42,7 @@
 %token FN
 %token FOR
 %token FROM
+%token TYPE
 %token <Syntax.sign>GE
 %token GLOBAL
 %token <Syntax.sign>GT
@@ -84,6 +85,7 @@
 %token <string> NID
 %token <Syntax.int_representation> INT
 %token <string> STRING
+%token BACKQUOTE
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
 %left AMPAMP
@@ -108,6 +110,9 @@
 
 %inline ident:
 | x=loc(qident) { x }
+
+%inline typealiascall:
+| x=preceded(BACKQUOTE,ident) { x }
 
 var:
 | x=ident { x }
@@ -166,6 +171,14 @@ utype:
 | T_U128 { Wsize.U128 }
 | T_U256 { Wsize.U256 }
 
+utype_array:
+| ws=utype {TypeWsize ws}
+| id=ident {TypeSizeAlias id}
+
+utype_cast:
+| ws=utype {TypeWsize ws}
+| id=typealiascall {TypeSizeAlias id}
+
 ptype_r:
 | T_BOOL
     { TBool }
@@ -176,8 +189,9 @@ ptype_r:
 | ut=utype
     { TWord ut }
 
-| ut=utype d=brackets(pexpr)
+| ut=utype_array d=brackets(pexpr)
     { TArray (ut, d) }
+| x=ident {TAlias x}
 
 ptype:
 | x=loc(ptype_r) { x }
@@ -239,14 +253,14 @@ prim:
 | UNALIGNED { `Unaligned }
 
 %inline mem_access:
-| ct=parens(utype)? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
+| ct=parens(utype_cast)? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
   { al, ct, v, e }
   
 arr_access_len: 
 | COLON e=pexpr { e }
 
 arr_access_i:
-| al=unaligned? ws=utype? e=pexpr len=arr_access_len? {ws, e, len, al }
+| al=unaligned? ws=utype_cast? e=pexpr len=arr_access_len? {ws, e, len, al }
 
 arr_access:
  | s=DOT?  i=brackets(arr_access_i) {
@@ -503,6 +517,8 @@ top:
 | x=pglobal  { Syntax.PGlobal x }
 | x=pexec    { Syntax.Pexec   x }
 | x=prequire { Syntax.Prequire x}
+| TYPE name = ident EQ ty = ptype SEMICOLON
+    { Syntax.PTypeAlias (name, ty)}
 | NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
     { Syntax.PNamespace (name, pfs) }
 (* -------------------------------------------------------------------- *)
