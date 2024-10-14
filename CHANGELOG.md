@@ -1,3 +1,10 @@
+# [unreleased]
+
+## Bug fixes
+
+- Multiplication instructions hava data-independent timing on x86
+  ([PR #927](https://github.com/jasmin-lang/jasmin/pull/927)).
+
 # Jasmin 2024.07.1 — Nancy, 2024-10-03
 
 ## New features
