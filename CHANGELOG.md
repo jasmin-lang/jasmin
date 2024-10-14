@@ -1,6 +1,11 @@
 
 # [unreleased]
 
+## Bug fixes
+
+- Multiplication instructions hava data-independent timing on x86
+  ([PR #927](https://github.com/jasmin-lang/jasmin/pull/927)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
