@@ -1,5 +1,12 @@
 # [unreleased]
 
+## New features
+
+- Add support for x86 instructions `BTR` and `BTS` with the bit base operand in
+  register
+  ([PR #932](https://github.com/jasmin-lang/jasmin/pull/932);
+  fixes [#928](https://github.com/jasmin-lang/jasmin/issues/928)).
+
 ## Bug fixes
 
 - Multiplication instructions hava data-independent timing on x86
