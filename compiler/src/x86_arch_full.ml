@@ -64,6 +64,8 @@ module X86_core = struct
     | ANDN _ -> true
     | BSWAP _ -> false (* Not DOIT *)
     | BT _ -> true
+    | BTR _ -> true
+    | BTS _ -> true
     | CLC -> false (* Not DOIT *)
     | CLFLUSH -> false (* Not DOIT *)
     | CMOVcc _ -> true
