@@ -45,13 +45,15 @@ Definition pp_name name args :=
   *)
 
 Definition RTypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
+  let tin := [:: sreg; sword ws ] in
   {|
+      id_valid := true;
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg; sword ws ];
+      id_tin := tin;
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: sreg];
       id_out := [:: Ea 0 ];
-      id_semi := semi;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 3;
       id_args_kinds := ak_reg_reg_reg;
       id_eq_size := refl_equal;
@@ -61,20 +63,24 @@ Definition RTypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
       id_str_jas := pp_s jazz_name; (* how to print it in Jasmin *)
       id_safe := [::];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
-    |}.
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
+  |}.
 
-
-Definition ITypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
+Definition ITypeInstruction chk_imm ws semi jazz_name asm_name : instr_desc_t :=
+  let tin := [:: sreg; sword ws ] in
   {|
+      id_valid := true;
       id_msb_flag := MSB_MERGE;
       (* imm are coded on 12 bits, not 32 *)
-      id_tin := [:: sreg; sword ws ];
+      id_tin := tin;
       id_in := [:: Ea 1; Ea 2 ];
       id_tout := [:: sreg];
       id_out := [:: Ea 0 ];
-      id_semi := semi;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 3;
-      id_args_kinds := ak_reg_reg_imm;
+      id_args_kinds :=  [:: [:: [:: CAreg]; [:: CAreg]; [:: CAimm chk_imm reg_size]]];
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
@@ -82,7 +88,13 @@ Definition ITypeInstruction ws semi jazz_name asm_name: instr_desc_t :=
       id_str_jas := pp_s jazz_name; (* how to print it in Jasmin *)
       id_safe := [::];
       id_pp_asm := pp_name asm_name; (* how to print it in asm *)
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
+
+Definition ITypeInstruction_12s := ITypeInstruction CAimmC_riscv_12bits_signed.
+Definition ITypeInstruction_5u  := ITypeInstruction CAimmC_riscv_5bits_unsigned.
 
 (* -------------------------------------------------------------------- *)
 (* RISC-V 32I Base Integer instructions (operators). *)
@@ -161,102 +173,105 @@ Notation ty_rr := (sem_tuple [:: sreg; sreg ]) (only parsing).
 (* All descriptions have [id_msb_flag] as [MSB_MERGE], but since all
    instructions have a 32-bit output, this is irrelevant. *)
 
-Definition riscv_add_semi (wn wm : ty_r) : exec ty_r := ok (wn + wm)%R.
+Definition riscv_add_semi (wn wm : ty_r) : ty_r := (wn + wm)%R.
 
 Definition riscv_ADD_instr : instr_desc_t := RTypeInstruction riscv_add_semi "ADD" "add".
 Definition prim_ADD := ("ADD"%string, primM ADD).
 
-Definition riscv_ADDI_instr : instr_desc_t := ITypeInstruction riscv_add_semi "ADDI" "addi".
+Definition riscv_ADDI_instr : instr_desc_t := ITypeInstruction_12s riscv_add_semi "ADDI" "addi".
 Definition prim_ADDI := ("ADDI"%string, primM ADDI).
 
 
-Definition riscv_mul_semi (wn wm: ty_r) : exec ty_r := ok (wn * wm)%R.
+Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%R.
 Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul".
 Definition prim_MUL := ("MUL"%string, primM MUL).
 
-Definition riscv_mulh_semi (wn wm: ty_r) : exec ty_r := ok (wmulhs wn wm).
+Definition riscv_mulh_semi (wn wm: ty_r) : ty_r := wmulhs wn wm.
 Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh".
 Definition prim_MULH := ("MULH"%string, primM MULH).
 
-Definition riscv_mulhu_semi (wn wm: ty_r) : exec ty_r := ok (wmulhu wn wm).
+Definition riscv_mulhu_semi (wn wm: ty_r) : ty_r := wmulhu wn wm.
 Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu".
 Definition prim_MULHU := ("MULHU"%string, primM MULHU).
 
-Definition riscv_mulhsu_semi (wn wm: ty_r) : exec ty_r := ok (wmulhsu wn wm).
+Definition riscv_mulhsu_semi (wn wm: ty_r) : ty_r := wmulhsu wn wm.
 Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu".
 Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
 
 
-Definition riscv_sub_semi (wn wm : ty_r) : exec ty_r := ok (wn - wm)%R.
+Definition riscv_sub_semi (wn wm : ty_r) : ty_r := (wn - wm)%R.
 
 Definition riscv_SUB_instr : instr_desc_t := RTypeInstruction riscv_sub_semi "SUB" "sub".
 Definition prim_SUB := ("SUB"%string, primM SUB).
 
 
-Definition riscv_and_semi (wn wm : ty_r) : exec ty_r := ok (wand wn wm).
+Definition riscv_and_semi (wn wm : ty_r) : ty_r := wand wn wm.
 
 Definition riscv_AND_instr : instr_desc_t := RTypeInstruction riscv_and_semi "AND" "and".
 Definition prim_AND := ("AND"%string, primM AND).
 
-Definition riscv_ANDI_instr : instr_desc_t := ITypeInstruction riscv_and_semi "ANDI" "andi".
+Definition riscv_ANDI_instr : instr_desc_t := ITypeInstruction_12s riscv_and_semi "ANDI" "andi".
 Definition prim_ANDI := ("ANDI"%string, primM ANDI).
 
 
-Definition riscv_or_semi (wn wm : ty_r) : exec ty_r := ok (wor wn wm).
+Definition riscv_or_semi (wn wm : ty_r) : ty_r := wor wn wm.
 
 Definition riscv_OR_instr : instr_desc_t := RTypeInstruction riscv_or_semi "OR" "or".
 Definition prim_OR := ("OR"%string, primM OR).
 
-Definition riscv_ORI_instr : instr_desc_t := ITypeInstruction riscv_or_semi "ORI" "ori".
+Definition riscv_ORI_instr : instr_desc_t := ITypeInstruction_12s riscv_or_semi "ORI" "ori".
 Definition prim_ORI := ("ORI"%string, primM ORI).
 
 
-Definition riscv_xor_semi (wn wm : ty_r): exec ty_r := ok (wxor wn wm).
+Definition riscv_xor_semi (wn wm : ty_r): ty_r := wxor wn wm.
 
 Definition riscv_XOR_instr : instr_desc_t := RTypeInstruction riscv_xor_semi "XOR" "xor".
 Definition prim_XOR := ("XOR"%string, primM XOR).
 
-Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction riscv_xor_semi "XORI" "xori".
+Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction_12s riscv_xor_semi "XORI" "xori".
 Definition prim_XORI := ("XORI"%string, primM XORI).
 
 
-Definition riscv_sll_semi (wn : ty_r) (wm : word U8) : exec ty_r := ok (wshl wn (wunsigned (wand wm (wrepr U8 31)))).
+Definition riscv_sll_semi (wn : ty_r) (wm : word U8) : ty_r := wshl wn (wunsigned (wand wm (wrepr U8 31))).
 
 Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_sll_semi "SLL" "sll".
 Definition prim_SLL := ("SLL"%string, primM SLL).
 
-Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction riscv_sll_semi "SLLI" "slli".
+Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction_5u riscv_sll_semi "SLLI" "slli".
 Definition prim_SLLI := ("SLLI"%string, primM SLLI).
 
-Definition riscv_srl_semi (wn : ty_r) (wm : word U8) : exec ty_r := ok (wshr wn (wunsigned (wand wm (wrepr U8 31)))).
+Definition riscv_srl_semi (wn : ty_r) (wm : word U8) : ty_r := wshr wn (wunsigned (wand wm (wrepr U8 31))).
 
 Definition riscv_SRL_instr : instr_desc_t := RTypeInstruction riscv_srl_semi "SRL" "srl".
 Definition prim_SRL := ("SRL"%string, primM SRL).
 
-Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction riscv_srl_semi "SRLI" "srli".
+Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction_5u riscv_srl_semi "SRLI" "srli".
 Definition prim_SRLI := ("SRLI"%string, primM SRLI).
 
 (*CHECKME*)
-Definition riscv_sra_semi (wn : ty_r) (wm : word U8) : exec ty_r := ok (wsar wn (wunsigned (wand wm (wrepr U8 31)))).
+Definition riscv_sra_semi (wn : ty_r) (wm : word U8) : ty_r := wsar wn (wunsigned (wand wm (wrepr U8 31))).
 
 Definition riscv_SRA_instr : instr_desc_t := RTypeInstruction riscv_sra_semi "SRA" "sra".
 Definition prim_SRA := ("SRA"%string, primM SRA).
 
-Definition riscv_SRAI_instr : instr_desc_t := ITypeInstruction riscv_sra_semi "SRAI" "srai".
+Definition riscv_SRAI_instr : instr_desc_t := ITypeInstruction_5u riscv_sra_semi "SRAI" "srai".
 Definition prim_SRAI := ("SRAI"%string, primM SRAI).
 
 
-Definition riscv_MV_semi (wn : ty_r) : exec ty_r :=
-  ok wn.
+Definition riscv_MV_semi (wn : ty_r) : ty_r :=
+  wn.
 
 Definition riscv_MV_instr : instr_desc_t :=
+  let tin := [:: sreg ] in
+  let semi := riscv_MV_semi in
     {|
+      id_valid := true;
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg ];
+      id_tin := tin;
       id_in := [:: Ea 1 ];
       id_tout := [:: sreg ];
       id_out := [:: Ea 0 ];
-      id_semi := riscv_MV_semi;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg;
       id_eq_size := refl_equal;
@@ -266,22 +281,28 @@ Definition riscv_MV_instr : instr_desc_t :=
       id_str_jas := pp_s "MV";
       id_safe := [::];
       id_pp_asm := pp_name "mv";
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
 
 Definition prim_MV := ("MV"%string, primM MV).
 
 
-Definition riscv_LA_semi (wn : ty_r) : exec ty_r :=
-  ok wn.
+Definition riscv_LA_semi (wn : ty_r) : ty_r :=
+  wn.
 
 Definition riscv_LA_instr : instr_desc_t :=
+  let tin := [:: sreg ] in
+  let semi := riscv_LA_semi in
     {|
+      id_valid := true;
       id_msb_flag := MSB_MERGE;
       id_tin := [:: sreg ];
       id_in := [:: Ec 1 ];
       id_tout := [:: sreg ];
       id_out := [:: Ea 0 ];
-      id_semi := riscv_LA_semi;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr;
       id_eq_size := refl_equal;
@@ -291,23 +312,29 @@ Definition riscv_LA_instr : instr_desc_t :=
       id_str_jas := pp_s "LA";
       id_safe := [::];
       id_pp_asm := pp_name "la";
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
 
 Definition prim_LA := ("LA"%string, primM LA).
 
-Definition riscv_LI_semi (wn : ty_r) : exec ty_r :=
-  ok wn.
+Definition riscv_LI_semi (wn : ty_r) : ty_r :=
+  wn.
 
 Definition riscv_LI_instr : instr_desc_t :=
+  let tin := [:: sreg ] in
+  let semi := riscv_LI_semi in
     {|
+      id_valid := true;
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg ];
+      id_tin := tin;
       id_in := [:: Ea 1 ];
       id_tout := [:: sreg ];
       id_out := [:: Ea 0 ];
-      id_semi := riscv_LI_semi;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 2;
-      id_args_kinds := ak_reg_imm;
+      id_args_kinds := ak_reg_imm; (* this instruction accepts 32 bits immediate word *)
       id_eq_size := refl_equal;
       id_tin_narr := refl_equal;
       id_tout_narr := refl_equal;
@@ -315,22 +342,28 @@ Definition riscv_LI_instr : instr_desc_t :=
       id_str_jas := pp_s "LI";
       id_safe := [::];
       id_pp_asm := pp_name "li";
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
 
 Definition prim_LI := ("LI"%string, primM LI).
 
 
-Definition riscv_NOT_semi (wn : ty_r) : exec ty_r :=
-  ok (wnot wn).
+Definition riscv_NOT_semi (wn : ty_r) : ty_r :=
+  wnot wn.
 
 Definition riscv_NOT_instr : instr_desc_t :=
+  let tin := [:: sreg ] in
+  let semi := riscv_NOT_semi in
     {|
+      id_valid := true;
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg ];
+      id_tin := tin;
       id_in := [:: Ea 1 ];
       id_tout := [:: sreg ];
       id_out := [:: Ea 0 ];
-      id_semi := riscv_NOT_semi;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg;
       id_eq_size := refl_equal;
@@ -340,22 +373,28 @@ Definition riscv_NOT_instr : instr_desc_t :=
       id_str_jas := pp_s "NOT";
       id_safe := [::];
       id_pp_asm := pp_name "not";
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
 
 Definition prim_NOT := ("NOT"%string, primM NOT).
 
 
-Definition riscv_NEG_semi (wn : ty_r) : exec ty_r :=
-  ok (- wn)%R.
+Definition riscv_NEG_semi (wn : ty_r) : ty_r :=
+  (- wn)%R.
 
 Definition riscv_NEG_instr : instr_desc_t :=
+  let tin := [:: sreg ] in
+  let semi := riscv_NEG_semi in
     {|
+      id_valid := true;
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sreg ];
+      id_tin := tin;
       id_in := [:: Ea 1 ];
       id_tout := [:: sreg ];
       id_out := [:: Ea 0 ];
-      id_semi := riscv_NEG_semi;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_reg;
       id_eq_size := refl_equal;
@@ -365,6 +404,9 @@ Definition riscv_NEG_instr : instr_desc_t :=
       id_str_jas := pp_s "NEG";
       id_safe := [::];
       id_pp_asm := pp_name "neg";
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
 
 Definition prim_NEG := ("NEG"%string, primM NOT).
@@ -387,19 +429,22 @@ Definition string_of_size ws : string :=
 Definition pp_sign_sz (s: string) (sign:signedness) (sz : wsize) (_: unit) : string :=
   s ++ "_" ++ (if sign is Signed then "s" else "u")%string ++ string_of_wsize sz.
 
-Definition riscv_extend_semi s ws' ws (w : word ws) : exec (word ws') :=
+Definition riscv_extend_semi s ws' ws (w : word ws) : word ws' :=
   let extend := if s is Signed then sign_extend else zero_extend in
-  ok (extend ws' ws w).
+  extend ws' ws w.
 
 (* TODO: unaligned access are ok but very discouraged on RISC-V, should we allow them? *)
 Definition riscv_LOAD_instr s ws : instr_desc_t :=
+  let tin := [:: sword ws ] in
+  let semi := @riscv_extend_semi s reg_size ws in
     {|
+      id_valid := if s is Signed then (ws <= U32)%CMP else (ws <= U16)%CMP ;
       id_msb_flag := MSB_MERGE;
-      id_tin := [:: sword ws ];
+      id_tin := tin;
       id_in := [:: Eu 1 ];
       id_tout := [:: sreg ];
       id_out := [:: Ea 0 ];
-      id_semi := @riscv_extend_semi s reg_size ws;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
       id_eq_size := refl_equal;
@@ -409,6 +454,9 @@ Definition riscv_LOAD_instr s ws : instr_desc_t :=
       id_str_jas := pp_sign_sz "LOAD" s ws;
       id_safe := [::];
       id_pp_asm := pp_name ("l" ++ string_of_size ws ++ string_of_sign s);
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
 
 Definition primS (f: signedness -> wsize -> riscv_op) :=
@@ -421,13 +469,16 @@ Definition prim_LOAD := ("LOAD"%string, primS LOAD).
 
 
 Definition riscv_STORE_instr ws : instr_desc_t :=
+  let tin := [:: sword ws ] in
+  let semi := @riscv_extend_semi Unsigned ws ws in
     {|
+      id_valid := (ws <= U32)%CMP;
       id_msb_flag := MSB_MERGE; (* ? *)
       id_tin := [:: sword ws ];
       id_in := [:: Ea 0 ];
       id_tout := [:: sword ws ];
       id_out := [:: Eu 1 ];
-      id_semi := @riscv_extend_semi Unsigned ws ws;
+      id_semi := sem_prod_ok tin semi;
       id_nargs := 2;
       id_args_kinds := ak_reg_addr; (* TODO: are globs allowed? *)
       id_eq_size := refl_equal;
@@ -437,6 +488,9 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
       id_str_jas := pp_sz "STORE" ws;
       id_safe := [::];
       id_pp_asm := pp_name ("s" ++ string_of_size ws);
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => (@sem_prod_ok_error _ tin semi ErrType);
+      id_semi_safe := fun _ => (@values.sem_prod_ok_safe _ tin semi);
     |}.
 
 Definition prim_STORE := ("STORE"%string, primP STORE).
@@ -454,9 +508,9 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | MULHU => riscv_MULHU_instr
   | MULHSU => riscv_MULHSU_instr
   | AND => riscv_AND_instr
-  | ANDI => riscv_ANDI_instr  
+  | ANDI => riscv_ANDI_instr
   | OR => riscv_OR_instr
-  | ORI => riscv_ORI_instr  
+  | ORI => riscv_ORI_instr
   | XOR => riscv_XOR_instr
   | XORI => riscv_XORI_instr
   | LA => riscv_LA_instr

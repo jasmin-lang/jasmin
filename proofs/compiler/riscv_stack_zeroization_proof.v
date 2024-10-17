@@ -74,7 +74,7 @@ Proof.
   move => ws_small hvzero hv hm'.
   rewrite /eval_instr /=.
   rewrite hvzero /=.
-  rewrite /exec_sopn /= (truncate_word_le _ ws_small) zero_extend0 /=.
+  rewrite /exec_sopn /= /sopn_sem /= ws_small /= (truncate_word_le _ ws_small) zero_extend0 /=.
   by rewrite hv /= (truncate_word_u w1) /= !truncate_word_u /= zero_extend0 /= hm' /=.
 Qed.
 

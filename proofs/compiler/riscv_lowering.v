@@ -61,9 +61,11 @@ Definition lower_Papp1 (ws : wsize) (op : sop1) (e : pexpr) : option(riscv_exten
       then  Some(BaseOp (None, LI), [:: Papp1 (Oword_of_int U32) e])
     else None
   | Osignext U32 ws' =>
+      let%opt _ := oassert (ws' <= U32)%CMP in
       let%opt _ := oassert (is_load e) in
       Some (BaseOp(None, LOAD Signed ws'), [:: e ])
   | Ozeroext U32 ws' =>
+      let%opt _ := oassert (ws' <= U16)%CMP in
       let%opt _ := oassert (is_load e) in
       Some (BaseOp(None, LOAD Unsigned ws'), [:: e ])    
   | Olnot U32 =>

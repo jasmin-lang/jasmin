@@ -1,4 +1,4 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype fintype ssralg.
 From mathcomp Require Import word_ssrZ.
 
 Require Import
@@ -137,7 +137,7 @@ Proof.
     by rewrite /condt_beq internal_condition_kind_dec_lb// !eqxx.
   case: c1 c2 => k1 f1 s1 [] k2 f2 s2.
   rewrite /condt_beq/=.
-  move => /andP[]/andP[] /internal_condition_kind_dec_bl-> /eqP->/eqP->//.   
+  move => /andP[]/andP[] /internal_condition_kind_dec_bl-> /eqP->/eqP->//.
 Qed.
 
 #[ export ]
@@ -166,6 +166,18 @@ Notation register_ext := empty.
 Notation xregister := empty.
 Notation rflag := empty.
 
+Definition riscv_check_CAimm (checker : caimm_checker_s) ws (w : word ws) : bool :=
+  match checker with
+  | CAimmC_none => true
+  | CAimmC_riscv_12bits_signed =>
+     let i := wsigned w in
+     (-2048 <=? i)%Z && (i <=? 2047)%Z
+  | CAimmC_riscv_5bits_unsigned =>
+     let i := wunsigned w in
+     (i <=? 31)%Z
+  | CAimmC_arm_shift_amout _ | CAimmC_arm_wencoding _ | CAimmC_arm_0_8_16_24 => false
+  end.
+
 #[ export ]
 Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   { reg_size  := riscv_reg_size
@@ -178,6 +190,7 @@ Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := SP
   ; ad_fcp := riscv_fcp
+  ; check_CAimm := riscv_check_CAimm
   }.
 
   (* It looks like the program crashes if GP (global pointer) is not preserved.

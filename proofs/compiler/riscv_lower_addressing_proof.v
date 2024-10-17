@@ -149,7 +149,7 @@ Qed.
 
 Lemma shift_of_scaleP scale shift w :
   shift_of_scale scale = Some shift ->
-  riscv_sll_semi w (wrepr U8 shift) = ok (wrepr Uptr scale * w)%R.
+  riscv_sll_semi w (wrepr U8 shift) = (wrepr Uptr scale * w)%R.
 Proof.
   by case: scale => // -[|[|[]|]|] //= [<-]; rewrite /riscv_sll_semi wshl_sem.
 Qed.

@@ -65,7 +65,7 @@ Lemma sem_fopn_equiv o s :
   RISCVFopn_coreP.sem_fopn_args o s = sem_fopn_args (RISCVFopn.to_opn o) s.
 Proof.
   case: o => -[xs o] es /=; case: sem_rexprs => //= >.
-  by rewrite /exec_sopn /=; case: app_sopn.
+  by rewrite /exec_sopn /= /sopn_sem /=; case: id_valid => //=; case: app_sopn.
 Qed.
 
 Lemma sem_fopns_equiv o s :
