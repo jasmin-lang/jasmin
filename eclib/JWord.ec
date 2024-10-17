@@ -1691,6 +1691,14 @@ op POPCNT_XX (v: t) =
   let wcnt = of_int (count idfun vb) in
   flags_w (rflags_of_popcnt wcnt) wcnt.
 
+op BTR_XX (x y: t) =
+  let b = to_uint y %% size in
+  (x.[b], x.[b <- false]).
+
+op BTS_XX (x y: t) =
+  let b = to_uint y %% size in
+  (x.[b], x.[b <- true]).
+
 op PEXT_XX (v m: t) =
   let vbi = filter (fun i => m.[i]) (iota_ 0 size) in
   bits2w (map (fun i => v.[i]) vbi).

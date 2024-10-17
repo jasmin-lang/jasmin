@@ -244,11 +244,13 @@ qed.
 (* -------------------------------------------------------------------- *)
 (*
 | POPCNT of wsize    (* Count bits set to 1 *)
+| BTR    of wsize    (* bit test and reset *)
+| BTS    of wsize    (* bit test and set *)
 | PEXT   of wsize    (* parallel bits extract *)
 | PDEP   of wsize    (* parallel bits deposit *)
 *)
 (* ALU defines the operators:
-   POPCNT PEXT PDEP
+   POPCNT BTR BTS PEXT PDEP
 *) 
 
 (* -------------------------------------------------------------------- *)
