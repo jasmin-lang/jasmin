@@ -384,7 +384,7 @@ Proof.
   rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + /of_value_uincl_te -/(_ (sarr p)) /= hu.
   move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
   move=> _ /List_Forall2_inv_l -[v2' [_ [-> [/of_value_uincl_te -/(_ ty_msf) /= hu' /List_Forall2_inv_l ->]]]].
-  t_xrbindP => /= t a /hu [t' -> ha] w' /hu' -> [<-] <- /=.
+  t_xrbindP => /= t a /hu [t' -> ha] w' /hu' -> <- <- /=.
   by exists [::Varr t'] => //; constructor.
 Qed.
 
