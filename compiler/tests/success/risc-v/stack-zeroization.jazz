@@ -1,0 +1,39 @@
+inline
+fn f(reg u32 p) {
+    reg u32 r_s;
+    r_s = 0;
+    stack u32 s;
+    s = r_s;
+    r_s = s;
+    [p] = r_s;
+}
+
+#stackzero=loop
+export fn main0(reg u32 p) { f(p); }
+
+#stackzero=loop #stackzerosize=u8
+export fn main1(reg u32 p) { f(p); }
+
+#stackzero=loop #stackzerosize=u16
+export fn main2(reg u32 p) { f(p); }
+
+#stackzero=loop #stackzerosize=u32
+export fn main3(reg u32 p) { f(p); }
+
+#stackzero=loop #stackzerosize=u32
+export fn main4(reg u32 p) { f(p); }
+
+#stackzero=unrolled
+export fn main7(reg u32 p) { f(p); }
+
+#stackzero=unrolled #stackzerosize=u8
+export fn main8(reg u32 p) { f(p); }
+
+#stackzero=unrolled #stackzerosize=u16
+export fn main9(reg u32 p) { f(p); }
+
+#stackzero=unrolled #stackzerosize=u32
+export fn main10(reg u32 p) { f(p); }
+
+#stackzero=unrolled #stackzerosize=u32
+export fn main11(reg u32 p) { f(p); }

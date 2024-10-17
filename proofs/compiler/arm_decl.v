@@ -306,6 +306,7 @@ Definition arm_check_CAimm (checker : caimm_checker_s) ws (w : word ws) : bool :
   | CAimmC_arm_shift_amout sk => check_shift_amount sk (wunsigned w)
   | CAimmC_arm_wencoding ew => check_ei_kind ew w
   | CAimmC_arm_0_8_16_24 => let x := wunsigned w in x \in [::0;8;16;24]%Z
+  | CAimmC_riscv_12bits_signed | CAimmC_riscv_5bits_unsigned => false
   end.
 
 #[ export ]

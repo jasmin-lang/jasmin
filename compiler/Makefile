@@ -17,7 +17,8 @@ CHECKCATS ?= \
 	x86-64-stack-zero-loop \
 	x86-64-stack-zero-unrolled \
 	arm-m4-stack-zero-loop \
-	arm-m4-stack-zero-unrolled
+	arm-m4-stack-zero-unrolled \
+	risc-v
 
 # --------------------------------------------------------------------
 DESTDIR  ?=
