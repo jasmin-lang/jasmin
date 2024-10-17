@@ -91,6 +91,7 @@ ocaml:
     paths:
     - compiler/_build/
     - compiler/jasmin2tex
+    - compiler/jasmin2ec
     - compiler/jasminc
     - compiler/jasmin-ct
 
@@ -234,7 +235,7 @@ test-extract-to-ec:
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true --arg testDeps true --argstr ecRef $EASYCRYPT_REF
     WHY3_CONF: $CI_PROJECT_DIR/why3.conf
-    ECARGS: -why3 $WHY3_CONF -I Jasmin:$CI_PROJECT_DIR/eclib
+    ECARGS: -why3 $WHY3_CONF
     JSJOBS: $(NIX_BUILD_CORES)
   extends: .common
   needs:

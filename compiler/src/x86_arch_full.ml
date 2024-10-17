@@ -73,8 +73,8 @@ module X86_core = struct
     | DIV _ -> false (* Not DOIT *)
     | IDIV _ -> false (* Not DOIT *)
     | IMUL _ -> true
-    | IMULr _ -> false (* Not DOIT *)
-    | IMULri _ -> false (* Not DOIT *)
+    | IMULr _ -> true
+    | IMULri _ -> true
     | INC _ -> true
     | LEA _ -> true
     | LFENCE -> false (* Not DOIT *)
@@ -85,6 +85,7 @@ module X86_core = struct
     | MOVSX _ -> true
     | MOVV _ -> true
     | MOVX _ -> true
+    | POR -> true
     | MOVZX _ -> true
     | MUL _ -> true
     | MULX_lo_hi _ -> true

@@ -52,32 +52,38 @@ Local Notation E n := (sopn.ADExplicit n None).
    argument. *)
 Definition Oarm_add_large_imm_instr : instruction_desc :=
   let ty := sword arm_reg_size in
-  let semi := fun (x y : word arm_reg_size) => ok (x + y)%R in
+  let tin := [:: ty; ty] in
+  let semi := fun (x y : word arm_reg_size) => (x + y)%R in
   {| str    := (fun _ => "add_large_imm"%string)
-   ; tin    := [:: ty; ty]
+   ; tin    := tin
    ; i_in   := [:: E 1; E 2]
    ; tout   := [:: ty]
    ; i_out  := [:: E 0]
    ; conflicts := [:: (APout 0, APin 0)]
-   ; semi   := semi
-   ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] semi refl_equal
-   ; i_safe := [::] |}.
+   ; semi   := sem_prod_ok tin semi
+   ; semu   := @values.vuincl_app_sopn_v [:: ty; ty] [:: ty] (sem_prod_ok tin semi) refl_equal
+   ; i_safe := [::]
+   ; i_valid := true
+   ; i_safe_wf := refl_equal
+   ; i_semi_errty :=  fun _ => sem_prod_ok_error (tin:=tin) semi _
+   ; i_semi_safe := fun _ => values.sem_prod_ok_safe (tin:=tin) semi
+ |}.
 
 Definition smart_li_instr (ws : wsize) : instruction_desc :=
-  mk_instr_desc
+  mk_instr_desc_safe
     (pp_sz "smart_li" ws)
     [:: sword ws ] [:: E 0 ]
     [:: sword ws ] [:: E 1 ]
-    (fun x => ok x)
-    [::].
+    (fun x => x)
+    true.
 
 Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
-  mk_instr_desc
+  mk_instr_desc_safe
     (pp_sz "smart_li_cc" ws)
     [:: sword ws; sbool; sword ws ] [:: E 0; E 2; E 1 ]
     [:: sword ws ] [:: E 1 ]
-    (fun x b y => ok (if b then x else y))
-    [::].
+    (fun x b y => if b then x else y)
+    true.
 
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with

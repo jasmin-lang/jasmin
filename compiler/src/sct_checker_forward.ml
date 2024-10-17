@@ -729,7 +729,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
         let do_indirect lp2 le2 lp3 le3 =
           let lp = Env.fresh2 env in
           let le = Env.fresh2 env in
-          (* TODO why is condition expression also added to constraints? *)
+          (* The condition expression is also added to the constraints because it can be deduced from the result value*)
           VlPairs.add_le l1 lp; VlPairs.add_le lp2 lp; VlPairs.add_le lp3 lp;
           VlPairs.add_le l1 le; VlPairs.add_le le2 le; VlPairs.add_le le3 le;
           Indirect(lp, le) in

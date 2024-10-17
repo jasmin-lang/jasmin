@@ -187,9 +187,9 @@ Proof.
     rewrite /eval_instr /=.
     rewrite wrepr0.
     have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
-    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /=.
+    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
       rewrite /x86_MOV.
-      by rewrite /check_size_8_64 hsmall /=.
+      by rewrite /size_8_64 hsmall /=.
     rewrite (@get_var_neq _ _ _ rspi);
       last by move=> /= h; apply /rsp_nin /sv_of_listP;
       rewrite !in_cons /= -h eqxx /= ?orbT.
@@ -495,8 +495,8 @@ Proof.
     rewrite /eval_instr /=.
     do 6 rewrite (@get_var_neq _ _ _ vlri) //.
     rewrite [get_var _ _ vlri]/get_var hsr.(srll_vlr) /=.
-    rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /= /x86_VMOVDQ.
-    rewrite wsize_nle_u64_check_128_256 /=; last by apply /negbTE /negP.
+    rewrite /exec_sopn /= truncate_word_u /= /sopn_sem /sopn_sem_ /= /x86_VMOVDQ.
+    rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
     rewrite get_var_eq //=.
     rewrite get_var_neq;
       last by move=> h; apply /rsp_nin /sv_of_listP;
@@ -646,7 +646,7 @@ Local Opaque wsize_size.
     * rewrite (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
       have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
-      + rewrite /exec_sopn /= /sopn_sem /=.
+      + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
       rewrite /of_estate /= /lnext_pc.
@@ -871,9 +871,9 @@ Local Opaque wsize_size Z.of_nat.
     rewrite /eval_instr /=.
     rewrite wrepr0.
     have -> /=: exec_sopn (Ox86 (MOV ws)) [:: @Vword ws 0] = ok [:: @Vword ws 0].
-    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /=.
+    + rewrite /exec_sopn /= truncate_word_u /sopn_sem /sopn_sem_ /=.
       rewrite /x86_MOV.
-      by rewrite /check_size_8_64 hsmall /=.
+      by rewrite /size_8_64 hsmall /=.
     rewrite /get_var /= hsr.(sr_rsp) /=.
     rewrite !truncate_word_u /=.
     rewrite hm' /=.
@@ -1126,8 +1126,8 @@ Local Opaque wsize_size Z.of_nat.
       by move: halign; rewrite /is_align WArray.p_to_zE => /eqP.
     rewrite /eval_instr /=.
     rewrite [get_var _ _ vlri]/get_var hsr.(srul_vlr) /=.
-    rewrite /exec_sopn /= (@truncate_word_u ws) /= /sopn_sem /= /x86_VMOVDQ.
-    rewrite wsize_nle_u64_check_128_256 /=; last by apply /negbTE /negP.
+    rewrite /exec_sopn /= (@truncate_word_u ws) /= /sopn_sem /sopn_sem_ /= /x86_VMOVDQ.
+    rewrite wsize_nle_u64_size_128_256 /=; last by apply /negbTE /negP.
     rewrite /get_var /= hsr.(sr_rsp) /= !truncate_word_u /=.
     rewrite hm' /=.
     rewrite /of_estate /= /lnext_pc /=.
@@ -1230,7 +1230,7 @@ Local Opaque wsize_size.
     * rewrite (find_instr_skip hlinear) /=.
       rewrite /eval_instr /=.
       have -> /=: exec_sopn (Oasm (ExtOp (Oset0 ws))) [::] = ok [:: @Vword ws 0].
-      + rewrite /exec_sopn /= /sopn_sem /=.
+      + rewrite /exec_sopn /= /sopn_sem /sopn_sem_ /=.
         rewrite /Oset0_instr.
         by move /negP/negPf : hlarge => -> /=.
       rewrite /of_estate /= /lnext_pc.

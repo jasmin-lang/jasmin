@@ -2,7 +2,7 @@
 
 let elpi =
   coq.ocamlPackages.elpi.override {
-    version = "v1.18.2";
+    version = "v1.20.0";
   }
 ; in
 

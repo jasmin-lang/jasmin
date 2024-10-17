@@ -1,0 +1,16 @@
+export
+fn por(reg u64 x y p) -> reg u64 {
+    #mmx reg u64 a b;
+    stack u64 s;
+    a = x;
+    b = y;
+    s = x;
+    a = #POR(a, b);
+    a = #POR(a, [p]);
+    a = #POR(a, s);
+    a |= b;
+    a |= [p];
+    a |= s;
+    x = a;
+    return x;
+}

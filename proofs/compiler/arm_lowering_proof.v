@@ -56,7 +56,6 @@ Proof.
   lia.
 Qed.
 
-
 Section PROOF.
 
 Context
@@ -970,8 +969,7 @@ Proof.
     change (wsize_bits _) with (wsize_size U256).
     by rewrite wunsigned_sub_mod.
   }
-
-  all: by rewrite !zero_extend_u.
+  all: rewrite /sopn_sem_ /= !zero_extend_u //.
 Qed.
 
 Lemma lower_pexpr_auxP e :
@@ -1193,7 +1191,7 @@ Proof.
 
   all: case: ws hws hwrite hmn => // hws hwrite [?]; subst mn.
   all: rewrite /exec_sopn /=.
-  all: rewrite /sopn_sem /=.
+  all: rewrite /sopn_sem /sopn_sem_ /=.
   all: rewrite ?truncate_word_le //.
 
   1-3: rewrite /= zero_extend_u.

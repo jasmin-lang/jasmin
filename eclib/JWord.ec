@@ -88,6 +88,9 @@ proof. by rewrite /max gt0_size. qed.
 
 hint exact : ge0_size gt0_size gt0_modulus ge2_modulus ge0_modulus max_size.
 
+lemma half_modulus : 2 ^ (size -1) = modulus %/ 2.
+proof. rewrite (expr_pred 2 size) // /#. qed.
+
 (* --------------------------------------------------------------------- *)
 (* Conversions with int                                                  *)
 
@@ -137,6 +140,9 @@ proof. by apply to_uintK. qed.
 
 (*hint simplify of_uintK@1. *)
 hint simplify to_uintK'@0.
+
+lemma to_uintK_small i : 0 <= i < modulus => to_uint (of_int i) = i.
+proof. move=> /= ?; rewrite of_uintK modz_small /= /#. qed.
 
 lemma of_sintK (x:int) :
    to_sint (of_int x) = smod (x %% modulus).
@@ -753,6 +759,21 @@ proof. by rewrite -addrA -of_intS. qed.
 
 hint simplify (addr0_s, add0r_s, mul1r_s, mulr1_s, mul0r_s, mulr0_s, addA_ofint).
 
+lemma to_sint_unsigned (x : t) : 0 <= to_sint x => to_sint x = to_uint x.
+proof. smt(to_sintE to_uint_cmp). qed.
+
+lemma to_sintK_small i : min_sint <= i <= max_sint => to_sint (of_int i) = i.
+proof. rewrite of_sintK /smod half_modulus /#. qed.
+
+lemma to_sintD_small (a b : t):
+  min_sint <= to_sint a + to_sint b <= max_sint =>
+  to_sint (a + b) = to_sint a + to_sint b.
+proof. rewrite !to_sintE to_uintD /smod /= half_modulus /#. qed.
+
+lemma to_sintB_small (a b : t):
+  min_sint <= to_sint a - to_sint b <= max_sint =>
+  to_sint (a - b) = to_sint a - to_sint b.
+proof. rewrite !to_sintE /smod /= half_modulus to_uintD to_uintN modzDmr /#. qed.
 
 
 (* --------------------------------------------------------------------- *)

@@ -332,10 +332,12 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
         else kb true sz (LowerCopn (Ox86 (VPAND sz)) [:: a ; b ])
       end
 
-
     | Olor sz =>
       if (sz ≤ U64)%CMP
-      then k8 sz (LowerFopn sz (Ox86 (OR sz)) [:: a ; b ] (Some U32))
+      then
+        if [&& is_regx_l x & sz == U64 ]
+        then k8 sz (LowerDiscardFlags 0 (Ox86 POR) [:: a ; b ])
+        else k8 sz (LowerFopn sz (Ox86 (OR sz)) [:: a ; b ] (Some U32))
       else kb true sz (LowerCopn (Ox86 (VPOR sz)) [:: a ; b ])
     | Olxor sz =>
       if (sz ≤ U64)%CMP
@@ -540,7 +542,7 @@ Definition lower_addcarry sz (sub: bool) (xs: lvals) tg (es: pexprs) : seq instr
   else [:: Copn xs tg (op sz) es ].
 
 Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
-  if check_size_16_64 sz is Ok _ then
+  if size_16_64 sz then
   match xs, es with
   | [:: r1; r2 ], [:: x ; y ] =>
     let vi := var_info_of_lval r2 in
@@ -601,7 +603,7 @@ Fixpoint lower_i (i:instr) : cmd :=
      [:: MkI ii (Cfor v (d, lo, hi) (conc_map lower_i c))]
   | Cwhile a c e c' =>
      let '(pre, e) := lower_condition (var_info_of_ii ii) e in
-       map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI dummy_instr_info) pre) e (conc_map lower_i c')]
+       map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI ii) pre) e (conc_map lower_i c')]
   | _ =>   map (MkI ii) [:: ir]
   end.
 

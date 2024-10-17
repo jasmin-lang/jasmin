@@ -1,0 +1,3 @@
+fn test () {
+    reg u32 x = 0 if true;
+}

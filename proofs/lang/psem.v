@@ -556,14 +556,14 @@ Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
   List.map type_of_val vs' = sopn_tout o.
 Proof.
   rewrite /exec_sopn /sopn_tout /sopn_sem.
-  t_xrbindP => p _ <-;apply type_of_val_ltuple.
+  t_xrbindP => ? _ <- ? _ <-;apply type_of_val_ltuple.
 Qed.
 
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
-  rewrite /exec_sopn /sopn_tin /sopn_sem.
-  case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _.
+  rewrite /exec_sopn /sopn_tin /sopn_sem /sopn_sem_; t_xrbindP => _ _ <-.
+  case (get_instr_desc o) => /= _ tin _ tout _ _ semi _ _ _ _ _ _.
   t_xrbindP => p hp _.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
   by t_xrbindP => sv /= /of_val_subtype -> /hrec.
@@ -1391,7 +1391,7 @@ Lemma vuincl_exec_opn {sip : SemInstrParams asm_op syscall_state} o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
 Proof.
-  rewrite /exec_sopn /sopn_sem => vs_vs' ho.
+  rewrite /exec_sopn /sopn_sem => vs_vs'; apply rbindP => ?; apply: rbindP => ? /assertP -> /= [<-] ho.
   exact: (get_instr_desc o).(semu) vs_vs' ho.
 Qed.
 
@@ -1401,7 +1401,7 @@ Lemma truncate_val_exec_sopn {sip : SemInstrParams asm_op syscall_state} o vs vs
   exec_sopn o vs = ok v.
 Proof.
   move=> htr; rewrite /exec_sopn.
-  t_xrbindP=> w ok_w <-.
+  t_xrbindP => ? -> /=  w ok_w <-.
   by rewrite (truncate_val_app_sopn htr ok_w).
 Qed.
 
@@ -1411,7 +1411,7 @@ Lemma exec_sopn_truncate_val {sip : SemInstrParams asm_op syscall_state} o vs v 
     mapM2 ErrType truncate_val (sopn_tin o) vs = ok vs' /\
     exec_sopn o vs' = ok v.
 Proof.
-  rewrite /exec_sopn; t_xrbindP=> w ok_w <-.
+  rewrite /exec_sopn; t_xrbindP=> ? -> /= w ok_w <-.
   have [? [-> {}ok_w]] := app_sopn_truncate_val ok_w.
   eexists; split; first by reflexivity.
   by rewrite ok_w.

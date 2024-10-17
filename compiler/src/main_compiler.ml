@@ -182,14 +182,12 @@ let main () =
           let out = open_out !ecfile in
           let fmt = Format.formatter_of_out_channel out in
           fmt, fun () -> close_out out in
-      let fnames =
-        match !ec_list with
-        | [] -> List.map (fun { f_name ; _ } -> f_name.fn_name) (snd prog)
-        | fnames -> fnames in
       begin try
         BatPervasives.finally
           (fun () -> close ())
-          (fun () -> ToEC.extract Arch.reg_size Arch.asmOp fmt !model prog fnames)
+          (fun () ->
+            ToEC.extract prog Arch.reg_size Arch.asmOp !model !ec_list (Some !ec_array_path) fmt
+          )
           ()
       with e ->
         BatPervasives.ignore_exceptions

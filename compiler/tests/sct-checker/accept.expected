@@ -161,6 +161,14 @@ output corruption: #public
  constraints:
 
 
+File conditional-expr.jazz:
+nomodmsf leak_cond : #secret * #[ptr = public, val = public] *
+                     #[ptr = public, val = public] ->
+#[ptr = secret, val = secret]
+output corruption: #public
+ constraints:
+
+
 File corruption.jazz:
 nomodmsf corrupts_memory : #public * #secret *
                            #[ptr = public, val = secret] *
@@ -207,6 +215,37 @@ output corruption: #public
 File local-stack-array.jazz:
 modmsf main :  ->
 #public
+output corruption: #public
+ constraints:
+
+
+File mmx.jazz:
+nomodmsf spill_msf : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+nomodmsf return_msf : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+nomodmsf take_msf : #msf ->
+#msf
+output corruption: #public
+ constraints:
+
+
+modmsf init_mmx_msf :  ->
+#msf
+output corruption: #public
+ constraints:
+
+
+nomodmsf protect_mmx : #poly = { n = ?490, s = secret} * #msf ->
+#poly = { n = ?490, s = ?490}
 output corruption: #public
  constraints:
 

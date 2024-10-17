@@ -100,14 +100,17 @@ Proof.
 
   (* Introduce and rewrite all semantic checks. *)
   all: move: hsemop.
-  all: cbn.
+  all: rewrite /sopn_sem_ /= /mk_semi2_2_shifted /mk_semi3_2_shifted /mk_semi1_shifted /=.
+  all: rewrite /=; t_xrbindP=> *; try subst v; t_eq_rewrites.
+  all: case: b; try reflexivity.
+  all: rewrite /mk_semi_cond; cbn.
   all:
     try match goal with
-    | [ |- ?f _ = ok _ -> _ ] => rewrite /f
+    | [ h : _ = ok _ |- _ ] => by rewrite h
     end.
-  all: t_xrbindP=> *; subst v; t_eq_rewrites.
-
-  all: by case: b.
+  all: by match goal with
+  | [ h : _ = ok _ |- _ ] => case: h => <-
+  end.
 Qed.
 
 (* TODO_ARM: Is this the best way of expressing the [write_val] condition? *)

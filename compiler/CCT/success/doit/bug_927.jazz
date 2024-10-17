@@ -1,0 +1,8 @@
+export fn multiplications(#secret reg u64 x y) -> #secret reg u64 {
+  x = x;
+  reg u64 z t;
+  z, t = x * y;
+  t *= z;
+  t *= 17;
+  return t;
+}

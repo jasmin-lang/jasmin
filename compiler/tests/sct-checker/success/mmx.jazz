@@ -1,0 +1,31 @@
+fn spill_msf(reg u64 msf) -> #msf reg u64 {
+    #mmx reg u64 _msf;
+    _msf = #mov_msf(msf);
+    msf = #mov_msf(_msf);
+    return msf;
+}
+
+fn return_msf(reg u64 msf) -> #msf #mmx reg u64 {
+    #mmx reg u64 _msf;
+    _msf = #mov_msf(msf);
+    return _msf;
+}
+
+fn take_msf(#mmx reg u64 _msf) -> #msf reg u64 {
+    reg u64 msf;
+    msf = #mov_msf(_msf);
+    return msf;
+}
+
+export
+fn init_mmx_msf() -> reg u64 {
+    reg u64 msf;
+    msf = #init_msf();
+    msf = spill_msf(msf);
+    return msf;
+}
+
+fn protect_mmx(#mmx reg u64 x, #mmx reg u64 msf) -> #mmx reg u64 {
+    x = #protect(x, msf);
+    return x;
+}

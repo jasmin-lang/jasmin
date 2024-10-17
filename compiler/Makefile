@@ -42,7 +42,7 @@ all: build
 build: native
 
 define do-build
-	$(RM) jasminc jasmin2tex jasmin-ct
+	$(RM) jasminc jasmin2tex jasmin-ct jasmin2ec
 	dune build @check @install
 	for p in _build/install/default/bin/*; do ln -sf $$p $$(basename $$p); done
 endef
@@ -67,18 +67,19 @@ check-ci:
 
 clean:
 	dune clean
-	$(RM) jasminc jasmin2tex jasmin-ct
+	$(RM) jasminc jasmin2tex jasmin-ct jasmin2ec
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T jasminc $(DESTDIR)$(BINDIR)/jasminc
 	$(INSTALL) -m 0755 -T jasmin2tex $(DESTDIR)$(BINDIR)/jasmin2tex
 	$(INSTALL) -m 0755 -T jasmin-ct $(DESTDIR)$(BINDIR)/jasmin-ct
+	$(INSTALL) -m 0755 -T jasmin2ec $(DESTDIR)$(BINDIR)/jasmin2ec
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/jasminc
 	$(RM) $(DESTDIR)$(BINDIR)/jasmin2tex
-	$(RM) $(DESTDIR)$(BINDIR)/jasmin-ct
+	$(RM) $(DESTDIR)$(BINDIR)/jasmin2ec
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz

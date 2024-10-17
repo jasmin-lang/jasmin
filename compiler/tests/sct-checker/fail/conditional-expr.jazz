@@ -1,0 +1,11 @@
+// After running, the return type for x must be #[ptr = secret, val = secret] because leaking the values will leak the result of the condition
+
+#sct="
+    secret *
+    { ptr: public, val: public } *
+    { ptr: public, val: public } ->
+    { ptr: secret, val: public }"
+fn leak_cond(reg u64 sec, reg ptr u64[1] x y) -> reg ptr u64[1] {
+    x = sec == 0 ? x : y;
+    return x;
+}

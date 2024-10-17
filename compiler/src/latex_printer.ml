@@ -19,6 +19,8 @@ let symbol s fmt () = latex s fmt ""
 let kw = latex "kw"
 let ptype = latex "type"
 let dname = latex "dname"
+let pannot = latex "annotation"
+let pprim = latex "primitive"
 let arrow = symbol "arrow"
 let sharp fmt () = F.fprintf fmt "\\#"
 let openbrace fmt () = F.fprintf fmt "\\{"
@@ -40,8 +42,13 @@ let pp_cc =
 let pp_var fmt x =
   F.fprintf fmt "%s" (L.unloc x)
 
+let pp_castop fmt =
+  function
+  | None -> ()
+  | Some ty -> ptype fmt (string_of_castop1 (L.unloc ty))
+
 let pp_op2 fmt =
-  let f s p = F.fprintf fmt "%s%a" p ptype (string_of_castop s) in
+  let f s p = F.fprintf fmt "%s%a" p pp_castop s in
   let ret s = F.fprintf fmt "%s" s in
   function
   | `Add s -> f s "+"
@@ -116,18 +123,23 @@ let pp_space fmt _ =
 
 let pp_attribute_key fmt s =
   if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false) s
-  then F.fprintf fmt "%s" s
+  then pannot fmt s
   else F.fprintf fmt "%S" s
 
-let pp_aligned fmt = function
-  | None -> ()
-  | Some `Aligned -> F.fprintf fmt "%aaligned " sharp ()
-  | Some `Unaligned -> F.fprintf fmt "%aunaligned " sharp ()
+let string_of_align =
+  function
+  | `Aligned -> "aligned"
+  | `Unaligned -> "unaligned"
 
-let rec pp_simple_attribute fmt a = 
-  match L.unloc a with 
+let pp_aligned =
+  pp_opt (fun fmt al ->
+      F.fprintf fmt "%a%a " sharp () pannot (string_of_align al)
+    )
+
+let rec pp_simple_attribute fmt a =
+  match L.unloc a with
   | Aint i -> Z.pp_print fmt i
-  | Aid s | Astring s -> Format.fprintf fmt "%s" s
+  | Aid s | Astring s -> pannot fmt s
   | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
 
@@ -139,12 +151,18 @@ and pp_attribute fmt = function
   | None -> ()
 
 and pp_annotation fmt (id, atr) =
-  Format.fprintf fmt "@[%a%a@]" pp_attribute_key (L.unloc id) pp_attribute atr
+  Format.fprintf fmt "%a%a" pp_attribute_key (L.unloc id) pp_attribute atr
 
 let pp_top_annotations fmt annot =
   match annot with
   | []  -> ()
   | [a] -> Format.fprintf fmt "@[%a%a\\\\@]\n" sharp () pp_annotation a
+  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
+
+let pp_inline_annotations fmt annot =
+  match annot with
+  | []  -> ()
+  | [a] -> Format.fprintf fmt "%a%a " sharp () pp_annotation a
   | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
 
 let rec pp_expr_rec prio fmt pe =
@@ -161,7 +179,7 @@ let rec pp_expr_rec prio fmt pe =
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
   | PECombF (f, args) -> 
     F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
-  | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pp_var f (pp_list ", " pp_expr) args
+  | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pprim (L.unloc f) (pp_list ", " pp_expr) args
   | PEOp1 (op, e) ->
     let p = prio_of_op1 op in
     optparent fmt prio p "(";
@@ -228,6 +246,9 @@ let pp_storage fmt s =
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty
 
+let pp_annot_sto_ty fmt (annot, stoty) =
+  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_sto_ty stoty
+
 let pp_args fmt (sty, xs) =
   F.fprintf
     fmt
@@ -235,12 +256,27 @@ let pp_args fmt (sty, xs) =
     pp_sto_ty sty
     (pp_list " " pp_var) xs
 
+let pp_decl fmt (x: vardecl L.located) =
+  let x, e = L.unloc x in
+  let pp fmt = F.fprintf fmt " = %a" pp_expr in
+  F.fprintf fmt "%s%a" (L.unloc x) (pp_opt pp) e
+
+let pp_decls fmt (sty, vd) =
+  F.fprintf
+    fmt
+    "%a %a"
+    pp_sto_ty sty
+    (pp_list " " pp_decl) vd
+
+let pp_annot_args fmt  (annot, args) =
+  F.fprintf fmt "%a%a" pp_inline_annotations annot pp_args args
+
 let pp_rty =
   pp_opt
     (fun fmt tys ->
        F.fprintf fmt " %a %a"
          arrow ()
-         (pp_list ", " (fun fmt (_annot, ty) -> pp_sto_ty fmt ty)) tys)
+         (pp_list ", " pp_annot_sto_ty) tys)
 
 let pp_inbraces depth p fmt x =
   openbrace fmt ();
@@ -263,8 +299,8 @@ let pp_eqop fmt op =
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
-let pp_vardecls fmt d =
-  F.fprintf fmt "%a;" pp_args d
+let pp_vardecls fmt (d:vardecls) =
+  F.fprintf fmt "%a;" pp_decls d
 
 let rec pp_instr depth fmt (annot, p) =
   if annot <> [] then F.fprintf fmt "%a%a" indent depth pp_top_annotations annot;
@@ -347,10 +383,9 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
-    (pp_list ", " (fun fmt (_annot, d) -> pp_args fmt d)) pdf_args
+    (pp_list ", " pp_annot_args) pdf_args
     pp_rty pdf_rty
-    (pp_inbraces 0 pp_funbody) pdf_body;
-  F.fprintf fmt eol
+    (pp_inbraces 0 pp_funbody) pdf_body
 
 let pp_string fmt s =
   s |> L.unloc |> F.asprintf "%S" |> String.iter @@ function
@@ -364,8 +399,7 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
     kw "param"
     pp_type ppa_ty
     dname (L.unloc ppa_name)
-    pp_expr ppa_init;
-  F.fprintf fmt eol
+    pp_expr ppa_init
 
 let pp_pgexpr fmt = function
   | GEword e -> pp_expr fmt e 
@@ -380,8 +414,7 @@ let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"
     pp_type pgd_type
     dname (L.unloc pgd_name)
-    pp_pgexpr pgd_val;
-  F.fprintf fmt eol
+    pp_pgexpr pgd_val
 
 let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
@@ -397,8 +430,7 @@ let rec pp_pitem fmt pi =
       Option.may (fun name ->
           F.fprintf fmt "%a %s " kw "from" (L.unloc name)) in
       F.fprintf fmt "%a%a " pp_from from kw "require";
-      List.iter (pp_path fmt) s;
-      F.fprintf fmt eol
+      List.iter (pp_path fmt) s
   | PNamespace (ns, pis) ->
      (* TODO: ident within namespaces? *)
      F.fprintf fmt "%a %s " kw "namespace" (L.unloc ns);
@@ -406,8 +438,7 @@ let rec pp_pitem fmt pi =
      F.fprintf fmt eol;
      List.iter (pp_pitem fmt) pis;
      F.fprintf fmt eol;
-     closebrace fmt ();
-     F.fprintf fmt eol
+     closebrace fmt ()
 
 let pp_prog fmt =
-  List.iter (F.fprintf fmt "%a" pp_pitem)
+  F.pp_print_list ~pp_sep:(fun fmt () -> F.fprintf fmt eol) pp_pitem fmt

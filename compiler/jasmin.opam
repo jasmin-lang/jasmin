@@ -16,6 +16,7 @@ install: [
   cp -L "_build/install/default/bin/jasminc" "%{prefix}%/bin/jasminc"
   cp -L "_build/install/default/bin/jasmin2tex" "%{prefix}%/bin/jasmin2tex"
   cp -L "_build/install/default/bin/jasmin-ct" "%{prefix}%/bin/jasmin-ct"
+  cp -L "_build/install/default/bin/jasmin2ec" "%{prefix}%/bin/jasmin2ec"
   mkdir -p "%{prefix}%/lib/jasmin/easycrypt"
   sh -c "cp ../eclib/*.ec \"%{prefix}%/lib/jasmin/easycrypt/\""
 ]
