@@ -77,6 +77,7 @@ compiler/linear_util.v
 compiler/linearization.v
 compiler/linearization_proof.v
 compiler/load_constants_in_cond.v
+compiler/load_constants_in_cond_proof.v
 compiler/lowering.v
 compiler/lower_spill.v
 compiler/lower_spill_proof.v

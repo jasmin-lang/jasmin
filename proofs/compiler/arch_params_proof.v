@@ -27,7 +27,7 @@ Unset Printing Implicit Defensive.
 
 Record h_lowering_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
-  `{asm_e : asm_extra} 
+  `{asm_e : asm_extra}
   (lowering_options : Type)
   (loparams : lowering_params lowering_options) :=
   {
@@ -63,7 +63,7 @@ Record h_lower_addressing_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra}
   (laparams : lower_addressing_params) :=
-  { 
+  {
     hlap_lower_address_prog_invariants :
       forall fresh_reg p p',
       lap_lower_address laparams fresh_reg p = ok p' ->
@@ -91,6 +91,24 @@ Record h_lower_addressing_params
       sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr
   }.
 
+Record h_pre_lowering_params
+  {wsw : WithSubWord}
+  {asm_op syscall_state : Type}
+  {dc:DirectCall}
+  {eparams : EstateParams syscall_state}
+  {spparams : SemPexprParams}
+  {siparams : SemInstrParams asm_op syscall_state}
+  (plp : pre_lowering_params) :=
+  {
+    hplp_progP :
+     forall {pT : progT} {sCP : semCallParams}
+            fresh_reg (p p': prog),
+      plp_prog plp fresh_reg p = ok p' ->
+      forall ev scs mem f vs scs' mem' vr,
+      sem_call p ev scs mem f vs scs' mem' vr ->
+      sem_call p' ev scs mem f vs scs' mem' vr
+  }.
+
 Record h_architecture_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
@@ -115,6 +133,8 @@ Record h_architecture_params
     ok_lip_tmp2 :
       exists r : reg_t,
         of_ident (linearization.lip_tmp2 (ap_lip aparams)) = Some r;
+
+    ok_plp : h_pre_lowering_params (ap_plp aparams);
 
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);
@@ -141,3 +161,4 @@ Record h_architecture_params
         -> exec_sopn (Oasm op) [:: vx ] = ok v
         -> List.Forall2 value_uincl v [:: vx ];
   }.
+

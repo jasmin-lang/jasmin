@@ -32,7 +32,7 @@ Definition fresh_word ii n ws :=
          vname := fresh_reg ii n "__tmp__"%string (sword ws) |};
      v_info := dummy_var_info |}.
 
-Definition process_constant ii n ws e : seq instr_r * pexpr * Sv.t :=
+Definition process_constant ii n (ws:wsize) e : seq instr_r * pexpr * Sv.t :=
   if is_wconst_of_size ws e is Some z then
     let x := fresh_word ii n ws in
     ([:: Cassgn x AT_none (sword ws) e], Pvar (mk_lvar x), Sv.singleton x)
@@ -92,7 +92,7 @@ Fixpoint load_constants_i (i : instr) :=
     Let: (c, e) := process_condition ii e in
     Let c1 := load_constants_c load_constants_i c1 in
     Let c2 := load_constants_c load_constants_i c2 in
-    ok (map (MkI ii) (c ++ [:: Cwhile a c1 e c2]))
+    ok [:: MkI ii (Cwhile a (c1 ++ map (MkI ii) c) e c2)]
   end.
 
 End BODY.
