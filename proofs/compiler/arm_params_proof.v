@@ -937,6 +937,9 @@ Proof.
   exact: (word_uincl_zero_ext w' hws').
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+Lemma arm_ok_plp {dc : DirectCall} : h_pre_lowering_params (ap_plp arm_params).
+Proof. by constructor; move=> pT sCP fresh_reg p _ [<-]. Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -946,6 +949,7 @@ Definition arm_h_params : h_architecture_params arm_params :=
     hap_hlip        := arm_hliparams;
     ok_lip_tmp      := arm_ok_lip_tmp;
     ok_lip_tmp2     := arm_ok_lip_tmp2;
+    ok_plp          := arm_ok_plp;
     hap_hlop        := arm_hloparams;
     hap_hlap        := arm_hlaparams;
     hap_hagp        := arm_hagparams;
