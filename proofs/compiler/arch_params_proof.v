@@ -27,7 +27,7 @@ Unset Printing Implicit Defensive.
 
 Record h_lowering_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
-  `{asm_e : asm_extra} 
+  `{asm_e : asm_extra}
   (lowering_options : Type)
   (loparams : lowering_params lowering_options) :=
   {
@@ -63,7 +63,7 @@ Record h_lower_addressing_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra}
   (laparams : lower_addressing_params) :=
-  { 
+  {
     hlap_lower_address_prog_invariants :
       forall fresh_reg p p',
       lap_lower_address laparams fresh_reg p = ok p' ->
@@ -141,3 +141,4 @@ Record h_architecture_params
         -> exec_sopn (Oasm op) [:: vx ] = ok v
         -> List.Forall2 value_uincl v [:: vx ];
   }.
+

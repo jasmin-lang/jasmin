@@ -16,6 +16,7 @@ Require Import
 Require Import
   linearization
   linearization_proof
+  load_constants_in_cond_proof
   lowering
   stack_alloc
   stack_alloc_proof
@@ -599,7 +600,6 @@ Proof.
   apply: List.Forall2_cons; last done.
   exact: (word_uincl_zero_ext w' hws').
 Qed.
-
 
 (* ------------------------------------------------------------------------ *)
 

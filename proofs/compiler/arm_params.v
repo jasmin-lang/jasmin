@@ -296,6 +296,7 @@ Definition arm_params : architecture_params lowering_options :=
   {|
     ap_sap := arm_saparams;
     ap_lip := arm_liparams;
+    ap_plp := false;
     ap_lop := arm_loparams;
     ap_lap := {| lap_lower_address := fun _ p => ok p |};
     ap_agp := arm_agparams;
