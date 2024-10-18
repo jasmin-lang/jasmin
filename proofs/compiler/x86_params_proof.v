@@ -946,9 +946,6 @@ Proof.
   all: exact: word_uincl_zero_ext.
 Qed.
 
-(* ------------------------------------------------------------------------ *)
-Lemma x86_ok_plp {dc : DirectCall} : h_pre_lowering_params (ap_plp x86_params).
-Proof. by constructor; move=> pT sCP fresh_reg p _ [<-]. Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -958,7 +955,6 @@ Definition x86_h_params {call_conv : calling_convention} : h_architecture_params
     hap_hlip        := x86_hliparams;
     ok_lip_tmp      := x86_ok_lip_tmp;
     ok_lip_tmp2     := x86_ok_lip_tmp2;
-    ok_plp          := x86_ok_plp;
     hap_hlop        := x86_hloparams;
     hap_hlap        := x86_hlaparams;
     hap_hagp        := x86_hagparams;

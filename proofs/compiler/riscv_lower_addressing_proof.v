@@ -33,6 +33,7 @@ Context
   {sCP : semCallParams}.
 
 Context (fresh_reg : string -> stype -> Ident.ident).
+
 Context (p p' : prog).
 
 Hypothesis ok_p' : lower_addressing_prog fresh_reg p = ok p'.

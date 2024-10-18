@@ -8,7 +8,6 @@ Require Import
   fexpr.
 Require Import
   linearization
-  load_constants_in_cond
   lowering
   stack_alloc
   stack_zeroization
@@ -153,14 +152,6 @@ Definition riscv_liparams : linearization_params :=
 End LINEARIZATION.
 
 (* ------------------------------------------------------------------------ *)
-(* Pre-lowering parameters. *)
-
-Definition riscv_plparams : pre_lowering_params :=
-  {|
-    plp_prog := fun pT => load_constants_prog (pT:=pT)
-  |}.
-
-(* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
 Definition riscv_loparams : lowering_params lowering_options :=
   {|
@@ -217,8 +208,8 @@ Definition assemble_cond_app2 (o : sop2) :=
   end.
 
 Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
-  match e with  
-  | Fapp1 Onot e => 
+  match e with
+  | Fapp1 Onot e =>
     Let c := assemble_cond ii e in ok (condt_not c)
   | Fapp2 o e0 e1 =>
     Let: (o, swap) :=
@@ -273,7 +264,7 @@ Definition riscv_params : architecture_params lowering_options :=
   {|
     ap_sap := riscv_saparams;
     ap_lip := riscv_liparams;
-    ap_plp := riscv_plparams;
+    ap_plp := true;
     ap_lop := riscv_loparams;
     ap_agp := riscv_agparams;
     ap_lap := riscv_laparams;

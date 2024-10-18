@@ -25,6 +25,7 @@ Require Import
   inline
   linearization
   lowering
+  load_constants_in_cond
   makeReferenceArguments
   propagate_inline
   slh_lowering
@@ -283,7 +284,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pp := aparams.(ap_plp).(plp_prog) (fresh_var_ident cparams (Reg (Normal, Direct))) pg in
+  Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in
   let pp := cparams.(print_uprog) PreLowering pp in
 
   Let _ :=
