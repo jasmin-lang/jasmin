@@ -35,7 +35,9 @@ Definition fresh_word ii n ws :=
 Definition process_constant ii n (ws:wsize) e : seq instr_r * pexpr * Sv.t :=
   if is_wconst_of_size ws e is Some z then
     let x := fresh_word ii n ws in
-    ([:: Cassgn x AT_none (sword ws) e], Pvar (mk_lvar x), Sv.singleton x)
+    (* We use AT_rename to have a warning at compile time:
+       warning: extra assignment introduced *)
+    ([:: Cassgn x AT_rename (sword ws) e], Pvar (mk_lvar x), Sv.singleton x)
   else
     ([::], e, Sv.empty).
 
