@@ -602,14 +602,6 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
-Lemma riscv_ok_plp {dc : DirectCall} : h_pre_lowering_params riscv_plparams.
-Proof.
-  constructor.
-  move=> pT sCP fresh_reg p p' hpp' ev scs m f vs scs' m' vr.
-  apply: (load_constants_progP (fresh_reg := fresh_reg)); apply hpp'.
-Qed.
-
-(* ------------------------------------------------------------------------ *)
 
 Definition riscv_h_params {dc : DirectCall} : h_architecture_params riscv_params :=
   {|
@@ -617,7 +609,6 @@ Definition riscv_h_params {dc : DirectCall} : h_architecture_params riscv_params
     hap_hlip        := riscv_hliparams;
     ok_lip_tmp      := riscv_ok_lip_tmp;
     ok_lip_tmp2     := riscv_ok_lip_tmp2;
-    ok_plp          := riscv_ok_plp;
     hap_hlop        := riscv_hloparams;
     hap_hlap        := riscv_hlaparams;
     hap_hagp        := riscv_hagparams;

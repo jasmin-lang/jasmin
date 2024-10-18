@@ -17,14 +17,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Arch-specific pass that makes simplifications before lowering *)
-Record pre_lowering_params
-  `{asmop : asmOp} :=
-  {
-    plp_prog : forall (pT : progT),
-      (instr_info -> int -> string -> stype -> Ident.ident) -> prog -> cexec prog
-  }.
-
 Record lowering_params
   `{asmop : asmOp} (lowering_options : Type) :=
   {
@@ -64,7 +56,7 @@ Record architecture_params
     (* Linearization parameters. See linearization.v. *)
     ap_lip : linearization.linearization_params;
 
-    ap_plp : pre_lowering_params;
+    ap_plp : bool; (* true if load_constants_prog should be applied *)
 
     (* Lowering parameters. Defined above. *)
     ap_lop : lowering_params lowering_options;

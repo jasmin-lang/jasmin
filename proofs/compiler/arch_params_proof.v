@@ -91,24 +91,6 @@ Record h_lower_addressing_params
       sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr
   }.
 
-Record h_pre_lowering_params
-  {wsw : WithSubWord}
-  {asm_op syscall_state : Type}
-  {dc:DirectCall}
-  {eparams : EstateParams syscall_state}
-  {spparams : SemPexprParams}
-  {siparams : SemInstrParams asm_op syscall_state}
-  (plp : pre_lowering_params) :=
-  {
-    hplp_progP :
-     forall {pT : progT} {sCP : semCallParams}
-            fresh_reg (p p': prog),
-      plp_prog plp fresh_reg p = ok p' ->
-      forall ev scs mem f vs scs' mem' vr,
-      sem_call p ev scs mem f vs scs' mem' vr ->
-      sem_call p' ev scs mem f vs scs' mem' vr
-  }.
-
 Record h_architecture_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
@@ -133,8 +115,6 @@ Record h_architecture_params
     ok_lip_tmp2 :
       exists r : reg_t,
         of_ident (linearization.lip_tmp2 (ap_lip aparams)) = Some r;
-
-    ok_plp : h_pre_lowering_params (ap_plp aparams);
 
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);

@@ -11,6 +11,7 @@ Require Import
 Require Import
   allocation_proof
   lower_spill_proof
+  load_constants_in_cond_proof
   inline_proof
   dead_calls_proof
   makeReferenceArguments_proof
@@ -216,7 +217,7 @@ Proof.
          (warning cparams)
          ok_fvars).
   apply: compose_pass.
-  + by move=> vr'; apply: (hplp_progP (ok_plp haparams)); apply ok_plc.
+  + by move=> vr'; apply: load_constants_progP; apply ok_plc.
   apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pi).
   apply: compose_pass_uincl'.
   - move => vr'; apply: (live_range_splittingP ok_ph).

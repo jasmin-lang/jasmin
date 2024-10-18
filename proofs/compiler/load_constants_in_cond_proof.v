@@ -24,8 +24,10 @@ Context
   {sCP : semCallParams}
   (fresh_reg : instr_info → int → string → stype → Ident.ident).
 
+Section DOIT.
+
 Context (p p' : prog).
-Hypothesis Hp : load_constants_prog fresh_reg p = ok p'.
+Hypothesis Hp : load_constants_prog fresh_reg true p = ok p'.
 Context (ev:extra_val_t).
 
 Notation gd  := (p_globs p).
@@ -378,7 +380,7 @@ Proof.
   rewrite eq_globs; exact hw'.
 Qed.
 
-Lemma load_constants_progP f scs mem scs' mem' va vr:
+Lemma load_constants_progP_aux f scs mem scs' mem' va vr:
   sem_call p ev scs mem f va scs' mem' vr ->
   sem_call p' ev scs mem f va scs' mem' vr.
 Proof.
@@ -399,6 +401,20 @@ Proof.
        Hfor_cons
        Hcall
        Hproc).
+Qed.
+
+End DOIT.
+
+Lemma load_constants_progP (p p' : prog) doit:
+  load_constants_prog fresh_reg doit p = ok p' →
+  ∀ (ev : extra_val_t) (f : funname) (scs : syscall_state_t)
+    (mem : low_memory.mem) (scs' : syscall_state_t)
+    (mem' : low_memory.mem) (va vr : seq value),
+  sem_call p ev scs mem f va scs' mem' vr →
+  sem_call p' ev scs mem f va scs' mem' vr.
+Proof.
+  case: doit; first by apply load_constants_progP_aux.
+  by move=> [<-].
 Qed.
 
 End WITH_PARAMS.
