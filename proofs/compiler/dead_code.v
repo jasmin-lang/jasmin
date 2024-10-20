@@ -182,15 +182,17 @@ Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexec (_fundef eft) :=
   let tyo := fn_keep_only fn tyo in
   let s := read_es (map Plvar res) in
   Let c := dead_code_c dead_code_i c s in
-  let si :=
-    match ci with
-    | Some ci => read_es [seq c.2 | c <- ci.(f_post)]
-    | None    => Sv.empty
-    end in
-  Let _ :=
+  Let ci :=
     match onfun fn with
-    | None => ok (Sv.empty, [::]) (* dummy value *)
-    | Some bs => check_keep_only (map Lvar fres) bs si
+    | None => ok ci
+    | Some bs =>
+      match ci with
+      | None => ok None
+      | Some ci =>
+        let si := read_es [seq c.2 | c <- ci.(f_post)] in
+        Let _ := check_keep_only (map Lvar ci.(f_ires)) bs si in
+        ok (Some (MkContra ci.(f_iparams) (keep_only ci.(f_ires) bs) ci.(f_pre) ci.(f_post)))
+      end
     end in
   ok (MkFun ii ci tyi params c.2 tyo res ef).
 

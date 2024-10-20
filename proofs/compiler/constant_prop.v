@@ -586,7 +586,7 @@ Definition const_prop_ci without_globals ci :=
                         let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_post)
   in
-  MkContra ci.(f_iparams) ci_pre ci_post.
+  MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
 
 Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
   let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in

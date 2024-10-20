@@ -636,13 +636,12 @@ Definition check_funspec (s1 s2 : seq (assertion_prover * pexpr)) (r:M.t) :=
        Let _ := assert (p1.1 == p2.1) (alloc_error "funspec: assertion_prover not equals") in
        check_e p1.2 p2.2 r) s1 s2 r.
 
-Definition check_contract params1 params2 res1 res2 (ci1 ci2: option fun_contract) :=
+Definition check_contract (ci1 ci2: option fun_contract) :=
   match ci1, ci2 with
   | Some ci1, Some ci2 =>
-    Let r := check_vars params1 params2 M.empty in
-    Let _ := check_funspec ci1.(f_pre) ci2.(f_pre) r in
     Let r := check_vars ci1.(f_iparams) ci2.(f_iparams) M.empty in
-    Let r := check_vars res1 res2 r in
+    Let _ := check_funspec ci1.(f_pre) ci2.(f_pre) r in
+    Let r := check_vars ci1.(f_ires) ci2.(f_ires) r in
     Let _ := check_funspec ci1.(f_post) ci2.(f_post) r in
     ok tt
   | None, None => ok tt
@@ -662,7 +661,7 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
     let es2 := map Plvar fd2.(f_res) in
     Let _r := check_es es1 es2 r in
     (* Check annotation *)
-    check_contract fd1.(f_params) fd2.(f_params) fd1.(f_res) fd2.(f_res) fd1.(f_contra) fd2.(f_contra))).
+    check_contract fd1.(f_contra) fd2.(f_contra))).
 
 Definition check_prog_error := alloc_error "check_fundef (fold2)".
 

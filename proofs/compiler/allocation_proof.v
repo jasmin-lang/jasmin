@@ -649,10 +649,10 @@ Section PROOF.
     have [hfd2 [-> /= ]]:= all_checked hfd; t_xrbindP.
     move=> /and3P [_ /eqP htyin /eqP htyout] _ > _ > _ > _ > _.
     rewrite /check_contract; case: f_contra => [c1|] ; case: f_contra => [c2|] //.
-    t_xrbindP => r hcp ? hcpr ri hcip rr hcr ? hcpo _ ?.
+    t_xrbindP => r hcip ? hcpr rr hcr ? hcpo _ ?.
     rewrite htyin => /mapM2_dc_truncate_val -/(_ _ hu) [?] -> hu' /= s1.
     rewrite (write_vars_lvals _ gd) => h1.
-    have /(_ _ eq_alloc_empty) [?] := check_lvalsP hcp _ hu' h1.
+    have /(_ _ eq_alloc_empty) [?] := check_lvalsP hcip _ hu' h1.
     rewrite -write_vars_lvals -eq_globs => -> /= heqa.
     apply: check_funspecP heqa hcpr.
   Qed.
@@ -668,7 +668,7 @@ Section PROOF.
     have [hfd2 [-> /= ]]:= all_checked hfd; t_xrbindP.
     move=> /and3P [_ /eqP htyin /eqP htyout] _ > _ > _ > _ > _.
     rewrite /check_contract; case: f_contra => [c1|] ; case: f_contra => [c2|] //.
-    t_xrbindP => r hcp ? hcpr ri hcip rr hcr ? hcpo _ ?.
+    t_xrbindP => r hcip ? hcpr rr hcr ? hcpo _ ?.
     rewrite htyin => /mapM2_dc_truncate_val -/(_ _ hu1) [?] -> hu1' /= s1.
     rewrite (write_vars_lvals _ gd) => h1.
     have /(_ _ eq_alloc_empty) [?] := check_lvalsP hcip _ hu1' h1.

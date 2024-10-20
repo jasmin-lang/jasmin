@@ -495,8 +495,9 @@ Section PROOF.
     have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' /[swap] -> {hfd}] := get_map_cfprog_name_gen dcok hfd.
-    rewrite eq_globs /dead_code_fd; case: fd => ? ci > /=; t_xrbindP => ? _ _ _ <-.
-    by case: ci.
+    rewrite eq_globs /dead_code_fd; case: fd => ? ci > /=; t_xrbindP => ? _ ? + <- /=.
+    case: onfun => [bs | [<-] //]; case: ci => [ci | [<-] [<-] //].
+    by t_xrbindP => _ _ <- /= ? -> /= ? -> /= ->.
   Qed.
 
   Local Lemma sem_post_ok scs mem fn vargs vres vres' vpo :
@@ -509,12 +510,18 @@ Section PROOF.
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [fd' /[swap] -> {hfd}] := get_map_cfprog_name_gen dcok hfd.
     rewrite eq_globs /dead_code_fd; case: fd => /= fi fc tyi fp fb tyo fr fex.
-    t_xrbindP => ? _ [I xs_] hch <- /= hres; case: fc hch => [fc | //] => hch.
-    t_xrbindP=> ? -> /= s1 -> /= s2 hw.
-    move: hch; set sout := (read_es _) => hch.
+    t_xrbindP => ? _ ? + <- /=; rewrite /fn_keep_only.
+    case: onfun => [bs | [<-]]; last first.
+    + case: fc => [ci | //]; t_xrbindP => hres > -> s1 /= -> > /= hw.
+      have [vm2 hw' hu]:= [elaborate write_vars_uincl (vm_uincl_refl (evm s1)) hres hw].
+      move: hw'; rewrite with_vm_same => -> /=.
+      elim: (f_post ci) vpo => //= ae aes hrec vpo; t_xrbindP.
+      by move=> > /(sem_pexpr_uincl hu) [? ->] /[swap] /to_boolI -> /value_uinclE -> ? /hrec -> <-.
+    case: fc => [fc | [<-] //].
+    t_xrbindP; set sout := (read_es _) => -[I xs_] hch <- hres ? -> /= s1 -> /= s2 hw.
     have [vm2 [Hvm2 /= -> /=]]:
       exists vm2, evm s2 <=[sout] vm2 /\
-         write_vars (~~ direct_call) (fn_keep_only onfun fn fr) vres' s1 =
+         write_vars (~~ direct_call) (keep_only (f_ires fc) bs) vres' s1 =
          ok (with_vm s2 vm2); first last.
     + move: Hvm2; rewrite /sout.
       elim: (f_post fc) vpo => //= ae aes hrec vpo; rewrite read_es_cons => hsub.
@@ -522,17 +529,15 @@ Section PROOF.
       + by split; apply: uincl_onI hsub; SvD.fsetdec.
       t_xrbindP => > /(sem_pexpr_uincl_on h1) [v2' ->] /[swap] /to_boolI -> /value_uinclE -> /=.
       by move=> > /(hrec _ h2) -> <-.
-    subst sout; move: hres hch; rewrite /fn_keep_only /=.
-    case: onfun; last first.
-    + move=> hres _.
-      have [vm2 hw' hu]:= [elaborate write_vars_uincl (vm_uincl_refl (evm s1)) hres hw].
-      by exists vm2; split => //; rewrite -(with_vm_same s1).
-    rewrite (write_vars_lvals _ gd) in hw => tokeep hres hc.
-    have /(_ (evm s1)) [//| vm2 [hu hw']] := write_lvals_keep_only hc hres hw.
-    exists vm2; split => //; rewrite (write_vars_lvals _ gd); rewrite with_vm_same in hw'.
-    have <- // : xs_ = map Lvar (keep_only fr tokeep).
-    elim: (tokeep) (fr) (read_es _) (xs_) I hc => [ | b bs hrec] [ | x xs] //= O xs' I; first by move=> [_ <-].
-    t_xrbindP => -[I' ?] /hrec ->; case: ifP => _; first by move=> [_ <-].
+    subst sout.
+    rewrite (write_vars_lvals _ gd) in hw.
+    have /(_ (evm s1)) [//| vm2 [hu hw']] := write_lvals_keep_only hch hres hw.
+    rewrite (write_vars_lvals _ gd); rewrite with_vm_same in hw' => {hw}.
+    exists vm2; split => //.
+    have <- // : xs_ = [seq Lvar i | i <- keep_only (f_ires fc) bs].
+    move=> {hres hw'}; elim: (f_ires _) bs (read_es _) I xs_ hch => [ | x xs hrec] [ | b bs] O I xs_ //=.
+    + by move=> [_ <-].
+    t_xrbindP => -[??] /hrec ->; case: b => [[_ <-] // | ].
     by case: ifP => // _ [_ <-].
   Qed.
 

@@ -552,6 +552,7 @@ Definition fun_info := FunInfo.t.
 
 Record fun_contract := MkContra {
     f_iparams : seq var_i;  (* initial value of the parameter *)
+    f_ires    : seq var_i;  (* name of the result used in post *)
     f_pre : list (assertion_prover * pexpr);
     f_post : list (assertion_prover * pexpr);
   }.

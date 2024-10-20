@@ -1164,7 +1164,7 @@ Local Lemma sem_pre_ok scs m fn vargs v:
   sem_pre p' scs m fn vargs = ok v.
 Proof.
   rewrite /sem_pre.
-  case: get_fundef (@get_fundef_p' fn) => // fd /(_ _ erefl) [fd'] [->] <- <- _ <- _.
+  case: get_fundef (@get_fundef_p' fn) => // fd /(_ _ erefl) [fd'] [->] <- _ _ <- _.
   by rewrite (lower_prog_globs hp).
 Qed.
 
@@ -1173,7 +1173,7 @@ Local Lemma sem_post_ok scs m fn vargs vres v:
   sem_post p' scs m fn vargs vres = ok v.
 Proof.
   rewrite /sem_post.
-  case: get_fundef (@get_fundef_p' fn) => // fd /(_ _ erefl) [fd'] [->] <- _ <- <- _.
+  case: get_fundef (@get_fundef_p' fn) => // fd /(_ _ erefl) [fd'] [->] <- _ _ <- _.
   by rewrite (lower_prog_globs hp).
 Qed.
 

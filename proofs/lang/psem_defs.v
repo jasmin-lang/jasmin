@@ -305,7 +305,7 @@ Definition sem_pre {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (v
     match f.(f_contra) with
     | Some ci =>
       Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
-      Let s := write_vars (~~direct_call) f.(f_params) vargs (Estate scs m Vm.init [::]) in
+      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in
       mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_pre)
     | None => ok [::]
     end
@@ -317,7 +317,7 @@ Definition sem_post {dc: DirectCall} (scs: syscall_state) (m:mem) (fn:funname) (
    | Some ci =>
      Let vargs := mapM2 ErrType dc_truncate_val f.(f_tyin) vargs' in
      Let s := write_vars (~~direct_call) ci.(f_iparams) vargs (Estate scs m Vm.init [::]) in
-     Let s :=  write_vars (~~direct_call) f.(f_res) vres s in
+     Let s :=  write_vars (~~direct_call) ci.(f_ires) vres s in
      mapM (fun (p:_ * _) => sem_pexpr true gd s p.2 >>= to_bool) ci.(f_post)
    | None => ok [::]
    end

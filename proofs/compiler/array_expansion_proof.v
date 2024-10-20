@@ -879,7 +879,7 @@ Proof.
   t_xrbindP => ins hparams iins hiparams ci' hci <- ??; subst mt inout.
   t_xrbindP => c' _ <- /=.
   move: hci; rewrite /expand_ci; case: (fci); last by move=> [<-] [<-].
-  move=> ci; t_xrbindP => ? h1 _ _ pr' hpr' po' hpo' <-.
+  move=> ci; t_xrbindP => z h1 /eqP heq1 /eqP heq2 z1 h2 /eqP heq3 /eqP heq4 pr' hpr' po' hpo' <-.
   move: hsigs; rewrite hsig /= => -[??]; subst ei eo.
   move=> vargs' Hca s1 Hw hpr.
   set (sempty := {| escs := scs; emem := m1; evm := Vm.init; eassert := [::] |}).
@@ -887,7 +887,8 @@ Proof.
   have heqae : eq_alloc m sempty sempty by apply eq_alloc_empty.
   rewrite (write_vars_lvals false gd) in Hw.
   have ?:= mapM2_dc_truncate_id Hca; subst vargs'.
-  have [s1']:= expand_returnsP hwf heqae (expend_tyv_expand_return hparams) Hw hexp.
+  have := expand_returnsP hwf heqae (expend_tyv_expand_return h1) Hw.
+  rewrite -heq2 => /(_ _ hexp) [s1'].
   have -> := expand_vs_flatten hwf hparams hexp.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa1.
   elim : (f_pre ci) (pr') v hpr' hpr => /=.
@@ -914,7 +915,8 @@ Proof.
   t_xrbindP => ins hparams outs hres ci' hci <- ??; subst mt inout.
   t_xrbindP => c' _ <- /=.
   move: hci; rewrite /expand_ci; case: (fci); last by move=> [<-] [<-].
-  move=> ci; t_xrbindP => iins hiparams /eqP heqins1 /eqP heqins2 pr' hpr' po' hpo' <-.
+  move=> ci; t_xrbindP => iins hiparams /eqP heqins1 /eqP heqins2 ires hires /eqP heqres1 /eqP heqres2.
+  move=> pr' hpr' po' hpo' <-.
   move: hsigs; rewrite hsig /= => -[??]; subst ei eo.
   move=> vargs' Hca s1 Hw1 s2 Hw2 hpo.
   set (sempty := {| escs := scs; emem := m1; evm := Vm.init; eassert := [::] |}).
@@ -927,7 +929,8 @@ Proof.
   rewrite heqins1.
   have -> := expand_vs_flatten hwf hiparams hexpa.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa1.
-  have [s2' ]:= expand_returnsP hwf heqa1 (expend_tyv_expand_return hres) Hw2 hexpr.
+  have := expand_returnsP hwf heqa1 (expend_tyv_expand_return hires) Hw2.
+  rewrite -heqres2 => /(_ _ hexpr) [?].
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa2.
   elim : (f_post ci) (po') v hpo' hpo => /=.
   + by move=> _ _ [<-] [<-].
