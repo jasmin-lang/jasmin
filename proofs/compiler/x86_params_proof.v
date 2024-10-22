@@ -242,9 +242,7 @@ Proof. apply/lstores_dfl_correct/x86_lstore_correct. Qed.
 
 Lemma x86_lload_correct : lload_correct_aux (lip_check_ws x86_liparams) x86_lload.
 Proof.
-  move=> xd xs ofs s vm top hgets.
-  case heq: vtype => [|||ws] //; t_xrbindP.
-  move=> _ <- hchk w hread hset.
+  move=> xd xs ofs ws top s w vm heq hcheck hgets hread hset.
   rewrite /x86_lload heq.
   apply: x86_lassign_correct => /=.
   + by rewrite hgets /= truncate_word_u /= hread /= truncate_word_u.
@@ -269,6 +267,7 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
     spec_lip_set_up_sp_register   := x86_spec_lip_set_up_sp_register;
     spec_lip_lmove                := x86_lmove_correct;
     spec_lip_lstore               := x86_lstore_correct;
+    spec_lip_lload                := x86_lload_correct;
     spec_lip_lstores              := x86_lstores_correct;
     spec_lip_lloads               := x86_lloads_correct;
     spec_lip_tmp                  := x86_tmp_correct;

@@ -77,9 +77,12 @@ Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 Definition ra_valid fd (ii:instr_info) (k: Sv.t) : bool :=
   match fd.(f_extra).(sf_return_address) with
-  | RAstack ra _ _ =>
-    if ra is Some ra then (ra != vgd) && (ra != vrsp)
-    else true
+  | RAstack ra_call ra_return _ _ =>
+    (if ra_call is Some ra_call then (ra_call != vgd) && (ra_call != vrsp)
+    else true)
+    &&
+    (if ra_return is Some ra_return then (ra_return != vgd) && (ra_return != vrsp)
+    else true)
   | RAreg ra _ =>
     [&& (ra != vgd), (ra != vrsp) & (~~ Sv.mem ra k) ]
   | RAnone => true
@@ -197,14 +200,15 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
-    s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
-    let vm := Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f) in
-    sem_call ii (Sv.union k vm) s1 fn s2.
+    let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
+    s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |} →
+    let k' := Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)) in
+    sem_call ii (Sv.union k k') s1 fn s2.
 
 Variant sem_export_call_conclusion (scs: syscall_state_t) (m: mem) (fd: sfundef) (args: values) (vm: Vm.t) (scs': syscall_state_t) (m': mem) (res: values) : Prop :=
   | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: Vm.t) (res':values) of
     saved_stack_valid fd k &
-    Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
+    Sv.Subset (Sv.inter callee_saved (Sv.union k (ra_undef fd var_tmp))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_ioff) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
 (*    all2 check_ty_val fd.(f_tyin) args & *)
     sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| escs:= scs'; emem := m2 ; evm := vm2 |} &
@@ -307,10 +311,11 @@ Lemma sem_callE ii k s fn s' :
      sem k' {| escs := s.(escs); emem := m1 ; evm := set_RSP m1 vm; |} f.(f_body) s2')
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
+      let vm2 := kill_vars (ra_vm_return f.(f_extra)) s2'.(evm) in
       let m2 := free_stack s2'.(emem) in
-      s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 (evm s2') |})
+      s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |})
     (λ f _ _ k',
-     k = Sv.union k' (Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f))).
+     k = Sv.union k' (Sv.union (ra_undef f var_tmp) (ra_vm_return f.(f_extra)))).
 Proof.
   case => { ii k s fn s' } /= ii k s s' fn f m1 s2' ok_f ok_ra ok_ss ok_sp ok_RSP ok_alloc exec_body ok_RSP' /= ->.
   by exists f m1 s2' k.
@@ -424,10 +429,11 @@ Section SEM_IND.
       sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
       Pc  k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
+      let vm2 := kill_vars (ra_vm_return fd.(f_extra)) s2'.(evm) in
       let m2 := free_stack s2'.(emem) in
-      s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 (evm s2') |} →
-      let vm := Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)) in
-      Pfun ii vm s1 fn s2.
+      s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 vm2 |} →
+      let k' := Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra)) in
+      Pfun ii (Sv.union k k') s1 fn s2.
 
   Hypotheses
     (Hcall: sem_Ind_call)
