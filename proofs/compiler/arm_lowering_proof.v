@@ -1455,17 +1455,20 @@ Proof.
   all: by rewrite hy.
 Qed.
 
-Lemma with_shift_terop s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
+Lemma with_shift_terop mn s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
+  mn \in [:: ADC; SBC ] ->
   (U32 ≤ ts)%CMP ->
   has_shift opts = None ->
   sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
   sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
   to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op ADC opts))) [:: x, y, z & vs] = ok r ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op ADC (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y, z & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
 Proof.
-  case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
+  rewrite !inE.
+  case: opts => S cc /= _ mn_terop hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
   case: S cc => - [].
+  all: repeat case/orP: mn_terop => [ /eqP -> { mn } | mn_terop ]; last move/eqP: mn_terop => -> { mn }.
   all: rewrite /exec_sopn /=; t_xrbindP.
   all: intro_args_wrapper => {hys hts}.
   all: destruct_args_wrapper vs.
@@ -1520,8 +1523,8 @@ Proof.
     rewrite ht hwsham hes /=.
     have -> /= := with_shift_binop mn_binop hts no_shift ht hwsham hw hr.
     exact: hwrite.
-  case: eqP => // ?.
-  subst mn.
+  case: ifP; last by [].
+  move => mn_terop.
   case: es hsemi hfve default => // x [] // y [] // z es hsemi hfve default.
   case y_has_shift: get_arg_shift => [ [ [] ebase sh esham ] | ] ; last exact: default.
   case/Some_inj => <-{lvs'} <-{op'} <-{es'}.
@@ -1534,7 +1537,7 @@ Proof.
   move: hes; rewrite /=; t_xrbindP => ? -> /= _ ? hy _ ? -> ? hes <- <- ?; subst ws.
   have [ ts [] t [] wsham [] hts ht hwsham hw [] hfb hfa ] := get_arg_shiftP y_has_shift hfve hy.
   rewrite ht hwsham hes /=.
-  have -> /= := with_shift_terop hts no_shift ht hwsham hw hr.
+  have -> /= := with_shift_terop mn_terop hts no_shift ht hwsham hw hr.
   exact: hwrite.
 Qed.
 
