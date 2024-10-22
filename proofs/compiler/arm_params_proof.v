@@ -264,9 +264,8 @@ Qed.
 
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
 Proof.
-  move=> xd xs ofs s vm top hgets.
-  case heq: vtype => [|||ws] //; t_xrbindP.
-  move=> _ <- /eqP ? w hread hset; subst ws.
+  move=> xd xs ofs ws top s w vm heq hcheck hgets hread hset.
+  move/eqP: hcheck => ?; subst ws.
   rewrite /arm_lload /= hgets /= truncate_word_u /= hread /=.
   by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
 Qed.
@@ -294,6 +293,7 @@ Definition arm_hliparams :
     spec_lip_set_up_sp_register   := arm_spec_lip_set_up_sp_register;
     spec_lip_lmove                := arm_lmove_correct;
     spec_lip_lstore               := arm_lstore_correct;
+    spec_lip_lload                := arm_lload_correct;
     spec_lip_lstores              := arm_lstores_correct;
     spec_lip_lloads               := arm_lloads_correct;
     spec_lip_tmp                  := arm_tmp_correct;

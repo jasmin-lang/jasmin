@@ -396,13 +396,13 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
         false (* For export function ra is not counted in the frame *)
     | Subroutine _ -> 
       match callstyle with 
-      | Arch_full.StackDirect -> 
+      | Arch_full.StackDirect ->
         if fd.f_annot.retaddr_kind = Some OnReg then 
           Utils.warning Always (L.i_loc fd.f_loc [])
             "for function %s, return address by reg not allowed for that architecture, annotation is ignored"
             fd.f_name.fn_name;
         true
-      | Arch_full.ByReg oreg ->  (* oreg = Some r implies that all call use r,
+      | Arch_full.ByReg { call = oreg } ->  (* oreg = Some r implies that all call use r,
                                     so if the function performs some call r will be overwritten,
                                     so ra need to be saved on stack *)
         let dfl = oreg <> None && has_call_or_syscall fd.f_body in
