@@ -2,6 +2,9 @@
 
 ## New features
 
+- Add support for ARM instruction `SBC`
+  ([PR #936](https://github.com/jasmin-lang/jasmin/pull/936)).
+
 - Add support for x86 instructions `BTR` and `BTS` with the bit base operand in
   register
   ([PR #932](https://github.com/jasmin-lang/jasmin/pull/932);

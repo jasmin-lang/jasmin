@@ -201,6 +201,12 @@ op SUB x y = let (_n, _z, _c, _v, r) = SUBS x y in r.
 op SUBScc x y g n z c v o = if g then SUBS x y else (n, z, c, v, o).
 op SUBcc x y g o = if g then SUB x y else o.
 
+op SBCS (x y: W32.t) (c: bool) : bool * bool * bool * bool * W32.t =
+  ADCS x (invw y) c.
+op SBC x y c = let (_n, _z, _c, _v, r) = SBCS x y c in r.
+op SBCScc x y b g n z c v o = if g then SBCS x y b else (n, z, c, v, o).
+op SBCcc x y c g o = if g then SBC x y c else o.
+
 op TST (x y: W32.t) : bool * bool * bool =
   nzc (andw x y).
 op TSTcc x y g n z c = if g then TST x y else (n, z, c).
