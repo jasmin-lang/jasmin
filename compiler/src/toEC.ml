@@ -510,6 +510,7 @@ let ec_WArray_init env ws n =
 
 let ec_WArray_initf env ws n f =
     let i = create_name env "i" in
+    (* ATODO init WArray from function *)
     Eapp (ec_WArray_init env ws n, [Efun1 (i, f i)])
 
 let ec_Array_init env len = Eident [ec_Array env len; "init"]
@@ -538,6 +539,7 @@ let ec_cast env (ty, ety) e =
             let wse, ne = array_kind ety in
             let i = create_name env "i" in
             let geti = ec_ident (Format.sprintf "get%i" (int_of_ws ws)) in
+            (* ATODO: Cast array Wx -> Wy *)
             let init_fun = Efun1 (i, Eapp (geti, [ec_initi env (e, ne, wse); ec_ident i])) in
             Eapp (ec_Array_init env n, [init_fun])
 
@@ -578,6 +580,7 @@ let rec toec_expr env (e: expr) =
         let (xws,n) = array_kind x.v_ty in
         if ws = xws && aa = Warray_.AAscale then
             Eapp (
+              (* ATODO: simple sub-array *)
                 ec_Array_init env len,
                 [
                     Efun1 (i, ec_aget (ec_vari env x)  (Eop2 (Plus, toec_expr env e, ec_ident i)))
@@ -586,6 +589,7 @@ let rec toec_expr env (e: expr) =
             Eapp (
                 ec_Array_init env len,
                 [
+              (* ATODO: sub-array with type cast *)
                     Efun1 (i, 
                     Eapp (ec_ident (Format.sprintf "get%i%s" (int_of_ws ws) (pp_access aa)), [
                         ec_initi_var env (x, n, xws); Eop2 (Plus, toec_expr env e, ec_ident i)
@@ -834,6 +838,7 @@ let toec_lval1 env lv e =
     if ws = xws && aa = Warray_.AAscale then
         let i = create_name env "i" in
         let range_ub = Eop2 (Plus, toec_expr env e1, ec_int len) in
+        (* ATODO: sub-array update *)
         ESasgn (
             [LvIdent [ec_vars env x]],
             Eapp (ec_Array_init env n, [
@@ -846,6 +851,7 @@ let toec_lval1 env lv e =
             ])
             )
     else 
+        (* ATODO: sub-array update unaligned / typecast *)
         let nws = n * int_of_ws xws in
         let nws8 = nws / 8 in
         let start = 
@@ -1294,6 +1300,7 @@ let ec_randombytes env =
     let randombytes_f n = 
         let dmap = 
             let wa = fmt_WArray n in
+            (* ATODO: Array typecast *)
             let initf = Efun1 ("a", Eapp (Eident [fmt_Array n; "init"], [
                 Efun1 ("i", Eapp (Eident [wa; "get8"], [ec_ident "a"; ec_ident "i"]))
             ])) in
