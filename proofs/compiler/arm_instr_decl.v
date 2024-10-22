@@ -112,6 +112,7 @@ Variant arm_mnemonic : Type :=
 | MLS                            (* Multiply and subtract *)
 | SDIV                           (* Signed division *)
 | SUB                            (* Subtract without carry *)
+| SBC                            (* Subtract with carry *)
 | RSB                            (* Reverse subtract without carry *)
 | UDIV                           (* Unsigned division *)
 | UMULL                          (* Multiply and split the result in two
@@ -191,7 +192,7 @@ Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
 Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
-  [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
+  [:: ADD; ADC; MUL; MLA; MLS; SDIV; SUB; SBC; RSB; UDIV; UMULL; UMAAL; UMLAL; SMULL; SMLAL; SMMUL; SMMULR
     ; SMUL_hw HWB HWB; SMUL_hw HWB HWT; SMUL_hw HWT HWB; SMUL_hw HWT HWT
     ; SMLA_hw HWB HWB; SMLA_hw HWB HWT; SMLA_hw HWT HWB; SMLA_hw HWT HWT
     ; SMULW_hw HWB; SMULW_hw HWT
@@ -216,14 +217,14 @@ Instance finTC_arm_mnemonic : finTypeC arm_mnemonic :=
 Canonical arm_mnemonic_finType := @cfinT_finType _ finTC_arm_mnemonic.
 
 Definition set_flags_mnemonics : seq arm_mnemonic :=
-  [:: ADD; ADC; MUL; SUB; RSB
+  [:: ADD; ADC; MUL; SUB; SBC; RSB
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR
     ; MOV
   ].
 
 Definition has_shift_mnemonics : seq arm_mnemonic :=
-  [:: ADD; ADC; SUB; RSB
+  [:: ADD; ADC; SUB; SBC; RSB
     ; AND; BIC; EOR; MVN; ORR
     ; CMP; TST; CMN
   ].
@@ -282,6 +283,7 @@ Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   | MLS => "MLS"
   | SDIV => "SDIV"
   | SUB => "SUB"
+  | SBC => "SBC"
   | RSB => "RSB"
   | UDIV => "UDIV"
   | UMULL => "UMULL"
@@ -1023,6 +1025,47 @@ Definition arm_SUB_instr : instr_desc_t :=
     then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
                          (fun h => mk_semi2_2_shifted_errty (x.(id_semi_errty) h))
                          (fun h => mk_semi2_2_shifted_safe sk (x.(id_semi_safe) h))
+    else x
+  in
+  if set_flags opts
+  then x
+  else drop_nzcv x.
+
+Definition arm_SBC_semi (wn wm : ty_r) (cf : bool) : ty_nzcv_r :=
+  arm_ADC_semi wn (wnot wm) cf.
+
+Definition arm_SBC_instr : instr_desc_t :=
+  let mn := SBC in
+  let tin := [:: sreg; sreg; sbool ] in
+  let x :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := tin;
+      id_in := [:: Ea 1; Ea 2; F CF ];
+      id_tout := snzcv_r;
+      id_out := ad_nzcv ++ [:: Ea 0 ];
+      id_semi := sem_prod_ok tin arm_SBC_semi;
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg_or_imm opts chk_imm_accept_shift;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_safe := [::];
+      id_pp_asm := pp_arm_op mn opts;
+      id_valid := true;
+      id_safe_wf := refl_equal;
+      id_semi_errty := fun _ => sem_prod_ok_error (tin:=tin) arm_SBC_semi _;
+      id_semi_safe := fun _ => sem_prod_ok_safe (tin:=tin) arm_SBC_semi;
+    |}
+  in
+  let x :=
+    if has_shift opts is Some sk
+    then
+      mk_shifted sk x (mk_semi3_2_shifted sk (id_semi x))
+                      (fun h => mk_semi3_2_shifted_errty (x.(id_semi_errty) h))
+                      (fun h => mk_semi3_2_shifted_safe sk (x.(id_semi_safe) h))
     else x
   in
   if set_flags opts
@@ -2381,6 +2424,7 @@ Definition mn_desc (mn : arm_mnemonic) : instr_desc_t :=
   | MLS => arm_MLS_instr
   | SDIV => arm_SDIV_instr
   | SUB => arm_SUB_instr
+  | SBC => arm_SBC_instr
   | RSB => arm_RSB_instr
   | UDIV => arm_UDIV_instr
   | UMULL => arm_UMULL_instr
