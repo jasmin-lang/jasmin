@@ -722,10 +722,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
     let public = not (CT.is_ct_opN o) in
     ty_exprs_max ~public env venv loc es
 
-  | Pfvar _          -> assert false
   | Pbig _           -> assert false
-  | Presult _        -> assert false
-  | Presultget _     -> assert false
 
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in

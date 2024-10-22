@@ -399,10 +399,7 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     let public = public || not (is_ct_opN o) in
     ty_exprs_max ~public env es
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
-  | Pfvar _ -> assert false
   | Pbig _ -> assert false
-  | Presult _ -> assert false
-  | Presultget _ -> assert false
 
 and ty_exprs ~public env es =
   List.map_fold (ty_expr ~public) env es

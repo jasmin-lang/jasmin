@@ -30,10 +30,7 @@ type 'len gexpr =
   | Papp2  of E.sop2 * 'len gexpr * 'len gexpr
   | PappN of E.opNA * 'len gexpr list
   | Pif    of 'len gty * 'len gexpr * 'len gexpr * 'len gexpr
-  | Pfvar  of 'len gvar_i
-  | Pbig   of 'len gexpr * 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr
-  | Presult of int * 'len ggvar
-  | Presultget of Memory_model.aligned * Warray_.arr_access * wsize * int * 'len ggvar * 'len gexpr
+  | Pbig   of 'len gexpr * E.sop2 * 'len gvar_i * 'len gexpr * 'len gexpr * 'len gexpr
 
 type 'len gexprs = 'len gexpr list
 
@@ -120,6 +117,8 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 (* ------------------------------------------------------------------------ *)
 
 type 'len gfcontract = {
+  f_iparams : 'len gvar_i list;
+  f_ires : 'len gvar_i list;
   f_pre : (E.assertion_prover * 'len gexpr) list;
   f_post : (E.assertion_prover * 'len gexpr) list;
 }
@@ -127,7 +126,7 @@ type 'len gfcontract = {
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
-    f_contra: 'len gfcontract;
+    f_contra: 'len gfcontract option ;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
@@ -250,10 +249,7 @@ let rec rvars_e f s = function
   | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
   | PappN (_, es) -> rvars_es f s es
   | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
-  | Pfvar _ -> s
-  | Pbig(e1, e2, _, _, e0, body) -> List.fold_left (rvars_e f) s [e1; e2; e0; body]
-  | Presult (_, x)         -> rvars_v f x s
-  | Presultget(_,_,_,_,x,e)  -> rvars_e f (rvars_v f x s) e
+  | Pbig(e, _, _, e1, e2, e0) -> List.fold_left (rvars_e f) s [e; e1; e2; e0;]
 
 and rvars_es f s es = List.fold_left (rvars_e f) s es
 

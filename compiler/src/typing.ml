@@ -110,20 +110,16 @@ let rec ty_expr pd loc (e:expr) =
     check_expr pd loc e1 ty;
     check_expr pd loc e2 ty;
     ty
-  | Pfvar x -> ty_var x
-  | Pbig(e1, e2, op, x, e0, b) ->
+  | Pbig(e, op, x, e1, e2, e0) ->
     let (tin1, tin2), tout = type_of_op2 op in
+    check_expr pd loc e  tout;
     check_expr pd loc e1 tint;
     check_expr pd loc e2 tint;
     check_expr pd loc e0 tout;
-    check_expr pd loc b  tout;
     (* FIXME *)
-    if not (subtype tin1 tout) && not (subtype tin2 tout) then 
+    if not (subtype tin1 tout) && not (subtype tin2 tout) then
       error loc "invalid big op type";
     tout
-  | Presult (_,x) -> ty_gvar x
-  | Presultget(_al,_aa,ws,_, x,e) -> ty_get_set pd loc ws x e
-
 
 and check_expr pd loc e ty = 
   let te = ty_expr pd loc e in

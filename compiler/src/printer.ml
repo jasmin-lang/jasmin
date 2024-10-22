@@ -60,18 +60,14 @@ let pp_ge pp_len pp_var =
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
-  | Pfvar x -> pp_var_i fmt x
-  | Pbig(e1, e2, op, x, e0, b) ->
+  | Pbig(e, op, x, e1, e2, e0) ->
     F.fprintf fmt "@[(\\big[%s/%a]@ (%a \\in %a:%a)@ (%a))@]"
       (string_of_op2 op)
-      pp_expr e0
+      pp_expr e
       pp_var_i x
       pp_expr e1
       pp_expr e2
-      pp_expr b
-  | Presult (_, v)      -> pp_gvar fmt v
-  | Presultget (al, aa, ws, _, x, e) ->
-    pp_arr_access pp_gvar pp_expr fmt al aa ws x e
+      pp_expr e0
   in
   pp_expr
 
@@ -234,6 +230,26 @@ let pp_call_conv fmt =
   | FInfo.Internal -> Format.fprintf fmt "inline@ "
   | FInfo.Subroutine _ -> ()
 
+let pp_clause pp_size pp_var fmt f = Format.fprintf fmt "%a" (pp_ge pp_size pp_var) f
+
+let rec pp_clauses pp_size pp_var prepost fmt cs =
+  match cs with
+  | [] -> Format.fprintf fmt ""
+  | (Expr.Cas,c)::q -> Format.fprintf fmt "@[%s #[prover=cas] {%a}@ %a@]" prepost
+                   (pp_clause pp_size pp_var) c
+                   (pp_clauses pp_size pp_var prepost) q
+  | (Expr.Smt,c)::q -> Format.fprintf fmt "@[%s #[prover=smt] {%a}@ %a@]" prepost
+                   (pp_clause pp_size pp_var) c
+                   (pp_clauses pp_size pp_var prepost) q
+
+let pp_contra pp_size pp_var fmt fd =
+  match fd.f_contra with
+  | None -> ()
+  | Some  ct ->
+    F.fprintf fmt "%a@ %a"
+      (pp_clauses pp_size pp_var "requires") ct.f_pre
+      (pp_clauses pp_size pp_var "ensures") ct.f_post
+
 let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
   let pp_locals fmt fd =
@@ -252,11 +268,12 @@ let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd 
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@]@ %a@ {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
+   (pp_contra pp_size pp_var) fd
    pp_locals fd
    (pp_gc pp_info pp_size pp_opn pp_var) fd.f_body
    pp_ret ()
@@ -290,28 +307,17 @@ let pp_ptype = pp_gtype pp_pexpr
 
 let pp_plval = pp_glv pp_pexpr pp_pvar 
 
-let pp_pprog pd asmOp fmt p =
-  let pp_opn = pp_opn pd asmOp in
-  Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
-
 let pp_var ~debug =
     if debug then
       fun fmt x -> F.fprintf fmt "%s_id_%s" Str.(global_replace (regexp "#") "_" x.v_name) (string_of_uid x.v_id)
     else
-      fun fmt x -> F.fprintf fmt "%s" x.v_name
+      pp_pvar
+      (* fun fmt x -> F.fprintf fmt "%s" x.v_name *)
 
-let pp_clause ~debug fmt f = Format.fprintf fmt "%a" (pp_ge pp_len (pp_var ~debug)) f
-
-let rec pp_clauses ~debug prepost fmt cs =
-  match cs with
-  | [] -> Format.fprintf fmt ""
-  | (Expr.Cas,c)::q -> Format.fprintf fmt "%s #[prover=cas] {%a}@ %a" prepost
-                   (pp_clause ~debug) c
-                   (pp_clauses ~debug prepost) q
-  | (Expr.Smt,c)::q -> Format.fprintf fmt "%s #[prover=smt] {%a}@ %a" prepost
-                   (pp_clause ~debug) c
-                   (pp_clauses ~debug prepost) q
+let pp_pprog ~debug pd asmOp fmt p =
+  let pp_opn = pp_opn pd asmOp in
+  Format.fprintf fmt "@[<v>%a@]"
+    (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn (pp_var ~debug))) (List.rev p)
 
 let pp_fun ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
@@ -322,13 +328,12 @@ let pp_fun ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@]@ %a@ %a@ {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@]@ %a@ {@   @[<v>%a@ %a@ %a@]@ }@]"
    pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_len)) ret
-    (pp_clauses ~debug "requires") fd.f_contra.f_pre
-    (pp_clauses ~debug "ensures") fd.f_contra.f_post
+   (pp_contra pp_len pp_var) fd
    pp_locals locals
    (pp_gc pp_info pp_len pp_opn pp_var) fd.f_body
    pp_ret ()
