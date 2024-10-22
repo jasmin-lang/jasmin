@@ -254,9 +254,12 @@ Proof.
     rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (emem s1)) cmp_le_refl.
     exact: ok_RSP.
   move => /eqP r_neq_rsp.
+  rewrite kill_varsE.
+  case: Sv_memP; first by SvD.fsetdec.
+  move=> _.
   rewrite -(ih r). 2: SvD.fsetdec.
   rewrite /set_RSP Vm.setP_neq // /ra_undef_vm kill_varsE.
-  case: Sv_memP => //; rewrite /ra_undef; SvD.fsetdec.
+  case: Sv_memP => //; SvD.fsetdec.
 Qed.
 
 Lemma sem_not_written k s1 c s2 :
@@ -394,20 +397,32 @@ Qed.
 Lemma Hproc_pm : sem_Ind_proc p var_tmp Pc Pfun.
 Proof.
   red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
-  rewrite /ra_valid in ok_ra.
-  rewrite /saved_stack_valid in ok_ss.
-  rewrite /Pfun !disjoint_unionE ih /=.
-  rewrite /ra_vm /saved_stack_vm.
-  apply/andP; split; last first.
-  + case: sf_save_stack ok_ss => //.
-    move=> /= r /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
-    by rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=; SvD.fsetdec.
-  case: sf_return_address ok_ra => //.
-  + rewrite disjoint_unionE => rax_not_magic.
-    by apply/andP; split => //; apply: flags_not_magic.
-  1: move=> r _ /= /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
-  2: move=> [] //= r _ _ /andP[] /eqP r_neq_gd /eqP r_neq_rsp.
-  all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=; SvD.fsetdec.
+  have hmagic: forall (r:var),
+    r != vid (sp_rip (p_extra p)) ->
+    r != vid (sp_rsp (p_extra p)) ->
+    disjoint (Sv.singleton r) (magic_variables p).
+  + by move=> r /eqP + /eqP;
+      rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec;
+      clear; SvD.fsetdec.
+  rewrite /Pfun /ra_undef !disjoint_unionE ih /=.
+  rewrite -andbA; apply/and3P; split.
+  + move: ok_ra; rewrite /ra_valid /ra_vm.
+    case: sf_return_address => //.
+    + move=> _; rewrite disjoint_unionE.
+      by apply/andP; split => //; apply: flags_not_magic.
+    + move=> ra _ /and3P [+ + _].
+      by apply hmagic.
+    move=> ra_call _ _ _ /andP [hcall _].
+    case: ra_call hcall => [ra_call|//] /andP[].
+    by apply hmagic.
+  + move: ok_ss; rewrite /saved_stack_valid /saved_stack_vm.
+    case: sf_save_stack => //.
+    move=> /= r /and3P[] r_neq_gd r_neq_rsp _.
+    by apply hmagic.
+  move: ok_ra; rewrite /ra_valid /ra_vm_return.
+  case: sf_return_address => // _ ra_return _ _ /andP [_ hreturn].
+  case: ra_return hreturn => [ra_return|//] /andP[].
+  by apply hmagic.
 Qed.
 
 Lemma sem_RSP_GD_not_written k s1 c s2 :

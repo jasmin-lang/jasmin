@@ -4,9 +4,14 @@ open Arch_extra
 open Prog
 
 type 'a callstyle =
-  | StackDirect           (* call instruction push the return address on top of the stack *)
-  | ByReg of 'a option    (* call instruction store the return address on a register,
-                               (Some r) neams that the register is forced to be r *)
+  | StackDirect
+    (* call instruction push the return address on top of the stack *)
+  | ByReg of { call : 'a option; return : bool }
+    (* call instruction store the return address on a register,
+       - call: (Some r) means that the register is forced to be r
+       - return:
+         + true means that the register is also used for the return
+         + false means that there is no constraint (stack is also ok) *)
 
 (* TODO: check that we cannot use sth already defined on the Coq side *)
 
@@ -191,7 +196,7 @@ module Arch_from_Core_arch (A : Core_arch) :
   let callstyle =
     match A.callstyle with
     | StackDirect -> StackDirect
-    | ByReg o -> ByReg (Option.map var_of_reg o)
+    | ByReg { call; return } -> ByReg { call = Option.map var_of_reg call; return }
 
   let arch_info = Pretyping.{
       pd = reg_size;

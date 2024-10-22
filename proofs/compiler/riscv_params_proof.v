@@ -255,9 +255,8 @@ Qed.
 
 Lemma riscv_lload_correct : lload_correct_aux (lip_check_ws riscv_liparams) riscv_lload.
 Proof.
-  move=> xd xs ofs s vm top hgets.
-  case heq: vtype => [|||ws] //; t_xrbindP.
-  move=> _ <- /eqP ? w hread hset; subst ws.
+  move=> xd xs ofs ws top s w vm heq hcheck hgets hread hset.
+  move/eqP: hcheck => ?; subst ws.
   rewrite /riscv_lload /= hgets /= truncate_word_u /= hread /=.
   by rewrite /exec_sopn /= truncate_word_u /= sign_extend_u hset.
 Qed.
@@ -285,6 +284,7 @@ Definition riscv_hliparams :
     spec_lip_set_up_sp_register   := riscv_spec_lip_set_up_sp_register;
     spec_lip_lmove                := riscv_lmove_correct;
     spec_lip_lstore               := riscv_lstore_correct;
+    spec_lip_lload                := riscv_lload_correct;
     spec_lip_lstores              := riscv_lstores_correct;
     spec_lip_lloads               := riscv_lloads_correct;
     spec_lip_tmp                  := riscv_tmp_correct;

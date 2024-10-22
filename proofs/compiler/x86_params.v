@@ -124,6 +124,7 @@ Definition x86_liparams : linearization_params :=
     lip_lmove := x86_lmove;
     lip_check_ws := x86_check_ws;
     lip_lstore := x86_lstore;
+    lip_lload := x86_lload;
     lip_lstores := lstores_dfl x86_lstore;
     lip_lloads := lloads_dfl x86_lload;
   |}.

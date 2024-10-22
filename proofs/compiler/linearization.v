@@ -71,7 +71,8 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
     lip_tmp2 : Ident.ident;
 
     (* Variables that can't be used to save the stack pointer.
-       If lip_set_up_sp_register use its auxiliary argument, it should contain lip_tmp
+       If lip_set_up_sp_register uses its auxiliary argument,
+       it should contain lip_tmp.
     *)
     lip_not_saved_stack : seq Ident.ident;
 
@@ -117,30 +118,42 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
       -> seq fopn_args;
 
     (* Return the arguments for a linear instruction that corresponds to
-       an assignment.
-       In symbols, the linear instruction derived from [lip_lmove d s]
+       a move between two registers.
+       In symbols, the linear instruction derived from [lip_lmove xd xs]
        corresponds to:
-               d := (Uptr)s
+               xd := (Uptr)xs
      *)
     lip_lmove :
       var_i       (* Destination variable. *)
       -> var_i    (* Source variable. *)
       -> fopn_args;
 
-    (* Check it the give size can be write/read to/from memory,
+    (* Check if the given size can be written to/read from memory,
        i.e if an operation exists for that size. *)
     lip_check_ws : wsize -> bool;
 
     (* Return the arguments for a linear instruction that corresponds to
-       an assignment.
-       In symbols, the linear instruction derived from [lip_lstore b ofs xs]
+       a store to memory.
+       In symbols, the linear instruction derived from [lip_lstore xd ofs xs]
        corresponds to:
-               [b + ofs] := (Uptr) s
+               [xd + ofs] := xs
      *)
     lip_lstore :
       var_i        (* Base register. *)
       -> Z         (* Offset. *)
       -> var_i     (* Source register. *)
+      -> fopn_args;
+
+    (* Return the arguments for a linear instruction that corresponds to
+       a load from memory.
+       In symbols, the linear instruction derived from [lip_lload xd xs ofs]
+       corresponds to:
+               xd = [xs + ofs]
+     *)
+    lip_lload :
+      var_i        (* Destination register. *)
+      -> var_i     (* Base register. *)
+      -> Z         (* Offset. *)
       -> fopn_args;
 
     (* Push variables to the stack at the given offset *)
@@ -165,7 +178,7 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
           LstoreLabel ra lret
           Lgoto lcall
           Llabel lret
-       Internally (to the callee), ra need to be free.
+       Internally (to the callee), ra needs to be free.
        The return is implemented by
           Ligoto ra
        /!\ For protection against Spectre we should avoid this calling convention
@@ -181,29 +194,58 @@ Record linearization_params {asm_op : Type} {asmop : asmOp asm_op} :=
    + For ARM v7:
 
      - Return address passed by register in ra
-         Lcall (Some ra) lcall    (i.e BL lcall with the constraint that ra should be LR(r14))
+         Lcall (Some ra) lcall (i.e BL lcall with the constraint that ra should be LR (r14))
          Llabel lret
-       Internally (to the callee), ra need to be free.
+       Internally (to the callee), ra needs to be free.
        The return is implemented by
           Ligoto ra   (i.e BX ra)
        The stack frame is incremented by the caller.
 
 
      - Return address passed by stack (on top of the stack):
-       Lcall (Some ra) lcall (i.e BL lcall with the constraint that ra should be LR(r14))
-       Llabel lret
-       ra need to be free when Lcall is executed (extra_free_registers = Some ra).
-       The first instruction of the function call need to push ra.
-          store sp ra
-       So ra need to be known at call cite and at the entry of the function.
+         Lcall (Some ra) lcall (i.e BL lcall with the constraint that ra should be LR (r14))
+         Llabel lret
+       ra needs to be free when Lcall is executed.
+       The first instruction of the function call needs to push ra.
+         store sp ra
+       So ra needs to be known at call site and at the entry of the function.
        The stack frame is incremented by the caller.
 
        The return is implemented by
-       Lret  (i.e POP PC in arm v7)
+         Lret (i.e POP PC in arm v7)
 
+
+   + For RISC-V:
+
+     - Return address passed by register in r
+         Lcall (Some r) lcall (i.e call lcall with the constraint that r should be ra (x1))
+         Llabel lret
+       Internally (to the callee), r needs to be free.
+       The return is implemented by
+          Ligoto r (i.e jr r, also written ret if r is ra)
+       The stack frame is incremented by the caller.
+
+     - Return address passed by stack (on top of the stack):
+         Lcall (Some ra_call) lcall (i.e call lcall with the constraint that ra_call should be ra (x1))
+         Llabel lret
+       ra_call needs to be free when Lcall is executed.
+       The first instruction of the function call needs to push ra_call.
+         store sp ra_call
+       So ra_call needs to be known at call site and at the entry of the function.
+       The stack frame is incremented by the caller.
+
+       The return is implemented by
+         load ra_return sp
+         Ligoto ra_return (i.e. jr ra_return, also written ret if ra_return is ra)
+       ra_return needs to be free at the end of the callee (in particular, it cannot
+       be a result).
 *)
 
-(* The following functions are defined here, so that they can be shared between the architectures. The proofs are shared too (see linearization_proof.v). An architecture can define its own functions when there is something more efficient to do, and rely on one of these implementations in the default case. *)
+(* The following functions are defined here, so that they can be shared between
+   the architectures. The proofs are shared too (see linearization_proof.v).
+
+   An architecture can define its own functions when there is something more
+   efficient to do, and rely on one of these implementations in the default case. *)
 Section DEFAULT.
 Context {asm_op : Type} {pd : PointerData} {asmop : asmOp asm_op}.
 Context (lip_tmp2 : Ident.ident).
@@ -251,7 +293,7 @@ Context
   (liparams : linearization_params).
 
 (* Return a linear instruction that corresponds to copying a register.
-   The linear instruction [lmove ii rd rs] corresponds to
+   The linear instruction [lmove rd rs] corresponds to
            R[rd] := (Uptr)R[rs]
  *)
 Definition lmove
@@ -261,13 +303,19 @@ Definition lmove
   li_of_fopn_args dummy_instr_info (lip_lmove liparams rd rs).
 
 (* Return a linear instruction that corresponds to loading from memory.
-   The linear instruction [lload ii rd ws r0 ofs] corresponds to
-           R[rd] := (ws)M[R[r0] + ofs]
+   The linear instruction [lload rd rs ofs] corresponds to
+           R[rd] := M[R[rs] + ofs]
  *)
+Definition lload
+  (rd : var_i) (* Destination register. *)
+  (rs : var_i) (* Base register. *)
+  (ofs : Z)    (* Offset. *)
+  : linstr :=
+  li_of_fopn_args dummy_instr_info (lip_lload liparams rd rs ofs).
 
 (* Return a linear instruction that corresponds to storing to memory.
-   The linear instruction [lstore ii rd ofs ws rs] corresponds to
-           M[R[rd] + ofs] := (ws)R[rs]
+   The linear instruction [lstore rd ofs rs] corresponds to
+           M[R[rd] + ofs] := R[rs]
  *)
 Definition lstore
   (rd : var_i)      (* Base register. *)
@@ -309,7 +357,7 @@ End EXPR.
 Definition ovar_of_ra (ra : return_address_location) : option var :=
   match ra with
   | RAreg ra _ => Some ra
-  | RAstack ra _ _ => ra
+  | RAstack ra_call _ _ _ => ra_call
   | RAnone => None
   end.
 
@@ -319,7 +367,7 @@ Definition ovari_of_ra (ra : return_address_location) : option var_i :=
 Definition tmp_of_ra (ra : return_address_location) : option var :=
   match ra with
   | RAreg _ o => o
-  | RAstack _ _ o => o
+  | RAstack _ _ _ o => o
   | RAnone => None
   end.
 
@@ -528,10 +576,10 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
   Let _ := assert match sf_return_address e with
                   | RAnone => ~~ (var_tmp2 \in map v_var fd.(f_res))
                   | RAreg ra tmp => (vtype ra == sword Uptr) && ov_type_ptr tmp
-                  | RAstack ora ofs tmp =>
-                      [&& ov_type_ptr tmp
-                        , (if ora is Some ra then vtype ra == sword Uptr
-                           else true)
+                  | RAstack ra_call ra_return ofs tmp =>
+                      [&& ov_type_ptr ra_call
+                        , ov_type_ptr ra_return
+                        , ov_type_ptr tmp
                         & check_stack_ofs_internal_call e ofs Uptr]
                   end
                   (E.error "bad return-address") in
@@ -580,6 +628,12 @@ Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) (tmp: opti
                    then (lip_free_stack_frame liparams) rspi tmp sz
                    else (lip_allocate_stack_frame liparams) rspi tmp sz in
      map (li_of_fopn_args ii) args.
+
+Definition is_RAstack_None_call ra :=
+  if ra is RAstack None _ _ _ then true else false.
+
+Definition is_RAstack_None_return ra :=
+  if ra is RAstack _ None _ _ then true else false.
 
 Let ReturnTarget := Llabel ExternalLabel.
 Let Llabel := linear.Llabel InternalLabel.
@@ -655,8 +709,8 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       else
         let sz := stack_frame_allocation_size e in
         let tmp := tmpi_of_ra ra in
-        let before := allocate_stack_frame false ii sz tmp (is_RAstack_None ra) in
-        let after := allocate_stack_frame true ii sz tmp (is_RAstack ra) in
+        let before := allocate_stack_frame false ii sz tmp (is_RAstack_None_call ra) in
+        let after := allocate_stack_frame true ii sz tmp (is_RAstack_None_return ra) in
         let lret := lbl in
         let lbl := next_lbl lbl in
         (* The test is used for the proof of linear_has_valid_labels *)
@@ -688,11 +742,14 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : label * lcmd :=
        , [:: MkLI dummy_instr_info (Llabel 1) ]
        , 2%positive
        )
-     | RAstack ra z _ =>
-       ( [:: MkLI dummy_instr_info Lret ]
+     | RAstack ra_call ra_return z _ =>
+       ( if ra_return is Some ra_return
+         then [:: lload (mk_var_i ra_return) rspi z;
+                  MkLI dummy_instr_info (Ligoto (Rexpr (Fvar (mk_var_i ra_return)))) ]
+         else [:: MkLI dummy_instr_info Lret ]
        , MkLI dummy_instr_info (Llabel 1) ::
-         (if ra is Some ra
-          then [:: lstore rspi z (mk_var_i ra) ]
+         (if ra_call is Some ra_call
+          then [:: lstore rspi z (mk_var_i ra_call) ]
           else [::])
        , 2%positive
        )
