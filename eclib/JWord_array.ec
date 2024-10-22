@@ -378,4 +378,37 @@ theory SubArrayDirect.
 end SubArrayDirect.
 
 
- 
+(* Test concrete instantiation of the theories *)
+clone export PolyArray as Array3 with op size <- 3.
+clone export PolyArray as Array5 with op size <- 5.
+
+clone export WArray as WArray12 with op size <- 12.
+clone export WArray as WArray20 with op size <- 20.
+
+clone export ArrayWords as Array5W32 with
+    op sizeW <- 4,
+    op sizeA <- 5,
+    theory Word <= W32,
+    theory ArrayN <= Array5,
+    theory WArrayN <= WArray20.
+
+clone export ArrayWords as Array3W32 with
+    op sizeW <- 4,
+    op sizeA <- 3,
+    theory Word <= W32,
+    theory ArrayN <= Array3,
+    theory WArrayN <= WArray12.
+
+clone export SubArray as SubArray3_5 with
+    op sizeS <- 3,
+    op sizeB <- 5,
+    theory ArrayS <= Array3,
+    theory ArrayB <= Array5.
+
+clone export SubArrayDirect as SubArrayDirect3_5W32 with
+    op sizeW <- 4,
+    op sizeS <- 3,
+    op sizeB <- 5,
+    theory Word <- W32,
+    theory ArrayWordsS <= Array3W32,
+    theory ArrayWordsB <= Array5W32.
