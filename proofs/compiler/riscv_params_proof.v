@@ -601,6 +601,7 @@ Proof.
   exact: (word_uincl_zero_ext w' hws').
 Qed.
 
+
 (* ------------------------------------------------------------------------ *)
 
 Definition riscv_h_params {dc : DirectCall} : h_architecture_params riscv_params :=

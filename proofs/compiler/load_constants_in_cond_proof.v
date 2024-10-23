@@ -209,6 +209,23 @@ Proof.
   by rewrite Hsem_pexprs /= Hexec_sopn.
 Qed.
 
+Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
+Proof.
+  move=> s1 scs m s2 o xs es ves vs hes ho hw ii X c /= [<-]{c}.
+  rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub vm1 hvm1.
+  have h : evm s1 =[read_es es] evm (with_vm s1 vm1).
+  + by apply: eq_onI hvm1; SvD.fsetdec.
+  rewrite (eq_on_sem_pexprs _ _ _ h) in hes => //.
+  rewrite -eq_globs in hes.
+  have []:= write_lvals_eq_on _ hw hvm1; first by SvD.fsetdec.
+  move=> vm2 hw' eq_s2_vm2; exists vm2.
+  + by apply: eq_onI eq_s2_vm2; SvD.fsetdec.
+  apply/sem_seq1/EmkI; apply:Esyscall.
+  + exact hes.
+  + exact ho.
+  rewrite eq_globs; exact hw'.
+Qed.
+
 (* FIXME move this lemma also in makereference_argument_proof *)
 Lemma write_Ii ii i : write_I (MkI ii i) = write_i i.
 Proof. by []. Qed.
@@ -361,23 +378,6 @@ Proof.
   eapply EcallRun ; try by eassumption.
   rewrite -Hvres -!(sem_pexprs_get_var _ (p_globs p)).
   symmetry; move : Hevms2; rewrite -read_esE; apply : read_es_eq_on.
-Qed.
-
-Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
-Proof.
-  move=> s1 scs m s2 o xs es ves vs hes ho hw ii X c /= [<-]{c}.
-  rewrite read_Ii read_i_syscall write_Ii write_i_syscall => hsub vm1 hvm1.
-  have h : evm s1 =[read_es es] evm (with_vm s1 vm1).
-  + by apply: eq_onI hvm1; SvD.fsetdec.
-  rewrite (eq_on_sem_pexprs _ _ _ h) in hes => //.
-  rewrite -eq_globs in hes.
-  have []:= write_lvals_eq_on _ hw hvm1; first by SvD.fsetdec.
-  move=> vm2 hw' eq_s2_vm2; exists vm2.
-  + by apply: eq_onI eq_s2_vm2; SvD.fsetdec.
-  apply/sem_seq1/EmkI; apply:Esyscall.
-  + exact hes.
-  + exact ho.
-  rewrite eq_globs; exact hw'.
 Qed.
 
 Lemma load_constants_progP_aux f scs mem scs' mem' va vr:

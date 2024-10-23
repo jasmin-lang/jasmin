@@ -151,6 +151,7 @@ Definition riscv_liparams : linearization_params :=
 
 End LINEARIZATION.
 
+
 (* ------------------------------------------------------------------------ *)
 (* Lowering parameters. *)
 Definition riscv_loparams : lowering_params lowering_options :=
