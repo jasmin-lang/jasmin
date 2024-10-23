@@ -96,7 +96,7 @@ Variant compiler_step :=
   | MakeRefArguments            : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
-  | PreLowering                 : compiler_step
+  | LoadConstantsInCond         : compiler_step
   | LowerInstruction            : compiler_step
   | PropagateInline             : compiler_step
   | SLHLowering                 : compiler_step
@@ -130,7 +130,7 @@ Definition compiler_step_list := [::
   ; MakeRefArguments
   ; RegArrayExpansion
   ; RemoveGlobal
-  ; PreLowering
+  ; LoadConstantsInCond
   ; LowerInstruction
   ; PropagateInline
   ; SLHLowering
@@ -285,7 +285,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
   Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in
-  let pp := cparams.(print_uprog) PreLowering pp in
+  let pp := cparams.(print_uprog) LoadConstantsInCond pp in
 
   Let _ :=
     assert
