@@ -1,4 +1,3 @@
-Require Import Uint63.
 Require Import
   compiler_util
   expr.
