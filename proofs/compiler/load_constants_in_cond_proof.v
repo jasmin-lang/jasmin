@@ -1,6 +1,5 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
-Require Import Uint63.
 Require Import psem compiler_util.
 Require Export load_constants_in_cond.
 Import Utf8.
