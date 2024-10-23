@@ -1,0 +1,42 @@
+fn f1() -> reg u32 {
+    reg u32 r z y;
+    r = 0;
+    y = 0;
+    z = 0;
+    r = r ^ y;
+    r = r ^ z;
+    return r;
+}
+
+fn f2(reg u32 _a _b _c) -> reg u32 {
+    reg u32 r;
+    r = 0;
+    return r;
+}
+
+fn g(reg ptr u32[12] state, reg u64 column) -> reg ptr u32[12] {
+    reg u32 x y z a;
+    x = 0;
+    y = 0;
+    z = 0;
+    a = f1();
+    state[column] = a;
+    a = f2(x,y,z);
+    state[column] = a;
+
+    return state;
+}
+
+export
+fn jazz_g(reg ptr u32[12] state, reg u64 c) -> reg ptr u32[12] {
+    #inline state = g(state, c);
+    return state;
+}
+
+export
+fn jazz_g2(reg ptr u32[12] state) -> reg ptr u32[12] {
+    reg u64 c;
+    c = 0;
+    state = g(state, c);
+    return state;
+}
