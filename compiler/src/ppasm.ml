@@ -201,7 +201,7 @@ let pp_glob_data fmt gd names =
             `Instr (".p2align", [pp_align U256]);
             `Label m;
             `Label n]);
-      format_glob_data gd names |> print_asm_lines fmt
+      format_glob_data global_datas gd names |> print_asm_lines fmt
     end
 
 let pp_instr_wsize (ws : W.wsize) =
