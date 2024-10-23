@@ -13,8 +13,12 @@
 
 ## Bug fixes
 
-- Multiplication instructions hava data-independent timing on x86
+- Multiplication instructions have data-independent timing on x86
   ([PR #927](https://github.com/jasmin-lang/jasmin/pull/927)).
+
+- Do not use RAX to save the stack pointer on x86
+  ([PR #937](https://github.com/jasmin-lang/jasmin/pull/937);
+  fixes [#895](https://github.com/jasmin-lang/jasmin/issues/895)).
 
 ## Other changes
 

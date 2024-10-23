@@ -111,11 +111,13 @@ Definition x86_lload (xd xs: var_i) (ofs : Z) :=
   let ws := wsize_of_stype (vtype xd) in
   x86_lassign (LLvar xd) ws (Load Aligned ws xs (fconst Uptr ofs)).
 
+Definition x86_tmp := vname (v_var vtmpi).
+
 Definition x86_liparams : linearization_params :=
   {|
-    lip_tmp := vname (v_var vtmpi);
+    lip_tmp := x86_tmp;
     lip_tmp2 := vname (v_var vtmp2i);
-    lip_not_saved_stack := [::];
+    lip_not_saved_stack := [:: x86_tmp ];
     lip_allocate_stack_frame := x86_allocate_stack_frame;
     lip_free_stack_frame := x86_free_stack_frame;
     lip_set_up_sp_register := x86_set_up_sp_register;
