@@ -85,6 +85,8 @@ Variant x86_op : Type :=
 
 | BSWAP  of wsize                     (* byte swap *)
 | POPCNT of wsize    (* Count bits set to 1 *)
+| BTR    of wsize    (* bit test and reset *)
+| BTS    of wsize    (* bit test and set *)
 
 | PEXT   of wsize    (* parallel bits extract *)
 | PDEP   of wsize    (* parallel bits deposit *)
@@ -443,6 +445,9 @@ Notation mk_instr_w2_b5w_010 name semi check prc valid pp_asm := ((fun sz =>
 
 Notation mk_instr_w2b_b5w_010 name semi check prc valid pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: Eu 0; Eu 1] ++ [::iCF]) (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi sz) (check sz) 2 (valid sz) (pp_asm sz)), (name%string,prc))  (only parsing).
+
+Notation mk_instr_w2_bw name semi check prc valid pp_asm := ((fun sz =>
+  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (bw_ty sz) [:: Ea 0; Eu 1] [::F CF; Ea 0] MSB_MERGE (semi sz) (check sz) 2 (valid sz) (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2b_bw name semi flag check prc valid pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi sz) (check sz) 2 (valid sz) (pp_asm sz)), (name%string,prc))  (only parsing).
@@ -1220,6 +1225,16 @@ Definition x86_POPCNT sz (v: word sz): tpl (b5w_ty sz) :=
 
 Definition Ox86_POPCNT_instr :=
   mk_instr_w_b5w "POPCNT" x86_POPCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 POPCNT) size_16_64 (pp_name "popcnt").
+
+Definition x86_BTX op sz (x y: word sz) : tpl (bw_ty sz) :=
+  let bit := (wunsigned y mod wsize_bits sz)%Z in
+  (:: Some (wbit_n x (Z.to_nat bit)) & op sz (wrepr sz (2 ^ bit)) x).
+
+Definition Ox86_BTR_instr :=
+  mk_instr_w2_bw "BTR" (x86_BTX wandn) (λ _, [:: [:: r ; ri U8 ] ]) (prim_16_64 BTR) size_16_64 (pp_iname "btr").
+
+Definition Ox86_BTS_instr :=
+  mk_instr_w2_bw "BTS" (x86_BTX (@wor)) (λ _, [:: [:: r ; ri U8 ] ]) (prim_16_64 BTS) size_16_64 (pp_iname "bts").
 
 Definition x86_PEXT sz (v1 v2: word sz): tpl (w_ty sz) :=
   @pextr sz v1 v2.
@@ -2003,6 +2018,8 @@ Definition x86_instr_desc o : instr_desc_t :=
   | XCHG sz            => Ox86_XCHG_instr.1 sz
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
+  | BTR sz             => Ox86_BTR_instr.1 sz
+  | BTS sz             => Ox86_BTS_instr.1 sz
   | PEXT sz            => Ox86_PEXT_instr.1 sz
   | PDEP sz            => Ox86_PDEP_instr.1 sz
   | CQO sz             => Ox86_CQO_instr.1 sz
@@ -2146,6 +2163,8 @@ Definition x86_prim_string :=
    Ox86_XCHG_instr.2;
    Ox86_BSWAP_instr.2;
    Ox86_POPCNT_instr.2;
+   Ox86_BTR_instr.2;
+   Ox86_BTS_instr.2;
    Ox86_PEXT_instr.2;
    Ox86_PDEP_instr.2;
    Ox86_CQO_instr.2;

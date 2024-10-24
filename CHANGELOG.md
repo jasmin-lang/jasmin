@@ -1,10 +1,29 @@
 
 # [unreleased]
 
+## New features
+
+- Add support for ARM instruction `SBC`
+  ([PR #936](https://github.com/jasmin-lang/jasmin/pull/936)).
+
+- Add support for x86 instructions `BTR` and `BTS` with the bit base operand in
+  register
+  ([PR #932](https://github.com/jasmin-lang/jasmin/pull/932);
+  fixes [#928](https://github.com/jasmin-lang/jasmin/issues/928)).
+
+- Adding support for type aliases definition in the global scope (and namespace global scope)
+   * Syntax for definition is `type <name> = <type>;`
+   * Syntax for use is `reg <typename> <varname> ...`
+  ([PR #911](https://github.com/jasmin-lang/jasmin/pull/911)).
+
 ## Bug fixes
 
-- Multiplication instructions hava data-independent timing on x86
+- Multiplication instructions have data-independent timing on x86
   ([PR #927](https://github.com/jasmin-lang/jasmin/pull/927)).
+
+- Do not use RAX to save the stack pointer on x86
+  ([PR #937](https://github.com/jasmin-lang/jasmin/pull/937);
+  fixes [#895](https://github.com/jasmin-lang/jasmin/issues/895)).
 
 ## Other changes
 

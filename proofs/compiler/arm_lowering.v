@@ -410,7 +410,7 @@ Definition lower_base_op
           then Some (lvs, Oasm (BaseOp (None, ARM_op mn (with_shift opts sh))), x :: ebase :: esham :: rest)
           else Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
       | _ => None end
-    else if ADC == mn
+    else if mn \in [:: ADC; SBC ]
     then
       match es with
       | x :: y :: z :: rest =>
