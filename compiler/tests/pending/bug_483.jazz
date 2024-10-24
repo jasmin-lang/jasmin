@@ -1,0 +1,13 @@
+inline fn f(reg u64 j) {
+    while (j < 1) {
+        j += 1;
+    }
+}
+
+export
+fn main (reg u64 i) {
+    while (i < 1) {
+        f(i);
+        i += 1;
+    }
+}

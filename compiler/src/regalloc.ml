@@ -297,11 +297,12 @@ let collect_equality_constraints
     copn_constraints
     (tbl: int Hv.t)
     (nv: int)
-    (f: ('info, 'asm) func) : Puf.t =
+    (f: ('info, 'asm) func) : Puf.t * ('info, 'asm) trace =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
   collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg int_of_var copn_constraints s f;
-  s.cac_eqc
+  let eqc = s.cac_eqc in
+  eqc, normalize_trace eqc s.cac_trace
 
 let collect_equality_constraints_in_prog
       asmOp
@@ -882,7 +883,7 @@ let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
 
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
-  let eqc =
+  let eqc, tr =
     collect_equality_constraints
       Arch.asmOp
       Arch.aparams
@@ -893,6 +894,11 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
       f
   in
   let vars = normalize_variables vars eqc in
+  (* Check conflicts *)
+  let _ =
+    let lf = Liveness.live_fd false f in
+    collect_conflicts Arch.pointer_data Arch.reg_size Arch.asmOp vars tr lf empty_conflicts
+  in
   let a = reverse_varmap nv vars in
   (* The variable that is added last is the representative of its class.
      This makes sure that each argument is the representative of its class,
