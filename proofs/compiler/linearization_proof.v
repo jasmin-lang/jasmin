@@ -1635,27 +1635,23 @@ Section PROOF.
     : Prop :=
     match ra, target with
     | RAnone, None => True
-    | RAreg (Var (sword ws) _ as ra) _, Some ((caller, lbl), cbody, pc) =>
-      if (ws == Uptr)%CMP
-      then [/\ is_linear_of caller cbody,
-            find_label lbl cbody = ok pc,
-            (caller, lbl) \in label_in_lprog p' &
-            exists2 ptr,
-              encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
-              vm.[ra] = Vword (zero_extend ws ptr)
-           ]
-      else False
+    | RAreg ra _, Some ((caller, lbl), cbody, pc) =>
+      [/\ is_linear_of caller cbody,
+          find_label lbl cbody = ok pc,
+          (caller, lbl) \in label_in_lprog p' &
+          exists2 ptr,
+            encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
+            vm.[ra] = Vword ptr
+      ]
 
-   | RAstack (Some (Var (sword ws) _ as ra)) _ _ _ , Some ((caller, lbl), cbody, pc) =>
-      if (ws == Uptr)%CMP
-      then [/\ is_linear_of caller cbody,
-            find_label lbl cbody = ok pc,
-            (caller, lbl) \in label_in_lprog p' &
-            exists2 ptr,
-              encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
-              vm.[ra] = Vword (zero_extend ws ptr)
-           ]
-      else False
+   | RAstack (Some ra) _ _ _ , Some ((caller, lbl), cbody, pc) =>
+      [/\ is_linear_of caller cbody,
+          find_label lbl cbody = ok pc,
+          (caller, lbl) \in label_in_lprog p' &
+          exists2 ptr,
+            encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
+            vm.[ra] = Vword ptr
+      ]
 
     | RAstack None _ ofs _, Some ((caller, lbl), cbody, pc) =>
       [/\ is_linear_of caller cbody,
@@ -1664,7 +1660,6 @@ Section PROOF.
           exists2 ptr, encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
           exists2 sp, vm.[ vrsp ] = Vword sp & read m Aligned (sp + wrepr Uptr ofs)%R Uptr = ok ptr
       ]
-
 
     | _, _ => False
     end.
@@ -3194,16 +3189,17 @@ Section PROOF.
       + exists m1,  vm2_b.[x <- Vword ptr]; split => //.
         + by rewrite Vm.setP_neq ?hvm2_b_rsp //; case/and3P : ra_sem.
         + by move=> /= y hy; rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
-        + case: (x) ok_ret_addr => /= ? vra /andP []/eqP -> _; rewrite eq_refl; split => //.
-          by rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq // zero_extend_u.
+        + move: ok_ret_addr => /andP[] /eqP hty _.
+          split => //.
+          by rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq.
         by rewrite /= set_var_truncate //=; case/andP: ok_ret_addr => /eqP->.
       (* RAstack (Some x) ofs _ *)
       + case/and5P: ok_ret_addr => /eqP ok_ret_addr _ _ _ _.
         exists m1, vm2_b.[x <- Vword ptr]; split => //.
         + by rewrite Vm.setP_neq ?hvm2_b_rsp //; case/andP : ra_sem => /andP[].
         + by move=> /= y hy; rewrite Vm.setP_neq //; apply/eqP; move: hy; clear; SvD.fsetdec.
-        + case: (x) ok_ret_addr => /= ? vra ->; rewrite eq_refl; split => //.
-          by rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq zero_extend_u vm_truncate_val_eq.
+        + split => //.
+          by rewrite ok_ptr; exists ptr => //; rewrite Vm.setP_eq vm_truncate_val_eq.
         by rewrite /= set_var_truncate //= ok_ret_addr.
       (* RAstack None ofs _ *)
       move: ok_ret_addr => /and5P [] _ _ /eqP ? /eqP hioff sf_align_for_ptr; subst ofs.
@@ -4329,11 +4325,8 @@ Section PROOF.
       }
     }
     - (* Internal function, return address in register “ra” *)
-    { case: ra EQ ok_ret_addr X free_ra ok_lret exec_body ih => // -[] // ws // ra EQ ra_well_typed X /andP[] _ ra_notin_k.
-      case: lret => // - [] [] [] caller lret cbody pc.
-      case: (ws =P Uptr) => // E.
-      subst ws.
-      move=> [] ok_cbody ok_pc mem_lret [] retptr ok_retptr ok_ra exec_body ih.
+    { case: lret ok_lret => // - [] [] [] caller lret cbody pc.
+      move=> [] ok_cbody ok_pc mem_lret [] retptr ok_retptr ok_ra.
       have {ih} := ih fn 2%positive.
       rewrite /checked_c ok_fd chk_body => /(_ erefl).
       rewrite (linear_c_nil _ _ _ _ _ [:: _ ]).
@@ -4397,11 +4390,11 @@ Section PROOF.
         rewrite catA in ok_body.
         apply: (eval_lsem1 ok_body) => //.
         rewrite /eval_instr /= /get_var /=.
-        have ra_not_written : vm2.[ Var spointer ra ] = vm1.[ Var spointer ra ].
+        have ra_not_written : vm2.[ra] = vm1.[ra].
         * symmetry; apply: K2.
-          have /andP [_ ?] := ra_notin_k.
+          have /and3P [_ _ ?] := free_ra.
           by apply/Sv_memP.
-        rewrite ra_not_written ok_ra /= zero_extend_u truncate_word_u.
+        rewrite ra_not_written ok_ra /= truncate_word_u.
         have := decode_encode_label small_dom_p' mem_lret.
         rewrite ok_retptr /rdecode_label /= => -> /=.
         rewrite (eval_jumpE ok_cbody) ok_pc /=.
@@ -4443,8 +4436,7 @@ Section PROOF.
       + rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc; last by exact: sp_aligned.
         by rewrite wrepr_opp -/(stack_frame_allocation_size fd.(f_extra)).
 
-      (* We factor out what we know thanks to value_of_ra.
-         TODO: redefine value_of_ra? *)
+      (* We factor out what we know thanks to value_of_ra. *)
       have {ok_lret} [caller [{}lret [cbody [pc [retptr [-> /= ok_cbody ok_pc mem_lret ok_retptr ok_ra]]]]]]:
         exists caller lret' cbody pc retptr, [/\
           lret = Some ((caller, lret'), cbody, pc),
@@ -4456,10 +4448,9 @@ Section PROOF.
           | Some ra_call => vm1.[ra_call] = Vword retptr
           | None => read m1 Aligned rsp Uptr = ok retptr
           end].
-        + case: (ra_call) lret ok_lret => [[[||?|ws] ?]|] [[[[caller lret] cbody] pc]|] //.
-          + case: eqP => // -> [ok_cbody ok_pc mem_lret [retptr ok_retptr ok_ra]].
-            exists caller, lret, cbody, pc, retptr; split=> //.
-            by rewrite ok_ra zero_extend_u.
+        + case: (ra_call) lret ok_lret => [ra|] [[[[caller lret] cbody] pc]|] //.
+          + move=> [ok_cbody ok_pc mem_lret [retptr ok_retptr ok_ra]].
+            by exists caller, lret, cbody, pc, retptr; split.
           move=> [ok_cbody ok_pc mem_lret [retptr ok_retptr ok_ra]].
           exists caller, lret, cbody, pc, retptr; split=> //.
           move: ok_ra; rewrite ok_rsp => -[_ [<-] +].
@@ -4704,16 +4695,6 @@ Section PROOF.
       by transitivity mi.
     }
   Qed.
-
-    (* FIXME: simplify value_of_ra -> remove zero_extend *)
-        
-            (*
-              - doit-on faire un spec_load avec hypothèses plus simples ?
-              - dans lload_correct_aux, vu qu'on sait que w et xd sont des word ws,
-                on peut sans doute se passer de set_var et écrire direct vm.[_ <- _] *)
-            
-            (* faire un lemme w <= w' -> ws' <= ws ==> w = w' *)
-            (* ou au moins word_uincl -> cmp_le *)
 
   Lemma linear_fdP ii k s1 fn s2 :
     sem_call p var_tmps ii k s1 fn s2 →
