@@ -16,7 +16,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
 Record lowering_params
   `{asmop : asmOp} (lowering_options : Type) :=
   {
@@ -55,6 +54,8 @@ Record architecture_params
 
     (* Linearization parameters. See linearization.v. *)
     ap_lip : linearization.linearization_params;
+
+    ap_plp : bool; (* true if load_constants_prog should be applied *)
 
     (* Lowering parameters. Defined above. *)
     ap_lop : lowering_params lowering_options;
