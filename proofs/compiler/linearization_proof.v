@@ -2031,9 +2031,7 @@ Section PROOF.
       vm_initialized_on vm1 callee_saved →
       source_mem_split s1 (top_stack (emem s1)) ->
       max_bound fn (top_stack (emem s1)) ->
-      (* TODO: we could use ra if I'm correct *)
-      (∀ fd, get_fundef (p_funcs p) fn = Some fd ->
-        if is_RAnone (sf_return_address (f_extra fd)) then m0 = emem s1 else True) ->
+      (if is_RAnone ra then m0 = emem s1 else True) ->
       let: ssaved := sv_of_list id callee_saved in
       exists2_6 m2 vm2,
         pfun_preserved lret ls (size body) (escs s1) m1 vm1 (escs s2) m2 vm2
@@ -3277,7 +3275,7 @@ Section PROOF.
     + move=> fd''; rewrite ok_fd' => -[?]; subst fd''.
       rewrite (negbTE ok_ra).
       by move: (MAX _ ok_fd) => /=; lia.
-    + by rewrite ok_fd' => _ [<-]; rewrite (negbTE ok_ra).
+    + by rewrite (negbTE ok_ra).
     move=> m2' vm2' /= h3 heq_vm hsub_vm' hpres hmatch' U'.
     set ts := top_stack (M := Memory.M) s1.
     have vm2'_rsp:
@@ -3745,7 +3743,7 @@ Section PROOF.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_callee_saved.
-    move=> wf_to_save S MAX /(_ _ erefl) ok_m0.
+    move=> wf_to_save S MAX ok_m0.
     move: (checked_prog ok_fd); rewrite /check_fd /=.
     t_xrbindP => chk_body ok_to_save ok_stk_sz ok_ret_addr ok_save_stack _.
     case/and4P: ok_stk_sz => /lezP stk_sz_pos /lezP stk_extra_sz_pos /ltzP frame_noof /lezP stk_frame_le_max.
@@ -4835,7 +4833,7 @@ Section PROOF.
       + have := [elaborate (wunsigned_range (top_stack m1))].
         have := [elaborate (wunsigned_range (top_stack m))].
         by lia.
-    - by rewrite ok_fd => _ [<-]; rewrite Export.
+    - by reflexivity.
     move => lmo vmo texec vm_eq_vmo s2_vmo ? M' U'.
     have vm2_vmo : ∀ r, List.In r (f_res fd) → (value_uincl vm2.[r] vmo.[r]).
     - move => r r_in_result.
