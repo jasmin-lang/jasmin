@@ -145,6 +145,7 @@ Definition riscv_liparams : linearization_params :=
     lip_lmove := riscv_lmove;
     lip_check_ws := riscv_check_ws;
     lip_lstore  := riscv_lstore;
+    lip_lload := riscv_lload;
     lip_lstores := lstores_imm_dfl riscv_tmp2 riscv_lstore RISCVFopn.smart_addi is_arith_small;
     lip_lloads  := lloads_imm_dfl riscv_tmp2 riscv_lload  RISCVFopn.smart_addi is_arith_small;
   |}.

@@ -144,6 +144,7 @@ Definition arm_liparams : linearization_params :=
     lip_lmove := arm_lmove;
     lip_check_ws := arm_check_ws;
     lip_lstore  := arm_lstore;
+    lip_lload := arm_lload;
     lip_lstores := lstores_imm_dfl arm_tmp2 arm_lstore ARMFopn.smart_addi is_arith_small;
     lip_lloads  := lloads_imm_dfl arm_tmp2 arm_lload  ARMFopn.smart_addi is_arith_small;
   |}.

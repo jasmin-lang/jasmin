@@ -549,38 +549,52 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build saved_stack saved_stack_eq_axiom.
 
+(* An instance of this record describes, for a given Jasmin function, how the
+   return address is passed and used by the function when it is called. *)
 Variant return_address_location :=
 | RAnone
-| RAreg of var & option var  (* The return address is pass by a register and
-                                keeped in this register during function call,
-                                the option is for incrementing the large stack in arm *)
-| RAstack of option var & Z & option var.
-                             (* None means that the call instruction directly store ra on the stack
-                                Some r means that the call instruction directly store ra on r and 
-                                the function should store r on the stack,
-                                The second option is for incrementing the large stack in arm *)
+  (* Do not do anything about return address. This is used for export functions,
+    since they do not deal directly with the return address. *)
+| RAreg of var & option var
+  (* The return address is passed by a register and
+     kept in this register during function call,
+     the option is for incrementing the large stack in arm. *)
+| RAstack of option var & option var & Z & option var.
+   (* The return address is saved on the stack for most of the execution of the
+      function.
+      - The first argument describes what happens at call time.
+        + None means that the call instruction directly stores ra on the stack;
+        + Some r means that the call instruction directly stores ra
+          on register r and the function should store r on the stack.
+      - The second argument describes what happens at return time.
+        + None means that the return instruction reads ra from the stack;
+        + Some r means that the return instruction reads ra from register r,
+          it is the duty of the function to write ra in r (the proper code
+          is inserted by linearization).
+      - The third option specifies the offset of the stack where ra is written.
+      - The fourth option is for incrementing the large stack in arm. *)
 
 Definition is_RAnone ra :=
   if ra is RAnone then true else false.
 
 Definition is_RAstack ra :=
-  if ra is RAstack _ _ _ then true else false.
-
-Definition is_RAstack_None ra :=
-  if ra is RAstack None _ _ then true else false.
+  if ra is RAstack _ _ _ _ then true else false.
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with
   | RAnone => if r2 is RAnone then true else false
   | RAreg x1 o1 => if r2 is RAreg x2 o2 then (x1 == x2) && (o1 == o2) else false
-  | RAstack lr1 z1 o1 => if r2 is RAstack lr2 z2 o2 then [&& lr1 == lr2, z1 == z2 & o1 == o2] else false
+  | RAstack ra_call1 ra_return1 z1 o1 =>
+    if r2 is RAstack ra_call2 ra_return2 z2 o2 then
+      [&& ra_call1 == ra_call2, ra_return1 == ra_return2, z1 == z2 & o1 == o2]
+    else false
   end.
 
 Lemma return_address_location_eq_axiom : Equality.axiom return_address_location_beq.
 Proof.
-  case => [ | x1 o1 | lr1 z1 o1 ] [ | x2 o2 | lr2 z2 o2 ] /=; try by constructor.
+  case => [ | x1 o1 | ra_call1 ra_return1 z1 o1 ] [ | x2 o2 | ra_call2 ra_return2 z2 o2 ] /=; try by constructor.
   + by apply (iffP andP) => [ []/eqP-> /eqP-> | []-> ->].
-  by apply (iffP and3P) => [ []/eqP-> /eqP-> /eqP-> | []-> -> ->].
+  by apply (iffP and4P) => [ []/eqP-> /eqP-> /eqP-> /eqP-> | []-> -> -> ->].
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build return_address_location

@@ -59,7 +59,7 @@ Section WRITE1.
     let ra :=
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
-      | Some fd => Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)
+      | Some fd => Sv.union (ra_undef fd var_tmp) (ra_vm_return fd.(f_extra))
       end in
     Sv.union (writefun fn) ra.
 
@@ -225,9 +225,10 @@ Section CHECK.
     let params := sv_of_list v_var fd.(f_params) in
     let DI := Sv.inter params (ra_undef fd var_tmp) in
     Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
+    let DF := Sv.union (ra_vm_return fd.(f_extra)) D in
     let res := sv_of_list v_var fd.(f_res) in
     let W' := writefun_ra writefun fn in
-    Let _ := assert (disjoint D res)
+    Let _ := assert (disjoint DF res)
                     (E.gen_error true None (pp_s "not able to ensure equality of the result")) in
     Let _ := assert (disjoint params magic_variables)
                     (E.gen_error true None (pp_s "the function has RSP or global-data as parameter")) in
@@ -246,11 +247,17 @@ Section CHECK.
                     (E.gen_error true None (pp_s "not (disjoint magic_variables tmp_call)")) in
     match sf_return_address e with
     | RAreg ra _ => check_preserved_register W J "return address" ra
-    | RAstack ra _ _ =>
-         if ra is Some r then 
+    | RAstack ra_call ra_return _ _ =>
+        Let _ :=
+          if ra_call is Some r then 
             assert (vtype r == sword Uptr) 
-             (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s "return address"; pp_var r]))
-         else ok tt
+                   (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s "return address (call)"; pp_var r]))
+          else ok tt
+        in
+        if ra_return is Some r then 
+          assert (vtype r == sword Uptr) 
+                 (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s "return address (return)"; pp_var r]))
+        else ok tt
     | RAnone =>
         let to_save := sv_of_list fst fd.(f_extra).(sf_to_save) in
         Let _ := assert (disjoint to_save res)

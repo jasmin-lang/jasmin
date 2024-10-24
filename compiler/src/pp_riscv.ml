@@ -173,13 +173,11 @@ let pp_instr fn i =
       [ LInstr ("j", [ pp_remote_label lbl ]) ]
 
   | JMPI arg ->
-      (* TODO_RISCV: Review. *)
-      let lbl =
-        match arg with
-        | Reg r -> pp_register r
-        | _ -> failwith "TODO_RISCV: pp_instr jmpi"
-      in
-      [ LInstr ("jr", [ lbl ]) ]
+      begin match arg with
+      | Reg RA -> [LInstr ("ret", [])]
+      | Reg r -> [ LInstr ("jr", [ pp_register r ]) ]
+      | _ -> failwith "TODO_RISCV: pp_instr jmpi"
+      end
 
   | Jcc (lbl, ct) ->
       let iname = pp_condition_kind ct.cond_kind in
@@ -187,19 +185,13 @@ let pp_instr fn i =
       let cond_snd = pp_cond_arg ct.cond_snd in
       [ LInstr (iname, [ cond_fst; cond_snd; pp_label fn lbl ]) ]
 
-  | CALL  lbl ->
-       [LInstr ("call", [pp_remote_label lbl])]
+  | JAL (RA, lbl) ->
+      [LInstr ("call", [pp_remote_label lbl])]
 
-  | JAL (reg, lbl) ->
-    begin match reg with
-    | RA -> [LInstr ("call", [pp_remote_label lbl] )]
-    | _ -> [LInstr ("jalr", [pp_register reg; pp_remote_label lbl] )]
-    end
-
-  | POPPC -> 
-    [ LInstr ("lw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None]);
-    LInstr ("addi", [ pp_register SP; pp_register SP; "4"]);
-    LInstr ("ret", [ ]) ]
+  | JAL _
+  | CALL _
+  | POPPC ->
+      assert false
 
   | SysCall op ->
       [LInstr ("call", [ pp_syscall op ])]
@@ -240,11 +232,21 @@ let pp_fun (fn, fd) =
     else []
   in let pre =
     let fn = escape fn in
-    if fd.asm_fd_export then [ LLabel (mangle fn); LLabel fn; LInstr ("addi", [ pp_register SP; pp_register SP; "-4"]); LInstr ("sw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None])] else []
+    if fd.asm_fd_export then
+      [ LLabel (mangle fn);
+        LLabel fn;
+        LInstr ("addi", [ pp_register SP; pp_register SP; "-4"]);
+        LInstr ("sw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None])]
+    else []
   in
   let body = pp_body fn fd.asm_fd_body in
-  (* TODO_RISCV: Review. *)
-  let pos = if fd.asm_fd_export then pp_instr fn POPPC else [] in
+  let pos =
+    if fd.asm_fd_export then
+      [ LInstr ("lw", [ pp_register RA;  pp_reg_address_aux (pp_register SP) None None None]);
+        LInstr ("addi", [ pp_register SP; pp_register SP; "4"]);
+        LInstr ("ret", [ ]) ]
+    else []
+  in
   head @ pre @ body @ pos
 
 let pp_funcs funs = List.concat_map pp_fun funs
