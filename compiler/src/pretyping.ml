@@ -84,6 +84,7 @@ let pp_suffix fmt =
   let open PrintCommon in
   function
   | PVp sz -> F.fprintf fmt "_%a" pp_wsize sz
+  | PVs (sg, sz) -> F.fprintf fmt "_%s%a" (string_of_signess sg) pp_wsize sz
   | PVv (ve, sz) -> F.fprintf fmt "_%s" (string_of_velem Unsigned sz ve)
   | PVsv (sg, ve, sz) -> F.fprintf fmt "_%s" (string_of_velem sg sz ve)
   | PVx (szo, szi) -> F.fprintf fmt "_u%a_u%a" pp_wsize szo pp_wsize szi
@@ -1380,7 +1381,14 @@ let extract_size str : string * Sopn.prim_x86_suffix option =
           (fun c0 i c1 j ->
             if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
             PVx(wsize_of_int i, wsize_of_int j))
-      with End_of_file | Scanf.Scan_failure _ -> raise Not_found
+      with End_of_file | Scanf.Scan_failure _ ->
+        try
+          Scanf.sscanf s "%c%u%!"
+          (fun c i ->
+            if (c = 'u') then PVs(W.Unsigned, wsize_of_int i)
+          else if (c = 's') then PVs(W.Signed, wsize_of_int i)
+          else raise Not_found)
+        with End_of_file | Scanf.Scan_failure _ -> raise Not_found
   in
   try
   match List.rev (String.split_on_char '_' str) with

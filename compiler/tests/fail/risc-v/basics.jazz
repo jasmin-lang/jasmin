@@ -1,0 +1,8 @@
+// Should be implemented in the long run, fails for now
+
+export
+fn copy_cast_lowering(reg u32 r) -> reg u32, reg u16 { 
+    reg u16 c;    
+    c = r;
+    return r, c; 
+}
