@@ -385,7 +385,6 @@ let alloc_stack_fd callstyle pd get_info gtbl fd =
 
   let sao_params, atbl = all_alignment pd ctbl alias fd.f_args lalloc in
 
-  (* FIXME: all cases must be dealt with *)
   let ra_on_stack =
     match fd.f_cc with 
     | Internal -> assert false 
