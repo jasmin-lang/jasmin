@@ -1374,6 +1374,14 @@ Fixpoint leading_zero_aux (n : Z) (res sz : nat) : nat :=
 Definition leading_zero (sz : wsize) (w : word sz) : word sz :=
   wrepr sz (Z.of_nat (leading_zero_aux (wunsigned w) sz sz)).
 
+Definition trailing_zero_aux (n: Z) (bits: nat) : nat :=
+  if n is Zpos p then
+    (fix tzcnt acc p := if p is xO q then tzcnt acc.+1 q else acc) O p
+  else bits.
+
+Definition trailing_zero (sz : wsize) (w : word sz) : word sz :=
+  wrepr sz (Z.of_nat (trailing_zero_aux (wunsigned w) sz)).
+
 (* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.

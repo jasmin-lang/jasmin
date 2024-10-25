@@ -11,6 +11,9 @@
   ([PR #932](https://github.com/jasmin-lang/jasmin/pull/932);
   fixes [#928](https://github.com/jasmin-lang/jasmin/issues/928)).
 
+- Add support for x86 `TZCNT` instruction
+  ([PR #942](https://github.com/jasmin-lang/jasmin/pull/942)).
+
 - Adding support for type aliases definition in the global scope (and namespace global scope)
    * Syntax for definition is `type <name> = <type>;`
    * Syntax for use is `reg <typename> <varname> ...`
