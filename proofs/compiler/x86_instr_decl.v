@@ -163,6 +163,10 @@ Variant x86_op : Type :=
 
 (* Cache *)
 | CLFLUSH
+| PREFETCHT0
+| PREFETCHT1
+| PREFETCHT2
+| PREFETCHNTA
 
 (* Fences *)
 | LFENCE
@@ -1913,6 +1917,15 @@ Definition Ox86_RDTSCP_instr :=
 Definition Ox86_CLFLUSH_instr :=
   mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" Uptr).
 
+Definition Ox86_PREFETCHT0_instr :=
+  mk_instr_pp "PREFETCHT0" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT0) (pp_name "prefetcht0" Uptr).
+Definition Ox86_PREFETCHT1_instr :=
+  mk_instr_pp "PREFETCHT1" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT1) (pp_name "prefetcht1" Uptr).
+Definition Ox86_PREFETCHT2_instr :=
+  mk_instr_pp "PREFETCHT2" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHT2) (pp_name "prefetcht2" Uptr).
+Definition Ox86_PREFETCHNTA_instr :=
+  mk_instr_pp "PREFETCHNTA" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, ok tt) [:: [:: m true ] ] 1 (primM PREFETCHNTA) (pp_name "prefetchnta" Uptr).
+
 Definition Ox86_LFENCE_instr :=
   mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR (ok tt) [:: [::] ] 0 (primM LFENCE) (pp_name "lfence" U8).
 Definition Ox86_MFENCE_instr :=
@@ -2117,6 +2130,10 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
   | VPTEST sz          => Ox86_VPTEST_instr.1 sz
   | CLFLUSH            => Ox86_CLFLUSH_instr.1
+  | PREFETCHT0         => Ox86_PREFETCHT0_instr.1
+  | PREFETCHT1         => Ox86_PREFETCHT1_instr.1
+  | PREFETCHT2         => Ox86_PREFETCHT2_instr.1
+  | PREFETCHNTA        => Ox86_PREFETCHNTA_instr.1
   | LFENCE             => Ox86_LFENCE_instr.1
   | MFENCE             => Ox86_MFENCE_instr.1
   | SFENCE             => Ox86_SFENCE_instr.1
@@ -2263,6 +2280,10 @@ Definition x86_prim_string :=
    Ox86_VPMAXS_instr.2;
    Ox86_VPTEST_instr.2;
    Ox86_CLFLUSH_instr.2;
+   Ox86_PREFETCHT0_instr.2;
+   Ox86_PREFETCHT1_instr.2;
+   Ox86_PREFETCHT2_instr.2;
+   Ox86_PREFETCHNTA_instr.2;
    Ox86_LFENCE_instr.2;
    Ox86_MFENCE_instr.2;
    Ox86_SFENCE_instr.2;

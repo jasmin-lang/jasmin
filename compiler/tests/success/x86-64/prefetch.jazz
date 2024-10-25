@@ -1,0 +1,7 @@
+export
+fn test_prefetch(reg u64 p) {
+  () = #PREFETCHT0(p);
+  () = #PREFETCHT1(p + 1);
+  () = #PREFETCHT2(p + 2 * p + 8);
+  () = #PREFETCHNTA(p);
+}
