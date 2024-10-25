@@ -152,11 +152,12 @@ abbrev [-printing] XCHG_64 (x y:W64.t) = swap_ x y.
 | DEC    of wsize                         (* decrement *)
 
 | LZCNT  of wsize             (* number of leading zero *)
+| TZCNT  of wsize             (* number of trailing zero *)
 *)
 
 (* Remark: W8.ALU W16.ALU W32.ALU W64.ALU are exported *)
 (* ALU defines the operators: 
-   ADD SUB IMUL IMUL_r IMUL_ri DIV IDIV CQO ADC SBB NEG INC DEC LZCNT
+   ADD SUB IMUL IMUL_r IMUL_ri DIV IDIV CQO ADC SBB NEG INC DEC LZCNT TZCNT
 *)
 
 (* Flag *)
