@@ -16,6 +16,10 @@
    * Syntax for use is `reg <typename> <varname> ...`
   ([PR #911](https://github.com/jasmin-lang/jasmin/pull/911)).
 
+- Add x86 memory prefetching instructions `PREFETCHT0`, `PREFETCHT1`,
+  `PREFETCHT2`, and `PREFETCHNTA`
+  ([PR #941](https://github.com/jasmin-lang/jasmin/pull/941)).
+
 ## Bug fixes
 
 - Multiplication instructions have data-independent timing on x86
