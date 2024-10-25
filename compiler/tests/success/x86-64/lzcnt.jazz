@@ -13,3 +13,16 @@ export fn foo () -> reg u64 {
   r = lzcnt(a);
   return r;
 }
+
+export fn tzcnt(reg u64 x p) -> reg u16 {
+  reg u32 y;
+  reg u16 z;
+  ?{}, x = #TZCNT([p]);
+  ?{}, x = #TZCNT(x);
+  ?{}, y = #TZCNT_32((u32)[p + 4 * x]);
+  ?{}, y = #TZCNT_32(y);
+  x = (64s)y;
+  ?{}, z = #TZCNT_16((u16)[p + 2 * x]);
+  ?{}, z = #TZCNT_16(z);
+  return z;
+}

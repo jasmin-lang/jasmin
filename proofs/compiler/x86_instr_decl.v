@@ -41,6 +41,8 @@ Variant x86_op : Type :=
 | DEC    of wsize                         (* decrement *)
 
 | LZCNT  of wsize             (* number of leading zero *)
+| TZCNT  of wsize             (* number of trailing zero *)
+
   (* Flag *)
 | SETcc                           (* Set byte on condition *)
 | BT     of wsize                  (* Bit test, sets result to CF *)
@@ -891,6 +893,16 @@ Definition x86_LZCNT sz (w: word sz) : tpl (b5w_ty sz) :=
 
 Definition Ox86_LZCNT_instr               :=
   mk_instr_w_b5w "LZCNT" x86_LZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 LZCNT) size_16_64 (pp_iname "lzcnt").
+
+Definition x86_TZCNT sz (w: word sz) : tpl (b5w_ty sz) :=
+  let v := trailing_zero w in
+  flags_w
+    (*  OF;     CF;                  SF;   PF;    ZF  *)
+    ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v.
+
+Definition Ox86_TZCNT_instr               :=
+  mk_instr_w_b5w "TZCNT" x86_TZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 TZCNT) size_16_64 (pp_iname "tzcnt").
+
 
 Definition check_setcc := [:: [::c; rm false]].
 
@@ -2040,6 +2052,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | INC sz             => Ox86_INC_instr.1 sz
   | DEC sz             => Ox86_DEC_instr.1 sz
   | LZCNT sz           => Ox86_LZCNT_instr.1 sz
+  | TZCNT sz           => Ox86_TZCNT_instr.1 sz
   | SETcc              => Ox86_SETcc_instr.1
   | BT sz              => Ox86_BT_instr.1 sz
   | CLC                => Ox86_CLC_instr.1
@@ -2185,6 +2198,7 @@ Definition x86_prim_string :=
    Ox86_INC_instr.2;
    Ox86_DEC_instr.2;
    Ox86_LZCNT_instr.2;
+   Ox86_TZCNT_instr.2;
    Ox86_SETcc_instr.2;
    Ox86_BT_instr.2;
    Ox86_CLC_instr.2;
