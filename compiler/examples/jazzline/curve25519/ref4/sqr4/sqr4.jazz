@@ -1,0 +1,130 @@
+require "reduce4.jazz"
+
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+
+inline fn __sqr4_rs(stack u64[4] xa) -> reg u64[4]
+ ensures #[prover=cas] {
+  eqmod (
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(xa[ii])) * \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(xa[ii])),
+     single((pow(2,255)) - 19)
+    )
+  }
+{
+  reg u64 zero rax rdx;
+  reg u64[8] z;
+  reg u64[4] r;
+  reg u64[5] t;
+  reg bool cf;
+
+  z[7] = #MOV(0);
+  zero = #MOV(0);
+
+  // 2*x01 + 2*x02 + 2*x03 + 2*x12 + 2*x13 + 2*x23
+  // + x00 + x11 + x22 + x33
+
+  rax = xa[1];
+  rdx, rax = rax * xa[0];
+  z[1] = rax;
+  z[2] = rdx;
+
+  rax = xa[2];
+  rdx, rax = rax * xa[1];
+  z[3] = rax;
+  z[4] = rdx;
+
+  rax = xa[3];
+  rdx, rax = rax * xa[2];
+  z[5] = rax;
+  z[6] = rdx;
+
+  // [2*]x01 + 2*x02 + 2*x03 + [2*]x12 + 2*x13 + [2*]x23
+  // + x00 + x11 + x22 + x33
+
+  rax = xa[2];
+  rdx, rax = rax * xa[0];
+  cf, z[2] += rax;
+  cf, z[3] += rdx + cf;
+  cf, z[4] += zero   + cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  rax = xa[3];
+  rdx, rax = rax * xa[1];
+  cf, z[4] += rax;
+  cf, z[5] += rdx + cf;
+  cf, z[6] += zero   + cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  // [2*]x01 + [2*]x02 + 2*x03 + [2*]x12 + [2*]x13 + [2*]x23
+  // + x00 + x11 + x22 + x33
+
+  rax = xa[3];
+  rdx, rax = rax * xa[0];
+  cf, z[3] += rax;
+  cf, z[4] += rdx + cf;
+  cf, z[5] += zero   + cf;
+  cf, z[6] += zero   + cf;
+  cf,  z[7] += zero   + cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  // x01 + x02 + x03 + x12 + x13 + x23
+  // + x00 + x11 + x22 + x33
+
+  // set z<1..2n+1> = 2*z<1..2n+1> since
+  // we have summed all x_i*x_j with i<>j
+  // so far and these occur twice
+  cf, z[1] += z[1];
+  cf, z[2] += z[2] + cf;
+  cf, z[3] += z[3] + cf;
+  cf, z[4] += z[4] + cf;
+  cf, z[5] += z[5] + cf;
+  cf, z[6] += z[6] + cf;
+  cf, z[7] += z[7] + cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  // x00 + x11 + x22 + x33
+
+  rax = xa[0];
+  rdx, rax = rax * xa[0];
+  z[0] = rax;
+  t[0] = rdx;
+
+  rax = xa[1];
+  rdx, rax = rax * xa[1];
+  t[1] = rax;
+  t[2] = rdx;
+
+  rax = xa[2];
+  rdx, rax = rax * xa[2];
+  t[3] = rax;
+  t[4] = rdx;
+
+  cf, z[1] += t[0];
+  cf, z[2] += t[1] + cf;
+  cf, z[3] += t[2] + cf;
+  cf, z[4] += t[3] + cf;
+  cf, z[5] += t[4] + cf;
+  cf, z[6] += 0 + cf;
+  cf, z[7] += 0 + cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  rax = xa[3];
+  rdx, rax = rax * xa[3];
+  cf, z[6] += rax;
+  cf, z[7] += rdx + cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  r = __reduce4(z);
+
+  return r;
+}
