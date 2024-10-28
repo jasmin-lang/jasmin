@@ -1,0 +1,64 @@
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+
+inline fn __sub4_rrs(reg u64[4] f, stack u64[4] gs) -> reg u64[4]
+  ensures #[prover=cas] {
+  eqmod (
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(f[ii])) - \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(gs[ii])),
+     single((pow(2,255)) - 19)
+    )
+  }
+{
+  inline int i;
+  reg bool cf, borrowo;
+  reg u64[4] h;
+  reg u64 z;
+
+  z = 0;
+
+  for i=0 to 4
+  { h[i] = f[i]; }
+
+
+  cf, h[0] -= gs[0];
+  for i=1 to 4
+  { cf, h[i] -= gs[i] - cf; }
+
+  borrowo = cf;
+  cf, z -= z - cf;
+
+  #[kind=Assert, prover=smt] assert (cf == borrowo);
+  #[kind=Assume, prover=cas] assert (b2i(cf) ==  b2i(borrowo));
+
+  z &= 38;
+
+  #[kind=Assert, prover=smt] assert ((!cf && z == 0x0) || (cf && z == 0x26));
+  #[kind=Assume, prover=cas] assert (u64i(z) == b2i(cf)*0x26);
+
+  cf, h[0] -= z;
+  for i=1 to 4
+  { cf, h[i] -= 0 - cf; }
+
+  borrowo = cf;
+  cf, z -= z - cf;
+
+  #[kind=Assert, prover=smt] assert (cf == borrowo);
+  #[kind=Assume, prover=cas] assert (b2i(cf) ==  b2i(borrowo));
+
+  z &= 38;
+
+
+  #[kind=Assert, prover=smt] assert ((!cf && z == 0x0) || (cf && z == 0x26));
+  #[kind=Assume, prover=cas] assert (u64i(z) == b2i(cf)*0x26);
+
+  cf, h[0] -= z;
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  return h;
+}
