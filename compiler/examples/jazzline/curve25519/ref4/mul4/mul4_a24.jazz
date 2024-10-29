@@ -1,0 +1,71 @@
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+
+inline fn __mul4_a24_rs(reg u64[4] xa) -> reg u64[4]
+   ensures #[prover=cas] {
+  eqmod (
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(xa[ii])) * 121666,
+     single((pow(2,255)) - 19)
+    )
+  }
+{
+  reg u64 rax rdx c t1 t2 t3 t4;
+  reg u64[4] r;
+  reg bool cf;
+  stack u64 dc;
+
+  c = (64u)121666;
+  #[kind=Assert, prover=smt] assert (c == (64u)121666);
+  #[kind=Assume, prover=cas] assert (u64i(c) == 121666);
+
+  rax = xa[0];
+  rdx, rax = rax * c;
+  r[0] = rax;
+  r[1] = rdx;
+
+  rax = xa[2];
+  rdx, rax = rax * c;
+  r[2] = rax;  r[3] = rdx;
+
+  rax = xa[1];
+  rdx, rax = rax * c;
+  t1 = rax;
+  t2 = rdx;
+
+  rax = xa[3];
+  rdx, rax = rax * c;
+  t3 = rax;
+  t4 = rdx;
+
+  cf, r[1] += t1;
+  cf, r[2] += t2 + cf;
+  cf, r[3] += t3 + cf;
+  cf, t4 += 0 + cf;
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  dc, t4 *= 38;
+
+  #[kind=Assert, prover=smt] assert (dc == 0);
+  #[kind=Assume, prover=cas] assert (dc == 0);
+
+  cf, r[0] += t4;
+  cf, r[1] += 0 + cf;
+  cf, r[2] += 0 + cf;
+  cf, r[3] += 0 + cf;
+
+  t1 = 38;
+  t2 = #MOV(0);
+  t1 = t2 if !cf;
+  cf, r[0] += t1;
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  return r;
+}
