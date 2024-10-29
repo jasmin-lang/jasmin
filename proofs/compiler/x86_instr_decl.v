@@ -899,7 +899,7 @@ Definition x86_SETcc (b:bool) : tpl (w_ty U8) := wrepr U8 (Z.b2z b).
 Definition Ox86_SETcc_instr             :=
   mk_instr_pp "SETcc" b_ty w8_ty [:: Eu 0] [:: Eu 1] (reg_msb_flag U8) x86_SETcc check_setcc 2 (primM SETcc) (pp_ct "set" U8).
 
-Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
+Definition check_bt of wsize := [:: [:: r; ri U8 ]].
 
 Definition x86_BT sz (x y: word sz) : tpl (b_ty) :=
   Some (wbit x y).
@@ -1231,10 +1231,10 @@ Definition x86_BTX op sz (x y: word sz) : tpl (bw_ty sz) :=
   (:: Some (wbit_n x (Z.to_nat bit)) & op sz (wrepr sz (2 ^ bit)) x).
 
 Definition Ox86_BTR_instr :=
-  mk_instr_w2_bw "BTR" (x86_BTX wandn) (λ _, [:: [:: r ; ri U8 ] ]) (prim_16_64 BTR) size_16_64 (pp_iname "btr").
+  mk_instr_w2_bw "BTR" (x86_BTX wandn) check_bt (prim_16_64 BTR) size_16_64 (pp_iname "btr").
 
 Definition Ox86_BTS_instr :=
-  mk_instr_w2_bw "BTS" (x86_BTX (@wor)) (λ _, [:: [:: r ; ri U8 ] ]) (prim_16_64 BTS) size_16_64 (pp_iname "bts").
+  mk_instr_w2_bw "BTS" (x86_BTX (@wor)) check_bt (prim_16_64 BTS) size_16_64 (pp_iname "bts").
 
 Definition x86_PEXT sz (v1 v2: word sz): tpl (w_ty sz) :=
   @pextr sz v1 v2.
