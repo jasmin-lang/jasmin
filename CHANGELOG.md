@@ -31,6 +31,10 @@
   ([PR #937](https://github.com/jasmin-lang/jasmin/pull/937);
   fixes [#895](https://github.com/jasmin-lang/jasmin/issues/895)).
 
+- Disable x86 `BT` instruction with in-memory operands
+  ([PR #948](https://github.com/jasmin-lang/jasmin/pull/948);
+  fixes [#931](https://github.com/jasmin-lang/jasmin/issues/931)).
+
 # Jasmin 2024.07.1 — Nancy, 2024-10-03
 
 ## New features

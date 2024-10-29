@@ -1450,7 +1450,8 @@ Definition check_setcc := [:: [::c; rm false]].
 Definition Ox86_SETcc_instr             :=
   mk_instr_pp "SETcc" b_ty w8_ty [:: Eu 0] [:: Eu 1] (reg_msb_flag U8) x86_SETcc check_setcc 2 (primM SETcc) (pp_ct "set" U8).
 
-Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
+Definition check_bt of wsize := [:: [:: r; ri U8 ]].
+
 Definition Ox86_BT_instr                :=
   mk_instr_w2_b "BT" x86_BT [:: Eu 0; Eu 1] [:: F CF] 2 check_bt (prim_16_64 BT) (pp_iname "bt").
 
@@ -1550,10 +1551,10 @@ Definition Ox86_POPCNT_instr :=
   mk_instr_w_b5w "POPCNT" x86_POPCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 POPCNT) (pp_name "popcnt").
 
 Definition Ox86_BTR_instr :=
-  mk_instr_w2_bw "BTR" (x86_BTX wandn) (λ _, [:: [:: r ; ri U8 ] ]) (prim_16_64 BTR) (pp_iname "btr").
+  mk_instr_w2_bw "BTR" (x86_BTX wandn) check_bt (prim_16_64 BTR) (pp_iname "btr").
 
 Definition Ox86_BTS_instr :=
-  mk_instr_w2_bw "BTS" (x86_BTX (@wor)) (λ _, [:: [:: r ; ri U8 ] ]) (prim_16_64 BTS) (pp_iname "bts").
+  mk_instr_w2_bw "BTS" (x86_BTX (@wor)) check_bt (prim_16_64 BTS) (pp_iname "bts").
 
 Definition Ox86_PEXT_instr :=
   mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) (prim_32_64 PEXT) (pp_name "pext").
