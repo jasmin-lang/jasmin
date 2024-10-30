@@ -254,7 +254,8 @@ Proof.
   case heq: mk_lea_rec => [lea | //].
   assert (hsemlea := mk_lea_recP hsz64 hsz heq he).
   case hb: lea_base => [b | ]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
-  case: eqP => [ | _]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
+  case: eqP => [ | _]; first last.
+  - move=> /map_errP. exact: (assemble_leaP hsz64 hsz lom hsemlea).
   t_xrbindP => hbrip.
   case ho: lea_offset => [ // | ] _ <- /=.
   move: hsemlea; rewrite /sem_lea ho hb /= hbrip (lom_rip _ lom) /= truncate_word_le //= => /ok_inj <-.

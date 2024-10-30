@@ -175,7 +175,11 @@ Definition scale_of_z ii (z: Z) : cexec nat :=
   | 2%Z => ok 1
   | 4%Z => ok 2
   | 8%Z => ok 3
-  | _ => Error (E.error ii (pp_nobox [:: pp_s "invalid scale (should be 1, 2, 4, or 8): "; pp_z z ]))
+  | _ =>
+      let box :=
+        [:: pp_s "Invalid scale: "; pp_z z; pp_s " (should be 1, 2, 4, or 8)" ]
+      in
+      Error (E.error ii (pp_nobox box))
   end.
 
 Definition reg_of_ovar ii (x:option var_i) : cexec (option reg_t) :=
@@ -212,7 +216,17 @@ Definition addr_of_fexpr (rip: var) ii sz (e: fexpr) :=
           Let _ := assert (is_none lea.(lea_offset))
                           (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_fe e])) in
           ok (Arip (wrepr Uptr lea.(lea_disp)))
-        else assemble_lea ii lea
+        else
+          let mk_err err :=
+            let vbox :=
+              [::
+                 pp_box [:: pp_s "Invalid address: "; pp_fe e ];
+                 pel_msg err
+              ]
+            in
+            with_pel_msg err (pp_vbox vbox)
+          in
+          Result.map_err mk_err (assemble_lea ii lea)
       | None =>
         assemble_lea ii lea
       end

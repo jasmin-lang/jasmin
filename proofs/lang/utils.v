@@ -164,6 +164,13 @@ Definition bind eT aT rT (f : aT -> result eT rT) g :=
 Definition map eT aT rT (f : aT -> rT) := bind (fun x => Ok eT (f x)).
 Definition default eT aT := @apply eT aT aT (fun x => x).
 
+Definition map_err
+  eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) : result eT2 aT :=
+  match r with
+  | Ok x => Ok _ x
+  | Error e => Error (f e)
+  end.
+
 End Result.
 
 Definition o2r eT aT (e : eT) (o : option aT) :=
@@ -205,6 +212,12 @@ Lemma assertP E b e u :
 Proof. by case: b. Qed.
 
 Arguments assertP {E b e u} _.
+
+Lemma map_errP eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) x :
+  Result.map_err f r = ok x ->
+  r = ok x.
+Proof. by case: r => //= ? [->]. Qed.
+Arguments map_errP {_ _ _ _ _ _}.
 
 Variant error :=
  | ErrOob | ErrAddrUndef | ErrAddrInvalid | ErrStack | ErrType | ErrArith | ErrSemUndef.
