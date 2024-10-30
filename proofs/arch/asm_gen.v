@@ -175,7 +175,7 @@ Definition scale_of_z ii (z: Z) : cexec nat :=
   | 2%Z => ok 1
   | 4%Z => ok 2
   | 8%Z => ok 3
-  | _ => Error (E.error ii (pp_s "invalid scale"))
+  | _ => Error (E.error ii (pp_nobox [:: pp_s "invalid scale (should be 1, 2, 4, or 8): "; pp_z z ]))
   end.
 
 Definition reg_of_ovar ii (x:option var_i) : cexec (option reg_t) :=
