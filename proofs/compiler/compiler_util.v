@@ -141,6 +141,17 @@ Definition add_funname {A} fn (r:cexec A) : cexec A :=
   | Error pp => Error (pp_at_fn fn pp)
   end.
 
+Definition with_pel_msg (e : pp_error_loc) (msg : pp_error) : pp_error_loc :=
+  {|
+    pel_msg := msg;
+    pel_fn := e.(pel_fn);
+    pel_fi := e.(pel_fi);
+    pel_ii := e.(pel_ii);
+    pel_vi := e.(pel_vi);
+    pel_pass := e.(pel_pass);
+    pel_internal := e.(pel_internal)
+  |}.
+
 Lemma add_iinfoP {A a} ii (e:cexec A):
   add_iinfo ii e = ok a -> 
   e = ok a.
