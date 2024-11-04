@@ -3,7 +3,7 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let extract_to_file prog arch pd asmOp model fnames array_dir outfile =
+let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
@@ -18,7 +18,7 @@ let extract_to_file prog arch pd asmOp model fnames array_dir outfile =
   begin try
     BatPervasives.finally
       (fun () -> close ())
-      (fun () -> ToEC.extract prog arch pd asmOp model fnames array_dir fmt)
+      (fun () -> ToEC.extract prog arch pd asmOp model amodel fnames array_dir fmt)
       ()
   with e ->
     BatPervasives.ignore_exceptions
@@ -28,7 +28,7 @@ let extract_to_file prog arch pd asmOp model fnames array_dir outfile =
 
 let parse_and_extract arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
-  let extract model functions array_dir output file =
+  let extract model old_array functions array_dir output file =
     let _env, pprog, _ast =
       try Compile.parse_file A.arch_info file with
       | Annot.AnnotationError (loc, code) ->
@@ -45,10 +45,11 @@ let parse_and_extract arch call_conv =
       with Typing.TyError (loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
-    extract_to_file prog arch A.reg_size A.asmOp model functions array_dir output
+    let amodel = if old_array then ToEC.ArrayOld else ToEC.ArrayEclib in
+    extract_to_file prog arch A.reg_size A.asmOp model amodel functions array_dir output
   in
-  fun model functions array_dir output file ->
-    match extract model functions array_dir output file with
+  fun model amodel functions array_dir output file ->
+    match extract model amodel functions array_dir output file with
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
@@ -61,6 +62,12 @@ let model =
     (Arg.doc_alts_enum alts)
   in
   Arg.(value & opt (Arg.enum alts) Normal & info [ "m"; "model" ] ~doc)
+
+let old_array =
+  let doc =
+    "Use old representation for array operations (anonymous functions instead of eclib functions)."
+  in
+  Arg.(value & flag & info ["array-old"] ~doc)
 
 let functions =
   let doc =
@@ -101,6 +108,6 @@ let () =
   in
   Cmd.v info
     Term.(
-      const parse_and_extract $ arch $ call_conv $ model $ functions $ array_dir
+      const parse_and_extract $ arch $ call_conv $ model $ old_array $ functions $ array_dir
       $ output $ file)
   |> Cmd.eval |> exit
