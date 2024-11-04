@@ -3,7 +3,7 @@ open Cmdliner
 open CommonCLI
 open Utils
 
-let extract_to_file prog pd asmOp model fnames array_dir outfile =
+let extract_to_file prog arch pd asmOp model fnames array_dir outfile =
   let array_dir =
     if array_dir = None then Option.map Filename.dirname outfile else array_dir
   in
@@ -18,7 +18,7 @@ let extract_to_file prog pd asmOp model fnames array_dir outfile =
   begin try
     BatPervasives.finally
       (fun () -> close ())
-      (fun () -> ToEC.extract prog pd asmOp model fnames array_dir fmt)
+      (fun () -> ToEC.extract prog arch pd asmOp model fnames array_dir fmt)
       ()
   with e ->
     BatPervasives.ignore_exceptions
@@ -45,7 +45,7 @@ let parse_and_extract arch call_conv =
       with Typing.TyError (loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     in
-    extract_to_file prog A.reg_size A.asmOp model functions array_dir output
+    extract_to_file prog arch A.reg_size A.asmOp model functions array_dir output
   in
   fun model functions array_dir output file ->
     match extract model functions array_dir output file with

@@ -32,6 +32,7 @@ end
 module Mty = Map.Make (Tcmp)
 
 type env = {
+    arch: architecture;
     pd : Wsize.wsize;
     model : model;
     alls : Ss.t;
@@ -286,9 +287,10 @@ let normalize_name n =
 let mkfunname env fn =
   fn.fn_name |> normalize_name |> create_name env
 
-let empty_env pd model fds arrsz warrsz randombytes =
+let empty_env arch pd model fds arrsz warrsz randombytes =
 
   let env = { 
+    arch;
     pd;
     model;
     alls = keywords;
@@ -1210,11 +1212,11 @@ let add_glob_arrsz env (x,d) =
     env.warrsz := Sint.add (arr_size ws n) !(env.warrsz); 
     env
 
-let jmodel () = match !Glob_options.target_arch with
+let jmodel env = match env.arch with
   | X86_64 -> "JModel_x86"
   | ARM_M4 -> "JModel_m4"
 
-let lib_slh () = match !Glob_options.target_arch with
+let lib_slh env = match env.arch with
     | X86_64 -> "SLH64"
     | ARM_M4 -> "SLH32"
 
@@ -1320,9 +1322,9 @@ let ec_randombytes env =
         }
     ]
 
-let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes array_dir =
+let toec_prog arch pd asmOp model globs funcs arrsz warrsz randombytes array_dir =
     let add_glob_env env (x, d) = add_glob (add_glob_arrsz env (x, d)) x in
-    let env = empty_env pd model funcs arrsz warrsz randombytes
+    let env = empty_env arch pd model funcs arrsz warrsz randombytes
         |> fun env -> List.fold_left add_glob_env env globs
         |> fun env -> List.fold_left add_arrsz env funcs
     in
@@ -1357,8 +1359,8 @@ let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes array_dir =
     in
     let glob_imports = [
         IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"];
-        IfromRequireImport ("Jasmin", [jmodel ()]);
-        Iimport [lib_slh ()];
+        IfromRequireImport ("Jasmin", [jmodel env]);
+        Iimport [lib_slh env];
     ] in
     let top_mod = Imodule {
         name = "M";
@@ -1375,8 +1377,8 @@ let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes array_dir =
     (ec_randombytes env) @
     [top_mod]
 
-let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes array_dir =
-    pp_ec_prog fmt (toec_prog pd asmOp model globs funcs arrsz warrsz randombytes array_dir);
+let pp_prog arch pd asmOp fmt model globs funcs arrsz warrsz randombytes array_dir =
+    pp_ec_prog fmt (toec_prog arch pd asmOp model globs funcs arrsz warrsz randombytes array_dir);
     Format.fprintf fmt "@."
 
 let rec used_func f = 
@@ -1393,7 +1395,7 @@ and used_func_i used i =
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
-let extract ((globs,funcs):('info, 'asm) prog) pd asmOp model fnames array_dir fmt =
+let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp model fnames array_dir fmt =
   let fnames =
     match fnames with
     | [] -> List.map (fun { f_name ; _ } -> f_name.fn_name) funcs
@@ -1409,4 +1411,4 @@ let extract ((globs,funcs):('info, 'asm) prog) pd asmOp model fnames array_dir f
   let arrsz = ref Sint.empty in
   let warrsz = ref Sint.empty in
   let randombytes = ref Sint.empty in
-  pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes array_dir
+  pp_prog arch pd asmOp fmt model globs funcs arrsz warrsz randombytes array_dir

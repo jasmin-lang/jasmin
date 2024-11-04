@@ -133,6 +133,11 @@ val pp_maybe_paren : bool -> 'a pp -> 'a pp
 val pp_string : string pp
  
 (* -------------------------------------------------------------------- *)
+type architecture =
+  | X86_64
+  | ARM_M4
+
+(* -------------------------------------------------------------------- *)
 type model = 
   | ConstantTime
   | Normal
