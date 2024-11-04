@@ -231,6 +231,11 @@ let pp_string fmt s =
   Format.fprintf fmt "%s" s
 
 (* -------------------------------------------------------------------- *)
+type architecture =
+  | X86_64
+  | ARM_M4
+
+(* -------------------------------------------------------------------- *)
 type model =
   | ConstantTime
   | Normal

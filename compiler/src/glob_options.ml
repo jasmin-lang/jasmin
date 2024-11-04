@@ -46,9 +46,6 @@ let set_stack_zero_strategy s =
 let stack_zero_size = ref None
 let set_stack_zero_size s = stack_zero_size := Some (Annot.ws_of_string s)
 
-type architecture =
-  | X86_64
-  | ARM_M4
 let target_arch = ref X86_64
 
 let set_target_arch a =

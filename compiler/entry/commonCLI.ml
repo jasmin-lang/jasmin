@@ -1,26 +1,24 @@
 open Jasmin
 open Cmdliner
 
-type arch = Amd64 | CortexM
-
 let get_arch_module arch call_conv : (module Arch_full.Arch) =
   (module Arch_full.Arch_from_Core_arch
             ((val match arch with
-                  | Amd64 ->
+                  | Utils.X86_64 ->
                       (module (val CoreArchFactory.core_arch_x86 ~use_lea:false
                                      ~use_set0:false call_conv)
                       : Arch_full.Core_arch)
-                  | CortexM ->
+                  | Utils.ARM_M4 ->
                       (module CoreArchFactory.Core_arch_ARM
                       : Arch_full.Core_arch))))
 
 let arch =
-  let alts = [ ("x86-64", Amd64); ("arm-m4", CortexM) ] in
+  let alts = [ ("x86-64", Utils.X86_64); ("arm-m4", Utils.ARM_M4) ] in
   let doc =
     Format.asprintf "The target architecture (%s)" (Arg.doc_alts_enum alts)
   in
   let arch = Arg.enum alts in
-  Arg.(value & opt arch Amd64 & info [ "arch" ] ~doc)
+  Arg.(value & opt arch Utils.X86_64 & info [ "arch" ] ~doc)
 
 let call_conv =
   let alts =
