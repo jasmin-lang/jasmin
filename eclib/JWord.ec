@@ -2519,14 +2519,14 @@ abstract theory W_WS.
    op VPMULH_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 (fun (x y:WS.t) => wmulhs x y) w1 w2.
 
-   op VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
-     map (fun (w:WS.t) => w `<<` cnt) w.
+   op VPSLL_'Ru'S (w : WB.t) (cnt : W128.t) =
+     map (fun (w:WS.t) => w `<<<` (to_uint cnt %% sizeS)) w.
 
-   op VPSRL_'Ru'S (w : WB.t) (cnt : W8.t) =
-     map (fun (w:WS.t) => w `>>` cnt) w.
+   op VPSRL_'Ru'S (w : WB.t) (cnt : W128.t) =
+     map (fun (w:WS.t) => w `>>>` (to_uint cnt %% sizeS)) w.
 
-   op VPSRA_'Ru'S (w : WB.t) (cnt : W8.t) =
-     map (fun (w:WS.t) => w `|>>` cnt) w.
+   op VPSRA_'Ru'S (w : WB.t) (cnt : W128.t) =
+     map (fun (w:WS.t) => w `|>>>` (to_uint cnt %% sizeS)) w.
 
    op VPBROADCAST_'Ru'S (w : WS.t) =
      pack'R (map (fun i => w) (iota_ 0 r)).
@@ -2564,28 +2564,6 @@ abstract theory W_WS.
    op VPSRLV_'Ru'S (w1:WB.t) (w2:WB.t) =
      let srl = fun (x1 x2:WS.t) => x1 `>>>` WS.to_uint x2 in
      map2 srl w1 w2.
-
-   (** TODO CHECKME : still x86 **)
-   lemma x86_'Ru'S_rol_xor i w : 0 < i < sizeS =>
-      VPSLL_'Ru'S w (W8.of_int i) +^ VPSRL_'Ru'S w (W8.of_int (sizeS - i)) =
-      map (fun w0 => WS.rol w0 i) w.
-   proof.
-     move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
-     apply wordP => j hj.
-     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft.
-   qed.
-
-   (** TODO CHECKME : still x86 **)
-   lemma x86_'Ru'S_rol_xor_red w1 w2 i si:
-     w1 = w2 => W8.to_uint si = sizeS - W8.to_uint i => 0 < W8.to_uint i < sizeS =>
-     VPSLL_'Ru'S w1 i +^ VPSRL_'Ru'S w2 si =
-     map (fun w0 => WS.rol w0 (W8.to_uint i)) w1.
-   proof.
-     by move=> -> hsi hi; rewrite -(W8.to_uintK i) -(W8.to_uintK si) hsi x86_'Ru'S_rol_xor.
-   qed.
-
-   (** TODO CHECKME : same **)
-   hint simplify x86_'Ru'S_rol_xor_red.
 
 end W_WS.
 

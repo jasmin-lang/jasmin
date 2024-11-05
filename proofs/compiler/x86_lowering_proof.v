@@ -1040,7 +1040,7 @@ Section PROOF.
         move => ?; subst v.
         move: Hv'; rewrite /truncate_val /= truncate_word_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPSRA /x86_u128_shift /=.
-        rewrite (size_128_256_ge hle2) (size_16_64_ve hle1) /=.
+        rewrite (size_128_256_ge hle2) hle1 /=.
         by rewrite !truncate_word_le.
     (* PappN *)
     + case: op => // - [] // - [] //.
