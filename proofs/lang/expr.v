@@ -156,8 +156,9 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
   | Olsr s | Olsl (Op_w s) | Oasr (Op_w s) | Oror s | Orol s
-  | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
     => let t := sword s in (t, sword8, t)
+  | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
+    => let t := sword s in (t, sword128, t)
   | Oeq Op_int | Oneq Op_int
   | Olt Cmp_int | Ole Cmp_int
   | Ogt Cmp_int | Oge Cmp_int

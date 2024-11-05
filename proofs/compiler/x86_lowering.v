@@ -362,7 +362,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     | Ovlsr ve sz =>
       kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSRL ve sz)) [::a; b])
     | Ovasr ve sz =>
-      kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSRA ve sz)) [::a; b])
+      kb ((size_16_32 ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSRA ve sz)) [::a; b])
 
     | _ => LowerAssgn
     end

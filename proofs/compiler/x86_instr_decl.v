@@ -497,8 +497,8 @@ Notation mk_ve_instr_w_w_10 name semi check prc valid pp_asm := ((fun (ve:velem)
 Notation mk_ve_instr_w2_w_120 name semi check prc valid pp_asm := ((fun (ve:velem) sz =>
   mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
-Notation mk_ve_instr_ww8_w_120 name semi check prc valid pp_asm := ((fun ve sz =>
-  mk_instr_safe (pp_ve_sz name ve sz) (ww8_ty sz) (w_ty sz) [:: Ea 1 ; Ea 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) (pp_asm ve sz)), (name%string,prc))  (only parsing).
+Notation mk_ve_instr_ww128_w_120 name semi check prc valid pp_asm := ((fun ve sz =>
+  mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz U128) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Definition max_32 (sz:wsize) := if (sz <= U32)%CMP then sz else U32.
 
@@ -528,6 +528,11 @@ Definition pp_viname name ve sz args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_viname ve false;
      pp_aop_args := map_sz sz args; |}.
+
+Definition pp_viname_ww_128 name ve sz args :=
+  {| pp_aop_name := name;
+     pp_aop_ext  := PP_viname ve false;
+     pp_aop_args := zip [:: sz; sz; U128 ] args; |}.
 
 Definition pp_iname_w_8 name sz args :=
   {| pp_aop_name := name;
@@ -583,10 +588,12 @@ Definition m_ri sz := [:: m false; ri sz].
 
 Definition xmm := [:: CAxmm ].
 Definition xmmm b := [:: CAxmm; CAmem b].
+Definition xmmmi sz := [:: CAxmm; CAmem true; CAimm CAimmC_none sz].
 
 Definition xmm_xmmm := [::xmm; xmmm true].
 Definition xmmm_xmm := [::xmmm false; xmm].
 Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm true].
+Definition xmm_xmm_xmmmi sz := [::xmm; xmm; xmmmi sz].
 
 Definition x86_MOV sz (x: word sz) : word sz := x.
 
@@ -1444,28 +1451,30 @@ Definition Ox86_VPINSR_instr  :=
 Definition check_xmm_xmm_imm8 (_:wsize) := [:: [:: xmm; xmm; i U8]].
 
 Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
-  (v: word sz) (c: u8) : tpl (w_ty sz) :=
+  (v: word sz) (c: word U128) : tpl (w_ty sz) :=
   lift1_vec sz' (λ v, op v (wunsigned c)) sz v.
 
 Arguments x86_u128_shift : clear implicits.
 
+Definition check_xmm_xmm_xmmmi of wsize := [:: xmm_xmm_xmmmi U8 ].
+
 Definition x86_VPSLL (ve: velem) sz := x86_u128_shift ve sz (@wshl _).
 
 Definition Ox86_VPSLL_instr :=
-  mk_ve_instr_ww8_w_120 "VPSLL" x86_VPSLL check_xmm_xmm_imm8 (primV_16_64 VPSLL)
-  (fun (ve:velem)  sz => size_16_64 ve && size_128_256 sz) (pp_viname "vpsll").
+  mk_ve_instr_ww128_w_120 "VPSLL" x86_VPSLL check_xmm_xmm_xmmmi (primV_16_64 VPSLL)
+  (fun (ve:velem)  sz => size_16_64 ve && size_128_256 sz) (pp_viname_ww_128 "vpsll").
 
 Definition x86_VPSRL (ve: velem) sz := x86_u128_shift ve sz (@wshr _).
 
 Definition Ox86_VPSRL_instr :=
-  mk_ve_instr_ww8_w_120 "VPSRL" x86_VPSRL check_xmm_xmm_imm8 (primV_16_64 VPSRL)
-  (fun (ve:velem) sz => size_16_64 ve && size_128_256 sz) (pp_viname "vpsrl").
+  mk_ve_instr_ww128_w_120 "VPSRL" x86_VPSRL check_xmm_xmm_xmmmi (primV_16_64 VPSRL)
+  (fun (ve:velem) sz => size_16_64 ve && size_128_256 sz) (pp_viname_ww_128 "vpsrl").
 
 Definition x86_VPSRA (ve: velem) sz := x86_u128_shift ve sz (@wsar _).
 
 Definition Ox86_VPSRA_instr :=
-  mk_ve_instr_ww8_w_120 "VPSRA" x86_VPSRA check_xmm_xmm_imm8 (primV_16_64 VPSRA)
-  (fun (ve:velem) sz => size_16_64 ve && size_128_256 sz) (pp_viname "vpsra").
+  mk_ve_instr_ww128_w_120 "VPSRA" x86_VPSRA check_xmm_xmm_xmmmi (primV_16_32 VPSRA)
+  (fun (ve:velem) sz => size_16_32 ve && size_128_256 sz) (pp_viname_ww_128 "vpsra").
 
 Definition x86_u128_shift_variable ve sz op v1 v2 : tpl (w_ty sz) :=
   lift2_vec ve (λ v1 v2, op v1 (Z.min (wunsigned v2) (wsize_bits ve))) sz v1 v2.
