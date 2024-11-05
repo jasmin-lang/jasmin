@@ -35,6 +35,13 @@
   ([PR #948](https://github.com/jasmin-lang/jasmin/pull/948);
   fixes [#931](https://github.com/jasmin-lang/jasmin/issues/931)).
 
+## Other changes
+
+- Improve description of x86 AVX shift instructions; this changes the type of
+  the vectorized shift operations: the second argument is now a 128-bit value
+  ([PR #955](https://github.com/jasmin-lang/jasmin/pull/955);
+  fixes [#950](https://github.com/jasmin-lang/jasmin/issues/950)).
+
 # Jasmin 2024.07.1 — Nancy, 2024-10-03
 
 ## New features
