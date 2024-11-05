@@ -88,7 +88,7 @@ Fixpoint lower_addressing_i (i: instr) :=
         map (MkI ii) (prelude ++ [:: Copn xs t o [:: Pload al ws tmp disp]])
       else [:: i]
     else [:: i]
-  | Cassgn _ _ _ _ 
+  | Cassgn _ _ _ _
   | Csyscall _ _ _
   | Ccall _ _ _ => [:: i]
   | Cif b c1 c2 =>
@@ -119,7 +119,7 @@ Definition lower_addressing_fd (f: fundef) :=
 End tmp.
 
 Definition lower_addressing_prog
-    (fresh_reg: string -> stype -> Ident.ident) (p:prog) : cexec prog := 
+    (fresh_reg: string -> stype -> Ident.ident) (p:prog) : cexec prog :=
   let tmp :=
     VarI
       {| vtype := sword Uptr; vname := fresh_reg "__tmp__"%string (sword Uptr) |}

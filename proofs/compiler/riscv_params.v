@@ -209,8 +209,8 @@ Definition assemble_cond_app2 (o : sop2) :=
   end.
 
 Fixpoint assemble_cond ii (e : fexpr) : cexec condt :=
-  match e with  
-  | Fapp1 Onot e => 
+  match e with
+  | Fapp1 Onot e =>
     Let c := assemble_cond ii e in ok (condt_not c)
   | Fapp2 o e0 e1 =>
     Let: (o, swap) :=
@@ -265,6 +265,7 @@ Definition riscv_params : architecture_params lowering_options :=
   {|
     ap_sap := riscv_saparams;
     ap_lip := riscv_liparams;
+    ap_plp := true;
     ap_lop := riscv_loparams;
     ap_agp := riscv_agparams;
     ap_lap := riscv_laparams;

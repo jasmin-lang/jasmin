@@ -298,6 +298,7 @@ Definition x86_params : architecture_params lowering_options :=
   {|
     ap_sap := x86_saparams;
     ap_lip := x86_liparams;
+    ap_plp := false;
     ap_lop := x86_loparams;
     ap_lap := {| lap_lower_address := fun _ p => ok p |};
     ap_agp := x86_agparams;

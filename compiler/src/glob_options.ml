@@ -140,6 +140,7 @@ let print_strings = function
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.RemoveGlobal                -> "rmglobals", "remove globals variables"
   | Compiler.MakeRefArguments            -> "makeref"  , "add assignments before and after call to ensure that arguments and results are ref ptr"
+  | Compiler.LoadConstantsInCond         -> "loadconst", "introduce registers for constants appearing in conditions (RISC-V only)"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
   | Compiler.PropagateInline             -> "propagate", "propagate inline variables"
   | Compiler.SLHLowering                 -> "slhlowering" , "lowering of selective load hardening instructions"

@@ -1,0 +1,10 @@
+export fn foo(reg u32 x) -> reg u32 {
+
+  while (x < 10) {
+    x = x + 1;
+  }
+
+  x = x;
+  return x;
+
+}
