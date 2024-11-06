@@ -67,7 +67,7 @@ op BICScc x y g n z c o = if g then BICS x y else (n, z, c, o).
 op BICcc x y g o = if g then BIC x y else o.
 
 op ASRS (x: W32.t) (s: W8.t) : bool * bool * bool * W32.t =
-  with_nzc (sar x (to_uint s)).
+  with_nzc (x `|>>>` to_uint s).
 op ASR x s = let (_n, _z, _c, r) = ASRS x s in r.
 op ASRScc x s g n z c o = if g then ASRS x s else (n, z, c, o).
 op ASRcc x s g o = if g then ASR x s else o.
@@ -179,7 +179,7 @@ op RSBcc x y g o = if g then RSB x y else o.
 
 op SBFX (x: W32.t) (i j: W8.t) : W32.t =
   let k = 32 - to_uint j in
-  sar (x `<<<` (k - to_uint i)) k.
+  (x `<<<` (k - to_uint i)) `|>>>` k.
 op SBFXcc x i j g o = if g then SBFX x i j else o.
 
 op SDIV (x y: W32.t) : W32.t =
