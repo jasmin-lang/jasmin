@@ -929,9 +929,11 @@ op (`<<<`) (x : t) (i : int) =
   init (fun j => x.[j - i])
 axiomatized by wlslE.
 
-op sar (x:t) (i:int) =
+op (`|>>>`) (x:t) (i:int) =
   init (fun j => x.[min (size- 1) (j + i)])
 axiomatized by sarE.
+
+abbrev [-printing] sar = (`|>>>`). (* for compatibility *)
 
 lemma shlwE w k i : (w `<<<` k).[i] = (0 <= i < size && w.[i - k]).
 proof. by rewrite wlslE initE. qed.
@@ -1725,6 +1727,7 @@ theory W8.
   proof gt0_size by done.
 
   op (`>>`) (w1 w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
+  op (`|>>`) (w1 w2 : W8.t) = w1 `|>>>` (to_uint w2 %% size).
   op (`<<`) (w1 w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
 
   lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
@@ -1752,8 +1755,6 @@ theory W8.
     move=> hi; rewrite /(`<<`) /(`>>`) !of_uintK /=.
     by rewrite !(modz_small _ 256) 1,2:/# !modz_small 1,2:/# rol_xor 1:/#.
   qed.
-
-  op (`|>>`) (w1 w2 : W8.t) = sar w1 (to_uint w2 %% size).
 
   op SETcc (b: bool) = b ? W8.one : W8.zero.
 
@@ -1849,13 +1850,13 @@ theory W8.
       let r2 = v2 `<<<` (size - i) in
       let r  = r1 +^ r2 in
       rflags_OF i r rc (ALU.SF_of r ^^ ALU.SF_of v1).
-  
+
   op SAR_8 (v: t) (i: W8.t) =
-    let i = shift_mask i in 
+    let i = shift_mask i in
     if i = 0 then flags_w rflags_undefined v
     else
-      let rc = lsb (sar v (i - 1)) in
-      let r  = sar v i in
+      let rc = lsb (v `|>>>` (i - 1)) in
+      let r  = v `|>>>` i in
       rflags_OF i r rc false.
 
 end SHIFT.
@@ -1881,6 +1882,7 @@ abstract theory WT.
   op ( * ) : t -> t -> t.
 
   op (`>>>`) : t -> int -> t.
+  op (`|>>>`) : t -> int -> t.
   op (`<<<`) : t -> int -> t.
   op (`>>`) : t -> W8.t -> t.
   op (`|>>`) : t -> W8.t -> t.
@@ -2381,7 +2383,7 @@ abstract theory BitWordSH.
 
   op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
   op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
-  op (`|>>`) (w1 : t) (w2 : W8.t) = sar w1 (to_uint w2 %% size).
+  op (`|>>`) (w1 : t) (w2 : W8.t) = w1 `|>>>` (to_uint w2 %% size).
   op (`|>>|`) (w1 : t) (w2 : W8.t) = w1 `|>>>|` (to_uint w2 %% size).
   op (`|<<|`) (w1 : t) (w2 : W8.t) = w1 `|<<<|` (to_uint w2 %% size).
 
@@ -2521,20 +2523,20 @@ abstract theory BitWordSH.
       let r2 = v2 `<<<` (size - i) in
       let r  = r1 +^ r2 in
       rflags_OF i r rc (ALU.SF_of r ^^ ALU.SF_of v1).
-  
-  op SAR_XX (v: t) (i: W8.t) = 
-    let i = shift_mask i in 
+
+  op SAR_XX (v: t) (i: W8.t) =
+    let i = shift_mask i in
     if i = 0 then flags_w rflags_undefined v
     else
-      let rc = lsb (sar v (i - 1)) in
-      let r  = sar v i in
+      let rc = lsb (v `|>>>` (i - 1)) in
+      let r  = v `|>>>` i in
       rflags_OF i r rc false.
 
   op RORX_XX (v: t) (i: W8.t) : t =
     v `|>>>|` shift_mask i.
 
   op SARX_XX (v i: t) : t =
-    sar v (to_uint i %% size).
+    v `|>>>` to_uint i %% size.
 
   op SHRX_XX (v i: t) : t =
     v `>>>` to_uint i %% size.
