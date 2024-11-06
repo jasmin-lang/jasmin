@@ -1939,6 +1939,222 @@ abstract theory WT.
 
 end WT.
 
+abstract theory BitWordSH.
+  op size : int.
+  axiom size_le_256 : size <= 256.
+  clone include BitWord with op size <- size.
+
+  op shift_mask i =
+    W8.to_uint i %% (if size <= 32 then 32 else size).
+
+  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
+  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
+  op (`|>>`) (w1 : t) (w2 : W8.t) = w1 `|>>>` (to_uint w2 %% size).
+  op (`|>>|`) (w1 : t) (w2 : W8.t) = w1 `|>>>|` (to_uint w2 %% size).
+  op (`|<<|`) (w1 : t) (w2 : W8.t) = w1 `|<<<|` (to_uint w2 %% size).
+
+  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
+  proof.
+    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt (modz_cmp gt0_size).
+    rewrite of_uintK to_uint_mod modz_small 2://.
+    apply bound_abs; apply divz_cmp; 1: by apply gt0_pow2.
+    by have:= to_uint_cmp w1; smt (gt0_pow2).
+  qed.
+
+  lemma shr_div_le w1 i : 0 <= i < size =>
+     to_uint (w1 `>>` (W8.of_int i)) = to_uint w1 %/ 2^ i.
+  proof.
+    move=> hi;rewrite shr_div of_uintK.
+    rewrite (modz_small i) 1:pow2_8; 1: smt (size_le_256).
+    by rewrite modz_small //;apply bound_abs.
+  qed.
+
+  lemma rol_xor_shft w i : 0 < i < size =>
+    w `|<<<|` i = (w `<<` W8.of_int i) +^ (w `>>` W8.of_int (size - i)).
+  proof.
+    move=> hi; rewrite /(`<<`) /(`>>`) !W8.of_uintK.
+    have h : 0 <= i < `|W8.modulus|.
+    + by rewrite /=; smt (size_le_256).
+    rewrite !(modz_small _ W8.modulus) 1:// 1: #smt: (size_le_256) !modz_small 1,2:/#.
+    by rewrite rol_xor 1:/#.
+  qed.
+
+  lemma shl_shlw k w:
+   0 <= k < size =>
+   w `<<` W8.of_int k = w `<<<` k.
+  proof.
+   move=> *; rewrite /(`<<`) of_uintK (modz_small (k %% W8.modulus)).
+    smt(modz_cmp).
+   by rewrite modz_small //; smt(size_le_256).
+  qed.
+
+  lemma shr_shrw k w:
+   0 <= k < size =>
+   w `>>` W8.of_int k = w `>>>` k.
+  proof.
+   move=> *; rewrite /(`>>`) of_uintK (modz_small (k %% W8.modulus)).
+    smt(modz_cmp).
+   by rewrite modz_small //; smt(size_le_256).
+  qed.
+
+  theory SHIFT.
+
+  op ROR_XX (v: t) (i: W8.t) =
+    let i = shift_mask i in
+    if i = 0 then (undefined_flag, undefined_flag, v)
+    else
+      let r = v `|>>>|` i in
+      let CF = ALU.SF_of r in
+      let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
+      (OF , CF,  r)
+  axiomatized by ROR_XX_E.
+
+  op ROL_XX (v: t) (i: W8.t) =
+    let i = shift_mask i in
+    if i = 0 then(undefined_flag, undefined_flag, v)
+    else
+      let r = v `|<<<|` i in
+      let CF = lsb r in
+      let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
+      (OF, CF, r)
+  axiomatized by ROL_XX_E.
+
+  op im i =
+    if size = 8 then i %% 9
+    else if size = 16 then i %% 17
+    else i.
+
+  op RCL_XX (v: t) (i: W8.t) (cf:bool) =
+    let i  = shift_mask i in
+    let i = im i in
+    let r  = fun j => if j = 0 then cf else v.[j-1] in
+    let r  = fun j => r ((j - i) %% (size + 1)) in
+    let CF = r 0 in
+    let r  = init (fun j => r (j+1)) in
+    let OF = if i = 1 then (ALU.SF_of r <> CF) else undefined_flag in
+    (OF, CF, r).
+
+  op RCR_XX (v: t) (i: W8.t) (cf:bool) =
+    let i  = shift_mask i in
+    let i = im i in
+    let r  = fun j => if j = 0 then cf else v.[j-1] in
+    let r  = fun j => r ((j + i) %% (size + 1)) in
+    let OF = if i = 1 then ALU.SF_of  v <> cf else undefined_flag in
+    let CF = r 0 in
+    let r  = init (fun j => r (j+1)) in
+    (OF, CF, r).
+
+  op rflags_OF (i:int) (r:t) (rc OF:bool) =
+    let OF = if i = 1 then OF else undefined_flag in
+    let CF = rc in
+    let SF = ALU.SF_of r in
+    let PF = lsb r in
+    let ZF = ALU.ZF_of r in
+    (OF, CF, SF, PF, ZF, r).
+
+  op SHL_XX  (v: t) (i: W8.t) =
+    let i = shift_mask i in
+    if i = 0 then flags_w rflags_undefined v
+    else
+      let rc = ALU.SF_of (v `<<<` (i - 1)) in
+      let r  = v `<<<` i in
+      rflags_OF i r rc (ALU.SF_of r ^^ rc).
+
+  abbrev [-printing] SAL_XX = SHL_XX.
+
+  op SHLD_XX (v1 v2: t) (i: W8.t) =
+    let i = shift_mask i in
+    if i = 0 then flags_w rflags_undefined v1
+    else
+      let rc = ALU.SF_of (v1 `<<<` (i - 1)) in
+      let r1 = v1 `<<<` i in
+      let r2 = v2 `>>>` (size - i) in
+      let r  = r1 +^ r2 in
+      rflags_OF i r rc (ALU.SF_of r ^^ rc).
+
+  op SHR_XX (v: t) (i: W8.t) =
+    let i = shift_mask i in
+    if i = 0 then flags_w rflags_undefined v
+    else
+      let rc = lsb (v `>>>` i -1) in
+      let r  = v `>>>` i in
+      rflags_OF i r rc (ALU.SF_of r).
+
+  op SHRD_XX (v1 v2: t) (i: W8.t) =
+    let i = shift_mask i in
+    if i = 0 then flags_w rflags_undefined v1
+    else
+      let rc = lsb (v1 `>>>` i - 1) in
+      let r1 = v1 `>>>` i in
+      let r2 = v2 `<<<` (size - i) in
+      let r  = r1 +^ r2 in
+      rflags_OF i r rc (ALU.SF_of r ^^ ALU.SF_of v1).
+
+  op SAR_XX (v: t) (i: W8.t) =
+    let i = shift_mask i in
+    if i = 0 then flags_w rflags_undefined v
+    else
+      let rc = lsb (v `|>>>` (i - 1)) in
+      let r  = v `|>>>` i in
+      rflags_OF i r rc false.
+
+  op RORX_XX (v: t) (i: W8.t) : t =
+    v `|>>>|` shift_mask i.
+
+  op SARX_XX (v i: t) : t =
+    v `|>>>` to_uint i %% size.
+
+  op SHRX_XX (v i: t) : t =
+    v `>>>` to_uint i %% size.
+
+  op SHLX_XX (v i: t) : t =
+    v `<<<` to_uint i %% size.
+
+end SHIFT.
+
+end BitWordSH.
+
+theory W16.
+  abbrev [-printing] size = 16.
+  clone include BitWordSH with op size <- size
+  rename "_XX" as "_16"
+  proof gt0_size by done,
+        size_le_256 by done.
+
+end W16. export W16 W16.ALU W16.SHIFT.
+
+theory W32.
+  abbrev [-printing] size = 32.
+  clone include BitWordSH with op size <- size
+  rename "_XX" as "_32"
+  proof gt0_size by done,
+        size_le_256 by done.
+end W32. export W32 W32.ALU W32.SHIFT.
+
+theory W64.
+  abbrev [-printing] size = 64.
+  clone include BitWordSH with op size <- size
+  rename "_XX" as "_64"
+  proof gt0_size by done,
+        size_le_256 by done.
+end W64. export W64 W64.ALU W64.SHIFT.
+
+theory W128.
+  abbrev [-printing] size = 128.
+  clone include BitWordSH with op size <- size
+  rename "_XX" as "_128"
+  proof gt0_size by done,
+        size_le_256 by done.
+end W128. export W128 W128.ALU W128.SHIFT.
+
+theory W256.
+  abbrev [-printing] size = 256.
+  clone include BitWordSH with op size <- size
+  rename "_XX" as "_256"
+  proof gt0_size by done,
+        size_le_256 by done.
+end W256. export W256 W256.ALU W256.SHIFT.
+
 abstract theory W_WS.
 
   op sizeS : int.
@@ -2373,203 +2589,11 @@ abstract theory W_WS.
 
 end W_WS.
 
-abstract theory BitWordSH.
-  op size : int.
-  axiom size_le_256 : size <= 256.
-  clone include BitWord with op size <- size.
-
-  op shift_mask i = 
-    W8.to_uint i %% (if size <= 32 then 32 else size).
-
-  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
-  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
-  op (`|>>`) (w1 : t) (w2 : W8.t) = w1 `|>>>` (to_uint w2 %% size).
-  op (`|>>|`) (w1 : t) (w2 : W8.t) = w1 `|>>>|` (to_uint w2 %% size).
-  op (`|<<|`) (w1 : t) (w2 : W8.t) = w1 `|<<<|` (to_uint w2 %% size).
-
-  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
-  proof.
-    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt (modz_cmp gt0_size).
-    rewrite of_uintK to_uint_mod modz_small 2://.
-    apply bound_abs; apply divz_cmp; 1: by apply gt0_pow2.
-    by have:= to_uint_cmp w1; smt (gt0_pow2).
-  qed.
-
-  lemma shr_div_le w1 i : 0 <= i < size =>
-     to_uint (w1 `>>` (W8.of_int i)) = to_uint w1 %/ 2^ i.
-  proof.
-    move=> hi;rewrite shr_div of_uintK.
-    rewrite (modz_small i) 1:pow2_8; 1: smt (size_le_256).
-    by rewrite modz_small //;apply bound_abs.
-  qed.
-
-  lemma rol_xor_shft w i : 0 < i < size =>
-    w `|<<<|` i = (w `<<` W8.of_int i) +^ (w `>>` W8.of_int (size - i)).
-  proof.
-    move=> hi; rewrite /(`<<`) /(`>>`) !W8.of_uintK.
-    have h : 0 <= i < `|W8.modulus|.
-    + by rewrite /=; smt (size_le_256).
-    rewrite !(modz_small _ W8.modulus) 1:// 1: #smt: (size_le_256) !modz_small 1,2:/#.
-    by rewrite rol_xor 1:/#.
-  qed.
-
-  lemma shl_shlw k w:
-   0 <= k < size =>
-   w `<<` W8.of_int k = w `<<<` k.
-  proof.
-   move=> *; rewrite /(`<<`) of_uintK (modz_small (k %% W8.modulus)).
-    smt(modz_cmp).
-   by rewrite modz_small //; smt(size_le_256).
-  qed.
-
-  lemma shr_shrw k w:
-   0 <= k < size =>
-   w `>>` W8.of_int k = w `>>>` k.
-  proof.
-   move=> *; rewrite /(`>>`) of_uintK (modz_small (k %% W8.modulus)).
-    smt(modz_cmp).
-   by rewrite modz_small //; smt(size_le_256).
-  qed.
-
-  theory SHIFT.
-  
-  op ROR_XX (v: t) (i: W8.t) =
-    let i = shift_mask i in
-    if i = 0 then (undefined_flag, undefined_flag, v) 
-    else
-      let r = v `|>>>|` i in
-      let CF = ALU.SF_of r in
-      let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
-      (OF , CF,  r)
-  axiomatized by ROR_XX_E.
-  
-  op ROL_XX (v: t) (i: W8.t) =
-    let i = shift_mask i in
-    if i = 0 then(undefined_flag, undefined_flag, v)
-    else
-      let r = v `|<<<|` i in
-      let CF = lsb r in
-      let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
-      (OF, CF, r)
-  axiomatized by ROL_XX_E.
-  
-  op im i = 
-    if size = 8 then i %% 9
-    else if size = 16 then i %% 17
-    else i.
-
-  op RCL_XX (v: t) (i: W8.t) (cf:bool) =
-    let i  = shift_mask i in
-    let i = im i in
-    let r  = fun j => if j = 0 then cf else v.[j-1] in
-    let r  = fun j => r ((j - i) %% (size + 1)) in
-    let CF = r 0 in 
-    let r  = init (fun j => r (j+1)) in
-    let OF = if i = 1 then (ALU.SF_of r <> CF) else undefined_flag in
-    (OF, CF, r).
-  
-  op RCR_XX (v: t) (i: W8.t) (cf:bool) =
-    let i  = shift_mask i in
-    let i = im i in
-    let r  = fun j => if j = 0 then cf else v.[j-1] in
-    let r  = fun j => r ((j + i) %% (size + 1)) in
-    let OF = if i = 1 then ALU.SF_of  v <> cf else undefined_flag in
-    let CF = r 0 in 
-    let r  = init (fun j => r (j+1)) in
-    (OF, CF, r).
-
-  op rflags_OF (i:int) (r:t) (rc OF:bool) =
-    let OF = if i = 1 then OF else undefined_flag in
-    let CF = rc in
-    let SF = ALU.SF_of r in
-    let PF = lsb r in
-    let ZF = ALU.ZF_of r in
-    (OF, CF, SF, PF, ZF, r).
-
-  op SHL_XX  (v: t) (i: W8.t) =
-    let i = shift_mask i in
-    if i = 0 then flags_w rflags_undefined v
-    else
-      let rc = ALU.SF_of (v `<<<` (i - 1)) in 
-      let r  = v `<<<` i in
-      rflags_OF i r rc (ALU.SF_of r ^^ rc).
-
-  abbrev [-printing] SAL_XX = SHL_XX.
-
-  op SHLD_XX (v1 v2: t) (i: W8.t) =
-    let i = shift_mask i in
-    if i = 0 then flags_w rflags_undefined v1
-    else
-      let rc = ALU.SF_of (v1 `<<<` (i - 1)) in
-      let r1 = v1 `<<<` i in
-      let r2 = v2 `>>>` (size - i) in
-      let r  = r1 +^ r2 in
-      rflags_OF i r rc (ALU.SF_of r ^^ rc).
-  
-  op SHR_XX (v: t) (i: W8.t) =
-    let i = shift_mask i in 
-    if i = 0 then flags_w rflags_undefined v 
-    else
-      let rc = lsb (v `>>>` i -1) in
-      let r  = v `>>>` i in
-      rflags_OF i r rc (ALU.SF_of r).
-  
-  op SHRD_XX (v1 v2: t) (i: W8.t) = 
-    let i = shift_mask i in
-    if i = 0 then flags_w rflags_undefined v1
-    else
-      let rc = lsb (v1 `>>>` i - 1) in
-      let r1 = v1 `>>>` i in
-      let r2 = v2 `<<<` (size - i) in
-      let r  = r1 +^ r2 in
-      rflags_OF i r rc (ALU.SF_of r ^^ ALU.SF_of v1).
-
-  op SAR_XX (v: t) (i: W8.t) =
-    let i = shift_mask i in
-    if i = 0 then flags_w rflags_undefined v
-    else
-      let rc = lsb (v `|>>>` (i - 1)) in
-      let r  = v `|>>>` i in
-      rflags_OF i r rc false.
-
-  op RORX_XX (v: t) (i: W8.t) : t =
-    v `|>>>|` shift_mask i.
-
-  op SARX_XX (v i: t) : t =
-    v `|>>>` to_uint i %% size.
-
-  op SHRX_XX (v i: t) : t =
-    v `>>>` to_uint i %% size.
-
-  op SHLX_XX (v i: t) : t =
-    v `<<<` to_uint i %% size.
-
-end SHIFT.
-
-end BitWordSH.
-
-theory W16.
-  abbrev [-printing] size = 16.
-  clone include BitWordSH with op size <- size
-  rename "_XX" as "_16"
-  proof gt0_size by done,
-        size_le_256 by done.
-
-end W16. export W16 W16.ALU W16.SHIFT.
-
 clone export W_WS as W2u8 with
   op sizeS <- W8.size, op sizeB <- W16.size, op r <- 2,
   theory WS <- W8, theory WB <- W16
   proof gt0_r by done, sizeBrS by done
   rename [op, lemma] "'Ru'S" as "2u8" "'R" as "2" "'S" as "8" "'B" as "16" .
-
-theory W32.
-  abbrev [-printing] size = 32.
-  clone include BitWordSH with op size <- size
-  rename "_XX" as "_32"
-  proof gt0_size by done,
-        size_le_256 by done.
-end W32. export W32 W32.ALU W32.SHIFT.
 
 clone export W_WS as W4u8 with
   op sizeS <- W8.size, op sizeB <- W32.size, op r <- 4,
@@ -2582,14 +2606,6 @@ clone export W_WS as W2u16 with
   theory WS <- W16, theory WB <- W32
   proof gt0_r by done, sizeBrS by done
   rename [op, lemma] "'Ru'S" as "2u16" "'R" as "2" "'S" as "16" "'B" as "32".
-
-theory W64.
-  abbrev [-printing] size = 64.
-  clone include BitWordSH with op size <- size
-  rename "_XX" as "_64"
-  proof gt0_size by done,
-        size_le_256 by done.
-end W64. export W64 W64.ALU W64.SHIFT.
 
 clone export W_WS as W8u8 with
   op sizeS <- W8.size, op sizeB <- W64.size, op r <- 8,
@@ -2608,14 +2624,6 @@ clone export W_WS as W2u32 with
   theory WS <- W32, theory WB <- W64
   proof gt0_r by done, sizeBrS by done
   rename [op, lemma] "'Ru'S" as "2u32" "'R" as "2" "'S" as "32" "'B" as "64".
-
-theory W128.
-  abbrev [-printing] size = 128.
-  clone include BitWordSH with op size <- size
-  rename "_XX" as "_128"
-  proof gt0_size by done,
-        size_le_256 by done.
-end W128. export W128 W128.ALU W128.SHIFT.
 
 clone export W_WS as W16u8 with
   op sizeS <- W8.size, op sizeB <- W128.size, op r <- 16,
@@ -2640,14 +2648,6 @@ clone export W_WS as W2u64 with
   theory WS <- W64, theory WB <- W128
   proof gt0_r by done, sizeBrS by done
   rename [op, lemma] "'Ru'S" as "2u64" "'R" as "2" "'S" as "64" "'B" as "128".
-
-theory W256.
-  abbrev [-printing] size = 256.
-  clone include BitWordSH with op size <- size
-  rename "_XX" as "_256"
-  proof gt0_size by done,
-        size_le_256 by done.
-end W256. export W256 W256.ALU W256.SHIFT.
 
 clone export W_WS as W32u8 with
   op sizeS <- W8.size, op sizeB <- W256.size, op r <- 32,
