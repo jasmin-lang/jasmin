@@ -381,7 +381,13 @@ Definition lower_add_carry
   end.
 
 Definition lower_mulu (lvs : seq lval) (es : seq pexpr) : option copn_args :=
-  Some (lvs, Oasm (BaseOp (None, ARM_op UMULL default_opts)), es).
+  match lvs with
+  | [:: Lvar hi; Lvar lo] =>
+    if v_var hi != v_var lo then
+      Some ([::Lvar lo; Lvar hi], Oasm (BaseOp (None, ARM_op UMULL default_opts)), es)
+    else None
+  | _ => None
+  end.
 
 Definition with_shift opts sh :=
   {| set_flags := set_flags opts; is_conditional := is_conditional opts; has_shift := Some sh |}.
@@ -420,13 +426,13 @@ Definition lower_base_op
       | _ => None end
     else None.
 
-Definition lower_swap ty lvs es : option copn_args := 
+Definition lower_swap ty lvs es : option copn_args :=
   match ty with
-  | sword sz => 
-    if (sz <= U32)%CMP then 
+  | sword sz =>
+    if (sz <= U32)%CMP then
       Some (lvs, Oasm (ExtOp (Oarm_swap sz)), es)
     else None
-  | sarr _ => 
+  | sarr _ =>
       Some (lvs, Opseudo_op (Oswap ty), es)
   | _ => None
   end.

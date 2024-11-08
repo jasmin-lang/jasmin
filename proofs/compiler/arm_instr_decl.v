@@ -1141,7 +1141,8 @@ Definition arm_UDIV_instr : instr_desc_t :=
   |}.
 
 Definition arm_UMULL_semi (wn wm : ty_r) : ty_rr :=
-  (wumul wn wm).
+  let (hi, lo) := wumul wn wm in
+  (lo, hi).
 
 Definition arm_UMULL_instr : instr_desc_t :=
   let mn := UMULL in
@@ -1151,7 +1152,7 @@ Definition arm_UMULL_instr : instr_desc_t :=
     id_tin := tin;
     id_in := [:: Ea 2; Ea 3 ];
     id_tout := [:: sreg; sreg ];
-    id_out := [:: Ea 1; Ea 0 ];
+    id_out := [:: Ea 0; Ea 1 ];
     id_semi := sem_prod_ok tin arm_UMULL_semi;
     id_nargs := 4;
     id_args_kinds := ak_reg_reg_reg_reg;
@@ -1227,7 +1228,8 @@ Definition arm_UMLAL_instr : instr_desc_t :=
   |}.
 
 Definition arm_SMULL_semi (wn wm : ty_r) : ty_rr :=
-  (wsmul wn wm).
+  let (hi, lo) := wsmul wn wm in
+  (lo, hi).
 
 Definition arm_SMULL_instr : instr_desc_t :=
   let mn := SMULL in
@@ -1237,7 +1239,7 @@ Definition arm_SMULL_instr : instr_desc_t :=
     id_tin := tin;
     id_in := [:: Ea 2; Ea 3 ];
     id_tout := [:: sreg; sreg ];
-    id_out := [:: Ea 1; Ea 0 ];
+    id_out := [:: Ea 0; Ea 1 ];
     id_semi := sem_prod_ok tin arm_SMULL_semi;
     id_nargs := 4;
     id_args_kinds := ak_reg_reg_reg_reg;

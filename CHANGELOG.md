@@ -40,6 +40,18 @@
   ([PR #959](https://github.com/jasmin-lang/jasmin/pull/959);
   fixes [#943](https://github.com/jasmin-lang/jasmin/issues/943)).
 
+- Change the semantics of `SMULL` and `UMULL` arm instructions to make them
+  consistent with arm documentation. They return low bits then high bits
+  instead of high bits then low bits.
+  This is a breaking change, to patch existing code you need to replace:
+    `(hi, lo) = #UMULL(e1, e2);`
+  with
+    `(lo, hi) = #UMULL(e1, e2);`
+  or
+    `(hi, lo) = e1 * e2;`
+  ([PR #958](https://github.com/jasmin-lang/jasmin/pull/958);
+  fixes [#637](https://github.com/jasmin-lang/jasmin/issues/637)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
