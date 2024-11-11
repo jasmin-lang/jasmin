@@ -18,10 +18,9 @@ inline fn __sub4_rrs(reg u64[4] f, stack u64[4] gs) -> reg u64[4]
   reg u64[4] h;
   reg u64 z;
 
-  z = 0;
+  z = #set0_64();
 
-  for i=0 to 4
-  { h[i] = f[i]; }
+  h = #copy(f);
 
 
   cf, h[0] -= gs[0];
