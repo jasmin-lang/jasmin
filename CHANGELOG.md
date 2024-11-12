@@ -38,7 +38,7 @@
 
 - Correcting shift in location produced by multiline string annotations 
   ([PR #959](https://github.com/jasmin-lang/jasmin/pull/959);
-  fixes [[#943](https://github.com/jasmin-lang/jasmin/issues/943)])
+  fixes [#943](https://github.com/jasmin-lang/jasmin/issues/943)).
 
 ## Other changes
 
