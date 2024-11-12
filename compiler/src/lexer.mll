@@ -141,7 +141,7 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
-  | '"' (([^'"' '\\']|'\\' _)* as s) '"' { increment_newline s lexbuf;STRING (unescape (L.of_lexbuf lexbuf) s) }
+  | '"' (([^'"' '\\']|'\\' _)* as s) '"' { increment_newline s lexbuf; STRING (unescape (L.of_lexbuf lexbuf) s) }
 
   | (digit+(('_')+ digit+)*) as s
 
