@@ -7,11 +7,9 @@
 
   let increment_newline s lexbuf =
     let newlines = String.count_char s '\n' in 
-    let rec loop count = 
-      match count with
-      | 0 -> ()
-      | _ -> Lexing.new_line lexbuf; loop (count - 1)
-    in loop newlines
+    for _ = 1 to newlines do
+      Lexing.new_line lexbuf
+    done
 
 
   let unterminated_comment loc =
