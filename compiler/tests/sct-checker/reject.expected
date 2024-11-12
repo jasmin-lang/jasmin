@@ -31,9 +31,9 @@ File bug_887.jazz:
 Failed as expected test_venv: "fail/bug_887.jazz", line 13 (3-4):
                               speculative constant type checker: r has type #secret but should be at most #public
 File corruption.jazz:
-Failed as expected does_corrupt_memory: "fail/corruption.jazz", line 26 (12-13):
+Failed as expected does_corrupt_memory: "fail/corruption.jazz", line 32 (12-13):
                                         speculative constant type checker: return type for y is #[ptr = public, val = transient] it should be less than #[ptr = public, val = public]
-Failed as expected corrupts_memory: "fail/corruption.jazz", line 12 (12-13):
+Failed as expected corrupts_memory: "fail/corruption.jazz", line 15 (12-13):
                                     speculative constant type checker: return type for y is #[ptr = public, val = transient] it should be less than #[ptr = public, val = public]
 File functions.jazz:
 Failed as expected call_kills_msf: "fail/functions.jazz", line 9 (2-10):
