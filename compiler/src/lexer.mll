@@ -5,6 +5,23 @@
   module L = Location
   module S = Syntax
 
+  let count_newline s = 
+   let rec sub s acc = 
+   match s with 
+    | c::q when c='\n' -> sub q (acc+1)
+    | c::q -> sub q acc
+    | [] -> acc
+    in 
+    sub (String.explode s) 0
+
+  let increment_newline s lexbuf =
+    let newlines = ref(count_newline s) in 
+    while !newlines > 0 do
+      Lexing.new_line lexbuf;
+      newlines := !newlines - 1
+    done
+
+
   let unterminated_comment loc =
     raise (S.ParseError (loc, Some "unterminated comment"))
 
@@ -134,7 +151,7 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
-  | '"' (([^'"' '\\']|'\\' _)* as s) '"' { STRING (unescape (L.of_lexbuf lexbuf) s) }
+  | '"' (([^'"' '\\']|'\\' _)* as s) '"' { increment_newline s lexbuf;STRING (unescape (L.of_lexbuf lexbuf) s) }
 
   | (digit+(('_')+ digit+)*) as s
 
