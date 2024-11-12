@@ -5,21 +5,13 @@
   module L = Location
   module S = Syntax
 
-  let count_newline s = 
-   let rec sub s acc = 
-   match s with 
-    | c::q when c='\n' -> sub q (acc+1)
-    | c::q -> sub q acc
-    | [] -> acc
-    in 
-    sub (String.explode s) 0
-
   let increment_newline s lexbuf =
-    let newlines = ref(count_newline s) in 
-    while !newlines > 0 do
-      Lexing.new_line lexbuf;
-      newlines := !newlines - 1
-    done
+    let newlines = String.count_char s '\n' in 
+    let rec loop count = 
+      match count with
+      | 0 -> ()
+      | _ -> Lexing.new_line lexbuf; loop (count - 1)
+    in loop newlines
 
 
   let unterminated_comment loc =
