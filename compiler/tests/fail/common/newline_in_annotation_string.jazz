@@ -1,8 +1,0 @@
-#annot = "
-This annotation looks \n
-very long to me \n
-so it should skip 
-multiple lines
-while parsed by the compiler
-"
-export fn main(stack u8[1] a) {}
