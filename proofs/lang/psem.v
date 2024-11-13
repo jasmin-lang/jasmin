@@ -449,7 +449,7 @@ Qed.
 
 Lemma get_var_to_word wdb vm x ws w :
   vtype x = sword ws ->
-  get_var wdb vm x >>= to_word ws = ok w ->
+  get_var wdb vm x >>r= to_word ws = ok w ->
   get_var wdb vm x = ok (Vword w).
 Proof.
   t_xrbindP => htx v /[dup] /get_varP [] -> hdef + ->.
@@ -461,7 +461,7 @@ Qed.
 
 Lemma to_word_get_var wdb vm x ws (w:word ws) :
   get_var wdb vm x = ok (Vword w) ->
-  get_var wdb vm x >>= to_word ws = ok w.
+  get_var wdb vm x >>r= to_word ws = ok w.
 Proof. by move=> -> /=; rewrite truncate_word_u. Qed.
 
 (* Remark compat_type b = if b then subtype else eq *)
@@ -871,7 +871,7 @@ Qed.
 
 Lemma is_wconstP wdb gd s sz e w:
   is_wconst sz e = Some w →
-  sem_pexpr wdb gd s e >>= to_word sz = ok w.
+  sem_pexpr wdb gd s e >>r= to_word sz = ok w.
 Proof.
   case: e => // - [] // sz' e /=; case: ifP => // hle /oseq.obindI [z] [h] [<-].
   have := is_constP e; rewrite h => {h} /is_reflect_some_inv -> {e}.

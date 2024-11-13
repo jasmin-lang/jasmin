@@ -408,8 +408,8 @@ Definition lstore_correct_aux lip_check_ws lip_lstore :=
   forall (xd xs : var_i) ofs ws (w: word ws) wp s m,
     vtype xs = sword ws ->
     lip_check_ws ws ->
-    (get_var true (evm s) xd >>= to_word Uptr) = ok wp ->
-    (get_var true (evm s) xs >>= to_word ws) = ok w ->
+    (get_var true (evm s) xd >>r= to_word Uptr) = ok wp ->
+    (get_var true (evm s) xs >>r= to_word ws) = ok w ->
     write (emem s) Aligned (wp + wrepr Uptr ofs)%R w = ok m ->
     sem_fopn_args (lip_lstore xd ofs xs) s = ok (with_mem s m).
 
@@ -444,11 +444,11 @@ Definition lstores_correct_aux lip_check_ws lip_tmp2 lip_lstores :=
   let lcmd := lip_lstores rspi to_save in
   ~~ Sv.mem tmp2 (sv_of_list fst to_save) ->
   v_var tmp2 <> v_var rspi ->
-  get_var true vm1 rspi >>= to_word Uptr = ok top ->
+  get_var true vm1 rspi >>r= to_word Uptr = ok top ->
   foldM (λ '(x, ofs) m,
      Let: ws := if vtype x is sword ws then ok ws else Error ErrType in
      Let _ := assert (lip_check_ws ws) ErrType in
-     Let: v := get_var true vm1 x >>= to_word ws in
+     Let: v := get_var true vm1 x >>r= to_word ws in
      write m Aligned (top + wrepr Uptr ofs)%R v) m1 to_save = ok m2 ->
   exists2 vm2,
       sem_fopns_args s lcmd = ok (with_mem (with_vm s vm2) m2)
@@ -466,7 +466,7 @@ Definition lloads_correct_aux lip_check_ws lip_tmp2 lip_lloads :=
   ~~ Sv.mem rspi (sv_of_list fst to_save) ->
   ~~ Sv.mem tmp2 (sv_of_list fst to_save) ->
   v_var tmp2 <> v_var rspi ->
-  get_var true vm1 rspi >>= to_word Uptr = ok top ->
+  get_var true vm1 rspi >>r= to_word Uptr = ok top ->
   foldM (λ '(x, ofs) vm1,
      Let: ws := if vtype x is sword ws then ok ws else Error ErrType in
      Let _ := assert (lip_check_ws ws) ErrType in
@@ -516,7 +516,7 @@ Context (lstore_correct : lstore_correct_aux lip_check_ws lip_lstore).
 
 Definition lload_correct_aux :=
  forall (xd xs : var_i) ofs s vm top,
-    get_var true (evm s) xs >>= to_word Uptr = ok top ->
+    get_var true (evm s) xs >>r= to_word Uptr = ok top ->
     (Let: ws := if vtype xd is sword ws then ok ws else Error ErrType in
      Let _ := assert (lip_check_ws ws) ErrType in
      Let w := read (emem s) Aligned (top + wrepr Uptr ofs)%R ws in
@@ -528,7 +528,7 @@ Context (lload_correct : lload_correct_aux).
 Definition ladd_imm_correct_aux :=
   forall (x1 x2:var_i) s (w: word Uptr) ofs,
     vtype x1 = sword Uptr -> v_var x1 <> v_var x2 ->
-    get_var true (evm s) x2 >>= to_word Uptr = ok w ->
+    get_var true (evm s) x2 >>r= to_word Uptr = ok w ->
     exists vm,
        [/\ sem_fopns_args s (lip_add_imm x1 x2 ofs) = ok (with_vm s vm)
          , vm =[\ Sv.singleton x1 ] evm s
@@ -576,7 +576,7 @@ Proof.
   rewrite sem_fopns_args_cat.
   have [vm2 [-> heq hget' /=]]:= ladd_imm_correct (x1:=tmp2) ofs0 erefl hne hget.
   exists vm2; last by apply eq_exS.
-  have hget1 : get_var true (evm (with_vm s vm2)) tmp2 >>= to_word Uptr = ok (top + wrepr Uptr ofs0)%R.
+  have hget1 : get_var true (evm (with_vm s vm2)) tmp2 >>r= to_word Uptr = ok (top + wrepr Uptr ofs0)%R.
   + by rewrite hget' /= truncate_word_u.
   apply: (lstores_dfl_correct1 hget1) => {hget1}.
   elim: to_save s hnin heq hget hget' hf => //= -[x ofs] to_save ih s hnin heq hget hget'.
@@ -595,13 +595,13 @@ Lemma lloads_aux_correct rspi to_restore s top vm2 :
     let vm1 := evm s in
     let lcmd := lloads_aux lip_lload rspi to_restore in
     ~~ Sv.mem rspi (sv_of_list fst to_restore) ->
-    get_var true vm1 rspi >>= to_word Uptr = ok top ->
+    get_var true vm1 rspi >>r= to_word Uptr = ok top ->
     foldM (λ '(x, ofs) vm1,
        Let: ws := if vtype x is sword ws then ok ws else Error ErrType in
        Let _ := assert (lip_check_ws ws) ErrType in
        Let w := read m1 Aligned (top + wrepr Uptr ofs)%R ws in
        set_var true vm1 x (Vword w)) vm1 to_restore = ok vm2 ->
-     sem_fopns_args s lcmd = ok (with_vm s vm2) /\ get_var true vm2 rspi >>= to_word Uptr = ok top.
+     sem_fopns_args s lcmd = ok (with_vm s vm2) /\ get_var true vm2 rspi >>r= to_word Uptr = ok top.
 Proof.
   rewrite /= => /Sv_memP/sv_of_listP.
   elim: to_restore s => /=.
@@ -652,7 +652,7 @@ Proof.
                       | sword ws => ok ws
                       | _ => Error ErrType
                       end
-            in (assert (lip_check_ws ws) ErrType >>
+            in (assert (lip_check_ws ws) ErrType >>r
                 Let w := read (emem s) Aligned ((top + wrepr Uptr ofs0) + wrepr Uptr ofs)%R ws in set_var true vm1 x (Vword w)))
          vm1 to_restore = ok vm2' & vm2 =[\Sv.singleton tmp2] vm2'.
   + move: hnin2'; rewrite /to_restore => {to_restore hget hnin hne hget' hnin2}.
@@ -3487,7 +3487,7 @@ Section PROOF.
     foldM (λ '(x, ofs) m,
            Let: ws := if vtype x is sword ws then ok ws else Error ErrType in
            Let _ := assert (lip_check_ws liparams ws) ErrType in
-           Let: v := get_var true vm x >>= to_word ws in
+           Let: v := get_var true vm x >>r= to_word ws in
            write m Aligned (top + wrepr Uptr ofs)%R v)
           m1 to_spill = ok m2 →
     [/\
@@ -3498,7 +3498,7 @@ Section PROOF.
      &
      ∀ x ofs, (x, ofs) \in to_spill →
        exists2 ws, is_word_type x.(vtype) = Some ws /\ lip_check_ws liparams ws &
-       exists2 v, get_var true vm x >>= to_word ws = ok v & read m2 Aligned (top + wrepr Uptr ofs)%R ws = ok v
+       exists2 v, get_var true vm x >>r= to_word ws = ok v & read m2 Aligned (top + wrepr Uptr ofs)%R ws = ok v
     ].
   Proof.
     move => no_overflow.
@@ -3638,7 +3638,7 @@ Section PROOF.
             [/\ foldM (λ '(x, ofs) m,
                 Let: ws := if vtype x is sword ws then ok ws else Error ErrType in
                 Let _ := assert (lip_check_ws liparams ws) ErrType in
-                Let: v := get_var true vm1 x >>= to_word ws in
+                Let: v := get_var true vm1 x >>r= to_word ws in
                 write m Aligned (top + wrepr Uptr ofs)%R v) m2 to_save = ok m3
               , preserved_metadata s1 m2 m3
               , match_mem_gen (top_stack m0) s1 m3
@@ -4043,8 +4043,8 @@ Section PROOF.
         have is_ok_vm1_vm2 :
           forall x,
             Sv.mem x (sv_of_list fst (sf_to_save (f_extra fd)))
-            -> is_ok (get_var true vm1 x >>= of_val (vtype x))
-            -> is_ok (get_var true vm2 x >>= of_val (vtype x)).
+            -> is_ok (get_var true vm1 x >>r= of_val (vtype x))
+            -> is_ok (get_var true vm2 x >>r= of_val (vtype x)).
         + move=> x hx ok_x.
           case: (SvP.MP.In_dec x (Sv.add var_tmp (Sv.add var_tmp2 (Sv.add vrsp vflags)))) => hin;
             last by rewrite /get_var (hvm2 _ hin).
@@ -4130,7 +4130,7 @@ Section PROOF.
           by rewrite vm2'_get_rsp /top /top_stack_after_alloc wrepr_opp.
         have [m4 vm4 {}E K4 X4 H4 M4 U4] :=
           E (setpc _ _) m3 vm2' P Q M3 X'  D ok_body erefl hfn _ hrsp S' MAX'.
-        have vm4_get_rsp : get_var true vm4 vrsp >>= to_pointer = ok top.
+        have vm4_get_rsp : get_var true vm4 vrsp >>r= to_pointer = ok top.
         + rewrite -(get_var_eq_ex _ _ K4).
           + by rewrite vm2'_get_rsp /= truncate_word_u.
           have /disjointP K := sem_RSP_GD_not_written var_tmps_not_magic exec_body.

@@ -437,23 +437,23 @@ Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec M.t :=
   | Pvar   x1, Pvar   x2 => check_gv x1 x2 m
   | Pget al1 aa1 w1 x1 e1, Pget al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_e in
-    check_gv x1 x2 m >>= check_e e1 e2
+    check_gv x1 x2 m >>r= check_e e1 e2
   | Psub aa1 w1 len1 x1 e1, Psub aa2 w2 len2 x2 e2 =>
     Let _ := assert ([&& aa1 == aa2, w1 == w2 & len1 == len2]) error_e in
-    check_gv x1 x2 m >>= check_e e1 e2
+    check_gv x1 x2 m >>r= check_e e1 e2
   | Pload al1 w1 x1 e1, Pload al2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (w1 == w2)) error_e in
-    check_v x1 x2 m >>= check_e e1 e2
+    check_v x1 x2 m >>r= check_e e1 e2
   | Papp1 o1 e1, Papp1 o2 e2 =>
     Let _ := assert (o1 == o2) error_e in check_e e1 e2 m
    | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
-    Let _ := assert (o1 == o2) error_e in check_e e11 e21 m >>= check_e e12 e22
+    Let _ := assert (o1 == o2) error_e in check_e e11 e21 m >>r= check_e e12 e22
   | PappN o1 es1, PappN o2 es2 =>
     Let _ := assert (o1 == o2) error_e in
     fold2 (alloc_error "check_e (appN)") check_e es1 es2 m
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     Let _ := assert (t == t') error_e in
-    check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'
+    check_e e e' m >>r= check_e e1 e1' >>r= check_e e2 e2'
   | _, _ => Error error_e
   end.
 
@@ -493,13 +493,13 @@ Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
     end
   | Lmem al1 w1 x1 e1, Lmem al2 w2 x2 e2  =>
     Let _ := assert ((al1 == al2) && (w1 == w2)) error_lv in
-    check_v x1 x2 m >>= check_e e1 e2
+    check_v x1 x2 m >>r= check_e e1 e2
   | Laset al1 aa1 w1 x1 e1, Laset al2 aa2 w2 x2 e2 =>
     Let _ := assert ((al1 == al2) && (aa1 == aa2) && (w1 == w2)) error_lv in
-    check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
+    check_v x1 x2 m >>r= check_e e1 e2 >>r= check_varc x1 x2
   | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 =>
     Let _ := assert [&& aa1 == aa2, w1 == w2 & len1 == len2] error_lv in
-    check_v x1 x2 m >>= check_e e1 e2 >>= check_varc x1 x2
+    check_v x1 x2 m >>r= check_e e1 e2 >>r= check_varc x1 x2
   | _          , _           => Error error_lv
   end.
 
@@ -547,19 +547,19 @@ Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
     Let _ := assert (ty1 == ty2) (alloc_error "bad type in assignment") in
-    check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
+    check_e e1 e2 r >>r= check_lval (Some (ty2,e2)) x1 x2
 
   | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
     Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
-    check_es es1 es2 r >>= check_lvals xs1 xs2
+    check_es es1 es2 r >>r= check_lvals xs1 xs2
 
   | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
     Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
-    check_es es1 es2 r >>= check_lvals xs1 xs2
+    check_es es1 es2 r >>r= check_lvals xs1 xs2
 
   | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
     Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
-    check_es arg1 arg2 r >>= check_lvals x1 x2
+    check_es arg1 arg2 r >>r= check_lvals x1 x2
 
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     Let re := check_e e1 e2 r in
@@ -569,9 +569,9 @@ Fixpoint check_i (i1 i2:instr_r) r :=
 
   | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
     Let _ := assert (d1 == d2) (alloc_error "loop directions not equals") in
-    Let rhi := check_e lo1 lo2 r >>=check_e hi1 hi2 in
+    Let rhi := check_e lo1 lo2 r >>r= check_e hi1 hi2 in
     let check_c r :=
-      check_var x1 x2 r >>=
+      check_var x1 x2 r >>r=
       fold2 E.fold2 check_I c1 c2 in
     loop check_c Loop.nb rhi
 

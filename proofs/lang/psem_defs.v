@@ -128,17 +128,17 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pvar v => get_gvar wdb gd s.(evm) v
   | Pget al aa ws x e =>
       Let (n, t) := wdb, gd, s.[x] in
-      Let i := sem_pexpr s e >>= to_int in
+      Let i := sem_pexpr s e >>r= to_int in
       Let w := WArray.get al aa ws t i in
       ok (Vword w)
   | Psub aa ws len x e =>
     Let (n, t) := wdb, gd, s.[x] in
-    Let i := sem_pexpr s e >>= to_int in
+    Let i := sem_pexpr s e >>r= to_int in
     Let t' := WArray.get_sub aa ws len t i in
     ok (Varr t')
   | Pload al sz x e =>
-    Let w1 := get_var wdb s.(evm) x >>= to_pointer in
-    Let w2 := sem_pexpr s e >>= to_pointer in
+    Let w1 := get_var wdb s.(evm) x >>r= to_pointer in
+    Let w2 := sem_pexpr s e >>r= to_pointer in
     Let w  := read s.(emem) al (w1 + w2)%R sz in
     ok (@to_val (sword sz) w)
   | Papp1 o e1 =>
@@ -152,9 +152,9 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     Let vs := mapM (sem_pexpr s) es in
     sem_opN op vs
   | Pif t e e1 e2 =>
-    Let b := sem_pexpr s e >>= to_bool in
-    Let v1 := sem_pexpr s e1 >>= truncate_val t in
-    Let v2 := sem_pexpr s e2 >>= truncate_val t in
+    Let b := sem_pexpr s e >>r= to_bool in
+    Let v1 := sem_pexpr s e1 >>r= truncate_val t in
+    Let v2 := sem_pexpr s e2 >>r= truncate_val t in
     ok (if b then v1 else v2)
   end.
 
@@ -177,21 +177,21 @@ Definition write_lval (l : lval) (v : value) (s : estate) : exec estate :=
   | Lnone _ ty => write_none s ty v
   | Lvar x => write_var x v s
   | Lmem al sz x e =>
-    Let vx := get_var wdb (evm s) x >>= to_pointer in
-    Let ve := sem_pexpr s e >>= to_pointer in
+    Let vx := get_var wdb (evm s) x >>r= to_pointer in
+    Let ve := sem_pexpr s e >>r= to_pointer in
     let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word sz v in
     Let m := write s.(emem) al p w in
     ok (with_mem s m)
   | Laset al aa ws x i =>
     Let (n,t) := wdb, s.[x] in
-    Let i := sem_pexpr s i >>= to_int in
+    Let i := sem_pexpr s i >>r= to_int in
     Let v := to_word ws v in
     Let t := WArray.set t al aa i v in
     write_var x (@to_val (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := wdb, s.[x] in
-    Let i := sem_pexpr s i >>= to_int in
+    Let i := sem_pexpr s i >>r= to_int in
     Let t' := to_arr (Z.to_pos (arr_size ws len)) v in
     Let t := @WArray.set_sub n aa ws len t i t' in
     write_var x (@to_val (sarr n) t) s
@@ -216,7 +216,7 @@ Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   ok (list_ltuple t).
 
 Definition sem_sopn gd o m lvs args :=
-  sem_pexprs true gd m args >>= exec_sopn o >>= write_lvals true gd m lvs.
+  sem_pexprs true gd m args >>r= exec_sopn o >>r= write_lvals true gd m lvs.
 
 End EXEC_ASM.
 

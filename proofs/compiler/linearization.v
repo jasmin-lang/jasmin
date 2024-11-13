@@ -385,7 +385,7 @@ Definition pop_to_save
     Fixpoint check_c (c:cmd) : cexec unit :=
       match c with
       | [::] => ok tt
-      | i::c => check_c c >> check_i i
+      | i::c => check_c c >>r check_i i
       end.
 
   End CHECK_c.
@@ -399,18 +399,18 @@ Definition pop_to_save
     match ir with
     | Cassgn lv _ _ e => Error (E.assign_remains ii lv e)
     | Copn xs tag o es =>
-      allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
+      allM (check_rexpr ii) es >>r allM (check_lexpr ii) xs
     | Csyscall xs o es =>
       ok tt
     | Cif b c1 c2 =>
-      check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
+      check_fexpr ii b >>r check_c check_i c1 >>r check_c check_i c2
     | Cfor _ _ _ =>
       Error (E.ii_error ii "for found in linear")
     | Cwhile _ c e c' =>
       match is_bool e with
       | Some false => check_c check_i c
-      | Some true => check_c check_i c >> check_c check_i c'
-      | None => check_fexpr ii e >> check_c check_i c >> check_c check_i c'
+      | Some true => check_c check_i c >>r check_c check_i c'
+      | None => check_fexpr ii e >>r check_c check_i c >>r check_c check_i c'
       end
     | Ccall xs fn es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in

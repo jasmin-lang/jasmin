@@ -258,7 +258,7 @@ Lemma sem_iE ii k s i s' :
   match i with
   | Cassgn x tag ty e =>
     k = vrv x ∧
-    exists2 v', sem_pexpr true gd s e >>= truncate_val ty = ok v' & write_lval true gd x v' s = ok s'
+    exists2 v', sem_pexpr true gd s e >>r= truncate_val ty = ok v' & write_lval true gd x v' s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
   | Csyscall xs o es => 
     k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).(scs_vout))) /\  

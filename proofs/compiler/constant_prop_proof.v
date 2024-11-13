@@ -473,7 +473,7 @@ Qed.
 
 Lemma app_sopnP T0 ts o es x s :
   @app_sopn T0 ts o es = ok x ->
-  sem_pexprs wdb gd s es >>= values.app_sopn ts o = ok x.
+  sem_pexprs wdb gd s es >>r= values.app_sopn ts o = ok x.
 Proof.
   elim: ts es o => /= [ | t ts ih ].
   + by case=> // _ -> [<-].

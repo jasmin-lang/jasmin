@@ -138,7 +138,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     ok (lnext_pc (lset_estate' s1 s'))
   | Lcall None d =>
     let vrsp := v_var (vid (lp_rsp P)) in
-    Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
+    Let sp := get_var true s1.(lvm) vrsp >>r= to_pointer in
     let nsp := (sp - wrepr Uptr (wsize_size Uptr))%R in
     Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
     Let lbl := get_label_after_pc s1 in
@@ -152,7 +152,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     eval_jump d (lset_vm s1 vm)
   | Lret =>
     let vrsp := v_var (vid (lp_rsp P)) in
-    Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
+    Let sp := get_var true s1.(lvm) vrsp >>r= to_pointer in
     let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
     Let p  := read s1.(lmem) Aligned sp Uptr in
     Let vm := set_var true s1.(lvm) vrsp (Vword nsp) in
@@ -162,7 +162,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Llabel _ _ => ok (lnext_pc s1)
   | Lgoto d => eval_jump d s1
   | Ligoto e =>
-    Let p := sem_rexpr s1.(lmem) s1.(lvm) e >>= to_pointer in
+    Let p := sem_rexpr s1.(lmem) s1.(lvm) e >>r= to_pointer in
     Let d := rdecode_label labels p in
     eval_jump d s1
   | LstoreLabel x lbl =>
@@ -170,7 +170,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let vm := set_var true s1.(lvm) x (Vword p) in
     ok (lnext_pc (lset_vm s1 vm))
   | Lcond e lbl =>
-    Let b := sem_fexpr s1.(lvm) e >>= to_bool in
+    Let b := sem_fexpr s1.(lvm) e >>r= to_bool in
     if b then
       eval_jump (s1.(lfn),lbl) s1
     else ok (lnext_pc s1)

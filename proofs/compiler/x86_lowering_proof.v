@@ -467,7 +467,7 @@ Section PROOF.
     sem_pexpr true gd s e = ok z →
     to_word U8 z = ok w →
     Sv.Subset (read_e sa) (read_e e) ∧
-    exists2 n, sem_pexpr true gd s sa >>= to_word U8 = ok n & ∀ f (a: word sz), sem_shift f a w = sem_shift f a (wand n (x86_shift_mask sz)).
+    exists2 n, sem_pexpr true gd s sa >>r= to_word U8 = ok n & ∀ f (a: word sz), sem_shift f a w = sem_shift f a (wand n (x86_shift_mask sz)).
   Proof.
     rewrite /check_shift_amount.
     case en: is_wconst => [ n | ].
@@ -502,21 +502,21 @@ Section PROOF.
       exists2 sz, ty = sword sz & (sz ≤ U64)%CMP ∧
       ∃ sz' (w : word sz'), (sz ≤ sz')%CMP ∧ v = Vword w
     | LowerCopn o a =>
-      sem_pexprs true gd s a >>= exec_sopn o = ok [:: v' ]
+      sem_pexprs true gd s a >>r= exec_sopn o = ok [:: v' ]
     | LowerInc o a =>
-      ∃ b1 b2 b3 b4, sem_pexprs true gd s [:: a] >>= exec_sopn o = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
+      ∃ b1 b2 b3 b4, sem_pexprs true gd s [:: a] >>r= exec_sopn o = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
     | LowerFopn _ o e' _ =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
       Sv.Subset (read_es e') (read_e e) ∧
-      sem_pexprs true gd s e' >>= exec_sopn o >>=
+      sem_pexprs true gd s e' >>r= exec_sopn o >>r=
       write_lvals true gd s [:: f; f; f; f; f; l] = ok s'
     | LowerDiscardFlags n op e' =>
       let f := Lnone (var_info_of_lval l) sbool in
       Sv.Subset (read_es e') (read_e e)
       /\ sem_pexprs true gd s e'
-         >>= exec_sopn op
-         >>= write_lvals true gd s (nseq n f ++ [:: l ]) = ok s'
+         >>r= exec_sopn op
+         >>r= write_lvals true gd s (nseq n f ++ [:: l ]) = ok s'
     | LowerDivMod p u sz o a b =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
@@ -538,7 +538,7 @@ Section PROOF.
                let v0 : word sz :=
                  if u is Unsigned then 0%R
                  else if msb wa then (-1)%R else 0%R in
-               exec_sopn o [::Vword v0; va; vb] >>=
+               exec_sopn o [::Vword v0; va; vb] >>r=
                  write_lvals true gd s1 lv) = ok s1' /\
                eq_exc_fresh s1' s'])]),
           ty = sword sz , (U16 ≤ sz)%CMP & (sz ≤ U64)%CMP]
@@ -551,7 +551,7 @@ Section PROOF.
        exists w: word sz,
         v' = Vword w /\ sem_lea sz (evm s) l = ok w)
     | LowerConcat hi lo =>
-      sem_pexprs true gd s [:: hi ; lo ] >>= exec_sopn (Oasm (ExtOp Oconcat128)) = ok [:: v' ]
+      sem_pexprs true gd s [:: hi ; lo ] >>r= exec_sopn (Oasm (ExtOp Oconcat128)) = ok [:: v' ]
     | LowerAssgn => True
     end.
   Proof.
@@ -1234,8 +1234,8 @@ Section PROOF.
       set ob := oapp Plvar _ b; set oo := oapp Plvar _ o.
       have [wb [wo [Hwb Hwo Ew ]]]:
         exists (wb wo: word sz),
-          [/\ sem_pexpr true gd s1' ob >>= to_word sz = ok wb,
-              sem_pexpr true gd s1' oo >>= to_word sz = ok wo &
+          [/\ sem_pexpr true gd s1' ob >>r= to_word sz = ok wb,
+              sem_pexpr true gd s1' oo >>r= to_word sz = ok wo &
               w = (wrepr sz d + (wb + (wrepr sz sc * wo)))%R].
       + move: Hslea; rewrite /sem_lea /=; t_xrbindP => wb Hwb wo Hwo H.
         exists wb, wo; split.

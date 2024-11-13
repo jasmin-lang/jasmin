@@ -209,7 +209,7 @@ Qed.
 
 Lemma x86_lassign_correct s x ws e (w : word ws) s':
   let lcmd := x86_lassign x ws e in
-  sem_rexpr (emem s) (evm s) e >>= to_word ws = ok w ->
+  sem_rexpr (emem s) (evm s) e >>r= to_word ws = ok w ->
   write_lexpr x (Vword w) s = ok s' ->
   sem_fopn_args lcmd s = ok s'.
 Proof.
