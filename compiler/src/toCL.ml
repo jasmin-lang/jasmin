@@ -1210,13 +1210,8 @@ module X86BaseOpU : BaseOp
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      let instructions =
-      if deref adcx_cleared = 0 then (
-        adcx_cleared := 1;
-        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-      ) else (
-        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-      )
+      let instructions =     
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]     
     in
     instructions
 
@@ -1226,13 +1221,8 @@ module X86BaseOpU : BaseOp
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      let instructions =
-      if deref adox_cleared = 0 then (
-          adox_cleared := 1;
-        i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-      ) else (
-        i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-      )
+      let instructions = 
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
     in
     instructions
 
@@ -1246,12 +1236,21 @@ module X86BaseOpU : BaseOp
 
   let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
-     Ox86MULX  ws ->
+    | Ox86MULX  ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       i1 @ i2 @ [CL.Instr.Op2_2.umull l1 l2 a1 a2;]
+    | Oset0 ws ->
+      let a = I.mk_const_atome ~sign:false (int_of_ws ws) Z.zero in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let l3 = I.glval_to_lval (List.nth xs 2) in
+      let l4 = I.glval_to_lval (List.nth xs 3) in
+      let l5 = I.glval_to_lval (List.nth xs 4) in
+      let l6 = I.glval_to_lval (List.nth xs 5) in
+      [CL.Instr.clear l1; CL.Instr.clear l2; CL.Instr.clear l3; CL.Instr.clear l4; CL.Instr.clear l5; CL.Instr.Op1.mov l6 a;]
     | _ ->
       let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
       let name = x86_id.str () in
