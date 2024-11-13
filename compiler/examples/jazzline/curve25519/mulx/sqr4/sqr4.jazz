@@ -1,0 +1,105 @@
+require "reduce4.jazz"
+
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+
+inline fn __sqr4_rr(reg u64[4] f) -> reg u64[4]
+ ensures #[prover=cas] {
+  eqmod (
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(f[ii])) * \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(f[ii])),
+     single((pow(2,255)) - 19)
+    )
+  }
+{
+  reg bool cf of;
+  reg u64[8] t;
+  reg u64[4] h r;
+  reg u64 z _38 fx;
+
+  of, cf, _, _, _, z = #set0();
+
+  // 0
+  fx = f[0];
+
+  (t[1], h[0]) = #MULX ( fx,   fx       ); // f0*f0
+  (h[2], h[1]) = #MULX ( fx,   f[1]     ); // f0*f1
+
+  (h[3], t[2]) = #MULX ( fx,   f[2]     ); // f0*f2
+     cf, h[2]  = #ADCX ( h[2], t[2], cf );
+
+  (r[0], t[3]) = #MULX ( fx,   f[3]     ); // f0*f3
+     cf, h[3]  = #ADCX ( h[3], t[3], cf );
+
+  // 1
+  fx = f[1];
+
+  (t[4], t[3]) = #MULX ( fx,   f[2]     ); // f1*f2
+
+  of, h[3]     = #ADOX ( h[3], t[3], of );
+  cf, r[0]     = #ADCX ( r[0], t[4], cf );
+
+  (r[1], t[4]) = #MULX ( fx,   f[3]     ); // f1*f3
+     of, r[0]  = #ADOX ( r[0], t[4], of );
+
+  (t[3], t[2]) = #MULX ( fx,   fx       ); // f1*f1
+
+  // 2
+  fx = f[2];
+
+  (r[2], t[5]) = #MULX ( fx,   f[3]     ); // f2*f3
+
+   cf, r[1]    = #ADCX ( r[1], t[5], cf );
+   of, r[1]    = #ADOX ( r[1], z,    of );
+
+   cf, r[2]    = #ADCX ( r[2], z,    cf ); // cf = 0
+   of, r[2]    = #ADOX ( r[2], z,    of ); // of = 0
+
+   #[kind=Assert, prover=smt] assert (!cf);
+   #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+   #[kind=Assert, prover=smt] assert (!of);
+   #[kind=Assume, prover=cas] assert (b2i(of) == 0);
+
+
+  (t[5], t[4]) = #MULX ( fx,   fx       ); // f2*f2
+
+  // 3
+  fx = f[3];
+
+  (r[3], t[6]) = #MULX ( fx,   fx       ); // f3*f3
+
+  //
+  cf, h[1] = #ADCX ( h[1], h[1], cf );
+  of, h[1] = #ADOX ( h[1], t[1], of );
+
+  cf, h[2] = #ADCX ( h[2], h[2], cf );
+  of, h[2] = #ADOX ( h[2], t[2], of );
+
+  cf, h[3] = #ADCX ( h[3], h[3], cf );
+  of, h[3] = #ADOX ( h[3], t[3], of );
+
+  cf, r[0] = #ADCX ( r[0], r[0], cf );
+  of, r[0] = #ADOX ( r[0], t[4], of );
+
+  cf, r[1] = #ADCX ( r[1], r[1], cf );
+  of, r[1] = #ADOX ( r[1], t[5], of );
+
+  cf, r[2] = #ADCX ( r[2], r[2], cf );
+  of, r[2] = #ADOX ( r[2], t[6], of );
+
+  cf, r[3] = #ADCX ( r[3], z,    cf ); // cf = 0
+  of, r[3] = #ADOX ( r[3], z,    of ); // of = 0
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+  #[kind=Assert, prover=smt] assert (!of);
+  #[kind=Assume, prover=cas] assert (b2i(of) == 0);
+
+  _38 = 38;
+  h = __reduce4(h, r, _38, z, cf, of);
+
+  return h;
+}

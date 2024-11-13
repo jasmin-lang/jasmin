@@ -1,0 +1,66 @@
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+
+inline fn __mul4_a24_rs(reg u64[4] fs) -> reg u64[4]
+ ensures #[prover=cas] {
+  eqmod (
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(fs[ii])) * 121665,
+     single((pow(2,255)) - 19)
+    )
+  }
+
+{
+  reg bool cf carryo;
+  reg u64[4] h;
+  reg u64 c r0 lo;
+
+  c = (64u)121665;
+  #[kind=Assert, prover=smt] assert (c == 121665);
+  #[kind=Assume, prover=cas] assert (u64i(c) == 121665);
+
+  (h[1], h[0]) = #MULX(c, fs[0]);
+  (h[2], lo)   = #MULX(c, fs[1]);
+
+  cf, h[1] += lo;
+
+  (h[3], lo)   = #MULX(c, fs[2]);
+
+  cf, h[2] += lo + cf;
+
+  (r0,   lo)   = #MULX(c, fs[3]);
+
+  cf, h[3] += lo + cf;
+
+  cf, r0 += 0 + cf;
+
+  _, _, _, _, _, r0 = #IMULri (r0, 38);
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  cf, h[0] += r0;
+  cf, h[1] += 0 + cf;
+  cf, h[2] += 0 + cf;
+  cf, h[3] += 0 + cf;
+
+  carryo = cf;
+  cf, c -= c - cf;
+
+  #[kind=Assert, prover=smt] assert (cf == carryo);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == b2i(carryo));
+
+  c &= 38;
+  #[kind=Assert, prover=smt] assert ((!cf && c == 0x0) || (cf && c == 0x26));
+  #[kind=Assume, prover=cas] assert (u64i(c) == b2i(cf)*0x26);
+
+  cf, h[0] += c;
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  return h;
+}
