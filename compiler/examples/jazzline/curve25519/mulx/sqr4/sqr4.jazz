@@ -20,7 +20,7 @@ inline fn __sqr4_rr(reg u64[4] f) -> reg u64[4]
   reg u64[4] h r;
   reg u64 z _38 fx;
 
-  z = 0;
+  of, cf, _, _, _, z = #set0();
 
   // 0
   fx = f[0];
