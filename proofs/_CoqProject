@@ -17,6 +17,7 @@
 -R compiler Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
+-R itrees Jasmin
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
@@ -156,3 +157,5 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
+itrees/it_lib.v
+itrees/it_lang.v
