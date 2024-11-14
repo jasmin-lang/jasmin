@@ -1,4 +1,4 @@
-(* initially from ITLib1.v in ITSem *)
+(* initially from ITLib1.v and JLang7.v in ITSem *)
 
 From Coq Require Import
      Arith.PeanoNat
@@ -65,9 +65,323 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 
+Import ITreeNotations.
+
 Obligation Tactic := done || idtac.
 
-(* Set Nested Proofs Allowed. *) 
+
+(************************************************************************)
+(** from JLang7.v *)
+
+Definition opt_lift {A B} (f: A -> B) : option A -> option B :=
+  fun m => match m with
+           | Some x => Some (f x) | _ => None end.  
+Definition opt_map {A B} (f: A -> B) : option (list A) -> option (list B) :=
+  opt_lift (List.map f).
+
+Definition opt_write {S} {V} (ms: option S) (v: V) :
+  option (S * V) :=
+  match ms with  
+  | Some st' => Some (st', v)
+  | _ => None end.    
+
+Definition lift_rel {T} (R: T -> T -> Prop) : option T -> option T -> Prop :=
+  fun x y => match (x, y) with
+             | (Some x', Some y') => R x' y'
+             | (None, None) => True
+             | _ => False end.  
+
+(**********************************************************************)
+
+Definition Tau_trigger :
+  forall {E : Type -> Type} [R : Type], E R -> itree E R :=
+  fun E R e => Vis e (fun x : R => Tau (Ret x)).
+Notation tau_trigger e := (Tau_trigger (subevent _ e)).
+
+Lemma interp_fail_euttA {X : Type} {E F: Type -> Type}
+  {R : X -> X -> Prop}
+  (h : forall T : Type, E T -> failT (itree F) T) :
+  forall x y : itree E X,
+  eutt R x y ->
+  paco2 (eqit_ (option_rel R) true true id) bot2
+    (interp_fail h x) (interp_fail h y).
+  eapply interp_fail_eutt; eauto.
+Qed.
+
+Lemma eutt_interpA {E F : Type -> Type}
+  (x y : Handler E F)
+  (H : eq2 x y)
+  (T : Type) 
+  (a1 a2 : itree E T)
+  (H0: a1 ≈ a2) : eutt eq (interp x a1) (interp y a2).
+  (*  paco2 (eqit_ eq true true id) bot2 (interp x a1) (interp y a2). *)
+  eapply eutt_interp; eauto.
+Qed.  
+
+
+(*** READEAR ************************************************************)
+
+Section LReader.
+  
+(*** overriding library instances of reader monad *)
+#[global] Polymorphic Instance Functor_readerT {m} {s: Type}
+  {Fm : Functor.Functor m} :
+  Functor.Functor (readerT s m) :=
+match Fm return (Functor.Functor (readerT s m)) with
+ | @Functor.Build_Functor _ fmap =>
+     (fun fmap0 : forall (A B : Type) (_ : forall _ : A, B) (_ : m A), m B =>
+      Functor.Build_Functor (readerT s m)
+        (fun (A B : Type) (H : forall _ : A, B) (H0 : readerT s m A) =>
+         let fmap1 : forall _ : m A, m B := fmap0 A B H in
+         (fun H1 : s =>
+          let X0 : m A := H0 H1 in let fmap2 : m B := fmap1 X0 in fmap2)
+         :
+         readerT s m B)) fmap
+ end.
+
+#[global] Instance Monad_readerT {m s} {Fm : Monad m} : Monad (readerT s m)
+  := {|
+    ret _ a := fun s => ret a
+  ; bind _ _ t k := fun s =>
+      sa <- t s ;;
+      k sa s
+    |}.
+
+#[global] Instance MonadIter_readerT {M S} {AM : MonadIter M} :
+  MonadIter (readerT S M) :=
+  fun _ _ step i s =>
+    iter (fun i => step i s) i.
+
+(* WE NEED THIS HERE (before the ext_handle_FunE definition), otherwise
+   we get a universe inconsistency in interp_reader.  *)
+(* Definition dummy (S: Type) (E M: Type -> Type) := 
+   @interp E (readerT S M). *) 
+Definition interp_reader
+      {E M : Type -> Type} {S : Type}
+      {FM : Functor.Functor M}
+      {MM : Monad M} {IM : MonadIter M}
+      (h : E ~> readerT S M) :=
+    @interp E (readerT S M) Functor_readerT _ (@MonadIter_readerT M S IM) h.
+
+(*
+Definition interp_reader
+      {E M : Type -> Type} {S : Type}
+      {FM : Functor.Functor M}
+      {MM : Monad M} {IM : MonadIter M}
+      (h : forall (T : Type) (_ : E T), readerT S M T) :=
+    @interp E (readerT S M) Functor_readerT _ (@MonadIter_readerT M S IM) h.
+*)
+
+Definition _interp_reader {E F S R}
+           (f : E ~> readerT S (itree F)) (ot : itreeF E R _)
+  : readerT S (itree F) R := fun s =>
+  match ot with
+  | RetF r => Ret r
+  | TauF t => Tau (interp_reader f _ t s)
+  | VisF _ e k => f _ e s >>= (fun sx => Tau (interp_reader f _ (k sx) s))
+  end.
+
+Lemma unfold_interp_reader {E F S R} (h : E ~> Monads.readerT S (itree F))
+      (t : itree E R) s :
+    eq_itree eq
+      (interp_reader h _ t s)
+      (_interp_reader h (observe t) s).
+Proof.
+  unfold interp_reader, interp, Basics.iter, MonadIter_readerT, Basics.iter, MonadIter_itree; cbn.
+  rewrite unfold_iter; cbn.
+  destruct observe; cbn.
+  - setoid_rewrite Eqit.bind_ret_l. reflexivity.
+  - setoid_rewrite Eqit.bind_ret_l.
+    reflexivity.
+  - rewrite bind_map.
+    eapply eqit_bind; reflexivity.
+Qed.
+
+#[global]
+Instance eq_itree_interp_reader {E F S R} (h : E ~> Monads.readerT S (itree F)) :
+  Proper (eq_itree eq ==> eq ==> eq_itree eq)
+         (@interp_reader _ _ _ _ _ _ h R).
+Proof.
+  revert_until R. 
+  ginit. pcofix CIH. intros h x y H0 x2 y2 q.
+  inv q.
+  rewrite !unfold_interp_reader.
+  punfold H0; repeat red in H0.
+  destruct H0; subst; pclearbot; try discriminate; cbn.
+  - gstep; constructor; auto.
+  - gstep; constructor; auto with paco.
+  - guclo eqit_clo_bind. econstructor.
+    + reflexivity.
+    + intros u1 u2 q. inv q. gstep; constructor; auto with paco itree.
+Qed.
+
+#[global]
+Instance eutt_interp_reader {E F: Type -> Type} {S : Type}
+         (h : E ~> readerT S (itree F)) R RR :
+  Proper (eutt RR ==> eq ==> eutt RR) (@interp_reader E (itree F) S _ _ _ h R).
+Proof.
+  repeat intro. subst. revert_until RR.
+  einit. ecofix CIH. intros.
+
+  rewrite !unfold_interp_reader. punfold H0. red in H0.
+  induction H0; intros; subst; simpl; pclearbot.
+  - eret.
+  - etau.
+  - ebind. econstructor; [reflexivity|].
+    intros; subst.
+    etau. ebase.
+  - setoid_rewrite tau_euttge. setoid_rewrite unfold_interp_reader; eauto.
+  - setoid_rewrite tau_euttge. setoid_rewrite unfold_interp_reader; eauto.
+Qed.
+
+#[global]
+Instance eutt_interp_reader_eq {E F: Type -> Type} {S : Type}
+         (h : E ~> readerT S (itree F)) R :
+  Proper (eutt eq ==> eq ==> eutt eq) (@interp_reader E (itree F) S _ _ _ h R).
+Proof.
+  repeat intro. subst. revert_until R.
+  einit. ecofix CIH. intros.
+
+  rewrite !unfold_interp_reader. punfold H0. red in H0.
+  induction H0; intros; subst; simpl; pclearbot.
+  - eret.
+  - etau.
+  - ebind. econstructor; [reflexivity|].
+    intros; subst.
+    etau. ebase.
+  - setoid_rewrite tau_euttge. rewrite unfold_interp_reader; eauto.
+  - setoid_rewrite tau_euttge. rewrite unfold_interp_reader; eauto.
+Qed.
+
+Lemma interp_reader_ret {E F : Type -> Type} {R S : Type}
+      (f : forall T, E T -> S -> itree F T%type)
+      (s : S) (r : R) :
+  (interp_reader f _ (Ret r) s) ≅ (Ret r).
+Proof.
+  rewrite unfold_interp_reader; reflexivity.
+Qed.
+
+Lemma interp_reader_vis {E F : Type -> Type} {S T U : Type}
+      (e : E T) (k : T -> itree E U) (h : E ~> readerT S (itree F)) (s : S)
+  : interp_reader h _ (Vis e k) s
+  ≅ h T e s >>= fun sx => Tau (interp_reader h _ (k sx) s).
+Proof.
+  rewrite unfold_interp_reader; reflexivity.
+Qed.
+
+Lemma interp_reader_tau {E F : Type -> Type} S {T : Type}
+      (t : itree E T) (h : E ~> Monads.readerT S (itree F)) (s : S)
+  : interp_reader h _ (Tau t) s ≅ Tau (interp_reader h _ t s).
+Proof.
+  rewrite unfold_interp_reader; reflexivity.
+Qed.
+
+Lemma interp_reader_trigger_eqit {E F : Type -> Type} {R S : Type}
+      (e : E R) (f : E ~> Monads.readerT S (itree F)) (s : S)
+  : (interp_reader f _ (ITree.trigger e) s) ≅ (f _ e s >>= fun x => Tau (Ret x)).
+Proof.
+  unfold ITree.trigger. rewrite interp_reader_vis.
+  eapply eqit_bind; try reflexivity.
+  unfold pointwise_relation; intros.
+  rewrite interp_reader_ret. reflexivity.
+Qed.
+
+Lemma interp_reader_trigger {E F : Type -> Type} {R S : Type}
+      (e : E R) (f : E ~> Monads.readerT S (itree F)) (s : S)
+  : interp_reader f _ (ITree.trigger e) s ≈ f _ e s.
+Proof.
+  unfold ITree.trigger. rewrite interp_reader_vis.
+  match goal with
+    |- ?y ≈ ?x => remember y; rewrite <- (Eqit.bind_ret_r x); subst
+  end.
+  eapply eqit_bind; try reflexivity.
+  unfold pointwise_relation; intros. rewrite interp_reader_ret.
+  rewrite tau_eutt.
+  reflexivity.
+Qed.
+
+Lemma interp_reader_bind {E F : Type -> Type} {A B S : Type}
+      (f : forall T, E T -> S -> itree F T)
+      (t : itree E A) (k : A -> itree E B)
+      (s : S) :
+  (interp_reader f _ (t >>= k) s)
+    ≅
+  (interp_reader f _ t s >>= fun st => interp_reader f _ (k st) s).
+Proof.
+  revert t k s.
+  ginit. pcofix CIH.
+  intros t k s.
+  rewrite unfold_bind.
+  rewrite (unfold_interp_reader f t).
+  destruct (observe t).
+  - cbn. setoid_rewrite Eqit.bind_ret_l. cbn.
+    apply reflexivity.
+  - cbn. rewrite !bind_tau. setoid_rewrite interp_reader_tau.
+    gstep. econstructor. gbase. apply CIH.
+  - cbn. rewrite interp_reader_vis. setoid_rewrite Eqit.bind_bind.
+    guclo eqit_clo_bind. econstructor.
+    + reflexivity.
+    + intros u2 u3 q.
+      inv q.
+      rewrite bind_tau.
+      gstep; constructor.
+      ITree.fold_subst.
+      auto with paco.
+Qed.
+
+Lemma eutt_interp_reader_aloop {E F S I I' A A'}
+      (RA : A -> A' -> Prop) (RI : I -> I' -> Prop)
+      (RS : S -> S -> Prop)
+      (h : E ~> readerT S (itree F))
+      (t1 : I -> itree E (I + A))
+      (t2 : I' -> itree E (I' + A')):
+  (forall i i' s1 s2, RS s1 s2 -> RI i i' ->
+     eutt (sum_rel RI RA)
+                     (interp_reader h _ (t1 i) s1)
+                     (interp_reader h _ (t2 i') s2)) ->
+  (forall i i' s1 s2, RS s1 s2 -> RI i i' ->
+     eutt RA
+          (interp_reader h _ (ITree.iter t1 i) s1)
+          (interp_reader h _ (ITree.iter t2 i') s2)).
+Proof.
+  intro Ht.
+  einit. ecofix CIH. intros.
+  rewrite unfold_iter.
+  rewrite unfold_iter.  
+  setoid_rewrite interp_reader_bind. 
+  ebind; econstructor.
+  - eapply Ht; eauto.
+  - intros u1 u2 q; cbn.
+    destruct q.
+    + setoid_rewrite interp_reader_tau. auto with paco.
+    + setoid_rewrite interp_reader_ret. auto with paco.
+Qed.
+
+
+Lemma eutt_interp_reader_iter {E F S A A' B B'}
+      (RA : A -> A' -> Prop) (RB : B -> B' -> Prop)
+      (RS : S -> S -> Prop)
+      (h : E ~> readerT S (itree F))
+      (t1 : A -> itree E (A + B))
+      (t2 : A' -> itree E (A' + B')) :
+  (forall ca ca' s1 s2, RS s1 s2 ->
+                        RA ca ca' ->
+     eutt (sum_rel RA RB)
+          (interp_reader h _ (t1 ca) s1)
+          (interp_reader h _ (t2 ca') s2)) ->
+  (forall a a' s1 s2, RS s1 s2 -> RA a a' ->
+     eutt RB
+          (interp_reader h _ (iter t1 a) s1)
+          (interp_reader h _ (iter t2 a') s2)).
+Proof.
+  apply eutt_interp_reader_aloop.
+Qed.
+
+End LReader.
+
+
+(************************************************************************)
+(** from ITLib1.v *)
 
 (** Auxiliary ktree connectors *)
 
