@@ -222,12 +222,12 @@ Fixpoint denote_instr (i : instr_r) : itree (CState +' Eff) unit :=
 
   | Cfor i rng c =>
       match rng with
-      | (d, e1, e2) =>
+      | (d, lo, hi) =>
           ITree.iter (fun _ =>
-            ITree.bind (trigger (EvalBound e1))
-            (fun lb => ITree.bind (trigger (EvalBound e2))
-            (fun ub =>                     
-            match (wrange d lb ub) with
+            ITree.bind (trigger (EvalBound lo))
+            (fun vlo => ITree.bind (trigger (EvalBound hi))
+            (fun vhi =>                     
+            match (wrange d vlo vhi) with
             | nil => ret (inr tt)
             | (w :: ws) => trigger (WriteVar i w) ;; R c ;; ret (inl tt)
             end))) tt
@@ -260,5 +260,7 @@ Definition denote_cmd1 (i: instr) : itree Eff unit :=
 End With_MREC.
 
 End Lang.
+
+About write_var.
 
 
