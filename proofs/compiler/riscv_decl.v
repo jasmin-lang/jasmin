@@ -24,8 +24,10 @@ Definition riscv_xreg_size := U64. (* Unused *)
 
 (* -------------------------------------------------------------------- *)
 (* Registers. *)
+(* According to the RISC-V ABI, X3/GP and X4/TP are unallocatable, so we do not
+   model them. *)
 Variant register : Type :=
-| RA  | SP  | GP  | TP  | X5  | X6  | X7  | X8  (* General-purpose registers. *)
+| RA  | SP  | X5  | X6  | X7  | X8              (* General-purpose registers. *)
 | X9  | X10 | X11 | X12 | X13 | X14 | X15 | X16 (* General-purpose registers. *)
 | X17 | X18 | X19 | X20 | X21 | X22 | X23 | X24 (* General-purpose registers. *)
 | X25 | X26 | X27 | X28 | X29 | X30 | X31.      (* General-purpose registers. *)
@@ -44,7 +46,7 @@ Instance eqTC_register : eqTypeC register :=
 Canonical riscv_register_eqType := @ceqT_eqType _ eqTC_register.
 
 Definition registers :=
-  [::  RA;  SP;  GP;  TP;  X5;  X6;  X7;  X8;
+  [::  RA;  SP;  X5;  X6;  X7;  X8;
        X9; X10; X11; X12; X13; X14; X15; X16;
       X17; X18; X19; X20; X21; X22; X23; X24;
       X25; X26; X27; X28; X29; X30; X31
@@ -67,8 +69,6 @@ Definition register_to_string (r : register) : string :=
   match r with
   | RA  => "ra"
   | SP  => "sp"
-  | GP  => "gp"
-  | TP  => "tp"
   | X5  => "x5"
   | X6  => "x6"
   | X7  => "x7"
@@ -197,7 +197,7 @@ Instance riscv_decl : arch_decl register register_ext xregister rflag condt :=
      To be on the safe side, GP and TP (thread pointer) are marked as callee-saved. *)
   Definition riscv_linux_call_conv : calling_convention :=
   {| callee_saved :=
-      map ARReg [:: SP; GP; TP; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ]
+      map ARReg [:: SP; X8; X9; X18; X19; X20; X21; X22; X23; X24; X25; X26; X27 ]
    ; callee_saved_not_bool := erefl true
    ; call_reg_args  := [:: X10; X11; X12; X13; X14; X15; X16; X17 ]
    ; call_xreg_args := [::]
