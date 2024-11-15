@@ -4,7 +4,8 @@ open CommonCLI
 
 let parse_and_print arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
-  fun output file ->
+  fun output file nowarning ->
+    if nowarning then Utils.nowarning ();
     let _, _, ast = Compile.parse_file A.arch_info file in
     let out, close =
       match output with
@@ -25,6 +26,10 @@ let output =
   in
   Arg.(value & opt (some string) None & info [ "o"; "output" ] ~docv:"TEX" ~doc)
 
+let nowarning =
+  let doc = "Suppress warnings" in
+  Arg.(value & flag & info [ "nowarning" ] ~doc)
+
 let () =
   let doc = "Pretty-print Jasmin source programs into LATEX" in
   let man =
@@ -38,5 +43,6 @@ let () =
   let info =
     Cmd.info "jasmin2tex" ~version:Glob_options.version_string ~doc ~man
   in
-  Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ output $ file)
+  Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ output $ file
+    $ nowarning)
   |> Cmd.eval |> exit

@@ -48,7 +48,8 @@ let parse_and_extract arch call_conv =
     let amodel = if old_array then ToEC.ArrayOld else ToEC.ArrayEclib in
     extract_to_file prog arch A.reg_size A.asmOp model amodel functions array_dir output
   in
-  fun model amodel functions array_dir output file ->
+  fun model amodel functions array_dir output file nowarning ->
+    if nowarning then Utils.nowarning ();
     match extract model amodel functions array_dir output file with
     | () -> ()
     | exception HiError e ->
@@ -93,6 +94,10 @@ let file =
   let doc = "The Jasmin source file to extract" in
   Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"JAZZ" ~doc)
 
+let nowarning =
+  let doc = "Suppress warnings" in
+  Arg.(value & flag & info [ "nowarning" ] ~doc)
+
 let () =
   let doc = "Extract Jasmin program to easycrypt" in
   let man =
@@ -107,7 +112,6 @@ let () =
     Cmd.info "jasmin2ec" ~version:Glob_options.version_string ~doc ~man
   in
   Cmd.v info
-    Term.(
-      const parse_and_extract $ arch $ call_conv $ model $ old_array $ functions $ array_dir
-      $ output $ file)
+    Term.(const parse_and_extract $ arch $ call_conv $ model $ old_array
+      $ functions $ array_dir $ output $ file $ nowarning)
   |> Cmd.eval |> exit
