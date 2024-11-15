@@ -1,0 +1,16 @@
+export
+fn div(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Signed
+    x = arg0 /32s arg1;
+    [x] = x;
+
+    // Unsigned
+    x = arg0 /32u arg1;
+    [x] = x;
+
+    reg u32 res;
+    res = x;
+    return res;
+}
