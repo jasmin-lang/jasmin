@@ -104,6 +104,8 @@ Variant riscv_op : Type :=
 | ADD                            (* Add register without carry *)
 | ADDI                           (* Add immediate without carry *)
 | SUB                            (* Sub without carry *)
+
+(* Set less *)
 | SLT                            (* Set less than *)
 | SLTI                           (* Set less than immediate *)
 | SLTU                           (* Set less than unsigned *)
@@ -119,15 +121,15 @@ Variant riscv_op : Type :=
 
 (* Shift *)
 | SLL                            (* Shift Left Logical (by the 5 least significant bits of the second operand) *)
-| SRL                            (* Shift Right Logical (by the 5 least significant bits of the second operand) *)
-| SRA                            (* Shift Right Arithmetic (by the 5 least significant bits of the second operand) *)
 | SLLI                           (* Shift Left Logical with immediate (of 5 bits) *)
+| SRL                            (* Shift Right Logical (by the 5 least significant bits of the second operand) *)
 | SRLI                           (* Shift Right Logical with immediate (of 5 bits) *)
+| SRA                            (* Shift Right Arithmetic (by the 5 least significant bits of the second operand) *)
 | SRAI                           (* Shift Right Arithmetic with immediate (of 5 bits) *)
 
 (* Pseudo instruction : Other data processing instructions *)
-| LA                             (* Load address *)
 | MV                             (* Copy operand to destination *)
+| LA                             (* Load address *)
 | LI                             (* Load immediate up to 32 bits *)
 
 (* Pseudo instruction : Negations *)
@@ -145,6 +147,12 @@ Variant riscv_op : Type :=
 | MULH                           (* Multiply two signed registers and write the most significant 32 bits of the result *)
 | MULHU                          (* Multiply two unsigned registers and write the most significant 32 bits of the result *)
 | MULHSU                         (* Multiply a signed and an unsigned registers and write the most significant 32 bits of the result *)
+
+(* RISC-V 32M div and rem instructions *)
+| DIV                            (* Divides two signed registers *)
+| DIVU                           (* Divides two unsigned registers *)
+| REM                            (* Remainder for two signed registers *)
+| REMU                           (* Remainder for two unsigned registers *)
 .
 
 Scheme Equality for riscv_op.
@@ -177,6 +185,7 @@ Notation ty_rr := (sem_tuple [:: sreg; sreg ]) (only parsing).
 (* All descriptions have [id_msb_flag] as [MSB_MERGE], but since all
    instructions have a 32-bit output, this is irrelevant. *)
 
+(* Arithmetic *)
 Definition riscv_add_semi (wn wm : ty_r) : ty_r := (wn + wm)%R.
 
 Definition riscv_ADD_instr : instr_desc_t := RTypeInstruction riscv_add_semi "ADD" "add".
@@ -185,19 +194,22 @@ Definition prim_ADD := ("ADD"%string, primM ADD).
 Definition riscv_ADDI_instr : instr_desc_t := ITypeInstruction_12s riscv_add_semi "ADDI" "addi".
 Definition prim_ADDI := ("ADDI"%string, primM ADDI).
 
+
 Definition riscv_sub_semi (wn wm : ty_r) : ty_r := (wn - wm)%R.
 
 Definition riscv_SUB_instr : instr_desc_t := RTypeInstruction riscv_sub_semi "SUB" "sub".
 Definition prim_SUB := ("SUB"%string, primM SUB).
 
-Definition riscv_slt_semi (wn wm : ty_r) : ty_r := if (wlt Signed wn wm) then 1%R else 0%R.
 
+(* Set less *)
+Definition riscv_slt_semi (wn wm : ty_r) : ty_r := if (wlt Signed wn wm) then 1%R else 0%R.
 
 Definition riscv_SLT_instr : instr_desc_t := RTypeInstruction riscv_slt_semi "SLT" "slt".
 Definition prim_SLT := ("SLT"%string, primM SLT).
 
 Definition riscv_SLTI_instr : instr_desc_t := ITypeInstruction_12s riscv_slt_semi "SLTI" "slti".
 Definition prim_SLTI := ("SLTI"%string, primM SLTI).
+
 
 Definition riscv_sltu_semi (wn wm : ty_r) : ty_r := if (wlt Unsigned wn wm) then 1%R else 0%R.
 
@@ -208,23 +220,7 @@ Definition riscv_SLTIU_instr : instr_desc_t := ITypeInstruction_12s riscv_sltu_s
 Definition prim_SLTIU := ("SLTIU"%string, primM SLTIU).
 
 
-Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%R.
-Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul".
-Definition prim_MUL := ("MUL"%string, primM MUL).
-
-Definition riscv_mulh_semi (wn wm: ty_r) : ty_r := wmulhs wn wm.
-Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh".
-Definition prim_MULH := ("MULH"%string, primM MULH).
-
-Definition riscv_mulhu_semi (wn wm: ty_r) : ty_r := wmulhu wn wm.
-Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu".
-Definition prim_MULHU := ("MULHU"%string, primM MULHU).
-
-Definition riscv_mulhsu_semi (wn wm: ty_r) : ty_r := wmulhsu wn wm.
-Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu".
-Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
-
-
+(* Logical *)
 Definition riscv_and_semi (wn wm : ty_r) : ty_r := wand wn wm.
 
 Definition riscv_AND_instr : instr_desc_t := RTypeInstruction riscv_and_semi "AND" "and".
@@ -252,6 +248,7 @@ Definition riscv_XORI_instr : instr_desc_t := ITypeInstruction_12s riscv_xor_sem
 Definition prim_XORI := ("XORI"%string, primM XORI).
 
 
+(* Shift *)
 Definition riscv_sll_semi (wn : ty_r) (wm : word U8) : ty_r := wshl wn (wunsigned (wand wm (wrepr U8 31))).
 
 Definition riscv_SLL_instr : instr_desc_t := RTypeInstruction riscv_sll_semi "SLL" "sll".
@@ -259,6 +256,7 @@ Definition prim_SLL := ("SLL"%string, primM SLL).
 
 Definition riscv_SLLI_instr : instr_desc_t := ITypeInstruction_5u riscv_sll_semi "SLLI" "slli".
 Definition prim_SLLI := ("SLLI"%string, primM SLLI).
+
 
 Definition riscv_srl_semi (wn : ty_r) (wm : word U8) : ty_r := wshr wn (wunsigned (wand wm (wrepr U8 31))).
 
@@ -277,6 +275,7 @@ Definition riscv_SRAI_instr : instr_desc_t := ITypeInstruction_5u riscv_sra_semi
 Definition prim_SRAI := ("SRAI"%string, primM SRAI).
 
 
+(* Pseudo instruction : Other data processing instructions *)
 Definition riscv_MV_semi (wn : ty_r) : ty_r :=
   wn.
 
@@ -338,6 +337,7 @@ Definition riscv_LA_instr : instr_desc_t :=
 
 Definition prim_LA := ("LA"%string, primM LA).
 
+
 Definition riscv_LI_semi (wn : ty_r) : ty_r :=
   wn.
 
@@ -369,6 +369,7 @@ Definition riscv_LI_instr : instr_desc_t :=
 Definition prim_LI := ("LI"%string, primM LI).
 
 
+(* Pseudo instruction : Negations *)
 Definition riscv_NOT_semi (wn : ty_r) : ty_r :=
   wnot wn.
 
@@ -431,6 +432,7 @@ Definition riscv_NEG_instr : instr_desc_t :=
 Definition prim_NEG := ("NEG"%string, primM NOT).
 
 
+(* Loads *)
 Definition string_of_sign s : string :=
   match s with
   | Signed => ""
@@ -487,6 +489,7 @@ Definition primS (f: signedness -> wsize -> riscv_op) :=
 Definition prim_LOAD := ("LOAD"%string, primS LOAD).
 
 
+(* Stores *)
 Definition riscv_STORE_instr ws : instr_desc_t :=
   let tin := [:: sword ws ] in
   let semi := @riscv_extend_semi Unsigned ws ws in
@@ -514,6 +517,48 @@ Definition riscv_STORE_instr ws : instr_desc_t :=
 
 Definition prim_STORE := ("STORE"%string, primP STORE).
 
+
+(* RISC-V 32M Multiply instructions (operators). *)
+Definition riscv_mul_semi (wn wm: ty_r) : ty_r := (wn * wm)%R.
+Definition riscv_MUL_instr : instr_desc_t := RTypeInstruction riscv_mul_semi "MUL" "mul".
+Definition prim_MUL := ("MUL"%string, primM MUL).
+
+Definition riscv_mulh_semi (wn wm: ty_r) : ty_r := wmulhs wn wm.
+Definition riscv_MULH_instr : instr_desc_t := RTypeInstruction riscv_mulh_semi "MULH" "mulh".
+Definition prim_MULH := ("MULH"%string, primM MULH).
+
+Definition riscv_mulhu_semi (wn wm: ty_r) : ty_r := wmulhu wn wm.
+Definition riscv_MULHU_instr : instr_desc_t := RTypeInstruction riscv_mulhu_semi "MULHU" "mulhu".
+Definition prim_MULHU := ("MULHU"%string, primM MULHU).
+
+Definition riscv_mulhsu_semi (wn wm: ty_r) : ty_r := wmulhsu wn wm.
+Definition riscv_MULHSU_instr : instr_desc_t := RTypeInstruction riscv_mulhsu_semi "MULHSU" "mulhsu".
+Definition prim_MULHSU := ("MULHSU"%string, primM MULHSU).
+
+
+(* RISC-V 32M div and rem instructions *)
+
+(* Division by zero is specified, it must return all bits set *)
+Definition riscv_div_semi (wn wm: ty_r) : ty_r :=
+  if wm == 0%R then (-1)%R else wdivi wn wm.
+Definition riscv_DIV_instr : instr_desc_t := RTypeInstruction riscv_div_semi "DIV" "div".
+Definition prim_DIV := ("DIV"%string, primM DIV).
+
+(* Division by zero is specified, it must return all bits set *)
+Definition riscv_divu_semi (wn wm: ty_r) : ty_r :=
+  if wm == 0%R then (-1)%R else wdiv wn wm.
+Definition riscv_DIVU_instr : instr_desc_t := RTypeInstruction riscv_divu_semi "DIVU" "divu".
+Definition prim_DIVU := ("DIVU"%string, primM DIVU).
+
+Definition riscv_rem_semi (wn wm: ty_r) : ty_r := wmodi wn wm.
+Definition riscv_REM_instr : instr_desc_t := RTypeInstruction riscv_rem_semi "REM" "rem".
+Definition prim_REM := ("REM"%string, primM REM).
+
+Definition riscv_remu_semi (wn wm: ty_r) : ty_r := wmod wn wm.
+Definition riscv_REMU_instr : instr_desc_t := RTypeInstruction riscv_remu_semi "REMU" "remu".
+Definition prim_REMU := ("REMU"%string, primM REMU).
+
+
 (* -------------------------------------------------------------------- *)
 (* Description of instructions. *)
 
@@ -526,20 +571,12 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | SLTI => riscv_SLTI_instr
   | SLTU => riscv_SLTU_instr
   | SLTIU => riscv_SLTIU_instr
-  | MUL => riscv_MUL_instr
-  | MULH => riscv_MULH_instr
-  | MULHU => riscv_MULHU_instr
-  | MULHSU => riscv_MULHSU_instr
   | AND => riscv_AND_instr
   | ANDI => riscv_ANDI_instr
   | OR => riscv_OR_instr
   | ORI => riscv_ORI_instr
   | XOR => riscv_XOR_instr
   | XORI => riscv_XORI_instr
-  | LA => riscv_LA_instr
-  | LI => riscv_LI_instr
-  | NOT => riscv_NOT_instr
-  | NEG => riscv_NEG_instr
   | SLL => riscv_SLL_instr
   | SLLI => riscv_SLLI_instr
   | SRL => riscv_SRL_instr
@@ -547,8 +584,20 @@ Definition riscv_instr_desc (mn : riscv_op) : instr_desc_t :=
   | SRA => riscv_SRA_instr
   | SRAI => riscv_SRAI_instr
   | MV => riscv_MV_instr
+  | LA => riscv_LA_instr
+  | LI => riscv_LI_instr
+  | NOT => riscv_NOT_instr
+  | NEG => riscv_NEG_instr
   | LOAD s ws => riscv_LOAD_instr s ws
   | STORE ws => riscv_STORE_instr ws
+  | MUL => riscv_MUL_instr
+  | MULH => riscv_MULH_instr
+  | MULHU => riscv_MULHU_instr
+  | MULHSU => riscv_MULHSU_instr
+  | DIV => riscv_DIV_instr
+  | DIVU => riscv_DIVU_instr
+  | REM => riscv_REM_instr
+  | REMU => riscv_REMU_instr
   end.
 
 Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
@@ -559,29 +608,33 @@ Definition riscv_prim_string : seq (string * prim_constructor riscv_op) := [::
   prim_SLTI;
   prim_SLTU;
   prim_SLTIU;
-  prim_MUL;
-  prim_MULH;
-  prim_MULHU;
-  prim_MULHSU;
-  prim_OR;
-  prim_ORI;
   prim_AND;
   prim_ANDI;
+  prim_OR;
+  prim_ORI;
   prim_XOR;
   prim_XORI;
-  prim_LA;
-  prim_LI;
-  prim_NOT;
-  prim_NEG;
-  prim_MV;
   prim_SLL;
   prim_SLLI;
   prim_SRL;
   prim_SRLI;
   prim_SRA;
   prim_SRAI;
+  prim_MV;
+  prim_LA;
+  prim_LI;
+  prim_NOT;
+  prim_NEG;
   prim_LOAD;
-  prim_STORE
+  prim_STORE;
+  prim_MUL;
+  prim_MULH;
+  prim_MULHU;
+  prim_MULHSU;
+  prim_DIV;
+  prim_DIVU;
+  prim_REM;
+  prim_REMU
 ].
 
 #[ export ]

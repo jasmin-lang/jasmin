@@ -114,11 +114,17 @@ Definition lower_Papp2
   let%opt _ := chk_ws_reg ws in
   match op with
   | Oadd (Op_w _) => decide_op_reg_imm U32 e0 e1 (BaseOp(None, ADD)) (BaseOp(None, ADDI))
+  | Omul (Op_w _) => Some (BaseOp (None, MUL), [:: e0; e1])
   | Osub (Op_w _) => decide_op_reg_imm_neg U32 e0 e1 (BaseOp(None, SUB)) (BaseOp(None, ADDI))
+  | Odiv (Cmp_w sg U32) =>
+    let o := if sg is Signed then DIV else DIVU in
+    Some (BaseOp (None, o), [:: e0; e1])
+  | Omod (Cmp_w sg U32) =>
+    let o := if sg is Signed then REM else REMU in
+    Some (BaseOp (None, o), [:: e0; e1])
   | Oland _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, AND)) (BaseOp(None, ANDI))
   | Olor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, OR)) (BaseOp(None, ORI))
   | Olxor _ => decide_op_reg_imm U32 e0 e1 (BaseOp(None, XOR)) (BaseOp(None, XORI))
-  | Omul (Op_w _) => Some (BaseOp (None, MUL), [:: e0; e1])
   | Olsr U32 =>
     if check_shift_amount e1 is Some(e1) then
       let op := if is_wconst U8 e1 then SRLI else SRL in
