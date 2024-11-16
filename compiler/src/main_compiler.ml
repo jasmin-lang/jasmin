@@ -186,7 +186,7 @@ let main () =
         BatPervasives.finally
           (fun () -> close ())
           (fun () ->
-            ToEC.extract prog Arch.reg_size Arch.asmOp !model !ec_list (Some !ec_array_path) fmt
+            ToEC.extract prog !Glob_options.target_arch Arch.reg_size Arch.asmOp !model ToEC.ArrayOld !ec_list (Some !ec_array_path) fmt
           )
           ()
       with e ->

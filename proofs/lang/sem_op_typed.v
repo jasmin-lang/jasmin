@@ -46,13 +46,13 @@ Definition sem_vadd (ve:velem) {ws:wsize} := (lift2_vec ve +%R ws).
 Definition sem_vsub (ve:velem) {ws:wsize} := (lift2_vec ve (fun x y => x - y)%R ws).
 Definition sem_vmul (ve:velem) {ws:wsize} := (lift2_vec ve *%R ws).
 
-Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=
+Definition sem_vshr (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
   lift1_vec ve (fun x => wshr x (wunsigned i)) ws v.
 
-Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=
+Definition sem_vsar (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
   lift1_vec ve (fun x => wsar x (wunsigned i)) ws v.
 
-Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=
+Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i: u128) :=
   lift1_vec ve (fun x => wshl x (wunsigned i)) ws v.
 
 Definition signed {A:Type} (fu fs:A) s :=

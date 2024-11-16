@@ -813,7 +813,7 @@ Proof.
       all:
         have [ws2 [wbase [wsham [hws2 hbase hsham hw1 [hfvbase hfvsham]]]]] :=
           get_arg_shiftP hget_arg_shift hfve1 hseme1.
-    
+
       all: have hfves := disj_fvars_read_es3 hfve0 hfvbase hfvsham.
       all: split; last done.
       all: clear hfve0 hfvbase hfvsham hfves.
@@ -1455,17 +1455,20 @@ Proof.
   all: by rewrite hy.
 Qed.
 
-Lemma with_shift_terop s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
+Lemma with_shift_terop mn s eb ea ts (b: word ts) (a: u8) x y z vs sh opts r :
+  mn \in [:: ADC; SBC ] ->
   (U32 ≤ ts)%CMP ->
   has_shift opts = None ->
   sem_pexpr true (p_globs p) s eb = ok (Vword b) ->
   sem_pexpr true (p_globs p) s ea = ok (Vword a) ->
   to_word reg_size y = ok (shift_op sh (zero_extend reg_size b) (wunsigned a)) ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op ADC opts))) [:: x, y, z & vs] = ok r ->
-  exec_sopn (Oasm (BaseOp (None, ARM_op ADC (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn opts))) [:: x, y, z & vs] = ok r ->
+  exec_sopn (Oasm (BaseOp (None, ARM_op mn (with_shift opts sh) ))) [:: x, Vword b, z, Vword a & vs] = ok r.
 Proof.
-  case: opts => S cc /= _ hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
+  rewrite !inE.
+  case: opts => S cc /= _ mn_terop hts -> ok_b ok_a /to_wordI'[] ys [] wy [] hys ->{y} hy.
   case: S cc => - [].
+  all: repeat case/orP: mn_terop => [ /eqP -> { mn } | mn_terop ]; last move/eqP: mn_terop => -> { mn }.
   all: rewrite /exec_sopn /=; t_xrbindP.
   all: intro_args_wrapper => {hys hts}.
   all: destruct_args_wrapper vs.
@@ -1520,8 +1523,8 @@ Proof.
     rewrite ht hwsham hes /=.
     have -> /= := with_shift_binop mn_binop hts no_shift ht hwsham hw hr.
     exact: hwrite.
-  case: eqP => // ?.
-  subst mn.
+  case: ifP; last by [].
+  move => mn_terop.
   case: es hsemi hfve default => // x [] // y [] // z es hsemi hfve default.
   case y_has_shift: get_arg_shift => [ [ [] ebase sh esham ] | ] ; last exact: default.
   case/Some_inj => <-{lvs'} <-{op'} <-{es'}.
@@ -1534,36 +1537,55 @@ Proof.
   move: hes; rewrite /=; t_xrbindP => ? -> /= _ ? hy _ ? -> ? hes <- <- ?; subst ws.
   have [ ts [] t [] wsham [] hts ht hwsham hw [] hfb hfa ] := get_arg_shiftP y_has_shift hfve hy.
   rewrite ht hwsham hes /=.
-  have -> /= := with_shift_terop hts no_shift ht hwsham hw hr.
+  have -> /= := with_shift_terop mn_terop hts no_shift ht hwsham hw hr.
   exact: hwrite.
 Qed.
 
 Lemma lower_muluP s0 s1 lvs tag es lvs' op' es' :
   sem_i p' ev s0 (Copn lvs tag (sopn_mulu U32) es) s1
   -> lower_mulu lvs es = Some (lvs', op', es')
-  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+  -> exists2 vm1,
+       sem_i p' ev s0 (Copn lvs' tag op' es') (with_vm s1 vm1) &
+       vm1 =1 evm s1.
 Proof.
-  rewrite /lower_mulu => /sem_iE hsemi /Some_inj[] <- <- <- {lvs' op' es'}.
-  apply: Eopn.
-  move: hsemi.
+  rewrite /lower_mulu.
+  case: lvs => [// | [] hi // [//| [] // lo [] //]].
+  case: eqP => // hne /sem_iE + /Some_inj[] <- <- <- {lvs' op' es'}.
   rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /=.
   t_xrbindP => ? [] // x; t_xrbindP => - [] // y; t_xrbindP => - [] // ok_vs.
-  move => ? a ok_a b ok_b /ok_inj <- <- ok_write.
-  by rewrite ok_vs /= ok_a /= ok_b /=.
+  move => ? a ok_a b ok_b /ok_inj <- <- /=.
+  t_xrbindP => _ /write_varP [-> hdbh htrh].
+  move=> _ /write_varP [-> hdbl htrl] <-.
+  rewrite evm_with_vm !with_vm_idem.
+  exists (evm s0).[lo <- Vword (wrepr U32 (wunsigned a * wunsigned b))]
+                 .[hi <- Vword (high_bits U32 (wunsigned a * wunsigned b))].
+  + apply: Eopn.
+    rewrite /sem_sopn /= /exec_sopn /= /sopn_sem /=.
+    rewrite ok_vs /= ok_a /= ok_b /=.
+    by rewrite /write_var /set_var hdbh hdbl htrh htrl.
+  move=> z; rewrite !Vm.setP.
+  case: eqP => [? | hne_hi]; case: eqP => [? | hne_lo] //; try subst z.
+  by elim hne.
 Qed.
 
 Lemma lower_copnP s0 s1 lvs tag op es lvs' op' es' :
   disj_fvars (read_es es)
   -> sem_i p' ev s0 (Copn lvs tag op es) s1
   -> lower_copn lvs op es = Some (lvs', op', es')
-  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+  -> exists2 vm1,
+     sem_i p' ev s0 (Copn lvs' tag op' es') (with_vm s1 vm1) &
+     vm1 =1 evm s1.
 Proof.
   case: op => // [[] // [] | [[[] aop]|]] //.
   - move=> ?; exact: lower_muluP.
-  - move=> ?; exact: lower_add_carryP.
-  - by move=> len hfve h [<- <- <-].
-  - by move=> w hfve /sem_iE hsem /=; case: ifP => // hcmp [<- <- <-]; constructor.
-  exact: lower_base_op.
+  - move=> ? hsemi hlow; exists (evm s1) => //.
+    rewrite with_vm_same; apply: lower_add_carryP hsemi hlow.
+  - move=> len hfve h [<- <- <-].
+    by exists (evm s1) => //; rewrite with_vm_same.
+  - move=> w hfve /sem_iE hsem /=; case: ifP => // hcmp [<- <- <-].
+    by exists (evm s1) => //; rewrite with_vm_same; constructor.
+  move=> hd hs hl; exists (evm s1) => //;
+  rewrite with_vm_same; exact: lower_base_op hd hs hl.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -1686,21 +1708,20 @@ Proof.
   have [s1' hwrite' hs11] := eeq_exc_write_lvals hfvlvs hs00 hwrite.
   clear hfvlvs hwrite.
 
-  exists s1'; last exact: hs11.
-  clear hs11.
-  apply: sem_seq_ir.
-
   assert (hcopn : sem_i p' ev s0' (Copn lvs tag op es) s1').
   - apply: Eopn.
     rewrite /sem_sopn /=.
     rewrite (eeq_exc_sem_pexprs hfve hs00 hsemes) {hfve hs00 hsemes} /=.
     rewrite hexec /=.
     exact: hwrite'.
-  clear hs00 hsemes hwrite'.
-
-  case h: lower_copn => [[[lvs' op'] es']|].
-  - exact: (lower_copnP hfve hcopn h).
-  exact: hcopn.
+  clear hs00 hsemes hwrite' => /=.
+  case h: lower_copn => [[[lvs' op'] es']|]; last first.
+  + exists s1'; last exact: hs11.
+    by apply: sem_seq_ir.
+  have [vm hsem1 heq]:= lower_copnP hfve hcopn h.
+  exists (with_vm s1' vm); first by apply: sem_seq_ir hsem1.
+  case: hs11=> ?? hvm; split => //=.
+  by move=> z hz; rewrite heq; apply hvm.
 Qed.
 
 #[ local ]

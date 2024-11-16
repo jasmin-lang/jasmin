@@ -1,10 +1,56 @@
 
 # [unreleased]
 
+## New features
+
+- Add support for ARM instruction `SBC`
+  ([PR #936](https://github.com/jasmin-lang/jasmin/pull/936)).
+
+- Add support for x86 instructions `BTR` and `BTS` with the bit base operand in
+  register
+  ([PR #932](https://github.com/jasmin-lang/jasmin/pull/932);
+  fixes [#928](https://github.com/jasmin-lang/jasmin/issues/928)).
+
+- Add support for x86 `TZCNT` instruction
+  ([PR #942](https://github.com/jasmin-lang/jasmin/pull/942)).
+
+- Adding support for type aliases definition in the global scope (and namespace global scope)
+   * Syntax for definition is `type <name> = <type>;`
+   * Syntax for use is `reg <typename> <varname> ...`
+  ([PR #911](https://github.com/jasmin-lang/jasmin/pull/911)).
+
+- Add x86 memory prefetching instructions `PREFETCHT0`, `PREFETCHT1`,
+  `PREFETCHT2`, and `PREFETCHNTA`
+  ([PR #941](https://github.com/jasmin-lang/jasmin/pull/941)).
+
 ## Bug fixes
 
-- Multiplication instructions hava data-independent timing on x86
+- Multiplication instructions have data-independent timing on x86
   ([PR #927](https://github.com/jasmin-lang/jasmin/pull/927)).
+
+- Do not use RAX to save the stack pointer on x86
+  ([PR #937](https://github.com/jasmin-lang/jasmin/pull/937);
+  fixes [#895](https://github.com/jasmin-lang/jasmin/issues/895)).
+
+- Disable x86 `BT` instruction with in-memory operands
+  ([PR #948](https://github.com/jasmin-lang/jasmin/pull/948);
+  fixes [#931](https://github.com/jasmin-lang/jasmin/issues/931)).
+
+- Correcting shift in location produced by multiline string annotations
+  ([PR #959](https://github.com/jasmin-lang/jasmin/pull/959);
+  fixes [#943](https://github.com/jasmin-lang/jasmin/issues/943)).
+
+- Change the semantics of `SMULL` and `UMULL` arm instructions to make them
+  consistent with arm documentation. They return low bits then high bits
+  instead of high bits then low bits.
+  This is a breaking change, to patch existing code you need to replace:
+    `(hi, lo) = #UMULL(e1, e2);`
+  with
+    `(lo, hi) = #UMULL(e1, e2);`
+  or
+    `(hi, lo) = e1 * e2;`
+  ([PR #958](https://github.com/jasmin-lang/jasmin/pull/958);
+  fixes [#637](https://github.com/jasmin-lang/jasmin/issues/637)).
 
 ## Other changes
 
@@ -18,6 +64,11 @@
 - Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
   `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated
   ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914)).
+
+- Improve description of x86 AVX shift instructions; this changes the type of
+  the vectorized shift operations: the second argument is now a 128-bit value
+  ([PR #955](https://github.com/jasmin-lang/jasmin/pull/955);
+  fixes [#950](https://github.com/jasmin-lang/jasmin/issues/950)).
 
 # Jasmin 2024.07.1 — Nancy, 2024-10-03
 

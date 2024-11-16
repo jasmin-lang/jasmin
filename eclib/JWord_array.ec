@@ -250,8 +250,185 @@ abstract theory WArray.
   op init256 (f:int -> W256.t) =
     init (fun i => f (i %/ 32) \bits8 (i%%32)).
 
+  (* ------------------------------------------------- *)
+
+  clone PolyArray as ArrayW8.
+
+  op of_array8 (a: W8.t ArrayW8.t) = init8 (ArrayW8."_.[_]" a).
+
+  op to_array8 (a:t) = ArrayW8.init (fun i => get8 a i).
+
+  (*
+op (a: ArrayN' Wws): WArrayN.initWS (fun i -> a.[i])
+op (a: WArrayN'): ArrayN.init (fun i -> getWS a i)
+    *)
 end WArray.
 
+(* Array of words, where the word size is any number of bytes. Viewed as array
+of word or as byte array. *)
+abstract theory ArrayWords.
+  (* size of a word in bytes *)
+  op sizeW: int.
+  axiom gt0_sizeW: 0 < sizeW.
+
+  (* size of the array in words *)
+  op sizeA: int.
+  axiom gt0_sizeA: 0 < sizeA.
+
+  clone WT as Word with
+    op size <- 8 * sizeW
+    proof gt0_size by rewrite pmulr_rgt0 // gt0_sizeW.
+
+  clone import PolyArray as ArrayN with
+    op size <- sizeA
+    proof ge0_size by rewrite ltzW gt0_sizeA.
+
+  (* Equivalent array of bytes *)
+  clone import WArray as WArrayN with
+    op size <- sizeW * sizeA
+    proof ge0_size by rewrite pmulr_rge0 1:gt0_sizeW ltzW gt0_sizeA.
+
+  (* Conversion between WArrayN.t and Word.t ArrayN.t *)
+  clone W_WS as Wu8 with
+    op sizeS <= W8.size, op sizeB <= W8.size*sizeW, op r <= sizeW,
+    theory WS <= W8, theory WB <= Word
+    proof gt0_r by apply gt0_sizeW, sizeBrS by rewrite mulzC.
+
+  (* direct means offset in bytes, not in words *)
+  op wa_get_direct (t: WArrayN.t) (i: int): Word.t =
+    Wu8.pack'R_t (Wu8.Pack.init (fun j => WArrayN."_.[_]" t (i+j))).
+  abbrev wa_get (t: WArrayN.t) (i: int): Word.t = wa_get_direct t (sizeW*i).
+  op wa_set_direct (t: WArrayN.t) (i: int) (w: Word.t) =
+    WArrayN.init (fun k => if i <= k < i + sizeW then Wu8.\bits'S w (k-i) else t.[k]).
+
+  op of_word_array (a: Word.t ArrayN.t) =
+    WArrayN.init (fun i => Wu8.\bits'S a.[i %/ sizeW] (i%%sizeW)).
+  op to_word_array (a: WArrayN.t) = ArrayN.init (fun i => wa_get a i).
+
+  op get_direct (a: Word.t ArrayN.t) = wa_get_direct (of_word_array a).
+  op set_direct (a: Word.t ArrayN.t) (i: int) (w: Word.t) =
+    to_word_array (wa_set_direct (of_word_array a) i w).
+end ArrayWords.
+
+(* Sub-array (get, set) where the sub-array may have a different type than the
+base array. Conversion views arrays of words as equivalent to byte arrays. *)
+abstract theory SubArrayCast.
+  op sizeWS: int.
+  axiom gt0_sizeWS: 0 < sizeWS.
+
+  op sizeWB: int.
+  axiom gt0_sizeWB: 0 < sizeWB.
+
+  op sizeS: int.
+  axiom gt0_sizeS: 0 < sizeS.
+
+  op sizeB: int.
+  axiom gt0_sizeB: 0 < sizeB.
+
+  clone WT as WordS with
+    op size <- 8 * sizeWS
+    proof gt0_size by rewrite pmulr_rgt0 1:// gt0_sizeWS.
+
+  clone WT as WordB with
+    op size <- 8 * sizeWB
+    proof gt0_size by rewrite pmulr_rgt0 1:// gt0_sizeWB.
+
+  clone ArrayWords as ArrayWordsS with
+    op sizeW <- sizeWS, op sizeA <- sizeS, theory Word <- WordS
+    proof gt0_sizeW by apply gt0_sizeWS, gt0_sizeA by apply gt0_sizeS.
+
+  clone ArrayWords as ArrayWordsB with
+    op sizeW <- sizeWB, op sizeA <- sizeB, theory Word <- WordB
+    proof gt0_sizeW by apply gt0_sizeWB, gt0_sizeA by apply gt0_sizeB.
+
+  op get_sub_direct (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) =
+    ArrayWordsS.to_word_array (
+      ArrayWordsS.WArrayN.init (fun j =>
+        ArrayWordsB.WArrayN."_.[_]" (ArrayWordsB.of_word_array a) (i + j)
+      )
+    ).
+
+  op set_sub_direct (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) (b: WordS.t ArrayWordsS.ArrayN.t) =
+    ArrayWordsB.to_word_array (
+      ArrayWordsB.WArrayN.init (fun j =>
+        if i <= j < i + sizeWS * sizeS then
+          ArrayWordsS.WArrayN."_.[_]" (ArrayWordsS.of_word_array b) (j - i)
+        else
+          ArrayWordsB.WArrayN."_.[_]" (ArrayWordsB.of_word_array a) j
+        )
+      ).
+
+  op get_sub (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) = get_sub_direct a (sizeWB*i).
+
+  op set_sub (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) (b: WordS.t ArrayWordsS.ArrayN.t) =
+    set_sub_direct a (sizeWB*i) b.
+end SubArrayCast.
+
+(* Particular case of SubArrayCast where both array's word types are the same.
+Still not a simple sub-array since indices may be a number of bytes
+non-multiple of the word size. *)
+abstract theory SubArrayDirect.
+  op sizeW: int.
+  axiom gt0_sizeW: 0 < sizeW.
+
+  clone WT as Word with
+    op size <- 8 * sizeW
+    proof gt0_size by rewrite pmulr_rgt0 1:// gt0_sizeW.
+
+  clone include SubArrayCast with
+    op sizeWS <- sizeW, op sizeWB <- sizeW, theory WordS <- Word, theory WordB <- Word
+    proof gt0_sizeWS by apply gt0_sizeW, gt0_sizeWB by apply gt0_sizeW.
+end SubArrayDirect.
+
+(* Access to array words (get, set) where the word may have a different type
+than the base array. Conversion views arrays of words and words as equivalent
+to byte arrays. *)
+abstract theory ArrayAccessCast.
+  op sizeWS: int.
+  axiom gt0_sizeWS: 0 < sizeWS.
+
+  op sizeWB: int.
+  axiom gt0_sizeWB: 0 < sizeWB.
+
+  op sizeB: int.
+  axiom gt0_sizeB: 0 < sizeB.
+
+  clone WT as WordS with
+    op size <- 8 * sizeWS
+    proof gt0_size by rewrite pmulr_rgt0 1:// gt0_sizeWS.
+
+  clone WT as WordB with
+    op size <- 8 * sizeWB
+    proof gt0_size by rewrite pmulr_rgt0 1:// gt0_sizeWB.
+
+  clone ArrayWords as ArrayWordsB with
+    op sizeW <- sizeWB, op sizeA <- sizeB, theory Word <- WordB
+    proof gt0_sizeW by apply gt0_sizeWB, gt0_sizeA by apply gt0_sizeB.
+
+  clone W_WS as WSu8 with
+    op sizeS <= W8.size, op sizeB <= W8.size*sizeWS, op r <= sizeWS,
+    theory WS <= W8, theory WB <= WordS
+    proof gt0_r by apply gt0_sizeWS, sizeBrS by rewrite mulzC.
 
 
- 
+  op get_cast_direct (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) =
+    WSu8.pack'R_t (
+      WSu8.Pack.init (fun j => ArrayWordsB.WArrayN."_.[_]" (ArrayWordsB.of_word_array a) (i+j))
+    ).
+
+  op set_cast_direct (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) (b: WordS.t) =
+    ArrayWordsB.to_word_array (
+      ArrayWordsB.WArrayN.init (fun j =>
+        if i <= j < i + sizeWS then
+          WSu8.\bits'S b (j - i)
+        else
+          ArrayWordsB.WArrayN."_.[_]" (ArrayWordsB.of_word_array a) j
+        )
+      ).
+
+  op get_cast (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) =
+    get_cast_direct a (sizeWB*i).
+
+  op set_cast (a: WordB.t ArrayWordsB.ArrayN.t) (i: int) (b: WordS.t) =
+    set_cast_direct a (sizeWB*i) b.
+end ArrayAccessCast.

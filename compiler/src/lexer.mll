@@ -5,6 +5,13 @@
   module L = Location
   module S = Syntax
 
+  let increment_newline s lexbuf =
+    let newlines = String.count_char s '\n' in
+    for _ = 1 to newlines do
+      Lexing.new_line lexbuf
+    done
+
+
   let unterminated_comment loc =
     raise (S.ParseError (loc, Some "unterminated comment"))
 
@@ -18,6 +25,7 @@
       raise (Syntax.ParseError (loc, Some (Format.asprintf "ill-formed string (%s)" msg)))
 
   let _keywords = [
+    "type"  , TYPE   ;
     "u8"    , T_U8   ;
     "u16"   , T_U16  ;
     "u32"   , T_U32  ;
@@ -27,8 +35,8 @@
 
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
-    
-    "const" , CONSTANT; 
+
+    "const" , CONSTANT;
     "downto", DOWNTO ;
     "else"  , ELSE   ;
     "exec"  , EXEC   ;
@@ -66,7 +74,7 @@
   let mk_sign : char option -> S.sign =
   function
   | Some c -> sign_of_char c
-  | None   -> `Unsigned 
+  | None   -> `Unsigned
 
   let size_of_string =
   function
@@ -81,7 +89,7 @@
   let mksizesign sw s = size_of_string sw, sign_of_char s
 
   let mk_gensize = function
-    | "1"   -> `W1 
+    | "1"   -> `W1
     | "2"   -> `W2
     | "4"   -> `W4
     | "8"   -> `W8
@@ -93,13 +101,13 @@
 
 
   let mk_vsize   = function
-    | "2"  -> `V2  
+    | "2"  -> `V2
     | "4"  -> `V4
     | "8"  -> `V8
-    | "16" -> `V16 
+    | "16" -> `V16
     | "32" -> `V32
-    | _    ->  assert false 
- 
+    | _    ->  assert false
+
   let mkvsizesign r s g = mk_vsize r, sign_of_char s, mk_gensize g
 
 }
@@ -119,8 +127,8 @@ let ident    = idletter (idletter | digit)*
 
 let size = "8" | "16" | "32" | "64" | "128" | "256"
 let signletter = ['s' 'u']
-let gensize = "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" 
-let vsize   = "2" | "4" | "8" | "16" | "32" 
+let gensize = "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128"
+let vsize   = "2" | "4" | "8" | "16" | "32"
 
 
 (* -------------------------------------------------------------------- *)
@@ -133,7 +141,7 @@ rule main = parse
   | "//" [^'\n']* newline { Lexing.new_line lexbuf; main lexbuf }
   | "//" [^'\n']* eof     { main lexbuf }
 
-  | '"' (([^'"' '\\']|'\\' _)* as s) '"' { STRING (unescape (L.of_lexbuf lexbuf) s) }
+  | '"' (([^'"' '\\']|'\\' _)* as s) '"' { increment_newline s lexbuf; STRING (unescape (L.of_lexbuf lexbuf) s) }
 
   | (digit+(('_')+ digit+)*) as s
 

@@ -306,3 +306,46 @@ e ^= d;
 
 (u256)[p + 32 ] = e;
 }
+
+export
+fn test_vpsra(reg u64 p) {
+  reg u128 x y;
+  x = (u128)[p];
+  y = #VPSRA_8u16(x, (u128)[p + 16 * 1]);
+  x = #VPSRA_8u16(x, y);
+  y = #VPSRA_8u16(x, 7);
+
+  x = #VPSRA_4u32(y, (u128)[p + 16 * 2]);
+  y = #VPSRA_4u32(x, y);
+  x = #VPSRA_4u32(y, 17);
+
+  x >> 8s16 = (u128)[p + 16 * 3];
+  x >> 8s16 = y;
+  x >> 8s16 = 12;
+
+  x >> 4s32 = (u128)[p + 16 * 4];
+  x >> 4s32 = y;
+  x >> 4s32 = 22;
+
+  (u128)[p] = x;
+
+  reg u256 z t;
+  z = (u256)[p + 32 * 2];
+  t = #VPSRA_16u16(z, (u128)[p + 16 * 6]);
+  z = #VPSRA_16u16(z, t);
+  t = #VPSRA_16u16(z, 5);
+
+  z = #VPSRA_8u32(t, (u128)[p + 16 * 7]);
+  t = #VPSRA_8u32(z, t);
+  z = #VPSRA_8u32(z, 23);
+
+  z >> 16s16 = (u128)[p + 16 * 8];
+  z >> 16s16 = t;
+  z >> 16s16 = 14;
+
+  z >> 8s32 = (u128)[p + 16 * 9];
+  z >> 8s32 = t;
+  z >> 8s32 = 24;
+
+  (u256)[p] = z;
+}

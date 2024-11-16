@@ -64,6 +64,8 @@ module X86_core = struct
     | ANDN _ -> true
     | BSWAP _ -> false (* Not DOIT *)
     | BT _ -> true
+    | BTR _ -> true
+    | BTS _ -> true
     | CLC -> false (* Not DOIT *)
     | CLFLUSH -> false (* Not DOIT *)
     | CMOVcc _ -> true
@@ -96,6 +98,10 @@ module X86_core = struct
     | PDEP _ -> false (* Not DOIT *)
     | PEXT _ -> false (* Not DOIT *)
     | POPCNT _ -> false (* Not DOIT *)
+    | PREFETCHT0 -> false (* Not DOIT *)
+    | PREFETCHT1 -> false (* Not DOIT *)
+    | PREFETCHT2 -> false (* Not DOIT *)
+    | PREFETCHNTA -> false (* Not DOIT *)
     | RCL _ -> false (* Not DOIT *)
     | RCR _ -> false (* Not DOIT *)
     | RDTSC _ -> false (* Not DOIT *)
@@ -118,6 +124,7 @@ module X86_core = struct
     | STC -> false (* Not DOIT *)
     | SUB _ -> true
     | TEST _ -> true
+    | TZCNT _ -> false (* Not DOIT *)
     | VAESDEC _ -> true
     | VAESDECLAST _ -> true
     | VAESENC _ -> true

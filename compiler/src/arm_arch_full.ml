@@ -66,6 +66,7 @@ module Arm_core = struct
     | ARM_op(REVSH, _) -> false (* Not DIT *)
     | ARM_op(ROR, _) -> true
     | ARM_op(RSB, _) -> false (* Not DIT *)
+    | ARM_op(SBC, _) -> true
     | ARM_op(SBFX, _) -> true
     | ARM_op(SDIV, _) -> false (* Not DIT *)
     | ARM_op(SMLA_hw _, _) -> false (* Not DIT *)

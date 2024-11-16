@@ -1,0 +1,29 @@
+
+fn test_inner (reg ptr u64[10] s) -> reg ptr u64[10] {
+  reg ptr u32[4] x;
+  reg ptr u64[3] y;
+  x = s[u32 0:4];
+  s[u32 0:4] = x;
+  y = s.[3:3];
+  s.[3:3] = y;
+  y = s[3:3];
+  s[3:3] = y;
+  y = s.[u8 3:8*3];
+  x = s.[u8 1:4*4];
+  x = s.[u32 1:4];
+  s.[u32 1:4] = x;
+  return s;
+}
+
+
+export fn test () -> reg u64 {
+  stack u64[10] s;
+  inline int i;
+  reg u64 r;
+  for i = 0 to 10 {
+    s[i] = 0;
+  }
+  s = test_inner(s);
+  r = s[0];
+  return r;
+}

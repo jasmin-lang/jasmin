@@ -12,16 +12,16 @@ if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
 mkdir -p $DIR
 
 if [ "$1" = "arm" ]; then
-	ARCH="-arch arm-m4"
+	ARCH="--arch=arm-m4"
 else
-	ARCH="-arch x86-64"
+	ARCH="--arch=x86-64"
 fi
 
 set -x
 set -o xtrace
 
-$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -oec ${EC} "$2"
-$(dirname $0)/../jasminc ${ARCH} -oecarray ${DIR} -CT -oec ${CT} "$2"
+$(dirname $0)/../jasmin2ec ${ARCH} -o ${EC} "$2"
+$(dirname $0)/../jasmin2ec ${ARCH} -o ${CT} -m CT "$2"
 
 easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${EC}
 easycrypt -I Jasmin:${ECLIB} ${ECARGS} ${CT}

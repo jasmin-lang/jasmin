@@ -1,0 +1,70 @@
+export
+fn sbc(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool c;
+
+    _, _, c, _ = #MOVS(arg0);
+
+    x = #SBC(arg0, arg1, c);
+
+    // Immediates.
+    x = #SBC(x, 0, c);
+    x = #SBC(x, 1, c);
+    x = #SBC(x, 255, c);
+    x = #SBC(x, 0xcacacaca, c); // `bbbb` pattern.
+    x = #SBC(x, 0xca00ca00, c); // `b0b0` pattern.
+    x = #SBC(x, 0x00ca00ca, c); // `0b0b` pattern.
+    x = #SBC(x, 0x000cb000, c); // Shifted byte.
+
+    // Shifts.
+    x = #SBC(x, arg0 << 0, c);
+    x = #SBC(x, arg0 << 31, c);
+    x = #SBC(x, arg0 >> 1, c);
+    x = #SBC(x, arg0 >> 32, c);
+    x = #SBC(x, arg0 >>s 1, c);
+    x = #SBC(x, arg0 >>s 32, c);
+    x = #SBC(x, arg0 >>r 1, c);
+    x = #SBC(x, arg0 >>r 31, c);
+    // x = #SBC(x, arg0, #RRX(1));
+
+    // Set flags.
+    reg bool n, z, v;
+    n, z, c, v, x = #SBCS(x, arg0, c);
+    n, z, c, v, x = #SBCS(x, 1, c);
+    n, z, c, v, x = #SBCS(x, 0xcacacaca, c);
+    n, z, c, v, x = #SBCS(x, 0xca00ca00, c);
+    n, z, c, v, x = #SBCS(x, 0x00ca00ca, c);
+    n, z, c, v, x = #SBCS(x, 0x000cb000, c);
+    n, z, c, v, x = #SBCS(x, arg0 << 3, c);
+
+    // Conditions.
+    x = #SBCcc(x, arg0, c, z, x);            // EQ
+    x = #SBCcc(x, arg0, c, !z, x);           // NE
+    x = #SBCcc(x, arg0, c, c, x);            // CS
+    x = #SBCcc(x, arg0, c, !c, x);           // CC
+    x = #SBCcc(x, arg0, c, n, x);            // MI
+    x = #SBCcc(x, arg0, c, !n, x);           // PL
+    x = #SBCcc(x, arg0, c, v, x);            // VS
+    x = #SBCcc(x, arg0, c, !v, x);           // VC
+    x = #SBCcc(x, arg0, c, c && !z, x);      // HI
+    x = #SBCcc(x, arg0, c, !c || z, x);      // LS
+    x = #SBCcc(x, arg0, c, n == v, x);       // GE
+    x = #SBCcc(x, arg0, c, n != v, x);       // LT
+    x = #SBCcc(x, arg0, c, !z && n == v, x); // GT
+    x = #SBCcc(x, arg0, c, z || n != v, x);  // LE
+
+    x = #SBCcc(x, 1, c, !!!!z, x);
+    n, z, c, v, x = #SBCScc(x, arg0, c, n == v, n, z, c, v, x);
+    n, z, c, v, x = #SBCScc(x, 2, c, !c || z, n, z, c, v, x);
+    x = #SBCcc(x, arg0 << 3, c, z, x);
+    n, z, c, v, x = #SBCScc(x, arg0 << 3, c, z, n, z, c, v, x);
+
+    reg bool zf, cf;
+    ?{CF = c}, x = #SBCS(x, arg0, c);
+    ?{CF = c, ZF = zf}, x = #SBCS(x, arg0, c);
+    ?{cf}, x = #SBCS(x, arg0, c);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

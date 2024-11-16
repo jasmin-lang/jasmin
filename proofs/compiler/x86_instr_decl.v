@@ -41,6 +41,8 @@ Variant x86_op : Type :=
 | DEC    of wsize                         (* decrement *)
 
 | LZCNT  of wsize             (* number of leading zero *)
+| TZCNT  of wsize             (* number of trailing zero *)
+
   (* Flag *)
 | SETcc                           (* Set byte on condition *)
 | BT     of wsize                  (* Bit test, sets result to CF *)
@@ -85,6 +87,8 @@ Variant x86_op : Type :=
 
 | BSWAP  of wsize                     (* byte swap *)
 | POPCNT of wsize    (* Count bits set to 1 *)
+| BTR    of wsize    (* bit test and reset *)
+| BTS    of wsize    (* bit test and set *)
 
 | PEXT   of wsize    (* parallel bits extract *)
 | PDEP   of wsize    (* parallel bits deposit *)
@@ -159,6 +163,10 @@ Variant x86_op : Type :=
 
 (* Cache *)
 | CLFLUSH
+| PREFETCHT0
+| PREFETCHT1
+| PREFETCHT2
+| PREFETCHNTA
 
 (* Fences *)
 | LFENCE
@@ -444,6 +452,9 @@ Notation mk_instr_w2_b5w_010 name semi check prc valid pp_asm := ((fun sz =>
 Notation mk_instr_w2b_b5w_010 name semi check prc valid pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: Eu 0; Eu 1] ++ [::iCF]) (implicit_flags ++ [:: Eu 0]) (reg_msb_flag sz) (semi sz) (check sz) 2 (valid sz) (pp_asm sz)), (name%string,prc))  (only parsing).
 
+Notation mk_instr_w2_bw name semi check prc valid pp_asm := ((fun sz =>
+  mk_instr_safe (pp_sz name sz) (w2_ty sz sz) (bw_ty sz) [:: Ea 0; Eu 1] [::F CF; Ea 0] MSB_MERGE (semi sz) (check sz) 2 (valid sz) (pp_asm sz)), (name%string,prc))  (only parsing).
+
 Notation mk_instr_w2b_bw name semi flag check prc valid pp_asm := ((fun sz =>
   mk_instr_safe (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: Ea 0; Eu 1] ++ [::F flag]) ([::F flag; Ea 0]) (reg_msb_flag sz) (semi sz) (check sz) 2 (valid sz) (pp_asm sz)), (name%string,prc))  (only parsing).
 
@@ -486,8 +497,8 @@ Notation mk_ve_instr_w_w_10 name semi check prc valid pp_asm := ((fun (ve:velem)
 Notation mk_ve_instr_w2_w_120 name semi check prc valid pp_asm := ((fun (ve:velem) sz =>
   mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
-Notation mk_ve_instr_ww8_w_120 name semi check prc valid pp_asm := ((fun ve sz =>
-  mk_instr_safe (pp_ve_sz name ve sz) (ww8_ty sz) (w_ty sz) [:: Ea 1 ; Ea 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) (pp_asm ve sz)), (name%string,prc))  (only parsing).
+Notation mk_ve_instr_ww128_w_120 name semi check prc valid pp_asm := ((fun ve sz =>
+  mk_instr_safe (pp_ve_sz name ve sz) (w2_ty sz U128) (w_ty sz) [:: Ea 1 ; Eu 2] [:: Ea 0] (reg_msb_flag sz) (semi ve sz) (check sz) 3 (valid ve sz) (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Definition max_32 (sz:wsize) := if (sz <= U32)%CMP then sz else U32.
 
@@ -517,6 +528,11 @@ Definition pp_viname name ve sz args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_viname ve false;
      pp_aop_args := map_sz sz args; |}.
+
+Definition pp_viname_ww_128 name ve sz args :=
+  {| pp_aop_name := name;
+     pp_aop_ext  := PP_viname ve false;
+     pp_aop_args := zip [:: sz; sz; U128 ] args; |}.
 
 Definition pp_iname_w_8 name sz args :=
   {| pp_aop_name := name;
@@ -572,10 +588,12 @@ Definition m_ri sz := [:: m false; ri sz].
 
 Definition xmm := [:: CAxmm ].
 Definition xmmm b := [:: CAxmm; CAmem b].
+Definition xmmmi sz := [:: CAxmm; CAmem true; CAimm CAimmC_none sz].
 
 Definition xmm_xmmm := [::xmm; xmmm true].
 Definition xmmm_xmm := [::xmmm false; xmm].
 Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm true].
+Definition xmm_xmm_xmmmi sz := [::xmm; xmm; xmmmi sz].
 
 Definition x86_MOV sz (x: word sz) : word sz := x.
 
@@ -887,6 +905,16 @@ Definition x86_LZCNT sz (w: word sz) : tpl (b5w_ty sz) :=
 Definition Ox86_LZCNT_instr               :=
   mk_instr_w_b5w "LZCNT" x86_LZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 LZCNT) size_16_64 (pp_iname "lzcnt").
 
+Definition x86_TZCNT sz (w: word sz) : tpl (b5w_ty sz) :=
+  let v := trailing_zero w in
+  flags_w
+    (*  OF;     CF;                  SF;   PF;    ZF  *)
+    ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v.
+
+Definition Ox86_TZCNT_instr               :=
+  mk_instr_w_b5w "TZCNT" x86_TZCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 TZCNT) size_16_64 (pp_iname "tzcnt").
+
+
 Definition check_setcc := [:: [::c; rm false]].
 
 Definition x86_SETcc (b:bool) : tpl (w_ty U8) := wrepr U8 (Z.b2z b).
@@ -894,7 +922,7 @@ Definition x86_SETcc (b:bool) : tpl (w_ty U8) := wrepr U8 (Z.b2z b).
 Definition Ox86_SETcc_instr             :=
   mk_instr_pp "SETcc" b_ty w8_ty [:: Eu 0] [:: Eu 1] (reg_msb_flag U8) x86_SETcc check_setcc 2 (primM SETcc) (pp_ct "set" U8).
 
-Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
+Definition check_bt of wsize := [:: [:: r; ri U8 ]].
 
 Definition x86_BT sz (x y: word sz) : tpl (b_ty) :=
   Some (wbit x y).
@@ -1221,6 +1249,16 @@ Definition x86_POPCNT sz (v: word sz): tpl (b5w_ty sz) :=
 Definition Ox86_POPCNT_instr :=
   mk_instr_w_b5w "POPCNT" x86_POPCNT [:: Eu 1] [:: Eu 0] 2 (fun _ => [::r_rm]) (prim_16_64 POPCNT) size_16_64 (pp_name "popcnt").
 
+Definition x86_BTX op sz (x y: word sz) : tpl (bw_ty sz) :=
+  let bit := (wunsigned y mod wsize_bits sz)%Z in
+  (:: Some (wbit_n x (Z.to_nat bit)) & op sz (wrepr sz (2 ^ bit)) x).
+
+Definition Ox86_BTR_instr :=
+  mk_instr_w2_bw "BTR" (x86_BTX wandn) check_bt (prim_16_64 BTR) size_16_64 (pp_iname "btr").
+
+Definition Ox86_BTS_instr :=
+  mk_instr_w2_bw "BTS" (x86_BTX (@wor)) check_bt (prim_16_64 BTS) size_16_64 (pp_iname "bts").
+
 Definition x86_PEXT sz (v1 v2: word sz): tpl (w_ty sz) :=
   @pextr sz v1 v2.
 
@@ -1413,28 +1451,30 @@ Definition Ox86_VPINSR_instr  :=
 Definition check_xmm_xmm_imm8 (_:wsize) := [:: [:: xmm; xmm; i U8]].
 
 Definition x86_u128_shift sz' sz (op: word sz' → Z → word sz')
-  (v: word sz) (c: u8) : tpl (w_ty sz) :=
+  (v: word sz) (c: word U128) : tpl (w_ty sz) :=
   lift1_vec sz' (λ v, op v (wunsigned c)) sz v.
 
 Arguments x86_u128_shift : clear implicits.
 
+Definition check_xmm_xmm_xmmmi of wsize := [:: xmm_xmm_xmmmi U8 ].
+
 Definition x86_VPSLL (ve: velem) sz := x86_u128_shift ve sz (@wshl _).
 
 Definition Ox86_VPSLL_instr :=
-  mk_ve_instr_ww8_w_120 "VPSLL" x86_VPSLL check_xmm_xmm_imm8 (primV_16_64 VPSLL)
-  (fun (ve:velem)  sz => size_16_64 ve && size_128_256 sz) (pp_viname "vpsll").
+  mk_ve_instr_ww128_w_120 "VPSLL" x86_VPSLL check_xmm_xmm_xmmmi (primV_16_64 VPSLL)
+  (fun (ve:velem)  sz => size_16_64 ve && size_128_256 sz) (pp_viname_ww_128 "vpsll").
 
 Definition x86_VPSRL (ve: velem) sz := x86_u128_shift ve sz (@wshr _).
 
 Definition Ox86_VPSRL_instr :=
-  mk_ve_instr_ww8_w_120 "VPSRL" x86_VPSRL check_xmm_xmm_imm8 (primV_16_64 VPSRL)
-  (fun (ve:velem) sz => size_16_64 ve && size_128_256 sz) (pp_viname "vpsrl").
+  mk_ve_instr_ww128_w_120 "VPSRL" x86_VPSRL check_xmm_xmm_xmmmi (primV_16_64 VPSRL)
+  (fun (ve:velem) sz => size_16_64 ve && size_128_256 sz) (pp_viname_ww_128 "vpsrl").
 
 Definition x86_VPSRA (ve: velem) sz := x86_u128_shift ve sz (@wsar _).
 
 Definition Ox86_VPSRA_instr :=
-  mk_ve_instr_ww8_w_120 "VPSRA" x86_VPSRA check_xmm_xmm_imm8 (primV_16_64 VPSRA)
-  (fun (ve:velem) sz => size_16_64 ve && size_128_256 sz) (pp_viname "vpsra").
+  mk_ve_instr_ww128_w_120 "VPSRA" x86_VPSRA check_xmm_xmm_xmmmi (primV_16_32 VPSRA)
+  (fun (ve:velem) sz => size_16_32 ve && size_128_256 sz) (pp_viname_ww_128 "vpsra").
 
 Definition x86_u128_shift_variable ve sz op v1 v2 : tpl (w_ty sz) :=
   lift2_vec ve (λ v1 v2, op v1 (Z.min (wunsigned v2) (wsize_bits ve))) sz v1 v2.
@@ -1874,6 +1914,15 @@ Definition Ox86_RDTSCP_instr :=
 Definition Ox86_CLFLUSH_instr :=
   mk_instr_pp "CLFLUSH" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM CLFLUSH) (pp_name "clflush" Uptr).
 
+Definition Ox86_PREFETCHT0_instr :=
+  mk_instr_pp "PREFETCHT0" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT0) (pp_name "prefetcht0" Uptr).
+Definition Ox86_PREFETCHT1_instr :=
+  mk_instr_pp "PREFETCHT1" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT1) (pp_name "prefetcht1" Uptr).
+Definition Ox86_PREFETCHT2_instr :=
+  mk_instr_pp "PREFETCHT2" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHT2) (pp_name "prefetcht2" Uptr).
+Definition Ox86_PREFETCHNTA_instr :=
+  mk_instr_pp "PREFETCHNTA" [:: sword Uptr ] [::] [:: Ec 0 ] [::] MSB_CLEAR (λ _, tt) [:: [:: m true ] ] 1 (primM PREFETCHNTA) (pp_name "prefetchnta" Uptr).
+
 Definition Ox86_LFENCE_instr :=
   mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR tt [:: [::] ] 0 (primM LFENCE) (pp_name "lfence" U8).
 Definition Ox86_MFENCE_instr :=
@@ -2003,6 +2052,8 @@ Definition x86_instr_desc o : instr_desc_t :=
   | XCHG sz            => Ox86_XCHG_instr.1 sz
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
+  | BTR sz             => Ox86_BTR_instr.1 sz
+  | BTS sz             => Ox86_BTS_instr.1 sz
   | PEXT sz            => Ox86_PEXT_instr.1 sz
   | PDEP sz            => Ox86_PDEP_instr.1 sz
   | CQO sz             => Ox86_CQO_instr.1 sz
@@ -2023,6 +2074,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | INC sz             => Ox86_INC_instr.1 sz
   | DEC sz             => Ox86_DEC_instr.1 sz
   | LZCNT sz           => Ox86_LZCNT_instr.1 sz
+  | TZCNT sz           => Ox86_TZCNT_instr.1 sz
   | SETcc              => Ox86_SETcc_instr.1
   | BT sz              => Ox86_BT_instr.1 sz
   | CLC                => Ox86_CLC_instr.1
@@ -2114,6 +2166,10 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
   | VPTEST sz          => Ox86_VPTEST_instr.1 sz
   | CLFLUSH            => Ox86_CLFLUSH_instr.1
+  | PREFETCHT0         => Ox86_PREFETCHT0_instr.1
+  | PREFETCHT1         => Ox86_PREFETCHT1_instr.1
+  | PREFETCHT2         => Ox86_PREFETCHT2_instr.1
+  | PREFETCHNTA        => Ox86_PREFETCHNTA_instr.1
   | LFENCE             => Ox86_LFENCE_instr.1
   | MFENCE             => Ox86_MFENCE_instr.1
   | SFENCE             => Ox86_SFENCE_instr.1
@@ -2146,6 +2202,8 @@ Definition x86_prim_string :=
    Ox86_XCHG_instr.2;
    Ox86_BSWAP_instr.2;
    Ox86_POPCNT_instr.2;
+   Ox86_BTR_instr.2;
+   Ox86_BTS_instr.2;
    Ox86_PEXT_instr.2;
    Ox86_PDEP_instr.2;
    Ox86_CQO_instr.2;
@@ -2166,6 +2224,7 @@ Definition x86_prim_string :=
    Ox86_INC_instr.2;
    Ox86_DEC_instr.2;
    Ox86_LZCNT_instr.2;
+   Ox86_TZCNT_instr.2;
    Ox86_SETcc_instr.2;
    Ox86_BT_instr.2;
    Ox86_CLC_instr.2;
@@ -2257,6 +2316,10 @@ Definition x86_prim_string :=
    Ox86_VPMAXS_instr.2;
    Ox86_VPTEST_instr.2;
    Ox86_CLFLUSH_instr.2;
+   Ox86_PREFETCHT0_instr.2;
+   Ox86_PREFETCHT1_instr.2;
+   Ox86_PREFETCHT2_instr.2;
+   Ox86_PREFETCHNTA_instr.2;
    Ox86_LFENCE_instr.2;
    Ox86_MFENCE_instr.2;
    Ox86_SFENCE_instr.2;
