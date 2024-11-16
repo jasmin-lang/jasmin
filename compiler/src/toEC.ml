@@ -1213,12 +1213,12 @@ let add_glob_arrsz env (x,d) =
 let jmodel () = match !Glob_options.target_arch with
   | X86_64 -> "JModel_x86"
   | ARM_M4 -> "JModel_m4"
-  | RISCV -> failwith "TODO_RISCV: jmodel"
+  | RISCV  -> "JModel_riscv"
 
 let lib_slh () = match !Glob_options.target_arch with
-    | X86_64 -> "SLH64"
-    | ARM_M4 -> "SLH32"
-    | RISCV -> failwith "TODO_RISCV: slh"
+  | X86_64 -> "SLH64"
+  | ARM_M4 -> "SLH32"
+  | RISCV  -> "SLH32"
 
 type ec_modty = string
 

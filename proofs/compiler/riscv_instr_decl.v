@@ -268,7 +268,6 @@ Definition prim_SRL := ("SRL"%string, primM SRL).
 Definition riscv_SRLI_instr : instr_desc_t := ITypeInstruction_5u riscv_srl_semi "SRLI" "srli".
 Definition prim_SRLI := ("SRLI"%string, primM SRLI).
 
-(*CHECKME*)
 Definition riscv_sra_semi (wn : ty_r) (wm : word U8) : ty_r := wsar wn (wunsigned (wand wm (wrepr U8 31))).
 
 Definition riscv_SRA_instr : instr_desc_t := RTypeInstruction riscv_sra_semi "SRA" "sra".

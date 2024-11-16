@@ -1,7 +1,7 @@
 open Jasmin
 open Cmdliner
 
-type arch = Amd64 | CortexM
+type arch = Amd64 | CortexM | RISCV
 
 let get_arch_module arch call_conv : (module Arch_full.Arch) =
   (module Arch_full.Arch_from_Core_arch
@@ -12,10 +12,13 @@ let get_arch_module arch call_conv : (module Arch_full.Arch) =
                       : Arch_full.Core_arch)
                   | CortexM ->
                       (module CoreArchFactory.Core_arch_ARM
+                      : Arch_full.Core_arch)
+                  | RISCV ->
+                      (module CoreArchFactory.Core_arch_RISCV
                       : Arch_full.Core_arch))))
 
 let arch =
-  let alts = [ ("x86-64", Amd64); ("arm-m4", CortexM) ] in
+  let alts = [ ("x86-64", Amd64); ("arm-m4", CortexM); ("risc-v", RISCV) ] in
   let doc =
     Format.asprintf "The target architecture (%s)" (Arg.doc_alts_enum alts)
   in
