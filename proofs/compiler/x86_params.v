@@ -124,6 +124,7 @@ Definition x86_liparams : linearization_params :=
     lip_lmove := x86_lmove;
     lip_check_ws := x86_check_ws;
     lip_lstore := x86_lstore;
+    lip_lload := x86_lload;
     lip_lstores := lstores_dfl x86_lstore;
     lip_lloads := lloads_dfl x86_lload;
   |}.
@@ -298,6 +299,7 @@ Definition x86_params : architecture_params lowering_options :=
   {|
     ap_sap := x86_saparams;
     ap_lip := x86_liparams;
+    ap_plp := false;
     ap_lop := x86_loparams;
     ap_lap := {| lap_lower_address := fun _ p => ok p |};
     ap_agp := x86_agparams;

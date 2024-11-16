@@ -11,6 +11,7 @@ Require Import
 Require Import
   allocation_proof
   lower_spill_proof
+  load_constants_in_cond_proof
   inline_proof
   dead_calls_proof
   makeReferenceArguments_proof
@@ -194,6 +195,7 @@ Proof.
   rewrite !print_uprogP => pf ok_pf.
   rewrite !print_uprogP => pg ok_pg.
   rewrite !print_uprogP => ph ok_ph pi ok_pi.
+  rewrite !print_uprogP => plc ok_plc.
   rewrite !print_uprogP => ok_fvars pj ok_pj pp.
   rewrite !print_uprogP => ok_pp <- {p'} ok_fn exec_p.
 
@@ -214,6 +216,8 @@ Proof.
          (lowering_opt cparams)
          (warning cparams)
          ok_fvars).
+  apply: compose_pass.
+  + by move=> vr'; apply: load_constants_progP; apply ok_plc.
   apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pi).
   apply: compose_pass_uincl'.
   - move => vr'; apply: (live_range_splittingP ok_ph).
