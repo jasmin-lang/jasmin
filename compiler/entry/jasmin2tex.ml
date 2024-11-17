@@ -26,10 +26,6 @@ let output =
   in
   Arg.(value & opt (some string) None & info [ "o"; "output" ] ~docv:"TEX" ~doc)
 
-let nowarning =
-  let doc = "Suppress warnings" in
-  Arg.(value & flag & info [ "nowarning" ] ~doc)
-
 let () =
   let doc = "Pretty-print Jasmin source programs into LATEX" in
   let man =
@@ -44,5 +40,5 @@ let () =
     Cmd.info "jasmin2tex" ~version:Glob_options.version_string ~doc ~man
   in
   Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ output $ file
-    $ nowarning)
+    $ CommonCLI.nowarning)
   |> Cmd.eval |> exit

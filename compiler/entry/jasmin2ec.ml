@@ -94,10 +94,6 @@ let file =
   let doc = "The Jasmin source file to extract" in
   Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"JAZZ" ~doc)
 
-let nowarning =
-  let doc = "Suppress warnings" in
-  Arg.(value & flag & info [ "nowarning" ] ~doc)
-
 let () =
   let doc = "Extract Jasmin program to easycrypt" in
   let man =
@@ -113,5 +109,5 @@ let () =
   in
   Cmd.v info
     Term.(const parse_and_extract $ arch $ call_conv $ model $ old_array
-      $ functions $ array_dir $ output $ file $ nowarning)
+      $ functions $ array_dir $ output $ file $ CommonCLI.nowarning)
   |> Cmd.eval |> exit

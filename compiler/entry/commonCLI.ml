@@ -30,3 +30,7 @@ let call_conv =
     value
     & opt call_conv Glob_options.Linux
     & info [ "call-conv"; "cc" ] ~docv:"OS" ~doc)
+
+let nowarning =
+  let doc = "Suppress warnings" in
+  Arg.(value & flag & info [ "nowarning" ] ~doc)

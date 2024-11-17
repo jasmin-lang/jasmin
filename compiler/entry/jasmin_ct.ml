@@ -114,10 +114,6 @@ let doit =
   let doc = "Allow only DOIT instructions on secrets" in
   Arg.(value & flag & info [ "doit" ] ~doc)
 
-let nowarning =
-  let doc = "Suppress warnings" in
-  Arg.(value & flag & info [ "nowarning" ] ~doc)
-
 let () =
   let doc = "Check Constant-Time security of Jasmin programs" in
   let man =
@@ -134,5 +130,5 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative
-      $ compile $ file $ doit $ nowarning)
+      $ compile $ file $ doit $ CommonCLI.nowarning)
   |> Cmd.eval |> exit
