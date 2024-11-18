@@ -170,13 +170,13 @@ Variant FunE : Type -> Type :=
 Variant StE : Type -> Type :=
   | EvalCond (e: pexpr) : StE bool 
   | EvalBound (e: pexpr) : StE Z
-  | WriteVar (x: var_i) (z: Z) : StE unit                             
-(* evaluates the expressions es and copy the values to la (local
-addresses in the stack frame) *)
+  | WriteIndex (x: var_i) (z: Z) : StE unit                             
+(* evaluates the expressions es and copy the values to a newly
+initialized callee state *)
   | InitState (fn: funname) (es: pexprs) : StE unit
-(* copy the results in ld (local addesses in the stack frame) to gd
-(global ones) *)  
-  | SetDests (ld gd: lvals) : StE unit.  
+(* discards the callee state after copying the results to the caller
+state *)  
+  | SetDests (fn: funname) (xs: lvals) : StE unit.  
 
 Variant InstrE : Type -> Type :=
   | AssgnE : lval -> assgn_tag -> stype -> pexpr -> InstrE unit
@@ -216,14 +216,13 @@ Definition denote_fcall (xs: lvals) (fn: funname) (es: pexprs) :
   trigger (InitState fn es) ;; 
   c <- trigger (FunCode fn) ;;   
   trigger_inl1 (LCode c) ;; 
-  ld <- trigger (FunDests fn) ;; 
-  trigger (SetDests ld xs).
+  trigger (SetDests fn xs).
 
 Fixpoint denote_for (i: var_i) (c: itree (CState +' Eff) unit) (ls: list Z) :
   itree (CState +' Eff) unit :=
     match ls with
     | nil => ret tt
-    | (w :: ws) => trigger (WriteVar i w) ;; c ;; denote_for i c ws
+    | (w :: ws) => trigger (WriteIndex i w) ;; c ;; denote_for i c ws
     end.
 
 Fixpoint denote_instr (i : instr_r) : itree (CState +' Eff) unit := 
@@ -309,7 +308,13 @@ Definition handle_FunE {E: Type -> Type}
 (*******************************************************************)
 
 Variant StackE : Type -> Type :=
+  (* returns the head without popping *)
   | GetTopState : StackE estate
+  (* updates the head *)                       
+  | PutTopState (st: estate) : StackE unit
+  (* pops the head and returns it *)                                    
+  | PopState : StackE estate
+  (* pushes a new head *)                    
   | PushState (st: estate) : StackE unit. 
 
 Definition eval_Args (args: pexprs) (st: estate) :
@@ -321,13 +326,84 @@ Definition truncate_Args (f: FunDef) (vargs: seq value) :=
 
 Definition mk_InitState E `{StackE -< E} `{ErrState -< E}
   (f: FunDef) (args: pexprs) : itree E unit :=
-  ITree.bind (trigger GetTopState)
-      (fun st0 =>
-         let scs1 := st0.(escs) in
-         let m1 := st0.(emem) in 
-         vargs' <- err_result _ _ (eval_Args args st0) ;;
-         vargs <- err_result _ _ (truncate_Args f vargs') ;;
-         ret tt). 
+  ITree.bind (trigger GetTopState) (fun st0 =>
+    let scs1 := st0.(escs) in
+    let m1 := st0.(emem) in  
+    vargs' <- err_result _ _ (eval_Args args st0) ;;
+    vargs <- err_result _ _ (truncate_Args f vargs') ;;
+    st1 <- err_result _ _
+       (init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init)) ;;
+    err_result _ _
+       (write_vars (~~direct_call) (f_params f) vargs st1) ;;
+    trigger (PushState st1)).
+
+Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
+  (f: FunDef) (xs: lvals) : itree E unit :=
+  ITree.bind (trigger PopState) (fun st0 =>
+    vres <- err_result _ _
+      (get_var_is (~~ direct_call) st0.(evm) f.(f_res)) ;;
+    vres' <- err_result _ _
+      (mapM2 ErrType dc_truncate_val f.(f_tyout) vres) ;;
+    let scs2 := st0.(escs) in
+    let m2 := finalize f.(f_extra) st0.(emem) in    
+    ITree.bind (trigger GetTopState) (fun st1 =>   
+      st2 <- err_result _ _
+              (write_lvals (~~direct_call) (p_globs pr)
+                 (with_scs (with_mem st1 m2) scs2) xs vres') ;;
+      trigger (PutTopState st2))).
+
+Definition mk_WriteIndex E `{StackE -< E} `{ErrState -< E}
+  (x: var_i) (z: Z) : itree E unit :=
+  ITree.bind (trigger GetTopState) (fun st1 =>   
+    st2 <- err_result _ _ (write_var true x (Vint z) st1) ;;
+    trigger (PutTopState st2)).                                                 
+
+Definition mk_EvalCond E `{StackE -< E} `{ErrState -< E}
+  (e: pexpr) : itree E bool :=
+  ITree.bind (trigger GetTopState) (fun st1 =>
+   let vv := sem_pexpr true (p_globs pr) st1 e in                               
+   match vv with
+   | Ok (Vbool bb) => ret bb
+   | _ => throw ErrType end).                       
+
+Definition mk_EvalBound E `{StackE -< E} `{ErrState -< E}
+  (e: pexpr) : itree E Z :=
+  ITree.bind (trigger GetTopState) (fun st1 =>
+   let vv := sem_pexpr true (p_globs pr) st1 e in                               
+   match vv with
+   | Ok (Vint zz) => ret zz
+   | _ => throw ErrType end).                       
+
+Definition handle_StE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} : StE ~> itree E :=
+  fun _ e =>
+    match e with
+    | EvalCond e => mk_EvalCond E e
+    | EvalBound e => mk_EvalBound E e
+    | WriteIndex x z => mk_WriteIndex E x z                               
+    | InitState fn es =>
+        f <- err_opt _ (get_FunDef fn) ;; mk_InitState E f es
+    | SetDests fn xs =>
+        f <- err_opt _ (get_FunDef fn) ;; mk_SetDests E f xs
+    end.                                            
+        
+
+(*
+Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
+  (f: FunDef) (xs: lvals) : itree E unit :=
+  ITree.bind (trigger GetTopState) (fun st0 =>
+    vres <- err_result _ _
+      (get_var_is (~~ direct_call) st0.(evm) f.(f_res)) ;;
+    vres' <- err_result _ _
+      (mapM2 ErrType dc_truncate_val f.(f_tyout) vres) ;;
+    let scs2 := st0.(escs) in
+    let m2 := finalize f.(f_extra) st0.(emem) in    
+    ITree.bind (trigger PopState) (fun st1 =>                                   
+      st2 <- err_result _ _
+              (write_lvals (~~direct_call) (p_globs pr)
+                 (with_scs (with_mem st1 m2) scs2) xs vres') ;;
+      trigger (PutTopState st2))).
+*)
 
 (*
 Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
@@ -339,7 +415,23 @@ Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
     mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' ->
     scs2 = s2.(escs) ->
     m2 = finalize f.(f_extra) s2.(emem)  ->
-(**)
+*)
+
+(*
+Definition mk_InitState E `{StackE -< E} `{ErrState -< E}
+  (f: FunDef) (args: pexprs) : itree E unit :=
+  ITree.bind (trigger GetFreshWithTopMem)
+      (fun st0 =>
+         vargs' <- err_result _ _ (eval_Args args st0) ;;
+         vargs <- err_result _ _ (truncate_Args f vargs') ;;
+         err_result _ _
+           (write_vars (~~direct_call) (f_params f) vargs st0) ;;
+         trigger (PushState st0)).
+      
+    (*     trigger (WriteVars vargs (f_params f))).  *)
+
+(*         let scs1 := st0.(escs) in
+         let m1 := st0.(emem) in  *)
 *)       
 
 End FunEvents.
