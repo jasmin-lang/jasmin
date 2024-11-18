@@ -90,6 +90,7 @@ Definition ext_handle_Err {E: Type -> Type} :
   match e with
   | inl1 e' => handle_Err _ e'
   | inr1 e' => Vis e' (pure (fun x => Some x)) end.                        
+
 (* ErrState interpreter *)
 Definition interp_Err {E: Type -> Type} {A}  
   (t: itree (ErrState +' E) A) : failT (itree E) A :=
@@ -289,6 +290,16 @@ Definition handle_FunE {E: Type -> Type}
     match e with
     | FunCode fn => err_opt _ (get_FunCode fn) end.   
 
+Definition ext_handle_FunE {E: Type -> Type} `{ErrState -< E} :
+  FunE +' E ~> itree E :=
+  case_ handle_FunE (id_ E).
+
+(* FunE interpreter *)
+Definition interp_FunE {E: Type -> Type} {X: ErrState -< E}
+  {A: Type}
+  (t : itree (FunE +' E) A) : itree E A :=
+  interp ext_handle_FunE t.
+
 
 (***** LOW-LEVEL EVENTS ***********************************************)
 
@@ -407,6 +418,17 @@ Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
         f <- err_opt _ (get_FunDef fn) ;; mk_SetDests E f xs
     end.                                            
         
+Definition ext_handle_InstrE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} : InstrE +' E ~> itree E :=
+  case_ handle_InstrE (id_ E).
+
+(* InstrE interpreter *)
+Definition interp_InstrE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} {A: Type}
+  (t : itree (InstrE +' E) A) : itree E A :=
+  interp ext_handle_InstrE t.
+
+
 
 (***** LOW-LEVEL EVENT SEMANTICS **************************************)
 
@@ -418,7 +440,7 @@ Definition estack := list estate.
       | a :: m => Some m
     end.
 
-Definition h_stack {E} `{ErrState -< E} :
+Definition handle_StackE {E} `{ErrState -< E} :
   StackE ~> stateT estack (itree E) :=
     fun _ e ss =>
       match e with
@@ -430,6 +452,7 @@ Definition h_stack {E} `{ErrState -< E} :
           st <- err_opt _ (hd_error ss) ;; Ret (ss', st)                        
       | PushState st => Ret (st :: ss, tt)   
       end.
+
 
 
 
