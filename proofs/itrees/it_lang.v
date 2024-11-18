@@ -491,10 +491,6 @@ Definition interp_StackE {E: Type -> Type} `{ErrState -< E} {A: Type}
 
 (********* JASMIN INTERPRETERS *****************************************)
 
-Definition evalSE_gen_cmd E `{StackE -< E} `{ErrState -< E}
-  (c: cmd) : itree E unit :=
-  interp_HighE (denote_cmd _ _ _ c).
-
 (* evaluation abstracting from stack and errors *)
 Definition evalSE_cmd E `{ErrState -< E}
   (c: cmd) : itree (StackE +' E) unit :=
@@ -505,6 +501,25 @@ Definition evalSE_cmd E `{ErrState -< E}
 Definition evalEU_cmd E `{ErrState -< E}
   (c: cmd) : stateT estack (itree E) unit :=
   interp_StackE (evalSE_cmd E c).
+
+(* evaluation abstracting from errors, returning a state *)
+Definition evalE1_cmd {E} {X: ErrState -< E} 
+  (c: cmd) (ss: estack) : itree E estate := 
+  ss <- evalEU_cmd E c ss ;;
+  match ss with
+  | (st :: nil, _) => ret st
+  | _ => throw ErrType end.              
+
+(* MAIN: full evaluation returning an optional state *)
+Definition eval_cmd (c: cmd) (ss: estack) : itree void1 (option estate) := 
+  @interp_Err void1 estate (evalE1_cmd c ss).
+
+
+(************* SUPERFLUOUS *****************************************)
+
+Definition evalSE_gen_cmd E `{StackE -< E} `{ErrState -< E}
+  (c: cmd) : itree E unit :=
+  interp_HighE (denote_cmd _ _ _ c).
 
 (* full evaluation, return value paired with unit *)
 Definition evalU_cmd (c: cmd) :
@@ -527,18 +542,6 @@ Definition forget_sndA {E} {R S V1 V2}
 Definition evalE_cmd {E} {X: ErrState -< E} 
   (c: cmd) (ss: estack) : itree E estack :=
   forget_sndA (@evalEU_cmd E X) c ss.
-
-(* evaluation abstracting from errors, returning a state *)
-Definition evalE1_cmd {E} {X: ErrState -< E} 
-  (c: cmd) (ss: estack) : itree E estate := 
-  ss <- evalE_cmd c ss ;;
-  match ss with
-  | (st :: nil) => ret st
-  | _ => throw ErrType end.              
-
-(* MAIN: full evaluation returning an optional state *)
-Definition eval_cmd (c: cmd) (ss: estack) : itree void1 (option estate) := 
-  @interp_Err void1 estate (evalE1_cmd c ss).
 
 
 (*
