@@ -429,6 +429,28 @@ Definition interp_InstrE {E: Type -> Type} `{StackE -< E}
   interp ext_handle_InstrE t.
 
 
+(*** FULL HIGH-LEVEL EVENT SEMANTICS  ********************************)
+
+Definition HighE : Type -> Type := FunE +' InstrE.
+
+Definition HighE_inv1 {E} {X: HighE -< E} : FunE -< E :=
+  fun T (H : FunE T) => X T (inl1 H).
+Definition HighE_inv2 {E} {X: HighE -< E} : InstrE -< E :=
+  fun T (H : InstrE T) => X T (inr1 H).
+Definition build_HighE {E: Type -> Type} 
+  {X1: FunE -< E} {X2: InstrE -< E} :
+  HighE -< E := @ReSum_sum (forall _ : Type, Type) IFun sum1 _
+                FunE InstrE E X1 X2.
+
+Definition handle_HighE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} : HighE ~> itree E :=
+  case_ handle_FunE handle_InstrE.
+
+Definition ext_handle_HighE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} : HighE +' E ~> itree E :=
+  case_ handle_HighE (id_ E).
+
+
 
 (***** LOW-LEVEL EVENT SEMANTICS **************************************)
 
@@ -453,8 +475,13 @@ Definition handle_StackE {E} `{ErrState -< E} :
       | PushState st => Ret (st :: ss, tt)   
       end.
 
+Definition ext_handle_StackE {E: Type -> Type} `{ErrState -< E} :
+  StackE +' E ~> stateT estack (itree E) :=
+  case_ handle_StackE pure_state.
 
-
+Definition interp_StackE {E: Type -> Type} `{ErrState -< E} {A: Type} 
+  (t : itree (StackE +' E) A) : stateT estack (itree E) A :=
+   interp_state ext_handle_StackE t.
 
 
 (*
