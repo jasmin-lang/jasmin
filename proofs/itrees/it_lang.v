@@ -163,25 +163,24 @@ Context (asm_op: Type) (asmop: asmOp asm_op).
 locations associated to the function (concretely, stackframe
 locations) *)
 Variant FunE : Type -> Type :=
-  | FunCode (fn : funname) : FunE cmd
-  | FunDests (fn: funname) : FunE lvals.                               
+  | FunCode (fn : funname) : FunE cmd.                               
 
 (* neutral state events *)
-Variant StE : Type -> Type :=
-  | EvalCond (e: pexpr) : StE bool 
-  | EvalBound (e: pexpr) : StE Z
-  | WriteIndex (x: var_i) (z: Z) : StE unit                             
-(* evaluates the expressions es and copy the values to a newly
-initialized callee state *)
-  | InitState (fn: funname) (es: pexprs) : StE unit
-(* discards the callee state after copying the results to the caller
-state *)  
-  | SetDests (fn: funname) (xs: lvals) : StE unit.  
-
 Variant InstrE : Type -> Type :=
   | AssgnE : lval -> assgn_tag -> stype -> pexpr -> InstrE unit
   | OpnE : lvals -> assgn_tag -> sopn -> pexprs -> InstrE unit
-  | SyscallE : lvals -> syscall_t -> pexprs -> InstrE unit. 
+  | SyscallE : lvals -> syscall_t -> pexprs -> InstrE unit
+(* for Cif and Cwhile *)    
+  | EvalCond (e: pexpr) : InstrE bool
+(* for Cfor *)                                 
+  | EvalBound (e: pexpr) : InstrE Z
+  | WriteIndex (x: var_i) (z: Z) : InstrE unit                             
+(* evaluates the expressions es and copy the values to a newly
+initialized callee state *)
+  | InitState (fn: funname) (es: pexprs) : InstrE unit
+(* discards the callee state after copying the results to the caller
+state *)  
+  | SetDests (fn: funname) (xs: lvals) : InstrE unit.  
   
 (* neutral mutual recursion events *)
 Variant CState : Type -> Type :=
@@ -208,7 +207,6 @@ Fixpoint cmd_map_r {E} (R: instr_r -> itree E unit)
 Section With_MREC.
 Context (Eff : Type -> Type)
         (HasFunE : FunE -< Eff)
-        (HasStE : StE -< Eff)
         (HasInstrE : InstrE -< Eff).   
 
 Definition denote_fcall (xs: lvals) (fn: funname) (es: pexprs) :
@@ -301,8 +299,7 @@ Definition handle_FunE {E: Type -> Type}
   `{ErrState -< E} : FunE ~> itree E :=
   fun _ e =>
     match e with
-    | FunCode fn => err_opt _ (get_FunCode fn)
-    | FunDests fn => err_opt _ (get_FunDests fn) end.   
+    | FunCode fn => err_opt _ (get_FunCode fn) end.   
 
 
 (*******************************************************************)
@@ -374,21 +371,7 @@ Definition mk_EvalBound E `{StackE -< E} `{ErrState -< E}
    | Ok (Vint zz) => ret zz
    | _ => throw ErrType end).                       
 
-Definition handle_StE {E: Type -> Type} `{StackE -< E}
-  `{ErrState -< E} : StE ~> itree E :=
-  fun _ e =>
-    match e with
-    | EvalCond e => mk_EvalCond E e
-    | EvalBound e => mk_EvalBound E e
-    | WriteIndex x z => mk_WriteIndex E x z                               
-    | InitState fn es =>
-        f <- err_opt _ (get_FunDef fn) ;; mk_InitState E f es
-    | SetDests fn xs =>
-        f <- err_opt _ (get_FunDef fn) ;; mk_SetDests E f xs
-    end.                                            
-        
-
-Definition mk_EassgnE {E: Type -> Type} `{StackE -< E}
+Definition mk_AssgnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) :
   itree E unit :=
   ITree.bind (trigger GetTopState) (fun st1 =>
@@ -399,7 +382,7 @@ Definition mk_EassgnE {E: Type -> Type} `{StackE -< E}
 
 Definition mk_OpnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (tg: assgn_tag) (o: sopn)
-  (xs : lvals) (es : pexprs) : itree E unit :=
+   (es : pexprs) : itree E unit :=
   ITree.bind (trigger GetTopState) (fun st1 =>
     st2 <- err_result _ _ (sem_sopn (p_globs pr) o st1 xs es) ;;
     trigger (PutTopState st2)).
@@ -417,6 +400,22 @@ Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
                     (with_scs (with_mem st1 m) scs) xs vs ) ;;
         trigger (PutTopState st2) end).
     
+Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} : InstrE ~> itree E :=
+  fun _ e =>
+    match e with
+    | AssgnE xs tg ty es => mk_AssgnE xs tg ty es
+    | OpnE xs tg o es => mk_OpnE xs tg o es
+    | SyscallE xs o es => mk_SyscallE xs o es                              
+    | EvalCond e => mk_EvalCond E e
+    | EvalBound e => mk_EvalBound E e
+    | WriteIndex x z => mk_WriteIndex E x z                               
+    | InitState fn es =>
+        f <- err_opt _ (get_FunDef fn) ;; mk_InitState E f es
+    | SetDests fn xs =>
+        f <- err_opt _ (get_FunDef fn) ;; mk_SetDests E f xs
+    end.                                            
+        
 
 (*
 Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
