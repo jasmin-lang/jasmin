@@ -283,12 +283,15 @@ type env = {
     arch: architecture;
     pd : Wsize.wsize;
     model : model;
-    alls : Ss.t;
+    (* All names: functions, global variables, arguments, local variables, aux variables *)
+    alls : Ss.t ref;
+    (* All variables, excluding aux: global, argument, local variables *)
     vars : string Mv.t;
     glob : (string * ty) Ms.t;
     funs : (string * (ty list * ty list)) Mf.t;  
     array_theories: Sarraytheory.t ref;
-    auxv  : string list Mty.t;
+    (* aux variables: intermediate in extraction of jasmin assignments *)
+    auxv  : string list Mty.t ref;
     randombytes : Sint.t ref;
   }
 
@@ -327,11 +330,11 @@ let add_jarray ats ws n =
   Sarraytheory.add (WArray (arr_size ws n)) ats
 
 let create_name env s = 
-  if not (Ss.mem s env.alls) then s
+  if not (Ss.mem s !(env.alls)) then s
   else
     let rec aux i = 
       let s = Format.sprintf "%s_%i" s i in
-      if Ss.mem s env.alls then aux (i+1)
+      if Ss.mem s !(env.alls) then aux (i+1)
       else s in
     aux 0
 
@@ -340,7 +343,7 @@ let mkname env n =
 
 let set_var env x s =
   { env with
-    alls = Ss.add s env.alls;
+    alls = ref (Ss.add s !(env.alls));
     vars = Mv.add x s env.vars }
 
 let add_var env x = set_var env x (mkname env x.v_name)
@@ -354,12 +357,12 @@ let empty_env arch pd model array_theories randombytes =
     arch;
     pd;
     model;
-    alls = keywords;
+    alls = ref keywords;
     vars = Mv.empty;
     glob = Ms.empty;
     funs = Mf.empty;
     array_theories;
-    auxv  = Mty.empty;
+    auxv  = ref Mty.empty;
     randombytes;
   }
 
@@ -368,34 +371,28 @@ let add_funcs env fds =
     let s = mkname env fd.f_name.fn_name in
     let funs = 
       Mf.add fd.f_name (s, ((*mk_tys*) fd.f_tyout, (*mk_tys*)fd.f_tyin)) env.funs in
-    { env with funs; alls = Ss.add s env.alls } in
+    { env with funs; alls = ref (Ss.add s !(env.alls)) } in
   List.fold_left add_fun env fds
 
 let get_funtype env f = snd (Mf.find f env.funs)
 
 let get_funname env f = fst (Mf.find f env.funs) 
 
-let add_aux env tys = 
-  let tbl = Hashtbl.create 10 in
-  let do1 env ty = 
-    let n = try Hashtbl.find tbl ty with Not_found -> 0 in
-    let l = try Mty.find ty env.auxv with Not_found -> [] in
-    Hashtbl.replace tbl ty (n+1);
-    if n < List.length l then env
-    else
-      let aux = create_name env "aux" in
-      {env with auxv = Mty.add ty (aux::l) env.auxv;
-                alls = Ss.add aux env.alls } in
-  List.fold_left do1 env tys
-
 let get_aux env tys = 
   let tbl = Hashtbl.create 10 in
   let do1 ty = 
     let n = try Hashtbl.find tbl ty with Not_found -> 0 in
-    let l = try Mty.find ty env.auxv with Not_found -> assert false in
+    let l = try Mty.find ty !(env.auxv) with Not_found -> [] in
     Hashtbl.replace tbl ty (n+1);
-    assert (n < List.length l);
-    List.nth l n in
+    assert (n <= List.length l);
+    if n < List.length l then
+      List.nth l n
+    else
+      let aux = create_name env "aux" in
+      env.auxv := Mty.add ty (aux::l) !(env.auxv);
+      env.alls := Ss.add aux !(env.alls);
+      aux
+  in
   List.map do1 tys
 
 let check_array env x = 
@@ -1294,7 +1291,9 @@ module Extraction(EA: EcArray) = struct
 
   let ec_addleaks leaks = [ESasgn ([LvIdent ["leakages"]], ec_newleaks leaks)]
 
-  let ec_leaks es = ec_addleaks [Eapp (ec_ident "LeakAddr", [Elist es])]
+  let ec_leaks = function
+    | [] -> []
+    | es -> ec_addleaks [Eapp (ec_ident "LeakAddr", [Elist es])]
 
   let ec_leaks_e env e =
       match env.model with
@@ -1329,42 +1328,46 @@ module Extraction(EA: EcArray) = struct
 
   let ec_leaks_lv env lv = 
       match env.model with
-      | ConstantTime -> 
-          let leaks = leaks_lval env.pd lv in
-          if leaks = [] then []
-          else ec_leaks (List.map (toec_expr env) leaks)
+      | ConstantTime -> ec_leaks (List.map (toec_expr env) (leaks_lval env.pd lv))
       | Normal -> []
+
+  let ec_leaks_lvs env lvs = List.flatten (List.map (ec_leaks_lv env) lvs)
 
   (* ------------------------------------------------------------------- *)
   (* Instruction extraction *)
 
   let ec_assgn env lv (etyo, etyi) e =
       let e = e |> ec_zeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
-      (ec_leaks_lv env lv) @ [toec_lval1 env lv e]
+      toec_lval1 env lv e
 
-  let ec_assgn_i env lv ((etyo, etyi), aux) = ec_assgn env lv (etyo, etyi) (ec_ident aux)
-
-  let ec_instr_aux env lvs etyso etysi instr =
+  let ec_assgn_f env lvs etyso etysi f =
+    let stmt = if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
+      [f (ec_lvals env lvs)]
+    else
       let auxs = get_aux env etysi in
       let s2lv s = LvIdent [s] in
-      let call = instr (List.map s2lv auxs) in
-      let tyauxs = List.combine (List.combine etyso etysi) auxs in
-      let assgn_auxs = List.flatten (List.map2 (ec_assgn_i env) lvs tyauxs) in
+      let call = f (List.map s2lv auxs) in
+      let ec_auxs = List.map ec_ident auxs in
+      let assgn lv (ets, e) = ec_assgn env lv ets e in
+      let tyauxs = List.combine (List.combine etyso etysi) ec_auxs in
+      let assgn_auxs = List.map2 assgn lvs tyauxs in
       call :: assgn_auxs
+    in
+    (ec_leaks_lvs env lvs) @ stmt
 
   let ec_pcall env lvs otys f args =
-      let ltys = List.map ty_lval lvs in
-      if lvs = [] || (env.model = Normal && lvals_are_vars lvs && ltys = otys) then
-          [EScall (ec_lvals env lvs, f, args)]
-      else
-          ec_instr_aux env lvs otys otys (fun lvals -> EScall (lvals, f, args))
+    if lvals_are_vars lvs && (List.map ty_lval lvs) = otys then
+      (ec_leaks_lvs env lvs) @ [EScall (ec_lvals env lvs, f, args)]
+    else
+      ec_assgn_f env lvs otys otys (fun lvals -> EScall (lvals, f, args))
 
-  let ec_call env lvs etyso etysi e =
-      let ltys = List.map ty_lval lvs in
-      if lvs = [] || (env.model = Normal && lvals_are_vars lvs && ltys = etyso && etyso = etysi) then
-          [ESasgn ((ec_lvals env lvs), e)]
-      else
-          ec_instr_aux env lvs etyso etysi (fun lvals -> ESasgn (lvals, e))
+  let ec_expr_assgn env lvs etyso etysi e =
+    if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
+      (ec_leaks_lvs env lvs) @ [ESasgn (ec_lvals env lvs, e)]
+    else if List.length lvs = 1 then
+      (ec_leaks_lvs env lvs) @ [ec_assgn env (List.hd lvs) (List.hd etyso, List.hd etysi) e]
+    else
+      ec_assgn_f env lvs etyso etysi (fun lvals -> ESasgn (lvals, e))
 
   let ec_syscall env o =
     match o with
@@ -1384,16 +1387,10 @@ module Extraction(EA: EcArray) = struct
       | Cassgn (lv, _, _, (Parr_init _ as e)) ->
           (ec_leaks_e env e) @
           [toec_lval1 env lv (ec_ident "witness")]
-      | Cassgn (lv, _, _, e) -> (
-          match env.model with
-          | Normal ->
-              let e = toec_cast env ((ty_lval lv), e) in
-              [toec_lval1 env lv e]
-          | ConstantTime ->
-              let tys = [ty_expr e] in
-              (ec_leaks_e env e) @
-              ec_call env [lv] tys tys (toec_expr env e)
-      )
+      | Cassgn (lv, _, _, e) ->
+          let tys = [ty_expr e] in
+          (ec_leaks_e env e) @
+          ec_expr_assgn env [lv] tys tys (toec_expr env e)
       | Copn ([], _, op, es) ->
           (ec_leaks_opn env es) @
           [EScomment (Format.sprintf "Erased call to %s" (ec_opn env.pd asmOp op))]
@@ -1404,11 +1401,8 @@ module Extraction(EA: EcArray) = struct
           let otys', _ = ty_sopn env.pd asmOp op' es in
           let ec_op op = ec_ident (ec_opn env.pd asmOp op) in
           let ec_e op = Eapp (ec_op op, List.map (toec_cast env) (List.combine itys es)) in
-          if env.model = Normal && List.length lvs = 1 then
-              ec_assgn env (List.hd lvs) (List.hd otys, List.hd otys') (ec_e op')
-          else
-              (ec_leaks_opn env es) @
-              (ec_call env lvs otys otys' (ec_e op))
+          (ec_leaks_opn env es) @
+          (ec_expr_assgn env lvs otys otys' (ec_e op'))
       | Ccall (lvs, f, es) ->
           let otys, itys = get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
@@ -1455,74 +1449,17 @@ module Extraction(EA: EcArray) = struct
   (* ------------------------------------------------------------------- *)
   (* Function extraction *)
 
-  let rec init_aux_i pd asmOp env i =
-    match i.i_desc with
-      | Cassgn (lv, _, _, e) -> (
-          match env.model with
-          | Normal -> env
-          | ConstantTime -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
-      )
-      | Copn (lvs, _, op, _) -> (
-          match env.model with
-          | Normal -> 
-              if List.length lvs = 1 then env 
-              else
-                  let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
-                  let ltys = List.map ty_lval lvs in
-                  if lvals_are_vars lvs && ltys = tys then env
-                  else add_aux env tys
-          | ConstantTime ->
-              let op = base_op op in
-              let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
-              let env = add_aux env tys in
-              add_aux env (List.map ty_lval lvs)
-      )
-      | Ccall(lvs, f, _) -> (
-          match env.model with
-          | Normal ->
-              if lvs = [] then env 
-              else 
-                  let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
-                  let ltys = List.map ty_lval lvs in
-                  if (lvals_are_vars lvs && ltys = tys) then env
-                  else add_aux env tys
-          | ConstantTime ->
-              if lvs = [] then env 
-              else add_aux env (List.map ty_lval lvs)
-      )
-      | Csyscall(lvs, o, _) -> (
-          match env.model with
-          | Normal ->
-              if lvs = [] then env
-              else
-                  let tys = List.map Conv.ty_of_cty (Syscall.syscall_sig_u o).scs_tout in
-                  let ltys = List.map ty_lval lvs in
-                  if (lvals_are_vars lvs && ltys = tys) then env
-                  else add_aux env tys
-          | ConstantTime ->
-              let s = Syscall.syscall_sig_u o in
-              let otys = List.map Conv.ty_of_cty s.scs_tout in
-              let env = add_aux env otys in
-              add_aux env (List.map ty_lval lvs)
-      )
-      | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
-      | Cfor(_,_,c) -> init_aux pd asmOp (add_aux env [tint]) c
-
-  and init_aux pd asmOp env c = List.fold_left (init_aux_i pd asmOp) env c
-
   let toec_fun asmOp env f = 
       let f = { f with f_body = remove_for f.f_body } in
       let locals = Sv.elements (locals f) in
       let env = List.fold_left add_var env (f.f_args @ locals) in
-      (* init auxiliary variables *) 
-      let env = init_aux env.pd asmOp env f.f_body
+      (* Limit the scope of changes to env.auxv and env.alls to the current function. *)
+      let env = { env with auxv = ref !(env.auxv); alls = ref !(env.alls) }
       in
-      List.iter (add_ty env) f.f_tyout;
-      List.iter (fun x -> add_ty env x.v_ty) (f.f_args @ locals);
-      Mty.iter (fun ty _ -> add_ty env ty) env.auxv;
+      let stmts = toec_cmd asmOp env f.f_body in
       let ec_locals =
           let locs_ty (ty, vars) = List.map (fun v -> (v, toec_ty env ty)) vars in
-          (List.flatten (List.map locs_ty (Mty.bindings env.auxv))) @
+          (List.flatten (List.map locs_ty (Mty.bindings !(env.auxv)))) @
           (List.map (var2ec_var env) locals)
       in
       let aux_locals_init = locals
@@ -1536,6 +1473,9 @@ module Extraction(EA: EcArray) = struct
           | [x] -> ESreturn (ec_var x)
           | xs -> ESreturn (Etuple (List.map ec_var xs))
       in
+      List.iter (add_ty env) f.f_tyout;
+      List.iter (fun x -> add_ty env x.v_ty) (f.f_args @ locals);
+      Mty.iter (fun ty _ -> add_ty env ty) !(env.auxv);
       {
           decl = {
               fname = (get_funname env f.f_name);
@@ -1543,7 +1483,7 @@ module Extraction(EA: EcArray) = struct
               rtys = List.map (toec_ty env) f.f_tyout;
           };
           locals = ec_locals;
-          stmt = aux_locals_init @ (toec_cmd asmOp env f.f_body) @ [ret];
+          stmt = aux_locals_init @ stmts @ [ret];
       }
 
   (* ------------------------------------------------------------------- *)
