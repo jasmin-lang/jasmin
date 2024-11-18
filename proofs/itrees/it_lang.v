@@ -388,6 +388,36 @@ Definition handle_StE {E: Type -> Type} `{StackE -< E}
     end.                                            
         
 
+Definition mk_EassgnE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) :
+  itree E unit :=
+  ITree.bind (trigger GetTopState) (fun st1 =>
+    v <- err_result _ _ (sem_pexpr true (p_globs pr) st1 e) ;;
+    v' <- err_result _ _ (truncate_val ty v) ;;
+    st2 <- err_result _ _ (write_lval true (p_globs pr) x v' st1) ;; 
+    trigger (PutTopState st2)).
+
+Definition mk_OpnE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} (xs: lvals) (tg: assgn_tag) (o: sopn)
+  (xs : lvals) (es : pexprs) : itree E unit :=
+  ITree.bind (trigger GetTopState) (fun st1 =>
+    st2 <- err_result _ _ (sem_sopn (p_globs pr) o st1 xs es) ;;
+    trigger (PutTopState st2)).
+
+Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} (xs: lvals) (o: syscall_t) (es: pexprs) :
+  itree E unit :=
+  ITree.bind (trigger GetTopState) (fun st1 =>
+    ves <- err_result _ _ (sem_pexprs true (p_globs pr) st1 es ) ;;
+    rrr <- err_result _ _ (exec_syscall st1.(escs) st1.(emem) o ves) ;;
+    match rrr with
+    | (scs, m, vs) =>
+        st2 <- err_result _ _
+                 (write_lvals true (p_globs pr)
+                    (with_scs (with_mem st1 m) scs) xs vs ) ;;
+        trigger (PutTopState st2) end).
+    
+
 (*
 Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
   (f: FunDef) (xs: lvals) : itree E unit :=
