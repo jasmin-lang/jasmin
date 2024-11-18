@@ -70,8 +70,6 @@ Obligation Tactic := done || idtac.
 
 (**** ERROR SEMANTICS *******************************************)
 Section Errors.
-
-
   
 (* type of errors (this might becom richer) *)
   (* Variant ErrType : Type := Err : ErrType. *)
@@ -141,31 +139,19 @@ Definition err_result {E: Type -> Type}
 
 End Errors.
 
-(*********************************************************************)
 
-(*
-Inductive instr_r :=
-| Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
-| Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
-| Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
-| Cif      : pexpr -> seq instr -> seq instr  -> instr_r
-| Cfor     : var_i -> range -> seq instr -> instr_r
-| Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
-| Ccall    : lvals -> funname -> pexprs -> instr_r
-*)
+(*********************************************************************)
 
 Section Lang.
 Context (asm_op: Type) (asmop: asmOp asm_op).
 
-(** Events *)
+(** Hgh-level events *)
 
-(* neutral reader events; here args and dests are meant to be symbolic
-locations associated to the function (concretely, stackframe
-locations) *)
+(* reader events *)
 Variant FunE : Type -> Type :=
   | FunCode (fn : funname) : FunE cmd.                               
 
-(* neutral state events *)
+(* state events *)
 Variant InstrE : Type -> Type :=
   | AssgnE : lval -> assgn_tag -> stype -> pexpr -> InstrE unit
   | OpnE : lvals -> assgn_tag -> sopn -> pexprs -> InstrE unit
@@ -182,12 +168,13 @@ initialized callee state *)
 state *)  
   | SetDests (fn: funname) (xs: lvals) : InstrE unit.  
   
-(* neutral mutual recursion events *)
+(* mutual recursion events *)
 Variant CState : Type -> Type :=
  | LCode (c: cmd) : CState unit
  | FCall (xs: lvals) (f: funname) (es: pexprs) : CState unit.
 
-(** Auxiliary, for recursion on list (seq) *)
+
+(** Auxiliary functions for recursion on list (seq) *)
 
 Fixpoint cmd_map {E} (R: instr -> itree E unit)
   (c: cmd) : itree E unit := 
@@ -203,7 +190,7 @@ Fixpoint cmd_map_r {E} (R: instr_r -> itree E unit)
   | (MkI _ i) :: c => R i ;; cmd_map_r R c
   end.
 
-
+(** denotational interpreter with mutual recursion *)
 Section With_MREC.
 Context (Eff : Type -> Type)
         (HasFunE : FunE -< Eff)
@@ -255,7 +242,7 @@ Definition denote_cstate : CState ~> itree (CState +' Eff) :=
               | FCall xs fn es => denote_fcall xs fn es       
               end.      
 
-(* denotational interpreter *)
+(* MAIN: denotational interpreter *)
 Definition denote_cmd (c: cmd) : itree Eff unit :=
   mrec denote_cstate (LCode c).
 
@@ -266,11 +253,12 @@ Definition denote_cmd1 (i: instr) : itree Eff unit :=
 End With_MREC.
 
 
+(********** EVENT SEMANTICS ******************************************)
 
-(*** FUN-READER SEMANTICS ********************************************)
 Section WSW.
 Context {wsw: WithSubWord}.
  
+(***** FUN-READER SEMANTICS ******************************************)
 Section FunEvents.
   
 Context
@@ -302,17 +290,20 @@ Definition handle_FunE {E: Type -> Type}
     | FunCode fn => err_opt _ (get_FunCode fn) end.   
 
 
-(*******************************************************************)
+(***** LOW-LEVEL EVENTS ***********************************************)
 
 Variant StackE : Type -> Type :=
   (* returns the head without popping *)
   | GetTopState : StackE estate
-  (* updates the head *)                       
-  | PutTopState (st: estate) : StackE unit
+  (* updates the head state *)                       
+  | UpdateTopState (st: estate) : StackE unit
   (* pops the head and returns it *)                                    
   | PopState : StackE estate
-  (* pushes a new head *)                    
+  (* pushes a new head state *)                    
   | PushState (st: estate) : StackE unit. 
+
+
+(***** INSTR EVENT SEMANTICS *******************************************)
 
 Definition eval_Args (args: pexprs) (st: estate) :
   result error (seq value) := 
@@ -347,13 +338,13 @@ Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
       st2 <- err_result _ _
               (write_lvals (~~direct_call) (p_globs pr)
                  (with_scs (with_mem st1 m2) scs2) xs vres') ;;
-      trigger (PutTopState st2))).
+      trigger (UpdateTopState st2))).
 
 Definition mk_WriteIndex E `{StackE -< E} `{ErrState -< E}
   (x: var_i) (z: Z) : itree E unit :=
   ITree.bind (trigger GetTopState) (fun st1 =>   
     st2 <- err_result _ _ (write_var true x (Vint z) st1) ;;
-    trigger (PutTopState st2)).                                                 
+    trigger (UpdateTopState st2)).                             
 
 Definition mk_EvalCond E `{StackE -< E} `{ErrState -< E}
   (e: pexpr) : itree E bool :=
@@ -378,14 +369,14 @@ Definition mk_AssgnE {E: Type -> Type} `{StackE -< E}
     v <- err_result _ _ (sem_pexpr true (p_globs pr) st1 e) ;;
     v' <- err_result _ _ (truncate_val ty v) ;;
     st2 <- err_result _ _ (write_lval true (p_globs pr) x v' st1) ;; 
-    trigger (PutTopState st2)).
+    trigger (UpdateTopState st2)).
 
 Definition mk_OpnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (tg: assgn_tag) (o: sopn)
    (es : pexprs) : itree E unit :=
   ITree.bind (trigger GetTopState) (fun st1 =>
     st2 <- err_result _ _ (sem_sopn (p_globs pr) o st1 xs es) ;;
-    trigger (PutTopState st2)).
+    trigger (UpdateTopState st2)).
 
 Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (o: syscall_t) (es: pexprs) :
@@ -398,7 +389,7 @@ Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
         st2 <- err_result _ _
                  (write_lvals true (p_globs pr)
                     (with_scs (with_mem st1 m) scs) xs vs ) ;;
-        trigger (PutTopState st2) end).
+        trigger (UpdateTopState st2) end).
     
 Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} : InstrE ~> itree E :=
@@ -416,6 +407,32 @@ Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
         f <- err_opt _ (get_FunDef fn) ;; mk_SetDests E f xs
     end.                                            
         
+
+(***** LOW-LEVEL EVENT SEMANTICS **************************************)
+
+Definition estack := list estate.
+
+ Definition tl_error {A} (l: list A) : option (seq A) :=
+    match l with
+      | nil => None 
+      | a :: m => Some m
+    end.
+
+Definition h_stack {E} `{ErrState -< E} :
+  StackE ~> stateT estack (itree E) :=
+    fun _ e ss =>
+      match e with
+      | GetTopState => st <- err_opt _ (hd_error ss) ;; Ret (ss, st)
+      | UpdateTopState st =>
+          ss' <- err_opt _ (tl_error ss) ;; Ret (st :: ss', tt)
+      | PopState =>
+          ss' <- err_opt _ (tl_error ss) ;;
+          st <- err_opt _ (hd_error ss) ;; Ret (ss', st)                        
+      | PushState st => Ret (st :: ss, tt)   
+      end.
+
+
+
 
 (*
 Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
