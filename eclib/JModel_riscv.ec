@@ -60,3 +60,9 @@ abbrev [-printing] MULH = W32.wmulhs.
 abbrev [-printing] MULHU = W32.mulhi.
 
 op MULHSU (x y : W32.t) : W32.t = W32.of_int ((to_sint x * to_uint y) %/ W32.modulus).
+
+abbrev [-printing] DIV = W32.(\sdiv).
+abbrev [-printing] DIVU = W32.(\udiv).
+
+abbrev [-printing] REM = W32.(\smod).
+abbrev [-printing] REMU = W32.(\umod).
