@@ -260,7 +260,7 @@ Section WSW.
 Context {wsw: WithSubWord}.
  
 (***** FUN-READER SEMANTICS ******************************************)
-Section FunEvents.
+Section EventSem.
   
 Context
   (dc: DirectCall)
@@ -450,6 +450,10 @@ Definition ext_handle_HighE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} : HighE +' E ~> itree E :=
   case_ handle_HighE (id_ E).
 
+Definition interp_HighE {E: Type -> Type} `{StackE -< E}
+  `{ErrState -< E} {A: Type}
+  (t : itree (HighE +' E) A) : itree E A :=
+  interp ext_handle_HighE t.
 
 
 (***** LOW-LEVEL EVENT SEMANTICS **************************************)
@@ -482,6 +486,59 @@ Definition ext_handle_StackE {E: Type -> Type} `{ErrState -< E} :
 Definition interp_StackE {E: Type -> Type} `{ErrState -< E} {A: Type} 
   (t : itree (StackE +' E) A) : stateT estack (itree E) A :=
    interp_state ext_handle_StackE t.
+
+
+
+(********* JASMIN INTERPRETERS *****************************************)
+
+Definition evalSE_gen_cmd E `{StackE -< E} `{ErrState -< E}
+  (c: cmd) : itree E unit :=
+  interp_HighE (denote_cmd _ _ _ c).
+
+(* evaluation abstracting from stack and errors *)
+Definition evalSE_cmd E `{ErrState -< E}
+  (c: cmd) : itree (StackE +' E) unit :=
+  interp_HighE (denote_cmd _ _ _ c).
+
+(* evaluation abstracting from errors, return value paired with unit
+*)
+Definition evalEU_cmd E `{ErrState -< E}
+  (c: cmd) : stateT estack (itree E) unit :=
+  interp_StackE (evalSE_cmd E c).
+
+(* full evaluation, return value paired with unit *)
+Definition evalU_cmd (c: cmd) :
+  stateT estack (failT (itree void1)) unit := 
+  fun ss => @interp_Err void1 (estack * unit) (evalEU_cmd _ c ss).
+
+Definition eval2kevalA {E} {R S V}
+  (f: R -> S -> itree E V) : ktree E (R * S) V :=
+  fun p2 => f (fst p2) (snd p2).
+
+Definition keval2evalA {E} {R S V}
+  (f: ktree E (R * S) V) : R -> S -> itree E V :=
+  fun r s => f (r, s).
+
+Definition forget_sndA {E} {R S V1 V2} 
+  (f: R -> S -> itree E (V1 * V2)) : R -> S -> itree E V1 :=
+  keval2evalA (k_forget_snd (eval2kevalA f)).
+
+(* evaluation abstracting from errors, without unit *)
+Definition evalE_cmd {E} {X: ErrState -< E} 
+  (c: cmd) (ss: estack) : itree E estack :=
+  forget_sndA (@evalEU_cmd E X) c ss.
+
+(* evaluation abstracting from errors, returning a state *)
+Definition evalE1_cmd {E} {X: ErrState -< E} 
+  (c: cmd) (ss: estack) : itree E estate := 
+  ss <- evalE_cmd c ss ;;
+  match ss with
+  | (st :: nil) => ret st
+  | _ => throw ErrType end.              
+
+(* MAIN: full evaluation returning an optional state *)
+Definition eval_cmd (c: cmd) (ss: estack) : itree void1 (option estate) := 
+  @interp_Err void1 estate (evalE1_cmd c ss).
 
 
 (*
@@ -530,7 +587,7 @@ Definition mk_InitState E `{StackE -< E} `{ErrState -< E}
          let m1 := st0.(emem) in  *)
 *)       
 
-End FunEvents.
+End EventSem.
 
 End WSW.
 
