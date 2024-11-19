@@ -278,6 +278,90 @@ let keywords =
   Ss.union (Ss.of_list ec_keyword) (Ss.of_list internal_keyword)
 
 (* ------------------------------------------------------------------- *)
+(* Easycrypt very simplified (and incomplete) AST. *)
+type ec_op2 =
+    | ArrayGet
+    | Plus
+    | Infix of string
+
+type ec_op3 =
+    | Ternary 
+    | If 
+    | InORange
+
+type ec_ident = string list
+
+type ec_expr = 
+    | Econst of Z.t (* int. literal *)
+    | Ebool of bool (* bool literal *)
+    | Eident of ec_ident (* variable *)
+    | Eapp of ec_expr * ec_expr list (* op. application *)
+    | Efun1 of string * ec_expr (* fun s => expr *)
+    | Eop2 of ec_op2 * ec_expr * ec_expr (* binary operator *)
+    | Eop3 of ec_op3 * ec_expr * ec_expr * ec_expr (* ternary operator *)
+    | Elist of ec_expr list (* list litteral *)
+    | Etuple of ec_expr list (* tuple litteral *)
+
+type ec_lvalue =
+    | LvIdent of ec_ident
+    | LvArrItem of ec_ident * ec_expr
+
+type ec_lvalues = ec_lvalue list
+
+type ec_instr =
+    | ESasgn of ec_lvalues * ec_expr
+    | EScall of ec_lvalues * ec_ident * ec_expr list
+    | ESsample of ec_lvalues * ec_expr
+    | ESif of ec_expr * ec_stmt * ec_stmt
+    | ESwhile of ec_expr * ec_stmt
+    | ESreturn of ec_expr
+    | EScomment of string (* comment line *)
+
+and ec_stmt = ec_instr list
+
+type ec_ty = string
+
+type ec_var = string * ec_ty
+
+type ec_fun_decl = {
+    fname: string;
+    args: (string * ec_ty) list;
+    rtys: ec_ty list;
+}
+type ec_fun = {
+    decl: ec_fun_decl;
+    locals: (string * ec_ty) list;
+    stmt: ec_stmt;
+}
+
+type ec_modty = string
+
+type ec_module_type = {
+    name: ec_modty;
+    funs: ec_fun_decl list;
+}
+
+type ec_module = {
+    name: string;
+    params: (string * ec_modty) list;
+    ty: ec_modty option;
+    vars: (string * string) list;
+    funs: ec_fun list;
+}
+
+type ec_item =
+    | IrequireImport of string list
+    | Iimport of string list
+    | IfromImport of string * (string list)
+    | IfromRequireImport of string * (string list)
+    | Iabbrev of string * ec_expr
+    | ImoduleType of ec_module_type 
+    | Imodule of ec_module
+
+type ec_prog = ec_item list
+
+
+(* ------------------------------------------------------------------- *)
 (* env: state of extraction *)
 type env = {
     arch: architecture;
@@ -458,89 +542,6 @@ let fmt_op2 fmt op =
   | Ovasr(ve,ws) -> fmt_vop2 fmt ("sar", ve, ws) 
 
 let fmt_access aa = if aa = Warray_.AAdirect then "_direct" else ""
-
-(* ------------------------------------------------------------------- *)
-(* Easycrypt very simplified (and incomplete) AST. *)
-type ec_op2 =
-    | ArrayGet
-    | Plus
-    | Infix of string
-
-type ec_op3 =
-    | Ternary 
-    | If 
-    | InORange
-
-type ec_ident = string list
-
-type ec_expr = 
-    | Econst of Z.t (* int. literal *)
-    | Ebool of bool (* bool literal *)
-    | Eident of ec_ident (* variable *)
-    | Eapp of ec_expr * ec_expr list (* op. application *)
-    | Efun1 of string * ec_expr (* fun s => expr *)
-    | Eop2 of ec_op2 * ec_expr * ec_expr (* binary operator *)
-    | Eop3 of ec_op3 * ec_expr * ec_expr * ec_expr (* ternary operator *)
-    | Elist of ec_expr list (* list litteral *)
-    | Etuple of ec_expr list (* tuple litteral *)
-
-type ec_lvalue =
-    | LvIdent of ec_ident
-    | LvArrItem of ec_ident * ec_expr
-
-type ec_lvalues = ec_lvalue list
-
-type ec_instr =
-    | ESasgn of ec_lvalues * ec_expr
-    | EScall of ec_lvalues * ec_ident * ec_expr list
-    | ESsample of ec_lvalues * ec_expr
-    | ESif of ec_expr * ec_stmt * ec_stmt
-    | ESwhile of ec_expr * ec_stmt
-    | ESreturn of ec_expr
-    | EScomment of string (* comment line *)
-
-and ec_stmt = ec_instr list
-
-type ec_ty = string
-
-type ec_var = string * ec_ty
-
-type ec_fun_decl = {
-    fname: string;
-    args: (string * ec_ty) list;
-    rtys: ec_ty list;
-}
-type ec_fun = {
-    decl: ec_fun_decl;
-    locals: (string * ec_ty) list;
-    stmt: ec_stmt;
-}
-
-type ec_modty = string
-
-type ec_module_type = {
-    name: ec_modty;
-    funs: ec_fun_decl list;
-}
-
-type ec_module = {
-    name: string;
-    params: (string * ec_modty) list;
-    ty: ec_modty option;
-    vars: (string * string) list;
-    funs: ec_fun list;
-}
-
-type ec_item =
-    | IrequireImport of string list
-    | Iimport of string list
-    | IfromImport of string * (string list)
-    | IfromRequireImport of string * (string list)
-    | Iabbrev of string * ec_expr
-    | ImoduleType of ec_module_type 
-    | Imodule of ec_module
-
-type ec_prog = ec_item list
 
 (* ------------------------------------------------------------------- *)
 (* Easycrypt AST pretty-printing *)
