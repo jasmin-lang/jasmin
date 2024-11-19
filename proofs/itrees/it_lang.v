@@ -294,6 +294,9 @@ Definition FunDef : Type := _fundef extra_fun_t.
 Definition get_FunDef (fn: funname) : option FunDef :=
   get_fundef (p_funcs pr) fn.
 
+Definition funCode (f: FunDef) : cmd := 
+  @f_body asm_op asmop extra_fun_t f.
+
 Definition get_FunCode (fn: funname) : option cmd := 
   opt_lift (@f_body asm_op asmop extra_fun_t) (get_FunDef fn).
 
@@ -364,8 +367,7 @@ Definition mk_InitState {E} `{StackE -< E} `{ErrState -< E}
   trigger (PushState st1).
 
 Definition err_return_val {E} `{ErrState -< E}
-  (f: FunDef) (st0: estate) :
-  itree E (seq value) :=                       
+  (f: FunDef) (st0: estate) : itree E (seq value) :=                       
   vres <- err_result _ _
       (get_var_is (~~ direct_call) st0.(evm) f.(f_res)) ;;
   err_result _ _
@@ -618,8 +620,8 @@ Definition evalE1_cmd {E} {X: ErrState -< E}
   | _ => throw ErrType end.              
 
 (* MAIN: full evaluation returning an optional state *)
-Definition eval_cmd (c: cmd) (ss: estack) : itree void1 (option estate) := 
-  @interp_Err void1 estate (evalE1_cmd c ss).
+Definition eval_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
+  @interp_Err void1 estate (evalE1_cmd c (st::nil)).
 
 
 (************* SUPERFLUOUS *****************************************)
@@ -686,7 +688,7 @@ Local Notation exit_loop st := (ret (inr st)).
 
 (* introduce events *)
 Fixpoint eval_instr_call {E} `{ErrState -< E} (i : instr_r) (st: estate) :
-    itree (callE (funname * values) values +' E) estate := 
+    itree (callE (FunDef * (values * estate)) (values * estate) +' E) estate := 
   let R := st_cmd_map_r eval_instr_call in 
   match i with 
   | Cassgn x tg ty e => err_mk_AssgnE x tg ty e st
@@ -712,12 +714,64 @@ Fixpoint eval_instr_call {E} `{ErrState -< E} (i : instr_r) (st: estate) :
   | Ccall xs fn es =>
       f <- err_get_FunDef fn ;;
       va <- err_eval_Args f es st ;;
-      vs <- trigger_inl1 (Call (fn, va)) ;;
-      (* PROBLEM: we still need the calle state, but the function does
-      not return it *)
-      (* the first st is wrong *)
-      err_reinstate_caller f xs vs st st 
+      vst <- trigger_inl1 (Call (f, (va, st))) ;;
+      (* PROBLEM: we still need the calle state, so the function needs
+      to return it *)
+      err_reinstate_caller f xs (fst vst) (snd vst) st 
   end.
+
+Definition eval_fcall_body {E} `{ErrState -< E} :
+  (FunDef * (values * estate)) -> 
+  itree (callE (FunDef * (values * estate)) (values * estate) +' E)
+        (values * estate) :=
+  fun fvst =>
+    let f := fst fvst in
+    let va := fst (snd fvst) in
+    let st := snd (snd fvst) in 
+    st1 <- err_init_state f va st ;; 
+    let c := funCode f in 
+    st2 <- st_cmd_map_r eval_instr_call c st1 ;; 
+    vs <- err_return_val f st2 ;;
+    ret (vs, st2).
+    
+Fixpoint eval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
+    itree E estate := 
+  let R := st_cmd_map_r eval_instr in 
+  match i with 
+  | Cassgn x tg ty e => err_mk_AssgnE x tg ty e st
+  | Copn xs tg o es => err_mk_OpnE xs tg o es st
+  | Csyscall xs o es => err_mk_SyscallE xs o es st                          
+                                        
+  | Cif e c1 c2 =>
+      b <- err_mk_EvalCond e st ;;
+      if b then R c1 st else R c2 st 
+                            
+  | Cfor i (d, lo, hi) c => 
+          vlo <- err_mk_EvalBound lo st ;;
+          vhi <- err_mk_EvalBound hi st ;;
+          eval_for R i c (wrange d vlo vhi) st
+
+  | Cwhile a c1 e c2 => 
+      ITree.iter (fun st0 =>
+           st1 <- R c1 st0 ;;          
+           b <- err_mk_EvalCond e st1 ;;
+           if b then st2 <- R c2 st1 ;; continue_loop st2
+           else exit_loop st1) st
+                                         
+  | Ccall xs fn es =>
+      f <- err_get_FunDef fn ;;
+      va <- err_eval_Args f es st ;;
+      vst <- rec eval_fcall_body (f, (va, st)) ;;  
+      err_reinstate_caller f xs (fst vst) (snd vst) st 
+  end.
+
+(* denotational interpreter *)
+Definition evalE_flat_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
+  itree E estate := st_cmd_map_r eval_instr c st. 
+
+(* MAIN: full evaluation returning an optional state *)
+Definition eval_flat_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
+  @interp_Err void1 estate (evalE_flat_cmd c st).
 
 
 End With_REC.
@@ -727,7 +781,20 @@ End WSW.
 End Lang.
 (** END *)
 
-
+(*
+Fail Definition eval_fcall_body' {E} `{ErrState -< E} :
+  (FunDef * values) -> estate -> 
+  itree (callE (FunDef * values) (values * estate) +' E)
+        (values * estate) :=
+  fun fvst st =>
+    let f := fst fvst in
+    let va := snd fvst in
+    st1 <- err_init_state f va st ;; 
+    let c := funCode f in 
+    st2 <- st_cmd_map_r eval_instr_call c st1 ;; 
+    vs <- err_return_val f st2 ;;
+    ret (vs, st2).
+*)
 (*
 Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
   (f: FunDef) (xs: lvals) : itree E unit :=
