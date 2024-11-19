@@ -4,8 +4,8 @@ open CommonCLI
 
 let parse_and_print arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
-  fun output file nowarning ->
-    if nowarning then Utils.nowarning ();
+  fun output file warn ->
+    if not warn then Utils.nowarning ();
     let _, _, ast = Compile.parse_file A.arch_info file in
     let out, close =
       match output with
@@ -40,5 +40,5 @@ let () =
     Cmd.info "jasmin2tex" ~version:Glob_options.version_string ~doc ~man
   in
   Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ output $ file
-    $ CommonCLI.nowarning)
+    $ warn)
   |> Cmd.eval |> exit

@@ -48,8 +48,8 @@ let parse_and_extract arch call_conv =
     let amodel = if old_array then ToEC.ArrayOld else ToEC.ArrayEclib in
     extract_to_file prog arch A.reg_size A.asmOp model amodel functions array_dir output
   in
-  fun model amodel functions array_dir output file nowarning ->
-    if nowarning then Utils.nowarning ();
+  fun model amodel functions array_dir output file warn ->
+    if not warn then nowarning ();
     match extract model amodel functions array_dir output file with
     | () -> ()
     | exception HiError e ->
@@ -109,5 +109,5 @@ let () =
   in
   Cmd.v info
     Term.(const parse_and_extract $ arch $ call_conv $ model $ old_array
-      $ functions $ array_dir $ output $ file $ CommonCLI.nowarning)
+      $ functions $ array_dir $ output $ file $ warn)
   |> Cmd.eval |> exit

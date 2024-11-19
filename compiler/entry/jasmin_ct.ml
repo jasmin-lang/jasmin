@@ -63,8 +63,8 @@ let parse_and_check arch call_conv =
       in
       Stdlib.Option.iter on_err errs
   in
-  fun infer ct_list speculative compile file doit nowarning ->
-    if nowarning then Utils.nowarning ();
+  fun infer ct_list speculative compile file doit warn ->
+    if not warn then nowarning ();
     let compile =
       if doit && compile < Compiler.PropagateInline then
         Compiler.PropagateInline
@@ -130,5 +130,5 @@ let () =
   Cmd.v info
     Term.(
       const parse_and_check $ arch $ call_conv $ infer $ slice $ speculative
-      $ compile $ file $ doit $ CommonCLI.nowarning)
+      $ compile $ file $ doit $ warn)
   |> Cmd.eval |> exit
