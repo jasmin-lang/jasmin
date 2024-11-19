@@ -1125,9 +1125,14 @@ let ty_lval = function
   | Lmem (_, ws,_,_) | Laset(_, _, ws, _, _) -> Bty (U ws)
   | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
 
+module type EcExpression = sig
+  val ec_cast: env -> int gty * int gty -> ec_expr -> ec_expr
+  val toec_cast: env -> int gty * int gexpr -> ec_expr
+  val toec_expr: env -> expr -> ec_expr
+end
 (* ------------------------------------------------------------------- *)
 (* Jasmin AST -> Easycrypt AST *)
-module Extraction(EA: EcArray) = struct
+module EcExpression(EA: EcArray): EcExpression = struct
   (* ------------------------------------------------------------------- *)
   (* Extraction of expressions *)
 
@@ -1218,7 +1223,102 @@ module Extraction(EA: EcArray) = struct
           )
 
   and toec_cast env (ty, e) = ec_cast env (ty, ty_expr e) (toec_expr env e)
+end
 
+(* ------------------------------------------------------------------- *)
+(* Leakage extraction *)
+
+module type EcLeakage = sig
+  val ec_leaks_e: env -> int gexpr -> ec_instr list
+  val ec_leaks_es: env -> int gexpr list -> ec_instr list
+  val ec_leaks_opn: env -> int gexpr list -> ec_instr list
+  val ec_leaks_if: env -> int gexpr -> ec_instr list
+  val ec_leaks_for: env -> int gexpr -> int gexpr -> ec_instr list
+  val ec_leaks_lvs: env -> int glval list -> ec_instr list
+  val global_leakage_vars: env -> (ec_modty * ec_modty) list
+  val leakage_imports: env -> ec_item list
+end
+
+module EcLeakNormal(EE: EcExpression): EcLeakage = struct
+  let ec_leaks_e env e = []
+  let ec_leaks_es env es = []
+  let ec_leaks_opn env es = []
+  let ec_leaks_if env e = []
+  let ec_leaks_for env e1 e2 = []
+  let ec_leaks_lvs env lvs = []
+  let global_leakage_vars env = []
+  let leakage_imports env = []
+end
+
+module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
+  open EE
+
+  let int_of_word ws e = Papp1 (E.Oint_of_word ws, e)
+
+  let rec leaks_e_rec pd leaks e =
+    match e with
+    | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
+    | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
+    | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
+    | Papp1 (_, e) -> leaks_e_rec pd leaks e
+    | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
+    | PappN (_, es) -> leaks_es_rec pd leaks es
+    | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
+  and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
+
+  let leaks_e pd e = leaks_e_rec pd [] e
+  let leaks_es pd es = leaks_es_rec pd [] es
+
+  let leaks_lval pd = function
+    | Lnone _ | Lvar _ -> []
+    | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
+    | Lmem (_, _, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
+
+  let ece_leaks_e env e = List.map (toec_expr env) (leaks_e env.pd e)
+
+  let ec_newleaks leaks =
+      let add_leak lacc l = Eop2 (Infix "::", l, lacc) in
+      List.fold_left add_leak (ec_ident "leakages") leaks
+
+  let ec_addleaks leaks = [ESasgn ([LvIdent ["leakages"]], ec_newleaks leaks)]
+
+  let ec_leaks = function
+    | [] -> []
+    | es -> ec_addleaks [Eapp (ec_ident "LeakAddr", [Elist es])]
+
+  let ec_leaks_e env e = ec_leaks (ece_leaks_e env e)
+
+  let ec_leaks_es env es = ec_leaks (List.map (toec_expr env) (leaks_es env.pd es))
+
+  let ec_leaks_opn env es =  ec_leaks_es env es
+
+  let ec_leaks_if env e = ec_addleaks [
+    Eapp (ec_ident "LeakAddr", [Elist (ece_leaks_e env e)]);
+    Eapp (ec_ident "LeakCond", [toec_expr env e])
+    ]
+
+  let ec_leaks_for env e1 e2 =
+    let leaks = List.map (toec_expr env) (leaks_es env.pd [e1;e2]) in
+    ec_addleaks [
+        Eapp (ec_ident "LeakAddr", [Elist leaks]);
+        Eapp (ec_ident "LeakFor", [Etuple [toec_expr env e1; toec_expr env e2]])
+        ]
+
+  let ec_leaks_lv env lv = ec_leaks (List.map (toec_expr env) (leaks_lval env.pd lv))
+
+  let ec_leaks_lvs env lvs = List.flatten (List.map (ec_leaks_lv env) lvs)
+
+  let global_leakage_vars env = [("leakages", "leakages_t")]
+
+  let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
+end
+
+module Extraction
+  (EA: EcArray)
+  (EL: EcLeakage) =
+struct
+  open EcExpression(EA)
+  open EL
   (* ------------------------------------------------------------------- *)
   (* Extraction of lvals *)
 
@@ -1257,81 +1357,6 @@ module Extraction(EA: EcArray) = struct
           )
 
   let lvals_are_vars lvs = List.for_all (function Lvar _ -> true | _ -> false) lvs
-
-  (* ------------------------------------------------------------------- *)
-  (* Leakage extraction *)
-
-  let int_of_word ws e = 
-    Papp1 (E.Oint_of_word ws, e)
-
-  let rec leaks_e_rec pd leaks e =
-    match e with
-    | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
-    | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
-    | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
-    | Papp1 (_, e) -> leaks_e_rec pd leaks e
-    | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
-    | PappN (_, es) -> leaks_es_rec pd leaks es
-    | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
-  and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
-
-  let leaks_e pd e = leaks_e_rec pd [] e
-  let leaks_es pd es = leaks_es_rec pd [] es
-
-  let leaks_lval pd = function
-    | Lnone _ | Lvar _ -> []
-    | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
-    | Lmem (_, _, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
-
-  let ece_leaks_e env e = List.map (toec_expr env) (leaks_e env.pd e)
-
-  let ec_newleaks leaks =
-      let add_leak lacc l = Eop2 (Infix "::", l, lacc) in
-      List.fold_left add_leak (ec_ident "leakages") leaks
-
-  let ec_addleaks leaks = [ESasgn ([LvIdent ["leakages"]], ec_newleaks leaks)]
-
-  let ec_leaks = function
-    | [] -> []
-    | es -> ec_addleaks [Eapp (ec_ident "LeakAddr", [Elist es])]
-
-  let ec_leaks_e env e =
-      match env.model with
-      | ConstantTime -> ec_leaks (ece_leaks_e env e)
-      | Normal -> []
-
-  let ec_leaks_es env es =
-      match env.model with
-      | ConstantTime -> ec_leaks (List.map (toec_expr env) (leaks_es env.pd es))
-      | Normal -> []
-
-  let ec_leaks_opn env es =  ec_leaks_es env es
-
-  let ec_leaks_if env e = 
-      match env.model with
-      | ConstantTime -> 
-          ec_addleaks [
-              Eapp (ec_ident "LeakAddr", [Elist (ece_leaks_e env e)]);
-              Eapp (ec_ident "LeakCond", [toec_expr env e])
-          ]
-      | Normal -> []
-
-  let ec_leaks_for env e1 e2 = 
-      match env.model with
-      | ConstantTime -> 
-          let leaks = List.map (toec_expr env) (leaks_es env.pd [e1;e2]) in
-          ec_addleaks [
-              Eapp (ec_ident "LeakAddr", [Elist leaks]);
-              Eapp (ec_ident "LeakFor", [Etuple [toec_expr env e1; toec_expr env e2]])
-              ]
-      | Normal -> []
-
-  let ec_leaks_lv env lv = 
-      match env.model with
-      | ConstantTime -> ec_leaks (List.map (toec_expr env) (leaks_lval env.pd lv))
-      | Normal -> []
-
-  let ec_leaks_lvs env lvs = List.flatten (List.map (ec_leaks_lv env) lvs)
 
   (* ------------------------------------------------------------------- *)
   (* Instruction extraction *)
@@ -1577,17 +1602,9 @@ module Extraction(EA: EcArray) = struct
           | [] -> []
           | l -> [IrequireImport (List.map fmt_array_theory l)]
       in
-      let pp_leakages = match env.model with
-          | ConstantTime -> [("leakages", "leakages_t")]
-          | Normal -> []
-      in
       let mod_arg =
           if Sint.is_empty !(env.randombytes) then []
           else [(syscall_mod_arg, syscall_mod_sig)]
-      in
-      let import_jleakage = match env.model with
-      | Normal -> []
-      | ConstantTime -> [IfromRequireImport ("Jasmin", ["JLeakage"])]
       in
       let glob_imports = [
           IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"];
@@ -1598,11 +1615,11 @@ module Extraction(EA: EcArray) = struct
           name = "M";
           params = mod_arg;
           ty = None;
-          vars = pp_leakages;
+          vars = global_leakage_vars env;
           funs;
       } in
       glob_imports @
-      import_jleakage @
+      (leakage_imports env) @
       pp_array_theories !(env.array_theories) @
       (List.map (fun glob -> ec_glob_decl env glob) globs) @
       (ec_randombytes env) @
@@ -1658,7 +1675,12 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp model amodel fnames
     | ArrayOld -> (module EcArrayOld: EcArray)
     | ArrayEclib -> (module EcArrayEclib: EcArray)
   ) in
-  let module E = Extraction(EA) in
+  let module EE = EcExpression(EA) in
+  let module EL: EcLeakage = (val match env.model with
+    | Normal -> (module EcLeakNormal(EE): EcLeakage)
+    | ConstantTime -> (module EcLeakConstantTimeGlobal(EE): EcLeakage)
+  ) in
+  let module E = Extraction(EA)(EL) in
   let prog = E.pp_prog env asmOp fmt globs funcs in
   save_array_theories !(env.array_theories);
   prog
