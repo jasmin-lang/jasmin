@@ -143,6 +143,14 @@ End Errors.
 
 (*********************************************************************)
 
+(* Fail Fixpoint st_cmd_map (R: instr -> estate -> itree void1 estate)
+  (c: cmd) (st: estate) : itree void1 estate := 
+  match c with 
+  | nil => Ret st 
+  | i :: c' => ITree.bind (R i st) (fun st' => st_cmd_map R c' st')
+  end.
+*)
+
 Section Lang.
 Context (asm_op: Type) (asmop: asmOp asm_op).
 
@@ -181,35 +189,35 @@ Fixpoint cmd_map {E} (R: instr -> itree E unit)
   (c: cmd) : itree E unit := 
   match c with 
   | nil => Ret tt 
-  | i :: c => R i ;; cmd_map R c
+  | i :: c' => R i ;; cmd_map R c'
   end.
 
 Fixpoint cmd_map_r {E} (R: instr_r -> itree E unit)
   (c: cmd) : itree E unit := 
   match c with 
   | nil => Ret tt 
-  | (MkI _ i) :: c => R i ;; cmd_map_r R c
+  | (MkI _ i) :: c' => R i ;; cmd_map_r R c'
   end.
 
+Fixpoint denote_for {E} `{FunE -< E} `{InstrE -< E}
+  (R: cmd -> itree E unit) (i: var_i) (c: cmd) (ls: list Z) :
+  itree E unit :=
+    match ls with
+    | nil => ret tt
+    | (w :: ws) => trigger (WriteIndex i w) ;; R c ;; denote_for R i c ws
+    end.
+
+
+(**********************************************************************)
 (** denotational interpreter with mutual recursion *)
 Section With_MREC.
 Context (Eff : Type -> Type)
         (HasFunE : FunE -< Eff)
         (HasInstrE : InstrE -< Eff).   
 
-Definition denote_fcall (xs: lvals) (fn: funname) (es: pexprs) :
-  itree (CState +' Eff) unit :=
-  trigger (InitState fn es) ;; 
-  c <- trigger (FunCode fn) ;;   
-  trigger_inl1 (LCode c) ;; 
-  trigger (SetDests fn xs).
-
-Fixpoint denote_for (i: var_i) (c: itree (CState +' Eff) unit) (ls: list Z) :
-  itree (CState +' Eff) unit :=
-    match ls with
-    | nil => ret tt
-    | (w :: ws) => trigger (WriteIndex i w) ;; c ;; denote_for i c ws
-    end.
+Local Notation continue_loop := (ret (inl tt)).
+Local Notation exit_loop := (ret (inr tt)).
+Local Notation rec_call := (trigger_inl1).
 
 Fixpoint denote_instr (i : instr_r) : itree (CState +' Eff) unit := 
   let R := cmd_map_r denote_instr in
@@ -225,17 +233,24 @@ Fixpoint denote_instr (i : instr_r) : itree (CState +' Eff) unit :=
   | Cfor i (d, lo, hi) c => 
           vlo <- trigger (EvalBound lo) ;;
           vhi <- trigger (EvalBound hi) ;;
-          denote_for i (R c) (wrange d vlo vhi)
+          denote_for R i c (wrange d vlo vhi)
         
   | Cwhile a c1 e c2 => 
       ITree.iter (fun _ =>
            R c1 ;;          
            b <- trigger (EvalCond e) ;;
-           if b then (R c2) ;; ret (inl tt) 
-           else ret (inr tt)) tt 
+           if b then (R c2) ;; continue_loop 
+           else exit_loop) tt 
   
-  | Ccall xs fn es => trigger_inl1 (FCall xs fn es)      
+  | Ccall xs fn es => rec_call (FCall xs fn es)      
   end.
+
+Definition denote_fcall (xs: lvals) (fn: funname) (es: pexprs) :
+  itree (CState +' Eff) unit :=
+  trigger (InitState fn es) ;; 
+  c <- trigger (FunCode fn) ;;   
+  rec_call (LCode c) ;; 
+  trigger (SetDests fn xs).
 
 Definition denote_cstate : CState ~> itree (CState +' Eff) :=           
   fun _ fs => match fs with
@@ -258,10 +273,7 @@ End With_MREC.
 
 Section WSW.
 Context {wsw: WithSubWord}.
- 
-(***** FUN-READER SEMANTICS ******************************************)
-Section EventSem.
-  
+   
 Context
   (dc: DirectCall)
   (syscall_state : Type)
@@ -272,6 +284,10 @@ Context
   (scP : semCallParams)
   (pr : prog)
   (ev : extra_val_t).
+
+
+(***** FUN-READER SEMANTICS ******************************************)
+Section EventSem.
 
 Definition FunDef : Type := _fundef extra_fun_t.
 
@@ -316,92 +332,183 @@ Variant StackE : Type -> Type :=
 
 (***** INSTR EVENT SEMANTICS *******************************************)
 
-Definition eval_Args (args: pexprs) (st: estate) :
+(** Ccall *)
+
+Definition pure_eval_Args (args: pexprs) (st: estate) :
   result error (seq value) := 
   sem_pexprs (~~direct_call) (p_globs pr) st args.
 
-Definition truncate_Args (f: FunDef) (vargs: seq value) :=
+Definition truncate_Args (f: FunDef) (vargs: seq value) :
+  result error (seq value) :=
   mapM2 ErrType dc_truncate_val f.(f_tyin) vargs.
 
-Definition mk_InitState E `{StackE -< E} `{ErrState -< E}
-  (f: FunDef) (args: pexprs) : itree E unit :=
-  ITree.bind (trigger GetTopState) (fun st0 =>
-    let scs1 := st0.(escs) in
-    let m1 := st0.(emem) in  
-    vargs' <- err_result _ _ (eval_Args args st0) ;;
-    vargs <- err_result _ _ (truncate_Args f vargs') ;;
-    st1 <- err_result _ _
+Definition err_eval_Args {E} `{ErrState -< E}
+  (f: FunDef) (args: pexprs) (st0: estate) : itree E (seq value) :=
+  vargs' <- err_result _ _ (pure_eval_Args args st0) ;;
+  err_result _ _ (truncate_Args f vargs').
+  
+Definition err_init_state {E} `{ErrState -< E}
+   (f: FunDef) (vargs: seq value) (st0: estate) : itree E estate :=   
+  let scs1 := st0.(escs) in
+  let m1 := st0.(emem) in  
+  st1 <- err_result _ _
        (init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init)) ;;
-    err_result _ _
-       (write_vars (~~direct_call) (f_params f) vargs st1) ;;
-    trigger (PushState st1)).
+  err_result _ _
+      (write_vars (~~direct_call) (f_params f) vargs st1).
+      
+Definition mk_InitState {E} `{StackE -< E} `{ErrState -< E}
+  (f: FunDef) (args: pexprs) : itree E unit :=
+  st0 <- trigger GetTopState ;;
+  vargs <- err_eval_Args f args st0 ;;
+  st1 <- err_init_state f vargs st0 ;;                                  
+  trigger (PushState st1).
 
-Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
-  (f: FunDef) (xs: lvals) : itree E unit :=
-  ITree.bind (trigger PopState) (fun st0 =>
-    vres <- err_result _ _
+Definition err_return_val {E} `{ErrState -< E}
+  (f: FunDef) (st0: estate) :
+  itree E (seq value) :=                       
+  vres <- err_result _ _
       (get_var_is (~~ direct_call) st0.(evm) f.(f_res)) ;;
-    vres' <- err_result _ _
-      (mapM2 ErrType dc_truncate_val f.(f_tyout) vres) ;;
-    let scs2 := st0.(escs) in
-    let m2 := finalize f.(f_extra) st0.(emem) in    
-    ITree.bind (trigger GetTopState) (fun st1 =>   
-      st2 <- err_result _ _
-              (write_lvals (~~direct_call) (p_globs pr)
-                 (with_scs (with_mem st1 m2) scs2) xs vres') ;;
-      trigger (UpdateTopState st2))).
+  err_result _ _
+      (mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
 
-Definition mk_WriteIndex E `{StackE -< E} `{ErrState -< E}
+Definition err_reinstate_caller {E} `{ErrState -< E}
+  (f: FunDef) (xs: lvals) (vres: seq value) (st0 st1: estate) :
+  itree E estate := 
+  let scs2 := st0.(escs) in
+  let m2 := finalize f.(f_extra) st0.(emem) in      
+  err_result _ _
+         (write_lvals (~~direct_call) (p_globs pr)
+                      (with_scs (with_mem st1 m2) scs2) xs vres).
+  
+Definition mk_SetDests {E} `{StackE -< E} `{ErrState -< E}
+  (f: FunDef) (xs: lvals) : itree E unit :=
+  st0 <- trigger PopState ;;
+  vres <- err_return_val f st0 ;;
+  st1 <- trigger GetTopState ;;
+  st2 <- err_reinstate_caller f xs vres st0 st1 ;;
+  trigger (UpdateTopState st2).
+
+Definition err_get_FunDef {E} `{ErrState -< E}
+  (fn: funname) : itree E FunDef :=
+  err_opt _ (get_FunDef fn).           
+
+
+(** WriteIndex *)
+
+Definition err_mk_WriteIndex {E} `{ErrState -< E}
+  (x: var_i) (z: Z) (st1: estate) : itree E estate :=  
+    err_result _ _ (write_var true x (Vint z) st1).                             
+
+Definition mk_WriteIndex {E} `{StackE -< E} `{ErrState -< E}
   (x: var_i) (z: Z) : itree E unit :=
-  ITree.bind (trigger GetTopState) (fun st1 =>   
-    st2 <- err_result _ _ (write_var true x (Vint z) st1) ;;
-    trigger (UpdateTopState st2)).                             
+  st1 <- trigger GetTopState ;;
+  st2 <- err_mk_WriteIndex x z st1 ;;
+  trigger (UpdateTopState st2).
+  
 
-Definition mk_EvalCond E `{StackE -< E} `{ErrState -< E}
-  (e: pexpr) : itree E bool :=
-  ITree.bind (trigger GetTopState) (fun st1 =>
+(** EvalCond *)
+
+Definition err_mk_EvalCond {E} `{ErrState -< E}
+  (e: pexpr) (st1: estate) : itree E bool :=
    let vv := sem_pexpr true (p_globs pr) st1 e in                               
    match vv with
    | Ok (Vbool bb) => ret bb
-   | _ => throw ErrType end).                       
+   | _ => throw ErrType end.                       
 
-Definition mk_EvalBound E `{StackE -< E} `{ErrState -< E}
-  (e: pexpr) : itree E Z :=
-  ITree.bind (trigger GetTopState) (fun st1 =>
+Definition mk_EvalCond {E} `{StackE -< E} `{ErrState -< E}
+  (e: pexpr) : itree E bool :=
+   st1 <- trigger GetTopState ;;
+   err_mk_EvalCond e st1.
+                                      
+
+(** EvalBound *)
+
+Definition err_mk_EvalBound {E} `{ErrState -< E}
+  (e: pexpr) (st1: estate) : itree E Z :=
    let vv := sem_pexpr true (p_globs pr) st1 e in                               
    match vv with
    | Ok (Vint zz) => ret zz
-   | _ => throw ErrType end).                       
+   | _ => throw ErrType end.                       
+
+Definition mk_EvalBound {E} `{StackE -< E} `{ErrState -< E}
+  (e: pexpr) : itree E Z :=
+   st1 <- trigger GetTopState ;;
+   err_mk_EvalBound e st1.
+
+
+(** AssgnE *)
+
+(* terminating *)
+Definition ret_mk_AssgnE 
+  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) 
+  (st1: estate) : itree void1 (exec estate) := Ret
+   (Let v := sem_pexpr true (p_globs pr) st1 e in 
+    Let v' := truncate_val ty v in
+    write_lval true (p_globs pr) x v' st1).
+
+Definition err_mk_AssgnE {E: Type -> Type} `{ErrState -< E}
+  (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) 
+  (st1: estate) : itree E estate :=
+    v <- err_result _ _ (sem_pexpr true (p_globs pr) st1 e) ;;
+    v' <- err_result _ _ (truncate_val ty v) ;;
+    err_result _ _ (write_lval true (p_globs pr) x v' st1).
 
 Definition mk_AssgnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) :
-  itree E unit :=
-  ITree.bind (trigger GetTopState) (fun st1 =>
-    v <- err_result _ _ (sem_pexpr true (p_globs pr) st1 e) ;;
-    v' <- err_result _ _ (truncate_val ty v) ;;
-    st2 <- err_result _ _ (write_lval true (p_globs pr) x v' st1) ;; 
-    trigger (UpdateTopState st2)).
+   itree E unit :=
+    st1 <- trigger GetTopState ;;
+    st2 <- err_mk_AssgnE x tg ty e st1 ;;
+    trigger (UpdateTopState st2).
+
+(** OpnE *)
+
+(* terminating *)
+Definition ret_mk_OpnE (xs: lvals) (tg: assgn_tag) (o: sopn)
+   (es : pexprs) (st1: estate) : itree void1 (exec estate) := Ret
+    (sem_sopn (p_globs pr) o st1 xs es).
+
+Definition err_mk_OpnE {E: Type -> Type} `{ErrState -< E}
+  (xs: lvals) (tg: assgn_tag) (o: sopn)
+   (es : pexprs) (st1: estate) : itree E estate :=
+    err_result _ _ (sem_sopn (p_globs pr) o st1 xs es).
 
 Definition mk_OpnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (tg: assgn_tag) (o: sopn)
-   (es : pexprs) : itree E unit :=
-  ITree.bind (trigger GetTopState) (fun st1 =>
-    st2 <- err_result _ _ (sem_sopn (p_globs pr) o st1 xs es) ;;
-    trigger (UpdateTopState st2)).
+  (es : pexprs) : itree E unit :=
+   st1 <- trigger GetTopState ;;
+   st2 <- err_mk_OpnE xs tg o es st1 ;;
+   trigger (UpdateTopState st2).
+  
+(** SyscallE *)
 
+(* terminating *)
+Definition ret_mk_SyscallE (xs: lvals) (o: syscall_t)
+  (es: pexprs) (st1: estate) : itree void1 (exec estate) := Ret 
+   (Let ves := sem_pexprs true (p_globs pr) st1 es in 
+    Let r3 := exec_syscall st1.(escs) st1.(emem) o ves in 
+    match r3 with
+    | (scs, m, vs) =>
+        write_lvals true (p_globs pr)
+                    (with_scs (with_mem st1 m) scs) xs vs end).
+
+Definition err_mk_SyscallE {E: Type -> Type} `{ErrState -< E}
+  (xs: lvals) (o: syscall_t) (es: pexprs) (st1: estate) :
+  itree E estate :=
+    ves <- err_result _ _ (sem_pexprs true (p_globs pr) st1 es ) ;;
+    r3 <- err_result _ _ (exec_syscall st1.(escs) st1.(emem) o ves) ;;
+    match r3 with
+    | (scs, m, vs) =>
+        err_result _ _ (write_lvals true (p_globs pr)
+                       (with_scs (with_mem st1 m) scs) xs vs) end.
+ 
 Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (o: syscall_t) (es: pexprs) :
   itree E unit :=
-  ITree.bind (trigger GetTopState) (fun st1 =>
-    ves <- err_result _ _ (sem_pexprs true (p_globs pr) st1 es ) ;;
-    rrr <- err_result _ _ (exec_syscall st1.(escs) st1.(emem) o ves) ;;
-    match rrr with
-    | (scs, m, vs) =>
-        st2 <- err_result _ _
-                 (write_lvals true (p_globs pr)
-                    (with_scs (with_mem st1 m) scs) xs vs ) ;;
-        trigger (UpdateTopState st2) end).
-    
+    st1 <- trigger GetTopState ;;
+    st2 <- err_mk_SyscallE xs o es st1 ;;
+    trigger (UpdateTopState st2).
+
+(** InstrE handler *)
 Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} : InstrE ~> itree E :=
   fun _ e =>
@@ -409,13 +516,13 @@ Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
     | AssgnE xs tg ty es => mk_AssgnE xs tg ty es
     | OpnE xs tg o es => mk_OpnE xs tg o es
     | SyscallE xs o es => mk_SyscallE xs o es                              
-    | EvalCond e => mk_EvalCond E e
-    | EvalBound e => mk_EvalBound E e
-    | WriteIndex x z => mk_WriteIndex E x z                               
+    | EvalCond e => mk_EvalCond e
+    | EvalBound e => mk_EvalBound e
+    | WriteIndex x z => mk_WriteIndex x z                               
     | InitState fn es =>
-        f <- err_opt _ (get_FunDef fn) ;; mk_InitState E f es
+        f <- err_get_FunDef fn ;; mk_InitState f es
     | SetDests fn xs =>
-        f <- err_opt _ (get_FunDef fn) ;; mk_SetDests E f xs
+        f <- err_get_FunDef fn ;; mk_SetDests f xs
     end.                                            
         
 Definition ext_handle_InstrE {E: Type -> Type} `{StackE -< E}
@@ -543,6 +650,83 @@ Definition evalE_cmd {E} {X: ErrState -< E}
   (c: cmd) (ss: estack) : itree E estack :=
   forget_sndA (@evalEU_cmd E X) c ss.
 
+End EventSem.
+
+(*********************************************************************)
+(*********************************************************************)
+
+(** Auxiliary functions for recursion on list (seq) *)
+
+Fixpoint st_cmd_map_r {E} (R: instr_r -> estate -> itree E estate)
+  (c: cmd) (st: estate) : itree E estate := 
+  match c with 
+  | nil => Ret st 
+  | (MkI _ i) :: c' => st' <- R i st ;; st_cmd_map_r R c' st'
+  end.
+
+Fixpoint eval_for {E} `{ErrState -< E}
+  (R: cmd -> estate -> itree E estate)                
+  (i: var_i) (c: cmd)
+  (ls: list Z) (st: estate) : itree E estate :=
+    match ls with
+    | nil => fun st' => ret st'
+    | (w :: ws) => fun st' =>
+                     st1 <- err_mk_WriteIndex i w st' ;;
+                     st2 <- R c st1 ;;
+                     eval_for R i c ws st2
+    end st.
+
+
+(** full interpreter with double recursion *)
+Section With_REC.
+
+Local Notation continue_loop st := (ret (inl st)).
+Local Notation exit_loop st := (ret (inr st)).
+(* Local Notation rec_call := (trigger_inl1). *)
+
+(* introduce events *)
+Fixpoint eval_instr_call {E} `{ErrState -< E} (i : instr_r) (st: estate) :
+    itree (callE (funname * values) values +' E) estate := 
+  let R := st_cmd_map_r eval_instr_call in 
+  match i with 
+  | Cassgn x tg ty e => err_mk_AssgnE x tg ty e st
+  | Copn xs tg o es => err_mk_OpnE xs tg o es st
+  | Csyscall xs o es => err_mk_SyscallE xs o es st                          
+                                        
+  | Cif e c1 c2 =>
+      b <- err_mk_EvalCond e st ;;
+      if b then R c1 st else R c2 st 
+                            
+  | Cfor i (d, lo, hi) c => 
+          vlo <- err_mk_EvalBound lo st ;;
+          vhi <- err_mk_EvalBound hi st ;;
+          eval_for R i c (wrange d vlo vhi) st
+
+  | Cwhile a c1 e c2 => 
+      ITree.iter (fun st0 =>
+           st1 <- R c1 st0 ;;          
+           b <- err_mk_EvalCond e st1 ;;
+           if b then st2 <- R c2 st1 ;; continue_loop st2
+           else exit_loop st1) st
+                                         
+  | Ccall xs fn es =>
+      f <- err_get_FunDef fn ;;
+      va <- err_eval_Args f es st ;;
+      vs <- trigger_inl1 (Call (fn, va)) ;;
+      (* PROBLEM: we still need the calle state, but the function does
+      not return it *)
+      (* the first st is wrong *)
+      err_reinstate_caller f xs vs st st 
+  end.
+
+
+End With_REC.
+
+End WSW.
+
+End Lang.
+(** END *)
+
 
 (*
 Definition mk_SetDests E `{StackE -< E} `{ErrState -< E}
@@ -590,9 +774,3 @@ Definition mk_InitState E `{StackE -< E} `{ErrState -< E}
          let m1 := st0.(emem) in  *)
 *)       
 
-End EventSem.
-
-End WSW.
-
-End Lang.
-(** END *)
