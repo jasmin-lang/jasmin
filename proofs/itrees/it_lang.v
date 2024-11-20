@@ -776,7 +776,7 @@ Section With_REC_flat.
 
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
-(* Local Notation rec_call := (trigger_inl1). *)
+Local Notation rec_call x := (trigger_inl1 (Call x)). 
 
 (* introduce events *)
 Fixpoint eval_instr_call {E} `{ErrState -< E} (i : instr_r) (st: estate) :
@@ -806,7 +806,7 @@ Fixpoint eval_instr_call {E} `{ErrState -< E} (i : instr_r) (st: estate) :
   | Ccall xs fn es =>
       f <- err_get_FunDef fn ;;
       va <- err_eval_Args f es st ;;
-      vst <- trigger_inl1 (Call (f, (va, st))) ;;
+      vst <- rec_call (f, (va, st)) ;;
       (* PROBLEM: we still need the calle state, so the function needs
       to return it *)
       err_reinstate_caller f xs (fst vst) (snd vst) st 
@@ -1041,6 +1041,103 @@ Definition pmeval_cmd1 (i: instr) (st: estate) :
   pmeval_cmd (i :: nil) st.
 
 End With_MREC_plain.
+
+
+(** flat interpreter with double recursion *)
+Section With_REC_plain.
+
+Local Notation continue_loop st := (ret (inl st)).
+Local Notation exit_loop st := (ret (inr st)).
+Local Notation rec_call x := (trigger_inl1 (Call x)). 
+
+(* introduce events *)
+Fixpoint peval_instr_call (i : instr_r) (st: estate) :
+  execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
+                +' void1))
+    estate := 
+  let R := pst_cmd_map_r peval_instr_call in 
+  match i with 
+  | Cassgn x tg ty e => ret_mk_AssgnE x tg ty e st
+  | Copn xs tg o es => ret_mk_OpnE xs tg o es st
+  | Csyscall xs o es => ret_mk_SyscallE xs o es st                          
+
+  | Cif e c1 c2 =>
+      b <- ret_mk_EvalCond e st ;;
+      if b then R c1 st else R c2 st 
+
+  | Cfor i (d, lo, hi) c => 
+          vlo <- ret_mk_EvalBound lo st ;;
+          vhi <- ret_mk_EvalBound hi st ;;
+          pmeval_for R i c (wrange d vlo vhi) st
+
+  | Cwhile a c1 e c2 => 
+      execT_iter _ _ (fun st0 =>
+           st1 <- R c1 st0 ;;          
+           b <- ret_mk_EvalCond e st1 ;;
+           if b then st2 <- R c2 st1 ;; continue_loop st2 
+           else exit_loop st1) st
+
+  | Ccall xs fn es =>
+      f <- ret_get_FunDef fn ;; 
+      va <- ret_eval_Args f es st ;;      
+      vst <- rec_call (f, (va, st)) ;; 
+      (* PROBLEM: we still need the calle state, so the function needs
+      to return it *)
+      ret_reinstate_caller f xs (fst vst) (snd vst) st   
+  end.
+
+Definition peval_fcall_body :
+  (FunDef * (values * estate)) -> 
+  execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
+         +' void1))
+        (values * estate) :=
+  fun fvst =>
+    let f := fst fvst in
+    let va := fst (snd fvst) in
+    let st := snd (snd fvst) in 
+    st1 <- ret_init_state f va st ;; 
+    let c := funCode f in 
+    st2 <- pst_cmd_map_r peval_instr_call c st1 ;; 
+    vs <- ret_return_val f st2 ;;
+    ret (vs, st2).
+
+Fixpoint peval_instr (i : instr_r) (st: estate) :
+  execT (itree void1) estate := 
+  let R := pst_cmd_map_r peval_instr in 
+  match i with 
+  | Cassgn x tg ty e => ret_mk_AssgnE x tg ty e st
+  | Copn xs tg o es => ret_mk_OpnE xs tg o es st
+  | Csyscall xs o es => ret_mk_SyscallE xs o es st                          
+
+  | Cif e c1 c2 =>
+      b <- ret_mk_EvalCond e st ;;
+      if b then R c1 st else R c2 st 
+
+  | Cfor i (d, lo, hi) c => 
+          vlo <- ret_mk_EvalBound lo st ;;
+          vhi <- ret_mk_EvalBound hi st ;;
+          pmeval_for R i c (wrange d vlo vhi) st
+
+  | Cwhile a c1 e c2 => 
+      execT_iter _ _ (fun st0 =>
+           st1 <- R c1 st0 ;;          
+           b <- ret_mk_EvalCond e st1 ;;
+           if b then st2 <- R c2 st1 ;; continue_loop st2 
+           else exit_loop st1) st
+
+  | Ccall xs fn es =>
+      f <- ret_get_FunDef fn ;; 
+      va <- ret_eval_Args f es st ;;      
+      vst <- rec peval_fcall_body (f, (va, st)) ;; 
+      ret_reinstate_caller f xs (fst vst) (snd vst) st   
+  end.
+
+(* MAIN: denotational interpreter *)
+Definition peval_flat_cmd (c: cmd) (st: estate) :
+  execT (itree void1) estate := pst_cmd_map_r peval_instr c st. 
+
+End With_REC_plain.
+
 
 End WSW.
 
