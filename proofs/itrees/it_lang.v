@@ -210,7 +210,7 @@ Fixpoint denote_for {E} `{FunE -< E} `{InstrE -< E}
 
 (**********************************************************************)
 (** denotational interpreter with mutual recursion *)
-Section With_MREC.
+Section With_MREC_mod.
 Context (Eff : Type -> Type)
         (HasFunE : FunE -< Eff)
         (HasInstrE : InstrE -< Eff).   
@@ -266,7 +266,7 @@ Definition denote_cmd (c: cmd) : itree Eff unit :=
 Definition denote_cmd1 (i: instr) : itree Eff unit :=
   denote_cmd (i :: nil).
 
-End With_MREC.
+End With_MREC_mod.
 
 
 (********** EVENT SEMANTICS ******************************************)
@@ -374,13 +374,14 @@ Definition err_return_val {E} `{ErrState -< E}
       (mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
 
 Definition err_reinstate_caller {E} `{ErrState -< E}
-  (f: FunDef) (xs: lvals) (vres: seq value) (st0 st1: estate) :
+  (f: FunDef) (xs: lvals) (vres: seq value)
+  (st_ee st_er: estate) :
   itree E estate := 
-  let scs2 := st0.(escs) in
-  let m2 := finalize f.(f_extra) st0.(emem) in      
+  let scs2 := st_ee.(escs) in
+  let m2 := finalize f.(f_extra) st_ee.(emem) in      
   err_result _ _
          (write_lvals (~~direct_call) (p_globs pr)
-                      (with_scs (with_mem st1 m2) scs2) xs vres).
+                      (with_scs (with_mem st_er m2) scs2) xs vres).
   
 Definition mk_SetDests {E} `{StackE -< E} `{ErrState -< E}
   (f: FunDef) (xs: lvals) : itree E unit :=
@@ -620,8 +621,14 @@ Definition evalE1_cmd {E} {X: ErrState -< E}
   | _ => throw ErrType end.              
 
 (* MAIN: full evaluation returning an optional state *)
-Definition eval_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
-  @interp_Err void1 estate (evalE1_cmd c (st::nil)).
+Definition eval_cmd (c: cmd) (ss: estack) : itree void1 (option estate) := 
+  @interp_Err void1 estate (evalE1_cmd c ss).
+
+Definition eval121_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
+  eval_cmd c (st::nil).
+
+Definition eval0_cmd (c: cmd) : itree void1 (option estate) := 
+  eval_cmd c nil.
 
 
 (************* SUPERFLUOUS *****************************************)
@@ -679,8 +686,8 @@ Fixpoint eval_for {E} `{ErrState -< E}
     end st.
 
 
-(** full interpreter with double recursion *)
-Section With_REC.
+(** flat interpreter with double recursion *)
+Section With_REC_flat.
 
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
@@ -774,7 +781,75 @@ Definition eval_flat_cmd (c: cmd) (st: estate) : itree void1 (option estate) :=
   @interp_Err void1 estate (evalE_flat_cmd c st).
 
 
-End With_REC.
+End With_REC_flat.
+
+
+(* mutual recursion events *)
+Variant FCState : Type -> Type :=
+ | FLCode (c: cmd) (st: estate) : FCState estate
+ | FFCall (xs: lvals) (f: funname) (es: pexprs) (st: estate) : FCState estate.
+
+(** flat interpreter with mutual recursion *)
+Section With_MREC_flat.
+
+Local Notation continue_loop st := (ret (inl st)).
+Local Notation exit_loop st := (ret (inr st)).
+Local Notation rec_call := (trigger_inl1). 
+
+Fixpoint meval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
+  itree (FCState +' E) estate := 
+  let R := st_cmd_map_r meval_instr in
+  match i with
+  | Cassgn x tg ty e => err_mk_AssgnE x tg ty e st
+  | Copn xs tg o es => err_mk_OpnE xs tg o es st
+  | Csyscall xs o es => err_mk_SyscallE xs o es st                          
+                                        
+  | Cif e c1 c2 =>
+      b <- err_mk_EvalCond e st ;;
+      if b then R c1 st else R c2 st 
+                            
+  | Cfor i (d, lo, hi) c => 
+          vlo <- err_mk_EvalBound lo st ;;
+          vhi <- err_mk_EvalBound hi st ;;
+          eval_for R i c (wrange d vlo vhi) st
+
+  | Cwhile a c1 e c2 => 
+      ITree.iter (fun st0 =>
+           st1 <- R c1 st0 ;;          
+           b <- err_mk_EvalCond e st1 ;;
+           if b then st2 <- R c2 st1 ;; continue_loop st2
+           else exit_loop st1) st
+  
+  | Ccall xs fn es => rec_call (FFCall xs fn es st)      
+  end.
+
+Definition meval_fcall {E} `{ErrState -< E}
+  (xs: lvals) (fn: funname) (es: pexprs) (st0: estate) :
+  itree (FCState +' E) estate :=
+  f <- err_get_FunDef fn ;;
+  va <- err_eval_Args f es st0 ;;
+  st1 <- err_init_state f va st0 ;;
+  let c := funCode f in
+  rec_call (FLCode c st1) ;;
+  vs <- err_return_val f st1 ;;
+  err_reinstate_caller f xs vs st1 st0.
+
+Definition meval_cstate {E} `{ErrState -< E} :
+  FCState ~> itree (FCState +' E) :=           
+  fun _ fs => match fs with
+              | FLCode c st => st_cmd_map_r meval_instr c st
+              | FFCall xs fn es st => meval_fcall xs fn es st      
+              end.      
+
+Definition meval_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
+  itree E estate :=
+  mrec meval_cstate (FLCode c st).
+
+Definition meval_cmd1 {E} `{ErrState -< E}
+  (i: instr) (st: estate) : itree E estate :=
+  meval_cmd (i :: nil) st.
+
+End With_MREC_flat.
 
 End WSW.
 
