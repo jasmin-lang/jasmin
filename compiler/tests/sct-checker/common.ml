@@ -9,7 +9,6 @@ module Arch =
        (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch))
 
 let load_file name =
-  Utils.nowarning ();
   let open Pretyping in
   try
     name
