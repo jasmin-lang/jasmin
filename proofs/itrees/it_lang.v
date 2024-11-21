@@ -313,8 +313,7 @@ End With_MREC_mod.
 (********** EVENT SEMANTICS ******************************************)
 
 Section WSW.
-Context {wsw: WithSubWord}.
-   
+Context {wsw: WithSubWord}.   
 Context
   (dc: DirectCall)
   (syscall_state : Type)
@@ -323,8 +322,10 @@ Context
   (sip : SemInstrParams asm_op syscall_state)
   (pT : progT)
   (scP : semCallParams)
-  (pr : prog)
   (ev : extra_val_t).
+
+Section OneProg.  
+Context (pr : prog).
 
 
 (***** FUN-READER SEMANTICS ******************************************)
@@ -693,32 +694,32 @@ Definition interp_StackE {E: Type -> Type} `{ErrState -< E} {A: Type}
 (********* JASMIN INTERPRETERS *****************************************)
 
 (* evaluation abstracting from stack and errors *)
-Definition evalSE_cmd E `{ErrState -< E}
+Definition evalSE_cmd {E} `{ErrState -< E}
   (c: cmd) : itree (StackE +' E) unit :=
   interp_HighE (denote_cmd _ _ _ c).
 
 (* evaluation abstracting from errors, return value paired with unit
 *)
-Definition evalEU_cmd E `{ErrState -< E}
+Definition evalEU_cmd {E} `{ErrState -< E}
   (c: cmd) : stateT estack (itree E) unit :=
-  interp_StackE (evalSE_cmd E c).
+  interp_StackE (evalSE_cmd c).
 
 (* evaluation abstracting from errors, returning a state *)
 Definition evalE1_cmd {E} {X: ErrState -< E} 
   (c: cmd) (ss: estack) : itree E estate := 
-  ss <- evalEU_cmd E c ss ;;
+  ss <- evalEU_cmd c ss ;;
   match ss with
   | (st :: nil, _) => ret st
   | _ => throw ErrType end.              
 
 (* MAIN: full evaluation returning an optional state *)
-Definition eval_cmd (c: cmd) (ss: estack) : itree void1 (option estate) := 
-  @interp_Err void1 estate (evalE1_cmd c ss).
+Definition eval_cmd {E} (c: cmd) (ss: estack) : itree E (option estate) := 
+  @interp_Err E estate (evalE1_cmd c ss).
 
-Definition eval121_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
+Definition eval121_cmd {E} (c: cmd) (st: estate) : itree E (option estate) := 
   eval_cmd c (st::nil).
 
-Definition eval0_cmd (c: cmd) : itree void1 (option estate) := 
+Definition eval0_cmd {E} (c: cmd) : itree E (option estate) := 
   eval_cmd c nil.
 
 
@@ -729,9 +730,9 @@ Definition evalSE_gen_cmd E `{StackE -< E} `{ErrState -< E}
   interp_HighE (denote_cmd _ _ _ c).
 
 (* full evaluation, return value paired with unit *)
-Definition evalU_cmd (c: cmd) :
-  stateT estack (failT (itree void1)) unit := 
-  fun ss => @interp_Err void1 (estack * unit) (evalEU_cmd _ c ss).
+Definition evalU_cmd {E} (c: cmd) :
+  stateT estack (failT (itree E)) unit := 
+  fun ss => @interp_Err E (estack * unit) (evalEU_cmd c ss).
 
 Definition eval2kevalA {E} {R S V}
   (f: R -> S -> itree E V) : ktree E (R * S) V :=
@@ -866,8 +867,8 @@ Definition evalE_err_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
   itree E estate := st_cmd_map_r eval_instr c st. 
 
 (* MAIN: full evaluation returning an optional state *)
-Definition eval_err_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
-  @interp_Err void1 estate (evalE_err_cmd c st).
+Definition eval_err_cmd {E} (c: cmd) (st: estate) : itree E (option estate) := 
+  @interp_Err E estate (evalE_err_cmd c st).
 
 Definition evalE_fun {E} `{ErrState -< E} :
   (FunDef * (values * estate)) -> 
@@ -944,8 +945,8 @@ Definition mevalE_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
   itree E estate :=
   mrec meval_cstate (FLCode c st).
 
-Definition meval_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
-  @interp_Err void1 estate (mevalE_cmd c st).
+Definition meval_cmd {E} (c: cmd) (st: estate) : itree E (option estate) := 
+  @interp_Err E estate (mevalE_cmd c st).
 
 Definition mevalE_fun {E} `{ErrState -< E} :
   (FunDef * (values * estate)) -> 
@@ -1013,8 +1014,8 @@ Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
 Local Notation rec_call := (trigger_inl1). 
 
-Fixpoint pmeval_instr (i : instr_r) (st: estate) :
-  execT (itree (PCState +' void1)) estate := 
+Fixpoint pmeval_instr {E} (i : instr_r) (st: estate) :
+  execT (itree (PCState +' E)) estate := 
   let R := pst_cmd_map_r pmeval_instr in
   match i with
   | Cassgn x tg ty e => ret_mk_AssgnE x tg ty e st
@@ -1039,9 +1040,9 @@ Fixpoint pmeval_instr (i : instr_r) (st: estate) :
 
   | Ccall xs fn es => rec_call (PFCall xs fn es st) end.
 
-Definition pmeval_fcall  
+Definition pmeval_fcall {E}  
   (xs: lvals) (fn: funname) (es: pexprs) (st0: estate) :
-  execT (itree (PCState +' void1)) estate :=
+  execT (itree (PCState +' E)) estate :=
   f <- ret_get_FunDef fn ;;
   va <- ret_eval_Args f es st0 ;;
   st1 <- ret_init_state f va st0 ;;
@@ -1050,23 +1051,23 @@ Definition pmeval_fcall
   vs <- ret_return_val f st1 ;;
   ret_reinstate_caller f xs vs st1 st0.
 
-Definition pmeval_cstate : PCState ~> itree (PCState +' void1) :=           
+Definition pmeval_cstate {E} : PCState ~> itree (PCState +' E) :=           
   fun _ fs => match fs with
               | PLCode c st => pst_cmd_map_r pmeval_instr c st
               | PFCall xs fn es st => pmeval_fcall xs fn es st      
               end.      
 
-Definition pmeval_cmd (c: cmd) (st: estate) :
-  execT (itree void1) estate :=
+Definition pmeval_cmd {E} (c: cmd) (st: estate) :
+  execT (itree E) estate :=
   mrec pmeval_cstate (PLCode c st).
 
-Definition pmeval_cmd1 (i: instr) (st: estate) :
-  execT (itree void1) estate :=
+Definition pmeval_cmd1 {E} (i: instr) (st: estate) :
+  execT (itree E) estate :=
   pmeval_cmd (i :: nil) st.
 
-Definition pmeval_fun :
+Definition pmeval_fun {E} :
   (FunDef * (values * estate)) -> 
-  execT (itree void1) (values * estate) :=
+  execT (itree E) (values * estate) :=
   fun fvst =>
     let '(f, (va, st)) := fvst in
     st1 <- ret_init_state f va st ;;
@@ -1086,9 +1087,9 @@ Local Notation exit_loop st := (ret (inr st)).
 Local Notation rec_call x := (trigger_inl1 (Call x)). 
 
 (* introduce events *)
-Fixpoint peval_instr_call (i : instr_r) (st: estate) :
+Fixpoint peval_instr_call {E} (i : instr_r) (st: estate) :
   execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
-                +' void1))
+                +' E))
     estate := 
   let R := pst_cmd_map_r peval_instr_call in 
   match i with 
@@ -1121,10 +1122,10 @@ Fixpoint peval_instr_call (i : instr_r) (st: estate) :
       ret_reinstate_caller f xs (fst vst) (snd vst) st   
   end.
 
-Definition peval_fcall_body :
+Definition peval_fcall_body {E} :
   (FunDef * (values * estate)) -> 
   execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
-         +' void1))
+         +' E))
         (values * estate) :=
   fun fvst =>
     let '(f, (va, st)) := fvst in
@@ -1134,8 +1135,8 @@ Definition peval_fcall_body :
     vs <- ret_return_val f st2 ;;
     ret (vs, st2).
 
-Fixpoint peval_instr (i : instr_r) (st: estate) :
-  execT (itree void1) estate := 
+Fixpoint peval_instr {E} (i : instr_r) (st: estate) :
+  execT (itree E) estate := 
   let R := pst_cmd_map_r peval_instr in 
   match i with 
   | Cassgn x tg ty e => ret_mk_AssgnE x tg ty e st
@@ -1166,12 +1167,12 @@ Fixpoint peval_instr (i : instr_r) (st: estate) :
   end.
 
 (* MAIN: denotational interpreter *)
-Definition peval_flat_cmd (c: cmd) (st: estate) :
-  execT (itree void1) estate := pst_cmd_map_r peval_instr c st. 
+Definition peval_flat_cmd {E} (c: cmd) (st: estate) :
+  execT (itree E) estate := pst_cmd_map_r peval_instr c st. 
 
-Definition peval_fun :
+Definition peval_fun {E} :
   (FunDef * (values * estate)) -> 
-  execT (itree void1) (values * estate) :=
+  execT (itree E) (values * estate) :=
   fun fvst =>
     let '(f, (va, st)) := fvst in
     st1 <- ret_init_state f va st ;; 
@@ -1181,6 +1182,8 @@ Definition peval_fun :
     ret (vs, st2).
 
 End With_REC_flat.
+
+End OneProg.
 
 
 Section CMD_IND.
@@ -1225,10 +1228,9 @@ Definition cmd_Ind := cmd_IndF (instr_Ind instr_r_Ind).
 End CMD_IND.
 
 
-
 Section GEN_test1.
 
-Context (p1 p2 : prog)
+Context (pr1 pr2 : prog)
         (PR : forall T, T -> T -> Prop).
 
 Local Notation RS := (PR estate).
