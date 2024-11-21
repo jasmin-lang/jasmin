@@ -830,7 +830,7 @@ Definition eval_fcall_body {E} `{ErrState -< E} :
     st2 <- st_cmd_map_r eval_instr_call c st1 ;; 
     vs <- err_return_val f st2 ;;
     ret (vs, st2).
-    
+
 Fixpoint eval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
     itree E estate := 
   let R := st_cmd_map_r eval_instr in 
@@ -869,6 +869,13 @@ Definition evalE_err_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
 (* MAIN: full evaluation returning an optional state *)
 Definition eval_err_cmd {E} (c: cmd) (st: estate) : itree E (option estate) := 
   @interp_Err E estate (evalE_err_cmd c st).
+
+Definition evalE_fun_ {E} `{ErrState -< E}
+  (fn: funname) (vs: values) (st: estate) : 
+  itree (callE (FunDef * (values * estate)) (values * estate) +' E)
+        (values * estate) :=
+  f <- err_get_FunDef fn ;;
+  eval_fcall_body (f, (vs, st)).
 
 Definition evalE_fun {E} `{ErrState -< E} :
   (FunDef * (values * estate)) -> 
@@ -1266,20 +1273,54 @@ Local Notation Tr_cmd c := (map (Tr_i Tr_ir) c).
 
 Section GEN_test1.
 
-Context (E: Type -> Type) 
+Context (E: Type -> Type)
+        (EE: ErrState -< E)             
         (pr1 pr2 : prog)
         (PR : forall T, T -> T -> Prop).
+Context (TR_E : forall (E: Type -> Type) T1 T2,
+            E T1 -> E T2 -> Prop)
+        (VR_E : forall (E: Type -> Type) T1 T2,
+            E T1 -> T1 -> E T2 -> T2 -> Prop).
 
 Local Notation RS := (PR estate).
 Local Notation RV := (PR values).
-Local Notation FA := (funname * values)%type.
+Local Notation VS := (values * estate)%type.
+Local Notation FVS := (funname * VS)%type.
 
-Notation RFV := (fun (fn_vs1 fn_vs2 : FA) => 
-  (fn_vs1.1 = fn_vs2.1 /\ RV fn_vs1.2 fn_vs2.2)).
+Notation RVS := (fun (vs_st1 vs_st2 : VS) => 
+  (RV vs_st1.1 vs_st2.1 /\ RS vs_st1.2 vs_st2.2)).
+Notation RFVS := (fun (fvs1 fvs2 : FVS) => 
+  (fvs1.1 = fvs2.1 /\ RVS fvs1.2 fvs2.2)).
+Context (rvs_def : PR VS = RVS)
+        (rfvs_def : PR FVS = RFVS).  
 
-Context (rfv_def : PR FA = RFV).
+Definition TR_D2 {T1 T2} (d1 : callE FVS VS T1)
+                         (d2 : callE FVS VS T2) : Prop :=
+  match (d1, d2) with
+  | (Call f1, Call f2) => RFVS f1 f2 end.               
 
+Program Definition VR_D2 {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
+                                 (d2 : callE FVS VS T2) (t2: T2) : Prop.
+  dependent destruction d1.
+  dependent destruction d2.
+  exact (RVS t1 t2).
+Defined.
 
+Lemma comp_gen_ok (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+  RV vs1 vs2 ->
+  RS st1 st2 ->
+  @rutt (callE (FunDef * (values * estate)) (values * estate) +' E) _
+        _ _ 
+    (TR_E _) (VR_E _)
+    (fun a1 a2 => @VR_D2 _ _ (Call (fn, (vs1, st1))) a1
+                             (Call (fn, (vs2, st2))) a2)  
+    (evalE_fun_ pr1 fn vs1 st1) (evalE_fun_ pr2 fn vs2 st2).
+  intros.
+  unfold evalE_fun_; simpl.
+Admitted. 
+  
+
+  
 (*
 Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
         (hcompe : forall s1 s2 e, RS s1 s2 -> 
