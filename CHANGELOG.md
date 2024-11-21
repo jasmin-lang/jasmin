@@ -1,4 +1,4 @@
-# [unreleased]
+# Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features
 
@@ -39,6 +39,8 @@
   ([PR #959](https://github.com/jasmin-lang/jasmin/pull/959);
   fixes [#943](https://github.com/jasmin-lang/jasmin/issues/943)).
 
+## Other changes
+
 - Change the semantics of `SMULL` and `UMULL` arm instructions to make them
   consistent with arm documentation. They return low bits then high bits
   instead of high bits then low bits.
@@ -50,8 +52,6 @@
     `(hi, lo) = e1 * e2;`
   ([PR #958](https://github.com/jasmin-lang/jasmin/pull/958);
   fixes [#637](https://github.com/jasmin-lang/jasmin/issues/637)).
-
-## Other changes
 
 - Improve description of x86 AVX shift instructions; this changes the type of
   the vectorized shift operations: the second argument is now a 128-bit value
