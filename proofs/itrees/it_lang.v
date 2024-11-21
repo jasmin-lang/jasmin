@@ -1092,9 +1092,7 @@ Definition peval_fcall_body :
          +' void1))
         (values * estate) :=
   fun fvst =>
-    let f := fst fvst in
-    let va := fst (snd fvst) in
-    let st := snd (snd fvst) in 
+    let '(f, (va, st)) := fvst in
     st1 <- ret_init_state f va st ;; 
     let c := funCode f in 
     st2 <- pst_cmd_map_r peval_instr_call c st1 ;; 
@@ -1136,7 +1134,104 @@ Fixpoint peval_instr (i : instr_r) (st: estate) :
 Definition peval_flat_cmd (c: cmd) (st: estate) :
   execT (itree void1) estate := pst_cmd_map_r peval_instr c st. 
 
+Definition peval_fun :
+  (FunDef * (values * estate)) -> 
+  execT (itree void1) (values * estate) :=
+  fun fvst =>
+    let '(f, (va, st)) := fvst in
+    st1 <- ret_init_state f va st ;; 
+    let c := funCode f in 
+    st2 <- peval_flat_cmd c st1 ;; 
+    vs <- ret_return_val f st2 ;;
+    ret (vs, st2).
+
 End With_REC_plain.
+
+
+Section CMD_IND.
+
+Context (Pr: instr_r -> Prop) (Pi: instr -> Prop) (Pc: cmd -> Prop).
+Context (Hnil : Pc [::])
+        (Hcons : forall i c, Pi i -> Pc c -> Pc (i::c))
+
+        (Hinstr : forall ii ir, Pr ir -> Pi (MkI ii ir))
+        
+        (Hassgn : forall x tg ty e, Pr (Cassgn x tg ty e))
+        (Hopn : forall x tg o e, Pr (Copn x tg o e))
+        (Hsyscall : forall x sc e, Pr (Csyscall x sc e))
+        (Hif   : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2))
+        (Hfor  : forall i rn c, Pc c -> Pr (Cfor i rn c))
+        (Hwhile : forall a c1 e c2, Pc c1 -> Pc c2 -> Pr (Cwhile a c1 e c2))
+        (Hcall  : forall xs fn es, Pr (Ccall xs fn es)).
+
+Fixpoint cmd_IndF (Hi : forall i, Pi i) (c : cmd) : Pc c := 
+  match c with
+  | [::] => Hnil
+  | i :: c => Hcons i c (Hi i) (cmd_IndF Hi c)
+  end.
+
+Definition instr_Ind (Hr : forall i, Pr i) (i : instr) : Pi i :=
+  match i with MkI ii ir => Hinstr ii ir (Hr ir) end.
+
+Fixpoint instr_r_Ind (ir: instr_r) : Pr ir :=
+  let R := cmd_IndF (instr_Ind instr_r_Ind) in 
+  match ir return Pr ir with
+  | Cassgn x tg ty e => Hassgn x tg ty e 
+  | Copn x tg o e => Hopn x tg o e
+  | Csyscall x sc e => Hsyscall x sc e                        
+  | Cif e c1 c2 => Hif e c1 c2 (R c1) (R c2)
+  | Cfor i rn c => Hfor i rn c (R c)                     
+  | Cwhile a c1 e c2 => Hwhile a c1 e c2 (R c1) (R c2)
+  | Ccall xs fn es => Hcall xs fn es
+  end.
+
+Definition cmd_Ind := cmd_IndF (instr_Ind instr_r_Ind).
+
+End CMD_IND.
+
+
+
+Section GEN_test1.
+
+Context (p1 p2 : prog)
+        (PR : forall T, T -> T -> Prop).
+
+Local Notation RS := (PR estate).
+Local Notation RV := (PR values).
+Local Notation FA := (funname * values)%type.
+
+Notation RFV := (fun (fn_vs1 fn_vs2 : FA) => 
+  (fn_vs1.1 = fn_vs2.1 /\ RV fn_vs1.2 fn_vs2.2)).
+
+Context (rfv_def : PR FA = RFV).
+
+(*
+Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
+        (hcompe : forall s1 s2 e, RS s1 s2 -> 
+           eval_cond s2 (te e) = eval_cond s1 e)
+        (hcompci : forall s1 s2 ci, 
+            RS s1 s2 -> 
+            RS (eval_core s1 ci) (eval_core s2 (tci ci)))
+        (hres : forall fn s1 s2,
+            RS s1 s2 ->
+            (* strengthened to equality *)
+            (get_res s1 fn) = (get_res s2 fn))
+        (hdests : forall s1 s2 v1 v2 xs,
+            RS s1 s2 ->
+            (* removed value condition *)
+            RS (set_dests s1 xs v1) (set_dests s2 xs v2))
+      (*  (hargs : forall s1 s2 es,
+            RS s1 s2 ->
+            RV (eval_args s1 es) (eval_args s2 es)) *)
+        (strhargs : forall s1 s2 es,
+            RS s1 s2 ->
+            (eval_args s1 es) = (eval_args s2 es))
+        (hinit : forall fn vs1 vs2,
+            RV vs1 vs2 ->
+            RS (init_state fn vs1) (init_state fn vs2)).
+*)
+
+End GEN_test1.
 
 
 End WSW.
