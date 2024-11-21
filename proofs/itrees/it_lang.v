@@ -301,6 +301,12 @@ Definition denote_cmd (c: cmd) : itree Eff unit :=
 Definition denote_cmd1 (i: instr) : itree Eff unit :=
   denote_cmd (i :: nil).
 
+Definition denote_fun (fn: funname) (es: pexprs) :
+  itree Eff unit :=
+  trigger (InitState fn es) ;; 
+  c <- trigger (FunCode fn) ;;   
+  denote_cmd c.
+
 End With_MREC_mod.
 
 
@@ -772,7 +778,7 @@ Fixpoint eval_for {E} `{ErrState -< E}
 
 
 (** flat interpreter with double recursion *)
-Section With_REC_flat.
+Section With_REC_error.
 
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
@@ -817,9 +823,7 @@ Definition eval_fcall_body {E} `{ErrState -< E} :
   itree (callE (FunDef * (values * estate)) (values * estate) +' E)
         (values * estate) :=
   fun fvst =>
-    let f := fst fvst in
-    let va := fst (snd fvst) in
-    let st := snd (snd fvst) in 
+    let '(f, (va, st)) := fvst in
     st1 <- err_init_state f va st ;; 
     let c := funCode f in 
     st2 <- st_cmd_map_r eval_instr_call c st1 ;; 
@@ -858,15 +862,25 @@ Fixpoint eval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
   end.
 
 (* denotational interpreter *)
-Definition evalE_flat_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
+Definition evalE_err_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
   itree E estate := st_cmd_map_r eval_instr c st. 
 
 (* MAIN: full evaluation returning an optional state *)
-Definition eval_flat_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
-  @interp_Err void1 estate (evalE_flat_cmd c st).
+Definition eval_err_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
+  @interp_Err void1 estate (evalE_err_cmd c st).
 
+Definition evalE_fun {E} `{ErrState -< E} :
+  (FunDef * (values * estate)) -> 
+  itree E (values * estate) :=
+  fun fvst =>
+    let '(f, (va, st)) := fvst in
+    st1 <- err_init_state f va st ;;
+    let c := funCode f in
+    st2 <- evalE_err_cmd c st1 ;;
+    vs <- err_return_val f st2 ;;
+    ret (vs, st2).
 
-End With_REC_flat.
+End With_REC_error.
 
 
 (* mutual recursion events *)
@@ -875,7 +889,7 @@ Variant FCState : Type -> Type :=
  | FFCall (xs: lvals) (f: funname) (es: pexprs) (st: estate) : FCState estate.
 
 (** flat interpreter with mutual recursion *)
-Section With_MREC_flat.
+Section With_MREC_error.
 
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
@@ -926,15 +940,25 @@ Definition meval_cstate {E} `{ErrState -< E} :
               | FFCall xs fn es st => meval_fcall xs fn es st      
               end.      
 
-Definition meval_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
+Definition mevalE_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
   itree E estate :=
   mrec meval_cstate (FLCode c st).
 
-Definition meval_cmd1 {E} `{ErrState -< E}
-  (i: instr) (st: estate) : itree E estate :=
-  meval_cmd (i :: nil) st.
+Definition meval_cmd (c: cmd) (st: estate) : itree void1 (option estate) := 
+  @interp_Err void1 estate (mevalE_cmd c st).
 
-End With_MREC_flat.
+Definition mevalE_fun {E} `{ErrState -< E} :
+  (FunDef * (values * estate)) -> 
+  itree E (values * estate) :=
+  fun fvst =>
+    let '(f, (va, st)) := fvst in
+    st1 <- err_init_state f va st ;;
+    let c := funCode f in
+    st2 <- mevalE_cmd c st1 ;;
+    vs <- err_return_val f st2 ;;
+    ret (vs, st2).
+
+End With_MREC_error.
 
 
 Fixpoint lpst_cmd_map_r {E}
@@ -983,7 +1007,7 @@ Fixpoint pmeval_for {E}
 
 
 
-Section With_MREC_plain.
+Section With_MREC_flat.
 
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
@@ -1040,11 +1064,22 @@ Definition pmeval_cmd1 (i: instr) (st: estate) :
   execT (itree void1) estate :=
   pmeval_cmd (i :: nil) st.
 
-End With_MREC_plain.
+Definition pmeval_fun :
+  (FunDef * (values * estate)) -> 
+  execT (itree void1) (values * estate) :=
+  fun fvst =>
+    let '(f, (va, st)) := fvst in
+    st1 <- ret_init_state f va st ;;
+    let c := funCode f in
+    st2 <- pmeval_cmd c st1 ;;
+    vs <- ret_return_val f st2 ;;
+    ret (vs, st2).
+
+End With_MREC_flat.
 
 
 (** flat interpreter with double recursion *)
-Section With_REC_plain.
+Section With_REC_flat.
 
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
@@ -1145,7 +1180,7 @@ Definition peval_fun :
     vs <- ret_return_val f st2 ;;
     ret (vs, st2).
 
-End With_REC_plain.
+End With_REC_flat.
 
 
 Section CMD_IND.
