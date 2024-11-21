@@ -1065,6 +1065,16 @@ Definition pmeval_cmd1 {E} (i: instr) (st: estate) :
   execT (itree E) estate :=
   pmeval_cmd (i :: nil) st.
 
+Definition pmeval_fun {E} (fn: funname) (va: values) (st: estate) :
+  execT (itree E) (values * estate) :=
+  f <- ret_get_FunDef fn ;;
+  st1 <- ret_init_state f va st ;;
+  let c := funCode f in
+  st2 <- pmeval_cmd c st1 ;;
+  vs <- ret_return_val f st2 ;;
+  ret (vs, st2).
+
+(*
 Definition pmeval_fun {E} :
   (FunDef * (values * estate)) -> 
   execT (itree E) (values * estate) :=
@@ -1075,6 +1085,7 @@ Definition pmeval_fun {E} :
     st2 <- pmeval_cmd c st1 ;;
     vs <- ret_return_val f st2 ;;
     ret (vs, st2).
+*)
 
 End With_MREC_flat.
 
@@ -1228,9 +1239,35 @@ Definition cmd_Ind := cmd_IndF (instr_Ind instr_r_Ind).
 End CMD_IND.
 
 
+Section TRANSF.
+Context (tr_lval : lval -> lval)
+        (tr_expr : pexpr -> pexpr)
+        (tr_opn : sopn -> sopn)
+        (tr_sysc : syscall_t -> syscall_t).
+
+Definition Tr_i (Th: instr_r -> instr_r) (i: instr) : instr :=
+  match i with MkI ii ir => MkI ii (Th ir) end.  
+
+Fixpoint Tr_ir (i : instr_r) : instr_r :=
+  let R := Tr_i Tr_ir in
+  match i with
+  | Cassgn x tg ty e => Cassgn (tr_lval x) tg ty (tr_expr e)
+  | Copn x tg o es =>
+      Copn (map tr_lval x) tg (tr_opn o) (map tr_expr es)
+  | Csyscall x sc es =>
+      Csyscall (map tr_lval x) (tr_sysc sc) (map tr_expr es)
+  | Cif e c1 c2 => Cif (tr_expr e) (map R c1) (map R c2)
+  | Cfor i rg c => Cfor i rg (map R c)                     
+  | Cwhile a c1 e c2 => Cwhile a (map R c1) (tr_expr e) (map R c2)
+  | Ccall xs fn es => Ccall (map tr_lval xs) fn (map tr_expr es)
+  end.
+Local Notation Tr_cmd c := (map (Tr_i Tr_ir) c).
+
+
 Section GEN_test1.
 
-Context (pr1 pr2 : prog)
+Context (E: Type -> Type) 
+        (pr1 pr2 : prog)
         (PR : forall T, T -> T -> Prop).
 
 Local Notation RS := (PR estate).
@@ -1241,6 +1278,7 @@ Notation RFV := (fun (fn_vs1 fn_vs2 : FA) =>
   (fn_vs1.1 = fn_vs2.1 /\ RV fn_vs1.2 fn_vs2.2)).
 
 Context (rfv_def : PR FA = RFV).
+
 
 (*
 Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
@@ -1270,6 +1308,7 @@ Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
 
 End GEN_test1.
 
+End TRANSF.
 
 End WSW.
 
