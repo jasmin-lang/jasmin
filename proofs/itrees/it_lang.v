@@ -870,13 +870,6 @@ Definition evalE_err_cmd {E} `{ErrState -< E} (c: cmd) (st: estate) :
 Definition eval_err_cmd {E} (c: cmd) (st: estate) : itree E (option estate) := 
   @interp_Err E estate (evalE_err_cmd c st).
 
-Definition evalE_fun_ {E} `{ErrState -< E}
-  (fn: funname) (vs: values) (st: estate) : 
-  itree (callE (FunDef * (values * estate)) (values * estate) +' E)
-        (values * estate) :=
-  f <- err_get_FunDef fn ;;
-  eval_fcall_body (f, (vs, st)).
-
 Definition evalE_fun {E} `{ErrState -< E} :
   (FunDef * (values * estate)) -> 
   itree E (values * estate) :=
@@ -887,6 +880,13 @@ Definition evalE_fun {E} `{ErrState -< E} :
     st2 <- evalE_err_cmd c st1 ;;
     vs <- err_return_val f st2 ;;
     ret (vs, st2).
+
+Definition evalE_fun_ {E} `{ErrState -< E}
+  (fn: funname) (vs: values) (st: estate) : 
+  itree (callE (FunDef * (values * estate)) (values * estate) +' E)
+        (values * estate) :=
+  f <- err_get_FunDef fn ;;
+  eval_fcall_body (f, (vs, st)).
 
 End With_REC_error.
 
@@ -937,9 +937,9 @@ Definition meval_fcall {E} `{ErrState -< E}
   va <- err_eval_Args f es st0 ;;
   st1 <- err_init_state f va st0 ;;
   let c := funCode f in
-  rec_call (FLCode c st1) ;;
-  vs <- err_return_val f st1 ;;
-  err_reinstate_caller f xs vs st1 st0.
+  st2 <- rec_call (FLCode c st1) ;;
+  vs <- err_return_val f st2 ;;
+  err_reinstate_caller f xs vs st2 st0.
 
 Definition meval_cstate {E} `{ErrState -< E} :
   FCState ~> itree (FCState +' E) :=           
@@ -965,6 +965,16 @@ Definition mevalE_fun {E} `{ErrState -< E} :
     st2 <- mevalE_cmd c st1 ;;
     vs <- err_return_val f st2 ;;
     ret (vs, st2).
+
+Definition meval_fun_ {E} `{ErrState -< E}
+  (fn: funname) (va: values) (st0: estate) :
+  itree (FCState +' E) (values * estate) :=
+  f <- err_get_FunDef fn ;;
+  st1 <- err_init_state f va st0 ;;
+  let c := funCode f in
+  st2 <- rec_call (FLCode c st1) ;;
+  vs <- err_return_val f st2 ;;
+  ret (vs, st2).
 
 End With_MREC_error.
 
@@ -1306,7 +1316,7 @@ Program Definition VR_D2 {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
   exact (RVS t1 t2).
 Defined.
 
-Lemma comp_gen_ok (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+Lemma comp_gen_okD (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
   @rutt (callE (FunDef * (values * estate)) (values * estate) +' E) _
@@ -1319,6 +1329,40 @@ Lemma comp_gen_ok (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   unfold evalE_fun_; simpl.
 Admitted. 
   
+Definition TR_D3 {T1 T2} (d1 : FCState T1)
+                         (d2 : FCState T2) : Prop :=
+  match (d1, d2) with
+  | (FLCode c1 st1, FLCode c2 st2) => c2 = Tr_cmd c1 /\ RS st1 st2
+  | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) =>
+      xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2
+  | _ => False   
+  end.               
+
+Program Definition VR_D3 {T1 T2} (d1 : FCState T1) (t1: T1)
+                                 (d2 : FCState T2) (t2: T2) : Prop.
+  dependent destruction d1.
+  - dependent destruction d2.
+    + exact (RS t1 t2).
+    + exact (False).
+  - dependent destruction d2.
+    + exact (False).
+    + exact (RS t1 t2).
+Defined.      
+
+(*
+Lemma comp_gen_okM (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+  RV vs1 vs2 ->
+  RS st1 st2 ->
+  @rutt (FCState +' E) _
+        _ _ 
+    (TR_E _) (VR_E _)
+    (fun a1 a2 => @VR_D3 _ _ (Call (fn, (vs1, st1))) a1
+                             (Call (fn, (vs2, st2))) a2)  
+    (mevalE_fun_ pr1 fn vs1 st1) (mevalE_fun_ pr2 fn vs2 st2).
+  intros.
+  unfold evalE_fun_; simpl.
+Admitted. 
+*)
 
   
 (*
