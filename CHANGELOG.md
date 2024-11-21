@@ -1,6 +1,21 @@
 
 # [unreleased]
 
+## Other changes
+
+- The deprecated legacy interface to the LATEX pretty-printer has been removed
+  ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
+
+- Extraction to EasyCrypt for safety verification is now removed, it was
+  deprecated in the previous release
+  ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
+
+- Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
+  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated
+  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914)).
+
+# Jasmin 2024.07.2 — Nancy, 2024-11-21
+
 ## New features
 
 - Add support for ARM instruction `SBC`
@@ -40,6 +55,8 @@
   ([PR #959](https://github.com/jasmin-lang/jasmin/pull/959);
   fixes [#943](https://github.com/jasmin-lang/jasmin/issues/943)).
 
+## Other changes
+
 - Change the semantics of `SMULL` and `UMULL` arm instructions to make them
   consistent with arm documentation. They return low bits then high bits
   instead of high bits then low bits.
@@ -51,19 +68,6 @@
     `(hi, lo) = e1 * e2;`
   ([PR #958](https://github.com/jasmin-lang/jasmin/pull/958);
   fixes [#637](https://github.com/jasmin-lang/jasmin/issues/637)).
-
-## Other changes
-
-- The deprecated legacy interface to the LATEX pretty-printer has been removed
-  ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
-
-- Extraction to EasyCrypt for safety verification is now removed, it was
-  deprecated in the previous release
-  ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
-
-- Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
-  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated
-  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914)).
 
 - Improve description of x86 AVX shift instructions; this changes the type of
   the vectorized shift operations: the second argument is now a 128-bit value
