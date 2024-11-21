@@ -291,7 +291,7 @@ let pp_inbraces depth p fmt x =
 
 let pp_lv fmt x =
   match L.unloc x with
-  | PLIgnore -> F.fprintf fmt "_"
+  | PLIgnore -> F.fprintf fmt "\\_"
   | PLVar x -> pp_var fmt x
   | PLArray (al, aa, ws, x, e, len) -> pp_arr_access fmt al aa ws x e len
   | PLMem me -> pp_mem_access fmt me 
