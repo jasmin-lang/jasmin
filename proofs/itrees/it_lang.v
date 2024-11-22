@@ -1300,17 +1300,111 @@ Section GEN_test0.
 
 Context (HasFunE : FunE -< E)
         (HasInstrE : InstrE -< E).     
+
+Context
+  (hinit: forall fn es1 es2, es2 = map tr_expr es1 ->
+    @eutt E _ _ eq
+      (trigger (InitState fn es1)) (trigger (InitState fn es2)))
+  (hdests: forall fn xs1 xs2, xs2 = map tr_lval xs1 ->
+    @eutt E _ _ eq 
+      (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2))).
+          
+Lemma adhoc_hinit {F} : forall fn es1 es2,
+  es2 = map tr_expr es1 ->
+  @eutt (F +' E) _ _ eq
+    (trigger (InitState fn es1)) (trigger (InitState fn es2)).
+  intros.
+  have := (hinit fn es1 es2 H); intro I.
+  inv H.
+  unfold trigger in I.
+  eapply eqit_inv_Vis_weak in I; eauto.
+  dependent destruction I.
+  unfold eqeq in H.
+  dependent destruction x.
+  destruct H as [H H0].
+  unfold subevent in H.
+  unfold resum in H.
+  simpl in *.
   
-Lemma comp_gen_okMM (fn: funname)
-  (xs1 xs2: lvals) (es1 es2: pexprs) :
+  unfold trigger.
+  have @A : (@eq Type unit unit) by reflexivity. 
+  eapply eqit_Vis_gen with (p:= A); eauto; simpl.
+  unfold subevent.
+  unfold resum.
+  unfold ReSum_inr.
+  unfold CategoryOps.cat.
+  unfold Cat_IFun.
+  unfold inr_.
+  unfold Inr_sum1.
+  unfold resum.
+  rewrite H.
+  auto.
+  intros.
+  reflexivity.
+Qed.  
+
+Lemma adhoc_hdests {F} : forall fn xs1 xs2,
   xs2 = map tr_lval xs1 ->
-  es2 = map tr_expr es1 -> 
+  @eutt (F +' E) _ _ eq
+    (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2)).
+  intros.
+  have := (hdests fn xs1 xs2 H); intro I.
+  inv H.
+  unfold trigger in I.
+  eapply eqit_inv_Vis_weak in I; eauto.
+  dependent destruction I.
+  unfold eqeq in H.
+  dependent destruction x.
+  destruct H as [H H0].
+  unfold subevent in H.
+  unfold resum in H.
+  simpl in *.
+  
+  unfold trigger.
+  have @A : (@eq Type unit unit) by reflexivity. 
+  eapply eqit_Vis_gen with (p:= A); eauto; simpl.
+  unfold subevent.
+  unfold resum.
+  unfold ReSum_inr.
+  unfold CategoryOps.cat.
+  unfold Cat_IFun.
+  unfold inr_.
+  unfold Inr_sum1.
+  unfold resum.
+  rewrite H.
+  auto.
+  intros.
+  reflexivity.
+Qed.  
+
+
+Lemma comp_gen_okMM (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: xs2 = map tr_lval xs1)
+  (hes: es2 = map tr_expr es1) :  
   eutt eq  
     (denote_fcall E _ _ fn xs1 es1) (denote_fcall E _ _ fn xs2 es2).
   intros.
   unfold denote_fcall; simpl.
-Admitted. 
   
+  eapply eutt_clo_bind with (UU:= eq); eauto.
+  rewrite hes.
+
+  eapply adhoc_hinit; eauto.  
+  
+  intros.
+  eapply eutt_clo_bind with (UU := eq); eauto.
+  reflexivity.
+
+  intros.
+  inv H0.
+  eapply eutt_clo_bind with (UU := eq); eauto.
+  reflexivity.
+  intros.
+  
+  eapply adhoc_hdests; eauto.
+Qed.  
+     
 End GEN_test0.
 
 Section GEN_test1.
