@@ -1538,8 +1538,7 @@ End GEN_MM_L2.
 
 Section GEN_EF.
 
-Context (E: Type -> Type)
-        (HasErr: ErrState -< E).   
+Context (E: Type -> Type).   
 
 Local Notation RS := (PR estate).
 Local Notation RV := (PR values).
@@ -1552,6 +1551,11 @@ Notation RFVS := (fun (fvs1 fvs2 : FVS) =>
   (fvs1.1 = fvs2.1 /\ RVS fvs1.2 fvs2.2)).
 Context (rvs_def : PR VS = RVS)
         (rfvs_def : PR FVS = RFVS).  
+
+
+Section GEN_Err.
+
+Context (HasErr: ErrState -< E).   
 
 Definition TR_D2 {T1 T2} (d1 : callE FVS VS T1)
                          (d2 : callE FVS VS T2) : Prop :=
@@ -1578,34 +1582,6 @@ Lemma comp_gen_okDE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     (evalE_fun_ pr1 fn vs1 st1) (evalE_fun_ pr2 fn vs2 st2).
   intros.
   unfold evalE_fun_; simpl.
-Admitted. 
-
-Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
-  match (pp1, pp2) with
-  | (Ok vt1, Ok vt2) => RVS vt1 vt2
-  | _ => False end.
-Context (exec_rvs_def : PR (exec VS) = exec_RVS).  
-
-Program Definition VR_D2' {T1 T2} (d1 : callE FVS (exec VS) T1) (t1: T1)
-                                  (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
-  dependent destruction d1.
-  dependent destruction d2.
-  exact (exec_RVS t1 t2).
-Defined.
-
-Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
-  RV vs1 vs2 ->
-  RS st1 st2 ->
-  @rutt (callE (FunDef * VS) (exec VS) +' E)
-    (callE (FunDef * VS) (exec VS) +' E)
-    (exec VS) (exec VS)
-    (TR_E (callE (FunDef * VS) (exec VS) +' E))
-    (VR_E (callE (FunDef * VS) (exec VS) +' E))
-    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
-                             (Call (fn, (vs2, st2))) a2)  
-    (eval_fun_ pr1 fn vs1 st1) (eval_fun_ pr2 fn vs2 st2).
-  intros.
-  unfold eval_fun_; simpl.
 Admitted. 
  
 Definition TR_D3 {T1 T2} (d1 : FCState T1)
@@ -1640,6 +1616,39 @@ Lemma comp_gen_okME (fn: funname)
     (meval_fcall pr1 xs1 fn es1 st1) (meval_fcall pr2 xs2 fn es2 st2).
   intros.
   unfold meval_fcall; simpl.
+Admitted. 
+
+End GEN_Err.
+
+
+Section GEN_Flat.
+
+Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
+  match (pp1, pp2) with
+  | (Ok vt1, Ok vt2) => RVS vt1 vt2
+  | _ => False end.
+Context (exec_rvs_def : PR (exec VS) = exec_RVS).  
+
+Program Definition VR_D2' {T1 T2} (d1 : callE FVS (exec VS) T1) (t1: T1)
+                                  (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
+  dependent destruction d1.
+  dependent destruction d2.
+  exact (exec_RVS t1 t2).
+Defined.
+
+Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+  RV vs1 vs2 ->
+  RS st1 st2 ->
+  @rutt (callE (FunDef * VS) (exec VS) +' E)
+    (callE (FunDef * VS) (exec VS) +' E)
+    (exec VS) (exec VS)
+    (TR_E (callE (FunDef * VS) (exec VS) +' E))
+    (VR_E (callE (FunDef * VS) (exec VS) +' E))
+    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
+                             (Call (fn, (vs2, st2))) a2)  
+    (eval_fun_ pr1 fn vs1 st1) (eval_fun_ pr2 fn vs2 st2).
+  intros.
+  unfold eval_fun_; simpl.
 Admitted. 
 
 Definition TR_D4 {T1 T2} (d1 : PCState T1)
@@ -1681,6 +1690,19 @@ Lemma comp_gen_okMF (fn: funname)
   unfold pmeval_fcall; simpl.
 Admitted. 
 
+End GEN_Flat.
+
+End GEN_EF.
+
+End GEN_tests.
+
+End TRANSF.
+
+End WSW.
+
+End Lang.
+(** END *)
+
 (*
 Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
         (hcompe : forall s1 s2 e, RS s1 s2 -> 
@@ -1706,17 +1728,6 @@ Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
             RV vs1 vs2 ->
             RS (init_state fn vs1) (init_state fn vs2)).
 *)
-
-End GEN_EF.
-
-End GEN_tests.
-
-End TRANSF.
-
-End WSW.
-
-End Lang.
-(** END *)
 
 (*
 Fixpoint pst_cmd_map_r {E}
