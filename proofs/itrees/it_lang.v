@@ -301,11 +301,12 @@ Definition denote_cmd (c: cmd) : itree Eff unit :=
 Definition denote_cmd1 (i: instr) : itree Eff unit :=
   denote_cmd (i :: nil).
 
-Definition denote_fun (fn: funname) (es: pexprs) :
+Definition denote_fun (fn: funname) (xs: lvals) (es: pexprs) :
   itree Eff unit :=
   trigger (InitState fn es) ;; 
   c <- trigger (FunCode fn) ;;   
-  denote_cmd c.
+  denote_cmd c ;;
+  trigger (SetDests fn xs).
 
 End With_MREC_mod.
 
@@ -1285,20 +1286,21 @@ Fixpoint Tr_ir (i : instr_r) : instr_r :=
   end.
 Local Notation Tr_cmd c := (map (Tr_i Tr_ir) c).
 
+
 Section GEN_tests.
 
-Context (E: Type -> Type)
-        (HasErr: ErrState -< E)             
-        (pr1 pr2 : prog)
+Context (pr1 pr2 : prog)
         (PR : forall T, T -> T -> Prop).
 Context (TR_E : forall (E: Type -> Type) T1 T2,
             E T1 -> E T2 -> Prop)
         (VR_E : forall (E: Type -> Type) T1 T2,
             E T1 -> T1 -> E T2 -> T2 -> Prop).
 
-Section GEN_test0.
+Section GEN_MM_L1.
 
-Context (HasFunE : FunE -< E)
+Context (E: Type -> Type)
+        (HasErr: ErrState -< E)    
+        (HasFunE : FunE -< E)
         (HasInstrE : InstrE -< E).     
 
 Context
@@ -1404,10 +1406,140 @@ Lemma comp_gen_okMM (fn: funname)
   
   eapply adhoc_hdests; eauto.
 Qed.  
-     
-End GEN_test0.
 
-Section GEN_test1.
+Lemma comp_gen_okMM_L1 (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: xs2 = map tr_lval xs1)
+  (hes: es2 = map tr_expr es1) :  
+  eutt eq  
+    (denote_fun E _ _ fn xs1 es1) (denote_fun E _ _ fn xs2 es2).
+  intros.
+  unfold denote_fun; simpl.
+
+  eapply eutt_clo_bind with (UU:= eq); eauto.
+  intros.
+  
+  eapply eutt_clo_bind with (UU:= eq); eauto.
+  reflexivity.
+  intros.
+  inv H0.
+
+  eapply eutt_clo_bind with (UU:= eq); eauto.
+  reflexivity.
+Qed.  
+
+End GEN_MM_L1.
+
+Section GEN_MM_L2.
+
+Context (E: Type -> Type)
+        (HasErr: ErrState -< E)    
+        (HasStackE : StackE -< E).     
+
+Local Notation RS := (PR estate).
+
+Context
+  (hinit: forall fn es1 es2, es2 = map tr_expr es1 ->
+    @eutt (HighE +' E) _ _ eq
+      (trigger (InitState fn es1)) (trigger (InitState fn es2)))
+  (hdests: forall fn xs1 xs2, xs2 = map tr_lval xs1 ->
+    @eutt (HighE +' E) _ _ eq 
+      (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2))).
+
+Lemma comp_gen_okMM_L2 (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: xs2 = map tr_lval xs1)
+  (hes: es2 = map tr_expr es1) :  
+  eutt eq  
+    (@interp_HighE pr1 E _ _ _ (denote_fun _ _ _ fn xs1 es1))
+    (interp_HighE pr2 (denote_fun _ _ _ fn xs2 es2)).
+  unfold interp_HighE.
+  setoid_rewrite comp_gen_okMM_L1 at 1; eauto.
+  eapply eutt_interp; eauto.
+  2: { reflexivity. }
+
+  unfold eq2.
+  unfold Eq2_Handler.
+  unfold eutt_Handler.
+  unfold i_pointwise.
+  intros.
+  
+  unfold ext_handle_HighE.
+  unfold handle_HighE.
+  destruct a; eauto; simpl.
+  2: { reflexivity. }
+
+  unfold case_.
+  unfold Case_sum1_Handler.
+  unfold Handler.case_.
+  destruct h.
+
+  unfold handle_FunE.
+  destruct f.
+  admit.
+
+  unfold handle_InstrE.
+  destruct i.
+  unfold mk_AssgnE.
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  admit.
+
+  intros.
+
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  admit.
+
+  intros.
+  admit.
+
+  unfold mk_OpnE.
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  admit.
+
+  intros.
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  admit.
+
+  intros.
+  admit.
+
+  admit.
+
+  unfold mk_EvalCond.
+  unfold err_mk_EvalCond.
+  admit.
+
+  admit.
+
+  admit.
+
+  eapply eutt_clo_bind with (UU := eq); eauto.
+  
+  admit.
+
+  intros.
+  inv H.
+  admit.
+
+  eapply eutt_clo_bind with (UU := eq); eauto.
+
+  admit.
+
+  intros.
+  inv H.
+
+  admit.
+Admitted. 
+  
+End GEN_MM_L2.
+
+
+Section GEN_EF.
+
+Context (E: Type -> Type)
+        (HasErr: ErrState -< E).   
 
 Local Notation RS := (PR estate).
 Local Notation RV := (PR values).
@@ -1575,7 +1707,7 @@ Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
             RS (init_state fn vs1) (init_state fn vs2)).
 *)
 
-End GEN_test1.
+End GEN_EF.
 
 End GEN_tests.
 
