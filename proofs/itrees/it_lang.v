@@ -1296,6 +1296,8 @@ Context (TR_E : forall (E: Type -> Type) T1 T2,
         (VR_E : forall (E: Type -> Type) T1 T2,
             E T1 -> T1 -> E T2 -> T2 -> Prop).
 
+Local Notation RS := (PR estate).
+
 Section GEN_MM_L1.
 
 Context (E: Type -> Type)
@@ -1436,8 +1438,6 @@ Context (E: Type -> Type)
         (HasErr: ErrState -< E)    
         (HasStackE : StackE -< E).     
 
-Local Notation RS := (PR estate).
-
 Context
   (hinit: forall fn es1 es2, es2 = map tr_expr es1 ->
     @eutt (HighE +' E) _ _ eq
@@ -1535,12 +1535,34 @@ Admitted.
   
 End GEN_MM_L2.
 
+Section GEN_MM_L3.
+
+Context (E: Type -> Type)
+        (HasErr: ErrState -< E).
+
+Lemma comp_gen_okMM_L3 (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: xs2 = map tr_lval xs1)
+  (hes: es2 = map tr_expr es1) (ss: estack) :  
+  eutt eq  
+    (@interp_StackE E _ _
+       (@interp_HighE pr1 _ _ _ _ (denote_fun _ _ _ fn xs1 es1)) ss) 
+    (interp_StackE (interp_HighE pr2 (denote_fun _ _ _ fn xs2 es2)) ss).
+  unfold interp_StackE.
+  
+(*  
+  eapply eutt_interp_state.
+  setoid_rewrite comp_gen_okMM_L2.
+*)
+Admitted. 
+
+End GEN_MM_L3.
+
 
 Section GEN_EF.
 
 Context (E: Type -> Type).   
 
-Local Notation RS := (PR estate).
 Local Notation RV := (PR values).
 Local Notation VS := (values * estate)%type.
 Local Notation FVS := (funname * VS)%type.
