@@ -280,7 +280,7 @@ Fixpoint denote_instr (i : instr_r) : itree (CState +' Eff) unit :=
   | Ccall xs fn es => rec_call (FCall xs fn es)      
   end.
 
-Definition denote_fcall (xs: lvals) (fn: funname) (es: pexprs) :
+Definition denote_fcall (fn: funname) (xs: lvals) (es: pexprs) :
   itree (CState +' Eff) unit :=
   trigger (InitState fn es) ;; 
   c <- trigger (FunCode fn) ;;   
@@ -290,7 +290,7 @@ Definition denote_fcall (xs: lvals) (fn: funname) (es: pexprs) :
 Definition denote_cstate : CState ~> itree (CState +' Eff) :=           
   fun _ fs => match fs with
               | LCode c => cmd_map_r denote_instr c
-              | FCall xs fn es => denote_fcall xs fn es       
+              | FCall xs fn es => denote_fcall fn xs es       
               end.      
 
 (* MAIN: denotational interpreter *)
@@ -1153,8 +1153,7 @@ Fixpoint peval_instr_call {E} (i : instr_r) (st: estate) :
 Definition peval_fcall_body {E} :
   (FunDef * (values * estate)) -> 
   execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
-         +' E))
-        (values * estate) :=
+         +' E)) (values * estate) :=
   fun fvst =>
     let '(f, (va, st)) := fvst in
     st1 <- ret_init_state f va st ;; 
@@ -1208,6 +1207,12 @@ Definition peval_fun {E} :
     st2 <- peval_flat_cmd c st1 ;; 
     vs <- ret_return_val f st2 ;;
     ret (vs, st2).
+
+Definition eval_fun_ {E} (fn: funname) (vs: values) (st: estate) : 
+  execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
+                +' E)) (values * estate) :=
+  f <- ret_get_FunDef fn ;;
+  peval_fcall_body (f, (vs, st)).
 
 End With_REC_flat.
 
@@ -1316,19 +1321,53 @@ Program Definition VR_D2 {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
   exact (RVS t1 t2).
 Defined.
 
-Lemma comp_gen_okD (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+Lemma comp_gen_okDE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
-  @rutt (callE (FunDef * (values * estate)) (values * estate) +' E) _
-        _ _ 
-    (TR_E _) (VR_E _)
+  @rutt (callE (FunDef * VS) VS +' E)
+    (callE (FunDef * VS) VS +' E)
+    VS VS 
+    (TR_E (callE (FunDef * VS) VS +' E))
+    (VR_E (callE (FunDef * VS) VS +' E))
     (fun a1 a2 => @VR_D2 _ _ (Call (fn, (vs1, st1))) a1
                              (Call (fn, (vs2, st2))) a2)  
     (evalE_fun_ pr1 fn vs1 st1) (evalE_fun_ pr2 fn vs2 st2).
   intros.
   unfold evalE_fun_; simpl.
 Admitted. 
-  
+
+Check @rutt.
+
+Definition RVSf (pp1 pp2 : exec VS) : Prop :=
+  match (pp1, pp2) with
+  | (Ok vt1, Ok vt2) => RVS vt1 vt2
+  | _ => False end.
+Context (rvs_f_def : PR (exec VS) = RVSf).  
+
+Program Definition VR_D2' {T1 T2} (d1 : callE FVS (exec VS) T1) (t1: T1)
+                                  (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
+  dependent destruction d1.
+  dependent destruction d2.
+  exact (RVSf t1 t2).
+Defined.
+
+Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+  RV vs1 vs2 ->
+  RS st1 st2 ->
+  @rutt (callE (FunDef * VS) (exec VS) +' E)
+    (callE (FunDef * VS) (exec VS) +' E)
+    (exec VS) (exec VS)
+    (TR_E (callE (FunDef * VS) (exec VS) +' E))
+    (VR_E (callE (FunDef * VS) (exec VS) +' E))
+    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
+                             (Call (fn, (vs2, st2))) a2)  
+    (eval_fun_ pr1 fn vs1 st1) (eval_fun_ pr2 fn vs2 st2).
+  intros.
+  unfold eval_fun_; simpl.
+Admitted. 
+ 
+
+
 Definition TR_D3 {T1 T2} (d1 : FCState T1)
                          (d2 : FCState T2) : Prop :=
   match (d1, d2) with
@@ -1349,20 +1388,24 @@ Program Definition VR_D3 {T1 T2} (d1 : FCState T1) (t1: T1)
     + exact (RS t1 t2).
 Defined.      
 
-(*
-Lemma comp_gen_okM (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
-  RV vs1 vs2 ->
+Lemma comp_gen_okME (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
+  xs2 = map tr_lval xs1 ->
+  es2 = map tr_expr es1 -> 
   RS st1 st2 ->
-  @rutt (FCState +' E) _
-        _ _ 
+  @rutt (FCState +' E) _ _ _ 
     (TR_E _) (VR_E _)
-    (fun a1 a2 => @VR_D3 _ _ (Call (fn, (vs1, st1))) a1
-                             (Call (fn, (vs2, st2))) a2)  
-    (mevalE_fun_ pr1 fn vs1 st1) (mevalE_fun_ pr2 fn vs2 st2).
+    (fun a1 a2 => @VR_D3 _ _ (FFCall xs1 fn es1 st1) a1
+                             (FFCall xs2 fn es2 st2) a2)  
+    (meval_fcall pr1 xs1 fn es1 st1) (meval_fcall pr2 xs2 fn es2 st2).
   intros.
-  unfold evalE_fun_; simpl.
+  unfold meval_fcall; simpl.
 Admitted. 
-*)
+
+
+
+
+
 
   
 (*
