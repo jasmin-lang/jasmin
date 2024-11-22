@@ -1285,17 +1285,35 @@ Fixpoint Tr_ir (i : instr_r) : instr_r :=
   end.
 Local Notation Tr_cmd c := (map (Tr_i Tr_ir) c).
 
-
-Section GEN_test1.
+Section GEN_tests.
 
 Context (E: Type -> Type)
-        (EE: ErrState -< E)             
+        (HasErr: ErrState -< E)             
         (pr1 pr2 : prog)
         (PR : forall T, T -> T -> Prop).
 Context (TR_E : forall (E: Type -> Type) T1 T2,
             E T1 -> E T2 -> Prop)
         (VR_E : forall (E: Type -> Type) T1 T2,
             E T1 -> T1 -> E T2 -> T2 -> Prop).
+
+Section GEN_test0.
+
+Context (HasFunE : FunE -< E)
+        (HasInstrE : InstrE -< E).     
+  
+Lemma comp_gen_okMM (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) :
+  xs2 = map tr_lval xs1 ->
+  es2 = map tr_expr es1 -> 
+  eutt eq  
+    (denote_fcall E _ _ fn xs1 es1) (denote_fcall E _ _ fn xs2 es2).
+  intros.
+  unfold denote_fcall; simpl.
+Admitted. 
+  
+End GEN_test0.
+
+Section GEN_test1.
 
 Local Notation RS := (PR estate).
 Local Notation RV := (PR values).
@@ -1437,7 +1455,6 @@ Lemma comp_gen_okMF (fn: funname)
   unfold pmeval_fcall; simpl.
 Admitted. 
 
-
 (*
 Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
         (hcompe : forall s1 s2 e, RS s1 s2 -> 
@@ -1465,6 +1482,8 @@ Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
 *)
 
 End GEN_test1.
+
+End GEN_tests.
 
 End TRANSF.
 
