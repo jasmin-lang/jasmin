@@ -1622,7 +1622,7 @@ Program Definition VR_D3 {T1 T2} (d1 : FCState T1) (t1: T1)
     + exact (RS t1 t2).
     + exact (False).
   - dependent destruction d2.
-    + exact (False).
+    + exact (True).
     + exact (RS t1 t2).
 Defined.      
 
@@ -1644,10 +1644,11 @@ End GEN_Err.
 
 
 Section GEN_Flat.
-
+  
 Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
   match (pp1, pp2) with
   | (Ok vt1, Ok vt2) => RVS vt1 vt2
+  | (Error _, Error _) => True
   | _ => False end.
 Context (exec_rvs_def : PR (exec VS) = exec_RVS).  
 
@@ -1657,6 +1658,18 @@ Program Definition VR_D2' {T1 T2} (d1 : callE FVS (exec VS) T1) (t1: T1)
   dependent destruction d2.
   exact (exec_RVS t1 t2).
 Defined.
+
+Definition exec_RS (p1 p2: exec estate) : Prop :=
+  match (p1, p2) with
+  | (Ok st1, Ok st2) => RS st1 st2
+  | (Error _, Error _) => True                           
+  | _ => False end.                         
+
+Definition exec_RV (p1 p2: exec values) : Prop :=
+  match (p1, p2) with
+  | (Ok vv1, Ok vv2) => RV vv1 vv2
+  | (Error _, Error _) => True                           
+  | _ => False end.                         
 
 Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
@@ -1671,7 +1684,55 @@ Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     (eval_fun_ pr1 fn vs1 st1) (eval_fun_ pr2 fn vs2 st2).
   intros.
   unfold eval_fun_; simpl.
+
+  eapply rutt_bind with (RR := eq).
+  admit.
+
+  intros.
+  inv H1; simpl.
+  destruct r2.
+  2: { eapply rutt_Ret.
+       unfold exec_RVS.
+       auto.
+  }
+  
+  eapply rutt_bind with (RR := exec_RS); eauto.
+  admit.
+
+  intros.
+  unfold exec_RS in H1.
+  destruct r1; try intuition.
+  destruct r2; try intuition.
+    
+  2: { destruct r2; try intuition.
+       admit.
+  }
+
+  eapply rutt_bind with (RR := exec_RS); eauto.
+  
+  admit.
+
+  intros.
+  destruct r1; try intuition.
+  destruct r2; try intuition.
+  
+  2: { destruct r2; try intuition.
+       admit.
+  }
+
+  eapply rutt_bind with (RR := exec_RV); eauto.
+  admit.
+
+  intros.
+  destruct r1; try intuition.
+  destruct r2; try intuition.
+
+  admit.
+
+  destruct r2; try intuition.
+  admit.
 Admitted. 
+
 
 Definition TR_D4 {T1 T2} (d1 : PCState T1)
                          (d2 : PCState T2) : Prop :=
@@ -1681,11 +1742,6 @@ Definition TR_D4 {T1 T2} (d1 : PCState T1)
       xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2
   | _ => False   
   end.               
-
-Definition exec_RS (p1 p2: exec estate) : Prop :=
-  match (p1, p2) with
-  | (Ok st1, Ok st2) => RS st1 st2
-  | _ => False end.                         
 
 Program Definition VR_D4 {T1 T2} (d1 : PCState T1) (t1: T1)
                                  (d2 : PCState T2) (t2: T2) : Prop.
@@ -1710,6 +1766,63 @@ Lemma comp_gen_okMF (fn: funname)
     (pmeval_fcall pr1 xs1 fn es1 st1) (pmeval_fcall pr2 xs2 fn es2 st2).
   intros.
   unfold pmeval_fcall; simpl.
+
+  eapply rutt_bind with (RR := eq).
+  admit.
+
+  intros.
+  inv H2; simpl.
+  destruct r2.
+  2: { eapply rutt_Ret.
+       unfold exec_RS.
+       auto.
+  }
+
+  eapply rutt_bind with (RR := exec_RV); eauto.
+  admit.
+
+  intros.
+  destruct r1; try intuition.
+  destruct r2; try intuition.
+    
+  2: { destruct r2; try intuition.
+       admit.
+  }
+
+  eapply rutt_bind with (RR := exec_RS); eauto.
+  admit.
+  
+  intros.
+  destruct r1; try intuition.
+  destruct r2; try intuition.
+    
+  2: { destruct r2; try intuition.
+       admit.
+  }
+
+  eapply rutt_bind with (RR := exec_RS); eauto.
+  admit.
+
+  intros.
+  destruct r1; try intuition.
+  destruct r2; try intuition.
+    
+  2: { destruct r2; try intuition.
+       admit.
+  }
+
+  eapply rutt_bind with (RR := exec_RV); eauto.
+  admit.
+
+  intros.
+  destruct r1; try intuition.
+  destruct r2; try intuition.
+    
+  2: { destruct r2; try intuition.
+       admit.
+  }
+
+  admit.
 Admitted. 
 
 End GEN_Flat.
