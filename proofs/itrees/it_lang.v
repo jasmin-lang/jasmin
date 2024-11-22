@@ -1336,19 +1336,17 @@ Lemma comp_gen_okDE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   unfold evalE_fun_; simpl.
 Admitted. 
 
-Check @rutt.
-
-Definition RVSf (pp1 pp2 : exec VS) : Prop :=
+Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
   match (pp1, pp2) with
   | (Ok vt1, Ok vt2) => RVS vt1 vt2
   | _ => False end.
-Context (rvs_f_def : PR (exec VS) = RVSf).  
+Context (exec_rvs_def : PR (exec VS) = exec_RVS).  
 
 Program Definition VR_D2' {T1 T2} (d1 : callE FVS (exec VS) T1) (t1: T1)
                                   (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
   dependent destruction d1.
   dependent destruction d2.
-  exact (RVSf t1 t2).
+  exact (exec_RVS t1 t2).
 Defined.
 
 Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
@@ -1366,8 +1364,6 @@ Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   unfold eval_fun_; simpl.
 Admitted. 
  
-
-
 Definition TR_D3 {T1 T2} (d1 : FCState T1)
                          (d2 : FCState T2) : Prop :=
   match (d1, d2) with
@@ -1402,12 +1398,46 @@ Lemma comp_gen_okME (fn: funname)
   unfold meval_fcall; simpl.
 Admitted. 
 
+Definition TR_D4 {T1 T2} (d1 : PCState T1)
+                         (d2 : PCState T2) : Prop :=
+  match (d1, d2) with
+  | (PLCode c1 st1, PLCode c2 st2) => c2 = Tr_cmd c1 /\ RS st1 st2
+  | (PFCall xs1 fn1 es1 st1, PFCall xs2 fn2 es2 st2) =>
+      xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2
+  | _ => False   
+  end.               
+
+Definition exec_RS (p1 p2: exec estate) : Prop :=
+  match (p1, p2) with
+  | (Ok st1, Ok st2) => RS st1 st2
+  | _ => False end.                         
+
+Program Definition VR_D4 {T1 T2} (d1 : PCState T1) (t1: T1)
+                                 (d2 : PCState T2) (t2: T2) : Prop.
+  dependent destruction d1.
+  - dependent destruction d2.
+    + exact (exec_RS t1 t2).
+    + exact (False).
+  - dependent destruction d2.
+    + exact (False).
+    + exact (exec_RS t1 t2).
+Defined.      
+
+Lemma comp_gen_okMF (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
+  xs2 = map tr_lval xs1 ->
+  es2 = map tr_expr es1 -> 
+  RS st1 st2 ->
+  @rutt (PCState +' E) _ _ _ 
+    (TR_E _) (VR_E _)
+    (fun a1 a2 => @VR_D4 _ _ (PFCall xs1 fn es1 st1) a1
+                             (PFCall xs2 fn es2 st2) a2)  
+    (pmeval_fcall pr1 xs1 fn es1 st1) (pmeval_fcall pr2 xs2 fn es2 st2).
+  intros.
+  unfold pmeval_fcall; simpl.
+Admitted. 
 
 
-
-
-
-  
 (*
 Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
         (hcompe : forall s1 s2 e, RS s1 s2 -> 
