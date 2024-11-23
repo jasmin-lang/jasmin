@@ -1,3 +1,11 @@
+# [unreleased]
+
+## New features
+
+- ARM now emits two instructions instead of `ADR` to load the low and high
+  parts of global addresses
+  ([PR#921](https://github.com/jasmin-lang/jasmin/pull/921)).
+
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features

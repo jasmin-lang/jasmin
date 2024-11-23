@@ -223,6 +223,23 @@ end = struct
     | _ -> ""
 end
 
+(* Split an [ADR] instruction to a global symbol into a [MOVW]/[MOVT] pair. *)
+let pp_ADR pp opts args =
+  let name_lo = pp_mnemonic_ext (ARM_op(MOV, opts)) "w" args in
+  let name_hi = pp_mnemonic_ext (ARM_op(MOVT, opts)) "" args in
+  let args =
+    List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+  in
+  let args_lo, args_hi =
+    match args with
+    | dst :: addr :: rest ->
+        let lo = "#:lower16:" ^ addr in
+        let hi = "#:upper16:" ^ addr in
+        (dst :: lo :: rest, dst :: hi :: rest)
+    | _ -> assert false
+  in
+  [ LInstr(name_lo, args_lo); LInstr(name_hi, args_hi) ]
+
 let pp_instr fn i =
   match i with
   | ALIGN ->
@@ -265,12 +282,18 @@ let pp_instr fn i =
   | AsmOp (op, args) ->
       let id = instr_desc arm_decl arm_op_decl (None, op) in
       let pp = id.id_pp_asm args in
+      (* We need to perform the check even if we don't use the suffix, for
+         instance for [LDR] or [STR]. *)
       let suff = ArgChecker.check_args op pp.pp_aop_args in
-      let name = pp_mnemonic_ext op suff args in
-      let args = List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args in
-      let args = pp_shift op args in
-      get_IT i @ [ LInstr (name, args) ]
-
+      match op, args with
+      | ARM_op(ADR, opts), _ :: Addr (Arip _) :: _ -> pp_ADR pp opts args
+      | _, _ ->
+          let name = pp_mnemonic_ext op suff args in
+          let args =
+            List.filter_map (fun (_, a) -> pp_asm_arg a) pp.pp_aop_args
+          in
+          let args = pp_shift op args in
+          get_IT i @ [ LInstr (name, args) ]
 
 (* -------------------------------------------------------------------- *)
 
