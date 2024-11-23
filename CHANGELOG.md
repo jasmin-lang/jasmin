@@ -93,6 +93,10 @@
 - Add support for the MMX instruction `POR`
   ([PR #917](https://github.com/jasmin-lang/jasmin/pull/917)).
 
+- ARM now emits two instructions instead of `ADR` to load the low and high
+  parts of global addresses
+  ([PR#921](https://github.com/jasmin-lang/jasmin/pull/921)).
+
 ## Bug fixes
 
 - Easycrypt extraction for CT : fix decreasing for loops
