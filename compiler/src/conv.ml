@@ -55,6 +55,14 @@ let var_of_cvar cv =
   assert (cty_of_ty v.v_ty = cv.Var.vtype);
   v
 
+let csv_of_sv s =
+  let open Var0.SvExtra.Sv in
+  Sv.fold (fun x cs -> add (Obj.magic (cvar_of_var x)) cs) s empty
+
+let sv_of_csv cs =
+  let open Var0.SvExtra.Sv in
+  fold (fun x s -> Sv.add (var_of_cvar (Obj.magic x)) s) cs Sv.empty
+
 (* ------------------------------------------------------------------------ *)
 
 let cvari_of_vari v =
