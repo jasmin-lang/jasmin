@@ -213,6 +213,13 @@ end = struct
   let chk_imm_w16_encoding args n opts =
     chk_imm args n (chk_w16_encoding opts) (chk_w16_encoding opts)
 
+  let chk_mem_immediate args n =
+    match List.at args n with
+    | _, Addr(Areg(addr)) ->
+        let n = Word0.wsigned Wsize.U32 addr.ad_disp in
+        if not (is_mem_immediate n) then exn_imm_too_big n
+    | _, _ -> ()
+
   let check_args (ARM_op (mn, opts)) args =
     match mn with
     | ADC | SBC | RSB -> chk_imm_accept_shift args 2
@@ -221,6 +228,8 @@ end = struct
     | MOV -> chk_imm_w16_encoding args 1 opts
     | AND | BIC | EOR | ORR -> chk_imm_reject_shift args 2
     | MVN | TST -> chk_imm_reject_shift args 1
+    | LDR | LDRB | LDRH -> chk_mem_immediate args 1; "" (* Should not happen. *)
+    | STR | STRB | STRH -> chk_mem_immediate args 1; "" (* Should not happen. *)
     | _ -> ""
 end
 

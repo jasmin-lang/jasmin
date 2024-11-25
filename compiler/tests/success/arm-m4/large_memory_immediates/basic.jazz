@@ -1,0 +1,21 @@
+export
+fn basic(reg u32 p) -> reg u32 {
+    [p + 4096] = p;
+    (u8)[p + 4096] = p;
+    (u16)[p + 4096] = p;
+    p = [p + 4096];
+    p = (32u)(u8)[p + 4096];
+    p = (32u)(u16)[p + 4096];
+
+    reg bool b;
+    b = p <= 3;
+    [p + 4096] = p if b;
+    (u8)[p + 4096] = p if b;
+    (u16)[p + 4096] = p if b;
+    p = [p + 4096] if b;
+    p = (32u)(u8)[p + 4096] if b;
+    p = (32u)(u16)[p + 4096] if b;
+
+    p = p;
+    return p;
+}

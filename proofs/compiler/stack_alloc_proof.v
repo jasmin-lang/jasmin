@@ -2514,6 +2514,13 @@ Qed.
 
 (* ------------------------------------------------------------------ *)
 
+Definition sap_mem_opn_correct
+  (mem_opn : seq lval -> assgn_tag -> sopn -> seq pexpr -> instr_r * bool) :
+  Prop :=
+  forall (P' : sprog) rip s s' lvs tag op es,
+    sem_i P' rip s (Copn lvs tag op es) s' ->
+    sem_i P' rip s (mem_opn lvs tag op es).1 s'.
+
 Record h_stack_alloc_params (saparams : stack_alloc_params) :=
   {
     (* [mov_ofs] must behave as described in stack_alloc.v. *)
@@ -2537,7 +2544,8 @@ Record h_stack_alloc_params (saparams : stack_alloc_params) :=
         (evm s).[z] = Vword pz ->
         (evm s).[w] = Vword pw -> 
         sem_i P' rip s (sap_swap saparams tag x y z w)
-             (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz])
+             (with_vm s ((evm s).[x <- Vword pw]).[y <- Vword pz]);
+    sap_mem_opnP : sap_mem_opn_correct (sap_mem_opn saparams);
   }.
 
 Context

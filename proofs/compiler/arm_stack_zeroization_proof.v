@@ -491,7 +491,8 @@ Section UNROLLED.
 
 Context (hsmall : (ws <= U32)%CMP).
 Context (pre pos : seq linstr).
-Context (hbody : is_linear_of lp fn (pre ++ sz_unrolled rspi ws stk_max ++ pos)).
+Context
+  (hbody : is_linear_of lp fn (pre ++ sz_unrolled_aux rspi ws stk_max ++ pos)).
 
 Lemma unrolled_bodyP vars s1 s2 n :
   state_rel_unrolled vars s1 s2 (stk_max - Z.of_nat n * wsize_size ws) top ->
@@ -586,11 +587,12 @@ Local Opaque wsize_size Z.of_nat.
 Local Transparent wsize_size Z.of_nat.
 Qed.
 
-Lemma sz_unrolledP vars s1 s2 :
+Lemma sz_unrolled_auxP vars s1 s2 :
   state_rel_unrolled vars s1 s2 stk_max top ->
   exists s3,
+    let c := sz_unrolled_aux rspi ws stk_max in
     [/\ lsem lp (of_estate s2 fn (size pre))
-                (of_estate s3 fn (size pre + size (sz_unrolled rspi ws stk_max)))
+                (of_estate s3 fn (size pre + size c))
       & state_rel_unrolled vars s1 s3 0 top].
 Proof.
   move=> hsr.
@@ -687,20 +689,36 @@ End STACK_ZERO_LOOP.
 
 Section STACK_ZERO_UNROLLED.
 
-Context (hsmall : (ws <= U32)%CMP).
-Context (pre pos : seq linstr).
-Context (hbody : is_linear_of lp fn (pre ++ stack_zero_unrolled rspi ws_align ws stk_max ++ pos)).
-Context (rsp_nin : ~ Sv.In rspi stack_zero_unrolled_vars).
+Context
+  (hsmall : (ws <= U32)%CMP)
+  (pre csz pos : seq linstr)
+  (err : compiler_util.pp_error -> compiler_util.pp_error_loc)
+  (hcsz : stack_zero_unrolled rspi ws_align ws stk_max err = ok csz)
+  (hbody : is_linear_of lp fn (pre ++ csz ++ pos))
+  (rsp_nin : ~ Sv.In rspi stack_zero_unrolled_vars)
+.
+
+Lemma cszE :
+  csz
+  = sz_init rspi ws_align stk_max
+    ++ sz_unrolled_aux rspi ws stk_max
+    ++ restore_sp rspi.
+Proof.
+  move: hcsz.
+  rewrite /stack_zero_unrolled /sz_unrolled.
+  by t_xrbindP=> lc _ ??; subst lc csz.
+Qed.
 
 Lemma stack_zero_unrolledP (s1 : estate) :
   valid_between (emem s1) top stk_max ->
   (evm s1).[rspi] = Vword ptr ->
   exists s2,
     [/\ lsem lp (of_estate s1 fn (size pre))
-                (of_estate s2 fn (size pre + size (stack_zero_unrolled rspi ws_align ws stk_max)))
+                (of_estate s2 fn (size pre + size csz))
       & state_rel_unrolled stack_zero_unrolled_vars s1 s2 0 ptr].
 Proof.
   move=> hvalid hrsp.
+  have ? := cszE; subst csz.
   move: hbody; rewrite /stack_zero_loop -!catA => hbody'.
   have hsubset_init: Sv.Subset sz_init_vars stack_zero_unrolled_vars.
   + move=> x /sv_of_listP hin.
@@ -712,7 +730,7 @@ Proof.
   have [s2 [hsem2 hsr2]] := sz_initP hbody' rsp_nin_init hvalid hrsp.
   move: hbody'; rewrite catA => hbody'.
   have hsr2' := state_rel_unrolledI hsubset_init hsr2.
-  have [s3 [hsem3 hsr3]] := sz_unrolledP hsmall hbody' hsr2'.
+  have [s3 [hsem3 hsr3]] := sz_unrolled_auxP hsmall hbody' hsr2'.
   move: hbody'; rewrite catA => hbody'.
   have hsubset_restore: Sv.Subset restore_sp_vars stack_zero_loop_vars.
   + move=> x /sv_of_listP hin.
@@ -753,11 +771,12 @@ Proof.
   + move=> [<- _].
     rewrite /stack_zero_loop !label_in_lcmd_cat sz_init_no_ext_lbl.
     by rewrite /= store_zero_no_ext_lbl.
-  + move=> [<- _].
-    rewrite /stack_zero_unrolled !label_in_lcmd_cat sz_init_no_ext_lbl.
-    rewrite /= cats0.
-    rewrite /sz_unrolled.
-    by elim: rev => [//|?? ih] /=; rewrite store_zero_no_ext_lbl.
+  rewrite /stack_zero_unrolled /sz_unrolled /sz_unrolled_aux.
+  Opaque sz_init.
+  t_xrbindP=> lc lc' _ ????; subst lc lc' cmd vars.
+  Transparent sz_init.
+  rewrite !label_in_lcmd_cat sz_init_no_ext_lbl /= cats0.
+  by elim: rev => [//|???] /=; rewrite !store_zero_no_ext_lbl.
 Qed.
 
 Lemma arm_stack_zero_cmdP szs rspn lbl ws_align ws stk_max cmd vars :
@@ -786,16 +805,22 @@ Proof.
           lt_0_stk_max halign le_ws_ws_align hstack ws_small hlinear rsp_nin
           hlabel (s1 := to_estate _) hvalid hrsp.
       by rewrite -{1}hfn -{1}hpc of_estate_to_estate.
-    + move=> [??]; subst cmd vars.
-      have hlinear: [elaborate
-        is_linear_of lp fn
-          (lc
-          ++ stack_zero_unrolled (vid rspn) ws_align ws stk_max
-          ++ [::])].
+    + t_xrbindP=> csz hcsz ??; subst cmd vars.
+      have hlinear : is_linear_of lp fn (lc ++ csz ++ [::]).
       + by rewrite cats0; exists lfd.
-      have := stack_zero_unrolledP
-          lt_0_stk_max halign le_ws_ws_align hstack ws_small hlinear rsp_nin
-          (s1 := to_estate _) hvalid hrsp.
+      have :=
+          stack_zero_unrolledP
+            lt_0_stk_max
+            halign
+            le_ws_ws_align
+            hstack
+            ws_small
+            hcsz
+            hlinear
+            rsp_nin
+            (s1 := to_estate _)
+            hvalid
+            hrsp.
       by rewrite -{1}hfn -{1}hpc of_estate_to_estate.
 
   exists (emem s2), (evm s2); split=> //.

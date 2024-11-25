@@ -25,6 +25,7 @@ type color = | Auto | Always | Never
 let color = ref Auto
 
 let lea = ref false
+let split_memory_access = ref false
 let set0 = ref false
 let model = ref Normal
 let print_stack_alloc = ref false
@@ -172,6 +173,9 @@ let options = [
     "-I"       , Arg.String set_idirs  , "[ident:path] Bind ident to path for from ident require ...";
     "-lea"     , Arg.Set lea           , " Use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , " Try to use add and mul instead of lea";
+    "-split-memory-access"
+      , Arg.Set split_memory_access
+      , " Split large memory accesses in several instructions";
     "-set0"     , Arg.Set set0          , " Use [xor x x] to set x to 0 (default is not)";
     "-noset0"   , Arg.Clear set0        , " Do not use set0 option";
     "-ec"       , Arg.String  set_ec    , "[f] Extract function [f] and its dependencies to an easycrypt file (deprecated)";
