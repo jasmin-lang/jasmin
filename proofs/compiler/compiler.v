@@ -185,6 +185,14 @@ Record compiler_params
   fresh_var_ident  : v_kind -> instr_info -> int -> string -> stype -> Ident.ident;
   slh_info         : _uprog → funname → seq slh_t * seq slh_t;
   stack_zero_info  : funname -> option (stack_zero_strategy * option wsize);
+  dead_vars_ufd    : _ufun_decl -> instr_info -> Sv.t;
+    (* This analyzes a function body and associates to each instruction,
+       identified by its instr_info, the set of variables that become dead after
+       this instruction.
+       For the sake of efficiency, it should be called partially on a function
+       body; the result is a function from instr_info to sets of variables. *)
+  dead_vars_sfd    : _sfun_decl -> instr_info -> Sv.t;
+    (* Same as dead_vars_ufd, but for _sfun_decl instead of _ufun_decl. *)
 }.
 
 Context
@@ -228,13 +236,13 @@ Definition live_range_splitting (p: uprog) : cexec uprog :=
   let pv := remove_phi_nodes_prog pv in
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
   let pv := map_prog_name (refresh_instr_info cparams) pv in
-  Let _ := check_uprog (wsw:= withsubword) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
+  Let _ := check_uprog (wsw:= withsubword) cparams.(dead_vars_ufd) p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
   let p := cparams.(print_uprog) DeadCode_Renaming pv in
   ok p.
 
 Definition inlining (to_keep: seq funname) (p: uprog) : cexec uprog :=
-  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) p in
+  Let p := inline_prog_err (wsw := withsubword) cparams.(rename_fd) cparams.(dead_vars_ufd) p in
   let p := cparams.(print_uprog) Inlining p in
 
   Let p := dead_calls_err_seq to_keep p in
@@ -319,7 +327,7 @@ Definition compiler_third_part (returned_params: funname -> option (seq (option 
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
-  Let _ := check_sprog (wsw:= withsubword) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
+  Let _ := check_sprog (wsw:= withsubword) cparams.(dead_vars_sfd) pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
   Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in

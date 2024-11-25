@@ -18,15 +18,16 @@ Context
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
-  (rename_fd : instr_info -> funname -> ufundef -> ufundef).
+  (rename_fd : instr_info -> funname -> ufundef -> ufundef)
+  (dead_vars_fd : ufun_decl -> instr_info -> Sv.t).
 
 Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
-Notation inline_i' := (inline_i rename_fd).
-Notation inline_fd' := (inline_fd rename_fd).
-Notation inline_prog' := (inline_prog rename_fd).
+Notation inline_i' := (inline_i rename_fd dead_vars_fd).
+Notation inline_fd' := (inline_fd rename_fd dead_vars_fd).
+Notation inline_prog' := (inline_prog rename_fd dead_vars_fd).
 
 #[local] Existing Instance indirect_c.
 
@@ -585,7 +586,7 @@ Section PROOF.
 End PROOF.
 
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr:
-  inline_prog_err rename_fd p = ok p' ->
+  inline_prog_err rename_fd dead_vars_fd p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev scs mem f va scs' mem' vr ->
   exists2 vr',
