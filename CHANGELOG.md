@@ -20,6 +20,10 @@
   `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated
   ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914)).
 
+- The “allocation” pass now uses the liveness information to reduce the sizes
+  of the tables it uses internally; it should be faster on large functions
+  ([PR #965](https://github.com/jasmin-lang/jasmin/pull/965)).
+
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features

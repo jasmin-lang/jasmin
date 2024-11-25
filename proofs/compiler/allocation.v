@@ -391,6 +391,14 @@ Module M.
     by have := @mergeP_mset r1 r2;SvD.fsetdec.
   Qed.
 
+  Lemma remove_incl r x : incl (remove r x) r.
+  Proof.
+    apply /inclP; split=> //= y id _.
+    rewrite removeP.
+    case: get => // id'.
+    by case: eq_op.
+  Qed.
+
   End WSW.
   Arguments add {wsw} m x id h.
   Arguments set {wsw} m x id h.
@@ -543,56 +551,76 @@ Context
   {asm_op syscall_state : Type}
   {asmop:asmOp asm_op}.
 
+Section FUNCTION.
+
+(* This is liveness info in the target program. It returns the set of variables
+   that become dead at the instruction identified by the instr_info. We
+   remove them from the map, since they will not appear in the remainder
+   of the program. This helps keeping the map small. *)
+Context (dead_vars : instr_info -> Sv.t).
+
+(* TODO: further optimizations
+   - It seems that merge_aux/merge are costly. Can they be optimized? Maybe
+     we could make a safe over-approximation (e.g. take the union for the
+     reverse map [mid]).
+   - At some point, we are in quasi-SSA form. Variables are mostly defined once
+     (except in conditions and loops?). This can probably be used to reduce
+     the amount of information we need to remember. *)
+
 Fixpoint check_i (i1 i2:instr_r) r :=
-  match i1, i2 with
-  | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
-    Let _ := assert (ty1 == ty2) (alloc_error "bad type in assignment") in
-    check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
+    match i1, i2 with
+    | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
+      Let _ := assert (ty1 == ty2) (alloc_error "bad type in assignment") in
+      check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2
 
-  | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
-    Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
-    check_es es1 es2 r >>= check_lvals xs1 xs2
+    | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
+      Let _ := assert (o1 == o2) (alloc_error "operators not equals") in
+      check_es es1 es2 r >>= check_lvals xs1 xs2
 
-  | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
-    Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
-    check_es es1 es2 r >>= check_lvals xs1 xs2
+    | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 =>
+      Let _ := assert (o1 == o2) (alloc_error "syscall not equals") in
+      check_es es1 es2 r >>= check_lvals xs1 xs2
 
-  | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
-    Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
-    check_es arg1 arg2 r >>= check_lvals x1 x2
+    | Ccall x1 f1 arg1, Ccall x2 f2 arg2 =>
+      Let _ := assert (f1 == f2) (alloc_error "functions not equals") in
+      check_es arg1 arg2 r >>= check_lvals x1 x2
 
-  | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    Let re := check_e e1 e2 r in
-    Let r1 := fold2 E.fold2 check_I c11 c21 re in
-    Let r2 := fold2 E.fold2 check_I c12 c22 re in
-    ok (M.merge r1 r2)
-
-  | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
-    Let _ := assert (d1 == d2) (alloc_error "loop directions not equals") in
-    Let rhi := check_e lo1 lo2 r >>=check_e hi1 hi2 in
-    let check_c r :=
-      check_var x1 x2 r >>=
-      fold2 E.fold2 check_I c1 c2 in
-    loop check_c Loop.nb rhi
-
-  | Cwhile a1 c1 e1 c1', Cwhile a2 c2 e2 c2' =>
-    let check_c r :=
-      Let r := fold2 E.fold2 check_I c1 c2 r in
+    | Cif e1 c11 c12, Cif e2 c21 c22 =>
       Let re := check_e e1 e2 r in
-      Let r' := fold2 E.fold2 check_I c1' c2' re in
-      ok (re, r') in
-    Let r := loop2 check_c Loop.nb r in
-    ok r
+      Let r1 := fold2 E.fold2 check_I c11 c21 re in
+      Let r2 := fold2 E.fold2 check_I c12 c22 re in
+      ok (M.merge r1 r2)
 
-  | _, _ => Error (alloc_error "instructions not equals")
-  end
+    | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
+      Let _ := assert (d1 == d2) (alloc_error "loop directions not equals") in
+      Let rhi := check_e lo1 lo2 r >>=check_e hi1 hi2 in
+      let check_c r :=
+        check_var x1 x2 r >>=
+        fold2 E.fold2 check_I c1 c2 in
+      loop check_c Loop.nb rhi
+
+    | Cwhile a1 c1 e1 c1', Cwhile a2 c2 e2 c2' =>
+      let check_c r :=
+        Let r := fold2 E.fold2 check_I c1 c2 r in
+        Let re := check_e e1 e2 r in
+        Let r' := fold2 E.fold2 check_I c1' c2' re in
+        ok (re, r') in
+      Let r := loop2 check_c Loop.nb r in
+      ok r
+
+    | _, _ => Error (alloc_error "instructions not equals")
+    end
 
 with check_I i1 i2 r :=
   match i1, i2 with
-  | MkI _ i1, MkI ii i2 => add_iinfo ii (check_i i1 i2 r)
+  | MkI _ i1, MkI ii i2 =>
+    Let m := add_iinfo ii (check_i i1 i2 r) in
+    ok (Sv.fold (fun x acc => M.remove acc x) (dead_vars ii) m)
   end.
 
 Definition check_cmd := fold2 E.fold2 check_I.
+
+End FUNCTION.
 
 Section PROG.
 
@@ -600,16 +628,17 @@ Context {pT: progT}.
 
 Variable (init_alloc : extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t).
 Variable (check_f_extra: M.t → extra_fun_t → extra_fun_t → seq var_i → seq var_i → cexec M.t).
+Variable (dead_vars_fd : fun_decl -> instr_info -> Sv.t).
 
 Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Datatypes.unit) :=
-  let (f1,fd1) := f1 in
-  let (f2,fd2) := f2 in
-  add_funname f1 (add_finfo fd1.(f_info) (
-    Let _ := assert [&& f1 == f2, fd1.(f_tyin) == fd2.(f_tyin) & fd1.(f_tyout) == fd2.(f_tyout) ]
+  let (fn1,fd1) := f1 in
+  let (fn2,fd2) := f2 in
+  add_funname fn1 (add_finfo fd1.(f_info) (
+    Let _ := assert [&& fn1 == fn2, fd1.(f_tyin) == fd2.(f_tyin) & fd1.(f_tyout) == fd2.(f_tyout) ]
                         (E.error "functions not equal") in
     Let r := init_alloc fd1.(f_extra) ep1 ep2 in
     Let r := check_f_extra r fd1.(f_extra) fd2.(f_extra) fd1.(f_params) fd2.(f_params) in
-    Let r := check_cmd fd1.(f_body) fd2.(f_body) r in
+    Let r := check_cmd (dead_vars_fd f2) fd1.(f_body) fd2.(f_body) r in
     let es1 := map Plvar fd1.(f_res) in
     let es2 := map Plvar fd2.(f_res) in
     Let _r := check_es es1 es2 r in

@@ -243,6 +243,45 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
     (get_annot fn).stack_zero_strategy
   in
 
+  (* This implements an analysis returning the set of variables becoming dead
+     after each instruction. It is based on the liveness analysis available
+     in Liveness. *)
+  let dead_vars_fd (f : _ func) =
+    let hvars = Hashtbl.create 97 in
+    let live = Liveness.live_fd false f in
+    let rec analyze (i : _ ginstr) =
+      begin match i.i_desc with
+      | Cif (_, c1, c2) -> List.iter analyze c1; List.iter analyze c2
+      | Cfor (_, _, c) -> List.iter analyze c
+      | Cwhile (_, c, _, c') -> List.iter analyze c; List.iter analyze c'
+      | _ -> ()
+      end;
+      let (in_set, out_set) = i.i_info in
+      let s = Conv.csv_of_sv (Sv.diff in_set out_set) in
+      Hashtbl.add hvars i.i_loc s
+    in
+    List.iter analyze live.f_body;
+
+    fun ii ->
+      let loc, _ = ii in
+      try Hashtbl.find hvars loc with
+      | Not_found ->
+          hierror ~loc:(Lmore loc) ~kind:"compilation error" ~internal:true
+            "dead_vars_fd: location not found"
+  in
+
+  (* We expose a version of dead_vars_fd for _ufun_decl. *)
+  let dead_vars_ufd (f : _ Expr._ufun_decl) =
+    let f = Conv.fdef_of_cufdef f in
+    dead_vars_fd f
+  in
+
+  (* We expose a version of dead_vars_fd for _sfun_decl. *)
+  let dead_vars_sfd (f : _ Expr._sfun_decl) =
+    let _, f = Conv.fdef_of_csfdef f in
+    dead_vars_fd f
+  in
+
   let cparams =
     {
       Compiler.rename_fd;
@@ -279,6 +318,8 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       Compiler.fresh_var_ident = Conv.fresh_var_ident;
       Compiler.slh_info;
       Compiler.stack_zero_info = szs_of_fn;
+      Compiler.dead_vars_ufd;
+      Compiler.dead_vars_sfd;
     }
   in
 
