@@ -1911,6 +1911,67 @@ Qed.
 End GEN_MREC2_testC.
 
 
+Section GEN_MREC2_testE.
+  
+Context (D E : Type -> Type).
+Context (body1 body2 : D ~> itree (D +' E)).
+(* here we use a parametrized relation for generality in intermediate
+steps *)
+Context (IR: forall T1 T2: Type, T1 -> T2 -> Prop).
+Context (Bl Br: bool).
+Context (R1 R2: Type).
+(* fixed-type heterogeneous top-level relation *)
+Context (TR: R1 -> R2 -> Prop).
+
+(* this is the hypothesis we would expect to have *)
+Context (BIH : forall (A: Type) (d1: D A) (d2: D A),
+            eqit eq Bl Br (body1 A d1) (body2 A d2)).
+
+(* this is the hypothesis we had to add for the Vis case; trivially
+true with IR = eq *)
+(* Context (IRH: forall V (k1: V -> itree (D +' E) R1)
+                       (k2: V -> itree (D +' E) R2), 
+ (forall v: V, eqit TR Bl Br (k1 v) (k2 v)) ->
+ forall (v1 v2: V), IR V V v1 v2 -> eqit TR Bl Br (k1 v1) (k2 v2)).
+*)
+
+(* here is our mutual recursion lemma *)
+Lemma interp_mrec_eqitE 
+  (t1: itree (D +' E) R1) (t2: itree (D +' E) R2) :
+  eqit TR Bl Br t1 t2 ->
+  eqit TR Bl Br (interp_mrec body1 t1) (interp_mrec body2 t2).
+Proof.
+  revert t1 t2.
+  ginit. pcofix CIH. intros.
+  rewrite !unfold_interp_mrec.
+  punfold H0. 
+  red in H0. gstep. red.
+  induction H0; try discriminate; pclearbot;
+    simpobs; [| |destruct e | | ].
+  - econstructor; eauto. 
+  - econstructor.
+    eauto with paco.
+  - econstructor. gbase. eapply CIH.
+    eapply Eqit.eqit_bind' with (RR := eq).
+    eapply BIH.
+    intros.
+    inv H; eapply REL; auto.
+  - econstructor. intro v.
+    gstep; constructor.
+    auto with paco itree.
+  - econstructor; eauto.
+    (* here we use the eq_itree axiom, to make is simple *)
+    rewrite unfold_interp_mrec_eq.    
+    eapply IHeqitF; eauto.
+  - econstructor; eauto.
+    rewrite unfold_interp_mrec_eq.
+    eapply IHeqitF; eauto.
+Qed.
+
+End GEN_MREC2_testE.
+
+
+
 (*************************************************************************)
 
 Section GEN_REC_Test1.

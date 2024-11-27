@@ -177,15 +177,8 @@ End Errors.
 
 
 (*********************************************************************)
-
-(* Fail Fixpoint st_cmd_map (R: instr -> estate -> itree void1 estate)
-  (c: cmd) (st: estate) : itree void1 estate := 
-  match c with 
-  | nil => Ret st 
-  | i :: c' => ITree.bind (R i st) (fun st' => st_cmd_map R c' st')
-  end.
-*)
-
+(*** LANGUAGE DEFINITIONS *********************************************)
+(* we are exploring more alternatives *)
 Section Lang.
 Context (asm_op: Type) (asmop: asmOp asm_op).
 
@@ -234,7 +227,7 @@ Fixpoint cmd_map_r {E} (R: instr_r -> itree E unit)
   | (MkI _ i) :: c' => R i ;; cmd_map_r R c'
   end.
 
-Fixpoint denote_for {E} `{FunE -< E} `{InstrE -< E}
+Fixpoint denote_for {E} `{InstrE -< E}
   (R: cmd -> itree E unit) (i: var_i) (c: cmd) (ls: list Z) :
   itree E unit :=
     match ls with
@@ -244,10 +237,11 @@ Fixpoint denote_for {E} `{FunE -< E} `{InstrE -< E}
 
 
 (**********************************************************************)
+(**********************************************************************)
 (** denotational interpreter with mutual recursion *)
 Section With_MREC_mod.
 Context (Eff : Type -> Type)
-        (HasFunE : FunE -< Eff)
+        (HasFunE : FunE -< Eff) 
         (HasInstrE : InstrE -< Eff).   
 
 Local Notation continue_loop := (ret (inl tt)).
@@ -308,9 +302,26 @@ Definition denote_fun (fn: funname) (xs: lvals) (es: pexprs) :
   denote_cmd c ;;
   trigger (SetDests fn xs).
 
+(***************************************************************)
+
+(** denotational compositionality of commands wrt instructions *)
+Lemma seq_eqtree_gen_lemma (c: cmd) (i: instr) :
+  eq_itree eq (denote_cmd (i :: c))
+    (denote_cmd (i :: nil) ;; denote_cmd c).
+  unfold denote_cmd.
+  unfold mrec.
+  setoid_rewrite <- interp_mrec_bind.
+  simpl.
+  destruct i; simpl.
+  setoid_rewrite bind_bind.
+  setoid_rewrite bind_ret_l.
+  reflexivity.
+Qed.
+
 End With_MREC_mod.
 
 
+(**********************************************************************)
 (********** EVENT SEMANTICS ******************************************)
 
 Section WSW.
@@ -376,9 +387,27 @@ Variant StackE : Type -> Type :=
   | PushState (st: estate) : StackE unit. 
 
 
-(***** INSTR EVENT SEMANTICS *******************************************)
+(***** INSTR AUX FUNCTIONS *******************************************)
 
 (** Ccall *)
+
+Definition ret_get_FunDef {E: Type -> Type} 
+  (fn: funname) : execT (itree E) FunDef :=
+  Ret (o2r ErrType (get_FunDef fn)).           
+
+Definition err_get_FunDef {E} `{ErrState -< E}
+  (fn: funname) : itree E FunDef :=
+  err_opt _ (get_FunDef fn).           
+
+Definition ret_get_FunCode {E: Type -> Type}
+  (fn: funname) : execT (itree E) cmd :=
+  f <- ret_get_FunDef fn ;;
+  Ret (ok (funCode f)).
+
+Definition err_get_FunCode {E} `{ErrState -< E}
+  (fn: funname) : itree E cmd :=
+  f <- err_get_FunDef fn ;;
+  Ret (funCode f).
 
 Definition pure_eval_Args (args: pexprs) (st: estate) :
   exec (seq value) := 
@@ -389,36 +418,40 @@ Definition truncate_Args (f: FunDef) (vargs: seq value) :
   mapM2 ErrType dc_truncate_val f.(f_tyin) vargs.
 
 Definition err_eval_Args {E} `{ErrState -< E}
-  (f: FunDef) (args: pexprs) (st0: estate) : itree E (seq value) :=
+  (fn: funname) (args: pexprs) (st0: estate) : itree E (seq value) :=
+  f <- err_get_FunDef fn ;;
   vargs' <- err_result _ _ (pure_eval_Args args st0) ;;
   err_result _ _ (truncate_Args f vargs').
   
 Definition err_init_state {E} `{ErrState -< E}
-   (f: FunDef) (vargs: seq value) (st0: estate) : itree E estate :=   
+   (fn: funname) (vargs: seq value) (st0: estate) : itree E estate :=   
   let scs1 := st0.(escs) in
-  let m1 := st0.(emem) in  
+  let m1 := st0.(emem) in
+  f <- err_get_FunDef fn ;;
   st1 <- err_result _ _
        (init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init)) ;;
   err_result _ _
       (write_vars (~~direct_call) (f_params f) vargs st1).
       
 Definition mk_InitState {E} `{StackE -< E} `{ErrState -< E}
-  (f: FunDef) (args: pexprs) : itree E unit :=
+  (fn: funname) (args: pexprs) : itree E unit :=
   st0 <- trigger GetTopState ;;
-  vargs <- err_eval_Args f args st0 ;;
-  st1 <- err_init_state f vargs st0 ;;                                  
+  vargs <- err_eval_Args fn args st0 ;;
+  st1 <- err_init_state fn vargs st0 ;;                                  
   trigger (PushState st1).
 
 Definition err_return_val {E} `{ErrState -< E}
-  (f: FunDef) (st0: estate) : itree E (seq value) :=                       
+  (fn: funname) (st0: estate) : itree E (seq value) :=
+  f <- err_get_FunDef fn ;;
   vres <- err_result _ _
       (get_var_is (~~ direct_call) st0.(evm) f.(f_res)) ;;
   err_result _ _
       (mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
 
 Definition err_reinstate_caller {E} `{ErrState -< E}
-  (f: FunDef) (xs: lvals) (vres: seq value)
-  (st_ee st_er: estate) : itree E estate := 
+  (fn: funname) (xs: lvals) (vres: seq value)
+  (st_ee st_er: estate) : itree E estate :=
+  f <- err_get_FunDef fn ;;
   let scs2 := st_ee.(escs) in
   let m2 := finalize f.(f_extra) st_ee.(emem) in      
   err_result _ _
@@ -426,44 +459,42 @@ Definition err_reinstate_caller {E} `{ErrState -< E}
                       (with_scs (with_mem st_er m2) scs2) xs vres).
   
 Definition mk_SetDests {E} `{StackE -< E} `{ErrState -< E}
-  (f: FunDef) (xs: lvals) : itree E unit :=
+  (fn: funname) (xs: lvals) : itree E unit :=
   st0 <- trigger PopState ;;
-  vres <- err_return_val f st0 ;;
+  vres <- err_return_val fn st0 ;;
   st1 <- trigger GetTopState ;;
-  st2 <- err_reinstate_caller f xs vres st0 st1 ;;
+  st2 <- err_reinstate_caller fn xs vres st0 st1 ;;
   trigger (UpdateTopState st2).
 
-Definition err_get_FunDef {E} `{ErrState -< E}
-  (fn: funname) : itree E FunDef :=
-  err_opt _ (get_FunDef fn).           
-
 Definition ret_eval_Args {E: Type -> Type} 
-  (f: FunDef) (args: pexprs) (st0: estate) : execT (itree E) (seq value) :=
+  (fn: funname) (args: pexprs) (st0: estate) : execT (itree E) (seq value) :=
+  f <- ret_get_FunDef fn ;; 
   Ret (Let vargs' := pure_eval_Args args st0 in truncate_Args f vargs').
 
 Definition ret_init_state {E: Type -> Type} 
-   (f: FunDef) (vargs: seq value) (st0: estate) : execT (itree E) estate :=   
+   (fn: funname) (vargs: seq value) (st0: estate) : execT (itree E) estate :=   
   let scs1 := st0.(escs) in
-  let m1 := st0.(emem) in Ret 
+  let m1 := st0.(emem) in
+  f <- ret_get_FunDef fn ;; 
+  Ret 
   (Let st1 := init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init) in
    write_vars (~~direct_call) (f_params f) vargs st1).
 
 Definition ret_return_val {E: Type -> Type} 
-  (f: FunDef) (st0: estate) : execT (itree E) (seq value) := Ret           
+  (fn: funname) (st0: estate) : execT (itree E) (seq value) :=
+  f <- ret_get_FunDef fn ;; 
+  Ret           
   (Let vres := get_var_is (~~ direct_call) st0.(evm) f.(f_res) in
    mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
 
 Definition ret_reinstate_caller {E: Type -> Type} 
-  (f: FunDef) (xs: lvals) (vres: seq value)
-  (st_ee st_er: estate) : execT (itree E) estate := 
+  (fn: funname) (xs: lvals) (vres: seq value)
+  (st_ee st_er: estate) : execT (itree E) estate :=
+  f <- ret_get_FunDef fn ;;   
   let scs2 := st_ee.(escs) in
   let m2 := finalize f.(f_extra) st_ee.(emem) in      
   Ret (write_lvals (~~direct_call) (p_globs pr)
                       (with_scs (with_mem st_er m2) scs2) xs vres).
-
-Definition ret_get_FunDef {E: Type -> Type} 
-  (fn: funname) : execT (itree E) FunDef :=
-  Ret (o2r ErrType (get_FunDef fn)).           
 
 
 (** WriteIndex *)
@@ -604,6 +635,8 @@ Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
     trigger (UpdateTopState st2).
 
 
+(***** INSTR EVENT SEMANTICS *******************************************)
+
 (** InstrE handler *)
 Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} : InstrE ~> itree E :=
@@ -615,10 +648,8 @@ Definition handle_InstrE {E: Type -> Type} `{StackE -< E}
     | EvalCond e => mk_EvalCond e
     | EvalBound e => mk_EvalBound e
     | WriteIndex x z => mk_WriteIndex x z                               
-    | InitState fn es =>
-        f <- err_get_FunDef fn ;; mk_InitState f es
-    | SetDests fn xs =>
-        f <- err_get_FunDef fn ;; mk_SetDests f xs
+    | InitState fn es => mk_InitState fn es
+    | SetDests fn xs => mk_SetDests fn xs
     end.                                            
         
 Definition ext_handle_InstrE {E: Type -> Type} `{StackE -< E}
@@ -632,34 +663,7 @@ Definition interp_InstrE {E: Type -> Type} `{StackE -< E}
   interp ext_handle_InstrE t.
 
 
-(*** FULL HIGH-LEVEL EVENT SEMANTICS  ********************************)
-
-Definition HighE : Type -> Type := FunE +' InstrE.
-
-Definition HighE_inv1 {E} {X: HighE -< E} : FunE -< E :=
-  fun T (H : FunE T) => X T (inl1 H).
-Definition HighE_inv2 {E} {X: HighE -< E} : InstrE -< E :=
-  fun T (H : InstrE T) => X T (inr1 H).
-Definition build_HighE {E: Type -> Type} 
-  {X1: FunE -< E} {X2: InstrE -< E} :
-  HighE -< E := @ReSum_sum (forall _ : Type, Type) IFun sum1 _
-                FunE InstrE E X1 X2.
-
-Definition handle_HighE {E: Type -> Type} `{StackE -< E}
-  `{ErrState -< E} : HighE ~> itree E :=
-  case_ handle_FunE handle_InstrE.
-
-Definition ext_handle_HighE {E: Type -> Type} `{StackE -< E}
-  `{ErrState -< E} : HighE +' E ~> itree E :=
-  case_ handle_HighE (id_ E).
-
-Definition interp_HighE {E: Type -> Type} `{StackE -< E}
-  `{ErrState -< E} {A: Type}
-  (t : itree (HighE +' E) A) : itree E A :=
-  interp ext_handle_HighE t.
-
-
-(***** LOW-LEVEL EVENT SEMANTICS **************************************)
+(***** STACK EVENT SEMANTICS **************************************)
 
 Definition estack := list estate.
 
@@ -691,19 +695,18 @@ Definition interp_StackE {E: Type -> Type} `{ErrState -< E} {A: Type}
    interp_state ext_handle_StackE t.
 
 
-
-(********* JASMIN INTERPRETERS *****************************************)
+(********* MODULAR INTERPRETERS *************************************)
 
 (* evaluation abstracting from stack and errors *)
 Definition evalSE_cmd {E} `{ErrState -< E}
-  (c: cmd) : itree (StackE +' E) unit :=
-  interp_HighE (denote_cmd _ _ _ c).
+  (c: cmd) : itree (FunE +' StackE +' E) unit :=
+  interp_InstrE (denote_cmd _ _ _ c).
 
 (* evaluation abstracting from errors, return value paired with unit
 *)
 Definition evalEU_cmd {E} `{ErrState -< E}
   (c: cmd) : stateT estack (itree E) unit :=
-  interp_StackE (evalSE_cmd c).
+  interp_StackE (interp_FunE (evalSE_cmd c)).
 
 (* evaluation abstracting from errors, returning a state *)
 Definition evalE1_cmd {E} {X: ErrState -< E} 
@@ -723,39 +726,12 @@ Definition eval121_cmd {E} (c: cmd) (st: estate) : itree E (option estate) :=
 Definition eval0_cmd {E} (c: cmd) : itree E (option estate) := 
   eval_cmd c nil.
 
-
-(************* SUPERFLUOUS *****************************************)
-
-Definition evalSE_gen_cmd E `{StackE -< E} `{ErrState -< E}
-  (c: cmd) : itree E unit :=
-  interp_HighE (denote_cmd _ _ _ c).
-
-(* full evaluation, return value paired with unit *)
-Definition evalU_cmd {E} (c: cmd) :
-  stateT estack (failT (itree E)) unit := 
-  fun ss => @interp_Err E (estack * unit) (evalEU_cmd c ss).
-
-Definition eval2kevalA {E} {R S V}
-  (f: R -> S -> itree E V) : ktree E (R * S) V :=
-  fun p2 => f (fst p2) (snd p2).
-
-Definition keval2evalA {E} {R S V}
-  (f: ktree E (R * S) V) : R -> S -> itree E V :=
-  fun r s => f (r, s).
-
-Definition forget_sndA {E} {R S V1 V2} 
-  (f: R -> S -> itree E (V1 * V2)) : R -> S -> itree E V1 :=
-  keval2evalA (k_forget_snd (eval2kevalA f)).
-
-(* evaluation abstracting from errors, without unit *)
-Definition evalE_cmd {E} {X: ErrState -< E} 
-  (c: cmd) (ss: estack) : itree E estack :=
-  forget_sndA (@evalEU_cmd E X) c ss.
-
 End EventSem.
 
+
+(**********************************************************************)
 (*********************************************************************)
-(*********************************************************************)
+(*** INTERPRETERS WITH ERROR (quasi-flat) ******************************)
 
 (** Auxiliary functions for recursion on list (seq) *)
 
@@ -779,7 +755,8 @@ Fixpoint eval_for {E} `{ErrState -< E}
     end st.
 
 
-(** flat interpreter with double recursion *)
+(**********************************************************************)
+(** error-aware interpreter with double recursion *)
 Section With_REC_error.
 
 Local Notation continue_loop st := (ret (inl st)).
@@ -788,7 +765,7 @@ Local Notation rec_call x := (trigger_inl1 (Call x)).
 
 (* introduce events *)
 Fixpoint eval_instr_call {E} `{ErrState -< E} (i : instr_r) (st: estate) :
-    itree (callE (FunDef * (values * estate)) (values * estate) +' E) estate := 
+  itree (callE (funname * (values * estate)) (values * estate) +' E) estate := 
   let R := st_cmd_map_r eval_instr_call in 
   match i with 
   | Cassgn x tg ty e => err_mk_AssgnE x tg ty e st
@@ -812,24 +789,23 @@ Fixpoint eval_instr_call {E} `{ErrState -< E} (i : instr_r) (st: estate) :
            else exit_loop st1) st
                                          
   | Ccall xs fn es =>
-      f <- err_get_FunDef fn ;;
-      va <- err_eval_Args f es st ;;
-      vst <- rec_call (f, (va, st)) ;;
+      va <- err_eval_Args fn es st ;;
+      vst <- rec_call (fn, (va, st)) ;;
       (* PROBLEM: we still need the calle state, so the function needs
       to return it *)
-      err_reinstate_caller f xs (fst vst) (snd vst) st 
+      err_reinstate_caller fn xs (fst vst) (snd vst) st 
   end.
 
 Definition eval_fcall_body {E} `{ErrState -< E} :
-  (FunDef * (values * estate)) -> 
-  itree (callE (FunDef * (values * estate)) (values * estate) +' E)
+  (funname * (values * estate)) -> 
+  itree (callE (funname * (values * estate)) (values * estate) +' E)
         (values * estate) :=
   fun fvst =>
-    let '(f, (va, st)) := fvst in
-    st1 <- err_init_state f va st ;; 
-    let c := funCode f in 
+    let '(fn, (va, st)) := fvst in
+    st1 <- err_init_state fn va st ;; 
+    c <- err_get_FunCode fn ;; 
     st2 <- st_cmd_map_r eval_instr_call c st1 ;; 
-    vs <- err_return_val f st2 ;;
+    vs <- err_return_val fn st2 ;;
     ret (vs, st2).
 
 Fixpoint eval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
@@ -857,10 +833,9 @@ Fixpoint eval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
            else exit_loop st1) st
                                          
   | Ccall xs fn es =>
-      f <- err_get_FunDef fn ;;
-      va <- err_eval_Args f es st ;;
-      vst <- rec eval_fcall_body (f, (va, st)) ;;  
-      err_reinstate_caller f xs (fst vst) (snd vst) st 
+      va <- err_eval_Args fn es st ;;
+      vst <- rec eval_fcall_body (fn, (va, st)) ;;  
+      err_reinstate_caller fn xs (fst vst) (snd vst) st 
   end.
 
 (* denotational interpreter *)
@@ -872,32 +847,28 @@ Definition eval_err_cmd {E} (c: cmd) (st: estate) : itree E (option estate) :=
   @interp_Err E estate (evalE_err_cmd c st).
 
 Definition evalE_fun {E} `{ErrState -< E} :
-  (FunDef * (values * estate)) -> 
+  (funname * (values * estate)) -> 
   itree E (values * estate) :=
   fun fvst =>
-    let '(f, (va, st)) := fvst in
-    st1 <- err_init_state f va st ;;
-    let c := funCode f in
+    let '(fn, (va, st)) := fvst in
+    st1 <- err_init_state fn va st ;;
+    c <- err_get_FunCode fn ;;
     st2 <- evalE_err_cmd c st1 ;;
-    vs <- err_return_val f st2 ;;
+    vs <- err_return_val fn st2 ;;
     ret (vs, st2).
-
-Definition evalE_fun_ {E} `{ErrState -< E}
-  (fn: funname) (vs: values) (st: estate) : 
-  itree (callE (FunDef * (values * estate)) (values * estate) +' E)
-        (values * estate) :=
-  f <- err_get_FunDef fn ;;
-  eval_fcall_body (f, (vs, st)).
 
 End With_REC_error.
 
+
+(**********************************************************************)
+(** error-aware interpreter with mutual recursion *)
 
 (* mutual recursion events *)
 Variant FCState : Type -> Type :=
  | FLCode (c: cmd) (st: estate) : FCState estate
  | FFCall (xs: lvals) (f: funname) (es: pexprs) (st: estate) : FCState estate.
 
-(** flat interpreter with mutual recursion *)
+(** E-interpreter with mutual recursion *)
 Section With_MREC_error.
 
 Local Notation continue_loop st := (ret (inl st)).
@@ -934,13 +905,12 @@ Fixpoint meval_instr {E} `{ErrState -< E} (i : instr_r) (st: estate) :
 Definition meval_fcall {E} `{ErrState -< E}
   (xs: lvals) (fn: funname) (es: pexprs) (st0: estate) :
   itree (FCState +' E) estate :=
-  f <- err_get_FunDef fn ;;
-  va <- err_eval_Args f es st0 ;;
-  st1 <- err_init_state f va st0 ;;
-  let c := funCode f in
+  va <- err_eval_Args fn es st0 ;;
+  st1 <- err_init_state fn va st0 ;;
+  c <- err_get_FunCode fn ;;
   st2 <- rec_call (FLCode c st1) ;;
-  vs <- err_return_val f st2 ;;
-  err_reinstate_caller f xs vs st2 st0.
+  vs <- err_return_val fn st2 ;;
+  err_reinstate_caller fn xs vs st2 st0.
 
 Definition meval_cstate {E} `{ErrState -< E} :
   FCState ~> itree (FCState +' E) :=           
@@ -957,28 +927,31 @@ Definition meval_cmd {E} (c: cmd) (st: estate) : itree E (option estate) :=
   @interp_Err E estate (mevalE_cmd c st).
 
 Definition mevalE_fun {E} `{ErrState -< E} :
-  (FunDef * (values * estate)) -> 
+  (funname * (values * estate)) -> 
   itree E (values * estate) :=
   fun fvst =>
-    let '(f, (va, st)) := fvst in
-    st1 <- err_init_state f va st ;;
-    let c := funCode f in
+    let '(fn, (va, st)) := fvst in
+    st1 <- err_init_state fn va st ;;
+    c <- err_get_FunCode fn ;;
     st2 <- mevalE_cmd c st1 ;;
-    vs <- err_return_val f st2 ;;
+    vs <- err_return_val fn st2 ;;
     ret (vs, st2).
 
 Definition meval_fun_ {E} `{ErrState -< E}
   (fn: funname) (va: values) (st0: estate) :
   itree (FCState +' E) (values * estate) :=
-  f <- err_get_FunDef fn ;;
-  st1 <- err_init_state f va st0 ;;
-  let c := funCode f in
+  st1 <- err_init_state fn va st0 ;;
+  c <- err_get_FunCode fn ;;
   st2 <- rec_call (FLCode c st1) ;;
-  vs <- err_return_val f st2 ;;
+  vs <- err_return_val fn st2 ;;
   ret (vs, st2).
 
 End With_MREC_error.
 
+
+(**********************************************************************)
+(*********************************************************************)
+(*** FLAT INTERPRETERS ************************************************)
 
 Fixpoint lpst_cmd_map_r {E}
   (R: instr_r -> option estate -> itree E (option estate))
@@ -1025,7 +998,8 @@ Fixpoint pmeval_for {E}
     end st.
 
 
-
+(**********************************************************************)
+(** flat interpreter with mutual recursion *)
 Section With_MREC_flat.
 
 Local Notation continue_loop st := (ret (inl st)).
@@ -1062,12 +1036,12 @@ Definition pmeval_fcall {E}
   (xs: lvals) (fn: funname) (es: pexprs) (st0: estate) :
   execT (itree (PCState +' E)) estate :=
   f <- ret_get_FunDef fn ;;
-  va <- ret_eval_Args f es st0 ;;
-  st1 <- ret_init_state f va st0 ;;
-  let c := funCode f in
+  va <- ret_eval_Args fn es st0 ;;
+  st1 <- ret_init_state fn va st0 ;;
+  c <- ret_get_FunCode fn ;;
   rec_call (PLCode c st1) ;;
-  vs <- ret_return_val f st1 ;;
-  ret_reinstate_caller f xs vs st1 st0.
+  vs <- ret_return_val fn st1 ;;
+  ret_reinstate_caller fn xs vs st1 st0.
 
 Definition pmeval_cstate {E} : PCState ~> itree (PCState +' E) :=           
   fun _ fs => match fs with
@@ -1085,29 +1059,16 @@ Definition pmeval_cmd1 {E} (i: instr) (st: estate) :
 
 Definition pmeval_fun {E} (fn: funname) (va: values) (st: estate) :
   execT (itree E) (values * estate) :=
-  f <- ret_get_FunDef fn ;;
-  st1 <- ret_init_state f va st ;;
-  let c := funCode f in
+  st1 <- ret_init_state fn va st ;;
+  c <- ret_get_FunCode fn ;;
   st2 <- pmeval_cmd c st1 ;;
-  vs <- ret_return_val f st2 ;;
+  vs <- ret_return_val fn st2 ;;
   ret (vs, st2).
-
-(*
-Definition pmeval_fun {E} :
-  (FunDef * (values * estate)) -> 
-  execT (itree E) (values * estate) :=
-  fun fvst =>
-    let '(f, (va, st)) := fvst in
-    st1 <- ret_init_state f va st ;;
-    let c := funCode f in
-    st2 <- pmeval_cmd c st1 ;;
-    vs <- ret_return_val f st2 ;;
-    ret (vs, st2).
-*)
 
 End With_MREC_flat.
 
 
+(**********************************************************************)
 (** flat interpreter with double recursion *)
 Section With_REC_flat.
 
@@ -1117,7 +1078,7 @@ Local Notation rec_call x := (trigger_inl1 (Call x)).
 
 (* introduce events *)
 Fixpoint peval_instr_call {E} (i : instr_r) (st: estate) :
-  execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
+  execT (itree (callE (funname * (values * estate)) (exec (values * estate))
                 +' E))
     estate := 
   let R := pst_cmd_map_r peval_instr_call in 
@@ -1143,28 +1104,27 @@ Fixpoint peval_instr_call {E} (i : instr_r) (st: estate) :
            else exit_loop st1) st
 
   | Ccall xs fn es =>
-      f <- ret_get_FunDef fn ;; 
-      va <- ret_eval_Args f es st ;;      
-      vst <- rec_call (f, (va, st)) ;; 
+      va <- ret_eval_Args fn es st ;;      
+      vst <- rec_call (fn, (va, st)) ;; 
       (* PROBLEM: we still need the calle state, so the function needs
       to return it *)
-      ret_reinstate_caller f xs (fst vst) (snd vst) st   
+      ret_reinstate_caller fn xs (fst vst) (snd vst) st   
   end.
 
 Definition peval_fcall_body' {E} :
-  (FunDef * (values * estate)) -> 
-  execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
+  (funname * (values * estate)) -> 
+  execT (itree (callE (funname * (values * estate)) (exec (values * estate))
          +' E)) (values * estate) :=
   fun fvst =>
-    let '(f, (va, st)) := fvst in
-    st1 <- ret_init_state f va st ;; 
-    let c := funCode f in 
+    let '(fn, (va, st)) := fvst in
+    st1 <- ret_init_state fn va st ;; 
+    c <- ret_get_FunCode fn ;; 
     st2 <- pst_cmd_map_r peval_instr_call c st1 ;; 
-    vs <- ret_return_val f st2 ;;
+    vs <- ret_return_val fn st2 ;;
     ret (vs, st2).
 
 Definition peval_fcall_body {E} :
-  (FunDef * (values * estate)) -> 
+  (funname * (values * estate)) -> 
   execT (itree E) (values * estate) :=
   fun fvst => rec peval_fcall_body' fvst.
 
@@ -1192,12 +1152,11 @@ Fixpoint peval_instr {E} (i : instr_r) (st: estate) :
            if b then st2 <- R c2 st1 ;; continue_loop st2 
            else exit_loop st1) st
 
-  | Ccall xs fn es =>
-      f <- ret_get_FunDef fn ;; 
-      va <- ret_eval_Args f es st ;;      
+  | Ccall xs fn es => 
+      va <- ret_eval_Args fn es st ;;      
 (*      vst <- rec peval_fcall_body' (f, (va, st)) ;; *)
-      vst <- peval_fcall_body (f, (va, st)) ;; 
-      ret_reinstate_caller f xs (fst vst) (snd vst) st   
+      vst <- peval_fcall_body (fn, (va, st)) ;; 
+      ret_reinstate_caller fn xs (fst vst) (snd vst) st   
   end.
 
 (* MAIN: denotational interpreter *)
@@ -1205,27 +1164,31 @@ Definition peval_flat_cmd {E} (c: cmd) (st: estate) :
   execT (itree E) estate := pst_cmd_map_r peval_instr c st. 
 
 Definition peval_fun {E} :
-  (FunDef * (values * estate)) -> 
+  (funname * (values * estate)) -> 
   execT (itree E) (values * estate) :=
   fun fvst =>
-    let '(f, (va, st)) := fvst in
-    st1 <- ret_init_state f va st ;; 
-    let c := funCode f in 
+    let '(fn, (va, st)) := fvst in
+    st1 <- ret_init_state fn va st ;; 
+    c <- ret_get_FunCode fn ;; 
     st2 <- peval_flat_cmd c st1 ;; 
-    vs <- ret_return_val f st2 ;;
+    vs <- ret_return_val fn st2 ;;
     ret (vs, st2).
-
-Definition eval_fun_ {E} (fn: funname) (vs: values) (st: estate) : 
-  execT (itree (callE (FunDef * (values * estate)) (exec (values * estate))
-                +' E)) (values * estate) :=
-  f <- ret_get_FunDef fn ;;
-  peval_fcall_body (f, (vs, st)).
 
 End With_REC_flat.
 
 End OneProg.
 
 
+(***************************************************************************)
+(*** APPLICATION ***********************************************************)
+(** we define a language translation and try to prove equivalence of
+function application and commands across the translation under the
+appropriate hypothesis. First we customize induction on Jasmin
+commands and specify the translation. *)
+
+
+(*** INDUCTION PRINCIPLE ****************************************************)
+(** induction on Jasmin commands *)
 Section CMD_IND.
 
 Context (Pr: instr_r -> Prop) (Pi: instr -> Prop) (Pc: cmd -> Prop).
@@ -1268,6 +1231,7 @@ Definition cmd_Ind := cmd_IndF (instr_Ind instr_r_Ind).
 End CMD_IND.
 
 
+(*** TRANSLATION SPEC *******************************************)
 Section TRANSF.
 Context (tr_lval : lval -> lval)
         (tr_expr : pexpr -> pexpr)
@@ -1290,10 +1254,14 @@ Fixpoint Tr_ir (i : instr_r) : instr_r :=
   | Cwhile a c1 e c2 => Cwhile a (map R c1) (tr_expr e) (map R c2)
   | Ccall xs fn es => Ccall (map tr_lval xs) fn (map tr_expr es)
   end.
-Local Notation Tr_cmd c := (map (Tr_i Tr_ir) c).
+Local Notation Tr_instr := (Tr_i Tr_ir).
+Local Notation Tr_cmd c := (map Tr_instr c).
 
 
-Section GEN_tests.
+(*********************************************************************)
+(*** PROOFS **********************************************************)
+
+Section TR_tests.
 
 Context (pr1 pr2 : prog)
         (PR : forall T, T -> T -> Prop).
@@ -1303,14 +1271,19 @@ Context (TR_E : forall (E: Type -> Type) T1 T2,
             E T1 -> T1 -> E T2 -> T2 -> Prop).
 
 Local Notation RS := (PR estate).
+Local Notation RV := (PR values).
+Local Notation RV1 := (PR value).
 
-Section GEN_MM_L1.
+(*********************************************************************)
+(** proofs with the modular semantics *)
+Section TR_MM_L1.
 
 Context (E: Type -> Type)
         (HasErr: ErrState -< E)    
         (HasFunE : FunE -< E)
         (HasInstrE : InstrE -< E).     
 
+(* toy assumptions, with eutt *)
 Context
   (hinit: forall fn es1 es2, es2 = map tr_expr es1 ->
     @eutt E _ _ eq
@@ -1318,7 +1291,8 @@ Context
   (hdests: forall fn xs1 xs2, xs2 = map tr_lval xs1 ->
     @eutt E _ _ eq 
       (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2))).
-          
+
+(* should be shorter *)
 Lemma adhoc_hinit {F} : forall fn es1 es2,
   es2 = map tr_expr es1 ->
   @eutt (F +' E) _ _ eq
@@ -1353,6 +1327,7 @@ Lemma adhoc_hinit {F} : forall fn es1 es2,
   reflexivity.
 Qed.  
 
+(* should be shorter *)
 Lemma adhoc_hdests {F} : forall fn xs1 xs2,
   xs2 = map tr_lval xs1 ->
   @eutt (F +' E) _ _ eq
@@ -1387,7 +1362,11 @@ Lemma adhoc_hdests {F} : forall fn xs1 xs2,
   reflexivity.
 Qed.  
 
-
+(** denotational equivalence across the translation; the proof is nice
+ and short, but relies on the toy eutt assumptions; notice that the
+ FunCode event actually hides the fact that the functions on the two
+ sides are actually different, se we don't need induction on commands
+ *)
 Lemma comp_gen_okMM (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
@@ -1415,6 +1394,8 @@ Lemma comp_gen_okMM (fn: funname)
   eapply adhoc_hdests; eauto.
 Qed.  
 
+(** here there is no CState issue in the type, the proof is even
+simpler (still relying on the toy assumptions) *)
 Lemma comp_gen_okMM_L1 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
@@ -1436,7 +1417,447 @@ Lemma comp_gen_okMM_L1 (fn: funname)
   reflexivity.
 Qed.  
 
-End GEN_MM_L1.
+End TR_MM_L1.
+
+
+Section TR_MM_toy.
+
+Context (E1: Type -> Type)
+        (HasErr1: ErrState -< E1)     
+        (HasStackE1 : StackE -< E1)     
+        (HasFunE1 : FunE -< E1).     
+
+Lemma Assgn_test :
+    forall l a s p, @eutt E1 _ _ eq
+      (interp_InstrE pr1 (trigger (AssgnE l a s p)))
+      (interp_InstrE pr2 (trigger (AssgnE (tr_lval l) a s (tr_expr p)))).
+  intros.
+  unfold interp_InstrE.
+  repeat setoid_rewrite interp_trigger.
+  unfold ext_handle_InstrE.
+  unfold case_.
+  simpl.
+  unfold mk_AssgnE.
+  eapply eutt_clo_bind with (UU := RS).
+  admit. (* need to go deeper *)
+  intros.
+  eapply eutt_clo_bind with (UU := RS).
+  unfold err_mk_AssgnE.
+  eapply eutt_clo_bind with (UU := RV1).
+  admit.
+  intros.
+  eapply eutt_clo_bind with (UU := RV1).
+  admit.
+  intros.
+  admit.
+  intros. (* deeper *)
+  admit.  
+Abort.
+
+Context (E2: Type -> Type)
+        (HasErr2: ErrState -< E2)     
+        (HasFunE2 : FunE -< E2).     
+
+Context (RSS : estack * estate -> estack * estate -> Prop).
+    
+(* would-be proof of a toy assumption; in fact, requires rutt *)
+Lemma Assgn_test : forall l a s p ss,
+   @eutt E2 _ _ eq
+      (interp_StackE (interp_InstrE pr1 (trigger (AssgnE l a s p))) ss)
+      (interp_StackE (interp_InstrE pr2
+                        (trigger (AssgnE (tr_lval l) a s (tr_expr p)))) ss).
+  intros.
+  unfold interp_InstrE.
+  unfold interp_StackE.
+  repeat setoid_rewrite interp_trigger.
+  unfold ext_handle_InstrE.
+  unfold ext_handle_StackE.
+  unfold case_.
+  unfold Case_sum1.
+  unfold Case_sum1_Handler.
+  simpl.  
+  unfold mk_AssgnE.
+  setoid_rewrite interp_state_bind.
+  eapply eutt_clo_bind with (UU := eq).  (* should be (UU:= RSS) *) 
+  setoid_rewrite interp_state_trigger.
+  simpl.
+  reflexivity.
+
+  intros.
+  inv H.
+  destruct u2 as [ss1 st1].
+  simpl.
+  setoid_rewrite interp_state_bind.
+
+  eapply eutt_clo_bind with (UU := eq).  (* should be (UU:= RSS) *) 
+  unfold err_mk_AssgnE.
+
+  setoid_rewrite interp_state_bind.  
+  eapply eutt_clo_bind with (UU := eq).  (* should be (UU := RSSV) *)
+  admit. (* need generic relation *)
+
+  intros.
+  inv H.
+
+  setoid_rewrite interp_state_bind.  
+  eapply eutt_clo_bind with (UU := eq).  (* should be (UU := RSSV) *)
+  destruct u2 as [ss2 st2].
+  simpl.
+  
+  unfold truncate_val.
+  unfold err_result.
+  destruct (Let x := of_val s st2 in ok (to_val (t:=s) x)).
+  setoid_rewrite interp_state_ret.
+  reflexivity.
+  setoid_rewrite interp_state_vis.
+  eapply eutt_clo_bind with (UU := eq). (* same *) 
+
+  simpl.
+  unfold pure_state.
+  eapply eqit_Vis_gen with (p:= erefl (void: Type)).
+  unfold eqeq.
+  reflexivity.
+  unfold pweqeq.
+  intros.
+  reflexivity.
+
+  intros.
+  destruct u2; simpl.
+  inv e1.
+
+  intros.
+  inv H.
+  destruct u0; simpl.
+  unfold err_result; simpl.
+  admit. (* need generic relation (rutt) *)
+
+  intros.
+  inv H.
+  destruct u2; simpl.
+  setoid_rewrite interp_state_trigger.
+  simpl.
+  eapply eutt_clo_bind with (UU := eq). (* same *) 
+  reflexivity.
+  intros.
+  inv H.
+  reflexivity.
+Admitted. 
+  
+(*
+Lemma Assgn_test : forall l a s p
+  (F: itree (StackE +' E2) ~> stateT estack (itree E2)),
+   @eutt E2 _ _ eq
+      (F (interp_InstrE pr1 (trigger (AssgnE l a s p))))
+      (F (interp_InstrE pr2 (trigger (AssgnE (tr_lval l) a s (tr_expr p))))).
+  
+Context 
+  (assgn_h2 :
+    forall l a s p, @eutt E1 _ _ eq
+      (interp_InstrE pr1 (trigger (AssgnE l a s p)))
+      (interp_InstrE pr2 (trigger (AssgnE (tr_lval l) a s (tr_expr p))))).
+*)       
+End TR_MM_toy.
+
+
+Section TR_MM_toy2.
+
+Context (E: Type -> Type)
+        (HasErr: ErrState -< E)     
+        (HasStackE : StackE -< E)     
+        (HasFunE : FunE -< E)     
+        (HasInstrE : InstrE -< E).     
+
+(* two alternative version of a toy hyp *)
+Context (assgn_h :
+          forall l a s p, AssgnE l a s p =
+                            AssgnE (tr_lval l) a s (tr_expr p)).
+Context 
+  (assgn_h1 :
+          forall l a s p, @eutt E _ _ eq (trigger (AssgnE l a s p))
+                            (trigger (AssgnE (tr_lval l) a s (tr_expr p)))).
+
+(* proving toy eutt across the translation for all commands (here we
+need induction) *)
+Lemma tr_eutt_cmd_lemma (cc: cmd) :  
+  eutt eq  
+    (denote_cmd E _ _ cc) (denote_cmd E _ _ (Tr_cmd cc)).
+  set (Pr := fun (i: instr_r) => forall ii,
+                 eutt eq (denote_cmd E _ _ ((MkI ii i) :: nil))
+                       (denote_cmd _ _ _ ((Tr_instr (MkI ii i)) :: nil))).
+  set (Pi := fun i => eutt eq (denote_cmd E _ _ (i::nil))
+                       (denote_cmd _ _ _ (Tr_instr i :: nil))).
+  set (Pc := fun c => eutt eq (denote_cmd E _ _ c)
+                        (denote_cmd _ _ _ (Tr_cmd c))).
+  revert cc.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc.
+  - reflexivity.
+  - intros; simpl.
+    setoid_rewrite seq_eqtree_gen_lemma.
+    rewrite H.
+    setoid_rewrite H0.
+    reflexivity.
+  - intros; eauto.
+  - simpl; intros.
+    unfold denote_cmd.
+    unfold mrec; simpl.
+    setoid_rewrite <- assgn_h.
+    reflexivity.
+  - simpl; intros.
+    unfold denote_cmd.
+    unfold mrec.
+    simpl.
+    (* Opn hyp missing, simply to be added *)
+    admit.
+  - intros.
+    unfold denote_cmd.
+    unfold mrec; simpl.
+    (* Csyscall hyp missing, as before *)
+    admit.
+  - intros; simpl.
+    unfold denote_cmd.
+    unfold mrec; simpl.
+    unfold denote_cmd in H.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq); try (intros; reflexivity).
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    (* EvalCond hyp missing, as before *)
+    admit.
+    intros.
+    inv H1.
+    destruct u2.
+    eapply H.
+    eapply H0.
+  - intros; simpl.
+    unfold denote_cmd.
+    unfold mrec; simpl.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq); try (intros; reflexivity).
+    destruct rn; simpl.
+    destruct p; simpl.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    (* EvalBound hyp missing, as before *)
+    admit.
+    intros.
+    inv H0.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    (* EvalBound hyp missing, as before *)
+    admit.
+    intros.
+    inv H0.
+    unfold denote_cmd in H.
+    unfold mrec in H.
+    unfold denote_for.
+
+    induction (wrange d u2 u0).
+    reflexivity.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    (* WriteIndex hyp missing, as before *)
+    admit.
+
+    intros.
+    inv H0.
+    destruct u3.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    eapply H.
+
+    intros.
+    inv H0.
+    destruct u3.
+    eapply IHl.
+
+  - intros; simpl.
+    unfold denote_cmd.
+    unfold mrec; simpl.
+    
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq); try (intros; reflexivity).
+
+    setoid_rewrite interp_mrec_as_interp.
+    setoid_rewrite interp_iter.
+    unfold CategoryOps.iter.
+    unfold Iter_Kleisli.
+    unfold Basics.iter.
+    unfold MonadIter_itree.
+    
+    eapply eutt_iter' with (RI := eq); eauto.
+    intros.
+    inv H1.
+    destruct j2.
+    setoid_rewrite interp_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    setoid_rewrite interp_mrec_as_interp in H.
+    eapply H.
+    intros.
+    inv H1.
+    destruct u2.
+    setoid_rewrite interp_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    (* EvalCond hyp missing, as before *)
+    admit.
+
+    intros.
+    inv H1.
+    
+    destruct u2.
+    setoid_rewrite interp_bind.
+    eapply eutt_clo_bind with (UU := eq).    
+    setoid_rewrite interp_mrec_as_interp in H0.
+    eapply H0.
+
+    intros.
+    reflexivity.
+    reflexivity.
+
+  - simpl; intros.
+    unfold denote_cmd.
+    unfold mrec; simpl.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq); try (intros; reflexivity).
+    unfold trigger_inl1.
+    setoid_rewrite interp_mrec_trigger.
+    unfold mrecursive.
+    unfold mrec.
+    simpl.
+    unfold denote_fcall.
+    simpl.
+    
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq).
+    setoid_rewrite interp_mrec_trigger.
+    simpl.
+
+    (* InitState hyp missing, as before *)
+    admit.
+
+    intros.
+    inv H.
+    destruct u2.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq); try reflexivity.
+
+    intros.
+    inv H.
+    setoid_rewrite interp_mrec_bind.
+    eapply eutt_clo_bind with (UU := eq); try reflexivity.
+    
+    intros.
+    inv H.
+    destruct u0.
+    setoid_rewrite interp_mrec_trigger.
+    simpl.
+        
+    (* SetDests hyp missing, as before *)
+    admit.
+Admitted.     
+    
+End TR_MM_toy2.
+
+
+Section TR_MM_toy3.
+
+Context (E: Type -> Type)
+        (HasErr: ErrState -< E)     
+        (HasStackE : StackE -< E)     
+        (HasFunE : FunE -< E).     
+     (*   (HasInstrE : InstrE -< E).     *)
+            
+(* here should be rutt *)
+Lemma comp_gen_okMM_L2 (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) 
+  (hxs: xs2 = map tr_lval xs1)
+  (hes: es2 = map tr_expr es1) :  
+  eutt eq  
+    (@interp_InstrE pr1 E _ _ _ (denote_fun _ _ _ fn xs1 es1))
+    (interp_InstrE pr2 (denote_fun _ _ _ fn xs2 es2)).
+  unfold interp_InstrE.
+  setoid_rewrite comp_gen_okMM_L1 at 1; eauto.
+  eapply eutt_interp; eauto.
+  2: { reflexivity. }
+
+  unfold eq2.
+  unfold Eq2_Handler.
+  unfold eutt_Handler.
+  unfold i_pointwise.
+  intros.
+  
+  unfold ext_handle_InstrE.
+  unfold handle_InstrE.
+  destruct a; eauto; simpl.
+  2: { reflexivity. }
+
+  unfold case_.
+  unfold Case_sum1_Handler.
+  unfold Handler.case_.
+  destruct i.
+
+  unfold mk_AssgnE.
+
+  setoid_rewrite bind_trigger.
+  eapply eqit_Vis_gen.
+  intros.
+  
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* here the event returns the state, so we need rutt *)
+  eapply eutt_trigger.
+  
+  { reflexivity.
+
+  intros.
+
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  admit.
+
+  intros.
+  admit.
+
+  unfold mk_OpnE.
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  admit.
+
+  intros.
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  admit.
+
+  intros.
+  admit.
+
+  admit.
+
+  unfold mk_EvalCond.
+  unfold err_mk_EvalCond.
+  admit.
+
+  admit.
+
+  admit.
+
+  eapply eutt_clo_bind with (UU := eq); eauto.
+  
+  admit.
+
+  intros.
+  inv H.
+  admit.
+
+  eapply eutt_clo_bind with (UU := eq); eauto.
+
+  admit.
+
+  intros.
+  inv H.
+
+  admit.
+Admitted. 
+  
+End GEN_MM_L2.
+
 
 Section GEN_MM_L2.
 
@@ -1542,6 +1963,8 @@ Lemma comp_gen_okMM_L2 (fn: funname)
 Admitted. 
   
 End GEN_MM_L2.
+
+
 
 Section GEN_MM_L3.
 
