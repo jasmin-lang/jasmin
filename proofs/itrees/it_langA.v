@@ -1285,13 +1285,16 @@ Context (E: Type -> Type)
         (HasFunE : FunE -< E)
         (HasInstrE : InstrE -< E).     
 
-(* toy assumptions, with eutt *)
+(* toy assumptions, with eutt. this is too strong. notice that eq is
+ok, because the event return type is unit. however, when interpreters
+apply these to unrelated states, equivalence might be lost. So we
+cannot realy express the constraint at this level. *)
 Context
   (hinit: forall fn es1 es2, es2 = map tr_expr es1 ->
-    @eutt E _ _ eq
+    @eutt E unit unit eq
       (trigger (InitState fn es1)) (trigger (InitState fn es2)))
   (hdests: forall fn xs1 xs2, xs2 = map tr_lval xs1 ->
-    @eutt E _ _ eq 
+    @eutt E unit unit eq 
       (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2))).
 
 (* should be shorter *)
@@ -1369,7 +1372,7 @@ Qed.
  FunCode event actually hides the fact that the functions on the two
  sides are actually different, se we don't need induction on commands
  *)
-Lemma comp_gen_okMM (fn: funname)
+Lemma comp_gen_ok_MM1 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) :  
@@ -1398,7 +1401,7 @@ Qed.
 
 (** here there is no CState issue in the type, the proof is even
 simpler (still relying on the toy assumptions) *)
-Lemma comp_gen_okMM_L1 (fn: funname)
+Lemma comp_gen_ok_MM2 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) :  
@@ -1430,7 +1433,7 @@ Context (E1: Type -> Type)
         (HasFunE1 : FunE -< E1).     
 
 Lemma Assgn_test :
-    forall l a s p, @eutt E1 _ _ eq
+    forall l a s p, @eutt E1 unit unit eq
       (interp_InstrE pr1 (trigger (AssgnE l a s p)))
       (interp_InstrE pr2 (trigger (AssgnE (tr_lval l) a s (tr_expr p)))).
   intros.
@@ -1464,7 +1467,7 @@ Context (RSS : estack * estate -> estack * estate -> Prop).
     
 (* would-be proof of a toy assumption; in fact, requires rutt *)
 Lemma Assgn_test : forall l a s p ss,
-   @eutt E2 _ _ eq
+   @eutt E2 (estack * unit) _ eq
       (interp_StackE (interp_InstrE pr1 (trigger (AssgnE l a s p))) ss)
       (interp_StackE (interp_InstrE pr2
                         (trigger (AssgnE (tr_lval l) a s (tr_expr p)))) ss).
