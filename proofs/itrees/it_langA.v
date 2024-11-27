@@ -1273,6 +1273,8 @@ Context (TR_E : forall (E: Type -> Type) T1 T2,
 Local Notation RS := (PR estate).
 Local Notation RV := (PR values).
 Local Notation RV1 := (PR value).
+Local Notation RSMV := (PR (syscall_state * mem * seq value)).
+
 
 (*********************************************************************)
 (** proofs with the modular semantics *)
@@ -1578,7 +1580,7 @@ Context
 
 (* proving toy eutt across the translation for all commands (here we
 need induction) *)
-Lemma tr_eutt_cmd_lemma (cc: cmd) :  
+Lemma tr_eutt_cmd_L1 (cc: cmd) :  
   eutt eq  
     (denote_cmd E _ _ cc) (denote_cmd E _ _ (Tr_cmd cc)).
   set (Pr := fun (i: instr_r) => forall ii,
@@ -1767,7 +1769,7 @@ Context (E: Type -> Type)
      (*   (HasInstrE : InstrE -< E).     *)
             
 (* here should be rutt *)
-Lemma comp_gen_okMM_L2 (fn: funname)
+Lemma tr_eutt_tun_ok (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) :  
@@ -1798,175 +1800,179 @@ Lemma comp_gen_okMM_L2 (fn: funname)
   unfold mk_AssgnE.
 
   setoid_rewrite bind_trigger.
-  eapply eqit_Vis_gen.
+  eapply eqit_Vis_gen; eauto.
+  instantiate (1 := erefl).
+  unfold eqeq; simpl; auto.
+  unfold pweqeq.
   intros.
-  
-  
-  eapply eutt_clo_bind with (UU := RS); eauto.
-  (* here the event returns the state, so we need rutt *)
-  eapply eutt_trigger.
-  
-  { reflexivity.
-
-  intros.
+  unfold err_mk_AssgnE.
 
   eapply eutt_clo_bind with (UU := RS); eauto.
+  
+  eapply eutt_clo_bind with (UU := RV1); eauto.
+  (* missing hyp on semp_pexpr, but OK *)
   admit.
 
   intros.
+  eapply eutt_clo_bind with (UU := RV1); eauto.
+  (* missing hyp on truncate_val, but OK *)
+  admit.
+
+  intros.
+  (* missing hyp on write_lval, but OK *)
+  admit.
+
+  intros.
+  (* missing hyp on UpdateTopState, TOO STRONG *)
   admit.
 
   unfold mk_OpnE.
+
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on GetTopState, but OK *)
+  admit.
+
+  intros.
   
   eapply eutt_clo_bind with (UU := RS); eauto.
+  
+  unfold err_mk_OpnE; simpl.
+  (* missing hyp on sem_opn, but OK *)
+  admit.
+
+  intros.
+  (* missing hyp on UpdateTopState, TOO STRONG *)
+  admit.
+
+  unfold mk_SyscallE; simpl.
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on GetTopState, but OK *)
   admit.
 
   intros.
   eapply eutt_clo_bind with (UU := RS); eauto.
+  unfold err_mk_SyscallE.
+  
+  eapply eutt_clo_bind with (UU := RV); eauto.
+  (* missing hyp on sem_pexprs, but OK *)
   admit.
 
   intros.
+  eapply eutt_clo_bind with (UU := RSMV); eauto.
+  (* missing hyp on syscall_state_t, but OK *)
   admit.
 
+  intros.
+  (* missing hyp on write_lvals, but OK *)
+  admit.
+
+  intros.
+  (* missing hyp on UpdateTopState, TOO STRONG *)
   admit.
 
   unfold mk_EvalCond.
+
+  intros.
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on GetTopState, but OK *)
+  admit.
+
+  intros.
   unfold err_mk_EvalCond.
+  (* missing hyp on Boolen evaluation, but OK *)
   admit.
 
-  admit.
-
-  admit.
-
-  eapply eutt_clo_bind with (UU := eq); eauto.
+  unfold mk_EvalBound.
   
+  intros.
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on GetTopState, but OK *)
   admit.
 
   intros.
-  inv H.
+  (* missing hyp on bound evaluation, but OK *)
   admit.
 
-  eapply eutt_clo_bind with (UU := eq); eauto.
-
+  unfold mk_WriteIndex.
+  
+  intros.
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on GetTopState, but OK *)
   admit.
 
   intros.
-  inv H.
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on index update, but OK *)
+  admit.
 
+  intros.
+  (* missing hyp on UpdateTopState, TOO STRONG *)
+  admit.
+
+  unfold mk_InitState.
+
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on GetTopState, but OK *)
+  admit.
+
+  intros.
+  eapply eutt_clo_bind with (UU := RV); eauto.
+  (* missing hyp on args eval, but OK *)
+  admit.
+
+  intros.
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on init state, but OK *)
+  admit.
+
+  intros.
+  (* missing hyp on PushState, TOO STRONG *)
+  admit.
+
+  unfold mk_SetDests.
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on PopState, but OK *)
+  admit.
+
+  intros.
+  
+  eapply eutt_clo_bind with (UU := RV); eauto.
+  (* missing hyp on ret val, but OK *)
+  admit.
+  
+  intros.
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on GetTopState, but OK *)
+  admit.
+
+  intros.
+  
+  eapply eutt_clo_bind with (UU := RS); eauto.
+  (* missing hyp on reinstate, but OK *)
+  admit.
+
+  intros.
+  (* missing hyp on UpdateTopState, TOO STRONG *)
+  admit.
+
+  intros.  
+  rewrite H.
+  (* missing hyp on init state, TOO STRONG *)
+  admit.
+
+  intros.
+  rewrite H.
+  (* missing hyp on set dests, TOO STRONG *)
   admit.
 Admitted. 
-  
-End GEN_MM_L2.
+   
+End TR_MM_toy3.
 
 
-Section GEN_MM_L2.
-
-Context (E: Type -> Type)
-        (HasErr: ErrState -< E)    
-        (HasStackE : StackE -< E).     
-
-Context
-  (hinit: forall fn es1 es2, es2 = map tr_expr es1 ->
-    @eutt (HighE +' E) _ _ eq
-      (trigger (InitState fn es1)) (trigger (InitState fn es2)))
-  (hdests: forall fn xs1 xs2, xs2 = map tr_lval xs1 ->
-    @eutt (HighE +' E) _ _ eq 
-      (trigger (SetDests fn xs1)) (trigger (SetDests fn xs2))).
-
-(* here should be rutt *)
-Lemma comp_gen_okMM_L2 (fn: funname)
-  (xs1 xs2: lvals) (es1 es2: pexprs) 
-  (hxs: xs2 = map tr_lval xs1)
-  (hes: es2 = map tr_expr es1) :  
-  eutt eq  
-    (@interp_HighE pr1 E _ _ _ (denote_fun _ _ _ fn xs1 es1))
-    (interp_HighE pr2 (denote_fun _ _ _ fn xs2 es2)).
-  unfold interp_HighE.
-  setoid_rewrite comp_gen_okMM_L1 at 1; eauto.
-  eapply eutt_interp; eauto.
-  2: { reflexivity. }
-
-  unfold eq2.
-  unfold Eq2_Handler.
-  unfold eutt_Handler.
-  unfold i_pointwise.
-  intros.
-  
-  unfold ext_handle_HighE.
-  unfold handle_HighE.
-  destruct a; eauto; simpl.
-  2: { reflexivity. }
-
-  unfold case_.
-  unfold Case_sum1_Handler.
-  unfold Handler.case_.
-  destruct h.
-
-  unfold handle_FunE.
-  destruct f.
-  admit.
-
-  unfold handle_InstrE.
-  destruct i.
-  unfold mk_AssgnE.
-  
-  eapply eutt_clo_bind with (UU := RS); eauto.
-  (* here the event returns the state, so we need rutt *)
-  admit.
-
-  intros.
-
-  eapply eutt_clo_bind with (UU := RS); eauto.
-  admit.
-
-  intros.
-  admit.
-
-  unfold mk_OpnE.
-  
-  eapply eutt_clo_bind with (UU := RS); eauto.
-  admit.
-
-  intros.
-  eapply eutt_clo_bind with (UU := RS); eauto.
-  admit.
-
-  intros.
-  admit.
-
-  admit.
-
-  unfold mk_EvalCond.
-  unfold err_mk_EvalCond.
-  admit.
-
-  admit.
-
-  admit.
-
-  eapply eutt_clo_bind with (UU := eq); eauto.
-  
-  admit.
-
-  intros.
-  inv H.
-  admit.
-
-  eapply eutt_clo_bind with (UU := eq); eauto.
-
-  admit.
-
-  intros.
-  inv H.
-
-  admit.
-Admitted. 
-  
-End GEN_MM_L2.
-
-
-
-Section GEN_MM_L3.
+Section TR_MM_toy4.
 
 Context (E: Type -> Type)
         (HasErr: ErrState -< E).
@@ -1978,8 +1984,8 @@ Lemma comp_gen_okMM_L3 (fn: funname)
   (hes: es2 = map tr_expr es1) (ss: estack) :  
   eutt eq  
     (@interp_StackE E _ _
-       (@interp_HighE pr1 _ _ _ _ (denote_fun _ _ _ fn xs1 es1)) ss) 
-    (interp_StackE (interp_HighE pr2 (denote_fun _ _ _ fn xs2 es2)) ss).
+       (@interp_FunE pr1 _ _ _ (interp_InstrE pr1 (denote_fun _ _ _ fn xs1 es1))) ss) 
+    (interp_StackE (interp_FunE pr2 (interp_InstrE pr2 (denote_fun _ _ _ fn xs2 es2))) ss).
   unfold interp_StackE.
 (*  
   eapply eutt_interp_state.
@@ -1987,7 +1993,7 @@ Lemma comp_gen_okMM_L3 (fn: funname)
 *)
 Admitted. 
 
-End GEN_MM_L3.
+End TR_MM_toy4.
 
 
 Section GEN_EF.
@@ -2032,9 +2038,9 @@ Lemma comp_gen_okDE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     (VR_E (callE (FunDef * VS) VS +' E))
     (fun a1 a2 => @VR_D2 _ _ (Call (fn, (vs1, st1))) a1
                              (Call (fn, (vs2, st2))) a2)  
-    (evalE_fun_ pr1 fn vs1 st1) (evalE_fun_ pr2 fn vs2 st2).
+    (evalE_fun pr1 (fn, (vs1, st1))) (evalE_fun pr2 (fn, (vs2, st2))).
   intros.
-  unfold evalE_fun_; simpl.
+  unfold evalE_fun; simpl.
 Admitted. 
  
 Definition TR_D3 {T1 T2} (d1 : FCState T1)
@@ -2102,6 +2108,8 @@ Definition exec_RV (p1 p2: exec values) : Prop :=
   | (Ok vv1, Ok vv2) => RV vv1 vv2
   | (Error _, Error _) => True                           
   | _ => False end.                         
+
+
 
 Lemma comp_gen_okDF (f: FunDef) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
