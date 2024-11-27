@@ -5,9 +5,6 @@ set -e
 ROOT_DIR=tests/results/extraction
 DIR=$ROOT_DIR/${2%.jazz}/$1
 ECLIB=$(dirname $0)/../../eclib
-EC=${DIR}/jasmin.ec
-CT=${DIR}/jasmin_ct.ec
-CTG=${DIR}/jasmin_ctg.ec
 
 if [ -d "${DIR}" ]; then rm -r ${DIR}; fi
 mkdir -p $DIR
@@ -23,9 +20,7 @@ fi
 set -x
 set -o xtrace
 
-$(dirname $0)/../jasmin2ec ${ARCH} -o ${EC} "$2"
-$(dirname $0)/../jasmin2ec ${ARCH} -o ${CT} -m CT "$2"
-$(dirname $0)/../jasmin2ec ${ARCH} -o ${CTG} -m CTG "$2"
+MODES=(normal CT CTG val)
 
 function ec_path { echo ${DIR}/jasmin_$1.ec; }
 

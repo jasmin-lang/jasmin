@@ -50,7 +50,7 @@ let parse_and_extract arch call_conv idirs =
 
 let model =
   let alts =
-    [ ("normal", Normal); ("CT", ConstantTime); ("CTG", ConstantTimeGlobal) ]
+    [ ("normal", Normal); ("CT", ConstantTime); ("CTG", ConstantTimeGlobal); ("val", ValLeak) ]
   in
   let doc =
     "Extraction model.
@@ -58,6 +58,7 @@ let model =
     $(b,CT): Functions additionally return timing-observable leakage for
     'cryptographic constant time' (if/while conditions, memory access
     addresses, array indices, for loop bounds).
+    $(b,val): In addition to CT leakage, all (sub)expressions leak.
     (Deprecated) $(b,CTG): Cryptographic constant time leakage is added to a
     global variable."
   in
