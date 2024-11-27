@@ -336,7 +336,9 @@ Instance x86_fcp : FlagCombinationParams :=
 Definition x86_check_CAimm (checker : caimm_checker_s) ws (w : ssralg.GRing.ComRing.sort(word ws)) : bool :=
   match checker with
   | CAimmC_none => true
-  | _ => false  (* Only CAimmC_none is needed for x86 *)
+  | CAimmC_arm_shift_amout _ | CAimmC_arm_wencoding _ | CAimmC_arm_0_8_16_24
+  | CAimmC_riscv_12bits_signed | CAimmC_riscv_5bits_unsigned =>
+    false (* Only CAimmC_none is needed for x86 *)
   end.
 
 

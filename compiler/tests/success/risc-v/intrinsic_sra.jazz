@@ -1,0 +1,16 @@
+export
+fn asr(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Registers.
+    x = #SRA(arg0, arg1);
+    [x] = x;
+
+    // Immediates.
+    x = #SRAI(arg0, 1);
+    [x] = x;
+
+    reg u32 res;
+    res = x;
+    return res;
+}

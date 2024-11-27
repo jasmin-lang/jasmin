@@ -175,7 +175,7 @@ let memory_analysis pp_err ~debug up =
     Format.eprintf "%a@.@.@." (pp_oracle up) saos
   end;
 
-  let sp' =
+  let sp =
     match
       Stack_alloc.alloc_prog
         Arch.pointer_data
@@ -192,11 +192,20 @@ let memory_analysis pp_err ~debug up =
         get_sao
         up
     with
-    | Utils0.Ok sp -> sp 
+    | Utils0.Ok sp -> sp
     | Utils0.Error e ->
       let e = Conv.error_of_cerror pp_err e in
       raise (HiError e)
   in
+
+  let sp' =
+    match Arch.aparams.ap_lap (Conv.fresh_var_ident (Reg (Normal, Direct)) IInfo.dummy (Uint63.of_int 0)) sp with
+    | Utils0.Ok sp -> sp
+    | Utils0.Error e ->
+      let e = Conv.error_of_cerror pp_err e in
+      raise (HiError e)
+  in
+
   let fds, _ = Conv.prog_of_csprog sp' in
   
   if debug then
@@ -310,7 +319,7 @@ let memory_analysis pp_err ~debug up =
         sao_rsp  = saved_stack;
         sao_return_address =
           (* This is a dummy value it will be fixed in fix_csao *)
-          RAstack (None, Conv.cz_of_int 0, None)
+          RAstack (None, None, Conv.cz_of_int 0, None)
       } in
     Hf.replace atbl fn csao
   in
@@ -330,8 +339,9 @@ let memory_analysis pp_err ~debug up =
       Stack_alloc.{ csao with
         sao_return_address =
           match ro.ro_return_address with
-          | StackDirect  -> RAstack (None, Conv.cz_of_int 0, None) (* FIXME stackDirect should provide a tmp register *)
-          | StackByReg (r, tmp) -> RAstack (Some (Conv.cvar_of_var r), Conv.cz_of_int 0, Option.map Conv.cvar_of_var tmp)
+          | StackDirect  -> RAstack (None, None, Conv.cz_of_int 0, None) (* FIXME stackDirect should provide a tmp register *)
+          | StackByReg (ra_call, ra_return, tmp) ->
+            RAstack (Some (Conv.cvar_of_var ra_call), Option.map Conv.cvar_of_var ra_return, Conv.cz_of_int 0, Option.map Conv.cvar_of_var tmp)
           | ByReg (r, tmp)      -> RAreg (Conv.cvar_of_var r, Option.map Conv.cvar_of_var tmp)
       } in
       Hf.replace atbl fn csao

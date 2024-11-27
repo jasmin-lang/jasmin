@@ -71,7 +71,7 @@ abstract theory MonoArray.
   lemma set_out (i : int) (e : elem) (t : t):
     ! (0 <= i < size) => t.[i <- e] = t.
   proof.
-    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.  
+    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.
   qed.
 
   lemma set_neg (i : int) (e : elem) (t : t):
@@ -219,7 +219,7 @@ abstract theory MonoArray.
   proof.
     rewrite to_listE map2E map2_zip init_of_list /=;congr.
     apply (eq_from_nth dfl).
-    + rewrite !size_map size_zip !size_map StdOrder.IntOrder.minrE /=. 
+    + rewrite !size_map size_zip !size_map StdOrder.IntOrder.minrE /=.
       smt (size_iota ge0_size).
     move=> i; rewrite size_map => hi.
     rewrite (nth_map 0) 1:// (nth_map (dfl,dfl)).
@@ -329,7 +329,7 @@ abstract theory PolyArray.
   lemma set_out (i : int) (e : 'a) (t : 'a t):
     ! (0 <= i < size) => t.[i <- e] = t.
   proof.
-    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.  
+    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.
   qed.
 
   lemma set_neg (i : int) (e : 'a) (t : 'a t):
@@ -373,7 +373,7 @@ abstract theory PolyArray.
     init f.
   proof.
     apply ext_eq=> x hx; rewrite initiE 1://.
-    have h : forall sz, sz <= size => 0 <= x < sz => 
+    have h : forall sz, sz <= size => 0 <= x < sz =>
       (foldl (fun (a : 'a t) (i : int) => a.[i <- f i]) t (iota_ 0 sz)).[x] = f x; last by apply (h size).
     elim /natind; 1: smt().
     by move=> {hx} sz hsz0 ih hsize hx; rewrite iotaSr 1:// -cats1 foldl_cat /=; smt (get_setE).

@@ -6,6 +6,10 @@ module Core_arch_ARM : Arch_full.Core_arch = Arm_arch_full.Arm (struct
   let call_conv = Arm_decl.arm_linux_call_conv
 end)
 
+module Core_arch_RISCV : Arch_full.Core_arch = Riscv_arch_full.Riscv (struct
+  let call_conv = Riscv_decl.riscv_linux_call_conv
+end)
+
 let core_arch_x86 ~use_lea ~use_set0 call_conv :
     (module Arch_full.Core_arch
        with type reg = register

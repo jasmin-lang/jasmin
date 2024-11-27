@@ -56,7 +56,7 @@ let parse_and_extract arch call_conv =
         Format.eprintf "%a@." pp_hierror e;
         exit 1
 
-let model = 
+let model =
   let alts = [ ("normal", Normal) ; ("CT", ConstantTime) ] in
   let doc =
     Format.asprintf "Extraction model (determines added annotations (e.g. leakage) (%s)."
