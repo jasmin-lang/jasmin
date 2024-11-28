@@ -1277,6 +1277,33 @@ Local Notation RSMV := (PR (syscall_state * mem * seq value)).
 
 
 (*********************************************************************)
+Section Err_test.
+
+Context (E: Type -> Type)
+        (HasErr: ErrState -< E)     
+        (HasStackE : StackE -< E)     
+        (HasFunE : FunE -< E).     
+     (*   (HasInstrE : InstrE -< E).     *)
+
+Definition REv_sk (A B: Type) (e1: ErrState A) (e2: InstrE B) : Prop := True.
+
+Definition RAns_sk (A B: Type) (e1: ErrState A) (v1: A) (e2: InstrE B) (v2: B) : Prop := True.
+
+(*  | WriteIndex (x: var_i) (z: Z) : InstrE unit *)                            
+
+Lemma ErrState_rutt_test1 (x: var_i) (z: Z) (k: unit -> itree InstrE unit) :
+      @rutt ErrState InstrE unit unit REv_sk RAns_sk eq
+                (throw ErrType) (Vis (WriteIndex x z) k).
+  eapply rutt_Vis.
+  unfold REv_sk; auto.
+  intros.
+  inv t1.
+Qed.  
+
+End Err_test.
+
+
+(*********************************************************************)
 (** proofs with the modular semantics *)
 Section TR_MM_L1.
 
@@ -1769,8 +1796,7 @@ Context (E: Type -> Type)
         (HasErr: ErrState -< E)     
         (HasStackE : StackE -< E)     
         (HasFunE : FunE -< E).     
-     (*   (HasInstrE : InstrE -< E).     *)
-            
+
 (* here should be rutt *)
 Lemma tr_eutt_tun_ok (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
@@ -1780,7 +1806,7 @@ Lemma tr_eutt_tun_ok (fn: funname)
     (@interp_InstrE pr1 E _ _ _ (denote_fun _ _ _ fn xs1 es1))
     (interp_InstrE pr2 (denote_fun _ _ _ fn xs2 es2)).
   unfold interp_InstrE.
-  setoid_rewrite comp_gen_okMM_L1 at 1; eauto.
+  setoid_rewrite comp_gen_ok_MM2 at 1; eauto.
   eapply eutt_interp; eauto.
   2: { reflexivity. }
 
@@ -2034,18 +2060,18 @@ Defined.
 Lemma comp_gen_okDE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
-  @rutt (callE (FunDef * VS) VS +' E)
-    (callE (FunDef * VS) VS +' E)
+  @rutt (callE FVS VS +' E)
+    (callE FVS VS +' E)
     VS VS 
-    (TR_E (callE (FunDef * VS) VS +' E))
-    (VR_E (callE (FunDef * VS) VS +' E))
+    (TR_E (callE FVS VS +' E))
+    (VR_E (callE FVS VS +' E))
     (fun a1 a2 => @VR_D2 _ _ (Call (fn, (vs1, st1))) a1
                              (Call (fn, (vs2, st2))) a2)  
     (evalE_fun pr1 (fn, (vs1, st1))) (evalE_fun pr2 (fn, (vs2, st2))).
   intros.
   unfold evalE_fun; simpl.
 Admitted. 
- 
+  
 Definition TR_D3 {T1 T2} (d1 : FCState T1)
                          (d2 : FCState T2) : Prop :=
   match (d1, d2) with
@@ -2056,13 +2082,15 @@ Definition TR_D3 {T1 T2} (d1 : FCState T1)
   end.               
 
 Program Definition VR_D3 {T1 T2} (d1 : FCState T1) (t1: T1)
-                                 (d2 : FCState T2) (t2: T2) : Prop.
+  (d2 : FCState T2) (t2: T2) : Prop.
+  remember d1 as D1.
+  remember d2 as D2.
   dependent destruction d1.
   - dependent destruction d2.
     + exact (RS t1 t2).
     + exact (False).
   - dependent destruction d2.
-    + exact (True).
+    + exact (False).
     + exact (RS t1 t2).
 Defined.      
 
@@ -2088,13 +2116,13 @@ Section GEN_Flat.
 Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
   match (pp1, pp2) with
   | (Ok vt1, Ok vt2) => RVS vt1 vt2
-  | (Error _, Error _) => True
+  | (Error _, _) => True
   | _ => False end.
 Context (exec_rvs_def : PR (exec VS) = exec_RVS).  
 
 Program Definition VR_D2' {T1 T2}
-  (d1 : callE (FunDef * VS) (exec VS) T1) (t1: T1)
-  (d2 : callE (FunDef * VS) (exec VS) T2) (t2: T2) : Prop.
+  (d1 : callE FVS (exec VS) T1) (t1: T1)
+  (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
   dependent destruction d1.
   dependent destruction d2.
   exact (exec_RVS t1 t2).
@@ -2103,71 +2131,36 @@ Defined.
 Definition exec_RS (p1 p2: exec estate) : Prop :=
   match (p1, p2) with
   | (Ok st1, Ok st2) => RS st1 st2
-  | (Error _, Error _) => True                           
+  | (Error _, _) => True                           
   | _ => False end.                         
 
 Definition exec_RV (p1 p2: exec values) : Prop :=
   match (p1, p2) with
   | (Ok vv1, Ok vv2) => RV vv1 vv2
-  | (Error _, Error _) => True                           
+  | (Error _, _) => True                           
   | _ => False end.                         
 
-
-
-Lemma comp_gen_okDF (f: FunDef) (vs1 vs2: values) (st1 st2: estate) :
+Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
   @rutt E E
     (exec VS) (exec VS)
-(*    (sum_prerel (TR_E (callE (FunDef * VS) (exec VS))) (TR_E E))
-    (sum_postrel (VR_E (callE (FunDef * VS) (exec VS))) (VR_E E))
-*)
     (TR_E E) (VR_E E)  
-    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (f, (vs1, st1))) a1
-                             (Call (f, (vs2, st2))) a2)  
-    (peval_fcall_body pr1 (f, (vs1, st1)))
-    (peval_fcall_body pr2 (f, (vs2, st2))).
+    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
+                             (Call (fn, (vs2, st2))) a2)  
+    (peval_fcall_body pr1 (fn, (vs1, st1)))
+    (peval_fcall_body pr2 (fn, (vs2, st2))).
   intros.
   unfold peval_fcall_body.
   unfold rec.
 
   eapply mrec_rutt.
+Admitted. 
   
+(*  eapply @interp_mrec_rutt.
+  instantiate (1:= (TR_E (callE (FunDef * VS) (exec VS)))). *)
 
-
-
-Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
-  RV vs1 vs2 ->
-  RS st1 st2 ->
-  @rutt (callE (FunDef * VS) (exec VS) +' E)
-    (callE (FunDef * VS) (exec VS) +' E)
-    (exec VS) (exec VS)
-    (sum_prerel (TR_E (callE (FunDef * VS) (exec VS))) (TR_E E))
-    (sum_postrel (VR_E (callE (FunDef * VS) (exec VS))) (VR_E E))
-    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
-                             (Call (fn, (vs2, st2))) a2)  
-    (eval_fun_ pr1 fn vs1 st1) (eval_fun_ pr2 fn vs2 st2).
-  intros.
-  unfold eval_fun_; simpl.
-
-  eapply rutt_bind with (RR := eq).
-  admit.
-
-  intros.
-  inv H1; simpl.
-  destruct r2.
-  2: { eapply rutt_Ret.
-       unfold exec_RVS; auto.
-  }
-
-  unfold peval_fcall_body.
-  unfold rec.
-  unfold mrec.
-
-  eapply @interp_mrec_rutt.
-  instantiate (1:= (TR_E (callE (FunDef * VS) (exec VS)))).
-
-
+(*
 Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
@@ -2272,7 +2265,7 @@ Check @rutt.
   destruct r2; try intuition.
   admit.
 Admitted. 
-
+*)
 
 Definition TR_D4 {T1 T2} (d1 : PCState T1)
                          (d2 : PCState T2) : Prop :=
@@ -2327,6 +2320,7 @@ Lemma comp_gen_okMF (fn: funname)
     
   2: { destruct r2; try intuition.
        admit.
+       admit.
   }
 
   eapply rutt_bind with (RR := exec_RS); eauto.
@@ -2338,6 +2332,17 @@ Lemma comp_gen_okMF (fn: funname)
     
   2: { destruct r2; try intuition.
        admit.
+       admit.
+  }
+
+  eapply rutt_bind with (RR := eq); eauto.
+  admit.
+
+  intros.
+  inv H2.
+  destruct r2; try intuition.
+    
+  2: { admit.
   }
 
   eapply rutt_bind with (RR := exec_RS); eauto.
@@ -2349,16 +2354,6 @@ Lemma comp_gen_okMF (fn: funname)
     
   2: { destruct r2; try intuition.
        admit.
-  }
-
-  eapply rutt_bind with (RR := exec_RV); eauto.
-  admit.
-
-  intros.
-  destruct r1; try intuition.
-  destruct r2; try intuition.
-    
-  2: { destruct r2; try intuition.
        admit.
   }
 
@@ -2369,7 +2364,7 @@ End GEN_Flat.
 
 End GEN_EF.
 
-End GEN_tests.
+End TR_tests.
 
 End TRANSF.
 
