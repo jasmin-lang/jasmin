@@ -34,7 +34,7 @@ let rec warn_extra_i pd asmOp i =
             (Printer.pp_instr ~debug:false pd asmOp)
             i
       | _ -> ())
-  | Cif (_, c1, c2) | Cwhile (_, c1, _, c2) ->
+  | Cif (_, c1, c2) | Cwhile (_, c1, _, _, c2) ->
       List.iter (warn_extra_i pd asmOp) c1;
       List.iter (warn_extra_i pd asmOp) c2
   | Cfor _ ->
@@ -253,7 +253,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       begin match i.i_desc with
       | Cif (_, c1, c2) -> List.iter analyze c1; List.iter analyze c2
       | Cfor (_, _, c) -> List.iter analyze c
-      | Cwhile (_, c, _, c') -> List.iter analyze c; List.iter analyze c'
+      | Cwhile (_, c, _, _, c') -> List.iter analyze c; List.iter analyze c'
       | _ -> ()
       end;
       let (in_set, out_set) = i.i_info in

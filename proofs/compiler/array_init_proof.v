@@ -155,7 +155,7 @@ Section REMOVE_INIT.
 
   Local Lemma Rwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' _ Hc + _ Hc' _ Hw ii vm1 Hvm1.
+    move=> s1 s2 s3 s4 a c e ei c' _ Hc + _ Hc' _ Hw ii vm1 Hvm1.
     have [vm2 Hs2 Hvm2] := Hc _ Hvm1.
     move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uinclE H2; subst.
     have [vm3 H4 Hvm3]:= Hc' _ Hvm2.
@@ -166,7 +166,7 @@ Section REMOVE_INIT.
 
   Local Lemma Rwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' _ Hc H ii vm1 Hvm1; move: H.
+    move=> s1 s2 a c e ei c' _ Hc H ii vm1 Hvm1; move: H.
     have [vm2 Hs2 Hvm2] := Hc _ Hvm1.
     move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uinclE ?;subst.
     by exists vm2 => //=;apply sem_seq1;constructor;apply: Ewhile_false=> //;rewrite H1.
@@ -430,7 +430,7 @@ Section ADD_INIT.
 
   Local Lemma RAwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' hsc [] Hc _ he hsc' [] Hc' _ hsi Hi ii.
+    move=> s1 s2 s3 s4 a c e ei c' hsc [] Hc _ he hsc' [] Hc' _ hsi Hi ii.
     have [{Hi}Hi _]:= Hi ii.
     apply aux.
     + by constructor;apply: Ewhile_true;eauto.
@@ -441,7 +441,7 @@ Section ADD_INIT.
 
   Local Lemma RAwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' hsc [] Hc _ he ii.
+    move=> s1 s2 a c e ei c' hsc [] Hc _ he ii.
     apply aux.
     + by constructor;apply: Ewhile_false;eauto.
     move=> vm1 /Hc [vm2] heq ?; exists vm2 => //.

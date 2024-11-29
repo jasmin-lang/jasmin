@@ -73,7 +73,7 @@ Section WRITE1.
     | Csyscall xs o _ => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-    | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
+    | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
     | Ccall _ fn _    => Sv.union s (writefun_ra_call fn)
     end
   with write_I_rec s i :=
@@ -184,7 +184,7 @@ Section CHECK.
       ok (Sv.union D1 D2)
     | Cfor _ _ _ =>
       Error (E.internal_error ii "for loop should be unrolled")
-    | Cwhile _ c e c' =>
+    | Cwhile _ c e _ c' =>
       if is_false e then check_c (check_i sz) D c
       else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
 

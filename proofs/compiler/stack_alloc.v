@@ -1245,7 +1245,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       let rmap:= merge c1.1 c2.1 in
       ok (rmap, [:: MkI ii (Cif e (flatten c1.2) (flatten c2.2))])
 
-    | Cwhile a c1 e c2 =>
+    | Cwhile a c1 e info c2 =>
       let check_c rmap :=
         Let c1 := fmapM (alloc_i sao) rmap c1 in
         let rmap1 := c1.1 in
@@ -1253,7 +1253,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
         Let c2 := fmapM (alloc_i sao) rmap1 c2 in
         ok ((rmap1, c2.1), (e, (c1.2, c2.2))) in
       Let r := loop2 ii check_c Loop.nb rmap in
-      ok (r.1, [:: MkI ii (Cwhile a (flatten r.2.2.1) r.2.1 (flatten r.2.2.2))])
+      ok (r.1, [:: MkI ii (Cwhile a (flatten r.2.2.1) r.2.1 info (flatten r.2.2.2))])
 
     | Ccall rs fn es =>
       Let ri := add_iinfo ii (alloc_call sao rmap rs fn es) in
