@@ -406,7 +406,7 @@ Definition pop_to_save
       check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
     | Cfor _ _ _ =>
       Error (E.ii_error ii "for found in linear")
-    | Cwhile _ c e c' =>
+    | Cwhile _ c e _ c' =>
       match is_bool e with
       | Some false => check_c check_i c
       | Some true => check_c check_i c >> check_c check_i c'
@@ -616,7 +616,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
     MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
    (MkLI ii (Llabel L2) :: lc)
 
-  | Cwhile a c e c' =>
+  | Cwhile a c e _ c' =>
     match is_bool e with
     | Some true =>
       let L1 := lbl in

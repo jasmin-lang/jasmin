@@ -6,6 +6,12 @@
   parts of global addresses
   ([PR#921](https://github.com/jasmin-lang/jasmin/pull/921)).
 
+- While instructions now have two pieces of information (including locations)
+  attached to them: one corresponding to the whole instruction, the other one
+  corresponding to the guard condition
+  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
+  fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
+
 ## Other changes
 
 - The “allocation” pass now uses the liveness information to reduce the sizes

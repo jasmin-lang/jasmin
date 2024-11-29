@@ -139,10 +139,10 @@ Fixpoint array_copy_i V (i:instr) : cexec cmd :=
   | Cfor i r c =>
       Let c := array_copy_c V array_copy_i c in
       ok [:: MkI ii (Cfor i r c)]
-  | Cwhile a c1 e c2 =>
+  | Cwhile a c1 e info c2 =>
       Let c1 := array_copy_c V array_copy_i c1 in
       Let c2 := array_copy_c V array_copy_i c2 in
-      ok [:: MkI ii (Cwhile a c1 e c2)]
+      ok [:: MkI ii (Cwhile a c1 e info c2)]
   | Ccall _ _ _ => ok [:: i]
   end.
 

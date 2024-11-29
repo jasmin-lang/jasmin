@@ -93,11 +93,11 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     let X := Sv.union (read_i ir) X in
     Let c := inline_c (inline_i p) c X in
     ok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
-  | Cwhile a c e c' =>
+  | Cwhile a c e info c' =>
     let X := Sv.union (read_i ir) X in
     Let c := inline_c (inline_i p) c X in
     Let c' := inline_c (inline_i p) c' X in
-    ok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
+    ok (X, [::MkI iinfo (Cwhile a c.2 e info c'.2)])
   | Ccall xs f es =>
     let X := Sv.union (read_i ir) X in
     if ii_is_inline iinfo then

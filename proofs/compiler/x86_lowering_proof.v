@@ -1787,15 +1787,15 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' _ Hc Hz _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
+    move=> s1 s2 s3 s4 a c e ei c' _ Hc Hz _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
     have := Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv (var_info_of_ii ii) e by [].
+    have Hcond: x = lower_condition fv (var_info_of_ii ei) e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=
       lower_condition_corr
-        ii
+        ei
         Hcond
         Hs2'2
         (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).
@@ -1814,15 +1814,15 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' _ Hc Hz ii Hdisj s1' Hs1' /=.
+    move=> s1 s2 a c e ei c' _ Hc Hz ii Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv (var_info_of_ii ii) e by [].
+    have Hcond: x = lower_condition fv (var_info_of_ii ei) e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 Hs3'2 Hs3'3]] :=
       lower_condition_corr
-        ii
+        ei
         Hcond
         Hs2'2
         (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).

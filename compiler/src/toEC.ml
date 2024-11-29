@@ -72,7 +72,7 @@ let rec read_mem_i s i =
   | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
   | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
-  | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
+  | Cwhile (_, c1, e, _, c2) -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
   | Ccall (xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
   | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
 
@@ -85,7 +85,7 @@ let rec write_mem_i s i =
   | Cassgn (x, _, _, _)  -> write_mem_lval x 
   | Copn (xs, _, _, _) | Csyscall(xs, Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
-  | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
+  | Cwhile (_, c1, _, _, c2) -> write_mem_c s c1 ||write_mem_c s c2
   | Ccall (xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s
   | Cfor (_, _, c)       -> write_mem_c s c 
 
@@ -852,7 +852,7 @@ let rec is_write_i x i =
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
-  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> 
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
     is_write_c x c1 || is_write_c x c2 
   | Cfor(x',_,c) -> 
     V.equal x x'.L.pl_desc || is_write_c x c
@@ -864,7 +864,7 @@ let rec remove_for_i i =
     match i.i_desc with
     | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
     | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
-    | Cwhile(a, c1, e, c2) -> Cwhile(a, remove_for c1, e, remove_for c2)
+    | Cwhile(a, c1, e, ei, c2) -> Cwhile(a, remove_for c1, e, ei, remove_for c2)
     | Cfor(j,r,c) -> 
       let jd = j.pl_desc in
       if not (is_write_c jd c) then Cfor(j, r, remove_for c)
@@ -896,7 +896,7 @@ module Normal = struct
     match i.i_desc with
     | Cassgn _ -> env
     | Cif(_, c1, c2)
-    | Cwhile(_, c1, _, c2) ->
+    | Cwhile(_, c1, _, _, c2) ->
         init_aux pd asmOp (init_aux pd asmOp env c1) c2
     | Cfor(_,_,c) -> init_aux pd asmOp (add_aux env [tint]) c
     | Copn (lvs, _, op, _) -> 
@@ -1002,7 +1002,7 @@ module Normal = struct
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
         (pp_expr pd env) e (pp_cmd pd asmOp env) c1 (pp_cmd pd asmOp env) c2
       
-    | Cwhile(_, c1, e,c2) ->
+    | Cwhile(_, c1, e, _, c2) ->
       Format.fprintf fmt "@[<v>%a@ while (%a) {@   %a@ }@]"
         (pp_cmd pd asmOp env) c1 (pp_expr pd env) e (pp_cmd pd asmOp env) (c2@c1)
       
@@ -1211,7 +1211,7 @@ module Leak = struct
     | Ccall(lvs, _, _) ->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
-    | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
+    | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
     | Cfor(_,_,c) -> 
       if for_safety env then
         init_aux pd asmOp (add_aux env [tint; tint]) c
@@ -1317,7 +1317,7 @@ module Leak = struct
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
         (pp_expr pd env) e (pp_cmd pd asmOp env) c1 (pp_cmd pd asmOp env) c2
       
-    | Cwhile(_, c1, e,c2) ->
+    | Cwhile(_, c1, e, _, c2) ->
       let pp_leak fmt e = 
         Format.fprintf fmt "@ %a" (pp_leaks_if pd env) e in
       Format.fprintf fmt "@[<v>%a%a@ while (%a) {@   %a%a@ }@]"
@@ -1544,7 +1544,7 @@ and used_func_i used i =
   | Cassgn _ | Copn _ | Csyscall _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
-  | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
+  | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
 let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
