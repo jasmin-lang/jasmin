@@ -676,7 +676,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | Cassgn (lv,_,_,_), Cassgn (ssa_lv,_,_,_) ->
       build_map_lv i.i_info lmap lv ssa_lv
 
-    | Cwhile (_, is1, _, is2), Cwhile (_, ssa_is1, _, ssa_is2)         
+    | Cwhile (_, is1, _, _, is2), Cwhile (_, ssa_is1, _, _, ssa_is2)
     | Cif (_, is1, is2), Cif (_, ssa_is1, ssa_is2) ->
       let lmap = build_lmap lmap is1 ssa_is1 in
       build_lmap lmap is2 ssa_is2

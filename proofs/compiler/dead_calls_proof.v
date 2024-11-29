@@ -37,7 +37,7 @@ with i_Calls_r (i : instr_r) {struct i} : Sf.t :=
     => Sf.empty
   | Cif    _  c1 c2   => Sf.union (c_Calls c1) (c_Calls c2)
   | Cfor   _  _  c1   => c_Calls c1
-  | Cwhile _ c1 _  c2 => Sf.union (c_Calls c1) (c_Calls c2)
+  | Cwhile _ c1 _ _ c2 => Sf.union (c_Calls c1) (c_Calls c2)
   | Ccall _ f _ => Sf.singleton f
   end.
 
@@ -69,8 +69,8 @@ Lemma i_Calls_for v rg c1 :
   i_Calls_r (Cfor v rg c1) = c_Calls c1.
 Proof. by []. Qed.
 
-Lemma i_Calls_while a c1 e c2 :
-  i_Calls_r (Cwhile a c1 e c2) = Sf.union (c_Calls c1) (c_Calls c2).
+Lemma i_Calls_while a c1 e ei c2 :
+  i_Calls_r (Cwhile a c1 e ei c2) = Sf.union (c_Calls c1) (c_Calls c2).
 Proof. by []. Qed.
 
 Lemma i_Calls_call lv f es :
@@ -103,7 +103,7 @@ Proof.
 move: c.
 apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /=
   [ i0 ii Hi | | i0 c0 Hi Hc | x t ty e | xs t o es | xs o es | e c1 c2 Hc1 Hc2
-    | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es ] c /=.
+    | v dir lo hi c0 Hc | a c0 e ei c' Hc Hc' | ii xs f es ] c /=.
 + by apply Hi.
 + rewrite CallsE; SfD.fsetdec.
 + rewrite CallsE Hc Hi; SfD.fsetdec.
@@ -272,7 +272,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw.
+    move=> s1 s2 s3 s4 a c e ei c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_true (Hc1 Hincl) H (Hc2 Hincl') (Hiw Hinclw)).
@@ -280,10 +280,10 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' Hs1 Hc1 H Hinclw.
+    move=> s1 s2 a c e ei c' Hs1 Hc1 H Hinclw.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
-    exact: (Ewhile_false _ _ (Hc1 Hincl) H).
+    exact: (Ewhile_false _ _ _ (Hc1 Hincl) H).
   Qed.
 
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.

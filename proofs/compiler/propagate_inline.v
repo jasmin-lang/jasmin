@@ -188,10 +188,10 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     Let pic := loop_for pi_i ii x c Loop.nb pi in
     ok (pic.1, MkI ii (Cfor x (d,e1,e2) pic.2))
     
-  | Cwhile a c1 e c2 => 
+  | Cwhile a c1 e info c2 => 
     Let pic := loop_while pi_i ii c1 e c2 Loop.nb pi in
     let:(pi, c1, e, c2) := pic in
-    ok (pi, MkI ii (Cwhile a c1 e c2))
+    ok (pi, MkI ii (Cwhile a c1 e info c2))
 
   | Ccall xs f es =>
     let es := pi_es pi es in

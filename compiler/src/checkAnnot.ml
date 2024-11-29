@@ -68,7 +68,7 @@ and check_no_for_loop_i ~funname { i_desc; i_loc; _ } =
 
 and check_no_for_loop_i_r ~funname ~loc = function
   | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> ()
-  | Cif (_, a, b) | Cwhile (_, a, _, b) ->
+  | Cif (_, a, b) | Cwhile (_, a, _, _, b) ->
       check_no_for_loop ~funname a;
       check_no_for_loop ~funname b
   | Cfor _ ->
@@ -93,7 +93,7 @@ and check_no_inline_instr_i ~funname i =
 
 and check_no_inline_instr_i_r ~funname = function
   | Cassgn _ | Copn _ | Csyscall _ | Cfor _ | Ccall _ -> ()
-  | Cif (_, a, b) | Cwhile (_, a, _, b) ->
+  | Cif (_, a, b) | Cwhile (_, a, _, _, b) ->
       check_no_inline_instr ~funname a;
       check_no_inline_instr ~funname b
 

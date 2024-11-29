@@ -584,7 +584,7 @@ let rec ty_instr is_ct_asm fenv env i =
       else loop (Env.max env1 env) in  (* le env/env1 (max env1 env) Check *)
     loop env
 
-  | Cwhile(_, c1, e, c2) ->
+  | Cwhile(_, c1, e, _, c2) ->
     (* c1; while e do c2; c1 *)
     (* G |- c1 : G'   G' |- e : public   G' |- c2 : G
        -----------------------------------------------

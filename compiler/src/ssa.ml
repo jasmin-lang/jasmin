@@ -40,7 +40,7 @@ let rec written_vars_instr_r allvars w =
   | Ccall (xs, _, _)
     -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
-  | Cwhile (_, s1, _, s2)
+  | Cwhile (_, s1, _, _, s2)
     -> written_vars_stmt allvars (written_vars_stmt allvars w s1) s2
 and written_vars_instr allvars w { i_desc } = written_vars_instr_r allvars w i_desc
 and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) w s
@@ -88,7 +88,7 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
           ) os (m, [], [])
       in
       m, Cif (e, s1 @ tl1, s2 @ tl2)
-    | Cwhile (a, s1, e, s2) ->
+    | Cwhile (a, s1, e, (info, _), s2) ->
       let os = written_vars_stmt allvars (written_vars_stmt allvars Sv.empty s1) s2 in
       let m1, s1 = stmt m s1 in
       let e = rename_expr m1 e in
@@ -100,7 +100,7 @@ let split_live_ranges (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) fun
             else tl2
           ) os []
       in
-      m1, Cwhile (a, s1, e, s2 @ tl2)
+      m1, Cwhile (a, s1, e, (info, ()), s2 @ tl2)
   and instr (m, tl) i =
     let { i_desc ; i_info = (li, lo) ; i_loc ; _ } = i in
     let m, i_desc = instr_r i_loc li lo m i_desc in
@@ -129,7 +129,7 @@ let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
           | _, _ -> Some i)
        | _ -> Some i)
     | Cif (b, s1, s2) -> Some (Cif (b, stmt s1, stmt s2))
-    | Cwhile (a, s1, b, s2) -> Some (Cwhile (a, stmt s1, b, stmt s2))
+    | Cwhile (a, s1, b, loc, s2) -> Some (Cwhile (a, stmt s1, b, loc, stmt s2))
     | (Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> Some i
   and instr i =
     try Option.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)

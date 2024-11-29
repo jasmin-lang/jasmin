@@ -287,7 +287,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
       else loop (Sv.union ms' ms) in
     loop ms
 
-  | Cwhile (_, c1, _, c2) ->
+  | Cwhile (_, c1, _, _, c2) ->
     (* c1; while e do c2; c1 *)
     let rec loop ms =
       let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
@@ -1108,7 +1108,7 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
       msf', venv1
 
-  | Cwhile(_, c1, e, c2) ->
+  | Cwhile(_, c1, e, _, c2) ->
     (* c1; while e do (c2; c1) *)
     (* env, msf <= env1, msf1
        env1, msf1 |- c1 : msf2, env2   env2 |- e : public

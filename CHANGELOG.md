@@ -11,6 +11,12 @@
   `--after` command-line argument
   ([PR#972](https://github.com/jasmin-lang/jasmin/pull/972)).
 
+- While instructions now have two pieces of information (including locations)
+  attached to them: one corresponding to the whole instruction, the other one
+  corresponding to the guard condition
+  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
+  fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
