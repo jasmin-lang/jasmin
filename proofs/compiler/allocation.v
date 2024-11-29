@@ -599,7 +599,7 @@ Fixpoint check_i (i1 i2:instr_r) r :=
         fold2 E.fold2 check_I c1 c2 in
       loop check_c Loop.nb rhi
 
-    | Cwhile a1 c1 e1 c1', Cwhile a2 c2 e2 c2' =>
+    | Cwhile a1 c1 e1 _ c1', Cwhile a2 c2 e2 _ c2' =>
       let check_c r :=
         Let r := fold2 E.fold2 check_I c1 c2 r in
         Let re := check_e e1 e2 r in

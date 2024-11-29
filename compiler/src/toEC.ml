@@ -1096,7 +1096,7 @@ let rec is_write_i x i =
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
-  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> 
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
     is_write_c x c1 || is_write_c x c2 
   | Cfor(x',_,c) -> 
     V.equal x x'.L.pl_desc || is_write_c x c
@@ -1108,7 +1108,7 @@ let rec remove_for_i i =
     match i.i_desc with
     | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
     | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
-    | Cwhile(a, c1, e, c2) -> Cwhile(a, remove_for c1, e, remove_for c2)
+    | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
     | Cfor(j,r,c) -> 
       let jd = j.pl_desc in
       if not (is_write_c jd c) then Cfor(j, r, remove_for c)
@@ -1424,7 +1424,7 @@ module Extraction(EA: EcArray) = struct
       | Cif (e, c1, c2) ->
           (ec_leaks_if env e) @
           [ESif (toec_expr env e, toec_cmd asmOp env c1, toec_cmd asmOp env c2)]
-      | Cwhile (_, c1, e, c2) ->
+      | Cwhile (_, c1, e, _, c2) ->
           let leak_e = ec_leaks_if env e in
           (toec_cmd asmOp env c1) @ leak_e @
           [ESwhile (toec_expr env e, (toec_cmd asmOp env (c2@c1)) @ leak_e)]
@@ -1505,7 +1505,7 @@ module Extraction(EA: EcArray) = struct
               let env = add_aux env otys in
               add_aux env (List.map ty_lval lvs)
       )
-      | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
+      | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
       | Cfor(_,_,c) -> init_aux pd asmOp (add_aux env [tint]) c
 
   and init_aux pd asmOp env c = List.fold_left (init_aux_i pd asmOp) env c
@@ -1687,7 +1687,7 @@ and used_func_i used i =
   | Cassgn _ | Copn _ | Csyscall _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
-  | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
+  | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
 let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp model amodel fnames array_dir fmt =

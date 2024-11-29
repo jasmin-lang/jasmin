@@ -214,7 +214,7 @@ Proof. by []. Qed.
 
 Lemma mem_equiv_while_true : sem_Ind_while_true P ev Pc Pi_r.
 Proof.
-  move => s1 s2 s3 s4 aa c e c' _ A _ _ B _ C; red.
+  move => s1 s2 s3 s4 aa c e ei c' _ A _ _ B _ C; red.
   etransitivity; first exact: A.
   etransitivity; first exact: B.
   exact: C.
@@ -572,13 +572,13 @@ Qed.
 
 Local Lemma sem_deter_while_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  red => s1 s2 s3 s4 a c1 e c2 _ ih1 eval_e _ ih2 _ ih s4' /sem_iE[] _ [] b [] /ih1 <-.
+  red => s1 s2 s3 s4 a c1 e ei c2 _ ih1 eval_e _ ih2 _ ih s4' /sem_iE[] _ [] b [] /ih1 <-.
   by rewrite eval_e => /ok_inj [] <- [] _ [] /ih2 <- /ih.
 Qed.
 
 Local Lemma sem_deter_while_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  red => s1 s2 a c1 e c2 _ ih eval_e s2' /sem_iE[] _ [] b [] /ih <-.
+  red => s1 s2 a c1 e ei c2 _ ih eval_e s2' /sem_iE[] _ [] b [] /ih <-.
   by rewrite eval_e => /ok_inj [] <-.
 Qed.
 

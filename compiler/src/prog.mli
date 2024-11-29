@@ -63,7 +63,7 @@ type ('len,'info,'asm) ginstr_r =
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
-  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
+  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len,'info,'asm) gstmt
   | Ccall  of 'len glvals * funname * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {

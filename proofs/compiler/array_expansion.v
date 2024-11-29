@@ -301,11 +301,11 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let c  := mapM (expand_i m) c in 
     ok (MkI ii (Cfor x (dir, e1, e2) c))
 
-  | Cwhile a c e c' =>
+  | Cwhile a c e info c' =>
     Let e  := add_iinfo ii (expand_e m e) in
     Let c  := mapM (expand_i m) c in 
     Let c' := mapM (expand_i m) c' in 
-    ok (MkI ii (Cwhile a c e c'))
+    ok (MkI ii (Cwhile a c e info c'))
 
   | Ccall xs fn es =>
     if Mf.get fsigs fn is Some (expdin, expdout) then
