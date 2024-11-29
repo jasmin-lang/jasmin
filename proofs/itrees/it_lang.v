@@ -1698,11 +1698,11 @@ Lemma comp_gen_okDF (f: FunDef) (vs1 vs2: values) (st1 st2: estate) :
   unfold rec.
 
   eapply mrec_rutt.
-  
+Abort.  
 
 
 
-Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+Fail Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
   @rutt (callE (FunDef * VS) (exec VS) +' E)
@@ -1713,7 +1713,7 @@ Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
                              (Call (fn, (vs2, st2))) a2)  
     (eval_fun_ pr1 fn vs1 st1) (eval_fun_ pr2 fn vs2 st2).
-  intros.
+(*  intros.
   unfold eval_fun_; simpl.
 
   eapply rutt_bind with (RR := eq).
@@ -1732,7 +1732,9 @@ Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
 
   eapply @interp_mrec_rutt.
   instantiate (1:= (TR_E (callE (FunDef * VS) (exec VS)))).
+*)
 
+(*
 
 Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
@@ -1930,6 +1932,8 @@ Lemma comp_gen_okMF (fn: funname)
 
   admit.
 Admitted. 
+
+*)
 
 End GEN_Flat.
 

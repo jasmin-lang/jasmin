@@ -2120,7 +2120,12 @@ Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
   | _ => False end.
 Context (exec_rvs_def : PR (exec VS) = exec_RVS).  
 
-Program Definition VR_D2' {T1 T2}
+Definition TR_D2_ex {T1 T2} (d1 : callE FVS (exec VS) T1)
+                         (d2 : callE FVS (exec VS) T2) : Prop :=
+  match (d1, d2) with
+  | (Call f1, Call f2) => RFVS f1 f2 end.               
+
+Program Definition VR_D2_ex {T1 T2}
   (d1 : callE FVS (exec VS) T1) (t1: T1)
   (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
   dependent destruction d1.
@@ -2146,7 +2151,7 @@ Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   @rutt E E
     (exec VS) (exec VS)
     (TR_E E) (VR_E E)  
-    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
+    (fun (a1 a2: exec VS) => @VR_D2_ex _ _ (Call (fn, (vs1, st1))) a1
                              (Call (fn, (vs2, st2))) a2)  
     (peval_fcall_body pr1 (fn, (vs1, st1)))
     (peval_fcall_body pr2 (fn, (vs2, st2))).
@@ -2155,6 +2160,119 @@ Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   unfold rec.
 
   eapply mrec_rutt.
+  
+  instantiate (1:= @TR_D2_ex).
+
+  2: { unfold TR_D2_ex; simpl.
+       split; eauto.
+  }
+
+  intros; simpl.
+  
+  destruct d1 as [f1].
+  destruct d2 as [f2].
+  simpl in *.
+  destruct f1 as [fn1 [v1 stt1]].
+  destruct f2 as [fn2 [v2 stt2]].
+  unfold TR_D2_ex in H1.
+  destruct H1 as [H1 [H2 H3]].
+  simpl in *.
+  inv H1; simpl.
+  
+  eapply rutt_bind with (RR := exec_RS).
+  - unfold ret_init_state.
+    unfold exec_RS; simpl.
+    eapply rutt_bind with (RR := eq).
+    unfold ret_get_FunDef.
+    (* missing hyp about get_FunDef *)
+    admit.
+
+    intros.
+    inv H1.
+    destruct r2; simpl.
+    eapply rutt_Ret.
+    simpl.
+    (* missing hyp about init_state *)
+    admit.
+
+    eapply rutt_Ret; auto.
+  
+  - intros.
+    destruct r1; try congruence.
+    destruct r2; try congruence.
+
+    eapply rutt_bind with (RR := eq).
+    unfold exec_RS in H1.
+    unfold ret_get_FunCode.
+    unfold ret_get_FunDef.
+    unfold get_FunDef.
+    simpl.
+    (* missing hyp about get_fundef *)
+    admit. 
+    
+    intros.
+    inv H4.
+    destruct r2; simpl.
+    unfold exec_RS in H1.
+    
+    eapply rutt_bind with (RR := exec_RS); last first.
+
+    simpl; intros.
+    destruct r1.
+    destruct r2.
+    unfold exec_RS in H4.
+    
+    eapply rutt_bind with (RR := exec_RV); last first.
+    intros.
+    destruct r1.
+    destruct r2.
+    
+    unfold exec_RV in H5.
+    eapply rutt_Ret.
+    unfold exec_RVS; simpl.
+    split; auto.
+
+    unfold exec_RV in H5; intuition.
+
+    destruct r2.
+    unfold exec_RV in H5; intuition.
+    
+    eapply rutt_Ret.
+    unfold exec_RVS; auto.
+
+    unfold exec_RV in H5.
+    eapply rutt_Ret.
+    unfold exec_RVS; auto.
+
+    2: { inv H4. }
+
+    2: { destruct r2.
+         unfold exec_RS in H4.
+
+         (* STRANGE: double check *)
+         admit.
+
+         (* OK *)
+         admit.
+       }  
+
+    2: { (* OK *)  admit. }
+
+    2: { eapply rutt_Ret. (* OK *) admit. }
+
+    2: { inv H1. }
+
+    2: { destruct r2.
+
+         (* STRANGE: double check *)
+         admit.
+
+         (* OK *) admit.
+    }
+
+    (* induction required *)     
+    admit.
+  
 Admitted. 
   
 (*  eapply @interp_mrec_rutt.
