@@ -2025,7 +2025,7 @@ Admitted.
 End TR_MM_toy4.
 
 
-Section GEN_EF.
+Section GEN_ErrAndFlat.
 
 Context (E: Type -> Type).   
 
@@ -2037,20 +2037,26 @@ Notation RVS := (fun (vs_st1 vs_st2 : VS) =>
   (RV vs_st1.1 vs_st2.1 /\ RS vs_st1.2 vs_st2.2)).
 Notation RFVS := (fun (fvs1 fvs2 : FVS) => 
   (fvs1.1 = fvs2.1 /\ RVS fvs1.2 fvs2.2)).
+Notation RC := (fun c1 c2: cmd => c2 = Tr_cmd c1).
+
 Context (rvs_def : PR VS = RVS)
-        (rfvs_def : PR FVS = RFVS).  
+        (rfvs_def : PR FVS = RFVS)
+        (rc_def : PR cmd = RC).  
 
 
 Section GEN_Err.
 
 Context (HasErr: ErrState -< E).   
 
-Definition TR_D2 {T1 T2} (d1 : callE FVS VS T1)
-                         (d2 : callE FVS VS T2) : Prop :=
+(* DE: relation between call events, i.e. over inputs of type 
+# (funname * (values * estate)) *)
+Definition TR_D_DE {T1 T2} (d1 : callE FVS VS T1)
+                           (d2 : callE FVS VS T2) : Prop :=
   match (d1, d2) with
   | (Call f1, Call f2) => RFVS f1 f2 end.               
 
-Program Definition VR_D2 {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
+(* DE: relation between call outputs, i.e. (values * estate) *)
+Program Definition VR_D_DE {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
                                  (d2 : callE FVS VS T2) (t2: T2) : Prop.
   dependent destruction d1.
   dependent destruction d2.
@@ -2060,29 +2066,29 @@ Defined.
 Lemma comp_gen_okDE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
-  @rutt (callE FVS VS +' E)
-    (callE FVS VS +' E)
-    VS VS 
+  @rutt (callE FVS VS +' E) (callE FVS VS +' E) VS VS 
     (TR_E (callE FVS VS +' E))
     (VR_E (callE FVS VS +' E))
-    (fun a1 a2 => @VR_D2 _ _ (Call (fn, (vs1, st1))) a1
-                             (Call (fn, (vs2, st2))) a2)  
+    (fun a1 a2 => @VR_D_DE _ _ (Call (fn, (vs1, st1))) a1
+                               (Call (fn, (vs2, st2))) a2)  
     (evalE_fun pr1 (fn, (vs1, st1))) (evalE_fun pr2 (fn, (vs2, st2))).
   intros.
   unfold evalE_fun; simpl.
 Admitted. 
   
-Definition TR_D3 {T1 T2} (d1 : FCState T1)
-                         (d2 : FCState T2) : Prop :=
+(* ME: relation between FCState events *)
+Definition TR_D_ME {T1 T2} (d1 : FCState T1)
+                           (d2 : FCState T2) : Prop :=
   match (d1, d2) with
-  | (FLCode c1 st1, FLCode c2 st2) => c2 = Tr_cmd c1 /\ RS st1 st2
+  | (FLCode c1 st1, FLCode c2 st2) => RC c1 c2 /\ RS st1 st2
   | (FFCall xs1 fn1 es1 st1, FFCall xs2 fn2 es2 st2) =>
       xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2
   | _ => False   
   end.               
 
-Program Definition VR_D3 {T1 T2} (d1 : FCState T1) (t1: T1)
-  (d2 : FCState T2) (t2: T2) : Prop.
+(* ME: relation between FCState event outputs, i.e. over estate *)
+Program Definition VR_D_ME {T1 T2}
+  (d1 : FCState T1) (t1: T1) (d2 : FCState T2) (t2: T2) : Prop.
   remember d1 as D1.
   remember d2 as D2.
   dependent destruction d1.
@@ -2099,9 +2105,8 @@ Lemma comp_gen_okME (fn: funname)
   xs2 = map tr_lval xs1 ->
   es2 = map tr_expr es1 -> 
   RS st1 st2 ->
-  @rutt (FCState +' E) _ _ _ 
-    (TR_E _) (VR_E _)
-    (fun a1 a2 => @VR_D3 _ _ (FFCall xs1 fn es1 st1) a1
+  @rutt (FCState +' E) _ _ _ (TR_E _) (VR_E _)
+    (fun a1 a2 => @VR_D_ME _ _ (FFCall xs1 fn es1 st1) a1
                              (FFCall xs2 fn es2 st2) a2)  
     (meval_fcall pr1 xs1 fn es1 st1) (meval_fcall pr2 xs2 fn es2 st2).
   intros.
@@ -2113,6 +2118,19 @@ End GEN_Err.
 
 Section GEN_Flat.
   
+(* DE: relation between call events, i.e. over inputs of type #
+(funname * (values * estate)) ### (similar to TR_D_DE, only difference
+is in the call type) *)
+Definition TR_D_DE_ex {T1 T2} (d1 : callE FVS (exec VS) T1)
+                              (d2 : callE FVS (exec VS) T2) : Prop :=
+  match (d1, d2) with
+  | (Call f1, Call f2) => RFVS f1 f2 end.               
+
+
+Section Asym_test.
+
+(* DF: asymmetric relation between call event outputs, i.e. over #
+(exec (values * estate)) *)
 Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
   match (pp1, pp2) with
   | (Ok vt1, Ok vt2) => RVS vt1 vt2
@@ -2120,12 +2138,9 @@ Definition exec_RVS (pp1 pp2 : exec VS) : Prop :=
   | _ => False end.
 Context (exec_rvs_def : PR (exec VS) = exec_RVS).  
 
-Definition TR_D2_ex {T1 T2} (d1 : callE FVS (exec VS) T1)
-                         (d2 : callE FVS (exec VS) T2) : Prop :=
-  match (d1, d2) with
-  | (Call f1, Call f2) => RFVS f1 f2 end.               
-
-Program Definition VR_D2_ex {T1 T2}
+(* DF: asymmetric relation between call outputs, i.e. over ##########
+(exec (values * estate)) *)
+Program Definition VR_D_DE_ex {T1 T2}
   (d1 : callE FVS (exec VS) T1) (t1: T1)
   (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
   dependent destruction d1.
@@ -2145,13 +2160,19 @@ Definition exec_RV (p1 p2: exec values) : Prop :=
   | (Error _, _) => True                           
   | _ => False end.                         
 
+Definition exec_RC (pc1 pc2: exec cmd) : Prop :=
+  match (pc1, pc2) with
+  | (Ok c1, Ok c2) => RC c1 c2
+  | (Error _, _) => True                           
+  | _ => False end.                         
+
 Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
   @rutt E E
     (exec VS) (exec VS)
     (TR_E E) (VR_E E)  
-    (fun (a1 a2: exec VS) => @VR_D2_ex _ _ (Call (fn, (vs1, st1))) a1
+    (fun (a1 a2: exec VS) => @VR_D_DE_ex _ _ (Call (fn, (vs1, st1))) a1
                              (Call (fn, (vs2, st2))) a2)  
     (peval_fcall_body pr1 (fn, (vs1, st1)))
     (peval_fcall_body pr2 (fn, (vs2, st2))).
@@ -2161,9 +2182,9 @@ Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
 
   eapply mrec_rutt.
   
-  instantiate (1:= @TR_D2_ex).
+  instantiate (1:= @TR_D_DE_ex).
 
-  2: { unfold TR_D2_ex; simpl.
+  2: { unfold TR_D_DE_ex; simpl.
        split; eauto.
   }
 
@@ -2171,10 +2192,10 @@ Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   
   destruct d1 as [f1].
   destruct d2 as [f2].
-  simpl in *.
+  simpl in *. 
   destruct f1 as [fn1 [v1 stt1]].
   destruct f2 as [fn2 [v2 stt2]].
-  unfold TR_D2_ex in H1.
+  unfold TR_D_DE_ex in H1.
   destruct H1 as [H1 [H2 H3]].
   simpl in *.
   inv H1; simpl.
@@ -2184,7 +2205,8 @@ Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     unfold exec_RS; simpl.
     eapply rutt_bind with (RR := eq).
     unfold ret_get_FunDef.
-    (* missing hyp about get_FunDef *)
+    eapply rutt_Ret.
+    (* OK missing hyp about get_FunDef *)
     admit.
 
     intros.
@@ -2192,89 +2214,323 @@ Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     destruct r2; simpl.
     eapply rutt_Ret.
     simpl.
-    (* missing hyp about init_state *)
+    (* OK missing hyp about init_state *)
     admit.
 
     eapply rutt_Ret; auto.
   
   - intros.
+    unfold exec_RS in H1; simpl in *.
     destruct r1; try congruence.
-    destruct r2; try congruence.
+    { destruct r2; try congruence.
 
-    eapply rutt_bind with (RR := eq).
-    unfold exec_RS in H1.
-    unfold ret_get_FunCode.
-    unfold ret_get_FunDef.
-    unfold get_FunDef.
-    simpl.
-    (* missing hyp about get_fundef *)
-    admit. 
-    
-    intros.
-    inv H4.
-    destruct r2; simpl.
-    unfold exec_RS in H1.
-    
-    eapply rutt_bind with (RR := exec_RS); last first.
+      { eapply rutt_bind with (RR := exec_RC).
 
-    simpl; intros.
-    destruct r1.
-    destruct r2.
-    unfold exec_RS in H4.
-    
-    eapply rutt_bind with (RR := exec_RV); last first.
-    intros.
-    destruct r1.
-    destruct r2.
-    
-    unfold exec_RV in H5.
-    eapply rutt_Ret.
-    unfold exec_RVS; simpl.
-    split; auto.
+        { unfold exec_RS in H1.
+          unfold ret_get_FunCode.
+          unfold ret_get_FunDef.
+          unfold get_FunDef.
+          simpl.
+          (* OK missing hyp about funCode *)
+          admit.
+        }  
+        
+        { intros.
+          destruct r1.
+          { destruct r2.
+            
+            { unfold exec_RC in H4; simpl in *.
+              inv H4.
+              eapply rutt_bind with (RR := exec_RS);
+                unfold exec_RVS.
 
-    unfold exec_RV in H5; intuition.
+              { (* RR OK recursive lemma needed *)
+                admit.
+              }
+              { simpl; intros.
+                unfold exec_RS in H4.
 
-    destruct r2.
-    unfold exec_RV in H5; intuition.
-    
-    eapply rutt_Ret.
-    unfold exec_RVS; auto.
+                destruct r1.
 
-    unfold exec_RV in H5.
-    eapply rutt_Ret.
-    unfold exec_RVS; auto.
+                { destruct r2.
 
-    2: { inv H4. }
+                  { eapply rutt_bind with (RR := exec_RV);
+                    unfold exec_RVS.  
 
-    2: { destruct r2.
-         unfold exec_RS in H4.
+                    { (* OK return val lemma needed *)
+                      admit.
+                    }  
 
-         (* STRANGE: double check *)
-         admit.
+                    { intros.
+                      unfold exec_RV in H5.
 
-         (* OK *)
-         admit.
-       }  
+                      destruct r1.
+                      { destruct r2.
+                        eapply rutt_Ret; eauto.
+                        intuition.
+                      }
 
-    2: { (* OK *)  admit. }
+                      { destruct r2.
+                        { eapply rutt_Ret; eauto.
+                        }
+                        { eapply rutt_Ret; eauto.
+                        }
+                      }
+                    }
+                  }
 
-    2: { eapply rutt_Ret. (* OK *) admit. }
+                  { intuition. }
+                }
 
-    2: { inv H1. }
+                destruct r2.
+                { 
+                  unfold ret_return_val.
+                  simpl.
+                  setoid_rewrite bind_bind.
+                  simpl.
+                  unfold ret_get_FunDef.
+                  setoid_rewrite bind_ret_l.
 
-    2: { destruct r2.
+                  destruct (o2r ErrType (get_FunDef pr2 fn2)).
+                  setoid_rewrite bind_ret_l.
 
-         (* STRANGE: double check *)
-         admit.
+                  destruct (get_var_is (~~ direct_call) (evm e2) (f_res f));
+                    simpl.
+                  { 
+                    destruct (mapM2 ErrType dc_truncate_val (f_tyout f) l0);
+                      simpl.
+                    { eapply rutt_Ret; eauto.
+                    }
+                    { eapply rutt_Ret; auto. }
+                  }
+                  
+                  { eapply rutt_Ret; auto. }
 
-         (* OK *) admit.
+                  { setoid_rewrite bind_ret_l.
+                    eapply rutt_Ret; auto.
+                  }
+                }
+                
+                { eapply rutt_Ret; auto. }
+              }
+            }  
+                
+            { unfold exec_RC in H4.
+              intuition.
+            }
+          }
+
+          { destruct r2; unfold exec_RC in H4.
+
+            (* PROBLEM: in order to make it work with the current
+               relation, here we would need to prove *recursively*
+               that the right hand-side terminates. But this is
+               generally not possible. hence, in the current context
+               the asymmetric relation is not sustainable *)
+            admit.
+            admit.
+          }    
+        }
+      }
+        
+      { intuition. }
     }
+ 
+    { destruct r2.
 
-    (* induction required *)     
+      { unfold ret_get_FunCode.
+        (* PROBLEM: heading for the same problem *)
+        admit.
+      }
+      { eapply rutt_Ret; auto. }
+    }
+Admitted.  
+   
+End Asym_test.
+
+
+Section Sym_test.
+
+(* DF: symmetric relation between call event outputs, i.e. over #
+(exec (values * estate)) *)
+Local Definition exec_RVS_s (pp1 pp2 : exec VS) : Prop :=
+  match (pp1, pp2) with
+  | (Ok vt1, Ok vt2) => RVS vt1 vt2
+  | (Error _, Error _) => True                          
+  | _ => False end.
+Context (exec_rvs_def : PR (exec VS) = exec_RVS_s).  
+
+(* DF: asymmetric relation between call outputs, i.e. over ##########
+(exec (values * estate)) *)
+Program Definition VR_D_DE_ex_s {T1 T2}
+  (d1 : callE FVS (exec VS) T1) (t1: T1)
+  (d2 : callE FVS (exec VS) T2) (t2: T2) : Prop.
+  dependent destruction d1.
+  dependent destruction d2.
+  exact (exec_RVS_s t1 t2).
+Defined.
+
+Definition exec_RS_s (p1 p2: exec estate) : Prop :=
+  match (p1, p2) with
+  | (Ok st1, Ok st2) => RS st1 st2
+  | (Error _, Error _) => True                           
+  | _ => False end.                         
+
+Definition exec_RV_s (p1 p2: exec values) : Prop :=
+  match (p1, p2) with
+  | (Ok vv1, Ok vv2) => RV vv1 vv2
+  | (Error _, Error _) => True                           
+  | _ => False end.                         
+
+Definition exec_RC_s (pc1 pc2: exec cmd) : Prop :=
+  match (pc1, pc2) with
+  | (Ok c1, Ok c2) => RC c1 c2
+  | (Error _, Error _) => True                           
+  | _ => False end.                         
+
+Lemma comp_gen_okDF2 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+  RV vs1 vs2 ->
+  RS st1 st2 ->
+  @rutt E E
+    (exec VS) (exec VS)
+    (TR_E E) (VR_E E)  
+    (fun (a1 a2: exec VS) => @VR_D_DE_ex_s _ _ (Call (fn, (vs1, st1))) a1
+                             (Call (fn, (vs2, st2))) a2)  
+    (peval_fcall_body pr1 (fn, (vs1, st1)))
+    (peval_fcall_body pr2 (fn, (vs2, st2))).
+  intros.
+  unfold peval_fcall_body.
+  unfold rec.
+
+  eapply mrec_rutt.
+  
+  instantiate (1:= @TR_D_DE_ex).
+
+  2: { unfold TR_D_DE_ex; simpl.
+       split; eauto.
+  }
+
+  intros; simpl.
+  
+  destruct d1 as [f1].
+  destruct d2 as [f2].
+  simpl in *. 
+  destruct f1 as [fn1 [v1 stt1]].
+  destruct f2 as [fn2 [v2 stt2]].
+  unfold TR_D_DE_ex in H1.
+  destruct H1 as [H1 [H2 H3]].
+  simpl in *.
+  inv H1; simpl.
+  
+  eapply rutt_bind with (RR := exec_RS_s).
+  - unfold ret_init_state.
+    unfold exec_RS_s; simpl.
+    eapply rutt_bind with (RR := eq).
+    unfold ret_get_FunDef.
+    eapply rutt_Ret.
+    (* OK missing hyp about get_FunDef *)
     admit.
+
+    intros.
+    inv H1.
+    destruct r2; simpl.
+    eapply rutt_Ret.
+    simpl.
+    (* OK missing hyp about init_state *)
+    admit.
+
+    eapply rutt_Ret; auto.
   
+  - unfold exec_RS_s; simpl; intros.
+    destruct r1; try congruence.
+    { destruct r2; try congruence.
+
+      { unfold ret_get_FunCode.
+        unfold ret_get_FunDef.
+        simpl.
+
+        setoid_rewrite bind_bind; simpl.
+        setoid_rewrite bind_ret_l.
+
+        eapply rutt_bind with (RR := exec_RC_s); simpl.
+        { (* OK missing hyp about get_FunDef *)
+          admit.
+        }
+        { unfold exec_RC_s; simpl; intros.
+          
+          destruct r1.
+          { destruct r2; try congruence.
+            inv H4.
+
+            eapply rutt_bind with (RR := exec_RS_s);
+                unfold exec_RVS.
+
+              { (* RR OK recursive lemma needed *)
+                admit.
+              }
+              { unfold exec_RS_s; simpl; intros.
+
+                destruct r1.
+
+                { destruct r2; try congruence.
+
+                  { eapply rutt_bind with (RR := exec_RV_s);
+                    unfold exec_RVS_s.  
+
+                    { (* OK return val lemma needed *)
+                      admit.
+                    }  
+
+                    { unfold exec_RV_s; simpl; intros.
+
+                      destruct r1.
+                      { destruct r2.
+                        eapply rutt_Ret; eauto.
+                        intuition.
+                      }
+
+                      { destruct r2.
+                        { intuition. }
+                        { eapply rutt_Ret; eauto.
+                        }
+                      }
+                    }
+                  }
+
+                  { intuition. }
+                }
+
+                destruct r2.
+                { intuition. }
+
+                { eapply rutt_Ret.
+                  unfold exec_RVS_s; simpl; auto.
+                }
+              }
+              { intuition. }
+          }
+
+          destruct r2.
+          { intuition. }
+
+          eapply rutt_Ret.
+          unfold exec_RVS_s; simpl; auto.
+        }
+      }
+      { intuition. }
+    }
+    
+    destruct r2.
+
+    { intuition. }
+
+    { eapply rutt_Ret.
+      unfold exec_RVS_s; auto.
+    }
 Admitted. 
-  
+
+End Sym_test.
+                   
 (*  eapply @interp_mrec_rutt.
   instantiate (1:= (TR_E (callE (FunDef * VS) (exec VS)))). *)
 
@@ -2287,7 +2543,7 @@ Lemma comp_gen_okDF (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     (exec VS) (exec VS)
     (TR_E (callE (FunDef * VS) (exec VS) +' E))
     (VR_E (callE (FunDef * VS) (exec VS) +' E))
-    (fun (a1 a2: exec VS) => @VR_D2' _ _ (Call (fn, (vs1, st1))) a1
+    (fun (a1 a2: exec VS) => @VR_DE' _ _ (Call (fn, (vs1, st1))) a1
                              (Call (fn, (vs2, st2))) a2)  
     (eval_fun_ pr1 fn vs1 st1) (eval_fun_ pr2 fn vs2 st2).
   intros.
@@ -2385,7 +2641,7 @@ Check @rutt.
 Admitted. 
 *)
 
-Definition TR_D4 {T1 T2} (d1 : PCState T1)
+Definition TR_D_MF {T1 T2} (d1 : PCState T1)
                          (d2 : PCState T2) : Prop :=
   match (d1, d2) with
   | (PLCode c1 st1, PLCode c2 st2) => c2 = Tr_cmd c1 /\ RS st1 st2
@@ -2394,7 +2650,7 @@ Definition TR_D4 {T1 T2} (d1 : PCState T1)
   | _ => False   
   end.               
 
-Program Definition VR_D4 {T1 T2} (d1 : PCState T1) (t1: T1)
+Program Definition VR_D_MF {T1 T2} (d1 : PCState T1) (t1: T1)
                                  (d2 : PCState T2) (t2: T2) : Prop.
   dependent destruction d1.
   - dependent destruction d2.
@@ -2412,7 +2668,7 @@ Lemma comp_gen_okMF (fn: funname)
   RS st1 st2 ->
   @rutt (PCState +' E) _ _ _ 
     (TR_E _) (VR_E _)
-    (fun a1 a2 => @VR_D4 _ _ (PFCall xs1 fn es1 st1) a1
+    (fun a1 a2 => @VR_D_MF _ _ (PFCall xs1 fn es1 st1) a1
                              (PFCall xs2 fn es2 st2) a2)  
     (pmeval_fcall pr1 xs1 fn es1 st1) (pmeval_fcall pr2 xs2 fn es2 st2).
   intros.
@@ -2480,7 +2736,7 @@ Admitted.
 
 End GEN_Flat.
 
-End GEN_EF.
+End GEN_ErrAndFlat.
 
 End TR_tests.
 
