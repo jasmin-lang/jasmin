@@ -5,21 +5,27 @@ open Utils
 
 let parse_and_print arch call_conv idirs =
   let module A = (val CoreArchFactory.get_arch_module arch call_conv) in
-  let parse file =
-    try Compile.parse_file A.arch_info ~idirs file with
-    | Annot.AnnotationError (loc, code) ->
-        hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
-    | Pretyping.TyError (loc, code) ->
-        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
-          code
-    | Syntax.ParseError (loc, msg) ->
-        hierror ~loc:(Lone loc) ~kind:"parse error" "%s"
-          (Option.default "" msg)
+  let parse file mjazz =
+    if mjazz then Glob_options.modular_jazz := true;
+    if mjazz 
+    then BatFile.with_file_in file (Parseio.parse_program ~name:file)
+    else
+      let _,_,ast = 
+        try Compile.parse_file A.arch_info ~idirs file with
+        | Annot.AnnotationError (loc, code) ->
+            hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
+        | Pretyping.TyError (loc, code) ->
+            hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+              code
+        | Syntax.ParseError (loc, msg) ->
+            hierror ~loc:(Lone loc) ~kind:"parse error" "%s"
+              (Option.default "" msg)
+      in  ast
   in
-  fun output file warn ->
+  fun output file mjazz warn ->
     if not warn then Utils.nowarning ();
-    let _, _, ast =
-      try parse file
+    let ast =
+      try parse file mjazz
       with HiError e -> Format.eprintf "%a@." pp_hierror e; exit 1
     in
     let out, close =
@@ -41,6 +47,10 @@ let output =
   in
   Arg.(value & opt (some string) None & info [ "o"; "output" ] ~docv:"TEX" ~doc)
 
+let mjazz =
+  let doc = "Parse modular features ('-mjazz' flag in 'jasminc')" in
+  Arg.(value & flag & info ["m"; "M"; "modular"] ~doc)
+
 let () =
   let doc = "Pretty-print Jasmin source programs into LATEX" in
   let man =
@@ -54,6 +64,6 @@ let () =
   let info =
     Cmd.info "jasmin2tex" ~version:Glob_options.version_string ~doc ~man
   in
-  Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ idirs $ output $ file
+  Cmd.v info Term.(const parse_and_print $ arch $ call_conv $ idirs $ output $ file $ mjazz
     $ warn)
   |> Cmd.eval |> exit
