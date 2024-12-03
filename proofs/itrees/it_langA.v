@@ -2785,6 +2785,15 @@ Lemma comp_gen_ok_MF (fn: funname)
    }   
 Admitted. 
 
+Lemma rutt_cmd_tr_MF_step (cc: cmd) (st1 st2: estate) : 
+  RS st1 st2 ->
+  @rutt (PCState +' E) _ _ _ (sum_prerel (@TR_D_MF) (TR_E E))
+                (sum_postrel (@VR_D_MF) (VR_E E))
+    (fun a : exec estate => [eta exec_RS_s a])
+    (pst_cmd_map_r (pmeval_instr pr1) cc st1)
+    (pst_cmd_map_r (pmeval_instr pr2) (Tr_cmd cc) st2).
+Admitted.
+
 (* Here we should be able to do with one inductive lemma, applied
 twice *)
 Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) : 
@@ -2803,24 +2812,19 @@ Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) :
   unfold TR_D_MF in H0.
   destruct d2; try intuition.
   inv H1; simpl.
-  (* RR recursive lemma needed *)
-  admit.
-
+  eapply rutt_cmd_tr_MF_step; eauto.
+   
   unfold TR_D_MF in H0.
   destruct d2; simpl in *; try intuition.
-
-(*  rewrite pcstate_t_def. *)
-  inv H0.
-  
+  inv H0.  
   set CC := (comp_gen_ok_MF f0 xs _ es _ _ _ erefl erefl H4).
   setoid_rewrite pcstate_t_def in CC.
   setoid_rewrite pcstate_v_def in CC.
   exact CC.
     
   simpl.
-  (* RR recursive lemma needed, as before *)
-  admit.
-Admitted. 
+  eapply rutt_cmd_tr_MF_step; eauto.
+Qed.   
 
 End GEN_Flat.
 
