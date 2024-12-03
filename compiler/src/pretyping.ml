@@ -2606,6 +2606,7 @@ let rec tt_item (arch_info : 'asm P.arch_info) (env : 'asm Env.env) pt : 'asm En
   | S.PTypeAlias (id, pannot, ty) ->
       let annot = pannot_to_annotations pannot in
       tt_typealias arch_info env id annot ty
+  | _ -> env
 
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))

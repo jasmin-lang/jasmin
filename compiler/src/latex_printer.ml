@@ -355,6 +355,26 @@ let pp_global fmt { pgd_annot ; pgd_type ; pgd_name ; pgd_val } =
 let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
 
+let pp_modsig fmt msig =
+  let pp_modsigparam _fmp p =
+    indent fmt 1;
+    match p with
+    | MSparam (t,i) -> F.fprintf fmt "%a %a %a;" kw "param" pp_type t dname (L.unloc i)
+    | MSglob (t,i) -> F.fprintf fmt "%a %a %a;" kw "global" pp_type t dname (L.unloc i)
+    | MSfn (f,targ,[]) -> F.fprintf fmt "%a %a (%a);" kw "fn" dname (L.unloc f) (pp_list ", " pp_type) targ
+    | MSfn (f,targ,tres) -> F.fprintf fmt "%a %a (%a) %a %a;" kw "fn" dname (L.unloc f) (pp_list ", " pp_type) targ arrow () (pp_list ", " pp_type) tres
+  in if not (List.is_empty msig)
+     then (F.fprintf fmt "%a " kw "with";
+           indent fmt 1;
+           (pp_list eol pp_modsigparam) fmt msig;
+           F.fprintf fmt eol)
+
+let rec pp_modpexpr fmt = function
+  | MPid name -> pp_var fmt name
+  | MPint i -> F.fprintf fmt "%a" Z.pp_print i
+  | MPplus (e1,e2) -> F.fprintf fmt "(%a+%a)" pp_modpexpr e1 pp_modpexpr e2
+  | MPmult (e1,e2) -> F.fprintf fmt "(%a*%a)" pp_modpexpr e1 pp_modpexpr e2
+
 let pp_typealias fmt id annot ty =
   F.fprintf fmt "%a %a %a = %a;" pp_annotations annot kw "type" dname (L.unloc id) pp_type ty
 
@@ -378,7 +398,31 @@ let rec pp_pitem fmt pi =
      List.iter (pp_pitem fmt) pis;
      F.fprintf fmt eol;
      closebrace fmt ()
-  | PTypeAlias (id,annot, ty) -> pp_typealias fmt id annot ty (**)
+  | PTypeAlias (id,annot, ty) -> pp_typealias fmt id annot ty
+  | PModule (mn, msig, pis) ->
+     (* TODO: ident within modules? *)
+     F.fprintf fmt "%a %s " kw "module" (L.unloc mn);
+     pp_modsig fmt msig;
+     openbrace fmt ();
+     F.fprintf fmt eol;
+     List.iter (pp_pitem fmt) pis;
+     F.fprintf fmt eol;
+     closebrace fmt ();
+     F.fprintf fmt eol
+  | PModuleApp (name, mname, margs) ->
+     F.fprintf fmt "%a %s = %s(%a);"
+       kw "module"
+       (L.unloc name)
+       (L.unloc mname)
+       (pp_list ", " (fun fmt e -> pp_modpexpr fmt e)) margs;
+     F.fprintf fmt eol
+  | POpen (name, None) ->
+     F.fprintf fmt "%a %s;" kw "open" (L.unloc name);
+     F.fprintf fmt eol
+  | POpen (name, Some a) ->
+      F.fprintf fmt "%a %s %a %s;" kw "open" (L.unloc name) kw "as" (L.unloc a);
+      F.fprintf fmt eol
+ 
 
 let pp_info fmt =
   F.fprintf fmt "@[<v>@[%% The produced LATEX snippet is meant to be included in a@]@ ";

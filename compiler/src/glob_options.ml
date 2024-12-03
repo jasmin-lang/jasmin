@@ -8,6 +8,7 @@ let debug = ref false
 let timings = ref false
 let print_list = ref []
 let print_liveness = ref false
+let modular_jazz = ref false
 let slice = ref []
 let stop_after = ref None
 let trust_aligned = ref false
@@ -194,6 +195,7 @@ let options = [
     "-debug"   , Arg.Set debug         , " Print debug information";
     "-timings" , Arg.Set timings       , " Print a timestamp and elapsed time after each pass";
     "-I"       , Arg.String set_idirs  , "[ident=path] Bind ident to path for from ident require ...";
+    "-mjazz"   , Arg.Set modular_jazz   , " Support Jasmin modules (experimental)";
     "-slice"    , Arg.String set_slice  , "[f] Keep function [f] and everything it needs";
     "-wlea", Arg.Unit (add_warning UseLea), " Print warning when lea is used";
     "-wea", Arg.Unit (add_warning ExtraAssignment), " Print warning when extra assignment is introduced";
