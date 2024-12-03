@@ -2762,7 +2762,38 @@ Lemma comp_gen_okMF (fn: funname)
     eapply rutt_Ret; auto. 
   }
 Admitted. 
-   
+
+Lemma comp_gen_okMF2 (cc: cmd) (st1 st2: estate) : 
+  RS st1 st2 ->
+  @rutt (PCState +' E) _ _ _ 
+    (TR_E _) (VR_E _) exec_RS_s
+    (pmeval_cmd pr1 cc st1) (pmeval_cmd pr2 (Tr_cmd cc) st2).
+  intros.
+  unfold pmeval_cmd; simpl.
+  eapply interp_mrec_rutt.
+  intros.
+  instantiate (3 := @TR_D_MF).
+  instantiate (1 := @VR_D_MF).
+  unfold pmeval_cstate.
+  destruct d1.
+  unfold TR_D_MF in H0.
+  destruct d2; try intuition.
+  inv H1; simpl.
+  (* RR recursive lemma needed *)
+  admit.
+
+  unfold TR_D_MF in H0.
+  destruct d2; simpl in *; try intuition.
+
+  rewrite pcstate_t_def.  
+(*   eapply comp_gen_okMF; eauto. *)
+  admit.
+
+  simpl.
+  (* RR recursive lemma needed, as before *)
+  admit.
+Admitted. 
+  
 End GEN_Flat.
 
 End GEN_ErrAndFlat.
