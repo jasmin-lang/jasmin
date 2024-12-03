@@ -81,6 +81,7 @@ module CL = struct
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
+      | IUnPack of tyvar * int * int
 
     let (!-) e1 = Iunop ("-", e1)
     let (-) e1 e2 = Ibinop (e1, "-", e2)
@@ -98,6 +99,7 @@ module CL = struct
         Format.fprintf fmt  "(limbs %a [%a])"
           pp_const c
           (pp_list ",@ " pp_eexp) es
+      | IUnPack _ -> assert false
 
     type epred =
       | Eeq of eexp * eexp
@@ -527,6 +529,7 @@ module I (S:S): I = struct
     | PappN(Oabstract {pa_name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | PappN(Oabstract {pa_name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | PappN(Oabstract {pa_name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
+    | PappN(Oabstract {pa_name="ze_16_32"}, [v]) -> Ruext (!> v, 16)
     | PappN(Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
     | PappN(Oabstract {pa_name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
         UnPack (to_var ~sign x, 16, Z.to_int z)
@@ -651,6 +654,9 @@ module I (S:S): I = struct
       mull !> b (power (Ivar v) !> a)
     | PappN (Oabstract {pa_name="mon0"}, [b]) ->
       !> b
+    | PappN (Oabstract {name="u256_as_16u16"}, [Pvar x; Pconst z]) ->
+        IUnPack (to_var ~sign x, 16, Z.to_int z)
+    | Presult (_,x) -> Ivar (to_var ~sign x)
     | _ -> error e
 
   let rec gexp_to_epred env ?(sign=S.s) e :CL.I.epred list =

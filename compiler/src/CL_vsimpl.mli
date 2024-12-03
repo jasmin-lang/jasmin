@@ -16,6 +16,7 @@ module GhostVector : sig
   (* val unfold_ghosts_epre: (Prog.var * CL.ty) list -> CL.I.epred list -> CL.I.epred list *)
   (* val unfold_ghosts_rpred: (string * (Prog.var * CL.ty)) list -> CL.R.rpred list -> CL.R.rpred list *)
   val unfold_vghosts_rpred: (Prog.var * CL.ty) list -> CL.R.rpred list -> CL.R.rpred list
+  val unfold_vghosts_epred: (Prog.var * CL.ty) list -> CL.I.epred list -> CL.I.epred list
 
   (* val unfold_vector: (Prog.var * CL.ty) list -> (string * CL.Instr.lval) list * CL.Instr.instr list *)
   val unfold_vector: (Prog.var * CL.ty) list -> CL.Instr.lval list * CL.Instr.instr list

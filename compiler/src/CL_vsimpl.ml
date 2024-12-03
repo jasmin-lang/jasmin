@@ -86,6 +86,7 @@ end
 module GhostVector = struct
   open CL.Instr
   open CL.R
+  open CL.I
 
   module S = struct
     let s = false (* TODO: is it always unsigned?*)
@@ -104,7 +105,7 @@ module GhostVector = struct
   let get_unfolded_vector_namei v i =
     String.concat "_" [v.v_name; "v" ; string_of_int i]
 
-  let rec replace_vghosts ghosts r =
+  let rec replace_vghosts_rexp ghosts r =
     let aux (v, ty) i =
       let name = get_unfolded_vector_namei v i in
       let v' = get_vghost ghosts name in
@@ -114,43 +115,77 @@ module GhostVector = struct
     | Rvar x -> r
     | Rconst (c1, c2) -> r
     | Ruext (e, c) ->
-      let e' = replace_vghosts ghosts e in
+      let e' = replace_vghosts_rexp ghosts e in
       Ruext (e', c)
     | Rsext (e, c) ->
-      let e' = replace_vghosts ghosts e in
+      let e' = replace_vghosts_rexp ghosts e in
       Rsext(e', c)
     | Runop(s, e) ->
-      let e' = replace_vghosts ghosts e in
+      let e' = replace_vghosts_rexp ghosts e in
       Runop(s, e')
     | Rbinop(e1, s, e2) ->
-      let e1' = replace_vghosts ghosts e1 in
-      let e2' = replace_vghosts ghosts e2 in
+      let e1' = replace_vghosts_rexp ghosts e1 in
+      let e2' = replace_vghosts_rexp ghosts e2 in
       Rbinop(e1', s, e2')
     | RVget(e,c) -> r
     | UnPack (e,us,i) ->
       aux e i
 
-  let rec unfold_vghosts ghosts pre =
+  let rec unfold_ghosts_rpred ghosts pre =
     match pre with
     | RPcmp(e1, s, e2) ->
-      let e1' = replace_vghosts ghosts e1 in
-      let e2' = replace_vghosts ghosts e2 in
+      let e1' = replace_vghosts_rexp ghosts e1 in
+      let e2' = replace_vghosts_rexp ghosts e2 in
       RPcmp(e1', s, e2')
     | RPnot e ->
-      let e' = unfold_vghosts ghosts e in
+      let e' = unfold_ghosts_rpred ghosts e in
       RPnot e'
     | RPand rps ->
-      let rps' = List.map (unfold_vghosts ghosts) rps in
+      let rps' = List.map (unfold_ghosts_rpred ghosts) rps in
       RPand rps'
     | RPor  rps ->
-      let rps' = List.map (unfold_vghosts ghosts) rps in
+      let rps' = List.map (unfold_ghosts_rpred ghosts) rps in
       RPor rps'
 
-  (* let unfold_vghosts_epre ghosts pre = *)
-  (*   List.map (unfold_vghosts ghosts) pre *)
-
   let unfold_vghosts_rpred ghosts pre =
-    List.map (unfold_vghosts ghosts) pre
+    List.map (unfold_ghosts_rpred ghosts) pre
+
+  let rec replace_vghosts_eexp ghosts e =
+    let aux (v, ty) i =
+      let name = get_unfolded_vector_namei v i in
+      let v' = get_vghost ghosts name in
+      Ivar v'
+    in
+    match e with
+    | Iconst c -> e
+    | Ivar v -> e
+    | Iunop (s, e) ->
+      let e' = replace_vghosts_eexp ghosts e in
+      Iunop (s, e')
+    | Ibinop (e1, s, e2) ->
+      let e1' = replace_vghosts_eexp ghosts e1 in
+      let e2' = replace_vghosts_eexp ghosts e2 in
+      Ibinop (e1', s, e2')
+    | Ilimbs (c, l) ->
+      let l' = List.map (replace_vghosts_eexp ghosts) l in
+      Ilimbs (c, l')
+    | IUnPack (e, us, i) ->
+      aux e i
+
+  let rec unfold_ghosts_epred ghosts pre =
+    match pre with
+    | Eeq(e1, e2) ->
+      let e1' = replace_vghosts_eexp ghosts e1 in
+      let e2' = replace_vghosts_eexp ghosts e2 in
+      Eeq(e1', e2')
+    | Eeqmod(e1, e2, es) ->
+      let e1' = replace_vghosts_eexp ghosts e1 in
+      let e2' = replace_vghosts_eexp ghosts e2 in
+      let es' = List.map (replace_vghosts_eexp ghosts) es in
+      Eeqmod(e1', e2', es')
+
+  let unfold_vghosts_epred ghosts pre =
+     List.map (unfold_ghosts_epred ghosts) pre
 
   let unfold_vector formals =
     let aux ((formal,ty) as v) =

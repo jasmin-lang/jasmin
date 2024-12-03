@@ -23,6 +23,7 @@ module CL : sig
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
+      | IUnPack of tyvar * int * int
 
     type epred =
       | Eeq of eexp * eexp
