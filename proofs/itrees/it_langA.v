@@ -1238,6 +1238,9 @@ Context (tr_lval : lval -> lval)
         (tr_opn : sopn -> sopn)
         (tr_sysc : syscall_t -> syscall_t).
 
+Local Notation tr_lvals ls := (map tr_lval ls).
+Local Notation tr_exprs es := (map tr_expr es).
+
 Definition Tr_i (Th: instr_r -> instr_r) (i: instr) : instr :=
   match i with MkI ii ir => MkI ii (Th ir) end.  
 
@@ -1245,18 +1248,23 @@ Fixpoint Tr_ir (i : instr_r) : instr_r :=
   let R := Tr_i Tr_ir in
   match i with
   | Cassgn x tg ty e => Cassgn (tr_lval x) tg ty (tr_expr e)
-  | Copn x tg o es =>
-      Copn (map tr_lval x) tg (tr_opn o) (map tr_expr es)
-  | Csyscall x sc es =>
-      Csyscall (map tr_lval x) (tr_sysc sc) (map tr_expr es)
+  | Copn xs tg o es =>
+      Copn (tr_lvals xs) tg (tr_opn o) (tr_exprs es)
+  | Csyscall xs sc es =>
+      Csyscall (tr_lvals xs) (tr_sysc sc) (tr_exprs es)
   | Cif e c1 c2 => Cif (tr_expr e) (map R c1) (map R c2)
   | Cfor i rg c => Cfor i rg (map R c)                     
   | Cwhile a c1 e c2 => Cwhile a (map R c1) (tr_expr e) (map R c2)
-  | Ccall xs fn es => Ccall (map tr_lval xs) fn (map tr_expr es)
+  | Ccall xs fn es => Ccall (tr_lvals xs) fn (tr_exprs es)
   end.
 Local Notation Tr_instr := (Tr_i Tr_ir).
 Local Notation Tr_cmd c := (map Tr_instr c).
 
+Definition Tr_FunDef (f: FunDef) : FunDef :=
+  match f with
+  | MkFun i tyin p_xs c tyout r_xs xtr =>
+    MkFun i tyin p_xs (Tr_cmd c) tyout r_xs xtr end.
+    
 
 (*********************************************************************)
 (*** PROOFS **********************************************************)
@@ -2038,10 +2046,12 @@ Notation RVS := (fun (vs_st1 vs_st2 : VS) =>
 Notation RFVS := (fun (fvs1 fvs2 : FVS) => 
   (fvs1.1 = fvs2.1 /\ RVS fvs1.2 fvs2.2)).
 Notation RC := (fun c1 c2: cmd => c2 = Tr_cmd c1).
+Notation RFunDef := (fun f1 f2: FunDef => f2 = Tr_FunDef f1).
 
 Context (rvs_def : PR VS = RVS)
         (rfvs_def : PR FVS = RFVS)
-        (rc_def : PR cmd = RC).  
+        (rc_def : PR cmd = RC)
+        (rfundef_def : PR FunDef = RFunDef).
 
 
 Section GEN_Err.
@@ -2166,6 +2176,12 @@ Definition exec_RC (pc1 pc2: exec cmd) : Prop :=
   | (Error _, _) => True                           
   | _ => False end.                         
 
+Definition exec_RFunDef (pf1 pf2: exec FunDef) : Prop :=
+  match (pf1, pf2) with
+  | (Ok f1, Ok f2) => RFunDef f1 f2
+  | (Error _, _) => True                           
+  | _ => False end.                         
+
 Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
@@ -2203,21 +2219,25 @@ Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   eapply rutt_bind with (RR := exec_RS).
   - unfold ret_init_state.
     unfold exec_RS; simpl.
-    eapply rutt_bind with (RR := eq).
+    eapply rutt_bind with (RR := exec_RFunDef).
     unfold ret_get_FunDef.
     eapply rutt_Ret.
     (* OK missing hyp about get_FunDef *)
     admit.
 
-    intros.
-    inv H1.
-    destruct r2; simpl.
-    eapply rutt_Ret.
-    simpl.
-    (* OK missing hyp about init_state *)
-    admit.
-
-    eapply rutt_Ret; auto.
+    unfold exec_RFunDef; simpl ; intros.
+    destruct r1; simpl.
+    { destruct r2; simpl.
+      inv H1.
+      eapply rutt_Ret.
+      (* OK missing hyp about init_state *)
+      admit.
+      intuition.
+    }
+    { destruct r2; simpl.
+      eapply rutt_Ret; eauto. 
+      eapply rutt_Ret; eauto.
+    }  
   
   - intros.
     unfold exec_RS in H1; simpl in *.
@@ -2388,6 +2408,12 @@ Definition exec_RC_s (pc1 pc2: exec cmd) : Prop :=
   | (Error _, Error _) => True                           
   | _ => False end.                         
 
+Definition exec_RFunDef_s (pf1 pf2: exec FunDef) : Prop :=
+  match (pf1, pf2) with
+  | (Ok f1, Ok f2) => RFunDef f1 f2
+  | (Error _, Error _) => True                           
+  | _ => False end.                         
+
 Lemma comp_gen_okDF2 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
@@ -2425,21 +2451,27 @@ Lemma comp_gen_okDF2 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   eapply rutt_bind with (RR := exec_RS_s).
   - unfold ret_init_state.
     unfold exec_RS_s; simpl.
-    eapply rutt_bind with (RR := eq).
+    eapply rutt_bind with (RR := exec_RFunDef_s).
     unfold ret_get_FunDef.
     eapply rutt_Ret.
+    unfold exec_RFunDef_s; simpl.
     (* OK missing hyp about get_FunDef *)
     admit.
 
-    intros.
-    inv H1.
-    destruct r2; simpl.
-    eapply rutt_Ret.
-    simpl.
-    (* OK missing hyp about init_state *)
-    admit.
-
-    eapply rutt_Ret; auto.
+    unfold exec_RFunDef; simpl ; intros.
+    destruct r1; simpl.
+    { destruct r2; simpl.
+      inv H1.
+      eapply rutt_Ret.
+      (* OK missing hyp about init_state *)
+      admit.
+      intuition.
+    }
+    { destruct r2; simpl.
+      unfold exec_RFunDef_s in H1.
+      intuition.
+      eapply rutt_Ret; eauto. 
+    }  
   
   - unfold exec_RS_s; simpl; intros.
     destruct r1; try congruence.
@@ -2531,6 +2563,219 @@ Admitted.
 
 End Sym_test.
                    
+
+Definition TR_D_MF {T1 T2} (d1 : PCState T1)
+                           (d2 : PCState T2) : Prop :=
+  match (d1, d2) with
+  | (PLCode c1 st1, PLCode c2 st2) => RC c1 c2 /\ RS st1 st2
+  | (PFCall xs1 fn1 es1 st1, PFCall xs2 fn2 es2 st2) =>
+      xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2
+  | _ => False   
+  end.               
+
+Program Definition VR_D_MF {T1 T2} (d1 : PCState T1) (t1: T1)
+                                 (d2 : PCState T2) (t2: T2) : Prop.
+  dependent destruction d1.
+  - dependent destruction d2.
+    + exact (exec_RS_s t1 t2).
+    + exact (False).
+  - dependent destruction d2.
+    + exact (False).
+    + exact (exec_RS_s t1 t2).
+Defined.      
+
+Program Definition TR_DE_MF0 {T1 T2} (dd1 : PCState T1 + E T1)
+                            (dd2 : PCState T2 + E T2) : Prop :=
+  match (dd1, dd2) with
+  | (inl d1, inl d2) => TR_D_MF d1 d2
+  | (inr e1, inr e2) => TR_E _ _ _ e1 e2
+  | _ => False end.                             
+
+Program Definition TR_DE_MF (T1 T2: Type) (dd1 : (PCState +' E) T1)
+                            (dd2 : (PCState +' E) T2) : Prop :=
+  match (dd1, dd2) with
+  | (inl1 d1, inl1 d2) => TR_D_MF d1 d2
+  | (inr1 e1, inr1 e2) => TR_E _ _ _ e1 e2
+  | _ => False end.                             
+
+Program Definition VR_DE_MF (T1 T2: Type)
+  (dd1 : (PCState +' E) T1) (t1: T1)
+  (dd2 : (PCState +' E) T2) (t2: T2) : Prop :=
+  match (dd1, dd2) with
+  | (inl1 d1, inl1 d2) => VR_D_MF d1 t1 d2 t2
+  | (inr1 e1, inr1 e2) => VR_E _ _ _ e1 t1 e2 t2
+  | _ => False end.                             
+
+Context (pcstate_t_def : TR_E (PCState +' E) = TR_DE_MF).
+Context (pcstate_v_def : VR_E (PCState +' E) = VR_DE_MF).
+
+(*
+Definition exec_rvs_def (T1 T2: Type) :
+  TR_E (PCState +' E) T1 T2 = @TR_DE_MF T1 T2. 
+*)
+
+Lemma comp_gen_okMF (fn: funname)
+  (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
+  xs2 = map tr_lval xs1 ->
+  es2 = map tr_expr es1 -> 
+  RS st1 st2 ->
+  @rutt (PCState +' E) _ _ _ 
+    (TR_E _) (VR_E _)
+    (fun a1 a2 => @VR_D_MF _ _ (PFCall xs1 fn es1 st1) a1
+                             (PFCall xs2 fn es2 st2) a2)  
+    (pmeval_fcall pr1 xs1 fn es1 st1) (pmeval_fcall pr2 xs2 fn es2 st2).
+  intros.
+  unfold pmeval_fcall; simpl.
+
+  eapply rutt_bind with (RR := exec_RFunDef_s).
+
+  unfold ret_get_FunDef.
+  eapply rutt_Ret.
+  unfold exec_RFunDef_s.
+  (* OK missing hyp about get_FunDef *)
+  admit.
+  
+  unfold exec_RFunDef_s; simpl ; intros.
+  destruct r1; simpl.
+  2: { destruct r2.
+       intuition.
+       eapply rutt_Ret; auto.
+     }  
+   { destruct r2; simpl; try intuition.       
+     inv H2.
+     eapply rutt_bind with (RR := exec_RV_s); eauto.
+     unfold ret_eval_Args.
+     eapply rutt_bind with (RR := exec_RFunDef_s); simpl.
+     (* OK missing hyp about get_FunDef *)
+     admit.
+     (* OK *)
+     admit.
+     
+     unfold exec_RV_s; simpl; intros.
+     destruct r1.
+     { destruct r2.
+       { eapply rutt_bind with (RR := exec_RS_s); eauto.
+         (* OK missing hyp about init_state *)
+         admit.
+
+         unfold exec_RS_s; simpl; intros.
+         destruct r1.
+         { destruct r2; try intuition.
+           eapply rutt_bind with (RR:= exec_RC_s).
+           unfold ret_get_FunCode.
+           simpl.
+           eapply rutt_bind with (RR:= exec_RFunDef_s).
+           unfold ret_get_FunDef.
+           eapply rutt_Ret; auto.
+           unfold exec_RFunDef_s; simpl.
+           (* OK missing hyp about get_FunDef *)
+           admit.
+
+           unfold exec_RFunDef_s; simpl; intros.
+           destruct r1.
+           { destruct r2; try intuition.
+             eapply rutt_Ret; eauto.
+             unfold exec_RC_s.
+             unfold Tr_FunDef in H2.
+             destruct f1.
+             destruct f0.
+             inv H2.
+             simpl; auto.
+           }
+
+           { destruct r2.
+             intuition.
+             eapply rutt_Ret; eauto.
+           }
+           
+           unfold exec_RC_s; simpl; intros.
+           destruct r1.
+           { destruct r2; try intuition.
+             inv H2.
+             eapply rutt_bind with (RR:= exec_RS_s); simpl.
+             { eapply rutt_trigger.
+               { rewrite pcstate_t_def.              
+                 unfold TR_DE_MF.
+                 unfold TR_D_MF.
+                 split; auto.
+               }
+               simpl; intros.
+               unfold exec_RS_s; simpl.
+               rewrite pcstate_v_def in H2.
+               unfold VR_DE_MF in H2.
+               unfold VR_D_MF in H2.
+               unfold exec_RS in H2.
+               destruct t1; auto.
+             }
+
+             unfold exec_RS_s; simpl; intros.
+             destruct r1.
+             { destruct r2; try intuition.
+               eapply rutt_bind with (RR:= exec_RV_s).
+               unfold ret_return_val.
+               eapply rutt_bind with (RR := exec_RFunDef_s).
+               unfold ret_get_FunDef.
+               eapply rutt_Ret; auto.
+               unfold exec_RFunDef_s; simpl.
+              (* OK missing hyp about get_FunDef *)
+              admit.
+
+              unfold exec_RFunDef_s; simpl; intros.
+              destruct r1.
+              { destruct r2; try intuition.
+                eapply rutt_Ret; eauto.
+                unfold exec_RV_s; simpl.
+                (* OK missing hyp about truncate *)
+                admit.
+              }
+              { destruct r2; try intuition.
+                eapply rutt_Ret; auto.
+              }
+
+              unfold exec_RV_s; simpl; intros.
+              destruct r1.
+              { destruct r2; try intuition.
+                (* missing hyp about reinstate_caller *)
+                admit.
+              }
+              { destruct r2; try intuition.
+                eapply rutt_Ret; auto.
+              }                 
+            }
+
+            destruct r2; try intuition.
+            eapply rutt_Ret; auto. 
+           }
+
+           destruct r2; try intuition.
+           eapply rutt_Ret; auto. 
+         }
+
+         destruct r2; intuition.
+         eapply rutt_Ret; auto. 
+       }
+  
+      { intuition. }
+    }
+
+    destruct r2; intuition.
+    eapply rutt_Ret; auto. 
+  }
+Admitted. 
+   
+End GEN_Flat.
+
+End GEN_ErrAndFlat.
+
+End TR_tests.
+
+End TRANSF.
+
+End WSW.
+
+End Lang.
+(** END *)
+
 (*  eapply @interp_mrec_rutt.
   instantiate (1:= (TR_E (callE (FunDef * VS) (exec VS)))). *)
 
@@ -2640,112 +2885,6 @@ Check @rutt.
   admit.
 Admitted. 
 *)
-
-Definition TR_D_MF {T1 T2} (d1 : PCState T1)
-                         (d2 : PCState T2) : Prop :=
-  match (d1, d2) with
-  | (PLCode c1 st1, PLCode c2 st2) => c2 = Tr_cmd c1 /\ RS st1 st2
-  | (PFCall xs1 fn1 es1 st1, PFCall xs2 fn2 es2 st2) =>
-      xs2 = map tr_lval xs1 /\ fn1 = fn2 /\ es2 = map tr_expr es1 /\ RS st1 st2
-  | _ => False   
-  end.               
-
-Program Definition VR_D_MF {T1 T2} (d1 : PCState T1) (t1: T1)
-                                 (d2 : PCState T2) (t2: T2) : Prop.
-  dependent destruction d1.
-  - dependent destruction d2.
-    + exact (exec_RS t1 t2).
-    + exact (False).
-  - dependent destruction d2.
-    + exact (False).
-    + exact (exec_RS t1 t2).
-Defined.      
-
-Lemma comp_gen_okMF (fn: funname)
-  (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
-  xs2 = map tr_lval xs1 ->
-  es2 = map tr_expr es1 -> 
-  RS st1 st2 ->
-  @rutt (PCState +' E) _ _ _ 
-    (TR_E _) (VR_E _)
-    (fun a1 a2 => @VR_D_MF _ _ (PFCall xs1 fn es1 st1) a1
-                             (PFCall xs2 fn es2 st2) a2)  
-    (pmeval_fcall pr1 xs1 fn es1 st1) (pmeval_fcall pr2 xs2 fn es2 st2).
-  intros.
-  unfold pmeval_fcall; simpl.
-
-  eapply rutt_bind with (RR := eq).
-  admit.
-
-  intros.
-  inv H2; simpl.
-  destruct r2.
-  2: { eapply rutt_Ret.
-       unfold exec_RS.
-       auto.
-  }
-
-  eapply rutt_bind with (RR := exec_RV); eauto.
-  admit.
-
-  intros.
-  destruct r1; try intuition.
-  destruct r2; try intuition.
-    
-  2: { destruct r2; try intuition.
-       admit.
-       admit.
-  }
-
-  eapply rutt_bind with (RR := exec_RS); eauto.
-  admit.
-  
-  intros.
-  destruct r1; try intuition.
-  destruct r2; try intuition.
-    
-  2: { destruct r2; try intuition.
-       admit.
-       admit.
-  }
-
-  eapply rutt_bind with (RR := eq); eauto.
-  admit.
-
-  intros.
-  inv H2.
-  destruct r2; try intuition.
-    
-  2: { admit.
-  }
-
-  eapply rutt_bind with (RR := exec_RS); eauto.
-  admit.
-
-  intros.
-  destruct r1; try intuition.
-  destruct r2; try intuition.
-    
-  2: { destruct r2; try intuition.
-       admit.
-       admit.
-  }
-
-  admit.
-Admitted. 
-
-End GEN_Flat.
-
-End GEN_ErrAndFlat.
-
-End TR_tests.
-
-End TRANSF.
-
-End WSW.
-
-End Lang.
-(** END *)
 
 (*
 Context (hcomp : forall fn, code p2 fn = Tc (code p1 fn))
