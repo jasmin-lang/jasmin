@@ -2447,6 +2447,7 @@ let rec tt_item arch_info (env : 'asm Env.env) pt : 'asm Env.env =
      let env = Env.exit_namespace env in
      env
   | S.PTypeAlias (id,ty) -> tt_typealias arch_info env id ty
+  | _ -> env
 
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))

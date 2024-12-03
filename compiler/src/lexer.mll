@@ -66,6 +66,7 @@
     "inline", INLINE ;
     "mut"   , MUTABLE;
     "namespace", NAMESPACE;
+    "module", MODULE ; (* added as a "normal" keyword (but only supported with `-mjazz`) *)
     "param" , PARAM  ;
     "ptr"   , POINTER;
     "reg"   , REG    ;
@@ -78,7 +79,12 @@
     "export", EXPORT ;
     "ArrayInit", ARRAYINIT;
     "_"     , UNDERSCORE;
-  ]
+  ] @ if true (* !Glob_options.modular_jazz (* additional keywords with `-mjazz` *) *)
+      then [ "open", OPEN;
+             "as", AS;
+             "with", WITH; 
+           ]
+      else []
 
   let keywords = Hash.of_enum (List.enum _keywords)
 

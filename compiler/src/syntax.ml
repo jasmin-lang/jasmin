@@ -322,6 +322,18 @@ type pexec = {
 type prequire = string L.located
 
 (* -------------------------------------------------------------------- *)
+type modsigentry =
+  | MSparam of ptype * string L.located
+  | MSglob of ptype * string L.located
+  | MSfn of string L.located * ptype list * ptype list
+
+type modpexpr = 
+  | MPid of pident
+  | MPint of Z.t
+  | MPplus of modpexpr * modpexpr
+  | MPmult of modpexpr * modpexpr
+
+(* -------------------------------------------------------------------- *)
 type pitem =
   | PFundef of pfundef
   | PParam of pparam
@@ -329,6 +341,9 @@ type pitem =
   | Pexec of pexec
   | Prequire of (pident option * prequire list)
   | PNamespace of pident * pitem L.located list
+  | PModule of pident * modsigentry list * pitem L.located list
+  | PModuleApp of (pident * pident * modpexpr list)
+  | POpen of (pident * pident option)
   | PTypeAlias of pident * ptype
 
 (* -------------------------------------------------------------------- *)

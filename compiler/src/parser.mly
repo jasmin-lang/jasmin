@@ -3,6 +3,17 @@
   open Syntax
   open Annotations
 
+
+  let excludeMJazz loc x =
+    if !Glob_options.modular_jazz
+    then raise (ParseError (loc, Some "Feature not supported with '-mjazz'"))
+    else x
+
+  let forceMJazz loc x =
+    if !Glob_options.modular_jazz
+    then x
+    else raise (ParseError (loc, Some "Feature only supported with '-mjazz'"))
+
 %}
 
 %token EOF
@@ -53,6 +64,10 @@
 %token MINUS
 %token MUTABLE
 %token NAMESPACE
+%token MODULE
+%token OPEN
+%token AS
+%token WITH
 %token PARAM
 %token <Syntax.sign option> PERCENT
 %token PIPE
@@ -100,6 +115,9 @@
 %start module_
 
 %%
+
+%inline nonqual_ident:
+| x=loc(NID) { x }
 
 %inline qident:
 | x = separated_nonempty_list(COLONCOLON, NID) { String.concat "::" x }
@@ -514,22 +532,65 @@ prequire1:
 | s=loc(STRING) { s }
 
 from:
-| FROM id=ident { id }
+| FROM id=nonqual_ident { id }
 
 prequire:
-| f=from? REQUIRE x=nonempty_list(prequire1) { f, x }
+| f=from? REQUIRE x=prequire1 xs=nonempty_list(prequire1)
+   { f, (x::xs) }
+
+pmodsigentry:
+| PARAM pms_type=ptype id=nonqual_ident SEMICOLON
+   { Syntax.MSparam (pms_type, id) }
+| GLOBAL pms_type=ptype id=nonqual_ident SEMICOLON
+   { Syntax.MSglob (pms_type, id) }
+| FN f=nonqual_ident args=parens(tuple(ptype)) RARROW rty=tuple(ptype) SEMICOLON
+   { Syntax.MSfn (f,args,rty) }
+
+pmodsig:
+| WITH ps=nonempty_list(pmodsigentry)
+   { ps }
+
+pmodpexpr:
+| e=parens(pmodpexpr) { e }
+| i=int { MPint i }
+| name=ident { MPid name }
+| e1=pmodpexpr PLUS e2=pmodpexpr { MPplus (e1, e2) }
+| e1=pmodpexpr STAR e2=pmodpexpr { MPmult (e1, e2) }
+
+pmodapp:
+| MODULE name=nonqual_ident EQ modname=ident modargs=parens_tuple(pmodpexpr) SEMICOLON
+   { name, modname, modargs }
+
+pas:
+| AS id=nonqual_ident { id }
+
+popen:
+| OPEN name=ident a=pas?
+   { name, a }
 
 (* -------------------------------------------------------------------- *)
 top:
-| x=pfundef  { Syntax.PFundef x }
-| x=pparam   { Syntax.PParam  x }
-| x=pglobal  { Syntax.PGlobal x }
-| x=pexec    { Syntax.Pexec   x }
-| x=prequire { Syntax.Prequire x}
+| x=pfundef  { Syntax.PFundef  x }
+| x=pparam   { Syntax.PParam   x }
+| x=pglobal  { Syntax.PGlobal  x }
+| x=pexec    { Syntax.Pexec    x }
+| x=prequire { Syntax.Prequire x }
 | TYPE name = ident EQ ty = ptype SEMICOLON
     { Syntax.PTypeAlias (name, ty)}
 | NAMESPACE name = ident LBRACE pfs = loc(top)* RBRACE
-    { Syntax.PNamespace (name, pfs) }
+    { excludeMJazz
+        (Location.loc name)
+        (Syntax.PNamespace (name, pfs))
+    }
+| MODULE name = nonqual_ident mparams = pmodsig? LBRACE pfs = loc(top)* RBRACE
+    { forceMJazz
+        (Location.loc name)
+        (Syntax.PModule (name, Option.value mparams ~default:[], pfs))
+    }
+| x=pmodapp { Syntax.PModuleApp x }
+| x=popen   { Syntax.POpen      x }
+
+
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF
