@@ -1618,7 +1618,7 @@ Context
 
 (* proving toy eutt across the translation for all commands (here we
 need induction) *)
-Lemma tr_eutt_cmd_L1 (cc: cmd) :  
+Lemma eutt_cmd_tr_L1 (cc: cmd) :  
   eutt eq  
     (denote_cmd E _ _ cc) (denote_cmd E _ _ (Tr_cmd cc)).
   set (Pr := fun (i: instr_r) => forall ii,
@@ -2182,7 +2182,7 @@ Definition exec_RFunDef (pf1 pf2: exec FunDef) : Prop :=
   | (Error _, _) => True                           
   | _ => False end.                         
 
-Lemma comp_gen_okDF1 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+Lemma comp_gen_ok_DF_asym (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
   @rutt E E
@@ -2414,7 +2414,7 @@ Definition exec_RFunDef_s (pf1 pf2: exec FunDef) : Prop :=
   | (Error _, Error _) => True                           
   | _ => False end.                         
 
-Lemma comp_gen_okDF2 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+Lemma comp_gen_ok_DF_sym (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
   @rutt E E
@@ -2561,6 +2561,19 @@ Lemma comp_gen_okDF2 (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
     }
 Admitted. 
 
+(* NOTE: double recursion requires two separate inductive lemmas (both
+rutt_cmd_tr and comp_gen_ok are inductive) *)
+Lemma rutt_cmd_tr_DF_sym (cc: cmd) (st1 st2: estate) : 
+  RS st1 st2 ->
+  @rutt (PCState +' E) _ _ _ 
+    (TR_E _) (VR_E _) exec_RS_s
+    (peval_flat_cmd pr1 cc st1) (peval_flat_cmd pr2 (Tr_cmd cc) st2).
+  intros.
+  unfold peval_flat_cmd; simpl.
+  (* RR recursive lemma needed *)
+  admit.
+Admitted.   
+  
 End Sym_test.
                    
 
@@ -2614,7 +2627,8 @@ Definition exec_rvs_def (T1 T2: Type) :
   TR_E (PCState +' E) T1 T2 = @TR_DE_MF T1 T2. 
 *)
 
-Lemma comp_gen_okMF (fn: funname)
+(* NOTE: it seems this lemma does not actually require induction *)
+Lemma comp_gen_ok_MF (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
   xs2 = map tr_lval xs1 ->
   es2 = map tr_expr es1 -> 
@@ -2763,7 +2777,9 @@ Lemma comp_gen_okMF (fn: funname)
   }
 Admitted. 
 
-Lemma comp_gen_okMF2 (cc: cmd) (st1 st2: estate) : 
+(* Here we should be able to do with one inductive lemma, applied
+twice *)
+Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
   @rutt (PCState +' E) _ _ _ 
     (TR_E _) (VR_E _) exec_RS_s
@@ -2786,7 +2802,7 @@ Lemma comp_gen_okMF2 (cc: cmd) (st1 st2: estate) :
   destruct d2; simpl in *; try intuition.
 
   rewrite pcstate_t_def.  
-(*   eapply comp_gen_okMF; eauto. *)
+(*   eapply comp_gen_ok_MF; eauto. *)
   admit.
 
   simpl.
