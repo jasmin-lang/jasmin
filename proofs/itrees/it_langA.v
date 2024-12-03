@@ -2785,17 +2785,220 @@ Lemma comp_gen_ok_MF (fn: funname)
    }   
 Admitted. 
 
+
+(* Inductive lemma *)
 Lemma rutt_cmd_tr_MF_step (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
-  @rutt (PCState +' E) _ _ _ (sum_prerel (@TR_D_MF) (TR_E E))
-                (sum_postrel (@VR_D_MF) (VR_E E))
-    (fun a : exec estate => [eta exec_RS_s a])
+  @rutt (PCState +' E) _ _ _
+    (sum_prerel (@TR_D_MF) (TR_E E))
+    (sum_postrel (@VR_D_MF) (VR_E E))
+    exec_RS_s 
     (pst_cmd_map_r (pmeval_instr pr1) cc st1)
     (pst_cmd_map_r (pmeval_instr pr2) (Tr_cmd cc) st2).
-Admitted.
+  simpl; intros.
 
-(* Here we should be able to do with one inductive lemma, applied
-twice *)
+  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
+     @rutt (PCState +' E) _ _ _
+    (sum_prerel (@TR_D_MF) (TR_E E))
+    (sum_postrel (@VR_D_MF) (VR_E E))
+    exec_RS_s 
+    (pst_cmd_map_r (pmeval_instr pr1) ((MkI ii i) :: nil) st1)
+    (pst_cmd_map_r (pmeval_instr pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
+
+  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
+     @rutt (PCState +' E) _ _ _
+    (sum_prerel (@TR_D_MF) (TR_E E))
+    (sum_postrel (@VR_D_MF) (VR_E E))
+    exec_RS_s 
+    (pst_cmd_map_r (pmeval_instr pr1) (i :: nil) st1)
+    (pst_cmd_map_r (pmeval_instr pr2) ((Tr_instr i) :: nil) st2)).
+
+  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
+     @rutt (PCState +' E) _ _ _
+    (sum_prerel (@TR_D_MF) (TR_E E))
+    (sum_postrel (@VR_D_MF) (VR_E E))
+    exec_RS_s 
+    (pst_cmd_map_r (pmeval_instr pr1) c st1)
+    (pst_cmd_map_r (pmeval_instr pr2) (Tr_cmd c) st2)).
+
+  revert H.
+  revert st1 st2.
+  revert cc.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto.
+
+  intros.
+  { eapply rutt_Ret; eauto. }
+  { intros.
+    destruct i; simpl.
+    eapply rutt_bind with (RR := exec_RS_s); simpl in *.
+
+    specialize (H st1 st2 H1).
+    (* PROBLEM: we need to invert H. probably need a coinductive proof *)
+    admit.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    { destruct r2; simpl; try intuition; auto. }
+    
+    { destruct r2; simpl; try intuition; auto.
+      eapply rutt_Ret; auto.
+    }
+  }  
+
+  { intros.
+    eapply rutt_bind with (RR := exec_RS_s).
+    unfold ret_mk_AssgnE.
+    eapply rutt_Ret; simpl; auto.
+    unfold exec_RS_s; simpl.
+    (* OK admit *)
+    admit.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    destruct r2; try intuition.
+    eapply rutt_Ret; eauto.
+
+    destruct r2; try intuition.
+    eapply rutt_Ret; eauto.
+  }
+
+  { intros.
+    eapply rutt_bind with (RR := exec_RS_s).
+    unfold ret_mk_OpnE.
+    eapply rutt_Ret; simpl; auto.
+    unfold exec_RS_s; simpl.
+    (* OK admit *)
+    admit.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    destruct r2; try intuition.
+    eapply rutt_Ret; eauto.
+
+    destruct r2; try intuition.
+    eapply rutt_Ret; eauto.
+  }
+
+  { intros.
+    eapply rutt_bind with (RR := exec_RS_s).
+    unfold ret_mk_SyscallE.
+    eapply rutt_Ret; simpl; auto.
+    unfold exec_RS_s; simpl.
+    (* OK admit *)
+    admit.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    destruct r2; try intuition.
+    eapply rutt_Ret; eauto.
+
+    destruct r2; try intuition.
+    eapply rutt_Ret; eauto.
+  }
+
+  { intros.
+    eapply rutt_bind with (RR := exec_RS_s).
+    eapply rutt_bind with (RR := eq).
+    
+    unfold ret_mk_EvalCond.
+    (* OK *)
+    admit.
+
+    intros.
+    inv H2; simpl.
+    destruct r2; simpl.
+    destruct b; simpl.
+
+    eapply H; eauto.
+    eapply H0; eauto.
+
+    eapply rutt_Ret; auto.
+    unfold exec_RS_s; simpl; auto.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    destruct r2; try intuition.
+    eapply rutt_Ret; auto.
+    destruct r2; try intuition.
+    eapply rutt_Ret; auto.
+  }
+
+  { intros.
+    eapply rutt_bind with (RR := exec_RS_s); simpl.
+    destruct rn.
+    destruct p; simpl.    
+    eapply rutt_bind with (RR := eq); simpl.
+    unfold ret_mk_EvalBound; simpl.
+    (* OK *)
+    admit.
+
+    intros.
+    inv H1.
+    destruct r2.
+    eapply rutt_bind with (RR := eq); simpl.
+    unfold ret_mk_EvalBound; simpl.
+    (* OK *)
+    admit.
+
+    intros.
+    inv H1.
+    destruct r2.
+    unfold pmeval_for.
+
+    (* TODO *)
+    admit.
+
+    eapply rutt_Ret; auto.
+    intuition.
+    eapply rutt_Ret; auto.
+    intuition.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    destruct r2; try intuition.
+    eapply rutt_Ret; auto.
+    destruct r2; try intuition.
+    eapply rutt_Ret; auto.
+  }
+    
+  { intros.
+
+    admit.
+  }
+
+  { intros.
+    eapply rutt_bind with (RR := exec_RS_s).
+    eapply rutt_trigger; simpl.
+    econstructor.
+    unfold TR_D_MF; simpl.
+    split; eauto.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct t1.
+    destruct t2.
+    (* OK *)
+    admit.
+
+    (* OK *)
+    admit.
+
+    destruct t2; auto.
+
+    (* OK *)
+    admit.
+
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    destruct r2; try intuition.
+    eapply rutt_Ret; auto.
+
+    destruct r2; try intuition.
+    eapply rutt_Ret; auto.
+  }
+Admitted.     
+    
+
+(* Here we apply the inductive lemma and comp_gen_ok *)
 Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
   @rutt E _ _ _ 
