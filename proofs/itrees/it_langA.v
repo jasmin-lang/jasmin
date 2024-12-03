@@ -2604,20 +2604,26 @@ Program Definition TR_DE_MF0 {T1 T2} (dd1 : PCState T1 + E T1)
   | (inr e1, inr e2) => TR_E _ _ _ e1 e2
   | _ => False end.                             
 
-Program Definition TR_DE_MF (T1 T2: Type) (dd1 : (PCState +' E) T1)
+Program Definition TR_DE_MF1 (T1 T2: Type) (dd1 : (PCState +' E) T1)
                             (dd2 : (PCState +' E) T2) : Prop :=
   match (dd1, dd2) with
   | (inl1 d1, inl1 d2) => TR_D_MF d1 d2
   | (inr1 e1, inr1 e2) => TR_E _ _ _ e1 e2
   | _ => False end.                             
 
-Program Definition VR_DE_MF (T1 T2: Type)
+Program Definition VR_DE_MF1 (T1 T2: Type)
   (dd1 : (PCState +' E) T1) (t1: T1)
   (dd2 : (PCState +' E) T2) (t2: T2) : Prop :=
   match (dd1, dd2) with
   | (inl1 d1, inl1 d2) => VR_D_MF d1 t1 d2 t2
   | (inr1 e1, inr1 e2) => VR_E _ _ _ e1 t1 e2 t2
   | _ => False end.                             
+
+Program Definition TR_DE_MF : prerel (PCState +' E) (PCState +' E) :=
+  sum_prerel (@TR_D_MF) (TR_E E).
+
+Program Definition VR_DE_MF : postrel (PCState +' E) (PCState +' E) :=
+  sum_postrel (@VR_D_MF) (VR_E E).
 
 Context (pcstate_t_def : TR_E (PCState +' E) = TR_DE_MF).
 Context (pcstate_v_def : VR_E (PCState +' E) = VR_DE_MF).
@@ -2710,6 +2716,7 @@ Lemma comp_gen_ok_MF (fn: funname)
              { eapply rutt_trigger.
                { rewrite pcstate_t_def.              
                  unfold TR_DE_MF.
+                 econstructor.
                  unfold TR_D_MF.
                  split; auto.
                }
@@ -2717,8 +2724,9 @@ Lemma comp_gen_ok_MF (fn: funname)
                unfold exec_RS_s; simpl.
                rewrite pcstate_v_def in H2.
                unfold VR_DE_MF in H2.
-               unfold VR_D_MF in H2.
-               unfold exec_RS in H2.
+               dependent destruction H2.
+             (*  unfold VR_D_MF in H2. *)
+               unfold exec_RS_s in H2.
                destruct t1; auto.
              }
 
@@ -2774,11 +2782,60 @@ Lemma comp_gen_ok_MF (fn: funname)
 
     destruct r2; intuition.
     eapply rutt_Ret; auto. 
-  }
+   }   
 Admitted. 
 
 (* Here we should be able to do with one inductive lemma, applied
 twice *)
+Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) : 
+  RS st1 st2 ->
+  @rutt E _ _ _ 
+    (TR_E _) (VR_E _) exec_RS_s
+    (pmeval_cmd pr1 cc st1) (pmeval_cmd pr2 (Tr_cmd cc) st2).
+  intros.
+  unfold pmeval_cmd; simpl.
+  eapply interp_mrec_rutt.
+  intros.
+  instantiate (3 := @TR_D_MF).
+  instantiate (1 := @VR_D_MF).
+  unfold pmeval_cstate.
+  destruct d1.
+  unfold TR_D_MF in H0.
+  destruct d2; try intuition.
+  inv H1; simpl.
+  (* RR recursive lemma needed *)
+  admit.
+
+  unfold TR_D_MF in H0.
+  destruct d2; simpl in *; try intuition.
+
+(*  rewrite pcstate_t_def. *)
+  inv H0.
+  
+  set CC := (comp_gen_ok_MF f0 xs _ es _ _ _ erefl erefl H4).
+  setoid_rewrite pcstate_t_def in CC.
+  setoid_rewrite pcstate_v_def in CC.
+  exact CC.
+    
+  simpl.
+  (* RR recursive lemma needed, as before *)
+  admit.
+Admitted. 
+
+End GEN_Flat.
+
+End GEN_ErrAndFlat.
+
+End TR_tests.
+
+End TRANSF.
+
+End WSW.
+
+End Lang.
+(** END *)
+
+(*
 Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) : 
   RS st1 st2 ->
   @rutt (PCState +' E) _ _ _ 
@@ -2801,7 +2858,17 @@ Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) :
   unfold TR_D_MF in H0.
   destruct d2; simpl in *; try intuition.
 
-  rewrite pcstate_t_def.  
+  rewrite pcstate_t_def.
+  inv H0.
+  
+  set CC := (comp_gen_ok_MF f0 xs _ es _ _ _ erefl erefl H4).
+  setoid_rewrite pcstate_t_def in CC.
+  setoid_rewrite pcstate_v_def in CC.
+
+Check @sum_prerel.
+  
+  assert ((sum_prerel (@TR_D_MF) TR_DE_MF) = TR_DE_MF).
+  
 (*   eapply comp_gen_ok_MF; eauto. *)
   admit.
 
@@ -2809,19 +2876,7 @@ Lemma rutt_cmd_tr_MF (cc: cmd) (st1 st2: estate) :
   (* RR recursive lemma needed, as before *)
   admit.
 Admitted. 
-  
-End GEN_Flat.
-
-End GEN_ErrAndFlat.
-
-End TR_tests.
-
-End TRANSF.
-
-End WSW.
-
-End Lang.
-(** END *)
+*)  
 
 (*  eapply @interp_mrec_rutt.
   instantiate (1:= (TR_E (callE (FunDef * VS) (exec VS)))). *)
