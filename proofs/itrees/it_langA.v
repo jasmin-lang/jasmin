@@ -68,6 +68,20 @@ Local Open Scope option_scope.
 
 Obligation Tactic := done || idtac.
 
+(* This files contains
+
+(1) models distinguished by use of either mutual or double recursion,
+and by either modular, error-aware or flat structure.  There are fives
+models (MM: mutual modular; ME: mutual error; MF: mutual flat; DE:
+double error; DF double flat)
+
+(2) proofs to test the models. It turns out that double recursion
+leads to a duplication of inductive proofs, and thus that mutual
+recursion leads to simpler proofs. The proofs on the modular model are
+still based on eutt and need to be revised. The proofs on the flat
+models are much longer and more laden with detail than those on the
+error-aware model. *)
+
 Section ExecT.
 
   Context {m : Type -> Type} {Fm: Functor.Functor m} {Mm : Monad m}
@@ -1617,7 +1631,10 @@ Context
                             (trigger (AssgnE (tr_lval l) a s (tr_expr p)))).
 
 (* proving toy eutt across the translation for all commands (here we
-need induction) *)
+need induction). NOTE: this proof is more direct (and harder) than
+that of rutt_cmd_tr_ME, because unlike there here we treat the
+top-level as inductive, and in fact we are not using comp_gen_ok_MM1
+*)
 Lemma eutt_cmd_tr_L1 (cc: cmd) :  
   eutt eq  
     (denote_cmd E _ _ cc) (denote_cmd E _ _ (Tr_cmd cc)).
