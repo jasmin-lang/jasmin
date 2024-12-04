@@ -2306,11 +2306,30 @@ Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
     eapply rutt_Ret; auto.
   }
     
-  { intros.
+  { eapply rutt_bind with (RR := RS).
+    eapply rutt_iter with (RI := RS); auto.
+    intros.
+    eapply rutt_bind with (RR := RS).
+    eapply H; auto.
 
+    intros.
+    eapply rutt_bind with (RR := eq).
+    (* OK *)
     admit.
-  }
 
+    intros.
+    inv H4.
+    destruct r3.
+
+    eapply rutt_bind with (RR := RS); auto.
+    intros.
+    eapply rutt_Ret; auto.
+    eapply rutt_Ret; auto.
+
+    intros.
+    eapply rutt_Ret; auto.
+  }   
+    
   { eapply rutt_bind with (RR := RS).
     eapply rutt_trigger; simpl.
     econstructor.
