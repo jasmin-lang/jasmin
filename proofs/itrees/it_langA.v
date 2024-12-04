@@ -2414,6 +2414,68 @@ Definition exec_RFunDef_s (pf1 pf2: exec FunDef) : Prop :=
   | (Error _, Error _) => True                           
   | _ => False end.                         
 
+
+
+Lemma rutt_cmd_tr_DF_step (cc: cmd) (st1 st2: estate) :  
+   RS st1 st2 ->
+              rutt (sum_prerel (@TR_D_DE_ex) (TR_E E))
+    (sum_postrel (@VR_D_DE_ex_s) (VR_E E)) exec_RS_s
+    (pst_cmd_map_r (peval_instr_call pr1) cc st1)
+    (pst_cmd_map_r (peval_instr_call pr2) (Tr_cmd cc) st2).
+  simpl; intros.
+  
+  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
+     @rutt (callE (funname * (values * estate)) (exec (values * estate))
+                +' E) _ _ _
+    (sum_prerel (@TR_D_DE_ex) (TR_E E))
+    (sum_postrel (@VR_D_DE_ex_s) (VR_E E))
+    exec_RS_s 
+    (pst_cmd_map_r (peval_instr_call pr1) ((MkI ii i) :: nil) st1)
+    (pst_cmd_map_r (peval_instr_call pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
+
+  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
+     @rutt (callE (funname * (values * estate)) (exec (values * estate))
+                +' E) _ _ _
+    (sum_prerel (@TR_D_DE_ex) (TR_E E))
+    (sum_postrel (@VR_D_DE_ex_s) (VR_E E))
+    exec_RS_s 
+    (pst_cmd_map_r (peval_instr_call pr1) (i :: nil) st1)
+    (pst_cmd_map_r (peval_instr_call pr2) ((Tr_instr i) :: nil) st2)).
+
+  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
+     @rutt (callE (funname * (values * estate)) (exec (values * estate))
+                +' E) _ _ _
+    (sum_prerel (@TR_D_DE_ex) (TR_E E))
+    (sum_postrel (@VR_D_DE_ex_s) (VR_E E))
+    exec_RS_s 
+    (pst_cmd_map_r (peval_instr_call pr1) c st1)
+    (pst_cmd_map_r (peval_instr_call pr2) (Tr_cmd c) st2)).
+
+  revert H.
+  revert st1 st2.
+  revert cc.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto.
+
+  intros.
+  { eapply rutt_Ret; eauto. }
+  { intros.
+    destruct i; simpl.
+    eapply rutt_bind with (RR := exec_RS_s); simpl in *.
+
+    specialize (H st1 st2 H1).
+    (* PROBLEM: we need to invert H. probably need a coinductive proof *)
+    admit.
+  
+    unfold exec_RS_s; simpl; intros.
+    destruct r1.
+    { destruct r2; simpl; try intuition; auto. }
+    
+    { destruct r2; simpl; try intuition; auto.
+      eapply rutt_Ret; auto.
+    }
+  }  
+Admitted.   
+
 Lemma comp_gen_ok_DF_sym (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
@@ -2496,9 +2558,9 @@ Lemma comp_gen_ok_DF_sym (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
 
             eapply rutt_bind with (RR := exec_RS_s);
                 unfold exec_RVS.
-
-              { (* RR OK recursive lemma needed *)
-                admit.
+            
+              { (* RR recursive lemma applied *)
+                 eapply rutt_cmd_tr_DF_step; eauto.
               }
               { unfold exec_RS_s; simpl; intros.
 
@@ -2569,8 +2631,9 @@ Lemma rutt_cmd_tr_DF_sym (cc: cmd) (st1 st2: estate) :
     (TR_E _) (VR_E _) exec_RS_s
     (peval_flat_cmd pr1 cc st1) (peval_flat_cmd pr2 (Tr_cmd cc) st2).
   intros.
-  unfold peval_flat_cmd; simpl.
-  (* RR recursive lemma needed *)
+  unfold peval_flat_cmd; simpl.  
+  (* RR recursive lemma needed, with peval_instr instead of
+  peval_instr_call *)
   admit.
 Admitted.   
   
