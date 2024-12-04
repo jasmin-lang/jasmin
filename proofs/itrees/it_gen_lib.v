@@ -69,7 +69,6 @@ Import ITreeNotations.
 
 Obligation Tactic := done || idtac.
 
-
 (************************************************************************)
 (** from JLang7.v *)
 

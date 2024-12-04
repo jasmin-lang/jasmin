@@ -157,5 +157,7 @@ lang/waes.v
 lang/warray_.v
 lang/word.v
 lang/wsize.v
-itrees/it_lib.v
-itrees/it_lang.v
+
+itrees/it_gen_lib.v
+itrees/it_jasmin_lib.v
+itrees/it_sems.v
