@@ -2213,23 +2213,118 @@ Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) :
   revert H.
   revert st1 st2.
   revert cc.
-  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto; intros.
 
-  intros.
   { eapply rutt_Ret; eauto. }
-  { intros.
-    destruct i; simpl.
+  { destruct i; simpl.
     eapply rutt_bind with (RR := RS); simpl in *.
 
     specialize (H st1 st2 H1).
     (* PROBLEM: we need to invert H. probably need a coinductive proof *)
     admit.
 
-    intros.
-    auto.
+    intros; auto.
   }
-Admitted.     
 
+  { eapply rutt_bind with (RR := RS).
+    unfold ret_mk_AssgnE.
+    (* OK admit *)
+    admit.
+
+    intros.
+    eapply rutt_Ret; eauto.
+  }
+
+  { eapply rutt_bind with (RR := RS).
+    (* OK admit *)
+    admit.
+
+    intros.
+    eapply rutt_Ret; eauto.
+  }
+
+  { eapply rutt_bind with (RR := RS).
+    (* OK admit *)
+    admit.
+
+    intros.
+    eapply rutt_Ret; eauto.
+  }
+
+  { intros.
+    eapply rutt_bind with (RR := RS).
+    eapply rutt_bind with (RR := eq).
+    
+    unfold err_mk_EvalCond.
+    (* OK *)
+    admit.
+
+    intros.
+    inv H2; simpl.
+    destruct r2; simpl.
+
+    eapply H; eauto.
+    eapply H0; eauto.
+
+    intros.
+    eapply rutt_Ret; auto.
+  }
+
+  { eapply rutt_bind with (RR := RS); simpl.
+    destruct rn.
+    destruct p; simpl.    
+    eapply rutt_bind with (RR := eq); simpl.
+    unfold err_mk_EvalBound; simpl.
+    (* OK *)
+    admit.
+
+    intros.
+    inv H1.
+    eapply rutt_bind with (RR := eq); simpl.
+    unfold err_mk_EvalBound; simpl.
+    (* OK *)
+    admit.
+
+    intros.
+    inv H1.
+
+    revert H0.
+    revert st1 st2.
+    induction (wrange d r2 r0); simpl; intros.
+    { eapply rutt_Ret; eauto. }
+    { eapply rutt_bind with (RR:= RS); simpl.
+      (* OK *)
+      admit.
+
+      intros.
+      eapply rutt_bind with (RR := RS).
+      eapply H; eauto.
+      intros; auto.
+    }
+      
+    intros.
+    eapply rutt_Ret; auto.
+  }
+    
+  { intros.
+
+    admit.
+  }
+
+  { eapply rutt_bind with (RR := RS).
+    eapply rutt_trigger; simpl.
+    econstructor.
+    unfold TR_D_ME; simpl.
+    split; eauto.
+
+    intros; auto.
+    (* OK *)
+    admit.
+
+    intros; auto.
+    eapply rutt_Ret; auto.
+  }  
+Admitted.     
   
 (* Here we apply the inductive lemma and comp_gen_ok *)
 Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) : 
