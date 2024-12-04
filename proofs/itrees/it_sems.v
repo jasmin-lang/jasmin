@@ -67,10 +67,11 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 Local Open Scope option_scope.
 
+(*
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
+*)
 Obligation Tactic := done || idtac.
 
 (* This files contains semantic models distinguished by use of either

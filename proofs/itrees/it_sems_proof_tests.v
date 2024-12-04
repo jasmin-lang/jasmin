@@ -73,6 +73,8 @@ Unset Printing Implicit Defensive.
 
 Obligation Tactic := done || idtac.
 
+(* PROBLEM with sections *)
+
 (* This files contains proofs to test the semantic models in
  it_sems. It turns out that double recursion leads to a duplication of
  inductive proofs, and thus that mutual recursion leads to simpler
