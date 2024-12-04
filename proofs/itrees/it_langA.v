@@ -3006,11 +3006,35 @@ Lemma rutt_cmd_tr_MF_step (cc: cmd) (st1 st2: estate) :
     intros.
     inv H1.
     destruct r2.
-    unfold pmeval_for.
 
-    (* TODO *)
-    admit.
+    revert H0.
+    revert st1 st2.
+    induction (wrange d z z0); simpl; intros.
+    { eapply rutt_Ret; eauto. }
+    { eapply rutt_bind with (RR:= exec_RS_s); simpl.
+      unfold ret_mk_WriteIndex.
+      eapply rutt_Ret; eauto.
+      (* OK *)
+      admit.
 
+      unfold exec_RS_s; simpl; intros.
+      destruct r1.
+      { destruct r2; try intuition.
+        eapply rutt_bind with (RR := exec_RS_s).
+        eapply H; eauto.
+        unfold exec_RS_s; simpl; intros.
+        destruct r1.
+        destruct r2; try intuition. 
+        (* eapply IHl.
+           auto.  *)
+        destruct r2; try intuition.
+        eapply rutt_Ret; auto.
+      }
+      
+      destruct r2; try intuition.
+      eapply rutt_Ret; auto.
+    }   
+        
     eapply rutt_Ret; auto.
     intuition.
     eapply rutt_Ret; auto.
