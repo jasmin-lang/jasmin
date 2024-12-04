@@ -170,8 +170,8 @@ end = struct
         if vl1 = vl' then  (* e <= e1 = e' *)
           add_path vl1 e1
         else
-          let tests = List.map find (successors e1) in
-          if List.exists (fun b -> b) tests then (* e1 <= s <= e' *)
+          let found = List.fold_left (fun b e2 -> find e2 || b) false (successors e1) in
+          if found then (* e1 <= s <= e' *)
             add_path vl1 e1
           else add_nopath vl1 in
      ignore (find e);
