@@ -2073,7 +2073,7 @@ Program Definition VR_D_DE {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
   exact (RVS t1 t2).
 Defined.
 
-Lemma comp_gen_okDE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
+Lemma comp_gen_ok_DE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
   @rutt (callE FVS VS +' E) (callE FVS VS +' E) VS VS 
@@ -2110,7 +2110,16 @@ Program Definition VR_D_ME {T1 T2}
     + exact (RS t1 t2).
 Defined.      
 
-Lemma comp_gen_okME (fn: funname)
+Program Definition TR_DE_ME : prerel (FCState +' E) (FCState +' E) :=
+  sum_prerel (@TR_D_ME) (TR_E E).
+
+Program Definition VR_DE_ME : postrel (FCState +' E) (FCState +' E) :=
+  sum_postrel (@VR_D_ME) (VR_E E).
+
+Context (fcstate_t_def : TR_E (FCState +' E) = TR_DE_ME).
+Context (fcstate_v_def : VR_E (FCState +' E) = VR_DE_ME).
+
+Lemma comp_gen_ok_ME (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) (st1 st2: estate) :
   xs2 = map tr_lval xs1 ->
   es2 = map tr_expr es1 -> 
@@ -2121,7 +2130,137 @@ Lemma comp_gen_okME (fn: funname)
     (meval_fcall pr1 xs1 fn es1 st1) (meval_fcall pr2 xs2 fn es2 st2).
   intros.
   unfold meval_fcall; simpl.
+  
+  eapply rutt_bind with (RR := RV).
+  unfold err_eval_Args.
+  (* OK *)
+  admit.
+
+  intros.
+  eapply rutt_bind with (RR := RS).
+  unfold err_init_state.
+  (* OK *)
+  admit.
+
+  intros.
+  eapply rutt_bind with (RR := RC).
+  unfold err_get_FunCode.
+  (* OK *)
+  admit.
+
+  intros.
+  inv H4.
+  eapply rutt_bind with (RR := RS).
+  eapply rutt_trigger; simpl.
+  rewrite fcstate_t_def.
+  unfold TR_DE_ME.
+  econstructor.
+  unfold TR_D_ME.
+  split; auto.
+
+  intros.
+  (* OK *)
+  admit.
+
+  intros.
+  eapply rutt_bind with (RR := RV).
+  unfold err_return_val.
+  (* OK *)
+  admit.
+
+  intros.
+  unfold err_reinstate_caller.
+  (* OK *)
+  admit.
 Admitted. 
+
+
+
+(* Inductive lemma *)
+Lemma rutt_cmd_tr_ME_step (cc: cmd) (st1 st2: estate) : 
+  RS st1 st2 ->
+  @rutt (FCState +' E) _ _ _
+    (sum_prerel (@TR_D_ME) (TR_E E))
+    (sum_postrel (@VR_D_ME) (VR_E E))
+    RS (st_cmd_map_r (meval_instr pr1) cc st1)
+    (st_cmd_map_r (meval_instr pr2) (Tr_cmd cc) st2).
+  simpl; intros.
+
+  set (Pr := fun (i: instr_r) => forall ii st1 st2, RS st1 st2 -> 
+     @rutt (FCState +' E) _ _ _
+    (sum_prerel (@TR_D_ME) (TR_E E))
+    (sum_postrel (@VR_D_ME) (VR_E E))
+    RS 
+    (st_cmd_map_r (meval_instr pr1) ((MkI ii i) :: nil) st1)
+    (st_cmd_map_r (meval_instr pr2) ((Tr_instr (MkI ii i)) :: nil) st2)).
+
+  set (Pi := fun (i: instr) => forall st1 st2, RS st1 st2 -> 
+     @rutt (FCState +' E) _ _ _
+    (sum_prerel (@TR_D_ME) (TR_E E))
+    (sum_postrel (@VR_D_ME) (VR_E E))
+    RS 
+    (st_cmd_map_r (meval_instr pr1) (i :: nil) st1)
+    (st_cmd_map_r (meval_instr pr2) ((Tr_instr i) :: nil) st2)).
+
+  set (Pc := fun (c: cmd) => forall st1 st2, RS st1 st2 -> 
+     @rutt (FCState +' E) _ _ _
+    (sum_prerel (@TR_D_ME) (TR_E E))
+    (sum_postrel (@VR_D_ME) (VR_E E))
+    RS 
+    (st_cmd_map_r (meval_instr pr1) c st1)
+    (st_cmd_map_r (meval_instr pr2) (Tr_cmd c) st2)).
+
+  revert H.
+  revert st1 st2.
+  revert cc.
+  apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc; simpl; eauto.
+
+  intros.
+  { eapply rutt_Ret; eauto. }
+  { intros.
+    destruct i; simpl.
+    eapply rutt_bind with (RR := RS); simpl in *.
+
+    specialize (H st1 st2 H1).
+    (* PROBLEM: we need to invert H. probably need a coinductive proof *)
+    admit.
+
+    intros.
+    auto.
+  }
+Admitted.     
+
+  
+(* Here we apply the inductive lemma and comp_gen_ok *)
+Lemma rutt_cmd_tr_ME (cc: cmd) (st1 st2: estate) : 
+  RS st1 st2 ->
+  @rutt E _ _ _ 
+    (TR_E _) (VR_E _) RS
+    (mevalE_cmd pr1 cc st1) (mevalE_cmd pr2 (Tr_cmd cc) st2).
+  intros.
+  unfold mevalE_cmd; simpl.
+  eapply interp_mrec_rutt.
+  intros.
+  instantiate (3 := @TR_D_ME).
+  instantiate (1 := @VR_D_ME).
+  unfold meval_cstate.
+  destruct d1.
+  unfold TR_D_ME in H0.
+  destruct d2; try intuition.
+  inv H1; simpl.
+  eapply rutt_cmd_tr_ME_step; eauto. 
+   
+  unfold TR_D_ME in H0.
+  destruct d2; simpl in *; try intuition.
+  inv H0.  
+  set CC := (comp_gen_ok_ME f0 xs _ es _ _ _ erefl erefl H4).
+  setoid_rewrite fcstate_t_def in CC.
+  setoid_rewrite fcstate_v_def in CC.
+  exact CC.
+    
+  simpl.
+  eapply rutt_cmd_tr_ME_step; eauto. 
+Qed.   
 
 End GEN_Err.
 
