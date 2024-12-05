@@ -1824,7 +1824,7 @@ Context (E: Type -> Type)
         (HasFunE : FunE -< E).     
 
 (* here should be rutt *)
-Lemma tr_eutt_tun_ok (fn: funname)
+Lemma tr_eutt_fun_ok (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) :  
@@ -2033,7 +2033,7 @@ Context (E: Type -> Type)
         (HasErr: ErrState -< E).
 
 (* here we need rutt *)
-Lemma comp_gen_okMM_L3 (fn: funname)
+Lemma comp_gen_ok_MM_L3 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) (ss: estack) :  

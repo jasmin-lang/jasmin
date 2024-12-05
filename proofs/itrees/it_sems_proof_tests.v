@@ -67,9 +67,11 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 Local Open Scope option_scope.
 
+(*
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+*)
 
 Obligation Tactic := done || idtac.
 
@@ -81,7 +83,6 @@ Obligation Tactic := done || idtac.
  proofs. The proofs on the modular model are still based on eutt and
  need to be revised. The proofs on the flat models are much longer and
  more laden with detail than those on the error-aware model. *)
-
 
 Section Lang.
 Context (asm_op: Type) (asmop: asmOp asm_op).
@@ -98,9 +99,33 @@ Context
   (scP : semCallParams)
   (ev : extra_val_t).
 
-(* Section OneProg.  
-   Context (pr : prog).
-*)
+Local Notation StackE := (StackE ep).
+Local Notation estack := (estack ep).
+Local Notation FunE := (FunE asmop).
+Local Notation InstrE := (InstrE asmop).
+Local Notation AssgnE := (AssgnE asmop).
+Local Notation WriteIndex := (WriteIndex asmop).
+Local Notation InitState := (InitState asmop).
+Local Notation SetDests := (SetDests asmop).
+Local Notation CState := (CState asmop).
+Local Notation FFCall_ := (FFCall asmop). 
+Local Notation PFCall_ := (PFCall asmop). 
+Local Notation cmd_Ind := (cmd_Ind asm_op asmop).
+Local Notation FunDef := (FunDef asmop pT).
+Local Notation FCState := (FCState asmop ep).
+Local Notation PCState := (PCState asmop ep).
+Local Notation meval_instr := (meval_instr spp scP). 
+Local Notation pmeval_instr := (pmeval_instr spp scP). 
+Local Notation peval_instr_call := (peval_instr_call dc spp scP). 
+Local Notation evalE_fun := (evalE_fun dc spp scP ev).
+Local Notation meval_fcall := (meval_fcall dc spp scP ev). 
+Local Notation mevalE_cmd := (mevalE_cmd dc spp scP ev). 
+Local Notation pmeval_cmd := (pmeval_cmd dc spp scP ev). 
+Local Notation peval_fcall_body := (peval_fcall_body dc spp scP ev). 
+Local Notation pmeval_fcall := (pmeval_fcall dc spp scP ev). 
+Local Notation peval_flat_cmd := (peval_flat_cmd dc spp scP ev). 
+Local Notation interp_InstrE := (interp_InstrE dc spp scP ev).
+
 
 (***************************************************************************)
 (*** APPLICATION ***********************************************************)
@@ -136,11 +161,6 @@ Fixpoint Tr_ir (i : instr_r) : instr_r :=
   end.
 Local Notation Tr_instr := (Tr_i Tr_ir).
 Local Notation Tr_cmd c := (map Tr_instr c).
-
-Local Notation FunDef := (FunDef asm_op asmop pT).
-Local Notation StackE := (StackE  syscall_state ep).
-Local Notation FunE := (FunE asm_op asmop).
-Local Notation InstrE := (InstrE asm_op asmop).
 
 Definition Tr_FunDef (f: FunDef) : FunDef :=
   match f with
@@ -293,8 +313,8 @@ Lemma comp_gen_ok_MM1 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) :  
-  eutt eq  
-    (denote_fcall E _ _ fn xs1 es1) (denote_fcall E _ _ fn xs2 es2).
+  @eutt (CState +' E) _ _ eq  
+    (denote_fcall _ _ fn xs1 es1) (denote_fcall _ _ fn xs2 es2).
   intros.
   unfold denote_fcall; simpl.
   
@@ -322,14 +342,14 @@ Lemma comp_gen_ok_MM2 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) :  
-  eutt eq  
-    (denote_fun E _ _ fn xs1 es1) (denote_fun E _ _ fn xs2 es2).
+  @eutt E _ _ eq  
+    (denote_fun _ _ fn xs1 es1) (denote_fun _ _ fn xs2 es2).
   intros.
   unfold denote_fun; simpl.
 
   eapply eutt_clo_bind with (UU:= eq); eauto.
   intros.
-  
+
   eapply eutt_clo_bind with (UU:= eq); eauto.
   reflexivity.
   intros.
@@ -350,7 +370,7 @@ Context (E1: Type -> Type)
         (HasFunE1 : FunE -< E1).     
 
 Lemma Assgn_test :
-    forall l a s p, @eutt E1 unit unit eq
+    forall (l: lval) a s p, @eutt E1 unit unit eq
       (interp_InstrE pr1 (trigger (AssgnE l a s p)))
       (interp_InstrE pr2 (trigger (AssgnE (tr_lval l) a s (tr_expr p)))).
   intros.
@@ -502,17 +522,17 @@ Context
 need induction). NOTE: this proof is more direct (and harder) than
 that of rutt_cmd_tr_ME, because unlike there here we treat the
 top-level as inductive, and in fact we are not using comp_gen_ok_MM1
-*)
+ *)
 Lemma eutt_cmd_tr_L1 (cc: cmd) :  
-  eutt eq  
-    (denote_cmd E _ _ cc) (denote_cmd E _ _ (Tr_cmd cc)).
+  @eutt E _ _ eq  
+    (denote_cmd _ _ cc) (denote_cmd _ _ (Tr_cmd cc)).
   set (Pr := fun (i: instr_r) => forall ii,
-                 eutt eq (denote_cmd E _ _ ((MkI ii i) :: nil))
-                       (denote_cmd _ _ _ ((Tr_instr (MkI ii i)) :: nil))).
-  set (Pi := fun i => eutt eq (denote_cmd E _ _ (i::nil))
-                       (denote_cmd _ _ _ (Tr_instr i :: nil))).
-  set (Pc := fun c => eutt eq (denote_cmd E _ _ c)
-                        (denote_cmd _ _ _ (Tr_cmd c))).
+                 @eutt E _ _ eq (denote_cmd _ _ ((MkI ii i) :: nil))
+                       (denote_cmd _ _ ((Tr_instr (MkI ii i)) :: nil))).
+  set (Pi := fun i => @eutt E _ _ eq (denote_cmd _ _ (i::nil))
+                       (denote_cmd _ _ (Tr_instr i :: nil))).
+  set (Pc := fun c => @eutt E _ _ eq (denote_cmd _ _ c)
+                        (denote_cmd _ _ (Tr_cmd c))).
   revert cc.
   apply (cmd_Ind Pr Pi Pc); rewrite /Pr /Pi /Pc.
   - reflexivity.
@@ -691,13 +711,13 @@ Context (E: Type -> Type)
         (HasFunE : FunE -< E).     
 
 (* here should be rutt *)
-Lemma tr_eutt_tun_ok (fn: funname)
+Lemma tr_eutt_fun_ok (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) :  
   eutt eq  
-    (@interp_InstrE pr1 E _ _ _ (denote_fun _ _ _ fn xs1 es1))
-    (interp_InstrE pr2 (denote_fun _ _ _ fn xs2 es2)).
+    (@interp_InstrE pr1 E _ _ _ (denote_fun _ _ fn xs1 es1))
+    (interp_InstrE pr2 (denote_fun _ _ fn xs2 es2)).
   unfold interp_InstrE.
   setoid_rewrite comp_gen_ok_MM2 at 1; eauto.
   eapply eutt_interp; eauto.
@@ -899,15 +919,17 @@ Section TR_MM_toy4.
 Context (E: Type -> Type)
         (HasErr: ErrState -< E).
 
+Check interp_StackE.
+
 (* here we need rutt *)
-Lemma comp_gen_okMM_L3 (fn: funname)
+Lemma comp_gen_ok_MM_L3 (fn: funname)
   (xs1 xs2: lvals) (es1 es2: pexprs) 
   (hxs: xs2 = map tr_lval xs1)
   (hes: es2 = map tr_expr es1) (ss: estack) :  
-  eutt eq  
-    (@interp_StackE E _ _
-       (@interp_FunE pr1 _ _ _ (interp_InstrE pr1 (denote_fun _ _ _ fn xs1 es1))) ss) 
-    (interp_StackE (interp_FunE pr2 (interp_InstrE pr2 (denote_fun _ _ _ fn xs2 es2))) ss).
+  @eutt E _ _ eq  
+    (interp_StackE
+       (@interp_FunE _ _ _ pr1 _ _ _ (interp_InstrE pr1 (denote_fun _ _ fn xs1 es1))) ss) 
+    (interp_StackE (interp_FunE pr2 (interp_InstrE pr2 (denote_fun _ _ fn xs2 es2))) ss).
   unfold interp_StackE.
 (*  
   eapply eutt_interp_state.
@@ -1010,8 +1032,8 @@ Lemma comp_gen_ok_ME (fn: funname)
   es2 = map tr_expr es1 -> 
   RS st1 st2 ->
   @rutt (FCState +' E) _ _ _ (TR_E _) (VR_E _)
-    (fun a1 a2 => @VR_D_ME _ _ (FFCall xs1 fn es1 st1) a1
-                             (FFCall xs2 fn es2 st2) a2)  
+    (fun a1 a2 => @VR_D_ME _ _ (FFCall_ xs1 fn es1 st1) a1
+                             (FFCall_ xs2 fn es2 st2) a2)  
     (meval_fcall pr1 xs1 fn es1 st1) (meval_fcall pr2 xs2 fn es2 st2).
   intros.
   unfold meval_fcall; simpl.
@@ -1842,8 +1864,8 @@ Lemma comp_gen_ok_MF (fn: funname)
   RS st1 st2 ->
   @rutt (PCState +' E) _ _ _ 
     (TR_E _) (VR_E _)
-    (fun a1 a2 => @VR_D_MF _ _ (PFCall xs1 fn es1 st1) a1
-                             (PFCall xs2 fn es2 st2) a2)  
+    (fun a1 a2 => @VR_D_MF _ _ (PFCall_ xs1 fn es1 st1) a1
+                             (PFCall_ xs2 fn es2 st2) a2)  
     (pmeval_fcall pr1 xs1 fn es1 st1) (pmeval_fcall pr2 xs2 fn es2 st2).
   intros.
   unfold pmeval_fcall; simpl.

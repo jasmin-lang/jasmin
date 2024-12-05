@@ -67,11 +67,10 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 Local Open Scope option_scope.
 
-(*
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-*)
+
 Obligation Tactic := done || idtac.
 
 (* This files contains semantic models distinguished by use of either
@@ -99,7 +98,7 @@ Definition ext_handle_Err {E: Type -> Type} :
   ErrState +' E ~> failT (itree E) :=
   fun _ e =>
   match e with
-  | inl1 e' => handle_Err _ e'
+  | inl1 e' => handle_Err e'
   | inr1 e' => Vis e' (pure (fun x => Some x)) end.                        
 
 (* ErrState interpreter *)
@@ -338,7 +337,7 @@ Definition handle_FunE {E: Type -> Type}
   `{ErrState -< E} : FunE ~> itree E :=
   fun _ e =>
     match e with
-    | FunCode fn => err_opt _ (get_FunCode fn) end.   
+    | FunCode fn => err_opt (get_FunCode fn) end.   
 
 Definition ext_handle_FunE {E: Type -> Type} `{ErrState -< E} :
   FunE +' E ~> itree E :=
@@ -374,7 +373,7 @@ Definition ret_get_FunDef {E: Type -> Type}
 
 Definition err_get_FunDef {E} `{ErrState -< E}
   (fn: funname) : itree E FunDef :=
-  err_opt _ (get_FunDef fn).           
+  err_opt (get_FunDef fn).           
 
 Definition ret_get_FunCode {E: Type -> Type}
   (fn: funname) : execT (itree E) cmd :=
@@ -397,17 +396,17 @@ Definition truncate_Args (f: FunDef) (vargs: seq value) :
 Definition err_eval_Args {E} `{ErrState -< E}
   (fn: funname) (args: pexprs) (st0: estate) : itree E (seq value) :=
   f <- err_get_FunDef fn ;;
-  vargs' <- err_result _ _ (pure_eval_Args args st0) ;;
-  err_result _ _ (truncate_Args f vargs').
+  vargs' <- err_result (pure_eval_Args args st0) ;;
+  err_result (truncate_Args f vargs').
   
 Definition err_init_state {E} `{ErrState -< E}
    (fn: funname) (vargs: seq value) (st0: estate) : itree E estate :=   
   let scs1 := st0.(escs) in
   let m1 := st0.(emem) in
   f <- err_get_FunDef fn ;;
-  st1 <- err_result _ _
+  st1 <- err_result 
        (init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init)) ;;
-  err_result _ _
+  err_result 
       (write_vars (~~direct_call) (f_params f) vargs st1).
       
 Definition mk_InitState {E} `{StackE -< E} `{ErrState -< E}
@@ -420,9 +419,9 @@ Definition mk_InitState {E} `{StackE -< E} `{ErrState -< E}
 Definition err_return_val {E} `{ErrState -< E}
   (fn: funname) (st0: estate) : itree E (seq value) :=
   f <- err_get_FunDef fn ;;
-  vres <- err_result _ _
+  vres <- err_result 
       (get_var_is (~~ direct_call) st0.(evm) f.(f_res)) ;;
-  err_result _ _
+  err_result 
       (mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
 
 Definition err_reinstate_caller {E} `{ErrState -< E}
@@ -431,7 +430,7 @@ Definition err_reinstate_caller {E} `{ErrState -< E}
   f <- err_get_FunDef fn ;;
   let scs2 := st_ee.(escs) in
   let m2 := finalize f.(f_extra) st_ee.(emem) in      
-  err_result _ _
+  err_result 
          (write_lvals (~~direct_call) (p_globs pr)
                       (with_scs (with_mem st_er m2) scs2) xs vres).
   
@@ -482,7 +481,7 @@ Definition ret_mk_WriteIndex {E}
 
 Definition err_mk_WriteIndex {E} `{ErrState -< E}
   (x: var_i) (z: Z) (st1: estate) : itree E estate :=  
-    err_result _ _ (write_var true x (Vint z) st1).                             
+    err_result (write_var true x (Vint z) st1).                             
 
 Definition mk_WriteIndex {E} `{StackE -< E} `{ErrState -< E}
   (x: var_i) (z: Z) : itree E unit :=
@@ -548,9 +547,9 @@ Definition ret_mk_AssgnE {E: Type -> Type}
 Definition err_mk_AssgnE {E: Type -> Type} `{ErrState -< E}
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) 
   (st1: estate) : itree E estate :=
-    v <- err_result _ _ (sem_pexpr true (p_globs pr) st1 e) ;;
-    v' <- err_result _ _ (truncate_val ty v) ;;
-    err_result _ _ (write_lval true (p_globs pr) x v' st1).
+    v <- err_result (sem_pexpr true (p_globs pr) st1 e) ;;
+    v' <- err_result (truncate_val ty v) ;;
+    err_result (write_lval true (p_globs pr) x v' st1).
 
 Definition mk_AssgnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) :
@@ -571,7 +570,7 @@ Definition ret_mk_OpnE {E: Type -> Type}
 Definition err_mk_OpnE {E: Type -> Type} `{ErrState -< E}
   (xs: lvals) (tg: assgn_tag) (o: sopn)
    (es : pexprs) (st1: estate) : itree E estate :=
-    err_result _ _ (sem_sopn (p_globs pr) o st1 xs es).
+    err_result (sem_sopn (p_globs pr) o st1 xs es).
 
 Definition mk_OpnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (tg: assgn_tag) (o: sopn)
@@ -597,11 +596,11 @@ Definition ret_mk_SyscallE {E: Type -> Type}
 Definition err_mk_SyscallE {E: Type -> Type} `{ErrState -< E}
   (xs: lvals) (o: syscall_t) (es: pexprs) (st1: estate) :
   itree E estate :=
-    ves <- err_result _ _ (sem_pexprs true (p_globs pr) st1 es ) ;;
-    r3 <- err_result _ _ (exec_syscall st1.(escs) st1.(emem) o ves) ;;
+    ves <- err_result (sem_pexprs true (p_globs pr) st1 es ) ;;
+    r3 <- err_result (exec_syscall st1.(escs) st1.(emem) o ves) ;;
     match r3 with
     | (scs, m, vs) =>
-        err_result _ _ (write_lvals true (p_globs pr)
+        err_result (write_lvals true (p_globs pr)
                        (with_scs (with_mem st1 m) scs) xs vs) end.
  
 Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
@@ -654,12 +653,12 @@ Definition handle_StackE {E} `{ErrState -< E} :
   StackE ~> stateT estack (itree E) :=
     fun _ e ss =>
       match e with
-      | GetTopState => st <- err_opt _ (hd_error ss) ;; Ret (ss, st)
+      | GetTopState => st <- err_opt (hd_error ss) ;; Ret (ss, st)
       | UpdateTopState st =>
-          ss' <- err_opt _ (tl_error ss) ;; Ret (st :: ss', tt)
+          ss' <- err_opt (tl_error ss) ;; Ret (st :: ss', tt)
       | PopState =>
-          ss' <- err_opt _ (tl_error ss) ;;
-          st <- err_opt _ (hd_error ss) ;; Ret (ss', st)                        
+          ss' <- err_opt (tl_error ss) ;;
+          st <- err_opt (hd_error ss) ;; Ret (ss', st)                        
       | PushState st => Ret (st :: ss, tt)   
       end.
 
@@ -677,7 +676,7 @@ Definition interp_StackE {E: Type -> Type} `{ErrState -< E} {A: Type}
 (* evaluation abstracting from stack and errors *)
 Definition evalSE_cmd {E} `{ErrState -< E}
   (c: cmd) : itree (FunE +' StackE +' E) unit :=
-  interp_InstrE (denote_cmd _ _ _ c).
+  interp_InstrE (denote_cmd _ _ c).
 
 (* evaluation abstracting from errors, return value paired with unit
 *)
