@@ -58,7 +58,7 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) ~wi2i pass file idirs =
-  let _env, pprog, _ast =
+  let _depends, _to_exec, pprog =
     try Compile.parse_file Arch.arch_info ~idirs file with
     | Annot.AnnotationError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code

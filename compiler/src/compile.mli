@@ -1,4 +1,5 @@
 open Prog
+open Mprog
 open Wsize
 open Sopn
 
@@ -16,8 +17,8 @@ val parse_file :
   ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Pretyping.arch_info ->
   ?idirs: (string * string) list ->
   string ->
-  ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op
-  Pretyping.Env.env
+  string list list
+  * (funname * (Z.t * Z.t) list) Location.located list
   * ( unit,
       ( 'reg,
         'regx,
@@ -29,7 +30,6 @@ val parse_file :
       Arch_extra.extended_op )
     pmod_item
     list
-  * Syntax.pprogram
 (** Parsing and pre-typing of a complete file. Require directives are resolved
     using named path given through the [idirs] argument and the JASMINPATH
     environment variable.
@@ -58,6 +58,7 @@ val do_wint_int :
   (unit,
     ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asm_op_t)
    prog
+
 
 val compile :
   (module Arch_full.Arch
