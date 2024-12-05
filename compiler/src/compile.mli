@@ -1,4 +1,5 @@
 open Prog
+open Mprog
 open Wsize
 open Sopn
 
@@ -16,7 +17,9 @@ val parse_file :
   'asm arch_info ->
   ?idirs:(string * string) list ->
   string ->
-  'asm Pretyping.Env.env * (unit, 'asm) pmod_item list * Syntax.pprogram
+  string list list
+  * (funname * (Z.t * Z.t) list) Location.located list
+  * (unit, 'asm) pmod_item list
 (** Parsing and pre-typing of a complete file. Require directives are resolved
     using named path given through the [idirs] argument and the JASMINPATH
     environment variable.
@@ -52,6 +55,7 @@ val do_toec :
   (unit,
     ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asm_op_t)
    prog
+
 
 val compile :
   (module Arch_full.Arch

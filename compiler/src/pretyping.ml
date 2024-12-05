@@ -2607,7 +2607,16 @@ let rec tt_item (arch_info : 'asm P.arch_info) (env : 'asm Env.env) pt : 'asm En
       let annot = pannot_to_annotations pannot in
       tt_typealias arch_info env id annot ty
   | _ -> env
-
+(*
+and tt_file arch_info ?(preloaded=Map.empty) env from loc fname =
+  let fmodule = Proc_mjazz.fmodule_name fname in
+  match Map.find_opt fmodule preloaded, Env.enter_file env from loc fname with
+  | _, None -> env, []
+  | Some ast, Some(env, fname) ->
+    List.fold_left (tt_item arch_info ~preloaded) env ast, ast
+  | None, Some(env, fname) ->
+    let ast = Parseio.parse_program ~name:fname in
+*)
 and tt_file_loc arch_info from env fname =
   fst (tt_file arch_info env from (Some (L.loc fname)) (L.unloc fname))
 
