@@ -1,0 +1,16 @@
+abstract type toto;
+abstract predicate int titi (toto,int);
+abstract predicate int tutu (int);
+
+param int n = tutu(3);
+
+export
+fn main(reg u32 a) -> reg u32 {
+ reg u32[n] r;
+ inline int j;
+ for j = 0 to n { r[j] = a; }
+ reg u32 f;
+ f = r[0];
+ for j = 1 to n { f ^= r[j]; }
+ return f;
+}

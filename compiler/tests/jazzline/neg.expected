@@ -1,0 +1,13 @@
+proc _neg(v64s_140@uint64, v64_132@uint64) = 
+{
+ true && (v64_132@uint64 <= (const 64 (100)))
+}
+mull TMP_____151@uint64 TMP_____152@uint64 v64_132@uint64 (10)@uint64;
+cast v64s_139@uint64 TMP_____152@uint64;
+cast TMP_____153@sint64 v64s_139@uint64;
+sub TMP_____154@sint64 (0)@sint64 TMP_____153@sint64;
+cast v64s_140@uint64 TMP_____154@sint64;
+{
+ /\[(v64s_140 = v64s_140)] && true
+}
+ 

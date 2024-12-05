@@ -1,0 +1,39 @@
+fn _ec3(reg u64 g j) -> (reg u64, reg u64)
+ requires #[prover=smt] { g == j + 1 }
+ ensures #[prover=smt] { result.1 == result.0 + g }
+{
+  return (g,g);
+}
+
+
+fn _ec2(reg u64 g j) -> (reg u64, reg u64)
+requires #[prover=smt] { g == j + 1 }
+ensures #[prover=smt] { result.0 == g + j + 2 }
+ensures #[prover=smt] { result.1 == g + j + 3 }
+{
+
+#[kind=Assert, prover=smt] assert ( g == j);
+
+
+  g = g + j;
+  return (g,g);
+}
+
+
+fn _ec(reg u64 a c) -> (reg u64,reg u64)
+requires #[prover=smt] { a == c }
+ensures #[prover=smt] { result.0 == a + c }
+ensures #[prover=smt] { result.1 == a + c }
+{
+
+#[kind=Assert, prover=smt] assert ( a == c);
+
+  a = a + c;
+
+  a,c = _ec2(a ,c);
+
+  a = a + 2;
+  c = c + 2;
+  c = c * 2;
+  return (a,c);
+}

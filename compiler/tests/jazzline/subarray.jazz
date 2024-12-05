@@ -3,17 +3,17 @@ fn f (reg u64 x) -> reg u64 {
    stack u64[2] t1;
    inline int i;
 
-   for i = 0 to 3 { 
+   for i = 0 to 3 {
      t[i] = x;
-   }  
+   }
    assert (t[0] == x && t[1] == x && t[2] == x);
    t1 = t[0:2];
    t1[0] = 1;
    t[0:2] = t1;
 
-   for i = 0 to 3 { 
+   for i = 0 to 3 {
      x += t[i];
-   }  
+   }
 
    return x;
 }

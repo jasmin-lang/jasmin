@@ -95,17 +95,17 @@ let parse_and_print print arch call_conv ecoutput joutput output file funname =
          close out
      end;
 
-     begin match ecoutput with
-     | None -> ()
-     | Some file ->
-         let out, close = open_out file, close_out in
-         let fmt = Format.formatter_of_out_channel out in
-         let fnames = [funname.fn_name] in
-         BatPervasives.finally
-          (fun () -> close out)
-          (fun () -> ToEC.extract A.reg_size A.asmOp fmt Normal prog fnames)
-          ()
-     end;
+     (* begin match ecoutput with *)
+     (* | None -> () *)
+     (* | Some file -> *)
+     (*     let out, close = open_out file, close_out in *)
+     (*     let fmt = Format.formatter_of_out_channel out in *)
+     (*     let fnames = [funname.fn_name] in *)
+     (*     BatPervasives.finally *)
+     (*      (fun () -> close out) *)
+     (*      (fun () -> ToEC.extract A.reg_size A.asmOp fmt Normal prog fnames) *)
+     (*      () *)
+     (* end; *)
 
      let out, close =
        match output with

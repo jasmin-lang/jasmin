@@ -1,0 +1,30 @@
+proc mul(z_156@uint64, x_144@uint64, y_145@uint64) = 
+{
+ true && true
+}
+assert true && (x_144@uint64 = (const 64 (2)));
+mull TMP_____167@uint64 TMP_____168@uint64 x_144@uint64 y_145@uint64;
+cast z_156@uint64 TMP_____168@uint64;
+assert true && (z_156@uint64 = ((const 64 (2)) * y_145@uint64));
+{
+ true && true
+}
+ proc mul4(y_218@uint64, y1_192@uint64) = 
+{
+ true && true
+}
+mov x_215@uint64 (2)@uint64;
+assert true && (x_215@uint64 = (const 64 (2)));
+mull TMP_____219@uint64 TMP_____220@uint64 x_215@uint64 y1_192@uint64;
+cast y_216@uint64 TMP_____220@uint64;
+assert true && (y_216@uint64 = ((const 64 (2)) * y1_192@uint64));
+mov x_217@uint64 (2)@uint64;
+assert true && (x_217@uint64 = (const 64 (2)));
+mull TMP_____221@uint64 TMP_____222@uint64 x_217@uint64 y_216@uint64;
+cast y_218@uint64 TMP_____222@uint64;
+assert true && (y_218@uint64 = ((const 64 (2)) * y_216@uint64));
+assert true && (y_218@uint64 = ((const 64 (4)) * y1_192@uint64));
+{
+ true && true
+}
+ 

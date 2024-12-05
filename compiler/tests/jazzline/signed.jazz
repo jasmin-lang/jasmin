@@ -1,0 +1,11 @@
+#[signed=t]
+fn _add (reg u64 v64) -> reg u64
+requires #[prover=smt] { v64 <= 100 }
+ensures #[prover=cas] { result.0 == 0}
+{
+reg u64 v64s;
+
+#[tran = default] v64s = v64 + v64;
+
+return v64s;
+}

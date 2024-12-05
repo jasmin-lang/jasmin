@@ -1,0 +1,4 @@
+fn _vector(#[vect=u16x16] reg u256 a) -> reg u256
+{
+  return a;
+}

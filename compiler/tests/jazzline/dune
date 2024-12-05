@@ -1,0 +1,158 @@
+(library
+  (name common_jazzline)
+  (wrapped false)
+  (libraries jasmin.jasmin)
+  (flags (:standard -rectypes))
+  (modules common))
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps add4.jazz)
+;   (flags (:standard -rectypes))
+;   (modules add4)
+;   (names add4)
+; )
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps bool.jazz)
+;   (flags (:standard -rectypes))
+;   (modules bool)
+;   (names bool)
+; )
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps neg.jazz)
+  (flags (:standard -rectypes))
+  (modules neg)
+  (names neg)
+)
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps abstract.jazz)
+;   (flags (:standard -rectypes))
+;   (modules abstract)
+;   (names abstract)
+; )
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps return.jazz)
+;   (flags (:standard -rectypes))
+;   (modules return)
+;   (names return)
+; )
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps signed.jazz)
+  (flags (:standard -rectypes))
+  (modules signed)
+  (names signed)
+)
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps test.jazz)
+;   (flags (:standard -rectypes))
+;   (modules test)
+;   (names test)
+; )
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps andn.jazz)
+  (flags (:standard -rectypes))
+  (modules andn)
+  (names andn)
+)
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps arraycopy.jazz)
+;   (flags (:standard -rectypes))
+;   (modules arraycopy)
+;   (names arraycopy)
+; )
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps arraycopy_withoutcopy.jazz)
+;   (flags (:standard -rectypes))
+;   (modules arraycopy_withoutcopy)
+;   (names arraycopy_withoutcopy)
+; )
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps assert.jazz)
+  (flags (:standard -rectypes))
+  (modules assert)
+  (names assert)
+)
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps funarray.jazz)
+  (flags (:standard -rectypes))
+  (modules funarray)
+  (names funarray)
+)
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps noninline.jazz)
+  (flags (:standard -rectypes))
+  (modules noninline)
+  (names noninline)
+)
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps regarray.jazz)
+  (flags (:standard -rectypes))
+  (modules regarray)
+  (names regarray)
+)
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps stackarray.jazz)
+;   (flags (:standard -rectypes))
+;   (modules stackarray)
+;   (names stackarray)
+; )
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps subarray.jazz)
+;   (flags (:standard -rectypes))
+;   (modules subarray)
+;   (names subarray)
+; )
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps test1.jazz)
+  (flags (:standard -rectypes))
+  (modules test1)
+  (names test1)
+)
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps vector.jazz)
+;   (flags (:standard -rectypes))
+;   (modules vector)
+;   (names vector)
+; )
+
+; (tests
+;   (libraries jasmin.jasmin common_jazzline)
+;   (deps ec.jazz)
+;   (flags (:standard -rectypes))
+;   (modules ec)
+;   (names ec)
+; )

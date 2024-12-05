@@ -1,0 +1,34 @@
+abstract type word_list;
+abstract predicate word_list word_nil ();
+abstract predicate word_list word_cons (u64, word_list);
+
+abstract predicate int limbs (int, word_list);
+
+abstract predicate bool eqmod (int,int,int);
+
+abstract predicate int mon(int, int, int) ;
+
+param int KYBER_N = 3;
+
+#[signed=t]
+fn _test2(reg u64 a, reg u64 b, reg ptr u16[KYBER_N] rp) -> (reg u64, reg u64, reg u64, reg ptr u16[KYBER_N])
+requires #[prover=smt] { b == 1 }
+requires #[prover=smt] { a == 1 }
+requires #[prover=smt] { rp[0] == -1 }
+ensures #[prover=smt] { result.0 == a + b }
+ensures #[prover=cas] { result.0 == result.1 + result.2 }
+ensures #[prover=smt] { result.3[0] == 0 }
+ensures #[prover=cas] { mon(1, 10, 5) == mon(1,10,2) + mon(1,10,3) }
+{
+  reg u64 c;
+  reg u64 d;
+
+  c = a + b;
+  a = a + 2;
+  rp[0] = 2;
+  /*
+    #[kind=Assert, prover=cas] assert (eqmod ( limbs (64, word_cons ( a, word_nil () )) + limbs (64, word_cons ( b, word_nil () )),
+                                               limbs (64, word_cons ( c, word_nil ())), 64));*/
+
+  return (c,a,d,rp);
+}

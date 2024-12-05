@@ -1,0 +1,9 @@
+fn _bool(reg u64 a) -> reg u64
+{
+reg u64 r;
+reg bool cf;
+cf, r = a + 1;
+#[kind=Assert, prover=smt] assert ( cf == true);
+#[kind=Assert, prover=cas] assert ( cf == true);
+return r;
+}

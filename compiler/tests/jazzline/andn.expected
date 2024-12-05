@@ -1,0 +1,10 @@
+proc andn(h_138@uint64, b_132@uint64, c_133@uint64) = 
+{
+ true && true
+}
+not TMP_____149@uint64 b_132@uint64;
+and h_138@uint64 c_133@uint64 TMP_____149@uint64;
+{
+ true && true
+}
+ 

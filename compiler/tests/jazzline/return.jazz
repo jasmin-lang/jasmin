@@ -1,0 +1,7 @@
+abstract predicate int truc(int);
+
+inline fn __test_rrs(reg u64 g) -> reg u64
+    ensures #[prover=cas] {truc (2) == g}
+{
+  return g;
+}

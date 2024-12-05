@@ -1,0 +1,13 @@
+param int Li2_q = 10;
+
+fn _neg (reg u64 v64) -> reg u64
+requires #[prover=smt] { v64 <= 100 }
+ensures #[prover=cas] { result.0 == result.0}
+{
+reg u64 v64s;
+
+#[tran = smt] v64s = v64 * (Li2_q);
+v64s = -v64s;
+
+return v64s;
+}

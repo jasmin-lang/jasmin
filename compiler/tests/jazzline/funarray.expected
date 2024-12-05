@@ -1,0 +1,28 @@
+proc fill(t_3_155@uint64, t_2_154@uint64, t_1_153@uint64, t_0_152@uint64,
+          t_0_148@uint64, t_1_149@uint64, t_2_150@uint64, t_3_151@uint64) = 
+{
+ true && true
+}
+mov t_0_152@uint64 (0)@uint64;
+mov t_1_153@uint64 (1)@uint64;
+mov t_2_154@uint64 (2)@uint64;
+mov t_3_155@uint64 (3)@uint64;
+{
+ true && true
+}
+ proc f(t_3_227@uint64, t_2_226@uint64, t_1_225@uint64, t_0_224@uint64,
+       r_232@uint64) = 
+{
+ true && true
+}
+assert true && true;
+assume true && true;
+mov r_228@uint64 (0)@uint64;
+adds NONE_____233@uint1 r_229@uint64 r_228@uint64 t_0_224@uint64;
+adds NONE_____234@uint1 r_230@uint64 r_229@uint64 t_1_225@uint64;
+adds NONE_____235@uint1 r_231@uint64 r_230@uint64 t_2_226@uint64;
+adds NONE_____236@uint1 r_232@uint64 r_231@uint64 t_3_227@uint64;
+{
+ true && true
+}
+ 
