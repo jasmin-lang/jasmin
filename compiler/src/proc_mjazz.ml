@@ -12,6 +12,126 @@ module M = Mprog
 module W = Wsize
 module T = Type
 
+(* -------------------------------------------------------------------- *)
+(*                      MJazz Errors                                    *)
+(* -------------------------------------------------------------------- *)
+
+(* just a copy of Pretyping.string_error !!! *)
+let string_error fmt =
+  let buf  = Buffer.create 127 in
+  let bfmt = Format.formatter_of_buffer buf in
+  Format.kfprintf
+    (fun bfmt ->
+      Format.pp_print_flush bfmt ();
+      (StringError (Buffer.contents buf)))
+    bfmt fmt
+
+(* -------------------------------------------------------------------- *)
+(*                      Load & Parse                                    *)
+(* -------------------------------------------------------------------- *)
+
+(* Combines a [mpath] into a [mname]
+  (e.g. mname_from_mpath ["M2";"M1"] = "M1::M2")                        *)
+let mname_from_mpath (mpath: M.modulename list): M.modulename =
+  List.fold_left (fun r m -> r ^ ("::" ^ m)) "" mpath
+
+(* reconstructs the [mpath] from a [mname]
+  (e.g. mname_to_mpath "M1::M2" = ["M2";"M1"])                          *)
+let mname_to_mpath (mname: M.modulename): M.modulename list =
+  BatString.split_on_string ~by:"::" mname
+
+
+(* splits a [mname] into toplmost module/qualifier and remainder
+  (e.g. mname_split "M1::M2::M3" = ("M1";"M2::M3"])                     *)
+let mname_split (mname: M.modulename): (string*M.modulename) option =
+  try let qname = BatString.split mname ~by:"::" in Some qname
+  with Not_found -> None
+
+(* Each file is implicitly a module. Its name is derived directly from
+  the filename (ignoring the 'from'-key)                                *)
+let fmodule_name (fname: string) : M.modulename =
+  let _, mname, _ = Path.split (Path.of_string fname) in
+  String.capitalize_ascii mname
+
+
+(** Registers a new "from_key" *)
+let add_from idir from_map (name, filename) = 
+  let p = Path.of_string filename
+  in let ap = 
+    if Path.is_absolute p then p
+    else Path.concat idir p
+  in begin match Map.find name from_map with
+  | ap' -> 
+    if ap <> ap' then 
+      hierror ~loc:Lnone ~kind:"compilation" "cannot bind %s with %s it is already bound to %s"
+        name (Path.to_string ap) (Path.to_string ap')
+  | exception Not_found -> ()
+  end;
+  Map.add name ap from_map
+
+(** Loads & Parses a file
+  Please note:
+   - full modulename is always non-qualified
+                                                                        *)
+let load_fname from_map visited processed from loc fname
+  : (M.modulename*Syntax.pprogram) option =
+  let modname = 
+    if !Glob_options.debug then Printf.eprintf "PROCESSING \"%s\" \n%!" fname;
+    fmodule_name fname
+  in let ploc = match loc with None -> Lnone | Some l -> Lone l
+(*
+  in let p = Path.of_string fname
+  in let current_dir =
+    match from with
+    | None -> snd (List.hd visited)
+    | Some name -> 
+        if Path.is_absolute p then 
+          hierror ~loc:ploc ~kind:"typing" 
+            "cannot use absolute path in 'from %s require \"%s\"'" 
+            (L.unloc name) fname;
+        try Map.find (L.unloc name) from_map 
+        with Not_found ->
+          raise (tyerror ~loc:(L.loc name)
+                   (string_error "unknown from-key name %s" (L.unloc name)))
+  in let p = if Path.is_absolute p then p else Path.concat current_dir p
+  in let p = Path.normalize_in_tree p
+  in let ap =
+       if Path.is_absolute p
+       then p
+       else (* ?deadcode? *) Path.concat (snd (BatList.last visited)) p
+  in let ap = Path.normalize_in_tree ap
+*)
+  in (if Option.is_some (List.find_opt (fun x -> modname=(fst x)) visited)
+      then
+        hierror ~loc:ploc ~kind:"dependencies"
+          "circular dependency detected on module \"%s\"\n(please note that MJazz does not support equal filenames)\n" 
+          modname);
+     if Ss.mem modname processed
+     then (if !Glob_options.debug
+           then Printf.eprintf "reusing AST for \"%s\" \n%!" modname;
+           None)
+     else
+       let ast = Parseio.parse_program ~name:fname
+       in let ast =
+         try BatFile.with_file_in fname ast
+         with Sys_error(err) ->
+           let loc = Option.map_default (fun l -> Lone l) Lnone loc
+           in hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
+       in Some (modname, ast)
+
+
+(* -------------------------------------------------------------------- *)
+(*                      Environment                                     *)
+(* -------------------------------------------------------------------- *)
+
+
+
+
+
+(* -------------------------------------------------------------------- *)
+(*                      Environment                                     *)
+(* -------------------------------------------------------------------- *)
+
 
 
 let parse_mfile arch_info idirs fname =
