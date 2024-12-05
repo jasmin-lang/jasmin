@@ -291,7 +291,7 @@ module Env : sig
     val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) L.located list
   end
 
-end  = struct
+end = struct
 
   type loader =
     { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
