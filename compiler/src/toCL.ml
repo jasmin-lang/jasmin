@@ -627,6 +627,8 @@ module I (S:S): I = struct
         | x -> x
       in
       mull !> b (power (Ivar v) !> a)
+    | Pabstract ({name="mon0"}, [b]) ->
+      !> b
     | Presult (_,x) -> Ivar (to_var ~sign x)
     | _ -> error e
 
