@@ -33,9 +33,10 @@ type ('len,'info,'asm) functor_def =
   }
 
 and  ('len,'info,'asm) gmodule_item =
-  | MdIiterm of ('len,'info,'asm) gmod_item
+  | MdItem of ('len,'info,'asm) gmod_item
   | MdFunctor of ('len,'info,'asm) functor_def
   | MdModApp  of 'len module_app
 
-type ('len,'info,'asm) gmprog = ('len,'info,'asm) gmodule_item list
+type ('len,'info,'asm) gmprog = ('len,'info,'asm) functor_def list
    (* first declaration occur at the end (i.e reverse order) *)
+
