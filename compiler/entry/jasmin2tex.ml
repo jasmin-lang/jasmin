@@ -10,16 +10,9 @@ let parse_and_print arch call_conv idirs =
     if mjazz 
     then BatFile.with_file_in file (Parseio.parse_program ~name:file)
     else
-      let _,_,ast = 
-        try Compile.parse_file A.arch_info ~idirs file with
-        | Annot.AnnotationError (loc, code) ->
-            hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
-        | Pretyping.TyError (loc, code) ->
-            hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
-              code
-        | Syntax.ParseError (loc, msg) ->
-            hierror ~loc:(Lone loc) ~kind:"parse error" "%s"
-              (Option.default "" msg)
+      let env = List.fold_left Pretyping.Env.add_from Pretyping.Env.empty
+                                idirs
+      in let _env, _pprog, ast = Pretyping.tt_program A.arch_info env file
       in  ast
   in
   fun output file mjazz warn ->
