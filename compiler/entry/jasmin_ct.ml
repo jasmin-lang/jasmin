@@ -30,17 +30,18 @@ let parse_and_check arch call_conv =
           exception Found
         end in
         let res = ref prog in
-        match
-          Compile.compile
-            (module A)
-            (fun ~debug:_ step prog ->
-              if step = pass then (
-                res := prog;
-                raise E.Found))
-            prog (Conv.cuprog_of_prog prog)
-        with
+        let stop ~debug:_ step prog =
+          if step = pass then (
+            res := prog;
+            raise E.Found)
+        in
+        let cp = Conv.cuprog_of_prog prog in
+        match Compile.compile (module A) stop prog cp with
+        | Utils0.Ok _ -> assert false
+        | Utils0.Error e ->
+            let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+            raise (HiError e)
         | exception E.Found -> !res
-        | _ -> assert false
     in
 
     if speculative then
