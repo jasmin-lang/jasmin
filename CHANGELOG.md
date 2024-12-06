@@ -12,6 +12,11 @@
   ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
   fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
 
+## Bug fixes
+
+- Fix EasyCrypt semantics of shift operators
+  ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973)).
+
 ## Other changes
 
 - The “allocation” pass now uses the liveness information to reduce the sizes
