@@ -1726,13 +1726,13 @@ theory W8.
   rename [op, lemma] "_XX" as "_8"
   proof gt0_size by done.
 
-  op (`>>`) (w1 w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
-  op (`|>>`) (w1 w2 : W8.t) = w1 `|>>>` (to_uint w2 %% size).
-  op (`<<`) (w1 w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
+  op (`>>`) (w1 w2 : W8.t) = w1 `>>>` to_uint w2.
+  op (`|>>`) (w1 w2 : W8.t) = w1 `|>>>` to_uint w2.
+  op (`<<`) (w1 w2 : W8.t) = w1 `<<<` to_uint w2.
 
-  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
+  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ to_uint w2.
   proof.
-    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt (modz_cmp).
+    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt (to_uint_cmp).
     rewrite of_uintK to_uint_mod modz_small 2://.
     apply bound_abs; apply divz_cmp; 1: by apply gt0_pow2.
     by have:= to_uint_cmp w1; smt (gt0_pow2).
@@ -1742,18 +1742,17 @@ theory W8.
        to_uint (w1 `>>` (of_int i)) = to_uint w1 %/ 2^i.
   proof.
     move=> hi;rewrite shr_div of_uintK.
-    rewrite (modz_small i);1: smt (pow2_8).
-    by rewrite modz_small.
+    by rewrite (modz_small i);1: smt (pow2_8).
   qed.
 
-  op (`|>>|`) (w1 w2 : W8.t) = w1 `|>>>|` (to_uint w2 %% size).
-  op (`|<<|`) (w1 w2 : W8.t) = w1 `|<<<|` (to_uint w2 %% size).
+  op (`|>>|`) (w1 w2 : W8.t) = w1 `|>>>|` to_uint w2.
+  op (`|<<|`) (w1 w2 : W8.t) = w1 `|<<<|` to_uint w2.
 
   lemma rol_xor_shft w i : 0 < i < size =>
     w `|<<<|` i = (w `<<` of_int i) +^ (w `>>` of_int (size - i)).
   proof.
     move=> hi; rewrite /(`<<`) /(`>>`) !of_uintK /=.
-    by rewrite !(modz_small _ 256) 1,2:/# !modz_small 1,2:/# rol_xor 1:/#.
+    by rewrite !(modz_small _ 256) 1,2:/# rol_xor 1:/#.
   qed.
 
   op SETcc (b: bool) = b ? W8.one : W8.zero.
@@ -1947,15 +1946,15 @@ abstract theory BitWordSH.
   op shift_mask i =
     W8.to_uint i %% (if size <= 32 then 32 else size).
 
-  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
-  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
-  op (`|>>`) (w1 : t) (w2 : W8.t) = w1 `|>>>` (to_uint w2 %% size).
-  op (`|>>|`) (w1 : t) (w2 : W8.t) = w1 `|>>>|` (to_uint w2 %% size).
-  op (`|<<|`) (w1 : t) (w2 : W8.t) = w1 `|<<<|` (to_uint w2 %% size).
+  op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` to_uint w2.
+  op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` to_uint w2.
+  op (`|>>`) (w1 : t) (w2 : W8.t) = w1 `|>>>` to_uint w2.
+  op (`|>>|`) (w1 : t) (w2 : W8.t) = w1 `|>>>|` to_uint w2.
+  op (`|<<|`) (w1 : t) (w2 : W8.t) = w1 `|<<<|` to_uint w2.
 
-  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ (to_uint w2 %% size).
+  lemma shr_div w1 w2 : to_uint (w1 `>>` w2) = to_uint w1 %/ 2^ to_uint w2.
   proof.
-    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt (modz_cmp gt0_size).
+    rewrite -{1}(to_uintK w1) /(`>>`) shrDP; 1: smt(W8.to_uint_cmp).
     rewrite of_uintK to_uint_mod modz_small 2://.
     apply bound_abs; apply divz_cmp; 1: by apply gt0_pow2.
     by have:= to_uint_cmp w1; smt (gt0_pow2).
@@ -1965,8 +1964,7 @@ abstract theory BitWordSH.
      to_uint (w1 `>>` (W8.of_int i)) = to_uint w1 %/ 2^ i.
   proof.
     move=> hi;rewrite shr_div of_uintK.
-    rewrite (modz_small i) 1:pow2_8; 1: smt (size_le_256).
-    by rewrite modz_small //;apply bound_abs.
+    by rewrite (modz_small i) 1:pow2_8; 1: smt (size_le_256).
   qed.
 
   lemma rol_xor_shft w i : 0 < i < size =>
@@ -1975,7 +1973,7 @@ abstract theory BitWordSH.
     move=> hi; rewrite /(`<<`) /(`>>`) !W8.of_uintK.
     have h : 0 <= i < `|W8.modulus|.
     + by rewrite /=; smt (size_le_256).
-    rewrite !(modz_small _ W8.modulus) 1:// 1: #smt: (size_le_256) !modz_small 1,2:/#.
+    rewrite !(modz_small _ W8.modulus) 1:// 1: #smt: (size_le_256).
     by rewrite rol_xor 1:/#.
   qed.
 
@@ -1983,18 +1981,14 @@ abstract theory BitWordSH.
    0 <= k < size =>
    w `<<` W8.of_int k = w `<<<` k.
   proof.
-   move=> *; rewrite /(`<<`) of_uintK (modz_small (k %% W8.modulus)).
-    smt(modz_cmp).
-   by rewrite modz_small //; smt(size_le_256).
+    move=> *; rewrite /(`<<`) of_uintK modz_small //; smt(size_le_256).
   qed.
 
   lemma shr_shrw k w:
    0 <= k < size =>
    w `>>` W8.of_int k = w `>>>` k.
   proof.
-   move=> *; rewrite /(`>>`) of_uintK (modz_small (k %% W8.modulus)).
-    smt(modz_cmp).
-   by rewrite modz_small //; smt(size_le_256).
+    move=> *; rewrite /(`>>`) of_uintK modz_small //; smt(size_le_256).
   qed.
 
   theory SHIFT.
