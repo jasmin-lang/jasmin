@@ -1,12 +1,27 @@
 open Jasmin
 open Cmdliner
 open CommonCLI
+open Utils
 
 let parse_and_print arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
+  let parse file =
+    try Compile.parse_file A.arch_info file with
+    | Annot.AnnotationError (loc, code) ->
+        hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
+    | Pretyping.TyError (loc, code) ->
+        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+          code
+    | Syntax.ParseError (loc, msg) ->
+        hierror ~loc:(Lone loc) ~kind:"parse error" "%s"
+          (Option.default "" msg)
+  in
   fun output file warn ->
     if not warn then Utils.nowarning ();
-    let _, _, ast = Compile.parse_file A.arch_info file in
+    let _, _, ast =
+      try parse file
+      with HiError e -> Format.eprintf "%a@." pp_hierror e; exit 1
+    in
     let out, close =
       match output with
       | None -> (stdout, ignore)
