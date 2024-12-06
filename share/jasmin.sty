@@ -1,0 +1,62 @@
+% Needs \usepackage[T1]{fontenc} or similar for underscores to print correctly.
+
+\ProvidesPackage{jasmin}[2021/11/09 Typeset Jasmin programs]
+% CHANGES
+% 2021/11/09: automatic line numbering
+% TODO: make line-numbering optional
+
+\RequirePackage{xcolor}
+\RequirePackage{forloop}
+
+\newlength\jasmintab
+\setlength\jasmintab{1em}
+
+\newcounter{jasmin@indent}
+\newcommand*\jasminindent[1]{%
+  \forloop{jasmin@indent}{0}{\value{jasmin@indent} < #1}{%
+    \hspace*{\jasmintab}%
+  }%
+}
+
+\newcommand*\jasminfont{\sffamily\footnotesize}
+
+\newcounter{jasmin@lineno}
+\setcounter{jasmin@lineno}{0}
+\newcommand*\jasminlineno{%
+  \refstepcounter{jasmin@lineno}%
+  \makebox[3ex][r]{{\color{gray} \scriptsize\arabic{jasmin@lineno}\enskip}}\kern2pt%
+}
+
+\newcommand*\jasminnewline{%
+  \newline\jasminlineno%
+}
+
+\newenvironment{jasmincode}{%
+  \raisebox{1ex}{\rule{\columnwidth}{0.4pt}}
+  \begin{minipage}{\columnwidth}
+  \catcode`\_=11%
+  \catcode`\&=11%
+  \raggedright%
+  \setlength{\parindent}{0pt}\jasminfont%
+  \let\\=\jasminnewline%
+  \jasminlineno%
+}{%
+  \end{minipage}
+  \raisebox{-1ex}{\rule{\columnwidth}{0.4pt}}%
+  \setcounter{jasmin@lineno}{0}%
+}
+
+
+\newcommand*\jasmindname[1]{\textbf{#1}}
+\newcommand*\jasminkw[1]{\textbf{#1}}
+\newcommand*\jasmintype[1]{\textcolor[rgb]{0.06, 0.2, 0.65}{#1}}
+\newcommand*\jasminstorageclass[1]{\textcolor[rgb]{0.33, 0.5, 0.18}{#1}}
+\newcommand*\jasmincomment[1]{\textcolor{red}{#1}}
+
+\newcommand*\jasminshl{<\kern-.2em<}
+\newcommand*\jasminshr{>\kern-.2em>}
+
+\newcommand*{\code}[1]{{\jasminfont{#1}}}
+\newcommand*{\codemath}[1]{\emath{\text{\code{#1}}}}
+\newcommand*{\jasminarrow}{\ensuremath{\to}~}
+\newcommand*{\jasminprimitive}[1]{\emath{\text{\code{#1}}}}
