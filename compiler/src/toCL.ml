@@ -518,12 +518,14 @@ module I (S:S): I = struct
     let (!>) e = gexp_to_rexp ~sign e in
     let (!>>) e = gexp_to_rpred ~sign e in
     match e with
+    | Pvar { gv = { pl_desc = { v_ty=Bty Bool }}} -> eq !> e (Rconst(1, Z.of_int 1))
     | Pbool (true) -> RPand []
     | Papp1(Onot, e) -> RPnot (!>> e)
     | Papp2(Oand, e1, e2)  -> RPand [!>> e1; !>> e2]
     | Papp2(Oor, e1, e2)  -> RPor [!>> e1; !>> e2]
     | Papp2(Ole int, e1, e2)  -> ule !> e1 !> e2
     | Papp2(Oge int, e1, e2)  -> uge !> e1 !> e2
+    | Papp2(Obeq, e1, e2)
     | Papp2(Oeq _, e1, e2) -> eq !> e1 !> e2
     | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
@@ -612,7 +614,15 @@ module I (S:S): I = struct
               (Pconst (w2i ~sign z U16)) 
          | _ -> !> v 
        end 
-    (* | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e *)
+    | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
+    | Pabstract ({name="u64i"}, [v]) ->
+       begin
+         match v with
+         | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
+              (Pconst (w2i ~sign z U64))
+         | _ -> !> v
+      end
+    | Pabstract ({name="b2i"}, [v]) -> !> v
     | Pabstract ({name="mon"}, [c;a;b]) ->
       let c = get_const c in
       let v =
