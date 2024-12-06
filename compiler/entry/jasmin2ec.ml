@@ -26,37 +26,29 @@ let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
     raise e
   end
 
+
+
+
+
+
 let parse_and_extract arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
-  let extract model old_array functions array_dir output file =
-    let _env, pprog, _ast =
-      try Compile.parse_file A.arch_info file with
-      | Annot.AnnotationError (loc, code) ->
-          hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
-      | Pretyping.TyError (loc, code) ->
-          hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
-            code
-      | Syntax.ParseError (loc, msg) ->
-          hierror ~loc:(Lone loc) ~kind:"parse error" "%s"
-            (Option.default "" msg)
-    in
-    let prog =
-      try Compile.preprocess A.reg_size A.asmOp pprog
-      with Typing.TyError (loc, code) ->
-        hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
-    in
+
+  let extract model old_array functions array_dir output pass file =
+    let prog = parse_and_compile (module A) pass file in
+
     let amodel = if old_array then ToEC.ArrayOld else ToEC.ArrayEclib in
     extract_to_file prog arch A.reg_size A.asmOp model amodel functions array_dir output
   in
-  fun model amodel functions array_dir output file warn ->
+  fun model amodel functions array_dir output pass file warn ->
     if not warn then nowarning ();
-    match extract model amodel functions array_dir output file with
+    match extract model amodel functions array_dir output pass file with
     | () -> ()
     | exception HiError e ->
         Format.eprintf "%a@." pp_hierror e;
         exit 1
 
-let model = 
+let model =
   let alts = [ ("normal", Normal) ; ("CT", ConstantTime) ] in
   let doc =
     Format.asprintf "Extraction model (determines added annotations (e.g. leakage) (%s)."
@@ -109,5 +101,5 @@ let () =
   in
   Cmd.v info
     Term.(const parse_and_extract $ arch $ call_conv $ model $ old_array
-      $ functions $ array_dir $ output $ file $ warn)
+      $ functions $ array_dir $ output $ after_pass $ file $ warn)
   |> Cmd.eval |> exit
