@@ -241,7 +241,7 @@ let fully_qualified (stack: (A.symbol * 'a) list) n =
 
 type fun_sig = { fs_tin : P.epty list ; fs_tout : P.epty list }
 
-module Env : sig
+module Env (* : sig
   type 'asm env
 
   val empty : 'asm env
@@ -291,7 +291,7 @@ module Env : sig
     val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) L.located list
   end
 
-end = struct
+end *) = struct
 
   type loader =
     { loaded : (A.symbol, Path.t list) Map.t (* absolute path loaded in each namespace *)
