@@ -174,13 +174,13 @@ module MEnv = struct
 
   type 'asm mod_info =
     { mi_gb : 'asm Env.global_bindings
-    ; mi_decls : (P.pexpr, unit, 'asm) M.gmodule_item list
+   (* ; mi_decls : (P.pexpr, unit, 'asm) M.gmodule_item list*)
     }
 
   type 'asm menv =
     { me_mpath : M.modulename list
     ; me_cur : 'asm Env.env
-    ; me_decls : (P.pexpr, unit, 'asm) M.gmodule_item list
+    ; me_decls : (P.pexpr_, unit, 'asm) M.gmodule_item list
     ; me_env : (M.modulename, 'asm mod_info) Map.t
 (*    ; me_visited :  *)
     }
