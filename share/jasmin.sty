@@ -1,7 +1,6 @@
-% Needs \usepackage[T1]{fontenc} or similar for underscores to print correctly.
-
-\ProvidesPackage{jasmin}[2021/11/09 Typeset Jasmin programs]
+\ProvidesPackage{jasmin}[2024/09/30 Typeset Jasmin programs]
 % CHANGES
+% 2024/09/30: add jasminannotation and jasminprimitive commands
 % 2021/11/09: automatic line numbering
 % TODO: make line-numbering optional
 
@@ -24,7 +23,7 @@
 \setcounter{jasmin@lineno}{0}
 \newcommand*\jasminlineno{%
   \refstepcounter{jasmin@lineno}%
-  \makebox[3ex][r]{{\color{gray} \scriptsize\arabic{jasmin@lineno}\enskip}}\kern2pt%
+  \makebox[1.62ex][r]{\scriptsize\arabic{jasmin@lineno}}\kern2pt%
 }
 
 \newcommand*\jasminnewline{%
@@ -46,17 +45,15 @@
   \setcounter{jasmin@lineno}{0}%
 }
 
+\newcommand*\jasminarrow{\ensuremath{\longrightarrow}}
 
 \newcommand*\jasmindname[1]{\textbf{#1}}
-\newcommand*\jasminkw[1]{\textbf{#1}}
+\newcommand*\jasminkw[1]{\textrm{#1}}
 \newcommand*\jasmintype[1]{\textcolor[rgb]{0.06, 0.2, 0.65}{#1}}
 \newcommand*\jasminstorageclass[1]{\textcolor[rgb]{0.33, 0.5, 0.18}{#1}}
-\newcommand*\jasmincomment[1]{\textcolor{red}{#1}}
+\newcommand*\jasmincomment[1]{\textcolor[rgb]{0.43, 0.5, 0.5}{#1}}
+\newcommand*\jasminprimitive[1]{\textcolor[rgb]{0.65, 0.2, 0.06}{#1}}
+\newcommand*\jasminannotation[1]{\textcolor[rgb]{0.06, 0.65, 0.2}{#1}}
 
 \newcommand*\jasminshl{<\kern-.2em<}
 \newcommand*\jasminshr{>\kern-.2em>}
-
-\newcommand*{\code}[1]{{\jasminfont{#1}}}
-\newcommand*{\codemath}[1]{\emath{\text{\code{#1}}}}
-\newcommand*{\jasminarrow}{\ensuremath{\to}~}
-\newcommand*{\jasminprimitive}[1]{\emath{\text{\code{#1}}}}
