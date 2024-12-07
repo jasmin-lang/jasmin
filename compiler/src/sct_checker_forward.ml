@@ -34,7 +34,6 @@ let sstrict   = "strict"
 (* ----------------------------------------------------------- *)
 (* Info provided by the user                                   *)
 type ulevel =
-  | Poly of string L.located (* * string L.located *) (* normal, speculative *)
   | Secret
   | Transient
   | Public
@@ -1292,7 +1291,6 @@ let init_constraint fenv f =
       l in
 
   let to_lvl = function
-    | Poly s -> add_lvl (L.unloc s)
     | Secret -> Env.secret2 env
     | Transient -> Env.transient env
     | Public | Msf -> Env.public2 env in
