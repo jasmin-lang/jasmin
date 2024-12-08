@@ -188,7 +188,7 @@ Proof.
   rewrite /compiler_first_part; t_xrbindP => pa0.
   rewrite print_uprogP => ok_pa0 pb.
   rewrite print_uprogP => ok_pb pa.
-  rewrite print_uprogP => ok_pa pc ok_pc.
+  rewrite print_uprogP => ok_pa pc ok_pc ok_puc.
   rewrite !print_uprogP => pd ok_pd.
   rewrite !print_uprogP => pe ok_pe.
   rewrite !print_uprogP => pf ok_pf.
