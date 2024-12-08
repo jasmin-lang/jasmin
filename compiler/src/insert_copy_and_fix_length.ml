@@ -48,7 +48,7 @@ and iac_instr_r pd loc ir =
     else ir
   | Cif (b, th, el) -> Cif (b, iac_stmt pd th, iac_stmt pd el)
   | Cfor (i, r, s) -> Cfor (i, r, iac_stmt pd s)
-  | Cwhile (a, c1, t, c2) -> Cwhile (a, iac_stmt pd c1, t, iac_stmt pd c2)
+  | Cwhile (a, c1, t, info, c2) -> Cwhile (a, iac_stmt pd c1, t, info, iac_stmt pd c2)
   | Copn (xs,t,o,es) ->
 
     begin match o, xs with

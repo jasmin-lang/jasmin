@@ -383,7 +383,7 @@ Inductive instr_r :=
 | Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
-| Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
+| Cwhile   : align -> seq instr -> pexpr -> instr_info -> seq instr -> instr_r
 | Ccall    : lvals -> funname -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
@@ -405,7 +405,7 @@ Section CMD_RECT.
   Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
-  Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
+  Hypothesis Hwhile : forall a c e info c', Pc c -> Pc c' -> Pr (Cwhile a c e info c').
   Hypothesis Hcall: forall xs f es, Pr (Ccall xs f es).
 
   Section C.
@@ -429,7 +429,7 @@ Section CMD_RECT.
     | Csyscall xs o es => Hsyscall xs o es
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
-    | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
+    | Cwhile a c e info c'   => @Hwhile a c e info c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
     | Ccall xs f es => @Hcall xs f es
     end.
 
@@ -757,7 +757,7 @@ Fixpoint write_i_rec s (i:instr_r) :=
   | Csyscall xs _ _ => vrvs_rec s xs 
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-  | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
+  | Cwhile _ c _ _ c' => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall x _ _   => vrvs_rec s x
   end
 with write_I_rec s i :=
@@ -837,7 +837,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   | Cfor x (dir, e1, e2) c =>
     let s := foldl read_I_rec s c in
     read_e_rec (read_e_rec s e2) e1
-  | Cwhile a c e c' =>
+  | Cwhile a c e _ c' =>
     let s := foldl read_I_rec s c in
     let s := foldl read_I_rec s c' in
     read_e_rec s e

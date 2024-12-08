@@ -254,7 +254,7 @@ Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
   apply: (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
     [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
-    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
+    | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
     by clear; SvD.fsetdec.
@@ -299,8 +299,8 @@ Proof.
     clear; SvD.fsetdec.
 Qed.
 
-Lemma write_i_while a c e c' :
-  Sv.Equal (write_i (Cwhile a c e c')) (Sv.union (write_c c) (write_c c')).
+Lemma write_i_while a c e ii c' :
+  Sv.Equal (write_i (Cwhile a c e ii c')) (Sv.union (write_c c) (write_c c')).
 Proof.
   rewrite /write_i /write_i_rec -/write_I_rec -/(write_c_rec _ c) write_c_recE;
     clear; SvD.fsetdec.
@@ -399,7 +399,7 @@ Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
   apply (cmd_rect (Pr := Pr) (Pi := Pi) (Pc := Pc)) => /= {c s}
    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
-    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
+    | v dir lo hi c Hc | a c e ii c' Hc Hc' | ii xs f es ] s;
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
     by clear; SvD.fsetdec.
@@ -442,8 +442,8 @@ Proof.
   rewrite /read_i /read_i_rec -/read_c_rec !read_eE read_cE; clear; SvD.fsetdec.
 Qed.
 
-Lemma read_i_while a c e c' :
-   Sv.Equal (read_i (Cwhile a c e c'))
+Lemma read_i_while a c e ii c' :
+   Sv.Equal (read_i (Cwhile a c e ii c'))
             (Sv.union (read_c c) (Sv.union (read_e e) (read_c c'))).
 Proof.
   rewrite /read_i /read_i_rec -/read_c_rec !read_eE read_cE; clear; SvD.fsetdec.
@@ -495,8 +495,8 @@ Proof.
   clear; SvD.fsetdec.
 Qed.
 
-Lemma vars_I_while ii a c e c':
-  Sv.Equal (vars_I (MkI ii (Cwhile a c e c'))) (Sv.union (read_e e) (Sv.union (vars_c c) (vars_c c'))).
+Lemma vars_I_while ii a c e ei c':
+  Sv.Equal (vars_I (MkI ii (Cwhile a c e ei c'))) (Sv.union (read_e e) (Sv.union (vars_c c) (vars_c c'))).
 Proof.
   rewrite /vars_I read_Ii write_Ii read_i_while write_i_while /vars_c.
   move: (read_c c) (read_e e) (read_c c') (write_c c) (write_c c'). (* SvD.fsetdec faster *)

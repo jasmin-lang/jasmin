@@ -422,7 +422,7 @@ let safe_instr ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
   | Cif(e, _, _) -> safe_e e
-  | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
+  | Cwhile(_, _, _, _, _) -> []       (* We check the while condition later. *)
   | Ccall(lvs, _, es) | Csyscall(lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
 
@@ -1548,7 +1548,7 @@ end = struct
       | Cif (e, st, st')        ->
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
-      | Cwhile (_, st1, e, st2) ->
+      | Cwhile (_, st1, e, _, st2) ->
         nm_e vs_for e && nm_stmt vs_for st1 && nm_stmt vs_for st2
       | Ccall (lvs, fn, es)  ->
         let f' = get_fun_def prog fn |> oget in
@@ -1760,7 +1760,7 @@ end = struct
       | Cif(e,c1,c2) ->
         aeval_if pd asmOp ginstr e c1 c2 state
 
-      | Cwhile(_, c1, e, c2) when has_annot "bounded" ginstr ->
+      | Cwhile(_, c1, e, _, c2) when has_annot "bounded" ginstr ->
          let prog_pt = ginstr.i_loc in
          let body = c2 @ c1 in
          let rec fully_unroll out state =
@@ -1780,7 +1780,7 @@ end = struct
          let state = fully_unroll bot state in
          { state with abs = AbsDom.pop_cnstr_blck state.abs prog_pt }
 
-      | Cwhile(_,c1, e, c2) ->
+      | Cwhile(_,c1, e, _, c2) ->
         let prog_pt = ginstr.i_loc in
 
         (* We add a disjunctive constraint block. *)

@@ -180,7 +180,7 @@ Section LEMMA.
     - by move => xs op es s; rewrite /write_i /write_i_rec !vrvs_recE; SvD.fsetdec.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; SvD.fsetdec.
-    - by move => a c1 e c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
+    - by move => a c1 e ei c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     by move=> xs fn es s; rewrite /write_i /write_i_rec; SvD.fsetdec.
   Qed.
 
@@ -201,8 +201,8 @@ Section LEMMA.
     SvD.fsetdec.
   Qed.
 
-  Lemma write_i_while aa c1 e c2 :
-    Sv.Equal (write_i (Cwhile aa c1 e c2)) (Sv.union (write_c c1) (write_c c2)).
+  Lemma write_i_while aa c1 e ei c2 :
+    Sv.Equal (write_i (Cwhile aa c1 e ei c2)) (Sv.union (write_c c1) (write_c c2)).
   Proof. etransitivity; last exact: (write_i_if e c1 c2). reflexivity. Qed.
 
   End WRITE.
@@ -211,8 +211,8 @@ Section LEMMA.
   Notation check_instr_r := (check_ir p var_tmps wrf).
   Notation check_cmd sz := (check_c (check_instr sz)).
 
-  Lemma check_instr_r_CwhileP sz ii aa c e c' D D' :
-    check_instr_r sz ii D (Cwhile aa c e c') = ok D' →
+  Lemma check_instr_r_CwhileP sz ii aa c e ei c' D D' :
+    check_instr_r sz ii D (Cwhile aa c e ei c') = ok D' →
     if is_false e
     then check_c (check_instr sz) D c = ok D'
     else
@@ -220,7 +220,7 @@ Section LEMMA.
         [/\ check_c (check_instr sz) D1 c = ok D',
             check_e ii D' e = ok tt,
             check_c (check_instr sz) D' c' = ok D2,
-            check_instr_r sz ii D1 (Cwhile aa c e c') = ok D' &
+            check_instr_r sz ii D1 (Cwhile aa c e ei c') = ok D' &
             Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
     rewrite /check_instr_r -/check_instr; case: is_falseP => // _.
@@ -479,7 +479,7 @@ Section LEMMA.
 
   Lemma Hwhile_true: sem_Ind_while_true p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c e c' sexec ih he sexec' ih' sexec_loop rec sz ii I O t1 /check_instr_r_CwhileP.
+    move => s1 s2 s3 s4 a c e ei c' sexec ih he sexec' ih' sexec_loop rec sz ii I O t1 /check_instr_r_CwhileP.
     case: is_falseP; first by move => ?; subst e.
     move => _ [D1] [D2] [ check_c check_e check_c' checked [X Y] ] pre sim.
     have pre1 : merged_vmap_precondition (write_c c) sz (emem s1) (evm t1).
@@ -532,7 +532,7 @@ Section LEMMA.
 
   Lemma Hwhile_false: sem_Ind_while_false p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 a c e c' _ ih he sz ii I O t1 /check_instr_r_CwhileP checked pre sim.
+    move => s1 s2 a c e ei c' _ ih he sz ii I O t1 /check_instr_r_CwhileP checked pre sim.
     have pre1 : merged_vmap_precondition (write_c c) sz (emem s1) (evm t1).
     - apply: merged_vmap_preconditionI pre.
       rewrite write_i_while.
