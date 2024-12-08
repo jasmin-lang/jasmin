@@ -1981,8 +1981,8 @@ let tt_funbody arch_info env (pb : S.pfunbody) =
 
 
 (* -------------------------------------------------------------------- *)
-      
-let tt_call_conv loc params returns cc =
+
+let tt_call_conv _loc params returns cc =
   match cc with
   | Some `Inline -> FInfo.Internal
 
