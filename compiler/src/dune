@@ -10,7 +10,7 @@
 (library
  (name jasmin)
  (public_name jasmin.jasmin)
- (flags -rectypes)
+ (flags (:standard -rectypes -w -9-27-32-33-34-37-50))
  (modules :standard \ main_compiler x86_safety)
  (libraries angstrom batteries.unthreaded zarith menhirLib uint63))
 

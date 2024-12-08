@@ -468,7 +468,7 @@ let rec spilled_i s i =
   match i.i_desc with
   | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), es) -> rvars_es Sv.add s es
   | Cassgn _ | Csyscall _ | Ccall _ | Copn _-> s
-  | Cif(e,c1,c2)     -> spilled_c (spilled_c s c1) c2
+  | Cif(_e, c1, c2)  -> spilled_c (spilled_c s c1) c2
   | Cfor(_, _, c)    -> spilled_c s c
   | Cwhile(_,c,_,c') -> spilled_c (spilled_c s c) c'
 

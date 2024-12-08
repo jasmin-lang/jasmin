@@ -196,7 +196,7 @@ module X86_core = struct
     | XOR _ -> true
 
   (* All of the extra ops compile into CT instructions (no DIV). *)
-  let is_ct_asm_extra (o : extra_op) = true
+  let is_ct_asm_extra (_o : extra_op) = true
 
   (* All of the extra ops compile into DOIT instructions only, but this needs to be checked manually. *)
   let is_doit_asm_extra (o : extra_op) =
@@ -204,7 +204,7 @@ module X86_core = struct
     | Oset0 _           -> true
     | Oconcat128        -> true
     | Ox86MOVZX32       -> true
-    | Ox86MULX ws       -> true
+    | Ox86MULX _ws      -> true
     | Ox86MULX_hi _     -> true
     | Ox86SLHinit       -> true
     | Ox86SLHupdate     -> true

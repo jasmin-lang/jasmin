@@ -976,7 +976,7 @@ let callsite_tree (s : (Location.i_loc list * Sv.t) list) =
 
 
 
-let pp_liveness vars liveness_per_callsite liveness_table conflicts a =
+let pp_liveness vars liveness_per_callsite liveness_table a =
   (* Prints the program with forced registers, equivalence classes, and liveness information *)
   let open Format in
   let open PrintCommon in
@@ -1257,7 +1257,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
 
   List.iter (fun f -> allocate_forced_registers return_addresses translate_var nv vars conflicts f a) funcs;
 
-  if !Glob_options.print_liveness then pp_liveness vars liveness_per_callsite liveness_table conflicts a;
+  if !Glob_options.print_liveness then pp_liveness vars liveness_per_callsite liveness_table a;
 
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in
