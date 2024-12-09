@@ -209,7 +209,7 @@ let rec analyze_instr_r params cc a =
      let a1 = analyze_stmt params cc a s1 |> normalize_map in
      let a2 = analyze_stmt params cc a s2 |> normalize_map in
      merge params a1 a2
-  | Cwhile (_, s1, _, s2) ->
+  | Cwhile (_, s1, _, _, s2) ->
      (* Precondition: a is in normal form *)
      let rec loop a =
        let a' = a in

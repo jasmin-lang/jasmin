@@ -99,7 +99,7 @@ type ('len,'info,'asm) ginstr_r =
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
-  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
+  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len,'info,'asm) gstmt
   | Ccall  of 'len glvals * funname * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
@@ -256,7 +256,7 @@ let rec rvars_i f s i =
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
-  | Cwhile(_,c,e,c')    -> rvars_c f (rvars_e f (rvars_c f s c') e) c
+  | Cwhile(_, c, e, _, c') -> rvars_c f (rvars_e f (rvars_c f s c') e) c
   | Ccall(x,_,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
@@ -298,7 +298,7 @@ let rec written_vars_i ((v, f) as acc) i =
   | Ccall(xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
   | Cif(_, s1, s2)
-  | Cwhile(_, s1, _, s2)
+  | Cwhile(_, s1, _, _, s2)
     -> written_vars_stmt (written_vars_stmt acc s1) s2
   | Cfor(_, _, s) -> written_vars_stmt acc s
 and written_vars_stmt acc s =
@@ -318,8 +318,8 @@ let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr =
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->
         Cfor(x, r, refresh_i_loc_c c)
-    | Cwhile(a, c1, e, c2) ->
-        Cwhile(a, refresh_i_loc_c c1, e, refresh_i_loc_c c2)
+    | Cwhile(a, c1, e, ((loc, annot), info), c2) ->
+        Cwhile(a, refresh_i_loc_c c1, e, ((L.refresh_i_loc loc, annot), info), refresh_i_loc_c c2)
   in
   { i with i_desc; i_loc = L.refresh_i_loc i.i_loc }
 
@@ -445,7 +445,7 @@ let rec has_syscall_i i =
   match i.i_desc with
   | Csyscall _ -> true
   | Cassgn _ | Copn _ | Ccall _ -> false
-  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_syscall c1 || has_syscall c2
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, _, c2) -> has_syscall c1 || has_syscall c2
   | Cfor (_, _, c) -> has_syscall c
 
 and has_syscall c = List.exists has_syscall_i c
@@ -454,7 +454,7 @@ let rec has_call_or_syscall_i i =
   match i.i_desc with
   | Csyscall _ | Ccall _ -> true
   | Cassgn _ | Copn _ -> false
-  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
   | Cfor (_, _, c) -> has_call_or_syscall c
 
 and has_call_or_syscall c = List.exists has_call_or_syscall_i c
@@ -470,7 +470,7 @@ let rec spilled_i s i =
   | Cassgn _ | Csyscall _ | Ccall _ | Copn _-> s
   | Cif(e,c1,c2)     -> spilled_c (spilled_c s c1) c2
   | Cfor(_, _, c)    -> spilled_c s c
-  | Cwhile(_,c,_,c') -> spilled_c (spilled_c s c) c'
+  | Cwhile(_, c, _, _, c') -> spilled_c (spilled_c s c) c'
 
 and spilled_c s c =  List.fold_left spilled_i s c
 

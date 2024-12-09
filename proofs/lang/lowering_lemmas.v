@@ -240,14 +240,14 @@ Proof.
   by move=> /disjoint_union [] h0 /disjoint_union [h1 h2].
 Qed.
 
-Lemma disj_fvars_vars_I_Cwhile ii al c0 e c1 :
-  disj_fvars (vars_I (MkI ii (Cwhile al c0 e c1)))
+Lemma disj_fvars_vars_I_Cwhile ii al c0 e ei c1 :
+  disj_fvars (vars_I (MkI ii (Cwhile al c0 e ei c1)))
   -> [/\ disj_fvars (vars_c c0)
        , disj_fvars (read_e e)
        & disj_fvars (vars_c c1)
      ].
 Proof.
-  move=> /(disjoint_equal_l (vars_I_while ii al c0 e c1)).
+  move=> /(disjoint_equal_l (vars_I_while ii al c0 e ei c1)).
   by move=> /disjoint_union [] h0 /disjoint_union [h1 h2].
 Qed.
 

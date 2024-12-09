@@ -1938,14 +1938,14 @@ let rec tt_instr arch_info (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm E
       let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
 
-  | PIWhile (s1, c, s2) ->
-      let c  = tt_expr_bool arch_info.pd env c in
+  | PIWhile (s1, e, s2) ->
+      let c  = tt_expr_bool arch_info.pd env e in
       let s1 = Option.map_default (tt_block arch_info env) [] s1 in
       let s2 = Option.map_default (tt_block arch_info env) [] s2 in
       let a = 
         Option.map_default (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
       let annot = Annot.consume "align" annot in
-      env, [mk_i ~annot (P.Cwhile (a, s1, c, s2))]
+      env, [mk_i ~annot (P.Cwhile (a, s1, c, ((L.of_loc e, []), ()), s2))]
 
 (* -------------------------------------------------------------------- *)
 and tt_block arch_info env (pb : S.pblock) =

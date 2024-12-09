@@ -419,7 +419,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 s3 s4 a c1 e c2 _ [hc1_ hc1] he _ [hc2_ hc2] _ hw ii.
+  move=> s1 s2 s3 s4 a c1 e ei c2 _ [hc1_ hc1] he _ [hc2_ hc2] _ hw ii.
   case: (hw ii) => /sem_IE hw_ {}hw; split.
   + by constructor; apply: Ewhile_true; eauto; rewrite -eq_globs.
   move=> S env env' c' vm /=.
@@ -429,7 +429,7 @@ Proof.
   move=> vm1 hs1 hval1.
   case: (hc2 _ _ _ _ _ hc2' _ hval1); first by SvD.fsetdec.
   move=> vm2 hs2 hval2.
-  have heqw: spill_i S.(get_spill) env0 (MkI ii (Cwhile a c1 e c2)) = ok (env1, [:: MkI ii (Cwhile a c1' e c2')]).
+  have heqw: spill_i S.(get_spill) env0 (MkI ii (Cwhile a c1 e ei c2)) = ok (env1, [:: MkI ii (Cwhile a c1' e ei c2')]).
   + by rewrite /= heq.
   case: (hw _ _ _ _ _ heqw _ (valid_env_sub hsub2 hval2)); first by rewrite vars_I_while.
   move=> vm3 hsw hval3; exists vm3 => //.
@@ -440,7 +440,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 a c1 e c2 _ [hc1_ hc1] he ii; split.
+  move=> s1 s2 a c1 e ei c2 _ [hc1_ hc1] he ii; split.
   + by constructor; apply: Ewhile_false; eauto; rewrite -eq_globs.
   move=> S env env' c' vm /=.
   t_xrbindP => -[env1 [c1' c2']] /wloopP [env0 [env2 /= [hsub0 hc1' hc2' hsub2 heq]]] ??.

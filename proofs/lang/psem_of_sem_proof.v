@@ -274,13 +274,13 @@ apply:
   case: (ih _ hss'1) => s2' [hss'2 hel].
   exists s2'; split; first exact hss'2.
   once (econstructor; eauto; fail).
-- move => s1 s2 s3 s4 a c e c' _ ih /sem_pexpr_sim he _ ih' _ ihwh s1' hss'1.
+- move => s1 s2 s3 s4 a c e ei c' _ ih /sem_pexpr_sim he _ ih' _ ihwh s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hc].
   case: (ih' _ hss'2) => s3' [hss'3 hcc'].
   case: (ihwh _ hss'3) => s4' [hss'4 hwh].
   exists s4'; split; first exact: hss'4.
   once (econstructor; eauto; fail).
-- move => s1 s2 a c e c' _ ih /sem_pexpr_sim he s1' hss'1.
+- move => s1 s2 a c e ei c' _ ih /sem_pexpr_sim he s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hc].
   exists s2'; split; first exact: hss'2.
   once (econstructor; eauto; fail).
