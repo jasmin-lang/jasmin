@@ -8,7 +8,7 @@ let show_intrinsics asmOp fmt =
       begin match sfx with
       | [] -> 0
       | PVp _ :: _ -> 1
-      | PVx _ :: _ -> 2
+      | (PVs _ | PVx _) :: _ -> 2
       | (PVv _ | PVsv _) :: _ -> 3
       | PVvv _ :: _ -> 4
       end
@@ -17,7 +17,7 @@ let show_intrinsics asmOp fmt =
   let headers = [|
       "no size suffix";
       "one optional size suffix, e.g., “_64”";
-      "a zero/sign extend suffix, e.g., “_u32u16”";
+      "a zero/sign extend suffix, e.g., “_s16” or “_u32u16”";
       "one vector description suffix, e.g., “_4u64”";
       "two vector description suffixes, e.g., “_2u16_2u64”";
       "a flag setting suffix (i.e. “S”) and a condition suffix (i.e. “cc”)"

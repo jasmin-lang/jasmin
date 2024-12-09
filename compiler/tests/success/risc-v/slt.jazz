@@ -1,0 +1,17 @@
+export
+fn slt(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Registers.
+    x = #SLT(arg0, arg1);
+    [x] = x;
+    x = #SLTI(arg0, 5);
+    [x] = x;
+    x = #SLTU(arg0, arg1);
+    [x] = x;
+    x = #SLTIU(arg0, 5);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

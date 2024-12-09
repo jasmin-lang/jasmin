@@ -1,0 +1,14 @@
+export
+fn sub(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Registers.
+    x = #SUB(arg0, arg1);
+    [x] = x;
+
+    // Direct subtraction between a register and an immediate is absent from the RISCV I extension
+
+    reg u32 res;
+    res = x;
+    return res;
+}

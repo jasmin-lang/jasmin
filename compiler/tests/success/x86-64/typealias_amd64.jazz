@@ -2,15 +2,15 @@ param int bloc_size = 4046;
 type arch_size = u64;
 
 
-export fn memncopy 
+export fn memncopy
 (
-    reg ptr arch_size[bloc_size] target, 
+    reg ptr arch_size[bloc_size] target,
     reg ptr arch_size[bloc_size] source,
     reg arch_size size
-) 
-->  
+)
+->
     reg ptr arch_size[bloc_size],
-    reg ptr arch_size[bloc_size] 
+    reg ptr arch_size[bloc_size]
 {
     reg arch_size i;
     i=0;

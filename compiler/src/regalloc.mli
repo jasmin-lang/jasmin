@@ -4,7 +4,7 @@ val fill_in_missing_names : ('info, 'asm) Prog.func -> ('info, 'asm) Prog.func
 
 type retaddr = 
   | StackDirect
-  | StackByReg of var * var option
+  | StackByReg of var * var option * var option
   | ByReg of var * var option
 
 type reg_oracle_t = {
