@@ -6,8 +6,8 @@ import SLH64.
 
 module M = {
   proc __for_nest () : unit = {
-    var int:inc;
-    var int:inc_0;
+    var inc:int;
+    var inc_0:int;
     var j:int;
     var i:int;
     inc <- (10 + 10);
