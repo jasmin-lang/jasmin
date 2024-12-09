@@ -26,6 +26,7 @@ Require Import
   linearization
   lowering
   makeReferenceArguments
+  post_unrolling_check
   propagate_inline
   slh_lowering
   remove_globals
@@ -266,6 +267,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := inlining to_keep p in
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
+  Let: tt := check_no_for_loop p in
   let p := cparams.(print_uprog) Unrolling p in
 
   Let p := dead_calls_err_seq to_keep p in
