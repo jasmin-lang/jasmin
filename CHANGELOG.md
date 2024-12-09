@@ -23,9 +23,8 @@
   of the tables it uses internally; it should be faster on large functions
   ([PR #965](https://github.com/jasmin-lang/jasmin/pull/965)).
 
-- The printer to LATEX shows a comment informing about jasmin.sty support file
-  ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
-  [PR #986](https://github.com/jasmin-lang/jasmin/pull/986)).
+- Compiling the OCaml source code no longer requires `-rectypes`
+  ([PR #980](https://github.com/jasmin-lang/jasmin/pull/980)).
 
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 

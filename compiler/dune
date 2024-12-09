@@ -4,14 +4,12 @@
   (name commonCLI)
   (wrapped false)
   (libraries cmdliner jasmin.jasmin)
-  (flags (:standard -rectypes))
   (modules commonCLI))
 
 (executable
  (public_name jasminc)
  (name jasminc)
  (modules jasminc)
- (flags (:standard -rectypes))
  (modes byte exe)
  (libraries jasminc))
 
@@ -19,7 +17,6 @@
  (public_name jasmin2tex)
  (name jasmin2tex)
  (modules jasmin2tex)
- (flags (:standard -rectypes))
  (modes byte exe)
  (libraries commonCLI))
 
@@ -27,7 +24,6 @@
  (public_name jasmin-ct)
  (name jasmin_ct)
  (modules jasmin_ct)
- (flags (:standard -rectypes))
  (modes byte exe)
  (libraries commonCLI))
 )
