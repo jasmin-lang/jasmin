@@ -7,7 +7,7 @@ val pp_print_X : Format.formatter -> Z.t -> unit
 
 val pp_pvar  : Format.formatter -> pvar -> unit
 val pp_ptype : Format.formatter -> pty -> unit
-val pp_plval : Format.formatter -> pexpr glval -> unit
+val pp_plval : Format.formatter -> plval -> unit
 val pp_pexpr : Format.formatter -> pexpr -> unit
 val pp_pprog : Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
