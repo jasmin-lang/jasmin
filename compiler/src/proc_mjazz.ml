@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 open Utils
-open Pretyping
+open Pretyping_mjazz
 module Path = BatPathGen.OfString
 module F = Format
 module L = Location
@@ -162,58 +162,52 @@ let load_fname from_map visited processed from loc fname
 (* -------------------------------------------------------------------- *)
 
 
-(* obs:
-   "e_bindings env" is used differently from pretyping. Instead of
-   keeping namespace-path bindings, it is used to access visible symbols
-   from opened modules.
-       "(cur_moodname,cur_bindings)::opened_modules, global_bindings"
-   Symbols visible through open modules never hide symbols from current
-   module!                                                              *)
 
 module MEnv = struct
 
   type 'asm mod_info =
-    { mi_gb : 'asm Env.global_bindings
-   (* ; mi_decls : (P.pexpr, unit, 'asm) M.gmodule_item list*)
+    { mi_store : 'asm Env.store
+    ; mi_decls : (P.pexpr, unit, 'asm) M.gmodule_item list
     }
 
   type 'asm menv =
     { me_mpath : M.modulename list
-    ; me_cur : 'asm Env.env
-    ; me_decls : (P.pexpr_, unit, 'asm) M.gmodule_item list
+    ; me_store : 'asm Env.store
+    ; me_decls : (P.pexpr, unit, 'asm) M.gmodule_item list list
     ; me_env : (M.modulename, 'asm mod_info) Map.t
-(*    ; me_visited :  *)
+    ; me_visited : (M.modulename * Path.t) list
     }
 
   let empty =
     { me_mpath = [] 
-    ; me_cur = Env.empty
+    ; me_store = Env.empty_store
     ; me_decls = []
     ; me_env = Map.empty
+    ; me_visited = []
     }
 
   let push_mpath menv mname =
     { menv with me_mpath = mname::menv.me_mpath }
 
-  (* injects decls. accumulated in me_cur into me_decls *)
-  let flush_decls menv =
+  let upd_store
+      (f: 'asm Env.store -> 'asm Env.store)
+      (menv: 'asm menv)
+    = { menv with me_store = f menv.me_store }
+
+  let upd_storedecls
+      (f: 'asm Env.store -> 'asm Env.store * (unit, 'asm) P.pmod_item list)
+      (menv: 'asm menv)
+    : 'asm menv =
     { menv with
-      me_decls = List.map (fun x->M.MdItem x) menv.me_cur.e_decls @ menv.me_decls
-    ; me_cur = { menv.me_cur with e_decls = [] }
+      me_store = fst (f menv.me_store)
+    ; me_decls = 
+        let topdecls = List.map (fun x->M.MdItem x) (snd (f menv.me_store))
+        in match menv.me_decls with
+        | top::l -> (topdecls @ top)::l
+        | [] -> assert false
     }
 
-  module Vars = struct
 (*
-    let push_param menv (x, e) =
-      let name = x.P.v_name in
-      let x = rename_var (fully_qualified (fst env.e_bindings) name) x in
-      let env = push_core env name x Slocal in
-      { env with e_decls = P.MIparam (x, e) :: env.e_decls }
-*)
-  end
-    
-  let upd_cur menv env = { menv with me_cur = env }
-
   let push_open menv mname gb =
     let stack, bot = menv.me_cur.e_bindings
     in let new_stack =
@@ -222,6 +216,75 @@ module MEnv = struct
            rs_mjazzerror ~loc:(L.loc mname) (MJazzInternal "malformed e_bindings")
          | top::rest -> top::(L.unloc mname, gb)::rest
     in { menv with me_cur = { menv.me_cur with e_bindings = new_stack, bot } }
+*)
+
+(*  let mk_fun *)
+
+  let push_modparam pd (st: 'asm Env.store) (mparam: S.modsigentry)
+    : 'asm Env.store * P.pexpr M.mparamdecl =
+    match mparam with
+    | MSparam (ty, name) ->
+      let ty = tt_type pd st ty
+      in let x = P.PV.mk (L.unloc name) W.Const ty (L.loc name) []
+      in let st = Env.Vars.push_modp_param st x
+      in st, M.Param x
+    | MSglob (ty, name) ->
+      let ty = tt_type pd st ty
+      in let x = P.PV.mk (L.unloc name) W.Const ty (L.loc name) []
+      in let st = Env.Vars.push_modp_global st x
+      in st, M.Glob x
+    | MSfn (name, tyin, tyout) ->
+      let tyins = List.map (tt_type pd st) tyin
+      in let tyouts = List.map (tt_type pd st) tyout
+      in let funcsig = { Env.f_loc = L.loc name
+                       ; Env.f_name = P.F.mk (L.unloc name)
+                       ; Env.f_tyin = tyins
+                       ; Env.f_tyout = tyouts
+                       ; Env.f_pfunc = None
+                       }
+      in let fsig = { M.fs_name = funcsig.f_name
+                    ; M.fs_loc = funcsig.f_loc
+                    ; M.fs_tyin = funcsig.f_tyin
+                    ; M.fs_tyout = funcsig.f_tyout
+                    }
+      in let st = Env.Funs.push_modp_fun st funcsig
+      in st, M.Fun (funcsig.f_name, fsig)
+
+  let rec push_modparams pd (st: 'asm Env.store) =
+    function
+    | [] -> st, []
+    | x::xs ->
+      let st, p = push_modparam pd st x
+      in push_modparams pd st xs
+
+  let enter_module pd modname mparams menv =
+    let menv = upd_store (Env.enter_namespace modname) menv
+    in let st, plist = push_modparams pd menv.me_store mparams
+    in 
+    { menv with 
+      me_store = st;
+      me_decls = []::menv.me_decls
+    }
+    , plist
+
+  let exit_module modname mparams (menv: 'asm menv): 'asm menv =
+    let menv = upd_store Env.exit_namespace menv
+    in let decls =
+         match menv.me_decls with
+         | top::l ->
+           begin match l with
+             | x::xs -> 
+               (M.MdFunctor
+                  { functorname = modname
+                  ; functorparams = mparams
+                  ; functorbody = top
+                  } :: x) :: xs
+             | [] -> assert false (* ??? *)
+           end
+         | [] -> assert false (* ??? *)
+    (* update module environment *)
+    in { menv with me_decls = decls }
+ 
 end
 
 
@@ -240,88 +303,48 @@ end
 
 (* -------------------------------------------------------------------- *)
 
-(*
-let mt_var_core (mode:tt_mode) (menv : 'asm Env.env) { L.pl_desc = x; L.pl_loc = lc; } = 
-  let v, _ as vs =
-    match MEnv.Vars.find x env with
-    | Some vs -> vs
-    | None -> rs_tyerror ~loc:lc (UnknownVar x) in
-  begin match mode with
-  | `OnlyParam ->
-    if v.P.v_kind <> W.Const then
-      rs_tyerror ~loc:lc (StringError "only param variables are allowed here")
-  | `NoParam -> 
-    if v.P.v_kind = W.Const then
-      rs_tyerror ~loc:lc (StringError "param variables are not allowed here")
-  | `AllVar -> ()
-  end;
-  vs
-
-let tt_var (mode:tt_mode) (env : 'asm Env.env) x = 
-  let v, s = tt_var_core mode env x in
-  if s = Sglob then 
-    rs_tyerror ~loc:(L.loc x) (StringError "global variables are not allowed here");
-  v
-
-let tt_var_global (mode:tt_mode) (env : 'asm Env.env) v = 
-  let lc = v.L.pl_loc in
-  let x, s = tt_var_core mode env v in
-  { P.gv = L.mk_loc lc x; P.gs = s }, x.P.v_ty
-
-
-
-(* -------------------------------------------------------------------- *)
-let tt_fun (env : 'asm Env.env) { L.pl_desc = x; L.pl_loc = loc; } =
-  Env.Funs.find x env |> oget ~exn:(tyerror ~loc (UnknownFun x))
-
-
-
-
-let tt_param pd (menv : 'asm MEnv.menv) _loc (pp : S.pparam) : 'asm MEnv.menv =
-  let ty = tt_type pd menv.me_cur pp.ppa_ty in
-  let pe, ety = tt_expr ~mode:`OnlyParam pd env pp.S.ppa_init in
-
-  check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
-
-  let x = P.PV.mk (L.unloc pp.ppa_name) W.Const ty (L.loc pp.ppa_name) [] in
-  let env = Env.Vars.push_param env (x,pe) in
-  env
-*)
 
 let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
   | S.PModule (mname, mparams, body) ->
-(*  let modname = current_module menv
-    in let env = newmodule_env mparams
-    in*) MEnv.empty
-    (* MdFunctor funcdef *)
+    let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
+    in let menv = List.fold_left (mt_item arch_info) menv body
+    in let menv = MEnv.exit_module (L.unloc mname) mparams menv
+    in menv
   | S.PModuleApp (mname, modfun, margs) ->
     MEnv.empty
     (* MdModApp modapp *)
   | S.POpen (mname, None) ->
     begin match Map.find (L.unloc mname) menv.me_env with
-      | exception Not_found -> rs_mjazzerror ~loc:(L.loc mname) (NonExistentMod (L.unloc mname))
-      | minfo -> MEnv.push_open menv mname minfo.mi_gb
+      | exception Not_found ->
+        rs_mjazzerror ~loc:(L.loc mname)
+          (NonExistentMod (L.unloc mname))
+      | minfo -> 
+        rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
     end
-  | S.POpen (mname, qual) -> rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
+  | S.POpen (mname, qual) ->
+    rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
   | S.Prequire (from, fs) ->
     begin match menv.me_mpath with
       | [modname] ->
         MEnv.empty
         (* load & parse & process *)
-      | _ -> rs_mjazzerror ~loc:(L.loc mitem) NonToplevelRequire
+      | _ ->
+        rs_mjazzerror ~loc:(L.loc mitem) NonToplevelRequire
     end
-  | S.PNamespace (ns, _) -> rs_mjazzerror ~loc:(L.loc ns) MJazzIncompatibleNS
-  | S.Pexec pf -> rs_mjazzerror ~loc:(L.loc pf.pex_name) MJazzNYS
+  | S.PNamespace (ns, _) ->
+    rs_mjazzerror ~loc:(L.loc ns) MJazzIncompatibleNS
+  | S.Pexec pf ->
+    rs_mjazzerror ~loc:(L.loc pf.pex_name) MJazzNYS
   (* similar to Pretyping... *)
   | S.PTypeAlias (id,ty) ->
-    MEnv.upd_cur menv (tt_typealias arch_info menv.me_cur id ty)
+    MEnv.upd_store (tt_typealias arch_info id ty) menv
   | S.PParam pp -> 
-    MEnv.upd_cur menv (tt_param arch_info.pd menv.me_cur (L.loc mitem) pp)
+    MEnv.upd_storedecls (tt_param arch_info.pd (L.loc mitem) pp) menv
   | S.PGlobal pg ->
-    MEnv.upd_cur menv (tt_global arch_info.pd menv.me_cur (L.loc mitem) pg)
+    MEnv.upd_storedecls (tt_global arch_info.pd (L.loc mitem) pg) menv
   | S.PFundef pf ->
-    MEnv.upd_cur menv (tt_fundef arch_info menv.me_cur (L.loc mitem) pf)
+    MEnv.upd_storedecls (tt_fundef arch_info (L.loc mitem) pf) menv
 
 and mt_file_loc arch_info from menv fname =
   fst (mt_file arch_info menv from (Some (L.loc fname)) (L.unloc fname))
