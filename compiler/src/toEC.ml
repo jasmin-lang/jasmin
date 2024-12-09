@@ -1532,7 +1532,7 @@ module Extraction(EA: EcArray) = struct
       let ec_locals =
           let locs_ty (ty, vars) = List.map (fun v -> (v, toec_ty env ty)) vars in
           (List.flatten (List.map locs_ty (Mty.bindings env.auxv))) @
-          (List.map (fun a -> "int",a) env.auxlv) @
+          (List.map (fun a -> a,"int") env.auxlv) @
           (List.map (var2ec_var env) locals)
       in
       let aux_locals_init = locals
