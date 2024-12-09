@@ -1,0 +1,13 @@
+(library
+  (name common_ec)
+  (wrapped false)
+  (libraries jasmin.jasmin)
+  (flags (:standard -rectypes))
+  (modules common))
+
+(tests
+  (libraries jasmin.jasmin common_ec)
+  (deps nested_while.jazz)
+  (flags (:standard -rectypes))
+  (modules nested_while)
+  (names nested_while))

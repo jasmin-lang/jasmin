@@ -28,6 +28,11 @@
   of the tables it uses internally; it should be faster on large functions
   ([PR #965](https://github.com/jasmin-lang/jasmin/pull/965)).
 
+## Bug fixes
+
+- Fix EC extraction in case on nested loops
+  ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
+
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features

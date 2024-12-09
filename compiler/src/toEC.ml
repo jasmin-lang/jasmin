@@ -289,6 +289,7 @@ type env = {
     funs : (string * (ty list * ty list)) Mf.t;  
     array_theories: Sarraytheory.t ref;
     auxv  : string list Mty.t;
+    auxlv : string list;
     randombytes : Sint.t ref;
   }
 
@@ -360,6 +361,7 @@ let empty_env arch pd model array_theories randombytes =
     funs = Mf.empty;
     array_theories;
     auxv  = Mty.empty;
+    auxlv = [];
     randombytes;
   }
 
@@ -375,27 +377,31 @@ let get_funtype env f = snd (Mf.find f env.funs)
 
 let get_funname env f = fst (Mf.find f env.funs) 
 
-let add_aux env tys = 
-  let tbl = Hashtbl.create 10 in
+let add_aux env tys =
   let do1 env ty = 
-    let n = try Hashtbl.find tbl ty with Not_found -> 0 in
     let l = try Mty.find ty env.auxv with Not_found -> [] in
-    Hashtbl.replace tbl ty (n+1);
-    if n < List.length l then env
+    if 0 < List.length l then env
     else
       let aux = create_name env "aux" in
       {env with auxv = Mty.add ty (aux::l) env.auxv;
                 alls = Ss.add aux env.alls } in
   List.fold_left do1 env tys
 
+let create_auxlv env =
+  let aux = create_name env "inc" in
+  aux ,{env with alls = Ss.add aux env.alls }
+
+let pop_auxlv env =
+  match env.auxlv with
+  | [] -> create_auxlv env
+  | h :: q -> h, {env with auxlv = q }
+
+let push_auxlv aux env = {env with auxlv = aux:: env.auxlv }
+
 let get_aux env tys = 
-  let tbl = Hashtbl.create 10 in
   let do1 ty = 
-    let n = try Hashtbl.find tbl ty with Not_found -> 0 in
-    let l = try Mty.find ty env.auxv with Not_found -> assert false in
-    Hashtbl.replace tbl ty (n+1);
-    assert (n < List.length l);
-    List.nth l n in
+    let l = Mty.find ty env.auxv in
+    List.nth l 0 in
   List.map do1 tys
 
 let check_array env x = 
@@ -1431,15 +1437,15 @@ module Extraction(EA: EcArray) = struct
       | Cfor (i, (d,e1,e2), c) ->
           (* decreasing for loops have bounds swaped *)
           let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in 
-          let init, ec_e2 = 
+          let env,init, ec_e2 = 
               match e2 with
               (* Can be generalized to the case where e2 is not modified by c and i *)
-              | Pconst _ -> ([], toec_expr env e2)
-              | _ -> 
-                  let aux = List.hd (get_aux env [tint]) in
-                  let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
-                  let ec_e2 = ec_ident aux in
-                  [init], ec_e2 in
+              | Pconst _ -> (env,[], toec_expr env e2)
+              | _ ->
+                let aux,env =  pop_auxlv env in
+                let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
+                let ec_e2 = ec_ident aux in
+                env,[init], ec_e2 in
           let ec_i = [ec_vars env (L.unloc i)] in
           let lv_i = [LvIdent ec_i] in
           let ec_i1, ec_i2 = 
@@ -1506,7 +1512,10 @@ module Extraction(EA: EcArray) = struct
               add_aux env (List.map ty_lval lvs)
       )
       | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
-      | Cfor(_,_,c) -> init_aux pd asmOp (add_aux env [tint]) c
+      | Cfor(_,_,c) ->
+        let aux,env = pop_auxlv env in
+        let env = init_aux pd asmOp env c in
+        push_auxlv aux env
 
   and init_aux pd asmOp env c = List.fold_left (init_aux_i pd asmOp) env c
 
@@ -1523,6 +1532,7 @@ module Extraction(EA: EcArray) = struct
       let ec_locals =
           let locs_ty (ty, vars) = List.map (fun v -> (v, toec_ty env ty)) vars in
           (List.flatten (List.map locs_ty (Mty.bindings env.auxv))) @
+          (List.map (fun a -> a,"int") env.auxlv) @
           (List.map (var2ec_var env) locals)
       in
       let aux_locals_init = locals
