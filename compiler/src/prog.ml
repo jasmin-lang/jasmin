@@ -147,19 +147,20 @@ let is_gkvar x = x.gs = E.Slocal
 (* ------------------------------------------------------------------------ *)
 (* Parametrized expression *)
 
-type pty    = pexpr gty
-and  pvar   = pexpr gvar
-and  pvar_i = pexpr gvar_i
-and  plval  = pexpr glval
-and  plvals = pexpr glvals
-and  pexpr  = pexpr gexpr
+type pty    = pexpr_ gty
+and  pvar   = pexpr_ gvar
+and  pvar_i = pexpr_ gvar_i
+and  plval  = pexpr_ glval
+and  plvals = pexpr_ glvals
+and  pexpr  = pexpr_ gexpr
+and pexpr_ = PE of pexpr [@@unboxed]
 
-type ('info,'asm) pinstr = (pexpr,'info,'asm) ginstr
-type ('info,'asm) pstmt  = (pexpr,'info,'asm) gstmt
+type ('info,'asm) pinstr = (pexpr_,'info,'asm) ginstr
+type ('info,'asm) pstmt  = (pexpr_,'info,'asm) gstmt
 
-type ('info,'asm) pfunc     = (pexpr,'info,'asm) gfunc
-type ('info,'asm) pmod_item = (pexpr,'info,'asm) gmod_item
-type ('info,'asm) pprog     = (pexpr,'info,'asm) gprog
+type ('info,'asm) pfunc     = (pexpr_,'info,'asm) gfunc
+type ('info,'asm) pmod_item = (pexpr_,'info,'asm) gmod_item
+type ('info,'asm) pprog     = (pexpr_,'info,'asm) gprog
 
 (* ------------------------------------------------------------------------ *)
 module PV = struct
@@ -178,7 +179,7 @@ let rec pty_equal t1 t2 =
   match t1, t2 with
   | Bty b1, Bty b2 -> b1 = b2
   | Arr(b1, e1), Arr(b2, e2) ->
-    (b1 = b2) && pexpr_equal e1 e2
+    (b1 = b2) && pexpr__equal e1 e2
   | _, _ -> false
 
 and pexpr_equal e1 e2 =
@@ -188,12 +189,14 @@ and pexpr_equal e1 e2 =
  | Pvar v1, Pvar v2 -> PV.gequal v1 v2
  | Pget(al1, a1,b1,v1,e1), Pget(al2, a2, b2,v2,e2) -> al1 = al2 && a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
-   a1 = a2 && b1 = b2 && pexpr_equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
+   a1 = a2 && b1 = b2 && pexpr__equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Pload(al1, b1,v1,e1), Pload(al2, b2,v2,e2) -> al1 = al2 &&b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
  | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
  | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23
  | _, _ -> false
+
+and pexpr__equal (PE e1) (PE e2) = pexpr_equal e1 e2
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)

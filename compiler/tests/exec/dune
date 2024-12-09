@@ -16,7 +16,6 @@
     sem_unit.jazz
     ../success/x86-64/test_global_string_literal.jazz
   )
-  (flags (:standard -rectypes))
   (names
     exec
     sem_unit))
