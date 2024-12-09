@@ -262,7 +262,7 @@ module Env : sig
   val exit_namespace : 'asm env -> 'asm env
 
   module Vars : sig
-    val push_global   : 'asm env -> (P.pvar * P.pexpr P.ggexpr) -> 'asm env
+    val push_global   : 'asm env -> (P.pvar * P.pexpr_ P.ggexpr) -> 'asm env
     val push_param    : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
     val push_local    : 'asm env -> P.pvar -> 'asm env
     val push_implicit : 'asm env -> P.pvar -> 'asm env
@@ -692,7 +692,7 @@ let tt_as_bool = check_ty TPBool
 let tt_as_int  = check_ty TPInt
 
 (* -------------------------------------------------------------------- *)
-let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty * P.pexpr =
+let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty * P.pexpr_ =
   match ty with
   | P.Arr (ws, n) -> P.Bty (P.U ws), n
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
@@ -979,11 +979,11 @@ let cast_int loc e ety =
   cast loc e ety P.tint 
 
 (* -------------------------------------------------------------------- *)
-let conv_ty = function
+let conv_ty : T.stype -> P.pty = function
     | T.Coq_sbool    -> P.tbool
     | T.Coq_sint     -> P.tint
     | T.Coq_sword ws -> P.Bty (P.U ws)
-    | T.Coq_sarr p   -> P.Arr (U8, P.icnst (Conv.int_of_pos p))
+    | T.Coq_sarr p   -> P.Arr (U8, PE (P.icnst (Conv.int_of_pos p)))
 
 let type_of_op2 op = 
   let (ty1, ty2), tyo = E.type_of_op2 op in
@@ -1122,8 +1122,8 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
        ignore_align ~loc:(L.loc pe) al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
-      let ty = P.Arr(ws, len) in
-      P.Psub (aa, ws, len, x, i), ty
+      let ty = P.Arr (ws, P.PE len) in
+      P.Psub (aa, ws, P.PE len, x, i), ty
     end
 
   | S.PEOp1 (op, pe) ->
@@ -1234,7 +1234,7 @@ and tt_type pd (env : 'asm Env.env) (pty : S.ptype) : P.pty =
           match L.unloc extern_type with
           | P.Bty (P.U ws) -> ws
           | ty -> rs_tyerror  ~loc:(L.loc id) (InvalidTypeAlias ((L.unloc id),ty))
-     in P.Arr (ws, fst (tt_expr ~mode:`OnlyParam pd env e))
+     in P.Arr (ws, P.PE (fst (tt_expr ~mode:`OnlyParam pd env e)))
   | S.TAlias id -> L.unloc (Env.TypeAlias.get env id)
 
 (* -------------------------------------------------------------------- *)
@@ -1306,8 +1306,8 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
       ignore_align ~loc al;
       let len,ity  = tt_expr ~mode:`OnlyParam pd env plen in
       check_ty_eq ~loc:(L.loc plen) ~from:ity ~to_:P.tint;
-      let ty = P.Arr(ws, len) in
-      loc, (fun _ -> P.Lasub (aa, ws, len, L.mk_loc xlc x, i)), Some ty
+      let ty = P.Arr(ws, P.PE len) in
+      loc, (fun _ -> P.Lasub (aa, ws, P.PE len, L.mk_loc xlc x, i)), Some ty
     end
 
   | S.PLMem me ->
@@ -1670,17 +1670,18 @@ let tt_exprs_cast pd env loc les tys =
     let e, ety = tt_expr ~mode:`AllVar pd env le in
     cast (L.loc le) e ety ty) les tys
 
-let arr_init xi = 
-  let x = L.unloc xi in 
-  match x.P.v_ty with
-  | P.Arr(ws, e) as ty ->
-    let size =  let open P in (icnst (size_of_ws ws) ** e) in
-    P.Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
+let arr_init xi =
+  let open P in
+  let x = L.unloc xi in
+  match x.v_ty with
+  | Arr(ws, PE e) as ty ->
+    let size =  PE (icnst (size_of_ws ws) ** e) in
+    Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
   | _           -> 
-    rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
+    rs_tyerror ~loc:(L.loc xi) (InvalidType(x.v_ty, TPArray))
 
 let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
-  (P.pexpr, unit, 'asm) P.ginstr_r =
+  (P.pexpr_, unit, 'asm) P.ginstr_r =
   Cassgn (x, tg, ty, e)
 
 let rec is_constant e = 

@@ -262,16 +262,17 @@ let pp_pitem pp_len pp_opn pp_var =
 
 let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name 
 
-let rec pp_pexpr e = pp_ge pp_pexpr pp_pvar e
+let rec pp_pexpr fmt e = pp_ge pp_pexpr_ pp_pvar fmt e
+and pp_pexpr_ fmt (PE e) = pp_pexpr fmt e
 
-let pp_ptype = pp_gtype pp_pexpr
+let pp_ptype = pp_gtype pp_pexpr_
 
-let pp_plval = pp_glv pp_pexpr pp_pvar 
+let pp_plval = pp_glv pp_pexpr_ pp_pvar
 
 let pp_pprog pd asmOp fmt p =
   let pp_opn = pp_opn pd asmOp in
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
+    (pp_list "@ @ " (pp_pitem pp_pexpr_ pp_opn pp_pvar)) (List.rev p)
 
 let pp_fun ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
