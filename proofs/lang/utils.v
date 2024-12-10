@@ -578,8 +578,8 @@ Arguments allMP {A E check m a} _ _.
 (* -------------------------------------------------------------- *)
 
 Inductive Forall3 (A B C : Type) (R : A -> B -> C -> Prop) : seq A -> seq B -> seq C -> Prop :=
-| Forall3_nil : Forall3 R [::] [::] [::]
-| Forall3_cons : forall a b c la lb lc, R a b c -> Forall3 R la lb lc -> Forall3 R (a :: la) (b :: lb) (c :: lc).
+| Forall3_nil : Forall3 [::] [::] [::]
+| Forall3_cons : forall a b c la lb lc, R a b c -> Forall3 la lb lc -> Forall3 (a :: la) (b :: lb) (c :: lc).
 
 Section MAP2.
 
@@ -1958,8 +1958,8 @@ Ltac t_inj_cases :=
 Module Option.
 
 Variant option_spec X A o xs xn : option A -> X -> Prop :=
-| OptionSpecSome : forall a, o = Some a -> option_spec o xs xn (Some a) (xs a)
-| OptionSpecNone : o = None -> option_spec o xs xn None xn.
+| OptionSpecSome : forall a, o = Some a -> option_spec (Some a) (xs a)
+| OptionSpecNone : o = None -> option_spec None xn.
 
 Lemma oappP R A (f : A -> R) x u : option_spec u f x u (oapp f x u).
 Proof. by case: u; constructor. Qed.

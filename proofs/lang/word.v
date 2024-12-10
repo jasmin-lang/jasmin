@@ -691,9 +691,9 @@ Definition truncate_word s s' (w:word s') : exec (word s) :=
   end erefl.
 
 Variant truncate_word_spec s s' (w: word s') : exec (word s) → Type :=
-  | TruncateWordEq (h: s' = s) : truncate_word_spec w (ok (ecast s (word s) h w))
-  | TruncateWordLt (h: (s < s')%CMP) : truncate_word_spec w (ok (zero_extend s w))
-  | TruncateWordGt : (s' < s)%CMP → truncate_word_spec w type_error
+  | TruncateWordEq (h: s' = s) : truncate_word_spec (ok (ecast s (word s) h w))
+  | TruncateWordLt (h: (s < s')%CMP) : truncate_word_spec (ok (zero_extend s w))
+  | TruncateWordGt : (s' < s)%CMP → truncate_word_spec type_error
   .
 
 Lemma truncate_wordP' s s' (w: word s') : truncate_word_spec w (truncate_word s w).

@@ -1,3 +1,4 @@
+-arg "-set 'Uniform Inductive Parameters'"
 -arg "-w -notation-overridden"
 -arg "-w -extraction-reserved-identifier"
 -arg "-w -extraction-opaque-accessed"
