@@ -9,10 +9,6 @@ Require Import word.
 Require Import ZArith utils.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Import ssrnat.
 
 Local Open Scope Z_scope.

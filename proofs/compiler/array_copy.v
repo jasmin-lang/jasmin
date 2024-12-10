@@ -5,10 +5,6 @@ Require Import
   pseudo_operator.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (*
 semantics: Ccopy x ws n y
 

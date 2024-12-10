@@ -5,10 +5,6 @@ Require Import psem compiler_util.
 Require Export makeReferenceArguments.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section SemInversion.

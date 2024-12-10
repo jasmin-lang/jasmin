@@ -3,10 +3,6 @@ From mathcomp Require Import ssreflect eqtype ssrbool ssrfun ssrnat.
 From mathcomp Require Export seq.
 Require Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Definition pair_inj {A B: Type} {a a': A} {b b': B} (e: (a, b) = (a', b')) :
   a = a' ∧ b = b' :=
   let 'Logic.eq_refl := e in conj Logic.eq_refl Logic.eq_refl.

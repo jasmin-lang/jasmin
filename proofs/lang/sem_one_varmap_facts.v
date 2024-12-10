@@ -6,10 +6,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Import low_memory.
 Import psem psem_facts sem_one_varmap.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 
 Section PROG.

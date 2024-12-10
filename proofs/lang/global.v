@@ -4,10 +4,6 @@ From mathcomp Require Import word_ssrZ.
 Require Import xseq.
 Require Export xseq ZArith strings word utils var type warray_.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Unset Elimination Schemes.
 
 (* ---------------------------------------------------------------------- *)

@@ -23,10 +23,6 @@ Require Import
   x86_lowering
   x86_stack_zeroization.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section Section.
 Context {atoI : arch_toIdent}.
 

@@ -12,10 +12,6 @@ Import type word utils.
 Import memory_example.
 Export memory_model.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Notation "f '=3' g" := (∀ x, f x =2 g x) (at level 70, g at next level).
 
 Module Memory := MemoryI.

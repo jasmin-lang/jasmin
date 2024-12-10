@@ -4,10 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem allocation_proof compiler_util.
 Require Export inline.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section INLINE.

@@ -12,10 +12,6 @@ Require Import
   arm_extra
   arm_instr_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Lemma ignore_has_shift mn sf ic hs hs' :
   mn \notin has_shift_mnemonics
   -> let opts :=

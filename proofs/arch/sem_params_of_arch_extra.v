@@ -5,10 +5,6 @@ Require Import
   arch_decl
   arch_extra.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section SEM_PARAMS.
 
   Context

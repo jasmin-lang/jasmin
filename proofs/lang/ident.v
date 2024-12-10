@@ -3,10 +3,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import Uint63 strings utils gen_map tagged wsize.
 Require Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module Type CORE_IDENT.
 
   Parameter t  : Type.

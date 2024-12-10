@@ -4,10 +4,6 @@ From mathcomp Require Import word_ssrZ.
 Require Import expr compiler_util ZArith.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module E.
 
 Definition pass_name := "allocation"%string.

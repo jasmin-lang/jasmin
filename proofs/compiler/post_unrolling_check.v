@@ -3,10 +3,6 @@ Require Import expr compiler_util.
 
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module Import E.
 
   Definition pass : string := "loop unrolling".

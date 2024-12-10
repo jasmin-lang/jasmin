@@ -24,10 +24,6 @@ Require Import
   shift_kind
   arm_expand_imm.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------- *)
 (* String representation of architecture components.
  * ToString is a class for types that have a string representation and a

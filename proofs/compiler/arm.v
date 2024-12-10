@@ -6,10 +6,6 @@ Require Import
   arm_decl
   arm_instr_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Definition arm_eval_cond (get: rflag -> result error bool) (c: condt) :
   result error bool :=
   match c with

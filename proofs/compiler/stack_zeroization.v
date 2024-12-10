@@ -28,10 +28,6 @@ Require Import compiler_util linear_util.
 Require Import one_varmap.
 Require Export stack_zero_strategy.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module E.
 
   Definition pass : string := "stack zeroization".

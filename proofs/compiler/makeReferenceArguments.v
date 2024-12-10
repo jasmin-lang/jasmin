@@ -3,10 +3,6 @@ From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat.
 From Coq Require Import ZArith Uint63.
 Require Import gen_map expr compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.

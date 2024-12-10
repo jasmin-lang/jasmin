@@ -6,10 +6,6 @@ Require Import array_copy psem.
 Require Import compiler_util.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 

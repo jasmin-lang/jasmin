@@ -7,10 +7,6 @@ Require Import compiler_util byteset.
 Require slh_lowering.
 Require Import ZArith.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.

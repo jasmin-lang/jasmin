@@ -6,10 +6,6 @@ Import ZArith.
 
 Local Open Scope Z_scope.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module Type FArrayT.
   Parameter array : Type -> Type.
   Parameter cnst : forall {T}, T -> array T.
