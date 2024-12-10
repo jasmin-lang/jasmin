@@ -204,9 +204,11 @@ module GhostVector = struct
         let vl = aux 16 [] in
         let va = List.map (fun v -> Avar v) vl in
         let a = Avatome va in
-        let (l_v, l_ty) as l = I.var_to_tyvar ~vector:(1,256) formal in
-        let l_0 = Avecta (l, 0) in
-        vl,[cast l_ty l a; Op1.mov v l_0]
+        let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~vector:(16,16) formal in
+        let (l_1x256, lty_1x256) as l1x256 = I.var_to_tyvar ~vector:(1,256) formal in
+        let vl16x16 = Avar l16x16 in
+        let l_0 = Avecta (l1x256, 0) in
+        vl,[cast lty_16x16 l16x16 a;  cast lty_1x256 l1x256 vl16x16; Op1.mov v l_0]
         in
         List.fold_left (fun (acc1,acc2) v ->
             let fs,is = aux v in
@@ -260,18 +262,24 @@ module SimplVector = struct
       (i * int_of_ty ty'' == i' * int_of_ty ty''') && ((is_unsigned ty'') == (is_unsigned ty'''))
     | _ -> is_equiv_type ty' ty (* use recursivity to check the commutative pair *)
 
-  let rec find_vect_lval v n  =
-      let (v, ty) = v in
-      let aux v' n' =
+  let rec find_vect_lval tv n  =
+      let (v, ty) = tv in
+      let aux tv' n' =
         let nI = getPrevI n' in
         match nI with
-        | Some i -> find_vect_lval v' i
+        | Some i -> find_vect_lval tv' i
         | None -> None
       in
     match n.nkind with
     | {iname = "cast"; iargs = [Lval (v', ty'); Atom (Avar (v'', ty''))]} ->
       if v == v' && is_equiv_type ty' ty'' then
         aux (v'',ty'') n
+      else
+        aux (v, ty) n
+    | {iname = "cast"; iargs = [Lval (v', ty'); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
+      let ll = (List.length t) + 1 in
+      if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then
+        Some (v', ty')
       else
         aux (v, ty) n
     | {iname = "mov"; iargs = [Lval (v', ty') ; Atom (Avecta ((v'', ty''), j))]} ->
@@ -350,16 +358,19 @@ module SimplVector = struct
         sr_lval node h;
         sr_lvals h
 
-  let rec unused_lval v nI = (* Checks if lval is used in any subsequent instruction *)
-    let rec var_in_vatome v' l =
+  let rec unused_lval ((v, ty) as tv) nI = (* Checks if lval is used in any subsequent instruction *)
+    let diff_lval_tyvar (v', ty') (v'', ty'') = (* Prevent some typecasting problems ??*)
+      (v' != v'') || (ty' != ty'')
+    in
+    let rec var_in_vatome tv' l =
       match l with
         | h :: t ->
           begin
             match h with
-            | Avar v' -> (v' == v) || (var_in_vatome v t)
-            | Avecta (v', _) -> (v' == v) || (var_in_vatome v t)
-            | Avatome l' -> (var_in_vatome v t) || (var_in_vatome v l')  (* is this valid CL? should we assert false ?? *)
-            | _ -> (var_in_vatome v t)
+            | Avar (tv'') -> not(diff_lval_tyvar tv' tv'') || (var_in_vatome tv' t)
+            | Avecta (tv'' , _) -> not(diff_lval_tyvar tv' tv'') || (var_in_vatome tv' t)
+            | Avatome l' -> (var_in_vatome tv' t) || (var_in_vatome tv' l')  (* is this valid CL? should we assert false ?? *)
+            | _ -> (var_in_vatome tv' t)
           end
         | [] -> false
     in
@@ -372,36 +383,36 @@ module SimplVector = struct
     | Some n ->
       begin
         match n.nkind with
-        | {iname = "mov"; iargs = [_; Atom (Avar v')]} -> (v' != v) && (aux v n)
-        | {iname = "mov"; iargs = [_; Atom (Avecta (v', _))]} -> (v' != v) && (aux v n)
-        | {iname = "mov"; iargs = [_; Atom (Aconst _)]} -> aux v n
-        | {iname = "mov"; iargs = [_; Atom (Avatome l)]} -> not(var_in_vatome v l) && (aux v n)
-        | {iname = "cast"; iargs = [_; Atom (Avar v')]} -> (v' != v) && (aux v n)
-        | {iname = "cast"; iargs = [_; Atom (Avecta (v', _))]} -> (v' != v) && (aux v n)
-        | {iname = "cast"; iargs = [_; Atom (Aconst _)]} -> aux v n
-        | {iname = "cast"; iargs = [_; Atom (Avatome l)]} -> not(var_in_vatome v l) && (aux v n)
-        | {iname = "adds"; iargs = [_; _; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "adds"; iargs = [_; _; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "add"; iargs = [_; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "add"; iargs = [_; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "subb"; iargs = [_; _; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "subb"; iargs = [_; _; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "sub"; iargs = [_; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "sub"; iargs = [_; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "mull"; iargs = [_; _; Atom (Avar v'); Atom (Avar v'')]} -> (v' != v) && (v'' != v) && (aux v n)
-        | {iname = "mull"; iargs = [_; _; Atom (Avecta (v', _)); Atom (Avecta (v'', _))]} -> (v' != v) && (v'' != v) && (aux v n)
-        | _ -> aux v n
+        | {iname = "mov"; iargs = [_; Atom (Avar tv')]} -> (diff_lval_tyvar tv tv') && (aux tv n)
+        | {iname = "mov"; iargs = [_; Atom (Avecta (tv', _))]} -> (diff_lval_tyvar tv tv') && (aux tv n)
+        | {iname = "mov"; iargs = [_; Atom (Aconst _)]} -> aux tv n
+        | {iname = "mov"; iargs = [_; Atom (Avatome l)]} -> not(var_in_vatome tv l) && (aux tv n)
+        | {iname = "cast"; iargs = [_; Atom (Avar tv')]} -> (diff_lval_tyvar tv tv') && (aux tv n)
+        | {iname = "cast"; iargs = [_; Atom (Avecta (tv', _))]} -> (diff_lval_tyvar tv tv') && (aux tv n)
+        | {iname = "cast"; iargs = [_; Atom (Aconst _)]} -> aux tv n
+        | {iname = "cast"; iargs = [_; Atom (Avatome l)]} -> not(var_in_vatome tv l) && (aux tv n)
+        | {iname = "adds"; iargs = [_; _; Atom (Avar tv'); Atom (Avar tv'')]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "adds"; iargs = [_; _; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "add"; iargs = [_; Atom (Avar tv'); Atom (Avar tv'')]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "add"; iargs = [_; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "subb"; iargs = [_; _; Atom (Avar tv'); Atom (Avar tv'')]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "subb"; iargs = [_; _; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "sub"; iargs = [_; Atom (Avar tv'); Atom (Avar tv'')]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "sub"; iargs = [_; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "mull"; iargs = [_; _; Atom (Avar tv'); Atom (Avar tv'')]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | {iname = "mull"; iargs = [_; _; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> (diff_lval_tyvar tv tv') && (diff_lval_tyvar tv tv'') && (aux tv n)
+        | _ -> aux tv n
       end
 
   let rec nop_uinst cfg node =
     let nI = getNextI node in
     match node.nkind with
-      | {iname = "cast"; iargs = [Lval v; _]}  ->
-        if unused_lval v nI then
+      | {iname = "cast"; iargs = [Lval tv; _]}  ->
+        if unused_lval tv nI then
           node.nkind <- { iname = "nop"; iargs = [] }
         else ()
-      | {iname = "mov"; iargs = [Lval v; _]}  ->
-        if unused_lval v nI then
+      | {iname = "mov"; iargs = [Lval tv; _]}  ->
+        if unused_lval tv nI then
           node.nkind <- { iname = "nop"; iargs = [] }
         else ()
       | _ -> ()

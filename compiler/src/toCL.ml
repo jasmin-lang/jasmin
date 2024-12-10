@@ -554,6 +554,7 @@ module I (S:S): I = struct
     | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
+    | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
     | _ -> error e
 
   let rec get_const x =
@@ -630,12 +631,20 @@ module I (S:S): I = struct
          | _ -> !> v
        end
     | PappN (Oabstract {pa_name="pow"}, [b;e]) -> power !> b !> e
+    | PappN (Oabstract {pa_name="u32i"}, [v]) -> 
+      begin 
+        match v with 
+      (* why do we have more cases?  | Pvar _ -> !> v *) 
+        | Papp1 (Oword_of_int _ws, Pconst z) ->  !> 
+             (Pconst (w2i ~sign z U32)) 
+        | _ -> !> v 
+      end
     | PappN (Oabstract {pa_name="u64i"}, [v]) ->
        begin
          match v with
          | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
               (Pconst (w2i ~sign z U64))
-         | _ -> !> v
+        | _ -> !> v
       end
     | PappN (Oabstract {pa_name="b2i"}, [v]) -> !> v
     | PappN (Oabstract {pa_name="mon"}, [c;a;b]) ->
@@ -655,6 +664,8 @@ module I (S:S): I = struct
     | PappN (Oabstract {pa_name="mon0"}, [b]) ->
       !> b
     | PappN (Oabstract {name="u256_as_16u16"}, [Pvar x; Pconst z]) ->
+        IUnPack (to_var ~sign x, 16, Z.to_int z)
+    | Pabstract ({name="u256_as_16u16"}, [Presult (_, x) ; Pconst z]) ->
         IUnPack (to_var ~sign x, 16, Z.to_int z)
     | Presult (_,x) -> Ivar (to_var ~sign x)
     | _ -> error e
