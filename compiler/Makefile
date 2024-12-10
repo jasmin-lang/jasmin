@@ -6,8 +6,6 @@ CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
 CHECKCATS ?= \
-	safety \
-	CCT CCT-DOIT \
 	x86-64-ATT \
 	x86-64-Intel \
 	x86-64-print \
@@ -17,7 +15,9 @@ CHECKCATS ?= \
 	x86-64-stack-zero-loop \
 	x86-64-stack-zero-unrolled \
 	arm-m4-stack-zero-loop \
-	arm-m4-stack-zero-unrolled
+	arm-m4-stack-zero-unrolled \
+	CCT CCT-DOIT \
+	safety
 
 # --------------------------------------------------------------------
 DESTDIR  ?=
