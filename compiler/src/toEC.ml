@@ -378,13 +378,15 @@ let get_funtype env f = snd (Mf.find f env.funs)
 let get_funname env f = fst (Mf.find f env.funs) 
 
 let add_aux env tys =
-  let do1 env i ty =
+  let rec do1 env i ty =
     let l = try Mty.find ty env.auxv with Not_found -> [] in
     if i < List.length l then env
     else
       let aux = create_name env "aux" in
-      {env with auxv = Mty.add ty (aux::l) env.auxv;
-                alls = Ss.add aux env.alls }
+      let env = {env with auxv = Mty.add ty (aux::l) env.auxv;
+                        alls = Ss.add aux env.alls }
+      in
+      do1 env i ty
   in
   List.fold_lefti do1 env tys
 
