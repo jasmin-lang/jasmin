@@ -378,14 +378,21 @@ let get_funtype env f = snd (Mf.find f env.funs)
 let get_funname env f = fst (Mf.find f env.funs) 
 
 let add_aux env tys =
-  let do1 env ty = 
+  let do1 env i ty =
     let l = try Mty.find ty env.auxv with Not_found -> [] in
-    if 0 < List.length l then env
+    if i < List.length l then env
     else
       let aux = create_name env "aux" in
       {env with auxv = Mty.add ty (aux::l) env.auxv;
-                alls = Ss.add aux env.alls } in
-  List.fold_left do1 env tys
+                alls = Ss.add aux env.alls }
+  in
+  List.fold_lefti do1 env tys
+
+let get_aux env tys =
+  let do1 i ty =
+    let l = Mty.find ty env.auxv in
+    List.nth l i in
+  List.mapi do1 tys
 
 let create_auxlv env =
   let aux = create_name env "inc" in
@@ -397,12 +404,6 @@ let pop_auxlv env =
   | h :: q -> h, {env with auxlv = q }
 
 let push_auxlv aux env = {env with auxlv = aux:: env.auxlv }
-
-let get_aux env tys = 
-  let do1 ty = 
-    let l = Mty.find ty env.auxv in
-    List.nth l 0 in
-  List.map do1 tys
 
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -1486,14 +1487,14 @@ module Extraction(EA: EcArray) = struct
       | Ccall(lvs, f, _) -> (
           match env.model with
           | Normal ->
-              if lvs = [] then env 
-              else 
+              if lvs = [] then env
+              else
                   let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
                   let ltys = List.map ty_lval lvs in
                   if (lvals_are_vars lvs && ltys = tys) then env
                   else add_aux env tys
           | ConstantTime ->
-              if lvs = [] then env 
+              if lvs = [] then env
               else add_aux env (List.map ty_lval lvs)
       )
       | Csyscall(lvs, o, _) -> (
