@@ -5,10 +5,6 @@ Require Export propagate_inline.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 

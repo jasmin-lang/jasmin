@@ -9,10 +9,6 @@ Import psem.
 Import merge_varmaps.
 Import compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
 

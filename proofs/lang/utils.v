@@ -8,10 +8,6 @@ Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope Z_scope.
 
 Lemma eq_axiom_of_scheme X (beq : X -> X -> bool) :

@@ -7,10 +7,6 @@ Require Import xseq.
 Require Export strings warray_.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* ----------------------------------------------------------- *)
 
 Class WithSubWord := { sw_allowed : bool }.

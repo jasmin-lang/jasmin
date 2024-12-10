@@ -4,10 +4,6 @@ From mathcomp Require Import word_ssrZ.
 Require Import xseq.
 Require Import expr compiler_util ZArith.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.

@@ -4,10 +4,6 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice.
 Require Import utils gen_map.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------- *)
 Scheme Equality for Ascii.ascii.
 (* ascii_beq :  Ascii.ascii ->  Ascii.ascii -> bool *)

@@ -4,10 +4,6 @@ From mathcomp Require Import ssralg word word_ssrZ.
 Require Import utils strings word waes sem_type global oseq sopn.
 Import Utf8 Relation_Operators ZArith.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Require Export arch_decl.
 Require Import x86_decl.
 

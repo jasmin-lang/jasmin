@@ -15,10 +15,6 @@ syscall syscall_sem
 label
 arch_decl.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------- *)
 
 Module RegMap. Section Section.

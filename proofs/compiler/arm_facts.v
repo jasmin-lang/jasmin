@@ -6,10 +6,6 @@ Require Import
   word.
 Require Import arm_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Open Scope Z.
 
 Definition u32_to_bytes (w : u32) : u8 * u8 * u8 * u8 :=

@@ -38,10 +38,6 @@ Require
   merge_varmaps.
 
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* FIXME: expr exports wsize, which overrides this. *)
 Definition pp_s := compiler_util.pp_s.
 

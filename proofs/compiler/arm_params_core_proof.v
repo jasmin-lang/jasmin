@@ -21,10 +21,6 @@ Require Import
   arm_instr_decl
   arm_params_core.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module ARMFopn_coreP.
 
 Section Section.

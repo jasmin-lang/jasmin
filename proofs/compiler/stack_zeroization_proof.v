@@ -13,10 +13,6 @@ Require Import
 Require Import seq_extra compiler_util.
 Require Export stack_zeroization.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section WITH_PARAMS.
 
 Context

@@ -2,10 +2,6 @@ Require Import psem psem_facts.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance indirect_c.
 Section PROOF.
 

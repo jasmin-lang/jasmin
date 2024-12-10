@@ -2,10 +2,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 Require Import Utf8.
 Require Import expr label.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 
 
 Module Type EqType.

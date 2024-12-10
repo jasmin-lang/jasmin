@@ -7,10 +7,6 @@ Require Import
   wsize
   type.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------------- *)
 (* Pseudo operators. *)
 

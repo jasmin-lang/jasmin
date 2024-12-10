@@ -4,10 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import fexpr fexpr_sem.
 Require Import expr psem.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Lemma free_varsE e s :
   Sv.Equal (free_vars_rec s e) (Sv.union (free_vars e) s).
 Proof.

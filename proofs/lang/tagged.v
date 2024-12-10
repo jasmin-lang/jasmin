@@ -2,10 +2,6 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import PrimInt63 Sint63 utils gen_map.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module Type TaggedCore.
 
   Parameter t : Type.

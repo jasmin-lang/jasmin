@@ -21,10 +21,6 @@ Require Import
 Require Export asm_gen.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section ASM_EXTRA.
 
 #[local] Existing Instance withsubword.

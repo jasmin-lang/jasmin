@@ -6,10 +6,6 @@ Require Import
   type
   utils.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Unset Elimination Schemes.
 
 Variant syscall_t : Type := 

@@ -16,10 +16,6 @@ Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts.
 Import Memory.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 #[local] Opaque eval_jump.
 

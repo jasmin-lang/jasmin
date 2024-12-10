@@ -4,10 +4,6 @@ From mathcomp Require Import word_ssrZ.
 Require Import psem array_expansion compiler_util ZArith.
 Import Utf8 Lia.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Record wf_ai (m : t) (x:var) ai := {

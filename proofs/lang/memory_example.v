@@ -32,10 +32,6 @@ Import memory_model.
 Import GRing.Theory.
 Import ssrring.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope Z_scope.
 
 Lemma orX (a b: bool) (P: Prop) :

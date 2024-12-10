@@ -7,10 +7,6 @@ Require Import
   utils.
 Require Import arch_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------- *)
 (* Empty type for architectures that don't have one of the components of the
    declaration. *)

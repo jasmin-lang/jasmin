@@ -22,10 +22,6 @@ Require Import
   flag_combination
   shift_kind.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------- *)
 (* String representation of architecture components.
  * ToString is a class for types that have a string representation and a

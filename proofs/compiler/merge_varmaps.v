@@ -5,10 +5,6 @@ Require Import one_varmap.
 Import Utf8.
 Import expr compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (** This is a checker that it is safe to merge the local variables of a function and its caller.
 
 Variables that are overwritten by the callee are not live at the call sites.

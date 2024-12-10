@@ -6,10 +6,6 @@ Require Import strings word utils.
 Import Utf8 ZArith Lia.
 Require Import ssrring.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope Z_scope.
 
 (* LittleEndian *)

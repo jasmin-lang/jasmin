@@ -22,10 +22,6 @@ Require Import expr.
 Require constant_prop flag_combination.
 Require Import compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module E.
 
 Definition pass : string := "speculative execution lowering".

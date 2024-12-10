@@ -6,10 +6,6 @@ Require Import oseq expr_facts compiler_util label linear linear_sem.
 Require Import sem_params.
 Import word_ssrZ.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Require Import seq_extra unionfind tunneling unionfind_proof.

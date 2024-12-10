@@ -4,10 +4,6 @@ Require Import psem compiler_util.
 Require Export array_init.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section WITH_PARAMS.

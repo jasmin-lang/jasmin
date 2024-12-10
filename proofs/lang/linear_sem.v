@@ -10,10 +10,6 @@ Require Import psem fexpr_sem compiler_util label one_varmap linear sem_one_varm
 
 Import Memory.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 #[local] Existing Instance withsubword.

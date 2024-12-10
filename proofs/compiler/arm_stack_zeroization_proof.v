@@ -25,10 +25,6 @@ Require Import
   arm_params_common_proof.
 Require Export arm_stack_zeroization.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* FIXME: We should use the higher-level [eval_lsem] lemmas. *)
 Section FIXME.
 

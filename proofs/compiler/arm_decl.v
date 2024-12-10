@@ -14,9 +14,6 @@ Require Import
   arch_decl
   arch_utils.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
 
 (* ARM Cortex-M4 architecture
 

@@ -9,10 +9,6 @@ Require Import xseq.
 Require Export utils array gen_map type word memory_model.
 Import Utf8 ZArith Lia.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Variant arr_access := 
   | AAdirect
   | AAscale.

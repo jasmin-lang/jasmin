@@ -6,10 +6,6 @@ Require Import
   lowering
   psem.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 
 Section ESTATE_EQ_EXCEPT.
 

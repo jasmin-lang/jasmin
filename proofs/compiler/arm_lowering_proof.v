@@ -23,10 +23,6 @@ Require Import
   arm_instr_decl_lemmas
   arm_lowering.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Lemma chk_ws_regP {A ws a} {oa : option A} :
   (let%opt _ := chk_ws_reg ws in oa) = Some a
   -> ws = reg_size /\ oa = Some a.

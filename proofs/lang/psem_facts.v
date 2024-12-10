@@ -3,10 +3,6 @@ Require Import psem.
 Import Utf8 Lia.
 Import Memory low_memory.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section WITH_PARAMS.
 
 Context

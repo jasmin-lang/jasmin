@@ -2,10 +2,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
 Require Import global Utf8.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Variant label_kind :=
   | InternalLabel
   | ExternalLabel
