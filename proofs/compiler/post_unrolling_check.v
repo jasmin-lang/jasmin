@@ -37,7 +37,7 @@ Fixpoint check_no_for_loop_instr_r i : cexec unit :=
   match i with
   | (Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _)
     => ok tt
-  | (Cif _ c c' | Cwhile _ c _ c') =>
+  | (Cif _ c c' | Cwhile _ c _ _ c') =>
       check_no_for_loop_cmd check_no_for_loop_instr c >> check_no_for_loop_cmd check_no_for_loop_instr c'
   | Cfor _ _ _ => Error E.for_loop_remains
   end
