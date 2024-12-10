@@ -155,8 +155,8 @@ Qed.
  * -------------------------------------------------------------------------- *)
 
 Variant is_reflect (A:Type) (P:A -> pexpr) : pexpr -> option A -> Prop :=
- | Is_reflect_some : forall a, is_reflect P (P a) (Some a)
- | Is_reflect_none : forall e, is_reflect P e None.
+ | Is_reflect_some : forall a, is_reflect (P a) (Some a)
+ | Is_reflect_none : forall e, is_reflect e None.
 
 Lemma is_boolP e : is_reflect Pbool e (is_bool e).
 Proof. by case e=> *;constructor. Qed.
