@@ -93,70 +93,6 @@ let fmodule_name (fname: string) : M.modulename =
   String.capitalize_ascii mname
 
 
-(** Registers a new "from_key" *)
-let add_from idir from_map (name, filename) = 
-  let p = Path.of_string filename
-  in let ap = 
-    if Path.is_absolute p then p
-    else Path.concat idir p
-  in begin match Map.find name from_map with
-  | ap' -> 
-    if ap <> ap' then 
-      hierror ~loc:Lnone ~kind:"compilation" "cannot bind %s with %s it is already bound to %s"
-        name (Path.to_string ap) (Path.to_string ap')
-  | exception Not_found -> ()
-  end;
-  Map.add name ap from_map
-
-(** Loads & Parses a file
-  Please note:
-   - full modulename is always non-qualified
-                                                                        *)
-let load_fname from_map visited processed from loc fname
-  : ((M.modulename*Path.t)*Syntax.pprogram) option =
-  let modname = 
-    if !Glob_options.debug then Printf.eprintf "PROCESSING \"%s\" \n%!" fname;
-    fmodule_name fname
-  in let ploc = match loc with None -> Lnone | Some l -> Lone l
-  in let p = Path.of_string fname
-  in let current_dir =
-    match from with
-    | None -> snd (List.hd visited)
-    | Some name -> 
-        if Path.is_absolute p then 
-          hierror ~loc:ploc ~kind:"typing" 
-            "cannot use absolute path in 'from %s require \"%s\"'" 
-            (L.unloc name) fname;
-        try Map.find (L.unloc name) from_map 
-        with Not_found ->
-          raise (tyerror ~loc:(L.loc name)
-                   (string_error "unknown from-key name %s" (L.unloc name)))
-  in let p = if Path.is_absolute p then p else Path.concat current_dir p
-  in let p = Path.normalize_in_tree p
-  in let ap =
-       if Path.is_absolute p
-       then p
-       else (* ?deadcode? *) Path.concat (snd (BatList.last visited)) p
-  in let ap = Path.normalize_in_tree ap
-  in (if Option.is_some (List.find_opt (fun x -> modname=(fst x)) visited)
-      then
-        hierror ~loc:ploc ~kind:"dependencies"
-          "circular dependency detected on module \"%s\"\n(please note that MJazz does not support equal filenames)\n" 
-          modname);
-     if Ss.mem modname processed
-     then (if !Glob_options.debug
-           then Printf.eprintf "reusing AST for \"%s\" \n%!" modname;
-           None)
-     else
-       let ast = Parseio.parse_program ~name:(Path.to_string p)
-       in let ast =
-         try BatFile.with_file_in fname ast
-         with Sys_error(err) ->
-           let loc = Option.map_default (fun l -> Lone l) Lnone loc
-           in hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
-       in Some ((modname,ap), ast)
-
-
 (* -------------------------------------------------------------------- *)
 (*                      Environment                                     *)
 (* -------------------------------------------------------------------- *)
@@ -166,46 +102,65 @@ let load_fname from_map visited processed from loc fname
 module MEnv = struct
 
   type 'asm mod_info =
-    { mi_store : 'asm Env.store
+    { mi_store : 'asm Env.global_bindings
+    ; mi_params : P.pexpr M.mparamdecl list
     ; mi_decls : (P.pexpr, unit, 'asm) M.gmodule_item list
     }
 
   type 'asm menv =
-    { me_mpath : M.modulename list
-    ; me_store : 'asm Env.store
+    { me_store : 'asm Env.store
     ; me_decls : (P.pexpr, unit, 'asm) M.gmodule_item list list
     ; me_env : (M.modulename, 'asm mod_info) Map.t
-    ; me_visited : (M.modulename * Path.t) list
+    ; me_idir : Path.t	(* absolute initial path *)
+    ; me_from : (A.symbol, Path.t) Map.t
+    ; me_visiting : (M.modulename * Path.t) list (* on visit mods/files *)
+    ; me_processed : (M.modulename * Path.t) list (* topsort of dependencies *)
     }
 
-  let empty =
-    { me_mpath = [] 
-    ; me_store = Env.empty_store
-    ; me_decls = []
-    ; me_env = Map.empty
-    ; me_visited = []
-    }
+  let mpath menv =
+    List.map (fun x -> fst x) (fst menv.me_store.s_bindings)
 
-  let push_mpath menv mname =
-    { menv with me_mpath = mname::menv.me_mpath }
+  let empty froms =
+    let idir = Path.of_string (Sys.getcwd ())
+    in let add_from idir m (name, filename) = 
+         let p = Path.of_string filename in 
+         let ap = 
+           if Path.is_absolute p then p
+           else Path.concat idir p in  
+         begin match Map.find name m with
+           | ap' -> 
+             if ap <> ap' then 
+               hierror ~loc:Lnone ~kind:"compilation" "cannot bind %s with %s it is already bound to %s"
+                 name (Path.to_string ap) (Path.to_string ap')
+           | exception Not_found -> ()
+         end;
+         Map.add name ap m
+    in { me_store = Env.empty_store
+       ; me_decls = []
+       ; me_env = Map.empty
+       ; me_visiting = []
+       ; me_idir = idir
+       ; me_from = List.fold_left (add_from idir) Map.empty froms
+       ; me_processed = []
+       }
 
   let upd_store
       (f: 'asm Env.store -> 'asm Env.store)
       (menv: 'asm menv)
     = { menv with me_store = f menv.me_store }
 
-  let upd_storedecls
-      (f: 'asm Env.store -> 'asm Env.store * (unit, 'asm) P.pmod_item list)
-      (menv: 'asm menv)
-    : 'asm menv =
-    { menv with
-      me_store = fst (f menv.me_store)
-    ; me_decls = 
-        let topdecls = List.map (fun x->M.MdItem x) (snd (f menv.me_store))
-        in match menv.me_decls with
-        | top::l -> (topdecls @ top)::l
-        | [] -> assert false
-    }
+let upd_storedecls
+    (f: 'asm Env.store -> 'asm Env.store * (unit, 'asm) P.pmod_item list)
+    (menv: 'asm menv)
+  : 'asm menv =
+  { menv with
+    me_store = fst (f menv.me_store)
+  ; me_decls =
+      let topdecls = List.map (fun x->M.MdItem x) (snd (f menv.me_store))
+      in match menv.me_decls with
+      | top::l -> (topdecls @ top)::l
+      | [] -> assert false
+  }
 
 (*
   let push_open menv mname gb =
@@ -268,7 +223,15 @@ module MEnv = struct
     , plist
 
   let exit_module modname mparams (menv: 'asm menv): 'asm menv =
-    let menv = upd_store Env.exit_namespace menv
+    let modinfo =
+         { mi_store = snd (List.hd (fst menv.me_store.s_bindings))
+         ; mi_params = mparams
+         ; mi_decls = List.hd menv.me_decls
+         }
+    in let menv = { menv with
+                    me_env = Map.add modname modinfo menv.me_env 
+                  }
+    in let menv = upd_store Env.exit_namespace menv
     in let decls =
          match menv.me_decls with
          | top::l ->
@@ -284,7 +247,101 @@ module MEnv = struct
          | [] -> assert false (* ??? *)
     (* update module environment *)
     in { menv with me_decls = decls }
- 
+
+  let save_filectxt menv =
+    match menv.me_store.s_bindings with
+    | [], _ ->
+      Some (menv, None)
+    | [top], bot ->
+      let st = { menv.me_store with s_bindings = [], bot }
+      in let decls = menv.me_decls
+      in Some ( { menv with
+                  me_store = st
+                ; me_decls = [] 
+                }
+              , Some(top, decls)
+              )
+    | _ -> None
+
+  let enter_file menv from ploc fname =
+    let modname = 
+      if !Glob_options.debug then Printf.eprintf "PROCESSING \"%s\" \n%!" fname;
+      fmodule_name fname
+    in let loc = match ploc with None -> Lnone | Some l -> Lone l
+    in let p = Path.of_string fname
+    in let current_dir =
+         match from with
+         | None -> snd (List.hd menv.me_visiting)
+         | Some name -> 
+           if Path.is_absolute p then 
+             hierror ~loc:loc ~kind:"typing" 
+               "cannot use absolute path in 'from %s require \"%s\"'" 
+               (L.unloc name) fname;
+           try Map.find (L.unloc name) menv.me_from 
+           with Not_found ->
+             raise (tyerror ~loc:(L.loc name)
+                      (string_error "unknown from-key name %s" (L.unloc name)))
+    in let p = if Path.is_absolute p then p else Path.concat current_dir p
+    in let p = Path.normalize_in_tree p
+    in let ap =
+         if Path.is_absolute p
+         then p
+         else (* ?deadcode? *) Path.concat (snd (BatList.last menv.me_visiting)) p
+    in let ap = Path.normalize_in_tree ap
+    in (if Option.is_some (List.find_opt (fun x -> modname=(fst x)) menv.me_visiting)
+        then
+          hierror ~loc:loc ~kind:"dependencies"
+            "circular dependency detected on module \"%s\"\n(please note that MJazz does not support equal filenames)\n" 
+            modname);
+    match List.find_opt (fun x -> fst x = modname) menv.me_processed with
+    | Some _ ->
+      if !Glob_options.debug
+      then Printf.eprintf "reusing AST for \"%s\" \n%!" modname;
+      menv, None
+    | None -> 
+      let ast = Parseio.parse_program ~name:(Path.to_string ap)
+      in let ast =
+           try BatFile.with_file_in fname ast
+           with Sys_error(err) ->
+             let loc = Option.map_default (fun l -> Lone l) Lnone ploc
+             in hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
+      in match save_filectxt menv with
+      | None ->
+        rs_mjazzerror ~loc:(Option.default L._dummy ploc)
+          NonToplevelRequire
+      | Some (menv, saved) ->
+        let menv = { menv with 
+                     me_visiting = (modname,p) :: menv.me_visiting
+                   }
+        in menv, Some (ast,saved)
+
+  let exit_file menv saved =
+    let modname, p = List.hd menv.me_visiting
+    in let modinfo =
+         { mi_store = snd (List.hd (fst menv.me_store.s_bindings))
+         ; mi_params = []
+         ; mi_decls = List.hd menv.me_decls
+         }
+    in let menv = { menv with
+                    me_env = Map.add modname modinfo menv.me_env 
+                  }
+    in let st = Env.exit_namespace menv.me_store
+    in match saved with
+    | None ->
+      { menv with
+        me_store = st
+      ; me_processed = (modname,p) :: menv.me_processed
+      ; me_visiting = List.tl menv.me_visiting
+      }
+    | Some (top,decls) ->
+      { menv with
+        me_store = { st with s_bindings = [top], snd st.s_bindings }
+      ; me_decls = decls @ menv.me_decls
+      ; me_processed = (modname,p) :: menv.me_processed
+      ; me_visiting = List.tl menv.me_visiting
+      }
+
+
 end
 
 
@@ -312,7 +369,7 @@ let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
     in let menv = MEnv.exit_module (L.unloc mname) mparams menv
     in menv
   | S.PModuleApp (mname, modfun, margs) ->
-    MEnv.empty
+    MEnv.empty []
     (* MdModApp modapp *)
   | S.POpen (mname, None) ->
     begin match Map.find (L.unloc mname) menv.me_env with
@@ -325,13 +382,7 @@ let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   | S.POpen (mname, qual) ->
     rs_mjazzerror ~loc:(L.loc mname) MJazzNYS
   | S.Prequire (from, fs) ->
-    begin match menv.me_mpath with
-      | [modname] ->
-        MEnv.empty
-        (* load & parse & process *)
-      | _ ->
-        rs_mjazzerror ~loc:(L.loc mitem) NonToplevelRequire
-    end
+    List.fold_left (mt_file_loc arch_info from) menv fs
   | S.PNamespace (ns, _) ->
     rs_mjazzerror ~loc:(L.loc ns) MJazzIncompatibleNS
   | S.Pexec pf ->
@@ -347,12 +398,16 @@ let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
     MEnv.upd_storedecls (tt_fundef arch_info (L.loc mitem) pf) menv
 
 and mt_file_loc arch_info from menv fname =
-  fst (mt_file arch_info menv from (Some (L.loc fname)) (L.unloc fname))
+  mt_file arch_info menv from (Some (L.loc fname)) (L.unloc fname)
 
 and mt_file arch_info menv from loc fname =
-  MEnv.empty, []
+  match MEnv.enter_file menv from loc fname with
+  | menv, None -> menv
+  | menv, Some (ast,saved) ->
+    let menv = List.fold_left (mt_item arch_info) menv ast
+    in MEnv.exit_file menv saved
 
-let tt_mprogram arch_info menv (fname: string) =
+let mt_mprogram arch_info menv (fname: string) =
   let menv = mt_file arch_info menv None None fname
   in menv
 
@@ -363,14 +418,15 @@ let tt_mprogram arch_info menv (fname: string) =
 (* -------------------------------------------------------------------- *)
 
 let parse_mfile arch_info idirs fname =
-  let menv, mprog = [], []
-  in menv, mprog
+  let menv = MEnv.empty idirs
+  in mt_mprogram arch_info menv fname
 
-let instantiate_mprog menv mprog =
+let instantiate_mprog menv =
   []
 
 (** Parses (modular) program and resolves instantiation *)
 let parse_file arch_info idirs fname =
-  let menv, mprog = [], []
-  in menv, [], instantiate_mprog menv mprog
+  let menv = parse_mfile arch_info idirs fname
+  in let deps = List.map (fun x->snd x) menv.me_processed
+  in deps, [], instantiate_mprog menv
 
