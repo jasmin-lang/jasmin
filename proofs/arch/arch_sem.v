@@ -608,6 +608,6 @@ Variant asmsem_exportcall
       -> (forall r,
            r \in callee_saved
            -> preserved_register r m m')
-      -> asmsem_exportcall p fn m m'.
+      -> asmsem_exportcall.
 
 End SEM.

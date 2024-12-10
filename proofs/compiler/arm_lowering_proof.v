@@ -707,8 +707,8 @@ Qed.
 Section IS_MUL.
 
 Variant is_mul_spec (e: pexpr) : option (pexpr * pexpr) -> Type :=
-  | IsMulSome x y : e = Papp2 (Omul (Op_w U32)) x y -> is_mul_spec e (Some (x, y))
-  | IsMulNone : is_mul_spec e None.
+  | IsMulSome x y : e = Papp2 (Omul (Op_w U32)) x y -> is_mul_spec (Some (x, y))
+  | IsMulNone : is_mul_spec None.
 
 #[local] Hint Constructors is_mul_spec : core.
 

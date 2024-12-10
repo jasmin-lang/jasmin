@@ -111,15 +111,15 @@ Context
   Hypothesis Hp : makereference_prog fresh_id p = ok p'.
 
   Inductive sem_pis ii : estate -> seq pseudo_instr -> values -> estate -> Prop :=
-   | SPI_nil : forall s, sem_pis ii s [::] [::] s
+   | SPI_nil : forall s, sem_pis s [::] [::] s
    | SPI_lv  : forall s1 s2 s3 lv pis v vs,
      write_lval true (p_globs p') lv v s1 = ok s2 ->
-     sem_pis ii s2 pis vs s3 ->
-     sem_pis ii s1 (PI_lv lv :: pis) (v::vs) s3
+     sem_pis s2 pis vs s3 ->
+     sem_pis s1 (PI_lv lv :: pis) (v::vs) s3
    | SPI_i : forall s1 s2 s3 lv ty y pis vs,
      sem_I p' ev s1 (mk_ep_i ii lv ty y) s2 ->
-     sem_pis ii s2 pis vs s3 ->
-     sem_pis ii s1 (PI_i lv ty y :: pis) vs s3.
+     sem_pis s2 pis vs s3 ->
+     sem_pis s1 (PI_i lv ty y :: pis) vs s3.
 
   Lemma sem_pisE ii s1 pis vs s3 :
     sem_pis ii s1 pis vs s3 →
