@@ -5,10 +5,6 @@ Require Export type expr sem_type.
 Require Export flag_combination.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
   sem_t t.1 → sem_t t.2 :=

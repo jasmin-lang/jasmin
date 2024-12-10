@@ -7,10 +7,6 @@ Export one_varmap.
 Import psem var.
 Import low_memory.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Unset Elimination Schemes.
 
 (** Semantics of programs in which there is a single scope for local variables.

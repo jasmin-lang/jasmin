@@ -11,10 +11,6 @@ Require Import expr fexpr compiler_util label constant_prop.
 Require Export linear linear_util.
 Import word_ssrZ.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module E.

@@ -1,9 +1,5 @@
 Require Import expr.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 
 (* We distinguish 5 different conditions that can potentially be expressed with
    flags, these are [combine_flags_core], but provide the user with these and

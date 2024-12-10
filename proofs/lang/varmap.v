@@ -3,10 +3,6 @@ Require Import ZArith Setoid Morphisms.
 Require Export var type values.
 Import Utf8 ssrbool.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* ----------------------------------------------------------- *)
 Section Section.
 

@@ -3,10 +3,6 @@ Require Import FMaps FMapAVL FSetAVL.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import utils.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Lemma InAE (A: Type) (eqA: relation A) a m :
   InA eqA a m ->
   match m with

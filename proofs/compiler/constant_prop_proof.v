@@ -6,10 +6,6 @@ Require Export constant_prop.
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
 Import RelationPairs.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Local Notation cpm := (Mvar.t const_v).

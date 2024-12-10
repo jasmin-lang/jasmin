@@ -7,10 +7,6 @@ Import Utf8.
 Import oseq.
 Require Import flag_combination.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 

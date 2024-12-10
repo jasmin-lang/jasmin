@@ -11,10 +11,6 @@ Require Import
   x86_instr_decl.
 Require Import compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section STACK_ZEROIZATION.
 
 Context {atoI : arch_toIdent}.

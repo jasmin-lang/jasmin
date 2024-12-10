@@ -2,10 +2,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr compiler_util ZArith.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.

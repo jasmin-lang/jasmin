@@ -3,10 +3,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import ZArith psem compiler_util.
 Require Export unrolling.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section PROOF.

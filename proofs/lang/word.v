@@ -10,10 +10,6 @@ Require Export wsize.
 Import Utf8 Lia.
 Import word_ssrZ.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Import GRing.Theory Num.Theory Order.POrderTheory Order.TotalTheory.
 Import ssrnat.
 

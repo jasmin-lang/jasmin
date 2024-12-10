@@ -7,10 +7,6 @@ Require Export lea.
 Import Utf8.
 Import ssrring.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 

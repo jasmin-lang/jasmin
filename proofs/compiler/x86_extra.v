@@ -17,10 +17,6 @@ Require Import
 Require Export arch_extra.
 Import sopn.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module E.
 
 Definition pass_name := "asmgen"%string.

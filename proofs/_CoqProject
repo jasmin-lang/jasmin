@@ -1,4 +1,7 @@
 -arg "-set 'Uniform Inductive Parameters'"
+-arg "-set 'Implicit Arguments'"
+-arg "-unset 'Strict Implicit'"
+-arg "-unset 'Printing Implicit Defensive'"
 -arg "-w -notation-overridden"
 -arg "-w -extraction-reserved-identifier"
 -arg "-w -extraction-opaque-accessed"

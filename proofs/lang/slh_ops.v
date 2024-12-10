@@ -8,10 +8,6 @@ Require Import
   word
   wsize.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* Speculative execution operators.
    These are added to the base language twice:
    - as "toplevel" operators (to be used in [sopn]); and

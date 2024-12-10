@@ -4,10 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import xseq strings utils var type values sopn expr fexpr arch_decl.
 Require Import compiler_util.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section ToIdent.
 
 Context (t:stype) (T:Type) {tS: ToString t T}.

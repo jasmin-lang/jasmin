@@ -7,10 +7,6 @@ Require Import xseq.
 Require Export warray_ word sem_type.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* ----------------------------------------------------------- *)
 
 Definition is_undef_t (t: stype) := [|| t == sbool, t == sint | t == sword8].

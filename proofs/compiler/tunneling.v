@@ -5,10 +5,6 @@ Require Import Utf8.
 Require Import expr compiler_util linear label.
 Require Import seq_extra unionfind.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 
 
 Module Import E.

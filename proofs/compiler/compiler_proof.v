@@ -42,10 +42,6 @@ Require Import
 Import Utf8.
 Import wsize.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 
 Section PROOF.

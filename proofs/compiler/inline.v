@@ -3,10 +3,6 @@ Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import expr compiler_util allocation.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.

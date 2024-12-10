@@ -4,10 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 (* ------- *) (* - *) Import PosSet.
 Import Utf8 xseq.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section WITH_PARAMS.
 
 Context

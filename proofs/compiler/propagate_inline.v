@@ -6,10 +6,6 @@ Require Import
   flag_combination.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module Import E.
 
   Definition pass : string := "propagate inline".

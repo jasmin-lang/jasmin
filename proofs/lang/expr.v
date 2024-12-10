@@ -8,10 +8,6 @@ Require Export strings word utils type ident var global sem_type slh_ops sopn sy
 Require Import xseq.
 Import Utf8 ZArith.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Unset Elimination Schemes.
 
 (* ** Operators

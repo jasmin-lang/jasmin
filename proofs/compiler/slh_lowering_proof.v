@@ -11,10 +11,6 @@ Require
   expr_facts
   constant_prop_proof.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section CONST_PROP.
 
   Import constant_prop_proof.

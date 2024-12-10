@@ -16,10 +16,6 @@ Import Utf8 Lia.
 Import Order.POrderTheory Order.TotalTheory.
 Import ssrring.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section PROOF.
