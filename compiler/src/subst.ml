@@ -198,8 +198,9 @@ let isubst_ty ?loc = function
 
 let isubst_prog glob prog =
 
-  let isubst_v subst =
-    let aux v0 =
+  let subst = ref Mpv.empty in
+
+  let isubst_v v0 =
       let k = v0.gs in
       let v = v0.gv in
       let v_ = v.L.pl_desc in
@@ -220,40 +221,32 @@ let isubst_prog glob prog =
         let x = {gv = x; gs = k} in
         Pvar x
       | _      -> e in
-    aux in 
 
-  let subst = ref Mpv.empty in
-  
-  let isubst_glob (x, gd) = 
-    let subst_v = isubst_v subst in
-    let x = 
-      let x = 
-        gsubst_gvar subst_v {gv = L.mk_loc L._dummy x; gs = Expr.Sglob} in
+  let isubst_glob (x, gd) =
+    let x =
+      let x =
+        gsubst_gvar isubst_v {gv = L.mk_loc L._dummy x; gs = Expr.Sglob} in
       assert (not (is_gkvar x)); L.unloc x.gv in
 
-    let gd = 
+    let gd =
       match gd with
-      | GEword e -> GEword (gsubst_e isubst_len subst_v e)
-      | GEarray es -> GEarray (List.map (gsubst_e isubst_len subst_v) es) in
+      | GEword e -> GEword (gsubst_e isubst_len isubst_v e)
+      | GEarray es -> GEarray (List.map (gsubst_e isubst_len isubst_v) es) in
     x, gd in
   let glob = List.map isubst_glob glob in
 
-  let subst = !subst in
-
-  let isubst_item fc = 
-    let subst = ref subst in
-    let subst_v = isubst_v subst in
+  let isubst_item fc =
     let dov v =
-      L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+      L.unloc (gsubst_vdest isubst_v (L.mk_loc L._dummy v)) in
     (* Order matters so that the clearest error is triggered first.
        We use let-in to enforce the right order *)
     let f_args = List.map dov fc.f_args in
-    let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
+    let f_ret  = List.map (gsubst_vdest isubst_v) fc.f_ret in
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
         f_args;
-        f_body = gsubst_c isubst_len subst_v fc.f_body;
+        f_body = gsubst_c isubst_len isubst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;
         f_ret;
       } in
