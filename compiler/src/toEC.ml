@@ -377,6 +377,8 @@ type env = {
     array_theories: Sarraytheory.t ref;
     (* aux variables: intermediate in extraction of jasmin assignments *)
     auxv  : string list Mty.t ref;
+    (* counter for aux variables *)
+    count : int Mty.t ref;
     randombytes : Sint.t ref;
     nesting: int;
   }
@@ -449,6 +451,7 @@ let empty_env arch pd model array_theories randombytes =
     funs = Mf.empty;
     array_theories;
     auxv  = ref Mty.empty;
+    count = ref Mty.empty;
     randombytes;
     nesting = 0;
   }
@@ -465,22 +468,39 @@ let get_funtype env f = snd (Mf.find f env.funs)
 
 let get_funname env f = fst (Mf.find f env.funs) 
 
-let get_aux env prefix tys =
-  let tbl = Hashtbl.create 10 in
-  let do1 ty = 
-    let n_loc = try Hashtbl.find tbl ty with Not_found -> 0 in
-    Hashtbl.replace tbl ty (n_loc+1);
+let get_aux ?(fresh = false) env prefix tys =
+  let do1 ty =
+    let i = try Mty.find (prefix, ty) !(env.count) with Not_found -> 0 in
     let l = try Mty.find (prefix, ty) !(env.auxv) with Not_found -> [] in
-    assert (n_loc <= List.length l);
-    if n_loc < List.length l then
-      List.nth l n_loc
+    if (not fresh) && 0 < List.length l then
+      List.last l
     else
-      let aux = create_name env prefix in
-      env.auxv := Mty.add (prefix, ty) (aux::l) !(env.auxv);
-      env.alls := Ss.add aux !(env.alls);
-      aux
+      begin
+        if i < List.length l then
+          begin
+            env.count := Mty.add (prefix,ty) (i+1) !(env.count);
+            List.nth l i
+          end
+        else
+          let aux = create_name env prefix in
+          env.auxv := Mty.add (prefix, ty) (l @ [aux]) !(env.auxv);
+          env.alls := Ss.add aux !(env.alls);
+          env.count := Mty.add (prefix, ty) (i+1) !(env.count);
+          aux
+      end
   in
   List.map do1 tys
+
+let pop_aux env prefix ty =
+  let i = try Mty.find (prefix, ty) !(env.count) with Not_found -> 0 in
+  if 0 < i then
+    env.count := Mty.add (prefix,ty) (i-1) !(env.count)
+
+let reset_aux env prefix tys =
+  let do1 ty =
+    env.count:= Mty.add (prefix, ty) 0 !(env.count)
+  in
+  List.iter do1 tys
 
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -1543,8 +1563,10 @@ struct
   let ec_assgn_f env lvs etyso etysi f =
     let stmt = if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
       [f (ec_lvals env lvs)]
-    else
-      let auxs = get_aux env "aux" (List.map (toec_ty env) etysi) in
+      else
+      let ec_typs = (List.map (toec_ty env) etysi) in
+      reset_aux env "aux" ec_typs;
+      let auxs = get_aux ~fresh:true env "aux" ec_typs in
       let s2lv s = LvIdent [s] in
       let call = f (List.map s2lv auxs) in
       let ec_auxs = List.map ec_ident auxs in
@@ -1632,7 +1654,8 @@ struct
               (* Can be generalized to the case where e2 is not modified by c and i *)
               | Pconst _ -> ([], toec_expr env e2)
               | _ -> 
-                  let aux = List.hd (get_aux env "aux" [toec_ty env tint]) in
+                  let aux = get_aux ~fresh:true env "inc" ["int"] in
+                  let aux = List.hd aux in
                   let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
                   let ec_e2 = ec_ident aux in
                   [init], ec_e2 in
@@ -1646,7 +1669,8 @@ struct
           let i_upd = [ESasgn (lv_i, Eop2 (i_upd_op, Eident ec_i, Econst (Z.of_int 1)))] in
           let c env = toec_cmd asmOp env c in
           let cond = Eop2 (Infix "<", ec_i1, ec_i2) in
-          ec_leaking_for env c e1 e2 init cond i_upd
+          let s = ec_leaking_for env c e1 e2 init cond i_upd in
+          pop_aux env "inc" "int"; s
 
   (* ------------------------------------------------------------------- *)
   (* Function extraction *)
@@ -1655,14 +1679,13 @@ struct
       let f = { f with f_body = remove_for f.f_body } in
       let locals = Sv.elements (locals f) in
       let env = List.fold_left add_var env (f.f_args @ locals) in
-      (* Limit the scope of changes to env.auxv and env.alls to the current function. *)
-      let env = { env with auxv = ref !(env.auxv); alls = ref !(env.alls) }
-      in
+      (* Limit the scope of changes for aux variables to the current function. *)
+      let env ={ env with count = ref Mty.empty; auxv = ref Mty.empty} in
       let stmts = (ec_fun_leak_init env) @ (toec_cmd asmOp env f.f_body) in
       let ec_locals =
-          let locs_ty ((_, ty), vars) = List.map (fun v -> (v, ty)) vars in
-          (List.flatten (List.map locs_ty (Mty.bindings !(env.auxv)))) @
-          (List.map (var2ec_var env) locals)
+        let locs_ty ((_, ty), vars) = List.map (fun v -> (v, ty)) vars in
+        (List.flatten (List.map locs_ty (Mty.bindings !(env.auxv)))) @
+        (List.map (var2ec_var env) locals)
       in
       let aux_locals_init = locals
           |> List.filter (fun x -> match x.v_ty with Arr _ -> true | _ -> false) 
