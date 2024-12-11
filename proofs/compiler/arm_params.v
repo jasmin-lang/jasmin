@@ -71,11 +71,73 @@ Definition arm_immediate (x: var_i) z :=
 Definition arm_swap t (x y z w : var_i) :=
   Copn [:: Lvar x; Lvar y] t (Oasm (ExtOp (Oarm_swap reg_size))) [:: Plvar z; Plvar w].
 
+Definition smart_mem_mn
+  (mn_large : Z -> arm_extra_op)
+  (eoff : pexpr) :
+  option sopn :=
+  let%opt woff := expr.is_wconst reg_size eoff in
+  let off := wsigned woff in
+  let%opt _ := oassert (~~ is_mem_immediate off) in
+  Some (Oasm (ExtOp (mn_large off))).
+
+Definition split_mem_opn_match_lvs lvs :=
+  if lvs is Lmem al ws vbase eoff :: lvs'
+  then Some (al, ws, vbase, eoff, lvs')
+  else None.
+
+Definition split_mem_opn_match_es es :=
+  if es is Pload al ws vbase eoff :: es'
+  then Some (al, ws, vbase, eoff, es')
+  else None.
+
+Definition get_eop_store
+  (op : sopn) (ws : wsize) : option (wsize -> Z -> arm_extra_op) :=
+  if op is Oasm (BaseOp (None, ARM_op mn opts))
+  then
+    let%opt _ := oassert (store_mn_of_wsize ws == Some mn) in
+    let%opt _ := oassert [&& ~~ set_flags opts & has_shift opts == None ] in
+    Some (if is_conditional opts then Olarge_store_cc else Olarge_store)
+  else None.
+
+Definition get_eop_load
+  (op : sopn) (ws : wsize) : option (wsize -> Z -> arm_extra_op) :=
+  if op is Oasm (BaseOp (None, ARM_op mn opts))
+  then
+    let%opt _ := oassert (uload_mn_of_wsize ws == Some mn) in
+    let%opt _ := oassert [&& ~~ set_flags opts & has_shift opts == None ] in
+    Some (if is_conditional opts then Olarge_load_cc else Olarge_load)
+  else None.
+
+Definition split_mem_opn
+  (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
+  let lnone := Lnone dummy_var_info (sword reg_size) in
+  if split_mem_opn_match_lvs lvs is Some (_, ws, _, eoff, _)
+  then
+    let%opt eop := get_eop_store op ws in
+    let%opt op := smart_mem_mn (eop ws) eoff in
+    Some (lnone :: lvs, op, es)
+  else
+    if split_mem_opn_match_es es is Some (_, ws, _, eoff, _)
+    then
+      let%opt eop := get_eop_load op ws in
+      let%opt op := smart_mem_mn (eop ws) eoff in
+      Some (lnone :: lvs, op, es)
+    else
+      None.
+
+Definition arm_mem_opn lvs tag op es :=
+  let '(lvs, op, es, warn) :=
+    if split_mem_opn lvs op es is Some (lvs', op', es')
+    then (lvs', op', es', true)
+    else (lvs, op, es, false)
+  in (Copn lvs tag op es, warn).
+
 Definition arm_saparams : stack_alloc_params :=
   {|
     sap_mov_ofs := arm_mov_ofs;
     sap_immediate := arm_immediate;
     sap_swap := arm_swap;
+    sap_mem_opn := arm_mem_opn;
   |}.
 
 (* ------------------------------------------------------------------------ *)

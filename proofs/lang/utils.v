@@ -555,6 +555,8 @@ Section FOLD2.
 
 End FOLD2.
 
+Arguments size_fold2 {_ _ _ _ _ _ _ _ _ _}.
+
 (* ---------------------------------------------------------------- *)
 (* ALLM *)
 Section ALLM.

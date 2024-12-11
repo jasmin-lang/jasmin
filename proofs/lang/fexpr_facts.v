@@ -1,6 +1,6 @@
 From Coq Require Import Utf8.
 Require Import oseq.
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import fexpr fexpr_sem.
 Require Import expr psem.
 
@@ -41,6 +41,20 @@ Context
   {spp : SemPexprParams}
   (wdb : bool)
   (gd : glob_decls).
+
+Lemma is_fconstP e z :
+  is_fconst e = Some z <-> e = Fconst z.
+Proof. case: e => *; by split=> // -[->]. Qed.
+
+Lemma is_fwconstP vm sz e w :
+  is_fwconst sz e = Some w ->
+  Let x := sem_fexpr vm e in to_word sz x = ok w.
+Proof.
+  case: e => // -[] //= ws e.
+  case: ifP => // hws.
+  apply: obindP => z /is_fconstP ? [?]; subst e w.
+  by rewrite /= truncate_word_le // zero_extend_wrepr.
+Qed.
 
 Lemma fexpr_of_pexprP s e f v :
   fexpr_of_pexpr e = Some f →
@@ -120,6 +134,27 @@ Proof.
   rewrite (free_vars_recP heq) (get_var_eq_on _ _ heq) // free_varsE; SvD.fsetdec.
 Qed.
 
+Lemma sem_fexpr_eq_ex vm1 vm2 e xs :
+  disjoint xs (free_vars e) ->
+  vm1 =[\ xs ] vm2 ->
+  sem_fexpr vm1 e = sem_fexpr vm2 e.
+Proof. move=> /eq_ex_disjoint_eq_on /[apply]. exact: free_varsP. Qed.
+
+Lemma sem_rexpr_eq_ex vm1 vm2 m e xs :
+  disjoint xs (free_vars_r e) ->
+  vm1 =[\ xs ] vm2 ->
+  sem_rexpr m vm1 e = sem_rexpr m vm2 e.
+Proof. move=> /eq_ex_disjoint_eq_on /[apply]. exact: free_vars_rP. Qed.
+
+Lemma sem_rexprs_eq_ex s vm es xs :
+  disjoint xs (free_vars_rs es) ->
+  vm =[\ xs ] evm s ->
+  sem_rexprs (with_vm s vm) es = sem_rexprs s es.
+Proof.
+  elim: es => [// | e es hind] /= =>
+    /disjoint_sym /disjoint_union [/disjoint_sym he /disjoint_sym hes] hvm.
+  by rewrite (sem_rexpr_eq_ex _ he hvm) (hind hes hvm).
+Qed.
 
 Lemma write_lexpr_stack_stable e v s1 s2 :
   write_lexpr e v s1 = ok s2 ->
@@ -160,6 +195,33 @@ Proof.
   + by move=> [<-].
   t_xrbindP=> s1' /write_lexpr_validw hvalid1 /ih hvalid2.
   by move=> ???; rewrite hvalid1 hvalid2.
+Qed.
+
+Lemma eq_fexpr_sem_fexpr e0 e1 vm :
+  eq_fexpr e0 e1 ->
+  sem_fexpr vm e0 = sem_fexpr vm e1.
+Proof.
+  elim: e0 e1 =>
+    [z0 | x0 | op e0 h | op e00 h0 e01 h1 | e00 h0 e01 h1 e02 h2] //= [^e1] //=.
+  - by move=> /eqP ->.
+  - by move=> /eqP ->.
+  - by move=> /andP [] /eqP -> /h ->.
+  - by move=> /and3P [] /eqP -> /h0 -> /h1 ->.
+  by move=> /and3P [] /h0 -> /h1 -> /h2 ->.
+Qed.
+
+Lemma eq_fexpr_free_vars e0 e1 :
+  eq_fexpr e0 e1 ->
+  Sv.Equal (free_vars e0) (free_vars e1).
+Proof.
+  rewrite /free_vars.
+  elim: e0 e1 =>
+    [z0 | x0 | ? e0 h | ? e00 h0 e01 h1 | e00 h0 e01 h1 e02 h2] //=
+    [z1 | x1 | ? e1 | ? e10 e11 | e10 e11 e12] //=.
+  - by move=> /eqP ->.
+  - by move=> /andP [] _ /h ->.
+  - by rewrite !free_varsE /free_vars => /and3P [] _ /h0 -> /h1 ->.
+  by rewrite !free_varsE /free_vars => /and3P [] /h0 -> /h1 -> /h2 ->.
 Qed.
 
 End Section.

@@ -1,4 +1,5 @@
-From mathcomp Require Import ssreflect ssrfun ssrbool.
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
+From mathcomp Require Import word_ssrZ.
 From Coq Require Import Utf8.
 Require Import expr.
 
@@ -13,6 +14,20 @@ Inductive fexpr :=
 (* --------------------------------------------------------------------------- *)
 Definition fconst (ws: wsize) (z: Z) : fexpr :=
   Fapp1 (Oword_of_int ws) (Fconst z).
+
+Definition is_fconst (e : fexpr) : option Z :=
+  if e is Fconst z then Some z else None.
+
+Definition is_fwconst (ws : wsize) (e : fexpr) : option (word ws) :=
+  match e with
+  | Fapp1 (Oword_of_int ws') e =>
+      if (ws <= ws')%CMP
+      then
+        let%opt n := is_fconst e in
+        Some (wrepr ws n)
+      else None
+  | _ => None
+  end.
 
 (* --------------------------------------------------------------------------- *)
 (* Right-expressions *)
@@ -77,6 +92,21 @@ Definition free_vars_r (r:rexpr) : Sv.t :=
   | Rexpr e    => free_vars e
   end.
 
+Definition free_vars_rs : seq rexpr -> Sv.t :=
+  foldr (fun e acc => Sv.union (free_vars_r e) acc) Sv.empty.
+
 Definition rvar (x : var_i) : rexpr := Rexpr (Fvar x).
 Definition rconst (ws : wsize) (z : Z) : rexpr := Rexpr (fconst ws z).
 Definition lstore {_ : PointerData} al ws x z := Store al ws x (fconst Uptr z).
+
+Fixpoint eq_fexpr (e0 e1 : fexpr) : bool :=
+  match e0, e1 with
+  | Fconst n0, Fconst n1 => n0 == n1
+  | Fvar x0, Fvar x1 => v_var x0 == v_var x1
+  | Fapp1 op0 e0, Fapp1 op1 e1 => [&& op0 == op1 & eq_fexpr e0 e1 ]
+  | Fapp2 op0 e00 e01, Fapp2 op1 e10 e11 =>
+      [&& op0 == op1, eq_fexpr e00 e10 & eq_fexpr e01 e11 ]
+  | Fif e00 e01 e02, Fif e10 e11 e12 =>
+      [&& eq_fexpr e00 e10, eq_fexpr e01 e11 & eq_fexpr e02 e12 ]
+  | _, _ => false
+  end.

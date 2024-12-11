@@ -81,8 +81,14 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build expected_wencoding expected_wencoding_eq_axiom.
 
-Definition is_w12_encoding (z : Z) : bool := (z <? Z.pow 2 12)%Z.
-Definition is_w16_encoding (z : Z) : bool := (z <? Z.pow 2 16)%Z.
+Definition is_w12_encoding (z : Z) : bool := [&& 0 <=? z & z <? Z.pow 2 12 ]%Z.
+Definition is_w16_encoding (z : Z) : bool := [&& 0 <=? z & z <? Z.pow 2 16 ]%Z.
+
+(* The LDR/STR families can take 12-bit unsigned immediates or 8-bit signed
+   immediates. *)
+Definition is_mem_immediate (z : Z) : bool :=
+  let u := (if z <? 0 then z + wbase U32 else z)%Z in
+  is_w12_encoding u || [&& -256 <? z & z <? 256 ]%Z.
 
 Definition check_wencoding we z :=
   match we with
@@ -105,4 +111,3 @@ Definition string_of_ew ew :=
   | W12_encoding => "W12"%string
   | W16_encoding => "W16"%string
   end.
-

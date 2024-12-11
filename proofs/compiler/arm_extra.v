@@ -22,6 +22,12 @@ Variant arm_extra_op : Type :=
   | Oarm_add_large_imm
   | Osmart_li of wsize    (* Load an immediate to a register. *)
   | Osmart_li_cc of wsize (* Conditional [Osmart_li]. *)
+  | Olarge_load of wsize & Z (* Same as LDR with an immediate offset, but the
+                                offset is loaded to a register with
+                                [Osmart_li]. *)
+  | Olarge_store of wsize & Z
+  | Olarge_load_cc of wsize & Z
+  | Olarge_store_cc of wsize & Z
 .
 
 Scheme Equality for arm_extra_op.
@@ -42,7 +48,11 @@ Instance eqTC_arm_extra_op : eqTypeC arm_extra_op :=
 
 (* Extra instructions descriptions. *)
 
-Local Notation E n := (sopn.ADExplicit n None).
+#[local]
+Notation E := (fun n => sopn.ADExplicit n None).
+
+#[local]
+Notation Ea := (fun n => sopn.ADExplicit n None).
 
 (* [conflicts] ensures that the returned register is distinct from the first
    argument. *)
@@ -81,12 +91,98 @@ Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
     (fun x b y => if b then x else y)
     true.
 
+Definition large_load_instr (ws : wsize) (off : Z) : instruction_desc :=
+  let f x := (wrepr reg_size off, zero_extend reg_size x) in
+  let semi x := ok (f x) in
+  let tin := [:: sword ws ] in
+  {|
+    str := pp_sz "large_load" ws;
+    tin := tin;
+    i_in := [:: E 0 ];
+    tout := [:: sreg; sreg ];
+    i_out := [:: E 1; E 2 ];
+    conflicts := [:: (APout 0, APin 0) ];
+    semi := semi;
+    semu := @values.vuincl_app_sopn_v tin [:: sreg; sreg ] semi refl_equal;
+    i_safe := [::];
+    i_valid := true;
+    i_safe_wf := refl_equal;
+    i_semi_errty :=  fun _ => sem_prod_ok_error (tin := tin) f _;
+    i_semi_safe := fun _ => values.sem_prod_ok_safe (tin := tin) f;
+  |}.
+
+Definition large_load_instr_cc (ws : wsize) (off : Z) : instruction_desc :=
+  let woff := wrepr reg_size off in
+  let f x b old_x := (woff, if b then zero_extend reg_size x else old_x) in
+  let semi x b o := ok (f x b o) in
+  let tin := [:: sword ws; sbool; sreg ] in
+  {|
+    str := pp_sz "large_load_cc" ws;
+    tin := [:: sword ws; sbool; sreg ];
+    i_in := [:: E 0; Ea 3; E 2 ];
+    tout := [:: sreg; sreg ];
+    i_out := [:: E 1; E 2 ];
+    conflicts := [:: (APout 0, APin 0) ];
+    semi := semi;
+    semu := @values.vuincl_app_sopn_v tin [:: sreg; sreg ] semi refl_equal;
+    i_safe := [::];
+    i_valid := true;
+    i_safe_wf := refl_equal;
+    i_semi_errty :=  fun _ => sem_prod_ok_error (tin := tin) f _;
+    i_semi_safe := fun _ => values.sem_prod_ok_safe (tin := tin) f;
+  |}.
+
+Definition large_store_instr (ws : wsize) (off : Z) : instruction_desc :=
+  let f x := (wrepr reg_size off, zero_extend ws x) in
+  let semi x := ok (f x) in
+  let tin := [:: sword ws ] in
+  {|
+    str := pp_sz "large_store" ws;
+    tin := [:: sword ws ];
+    i_in := [:: E 0 ];
+    tout := [:: sreg; sword ws ];
+    i_out := [:: E 1; E 2 ];
+    conflicts := [:: (APout 0, APin 0) ];
+    semi := semi;
+    semu := @values.vuincl_app_sopn_v tin [:: sreg; sword ws ] semi refl_equal;
+    i_safe := [::];
+    i_valid := true;
+    i_safe_wf := refl_equal;
+    i_semi_errty :=  fun _ => sem_prod_ok_error (tin := tin) f _;
+    i_semi_safe := fun _ => values.sem_prod_ok_safe (tin := tin) f;
+  |}.
+
+Definition large_store_instr_cc (ws : wsize) (off : Z) : instruction_desc :=
+  let woff := wrepr reg_size off in
+  let f x b old_x := (woff, if b then zero_extend ws x else old_x) in
+  let semi x b o := ok (f x b o) in
+  let tin := [:: sword ws; sbool; sword ws ] in
+  {|
+    str := pp_sz "large_store_cc" ws;
+    tin := tin;
+    i_in := [:: E 0; Ea 3; E 2 ];
+    tout := [:: sreg; sword ws ];
+    i_out := [:: E 1; E 2 ];
+    conflicts := [:: (APout 0, APin 0) ];
+    semi := semi;
+    semu := @values.vuincl_app_sopn_v tin [:: sreg; sword ws ] semi refl_equal;
+    i_safe := [::];
+    i_valid := true;
+    i_safe_wf := refl_equal;
+    i_semi_errty :=  fun _ => sem_prod_ok_error (tin := tin) f _;
+    i_semi_safe := fun _ => values.sem_prod_ok_safe (tin := tin) f;
+  |}.
+
 Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
   match o with
   | Oarm_swap sz => Oswap_instr (sword sz)
   | Oarm_add_large_imm => Oarm_add_large_imm_instr
   | Osmart_li ws => smart_li_instr ws
   | Osmart_li_cc ws => smart_li_instr_cc ws
+  | Olarge_load ws off => large_load_instr ws off
+  | Olarge_store ws off => large_store_instr ws off
+  | Olarge_load_cc ws off => large_load_instr_cc ws off
+  | Olarge_store_cc ws off => large_store_instr_cc ws off
   end.
 
 (* Without priority 1, this instance is selected when looking for an [asmOp],
@@ -126,10 +222,23 @@ Definition error (ii : instr_info) (msg : string) :=
     pel_internal := false;
   |}.
 
-Definition li_condition_modified ii :=
-  error
-    ii
-    "assignment needs to be split but condition is modified by assignment".
+Definition condition_err := "assignment needs to be split but".
+
+Definition condition_modified ii :=
+  error ii (append condition_err " condition is modified by it").
+
+Definition invalid_previous ii :=
+  let msg :=
+    [:: "conditional"; condition_err; "previous value is invalid" ]
+  in
+  error ii (concat " " msg).
+
+Definition previous_modified ii :=
+  let msg :=
+    [:: "conditional"; condition_err; "previous value is modified by it" ]
+  in
+  error ii (concat " " msg).
+
 End E.
 
 Definition asm_args_of_opn_args
@@ -147,6 +256,14 @@ Definition uncons_LLvar
   then ok (x, les)
   else Error (E.internal_error ii "invalid lvals").
 
+Definition uncons_Store
+  (ii : instr_info)
+  (les : seq lexpr) :
+  cexec (aligned * wsize * var_i * fexpr * seq lexpr) :=
+  if les is Store al ws xbase e :: les
+  then ok (al, ws, xbase, e, les)
+  else Error (E.internal_error ii "invalid lvals").
+
 Definition uncons_rvar
   (ii : instr_info) (res : seq rexpr) : cexec (var_i * seq rexpr) :=
   if res is Rexpr (Fvar x) :: res
@@ -157,6 +274,14 @@ Definition uncons_wconst
   (ii : instr_info) (res : seq rexpr) : cexec (Z * seq rexpr) :=
   if res is Rexpr (Fapp1 (Oword_of_int _) (Fconst imm)) :: res'
   then ok (imm, res')
+  else Error (E.internal_error ii "invalid arguments").
+
+Definition uncons_Load
+  (ii : instr_info)
+  (res : seq rexpr) :
+  (cexec (aligned * wsize * var_i * fexpr * seq rexpr)) :=
+  if res is Load al ws xbase eoff :: res'
+  then ok (al, ws, xbase, eoff, res')
   else Error (E.internal_error ii "invalid arguments").
 
 Definition smart_li_args ii ws les res :=
@@ -179,19 +304,160 @@ Definition assemble_smart_li ii ws les res :=
   Let: (x, imm, _) := smart_li_args ii ws les res in
   ok (asm_args_of_opn_args (ARMFopn_core.li x imm)).
 
+Definition cond_opn_args
+  (cond : rexpr)
+  (old : seq rexpr)
+  (args : ARMFopn_core.opn_args) :
+  asm_op_msb_t * lexprs * rexprs :=
+  let '(les, ARM_op mn opts, res) := args in
+  let opts := set_is_conditional opts in
+  ((None, ARM_op mn opts), les, res ++ cond :: old).
+
 Definition assemble_smart_li_cc
   ii ws les res : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
   Let: (x, imm, res) := smart_li_args ii ws les res in
   Let: (cond, res) := uncons ii res in
   Let _ :=
-    assert (~~ Sv.mem x (free_vars_r cond)) (E.li_condition_modified ii)
+    assert (~~ Sv.mem x (free_vars_r cond)) (E.condition_modified ii)
   in
   Let: (oldx, _) := uncons_rvar ii res in
-  let mk '(les, ARM_op mn opts, res) :=
-    let opts := set_is_conditional opts in
-    ok ((None, ARM_op mn opts), les, res ++ [:: cond; rvar oldx ])
+  ok (map (cond_opn_args cond [:: rvar oldx ]) (ARMFopn_core.li x imm)).
+
+Definition chk_assemble_large_load
+  (err : string -> pp_error_loc)
+  (ws : wsize)
+  (woff : word reg_size)
+  (ws' : wsize)
+  (xbase tmp : var_i)
+  (eoff : fexpr) :
+  cexec unit :=
+  Let _ := assert (ws == ws') (err "word size differs") in
+  let msg := "offset differs" in
+  Let _ := assert (is_fwconst reg_size eoff == Some woff)%CMP (err msg) in
+  Let _ := assert (v_var xbase != v_var tmp) (err "base and tmp clash") in
+  assert (vtype tmp == sword reg_size) (err "tmp is not wreg").
+
+Definition assemble_large_load
+  (ii : instr_info)
+  (ws : wsize)
+  (off : Z)
+  (les : seq lexpr)
+  (res : seq rexpr) :
+  cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
+  Let mn := o2r (E.condition_modified ii) (uload_mn_of_wsize ws) in
+  Let: (tmp, les) := uncons_LLvar ii les in
+  Let: (x, _) := uncons_LLvar ii les in
+  Let: (al, ws', xbase, eoff, _) := uncons_Load ii res in
+  let err s :=
+    E.internal_error ii (append "invalid large_load arguments: " s)
   in
-  mapM mk (ARMFopn_core.li x imm).
+  Let _ :=
+    chk_assemble_large_load err ws (wrepr reg_size off) ws' xbase tmp eoff
+  in
+  let pre := asm_args_of_opn_args (ARMFopn_core.li tmp off) in
+  let re := Load al ws xbase (Fvar tmp) in
+  let i := ((None, ARM_op mn default_opts), [:: LLvar x ], [:: re ]) in
+  ok (rcons pre i).
+
+Definition assemble_large_load_cc
+  (ii : instr_info)
+  (ws : wsize)
+  (off : Z)
+  (les : seq lexpr)
+  (res : seq rexpr) :
+  cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
+  let err := E.internal_error ii "invalid large_load size" in
+  Let mn := o2r err (uload_mn_of_wsize ws) in
+  Let: (tmp, les) := uncons_LLvar ii les in
+  Let: (x, _) := uncons_LLvar ii les in
+  Let: (al, ws', xbase, eoff, res) := uncons_Load ii res in
+  Let: (cond, res) := uncons ii res in
+  Let _ :=
+    assert (~~ Sv.mem tmp (free_vars_r cond)) (E.condition_modified ii)
+  in
+  Let _ :=
+    assert (~~ Sv.mem tmp (free_vars_rs res)) (E.previous_modified ii)
+  in
+  let err s :=
+    E.internal_error ii (append "invalid large_load arguments: " s)
+  in
+  Let _ :=
+    chk_assemble_large_load err ws (wrepr reg_size off) ws' xbase tmp eoff
+  in
+  let pre := asm_args_of_opn_args (ARMFopn_core.li tmp off) in
+  let opts := set_is_conditional default_opts in
+  let res := [:: Load al ws xbase (Fvar tmp); cond ] ++ res in
+  let i := ((None, ARM_op mn opts), [:: LLvar x ], res) in
+  ok (rcons pre i).
+
+Definition chk_assemble_large_store
+  (err : string -> pp_error_loc)
+  (ws : wsize)
+  (woff : word reg_size)
+  (ws' : wsize)
+  (x xbase tmp : var_i)
+  (eoff : fexpr) :
+  cexec unit :=
+  Let _ := chk_assemble_large_load err ws woff ws' xbase tmp eoff in
+  assert (v_var x != v_var tmp) (err "source and tmp clash").
+
+Definition assemble_large_store
+  (ii : instr_info)
+  (ws : wsize)
+  (off : Z)
+  (les : seq lexpr)
+  (res : seq rexpr) :
+  cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
+  let err := E.internal_error ii "invalid store_load size" in
+  Let mn := o2r err (store_mn_of_wsize ws) in
+  Let: (tmp, les) := uncons_LLvar ii les in
+  Let: (al, ws', xbase, eoff, _) := uncons_Store ii les in
+  Let: (x, _) := uncons_rvar ii res in
+  let err s :=
+    E.internal_error ii (append "invalid large_store arguments: " s)
+  in
+  Let _ :=
+    chk_assemble_large_store err ws (wrepr reg_size off) ws' x xbase tmp eoff
+  in
+  let pre := asm_args_of_opn_args (ARMFopn_core.li tmp off) in
+  let le := Store al ws xbase (Fvar tmp) in
+  let i := ((None, ARM_op mn default_opts), [:: le ], res) in
+  ok (rcons pre i).
+
+Definition assemble_large_store_cc
+  (ii : instr_info)
+  (ws : wsize)
+  (off : Z)
+  (les : seq lexpr)
+  (res : seq rexpr) :
+  cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
+  let err := E.internal_error ii "invalid store_load size" in
+  Let mn := o2r err (store_mn_of_wsize ws) in
+  Let: (tmp, les) := uncons_LLvar ii les in
+  Let: (al, ws', xbase, eoff, _) := uncons_Store ii les in
+  Let: (x, res) := uncons_rvar ii res in
+  Let: (cond, res) := uncons ii res in
+  Let: (al', ws'', xbase', eoff', _) := uncons_Load ii res in
+  Let _ :=
+    assert (~~ Sv.mem tmp (free_vars_r cond)) (E.condition_modified ii)
+  in
+  Let _ :=
+    assert
+      [&& v_var xbase == v_var xbase' & eq_fexpr eoff eoff' ]
+      (E.invalid_previous ii)
+  in
+  let err s :=
+    E.internal_error ii (append "invalid large_store arguments: " s)
+  in
+  Let _ :=
+    chk_assemble_large_store err ws (wrepr reg_size off) ws' x xbase tmp eoff
+  in
+  let pre := asm_args_of_opn_args (ARMFopn_core.li tmp off) in
+  let opts := set_is_conditional default_opts in
+  let le := Store al ws xbase (Fvar tmp) in
+  let re := Load al' ws'' xbase' (Fvar tmp) in
+  let i := ((None, ARM_op mn opts), [:: le ], [:: rvar x; cond; re ]) in
+  ok (rcons pre i).
 
 Definition assemble_extra
            (ii: instr_info)
@@ -235,6 +501,10 @@ Definition assemble_extra
     end
   | Osmart_li ws => assemble_smart_li ii ws outx inx
   | Osmart_li_cc ws => assemble_smart_li_cc ii ws outx inx
+  | Olarge_load ws off => assemble_large_load ii ws off outx inx
+  | Olarge_store ws off => assemble_large_store ii ws off outx inx
+  | Olarge_load_cc ws off => assemble_large_load_cc ii ws off outx inx
+  | Olarge_store_cc ws off => assemble_large_store_cc ii ws off outx inx
   end.
 
 #[ export ]

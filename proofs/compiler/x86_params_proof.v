@@ -119,6 +119,9 @@ Proof.
   rewrite hxty hyty //=.
 Qed.
 
+Lemma x86_mem_opnP : sap_mem_opn_correct (sap_mem_opn x86_saparams).
+Proof. done. Qed.
+
 End STACK_ALLOC.
 
 Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
@@ -126,6 +129,7 @@ Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
     mov_ofsP := x86_mov_ofsP;
     sap_immediateP := x86_immediateP;
     sap_swapP := x86_swapP;
+    sap_mem_opnP := x86_mem_opnP;
   |}.
 
 (* ------------------------------------------------------------------------ *)
