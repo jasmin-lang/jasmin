@@ -282,6 +282,11 @@ module SimplVector = struct
         Some (v', ty')
       else
         aux (v, ty) n
+    | {iname = "mov"; iargs = [Lval (v', ty'); Atom (Avar (v'', ty''))]} ->
+      if v == v' && is_equiv_type ty' ty'' then
+        aux (v'',ty'') n
+      else
+        aux (v, ty) n
     | {iname = "mov"; iargs = [Lval (v', ty') ; Atom (Avecta ((v'', ty''), j))]} ->
       if v == v' && j == 0 && is_equiv_type ty' ty'' then (* do we care if j != 0 ? *)
         aux (v'',ty'') n
@@ -358,9 +363,21 @@ module SimplVector = struct
         sr_lval node h;
         sr_lvals h
 
+    let rec is_eq_type (ty: CL.ty) (ty': CL.ty) =
+      match (ty, ty') with
+      | (Uint i, Uint i') -> i == i'
+      | (Uint i, Sint i') -> false
+      | (Uint i, Bit) -> false
+      | (Uint i, Vector (i', ty'')) -> false
+      | (Sint i, Bit) -> false
+      | (Sint i, Vector (i', ty'')) -> false
+      | (Bit, Vector (_, _)) -> false
+      | Vector (i, ty''), Vector (i', ty''') -> i == i' && (is_eq_type ty'' ty''')
+      | _ -> is_eq_type ty' ty (* use recursivity to check the commutative pair *)
+
   let rec unused_lval ((v, ty) as tv) nI = (* Checks if lval is used in any subsequent instruction *)
     let diff_lval_tyvar (v', ty') (v'', ty'') = (* Prevent some typecasting problems ??*)
-      (v' != v'') || (ty' != ty'')
+      (v' != v'') || not(is_eq_type ty' ty'')
     in
     let rec var_in_vatome tv' l =
       match l with
