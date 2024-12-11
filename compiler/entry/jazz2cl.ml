@@ -114,7 +114,7 @@ let parse_and_print print arch call_conv ecoutput joutput output file funname =
      in
 
      let proc = CL.fun_to_proc (snd prog) (List.nth (snd prog) 0) in
-     let formals',ghost_instr = CL_vsimpl.GhostVector.unfold_vector proc.formals in
+     let formals',ghost_instr = CL_vsimpl.GhostVector.unfold_vectors proc.formals in
      let prog' = List.append ghost_instr proc.prog in
      let cfg = CL_vsimpl.Cfg.cfg_of_prog_rev prog' in
      let clean_cfg = CL_vsimpl.SimplVector.simpl_cfg cfg in

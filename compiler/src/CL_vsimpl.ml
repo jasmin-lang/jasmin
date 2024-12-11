@@ -187,33 +187,33 @@ module GhostVector = struct
   let unfold_vghosts_epred ghosts pre =
      List.map (unfold_ghosts_epred ghosts) pre
 
-  let unfold_vector formals =
-    let aux ((formal,ty) as v) =
+  let unfold_vectors formals =
+    let aux ((v,ty) as tv) =
       let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
-      match Annot.ensure_uniq1 "vect" mk_vector (formal.v_annot) with
-      | None -> [v],[]
+      match Annot.ensure_uniq1 "vect" mk_vector (v.v_annot) with
+      | None -> [tv],[]
       | Some U16x16 ->
-        let rec aux i acc =
+        let rec unfold_vector i acc =
           match i with
           | 0 -> acc
           | n ->
-            let name = get_unfolded_vector_namei formal (i-1) in
-            let v = I.mk_tmp_lval ~name u16 in
-            aux (n - 1) (v :: acc)
+            let name = get_unfolded_vector_namei v (i-1) in
+            let tv' = I.mk_tmp_lval ~name u16 in
+            unfold_vector (n - 1) (tv' :: acc)
         in
-        let vl = aux 16 [] in
-        let va = List.map (fun v -> Avar v) vl in
+        let vl = unfold_vector 16 [] in
+        let va = List.map (fun tv' -> Avar tv') vl in
         let a = Avatome va in
-        let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~vector:(16,16) formal in
-        let (l_1x256, lty_1x256) as l1x256 = I.var_to_tyvar ~vector:(1,256) formal in
+        let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~vector:(16,16) v in
+        let (l_1x256, lty_1x256) as l1x256 = I.var_to_tyvar ~vector:(1,256) v in
         let vl16x16 = Avar l16x16 in
         let l_0 = Avecta (l1x256, 0) in
-        vl,[cast lty_16x16 l16x16 a;  cast lty_1x256 l1x256 vl16x16; Op1.mov v l_0]
-        in
-        List.fold_left (fun (acc1,acc2) v ->
-            let fs,is = aux v in
-            fs @ acc1,is @ acc2)
-          ([],[]) formals
+        vl,[cast lty_16x16 l16x16 a;  cast lty_1x256 l1x256 vl16x16; Op1.mov tv l_0]
+    in
+    List.fold_left (fun (acc1,acc2) tv ->
+        let fs,is = aux tv in
+        fs @ acc1,is @ acc2)
+      ([],[]) formals
 end
 
 module SimplVector = struct
