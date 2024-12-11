@@ -34,7 +34,7 @@
   of the tables it uses internally; it should be faster on large functions
   ([PR #965](https://github.com/jasmin-lang/jasmin/pull/965)).
 
-- Compiler the OCaml source code no longer requires `-rectypes`
+- Compiling the OCaml source code no longer requires `-rectypes`
   ([PR #980](https://github.com/jasmin-lang/jasmin/pull/980)).
 
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
