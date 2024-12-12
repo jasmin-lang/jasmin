@@ -276,10 +276,13 @@ proof.
   rewrite modzMDl !modz_pow2_div; 1,2:smt().
   have -> : i + j + 1 - (i + j) = 1 by ring.
   have -> : i + j - i = j by ring.
-  rewrite (exprD_nneg 2 j 1) 1,2:// pow2_1 (modz_small _ (2^j * 2)).
-  + apply bound_abs; split => [|?]; 1: smt (modz_cmp to_uint_cmp gt0_pow2).
-    by rewrite -hrec; smt (modz_cmp to_uint_cmp gt0_pow2).
-  by rewrite addzC mulzC b2i_get 1:/#.
+  rewrite (exprD_nneg 2 j 1) 1,2:// pow2_1.
+  rewrite addzC mulzC b2i_get 1:/#.
+  rewrite (modz_small _ (2^j * 2)); last by [].
+  move: (to_uint w) (to_uint_cmp w) => z z_range.
+  have ? := gt0_pow2 (i + j).
+  have [] := modz_cmp (z %/ 2^(i + j)) 2.
+  smt (modz_cmp gt0_pow2).
 qed.
 
 lemma bitsE w k len : bits w k len = mkseq (fun (i:int) => w.[k+i]) len.
@@ -763,17 +766,29 @@ lemma to_sint_unsigned (x : t) : 0 <= to_sint x => to_sint x = to_uint x.
 proof. smt(to_sintE to_uint_cmp). qed.
 
 lemma to_sintK_small i : min_sint <= i <= max_sint => to_sint (of_int i) = i.
-proof. rewrite of_sintK /smod half_modulus /#. qed.
+proof.
+  rewrite of_sintK /smod half_modulus.
+  have := modz_cmp i modulus.
+  smt().
+qed.
 
 lemma to_sintD_small (a b : t):
   min_sint <= to_sint a + to_sint b <= max_sint =>
   to_sint (a + b) = to_sint a + to_sint b.
-proof. rewrite !to_sintE to_uintD /smod /= half_modulus /#. qed.
+proof.
+  rewrite !to_sintE to_uintD /smod /= half_modulus.
+  have := modz_cmp (to_uint a + to_uint b) modulus.
+  smt().
+qed.
 
 lemma to_sintB_small (a b : t):
   min_sint <= to_sint a - to_sint b <= max_sint =>
   to_sint (a - b) = to_sint a - to_sint b.
-proof. rewrite !to_sintE /smod /= half_modulus to_uintD to_uintN modzDmr /#. qed.
+proof.
+  rewrite !to_sintE /smod /= half_modulus to_uintD to_uintN modzDmr.
+  have := modz_cmp (to_uint a - to_uint b) modulus.
+  smt().
+qed.
 
 
 (* --------------------------------------------------------------------- *)
@@ -2238,7 +2253,10 @@ abstract theory W_WS.
      w \bits'S i = WS.of_int 0.
   proof.
     move=> hi;apply WS.wordP => k hk.
-    rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint sizeBrS /#.
+    rewrite bits'SiE 1:// WS.of_intwE /WS.int_bit /= get_to_uint sizeBrS.
+    pose x := _ && _; have -> : x = false; last by [].
+    have : (i < 0) \/ (r <= i) by smt().
+    case; smt().
   qed.
 
   lemma get_zero i : WB.of_int 0 \bits'S i = WS.of_int 0.
