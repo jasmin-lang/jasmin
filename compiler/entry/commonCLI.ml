@@ -58,12 +58,15 @@ let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
        and type cond = cond
        and type asm_op = asm_op
        and type extra_op = extra_op) ~wi2i pass file idirs =
-  let _depends, _to_exec, pprog =
+  let _depends, _to_exec, pprog, _mprog =
     try Compile.parse_file Arch.arch_info ~idirs file with
     | Annot.AnnotationError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
     | Pretyping.TyError (loc, code) ->
         hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+          code
+    | Proc_mjazz.MJazzError (loc, code) ->
+        hierror ~loc:(Lone loc) ~kind:"modules error" "%a" Proc_mjazz.pp_mjazzerror
           code
     | Syntax.ParseError (loc, msg) ->
         hierror ~loc:(Lone loc) ~kind:"parse error" "%s" (Option.default "" msg)

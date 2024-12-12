@@ -2,6 +2,7 @@
 open Utils
 open Prog
 open Operators
+open Mprog
 open PrintCommon
 module W = Wsize
 module T = Type
@@ -381,6 +382,63 @@ let pp_pprog ~debug pd msfsize asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem ~debug (pp_pexpr_ ~debug) pp_opn pp_pvar)) (List.rev p)
 
+let pp_header_ pp_var fmt fd =
+  let pp_vd =  pp_var_decl pp_var pp_len in
+  let ret = List.map L.unloc fd.f_ret in
+  F.fprintf fmt "fn %s @[(%a)@] -> @[(%a)@]"
+    fd.f_name.fn_name
+    (pp_list ",@ " pp_vd) fd.f_args
+    (pp_list ",@ " (pp_ty_decl pp_len)) ret
+
+let pp_gmdecl pp_var pp_size fmt = function
+  | Param pp | Glob pp ->
+    F.fprintf fmt "%a"
+      (pp_var_decl pp_var pp_size) pp
+  | Fun pp ->
+    F.fprintf fmt "@[fn f @[(%a)@] -> @[(%a);@]"
+      (pp_list ",@ " (pp_gtype pp_size)) pp.fs_tyin
+      (pp_list ",@ " (pp_gtype pp_size)) pp.fs_tyout
+
+let pp_gmparams pp_var pp_size fmt l =
+  match l with
+  | [] -> ()
+  | _ ->
+    F.fprintf fmt "@[<v>with %a @]"
+      (pp_list "@ " (pp_gmdecl pp_var pp_size)) l
+
+let pp_gmarg pp_var pp_size fmt (arg: 'len modulearg) =
+  match arg with
+  | Param pa ->
+    F.fprintf fmt "%a" pp_size pa
+  | Glob pa ->
+    F.fprintf fmt "%a" (pp_gvar_i pp_var) pa
+  | Fun pa ->
+    F.fprintf fmt "%s" pa.fn_name
+      
+let rec pp_gmitem ~debug rr pp_len pp_opn pp_var fmt =
+  function
+  | MdItem it -> pp_pitem ~debug pp_len pp_opn pp_var fmt it
+  | MdFunctor fd ->
+    F.fprintf fmt "@[<v>module %s @[%a@] {@ @[<v>%a@]@ }@]"
+      fd.functorname
+      (pp_gmparams pp_var pp_len) fd.functorparams
+      (pp_gmprog ~debug rr pp_len pp_opn pp_var) fd.functorbody
+  | MdModApp fa ->
+    F.fprintf fmt "@[<v>module %s = %s @[%a@]; @]"
+      fa.ma_name fa.ma_func
+      (pp_list ",@ " (pp_gmarg pp_var pp_len)) fa.ma_args
+
+and pp_gmprog ~debug rr pp_len pp_opn pp_var fmt p =
+  let p = if rr then List.rev p else p in
+  F.fprintf fmt "@[<v>%a@]"
+    (pp_list "@," (pp_gmitem ~debug rr pp_len pp_opn pp_var))
+    p
+
+let pp_mpprog pd msfsize asmOp fmt p =
+  let pp_opn = pp_opn pd msfsize asmOp in
+  Format.fprintf fmt "@[<v>%a@]"
+    (fun fmt -> pp_gmprog ~debug:true true (pp_pexpr_ ~debug:true) pp_opn pp_pvar fmt) p
+
 let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_locals = Option.default (fun fmt -> Sv.iter (F.fprintf fmt "%a;@ " pp_vd)) pp_locals in
@@ -393,7 +451,7 @@ let pp_fun_ ~debug ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
    pp_annotations fd.f_annot.f_user_annot
    (pp_ocontract ~debug pp_len pp_var) fd.f_contract
    pp_call_conv fd.f_cc
-   (pp_header_ pp_len pp_var) fd
+   (pp_header_ pp_var) fd
    pp_locals locals
    (pp_gc ~debug pp_info pp_len pp_opn pp_var) fd.f_body
    pp_ret ()
@@ -434,7 +492,7 @@ let pp_stmt ~debug pd msfsize asmOp fmt i =
 
 let pp_header ~debug fmt fd =
   let pp_var = pp_var ~debug in
-  pp_header_ pp_len pp_var fmt fd
+  pp_header_ pp_var fmt fd
 
 let pp_ifunc ~debug pp_info pd msfsize asmOp fmt fd =
   let pp_opn = pp_opn pd msfsize asmOp in
