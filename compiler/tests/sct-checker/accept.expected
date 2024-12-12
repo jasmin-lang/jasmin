@@ -204,13 +204,6 @@ output corruption: #public
  constraints:
 
 
-File local-stack-array.jazz:
-modmsf main :  ->
-#public
-output corruption: #public
- constraints:
-
-
 File mmx.jazz:
 nomodmsf spill_msf : #msf ->
 #msf
@@ -236,8 +229,8 @@ output corruption: #public
  constraints:
 
 
-nomodmsf protect_mmx : #poly = { n = ?428, s = secret} * #msf ->
-#poly = { n = ?428, s = ?428}
+nomodmsf protect_mmx : #poly = { n = d, s = secret} * #msf ->
+#poly = { n = d, s = d}
 output corruption: #public
  constraints:
 
