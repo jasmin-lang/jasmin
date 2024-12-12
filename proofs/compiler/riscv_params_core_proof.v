@@ -336,8 +336,6 @@ Proof.
     eexists; split; first reflexivity; last by t_get_var.
     by move=> z hin; rewrite Vm.setP_neq // -/x; apply/eqP; SvD.fsetdec.
   rewrite movi_sem_fopn_args /=.
-  (* have [vm [hsem hvm hgett]] := li_lsem_1 s ntmp itmp imm. *)
-  (* rewrite /sem_fopns_args. -cats1. foldM_cat -!/sem_fopns_args hsem /=. *)
   rewrite -(@get_var_neq _ _ vtmp _ _ (Vword (wrepr U32 imm))) // in hgety.
   rewrite
     (op_sem_fopn_args (with_vm _ _) _ _ _ _ tmp (wrepr reg_size imm) hgety) /with_vm /=; 

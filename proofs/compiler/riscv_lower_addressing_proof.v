@@ -227,28 +227,6 @@ Lemma is_one_PloadP es al ws x e :
   es = [:: Pload al ws x e].
 Proof. by case: es => [//|] [] // _ _ _ _ [] //= [-> -> -> ->]. Qed.
 
-(* TODO: move *)
-Lemma sem_sopn_eq_ex X gd o xs es s1 s2 vm1 :
-  disjoint X (Sv.union (read_rvs xs) (read_es es)) ->
-  sem_sopn gd o s1 xs es = ok s2 ->
-  evm s1 =[\X] vm1 ->
-  exists2 vm2,
-    sem_sopn gd o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2) &
-    evm s2 =[\X] vm2.
-Proof.
-  move=> hdisj hsem eq_vm1.
-  have [hdisj1 hdisj2]:
-    disjoint X (read_rvs xs) /\ disjoint X (read_es es).
-  + by move: hdisj => /disjoint_sym /disjoint_union [/disjoint_sym ? /disjoint_sym ?].
-  move: hsem; rewrite /sem_sopn.
-  t_xrbindP=> vs2 vs1 ok_vs1 ok_vs2 ok_s2.
-  have [vm2 ok_vm2 eq_vm2] := write_lvals_eq_ex hdisj1 ok_s2 eq_vm1.
-  exists vm2 => //.
-  rewrite -(eq_on_sem_pexprs _ _ (s:=s1)) //=; last first.
-  + by apply (eq_ex_disjoint_eq_on eq_vm1 hdisj2).
-  by rewrite ok_vs1 /= ok_vs2 /=.
-Qed.
-
 Local Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
   move=> s1 s2 t o xs es ok_s2 ii tmp vm1 tmp_ty tmp_nin eq_vm1 /=.

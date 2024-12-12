@@ -199,9 +199,9 @@ Lemma mem_equiv_opn : sem_Ind_opn P Pi_r.
 Proof. by move => s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /[dup] /write_lvals_validw ? /write_lvals_stack_stable. Qed.
 
 Lemma mem_equiv_syscall : sem_Ind_syscall P Pi_r.
-Proof. 
-  move => s1 scs m s2 o xs es ves vs hes h. 
-  have [ho1 ho2]:= exec_syscallS h.  
+Proof.
+  move => s1 scs m s2 o xs es ves vs hes h.
+  have [ho1 ho2]:= exec_syscallS h.
   move=> /[dup] /write_lvals_validw ho3 /write_lvals_stack_stable ?.
   split; [rewrite ho1 | move=> ???; rewrite ho2] => //; exact: ho3.
 Qed.
@@ -754,8 +754,9 @@ Context
   {wsw:WithSubWord}
   {asm_op syscall_state : Type}
   {ep : EstateParams syscall_state}
-  {spp : SemPexprParams}.
-  
+  {spp : SemPexprParams}
+  {sip : SemInstrParams asm_op syscall_state}.
+
 Lemma write_lval_eq_ex wdb gd X x v s1 s2 vm1 :
   disjoint X (read_rv x) ->
   write_lval wdb gd x v s1 = ok s2 ->
@@ -795,6 +796,27 @@ Proof.
   have /= <- := vrvsP hw; last by clear -y_in'; SvD.fsetdec.
   have /= <- := vrvsP hw2; last by clear -y_in'; SvD.fsetdec.
   by apply eq_vm1.
+Qed.
+
+Lemma sem_sopn_eq_ex X gd o xs es s1 s2 vm1 :
+  disjoint X (Sv.union (read_rvs xs) (read_es es)) ->
+  sem_sopn gd o s1 xs es = ok s2 ->
+  evm s1 =[\X] vm1 ->
+  exists2 vm2,
+    sem_sopn gd o (with_vm s1 vm1) xs es = ok (with_vm s2 vm2) &
+    evm s2 =[\X] vm2.
+Proof.
+  move=> hdisj hsem eq_vm1.
+  have [hdisj1 hdisj2]:
+    disjoint X (read_rvs xs) /\ disjoint X (read_es es).
+  + by move: hdisj => /disjoint_sym /disjoint_union [/disjoint_sym ? /disjoint_sym ?].
+  move: hsem; rewrite /sem_sopn.
+  t_xrbindP=> vs2 vs1 ok_vs1 ok_vs2 ok_s2.
+  have [vm2 ok_vm2 eq_vm2] := write_lvals_eq_ex hdisj1 ok_s2 eq_vm1.
+  exists vm2 => //.
+  rewrite -(eq_on_sem_pexprs _ _ (s:=s1)) //=; last first.
+  + by apply (eq_ex_disjoint_eq_on eq_vm1 hdisj2).
+  by rewrite ok_vs1 /= ok_vs2 /=.
 Qed.
 
 End EQ_EX.
