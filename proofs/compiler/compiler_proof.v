@@ -293,7 +293,7 @@ Proof.
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   rewrite /sf_total_stack.
-  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
+  have [ <- <- <- ] := [elaborate @check_fundef_meta _ _ _ _ _ _ _ _ (_, fda) _ _ _ ok_fdb].
   have [_ _ ->]:= dead_code_fd_meta ok_fda.
   done.
 Qed.

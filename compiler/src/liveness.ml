@@ -50,7 +50,14 @@ and live_d weak d (s_o: Sv.t) =
     let s2, c2 = live_c weak c2 s_o in
     Sv.union (vars_e e) (Sv.union s1 s2), s_o, Cif(e, c1, c2)
 
-  | Cfor _ -> assert false (* Should have been removed before *)
+  | Cfor (x, (_dir, e1, e2 as r), c) ->
+    let rec loop s_o =
+      let s_i, c = live_c weak c s_o in
+      let s_i = Sv.remove (L.unloc x) s_i in
+      if Sv.subset s_i s_o then s_o, c
+      else loop (Sv.union s_i s_o) in
+    let s_i, c = loop s_o in
+    Sv.union (vars_es [ e1; e2 ]) s_i, s_o, Cfor (x, r, c)
 
   | Cwhile(a,c,e,c') ->
     let ve = (vars_e e) in

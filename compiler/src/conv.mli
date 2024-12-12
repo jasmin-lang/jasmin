@@ -37,6 +37,9 @@ val cvar_of_var :  var -> Var0.Var.var
 val var_of_cvar :  Var0.Var.var -> var
 val vari_of_cvari :  Expr.var_i -> var L.located
 
+val csv_of_sv : Sv.t -> Var0.SvExtra.Sv.t
+val sv_of_csv : Var0.SvExtra.Sv.t -> Sv.t
+
 val lval_of_clval :  Expr.lval -> Prog.lval
 
 val cexpr_of_expr :  expr -> Expr.pexpr

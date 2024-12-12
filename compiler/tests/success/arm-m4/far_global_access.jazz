@@ -1,0 +1,21 @@
+param int L = 4100;
+
+u32[2] a = { 1, 2 };
+
+export
+fn main() -> reg u32 {
+    reg ptr u32[2] p = a;
+    reg u32 t = p[0];
+    reg u32 tmp = p[1];
+    t += tmp;
+
+    reg ptr u32[1] q = a[1:1];
+    reg u32 tmp = q[0];
+    t += tmp;
+
+    reg u32 v = 0;
+    inline int i;
+    for i = 0 to L { v += t; }
+
+    return v;
+}
