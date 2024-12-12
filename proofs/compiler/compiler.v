@@ -84,6 +84,7 @@ Section COMPILER.
 (* To use [Finite.axiom], we need [compiler_step] to be [eqType]. *)
 #[only(eqbOK)] derive
 Variant compiler_step :=
+  | MJazzProc			: compiler_step
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
   | RemoveAssertion             : compiler_step
@@ -121,7 +122,8 @@ Variant compiler_step :=
    show that it is exhaustive (cf. [compiler_step_list_complete]).
 *)
 Definition compiler_step_list := [::
-    Typing
+    MJazzProc
+  ; Typing
   ; ParamsExpansion
   ; InsertRenaming
   ; RemoveAssertion

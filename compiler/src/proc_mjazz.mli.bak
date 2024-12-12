@@ -5,6 +5,6 @@ val parse_file :
   string ->
   string list list
   * (Prog.funname * (Z.t * Z.t) list) Location.located list
-  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Prog.pmod_item
-    list
+  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Prog.pprog
+  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) Mprog.mpprog
 

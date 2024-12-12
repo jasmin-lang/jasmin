@@ -28,8 +28,17 @@ val parse_file :
         'asm_op,
         'extra_op )
       Arch_extra.extended_op )
-    pmod_item
-    list
+    pprog
+  * ( unit,
+      ( 'reg,
+        'regx,
+        'xreg,
+        'rflag,
+        'cond,
+        'asm_op,
+        'extra_op )
+      Arch_extra.extended_op )
+    mpprog
 (** Parsing and pre-typing of a complete file. Require directives are resolved
     using named path given through the [idirs] argument and the JASMINPATH
     environment variable.
