@@ -22,7 +22,7 @@ type 'len funsig =
 type 'len mparamdecl =
   | Param of 'len gvar
   | Glob  of 'len gvar
-  | Fun   of funname * 'len funsig
+  | Fun   of 'len funsig
 
 type 'len mparamdecls = 'len mparamdecl list
 
@@ -37,6 +37,7 @@ and  ('len,'info,'asm) gmodule_item =
   | MdFunctor of ('len,'info,'asm) functor_def
   | MdModApp  of 'len module_app
 
-type ('len,'info,'asm) gmprog = ('len,'info,'asm) functor_def list
+type ('len,'info,'asm) gmprog = ('len,'info,'asm) gmodule_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
+type ('info, 'asm) mpprog = (pexpr,'info,'asm) gmprog

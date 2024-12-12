@@ -535,8 +535,8 @@ from:
 | FROM id=nonqual_ident { id }
 
 prequire:
-| f=from? REQUIRE x=prequire1 xs=nonempty_list(prequire1)
-   { f, (x::xs) }
+| f=from? REQUIRE x=nonempty_list(prequire1)
+   { f, x }
 
 pmodsigentry:
 | PARAM pms_type=ptype id=nonqual_ident SEMICOLON

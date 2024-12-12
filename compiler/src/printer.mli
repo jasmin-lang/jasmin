@@ -1,4 +1,5 @@
 open Prog
+open Mprog
 
 val pp_warning_msg :  Format.formatter -> Compiler_util.warning_msg -> unit
 val pp_err : debug:bool -> Format.formatter -> Compiler_util.pp_error -> unit
@@ -12,6 +13,8 @@ val pp_plval : debug:bool -> Format.formatter -> plval -> unit
 val pp_pexpr : debug:bool -> Format.formatter -> pexpr -> unit
 val pp_pprog : debug:bool -> Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
                Format.formatter -> ('info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
+val pp_mpprog : Wsize.wsize -> ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> (pexpr, 'info, ('reg, 'regx, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) gmodule_item list -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
 val pp_dvar  : debug:bool -> Format.formatter -> var -> unit

@@ -101,16 +101,24 @@ let fmodule_name (fname: string) : M.modulename =
 
 module MEnv = struct
 
-  type 'asm mod_info =
+  type 'asm modinfo =
     { mi_store : 'asm Env.global_bindings
     ; mi_params : P.pexpr M.mparamdecl list
     ; mi_decls : (P.pexpr, unit, 'asm) M.gmodule_item list
     }
 
+  let functor_from_modinfo modname modinfo =
+    M.MdFunctor
+      { functorname = modname
+      ; functorparams = modinfo.mi_params
+      ; functorbody = modinfo.mi_decls
+      }
+
   type 'asm menv =
     { me_store : 'asm Env.store
-    ; me_decls : (P.pexpr, unit, 'asm) M.gmodule_item list list
-    ; me_env : (M.modulename, 'asm mod_info) Map.t
+    ; me_ldecls : (P.pexpr, unit, 'asm) M.gmodule_item list list (* declarations from current modules *)
+    ; me_gdecls : (P.pexpr, unit, 'asm) M.gmodule_item list (* global declarations *)
+    ; me_env : (M.modulename, 'asm modinfo) Map.t
     ; me_idir : Path.t	(* absolute initial path *)
     ; me_from : (A.symbol, Path.t) Map.t
     ; me_visiting : (M.modulename * Path.t) list (* on visit mods/files *)
@@ -136,7 +144,8 @@ module MEnv = struct
          end;
          Map.add name ap m
     in { me_store = Env.empty_store
-       ; me_decls = []
+       ; me_ldecls = []
+       ; me_gdecls = []
        ; me_env = Map.empty
        ; me_visiting = []
        ; me_idir = idir
@@ -149,18 +158,29 @@ module MEnv = struct
       (menv: 'asm menv)
     = { menv with me_store = f menv.me_store }
 
-let upd_storedecls
-    (f: 'asm Env.store -> 'asm Env.store * (unit, 'asm) P.pmod_item list)
-    (menv: 'asm menv)
-  : 'asm menv =
-  { menv with
-    me_store = fst (f menv.me_store)
-  ; me_decls =
-      let topdecls = List.map (fun x->M.MdItem x) (snd (f menv.me_store))
-      in match menv.me_decls with
-      | top::l -> (topdecls @ top)::l
-      | [] -> assert false
-  }
+  (* add declarations to top module *)
+  let add_ldecls menv l =
+    match menv.me_ldecls with
+    | [] ->
+      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "non-existent ldecls")
+    | x::xs -> 
+      { menv with me_ldecls = (l@x)::xs }
+
+  let pop_ldecls menv =
+    match menv.me_ldecls with
+    | [] ->
+      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "non-existent ldecls")
+    | x::xs -> 
+      { menv with me_ldecls = xs }, x
+    
+
+  let upd_storedecls
+      (f: 'asm Env.store -> 'asm Env.store * (unit, 'asm) P.pmod_item list)
+      (menv: 'asm menv)
+    : 'asm menv =
+    let st, l = f menv.me_store
+    in let menv = add_ldecls menv (List.map (fun x->M.MdItem x) l)
+    in { menv with  me_store = st }
 
 (*
   let push_open menv mname gb =
@@ -203,7 +223,7 @@ let upd_storedecls
                     ; M.fs_tyout = funcsig.f_tyout
                     }
       in let st = Env.Funs.push_modp_fun st funcsig
-      in st, M.Fun (funcsig.f_name, fsig)
+      in st, M.Fun fsig
 
   let rec push_modparams pd (st: 'asm Env.store) =
     function
@@ -218,60 +238,74 @@ let upd_storedecls
     in 
     { menv with 
       me_store = st;
-      me_decls = []::menv.me_decls
+      me_ldecls = []::menv.me_ldecls
     }
     , plist
 
-  let exit_module modname mparams (menv: 'asm menv): 'asm menv =
-    let modinfo =
-         { mi_store = snd (List.hd (fst menv.me_store.s_bindings))
+  let fully_qualified_modname st =
+    match st.Env.s_bindings with
+    | [], _ -> 
+      rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
+    | x::xs, _ ->
+      List.fold_left (fun nn n -> qualify n nn) (fst x) (List.map fst xs)
+
+  (** exit of a non-toplevel module *)
+  let exit_module mparams (menv: 'asm menv): 'asm menv =
+    let modname = fully_qualified_modname menv.me_store
+    in if !Glob_options.debug
+    then Printf.eprintf "Exiting module \"%s\" \n%!" modname;
+    let menv, mdecls = pop_ldecls menv
+    in let modinfo =
+         { mi_store = snd (List.hd (fst menv.me_store.s_bindings)) (* top bs *)
          ; mi_params = mparams
-         ; mi_decls = List.hd menv.me_decls
+         ; mi_decls = mdecls
          }
+    in let menv = add_ldecls menv [functor_from_modinfo modname modinfo]
     in let menv = { menv with
                     me_env = Map.add modname modinfo menv.me_env 
                   }
-    in let menv = upd_store Env.exit_namespace menv
-    in let decls =
-         match menv.me_decls with
-         | top::l ->
-           begin match l with
-             | x::xs -> 
-               (M.MdFunctor
-                  { functorname = modname
-                  ; functorparams = mparams
-                  ; functorbody = top
-                  } :: x) :: xs
-             | [] -> assert false (* ??? *)
-           end
-         | [] -> assert false (* ??? *)
-    (* update module environment *)
-    in { menv with me_decls = decls }
+    in upd_store Env.exit_namespace menv
 
-  let save_filectxt menv =
-    match menv.me_store.s_bindings with
-    | [], _ ->
-      Some (menv, None)
-    | [top], bot ->
-      let st = { menv.me_store with s_bindings = [], bot }
-      in let decls = menv.me_decls
+  let save_filectxt menv modname =
+    if !Glob_options.debug then Printf.eprintf "save filectxt \"%s\" \n%!" modname;
+    let newtopbs = modname, Env.empty_gb
+    in match menv.me_store.s_bindings with
+    | [], bot -> (* no filectxt to save *)
+      let menv =
+        { menv with 
+          me_store = 
+            { menv.me_store with
+              s_bindings = [newtopbs] , bot
+            }
+        ; me_ldecls = [[]]
+        }
+      in Some (menv, None)
+    | [topbs], bot -> (* save top ctxt (st & decls) *)
+      let st = { menv.me_store with
+                 s_bindings = [newtopbs], bot }
+      in let topdecls = List.hd menv.me_ldecls
       in Some ( { menv with
                   me_store = st
-                ; me_decls = [] 
+                ; me_ldecls = [[]] 
                 }
-              , Some(top, decls)
+              , Some(topbs, topdecls)
               )
     | _ -> None
 
   let enter_file menv from ploc fname =
     let modname = 
-      if !Glob_options.debug then Printf.eprintf "PROCESSING \"%s\" \n%!" fname;
+      if !Glob_options.debug then Printf.eprintf "enter-file \"%s\" \n%!" fname;
       fmodule_name fname
     in let loc = match ploc with None -> Lnone | Some l -> Lone l
     in let p = Path.of_string fname
     in let current_dir =
          match from with
-         | None -> snd (List.hd menv.me_visiting)
+         | None -> 
+           begin match menv.me_visiting with
+             | [] -> menv.me_idir
+             | (_,f)::_ ->
+               List.tl f
+           end
          | Some name -> 
            if Path.is_absolute p then 
              hierror ~loc:loc ~kind:"typing" 
@@ -305,7 +339,7 @@ let upd_storedecls
            with Sys_error(err) ->
              let loc = Option.map_default (fun l -> Lone l) Lnone ploc
              in hierror ~loc ~kind:"typing" "error reading file %S (%s)" fname err
-      in match save_filectxt menv with
+      in match save_filectxt menv modname with
       | None ->
         rs_mjazzerror ~loc:(Option.default L._dummy ploc)
           NonToplevelRequire
@@ -320,11 +354,13 @@ let upd_storedecls
     in let modinfo =
          { mi_store = snd (List.hd (fst menv.me_store.s_bindings))
          ; mi_params = []
-         ; mi_decls = List.hd menv.me_decls
+         ; mi_decls = List.hd menv.me_ldecls
          }
-    in let menv = { menv with
-                    me_env = Map.add modname modinfo menv.me_env 
-                  }
+    in let menv =
+         { menv with
+           me_env = Map.add modname modinfo menv.me_env
+         ; me_gdecls = functor_from_modinfo modname modinfo :: menv.me_gdecls
+         }
     in let st = Env.exit_namespace menv.me_store
     in match saved with
     | None ->
@@ -336,7 +372,7 @@ let upd_storedecls
     | Some (top,decls) ->
       { menv with
         me_store = { st with s_bindings = [top], snd st.s_bindings }
-      ; me_decls = decls @ menv.me_decls
+      ; me_ldecls = [decls]
       ; me_processed = (modname,p) :: menv.me_processed
       ; me_visiting = List.tl menv.me_visiting
       }
@@ -360,16 +396,34 @@ end
 
 (* -------------------------------------------------------------------- *)
 
+let merge_top st modname bs =
+  match st.Env.s_bindings with
+  | [], _ -> assert false
+  | (m,top)::l, bot ->
+    let newtop = Env.merge_bindings (modname, bs) top
+    in (m, newtop)::l, bot
 
 let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with
   | S.PModule (mname, mparams, body) ->
     let menv, mparams = MEnv.enter_module arch_info.pd mname mparams menv
     in let menv = List.fold_left (mt_item arch_info) menv body
-    in let menv = MEnv.exit_module (L.unloc mname) mparams menv
+    in let menv = MEnv.exit_module mparams menv
     in menv
-  | S.PModuleApp (mname, modfun, margs) ->
-    MEnv.empty []
+  | S.PModuleApp (mname, modfunc, margs) ->
+    let modinfo =
+      match Map.find (L.unloc modfunc) menv.me_env with
+      | modi -> modi
+      | exception Not_found ->
+        rs_mjazzerror ~loc:(L.loc modfunc)
+          (NonExistentMod (L.unloc modfunc))
+    in (* typecheck args... *)
+    { menv with
+      me_store =
+        { menv.me_store with
+          s_bindings = merge_top menv.me_store (L.unloc mname) modinfo.mi_store
+        }
+    }
     (* MdModApp modapp *)
   | S.POpen (mname, None) ->
     begin match Map.find (L.unloc mname) menv.me_env with
@@ -427,6 +481,7 @@ let instantiate_mprog menv =
 (** Parses (modular) program and resolves instantiation *)
 let parse_file arch_info idirs fname =
   let menv = parse_mfile arch_info idirs fname
-  in let deps = List.map (fun x->snd x) menv.me_processed
-  in deps, [], instantiate_mprog menv
+  in let deps: Path.t list =
+       List.map (fun x->snd x) menv.me_processed
+  in deps, [], instantiate_mprog menv, menv.me_gdecls
 
