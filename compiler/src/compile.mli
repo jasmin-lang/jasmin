@@ -20,6 +20,7 @@ val parse_file :
   string list list
   * (funname * (Z.t * Z.t) list) Location.located list
   * (unit, 'asm) pmod_item list
+  * (unit, 'asm) mpprog
 (** Parsing and pre-typing of a complete file. Require directives are resolved
     using named path given through the [idirs] argument and the JASMINPATH
     environment variable.

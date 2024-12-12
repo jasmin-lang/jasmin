@@ -47,11 +47,12 @@ let main () =
     if !help_version
     then (Format.printf "%s@." version_string; exit 0);
 
-    let depends, to_exec, pprog =
+    let depends, to_exec, pprog, mprog =
       try Compile.parse_file Arch.arch_info ~idirs:!Glob_options.idirs infile
       with
       | Annot.AnnotationError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
+      | Proc_mjazz.MJazzError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"modules" "%a" Proc_mjazz.pp_mjazzerror code
       | Syntax.ParseError (loc, msg) ->
           let msg =
             match msg with
@@ -60,6 +61,8 @@ let main () =
           in
           hierror ~loc:(Lone loc) ~kind:"parse error" "%s" msg
     in
+
+    eprint Compiler.MJazzProc (Printer.pp_mpprog Arch.reg_size Arch.asmOp) mprog;
 
     if !print_dependencies then begin
       Format.printf "%a"

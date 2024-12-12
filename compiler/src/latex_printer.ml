@@ -356,7 +356,7 @@ let pp_path fmt s =
   F.fprintf fmt "%S " (L.unloc s)
 
 let pp_modsig fmt msig =
-  let pp_modsigparam _fmp p =
+  let pp_modsigparam _ p =
     indent fmt 1;
     match p with
     | MSparam (t,i) -> F.fprintf fmt "%a %a %a;" kw "param" pp_type t dname (L.unloc i)
