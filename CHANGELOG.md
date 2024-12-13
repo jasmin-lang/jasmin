@@ -17,6 +17,8 @@
   ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
   fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
 
+
+
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
@@ -32,8 +34,11 @@
   ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
 
 - Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
-  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated
-  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914)).
+  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated.
+  The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations, and supports a new extraction for leakage based on local variables.
+  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914),
+  [PR #952](https://github.com/jasmin-lang/jasmin/pull/952),
+  [PR #967](https://github.com/jasmin-lang/jasmin/pull/967)).
 
 - The “allocation” pass now uses the liveness information to reduce the sizes
   of the tables it uses internally; it should be faster on large functions
