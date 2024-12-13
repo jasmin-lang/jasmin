@@ -554,7 +554,7 @@ Proof.
       case: asm_args hidc hcd => //= a0 [ // | ] a1 [] //= hidc hcd;
        last by rewrite /check_args_kinds /= !andbF.
       case ok_y: xreg_of_var => [y|//].
-      assert (h := xreg_of_varI ok_y); move: h => {ok_y} ok_y.
+      assert (h := xreg_of_varI ok_y); move: h => {}ok_y.
       rewrite !andbT /compat_imm.
       case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1; only 2-3: by [].
       rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
@@ -576,7 +576,7 @@ Proof.
       last by rewrite /check_args_kinds /= !andbF.
     rewrite orbF => hidc hcd.
     case ok_y: xreg_of_var => [y|//].
-    assert (h := xreg_of_varI ok_y); move: h => {ok_y} ok_y.
+    assert (h := xreg_of_varI ok_y); move: h => {}ok_y.
     rewrite !andbT /compat_imm.
     case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a1 a2.
     1-2: by move: hidc; rewrite /check_args_kinds /= andbF.
@@ -611,10 +611,10 @@ Proof.
       check_sopn_arg_sem_eval eval_assemble_cond hlow hca1 hva htwa.
     move: hcd; rewrite /check_sopn_dests /= /check_sopn_dest /= => /andP -[].
     case ok_y: xreg_of_var => [y|//].
-    assert (h := xreg_of_varI ok_y); move: h => {ok_y} ok_y.
+    assert (h := xreg_of_varI ok_y); move: h => {}ok_y.
     rewrite andbT => /eqP ? _; subst a0.
     case: y hidc hca1 ok_y => // r hidc hca1 xr.
-    have {xr} xr := of_varI xr.
+    have {}xr := of_varI xr.
     rewrite /mem_write_vals.
     eexists.
     * by rewrite /mem_write_val /= truncate_word_u /=.
@@ -730,7 +730,7 @@ Opaque cat.
     t_xrbindP=> // -[] // _ ? /eqP ? <- ?????; subst ws.
     by rewrite /se_protect_mmx_sem /= => -[<-].
 
-  have {Hws} Hws : (U64 < ws)%CMP by rewrite -cmp_nle_lt Hws.
+  have {}Hws : (U64 < ws)%CMP by rewrite -cmp_nle_lt Hws.
   have Hws' : (U128 <= ws)%CMP by case: (ws) Hws.
   case: xs => // vw; t_xrbindP => -[] // vmsf; t_xrbindP => // -[] // hes _ hval <- tr w hw wmsf hmsf.
   rewrite /se_protect_large_sem /= => -[?]?; subst tr ys.

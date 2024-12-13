@@ -665,7 +665,7 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
     (map f m).[x] = omap (f x) m.[x].
   Proof.
     rewrite /map /get Map.mapP;case: Map.get => // -[z pz] /=.
-    case E.eq_dec=> e //=; move:(e);rewrite -e=> {e} e.
+    case E.eq_dec=> e //=; move:(e);rewrite -e=> {}e.
     by rewrite eq_axiomK.
   Qed.
 

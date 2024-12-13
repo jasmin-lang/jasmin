@@ -274,7 +274,7 @@ Section CoreMem.
     rewrite -valid8_validw.
     move: l h;apply ziota_ind => //= i li hi hr ?.
     t_xrbindP => wi hwi; have ?:= get_valid8 hwi.
-    by move=> l /hr{hr}hr _; rewrite inE => /orP [/eqP ->| /hr].
+    by move=> l /hr{}hr _; rewrite inE => /orP [/eqP ->| /hr].
   Qed.
 
   Lemma read8_read m al p s v:
@@ -669,7 +669,7 @@ Lemma is_align_m sz sz' (ptr: pointer) :
 Proof.
   have wsnz s : wsize_size s ≠ 0.
   - by have := wsize_size_pos s.
-  move => /wsize_size_le le /eqP /Z.mod_divide - /(_ (wsnz _)) /(Z.divide_trans _ _ _ le) {le} le.
+  move => /wsize_size_le le /eqP /Z.mod_divide - /(_ (wsnz _)) /(Z.divide_trans _ _ _ le) {}le.
   by apply/eqP/Z.mod_divide.
 Qed.
 
@@ -686,7 +686,7 @@ Proof.
   rewrite /no_overflow /is_align p_to_zE => /eqP ha; apply/ZleP.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by lia.
-  move: (wunsigned ptr) (wunsigned_range ptr) ha => {ptr} ptr.
+  move: (wunsigned ptr) (wunsigned_range ptr) ha => {}ptr.
   have [a ->] := wsize_size_div_wbase sz Uptr.
   move: (wsize_size sz) hn hnz => n hn hnz hr /Zmod_divides [] // q ?; subst ptr.
   cut (q + 1 <= a)%Z; nia.

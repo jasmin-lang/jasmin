@@ -696,7 +696,7 @@ Section LEMMA.
             vs vs' uvs hw h => {s1 t1 }.
       + move=> [] //= _ S s1 t1 _ _ [] // [<-].
         by rewrite /vrvs /=; exists t1 => //; have -> : Sv.Equal (Sv.diff S Sv.empty) S by SvD.fsetdec.
-      move=> x xs ih [| y ys] //= /andP []; case: x => // x /eqP <- /ih{ih}ih S s1 t1 _ _ [] //.
+      move=> x xs ih [| y ys] //= /andP []; case: x => // x /eqP <- /ih{}ih S s1 t1 _ _ [] //.
       move=> v v' vs vs' uv uvs; t_xrbindP => s1' hwx hw sim.
       have hch : check_lv ii S x = ok (Sv.diff S (vrv x)).
       + rewrite /check_lv /check_fv /= -/(disjoint S Sv.empty).
@@ -729,7 +729,7 @@ Section LEMMA.
       checked_params RSP_not_result preserved_magic
       checked_save_stack htmp_call_magic checked_ra.
 
-    have {checked_ra} checked_ra :
+    have {}checked_ra :
       match sf_return_address (f_extra fd) with
       | RAreg ra _ =>
         [/\ vtype ra == sword Uptr,
