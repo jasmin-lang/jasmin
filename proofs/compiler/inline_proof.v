@@ -95,11 +95,11 @@ Proof.
   rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
   + subst f1 fd';exists fd1;split=>//.
     apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
-    case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
+    case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
     by move: Hf1; rewrite (inline_prog_fst Hp1) H.
   move=> /(Hrec   _ Huniq Hp1) [fd [? H]];exists fd;split=>//.
   apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
-  case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
+  case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
 Qed.
 
@@ -114,11 +114,11 @@ Proof.
   rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
   + subst f1 fd1;exists fd1';split=>//.
     apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
-    case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
+    case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
     by move: Hf1;rewrite (inline_prog_fst Hp1) H.
   move=> /(Hrec   _ Huniq Hp1) [fd' [? H]];exists fd';split=>//.
   apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
-  case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
+  case: eqP => // -> H; have := (get_fundef_in H)=> {}H.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
 Qed.
 
@@ -526,7 +526,7 @@ Section PROOF.
     have [fd' [Hfd']{Hget}] := inline_progP' uniq_funname Hp Hget.
     case: fd Htin Hi Hw Hsem Hc Hres Htout Hfi => /= fi tin fx fc tout fxr fe 
              Htin Hi Hw Hsem Hc Hres Htout Hfi.
-    apply: rbindP => -[X fc'] /Hc{Hc} Hc [] ?;subst fd'.
+    apply: rbindP => -[X fc'] /Hc{}Hc [] ?;subst fd'.
     move=> vargs1 Hall;move: Hw; rewrite (write_vars_lvals _ gd) => Hw.
     have heq : Sv.Equal (read_rvs [seq Lvar i | i <- fx]) Sv.empty.
     + elim: (fx);first by rewrite read_rvs_nil;SvD.fsetdec.

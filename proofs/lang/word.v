@@ -1724,7 +1724,7 @@ Proof.
   apply/eqP/eq_from_wbit_n => i.
   rewrite wandE wshrE // wshlE // wbit_n_pow2m1.
   have := ltn_ord i.
-  move: (nat_of_ord i) => {i} i i_bounded.
+  move: (nat_of_ord i) => {}i i_bounded.
   replace (i < _)%nat with (i < n)%nat; last first.
   - apply Nat.min_case_strong => //  n_large.
     rewrite i_bounded.
@@ -1772,7 +1772,7 @@ End FORALL_NAT_BELOW.
 Lemma wbit_n_Npow2n sz n (i: 'I_(wsize_size_minus_1 sz).+1) :
   wbit_n (wrepr sz (-2 ^ Z.of_nat n)) i = (n <= i)%nat.
 Proof.
-  move: (i: nat) (ltn_ord i) => {i} i /ltP i_bounded.
+  move: (i: nat) (ltn_ord i) => {}i /ltP i_bounded.
   case: (@ltP n (wsize_size_minus_1 sz).+1) => hn.
   + apply/eqP.
     apply/forallnat_belowP: i i_bounded.
@@ -1803,7 +1803,7 @@ Proof.
   apply/eqP/eq_from_wbit_n => i.
   have n_ge0 := Nat2Z.is_nonneg n.
   rewrite wandE wshlE // wshrE // Nat2Z.id wbit_n_Npow2n.
-  move: (nat_of_ord i) (ltn_ord i) => {i} i.
+  move: (nat_of_ord i) (ltn_ord i) => {}i.
   rewrite ltnS => i_bounded.
   rewrite i_bounded andbT andbC.
   case: (@leP n i) => hni //=.

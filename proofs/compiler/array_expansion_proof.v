@@ -891,7 +891,7 @@ Lemma expand_callP f scs mem scs' mem' va vr:
 Proof.
   apply: (rbindP _ Hcomp) => s1 /[dup]Hs1/expand_callP_aux h _ /[dup]+/h{h}.
   move=> [???? {}f fd {}va va' ??? {}vr vr' hgf htri _ _ _ _ htro _ _] h b.
-  suff /h{h}h : Mf.get (fsigs s1) f =
+  suff /h{}h : Mf.get (fsigs s1) f =
     Some (map (fun=> None) (f_tyin fd), map (fun=> None) (f_tyout fd)).
   + have /h{h}[?] :
      expand_vs (map (fun=> None) (f_tyin fd)) va' = ok [seq [:: x] | x <- va'].
