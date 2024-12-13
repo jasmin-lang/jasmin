@@ -188,7 +188,7 @@ Proof.
   repeat (
     case: es h => /= [[<-] | ? es];
       first (by t_simpl_rewrites);
-      t_xrbindP=> ?? {vs} vs h <-
+      t_xrbindP=> ?? {}vs h <-
   ).
 
   case: es h => /= [[<-] | ??]; first last.
@@ -613,7 +613,7 @@ Section PROOF.
     have hv1 := valid_pi_incl hi2 hv.
     have [vm2 [/= hu2 hv2 hs1]]:= hc1 _ _ _ hc1_ hu hv1.
     have [vm3 [/= hu3 hv3 hs2]]:= hc2 _ _ _ hc2_ hu2 hv2.
-    have {hv3}hv3 := valid_pi_incl hi1 hv3.
+    have {}hv3 := valid_pi_incl hi1 hv3.
     have [vm4 [/= hu4 hv4 /sem_IE hsw]]:= hw _ _ _ _ hw_ hu3 hv3.
     exists vm4; split => //.
     constructor; apply: Ewhile_true; eauto; rewrite -eq_globs.
@@ -667,7 +667,7 @@ Section PROOF.
   Local Lemma Hfor_cons : sem_Ind_for_cons p1 ev Pc Pfor.
   Proof.
     move=> s1 s1' s2 s3 i w ws c hwi _ hc _ hfor pi pi2 vm1 hc_ hincl hu hv.
-    have [{hv}hv {hwi}hwi]:= write_var_valid_pi hv hwi.
+    have [{}hv {}hwi]:= write_var_valid_pi hv hwi.
     have [vm1' hwi' hu']:= write_var_uincl hu (value_uincl_refl _) hwi.
     have [vm2 [hu2 hv2 hs2]] := hc _ _ _ hc_ hu' hv.
     have [vm3 [hu3 hv3 hsf]] := hfor _ _ _ hc_ hincl hu2 (valid_pi_incl hincl hv2).
@@ -693,7 +693,7 @@ Section PROOF.
     move=> hget htr hinit hwr _ hc hres hrtr hscs hfin.
     have [fd2 /=]:= all_checked hget.
     t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.
-    have [vargs1' {htr} htr hua] := mapM2_dc_truncate_val htr hvargs1.
+    have [vargs1' {}htr hua] := mapM2_dc_truncate_val htr hvargs1.
     have [{hua hwr} vm1 hwr hu] := write_vars_uincl (vm_uincl_refl _) hua hwr. 
     have [{hc hc_ hu}vm2 [hu' hv' hs]] := hc _ _ _ hc_ hu (valid_pi_empty _ _).
     have [{hres hu'} vs hvs huvs] := get_var_is_uincl hu' hres.

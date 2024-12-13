@@ -651,12 +651,12 @@ Proof.
   t_xrbindP=> -[[[??]?]?] _.
   case: Mvar.get => //.
   case: opi2 => [pi2|]; last first.
-  + by move=> [<- <- <- <-] [[[??]?]?] /ih{ih}ih _ _; apply ih.
+  + by move=> [<- <- <- <-] [[[??]?]?] /ih{}ih _ _; apply ih.
   t_xrbindP => _ _ _.
   case: Mvar.get => //.
   case heq1: Mvar.get => //.
   case heq2: Mvar.get => //.
-  move=> _ [[[_ _] _] _] /ih{ih}ih _ _ /=.
+  move=> _ [[[_ _] _] _] /ih{}ih _ _ /=.
   case: eqP => [-> //|_].
   by apply ih.
 Qed.
@@ -1484,7 +1484,7 @@ Proof.
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params' hpmap.
   rewrite /init_params /=.
   apply rbindP => -[[[vnew1' locals1'] rmap1'] alloc_param] hparam.
-  t_xrbindP=> -[[[??]?]?] /ih{ih}ih [<- <- _] _.
+  t_xrbindP=> -[[[??]?]?] /ih{}ih [<- <- _] _.
   apply ih.
   by apply (init_param_wf_pmap hparam).
 Qed.
@@ -1515,7 +1515,7 @@ Proof.
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params'.
   rewrite /init_params /=.
   apply: rbindP=> -[[[vnew1' locals1'] rmap1'] alloc_param] hparam.
-  t_xrbindP=> -[[[??]?]?] /ih{ih}ih [<- <- <-] <- vm1 vm2 [hpmap hvs].
+  t_xrbindP=> -[[[??]?]?] /ih{}ih [<- <- <-] <- vm1 vm2 [hpmap hvs].
   move=> s1'' s1' hs1' hs1''.
   have [//|s2' [hs2' hvs']] := valid_state_init_param hpmap hvs hparam hs1' _ heqinmem.
   rewrite /= hs2'.
@@ -1569,7 +1569,7 @@ Proof.
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params'.
   rewrite /init_params /=.
   apply: rbindP=> -[[[vnew1' locals1'] rmap1'] alloc_param] hparam.
-  t_xrbindP=> -[[[??]?]?] /ih{ih}ih _ <- /=.
+  t_xrbindP=> -[[[??]?]?] /ih{}ih _ <- /=.
   constructor; last by apply ih.
   by apply (init_param_alloc_param hparam hpi).
 Qed.
@@ -1584,7 +1584,7 @@ Proof.
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params'.
   rewrite /init_params /=.
   apply: rbindP=> -[[[vnew1' locals1'] rmap1'] alloc_param] hparam.
-  t_xrbindP=> -[[[??]?]?] /ih{ih}ih _ <- /=.
+  t_xrbindP=> -[[[??]?]?] /ih{}ih _ <- /=.
   constructor=> //.
   move: hparam.
   t_xrbindP=> _.
@@ -1602,7 +1602,7 @@ Proof.
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params'.
   rewrite /init_params /=.
   apply: rbindP=> -[[[vnew1' locals1'] rmap1'] alloc_param] hparam.
-  t_xrbindP=> -[[[_ _] _] _] /ih{ih}ih _ _.
+  t_xrbindP=> -[[[_ _] _] _] /ih{}ih _ _.
   constructor=> //.
   move: hparam.
   t_xrbindP=> _.
@@ -2160,7 +2160,7 @@ Proof.
   t_xrbindP => -[rmap2' i2'] /= halloc ?? m0 s2 hvs hext hsao; subst rmap2' c.
   move: halloc; rewrite /alloc_call /assert_check.
   t_xrbindP=> -[rmap1 es] hcargs.
-  t_xrbindP=> -[{rmap2}rmap2 rs2] hcres ra_none /ZleP hsize hle /= <- <-.
+  t_xrbindP=> -[{}rmap2 rs2] hcres ra_none /ZleP hsize hle /= <- <-.
 
   (* evaluation of the arguments *)
   have [vargs2 [hvargs2 hargs heqinmems haddr hclear]] :=
@@ -2174,7 +2174,7 @@ Proof.
   have [fd2 halloc hfd2] := Halloc_fd hfd1.
   have hmax := alloc_fd_max_size_ge0 halloc.
   move: halloc hfd2; rewrite /alloc_fd.
-  t_xrbindP=> {fd2}fd2 _ <- hfd2.
+  t_xrbindP=> {}fd2 _ <- hfd2.
   have halloc_ok: alloc_ok P' fn (emem s2).
   + rewrite /alloc_ok hfd2 => _ [<-] /=.
     split.
@@ -2251,7 +2251,7 @@ Proof.
       rewrite hw in hsr.
       have := Forall3_nth haddr None (Vbool true) (Vbool true) (nth_not_default hsr ltac:(discriminate)) _ _ hsr.
       rewrite hp2 => -[[?] hwf']; subst p2.
-      have {hw}hw := Forall_nth (alloc_call_args_aux_writable hcargsx) None (nth_not_default hsr ltac:(discriminate)) _ hsr.
+      have {}hw := Forall_nth (alloc_call_args_aux_writable hcargsx) None (nth_not_default hsr ltac:(discriminate)) _ hsr.
       have /List.Forall_forall -/(_ (sub_region_at_ofs sr (Some 0) (size_val (nth (Vbool true) vargs1 i)), type_of_val (nth (Vbool true) vargs1 i))) := hdisj'.
       rewrite -sub_region_addr_offset wrepr0 GRing.addr0.
       apply.
@@ -2261,7 +2261,7 @@ Proof.
     have hincl := Forall2_nth hclear None (Vbool true) (nth_not_default hsr' ltac:(discriminate)) _ hsr'.
     apply (disjoint_incl_l (incl_get_var_bytes _ _ hincl)) => /=.
     by apply disjoint_set_clear.
-  have {hvs'} hvs' :
+  have {}hvs' :
     valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 (with_scs (with_mem s1 m1) scs2) 
                                                                             (with_scs (with_mem s2 m2) scs2).
   + by case: hvs' => *; split => //; apply wf_rmap_scs.
@@ -2436,7 +2436,7 @@ Proof.
   elim {vargs1 vargs2}.
   + by move=> _ _ [<-]; constructor.
   move=> opi varg1 varg2 sao_params vargs1 vargs2 heqinmem _ ih [//|ty tyin] /=.
-  t_xrbindP=> _ varg2' hvarg2' vargs2' /ih{ih}ih <-.
+  t_xrbindP=> _ varg2' hvarg2' vargs2' /ih{}ih <-.
   constructor=> //.
   case: opi heqinmem hvarg2' => [pi|//] [p [-> _]].
   rewrite /dc_truncate_val; case:ifP => [_ [] //| _].
@@ -2489,7 +2489,7 @@ Proof.
   elim {l params}.
   + by move=> ? [|//] _ _ _; constructor.
   move=> o x l params harr _ ih wdb [//|varg1 vargs1] /=.
-  t_xrbindP=> s1 s3 s2 hw /ih{ih}ih.
+  t_xrbindP=> s1 s3 s2 hw /ih{}ih.
   constructor=> //.
   move=> /harr /is_sarrP [n hty].
   move/write_varP: hw => [_ _];rewrite hty => /vm_truncate_valEl [> ->] //.
@@ -2656,7 +2656,7 @@ Proof.
     by constructor.
   move=> opi varg2 varg2' sao_params vargs2 vargs2' hptreq _ ih.
   move=> [|varg1 vargs1] /List_Forall3_inv //= [hdisj /ih{}ih].
-  move=> _ /List_Forall2_inv_r [varg1' [vargs1' [-> [hincl /ih{ih}ih]]]].
+  move=> _ /List_Forall2_inv_r [varg1' [vargs1' [-> [hincl /ih{}ih]]]].
   constructor=> //.
   move=> p2; apply: obindP => pi ? [hw] ?; subst opi varg2'.
   apply (disjoint_zrange_incl_l (zbetween_le _ (size_of_le (value_uincl_subtype hincl)))).

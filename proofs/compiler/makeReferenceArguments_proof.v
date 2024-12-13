@@ -207,7 +207,7 @@ Context
     + case/ok_inj => <- <-{lvs' c'} /sem_pisE[] -> <- {vs s1}.
       exists s2, (evm s2); split => //.
       by rewrite with_vm_same; constructor.
-    case: pi => [lv | lv ty y] /=; t_xrbindP => -[] lvs c /ih{ih}ih.
+    case: pi => [lv | lv ty y] /=; t_xrbindP => -[] lvs c /ih{}ih.
     + move=> [??] h; subst lvs' c'.
       case/sem_pisE: h => v [] vs' [] s2' [] ? H H0; subst.
       have [s1' [vm2 [hws hsem]]] := ih _ _ H0.
@@ -266,7 +266,7 @@ Context
     set I := (MkI _ _).
     have hsemI : sem_I p' ev (with_vm s1' vm3) I (with_vm s1' vmi) by constructor; econstructor; eauto.
     have [vm4 ]:= sem_vm_eq hsem heqv.
-    rewrite with_vm_idem => {hsem}hsem heqvm4.
+    rewrite with_vm_idem => {}hsem heqvm4.
     exists (with_vm s1' vm3), vm4; split.
     + by have -> // : s1 = (with_vm s3 (evm s1)); rewrite /with_vm -heqm -heqs; case: (s1).
     + by econstructor;eauto.
@@ -548,7 +548,7 @@ Context
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 x d lo hi c vlo vhi cpl_lo cpl_hi cpl_for sem_s1_s2.
-    move=> ii X c' /=; t_xrbindP=> {c'} c' c'E <-.
+    move=> ii X c' /=; t_xrbindP=> {}c' c'E <-.
     rewrite !(read_Ii, write_Ii) !(read_i_for, write_i_for).
     move=> le_X vm1 eq_s1_vm1.
     case: (sem_s1_s2 X _ c'E _ _ eq_s1_vm1); first by SvD.fsetdec.

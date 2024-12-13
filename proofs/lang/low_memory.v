@@ -126,10 +126,10 @@ Lemma fill_mem_stack_stable m1 m2 ptr bytes :
   fill_mem m1 ptr bytes = ok m2 ->
   stack_stable m1 m2.
 Proof.
-  rewrite /fill_mem; t_xrbindP=> -[z2 {m2}m2] /= hfold <-.
+  rewrite /fill_mem; t_xrbindP=> -[z2 {}m2] /= hfold <-.
   elim: bytes 0 m1 hfold => [ | b bytes ih] z1 m1 /=.
   + by move=> [_ <-].
-  t_xrbindP=> _ m1' hw <- /ih{ih}ih.
+  t_xrbindP=> _ m1' hw <- /ih{}ih.
   by rewrite (Memory.write_mem_stable hw).
 Qed.
 
@@ -137,10 +137,10 @@ Lemma fill_mem_validw_eq m1 m2 ptr bytes :
   fill_mem m1 ptr bytes = ok m2 ->
   validw m1 =3 validw m2.
 Proof.
-  rewrite /fill_mem; t_xrbindP=> -[z2 {m2}m2] /= hfold <-.
+  rewrite /fill_mem; t_xrbindP=> -[z2 {}m2] /= hfold <-.
   elim: bytes 0 m1 hfold => [ | b bytes ih] z1 m1 /=.
   + by move=> [_ <-].
-  t_xrbindP=> _ m1' hw <- /ih{ih}ih.
+  t_xrbindP=> _ m1' hw <- /ih{}ih.
   move=> al p ws.
   by rewrite -(write_validw_eq hw) ih.
 Qed.
@@ -155,7 +155,7 @@ Lemma fill_mem_read8 m1 m2 ptr bytes :
     else read m1 Aligned k U8.
 Proof.
   move=> hover.
-  rewrite /fill_mem; t_xrbindP=> -[z2 {m2}m2] /= hfold <- k.
+  rewrite /fill_mem; t_xrbindP=> -[z2 {}m2] /= hfold <- k.
   have: forall z1,
     0 <= z1 /\ z1 + Z.of_nat (size (bytes)) <= wbase Uptr ->
     foldM (fun w pm => Let m := write pm.2 Aligned (add ptr pm.1) w in ok (pm.1 + 1, m)) (z1, m1) bytes = ok (z2, m2) ->

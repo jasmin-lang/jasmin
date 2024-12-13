@@ -48,7 +48,7 @@ Lemma write_lvals_emem wdb gd xs ys s vs s' :
   emem s' = emem s.
 Proof.
   elim: xs ys vs s; first by move => _ [] // ? _ [] ->.
-  move => x xs ih /=; t_xrbindP => _ [] // ???? X ? /ih{ih}ih _; t_xrbindP => ? Y /ih{ih}->.
+  move => x xs ih /=; t_xrbindP => _ [] // ???? X ? /ih{}ih _; t_xrbindP => ? Y {}/ih ->.
   by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
 Qed.
 

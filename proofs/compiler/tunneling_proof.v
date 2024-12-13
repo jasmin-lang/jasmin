@@ -435,7 +435,7 @@ Section TunnelingProps.
   Proof.
     rewrite /tunnel_head.
     case Hsize: (pc < size lc); last first.
-    + move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
+    + move: (negbT Hsize); rewrite -leqNgt => {}Hsize.
       by rewrite !nth_default // size_map.
     by rewrite (@nth_map _ Linstr_align).
   Qed.
@@ -511,7 +511,7 @@ Section TunnelingProps.
     + exact: subseq_pmap_take.
     move: (subseq_uniq Hsubseq Huniq) => {Hsubseq Huniq}.
     case Hsize: (pc < size lc); last first.
-    + move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
+    + move: (negbT Hsize); rewrite -leqNgt => {}Hsize.
       rewrite !take_oversize //; last by apply/leqW.
       rewrite /pair_pc (@nth_default _ _ _ (pc.+1)) /=; last first.
       - by rewrite size_tunnel_head //; apply/leqW.
@@ -1127,20 +1127,20 @@ Section TunnelingSem.
       move => {IHlc} /eqP ?; subst l' => /andP [/negP Hnotin _].
       case: pc => // pc /= Hislabel; exfalso; apply: Hnotin.
       move: Hislabel.
-      elim: lc pc => [|[{ii} ii i] lc IHlc] pc //=; first by rewrite nth_nil.
+      elim: lc pc => [|[{}ii i] lc IHlc] pc //=; first by rewrite nth_nil.
       case: pc => [|pc] //=.
       - by case: i => // k' l' /eqP ?; subst l'; rewrite /= inE eqxx.
       move/IHlc; clear.
       by case: i => //= ? ? hi; rewrite inE hi orbT.
     case: pc => [|pc] //=; first by rewrite Hislabel.
-    move => Huniq {Hislabel} Hislabel.
+    move => Huniq {}Hislabel.
     rewrite -(addn1 (find _ _)) -(addn1 (size _)) ltn_add2r.
     move: (IHlc pc) => {IHlc}; rewrite Hislabel => {Hislabel}.
     case: ifP; last first.
     + move => _; have ->: uniq (labels_of_body lc); last by move => /(_ isT isT).
       by move: Huniq; case: i => [? ? ?|?|?| | |? l'|[? ?]|?|? ?|? ?] //= /andP [].
     move => Hfind /(_ _ isT) IHlc; f_equal; rewrite addn1; f_equal.
-    have {Huniq} Huniq: uniq (labels_of_body lc); last by case: (IHlc Huniq).
+    have {}Huniq: uniq (labels_of_body lc); last by case: (IHlc Huniq).
     by move: Huniq {Hfind IHlc}; case: i => //= ? l' /andP [].
   Qed.
 
@@ -1289,7 +1289,7 @@ Section TunnelingProof.
       move => [?]; subst s2.
       have [] := local_goto_find_label (s := setpc s1 pc.+1) _ Hgfd Hwfb HSpc.
       - rewrite /find_instr /= Hgfd; move: HSpc.
-        set Spc:= pc.+1; elim: (lfd_body fd) Spc => [|[{ii Hfindinstr} ii i] lf IHlf] Spc.
+        set Spc:= pc.+1; elim: (lfd_body fd) Spc => [|[{Hfindinstr}ii i] lf IHlf] Spc.
         * by rewrite nth_nil.
         by case: Spc => [|Spc] //=; apply IHlf.
       move => pc' Hfindlabel'; rewrite Hfindlabel' /=.
@@ -1309,7 +1309,7 @@ Section TunnelingProof.
       move => [?]; subst s2.
       have [] := local_goto_find_label (s := setpc s1 pc.+1) _ Hgfd Hwfb HSpc.
       - rewrite /find_instr /= Hgfd; move: HSpc.
-        set Spc:= pc.+1; elim: (lfd_body fd) Spc => [|[{ii Hfindinstr} ii i] lf IHlf] Spc.
+        set Spc:= pc.+1; elim: (lfd_body fd) Spc => [|[{Hfindinstr}ii i] lf IHlf] Spc.
         * by rewrite nth_nil.
         by case: Spc => [|Spc] //=; apply IHlf.
       move => pc' Hfindlabel'; rewrite Hfindlabel' /=.
