@@ -19,12 +19,12 @@ module GhostVector : sig
   val unfold_vghosts_epred: (Prog.var * CL.ty) list -> CL.I.epred list -> CL.I.epred list
 
   (* val unfold_vector: (Prog.var * CL.ty) list -> (string * CL.Instr.lval) list * CL.Instr.instr list *)
-  val unfold_vectors: (Prog.var * CL.ty) list -> CL.Instr.lval list * CL.Instr.instr list
+  val unfold_vectors: (Prog.var * CL.ty) list -> (Prog.var * CL.ty) list -> CL.Instr.lval list * CL.Instr.instr list * CL.Instr.instr list
 
 end
 
 module SimplVector: sig
 
-  val simpl_cfg: Cfg.node -> Cfg.node
+  val simpl_cfg: Cfg.node -> CL.tyvar list -> Cfg.node
 
 end

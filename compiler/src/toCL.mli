@@ -102,6 +102,7 @@ module CL : sig
         pre : clause;
         prog : Instr.instr list;
         post : clause;
+        ret_vars: tyvar list;
       }
 
       val pp_proc : Format.formatter -> proc -> unit

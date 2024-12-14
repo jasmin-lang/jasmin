@@ -393,6 +393,7 @@ module CL = struct
         pre : clause;
         prog : Instr.instr list;
         post : clause;
+        ret_vars: tyvar list;
       }
 
     let pp_proc fmt (proc : proc) =
@@ -1684,6 +1685,7 @@ module Mk(O:BaseOp) = struct
   let fun_to_proc fds fd =
     let env = Hash.create 10 in
     let ret = List.map L.unloc fd.f_ret in
+    let ret_vars = List.map O.I.var_to_tyvar ret in (* OUTPUT vars as formals *)
     let cond a x = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
     let args = filter_add cond fd.f_args ret in
     let formals = List.map O.I.var_to_tyvar args in
@@ -1711,6 +1713,7 @@ module Mk(O:BaseOp) = struct
              formals;
              pre;
              prog;
-             post}
+             post;
+             ret_vars}
 
 end
