@@ -24,6 +24,11 @@
 - Fix EasyCrypt semantics of shift operators
   ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973)).
 
+- The speculative constant-time checker rejects more programs, considering that
+  different source-level local variables may be merged during the compilation
+  process
+  ([PR#989](https://github.com/jasmin-lang/jasmin/pull/989)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed

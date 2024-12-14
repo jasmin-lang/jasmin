@@ -12,7 +12,7 @@ fn fig3a(
   reg mut ptr u64[N] w,
   reg u64 i)
   ->  reg mut ptr u64[N] {
-  reg u64 ms x;
+  reg u64 ms x = 0;
   reg bool b;
   ms = #init_msf();
   b = i < N;

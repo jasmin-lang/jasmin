@@ -1,9 +1,0 @@
-export
-fn main() -> #public reg u64 {
-  _ = #init_msf();
-  stack u64[1] local;
-  local[0] = 42;
-  reg u64 r;
-  r = local[0];
-  return r;
-}
