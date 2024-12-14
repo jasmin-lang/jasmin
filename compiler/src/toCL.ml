@@ -81,7 +81,7 @@ module CL = struct
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
-      | IUnPack of tyvar * int * int
+      | IUnPack of tyvar * int * int * bool
 
     let (!-) e1 = Iunop ("-", e1)
     let (-) e1 e2 = Ibinop (e1, "-", e2)
@@ -131,7 +131,7 @@ module CL = struct
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
       | RVget  of tyvar * const
-      | UnPack of  tyvar * int * int
+      | UnPack of  tyvar * int * int * bool
       | Rlimbs of const * rexp list
 
     let const (i1,z1) = Rconst (i1,z1)
@@ -533,9 +533,9 @@ module I (S:S): I = struct
     | PappN(Oabstract {pa_name="ze_16_32"}, [v]) -> Ruext (!> v, 16)
     | PappN(Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
     | PappN(Oabstract {pa_name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
-        UnPack (to_var ~sign x, 16, Z.to_int z)
+      UnPack (to_var ~sign x, 16, Z.to_int z, false)
     | PappN(Oabstract {pa_name="u256_as_16u16"}, [Presult (_, x) ; Pconst z]) ->
-        UnPack (to_var ~sign x, 16, Z.to_int z)
+      UnPack (to_var ~sign x, 16, Z.to_int z, true)
     | _ -> error e
 
   let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
@@ -665,9 +665,9 @@ module I (S:S): I = struct
     | PappN (Oabstract {pa_name="mon0"}, [b]) ->
       !> b
     | PappN (Oabstract {name="u256_as_16u16"}, [Pvar x; Pconst z]) ->
-        IUnPack (to_var ~sign x, 16, Z.to_int z)
+      IUnPack (to_var ~sign x, 16, Z.to_int z, false)
     | Pabstract ({name="u256_as_16u16"}, [Presult (_, x) ; Pconst z]) ->
-        IUnPack (to_var ~sign x, 16, Z.to_int z)
+        IUnPack (to_var ~sign x, 16, Z.to_int z, true)
     | Presult (_,x) -> Ivar (to_var ~sign x)
     | _ -> error e
 

@@ -23,7 +23,7 @@ module CL : sig
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
-      | IUnPack of tyvar * int * int
+      | IUnPack of tyvar * int * int * bool
 
     type epred =
       | Eeq of eexp * eexp
@@ -41,7 +41,7 @@ module CL : sig
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
       | RVget  of tyvar * const
-      | UnPack of  tyvar * int * int
+      | UnPack of  tyvar * int * int * bool
       | Rlimbs of const * rexp list
 
     type rpred =

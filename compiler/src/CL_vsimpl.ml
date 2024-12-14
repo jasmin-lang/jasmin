@@ -119,17 +119,17 @@ module GhostVector = struct
   type vector =
     | U16x16
 
-  let get_vghost ghosts gname =
-    let vghost = List.find (fun (v, _) -> v.v_name = gname) ghosts in
+  let get_vghost ghosts gname b =
+    let vghost = List.find (fun (v, _) -> v.v_name = gname) (if b then List.rev ghosts else ghosts) in (* FIXME: DIRTY HACK *)
     vghost
 
   let get_unfolded_vector_namei v i =
     String.concat "_" [v.v_name; "v" ; string_of_int i]
 
   let rec replace_vghosts_rexp ghosts r =
-    let aux (v, ty) i =
+    let aux (v, ty) i b =
       let name = get_unfolded_vector_namei v i in
-      let v' = get_vghost ghosts name in
+      let v' = get_vghost ghosts name b in
       Rvar v'
     in
     match r with
@@ -149,8 +149,8 @@ module GhostVector = struct
       let e2' = replace_vghosts_rexp ghosts e2 in
       Rbinop(e1', s, e2')
     | RVget(e,c) -> r
-    | UnPack (e,us,i) ->
-      aux e i
+    | UnPack (e,us,i,b) ->
+      aux e i b
 
   let rec unfold_ghosts_rpred ghosts pre =
     match pre with
@@ -172,9 +172,9 @@ module GhostVector = struct
     List.map (unfold_ghosts_rpred ghosts) pre
 
   let rec replace_vghosts_eexp ghosts e =
-    let aux (v, ty) i =
+    let aux (v, ty) i b =
       let name = get_unfolded_vector_namei v i in
-      let v' = get_vghost ghosts name in
+      let v' = get_vghost ghosts name b in
       Ivar v'
     in
     match e with
@@ -190,8 +190,8 @@ module GhostVector = struct
     | Ilimbs (c, l) ->
       let l' = List.map (replace_vghosts_eexp ghosts) l in
       Ilimbs (c, l')
-    | IUnPack (e, us, i) ->
-      aux e i
+    | IUnPack (e, us, i, b) ->
+      aux e i b
 
   let rec unfold_ghosts_epred ghosts pre =
     match pre with
