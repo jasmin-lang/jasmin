@@ -15,16 +15,17 @@ let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
         let fmt = Format.formatter_of_out_channel out in
         fmt, fun () -> close_out out
   in
-  begin try
+  try
     BatPervasives.finally
       (fun () -> close ())
-      (fun () -> ToEC.extract prog arch pd asmOp model amodel fnames array_dir fmt)
+      (fun () ->
+        ToEC.extract prog arch pd asmOp model amodel fnames array_dir fmt)
       ()
   with e ->
     BatPervasives.ignore_exceptions
-      (fun() -> Option.map Unix.unlink outfile) ();
+      (fun () -> Option.map Unix.unlink outfile)
+      ();
     raise e
-  end
 
 
 
@@ -34,11 +35,11 @@ let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
 let parse_and_extract arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
 
-  let extract model old_array functions array_dir output pass file =
+  let extract model amodel functions array_dir output pass file =
     let prog = parse_and_compile (module A) pass file in
 
-    let amodel = if old_array then ToEC.ArrayOld else ToEC.ArrayEclib in
-    extract_to_file prog arch A.reg_size A.asmOp model amodel functions array_dir output
+    extract_to_file prog arch A.reg_size A.asmOp model amodel functions
+      array_dir output
   in
   fun model amodel functions array_dir output pass file warn ->
     if not warn then nowarning ();
@@ -49,10 +50,12 @@ let parse_and_extract arch call_conv =
         exit 1
 
 let model =
-  let alts = [ ("normal", Normal) ; ("CT", ConstantTime); ("CTG", ConstantTimeGlobal)] in
+  let alts =
+    [ ("normal", Normal); ("CT", ConstantTime); ("CTG", ConstantTimeGlobal) ]
+  in
   let doc =
     "Extraction model.
-    $(b,Normal): plain extraction.
+    $(b,normal): plain extraction.
     $(b,CT): Functions additionally return timing-observable leakage for
     'cryptographic constant time' (if/while conditions, memory access
     addresses, array indices, for loop bounds).
@@ -61,12 +64,18 @@ let model =
   in
   Arg.(value & opt (Arg.enum alts) Normal & info [ "m"; "model" ] ~doc)
 
-let old_array =
-  let doc =
-    "Use old representation for array operations (anonymous functions instead of eclib functions)."
+let array_model =
+  let alts =
+    [ ("old", ToEC.ArrayOld); ("warray", ToEC.WArray); ("barray", ToEC.BArray) ]
   in
-  let deprecated = "--array-old is deprected" in
-  Arg.(value & flag & info ["array-old"] ~doc ~deprecated)
+
+  let doc =
+    "Array model.
+     $(b,warray): use polymorphic arrays and warrays (functions predefined in eclib).
+     $(b,barray): use byte arrays (functions predefined in eclib).
+     (Deprecated) $(b,old): old representation for array operations (anonymous functions instead of eclib functions)."
+  in
+  Arg.(value & opt (Arg.enum alts) ToEC.BArray & info [ "array-model" ] ~doc)
 
 let functions =
   let doc =
@@ -78,7 +87,10 @@ let functions =
 
 let output =
   let doc = "Output file. If not given, output will be printed on stdout." in
-  Arg.(value & opt (some string) None & info [ "o"; "output" ] ~docv:"OUTPUT FILE" ~doc)
+  Arg.(
+    value
+    & opt (some string) None
+    & info [ "o"; "output" ] ~docv:"OUTPUT FILE" ~doc)
 
 let array_dir =
   let doc =
@@ -86,7 +98,10 @@ let array_dir =
      If not given, the theories be in the same directory as the output \
      (they will not be generated if the output is stdout)."
   in
-  Arg.(value & opt (some dir) None & info [ "oa"; "output-array" ] ~docv:"OUTPUT DIR" ~doc)
+  Arg.(
+    value
+    & opt (some dir) None
+    & info [ "oa"; "output-array" ] ~docv:"OUTPUT DIR" ~doc)
 
 let file =
   let doc = "The Jasmin source file to extract" in
@@ -106,6 +121,7 @@ let () =
     Cmd.info "jasmin2ec" ~version:Glob_options.version_string ~doc ~man
   in
   Cmd.v info
-    Term.(const parse_and_extract $ arch $ call_conv $ model $ old_array
+    Term.(
+      const parse_and_extract $ arch $ call_conv $ model $ array_model
       $ functions $ array_dir $ output $ after_pass $ file $ warn)
   |> Cmd.eval |> exit
