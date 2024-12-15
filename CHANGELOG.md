@@ -54,7 +54,8 @@
   The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations, and supports a new extraction for leakage based on local variables.
   ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914),
   [PR #952](https://github.com/jasmin-lang/jasmin/pull/952),
-  [PR #967](https://github.com/jasmin-lang/jasmin/pull/967)).
+  [PR #967](https://github.com/jasmin-lang/jasmin/pull/967)),
+  [PR #995](https://github.com/jasmin-lang/jasmin/pull/995)).
 
 - The “allocation” pass now uses the liveness information to reduce the sizes
   of the tables it uses internally; it should be faster on large functions

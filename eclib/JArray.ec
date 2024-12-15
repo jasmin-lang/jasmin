@@ -258,15 +258,29 @@ abstract theory MonoArray.
 
   hint simplify filliE.
 
+  lemma filliEs (f : int -> elem) (k len:int) (t : t)  i :
+      (fill f k len t).[i] = if k <= i < k + len /\ 0 <= i < size then f i else t.[i].
+  proof. by case: (0 <= i < size) => hi;[rewrite filliE | rewrite !get_out]. qed.
+
   (* -------------------------------------------------------------------- *)
   op sub (t: t) k len = mkseq (fun (i:int) => t.[k+i]) len.
 
+  lemma size_sub_ t k len : size (sub t k len) = max 0 len.
+  proof. by rewrite size_mkseq. qed.
+
   lemma size_sub t k len : 0 <= len => size (sub t k len) = len.
-  proof. move=> hl; rewrite size_mkseq /max /#. qed.
+  proof. move=> hl; rewrite size_sub_ /#. qed.
 
   lemma nth_sub (t : t) k len i : 0 <= i < len =>
     nth dfl (sub t k len) i = t.[k + i].
   proof. by move=> h0i; rewrite nth_mkseq. qed.
+
+  lemma nth_subs (t : t) k len i :
+    nth dfl (sub t k len) i = if 0 <= i < len then t.[k + i] else dfl.
+  proof.
+    case: (0 <= i < len) => ?; [rewrite nth_sub | rewrite nth_out] => //.
+    rewrite size_sub_ /#.
+  qed.
 
 end MonoArray.
 

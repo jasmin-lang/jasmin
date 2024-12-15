@@ -2229,6 +2229,9 @@ abstract theory W_WS.
 
   abbrev pack'R (ws:WS.t list) = pack'R_t (Pack.of_list ws).
 
+  lemma size_to_list (w:WB.t) : size (to_list w) = r.
+  proof. by rewrite size_map iotaredE size_iota /max gt0_r. qed.
+
   lemma pack'RwE (ws:pack_t) i : 0 <= i < sizeB =>
     (pack'R_t ws).[i] = ws.[i %/ sizeS].[i %% sizeS].
   proof. by move=> hi;rewrite pack'RE initiE //. qed.
@@ -2321,11 +2324,27 @@ abstract theory W_WS.
     by rewrite mapbE 1:// pack'RbE 1:// pack'RbE 1:// -map_of_list mapiE.
   qed.
 
-  lemma nth_to_list w i :
+  lemma nth_to_list_in w i :
     0 <= i < r =>
     nth (WS.of_int 0) (to_list w) i = w \bits'S i.
   proof.
     move=> hi; rewrite iotaredE (nth_map 0) 1:size_iota /max 1:gt0_r 1:// nth_iota //.
+  qed.
+
+  lemma nth_to_list w i :
+    nth (WS.of_int 0) (to_list w) i = w \bits'S i.
+  proof.
+    case: ( 0 <= i < r) => h; first by apply nth_to_list_in.
+    by rewrite nth_out 1:size_to_list // get_out.
+  qed.
+
+  lemma get_pack'R (l : WS.t list) (k : int) :
+    size l = r => (pack'R l \bits'S k) = nth (WS.of_int 0) l k.
+  proof.
+    move=> hsz.
+    case: (0 <= k < r) => hk.
+    + by rewrite pack'RbE // Pack.get_of_list.
+    by rewrite nth_out 1:hsz 1:// get_out.
   qed.
 
   lemma map_to_list f w :
