@@ -64,7 +64,9 @@ module CL : sig
       | Avecta of tyvar * int
       | Avatome of atom list
 
-    type lval = tyvar
+    type lval =
+      | Llvar of tyvar
+      | Lvatome of lval list
 
     type arg =
       | Atom of atom
@@ -129,6 +131,9 @@ module I(S: S) : sig
   val get_const : 'a Prog.gexpr -> int
   val var_to_tyvar :
     ?sign:bool -> ?vector:int * int -> int Prog.gvar -> CL.tyvar
+  val get_lval:
+    CL.Instr.lval ->
+    CL.tyvar
   val mk_tmp_lval :
     ?name:Jasmin__CoreIdent.Name.t ->
     ?l:Prog.L.t ->

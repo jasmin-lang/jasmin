@@ -220,20 +220,24 @@ module GhostVector = struct
           | n ->
             let name = get_unfolded_vector_namei v (i-1) in
             let tv' = I.mk_tmp_lval ~name u16 in
-            unfold_vector (n - 1) (tv' :: acc)
+            let ltv' = I.get_lval tv' in
+            unfold_vector (n - 1) (ltv' :: acc)
         in
         let vl = unfold_vector 16 [] in
-        let va_16x16 = List.map (fun tv' -> Avar tv') vl in
-        let a_16x16 = Avatome va_16x16 in
-        let a_1x256 = Avatome [Avar tv] in
         let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~vector:(16,16) v in
+        let ll16x16 = Llvar l16x16 in
+        let vl16x16 = Avar l16x16 in
         if List.exists (is_eq_tyvar tv) ret_vars then
-          vl,[], [cast lty_16x16 l16x16 a_1x256] (* Op1.mov va, l16x16; this should be possible with lval *) 
+          let lvl = Lvatome (List.map (fun tv' -> Llvar tv') vl) in
+          let a_1x256 = Avatome [Avar tv] in
+          vl,[], [cast lty_16x16 ll16x16 a_1x256; Op1.mov lvl vl16x16]
         else
-          let vl16x16 = Avar l16x16 in
+          let va_16x16 = List.map (fun tv' -> Avar tv') vl in
+          let a_16x16 = Avatome va_16x16 in
           let (l_1x256, lty_1x256) as l1x256 = I.var_to_tyvar ~vector:(1,256) v in
+          let l1x256v = Llvar l1x256 in
           let l_0 = Avecta (l1x256, 0) in
-          vl,[Op1.mov l16x16 a_16x16; cast lty_1x256 l1x256 vl16x16; Op1.mov tv l_0],[]
+          vl,[Op1.mov ll16x16 a_16x16; cast lty_1x256 l1x256v vl16x16; Op1.mov (Llvar tv) l_0],[]
     in
     List.fold_left (fun (acc1,acc2,acc3) tv ->
         let fs,ispre,ispost = aux tv in
@@ -296,55 +300,55 @@ module SimplVector = struct
         | None -> None
       in
     match n.nkind with
-    | {iname = "cast"; iargs = [Lval (v', ty'); Atom (Avar (v'', ty''))]} ->
+    | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avar (v'', ty''))]} ->
       if v == v' && is_equiv_type ty' ty'' then
         aux (v'',ty'') n
       else
         aux (v, ty) n
-    | {iname = "cast"; iargs = [Lval (v', ty'); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
+    | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
       let ll = (List.length t) + 1 in
       if ll == 1 && v == v' && is_equiv_type ty' ty'' then
         aux (v'', ty'') n
-      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then
+      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then (* Since we're not able to reconstruct the list, this is no longer invertible *)
         Some (v', ty')
       else
         aux (v, ty) n
-    | {iname = "mov"; iargs = [Lval (v', ty'); Atom (Avar (v'', ty''))]} ->
+    | {iname = "mov"; iargs = [Lval (Llvar (v',ty')); Atom (Avar (v'', ty''))]} ->
       if v == v' && is_equiv_type ty' ty'' then
         aux (v'',ty'') n
       else
         aux (v, ty) n
-    | {iname = "mov"; iargs = [Lval (v', ty') ; Atom (Avecta ((v'', ty''), j))]} ->
+    | {iname = "mov"; iargs = [Lval (Llvar (v',ty')) ; Atom (Avecta ((v'', ty''), j))]} ->
       if v == v' && j == 0 && is_equiv_type ty' ty'' then (* do we care if j != 0 ? *)
         aux (v'',ty'') n
       else
         aux (v, ty) n
-    | {iname = "mov"; iargs = [Lval (v', ty'); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
+    | {iname = "mov"; iargs = [Lval (Llvar (v',ty')); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
       let ll = (List.length t) + 1 in
       if ll == 1 && v == v' && is_equiv_type ty' ty'' then
         aux (v'', ty'') n
-      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then
+      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then (* Since we're not able to reconstruct the list, this is no longer invertible *)
         Some (v', ty')
       else
         aux (v, ty) n
-    | {iname = "adds"; iargs = [_; Lval (v', ty'); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+    | {iname = "adds"; iargs = [_; Lval (Llvar (v',ty')); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
       if v == v' && (is_equiv_type ty' ty'' || is_equiv_type ty' ty''') then
         Some (v', ty')
       else
         aux (v, ty) n
-    | {iname = "add"; iargs = [Lval (v', ty');  Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+    | {iname = "add"; iargs = [Lval (Llvar (v',ty'));  Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
       if v == v' && (is_equiv_type ty' ty'' || is_equiv_type ty' ty''') then
         Some (v', ty')
       else
         aux (v, ty) n
-    | {iname = "mull"; iargs = [Lval (vh', tyh'); Lval (vl', tyl'); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+    | {iname = "mull"; iargs = [Lval (Llvar (vh', tyh')); Lval (Llvar (vl', tyl')); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
       if v == vl' &&  (is_equiv_type  tyl' ty'' || is_equiv_type tyl' ty''') then
         Some (vl', tyl')
       else if v == vh' &&  (is_equiv_type  tyh' ty'' || is_equiv_type tyh' ty''') then
         Some (vh', tyh')
       else
         aux (v, ty) n
-    | {iname = "subb"; iargs = [_; Lval (v', ty'); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+    | {iname = "subb"; iargs = [_; Lval (Llvar (v',ty')); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
         if v == v' &&  (is_equiv_type  ty' ty'' || is_equiv_type ty' ty''') then
           Some (v', ty')
         else
@@ -441,11 +445,11 @@ module SimplVector = struct
   let rec nop_uinst cfg ret_vars node =
     let nI = getNextI node in
     match node.nkind with
-      | {iname = "cast"; iargs = [Lval tv; _]}  ->
+      | {iname = "cast"; iargs = [Lval (Llvar tv); _]}  ->
         if not(List.exists (is_eq_tyvar tv) ret_vars) && unused_lval tv nI then
           node.nkind <- { iname = "nop"; iargs = [] }
         else ()
-      | {iname = "mov"; iargs = [Lval tv; _]}  ->
+      | {iname = "mov"; iargs = [Lval (Llvar tv); _]}  ->
         if not(List.exists (is_eq_tyvar tv) ret_vars) && unused_lval tv nI then
           node.nkind <- { iname = "nop"; iargs = [] }
         else ()
