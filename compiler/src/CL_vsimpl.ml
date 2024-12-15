@@ -233,7 +233,7 @@ module GhostVector = struct
           let vl16x16 = Avar l16x16 in
           let (l_1x256, lty_1x256) as l1x256 = I.var_to_tyvar ~vector:(1,256) v in
           let l_0 = Avecta (l1x256, 0) in
-          vl,[cast lty_16x16 l16x16 a_16x16;  cast lty_1x256 l1x256 vl16x16; Op1.mov tv l_0],[]
+          vl,[Op1.mov l16x16 a_16x16; cast lty_1x256 l1x256 vl16x16; Op1.mov tv l_0],[]
     in
     List.fold_left (fun (acc1,acc2,acc3) tv ->
         let fs,ispre,ispost = aux tv in
@@ -303,7 +303,9 @@ module SimplVector = struct
         aux (v, ty) n
     | {iname = "cast"; iargs = [Lval (v', ty'); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
       let ll = (List.length t) + 1 in
-      if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then
+      if ll == 1 && v == v' && is_equiv_type ty' ty'' then
+        aux (v'', ty'') n
+      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then
         Some (v', ty')
       else
         aux (v, ty) n
@@ -317,9 +319,12 @@ module SimplVector = struct
         aux (v'',ty'') n
       else
         aux (v, ty) n
-    | {iname = "mov"; iargs = [Lval (v', ty'); Atom (Avatome [Avar (v'', ty'')])]} ->
-      if v == v' && is_equiv_type ty' ty'' then
+    | {iname = "mov"; iargs = [Lval (v', ty'); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
+      let ll = (List.length t) + 1 in
+      if ll == 1 && v == v' && is_equiv_type ty' ty'' then
         aux (v'', ty'') n
+      else if v == v' && ((int_of_ty ty'') * ll) == (int_of_ty ty') then
+        Some (v', ty')
       else
         aux (v, ty) n
     | {iname = "adds"; iargs = [_; Lval (v', ty'); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
