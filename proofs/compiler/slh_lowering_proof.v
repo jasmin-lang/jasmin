@@ -193,7 +193,7 @@ Section H_SH_PARAMS.
       -> write_lvals true gd s lvs res = ok s'
       -> sem_sopn gd op' s lvs' es' = ok s'.
 
-  Record h_sh_params (shparams : sh_params) : Type :=
+  Record h_sh_params (shparams : sh_params) :=
     {
       hshp_spec_lower : spec_shp_lower (shp_lower shparams);
     }.

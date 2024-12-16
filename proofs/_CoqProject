@@ -9,6 +9,9 @@
 -arg "-w -argument-scope-delimiter"
 -arg "-w -redundant-canonical-projection"
 -arg "-w -projection-no-head-constant"
+-arg "-w -extraction-default-directory"
+-arg "-w -change-dir-deprecated"
+-arg "-w -postfix-notation-not-level-1"
 
 -R 3rdparty Jasmin
 -R arch Jasmin
