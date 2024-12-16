@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect eqtype ssrbool ssrfun ssrnat.
 From mathcomp Require Export seq.
-Require Import Utf8.
+From Coq Require Import Utf8.
 
 Definition pair_inj {A B: Type} {a a': A} {b b': B} (e: (a, b) = (a', b')) :
   a = a' ∧ b = b' :=

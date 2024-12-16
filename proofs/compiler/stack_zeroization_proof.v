@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import ZArith.
+From Coq Require Import ZArith.
 
 Require Import
   label

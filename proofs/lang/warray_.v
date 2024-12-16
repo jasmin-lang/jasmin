@@ -1,7 +1,7 @@
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
-Require Export ZArith Setoid Morphisms.
+From Coq Require Export ZArith Setoid Morphisms.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
