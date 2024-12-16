@@ -1,10 +1,4 @@
-{ lib, mkCoqDerivation, coq, version }:
-
-let elpi =
-  coq.ocamlPackages.elpi.override {
-    version = "v1.20.0";
-  }
-; in
+{ lib, mkCoqDerivation, coq, version, stdlib }:
 
 mkCoqDerivation {
   pname = "elpi";
@@ -14,7 +8,7 @@ mkCoqDerivation {
 
   mlPlugin = true;
   useDune = true;
-  propagatedBuildInputs = [ elpi ]
-  ++ (with coq.ocamlPackages; [ findlib ppx_optcomp ]);
+  propagatedBuildInputs = [ stdlib ]
+  ++ (with coq.ocamlPackages; [ elpi findlib ppx_optcomp ]);
 
 }
