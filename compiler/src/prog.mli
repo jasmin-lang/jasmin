@@ -110,7 +110,7 @@ and  pvar_i = pexpr_ gvar_i
 and  plval  = pexpr_ glval
 and  plvals = pexpr_ glvals
 and  pexpr  = pexpr_ gexpr
-and pexpr_ = PE of pexpr [@@unboxed]
+and  pexpr_ = PE of pexpr [@@unboxed]
 
 type ('info,'asm) pinstr = (pexpr_,'info,'asm) ginstr
 type ('info,'asm) pstmt  = (pexpr_,'info,'asm) gstmt
