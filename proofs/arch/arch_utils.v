@@ -11,7 +11,7 @@ Require Import arch_decl.
 (* Empty type for architectures that don't have one of the components of the
    declaration. *)
 
-Variant empty : Type :=.
+Variant empty : Set :=.
 
 Definition of_empty (X : Type) (x : empty) : X :=
   match x with end.
