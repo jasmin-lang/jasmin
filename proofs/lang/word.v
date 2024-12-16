@@ -4,8 +4,9 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype tuple.
 From mathcomp Require Import div fintype order ssralg ssrnum word_ssrZ word.
-Require Zquot.
-Require Import ZArith utils.
+From Coq Require Zquot.
+From Coq Require Import ZArith.
+Require Import utils.
 Require Export wsize.
 Import Utf8 Lia.
 Import word_ssrZ.

@@ -5,8 +5,8 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrbool seq ssralg.
 From mathcomp Require Import word_ssrZ word.
-Require Import word.
-Require Import ZArith utils.
+From Coq Require Import ZArith.
+Require Import utils word.
 Import Utf8.
 
 Import ssrnat.

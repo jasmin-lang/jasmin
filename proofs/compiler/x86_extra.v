@@ -2,7 +2,7 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import Utf8.
+From Coq Require Import Utf8.
 Require Import compiler_util.
 Require Import
   arch_decl

@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
-Require Import utils Wellfounded.
+From Coq Require Import Wellfounded.
+Require Import utils.
 Import Lexicographic_Product Relation_Operators.
 
 Import Utf8 ZArith Lia.

@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-Require Import FMaps FMapAVL FSetAVL.
+From Coq Require Import FMaps FMapAVL FSetAVL.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import utils.
 
@@ -684,7 +684,7 @@ End DMmake.
  ** Map of positive
  * -------------------------------------------------------------------------- *)
 
-Require Import ZArith.
+From Coq Require Import ZArith.
 
 Module CmpPos.
 
@@ -720,7 +720,7 @@ Module Mz := Mmake CmpZ.
  ** Finite Set
  * -------------------------------------------------------------------------- *)
 
-Require Import MSets.
+From Coq Require Import MSets.
 
 Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
 #[global]

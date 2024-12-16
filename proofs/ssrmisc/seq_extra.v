@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq.
-Require Import Utf8 oseq utils.
-
+From Coq Require Import Utf8.
+Require Import oseq utils.
 
 
 Section PairFoldLeft.
