@@ -1675,7 +1675,7 @@ let arr_init xi =
   let x = L.unloc xi in
   match x.v_ty with
   | Arr(ws, PE e) as ty ->
-    let size =  PE (icnst (size_of_ws ws) ** e) in
+    let size = PE (icnst (size_of_ws ws) ** e) in
     Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType(x.v_ty, TPArray))
