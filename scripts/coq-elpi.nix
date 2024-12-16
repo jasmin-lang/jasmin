@@ -6,6 +6,10 @@ mkCoqDerivation {
   owner = "LPCIC";
   inherit version;
 
+  preConfigure = ''
+    make elpi/dune
+  '';
+
   mlPlugin = true;
   useDune = true;
   propagatedBuildInputs = [ stdlib ]
