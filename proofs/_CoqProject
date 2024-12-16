@@ -12,6 +12,7 @@
 -arg "-w -extraction-default-directory"
 -arg "-w -change-dir-deprecated"
 -arg "-w -postfix-notation-not-level-1"
+-arg "-w -deprecated-since-mathcomp-2.3.0"
 
 -R 3rdparty Jasmin
 -R arch Jasmin
