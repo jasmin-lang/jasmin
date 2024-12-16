@@ -1,19 +1,21 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype finfun.
 From mathcomp Require Import ssralg word_ssrZ.
 Require oseq.
-Require Import ZArith
-utils
-strings
-memory_model
-(* word *)
-global
-oseq
-Utf8
-Relation_Operators
-sem_type
-syscall syscall_sem
-label
-arch_decl.
+From Coq Require Import
+  ZArith
+  Utf8
+  Relation_Operators.
+Require Import
+  utils
+  strings
+  memory_model
+  (* word *)
+  global
+  oseq
+  sem_type
+  syscall syscall_sem
+  label
+  arch_decl.
 
 (* -------------------------------------------------------------------- *)
 

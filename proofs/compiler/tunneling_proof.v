@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
-Require Import ZArith.
-Require Import Utf8.
+From Coq Require Import ZArith.
+From Coq Require Import Utf8.
 
 Require Import oseq expr_facts compiler_util label linear linear_sem.
 Require Import sem_params.

@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 From mathcomp Require Import fintype finfun ssralg.
-Require Import Uint63.
+From Coq Require Import Uint63.
 
 Require Import
   arch_params_proof

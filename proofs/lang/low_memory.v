@@ -5,7 +5,7 @@ Require memory_example.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import Lia.
+From Coq Require Import Lia.
 Import Utf8 ZArith.
 Import ssrring.
 Import type word utils.

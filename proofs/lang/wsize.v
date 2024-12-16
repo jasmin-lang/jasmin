@@ -4,7 +4,8 @@
 
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
-Require Import strings ZArith utils.
+From Coq Require Import ZArith.
+Require Import strings utils.
 Import Utf8.
 Import word_ssrZ.
 

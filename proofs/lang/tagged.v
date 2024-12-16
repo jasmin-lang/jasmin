@@ -1,6 +1,7 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import PrimInt63 Sint63 utils gen_map.
+From Coq Require Import PrimInt63 Sint63.
+Require Import utils gen_map.
 
 Module Type TaggedCore.
 

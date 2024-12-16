@@ -2,7 +2,8 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import expr ZArith sem_op_typed compiler_util.
+From Coq Require Import ZArith.
+Require Import expr sem_op_typed compiler_util.
 Import Utf8.
 Import oseq.
 Require Import flag_combination.

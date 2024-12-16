@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
-Require Import Uint63.
+From Coq Require Import Uint63.
 Require Import psem compiler_util.
 Require Export makeReferenceArguments.
 Import Utf8.

@@ -1,8 +1,8 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import ssralg.
-Require Import ZArith Uint63.
-Require Import Utf8.
+From Coq Require Import ZArith Uint63.
+From Coq Require Import Utf8.
 
 Require Import
   arch_params

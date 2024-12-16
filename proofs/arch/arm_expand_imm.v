@@ -2,7 +2,8 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 From mathcomp Require Import word_ssrZ.
 
-Require Import ZArith utils word String.
+From Coq Require Import ZArith String.
+Require Import utils word.
 
 (* -------------------------------------------------------------------- *)
 (* Valid immediates checks. *)

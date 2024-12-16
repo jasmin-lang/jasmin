@@ -3,8 +3,8 @@ From Coq
 Require Import Setoid Morphisms Lia.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
-Require Import ZArith Utf8.
-        Import Relations.
+From Coq Require Import ZArith Utf8.
+Import Relations.
 
 Require sem_one_varmap_facts label.
 Import word_ssrZ.

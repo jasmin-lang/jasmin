@@ -3,8 +3,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
-Require Import ZArith.
-Require Import Utf8.
+From Coq Require Import ZArith Utf8.
 Import Relations.
 
 Require Import expr fexpr compiler_util label constant_prop.
