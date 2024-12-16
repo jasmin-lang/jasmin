@@ -4,14 +4,14 @@ open Arm_decl
 
 
 module type Arm_input = sig
-  val call_conv : (register, Arm_decl.__, Arm_decl.__, rflag, condt) calling_convention
+  val call_conv : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) calling_convention
 
 end
 
 module Arm_core = struct
   type reg = register
-  type regx = Arm_decl.__
-  type xreg = Arm_decl.__
+  type regx = Arch_utils.empty
+  type xreg = Arch_utils.empty
   type nonrec rflag = rflag
   type cond = condt
   type asm_op = Arm_instr_decl.arm_op

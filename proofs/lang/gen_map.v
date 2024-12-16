@@ -86,7 +86,7 @@ Module Type CompuEqDec.
 End CompuEqDec.
 
 Reserved Notation "x .[ k <- v ]"
-     (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
+  (at level 2, v at level 200, left associativity, format "x .[ k  <-  v ]").
 
 Module Type MAP.
 
