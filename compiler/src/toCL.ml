@@ -781,11 +781,7 @@ module X86BaseOpU : BaseOp
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
     | _ -> assert false
 
-  let deref r = !r
   let (!) e = I.mk_lval_atome e
-
-  let adox_cleared = ref 0
-  let adcx_cleared = ref 0
 
   let cast_vector_atome ws v x =
     let a,i = cast_atome ws x in
