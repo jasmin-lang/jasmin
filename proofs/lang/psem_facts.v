@@ -753,6 +753,24 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}.
 
+Lemma write_var_eq_ex wdb X (x:var_i) v s1 s2 vm1 :
+  write_var wdb x v s1 = ok s2 ->
+  evm s1 =[\X] vm1 ->
+  exists2 vm2,
+    write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
+    evm s2 =[\X] vm2.
+Proof.
+  move=> hw eq_vm1.
+  have [vm2 hw2 eq_vm2] := write_var_eq_on1 vm1 hw.
+  exists vm2 => //.
+  move=> y y_in.
+  case: (Sv_memP y (Sv.singleton x)) => y_in'.
+  + by apply eq_vm2.
+  have /= <- // := vrvP_var hw.
+  have /= <- // := vrvP_var hw2.
+  by apply eq_vm1.
+Qed.
+
 Lemma write_lval_eq_ex wdb gd X x v s1 s2 vm1 :
   disjoint X (read_rv x) ->
   write_lval wdb gd x v s1 = ok s2 ->
@@ -772,7 +790,6 @@ Proof.
   have /= <- := vrvP hw2; last by clear -y_in'; SvD.fsetdec.
   by apply eq_vm1.
 Qed.
-
 
 Lemma write_lvals_eq_ex wdb gd X xs vs s1 s2 vm1 :
   disjoint X (read_rvs xs) ->

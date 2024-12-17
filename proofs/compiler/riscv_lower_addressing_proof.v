@@ -390,25 +390,6 @@ Proof.
   by move=> s i c tmp vm1 tmp_ty tmp_nin eq_vm1; exists vm1 => //; constructor.
 Qed.
 
-(* TODO: move *)
-Lemma write_var_eq_ex wdb X (x:var_i) v s1 s2 vm1 :
-  write_var wdb x v s1 = ok s2 ->
-  evm s1 =[\X] vm1 ->
-  exists2 vm2,
-    write_var wdb x v (with_vm s1 vm1) = ok (with_vm s2 vm2) &
-    evm s2 =[\X] vm2.
-Proof.
-  move=> hw eq_vm1.
-  have [vm2 hw2 eq_vm2] := write_var_eq_on1 vm1 hw.
-  exists vm2 => //.
-  move=> y y_in.
-  case: (Sv_memP y (Sv.singleton x)) => y_in'.
-  + by apply eq_vm2.
-  have /= <- // := vrvP_var hw.
-  have /= <- // := vrvP_var hw2.
-  by apply eq_vm1.
-Qed.
-
 Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
 Proof.
   move => s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf tmp vm1 tmp_ty tmp_nin eq_vm1.
