@@ -56,7 +56,7 @@ let check_options () =
 
   if !target_arch = RISCV
     then warning Experimental Location.i_dummy
-      "support of the RISC-V architecture is really experimental";
+      "support of the RISC-V architecture is experimental";
 
   if !ec_list <> []
     || !ecfile <> ""
