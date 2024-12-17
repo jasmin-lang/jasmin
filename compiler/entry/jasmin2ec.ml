@@ -34,10 +34,9 @@ let extract_to_file prog arch pd asmOp model amodel fnames array_dir outfile =
 let parse_and_extract arch call_conv =
   let module A = (val get_arch_module arch call_conv) in
 
-  let extract model old_array functions array_dir output pass file =
+  let extract model amodel functions array_dir output pass file =
     let prog = parse_and_compile (module A) pass file in
 
-    let amodel = if old_array then ToEC.ArrayOld else ToEC.ArrayEclib in
     extract_to_file prog arch A.reg_size A.asmOp model amodel functions array_dir output
   in
   fun model amodel functions array_dir output pass file warn ->
@@ -52,7 +51,7 @@ let model =
   let alts = [ ("normal", Normal) ; ("CT", ConstantTime); ("CTG", ConstantTimeGlobal)] in
   let doc =
     "Extraction model.
-    $(b,Normal): plain extraction.
+    $(b,normal): plain extraction.
     $(b,CT): Functions additionally return timing-observable leakage for
     'cryptographic constant time' (if/while conditions, memory access
     addresses, array indices, for loop bounds).
@@ -61,12 +60,16 @@ let model =
   in
   Arg.(value & opt (Arg.enum alts) Normal & info [ "m"; "model" ] ~doc)
 
-let old_array =
+let array_model =
+  let alts = [("old", ToEC.ArrayOld); ("warray", ToEC.WArray); ("barray", ToEC.BArray)] in
+
   let doc =
-    "Use old representation for array operations (anonymous functions instead of eclib functions)."
+    "Array model.
+     $(b,warray): use polymorphic arrays and warrays (functions predefined in eclib).
+     $(b,barray): use byte arrays (functions predefined in eclib).
+     (Deprecate) $(b,old): old representation for array operations (anonymous functions instead of eclib functions)."
   in
-  let deprecated = "--array-old is deprected" in
-  Arg.(value & flag & info ["array-old"] ~doc ~deprecated)
+  Arg.(value & opt (Arg.enum alts) ToEC.BArray & info ["am"; "array-model"] ~doc)
 
 let functions =
   let doc =
@@ -106,6 +109,6 @@ let () =
     Cmd.info "jasmin2ec" ~version:Glob_options.version_string ~doc ~man
   in
   Cmd.v info
-    Term.(const parse_and_extract $ arch $ call_conv $ model $ old_array
+    Term.(const parse_and_extract $ arch $ call_conv $ model $ array_model
       $ functions $ array_dir $ output $ after_pass $ file $ warn)
   |> Cmd.eval |> exit
