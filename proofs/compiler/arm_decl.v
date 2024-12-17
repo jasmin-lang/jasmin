@@ -16,10 +16,6 @@ Require Import
 
 Require Export arm_expand_imm.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* ARM Cortex-M4 architecture
 
  * The ARM Cortex-M4 processor implements the ARMv7-M ISA.

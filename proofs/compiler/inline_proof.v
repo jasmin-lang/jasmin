@@ -4,10 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import psem allocation_proof compiler_util.
 Require Export inline.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section INLINE.
@@ -61,7 +57,7 @@ Section INCL.
       by t_xrbindP => -[Xc1 c1'] /Hc1 -> /= -[Xc2 c2'] /Hc2 -> /= <- <-.
     + move=> i dir lo hi c Hc ii X1 c0 X2 /=.
       by t_xrbindP => -[Xc c'] /Hc -> /= <- <-.
-    + move=> a c e c' Hc Hc' ii X1 c0 X2 /=.
+    + move=> a c e ei c' Hc Hc' ii X1 c0 X2 /=.
       by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
     move=> xs f es ii X1 c' X2 /=.
     case: ii_is_inline => [|//].
@@ -171,9 +167,9 @@ Section SUBSET.
   Local Lemma Sfor   : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Proof. by move=> i d lo hi c Hc ii X2 Xc;apply:rbindP => Xc' /Hc ? [<-]. Qed.
 
-  Local Lemma Swhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
+  Local Lemma Swhile : forall a c e ei c', Pc c -> Pc c' -> Pr (Cwhile a c e ei c').
   Proof.
-    move=> a c e c' Hc Hc' ii X2 Xc;apply:rbindP=> Xc' /Hc ?.
+    move=> a c e ei c' Hc Hc' ii X2 Xc;apply:rbindP=> Xc' /Hc ?.
     by apply: rbindP=> Hc'' /Hc' ? [<-].
   Qed.
 
@@ -386,9 +382,9 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c e c'.
+    move => s1 s2 s3 s4 a c e ei c'.
     case: s1 => scs1 sm1 svm1 Hsc Hc Hse Hsc' Hc' _ Hw ii X1 X2 cw Hi.
-    move: (Hi) => /=;set X3 := Sv.union _ _;apply: rbindP => -[Xc c1] Hc1.
+    move: (Hi) => /=;set X3 := Sv.union _ _; apply: rbindP => -[Xc c1] Hc1.
     apply: rbindP => -[Xc' c1'] Hc1' [] ??;subst X1 cw => vm1 Hvm1.
     case : (Hc _ _ _ Hc1 vm1) => [| vm2 Hvm2 Hsc1].
     + apply: uincl_onI Hvm1; have /= -> := inline_c_subset Hc1.
@@ -408,9 +404,9 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move => s1 s2 a c e c'.
+    move => s1 s2 a c e ei c'.
     case: s1 s2 => scs1 sm1 svm1 [scs2 sm2 svm2] Hsc Hc Hse ii X1 X2 cw /=.
-    set X3 := Sv.union _ _;apply: rbindP => -[Xc c1] Hc1.
+    set X3 := Sv.union _ _; apply: rbindP => -[Xc c1] Hc1.
     apply: rbindP => -[Xc' c1'] Hc1' [] ??;subst X1 cw => vm1 Hvm1.
     case : (Hc _ _ _ Hc1 vm1) => [| vm2 /= Hvm2 Hsc1].
     + apply: uincl_onI Hvm1; have /= -> := inline_c_subset Hc1.

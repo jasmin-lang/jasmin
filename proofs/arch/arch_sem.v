@@ -15,10 +15,6 @@ syscall syscall_sem
 label
 arch_decl.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------- *)
 
 Module RegMap. Section Section.
@@ -609,6 +605,6 @@ Variant asmsem_exportcall
       -> (forall r,
            r \in callee_saved
            -> preserved_register r m m')
-      -> asmsem_exportcall p fn m m'.
+      -> asmsem_exportcall.
 
 End SEM.

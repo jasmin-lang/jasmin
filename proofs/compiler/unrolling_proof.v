@@ -3,10 +3,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import ZArith psem compiler_util.
 Require Export unrolling.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section PROOF.
@@ -114,7 +110,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c1 e c2 _.
+    move => s1 s2 s3 s4 a c1 e ei c2 _.
     rewrite /Pc /Pi_r /=.
     case: (unroll_cmd _ c1) => c1' b1 /= Hc1 Hb _.
     case: (unroll_cmd _ c2) => c2' b2 /= Hc2 _ Hi ii.
@@ -124,7 +120,7 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move => s1 s2 a c1 e c2 _.
+    move => s1 s2 a c1 e ei c2 _.
     rewrite /Pc /Pi_r /=.
     case: (unroll_cmd _ c1) => c1' b1 /= Hc1 Hb ii.
     case: (unroll_cmd _ c2) => c2' b2 /=.

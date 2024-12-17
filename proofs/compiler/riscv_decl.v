@@ -14,10 +14,6 @@ Require Import
   arch_decl
   arch_utils.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* --------------------------------------------- *)
 Definition riscv_reg_size := U32.
 Definition riscv_xreg_size := U64. (* Unused *)

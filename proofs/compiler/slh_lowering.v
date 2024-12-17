@@ -22,10 +22,6 @@ Require Import expr.
 Require constant_prop flag_combination.
 Require Import compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module E.
 
 Definition pass : string := "speculative execution lowering".
@@ -454,7 +450,7 @@ Fixpoint check_i (i : instr) (env : Env.t) : cexec Env.t :=
 
   | Cfor x _ c => check_for ii x (check_cmd c) Loop.nb env
 
-  | Cwhile _ c0 cond c1 =>
+  | Cwhile _ c0 cond _ c1 =>
       Let _ := chk_mem ii cond in
       check_while ii cond (check_cmd c0) (check_cmd c1) Loop.nb env
 
@@ -519,10 +515,10 @@ Fixpoint lower_i (i : instr) : cexec instr :=
       Let c' := lower_cmd c in
       ok (Cfor x r c')
 
-    | Cwhile al c0 b c1 =>
+    | Cwhile al c0 b info c1 =>
       Let c0' := lower_cmd c0 in
       Let c1' := lower_cmd c1 in
-      ok (Cwhile al c0' b c1')
+      ok (Cwhile al c0' b info c1')
 
     | Ccall _ _ _ =>
         ok ir

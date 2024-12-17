@@ -5,10 +5,6 @@ Require Import varmap psem.
 Import Utf8.
 
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* ** proofs
  * -------------------------------------------------------------------- *)
 
@@ -105,7 +101,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true (dc:=indirect_c) p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 s3 s4 a c e c' _ hc he _ hc' _ hw vm1 hle.
+  move=> s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hw vm1 hle.
   have [vm2 hle2 hs2] := hc _ hle.
   have [v' he2 /value_uinclE ?]:= sem_pexpr_uincl hle2 he;subst.
   have [vm3 /hw [vm4 hle4 hs4] hs3]:= hc' _ hle2;exists vm4 => //; eapply Ewhile_true; eauto.
@@ -113,7 +109,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false (dc:=indirect_c) p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 a c e c' _ hc he vm1 hle.
+  move=> s1 s2 a c e ei c' _ hc he vm1 hle.
   have [vm2 hle2 hs2] := hc _ hle.
   have [v' he' /value_uinclE ?]:= sem_pexpr_uincl hle2 he;subst.
   by exists vm2 => //;apply: Ewhile_false.

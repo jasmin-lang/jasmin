@@ -22,10 +22,6 @@ Require Import
   riscv_instr_decl
   riscv_lowering.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section PROOF.
 
 Context
@@ -670,7 +666,7 @@ Qed.
 #[ local ]
 Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s0 s1 s2 s3 al c0 e c1 _ hc0 hseme _ hc1 _ hwhile ii.
+  move=> s0 s1 s2 s3 al c0 e info c1 _ hc0 hseme _ hc1 _ hwhile ii.
   rewrite /Pi /=.
   apply: sem_seq_ir.
   apply: (Ewhile_true hc0 hseme hc1).
@@ -682,7 +678,7 @@ Qed.
 #[ local ]
 Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s0 s1 al c0 e c1 _ hc0 hseme ii.
+  move=> s0 s1 al c0 e info c1 _ hc0 hseme ii.
   rewrite /Pi /=.
   apply: sem_seq_ir.
   by apply: Ewhile_false; eassumption.

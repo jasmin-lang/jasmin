@@ -17,10 +17,6 @@ Require Import
   arm.
 
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Variant arm_extra_op : Type :=
   | Oarm_swap of wsize
   | Oarm_add_large_imm

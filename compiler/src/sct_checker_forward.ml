@@ -34,7 +34,6 @@ let sstrict   = "strict"
 (* ----------------------------------------------------------- *)
 (* Info provided by the user                                   *)
 type ulevel =
-  | Poly of string L.located (* * string L.located *) (* normal, speculative *)
   | Secret
   | Transient
   | Public
@@ -287,7 +286,7 @@ let rec infer_msf_i ~withcheck fenv (tbl:(L.i_loc, Sv.t) Hashtbl.t) i ms =
       else loop (Sv.union ms' ms) in
     loop ms
 
-  | Cwhile (_, c1, _, c2) ->
+  | Cwhile (_, c1, _, _, c2) ->
     (* c1; while e do c2; c1 *)
     let rec loop ms =
       let ms1 = infer_msf_c ~withcheck fenv tbl c1 ms in
@@ -1110,7 +1109,7 @@ let rec ty_instr is_ct_asm fenv env ((msf,venv) as msf_e :msf_e) i =
       Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
       msf', venv1
 
-  | Cwhile(_, c1, e, c2) ->
+  | Cwhile(_, c1, e, _, c2) ->
     (* c1; while e do (c2; c1) *)
     (* env, msf <= env1, msf1
        env1, msf1 |- c1 : msf2, env2   env2 |- e : public
@@ -1294,7 +1293,6 @@ let init_constraint fenv f =
       l in
 
   let to_lvl = function
-    | Poly s -> add_lvl (L.unloc s)
     | Secret -> Env.secret2 env
     | Transient -> Env.transient env
     | Public | Msf -> Env.public2 env in

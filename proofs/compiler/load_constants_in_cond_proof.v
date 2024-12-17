@@ -5,10 +5,6 @@ Require Import psem compiler_util.
 Require Export load_constants_in_cond.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section WITH_PARAMS.
@@ -260,7 +256,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 s3 s4 a c e c' sem_s1_s2 H_s1_s2.
+  move=> s1 s2 s3 s4 a c e info c' sem_s1_s2 H_s1_s2.
   move=> sem_s2_e sem_s2_s3 H_s2_s3 sem_s3_s4 H_s3_s4.
   move=> ii X c'' /=; t_xrbindP => -[prologue e'] he.
   t_xrbindP => d dE d' d'E {c''}<-.
@@ -272,7 +268,7 @@ Proof.
   move=> [sem_vm2_vm3 eq_s2_vm3 sem_s2_e'].
   case: (H_s2_s3 X _ d'E _ _ eq_s2_vm3); first by SvD.fsetdec.
   move=> vm4 eq_s3_vm4 sem_vm3_vm4.
-  case: (H_s3_s4 ii X [:: MkI ii (Cwhile a (d ++ map (MkI ii) prologue) e' d')] _ _ vm4) => //=.
+  case: (H_s3_s4 ii X [:: MkI ii (Cwhile a (d ++ map (MkI info) prologue) e' info d')] _ _ vm4) => //=.
   + by rewrite he /= dE d'E.
   + rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
     by SvD.fsetdec.
@@ -283,7 +279,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 a c e c' sem_s1_s2 H_s1_s2 sem_s2_e.
+  move=> s1 s2 a c e info c' sem_s1_s2 H_s1_s2 sem_s2_e.
   move=> ii X c'' /=; t_xrbindP => -[prologue e'] he.
   t_xrbindP => d dE d' d'E {c''}<-.
   rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).

@@ -26,10 +26,6 @@ Require Import
 
 Require Export riscv_params_common.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* Most RISCV instructions with default options are executed as follows:
    1. Unfold instruction execution definitions, e.g. [eval_instr].
    2. Rewrite argument hypotheses, i.e. [sem_pexpr].

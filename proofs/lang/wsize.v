@@ -8,10 +8,6 @@ Require Import strings ZArith utils.
 Import Utf8.
 Import word_ssrZ.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------- *)
 Variant wsize :=
   | U8

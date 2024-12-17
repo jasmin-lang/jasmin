@@ -12,10 +12,6 @@ Require Import
   arm_decl
   arm_instr_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Definition is_arith_small (imm : Z) : bool :=
   is_expandable_or_shift imm || is_w12_encoding imm.
 

@@ -36,7 +36,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
-    | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
+    | Cwhile (a, s, e, loc, s') -> Cwhile (a, fill_stmt s, e, loc, fill_stmt s')
     | Ccall (lvs, f, es) -> Ccall (fill_lvs lvs, f, es)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
@@ -270,7 +270,7 @@ let collect_equality_constraints_in_func
         List.iter2 (fun r x -> addv ii r (get_Lvar x))
           g.f_ret xs
       end
-    | (Cwhile (_, s1, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
+    | (Cwhile (_, s1, _, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
   and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body
@@ -393,7 +393,7 @@ let collect_opn_conflicts pd reg_size asmOp
         | _, _ -> c) c conflicts
     | Cfor (_, _, s) -> collect_opn_conflicts_stmt c s
     | Cif (_, s1, s2)
-    | Cwhile (_, s1, _, s2) ->
+    | Cwhile (_, s1, _, _, s2) ->
         let c = collect_opn_conflicts_stmt c s1 in
         collect_opn_conflicts_stmt c s2
     | _ -> c
@@ -420,7 +420,7 @@ let collect_conflicts pd reg_size asmOp
     | Csyscall _
     | Ccall _
       -> c
-    | Cwhile (_, s1, _, s2)
+    | Cwhile (_, s1, _, _, s2)
     | Cif (_, s1, s2)
       -> collect_stmt (collect_stmt c s1) s2
   and collect_instr c { i_desc ; i_loc ; i_info } =
@@ -438,7 +438,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
     function
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
     | (Ccall (lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
-    | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
+    | (Cwhile (_, s1, e, _, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
   and iter_stmt s = List.iter iter_instr s in
@@ -682,7 +682,7 @@ let allocate_forced_registers return_addresses translate_var nv (vars: int Hv.t)
        alloc_args loc get_a es;
        alloc_ret loc get_r lvs
 
-    | Cwhile (_, s1, _, s2)
+    | Cwhile (_, s1, _, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
     | Cassgn _
@@ -1004,7 +1004,7 @@ let callsite_tree (s : (Location.i_loc list * Sv.t) list) =
 
 
 
-let pp_liveness vars liveness_per_callsite liveness_table conflicts a =
+let pp_liveness vars liveness_per_callsite liveness_table a =
   (* Prints the program with forced registers, equivalence classes, and liveness information *)
   let open Format in
   let open PrintCommon in
@@ -1307,7 +1307,7 @@ let global_allocation translate_var get_internal_size (funcs: ('info, 'asm) func
 
   List.iter (fun f -> allocate_forced_registers return_addresses translate_var nv vars conflicts f a) funcs;
 
-  if !Glob_options.print_liveness then pp_liveness vars liveness_per_callsite liveness_table conflicts a;
+  if !Glob_options.print_liveness then pp_liveness vars liveness_per_callsite liveness_table a;
 
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in

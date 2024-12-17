@@ -9,10 +9,6 @@ Require Export
   sem_params.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope Z_scope.
 Local Open Scope seq_scope.
 Open Scope vm_scope.
@@ -191,17 +187,17 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem s1 c2 s2 ->
     sem_i s1 (Cif e c1 c2) s2
 
-| Ewhile_true s1 s2 s3 s4 a c e c' :
+| Ewhile_true s1 s2 s3 s4 a c e ei c' :
     sem s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool true) ->
     sem s2 c' s3 ->
-    sem_i s3 (Cwhile a c e c') s4 ->
-    sem_i s1 (Cwhile a c e c') s4
+    sem_i s3 (Cwhile a c e ei c') s4 ->
+    sem_i s1 (Cwhile a c e ei c') s4
 
-| Ewhile_false s1 s2 a c e c' :
+| Ewhile_false s1 s2 a c e ei c' :
     sem s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool false) ->
-    sem_i s1 (Cwhile a c e c') s2
+    sem_i s1 (Cwhile a c e ei c') s2
 
 | Efor s1 s2 (i:var_i) d lo hi c vlo vhi :
     sem_pexpr true gd s1 lo = ok (Vint vlo) ->
@@ -294,17 +290,17 @@ Section SEM_IND.
     sem s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_while_true : Prop :=
-    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
+    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
     sem s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool true) ->
     sem s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i s3 (Cwhile a c e c') s4 -> Pi_r s3 (Cwhile a c e c') s4 -> Pi_r s1 (Cwhile a c e c') s4.
+    sem_i s3 (Cwhile a c e ei c') s4 -> Pi_r s3 (Cwhile a c e ei c') s4 -> Pi_r s1 (Cwhile a c e ei c') s4.
 
   Definition sem_Ind_while_false : Prop :=
-    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
+    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
     sem s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool false) ->
-    Pi_r s1 (Cwhile a c e c') s2.
+    Pi_r s1 (Cwhile a c e ei c') s2.
 
   Hypotheses
     (Hasgn: sem_Ind_assgn)
@@ -391,11 +387,11 @@ Section SEM_IND.
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
     | @Eif_false s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_false s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c2 s2 s0)
-    | @Ewhile_true s1 s2 s3 s4 a c e1 c' s0 e2 s5 s6 =>
-      @Hwhile_true s1 s2 s3 s4 a c e1 c' s0 (@sem_Ind s1 c s2 s0) e2 s5 (@sem_Ind s2 c' s3 s5) s6
-          (@sem_i_Ind s3 (Cwhile a c e1 c') s4 s6)
-    | @Ewhile_false s1 s2 a c e1 c' s0 e2 =>
-      @Hwhile_false s1 s2 a c e1 c' s0 (@sem_Ind s1 c s2 s0) e2
+    | @Ewhile_true s1 s2 s3 s4 a c e1 ei c' s0 e2 s5 s6 =>
+      @Hwhile_true s1 s2 s3 s4 a c e1 ei c' s0 (@sem_Ind s1 c s2 s0) e2 s5 (@sem_Ind s2 c' s3 s5) s6
+          (@sem_i_Ind s3 (Cwhile a c e1 ei c') s4 s6)
+    | @Ewhile_false s1 s2 a c e1 ei c' s0 e2 =>
+      @Hwhile_false s1 s2 a c e1 ei c' s0 (@sem_Ind s1 c s2 s0) e2
     | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
       @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
         (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
@@ -627,10 +623,10 @@ Lemma sem_iE s i s' :
     ∃ vlo vhi,
     [/\ sem_pexpr true gd s lo = ok (Vint vlo), sem_pexpr true gd s hi = ok (Vint vhi) &
         sem_for i (wrange d vlo vhi) s c s' ]
-  | Cwhile a c e c' =>
+  | Cwhile a c e ei c' =>
     ∃ si b,
        [/\ sem s c si, sem_pexpr true gd si e = ok (Vbool b) &
-                       if b then ∃ sj, sem si c' sj ∧ sem_i sj (Cwhile a c e c') s' else si = s' ]
+                       if b then ∃ sj, sem si c' sj ∧ sem_i sj (Cwhile a c e ei c') s' else si = s' ]
   | Ccall xs f es =>
     ∃ vs scs2 m2 rs,
     [/\ sem_pexprs (~~direct_call) gd s es = ok vs,
@@ -643,8 +639,8 @@ Proof.
   - by move => s scs m s' xs o es ves vs h1 h2 h3; exists scs, m, ves, vs.
   - by move => s s' e th el he hth; exists true.
   - by move => s s' e th el he hel; exists false.
-  - by move => s si sj s' c e c' hc he hc' hrec; exists si, true; constructor => //; exists sj.
-  - by move => s s' c e c' hc he; exists s', false.
+  - by move => s si sj s' c e c' ei hc he hc' hrec; exists si, true; constructor => //; exists sj.
+  - by move => s s' c e c' ei hc he; exists s', false.
   - by move => s s' i d lo hi c vlo vhi hlo hhi hc; exists vlo, vhi.
   by move=> s scs m s' xs f es vs rs hvs h hrs; exists vs, scs, m, rs.
 Qed.
@@ -1015,9 +1011,9 @@ Proof.
     by rewrite /Pi_r write_i_syscall; apply (vrvsP hw).
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
-  + by move=> s1 s2 s3 s4 a c e c' _ Hc _ _ Hc' _ Hw z Hnin; rewrite Hc ?Hc' ?Hw //;
+  + by move=> s1 s2 s3 s4 a c e ei c' _ Hc _ _ Hc' _ Hw z Hnin; rewrite Hc ?Hc' ?Hw //;
      move: Hnin; rewrite write_i_while; SvD.fsetdec.
-  + move=> s1 s2 a c e c' _ Hc _ z Hnin; rewrite Hc //.
+  + move=> s1 s2 a c e ei c' _ Hc _ z Hnin; rewrite Hc //.
     by move: Hnin; rewrite write_i_while; SvD.fsetdec.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
   + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
@@ -1952,7 +1948,7 @@ Proof.
     exists vm2 => //; apply Eif_false => //.
     rewrite -read_e_eq_on_empty //.
     by rewrite read_eE; apply: eq_onI heq1; SvD.fsetdec.
-  + move=> s1 s2 s3 s4 a c1 e c2 _ ih1 he _ ih2 _ ihw vm1 X.
+  + move=> s1 s2 s3 s4 a c1 e ei c2 _ ih1 he _ ih2 _ ihw vm1 X.
     rewrite read_i_while => hsub heq1.
     have [|vm2 hs1 heq2] := ih1 vm1 X _ heq1; first SvD.fsetdec.
     have [|vm3 hs2 heq3] := ih2 vm2 X _ heq2; first SvD.fsetdec.
@@ -1960,7 +1956,7 @@ Proof.
     exists vm4 => //; apply: Ewhile_true; eauto.
     rewrite -read_e_eq_on_empty //.
     by rewrite read_eE; apply: eq_onI heq2; SvD.fsetdec.
-  + move=> s1 s2 a c1 e c2 _ ih1 he vm1 X.
+  + move=> s1 s2 a c1 e ei c2 _ ih1 he vm1 X.
     rewrite read_i_while => hsub heq1.
     have [|vm2 hs1 heq2]:= ih1 vm1 X _ heq1; first SvD.fsetdec.
     exists vm2 => //; apply: Ewhile_false; eauto.
@@ -2115,7 +2111,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 s3 s4 a c e c' _ Hc H _ Hc' _ Hw vm1 Hvm1.
+  move=> s1 s2 s3 s4 a c e ei c' _ Hc H _ Hc' _ Hw vm1 Hvm1.
   have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
   have [v' H1 /value_uinclE ?]:= sem_pexpr_uincl Hvm2 H;subst.
   have [vm3 [H4 /Hw [vm4] [??]]]:= Hc' _ Hvm2;exists vm4;split => //.
@@ -2124,7 +2120,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 a c e c' _ Hc H vm1 Hvm1.
+  move=> s1 s2 a c e ei c' _ Hc H vm1 Hvm1.
   have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
   have [v' H1 /value_uinclE ?]:= sem_pexpr_uincl Hvm2 H;subst.
   by exists vm2;split=> //;apply: Ewhile_false=> //;rewrite H1.

@@ -14,9 +14,6 @@ Import GRing.Theory.
 
 Local Open Scope ring_scope.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-
 Local Notation simpm := Monoid.simpm.
 
 Require Import NArith ZArith BinPos Ring_polynom Field_theory.

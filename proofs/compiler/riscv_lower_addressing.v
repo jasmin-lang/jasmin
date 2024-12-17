@@ -15,10 +15,6 @@ Require Import
   riscv
   riscv_extra.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 
@@ -98,10 +94,10 @@ Fixpoint lower_addressing_i (i: instr) :=
   | Cfor x (dir, e1, e2) c =>
     let c := conc_map lower_addressing_i c in
     [:: MkI ii (Cfor x (dir, e1, e2) c) ]
-  | Cwhile a c e c' =>
+  | Cwhile a c e info c' =>
     let c := conc_map lower_addressing_i c in
     let c' := conc_map lower_addressing_i c' in
-    [:: MkI ii (Cwhile a c e c')]
+    [:: MkI ii (Cwhile a c e info c')]
   end.
 
 Definition lower_addressing_c := conc_map lower_addressing_i.

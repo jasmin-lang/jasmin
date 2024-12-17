@@ -1,5 +1,6 @@
 open Jasmin
 open Cmdliner
+open Utils
 
 let get_arch_module arch call_conv : (module Arch_full.Arch) =
   (module Arch_full.Arch_from_Core_arch
@@ -37,3 +38,65 @@ let call_conv =
 let warn =
   let doc = "Print warnings" in
   Arg.(value & flag & info [ "warn" ] ~doc)
+
+let after_pass =
+  let alts =
+    List.map
+      (fun s -> (fst (Glob_options.print_strings s), s))
+      Compiler.(List.filter (( > ) StackAllocation) compiler_step_list)
+  in
+  let doc =
+    Format.asprintf "Run after the given compilation pass (%s)."
+      (Arg.doc_alts_enum alts)
+  in
+
+  let passes = Arg.enum alts in
+  Arg.(value & opt passes Typing & info [ "compile"; "after" ] ~doc)
+
+let parse_and_compile (type reg regx xreg rflag cond asm_op extra_op)
+    (module Arch : Arch_full.Arch
+      with type reg = reg
+       and type regx = regx
+       and type xreg = xreg
+       and type rflag = rflag
+       and type cond = cond
+       and type asm_op = asm_op
+       and type extra_op = extra_op) pass file =
+  let _env, pprog, _ast =
+    try Compile.parse_file Arch.arch_info file with
+    | Annot.AnnotationError (loc, code) ->
+        hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code
+    | Pretyping.TyError (loc, code) ->
+        hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror
+          code
+    | Syntax.ParseError (loc, msg) ->
+        hierror ~loc:(Lone loc) ~kind:"parse error" "%s" (Option.default "" msg)
+  in
+  let prog =
+    try Compile.preprocess Arch.reg_size Arch.asmOp pprog
+    with Typing.TyError (loc, code) ->
+      hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
+  in
+
+  let prog =
+    if pass <= Compiler.ParamsExpansion then prog
+    else
+      let module E = struct
+        exception Found
+      end in
+      let res = ref prog in
+      let stop ~debug:_ step prog =
+        if step = pass then (
+          res := prog;
+          raise E.Found)
+      in
+      let cp = Conv.cuprog_of_prog prog in
+      (* We need to avoid catching compilation errors. *)
+      match Compile.compile (module Arch) stop prog cp with
+      | Utils0.Ok _ -> assert false
+      | Utils0.Error e ->
+          let e = Conv.error_of_cerror (Printer.pp_err ~debug:false) e in
+          raise (HiError e)
+      | exception E.Found -> !res
+  in
+  prog

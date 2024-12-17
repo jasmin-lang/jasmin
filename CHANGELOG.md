@@ -7,6 +7,23 @@
   parts of global addresses
   ([PR#921](https://github.com/jasmin-lang/jasmin/pull/921)).
 
+- Extraction to EasyCrypt can now be done after a given compilation pass using
+  `--after` command-line argument
+  ([PR#972](https://github.com/jasmin-lang/jasmin/pull/972)).
+
+- While instructions now have two pieces of information (including locations)
+  attached to them: one corresponding to the whole instruction, the other one
+  corresponding to the guard condition
+  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
+  fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
+
+
+
+## Bug fixes
+
+- Fix EasyCrypt semantics of shift operators
+  ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
@@ -17,12 +34,22 @@
   ([PR #846](https://github.com/jasmin-lang/jasmin/pull/846)).
 
 - Extraction to Easycrypt is now available as a separate `jasmin2ec` tool; the
-  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated
-  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914)).
+  `-ec`, `-oec`, `-oecarray` and `-CT` command-line options are deprecated.
+  The `jasmin2ec` tool uses a new set of theories in `eclib` for extracting array operations, and supports a new extraction for leakage based on local variables.
+  ([PR #914](https://github.com/jasmin-lang/jasmin/pull/914),
+  [PR #952](https://github.com/jasmin-lang/jasmin/pull/952),
+  [PR #967](https://github.com/jasmin-lang/jasmin/pull/967)).
 
 - The “allocation” pass now uses the liveness information to reduce the sizes
   of the tables it uses internally; it should be faster on large functions
   ([PR #965](https://github.com/jasmin-lang/jasmin/pull/965)).
+
+- Compiling the OCaml source code no longer requires `-rectypes`
+  ([PR #980](https://github.com/jasmin-lang/jasmin/pull/980)).
+
+- The printer to LATEX shows a comment informing about jasmin.sty support file
+  ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
+  [PR #986](https://github.com/jasmin-lang/jasmin/pull/986)).
 
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 

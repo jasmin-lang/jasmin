@@ -1,0 +1,11 @@
+export
+fn main(reg u32 x) -> reg u32 {
+  reg u32 r = 0;
+  inline int i j;
+  for i = 0 to 4 {
+    for j = 0 to x {
+      r += 1;
+    }
+  }
+  return r;
+}

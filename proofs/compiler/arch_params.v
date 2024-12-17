@@ -12,9 +12,6 @@ Require
   slh_lowering
   asm_gen.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
 
 Record lowering_params
   `{asmop : asmOp} (lowering_options : Type) :=

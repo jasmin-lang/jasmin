@@ -6,10 +6,6 @@ Require Import oseq expr_facts compiler_util label linear linear_sem.
 Require Import sem_params.
 Import word_ssrZ.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Require Import seq_extra unionfind tunneling unionfind_proof.
@@ -284,16 +280,16 @@ Section TunnelingProps.
 
   Variant tunnel_chart_spec fn (uf : LUF.unionfind) : linstr -> linstr -> LUF.unionfind -> Type :=
   | TC_LabelLabel ii ii' l l' :
-      tunnel_chart_spec fn uf (MkLI ii (Llabel InternalLabel l)) (MkLI ii' (Llabel InternalLabel l')) (LUF.union uf l l')
+      tunnel_chart_spec (MkLI ii (Llabel InternalLabel l)) (MkLI ii' (Llabel InternalLabel l')) (LUF.union uf l l')
 
   | TC_LabelGotoEq ii ii' l l' :
-      tunnel_chart_spec fn uf (MkLI ii (Llabel InternalLabel l)) (MkLI ii' (Lgoto (fn, l'))) (LUF.union uf l l')
+      tunnel_chart_spec (MkLI ii (Llabel InternalLabel l)) (MkLI ii' (Lgoto (fn, l'))) (LUF.union uf l l')
 
   | TC_LabelGotoNEq ii ii' l l' fn' of (fn != fn') :
-      tunnel_chart_spec fn uf (MkLI ii (Llabel InternalLabel l)) (MkLI ii' (Lgoto (fn', l'))) uf
+      tunnel_chart_spec (MkLI ii (Llabel InternalLabel l)) (MkLI ii' (Lgoto (fn', l'))) uf
 
   | TC_Otherwise c c' of (~~ ((li_is_label c && li_is_label c') || (li_is_label c && li_is_goto c'))) :
-      tunnel_chart_spec fn uf c c' uf.
+      tunnel_chart_spec c c' uf.
 
   Lemma tunnel_chartP fn uf c c' : tunnel_chart_spec fn uf c c' (tunnel_chart fn uf c c').
   Proof.
@@ -365,21 +361,21 @@ Section TunnelingProps.
 
   Variant tunnel_bore_weak_spec fn uf : linstr -> linstr -> Type :=
   | TBW_GotoEq ii l :
-      tunnel_bore_weak_spec fn uf (MkLI ii (Lgoto (fn, l))) (MkLI ii (Lgoto (fn, LUF.find uf l)))
+      tunnel_bore_weak_spec (MkLI ii (Lgoto (fn, l))) (MkLI ii (Lgoto (fn, LUF.find uf l)))
   | TBW_Cond ii pe l :
-      tunnel_bore_weak_spec fn uf (MkLI ii (Lcond pe l)) (MkLI ii (Lcond pe (LUF.find uf l)))
+      tunnel_bore_weak_spec (MkLI ii (Lcond pe l)) (MkLI ii (Lcond pe (LUF.find uf l)))
   | TBW_Otherwise c :
-      tunnel_bore_weak_spec fn uf c c.
+      tunnel_bore_weak_spec c c.
 
   Variant tunnel_bore_spec fn uf : linstr -> linstr -> Type :=
   | TB_GotoEq ii l :
-      tunnel_bore_spec fn uf (MkLI ii (Lgoto (fn, l))) (MkLI ii (Lgoto (fn, LUF.find uf l)))
+      tunnel_bore_spec (MkLI ii (Lgoto (fn, l))) (MkLI ii (Lgoto (fn, LUF.find uf l)))
   | TB_GotoNEq ii l fn' of (fn != fn') :
-      tunnel_bore_spec fn uf (MkLI ii (Lgoto (fn', l))) (MkLI ii (Lgoto (fn', l)))
+      tunnel_bore_spec (MkLI ii (Lgoto (fn', l))) (MkLI ii (Lgoto (fn', l)))
   | TB_Cond ii pe l :
-      tunnel_bore_spec fn uf (MkLI ii (Lcond pe l)) (MkLI ii (Lcond pe (LUF.find uf l)))
+      tunnel_bore_spec (MkLI ii (Lcond pe l)) (MkLI ii (Lcond pe (LUF.find uf l)))
   | TB_Otherwise c  of (~~ (li_is_goto c || li_is_cond c)):
-      tunnel_bore_spec fn uf c c.
+      tunnel_bore_spec c c.
 
   Lemma tunnel_boreWP fn uf c : tunnel_bore_weak_spec fn uf c (tunnel_bore fn uf c).
   Proof.
@@ -448,25 +444,25 @@ Section TunnelingProps.
   | TL_LabelLabel l l' :
       is_label l (nth Linstr_align (Linstr_align :: lc) pc) ->
       is_label l' (nth Linstr_align (Linstr_align :: lc) pc.+1) ->
-      tunnel_lcmd_pc_spec fn lc pc (tunnel_head fn (LUF.union LUF.empty l l') lc)
+      tunnel_lcmd_pc_spec (tunnel_head fn (LUF.union LUF.empty l l') lc)
 
   | TL_LabelGotoEq l l' :
       is_label l (nth Linstr_align (Linstr_align :: lc) pc) ->
       is_goto fn l' (nth Linstr_align (Linstr_align :: lc) pc.+1) ->
-      tunnel_lcmd_pc_spec fn lc pc (tunnel_head fn (LUF.union LUF.empty l l') lc)
+      tunnel_lcmd_pc_spec (tunnel_head fn (LUF.union LUF.empty l l') lc)
 
   | TL_LabelGotoNEq l l' fn' :
       fn != fn' ->
       is_label l (nth Linstr_align (Linstr_align :: lc) pc) ->
       is_goto fn' l' (nth Linstr_align (Linstr_align :: lc) pc.+1) ->
-      tunnel_lcmd_pc_spec fn lc pc lc
+      tunnel_lcmd_pc_spec lc
 
   | TL_Otherwise :
       ~~ ((li_is_label (nth Linstr_align (Linstr_align :: lc) pc) &&
            li_is_label (nth Linstr_align (Linstr_align :: lc) pc.+1)) || 
           (li_is_label (nth Linstr_align (Linstr_align :: lc) pc) &&
            li_is_goto (nth Linstr_align (Linstr_align :: lc) pc.+1))) ->
-      tunnel_lcmd_pc_spec fn lc pc lc.
+      tunnel_lcmd_pc_spec lc.
 
   Lemma tunnel_lcmd_pcP fn lc pc :
     tunnel_lcmd_pc_spec fn lc pc (tunnel_lcmd_pc fn lc pc).
@@ -885,7 +881,7 @@ Section TunnelingSem.
       is_goto fn l c ->
       is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
       is_label l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
-      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lgoto (fn, l'))))
+      find_instr_tunnel_lprog_pc_spec (Some (MkLI (li_ii c) (Lgoto (fn, l'))))
 
   | FT_CondLabelLabel fd c pe l l':
       get_fundef (lp_funcs p) fn = Some fd ->
@@ -894,7 +890,7 @@ Section TunnelingSem.
       is_cond pe l c ->
       is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
       is_label l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
-      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lcond pe l')))
+      find_instr_tunnel_lprog_pc_spec (Some (MkLI (li_ii c) (Lcond pe l')))
 
   | FT_GotoLabelGoto fd c l l':
       get_fundef (lp_funcs p) fn = Some fd ->
@@ -903,7 +899,7 @@ Section TunnelingSem.
       is_goto fn l c ->
       is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
       is_goto fn l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
-      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lgoto (fn, l'))))
+      find_instr_tunnel_lprog_pc_spec (Some (MkLI (li_ii c) (Lgoto (fn, l'))))
 
   | FT_CondLabelGoto fd c pe l l':
       get_fundef (lp_funcs p) fn = Some fd ->
@@ -912,7 +908,7 @@ Section TunnelingSem.
       is_cond pe l c ->
       is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
       is_goto fn l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
-      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lcond pe l')))
+      find_instr_tunnel_lprog_pc_spec (Some (MkLI (li_ii c) (Lcond pe l')))
 
   | FT_Otherwise :
       match get_fundef (lp_funcs p) fn with
@@ -936,7 +932,7 @@ Section TunnelingSem.
                   li_is_local_goto fn (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1))))
       | None => true
       end ->
-      find_instr_tunnel_lprog_pc_spec p s fn pc oc oc.
+      find_instr_tunnel_lprog_pc_spec oc.
 
   Lemma find_instr_tunnel_lprog_pcP p s fn pc :
     find_instr_tunnel_lprog_pc_spec p s fn pc (find_instr p s) (find_instr (tunnel_lprog_pc p fn pc) s).

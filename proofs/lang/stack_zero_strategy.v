@@ -14,10 +14,6 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype fintype.
 Require Import utils.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 
 Variant stack_zero_strategy :=
 | SZSloop

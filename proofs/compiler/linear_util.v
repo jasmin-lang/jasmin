@@ -2,10 +2,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr label linear.
 Require Import seq_extra compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* [map_cfprog_gen] specialized to functions of type [lfundef] *)
 Notation map_cflprog_name := (map_cfprog_name_gen lfd_info).
 Notation map_cflprog := (map_cfprog_gen lfd_info).

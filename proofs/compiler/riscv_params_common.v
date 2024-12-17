@@ -16,10 +16,6 @@ Require Import
   riscv_instr_decl
   riscv_params_core.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module RISCVFopn.
 
   #[local]

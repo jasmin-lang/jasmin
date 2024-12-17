@@ -14,7 +14,7 @@ let gsubst_ty (flen: 'len1 -> 'len2) ty =
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, flen e)
 
-let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
+let rec gsubst_e (flen: ?loc:L.t -> 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) (e: 'len1 gexpr) : 'len2 gexpr =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
@@ -62,8 +62,8 @@ let rec gsubst_i (flen: ?loc:L.t -> 'len1 -> 'len2) f i =
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
-    | Cwhile(a, c, e, c') -> 
-      Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, gsubst_c flen f c')
+    | Cwhile(a, c, e, loc, c') ->
+      Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, loc, gsubst_c flen f c')
     | Ccall(x,fn,e) -> Ccall(gsubst_lvals flen f x, fn, gsubst_es flen f e) in
   { i with i_desc }
 
@@ -85,16 +85,16 @@ let subst_func f fc =
 
 (* ---------------------------------------------------------------- *)
 
-type psubst = pexpr ggvar -> pexpr
+type psubst = pexpr_ ggvar -> pexpr
 
-let rec psubst_e (f: psubst) e =
-  gsubst_e (fun ?loc:_ -> psubst_e f) f e
-  
+let rec psubst_e (f: psubst) (e: pexpr) : pexpr =
+  gsubst_e (psubst_e_ f) f e
+and psubst_e_ f ?loc:_ (PE e) = PE (psubst_e f e)
 
 let psubst_ty f (ty:pty) : pty = 
   match ty with
   | Bty ty -> Bty ty
-  | Arr(ty, e) -> Arr(ty, psubst_e f e)
+  | Arr(ty, e) -> Arr(ty, psubst_e_ f e)
 
 let psubst_v subst =
   let subst = ref subst in
@@ -155,7 +155,7 @@ let psubst_prog (prog:('info, 'asm) pprog) =
             fc with
             f_tyin = List.map subst_ty fc.f_tyin;
             f_args = List.map dov fc.f_args;
-            f_body = gsubst_c (fun ?loc:_ -> psubst_e subst_v) subst_v fc.f_body;
+            f_body = gsubst_c (psubst_e_ subst_v) subst_v fc.f_body;
             f_tyout = List.map subst_ty fc.f_tyout;
             f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
           } in
@@ -185,7 +185,7 @@ let rec int_of_expr ?loc e =
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
-let isubst_len ?loc e =
+let isubst_len ?loc (PE e) =
   let z = int_of_expr ?loc e in
   try Z.to_int z
   with Z.Overflow ->
@@ -222,7 +222,7 @@ let isubst_prog glob prog =
       | _      -> e in
     aux in 
 
-  let subst = ref Mpv.empty in
+  let subst : expr Mpv.t ref = ref Mpv.empty in
   
   let isubst_glob (x, gd) = 
     let subst_v = isubst_v subst in
@@ -378,8 +378,8 @@ let rec extend_iinfo_i pre i =
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
     | Cfor(x,r,c) -> 
       Cfor(x,r, extend_iinfo_c pre c)
-    | Cwhile (a, c1, e, c2) -> 
-      Cwhile(a, extend_iinfo_c pre c1, e, extend_iinfo_c pre c2) in
+    | Cwhile (a, c1, e, loc, c2) ->
+      Cwhile(a, extend_iinfo_c pre c1, e, loc, extend_iinfo_c pre c2) in
   let {L.base_loc = ii; L.stack_loc = l} = i.i_loc in
   let i_loc = L.i_loc ii (l @ pre) in
   { i with i_desc; i_loc }

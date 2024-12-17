@@ -5,10 +5,6 @@ Require Export allocation.
 
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section WITH_PARAMS.
@@ -541,8 +537,8 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c e c'.
-    case: s2 => scs2 sm2 svm2 _ Hc Hse _ Hc' _ Hw dead_vars r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
+    move => s1 s2 s3 s4 a c e ei c'.
+    case: s2 => scs2 sm2 svm2 _ Hc Hse _ Hc' _ Hw dead_vars r1 [] //= a2 c2 e2 ei2 c2' r2 vm1 Hvm1.
     rewrite /check_i -/check_I.
     apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
@@ -551,7 +547,7 @@ Section PROOF.
     subst vb' => r' Cc2' ??;subst r2 r3.
     move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 Hvm3 /= Hc2'].
     have /Hw {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
-    have : check_i dead_vars (Cwhile a c e c') (Cwhile a2 c2 e2 c2') r2' = ok re.
+    have : check_i dead_vars (Cwhile a c e ei c') (Cwhile a2 c2 e2 ei2 c2') r2' = ok re.
     + by rewrite /= Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
     move=> /Hw [vm4 Hvm4 Hsw];exists vm4 => //.
     by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
@@ -559,8 +555,8 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 a c e c'.
-    case: s2 => scs2 sm2 svm2 _ Hc Hse dead_vars r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
+    move => s1 s2 a c e ei c'.
+    case: s2 => scs2 sm2 svm2 _ Hc Hse dead_vars r1 [] //= a2 c2 e2 ei2 c2' r2 vm1 Hvm1.
     rewrite /check_i -/check_I.
     t_xrbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] ?;subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.

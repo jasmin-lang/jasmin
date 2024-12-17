@@ -7,10 +7,6 @@ Export one_varmap.
 Import psem var.
 Import low_memory.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Unset Elimination Schemes.
 
 (** Semantics of programs in which there is a single scope for local variables.
@@ -163,17 +159,17 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem k s1 c2 s2 →
     sem_i ii k s1 (Cif e c1 c2) s2
 
-| Ewhile_true ii k k' krec s1 s2 s3 s4 a c e c' :
+| Ewhile_true ii k k' krec s1 s2 s3 s4 a c e ei c' :
     sem k s1 c s2 →
     sem_pexpr true gd s2 e = ok (Vbool true) →
     sem k' s2 c' s3 →
-    sem_I krec s3 (MkI ii (Cwhile a c e c')) s4 →
-    sem_i ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e c') s4
+    sem_I krec s3 (MkI ii (Cwhile a c e ei c')) s4 →
+    sem_i ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e ei c') s4
 
-| Ewhile_false ii k s1 s2 a c e c' :
+| Ewhile_false ii k s1 s2 a c e ei c' :
     sem k s1 c s2 →
     sem_pexpr true gd s2 e = ok (Vbool false) →
-    sem_i ii k s1 (Cwhile a c e c') s2
+    sem_i ii k s1 (Cwhile a c e ei c') s2
 
 | Ecall ii k s1 s2 s2' res f args xargs xres :
     mapM get_pvar args = ok xargs →
@@ -273,10 +269,10 @@ Lemma sem_iE ii k s i s' :
            (to_lvals (syscall_sig o).(scs_vout)) vs = ok s']
   | Cif e c1 c2 =>
     exists2 b, sem_pexpr true gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
-  | Cwhile a c e c' =>
+  | Cwhile a c e ei c' =>
     ∃ kc si b,
        [/\ sem kc s c si, sem_pexpr true gd si e = ok (Vbool b) &
-                       if b then ex3_3 (λ k' krec _, k = Sv.union (Sv.union kc k') krec) (λ k' _ sj, sem k' si c' sj) (λ _ krec sj, sem_I krec sj (MkI ii (Cwhile a c e c')) s') else si = s' ∧ kc = k ]
+                            if b then ex3_3 (λ k' krec _, k = Sv.union (Sv.union kc k') krec) (λ k' _ sj, sem k' si c' sj) (λ _ krec sj, sem_I krec sj (MkI ii (Cwhile a c e ei c')) s') else si = s' ∧ kc = k ]
   | Ccall res f args =>
     exists2 xargs,
     mapM get_pvar args = ok xargs &
@@ -384,20 +380,20 @@ Section SEM_IND.
     sem k s1 c2 s2 → Pc k s1 c2 s2 → Pi_r ii k s1 (Cif e c1 c2) s2.
 
   Definition sem_Ind_while_true : Prop :=
-    ∀ (ii: instr_info) (k k' krec: Sv.t) (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
+    ∀ (ii: instr_info) (k k' krec: Sv.t) (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd),
     sem k s1 c s2 → Pc k s1 c s2 →
     sem_pexpr true gd s2 e = ok (Vbool true) →
     sem k' s2 c' s3 → Pc k' s2 c' s3 →
-    sem_I krec s3 (MkI ii (Cwhile a c e c')) s4 →
-    Pi krec s3 (MkI ii (Cwhile a c e c')) s4 →
-    Pi_r ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e c') s4.
+    sem_I krec s3 (MkI ii (Cwhile a c e ei c')) s4 →
+    Pi krec s3 (MkI ii (Cwhile a c e ei c')) s4 →
+    Pi_r ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e ei c') s4.
 
   Definition sem_Ind_while_false : Prop :=
-    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
+    ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) a (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd),
     sem k s1 c s2 →
     Pc k s1 c s2 →
     sem_pexpr true gd s2 e = ok (Vbool false) →
-    Pi_r ii k s1 (Cwhile a c e c') s2.
+    Pi_r ii k s1 (Cwhile a c e ei c') s2.
 
   Hypotheses
     (Hasgn: sem_Ind_assgn)
@@ -466,11 +462,11 @@ Section SEM_IND.
       @Hif_true ii k s1 s2 e1 c1 c2 e2 s0 (@sem_Ind k s1 c1 s2 s0)
     | @Eif_false ii k s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_false ii k s1 s2 e1 c1 c2 e2 s0 (@sem_Ind k s1 c2 s2 s0)
-    | @Ewhile_true ii k k' krec s1 s2 s3 s4 a c e1 c' s0 e2 s5 s6 =>
-      @Hwhile_true ii k k' krec s1 s2 s3 s4 a c e1 c' s0 (@sem_Ind k s1 c s2 s0) e2 s5 (@sem_Ind k' s2 c' s3 s5) s6
-          (@sem_I_Ind krec s3 (MkI ii (Cwhile a c e1 c')) s4 s6)
-    | @Ewhile_false ii k s1 s2 a c e1 c' s0 e2 =>
-      @Hwhile_false ii k s1 s2 a c e1 c' s0 (@sem_Ind k s1 c s2 s0) e2
+    | @Ewhile_true ii k k' krec s1 s2 s3 s4 a c e1 ei c' s0 e2 s5 s6 =>
+      @Hwhile_true ii k k' krec s1 s2 s3 s4 a c e1 ei c' s0 (@sem_Ind k s1 c s2 s0) e2 s5 (@sem_Ind k' s2 c' s3 s5) s6
+          (@sem_I_Ind krec s3 (MkI ii (Cwhile a c e1 ei c')) s4 s6)
+    | @Ewhile_false ii k s1 s2 a c e1 ei c' s0 e2 =>
+      @Hwhile_false ii k s1 s2 a c e1 ei c' s0 (@sem_Ind k s1 c s2 s0) e2
     | @Ecall ii k s1 s2 s2' res fn args xargs xres hargs hres exec heq =>
       @sem_Ind_call' ii k s1 s2 s2' res fn args xargs xres hargs hres exec heq
          (@sem_call_Ind ii k (kill_tmp_call fn s1) fn s2 exec)

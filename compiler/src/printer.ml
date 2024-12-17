@@ -168,17 +168,17 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       (pp_gvar_i pp_var) i (pp_ge pp_len pp_var) e1 dir (pp_ge pp_len pp_var) e2
       (pp_cblock pp_info pp_len pp_opn pp_var) c
 
-  | Cwhile(a, [], e, c) ->
+  | Cwhile(a, [], e, _, c) ->
     F.fprintf fmt "@[<v>%awhile (%a) %a@]"
       pp_align a
       (pp_ge pp_len pp_var) e (pp_cblock pp_info pp_len pp_opn pp_var) c
 
-  | Cwhile(a, c, e, []) ->
+  | Cwhile(a, c, e, _, []) ->
     F.fprintf fmt "@[<v>%awhile %a (%a)@]"
       pp_align a
       (pp_cblock pp_info pp_len pp_opn pp_var) c (pp_ge pp_len pp_var) e
 
-  | Cwhile(a, c, e, c') ->
+  | Cwhile(a, c, e, _, c') ->
     F.fprintf fmt "@[<v>%awhile %a (%a) %a@]"
       pp_align a
       (pp_cblock pp_info pp_len pp_opn pp_var) c (pp_ge pp_len pp_var) e
@@ -262,16 +262,17 @@ let pp_pitem pp_len pp_opn pp_var =
 
 let pp_pvar fmt x = F.fprintf fmt "%s" x.v_name 
 
-let rec pp_pexpr e = pp_ge pp_pexpr pp_pvar e
+let rec pp_pexpr fmt e = pp_ge pp_pexpr_ pp_pvar fmt e
+and pp_pexpr_ fmt (PE e) = pp_pexpr fmt e
 
-let pp_ptype = pp_gtype pp_pexpr
+let pp_ptype = pp_gtype pp_pexpr_
 
-let pp_plval = pp_glv pp_pexpr pp_pvar 
+let pp_plval = pp_glv pp_pexpr_ pp_pvar
 
 let pp_pprog pd asmOp fmt p =
   let pp_opn = pp_opn pd asmOp in
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
+    (pp_list "@ @ " (pp_pitem pp_pexpr_ pp_opn pp_pvar)) (List.rev p)
 
 let pp_fun ?pp_locals ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in

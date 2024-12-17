@@ -16,10 +16,6 @@ Require Import
   riscv_instr_decl
   riscv_extra.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section Section.
 Context {atoI : arch_toIdent}.
 
@@ -263,10 +259,10 @@ Fixpoint lower_i (i : instr) : cmd :=
       let c' := conc_map lower_i c in
       [:: MkI ii (Cfor v r c') ]
 
-  | Cwhile a c0 e c1 =>
+  | Cwhile a c0 e info c1 =>
       let c0' := conc_map lower_i c0 in
       let c1' := conc_map lower_i c1 in
-      [:: MkI ii (Cwhile a c0' e c1')]
+      [:: MkI ii (Cwhile a c0' e info c1')]
 
   | _ =>
       [:: i ]

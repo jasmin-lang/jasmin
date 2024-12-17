@@ -6,10 +6,6 @@ Require Import ZArith.
 Require Export utils syscall wsize word type low_memory sem_type values.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope Z_scope.
 
 

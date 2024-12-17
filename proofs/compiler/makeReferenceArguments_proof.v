@@ -5,10 +5,6 @@ Require Import psem compiler_util.
 Require Export makeReferenceArguments.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section SemInversion.
@@ -111,15 +107,15 @@ Context
   Hypothesis Hp : makereference_prog fresh_id p = ok p'.
 
   Inductive sem_pis ii : estate -> seq pseudo_instr -> values -> estate -> Prop :=
-   | SPI_nil : forall s, sem_pis ii s [::] [::] s
+   | SPI_nil : forall s, sem_pis s [::] [::] s
    | SPI_lv  : forall s1 s2 s3 lv pis v vs,
      write_lval true (p_globs p') lv v s1 = ok s2 ->
-     sem_pis ii s2 pis vs s3 ->
-     sem_pis ii s1 (PI_lv lv :: pis) (v::vs) s3
+     sem_pis s2 pis vs s3 ->
+     sem_pis s1 (PI_lv lv :: pis) (v::vs) s3
    | SPI_i : forall s1 s2 s3 lv ty y pis vs,
      sem_I p' ev s1 (mk_ep_i ii lv ty y) s2 ->
-     sem_pis ii s2 pis vs s3 ->
-     sem_pis ii s1 (PI_i lv ty y :: pis) vs s3.
+     sem_pis s2 pis vs s3 ->
+     sem_pis s1 (PI_i lv ty y :: pis) vs s3.
 
   Lemma sem_pisE ii s1 pis vs s3 :
     sem_pis ii s1 pis vs s3 →
@@ -488,7 +484,7 @@ Context
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' sem_s1_s2 H_s1_s2.
+    move=> s1 s2 s3 s4 a c e ei c' sem_s1_s2 H_s1_s2.
     move=> sem_s2_e sem_s2_s3 H_s2_s3 sem_s3_s4 H_s3_s4.
     move=> ii X c'' /=; t_xrbindP=> d dE d' d'E {c''}<-.
     rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
@@ -497,7 +493,7 @@ Context
     move=> vm2 eq_s2_vm2 sem_vm1_vm2.
     case: (H_s2_s3 X _ d'E _ _ eq_s2_vm2); first by SvD.fsetdec.
     move=> vm3 eq_s3_vm3 sem_vm2_vm3.
-    case: (H_s3_s4 ii X [:: MkI ii (Cwhile a d e d')] _ _ vm3) => //=.
+    case: (H_s3_s4 ii X [:: MkI ii (Cwhile a d e ei d')] _ _ vm3) => //=.
     + by rewrite dE d'E.
     + rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
       by SvD.fsetdec.
@@ -511,7 +507,7 @@ Context
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-   move=> s1 s2 a c e c' He Hc eq_s_e ii X c'' /=.
+   move=> s1 s2 a c e ei c' He Hc eq_s_e ii X c'' /=.
    t_xrbindP => while_false while_falseE c''' eq_c' <-.
    rewrite !(read_Ii, write_Ii) !(read_i_while, write_i_while).
    move => le_X vm1 eq_s1_vm1.

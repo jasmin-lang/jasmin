@@ -6,10 +6,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Import low_memory.
 Import psem psem_facts sem_one_varmap.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 
 Section PROG.
@@ -61,7 +57,7 @@ Proof. by []. Qed.
 
 Lemma Hwhile_true : sem_Ind_while_true p var_tmp Pc Pi Pi_r.
 Proof.
-  move => ii k k' krec s1 s2 s3 s4 aa c e c' _ A _ _ B _ C; red.
+  move => ii k k' krec s1 s2 s3 s4 aa c e ei c' _ A _ _ B _ C; red.
   etransitivity; first exact: A.
   etransitivity; first exact: B.
   exact: C.
@@ -223,7 +219,7 @@ Proof. by []. Qed.
 
 Lemma Hwhile_true_nw : sem_Ind_while_true p var_tmp Pc Pi Pi_r.
 Proof.
-  move => ii k k' krec s1 s2 s3 s4 a c e c' _ ih _ _ ih' _ ihrec.
+  move => ii k k' krec s1 s2 s3 s4 a c e ei c' _ ih _ _ ih' _ ihrec.
   apply: eq_exTI.
   - apply: eq_exTI.
     + exact: ih.
@@ -522,7 +518,7 @@ Proof. by []. Qed.
 
 Lemma validw_stable_while_true : sem_Ind_while_true p var_tmp Pc Pi Pi_r.
 Proof.
-  move => ii k k' krec s1 s2 s3 s4 aa c e c' _ A _ _ B _ C; red.
+  move => ii k k' krec s1 s2 s3 s4 aa c e ei c' _ A _ _ B _ C; red.
   etransitivity; first exact: A.
   etransitivity; first exact: B.
   exact: C.

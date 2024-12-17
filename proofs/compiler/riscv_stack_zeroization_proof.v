@@ -25,10 +25,6 @@ Require Import
   riscv_params_common_proof.
 Require Export riscv_stack_zeroization.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* FIXME: We should use the higher-level [eval_lsem] lemmas. *)
 Section FIXME.
 

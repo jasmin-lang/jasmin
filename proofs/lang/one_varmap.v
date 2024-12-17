@@ -5,10 +5,6 @@ Require Import expr compiler_util.
 Import Utf8.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Record ovm_syscall_sig_t := 
   { scs_vin : seq var; scs_vout : seq var }.
 

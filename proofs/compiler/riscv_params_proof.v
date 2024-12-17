@@ -40,10 +40,6 @@ Require Import
   riscv_stack_zeroization_proof.
 Require Export riscv_params.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section Section.
 
 Context

@@ -15,10 +15,6 @@ Require Import
   arm_extra
   arm_instr_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section Section.
 Context {atoI : arch_toIdent}.
 
@@ -492,11 +488,11 @@ Fixpoint lower_i (i : instr) : cmd :=
       let c' := conc_map lower_i c in
       [:: MkI ii (Cfor v r c') ]
 
-  | Cwhile a c0 e c1 =>
-      let '(pre, e') := lower_condition (var_info_of_ii ii) e in
+  | Cwhile a c0 e info c1 =>
+      let '(pre, e') := lower_condition (var_info_of_ii info) e in
       let c0' := conc_map lower_i c0 in
       let c1' := conc_map lower_i c1 in
-      [:: MkI ii (Cwhile a (c0' ++ map (MkI ii) pre) e' c1') ]
+      [:: MkI ii (Cwhile a (c0' ++ map (MkI info) pre) e' info c1') ]
 
   | _ =>
       [:: i ]

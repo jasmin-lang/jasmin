@@ -99,7 +99,7 @@ type ('len,'info,'asm) ginstr_r =
   | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
-  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
+  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * (IInfo.t * 'info) * ('len,'info,'asm) gstmt
   | Ccall  of 'len glvals * funname * 'len gexprs
 
 and ('len,'info,'asm) ginstr = {
@@ -147,19 +147,20 @@ let is_gkvar x = x.gs = E.Slocal
 (* ------------------------------------------------------------------------ *)
 (* Parametrized expression *)
 
-type pty    = pexpr gty
-and  pvar   = pexpr gvar
-and  pvar_i = pexpr gvar_i
-and  plval  = pexpr glval
-and  plvals = pexpr glvals
-and  pexpr  = pexpr gexpr
+type pty    = pexpr_ gty
+and  pvar   = pexpr_ gvar
+and  pvar_i = pexpr_ gvar_i
+and  plval  = pexpr_ glval
+and  plvals = pexpr_ glvals
+and  pexpr  = pexpr_ gexpr
+and  pexpr_ = PE of pexpr [@@unboxed]
 
-type ('info,'asm) pinstr = (pexpr,'info,'asm) ginstr
-type ('info,'asm) pstmt  = (pexpr,'info,'asm) gstmt
+type ('info,'asm) pinstr = (pexpr_,'info,'asm) ginstr
+type ('info,'asm) pstmt  = (pexpr_,'info,'asm) gstmt
 
-type ('info,'asm) pfunc     = (pexpr,'info,'asm) gfunc
-type ('info,'asm) pmod_item = (pexpr,'info,'asm) gmod_item
-type ('info,'asm) pprog     = (pexpr,'info,'asm) gprog
+type ('info,'asm) pfunc     = (pexpr_,'info,'asm) gfunc
+type ('info,'asm) pmod_item = (pexpr_,'info,'asm) gmod_item
+type ('info,'asm) pprog     = (pexpr_,'info,'asm) gprog
 
 (* ------------------------------------------------------------------------ *)
 module PV = struct
@@ -178,7 +179,7 @@ let rec pty_equal t1 t2 =
   match t1, t2 with
   | Bty b1, Bty b2 -> b1 = b2
   | Arr(b1, e1), Arr(b2, e2) ->
-    (b1 = b2) && pexpr_equal e1 e2
+    (b1 = b2) && pexpr__equal e1 e2
   | _, _ -> false
 
 and pexpr_equal e1 e2 =
@@ -188,12 +189,14 @@ and pexpr_equal e1 e2 =
  | Pvar v1, Pvar v2 -> PV.gequal v1 v2
  | Pget(al1, a1,b1,v1,e1), Pget(al2, a2, b2,v2,e2) -> al1 = al2 && a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
-   a1 = a2 && b1 = b2 && pexpr_equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
+   a1 = a2 && b1 = b2 && pexpr__equal l1 l2 && PV.gequal v1 v2 && pexpr_equal e1 e2
  | Pload(al1, b1,v1,e1), Pload(al2, b2,v2,e2) -> al1 = al2 &&b1 = b2 && PV.equal (L.unloc v1) (L.unloc v2) && pexpr_equal e1 e2
  | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && pexpr_equal e1 e2
  | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 &&  pexpr_equal e11 e21 && pexpr_equal e12 e22
  | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> pexpr_equal e11 e21 && pexpr_equal e12 e22 && pexpr_equal e13 e23
  | _, _ -> false
+
+and pexpr__equal (PE e1) (PE e2) = pexpr_equal e1 e2
 
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
@@ -256,7 +259,7 @@ let rec rvars_i f s i =
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
-  | Cwhile(_,c,e,c')    -> rvars_c f (rvars_e f (rvars_c f s c') e) c
+  | Cwhile(_, c, e, _, c') -> rvars_c f (rvars_e f (rvars_c f s c') e) c
   | Ccall(x,_,e) -> rvars_es f (rvars_lvs f s x) e
 
 and rvars_c f s c =  List.fold_left (rvars_i f) s c
@@ -298,7 +301,7 @@ let rec written_vars_i ((v, f) as acc) i =
   | Ccall(xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
   | Cif(_, s1, s2)
-  | Cwhile(_, s1, _, s2)
+  | Cwhile(_, s1, _, _, s2)
     -> written_vars_stmt (written_vars_stmt acc s1) s2
   | Cfor(_, _, s) -> written_vars_stmt acc s
 and written_vars_stmt acc s =
@@ -318,8 +321,8 @@ let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr =
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->
         Cfor(x, r, refresh_i_loc_c c)
-    | Cwhile(a, c1, e, c2) ->
-        Cwhile(a, refresh_i_loc_c c1, e, refresh_i_loc_c c2)
+    | Cwhile(a, c1, e, ((loc, annot), info), c2) ->
+        Cwhile(a, refresh_i_loc_c c1, e, ((L.refresh_i_loc loc, annot), info), refresh_i_loc_c c2)
   in
   { i with i_desc; i_loc = L.refresh_i_loc i.i_loc }
 
@@ -445,7 +448,7 @@ let rec has_syscall_i i =
   match i.i_desc with
   | Csyscall _ -> true
   | Cassgn _ | Copn _ | Ccall _ -> false
-  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_syscall c1 || has_syscall c2
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, _, c2) -> has_syscall c1 || has_syscall c2
   | Cfor (_, _, c) -> has_syscall c
 
 and has_syscall c = List.exists has_syscall_i c
@@ -454,7 +457,7 @@ let rec has_call_or_syscall_i i =
   match i.i_desc with
   | Csyscall _ | Ccall _ -> true
   | Cassgn _ | Copn _ -> false
-  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, _, c2) -> has_call_or_syscall c1 || has_call_or_syscall c2
   | Cfor (_, _, c) -> has_call_or_syscall c
 
 and has_call_or_syscall c = List.exists has_call_or_syscall_i c
@@ -468,9 +471,9 @@ let rec spilled_i s i =
   match i.i_desc with
   | Copn(_, _, Sopn.Opseudo_op (Pseudo_operator.Ospill _), es) -> rvars_es Sv.add s es
   | Cassgn _ | Csyscall _ | Ccall _ | Copn _-> s
-  | Cif(e,c1,c2)     -> spilled_c (spilled_c s c1) c2
+  | Cif(_e, c1, c2)  -> spilled_c (spilled_c s c1) c2
   | Cfor(_, _, c)    -> spilled_c s c
-  | Cwhile(_,c,_,c') -> spilled_c (spilled_c s c) c'
+  | Cwhile(_, c, _, _, c') -> spilled_c (spilled_c s c) c'
 
 and spilled_c s c =  List.fold_left spilled_i s c
 

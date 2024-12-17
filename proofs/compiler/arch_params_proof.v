@@ -18,10 +18,6 @@ Require
   slh_lowering_proof.
 Require Export arch_params.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
 

@@ -4,10 +4,6 @@ From mathcomp Require Import word_ssrZ.
 Require Import psem array_expansion compiler_util ZArith.
 Import Utf8 Lia.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Record wf_ai (m : t) (x:var) ai := {
@@ -668,19 +664,19 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 s3 s4 a c1 e c2 _ hrec1 hse _ hrec2 _ hrecw ii m ii' ? s1' hwf heqa /=.
+  move => s1 s2 s3 s4 a c1 e ei c2 _ hrec1 hse _ hrec2 _ hrecw ii m ii' ? s1' hwf heqa /=.
   t_xrbindP => e' he c1' hc1 c2' hc2 hii <-.
   have [sc1 heqa1 hs1]:= hrec1 _ _ _ hwf heqa hc1.
   have := expand_eP hwf heqa1 he hse; rewrite -eq_globs => hse'.
   have [sc2 heqa2 hs2]:= hrec2 _ _ _ hwf heqa1 hc2.
-  have [| s2' ? hsw]:= hrecw ii m ii' (Cwhile a c1' e' c2') _ hwf heqa2.
+  have [| s2' ? hsw]:= hrecw ii m ii' (Cwhile a c1' e' ei c2') _ hwf heqa2.
   + by rewrite /= he hc1 hc2 hii.
   exists s2' => //; apply: Ewhile_true hsw; eauto.
 Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 a c e c' _ hrec1 hse ii m ii' ? s1' hwf heqa /=.
+  move => s1 s2 a c e ei c' _ hrec1 hse ii m ii' ? s1' hwf heqa /=.
   t_xrbindP => e' he c1' hc1 c2' hc2 hii <-.
   have [s2' heqa1 hs1]:= hrec1 _ _ _ hwf heqa hc1.
   have := expand_eP hwf heqa1 he hse; rewrite -eq_globs => hse'.

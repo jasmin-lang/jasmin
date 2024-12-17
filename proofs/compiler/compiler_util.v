@@ -2,10 +2,6 @@ Require Import ZArith Setoid Morphisms.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 Require Import expr fexpr.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Unset Elimination Schemes.
 
 (* ** Compiler warning

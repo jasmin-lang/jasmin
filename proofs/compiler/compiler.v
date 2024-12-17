@@ -27,6 +27,7 @@ Require Import
   lowering
   load_constants_in_cond
   makeReferenceArguments
+  post_unrolling_check
   propagate_inline
   slh_lowering
   remove_globals
@@ -38,10 +39,6 @@ Require Import
 Require
   merge_varmaps.
 
-
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
 
 (* FIXME: expr exports wsize, which overrides this. *)
 Definition pp_s := compiler_util.pp_s.
@@ -271,6 +268,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := inlining to_keep p in
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
+  Let: tt := check_no_for_loop p in
   let p := cparams.(print_uprog) Unrolling p in
 
   Let p := dead_calls_err_seq to_keep p in

@@ -5,10 +5,6 @@ Require Export propagate_inline.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 
@@ -594,13 +590,13 @@ Section PROOF.
     by split => //; apply/(incl_trans h)/incl_merge_l.
   Qed.
 
-  Local Lemma pi_i_whileP ii a c1 e c2 pi1 pi2:
-    pi_i pi1 (MkI ii (Cwhile a c1 e c2)) = ok pi2 ->
+  Local Lemma pi_i_whileP ii a c1 e ei c2 pi1 pi2:
+    pi_i pi1 (MkI ii (Cwhile a c1 e ei c2)) = ok pi2 ->
     exists pi pi3 c1' c2', 
       [/\ pi_c pi_i pi c1 = ok (pi2.1, c1'), 
           pi_c pi_i pi2.1 c2 = ok (pi3, c2'),
-          pi_i pi (MkI ii (Cwhile a c1 e c2)) = ok pi2,
-          pi2 = (pi2.1, MkI ii (Cwhile a c1' (pi_e pi2.1 e) c2'))
+          pi_i pi (MkI ii (Cwhile a c1 e ei c2)) = ok pi2,
+          pi2 = (pi2.1, MkI ii (Cwhile a c1' (pi_e pi2.1 e) ei c2'))
         & incl pi pi3 /\ incl pi pi1 ].
   Proof.
     rewrite /=; t_xrbindP => -[[[pi2' c1'] e'] c2'] hl [<-] /=.
@@ -611,7 +607,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c1 e c2 _ hc1 he _ hc2 _ hw ii pi pi2 vm1.
+    move => s1 s2 s3 s4 a c1 e ei c2 _ hc1 he _ hc2 _ hw ii pi pi2 vm1.
     move=> /pi_i_whileP [pi1 [pi3 [c1' [c2' [hc1_ hc2_ hw_ hpi2 [hi1 hi2]]]]]] hu hv.
     rewrite hpi2 in hw_ |- *.
     have hv1 := valid_pi_incl hi2 hv.
@@ -626,7 +622,7 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
   Proof.
-    move => s1 s2 a c1 e c2 _ hc1 he ii pi pi2 vm1.
+    move => s1 s2 a c1 e ei c2 _ hc1 he ii pi pi2 vm1.
     move=> /pi_i_whileP [pi1 [pi3 [c1' [c2' [hc1_ hc2_ hw_ hpi2 [hi1 hi2]]]]]] hu hv.
     rewrite hpi2 in hw_ |- *.
     have hv1 := valid_pi_incl hi2 hv.

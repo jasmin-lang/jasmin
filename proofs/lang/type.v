@@ -5,10 +5,6 @@ Require Import ZArith gen_map utils strings.
 Require Export wsize.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* ** Syntax
  * -------------------------------------------------------------------- *)
 

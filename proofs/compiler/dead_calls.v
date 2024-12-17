@@ -4,10 +4,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 (* ------- *) (* - *) Import PosSet.
 Import  Utf8.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module Import E.
 
   Definition pass : string := "dead calls".
@@ -33,7 +29,7 @@ with i_calls_r (c : Sf.t) (i : instr_r) {struct i} : Sf.t :=
   | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ => c
   | Cif    _  c1 c2   => c_calls (c_calls c c1) c2
   | Cfor   _  _  c1   => c_calls c c1
-  | Cwhile _ c1 _  c2   => c_calls (c_calls c c1) c2
+  | Cwhile _ c1 _ _ c2 => c_calls (c_calls c c1) c2
   | Ccall _ f _ => Sf.add f c
   end.
 

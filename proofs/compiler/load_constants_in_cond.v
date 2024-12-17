@@ -3,10 +3,6 @@ From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import Uint63.
 Require Import expr compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -90,11 +86,11 @@ Fixpoint load_constants_i (i : instr) :=
   | Cfor x (d,lo,hi) c =>
     Let c := load_constants_c load_constants_i c in
     ok [:: MkI ii (Cfor x (d, lo, hi) c)]
-  | Cwhile a c1 e c2 =>
-    Let: (c, e) := process_condition ii e in
+  | Cwhile a c1 e info c2 =>
+    Let: (c, e) := process_condition info e in
     Let c1 := load_constants_c load_constants_i c1 in
     Let c2 := load_constants_c load_constants_i c2 in
-    ok [:: MkI ii (Cwhile a (c1 ++ map (MkI ii) c) e c2)]
+    ok [:: MkI ii (Cwhile a (c1 ++ map (MkI info) c) e info c2)]
   end.
 
 End BODY.

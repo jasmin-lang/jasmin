@@ -19,10 +19,6 @@ Require Import
 Local Notation E n := (sopn.ADExplicit n None).
 
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Variant riscv_extra_op : Type :=  
   | SWAP of wsize
   | Oriscv_add_large_imm.

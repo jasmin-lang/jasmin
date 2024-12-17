@@ -5,10 +5,6 @@ Require Import xseq.
 Require Import compiler_util ZArith expr psem remove_globals low_memory.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Definition gd_incl (gd1 gd2: glob_decls) :=
   forall g v, get_global gd1 g = ok v -> get_global gd2 g = ok v.
 
@@ -146,20 +142,20 @@ Module INCL. Section INCL.
     sem P1 ev s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
   Proof. by move=> ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_false. Qed.
 
-  Local Lemma Hwhile_true : forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
+  Local Lemma Hwhile_true : forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd),
     sem P1 ev s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool true) ->
     sem P1 ev s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i P1 ev s3 (Cwhile a c e c') s4 -> Pi_r s3 (Cwhile a c e c') s4 -> Pi_r s1 (Cwhile a c e c') s4.
+    sem_i P1 ev s3 (Cwhile a c e ei c') s4 -> Pi_r s3 (Cwhile a c e ei c') s4 -> Pi_r s1 (Cwhile a c e ei c') s4.
   Proof.
-    move=> ????????? h1 /(gd_incl_e hincl) h2 ? h3 ? h4; apply: Ewhile_true; eauto.
+    move=> ?????????? h1 /(gd_incl_e hincl) h2 ? h3 ? h4; apply: Ewhile_true; eauto.
   Qed.
 
-  Local Lemma Hwhile_false : forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
+  Local Lemma Hwhile_false : forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd),
     sem P1 ev s1 c s2 -> Pc s1 c s2 ->
     sem_pexpr true gd s2 e = ok (Vbool false) ->
-    Pi_r s1 (Cwhile a c e c') s2.
-  Proof. move=> ??????? h1 /(gd_incl_e hincl) ?; apply: Ewhile_false; eauto. Qed.
+    Pi_r s1 (Cwhile a c e ei c') s2.
+  Proof. move=> ???????? h1 /(gd_incl_e hincl) ?; apply: Ewhile_false; eauto. Qed.
 
   Local Lemma Hfor : sem_Ind_for P1 ev Pi_r Pfor.
   Proof.
@@ -280,9 +276,9 @@ Section PROOFS.
   Local Lemma Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Proof. by move=> ????? hc ii gd1 gd2 /= /hc. Qed.
 
-  Local Lemma Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
+  Local Lemma Hwhile : forall a c e ei c', Pc c -> Pc c' -> Pr (Cwhile a c e ei c').
   Proof.
-    move=> a c e c' hc hc' ii gd1 gd2 /=.
+    move=> a c e ei c' hc hc' ii gd1 gd2 /=.
     by t_xrbindP => gd3 /hc h1 /hc'; apply gd_inclT.
   Qed.
 
@@ -652,7 +648,7 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hwhile_true : sem_Ind_while_true P ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' _ hc he _ hc' _ hw ii m m' c'0 /= hrn s1' hval.
+    move=> s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hw ii m m' c'0 /= hrn s1' hval.
     move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
     t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
     have h1' := hc _ _ _ h1.
@@ -661,8 +657,8 @@ Module RGP. Section PROOFS.
     have /h1' [s2' [hs2 hc1]]: valid m3 s1 s1' by apply: valid_Mincl hval.
     have he' := remove_glob_eP hs2 he1 he.
     have [s3' [hs3 hc2]]:= h2' _ hs2.
-    have : remove_glob_i gd m3 (MkI ii (Cwhile a c e c')) =
-             ok (m', [::MkI ii (Cwhile a c1' e' c2')]).
+    have : remove_glob_i gd m3 (MkI ii (Cwhile a c e ei c')) =
+             ok (m', [::MkI ii (Cwhile a c1' e' ei c2')]).
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 /semE hw']]; exists s4';split => //.
@@ -672,7 +668,7 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' _ hc he ii m m' c'0 /= hrn s1' hval.
+    move=> s1 s2 a c e ei c' _ hc he ii m m' c'0 /= hrn s1' hval.
     move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
     t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
     move=> ? [??] [??] hm hm1 ? <-;subst e1 m4 c4 m5 c5 m1.

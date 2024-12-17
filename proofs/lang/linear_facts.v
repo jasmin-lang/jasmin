@@ -12,10 +12,6 @@ Require Import
   sem_one_varmap
 .
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section WITH_PARAMS.
 
 #[local] Existing Instance withsubword.

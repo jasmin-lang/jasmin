@@ -1,10 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* -------------------------------------------------------------------- *)
 Lemma pmap_idfun_some {T : Type} (s : seq T) :
   pmap idfun [seq Some x | x <- s] = s.

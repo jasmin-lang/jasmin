@@ -20,10 +20,6 @@ Require Import
   arch_utils.
 Require Import arm_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 
 Module E.
   Definition no_semantics : error := ErrSemUndef.

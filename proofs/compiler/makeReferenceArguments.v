@@ -3,10 +3,6 @@ From mathcomp Require Import ssreflect ssrbool ssrfun eqtype ssrnat.
 From Coq Require Import ZArith Uint63.
 Require Import gen_map expr compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -157,10 +153,10 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
   | Cfor x r c =>
     Let c := update_c (update_i X) c in
     ok [::MkI ii (Cfor x r c)]
-  | Cwhile a c e c' =>
+  | Cwhile a c e info c' =>
     Let c  := update_c (update_i X) c in
     Let c' := update_c (update_i X) c' in
-    ok [::MkI ii (Cwhile a c e c')]
+    ok [::MkI ii (Cwhile a c e info c')]
   | Ccall xs fn es =>
     let: (params,returns) := get_sig fn in
     Let pres := make_prologue ii X 0 params es in

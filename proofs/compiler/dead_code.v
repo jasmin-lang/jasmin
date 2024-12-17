@@ -2,10 +2,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
 Require Import expr compiler_util ZArith.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -147,7 +143,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * option instr)
     let: (s, c) := sc in
     ok (read_e_rec (read_e_rec s e2) e1, Some (MkI ii (Cfor x (dir,e1,e2) c)))
 
-  | Cwhile a c e c' =>
+  | Cwhile a c e info c' =>
     let dobody s_o :=
       let s_o' := read_e_rec s_o e in
       Let sci := dead_code_c dead_code_i c s_o' in
@@ -157,7 +153,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * option instr)
       ok (s_i', (s_i, (c,c'))) in
     Let sc := wloop dobody ii Loop.nb s in
     let: (s, (c,c')) := sc in
-    ok (s, Some (MkI ii (Cwhile a c e c')))
+    ok (s, Some (MkI ii (Cwhile a c e info c')))
 
   | Ccall xs fn es =>
     Let sxs := 

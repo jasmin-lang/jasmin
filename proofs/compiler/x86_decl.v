@@ -17,10 +17,6 @@ Require Import
   arch_decl
   arch_utils.
 
-Set   Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* --------------------------------------------- *)
 Definition x86_reg_size  := U64.
 Definition x86_xreg_size := U256.

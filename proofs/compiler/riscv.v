@@ -9,10 +9,6 @@ Require Import
   riscv_decl
   riscv_instr_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* [None] is used to model register x0. If later we model it properly, this
    should not be needed anymore. *)
 Definition sem_cond_arg (get : register -> word riscv_reg_size) ro :=

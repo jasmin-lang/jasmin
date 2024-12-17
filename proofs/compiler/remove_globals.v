@@ -4,10 +4,6 @@ From mathcomp Require Import word_ssrZ.
 Require Import xseq.
 Require Import expr compiler_util ZArith.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Module Import E.
@@ -90,7 +86,7 @@ Section REMOVE.
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
-    | Cwhile _ c1 _ c2 =>
+    | Cwhile _ c1 _ _ c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
     | Cfor _ _ c =>
@@ -287,7 +283,7 @@ Section REMOVE.
           let c2   := envc2.2 in
           let env := merge_env env1 env2 in
           ok (env, [::MkI ii (Cif e c1 c2)])
-        | Cwhile a c1 e c2 =>
+        | Cwhile a c1 e info c2 =>
           let check_c env :=
             Let envc1 := remove_glob remove_glob_i env c1 in
             let env1 := envc1.1 in
@@ -296,7 +292,7 @@ Section REMOVE.
             ok (Check2_r e envc1 envc2) in
           Let lr := loop2 check_c Loop.nb env in
           let: (Loop2_r e c1 c2 env) := lr in
-          ok (env, [::MkI ii (Cwhile a c1 e c2)])
+          ok (env, [::MkI ii (Cwhile a c1 e info c2)])
         | Cfor xi (d,e1,e2) c =>
           if is_glob_var xi.(v_var) then Error (rm_glob_error ii xi)
           else

@@ -7,10 +7,6 @@ Import Utf8.
 Import oseq.
 Require Import flag_combination.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 
@@ -517,7 +513,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let (_,c) := const_prop const_prop_i m c in
     (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ])
 
-  | Cwhile a c e c' =>
+  | Cwhile a c e info c' =>
     let m := remove_cpm m (write_i ir) in
     let (m',c) := const_prop const_prop_i m c in
     let e := const_prop_e without_globals m' e in
@@ -525,7 +521,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let cw :=
       match is_bool e with
       | Some false => c
-      | _          => [:: MkI ii (Cwhile a c e c')]
+      | _          => [:: MkI ii (Cwhile a c e info c')]
       end in
     (m', cw)
 

@@ -3,10 +3,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
 Require Import expr fexpr label sopn.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section ASM_OP.
 
 Context `{asmop:asmOp}.

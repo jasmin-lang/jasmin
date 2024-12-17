@@ -6,10 +6,6 @@ Require Import array_copy psem.
 Require Import compiler_util.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 
@@ -426,7 +422,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 s3 s4 a c e c' _ hc he _ hc' _ hw ii.
+  move => s1 s2 s3 s4 a c e ei c' _ hc he _ hc' _ hw ii.
   rewrite /Pi vars_I_while => hsub c2 /=.
   t_xrbindP => c1 hc1 c1' hc1' <- vm1 hvm1.
   have [|vm2 hvm2 hc_] := hc _ _ hc1 vm1 hvm1; first by SvD.fsetdec.
@@ -439,7 +435,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
 Proof.
-  move => s1 s2 a c e c' _ hc he ii.
+  move => s1 s2 a c e ei c' _ hc he ii.
   rewrite /Pi vars_I_while => hsub c2 /=.
   t_xrbindP => c1 hc1 c1' hc1' <- vm1 hvm1.
   have [|vm2 hvm2 hc_] := hc _ _ hc1 vm1 hvm1; first by SvD.fsetdec.

@@ -6,10 +6,6 @@ Require Export constant_prop.
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
 Import RelationPairs.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Local Notation cpm := (Mvar.t const_v).
@@ -908,7 +904,7 @@ Section PROPER.
     by rewrite /RelationPairs.RelCompFun /= Hw => _ ->.
   Qed.
 
-  Local Lemma Wwhile a c e c': Pc c -> Pc c' -> Pr (Cwhile a c e c').
+  Local Lemma Wwhile a c e ei c': Pc c -> Pc c' -> Pr (Cwhile a c e ei c').
   Proof.
     move=> Hc Hc' ii m1 m2 Heq /=.
     rewrite /const_prop_ir -/const_prop_i.
@@ -1143,7 +1139,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' Hc1 Hc He Hc1' Hc' Hw1 Hw m ii Hm.
+    move=> s1 s2 s3 s4 a c e ei c' Hc1 Hc He Hc1' Hc' Hw1 Hw m ii Hm.
     rewrite /const_prop_ir -/(const_prop_i _).
     set ww := write_i _;set m' := remove_cpm _ _.
     case Heq1: const_prop => [m'' c0] /=.
@@ -1156,7 +1152,7 @@ Section PROOF.
       by apply: sem_app;eauto.
     have /Hw -/(_ ii) /=:= valid_cpm_rm eq1_3 Hm.
     have H1 := remove_cpm2 m ww.
-    have /= : Mvarc_eq (const_prop (const_prop_i gd) (remove_cpm m' (write_i (Cwhile a c e c'))) c)
+    have /= : Mvarc_eq (const_prop (const_prop_i gd) (remove_cpm m' (write_i (Cwhile a c e ei c'))) c)
                (m'', c0).
     + by have := const_prop_m gd H1 (refl_equal c); rewrite Heq1.
     rewrite /const_prop_ir -/const_prop_i.
@@ -1178,10 +1174,10 @@ Section PROOF.
     have H :  forall e0,
       sem_pexpr true gd s2 e0 = ok (Vbool true) ->
       (exists vm2,
-        sem p' ev (with_vm s3 vm3) [:: MkI ii (Cwhile a c0 e0 c0')] (with_vm s4 vm2) ∧ 
+        sem p' ev (with_vm s3 vm3) [:: MkI ii (Cwhile a c0 e0 ei c0')] (with_vm s4 vm2) ∧ 
         vm_uincl (evm s4) vm2) ->
       exists vm2,
-        sem p' ev (with_vm s1 vm1) [:: MkI ii (Cwhile a c0 e0 c0')] (with_vm s4 vm2)  ∧ 
+        sem p' ev (with_vm s1 vm1) [:: MkI ii (Cwhile a c0 e0 ei c0')] (with_vm s4 vm2)  ∧ 
         vm_uincl (evm s4) vm2.
     + move=> e0 He0 [vm5] [] /sem_seq1_iff /sem_IE Hsw hvm5;exists vm5;split => //.
       apply:sem_seq1;constructor.
@@ -1192,7 +1188,7 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' Hc1 Hc He m ii Hm /=.
+    move=> s1 s2 a c e ei c' Hc1 Hc He m ii Hm /=.
     rewrite /const_prop_ir -/const_prop_i.
     set ww := write_i _;set m' := remove_cpm _ _.
     case Heq1: const_prop => [m'' c0] /=.

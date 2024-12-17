@@ -21,10 +21,6 @@ Require Import
 Require Export asm_gen.
 Import Utf8.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section ASM_EXTRA.
 
 #[local] Existing Instance withsubword.
@@ -281,14 +277,14 @@ Qed.
 Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
        is_implicit i e
-    -> check_sopn_argI rip ii args e (ADImplicit i) ty
+    -> check_sopn_argI (ADImplicit i) ty
 
 | CSA_Explicit k n o a a' ty :
        onth args n = Some a
     -> arg_of_rexpr agparams k rip ii ty e = ok a'
     -> compat_imm ty a a'
     -> check_oreg o a
-    -> check_sopn_argI rip ii args e (ADExplicit k n o) ty.
+    -> check_sopn_argI (ADExplicit k n o) ty.
 
 Lemma check_sopn_argP rip ii args e sp :
   check_sopn_arg agparams rip ii args e sp ->

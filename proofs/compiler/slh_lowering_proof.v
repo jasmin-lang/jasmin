@@ -11,10 +11,6 @@ Require
   expr_facts
   constant_prop_proof.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section CONST_PROP.
 
   Import constant_prop_proof.
@@ -1018,7 +1014,7 @@ Qed.
    hypothesis [hind]. *)
 Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s0 s1 s2 s3 al c0 cond c1 hsem0 hc0 hsemcond hsem1 hc1 _ hind.
+  move=> s0 s1 s2 s3 al c0 cond cond_info c1 hsem0 hc0 hsemcond hsem1 hc1 _ hind.
   move=> ii env env' c hwf hcheck hlower.
   move: hcheck (hlower) => /=.
   t_xrbindP => hmem /check_whileP [env_fix [env0 [env1 [hcheck0 hcheck1 hle1 hle ?]]]].
@@ -1036,7 +1032,7 @@ Proof.
   rewrite (lower_prog_globs hp) in hwf1.
   have hwffix := wf_env_le hle1 hwf1.
   have hcheck :
-    check_i fun_info (MkI ii (Cwhile al c0 cond c1)) env_fix
+    check_i fun_info (MkI ii (Cwhile al c0 cond cond_info c1)) env_fix
     = ok (Env.update_cond env0 (enot cond)).
   - by rewrite /= hmem /= Loop.nbP /= hcheck0 /= hcheck1 /= hle1.
 
@@ -1054,7 +1050,7 @@ Qed.
 (* This is similar to [Hwhile_true], but we never apply [check_cmd c0]. *)
 Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s s' al c0 cond c1 hsem hc hsemcond ii env env' c hwf /=.
+  move=> s s' al c0 cond cond_info c1 hsem hc hsemcond ii env env' c hwf /=.
   t_xrbindP => hmem /check_whileP [env_fix [env0 [env1 [hcheck0 _ _ hle ?]]]].
   move=> irs c0' hlower0 c1' _ ??; subst c irs env'.
 
@@ -1065,7 +1061,7 @@ Proof.
   clear - hsemcond hmem hsem0' hwf0.
 
   split.
-  - constructor; exact: (Ewhile_false _ _ hsem0' hsemcond).
+  - constructor; exact: (Ewhile_false _ _ _ hsem0' hsemcond).
   apply: (wf_env_update_cond hwf0) => //.
   by rewrite /= hsemcond.
 Qed.

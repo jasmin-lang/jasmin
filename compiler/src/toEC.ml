@@ -18,13 +18,6 @@ end
 module Ss = Set.Make(Scmp)
 module Ms = Map.Make(Scmp)
 
-module Tcmp = struct
-  type t = ty
-  let compare = compare
-end
-
-module Mty = Map.Make (Tcmp)
-
 (* ------------------------------------------------------------------- *)
 (* Array theories in eclib *)
 
@@ -278,191 +271,6 @@ let keywords =
   Ss.union (Ss.of_list ec_keyword) (Ss.of_list internal_keyword)
 
 (* ------------------------------------------------------------------- *)
-(* env: state of extraction *)
-type env = {
-    arch: architecture;
-    pd : Wsize.wsize;
-    model : model;
-    alls : Ss.t;
-    vars : string Mv.t;
-    glob : (string * ty) Ms.t;
-    funs : (string * (ty list * ty list)) Mf.t;
-    array_theories: Sarraytheory.t ref;
-    auxv  : string list Mty.t;
-    randombytes : Sint.t ref;
-  }
-
-let add_Array env n =
-  env.array_theories := Sarraytheory.add (Array n) !(env.array_theories)
-
-let add_WArray env n =
-  env.array_theories := Sarraytheory.add (WArray n) !(env.array_theories)
-
-let add_ArrayWords env sizew sizea =
-  add_Array env sizea;
-  add_WArray env (sizew*sizea);
-  env.array_theories := Sarraytheory.add (ArrayWords {sizew; sizea}) !(env.array_theories)
-
-let add_SubArray env sizes sizeb =
-  add_Array env sizes;
-  add_Array env sizeb;
-  env.array_theories := Sarraytheory.add (SubArray {sizes; sizeb}) !(env.array_theories)
-
-let add_SubArrayDirect env sizew sizes sizeb =
-  add_ArrayWords env sizew sizes;
-  add_ArrayWords env sizew sizeb;
-  env.array_theories := Sarraytheory.add (SubArrayDirect {sizew; sizes; sizeb}) !(env.array_theories)
-
-let add_SubArrayCast env sizews sizewb sizes sizeb =
-  add_ArrayWords env sizews sizes;
-  add_ArrayWords env sizewb sizeb;
-  env.array_theories := Sarraytheory.add (SubArrayCast {sizews; sizewb; sizes; sizeb}) !(env.array_theories)
-
-let add_ArrayAccessCast env sizews sizewb sizeb =
-  add_ArrayWords env sizewb sizeb;
-  env.array_theories := Sarraytheory.add (ArrayAccessCast {sizews; sizewb; sizeb}) !(env.array_theories)
-
-let add_jarray ats ws n =
-  let ats = Sarraytheory.add (Array n) ats in
-  Sarraytheory.add (WArray (arr_size ws n)) ats
-
-let create_name env s =
-  if not (Ss.mem s env.alls) then s
-  else
-    let rec aux i =
-      let s = Format.sprintf "%s_%i" s i in
-      if Ss.mem s env.alls then aux (i+1)
-      else s in
-    aux 0
-
-let mkname env n =
-  n |> String.uncapitalize_ascii |> escape |> create_name env
-
-let set_var env x s =
-  { env with
-    alls = Ss.add s env.alls;
-    vars = Mv.add x s env.vars }
-
-let add_var env x = set_var env x (mkname env x.v_name)
-
-let add_ty env = function
-    | Bty _ -> ()
-    | Arr (_ws, n) -> add_Array env n
-
-let empty_env arch pd model array_theories randombytes =
-  {
-    arch;
-    pd;
-    model;
-    alls = keywords;
-    vars = Mv.empty;
-    glob = Ms.empty;
-    funs = Mf.empty;
-    array_theories;
-    auxv  = Mty.empty;
-    randombytes;
-  }
-
-let add_funcs env fds =
-  let add_fun env fd =
-    let s = mkname env fd.f_name.fn_name in
-    let funs =
-      Mf.add fd.f_name (s, ((*mk_tys*) fd.f_tyout, (*mk_tys*)fd.f_tyin)) env.funs in
-    { env with funs; alls = Ss.add s env.alls } in
-  List.fold_left add_fun env fds
-
-let get_funtype env f = snd (Mf.find f env.funs)
-
-let get_funname env f = fst (Mf.find f env.funs)
-
-let add_aux env tys =
-  let tbl = Hashtbl.create 10 in
-  let do1 env ty =
-    let n = try Hashtbl.find tbl ty with Not_found -> 0 in
-    let l = try Mty.find ty env.auxv with Not_found -> [] in
-    Hashtbl.replace tbl ty (n+1);
-    if n < List.length l then env
-    else
-      let aux = create_name env "aux" in
-      {env with auxv = Mty.add ty (aux::l) env.auxv;
-                alls = Ss.add aux env.alls } in
-  List.fold_left do1 env tys
-
-let get_aux env tys =
-  let tbl = Hashtbl.create 10 in
-  let do1 ty =
-    let n = try Hashtbl.find tbl ty with Not_found -> 0 in
-    let l = try Mty.find ty env.auxv with Not_found -> assert false in
-    Hashtbl.replace tbl ty (n+1);
-    assert (n < List.length l);
-    List.nth l n in
-  List.map do1 tys
-
-let check_array env x =
-  match (L.unloc x).v_ty with
-  | Arr(ws, n) ->
-      Sarraytheory.mem (Array n) !(env.array_theories) &&
-      Sarraytheory.mem (WArray (arr_size ws n)) !(env.array_theories)
-  | _ -> true
-
-(* ------------------------------------------------------------------- *)
-(* Formatting to string helpers *)
-
-let fmt_array_theory at = match at with
-  | Array n -> Format.sprintf "Array%i" n
-  | WArray n -> Format.sprintf "WArray%i" n
-  | ArrayWords aw -> Format.sprintf "ArrayWords%iW%i" aw.sizea (8*aw.sizew)
-  | SubArray x -> Format.sprintf "SubArray%i_%i" x.sizes x.sizeb
-  | SubArrayDirect x -> Format.sprintf "SubArrayDirect%i_%iW%i" x.sizes x.sizeb (8*x.sizew)
-  | SubArrayCast x -> Format.sprintf "SubArrayDirect%iW%i_%iW%i" x.sizes (8*x.sizews) x.sizeb (8*x.sizewb)
-  | ArrayAccessCast x -> Format.sprintf "ArrayAccessCastW%i_%iW%i" (8*x.sizews) x.sizeb (8*x.sizewb)
-
-let fmt_Wsz sz = Format.asprintf "W%i" (int_of_ws sz)
-
-let fmt_op2 fmt op =
-  let fmt_signed fmt ws is = function
-    | E.Cmp_w (Signed, _)   -> Format.fprintf fmt "\\s%s" ws
-    | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
-    | _                     -> Format.fprintf fmt "%s" is
-  in
-  let fmt_vop2 fmt (s,ve,ws) =
-    Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
-  in
-  match op with
-  | E.Obeq   -> Format.fprintf fmt "="
-  | E.Oand   -> Format.fprintf fmt "/\\"
-  | E.Oor    -> Format.fprintf fmt "\\/"
-  | E.Oadd _ -> Format.fprintf fmt "+"
-  | E.Omul _ -> Format.fprintf fmt "*"
-  | E.Odiv s -> fmt_signed fmt "div" "%/" s
-  | E.Omod s -> fmt_signed fmt "mod" "%%" s
-
-  | E.Osub  _ -> Format.fprintf fmt "-"
-
-  | E.Oland _ -> Format.fprintf fmt "`&`"
-  | E.Olor  _ -> Format.fprintf fmt "`|`"
-  | E.Olxor _ -> Format.fprintf fmt "`^`"
-  | E.Olsr  _ -> Format.fprintf fmt "`>>`"
-  | E.Olsl  _ -> Format.fprintf fmt "`<<`"
-  | E.Oasr  _ -> Format.fprintf fmt "`|>>`"
-  | E.Orol _ -> Format.fprintf fmt "`|<<|`"
-  | E.Oror _ -> Format.fprintf fmt "`|>>|`"
-
-  | E.Oeq   _ -> Format.fprintf fmt "="
-  | E.Oneq  _ -> Format.fprintf fmt "<>"
-  | E.Olt s| E.Ogt s -> fmt_signed fmt "lt" "<" s
-  | E.Ole s | E.Oge s -> fmt_signed fmt "le" "<=" s
-
-  | Ovadd(ve,ws) -> fmt_vop2 fmt ("add", ve, ws)
-  | Ovsub(ve,ws) -> fmt_vop2 fmt ("sub", ve, ws)
-  | Ovmul(ve,ws) -> fmt_vop2 fmt ("mul", ve, ws)
-  | Ovlsr(ve,ws) -> fmt_vop2 fmt ("shr", ve, ws)
-  | Ovlsl(ve,ws) -> fmt_vop2 fmt ("shl", ve, ws)
-  | Ovasr(ve,ws) -> fmt_vop2 fmt ("sar", ve, ws)
-
-let fmt_access aa = if aa = Warray_.AAdirect then "_direct" else ""
-
-(* ------------------------------------------------------------------- *)
 (* Easycrypt very simplified (and incomplete) AST. *)
 type ec_op2 =
     | ArrayGet
@@ -544,6 +352,199 @@ type ec_item =
     | Imodule of ec_module
 
 type ec_prog = ec_item list
+
+
+(* ------------------------------------------------------------------- *)
+(* env: state of extraction *)
+
+module Tcmp = struct
+  type t = string * ec_ty
+  let compare = compare
+end
+
+module Mty = Map.Make (Tcmp)
+
+type env = {
+    arch: architecture;
+    pd : Wsize.wsize;
+    model : model;
+    (* All names: functions, global variables, arguments, local variables, aux variables *)
+    alls : Ss.t ref;
+    (* All variables, excluding aux: global, argument, local variables *)
+    vars : string Mv.t;
+    glob : (string * ty) Ms.t;
+    funs : (string * (ty list * ty list)) Mf.t;  
+    array_theories: Sarraytheory.t ref;
+    (* aux variables: intermediate in extraction of jasmin assignments *)
+    auxv  : string list Mty.t ref;
+    randombytes : Sint.t ref;
+    nesting: int;
+  }
+
+let add_Array env n =
+  env.array_theories := Sarraytheory.add (Array n) !(env.array_theories)
+
+let add_WArray env n =
+  env.array_theories := Sarraytheory.add (WArray n) !(env.array_theories)
+
+let add_ArrayWords env sizew sizea =
+  add_Array env sizea;
+  add_WArray env (sizew*sizea);
+  env.array_theories := Sarraytheory.add (ArrayWords {sizew; sizea}) !(env.array_theories)
+
+let add_SubArray env sizes sizeb =
+  add_Array env sizes;
+  add_Array env sizeb;
+  env.array_theories := Sarraytheory.add (SubArray {sizes; sizeb}) !(env.array_theories)
+
+let add_SubArrayDirect env sizew sizes sizeb =
+  add_ArrayWords env sizew sizes;
+  add_ArrayWords env sizew sizeb;
+  env.array_theories := Sarraytheory.add (SubArrayDirect {sizew; sizes; sizeb}) !(env.array_theories)
+
+let add_SubArrayCast env sizews sizewb sizes sizeb =
+  add_ArrayWords env sizews sizes;
+  add_ArrayWords env sizewb sizeb;
+  env.array_theories := Sarraytheory.add (SubArrayCast {sizews; sizewb; sizes; sizeb}) !(env.array_theories)
+
+let add_ArrayAccessCast env sizews sizewb sizeb =
+  add_ArrayWords env sizewb sizeb;
+  env.array_theories := Sarraytheory.add (ArrayAccessCast {sizews; sizewb; sizeb}) !(env.array_theories)
+
+let add_jarray ats ws n =
+  let ats = Sarraytheory.add (Array n) ats in
+  Sarraytheory.add (WArray (arr_size ws n)) ats
+
+let create_name env s = 
+  if not (Ss.mem s !(env.alls)) then s
+  else
+    let rec aux i = 
+      let s = Format.sprintf "%s_%i" s i in
+      if Ss.mem s !(env.alls) then aux (i+1)
+      else s in
+    aux 0
+
+let mkname env n =
+  n |> String.uncapitalize_ascii |> escape |> create_name env
+
+let set_var env x s =
+  { env with
+    alls = ref (Ss.add s !(env.alls));
+    vars = Mv.add x s env.vars }
+
+let add_var env x = set_var env x (mkname env x.v_name)
+
+let add_ty env = function
+    | Bty _ -> ()
+    | Arr (_ws, n) -> add_Array env n
+
+let empty_env arch pd model array_theories randombytes =
+  { 
+    arch;
+    pd;
+    model;
+    alls = ref keywords;
+    vars = Mv.empty;
+    glob = Ms.empty;
+    funs = Mf.empty;
+    array_theories;
+    auxv  = ref Mty.empty;
+    randombytes;
+    nesting = 0;
+  }
+
+let add_funcs env fds =
+  let add_fun env fd =
+    let s = mkname env fd.f_name.fn_name in
+    let funs = 
+      Mf.add fd.f_name (s, ((*mk_tys*) fd.f_tyout, (*mk_tys*)fd.f_tyin)) env.funs in
+    { env with funs; alls = ref (Ss.add s !(env.alls)) } in
+  List.fold_left add_fun env fds
+
+let get_funtype env f = snd (Mf.find f env.funs)
+
+let get_funname env f = fst (Mf.find f env.funs) 
+
+let get_aux env prefix tys =
+  let tbl = Hashtbl.create 10 in
+  let do1 ty = 
+    let n_loc = try Hashtbl.find tbl ty with Not_found -> 0 in
+    Hashtbl.replace tbl ty (n_loc+1);
+    let l = try Mty.find (prefix, ty) !(env.auxv) with Not_found -> [] in
+    assert (n_loc <= List.length l);
+    if n_loc < List.length l then
+      List.nth l n_loc
+    else
+      let aux = create_name env prefix in
+      env.auxv := Mty.add (prefix, ty) (aux::l) !(env.auxv);
+      env.alls := Ss.add aux !(env.alls);
+      aux
+  in
+  List.map do1 tys
+
+let check_array env x = 
+  match (L.unloc x).v_ty with
+  | Arr(ws, n) ->
+      Sarraytheory.mem (Array n) !(env.array_theories) &&
+      Sarraytheory.mem (WArray (arr_size ws n)) !(env.array_theories)
+  | _ -> true
+
+(* ------------------------------------------------------------------- *)
+(* Formatting to string helpers *)
+
+let fmt_array_theory at = match at with
+  | Array n -> Format.sprintf "Array%i" n
+  | WArray n -> Format.sprintf "WArray%i" n
+  | ArrayWords aw -> Format.sprintf "ArrayWords%iW%i" aw.sizea (8*aw.sizew)
+  | SubArray x -> Format.sprintf "SubArray%i_%i" x.sizes x.sizeb
+  | SubArrayDirect x -> Format.sprintf "SubArrayDirect%i_%iW%i" x.sizes x.sizeb (8*x.sizew)
+  | SubArrayCast x -> Format.sprintf "SubArrayDirect%iW%i_%iW%i" x.sizes (8*x.sizews) x.sizeb (8*x.sizewb)
+  | ArrayAccessCast x -> Format.sprintf "ArrayAccessCastW%i_%iW%i" (8*x.sizews) x.sizeb (8*x.sizewb)
+
+let fmt_Wsz sz = Format.asprintf "W%i" (int_of_ws sz)
+
+let fmt_op2 fmt op =
+  let fmt_signed fmt ws is = function 
+    | E.Cmp_w (Signed, _)   -> Format.fprintf fmt "\\s%s" ws
+    | E.Cmp_w (Unsigned, _) -> Format.fprintf fmt "\\u%s" ws
+    | _                     -> Format.fprintf fmt "%s" is
+  in
+  let fmt_vop2 fmt (s,ve,ws) = 
+    Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
+  in
+  match op with
+  | E.Obeq   -> Format.fprintf fmt "="
+  | E.Oand   -> Format.fprintf fmt "/\\"
+  | E.Oor    -> Format.fprintf fmt "\\/"
+  | E.Oadd _ -> Format.fprintf fmt "+"
+  | E.Omul _ -> Format.fprintf fmt "*"
+  | E.Odiv s -> fmt_signed fmt "div" "%/" s
+  | E.Omod s -> fmt_signed fmt "mod" "%%" s
+
+  | E.Osub  _ -> Format.fprintf fmt "-"
+
+  | E.Oland _ -> Format.fprintf fmt "`&`"
+  | E.Olor  _ -> Format.fprintf fmt "`|`"
+  | E.Olxor _ -> Format.fprintf fmt "`^`"
+  | E.Olsr  _ -> Format.fprintf fmt "`>>`"
+  | E.Olsl  _ -> Format.fprintf fmt "`<<`"
+  | E.Oasr  _ -> Format.fprintf fmt "`|>>`"
+  | E.Orol _ -> Format.fprintf fmt "`|<<|`"
+  | E.Oror _ -> Format.fprintf fmt "`|>>|`"
+
+  | E.Oeq   _ -> Format.fprintf fmt "="
+  | E.Oneq  _ -> Format.fprintf fmt "<>"
+  | E.Olt s| E.Ogt s -> fmt_signed fmt "lt" "<" s
+  | E.Ole s | E.Oge s -> fmt_signed fmt "le" "<=" s
+
+  | Ovadd(ve,ws) -> fmt_vop2 fmt ("add", ve, ws)
+  | Ovsub(ve,ws) -> fmt_vop2 fmt ("sub", ve, ws) 
+  | Ovmul(ve,ws) -> fmt_vop2 fmt ("mul", ve, ws) 
+  | Ovlsr(ve,ws) -> fmt_vop2 fmt ("shr", ve, ws)
+  | Ovlsl(ve,ws) -> fmt_vop2 fmt ("shl", ve, ws)
+  | Ovasr(ve,ws) -> fmt_vop2 fmt ("sar", ve, ws) 
+
+let fmt_access aa = if aa = Warray_.AAdirect then "_direct" else ""
 
 (* ------------------------------------------------------------------- *)
 (* Easycrypt AST pretty-printing *)
@@ -1096,7 +1097,7 @@ let rec is_write_i x i =
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
-  | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) ->
+  | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
     is_write_c x c1 || is_write_c x c2
   | Cfor(x',_,c) ->
     V.equal x x'.L.pl_desc || is_write_c x c
@@ -1108,7 +1109,7 @@ let rec remove_for_i i =
     match i.i_desc with
     | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
     | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
-    | Cwhile(a, c1, e, c2) -> Cwhile(a, remove_for c1, e, remove_for c2)
+    | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
     | Cfor(j,r,c) ->
       let jd = j.pl_desc in
       if not (is_write_c jd c) then Cfor(j, r, remove_for c)
@@ -1128,9 +1129,14 @@ let ty_lval = function
   | Lmem (_, ws,_,_) | Laset(_, _, ws, _, _) -> Bty (U ws)
   | Lasub (_,ws, len, _, _) -> Arr(ws, len)
 
+module type EcExpression = sig
+  val ec_cast: env -> int gty * int gty -> ec_expr -> ec_expr
+  val toec_cast: env -> int gty * expr -> ec_expr
+  val toec_expr: env -> expr -> ec_expr
+end
 (* ------------------------------------------------------------------- *)
 (* Jasmin AST -> Easycrypt AST *)
-module Extraction(EA: EcArray) = struct
+module EcExpression(EA: EcArray): EcExpression = struct
   (* ------------------------------------------------------------------- *)
   (* Extraction of expressions *)
 
@@ -1221,7 +1227,273 @@ module Extraction(EA: EcArray) = struct
           )
 
   and toec_cast env (ty, e) = ec_cast env (ty, ty_expr e) (toec_expr env e)
+end
 
+module type EcLeakage = sig
+  val ec_leaks_es: env -> exprs -> ec_instr list
+  val ec_leaks_opn: env -> exprs -> ec_instr list
+  val ec_leaking_if: env -> expr -> (env -> ec_stmt) -> (env -> ec_stmt) -> ec_stmt
+  val ec_leaking_while: env -> (env -> ec_stmt) -> expr -> (env -> ec_stmt) -> ec_stmt
+  val ec_leaking_for: env -> (env -> ec_stmt) -> expr -> expr -> ec_stmt -> ec_expr -> ec_stmt -> ec_stmt
+  val ec_leaks_lvs: env -> int glval list -> ec_stmt
+  val global_leakage_vars: env -> (ec_modty * ec_modty) list
+  val leakage_imports: env -> ec_item list
+  val ec_fun_leak_init: env -> ec_stmt
+  val ec_leak_ret: env -> ec_expr list -> ec_expr list
+  val ec_leak_rty: env -> ec_ty list -> ec_ty list
+  val ec_leak_call_lvs: env -> ec_lvalues
+  val ec_leak_call_acc: env -> ec_stmt
+end
+
+module EcLeakNormal(EE: EcExpression): EcLeakage = struct
+  let ec_leaks_es env es = []
+  let ec_leaks_opn env es = []
+  let ec_leaking_if env e c1 c2 = [ESif (EE.toec_expr env e, c1 env, c2 env)]
+  let ec_leaking_while env c1 e c2 =
+    c1 env @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env))]
+  let ec_leaking_for env c e1 e2 init cond i_upd = init @ [ESwhile (cond, c env @ i_upd)]
+  let ec_leaks_lvs env lvs = []
+  let global_leakage_vars env = []
+  let leakage_imports env = []
+  let ec_fun_leak_init env = []
+  let ec_leak_ret env ret = ret
+  let ec_leak_rty env rtys = rtys
+  let ec_leak_call_lvs env = []
+  let ec_leak_call_acc env = []
+end
+
+module EcLeakConstantTimeGlobal(EE: EcExpression): EcLeakage = struct
+  open EE
+
+  let int_of_word ws e = Papp1 (E.Oint_of_word ws, e)
+
+  let rec leaks_e_rec pd leaks e =
+    match e with
+    | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
+    | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
+    | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
+    | Papp1 (_, e) -> leaks_e_rec pd leaks e
+    | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
+    | PappN (_, es) -> leaks_es_rec pd leaks es
+    | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
+  and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
+
+  let leaks_e pd e = leaks_e_rec pd [] e
+  let leaks_es pd es = leaks_es_rec pd [] es
+
+  let ece_leaks_e env e = List.map (toec_expr env) (leaks_e env.pd e)
+
+  let ec_newleaks leaks =
+      let add_leak lacc l = Eop2 (Infix "::", l, lacc) in
+      List.fold_left add_leak (ec_ident "leakages") leaks
+
+  let ec_addleaks leaks = [ESasgn ([LvIdent ["leakages"]], ec_newleaks leaks)]
+
+  let ec_leaks = function
+    | [] -> []
+    | es -> ec_addleaks [Eapp (ec_ident "LeakAddr", [Elist es])]
+
+  let ec_leaks_es env es = ec_leaks (List.map (toec_expr env) (leaks_es env.pd es))
+
+  let ec_leaks_opn env es =  ec_leaks_es env es
+
+  let leak_cond env e = ec_addleaks [
+    Eapp (ec_ident "LeakAddr", [Elist (ece_leaks_e env e)]);
+    Eapp (ec_ident "LeakCond", [toec_expr env e])
+  ]
+
+  let ec_leaking_if env e c1 c2 =
+    leak_cond env e @ [ESif (EE.toec_expr env e, c1 env, c2 env)]
+
+  let ec_leaking_while env c1 e c2 =
+    let le = leak_cond env e in
+    c1 env @ le @ [ESwhile (EE.toec_expr env e, (c2 env @ c1 env @ le))]
+
+  let ec_leaking_for env c e1 e2 init cond i_upd =
+    let leaks = List.map (toec_expr env) (leaks_es env.pd [e1;e2]) in
+    ec_addleaks [
+        Eapp (ec_ident "LeakAddr", [Elist leaks]);
+        Eapp (ec_ident "LeakFor", [Etuple [toec_expr env e1; toec_expr env e2]])
+        ] @
+    init @
+    [ESwhile (cond, c env @ i_upd)]
+
+  let leaks_lval pd = function
+    | Lnone _ | Lvar _ -> []
+    | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
+    | Lmem (_, _, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
+
+  let ec_leaks_lv env lv = ec_leaks (List.map (toec_expr env) (leaks_lval env.pd lv))
+
+  let ec_leaks_lvs env lvs = List.concat_map (ec_leaks_lv env) lvs
+
+  let global_leakage_vars env = [("leakages", "leakages_glob_t")]
+
+  let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
+
+  let ec_fun_leak_init env = []
+
+  let ec_leak_ret env ret = ret
+
+  let ec_leak_rty env rtys = rtys
+
+  let ec_leak_call_lvs env = []
+
+  let ec_leak_call_acc env = []
+end
+
+module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
+  open EE
+
+  let asgn s e = ESasgn ([LvIdent [s]], e)
+
+  let int_of_word ws e = Papp1 (E.Oint_of_word ws, e)
+
+  let leak_addr e = Eapp (ec_ident "Leak_int", [e])
+
+  let leak_val env e =
+    let sty = match ty_expr e with
+    | Bty Bool -> "bool"
+    | Bty Int  -> "int"
+    | Bty (U ws) -> fmt_Wsz ws
+    | Arr(ws, n) -> assert false
+    in
+    let leakf = ec_ident (Format.sprintf "Leak_%s" sty) in
+    [Eapp (leakf, [toec_expr env e])]
+
+
+  let leak_addr_mem env x e =
+    let addr = int_of_word env.pd (snd (add_ptr env.pd (gkvar x) e)) in
+    [leak_addr (toec_expr env (addr))]
+
+  let rec leaks_e_rec env leaks e =
+    match e with
+    | Pconst _ | Pbool _ | Parr_init _ | Pvar _ -> leaks
+    | Pload (_,_,x,e) -> leaks_e_rec env ((leak_addr_mem env x e) @ leaks) e
+    | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec env ([leak_addr (toec_expr env e)] @ leaks) e
+    | Papp1 (_, e) -> leaks_e_rec env leaks e
+    | Papp2 (_, e1, e2) -> leaks_es_rec env leaks [e1; e2]
+    | PappN (_, es) -> leaks_es_rec env leaks es
+    | Pif  (_, e1, e2, e3) -> leaks_es_rec env leaks [e1; e2; e3]
+
+  and leaks_es_rec env leaks es = List.fold_left (leaks_e_rec env) leaks es
+
+  let leaks_e env e = leaks_e_rec env [] e
+
+  let leaks_es env es = leaks_es_rec env [] es
+
+  let leakv_nesting env nesting ?(ty="JLeakage.leakages") kind =
+    let suf = if nesting = 0 then "" else (Format.sprintf "_%i" nesting) in
+    List.hd (get_aux env ("leak" ^ kind ^ suf) [ty])
+
+  let leakv env kind = leakv_nesting env env.nesting kind
+
+  let leakacc env = leakv env ""
+
+  let leakacc_sub env = leakv_nesting env (env.nesting + 1) ""
+
+  let push_leak leakv leak =
+    [asgn leakv (Eop2 (Infix "++", Eident [leakv], Elist [leak]))]
+
+  let leaklist leaks = Eapp (Eident ["LeakList"], [Elist leaks])
+
+  let leaklistv leakv = Eapp (Eident ["LeakList"], [Eident [leakv]])
+
+  let ec_addleaks env leaks = match leaks with
+    | [] -> []
+    | _ -> push_leak (leakacc env) (leaklist leaks)
+
+  let ec_leaks_es env es = ec_addleaks env (leaks_es env es)
+
+  let leaks_lval env = function
+    | Lnone _ | Lvar _ -> []
+    | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec env [leak_addr (toec_expr env e)] e
+    | Lmem (_, _, x,e) -> leaks_e_rec env (leak_addr_mem env x e) e
+
+  let ec_leaks_lv env lv = ec_addleaks env (leaks_lval env lv)
+
+  let ec_leaks_lvs env lvs = List.concat_map (ec_leaks_lv env) lvs
+
+  let ec_leaks_opn env es = ec_addleaks env (leaks_es env es)
+
+  let reset_leak vleak = [asgn vleak (Elist [])]
+
+  let nested_block env c =
+    let env = {env with nesting = env.nesting + 1} in
+    reset_leak (leakacc env) @ (c env)
+
+  let leak_cond env e = (leaks_e env e) @ (leak_val env e)
+
+  let ec_leaking_if env e c1 c2 =
+    ec_addleaks env (leak_cond env e) @
+    [ESif (toec_expr env e, nested_block env c1, nested_block env c2)] @
+    push_leak (leakacc env) (leaklistv (leakacc_sub env))
+
+  let ec_leaking_while env c1 e c2 =
+    let vleak_cond = leakv env "_cond" in
+    let c1 = nested_block env c1 in
+    let (leaking_c1, reset_c1_leak, c1_leaklist) = if c1 = [] then
+      ([], [], [])
+    else
+      let leak_c1 = leakv env "_b1" in
+      (
+        c1 @ push_leak leak_c1 (leaklistv (leakacc_sub env)),
+        reset_leak leak_c1,
+        [leaklistv leak_c1]
+      )
+    in
+    let leak_c2 = leakv env (if c1 = [] then "_b" else "_b2") in
+    let leaking_c2 = nested_block env c2 @ push_leak leak_c2 (leaklistv (leakacc_sub env)) in
+    let reset_c2_leak = reset_leak leak_c2 in
+    let leak_c2 = leakv env "_b2" in
+    reset_leak vleak_cond @ reset_c1_leak @ reset_c2_leak @
+    leaking_c1 @
+    push_leak vleak_cond (leaklist (leak_cond env e)) @
+    [ESwhile (
+      toec_expr env e,
+      leaking_c2 @ leaking_c1 @ push_leak vleak_cond (leaklist (leak_cond env e))
+    )] @
+    push_leak (leakacc env) (leaklist (c1_leaklist @ [leaklistv vleak_cond; leaklistv leak_c2]))
+
+  let leak_for_bounds env e1 e2 =
+    leaks_es env [e1; e2] @ leak_val env e1 @ leak_val env e2
+
+  let ec_leaking_for env c e1 e2 init cond i_upd =
+    let leak_c = leakv env "_b" in
+    reset_leak leak_c @
+    ec_addleaks env (leak_for_bounds env e1 e2) @
+    init @
+    [ESwhile (
+      cond,
+      nested_block env c @ push_leak leak_c (leaklistv (leakacc_sub env)) @ i_upd
+    )] @
+    push_leak (leakacc env) (leaklistv leak_c)
+
+  let global_leakage_vars env = []
+
+  let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
+
+  let ec_fun_leak_init env = reset_leak (leakacc env)
+
+  let ec_leak_ret env ret =
+    (env |> leakacc |> leaklistv) :: ret
+
+  let ec_leak_rty env rtys = "JLeakage.leakage" :: rtys
+
+  let leakv_call env = leakv_nesting env 0 "_c" ~ty:"JLeakage.leakage"
+
+  let ec_leak_call_lvs env = [LvIdent [leakv_call env]]
+
+  let ec_leak_call_acc env = push_leak (leakacc env) (ec_ident (leakv_call env))
+end
+
+
+module Extraction
+  (EA: EcArray)
+  (EL: EcLeakage) =
+struct
+  open EcExpression(EA)
+  open EL
   (* ------------------------------------------------------------------- *)
   (* Extraction of lvals *)
 
@@ -1262,109 +1534,40 @@ module Extraction(EA: EcArray) = struct
   let lvals_are_vars lvs = List.for_all (function Lvar _ -> true | _ -> false) lvs
 
   (* ------------------------------------------------------------------- *)
-  (* Leakage extraction *)
-
-  let int_of_word ws e =
-    Papp1 (E.Oint_of_word ws, e)
-
-  let rec leaks_e_rec pd leaks e =
-    match e with
-    | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
-    | Pload (_,_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
-    | Pget (_,_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e
-    | Papp1 (_, e) -> leaks_e_rec pd leaks e
-    | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
-    | PappN (_, es) -> leaks_es_rec pd leaks es
-    | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
-  and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
-
-  let leaks_e pd e = leaks_e_rec pd [] e
-  let leaks_es pd es = leaks_es_rec pd [] es
-
-  let leaks_lval pd = function
-    | Lnone _ | Lvar _ -> []
-    | Laset (_,_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
-    | Lmem (_, _, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
-
-  let ece_leaks_e env e = List.map (toec_expr env) (leaks_e env.pd e)
-
-  let ec_newleaks leaks =
-      let add_leak lacc l = Eop2 (Infix "::", l, lacc) in
-      List.fold_left add_leak (ec_ident "leakages") leaks
-
-  let ec_addleaks leaks = [ESasgn ([LvIdent ["leakages"]], ec_newleaks leaks)]
-
-  let ec_leaks es = ec_addleaks [Eapp (ec_ident "LeakAddr", [Elist es])]
-
-  let ec_leaks_e env e =
-      match env.model with
-      | ConstantTime -> ec_leaks (ece_leaks_e env e)
-      | Normal -> []
-
-  let ec_leaks_es env es =
-      match env.model with
-      | ConstantTime -> ec_leaks (List.map (toec_expr env) (leaks_es env.pd es))
-      | Normal -> []
-
-  let ec_leaks_opn env es =  ec_leaks_es env es
-
-  let ec_leaks_if env e =
-      match env.model with
-      | ConstantTime ->
-          ec_addleaks [
-              Eapp (ec_ident "LeakAddr", [Elist (ece_leaks_e env e)]);
-              Eapp (ec_ident "LeakCond", [toec_expr env e])
-          ]
-      | Normal -> []
-
-  let ec_leaks_for env e1 e2 =
-      match env.model with
-      | ConstantTime ->
-          let leaks = List.map (toec_expr env) (leaks_es env.pd [e1;e2]) in
-          ec_addleaks [
-              Eapp (ec_ident "LeakAddr", [Elist leaks]);
-              Eapp (ec_ident "LeakFor", [Etuple [toec_expr env e1; toec_expr env e2]])
-              ]
-      | Normal -> []
-
-  let ec_leaks_lv env lv =
-      match env.model with
-      | ConstantTime ->
-          let leaks = leaks_lval env.pd lv in
-          if leaks = [] then []
-          else ec_leaks (List.map (toec_expr env) leaks)
-      | Normal -> []
-
-  (* ------------------------------------------------------------------- *)
   (* Instruction extraction *)
 
   let ec_assgn env lv (etyo, etyi) e =
       let e = e |> ec_zeroext (etyo, etyi) |> ec_cast env (ty_lval lv, etyo) in
-      (ec_leaks_lv env lv) @ [toec_lval1 env lv e]
+      toec_lval1 env lv e
 
-  let ec_assgn_i env lv ((etyo, etyi), aux) = ec_assgn env lv (etyo, etyi) (ec_ident aux)
-
-  let ec_instr_aux env lvs etyso etysi instr =
-      let auxs = get_aux env etysi in
+  let ec_assgn_f env lvs etyso etysi f =
+    let stmt = if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
+      [f (ec_lvals env lvs)]
+    else
+      let auxs = get_aux env "aux" (List.map (toec_ty env) etysi) in
       let s2lv s = LvIdent [s] in
-      let call = instr (List.map s2lv auxs) in
-      let tyauxs = List.combine (List.combine etyso etysi) auxs in
-      let assgn_auxs = List.flatten (List.map2 (ec_assgn_i env) lvs tyauxs) in
+      let call = f (List.map s2lv auxs) in
+      let ec_auxs = List.map ec_ident auxs in
+      let assgn lv (ets, e) = ec_assgn env lv ets e in
+      let tyauxs = List.combine (List.combine etyso etysi) ec_auxs in
+      let assgn_auxs = List.map2 assgn lvs tyauxs in
       call :: assgn_auxs
+    in
+    (ec_leaks_lvs env lvs) @ stmt
 
-  let ec_pcall env lvs otys f args =
-      let ltys = List.map ty_lval lvs in
-      if lvs = [] || (env.model = Normal && lvals_are_vars lvs && ltys = otys) then
-          [EScall (ec_lvals env lvs, f, args)]
-      else
-          ec_instr_aux env lvs otys otys (fun lvals -> EScall (lvals, f, args))
+  let ec_pcall env lvs leak_lvs otys f args =
+    if lvals_are_vars lvs && (List.map ty_lval lvs) = otys then
+      (ec_leaks_lvs env lvs) @ [EScall (leak_lvs @ ec_lvals env lvs, f, args)]
+    else
+      ec_assgn_f env lvs otys otys (fun lvals -> EScall (leak_lvs @ lvals, f, args))
 
-  let ec_call env lvs etyso etysi e =
-      let ltys = List.map ty_lval lvs in
-      if lvs = [] || (env.model = Normal && lvals_are_vars lvs && ltys = etyso && etyso = etysi) then
-          [ESasgn ((ec_lvals env lvs), e)]
-      else
-          ec_instr_aux env lvs etyso etysi (fun lvals -> ESasgn (lvals, e))
+  let ec_expr_assgn env lvs etyso etysi e =
+    if lvals_are_vars lvs && (List.map ty_lval lvs) = etyso && etyso = etysi then
+      (ec_leaks_lvs env lvs) @ [ESasgn (ec_lvals env lvs, e)]
+    else if List.length lvs = 1 then
+      (ec_leaks_lvs env lvs) @ [ec_assgn env (List.hd lvs) (List.hd etyso, List.hd etysi) e]
+    else
+      ec_assgn_f env lvs etyso etysi (fun lvals -> ESasgn (lvals, e))
 
   let ec_syscall env o =
     match o with
@@ -1382,18 +1585,12 @@ module Extraction(EA: EcArray) = struct
   and toec_instr asmOp env i =
       match i.i_desc with
       | Cassgn (lv, _, _, (Parr_init _ as e)) ->
-          (ec_leaks_e env e) @
+          (ec_leaks_es env [e]) @
           [toec_lval1 env lv (ec_ident "witness")]
-      | Cassgn (lv, _, _, e) -> (
-          match env.model with
-          | Normal ->
-              let e = toec_cast env ((ty_lval lv), e) in
-              [toec_lval1 env lv e]
-          | ConstantTime ->
-              let tys = [ty_expr e] in
-              (ec_leaks_e env e) @
-              ec_call env [lv] tys tys (toec_expr env e)
-      )
+      | Cassgn (lv, _, _, e) ->
+          let tys = [ty_expr e] in
+          (ec_leaks_es env [e]) @
+          ec_expr_assgn env [lv] tys tys (toec_expr env e)
       | Copn ([], _, op, es) ->
           (ec_leaks_opn env es) @
           [EScomment (Format.sprintf "Erased call to %s" (ec_opn env.pd asmOp op))]
@@ -1404,30 +1601,29 @@ module Extraction(EA: EcArray) = struct
           let otys', _ = ty_sopn env.pd asmOp op' es in
           let ec_op op = ec_ident (ec_opn env.pd asmOp op) in
           let ec_e op = Eapp (ec_op op, List.map (toec_cast env) (List.combine itys es)) in
-          if env.model = Normal && List.length lvs = 1 then
-              ec_assgn env (List.hd lvs) (List.hd otys, List.hd otys') (ec_e op')
-          else
-              (ec_leaks_opn env es) @
-              (ec_call env lvs otys otys' (ec_e op))
+          (ec_leaks_opn env es) @
+          (ec_expr_assgn env lvs otys otys' (ec_e op'))
       | Ccall (lvs, f, es) ->
           let otys, itys = get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs otys [get_funname env f] args)
+          (ec_pcall env lvs (ec_leak_call_lvs env) otys [get_funname env f] args) @
+          (ec_leak_call_acc env)
       | Csyscall (lvs, o, es) ->
           let s = Syscall.syscall_sig_u o in
           let otys = List.map Conv.ty_of_cty s.scs_tout in
           let itys =  List.map Conv.ty_of_cty s.scs_tin in
           let args = List.map (toec_cast env) (List.combine itys es) in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs otys [ec_syscall env o] args)
+          (ec_pcall env lvs [] otys [ec_syscall env o] args)
       | Cif (e, c1, c2) ->
-          (ec_leaks_if env e) @
-          [ESif (toec_expr env e, toec_cmd asmOp env c1, toec_cmd asmOp env c2)]
-      | Cwhile (_, c1, e, c2) ->
-          let leak_e = ec_leaks_if env e in
-          (toec_cmd asmOp env c1) @ leak_e @
-          [ESwhile (toec_expr env e, (toec_cmd asmOp env (c2@c1)) @ leak_e)]
+          let c1 env = toec_cmd asmOp env c1 in
+          let c2 env = toec_cmd asmOp env c2 in
+          ec_leaking_if env e c1 c2
+      | Cwhile (_, c1, e, _, c2) ->
+          let c1 env = toec_cmd asmOp env c1 in
+          let c2 env = toec_cmd asmOp env c2 in
+          ec_leaking_while env c1 e c2
       | Cfor (i, (d,e1,e2), c) ->
           (* decreasing for loops have bounds swaped *)
           let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in
@@ -1435,94 +1631,37 @@ module Extraction(EA: EcArray) = struct
               match e2 with
               (* Can be generalized to the case where e2 is not modified by c and i *)
               | Pconst _ -> ([], toec_expr env e2)
-              | _ ->
-                  let aux = List.hd (get_aux env [tint]) in
+              | _ -> 
+                  let aux = List.hd (get_aux env "aux" [toec_ty env tint]) in
                   let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
                   let ec_e2 = ec_ident aux in
                   [init], ec_e2 in
           let ec_i = [ec_vars env (L.unloc i)] in
           let lv_i = [LvIdent ec_i] in
-          let ec_i1, ec_i2 =
+          let init  = init @ [ESasgn (lv_i, toec_expr env e1)] in
+          let ec_i1, ec_i2 = 
               if d = UpTo then Eident ec_i , ec_e2
               else ec_e2, Eident ec_i in
           let i_upd_op = Infix (if d = UpTo then "+" else "-") in
-          let i_upd = ESasgn (lv_i, Eop2 (i_upd_op, Eident ec_i, Econst (Z.of_int 1))) in
-          (ec_leaks_for env e1 e2) @ init @ [
-              ESasgn (lv_i, toec_expr env e1);
-              ESwhile (Eop2 (Infix "<", ec_i1, ec_i2), (toec_cmd asmOp env c) @ [i_upd])
-              ]
+          let i_upd = [ESasgn (lv_i, Eop2 (i_upd_op, Eident ec_i, Econst (Z.of_int 1)))] in
+          let c env = toec_cmd asmOp env c in
+          let cond = Eop2 (Infix "<", ec_i1, ec_i2) in
+          ec_leaking_for env c e1 e2 init cond i_upd
 
   (* ------------------------------------------------------------------- *)
   (* Function extraction *)
 
-  let rec init_aux_i pd asmOp env i =
-    match i.i_desc with
-      | Cassgn (lv, _, _, e) -> (
-          match env.model with
-          | Normal -> env
-          | ConstantTime -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
-      )
-      | Copn (lvs, _, op, _) -> (
-          match env.model with
-          | Normal ->
-              if List.length lvs = 1 then env
-              else
-                  let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
-                  let ltys = List.map ty_lval lvs in
-                  if lvals_are_vars lvs && ltys = tys then env
-                  else add_aux env tys
-          | ConstantTime ->
-              let op = base_op op in
-              let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout pd asmOp op) in
-              let env = add_aux env tys in
-              add_aux env (List.map ty_lval lvs)
-      )
-      | Ccall(lvs, f, _) -> (
-          match env.model with
-          | Normal ->
-              if lvs = [] then env
-              else
-                  let tys = (*List.map Conv.ty_of_cty *)(fst (get_funtype env f)) in
-                  let ltys = List.map ty_lval lvs in
-                  if (lvals_are_vars lvs && ltys = tys) then env
-                  else add_aux env tys
-          | ConstantTime ->
-              if lvs = [] then env
-              else add_aux env (List.map ty_lval lvs)
-      )
-      | Csyscall(lvs, o, _) -> (
-          match env.model with
-          | Normal ->
-              if lvs = [] then env
-              else
-                  let tys = List.map Conv.ty_of_cty (Syscall.syscall_sig_u o).scs_tout in
-                  let ltys = List.map ty_lval lvs in
-                  if (lvals_are_vars lvs && ltys = tys) then env
-                  else add_aux env tys
-          | ConstantTime ->
-              let s = Syscall.syscall_sig_u o in
-              let otys = List.map Conv.ty_of_cty s.scs_tout in
-              let env = add_aux env otys in
-              add_aux env (List.map ty_lval lvs)
-      )
-      | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux pd asmOp (init_aux pd asmOp env c1) c2
-      | Cfor(_,_,c) -> init_aux pd asmOp (add_aux env [tint]) c
-
-  and init_aux pd asmOp env c = List.fold_left (init_aux_i pd asmOp) env c
-
-  let toec_fun asmOp env f =
+  let toec_fun asmOp env f = 
       let f = { f with f_body = remove_for f.f_body } in
       let locals = Sv.elements (locals f) in
       let env = List.fold_left add_var env (f.f_args @ locals) in
-      (* init auxiliary variables *)
-      let env = init_aux env.pd asmOp env f.f_body
+      (* Limit the scope of changes to env.auxv and env.alls to the current function. *)
+      let env = { env with auxv = ref !(env.auxv); alls = ref !(env.alls) }
       in
-      List.iter (add_ty env) f.f_tyout;
-      List.iter (fun x -> add_ty env x.v_ty) (f.f_args @ locals);
-      Mty.iter (fun ty _ -> add_ty env ty) env.auxv;
+      let stmts = (ec_fun_leak_init env) @ (toec_cmd asmOp env f.f_body) in
       let ec_locals =
-          let locs_ty (ty, vars) = List.map (fun v -> (v, toec_ty env ty)) vars in
-          (List.flatten (List.map locs_ty (Mty.bindings env.auxv))) @
+          let locs_ty ((_, ty), vars) = List.map (fun v -> (v, ty)) vars in
+          (List.flatten (List.map locs_ty (Mty.bindings !(env.auxv)))) @
           (List.map (var2ec_var env) locals)
       in
       let aux_locals_init = locals
@@ -1532,18 +1671,20 @@ module Extraction(EA: EcArray) = struct
       in
       let ret =
           let ec_var x = ec_vari env (L.unloc x) in
-          match f.f_ret with
-          | [x] -> ESreturn (ec_var x)
-          | xs -> ESreturn (Etuple (List.map ec_var xs))
+          match ec_leak_ret env (List.map ec_var f.f_ret) with
+          | [x] -> ESreturn x
+          | xs -> ESreturn (Etuple xs)
       in
+      List.iter (add_ty env) f.f_tyout;
+      List.iter (fun x -> add_ty env x.v_ty) (f.f_args @ locals);
       {
           decl = {
               fname = (get_funname env f.f_name);
               args = List.map (var2ec_var env) f.f_args;
-              rtys = List.map (toec_ty env) f.f_tyout;
+              rtys = ec_leak_rty env (List.map (toec_ty env) f.f_tyout);
           };
           locals = ec_locals;
-          stmt = aux_locals_init @ (toec_cmd asmOp env f.f_body) @ [ret];
+          stmt = aux_locals_init @ stmts @ [ret];
       }
 
   (* ------------------------------------------------------------------- *)
@@ -1639,17 +1780,9 @@ module Extraction(EA: EcArray) = struct
           | [] -> []
           | l -> [IrequireImport (List.map fmt_array_theory l)]
       in
-      let pp_leakages = match env.model with
-          | ConstantTime -> [("leakages", "leakages_t")]
-          | Normal -> []
-      in
       let mod_arg =
           if Sint.is_empty !(env.randombytes) then []
           else [(syscall_mod_arg, syscall_mod_sig)]
-      in
-      let import_jleakage = match env.model with
-      | Normal -> []
-      | ConstantTime -> [IfromRequireImport ("Jasmin", ["JLeakage"])]
       in
       let glob_imports = [
           IrequireImport ["AllCore"; "IntDiv"; "CoreMap"; "List"; "Distr"];
@@ -1660,11 +1793,11 @@ module Extraction(EA: EcArray) = struct
           name = "M";
           params = mod_arg;
           ty = None;
-          vars = pp_leakages;
+          vars = global_leakage_vars env;
           funs;
       } in
       glob_imports @
-      import_jleakage @
+      (leakage_imports env) @
       pp_array_theories !(env.array_theories) @
       (List.map (fun glob -> ec_glob_decl env glob) globs) @
       (ec_randombytes env) @
@@ -1689,7 +1822,7 @@ and used_func_i used i =
   | Cassgn _ | Copn _ | Csyscall _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
-  | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
+  | Cwhile(_, c1, _, _, c2) -> used_func_c (used_func_c used c1) c2
   | Ccall (_,f,_)   -> Ss.add f.fn_name used
 
 let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp model amodel fnames array_dir fmt =
@@ -1720,7 +1853,13 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp model amodel fnames
     | ArrayOld -> (module EcArrayOld: EcArray)
     | ArrayEclib -> (module EcArrayEclib: EcArray)
   ) in
-  let module E = Extraction(EA) in
+  let module EE = EcExpression(EA) in
+  let module EL: EcLeakage = (val match env.model with
+    | Normal -> (module EcLeakNormal(EE): EcLeakage)
+    | ConstantTime -> (module EcLeakConstantTime(EE): EcLeakage)
+    | ConstantTimeGlobal -> (module EcLeakConstantTimeGlobal(EE): EcLeakage)
+  ) in
+  let module E = Extraction(EA)(EL) in
   let prog = E.pp_prog env asmOp fmt globs funcs in
   save_array_theories !(env.array_theories);
   prog

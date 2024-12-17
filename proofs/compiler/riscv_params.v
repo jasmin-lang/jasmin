@@ -27,10 +27,6 @@ Require Import
   riscv_stack_zeroization
   riscv_lower_addressing.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Section Section.
 Context {atoI : arch_toIdent}.
 

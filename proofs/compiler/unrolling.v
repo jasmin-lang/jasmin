@@ -3,10 +3,6 @@
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import ZArith expr compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 (* ** unrolling
@@ -73,10 +69,10 @@ Fixpoint unroll_i (i: instr) : cmd * bool :=
       (flatten cs, true)
     | _, _       => ([:: MkI ii (Cfor i (dir, low, hi) c') ], b)
     end
-  | Cwhile a c1 e c2  =>
+  | Cwhile a c1 e info c2  =>
       let: (c1', b1) := unroll_cmd unroll_i c1 in
       let: (c2', b2) := unroll_cmd unroll_i c2 in
-      ([:: MkI ii (Cwhile a c1' e c2') ], b1 || b2)
+      ([:: MkI ii (Cwhile a c1' e info c2') ], b1 || b2)
   end.
 
 Section Section.

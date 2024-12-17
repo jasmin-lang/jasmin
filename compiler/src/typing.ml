@@ -203,7 +203,7 @@ let rec check_instr pd asmOp env i =
     check_expr pd loc e2 tint;
     check_cmd pd asmOp env c
 
-  | Cwhile(_,c1,e,c2) ->
+  | Cwhile(_, c1, e, _, c2) ->
     check_expr pd loc e tbool;
     check_cmd pd asmOp env c1;
     check_cmd pd asmOp env c2

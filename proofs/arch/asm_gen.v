@@ -14,10 +14,6 @@ Require Import
 Import Utf8 String.
 Import compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Module E.
 
 Definition pass_name := "asmgen"%string.

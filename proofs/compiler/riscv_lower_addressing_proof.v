@@ -14,10 +14,6 @@ Require Import
   riscv_extra.
 Require Export riscv_lower_addressing.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* ** proofs
  * -------------------------------------------------------------------- *)
 
@@ -334,7 +330,7 @@ Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 s3 s4 a c e c' _ Hc He _ Hc' Hw1 Hw ii tmp vm1 tmp_ty tmp_nin eq_vm1.
+  move=> s1 s2 s3 s4 a c e info c' _ Hc He _ Hc' Hw1 Hw ii tmp vm1 tmp_ty tmp_nin eq_vm1.
   have tmp_nin1: ~ Sv.In tmp (read_c c).
   + by move: tmp_nin; rewrite read_Ii read_i_while; clear; SvD.fsetdec.
   have [vm2 hsem2 eq_vm2] := Hc tmp vm1 tmp_ty tmp_nin1 eq_vm1.
@@ -356,7 +352,7 @@ Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
 Proof.
-  move=> s1 s2 a c e c' _ Hc He ii tmp vm1 tmp_ty tmp_nin eq_vm1.
+  move=> s1 s2 a c e info c' _ Hc He ii tmp vm1 tmp_ty tmp_nin eq_vm1.
   have tmp_nin1: ~ Sv.In tmp (read_c c).
   + by move: tmp_nin; rewrite read_Ii read_i_while; clear; SvD.fsetdec.
   have [vm2 hsem2 eq_vm2] := Hc tmp vm1 tmp_ty tmp_nin1 eq_vm1.

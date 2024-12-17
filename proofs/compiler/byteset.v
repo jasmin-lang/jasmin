@@ -6,10 +6,6 @@ Import Lexicographic_Product Relation_Operators.
 
 Import Utf8 ZArith Lia.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 

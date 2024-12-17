@@ -39,10 +39,6 @@ Require Import
   x86_stack_zeroization_proof.
 Require Export x86_params.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 #[local] Existing Instance direct_c.
 

@@ -12,10 +12,6 @@ Require Import
   riscv_decl
   riscv_instr_decl.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 (* Returns true for imm comprised between -2048 (-2ˆ11) and 2047 (2ˆ11 - 1); else otherwise*)
 Definition is_arith_small (imm : Z) : bool := (- Z.pow 2 11 <=? imm)%Z && (imm <? Z.pow 2 11)%Z.
 Definition is_arith_small_neg (imm: Z) : bool := is_arith_small(-imm).

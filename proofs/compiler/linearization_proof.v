@@ -16,10 +16,6 @@ Require Import fexpr fexpr_sem fexpr_facts.
 Require Export linearization linear_sem linear_facts.
 Import Memory.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 #[local] Existing Instance withsubword.
 #[local] Opaque eval_jump.
 
@@ -162,9 +158,9 @@ Section CAT.
   Proof. by []. Qed.
 
   #[ local ]
-  Lemma cat_while : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
+  Lemma cat_while : forall a c e ei c', Pc c -> Pc c' -> Pr (Cwhile a c e ei c').
   Proof.
-    move=> a c e c' Hc Hc' ii fn lbl l /=.
+    move=> a c e ei c' Hc Hc' ii fn lbl l /=.
     case: is_bool => [ [] | ].
     + rewrite Hc' (Hc' _ _ [:: _]) align_bind; f_equal; case: linear_c => lbl1 lc1.
       by rewrite Hc (Hc _ _ (_ ++ _)); case: linear_c => lbl2 lc2; rewrite !catA cats1 -cat_rcons.
@@ -865,7 +861,7 @@ Section VALIDITY.
   Proof. move => ? ?; exact: default. Qed.
 
   #[ local ]
-  Lemma valid_labels_while (a : expr.align) (c : cmd) (e : pexpr) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e c').
+  Lemma valid_labels_while (a : expr.align) (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e ei c').
   Proof.
     move => hc hc' ii fn lbl /=.
     case: is_boolP => [ [] | {e} e ].
@@ -1021,7 +1017,7 @@ Section NUMBER_OF_LABELS.
   Proof. by case: al. Qed.
 
   #[ local ]
-  Lemma nb_labels_while (a : expr.align) (c : cmd) (e : pexpr) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e c').
+  Lemma nb_labels_while (a : expr.align) (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e ei c').
   Proof.
     move => hc hc' ii fn lbl /=.
     case: is_boolP => [ [] | {e} e ].
@@ -2565,7 +2561,7 @@ Section PROOF.
   Local Lemma Hwhile_true : sem_Ind_while_true p var_tmps Pc Pi Pi_r.
   Proof.
     red. clear Pfun.
-    move => ii k k' krec s1 s2 s3 s4 a c e c' Ec Hc ok_e Ec' Hc' Ew Hw.
+    move => ii k k' krec s1 s2 s3 s4 a c e ei c' Ec Hc ok_e Ec' Hc' Ew Hw.
     move => fn lbl /checked_iE[] fd ok_fd /=.
     have {Hw} := Hw fn lbl.
     rewrite /checked_i ok_fd /=.
@@ -2859,7 +2855,7 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p var_tmps Pc Pi_r.
   Proof.
-    move => ii k s1 s2 a c e c' Ec Hc; rewrite p_globs_nil => ok_e fn lbl /checked_iE[] fd ok_fd /=.
+    move => ii k s1 s2 a c e ei c' Ec Hc; rewrite p_globs_nil => ok_e fn lbl /checked_iE[] fd ok_fd /=.
     case: is_boolP ok_e; first case; first by [].
     { (* expression is the “false” literal *)
       move => _ ok_c /=.

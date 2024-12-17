@@ -3,10 +3,6 @@ Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import expr compiler_util.
 
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
-
 Local Open Scope seq_scope.
 
 Section ASM_OP.
@@ -43,10 +39,10 @@ Fixpoint remove_init_i i :=
     | Cfor x r c   =>
       let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
       [:: MkI ii (Cfor x r c) ]
-    | Cwhile a c e c' =>
+    | Cwhile a c e info c' =>
       let c := foldr (fun i c => remove_init_i i ++ c) [::] c in
       let c' := foldr (fun i c => remove_init_i i ++ c) [::] c' in
-      [:: MkI ii (Cwhile a c e c') ]
+      [:: MkI ii (Cwhile a c e info c') ]
     | Ccall _ _ _  => [::i]
     end
   end.
