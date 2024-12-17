@@ -30,10 +30,15 @@ Definition fresh_word ii n ws :=
 
 Definition process_constant ii n (ws:wsize) e : seq instr_r * pexpr * Sv.t :=
   if is_wconst_of_size ws e is Some z then
-    let x := fresh_word ii n ws in
-    (* We use AT_rename to have a warning at compile time:
-       warning: extra assignment introduced *)
-    ([:: Cassgn x AT_rename (sword ws) e], Pvar (mk_lvar x), Sv.singleton x)
+    if ~~ (z =? 0)%Z then
+      let x := fresh_word ii n ws in
+      (* We use AT_rename to have a warning at compile time:
+         warning: extra assignment introduced *)
+      ([:: Cassgn x AT_rename (sword ws) e], Pvar (mk_lvar x), Sv.singleton x)
+    else
+      (* On RISC-V, we can replace constant 0 with register x0, so we do not
+         need an auxiliary register. *)
+      ([::], e, Sv.empty)
   else
     ([::], e, Sv.empty).
 

@@ -48,6 +48,10 @@ Proof.
   + move=> _ [<- -> <-] he; exists (evm s); split => //; rewrite ?with_vm_same.
     + by constructor.
     by rewrite eq_globs.
+  case: ifP => _; last first.
+  + move=> [<- -> <-] he; exists (evm s); split => //; rewrite ?with_vm_same.
+    + by constructor.
+    by rewrite eq_globs.
   move=> [<- <- <-] /= [<-]; rewrite /fresh_word /=.
   set x := {| vtype := _ |}.
   exists ((evm s).[x <- Vword (wrepr ws z)]); split => //.
