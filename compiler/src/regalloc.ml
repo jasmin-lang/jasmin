@@ -143,13 +143,20 @@ let asm_equality_constraints ~loc pd reg_size asmOp is_move_op (int_of_var: var_
 type ('info, 'asm) trace = (int, ('info, 'asm) instr list) Hashtbl.t
 
 let pp_trace pd asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
-  let j = try Hashtbl.find tr i with Not_found -> [] in
+  match Hashtbl.find tr i with
+  | exception Not_found -> ()
+  | j ->
+  let pp_i_noloc = Printer.pp_instr ~debug:true pd asmOp in
   let pp_i fmt i =
     Format.fprintf fmt "@[<v>at %a:@;<1 2>%a@]"
       L.pp_iloc i.i_loc
-      (Printer.pp_instr ~debug:true pd asmOp) i
+      pp_i_noloc i
   in
-  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_i) j
+  let j_noloc, j_loc = List.partition (fun i -> L.isdummy i.i_loc.base_loc) j in
+  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_i) j_loc;
+  if j_noloc <> [] then
+    Format.fprintf fmt "@;<1 2>and:@;<1 4>@[<v>%a@]"
+      (pp_list "@ " pp_i_noloc) j_noloc
 
 let normalize_trace (eqc: Puf.t) (tr: ('info, 'asm) instr list array) : ('info, 'asm) trace =
   let tbl = Hashtbl.create 97 in
@@ -290,11 +297,12 @@ let collect_equality_constraints
     copn_constraints
     (tbl: int Hv.t)
     (nv: int)
-    (f: ('info, 'asm) func) : Puf.t =
+    (f: ('info, 'asm) func) : Puf.t * ('info, 'asm) trace =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
   collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg int_of_var copn_constraints s f;
-  s.cac_eqc
+  let eqc = s.cac_eqc in
+  eqc, normalize_trace eqc s.cac_trace
 
 let collect_equality_constraints_in_prog
       asmOp
@@ -875,7 +883,7 @@ let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
 
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
-  let eqc =
+  let eqc, tr =
     collect_equality_constraints
       Arch.asmOp
       Arch.aparams
@@ -886,6 +894,11 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
       f
   in
   let vars = normalize_variables vars eqc in
+  (* Check conflicts *)
+  let _ =
+    let lf = Liveness.live_fd false f in
+    collect_conflicts Arch.pointer_data Arch.reg_size Arch.asmOp vars tr lf empty_conflicts
+  in
   let a = reverse_varmap nv vars in
   (* The variable that is added last is the representative of its class.
      This makes sure that each argument is the representative of its class,
