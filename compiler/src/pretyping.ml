@@ -87,7 +87,7 @@ let pp_suffix fmt =
   | PVs (sg, sz) -> F.fprintf fmt "_%s%a" (string_of_signess sg) pp_wsize sz
   | PVv (ve, sz) -> F.fprintf fmt "_%s" (string_of_velem Unsigned sz ve)
   | PVsv (sg, ve, sz) -> F.fprintf fmt "_%s" (string_of_velem sg sz ve)
-  | PVx (szo, szi) -> F.fprintf fmt "_u%a_u%a" pp_wsize szo pp_wsize szi
+  | PVx (szo, szi) -> F.fprintf fmt "_u%au%a" pp_wsize szo pp_wsize szi
   | PVvv (ve, sz, ve', sz') -> F.fprintf fmt "_%s_%s" (string_of_velem Unsigned sz ve) (string_of_velem Unsigned sz' ve')
 
 let pp_tyerror fmt (code : tyerror) =
@@ -1338,6 +1338,20 @@ let extract_size str : string * Sopn.prim_x86_suffix option =
     | "128" -> PVp W.U128
     | "256" -> PVp W.U256
 
+    | "u8"   -> PVs (Unsigned, W.U8)
+    | "u16"  -> PVs (Unsigned, W.U16)
+    | "u32"  -> PVs (Unsigned, W.U32)
+    | "u64"  -> PVs (Unsigned, W.U64)
+    | "u128" -> PVs (Unsigned, W.U128)
+    | "u256" -> PVs (Unsigned, W.U256)
+
+    | "s8"   -> PVs (Signed, W.U8)
+    | "s16"  -> PVs (Signed, W.U16)
+    | "s32"  -> PVs (Signed, W.U32)
+    | "s64"  -> PVs (Signed, W.U64)
+    | "s128" -> PVs (Signed, W.U128)
+    | "s256" -> PVs (Signed, W.U256)
+
     | "2u8"   -> PVsv (W.Unsigned, W.VE8,  W.U16)
     | "4u8"   -> PVsv (W.Unsigned, W.VE8,  W.U32)
     | "2u16"  -> PVsv (W.Unsigned, W.VE16, W.U32)
@@ -1381,14 +1395,7 @@ let extract_size str : string * Sopn.prim_x86_suffix option =
           (fun c0 i c1 j ->
             if not ((c0 = 'u' || c0 = 's') && (c1 = 'u' || c1 = 's')) then raise Not_found;
             PVx(wsize_of_int i, wsize_of_int j))
-      with End_of_file | Scanf.Scan_failure _ ->
-        try
-          Scanf.sscanf s "%c%u%!"
-          (fun c i ->
-            if (c = 'u') then PVs(W.Unsigned, wsize_of_int i)
-          else if (c = 's') then PVs(W.Signed, wsize_of_int i)
-          else raise Not_found)
-        with End_of_file | Scanf.Scan_failure _ -> raise Not_found
+      with End_of_file | Scanf.Scan_failure _ -> raise Not_found
   in
   try
   match List.rev (String.split_on_char '_' str) with
