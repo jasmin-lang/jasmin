@@ -5,7 +5,7 @@ stages:
 - test
 - deploy
 
-image: nixos/nix:2.18.2
+image: nixos/nix:2.24.11
 
 variables:
   NIX_PATH: nixpkgs=channel:nixpkgs-unstable
@@ -28,7 +28,7 @@ variables:
     --run 'echo done'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|$VERSION|" compiler/src/glob_options.ml'
 
-cache dependencies:
+.cache dependencies:
   stage: prepare
   extends: .common
   variables:
