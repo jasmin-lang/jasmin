@@ -71,7 +71,7 @@ module Sarraytheory = Set.Make(ATcmp)
 
 (* FIXME: generate this list automatically *)
 (* Adapted from EasyCrypt source file src/ecLexer.mll *)
-let ec_keyword = 
+let ec_keyword =
  [ "admit"
  ; "admitted"
 
@@ -264,10 +264,10 @@ let ec_keyword =
 let syscall_mod_arg = "SC"
 let syscall_mod_sig = "Syscall_t"
 let syscall_mod     = "Syscall"
-let internal_keyword = 
+let internal_keyword =
   [ "safe"; "leakages"; syscall_mod_arg; syscall_mod_sig; syscall_mod ]
 
-let keywords = 
+let keywords =
   Ss.union (Ss.of_list ec_keyword) (Ss.of_list internal_keyword)
 
 (* ------------------------------------------------------------------- *)
@@ -278,13 +278,13 @@ type ec_op2 =
     | Infix of string
 
 type ec_op3 =
-    | Ternary 
-    | If 
+    | Ternary
+    | If
     | InORange
 
 type ec_ident = string list
 
-type ec_expr = 
+type ec_expr =
     | Econst of Z.t (* int. literal *)
     | Ebool of bool (* bool literal *)
     | Eident of ec_ident (* variable *)
@@ -348,7 +348,7 @@ type ec_item =
     | IfromImport of string * (string list)
     | IfromRequireImport of string * (string list)
     | Iabbrev of string * ec_expr
-    | ImoduleType of ec_module_type 
+    | ImoduleType of ec_module_type
     | Imodule of ec_module
 
 type ec_prog = ec_item list
@@ -577,11 +577,11 @@ let rec pp_ec_ast_expr fmt e = match e with
         else Format.fprintf fmt "(%a)" Z.pp_print z
     | Ebool b -> pp_bool fmt b
     | Eident s -> pp_ec_ident fmt s
-    | Eapp (f, ops) -> 
+    | Eapp (f, ops) ->
             Format.fprintf fmt "@[(@,%a@,)@]"
             (Format.(pp_print_list ~pp_sep:(fun fmt () -> fprintf fmt "@ ")) pp_ec_ast_expr)
             (f::ops)
-    | Efun1 (var, e) -> 
+    | Efun1 (var, e) ->
             Format.fprintf fmt "@[(fun %s => %a)@]" var pp_ec_ast_expr e
     | Eop2 (op, e1, e2) -> pp_ec_op2 fmt (op, e1, e2)
     | Eop3 (op, e1, e2, e3) -> pp_ec_op3 fmt (op, e1, e2, e3)
@@ -649,7 +649,7 @@ let pp_ec_fun_decl fmt fdecl =
         if rtys = [] then Format.fprintf fmt "unit"
         else Format.fprintf fmt "@[%a@]" (pp_list " *@ " pp_string) rtys
     in
-    Format.fprintf fmt 
+    Format.fprintf fmt
         "@[proc %s (@[%a@]) : @[%a@]@]"
         fdecl.fname
         (pp_list ",@ " pp_ec_vdecl) fdecl.args
@@ -657,7 +657,7 @@ let pp_ec_fun_decl fmt fdecl =
 
 let pp_ec_fun fmt f =
     let pp_decl_s fmt v = Format.fprintf fmt "var %a;" pp_ec_vdecl v in
-    Format.fprintf fmt 
+    Format.fprintf fmt
         "@[<v>@[%a = {@]@   @[<v>%a@ %a@]@ }@]"
         pp_ec_fun_decl f.decl
         (pp_list "@ " pp_decl_s) f.locals
@@ -822,7 +822,7 @@ let save_array_theory ~prefix at =
 (* ------------------------------------------------------------------- *)
 (* Easycrypt AST construction helpers *)
 
-let add_ptr pd x e = 
+let add_ptr pd x e =
   (Prog.tu pd, Papp2 (E.Oadd ( E.Op_w pd), Pvar x, e))
 
 let ec_ident s = Eident [s]
@@ -918,11 +918,11 @@ module EcArrayOld: EcArray = struct
           [
               Efun1 (i, ec_aget (ec_vari env x)  (Eop2 (Plus, e, ec_ident i)))
       ])
-  else 
+  else
       Eapp (
           ec_Array_init env len,
           [
-              Efun1 (i, 
+              Efun1 (i,
               Eapp (ec_ident (Format.sprintf "get%i%s" (int_of_ws ws) (fmt_access aa)), [
                   ec_initi_var env (x, n, xws); Eop2 (Plus, e, ec_ident i)
           ])
@@ -954,10 +954,10 @@ module EcArrayOld: EcArray = struct
                 ec_aget (ec_vari env x) (ec_ident i)
                 ))
         ])
-    else 
+    else
         let nws = n * int_of_ws xws in
         let nws8 = nws / 8 in
-        let start = 
+        let start =
           if aa = Warray_.AAscale then
             Eop2 (Infix "*", ec_int (int_of_ws ws / 8), e1)
           else
@@ -1076,7 +1076,7 @@ let base_op = function
   | o -> o
 
 let ty_expr = function
-  | Pconst _       -> tint 
+  | Pconst _       -> tint
   | Pbool _        -> tbool
   | Parr_init len  -> Arr (U8, len)
   | Pvar x         -> x.gv.L.pl_desc.v_ty
@@ -1094,7 +1094,7 @@ let ty_sopn pd asmOp op es =
   | Sopn.Opseudo_op (Pseudo_operator.Ocopy(ws, p)) ->
     let l = [Arr(ws, Conv.int_of_pos p)] in
     l, l
-  | Sopn.Opseudo_op (Pseudo_operator.Oswap _) -> 
+  | Sopn.Opseudo_op (Pseudo_operator.Oswap _) ->
     let l = List.map ty_expr es in
     l, l
   | _ ->
@@ -1102,38 +1102,38 @@ let ty_sopn pd asmOp op es =
     List.map Conv.ty_of_cty (Sopn.sopn_tin pd asmOp op)
 
 (* This code replaces for loop that modify the loop counter by while loop,
-   it would be nice to prove in Coq the validity of the transformation *) 
+   it would be nice to prove in Coq the validity of the transformation *)
 
 let is_write_lv x = function
-  | Lnone _ | Lmem _ -> false 
+  | Lnone _ | Lmem _ -> false
   | Lvar x' | Laset(_, _, _, x', _) | Lasub (_, _, _, x', _) ->
-    V.equal x x'.L.pl_desc 
+    V.equal x x'.L.pl_desc
 
 let is_write_lvs x = List.exists (is_write_lv x)
 
-let rec is_write_i x i = 
+let rec is_write_i x i =
   match i.i_desc with
   | Cassgn (lv,_,_,_) ->
     is_write_lv x lv
   | Copn(lvs,_,_,_) | Ccall(lvs, _, _) | Csyscall(lvs,_,_) ->
     is_write_lvs x lvs
   | Cif(_, c1, c2) | Cwhile(_, c1, _, _, c2) ->
-    is_write_c x c1 || is_write_c x c2 
-  | Cfor(x',_,c) -> 
+    is_write_c x c1 || is_write_c x c2
+  | Cfor(x',_,c) ->
     V.equal x x'.L.pl_desc || is_write_c x c
 
 and is_write_c x c = List.exists (is_write_i x) c
-  
+
 let rec remove_for_i i =
-  let i_desc = 
+  let i_desc =
     match i.i_desc with
     | Cassgn _ | Copn _ | Ccall _ | Csyscall _ -> i.i_desc
     | Cif(e, c1, c2) -> Cif(e, remove_for c1, remove_for c2)
     | Cwhile(a, c1, e, loc, c2) -> Cwhile(a, remove_for c1, e, loc, remove_for c2)
-    | Cfor(j,r,c) -> 
+    | Cfor(j,r,c) ->
       let jd = j.pl_desc in
       if not (is_write_c jd c) then Cfor(j, r, remove_for c)
-      else 
+      else
         let jd' = V.clone jd in
         let j' = { j with pl_desc = jd' } in
         let ii' = Cassgn (Lvar j, E.AT_inline, jd.v_ty, Pvar (gkvar j')) in
@@ -1147,7 +1147,7 @@ let ty_lval = function
   | Lnone (_, ty) -> ty
   | Lvar x -> (L.unloc x).v_ty
   | Lmem (_, ws,_,_) | Laset(_, _, ws, _, _) -> Bty (U ws)
-  | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
+  | Lasub (_,ws, len, _, _) -> Arr(ws, len)
 
 module type EcExpression = sig
   val ec_cast: env -> int gty * int gty -> ec_expr -> ec_expr
@@ -1174,7 +1174,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
       ec_apps1 (Format.sprintf "%s.of_int" (fmt_Wsz sz)) e
     | E.Oint_of_word sz ->
       ec_apps1 (Format.sprintf "%s.to_uint" (fmt_Wsz sz)) e
-    | E.Osignext(szo,_szi) -> 
+    | E.Osignext(szo,_szi) ->
       ec_apps1 (Format.sprintf "sigextu%i" (int_of_ws szo)) e
     | E.Ozeroext(szo,szi) -> ec_zeroext_sz (szo, szi) e
     | E.Onot     -> ec_apps1 "!" e
@@ -1208,7 +1208,7 @@ module EcExpression(EA: EcArray): EcExpression = struct
           let t1, t2 = fst (E.type_of_op2 op2) in
           let te1 = (Conv.ty_of_cty t1, e1) in
           let te2 = (Conv.ty_of_cty t2, e2) in
-          let te1, te2 = match op2 with 
+          let te1, te2 = match op2 with
             | E.Ogt _ | E.Oge _ -> te2, te1
             | _ -> te1, te2
           in
@@ -1218,11 +1218,11 @@ module EcExpression(EA: EcArray): EcExpression = struct
           begin match op with
           | Opack (ws, we) ->
               let i = int_of_pe we in
-              let rec aux es = 
+              let rec aux es =
                   match es with
                   | [] -> assert false
                   | [e] -> toec_expr env e
-                  | e::es -> 
+                  | e::es ->
                           let exp2i = Eop2 (Infix "^", Econst (Z.of_int 2), Econst (Z.of_int i)) in
                           Eop2 (
                               Infix "+",
@@ -1231,13 +1231,13 @@ module EcExpression(EA: EcArray): EcExpression = struct
                               )
               in
               ec_apps1 (Format.sprintf "W%i.of_int" (int_of_ws ws)) (aux (List.rev es))
-          | Ocombine_flags c -> 
+          | Ocombine_flags c ->
               Eapp (
                   ec_ident (Printer.string_of_combine_flags c),
                   List.map (toec_expr env) es
               )
           end
-      | Pif(_,e1,et,ef) -> 
+      | Pif(_,e1,et,ef) ->
           let ty = ty_expr e in
           Eop3 (
               Ternary,
@@ -1525,7 +1525,7 @@ struct
     List.map (ec_lval env) xs
 
   let toec_lval1 env lv e =
-      match lv with 
+      match lv with
       | Lnone _ -> assert false
       | Lmem(_, ws, x, e1) ->
           let storewi = ec_ident (Format.sprintf "storeW%i" (int_of_ws ws)) in
@@ -1598,7 +1598,7 @@ struct
       env.randombytes := Sint.add n !(env.randombytes);
       Format.sprintf "%s.randombytes_%i" syscall_mod_arg n
 
-  let ec_opn pd asmOp o = 
+  let ec_opn pd asmOp o =
     let s = Format.asprintf "%a" (pp_opn pd asmOp) o in
     if Ss.mem s keywords then s^"_" else s
 
@@ -1648,8 +1648,8 @@ struct
           ec_leaking_while env c1 e c2
       | Cfor (i, (d,e1,e2), c) ->
           (* decreasing for loops have bounds swaped *)
-          let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in 
-          let init, ec_e2 = 
+          let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in
+          let init, ec_e2 =
               match e2 with
               (* Can be generalized to the case where e2 is not modified by c and i *)
               | Pconst _ -> ([], toec_expr env e2)
@@ -1688,7 +1688,7 @@ struct
         (List.map (var2ec_var env) locals)
       in
       let aux_locals_init = locals
-          |> List.filter (fun x -> match x.v_ty with Arr _ -> true | _ -> false) 
+          |> List.filter (fun x -> match x.v_ty with Arr _ -> true | _ -> false)
           |> List.sort (fun x1 x2 -> compare x1.v_name x2.v_name)
           |> List.map (fun x -> ESasgn ([LvIdent [ec_vars env x]], ec_ident "witness"))
       in
@@ -1713,8 +1713,8 @@ struct
   (* ------------------------------------------------------------------- *)
   (* Program extraction *)
 
-  let add_glob_arrsz env (x,d) = 
-    match d with 
+  let add_glob_arrsz env (x,d) =
+    match d with
     | Global.Gword _ -> env
     | Global.Garr(p,t) ->
       let ws, t = Conv.to_array x.v_ty p t in
@@ -1725,10 +1725,12 @@ struct
   let jmodel env = match env.arch with
     | X86_64 -> "JModel_x86"
     | ARM_M4 -> "JModel_m4"
+    | RISCV  -> "JModel_riscv"
 
   let lib_slh env = match env.arch with
       | X86_64 -> "SLH64"
       | ARM_M4 -> "SLH32"
+      | RISCV  -> "SLH32"
 
   let ec_glob_decl env (x,d) =
       let w_of_z ws z = Eapp (Eident [fmt_Wsz ws; "of_int"], [Econst z]) in
@@ -1751,7 +1753,7 @@ struct
               rtys = [arr_ty];
           }
       in
-      let randombytes_f n = 
+      let randombytes_f n =
           let dmap = Eapp (
             ec_ident "dmap",
             [Eident [ec_WArray env n; "darray"]; EA.ec_warray2array8 env n]
@@ -1780,8 +1782,8 @@ struct
 
   let toec_prog env asmOp globs funcs =
       let add_glob_env env (x, d) = add_var (add_glob_arrsz env (x, d)) x in
-      let add_arrsz env f = 
-        let add x ats = 
+      let add_arrsz env f =
+        let add x ats =
           match x.v_ty with
           | Arr(ws, n) -> add_jarray ats ws n
           | _ -> ats
@@ -1832,13 +1834,13 @@ end
 (* ------------------------------------------------------------------- *)
 (* Program extraction: find used functions and setup env data. *)
 
-let rec used_func f = 
-  used_func_c Ss.empty f.f_body 
+let rec used_func f =
+  used_func_c Ss.empty f.f_body
 
-and used_func_c used c = 
+and used_func_c used c =
   List.fold_left used_func_i used c
 
-and used_func_i used i = 
+and used_func_i used i =
   match i.i_desc with
   | Cassgn _ | Copn _ | Csyscall _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
@@ -1862,7 +1864,7 @@ let extract ((globs,funcs):('info, 'asm) prog) arch pd asmOp model amodel fnames
   in
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list fnames) in
-  let dofun f = 
+  let dofun f =
     if Ss.mem f.f_name.fn_name !tokeep then
       (tokeep := Ss.union (used_func f) !tokeep; true)
     else false in

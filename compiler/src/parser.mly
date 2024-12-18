@@ -3,7 +3,7 @@
   open Syntax
   open Annotations
 
-  let setsign c s = 
+  let setsign c s =
     match c with
     | None -> Some (Location.mk_loc (Location.loc s) (CSS(None, Location.unloc s)))
     | _    -> c
@@ -20,7 +20,7 @@
 %token RPAREN
 
 %token T_BOOL
-%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
+%token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT
 
 %token SHARP
 %token ALIGNED
@@ -96,7 +96,7 @@
 %left LTLT GTGT ROR ROL
 %left PLUS MINUS
 %left STAR SLASH PERCENT
-%nonassoc BANG 
+%nonassoc BANG
 
 %type <Syntax.pprogram> module_
 
@@ -127,9 +127,9 @@ annotationlabel:
   | id=loc(keyword) { id }
   | s=loc(STRING) { s }
 
-int: 
+int:
   | i=INT       { Syntax.parse_int i }
-  | MINUS i=INT { Z.neg (Syntax.parse_int i ) } 
+  | MINUS i=INT { Z.neg (Syntax.parse_int i ) }
 
 simple_attribute:
   | i=int          { Aint i    }
@@ -147,14 +147,14 @@ annotation:
 
 struct_annot:
   | a=separated_list(COMMA, annotation) { a }
-  
+
 top_annotation:
   | SHARP a=annotation    { [a] }
   | SHARP LBRACKET a=struct_annot RBRACKET { a }
 
 annotations:
   | l=list(top_annotation) { List.concat l }
-  
+
 
 (* ** Type expressions
  * -------------------------------------------------------------------- *)
@@ -201,7 +201,7 @@ castop1:
 castop:
 | c=loc(castop1)? { c }
 
-cast: 
+cast:
 | T_INT    { `ToInt }
 | s=swsize { `ToWord s }
 
@@ -222,7 +222,7 @@ cast:
 | AMP         c=castop { `BAnd c}
 | PIPE        c=castop { `BOr  c}
 | HAT         c=castop { `BXOr c}
-| LTLT        c=castop { `ShL  c} 
+| LTLT        c=castop { `ShL  c}
 | s=loc(GTGT) c=castop { `ShR (setsign c s)}
 | ROR         c=castop { `ROR  c}
 | ROL         c=castop { `ROL  c}
@@ -247,8 +247,8 @@ prim:
 %inline mem_access:
 | ct=parens(utype)? LBRACKET al=unaligned? v=var e=mem_ofs? RBRACKET
   { al, ct, v, e }
-  
-arr_access_len: 
+
+arr_access_len:
 | COLON e=pexpr { e }
 
 arr_access_i:
@@ -373,7 +373,7 @@ pinstr_r:
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
     { PIWhile (is1, b, is2) }
 
-| vd=postfix(pvardecl(COMMA?), SEMICOLON) 
+| vd=postfix(pvardecl(COMMA?), SEMICOLON)
     { PIdecl vd }
 
 pif:
@@ -410,17 +410,17 @@ annot_stor_type:
 
 writable:
 | CONSTANT    {`Constant }
-| MUTABLE     {`Writable } 
+| MUTABLE     {`Writable }
 
 pointer:
 | o=writable? POINTER { o }
 
 ptr:
-| o=pointer? { 
-   match o with 
+| o=pointer? {
+   match o with
    | Some w -> `Pointer w
-   | None   -> `Direct 
-   } 
+   | None   -> `Direct
+   }
 
 storage:
 | REG    ptr=ptr { `Reg ptr }
@@ -436,7 +436,7 @@ storage:
 %inline pvardecl(S):
 | ty=stor_type vs=separated_nonempty_list(S, loc(decl)) { (ty, vs) }
 
-pparamdecl(S): 
+pparamdecl(S):
     ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
 annot_pparamdecl:
@@ -478,7 +478,7 @@ pparam:
 (* -------------------------------------------------------------------- *)
 pgexpr:
 | e=pexpr { GEword e }
-| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es } 
+| LBRACE es = rtuple1(pexpr) RBRACE { GEarray es }
 | e=loc(STRING) { GEstring e }
 
 pglobal:

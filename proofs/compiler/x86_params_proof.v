@@ -238,9 +238,7 @@ Proof. apply/lstores_dfl_correct/x86_lstore_correct. Qed.
 
 Lemma x86_lload_correct : lload_correct_aux (lip_check_ws x86_liparams) x86_lload.
 Proof.
-  move=> xd xs ofs s vm top hgets.
-  case heq: vtype => [|||ws] //; t_xrbindP.
-  move=> _ <- hchk w hread hset.
+  move=> xd xs ofs ws top s w vm heq hcheck hgets hread hset.
   rewrite /x86_lload heq.
   apply: x86_lassign_correct => /=.
   + by rewrite hgets /= truncate_word_u /= hread /= truncate_word_u.
@@ -265,6 +263,7 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
     spec_lip_set_up_sp_register   := x86_spec_lip_set_up_sp_register;
     spec_lip_lmove                := x86_lmove_correct;
     spec_lip_lstore               := x86_lstore_correct;
+    spec_lip_lload                := x86_lload_correct;
     spec_lip_lstores              := x86_lstores_correct;
     spec_lip_lloads               := x86_lloads_correct;
     spec_lip_tmp                  := x86_tmp_correct;
@@ -291,6 +290,19 @@ Definition x86_hloparams : h_lowering_params (ap_lop x86_params).
 Proof.
   split. exact: @lower_callP.
 Defined.
+
+(* ------------------------------------------------------------------------ *)
+(* Lowering of complex addressing mode for RISC-V.
+   It is the identity on x86, so the proof is trivial. *)
+
+Lemma x86_hlaparams : h_lower_addressing_params (ap_lap x86_params).
+Proof.
+  split=> /=.
+  + by move=> _ ? _ [<-].
+  + move=> _ ? _ [<-] _ fd ->.
+    by exists fd.
+  by move=> _ ? _ [<-].
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
@@ -939,6 +951,7 @@ Definition x86_h_params {call_conv : calling_convention} : h_architecture_params
     ok_lip_tmp      := x86_ok_lip_tmp;
     ok_lip_tmp2     := x86_ok_lip_tmp2;
     hap_hlop        := x86_hloparams;
+    hap_hlap        := x86_hlaparams;
     hap_hagp        := x86_hagparams;
     hap_hshp        := x86_hshparams;
     hap_hszp        := x86_hszparams;

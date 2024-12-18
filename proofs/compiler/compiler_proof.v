@@ -11,6 +11,7 @@ Require Import
 Require Import
   allocation_proof
   lower_spill_proof
+  load_constants_in_cond_proof
   inline_proof
   dead_calls_proof
   makeReferenceArguments_proof
@@ -190,6 +191,7 @@ Proof.
   rewrite !print_uprogP => pf ok_pf.
   rewrite !print_uprogP => pg ok_pg.
   rewrite !print_uprogP => ph ok_ph pi ok_pi.
+  rewrite !print_uprogP => plc ok_plc.
   rewrite !print_uprogP => ok_fvars pj ok_pj pp.
   rewrite !print_uprogP => ok_pp <- {p'} ok_fn exec_p.
 
@@ -210,6 +212,8 @@ Proof.
          (lowering_opt cparams)
          (warning cparams)
          ok_fvars).
+  apply: compose_pass.
+  + by move=> vr'; apply: load_constants_progP; apply ok_plc.
   apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pi).
   apply: compose_pass_uincl'.
   - move => vr'; apply: (live_range_splittingP ok_ph).
@@ -469,18 +473,22 @@ Lemma compiler_front_endP
 Proof.
   rewrite /compiler_front_end;
   t_xrbindP => p1 ok_p1 check_p1 p2 ok_p2 p3.
-  rewrite print_sprogP => ok_p3 <- {p'} ok_fn exec_p.
-  rewrite /size_glob (compiler_third_part_meta ok_p3) -/(size_glob _)
-    => m_mi va' va'_wf va'_eqinmem ok_mi.
-  have ok_mi': [elaborate alloc_ok p2 fn mi].
-  + exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
+  rewrite print_sprogP => ok_p3 p4.
+  rewrite print_sprogP => ok_p4 <- {p'} ok_fn exec_p.
+  move => m_mi va' va'_wf va'_eqinmem ok_mi.
+  have [fd [get_fd _]] := sem_callE exec_p.
   have [vr1 vr_vr1 exec_p1] := compiler_first_partP ok_p1 ok_fn exec_p.
+  case/sem_call_length: (exec_p1) => fd1 [] get_fd1 size_params size_tyin size_tyout size_res.
   have gd2 := sp_globs_stack_alloc ok_p2.
   rewrite -gd2 in ok_p2.
-  case/sem_call_length: (exec_p1) => fd1 [] get_fd1 size_params size_tyin size_tyout size_res.
   have! [mglob ok_mglob] := (alloc_prog_get_fundef ok_p2).
   move=> /(_ _ _ get_fd1)[] fd2 /[dup] ok_fd2 /alloc_fd_checked_sao[] ok_sao_p ok_sao_r get_fd2.
-  have [fd [get_fd _]] := sem_callE exec_p.
+  have [_ p2_p3_extra] :=
+    hlap_lower_address_prog_invariants (hap_hlap haparams) ok_p3.
+  have [fd3 get_fd3 [_ _ _ _ _ fd2_fd3_extra]] :=
+    hlap_lower_address_fd_invariants (hap_hlap haparams) ok_p3 get_fd2.
+  have [fd4 [get_fd4 fd3_fd4_align]] :=
+     compiler_third_part_invariants ok_p4 get_fd3.
   rewrite /get_nb_wptr /get_wptrs get_fd /= seq.find_map /preim.
   set n := find _ _.
   have := check_wf_ptrP check_p1 ok_fn get_fd.
@@ -494,8 +502,8 @@ Proof.
       (map (oapp pp_align U8) (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)))
       va va'].
   + move: va'_wf; rewrite /get_wptrs get_fd /= check_params.
-    have [fd3 [get_fd3 align_eq]] := compiler_third_part_invariants ok_p3 get_fd2.
-    rewrite /get_align_args get_fd3 /= -align_eq.
+    rewrite /size_glob (compiler_third_part_meta ok_p4) -p2_p3_extra -/(size_glob _).
+    rewrite /get_align_args get_fd4 /= -fd3_fd4_align -fd2_fd3_extra.
     move: ok_fd2; rewrite /alloc_fd.
     by t_xrbindP=> _ _ <- /=.
 
@@ -511,13 +519,21 @@ Proof.
     apply Forall2_impl.
     by move=> _ ? <-; apply isSome_omap.
 
+  move: m_mi; rewrite (compiler_third_part_meta ok_p4) -p2_p3_extra => m_mi.
+  have ok_mi': [elaborate alloc_ok p2 fn mi].
+  + rewrite /alloc_ok get_fd2 => _ [<-].
+    have := compiler_third_part_alloc_ok ok_p4 ok_mi.
+    move=> /(_ _ get_fd3).
+    by rewrite -fd2_fd3_extra.
   have := alloc_progP _ (hap_hsap haparams) ok_p2 exec_p1 m_mi.
   move => /(_ (hap_hshp haparams) va' hargs heqinmem ok_mi').
   case => mi' [] vr2 [] exec_p2 m'_mi' vr2_wf vr2_eqinmem U.
-  have [] := compiler_third_partP ok_p3.
-  case/(_ _ _ _ _ _ _ _ _ exec_p2).
+  have exec_p3 :=
+    hlap_lower_addressP (hap_hlap haparams) ok_p3 exec_p2.
+  have [] := compiler_third_partP ok_p4.
+  case/(_ _ _ _ _ _ _ _ _ exec_p3).
   set rminfo := fun fn => _.
-  move=> /= vr3 vr2_vr3 exec_p3 _.
+  move=> /= vr3 vr2_vr3 exec_p4 _.
   exists vr3, mi'; split=> //.
 
   have hle1: n <= size fd.(f_params) by apply find_size.

@@ -1,0 +1,2 @@
+param int N = 1025;
+require "reg_ptr_template.jinc"
