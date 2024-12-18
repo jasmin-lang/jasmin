@@ -28,7 +28,7 @@ variables:
     --run 'echo done'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|$VERSION|" compiler/src/glob_options.ml'
 
-cache dependencies:
+.cache dependencies:
   stage: prepare
   extends: .common
   variables:
@@ -37,7 +37,6 @@ cache dependencies:
   only:
     variables:
     - $CACHIX_SIGNING_KEY
-    - $CACHIX_JOB_DISABLED
   script:
   - >-
     nix-shell -p cachix --run
