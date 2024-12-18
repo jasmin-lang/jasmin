@@ -37,6 +37,7 @@ cache dependencies:
   only:
     variables:
     - $CACHIX_SIGNING_KEY
+    - $CACHIX_JOB_DISABLED
   script:
   - >-
     nix-shell -p cachix --run
