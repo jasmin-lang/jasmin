@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import ZArith gen_map utils strings.
+From Coq Require Import ZArith.
+Require Import gen_map utils strings.
 Require Export wsize.
 Import Utf8.
 

@@ -673,7 +673,7 @@ Lemma sem_callE scs1 m1 fn vargs' scs2 m2 vres' :
     mapM2 ErrType dc_truncate_val f.(f_tyout) vres = ok vres' &
     scs2 = s2.(escs) /\ m2 = finalize f.(f_extra) s2.(emem) ].
 Proof.
-  case => { scs1 m1 fn vargs' scs2 m2 vres' } scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
+  case => { scs1 m1 fn vargs' scs2 m2 vres' } - scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
   move => hf ha hi hw hc hr ht hscs hfi.
   exists f; split => //.
   by exists vargs, s0, s1, s2, vres.
@@ -1431,7 +1431,7 @@ Proof.
     rewrite /read_e /= ?read_eE ?read_eE /read_gvar.
   + by move => _ _ /ok_inj <-; exists [::].
   + move => e rec es ih vs1.
-    rewrite read_es_cons => /uincl_on_union_and [] /rec{}rec /ih{ih}ih /=.
+    rewrite read_es_cons => /uincl_on_union_and [] /rec{}rec /ih{}ih /=.
     by t_xrbindP => v /rec [] v' -> h vs /ih [] vs' -> hs <- /=; exists (v' :: vs'); eauto.
   1-3: by move => ? _ _ /ok_inj <-; eexists.
   + move => ?? Hu; apply: get_gvar_uincl_at; move: Hu; case: ifP => // _; apply; SvD.fsetdec.
@@ -1441,13 +1441,13 @@ Proof.
     t_xrbindP=> ? -> /value_uinclE [? -> /WArray.uincl_get hg] > /Hp{Hp}
       [? -> ] /[swap] /to_intI -> /value_uinclE -> ? /hg{hg} /= -> /= ->.
     by eauto.
-  + move => aa sz len x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{Hp}Hp Hu.
+  + move => aa sz len x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{}Hp Hu.
     apply on_arr_gvarP => n t Htx; rewrite /on_arr_var => /get_gvar_uincl_at - /(_ vm2) [].
     * by move: Hu; case: ifP => // _; apply; SvD.fsetdec.
     t_xrbindP=> ? -> /value_uinclE [? -> /WArray.uincl_get_sub h] > /Hp{Hp}
       [? -> ] /[swap] /to_intI -> /value_uinclE -> ? /h{h} /= [? -> ?] /= <-.
     by eauto.
-  + move => al sz x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{Hp}Hp Hu.
+  + move => al sz x e Hp v; rewrite read_eE => /uincl_on_union_and[] /Hp{}Hp Hu.
     t_xrbindP => > /get_var_uincl_at - /(_ vm2) [].
     * by apply: Hu; SvD.fsetdec.
     move=> ? -> /[swap] /to_wordI [? [? [-> /word_uincl_truncate h]]]
@@ -1455,16 +1455,16 @@ Proof.
       /[swap] /to_wordI[? [? [-> /word_uincl_truncate h]]]
       /value_uinclE [? [? [-> /h{h} /= ->]]] ? /= -> /= ->.
     by eauto.
-  + by move => op e Hp v1; rewrite read_eE => /uincl_on_union_and[] /Hp{Hp}Hp Hu; t_xrbindP =>
+  + by move => op e Hp v1; rewrite read_eE => /uincl_on_union_and[] /Hp{}Hp Hu; t_xrbindP =>
       ve1 /Hp [] ve1' -> /vuincl_sem_sop1 Hvu1 /Hvu1; exists v1.
-  + by move => op e1 He1 e2 He2 v1 ; rewrite !read_eE => /uincl_on_union_and[] /He1{He1}He1
-      /uincl_on_union_and[] /He2{He2} He2 _; t_xrbindP =>
+  + by move => op e1 He1 e2 He2 v1 ; rewrite !read_eE => /uincl_on_union_and[] /He1{}He1
+      /uincl_on_union_and[] /He2{}He2 _; t_xrbindP =>
       ? /He1 [? -> /vuincl_sem_sop2 h1] ? /He2 [? -> /h1 h2/h2]; exists v1.
   + by move => op es Hes v /Hes{}Hes; t_xrbindP => vs1 /Hes[] vs2;
     rewrite /sem_pexprs => -> /vuincl_sem_opN h{}/h; exists v.
   move => t e He e1 He1 e2 He2 v1.
-  rewrite !read_eE => /uincl_on_union_and[] /He{He}He /uincl_on_union_and[]
-    /He1{He1}He1 /uincl_on_union_and[] /He2{He2}He2 _; t_xrbindP => b
+  rewrite !read_eE => /uincl_on_union_and[] /He{}He /uincl_on_union_and[]
+    /He1{}He1 /uincl_on_union_and[] /He2{}He2 _; t_xrbindP => b
     > /He[? ->] /[swap] /to_boolI -> /value_uinclE -> ?
     > /He1[? ->] /value_uincl_truncate h /h{h} [? /= -> ?]
     > /He2 [? -> /value_uincl_truncate h] /h{h} [? /= -> ?] /= <-.

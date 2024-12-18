@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype ssralg.
-Require Import global Utf8.
+From Coq Require Import Utf8.
+Require Import global.
 
 Variant label_kind :=
   | InternalLabel

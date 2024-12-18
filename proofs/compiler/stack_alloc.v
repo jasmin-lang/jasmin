@@ -5,7 +5,7 @@ From mathcomp Require Import word_ssrZ.
 Require Import strings word utils type var expr.
 Require Import compiler_util byteset.
 Require slh_lowering.
-Require Import ZArith.
+From Coq Require Import ZArith.
 
 Local Open Scope seq_scope.
 

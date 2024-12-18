@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 From mathcomp Require Import word_ssrZ.
-Require Import expr compiler_util ZArith.
+From Coq Require Import ZArith.
+Require Import expr compiler_util.
 Import Utf8.
 
 Module E.

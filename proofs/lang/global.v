@@ -1,10 +1,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Import xseq.
-Require Export xseq ZArith strings word utils var type warray_.
-
-Local Unset Elimination Schemes.
+From Coq Require Import ZArith.
+Require Export xseq word utils var warray_.
 
 (* ---------------------------------------------------------------------- *)
 
@@ -17,5 +15,3 @@ Variant glob_value :=
 Definition glob_decl := (var * glob_value)%type.
 
 Notation glob_decls  := (seq glob_decl).
-
-

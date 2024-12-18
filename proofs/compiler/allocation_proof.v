@@ -374,7 +374,7 @@ Section PROOF.
     move: Hcheck; rewrite /check_prog;clear Hcheck eq_globs.
     move: (p_funcs p1) (p_funcs p2). 
     elim => [ | [fn1' fd1'] pf1 Hrec] [ | [fn2 fd2] pf2] //.
-    apply: rbindP => -[] Hc /Hrec {Hrec} Hrec.
+    apply: rbindP => -[] Hc /Hrec{}Hrec.
     have ? : fn1' = fn2.
     + by move: Hc;rewrite /check_fundef; t_xrbindP => /and3P[]/eqP.
     subst=> fn fd1;rewrite !get_fundef_cons.
@@ -546,7 +546,7 @@ Section PROOF.
     have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP true gd Hre Hvm2.
     subst vb' => r' Cc2' ??;subst r2 r3.
     move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 Hvm3 /= Hc2'].
-    have /Hw {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
+    have /Hw{}Hw := eq_alloc_incl Hir3 Hvm3.
     have : check_i dead_vars (Cwhile a c e ei c') (Cwhile a2 c2 e2 ei2 c2') r2' = ok re.
     + by rewrite /= Loop.nbP /= Cc2 /= Hre /= Cc2' /= Hir3 /=.
     move=> /Hw [vm4 Hvm4 Hsw];exists vm4 => //.
