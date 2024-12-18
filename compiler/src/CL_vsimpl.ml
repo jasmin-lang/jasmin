@@ -382,14 +382,24 @@ module SimplVector = struct
       | {iname = "adds"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
         aux (v, Vector (i, ty)) 2;
         aux (v', Vector (i', ty')) 3;
+      | {iname = "add"; iargs = [_; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} ->
+          aux (v, Vector (i, ty)) 1;
+          aux (v', Vector (i', ty')) 2;
       | {iname = "mull"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
         aux (v, Vector (i, ty)) 2;
         aux (v', Vector (i', ty')) 3;
+      | {iname = "sub"; iargs = [_; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} ->
+          aux (v, Vector (i, ty)) 1;
+          aux (v', Vector (i', ty')) 2;
       | {iname = "subb"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
         aux (v, Vector (i, ty)) 2;
         aux (v', Vector (i', ty')) 3;
       | {iname = "cast"; iargs = [_; Atom (Avatome [Avar (v, ty)])]} ->
         aux (v, ty) 1; (* TODO: check me *)
+      | {iname = "ssplit"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
+        aux (v, Vector (i, ty)) 2;
+      | {iname = "split"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
+          aux (v, Vector (i, ty)) 2;
       | _ -> ()
 
     let rec sr_lvals node =

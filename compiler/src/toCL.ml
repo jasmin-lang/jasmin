@@ -1186,6 +1186,24 @@ module X86BaseOpU : BaseOp
       let ty = CL.Uint (int_of_ws ws1) in
       i @ [CL.Instr.cast ty l a]
 
+    | ADCX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+
+
+    | ADOX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+
+
     | VPADD (ve,ws) ->
       begin
       let l = ["smt", `Smt ; "default", `Default] in
@@ -1202,14 +1220,15 @@ module X86BaseOpU : BaseOp
           i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
         | `Default ->
           let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
-          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3
+          i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3 (* TODO: add assertions for carry bit *)
     end
-    |VMOVDQU ws ->
+
+    | VMOVDQU ws ->
       let a,i = cast_atome ws (List.nth es 0) in
       let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.mov l a]
 
-    |VPAND ws ->
+    | VPAND ws ->
       let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
       let s = int_of_ws ws in
@@ -1219,7 +1238,7 @@ module X86BaseOpU : BaseOp
       let i3 = cast_atome_vector ws v !l_tmp l in
           i1 @ i2 @ [CL.Instr.Op2.and_ l_tmp a1 a2] @ i3
 
-    |VPSUB (ve,ws) ->
+    | VPSUB (ve,ws) ->
       begin
       let l = ["smt", `Smt ; "default", `Default] in
       let trans = trans annot l in
@@ -1239,7 +1258,7 @@ module X86BaseOpU : BaseOp
           i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
       end
 
-    |VPMULL (v,ws) ->
+    | VPMULL (v,ws) ->
       let a1,i1 = cast_vector_atome ws v (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
       let v = int_of_velem v in
@@ -1250,7 +1269,7 @@ module X86BaseOpU : BaseOp
       let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp1 l_tmp a1 a2] @ i3
 
-    |VPMULH ws ->
+    | VPMULH ws ->
       let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
       let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
       let s = int_of_ws ws in
@@ -1261,23 +1280,24 @@ module X86BaseOpU : BaseOp
       let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
 
-    | ADCX ws ->
-      let a1, i1 = cast_atome ws (List.nth es 0) in
-      let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l1 = I.glval_to_lval (List.nth xs 0) in
-      let l2 = I.glval_to_lval (List.nth xs 1) in
-      let v = I.gexp_to_var (List.nth es 2) in
-      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-
-
-    | ADOX ws ->
-      let a1, i1 = cast_atome ws (List.nth es 0) in
-      let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l1 = I.glval_to_lval (List.nth xs 0) in
-      let l2 = I.glval_to_lval (List.nth xs 1) in
-      let v = I.gexp_to_var (List.nth es 2) in
-      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-
+    | VPSRA (ve, ws) ->
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        match trans with
+        | `Default ->
+            let c = I.get_const (List.nth es 1) in
+            let v = int_of_velem ve in
+            let s = int_of_ws ws in
+            let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+            let l = I.glval_to_lval (List.nth xs 0) in
+            let i3 = cast_atome_vector ws v !l_tmp l in
+            let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+            let c = Z.of_int c in
+            i1 @ [CL.Instr.Shifts.split l_tmp l_tmp1 a1 c] @ i3
+          | `Smt -> assert false (* FIXME *)
+      end
 
     | _ ->
       let x86_id = X86_instr_decl.x86_instr_desc Build_Tabstract o in
