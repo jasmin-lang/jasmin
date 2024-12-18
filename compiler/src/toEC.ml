@@ -375,12 +375,15 @@ type env = {
     glob : (string * ty) Ms.t;
     funs : (string * (ty list * ty list)) Mf.t;  
     array_theories: Sarraytheory.t ref;
-    (* aux variables: intermediate in extraction of jasmin assignments *)
+    (* aux variables: intermediate variables introduced by extraction.
+       aux variables have a prefix in their name that identifies their use
+       (such as jasmin assignments, for loop bounds, intermediate leakage variables).
+       - auxv: for each (prefix, type), the list of all aux (used for variable declaration).
+       - count: number of currently live aux variables for each (prefix, type).
+      *)
     auxv  : string list Mty.t ref;
-    (* counter for aux variables *)
     count : int Mty.t ref;
     randombytes : Sint.t ref;
-    nesting: int;
   }
 
 let add_Array env n =
@@ -453,7 +456,6 @@ let empty_env arch pd model array_theories randombytes =
     auxv  = ref Mty.empty;
     count = ref Mty.empty;
     randombytes;
-    nesting = 0;
   }
 
 let add_funcs env fds =
@@ -468,39 +470,26 @@ let get_funtype env f = snd (Mf.find f env.funs)
 
 let get_funname env f = fst (Mf.find f env.funs) 
 
-let get_aux ?(fresh = false) env prefix tys =
-  let do1 ty =
-    let i = try Mty.find (prefix, ty) !(env.count) with Not_found -> 0 in
-    let l = try Mty.find (prefix, ty) !(env.auxv) with Not_found -> [] in
-    if (not fresh) && 0 < List.length l then
-      List.last l
-    else
-      begin
-        if i < List.length l then
-          begin
-            env.count := Mty.add (prefix,ty) (i+1) !(env.count);
-            List.nth l i
-          end
-        else
-          let aux = create_name env prefix in
-          env.auxv := Mty.add (prefix, ty) (l @ [aux]) !(env.auxv);
-          env.alls := Ss.add aux !(env.alls);
-          env.count := Mty.add (prefix, ty) (i+1) !(env.count);
-          aux
-      end
-  in
-  List.map do1 tys
-
-let pop_aux env prefix ty =
+let get_aux ?(fresh = true) env prefix ty =
   let i = try Mty.find (prefix, ty) !(env.count) with Not_found -> 0 in
-  if 0 < i then
-    env.count := Mty.add (prefix,ty) (i-1) !(env.count)
+  let l = try Mty.find (prefix, ty) !(env.auxv) with Not_found -> [] in
+  if (not fresh) then begin
+    (* We should previously have used the fresh aux. *)
+    assert (i > 0);
+    List.nth l (i-1)
+  end else begin
+    env.count := Mty.add (prefix,ty) (i+1) !(env.count);
+    if i < List.length l then begin
+      List.nth l i
+    end else begin
+      let aux = create_name env prefix in
+      env.auxv := Mty.add (prefix, ty) (l @ [aux]) !(env.auxv);
+      env.alls := Ss.add aux !(env.alls);
+      aux
+    end
+  end
 
-let reset_aux env prefix tys =
-  let do1 ty =
-    env.count:= Mty.add (prefix, ty) 0 !(env.count)
-  in
-  List.iter do1 tys
+let new_aux_range env = { env with count = ref !(env.count) }
 
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -1402,22 +1391,23 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 
   let leaks_es env es = leaks_es_rec env [] es
 
-  let leakv_nesting env nesting ?(ty="JLeakage.leakages") kind =
-    let suf = if nesting = 0 then "" else (Format.sprintf "_%i" nesting) in
-    List.hd (get_aux env ("leak" ^ kind ^ suf) [ty])
+  let leaklist leaks = Eapp (Eident ["LeakList"], [Elist leaks])
 
-  let leakv env kind = leakv_nesting env env.nesting kind
+  let leaklistv leakv = Eapp (Eident ["LeakList"], [Eident [leakv]])
 
-  let leakacc env = leakv env ""
+  let leakv_ty = "JLeakage.leakages"
 
-  let leakacc_sub env = leakv_nesting env (env.nesting + 1) ""
+  let leakacc ?(fresh = false) env = get_aux ~fresh env "leak" leakv_ty
+
+  let reset_leak vleak = [asgn vleak (Elist [])]
 
   let push_leak leakv leak =
     [asgn leakv (Eop2 (Infix "++", Eident [leakv], Elist [leak]))]
 
-  let leaklist leaks = Eapp (Eident ["LeakList"], [Elist leaks])
-
-  let leaklistv leakv = Eapp (Eident ["LeakList"], [Eident [leakv]])
+  let leak_block env c acc =
+    let env_block = new_aux_range env in
+    let leakacc = leakacc ~fresh:true env_block in
+    (reset_leak leakacc) @ (c env_block) @ (push_leak acc (leaklistv leakacc))
 
   let ec_addleaks env leaks = match leaks with
     | [] -> []
@@ -1436,36 +1426,33 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
 
   let ec_leaks_opn env es = ec_addleaks env (leaks_es env es)
 
-  let reset_leak vleak = [asgn vleak (Elist [])]
-
-  let nested_block env c =
-    let env = {env with nesting = env.nesting + 1} in
-    reset_leak (leakacc env) @ (c env)
-
   let leak_cond env e = (leaks_e env e) @ (leak_val env e)
 
   let ec_leaking_if env e c1 c2 =
+    let acc = leakacc env in
     ec_addleaks env (leak_cond env e) @
-    [ESif (toec_expr env e, nested_block env c1, nested_block env c2)] @
-    push_leak (leakacc env) (leaklistv (leakacc_sub env))
+    [ESif (toec_expr env e, leak_block env c1 acc, leak_block env c2 acc)]
 
   let ec_leaking_while env c1 e c2 =
-    let vleak_cond = leakv env "_cond" in
-    let c1 = nested_block env c1 in
+    let env = new_aux_range env in
+    let vleak_cond = get_aux env "leak_cond" leakv_ty in
+    (* We don't use leak_block since we need to check if c1 is empty. *)
+    let env_c1 = new_aux_range env in
+    let leakacc_c1 = leakacc ~fresh:true env_c1 in
+    let c1 = c1 env_c1 in
     let (leaking_c1, reset_c1_leak, c1_leaklist) = if c1 = [] then
       ([], [], [])
     else
-      let leak_c1 = leakv env "_b1" in
+      let leak_c1 = get_aux env "leak_b1" leakv_ty in
       (
-        c1 @ push_leak leak_c1 (leaklistv (leakacc_sub env)),
+        (reset_leak leakacc_c1) @ c1 @ push_leak leak_c1 (leaklistv leakacc_c1),
         reset_leak leak_c1,
         [leaklistv leak_c1]
       )
     in
-    let leak_c2 = leakv env (if c1 = [] then "_b" else "_b2") in
-    let leaking_c2 = nested_block env c2 @ push_leak leak_c2 (leaklistv (leakacc_sub env)) in
+    let leak_c2 = get_aux env (if c1 = [] then "_b" else "_b2") leakv_ty in
+    let leaking_c2 = leak_block env c2 leak_c2 in
     let reset_c2_leak = reset_leak leak_c2 in
-    let leak_c2 = leakv env "_b2" in
     reset_leak vleak_cond @ reset_c1_leak @ reset_c2_leak @
     leaking_c1 @
     push_leak vleak_cond (leaklist (leak_cond env e)) @
@@ -1479,30 +1466,27 @@ module EcLeakConstantTime(EE: EcExpression): EcLeakage = struct
     leaks_es env [e1; e2] @ leak_val env e1 @ leak_val env e2
 
   let ec_leaking_for env c e1 e2 init cond i_upd =
-    let leak_c = leakv env "_b" in
+    let leak_c = get_aux env "leak_b" leakv_ty in
     reset_leak leak_c @
     ec_addleaks env (leak_for_bounds env e1 e2) @
     init @
-    [ESwhile (
-      cond,
-      nested_block env c @ push_leak leak_c (leaklistv (leakacc_sub env)) @ i_upd
-    )] @
+    [ESwhile (cond, leak_block env c leak_c @ i_upd)] @
     push_leak (leakacc env) (leaklistv leak_c)
 
   let global_leakage_vars env = []
 
   let leakage_imports env = [IfromRequireImport ("Jasmin", ["JLeakage"])]
 
-  let ec_fun_leak_init env = reset_leak (leakacc env)
+  let ec_fun_leak_init env = reset_leak (leakacc ~fresh:true env)
 
   let ec_leak_ret env ret =
     (env |> leakacc |> leaklistv) :: ret
 
   let ec_leak_rty env rtys = "JLeakage.leakage" :: rtys
 
-  let leakv_call env = leakv_nesting env 0 "_c" ~ty:"JLeakage.leakage"
+  let leakv_call ?(fresh = false) env = get_aux ~fresh env "leak_c" "JLeakage.leakage"
 
-  let ec_leak_call_lvs env = [LvIdent [leakv_call env]]
+  let ec_leak_call_lvs env = [LvIdent [leakv_call ~fresh:true env]]
 
   let ec_leak_call_acc env = push_leak (leakacc env) (ec_ident (leakv_call env))
 end
@@ -1565,8 +1549,8 @@ struct
       [f (ec_lvals env lvs)]
       else
       let ec_typs = (List.map (toec_ty env) etysi) in
-      reset_aux env "aux" ec_typs;
-      let auxs = get_aux ~fresh:true env "aux" ec_typs in
+      let env = new_aux_range env in
+      let auxs = List.map (get_aux env "aux") ec_typs in
       let s2lv s = LvIdent [s] in
       let call = f (List.map s2lv auxs) in
       let ec_auxs = List.map ec_ident auxs in
@@ -1626,10 +1610,12 @@ struct
           (ec_leaks_opn env es) @
           (ec_expr_assgn env lvs otys otys' (ec_e op'))
       | Ccall (lvs, f, es) ->
+          let env = new_aux_range env in
           let otys, itys = get_funtype env f in
           let args = List.map (toec_cast env) (List.combine itys es) in
+          let leak_lvs = ec_leak_call_lvs env in
           (ec_leaks_es env es) @
-          (ec_pcall env lvs (ec_leak_call_lvs env) otys [get_funname env f] args) @
+          (ec_pcall env lvs leak_lvs otys [get_funname env f] args) @
           (ec_leak_call_acc env)
       | Csyscall (lvs, o, es) ->
           let s = Syscall.syscall_sig_u o in
@@ -1647,6 +1633,7 @@ struct
           let c2 env = toec_cmd asmOp env c2 in
           ec_leaking_while env c1 e c2
       | Cfor (i, (d,e1,e2), c) ->
+          let env = new_aux_range env in
           (* decreasing for loops have bounds swaped *)
           let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in 
           let init, ec_e2 = 
@@ -1654,8 +1641,7 @@ struct
               (* Can be generalized to the case where e2 is not modified by c and i *)
               | Pconst _ -> ([], toec_expr env e2)
               | _ -> 
-                  let aux = get_aux ~fresh:true env "inc" ["int"] in
-                  let aux = List.hd aux in
+                  let aux = get_aux env "inc" "int" in
                   let init = ESasgn ([LvIdent [aux]], toec_expr env e2) in
                   let ec_e2 = ec_ident aux in
                   [init], ec_e2 in
@@ -1669,8 +1655,7 @@ struct
           let i_upd = [ESasgn (lv_i, Eop2 (i_upd_op, Eident ec_i, Econst (Z.of_int 1)))] in
           let c env = toec_cmd asmOp env c in
           let cond = Eop2 (Infix "<", ec_i1, ec_i2) in
-          let s = ec_leaking_for env c e1 e2 init cond i_upd in
-          pop_aux env "inc" "int"; s
+          ec_leaking_for env c e1 e2 init cond i_upd
 
   (* ------------------------------------------------------------------- *)
   (* Function extraction *)
@@ -1681,7 +1666,8 @@ struct
       let env = List.fold_left add_var env (f.f_args @ locals) in
       (* Limit the scope of changes for aux variables to the current function. *)
       let env ={ env with count = ref Mty.empty; auxv = ref Mty.empty} in
-      let stmts = (ec_fun_leak_init env) @ (toec_cmd asmOp env f.f_body) in
+      let init = ec_fun_leak_init env in
+      let stmts = init @ (toec_cmd asmOp env f.f_body) in
       let ec_locals =
         let locs_ty ((_, ty), vars) = List.map (fun v -> (v, ty)) vars in
         (List.flatten (List.map locs_ty (Mty.bindings !(env.auxv)))) @
