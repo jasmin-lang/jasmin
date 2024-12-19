@@ -412,7 +412,7 @@ module Env: EnvT = struct
         - auxv: for each (prefix, type), the list of all aux (used for variable declaration).
         - count: number of currently live aux variables for each (prefix, type).
         *)
-      auxv: string list Mpty.t ref;
+      auxv: string BatVect.t Mpty.t ref;
       mutable count: int Mpty.t;
       randombytes: Sint.t ref;
     }
@@ -509,35 +509,46 @@ module Env: EnvT = struct
 
   let get_funname env f = fst (Mf.find f env.funs)
 
-  let get_aux ?(fresh = true) env prefix ty =
+  (*
+    Auxiliary variables created by "create_aux" have the given prefix and their
+    name, and are declared with the given type. Each created variable is
+    guaranteed to be unique for all create_aux calls with **the same env**
+    and (recursively) with **envs further derived by new_aux_range**.
+    However, aux var may be resued across other env (e.g. in two sibling
+    envs created by two calls to new_aux_range on the same env).
+
+    This is implemented by keeping a per-env count of created (prefix, ty) auxs
+    (env.count), while env.auxv tracks the complete list of created aux in the
+    whole function (for re-used and initial declaration).
+    new_aux_range copies env.count, ensuring that we don't reuse variables
+    already created for this env, but that different calls to new_aux_range do
+    not share the same env.count (hence may use the same auxs).
+  *)
+  let create_aux env prefix ty =
     let i = try Mpty.find (prefix, ty) env.count with Not_found -> 0 in
-    let l = try Mpty.find (prefix, ty) !(env.auxv) with Not_found -> [] in
-    if (not fresh) then begin
-      (* We should previously have used the fresh aux. *)
-      assert (i > 0);
-      List.nth l (i-1)
+    let l = try Mpty.find (prefix, ty) !(env.auxv) with Not_found -> BatVect.empty in
+    env.count <- Mpty.add (prefix,ty) (i+1) env.count;
+    if i < BatVect.length l then begin
+      BatVect.get l i
     end else begin
-      env.count <- Mpty.add (prefix,ty) (i+1) env.count;
-      if i < List.length l then begin
-        List.nth l i
-      end else begin
-        let aux = create_name env prefix in
-        env.auxv := Mpty.add (prefix, ty) (l @ [aux]) !(env.auxv);
-        env.alls := Ss.add aux !(env.alls);
-        aux
-      end
+      let aux = create_name env prefix in
+      env.auxv := Mpty.add (prefix, ty) (BatVect.append aux l) !(env.auxv);
+      env.alls := Ss.add aux !(env.alls);
+      aux
     end
 
-  let create_aux env prefix ty = get_aux ~fresh:true env prefix ty
-
-  let reuse_aux env prefix ty = get_aux ~fresh:false env prefix ty
+  (* Return the last created aux for (prefix, ty) in this env. *)
+  let reuse_aux env prefix ty =
+    let i = Mpty.find (prefix, ty) env.count in
+    let l = Mpty.find (prefix, ty) !(env.auxv) in
+    BatVect.get l (i-1)
 
   let new_aux_range env = { env with count = env.count }
 
   let new_fun env = { env with count = Mpty.empty; auxv = ref Mpty.empty}
 
   let aux_vars env  =
-    let unpack_vars ((_, ty), vars) = List.map (fun v -> (v, ty)) vars in
+    let unpack_vars ((_, ty), vars) = List.map (fun v -> (v, ty)) (BatVect.to_list vars) in
     List.flatten (List.map unpack_vars (Mpty.bindings !(env.auxv)))
 end
 
