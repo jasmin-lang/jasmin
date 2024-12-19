@@ -8,7 +8,7 @@ inline fn __mul4_a24_rs(reg u64[4] xa) -> reg u64[4]
    ensures #[prover=cas] {
   eqmod (
      \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
-     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(xa[ii])) * 121666,
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(xa[ii])) * 121665,
      single((pow(2,255)) - 19)
     )
   }
@@ -19,8 +19,8 @@ inline fn __mul4_a24_rs(reg u64[4] xa) -> reg u64[4]
   stack u64 dc;
 
   c = (64u)121666;
-  #[kind=Assert, prover=smt] assert (c == (64u)121666);
-  #[kind=Assume, prover=cas] assert (u64i(c) == 121666);
+  #[kind=Assert, prover=smt] assert (c == (64u)121665);
+  #[kind=Assume, prover=cas] assert (u64i(c) == 121665);
 
   rax = xa[0];
   rdx, rax = rax * c;

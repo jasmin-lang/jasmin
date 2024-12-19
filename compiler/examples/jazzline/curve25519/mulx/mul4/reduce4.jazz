@@ -1,0 +1,79 @@
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+
+inline fn __reduce4
+( reg u64[4] x,
+  reg u64[4] r,
+  reg u64 _38,
+  reg u64 z, // zero
+  reg bool cf of // cf = 0 and of = 0
+) -> reg u64[4]
+  ensures #[prover=cas] {
+  eqmod (
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(x[ii])) + \sum (ii \in 0:4) (pow(2, 64*(ii+4))*u64i(r[ii])),
+     single((pow(2,255)) - 19)
+    )
+  }
+{
+  reg u64[4] h h0;
+  reg u64 hi lo;
+  reg bool carryo;
+  z = 0;
+  _38 = 38;
+  h = #copy(x);
+  h0 = #copy(r);
+
+  ( hi, lo )   = #MULX ( _38,  h0[0] );
+  of, h[0]     = #ADOX ( h[0], lo, of );
+  cf, h[1]     = #ADCX ( h[1], hi, cf );
+
+  ( hi, lo )   = #MULX ( _38,  h0[1] );
+  of, h[1]     = #ADOX ( h[1], lo, of );
+  cf, h[2]     = #ADCX ( h[2], hi, cf );
+
+  ( hi, lo )   = #MULX ( _38,  h0[2] );
+  of, h[2]     = #ADOX ( h[2], lo, of );
+  cf, h[3]     = #ADCX ( h[3], hi, cf );
+
+ ( h0[0], lo ) = #MULX ( _38, h0[3] );
+ of, h[3]     = #ADOX ( h[3], lo, of );
+
+ cf, h0[0]     = #ADCX ( h0[0], z, cf );
+ of, h0[0]     = #ADOX ( h0[0], z, of );
+
+  _,_,_,_,_,lo = #IMULri ( h0[0], 38 );
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+  #[kind=Assert, prover=smt] assert (!of);
+  #[kind=Assume, prover=cas] assert (b2i(of) == 0);
+
+
+  cf, h[0] += lo;
+  cf, h[1] += z + cf;
+  cf, h[2] += z + cf;
+  cf, h[3] += z + cf;
+
+  // h[0] += (z - cf) & 38;
+  carryo = cf;
+
+  cf, z -= z - cf; // if cf = 1 then z = 0xFF..FF else z = 0
+
+  #[kind=Assert, prover=smt] assert (cf == carryo);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == b2i(carryo));
+
+  z &= 38; // if cf = 1 then z = 38 else z = 0
+  #[kind=Assert, prover=smt] assert ((!cf && z == 0x0) || (cf && z == 0x26));
+  #[kind=Assume, prover=cas] assert (u64i(z) == b2i(cf)*0x26);
+
+  cf, h[0] += z; //
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  return h;
+}

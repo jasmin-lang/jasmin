@@ -1,0 +1,198 @@
+require "reduce4.jazz"
+
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+
+inline fn __mul4_c0
+( reg u64    f0,
+  reg u64[4] g,
+  reg u64    z, // zero
+  reg bool   cf of // cf = 0 and of = 0
+  ) ->
+  reg u64[4],
+  reg u64[4],
+  reg bool,
+  reg bool
+{
+  reg u64 lo;
+  reg u64[4] h r;
+
+  (h[1], h[0]) = #MULX ( f0, g[0] );
+
+  ( h[2], lo ) = #MULX ( f0, g[1] );
+    cf, h[1]   = #ADCX ( h[1], lo, cf );
+
+  ( h[3], lo ) = #MULX ( f0, g[2] );
+    cf, h[2]   = #ADCX ( h[2], lo, cf );
+
+  ( r[0], lo ) = #MULX ( f0, g[3] );
+    cf, h[3]   = #ADCX ( h[3], lo, cf );
+
+  cf, r[0] = #ADCX ( r[0], z, cf ); // cf = 0
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  return h, r, cf, of;
+}
+
+inline fn __mul4_c1
+( reg u64[4] h,
+  reg u64[4] r,
+  reg u64    f,
+  reg u64[4] g,
+  reg u64    z, // zero
+  reg bool   cf of // cf = 0 and of = 0
+  ) ->
+  reg u64[4],
+  reg u64[4],
+  reg bool,
+  reg bool
+{
+  reg u64 hi lo;
+
+  ( hi, lo )   = #MULX ( f, g[0] );
+  of, h[1]     = #ADOX ( h[1], lo, of );
+  cf, h[2]     = #ADCX ( h[2], hi, cf );
+
+  ( hi, lo )   = #MULX ( f, g[1] );
+  of, h[2]     = #ADOX ( h[2], lo, of );
+  cf, h[3]     = #ADCX ( h[3], hi, cf );
+
+  ( hi, lo )   = #MULX ( f, g[2] );
+  of, h[3]     = #ADOX ( h[3], lo, of );
+  cf, r[0]     = #ADCX ( r[0], hi, cf );
+
+  ( r[1], lo ) = #MULX ( f, g[3] );
+  of, r[0]     = #ADOX ( r[0], lo, of);
+
+  cf, r[1]     = #ADCX ( r[1], z, cf);
+  of, r[1]     = #ADOX ( r[1], z, of);
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+  #[kind=Assert, prover=smt] assert (!of);
+  #[kind=Assume, prover=cas] assert (b2i(of) == 0);
+
+
+  return h, r, cf, of;
+}
+
+inline fn __mul4_c2
+( reg u64[4] h,
+  reg u64[4] r,
+  reg u64    f,
+  reg u64[4] g,
+  reg u64    z, // zero
+  reg bool   cf of // cf = 0 and of = 0
+  ) ->
+  reg u64[4],
+  reg u64[4],
+  reg bool,
+  reg bool
+{
+  reg u64 hi lo;
+
+  ( hi, lo )   = #MULX ( f, g[0] );
+  of, h[2]     = #ADOX ( h[2], lo, of );
+  cf, h[3]     = #ADCX ( h[3], hi, cf );
+
+  ( hi, lo )   = #MULX ( f, g[1] );
+  of, h[3]     = #ADOX ( h[3], lo, of );
+  cf, r[0]     = #ADCX ( r[0], hi, cf );
+
+  ( hi, lo )   = #MULX ( f, g[2] );
+  of, r[0]     = #ADOX ( r[0], lo, of );
+  cf, r[1]     = #ADCX ( r[1], hi, cf );
+
+  ( r[2], lo ) = #MULX ( f, g[3] );
+  of, r[1]     = #ADOX ( r[1], lo, of);
+
+  cf, r[2]     = #ADCX ( r[2], z, cf);
+  of, r[2]     = #ADOX ( r[2], z, of);
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+  #[kind=Assert, prover=smt] assert (!of);
+  #[kind=Assume, prover=cas] assert (b2i(of) == 0);
+return h, r, cf, of;
+}
+
+inline fn __mul4_c3
+( reg u64[4] h,
+  reg u64[4] r,
+  reg u64    f,
+  reg u64[4] g,
+  reg u64    z, // zero
+  reg bool   cf of // cf = 0 and of = 0
+  ) ->
+  reg u64[4],
+  reg u64[4],
+  reg bool,
+  reg bool
+{
+  reg u64 hi lo;
+
+  ( hi, lo )   = #MULX ( f, g[0] );
+  of, h[3]     = #ADOX ( h[3], lo, of );
+  cf, r[0]     = #ADCX ( r[0], hi, cf );
+
+  ( hi, lo )   = #MULX ( f, g[1] );
+  of, r[0]     = #ADOX ( r[0], lo, of );
+  cf, r[1]     = #ADCX ( r[1], hi, cf );
+
+  ( hi, lo )   = #MULX ( f, g[2] );
+  of, r[1]     = #ADOX ( r[1], lo, of );
+  cf, r[2]     = #ADCX ( r[2], hi, cf );
+
+  ( r[3], lo ) = #MULX ( f, g[3] );
+  of, r[2]     = #ADOX ( r[2], lo, of);
+
+  cf, r[3]     = #ADCX ( r[3], z, cf);
+  of, r[3]     = #ADOX ( r[3], z, of);
+
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+  #[kind=Assert, prover=smt] assert (!of);
+  #[kind=Assume, prover=cas] assert (b2i(of) == 0);
+
+  return h, r, cf, of;
+}
+
+inline fn __mul4_rsr(stack u64[4] fs, reg u64[4] g) -> reg u64[4]
+ ensures #[prover=cas] {
+  eqmod (
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+     \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(fs[ii])) * \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(g[ii])),
+     single((pow(2,255)) - 19)
+    )
+  }
+
+{
+  reg bool cf of;
+  reg u64[4] h r g0;
+  reg u64 _38 f z;
+
+  g0 = #copy(g);
+  z = 0;
+
+  f = fs[0];
+  h, r, cf, of = __mul4_c0(      f, g0, z, cf, of);
+
+  f = fs[1];
+  h, r, cf, of = __mul4_c1(h, r, f, g0, z, cf, of);
+
+  f = fs[2];
+  h, r, cf, of = __mul4_c2(h, r, f, g0, z, cf, of);
+
+  f = fs[3];
+  h, r, cf, of = __mul4_c3(h, r, f, g0, z, cf, of);
+
+  _38 = 38;
+  h = __reduce4(h, r, _38, z, cf, of);
+
+  return h;
+}
