@@ -245,6 +245,29 @@ module GhostVector = struct
         let fs,ispre,ispost = aux tv in
         fs @ acc1, ispre @ acc2, ispost @ acc3)
       ([],[],[]) formals
+
+(* CHECK ME: CL doesn't support vector/arrays as arguments it seems; see preliminary.cl *)
+(*
+  let unfold_vectors_list formals ret_vars =
+    let aux ((v,ty) as tv) =
+      let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
+      match Annot.ensure_uniq1 "vect" mk_vector (v.v_annot) with
+      | None -> [tv],[],[]
+      | Some U16x16 ->
+        let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~vector:(16,16) v in
+        let ll16x16 = Llvar l16x16 in
+        if List.exists (is_eq_tyvar tv) ret_vars then
+          let a_1x256 = Avatome [Avar tv] in
+          [l16x16], [], [cast lty_16x16 ll16x16 a_1x256]
+        else
+          let vl16x16 = Avar l16x16 in
+          [l16x16], [cast ty (Llvar tv) vl16x16],[]
+    in
+    List.fold_left (fun (acc1,acc2,acc3) tv ->
+        let fs,ispre,ispost = aux tv in
+        fs @ acc1, ispre @ acc2, ispost @ acc3)
+      ([],[],[]) formals
+*)
 end
 
 module SimplVector = struct
@@ -305,8 +328,11 @@ module SimplVector = struct
       in
     match n.nkind with
     | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avar (v'', ty''))]} ->
-      if v == v' && is_equiv_type ty' ty'' then
-        aux (v'',ty'') n
+      if v == v' then
+        if is_equiv_type ty' ty'' then
+          aux (v'',ty'') n
+        else
+          Some (v', ty')
       else
         aux (v, ty) n
     | {iname = "cast"; iargs = [Lval (Llvar (v',ty')); Atom (Avatome (Avar (v'', ty'') :: t))]} ->
@@ -357,6 +383,20 @@ module SimplVector = struct
           Some (v', ty')
         else
           aux (v, ty) n
+    | {iname = "split"; iargs = [Lval (Llvar (vh', tyh')); Lval (Llvar (vl', tyl')); Atom (Avar (_, ty'')); _]} ->
+      if v == vl' && is_equiv_type tyl' ty'' then
+        Some (vl', tyl')
+      else if v == vh' && is_equiv_type tyh' ty'' then
+        Some (vh', tyh')
+      else
+        aux (v, ty) n
+    | {iname = "ssplit"; iargs = [Lval (Llvar (vh', tyh')); Lval (Llvar (vl', tyl')); Atom (Avar (_, ty'')); _]} ->
+      if v == vl' && is_equiv_type tyl' ty'' then
+        Some (vl', tyl')
+      else if v == vh' && is_equiv_type tyh' ty'' then
+        Some (vh', tyh')
+      else
+        aux (v, ty) n
     | _ -> aux (v, ty) n (* Keep searching *)
 
     let sr_lval node pred = (* Search for the source of the argument in lval of another instruction *)
@@ -398,12 +438,16 @@ module SimplVector = struct
       | {iname = "subb"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
         aux (v, Vector (i, ty)) 2;
         aux (v', Vector (i', ty')) 3;
+      | {iname = "cast"; iargs = [_; Atom (Avar (v, Vector (i, ty)))]} ->
+        aux (v, Vector (i, ty)) 1;
       | {iname = "cast"; iargs = [_; Atom (Avatome [Avar (v, ty)])]} ->
         aux (v, ty) 1; (* TODO: check me *)
       | {iname = "ssplit"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
         aux (v, Vector (i, ty)) 2;
       | {iname = "split"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
           aux (v, Vector (i, ty)) 2;
+      | {iname = "mov"; iargs = [_; Atom (Avar (v, Vector (i,ty)))]} ->
+        aux (v, Vector (i, ty)) 1;
       | _ -> ()
 
     let rec sr_lvals node =
@@ -453,6 +497,8 @@ module SimplVector = struct
         | {iname = "sub"; iargs = [_; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
         | {iname = "mull"; iargs = [_; _; Atom (Avar tv'); Atom (Avar tv'')]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
         | {iname = "mull"; iargs = [_; _; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
+        | {iname = "ssplit"; iargs = [_; _; Atom (Avar tv'); _]} -> not(is_eq_tyvar tv tv') && (aux tv n)
+        | {iname = "split"; iargs = [_; _; Atom (Avar tv'); _]} -> not(is_eq_tyvar tv tv') && (aux tv n)
         | _ -> aux tv n
       end
 

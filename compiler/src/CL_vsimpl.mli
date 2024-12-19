@@ -20,6 +20,7 @@ module GhostVector : sig
 
   (* val unfold_vector: (Prog.var * CL.ty) list -> (string * CL.Instr.lval) list * CL.Instr.instr list *)
   val unfold_vectors: (Prog.var * CL.ty) list -> (Prog.var * CL.ty) list -> (Prog.var * CL.ty)list * CL.Instr.instr list * CL.Instr.instr list
+  (* val unfold_vectors_list: (Prog.var * CL.ty) list -> (Prog.var * CL.ty) list -> (Prog.var * CL.ty)list * CL.Instr.instr list * CL.Instr.instr list *)
 
 end
 
