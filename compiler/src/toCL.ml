@@ -589,8 +589,8 @@ module I (S:S): I = struct
         match int_of_typ v.v_ty with
         | None -> assert false
         | Some w' ->
-          assert (n * w = w' && not sign);
-          v, CL.Vector (n, CL.Uint w)
+          assert (n * w = w');
+          v, CL.Vector (n, if sign then CL.Sint w else CL.Uint w)
       end
 
   
@@ -1285,18 +1285,39 @@ module X86BaseOpU : BaseOp
         let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let (c, _) = I.gexp_to_const(List.nth es 1) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
         match trans with
         | `Default ->
-            let c = I.get_const (List.nth es 1) in
-            let v = int_of_velem ve in
-            let s = int_of_ws ws in
             let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
             let l = I.glval_to_lval (List.nth xs 0) in
             let i3 = cast_atome_vector ws v !l_tmp l in
             let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-            let c = Z.of_int c in
-            i1 @ [CL.Instr.Shifts.split l_tmp l_tmp1 a1 c] @ i3
-          | `Smt -> assert false (* FIXME *)
+            i1 @ [CL.Instr.Shifts.ssplit l_tmp l_tmp1 a1 c] @ i3
+        | `Smt ->
+          let l1_tmp = I.mk_tmp_lval ~sign:true ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let (_, l1_ty) = I.get_lval l1_tmp in
+          let l2_tmp = I.mk_tmp_lval ~sign:true ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let (_, l2_ty) = I.get_lval l2_tmp in
+          let l3_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let l4_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let l = I.glval_to_lval (List.nth xs 0) in
+          let i2 = cast_atome_vector ws v !l4_tmp l in
+          i1 @ [CL.Instr.cast l1_ty l1_tmp a1;
+                CL.Instr.Shifts.ssplit l2_tmp l3_tmp !l1_tmp c;
+                CL.Instr.cast l2_ty l4_tmp !l2_tmp] @ i2
+      end
+
+    | VPBROADCAST (ve, ws) ->
+      begin
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i2 = cast_atome_vector ws v !l_tmp l in
+        i1 @ [CL.Instr.Op1.mov l_tmp a1] @ i2
       end
 
     | _ ->
