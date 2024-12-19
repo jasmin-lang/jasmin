@@ -290,6 +290,7 @@ module CL = struct
 
       let subc = op2_2 "subc"
       let mull = op2_2 "mull"
+      let umull = op2_2 "mull"
       let cmov = op2_2  "cmov"
       let adds = op2_2  "adds"
       let subb = op2_2  "subb"
@@ -371,7 +372,10 @@ module CL = struct
     let ghost (v: gvar) cl =
       { iname = "ghost";  iargs = [Gval v; Pred cl] }
 
-    (* nondet set rcut clear ecut *)
+    let clear (v: lval) =
+      { iname = "clear";  iargs = [Lval v] }
+
+    (* nondet set rcut ecut *)
 
   end
 
@@ -606,14 +610,14 @@ module I (S:S): I = struct
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-   | Pabstract ({name="u16i"}, [v]) -> 
-       begin 
-         match v with 
-       (* why do we have more cases?  | Pvar _ -> !> v *) 
-         | Papp1 (Oword_of_int _ws, Pconst z) ->  !> 
-              (Pconst (w2i ~sign z U16)) 
-         | _ -> !> v 
-       end 
+   | Pabstract ({name="u16i"}, [v]) ->
+       begin
+         match v with
+       (* why do we have more cases?  | Pvar _ -> !> v *)
+         | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
+              (Pconst (w2i ~sign z U16))
+         | _ -> !> v
+       end
     | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
     | Pabstract ({name="u64i"}, [v]) ->
        begin
@@ -865,12 +869,13 @@ module X86BaseOpU : BaseOp
     | IMULri ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l = I.glval_to_lval (List.nth xs 5) in
-      let l_tmp = I.mk_tmp_lval (CoreIdent.tu ws) in
-      let l_tmp1 = I.mk_tmp_lval (CoreIdent.tu ws) in
-      let ty = CL.Sint (int_of_ws ws) in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2;
-                 CL.Instr.cast ty l !l_tmp1]
+      let l1 = I.glval_to_lval (List.nth xs 5) in
+      let l = I.mk_spe_tmp_lval 64 in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l l1 a1 a2;
+               CL.Instr.assert_ ([], [RPcmp(Rvar l, "=", (Rconst(64, Z.of_int 0)))]);
+               CL.Instr.assume ([Eeq(Ivar l, Iconst Z.zero)] ,[]);
+       ]
+
     | MUL ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
@@ -1199,6 +1204,28 @@ module X86BaseOpU : BaseOp
       let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
 
+    | ADCX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      let instructions =     
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]     
+    in
+    instructions
+
+    | ADOX ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let v = I.gexp_to_var (List.nth es 2) in
+      let instructions = 
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+    in
+    instructions
+
     | _ ->
       let x86_id = X86_instr_decl.x86_instr_desc o in
       let name = (x86_id.id_pp_asm []).pp_aop_name in
@@ -1209,6 +1236,21 @@ module X86BaseOpU : BaseOp
 
   let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
+    | Ox86MULX  ws ->
+      let a1, i1 = cast_atome ws (List.nth es 0) in
+      let a2, i2 = cast_atome ws (List.nth es 1) in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      i1 @ i2 @ [CL.Instr.Op2_2.umull l1 l2 a1 a2;]
+    | Oset0 ws ->
+      let a = I.mk_const_atome ~sign:false (int_of_ws ws) Z.zero in
+      let l1 = I.glval_to_lval (List.nth xs 0) in
+      let l2 = I.glval_to_lval (List.nth xs 1) in
+      let l3 = I.glval_to_lval (List.nth xs 2) in
+      let l4 = I.glval_to_lval (List.nth xs 3) in
+      let l5 = I.glval_to_lval (List.nth xs 4) in
+      let l6 = I.glval_to_lval (List.nth xs 5) in
+      [CL.Instr.clear l1; CL.Instr.clear l2; CL.Instr.clear l3; CL.Instr.clear l4; CL.Instr.clear l5; CL.Instr.Op1.mov l6 a;]
     | _ ->
       let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
       let name = x86_id.str () in
