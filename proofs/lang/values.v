@@ -643,7 +643,7 @@ Lemma value_uincl_truncate ty x y x' :
 Proof.
   case: x => > /value_uinclE+ /truncate_valE => [ + []  | + []
     | [? + ? []]
-    | [? [? [+ /word_uincl_truncate h]]] [? [? [+ /h{h} h]]] |//]
+    | [? [? [+ /word_uincl_truncate h]]] [? [? [+ /h{}h]]] |//]
     => -> -> ->.
   1,2: by eexists.
   + by rewrite /truncate_val /= WArray.castK /=; eexists.
@@ -786,7 +786,7 @@ Lemma vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
   app_sopn_v semi vs = ok v ->
   exists2 v' : values, app_sopn_v semi vs' = ok v' & List.Forall2 value_uincl v v'.
 Proof.
-  move=> /vuincl_app_sopn_v_eq h ?? v /h{h}h/h{h}?.
+  move=> /vuincl_app_sopn_v_eq h ?? v /h{}h/h{}h.
   by exists v => //; exact: List_Forall2_refl.
 Qed.
 

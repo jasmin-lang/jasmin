@@ -476,7 +476,7 @@ Section PROOF.
     rewrite (surj_estate s1) in Hexpr.
     have h : evm s1 <=[read_es_rec I args] vm1' by apply: uincl_onI Hvm; SvD.fsetdec.
     have [vs' Hexpr' Hv] := sem_pexprs_uincl_on' h Hexpr.
-    rewrite /Pfun in Hfun. move: (Hfun vs' Hv)=> [vs''] [] {Hfun} Hfun Hv'. 
+    rewrite /Pfun in Hfun. move: (Hfun vs' Hv)=> [vs''] [] {}Hfun Hv'. 
     have [vm2 [Hvm2 /= Hvm2']]: exists vm2, evm s2 <=[sv0] vm2 /\ 
               write_lvals (~~ direct_call) gd (with_vm (with_scs (with_mem s1 m2) scs2) vm1') xs' vs'' =
              ok (with_vm s2 vm2); first last.
@@ -532,7 +532,7 @@ Section PROOF.
     + rewrite /fn_keep_only /=; case: onfun => [tokeep | //]. 
       move: Hres; clear.
       elim: tokeep res vres=> // b tokeep ih /= [ | v vres] //= vres' => [[<-]//|].
-      t_xrbindP => v' hv' vres1 /ih{ih}ih <-; case:b => //=. by rewrite hv' /= ih.
+      t_xrbindP => v' hv' vres1 /ih{}ih <-; case:b => //=. by rewrite hv' /= ih.
     have [vres1 Hres'' Hvl] := sem_pexprs_uincl_on' Hvm2'1 Hres'.
     have Hes := sem_pexprs_get_var. 
     have Hfull' : mapM2 ErrType dc_truncate_val (fn_keep_only onfun fn f_tyout) (fn_keep_only onfun fn vres) = ok (fn_keep_only onfun fn vres').
@@ -540,7 +540,7 @@ Section PROOF.
       move:Hfull; clear.
       elim: tokeep f_tyout vres vres' => // b tokeep ih [| ty f_tyout] /= [ | v vres] //= vres' => [[<-]//|].
       t_xrbindP => v' hv'; t_xrbindP => vres1 /ih{} ih <-; case:b => //=. by rewrite hv' /= ih.
-    have [vres2 {Hfull'} Hfull' Hvl'] := mapM2_dc_truncate_val Hfull' Hvl.
+    have [vres2 {}Hfull' Hvl'] := mapM2_dc_truncate_val Hfull' Hvl.
     eexists vres2; split=> //=. 
     apply EcallRun with  {|
            f_info := fi;

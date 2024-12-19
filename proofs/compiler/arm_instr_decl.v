@@ -1520,7 +1520,7 @@ Proof.
   rewrite /interp_safe_cond_ty /= => x lsb width.
   move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
   rewrite !truncate_word_u => /(_ _ _ erefl erefl) h3 _ /(_ _ erefl) /ZleP h2 /(_ _ erefl) /ZltP h1.
-  have /ZleP {h3} h3 : (wunsigned width <= 32 - wunsigned lsb)%Z by Lia.lia.
+  have /ZleP {}h3 : (wunsigned width <= 32 - wunsigned lsb)%Z by Lia.lia.
   rewrite /arm_BFC_semi h1 h2 h3 /=; eauto.
 Qed.
 
@@ -1578,7 +1578,7 @@ Proof.
   rewrite /interp_safe_cond_ty /= => x y lsb width.
   move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
   rewrite !truncate_word_u => /(_ _ _ erefl erefl) h3 _ /(_ _ erefl) /ZleP h2 /(_ _ erefl) /ZltP h1.
-  have /ZleP {h3} h3 : (wunsigned width <= 32 - wunsigned lsb)%Z by Lia.lia.
+  have /ZleP {}h3 : (wunsigned width <= 32 - wunsigned lsb)%Z by Lia.lia.
   rewrite /arm_BFI_semi h1 h2 h3 /=; eauto.
 Qed.
 
@@ -2080,7 +2080,7 @@ Proof.
   rewrite /interp_safe_cond_ty /= => x lsb width.
   move=> /List.Forall_cons_iff /= [] /[swap] /List.Forall_cons_iff /= [].
   rewrite !truncate_word_u => /(_ _ _ erefl erefl) h2 _ /(_ _ erefl) /ZleP h1.
-  have /ZltP {h2} h2 : (wunsigned width < 33 - wunsigned lsb)%Z by Lia.lia.
+  have /ZltP {}h2 : (wunsigned width < 33 - wunsigned lsb)%Z by Lia.lia.
   rewrite /bit_field_extract_semi h1 h2 /=; eauto.
 Qed.
 

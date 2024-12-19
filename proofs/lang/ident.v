@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-Require Import Uint63 strings utils gen_map tagged wsize.
-Require Import Utf8.
+From Coq Require Import Uint63 Utf8.
+Require Import strings utils gen_map tagged wsize.
 
 Module Type CORE_IDENT.
 
