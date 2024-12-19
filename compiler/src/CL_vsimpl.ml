@@ -13,8 +13,10 @@ let rec is_eq_type (ty: CL.ty) (ty': CL.ty) =
   | (Uint i, Sint i') -> false
   | (Uint i, Bit) -> false
   | (Uint i, Vector (i', ty'')) -> false
+  | (Sint i, Sint i') -> i == i'
   | (Sint i, Bit) -> false
   | (Sint i, Vector (i', ty'')) -> false
+  | (Bit, Bit) -> true
   | (Bit, Vector (_, _)) -> false
   | Vector (i, ty''), Vector (i', ty''') -> i == i' && (is_eq_type ty'' ty''')
   | _ -> is_eq_type ty' ty (* use recursivity to check the commutative pair *)
@@ -283,9 +285,11 @@ module SimplVector = struct
     | (Uint i, Bit) -> assert false
     | (Uint i, Vector (i', ty'')) ->
       i == (i' * int_of_ty ty'') && (is_unsigned ty'')
+    | (Sint i, Sint i') -> i == i'
     | (Sint i, Bit) -> assert false
     | (Sint i, Vector (i', ty'')) ->
       i == (i' * int_of_ty ty'') && not(is_unsigned ty'')
+    | (Bit, Bit) -> true
     | (Bit, Vector (_, _)) -> assert false
     | Vector (i, ty''), Vector (i', ty''') ->
       (i * int_of_ty ty'' == i' * int_of_ty ty''') && ((is_unsigned ty'') == (is_unsigned ty'''))
