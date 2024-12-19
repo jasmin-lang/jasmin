@@ -49,10 +49,15 @@ let parse_and_extract arch call_conv =
         exit 1
 
 let model =
-  let alts = [ ("normal", Normal) ; ("CT", ConstantTime) ] in
+  let alts = [ ("normal", Normal) ; ("CT", ConstantTime); ("CTG", ConstantTimeGlobal)] in
   let doc =
-    Format.asprintf "Extraction model (determines added annotations (e.g. leakage) (%s)."
-    (Arg.doc_alts_enum alts)
+    "Extraction model.
+    $(b,Normal): plain extraction.
+    $(b,CT): Functions additionally return timing-observable leakage for
+    'cryptographic constant time' (if/while conditions, memory access
+    addresses, array indices, for loop bounds).
+    $(b,CTG): Cryptographic constant time leakage is added to a
+    global variable."
   in
   Arg.(value & opt (Arg.enum alts) Normal & info [ "m"; "model" ] ~doc)
 
@@ -60,7 +65,8 @@ let old_array =
   let doc =
     "Use old representation for array operations (anonymous functions instead of eclib functions)."
   in
-  Arg.(value & flag & info ["array-old"] ~doc)
+  let deprecated = "--array-old is deprected" in
+  Arg.(value & flag & info ["array-old"] ~doc ~deprecated)
 
 let functions =
   let doc =

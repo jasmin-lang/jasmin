@@ -104,19 +104,20 @@ type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
 (* ------------------------------------------------------------------------ *)
 (* Parametrized expression *)
 
-type pty    = pexpr gty
-and  pvar   = pexpr gvar
-and  pvar_i = pexpr gvar_i
-and  plval  = pexpr glval
-and  plvals = pexpr glvals
-and  pexpr  = pexpr gexpr
+type pty    = pexpr_ gty
+and  pvar   = pexpr_ gvar
+and  pvar_i = pexpr_ gvar_i
+and  plval  = pexpr_ glval
+and  plvals = pexpr_ glvals
+and  pexpr  = pexpr_ gexpr
+and  pexpr_ = PE of pexpr [@@unboxed]
 
-type ('info,'asm) pinstr = (pexpr,'info,'asm) ginstr
-type ('info,'asm) pstmt  = (pexpr,'info,'asm) gstmt
+type ('info,'asm) pinstr = (pexpr_,'info,'asm) ginstr
+type ('info,'asm) pstmt  = (pexpr_,'info,'asm) gstmt
 
-type ('info,'asm) pfunc     = (pexpr,'info,'asm) gfunc
-type ('info,'asm) pmod_item = (pexpr,'info,'asm) gmod_item
-type ('info,'asm) pprog     = (pexpr,'info,'asm) gprog
+type ('info,'asm) pfunc     = (pexpr_,'info,'asm) gfunc
+type ('info,'asm) pmod_item = (pexpr_,'info,'asm) gmod_item
+type ('info,'asm) pprog     = (pexpr_,'info,'asm) gprog
 
 (* -------------------------------------------------------------------- *)
 module PV : sig

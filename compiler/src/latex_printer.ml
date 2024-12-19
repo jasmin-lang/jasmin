@@ -448,11 +448,11 @@ let rec pp_pitem fmt pi =
   | PTypeAlias (id,ty) -> pp_typealias fmt id ty (**)
 
 let pp_info fmt =
-  F.fprintf fmt "@[<v>@[%% The produced LATEX snippet is meant to be included in a@] @ ";
-  F.fprintf fmt "@[%% jasmincode environment provided by the jasmin package@] @ ";
-  F.fprintf fmt "@[%% defined in file: @] @ ";
-  F.fprintf fmt "@[%% https://github.com/jasmin-lang/jasmin/wiki/resources/jasmin.sty@]@]";
-  F.pp_print_newline fmt ();
+  F.fprintf fmt "@[<v>@[%% The produced LATEX snippet is meant to be included in a@]@ ";
+  F.fprintf fmt "@[%% jasmincode environment provided by the jasmin package@]@ ";
+  F.fprintf fmt "@[%% defined in file: @]@ ";
+  F.fprintf fmt "@[%% https://github.com/jasmin-lang/jasmin/wiki/resources/jasmin.sty@]@ ";
+  F.fprintf fmt "@[%%@]@]";
   F.pp_print_newline fmt ()
 
 let pp_prog fmt =
