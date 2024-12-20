@@ -1634,7 +1634,7 @@ module X86BaseOpS : BaseOp
           | `Smt ->
             i1 @ i2 @ [CL.Instr.Op2.sub l_tmp a1 a2] @ i3
           | `Default ->
-            let l_tmp1 = I.mk_tmp_lval ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
+            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
             i1 @ i2 @ [CL.Instr.Op2_2.subb l_tmp1 l_tmp a1 a2] @ i3
       end
 
@@ -1659,7 +1659,7 @@ module X86BaseOpS : BaseOp
       let s = int_of_ws ws in
       let v = s / 16 in
       let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+      let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,s/v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
@@ -1680,7 +1680,7 @@ module X86BaseOpS : BaseOp
         let i2 = cast_atome_vector ws v !l_tmp l in
         match trans with
         | `Default ->
-            let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,s/v) (CoreIdent.tu ws) in
             i1 @ [CL.Instr.Shifts.vsars l_tmp l_tmp1 a1 ac] @ i2
         | `Smt ->
           i1 @ [CL.Instr.Shift.vsar l_tmp a1 ac] @ i2
