@@ -53,7 +53,7 @@ let set_target_arch a =
     match a with
     | "x86-64" -> X86_64
     | "arm-m4" -> ARM_M4
-    | "risc-v" -> RISCV
+    | "riscv" -> RISCV
     | _ -> assert false
   in target_arch := a'
 
@@ -210,7 +210,7 @@ let options = [
     "-intel", Arg.Unit (set_syntax `Intel), " Use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), " Use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), " Select calling convention (default depends on host architecture)";
-    "-arch", Arg.Symbol (["x86-64"; "arm-m4"; "risc-v"], set_target_arch), " Select target arch (default is x86-64)";
+    "-arch", Arg.Symbol (["x86-64"; "arm-m4"; "riscv"], set_target_arch), " Select target arch (default is x86-64)";
     "-stack-zero",
       Arg.Symbol (List.map fst stack_zero_strategies, set_stack_zero_strategy),
       " Select stack zeroization strategy for export functions";

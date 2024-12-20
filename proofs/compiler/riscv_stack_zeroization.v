@@ -136,14 +136,14 @@ Definition stack_zeroization_cmd
   |}
   in
   let err_size :=
-    err "Stack zeroization size not supported in risc-v"%string in
+    err "Stack zeroization size not supported in RISC-V"%string in
   Let _ := assert (ws <= U32)%CMP err_size in
   let rsp := vid rspn in
   match szs with
   | SZSloop =>
     ok (stack_zero_loop rsp lbl ws_align ws stk_max, stack_zero_loop_vars)
   | SZSloopSCT =>
-    let err_sct := err "Strategy ""loop with SCT"" is not supported in risc-v"%string in
+    let err_sct := err "Strategy ""loop with SCT"" is not supported in RISC-V"%string in
     Error err_sct
   | SZSunrolled =>
     ok (stack_zero_unrolled rsp ws_align ws stk_max, stack_zero_unrolled_vars)

@@ -10,7 +10,7 @@ trap "rm -r ${DIR}" EXIT
 
 set -x
 
-$(dirname $0)/../jasminc -g -arch risc-v -o ${ASM} "$@"
+$(dirname $0)/../jasminc -g -arch riscv -o ${ASM} "$@"
 
 # Set default ASSEMBLY_CHECKER
 ASSEMBLY_CHECKER=${ASSEMBLY_CHECKER:-llvm-mc}

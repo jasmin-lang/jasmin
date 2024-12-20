@@ -13,6 +13,9 @@ mkdir -p $DIR
 if [ "$1" = "arm" ]
 then
     ARCH="-arch arm-m4"
+elif [ "$1" = "riscv" ]
+then
+    ARCH="-arch riscv"
 else
     ARCH="-arch x86-64"
 fi
