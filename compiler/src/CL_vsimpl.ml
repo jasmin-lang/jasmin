@@ -26,6 +26,13 @@ let rec is_eq_tyvar (tv: CL.tyvar) (tv': CL.tyvar) =
   let (v', ty') = tv' in
   (v == v') && (is_eq_type ty ty')
 
+let rec is_unsigned (ty: CL.ty) =
+  match ty with
+  | Uint _ -> true
+  | Sint _ -> false
+  | Bit -> true
+  | Vector (_, ty') -> is_unsigned ty'
+
 module Cfg = struct
 
   type node =
@@ -169,6 +176,11 @@ module GhostVector = struct
     | RPor  rps ->
       let rps' = List.map (unfold_ghosts_rpred ghosts) rps in
       RPor rps'
+    | RPeqsmod (e1,e2,e3) ->
+      let e1' = replace_vghosts_rexp ghosts e1 in
+      let e2' = replace_vghosts_rexp ghosts e2 in
+      let e3' = replace_vghosts_rexp ghosts e3 in
+      RPeqsmod(e1',e2',e3')
 
   let unfold_vghosts_rpred ghosts pre =
     List.map (unfold_ghosts_rpred ghosts) pre
@@ -216,17 +228,18 @@ module GhostVector = struct
       match Annot.ensure_uniq1 "vect" mk_vector (v.v_annot) with
       | None -> [tv],[],[]
       | Some U16x16 ->
-        let rec unfold_vector i acc =
+        let rec unfold_vector i acc s =
           match i with
           | 0 -> acc
           | n ->
             let name = get_unfolded_vector_namei v (i-1) in
-            let tv' = I.mk_tmp_lval ~name u16 in
+            let tv' = I.mk_tmp_lval ~name ~sign:s u16 in
             let ltv' = I.get_lval tv' in
-            unfold_vector (n - 1) (ltv' :: acc)
+            unfold_vector (n - 1) (ltv' :: acc) s
         in
-        let vl = unfold_vector 16 [] in
-        let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~vector:(16,16) v in
+        let s = not(is_unsigned ty) in
+        let vl = unfold_vector 16 [] s in
+        let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~sign:s ~vector:(16,16) v in
         let ll16x16 = Llvar l16x16 in
         let vl16x16 = Avar l16x16 in
         if List.exists (is_eq_tyvar tv) ret_vars then
@@ -236,7 +249,7 @@ module GhostVector = struct
         else
           let va_16x16 = List.map (fun tv' -> Avar tv') vl in
           let a_16x16 = Avatome va_16x16 in
-          let (l_1x256, lty_1x256) as l1x256 = I.var_to_tyvar ~vector:(1,256) v in
+          let (l_1x256, lty_1x256) as l1x256 = I.var_to_tyvar ~sign:s ~vector:(1,256) v in
           let l1x256v = Llvar l1x256 in
           let l_0 = Avecta (l1x256, 0) in
           vl,[Op1.mov ll16x16 a_16x16; cast lty_1x256 l1x256v vl16x16; Op1.mov (Llvar tv) l_0],[]
@@ -315,13 +328,6 @@ module SimplVector = struct
       match n'.succs with
       | h :: _ -> Some h
       | _ -> None
-
-  let rec is_unsigned (ty: CL.ty) =
-    match ty with
-    | Uint _ -> true
-    | Sint _ -> false
-    | Bit -> true
-    | Vector (_, ty') -> is_unsigned ty'
 
   let rec is_equiv_type (ty: CL.ty) (ty': CL.ty) =
     match (ty, ty') with

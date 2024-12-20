@@ -165,6 +165,7 @@ module CL = struct
       | RPnot   of rpred
       | RPand   of rpred list
       | RPor    of rpred list
+      | RPeqsmod of rexp * rexp * rexp
 
     let eq e1 e2 = RPcmp (e1, "=", e2)
     let ult e1 e2 = RPcmp (e1, "<", e2)
@@ -184,6 +185,7 @@ module CL = struct
           | h :: q -> Format.fprintf fmt "/\\[%a]" (pp_list ",@ " pp_rpred) rps
         end
       | RPor  rps -> Format.fprintf fmt "\\/[%a]" (pp_list ",@ " pp_rpred) rps
+      | RPeqsmod (e1,e2,e3) -> Format.fprintf fmt "(eqsmod %a %a %a)" pp_rexp e1 pp_rexp e2 pp_rexp e3
 
     let pp_rpreds fmt rps = pp_rpred fmt (RPand rps)
 
@@ -567,6 +569,7 @@ module I (S:S): I = struct
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
     | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
+    | Pabstract ({name="eqsmod"} as _opa, [e1;e2;e3]) -> RPeqsmod (!> e1, !> e2, !> e3)
     | _ -> error e
 
   let rec get_const x =
