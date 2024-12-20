@@ -179,45 +179,52 @@ Qed.
 Lemma riscv_spec_lip_set_up_sp_register :
   set_up_sp_register_correct riscv_liparams.
 Proof.
-  Opaque sem_fopn_args.
-  move=> [[? nrsp] vi1] [[? nr] vi2] [[? ntmp] vi3] ts al sz s hget /= ??? hne hne1 hne2; subst.
-  rewrite /riscv_set_up_sp_register sem_fopns_args_cat /=.
-  set vr := {|vname := nr|}; set r := {|v_var := vr|}.
-  set vtmp := {|vname := ntmp|}; set tmp := {|v_var := vtmp|}.
-  set vrsp := {|vname := nrsp|}; set rsp := {|v_var := vrsp|}.
-  set ts' := align_word _ _.
-  have := RISCVFopnP.smart_subi_sem_fopn_args vi3 (y:= rsp) _ (to_word_get_var hget).
-  move=> /(_ riscv_linux_call_conv ntmp sz) [].
-  + by right => /= -[?]; subst ntmp.
-  move=> vm1 [] -> heq1 hget1 /=.
-  set s1 := with_vm _ _.
-  have -> /= := RISCVFopnP.align_sem_fopn_args ntmp vi3 al
-                 (y:= tmp) (s:= s1) (to_word_get_var hget1).
-  set s2 := with_vm _ _.
-  have hget2 : get_var true (evm s2) rsp = ok (Vword ts).
-  + by t_get_var; rewrite (get_var_eq_ex _ _ heq1) //; apply/Sv_neq_not_in_singleton.
-  have -> /= := RISCVFopnP.mov_sem_fopn_args (to_word_get_var hget2).
-  set s3 := with_vm _ _.
-  have hget3 : get_var true (evm s3) tmp = ok (Vword ts').
+Local Opaque sem_fopn_args.
+  move=> [[? nrsp] vi1] [[? nr] vi2] tmp ts al sz s + /= ?? _ _ + _; subst.
+  set vrsp := {| vname := nrsp |}; set rsp := {| v_var := vrsp |}.
+  set vr := {| vname := nr |}; set r := {| v_var := vr |}.
+  move=> hget hne.
+  set vm0 := s.(evm).[r <- Vword ts].
+  have [vm1 [ok_vm1 heq1 hget1]] : exists vm1, [/\
+    sem_fopns_args
+        (with_vm s vm0)
+        (if sz != 0%Z then RISCVFopn.smart_subi rsp r sz else [::])
+      = ok (with_vm s vm1),
+    vm1 =[\Sv.singleton rsp] vm0 &
+    get_var true vm1 rsp = ok (Vword (ts - wrepr reg_size sz))].
+  + case: eqP => [->|_] /=.
+    + rewrite wrepr0 GRing.subr0.
+      exists vm0; split=> //.
+      by t_get_var.
+    have hget': get_var true vm0 r = ok (Vword ts).
+    + by t_get_var.
+    apply:
+      (RISCVFopnP.smart_subi_sem_fopn_args _ _
+        (s:= with_vm s _) (to_word_get_var hget')).
+    by right; apply nesym.
+  set vm2 := vm1.[rsp <- Vword (align_word al (ts - wrepr _ sz))].
+  exists vm2; split.
+  + rewrite (RISCVFopnP.mov_sem_fopn_args (to_word_get_var hget)) -/vm0 /=.
+    rewrite -cats1 sem_fopns_args_cat ok_vm1 /=.
+    by rewrite
+         (RISCVFopnP.align_sem_fopn_args _ _ _
+           (s:=with_vm _ _) (to_word_get_var hget1)).
+  + move=> x; t_notin_add.
+    t_vm_get.
+    rewrite heq1 /=; last by apply /Sv_neq_not_in_singleton/nesym.
+    by t_vm_get.
   + by t_get_var.
-  have -> /= := RISCVFopnP.mov_sem_fopn_args (to_word_get_var hget3).
-  set s4 := with_vm _ _.
-  Transparent sem_fopn_args.
-  eexists; split => //.
-
-  - move=> x; t_notin_add; t_vm_get; rewrite heq1; first by t_vm_get.
-    by apply/Sv_neq_not_in_singleton/nesym.
-
-  - by t_get_var => //=; rewrite wrepr_mod.
-
-  - by t_get_var.
-
-  move=> x hx _.
-  move: hx => /vflagsP hxtype.
-  have [*] : [/\ vrsp <> x,  vtmp <> x & vr <> x].
+  + t_get_var.
+    rewrite (get_var_eq_ex _ _ heq1) /=;
+      last by apply /Sv_neq_not_in_singleton/nesym.
+    by t_get_var.
+  move=> x /vflagsP hxtype _.
+  have [*] : [/\ vrsp <> x & vr <> x].
   - by split; apply/eqP/vtype_diff; rewrite hxtype.
-  t_vm_get; rewrite heq1 //.
-  by apply: Sv_neq_not_in_singleton.
+  t_vm_get.
+  rewrite heq1 /=; last by apply /Sv_neq_not_in_singleton.
+  by t_vm_get.
+Local Transparent sem_fopn_args.
 Qed.
 
 Lemma riscv_lmove_correct : lmove_correct riscv_liparams.

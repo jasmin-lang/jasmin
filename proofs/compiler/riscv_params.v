@@ -108,11 +108,9 @@ Definition riscv_set_up_sp_register
   (r : var_i)
   (tmp : var_i) :
   seq fopn_args :=
-  let load_imm := RISCVFopn.smart_subi tmp rspi sf_sz in
-  let i0 := RISCVFopn.align tmp tmp al in
-  let i1 := RISCVFopn.mov r rspi in
-  let i2 := RISCVFopn.mov rspi tmp in
-  load_imm ++ [:: i0; i1; i2 ].
+  let i0 := RISCVFopn.mov r rspi in
+  let i2 := RISCVFopn.align rspi rspi al in
+  i0 :: rcons (if sf_sz != 0%Z then RISCVFopn.smart_subi rspi r sf_sz else [::]) i2.
 
 Definition riscv_tmp  : Ident.ident := vname (v_var vtmpi).
 Definition riscv_tmp2 : Ident.ident := vname (v_var vtmp2i).
