@@ -53,6 +53,7 @@ let set_target_arch a =
     match a with
     | "x86-64" -> X86_64
     | "arm-m4" -> ARM_M4
+    | "riscv" -> RISCV
     | _ -> assert false
   in target_arch := a'
 
@@ -135,9 +136,11 @@ let print_strings = function
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.RemoveGlobal                -> "rmglobals", "remove globals variables"
   | Compiler.MakeRefArguments            -> "makeref"  , "add assignments before and after call to ensure that arguments and results are ref ptr"
+  | Compiler.LoadConstantsInCond         -> "loadconst", "introduce registers for constants appearing in conditions (RISC-V only)"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
   | Compiler.PropagateInline             -> "propagate", "propagate inline variables"
   | Compiler.SLHLowering                 -> "slhlowering" , "lowering of selective load hardening instructions"
+  | Compiler.LowerAddressing             -> "loweraddr", "lowering of complex addressing modes (RISC-V only)"
   | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
   | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
@@ -207,7 +210,7 @@ let options = [
     "-intel", Arg.Unit (set_syntax `Intel), " Use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), " Use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), " Select calling convention (default depends on host architecture)";
-    "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), " Select target arch (default is x86-64)";
+    "-arch", Arg.Symbol (["x86-64"; "arm-m4"; "riscv"], set_target_arch), " Select target arch (default is x86-64)";
     "-stack-zero",
       Arg.Symbol (List.map fst stack_zero_strategies, set_stack_zero_strategy),
       " Select stack zeroization strategy for export functions";

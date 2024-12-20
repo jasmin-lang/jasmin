@@ -1,0 +1,101 @@
+export
+fn void() {  }
+
+export
+fn pass(reg u32 r) -> reg u32 { return r; }
+
+export
+fn copy(reg u32 r) -> reg u32, reg u32 {
+    reg u32 c;    
+    c = #MV(r);
+    return r, c; 
+}
+
+export
+fn copy_lowering(reg u32 r) -> reg u32, reg u32 { 
+    reg u32 c;
+    c = r;
+    return r, c;
+}
+
+export
+fn add_lowering(reg u32 a, reg u32 b) -> reg u32 {
+    reg u32 c;
+    c = a + b;
+    return c;
+}
+
+export
+fn sub_imm_lowering(reg u32 a) -> reg u32 {
+    reg u32 c;
+    c = a - 15;
+    return c;
+}
+
+fn if_reg_reg_lowering(reg u32 a, reg u32 b) -> reg u32 {
+    a = a;
+
+    reg u32 c;
+    c = 0;
+
+    if (a == b) { c |= 1; }
+    if (!(a == b)) { c |= 2; }
+    if (a != b) { c |= 4; }
+    if (a > b) { c |= 16; }
+    if (a < b) { c |= 32; }
+    if (a >= b) { c |= 64; }
+    if (a <= b) { c |= 128; }
+    if (a >s b) { c |= 256; }
+    if (a <s b) { c |= 512; }
+    if (a >=s b) { c |= 1024; }
+    if (a <=s b) { c |= -2048; }
+
+    return c;
+}
+
+export
+fn if_reg_reg_lowering_export(reg u32 a, reg u32 b) -> reg u32 {
+   reg u32 r;
+   a = a;
+   b = b;
+   r = if_reg_reg_lowering(a, b);
+   r = r;
+   return r;
+}
+
+export fn main() -> reg u32 {
+    reg u32 r;
+    r = 0;
+
+    reg u32 rt0;
+    reg u32 rt1;
+
+    reg u32 a;
+    a = 10;
+    reg u32 b;
+    b = 3;
+
+    reg u32 exp_r;
+    rt0 = if_reg_reg_lowering(a, b);
+    exp_r = 1366;
+    if (rt0 != exp_r) { r = -1; }
+
+    rt0 = sub_imm_lowering(a);
+    exp_r = -5;
+    if (rt0 == exp_r) { r = -1; }
+
+    rt0 = add_lowering(a, b);
+    exp_r = 13;
+    if (rt0 == exp_r) { r = -1; }
+
+    rt0, rt1 = copy(a);
+    if (rt0 != rt1) { r = -1; }
+
+    rt0, rt1 = copy_lowering(a);
+    if (rt0 != rt1) { r = -1; }
+
+    rt0 = pass(a);
+    if (rt0 != a) { r = -1; }
+
+    return r;
+}

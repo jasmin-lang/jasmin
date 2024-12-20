@@ -140,6 +140,7 @@ Definition arm_liparams : linearization_params :=
     lip_lmove := arm_lmove;
     lip_check_ws := arm_check_ws;
     lip_lstore  := arm_lstore;
+    lip_lload := arm_lload;
     lip_lstores := lstores_imm_dfl arm_tmp2 arm_lstore ARMFopn.smart_addi is_arith_small;
     lip_lloads  := lloads_imm_dfl arm_tmp2 arm_lload  ARMFopn.smart_addi is_arith_small;
   |}.
@@ -292,7 +293,9 @@ Definition arm_params : architecture_params lowering_options :=
   {|
     ap_sap := arm_saparams;
     ap_lip := arm_liparams;
+    ap_plp := false;
     ap_lop := arm_loparams;
+    ap_lap := {| lap_lower_address := fun _ p => ok p |};
     ap_agp := arm_agparams;
     ap_szp := arm_szparams;
     ap_shp := arm_shparams;

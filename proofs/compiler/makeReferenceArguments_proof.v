@@ -454,9 +454,6 @@ Context
     by rewrite Hsem_pexprs /= Hexec_sopn.
   Qed.
 
-  Lemma write_Ii ii i : write_I (MkI ii i) = write_i i.
-  Proof. by []. Qed.
-
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 He Hs Hc ii X c' /=.

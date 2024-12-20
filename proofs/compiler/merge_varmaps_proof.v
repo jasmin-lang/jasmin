@@ -723,8 +723,9 @@ Section LEMMA.
     case: (checkP ok_p ok_fd) => ok_wrf.
     rewrite /check_fd; t_xrbindP => D.
     set ID := (ID in check_cmd _ ID _).
+    set DF := Sv.union _ D.
     set res := sv_of_list v_var (f_res fd).
-    set params := sv_of_list v_var(f_params fd).
+    set params := sv_of_list v_var (f_params fd).
     move => checked_body hdisj
       checked_params RSP_not_result preserved_magic
       checked_save_stack htmp_call_magic checked_ra.
@@ -737,7 +738,9 @@ Section LEMMA.
          ~Sv.In ra (magic_variables p) &
          ~Sv.In ra params
         ]
-      | RAstack ra _ _ => if ra is Some r then [/\ vtype r == sword Uptr & ~Sv.In r (magic_variables p)] else True
+      | RAstack ra_call ra_return _ _ =>
+        (if ra_call is Some r then [/\ vtype r == sword Uptr & ~Sv.In r (magic_variables p)] else True) /\
+        (if ra_return is Some r then [/\ vtype r == sword Uptr & ~Sv.In r (magic_variables p)] else True)
       | RAnone =>
           let to_save := sv_of_list fst (sf_to_save (f_extra fd)) in
         [/\ disjoint to_save res,
@@ -747,25 +750,40 @@ Section LEMMA.
            (f_params fd)
           ]
       end.
-    - case heq : sf_return_address checked_ra => [ | ra ? | ra ofs ?].
+    - case heq : sf_return_address checked_ra => [ | ra ? | ra_call ra_return ofs ?].
       + by t_xrbindP => ??.
       + t_xrbindP => -> /Sv_memP ra_not_written.
         by rewrite SvP.union_mem negb_or => /andP[] /Sv_memP ra_not_magic /Sv_memP ra_not_param.
-      case: ra heq => [ r | ] // heq.
-      move: preserved_magic; rewrite /writefun_ra ok_fd /ra_vm heq /disjoint.
-      by t_xrbindP => /Sv.is_empty_spec h ->; split => //; SvD.fsetdec.
+      t_xrbindP=> hcall hreturn.
+      move: preserved_magic;
+        rewrite /writefun_ra ok_fd /ra_undef /ra_vm /ra_vm_return heq /disjoint => hempty.
+      split.
+      + case: ra_call heq hempty hcall => [ r | ] // heq.
+        by t_xrbindP => /Sv.is_empty_spec /= h ->; split => //; SvD.fsetdec.
+      case: ra_return heq hempty hreturn => [ r | ] // heq.
+      by t_xrbindP => /Sv.is_empty_spec /= h ->; split => //; SvD.fsetdec.
     have ra_neq_magic :
       match sf_return_address (f_extra fd) with 
-      | RAreg ra _ | RAstack (Some ra) _ _ =>
-         [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr]
+      | RAreg ra _ => [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr]
+      | RAstack ra_call ra_return _ _ =>
+        (if ra_call is Some ra then [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr] else true) &&
+        (if ra_return is Some ra then [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr] else true)
       | _ => True
       end.
-    - case: sf_return_address checked_ra => // [ ra _ | [ ra | ] _ _] //.
+    - case: sf_return_address checked_ra => // [ ra _ | ra_call ra_return _ _].
       + rewrite /magic_variables -/vgd -/vrsp /= => -[].
-        rewrite Sv.add_spec  Sv.singleton_spec => -> ra_not_written.
+        rewrite Sv.add_spec Sv.singleton_spec => -> ra_not_written.
         by case/Decidable.not_or => /eqP -> /eqP -> _.
       rewrite /magic_variables -/vgd -/vrsp /= => -[].
-      rewrite Sv.add_spec  Sv.singleton_spec => ->.
+      move=> hcall hreturn.
+      apply /andP; split.
+      + case: ra_call hcall => [ra_call|//].
+        rewrite /magic_variables -/vgd -/vrsp /= => -[].
+        rewrite Sv.add_spec Sv.singleton_spec => ->.
+        by case/Decidable.not_or => /eqP -> /eqP ->.
+      case: ra_return hreturn => [ra_return|//].
+      rewrite /magic_variables -/vgd -/vrsp /= => -[].
+      rewrite Sv.add_spec Sv.singleton_spec => ->.
       by case/Decidable.not_or => /eqP -> /eqP ->.
     set t1' := with_vm s0 (set_RSP p (emem s0) (ra_undef_vm fd tvm1 var_tmps)).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (sf_align (f_extra fd)) (emem s1) (evm t1').
@@ -823,12 +841,12 @@ Section LEMMA.
       + move: vgd (ra_undef _ _) (wrf _) hin not_GD; clear; SvD.fsetdec.
       have z_not_arr : ~~ is_sarr (vtype z).
       + move: hin ra_neq_magic checked_save_stack; clear => /SvD.F.union_1[].
-        * rewrite /ra_vm; case: sf_return_address => [ | ra _ | ra rastack _ ].
+        * rewrite /ra_vm; case: sf_return_address => [ | ra _ | ra_call ra_return rastack _ ].
           - case/SvD.F.union_iff => [ | /vflagsP ->] //.
             by case/SvD.F.add_iff => [<- | /Sv.singleton_spec ->].
           - by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
-          case: ra; last by SvD.fsetdec.  
-          by move => r /Sv.singleton_spec -> /and3P [] _ _ /eqP ->.
+          case: ra_call; last by SvD.fsetdec.
+          by move => r /Sv.singleton_spec -> /andP[] /and3P [] _ _ /eqP -> _.
         rewrite /saved_stack_vm.
         case: sf_save_stack => [ | ra | ofs ] /=; only 1, 3: SvD.fsetdec.
         by move/Sv.singleton_spec => -> _; t_xrbindP => /eqP ->.
@@ -842,11 +860,11 @@ Section LEMMA.
 
     have [ t2 [ k texec hk ] sim2 ] := ih _ _ _ t1' checked_body pre1 sim1.
     have [tres ok_tres res_uincl] :
-      let: vm := set_RSP p (free_stack (emem t2)) (evm t2) in
+      let: vm := set_RSP p (free_stack (emem t2)) (kill_vars (ra_vm_return fd.(f_extra)) (evm t2)) in
       exists2 tres,
         get_var_is false vm (f_res fd) = ok tres
         & List.Forall2 value_uincl vres' tres.
-    - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~Sv.In x D.
+    - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~ Sv.In x DF.
       + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
         by move /Sv.is_empty_spec: hdisj; SvD.fsetdec.
       move: ok_vres'; rewrite /dc_truncate_val /= => /mapM2_id ?; subst vres'.
@@ -858,12 +876,16 @@ Section LEMMA.
       move => x xs vx hvxs <- ?; rewrite inE negb_or => /andP [ hne hnin] h; subst vx.
       have {ih} [ | tres -> /= res_uincl ] := ih _ hvxs hnin.
       + by move=> ? h1; apply h; rewrite inE h1 orbT.
-      have ex : value_uincl vm.[x] (set_RSP p m vm').[x].
-      + by rewrite /set_RSP Vm.setP_neq //; apply: hvm; apply h; rewrite inE eqxx.
+      have ex : value_uincl vm.[x] (set_RSP p m (kill_vars (ra_vm_return fd.(f_extra)) vm')).[x].
+      + rewrite /set_RSP Vm.setP_neq //.
+        have := h x; rewrite inE eqxx => /(_ erefl).
+        rewrite Sv.union_spec => /Decidable.not_or [hra hD].
+        rewrite kill_varsE; case: Sv_memP => // _.
+        by apply: hvm.
       by eexists; first reflexivity; constructor.
     exists
-       (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmps) (saved_stack_vm fd))),
-       (set_RSP p (free_stack (emem t2)) (evm t2)), tres; split.
+       (Sv.union k (Sv.union (ra_undef fd var_tmps) (ra_vm_return fd.(f_extra)))),
+       (set_RSP p (free_stack (emem t2)) (kill_vars (ra_vm_return fd.(f_extra)) (evm t2))), tres; split.
     - econstructor.
       + exact: ok_fd.
       + move: ok_wrf.
@@ -871,7 +893,10 @@ Section LEMMA.
         case: sf_return_address ra_neq_magic checked_ra => //.
         + move => ra _ /and3P [] -> -> -> /= [] _ hra ?? /Sv.subset_spec ok_wrf.
           by apply/Sv_memP => ?; apply: hra; apply: ok_wrf; exact: hk.
-        by case => // ? ? ? /and3P [] -> ->.
+        move=> ra_call ra_return _ _ /andP [hcall hreturn] _ _.
+        apply /andP; split.
+        + by case: ra_call hcall => [ra_call|//] /and3P[] -> -> _.
+        by case: ra_return hreturn => [ra_return|//] /and3P[] -> -> _.
       + move: ok_wrf.
         rewrite /valid_writefun /write_fd /saved_stack_valid /=.
         case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ /Sv_memP r_not_written.
@@ -937,6 +962,7 @@ Proof.
   rewrite /check_fd; t_xrbindP => D.
   rewrite /top_stack_aligned {1  2}Export.
   set ID := (ID in check_c _ ID _).
+  set DF := Sv.union _ D.
   set results := sv_of_list v_var (f_res fd).
   set params := sv_of_list v_var (f_params fd).
   move => checked_body hdisj checked_params RSP_not_result preserved_magic checked_save_stack tmp_call_magic.
@@ -958,13 +984,20 @@ Proof.
   + move/Sv.subset_spec: ok_callee_saved ok_k.
     move: (writefun_ra _ _ _ _) => W.
     move: (sv_of_list _ _) => C.
-    move: (Sv.union _ (saved_stack_vm _)) => X.
+    move: (ra_undef _ _) => X.
     clear.
     SvD.fsetdec.
   + by move: texec; rewrite /ra_undef /ra_undef_vm_none /ra_vm Export /ra_undef_none.
   rewrite -ok_res'.
   apply: mapM_ext => /= r hr.
-  rewrite {2}/get_var Vm.setP_neq //; apply/eqP => K.
+  rewrite {2}/get_var Vm.setP_neq.
+  + rewrite /= kill_varsE.
+    case: Sv_memP => // hra.
+    move: hdisj => /disjoint_union [+ _].
+    rewrite /results => /disjointP => {}hdisj.
+    case: (hdisj r hra).
+    by apply /sv_of_listP/in_map; exists r.
+  apply/eqP => K.
   move: RSP_not_result.
   rewrite /results sv_of_listE => /in_map; apply.
   by exists r.

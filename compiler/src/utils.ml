@@ -234,6 +234,7 @@ let pp_string fmt s =
 type architecture =
   | X86_64
   | ARM_M4
+  | RISCV
 
 (* -------------------------------------------------------------------- *)
 type model =
