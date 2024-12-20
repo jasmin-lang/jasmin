@@ -33,6 +33,9 @@
 - Fix EasyCrypt semantics of shift operators
   ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973)).
 
+- Fix EC extraction in case on nested loops
+  ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
