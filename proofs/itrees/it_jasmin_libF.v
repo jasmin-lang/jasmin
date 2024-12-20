@@ -142,16 +142,25 @@ Definition sem_t (t : stype) : Type :=
   | sword s  => unit (* Jasmin.word.word s *)
   end.
 
+(*
+Print stype.
+Print map.
+Print WArray.array.
+Print Mz.t.
+Print Mz.Map.t.
+Print Mz.Map.bst.
 
-Definition sem_prod ts := (map sem_t ts).
+Record array' (s : positive) : Set := Build_array'
+  { arr_data : Mz.t (ssralg.GRing.ComRing.sort u8) }.
+*)
 
-About lprod.
-Print lprod.
+Definition sem_prod (ts: list stype) := @map stype Type sem_t ts.
+
 Print map.
 
-Print WArray.array.
-
 (*
+Print WArray.array.
+Print Eq1.
 Definition sem_ot (t:stype) : Type :=
   if t is sbool then option bool
   else sem_t t.
