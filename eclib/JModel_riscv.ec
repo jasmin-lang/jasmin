@@ -29,8 +29,8 @@ abbrev [-printing] SLLI = SLL.
 abbrev [-printing] SRL = W32.(`>>`).
 abbrev [-printing] SRLI = SRL.
 
-abbrev [-printing] SAR = W32.(`|>>`).
-abbrev [-printing] SARI = SAR.
+abbrev [-printing] SRA = W32.(`|>>`).
+abbrev [-printing] SRAI = SRA.
 
 abbrev [-printing] MV (x : W32.t) = x.
 
