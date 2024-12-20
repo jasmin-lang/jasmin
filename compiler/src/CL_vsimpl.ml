@@ -246,6 +246,28 @@ module GhostVector = struct
         fs @ acc1, ispre @ acc2, ispost @ acc3)
       ([],[],[]) formals
 
+    let unfold_clauses node formals =
+      match node with
+      | {iname = "assert"; iargs = [Pred (ep, rp)]} ->
+        let ep' = unfold_vghosts_epred formals ep in
+        let rp' = unfold_vghosts_rpred formals rp in
+        {iname = "assert"; iargs = [Pred (ep',rp')]}
+      | {iname = "assume"; iargs = [Pred (ep, rp)]} ->
+        let ep' = unfold_vghosts_epred formals ep in
+        let rp' = unfold_vghosts_rpred formals rp in
+        {iname = "assume"; iargs = [Pred (ep',rp')]}
+      | {iname = "cut"; iargs = [Pred (ep, rp)]} ->
+        let ep' = unfold_vghosts_epred formals ep in
+        let rp' = unfold_vghosts_rpred formals rp in
+        {iname = "cut"; iargs = [Pred (ep',rp')]}
+      | _ -> node
+
+    let rec unfold_cfg_clauses cfg formals =
+      match cfg with
+      | h::t ->
+        [unfold_clauses h formals] @ (unfold_cfg_clauses t formals)
+      | [] -> []
+
 (* CHECK ME: CL doesn't support vector/arrays as arguments it seems; see preliminary.cl *)
 (*
   let unfold_vectors_list formals ret_vars =
@@ -532,7 +554,7 @@ module SimplVector = struct
       | _ -> h :: remove_nops t
       end
 
-  let rec simpl_cfg cfg ret_vars =
+  let simpl_cfg cfg ret_vars =
     sr_lvals cfg;
     let nI = getPrevI cfg in
     match nI with
