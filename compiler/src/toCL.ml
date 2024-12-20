@@ -1619,6 +1619,30 @@ module X86BaseOpS : BaseOp
           i @ [CL.Instr.cast (CL.Sint (int_of_ws ws1)) l a]
       end
 
+    | VMOVDQU ws ->
+      let a,i = cast_atome ws (List.nth es 0) in
+      let l = I.glval_to_lval (List.nth xs 0) in
+      i @ [CL.Instr.Op1.mov l a]
+
+    | VPADD (ve,ws) ->
+      begin
+        let l = ["smt", `Smt ; "default", `Default] in
+        let trans = trans annot l in
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i3 = cast_atome_vector ws v !l_tmp l in
+        match trans with
+          | `Smt ->
+            i1 @ i2 @ [CL.Instr.Op2.add l_tmp a1 a2] @ i3
+          | `Default ->
+            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,1) (CoreIdent.tu (I.wsize_of_int v)) in
+            i1 @ i2 @ [CL.Instr.Op2_2.adds l_tmp1 l_tmp a1 a2] @ i3 (* TODO: add assertions for carry bit *)
+      end
+
     | VPSUB (ve,ws) ->
       begin
         let l = ["smt", `Smt ; "default", `Default] in
@@ -1644,14 +1668,9 @@ module X86BaseOpS : BaseOp
       let v = int_of_velem v in
       let s = int_of_ws ws in
       let l0_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l1_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let (_, l1_ty) = I.get_lval l1_tmp in
       let l = I.glval_to_lval (List.nth xs 0) in
-      let i3 = cast_atome_vector ws v !l1_tmp l in
-      i1 @ i2 @ [
-        CL.Instr.Op2.smul l0_tmp a1 a2;
-        CL.Instr.cast l1_ty l1_tmp !l0_tmp;
-      ] @ i3
+      let i3 = cast_atome_vector ws v !l0_tmp l in
+      i1 @ i2 @ [CL.Instr.Op2.smul l0_tmp a1 a2 ] @ i3
 
     | VPMULH ws ->
       let a1,i1 = cast_vector_atome ws VE16 (List.nth es 0) in
