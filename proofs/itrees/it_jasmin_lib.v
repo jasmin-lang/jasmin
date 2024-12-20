@@ -59,6 +59,7 @@ From ITree Require Import Rutt RuttFacts.
 
 From ITree Require Import EqAxiom.
 
+(* From Jasmin Require Import it_exec. *)
 From Jasmin Require Import expr psem_defs psem oseq.
 
 Import Monads.
@@ -70,44 +71,6 @@ Obligation Tactic := done || idtac.
 
 (* This files contains itrees general lemmas that depend on Jasmin
 files *)
-
-Section ExecT.
-
-  Context {m : Type -> Type} {Fm: Functor.Functor m} {Mm : Monad m}
-    {MIm : MonadIter m}.
-
-  Definition execT (m : Type -> Type) (a : Type) : Type :=
-    m (exec a)%type.
-
-  Global Instance execT_fun : Functor.Functor (execT m) :=
-    {| Functor.fmap :=
-        fun X Y (f: X -> Y) => 
-          Functor.fmap (fun x =>
-                          match x with
-                          | Error e => Error e
-                          | Ok x => @Ok error Y (f x) end) |}.
-
-  Global Instance execT_monad : Monad (execT m) :=
-    {| ret := fun _ x => ret (ok x);
-       bind := fun _ _ c k =>
-                 bind (m := m) c 
-                   (fun x => match x with
-                             | Error e => ret (Error e)
-                             | Ok x => k x end)
-    |}.
-
-  Global Instance execT_iter  : MonadIter (execT m) :=
-    fun A I body i => Basics.iter (M := m) (I := I) (R := exec A) 
-      (fun i => bind (m := m)
-               (body i)
-               (fun x => match x with
-                         | Error e       => ret (inr (Error e))
-                         | Ok (inl j) => ret (inl j)
-                         | Ok (inr a) => ret (inr (ok a))
-                         end)) i.
-
-End ExecT.
-
 
 Section Lang.
 Context (asm_op: Type) (asmop: asmOp asm_op).

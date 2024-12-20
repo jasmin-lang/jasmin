@@ -210,6 +210,13 @@ Lemma ErrState_rutt_test1 (x: var_i) (z: Z) (k: unit -> itree InstrE unit) :
   inv t1.
 Qed.  
 
+Lemma ErrState_rutt_test2 (x: var_i) (z: Z) :
+      @rutt ErrState InstrE unit unit REv_sk RAns_sk eq
+                (throw ErrType) (Ret tt).
+  eapply rutt_inv_Tau_r.
+  (* here we would need a match or throw with tau *)
+  Abort.
+  
 End Err_test.
 
 
@@ -980,6 +987,8 @@ Program Definition VR_D_DE {T1 T2} (d1 : callE FVS VS T1) (t1: T1)
   exact (RVS t1 t2).
 Defined.
 
+(* not tried yet - but basically, as with double recursion, it
+requires two inductive proofs *)
 Lemma comp_gen_ok_DE (fn: funname) (vs1 vs2: values) (st1 st2: estate) :
   RV vs1 vs2 ->
   RS st1 st2 ->
