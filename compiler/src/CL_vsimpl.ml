@@ -400,6 +400,16 @@ module SimplVector = struct
         Some (vh', tyh')
       else
         aux (v, ty) n
+    | {iname = "mul"; iargs = [Lval (Llvar (v', ty')); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+      if v == v' &&  (is_equiv_type  ty' ty'' || is_equiv_type ty' ty''') then
+        Some (v', ty')
+      else
+        aux (v, ty) n
+    | {iname = "smul"; iargs = [Lval (Llvar (v', ty')); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
+      if v == v' &&  (is_equiv_type  ty' ty'' || is_equiv_type ty' ty''') then
+        Some (v', ty')
+      else
+        aux (v, ty) n
     | {iname = "subb"; iargs = [_; Lval (Llvar (v',ty')); Atom (Avar (_, ty'')); Atom (Avar (_, ty'''))]} ->
         if v == v' &&  (is_equiv_type  ty' ty'' || is_equiv_type ty' ty''') then
           Some (v', ty')
@@ -417,6 +427,11 @@ module SimplVector = struct
         Some (vl', tyl')
       else if v == vh' && is_equiv_type tyh' ty'' then
         Some (vh', tyh')
+      else
+        aux (v, ty) n
+    | {iname = "sar"; iargs = [Lval (Llvar (v', ty')); Atom (Avar (_, ty'')); _]} ->
+      if v == v' && is_equiv_type ty' ty'' then
+        Some (v', ty')
       else
         aux (v, ty) n
     | _ -> aux (v, ty) n (* Keep searching *)
@@ -454,6 +469,12 @@ module SimplVector = struct
       | {iname = "mull"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
         aux (v, Vector (i, ty)) 2;
         aux (v', Vector (i', ty')) 3;
+      | {iname = "mul"; iargs = [_; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
+          aux (v, Vector (i, ty)) 1;
+          aux (v', Vector (i', ty')) 2;
+      | {iname = "smul"; iargs = [_; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} -> 
+          aux (v, Vector (i, ty)) 1;
+          aux (v', Vector (i', ty')) 2;
       | {iname = "sub"; iargs = [_; Atom (Avar (v, Vector (i, ty))); Atom (Avar (v', Vector (i', ty')))]} ->
           aux (v, Vector (i, ty)) 1;
           aux (v', Vector (i', ty')) 2;
@@ -468,6 +489,8 @@ module SimplVector = struct
         aux (v, Vector (i, ty)) 2;
       | {iname = "split"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
           aux (v, Vector (i, ty)) 2;
+      | {iname = "sar"; iargs = [_; Atom (Avar (v, Vector (i, ty)));_ ]} ->
+        aux (v, Vector (i, ty)) 1;
       | {iname = "mov"; iargs = [_; Atom (Avar (v, Vector (i,ty)))]} ->
         aux (v, Vector (i, ty)) 1;
       | _ -> ()
@@ -519,8 +542,11 @@ module SimplVector = struct
         | {iname = "sub"; iargs = [_; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
         | {iname = "mull"; iargs = [_; _; Atom (Avar tv'); Atom (Avar tv'')]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
         | {iname = "mull"; iargs = [_; _; Atom (Avecta (tv', _)); Atom (Avecta (tv'', _))]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
+        | {iname = "mul"; iargs = [_; Atom (Avar tv'); Atom (Avar tv'')]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
+        | {iname = "smul"; iargs = [_; Atom (Avar tv'); Atom (Avar tv'')]} -> not(is_eq_tyvar tv tv') && not(is_eq_tyvar tv tv'') && (aux tv n)
         | {iname = "ssplit"; iargs = [_; _; Atom (Avar tv'); _]} -> not(is_eq_tyvar tv tv') && (aux tv n)
         | {iname = "split"; iargs = [_; _; Atom (Avar tv'); _]} -> not(is_eq_tyvar tv tv') && (aux tv n)
+        | {iname = "sar"; iargs = [_; Atom (Avar tv')]} -> not(is_eq_tyvar tv tv') && (aux tv n)
         | _ -> aux tv n
       end
 
