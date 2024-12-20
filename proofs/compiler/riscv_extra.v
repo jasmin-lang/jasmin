@@ -122,11 +122,11 @@ Definition assemble_extra
       | [:: LLvar x; LLvar y], [:: Rexpr (Fvar z); Rexpr (Fvar w)] =>
         (* x, y = swap(z, w) *)
         Let _ := assert (v_var x != v_var w)
-          (E.internal_error ii "bad risc-v swap : x = w") in
+          (E.internal_error ii "bad RISC-V swap : x = w") in
         Let _ := assert (v_var y != v_var x)
-          (E.internal_error ii "bad risc-v swap : y = x") in
+          (E.internal_error ii "bad RISC-V swap : y = x") in
         Let _ := assert (all (fun (x:var_i) => vtype x == sword U32) [:: x; y; z; w])
-          (E.error ii "risc-v swap only valid for register of type u32") in
+          (E.error ii "RISC-V swap only valid for register of type u32") in
 
         ok [:: ((None, XOR), [:: LLvar x], [:: Rexpr (Fvar z); Rexpr (Fvar w)]);
                (* x = z ^ w *)
@@ -134,10 +134,10 @@ Definition assemble_extra
                (* y = x ^ w = z ^ w ^ w = z *)
                ((None, XOR), [:: LLvar x], [:: Rexpr (Fvar x); Rexpr (Fvar y)])
            ]   (* x = x ^ y = z ^ w ^ z = w *)
-      | _, _ => Error (E.error ii "only register is accepted on source and destination of the swap instruction on risc-v")
+      | _, _ => Error (E.error ii "only register is accepted on source and destination of the swap instruction on RISC-V")
       end
     else
-      Error (E.error ii "risc-v swap only valid for register of type u32")
+      Error (E.error ii "RISC-V swap only valid for register of type u32")
   | Oriscv_add_large_imm =>
     match outx, inx with
     | [:: LLvar x], [:: Rexpr (Fvar y); Rexpr (Fapp1 (Oword_of_int ws) (Fconst imm))] =>
