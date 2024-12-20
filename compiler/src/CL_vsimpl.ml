@@ -440,6 +440,13 @@ module SimplVector = struct
         Some (v', ty')
       else
         aux (v, ty) n
+    | {iname = "sars"; iargs = [Lval (Llvar (vh', tyh')); Lval (Llvar (vl', tyl')); Atom (Avar (_, ty'')); _]} ->
+      if v == vl' && is_equiv_type tyl' ty'' then
+        Some (vl', tyl')
+      else if v == vh' && is_equiv_type tyh' ty'' then
+        Some (vh', tyh')
+      else
+        aux (v, ty) n
     | _ -> aux (v, ty) n (* Keep searching *)
 
     let sr_lval node pred = (* Search for the source of the argument in lval of another instruction *)
@@ -497,6 +504,8 @@ module SimplVector = struct
           aux (v, Vector (i, ty)) 2;
       | {iname = "sar"; iargs = [_; Atom (Avar (v, Vector (i, ty)));_ ]} ->
         aux (v, Vector (i, ty)) 1;
+      | {iname = "sars"; iargs = [_; _; Atom (Avar (v, Vector (i, ty))); _]} ->
+        aux (v, Vector (i, ty)) 2;
       | {iname = "mov"; iargs = [_; Atom (Avar (v, Vector (i,ty)))]} ->
         aux (v, Vector (i, ty)) 1;
       | _ -> ()
@@ -553,6 +562,7 @@ module SimplVector = struct
         | {iname = "ssplit"; iargs = [_; _; Atom (Avar tv'); _]} -> not(is_eq_tyvar tv tv') && (aux tv n)
         | {iname = "split"; iargs = [_; _; Atom (Avar tv'); _]} -> not(is_eq_tyvar tv tv') && (aux tv n)
         | {iname = "sar"; iargs = [_; Atom (Avar tv')]} -> not(is_eq_tyvar tv tv') && (aux tv n)
+        | {iname = "sars"; iargs = [_; _; Atom (Avar tv'); _]} -> not(is_eq_tyvar tv tv') && (aux tv n)
         | _ -> aux tv n
       end
 

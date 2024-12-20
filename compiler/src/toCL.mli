@@ -73,6 +73,7 @@ module CL : sig
       | Atom of atom
       | Lval of lval
       | Const of const
+      | Lconst of const list
       | Ty    of ty
       | Pred of clause
       | Gval of gvar

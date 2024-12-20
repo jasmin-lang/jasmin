@@ -29,6 +29,8 @@ module CL = struct
 
   let pp_const fmt c = Format.fprintf fmt "(%s)" (Z.to_string c)
 
+  let pp_lconst fmt cl = Format.fprintf fmt "[%a]" (pp_list ", " pp_const) cl
+
   type var = Prog.var
 
   let pp_var fmt x =
@@ -234,6 +236,7 @@ module CL = struct
       | Atom of atom
       | Lval of lval
       | Const of const
+      | Lconst of const list
       | Ty    of ty
       | Pred of clause
       | Gval of gvar
@@ -245,6 +248,7 @@ module CL = struct
       | Atom a  -> pp_atom fmt a
       | Lval lv -> pp_lval fmt lv
       | Const c -> pp_const fmt c
+      | Lconst cl -> pp_lconst fmt cl
       | Ty ty   -> pp_ty fmt ty
       | Pred cl -> pp_clause fmt cl
       | Gval x  -> pp_gvar fmt x
@@ -334,6 +338,9 @@ module CL = struct
       let shr  = shift "shr"
       let sar  = shift "sar"
 
+      let vsar (d : lval) (s : atom) (c : const list) =
+        { iname = "sar"; iargs = [Lval d; Atom s; Lconst c]}
+
     end
 
     module Cshift = struct
@@ -357,6 +364,9 @@ module CL = struct
       let spl = shifts "spl"
       let split = shifts "split"
       let ssplit = shifts "ssplit"
+
+      let vsars (d1 : lval) (d2 : lval) (s : atom) (c : const list) =
+        { iname = "sars"; iargs = [Lval d1; Lval d2; Atom s; Lconst c]}
 
     end
 
@@ -1659,7 +1669,10 @@ module X86BaseOpS : BaseOp
         let l = ["smt", `Smt ; "default", `Default] in
         let trans = trans annot l in
         let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let rec repeat acc n x =
+          if n == 0 then acc else repeat (x :: acc) (n - 1) x in
         let (c, _) = I.gexp_to_const(List.nth es 1) in
+        let ac = repeat [] 16 c in
         let v = int_of_velem ve in
         let s = int_of_ws ws in
         let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
@@ -1668,9 +1681,9 @@ module X86BaseOpS : BaseOp
         match trans with
         | `Default ->
             let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-            i1 @ [CL.Instr.Shifts.sars l_tmp l_tmp1 a1 c] @ i2
+            i1 @ [CL.Instr.Shifts.vsars l_tmp l_tmp1 a1 ac] @ i2
         | `Smt ->
-          i1 @ [CL.Instr.Shift.sar l_tmp a1 c] @ i2
+          i1 @ [CL.Instr.Shift.vsar l_tmp a1 ac] @ i2
       end
 
     | _ ->
