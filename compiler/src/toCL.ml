@@ -1832,6 +1832,13 @@ module Mk(O:BaseOp) = struct
     let cas = to_cas env cas in
     (cas,smt)
 
+  let filter_add cond l1 l2 =
+    List.fold_left (
+        fun l a ->
+          if List.exists (cond a) l
+          then l else a :: l
+      ) l1 l2
+
   let pp_i env fds i =
     let trans = i.i_annot in
     match i.i_desc with
@@ -1839,8 +1846,8 @@ module Mk(O:BaseOp) = struct
       let cl = to_clause env [(p,e)] in
       begin
         match t with
-        | Expr.Assert -> [], [CL.Instr.assert_ cl]
-        | Expr.Assume -> [], [CL.Instr.assume cl]
+        | Expr.Assert -> [], [], [CL.Instr.assert_ cl]
+        | Expr.Assume -> [], [], [CL.Instr.assume cl]
         | Expr.Cut -> assert false
       end
     | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
@@ -1859,21 +1866,25 @@ module Mk(O:BaseOp) = struct
         in
       (* FIXME: How are we sure that the variables in r are fresh ? *)
       r , pre_cl @ post_cl
+      let formals = List.map O.I.var_to_tyvar fd.f_args in
+      let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
+      let formals = filter_add cond formals (List.map O.I.gexp_to_var params) in
+      r , formals , [CL.Instr.assert_ pre_cl] @  [CL.Instr.assume post_cl]
 
     | Cassgn (a, _, _, e) ->
       begin
         match a with
-        | Lvar x -> [], O.assgn_to_instr trans a e
+        | Lvar x -> [], [], O.assgn_to_instr trans a e
         | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
       end
-    | Copn(xs, _, o, es) -> [], pp_sopn i.i_loc.base_loc xs o es trans
+    | Copn(xs, _, o, es) -> [], [], pp_sopn i.i_loc.base_loc xs o es trans
 
   let pp_c env fds c =
     (* FIXME: this is really a bad complexity *)
-    List.fold_left (fun (acc1,acc2) a ->
-        let l1,l2 = pp_i env fds a in
-        acc1 @ l1, acc2 @ l2
-      ) ([],[]) c
+    List.fold_left (fun (acc1,acc2,acc3) a ->
+      let l1,l2,l3 = pp_i env fds a in
+      acc1 @ l1, acc2 @ l2, acc3 @ l3
+    ) ([],[],[]) c
 
   let filter_add cond l1 l2 =
     (* FIXME : use a set it will be more efficiant *)
@@ -1903,9 +1914,11 @@ module Mk(O:BaseOp) = struct
         let post = to_clause env post in
         pre, post in
     let lval,prog = pp_c env fds fd.f_body in
+    let lval,formals_args,prog = pp_c env fds fd.f_body in
     let formals_lval = List.map (fun x -> O.I.get_lval (O.I.glval_to_lval x)) lval in
     let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
     let formals = filter_add cond formals formals_lval in
+    let formals = filter_add cond formals formals_args in
     let ghost = ref [] in
     Hash.iter (fun _ x -> ghost := (O.I.get_lval x) :: ! ghost) env;
     let formals = filter_add cond formals !ghost in

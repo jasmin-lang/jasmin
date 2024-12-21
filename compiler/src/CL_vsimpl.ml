@@ -129,10 +129,8 @@ module GhostVector = struct
     | U16x16
 
   let get_vghost ghosts gname b =
-    try
-      let vghost = List.find (fun (v, _) -> v.v_name = gname) (if b then List.rev ghosts else ghosts) in (* FIXME: DIRTY HACK *)
-      vghost
-    with Not_found -> Printf.eprintf "Couldn't find %s\n" gname; raise Not_found
+    let vghost = List.find (fun (v, _) -> v.v_name = gname) (if b then List.rev ghosts else ghosts) in (* FIXME: DIRTY HACK *)
+    vghost
 
   let get_unfolded_vector_namei v i =
     String.concat "_" [v.v_name; "v" ; string_of_int i]
