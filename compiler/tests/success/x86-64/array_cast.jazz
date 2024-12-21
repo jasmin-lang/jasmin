@@ -1,0 +1,73 @@
+fn store(reg ptr u64[8] a) -> reg ptr u16[4*8] {
+  a[0] = 0;
+  a[u8 0] = 0;
+  a[u32 0] = 0;
+  a[u64 0] = 0;
+  a[u128 0] = 0;
+  a[u256 0] = 0;
+
+  a.[0] = 0;
+  a.[u8 0] = 0;
+  a.[u32 0] = 0;
+  a.[u64 0] = 0;
+  a.[u128 0] = 0;
+  a.[u256 0] = 0;
+
+  return a;
+
+}
+
+fn load(reg ptr u128[4] a) -> reg ptr u32[16] {
+  reg u8   x8;
+  reg u16  x16;
+  reg u32  x32;
+  reg u64  x64;
+  reg u128 x128;
+  reg u256 x256;
+
+  x8   = a[u8   0];
+  x16  = a[u16  0];
+  x32  = a[u32  0];
+  x64  = a[u64  0];
+  x128 = a[u128 0];
+  x256 = a[u256 0];
+
+  x8   = a.[u8   0];
+  x16  = a.[u16  0];
+  x32  = a.[u32  0];
+  x64  = a.[u64  0];
+  x128 = a.[u128 0];
+  x256 = a.[u256 0];
+
+  return a;
+}
+
+fn sub(reg ptr u256[2*4] a) -> reg ptr u256[2*4] {
+  inline int i;
+  for i = 0 to 4 {
+    a[i:2] = store(a[i:2]);
+    a[u8   i * 2 * 32 : 2 * 32] = store(a[u128 i * 2 * 2  : 2 * 2 ]);
+    a[u16  i * 2 * 16 : 2 * 16] = store(a[u256 i * 2 * 1  : 2 * 1 ]);
+    a[u32  i * 2 * 8  : 2 * 8 ] = store(a[u8   i * 2 * 32 : 2 * 32]);
+    a[u64  i * 2 * 4  : 2 * 4 ] = store(a[u16  i * 2 * 16 : 2 * 16]);
+    a[u128 i * 2 * 2  : 2 * 2 ] = store(a[u32  i * 2 * 8  : 2 * 8 ]);
+    a[u256 i * 2 * 1  : 2 * 1 ] = store(a[u64  i * 2 * 4  : 2 * 4 ]);
+
+    a.[i:2] = store(a[i:2]);
+    a.[u8   i * 2 * 32 : 2 * 32] = store(a.[u128 i * 2 * 2  : 2 * 2 ]);
+    a.[u16  i * 2 * 16 : 2 * 16] = store(a.[u256 i * 2 * 1  : 2 * 1 ]);
+    a.[u32  i * 2 * 8  : 2 * 8 ] = store(a.[u8   i * 2 * 32 : 2 * 32]);
+    a.[u64  i * 2 * 4  : 2 * 4 ] = store(a.[u16  i * 2 * 16 : 2 * 16]);
+    a.[u128 i * 2 * 2  : 2 * 2 ] = store(a.[u32  i * 2 * 8  : 2 * 8 ]);
+    a.[u256 i * 2 * 1  : 2 * 1 ] = store(a.[u64  i * 2 * 4  : 2 * 4 ]);
+  }
+  return a;
+}
+
+
+fn g(reg ptr u8[8*8] a) -> reg ptr u8[8*8] {
+  a = store(a);
+  a = load(a);
+  return a;
+}
+

@@ -1,6 +1,7 @@
 type amodel =
   | ArrayOld
-  | ArrayEclib
+  | WArray
+  | BArray
 
 val ty_expr : Prog.expr -> Prog.ty
 val ty_lval : Prog.lval -> Prog.ty

@@ -71,7 +71,7 @@ abstract theory MonoArray.
   lemma set_out (i : int) (e : elem) (t : t):
     ! (0 <= i < size) => t.[i <- e] = t.
   proof.
-    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.  
+    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.
   qed.
 
   lemma set_neg (i : int) (e : elem) (t : t):
@@ -219,7 +219,7 @@ abstract theory MonoArray.
   proof.
     rewrite to_listE map2E map2_zip init_of_list /=;congr.
     apply (eq_from_nth dfl).
-    + rewrite !size_map size_zip !size_map StdOrder.IntOrder.minrE /=. 
+    + rewrite !size_map size_zip !size_map StdOrder.IntOrder.minrE /=.
       smt (size_iota ge0_size).
     move=> i; rewrite size_map => hi.
     rewrite (nth_map 0) 1:// (nth_map (dfl,dfl)).
@@ -258,15 +258,29 @@ abstract theory MonoArray.
 
   hint simplify filliE.
 
+  lemma filliEs (f : int -> elem) (k len:int) (t : t)  i :
+      (fill f k len t).[i] = if k <= i < k + len /\ 0 <= i < size then f i else t.[i].
+  proof. by case: (0 <= i < size) => hi;[rewrite filliE | rewrite !get_out]. qed.
+
   (* -------------------------------------------------------------------- *)
   op sub (t: t) k len = mkseq (fun (i:int) => t.[k+i]) len.
 
+  lemma size_sub_ t k len : size (sub t k len) = max 0 len.
+  proof. by rewrite size_mkseq. qed.
+
   lemma size_sub t k len : 0 <= len => size (sub t k len) = len.
-  proof. move=> hl; rewrite size_mkseq /max /#. qed.
+  proof. move=> hl; rewrite size_sub_ /#. qed.
 
   lemma nth_sub (t : t) k len i : 0 <= i < len =>
     nth dfl (sub t k len) i = t.[k + i].
   proof. by move=> h0i; rewrite nth_mkseq. qed.
+
+  lemma nth_subs (t : t) k len i :
+    nth dfl (sub t k len) i = if 0 <= i < len then t.[k + i] else dfl.
+  proof.
+    case: (0 <= i < len) => ?; [rewrite nth_sub | rewrite nth_out] => //.
+    rewrite size_sub_ /#.
+  qed.
 
 end MonoArray.
 
@@ -329,7 +343,7 @@ abstract theory PolyArray.
   lemma set_out (i : int) (e : 'a) (t : 'a t):
     ! (0 <= i < size) => t.[i <- e] = t.
   proof.
-    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.  
+    by move=> hi; apply ext_eq => j hj; rewrite get_set_if hi.
   qed.
 
   lemma set_neg (i : int) (e : 'a) (t : 'a t):
@@ -373,7 +387,7 @@ abstract theory PolyArray.
     init f.
   proof.
     apply ext_eq=> x hx; rewrite initiE 1://.
-    have h : forall sz, sz <= size => 0 <= x < sz => 
+    have h : forall sz, sz <= size => 0 <= x < sz =>
       (foldl (fun (a : 'a t) (i : int) => a.[i <- f i]) t (iota_ 0 sz)).[x] = f x; last by apply (h size).
     elim /natind; 1: smt().
     by move=> {hx} sz hsz0 ih hsize hx; rewrite iotaSr 1:// -cats1 foldl_cat /=; smt (get_setE).
