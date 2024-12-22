@@ -1,5 +1,5 @@
-Require Import ZArith.
-Require Export String.
+From Coq Require Import ZArith.
+From Coq Require Export String.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice.
 Require Import utils gen_map.

@@ -1,7 +1,7 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
-
-Require Import ZArith utils.
+From Coq Require Import ZArith.
+Require Import utils.
 
  Variant shift_kind :=
  | SLSL

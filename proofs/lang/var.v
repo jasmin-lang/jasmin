@@ -1,9 +1,9 @@
 (* ** Imports and settings *)
-Require Import Setoid Morphisms.
+From Coq Require Import Setoid Morphisms.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import strings utils gen_map type ident tagged.
-Require Import Utf8.
+From Coq Require Import Utf8.
 
 (* ------------------------------------------------------------------------- *)
 

@@ -1,7 +1,7 @@
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
-Require Export ZArith Setoid Morphisms.
+From Coq Require Export ZArith Setoid Morphisms.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
@@ -423,7 +423,7 @@ Module WArray.
         if (0 <=? k) && (k <? len) then ok (nth 0%R l (Z.to_nat k))
         else Error ErrOob.
   Proof.
-    rewrite /fill; t_xrbindP=> /eqP hsize -[z {a}a] /= hfold <- k.
+    rewrite /fill; t_xrbindP=> /eqP hsize -[z {}a] /= hfold <- k.
     have: forall z0 a0,
       foldM (fun w pt => Let t := set pt.2 Aligned AAscale pt.1 w in ok (pt.1 + 1, t)) (z0, a0) l = ok (z, a) ->
       read a Aligned k U8 =

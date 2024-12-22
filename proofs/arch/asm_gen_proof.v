@@ -367,7 +367,7 @@ Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
 Proof.
   move=> eqm /check_sopn_argP /= h.
   case: h vt.
-  + move=> i {ty} ty /is_implicitP[] vi -> vt /=.
+  + move=> i {}ty /is_implicitP[] vi -> vt /=.
     case: i => /= [f | r]; first by apply: var_of_flagP eqm.
     by apply: var_of_regP eqm.
   move=> k n o a a' [ | | | ws] //= ->.
@@ -808,7 +808,7 @@ Lemma check_not_mem_i_args_kinds_subseq cond1 cond2 d :
   check_not_mem_i_args_kinds cond1 d.
 Proof.
   elim/list_all2_ind {cond1 cond2} => // c1 cond1 c2 cond2 hall2 _ ih /=.
-  move=> /andP [hcheck /ih{ih}ih].
+  move=> /andP [hcheck /ih{}ih].
   apply /andP; split=> //.
   by apply: check_not_mem_args_kinds_subseq hcheck.
 Qed.
@@ -878,7 +878,7 @@ Lemma check_arg_kinds_not_Addr a cond' :
 Proof.
   elim: cond' => //= c cond' ih /orP [].
   + by move=> /check_arg_kind_not_Addr h /andP [/h ? _].
-  by move=> /ih{ih}ih /andP [_ /ih].
+  by move=> /ih{}ih /andP [_ /ih].
 Qed.
 
 Lemma check_args_kinds_subseq cond1 cond2 args :
@@ -887,7 +887,7 @@ Lemma check_args_kinds_subseq cond1 cond2 args :
   check_args_kinds args cond2.
 Proof.
   elim: cond1 cond2 args; first by case.
-  move=> c1 cond1 ih [//|c2 cond2] [//|a args] /= /andP [hsub /ih{ih}ih] /andP [hcheck /ih{ih}ih].
+  move=> c1 cond1 ih [//|c2 cond2] [//|a args] /= /andP [hsub /ih{}ih] /andP [hcheck /ih{}ih].
   apply /andP; split =>//.
   by apply (check_arg_kinds_subseq hsub).
 Qed.
@@ -943,7 +943,7 @@ Lemma check_i_args_kinds_not_addr cond' args ds :
   check_not_addr ds args.
 Proof.
   move=> hcheck.
-  elim: ds => //= d ds ih /andP [hnmem /ih{ih}ih].
+  elim: ds => //= d ds ih /andP [hnmem /ih{}ih].
   apply /andP; split=> //.
   by apply (check_i_args_kinds_not_addr1 hcheck hnmem).
 Qed.
@@ -1761,7 +1761,7 @@ Proof.
       rewrite /st_update_next /=.
       have : write_var true xlr (Vword ptr) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := vm |}.
       + by rewrite /write_var /= hset.
-      have {heqlr} heqlr := of_varI heqlr.
+      have {}heqlr := of_varI heqlr.
       by move=> /(lom_eqv_write_var MSB_CLEAR hloeq) -/(_ _ heqlr).
     move=> [?]; subst aci.
     rewrite /linear_sem.eval_instr => /=; t_xrbindP=> wsp vsp hsp htow_sp l hgetpc.
