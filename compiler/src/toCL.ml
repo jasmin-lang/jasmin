@@ -885,18 +885,20 @@ module X86BaseOpU : BaseOp
       i @ [CL.Instr.Op1.mov l a]
 
     | CMOVcc ws -> (* warning, does not work with ! cf *)
-      let a2, i2 = cast_atome ws (List.nth es 1) in
-      let a3, i3 = cast_atome ws (List.nth es 2) in
-      let x1 = I.glval_to_lval (List.nth xs 0) in
-      begin match (List.nth es 0) with
-      | Pvar _ as cc->
-        let cc = I.gexp_to_var cc in
-        i2 @ [CL.Instr.Op2_2.cmov x1 cc a2 a3]
-      | Papp1(Onot, (Pvar _ as cc)) ->
-        let cc = I.gexp_to_var cc in
-        i2 @ [CL.Instr.Op2_2.cmov x1 cc a3 a2]
-      | _ -> assert false
-      end
+        let a2, i2 = cast_atome ws (List.nth es 1) in
+        let a3, i3 = cast_atome ws (List.nth es 2) in
+        let x1 = I.glval_to_lval (List.nth xs 0) in
+        begin match (List.nth es 0) with
+        | Pvar _ as cc->
+          let cc = I.gexp_to_var cc in
+          let lcc = CL.Instr.Llvar cc in
+          i2 @ [CL.Instr.Op2_2.cmov x1 lcc a2 a3]
+        | Papp1(Onot, (Pvar _ as cc)) ->
+          let cc = I.gexp_to_var cc in
+          let lcc = CL.Instr.Llvar cc in
+          i2 @ [CL.Instr.Op2_2.cmov x1 lcc a3 a2]
+        | _ -> assert false
+        end
 
     | ADD ws ->
       begin
@@ -934,9 +936,10 @@ module X86BaseOpU : BaseOp
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l1 = I.glval_to_lval (List.nth xs 5) in
       let l = I.mk_spe_tmp_lval 64 in
+      let l_ty = I.get_lval l in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l l1 a1 a2;
-               CL.Instr.assert_ ([], [RPcmp(Rvar l, "=", (Rconst(64, Z.of_int 0)))]);
-               CL.Instr.assume ([Eeq(Ivar l, Iconst Z.zero)] ,[]);
+               CL.Instr.assert_ ([], [RPcmp(Rvar l_ty, "=", (Rconst(64, Z.of_int 0)))]);
+               CL.Instr.assume ([Eeq(Ivar l_ty, Iconst Z.zero)] ,[]);
        ]
 
     | MUL ws ->
