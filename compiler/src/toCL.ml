@@ -1330,7 +1330,7 @@ module X86BaseOpU : BaseOp
                 CL.Instr.cast l2_ty l4_tmp !l2_tmp] @ i2
       end
 
-    | VPBROADCAST (ve, ws) ->
+    | VPBROADCAST (ve, ws) -> (* FIXME *)
       begin
         let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
         let v = int_of_velem ve in
@@ -1627,6 +1627,17 @@ module X86BaseOpS : BaseOp
       let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.mov l a]
 
+    | VPBROADCAST (ve, ws) -> (* FIXME *)
+      begin
+        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let v = int_of_velem ve in
+        let s = int_of_ws ws in
+        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l = I.glval_to_lval (List.nth xs 0) in
+        let i2 = cast_atome_vector ws v !l_tmp l in
+        i1 @ [CL.Instr.Op1.mov l_tmp a1] @ i2
+      end
+
     | VPADD (ve,ws) ->
       begin
         let l = ["smt", `Smt ; "default", `Default] in
@@ -1877,7 +1888,7 @@ module Mk(O:BaseOp) = struct
     | Cassgn (a, _, _, e) ->
       begin
         match a with
-        | Lvar x -> [], [], O.assgn_to_instr trans a e
+        | Lvar x -> [a], [], O.assgn_to_instr trans a e
         | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
       end
     | Copn(xs, _, o, es) -> [], [], pp_sopn i.i_loc.base_loc xs o es trans
