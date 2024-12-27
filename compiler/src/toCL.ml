@@ -20,6 +20,7 @@ open Utils
 open Prog
 open Glob_options
 open Utils
+open Wsize
 
 let unsharp = String.map (fun c -> if c = '#' then '_' else c)
 
@@ -854,7 +855,7 @@ module X86BaseOpU : BaseOp
     let v = int_of_velem v in
     let s = int_of_ws ws in
     let l_tmp = I.mk_tmp_lval ~vector:(1,s) (CoreIdent.tu ws) in
-    let l_tmp2 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+    let l_tmp2 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
     let l_tmp2v = I.get_lval l_tmp2 in
     let ty = CL.(Vector (v, Uint (s/v))) in
     CL.Instr.Avar l_tmp2v,
@@ -1229,7 +1230,7 @@ module X86BaseOpU : BaseOp
       let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
       let v = int_of_velem ve in
       let s = int_of_ws ws in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
       match trans with
@@ -1250,7 +1251,7 @@ module X86BaseOpU : BaseOp
       let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
       let s = int_of_ws ws in
       let v = s / 16 in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
           i1 @ i2 @ [CL.Instr.Op2.and_ l_tmp a1 a2] @ i3
@@ -1263,7 +1264,7 @@ module X86BaseOpU : BaseOp
       let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
       let v = int_of_velem ve in
       let s = int_of_ws ws in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
       match trans with
@@ -1279,8 +1280,8 @@ module X86BaseOpU : BaseOp
         let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
         let v = int_of_velem v in
         let s = int_of_ws ws in
-        let l0_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-        let l1_tmp = I.mk_tmp_lval ~sign:true ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l0_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+        let l1_tmp = I.mk_tmp_lval ~sign:true ~vector:(s/v,v) (CoreIdent.tu ws) in
         let (_, l1_ty) = I.get_lval l1_tmp in
         let l = I.glval_to_lval (List.nth xs 0) in
         let i3 = cast_atome_vector ws v !l1_tmp l in
@@ -1295,10 +1296,10 @@ module X86BaseOpU : BaseOp
         let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
         let s = int_of_ws ws in
         let v = s / 16 in
-        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
         let l = I.glval_to_lval (List.nth xs 0) in
         let i3 = cast_atome_vector ws v !l_tmp l in
-        let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l_tmp1 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
         i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
 
     | VPSRA (ve, ws) ->
@@ -1311,18 +1312,18 @@ module X86BaseOpU : BaseOp
         let s = int_of_ws ws in
         match trans with
         | `Default ->
-            let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+            let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
             let l = I.glval_to_lval (List.nth xs 0) in
             let i3 = cast_atome_vector ws v !l_tmp l in
-            let l_tmp1 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+            let l_tmp1 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
             i1 @ [CL.Instr.Shifts.split l_tmp l_tmp1 a1 c] @ i3
         | `Smt ->
-          let l1_tmp = I.mk_tmp_lval ~sign:true ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let l1_tmp = I.mk_tmp_lval ~sign:true ~vector:(s/v,v) (CoreIdent.tu ws) in
           let (_, l1_ty) = I.get_lval l1_tmp in
-          let l2_tmp = I.mk_tmp_lval ~sign:true ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let l2_tmp = I.mk_tmp_lval ~sign:true ~vector:(s/v,v) (CoreIdent.tu ws) in
           let (_, l2_ty) = I.get_lval l2_tmp in
-          let l3_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-          let l4_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+          let l3_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+          let l4_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
           let l = I.glval_to_lval (List.nth xs 0) in
           let i2 = cast_atome_vector ws v !l4_tmp l in
           i1 @ [CL.Instr.cast l1_ty l1_tmp a1;
@@ -1330,15 +1331,18 @@ module X86BaseOpU : BaseOp
                 CL.Instr.cast l2_ty l4_tmp !l2_tmp] @ i2
       end
 
-    | VPBROADCAST (ve, ws) -> (* FIXME *)
+    | VPBROADCAST (ve, ws) ->
       begin
-        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let a1,i1 = cast_atome (wsize_of_velem ve) (List.nth es 0) in
         let v = int_of_velem ve in
         let s = int_of_ws ws in
-        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let rec repeat acc n x =
+          if n == 0 then acc else repeat (x :: acc) (n - 1) x in
+        let ac = CL.Instr.Avatome (repeat [] (s/v) a1) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
         let l = I.glval_to_lval (List.nth xs 0) in
         let i2 = cast_atome_vector ws v !l_tmp l in
-        i1 @ [CL.Instr.Op1.mov l_tmp a1] @ i2
+        i1 @ [CL.Instr.Op1.mov l_tmp ac] @ i2
       end
 
     | _ ->
@@ -1421,7 +1425,7 @@ module X86BaseOpS : BaseOp
     let v = int_of_velem v in
     let s = int_of_ws ws in
     let l_tmp = I.mk_tmp_lval ~vector:(1,s) (CoreIdent.tu ws) in
-    let l_tmp2 = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+    let l_tmp2 = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
     let l_tmp2v = I.get_lval l_tmp2 in
     let ty = CL.(Vector (v, Sint (s/v))) in
     CL.Instr.Avar l_tmp2v,
@@ -1627,15 +1631,18 @@ module X86BaseOpS : BaseOp
       let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.mov l a]
 
-    | VPBROADCAST (ve, ws) -> (* FIXME *)
+    | VPBROADCAST (ve, ws) ->
       begin
-        let a1,i1 = cast_vector_atome ws ve (List.nth es 0) in
+        let a1,i1 = cast_atome (wsize_of_velem ve) (List.nth es 0) in
         let v = int_of_velem ve in
         let s = int_of_ws ws in
-        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let rec repeat acc n x =
+          if n == 0 then acc else repeat (x :: acc) (n - 1) x in
+        let ac = CL.Instr.Avatome (repeat [] (s/v) a1) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
         let l = I.glval_to_lval (List.nth xs 0) in
         let i2 = cast_atome_vector ws v !l_tmp l in
-        i1 @ [CL.Instr.Op1.mov l_tmp a1] @ i2
+        i1 @ [CL.Instr.Op1.mov l_tmp ac] @ i2
       end
 
     | VPADD (ve,ws) ->
@@ -1646,7 +1653,7 @@ module X86BaseOpS : BaseOp
         let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
         let v = int_of_velem ve in
         let s = int_of_ws ws in
-        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
         let l = I.glval_to_lval (List.nth xs 0) in
         let i3 = cast_atome_vector ws v !l_tmp l in
         match trans with
@@ -1665,7 +1672,7 @@ module X86BaseOpS : BaseOp
         let a2,i2 = cast_vector_atome ws ve (List.nth es 1) in
         let v = int_of_velem ve in
         let s = int_of_ws ws in
-        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
         let l = I.glval_to_lval (List.nth xs 0) in
         let i3 = cast_atome_vector ws v !l_tmp l in
         match trans with
@@ -1681,7 +1688,7 @@ module X86BaseOpS : BaseOp
       let a2,i2 = cast_vector_atome ws v (List.nth es 1) in
       let v = int_of_velem v in
       let s = int_of_ws ws in
-      let l0_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+      let l0_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l0_tmp l in
       i1 @ i2 @ [CL.Instr.Op2.smul l0_tmp a1 a2 ] @ i3
@@ -1691,8 +1698,8 @@ module X86BaseOpS : BaseOp
       let a2,i2 = cast_vector_atome ws VE16 (List.nth es 1) in
       let s = int_of_ws ws in
       let v = s / 16 in
-      let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
-      let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,s/v) (CoreIdent.tu ws) in
+      let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
+      let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(s/v,v) (CoreIdent.tu ws) in
       let l = I.glval_to_lval (List.nth xs 0) in
       let i3 = cast_atome_vector ws v !l_tmp l in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
@@ -1708,12 +1715,12 @@ module X86BaseOpS : BaseOp
         let ac = repeat [] 16 c in
         let v = int_of_velem ve in
         let s = int_of_ws ws in
-        let l_tmp = I.mk_tmp_lval ~vector:(v,s/v) (CoreIdent.tu ws) in
+        let l_tmp = I.mk_tmp_lval ~vector:(s/v,v) (CoreIdent.tu ws) in
         let l = I.glval_to_lval (List.nth xs 0) in
         let i2 = cast_atome_vector ws v !l_tmp l in
         match trans with
         | `Default ->
-            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(v,s/v) (CoreIdent.tu ws) in
+            let l_tmp1 = I.mk_tmp_lval ~sign:false ~vector:(s/v,v) (CoreIdent.tu ws) in
             i1 @ [CL.Instr.Shifts.vsars l_tmp l_tmp1 a1 ac] @ i2
         | `Smt ->
           i1 @ [CL.Instr.Shift.vsar l_tmp a1 ac] @ i2
