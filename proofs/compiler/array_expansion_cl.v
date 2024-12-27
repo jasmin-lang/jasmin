@@ -6,6 +6,8 @@ Require Import expr.
 Require Import compiler_util ZArith.
 Import Utf8.
 
+Require Import array_expansion.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -13,7 +15,7 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 
 Module Import E.
-  Definition pass : string := "array expansion".
+  Definition pass : string := "array expansion cryptoline".
 
   Definition reg_error (x:var_i) msg := {|
     pel_msg := pp_box [:: pp_s "cannot expand variable"; pp_var x; pp_s msg];
@@ -61,24 +63,6 @@ Module Import E.
   Definition reg_ierror_no_var := pp_internal_error_s pass.
 
 End E.
-
-Record varr_info := {
-  vi_v : var;
-  vi_s : wsize;
-  vi_n : list Ident.ident;
-}.
-
-Record expand_info := {
-  vars : list var;
-  arrs : list varr_info;
-  finfo : fun_info;
-}.
-
-Record array_info := {
-   ai_ty     : wsize;
-   ai_len    : Z;
-   ai_elems  : list var;
-}.
 
 Record t := {
   svars : Sv.t;

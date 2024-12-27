@@ -16,7 +16,6 @@ Require Import
 Require Import
   allocation
   array_copy
-  array_copy_cl
   array_expansion
   array_init
   constant_prop
@@ -37,8 +36,9 @@ Require Import
   unrolling
   wsize.
 Require
-  merge_varmaps.
-
+  merge_varmaps
+  array_copy_cl
+  array_expansion_cl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -486,7 +486,9 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
   let pr := remove_init_prog is_reg_array pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  Let pe := expand_prog cparams.(expand_fd) [::] pr in
+  Let pe := array_expansion_cl.expand_prog
+              (fun vk => fresh_var_ident cparams vk dummy_instr_info 0)
+              cparams.(expand_fd) [::] pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
@@ -518,5 +520,8 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
 
   ok pp.
 
+Definition compiler_CL (to_keep: seq funname) (p: prog) :=
+  Let p := compiler_CL_first_part to_keep p in
+  compiler_CL_second_part to_keep p.
 
 End COMPILER.

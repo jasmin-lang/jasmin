@@ -2,7 +2,7 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat ssralg eqtype.
 From mathcomp Require Import word_ssrZ.
-Require Import psem array_expansion_cl compiler_util ZArith.
+Require Import psem array_expansion array_expansion_cl compiler_util ZArith.
 Import Utf8 Lia.
 
 Set Implicit Arguments.
