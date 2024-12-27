@@ -116,7 +116,7 @@ Variant arm_mnemonic : Type :=
 | UMULL                          (* Multiply and split the result in two
                                     registers *)
 | UMAAL                          (* Multiply and add twice *)
-| UMLAL                          (* Multiply and split the result to add it 
+| UMLAL                          (* Multiply and split the result to add it
                                     to the two destinations*)
 | SMULL                          (* Signed version of UMULL*)
 | SMLAL                          (* Signed version of UMLAL*)
@@ -400,6 +400,8 @@ Definition ad_nz : seq arg_desc := map F [:: NF; ZF ].
 Definition ad_nzc : seq arg_desc := map F [:: NF; ZF; CF ].
 Definition ad_nzcv : seq arg_desc := map F [:: NF; ZF; CF; VF ].
 
+Section Tabstract.
+Context {tabstract : Tabstract}.
 
 (* -------------------------------------------------------------------- *)
 (* Common flag definitions. *)
@@ -414,6 +416,7 @@ Definition ZF_of_word (ws : wsize) (w : word ws) := w == 0%R.
      res_unsigned = wunsigned w Z.<+> wunsigned w'
      res_signed = wsigned w Z.<+> wsigned w'
 *)
+
 Definition nzcv_of_aluop
   {ws : wsize}
   (res : word ws)     (* Actual result. *)
@@ -2114,4 +2117,6 @@ Instance arm_op_decl : asm_op_decl arm_op :=
     prim_string := arm_prim_string;
   |}.
 
-Definition arm_prog := @asm_prog _ _ _ _ _ _ _ arm_op_decl.
+Definition arm_prog := @asm_prog _ _ _ _ _ _ _ _ arm_op_decl.
+
+End Tabstract.

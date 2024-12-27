@@ -29,7 +29,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section Section.
-Context {atoI : arch_toIdent}.
+Context {tabstract : Tabstract} {atoI : arch_toIdent}.
 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc parameters. *)

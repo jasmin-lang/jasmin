@@ -108,14 +108,10 @@ end = struct
     | Papp1 (op, e) -> Papp1 (op, mk_expr fn e)
     | Papp2 (op, e1, e2) -> Papp2 (op, mk_expr fn e1, mk_expr fn e2)
     | PappN (op,es) -> PappN (op, List.map (mk_expr fn) es)
-    | Pabstract (op,es) -> Pabstract(op, List.map (mk_expr fn) es)
     | Pif (ty, e, el, er)  ->
       Pif (ty, mk_expr fn e, mk_expr fn el, mk_expr fn er)
-    | Pfvar _ -> expr
-    | Pbig (e1, e2, op, v, e3, e4) ->
-      Pbig(mk_expr fn e1, mk_expr fn e2, op, v, mk_expr fn e3, mk_expr fn e4)
-    | Presult (i, v) -> Presult (i, mk_gvar fn v)
-    | Presultget (al, acc, ws, i, v, e) -> Presultget (al, acc, ws, i, mk_gvar fn v, mk_expr fn e)
+    | Pbig (e, op, v, e1, e2, e0) ->
+      Pbig(mk_expr fn e, op, v, mk_expr fn e1, mk_expr fn e2, mk_expr fn e0)
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
@@ -199,20 +195,10 @@ end = struct
     | Papp1 (_,e1) -> app_expr dp v e1 ct
     | Papp2  (_,e1,e2) -> app_expr (app_expr dp v e1 ct) v e2 ct
     | PappN (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
-    | Pabstract (_,es) -> List.fold_left (fun dp e -> app_expr dp v e ct) dp es
     | Pif (_,b,e1,e2) ->
       app_expr (app_expr (app_expr dp v b ct) v e1 ct) v e2 ct
-    | Pfvar _ -> dp
-    | Pbig (e1, e2, _, _, e3, e4) ->
-      app_expr (app_expr (app_expr (app_expr dp v e1 ct) v e2 ct) v e3 ct) v e4 ct
-    | Presult (i, v') -> begin match v'.gs with
-        | Expr.Sglob  -> dp (* We ignore global variables  *)
-        | Expr.Slocal -> match (L.unloc v'.gv).v_ty with
-          | Bty _ -> add_dep dp v (L.unloc v'.gv) ct
-          | Arr _ -> dp end
-
-    | Presultget _ -> dp  (* We ignore array loads  *)
-        
+    | Pbig (e, _, _, e1, e2, e0) ->
+      app_expr (app_expr (app_expr (app_expr dp v e ct) v e1 ct) v e2 ct) v e0 ct
 
   (* State while building the dependency graph:
      - dp : dependency graph
@@ -231,7 +217,7 @@ end = struct
      the state during memory loads. *)
   let expr_vars st e =
     let rec aux (acc,st) = function
-      | Pconst _ | Pbool _ | Parr_init _ | Pget _ | Presultget _ | Psub _ -> acc, st
+      | Pconst _ | Pbool _ | Parr_init _ | Pget _ | Psub _ -> acc, st
 
       | Pvar v' ->
         begin
@@ -241,15 +227,6 @@ end = struct
             | Bty _ -> (L.unloc v'.gv) :: acc, st
             | Arr _ -> acc, st
         end
-      | Presult (i, v') ->
-        begin
-          match v'.gs with
-          | Expr.Sglob -> acc, st
-          | Expr.Slocal -> match (L.unloc v'.gv).v_ty with
-            | Bty _ -> (L.unloc v'.gv) :: acc, st
-            | Arr _ -> acc, st
-        end
-
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
       | Pload (_, _,v',ei) ->
         let dp = app_expr st.dp (L.unloc v') ei st.ct in
@@ -258,10 +235,8 @@ end = struct
       | Papp1 (_,e1) -> aux (acc,st) e1
       | Papp2  (_,e1,e2) -> aux (aux (acc,st) e1) e2
       | PappN (_,es) -> List.fold_left aux (acc,st) es
-      | Pabstract (_,es) -> List.fold_left aux (acc, st) es
       | Pif (_,b,e1,e2) -> aux (aux (aux (acc,st) e1) e2) b
-      | Pfvar _ -> acc, st
-      | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux (acc,st) e1) e2) e3) e4
+      | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux (acc,st) e) e1) e2) e0
     in
 
     aux ([],st) e
@@ -277,20 +252,18 @@ end = struct
       | Expr.Slocal -> aux_v acc v.gv in
     
     let rec aux acc = function
-      | Pconst _ | Pbool _ | Parr_init _ | Pget _ | Presultget _ | Psub _ -> acc
+      | Pconst _ | Pbool _ | Parr_init _ | Pget _ | Psub _ -> acc
 
       | Pvar v' -> aux_gv acc v'
       (* We ignore loads for v, but we compute dependencies of v' in ei *)
-      | Presult (_, v') -> aux_gv acc v'
       | Pload (_, _,v',ei) -> aux (aux_v acc v') ei
       | Papp1 (_,e1) -> aux acc e1
       | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
       | PappN (_,es) -> List.fold_left aux acc es
-      | Pabstract (_,es) -> List.fold_left aux acc es
       | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b
-      | Pfvar _ -> acc
-      | Pbig (e1, e2, _, _, e3, e4) -> aux (aux (aux (aux acc e1) e2) e3) e4
+      | Pbig (e, _, _, e1, e2, e0) -> aux (aux (aux (aux acc e) e1) e2) e0
     in
+
     aux acc e
 
   let st_merge st1 st2 ct =
@@ -529,18 +502,8 @@ end = struct
     | Papp1 (_,e) -> collect_vars_e sv e
     | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
     | PappN (_, el)  -> collect_vars_es sv el
-    | Pabstract (_,el) -> collect_vars_es sv el
     | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
-    | Pfvar _ -> sv
-    | Pbig (e1, e2, _, _, e3, e4) -> collect_vars_es sv [e1;e2;e3;e4]
-    | Presult (_, v) ->
-      begin
-        match v.gs with
-        | Expr.Sglob -> sv
-        | Expr.Slocal -> Sv.add (L.unloc v.gv) sv
-      end
-    | Presultget (_, _, _, _, v, e)   -> collect_vars_e (Sv.add (L.unloc v.gv) sv) e
-
+    | Pbig (e, _, _, e1, e2, e0) -> collect_vars_es sv [e;e1;e2;e0]
 
   and collect_vars_es sv es = List.fold_left collect_vars_e sv es
 

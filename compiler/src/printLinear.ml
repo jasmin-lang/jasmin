@@ -45,7 +45,6 @@ let pp_instr pd asmOp fmt i =
       (pp_opn pd asmOp) op
       (pp_list ",@ " pp_rexpr) es
   | Lsyscall o -> F.fprintf fmt "SysCall %s" (pp_syscall o)
-  | Lassert e -> F.fprintf fmt "Assert %a" (Printer.pp_expr ~debug:false) (Conv.expr_of_cexpr e)
   | Lcall(lr, lbl) -> 
       let pp_o fmt o = match o with None -> () | Some v -> Format.fprintf fmt "%a " pp_var_i v in
       F.fprintf fmt "Call %a%a" pp_o lr pp_remote_label lbl

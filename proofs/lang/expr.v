@@ -56,7 +56,7 @@ Variant sop2 :=
 | Oland of wsize
 | Olor  of wsize
 | Olxor of wsize
-| Olsr  of wsize 
+| Olsr  of wsize
 | Olsl  of op_kind
 | Oasr  of op_kind
 | Oror  of wsize
@@ -78,6 +78,15 @@ Variant sop2 :=
 | Ovasr of velem & wsize
 .
 
+(* Abstract n-ary operators *)
+
+Record opA := MkAbstP {
+  pa_name   : string;
+  pa_tyin   : seq stype;
+  pa_tyout  : stype;
+  pa_tyin_narr : all is_not_sarr pa_tyin;
+}.
+
 (* N-ary operators *)
 Variant combine_flags :=
 | CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *)
@@ -88,9 +97,14 @@ Variant combine_flags :=
 | CF_GT    of signedness   (* Alias : signed => !LE; unsigned => !BE *)
 .
 
+
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
-| Ocombine_flags of combine_flags
+| Ocombine_flags of combine_flags.
+
+Variant opNA :=
+| OopN of opN
+| Oabstract of opA
 .
 
 Scheme Equality for sop1.
@@ -113,6 +127,30 @@ Qed.
 
 HB.instance Definition _ := hasDecEq.Build sop2 sop2_eq_axiom.
 
+Definition opA_beq (o1 o2 : opA) :=
+  [&& o1.(pa_name) == o2.(pa_name)
+    , o1.(pa_tyin) == o2.(pa_tyin)
+    & o1.(pa_tyout) == o2.(pa_tyout)].
+
+Lemma opA_eq_axiom : Equality.axiom opA_beq.
+Proof.
+  move=> x y; apply Bool.iff_reflect; split.
+  + by move=> ->; rewrite /opA_beq !eqxx.
+  case: x => ??? h1; case: y => ??? h2 /and3P [/= /eqP ? /eqP ? /eqP ?]; subst.
+  by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec h1 h2).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build opA opA_eq_axiom.
+
+Scheme Equality for combine_flags.
+
+Lemma combine_flags_eq_axiom : Equality.axiom combine_flags_beq.
+Proof.
+  exact: (eq_axiom_of_scheme internal_combine_flags_dec_bl internal_combine_flags_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build combine_flags combine_flags_eq_axiom.
+
 Scheme Equality for opN.
 
 Lemma opN_eq_axiom : Equality.axiom opN_beq.
@@ -121,6 +159,22 @@ Proof.
 Qed.
 
 HB.instance Definition _ := hasDecEq.Build opN opN_eq_axiom.
+
+Definition opNA_beq (o1 o2 : opNA) :=
+  match o1, o2 with
+  | OopN o1, OopN o2 => o1 == o2
+  | Oabstract a1, Oabstract a2 => a1 == a2
+  | _, _ => false
+  end.
+
+Lemma opNA_eq_axiom : Equality.axiom opNA_beq.
+Proof.
+  move=> [o1 | a1] [o2 | a2] /=; try by constructor.
+  + by apply: (equivP eqP); split => [-> | [] ->].
+  by apply: (equivP eqP); split => [-> | [] ->].
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build opNA opNA_eq_axiom.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -172,6 +226,8 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
 
 Definition tin_combine_flags := [:: sbool; sbool; sbool; sbool].
 
+Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
+
 Definition type_of_opN (op: opN) : seq stype * stype :=
   match op with
   | Opack ws p =>
@@ -180,15 +236,11 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
   | Ocombine_flags c => (tin_combine_flags, sbool)
   end.
 
-(* Abstract n-ary operators *)
-
-Record opA := MkAbstP {
-  pa_name   : string;
-  pa_tyin   : seq stype;
-  pa_tyout  : stype;
-}.
-
-Definition type_of_opA (op: opA) : seq stype * stype := (pa_tyin op, pa_tyout op).
+Definition type_of_opNA (op: opNA) : seq stype * stype :=
+  match op with
+  | OopN o => type_of_opN o
+  | Oabstract o => type_of_opA o
+  end.
 
 (* ** Expressions
  * -------------------------------------------------------------------- *)
@@ -221,8 +273,8 @@ Definition mk_var_i (x : var) :=
 Notation vid ident :=
   (mk_var_i {| vtype := sword Uptr; vname := ident%string; |}).
 
-Variant v_scope := 
-  | Slocal 
+Variant v_scope :=
+  | Slocal
   | Sglob.
 
 Scheme Equality for v_scope.
@@ -242,8 +294,6 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
-Definition fvar : Type := var_i.
-
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
@@ -254,14 +304,10 @@ Inductive pexpr : Type :=
 | Pload  : aligned -> wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
-| PappN of opN & seq pexpr
+| PappN of opNA & seq pexpr
 | Pif    : stype -> pexpr -> pexpr -> pexpr -> pexpr
-| Pfvar : fvar -> pexpr
-| Pbig : pexpr -> pexpr -> sop2 -> fvar -> pexpr -> pexpr -> pexpr
-| Pabstract : opA -> seq pexpr -> pexpr
-| Presult : Z -> gvar -> pexpr
-| Presultget : aligned -> arr_access -> wsize -> Z -> gvar -> pexpr -> pexpr
-.
+| Pbig : pexpr -> sop2 -> var_i -> pexpr -> pexpr -> pexpr -> pexpr.
+  (* Pbig idx op x e start len = big idx op (fun x => e) [iota start len] *)
 
 Notation pexprs := (seq pexpr).
 
@@ -272,6 +318,8 @@ Definition eor e1 e2 := Papp2 Oor e1 e2.
 Definition eand e1 e2 := Papp2 Oand e1 e2.
 Definition eeq e1 e2 := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 := enot (eeq e1 e2).
+Definition pappN (o : opN) (es : pexprs) :=
+  PappN (OopN o) es.
 
 Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
   match op with
@@ -286,7 +334,7 @@ Definition cf_of_condition (op : sop2) : option (combine_flags * wsize) :=
 
 Definition pexpr_of_cf (cf : combine_flags) (vi : var_info) (flags : seq var) : pexpr :=
   let eflags := [seq Plvar {| v_var := x; v_info := vi |} | x <- flags ] in
-  PappN (Ocombine_flags cf) eflags.
+  pappN (Ocombine_flags cf) eflags.
 
 
 (* ** Left values
@@ -390,10 +438,6 @@ Variant align :=
 
 (* -------------------------------------------------------------------- *)
 
-Section ASM_OP.
-
-Context `{asmop:asmOp}.
-
 Variant annotation_kind :=
   | Assert
   | Assume
@@ -402,6 +446,31 @@ Variant annotation_kind :=
 Variant assertion_prover :=
   | Cas
   | Smt.
+
+Scheme Equality for annotation_kind.
+
+Lemma annotation_kind_eq_axiom : Equality.axiom annotation_kind_beq.
+Proof.
+  exact:
+    (eq_axiom_of_scheme internal_annotation_kind_dec_bl internal_annotation_kind_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build annotation_kind annotation_kind_eq_axiom.
+
+Scheme Equality for assertion_prover.
+
+Lemma assertion_prover_eq_axiom : Equality.axiom assertion_prover_beq.
+Proof.
+  exact:
+    (eq_axiom_of_scheme internal_assertion_prover_dec_bl internal_assertion_prover_dec_lb).
+Qed.
+
+HB.instance Definition _ := hasDecEq.Build assertion_prover assertion_prover_eq_axiom.
+
+(* -------------------------------------------------------------------- *)
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
 
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
@@ -482,6 +551,8 @@ Context `{asmop:asmOp}.
 Definition fun_info := FunInfo.t.
 
 Record fun_contract := MkContra {
+    f_iparams : seq var_i;  (* initial value of the parameter *)
+    f_ires    : seq var_i;  (* name of the result used in post *)
     f_pre : list (assertion_prover * pexpr);
     f_post : list (assertion_prover * pexpr);
   }.
@@ -494,7 +565,7 @@ Class progT := {
 
 Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
-  f_contra : fun_contract;
+  f_contra : option fun_contract;
   f_tyin   : seq stype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -541,7 +612,7 @@ Context {A: Tabstract}.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
-(* ** Programs before stack/memory allocation 
+(* ** Programs before stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Definition progUnit : progT :=
@@ -562,7 +633,7 @@ Definition _ufun_decls :=  seq (_fun_decl unit).
 Definition _uprog      := _prog unit unit.
 Definition to_uprog (p:_uprog) : uprog := p.
 
-(* ** Programs after stack/memory allocation 
+(* ** Programs after stack/memory allocation
  * -------------------------------------------------------------------- *)
 
 Variant saved_stack :=
@@ -594,7 +665,7 @@ Variant return_address_location :=
                                 the option is for incrementing the large stack in arm *)
 | RAstack of option var & Z & option var.
                              (* None means that the call instruction directly store ra on the stack
-                                Some r means that the call instruction directly store ra on r and 
+                                Some r means that the call instruction directly store ra on r and
                                 the function should store r on the stack,
                                 The second option is for incrementing the large stack in arm *)
 
@@ -823,12 +894,8 @@ Fixpoint use_mem (e : pexpr) :=
   | Pget _ _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e
   | Papp2 _ e1 e2 => use_mem e1 || use_mem e2
   | PappN _ es => has use_mem es
-  | Pabstract _ es => has use_mem es
   | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2
-  | Pfvar _ => false
-  | Pbig e1 e2 _ _ e3 e4 => use_mem e1 || use_mem e2 || use_mem e3 || use_mem e4
-  | Presult _ _ => false
-  | Presultget _ _ _ _ _ e => use_mem e
+  | Pbig idx _ _ body start len => use_mem idx || use_mem body || use_mem start || use_mem len
   end.
 
 (* ** Compute read variables
@@ -850,12 +917,10 @@ Fixpoint read_e_rec (s:Sv.t) (e:pexpr) : Sv.t :=
   | Papp1  _ e     => read_e_rec s e
   | Papp2  _ e1 e2 => read_e_rec (read_e_rec s e2) e1
   | PappN _ es     => foldl read_e_rec s es
-  | Pabstract _ es => foldl read_e_rec s es
   | Pif  _ t e1 e2 => read_e_rec (read_e_rec (read_e_rec s e2) e1) t
-  | Pfvar _ => s
-  | Pbig e1 e2 _ _ e3 e4 => read_e_rec (read_e_rec (read_e_rec (read_e_rec s e4) e3) e2) e1
-  | Presult _ x       => Sv.union (read_gvar x) s
-  | Presultget _ _ _ _ x e   => read_e_rec (Sv.union (read_gvar x) s) e
+  | Pbig idx _ x body start len =>
+      Sv.union (Sv.remove x (read_e_rec Sv.empty body))
+               (read_e_rec (read_e_rec (read_e_rec s len) start) idx)
   end.
 
 Definition read_e := read_e_rec Sv.empty.
@@ -935,7 +1000,7 @@ End ASM_OP.
 (* --------------------------------------------------------------------- *)
 (* Test the equality of two expressions modulo variable info             *)
 
-Definition eq_gvar x x' := 
+Definition eq_gvar x x' :=
   (x.(gs) == x'.(gs)) && (v_var x.(gv) == v_var x'.(gv)).
 
 Fixpoint eq_expr e e' :=
@@ -952,15 +1017,15 @@ Fixpoint eq_expr e e' :=
   | PappN o es, PappN o' es' => (o == o') && (all2 eq_expr es es')
   | Pif t e e1 e2, Pif t' e' e1' e2' =>
     (t == t') && eq_expr e e' && eq_expr e1 e1' && eq_expr e2 e2'
-  | Pfvar v       , Pfvar v'            =>  v_var v == v_var v' 
-  | Pbig e1 e2 sop v e3 e4     , Pbig e1' e2' sop' v' e3' e4'=> (sop == sop') && (v_var v == v_var v') &&
-                                                           eq_expr e1 e1' && eq_expr e2 e2' &&
-                                                           eq_expr e3 e3' && eq_expr e4 e4'
+  | Pbig idx op x body start len, Pbig idx' op' x' body' start' len' =>
+    eq_expr idx idx' && (op == op') && (v_var x == v_var x') &&
+    eq_expr body body' &&
+    eq_expr start start' && eq_expr len len'
   | _             , _                 => false
   end.
 
 (* ------------------------------------------------------------------- *)
-Definition to_lvals (l:seq var) : seq lval := 
+Definition to_lvals (l:seq var) : seq lval :=
   map (fun x => Lvar (mk_var_i x)) l.
 
 (* ------------------------------------------------------------------- *)

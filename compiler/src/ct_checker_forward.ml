@@ -359,7 +359,7 @@ let is_ct_op2 (o: Expr.sop2) =
   | Omod (Cmp_w _) | Odiv (Cmp_w _) -> false
   | _ -> true
 
-let is_ct_opN (_ : Expr.opN) = true
+let is_ct_opN (_ : Expr.opNA) = true
 
 let is_ct_sopn is_ct_asm (o : 'a Sopn.sopn) =
   match o with
@@ -398,12 +398,8 @@ let rec ty_expr ~(public:bool) env (e:expr) =
   | PappN(o, es)       ->
     let public = public || not (is_ct_opN o) in
     ty_exprs_max ~public env es
-  | Pabstract(_, es)   -> assert false
   | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3]
-  | Pfvar _ -> assert false
   | Pbig _ -> assert false
-  | Presult _ -> assert false
-  | Presultget _ -> assert false
 
 and ty_exprs ~public env es =
   List.map_fold (ty_expr ~public) env es

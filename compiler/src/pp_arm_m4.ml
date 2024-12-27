@@ -133,7 +133,7 @@ let pp_shift (ARM_op (_, opts)) args =
       List.modify_last (Printf.sprintf "%s %s" sh) args
 
 let pp_mnemonic_ext (ARM_op (_, opts) as op) suff args =
-  let id = instr_desc Arm_decl.arm_decl Arm_instr_decl.arm_op_decl (None, op) in
+  let id = instr_desc Build_Tabstract Arm_decl.arm_decl (Arm_instr_decl.arm_op_decl Build_Tabstract) (None, op) in
   let pp = id.id_pp_asm args in
   Format.asprintf "%s%s%s%s" pp.pp_aop_name suff (pp_set_flags opts) (pp_conditional args)
 
@@ -263,7 +263,7 @@ let pp_instr fn i =
       [LInstr ("bl", [ pp_syscall op ])]
 
   | AsmOp (op, args) ->
-      let id = instr_desc arm_decl arm_op_decl (None, op) in
+      let id = instr_desc Build_Tabstract arm_decl (arm_op_decl Build_Tabstract) (None, op) in
       let pp = id.id_pp_asm args in
       let suff = ArgChecker.check_args op pp.pp_aop_args in
       let name = pp_mnemonic_ext op suff args in

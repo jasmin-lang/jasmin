@@ -17,22 +17,22 @@ Local Open Scope Z_scope.
 
 Section WITH_PARAMS.
 
-Context {A: Tabstract}.
+Context {tabstract: Tabstract}.
 Context {fcp : FlagCombinationParams}.
 
-Definition e2bool (e:pexpr) : exec bool := 
+Definition e2bool (e:pexpr) : exec bool :=
   match e with
   | Pbool b => ok b
   | _       => type_error
   end.
 
-Definition e2int (e:pexpr) : exec Z := 
+Definition e2int (e:pexpr) : exec Z :=
   match e with
   | Pconst z => ok z
   | _        => type_error
   end.
 
-Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) := 
+Definition e2word (sz:wsize) (e:pexpr) : exec (word sz) :=
   match is_wconst sz e with
   | Some w => ok w
   | None   => type_error
@@ -42,12 +42,12 @@ Definition of_expr (t:stype) : pexpr -> exec (sem_t t) :=
   match t return pexpr -> exec (sem_t t) with
   | sbool   => e2bool
   | sint    => e2int
-  | sarr n  => fun _ => type_error 
+  | sarr n  => fun _ => type_error
   | sword sz => e2word sz
   | sabstract _ => fun _ => type_error
   end.
 
-Definition to_expr (t:stype) : sem_t t -> exec pexpr := 
+Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   match t return sem_t t -> exec pexpr with
   | sbool => fun b => ok (Pbool b)
   | sint  => fun z => ok (Pconst z)
@@ -56,22 +56,22 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   | sabstract _ => fun _ => type_error
   end.
 
-Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr :=
+  let r :=
     Let x := of_expr _ e in
-    to_expr (sem_sop1_typed _ o x) in
-  match r with 
+    to_expr (sem_sop1_typed o x) in
+  match r with
   | Ok e => e
   | _ => Papp1 o e
   end.
 
-Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr := 
-  let r := 
+Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
+  let r :=
     Let x1 := of_expr _ e1 in
     Let x2 := of_expr _ e2 in
-    Let v  := sem_sop2_typed _ o x1 x2 in
-    to_expr v in 
-  match r with 
+    Let v  := sem_sop2_typed o x1 x2 in
+    to_expr v in
+  match r with
   | Ok e => e
   | _ => Papp2 o e1 e2
   end.
@@ -103,17 +103,17 @@ Definition s_op1 o e :=
   | Oneg Op_int => sneg_int e
   | _           => ssem_sop1 o e
   end.
- 
+
 (* ------------------------------------------------------------------------ *)
 
-Definition sbeq e1 e2 := 
+Definition sbeq e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b1, Some b2 => Pbool (b1 == b2)
-  | Some b, _ => if b then e2 else snot e2 
-  | _, Some b => if b then e1 else snot e1 
+  | Some b, _ => if b then e2 else snot e2
+  | _, Some b => if b then e1 else snot e1
   | _, _      => Papp2 Obeq e1 e2
   end.
-  
+
 Definition sand e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -273,7 +273,7 @@ Definition sge ty e1 e2 :=
 
 Definition s_op2 o e1 e2 :=
   match o with
-  | Obeq    => sbeq e1 e2 
+  | Obeq    => sbeq e1 e2
   | Oand    => sand e1 e2
   | Oor     => sor  e1 e2
   | Oadd ty => sadd ty e1 e2
@@ -299,7 +299,13 @@ Definition s_opN (op:opN) (es:pexprs) : pexpr :=
     | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
     | Ocombine_flags _ => fun b => Pbool b
     end r
-  | _ => PappN op es
+  | _ => pappN op es
+  end.
+
+Definition s_opNA (op:opNA) (es:pexprs) : pexpr :=
+  match op with
+  | OopN o => s_opN o es
+  | Oabstract _ => PappN op es
   end.
 
 Definition s_if t e e1 e2 :=
@@ -366,7 +372,7 @@ Let pget_global al aa sz x e : pexpr :=
   else Pget al aa sz x e
   else Pget al aa sz x e.
 
-Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
+Fixpoint const_prop_e (m:cpm) e :=
   match e with
   | Pconst _
   | Pbool  _
@@ -378,40 +384,31 @@ Fixpoint const_prop_e_aux (lm:cpm) (m:cpm) e :=
       | Sglob => if globs is Some f then if f x is Some (Gword ws w) then const (Cword w) else e else e
       end
   | Pget al aa sz x e =>
-      let e := const_prop_e_aux lm m e in
+      let e := const_prop_e m e in
       if is_glob x
       then pget_global al aa sz x e
       else Pget al aa sz x e
-  | Psub aa sz len x e => Psub aa sz len x (const_prop_e_aux lm m e)
-  | Pload al sz x e  => Pload al sz x (const_prop_e_aux lm m e)
-  | Papp1 o e     => s_op1 o (const_prop_e_aux lm m e)
-  | Papp2 o e1 e2 => s_op2 o (const_prop_e_aux lm m e1)  (const_prop_e_aux lm m e2)
-  | PappN op es   => s_opN op (map (const_prop_e_aux lm m) es)
-  | Pif t e e1 e2 => s_if t (const_prop_e_aux lm m e) (const_prop_e_aux lm m e1) (const_prop_e_aux lm m e2)
-  | Pfvar x       => 
-     if Mvar.get lm x is Some n then const n else e 
-  | Pbig s len sop x e0 body => 
-     let s := const_prop_e_aux lm m s in
-     let len := const_prop_e_aux lm m len in
-     let e0 := const_prop_e_aux lm m e0 in
+  | Psub aa sz len x e => Psub aa sz len x (const_prop_e m e)
+  | Pload al sz x e  => Pload al sz x (const_prop_e m e)
+  | Papp1 o e     => s_op1 o (const_prop_e m e)
+  | Papp2 o e1 e2 => s_op2 o (const_prop_e m e1)  (const_prop_e m e2)
+  | PappN op es   => s_opNA op (map (const_prop_e m) es)
+  | Pif t e e1 e2 => s_if t (const_prop_e m e) (const_prop_e m e1) (const_prop_e m e2)
+  | Pbig idx op x body s len =>
+     let s   := const_prop_e m s in
+     let len := const_prop_e m len in
+     let idx := const_prop_e m idx in
      match is_const s, is_const len with
      | Some s, Some len =>
        foldl (fun acc i =>
-               let lm := Mvar.set lm x (Cint i) in 
-               let b := const_prop_e_aux lm m body in 
-               Papp2 sop acc b)
-             e0 (ziota s len)
-     | _, _ => 
-         Pbig s len sop x e0 (const_prop_e_aux lm m body)
+               let m := Mvar.set m x (Cint i) in
+               let b := const_prop_e m body in
+               Papp2 op acc b)
+             idx (ziota s len)
+     | _, _ =>
+         Pbig idx op x (const_prop_e (Mvar.remove m x) body) s len
      end
-  | Pabstract s es => Pabstract s ((map (const_prop_e_aux lm m) es))
-  | Presult _ _    => e
-  | Presultget al aa sz i x e =>
-      let e := const_prop_e_aux lm m e in
-      Presultget al aa sz i x e
   end.
-
-Definition const_prop_e := const_prop_e_aux (Mvar.empty _).
 
 End GLOBALS.
 
@@ -580,21 +577,24 @@ Context {pT: progT}.
 
 Let with_globals_cl (gd: glob_decls) : globals := Some (assoc gd).
 
-Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
-  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
-  let without_globals := if cl then with_globals_cl gd else without_globals in
-  let 'MkFun ii ci si p c so r ev := f in
+Definition const_prop_ci without_globals ci :=
   let ci_pre := map (fun c =>
                         let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_pre)
   in
-  let (m, c) := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
   let ci_post := map (fun c =>
-                        let truc := const_prop_e without_globals m (snd c) in
+                        let truc := const_prop_e without_globals empty_cpm (snd c) in
                         (fst c, truc)) ci.(f_post)
   in
-  let ci := MkContra ci_pre ci_post in
-  MkFun ii ci si p c so r ev.
+  MkContra ci.(f_iparams) ci.(f_ires) ci_pre ci_post.
+
+Definition const_prop_fun (cl: bool) (gd: glob_decls) (f: fundef) :=
+  let with_globals := if cl then (fun _ _ => with_globals_cl gd) else with_globals in
+  let without_globals := if cl then with_globals_cl gd else without_globals in
+  let 'MkFun ii ci si p c so r ev := f in
+  let mc := const_prop (const_prop_i gd with_globals without_globals) empty_cpm c in
+  let ci := Option.map (const_prop_ci without_globals) ci in
+  MkFun ii ci si p mc.2 so r ev.
 
 Definition const_prop_prog (cl: bool) (p:prog) : prog :=
   map_prog (const_prop_fun cl p.(p_globs)) p.

@@ -513,9 +513,6 @@ Definition assemble_i (rip : var) (i : linstr) : cexec (seq asm_i) :=
   | Llabel k lbl =>
       ok [:: mk (LABEL k lbl) ]
 
-  | Lassert _ =>
-       Error (fail ii "Assert not supported")
-
   | Lgoto lbl =>
       ok [:: mk (JMP lbl) ]
 

@@ -15,8 +15,10 @@ Unset Printing Implicit Defensive.
 Section WITH_PARAMS.
 
 Context
+  {tabstract : Tabstract}
   {wsw:WithSubWord}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -43,10 +45,10 @@ Let Pfor (i:var_i) vs s1 c s2 :=
   forall (vm1:Vm.t), evm s1 <=1 vm1 ->
   exists2 vm2, evm s2 <=1 vm2 & sem_for (dc:= direct_c) p ev i vs (with_vm s1 vm1) c (with_vm s2 vm2).
 
-Let Pfun scs m fn vargs scs' m' vres :=
+Let Pfun scs m fn vargs scs' m' vres tr :=
   forall vargs', List.Forall2 value_uincl vargs vargs' ->
   exists2 vres',
-    sem_call (dc:= direct_c) p ev scs m fn vargs' scs' m' vres' &
+    sem_call (dc:= direct_c) p ev scs m fn vargs' scs' m' vres' tr &
     List.Forall2 value_uincl vres vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
@@ -89,20 +91,12 @@ Proof.
   exists vm2 => //; econstructor; eauto.
 Qed.
 
-Local Lemma Hassert_true : sem_Ind_assert_true p Pi_r.
+Local Lemma Hassert : sem_Ind_assert p Pi_r.
 Proof.
-  move=> s ak pa e he vm1 hle.
+  move=> s ak pa e b he vm1 hle.
   have [v' he1 /value_uinclE ?]:= sem_pexpr_uincl hle he; subst v'.
-  by exists vm1 => //; apply Eassert_true.
+  by exists vm1 => //; apply: Eassert.
 Qed.
-
-Local Lemma Hassert_false : sem_Ind_assert_false p Pi_r.
-Proof.
-  move=> s ak pa e he vm1 hle.
-  have [v' he1 /value_uinclE ?]:= sem_pexpr_uincl hle he; subst v'.
-  by exists vm1 => //; apply Eassert_false.
-Qed.
-
 
 Local Lemma Hif_true : sem_Ind_if_true (dc:=indirect_c) p ev Pc Pi_r.
 Proof.
@@ -154,11 +148,11 @@ Qed.
 
 Section EXPR.
 
-  Context (wdb : bool) (gd : glob_decls) (s : estate).
+  Context (wdb : bool) (gd : glob_decls).
 
-  Let P e : Prop := forall v, sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
+  Let P e : Prop := forall s v, sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
 
-  Let Q es : Prop := forall vs, sem_pexprs true gd s es = ok vs -> sem_pexprs wdb gd s es = ok vs.
+  Let Q es : Prop := forall s vs, sem_pexprs true gd s es = ok vs -> sem_pexprs wdb gd s es = ok vs.
 
   Lemma get_var_weak vm x v : get_var true vm x = ok v → get_var wdb vm x = ok v.
   Proof. by move => /get_varP []; rewrite /get_var /= => -> -> _; rewrite orbT. Qed.
@@ -166,11 +160,29 @@ Section EXPR.
   Lemma get_gvar_weak vm (x : gvar) v : get_gvar true gd vm x = ok v → get_gvar wdb gd vm x = ok v.
   Proof. rewrite /get_gvar; case: ifP => // _; apply get_var_weak. Qed.
 
+  Lemma DB_weak v : DB true v -> DB wdb v.
+  Proof. by rewrite /DB /= => ->; rewrite orbT. Qed.
+
+  Lemma truncatable_weak t v : truncatable true t v -> truncatable wdb t v.
+  Proof.
+    move=> /vm_truncate_valE; case: v.
+    1-3: by move=> > [] ->.
+    + by move=> > [] > [-> /= ->]; rewrite orbT.
+    + by move=> > [-> /=]; case: ifP.
+    by move=> > [].
+  Qed.
+
+  Lemma set_var_weak vm x v vm' : set_var true vm x v = ok vm' -> set_var wdb vm x v = ok vm'.
+  Proof. by rewrite /set_var; t_xrbindP => /DB_weak -> /truncatable_weak -> <-. Qed.
+
+  Lemma write_var_weak s x v s' : write_var true x v s = ok s' → write_var wdb x v s = ok s'.
+  Proof. by rewrite /write_var; t_xrbindP => > /set_var_weak -> <-. Qed.
+
   Lemma sem_pexpr_weak_and : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
     apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP.
-    + by move=> e he es hes vs v /he -> /= ? /hes -> <-.
-    + by apply get_gvar_weak.
+    + by move=> e he es hes s vs v /he -> /= ? /hes -> <-.
+    + by move=> ??; apply get_gvar_weak.
     + move=> > he >; apply on_arr_gvarP => ?? hty /get_gvar_weak -> /=.
       by t_xrbindP => > /he -> /= -> /= > -> <-.
     + move=> > he >; apply on_arr_gvarP => ?? hty /get_gvar_weak -> /=.
@@ -179,33 +191,18 @@ Section EXPR.
     + by move=> > he > /he -> /= ->.
     + by move=> > he1 > he2 > /he1 -> /= > /he2 -> /= ->.
     + by move=> > hes > /hes; rewrite /sem_pexprs => -> /= ->.
-    by move=> > he > he1 > he2 > /he -> /= > -> /= > /he1 -> /= -> /= > /he2 -> /= -> <-.
+    + by move=> > he > he1 > he2 > /he -> /= > -> /= > /he1 -> /= -> /= > /he2 -> /= -> <-.
+    move=> > hi > hb > hs > hl > /hs -> /= -> /= > /hl -> /= -> /= z /hi -> /=.
+    by elim: ziota z => //= j js hrec ?; t_xrbindP => > /write_var_weak -> /= > /hb -> /= -> /= /hrec ->.
   Qed.
 
-  Lemma sem_pexpr_weak e v : sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
+  Lemma sem_pexpr_weak s e v : sem_pexpr true gd s e = ok v -> sem_pexpr wdb gd s e = ok v.
   Proof. case: sem_pexpr_weak_and => h _; apply:h. Qed.
 
-  Lemma sem_pexprs_weak es vs : sem_pexprs true gd s es = ok vs -> sem_pexprs wdb gd s es = ok vs.
+  Lemma sem_pexprs_weak s es vs : sem_pexprs true gd s es = ok vs -> sem_pexprs wdb gd s es = ok vs.
   Proof. case: sem_pexpr_weak_and => _ h; apply:h. Qed.
 
-  Lemma truncatable_weak t v : truncatable true t v -> truncatable wdb t v.
-  Proof.
-    move=> /vm_truncate_valE; case: v.
-    1-3: by move=> > [] ->.
-    + by move=> > [] > [-> /= ->]; rewrite orbT.
-    by move=> > [].
-  Qed.
-
-  Lemma DB_weak v : DB true v -> DB wdb v.
-  Proof. by rewrite /DB /= => ->; rewrite orbT. Qed.
-
-  Lemma set_var_weak vm x v vm' : set_var true vm x v = ok vm' -> set_var wdb vm x v = ok vm'.
-  Proof. by rewrite /set_var; t_xrbindP => /DB_weak -> /truncatable_weak -> <-. Qed.
-
-  Lemma write_var_weak x v s' : write_var true x v s = ok s' → write_var wdb x v s = ok s'.
-  Proof. by rewrite /write_var; t_xrbindP => > /set_var_weak -> <-. Qed.
-
-  Lemma write_lval_weak s' x v : write_lval true gd x v s = ok s' -> write_lval wdb gd x v s = ok s'.
+  Lemma write_lval_weak s s' x v : write_lval true gd x v s = ok s' -> write_lval wdb gd x v s = ok s'.
   Proof.
     case: x => [vi t | x | ws x e | al aa ws x e | aa ws len x e] /=; t_xrbindP.
     + by rewrite /write_none; t_xrbindP => /truncatable_weak -> /DB_weak -> ->.
@@ -232,14 +229,6 @@ Proof.
   by t_xrbindP => > /(write_lval_weak wdb) -> /= /hrec.
 Qed.
 
-Local Lemma Hcall : sem_Ind_call (dc:=indirect_c) p ev Pi_r Pfun.
-Proof.
-  move=> s1 scs2 m2 s2 xs fn args vargs vs hargs _ hrec hws vm1 hle.
-  have [vargs' /(sem_pexprs_weak false) hargs1 /hrec[vres' hc hu]]:= sem_pexprs_uincl hle hargs.
-  have [vm2 /(write_lvals_weak false)hws2 hle2]:= writes_uincl (s1 := with_scs (with_mem s1 m2) scs2) hle hu hws.
-  exists vm2 => //; econstructor; eauto.
-Qed.
-
 Lemma mapM2_dc_truncate_weak ty vs1 vs2 vs' :
   List.Forall2 value_uincl vs1 vs2 ->
   mapM2 ErrType (dc_truncate_val (dc:=indirect_c)) ty vs1 = ok vs' ->
@@ -248,28 +237,84 @@ Proof.
   by elim: ty vs1 vs2 vs' => [| t ty hrec] > [] // > _ hu /=; t_xrbindP => > _ > /(hrec _ _ _ hu) ->.
 Qed.
 
+Local Lemma sem_pre_ok scs m fn vargs vpr :
+  sem_pre (dc:= indirect_c) p scs m fn vargs = ok vpr ->
+  sem_pre (dc := direct_c)  p scs m fn vargs = ok vpr.
+Proof.
+  rewrite /sem_pre; case: get_fundef => // fd; case: f_contra => // ci.
+  t_xrbindP => vargs' htra.
+  have hu := List_Forall2_refl vargs value_uincl_refl.
+  have -> := mapM2_dc_truncate_weak hu htra.
+  have {}hu:= Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
+  move=> ? hw.
+  have /= := [elaborate write_vars_uincl (vm_uincl_refl _) hu hw].
+  rewrite with_vm_same => -[vm2] /write_vars_weak -> hvmu /=.
+  elim: f_pre vpr => //= c cs hrec vpr; t_xrbindP => >.
+  by move=> /(sem_pexpr_uincl hvmu) [?] -> /[swap] /to_boolI -> /value_uinclE -> ? /hrec /= -> <-.
+Qed.
+
+Local Lemma sem_post_ok scs m fn vargs vres vpo :
+  sem_post (dc:= indirect_c) p scs m fn vargs vres = ok vpo ->
+  sem_post (dc := direct_c)  p scs m fn vargs vres = ok vpo.
+Proof.
+  rewrite /sem_post; case: get_fundef => // fd; case: f_contra => // ci.
+  t_xrbindP => vargs' htra.
+  have hu := List_Forall2_refl vargs value_uincl_refl.
+  have -> := mapM2_dc_truncate_weak hu htra.
+  have {}hu:= Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
+  move=> ? hw.
+  have /= := [elaborate write_vars_uincl (vm_uincl_refl _) hu hw].
+  rewrite with_vm_same => -[vm2] /write_vars_weak -> hvmu /=.
+  move=> ? /(write_vars_weak false).
+  move=> /(write_vars_uincl hvmu (List_Forall2_refl vres value_uincl_refl)) [vm3] -> hvmu' /=.
+  elim: f_post vpo => //= c cs hrec vpo; t_xrbindP => >.
+  by move=> /(sem_pexpr_uincl hvmu') [?] -> /[swap] /to_boolI -> /value_uinclE -> ? /hrec /= -> <-.
+Qed.
+
+Local Lemma Hcall : sem_Ind_call (dc:=indirect_c) p ev Pi_r Pfun.
+Proof.
+  move=> s1 scs2 m2 s2 s3 xs fn args vargs vs vpr vpo tr hargs hpr _ hrec hws hpo -> vm1 hle.
+  have [vargs' /(sem_pexprs_weak false) hargs1 /[dup] hua /hrec[vres' hc hu] ]:= sem_pexprs_uincl hle hargs.
+  have [vm2 /(write_lvals_weak false)hws2 hle2]:= writes_uincl (s1 := with_scs (with_mem s1 m2) scs2) hle hu hws.
+  exists vm2 => //; econstructor; eauto.
+  + by rewrite escs_with_vm emem_with_vm; apply: (sem_pre_uincl hua); apply: sem_pre_ok hpr.
+  + by apply: (sem_post_uincl hua hu); apply: sem_post_ok hpo.
+  by case s2.
+Qed.
+
 Local Lemma Hproc : sem_Ind_proc (dc:=indirect_c) p ev Pc Pfun.
 Proof.
-  move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hget htra hinit hw _ hc hgetr htrr -> -> vargs1 hu.
-  have htra1 := mapM2_dc_truncate_weak hu htra.
-  have {hu} hu:= Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
+  move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' vpr vpo tr hget htra hinit hw hpr _ hc hgetr htrr -> -> hpo -> vargs1 hu1.
+  have htra1 := mapM2_dc_truncate_weak hu1 htra.
+  have hu:= Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu1.
   assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) hu hw).
   case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) hw1 /hc [vm2 hle2 hc2].
   have [vres2 hgetr2 hu2] := get_var_is_uincl hle2 hgetr.
   have htrr2 := mapM2_dc_truncate_weak hu2 htrr.
-  exists vres2; last first.
+  have hur: List.Forall2 value_uincl vres' vres2.
   + by apply: (Forall2_trans value_uincl_trans) hu2; apply: mapM2_dc_truncate_value_uincl htrr.
-  econstructor; eauto => /=.
-  elim: (f_res f) (vres2) hgetr2 => [ | t ty hrec] /=; t_xrbindP.
-  + by move=> _ <-.
-  by move=> > /get_varP [-> _ _] > /hrec -> <-.
+  exists vres2 => //.
+  econstructor.
+  + by apply: hget.
+  + by apply: htra1.
+  + by apply: hinit.
+  + by apply: hw1.
+  + by apply: (sem_pre_uincl hu1); apply: sem_pre_ok hpr.
+  + by apply: hc2.
+  2 : by apply htrr2.
+  + elim: (f_res f) (vres2) hgetr2 => [ | t ty hrec] /=; t_xrbindP.
+    + by move=> _ <-.
+    by move=> > /get_varP [-> _ _] > /hrec -> <-.
+  1-2: done.
+  + by apply: (sem_post_uincl hu1 hur); apply: sem_post_ok hpo.
+  by case s2.
 Qed.
 
-Lemma indirect_to_direct scs m fn va scs' m' vr :
-  sem_call (dc := indirect_c) p ev scs m fn va scs' m' vr →
+Lemma indirect_to_direct scs m fn va scs' m' vr tr :
+  sem_call (dc := indirect_c) p ev scs m fn va scs' m' vr tr →
   exists2 vr',
     List.Forall2 value_uincl vr vr' &
-    sem_call (dc := direct_c) p ev scs m fn va scs' m' vr'.
+    sem_call (dc := direct_c) p ev scs m fn va scs' m' vr' tr.
 Proof.
   move=> Hsem.
   have [ ] :=
@@ -280,8 +325,7 @@ Proof.
          Hassgn
          Hopn
          Hsyscall
-         Hassert_true
-         Hassert_false
+         Hassert
          Hif_true
          Hif_false
          Hwhile_true

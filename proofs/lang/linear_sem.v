@@ -21,7 +21,9 @@ Local Open Scope seq_scope.
 Section SEM.
 
 Context
+  {tabstract : Tabstract}
   {asm_op syscall_state : Type}
+  {absp : Prabstract}
   {ep : EstateParams syscall_state}
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
@@ -46,21 +48,23 @@ Record lstate := Lstate
   { lscs : syscall_state_t;
     lmem : mem;
     lvm  : Vm.t;
-    lfn : funname;
-    lpc  : nat; }.
+    lfn  : funname;
+    lpc  : nat;
+    ltr  : contracts_trace;
+  }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm).
-Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
-Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
-Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
-Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
+Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm) s.(ltr).
+Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc s.(eassert).
+Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc s.(ltr).
+Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc) s.(ltr).
+Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc s.(ltr).
 Definition lset_estate' (ls : lstate) (s : estate) : lstate :=
   Eval hnf in of_estate s ls.(lfn) ls.(lpc).
 Definition lset_estate
-  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; |}.
+  (ls : lstate) (scs : syscall_state) (m : mem) (vm : Vm.t) (tr : contracts_trace) : lstate :=
+  Eval hnf in lset_estate' ls {| escs := scs; emem := m; evm := vm; eassert := tr |}.
 Definition lset_mem_vm (ls : lstate) (m : mem) (vm : Vm.t) : lstate :=
-  Eval hnf in lset_estate ls (lscs ls) m vm.
+  Eval hnf in lset_estate ls (lscs ls) m vm (ltr ls).
 Definition lset_mem (ls : lstate) (m : mem) : lstate :=
   Eval hnf in lset_mem_vm ls m (lvm ls).
 Definition lset_vm (ls : lstate) (vm : Vm.t) : lstate :=
@@ -75,7 +79,6 @@ Proof. by case: es. Qed.
 Lemma of_estate_to_estate ls :
   of_estate (to_estate ls) (lfn ls) (lpc ls) = ls.
 Proof. by case: ls. Qed.
-
 
 (* The [lsem] relation defines the semantics of a linear command
 as the reflexive transitive closure of the [lsem1] relation that
@@ -132,11 +135,11 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
         escs := scs;
         emem := m;
         evm := vm_after_syscall s1.(lvm);
+        eassert := ltr s1;
       |}
     in
     Let s' := write_lvals true [::] s (to_lvals sig.(scs_vout)) vs in
               ok (lnext_pc (lset_estate' s1 s'))
-  | Lassert _ => ok (setpc s1 s1.(lpc).+1)
   | Lcall None d =>
     let vrsp := v_var (vid (lp_rsp P)) in
     Let sp := get_var true s1.(lvm) vrsp >>= to_pointer in
@@ -293,9 +296,10 @@ Definition ls_export_initial scs m vm fn :=
   {|
     lscs := scs;
     lmem := m;
-    lvm := vm;
-    lfn := fn;
-    lpc := 0;
+    lvm  := vm;
+    lfn  := fn;
+    lpc  := 0;
+    ltr  := [::];
   |}.
 
 Definition ls_export_final scs m vm fn fd :=
@@ -305,6 +309,7 @@ Definition ls_export_final scs m vm fn fd :=
     lvm := vm;
     lfn := fn;
     lpc := size (lfd_body fd);
+    ltr := [::];
   |}.
 
 Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: Vm.t) (scs':syscall_state_t) (m': mem) (vm': Vm.t) : Prop :=

@@ -70,13 +70,8 @@ let type_of_op2 op =
   (Conv.ty_of_cty tin1, Conv.ty_of_cty tin2), Conv.ty_of_cty tout
 
 let type_of_opN op = 
-  let tins, tout = E.type_of_opN op in
+  let tins, tout = E.type_of_opNA op in
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
-
-let type_of_opA op =
-  let tins = op.tyin in
-  let tout = op.tyout in
-   tins, tout
 
 let type_of_sopn pd asmOp op =
   List.map Conv.ty_of_cty (Sopn.sopn_tin Build_Tabstract pd asmOp op),
@@ -110,29 +105,21 @@ let rec ty_expr pd loc (e:expr) =
     let tins, tout = type_of_opN op in
     check_exprs pd loc es tins;
     tout
-  | Pabstract(op,es) ->
-    let tins, tout = type_of_opA op in
-    check_exprs pd loc es tins;
-    tout
   | Pif(ty,b,e1,e2) ->
     check_expr pd loc b tbool;
     check_expr pd loc e1 ty;
     check_expr pd loc e2 ty;
     ty
-  | Pfvar x -> ty_var x
-  | Pbig(e1, e2, op, x, e0, b) ->
+  | Pbig(e, op, x, e1, e2, e0) ->
     let (tin1, tin2), tout = type_of_op2 op in
+    check_expr pd loc e  tout;
     check_expr pd loc e1 tint;
     check_expr pd loc e2 tint;
     check_expr pd loc e0 tout;
-    check_expr pd loc b  tout;
     (* FIXME *)
-    if not (subtype tin1 tout) && not (subtype tin2 tout) then 
+    if not (subtype tin1 tout) && not (subtype tin2 tout) then
       error loc "invalid big op type";
     tout
-  | Presult (_,x) -> ty_gvar x
-  | Presultget(_al,_aa,ws,_, x,e) -> ty_get_set pd loc ws x e
-
 
 and check_expr pd loc e ty = 
   let te = ty_expr pd loc e in

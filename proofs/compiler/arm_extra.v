@@ -48,12 +48,9 @@ Instance eqTC_arm_extra_op : eqTypeC arm_extra_op :=
 
 Local Notation E n := (sopn.ADExplicit n None).
 
-Section ARM_EXTRA.
-  Context {A :Tabstract}.
-
-  (* [conflicts] ensures that the returned register is distinct from the first
+(* [conflicts] ensures that the returned register is distinct from the first
    argument. *)
-Definition Oarm_add_large_imm_instr : instruction_desc :=
+Definition Oarm_add_large_imm_instr {tabstract : Tabstract} : instruction_desc :=
   let ty := sword arm_reg_size in
   let semi := fun (x y : word arm_reg_size) => ok (x + y)%R in
   {| str    := (fun _ => "add_large_imm"%string)
@@ -66,9 +63,7 @@ Definition Oarm_add_large_imm_instr : instruction_desc :=
    ; semu   := @values.vuincl_app_sopn_v _ [:: ty; ty] [:: ty] semi refl_equal
    ; i_safe := [::] |}.
 
-End ARM_EXTRA.
-
-Definition smart_li_instr (ws : wsize) : instruction_desc :=
+Definition smart_li_instr {tabstract : Tabstract} (ws : wsize) : instruction_desc :=
   mk_instr_desc
     (pp_sz "smart_li" ws)
     [:: sword ws ] [:: E 0 ]
@@ -76,7 +71,7 @@ Definition smart_li_instr (ws : wsize) : instruction_desc :=
     (fun x => ok x)
     [::].
 
-Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
+Definition smart_li_instr_cc {tabstract : Tabstract} (ws : wsize) : instruction_desc :=
   mk_instr_desc
     (pp_sz "smart_li_cc" ws)
     [:: sword ws; sbool; sword ws ] [:: E 0; E 2; E 1 ]
@@ -84,7 +79,7 @@ Definition smart_li_instr_cc (ws : wsize) : instruction_desc :=
     (fun x b y => ok (if b then x else y))
     [::].
 
-Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
+Definition get_instr_desc {tabstract : Tabstract} (o: arm_extra_op) : instruction_desc :=
   match o with
   | Oarm_swap sz => Oswap_instr (sword sz)
   | Oarm_add_large_imm => Oarm_add_large_imm_instr
@@ -97,7 +92,7 @@ Definition get_instr_desc (o: arm_extra_op) : instruction_desc :=
  * [arch_extra.asm_opI] is selected first and we have both base and extra ops.
 *)
 #[ export ]
-Instance arm_extra_op_decl : asmOp arm_extra_op | 1 :=
+Instance arm_extra_op_decl {tabstract : Tabstract} : asmOp arm_extra_op | 1 :=
   {
     asm_op_instr := get_instr_desc;
     prim_string := [::];
@@ -135,7 +130,7 @@ Definition li_condition_modified ii :=
     "assignment needs to be split but condition is modified by assignment".
 End E.
 
-Definition asm_args_of_opn_args
+Definition asm_args_of_opn_args {tabstract : Tabstract}
   : seq ARMFopn_core.opn_args -> seq (asm_op_msb_t * lexprs * rexprs) :=
   map (fun '(les, aop, res) => ((None, aop), les, res)).
 
@@ -178,11 +173,11 @@ Definition smart_li_args ii ws les res :=
   Let: (imm, res) := uncons_wconst ii res in
   ok (x, imm, res).
 
-Definition assemble_smart_li ii ws les res :=
+Definition assemble_smart_li {tabstract : Tabstract} ii ws les res :=
   Let: (x, imm, _) := smart_li_args ii ws les res in
   ok (asm_args_of_opn_args (ARMFopn_core.li x imm)).
 
-Definition assemble_smart_li_cc
+Definition assemble_smart_li_cc {tabstract : Tabstract}
   ii ws les res : cexec (seq (asm_op_msb_t * lexprs * rexprs)) :=
   Let: (x, imm, res) := smart_li_args ii ws les res in
   Let: (cond, res) := uncons ii res in
@@ -197,6 +192,7 @@ Definition assemble_smart_li_cc
   mapM mk (ARMFopn_core.li x imm).
 
 Definition assemble_extra
+           {tabstract : Tabstract}
            (ii: instr_info)
            (o: arm_extra_op)
            (outx: lexprs)
@@ -241,12 +237,19 @@ Definition assemble_extra
   end.
 
 #[ export ]
-Instance arm_extra {atoI : arch_toIdent} :
+Instance arm_extra
+  {tabstract : Tabstract}
+  {atoI : arch_toIdent} :
   asm_extra register register_ext xregister rflag condt arm_op arm_extra_op :=
   { to_asm := assemble_extra }.
 
 (* This concise name is convenient in OCaml code. *)
-Definition arm_extended_op {atoI : arch_toIdent} :=
-  @extended_op _ _ _ _ _ _ _ arm_extra.
+Definition arm_extended_op
+  {tabstract : Tabstract}
+  {atoI : arch_toIdent} :=
+  @extended_op _ _ _ _ _ _ _ _ arm_extra.
 
-Definition Oarm {atoI : arch_toIdent} o : @sopn _ arm_extended_op _ := Oasm (BaseOp (None, o)).
+Definition Oarm
+  {tabstract : Tabstract}
+  {atoI : arch_toIdent} o : @sopn _ arm_extended_op _ :=
+  Oasm (BaseOp (None, o)).

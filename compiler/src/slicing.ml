@@ -12,17 +12,13 @@ let inspect_gvar k { gs; gv } =
 let rec inspect_e k = function
   | Pconst _ | Pbool _ | Parr_init _ -> k
   | Pvar x -> inspect_gvar k x
-  | Presult (_,x) -> inspect_gvar k x
-  | Presultget (_ , _, _, _, x, e)
   | Pget (_, _, _, x, e) | Psub (_, _, _, x, e) -> inspect_gvar (inspect_e k e) x
   | Pload (_, _, _, e) | Papp1 (_, e) -> inspect_e k e
   | Papp2 (_, e1, e2) -> inspect_e (inspect_e k e1) e2
   | PappN (_, es) -> inspect_es k es
-  | Pabstract (_, es) -> inspect_es k es
   | Pif (_, e1, e2, e3) -> inspect_e (inspect_e (inspect_e k e1) e2) e3
-  | Pfvar _ -> k
-  | Pbig(e1, e2, op2, x, e0, body) -> 
-    List.fold_left inspect_e k [e1;e2; e0; body]
+  | Pbig(e, op2, x, e1, e2, e0) ->
+    List.fold_left inspect_e k [e;e1;e2; e0]
 
 and inspect_es k es = List.fold_left inspect_e k es
 

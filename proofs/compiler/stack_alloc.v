@@ -642,11 +642,8 @@ Fixpoint alloc_e (e:pexpr) ty :=
     ok (Papp2 o e1 e2)
 
   | PappN o es =>
-    Let es := mapM2 bad_arg_number alloc_e es (type_of_opN o).1 in
+    Let es := mapM2 bad_arg_number alloc_e es (type_of_opNA o).1 in
     ok (PappN o es)
-
-  | Pabstract s es =>
-      Error  (stk_ierror_no_var "Pabstract")
 
   | Pif t e e1 e2 =>
     Let e := alloc_e e sbool in
@@ -654,10 +651,8 @@ Fixpoint alloc_e (e:pexpr) ty :=
     Let e2 := alloc_e e2 ty in
     ok (Pif ty e e1 e2)
 
- | Pfvar v => Error (stk_ierror_no_var "Pfvar is not supported in stack_alloc")
- | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
- | Presult _ _ => Error (stk_ierror_no_var "Presult is not supported in stack_alloc")
- | Presultget _ _ _ _ _ _ => Error (stk_ierror_no_var "Presultget is not supported in stack_alloc")
+  | Pbig _ _ _ _ _ _ => Error (stk_ierror_no_var "Pbig is not supported in stack_alloc")
+
   end.
 
   Definition alloc_es es ty := mapM2 bad_arg_number alloc_e es ty.
@@ -1250,8 +1245,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       alloc_syscall ii rmap rs o es
 
     | Cassert t p e =>
-        Let e := add_iinfo ii (alloc_e rmap e sbool) in
-        ok (rmap, [:: MkI ii (Cassert t p e)])
+      Error (pp_at_ii ii (stk_ierror_no_var "don't deal with assert"))
 
     | Cif e c1 c2 =>
       Let e := add_iinfo ii (alloc_e rmap e sbool) in
@@ -1493,7 +1487,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> Ident.iden
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
-    f_contra := f_contra fd;
+    f_contra := None;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin);
     f_params := params;
     f_body := flatten body;

@@ -129,7 +129,7 @@ let main () =
       exit 0
     end;
 
-    eprint Compiler.Typing (Printer.pp_pprog Arch.reg_size Arch.asmOp) pprog;
+    eprint Compiler.Typing (Printer.pp_pprog ~debug:true Arch.reg_size Arch.asmOp) pprog;
 
     let prog =
       try Compile.preprocess Arch.reg_size Arch.asmOp pprog

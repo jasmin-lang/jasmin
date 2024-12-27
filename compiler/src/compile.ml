@@ -49,8 +49,8 @@ let warn_extra_fd pd asmOp (_, fd) = List.iter (warn_extra_i pd asmOp) fd.f_body
 module CompilerParams (Arch : Arch_full.Arch) =
 struct
 
-  module Regalloc = Regalloc.Regalloc (Arch) 
-  module StackAlloc = StackAlloc.StackAlloc (Arch) 
+  module Regalloc = Regalloc.Regalloc (Arch)
+  module StackAlloc = StackAlloc.StackAlloc (Arch)
 
   let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef (fn, cfd)
   let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef fd)
@@ -68,7 +68,7 @@ struct
     StackAlloc.memory_analysis
       (Printer.pp_err ~debug:!debug)
       ~debug:!debug up
- 
+
   let global_regalloc fds =
     if !debug then Format.eprintf "START regalloc@.";
     let fds = List.map Conv.fdef_of_csfdef fds in
@@ -180,9 +180,9 @@ struct
     let x = Conv.var_of_cvar x in
     Prog.V.clone x
 
-  let split_live_ranges_fd fd = Regalloc.split_live_ranges fd 
+  let split_live_ranges_fd fd = Regalloc.split_live_ranges fd
 
-  let renaming_fd fd = Regalloc.renaming fd 
+  let renaming_fd fd = Regalloc.renaming fd
 
   let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd
 
@@ -278,7 +278,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
 
   let module CP = CompilerParams(Arch) in
   let open CP in
- 
+
   let export_functions =
     let conv fd = fd.f_name in
     List.fold_right
@@ -289,7 +289,7 @@ let compile (type reg regx xreg rflag cond asm_op extra_op)
       (snd prog) []
   in
 
-  Compiler.compile_prog_to_asm Arch.asm_e Arch.call_conv Arch.aparams 
+  Compiler.compile_prog_to_asm Build_Tabstract Arch.asm_e Arch.call_conv Arch.aparams
     (cparams ~onlyreg:true visit_prog_after_pass cprog)
     export_functions
     (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
@@ -308,21 +308,21 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
   let module CP = CompilerParams(Arch) in
   let open CP in
 
-  let visit_prog_after_pass ~debug s p = 
+  let visit_prog_after_pass ~debug s p =
     eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p in
 
   let cparams = CP.cparams ~onlyreg:false visit_prog_after_pass cprog in
 
   (* Add array copy after inlining every where *)
-  let is_array_init e = 
+  let is_array_init e =
     match e with
     | Parr_init _ -> true
     | _ -> false in
 
-  let rec add_array_copy_i i = 
+  let rec add_array_copy_i i =
     { i with i_desc = add_array_copy_id i.i_desc }
 
-  and add_array_copy_id i = 
+  and add_array_copy_id i =
   match i with
   | Cif(e,c1,c2) -> Cif(e, add_array_copy_c c1, add_array_copy_c c2)
   | Cfor(x,r,c)  -> Cfor(x,r, add_array_copy_c c)
@@ -334,32 +334,32 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
       Copn([x],t, Opseudo_op (Ocopy(ws, Conv.pos_of_int n)), [e])
   | Cassert _ | Ccall _ | Copn _ | Csyscall _ | Cassgn _ -> i
 
-  and add_array_copy_c c = 
+  and add_array_copy_c c =
     List.map add_array_copy_i c in
 
-  let add_array_copy_f f = 
+  let add_array_copy_f f =
    { f with f_body = add_array_copy_c f.f_body } in
-  let add_array_copy (g,fds) = (g, List.map add_array_copy_f fds) in  
-  
-  let doit f p = 
+  let add_array_copy (g,fds) = (g, List.map add_array_copy_f fds) in
+
+  let doit f p =
     match f p with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
       raise (HiError e)
     | Utils0.Ok p -> p in
 
-  let cprog =   
-    doit 
-      (Compiler.compiler_CL_first_part Arch.asm_e Arch.aparams cparams
+  let cprog =
+    doit
+      (Compiler.compiler_CL_first_part Build_Tabstract Arch.asm_e Arch.aparams cparams
          [toextract])
       (Expr.to_uprog Build_Tabstract Arch.asmOp cprog) in
-     
-  let cprog = 
+
+  let cprog =
     let p = Conv.prog_of_cuprog (Obj.magic cprog) in
 (*    Format.eprintf "Before add copy@.%a@." (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) p; *)
     let p = add_array_copy p in
 (*    Format.eprintf "After add copy@.%a@." (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) p; *)
     let cp = Conv.cuprog_of_prog p in
-    cp in      
-  doit (Compiler.compiler_CL_second_part Arch.asm_e Arch.aparams cparams [toextract])
+    cp in
+  doit (Compiler.compiler_CL_second_part Build_Tabstract Arch.asm_e Arch.aparams cparams [toextract])
       (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)

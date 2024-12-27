@@ -17,8 +17,6 @@ val clone_func : ('info, 'asm) func -> ('info, 'asm) func
 
 val extend_iinfo : L.i_loc -> ('info, 'asm) func -> ('info, 'asm) func
 
-val subst_result : (int -> 'len1 ggvar -> 'len1 ggvar) -> 'len1 gexpr -> 'len1 gexpr
-
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *)
 
@@ -38,5 +36,3 @@ val vsubst_i : vsubst -> ('info, 'asm) instr -> ('info, 'asm) instr
 val vsubst_c : vsubst -> ('info, 'asm) stmt  -> ('info, 'asm) stmt
 
 val vsubst_func : vsubst -> ('info, 'asm) func -> ('info, 'asm) func
-
-val gsubst_result: vsubst -> expr  -> expr

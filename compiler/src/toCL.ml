@@ -509,12 +509,11 @@ module I (S:S): I = struct
     | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
     | Papp2(Osub _, e1, e2) -> minu !> e1 !> e2
     | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
-    | Pabstract ({name="se_16_64"}, [v]) -> Rsext (!> v, 48)
-    | Pabstract ({name="se_32_64"}, [v]) -> Rsext (!> v, 32)
-    | Pabstract ({name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
-    | Pabstract ({name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
+    | PappN(Oabstract {pa_name="se_16_64"}, [v]) -> Rsext (!> v, 48)
+    | PappN(Oabstract {pa_name="se_32_64"}, [v]) -> Rsext (!> v, 32)
+    | PappN(Oabstract {pa_name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
+    | PappN(Oabstract {pa_name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
         UnPack (to_var ~sign x, 16, Z.to_int z)
-    | Presult (_, x) -> Rvar (to_var x)
     | _ -> error e
 
   let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
@@ -538,11 +537,11 @@ module I (S:S): I = struct
 
   let rec extract_list e aux =
     match e with
-    | Pabstract ({name="single"}, [h]) -> [h]
-    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
-    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
-    | Pabstract ({name="word_nil"}, []) -> List.rev aux
-    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
+    | PappN (Oabstract {pa_name="single"}, [h]) -> [h]
+    | PappN (Oabstract {pa_name="pair"}, [h1;h2]) -> [h1;h2]
+    | PappN (Oabstract {pa_name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
+    | PappN (Oabstract {pa_name="word_nil"}, []) -> List.rev aux
+    | PappN (Oabstract {pa_name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
     | _ -> assert false
 
   let rec get_const x =
@@ -604,13 +603,13 @@ module I (S:S): I = struct
     | Papp2(Oadd _, e1, e2) -> !> e1 + !> e2
     | Papp2(Osub _, e1, e2) -> !> e1 - !> e2
     | Papp2(Omul _, e1, e2) -> mull !> e1 !> e2
-    | Pabstract ({name="limbs"}, [h;q]) ->
+    | PappN (Oabstract {pa_name="limbs"}, [h;q]) ->
       begin
         match !> h with
         | Iconst c -> Ilimbs (c, (List.map (!>) (extract_list q [])))
         | _ -> assert false
       end
-   | Pabstract ({name="u16i"}, [v]) ->
+   | PappN (Oabstract {pa_name="u16i"}, [v]) ->
        begin
          match v with
        (* why do we have more cases?  | Pvar _ -> !> v *)
@@ -618,16 +617,16 @@ module I (S:S): I = struct
               (Pconst (w2i ~sign z U16))
          | _ -> !> v
        end
-    | Pabstract ({name="pow"}, [b;e]) -> power !> b !> e
-    | Pabstract ({name="u64i"}, [v]) ->
+    | PappN (Oabstract {pa_name="pow"}, [b;e]) -> power !> b !> e
+    | PappN (Oabstract {pa_name="u64i"}, [v]) ->
        begin
          match v with
          | Papp1 (Oword_of_int _ws, Pconst z) ->  !>
               (Pconst (w2i ~sign z U64))
          | _ -> !> v
       end
-    | Pabstract ({name="b2i"}, [v]) -> !> v
-    | Pabstract ({name="mon"}, [c;a;b]) ->
+    | PappN (Oabstract {pa_name="b2i"}, [v]) -> !> v
+    | PappN (Oabstract {pa_name="mon"}, [c;a;b]) ->
       let c = get_const c in
       let v =
         match Hash.find env c with
@@ -641,9 +640,8 @@ module I (S:S): I = struct
         | x -> x
       in
       mull !> b (power (Ivar v) !> a)
-    | Pabstract ({name="mon0"}, [b]) ->
+    | PappN (Oabstract {pa_name="mon0"}, [b]) ->
       !> b
-    | Presult (_,x) -> Ivar (to_var ~sign x)
     | _ -> error e
 
   let rec gexp_to_epred env ?(sign=S.s) e :CL.I.epred list =
@@ -653,9 +651,9 @@ module I (S:S): I = struct
     match e with
     | Papp2(Oeq _, e1, e2)  -> [Eeq (!> e1, !> e2)]
     | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
-    | Pabstract ({name="eqmod"} as _opa, [h1;h2;h3]) ->
+    | PappN (Oabstract {pa_name="eqmod"} as _opa, [h1;h2;h3]) ->
       [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
-    | Pabstract ({name="eqmod_int"} as _opa, [h1;h2;h3]) ->
+    | PappN (Oabstract {pa_name="eqmod_int"} as _opa, [h1;h2;h3]) ->
       [Eeqmod (!> h1, !> h2, [!> h3])]
     | _ -> error e
 
@@ -821,7 +819,7 @@ module X86BaseOpU : BaseOp
       let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.mov l a]
 
-  | CMOVcc ws -> (* warning, does not work with ! cf *)
+    | CMOVcc ws -> (* warning, does not work with ! cf *)
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let a3, i3 = cast_atome ws (List.nth es 2) in
       let x1 = I.glval_to_lval (List.nth xs 0) in
@@ -1210,8 +1208,8 @@ module X86BaseOpU : BaseOp
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      let instructions =     
-      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]     
+      let instructions =
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
     in
     instructions
 
@@ -1221,13 +1219,13 @@ module X86BaseOpU : BaseOp
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      let instructions = 
+      let instructions =
       i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
     in
     instructions
 
     | _ ->
-      let x86_id = X86_instr_decl.x86_instr_desc o in
+      let x86_id = X86_instr_decl.x86_instr_desc Build_Tabstract o in
       let name = (x86_id.id_pp_asm []).pp_aop_name in
       let msg =
         Format.asprintf "Unsupport operator in %s translation" S.error
@@ -1252,7 +1250,7 @@ module X86BaseOpU : BaseOp
       let l6 = I.glval_to_lval (List.nth xs 5) in
       [CL.Instr.clear l1; CL.Instr.clear l2; CL.Instr.clear l3; CL.Instr.clear l4; CL.Instr.clear l5; CL.Instr.Op1.mov l6 a;]
     | _ ->
-      let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
+      let x86_id = X86_extra.get_instr_desc Build_Tabstract X86_arch_full.X86_core.atoI o in
       let name = x86_id.str () in
       let msg =
         Format.asprintf "Unsupport extra operator in %s translation" S.error
@@ -1478,7 +1476,7 @@ module X86BaseOpS : BaseOp
       end
 
     | _ ->
-      let x86_id = X86_instr_decl.x86_instr_desc o in
+      let x86_id = X86_instr_decl.x86_instr_desc Build_Tabstract o in
       let name = (x86_id.id_pp_asm []).pp_aop_name in
       let msg =
         Format.asprintf "@[Unsupport operator in %s translation]@ " S.error;
@@ -1488,7 +1486,7 @@ module X86BaseOpS : BaseOp
   let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
     | _ ->
-      let x86_id = X86_extra.get_instr_desc (X86_arch_full.X86_core.atoI) o in
+      let x86_id = X86_extra.get_instr_desc Build_Tabstract X86_arch_full.X86_core.atoI o in
       let name = x86_id.str () in
       let msg =
         Format.asprintf "Unsupport extra operator in %s translation" S.error
@@ -1530,7 +1528,7 @@ module ARMBaseOp : BaseOp
     let mn, opt = match o with Arm_instr_decl.ARM_op (mn, opt) -> mn, opt in
     match mn with
     | _ ->
-      let arm_id = Arm_instr_decl.arm_instr_desc o in
+      let arm_id = Arm_instr_decl.arm_instr_desc Build_Tabstract o in
       let name = (arm_id.id_pp_asm []).pp_aop_name in
       let msg =
         Format.asprintf "@[Unsupport operator in %s translation]@ " S.error
@@ -1540,7 +1538,7 @@ module ARMBaseOp : BaseOp
   let extra_op_to_instr annot loc xs (o:extra_op) es =
     match o with
     | _ ->
-      let x86_id = Arm_extra.get_instr_desc o in
+      let x86_id = Arm_extra.get_instr_desc Build_Tabstract o in
       let name = x86_id.str () in
       let msg =
         Format.asprintf "Unsupport extra operator in %s translation" S.error
@@ -1549,14 +1547,20 @@ module ARMBaseOp : BaseOp
 
 end
 
-let sub_fun_return r =
-  let aux f = List.map (fun (prover,clause) -> prover, f clause) in
-  let aux1 i v =
-    match snd (List.findi (fun ii _ -> ii = i) r) with
-    | Lvar v -> {gv = v; gs = Expr.Slocal}
-    | _ -> assert false
-  in
-  aux (Subst.subst_result aux1)
+let sub_fun_params params args =
+  let assoc = List.combine params args in
+  let subst_v v =
+    try snd (List.find (fun (vi, _) -> (L.unloc v.gv).v_id = (L.unloc vi).v_id) assoc)
+    with Not_found -> Pvar v in
+  let subst = Subst.gsubst_e (fun ?loc:_ x -> x) subst_v in
+  List.map (fun (prover,clause) -> prover, subst clause)
+
+let sub_fun_returns res lval =
+  let to_expr lv =
+    match lv with
+    | Lvar v -> Pvar {gv = v; gs = Expr.Slocal}
+    | _ -> assert false in
+  sub_fun_params res (List.map to_expr lval)
 
 let armeBaseOpsign _s :
   (module BaseOp  with type op = Arm_instr_decl.arm_op
@@ -1568,19 +1572,6 @@ let armeBaseOpsign _s :
 
 module Mk(O:BaseOp) = struct
 
-  let sub_fun_param args params =
-    let aux f =
-      List.map (fun (prover,clause) -> prover, f clause)
-    in
-    let check v vi=
-      (L.unloc v.gv).v_name = vi.v_name && (L.unloc v.gv).v_id = vi.v_id
-    in
-    let aux1 v =
-      match fst (List.findi (fun _ vi -> check v vi) args) with
-      | i -> snd (List.findi (fun ii _ -> ii = i) params)
-      | exception _ -> Pvar v
-    in
-    aux (Subst.gsubst_e (fun ?loc:_ x -> x) aux1)
 
   let pp_ext_op loc xs o es trans =
     match o with
@@ -1625,12 +1616,19 @@ module Mk(O:BaseOp) = struct
     | Csyscall _ | Cif _ | Cfor _ | Cwhile _ -> assert false
     | Ccall (r,f,params) ->
       let fd = List.find (fun fd -> fd.f_name.fn_id = f.fn_id) fds in
-      let pre = sub_fun_param fd.f_args params fd.f_contra.f_pre in
-      let post = sub_fun_param fd.f_args params fd.f_contra.f_post in
-      let post =  sub_fun_return r post in
-      let pre_cl = to_clause env pre in
-      let post_cl = to_clause env post in
-      r , [CL.Instr.assert_ pre_cl] @  [CL.Instr.assume post_cl]
+      let pre_cl, post_cl =
+        match fd.f_contra with
+        | None -> [], []
+        | Some ci ->
+            let pre = sub_fun_params ci.f_iparams params ci.f_pre in
+            let pre_cl = to_clause env pre in
+            let post = sub_fun_params ci.f_iparams params ci.f_post in
+            let post = sub_fun_returns ci.f_ires r post in
+            let post_cl = to_clause env post in
+            [CL.Instr.assert_ pre_cl], [CL.Instr.assume post_cl]
+        in
+      (* FIXME: How are we sure that the variables in r are fresh ? *)
+      r , pre_cl @ post_cl
 
     | Cassgn (a, _, _, e) ->
       begin
@@ -1641,12 +1639,14 @@ module Mk(O:BaseOp) = struct
     | Copn(xs, _, o, es) -> [], pp_sopn i.i_loc.base_loc xs o es trans
 
   let pp_c env fds c =
+    (* FIXME: this is really a bad complexity *)
     List.fold_left (fun (acc1,acc2) a ->
         let l1,l2 = pp_i env fds a in
         acc1 @ l1, acc2 @ l2
       ) ([],[]) c
 
   let filter_add cond l1 l2 =
+    (* FIXME : use a set it will be more efficiant *)
     List.fold_left (
         fun l a ->
           if List.exists (cond a) l
@@ -1659,8 +1659,18 @@ module Mk(O:BaseOp) = struct
     let cond a x = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
     let args = filter_add cond fd.f_args ret in
     let formals = List.map O.I.var_to_tyvar args in
-    let pre = to_clause env fd.f_contra.f_pre in
-    let post = to_clause env fd.f_contra.f_post in
+    let pre, post =
+      match fd.f_contra with
+      | None -> ([],[]), ([],[])
+      | Some ci ->
+        let params = List.map (fun x -> Pvar (Prog.gkvar (L.mk_loc x.v_dloc x))) fd.f_args in
+        let pre = sub_fun_params ci.f_iparams params ci.f_pre in
+        let pre = to_clause env pre in
+        let post = sub_fun_params ci.f_iparams params ci.f_post in
+        let r = List.map (fun x -> Lvar x) fd.f_ret in
+        let post = sub_fun_returns ci.f_ires r post in
+        let post = to_clause env post in
+        pre, post in
     let lval,prog = pp_c env fds fd.f_body in
     let formals_lval = List.map O.I.glval_to_lval lval in
     let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in

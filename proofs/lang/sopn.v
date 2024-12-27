@@ -21,7 +21,7 @@ Local Unset Elimination Schemes.
 (* ----------------------------------------------------------------------------- *)
 
 Section SOPN.
-Context {A : Tabstract}.
+Context {tabstract : Tabstract}.
 
 Variant arg_desc :=
 | ADImplicit  of var

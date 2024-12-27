@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
-Require Export type expr sem_type.
+Require Export type expr sem_type warray_.
 Require Export flag_combination.
 Import Utf8.
 
@@ -10,7 +10,24 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section SEM_OP_TYPED.
-Context {A : Tabstract}.
+Context {tabstract : Tabstract}.
+
+Definition vuincl (t: stype) : sem_t t -> sem_t t -> Prop :=
+  match t with
+  | sarr p => WArray.uincl
+  | _ => fun v1 v2 => v1 = v2
+  end.
+
+Fixpoint array_uincl_compat (tin: seq stype) (tout: stype) :
+  sem_prod tin (exec (sem_t tout)) -> sem_prod tin (exec (sem_t tout)) -> Prop  :=
+  match tin return sem_prod tin (exec (sem_t tout)) -> sem_prod tin (exec (sem_t tout)) -> Prop with
+  | [::] => fun ev1 ev2 =>
+       forall v1, ev1 = ok v1 -> exists2 v2, ev2 = ok v2 & vuincl v1 v2
+  | t::ts => fun o1 o2 => forall v1 v2, @vuincl t v1 v2 -> array_uincl_compat (o1 v1) (o2 v2)
+  end.
+
+Class Prabstract :=
+  { iabstract : forall (a: opA), sem_prod (pa_tyin a) (exec (sem_t (pa_tyout a))); }.
 
 Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
@@ -30,7 +47,7 @@ Definition zlsl (x i : Z) : Z :=
   if (0 <=? i)%Z then (x * 2^i)%Z
   else (x / 2^(-i))%Z.
 
-Definition zasr (x i : Z) : Z := 
+Definition zasr (x i : Z) : Z :=
   zlsl x (-i).
 
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
@@ -92,13 +109,13 @@ Definition sem_sop2_typed (o: sop2) :
   | Olor  s       => mk_sem_sop2 wor
   | Olxor s       => mk_sem_sop2 wxor
   | Olsr s        => mk_sem_sop2 sem_shr
-  | Olsl Op_int   => mk_sem_sop2 zlsl 
+  | Olsl Op_int   => mk_sem_sop2 zlsl
   | Olsl (Op_w s) => mk_sem_sop2 sem_shl
-  | Oasr Op_int   => mk_sem_sop2 zasr 
+  | Oasr Op_int   => mk_sem_sop2 zasr
   | Oasr (Op_w s) => mk_sem_sop2 sem_sar
   | Oror s        => mk_sem_sop2 sem_ror
   | Orol s        => mk_sem_sop2 sem_rol
- 
+
   | Oeq Op_int    => mk_sem_sop2 Z.eqb
   | Oeq (Op_w s)  => mk_sem_sop2 eq_op
   | Oneq Op_int   => mk_sem_sop2 (fun x y => negb (Z.eqb x y))
@@ -122,9 +139,11 @@ Definition sem_sop2_typed (o: sop2) :
   | Ovasr ve ws     => mk_sem_sop2 (sem_vsar ve)
   end.
 
+
+
 Section WITH_PARAMS.
 
-Context {cfcd : FlagCombinationParams}.
+Context {cfcd : FlagCombinationParams} {prabstract : Prabstract}.
 
 Definition sem_combine_flags (cf : combine_flags) (b0 b1 b2 b3 : bool) : bool :=
   cf_xsem negb andb orb (fun x y => x == y) b0 b1 b2 b3 cf.
@@ -138,9 +157,18 @@ Definition sem_opN_typed (o: opN) :
       fun b0 b1 b2 b3 => ok (sem_combine_flags cf b0 b1 b2 b3)
   end.
 
+Definition sem_opNA_typed (o: opNA) :
+  let t := type_of_opNA o in
+  sem_prod t.1 (exec (sem_t t.2)) :=
+  match o with
+  | OopN o => sem_opN_typed o
+  | Oabstract o => iabstract o
+  end.
+
 End WITH_PARAMS.
 
 End SEM_OP_TYPED.
 
-Arguments sem_sop1_typed : clear implicits.
-Arguments sem_sop2_typed : clear implicits.
+Arguments sem_sop1_typed {_}.
+
+Arguments sem_sop2_typed {_}.

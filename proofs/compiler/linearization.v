@@ -605,7 +605,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 
   | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
 
-  | Cassert t p e => (lbl, MkLI ii (Lassert e) :: lc)
+  | Cassert t p e => (lbl, lc)
 
   | Cif e [::] c2 =>
     let L1 := lbl in

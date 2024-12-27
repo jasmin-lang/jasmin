@@ -107,8 +107,8 @@ Definition check_wmap (wmap: Mf.t Sv.t) : bool :=
 
 Definition check_fv (ii:instr_info) (D R : Sv.t) :=
   let I := Sv.inter D R in
-  assert (Sv.is_empty I) 
-         (E.gen_error true (Some ii) 
+  assert (Sv.is_empty I)
+         (E.gen_error true (Some ii)
                       (pp_hov (pp_s "modified expression :" :: map pp_var (Sv.elements I)))).
 
 Definition check_e (ii:instr_info) (D : Sv.t) (e : pexpr) :=
@@ -180,8 +180,7 @@ Section CHECK.
       let W := syscall_kill in
       ok (Sv.diff (Sv.union D W) (vrvs (to_lvals (syscall_sig o).(scs_vout))))
     | Cassert t p b =>
-      Let _ := check_e ii D b in
-      ok D
+      Error (E.internal_error ii "assert remain")
     | Cif b c1 c2 =>
       Let _ := check_e ii D b in
       Let D1 := check_c (check_i sz) D c1 in
@@ -240,6 +239,8 @@ Section CHECK.
                     (E.gen_error true None (pp_s "the function returns RSP")) in
     Let _ := assert (disjoint W' magic_variables)
                     (E.gen_error true None (pp_s "the function writes to RSP or global-data")) in
+    Let _ := assert (if fd.(f_contra) is Some _ then false else true)
+                    (E.gen_error true None (pp_s "fun contract remain")) in
     let W := writefun fn in
     let J := Sv.union magic_variables params in
     let e := fd.(f_extra) in
@@ -252,8 +253,8 @@ Section CHECK.
     match sf_return_address e with
     | RAreg ra _ => check_preserved_register W J "return address" ra
     | RAstack ra _ _ =>
-         if ra is Some r then 
-            assert (vtype r == sword Uptr) 
+         if ra is Some r then
+            assert (vtype r == sword Uptr)
              (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s "return address"; pp_var r]))
          else ok tt
     | RAnone =>

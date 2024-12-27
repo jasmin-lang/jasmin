@@ -88,24 +88,12 @@ let rec cexpr_of_expr = function
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr e1, cexpr_of_expr e2)
   | PappN (o, es) -> C.PappN (o, List.map (cexpr_of_expr) es)
-  | Pabstract (o, es) ->
-    let o = C.{
-        pa_name = o.name;
-        pa_tyin = List.map cty_of_ty o.tyin;
-        pa_tyout = cty_of_ty o.tyout;
-      }
-    in
-    C.Pabstract (o, List.map (cexpr_of_expr) es)
   | Pif   (ty, e, e1, e2) -> C.Pif(cty_of_ty ty, 
                                 cexpr_of_expr e,
                                 cexpr_of_expr e1,
                                 cexpr_of_expr e2)
-
-  | Pfvar x -> C.Pfvar (cvari_of_vari x)
-  | Pbig(e1,e2, o, x, e0, b) -> 
-    C.Pbig(cexpr_of_expr e1, cexpr_of_expr e2, o, cvari_of_vari x, cexpr_of_expr e0, cexpr_of_expr b)
-  | Presult (i,x)            -> C.Presult (cz_of_z (Z.of_int i),cgvari_of_gvari x)
-  | Presultget (al, aa, ws, i, x, e) -> C.Presultget (al, aa, ws, cz_of_z (Z.of_int i), cgvari_of_gvari x, cexpr_of_expr e)
+  | Pbig(e, o, x, e1, e2, e0) ->
+    C.Pbig(cexpr_of_expr e, o, cvari_of_vari x, cexpr_of_expr e1, cexpr_of_expr e2, cexpr_of_expr e0)
 
 let rec expr_of_cexpr = function
   | C.Pconst z          -> Pconst (z_of_cz z)
@@ -118,24 +106,11 @@ let rec expr_of_cexpr = function
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr e1, expr_of_cexpr e2)
   | C.PappN (o, es) -> PappN (o, List.map (expr_of_cexpr) es)
-  | C.Pabstract (o, es) ->
-    let o = {
-        name = o.pa_name;
-        tyin = List.map ty_of_cty o.pa_tyin;
-        tyout = ty_of_cty o.pa_tyout;
-      }
-    in
-    Pabstract (o, List.map (expr_of_cexpr) es)
   | C.Pif (ty, e, e1, e2) -> Pif(ty_of_cty ty, expr_of_cexpr e,
                                expr_of_cexpr e1,
                                expr_of_cexpr e2)
-  | C.Pfvar x -> Pfvar (vari_of_cvari x)
-  | C.Pbig(e1,e2, o, x, e0, b) -> 
-    Pbig(expr_of_cexpr e1, expr_of_cexpr e2, o, vari_of_cvari x, expr_of_cexpr e0, expr_of_cexpr b)
-  | C.Presult (z, x)            -> Presult (Z.to_int (z_of_cz z), gvari_of_cgvari x)
-  | C.Presultget (al, aa, ws, z, x, e) -> Presultget (al, aa, ws, Z.to_int (z_of_cz z), gvari_of_cgvari x, expr_of_cexpr e)
-
-
+  | C.Pbig(e, o, x, e1, e2, e0) ->
+    Pbig(expr_of_cexpr e, o, vari_of_cvari x, expr_of_cexpr e1, expr_of_cexpr e2, expr_of_cexpr e0)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -259,7 +234,10 @@ let contra_of_ccontra c =
   let aux =
     List.map (fun (prover,clause) -> prover,cexpr_of_expr clause)
   in
+  Some
   {
+    C.f_iparams =  List.map cvari_of_vari c.f_iparams;
+    C.f_ires = List.map cvari_of_vari c.f_ires;
     C.f_pre = aux c.f_pre;
     C.f_post = aux c.f_post;
   }
@@ -273,7 +251,7 @@ let cufdef_of_fdef fd =
   let f_body = cstmt_of_stmt fd.f_body in
   let f_res = List.map cvari_of_vari fd.f_ret in
   fn, { C.f_info   = f_info;
-        C.f_contra = contra_of_ccontra fd.f_contra;
+        C.f_contra = Option.bind fd.f_contra contra_of_ccontra;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -286,7 +264,10 @@ let ccontra_of_contra c =
   let aux =
     List.map (fun (prover,clause) -> prover,expr_of_cexpr clause)
   in
+  Some
   {
+    f_iparams = List.map vari_of_cvari C.(c.f_iparams);
+    f_ires = List.map vari_of_cvari C.(c.f_ires);
     f_pre = aux C.(c.f_pre);
     f_post = aux C.(c.f_post);
   }
@@ -295,7 +276,7 @@ let fdef_of_cufdef (fn, fd) =
   let f_loc, f_annot, f_cc, f_outannot = fd.C.f_info in
   { f_loc;
     f_annot;
-    f_contra = ccontra_of_contra fd.f_contra;
+    f_contra = Option.bind fd.f_contra ccontra_of_contra;
     f_cc;
     f_name = fn;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
