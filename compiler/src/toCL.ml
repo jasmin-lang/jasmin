@@ -290,7 +290,6 @@ module CL = struct
 
       let subc = op2_2 "subc"
       let mull = op2_2 "mull"
-      let umull = op2_2 "mull"
       let cmov = op2_2  "cmov"
       let adds = op2_2  "adds"
       let subb = op2_2  "subb"
@@ -391,7 +390,7 @@ module CL = struct
 
     let pp_proc fmt (proc : proc) =
       Format.fprintf fmt
-        "@[<v>proc %s(@[<hov>%a@]) = @ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@]@ }@ @] "
+        "@[<v>proc %s(@[<hov>%a@]) =@ {@[<v>@ %a@]@ }@ %a@ {@[<v>@ %a@]@ }@ @] "
         proc.id
         pp_tyvars proc.formals
         pp_clause proc.pre
@@ -1239,7 +1238,7 @@ module X86BaseOpU : BaseOp
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
-      i1 @ i2 @ [CL.Instr.Op2_2.umull l1 l2 a1 a2;]
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l1 l2 a1 a2;]
     | Oset0 ws ->
       let a = I.mk_const_atome ~sign:false (int_of_ws ws) Z.zero in
       let l1 = I.glval_to_lval (List.nth xs 0) in

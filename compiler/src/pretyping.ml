@@ -2271,10 +2271,16 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
 
   let name = L.unloc pf.pdf_name in
 
+  let f_contra =
+    match f_pre, f_post with
+    | [] , [] -> None
+    | _, _ -> Some {P.f_iparams; f_ires;f_pre;f_post}
+  in
+
   let fdef =
     { P.f_loc   = loc;
       P.f_annot = process_f_annot loc name f_cc pf.pdf_annot;
-      P.f_contra = Some {f_iparams; f_ires;f_pre;f_post};
+      P.f_contra = f_contra;
       P.f_cc    = f_cc;
       P.f_name  = P.F.mk name;
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;
