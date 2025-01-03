@@ -2532,13 +2532,13 @@ abstract theory W_WS.
      map2 (fun (x y:WS.t) => wmulhs x y) w1 w2.
 
    op VPSLL_'Ru'S (w : WB.t) (cnt : W128.t) =
-     map (fun (w:WS.t) => w `<<<` (to_uint cnt %% sizeS)) w.
+     map (fun (w:WS.t) => w `<<<` to_uint cnt) w.
 
    op VPSRL_'Ru'S (w : WB.t) (cnt : W128.t) =
-     map (fun (w:WS.t) => w `>>>` (to_uint cnt %% sizeS)) w.
+     map (fun (w:WS.t) => w `>>>` to_uint cnt) w.
 
    op VPSRA_'Ru'S (w : WB.t) (cnt : W128.t) =
-     map (fun (w:WS.t) => w `|>>>` (to_uint cnt %% sizeS)) w.
+     map (fun (w:WS.t) => w `|>>>` to_uint cnt) w.
 
    op VPBROADCAST_'Ru'S (w : WS.t) =
      pack'R (map (fun i => w) (iota_ 0 r)).
