@@ -1,0 +1,91 @@
+abstract predicate bool eqmod(int, int, tuple);
+abstract predicate tuple single(int);
+abstract predicate int b2i(bool);
+abstract predicate int u64i(u64);
+abstract predicate int pow(int, int);
+abstract predicate u256 rlimbs4(tuple);
+abstract predicate tuple quad(u64, u64, u64, u64);
+
+fn __tobytes4(reg u64[4] f) -> reg u64[4]
+  requires #[prover=smt] {(256u)0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffda <= rlimbs4(quad(f[0], f[1], f[2], f[3]))}
+  requires #[prover=smt] {rlimbs4(quad(f[0], f[1], f[2], f[3])) < (256u)0x10000000000000000000000000000000000000000000000000000000000000000}
+ensures #[prover=cas] {
+ eqmod (
+   \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
+   \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(f[ii])),
+   single((pow(2,255)) - 19))
+   }
+  ensures #[prover=smt] {(256u)0 <= rlimbs4(quad(result.0[0], result.0[1], result.0[2], result.0[3]))}
+  ensures #[prover=smt] {rlimbs4(quad(result.0[0], result.0[1], result.0[2], result.0[3])) < (256u)0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed}
+{
+  reg bool cf;
+  reg u64 t;
+
+  t = f[3] + f[3];
+  t >>= 1;
+  #[kind=Assert, prover=smt] assert (t == f[3] - (0x8000000000000000));
+  #[kind=Assume, prover=cas] assert (u64i(t) == u64i(f[3]) - pow(2,63));
+
+  #[tran=smt2] ?{}, f[3] = #SAR(f[3], 63);
+  f[3] &= 19;
+  f[3] += 19;
+  #[kind=Assert, prover=smt] assert (f[3] == (64u)38);
+  #[kind=Assume, prover=cas] assert (u64i(f[3]) == 38);
+
+  cf, f[0] += f[3];
+  cf, f[1] += 0 + cf;
+  cf, f[2] += 0 + cf;
+  cf, t    += 0 + cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  f[3] = t + t;
+  f[3] >>= 1;
+  #[kind=Assert, prover=smt] assert (f[3] == t - - (0x8000000000000000));
+  #[kind=Assume, prover=cas] assert (u64i(f[3]) == u64i(t) - pow(2,63));
+
+  #[tran=smt2] ?{}, t = #SAR(t, 63);
+  t = !t;
+  t &= 19;
+  #[kind=Assert, prover=smt] assert (t == (64u)0);
+  #[kind=Assume, prover=cas] assert (u64i(t) == 0);
+
+  cf, f[0] -= t;
+  cf, f[1] -= 0 - cf;
+  cf, f[2] -= 0 - cf;
+  cf, f[3] -= 0 - cf;
+  #[kind=Assert, prover=smt] assert (!cf);
+  #[kind=Assume, prover=cas] assert (b2i(cf) == 0);
+
+  return f;
+
+}
+
+inline fn __store4(reg u64 p, reg u64[4] a)
+{
+  inline int i;
+
+  for i=0 to 4
+  { [p + 8*i] = a[i]; }
+}
+
+
+inline fn __load4(reg u64 p) -> reg u64[4]
+{
+  inline int i;
+  reg u64[4] a;
+
+  for i=0 to 4
+  { a[i] = [p + 8*i]; }
+
+  return a;
+}
+
+
+export fn tobytes(reg u64 rp, reg u64 zp) {
+  reg u64[4] z;
+  reg u64[4] r;
+  z = __load4(zp);
+  r = __tobytes4(z);
+  __store4(rp, r);
+}
