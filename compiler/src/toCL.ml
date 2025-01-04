@@ -130,6 +130,7 @@ module CL = struct
       | Rbinop of rexp * string * rexp
       | RVget  of tyvar * const
       | UnPack of  tyvar * int * int
+      | Rlimbs of const * rexp list
 
     let const (i1,z1) = Rconst (i1,z1)
     let (!-) e1 = Runop ("-", e1)
@@ -151,6 +152,10 @@ module CL = struct
         Format.fprintf fmt  "(%a[%a])"
           pp_tyvar e
           pp_const c
+      | Rlimbs (c, es) ->
+        Format.fprintf fmt  "(limbs %a [%a])"
+          pp_const c
+          (pp_list ",@ " pp_rexp) es
       | UnPack _ -> assert false
 
     type rpred =
@@ -496,13 +501,24 @@ module I (S:S): I = struct
   (*     else (Z.sub zi (Z.pow (Z.of_int 2) ws)) *)
   (*   else zi *)
 
+
+  let rec extract_list e aux =
+    match e with
+    | Pabstract ({name="single"}, [h]) -> [h]
+    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
+    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
+    | Pabstract ({name="quad"}, [h1;h2;h3;h4]) -> [h1;h2;h3;h4]
+    | Pabstract ({name="word_nil"}, []) -> List.rev aux
+    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
+    | _ -> assert false
+
   let rec gexp_to_rexp ?(sign=S.s) e : CL.R.rexp =
     let open CL.R in
     let (!>) e = gexp_to_rexp ~sign e in
     match e with
     | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, w2i ~sign z ws)
     | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws))
-    | Pvar x -> Rvar (to_var ~sign x)
+        | Pvar x -> Rvar (to_var ~sign x)
     | Papp1(Oneg _, e) -> neg !> e
     | Papp1(Olnot _, e) -> not !> e
     | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
@@ -533,15 +549,6 @@ module I (S:S): I = struct
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
     | _ -> error e
-
-  let rec extract_list e aux =
-    match e with
-    | PappN (Oabstract {pa_name="single"}, [h]) -> [h]
-    | PappN (Oabstract {pa_name="pair"}, [h1;h2]) -> [h1;h2]
-    | PappN (Oabstract {pa_name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
-    | PappN (Oabstract {pa_name="word_nil"}, []) -> List.rev aux
-    | PappN (Oabstract {pa_name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
-    | _ -> assert false
 
   let rec get_const x =
     match x with
@@ -958,7 +965,7 @@ module X86BaseOpU : BaseOp
 
     | NOT ws ->
       let a,i = cast_atome ws (List.nth es 0) in
-      let l = I.glval_to_lval (List.nth xs 5) in
+      let l = I.glval_to_lval (List.nth xs 0) in
       i @ [CL.Instr.Op1.not l a]
 
     | SHL ws ->
@@ -1000,7 +1007,7 @@ module X86BaseOpU : BaseOp
     | SAR ws ->
       begin
         let l =
-          ["smt", `Smt ; "default", `Default; "cas_two", `Cas2; "cas_three", `Cas3]
+          ["smt", `Smt ; "smt2", `Smt2 ; "default", `Default; "cas_two", `Cas2; "cas_three", `Cas3]
         in
         let trans = trans annot l in
         match trans with
@@ -1016,6 +1023,12 @@ module X86BaseOpU : BaseOp
           i @ [CL.Instr.cast ty1 l_tmp1 a;
                CL.Instr.Shifts.ssplit l_tmp2 l_tmp3 !l_tmp1 c;
                CL.Instr.cast ty2 l !l_tmp2]
+        | `Smt2 ->
+          let a, i = cast_atome ws (List.nth es 0) in
+          let (c,_) = I.gexp_to_const (List.nth es 1) in
+          let l = I.glval_to_lval (List.nth xs 5) in
+          let l_tmp = I.mk_spe_tmp_lval (Z.to_int c) in
+          i @ [CL.Instr.Shifts.sars l l_tmp a c]
         | `Default ->
           let a1,i1 = cast_atome ws (List.nth es 0) in
           let c1 = I.mk_const (int_of_ws ws - 1) in
