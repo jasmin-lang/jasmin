@@ -27,6 +27,10 @@
 - Fix EC extraction in case on nested loops
   ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
 
+- Improve error message when renaming is not possible due to liveness conflicts
+  ([PR #940](https://github.com/jasmin-lang/jasmin/pull/940);
+  fixes [#483](https://github.com/jasmin-lang/jasmin/issues/483)).
+
 ## Other changes
 
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
