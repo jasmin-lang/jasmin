@@ -388,7 +388,7 @@ Definition err_get_FunDef {E} `{ErrState -< E}
 Definition ret_get_FunCode {E: Type -> Type}
   (fn: funname) : execT (itree E) cmd :=
   f <- ret_get_FunDef fn ;;
-  Ret (Rj2i (ok (funCode f))).
+  Ret (Ok _ (funCode f)).
 
 Definition err_get_FunCode {E} `{ErrState -< E}
   (fn: funname) : itree E cmd :=
@@ -415,7 +415,8 @@ Definition err_init_state {E} `{ErrState -< E}
   let m1 := st0.(emem) in
   f <- err_get_FunDef fn ;;
   st1 <- err_result 
-    (Rj2i (init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init))) ;;
+         (Rj2i (init_state f.(f_extra) (p_extra pr) ev
+                                 (Estate scs1 m1 Vm.init))) ;;
   err_result 
     (Rj2i (write_vars (~~direct_call) (f_params f) vargs st1)).
       
@@ -452,6 +453,21 @@ Definition mk_SetDests {E} `{StackE -< E} `{ErrState -< E}
   st2 <- err_reinstate_caller fn xs vres st0 st1 ;;
   trigger (UpdateTopState st2).
 
+
+(*
+Definition ret_eval_Args {E: Type -> Type} 
+  (fn: funname) (args: pexprs) (st0: estate) : execT (itree E) (seq value) :=
+  f <- ret_get_FunDef fn ;; 
+  Ret (@bind exec _ _ _ (pure_eval_Args args st0) 
+                   (fun vargs' => truncate_Args f vargs')).
+
+  vargs' <- pure_eval_Args args st0 ;;
+  truncate_Args f vargs'.
+
+  Ret (Rj2i (Let vargs' := pure_eval_Args args st0 in
+             Ri2j (truncate_Args f vargs'))).
+*)
+
 Definition ret_eval_Args {E: Type -> Type} 
   (fn: funname) (args: pexprs) (st0: estate) : execT (itree E) (seq value) :=
   f <- ret_get_FunDef fn ;; 
@@ -468,16 +484,17 @@ Definition ret_init_state {E: Type -> Type}
   let scs1 := st0.(escs) in
   let m1 := st0.(emem) in
   f <- ret_get_FunDef fn ;; 
-  Ret 
-  (Let st1 := init_state f.(f_extra) (p_extra pr) ev (Estate scs1 m1 Vm.init) in
-   write_vars (~~direct_call) (f_params f) vargs st1).
+  Ret (Rj2i
+         (Let st1 := init_state f.(f_extra) (p_extra pr) ev
+                                    (Estate scs1 m1 Vm.init) in
+   write_vars (~~direct_call) (f_params f) vargs st1)).
 
 Definition ret_return_val {E: Type -> Type} 
   (fn: funname) (st0: estate) : execT (itree E) (seq value) :=
   f <- ret_get_FunDef fn ;; 
-  Ret           
+  Ret (Rj2i           
   (Let vres := get_var_is (~~ direct_call) st0.(evm) f.(f_res) in
-   mapM2 ErrType dc_truncate_val f.(f_tyout) vres).
+   mapM2 ErrType dc_truncate_val f.(f_tyout) vres)).
 
 Definition ret_reinstate_caller {E: Type -> Type} 
   (fn: funname) (xs: lvals) (vres: seq value)
@@ -485,19 +502,19 @@ Definition ret_reinstate_caller {E: Type -> Type}
   f <- ret_get_FunDef fn ;;   
   let scs2 := st_ee.(escs) in
   let m2 := finalize f.(f_extra) st_ee.(emem) in      
-  Ret (write_lvals (~~direct_call) (p_globs pr)
-                      (with_scs (with_mem st_er m2) scs2) xs vres).
+  Ret (Rj2i (write_lvals (~~direct_call) (p_globs pr)
+                      (with_scs (with_mem st_er m2) scs2) xs vres)).
 
 
 (** WriteIndex *)
 
 Definition ret_mk_WriteIndex {E} 
   (x: var_i) (z: Z) (st1: estate) : execT (itree E) estate :=  
-    Ret (write_var true x (Vint z) st1).                             
+    Ret (Rj2i (write_var true x (Vint z) st1)).                             
 
 Definition err_mk_WriteIndex {E} `{ErrState -< E}
   (x: var_i) (z: Z) (st1: estate) : itree E estate :=  
-    err_result (write_var true x (Vint z) st1).                             
+    err_result (Rj2i (write_var true x (Vint z) st1)).                             
 
 Definition mk_WriteIndex {E} `{StackE -< E} `{ErrState -< E}
   (x: var_i) (z: Z) : itree E unit :=
@@ -512,14 +529,14 @@ Definition ret_mk_EvalCond {E}
   (e: pexpr) (st1: estate) : execT (itree E) bool :=
    let vv := sem_pexpr true (p_globs pr) st1 e in                               
    match vv with
-   | Ok (Vbool bb) => ret (ok bb)
+   | utils.Ok (Vbool bb) => ret (Ok _ bb)
    | _ => ret (Error ErrType) end.                       
 
 Definition err_mk_EvalCond {E} `{ErrState -< E}
   (e: pexpr) (st1: estate) : itree E bool :=
    let vv := sem_pexpr true (p_globs pr) st1 e in                               
    match vv with
-   | Ok (Vbool bb) => ret bb
+   | utils.Ok (Vbool bb) => ret bb
    | _ => throw ErrType end.                       
 
 Definition mk_EvalCond {E} `{StackE -< E} `{ErrState -< E}
@@ -532,16 +549,16 @@ Definition mk_EvalCond {E} `{StackE -< E} `{ErrState -< E}
 
 Definition ret_mk_EvalBound {E} 
   (e: pexpr) (st1: estate) : execT (itree E) Z :=
-   let vv := sem_pexpr true (p_globs pr) st1 e in                               
+   let vv := sem_pexpr true (p_globs pr) st1 e in         
    match vv with
-   | Ok (Vint zz) => ret (ok zz)
+   | utils.Ok (Vint zz) => ret (Ok _ zz)
    | _ => ret (Error ErrType) end.                       
 
 Definition err_mk_EvalBound {E} `{ErrState -< E}
   (e: pexpr) (st1: estate) : itree E Z :=
-   let vv := sem_pexpr true (p_globs pr) st1 e in                               
+   let vv := sem_pexpr true (p_globs pr) st1 e in  
    match vv with
-   | Ok (Vint zz) => ret zz
+   | utils.Ok (Vint zz) => ret zz
    | _ => throw ErrType end.                       
 
 Definition mk_EvalBound {E} `{StackE -< E} `{ErrState -< E}
@@ -556,16 +573,16 @@ Definition mk_EvalBound {E} `{StackE -< E} `{ErrState -< E}
 Definition ret_mk_AssgnE {E: Type -> Type} 
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) 
   (st1: estate) : execT (itree E) estate := Ret
-   (Let v := sem_pexpr true (p_globs pr) st1 e in 
+   (Rj2i (Let v := sem_pexpr true (p_globs pr) st1 e in 
     Let v' := truncate_val ty v in
-    write_lval true (p_globs pr) x v' st1).
+    write_lval true (p_globs pr) x v' st1)).
 
 Definition err_mk_AssgnE {E: Type -> Type} `{ErrState -< E}
   (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) 
   (st1: estate) : itree E estate :=
-    v <- err_result (sem_pexpr true (p_globs pr) st1 e) ;;
-    v' <- err_result (truncate_val ty v) ;;
-    err_result (write_lval true (p_globs pr) x v' st1).
+    v <- err_result (Rj2i (sem_pexpr true (p_globs pr) st1 e)) ;;
+    v' <- err_result (Rj2i (truncate_val ty v)) ;;
+    err_result (Rj2i (write_lval true (p_globs pr) x v' st1)).
 
 Definition mk_AssgnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) :
@@ -581,12 +598,12 @@ Definition mk_AssgnE {E: Type -> Type} `{StackE -< E}
 Definition ret_mk_OpnE {E: Type -> Type} 
   (xs: lvals) (tg: assgn_tag) (o: sopn)
   (es : pexprs) (st1: estate) : execT (itree E) estate := Ret
-    (sem_sopn (p_globs pr) o st1 xs es).
+    (Rj2i (sem_sopn (p_globs pr) o st1 xs es)).
 
 Definition err_mk_OpnE {E: Type -> Type} `{ErrState -< E}
   (xs: lvals) (tg: assgn_tag) (o: sopn)
    (es : pexprs) (st1: estate) : itree E estate :=
-    err_result (sem_sopn (p_globs pr) o st1 xs es).
+    err_result (Rj2i (sem_sopn (p_globs pr) o st1 xs es)).
 
 Definition mk_OpnE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (tg: assgn_tag) (o: sopn)
@@ -602,22 +619,22 @@ Definition mk_OpnE {E: Type -> Type} `{StackE -< E}
 Definition ret_mk_SyscallE {E: Type -> Type}
   (xs: lvals) (o: syscall_t)
   (es: pexprs) (st1: estate) : execT (itree E) estate := Ret 
-   (Let ves := sem_pexprs true (p_globs pr) st1 es in 
+   (Rj2i (Let ves := sem_pexprs true (p_globs pr) st1 es in 
     Let r3 := exec_syscall st1.(escs) st1.(emem) o ves in 
     match r3 with
     | (scs, m, vs) =>
         write_lvals true (p_globs pr)
-                    (with_scs (with_mem st1 m) scs) xs vs end).
+                    (with_scs (with_mem st1 m) scs) xs vs end)).
 
 Definition err_mk_SyscallE {E: Type -> Type} `{ErrState -< E}
   (xs: lvals) (o: syscall_t) (es: pexprs) (st1: estate) :
   itree E estate :=
-    ves <- err_result (sem_pexprs true (p_globs pr) st1 es ) ;;
-    r3 <- err_result (exec_syscall st1.(escs) st1.(emem) o ves) ;;
+    ves <- err_result (Rj2i (sem_pexprs true (p_globs pr) st1 es)) ;;
+    r3 <- err_result (Rj2i (exec_syscall st1.(escs) st1.(emem) o ves)) ;;
     match r3 with
     | (scs, m, vs) =>
-        err_result (write_lvals true (p_globs pr)
-                       (with_scs (with_mem st1 m) scs) xs vs) end.
+        err_result (Rj2i (write_lvals true (p_globs pr)
+                       (with_scs (with_mem st1 m) scs) xs vs)) end.
  
 Definition mk_SyscallE {E: Type -> Type} `{StackE -< E}
   `{ErrState -< E} (xs: lvals) (o: syscall_t) (es: pexprs) :
@@ -968,7 +985,7 @@ Fixpoint pst_cmd_map_r {E}
   (R: instr_r -> estate -> execT (itree E) estate)
   (c: cmd) (st: estate) : execT (itree E) estate := 
   match c with 
-  | nil => Ret (ok st) 
+  | nil => Ret (Ok _ st) 
   | (MkI _ i) :: c' => st' <- R i st ;;
                        pst_cmd_map_r R c' st'
   end.
@@ -992,9 +1009,9 @@ Section With_MREC_flat.
 
 (* mutual recursion events *)
 Variant PCState : Type -> Type :=
- | PLCode (c: cmd) (st: estate) : PCState (exec estate)
+ | PLCode (c: cmd) (st: estate) : execT PCState estate
  | PFCall (xs: lvals) (f: funname) (es: pexprs) (st: estate) :
-    PCState (exec estate).
+    execT PCState estate.
 
 Local Notation continue_loop st := (ret (inl st)).
 Local Notation exit_loop st := (ret (inr st)).
@@ -1024,7 +1041,12 @@ Fixpoint pmeval_instr {E} (i : instr_r) (st: estate) :
            if b then st2 <- R c2 st1 ;; continue_loop st2 
            else exit_loop st1) st
 
-  | Ccall xs fn es => rec_call (PFCall xs fn es st) end.
+(*  | Ccall xs fn es => rec_call (PFCall xs fn es st) end. *)
+  | Ccall xs fn es => Vis (inl1 (PFCall xs fn es st)) (fun x : estate => Ret (Ok _ x)) end.
+                
+(*  | Ccall xs fn es => Ret (Error ErrOob) end.
+      trigger_inl1 (PFCall xs fn es st) end.
+*)
 
 Definition pmeval_fcall {E}  
   (xs: lvals) (fn: funname) (es: pexprs) (st0: estate) :

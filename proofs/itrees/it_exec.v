@@ -70,6 +70,9 @@ Obligation Tactic := done || idtac.
 
 (* This files contains the monad transformer associated with exec *)
 
+(***)
+(* local redefinition of utils.result, to try circumvent the universe
+problem *)
 Variant result (E: Type) (A : Type) : Type :=
     Ok of A | Error of E.
 
@@ -77,8 +80,7 @@ Arguments Error {E} {A} s.
 Arguments Ok E [A] s.
 
 Definition exec t := result error t.
-
-
+(***)
 
 Section ExecT.
 
