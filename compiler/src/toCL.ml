@@ -518,7 +518,7 @@ module I (S:S): I = struct
     match e with
     | Papp1 (Oword_of_int ws, Pconst z) -> Rconst(int_of_ws ws, w2i ~sign z ws)
     | Papp1 (Oword_of_int ws, Pvar x) -> Rvar (L.unloc x.gv, Uint (int_of_ws ws))
-        | Pvar x -> Rvar (to_var ~sign x)
+    | Pvar x -> Rvar (to_var ~sign x)
     | Papp1(Oneg _, e) -> neg !> e
     | Papp1(Olnot _, e) -> not !> e
     | Papp2(Oadd _, e1, e2) -> add !> e1 !> e2
@@ -1221,7 +1221,7 @@ module X86BaseOpU : BaseOp
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-     i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
 
 
     | ADOX ws ->

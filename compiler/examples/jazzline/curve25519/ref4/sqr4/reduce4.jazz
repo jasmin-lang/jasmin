@@ -20,7 +20,8 @@ fn __reduce4(reg u64[8] z) -> reg u64[4]
   inline int i;
   of, _, _, _, _, _ = #set0();
 
-  r38 = 38;
+   r38 = 38;
+
 	rax = z[4];
 	h, l = rax * r38;
 	r[0] = l;

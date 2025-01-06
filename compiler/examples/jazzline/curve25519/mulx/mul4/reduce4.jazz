@@ -28,8 +28,8 @@ fn __reduce4
   h0 = #copy(r);
 
   ( hi, lo )   = #MULX ( _38,  h0[0] );
-  #[tran=clear] of, h[0]     = #ADOX ( h[0], lo, of );
-  #[tran=clear] cf, h[1]     = #ADCX ( h[1], hi, cf );
+  of, h[0]     = #ADOX ( h[0], lo, of );
+  cf, h[1]     = #ADCX ( h[1], hi, cf );
 
   ( hi, lo )   = #MULX ( _38,  h0[1] );
   of, h[1]     = #ADOX ( h[1], lo, of );

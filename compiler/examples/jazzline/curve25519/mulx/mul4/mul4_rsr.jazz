@@ -20,11 +20,10 @@ inline fn __mul4_c0
   reg u64 lo;
   reg u64[4] h r;
 
-
   (h[1], h[0]) = #MULX ( f0, g[0] );
 
   ( h[2], lo ) = #MULX ( f0, g[1] );
-  cf, h[1]   = #ADCX ( h[1], lo, cf );
+   cf, h[1]   = #ADCX ( h[1], lo, cf );
 
   ( h[3], lo ) = #MULX ( f0, g[2] );
     cf, h[2]   = #ADCX ( h[2], lo, cf );
