@@ -110,7 +110,7 @@ let rec ty_expr pd loc (e:expr) =
     check_expr pd loc e1 ty;
     check_expr pd loc e2 ty;
     ty
-  | Pbig(e, op, x, e1, e2, e0) ->
+  | Pbig(e0, op, x, e, e1, e2) ->
     let (tin1, tin2), tout = type_of_op2 op in
     check_expr pd loc e  tout;
     check_expr pd loc e1 tint;
