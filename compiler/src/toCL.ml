@@ -1215,26 +1215,32 @@ module X86BaseOpU : BaseOp
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
 
     | ADCX ws ->
+      begin
+      let l = ["default", `Default ; "clear", `Clear] in
+      let trans = trans annot l in
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      let instructions =
-      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-    in
-    instructions
+      match trans with
+        | `Default -> i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+        | `Clear -> i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      end
 
     | ADOX ws ->
+      begin
+      let l = ["default", `Default ; "clear", `Clear] in
+      let trans = trans annot l in
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      let instructions =
-      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-    in
-    instructions
+      match trans with
+        | `Default -> i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+        | `Clear -> i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+      end
 
     | _ ->
       let x86_id = X86_instr_decl.x86_instr_desc Build_Tabstract o in
