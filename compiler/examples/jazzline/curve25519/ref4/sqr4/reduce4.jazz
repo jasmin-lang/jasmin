@@ -18,7 +18,7 @@ fn __reduce4(reg u64[8] z) -> reg u64[4]
   reg u64[4] r;
   reg bool cf;
   inline int i;
-  , cf, _, _, _, _ = #set0();
+  _, cf, _, _, _, _ = #set0();
 
    r38 = 38;
 
