@@ -4,7 +4,7 @@ abstract predicate int b2i(bool);
 abstract predicate int u64i(u64);
 abstract predicate int pow(int, int);
 
-inline fn __reduce4(reg u64[8] z) -> reg u64[4]
+fn __reduce4(reg u64[8] z) -> reg u64[4]
      ensures #[prover=cas] {
   eqmod (
      \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
@@ -18,9 +18,9 @@ inline fn __reduce4(reg u64[8] z) -> reg u64[4]
   reg u64[4] r;
   reg bool cf;
   inline int i;
+  of, _, _, _, _, _ = #set0();
 
-   r38 = 38;
-
+  r38 = 38;
 	rax = z[4];
 	h, l = rax * r38;
 	r[0] = l;

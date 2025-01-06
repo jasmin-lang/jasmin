@@ -3,20 +3,20 @@ abstract predicate tuple single(int);
 abstract predicate int b2i(bool);
 abstract predicate int u64i(u64);
 abstract predicate int pow(int, int);
-abstract predicate u256 rlimbs4(tuple);
+abstract predicate u256 limbs_4u64(tuple);
 abstract predicate tuple quad(u64, u64, u64, u64);
 
 fn __tobytes4(reg u64[4] f) -> reg u64[4]
-  requires #[prover=smt] {(256u)0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffda <= rlimbs4(quad(f[0], f[1], f[2], f[3]))}
-  requires #[prover=smt] {rlimbs4(quad(f[0], f[1], f[2], f[3])) < (256u)0x10000000000000000000000000000000000000000000000000000000000000000}
+  requires #[prover=smt] {(256u)0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffda <= limbs_4u64(quad(f[0], f[1], f[2], f[3]))}
+  requires #[prover=smt] {limbs_4u64(quad(f[0], f[1], f[2], f[3])) < (256u)0x10000000000000000000000000000000000000000000000000000000000000000}
 ensures #[prover=cas] {
  eqmod (
    \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
    \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(f[ii])),
    single((pow(2,255)) - 19))
    }
-  ensures #[prover=smt] {(256u)0 <= rlimbs4(quad(result.0[0], result.0[1], result.0[2], result.0[3]))}
-  ensures #[prover=smt] {rlimbs4(quad(result.0[0], result.0[1], result.0[2], result.0[3])) < (256u)0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed}
+  ensures #[prover=smt] {(256u)0 <= limbs_4u64(quad(result.0[0], result.0[1], result.0[2], result.0[3]))}
+  ensures #[prover=smt] {limbs_4u64(quad(result.0[0], result.0[1], result.0[2], result.0[3])) < (256u)0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed}
 {
   reg bool cf;
   reg u64 t;

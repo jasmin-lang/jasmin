@@ -527,6 +527,7 @@ module I (S:S): I = struct
     | PappN(Oabstract {pa_name="se_16_64"}, [v]) -> Rsext (!> v, 48)
     | PappN(Oabstract {pa_name="se_32_64"}, [v]) -> Rsext (!> v, 32)
     | PappN(Oabstract {pa_name="ze_16_64"}, [v]) -> Ruext (!> v, 48)
+    | PappN (Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
     | PappN(Oabstract {pa_name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
         UnPack (to_var ~sign x, 16, Z.to_int z)
     | _ -> error e
@@ -1215,32 +1216,22 @@ module X86BaseOpU : BaseOp
       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l_tmp1 a1 a2] @ i3
 
     | ADCX ws ->
-      begin
-      let l = ["default", `Default ; "clear", `Clear] in
-      let trans = trans annot l in
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      match trans with
-        | `Default -> i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-        | `Clear -> i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-      end
+     i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+
 
     | ADOX ws ->
-      begin
-      let l = ["default", `Default ; "clear", `Clear] in
-      let trans = trans annot l in
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
       let l1 = I.glval_to_lval (List.nth xs 0) in
       let l2 = I.glval_to_lval (List.nth xs 1) in
       let v = I.gexp_to_var (List.nth es 2) in
-      match trans with
-        | `Default -> i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-        | `Clear -> i1 @ i2 @ [CL.Instr.clear v; CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
-      end
+      i1 @ i2 @ [CL.Instr.Op2_2c.adcs l1 l2 a2 a1 v]
+
 
     | _ ->
       let x86_id = X86_instr_decl.x86_instr_desc Build_Tabstract o in
