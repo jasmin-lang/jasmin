@@ -1242,7 +1242,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       check_ty_eq ~loc:(L.loc pe) ~from:ty1 ~to_:ty;  
       check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty;  
       check_ty_eq ~loc:(L.loc pe) ~from:ty0 ~to_:ty;  
-      P.Pbig(b, o, L.mk_loc (L.loc px) x, e1, e2, e0), ty
+      P.Pbig(e0, o, L.mk_loc (L.loc px) x, b, e1, e2), ty
 
   | S.PEbig(PEAll, pe1, pe2, px, pb) ->
       let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -1254,7 +1254,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       let b, ty = tt_expr ~mode pd env pb in
       check_ty_eq ~loc:(L.loc pe) ~from:ty ~to_:P.tbool;  
       let o = E.Oand in
-      P.Pbig(b, o, L.mk_loc (L.loc px) x, e1, e2, P.Pbool true), ty
+      P.Pbig(P.Pbool true, o, L.mk_loc (L.loc px) x, b, e1, e2), ty
 
   | S.PEbig(PEExists, pe1, pe2, px, pb) ->
       let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -1266,7 +1266,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
       let b, ty = tt_expr ~mode pd env pb in
       check_ty_eq ~loc:(L.loc pe) ~from:ty ~to_:P.tbool;  
       let o = E.Oor in
-      P.Pbig(b, o, L.mk_loc (L.loc px) x, e1, e2, P.Pbool false), ty
+      P.Pbig(P.Pbool false, o, L.mk_loc (L.loc px) x, b, e1, e2), ty
 
   | S.PEbig(PESum, pe1, pe2, px, pb) ->
       let e1, ty1 = tt_expr ~mode pd env pe1 in
@@ -1281,7 +1281,7 @@ let rec tt_expr pd ?(mode=`AllVar) (env : 'asm Env.env) pe =
         | Bty Int    -> P.E.Oadd P.E.Op_int, P.Pconst Z.zero 
         | Bty (U w)  -> P.E.Oadd (P.E.Op_w w), P.Papp1 (P.E.Oword_of_int w, P.Pconst Z.zero)
         | _ -> raise (tyerror ~loc:(L.loc pe) (StringError "the expression should have type int or uXX")) in
-      P.Pbig(b, o, L.mk_loc (L.loc px) x, e1, e2, e0), ty
+      P.Pbig(e0, o, L.mk_loc (L.loc px) x, b, e1, e2), ty
 
   | S.PEResult i ->
        let i =  Z.to_int ( S.parse_int i) in

@@ -372,7 +372,7 @@ let rec leaks_e_rec pd leaks e =
   | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
   | PappN (_, es) -> leaks_es_rec pd leaks es
   | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
-  | Pbig (e, _, _, e1, e2, ei) ->
+  | Pbig (ei, _, _, e, e1, e2) ->
     leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) ei) e
 
 and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
@@ -970,7 +970,7 @@ module Exp = struct
     | PappN (Oabstract opa, es) ->
       Eapp (ec_ident opa.pa_name, List.map (toec_expr env) es)
 
-    | Pbig (e, op, v, a, b, i) ->
+    | Pbig (i, op, v, e, a, b) ->
       let v = L.unloc v in
       let env = add_var env v in
       let op = Infix (Format.asprintf "%a" pp_op2 op) in
