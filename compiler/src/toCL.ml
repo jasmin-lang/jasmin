@@ -503,14 +503,14 @@ module I (S:S): I = struct
 
 
   let rec extract_list e aux =
-    match e with
-    | Pabstract ({name="single"}, [h]) -> [h]
-    | Pabstract ({name="pair"}, [h1;h2]) -> [h1;h2]
-    | Pabstract ({name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
-    | Pabstract ({name="quad"}, [h1;h2;h3;h4]) -> [h1;h2;h3;h4]
-    | Pabstract ({name="word_nil"}, []) -> List.rev aux
-    | Pabstract ({name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
-    | _ -> assert false
+      match e with
+      | PappN (Oabstract {pa_name="single"}, [h]) -> [h]
+      | PappN (Oabstract {pa_name="pair"}, [h1;h2]) -> [h1;h2]
+      | PappN (Oabstract {pa_name="triple"}, [h1;h2;h3]) -> [h1;h2;h3]
+      | PappN (Oabstract {pa_name="quad"}, [h1;h2;h3;h4]) -> [h1;h2;h3;h4]
+      | PappN (Oabstract {pa_name="word_nil"}, []) -> List.rev aux
+      | PappN (Oabstract {pa_name="word_cons"}, [h;q]) -> extract_list q (h :: aux)
+      | _ -> assert false
 
   let rec gexp_to_rexp ?(sign=S.s) e : CL.R.rexp =
     let open CL.R in
