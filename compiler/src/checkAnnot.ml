@@ -59,25 +59,3 @@ let check_stack_size fds =
               hierror "the maximum call depth is %a (expected: %a)"
                 Z.pp_print actual Z.pp_print expected)
     fds
-
-let rec check_no_inline_instr ~funname s =
-  List.iter (check_no_inline_instr_i ~funname) s
-
-and check_no_inline_instr_i ~funname i =
-  if has_annot "inline" i then
-    hierror ~funname ~loc:(Lmore i.i_loc) ~internal:false
-      ~kind:"compilation error" ~sub_kind:"loop unrolling"
-      "“inline”-annotated instructions remain";
-  check_no_inline_instr_i_r ~funname i.i_desc
-
-and check_no_inline_instr_i_r ~funname = function
-  | Cassgn _ | Copn _ | Csyscall _ | Cfor _ | Ccall _ -> ()
-  | Cif (_, a, b) | Cwhile (_, a, _, _, b) ->
-      check_no_inline_instr ~funname a;
-      check_no_inline_instr ~funname b
-
-let check_no_inline_instr (_, fds) =
-  List.iter
-    (fun { f_name; f_body; _ } ->
-      check_no_inline_instr ~funname:f_name.fn_name f_body)
-    fds
