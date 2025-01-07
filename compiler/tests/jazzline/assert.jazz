@@ -1,4 +1,5 @@
-inline fn mul(reg u64 x, reg u64 y) -> reg u64 {
+inline fn mul(reg u64 x, reg u64 y) -> reg u64
+{
    assert (x == 2);
    reg u64 z;
    z = x * y;
@@ -6,10 +7,23 @@ inline fn mul(reg u64 x, reg u64 y) -> reg u64 {
    return z;
 }
 
+fn mul2(reg u64 x, reg u64 y) -> reg u64
+requires #[prover=smt] { x == 1 }
+{
+   assert (x == 2);
+   reg u64 z;
+   z = x * y;
+   assert (z == (2 * y));
+   return z;
+}
+
+
 fn mul4(reg u64 y1) -> reg u64 {
    reg u64 y;
    y = mul(2, y1);
    y = mul(2, y);
+   y = mul2(y, y1);
+   y = mul2(y, y);
    assert (y == (4*y1));
    return y;
 }

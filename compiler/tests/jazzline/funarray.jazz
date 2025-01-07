@@ -1,4 +1,7 @@
-fn fill (reg u64[4] t) -> reg u64[4] {
+fn fill (reg u64[4] t) -> reg u64[4]
+requires #[prover=smt] { 0 == t[0] }
+ensures #[prover=smt] { result.0[0] == t[0] }
+{
   inline int i;
   for i = 0 to 4 {
     t[i] = i;
@@ -8,11 +11,11 @@ fn fill (reg u64[4] t) -> reg u64[4] {
 
 fn f () -> reg u64 {
   reg u64[4] t;
-  /* Remark the array_copy introduced after inlining does not make sens ... 
+  /* Remark the array_copy introduced after inlining does not make sens ...
      A solution will be to do a "After variable renaming to remove copies"
   */
   t = fill(t);
-  
+
   reg u64 r;
   inline int i;
 
@@ -20,6 +23,6 @@ fn f () -> reg u64 {
   for i = 0 to 4 {
     r += t[i];
   }
-  return r;   
+  return r;
 
-}  
+}
