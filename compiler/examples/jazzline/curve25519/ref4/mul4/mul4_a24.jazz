@@ -18,7 +18,7 @@ inline fn __mul4_a24_rs(reg u64[4] xa) -> reg u64[4]
   reg bool cf;
   stack u64 dc;
 
-  c = (64u)121666;
+  c = (64u)121665;
   #[kind=Assert, prover=smt] assert (c == (64u)121665);
   #[kind=Assume, prover=cas] assert (u64i(c) == 121665);
 

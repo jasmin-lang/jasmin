@@ -41,6 +41,7 @@ module CL : sig
       | Rbinop of rexp * string * rexp
       | RVget  of tyvar * const
       | UnPack of  tyvar * int * int
+      | Rlimbs of const * rexp list
 
     type rpred =
       | RPcmp   of rexp * string * rexp
