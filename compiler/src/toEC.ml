@@ -91,11 +91,12 @@ module Ec = struct
   type ec_tactic_args =
     | Conti of ec_tactic
     | Seq of ec_tactic
-    | Param of string list
+    | Param of ec_tactic_args list
     | Form of ec_proposition
     | Ident of ec_ident
     | Pattern of string
     | Prop of string
+    | DProp of ec_expr
     | Comment of string
 
   and ec_tactic =
@@ -264,11 +265,12 @@ module Ec = struct
     match args with
     | Conti t -> Format.fprintf fmt "@[%a@]" pp_ec_rtactic t
     | Seq t -> Format.fprintf fmt "@[; %a@]" pp_ec_rtactic t
-    | Param a -> Format.fprintf fmt "(@[%a@])" (pp_list " " pp_string) a
+    | Param a -> Format.fprintf fmt "(@[%a@])" (pp_list " " pp_ec_tatic_args) a
     | Form f -> Format.fprintf fmt "@[%a@]" pp_ec_propostion f
     | Ident i -> Format.fprintf fmt "@[%a@]" pp_ec_ident i
     | Pattern s -> Format.fprintf fmt "@[%s@]" s
     | Prop s -> Format.fprintf fmt "@[%s@]" s
+    | DProp e -> Format.fprintf fmt "@[%a@]" pp_ec_ast_expr e
     | Comment s -> Format.fprintf fmt "@[(* %s *)@]" s
 
   and pp_ec_rtactic fmt t =
@@ -330,10 +332,7 @@ end
 module Mty = Map.Make (Tcmp)
 
 type proofvar = {
-  assume_ : Ss.elt;
-  assert_ : Ss.elt;
-  assert_proof : Ss.elt;
-  assume_proof : Ss.elt;
+  trace_ : Ss.elt;
 }
 
 type ('len) env = {
@@ -345,6 +344,7 @@ type ('len) env = {
   funs : (string * (ty list * ty list)) Mf.t;
   tmplvs : ('len CoreIdent.gvar list) Mf.t;
   ttmplvs : (Ss.elt * Ec.ec_ty) Mf.t;
+  old : (Ss.elt list) Mf.t ref;
   contra : ('len Prog.gfcontract * 'len CoreIdent.gvar list) Mf.t;
   arrsz  : Sint.t ref;
   warrsz : Sint.t ref;
@@ -597,6 +597,10 @@ let create_name env s =
       else s in
     aux 0
 
+let set_name env s =
+  let s = create_name env s in
+  s , {env with alls = Ss.add s env.alls}
+
 let normalize_name n =
   n |> String.uncapitalize_ascii |> escape
 
@@ -614,6 +618,7 @@ let empty_env pd model fds arrsz warrsz randombytes sign =
     funs = Mf.empty;
     tmplvs = Mf.empty;
     ttmplvs = Mf.empty;
+    old = ref Mf.empty;
     contra = Mf.empty;
     arrsz;
     warrsz;
@@ -1102,29 +1107,19 @@ module Annotations  = struct
 
   let fand a b = Eop2 (Infix "/\\", a, b)
 
-  let ec_assert env e =
+  let ec_kind = function
+    | Expr.Assume -> ["Assume"]
+    | Assert -> ["Assert"]
+    | _ -> assert false
+
+  let ec_trace env k e =
+    let k = ec_kind k in
     let f = Option.get env.func in
     let p = Mf.find f !(env.proofv) in
     let e = toec_expr env e in
-    let e1 = Eop2 (Infix "/\\", Eident [p.assert_], Eident [p.assume_]) in
-    let e2 = Eop2 (Infix "=>", e1, e) in
-    let e3 = Eop2 (Infix "/\\" , Eident [p.assert_proof], e2) in
-    let i1 = ESasgn ([LvIdent ([p.assert_proof])], e3) in
-    let e1 = Eop2 (Infix "/\\", Eident [p.assert_], e) in
-    let i2 = ESasgn ([LvIdent ([p.assert_])],e1) in
-    [i1;i2]
-
-  let ec_assume env e =
-    let f = Option.get env.func in
-    let p = Mf.find f !(env.proofv) in
-    let e = toec_expr env  e in
-    let e1 = Eop2 (Infix "/\\", Eident [p.assert_], Eident [p.assume_]) in
-    let e2 = Eop2 (Infix "=>", e1, e) in
-    let e3 = Eop2 (Infix "/\\" , Eident [p.assume_proof], e2) in
-    let i1 = ESasgn ([LvIdent ([p.assume_proof])], e3) in
-    let e1 = Eop2 (Infix "/\\", Eident [p.assume_], e) in
-    let i2 = ESasgn ([LvIdent ([p.assume_])],e1) in
-    [i1;i2]
+    let e1 = Eop2 (Infix "++", Eident [p.trace_], Elist [Etuple [Eident k;e]]) in
+    let i = ESasgn ([LvIdent ([p.trace_])],e1) in
+    [i]
 
   let sub_contra args params =
     let aux f =
@@ -1159,10 +1154,10 @@ module Annotations  = struct
         ) tmps
     in
 
-    (* let pre = Annotations.sub_fun_param formals es contr.f_pre in *)
-    (* let pre = List.map (fun (_,e) -> e) pre in *)
-
     let iparams = List.map L.unloc contr.f_iparams in
+    let pre = sub_contra iparams es contr.f_pre in
+    let pre = List.map (fun (_,e) -> e) pre in
+
     let post = sub_contra iparams es contr.f_post in
     let ires = List.map L.unloc contr.f_ires in
     let tmps =
@@ -1173,29 +1168,19 @@ module Annotations  = struct
     let post = sub_contra ires tmps post in
     let post = List.map (fun (_,e) -> e) post in
 
-    (* let i = List.fold (fun acc pre -> Annotations.ec_assert env pre @ acc ) [] pre in *)
+    let i = List.fold (fun acc pre -> ec_trace env Assert pre @ acc ) [] pre in
 
-    let i = (* i @ *)
-      [EScall ([LvIdent [ttmpt] ; LvIdent ["tmp__check"]], [get_funname env f], args)]
+    let i = i @
+      [EScall ([LvIdent [ttmpt] ; LvIdent ["tmp__trace"]], [get_funname env f], args)]
     in
     let i = i @ [ESasgn( ec_lvals env lvs2, Eident [ttmpt])] in
     let current_f = Option.get env.func in
     let p = Mf.find current_f !(env.proofv) in
-    let ilvs =
-      [LvIdent [p.assume_];
-       LvIdent [p.assert_];
-       LvIdent [p.assume_proof];
-       LvIdent [p.assert_proof]]
+    let e1 =
+      Eop2 (Infix "++", Eident [p.trace_], Eident["tmp__trace"])
     in
-    let params =
-      [Etuple ([Eident [p.assume_];
-                Eident [p.assert_];
-                Eident [p.assume_proof];
-                Eident [p.assert_proof]]);
-       Eident["tmp__check"]]
-    in
-    let i = i @ [ESasgn (ilvs, Eapp (Eident ["upd_call"],params))] in
-    let i = List.fold_left (fun acc post -> acc @ ec_assert env post ) i post in
+    let i = i @ [ESasgn ([LvIdent ([p.trace_])],e1)] in
+    let i = List.fold_left (fun acc post -> acc @ ec_trace env Assume post ) i post in
     List.fold_left2
       (fun acc lv e ->
          let e = toec_cast env (ty_lval lv) e in
@@ -1210,7 +1195,7 @@ module Annotations  = struct
       let c = List.map (toec_expr env) c in
       List.fold_left (fun acc a -> Eop2 (Infix "/\\", a, acc) ) (List.hd c) (List.tl c)
 
-  let var_eq env vars1 vars2 =
+  let var_eq vars1 vars2 =
     let vars = List.map2 (fun a b -> (a,b)) vars1 vars2 in
     if List.is_empty vars then
       Ebool true
@@ -1223,11 +1208,24 @@ module Annotations  = struct
         (eq (List.hd vars))
         (List.tl vars)
 
+  let var_eq2 vars1 vars2 =
+    let vars = List.map2 (fun a b -> (a,b)) vars1 vars2 in
+    if List.is_empty vars then
+      Ebool true
+    else
+      let eq (var1,var2) =
+        Eop2 (Infix "=", ec_ident var1, ec_ident  var2)
+      in
+      List.fold_left
+        (fun acc a -> Eop2 (Infix "/\\", eq a, acc))
+        (eq (List.hd vars))
+        (List.tl vars)
+
   let mk_old_param env params iparams =
     List.fold_left2 (fun (env,acc) v iv ->
         let s = String.uncapitalize_ascii v.v_name in
         let s = "_" ^ s in
-        let s = create_name env s in
+        let s,env = set_name env s in
         let env = set_var env iv s in
         env, s :: acc
       ) (env,[]) (List.rev params) (List.rev iparams)
@@ -1250,68 +1248,255 @@ module Annotations  = struct
     | None -> []
     | Some f -> f.f_ires
 
-  let pp_assert env f =
+
+  let update_res_env env f ires =
+    List.fold_lefti
+      (fun env i res ->
+         let s = "res.`1" in
+         let s =
+           if List.length f.f_tyout > 1 then
+             s ^ ".`" ^ string_of_int (i+1)
+           else s
+         in
+         set_var env res s)
+      env ires
+
+  
+  let pp_valid_post env f =
     let fname = get_funname env f.f_name in
 
     let iparams = get_iparams f.f_contra in
     let iparams = List.map L.unloc iparams in
-    let env, vars = mk_old_param env f.f_args iparams in
+    let env,vars = mk_old_param env f.f_args iparams in
 
     let ires = get_ires f.f_contra in
     let ires = List.map L.unloc ires in
-    let env1 =
-      List.fold_lefti
-        (fun env i res ->
-           let s = "res." ^ string_of_int i in
-           set_var env res s)
-        env ires
+    let env1 = update_res_env env f ires in
+
+    let pre = var_eq vars f.f_args in
+
+    let post = contrat env1 (get_post f.f_contra) in
+
+    let rec aux acc = function
+      | Equant (_ , _ , e) -> aux acc e
+      | Eident i -> i :: acc
+      | Eapp (e, el) -> List.fold_left aux (aux acc e) el
+      | Eop2 (_, e1, e2) -> aux (aux acc e1) e2
+      | Eop3 (_, e1, e2, e3) -> aux (aux (aux acc e1) e2) e3
+      | Elist el -> List.fold_left aux acc el
+      | Etuple el -> List.fold_left aux acc el
+      | Eproj (e, _) -> aux acc e
+      | EHoare (_ ,e1, e2) -> aux (aux acc e1) e2
+      | _ -> assert false
     in
 
-    let f1 = var_eq env vars f.f_args in
-    let f2 = contrat env (get_pre f.f_contra) in
-    let pre = fand f1 f2 in
+    let acc = aux [] post in
 
-    let post = get_post f.f_contra in
+    let filter  = function
+      | s :: _ ->
+        if String.count_string s "res" > 0 then true else false
+      | _ -> false
+    in
+    let acc = List.filter filter acc in
+    let eq a b =
+      match a, b with
+      | s1 :: _ , s2 :: _ -> String.equal s1 s2
+      | _ -> false
+    in
+    let acc = List.unique ~eq acc in
 
-    let post = Eapp(Eident ["__spec"], [res;contrat env1 post]) in
+    let trace = Eapp(Eident ["trace"],[res]) in
+    let valid_trace = Eapp(Eident ["valid"], [trace]) in
+    let post = Eop2 (Infix "=>", valid_trace, post) in
 
-    let name = Format.asprintf "%s_assert" fname in
+    let name = Format.asprintf "%s_valid_post" fname in
 
-    Axiom (name, vars, EHoare (["M"; fname], pre, post))
+    let form = EHoare (["M";fname], pre, post) in
+    let prop = (name, vars, form) in
 
-  let pp_assume env f =
+    let tactic = {
+      tname = "proc";
+      targs = []
+    }
+    in
+
+    let tactic1 = {
+      tname = "wp";
+      targs = [Pattern "-1"; Pattern "=>"; Pattern "/="]
+    }
+    in
+
+    let old = Mf.find f.f_name !(env.old) in
+    let e = var_eq2 vars old in
+
+    let tactic2 = {
+      tname = "conseq";
+      targs = [Param [Pattern ":"; Pattern " _"; Pattern "==>"; DProp e]]
+    }
+    in
+
+    let i = 1 + List.length acc  in
+    let p = string_of_int i ^ "?" in
+
+    let tactic3 =
+      {
+        tname = "move";
+        targs = [Pattern "=>"; Pattern "?"; Pattern "_"; Pattern "/>"; Pattern p]
+      }
+    in
+
+    let tactic4 =
+      {
+        tname = "rewrite";
+        targs = [Prop "/trace"; Pattern "/="; Prop "valid_cat";
+                 Prop "/valid"; Pattern "//="]
+      }
+    in
+
+    let tactic5 =
+      {
+        tname = "seq";
+        targs = [Pattern "3"; Pattern ":"; Param [DProp e]]
+      }
+    in
+    let tactic6 =
+      {
+        tname = "auto";
+        targs = []
+      }
+    in
+
+    let tactic7 =
+      {
+        tname = "by";
+        targs = [Conti tactic6]
+      }
+    in
+    let tactic8 =
+      {
+        tname = "conseq";
+        targs = []
+      }
+    in
+    let tactic9 =
+      {
+        tname = "by";
+        targs = [Conti tactic8; Pattern "/>"]
+      }
+    in
+    let tactic10 = {
+      tname ="qed";
+      targs = []
+    }
+    in
+
+    Lemma (prop, [tactic; tactic1; tactic2; tactic3; tactic4;
+                  tactic5; tactic7; tactic9; tactic10])
+
+  let pp_valid_assume_ env f =
     let fname = get_funname env f.f_name in
 
-    let pre = Ebool true in
+    let iparams = get_iparams f.f_contra in
+    let iparams = List.map L.unloc iparams in
+    let env,vars = mk_old_param env f.f_args iparams in
 
-    let post = Eapp(Eident ["assume_proof_"], [res]) in
+    let pre = var_eq vars f.f_args in
+
+    let p = contrat env (get_pre f.f_contra) in
+
+    let trace = Eapp(Eident ["trace"],[res]) in
+    let valid_assume_trace = Eapp(Eident ["validk"], [Eident ["Assume"]; trace]) in
+    let post = Eop2 (Infix "=>", p, valid_assume_trace) in
+
+    let name = Format.asprintf "%s_assume_" fname in
+
+    let form = EHoare (["M";fname], pre, post) in
+    let prop = (name, vars, form) in
+
+    let tactic = {
+      tname = "admitted";
+      targs = [Comment "TODO"];
+    }
+    in
+
+    Lemma (prop, [tactic])
+
+  let pp_valid_assume env f =
+    let fname = get_funname env f.f_name in
+
+    let iparams = get_iparams f.f_contra in
+    let iparams = List.map L.unloc iparams in
+    let env,vars = mk_old_param env f.f_args iparams in
+
+    let ires = get_ires f.f_contra in
+    let ires = List.map L.unloc ires in
+    let env1 = update_res_env env f ires in
+
+    let pre = var_eq vars f.f_args in
+    let p = contrat env (get_pre f.f_contra) in
+
+    let post = contrat env1 (get_post f.f_contra) in
+    let trace = Eapp(Eident ["trace"],[res]) in
+    let valid_trace = Eapp(Eident ["valid"], [trace]) in
+    let post1 = Eop2 (Infix "=>", valid_trace, post) in
+
+    let valid_assume_trace = Eapp(Eident ["validk"], [Eident ["Assume"]; trace]) in
+    let post2 = Eop2 (Infix "=>", p, valid_assume_trace) in
+
+    let post = Eop2 (Infix "/\\", post1, post2) in
 
     let name = Format.asprintf "%s_assume" fname in
 
-    let tactic = {
-      tname = "admitted";
-      targs = [Comment "TODO"];
+    let form = EHoare (["M";fname], pre, post) in
+    let prop = (name, vars, form) in
+
+    let name1 = Format.asprintf "%s_assume_" fname in
+    let vars = List.map (fun x -> Ident [x]) vars in
+    let param1 = Prop name1 :: vars in
+    let name2 = Format.asprintf "%s_valid_post" fname in
+    let param2 = Prop name2 :: vars in
+
+
+    let tactic1 = {
+      tname ="conseq";
+      targs = [Param (param1); Param (param2) ; Pattern "=>"; Pattern "/>"]
     }
     in
 
-    Lemma ((name, [], EHoare (["M";fname], pre, post)),[tactic])
+    let tactic2 = {
+      tname ="qed";
+      targs = []
+    }
+    in
 
-  let pp_assert_assume env f =
+    Lemma (prop, [tactic1; tactic2])
+
+  let pp_valid_assert env f =
     let fname = get_funname env f.f_name in
 
-    let pre = Ebool true in
+    let iparams = get_iparams f.f_contra in
+    let iparams = List.map L.unloc iparams in
+    let env,vars = mk_old_param env f.f_args iparams in
 
-    let post = Eapp(Eident ["soundness_"], [res]) in
+    let f1 = var_eq vars f.f_args in
+    let f2 = contrat env (get_pre f.f_contra) in
+    let pre = fand f1 f2 in
 
-    let name = Format.asprintf "%s_assert_assume_sound" fname in
+    let trace = Eapp(Eident ["trace"],[res]) in
+    let post = Eapp(Eident ["validk"], [Eident ["Assert"]; trace]) in
+
+    let name = Format.asprintf "%s_assert" fname in
+
+    let form = EHoare (["M";fname], pre, post) in
+    let prop = (name, vars, form) in
 
     let tactic = {
       tname = "admitted";
-      targs = [Comment "TODO"];
+      targs = [Comment "Prove by Cryptoline"];
     }
     in
 
-    Lemma ((name, [], EHoare (["M"; fname], pre, post)),[tactic])
+    Lemma (prop, [tactic])
 
   let pp_spec env f =
     let fname = get_funname env f.f_name in
@@ -1322,15 +1507,9 @@ module Annotations  = struct
 
     let ires = get_ires f.f_contra in
     let ires = List.map L.unloc ires in
-    let env1 =
-      List.fold_lefti
-        (fun env i res ->
-           let s = "res." ^ string_of_int i in
-           set_var env res s)
-        env ires
-    in
+    let env1 = update_res_env env f ires in
 
-    let f1 = var_eq env vars f.f_args in
+    let f1 = var_eq vars f.f_args in
     let f2 = contrat env (get_pre f.f_contra) in
     let pre = fand f1 f2 in
 
@@ -1338,78 +1517,49 @@ module Annotations  = struct
 
     let name = Format.asprintf "%s_spec" fname in
 
-    let form = Equant (Lforall, vars, EHoare (["M";fname], pre, post)) in
-    let prop = (name, [], form) in
+    let form = EHoare (["M";fname], pre, post) in
+    let prop = (name, vars, form) in
 
-
-    let intros = List.map (fun x -> Ident [x]) vars in
-
-    let tactic1 = {
-      tname = "move";
-      targs = Pattern "=>":: intros;
-    }
-    in
-
-    let f1 = var_eq env vars f.f_args in
-    let f2 = contrat env (get_pre f.f_contra) in
-    let pre = fand f1 f2 in
-
-    let post = Eapp(Eident ["_spec_soundness"], [res;contrat env1 (get_post f.f_contra)]) in
-
-    let have = "h", [], EHoare (["M";fname], pre, post) in
-    let tactic2 = {
-      tname = "have";
-      targs = [Form have]
-    }
-    in
 
     let name1 = Format.asprintf "%s_assume" fname in
+    let vars = List.map (fun x -> Ident [x]) vars in
+    let param1 = Prop name1 :: vars in
     let name2 = Format.asprintf "%s_assert" fname in
+    let param2 = Prop name2 :: vars in
+
+
+    let tactic1 = {
+      tname ="conseq";
+      targs = [Param (param1); Param (param2) ; Pattern "=>"; Pattern "/>"]
+    }
+    in
+
+    let tactic2 ={
+      tname = "smt";
+      targs = [Param [Prop "all_validk_valid"]]
+    }
+    in
 
     let tactic3 = {
-      tname ="conseq";
-      targs = [Prop name1; Param (name2 :: vars)]
-    }
-    in
-
-    let tactic4 = {
-      tname = "by";
-      targs = [Conti tactic3]
-    }
-    in
-
-    let tactic5 ={
-      tname = "smt";
-      targs = [Param []]
-    }
-    in
-
-    let name = Format.asprintf "%s_assert_assume_sound" fname in
-
-    let tactic6 = {
-      tname ="conseq";
-      targs = [Prop "h"; Prop name; Pattern "=>"; Pattern "//"; Seq tactic5]
-    }
-    in
-
-    let tactic7 = {
       tname ="qed";
       targs = []
     }
     in
 
-    Lemma (prop, [tactic1;tactic2;tactic4;tactic6;tactic7])
+    Lemma (prop, [tactic1;tactic2;tactic3])
 
   let proof env funcs =
-    let p1 = List.map (pp_assume env) funcs in
-    let p2 = List.map (pp_assert_assume env) funcs in
-    let p3 = List.map (pp_assert env) funcs in
-    let p4 = List.map (pp_spec env) funcs in
-    let c1 = Icomment "All assume are valid." in
-    let c2 = Icomment "Soundness of assert/assume." in
-    let c3 = Icomment "Lemmas proved by cryptoline." in
-    let c4 = Icomment "Final specification for the functions." in
-    (c1 :: p1) @ (c2 :: p2) @ (c3 :: p3) @ (c4 :: p4)
+    let p1 = List.map (pp_valid_post env) funcs in
+    let p2 = List.map (pp_valid_assume_ env) funcs in
+    let p3 = List.map (pp_valid_assume env) funcs in
+    let p4 = List.map (pp_valid_assert env) funcs in
+    let p5 = List.map (pp_spec env) funcs in
+    let c1 = Icomment "The post is in the trace." in
+    let c2 = Icomment "All assumes are valid." in
+    let c3 = Icomment "The post is in the trace and all assumes are valid." in
+    let c4 = Icomment "All assert are valid." in
+    let c5 = Icomment "Final specification for the functions." in
+    (c1 :: p1) @ (c2 :: p2) @ (c3 :: p3) @ (c4 :: p4) @ (c5 :: p5)
 
   let add_proofv env f p =
     env.proofv := Mf.add f p !(env.proofv)
@@ -1439,12 +1589,7 @@ module Annotations  = struct
 
     let name = "tmp__data_" ^ fn.fn_name in
     let s = normalize_name name in
-    let s = create_name env s in
-    let env =
-      { env with
-        alls = Ss.add s env.alls;
-      }
-    in
+    let s, env = set_name env s in
     let tmp =
       (s, Tuple(List.map (fun x -> Base (toec_ty x)) f.f_tyout))
     in
@@ -1458,55 +1603,28 @@ module Annotations  = struct
 
   let ec_vars env f =
     let fname = get_funname env f.f_name in
-    let assume_ = create_name env ("assume_" ^ fname) in
-    let assert_ = create_name env ("assert_" ^ fname) in
-    let assume_proof = create_name env ("assume_proof_" ^ fname) in
-    let assert_proof = create_name env ("assert_proof_" ^ fname) in
+    let trace_, env = set_name env ("trace_" ^ fname) in
 
-    let proofv = {assume_; assert_; assume_proof; assert_proof} in
+    let proofv = {trace_} in
 
     add_proofv env f.f_name proofv;
 
     let env = { env with func = Some f.f_name} in
     let vars =
-      [assume_,Base "bool";
-       assert_,Base "bool";
-       assume_proof, Base "bool";
-       assert_proof, Base "bool"]
+      [trace_, Base "trace"]
     in
     env, vars
 
   let proof_var_init env f =
     let proofv = Mf.find f.f_name !(env.proofv) in
 
-    let pre = get_pre f.f_contra in
-    let iparams = get_iparams f.f_contra in
-    let iparams = List.map L.unloc iparams in
-    let args =
-      List.map
-        (fun x-> {gv=L.mk_loc L._dummy x; gs=E.Slocal})
-        f.f_args
-    in
-    let args = List.map (fun x -> Pvar x) args in
-    let pre = sub_contra iparams args pre in
-    let pre = contrat env  pre in
-
-    [ESasgn ([LvIdent [proofv.assume_]], Ebool true);
-    ESasgn ([LvIdent [proofv.assert_]], pre);
-    ESasgn ([LvIdent [proofv.assume_proof]], Ebool true);
-    ESasgn ([LvIdent [proofv.assert_proof]], Eident [proofv.assert_])]
+    [ESasgn ([LvIdent [proofv.trace_]], Elist [])]
 
   let check_vars env f =
     let proofv = Mf.find f.f_name !(env.proofv) in
-    let l =
-      [Eident [proofv.assume_];
-      Eident [proofv.assert_];
-      Eident [proofv.assume_proof];
-      Eident [proofv.assert_proof]]
-    in
-    Etuple l
+    Eident [proofv.trace_]
 
-  let import = [IrequireImport ["Jcheck"]]
+  let import = [IfromRequireImport ("Jasmin",["Jcheck"])]
 
   let trans annot =
     let l =
@@ -1853,21 +1971,12 @@ and toec_instr asmOp env i =
           (ec_pcall env lvs otys [get_funname env f] args)
       end
 
-    | Cassert (Assume,_,e) ->
+    | Cassert (k,_,e) ->
       begin
         match env.model with
-        | Annotations ->  Annotations.ec_assume env e
+        | Annotations ->  Annotations.ec_trace env k e
         | _ -> []
       end
-
-    | Cassert (Assert,_,e) ->
-      begin
-        match env.model with
-        | Annotations -> Annotations.ec_assert env e
-        | _ -> []
-      end
-
-    | Cassert (_,_,e) -> assert false
 
     | Csyscall (lvs, o, es) ->
         let s = Syscall.syscall_sig_u o in
@@ -1913,6 +2022,78 @@ let add_ty env = function
     | Bty _ -> ()
     | Arr (_ws, n) -> add_Array env n
 
+let extend_fun env f =
+  let old = List.map V.clone f.f_args in
+  let fn = f.f_name in
+
+  let env,old_v =
+    List.fold_left (fun (env,acc) v ->
+        let s = String.uncapitalize_ascii v.v_name in
+        let s = "old_" ^ s in
+        let s,env = set_name env s in
+        let env = set_var env v s in
+        env, s :: acc
+      ) (env,[]) old
+  in
+  let old_v = List.rev old_v in
+
+  env.old := Mf.add fn old_v !(env.old);
+
+  let old_v =
+    List.fold_left2
+      (fun acc v ty -> (v, Base (toec_ty ty)) :: acc)
+      []
+      old_v
+      f.f_tyin
+  in
+
+  let mki i =
+    {
+      i_desc = i;
+      i_loc = L.i_dummy;
+      i_info = ();
+      i_annot = [];
+    }
+  in
+  let init = List.map2
+      (fun o x ->
+         let lvar = Lvar (L.mk_loc L._dummy o) in
+         let e = Pvar (gkvar (L.mk_loc L._dummy x)) in
+         let i = Prog.Cassgn (lvar, E.AT_keep, o.v_ty, e) in
+         mki i
+      ) old f.f_args
+  in
+  let clone x =
+    let aux v = L.mk_loc L._dummy (V.clone v) in
+    List.map aux f.f_args
+  in
+  let contra = match f.f_contra with
+    | None ->
+      {f_iparams = clone f.f_args;
+       f_ires = clone (List.map L.unloc f.f_ret);
+       f_pre = [];
+       f_post = [];
+      }
+    | Some c -> c
+  in
+  let es = List.map (fun x -> Pvar (gkvar (L.mk_loc L._dummy x))) f.f_args in
+  let iparam = List.map L.unloc contra.f_iparams in
+  let assume = Annotations.sub_contra iparam es contra.f_pre in
+  let es = List.map (fun x -> Pvar (gkvar (L.mk_loc L._dummy x))) old in
+  let assert_ = Annotations.sub_contra iparam es contra.f_post in
+  let es = List.map (fun x -> Pvar (gkvar x)) f.f_ret in
+  let ires = List.map L.unloc contra.f_ires in
+  let assert_ = Annotations.sub_contra ires es assert_ in
+  let assume = List.map
+      (fun (prover,exp) -> mki (Cassert (Assume , prover, exp)))
+      assume
+  in
+  let assert_ = List.map
+      (fun (prover,exp) -> mki (Cassert (Assert , prover, exp)))
+      assert_
+  in
+  { f with f_body = init @ assume @ f.f_body @ assert_},env,old_v
+
 let toec_fun asmOp env f =
     let f = { f with f_body = remove_for f.f_body } in
 
@@ -1923,6 +2104,10 @@ let toec_fun asmOp env f =
     in
 
     let locals = Sv.elements (locals f) in
+    let f, env, old_v =
+      if env.model = Annotations then extend_fun env f else f,env,[]
+    in
+
     let env = List.fold_left add_var env (f.f_args @ locals) in
     (* init auxiliary variables *)
     let env = init_aux env.pd asmOp env f.f_body in
@@ -1943,7 +2128,7 @@ let toec_fun asmOp env f =
       match env.model with
       | Annotations ->
         let env, vars = Annotations.ec_vars env f in
-        env, ec_locals @ vars
+        env, ec_locals @ old_v @ vars
       | _ -> env, ec_locals
     in
 
@@ -1975,7 +2160,7 @@ let toec_fun asmOp env f =
       match env.model with
       | Annotations ->
         let ret_typ = [Tuple(List.map (fun x -> Base (toec_ty x)) f.f_tyout)] in
-        Tuple (ret_typ @ [Base "to_check"])
+        Tuple (ret_typ @ [Base "trace"])
       | _ -> Tuple(List.map (fun x -> Base (toec_ty x)) f.f_tyout)
     in
 
@@ -2110,7 +2295,7 @@ let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes =
           (env,[])
           funcs
         in
-        let name = "tmp__check" in
+        let name = "tmp__trace" in
         let s = normalize_name name in
         let s = create_name env s in
         let env =
@@ -2118,7 +2303,7 @@ let toec_prog pd asmOp model globs funcs arrsz warrsz randombytes =
             alls = Ss.add s env.alls;
           }
         in
-        env, (s, Base "to_check") :: tmp
+        env, (s, Base "trace") :: tmp
     in
 
     let funs = List.map (toec_fun asmOp env) funcs in
