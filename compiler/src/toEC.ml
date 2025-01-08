@@ -1498,7 +1498,7 @@ module Annotations  = struct
 
     let tactic = {
       tname = "admitted";
-      targs = [Comment "Prove by Cryptoline"];
+      targs = [Comment "Proven by Cryptoline"];
     }
     in
 
@@ -1556,16 +1556,23 @@ module Annotations  = struct
 
   let proof env funcs =
     let p1 = List.map (pp_valid_post env) funcs in
-    let p2 = List.map (pp_valid_assume_ env) funcs in
-    let p3 = List.map (pp_valid_assume env) funcs in
-    let p4 = List.map (pp_valid_assert env) funcs in
-    let p5 = List.map (pp_spec env) funcs in
+    let p2 =
+      List.map
+        (fun f ->
+          let p1 = pp_valid_assume_ env f in
+          let p2 = pp_valid_assume env f in
+          [p1; p2]
+        )
+        funcs
+    in
+    let p2 = List.flatten p2 in
+    let p3 = List.map (pp_valid_assert env) funcs in
+    let p4 = List.map (pp_spec env) funcs in
     let c1 = Icomment "The post is in the trace." in
-    let c2 = Icomment "All assumes are valid." in
-    let c3 = Icomment "The post is in the trace and all assumes are valid." in
-    let c4 = Icomment "All assert are valid." in
-    let c5 = Icomment "Final specification for the functions." in
-    (c1 :: p1) @ (c2 :: p2) @ (c3 :: p3) @ (c4 :: p4) @ (c5 :: p5)
+    let c2 = Icomment "The post is in the trace and all assumes are valid." in
+    let c3 = Icomment "All assert are valid." in
+    let c4 = Icomment "Final specification for the functions." in
+    (c1 :: p1) @ (c2 :: p2) @ (c3 :: p3) @ (c4 :: p4)
 
   let add_proofv env f p =
     env.proofv := Mf.add f p !(env.proofv)
