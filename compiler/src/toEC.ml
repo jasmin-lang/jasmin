@@ -853,6 +853,7 @@ module Exp = struct
   let ec_wzeroext (tyo, tyi) e =
     if tyi = tyo then e else ec_zeroext (ws_of_ty tyo, ws_of_ty tyi) e
 
+
   let ec_cast env (ty, ety) e =
     if ety = ty then e
     else
@@ -880,6 +881,13 @@ module Exp = struct
     | E.Oneg _   -> ec_apps1 "-" e
 
   let pp_access aa = if aa = Warray_.AAdirect then "_direct" else ""
+
+  let toec_ty ty = match ty with
+    | Bty Bool -> "bool"
+    | Bty Int  -> "int"
+    | Bty (U ws) -> (pp_sz_t ws)
+    | Bty (Abstract s) -> s
+    | Arr(ws,n) -> Format.sprintf "%s %s.t" (pp_sz_t ws) (fmt_Array n)
 
   let rec toec_cast env ty e = ec_cast env (ty, ty_expr e) (toec_expr env e)
 
@@ -980,6 +988,9 @@ module Exp = struct
       let env = add_var env v in
       let op = Infix (Format.asprintf "%a" pp_op2 op) in
       let acc = "acc" and x = "x" in
+      let ty = ty_expr i in
+      let ty = toec_ty ty in
+      let acc = "(" ^ acc ^ ":" ^ ty ^  ")" in
       let expr = Eop2 (op, Eident [x], Eident [acc]) in
       let lambda1 = Equant (Llambda, [acc], expr) in
       let lambda1 = Equant (Llambda, [x], lambda1) in
@@ -1095,13 +1106,6 @@ let toec_lval1 env lv e =
         [LvIdent [ec_vars env x]],
         Eapp (ec_Array_init env n, [Eapp (wag, [a])])
       )
-
-let toec_ty ty = match ty with
-    | Bty Bool -> "bool"
-    | Bty Int  -> "int"
-    | Bty (U ws) -> (pp_sz_t ws)
-    | Bty (Abstract s) -> s
-    | Arr(ws,n) -> Format.sprintf "%s %s.t" (pp_sz_t ws) (fmt_Array n)
 
 module Annotations  = struct
 
@@ -1353,10 +1357,12 @@ module Annotations  = struct
       }
     in
 
+    let i = List.length f.f_args in
+    let i = string_of_int i in
     let tactic5 =
       {
         tname = "seq";
-        targs = [Pattern "3"; Pattern ":"; Param [DProp e]]
+        targs = [Pattern i; Pattern ":"; Param [DProp e]]
       }
     in
     let tactic6 =
@@ -2092,7 +2098,7 @@ let extend_fun env f =
       (fun (prover,exp) -> mki (Cassert (Assert , prover, exp)))
       assert_
   in
-  { f with f_body = init @ assume @ f.f_body @ assert_},env,old_v
+  { f with f_body = assume @ f.f_body @ assert_}, env, old_v, init
 
 let toec_fun asmOp env f =
     let f = { f with f_body = remove_for f.f_body } in
@@ -2104,8 +2110,8 @@ let toec_fun asmOp env f =
     in
 
     let locals = Sv.elements (locals f) in
-    let f, env, old_v =
-      if env.model = Annotations then extend_fun env f else f,env,[]
+    let f, env, old_v, init =
+      if env.model = Annotations then extend_fun env f else f,env,[],[]
     in
 
     let env = List.fold_left add_var env (f.f_args @ locals) in
@@ -2171,7 +2177,9 @@ let toec_fun asmOp env f =
             rtys = ret_typ;
         };
         locals = ec_locals;
-        stmt = cl_vars_init @ aux_locals_init @ (toec_cmd asmOp env f.f_body) @ [ret];
+        stmt = (toec_cmd asmOp env init) @
+               cl_vars_init @ aux_locals_init @
+               (toec_cmd asmOp env f.f_body) @ [ret];
     }
 
 let add_arrsz env f =
