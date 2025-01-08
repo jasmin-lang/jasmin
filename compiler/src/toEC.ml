@@ -1287,7 +1287,7 @@ module Annotations  = struct
       | Etuple el -> List.fold_left aux acc el
       | Eproj (e, _) -> aux acc e
       | EHoare (_ ,e1, e2) -> aux (aux acc e1) e2
-      | _ -> assert false
+      | _ -> acc
     in
 
     let acc = aux [] post in
