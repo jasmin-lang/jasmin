@@ -343,9 +343,10 @@ type ('len) env = {
   glob : (string * ty) Ms.t;
   funs : (string * (ty list * ty list)) Mf.t;
   tmplvs : ('len CoreIdent.gvar list) Mf.t;
-  ttmplvs : (Ss.elt * Ec.ec_ty) Mf.t;
+  ttmplvs : (Ss.elt) Mf.t;
   old : (Ss.elt list) Mf.t ref;
-  contra : ('len Prog.gfcontract * 'len CoreIdent.gvar list) Mf.t;
+  args : (Ss.elt list) Mf.t ref;
+  contra : ('len Prog.gfcontract) Mf.t;
   arrsz  : Sint.t ref;
   warrsz : Sint.t ref;
   auxv  : string list Mty.t;
@@ -619,6 +620,7 @@ let empty_env pd model fds arrsz warrsz randombytes sign =
     tmplvs = Mf.empty;
     ttmplvs = Mf.empty;
     old = ref Mf.empty;
+    args = ref Mf.empty;
     contra = Mf.empty;
     arrsz;
     warrsz;
@@ -643,10 +645,7 @@ let empty_env pd model fds arrsz warrsz randombytes sign =
     | None -> env
     | Some c ->
       begin
-        let contra =
-          let args = fd.f_args in
-          Mf.add fd.f_name (c,args) env.contra
-        in
+        let contra = Mf.add fd.f_name c env.contra in
         { env with contra }
       end
   in
@@ -988,11 +987,8 @@ module Exp = struct
       let env = add_var env v in
       let op = Infix (Format.asprintf "%a" pp_op2 op) in
       let acc = "acc" and x = "x" in
-      let ty = ty_expr i in
-      let ty = toec_ty ty in
-      let facc = "(" ^ acc ^ ":" ^ ty ^  ")" in
       let expr = Eop2 (op, Eident [x], Eident [acc]) in
-      let lambda1 = Equant (Llambda, [facc], expr) in
+      let lambda1 = Equant (Llambda, [acc], expr) in
       let lambda1 = Equant (Llambda, [x], lambda1) in
       let i = toec_expr env i in
       let a = toec_expr env a in
@@ -1141,14 +1137,17 @@ module Annotations  = struct
     in
     aux (Subst.gsubst_e (fun ?loc:_ x -> x) aux1)
 
-
   let toec_fun env lvs f es =
     let otys, itys = get_funtype env f in
     let args = List.map (ec_wcast env) (List.combine itys es) in
 
     let tmps = Mf.find f env.tmplvs in
-    let ttmpt,_ = Mf.find f env.ttmplvs in
-    let (contr,formals) = Mf.find f env.contra in
+    let ttmpt = Mf.find f env.ttmplvs in
+
+
+    (* Bug in case require is no inline, no function contract*)
+    
+    let contr = Mf.find f env.contra in
 
     let lvs2 = List.map (fun v -> Lvar (L.mk_loc L._dummy v)) tmps in
 
@@ -1205,7 +1204,7 @@ module Annotations  = struct
       Ebool true
     else
       let eq (var1,var2) =
-        Eop2 (Infix "=", ec_ident var1, ec_ident  var2.v_name)
+        Eop2 (Infix "=", ec_ident var1, ec_ident var2)
       in
       List.fold_left
         (fun acc a -> Eop2 (Infix "/\\", eq a, acc))
@@ -1265,7 +1264,6 @@ module Annotations  = struct
          set_var env res s)
       env ires
 
-  
   let pp_valid_post env f =
     let fname = get_funname env f.f_name in
 
@@ -1277,9 +1275,16 @@ module Annotations  = struct
     let ires = List.map L.unloc ires in
     let env1 = update_res_env env f ires in
 
-    let pre = var_eq vars f.f_args in
+    let args = Mf.find f.f_name !(env.args) in
+    let pre = var_eq vars args in
 
-    let post = contrat env1 (get_post f.f_contra) in
+    let post = get_post f.f_contra in
+
+    let wp_step = List.length post in
+    let wp_step = if wp_step <= 0 then -1 else (-1 * wp_step) in
+    let wp_step = string_of_int wp_step in
+
+    let post = contrat env1 post in
 
     let rec aux acc = function
       | Equant (_ , _ , e) -> aux acc e
@@ -1293,9 +1298,7 @@ module Annotations  = struct
       | EHoare (_ ,e1, e2) -> aux (aux acc e1) e2
       | _ -> acc
     in
-
     let acc = aux [] post in
-
     let filter  = function
       | s :: _ ->
         if String.count_string s "res" > 0 then true else false
@@ -1326,7 +1329,7 @@ module Annotations  = struct
 
     let tactic1 = {
       tname = "wp";
-      targs = [Pattern "-1"; Pattern "=>"; Pattern "/="]
+      targs = [Pattern wp_step; Pattern "=>"; Pattern "/="]
     }
     in
 
@@ -1406,7 +1409,8 @@ module Annotations  = struct
     let iparams = List.map L.unloc iparams in
     let env,vars = mk_old_param env f.f_args iparams in
 
-    let pre = var_eq vars f.f_args in
+    let args = Mf.find f.f_name !(env.args) in
+    let pre = var_eq vars args in
 
     let p = contrat env (get_pre f.f_contra) in
 
@@ -1438,7 +1442,8 @@ module Annotations  = struct
     let ires = List.map L.unloc ires in
     let env1 = update_res_env env f ires in
 
-    let pre = var_eq vars f.f_args in
+    let args = Mf.find f.f_name !(env.args) in
+    let pre = var_eq vars args in
     let p = contrat env (get_pre f.f_contra) in
 
     let post = contrat env1 (get_post f.f_contra) in
@@ -1484,7 +1489,8 @@ module Annotations  = struct
     let iparams = List.map L.unloc iparams in
     let env,vars = mk_old_param env f.f_args iparams in
 
-    let f1 = var_eq vars f.f_args in
+    let args = Mf.find f.f_name !(env.args) in
+    let f1 = var_eq vars args in
     let f2 = contrat env (get_pre f.f_contra) in
     let pre = fand f1 f2 in
 
@@ -1515,7 +1521,8 @@ module Annotations  = struct
     let ires = List.map L.unloc ires in
     let env1 = update_res_env env f ires in
 
-    let f1 = var_eq vars f.f_args in
+    let args = Mf.find f.f_name !(env.args) in
+    let f1 = var_eq vars args in
     let f2 = contrat env (get_pre f.f_contra) in
     let pre = fand f1 f2 in
 
@@ -1577,8 +1584,6 @@ module Annotations  = struct
   let add_proofv env f p =
     env.proofv := Mf.add f p !(env.proofv)
 
-  let get_funcontr env f = Mf.find f env.contra
-
   let ec_tmp_lvs env f =
     let fn = f.f_name in
     let otys, itys = get_funtype env fn in
@@ -1603,11 +1608,7 @@ module Annotations  = struct
     let name = "tmp__data_" ^ fn.fn_name in
     let s = normalize_name name in
     let s, env = set_name env s in
-    let tmp =
-      (s, Tuple(List.map (fun x -> Base (toec_ty x)) f.f_tyout))
-    in
-    let env = {env with ttmplvs = Mf.add fn tmp env.ttmplvs} in
-
+    let env = {env with ttmplvs = Mf.add fn s env.ttmplvs} in
     let tmps =
       (s, Tuple(List.map (fun x -> Base (toec_ty x)) f.f_tyout)) :: tmps
     in
@@ -2117,11 +2118,17 @@ let toec_fun asmOp env f =
     in
 
     let locals = Sv.elements (locals f) in
+
     let f, env, old_v, init =
       if env.model = Annotations then extend_fun env f else f,env,[],[]
     in
 
     let env = List.fold_left add_var env (f.f_args @ locals) in
+
+    let args = List.map (ec_vars env)  f.f_args in
+    let fn = f.f_name in
+    env.args := Mf.add fn args !(env.args);
+   
     (* init auxiliary variables *)
     let env = init_aux env.pd asmOp env f.f_body in
     List.iter (add_ty env) f.f_tyout;
