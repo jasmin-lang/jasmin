@@ -990,9 +990,9 @@ module Exp = struct
       let acc = "acc" and x = "x" in
       let ty = ty_expr i in
       let ty = toec_ty ty in
-      let acc = "(" ^ acc ^ ":" ^ ty ^  ")" in
+      let facc = "(" ^ acc ^ ":" ^ ty ^  ")" in
       let expr = Eop2 (op, Eident [x], Eident [acc]) in
-      let lambda1 = Equant (Llambda, [acc], expr) in
+      let lambda1 = Equant (Llambda, [facc], expr) in
       let lambda1 = Equant (Llambda, [x], lambda1) in
       let i = toec_expr env i in
       let a = toec_expr env a in
