@@ -1206,10 +1206,10 @@ module Annotations  = struct
       List.fold_left (fun acc a -> Eop2 (Infix "/\\", a, acc) ) (List.hd c) (List.tl c)
 
   let var_eq vars1 vars2 =
-    let vars = List.map2 (fun a b -> (a,b)) vars1 vars2 in
-    if List.is_empty vars then
+    if List.length vars1 = 0 then
       Ebool true
     else
+      let vars = List.map2 (fun a b -> (a,b)) vars1 vars2 in
       let eq (var1,var2) =
         Eop2 (Infix "=", ec_ident var1, ec_ident var2)
       in
@@ -1218,27 +1218,16 @@ module Annotations  = struct
         (eq (List.hd vars))
         (List.tl vars)
 
-  let var_eq2 vars1 vars2 =
-    let vars = List.map2 (fun a b -> (a,b)) vars1 vars2 in
-    if List.is_empty vars then
-      Ebool true
-    else
-      let eq (var1,var2) =
-        Eop2 (Infix "=", ec_ident var1, ec_ident  var2)
-      in
-      List.fold_left
-        (fun acc a -> Eop2 (Infix "/\\", eq a, acc))
-        (eq (List.hd vars))
-        (List.tl vars)
-
   let mk_old_param env params iparams =
-    List.fold_left2 (fun (env,acc) v iv ->
-        let s = String.uncapitalize_ascii v.v_name in
-        let s = "_" ^ s in
-        let s,env = set_name env s in
-        let env = set_var env iv s in
-        env, s :: acc
-      ) (env,[]) (List.rev params) (List.rev iparams)
+    if List.length iparams = 0 then env, []
+    else
+      List.fold_left2 (fun (env,acc) v iv ->
+          let s = String.uncapitalize_ascii v.v_name in
+          let s = "_" ^ s in
+          let s,env = set_name env s in
+          let env = set_var env iv s in
+          env, s :: acc
+        ) (env,[]) (List.rev params) (List.rev iparams)
 
   let res = Eident ["res"]
 
@@ -1324,7 +1313,7 @@ module Annotations  = struct
     in
 
     let old = Mf.find f.f_name !(env.old) in
-    let e = var_eq2 vars old in
+    let e = var_eq vars old in
 
     let tactic2 = {
       tname = "conseq";
