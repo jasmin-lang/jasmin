@@ -1308,4 +1308,49 @@ Proof.
   by apply (mm_read_ok m2).
 Qed.
 
+Lemma compiler_CLP (entries: seq funname) (p: prog) (xp : uprog):
+  compiler_CL aparams cparams entries p = ok xp ->
+  forall fn scs m va scs' m' vr tr,
+  fn \in entries ->
+  psem.sem_call (dc:= indirect_c) (wsw:=nosubword) p tt scs m fn va scs' m' vr tr ->
+  ∃ expdin : seq (option (wsize * Z)),
+  ∀ vargs' : seq (seq value),
+     array_expansion_cl_proof.expand_vs expdin va = ok vargs' ->
+  exists vr',
+    psem.sem_call (dc:=direct_c) (wsw:=withsubword) xp tt scs m fn (flatten vargs') scs' m' vr' tr.
+Proof.
+  move=> + fn scs m va scs' m' vr tr.
+  rewrite /compiler_CL.
+  t_xrbindP=> p1 ok_ac p2.
+  rewrite !print_uprogP => ok_spill p3 ok_inl p4 ok_unr p5.
+  rewrite print_uprogP => ok_dc p6.
+  rewrite print_uprogP => ok_lr1 p7.
+  rewrite print_uprogP => ok_mref p8.
+  rewrite print_uprogP => ok_ae p9.
+  rewrite print_uprogP => ok_lr2 p10 ok_rmg.
+  rewrite print_uprogP => ok_fvars p11.
+  rewrite print_uprogP => ok_lo.
+  rewrite print_uprogP => ? fn_ok hexec; subst p11.
+  have va_refl := List_Forall2_refl va value_uincl_refl.
+  have {}hexec:= psem_call_u hexec.
+  have /(_ _ _ ok_ac) [vr1 [{}hexec hu1 {ok_ac}]] := array_copy_fdP (sCP := sCP_unit) _ va_refl hexec.
+  have {}hexec := add_init_fdP hexec.
+  have {hexec ok_spill}hexec := lower_spill_fdP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_spill hexec.
+  have [vr2 hu2 {}hexec {ok_inl}]:= inliningP ok_inl fn_ok hexec.
+  have [vr3 [{}hexec hu3 {ok_unr}]] := unrollP ok_unr hexec va_refl.
+  have {hexec ok_dc}hexec := dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_dc fn_ok hexec.
+  have [vr4 hu4 {}hexec {ok_lr1}]:= live_range_splittingP ok_lr1 hexec.
+  have /(_ is_reg_array) [vr5 [{}hexec hu5]]:= remove_init_fdPu _ va_refl hexec.
+  have {hexec ok_mref}hexec := makeReferenceArguments_callP (siparams := sip_of_asm_e) ok_mref hexec.
+  have [vr6 hu6 {}hexec]:= indirect_to_direct hexec.
+  have [expdin [expdout h {ok_ae}]]:= array_expansion_cl_proof.expand_callP (sip := sip_of_asm_e) ok_ae hexec.
+  exists expdin => vargs' /h {h} [vr7 harex {}hexec].
+  have [vr8 hu8 {}hexec {ok_lr2}]:= live_range_splittingP ok_lr2 hexec.
+  have /(_ _ _ ok_rmg) {hexec ok_rmg}hexec:= RGP.remove_globP _ hexec.
+  have /= {}hexec:= hlop_lower_callP (hap_hlop haparams) (lowering_opt cparams) (warning cparams) ok_fvars hexec.
+  have vargs'_refl := List_Forall2_refl (flatten vargs') value_uincl_refl.
+  have /(_ _ ok_lo) [vr' [{}hexec _]] := pi_callP (sCP := sCP_unit) _ vargs'_refl hexec.
+  by exists vr'.
+Qed.
+
 End PROOF.
