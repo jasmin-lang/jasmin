@@ -19,7 +19,7 @@ let coqPackages =
   if coqMaster then
     pkgs.coqPackages.overrideScope (self: super: {
       coq = super.coq.override { version = "master"; };
-      stdlib = super.stdlib.override { version = "master"; };
+      stdlib = super.stdlib.override { version = "31c1205b0a6ecc2e0a83ccc068ceb40d6558efa7"; };
       coq-elpi = callPackage scripts/coq-elpi.nix {
         version = "master";
         inherit (self) lib mkCoqDerivation coq stdlib;
