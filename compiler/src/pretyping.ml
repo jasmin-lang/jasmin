@@ -2252,29 +2252,32 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
       (fun (annot,c) -> aprover annot, tt_expr_bool arch_info.pd env c)
       clause
   in
-
-  let aux_env = Env.Vars.clear_locals env0 in
-  let env_pre, f_iparams =
-    List.map_fold (tt_annot_vardecls dfl_mut arch_info.pd) aux_env pf.pdf_args
-  in
-  let f_iparams = List.flatten f_iparams in
-  let f_pre = get_clause env_pre pf.pdf_contra.pdc_pre in
-
-  let mk_ret x =
-    let x = L.unloc x in
-    L.mk_loc L._dummy (Prog.(P.PV.mk x.v_name x.v_kind x.v_ty x.v_dloc x.v_annot))
-  in
-  let f_ires = List.map mk_ret xret in
-  let ret = List.map2 (fun a b -> L.unloc a,b) f_ires rty in
-  let env_post = Env.add_f_result env_pre ret in
-  let f_post = get_clause env_post pf.pdf_contra.pdc_post in
-
   let name = L.unloc pf.pdf_name in
+
+  let f_pre = pf.pdf_contra.pdc_pre in
+  let f_post = pf.pdf_contra.pdc_post in
 
   let f_contra =
     match f_pre, f_post with
     | [] , [] -> None
-    | _, _ -> Some {P.f_iparams; f_ires;f_pre;f_post}
+    | pre, post ->
+      let aux_env = Env.Vars.clear_locals env0 in
+      let env_pre, f_iparams =
+        List.map_fold (tt_annot_vardecls dfl_mut arch_info.pd) aux_env pf.pdf_args
+      in
+      let f_iparams = List.flatten f_iparams in
+      let f_pre = get_clause env_pre pre in
+
+      let mk_ret x =
+        let x = L.unloc x in
+        L.mk_loc L._dummy (Prog.(P.PV.mk x.v_name x.v_kind x.v_ty x.v_dloc x.v_annot))
+      in
+      let f_ires = List.map mk_ret xret in
+      let ret = List.map2 (fun a b -> L.unloc a,b) f_ires rty in
+      let env_post = Env.add_f_result env_pre ret in
+      let f_post = get_clause env_post post in
+
+      Some {P.f_iparams; f_ires;f_pre;f_post}
   in
 
   let fdef =
