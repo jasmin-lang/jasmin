@@ -346,7 +346,7 @@ type ('len) env = {
   ttmplvs : (Ss.elt) Mf.t;
   old : (Ss.elt list) Mf.t ref;
   args : (Ss.elt list) Mf.t ref;
-  contra : ('len Prog.gfcontract) Mf.t;
+  contra : ('len Prog.gfcontract option) Mf.t;
   arrsz  : Sint.t ref;
   warrsz : Sint.t ref;
   auxv  : string list Mty.t;
@@ -641,13 +641,8 @@ let empty_env pd model fds arrsz warrsz randombytes sign =
   let env = List.fold_left add_fun env fds in
 
   let add_fun_contra env fd =
-    match fd.f_contra with
-    | None -> env
-    | Some c ->
-      begin
-        let contra = Mf.add fd.f_name c env.contra in
-        { env with contra }
-      end
+    let contra = Mf.add fd.f_name fd.f_contra env.contra in
+    { env with contra }
   in
   List.fold_left add_fun_contra env fds
 
@@ -1137,6 +1132,21 @@ module Annotations  = struct
     in
     aux (Subst.gsubst_e (fun ?loc:_ x -> x) aux1)
 
+  let get_pre = function
+    | None -> []
+    | Some f -> f.f_pre
+
+  let get_post = function
+    | None -> []
+    | Some f -> f.f_post
+
+  let get_iparams = function
+    | None -> []
+    | Some f -> f.f_iparams
+
+  let get_ires = function
+    | None -> []
+    | Some f -> f.f_ires
   let toec_fun env lvs f es =
     let otys, itys = get_funtype env f in
     let args = List.map (ec_wcast env) (List.combine itys es) in
@@ -1144,9 +1154,6 @@ module Annotations  = struct
     let tmps = Mf.find f env.tmplvs in
     let ttmpt = Mf.find f env.ttmplvs in
 
-
-    (* Bug in case require is no inline, no function contract*)
-    
     let contr = Mf.find f env.contra in
 
     let lvs2 = List.map (fun v -> Lvar (L.mk_loc L._dummy v)) tmps in
@@ -1157,12 +1164,12 @@ module Annotations  = struct
         ) tmps
     in
 
-    let iparams = List.map L.unloc contr.f_iparams in
-    let pre = sub_contra iparams es contr.f_pre in
+    let iparams = List.map L.unloc (get_iparams contr) in
+    let pre = sub_contra iparams es (get_pre contr) in
     let pre = List.map (fun (_,e) -> e) pre in
 
-    let post = sub_contra iparams es contr.f_post in
-    let ires = List.map L.unloc contr.f_ires in
+    let post = sub_contra iparams es (get_post contr) in
+    let ires = List.map L.unloc (get_ires contr) in
     let tmps =
       List.map
         (fun x-> Pvar {gv=L.mk_loc L._dummy x; gs=E.Slocal})
@@ -1234,23 +1241,6 @@ module Annotations  = struct
       ) (env,[]) (List.rev params) (List.rev iparams)
 
   let res = Eident ["res"]
-
-  let get_pre = function
-    | None -> []
-    | Some f -> f.f_pre
-
-  let get_post = function
-    | None -> []
-    | Some f -> f.f_post
-
-  let get_iparams = function
-    | None -> []
-    | Some f -> f.f_iparams
-
-  let get_ires = function
-    | None -> []
-    | Some f -> f.f_ires
-
 
   let update_res_env env f ires =
     List.fold_lefti
