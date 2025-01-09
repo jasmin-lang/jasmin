@@ -4,6 +4,7 @@ From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype choice.
 From mathcomp Require Import fintype finfun.
 From Coq.Unicode Require Import Utf8.
 From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
+From Coq Require Ztac. (* deprecated since 9.0 *)
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
