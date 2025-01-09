@@ -128,17 +128,17 @@ module GhostVector = struct
   type vector =
     | U16x16
 
-  let get_vghost ghosts gname b =
-    let vghost = List.find (fun (v, _) -> v.v_name = gname) (if b then List.rev ghosts else ghosts) in (* FIXME: DIRTY HACK *)
+  let get_vghost ghosts gname =
+    let vghost = List.find (fun (v, _) -> v.v_name = gname) ghosts in
     vghost
 
   let get_unfolded_vector_namei v i =
-    String.concat "_" [v.v_name; "v" ; string_of_int i]
+    String.concat "_" [v.v_name; (string_of_uid v.v_id); "v" ; string_of_int i]
 
   let rec replace_vghosts_rexp ghosts r =
-    let aux (v, ty) i b =
+    let aux (v, ty) i =
       let name = get_unfolded_vector_namei v i in
-      let v' = get_vghost ghosts name b in
+      let v' = get_vghost ghosts name in
       Rvar v'
     in
     match r with
@@ -158,8 +158,11 @@ module GhostVector = struct
       let e2' = replace_vghosts_rexp ghosts e2 in
       Rbinop(e1', s, e2')
     | RVget(e,c) -> r
-    | UnPack (e,us,i,b) ->
-      aux e i b
+    | UnPack (e,us,i) ->
+      aux e i
+    | Rlimbs (c, e) -> 
+      let e' = List.map (replace_vghosts_rexp ghosts) e in
+      Rlimbs (c, e')
 
   let rec unfold_ghosts_rpred ghosts pre =
     match pre with
@@ -186,9 +189,9 @@ module GhostVector = struct
     List.map (unfold_ghosts_rpred ghosts) pre
 
   let rec replace_vghosts_eexp ghosts e =
-    let aux (v, ty) i b =
+    let aux (v, ty) i =
       let name = get_unfolded_vector_namei v i in
-      let v' = get_vghost ghosts name b in
+      let v' = get_vghost ghosts name in
       Ivar v'
     in
     match e with
@@ -204,8 +207,8 @@ module GhostVector = struct
     | Ilimbs (c, l) ->
       let l' = List.map (replace_vghosts_eexp ghosts) l in
       Ilimbs (c, l')
-    | IUnPack (e, us, i, b) ->
-      aux e i b
+    | IUnPack (e, us, i) ->
+      aux e i
 
   let rec unfold_ghosts_epred ghosts pre =
     match pre with
@@ -280,29 +283,6 @@ module GhostVector = struct
       | h::t ->
         [unfold_clauses h formals] @ (unfold_cfg_clauses t formals)
       | [] -> []
-
-(* CHECK ME: CL doesn't support vector/arrays as arguments it seems; see preliminary.cl *)
-(*
-  let unfold_vectors_list formals ret_vars =
-    let aux ((v,ty) as tv) =
-      let mk_vector = Annot.filter_string_list None ["u16x16", U16x16] in
-      match Annot.ensure_uniq1 "vect" mk_vector (v.v_annot) with
-      | None -> [tv],[],[]
-      | Some U16x16 ->
-        let (l_16x16, lty_16x16) as l16x16 = I.var_to_tyvar ~vector:(16,16) v in
-        let ll16x16 = Llvar l16x16 in
-        if List.exists (is_eq_tyvar tv) ret_vars then
-          let a_1x256 = Avatome [Avar tv] in
-          [l16x16], [], [cast lty_16x16 ll16x16 a_1x256]
-        else
-          let vl16x16 = Avar l16x16 in
-          [l16x16], [cast ty (Llvar tv) vl16x16],[]
-    in
-    List.fold_left (fun (acc1,acc2,acc3) tv ->
-        let fs,ispre,ispost = aux tv in
-        fs @ acc1, ispre @ acc2, ispost @ acc3)
-      ([],[],[]) formals
-*)
 end
 
 module SimplVector = struct

@@ -84,7 +84,7 @@ module CL = struct
       | Iunop  of string * eexp
       | Ibinop of eexp * string * eexp
       | Ilimbs of const * eexp list
-      | IUnPack of tyvar * int * int * bool
+      | IUnPack of tyvar * int * int
 
     let (!-) e1 = Iunop ("-", e1)
     let (-) e1 e2 = Ibinop (e1, "-", e2)
@@ -134,7 +134,7 @@ module CL = struct
       | Runop  of string * rexp
       | Rbinop of rexp * string * rexp
       | RVget  of tyvar * const
-      | UnPack of  tyvar * int * int * bool
+      | UnPack of  tyvar * int * int
       | Rlimbs of const * rexp list
 
     let const (i1,z1) = Rconst (i1,z1)
@@ -557,9 +557,7 @@ module I (S:S): I = struct
     | PappN(Oabstract {pa_name="ze_16_32"}, [v]) -> Ruext (!> v, 16)
     | PappN(Oabstract {pa_name="limbs_4u64"}, [q]) -> Rlimbs ((Z.of_int 64), (List.map (!>) (extract_list q [])))
     | PappN(Oabstract {pa_name="u256_as_16u16"}, [Pvar x ; Pconst z]) ->
-      UnPack (to_var ~sign x, 16, Z.to_int z, false)
-    | PappN(Oabstract {pa_name="u256_as_16u16"}, [Presult (_, x) ; Pconst z]) ->
-      UnPack (to_var ~sign x, 16, Z.to_int z, true)
+      UnPack (to_var ~sign x, 16, Z.to_int z)
     | _ -> error e
 
   let rec gexp_to_rpred ?(sign=S.s) e : CL.R.rpred =
@@ -579,8 +577,8 @@ module I (S:S): I = struct
     | Papp2(Olt int, e1, e2)  -> ult !> e1 !> e2
     | Papp2(Ogt int, e1, e2)  -> ugt !> e1 !> e2
     | Pif(_, e1, e2, e3) -> RPand [RPor [RPnot !>> e1; !>> e2];RPor[ !>> e1; !>> e3]]
-    | Pabstract ({name="eq"}, [e1;e2]) -> eq !> e1 !> e2
-    | Pabstract ({name="eqsmod"} as _opa, [e1;e2;e3]) -> RPeqsmod (!> e1, !> e2, !> e3)
+    | PappN (Oabstract {pa_name="eq"}, [e1;e2]) -> eq !> e1 !> e2
+    | PappN (Oabstract {pa_name="eqsmod"} as _opa, [e1;e2;e3]) -> RPeqsmod (!> e1, !> e2, !> e3)
     | _ -> error e
 
   let rec get_const x =
@@ -696,11 +694,8 @@ module I (S:S): I = struct
       mull !> b (power (Ivar v) !> a)
     | PappN (Oabstract {pa_name="mon0"}, [b]) ->
       !> b
-    | PappN (Oabstract {name="u256_as_16u16"}, [Pvar x; Pconst z]) ->
-      IUnPack (to_var ~sign x, 16, Z.to_int z, false)
-    | Pabstract ({name="u256_as_16u16"}, [Presult (_, x) ; Pconst z]) ->
-        IUnPack (to_var ~sign x, 16, Z.to_int z, true)
-    | Presult (_,x) -> Ivar (to_var ~sign x)
+    | PappN (Oabstract {pa_name="u256_as_16u16"}, [Pvar x; Pconst z]) ->
+      IUnPack (to_var ~sign x, 16, Z.to_int z)
     | _ -> error e
 
   let rec gexp_to_epred env ?(sign=S.s) e :CL.I.epred list =
@@ -1886,11 +1881,10 @@ module Mk(O:BaseOp) = struct
             [CL.Instr.assert_ pre_cl], [CL.Instr.assume post_cl]
         in
       (* FIXME: How are we sure that the variables in r are fresh ? *)
-      r , pre_cl @ post_cl
       let formals = List.map O.I.var_to_tyvar fd.f_args in
       let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
       let formals = filter_add cond formals (List.map O.I.gexp_to_var params) in
-      r , formals , [CL.Instr.assert_ pre_cl] @  [CL.Instr.assume post_cl]
+      r , formals, pre_cl @ post_cl
 
     | Cassgn (a, _, _, e) ->
       begin
@@ -1934,7 +1928,6 @@ module Mk(O:BaseOp) = struct
         let post = sub_fun_returns ci.f_ires r post in
         let post = to_clause env post in
         pre, post in
-    let lval,prog = pp_c env fds fd.f_body in
     let lval,formals_args,prog = pp_c env fds fd.f_body in
     let formals_lval = List.map (fun x -> O.I.get_lval (O.I.glval_to_lval x)) lval in
     let cond (a,_) (x,_) = (x.v_name = a.v_name) && (x.v_id = a.v_id) in
