@@ -459,6 +459,70 @@ Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
 Definition compile_prog_to_asm entries (p: prog): cexec asm_prog :=
   compiler_front_end entries p >>= compiler_back_end_to_asm entries.
 
+
+(* -------------------------------------------------------- *)
+Definition compiler_CL (to_keep: seq funname) (p:prog) : cexec uprog :=
+  Let p := array_copy.array_copy_prog  (λ k, cparams.(fresh_var_ident) k dummy_instr_info 0) p in
+  let p := cparams.(print_uprog) ArrayCopy p in
+
+  let p := add_init_prog p in
+  let p := cparams.(print_uprog) AddArrInit p in
+
+  Let p :=
+    spill_prog
+      (fun k ii => fresh_var_ident cparams k ii 0)
+      p in
+  let p := cparams.(print_uprog) LowerSpill p in
+
+  Let p := inlining to_keep p in
+
+  Let p := unroll_loop (ap_is_move_op aparams) false p in
+  let p := cparams.(print_uprog) Unrolling p in
+
+  Let p := dead_calls_err_seq to_keep p in
+  let p := cparams.(print_uprog) RemoveUnusedFunction p in
+
+  Let pv := live_range_splitting p in
+
+  let pr := remove_init_prog is_reg_array pv in
+  let pr := cparams.(print_uprog) RemoveArrInit pr in
+
+  Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in
+  let pa := cparams.(print_uprog) MakeRefArguments pa in
+
+  Let pe := array_expansion_cl.expand_prog
+              (fun vk => fresh_var_ident cparams vk dummy_instr_info 0)
+              cparams.(expand_fd) [::] pa in
+  let pe := cparams.(print_uprog) RegArrayExpansion pe in
+
+  Let pe := live_range_splitting pe in
+
+  Let pg := remove_glob_prog cparams.(fresh_id) pe in
+  let pg := cparams.(print_uprog) RemoveGlobal pg in
+
+  Let _ :=
+    assert
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pg))
+      (pp_internal_error_s "lowering" "lowering check fails")
+  in
+
+  let pl :=
+    lower_prog
+      (lop_lower_i loparams)
+      (lowering_opt cparams)
+      (warning cparams)
+      (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
+      pg
+  in
+  let pl := cparams.(print_uprog) LowerInstruction pl in
+
+  Let pp := propagate_inline.pi_prog pl in
+  let pp := cparams.(print_uprog) PropagateInline pp in
+
+  ok pp.
+
+
+
 Definition compiler_CL_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let p := add_init_prog p in
   let p := cparams.(print_uprog) AddArrInit p in
@@ -520,8 +584,10 @@ Definition compiler_CL_second_part (to_keep: seq funname) (p: prog) : cexec upro
 
   ok pp.
 
+(*
 Definition compiler_CL (to_keep: seq funname) (p: prog) :=
   Let p := compiler_CL_first_part to_keep p in
   compiler_CL_second_part to_keep p.
+*)
 
 End COMPILER.

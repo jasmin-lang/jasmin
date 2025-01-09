@@ -1745,30 +1745,24 @@ End Step1.
 
 Lemma expand_callP f scs mem scs' mem' va vr tr :
   sem_call p1 ev scs mem f va scs' mem' vr tr ->
-  f \in entries ->
-  sem_call p2 ev scs mem f va scs' mem' vr tr.
+  exists expdin expdout,
+   ∀ (vargs' : seq (seq value)), expand_vs expdin va = ok vargs' ->
+  exists2 vres' : seq (seq value),
+     expand_vs expdout vr = ok vres' &
+     sem_call p2 ev scs mem f (flatten vargs') scs' mem' (flatten vres') tr.
 Proof.
   apply: (rbindP _ Hcomp) => s1 /[dup]Hs1/expand_callP_aux h _ /[dup]+/h{h}.
-  move=> [???? {}f fd {}va va' ??? {}vr vr' vpr vpo tr' hgf htri _ _ _ _ _ htro _ _ _ _] h b.
-  suff /h{h}h : Mf.get (fsigs s1) f =
-    Some (map (fun=> None) (f_tyin fd), map (fun=> None) (f_tyout fd)).
-  + have /h{h}[?] :
-     expand_vs (map (fun=> None) (f_tyin fd)) va' = ok [seq [:: x] | x <- va'].
-    + by elim: (f_tyin fd) va' va htri {h} => [[]|> hrec []]//=; t_xrbindP=> > /hrec ->.
-    have : expand_vs (map (fun=> None) (f_tyout fd)) vr' = ok [seq [:: x] | x <- vr'].
-    + by elim: (f_tyout fd) vr vr' htro => [[]//?[<-]//|> hrec [] //=>]; t_xrbindP => ? /hrec + <- => ->.
-    by move=> -> [<-]; rewrite 2!flatten_seq1.
+  move=> [???? {}f fd {}va va' ??? {}vr vr' vpr vpo tr' hgf htri _ _ _ _ _ htro _ _ _ _] h.
+  suff : exists expdin expdout, Mf.get (fsigs s1) f = Some (expdin, expdout).
+  + move=> [expdin [expdout hget1]].
+    exists expdin, expdout.
+    by apply h.
   move: Hs1 fd hgf {h htri htro}; rewrite {}/fsigs; elim: (p_funcs p1) s1
     => [> [<-]|[? [? ? fti fp ? fto fr]]> hrec] //=.
-  t_xrbindP=> > +?? /hrec{hrec}h ?; subst=> /=.
+  t_xrbindP => ?? [? [expdin expdout]] + ?? /hrec{hrec}h ?; subst=> /=.
   case: eqP; last by move=> /nesym /eqP?; rewrite Mf.setP_neq //.
-  move=> <- + ? [] <- /=.
-  rewrite Mf.setP_eq /expand_fsig b /=; t_xrbindP=> -[??] _; t_xrbindP => ? hz ? hz1 ?? <- /=.
-  do 2 f_equal.
-  + move: (mapM2_Forall3 hz); elim => //= > + _ ->.
-    by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
-  move: (mapM2_Forall3 hz1); elim => //= > + _ ->.
-  by rewrite /expand_tyv; case: Mvar.get => //; t_xrbindP => _ <-.
+  move=> <- + fd' [] ? /=; subst fd'.
+  rewrite Mf.setP_eq => _; eauto.
 Qed.
 
 End WITH_PARAMS.
