@@ -1334,7 +1334,7 @@ module Annotations  = struct
     let tactic4 =
       {
         tname = "rewrite";
-        targs = [Prop "/trace"; Pattern "/="; Prop "valid_cat";
+        targs = [Prop "/trace"; Pattern "/="; Prop "!valid_cat";
                  Prop "/valid"; Pattern "//="]
       }
     in
