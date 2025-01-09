@@ -6,7 +6,7 @@ abstract predicate int b2i(bool);
 abstract predicate int u64i(u64);
 abstract predicate int pow(int, int);
 
-inline fn __mul4_rss(stack u64[4] xa ya) -> reg u64[4]
+fn __mul4_rss(reg u64[4] xa ya) -> reg u64[4]
  ensures #[prover=cas] {
   eqmod (
      \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
@@ -23,7 +23,7 @@ inline fn __mul4_rss(stack u64[4] xa ya) -> reg u64[4]
   inline int i j;
 
   for i = 0 to 8 { z[i] = #MOV(0); }
-
+  hprev = #MOV(0);
   x[0] = xa[0];
   for j = 0 to 4 {
     y[j] = ya[j];
