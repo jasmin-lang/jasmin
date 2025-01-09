@@ -8,7 +8,7 @@ abstract predicate tuple quad(u64, u64, u64, u64);
 
 fn __tobytes4(reg u64[4] f) -> reg u64[4]
   requires #[prover=smt] {(256u)0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffda <= limbs_4u64(quad(f[0], f[1], f[2], f[3]))}
-  requires #[prover=smt] {limbs_4u64(quad(f[0], f[1], f[2], f[3])) < (256u)0x10000000000000000000000000000000000000000000000000000000000000000}
+  requires #[prover=smt] {limbs_4u64(quad(f[0], f[1], f[2], f[3])) <= (256u)0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff}
 ensures #[prover=cas] {
  eqmod (
    \sum (ii \in 0:4) (pow(2, 64*ii)*u64i(result.0[ii])),
