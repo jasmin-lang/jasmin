@@ -1892,7 +1892,7 @@ module Mk(O:BaseOp) = struct
         | Lvar x -> [a], [], O.assgn_to_instr trans a e
         | Lnone _ | Lmem _ | Laset _ |Lasub _ -> assert false
       end
-    | Copn(xs, _, o, es) -> [], [], pp_sopn i.i_loc.base_loc xs o es trans
+    | Copn(xs, _, o, es) -> xs, [], pp_sopn i.i_loc.base_loc xs o es trans
 
   let pp_c env fds c =
     (* FIXME: this is really a bad complexity *)
