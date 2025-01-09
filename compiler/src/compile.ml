@@ -309,57 +309,22 @@ let compile_CL (type reg regx xreg rflag cond asm_op extra_op)
   let open CP in
 
   let visit_prog_after_pass ~debug s p =
-    eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p in
+    eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
+  in
 
   let cparams = CP.cparams ~onlyreg:false visit_prog_after_pass cprog in
+  let uprog = Expr.to_uprog Build_Tabstract Arch.asmOp cprog in
+  let c =
+    Compiler.compiler_CL
+      Build_Tabstract
+      Arch.asm_e
+      Arch.aparams
+      cparams
+      [toextract]
+  in
 
-  (* Add array copy after inlining every where *)
-  let is_array_init e =
-    match e with
-    | Parr_init _ -> true
-    | _ -> false in
-
-  let rec add_array_copy_i i =
-    { i with i_desc = add_array_copy_id i.i_desc }
-
-  and add_array_copy_id i =
-  match i with
-  | Cif(e,c1,c2) -> Cif(e, add_array_copy_c c1, add_array_copy_c c2)
-  | Cfor(x,r,c)  -> Cfor(x,r, add_array_copy_c c)
-  | Cwhile(a,c1,e,c2) -> Cwhile(a, add_array_copy_c c1, e, add_array_copy_c c2)
-  | Cassgn(Lvar x, t, _ty, e) when is_arr x.pl_desc && not (is_array_init e) ->
-      let (ws,n) = array_kind x.pl_desc.v_ty in
-      Copn([Lvar x],t, Opseudo_op (Ocopy(ws, Conv.pos_of_int n)), [e])
-  | Cassgn(Lasub (_, ws, n,_, _) as x, t, _ty, e) when not (is_array_init e) ->
-      Copn([x],t, Opseudo_op (Ocopy(ws, Conv.pos_of_int n)), [e])
-  | Cassert _ | Ccall _ | Copn _ | Csyscall _ | Cassgn _ -> i
-
-  and add_array_copy_c c =
-    List.map add_array_copy_i c in
-
-  let add_array_copy_f f =
-   { f with f_body = add_array_copy_c f.f_body } in
-  let add_array_copy (g,fds) = (g, List.map add_array_copy_f fds) in
-
-  let doit f p =
-    match f p with
+  match c uprog with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug) e in
       raise (HiError e)
-    | Utils0.Ok p -> p in
-
-  let cprog =
-    doit
-      (Compiler.compiler_CL_first_part Build_Tabstract Arch.asm_e Arch.aparams cparams
-         [toextract])
-      (Expr.to_uprog Build_Tabstract Arch.asmOp cprog) in
-
-  let cprog =
-    let p = Conv.prog_of_cuprog (Obj.magic cprog) in
-(*    Format.eprintf "Before add copy@.%a@." (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) p; *)
-    let p = add_array_copy p in
-(*    Format.eprintf "After add copy@.%a@." (Printer.pp_prog ~debug:true Arch.reg_size Arch.asmOp) p; *)
-    let cp = Conv.cuprog_of_prog p in
-    cp in
-  doit (Compiler.compiler_CL_second_part Build_Tabstract Arch.asm_e Arch.aparams cparams [toextract])
-      (Expr.to_uprog Build_Tabstract Arch.asmOp cprog)
+    | Utils0.Ok p -> p
