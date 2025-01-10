@@ -650,6 +650,8 @@ module I (S:S): I = struct
     match e with
     | Papp2(Oeq _, e1, e2)  -> [Eeq (!> e1, !> e2)]
     | Papp2(Oand, e1, e2)  -> !>> e1 @ !>> e2
+    | Pbool(true) -> [Eeq ((Iconst Z.zero), (Iconst Z.zero))]
+    | Pbool(false) -> [Eeq ((Iconst Z.zero), (Iconst Z.one))]
     | PappN (Oabstract {pa_name="eqmod"} as _opa, [h1;h2;h3]) ->
       [Eeqmod (!> h1, !> h2, List.map (!>) (extract_list h3 []))]
     | PappN (Oabstract {pa_name="eqmod_int"} as _opa, [h1;h2;h3]) ->
