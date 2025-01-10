@@ -1,0 +1,31 @@
+name: Build
+description: TEst
+
+
+on:
+  push:
+    branches:
+      - '*'
+
+env:
+  variables:
+  NIX_PATH: nixpkgs=channel:nixpkgs-unstable
+
+  EXTRA_SUBSTITUTERS: https://jasmin.cachix.org
+  EXTRA_PUBLIC_KEYS: jasmin.cachix.org-1:aA5r1ovq4HYKUa+8QHVvIP7K6Fi9L75b0SaN/sooWSY=
+  NIXOS_PUBLIC_KEY: cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+  NIXPKGS_ALLOW_UNFREE: 1
+
+  VERSION: development version at commit ${{ github.sha }} on branch ${{ github.head_ref }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@v27
+      with:
+        nix_path: ${{ env.NIX_PATH }}
+    - run: nix --version
+
+
