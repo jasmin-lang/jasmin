@@ -25,9 +25,9 @@ jobs:
     - uses: cachix/install-nix-action@v27
       with:
         nix_path: ${{ env.NIX_PATH }}
-    - run: nix --version
-    - uses: workflow/nix-shell-action@v3
-    - run: nix-shell --run 'echo done'
+    - uses: DeterminateSystems/magic-nix-cache-action@v2
+    - run: nix-build
+    - run: nix-shell --run "echo OK"
 
   prepare:
     runs-on: ubuntu-latest
