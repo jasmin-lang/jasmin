@@ -26,7 +26,6 @@ jobs:
       with:
         nix_path: ${{ env.NIX_PATH }}
     - uses: DeterminateSystems/magic-nix-cache-action@v2
-    - run: nix-build
     - run: nix-shell --run "echo OK"
 
   prepare:
