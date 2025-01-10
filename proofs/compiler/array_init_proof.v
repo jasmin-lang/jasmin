@@ -579,6 +579,18 @@ Section ADD_INIT.
          RAproc).
   Qed.
 
+Lemma sig_preserved fn fd :
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd',
+    get_fundef (p_funcs p') fn = Some fd'
+    & fd.(f_tyin) = fd'.(f_tyin).
+Proof.
+  move=> hget.
+  have hget' : get_fundef (p_funcs p') fn = Some (add_init_fd fd).
+  + by rewrite /p' get_map_prog hget.
+  by exists (add_init_fd fd).
+Qed.
+
 End ADD_INIT.
 
 End WITH_PARAMS.
