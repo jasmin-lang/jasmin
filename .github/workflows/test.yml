@@ -228,28 +228,49 @@ jobs:
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C compiler check-ci $EXTRA_MAKE_ARGUMENTS'
 
   check-proofs:
-    stage: test
-    parallel:
-      matrix:
-        # Use CTG for easycrypt release, since for checking CT, it needs a patch
-        # that is not in the release for now (2024-12-13).
-        - EASYCRYPT_REF: release
-          CT_MODE: CTG
-        - EASYCRYPT_REF: dev
-          CT_MODE: CT
-
-    variables:
-      EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef $EASYCRYPT_REF
-      WHY3_CONF: ${{ github.workspace }}/why3.conf
-      ECARGS: -why3 $WHY3_CONF -I Jasmin:${{ github.workspace }}/eclib
+    runs-on: ubuntu-latest
     needs:
-      - coq-program
+      - prove-coq-program
       - ocaml
-    script:
-      - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc -version'
-      - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt why3config -why3 $WHY3_CONF'
-      - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt config -why3 $WHY3_CONF'
-      - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C compiler/examples/gimli/proofs CT_MODE=$CT_MODE'
+    strategy:
+      matrix:
+        EASYCRYPT_REF: [release, dev]
+        CT_MODE: [CTG, CT]
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
+      - name: Download Coq Program Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: coq-program-artifacts
+      - name: Set WHY3 Configuration
+        run: echo "WHY3_CONF=${{ github.workspace }}/why3.conf" >> $GITHUB_ENV
+      - name: Set EasyCrypt Arguments
+        run: echo "ECARGS=-why3 ${{ github.workspace }}/why3.conf -I Jasmin:${{ github.workspace }}/eclib" >> $GITHUB_ENV
+      - name: Run Jasminc Version Check
+        env:
+          EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef ${{ matrix.EASYCRYPT_REF }}
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc -version'
+      - name: Configure EasyCrypt - Why3
+        env:
+          EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef ${{ matrix.EASYCRYPT_REF }}
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt why3config -why3 $WHY3_CONF'
+      - name: Configure EasyCrypt
+        env:
+          EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef ${{ matrix.EASYCRYPT_REF }}
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt config -why3 $WHY3_CONF'
+      - name: Run Proofs
+        env:
+          EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef ${{ matrix.EASYCRYPT_REF }}
+          CT_MODE: ${{ matrix.CT_MODE }}
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C compiler/examples/gimli/proofs CT_MODE=$CT_MODE'
 
   libjade-compile-to-asm:
     runs-on: ubuntu-latest
