@@ -431,6 +431,15 @@ apply: dead_calls_callP=> //.
 apply: live_calls_subset fins.
 Qed.
 
+Lemma foldl_in f s :
+  f \in s ->
+  Sf.In f (foldl (λ (f0 : Sf.t) (c : Sf.elt), Sf.add c f0) Sf.empty s).
+Proof.
+  elim: s => // a l IH Hin.
+  rewrite foldlE.
+  rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SfD.fsetdec.
+Qed.
+
 Theorem dead_calls_err_seqP (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = ok p' →
   ∀ f ev scs m args scs' m' res tr, f \in s →
@@ -439,9 +448,7 @@ Theorem dead_calls_err_seqP (s : seq funname) (p p': prog) :
 Proof.
   rewrite /dead_calls_err_seq.
   move=> h f ev scs m args scs' m' res tr fins; apply: (dead_calls_errP h).
-  elim: {h} s fins=> // a l IH Hin.
-  rewrite foldlE.
-  rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SfD.fsetdec.
+  by apply foldl_in.
 Qed.
 
 Lemma dead_calls_err_get_fundef s p p' fn fd :
