@@ -200,7 +200,7 @@ jobs:
           path: compiler/
       - name: Extract Tarball
         run: |
-          tar xvf compiler/${{ env.TARBALL }}.tgz
+          tar -xvf compiler/${{ env.TARBALL }}.tgz
       - name: Build from Tarball
         run: |
           nix-build -o out ${{ env.TARBALL }}
@@ -225,7 +225,7 @@ jobs:
         with:
           name: ocaml-artifacts
       - name: Unarchive compiler
-        run: tar -xvf compiler.tar compiler/
+        run: tar -xvf compiler.tar -C compiler/
       - name: Display rights
         run: |
           ls -la ./compiler/*
@@ -259,7 +259,7 @@ jobs:
         with:
           name: ocaml-artifacts
       - name: Unarchive compiler
-        run: tar -xvf compiler.tar compiler/
+        run: tar -xvf compiler.tar -C compiler/
       - name: Set WHY3 Configuration
         run: echo "WHY3_CONF=${{ github.workspace }}/why3.conf" >> $GITHUB_ENV
       - name: Set EasyCrypt Arguments
@@ -303,7 +303,7 @@ jobs:
         with:
           name: ocaml-artifacts
       - name: Unarchive compiler
-        run: tar -xvf compiler.tar compiler/
+        run: tar -xvf compiler.tar -C compiler/
       - name: Run libjade test script
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './scripts/test-libjade.sh src'
@@ -332,7 +332,7 @@ jobs:
         with:
           name: ocaml-artifacts
       - name: Unarchive compiler
-        run: tar -xvf compiler.tar compiler/
+        run: tar -xvf compiler.tar -C compiler/
       - name: Set ECJOBS Variable
         run: echo "ECJOBS=${NIX_BUILD_CORES}" >> $GITHUB_ENV
       - name: Configure EasyCrypt with Why3
@@ -362,7 +362,6 @@ jobs:
           path: compiler
       - name: Extract compiler
         run: |
-          nix-shell -p git
           git config --global user.name "Jasmin Contributors"
           git config --global user.email "nobody@noreply.example.com"
           echo "${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}" | tr -d '\r' | ssh-add - > /dev/null
