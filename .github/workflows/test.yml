@@ -248,7 +248,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Setup Nix Environment
         uses: ./.github/actions/setup-nix
-      - name: Download Coq Program Artifacts
+      - name: Download Ocaml Artifacts
         uses: actions/download-artifact@v3
         with:
           name: ocaml-artifacts
@@ -291,6 +291,11 @@ jobs:
         uses: actions/checkout@v3
       - name: Setup Nix Environment
         uses: ./.github/actions/setup-nix
+      - name: Download Ocaml Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ocaml-artifacts
+          path: compiler/
       - name: Run libjade test script
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './scripts/test-libjade.sh src'
@@ -314,6 +319,11 @@ jobs:
         uses: actions/checkout@v3
       - name: Setup Nix Environment
         uses: ./.github/actions/setup-nix
+      - name: Download Ocaml Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ocaml-artifacts
+          path: compiler/
       - name: Set ECJOBS Variable
         run: echo "ECJOBS=${NIX_BUILD_CORES}" >> $GITHUB_ENV
       - name: Configure EasyCrypt with Why3
