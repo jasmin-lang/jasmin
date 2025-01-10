@@ -1,0 +1,10 @@
+proc __big(test_162@uint64, f_0_150@uint64, f_1_151@uint64, f_2_152@uint64,
+           f_3_153@uint64) =
+{
+ /\[((((((0) + f_0_150) + f_1_151) + f_2_152) + f_3_153) = (3))] && true
+}
+adds NONE_____173@uint1 test_162@uint64 f_0_150@uint64 f_1_151@uint64;
+{
+ true && true
+}
+ 

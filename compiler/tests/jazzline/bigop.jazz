@@ -1,0 +1,7 @@
+fn __big(reg u64[4] f) -> reg u64
+  requires #[prover=cas] {\sum (ii \in 0:4) (f[ii]) == 3 }
+{
+ reg u64 test;
+ test = f[0] + f[1];
+  return test;
+}
