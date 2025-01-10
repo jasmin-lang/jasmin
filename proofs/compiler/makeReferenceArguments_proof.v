@@ -747,4 +747,19 @@ Context
          hget).
   Qed.
 
+Lemma sig_preserved fn fd :
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd',
+    get_fundef (p_funcs p') fn = Some fd'
+    & fd.(f_tyin) = fd'.(f_tyin).
+Proof.
+  move => hget .
+  move: Hp; rewrite /makereference_prog.
+  apply: rbindP => funcs hmap [?]; subst p'.
+  case : (get_map_cfprog_gen hmap hget) => fd2 /[swap] -> /= hfd.
+  exists fd2 => //=.
+  move : hfd; rewrite /update_fd.
+  by apply: rbindP => c' ? [<-].
+Qed.
+
 End WITH_PARAMS.
