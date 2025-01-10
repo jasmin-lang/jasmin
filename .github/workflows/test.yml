@@ -13,10 +13,10 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-    - name: Setup Nix Environment
-      uses: ./.github/actions/setup-nix
     - name: Checkout code
       uses: actions/checkout@v3
+    - name: Setup Nix Environment
+      uses: ./.github/actions/setup-nix
     - name: Prepare dependencies
       run: |
         nix-shell \
@@ -31,10 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare
     steps:
-    - name: Setup Nix Environment
-      uses: ./.github/actions/setup-nix
     - name: Checkout code
       uses: actions/checkout@v3
+    - name: Setup Nix Environment
+      uses: ./.github/actions/setup-nix
     - name: Build Coq Program
       env:
         EXTRA_NIX_ARGUMENTS: --arg coqDeps true
