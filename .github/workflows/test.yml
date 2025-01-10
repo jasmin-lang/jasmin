@@ -7,8 +7,7 @@ on:
       - '*'
 
 env:
-  variables:
-    VERSION: development version at commit ${{ github.sha }} on branch ${{ github.head_ref }}
+  VERSION: development version at commit ${{ github.sha }} on branch ${{ github.head_ref }}
 
 jobs:
   prepare:
