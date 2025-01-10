@@ -74,9 +74,9 @@ jobs:
         env:
           EXTRA_NIX_ARGUMENTS: --arg inCI true --arg coqDeps true --arg coqMaster true
           HOME: ${{ github.workspace }}
-          NIX_STORE_DIR=${{ github.workspace }}/nix/store
-          NIX_STATE_DIR=${{ github.workspace }}/nix/var/nix
-          NIX_LOG_DIR=${{ github.workspace }}/nix/var/log/nix
+          NIX_STORE_DIR: ${{ github.workspace }}/nix/store
+          NIX_STATE_DIR: ${{ github.workspace }}/nix/var/nix
+          NIX_LOG_DIR: ${{ github.workspace }}/nix/var/log/nix
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
 
