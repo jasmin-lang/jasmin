@@ -197,7 +197,7 @@ jobs:
           name: tarball-artifact
       - name: Extract Tarball
         run: |
-          tar xvf compiler/${{ env.TARBALL }}.tgz
+          tar xvf $GITHUB_WORKSPACE/compiler/${{ env.TARBALL }}.tgz
       - name: Build from Tarball
         run: |
           nix-build -o out ${{ env.TARBALL }}
