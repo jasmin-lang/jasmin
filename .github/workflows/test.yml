@@ -8,7 +8,7 @@ on:
 
 env:
   VERSION: development version at commit ${{ github.sha }} on branch ${{ github.head_ref }}
-    NIXPKGS_ALLOW_UNFREE: 1
+  NIXPKGS_ALLOW_UNFREE: 1
 
 jobs:
   prepare:
