@@ -1824,7 +1824,17 @@ Proof.
   by exists vres'.
 Qed.
 
-Parameter init_array : forall len, wsize -> values -> WArray.array len.
+Definition init_array ws len (vs : values) :=
+  foldl (fun t i =>
+           let v := nth undef_w vs i in
+           match to_word ws v with
+           | Ok w =>
+             match WArray.set t Aligned AAscale (Z.of_nat i) w with
+             | Ok t => t
+             | _ => t
+             end
+           | _ => t
+           end) (WArray.empty (Z.to_pos (arr_size ws len))) (iota 0 (Pos.to_nat len)).
 
 Fixpoint fold_args (expdin : seq (option (wsize * Z))) (vargs : values) :=
   match expdin with
@@ -1837,40 +1847,171 @@ Fixpoint fold_args (expdin : seq (option (wsize * Z))) (vargs : values) :=
   | Some (ws, len) :: expdin =>
     let args := take (Z.to_nat len) vargs in
     let vargs := drop (Z.to_nat len) vargs in
-    let t := init_array (Z.to_pos len) ws args in
+    let t := init_array ws (Z.to_pos len) args in
     Varr t :: fold_args expdin vargs
   end.
 
-get_fundef (p_funcs p1) fn = Some fd ->
-exists2 fd',
-   get_fundef (p_funcs p2) fn = Some fd'
- & fd.(f_tyin) = fd'.(f_tyin).
+Lemma all2_cat_I T1 T2 (f:T1-> T2-> bool) l1 l2 l:
+  all2 f (l1++l2) l ->
+  exists l1' l2', [/\ l = l1' ++ l2', all2 f l1 l1' & all2 f l2 l2'].
+Proof.
+  rewrite all2E => /andP [] /eqP hsz hall.
+  have heq := cat_take_drop (size l1) l.
+  exists (take (size l1) l), (drop (size l1) l).
+  move: hall.
+  have hsz1 : size l1 = size (take (size l1) l).
+  + by rewrite size_takel // -hsz size_cat leq_addr.
+  have hsz2 : size l2 = size (drop (size l1) l).
+  + by rewrite size_drop -hsz size_cat sub_nmn.
+  rewrite -{1 2}heq zip_cat //.
+  rewrite all_cat !all2E=> /andP [] ??.
+  by move: hsz1 hsz2 => /eqP -> /eqP ->.
+Qed.
 
+Lemma all2_cat T1 T2 (f:T1-> T2-> bool) l1 l2 l1' l2':
+  all2 f l1 l1' -> all2 f l2 l2' -> all2 f (l1 ++ l2) (l1' ++ l2').
+Proof.
+  rewrite !all2E => /andP [] /eqP hsz1 hall1 /andP [] /eqP hsz2 hall2.
+  by rewrite !size_cat hsz1 hsz2 eqxx /= zip_cat // all_cat hall1.
+Qed.
 
+Lemma init_arrayP ws len vargs1 :
+  (0 < len)%Z ->
+  all2 (λ (ty : stype) (v : value), ty == type_of_val v) [seq sword ws | _ <- ziota 0 len] vargs1 ->
+  all is_defined vargs1 ->
+  let t := init_array ws (Z.to_pos len) vargs1 in
+  forall i, (0 <= i < len)%Z ->
+   exists2 w,
+        WArray.get Aligned AAscale ws t i = ok w
+      & nth undef_w vargs1 (Z.to_nat i) = Vword w.
+Proof.
+Opaque arr_size.
+  move=> hlen hall2 hdef /= i hi.
+  have [hty hlen'] : all (fun v => sword ws == type_of_val v) vargs1 /\ size vargs1 = Z.to_nat len.
+  + move: hall2; rewrite all2E size_map size_ziota => /andP [] /eqP heq h; split => //.
+    have : size (ziota 0 len) = size vargs1 by rewrite size_ziota.
+    move=> {heq hdef}.
+    elim: (ziota 0 len) vargs1 h => [ | j js hrec] [ | v vs] //=.
+    by move=> /andP [] -> h [] heq; apply hrec.
+  rewrite /init_array => {hall2}.
+  set f := (f in (foldl f _ _)).
+  have : forall l t j,
+   (forall i, (0 <= i < Z.of_nat j)%Z ->
+      exists2 w : word ws,
+         WArray.get Aligned AAscale ws t i = ok w
+       & nth undef_w vargs1 (Z.to_nat i) = Vword w) ->
+   (Z.of_nat j + Z.of_nat l = len)%Z ->
+   forall i, (0 <= i < len)%Z ->
+   exists2 w : word ws,
+      WArray.get Aligned AAscale ws (foldl f t (iota j l)) i = ok w
+    & nth undef_w vargs1 (Z.to_nat i) = Vword w; last by apply => *; lia.
+  move=> {i hi}; elim => /=.
+  + move=> t j hj ? i hi; subst len; apply hj; lia.
+  move=> l hrec t j hj hl; apply: hrec; last by lia.
+  move=> i hi; rewrite /f.
+  have hjlen: j < size vargs1 by apply/ltP;lia.
+  have [wj hnth]: exists (w:word ws), nth undef_w vargs1 j = Vword w.
+  + move: hdef hty => /all_nthP /(_ _ hjlen) h1 /all_nthP /(_ _ hjlen) h2.
+    have := h1 undef_w; have /eqP := h2 undef_w.
+    by case: nth => //= ws' w [?]; subst ws'; eauto.
+  rewrite hnth /= truncate_word_u.
+  have [t' ht'] : exists t', WArray.set t Aligned AAscale (Z.of_nat j) wj = ok t'.
+  + apply/writeV; rewrite WArray.validw_in_range /= WArray.is_align_scale /=.
+    apply/WArray.in_rangeP.
+    have h := wsize_size_pos ws; split; first nia.
+Transparent arr_size.
+    rewrite /arr_size.
+    have : (Z.of_nat j + 1 <= Z.to_pos len)%Z; last by nia.
+    rewrite -hl; lia.
+  rewrite ht'.
+  case: (i =P Z.of_nat j) => hij.
+  + subst i; exists wj.
+    + by apply: WArray.setP_eq ht'.
+    by rewrite Nat2Z.id.
+  case: (hj i); first by lia.
+  move=> w hgeti hnthi; exists w => //.
+  rewrite (WArray.setP_neq _ ht') //; apply /eqP; lia.
+Qed.
 
+Lemma mapM_nth_I [eT aT bT : Type] [f : aT → result eT bT] [xs : seq aT] (d : aT) (d' : bT) :
+  (forall n, n < size xs → exists w, f (nth d xs n) = ok w) ->
+  exists2 ys,
+     mapM f xs = ok ys
+   & forall n, n < size xs -> f (nth d xs n) = ok (nth d' ys n).
+Proof.
+  elim: xs => //=.
+  + move=> _. exists [::] => //.
+  move=> x xs hrec hf.
+  have [ // | y /= hy] := hf 0; rewrite hy /=.
+  have [ | ys -> hys /=] := hrec.
+  + by move=> n' hn'; apply (hf (S n')).
+  exists (y::ys) => //.
+  move=> [ | n'] => //=; apply hys.
+Qed.
 
+Lemma eval_init_array ws len vargs1 :
+  (0 < len)%Z ->
+  all2 (λ (ty : stype) (v : value), ty == type_of_val v) [seq sword ws | _ <- ziota 0 len] vargs1 ->
+  all is_defined vargs1 ->
+  mapM (eval_array ws (Varr (init_array ws (Z.to_pos len) vargs1))) (ziota 0 len) = ok vargs1.
+Proof.
+  move=> hlen hall2 hall.
+  have /= h := init_arrayP hlen hall2 hall.
+  have /(_ undef_w) [] :=
+    mapM_nth_I (f:= eval_array ws (Varr (init_array ws (Z.to_pos len) vargs1)))
+                         (xs := ziota 0 len) (d:= 0%Z).
+  + move=> n; rewrite size_ziota => hn.
+    have /= /(_ (Z.of_nat n)) [] := init_arrayP hlen hall2 hall.
+    + move /ltP: hn; lia.
+    move=> w hget hnth; rewrite nth_ziota // Z.add_0_l hget /=; eauto.
+  move=> ys heq hev; rewrite heq; f_equal.
+  apply: (@eq_from_nth _ undef_w).
+  + move: hall2; rewrite all2E => /andP [] /eqP <- _.
+    by rewrite -(size_mapM heq) size_map.
+  move=> i hi.
+  have hi' : i < size (ziota 0 len) by rewrite (size_mapM heq).
+  have hi'' : i < Z.to_nat len by move: hi'; rewrite size_ziota.
+  have /= := hev i hi'.
+  have [] := h (Z.of_nat i); first by move/ltP: hi''; lia.
+  rewrite Nat2Z.id => w hget ->.
+  by rewrite nth_ziota // hget => -[<-].
+Qed.
 
-
-
-compat_expd_tys expdin tys1 tys2 ->
-
-
-
-Definition folds able_ty expd ty :=
-  match expd with
-  | Some (ws, len) => ty == sarr (Z.to_pos (arr_size ws (Z.to_pos len)))
-  | None => true
-  end.
-
-Definition
-
-mapM2 ErrType dc_truncate_val (f_tyin fd') vargs' = ok vargs ->
-compat_expd_tys expdin fd.(f_tyin) fd'.(f_tyin) ->
-compat_ty
-
-
-
-
+Lemma fold_args_ok expdin tyin tyin' vargs':
+  compat_expd_tys expdin tyin tyin' ->
+  all2 (fun ty v => ty == type_of_val v) tyin' vargs' ->
+  all is_defined vargs' ->
+  let vargs := fold_args expdin vargs' in
+  exists vargs1,
+  [/\ all2 (fun ty v => subtype ty (type_of_val v)) tyin vargs
+    , expand_vs expdin vargs = ok vargs1
+    & vargs' = flatten vargs1].
+Proof.
+Opaque arr_size.
+  move=> [].
+  elim: expdin tyin tyin' vargs' => [ | o expdin hrec].
+  + move=> [|ty tyin] // tyin' vargs' _ <-; rewrite /expand_tys /=.
+    by case: vargs' => // _ _; exists [::].
+  move=> [|ty tyin] // _ vargs' + <- /=.
+  rewrite /expandable_tys /= => /andP [].
+  case: o; last first.
+  + move=> _ hexpty /=.
+    case: vargs' => //= v vargs' /andP [/eqP ?] htyof /andP [] hdefv hdef; subst ty.
+    have [ // | vargs [hfold hexp ?]]:= hrec _ _ _ hexpty _ htyof hdef; subst vargs'.
+    exists ([::v]::vargs); split => //.
+    + by rewrite subtype_refl.
+    by rewrite hexp.
+  move=> [ws len] /= /andP [] /ZltP hlen /eqP ?; subst ty.
+  rewrite /expand_tys /= => hexpty /all2_cat_I [vargs1 [vargs2 [? hty htyof]]]; subst vargs'.
+  rewrite all_cat => /andP [hdef1 hdef2].
+  have hlen1: size vargs1 = Z.to_nat len.
+  + move: hty; rewrite all2E => /andP [] /eqP <- _.
+    by rewrite size_map size_ziota.
+  rewrite take_size_cat // drop_size_cat // (eval_init_array hlen hty hdef1) /=.
+  have [ // | vargs [hfold hexp ?]]:= hrec _ _ _ hexpty _ htyof hdef2; subst vargs2.
+  rewrite hexp /=; exists (vargs1 :: vargs); split => //.
+  by rewrite eqxx.
+Qed.
 
 End WITH_PARAMS.
 
