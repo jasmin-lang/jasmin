@@ -1396,6 +1396,36 @@ Proof.
   apply: dead_code_sig_preserved ok_pa hget'.
 Qed.
 
+Lemma remove_init_sig_preserved p fn fd :
+  let p' := remove_init_prog is_reg_array p in
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
+Proof.
+Admitted.
+
+Lemma remove_glob_sig_preserved p p' fn fd :
+  remove_globals.remove_glob_prog (fresh_id cparams) p = ok p' ->
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
+Proof.
+Admitted.
+
+Lemma lowering_sig_preserved p fn fd :
+  let p' :=
+   lowering.lower_prog (lop_lower_i (ap_lop aparams)) (lowering_opt cparams) (warning cparams)
+               (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) p in
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
+Proof.
+Admitted.
+
+Lemma pi_prog_sig_preserved p p' fn fd :
+  pi_prog p = ok p' ->
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
+Proof.
+Admitted.
+
 Lemma compiler_CLP (entries: seq funname) (p: prog) (xp : uprog):
   compiler_CL aparams cparams entries p = ok xp ->
   forall fn fd,
@@ -1431,14 +1461,22 @@ Proof.
   case: h => fd5 hget5 heq5.
   have [fd6 hget6 heq6] := unroll_sig_preserved ok_unr hget5.
   have [fd7 hget7 heq7] := live_range_splitting_sig_preserved ok_lr1 hget6.
-
-inline_proof.sig_preserved).
-fdP
-
-
- (sCP := sCP_unit) _ hget.
- ok_ac.
-
+  have [fd8 hget8 heq8] := remove_init_sig_preserved hget7.
+  assert (h := makeReferenceArguments_proof.sig_preserved ok_mref hget8).
+  case: h => fd9 hget9 heq9.
+  assert (h := array_expansion_cl_proof.expand_callP ok_ae hget9).
+  case: h => fd10 [expdin] [] hget10.
+  rewrite -heq9 -heq8 -heq7 -heq6 -heq5 -heq4 -heq3 -heq2.
+  move => {heq2 heq3 heq4 heq5 heq6 heq7 heq8 heq9 hget2 hget3 hget4 hget5 hget6 hget7 hget8 hget9}.
+  move=> hcompat hsem.
+  have [fd11 hget11 heq11] := live_range_splitting_sig_preserved ok_lr2 hget10.
+  have [fd12 hget12 heq12] := remove_glob_sig_preserved ok_rmg hget11.
+  have [fd13 hget13 heq13] := lowering_sig_preserved hget12.
+  have [fd14 hget14 heq14] := pi_prog_sig_preserved ok_lo hget13.
+  exists fd14, expdin; split => //.
+  rewrite -heq14 -heq13 -heq12 -heq11 //.
+  move=> {heq14 heq13 heq12 heq11 hget10 hget11 hget12 hget13 hget14 hcompat fd2 fd3 fd4 fd5 fd6 fd7 fd8 fd9 fd10 fd11 fd12 fd13 fd14}.
+  move=> scs m va scs' m' vr tr hexec vargs' hvargs'.
 
   have va_refl := List_Forall2_refl va value_uincl_refl.
   have {}hexec:= psem_call_u hexec.
@@ -1447,13 +1485,11 @@ fdP
   have {hexec ok_spill}hexec := lower_spill_fdP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_spill hexec.
   have [vr2 hu2 {}hexec {ok_inl}]:= inliningP ok_inl fn_ok hexec.
   have [vr3 [{}hexec hu3 {ok_unr}]] := unrollP ok_unr hexec va_refl.
-  have {hexec ok_dc}hexec := dead_calls_err_seqP (sip := sip_of_asm_e) (sCP := sCP_unit) ok_dc fn_ok hexec.
   have [vr4 hu4 {}hexec {ok_lr1}]:= live_range_splittingP ok_lr1 hexec.
   have /(_ is_reg_array) [vr5 [{}hexec hu5]]:= remove_init_fdPu _ va_refl hexec.
   have {hexec ok_mref}hexec := makeReferenceArguments_callP (siparams := sip_of_asm_e) ok_mref hexec.
   have [vr6 hu6 {}hexec]:= indirect_to_direct hexec.
-  have [expdin [expdout h {ok_ae}]]:= array_expansion_cl_proof.expand_callP (sip := sip_of_asm_e) ok_ae hexec.
-  exists expdin => vargs' /h {h} [vr7 harex {}hexec].
+  have [vr7 {}hexec] := hsem _ _ _ _ _ _ _ hexec _ hvargs'.
   have [vr8 hu8 {}hexec {ok_lr2}]:= live_range_splittingP ok_lr2 hexec.
   have /(_ _ _ ok_rmg) {hexec ok_rmg}hexec:= RGP.remove_globP _ hexec.
   have /= {}hexec:= hlop_lower_callP (hap_hlop haparams) (lowering_opt cparams) (warning cparams) ok_fvars hexec.
@@ -1462,13 +1498,4 @@ fdP
   by exists vr'.
 Qed.
 
- get_fundef (p_funcs p1) fn = Some fd ->
-  exists fd' expdin,
-   [/\ get_fundef (p_funcs p2) fn = Some fd'
-     , compat_expd_tys expdin fd.(f_tyin) fd'.(f_tyin)
-     & forall scs mem scs' mem' va vr tr,
-       sem_call p1 ev scs mem fn va scs' mem' vr tr ->
-       ∀ (vargs' : seq (seq value)), expand_vs expdin va = ok vargs' ->
-       exists vres' : seq (seq value),
-         sem_call p2 ev scs mem fn (flatten vargs') scs' mem' (flatten vres') tr].
 End PROOF.
