@@ -1538,10 +1538,8 @@ Section PROOF.
     exists (const_prop_fun cl gd fd) => //=.
     *  by rewrite (get_map_prog (const_prop_fun cl gd) p fn) hget.
    by case fd.
-Qed.
-
-
   Qed.
+
 End PROOF.
 
 End WITH_PARAMS.
