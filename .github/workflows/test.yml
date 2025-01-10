@@ -75,6 +75,7 @@ jobs:
       - name: Setup Coq Master Dependencies
         env:
           EXTRA_NIX_ARGUMENTS: --arg inCI true --arg coqDeps true --arg coqMaster true
+          HOME: ${{ github.workspace }}
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
 
