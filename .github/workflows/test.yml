@@ -334,34 +334,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      # - name: Push to gitlab.com
-      #   uses: actions/checkout@v3
-      #   with:
-      #     repository: https://gitlab.com/clebreto/jasmin-compiler.git
-      #     path: _deploy
-      #     ssh-key: ${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}
-      - name: Setup Nix Environment
-        uses: ./.github/actions/setup-nix
       - name: Download Tarball Artifact
         uses: actions/download-artifact@v3
         with:
           name: tarball-artifact
-      - name: Set up Git
-        env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          path: compiler
+      - name: Push to gitlab.com
+        uses: actions/checkout@v3
+        with:
+          repository: https://gitlab.com/clebreto/jasmin-compiler.git
+          path: _deploy
+          ssh-key: ${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}
+      - name: Extract compiler
         run: |
-          nix-env -iA nixpkgs.git
-          nix-env -iA nixpkgs.openssh
-          # eval $(ssh-agent -s)
-          # mkdir -p ~/.ssh
-          # chmod 700 ~/.ssh
-          # ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
-          git config --global user.name "Jasmin Contributors"
-          git config --global user.email "nobody@noreply.example.com"
-          echo "${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}" | tr -d '\r' | ssh-add - > /dev/null
-          git clone git@gitlab.com:clebreto/jasmin-compiler.git _deploy
           cd _deploy
-          git checkout ${{ github.ref_name }} || git checkout --orphan ${{ github.ref_name }}
           rm -rf compiler eclib
           tar xzvf ../compiler/$TARBALL.tgz
           mv $TARBALL/ compiler
