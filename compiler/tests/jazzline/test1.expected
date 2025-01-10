@@ -1,18 +1,18 @@
-proc _test2(X_1_164@bit, rp_0_153@sint16, d_142@sint64, a_152@sint64,
-            c_151@sint64, a_138@sint64, b_139@sint64, rp_0_148@sint16,
-            rp_1_149@sint16, rp_2_150@sint16) = 
+proc _test2(X_1_202@bit, rp_0_191@sint16, d_157@sint64, a_190@sint64,
+            c_189@sint64, a_153@sint64, b_154@sint64, rp_0_174@sint16,
+            rp_1_175@sint16, rp_2_176@sint16) =
 {
  true &&
-   /\[(b_139@sint64 = (const 64 (1))), (a_138@sint64 = (const 64 (1))),
-   (rp_0_148@sint16 = (const 16 (-1)))]
+   /\[(b_154@sint64 = (const 64 (1))), (a_153@sint64 = (const 64 (1))),
+   (rp_0_174@sint16 = (const 16 (-1)))]
 }
-adds TMP_____165@uint1 c_151@sint64 a_138@sint64 b_139@sint64;
-adds TMP_____166@uint1 a_152@sint64 a_138@sint64 (2)@sint64;
-mov rp_0_153@sint16 (2)@sint16;
+adds TMP_____203@uint1 c_189@sint64 a_153@sint64 b_154@sint64;
+adds TMP_____204@uint1 a_190@sint64 a_153@sint64 (2)@sint64;
+mov rp_0_191@sint16 (2)@sint16;
 {
- /\[(c_151 = (a_152 + d_142)),
-    (((5) * (X_1_164 ** (10))) = (((2) * (X_1_164 ** (10))) + ((3) * (X_1_164 ** (10)))))] &&
-   /\[(c_151@sint64 = (a_138@sint64 + b_139@sint64)),
-   (rp_0_153@sint16 = (const 16 (0)))]
+ /\[(c_189 = (a_190 + d_157)),
+    (((5) * (X_1_202 ** (10))) = (((2) * (X_1_202 ** (10))) + ((3) * (X_1_202 ** (10)))))] &&
+   /\[(c_189@sint64 = (a_153@sint64 + b_154@sint64)),
+   (rp_0_191@sint16 = (const 16 (0)))]
 }
  
