@@ -203,7 +203,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: test-build-from-tarball
+    needs: build-from-tarball
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
