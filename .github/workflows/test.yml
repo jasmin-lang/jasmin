@@ -59,7 +59,7 @@ jobs:
 
   coq-master:
     runs-on: ubuntu-latest
-    needs: coq-program
+    needs: prepare
     if: github.ref != 'refs/heads/release-*'  # Equivalent of the rule to skip for release branches
     continue-on-error: true  # Equivalent of 'allow_failure: true'
     steps:
@@ -218,10 +218,10 @@ jobs:
         uses: actions/checkout@v3
       - name: Setup Nix Environment
         uses: ./.github/actions/setup-nix
-      - name: Download Tarball Artifact
+      - name: Download Ocaml Artifact
         uses: actions/download-artifact@v3
         with:
-          name: tarball-artifact
+          name: ocaml-artifact
           path: compiler/
       - name: Run jasmic version check
         run: |
@@ -251,7 +251,8 @@ jobs:
       - name: Download Coq Program Artifacts
         uses: actions/download-artifact@v3
         with:
-          name: coq-program-artifacts
+          name: ocaml-artifacts
+          path: compiler/
       - name: Set WHY3 Configuration
         run: echo "WHY3_CONF=${{ github.workspace }}/why3.conf" >> $GITHUB_ENV
       - name: Set EasyCrypt Arguments
