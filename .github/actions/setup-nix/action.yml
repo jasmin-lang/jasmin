@@ -10,4 +10,5 @@ runs:
       uses: DeterminateSystems/magic-nix-cache-action@v2
 
     - name: Verify Nix Installation
+      shell: bash -l {0}
       run: nix-shell --version
