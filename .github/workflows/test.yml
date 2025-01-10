@@ -15,7 +15,6 @@ jobs:
     steps:
     - name: Setup Nix Environment
       uses: ./.github/actions/setup-nix
-    - uses: .github/actions/setup-nix
     - name: Checkout code
       uses: actions/checkout@v3
     - name: Prepare dependencies
