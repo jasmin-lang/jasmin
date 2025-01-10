@@ -668,6 +668,21 @@ Section PROOF.
          Hall).
   Qed.
 
+  Lemma sig_preserved fn fd :
+    get_fundef (p_funcs p) fn = Some fd ->
+    exists2 fd',
+      get_fundef (p_funcs p') fn = Some fd'
+      & fd.(f_tyin) = fd'.(f_tyin).
+  Proof.
+    move => hget .
+    have dcok : map_cfprog_name (dead_code_fd is_move_op do_nop onfun) (p_funcs p) = ok (p_funcs p').
+    + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
+    have [fd2 hf2 hget2] := get_map_cfprog_name_gen dcok hget.
+    exists fd2 => //=.
+    move : hf2;  rewrite /dead_code_fd.
+    by case: (fd) => >; t_xrbindP  => ? _ ??  <-.
+  Qed.
+
 End PROOF.
 
 End Section.
