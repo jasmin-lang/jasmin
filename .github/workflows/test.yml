@@ -346,19 +346,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
       - name: Download Tarball Artifact
         uses: actions/download-artifact@v3
         with:
           name: tarball-artifact
           path: compiler
-      - name: Push to gitlab.com
-        uses: actions/checkout@v3
-        with:
-          repository: https://gitlab.com/clebreto/jasmin-compiler.git
-          path: _deploy
-          ssh-key: ${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}
+secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO
       - name: Extract compiler
         run: |
+          nix-env -iA nixpkgs.git
+          nix-env -iA nixpkgs.openssh
+          git config --global user.name "Jasmin Contributors"
+          git config --global user.email "nobody@noreply.example.com"
+          echo "${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}" | tr -d '\r' | ssh-add - > /dev/null
+          git clone git@gitlab.com:clebreto/jasmin-compiler.git _deploy
           cd _deploy
           rm -rf compiler eclib
           tar xzvf ../compiler/$TARBALL.tgz
