@@ -1343,6 +1343,10 @@ Lemma post_process_sig_preserved p p' cl fn fd:
   get_fundef (p_funcs p) fn = Some fd ->
   exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
 Proof.
+  rewrite /dead_code_prog => hch hget.
+  assert (h := constant_prop_proof.sig_preserved cl hget).
+  case: h => fd' h1 h2; exists fd' => //.
+  move: h1 => <-.
 Admitted.
 
 Lemma unroll_sig_preserved (p p' : prog) cl fn fd :
@@ -1382,7 +1386,10 @@ Lemma dead_code_sig_preserved p p' b fn fd :
   get_fundef (p_funcs p) fn = Some fd ->
   exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
 Proof.
-Admitted.
+  rewrite /dead_code_prog => hch hget.
+  assert (h := dead_code_proof.sig_preserved hch hget).
+  by case: h => fd' [h1 h2]; exists fd'.
+Qed.
 
 Lemma live_range_splitting_sig_preserved (p p' : prog) fn fd :
   live_range_splitting aparams cparams p = ok p' ->
