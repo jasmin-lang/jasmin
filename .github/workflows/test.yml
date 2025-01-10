@@ -7,7 +7,8 @@ on:
       - '*'
 
 env:
-  VERSION: development version at commit ${{ github.sha }} on branch ${{ github.head_ref }}
+  variables:
+    VERSION: development version at commit ${{ github.sha }} on branch ${{ github.head_ref }}
 
 jobs:
   prepare:
@@ -19,12 +20,6 @@ jobs:
       uses: ./.github/actions/setup-nix
     - name: Prepare dependencies
       run: |
-        nix-shell \
-          --extra-substituters "${{ env.EXTRA_SUBSTITUTERS }}" \
-          --trusted-public-keys "${{ env.NIXOS_PUBLIC_KEY }} ${{ env.EXTRA_PUBLIC_KEYS }}" \
-          --arg inCI true \
-          $EXTRA_NIX_ARGUMENTS \
-          --run 'echo done'
         nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|${{ env.VERSION }}|" compiler/src/glob_options.ml'
 
   prove-coq-program:

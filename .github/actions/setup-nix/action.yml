@@ -1,11 +1,13 @@
 name: "Setup Nix Environment"
 description: "Install Nix and set up the environment for nix-shell usage"
+
 runs:
   using: "composite"
   steps:
     - name: Install Nix
       uses: cachix/install-nix-action@v27
-
+        with:
+          nix_path: nixpkgs=channel:nixpkgs-unstable
     - name: Setup cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
 
