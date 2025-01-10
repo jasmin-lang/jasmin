@@ -876,12 +876,21 @@ module X86BaseOpU : BaseOp
     | IMULri ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
       let a2, i2 = cast_atome ws (List.nth es 1) in
-      let l1 = I.glval_to_lval (List.nth xs 5) in
-      let l = I.mk_spe_tmp_lval 64 in
-      i1 @ i2 @ [CL.Instr.Op2_2.mull l l1 a1 a2;
-               CL.Instr.assert_ ([], [RPcmp(Rvar l, "=", (Rconst(64, Z.of_int 0)))]);
-               CL.Instr.assume ([Eeq(Ivar l, Iconst Z.zero)] ,[]);
-       ]
+      let l = I.glval_to_lval (List.nth xs 5) in
+      let l_tmp = I.mk_tmp_lval(CoreIdent.tu ws) in
+      i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2]
+
+    (* | IMULri ws -> *)
+    (*   let a1, i1 = cast_atome ws (List.nth es 0) in *)
+    (*   let a2, i2 = cast_atome ws (List.nth es 1) in *)
+    (*   let l1 = I.glval_to_lval (List.nth xs 5) in *)
+    (*   let l = I.mk_spe_tmp_lval 64 in *)
+    (*   i1 @ i2 @ [CL.Instr.Op2_2.mull l l1 a1 a2; *)
+    (*            CL.Instr.assert_ ([], [RPcmp(Rvar l, "=", (Rconst(64, Z.of_int 0)))]); *)
+    (*            CL.Instr.assume ([Eeq(Ivar l, Iconst Z.zero)] ,[]); *)
+    (*    ] *)
+
+
 
     | MUL ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
@@ -889,13 +898,6 @@ module X86BaseOpU : BaseOp
       let l1 = I.glval_to_lval (List.nth xs 5) in
       let l2 = I.glval_to_lval (List.nth xs 6) in
       i1 @ i2 @ [CL.Instr.Op2_2.mull l1 l2 a1 a2;]
-(* (\*  *)
-(*     | IMULri ws -> *)
-(*       let a1, i1 = cast_atome ws (List.nth es 0) in *)
-(*       let a2, i2 = cast_atome ws (List.nth es 1) in *)
-(*       let l = I.glval_to_lval (List.nth xs 5) in *)
-(*       let l_tmp = I.mk_tmp_lval(CoreIdent.tu ws) in *)
-(*       i1 @ i2 @ [CL.Instr.Op2_2.mull l_tmp l a1 a2] *\) *)
 
     | ADC ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
@@ -1010,7 +1012,7 @@ module X86BaseOpU : BaseOp
     | SAR ws ->
       begin
         let l =
-          ["smt", `Smt ; "smt2", `Smt2 ; "default", `Default; "cas_two", `Cas2; "cas_three", `Cas3]
+          ["smt", `Smt ; "default", `Default; "cas_two", `Cas2(* ; "cas_three", `Cas3 *)]
         in
         let trans = trans annot l in
         match trans with
@@ -1026,12 +1028,12 @@ module X86BaseOpU : BaseOp
           i @ [CL.Instr.cast ty1 l_tmp1 a;
                CL.Instr.Shifts.ssplit l_tmp2 l_tmp3 !l_tmp1 c;
                CL.Instr.cast ty2 l !l_tmp2]
-        | `Smt2 ->
-          let a, i = cast_atome ws (List.nth es 0) in
-          let (c,_) = I.gexp_to_const (List.nth es 1) in
-          let l = I.glval_to_lval (List.nth xs 5) in
-          let l_tmp = I.mk_spe_tmp_lval (Z.to_int c) in
-          i @ [CL.Instr.Shifts.sars l l_tmp a c]
+        (* | `Smt2 -> *)
+        (*   let a, i = cast_atome ws (List.nth es 0) in *)
+        (*   let (c,_) = I.gexp_to_const (List.nth es 1) in *)
+        (*   let l = I.glval_to_lval (List.nth xs 5) in *)
+        (*   let l_tmp = I.mk_spe_tmp_lval (Z.to_int c) in *)
+        (*   i @ [CL.Instr.Shifts.sars l l_tmp a c] *)
         | `Default ->
           let a1,i1 = cast_atome ws (List.nth es 0) in
           let c1 = I.mk_const (int_of_ws ws - 1) in
@@ -1072,31 +1074,31 @@ module X86BaseOpU : BaseOp
                 CL.Instr.Shifts.spl l_tmp6 l_tmp5 a1 c2;
                 CL.Instr.Op2.join l !l_tmp4 !l_tmp6;
                ]
-        | `Cas3 ->
-          let a1,i1 = cast_atome ws (List.nth es 0) in
-          let c1 = I.mk_const (int_of_ws ws - 1) in
-          let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws) in
-          let l_tmp1 = I.mk_spe_tmp_lval 1 in
-          let l_tmp2 = I.mk_spe_tmp_lval (int_of_ws ws - 1) in
-          let c = I.get_const (List.nth es 1) in
-          let a2 = I.mk_const_atome (c -1) Z.zero in
-          let l_tmp3 = I.mk_spe_tmp_lval c in
-          let a3 = I.mk_const_atome c (I.power Z.one Z.((of_int c) - one)) in
-          let l_tmp4 = I.mk_spe_tmp_lval c in
-          let l_tmp5 = I.mk_spe_tmp_lval c in
-          let c2 = Z.of_int c in
-          let c3 = (I.power Z.one Z.(of_int c)) in
-          let l_tmp6 = I.mk_spe_tmp_lval (int_of_ws ws - c) in
-          let l = I.glval_to_lval (List.nth xs 5) in
-          i1 @ [CL.Instr.Op1.mov l_tmp a1;
-                CL.Instr.assert_ ([Eeqmod(Ivar l_tmp, Iconst Z.zero,[Iconst c3])] ,[]);
-                CL.Instr.Shifts.spl l_tmp1 l_tmp2 a1 c1;
-                CL.Instr.Op2.join l_tmp3 a2 !l_tmp1;
-                CL.Instr.Op2.mul l_tmp4 !l_tmp3 a3;
-                CL.Instr.Shifts.spl l_tmp6 l_tmp5 a1 c2;
-                CL.Instr.assume ([Eeq(Ivar l_tmp5, Iconst Z.zero)] ,[]);
-                CL.Instr.Op2.join l !l_tmp4 !l_tmp6;
-               ]
+        (* | `Cas3 -> *)
+        (*   let a1,i1 = cast_atome ws (List.nth es 0) in *)
+        (*   let c1 = I.mk_const (int_of_ws ws - 1) in *)
+        (*   let l_tmp = I.mk_spe_tmp_lval (int_of_ws ws) in *)
+        (*   let l_tmp1 = I.mk_spe_tmp_lval 1 in *)
+        (*   let l_tmp2 = I.mk_spe_tmp_lval (int_of_ws ws - 1) in *)
+        (*   let c = I.get_const (List.nth es 1) in *)
+        (*   let a2 = I.mk_const_atome (c -1) Z.zero in *)
+        (*   let l_tmp3 = I.mk_spe_tmp_lval c in *)
+        (*   let a3 = I.mk_const_atome c (I.power Z.one Z.((of_int c) - one)) in *)
+        (*   let l_tmp4 = I.mk_spe_tmp_lval c in *)
+        (*   let l_tmp5 = I.mk_spe_tmp_lval c in *)
+        (*   let c2 = Z.of_int c in *)
+        (*   let c3 = (I.power Z.one Z.(of_int c)) in *)
+        (*   let l_tmp6 = I.mk_spe_tmp_lval (int_of_ws ws - c) in *)
+        (*   let l = I.glval_to_lval (List.nth xs 5) in *)
+        (*   i1 @ [CL.Instr.Op1.mov l_tmp a1; *)
+        (*         CL.Instr.assert_ ([Eeqmod(Ivar l_tmp, Iconst Z.zero,[Iconst c3])] ,[]); *)
+        (*         CL.Instr.Shifts.spl l_tmp1 l_tmp2 a1 c1; *)
+        (*         CL.Instr.Op2.join l_tmp3 a2 !l_tmp1; *)
+        (*         CL.Instr.Op2.mul l_tmp4 !l_tmp3 a3; *)
+        (*         CL.Instr.Shifts.spl l_tmp6 l_tmp5 a1 c2; *)
+        (*         CL.Instr.assume ([Eeq(Ivar l_tmp5, Iconst Z.zero)] ,[]); *)
+        (*         CL.Instr.Op2.join l !l_tmp4 !l_tmp6; *)
+        (*        ] *)
       end
 
     | MOVSX (ws1, ws2) ->
