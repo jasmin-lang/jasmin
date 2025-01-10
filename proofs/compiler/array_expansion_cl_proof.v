@@ -143,7 +143,6 @@ Context
   {spp : SemPexprParams}
   {sip : SemInstrParams asm_op syscall_state}
   (fi : funname -> ufundef -> expand_info)
-  (entries : seq funname)
   (p1 p2 : uprog).
 
 #[local] Existing Instance direct_c.
@@ -667,14 +666,14 @@ Qed.
 End WDB.
 End Expr.
 
-Hypothesis Hcomp : expand_prog fresh_var_ident fi entries p1 = ok p2.
+Hypothesis Hcomp : expand_prog fresh_var_ident fi p1 = ok p2.
 
 Local Notation ev := tt.
 
 Section Step1.
 
 Context step1
-  (Hstep1 : map_cfprog_name (expand_fsig fi entries) (p_funcs p1) = ok step1).
+  (Hstep1 : map_cfprog_name (expand_fsig fi) (p_funcs p1) = ok step1).
 
 Definition fsigs :=
   foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) step1.
@@ -686,7 +685,7 @@ Lemma all_checked fn fd1 :
   get_fundef (p_funcs p1) fn = Some fd1 ->
   exists fd2 fd2' m g, [/\ get_fundef (p_funcs p2) fn = Some fd2,
     Mf.get fsigs fn = Some g,
-    expand_fsig fi entries fn fd1 = ok (fd2', m, g) &
+    expand_fsig fi fn fd1 = ok (fd2', m, g) &
     expand_fbody fresh_var_ident fsigs fn (fd2', m) = ok fd2].
 Proof.
   move=> /(get_map_cfprog_name_gen Hstep1)[[[fd2' m'] fex'] hex' hfd'].
@@ -1382,7 +1381,7 @@ Proof.
   by rewrite /dc_truncate_val /= => h; have := mapM2_Forall3 h; elim => // _ > [->] _ ->.
 Qed.
 
-Lemma expend_tyv_expand_return m b s tys (xs : list var_i) ins:
+Lemma expand_tyv_expand_return m b s tys (xs : list var_i) ins:
   mapM2 E.length_mismatch (expand_tyv m b s) tys xs = ok ins ->
   mapM2 E.length_mismatch (expand_return m) [seq i.2 | i <- ins] [seq Lvar i | i <- xs] =
     ok [seq map Lvar x.1.2 | x <- ins].
@@ -1391,11 +1390,11 @@ Proof.
   move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec; move: hexty.
   rewrite {1}/expand_tyv {2}/expand_return /=.
   case heq : Mvar.get => [ai | ]; t_xrbindP.
-  + by move=> _ ???; subst tysx xsx o; rewrite /= !eqxx hrec /= map_comp.
+  + by move=> _ _ ???; subst tysx xsx o; rewrite /= !eqxx hrec /= map_comp.
   by move=> hin ???; subst tysx xsx o; rewrite hin /= hrec.
 Qed.
 
-Lemma expend_tyv_expand_param m b s tys (xs : list var_i) ins:
+Lemma expand_tyv_expand_param m b s tys (xs : list var_i) ins:
   mapM2 E.length_mismatch (expand_tyv m b s) tys xs = ok ins ->
   mapM2 E.length_mismatch (expand_param m) [seq i.2 | i <- ins] [seq Pvar (mk_lvar i) | i <- xs] =
     ok [seq map (fun y => Pvar (mk_lvar y)) x.1.2 | x <- ins].
@@ -1404,14 +1403,14 @@ Proof.
   move=> ty x [[tysx xsx] o] tys xs cs0 hexty _ hrec; move: hexty.
   rewrite {1}/expand_tyv {2}/expand_param /=.
   case heq : Mvar.get => [ai | ]; t_xrbindP.
-  + by move=> _ ???; subst tysx xsx o; rewrite /= !eqxx /= hrec /= -!map_comp.
+  + by move=> _ _ ???; subst tysx xsx o; rewrite /= !eqxx /= hrec /= -!map_comp.
   by move=> hin ???; subst tysx xsx o; rewrite /check_gvar /=hin /= hrec.
 Qed.
 
 Local Lemma expand_vs_flatten
-  S m (ins : seq (seq stype * seq var_i * option (wsize * Z))) fn ftyin fparams vargs vargs1 :
+  S m (ins : seq (seq stype * seq var_i * option (wsize * Z))) ftyin fparams vargs vargs1 :
   wf_t m ->
-  mapM2 E.length_mismatch (expand_tyv m (fn \notin entries) S) ftyin fparams = ok ins ->
+  mapM2 E.length_mismatch (expand_tyv m true S) ftyin fparams = ok ins ->
   expand_vs [seq i.2 | i <- ins] vargs = ok vargs1 ->
   mapM2 ErrType dc_truncate_val (flatten [seq x.1.1 | x <- ins]) (flatten vargs1) = ok (flatten vargs1).
 Proof.
@@ -1422,7 +1421,7 @@ Proof.
   t_xrbindP => ? hexp ? hexps <- /=; apply: cat_mapM2 (hrec _ _ hexps).
   move: hexty hexp; rewrite /expand_tyv /expand_v.
   case heq: Mvar.get => [ai | ]; t_xrbindP.
-  + move=> _ ???; subst tysx xsx o.
+  + move=> _ _ ???; subst tysx xsx o.
     have hva := hwf _ _ heq.
     rewrite (wf_ai_elems (v_var x) hva) -map_comp /comp.
     by move=> /mapM_Forall2; elim => //= > _ _ ->.
@@ -1485,7 +1484,7 @@ Proof.
   have hwf := wf_init_map hinit.
   have heqae : eq_alloc_restr Sv.empty m' sempty sempty by apply eq_alloc_empty.
   have ?:= mapM2_dc_truncate_id Hca; subst vargs'.
-  have := expand_returnsP_restr hwf heqae (expend_tyv_expand_return h1) Hw.
+  have := expand_returnsP_restr hwf heqae (expand_tyv_expand_return h1) Hw.
   rewrite -heq2 => /(_ _ hexp) [s1'].
   have -> := expand_vs_flatten hwf hparams hexp.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa1.
@@ -1526,11 +1525,11 @@ Proof.
   have heqae : eq_alloc_restr Sv.empty m' sempty sempty by apply eq_alloc_empty.
   have ?:= mapM2_dc_truncate_id Hca; subst vargs'.
   rewrite heqins2 in hexpa.
-  have [s1'] := expand_returnsP_restr hwf heqae (expend_tyv_expand_return hiparams) Hw1 hexpa.
+  have [s1'] := expand_returnsP_restr hwf heqae (expand_tyv_expand_return hiparams) Hw1 hexpa.
   rewrite heqins1.
   have -> := expand_vs_flatten hwf hiparams hexpa.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa1.
-  have := expand_returnsP_restr hwf heqa1 (expend_tyv_expand_return hires) Hw2.
+  have := expand_returnsP_restr hwf heqa1 (expand_tyv_expand_return hires) Hw2.
   rewrite -heqres2 => /(_ _ hexpr) [?].
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) /= => -> /= heqa2.
   rewrite Sv_union_empty in heqa2.
@@ -1679,7 +1678,7 @@ Proof.
   have hwf := wf_init_map hinit.
   have heqae : eq_alloc_restr Sv.empty mt sempty sempty by apply eq_alloc_empty.
   have [??]:= (mapM2_dc_truncate_id Hca, mapM2_dc_truncate_id Hcr); subst vargs' vres'.
-  have [s1']:= expand_returnsP_restr hwf heqae (expend_tyv_expand_return hparams) Hw hexvs.
+  have [s1']:= expand_returnsP_restr hwf heqae (expand_tyv_expand_return hparams) Hw hexvs.
   rewrite map_comp -map_flatten -(write_vars_lvals false gd) Sv_union_empty => hw heqa1.
   have heqa1' : eq_alloc_restr (sv_of_list v_var fparams) mt (add_assumes s1 vpr) (add_assumes s1' vpr).
   + by case: heqa1 => ??? h; split => //=; rewrite h.
@@ -1720,7 +1719,7 @@ Proof.
     by case: ziota => // i i_s _ /=; rewrite WArray.get_empty; case: ifP => /=; case: is_align.
   have [s2' heqa2 hsemc] := Hc _ _ _ hwf heqa hc.
   rewrite -(sem_pexprs_get_var false gd) in Hres.
-  have [vs' hex]:= expand_paramsP hwf heqa2 (expend_tyv_expand_param hres) Hres.
+  have [vs' hex]:= expand_paramsP hwf heqa2 (expand_tyv_expand_param hres) Hres.
   rewrite map_comp -map_flatten sem_pexprs_get_var => hwr.
   exists vs' => //.
   econstructor; eauto => //=.
@@ -1743,27 +1742,135 @@ Qed.
 
 End Step1.
 
-Lemma expand_callP f scs mem scs' mem' va vr tr :
-  sem_call p1 ev scs mem f va scs' mem' vr tr ->
-  exists expdin expdout,
-   ∀ (vargs' : seq (seq value)), expand_vs expdin va = ok vargs' ->
-  exists2 vres' : seq (seq value),
-     expand_vs expdout vr = ok vres' &
-     sem_call p2 ev scs mem f (flatten vargs') scs' mem' (flatten vres') tr.
+Definition expand_ty expd ty :=
+  match expd with
+  | Some (ws, len) => map (fun _ => sword ws) (ziota 0 len)
+  | None => [::ty]
+  end.
+
+Definition expandable_ty expd ty :=
+  match expd with
+  | Some (ws, len) => (0 <? len)%Z && (ty == sarr (Z.to_pos (arr_size ws (Z.to_pos len))))
+  | None => true
+  end.
+
+Definition expand_tys expdin tys :=
+  flatten (map2 expand_ty expdin tys).
+
+Definition expandable_tys expdin tys :=
+  all2 expandable_ty expdin tys.
+
+Definition compat_expd_tys expdin tys1 tys2 :=
+  expandable_tys expdin tys1 /\
+  expand_tys expdin tys1 = tys2.
+
+Lemma expand_call_ex s1 fn fd :
+  map_cfprog_name (expand_fsig fi) (p_funcs p1) = ok s1 ->
+  get_fundef (p_funcs p1) fn = Some fd ->
+  exists fd' expdin expdout,
+    [/\ Mf.get (fsigs s1) fn = Some (expdin, expdout)
+      , get_fundef (p_funcs p2) fn = Some fd'
+      & compat_expd_tys expdin fd.(f_tyin) fd'.(f_tyin)].
 Proof.
-  apply: (rbindP _ Hcomp) => s1 /[dup]Hs1/expand_callP_aux h _ /[dup]+/h{h}.
-  move=> [???? {}f fd {}va va' ??? {}vr vr' vpr vpo tr' hgf htri _ _ _ _ _ htro _ _ _ _] h.
-  suff : exists expdin expdout, Mf.get (fsigs s1) f = Some (expdin, expdout).
-  + move=> [expdin [expdout hget1]].
-    exists expdin, expdout.
-    by apply h.
-  move: Hs1 fd hgf {h htri htro}; rewrite {}/fsigs; elim: (p_funcs p1) s1
-    => [> [<-]|[? [? ? fti fp ? fto fr]]> hrec] //=.
-  t_xrbindP => ?? [? [expdin expdout]] + ?? /hrec{hrec}h ?; subst=> /=.
-  case: eqP; last by move=> /nesym /eqP?; rewrite Mf.setP_neq //.
-  move=> <- + fd' [] ? /=; subst fd'.
-  rewrite Mf.setP_eq => _; eauto.
+  move => hs1 hget.
+  have [fd1 [fd2 [[c' m] [[expdin expdout] [hget2 hsigs /=]]]] {hget}]:= all_checked hs1 hget.
+  move=> hexp hfd1; exists fd1, expdin, expdout; split => //.
+  move: hexp; rewrite /expand_fsig.
+  t_xrbindP.
+  move=> [m1 fi']; case: fd => fi1 contra tyin params body tyout res extra hinit.
+  t_xrbindP => z htyin z0 htyout contra' hcontra ? _ ? ??; subst fd2 m1 expdin expdout.
+  have hwf : wf_t m.
+  + by apply: wf_init_map hinit.
+  move: hfd1; t_xrbindP => c1 hc1 ?; subst fd1 => /= {hget2 hsigs hcontra hinit}.
+  elim: tyin params z htyin => [ | ty tyin hrec] [ | x params] //=.
+  + by move=> _ [<-].
+  move=> z; t_xrbindP => -[[tys xs] o].
+  rewrite {1}/expand_tyv; case heq: Mvar.get => [inf | ]; t_xrbindP.
+  + move=> /eqP -> _ <- <- <- z2 /hrec [hexpa heqt] <- /=; split.
+    + rewrite /expandable_tys /= eqxx.
+      by have /ltZP -> := len_pos (hwf _ _ heq).
+    rewrite /expand_tys in heqt |- *.
+    rewrite /= heqt; f_equal.
+    have hwf_ai:= hwf _ _ heq.
+    rewrite (len_def hwf_ai); have := xi_ty hwf_ai.
+Opaque Z.of_nat.
+    elim: (ai_elems inf) => //=.
+    move=> y ys hrec1 hin.
+    rewrite Nat2Z.inj_succ ziotaS_cons; last by apply Zle_0_nat.
+    rewrite /= hin; last by apply mem_head.
+    rewrite ziota_shift -map_comp -hrec1 //.
+    by move=> xi hini; apply hin; rewrite in_cons hini orbT.
+Transparent Z.of_nat.
+  move=> hin <- <- <- ? /hrec [h1 h2] <-; split => //.
+  by rewrite /expand_tys /= -h2.
 Qed.
+
+Lemma expand_callP fn fd:
+  get_fundef (p_funcs p1) fn = Some fd ->
+  exists fd' expdin,
+   [/\ get_fundef (p_funcs p2) fn = Some fd'
+     , compat_expd_tys expdin fd.(f_tyin) fd'.(f_tyin)
+     & forall scs mem scs' mem' va vr tr,
+       sem_call p1 ev scs mem fn va scs' mem' vr tr ->
+       ∀ (vargs' : seq (seq value)), expand_vs expdin va = ok vargs' ->
+       exists vres' : seq (seq value),
+         sem_call p2 ev scs mem fn (flatten vargs') scs' mem' (flatten vres') tr].
+Proof.
+  apply: (rbindP _ Hcomp) => s1 /[dup]hs1/expand_callP_aux h _ hget.
+  have [fd' [expdin [expdout [hmget hget' hcomp]]]]:= expand_call_ex hs1 hget.
+  exists fd', expdin; split => //.
+  move=> scs mem scs' mem' va vr tr hsem vargs' hexp.
+  have [vres' ??]:= h _ _ _ _ _ _ _ _ hsem _ _ hmget _ hexp.
+  by exists vres'.
+Qed.
+
+Parameter init_array : forall len, wsize -> values -> WArray.array len.
+
+Fixpoint fold_args (expdin : seq (option (wsize * Z))) (vargs : values) :=
+  match expdin with
+  | [::] => [::]
+  | None :: expdin =>
+    match vargs with
+    | v :: vargs => v :: fold_args expdin vargs
+    | _ => [::] (* dummy *)
+    end
+  | Some (ws, len) :: expdin =>
+    let args := take (Z.to_nat len) vargs in
+    let vargs := drop (Z.to_nat len) vargs in
+    let t := init_array (Z.to_pos len) ws args in
+    Varr t :: fold_args expdin vargs
+  end.
+
+get_fundef (p_funcs p1) fn = Some fd ->
+exists2 fd',
+   get_fundef (p_funcs p2) fn = Some fd'
+ & fd.(f_tyin) = fd'.(f_tyin).
+
+
+
+
+
+
+
+compat_expd_tys expdin tys1 tys2 ->
+
+
+
+Definition folds able_ty expd ty :=
+  match expd with
+  | Some (ws, len) => ty == sarr (Z.to_pos (arr_size ws (Z.to_pos len)))
+  | None => true
+  end.
+
+Definition
+
+mapM2 ErrType dc_truncate_val (f_tyin fd') vargs' = ok vargs ->
+compat_expd_tys expdin fd.(f_tyin) fd'.(f_tyin) ->
+compat_ty
+
+
+
+
 
 End WITH_PARAMS.
 
