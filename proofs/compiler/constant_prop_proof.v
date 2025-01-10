@@ -1528,6 +1528,20 @@ Section PROOF.
          h).
   Qed.
 
+  Lemma sig_preserved fn fd :
+    get_fundef (p_funcs p) fn = Some fd ->
+    exists2 fd',
+      get_fundef (p_funcs p') fn = Some fd'
+      & fd.(f_tyin) = fd'.(f_tyin).
+  Proof.
+    move => hget .
+    exists (const_prop_fun cl gd fd) => //=.
+    *  by rewrite (get_map_prog (const_prop_fun cl gd) p fn) hget.
+   by case fd.
+Qed.
+
+
+  Qed.
 End PROOF.
 
 End WITH_PARAMS.
