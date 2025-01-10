@@ -62,6 +62,8 @@ jobs:
     needs: prepare
     if: github.ref != 'refs/heads/release-*'  # Equivalent of the rule to skip for release branches
     continue-on-error: true  # Equivalent of 'allow_failure: true'
+    env:
+      HOME: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
