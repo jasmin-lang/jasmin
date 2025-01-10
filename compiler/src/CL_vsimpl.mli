@@ -18,5 +18,6 @@ module GhostVector : sig
 end
 
 module SimplVector: sig
+  val get_ret_vars: CL.I.epred list -> CL.R.rpred list -> CL.tyvar list
   val simpl_cfg: Cfg.node -> CL.tyvar list -> Cfg.node
 end

@@ -288,6 +288,8 @@ end
 module SimplVector = struct
   open Cfg
   open CL.Instr
+  open CL.R
+  open CL.I
 
   let rec int_of_ty = function
     | CL.Uint n -> n
@@ -575,6 +577,64 @@ module SimplVector = struct
       | { iname = "nop" } -> remove_nops t
       | _ -> h :: remove_nops t
       end
+
+  let rec get_evars epred =
+    let rec aux e =
+      begin
+      match e with
+      | Iconst _ -> []
+      | Ivar v -> [v]
+      | Iunop (_, e') -> aux e'
+      | Ibinop (e1, _, e2) ->
+          (aux e1) @ (aux e2)
+      | Ilimbs (_, el) -> List.flatten (List.map aux el)
+      | IUnPack _ -> assert false
+      end
+    in
+    match epred with
+    | Eeq (e1, e2) ->
+      let vl1 = aux e1 in
+      let vl2 = aux e2 in
+      vl1 @ vl2
+    | Eeqmod (e1, e2, eps) ->
+      let vl1 = aux e1 in
+      let vl2 = aux e2 in
+      let vl3 = List.flatten (List.map aux eps) in
+      vl1 @ vl2 @ vl3
+
+    let rec get_rvars rpred =
+      let rec aux e =
+        begin
+        match e with
+        | Rvar v -> [v]
+        | Rconst _ -> []
+        | Ruext (e', _) ->  aux e'
+        | Rsext (e', _) -> aux e'
+        | Runop (_, e') -> aux e'
+        | Rbinop (e1, _, e2) -> (aux e1) @ (aux e2)
+        | RVget (v, _) -> [v]
+        | UnPack _ -> assert false
+        | Rlimbs (_, el) -> List.flatten (List.map aux el)
+        end
+      in
+      match rpred with
+      | RPcmp (e1, _, e2) ->
+        let vl1 = aux e1 in
+        let vl2 = aux e2 in
+        vl1 @ vl2
+      | RPnot e -> get_rvars e
+      | RPand rps -> List.flatten (List.map get_rvars rps)
+      | RPor rps -> List.flatten (List.map get_rvars rps)
+      | RPeqsmod (e1, e2, e3) ->
+        let vl1 = aux e1 in
+        let vl2 = aux e2 in
+        let vl3 = aux e3 in
+        vl1 @ vl2 @ vl3
+
+  let get_ret_vars epreds rpreds =
+    let epred_rvars = List.flatten (List.map get_evars epreds) in
+    let rpred_vars = List.flatten (List.map get_rvars rpreds) in
+    epred_rvars @ rpred_vars (* FIXME: remove dups *)
 
   let simpl_cfg cfg ret_vars =
     sr_lvals cfg;
