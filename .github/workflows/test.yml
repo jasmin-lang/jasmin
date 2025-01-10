@@ -1,7 +1,6 @@
 name: Build
 description: TEst
 
-
 on:
   push:
     branches:
@@ -19,13 +18,43 @@ env:
   VERSION: development version at commit ${{ github.sha }} on branch ${{ github.head_ref }}
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: cachix/install-nix-action@v27
-      with:
-        nix_path: ${{ env.NIX_PATH }}
-    - run: nix --version
+  install:
+      runs-on: ubuntu-latest
+      steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          nix_path: ${{ env.NIX_PATH }}
+      - run: nix --version
+
+  prepare:
+      runs-on: ubuntu-latest
+      needs: install
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+        - name: Prepare dependencies
+          run: |
+            nix-shell \
+              --extra-substituters "${{ env.EXTRA_SUBSTITUTERS }}" \
+              --trusted-public-keys "${{ env.NIXOS_PUBLIC_KEY }} ${{ env.EXTRA_PUBLIC_KEYS }}" \
+              --arg inCI true \
+              $EXTRA_NIX_ARGUMENTS \
+              --run 'echo done'
+            nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|${{ env.VERSION }}|" compiler/src/glob_options.ml'
+
+    prove-coq-program:
+      runs-on: ubuntu-latest
+      needs: prepare
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+        - name: Build Coq Program
+          env:
+            EXTRA_NIX_ARGUMENTS: --arg coqDeps true
+          run: |
+            nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C compiler CIL'
+
+    
 
 
