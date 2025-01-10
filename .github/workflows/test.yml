@@ -221,7 +221,7 @@ jobs:
       - name: Download Ocaml Artifact
         uses: actions/download-artifact@v3
         with:
-          name: ocaml-artifact
+          name: ocaml-artifacts
           path: compiler/
       - name: Run jasmic version check
         run: |
