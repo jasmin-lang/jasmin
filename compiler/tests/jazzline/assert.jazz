@@ -8,7 +8,8 @@ inline fn mul(reg u64 x, reg u64 y) -> reg u64
 }
 
 fn mul2(reg u64 x, reg u64 y) -> reg u64
-requires #[prover=smt] { x == 1 }
+requires #[prover=cas] {x == 0}
+ensures #[prover=cas] {result.0 == 0}
 {
    assert (x == 2);
    reg u64 z;
@@ -16,7 +17,6 @@ requires #[prover=smt] { x == 1 }
    assert (z == (2 * y));
    return z;
 }
-
 
 fn mul4(reg u64 y1) -> reg u64 {
    reg u64 y;

@@ -6,9 +6,6 @@ open Prog
 type arch = Amd64 | CortexM
 
 
-let add_inline f =
-  { f with f_cc = Internal}
-
 module type Arch_ToCL = sig
   module C : Arch_full.Core_arch
   val test : bool -> (module  ToCL.BaseOp
@@ -79,8 +76,6 @@ let parse_and_print print arch call_conv ecoutput joutput output file funname =
     let signed = trans annot.f_user_annot in
     let module CL = ToCL.Mk(val ACL.test signed) in
 
-     (* First step: annot all call site with inline *)
-     let prog = (fst prog, List.map add_inline (snd prog)) in
      let cprog = Conv.cuprog_of_prog prog in
 
      let prog = Compile.compile_CL (module A) cprog funname in
@@ -94,18 +89,6 @@ let parse_and_print print arch call_conv ecoutput joutput output file funname =
          Format.fprintf fmt "%a@." (Printer.pp_prog ~debug:true A.reg_size A.asmOp) prog;
          close out
      end;
-
-     (* begin match ecoutput with *)
-     (* | None -> () *)
-     (* | Some file -> *)
-     (*     let out, close = open_out file, close_out in *)
-     (*     let fmt = Format.formatter_of_out_channel out in *)
-     (*     let fnames = [funname.fn_name] in *)
-     (*     BatPervasives.finally *)
-     (*      (fun () -> close out) *)
-     (*      (fun () -> ToEC.extract A.reg_size A.asmOp fmt Normal prog fnames) *)
-     (*      () *)
-     (* end; *)
 
      let out, close =
        match output with
@@ -153,22 +136,6 @@ let ecoutput =
     "Extract (to EC) the program before extraction to cryptoline to the file ECFILE"
   in
   Arg.(value & opt (some string) None & info [ "e"; "ecoutput" ] ~docv:"ECFILE" ~doc)
-
-(*
-let print =
-  let alts =
-    List.map
-      (fun p ->
-        let (s, _msg) = glob_options.print_string p in
-          (s, p))
-      Compiler.compiler_step_list in
-  let doc =
-    Format.asprintf "The step to print (%s)" (Arg.doc_alts_enum alts)
-  in
-  let print = Arg.enum alts in
-  Arg.(value & opt_all arch [] & info [ "p"; "print" ] ~doc)
-
-*)
 
 let print =
   let doc = "print result after each step" in
