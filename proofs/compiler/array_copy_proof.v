@@ -586,6 +586,4 @@ Proof.
   by case: (fd) => >; t_xrbindP => ? ? <-.
 Qed.
 
-
-
 End WITH_PARAMS.

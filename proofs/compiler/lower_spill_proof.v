@@ -732,4 +732,23 @@ Proof.
        Hsem).
 Qed.
 
+Lemma sig_preserved fn fd :
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd',
+    get_fundef (p_funcs p') fn = Some fd'
+  & fd.(f_tyin) = fd'.(f_tyin).
+Proof.
+  move=> hget.
+  have spillok : map_cfprog_name (spill_fd fresh_var_ident) (p_funcs p) = ok (p_funcs p').
+  + by move: spill_prog_ok; rewrite /spill_prog; t_xrbindP => ? ? <-.
+  have [fd2 hfd hget'] := get_map_cfprog_name_gen spillok hget.
+  exists fd2 => //=.
+  move : hfd; rewrite /spill_fd => //=.
+  case: (fd) => > hf.
+  case: ifP hf => _ //=.
+  + by t_xrbindP => <-.
+  by t_xrbindP => ??? <-.
+Qed.
+
+
 End WITH_PARAMS.
