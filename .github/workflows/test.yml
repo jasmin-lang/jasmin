@@ -21,7 +21,7 @@ jobs:
       run: |
         nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|${{ env.VERSION }}|" compiler/src/glob_options.ml'
 
-  prove-coq-program:
+  coq-program:
     runs-on: ubuntu-latest
     needs: prepare
     steps:
@@ -42,7 +42,7 @@ jobs:
           compiler/src/CIL/
           proofs/
 
-  prove-coq-proof:
+  coq-proof:
     runs-on: ubuntu-latest
     needs: prove-coq-program
     steps:
@@ -56,7 +56,22 @@ jobs:
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
 
-  build-ocaml:
+  coq-master:
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/release-*'  # Equivalent of the rule to skip for release branches
+    continue-on-error: true  # Equivalent of 'allow_failure: true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
+      - name: Setup Coq Master Dependencies
+        env:
+          EXTRA_NIX_ARGUMENTS: --arg inCI true --arg coqDeps true --arg coqMaster true
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
+
+  ocaml:
     runs-on: ubuntu-latest
     needs: prove-coq-program
     steps:
@@ -73,19 +88,117 @@ jobs:
           EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C compiler'
+    - name: Upload Coq Program Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: coq-program-artifacts
+        path: |
+          compiler/_build/
+          compiler/jasmin2tex
+          compiler/jasmin2ec
+          compiler/jasminc
+          compiler/jasmin-ct
 
-  test-build-from-tarball:
+  eclib:
     runs-on: ubuntu-latest
-    needs: build-ocaml
+    strategy:
+      matrix:
+        EASYCRYPT_REF: [release, dev]
+    env:
+      EXTRA_NIX_ARGUMENTS: --argstr ecRef ${{ matrix.EASYCRYPT_REF }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Setup Nix Environment
         uses: ./.github/actions/setup-nix
-      - name: Build from tarball
+      - name: Run EasyCrypt Why3 Configuration
         run: |
-          tar xvf compiler/$TARBALL.tgz
-          nix-build -o out $TARBALL
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt why3config -why3 eclib/why3.conf'
+      - name: Run EasyCrypt Config
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt config -why3 eclib/why3.conf'
+      - name: Build eclib
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make ECARGS="-why3 why3.conf" -C eclib'
+
+  opam-compiler:
+    runs-on: ubuntu-latest
+    needs: prove-coq-program
+    env:
+      OPAMROOTISOK: 'true'
+      OPAMROOT: mapo
+      EXTRA_NIX_ARGUMENTS: --arg opamDeps true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
+      - name: Cache OPAM dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.OPAMROOT }}
+          key: opam-${{ runner.os }}-${{ hashFiles('scripts/nixpkgs.nix') }}
+          restore-keys: |
+            opam-${{ runner.os }}-
+      - name: Run OPAM Setup
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh'
+
+      - name: Build Coq Program with OPAM
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run '
+            eval $(opam env) &&
+            make -C compiler -j${{ env.NIX_BUILD_CORES }} &&
+            (cd compiler && mkdir -p bin && cp -L _build/install/default/bin/* bin/ && mkdir -p lib/jasmin/easycrypt && cp ../eclib/*.ec lib/jasmin/easycrypt/)'
+
+      - name: Upload OPAM Compiler Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: opam-compiler-artifacts
+          path: |
+            compiler/bin/
+            compiler/lib/
+
+  tarball:
+    runs-on: ubuntu-latest
+    needs: prove-coq-program
+    env:
+      EXTRA_NIX_ARGUMENTS: --arg testDeps true
+      TARBALL: jasmin-compiler-${{ github.sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
+      - name: Build Tarball
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C compiler dist DISTDIR=$TARBALL'
+      - name: Upload Tarball Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: tarball-artifact
+          path: compiler/${{ env.TARBALL }}.tgz
+
+  build-from-tarball:
+    runs-on: ubuntu-latest
+    needs: tarball  # Ensures this job runs after tarball job
+    env:
+      TARBALL: jasmin-compiler-${{ github.sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Download Tarball Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: tarball
+      - name: Extract Tarball
+        run: |
+          tar xvf compiler/${{ env.TARBALL }}.tgz
+      - name: Build from Tarball
+        run: |
+          nix-build -o out ${{ env.TARBALL }}
+      - name: Check Jasminc Version
+        run: |
           ./out/bin/jasminc -version
 
   deploy:
