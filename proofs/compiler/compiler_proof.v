@@ -1517,15 +1517,18 @@ Lemma compiler_CL_reflect (entries: seq funname) (p: prog) (xp : uprog) :
          all is_defined va' ->
          psem.sem_call (dc:=direct_c) (wsw:=withsubword) xp tt scs m fn va' scs' m' vr' tr ->
          let va := array_expansion_cl_proof.fold_args expdin va' in
-         forall scs1 m1 vr1 tr1,
-           psem.sem_call (dc:= indirect_c) (wsw:=nosubword) p tt scs m fn va scs1 m1 vr1 tr1 ->
-           [/\ scs1 = scs', m1 = m' & tr1 = tr]].
+         [/\ all2 (fun ty v => subtype ty (type_of_val v)) fd.(f_tyin) va
+           & forall scs1 m1 vr1 tr1,
+               psem.sem_call (dc:= indirect_c) (wsw:=nosubword) p tt scs m fn va scs1 m1 vr1 tr1 ->
+               [/\ scs1 = scs', m1 = m' & tr1 = tr]]].
 Proof.
   move => hcomp fn fd hget hin.
   have [fd' [expdin [hget' hcompat hsem]] ]:= compiler_CLP hcomp hget hin.
   exists fd', expdin; split => //.
-  move=> scs m va' scs' m' vr' tr hall2 hall hsem_t /= scs1 m1 vr1 tr1 hsem_s.
+  move=> scs m va' scs' m' vr' tr hall2 hall hsem_t /=.
   have [va1 [hall2' hexp ?]] := array_expansion_cl_proof.fold_args_ok hcompat hall2 hall.
+  split => //.
+  move=> scs1 m1 vr1 tr1 hsem_s.
   subst va'.
   have [vr2 hsem_t2] := hsem _ _ _ _ _ _ _ hsem_s _ hexp.
   by have [-> -> _ ->]:= sem_call_deterministic hsem_t hsem_t2.
