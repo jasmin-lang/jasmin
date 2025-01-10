@@ -13,7 +13,7 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-    - uses: .github/actions/setup-nix/action.yaml
+    - uses: .github/actions/setup-nix
     - name: Checkout code
       uses: actions/checkout@v3
     - name: Prepare dependencies
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare
     steps:
-    - uses: .github/actions/setup-nix/action.yaml
+    - uses: .github/actions/setup-nix
     - name: Checkout code
       uses: actions/checkout@v3
     - name: Build Coq Program
