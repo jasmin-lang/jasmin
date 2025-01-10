@@ -23,6 +23,14 @@
 
 (tests
   (libraries jasmin.jasmin common_jazzline)
+  (deps bigop.jazz)
+  (flags (:standard -rectypes))
+  (modules bigop)
+  (names bigop)
+)
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
   (deps neg.jazz)
   (flags (:standard -rectypes))
   (modules neg)
