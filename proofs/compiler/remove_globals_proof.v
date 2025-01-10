@@ -865,6 +865,17 @@ Module RGP. Section PROOFS.
          Hproc).
   Qed.
 
+  Lemma sig_preserved fn fd :
+    get_fundef (p_funcs P) fn = Some fd ->
+    exists2 fd',
+      get_fundef (p_funcs P') fn = Some fd'
+      & fd.(f_tyin) = fd'.(f_tyin).
+  Proof.
+    move=> hget. have [fd2 [hget' hfd]]:= get_fundefP hget.
+    exists fd2 => //.
+    move: hfd; rewrite /remove_glob_fundef ;t_xrbindP => ?????? <- //=.
+  Qed.
+
   End FDS.
 
   Lemma remove_globP P P' f ev scs mem scs' mem' va vr tr :
@@ -876,5 +887,5 @@ Module RGP. Section PROOFS.
     case: ifP => // huniq; t_xrbindP => fds hfds <- h; have hf := gd_incl_fun hgd h.
     apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq hf).
   Qed.
-
+ 
 End PROOFS. End RGP.
