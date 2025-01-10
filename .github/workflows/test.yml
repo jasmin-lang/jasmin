@@ -298,7 +298,7 @@ jobs:
     needs:
       - coq-program
       - ocaml
-    variables:
+    env:
       EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef release
       WHY3_CONF: ${{ github.workspace }}/why3.conf
       ECARGS: -why3 $WHY3_CONF -I Jasmin:${{ github.workspace }}/eclib
