@@ -657,6 +657,19 @@ Section PROOF.
          Hall).
   Qed.
 
+Lemma sig_preserved fn fd :
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd',
+    get_fundef (p_funcs p') fn = Some fd'
+  & fd.(f_tyin) = fd'.(f_tyin).
+Proof.
+  move=> hget.
+  have [fd2 [hget' hfd ]] := inline_progP' uniq_funname Hp hget.
+  exists fd2 => //=.
+  move: hfd; rewrite /inline_fd.
+  by case: (fd) => >; t_xrbindP => ? ? <-.
+Qed.
+
 End PROOF.
 
 Lemma inline_call_errP p p' f ev scs mem scs' mem' va va' vr tr:
