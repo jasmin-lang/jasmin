@@ -230,7 +230,7 @@ jobs:
   check-proofs:
     runs-on: ubuntu-latest
     needs:
-      - prove-coq-program
+      - coq-program
       - ocaml
     strategy:
       matrix:
