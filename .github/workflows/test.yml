@@ -189,10 +189,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
       - name: Download Tarball Artifact
         uses: actions/download-artifact@v3
         with:
-          name: tarball
+          name: tarball-artifact
       - name: Extract Tarball
         run: |
           tar xvf compiler/${{ env.TARBALL }}.tgz
