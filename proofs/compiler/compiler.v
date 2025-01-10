@@ -479,9 +479,6 @@ Definition compiler_CL (to_keep: seq funname) (p:prog) : cexec uprog :=
   Let p := unroll_loop (ap_is_move_op aparams) false p in
   let p := cparams.(print_uprog) Unrolling p in
 
-  Let p := dead_calls_err_seq to_keep p in
-  let p := cparams.(print_uprog) RemoveUnusedFunction p in
-
   Let pv := live_range_splitting p in
 
   let pr := remove_init_prog is_reg_array pv in
@@ -492,7 +489,7 @@ Definition compiler_CL (to_keep: seq funname) (p:prog) : cexec uprog :=
 
   Let pe := array_expansion_cl.expand_prog
               (fun vk => fresh_var_ident cparams vk dummy_instr_info 0)
-              cparams.(expand_fd) [::] pa in
+              cparams.(expand_fd) pa in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pe := live_range_splitting pe in
