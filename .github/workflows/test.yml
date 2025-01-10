@@ -225,6 +225,9 @@ jobs:
         with:
           name: ocaml-artifacts
           path: compiler/
+      - name: Display rights
+        run: |
+          ls -la ./compiler/*
       - name: Run jasmic version check
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc -version'
