@@ -40,7 +40,7 @@ Section PROOF.
   Proof.
     rewrite /p' /unroll_prog.
     have := map_repeat_1 unroll_fun (p_funcs p).
-    case: map_repeat => _ b /= ->.
+    case: map_repeat  => _ b /= ->.
     rewrite /get_fundef assoc_mapE; last first.
     - by move => ? [] > /=; case unroll_cmd.
     by move => ->.
@@ -242,6 +242,19 @@ Section PROOF.
          Hfor_cons
          Hcall
          Hproc).
+  Qed.
+
+  Lemma sig_preserved fn fd :
+    get_fundef (p_funcs p) fn = Some fd ->
+    exists2 fd',
+      get_fundef (p_funcs p') fn = Some fd'
+      & fd.(f_tyin) = fd'.(f_tyin).
+  Proof.
+    move=> hget; have h:= p'_get_fundef hget.
+    exists (unroll_fun (fn, fd)).1.2 => //.
+    rewrite /unroll_fun.
+    case fd => /= >.
+    by case unroll_cmd.
   Qed.
 
 End PROOF.
