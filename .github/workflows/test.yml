@@ -66,8 +66,8 @@ jobs:
       HOME: ${{ github.workspace }}
     steps:
       - name: Display HOME
-         run: |
-           echo $HOME
+        run: |
+          echo $HOME
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Setup Nix Environment
