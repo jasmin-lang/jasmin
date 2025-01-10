@@ -356,7 +356,6 @@ jobs:
         with:
           name: tarball-artifact
           path: compiler
-secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO
       - name: Extract compiler
         run: |
           nix-env -iA nixpkgs.git
