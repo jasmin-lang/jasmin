@@ -386,6 +386,18 @@ Section PROOF.
     move => ??; SfD.fsetdec.
   Qed.
 
+Lemma sig_preserved fn fd :
+  Sf.In fn K →
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd',
+    get_fundef (p_funcs p') fn = Some fd'
+    & fd.(f_tyin) = fd'.(f_tyin).
+Proof.
+  move => hin hget.
+  have h:= get_dead_calls hin hget.
+  exists fd => //=.
+Qed.
+
 End PROOF.
 
 Lemma foldl_compat x y l (x_eq_y: Sf.Equal x y):
