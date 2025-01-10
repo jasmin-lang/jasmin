@@ -242,7 +242,6 @@ jobs:
       EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef $EASYCRYPT_REF
       WHY3_CONF: ${{ github.workspace }}/why3.conf
       ECARGS: -why3 $WHY3_CONF -I Jasmin:${{ github.workspace }}/eclib
-    extends: .common
     needs:
       - coq-program
       - ocaml
