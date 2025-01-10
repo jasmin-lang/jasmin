@@ -1338,6 +1338,16 @@ Proof.
   SfD.fsetdec.
 Qed.
 
+Lemma dead_code_sig_preserved p p' b fn fd :
+  dead_code_prog (ap_is_move_op aparams) p b = ok p' ->
+  get_fundef (p_funcs p) fn = Some fd ->
+  exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
+Proof.
+  rewrite /dead_code_prog => hch hget.
+  assert (h := dead_code_proof.sig_preserved hch hget).
+  by case: h => fd' [h1 h2]; exists fd'.
+Qed.
+
 Lemma post_process_sig_preserved p p' cl fn fd:
   dead_code_prog (ap_is_move_op aparams) (const_prop_prog cl p) false = ok p' ->
   get_fundef (p_funcs p) fn = Some fd ->
@@ -1345,9 +1355,9 @@ Lemma post_process_sig_preserved p p' cl fn fd:
 Proof.
   rewrite /dead_code_prog => hch hget.
   assert (h := constant_prop_proof.sig_preserved cl hget).
-  case: h => fd' h1 h2; exists fd' => //.
-  move: h1 => <-.
-Admitted.
+  case: h => fd' hget1 ->.
+  apply (dead_code_sig_preserved hch hget1).
+Qed.
 
 Lemma unroll_sig_preserved (p p' : prog) cl fn fd :
   unroll_loop (ap_is_move_op aparams) cl p = ok p' ->
@@ -1381,16 +1391,6 @@ Proof.
   by move: h2 => /= /add_funnameP /add_finfoP; t_xrbindP => /and3P [_ /eqP].
 Qed.
 
-Lemma dead_code_sig_preserved p p' b fn fd :
-  dead_code_prog (ap_is_move_op aparams) p b = ok p' ->
-  get_fundef (p_funcs p) fn = Some fd ->
-  exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
-Proof.
-  rewrite /dead_code_prog => hch hget.
-  assert (h := dead_code_proof.sig_preserved hch hget).
-  by case: h => fd' [h1 h2]; exists fd'.
-Qed.
-
 Lemma live_range_splitting_sig_preserved (p p' : prog) fn fd :
   live_range_splitting aparams cparams p = ok p' ->
   get_fundef (p_funcs p) fn = Some fd ->
@@ -1408,14 +1408,17 @@ Lemma remove_init_sig_preserved p fn fd :
   get_fundef (p_funcs p) fn = Some fd ->
   exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
 Proof.
-Admitted.
+  move=> p' hget.
+  have hget' : get_fundef (p_funcs p') fn = Some (remove_init_fd is_reg_array fd).
+  + by rewrite /p' get_map_prog hget.
+  by exists (remove_init_fd is_reg_array fd).
+Qed.
 
 Lemma remove_glob_sig_preserved p p' fn fd :
   remove_globals.remove_glob_prog (fresh_id cparams) p = ok p' ->
   get_fundef (p_funcs p) fn = Some fd ->
   exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
-Proof.
-Admitted.
+Proof. apply: remove_globals_proof.RGP.sig_preserved. Qed.
 
 Lemma lowering_sig_preserved p fn fd :
   let p' :=
@@ -1424,14 +1427,20 @@ Lemma lowering_sig_preserved p fn fd :
   get_fundef (p_funcs p) fn = Some fd ->
   exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
 Proof.
-Admitted.
+  move=> p' hget.
+  rewrite get_map_prog hget /=; eauto.
+Qed.
 
 Lemma pi_prog_sig_preserved p p' fn fd :
   pi_prog p = ok p' ->
   get_fundef (p_funcs p) fn = Some fd ->
   exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
 Proof.
-Admitted.
+  move=> hc hget.
+  assert (h := propagate_inline_proof.all_checked hc hget).
+  case: h => fd' hfd' hget'; exists fd' => // {hget}.
+  by move: hfd'; rewrite /pi_fun /=; case: fd => >; t_xrbindP => ? _ <-.
+Qed.
 
 Lemma compiler_CLP (entries: seq funname) (p: prog) (xp : uprog):
   compiler_CL aparams cparams entries p = ok xp ->

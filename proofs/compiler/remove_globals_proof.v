@@ -865,7 +865,7 @@ Module RGP. Section PROOFS.
          Hproc).
   Qed.
 
-  Lemma sig_preserved fn fd :
+  Lemma sig_preserved_aux fn fd :
     get_fundef (p_funcs P) fn = Some fd ->
     exists2 fd',
       get_fundef (p_funcs P') fn = Some fd'
@@ -886,6 +886,19 @@ Module RGP. Section PROOFS.
     rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
     case: ifP => // huniq; t_xrbindP => fds hfds <- h; have hf := gd_incl_fun hgd h.
     apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq hf).
+  Qed.
+
+  Lemma sig_preserved p p' fn fd :
+    remove_glob_prog fresh_id p = ok p' ->
+    get_fundef (p_funcs p) fn = Some fd ->
+    exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
+  Proof.
+    rewrite /remove_globals.remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
+    case: ifP => // huniq; t_xrbindP => fds hfds ? hget.
+    set p1 := {| p_funcs := p_funcs p; p_globs := gd'; p_extra := p_extra p |}.
+    have hget1 : get_fundef (p_funcs p1) fn = Some fd by done.
+    subst p'.
+    apply (@sig_preserved_aux p1 fds hfds fn fd hget).
   Qed.
  
 End PROOFS. End RGP.
