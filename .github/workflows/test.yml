@@ -95,16 +95,13 @@ jobs:
           EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C compiler'
+      - name: Archive compiler
+        run: tar -cvf compiler.tar ./compiler
       - name: Upload Ocaml Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: ocaml-artifacts
-          path: |
-            compiler/_build/
-            compiler/jasmin2tex
-            compiler/jasmin2ec
-            compiler/jasminc
-            compiler/jasmin-ct
+          path: compiler.tar
 
   eclib:
     runs-on: ubuntu-latest
@@ -227,7 +224,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ocaml-artifacts
-          path: compiler/
+      - name: Unarchive compiler
+        run: tar -xvf compiler.tar compiler/
       - name: Display rights
         run: |
           ls -la ./compiler/*
@@ -260,7 +258,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ocaml-artifacts
-          path: compiler/
+      - name: Unarchive compiler
+        run: tar -xvf compiler.tar compiler/
       - name: Set WHY3 Configuration
         run: echo "WHY3_CONF=${{ github.workspace }}/why3.conf" >> $GITHUB_ENV
       - name: Set EasyCrypt Arguments
@@ -303,7 +302,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ocaml-artifacts
-          path: compiler/
+      - name: Unarchive compiler
+        run: tar -xvf compiler.tar compiler/
       - name: Run libjade test script
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './scripts/test-libjade.sh src'
@@ -331,7 +331,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ocaml-artifacts
-          path: compiler/
+      - name: Unarchive compiler
+        run: tar -xvf compiler.tar compiler/
       - name: Set ECJOBS Variable
         run: echo "ECJOBS=${NIX_BUILD_CORES}" >> $GITHUB_ENV
       - name: Configure EasyCrypt with Why3
