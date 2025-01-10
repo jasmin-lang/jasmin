@@ -34,3 +34,82 @@ jobs:
         EXTRA_NIX_ARGUMENTS: --arg coqDeps true
       run: |
         nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C compiler CIL'
+
+  prove-coq-proof:
+    runs-on: ubuntu-latest
+    needs: prove-coq-program
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
+      - name: Run Coq Proofs
+        env:
+          EXTRA_NIX_ARGUMENTS: --arg coqDeps true
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
+
+  build-ocaml:
+    runs-on: ubuntu-latest
+    needs: prove-coq-program
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
+      - name: Build OCaml
+        env:
+          EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
+        run: |
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C compiler'
+
+  test-build-from-tarball:
+    runs-on: ubuntu-latest
+    needs: build-ocaml
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Nix Environment
+        uses: ./.github/actions/setup-nix
+      - name: Build from tarball
+        run: |
+          tar xvf compiler/$TARBALL.tgz
+          nix-build -o out $TARBALL
+          ./out/bin/jasminc -version
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test-build-from-tarball
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      # - name: Push to gitlab.com
+      #   uses: actions/checkout@v3
+      #   with:
+      #     repository: https://gitlab.com/clebreto/jasmin-compiler.git
+      #     path: _deploy
+      #     ssh-key: ${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}
+
+      - name: Set up Git
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          nix-env -iA nixpkgs.git
+          nix-env -iA nixpkgs.openssh
+          # eval $(ssh-agent -s)
+          # mkdir -p ~/.ssh
+          # chmod 700 ~/.ssh
+          # ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
+          git config --global user.name "Jasmin Contributors"
+          git config --global user.email "nobody@noreply.example.com"
+          echo "${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}" | tr -d '\r' | ssh-add - > /dev/null
+          git clone git@gitlab.com:clebreto/jasmin-compiler.git _deploy
+          cd _deploy
+          git checkout ${{ github.ref_name }} || git checkout --orphan ${{ github.ref_name }}
+          rm -rf compiler eclib
+          tar xzvf ../compiler/$TARBALL.tgz
+          mv $TARBALL/ compiler
+          mv ../eclib .
+          git add compiler eclib
+          git commit -m "Jasmin compiler on branch ${{ github.ref_name }} at ${{ github.sha }}" || true
+          git push --set-upstream origin ${{ github.ref_name }}
