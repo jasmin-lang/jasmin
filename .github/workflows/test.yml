@@ -361,8 +361,7 @@ jobs:
           path: compiler
       - name: Extract compiler
         run: |
-          nix-env -iA nixpkgs.git
-          nix-env -iA nixpkgs.openssh
+          nix-shell -p git
           git config --global user.name "Jasmin Contributors"
           git config --global user.email "nobody@noreply.example.com"
           echo "${{ secrets.JASMIN_COMPILER_GITLAB_COM_CLEBRETO }}" | tr -d '\r' | ssh-add - > /dev/null
