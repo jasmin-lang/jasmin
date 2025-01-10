@@ -574,4 +574,18 @@ Proof.
   by exists vr'.
 Qed.
 
+Lemma sig_preserved fn fd :
+  get_fundef (p_funcs p1) fn = Some fd ->
+  exists2 fd',
+    get_fundef (p_funcs p2) fn = Some fd'
+  & fd.(f_tyin) = fd'.(f_tyin).
+Proof.
+  move=> hget; have [fd2 hfd hget']:= all_checked hget.
+  exists fd2 => //.
+  move: hfd; rewrite /array_copy_fd.
+  by case: (fd) => >; t_xrbindP => ? ? <-.
+Qed.
+
+
+
 End WITH_PARAMS.

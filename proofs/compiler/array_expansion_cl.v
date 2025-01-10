@@ -398,6 +398,8 @@ Definition expand_fbody (fname: funname) (fs: ufundef * (cmd * t)) :=
 
 Definition expand_tyv m b s ty v :=
   if Mvar.get m.(sarrs) (v_var v) is Some ai then
+    Let _ := assert (ty == sarr (Z.to_pos (arr_size (ai_ty ai) (Z.to_pos (ai_len ai)))))
+                    (reg_ierror_no_var "bad array type arguments") in
     Let _ := assert b (reg_error v ("(reg arrays are not allowed in " ++ s ++ " of export functions)")) in
     let vi := v_info v in
     let vvars := map (fun v' => VarI v' vi) (ai_elems ai) in
@@ -455,22 +457,21 @@ Definition init_array (params:Sv.t) (a:var) (ai:array_info) (all:cmd) :=
   map (fun x => MkI dummy_instr_info (Cassgn (Lvar (VarI x vi)) AT_none ty z)) ai.(ai_elems)
   ++ all.
 
-Definition expand_fsig fi (entries : seq funname) (fname: funname) (fd: ufundef) :=
+Definition expand_fsig fi (fname: funname) (fd: ufundef) :=
   Let x := init_map (fi fname fd) in
   match fd with
   | MkFun _ ci ityin params c ityout res ef =>
     let '(m, fi) := x in
-    let exp := ~~(fname \in entries) in
-    Let insf  := mapM2 length_mismatch (expand_tyv m exp "the parameters") ityin params in
+    Let insf  := mapM2 length_mismatch (expand_tyv m true "the parameters") ityin params in
     let tyin   := map (fun x => fst (fst x)) insf in
     let s := sv_of_list v_var params in
     let params := map (fun x => snd (fst x)) insf in
     let ins := map snd insf in
-    Let outsf := mapM2 length_mismatch (expand_tyv m exp "the return type") ityout res in
+    Let outsf := mapM2 length_mismatch (expand_tyv m true "the return type") ityout res in
     let tyout  := map (fun x => fst (fst x)) outsf in
     let res    := map (fun x => snd (fst x)) outsf in
     let outs   := map snd outsf in
-    Let ci := expand_ci m exp insf ins outsf outs ityin ityout ci in
+    Let ci := expand_ci m true insf ins outsf outs ityin ityout ci in
     let init :=
       Mvar.fold (init_array s) m.(sarrs) [::] in
     ok (MkFun fi ci (flatten tyin) (flatten params) c (flatten tyout) (flatten res) ef,
@@ -481,8 +482,8 @@ End FSIGS.
 
 Notation map_cfprog_name_cdata := (map_cfprog_name_gen (fun x => @f_info _ _ _ _ (fst (fst x)))).
 
-Definition expand_prog (fi : funname -> ufundef -> expand_info) (entries : seq funname) (p: uprog) : cexec uprog :=
-  Let step1 := map_cfprog_name (expand_fsig fi entries) (p_funcs p) in
+Definition expand_prog (fi : funname -> ufundef -> expand_info) (p: uprog) : cexec uprog :=
+  Let step1 := map_cfprog_name (expand_fsig fi) (p_funcs p) in
   let fsigs := foldr (fun x y => Mf.set y x.1 x.2.2) (Mf.empty _) step1 in
   Let funcs := map_cfprog_name_cdata (fun fn x => expand_fbody fsigs fn (fst x)) step1 in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
