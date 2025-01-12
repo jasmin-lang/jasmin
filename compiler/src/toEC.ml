@@ -1147,6 +1147,7 @@ module Annotations  = struct
   let get_ires = function
     | None -> []
     | Some f -> f.f_ires
+
   let toec_fun env lvs f es =
     let otys, itys = get_funtype env f in
     let args = List.map (ec_wcast env) (List.combine itys es) in
@@ -1541,6 +1542,10 @@ module Annotations  = struct
     Lemma (prop, [tactic1;tactic2;tactic3])
 
   let proof env funcs =
+    let aux f =
+      FInfo.is_export f.f_cc || FInfo.is_subroutine f.f_cc
+    in
+    let funcs = List.filter aux funcs in
     let p1 = List.map (pp_valid_post env) funcs in
     let p2 =
       List.map
