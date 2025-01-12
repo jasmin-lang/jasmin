@@ -1,29 +1,31 @@
-proc fill(t_3_165@uint64, t_2_164@uint64, t_1_163@uint64, t_0_162@uint64,
-          t_0_158@uint64, t_1_159@uint64, t_2_160@uint64, t_3_161@uint64) =
+proc fill(t_3_184@uint64, t_2_183@uint64, t_1_182@uint64, t_0_181@uint64,
+          t_0_161@uint64, t_1_162@uint64, t_2_163@uint64, t_3_164@uint64) =
+{
+ true && ((const 64 (0)) = t_0_161@uint64)
+}
+mov t_0_181@uint64 (0)@uint64;
+mov t_1_182@uint64 (1)@uint64;
+mov t_2_183@uint64 (2)@uint64;
+mov t_3_184@uint64 (3)@uint64;
+{
+ true && (t_0_181@uint64 = t_0_161@uint64)
+}
+ proc f(t_3_279@uint64, t_2_278@uint64, t_1_277@uint64, t_0_276@uint64,
+       r_284@uint64) =
 {
  true && true
 }
-mov t_0_162@uint64 (0)@uint64;
-mov t_1_163@uint64 (1)@uint64;
-mov t_2_164@uint64 (2)@uint64;
-mov t_3_165@uint64 (3)@uint64;
-{
- true && true
-}
- proc f(t_3_241@uint64, t_2_240@uint64, t_1_239@uint64, t_0_238@uint64,
-       r_246@uint64) =
-{
- true && true
-}
-mov t_0_234@uint64 (0)@uint64;
-mov t_1_235@uint64 (0)@uint64;
-mov t_2_236@uint64 (0)@uint64;
-mov t_3_237@uint64 (0)@uint64;
-mov r_242@uint64 (0)@uint64;
-adds NONE_____247@uint1 r_243@uint64 r_242@uint64 t_0_238@uint64;
-adds NONE_____248@uint1 r_244@uint64 r_243@uint64 t_1_239@uint64;
-adds NONE_____249@uint1 r_245@uint64 r_244@uint64 t_2_240@uint64;
-adds NONE_____250@uint1 r_246@uint64 r_245@uint64 t_3_241@uint64;
+mov t_0_272@uint64 (0)@uint64;
+mov t_1_273@uint64 (0)@uint64;
+mov t_2_274@uint64 (0)@uint64;
+mov t_3_275@uint64 (0)@uint64;
+assert true && ((const 64 (0)) = t_0_272@uint64);
+assume true && (t_0_276@uint64 = t_0_272@uint64);
+mov r_280@uint64 (0)@uint64;
+adds NONE_____285@uint1 r_281@uint64 r_280@uint64 t_0_276@uint64;
+adds NONE_____286@uint1 r_282@uint64 r_281@uint64 t_1_277@uint64;
+adds NONE_____287@uint1 r_283@uint64 r_282@uint64 t_2_278@uint64;
+adds NONE_____288@uint1 r_284@uint64 r_283@uint64 t_3_279@uint64;
 {
  true && true
 }

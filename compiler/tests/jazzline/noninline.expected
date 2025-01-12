@@ -1,16 +1,19 @@
-proc f(x_151@uint64, x_142@uint64) =
+proc f(x_162@uint64, x_153@uint64) =
 {
  true && true
 }
-adds TMP_____162@uint1 x_151@uint64 (1)@uint64 x_142@uint64;
+adds TMP_____173@uint1 x_162@uint64 (1)@uint64 x_153@uint64;
 {
  true && true
 }
- proc g(x_190@uint64, x_191@uint64, x_184@uint64) =
+ proc g(x_217@uint64, x_219@uint64, x_203@uint64) =
 {
  true && true
 }
-
+mov x_216@uint64 x_203@uint64;
+mov x_218@uint64 x_217@uint64;
+assert true && (x_218@uint64 = (const 64 (1)));
+assume true && (x_219@uint64 = x_218@uint64);
 {
  true && true
 }

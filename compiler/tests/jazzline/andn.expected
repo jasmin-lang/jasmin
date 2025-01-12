@@ -1,9 +1,9 @@
-proc andn(h_147@uint64, b_136@uint64, c_137@uint64) =
+proc andn(h_144@uint64, b_133@uint64, c_134@uint64) =
 {
  true && true
 }
-not TMP_____158@uint64 b_136@uint64;
-and h_147@uint64 c_137@uint64 TMP_____158@uint64;
+not TMP_____155@uint64 b_133@uint64;
+and h_144@uint64 c_134@uint64 TMP_____155@uint64;
 {
  true && true
 }

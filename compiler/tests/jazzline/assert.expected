@@ -1,26 +1,30 @@
-proc mul(z_167@uint64, x_150@uint64, y_151@uint64) =
+proc mul(z_186@uint64, x_169@uint64, y_170@uint64) =
 {
  true && true
 }
-assert true && (x_150@uint64 = (const 64 (2)));
-mull TMP_____178@uint64 z_167@uint64 x_150@uint64 y_151@uint64;
-assert true && (z_167@uint64 = ((const 64 (2)) * y_151@uint64));
+assert true && (x_169@uint64 = (const 64 (2)));
+mull TMP_____197@uint64 z_186@uint64 x_169@uint64 y_170@uint64;
+assert true && (z_186@uint64 = ((const 64 (2)) * y_170@uint64));
 {
  true && true
 }
- proc mul4(y_229@uint64, y1_207@uint64) =
+ proc mul4(y_272@uint64, y_273@uint64, y1_239@uint64) =
 {
  true && true
 }
-mov x_226@uint64 (2)@uint64;
-assert true && (x_226@uint64 = (const 64 (2)));
-mull TMP_____230@uint64 y_227@uint64 x_226@uint64 y1_207@uint64;
-assert true && (y_227@uint64 = ((const 64 (2)) * y1_207@uint64));
-mov x_228@uint64 (2)@uint64;
-assert true && (x_228@uint64 = (const 64 (2)));
-mull TMP_____231@uint64 y_229@uint64 x_228@uint64 y_227@uint64;
-assert true && (y_229@uint64 = ((const 64 (2)) * y_227@uint64));
-assert true && (y_229@uint64 = ((const 64 (4)) * y1_207@uint64));
+mov x_268@uint64 (2)@uint64;
+assert true && (x_268@uint64 = (const 64 (2)));
+mull TMP_____274@uint64 y_269@uint64 x_268@uint64 y1_239@uint64;
+assert true && (y_269@uint64 = ((const 64 (2)) * y1_239@uint64));
+mov x_270@uint64 (2)@uint64;
+assert true && (x_270@uint64 = (const 64 (2)));
+mull TMP_____275@uint64 y_271@uint64 x_270@uint64 y_269@uint64;
+assert true && (y_271@uint64 = ((const 64 (2)) * y_269@uint64));
+assert /\[(y_271 = (0))] && true;
+assume /\[(y_272 = (0))] && true;
+assert /\[(y_272 = (0))] && true;
+assume /\[(y_273 = (0))] && true;
+assert true && (y_273@uint64 = ((const 64 (4)) * y1_239@uint64));
 {
  true && true
 }
