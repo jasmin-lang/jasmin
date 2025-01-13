@@ -393,6 +393,9 @@ Definition wmulhu sz (x y: word sz) : word sz :=
 Definition wmulhs sz (x y: word sz) : word sz :=
   high_bits sz (wsigned x * wsigned y).
 
+Definition wmulhsu sz (x y: word sz) : word sz :=
+  high_bits sz (wsigned x * wunsigned y).
+
 Definition wmulhrs sz (x y: word sz) : word sz :=
   let: p := Z.shiftr (wsigned x * wsigned y) (Z.of_nat (wsize_size_minus_1 sz).-1) + 1 in
   wrepr sz (Z.shiftr p 1).

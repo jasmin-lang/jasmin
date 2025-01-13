@@ -23,7 +23,7 @@ Require Export arch_params.
 
 Record h_lowering_params
   {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
-  `{asm_e : asm_extra} 
+  `{asm_e : asm_extra}
   (lowering_options : Type)
   (loparams : lowering_params lowering_options) :=
   {
@@ -51,6 +51,40 @@ Record h_lowering_params
                p
            in
            sem_call lprog ev scs mem f va scs' mem' vr;
+  }.
+
+(* Lowering of complex addressing mode for RISC-V.
+   It is the identity for the other architectures. *)
+Record h_lower_addressing_params
+  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
+  `{asm_e : asm_extra}
+  (laparams : lower_addressing_params) :=
+  {
+    hlap_lower_address_prog_invariants :
+      forall fresh_reg p p',
+      lap_lower_address laparams fresh_reg p = ok p' ->
+      p.(p_globs) = p'.(p_globs) /\ p.(p_extra) = p'.(p_extra);
+
+    hlap_lower_address_fd_invariants :
+      forall fresh_reg p p',
+      lap_lower_address laparams fresh_reg p = ok p' ->
+      forall fn fd,
+      get_fundef p.(p_funcs) fn = Some fd ->
+      exists2 fd',
+        get_fundef p'.(p_funcs) fn = Some fd' &
+        [/\ fd.(f_info) = fd'.(f_info),
+            fd.(f_tyin) = fd'.(f_tyin),
+            fd.(f_params) = fd'.(f_params),
+            fd.(f_tyout) = fd'.(f_tyout),
+            fd.(f_res) = fd'.(f_res) &
+            fd.(f_extra) = fd'.(f_extra)];
+
+    hlap_lower_addressP :
+      forall fresh_reg (p p':_sprog),
+      lap_lower_address laparams fresh_reg p = ok p' ->
+      forall ev scs mem f vs scs' mem' vr,
+      sem_call (pT:=progStack) p ev scs mem f vs scs' mem' vr ->
+      sem_call (pT:=progStack) p' ev scs mem f vs scs' mem' vr
   }.
 
 Record h_architecture_params
@@ -81,6 +115,9 @@ Record h_architecture_params
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);
 
+    (* Lowering of complex addressing mode for RISC-V. Defined above. *)
+    hap_hlap : h_lower_addressing_params (ap_lap aparams);
+
     (* Assembly generation hypotheses. See [asm_gen_proof.v]. *)
     hap_hagp : h_asm_gen_params (ap_agp aparams);
 
@@ -100,3 +137,4 @@ Record h_architecture_params
         -> exec_sopn (Oasm op) [:: vx ] = ok v
         -> List.Forall2 value_uincl v [:: vx ];
   }.
+

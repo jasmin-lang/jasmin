@@ -260,9 +260,8 @@ Qed.
 
 Lemma arm_lload_correct : lload_correct_aux (lip_check_ws arm_liparams) arm_lload.
 Proof.
-  move=> xd xs ofs s vm top hgets.
-  case heq: vtype => [|||ws] //; t_xrbindP.
-  move=> _ <- /eqP ? w hread hset; subst ws.
+  move=> xd xs ofs ws top s w vm heq hcheck hgets hread hset.
+  move/eqP: hcheck => ?; subst ws.
   rewrite /arm_lload /= hgets /= truncate_word_u /= hread /=.
   by rewrite /exec_sopn /= truncate_word_u /= zero_extend_u hset.
 Qed.
@@ -290,6 +289,7 @@ Definition arm_hliparams :
     spec_lip_set_up_sp_register   := arm_spec_lip_set_up_sp_register;
     spec_lip_lmove                := arm_lmove_correct;
     spec_lip_lstore               := arm_lstore_correct;
+    spec_lip_lload                := arm_lload_correct;
     spec_lip_lstores              := arm_lstores_correct;
     spec_lip_lloads               := arm_lloads_correct;
     spec_lip_tmp                  := arm_tmp_correct;
@@ -337,6 +337,19 @@ Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
   {|
     hlop_lower_callP := arm_lower_callP;
   |}.
+
+(* ------------------------------------------------------------------------ *)
+(* Lowering of complex addressing mode for RISC-V.
+   It is the identity on arm, so the proof is trivial. *)
+
+Lemma arm_hlaparams : h_lower_addressing_params (ap_lap arm_params).
+Proof.
+  split=> /=.
+  + by move=> _ ? _ [<-].
+  + move=> _ ? _ [<-] _ fd ->.
+    by exists fd.
+  by move=> _ ? _ [<-].
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
@@ -930,6 +943,7 @@ Definition arm_h_params : h_architecture_params arm_params :=
     ok_lip_tmp      := arm_ok_lip_tmp;
     ok_lip_tmp2     := arm_ok_lip_tmp2;
     hap_hlop        := arm_hloparams;
+    hap_hlap        := arm_hlaparams;
     hap_hagp        := arm_hagparams;
     hap_hshp        := arm_hshp;
     hap_hszp        := arm_hszparams;

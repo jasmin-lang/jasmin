@@ -25,6 +25,7 @@ Require Import
   inline
   linearization
   lowering
+  load_constants_in_cond
   makeReferenceArguments
   post_unrolling_check
   propagate_inline
@@ -92,9 +93,11 @@ Variant compiler_step :=
   | MakeRefArguments            : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
+  | LoadConstantsInCond         : compiler_step
   | LowerInstruction            : compiler_step
   | PropagateInline             : compiler_step
   | SLHLowering                 : compiler_step
+  | LowerAddressing             : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
@@ -124,9 +127,11 @@ Definition compiler_step_list := [::
   ; MakeRefArguments
   ; RegArrayExpansion
   ; RemoveGlobal
+  ; LoadConstantsInCond
   ; LowerInstruction
   ; PropagateInline
   ; SLHLowering
+  ; LowerAddressing
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
@@ -286,9 +291,12 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
+  Let pp := load_constants_prog (fresh_var_ident cparams (Reg (Normal, Direct))) aparams.(ap_plp) pg in
+  let pp := cparams.(print_uprog) LoadConstantsInCond pp in
+
   Let _ :=
     assert
-      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pg))
+      (lop_fvars_correct loparams (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) (p_funcs pp))
       (pp_internal_error_s "lowering" "lowering check fails")
   in
 
@@ -298,7 +306,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
       (lowering_opt cparams)
       (warning cparams)
       (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0)
-      pg
+      pp
   in
   let p := cparams.(print_uprog) LowerInstruction p in
 
@@ -384,7 +392,6 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part entries p in
   (* stack + register allocation *)
-
   let ao := cparams.(stackalloc) pl in
   Let _ := check_wf_ptr entries p ao.(ao_stack_alloc) in
   Let ps :=
@@ -401,6 +408,9 @@ Definition compiler_front_end (entries: seq funname) (p: prog) : cexec sprog :=
       pl
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
+
+  Let ps := (ap_lap aparams).(lap_lower_address) (fresh_var_ident cparams (Reg (Normal, Direct)) dummy_instr_info 0) ps in
+  let ps := cparams.(print_sprog) LowerAddressing ps in
 
   let returned_params fn :=
     if fn \in entries then Some (ao_stack_alloc ao fn).(sao_return) else None

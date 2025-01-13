@@ -3,6 +3,15 @@
 
 ## New features
 
+- Support RISC-V 32IM as target architecture. This comes with two new passes
+  dedicated for RISC-V. The “lower complex addressing mode” pass introduces
+  two auxiliary instructions for complex memory accesses not compilable as is
+  on RISC-V. The “load constants in conditions” pass introduces auxiliary
+  registers for non-zero constants appearing in conditions.
+  ([PR #781](https://github.com/jasmin-lang/jasmin/pull/781);
+  fixes [#503](https://github.com/jasmin-lang/jasmin/issues/503),
+  [#698](https://github.com/jasmin-lang/jasmin/issues/698)).
+
 - ARM now emits two instructions instead of `ADR` to load the low and high
   parts of global addresses
   ([PR#921](https://github.com/jasmin-lang/jasmin/pull/921)).

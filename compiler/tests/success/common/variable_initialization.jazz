@@ -1,9 +1,9 @@
 /*
 Test for intialising variable during declaration
-The used semantic is the following : 
-reg u32 x=3; 
+The used semantic is the following :
+reg u32 x=3;
 
-is traduced to 
+is traduced to
 reg u32 x;
 x=3;
 */
@@ -12,7 +12,7 @@ fn test_basic() -> reg u32 {
     reg u32 x=3;
     reg u32 y=x;
     return y;
-} 
+}
 
 fn test_multiples () -> reg u32,reg u32 {
     reg u32 x=1,y=2;

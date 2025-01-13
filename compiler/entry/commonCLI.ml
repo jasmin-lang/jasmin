@@ -11,10 +11,17 @@ let get_arch_module arch call_conv : (module Arch_full.Arch) =
                       : Arch_full.Core_arch)
                   | Utils.ARM_M4 ->
                       (module CoreArchFactory.Core_arch_ARM
+                      : Arch_full.Core_arch)
+                  | Utils.RISCV ->
+                      (module CoreArchFactory.Core_arch_RISCV
                       : Arch_full.Core_arch))))
 
 let arch =
-  let alts = [ ("x86-64", Utils.X86_64); ("arm-m4", Utils.ARM_M4) ] in
+  let alts =
+    [
+      ("x86-64", Utils.X86_64); ("arm-m4", Utils.ARM_M4); ("riscv", Utils.RISCV);
+    ]
+  in
   let doc =
     Format.asprintf "The target architecture (%s)" (Arg.doc_alts_enum alts)
   in

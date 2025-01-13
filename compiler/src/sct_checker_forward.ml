@@ -751,7 +751,9 @@ let expr_equal a b =
     let open Glob_options in
     match !target_arch with
     | X86_64 -> X86_decl.x86_fcp
-    | ARM_M4 -> Arm_decl.arm_fcp in
+    | ARM_M4 -> Arm_decl.arm_fcp 
+    | RISCV  -> Riscv_decl.riscv_fcp
+  in 
   let normalize e =
     e |> Conv.cexpr_of_expr |> Constant_prop.(const_prop_e fcp None empty_cpm) in
   Expr.eq_expr (normalize a) (normalize b)

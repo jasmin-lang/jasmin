@@ -74,6 +74,10 @@ Separate Extraction
   arm_instr_decl
   arm_extra
   arm_params
+  riscv_decl
+  riscv_instr_decl
+  riscv_extra
+  riscv_params
   compiler.
 
 Cd  "../..".
