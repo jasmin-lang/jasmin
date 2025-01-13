@@ -68,10 +68,6 @@ let hash_to_string (to_string : 'a -> string) =
 
 let pp_register = hash_to_string arch.toS_r.to_string
 
-let pp_register_ext = hash_to_string arch.toS_rx.to_string
-
-let pp_xregister = hash_to_string arch.toS_x.to_string
-
 let pp_condt = hash_to_string string_of_condt
 
 let pp_imm imm = Printf.sprintf "%s%s" imm_pre (Z.to_string imm)
@@ -98,14 +94,14 @@ let pp_address addr =
   | Areg ra -> pp_reg_address ra
   | Arip r -> pp_rip_address r
 
-let pp_asm_arg arg =
+let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg) =
   match arg with
   | Condt _ -> None
   | Imm (ws, w) -> Some (pp_imm (Conv.z_unsigned_of_word ws w))
   | Reg r -> Some (pp_register r)
-  | Regx r -> Some (pp_register_ext r)
+  | Regx _ -> .
   | Addr addr -> Some (pp_address addr)
-  | XReg r -> Some (pp_xregister r)
+  | XReg _ -> .
 
 (* -------------------------------------------------------------------- *)
 
@@ -160,7 +156,7 @@ module ArgChecker : sig
      Raise an error if the arguments are invalid. *)
   val check_args :
     arm_op ->
-    (Wsize.wsize * (register, Arm_decl.__, Arm_decl.__, rflag, condt) asm_arg)
+    (Wsize.wsize * (register, Arch_utils.empty, Arch_utils.empty, rflag, condt) asm_arg)
     list ->
     string
 end = struct

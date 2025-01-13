@@ -3,8 +3,8 @@ From Coq
 Require Import Setoid Morphisms Lia.
 
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype ssralg.
-Require Import ZArith Utf8.
-        Import Relations.
+From Coq Require Import ZArith Utf8.
+Import Relations.
 
 Require sem_one_varmap_facts label.
 Import word_ssrZ.
@@ -167,7 +167,7 @@ Section CAT.
     + by apply Hc.
     case: c' Hc' => [ _ | i c' ].
     + by rewrite Hc (Hc _ _ [:: _]) align_bind; case: linear_c => lbl1 lc1; rewrite /= cats1 cat_rcons.
-    move: (i :: c') => { i c' } c' Hc'.
+    move: (i :: c') => { i }c' Hc'.
     rewrite Hc (Hc _ _ [:: _]); case: linear_c => lbl1 lc1.
     rewrite Hc' (Hc' _ _ (_ :: _)); case: linear_c => lbl2 lc2.
     rewrite /=. f_equal. f_equal.
@@ -864,7 +864,7 @@ Section VALIDITY.
   Lemma valid_labels_while (a : expr.align) (c : cmd) (e : pexpr) (ei : instr_info) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e ei c').
   Proof.
     move => hc hc' ii fn lbl /=.
-    case: is_boolP => [ [] | {e} e ].
+    case: is_boolP => [ [] | {}e ].
     - rewrite linear_c_nil.
       case: linear_c (hc' fn (next_lbl lbl)); rewrite /next_lbl => lblc' lc' [Lc' Vc'].
       rewrite linear_c_nil.
@@ -1020,7 +1020,7 @@ Section NUMBER_OF_LABELS.
   Lemma nb_labels_while (a : expr.align) (c : cmd) (e : pexpr) (ei: instr_info) (c' : cmd) : Pc c → Pc c' → Pr (Cwhile a c e ei c').
   Proof.
     move => hc hc' ii fn lbl /=.
-    case: is_boolP => [ [] | {e} e ].
+    case: is_boolP => [ [] | {}e ].
     - rewrite linear_c_nil.
       case: linear_c (hc' fn (next_lbl lbl)); rewrite /next_lbl => lblc' lc' Lc'.
       rewrite linear_c_nil.
@@ -2205,7 +2205,7 @@ Section PROOF.
     rewrite /fill_mem; t_xrbindP => -[z m1''] /= hf ? -[z' m2''] /= hf' ?; subst m1'' m2''.
     elim: bytes 0%Z m1 m2 hf hf' => [ | b bytes ih] z1 m1 m2 /=.
     + by move=> _ [_ <-].
-    t_xrbindP=> _ m1'' hw1 <- /ih{ih}ih _ m2'' hw2 <- /ih{ih}ih pr hnv.
+    t_xrbindP=> _ m1'' hw1 <- /ih{}ih _ m2'' hw2 <- /ih{}ih pr hnv.
     rewrite (write_mem_unchanged hw1 hw2 hnv).
     apply ih.
     by rewrite (write_validw_eq hw1).
@@ -2245,7 +2245,7 @@ Section PROOF.
     move=> ls m1 vm1 P Q M1 X1 D1 C1 hpc hfn sp hsp1 S1 MAX1.
     have [ves' hes' uves] := get_vars_uincl X1 hes.
     have [vs' /= ho' uvs]:= exec_syscallP ho uves.
-    have [m' {ho'}ho' mm]:= match_mem_gen_exec_syscall M1 ho'.
+    have [m' {}ho' mm]:= match_mem_gen_exec_syscall M1 ho'.
     have /(_ _ (vm_after_syscall_uincl X1)) := writes_uincl _ uvs hw.
     move=> [] vm2 /= /(match_mem_gen_write_lvals mm) [ m2 /= ok_s2' M2 ] ok_vm2 .
     exists m2 vm2 => //.

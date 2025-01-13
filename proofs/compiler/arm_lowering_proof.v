@@ -789,8 +789,8 @@ Proof.
       all: move: hop => [?]; subst w2.
       all: move: hw => /Vword_inj [?]; subst ws'.
       all: move=> /= ?; subst w.
-      all: have {hws0} hws0 := cmp_le_trans hws hws0.
-      all: have {hws1} hws1 := cmp_le_trans hws hws1.
+      all: have {}hws0 := cmp_le_trans hws hws0.
+      all: have {}hws1 := cmp_le_trans hws hws1.
 
       2:{
         have [ws2 [wbase [wsham [hws2 hbase hsham hw1 [hfvbase hfvsham]]]]] :=
@@ -1882,7 +1882,7 @@ Proof.
   move=> s0 s1 s2 s3 i v vs c hwrite hsem hc hsemf hfor.
   move=> hfv s0' hs00.
 
-  have {hwrite} hwrite : write_lval true (p_globs p) i v s0 = ok s1.
+  have {}hwrite : write_lval true (p_globs p) i v s0 = ok s1.
   - exact: hwrite.
 
   have [hfvi hfvc] := disj_fvars_Cfor_c hfv.

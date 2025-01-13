@@ -1,8 +1,9 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype ssralg.
 From mathcomp Require Import word_ssrZ.
+From Coq Require Import ZArith.
 Require Import xseq.
-Require Import compiler_util ZArith expr psem remove_globals low_memory.
+Require Import compiler_util expr psem remove_globals low_memory.
 Import Utf8.
 
 Definition gd_incl (gd1 gd2: glob_decls) :=
@@ -393,7 +394,7 @@ Module RGP. Section PROOFS.
         by rewrite hmem => -> <-.
       - by move=> ?? hrec ??; t_xrbindP => ? /hrec h <- /= ? /h -> /=.
       - by move=> ?? hrec1 ? hrec2 ??; t_xrbindP=> ? /hrec1 h1 ? /hrec2 h2 <- ? /= /h1 -> ? /h2 ->.
-      - move => ?? ih ??; t_xrbindP => ? /ih{ih} ih <- ? /ih /=.
+      - move => ?? ih ??; t_xrbindP => ? /ih{}ih <- ? /ih /=.
         by rewrite -/(sem_pexprs _ _ _) => ->.
       move=> ? ? hrec1 ? hrec2 ? hrec3 ??.
       by t_xrbindP => ? /hrec1 h1 ? /hrec2 h2 ? /hrec3 h3 <- ?? /= /h1 -> /= -> ?? /h2 -> /= -> ?? /h3 -> /= -> <-.
@@ -496,7 +497,7 @@ Module RGP. Section PROOFS.
   Local Lemma Hcons : sem_Ind_cons P ev Pc Pi.
   Proof.
     move=> s1 s2 s3 i c _ hi _ hc m m' c' /=.
-    t_xrbindP => -[mi ci] /hi{hi}hi [mc cc] /hc{hc}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
+    t_xrbindP => -[mi ci] /hi{}hi [mc cc] /hc{}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
     exists s3';split => //=; apply: sem_app si sc.
   Qed.
 
@@ -660,7 +661,7 @@ Module RGP. Section PROOFS.
     have : remove_glob_i gd m3 (MkI ii (Cwhile a c e ei c')) =
              ok (m', [::MkI ii (Cwhile a c1' e' ei c2')]).
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
-    move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
+    move=> /hw{}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 /semE hw']]; exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
     by case: hw' => s [] /sem_IE hw' /semE ->.

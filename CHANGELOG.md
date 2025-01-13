@@ -63,6 +63,11 @@
   ([PR #976](https://github.com/jasmin-lang/jasmin/pull/976) and
   [PR #986](https://github.com/jasmin-lang/jasmin/pull/986)).
 
+- The (speculative) constant-time checkers now ignores `#strict` and `#flex`
+  annotations: all variables are considered “flexible”, i.e., have a
+  flow-sensitive type
+  ([PR #990](https://github.com/jasmin-lang/jasmin/pull/990)).
+
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features

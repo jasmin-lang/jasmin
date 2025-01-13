@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
-Require Import utils Wellfounded.
+From Coq Require Import Wellfounded.
+Require Import utils.
 Import Lexicographic_Product Relation_Operators.
 
 Import Utf8 ZArith Lia.
@@ -255,10 +256,10 @@ Proof.
     by move=> h3; apply h2 => i /[dup] /h3; rewrite !zify => -[]; [ lia| case].
   constructor => h3.
   move /I.subsetP : hs; rewrite /I.subset; case: ZleP => /= ?.
-  + move=> /ZleP ?; have {hi}hi:= hi (imax n'). 
+  + move=> /ZleP ?; have {}hi := hi (imax n'). 
     have := (h3 (imax n')); rewrite !zify => -[]; [lia|lia|].
     by move=> [] ? /hi; lia.
-  by have {hi}hi := hi (imin n); have := (h3 (imin n)); rewrite !zify; lia.
+  by have {}hi := hi (imin n); have := (h3 (imin n)); rewrite !zify; lia.
 Qed.
 
 (* ----------------------------------------- *)
@@ -503,7 +504,7 @@ elim : (_subset_eq h) (_wf t1) (_wf t2) => {t1 t2 h}.
 move=> n1 t1' n2 t2' /I.subsetP hh hh' wf1 wf2;constructor.
 move: wf1; rewrite /= wf_auxE => /and3P [] h1 /ZltP h2 wf1.
 move: wf2; rewrite /= wf_auxE => /and3P [] h1' /ZltP h2' wf2 hh1.
-have {hh'}hh': imin n1 <= imax n2 by lia.
+have {}hh': imin n1 <= imax n2 by lia.
 have {hh}[hh | hh]: imin n1 < imin n2 \/ imax n2 < imax n1 by lia.
 + have := hh1 (imin n1); rewrite I.memi_imin //= !zify => /(_ erefl); lia.
 have := hh1 (imax n2); rewrite !zify; lia.
@@ -580,9 +581,9 @@ elim : (_disjoint_eq h) (_wf t1) (_wf t2) => {t1 t2 h}.
   move: (wf1); rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1'.
   move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2.
   apply: (equivP (ih wf1 wf2)) => /=; split => hh i; have := hh i; rewrite !zify.
-  + move=> h /[dup] /h{h}h.
+  + move=> h /[dup] /h{}h.
     by move=> ? [|[_ ?] //]; lia.
-  move=> h /[dup] /h{h}h _ hmem2; apply h; right; split=> //.
+  move=> h /[dup] /h{}h _ hmem2; apply h; right; split=> //.
   by have /(_ (imax n2 + 1) i hmem2) := _memi_least wf2; lia.
 move=> n1 t1' n2 t2' hlt1 hlt2 wf1 wf2;constructor.
 move: wf1; rewrite /= wf_auxE => /and3P [] h1 /ZltP h2 wf1.

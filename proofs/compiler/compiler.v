@@ -1,8 +1,8 @@
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 From mathcomp Require Import ssralg.
-Require Import ZArith Uint63.
-Require Import Utf8.
+From Coq Require Import ZArith Uint63.
+From Coq Require Import Utf8.
 
 Require Import
   arch_params
@@ -269,6 +269,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
   Let: tt := check_no_for_loop p in
+  Let: tt := check_no_inline_instr p in
   let p := cparams.(print_uprog) Unrolling p in
 
   Let p := dead_calls_err_seq to_keep p in

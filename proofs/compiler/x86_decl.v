@@ -2,16 +2,15 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool eqtype choice fintype.
 From mathcomp Require Import word_ssrZ.
 Require oseq.
-Require Import ZArith
-utils
-strings wsize
-memory_model
-(* word *)
-global
-oseq
-Utf8
-Relation_Operators
-sem_type.
+From Coq Require Import ZArith Utf8 Relation_Operators.
+Require Import
+  utils
+  strings wsize
+  memory_model
+  (* word *)
+  global
+  oseq
+  sem_type.
 Require Import flag_combination.
 Require Import
   arch_decl

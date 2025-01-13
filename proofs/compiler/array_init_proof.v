@@ -427,7 +427,7 @@ Section ADD_INIT.
   Local Lemma RAwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 s3 s4 a c e ei c' hsc [] Hc _ he hsc' [] Hc' _ hsi Hi ii.
-    have [{Hi}Hi _]:= Hi ii.
+    have [{}Hi _]:= Hi ii.
     apply aux.
     + by constructor;apply: Ewhile_true;eauto.
     move=> vm1 /Hc [vm2] /[dup] heq /Hc' [vm3] /Hi [vm4] ? /sem_IE h *; exists vm4 => //.

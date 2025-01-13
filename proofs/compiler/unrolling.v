@@ -1,7 +1,8 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import ssreflect ssrfun ssrbool.
-Require Import ZArith expr compiler_util.
+From Coq Require Import ZArith.
+Require Import expr compiler_util.
 
 Local Open Scope seq_scope.
 

@@ -233,7 +233,7 @@ Local Lemma Hproc : sem_Ind_proc (dc:=indirect_c) p ev Pc Pfun.
 Proof.
   move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' hget htra hinit hw _ hc hgetr htrr -> -> vargs1 hu.
   have htra1 := mapM2_dc_truncate_weak hu htra.
-  have {hu} hu:= Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
+  have {}hu := Forall2_trans value_uincl_trans (mapM2_dc_truncate_value_uincl htra) hu.
   assert (h := write_vars_uincl (vm_uincl_refl (evm s0)) hu hw).
   case: h=> vm1; rewrite with_vm_same => /(write_vars_weak false) hw1 /hc [vm2 hle2 hc2].
   have [vres2 hgetr2 hu2] := get_var_is_uincl hle2 hgetr.

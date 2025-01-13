@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-Require Import FMaps FMapAVL FSetAVL.
+From Coq Require Import FMaps FMapAVL FSetAVL.
 From mathcomp Require Import ssreflect ssrfun ssrbool seq eqtype.
 Require Import utils.
 
@@ -86,7 +86,7 @@ Module Type CompuEqDec.
 End CompuEqDec.
 
 Reserved Notation "x .[ k <- v ]"
-     (at level 2, k at level 200, v at level 200, format "x .[ k  <-  v ]").
+  (at level 2, v at level 200, left associativity, format "x .[ k  <-  v ]").
 
 Module Type MAP.
 
@@ -665,7 +665,7 @@ Module DMmake (K:CmpType) (E:CompuEqDec with Definition t := K.t).
     (map f m).[x] = omap (f x) m.[x].
   Proof.
     rewrite /map /get Map.mapP;case: Map.get => // -[z pz] /=.
-    case E.eq_dec=> e //=; move:(e);rewrite -e=> {e} e.
+    case E.eq_dec=> e //=; move:(e);rewrite -e=> {}e.
     by rewrite eq_axiomK.
   Qed.
 
@@ -684,7 +684,7 @@ End DMmake.
  ** Map of positive
  * -------------------------------------------------------------------------- *)
 
-Require Import ZArith.
+From Coq Require Import ZArith.
 
 Module CmpPos.
 
@@ -720,7 +720,7 @@ Module Mz := Mmake CmpZ.
  ** Finite Set
  * -------------------------------------------------------------------------- *)
 
-Require Import MSets.
+From Coq Require Import MSets.
 
 Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
 #[global]

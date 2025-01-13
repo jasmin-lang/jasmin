@@ -4,7 +4,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype order.
 From mathcomp Require Import ssralg ssrnum word_ssrZ.
-Require Import ZArith psem compiler_util lea_proof x86_instr_decl x86_extra.
+From Coq Require Import ZArith.
+Require Import psem compiler_util lea_proof x86_instr_decl x86_extra.
 Require Import
   lowering
   lowering_lemmas.

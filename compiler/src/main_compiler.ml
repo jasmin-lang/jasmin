@@ -168,7 +168,6 @@ let main () =
         |> fun () -> exit 0
       else
       (
-        if s == Unrolling then CheckAnnot.check_no_inline_instr p;
         eprint s (Printer.pp_prog ~debug Arch.reg_size Arch.asmOp) p
       ) in
 

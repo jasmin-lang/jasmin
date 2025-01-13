@@ -27,10 +27,6 @@ let spublic = "public"
 let stransient = "transient"
 let smsf = "msf"
 
-let sflexible = "flex"
-let sstrict   = "strict"
-
-
 (* ----------------------------------------------------------- *)
 (* Info provided by the user                                   *)
 type ulevel =
@@ -371,8 +367,6 @@ and infer_msf_c ~withcheck fenv tbl c ms =
 (* --------------------------------------------------------- *)
 (* Typing environment                                        *)
 
-type var_kind = Strict | Flexible
-
 module Env : sig
   type env  (* constraints holder *)
   type venv (* type variables association *)
@@ -381,7 +375,7 @@ module Env : sig
 
   val empty : env -> venv
   val constraints : env -> C.constraints
-  val add_var : env -> venv -> var -> var_kind -> vty -> venv
+  val add_var : env -> venv -> var -> vty -> venv
   val public    : env -> Lvl.t
   val secret    : env -> Lvl.t
 
@@ -427,7 +421,6 @@ end = struct
 
   type env = {
       constraints : C.constraints;
-      strictness  : unit Hv.t;
       spilled     : var option Hv.t;  (* None means that the variable is spill to mmx and not in the stack *)
       msf_oracle  : (L.i_loc, Sv.t) Hashtbl.t;
     }
@@ -443,7 +436,6 @@ end = struct
 
   let init () =
     { constraints = C.init ();
-      strictness  = Hv.create 97;
       spilled     = Hv.create 97;
       msf_oracle  = Hashtbl.create 97; }
 
@@ -480,9 +472,6 @@ end = struct
   let get_i venv x = get venv (L.unloc x)
   let gget venv x = get_i venv x.gv
 
-  let kind env x = if Hv.mem env.strictness (L.unloc x)
-    then Strict else Flexible
-
   let add_le_var ty1 ty2 =
     match ty1, ty2 with
     | Direct ty1, Direct ty2 -> VlPairs.add_le ty1 ty2
@@ -510,9 +499,8 @@ end = struct
         vars = Sv.add x venv.vars
     }
 
-  let add_var env venv x vk vty =
-    assert (not (Hv.mem env.strictness x || Mv.mem x venv.vtype));
-    if vk = Strict then Hv.add env.strictness x ();
+  let add_var env venv x vty =
+    assert (not (Mv.mem x venv.vtype));
     try init_ty env venv x vty
     with Lvl.Unsat _unsat ->
       error ~loc:(x.v_dloc)
@@ -520,17 +508,7 @@ end = struct
            pp_var x
 
   let set_ty env venv x nxty =
-    let xty = get_i venv x in
-    try
-      if kind env x = Flexible then
-        init_ty env venv (L.unloc x) nxty
-      else begin
-        add_le_var xty nxty; venv
-      end
-    with Lvl.Unsat _unsat ->
-      error ~loc:(L.loc x)
-        "%a has strict type %a, it cannot receive a value of type %a"
-           pp_var_i x pp_vty xty pp_vty nxty
+    init_ty env venv (L.unloc x) nxty
 
   (* Initialises type for InitMsf operations. Acts as a Fence operator *)
   let set_init_msf env venv ms =
@@ -1180,19 +1158,8 @@ and ty_cmd is_ct_asm fenv env msf_e c =
         #poly=l1 #poly=l2 u64[1]
 *)
 
-let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: annotations) : ulevel list * var_kind =
+let parse_var_annot ~(msf:bool) (annot: annotations) : ulevel list =
   let module A = Annot in
-  let kind =
-    let check_allowed (id, _) =
-      if not kind_allowed then
-        A.error ~loc:(L.loc id)
-          "%s not allowed here" (L.unloc id)
-    in
-      let filters =
-      [ sflexible, (fun a -> check_allowed a; A.none a; Flexible);
-        sstrict,   (fun a -> check_allowed a; A.none a; Strict)] in
-    A.ensure_uniq filters annot in
-
   let filters =
     [spublic, (fun a -> A.none a; Public);
      ssecret, (fun a -> A.none a; Secret);
@@ -1204,7 +1171,7 @@ let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: annotations) : ulev
 
   let lvls = A.process_annot filters annot in
 
-  List.map snd lvls, Option.default Flexible kind
+  List.map snd lvls
 
 exception Error_after of string * string
 
@@ -1373,7 +1340,7 @@ let init_constraint fenv f =
   let process_return i x annot =
     let loc = L.loc x and x = L.unloc x in
     let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
-    let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
+    let ls = parse_var_annot ~msf:(not export) annot in
     mk_vty ~is_local:false loc ~msf:(not export) x ls an in
 
   (* process function outputs *)
@@ -1403,7 +1370,7 @@ let init_constraint fenv f =
   (* process function inputs *)
   let process_param i venv x =
     let an = Option.bind sig_annot (SecurityAnnotations.get_nth_argument i) in
-    let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
+    let ls = parse_var_annot ~msf:(not export) x.v_annot in
     let msf, vty = mk_vty ~is_local:false x.v_dloc ~msf:(not export) x ls an in
     let msf =
       match msf with
@@ -1428,7 +1395,7 @@ let init_constraint fenv f =
                  pp_var x stransient
         end lvls
       end;
-    let venv = Env.add_var env venv x vk vty in
+    let venv = Env.add_var env venv x vty in
     let ty = if msf then IsMsf else IsNormal vty in
     venv, ty in
 
@@ -1448,9 +1415,9 @@ let init_constraint fenv f =
 
   (* init type for local *)
   let do_local x venv =
-    let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
+    let ls = parse_var_annot ~msf:false x.v_annot in
     let _, vty = mk_vty x.v_dloc ~is_local:true ~msf:false x ls None in
-    Env.add_var env venv x vk vty in
+    Env.add_var env venv x vty in
 
   let venv = Sv.fold do_local (locals f) venv in
 
@@ -1577,7 +1544,7 @@ let compile_infer_msf (prog:('info, 'asm) prog) =
     let sig_annot = SecurityAnnotations.get_sct_signature f.f_annot.f_user_annot in
 
     let process_return i annot =
-      let ls, _ = parse_var_annot ~kind_allowed:true ~msf:true annot in
+      let ls = parse_var_annot ~msf:true annot in
       let an = Option.bind sig_annot (SecurityAnnotations.get_nth_result i) in
       List.mem Msf ls || an = Some SecurityAnnotations.Msf
     in

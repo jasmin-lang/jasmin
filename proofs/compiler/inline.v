@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-Require Import ZArith.
+From Coq Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrbool.
 Require Import expr compiler_util allocation.
 
