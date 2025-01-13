@@ -321,7 +321,7 @@ Qed.
 Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
 Proof.
   move=> s1 s2 x d lo hi c vlo vhi cpl_lo cpl_hi cpl_for sem_s1_s2.
-  move=> ii X c' /=; t_xrbindP=> {c'} c' c'E <-.
+  move=> ii X c' /=; t_xrbindP=> {} c' c'E <-.
   rewrite !(read_Ii, write_Ii) !(read_i_for, write_i_for).
   move=> le_X vm1 eq_s1_vm1.
   case: (sem_s1_s2 X _ c'E _ _ eq_s1_vm1); first by SvD.fsetdec.

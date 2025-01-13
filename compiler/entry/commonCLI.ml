@@ -4,7 +4,7 @@ open Utils
 
 let get_arch_module arch call_conv : (module Arch_full.Arch) =
   (module Arch_full.Arch_from_Core_arch
-            (val match arch with
+            ((val match arch with
                   | Utils.X86_64 ->
                       (module (val CoreArchFactory.core_arch_x86 ~use_lea:false
                                      ~use_set0:false call_conv)
@@ -14,10 +14,14 @@ let get_arch_module arch call_conv : (module Arch_full.Arch) =
                       : Arch_full.Core_arch)
                   | Utils.RISCV ->
                       (module CoreArchFactory.Core_arch_RISCV
-                      : Arch_full.Core_arch)))
+                      : Arch_full.Core_arch))))
 
 let arch =
-  let alts = [ ("x86-64", Utils.X86_64); ("arm-m4", Utils.ARM_M4); ("riscv", Utils.RISCV) ] in
+  let alts =
+    [
+      ("x86-64", Utils.X86_64); ("arm-m4", Utils.ARM_M4); ("riscv", Utils.RISCV);
+    ]
+  in
   let doc =
     Format.asprintf "The target architecture (%s)" (Arg.doc_alts_enum alts)
   in

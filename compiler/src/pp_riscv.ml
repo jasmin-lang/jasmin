@@ -81,14 +81,10 @@ let hash_to_string (to_string : 'a -> string) =
 
 let pp_register = hash_to_string arch.toS_r.to_string
 
-let pp_register_ext = hash_to_string arch.toS_rx.to_string
-
-let pp_xregister = hash_to_string arch.toS_x.to_string
-
 let pp_condition_kind  (ck : Riscv_decl.condition_kind) =
   match ck with
-  | EQ -> "beq"          
-  | NE -> "bne"          
+  | EQ -> "beq"
+  | NE -> "bne"
   | LT Signed -> "blt"
   | LT Unsigned -> "bltu"
   | GE Signed -> "bge"
@@ -123,14 +119,14 @@ let pp_address addr =
   | Areg ra -> pp_reg_address ra
   | Arip r -> pp_rip_address r
 
-let pp_asm_arg arg =
+let pp_asm_arg (arg : (register, Arch_utils.empty, Arch_utils.empty, Arch_utils.empty, condt) asm_arg) =
   match arg with
   | Condt _ -> None
   | Imm (ws, w) -> Some (pp_imm (Conv.z_of_word ws w))
   | Reg r -> Some (pp_register r)
-  | Regx r -> Some (pp_register_ext r)
+  | Regx _ -> .
   | Addr addr -> Some (pp_address addr)
-  | XReg r -> Some (pp_xregister r)
+  | XReg _ -> .
 
 (* -------------------------------------------------------------------- *)
 
@@ -209,8 +205,8 @@ let pp_instr fn i =
 let pp_body fn =
   let open List in
   concat_map @@ fun { asmi_i = i ; asmi_ii = (ii, _) } ->
-  let i = 
-    try pp_instr fn i 
+  let i =
+    try pp_instr fn i
     with HiError err -> raise (HiError (Utils.add_iloc err ii)) in
   append
     (map (fun i -> LInstr (i, [])) (DebugInfo.source_positions ii.base_loc))
