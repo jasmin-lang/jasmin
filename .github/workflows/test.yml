@@ -69,7 +69,7 @@ jobs:
         uses: ./.github/actions/setup-nix
       - name: Setup Coq Master Dependencies
         env:
-          EXTRA_NIX_ARGUMENTS: --arg inCI true false --arg coqDeps true --arg coqMaster true
+          EXTRA_NIX_ARGUMENTS: --arg inCI true --arg coqDeps true --arg coqMaster true
         run: |
           nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
 
