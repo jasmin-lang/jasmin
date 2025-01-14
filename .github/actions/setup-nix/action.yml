@@ -8,8 +8,9 @@ runs:
       uses: cachix/install-nix-action@v30
       with:
         nix_path: nixpkgs=channel:nixpkgs-unstable
-    # - name: Setup cache
-    #   uses: DeterminateSystems/magic-nix-cache-action@v2
+        extra_nix_config: "sandbox = true"
+    - name: Setup cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
 
     - name: Verify Nix Installation
       shell: bash -l {0}
