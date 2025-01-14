@@ -71,7 +71,7 @@ jobs:
         env:
           EXTRA_NIX_ARGUMENTS: --arg inCI true false --arg coqDeps true --arg coqMaster true
         run: |
-          nix-shell --option sandbox false --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
+          nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j${{ env.NIX_BUILD_CORES }} -C proofs'
 
   ocaml:
     runs-on: ubuntu-latest
