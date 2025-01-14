@@ -8,9 +8,14 @@ runs:
       uses: cachix/install-nix-action@v30
       with:
         nix_path: nixpkgs=channel:nixpkgs-unstable
-    - name: Setup cache
-      uses: DeterminateSystems/magic-nix-cache-action@v2
+    # - name: Setup cache
+    #   uses: DeterminateSystems/magic-nix-cache-action@v2
 
     - name: Verify Nix Installation
       shell: bash -l {0}
+      env:
+        HOME: ${{ github.workspace }}
+        NIX_STORE_DIR: ${{ github.workspace }}/nix/store
+        NIX_STATE_DIR: ${{ github.workspace }}/nix/var/nix
+        NIX_LOG_DIR: ${{ github.workspace }}/nix/var/log/nix
       run: nix-shell --version
