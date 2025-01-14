@@ -25,6 +25,7 @@ fn init_mmx_msf() -> reg u64 {
     return msf;
 }
 
+#[sct="{ n: d, s: secret } × msf → d"]
 fn protect_mmx(#mmx reg u64 x, #mmx reg u64 msf) -> #mmx reg u64 {
     x = #protect(x, msf);
     return x;

@@ -61,14 +61,14 @@ output corruption: #public
  constraints:
 
 
-modmsf safe_access : #public * #poly = { n = d, s = secret} ->
-#poly = { n = d, s = secret}
+modmsf safe_access : #public * #secret ->
+#secret
 output corruption: #public
  constraints:
 
 
-modmsf safe_direct_access : #public * #poly = { n = d, s = secret} ->
-#poly = { n = d, s = secret}
+modmsf safe_direct_access : #public * #secret ->
+#secret
 output corruption: #public
  constraints:
 
@@ -212,13 +212,6 @@ output corruption: #public
  constraints:
 
 
-File local-stack-array.jazz:
-modmsf main :  ->
-#public
-output corruption: #public
- constraints:
-
-
 File mmx.jazz:
 nomodmsf spill_msf : #msf ->
 #msf
@@ -244,8 +237,8 @@ output corruption: #public
  constraints:
 
 
-nomodmsf protect_mmx : #poly = { n = ?490, s = secret} * #msf ->
-#poly = { n = ?490, s = ?490}
+nomodmsf protect_mmx : #poly = { n = d, s = secret} * #msf ->
+#poly = { n = d, s = d}
 output corruption: #public
  constraints:
 

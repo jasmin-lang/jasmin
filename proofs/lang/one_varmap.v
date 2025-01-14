@@ -41,10 +41,17 @@ Definition ra_vm (e: stk_fun_extra) (tmp: Sv.t) : Sv.t :=
   match e.(sf_return_address) with
   | RAreg ra _ =>
     Sv.singleton ra
-  | RAstack ra _ _ =>
-    if ra is Some ra then Sv.singleton ra else Sv.empty
-  | RAnone => 
-   Sv.union tmp vflags
+  | RAstack ra_call _ _ _ =>
+    sv_of_option ra_call
+  | RAnone =>
+    Sv.union tmp vflags
+  end.
+
+(* TODO: ra_vm, ra_undef, ra_undef_vm... -> pick better names *)
+Definition ra_vm_return (e : stk_fun_extra) : Sv.t :=
+  match e.(sf_return_address) with
+  | RAstack _ ra_return _ _ => sv_of_option ra_return
+  | _ => Sv.empty
   end.
 
 Definition ra_undef fd (tmp: Sv.t) :=
@@ -52,7 +59,7 @@ Definition ra_undef fd (tmp: Sv.t) :=
 
 Definition tmp_call (e: stk_fun_extra) : Sv.t :=
   match e.(sf_return_address) with
-  | RAreg _ (Some r) | RAstack _ _ (Some r) => Sv.singleton r
+  | RAreg _ (Some r) | RAstack _ _ _ (Some r) => Sv.singleton r
   | _ => Sv.empty
   end.
 

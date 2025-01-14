@@ -1,0 +1,24 @@
+
+fn foo () -> reg u32 { 
+  stack u32[N] s1 s2;
+  reg ptr u32[N] ps1 ps2;
+  reg u32 i n z x;
+  
+  z = 0; i = 0; n = N;
+  ps1 = s1; ps2 = s2;
+  while (i < n) { 
+    ps1[i] = z;
+    ps2[i] = z;
+    i += 1;
+  }
+  x = ps1[0];
+  n = ps2[0];
+  x += n;
+  return x;
+}
+
+export fn main() -> reg u32 {
+  reg u32 r; 
+  r = foo();
+  return r;
+}

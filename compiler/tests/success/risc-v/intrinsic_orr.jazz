@@ -1,0 +1,22 @@
+export
+fn orr(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+
+    // Registers.
+    x = #OR(arg0, arg1);
+    [x] = x;
+
+    // Immediates.
+    x = #ORI(arg0, 1);
+    [x] = x;
+    x = #ORI(arg0, -1);
+    x = #ORI(arg0, -1);
+    x = #ORI(x, -2048);
+    x = #ORI(x, 0);
+    x = #ORI(x, 2047);
+    [x] = x;
+
+    reg u32 res;
+    res = x;
+    return res;
+}

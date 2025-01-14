@@ -3,9 +3,15 @@ open Arch_extra
 open Prog
 
 type 'a callstyle =
-  | StackDirect           (* call instruction push the return address on top of the stack *)
-  | ByReg of 'a option    (* call instruction store the return address on a register, 
-                               (Some r) neams that the register is forced to be r *)
+  | StackDirect
+    (* call instruction push the return address on top of the stack *)
+  | ByReg of { call : 'a option; return : bool }
+    (* call instruction store the return address on a register,
+       - call: (Some r) means that the register is forced to be r
+       - return:
+         + true means that the register is also used for the return
+         + false means that there is no constraint (stack is also ok) *)
+
 (* x86    : StackDirect 
    arm v7 : ByReg (Some ra)
    riscV  : ByReg (can it be StackDirect too ?)

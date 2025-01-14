@@ -78,6 +78,7 @@ Notation mk_instr_desc_safe str tin i_in tout i_out semi valid :=
 
 Variant prim_x86_suffix :=
   | PVp of wsize
+  | PVs of signedness & wsize
   | PVv of velem & wsize
   | PVsv of signedness & velem & wsize
   | PVx of wsize & wsize
