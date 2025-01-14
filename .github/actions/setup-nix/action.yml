@@ -8,7 +8,7 @@ runs:
       uses: cachix/install-nix-action@v30
       with:
         nix_path: nixpkgs=channel:nixpkgs-unstable
-        extra_nix_config: "sandbox = true"
+        extra_nix_config: "sandbox = false"
     - name: Setup cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
 
