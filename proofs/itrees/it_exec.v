@@ -70,6 +70,7 @@ Obligation Tactic := done || idtac.
 
 (* This files contains the monad transformer associated with exec *)
 
+(*
 (***)
 (* local redefinition of utils.result, to try circumvent the universe
 problem *)
@@ -81,6 +82,11 @@ Arguments Ok E [A] s.
 
 Definition exec t := result error t.
 (***)
+*)
+
+About MonadLawsE.
+About mathcomp.ssreflect.seq.
+About result.
 
 Section ExecT.
 

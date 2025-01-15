@@ -9,7 +9,7 @@ Unset Printing Implicit Defensive.
 
 Module Type CORE_IDENT.
 
-  Parameter t  : Type.
+  Parameter t  : Set.
   Parameter tag : t -> int.
   Parameter tagI : injective tag.
 
@@ -24,7 +24,7 @@ End CORE_IDENT.
    The extraction overwrite it ... *)
 Module Cident : CORE_IDENT.
 
-  Definition t : Type := int.
+  Definition t : Set := int.
   Definition tag (x : t) : int := x.
 
   Lemma tagI : injective tag.

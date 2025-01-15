@@ -23,7 +23,7 @@ Variant box :=
   | HoVbox
   | Nobox.
 
-Inductive pp_error :=
+Inductive pp_error : Set :=
   | PPEstring  `(string)
   | PPEz       `(Z)
   | PPEvar     `(var)
@@ -47,12 +47,12 @@ Inductive pp_error :=
 (* TODO: it was simpler to put pel_fn and pel_fi as separate fields; in the future,
    do we want to merge them?
 *)
-Record pp_error_loc := {
-  pel_msg      : pp_error;
-  pel_fn       : option funname;
-  pel_fi       : option fun_info;
-  pel_ii       : option instr_info;
-  pel_vi       : option var_info;
+Record pp_error_loc : Set := {
+  pel_msg      : pp_error;  
+  pel_fn       : option funname; 
+  pel_fi       : option fun_info; 
+  pel_ii       : option instr_info; 
+  pel_vi       : option var_info; 
   pel_pass     : option string;
   pel_internal : bool
 }.

@@ -11,10 +11,9 @@ Unset Printing Implicit Defensive.
 
 (* ------------------------------------------------------------------------- *)
 
-
 Module FunName : TaggedCore.
   Import PrimInt63.
-  Definition t : Type := int.
+  Definition t : Set := int.
   Definition tag (x : t) : int := x.
 
   Lemma tagI : injective tag.
@@ -32,7 +31,7 @@ Module Sf  := TFunName.St.
 Module SfP := TFunName.StP.
 Module SfD := TFunName.StD.
 
-Definition funname := FunName.t.
+Definition funname : Set := FunName.t.
 
 Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
   xseq.assoc p f.
@@ -46,7 +45,7 @@ Module MvMake (I:IDENT).
 #[global]
   Existing Instance K.cmpO.
 
-  Record var := Var { vtype : stype; vname : ident }.
+  Record var : Set := Var { vtype : stype; vname : ident }.
 
   Definition var_beq (v1 v2:var) :=
     let (t1,n1) := v1 in

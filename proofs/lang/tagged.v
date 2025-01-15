@@ -8,7 +8,7 @@ Unset Printing Implicit Defensive.
 
 Module Type TaggedCore.
 
-  Parameter t : Type.
+  Parameter t : Set.
   Parameter tag : t -> int.
 
   Parameter tagI : injective tag.

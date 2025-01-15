@@ -282,7 +282,7 @@ Definition set_up_sp_register
 
 (* -------------------------------------------------------------------------- *)
 Section CHECK_SOME.
-  Context (E: Type) (error: string → E) (A B: Type) (conv: A → option B).
+  Context (E: Set) (error: string → E) (A B: Type) (conv: A → option B).
 
   Definition check_Some msg (a: A) : result E unit :=
     assert (isSome (conv a)) (error msg).

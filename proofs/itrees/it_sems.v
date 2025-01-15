@@ -1,3 +1,10 @@
+
+From Jasmin Require Import expr oseq.
+From Jasmin Require Import it_gen_lib it_exec.
+From Jasmin Require Import it_jasmin_lib.
+(* problematic *)
+From Jasmin Require Import it_exec.
+
 From Coq Require Import
      Arith.PeanoNat
      Lists.List
@@ -60,7 +67,9 @@ From ITree Require Import Rutt RuttFacts.
 From ITree Require Import EqAxiom.
 
 From Jasmin Require Import expr psem_defs psem oseq.
-From Jasmin Require Import it_gen_lib it_jasmin_lib it_exec.
+From Jasmin Require Import it_gen_lib it_jasmin_lib.
+(* problematic *)
+From Jasmin Require Import it_exec.
 
 Import Monads.
 Import MonadNotation.

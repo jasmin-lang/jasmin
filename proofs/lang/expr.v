@@ -186,16 +186,16 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
 (* Used only by the ocaml compiler *)
 (** A “tag” is a non-empty type, extracted to plain OCaml [int] *)
 Module Type TAG.
-  Parameter t : Type.
+  Parameter t : Set.
   Parameter witness : t.
 End TAG.
 
 Module VarInfo : TAG.
-  Definition t := positive.
+  Definition t : Set := positive.
   Definition witness : t := 1%positive.
 End VarInfo.
 
-Definition var_info := VarInfo.t.
+Definition var_info : Set := VarInfo.t.
 Definition dummy_var_info : var_info := VarInfo.witness.
 
 Record var_i := VarI {

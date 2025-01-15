@@ -447,7 +447,7 @@ Section CHECK.
 *)
 Variable (check : bool).
 
-Definition assert_check E b (e:E) :=
+Definition assert_check (E: Set) b (e:E) :=
   if check then assert b e
   else ok tt.
 

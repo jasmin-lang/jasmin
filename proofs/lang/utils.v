@@ -131,20 +131,20 @@ Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
-Variant result (E : Type) (A : Type) : Type :=
+Variant result (E : Set) (A : Type) : Type :=
 | Ok of A
 | Error of E.
 
 Arguments Error {E} {A} s.
 
-Definition is_ok (E A:Type) (r:result E A) := if r is Ok a then true else false.
+Definition is_ok (E: Set) (A:Type) (r:result E A) := if r is Ok a then true else false.
 
-Lemma is_ok_ok (E A:Type) (a:A) : is_ok (Ok E a).
+Lemma is_ok_ok (E: Set) (A:Type) (a:A) : is_ok (Ok E a).
 Proof. done. Qed.
 #[global]
 Hint Resolve is_ok_ok : core.
 
-Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r).
+Lemma is_okP (E: Set) (A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r).
 Proof.
   case: r => /=; constructor; first by eauto.
   by move=> [].
@@ -165,7 +165,7 @@ Definition map eT aT rT (f : aT -> rT) := bind (fun x => Ok eT (f x)).
 Definition default eT aT := @apply eT aT aT (fun x => x).
 
 Definition map_err
-  eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) : result eT2 aT :=
+  (eT1 eT2: Set) aT (f : eT1 -> eT2) (r : result eT1 aT) : result eT2 aT :=
   match r with
   | Ok x => Ok _ x
   | Error e => Error (f e)
@@ -173,7 +173,7 @@ Definition map_err
 
 End Result.
 
-Definition o2r eT aT (e : eT) (o : option aT) :=
+Definition o2r (eT: Set) aT (e : eT) (o : option aT) :=
   match o with
   | None   => Error e
   | Some x => Ok eT x
@@ -201,10 +201,10 @@ Proof. move=> <- Hf; case m1 => //=. Qed.
 Definition ok_inj {E A} {a a': A} (H: Ok E a = ok a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
 
-Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
+Definition Error_inj {E: Set} {A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
 
-Definition assert E (b: bool) (e: E) : result E unit :=
+Definition assert (E: Set) (b: bool) (e: E) : result E unit :=
   if b then ok tt else Error e.
 
 Lemma assertP E b e u :
@@ -213,7 +213,7 @@ Proof. by case: b. Qed.
 
 Arguments assertP {E b e u} _.
 
-Lemma map_errP eT1 eT2 aT (f : eT1 -> eT2) (r : result eT1 aT) x :
+Lemma map_errP (eT1 eT2: Set) aT (f : eT1 -> eT2) (r : result eT1 aT) x :
   Result.map_err f r = ok x ->
   r = ok x.
 Proof. by case: r => //= ? [->]. Qed.
@@ -507,7 +507,7 @@ Proof. by elim l => //= ?? ->. Qed.
 
 Section FOLDM.
 
-  Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
+  Context (eT: Set) (aT bT:Type) (f:aT -> bT -> result eT bT).
 
   Fixpoint foldM (acc : bT) (l : seq aT) :=
     match l with
@@ -531,7 +531,8 @@ End FOLDM.
 
 Section FOLD2.
 
-  Variable A B E R:Type.
+  Variable A B R:Type.
+  Variable E: Set.
   Variable e: E.
   Variable f : A -> B -> R -> result E R.
 
@@ -562,7 +563,7 @@ End FOLD2.
 (* ---------------------------------------------------------------- *)
 (* ALLM *)
 Section ALLM.
-  Context (A E: Type) (check: A → result E unit) (m: seq A).
+  Context A (E: Set) (check: A → result E unit) (m: seq A).
   Definition allM := foldM (λ a _, check a) tt m.
 
   Lemma allMP a : List.In a m → allM = ok tt → check a = ok tt.
@@ -583,7 +584,8 @@ Inductive Forall3 (A B C : Type) (R : A -> B -> C -> Prop) : seq A -> seq B -> s
 
 Section MAP2.
 
-  Variable A B E R:Type.
+  Variable A B R:Type.
+  Variable E: Set.
   Variable e: E.
 
   Variable f : A -> B -> result E R.
@@ -665,7 +667,7 @@ Definition fmapM {eT aT bT cT} (f : aT -> bT -> result eT (aT * cT))  : aT -> se
       Ok eT (ys.1, y.2 :: ys.2)
     end.
 
-Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT * dT)) :
+Definition fmapM2 {eT: Set} {aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT * dT)) :
    aT -> seq bT -> seq cT -> result eT (aT * seq dT) :=
   fix mapM a lb lc :=
     match lb, lc with
@@ -2008,7 +2010,7 @@ Lemma isSomeP {A : Type} {oa : option A} :
   exists a, oa = Some a.
 Proof. case: oa; by [|eexists]. Qed.
 
-Lemma o2rP {eT A} {err : eT} {oa : option A} {a} :
+Lemma o2rP {eT: Set} {A} {err : eT} {oa : option A} {a} :
   o2r err oa = ok a ->
   oa = Some a.
 Proof. by case: oa => //= ? [->]. Qed.
