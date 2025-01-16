@@ -1,9 +1,33 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype.
 
+From ExtLib Require Import Structures.Monad Structures.Functor.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Global Instance option_Functor : Functor option :=
+    {| Functor.fmap :=
+        fun X Y (f: X -> Y) => 
+          fun x =>
+            match x with
+            | None => None
+            | Some x => @Some Y (f x) end |}.
+  
+Global Instance option_Monad : Monad option :=
+    {| ret := fun _ x => Some x ;
+       bind := fun _ _ c k => match c with
+                              | None => None
+                              | Some x => k x end ;
+    |}.
+
+Definition obind {A B} (f: A -> option B) (m: option A) : option B :=
+  @bind option option_Monad _ _ m f.
+
+Definition opt_map {aT rT} (f : aT -> rT) (m: option aT) : option rT :=
+  bind m (fun x => Some (f x)).
+
 
 (* -------------------------------------------------------------------- *)
 Lemma pmap_idfun_some {T : Type} (s : seq T) :
@@ -11,7 +35,7 @@ Lemma pmap_idfun_some {T : Type} (s : seq T) :
 Proof. by elim: s => /= [|x s ->]. Qed.
 
 (* -------------------------------------------------------------------- *)
-Notation ocons x := (omap (cons x)).
+Notation ocons x := (opt_map (cons x)).
 
 (* -------------------------------------------------------------------- *)
 Section ONth.
@@ -101,7 +125,7 @@ Context {T U : Type} (f : T -> option U).
 
 Fixpoint omap (s : seq T) :=
   if s is x :: s' then
-    if f x is Some y then ssrfun.omap (cons y) (omap s') else None
+    if f x is Some y then opt_map (cons y) (omap s') else None
   else Some [::].
 
 Lemma omap_map s : omap s = oseq (map f s).
@@ -180,8 +204,14 @@ Qed.
 Declare Scope option_scope.
 Delimit Scope option_scope with O.
 
+
+Notation "m >>o= f" := (obind f m)
+  (at level 25, left associativity) : option_scope.
+
+(*
 Notation "m >>o= f" := (ssrfun.Option.bind f m)
   (at level 25, left associativity) : option_scope.
+*)
 
 Local Open Scope option_scope.
 
@@ -194,3 +224,5 @@ Proof. by elim: m. Qed.
 Lemma obindI {T1 T2:Type} {f:T1 -> option T2} {o t2} :
   (o >>o= f) = Some t2 -> exists t1, o = Some t1 /\ f t1 = Some t2.
 Proof. by case: o => [t1|]//=;exists t1. Qed.
+
+

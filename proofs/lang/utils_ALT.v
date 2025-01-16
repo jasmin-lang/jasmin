@@ -7,8 +7,7 @@ From Coq Require Import ZArith Zwf Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
 From mathcomp Require Import word_ssrZ.
 
-(**)
-(**)
+From ExtLib Require Import Structures.Monad Structures.Functor.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -152,18 +151,32 @@ Proof.
   by move=> [].
 Qed.
 
+Global Instance result_Functor (E : Set) : Functor (result E) :=
+    {| Functor.fmap :=
+        fun X Y (f: X -> Y) => 
+          fun x =>
+            match x with
+            | Error e => Error e
+            | Ok x => @Ok E Y (f x) end |}.
+  
+Global Instance result_Monad (E : Set) : Monad (result E) :=
+    {| ret := fun _ x => Ok _ x ;
+       bind := fun _ _ c k => match c with
+                              | Error e => Error e
+                              | Ok x => k x end ;
+    |}.
+
 Module Result.
 
 Definition apply eT aT rT (f : aT -> rT) (x : rT) (u : result eT aT) :=
   if u is Ok y then f y else x.
 
-Definition bind eT aT rT (f : aT -> result eT rT) g :=
-  match g with
-  | Ok x    => f x
-  | Error s => Error s
-  end.
+Definition res_bind eT aT rT (f : aT -> result eT rT) g :=
+  @bind (result eT) (result_Monad eT) aT rT g f.
 
-Definition map eT aT rT (f : aT -> rT) := bind (fun x => Ok eT (f x)).
+Definition map eT aT rT (f: aT -> rT) (m: result eT aT) : result eT rT :=
+  @bind (result eT) (result_Monad eT) aT rT m (fun x => Ok eT (f x)).
+
 Definition default eT aT := @apply eT aT aT (fun x => x).
 
 Definition map_err
@@ -183,7 +196,7 @@ Definition o2r (eT: Set) aT (e : eT) (o : option aT) :=
 
 Notation rapp  := Result.apply.
 Notation rdflt := Result.default.
-Notation rbind := Result.bind.
+Notation rbind := Result.res_bind.
 Notation rmap  := Result.map.
 Notation ok    := (@Ok _).
 
@@ -242,7 +255,7 @@ Ltac t_rbindP := do? (apply: rbindP => ??).
 
 Ltac t_xrbindP :=
   match goal with
-  | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
+  | [ |- rbind _ _ = Ok _ _ -> _ ] =>
       apply: rbindP; t_xrbindP
   | [ |- Result.map _ _ = Ok _ _ -> _ ] =>
       rewrite /rmap; t_xrbindP
@@ -440,11 +453,11 @@ Qed.
 
 Corollary mapM_rcons' {eT aT bT} (f: aT → result eT bT) (s: seq aT) (a: aT) :
   mapM f (rcons s a) = Let r1 := mapM f s in Let r2 := f a in ok (rcons r1 r2).
-Proof. rewrite -cats1 mapM_cat; simpl. destruct (f a); destruct (mapM _ _); simpl; try (rewrite cats1); auto. Qed.
+Proof. rewrite -cats1 mapM_cat; simpl; unfold rbind; destruct (f a); destruct (mapM _ _); simpl; try (rewrite cats1); auto. Qed.
 
-Corollary mapM_rcons  {eT aT bT} (f: aT → result eT bT) (s: seq aT) (a: aT) :
+Corollary mapM_rcons {eT aT bT} (f: aT → result eT bT) (s: seq aT) (a: aT) :
   mapM f (rcons s a) = Let r1 := mapM f s in Let r2 := f a in ok (rcons r1 r2).
-Proof. by rewrite -cats1 mapM_cat /=; case: (f a) => // b; case: (mapM _ _) => // bs; rewrite /= cats1. Qed.
+Proof. by rewrite -cats1 mapM_cat /=; unfold rbind; case: (f a) => // b; case: (mapM _ _) => // bs; rewrite /= cats1. Qed.
 
 Lemma mapM_Forall2 {eT aT bT} (f: aT → result eT bT) (s: seq aT) (s': seq bT) :
   mapM f s = ok s' →
@@ -710,10 +723,12 @@ Proof.
   t_xrbindP=> _ i [a1 d] /= h1 [{}a2 ld] h2 <- <-.
   case: i => [|i] /=.
   + eexists; split; first by reflexivity.
+    unfold rbind; simpl.
     by rewrite h1 /= h2.
-  rewrite h1 /=.
-  have [a1' [-> /= h2']] := ih _ _ _ _ i h2.
-  by eexists; split; first by reflexivity.
+    rewrite h1 /=.
+    unfold rbind; simpl.
+    have [a1' [-> /= h2']] := ih _ _ _ _ i h2.
+    by eexists; split; first by reflexivity.
 Qed.
 
 Lemma fmapM2_nth {eT aT bT cT dT} e
@@ -1964,7 +1979,7 @@ Ltac t_inj_cases :=
 (* ------------------------------------------------------------------------- *)
 
 Module Option.
-  
+
 Variant option_spec X A o xs xn : option A -> X -> Prop :=
 | OptionSpecSome : forall a, o = Some a -> option_spec o xs xn (Some a) (xs a)
 | OptionSpecNone : o = None -> option_spec o xs xn None xn.

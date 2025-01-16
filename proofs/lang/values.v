@@ -270,9 +270,12 @@ Proof. by case: v => //= [? [<-] | [] ]. Qed.
 Lemma to_int_undef v : to_int v = undef_error -> v = undef_i.
 Proof. by case: v => //= -[] // e; rewrite (Eqdep_dec.UIP_refl_bool _ e). Qed.
 
+Axiom to_arr_Ax : forall len,
+    exec (WArray.array len) -> exec (sem_t (sarr len)). 
+
 Definition to_arr len v : exec (sem_t (sarr len)) :=
   match v with
-  | Varr len' t => WArray.cast len t
+  | Varr len' t => @to_arr_Ax len (WArray.cast len t)
   | _ => type_error
   end.
 

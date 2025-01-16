@@ -45,7 +45,7 @@ Definition mk_scale (aa:arr_access) ws :=
 
 Module WArray.
 
-  Record array (s:positive)  :=
+  Record array (s:positive) :=
     { arr_data : Mz.t u8 }.
 
   Definition empty (s:positive) : array s :=

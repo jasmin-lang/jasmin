@@ -116,7 +116,8 @@ Module Type MAP.
     (K.t -> option T1 -> option T2 -> option T3) ->
     t T1 -> t T2 -> t T3.
 
-  Parameter filter_map : forall {T1 T2}, (K.t -> T1 -> option T2) -> t T1 -> t T2.
+  Parameter filter_map : forall {T1 T2},
+      (K.t -> T1 -> option T2) -> t T1 -> t T2.
 
   Parameter incl_def : forall {T1 T2},
      (K.t -> T1 -> bool) ->
@@ -138,8 +139,8 @@ Module Type MAP.
 
   Parameter elements : forall {T}, t T -> seq (K.t * T).
 
-  Parameter fold : forall {T A}, (K.t -> T -> A -> A) -> t T -> A -> A.
-
+  Parameter fold : forall {T} {A}, (K.t -> T -> A -> A) -> t T -> A -> A.
+  
   Parameter in_codom : forall {T:eqType}, T -> t T -> bool.
 
   Notation "m .[ s ]" := (get m s).
@@ -230,7 +231,7 @@ Module Mmake (K':CmpType) <: MAP.
 
   Module Facts := WFacts_fun Ordered Map.
 
-  Definition t (T:Type) := Map.t T.
+  Definition t T := Map.t T.
 
   Definition empty T : t T := Map.empty T.
   
