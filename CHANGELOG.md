@@ -29,7 +29,8 @@
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
-  ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973)).
+  ([PR#973](https://github.com/jasmin-lang/jasmin/pull/973),
+  [PR#1001](https://github.com/jasmin-lang/jasmin/pull/1001)).
 
 - Fix EC extraction in case on nested loops
   ([PR #971](https://github.com/jasmin-lang/jasmin/pull/971)).
