@@ -155,6 +155,7 @@ Variant x86_op : Type :=
 | VPMINS of velem & wsize
 | VPMAXU of velem & wsize
 | VPMAXS of velem & wsize
+| VPABS of velem & wsize
 | VPTEST `(wsize)
 
 (* Cache *)
@@ -1840,6 +1841,14 @@ Definition Ox86_VPMAXU_instr  :=
   (fun ve sz => size_8_32 ve && size_128_256 sz)
   (pp_viname "vpmaxu").
 
+Definition x86_VPABS (ve: velem) sz (x : word sz) : tpl (w_ty sz) :=
+  wabs ve x.
+
+Definition Ox86_VPABS_instr  :=
+  mk_ve_instr_w_w_10 "VPABS" x86_VPABS check_xmm_xmmm (primV_8_32 VPABS)
+    (fun ve sz => size_8_32 ve && size_128_256 sz)
+    (pp_viname "vpabs").
+
 Definition check_vptest (_:wsize) := [:: xmm_xmmm].
 
 Definition x86_VPTEST sz (x y: word sz) : tpl b5_ty :=
@@ -2160,6 +2169,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMINS ve sz       => Ox86_VPMINS_instr.1 ve sz
   | VPMAXU ve sz       => Ox86_VPMAXU_instr.1 ve sz
   | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
+  | VPABS ve sz        => Ox86_VPABS_instr.1 ve sz
   | VPTEST sz          => Ox86_VPTEST_instr.1 sz
   | CLFLUSH            => Ox86_CLFLUSH_instr.1
   | PREFETCHT0         => Ox86_PREFETCHT0_instr.1
@@ -2310,6 +2320,7 @@ Definition x86_prim_string :=
    Ox86_VPMINS_instr.2;
    Ox86_VPMAXU_instr.2;
    Ox86_VPMAXS_instr.2;
+   Ox86_VPABS_instr.2;
    Ox86_VPTEST_instr.2;
    Ox86_CLFLUSH_instr.2;
    Ox86_PREFETCHT0_instr.2;

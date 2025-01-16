@@ -141,6 +141,7 @@ module X86_core = struct
     | VMOVLPD -> false (* Not DOIT *)
     | VMOVSHDUP _ -> true
     | VMOVSLDUP _ -> true
+    | VPABS _ -> true
     | VPACKSS _ -> true
     | VPACKUS _ -> true
     | VPADD _ -> true

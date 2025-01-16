@@ -875,6 +875,7 @@ op VMOVHPD (v: W128.t) : W64.t =
 | VPMINS of velem & wsize
 | VPMAXU of velem & wsize
 | VPMAXS of velem & wsize
+| VPABS of velem & wsize
 *)
 (* Defined in WRuS *)
 
