@@ -20,15 +20,15 @@ From ExtLib Require Import
 
 From ITree Require Import
      ITree
-     ITreeFacts
-     Monad
+     ITreeFacts 
+     Monad 
      Basics.HeterogeneousRelations     
      Events.Map
      Events.State
      Events.StateFacts
      Events.Reader
      Events.Exception
-     Events.FailFacts.
+     Events.FailFacts. 
 
 Require Import Paco.paco.
 Require Import Psatz.
@@ -38,28 +38,18 @@ Require Import FunctionalExtensionality.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat seq eqtype fintype.
 
 From ITree Require Import
-(*     Basics.Tacs *)
-     Basics.Category
-     Basics.Basics
-     Basics.Function
      Core.ITreeDefinition
-     Core.KTree
-     Eq.Eqit
-     Eq.UpToTaus
-     Eq.Paco2
-     Indexed.Sum
-     Indexed.Function
-     Indexed.Relation
-     Interp.Handler
-     Interp.Interp
-     Interp.InterpFacts
-     Interp.Recursion.
+     Eq.Eqit.
 
-From ITree Require Import Rutt RuttFacts.
+(*
+UNIVERSE COMMANDS:
 
-From ITree Require Import EqAxiom.
+Print Universes.
 
-From Jasmin Require Import utils. (* expr psem_defs psem oseq. *)
+Set Printing Universes.
+*)
+
+From Jasmin Require Import utils oseq sem_type. (* sem_type_ALT. *)
 
 Import Monads.
 Import MonadNotation.
@@ -69,7 +59,6 @@ Local Open Scope option_scope.
 Obligation Tactic := done || idtac.
 
 (* This files contains the monad transformer associated with exec *)
-
 (*
 (***)
 (* local redefinition of utils.result, to try circumvent the universe
@@ -84,19 +73,15 @@ Definition exec t := result error t.
 (***)
 *)
 
-About MonadLawsE.
-About mathcomp.ssreflect.seq.
-About result.
-
 Section ExecT.
 
-  Context {m : Type -> Type} {Fm: Functor.Functor m} {Mm : Monad m}
+  Context (m : Type -> Type) {Fm: Functor.Functor m} {Mm : Monad m}
     {MIm : MonadIter m}.
 
-  Definition execT (m : Type -> Type) (a : Type) : Type :=
+  Definition execT (a : Type) : Type :=
     m (exec a)%type.
 
-  Global Instance execT_fun : Functor.Functor (execT m) :=
+  Global Instance execT_fun : Functor.Functor execT :=
     {| Functor.fmap :=
         fun X Y (f: X -> Y) => 
           Functor.fmap (fun x =>
@@ -104,7 +89,7 @@ Section ExecT.
                           | Error e => Error e
                           | Ok x => @Ok error Y (f x) end) |}.
 
-  Global Instance execT_monad : Monad (execT m) :=
+  Global Instance execT_monad : Monad execT :=
     {| ret := fun _ x => @ret m _ _ (Ok _ x);
        bind := fun _ _ c k =>
                  bind (m := m) c 
@@ -113,7 +98,7 @@ Section ExecT.
                              | Ok x => k x end)
     |}.
 
-  Global Instance execT_iter  : MonadIter (execT m) :=
+  Global Instance execT_iter  : MonadIter execT :=
     fun A I body i => Basics.iter (M := m) (I := I) (R := exec A) 
       (fun i => bind (m := m)
                (body i)
@@ -142,12 +127,30 @@ match mx with
           end
 end.
 
+(* Definition foo {A} (a: A) : seq A := cons a nil. *)
+
 Definition exec_rel {X: Type} (R : relation X) :
    relation (exec X) := result_rel error R (fun x y => True). 
 
+
+(***)
+Require Import List.
+Definition llprod (ts: list Type) (tr: Type) : Type :=
+  fold_right (fun t tr0 => t -> tr0) tr ts.
+
+Definition sem_prod' ts tr := llprod (map sem_t ts) tr. 
+
+Definition sem_prod'' ts tr := lprod (map sem_t ts) tr.
+
+(***)
+Definition foo1 E : Eq1 (@execT (itree E)) :=
+  fun _ => eutt (exec_rel eq).
+(***)
+
+
 (* Universe inconsistency - and can't find a way to fix it *)
 (* Unset Universe Checking.  *)
-Global Instance execT_Eq1 {E} : Eq1 (execT (itree E)) :=
+Global Instance execT_Eq1 {E} : Eq1 (@execT (itree E)) :=
   fun _ => eutt (exec_rel eq).
 
 Global Instance Reflexive_execT_eq1 {E T} : Reflexive (@execT_Eq1 E T).
@@ -161,7 +164,7 @@ Global Instance Symmetric_execT_eq1 {E T} : Symmetric (@execT_Eq1 E T).
     apply Symmetric_eqit.
     unfold Symmetric.
     intros [] [] H; auto; try reflexivity.
-    inv H; reflexivity.
+    inversion H; subst; reflexivity.
   Qed.
 
 Global Instance Transitive_execT_eq1 {E T} : Transitive (@execT_Eq1 E T).
@@ -175,10 +178,10 @@ Global Instance Equivalence_execT_eq1 {E T} : Equivalence (@execT_Eq1 E T).
     split; typeclasses eauto.
   Qed.
 
-Global Instance MonadLaws_execE {E} : MonadLawsE (execT (itree E)).
+Global Instance MonadLaws_execE {E} : MonadLawsE (@execT (itree E)).
   Proof.
-    split; cbn.
-    - cbn; intros; rewrite bind_ret_l; reflexivity.
+    split; cbn. 
+    - cbn; intros; rewrite bind_ret_l. reflexivity.
     - cbn; intros.
       rewrite <- (bind_ret_r x) at 2.
       eapply eutt_eq_bind; intros []; reflexivity.
