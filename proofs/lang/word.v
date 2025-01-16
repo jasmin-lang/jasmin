@@ -1649,6 +1649,11 @@ Definition wmax sg ve sz (x y : word sz) :=
   lift2_vec ve (wminmax1 (fun u v => wlt sg v u)) sz x y.
 
 (* -------------------------------------------------------------------*)
+
+Definition wabs (ve: velem) :=
+  lift1_vec ve (λ x, wrepr ve (Z.abs (wsigned x))).
+
+(* -------------------------------------------------------------------*)
 Definition saturated_signed (sz: wsize) (x: Z): Z :=
  Z.max (wmin_signed sz) (Z.min (wmax_signed sz) x).
 
