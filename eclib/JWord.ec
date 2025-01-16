@@ -2546,6 +2546,9 @@ abstract theory W_WS.
    op VPMINS_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 (fun x y => if WS.to_sint x < WS.to_sint y then x else y) w1 w2.
 
+   op VPABS_'Ru'S (w: WB.t) =
+     map (fun x => WS.of_int `|WS.to_sint x|) w.
+
    op VPEXTR_'S (w: WB.t) (i: W8.t) = w \bits'S ((W8.to_uint i)%% r).
 
    op VPINSR_'Ru'S (w1:WB.t) (w2:WS.t) (i:W8.t) : WB.t =

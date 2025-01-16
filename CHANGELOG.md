@@ -12,6 +12,10 @@
   ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
   fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
 
+- Add support for x86 `VPABS` instructions
+  ([PR #1009](https://github.com/jasmin-lang/jasmin/pull/1009);
+  fixes [#1008](https://github.com/jasmin-lang/jasmin/issues/1008)).
+
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
