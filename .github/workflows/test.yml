@@ -236,8 +236,11 @@ jobs:
       - ocaml
     strategy:
       matrix:
-        EASYCRYPT_REF: [release, dev]
-        CT_MODE: [CTG, CT]
+        include:
+          - EASYCRYPT_REF: release
+            CT_MODE: CTG
+          - EASYCRYPT_REF: dev
+            CT_MODE: CT
       fail-fast: false
     steps:
       - name: Checkout code
