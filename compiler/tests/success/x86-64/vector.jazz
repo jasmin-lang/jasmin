@@ -349,3 +349,16 @@ fn test_vpsra(reg u64 p) {
 
   (u256)[p] = z;
 }
+
+export
+fn test_vpabs(reg u64 p) {
+  reg u128 x = #VPABS_16u8((u128)[p]);
+  x = #VPABS_8u16(x);
+  x = #VPABS_4u32(x);
+  (u128)[p] = x;
+
+  reg u256 y = #VPABS_32u8((u256)[p + 16]);
+  y = #VPABS_16u16(y);
+  y = #VPABS_8u32(y);
+  (u256)[p + 16] = y;
+}
