@@ -1248,8 +1248,12 @@ Notation Lex u v :=
 
 Scheme Equality for comparison.
 
+(* Print Foo.
+   Print Foo.comparison_eq_dec. *)
+
 Lemma comparison_beqP : Equality.axiom comparison_beq.
 Proof.
+  Locate internal_comparison_dec_lb.
   exact:
     (eq_axiom_of_scheme internal_comparison_dec_bl internal_comparison_dec_lb).
 Qed.

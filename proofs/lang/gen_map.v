@@ -447,7 +447,7 @@ Module Mmake (K':CmpType) <: MAP.
       by move=> /(Facts.elements_mapsto_iff m kv.1 kv.2) /Facts.find_mapsto_iff.
     by move=>  /Facts.find_mapsto_iff /(Facts.elements_mapsto_iff m kv.1 kv.2) /Hf.
   Qed.
-
+  
   Lemma elementsIn : forall T (kv:K.t * T) m,
      List.In kv (elements m) <-> m.[kv.1] = Some kv.2.
   Proof.

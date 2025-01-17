@@ -1,5 +1,5 @@
-From ITree Require Import
-  Monad. 
+(* From ITree Require Import
+  Monad. *)
   (* 1) not importing the following suffices to compile *)
 (*  Basics.CategoryKleisli.  *)
 
@@ -14,10 +14,8 @@ From ExtLib Require Import
      Structures.Monad.
 
 From ITree Require Import
-     Basics.Basics
-     Basics.CategoryOps
-     Basics.Function
-     Basics.Monad.
+     Basics.CategoryOps 
+     Basics.Function. 
 
 Implicit Types m : Type -> Type.
 Implicit Types a b c : Type.
@@ -32,12 +30,15 @@ Definition Kleisli_apply {m a b} : Kleisli m a b -> (a -> m b) := fun f => f.
 Definition pure {m} `{Monad m} {a b} (f : a -> b) : Kleisli m a b :=
   fun x => ret (f x).
 
+Class Eq1 (M : Type -> Type) : Type :=
+  eq1 : forall A, M A -> M A -> Prop.
+
 Section Instances.
   Context {m : Type -> Type}.
   Context `{Monad m}.
   Context `{Eq1 m}.
 
-  #[global] Instance Eq2_Kleisli : Eq2 (Kleisli m) :=
+(*  #[global] Instance Eq2_Kleisli : Eq2 (Kleisli m) :=
     fun _ _ => pointwise_relation _ eq1.
 
   #[global] Instance Cat_Kleisli : Cat (Kleisli m) :=
@@ -52,12 +53,14 @@ Section Instances.
 
   #[global] Instance Id_Kleisli : Id_ (Kleisli m) :=
     fun _ => pure id.
+*)
 
 (* each of these instances is critical, and can cause failure *)
 (***)  
   #[global] Instance Case_Kleisli : Case (Kleisli m) sum :=
     fun _ _ _ l r => case_sum _ _ _ l r.
-  
+
+(*  
   #[global] Instance Inl_Kleisli : Inl (Kleisli m) sum :=
     fun _ _ => pure inl.
 
@@ -66,6 +69,7 @@ Section Instances.
 
   #[global] Instance Iter_Kleisli `{MonadIter m} : Iter (Kleisli m) sum :=
     fun a b => Basics.iter.
+*)
 (***)
 End Instances.
 

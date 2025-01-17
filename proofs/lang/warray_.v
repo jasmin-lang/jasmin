@@ -6,7 +6,7 @@ From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype div ssralg.
 From mathcomp Require Import word_ssrZ.
 Require Import xseq.
-Require Export utils array gen_map type word memory_model.
+Require Export utils array gen_map type word memory_model strings.
 Import Utf8 ZArith Lia.
 
 Set Implicit Arguments.
