@@ -128,7 +128,8 @@ Variant x86_op : Type :=
 | VPSHUFHW `(wsize)
 | VPSHUFLW `(wsize)
 | VPBLEND  `(velem) `(wsize)
-| VPBLENDVB `(wsize)
+| VPBLENDVB `(wsize) (* Deprecated: use BLENDV instead *)
+| BLENDV of velem & wsize (* vpblendvb, vblendvps, vblendvpd *)
 | VPACKUS  `(velem) `(wsize)
 | VPACKSS  `(velem) `(wsize)
 | VSHUFPS  `(wsize)
@@ -910,6 +911,11 @@ Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
 Definition x86_VPBLENDVB sz (x y m: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (wpblendvb x y m).
+
+Definition x86_BLENDV (ve: velem) sz (x y m: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := assert ((ve : wsize) \in [:: U8; U32; U64]) ErrType in
+  Let _ := check_size_128_256 sz in
+  ok (blendv ve x y m).
 
 (* ---------------------------------------------------------------- *)
 
@@ -1710,15 +1716,30 @@ Definition Ox86_VPUNPCKL_instr :=
   mk_ve_instr_w2_w_120 "VPUNPCKL" x86_VPUNPCKL check_xmm_xmm_xmmm (primV VPUNPCKL) (pp_viname_long "vpunpckl").
 
 Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U8]].
+
 Definition Ox86_VPBLEND_instr :=
   mk_ve_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 (primV_16_32 VPBLEND) (pp_viname "vpblend").
 
 Definition check_xmm_xmm_xmmm_xmm (_:wsize) := [:: [:: xmm; xmm; xmmm true; xmm]].
+
 Definition Ox86_VPBLENDVB_instr :=
   (fun sz => mk_instr
                (pp_sz "VPBLENDVB" sz) (w3_ty sz) (w_ty sz) [:: Eu 1; Eu 2; Eu 3] [:: Eu 0] MSB_CLEAR
                (@x86_VPBLENDVB sz) (check_xmm_xmm_xmmm_xmm sz) 4 [::]
                (pp_name "vpblendvb" sz), ("VPBLENDVB"%string, prim_128_256 VPBLENDVB)).
+
+Definition Ox86_BLENDV_instr :=
+  (fun ve sz => mk_instr
+                  (pp_ve_sz "BLENDV" ve sz) (w3_ty sz) (w_ty sz) [:: Ea 1; Eu 2; Ea 3] [:: Ea 0] MSB_CLEAR
+                  (@x86_BLENDV ve sz) (check_xmm_xmm_xmmm_xmm sz) 4 [::]
+                  (pp_name match ve with
+                     | VE8 => "vpblendvb"
+                     | VE32 => "vblendvps"
+                     | VE64 => "vblendvpd"
+                     | _ => "<assert false>"
+                     end sz),
+     ("BLENDV"%string, primV_range [seq PVv ve sz | ve <- [:: VE8; VE32; VE64 ], sz <- [:: U128; U256 ]] BLENDV)
+  ).
 
 Definition Ox86_VPACKUS_instr :=
  mk_ve_instr_w2_w_120 "VPACKUS" x86_VPACKUS check_xmm_xmm_xmmm (primV_16_32 VPACKUS)
@@ -2121,6 +2142,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLEND ve sz      => Ox86_VPBLEND_instr.1 ve sz
   | VPBLENDVB sz       => Ox86_VPBLENDVB_instr.1 sz
+  | BLENDV ve sz       => Ox86_BLENDV_instr.1 ve sz
   | VPACKUS ve sz      => Ox86_VPACKUS_instr.1 ve sz
   | VPACKSS ve sz      => Ox86_VPACKSS_instr.1 ve sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
@@ -2272,6 +2294,7 @@ Definition x86_prim_string :=
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLEND_instr.2;
    Ox86_VPBLENDVB_instr.2;
+   Ox86_BLENDV_instr.2;
    Ox86_VPACKUS_instr.2;
    Ox86_VPACKSS_instr.2;
    Ox86_VPBROADCAST_instr.2;
