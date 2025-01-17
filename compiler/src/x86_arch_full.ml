@@ -62,6 +62,8 @@ module X86_core = struct
     | AESKEYGENASSIST -> true
     | AND _ -> true
     | ANDN _ -> true
+    | BLENDV (VE8, _) -> true
+    | BLENDV _ -> false (* Not DOIT *)
     | BSWAP _ -> false (* Not DOIT *)
     | BT _ -> true
     | BTR _ -> true

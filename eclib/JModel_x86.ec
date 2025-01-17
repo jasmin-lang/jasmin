@@ -566,6 +566,33 @@ op VPBLENDVB_256 (v1 v2 m: W256.t) : W256.t =
 
 (* ------------------------------------------------------------------- *)
 (*
+| BLENDV of velem & vsize
+*)
+abbrev BLENDV_16u8 = VPBLENDVB_128.
+abbrev BLENDV_32u8 = VPBLENDVB_256.
+
+op BLENDV_4u32 (v1 v2 m: W128.t) : W128.t =
+  let choose = fun n =>
+    let w = if msb (m \bits32 n) then v2 else v1 in
+    w \bits32 n in
+  pack4 [ choose 0; choose 1; choose 2; choose 3 ].
+
+op BLENDV_8u32 (v1 v2 m: W256.t) : W256.t =
+  pack2 [ BLENDV_4u32 (v1 \bits128 0) (v2 \bits128 0) (m \bits128 0);
+          BLENDV_4u32 (v1 \bits128 1) (v2 \bits128 1) (m \bits128 1) ].
+
+op BLENDV_2u64 (v1 v2 m: W128.t) : W128.t =
+  let choose = fun n =>
+    let w = if msb (m \bits64 n) then v2 else v1 in
+    w \bits64 n in
+  pack2 [ choose 0; choose 1 ].
+
+op BLENDV_4u64 (v1 v2 m: W256.t) : W256.t =
+  pack2 [ BLENDV_2u64 (v1 \bits128 0) (v2 \bits128 0) (m \bits128 0);
+          BLENDV_2u64 (v1 \bits128 1) (v2 \bits128 1) (m \bits128 1) ].
+
+(* ------------------------------------------------------------------- *)
+(*
 | VPACKUS  `(velem) `(wsize)
 *)
 op packus_8u16 (w: W128.t) : W64.t =
