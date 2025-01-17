@@ -30,6 +30,11 @@
   ([PR #1009](https://github.com/jasmin-lang/jasmin/pull/1009);
   fixes [#1008](https://github.com/jasmin-lang/jasmin/issues/1008)).
 
+- Add support for x86 `VBLENDVPS` and `VBLENDVPD` instructions, through the new
+  intrinsics `#BLENDV` which also maps to the `VPBLENDVB` instruction;
+  therefore old intrinsic `#VPBLENDVB` is deprecated
+  ([PR #1010](https://github.com/jasmin-lang/jasmin/pull/1010)).
+
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
