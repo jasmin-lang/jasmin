@@ -386,8 +386,9 @@ type warning =
   | InlinedCallToExport
   | KeptRenaming
   | SimplifyVectorSuffix
-  | DuplicateVar (* -wduplicatevar *)
-  | UnusedVar (* -wunusedvar *)
+  | DuplicateVar 
+  | UnusedVar 
+  | NeqSizeExpr
   | SCTchecker
   | Linter
   | Deprecated

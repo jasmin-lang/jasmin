@@ -126,7 +126,7 @@ module MEnv = struct
     }
 
   let mpath menv =
-    List.map (fun x -> fst x) (fst menv.me_store.s_bindings)
+    List.map (fun x -> let ns,_,_ = x in ns) (fst menv.me_store.s_bindings)
 
   let empty froms =
     let idir = Path.of_string (Sys.getcwd ())
@@ -201,7 +201,7 @@ module MEnv = struct
     | MSparam (ty, name) ->
       let ty = tt_type pd st ty
       in let x = P.PV.mk (L.unloc name) W.Const (P.gty_of_gety ty) (L.loc name) []
-      in let x, st = Env.Vars.push_modp_param st x ty
+      in let x, st = Env.Vars.push_modp_param st (L.loc name) x ty
       in st, M.Param x
     | MSglob (ty, name) ->
       let ty = tt_type pd st ty
@@ -246,8 +246,8 @@ module MEnv = struct
     match st.Env.s_bindings with
     | [], _ -> 
       rs_mjazzerror ~loc:(L._dummy) (MJazzInternal "empty module stack")
-    | x::xs, _ ->
-      List.fold_left (fun nn n -> qualify n nn) (fst x) (List.map fst xs)
+    | (ns,_,_)::xs, _ ->
+      List.fold_left (fun nn (n,_,o) -> if o then nn else qualify n nn) ns xs
 
   (** exit of a non-toplevel module *)
   let exit_module mparams (menv: 'asm menv): 'asm menv =
@@ -255,8 +255,9 @@ module MEnv = struct
     in if !Glob_options.debug
     then Printf.eprintf "Exiting module \"%s\" \n%!" modname;
     let menv, mdecls = pop_ldecls menv
+    in let _, mod_bs, _ = List.hd (fst menv.me_store.s_bindings)
     in let modinfo =
-         { mi_store = snd (List.hd (fst menv.me_store.s_bindings)) (* top bs *)
+         { mi_store = mod_bs (* top bs *)
          ; mi_params = mparams
          ; mi_decls = mdecls
          }
@@ -268,7 +269,7 @@ module MEnv = struct
 
   let save_filectxt menv modname =
     if !Glob_options.debug then Printf.eprintf "save filectxt \"%s\" \n%!" modname;
-    let newtopbs = modname, Env.empty_gb
+    let newtopbs = modname, Env.empty_gb, false
     in match menv.me_store.s_bindings with
     | [], bot -> (* no filectxt to save *)
       let menv =
@@ -351,8 +352,9 @@ module MEnv = struct
 
   let exit_file menv saved =
     let modname, p = List.hd menv.me_visiting
+    in let _, mod_bs, _ = List.hd (fst menv.me_store.s_bindings)
     in let modinfo =
-         { mi_store = snd (List.hd (fst menv.me_store.s_bindings))
+         { mi_store = mod_bs
          ; mi_params = []
          ; mi_decls = List.hd menv.me_ldecls
          }
@@ -377,6 +379,11 @@ module MEnv = struct
       ; me_visiting = List.tl menv.me_visiting
       }
 
+(*
+  let unqualify_bindings modname m =
+    let k = String.length (qualify modname "")
+    in ch_
+*)
 
 end
 
@@ -399,9 +406,10 @@ end
 let merge_top st modname bs =
   match st.Env.s_bindings with
   | [], _ -> assert false
-  | (m,top)::l, bot ->
+  | (_,_,true)::_, _ -> assert false
+  | (m,top,false)::l, bot ->
     let newtop = Env.merge_bindings (modname, bs) top
-    in (m, newtop)::l, bot
+    in (m, newtop,false)::l, bot
 
 let rec mt_item arch_info (menv: 'asm MEnv.menv) mitem : 'asm MEnv.menv =
   match L.unloc mitem with

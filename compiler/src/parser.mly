@@ -537,9 +537,8 @@ prequire1:
 from:
 | FROM id=nonqual_ident { id }
 
-prequire:
-| f=from? REQUIRE x=prequire1 xs=nonempty_list(prequire1)
-   { f, (x::xs) }
+| f=from? REQUIRE x=nonempty_list(prequire1)
+   { f, x }
 
 pmodsigentry:
 | PARAM pms_type=ptype id=nonqual_ident SEMICOLON
@@ -561,7 +560,7 @@ pmodpexpr:
 | e1=pmodpexpr STAR e2=pmodpexpr { MPmult (e1, e2) }
 
 pmodapp:
-| MODULE name=nonqual_ident EQ modname=ident modargs=parens_tuple(pmodpexpr) SEMICOLON
+| MODULE name=nonqual_ident EQ modname=ident modargs=parens_tuple(pexpr) SEMICOLON
    { name, modname, modargs }
 
 pas:
