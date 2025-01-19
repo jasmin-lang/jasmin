@@ -201,7 +201,7 @@ module MEnv = struct
     | MSparam (ty, name) ->
       let ty = tt_type pd st ty
       in let x = P.PV.mk (L.unloc name) W.Const ty (L.loc name) []
-      in let st = Env.Vars.push_modp_param st x
+      in let st = Env.Vars.push_modp_param st (L.loc name) x
       in st, M.Param x
     | MSglob (ty, name) ->
       let ty = tt_type pd st ty
@@ -377,6 +377,11 @@ module MEnv = struct
       ; me_visiting = List.tl menv.me_visiting
       }
 
+(*
+  let unqualify_bindings modname m =
+    let k = String.length (qualify modname "")
+    in ch_
+*)
 
 end
 
