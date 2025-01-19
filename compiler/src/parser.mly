@@ -558,7 +558,7 @@ pmodpexpr:
 | e1=pmodpexpr STAR e2=pmodpexpr { MPmult (e1, e2) }
 
 pmodapp:
-| MODULE name=nonqual_ident EQ modname=ident modargs=parens_tuple(pmodpexpr) SEMICOLON
+| MODULE name=nonqual_ident EQ modname=ident modargs=parens_tuple(pexpr) SEMICOLON
    { name, modname, modargs }
 
 pas:

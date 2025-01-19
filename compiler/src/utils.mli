@@ -149,8 +149,9 @@ type warning =
   | InlinedCallToExport
   | KeptRenaming
   | SimplifyVectorSuffix
-  | DuplicateVar
-  | UnusedVar
+  | DuplicateVar 
+  | UnusedVar 
+  | NeqSizeExpr
   | SCTchecker
   | Linter
   | Deprecated

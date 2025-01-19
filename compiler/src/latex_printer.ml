@@ -437,12 +437,6 @@ let pp_modsig fmt msig =
            (pp_list eol pp_modsigparam) fmt msig;
            F.fprintf fmt eol)
 
-let rec pp_modpexpr fmt = function
-  | MPid name -> pp_var fmt name
-  | MPint i -> F.fprintf fmt "%a" Z.pp_print i
-  | MPplus (e1,e2) -> F.fprintf fmt "(%a+%a)" pp_modpexpr e1 pp_modpexpr e2
-  | MPmult (e1,e2) -> F.fprintf fmt "(%a*%a)" pp_modpexpr e1 pp_modpexpr e2
-
 let pp_typealias fmt id ty =
   F.fprintf fmt "%a %a = %a;" kw "type" dname (L.unloc id) pp_type ty
 
@@ -482,7 +476,7 @@ let rec pp_pitem fmt pi =
        kw "module"
        (L.unloc name)
        (L.unloc mname)
-       (pp_list ", " (fun fmt e -> pp_modpexpr fmt e)) margs;
+       (pp_list ", " (fun fmt e -> pp_expr fmt e)) margs;
      F.fprintf fmt eol
   | POpen (name, None) ->
      F.fprintf fmt "%a %s;" kw "open" (L.unloc name);
