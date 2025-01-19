@@ -199,6 +199,7 @@ let options = [
     "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), " Print warning when array copy is introduced";
     "-wduplicatevar", Arg.Unit (add_warning DuplicateVar), " Print warning when two variables share the same name";
     "-wunusedvar", Arg.Unit (add_warning UnusedVar), " Print warning when a variable is not used";
+    "-wneqsizes", Arg.Unit (add_warning NeqSizeExpr), " Print warning when size expressions do not match";
     "-noinsertarraycopy", Arg.Clear introduce_array_copy, " Do not automatically insert array copy";
     "-nowarning", Arg.Unit (nowarning), " Do no print warnings";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), " Print messages with color";

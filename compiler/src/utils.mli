@@ -180,6 +180,7 @@ type warning =
   | SimplifyVectorSuffix
   | DuplicateVar 
   | UnusedVar 
+  | NeqSizeExpr
   | SCTchecker
   | Deprecated
   | Experimental
