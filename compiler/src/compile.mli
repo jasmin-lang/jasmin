@@ -14,13 +14,13 @@ val preprocess :
     Raises `Typing.TyError`. *)
 
 val parse_file :
-  'asm arch_info ->
+  ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op arch_info ->
   ?idirs:(string * string) list ->
   string ->
-  string list list
+  BatPathGen.OfString.t list
   * (funname * (Z.t * Z.t) list) Location.located list
-  * (unit, 'asm) pmod_item list
-  * (unit, 'asm) mpprog
+  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) pprog
+  * (unit, ('a, 'b, 'c, 'd, 'e, 'f, 'g) Arch_extra.extended_op) mpprog
 (** Parsing and pre-typing of a complete file. Require directives are resolved
     using named path given through the [idirs] argument and the JASMINPATH
     environment variable.
