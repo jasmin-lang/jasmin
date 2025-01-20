@@ -5,8 +5,17 @@
 , ocamlPackages
 , python3
 , why3
+, fetchurl
 }:
 
+let why3_1_8 = why3.overrideAttrs (o: {
+  name = "why3-1.8.0";
+  version = "1.8.0";
+  src = fetchurl {
+    url = "https://why3.gitlabpages.inria.fr/releases/why3-1.8.0.tar.gz";
+    hash = "sha256-gDe4OI0AuoYmJSCg/SMRQYcgelX/SM28ClQfKhnw88E=";
+  };
+}); in
 
 with {
 
@@ -14,6 +23,7 @@ with {
     version = "main";
     rev = "????";
     src = builtins.fetchTarball "https://api.github.com/repos/easycrypt/easycrypt/tarball/main";
+    local_why3 = why3_1_8;
   };
 
   "release" = rec {
@@ -25,6 +35,7 @@ with {
       inherit rev;
       hash = "sha256-ZGYklG1eXfytRKzFvRSB6jFrOCm1gjyG8W78eMve5Ng=";
     };
+    local_why3 = why3;
   };
 
 }."${ecRef}";
@@ -46,17 +57,17 @@ stdenv.mkDerivation rec {
     dune-build-info
     dune-site
     inifiles
-    why3
+    local_why3
     yojson
     zarith
   ];
 
-  propagatedBuildInputs = [ why3.out ];
+  propagatedBuildInputs = [ local_why3.out ];
 
   strictDeps = true;
 
   postPatch = ''
-    substituteInPlace dune-project --replace '(name easycrypt)' '(name easycrypt)(version ${rev})'
+    substituteInPlace dune-project --replace-fail '(name easycrypt)' '(name easycrypt)(version ${rev})'
   '';
 
   pythonPath = with python3.pkgs; [ pyyaml ];
