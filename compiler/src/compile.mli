@@ -31,8 +31,14 @@ val parse_file :
   * Syntax.pprogram
 (** Parsing and pre-typing of a complete file.
 
-  Raises `Pretyping.TyError` and `Syntax.ParseError`.
-  *)
+    Raises `Pretyping.TyError` and `Syntax.ParseError`. *)
+
+val do_spill_unspill :
+  'asm asmOp ->
+  ?debug:bool ->
+  (unit, 'asm) prog ->
+  ((unit, 'asm) prog, Utils.hierror) result
+(** Removes (aka implements) #spill and #unspill instructions. *)
 
 val compile :
   (module Arch_full.Arch

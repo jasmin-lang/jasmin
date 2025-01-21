@@ -62,6 +62,7 @@ Separate Extraction
   sopn
   expr
   stack_zero_strategy
+  lower_spill.spill_uprog
   psem_defs
   sem_params_of_arch_extra
   arch_decl

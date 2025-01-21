@@ -183,6 +183,7 @@ Fixpoint spill_i (env : spill_env) (i : instr) : cexec (spill_env * cmd) :=
 
 End GET.
 
+Section PROGT.
 Context {pT: progT}.
 
 Definition init_map (s:Sv.t) :=
@@ -225,5 +226,10 @@ Definition spill_fd {eft} (fn:funname) (fd: _fundef eft) : cexec (_fundef eft) :
 Definition spill_prog (p: prog) : cexec prog :=
   Let funcs := map_cfprog_name spill_fd (p_funcs p) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
+
+End PROGT.
+
+Definition spill_uprog (p: _uprog) : cexec _uprog :=
+  spill_prog (p: @prog _ _ progUnit).
 
 End ASM_OP.
