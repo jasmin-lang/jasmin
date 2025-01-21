@@ -45,6 +45,14 @@ let parse_and_check arch call_conv =
     in
 
     if speculative then
+      let prog =
+        (* Ensure there are no spill/unspill operations left *)
+        if pass < Compiler.LowerSpill then
+          match Compile.do_spill_unspill A.asmOp prog with
+          | Ok p -> p
+          | Error err -> raise (HiError err)
+        else prog
+      in
       match Sct_checker_forward.ty_prog (A.is_ct_sopn ~doit) prog ct_list with
       | exception Annot.AnnotationError (loc, code) ->
           hierror ~loc:(Lone loc) ~kind:"annotation error" "%t" code

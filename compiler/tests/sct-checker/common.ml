@@ -10,15 +10,20 @@ module Arch =
 
 let load_file name =
   let open Pretyping in
-  try
+  match
     name
     |> tt_file Arch.arch_info Env.empty None None
     |> fst |> Env.decls
     |> Compile.preprocess Arch.reg_size Arch.asmOp
+    |> Compile.do_spill_unspill Arch.asmOp
   with
-  | TyError (loc, e) ->
+  | exception TyError (loc, e) ->
       Format.eprintf "%a: %a@." Location.pp_loc loc pp_tyerror e;
       assert false
-  | Syntax.ParseError (loc, None) ->
+  | exception Syntax.ParseError (loc, None) ->
       Format.eprintf "Parse error: %a@." Location.pp_loc loc;
       assert false
+  | Error msg ->
+      Format.eprintf "%a@." Utils.pp_hierror msg;
+      assert false
+  | Ok p -> p
