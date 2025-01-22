@@ -13,6 +13,10 @@ mkCoqDerivation {
   mlPlugin = true;
   useDune = true;
   propagatedBuildInputs = [ stdlib ]
-  ++ (with coq.ocamlPackages; [ elpi findlib ppx_optcomp ]);
+  ++ (with coq.ocamlPackages; [
+    (elpi.override { version = "master"; })
+    findlib
+    ppx_optcomp
+  ]);
 
 }
