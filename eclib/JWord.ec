@@ -2566,7 +2566,7 @@ abstract theory W_WS.
      if cmp (to_sint x) (to_sint y) then (WS.of_int (-1)) else (WS.of_int 0).
 
    op VPCMPGT_'Ru'S (w1 : WB.t) (w2: WB.t) =
-     map2 (wcmp Int.(<=)) w2 w1.
+     map2 (wcmp Int.(<)) w2 w1.
 
    op VPCMPEQ_'Ru'S (w1 : WB.t) (w2: WB.t) =
      map2 (wcmp (=)) w1 w2.
