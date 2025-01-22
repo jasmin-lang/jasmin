@@ -236,8 +236,8 @@ output corruption: #public
  constraints:
 
 
-nomodmsf protect_mmx : #poly = { n = ?480, s = secret} * #msf ->
-#poly = { n = ?480, s = ?480}
+nomodmsf protect_mmx : #poly = { n = ?428, s = secret} * #msf ->
+#poly = { n = ?428, s = ?428}
 output corruption: #public
  constraints:
 
