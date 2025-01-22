@@ -9,7 +9,8 @@
 - While instructions now have two pieces of information (including locations)
   attached to them: one corresponding to the whole instruction, the other one
   corresponding to the guard condition
-  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969);
+  ([PR #969](https://github.com/jasmin-lang/jasmin/pull/969),
+  [PR #1015](https://github.com/jasmin-lang/jasmin/pull/1015);
   fixes [#902](https://github.com/jasmin-lang/jasmin/issues/902)).
 
 - Add support for x86 `VPABS` instructions

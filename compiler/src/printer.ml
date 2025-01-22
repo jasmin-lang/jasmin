@@ -168,20 +168,26 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       (pp_gvar_i pp_var) i (pp_ge pp_len pp_var) e1 dir (pp_ge pp_len pp_var) e2
       (pp_cblock pp_info pp_len pp_opn pp_var) c
 
-  | Cwhile(a, [], e, _, c) ->
-    F.fprintf fmt "@[<v>%awhile (%a) %a@]"
+  | Cwhile(a, [], e, ((iloc, _), info), c) ->
+    F.fprintf fmt "@[<v>%awhile %a(%a) %a@]"
       pp_align a
-      (pp_ge pp_len pp_var) e (pp_cblock pp_info pp_len pp_opn pp_var) c
+      pp_info (iloc, info)
+      (pp_ge pp_len pp_var) e
+      (pp_cblock pp_info pp_len pp_opn pp_var) c
 
-  | Cwhile(a, c, e, _, []) ->
-    F.fprintf fmt "@[<v>%awhile %a (%a)@]"
+  | Cwhile(a, c, e, ((iloc, _), info), []) ->
+    F.fprintf fmt "@[<v>%awhile %a %a(%a)@]"
       pp_align a
-      (pp_cblock pp_info pp_len pp_opn pp_var) c (pp_ge pp_len pp_var) e
+      (pp_cblock pp_info pp_len pp_opn pp_var) c
+      pp_info (iloc, info)
+      (pp_ge pp_len pp_var) e
 
-  | Cwhile(a, c, e, _, c') ->
-    F.fprintf fmt "@[<v>%awhile %a (%a) %a@]"
+  | Cwhile(a, c, e, ((iloc, _), info), c') ->
+    F.fprintf fmt "@[<v>%awhile %a %a(%a) %a@]"
       pp_align a
-      (pp_cblock pp_info pp_len pp_opn pp_var) c (pp_ge pp_len pp_var) e
+      (pp_cblock pp_info pp_len pp_opn pp_var) c
+      pp_info (iloc, info)
+      (pp_ge pp_len pp_var) e
       (pp_cblock pp_info pp_len pp_opn pp_var) c'
 
   | Ccall(x, f, e) ->
