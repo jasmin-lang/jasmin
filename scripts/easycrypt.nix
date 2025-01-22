@@ -8,7 +8,10 @@
 , fetchurl
 }:
 
-let why3_1_8 = why3.overrideAttrs (o: {
+let why3_1_8 = (why3.override {
+  ideSupport = false;
+  coqPackages = { coq = null; flocq = null; };
+  }).overrideAttrs (o: {
   name = "why3-1.8.0";
   version = "1.8.0";
   src = fetchurl {

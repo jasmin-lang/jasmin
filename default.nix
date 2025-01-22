@@ -19,11 +19,12 @@ let coqPackages =
   if coqMaster then
     pkgs.coqPackages.overrideScope (self: super: {
       coq = super.coq.override { version = "master"; };
+      stdlib = super.stdlib.override { version = "master"; };
       coq-elpi = callPackage scripts/coq-elpi.nix {
         version = "master";
-        inherit (self) lib mkCoqDerivation coq;
+        inherit (self) lib mkCoqDerivation coq stdlib;
       };
-      hierarchy-builder = super.hierarchy-builder.override { version = "1.7.0"; };
+      hierarchy-builder = super.hierarchy-builder.override { version = "master"; };
     })
   else coqPackages_8_19
 ; in
@@ -66,7 +67,7 @@ stdenv.mkDerivation {
          batteries
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ocaml-lsp ])
-    ++ optionals ecDeps [ easycrypt alt-ergo z3.out ]
+    ++ optionals ecDeps [ easycrypt alt-ergo.bin z3.out ]
     ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
 
