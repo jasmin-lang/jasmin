@@ -35,6 +35,9 @@
   therefore old intrinsic `#VPBLENDVB` is deprecated
   ([PR #1010](https://github.com/jasmin-lang/jasmin/pull/1010)).
 
+- Add an option to treat some pre-typing error as warning instead. 
+  ([PR #1023](https://github.com/jasmin-lang/jasmin/pull/1023))
+
 ## Bug fixes
 
 - Fix EasyCrypt semantics of shift operators
