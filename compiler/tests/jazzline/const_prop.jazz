@@ -1,0 +1,12 @@
+u16[10] jzetas = {2285, 2571, 2970, 1812, 1493, 1422, 287, 202, 3158, 622};
+
+
+export fn _test2 (reg ptr u16 [10] rp) -> (reg ptr u16 [10])
+{
+  inline int j;
+  for j = 0 to 10
+  {
+    rp[(int)j] = jzetas[(int)j];
+  }
+  return rp;
+}

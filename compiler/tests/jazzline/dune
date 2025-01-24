@@ -5,13 +5,13 @@
   (flags (:standard -rectypes))
   (modules common))
 
-; (tests
-;   (libraries jasmin.jasmin common_jazzline)
-;   (deps add4.jazz)
-;   (flags (:standard -rectypes))
-;   (modules add4)
-;   (names add4)
-; )
+ (tests
+   (libraries jasmin.jasmin common_jazzline)
+   (deps add4.jazz)
+   (flags (:standard -rectypes))
+   (modules add4)
+   (names add4)
+ )
 
 ; (tests
 ;   (libraries jasmin.jasmin common_jazzline)
@@ -20,6 +20,14 @@
 ;   (modules bool)
 ;   (names bool)
 ; )
+
+(tests
+  (libraries jasmin.jasmin common_jazzline)
+  (deps const_prop.jazz)
+  (flags (:standard -rectypes))
+  (modules const_prop)
+  (names const_prop)
+)
 
 (tests
   (libraries jasmin.jasmin common_jazzline)
@@ -61,13 +69,13 @@
   (names signed)
 )
 
-; (tests
-;   (libraries jasmin.jasmin common_jazzline)
-;   (deps test.jazz)
-;   (flags (:standard -rectypes))
-;   (modules test)
-;   (names test)
-; )
+ (tests
+   (libraries jasmin.jasmin common_jazzline)
+   (deps test.jazz)
+   (flags (:standard -rectypes))
+   (modules test)
+   (names test)
+ )
 
 (tests
   (libraries jasmin.jasmin common_jazzline)

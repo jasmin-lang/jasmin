@@ -790,7 +790,11 @@ module X86BaseOpU : BaseOp
         let e = I.gexp_to_atome x in
         let (_,ty) as x = I.mk_tmp_lval (CoreIdent.tu ws) in
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
-    | _ -> assert false
+    | _ ->
+      let msg =
+        Format.asprintf "Unsupport expression in %s translation for atome" S.error
+      in
+      hierror ~loc:Lnone ~kind:msg  "@[%a@]" (Printer.pp_expr ~debug:true) x
 
   let (!) e = I.mk_lval_atome e
 
@@ -889,8 +893,6 @@ module X86BaseOpU : BaseOp
     (*            CL.Instr.assert_ ([], [RPcmp(Rvar l, "=", (Rconst(64, Z.of_int 0)))]); *)
     (*            CL.Instr.assume ([Eeq(Ivar l, Iconst Z.zero)] ,[]); *)
     (*    ] *)
-
-
 
     | MUL ws ->
       let a1, i1 = cast_atome ws (List.nth es 0) in
@@ -1305,7 +1307,11 @@ module X86BaseOpS : BaseOp
         let e = I.gexp_to_atome x in
         let (_,ty) as x = I.mk_tmp_lval  (CoreIdent.tu ws) in
         CL.Instr.Avar x, [CL.Instr.cast ty x e]
-    | _ -> assert false
+    | _ ->
+      let msg =
+        Format.asprintf "Unsupport expression in %s translation for atome" S.error
+      in
+      hierror ~loc:Lnone ~kind:msg  "@[%a@]" (Printer.pp_expr ~debug:true) x
 
   let vpc_atome ws x =
     match x with

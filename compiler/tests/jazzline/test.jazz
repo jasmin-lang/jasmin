@@ -21,10 +21,10 @@ u16[128] jzetas = {2285, 2571, 2970, 1812, 1493, 1422, 287, 202, 3158, 622, 1577
                   2144, 1799, 2051, 794, 1819, 2475, 2459, 478, 3221, 3021, 996, 991, 958, 1869, 1522, 1628};
 
 
-fn _test2 (reg ptr u16 [10] rp) -> (reg ptr u16 [10])
+fn _test2 (reg ptr u16 [KYBER_N] rp) -> (reg ptr u16 [KYBER_N])
 {
   inline int j;
-  for j = 0 to 10
+  for j = 0 to KYBER_N
   {
     rp[(int)j] = jzetas[(int)j];
   }
@@ -53,7 +53,7 @@ ensures #[prover=cas] { mon(1, 10, 5) == mon(1,10,2) + mon(1,10,3) }
 
   a = a + 1;
   #[tran=default] c = a + b;
-  (d, e,c,rp) = _test2(c,b, rp);
+  rp = _test2(rp);
   #[tran=default]c = c + d;
   c = c + e;
   rp[2] = rp[2] + 1;
