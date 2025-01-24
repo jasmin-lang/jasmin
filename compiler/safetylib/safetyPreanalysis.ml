@@ -38,6 +38,7 @@ end = struct
     { f_decl with
       f_args = List.map (mk_v f_decl.f_name.fn_name) f_decl.f_args;
       f_body = mk_stmt f_decl.f_name.fn_name f_decl.f_body;
+      f_info = mk_info ();
       f_ret = List.map (mk_v_loc f_decl.f_name.fn_name) f_decl.f_ret }
 
   and mk_v fn v =
