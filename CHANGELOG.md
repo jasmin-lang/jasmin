@@ -48,6 +48,10 @@
   flow-sensitive type
   ([PR #990](https://github.com/jasmin-lang/jasmin/pull/990)).
 
+- Functions can carry information (`'info` type) in a new `f_info` field
+  ([PR #1021](https://github.com/jasmin-lang/jasmin/issues/1021);
+  fixes [PR #1016](https://github.com/jasmin-lang/jasmin/issues/1016)).
+
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features

@@ -89,8 +89,8 @@ and live_c weak c s_o =
 
 let live_fd weak fd =
   let s_o = Sv.of_list (List.map L.unloc fd.f_ret) in
-  let _, c = live_c weak fd.f_body s_o in
-  { fd with f_body = c }
+  let s_i, c = live_c weak fd.f_body s_o in
+  { fd with f_body = c; f_info = (s_i, s_o) }
 
 let liveness weak prog =
   let fds = List.map (live_fd weak) (snd prog) in

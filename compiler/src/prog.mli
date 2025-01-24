@@ -79,6 +79,7 @@ and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: FInfo.f_annot;
+    f_info : 'info;
     f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;

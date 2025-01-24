@@ -248,6 +248,7 @@ let fdef_of_cufdef (fn, fd) =
   { f_loc;
     f_annot;
     f_cc;
+    f_info = ();
     f_name = fn;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
     f_args = List.map (fun v -> L.unloc (vari_of_cvari v)) fd.C.f_params;
