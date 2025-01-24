@@ -51,6 +51,9 @@
 
 ## Other changes
 
+- Adding an annotation to function (`'info` type). Useful to store result of analysis. (see [[#1016](https://github.com/jasmin-lang/jasmin/issues/1016)])
+- ([PR#1021](https://github.com/jasmin-lang/jasmin/issues/1021))
+
 - The deprecated legacy interface to the LATEX pretty-printer has been removed
   ([PR #869](https://github.com/jasmin-lang/jasmin/pull/869)).
 
