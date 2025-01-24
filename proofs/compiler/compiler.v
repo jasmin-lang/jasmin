@@ -476,7 +476,7 @@ Definition compiler_CL (to_keep: seq funname) (p:prog) : cexec uprog :=
 
   Let p := inlining to_keep p in
 
-  Let p := unroll_loop (ap_is_move_op aparams) false p in
+  Let p := unroll_loop (ap_is_move_op aparams) true p in
   let p := cparams.(print_uprog) Unrolling p in
 
   Let pv := live_range_splitting p in

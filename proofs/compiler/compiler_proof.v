@@ -1345,7 +1345,7 @@ Lemma dead_code_sig_preserved p p' b fn fd :
 Proof.
   rewrite /dead_code_prog => hch hget.
   assert (h := dead_code_proof.sig_preserved hch hget).
-  by case: h => fd' [h1 h2]; exists fd'.
+  by case: h => fd' h1 h2; exists fd'.
 Qed.
 
 Lemma post_process_sig_preserved p p' cl fn fd:
