@@ -27,6 +27,12 @@ a.out
 .DS_Store
 test_jasmin.rs
 
+# Code editor config directories
+.vscode
+.vscode/*
+.idea
+.idea/*
+
 Makefile.coq
 Makefile.coq.bak
 Makefile.coq.conf
