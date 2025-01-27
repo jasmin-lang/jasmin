@@ -408,8 +408,12 @@ type warning =
   | Deprecated
   | Experimental
   | Always
+  | PedanticPretyping
 
 let warns = ref None
+let warn_recoverable = ref false
+
+let set_warn_recoverable b = warn_recoverable := b
 
 let add_warning (w:warning) () = 
   match !warns with
@@ -420,6 +424,7 @@ let add_warning (w:warning) () =
 
 let nowarning () = warns := Some []
 
+
 let to_warn w = 
   match !warns with
   | None -> true
@@ -427,11 +432,18 @@ let to_warn w =
 
 let warning (w:warning) loc =
   Format.kdprintf (fun pp ->
-    if to_warn w then
-      let pp_warning fmt = pp_print_bold_magenta pp_string fmt "warning" in
-      let pp_iloc fmt d =
-        if not (Location.isdummy d.Location.base_loc) then
-          Format.fprintf fmt "%a@ " (pp_print_bold Location.pp_iloc) d in
-      Format.eprintf "@[<v>%a%t: %t@]@."
-        pp_iloc loc
-        pp_warning pp)
+    match w with 
+    | PedanticPretyping when not !warn_recoverable -> 
+      hierror ~loc:(Lmore loc) ~kind:"typing error"
+        "%t" pp
+    | _ ->
+      if to_warn w then
+        let pp_warning fmt = pp_print_bold_magenta pp_string fmt "warning" in
+        let pp_iloc fmt d =
+          if not (Location.isdummy d.Location.base_loc) then
+            Format.fprintf fmt "%a@ " (pp_print_bold Location.pp_iloc) d in
+        Format.eprintf "@[<v>%a%t: %t@]@."
+          pp_iloc loc
+          pp_warning pp
+    )
+        

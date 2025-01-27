@@ -180,7 +180,9 @@ type warning =
   | Deprecated
   | Experimental
   | Always
+  | PedanticPretyping
 
+val set_warn_recoverable : bool -> unit
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit 
 val warning :

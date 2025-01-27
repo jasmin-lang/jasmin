@@ -52,6 +52,9 @@
   ([PR #1021](https://github.com/jasmin-lang/jasmin/issues/1021);
   fixes [PR #1016](https://github.com/jasmin-lang/jasmin/issues/1016)).
 
+- Add an option to treat some pre-typing error as a warning instead
+  ([PR #1023](https://github.com/jasmin-lang/jasmin/pull/1023)).
+
 # Jasmin 2024.07.2 — Nancy, 2024-11-21
 
 ## New features

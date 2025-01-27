@@ -46,7 +46,6 @@ type tyerror =
   | UnknownPrim of A.symbol * string
   | PrimWrongSuffix of A.symbol * Sopn.prim_x86_suffix list
   | PtrOnlyForArray
-  | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -205,9 +204,6 @@ let pp_tyerror fmt (code : tyerror) =
 
   | PtrOnlyForArray -> 
     F.fprintf fmt "Pointer allowed only on array"
-
-  | WriteToConstantPointer v ->
-    F.fprintf fmt "Cannot write to the constant pointer %s" v
 
   | PackSigned ->
     F.fprintf fmt "packs should be unsigned"
@@ -1287,7 +1283,7 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
   let reject_constant_pointers loc x =
     match x.P.v_kind with
     | Stack (Pointer Constant) | Reg (_, Pointer Constant) ->
-       rs_tyerror ~loc (WriteToConstantPointer x.P.v_name)
+       warning PedanticPretyping (L.i_loc0 loc) "Cannot write to the constant pointer %s" x.P.v_name
     | _ -> ()
   in
 
@@ -1723,7 +1719,7 @@ let mk_call loc inline lvs f es =
     let rec check_e = function
       | Pvar _ | Psub _ -> ()
       | Pif (_, _, e1, e2) -> check_e e1; check_e e2
-      | _ -> rs_tyerror ~loc (string_error "only variables and subarray are allowed in arguments of non-inlined function") in
+      | _ -> warning PedanticPretyping (L.i_loc0 loc)  "only variables and subarray are allowed in arguments of non-inlined function" in
     List.iter check_lval lvs;
     List.iter check_e es
   | Subroutine _ -> ()
@@ -1990,10 +1986,10 @@ let tt_call_conv _loc params returns cc =
   | Some `Export | None ->
     let check s x =
       if not (P.is_reg_kind (L.unloc x).P.v_kind) then 
-        rs_tyerror ~loc:(L.loc x) 
-          (string_error "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
+        warning PedanticPretyping (L.i_loc0 (L.loc x))
+          "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
-            PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
+            PrintCommon.pp_kind (L.unloc x).P.v_kind s in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
     let returned_params =
