@@ -228,23 +228,8 @@ and pp_arr_access fmt al aa ws x e len=
     pp_aligned (Option.bind len (fun _ -> al))
     (pp_opt pp_ws) ws (pp_opt pp_space) ws pp_expr e pp_olen len
 
-let pp_writable = function
-  | Some `Constant -> " const"
-  | Some `Writable -> " mut"
-  | None  -> ""
-
-let pp_pointer = function
-  | `Pointer w-> pp_writable w ^ " ptr"
-  | `Direct  -> ""
-  
-  
 let pp_storage fmt s =
-  latex "storageclass" fmt
-    (match s with
-     | `Reg(ptr) -> "reg" ^ (pp_pointer ptr)
-     | `Stack ptr -> "stack" ^ (pp_pointer ptr)
-     | `Inline -> "inline"
-     | `Global -> "global")
+    latex "storageclass" fmt (pp_storage s)
 
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty

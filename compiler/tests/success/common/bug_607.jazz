@@ -1,4 +1,4 @@
-fn f(reg ptr u64[1] a, reg u64 x) -> stack u64[1], reg u64 {
+fn f(reg ptr u64[1] a, reg u64 x) -> reg ptr u64[1], reg u64 {
     stack ptr u64[1] s;
     s = a;
     a = s;
