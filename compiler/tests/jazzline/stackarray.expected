@@ -1,0 +1,14 @@
+proc f(y_160@uint64, x_135@uint64) =
+{
+ true && true
+}
+mov t_0_155@uint64 x_135@uint64;
+mov t_1_156@uint64 x_135@uint64;
+mov t_2_157@uint64 x_135@uint64;
+adds NONE_____171@uint1 y_158@uint64 y_136@uint64 t_0_155@uint64;
+adds NONE_____172@uint1 y_159@uint64 y_158@uint64 t_1_156@uint64;
+adds NONE_____173@uint1 y_160@uint64 y_159@uint64 t_2_157@uint64;
+{
+ true && true
+}
+ 

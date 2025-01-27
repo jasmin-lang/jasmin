@@ -1,0 +1,24 @@
+proc _test2(rp_9_163@uint16, rp_8_162@uint16, rp_7_161@uint16,
+            rp_6_160@uint16, rp_5_159@uint16, rp_4_158@uint16,
+            rp_3_157@uint16, rp_2_156@uint16, rp_1_155@uint16,
+            rp_0_154@uint16, rp_0_144@uint16, rp_1_145@uint16,
+            rp_2_146@uint16, rp_3_147@uint16, rp_4_148@uint16,
+            rp_5_149@uint16, rp_6_150@uint16, rp_7_151@uint16,
+            rp_8_152@uint16, rp_9_153@uint16) =
+{
+ true && true
+}
+mov rp_0_154@uint16 (2285)@uint16;
+mov rp_1_155@uint16 (2571)@uint16;
+mov rp_2_156@uint16 (2970)@uint16;
+mov rp_3_157@uint16 (1812)@uint16;
+mov rp_4_158@uint16 (1493)@uint16;
+mov rp_5_159@uint16 (1422)@uint16;
+mov rp_6_160@uint16 (287)@uint16;
+mov rp_7_161@uint16 (202)@uint16;
+mov rp_8_162@uint16 (3158)@uint16;
+mov rp_9_163@uint16 (622)@uint16;
+{
+ true && true
+}
+ 

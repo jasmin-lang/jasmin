@@ -1,0 +1,36 @@
+proc _test(X_1_238@bit, rp_2_224@uint16, a_220@uint64, rp_2_227@uint16,
+           rp_1_223@uint16, rp_0_222@uint16, c_226@uint64, a_167@uint64,
+           b_168@uint64, rp_0_193@uint16, rp_1_194@uint16, rp_2_195@uint16) =
+{
+ /\[(a_167 = (1)), (a_167 = (1))] &&
+   /\[(a_167@uint64 = (const 64 (1))), (a_167@uint64 = (const 64 (1))),
+   /\[(rp_0_193@uint16 = (const 16 (1))),
+   (rp_1_194@uint16 = (const 16 (1)))]]
+}
+assert true && (rp_0_193@uint16 = (const 16 (1)));
+adds TMP_____239@uint1 a_220@uint64 (1)@uint64 a_167@uint64;
+adds NONE_____240@uint1 c_221@uint64 a_220@uint64 b_168@uint64;
+adds NONE_____241@uint1 c_225@uint64 c_221@uint64 d_171@uint64;
+adds NONE_____242@uint1 c_226@uint64 c_225@uint64 e_172@uint64;
+adds TMP_____243@uint1 rp_2_227@uint16 (1)@uint16 rp_2_224@uint16;
+{
+ /\[(((5) * (X_1_238 ** (10))) = (((2) * (X_1_238 ** (10))) + ((3) * (X_1_238 ** (10)))))] &&
+   /\[(c_226@uint64 = (a_167@uint64 + b_168@uint64)),
+   (a_220@uint64 = (a_167@uint64 + b_168@uint64)),
+   (a_220@uint64 = (a_167@uint64 + (const 64 (2)))),
+   /\[/\[(rp_2_195@uint16 = (const 16 (1))),
+   (rp_2_227@uint16 = (const 16 (1)))], (rp_2_227@uint16 = rp_2_195@uint16)],
+   (c_226@uint64 = (const 64 (2)))]
+}
+ proc _test2(rp_2_310@uint16, rp_1_309@uint16, rp_0_308@uint16,
+            rp_0_305@uint16, rp_1_306@uint16, rp_2_307@uint16) =
+{
+ true && true
+}
+mov rp_0_308@uint16 (2285)@uint16;
+mov rp_1_309@uint16 (2571)@uint16;
+mov rp_2_310@uint16 (2970)@uint16;
+{
+ true && true
+}
+ 

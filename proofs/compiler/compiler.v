@@ -481,7 +481,7 @@ Definition compiler_CL (to_keep: seq funname) (p:prog) : cexec uprog :=
 
   Let pv := live_range_splitting p in
 
-  let pr := remove_init_prog is_reg_array pv in
+  let pr := remove_init_prog (fun _ => true) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
   Let pa := makereference_prog (fresh_var_ident cparams (Reg (Normal, Pointer Writable))) pr in

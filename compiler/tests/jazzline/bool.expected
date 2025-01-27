@@ -1,0 +1,11 @@
+proc _bool(r_152@uint64, a_137@uint64) =
+{
+ true && true
+}
+adds cf_151@uint1 r_152@uint64 a_137@uint64 (1)@uint64;
+assert true && (cf_151@uint1 = (const 1 (1)));
+assert /\[(cf_151 = (1))] && true;
+{
+ true && (r_152@uint64 = a_137@uint64)
+}
+ 

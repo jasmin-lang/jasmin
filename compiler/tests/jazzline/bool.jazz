@@ -1,9 +1,12 @@
+abstract predicate int b2i (bool);
+
 fn _bool(reg u64 a) -> reg u64
+ensures #[prover=smt] {result.0 == a}
 {
 reg u64 r;
 reg bool cf;
 cf, r = a + 1;
 #[kind=Assert, prover=smt] assert ( cf == true);
-#[kind=Assert, prover=cas] assert ( cf == true);
+#[kind=Assert, prover=cas] assert ( b2i(cf) == 1);
 return r;
 }

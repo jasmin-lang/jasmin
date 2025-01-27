@@ -8,23 +8,33 @@ assert true && (z_186@uint64 = ((const 64 (2)) * y_170@uint64));
 {
  true && true
 }
- proc mul4(y_272@uint64, y_273@uint64, y1_239@uint64) =
+ proc mul2(z_257@uint64, x_241@uint64, y_242@uint64) =
+{
+ /\[(x_241 = (0))] && true
+}
+assert true && (x_241@uint64 = (const 64 (2)));
+mull TMP_____258@uint64 z_257@uint64 x_241@uint64 y_242@uint64;
+assert true && (z_257@uint64 = ((const 64 (2)) * y_242@uint64));
+{
+ /\[(z_257 = (0))] && true
+}
+ proc mul4(y_333@uint64, y_334@uint64, y1_300@uint64) =
 {
  true && true
 }
-mov x_268@uint64 (2)@uint64;
-assert true && (x_268@uint64 = (const 64 (2)));
-mull TMP_____274@uint64 y_269@uint64 x_268@uint64 y1_239@uint64;
-assert true && (y_269@uint64 = ((const 64 (2)) * y1_239@uint64));
-mov x_270@uint64 (2)@uint64;
-assert true && (x_270@uint64 = (const 64 (2)));
-mull TMP_____275@uint64 y_271@uint64 x_270@uint64 y_269@uint64;
-assert true && (y_271@uint64 = ((const 64 (2)) * y_269@uint64));
-assert /\[(y_271 = (0))] && true;
-assume /\[(y_272 = (0))] && true;
-assert /\[(y_272 = (0))] && true;
-assume /\[(y_273 = (0))] && true;
-assert true && (y_273@uint64 = ((const 64 (4)) * y1_239@uint64));
+mov x_329@uint64 (2)@uint64;
+assert true && (x_329@uint64 = (const 64 (2)));
+mull TMP_____335@uint64 y_330@uint64 x_329@uint64 y1_300@uint64;
+assert true && (y_330@uint64 = ((const 64 (2)) * y1_300@uint64));
+mov x_331@uint64 (2)@uint64;
+assert true && (x_331@uint64 = (const 64 (2)));
+mull TMP_____336@uint64 y_332@uint64 x_331@uint64 y_330@uint64;
+assert true && (y_332@uint64 = ((const 64 (2)) * y_330@uint64));
+assert /\[(y_332 = (0))] && true;
+assume /\[(y_333 = (0))] && true;
+assert /\[(y_333 = (0))] && true;
+assume /\[(y_334 = (0))] && true;
+assert true && (y_334@uint64 = ((const 64 (4)) * y1_300@uint64));
 {
  true && true
 }

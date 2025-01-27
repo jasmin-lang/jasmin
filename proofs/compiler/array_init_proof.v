@@ -274,11 +274,11 @@ End REMOVE_INIT.
 
 End Section.
 
-Lemma remove_init_fdPu is_reg_array (p : uprog) ev f scs mem scs' mem' va va' vr tr :
+Lemma remove_init_fdPu m (p : uprog) ev f scs mem scs' mem' va va' vr tr :
    List.Forall2 value_uincl va va' ->
    sem_call p ev scs mem f va scs' mem' vr tr ->
    exists vr' : seq value,
-     sem_call (remove_init_prog is_reg_array p) ev scs mem f va' scs' mem' vr' tr /\ List.Forall2 value_uincl vr vr'.
+     sem_call (remove_init_prog m p) ev scs mem f va' scs' mem' vr' tr /\ List.Forall2 value_uincl vr vr'.
 Proof. apply remove_init_fdP; apply wf_initu. Qed.
 
 Lemma remove_init_fdPs is_reg_array (p : sprog) ev f scs mem scs' mem' va va' vr tr :

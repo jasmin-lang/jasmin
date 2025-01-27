@@ -1404,14 +1404,14 @@ Proof.
 Qed.
 
 Lemma remove_init_sig_preserved p fn fd :
-  let p' := remove_init_prog is_reg_array p in
+  let p' := remove_init_prog (fun _ => true) p in
   get_fundef (p_funcs p) fn = Some fd ->
   exists2 fd', get_fundef (p_funcs p') fn = Some fd' & f_tyin fd = f_tyin fd'.
 Proof.
   move=> p' hget.
-  have hget' : get_fundef (p_funcs p') fn = Some (remove_init_fd is_reg_array fd).
+  have hget' : get_fundef (p_funcs p') fn = Some (remove_init_fd (fun _ => true) fd).
   + by rewrite /p' get_map_prog hget.
-  by exists (remove_init_fd is_reg_array fd).
+  by exists (remove_init_fd (fun _ => true) fd).
 Qed.
 
 Lemma remove_glob_sig_preserved p p' fn fd :
@@ -1502,7 +1502,7 @@ Proof.
   have [vr2 hu2 {}hexec {ok_inl}]:= inliningP ok_inl fn_ok hexec.
   have [vr3 [{}hexec hu3 {ok_unr}]] := unrollP ok_unr hexec va_refl.
   have [vr4 hu4 {}hexec {ok_lr1}]:= live_range_splittingP ok_lr1 hexec.
-  have /(_ is_reg_array) [vr5 [{}hexec hu5]]:= remove_init_fdPu _ va_refl hexec.
+  have /(_ (fun _ => true)) [vr5 [{}hexec hu5]] := remove_init_fdPu _ va_refl hexec.
   have {hexec ok_mref}hexec := makeReferenceArguments_callP (siparams := sip_of_asm_e) ok_mref hexec.
   have [vr6 hu6 {}hexec]:= indirect_to_direct hexec.
   have [vr7 {}hexec] := hsem _ _ _ _ _ _ _ hexec _ hvargs'.

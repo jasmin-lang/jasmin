@@ -1,0 +1,24 @@
+proc f(x_178@uint64, x_135@uint64) =
+{
+ true && true
+}
+mov t_0_164@uint64 x_135@uint64;
+mov t_1_165@uint64 x_135@uint64;
+mov t_2_166@uint64 x_135@uint64;
+assert true &&
+         /\[/\[(t_0_164@uint64 = x_135@uint64),
+         (t_1_165@uint64 = x_135@uint64)], (t_2_166@uint64 = x_135@uint64)];
+mov t_1_168@uint64 t_1_165@uint64;
+mov t1_1_170@uint64 t_1_168@uint64;
+mov t1_0_171@uint64 (1)@uint64;
+mov t1_0_172@uint64 t1_0_171@uint64;
+mov t1_1_173@uint64 t1_1_170@uint64;
+mov t_0_174@uint64 t1_0_172@uint64;
+mov t_1_175@uint64 t1_1_173@uint64;
+adds NONE_____189@uint1 x_176@uint64 x_135@uint64 t_0_174@uint64;
+adds NONE_____190@uint1 x_177@uint64 x_176@uint64 t_1_175@uint64;
+adds NONE_____191@uint1 x_178@uint64 x_177@uint64 t_2_166@uint64;
+{
+ true && true
+}
+ 

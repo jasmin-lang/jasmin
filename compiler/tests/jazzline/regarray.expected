@@ -1,13 +1,13 @@
-proc f(x_158@uint64, x_133@uint64) =
+proc f(x_157@uint64, x_133@uint64) =
 {
  true && true
 }
-mov t_0_153@uint64 x_133@uint64;
-mov t_1_154@uint64 x_133@uint64;
-mov t_2_155@uint64 x_133@uint64;
-adds NONE_____169@uint1 x_156@uint64 x_133@uint64 t_0_153@uint64;
-adds NONE_____170@uint1 x_157@uint64 x_156@uint64 t_1_154@uint64;
-adds NONE_____171@uint1 x_158@uint64 x_157@uint64 t_2_155@uint64;
+mov t_0_152@uint64 x_133@uint64;
+mov t_1_153@uint64 x_133@uint64;
+mov t_2_154@uint64 x_133@uint64;
+adds NONE_____168@uint1 x_155@uint64 x_133@uint64 t_0_152@uint64;
+adds NONE_____169@uint1 x_156@uint64 x_155@uint64 t_1_153@uint64;
+adds NONE_____170@uint1 x_157@uint64 x_156@uint64 t_2_154@uint64;
 {
  true && true
 }

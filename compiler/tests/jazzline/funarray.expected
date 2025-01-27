@@ -10,22 +10,22 @@ mov t_3_184@uint64 (3)@uint64;
 {
  true && (t_0_181@uint64 = t_0_161@uint64)
 }
- proc f(t_3_279@uint64, t_2_278@uint64, t_1_277@uint64, t_0_276@uint64,
-       r_284@uint64) =
+ proc f(t_3_278@uint64, t_2_277@uint64, t_1_276@uint64, t_0_275@uint64,
+       r_283@uint64) =
 {
  true && true
 }
-mov t_0_272@uint64 (0)@uint64;
-mov t_1_273@uint64 (0)@uint64;
-mov t_2_274@uint64 (0)@uint64;
-mov t_3_275@uint64 (0)@uint64;
-assert true && ((const 64 (0)) = t_0_272@uint64);
-assume true && (t_0_276@uint64 = t_0_272@uint64);
-mov r_280@uint64 (0)@uint64;
-adds NONE_____285@uint1 r_281@uint64 r_280@uint64 t_0_276@uint64;
-adds NONE_____286@uint1 r_282@uint64 r_281@uint64 t_1_277@uint64;
-adds NONE_____287@uint1 r_283@uint64 r_282@uint64 t_2_278@uint64;
-adds NONE_____288@uint1 r_284@uint64 r_283@uint64 t_3_279@uint64;
+mov t_0_271@uint64 (0)@uint64;
+mov t_1_272@uint64 (0)@uint64;
+mov t_2_273@uint64 (0)@uint64;
+mov t_3_274@uint64 (0)@uint64;
+assert true && ((const 64 (0)) = t_0_271@uint64);
+assume true && (t_0_275@uint64 = t_0_271@uint64);
+mov r_279@uint64 (0)@uint64;
+adds NONE_____284@uint1 r_280@uint64 r_279@uint64 t_0_275@uint64;
+adds NONE_____285@uint1 r_281@uint64 r_280@uint64 t_1_276@uint64;
+adds NONE_____286@uint1 r_282@uint64 r_281@uint64 t_2_277@uint64;
+adds NONE_____287@uint1 r_283@uint64 r_282@uint64 t_3_278@uint64;
 {
  true && true
 }

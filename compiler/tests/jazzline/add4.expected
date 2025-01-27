@@ -1,0 +1,60 @@
+proc __add4_rrs(h_3_267@uint64, h_2_265@uint64, h_1_263@uint64,
+                h_0_270@uint64, f_0_206@uint64, f_1_207@uint64,
+                f_2_208@uint64, f_3_209@uint64, g_0_210@uint64,
+                g_1_211@uint64, g_2_212@uint64, g_3_213@uint64) =
+{
+ true && true
+}
+mov h_0_246@uint64 f_0_206@uint64;
+mov h_1_247@uint64 f_1_207@uint64;
+mov h_2_248@uint64 f_2_208@uint64;
+mov h_3_249@uint64 f_3_209@uint64;
+adds cf_250@uint1 h_0_251@uint64 h_0_246@uint64 g_0_210@uint64;
+adcs cf_252@uint1 h_1_253@uint64 h_1_247@uint64 g_1_211@uint64 cf_250@uint1;
+adcs cf_254@uint1 h_2_255@uint64 h_2_248@uint64 g_2_212@uint64 cf_252@uint1;
+adcs cf_256@uint1 h_3_257@uint64 h_3_249@uint64 g_3_213@uint64 cf_254@uint1;
+sbbs NONE_____281@uint1 z_258@uint64 z_182@uint64 z_182@uint64 cf_256@uint1;
+and z_259@uint64 z_258@uint64 (38)@uint64;
+adds cf_260@uint1 h_0_261@uint64 h_0_251@uint64 z_259@uint64;
+adcs cf_262@uint1 h_1_263@uint64 h_1_253@uint64 (0)@uint64 cf_260@uint1;
+adcs cf_264@uint1 h_2_265@uint64 h_2_255@uint64 (0)@uint64 cf_262@uint1;
+adcs cf_266@uint1 h_3_267@uint64 h_3_257@uint64 (0)@uint64 cf_264@uint1;
+sbbs NONE_____282@uint1 z_268@uint64 z_259@uint64 z_259@uint64 cf_266@uint1;
+and z_269@uint64 z_268@uint64 (38)@uint64;
+adds NONE_____283@uint1 h_0_270@uint64 h_0_261@uint64 z_269@uint64;
+{
+ /\[(((2) ** (64)) = (0) (mod [(238)]))] && true
+}
+ proc add4(h_3_411@uint64, h_2_409@uint64, h_1_407@uint64, h_0_415@uint64,
+          f_0_369@uint64, f_1_370@uint64, f_2_371@uint64, f_3_372@uint64,
+          g_0_373@uint64, g_1_374@uint64, g_2_375@uint64, g_3_376@uint64) =
+{
+ true && true
+}
+clear _of__385@uint1;
+clear _cf__386@uint1;
+clear _sf__387@uint1;
+clear NONE_____416@uint1;
+clear _zf__388@uint1;
+mov z_389@uint64 (0)@uint64;
+mov h_0_390@uint64 f_0_369@uint64;
+mov h_1_391@uint64 f_1_370@uint64;
+mov h_2_392@uint64 f_2_371@uint64;
+mov h_3_393@uint64 f_3_372@uint64;
+adds cf_394@uint1 h_0_395@uint64 h_0_390@uint64 g_0_373@uint64;
+adcs cf_396@uint1 h_1_397@uint64 h_1_391@uint64 g_1_374@uint64 cf_394@uint1;
+adcs cf_398@uint1 h_2_399@uint64 h_2_392@uint64 g_2_375@uint64 cf_396@uint1;
+adcs cf_400@uint1 h_3_401@uint64 h_3_393@uint64 g_3_376@uint64 cf_398@uint1;
+sbbs NONE_____417@uint1 z_402@uint64 z_389@uint64 z_389@uint64 cf_400@uint1;
+and z_403@uint64 z_402@uint64 (38)@uint64;
+adds cf_404@uint1 h_0_405@uint64 h_0_395@uint64 z_403@uint64;
+adcs cf_406@uint1 h_1_407@uint64 h_1_397@uint64 (0)@uint64 cf_404@uint1;
+adcs cf_408@uint1 h_2_409@uint64 h_2_399@uint64 (0)@uint64 cf_406@uint1;
+adcs cf_410@uint1 h_3_411@uint64 h_3_401@uint64 (0)@uint64 cf_408@uint1;
+sbbs NONE_____418@uint1 z_412@uint64 z_403@uint64 z_403@uint64 cf_410@uint1;
+and z_413@uint64 z_412@uint64 (38)@uint64;
+adds cf_414@uint1 h_0_415@uint64 h_0_405@uint64 z_413@uint64;
+{
+ true && true
+}
+ 
