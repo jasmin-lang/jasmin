@@ -1,0 +1,8 @@
+inline fn sum (stack u64[2] a) -> stack u64 {
+  reg u64 r;
+  
+  r = a[0];
+  r += a[1];
+    
+  return r;
+}

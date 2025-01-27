@@ -28,6 +28,7 @@ type tyerror =
   | InvalidOperator     of sop
   | NoReturnStatement   of P.funname * int
   | InvalidReturnStatement of P.funname * int * int
+  | InvalidSignatureStorage of P.funname * S.pstorage * A.symbol * W.v_kind 
   | InvalidArgCount     of int * int
   | InvalidLvalCount    of int * int
   | DuplicateFun        of A.symbol * L.t
@@ -148,6 +149,13 @@ let pp_tyerror fmt (code : tyerror) =
 
   | InvalidReturnStatement (name, given, expected) ->
       F.fprintf fmt "return statement of function %s has %d values instead of %d (as claimed by the signature)" name.P.fn_name given expected
+  
+  | InvalidSignatureStorage   (fname, sto, var_name, var_kind) -> 
+      F.fprintf fmt "In function '%s' return statement variable `%s` has storage type '%a' , which differ from declared return storage type '%a'"
+        fname.P.fn_name 
+        var_name 
+        PrintCommon.pp_kind var_kind
+        S.pp_storage sto
 
   | InvalidArgCount (n1, n2) ->
       F.fprintf fmt
@@ -664,6 +672,23 @@ let check_return_statement ~loc name (declared : P.pty list) (given : (L.t * P.p
   List.iter2
     (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
     declared given
+
+let check_return_storage ~loc fname (sto_list:S.pstorage list) (retvar_list: 'len P.gvar_i list) = 
+  List.iter (
+    fun (x,y:(S.pstorage*'len P.gvar_i)) -> 
+      match x,(L.unloc y).v_kind with
+      | `Inline, W.Inline -> ()
+      | `Global, W.Global -> ()
+      | `Reg ptr, W.Reg (_, ref) | `Stack ptr, W.Stack ref -> (
+        match ptr,ref with 
+        | `Pointer (Some `Writable), W.Pointer W.Writable -> ()
+        | `Pointer (Some `Constant), W.Pointer W.Constant -> ()
+        | `Pointer None, W.Pointer _ -> ()
+        | `Direct, W.Direct -> ()
+        | _ -> rs_tyerror ~loc (InvalidSignatureStorage(fname, x, (L.unloc y).v_name,(L.unloc y).v_kind))
+      )
+      | _ -> rs_tyerror ~loc (InvalidSignatureStorage(fname, x, (L.unloc y).v_name,(L.unloc y).v_kind))
+  ) (List.combine sto_list retvar_list)
 
 (* -------------------------------------------------------------------- *)
 let check_sig_lvs loc sig_ lvs =
@@ -2178,9 +2203,12 @@ let tt_fundef arch_info (env0 : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.en
 
   check_return_statement ~loc fdef.P.f_name rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
-  
+
   warn_unused_variables envb fdef;
 
+  let return_storage : S.pstorage list = Option.map_default (List.map (fst |- snd)) [] pf.pdf_rty in
+  check_return_storage ~loc fdef.P.f_name return_storage xret;
+  
   Env.Funs.push env0 fdef rty
 
 (* -------------------------------------------------------------------- *)
